@@ -15,63 +15,14 @@ package servicebus
 
 import (
 	"encoding/base64"
-	"fmt"
 	"net/http"
 	"strconv"
-	"time"
 
 	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	"github.com/google/uuid"
 
-	contribMetadata "github.com/dapr/components-contrib/metadata"
+	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
 	"github.com/dapr/components-contrib/pubsub"
-)
-
-const (
-	// MessageIDMetadataKey defines the metadata key for the message id.
-	MessageIDMetadataKey = "MessageId" // read, write.
-
-	// CorrelationIDMetadataKey defines the metadata key for the correlation id.
-	CorrelationIDMetadataKey = "CorrelationId" // read, write.
-
-	// SessionIDMetadataKey defines the metadata key for the session id.
-	SessionIDMetadataKey = "SessionId" // read, write.
-
-	// LabelMetadataKey defines the metadata key for the label.
-	LabelMetadataKey = "Label" // read, write.
-
-	// ReplyToMetadataKey defines the metadata key for the reply to value.
-	ReplyToMetadataKey = "ReplyTo" // read, write.
-
-	// ToMetadataKey defines the metadata key for the to value.
-	ToMetadataKey = "To" // read, write.
-
-	// PartitionKeyMetadataKey defines the metadata key for the partition key.
-	PartitionKeyMetadataKey = "PartitionKey" // read, write.
-
-	// ContentTypeMetadataKey defines the metadata key for the content type.
-	ContentTypeMetadataKey = "ContentType" // read, write.
-
-	// DeliveryCountMetadataKey defines the metadata key for the delivery count.
-	DeliveryCountMetadataKey = "DeliveryCount" // read.
-
-	// LockedUntilUtcMetadataKey defines the metadata key for the locked until utc value.
-	LockedUntilUtcMetadataKey = "LockedUntilUtc" // read.
-
-	// LockTokenMetadataKey defines the metadata key for the lock token.
-	LockTokenMetadataKey = "LockToken" // read.
-
-	// EnqueuedTimeUtcMetadataKey defines the metadata key for the enqueued time utc value.
-	EnqueuedTimeUtcMetadataKey = "EnqueuedTimeUtc" // read.
-
-	// SequenceNumberMetadataKey defines the metadata key for the sequence number.
-	SequenceNumberMetadataKey = "SequenceNumber" // read.
-
-	// ScheduledEnqueueTimeUtcMetadataKey defines the metadata key for the scheduled enqueue time utc value.
-	ScheduledEnqueueTimeUtcMetadataKey = "ScheduledEnqueueTimeUtc" // read, write.
-
-	// ReplyToSessionID defines the metadata key for the reply to session id.
-	ReplyToSessionID = "ReplyToSessionId" // read, write.
 )
 
 func NewPubsubMessageFromASBMessage(asbMsg *azservicebus.ReceivedMessage, topic string) (*pubsub.NewMessage, error) {
@@ -111,142 +62,60 @@ func addMessageAttributesToMetadata(metadata map[string]string, asbMsg *azservic
 	}
 
 	if asbMsg.MessageID != "" {
-		addToMetadata(metadata, MessageIDMetadataKey, asbMsg.MessageID)
+		addToMetadata(metadata, impl.MessageKeyMessageID, asbMsg.MessageID)
 	}
 	if asbMsg.SessionID != nil {
-		addToMetadata(metadata, SessionIDMetadataKey, *asbMsg.SessionID)
+		addToMetadata(metadata, impl.MessageKeySessionID, *asbMsg.SessionID)
 	}
 	if asbMsg.CorrelationID != nil && *asbMsg.CorrelationID != "" {
-		addToMetadata(metadata, CorrelationIDMetadataKey, *asbMsg.CorrelationID)
+		addToMetadata(metadata, impl.MessageKeyCorrelationID, *asbMsg.CorrelationID)
 	}
 	if asbMsg.Subject != nil && *asbMsg.Subject != "" {
-		addToMetadata(metadata, LabelMetadataKey, *asbMsg.Subject)
+		addToMetadata(metadata, impl.MessageKeyLabel, *asbMsg.Subject)
 	}
 	if asbMsg.ReplyTo != nil && *asbMsg.ReplyTo != "" {
-		addToMetadata(metadata, ReplyToMetadataKey, *asbMsg.ReplyTo)
+		addToMetadata(metadata, impl.MessageKeyReplyTo, *asbMsg.ReplyTo)
 	}
 	if asbMsg.To != nil && *asbMsg.To != "" {
-		addToMetadata(metadata, ToMetadataKey, *asbMsg.To)
+		addToMetadata(metadata, impl.MessageKeyTo, *asbMsg.To)
 	}
 	if asbMsg.ContentType != nil && *asbMsg.ContentType != "" {
-		addToMetadata(metadata, ContentTypeMetadataKey, *asbMsg.ContentType)
+		addToMetadata(metadata, impl.MessageKeyContentType, *asbMsg.ContentType)
 	}
 	if asbMsg.LockToken != [16]byte{} {
-		addToMetadata(metadata, LockTokenMetadataKey, base64.StdEncoding.EncodeToString(asbMsg.LockToken[:]))
+		addToMetadata(metadata, impl.MessageKeyLockToken, base64.StdEncoding.EncodeToString(asbMsg.LockToken[:]))
 	}
 
 	// Always set delivery count.
-	addToMetadata(metadata, DeliveryCountMetadataKey, strconv.FormatInt(int64(asbMsg.DeliveryCount), 10))
+	addToMetadata(metadata, impl.MessageKeyDeliveryCount, strconv.FormatInt(int64(asbMsg.DeliveryCount), 10))
 
 	if asbMsg.EnqueuedTime != nil {
 		// Preserve RFC2616 time format.
-		addToMetadata(metadata, EnqueuedTimeUtcMetadataKey, asbMsg.EnqueuedTime.UTC().Format(http.TimeFormat))
+		addToMetadata(metadata, impl.MessageKeyEnqueuedTimeUtc, asbMsg.EnqueuedTime.UTC().Format(http.TimeFormat))
 	}
 	if asbMsg.SequenceNumber != nil {
-		addToMetadata(metadata, SequenceNumberMetadataKey, strconv.FormatInt(*asbMsg.SequenceNumber, 10))
+		addToMetadata(metadata, impl.MessageKeySequenceNumber, strconv.FormatInt(*asbMsg.SequenceNumber, 10))
 	}
 	if asbMsg.ScheduledEnqueueTime != nil {
 		// Preserve RFC2616 time format.
-		addToMetadata(metadata, ScheduledEnqueueTimeUtcMetadataKey, asbMsg.ScheduledEnqueueTime.UTC().Format(http.TimeFormat))
+		addToMetadata(metadata, impl.MessageKeyScheduledEnqueueTimeUtc, asbMsg.ScheduledEnqueueTime.UTC().Format(http.TimeFormat))
 	}
 	if asbMsg.PartitionKey != nil {
-		addToMetadata(metadata, PartitionKeyMetadataKey, *asbMsg.PartitionKey)
+		addToMetadata(metadata, impl.MessageKeyPartitionKey, *asbMsg.PartitionKey)
 	}
 	if asbMsg.LockedUntil != nil {
 		// Preserve RFC2616 time format.
-		addToMetadata(metadata, LockedUntilUtcMetadataKey, asbMsg.LockedUntil.UTC().Format(http.TimeFormat))
+		addToMetadata(metadata, impl.MessageKeyLockedUntilUtc, asbMsg.LockedUntil.UTC().Format(http.TimeFormat))
 	}
 
 	return metadata
-}
-
-// NewASBMessageFromPubsubRequest builds a new Azure Service Bus message from a PublishRequest.
-func NewASBMessageFromPubsubRequest(req *pubsub.PublishRequest) (*azservicebus.Message, error) {
-	asbMsg := &azservicebus.Message{
-		Body: req.Data,
-	}
-
-	err := addMetadataToMessage(asbMsg, req.Metadata)
-	return asbMsg, err
-}
-
-// NewASBMessageFromBulkMessageEntry builds a new Azure Service Bus message from a BulkMessageEntry.
-func NewASBMessageFromBulkMessageEntry(entry pubsub.BulkMessageEntry) (*azservicebus.Message, error) {
-	asbMsg := &azservicebus.Message{
-		Body:        entry.Event,
-		ContentType: &entry.ContentType,
-	}
-
-	err := addMetadataToMessage(asbMsg, entry.Metadata)
-	return asbMsg, err
-}
-
-func addMetadataToMessage(asbMsg *azservicebus.Message, metadata map[string]string) error {
-	// Common properties.
-	ttl, ok, _ := contribMetadata.TryGetTTL(metadata)
-	if ok {
-		asbMsg.TimeToLive = &ttl
-	}
-
-	// Azure Service Bus specific properties.
-	// reference: https://docs.microsoft.com/en-us/rest/api/servicebus/message-headers-and-properties#message-headers
-	msgID, ok, _ := tryGetString(metadata, MessageIDMetadataKey)
-	if ok {
-		asbMsg.MessageID = &msgID
-	}
-
-	correlationID, ok, _ := tryGetString(metadata, CorrelationIDMetadataKey)
-	if ok {
-		asbMsg.CorrelationID = &correlationID
-	}
-
-	sessionID, okSessionID, _ := tryGetString(metadata, SessionIDMetadataKey)
-	if okSessionID {
-		asbMsg.SessionID = &sessionID
-	}
-
-	label, ok, _ := tryGetString(metadata, LabelMetadataKey)
-	if ok {
-		asbMsg.Subject = &label
-	}
-
-	replyTo, ok, _ := tryGetString(metadata, ReplyToMetadataKey)
-	if ok {
-		asbMsg.ReplyTo = &replyTo
-	}
-
-	to, ok, _ := tryGetString(metadata, ToMetadataKey)
-	if ok {
-		asbMsg.To = &to
-	}
-
-	partitionKey, ok, _ := tryGetString(metadata, PartitionKeyMetadataKey)
-	if ok {
-		if okSessionID && partitionKey != sessionID {
-			return fmt.Errorf("session id %s and partition key %s should be equal when both present", sessionID, partitionKey)
-		}
-
-		asbMsg.PartitionKey = &partitionKey
-	}
-
-	contentType, ok, _ := tryGetString(metadata, ContentTypeMetadataKey)
-	if ok {
-		asbMsg.ContentType = &contentType
-	}
-
-	scheduledEnqueueTime, ok, _ := tryGetScheduledEnqueueTime(metadata)
-	if ok {
-		asbMsg.ScheduledEnqueueTime = scheduledEnqueueTime
-	}
-
-	return nil
 }
 
 // UpdateASBBatchMessageWithBulkPublishRequest updates the batch message with messages from the bulk publish request.
 func UpdateASBBatchMessageWithBulkPublishRequest(asbMsgBatch *azservicebus.MessageBatch, req *pubsub.BulkPublishRequest) error {
 	// Add entries from bulk request to batch.
 	for _, entry := range req.Entries {
-		asbMsg, err := NewASBMessageFromBulkMessageEntry(entry)
+		asbMsg, err := impl.NewASBMessageFromBulkMessageEntry(entry)
 		if err != nil {
 			return err
 		}
@@ -258,25 +127,4 @@ func UpdateASBBatchMessageWithBulkPublishRequest(asbMsgBatch *azservicebus.Messa
 	}
 
 	return nil
-}
-
-func tryGetString(props map[string]string, key string) (string, bool, error) {
-	if val, ok := props[key]; ok && val != "" {
-		return val, true, nil
-	}
-
-	return "", false, nil
-}
-
-func tryGetScheduledEnqueueTime(props map[string]string) (*time.Time, bool, error) {
-	if val, ok := props[ScheduledEnqueueTimeUtcMetadataKey]; ok && val != "" {
-		timeVal, err := time.Parse(http.TimeFormat, val)
-		if err != nil {
-			return nil, false, err
-		}
-
-		return &timeVal, true, nil
-	}
-
-	return nil, false, nil
 }

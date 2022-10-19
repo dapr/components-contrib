@@ -25,6 +25,7 @@ import (
 
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
+	"github.com/googleapis/gax-go/v2"
 )
 
 const VersionID = "version_id"
@@ -46,11 +47,17 @@ type secretManagerMetadata struct {
 	gcpCredentials
 }
 
+type gcpSecretemanagerClient interface {
+	AccessSecretVersion(ctx context.Context, req *secretmanagerpb.AccessSecretVersionRequest, opts ...gax.CallOption) (*secretmanagerpb.AccessSecretVersionResponse, error)
+	ListSecrets(ctx context.Context, req *secretmanagerpb.ListSecretsRequest, opts ...gax.CallOption) *secretmanager.SecretIterator
+	Close() error
+}
+
 var _ secretstores.SecretStore = (*Store)(nil)
 
 // Store contains and GCP secret manager client and project id.
 type Store struct {
-	client    *secretmanager.Client
+	client    gcpSecretemanagerClient
 	ProjectID string
 
 	logger logger.Logger

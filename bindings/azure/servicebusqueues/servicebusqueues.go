@@ -21,11 +21,9 @@ import (
 	"time"
 
 	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
-	sbadmin "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
 	backoff "github.com/cenkalti/backoff/v4"
 
 	"github.com/dapr/components-contrib/bindings"
-	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
 	"github.com/dapr/kit/logger"
 )
@@ -38,13 +36,12 @@ const (
 
 // AzureServiceBusQueues is an input/output binding reading from and sending events to Azure Service Bus queues.
 type AzureServiceBusQueues struct {
-	metadata    *impl.Metadata
-	client      *servicebus.Client
-	adminClient *sbadmin.Client
-	timeout     time.Duration
-	sender      *servicebus.Sender
-	senderLock  sync.RWMutex
-	logger      logger.Logger
+	metadata   *impl.Metadata
+	client     *impl.Client
+	timeout    time.Duration
+	sender     *servicebus.Sender
+	senderLock sync.RWMutex
+	logger     logger.Logger
 }
 
 // NewAzureServiceBusQueues returns a new AzureServiceBusQueues instance.
@@ -63,65 +60,15 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) (err error) {
 	}
 	a.timeout = time.Duration(a.metadata.TimeoutInSec) * time.Second
 
-	userAgent := "dapr-" + logger.DaprVersion
-	if a.metadata.ConnectionString != "" {
-		a.client, err = servicebus.NewClientFromConnectionString(a.metadata.ConnectionString, &servicebus.ClientOptions{
-			ApplicationID: userAgent,
-		})
-		if err != nil {
-			return err
-		}
-
-		if !a.metadata.DisableEntityManagement {
-			a.adminClient, err = sbadmin.NewClientFromConnectionString(a.metadata.ConnectionString, nil)
-			if err != nil {
-				return err
-			}
-		}
-	} else {
-		settings, innerErr := azauth.NewEnvironmentSettings(azauth.AzureServiceBusResourceName, metadata.Properties)
-		if innerErr != nil {
-			return innerErr
-		}
-
-		token, innerErr := settings.GetTokenCredential()
-		if innerErr != nil {
-			return innerErr
-		}
-
-		a.client, innerErr = servicebus.NewClient(a.metadata.NamespaceName, token, &servicebus.ClientOptions{
-			ApplicationID: userAgent,
-		})
-		if innerErr != nil {
-			return innerErr
-		}
-
-		if !a.metadata.DisableEntityManagement {
-			a.adminClient, innerErr = sbadmin.NewClient(a.metadata.NamespaceName, token, nil)
-			if innerErr != nil {
-				return innerErr
-			}
-		}
+	a.client, err = impl.NewClient(a.metadata, metadata.Properties)
+	if err != nil {
+		return err
 	}
 
-	if a.adminClient != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
-		getQueueRes, err := a.adminClient.GetQueue(ctx, a.metadata.QueueName, nil)
-		cancel()
-		if err != nil {
-			return err
-		}
-		if getQueueRes == nil {
-			// Need to create the queue
-			ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
-			_, err = a.adminClient.CreateQueue(ctx, a.metadata.QueueName, &sbadmin.CreateQueueOptions{
-				Properties: a.metadata.CreateQueueProperties(),
-			})
-			cancel()
-			if err != nil {
-				return err
-			}
-		}
+	// Will do nothing if DisableEntityManagement is false
+	err = a.client.EnsureQueue(context.Background(), a.metadata.QueueName)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -180,7 +127,7 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 
 			// Blocks until a successful connection (or until context is canceled)
 			err := sub.Connect(func() (*servicebus.Receiver, error) {
-				return a.client.NewReceiverForQueue(a.metadata.QueueName, nil)
+				return a.client.GetClient().NewReceiverForQueue(a.metadata.QueueName, nil)
 			})
 			if err != nil {
 				// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
@@ -245,7 +192,7 @@ func (a *AzureServiceBusQueues) getSender() (*servicebus.Sender, error) {
 	}
 
 	// Create a new sender
-	sender, err := a.client.NewSender(a.metadata.QueueName, nil)
+	sender, err := a.client.GetClient().NewSender(a.metadata.QueueName, nil)
 	if err != nil {
 		return nil, err
 	}

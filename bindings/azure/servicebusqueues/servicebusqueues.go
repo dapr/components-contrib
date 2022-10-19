@@ -17,7 +17,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
@@ -36,19 +35,16 @@ const (
 
 // AzureServiceBusQueues is an input/output binding reading from and sending events to Azure Service Bus queues.
 type AzureServiceBusQueues struct {
-	metadata   *impl.Metadata
-	client     *impl.Client
-	timeout    time.Duration
-	sender     *servicebus.Sender
-	senderLock sync.RWMutex
-	logger     logger.Logger
+	metadata *impl.Metadata
+	client   *impl.Client
+	timeout  time.Duration
+	logger   logger.Logger
 }
 
 // NewAzureServiceBusQueues returns a new AzureServiceBusQueues instance.
 func NewAzureServiceBusQueues(logger logger.Logger) bindings.InputOutputBinding {
 	return &AzureServiceBusQueues{
-		senderLock: sync.RWMutex{},
-		logger:     logger,
+		logger: logger,
 	}
 }
 
@@ -79,7 +75,7 @@ func (a *AzureServiceBusQueues) Operations() []bindings.OperationKind {
 }
 
 func (a *AzureServiceBusQueues) Invoke(invokeCtx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	sender, err := a.getSender()
+	sender, err := a.client.GetSender(invokeCtx, a.metadata.QueueName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create a sender for the Service Bus queue: %w", err)
 	}
@@ -96,7 +92,7 @@ func (a *AzureServiceBusQueues) Invoke(invokeCtx context.Context, req *bindings.
 	if err != nil {
 		if impl.IsNetworkError(err) {
 			// Force reconnection on next call
-			a.deleteSender()
+			a.client.CloseSender(a.metadata.QueueName)
 		}
 		return nil, err
 	}
@@ -173,46 +169,6 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 	return nil
 }
 
-// getSender returns the Sender object, creating a new connection if needed
-func (a *AzureServiceBusQueues) getSender() (*servicebus.Sender, error) {
-	// Check if the sender already exists
-	a.senderLock.RLock()
-	if a.sender != nil {
-		a.senderLock.RUnlock()
-		return a.sender, nil
-	}
-	a.senderLock.RUnlock()
-
-	// Acquire a write lock then try checking a.sender again in case another goroutine modified that in the meanwhile
-	a.senderLock.Lock()
-	defer a.senderLock.Unlock()
-
-	if a.sender != nil {
-		return a.sender, nil
-	}
-
-	// Create a new sender
-	sender, err := a.client.GetClient().NewSender(a.metadata.QueueName, nil)
-	if err != nil {
-		return nil, err
-	}
-	a.sender = sender
-
-	return sender, nil
-}
-
-// deleteSender deletes the sender, closing the connection
-func (a *AzureServiceBusQueues) deleteSender() {
-	a.senderLock.Lock()
-	if a.sender != nil {
-		closeCtx, closeCancel := context.WithTimeout(context.Background(), time.Second)
-		_ = a.sender.Close(closeCtx)
-		closeCancel()
-		a.sender = nil
-	}
-	a.senderLock.Unlock()
-}
-
 func (a *AzureServiceBusQueues) getHandlerFunc(handler bindings.Handler) impl.HandlerFunc {
 	return func(ctx context.Context, asbMsgs []*servicebus.ReceivedMessage) ([]impl.HandlerResponseItem, error) {
 		if len(asbMsgs) != 1 {
@@ -245,19 +201,7 @@ func (a *AzureServiceBusQueues) getHandlerFunc(handler bindings.Handler) impl.Ha
 }
 
 func (a *AzureServiceBusQueues) Close() (err error) {
-	a.senderLock.Lock()
-	defer a.senderLock.Unlock()
-
 	a.logger.Debug("Closing component")
-
-	if a.sender != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
-		err = a.sender.Close(ctx)
-		cancel()
-		a.sender = nil
-		if err != nil {
-			return err
-		}
-	}
+	a.client.CloseSender(a.metadata.QueueName)
 	return nil
 }

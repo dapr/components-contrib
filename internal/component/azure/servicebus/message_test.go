@@ -36,12 +36,6 @@ var (
 	testContentType             = "testContentType"
 	nowUtc                      = time.Now().UTC()
 	testScheduledEnqueueTimeUtc = nowUtc.Format(http.TimeFormat)
-	testLockTokenString         = "bG9ja3Rva2VuAAAAAAAAAA==" //nolint:gosec
-	testLockTokenBytes          = [16]byte{108, 111, 99, 107, 116, 111, 107, 101, 110}
-	testDeliveryCount           = uint32(1)
-	testSampleTime              = time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
-	testSampleTimeHTTPFormat    = "Thu, 01 Jan 1970 00:00:00 GMT"
-	testSequenceNumber          = int64(1)
 )
 
 func TestAddMetadataToMessage(t *testing.T) {

@@ -16,9 +16,9 @@ package servicebus
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	sbadmin "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
 
@@ -26,17 +26,21 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-// Client contains the clients for Service Bus and methods to create topics, subscriptions, queues.
+// Client contains the clients for Service Bus and methods to get senders and to create topics, subscriptions, queues.
 type Client struct {
 	client      *servicebus.Client
 	adminClient *sbadmin.Client
 	metadata    *Metadata
+	lock        *sync.RWMutex
+	senders     map[string]*servicebus.Sender
 }
 
 // NewClient creates a new Client object.
 func NewClient(metadata *Metadata, rawMetadata map[string]string) (*Client, error) {
 	client := &Client{
 		metadata: metadata,
+		lock:     &sync.RWMutex{},
+		senders:  make(map[string]*servicebus.Sender),
 	}
 
 	clientOpts := &servicebus.ClientOptions{
@@ -89,8 +93,82 @@ func NewClient(metadata *Metadata, rawMetadata map[string]string) (*Client, erro
 }
 
 // GetClient returns the azservicebus.Client object.
-func (c *Client) GetClient() *azservicebus.Client {
+func (c *Client) GetClient() *servicebus.Client {
 	return c.client
+}
+
+// GetSenderForTopic returns the sender for a topic, or creates a new one if it doesn't exist
+func (c *Client) GetSender(ctx context.Context, queueOrTopic string) (*servicebus.Sender, error) {
+	c.lock.RLock()
+	sender, ok := c.senders[queueOrTopic]
+	c.lock.RUnlock()
+	if ok && sender != nil {
+		return sender, nil
+	}
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	// Check again after acquiring a write lock in case another goroutine created the sender
+	sender, ok = c.senders[queueOrTopic]
+	if ok && sender != nil {
+		return sender, nil
+	}
+
+	// Create the sender
+	sender, err := c.client.NewSender(queueOrTopic, nil)
+	if err != nil {
+		return nil, err
+	}
+	c.senders[queueOrTopic] = sender
+
+	return sender, nil
+}
+
+// CloseSender closes a sender for a queue or topic.
+func (c *Client) CloseSender(queueOrTopic string) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	sender, ok := c.senders[queueOrTopic]
+	if ok && sender != nil {
+		closeCtx, closeCancel := context.WithTimeout(context.Background(), time.Second)
+		_ = sender.Close(closeCtx)
+		closeCancel()
+	}
+	delete(c.senders, queueOrTopic)
+}
+
+// CloseAllSenders closes all sender connections.
+func (c *Client) CloseAllSenders(log logger.Logger) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	// Close all senders, up to 3 in parallel
+	workersCh := make(chan bool, 3)
+	for k, t := range c.senders {
+		// Blocks if we have too many goroutines
+		workersCh <- true
+		go func(k string, t *servicebus.Sender) {
+			log.Debugf("Closing sender %s", k)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(c.metadata.TimeoutInSec)*time.Second)
+			err := t.Close(ctx)
+			cancel()
+			if err != nil {
+				// Log only
+				log.Warnf("Error closing sender %s: %v", k, err)
+			}
+			<-workersCh
+		}(k, t)
+	}
+	for i := 0; i < cap(workersCh); i++ {
+		// Wait for all workers to be done
+		workersCh <- true
+	}
+	close(workersCh)
+
+	// Clear the map
+	c.senders = make(map[string]*servicebus.Sender)
 }
 
 // EnsureTopic creates the topic if it doesn't exist.

@@ -19,9 +19,10 @@ import (
 	"testing"
 	"time"
 
-	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+
+	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
+	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
 )
 
 var (
@@ -69,20 +70,20 @@ func TestAddMessageAttributesToMetadata(t *testing.T) {
 				LockedUntil:          &testSampleTime,
 			},
 			expectedMetadata: map[string]string{
-				"metadata." + MessageIDMetadataKey:               testMessageID,
-				"metadata." + SessionIDMetadataKey:               testSessionID,
-				"metadata." + CorrelationIDMetadataKey:           testCorrelationID,
-				"metadata." + LabelMetadataKey:                   testLabel, // Subject
-				"metadata." + ReplyToMetadataKey:                 testReplyTo,
-				"metadata." + ToMetadataKey:                      testTo,
-				"metadata." + ContentTypeMetadataKey:             testContentType,
-				"metadata." + LockTokenMetadataKey:               testLockTokenString,
-				"metadata." + DeliveryCountMetadataKey:           "1",
-				"metadata." + EnqueuedTimeUtcMetadataKey:         testSampleTimeHTTPFormat,
-				"metadata." + SequenceNumberMetadataKey:          "1",
-				"metadata." + ScheduledEnqueueTimeUtcMetadataKey: testSampleTimeHTTPFormat,
-				"metadata." + PartitionKeyMetadataKey:            testPartitionKey,
-				"metadata." + LockedUntilUtcMetadataKey:          testSampleTimeHTTPFormat,
+				"metadata." + impl.MessageKeyMessageID:               testMessageID,
+				"metadata." + impl.MessageKeySessionID:               testSessionID,
+				"metadata." + impl.MessageKeyCorrelationID:           testCorrelationID,
+				"metadata." + impl.MessageKeyLabel:                   testLabel, // Subject
+				"metadata." + impl.MessageKeyReplyTo:                 testReplyTo,
+				"metadata." + impl.MessageKeyTo:                      testTo,
+				"metadata." + impl.MessageKeyContentType:             testContentType,
+				"metadata." + impl.MessageKeyLockToken:               testLockTokenString,
+				"metadata." + impl.MessageKeyDeliveryCount:           "1",
+				"metadata." + impl.MessageKeyEnqueuedTimeUtc:         testSampleTimeHTTPFormat,
+				"metadata." + impl.MessageKeySequenceNumber:          "1",
+				"metadata." + impl.MessageKeyScheduledEnqueueTimeUtc: testSampleTimeHTTPFormat,
+				"metadata." + impl.MessageKeyPartitionKey:            testPartitionKey,
+				"metadata." + impl.MessageKeyLockedUntilUtc:          testSampleTimeHTTPFormat,
 			},
 		},
 	}
@@ -99,91 +100,5 @@ func TestAddMessageAttributesToMetadata(t *testing.T) {
 				assert.Equal(t, tc.expectedMetadata, actual)
 			})
 		}
-	}
-}
-
-func TestAddMetadataToMessage(t *testing.T) {
-	testCases := []struct {
-		name                        string
-		metadata                    map[string]string
-		expectedAzServiceBusMessage azservicebus.Message
-		expectError                 bool
-	}{
-		{
-			name: "Maps pubsub request to azure service bus message.",
-			metadata: map[string]string{
-				MessageIDMetadataKey:               testMessageID,
-				CorrelationIDMetadataKey:           testCorrelationID,
-				SessionIDMetadataKey:               testSessionID,
-				LabelMetadataKey:                   testLabel,
-				ReplyToMetadataKey:                 testReplyTo,
-				ToMetadataKey:                      testTo,
-				PartitionKeyMetadataKey:            testPartitionKey,
-				ContentTypeMetadataKey:             testContentType,
-				ScheduledEnqueueTimeUtcMetadataKey: testScheduledEnqueueTimeUtc,
-			},
-			expectedAzServiceBusMessage: azservicebus.Message{
-				MessageID:            &testMessageID,
-				CorrelationID:        &testCorrelationID,
-				SessionID:            &testSessionID,
-				Subject:              &testLabel,
-				ReplyTo:              &testReplyTo,
-				To:                   &testTo,
-				PartitionKey:         &testPartitionKey,
-				ScheduledEnqueueTime: &nowUtc,
-				ContentType:          &testContentType,
-			},
-			expectError: false,
-		},
-		{
-			name: "Errors when partition key and session id set but not equal.",
-			metadata: map[string]string{
-				MessageIDMetadataKey:     testMessageID,
-				CorrelationIDMetadataKey: testCorrelationID,
-				SessionIDMetadataKey:     testSessionID,
-				LabelMetadataKey:         testLabel,
-				ReplyToMetadataKey:       testReplyTo,
-				ToMetadataKey:            testTo,
-				PartitionKeyMetadataKey:  testPartitionKeyUnique,
-				ContentTypeMetadataKey:   testContentType,
-			},
-			expectedAzServiceBusMessage: azservicebus.Message{
-				MessageID:     &testMessageID,
-				CorrelationID: &testCorrelationID,
-				SessionID:     &testSessionID,
-				Subject:       &testLabel,
-				ReplyTo:       &testReplyTo,
-				To:            &testTo,
-				PartitionKey:  &testPartitionKey,
-				ContentType:   &testContentType,
-			},
-			expectError: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// act.
-			msg := &azservicebus.Message{}
-			err := addMetadataToMessage(msg, tc.metadata)
-
-			// assert.
-			if tc.expectError {
-				require.NotNil(t, err)
-			} else {
-				require.Nil(t, err)
-				assert.Equal(t, tc.expectedAzServiceBusMessage.Body, msg.Body)
-				assert.Equal(t, tc.expectedAzServiceBusMessage.MessageID, msg.MessageID)
-				assert.Equal(t, tc.expectedAzServiceBusMessage.CorrelationID, msg.CorrelationID)
-				assert.Equal(t, tc.expectedAzServiceBusMessage.SessionID, msg.SessionID)
-				assert.Equal(t, tc.expectedAzServiceBusMessage.ContentType, msg.ContentType)
-				assert.Equal(t, tc.expectedAzServiceBusMessage.ReplyTo, msg.ReplyTo)
-				assert.Equal(t, tc.expectedAzServiceBusMessage.TimeToLive, msg.TimeToLive)
-				assert.Equal(t, tc.expectedAzServiceBusMessage.To, msg.To)
-				assert.Equal(t, tc.expectedAzServiceBusMessage.Subject, msg.Subject)
-				assert.Equal(t, tc.expectedAzServiceBusMessage.PartitionKey, msg.PartitionKey)
-				assert.Equal(t, tc.expectedAzServiceBusMessage.ScheduledEnqueueTime.Unix(), msg.ScheduledEnqueueTime.Unix())
-			}
-		})
 	}
 }

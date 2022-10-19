@@ -27,7 +27,6 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -138,32 +137,9 @@ func (a *AzureServiceBusQueues) Invoke(invokeCtx context.Context, req *bindings.
 		return nil, fmt.Errorf("failed to create a sender for the Service Bus queue: %w", err)
 	}
 
-	msg := &servicebus.Message{
-		Body:                  req.Data,
-		ApplicationProperties: make(map[string]interface{}),
-	}
-	if val, ok := req.Metadata[id]; ok && val != "" {
-		msg.MessageID = &val
-	}
-	if val, ok := req.Metadata[correlationID]; ok && val != "" {
-		msg.CorrelationID = &val
-	}
-
-	// Include incoming metadata in the message to be used when it is read.
-	for k, v := range req.Metadata {
-		// Don't include the values that are saved in MessageID or CorrelationID.
-		if k == id || k == correlationID {
-			continue
-		}
-		msg.ApplicationProperties[k] = v
-	}
-
-	ttl, ok, err := contribMetadata.TryGetTTL(req.Metadata)
+	msg, err := impl.NewASBMessageFromInvokeRequest(req)
 	if err != nil {
-		return nil, err
-	}
-	if ok {
-		msg.TimeToLive = &ttl
+		return nil, fmt.Errorf("failed to create message: %w", err)
 	}
 
 	// Send the message

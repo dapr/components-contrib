@@ -17,7 +17,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"sync"
 	"time"
 
@@ -42,7 +41,7 @@ const (
 )
 
 type azureServiceBus struct {
-	metadata    metadata
+	metadata    *impl.Metadata
 	client      *servicebus.Client
 	adminClient *sbadmin.Client
 	logger      logger.Logger
@@ -64,181 +63,8 @@ func NewAzureServiceBus(logger logger.Logger) pubsub.PubSub {
 	}
 }
 
-func parseAzureServiceBusMetadata(meta pubsub.Metadata, logger logger.Logger) (metadata, error) {
-	m := metadata{}
-
-	/* Required configuration settings - no defaults. */
-	if val, ok := meta.Properties[connectionString]; ok && val != "" {
-		m.ConnectionString = val
-
-		// The connection string and the namespace cannot both be present.
-		if namespace, present := meta.Properties[namespaceName]; present && namespace != "" {
-			return m, fmt.Errorf("%s connectionString and namespaceName cannot both be specified", errorMessagePrefix)
-		}
-	} else if val, ok := meta.Properties[namespaceName]; ok && val != "" {
-		m.NamespaceName = val
-	} else {
-		return m, fmt.Errorf("%s missing connection string and namespace name", errorMessagePrefix)
-	}
-
-	if val, ok := meta.Properties[consumerID]; ok && val != "" {
-		m.ConsumerID = val
-	} else {
-		return m, fmt.Errorf("%s missing consumerID", errorMessagePrefix)
-	}
-
-	/* Optional configuration settings - defaults will be set by the client. */
-	m.TimeoutInSec = defaultTimeoutInSec
-	if val, ok := meta.Properties[timeoutInSec]; ok && val != "" {
-		var err error
-		m.TimeoutInSec, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("%s invalid timeoutInSec %s, %s", errorMessagePrefix, val, err)
-		}
-	}
-
-	m.DisableEntityManagement = defaultDisableEntityManagement
-	if val, ok := meta.Properties[disableEntityManagement]; ok && val != "" {
-		var err error
-		m.DisableEntityManagement, err = strconv.ParseBool(val)
-		if err != nil {
-			return m, fmt.Errorf("%s invalid disableEntityManagement %s, %s", errorMessagePrefix, val, err)
-		}
-	}
-
-	m.HandlerTimeoutInSec = defaultHandlerTimeoutInSec
-	if val, ok := meta.Properties[handlerTimeoutInSec]; ok && val != "" {
-		var err error
-		m.HandlerTimeoutInSec, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("%s invalid handlerTimeoutInSec %s, %s", errorMessagePrefix, val, err)
-		}
-	}
-
-	m.LockRenewalInSec = defaultLockRenewalInSec
-	if val, ok := meta.Properties[lockRenewalInSec]; ok && val != "" {
-		var err error
-		m.LockRenewalInSec, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("%s invalid lockRenewalInSec %s, %s", errorMessagePrefix, val, err)
-		}
-	}
-
-	m.MaxActiveMessages = defaultMaxActiveMessages
-	if val, ok := meta.Properties[maxActiveMessages]; ok && val != "" {
-		var err error
-		m.MaxActiveMessages, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("%s invalid maxActiveMessages %s, %s", errorMessagePrefix, val, err)
-		}
-	}
-
-	m.MaxRetriableErrorsPerSec = defaultMaxRetriableErrorsPerSec
-	if val, ok := meta.Properties[maxRetriableErrorsPerSec]; ok && val != "" {
-		var err error
-		m.MaxRetriableErrorsPerSec, err = strconv.Atoi(val)
-		if err == nil && m.MaxRetriableErrorsPerSec < 0 {
-			err = errors.New("must not be negative")
-		}
-		if err != nil {
-			return m, fmt.Errorf("%s invalid maxRetriableErrorsPerSec %s, %s", errorMessagePrefix, val, err)
-		}
-	}
-
-	m.MinConnectionRecoveryInSec = defaultMinConnectionRecoveryInSec
-	if val, ok := meta.Properties[minConnectionRecoveryInSec]; ok && val != "" {
-		var err error
-		m.MinConnectionRecoveryInSec, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("%s invalid minConnectionRecoveryInSec %s, %s", errorMessagePrefix, val, err)
-		}
-	}
-
-	m.MaxConnectionRecoveryInSec = defaultMaxConnectionRecoveryInSec
-	if val, ok := meta.Properties[maxConnectionRecoveryInSec]; ok && val != "" {
-		var err error
-		m.MaxConnectionRecoveryInSec, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("%s invalid maxConnectionRecoveryInSec %s, %s", errorMessagePrefix, val, err)
-		}
-	}
-
-	/* Nullable configuration settings - defaults will be set by the server. */
-	if val, ok := meta.Properties[maxDeliveryCount]; ok && val != "" {
-		valAsInt, err := strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("%s invalid maxDeliveryCount %s, %s", errorMessagePrefix, val, err)
-		}
-		m.MaxDeliveryCount = &valAsInt
-	}
-
-	if val, ok := meta.Properties[lockDurationInSec]; ok && val != "" {
-		valAsInt, err := strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("%s invalid lockDurationInSec %s, %s", errorMessagePrefix, val, err)
-		}
-		m.LockDurationInSec = &valAsInt
-	}
-
-	if val, ok := meta.Properties[defaultMessageTimeToLiveInSec]; ok && val != "" {
-		valAsInt, err := strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("%s invalid defaultMessageTimeToLiveInSec %s, %s", errorMessagePrefix, val, err)
-		}
-		m.DefaultMessageTimeToLiveInSec = &valAsInt
-	}
-
-	if val, ok := meta.Properties[autoDeleteOnIdleInSec]; ok && val != "" {
-		valAsInt, err := strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("%s invalid autoDeleteOnIdleInSecKey %s, %s", errorMessagePrefix, val, err)
-		}
-		m.AutoDeleteOnIdleInSec = &valAsInt
-	}
-
-	if val, ok := meta.Properties[maxConcurrentHandlers]; ok && val != "" {
-		var err error
-		valAsInt, err := strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("%s invalid maxConcurrentHandlers %s, %s", errorMessagePrefix, val, err)
-		}
-		m.MaxConcurrentHandlers = &valAsInt
-	}
-
-	m.PublishMaxRetries = defaultPublishMaxRetries
-	if val, ok := meta.Properties[publishMaxRetries]; ok && val != "" {
-		var err error
-		valAsInt, err := strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("%s invalid publishMaxRetries %s, %s", errorMessagePrefix, val, err)
-		}
-		m.PublishMaxRetries = valAsInt
-	}
-
-	m.PublishInitialRetryIntervalInMs = defaultPublishInitialRetryInternalInMs
-	if val, ok := meta.Properties[publishInitialRetryInternalInMs]; ok && val != "" {
-		var err error
-		valAsInt, err := strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("%s invalid publishInitialRetryIntervalInMs %s, %s", errorMessagePrefix, val, err)
-		}
-		m.PublishInitialRetryIntervalInMs = valAsInt
-	}
-
-	/* Deprecated properties - show a warning. */
-	// TODO: Remove in the future
-	if _, ok := meta.Properties[connectionRecoveryInSec]; ok && logger != nil {
-		logger.Warn("pubsub.azure.servicebus: metadata property 'connectionRecoveryInSec' has been deprecated and is now ignored - use 'minConnectionRecoveryInSec' and 'maxConnectionRecoveryInSec' instead. See: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-azure-servicebus/")
-	}
-	if _, ok := meta.Properties[maxReconnectionAttempts]; ok && logger != nil {
-		logger.Warn("pubsub.azure.servicebus: metadata property 'maxReconnectionAttempts' has been deprecated and is now ignored. See: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-azure-servicebus/")
-	}
-
-	return m, nil
-}
-
 func (a *azureServiceBus) Init(metadata pubsub.Metadata) (err error) {
-	a.metadata, err = parseAzureServiceBusMetadata(metadata, a.logger)
+	a.metadata, err = impl.ParseMetadata(metadata.Properties, a.logger, impl.MetadataModeTopics)
 	if err != nil {
 		return err
 	}
@@ -388,6 +214,7 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 		subscribeCtx,
 		a.metadata.MaxActiveMessages,
 		a.metadata.TimeoutInSec,
+		nil,
 		a.metadata.MaxRetriableErrorsPerSec,
 		a.metadata.MaxConcurrentHandlers,
 		"topic "+req.Topic,
@@ -408,11 +235,11 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 
 func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.BulkHandler) error {
 	maxBulkSubCount := utils.GetElemOrDefaultFromMap(req.Metadata, contribMetadata.MaxBulkSubCountKey, defaultMaxBulkSubCount)
-	sub := impl.NewBulkSubscription(
+	sub := impl.NewSubscription(
 		subscribeCtx,
 		a.metadata.MaxActiveMessages,
 		a.metadata.TimeoutInSec,
-		maxBulkSubCount,
+		&maxBulkSubCount,
 		a.metadata.MaxRetriableErrorsPerSec,
 		a.metadata.MaxConcurrentHandlers,
 		"topic "+req.Topic,

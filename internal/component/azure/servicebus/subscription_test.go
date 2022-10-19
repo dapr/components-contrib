@@ -21,41 +21,55 @@ import (
 	"github.com/dapr/kit/ptr"
 )
 
-func TestNewBulkSubscription_MaxBulkSubCountShouldBeGreaterThanZero(t *testing.T) {
+func TestNewSubscription(t *testing.T) {
 	testcases := []struct {
-		name                    string
-		maxBulkSubCountParam    int
-		maxBulkSubCountExpected int
+		name                            string
+		maxBulkSubCountParam            *int
+		maxBulkSubCountExpected         int
+		activeOperationsChanCapExpected int
 	}{
 		{
 			"maxBulkSubCount passed is 0",
-			0,
+			ptr.Of(0),
 			1,
+			1000,
 		},
 		{
 			"maxBulkSubCount passed is negative",
-			-100,
+			ptr.Of(-100),
 			1,
+			1000,
 		},
 		{
 			"maxBulkSubCount passed is positive",
+			ptr.Of(100),
 			100,
-			100,
+			10,
+		},
+		{
+			"maxBulkSubCount passed is nil",
+			nil,
+			1,
+			1000,
 		},
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			bulkSubscription := NewBulkSubscription(
+			sub := NewSubscription(
 				context.Background(),
 				1000,
 				1,
 				tc.maxBulkSubCountParam,
 				10,
-				ptr.Of(100),
+				100,
 				"test",
-				logger.NewLogger("test"))
-			if bulkSubscription.maxBulkSubCount != tc.maxBulkSubCountExpected {
-				t.Errorf("Expected maxBulkSubCount to be %d but got %d", tc.maxBulkSubCountExpected, bulkSubscription.maxBulkSubCount)
+				logger.NewLogger("test"),
+			)
+			if sub.maxBulkSubCount != tc.maxBulkSubCountExpected {
+				t.Errorf("Expected maxBulkSubCount to be %d but got %d", tc.maxBulkSubCountExpected, sub.maxBulkSubCount)
+			}
+			if cap(sub.activeOperationsChan) != tc.activeOperationsChanCapExpected {
+				t.Errorf("Expected capacity of sub.activeOperationsChan to be %d but got %d", tc.activeOperationsChanCapExpected, cap(sub.activeOperationsChan))
 			}
 		})
 	}

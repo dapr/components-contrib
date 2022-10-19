@@ -20,7 +20,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	sbadmin "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
 	backoff "github.com/cenkalti/backoff/v4"
@@ -40,15 +39,13 @@ const (
 
 // AzureServiceBusQueues is an input/output binding reading from and sending events to Azure Service Bus queues.
 type AzureServiceBusQueues struct {
-	metadata    *serviceBusQueuesMetadata
+	metadata    *impl.Metadata
 	client      *servicebus.Client
 	adminClient *sbadmin.Client
 	timeout     time.Duration
 	sender      *servicebus.Sender
 	senderLock  sync.RWMutex
 	logger      logger.Logger
-	ctx         context.Context
-	cancel      context.CancelFunc
 }
 
 // NewAzureServiceBusQueues returns a new AzureServiceBusQueues instance.
@@ -61,7 +58,7 @@ func NewAzureServiceBusQueues(logger logger.Logger) bindings.InputOutputBinding 
 
 // Init parses connection properties and creates a new Service Bus Queue client.
 func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) (err error) {
-	a.metadata, err = a.parseMetadata(metadata)
+	a.metadata, err = impl.ParseMetadata(metadata.Properties, a.logger, impl.MetadataModeBinding)
 	if err != nil {
 		return err
 	}
@@ -110,28 +107,22 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) (err error) {
 
 	if a.adminClient != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
-		defer cancel()
 		getQueueRes, err := a.adminClient.GetQueue(ctx, a.metadata.QueueName, nil)
+		cancel()
 		if err != nil {
 			return err
 		}
 		if getQueueRes == nil {
 			// Need to create the queue
-			ttlDur := contribMetadata.Duration{
-				Duration: a.metadata.ttl,
-			}
 			ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
-			defer cancel()
 			_, err = a.adminClient.CreateQueue(ctx, a.metadata.QueueName, &sbadmin.CreateQueueOptions{
-				Properties: &sbadmin.QueueProperties{
-					DefaultMessageTimeToLive: to.Ptr(ttlDur.ToISOString()),
-				},
+				Properties: a.metadata.CreateQueueProperties(),
 			})
+			cancel()
 			if err != nil {
 				return err
 			}
 		}
-		a.ctx, a.cancel = context.WithCancel(context.Background())
 	}
 
 	return nil
@@ -204,8 +195,9 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 				subscribeCtx,
 				a.metadata.MaxActiveMessages,
 				a.metadata.TimeoutInSec,
-				*a.metadata.MaxRetriableErrorsPerSec,
-				&a.metadata.MaxConcurrentHandlers,
+				nil,
+				a.metadata.MaxRetriableErrorsPerSec,
+				a.metadata.MaxConcurrentHandlers,
 				"queue "+a.metadata.QueueName,
 				a.logger,
 			)
@@ -321,7 +313,7 @@ func (a *AzureServiceBusQueues) getHandlerFunc(handler bindings.Handler) impl.Ha
 			}
 		}
 
-		_, err := handler(a.ctx, &bindings.ReadResponse{
+		_, err := handler(ctx, &bindings.ReadResponse{
 			Data:     msg.Body,
 			Metadata: metadata,
 		})
@@ -330,17 +322,16 @@ func (a *AzureServiceBusQueues) getHandlerFunc(handler bindings.Handler) impl.Ha
 }
 
 func (a *AzureServiceBusQueues) Close() (err error) {
-	a.logger.Info("Shutdown called!")
 	a.senderLock.Lock()
-	defer func() {
-		a.senderLock.Unlock()
-		a.cancel()
-	}()
+	defer a.senderLock.Unlock()
+
+	a.logger.Debug("Closing component")
+
 	if a.sender != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
 		err = a.sender.Close(ctx)
-		a.sender = nil
 		cancel()
+		a.sender = nil
 		if err != nil {
 			return err
 		}

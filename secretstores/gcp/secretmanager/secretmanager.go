@@ -25,6 +25,7 @@ import (
 
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
+
 	"github.com/googleapis/gax-go/v2"
 )
 

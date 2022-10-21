@@ -14,6 +14,7 @@ limitations under the License.
 package mysql
 
 import (
+	"context"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -279,13 +280,13 @@ func tableExists(db *sql.DB, tableName string) (bool, error) {
 
 // Delete removes an entity from the store
 // Store Interface.
-func (m *MySQL) Delete(req *state.DeleteRequest) error {
-	return state.DeleteWithOptions(m.deleteValue, req)
+func (m *MySQL) Delete(ctx context.Context, req *state.DeleteRequest) error {
+	return state.DeleteWithOptions(ctx, m.deleteValue, req)
 }
 
 // deleteValue is an internal implementation of delete to enable passing the
 // logic to state.DeleteWithRetries as a func.
-func (m *MySQL) deleteValue(req *state.DeleteRequest) error {
+func (m *MySQL) deleteValue(ctx context.Context, req *state.DeleteRequest) error {
 	m.logger.Debug("Deleting state value from MySql")
 
 	if req.Key == "" {
@@ -296,11 +297,11 @@ func (m *MySQL) deleteValue(req *state.DeleteRequest) error {
 	var result sql.Result
 
 	if req.ETag == nil || *req.ETag == "" {
-		result, err = m.db.Exec(fmt.Sprintf(
+		result, err = m.db.ExecContext(ctx, fmt.Sprintf(
 			`DELETE FROM %s WHERE id = ?`,
 			m.tableName), req.Key)
 	} else {
-		result, err = m.db.Exec(fmt.Sprintf(
+		result, err = m.db.ExecContext(ctx, fmt.Sprintf(
 			`DELETE FROM %s WHERE id = ? and eTag = ?`,
 			m.tableName), req.Key, *req.ETag)
 	}
@@ -323,7 +324,7 @@ func (m *MySQL) deleteValue(req *state.DeleteRequest) error {
 
 // BulkDelete removes multiple entries from the store
 // Store Interface.
-func (m *MySQL) BulkDelete(req []state.DeleteRequest) error {
+func (m *MySQL) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
 	m.logger.Debug("Executing BulkDelete request")
 
 	tx, err := m.db.Begin()
@@ -334,7 +335,7 @@ func (m *MySQL) BulkDelete(req []state.DeleteRequest) error {
 	if len(req) > 0 {
 		for _, d := range req {
 			da := d // Fix for goSec G601: Implicit memory aliasing in for loop.
-			err = m.Delete(&da)
+			err = m.Delete(ctx, &da)
 			if err != nil {
 				tx.Rollback()
 
@@ -350,7 +351,7 @@ func (m *MySQL) BulkDelete(req []state.DeleteRequest) error {
 
 // Get returns an entity from store
 // Store Interface.
-func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (m *MySQL) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	m.logger.Debug("Getting state value from MySql")
 
 	if req.Key == "" {
@@ -368,7 +369,7 @@ func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		`SELECT value, eTag, isbinary FROM %s WHERE id = ?`,
 		m.tableName, // m.tableName is sanitized
 	)
-	err := m.db.QueryRow(query, req.Key).Scan(&value, &eTag, &isBinary)
+	err := m.db.QueryRowContext(ctx, query, req.Key).Scan(&value, &eTag, &isBinary)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return an error.
 		if errors.Is(err, sql.ErrNoRows) {
@@ -410,13 +411,13 @@ func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 // Set adds/updates an entity on store
 // Store Interface.
-func (m *MySQL) Set(req *state.SetRequest) error {
-	return state.SetWithOptions(m.setValue, req)
+func (m *MySQL) Set(ctx context.Context, req *state.SetRequest) error {
+	return state.SetWithOptions(ctx, m.setValue, req)
 }
 
 // setValue is an internal implementation of set to enable passing the logic
 // to state.SetWithRetries as a func.
-func (m *MySQL) setValue(req *state.SetRequest) error {
+func (m *MySQL) setValue(ctx context.Context, req *state.SetRequest) error {
 	m.logger.Debug("Setting state value in MySql")
 
 	err := state.CheckRequestOptions(req.Options)
@@ -457,7 +458,7 @@ func (m *MySQL) setValue(req *state.SetRequest) error {
 			`INSERT INTO %s (value, id, eTag, isbinary) VALUES (?, ?, ?, ?);`,
 			m.tableName, // m.tableName is sanitized
 		)
-		result, err = m.db.Exec(query, enc, req.Key, eTag, isBinary)
+		result, err = m.db.ExecContext(ctx, query, enc, req.Key, eTag, isBinary)
 	} else if req.ETag != nil && *req.ETag != "" {
 		// When an eTag is provided do an update - not insert
 		//nolint:gosec
@@ -465,7 +466,7 @@ func (m *MySQL) setValue(req *state.SetRequest) error {
 			`UPDATE %s SET value = ?, eTag = ?, isbinary = ? WHERE id = ? AND eTag = ?;`,
 			m.tableName, // m.tableName is sanitized
 		)
-		result, err = m.db.Exec(query, enc, eTag, isBinary, req.Key, *req.ETag)
+		result, err = m.db.ExecContext(ctx, query, enc, eTag, isBinary, req.Key, *req.ETag)
 	} else {
 		// If this is a duplicate MySQL returns that two rows affected
 		maxRows = 2
@@ -474,7 +475,7 @@ func (m *MySQL) setValue(req *state.SetRequest) error {
 			`INSERT INTO %s (value, id, eTag, isbinary) VALUES (?, ?, ?, ?) on duplicate key update value=?, eTag=?, isbinary=?;`,
 			m.tableName, // m.tableName is sanitized
 		)
-		result, err = m.db.Exec(query, enc, req.Key, eTag, isBinary, enc, eTag, isBinary)
+		result, err = m.db.ExecContext(ctx, query, enc, req.Key, eTag, isBinary, enc, eTag, isBinary)
 	}
 
 	if err != nil {
@@ -508,7 +509,7 @@ func (m *MySQL) setValue(req *state.SetRequest) error {
 
 // BulkSet adds/updates multiple entities on store
 // Store Interface.
-func (m *MySQL) BulkSet(req []state.SetRequest) error {
+func (m *MySQL) BulkSet(ctx context.Context, req []state.SetRequest) error {
 	m.logger.Debug("Executing BulkSet request")
 
 	tx, err := m.db.Begin()
@@ -518,7 +519,7 @@ func (m *MySQL) BulkSet(req []state.SetRequest) error {
 
 	if len(req) > 0 {
 		for i := range req {
-			err = m.Set(&req[i])
+			err = m.Set(ctx, &req[i])
 			if err != nil {
 				tx.Rollback()
 				return err
@@ -531,7 +532,7 @@ func (m *MySQL) BulkSet(req []state.SetRequest) error {
 
 // Multi handles multiple transactions.
 // TransactionalStore Interface.
-func (m *MySQL) Multi(request *state.TransactionalStateRequest) error {
+func (m *MySQL) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
 	m.logger.Debug("Executing Multi request")
 
 	tx, err := m.db.Begin()
@@ -548,7 +549,7 @@ func (m *MySQL) Multi(request *state.TransactionalStateRequest) error {
 				return err
 			}
 
-			err = m.Set(&setReq)
+			err = m.Set(ctx, &setReq)
 			if err != nil {
 				_ = tx.Rollback()
 				return err
@@ -561,7 +562,7 @@ func (m *MySQL) Multi(request *state.TransactionalStateRequest) error {
 				return err
 			}
 
-			err = m.Delete(&delReq)
+			err = m.Delete(ctx, &delReq)
 			if err != nil {
 				_ = tx.Rollback()
 				return err
@@ -604,7 +605,7 @@ func (m *MySQL) getDeletes(req state.TransactionalStateOperation) (state.DeleteR
 }
 
 // BulkGet performs a bulks get operations.
-func (m *MySQL) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+func (m *MySQL) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	// by default, the store doesn't support bulk get
 	// return false so daprd will fallback to call get() method one by one
 	return false, nil, nil

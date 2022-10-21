@@ -159,10 +159,7 @@ func (m *MongoDB) Features() []state.Feature {
 }
 
 // Set saves state into MongoDB.
-func (m *MongoDB) Set(req *state.SetRequest) error {
-	ctx, cancel := context.WithTimeout(context.Background(), m.operationTimeout)
-	defer cancel()
-
+func (m *MongoDB) Set(ctx context.Context, req *state.SetRequest) error {
 	err := m.setInternal(ctx, req)
 	if err != nil {
 		return err
@@ -205,11 +202,8 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 }
 
 // Get retrieves state from MongoDB with a key.
-func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (m *MongoDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	var result Item
-
-	ctx, cancel := context.WithTimeout(context.Background(), m.operationTimeout)
-	defer cancel()
 
 	filter := bson.M{id: req.Key}
 	err := m.collection.FindOne(ctx, filter).Decode(&result)
@@ -264,10 +258,7 @@ func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // Delete performs a delete operation.
-func (m *MongoDB) Delete(req *state.DeleteRequest) error {
-	ctx, cancel := context.WithTimeout(context.Background(), m.operationTimeout)
-	defer cancel()
-
+func (m *MongoDB) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	err := m.deleteInternal(ctx, req)
 	if err != nil {
 		return err
@@ -294,18 +285,18 @@ func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) 
 }
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
-func (m *MongoDB) Multi(request *state.TransactionalStateRequest) error {
+func (m *MongoDB) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
 	sess, err := m.client.StartSession()
 	txnOpts := options.Transaction().SetReadConcern(readconcern.Snapshot()).
 		SetWriteConcern(writeconcern.New(writeconcern.WMajority()))
 
-	defer sess.EndSession(context.Background())
+	defer sess.EndSession(ctx)
 
 	if err != nil {
 		return fmt.Errorf("error in starting the transaction: %s", err)
 	}
 
-	sess.WithTransaction(context.Background(), func(sessCtx mongo.SessionContext) (interface{}, error) {
+	sess.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
 		err = m.doTransaction(sessCtx, request.Operations)
 
 		return nil, err
@@ -336,10 +327,7 @@ func (m *MongoDB) doTransaction(sessCtx mongo.SessionContext, operations []state
 }
 
 // Query executes a query against store.
-func (m *MongoDB) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), m.operationTimeout)
-	defer cancel()
-
+func (m *MongoDB) Query(ctx context.Context, req *state.QueryRequest) (*state.QueryResponse, error) {
 	q := &Query{}
 	qbuilder := query.NewQueryBuilder(q)
 	if err := qbuilder.BuildQuery(&req.Query); err != nil {

@@ -14,6 +14,7 @@ limitations under the License.
 package rethinkdb
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"strconv"
@@ -147,7 +148,7 @@ func tableExists(arr []string, table string) bool {
 }
 
 // Get retrieves a RethinkDB KV item.
-func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (s *RethinkDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	if req == nil || req.Key == "" {
 		return nil, errors.New("invalid state request, missing key")
 	}
@@ -187,22 +188,22 @@ func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // BulkGet performs a bulks get operations.
-func (s *RethinkDB) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+func (s *RethinkDB) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	// TODO: replace with bulk get for performance
 	return false, nil, nil
 }
 
 // Set saves a state KV item.
-func (s *RethinkDB) Set(req *state.SetRequest) error {
+func (s *RethinkDB) Set(ctx context.Context, req *state.SetRequest) error {
 	if req == nil || req.Key == "" || req.Value == nil {
 		return errors.New("invalid state request, key and value required")
 	}
 
-	return s.BulkSet([]state.SetRequest{*req})
+	return s.BulkSet(ctx, []state.SetRequest{*req})
 }
 
 // BulkSet performs a bulk save operation.
-func (s *RethinkDB) BulkSet(req []state.SetRequest) error {
+func (s *RethinkDB) BulkSet(ctx context.Context, req []state.SetRequest) error {
 	docs := make([]*stateRecord, len(req))
 	for i, v := range req {
 		var etag string
@@ -257,16 +258,16 @@ func (s *RethinkDB) archive(changes []r.ChangeResponse) error {
 }
 
 // Delete performes a RethinkDB KV delete operation.
-func (s *RethinkDB) Delete(req *state.DeleteRequest) error {
+func (s *RethinkDB) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	if req == nil || req.Key == "" {
 		return errors.New("invalid request, missing key")
 	}
 
-	return s.BulkDelete([]state.DeleteRequest{*req})
+	return s.BulkDelete(ctx, []state.DeleteRequest{*req})
 }
 
 // BulkDelete performs a bulk delete operation.
-func (s *RethinkDB) BulkDelete(req []state.DeleteRequest) error {
+func (s *RethinkDB) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
 	list := make([]string, 0)
 	for _, d := range req {
 		list = append(list, d.Key)
@@ -282,7 +283,7 @@ func (s *RethinkDB) BulkDelete(req []state.DeleteRequest) error {
 }
 
 // Multi performs multiple operations.
-func (s *RethinkDB) Multi(req *state.TransactionalStateRequest) error {
+func (s *RethinkDB) Multi(ctx context.Context, req *state.TransactionalStateRequest) error {
 	upserts := make([]state.SetRequest, 0)
 	deletes := make([]state.DeleteRequest, 0)
 
@@ -306,11 +307,11 @@ func (s *RethinkDB) Multi(req *state.TransactionalStateRequest) error {
 	}
 
 	// best effort, no transacts supported
-	if err := s.BulkSet(upserts); err != nil {
+	if err := s.BulkSet(ctx, upserts); err != nil {
 		return errors.Wrap(err, "error saving records to the database")
 	}
 
-	if err := s.BulkDelete(deletes); err != nil {
+	if err := s.BulkDelete(ctx, deletes); err != nil {
 		return errors.Wrap(err, "error deleting records to the database")
 	}
 

@@ -144,7 +144,7 @@ func (q *Query) setNextParameter(val string) string {
 	return pname
 }
 
-func (q *Query) execute(client *azcosmos.ContainerClient) ([]state.QueryItem, string, error) {
+func (q *Query) execute(ctx context.Context, client *azcosmos.ContainerClient) ([]state.QueryItem, string, error) {
 	opts := &azcosmos.QueryOptions{}
 
 	resultLimit := q.limit
@@ -160,9 +160,7 @@ func (q *Query) execute(client *azcosmos.ContainerClient) ([]state.QueryItem, st
 
 	token := ""
 	for queryPager.More() {
-		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		queryResponse, innerErr := queryPager.NextPage(ctx)
-		cancel()
 		if innerErr != nil {
 			return nil, "", innerErr
 		}

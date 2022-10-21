@@ -15,6 +15,7 @@ limitations under the License.
 package oracledatabase
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -48,23 +49,23 @@ func (m *fakeDBaccess) Init(metadata state.Metadata) error {
 	return nil
 }
 
-func (m *fakeDBaccess) Set(req *state.SetRequest) error {
+func (m *fakeDBaccess) Set(ctx context.Context, req *state.SetRequest) error {
 	m.setExecuted = true
 
 	return nil
 }
 
-func (m *fakeDBaccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (m *fakeDBaccess) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	m.getExecuted = true
 
 	return nil, nil
 }
 
-func (m *fakeDBaccess) Delete(req *state.DeleteRequest) error {
+func (m *fakeDBaccess) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	return nil
 }
 
-func (m *fakeDBaccess) ExecuteMulti(sets []state.SetRequest, deletes []state.DeleteRequest) error {
+func (m *fakeDBaccess) ExecuteMulti(ctx context.Context, sets []state.SetRequest, deletes []state.DeleteRequest) error {
 	return nil
 }
 
@@ -84,7 +85,7 @@ func TestMultiWithNoRequestsReturnsNil(t *testing.T) {
 	t.Parallel()
 	var operations []state.TransactionalStateOperation
 	ods := createOracleDatabase(t)
-	err := ods.Multi(&state.TransactionalStateRequest{
+	err := ods.Multi(context.TODO(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	assert.Nil(t, err)
@@ -100,7 +101,7 @@ func TestInvalidMultiAction(t *testing.T) {
 	})
 
 	ods := createOracleDatabase(t)
-	err := ods.Multi(&state.TransactionalStateRequest{
+	err := ods.Multi(context.TODO(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	assert.NotNil(t, err)
@@ -116,7 +117,7 @@ func TestValidSetRequest(t *testing.T) {
 	})
 
 	ods := createOracleDatabase(t)
-	err := ods.Multi(&state.TransactionalStateRequest{
+	err := ods.Multi(context.TODO(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	assert.Nil(t, err)
@@ -132,7 +133,7 @@ func TestInvalidMultiSetRequest(t *testing.T) {
 	})
 
 	ods := createOracleDatabase(t)
-	err := ods.Multi(&state.TransactionalStateRequest{
+	err := ods.Multi(context.TODO(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	assert.NotNil(t, err)
@@ -148,7 +149,7 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 	})
 
 	ods := createOracleDatabase(t)
-	err := ods.Multi(&state.TransactionalStateRequest{
+	err := ods.Multi(context.TODO(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	assert.Nil(t, err)
@@ -164,7 +165,7 @@ func TestInvalidMultiDeleteRequest(t *testing.T) {
 	})
 
 	ods := createOracleDatabase(t)
-	err := ods.Multi(&state.TransactionalStateRequest{
+	err := ods.Multi(context.TODO(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	assert.NotNil(t, err)

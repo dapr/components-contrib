@@ -14,6 +14,7 @@ limitations under the License.
 package sqlserver
 
 import (
+	"context"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -338,7 +339,7 @@ func (s *SQLServer) Features() []state.Feature {
 }
 
 // Multi performs multiple updates on a Sql server store.
-func (s *SQLServer) Multi(request *state.TransactionalStateRequest) error {
+func (s *SQLServer) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -353,7 +354,7 @@ func (s *SQLServer) Multi(request *state.TransactionalStateRequest) error {
 				return err
 			}
 
-			err = s.executeSet(tx, &setReq)
+			err = s.executeSet(ctx, tx, &setReq)
 			if err != nil {
 				tx.Rollback()
 				return err
@@ -366,7 +367,7 @@ func (s *SQLServer) Multi(request *state.TransactionalStateRequest) error {
 				return err
 			}
 
-			err = s.executeDelete(tx, &delReq)
+			err = s.executeDelete(ctx, tx, &delReq)
 			if err != nil {
 				tx.Rollback()
 				return err
@@ -410,11 +411,11 @@ func (s *SQLServer) getDeletes(req state.TransactionalStateOperation) (state.Del
 }
 
 // Delete removes an entity from the store.
-func (s *SQLServer) Delete(req *state.DeleteRequest) error {
-	return s.executeDelete(s.db, req)
+func (s *SQLServer) Delete(ctx context.Context, req *state.DeleteRequest) error {
+	return s.executeDelete(ctx, s.db, req)
 }
 
-func (s *SQLServer) executeDelete(db dbExecutor, req *state.DeleteRequest) error {
+func (s *SQLServer) executeDelete(ctx context.Context, db dbExecutor, req *state.DeleteRequest) error {
 	var err error
 	var res sql.Result
 	if req.ETag != nil {
@@ -424,9 +425,9 @@ func (s *SQLServer) executeDelete(db dbExecutor, req *state.DeleteRequest) error
 			return state.NewETagError(state.ETagInvalid, err)
 		}
 
-		res, err = db.Exec(s.deleteWithETagCommand, sql.Named(keyColumnName, req.Key), sql.Named(rowVersionColumnName, b))
+		res, err = db.ExecContext(ctx, s.deleteWithETagCommand, sql.Named(keyColumnName, req.Key), sql.Named(rowVersionColumnName, b))
 	} else {
-		res, err = db.Exec(s.deleteWithoutETagCommand, sql.Named(keyColumnName, req.Key))
+		res, err = db.ExecContext(ctx, s.deleteWithoutETagCommand, sql.Named(keyColumnName, req.Key))
 	}
 
 	// err represents errors thrown by the stored procedure or the database itself
@@ -456,13 +457,13 @@ type TvpDeleteTableStringKey struct {
 }
 
 // BulkDelete removes multiple entries from the store.
-func (s *SQLServer) BulkDelete(req []state.DeleteRequest) error {
+func (s *SQLServer) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 
-	err = s.executeBulkDelete(tx, req)
+	err = s.executeBulkDelete(ctx, tx, req)
 	if err != nil {
 		tx.Rollback()
 
@@ -474,7 +475,7 @@ func (s *SQLServer) BulkDelete(req []state.DeleteRequest) error {
 	return nil
 }
 
-func (s *SQLServer) executeBulkDelete(db dbExecutor, req []state.DeleteRequest) error {
+func (s *SQLServer) executeBulkDelete(ctx context.Context, db dbExecutor, req []state.DeleteRequest) error {
 	values := make([]TvpDeleteTableStringKey, len(req))
 	for i, d := range req {
 		var etag []byte
@@ -493,7 +494,7 @@ func (s *SQLServer) executeBulkDelete(db dbExecutor, req []state.DeleteRequest) 
 		Value:    values,
 	}
 
-	res, err := db.Exec(s.bulkDeleteCommand, sql.Named("itemsToDelete", itemsToDelete))
+	res, err := db.ExecContext(ctx, s.bulkDeleteCommand, sql.Named("itemsToDelete", itemsToDelete))
 	if err != nil {
 		return err
 	}
@@ -513,7 +514,7 @@ func (s *SQLServer) executeBulkDelete(db dbExecutor, req []state.DeleteRequest) 
 }
 
 // Get returns an entity from store.
-func (s *SQLServer) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (s *SQLServer) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	rows, err := s.db.Query(s.getCommand, sql.Named(keyColumnName, req.Key))
 	if err != nil {
 		return nil, err
@@ -545,21 +546,21 @@ func (s *SQLServer) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // BulkGet performs a bulks get operations.
-func (s *SQLServer) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+func (s *SQLServer) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	return false, nil, nil
 }
 
 // Set adds/updates an entity on store.
-func (s *SQLServer) Set(req *state.SetRequest) error {
-	return s.executeSet(s.db, req)
+func (s *SQLServer) Set(ctx context.Context, req *state.SetRequest) error {
+	return s.executeSet(ctx, s.db, req)
 }
 
 // dbExecutor implements a common functionality implemented by db or tx.
 type dbExecutor interface {
-	Exec(query string, args ...interface{}) (sql.Result, error)
+	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 }
 
-func (s *SQLServer) executeSet(db dbExecutor, req *state.SetRequest) error {
+func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.SetRequest) error {
 	var err error
 	var bytes []byte
 	bytes, err = utils.Marshal(req.Value, json.Marshal)
@@ -578,9 +579,9 @@ func (s *SQLServer) executeSet(db dbExecutor, req *state.SetRequest) error {
 
 	var res sql.Result
 	if req.Options.Concurrency == state.FirstWrite {
-		res, err = db.Exec(s.upsertCommand, sql.Named(keyColumnName, req.Key), sql.Named("Data", string(bytes)), etag, sql.Named("FirstWrite", 1))
+		res, err = db.ExecContext(ctx, s.upsertCommand, sql.Named(keyColumnName, req.Key), sql.Named("Data", string(bytes)), etag, sql.Named("FirstWrite", 1))
 	} else {
-		res, err = db.Exec(s.upsertCommand, sql.Named(keyColumnName, req.Key), sql.Named("Data", string(bytes)), etag, sql.Named("FirstWrite", 0))
+		res, err = db.ExecContext(ctx, s.upsertCommand, sql.Named(keyColumnName, req.Key), sql.Named("Data", string(bytes)), etag, sql.Named("FirstWrite", 0))
 	}
 
 	if err != nil {
@@ -604,14 +605,14 @@ func (s *SQLServer) executeSet(db dbExecutor, req *state.SetRequest) error {
 }
 
 // BulkSet adds/updates multiple entities on store.
-func (s *SQLServer) BulkSet(req []state.SetRequest) error {
+func (s *SQLServer) BulkSet(ctx context.Context, req []state.SetRequest) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 
 	for i := range req {
-		err = s.executeSet(tx, &req[i])
+		err = s.executeSet(ctx, tx, &req[i])
 		if err != nil {
 			tx.Rollback()
 

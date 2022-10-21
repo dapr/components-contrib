@@ -52,7 +52,7 @@ require (
 	github.com/dghubble/oauth1 v0.6.0
 	github.com/didip/tollbooth v4.0.2+incompatible
 	github.com/eapache/go-resiliency v1.2.0 // indirect
-	github.com/eclipse/paho.mqtt.golang v1.3.5
+	github.com/eclipse/paho.mqtt.golang v1.4.2-0.20221018190109-a1800d8df9a4
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/gavv/httpexpect v2.0.0+incompatible // indirect
@@ -545,8 +545,6 @@ require (
 )
 
 replace k8s.io/client => github.com/kubernetes-client/go v0.0.0-20190928040339-c757968c4c36
-
-replace github.com/eclipse/paho.mqtt.golang => github.com/shivamkm07/paho.mqtt.golang v1.3.6-0.20220106130409-e28a1db639f8
 
 replace github.com/gobwas/pool => github.com/gobwas/pool v0.2.1
 

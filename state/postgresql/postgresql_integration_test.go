@@ -15,6 +15,7 @@ limitations under the License.
 package postgresql
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -192,7 +193,7 @@ func deleteItemThatDoesNotExist(t *testing.T, pgs *PostgreSQL) {
 	deleteReq := &state.DeleteRequest{
 		Key: randomKey(),
 	}
-	err := pgs.Delete(deleteReq)
+	err := pgs.Delete(context.TODO(), deleteReq)
 	assert.Nil(t, err)
 }
 
@@ -211,7 +212,7 @@ func multiWithSetOnly(t *testing.T, pgs *PostgreSQL) {
 		})
 	}
 
-	err := pgs.Multi(&state.TransactionalStateRequest{
+	err := pgs.Multi(context.TODO(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	assert.Nil(t, err)
@@ -241,7 +242,7 @@ func multiWithDeleteOnly(t *testing.T, pgs *PostgreSQL) {
 		})
 	}
 
-	err := pgs.Multi(&state.TransactionalStateRequest{
+	err := pgs.Multi(context.TODO(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	assert.Nil(t, err)
@@ -284,7 +285,7 @@ func multiWithDeleteAndSet(t *testing.T, pgs *PostgreSQL) {
 		})
 	}
 
-	err := pgs.Multi(&state.TransactionalStateRequest{
+	err := pgs.Multi(context.TODO(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	assert.Nil(t, err)
@@ -311,7 +312,7 @@ func deleteWithInvalidEtagFails(t *testing.T, pgs *PostgreSQL) {
 		Key:  key,
 		ETag: &etag,
 	}
-	err := pgs.Delete(deleteReq)
+	err := pgs.Delete(context.TODO(), deleteReq)
 	assert.NotNil(t, err)
 }
 
@@ -319,7 +320,7 @@ func deleteWithNoKeyFails(t *testing.T, pgs *PostgreSQL) {
 	deleteReq := &state.DeleteRequest{
 		Key: "",
 	}
-	err := pgs.Delete(deleteReq)
+	err := pgs.Delete(context.TODO(), deleteReq)
 	assert.NotNil(t, err)
 }
 
@@ -334,7 +335,7 @@ func newItemWithEtagFails(t *testing.T, pgs *PostgreSQL) {
 		Value: value,
 	}
 
-	err := pgs.Set(setReq)
+	err := pgs.Set(context.TODO(), setReq)
 	assert.NotNil(t, err)
 }
 
@@ -360,7 +361,7 @@ func updateWithOldEtagFails(t *testing.T, pgs *PostgreSQL) {
 		ETag:  originalEtag,
 		Value: newValue,
 	}
-	err := pgs.Set(setReq)
+	err := pgs.Set(context.TODO(), setReq)
 	assert.NotNil(t, err)
 }
 
@@ -402,7 +403,7 @@ func getItemWithNoKey(t *testing.T, pgs *PostgreSQL) {
 		Key: "",
 	}
 
-	response, getErr := pgs.Get(getReq)
+	response, getErr := pgs.Get(context.TODO(), getReq)
 	assert.NotNil(t, getErr)
 	assert.Nil(t, response)
 }
@@ -433,7 +434,7 @@ func setItemWithNoKey(t *testing.T, pgs *PostgreSQL) {
 		Key: "",
 	}
 
-	err := pgs.Set(setReq)
+	err := pgs.Set(context.TODO(), setReq)
 	assert.NotNil(t, err)
 }
 
@@ -450,7 +451,7 @@ func testBulkSetAndBulkDelete(t *testing.T, pgs *PostgreSQL) {
 		},
 	}
 
-	err := pgs.BulkSet(setReq)
+	err := pgs.BulkSet(context.TODO(), setReq)
 	assert.Nil(t, err)
 	assert.True(t, storeItemExists(t, setReq[0].Key))
 	assert.True(t, storeItemExists(t, setReq[1].Key))
@@ -464,7 +465,7 @@ func testBulkSetAndBulkDelete(t *testing.T, pgs *PostgreSQL) {
 		},
 	}
 
-	err = pgs.BulkDelete(deleteReq)
+	err = pgs.BulkDelete(context.TODO(), deleteReq)
 	assert.Nil(t, err)
 	assert.False(t, storeItemExists(t, setReq[0].Key))
 	assert.False(t, storeItemExists(t, setReq[1].Key))
@@ -521,7 +522,7 @@ func setItem(t *testing.T, pgs *PostgreSQL, key string, value interface{}, etag 
 		Value: value,
 	}
 
-	err := pgs.Set(setReq)
+	err := pgs.Set(context.TODO(), setReq)
 	assert.Nil(t, err)
 	itemExists := storeItemExists(t, key)
 	assert.True(t, itemExists)
@@ -533,7 +534,7 @@ func getItem(t *testing.T, pgs *PostgreSQL, key string) (*state.GetResponse, *fa
 		Options: state.GetStateOption{},
 	}
 
-	response, getErr := pgs.Get(getReq)
+	response, getErr := pgs.Get(context.TODO(), getReq)
 	assert.Nil(t, getErr)
 	assert.NotNil(t, response)
 	outputObject := &fakeItem{}
@@ -549,7 +550,7 @@ func deleteItem(t *testing.T, pgs *PostgreSQL, key string, etag *string) {
 		Options: state.DeleteStateOption{},
 	}
 
-	deleteErr := pgs.Delete(deleteReq)
+	deleteErr := pgs.Delete(context.TODO(), deleteReq)
 	assert.Nil(t, deleteErr)
 	assert.False(t, storeItemExists(t, key))
 }

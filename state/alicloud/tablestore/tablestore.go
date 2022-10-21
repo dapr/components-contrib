@@ -14,6 +14,7 @@ limitations under the License.
 package tablestore
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/agrea/ptr"
@@ -68,7 +69,7 @@ func (s *AliCloudTableStore) Features() []state.Feature {
 	return s.features
 }
 
-func (s *AliCloudTableStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (s *AliCloudTableStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	criteria := &tablestore.SingleRowQueryCriteria{
 		PrimaryKey: s.primaryKey(req.Key),
 		TableName:  s.metadata.TableName,
@@ -103,7 +104,7 @@ func (s *AliCloudTableStore) getResp(columns []*tablestore.AttributeColumn) *sta
 	return getResp
 }
 
-func (s *AliCloudTableStore) BulkGet(reqs []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+func (s *AliCloudTableStore) BulkGet(ctx context.Context, reqs []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	// "len == 0": empty request, directly return empty response
 	if len(reqs) == 0 {
 		return true, []state.BulkGetResponse{}, nil
@@ -139,7 +140,7 @@ func (s *AliCloudTableStore) BulkGet(reqs []state.GetRequest) (bool, []state.Bul
 	return true, responseList, nil
 }
 
-func (s *AliCloudTableStore) Set(req *state.SetRequest) error {
+func (s *AliCloudTableStore) Set(ctx context.Context, req *state.SetRequest) error {
 	change := s.updateRowChange(req)
 
 	request := &tablestore.UpdateRowRequest{
@@ -183,7 +184,7 @@ func unmarshal(val interface{}) []byte {
 	return []byte(output)
 }
 
-func (s *AliCloudTableStore) Delete(req *state.DeleteRequest) error {
+func (s *AliCloudTableStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	change := s.deleteRowChange(req)
 
 	deleteRowReq := &tablestore.DeleteRowRequest{
@@ -205,15 +206,15 @@ func (s *AliCloudTableStore) deleteRowChange(req *state.DeleteRequest) *tablesto
 	return change
 }
 
-func (s *AliCloudTableStore) BulkSet(reqs []state.SetRequest) error {
-	return s.batchWrite(reqs, nil)
+func (s *AliCloudTableStore) BulkSet(ctx context.Context, reqs []state.SetRequest) error {
+	return s.batchWrite(ctx, reqs, nil)
 }
 
-func (s *AliCloudTableStore) BulkDelete(reqs []state.DeleteRequest) error {
-	return s.batchWrite(nil, reqs)
+func (s *AliCloudTableStore) BulkDelete(ctx context.Context, reqs []state.DeleteRequest) error {
+	return s.batchWrite(ctx, nil, reqs)
 }
 
-func (s *AliCloudTableStore) batchWrite(setReqs []state.SetRequest, deleteReqs []state.DeleteRequest) error {
+func (s *AliCloudTableStore) batchWrite(ctx context.Context, setReqs []state.SetRequest, deleteReqs []state.DeleteRequest) error {
 	bathReq := &tablestore.BatchWriteRowRequest{
 		IsAtomic: true,
 	}

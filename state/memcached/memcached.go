@@ -14,6 +14,7 @@ limitations under the License.
 package memcached
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -139,7 +140,7 @@ func (m *Memcached) parseTTL(req *state.SetRequest) (*int32, error) {
 	return nil, nil
 }
 
-func (m *Memcached) setValue(req *state.SetRequest) error {
+func (m *Memcached) setValue(ctx context.Context, req *state.SetRequest) error {
 	var bt []byte
 	ttl, err := m.parseTTL(req)
 	if err != nil {
@@ -159,7 +160,7 @@ func (m *Memcached) setValue(req *state.SetRequest) error {
 	return nil
 }
 
-func (m *Memcached) Delete(req *state.DeleteRequest) error {
+func (m *Memcached) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	err := m.client.Delete(req.Key)
 	if err != nil {
 		if err == memcache.ErrCacheMiss {
@@ -171,7 +172,7 @@ func (m *Memcached) Delete(req *state.DeleteRequest) error {
 	return nil
 }
 
-func (m *Memcached) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (m *Memcached) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	item, err := m.client.Get(req.Key)
 	if err != nil {
 		// Return nil for status 204
@@ -187,6 +188,6 @@ func (m *Memcached) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, nil
 }
 
-func (m *Memcached) Set(req *state.SetRequest) error {
-	return state.SetWithOptions(m.setValue, req)
+func (m *Memcached) Set(ctx context.Context, req *state.SetRequest) error {
+	return state.SetWithOptions(ctx, m.setValue, req)
 }

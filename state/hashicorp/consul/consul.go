@@ -14,6 +14,7 @@ limitations under the License.
 package consul
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -102,11 +103,12 @@ func metadataToConfig(connInfo map[string]string) (*consulConfig, error) {
 }
 
 // Get retrieves a Consul KV item.
-func (c *Consul) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (c *Consul) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	queryOpts := &api.QueryOptions{}
 	if req.Options.Consistency == state.Strong {
 		queryOpts.RequireConsistent = true
 	}
+	queryOpts = queryOpts.WithContext(ctx)
 
 	resp, queryMeta, err := c.client.KV().Get(fmt.Sprintf("%s/%s", c.keyPrefixPath, req.Key), queryOpts)
 	if err != nil {
@@ -124,7 +126,7 @@ func (c *Consul) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // Set saves a Consul KV item.
-func (c *Consul) Set(req *state.SetRequest) error {
+func (c *Consul) Set(ctx context.Context, req *state.SetRequest) error {
 	var reqValByte []byte
 	b, ok := req.Value.([]byte)
 	if ok {
@@ -135,10 +137,12 @@ func (c *Consul) Set(req *state.SetRequest) error {
 
 	keyWithPath := fmt.Sprintf("%s/%s", c.keyPrefixPath, req.Key)
 
+	writeOptions := new(api.WriteOptions)
+	writeOptions = writeOptions.WithContext(ctx)
 	_, err := c.client.KV().Put(&api.KVPair{
 		Key:   keyWithPath,
 		Value: reqValByte,
-	}, nil)
+	}, writeOptions)
 	if err != nil {
 		return fmt.Errorf("couldn't set key %s: %s", keyWithPath, err)
 	}
@@ -147,9 +151,11 @@ func (c *Consul) Set(req *state.SetRequest) error {
 }
 
 // Delete performes a Consul KV delete operation.
-func (c *Consul) Delete(req *state.DeleteRequest) error {
+func (c *Consul) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	keyWithPath := fmt.Sprintf("%s/%s", c.keyPrefixPath, req.Key)
-	_, err := c.client.KV().Delete(keyWithPath, nil)
+	writeOptions := new(api.WriteOptions)
+	writeOptions = writeOptions.WithContext(ctx)
+	_, err := c.client.KV().Delete(keyWithPath, writeOptions)
 	if err != nil {
 		return fmt.Errorf("couldn't delete key %s: %s", keyWithPath, err)
 	}

@@ -367,3 +367,5 @@ replace github.com/eclipse/paho.mqtt.golang => github.com/shivamkm07/paho.mqtt.g
 
 // this is a fork which addresses a performance issues due to go routines
 replace dubbo.apache.org/dubbo-go/v3 => dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20220610080020-48691a404537
+
+replace github.com/dapr/dapr => github.com/1046102779/dapr v0.0.0-20221020184546-2ca43ec3c91b

@@ -23,6 +23,7 @@ GIT_COMMIT  = $(shell git rev-list -1 HEAD)
 GIT_VERSION = $(shell git describe --always --abbrev=7 --dirty)
 # By default, disable CGO_ENABLED. See the details on https://golang.org/cmd/cgo
 CGO ?= 0
+DAPR_PACKAGE ?= $(dapr_package)
 
 LOCAL_ARCH := $(shell uname -m)
 ifeq ($(LOCAL_ARCH),x86_64)
@@ -129,8 +130,17 @@ modtidy-$(1):
 	cd $(shell dirname $(1)); go mod tidy -compat=1.19; cd -
 endef
 
+define goget-dapr
+.PHONY: goget-$(1)
+goget-$(1):
+	cd $(shell dirname $(1)); go mod edit -replace github.com/dapr/dapr=$(DAPR_PACKAGE); cd -
+endef
+
 # Generate modtidy target action for each go.mod file
 $(foreach MODFILE,$(MODFILES),$(eval $(call modtidy-target,$(MODFILE))))
+
+# Go get dapr package to tests/.../go.mod.
+$(foreach MODFILE,$(MODFILES),$(eval $(call goget-dapr,$(MODFILE))))
 
 # Enumerate all generated modtidy targets
 # Note that the order of execution matters: root and tests/certification go.mod
@@ -138,9 +148,15 @@ $(foreach MODFILE,$(MODFILES),$(eval $(call modtidy-target,$(MODFILE))))
 # tree walk when finding the go.mod files.
 TIDY_MODFILES:=$(foreach ITEM,$(MODFILES),modtidy-$(ITEM))
 
+GOGET_MODFILES:=$(foreach ITEM,$(MODFILES),goget-$(ITEM))
+
 # Define modtidy-all action trigger to run make on all generated modtidy targets
 .PHONY: modtidy-all
 modtidy-all: $(TIDY_MODFILES)
+
+# Define goget-all action trigger to go get dapr package specified.
+.PHONY: goget-all
+goget-all: $(GOGET_MODFILES)
 
 ################################################################################
 # Target: modtidy                                                              #

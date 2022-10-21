@@ -4,21 +4,20 @@ go 1.19
 
 require (
 	github.com/cenkalti/backoff/v4 v4.1.3
-	github.com/dapr/components-contrib v1.9.0-rc.1
+	github.com/dapr/components-contrib v1.9.1-0.20221020020823-038f63d30938
 	github.com/dapr/components-contrib/tests/certification v1.4.0-rc2
 	github.com/dapr/dapr v1.9.0-rc.3
 	github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721
-	github.com/dapr/kit v0.0.3-0.20220930182601-272e358ba6a7
+	github.com/dapr/kit v0.0.3-0.20221009070203-ca4d40d89ed5
 	github.com/eclipse/paho.mqtt.golang v1.4.1
 	github.com/stretchr/testify v1.8.0
 	go.uber.org/multierr v1.8.0
 )
 
 require (
-	contrib.go.opencensus.io/exporter/prometheus v0.4.1 // indirect
+	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	github.com/AdhityaRamadhanus/fasthttpcors v0.0.0-20170121111917-d4c07198763a // indirect
-	github.com/PuerkitoBio/purell v1.1.1 // indirect
-	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
+	github.com/PuerkitoBio/purell v1.2.0 // indirect
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129 // indirect
 	github.com/andybalholm/brotli v1.0.4 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20220418222510-f25a4f6275ed // indirect
@@ -28,12 +27,12 @@ require (
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.8.0 // indirect
-	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
+	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/fasthttp/router v1.4.12 // indirect
 	github.com/fatih/color v1.13.0 // indirect
-	github.com/fsnotify/fsnotify v1.5.4 // indirect
+	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
-	github.com/go-kit/log v0.2.0 // indirect
+	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -79,33 +78,34 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/openzipkin/zipkin-go v0.4.0 // indirect
+	github.com/openzipkin/zipkin-go v0.4.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.13.0 // indirect
-	github.com/prometheus/client_model v0.2.0 // indirect
+	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.37.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
-	github.com/prometheus/statsd_exporter v0.22.3 // indirect
+	github.com/prometheus/statsd_exporter v0.22.7 // indirect
 	github.com/savsgio/gotils v0.0.0-20220530130905-52f3993e8d6d // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
-	github.com/sony/gobreaker v0.4.2-0.20210216022020-dd874f9dd33b // indirect
+	github.com/sony/gobreaker v0.5.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stoewer/go-strcase v1.2.0 // indirect
 	github.com/stretchr/objx v0.4.0 // indirect
+	github.com/tidwall/transform v0.0.0-20201103190739-32f242e2dbde // indirect
 	github.com/tylertreat/comcast v1.0.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.40.0 // indirect
 	go.opencensus.io v0.23.0 // indirect
-	go.opentelemetry.io/otel v1.7.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.7.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.7.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.7.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.7.0 // indirect
-	go.opentelemetry.io/otel/exporters/zipkin v1.7.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.7.0 // indirect
-	go.opentelemetry.io/otel/trace v1.7.0 // indirect
-	go.opentelemetry.io/proto/otlp v0.16.0 // indirect
+	go.opentelemetry.io/otel v1.11.1 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.11.1 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.11.1 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.11.1 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.11.1 // indirect
+	go.opentelemetry.io/otel/exporters/zipkin v1.11.1 // indirect
+	go.opentelemetry.io/otel/sdk v1.11.1 // indirect
+	go.opentelemetry.io/otel/trace v1.11.1 // indirect
+	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/ratelimit v0.2.0 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
@@ -133,7 +133,7 @@ require (
 	k8s.io/klog/v2 v2.80.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20220803162953-67bda5d908f1 // indirect
 	k8s.io/utils v0.0.0-20221012122500-cfd413dd9e85 // indirect
-	sigs.k8s.io/controller-runtime v0.11.0 // indirect
+	sigs.k8s.io/controller-runtime v0.13.0 // indirect
 	sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
@@ -144,3 +144,5 @@ replace github.com/dapr/components-contrib/tests/certification => ../../
 replace github.com/dapr/components-contrib => ../../../../
 
 replace github.com/eclipse/paho.mqtt.golang => github.com/shivamkm07/paho.mqtt.golang v1.3.6-0.20220106130409-e28a1db639f8
+
+replace github.com/dapr/dapr => github.com/1046102779/dapr v0.0.0-20221020184546-2ca43ec3c91b

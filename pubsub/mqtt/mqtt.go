@@ -247,7 +247,6 @@ func (m *mqttPubSub) startSubscription(ctx context.Context) error {
 // onMessage returns the callback to be invoked when there's a new message from a topic
 func (m *mqttPubSub) onMessage(ctx context.Context) func(client mqtt.Client, mqttMsg mqtt.Message) {
 	return func(client mqtt.Client, mqttMsg mqtt.Message) {
-
 		ack := false
 		defer func() {
 			// Do not send N/ACKs on retained messages

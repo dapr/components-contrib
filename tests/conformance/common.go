@@ -50,7 +50,7 @@ import (
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
 	p_snssqs "github.com/dapr/components-contrib/pubsub/aws/snssqs"
 	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
-	p_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
+	p_servicebustopics "github.com/dapr/components-contrib/pubsub/azure/servicebus.topics"
 	p_hazelcast "github.com/dapr/components-contrib/pubsub/hazelcast"
 	p_inmemory "github.com/dapr/components-contrib/pubsub/in-memory"
 	p_jetstream "github.com/dapr/components-contrib/pubsub/jetstream"
@@ -362,7 +362,7 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 	case eventhubs:
 		pubsub = p_eventhubs.NewAzureEventHubs(testLogger)
 	case "azure.servicebus":
-		pubsub = p_servicebus.NewAzureServiceBus(testLogger)
+		pubsub = p_servicebustopics.NewAzureServiceBusTopics(testLogger)
 	case "natsstreaming":
 		pubsub = p_natsstreaming.NewNATSStreamingPubSub(testLogger)
 	case "jetstream":

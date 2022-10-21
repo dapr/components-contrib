@@ -14,6 +14,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -90,37 +91,37 @@ func TestPostgreSQL(t *testing.T) {
 	eTagTest := func(ctx flow.Context) error {
 		etag900invalid := "900invalid"
 
-		err1 := stateStore.Set(&state.SetRequest{
+		err1 := stateStore.Set(context.TODO(), &state.SetRequest{
 			Key:   "k",
 			Value: "v1",
 		})
 		assert.NoError(t, err1)
-		resp1, err2 := stateStore.Get(&state.GetRequest{
+		resp1, err2 := stateStore.Get(context.TODO(), &state.GetRequest{
 			Key: "k",
 		})
 
 		assert.NoError(t, err2)
-		err3 := stateStore.Set(&state.SetRequest{
+		err3 := stateStore.Set(context.TODO(), &state.SetRequest{
 			Key:   "k",
 			Value: "v2",
 			ETag:  resp1.ETag,
 		})
 		assert.NoError(t, err3)
 
-		resp11, err12 := stateStore.Get(&state.GetRequest{
+		resp11, err12 := stateStore.Get(context.TODO(), &state.GetRequest{
 			Key: "k",
 		})
 		expectedEtag := *resp11.ETag
 		assert.NoError(t, err12)
 
-		err4 := stateStore.Set(&state.SetRequest{
+		err4 := stateStore.Set(context.TODO(), &state.SetRequest{
 			Key:   "k",
 			Value: "v3",
 			ETag:  &etag900invalid,
 		})
 
 		assert.Error(t, err4)
-		resp, err := stateStore.Get(&state.GetRequest{
+		resp, err := stateStore.Get(context.TODO(), &state.GetRequest{
 			Key: "k",
 		})
 
@@ -132,7 +133,7 @@ func TestPostgreSQL(t *testing.T) {
 	}
 
 	transactionsTest := func(ctx flow.Context) error {
-		err := stateStore.Multi(&state.TransactionalStateRequest{
+		err := stateStore.Multi(context.TODO(), &state.TransactionalStateRequest{
 			Operations: []state.TransactionalStateOperation{
 				{
 					Operation: state.Upsert,
@@ -184,12 +185,12 @@ func TestPostgreSQL(t *testing.T) {
 			},
 		})
 		assert.Equal(t, nil, err)
-		resp1, err := stateStore.Get(&state.GetRequest{
+		resp1, err := stateStore.Get(context.TODO(), &state.GetRequest{
 			Key: "reqKey1",
 		})
 		assert.Equal(t, "\"reqVal101\"", string(resp1.Data))
 
-		resp3, err := stateStore.Get(&state.GetRequest{
+		resp3, err := stateStore.Get(context.TODO(), &state.GetRequest{
 			Key: "reqKey3",
 		})
 		assert.Equal(t, "\"reqVal103\"", string(resp3.Data))

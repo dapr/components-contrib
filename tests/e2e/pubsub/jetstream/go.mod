@@ -21,3 +21,5 @@ require (
 )
 
 replace github.com/dapr/components-contrib => ../../../../
+
+replace github.com/dapr/dapr => github.com/1046102779/dapr v0.0.0-20221020184546-2ca43ec3c91b

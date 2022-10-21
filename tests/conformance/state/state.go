@@ -431,7 +431,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			sort.Ints(transactionGroups)
 			for _, transactionGroup := range transactionGroups {
 				t.Logf("Testing transaction #%d", transactionGroup)
-				err := transactionStore.Multi(&state.TransactionalStateRequest{
+				err := transactionStore.Multi(context.TODO(), &state.TransactionalStateRequest{
 					Operations: transactions[transactionGroup],
 					// For CosmosDB
 					Metadata: map[string]string{
@@ -551,7 +551,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			// Act
 			transactionStore, ok := statestore.(state.TransactionalStore)
 			assert.True(t, ok)
-			err = transactionStore.Multi(&state.TransactionalStateRequest{
+			err = transactionStore.Multi(context.TODO(), &state.TransactionalStateRequest{
 				Operations: operations,
 				Metadata:   partitionMetadata,
 			})

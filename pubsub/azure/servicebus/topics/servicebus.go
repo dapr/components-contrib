@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package servicebusqueues
+package topics
 
 import (
 	"context"
@@ -43,8 +43,8 @@ type azureServiceBus struct {
 	publishCancel context.CancelFunc
 }
 
-// NewAzureServiceBusQueues returns a new implementation.
-func NewAzureServiceBusQueues(logger logger.Logger) pubsub.PubSub {
+// NewAzureServiceBusTopics returns a new pub-sub implementation.
+func NewAzureServiceBusTopics(logger logger.Logger) pubsub.PubSub {
 	return &azureServiceBus{
 		logger:   logger,
 		features: []pubsub.Feature{pubsub.FeatureMessageTTL},
@@ -52,7 +52,7 @@ func NewAzureServiceBusQueues(logger logger.Logger) pubsub.PubSub {
 }
 
 func (a *azureServiceBus) Init(metadata pubsub.Metadata) (err error) {
-	a.metadata, err = impl.ParseMetadata(metadata.Properties, a.logger, impl.MetadataModeQueues)
+	a.metadata, err = impl.ParseMetadata(metadata.Properties, a.logger, impl.MetadataModeTopics)
 	if err != nil {
 		return err
 	}
@@ -84,10 +84,9 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	}
 	return retry.NotifyRecover(
 		func() (err error) {
-			// Ensure the queue exists the first time it is referenced
+			// Ensure the queue or topic exists the first time it is referenced
 			// This does nothing if DisableEntityManagement is true
-			// Note that the parameter is called "Topic" but we're publishing to a queue
-			err = a.client.EnsureQueue(a.publishCtx, req.Topic)
+			err = a.client.EnsureTopic(a.publishCtx, req.Topic)
 			if err != nil {
 				return err
 			}
@@ -138,10 +137,9 @@ func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPubli
 		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishSucceeded, nil), nil
 	}
 
-	// Ensure the queue exists the first time it is referenced
+	// Ensure the queue or topic exists the first time it is referenced
 	// This does nothing if DisableEntityManagement is true
-	// Note that the parameter is called "Topic" but we're publishing to a queue
-	err := a.client.EnsureQueue(a.publishCtx, req.Topic)
+	err := a.client.EnsureTopic(a.publishCtx, req.Topic)
 	if err != nil {
 		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
 	}
@@ -185,7 +183,7 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 		nil,
 		a.metadata.MaxRetriableErrorsPerSec,
 		a.metadata.MaxConcurrentHandlers,
-		"queue "+req.Topic,
+		"topic "+req.Topic,
 		a.logger,
 	)
 
@@ -210,7 +208,7 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 		&maxBulkSubCount,
 		a.metadata.MaxRetriableErrorsPerSec,
 		a.metadata.MaxConcurrentHandlers,
-		"queue "+req.Topic,
+		"topic "+req.Topic,
 		a.logger,
 	)
 
@@ -232,7 +230,7 @@ func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
 	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(func()) error,
 ) error {
 	// Does nothing if DisableEntityManagement is true
-	err := a.client.EnsureQueue(subscribeCtx, req.Topic)
+	err := a.client.EnsureSubscription(subscribeCtx, a.metadata.ConsumerID, req.Topic)
 	if err != nil {
 		return err
 	}
@@ -253,12 +251,12 @@ func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
 		for {
 			// Blocks until a successful connection (or until context is canceled)
 			err := sub.Connect(func() (*servicebus.Receiver, error) {
-				return a.client.GetClient().NewReceiverForQueue(req.Topic, nil)
+				return a.client.GetClient().NewReceiverForSubscription(req.Topic, a.metadata.ConsumerID, nil)
 			})
 			if err != nil {
 				// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
 				if errors.Is(err, context.Canceled) {
-					a.logger.Errorf("Could not instantiate subscription to queue %s", req.Topic)
+					a.logger.Errorf("Could not instantiate subscription %s for topic %s", a.metadata.ConsumerID, req.Topic)
 				}
 				return
 			}

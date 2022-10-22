@@ -115,8 +115,10 @@ func (c *TemporalWF) Get(ctx context.Context, req *workflows.WorkflowReference) 
 	outputStruct := workflows.StateResponse{
 		WFInfo:    workflows.WorkflowReference{InstanceID: req.InstanceID},
 		StartTime: resp.WorkflowExecutionInfo.StartTime.Format(time.RFC3339),
-		TaskQueue: resp.WorkflowExecutionInfo.GetTaskQueue(),
-		Status:    lookupStatus(resp.WorkflowExecutionInfo.Status),
+		Metadata: map[string]string{
+			"task_queue": resp.WorkflowExecutionInfo.GetTaskQueue(),
+			"status":     lookupStatus(resp.WorkflowExecutionInfo.Status),
+		},
 	}
 
 	return &outputStruct, nil

@@ -21,9 +21,10 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
+	"github.com/dapr/kit/logger"
+
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/kit/logger"
 )
 
 type metadata struct {
@@ -220,12 +221,6 @@ func (m *metadata) formatQueueDeclareArgs(origin amqp.Table) amqp.Table {
 	}
 	if m.maxLenBytes > 0 {
 		origin[argMaxLengthBytes] = m.maxLenBytes
-	}
-
-	if m.defaultQueueTTL != nil {
-		// Value in ms
-		ttl := *m.defaultQueueTTL / time.Millisecond
-		origin[argQueueMessageTTLKey] = int(ttl)
 	}
 
 	return origin

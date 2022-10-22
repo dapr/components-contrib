@@ -195,13 +195,14 @@ func (r *rabbitMQ) publishSync(req *pubsub.PublishRequest) (rabbitMQChannelBroke
 
 	ttl, ok, err := contribMetadata.TryGetTTL(req.Metadata)
 	if err != nil {
-		r.logger.Errorf("%s publishing to %s failed in TryGetTTL: %v", logMessagePrefix, req.Topic, err)
-		return r.channel, r.connectionCount, err
+		r.logger.Warnf("%s publishing to %s failed parse TryGetTTL: %v, it is ignored.", logMessagePrefix, req.Topic, err)
 	}
 	var expiration string
 	if ok {
 		// RabbitMQ expects the duration in ms
 		expiration = strconv.FormatInt(ttl.Milliseconds(), 10)
+	} else if r.metadata.defaultQueueTTL != nil {
+		expiration = strconv.FormatInt(r.metadata.defaultQueueTTL.Milliseconds(), 10)
 	}
 
 	confirm, err := r.channel.PublishWithDeferredConfirmWithContext(r.ctx, req.Topic, routingKey, false, false, amqp.Publishing{

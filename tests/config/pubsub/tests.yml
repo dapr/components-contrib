@@ -1,6 +1,4 @@
-# Supported operation: publish, subscribe, multiplehandlers, bulkpublish, bulksubscribe
-# bulkpublish should only be run for components that implement pubsub.BulkPublisher interface
-# bulksubscribe should only be run for components that implement pubsub.BulkSubscriber interface
+# Supported operation: publish, subscribe
 # Config map:
 ## pubsubName : name of the pubsub
 ## testTopicName: name of the test topic to use
@@ -12,7 +10,7 @@
 componentType: pubsub
 components:
   - component: azure.eventhubs
-    operations: ["publish", "subscribe", "multiplehandlers", "bulkpublish"]
+    allOperations: true
     config:
       pubsubName: azure-eventhubs
       testTopicName: eventhubs-pubsub-topic
@@ -30,13 +28,13 @@ components:
       testTopicName: dapr-conf-test
       checkInOrderProcessing: false
   - component: redis
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    allOperations: true
     config:
       checkInOrderProcessing: false
   - component: natsstreaming
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    allOperations: true
   - component: jetstream
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    allOperations: true
   - component: kafka
     allOperations: true
   - component: kafka
@@ -46,25 +44,27 @@ components:
     profile: confluent
     allOperations: true
   - component: pulsar
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    allOperations: true
   - component: mqtt
     profile: mosquitto
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    allOperations: true
   - component: mqtt
     profile: emqx
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    allOperations: true
   - component: mqtt
     profile: vernemq
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    allOperations: true
   - component: hazelcast
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    allOperations: true
+  - component: kubemq
+    allOperations: true
   - component: rabbitmq
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    allOperations: true
     config:
       checkInOrderProcessing: false
   - component: in-memory
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    allOperations: true
   - component: aws.snssqs
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    allOperations: true
     config:
       checkInOrderProcessing: false

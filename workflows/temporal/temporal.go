@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"go.temporal.io/api/enums/v1"
@@ -87,8 +88,7 @@ func (c *TemporalWF) Start(ctx context.Context, req *workflows.StartRequest) (*w
 	opt := client.StartWorkflowOptions{ID: req.WorkflowReference.InstanceID, TaskQueue: taskQ}
 	run, err := c.client.ExecuteWorkflow(ctx, opt, req.WorkflowName, req.Parameters)
 	if err != nil {
-		c.logger.Debugf("error when starting workflow: %v", err)
-		return &workflows.WorkflowReference{}, err
+		return &workflows.WorkflowReference{}, fmt.Errorf("error executing workflow: %w", err)
 	}
 	wfStruct := workflows.WorkflowReference{InstanceID: run.GetID()}
 	return &wfStruct, nil
@@ -99,8 +99,7 @@ func (c *TemporalWF) Terminate(ctx context.Context, req *workflows.WorkflowRefer
 
 	err := c.client.TerminateWorkflow(ctx, req.InstanceID, "", "")
 	if err != nil {
-		c.logger.Errorf("error when terminating workflow: %v", err)
-		return err
+		return fmt.Errorf("error terminating workflow: %w", err)
 	}
 	return nil
 }

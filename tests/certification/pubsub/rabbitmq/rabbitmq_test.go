@@ -341,11 +341,8 @@ func TestRabbitMQTTL(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
 	// log.SetOutputLevel(logger.DebugLevel)
 
-	// pubTopics := []string{topicTTL1, topicTTL2, topicTTL3}
-	// subTopics := []string{topicTTL1, topicTTL2, topicTTL3}
 	MessageOnlyMessages, QueueOnlyMessages, OverwriteMessages := watcher.NewUnordered(), watcher.NewUnordered(), watcher.NewUnordered()
 	fullMessages := watcher.NewUnordered()
-	_, _, _ = MessageOnlyMessages, QueueOnlyMessages, OverwriteMessages // todo remove
 	// Application logic that tracks messages from a topic.
 	application := func(pubsubName, topic string, w *watcher.Watcher) app.SetupFn {
 		return func(ctx flow.Context, s common.Service) (err error) {

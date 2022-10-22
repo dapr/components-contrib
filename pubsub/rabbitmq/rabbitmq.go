@@ -46,7 +46,6 @@ const (
 	argMaxLength          = "x-max-length"
 	argMaxLengthBytes     = "x-max-length-bytes"
 	argDeadLetterExchange = "x-dead-letter-exchange"
-	argQueueMessageTTLKey = "x-message-ttl"
 	queueModeLazy         = "lazy"
 	reqMetadataRoutingKey = "routingKey"
 )

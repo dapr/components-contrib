@@ -5,7 +5,7 @@ import (
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/kubemq-io/kubemq-go"
-	"github.com/kubemq-io/kubemq-go/pkg/uuid"
+	"go.uber.org/atomic"
 	"time"
 )
 
@@ -24,7 +24,7 @@ type kubeMQEvents struct {
 	waitForResultTimeout time.Duration
 	ctx                  context.Context
 	ctxCancel            context.CancelFunc
-	isInitialized        bool
+	isInitialized        *atomic.Bool
 }
 
 func newkubeMQEvents(logger logger.Logger) *kubeMQEvents {
@@ -37,17 +37,18 @@ func newkubeMQEvents(logger logger.Logger) *kubeMQEvents {
 		waitForResultTimeout: 60 * time.Second,
 		ctx:                  nil,
 		ctxCancel:            nil,
+		isInitialized:        atomic.NewBool(false),
 	}
 }
 func (k *kubeMQEvents) init() error {
 	k.ctx, k.ctxCancel = context.WithCancel(context.Background())
 	if k.metadata.useMock {
-		k.isInitialized = true
+		k.isInitialized.Store(true)
 		return nil
 	}
 	clientID := k.metadata.clientID
 	if clientID == "" {
-		clientID = uuid.New()
+		clientID = getRandomID()
 	}
 	client, err := kubemq.NewEventsClient(k.ctx,
 		kubemq.WithAddress(k.metadata.host, k.metadata.port),
@@ -67,7 +68,7 @@ func (k *kubeMQEvents) init() error {
 		k.logger.Errorf("error init kubemq client error: %w", err.Error())
 		return err
 	}
-	k.isInitialized = true
+	k.isInitialized.Store(true)
 	return nil
 }
 func (k *kubeMQEvents) Init(meta *metadata) error {
@@ -86,7 +87,7 @@ func (k *kubeMQEvents) setPublishStream() error {
 	return err
 }
 func (k *kubeMQEvents) Publish(req *pubsub.PublishRequest) error {
-	if !k.isInitialized {
+	if !k.isInitialized.Load() {
 		if err := k.init(); err != nil {
 			return err
 		}
@@ -111,14 +112,14 @@ func (k *kubeMQEvents) Features() []pubsub.Feature {
 }
 
 func (k *kubeMQEvents) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-	if !k.isInitialized {
+	if !k.isInitialized.Load() {
 		if err := k.init(); err != nil {
 			return err
 		}
 	}
 	clientID := k.metadata.clientID
 	if clientID == "" {
-		clientID = uuid.New()
+		clientID = getRandomID()
 	}
 	k.logger.Debugf("kubemq pub/sub: subscribing to %s", req.Topic)
 	err := k.client.Subscribe(ctx, &kubemq.EventsSubscription{

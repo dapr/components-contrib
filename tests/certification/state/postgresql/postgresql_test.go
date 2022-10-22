@@ -88,31 +88,44 @@ func TestPostgreSQL(t *testing.T) {
 	}
 
 	eTagTest := func(ctx flow.Context) error {
-		etag1 := "739"
-		etag900 := "900"
+		etag900invalid := "900invalid"
 
 		err1 := stateStore.Set(&state.SetRequest{
 			Key:   "k",
 			Value: "v1",
 		})
-		assert.Equal(t, nil, err1)
-		err2 := stateStore.Set(&state.SetRequest{
-			Key:   "k",
-			Value: "v2",
-			ETag:  &etag1,
+		assert.NoError(t, err1)
+		resp1, err2 := stateStore.Get(&state.GetRequest{
+			Key: "k",
 		})
-		assert.Equal(t, nil, err2)
+
+		assert.NoError(t, err2)
 		err3 := stateStore.Set(&state.SetRequest{
 			Key:   "k",
-			Value: "v3",
-			ETag:  &etag900,
+			Value: "v2",
+			ETag:  resp1.ETag,
 		})
-		assert.Error(t, err3)
+		assert.NoError(t, err3)
+
+		resp11, err12 := stateStore.Get(&state.GetRequest{
+			Key: "k",
+		})
+		expectedEtag := *resp11.ETag
+		assert.NoError(t, err12)
+
+		err4 := stateStore.Set(&state.SetRequest{
+			Key:   "k",
+			Value: "v3",
+			ETag:  &etag900invalid,
+		})
+
+		assert.Error(t, err4)
 		resp, err := stateStore.Get(&state.GetRequest{
 			Key: "k",
 		})
-		assert.Equal(t, nil, err)
-		assert.Equal(t, "740", *resp.ETag)
+
+		assert.NoError(t, err)
+		assert.Equal(t, expectedEtag, *resp.ETag)
 		assert.Equal(t, "\"v2\"", string(resp.Data))
 
 		return nil
@@ -174,13 +187,11 @@ func TestPostgreSQL(t *testing.T) {
 		resp1, err := stateStore.Get(&state.GetRequest{
 			Key: "reqKey1",
 		})
-		assert.Equal(t, "744", *resp1.ETag)
 		assert.Equal(t, "\"reqVal101\"", string(resp1.Data))
 
 		resp3, err := stateStore.Get(&state.GetRequest{
 			Key: "reqKey3",
 		})
-		assert.Equal(t, "745", *resp3.ETag)
 		assert.Equal(t, "\"reqVal103\"", string(resp3.Data))
 		return nil
 	}

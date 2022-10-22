@@ -2,8 +2,11 @@ package kubemq
 
 import (
 	"context"
+	"fmt"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	"github.com/google/uuid"
+	"time"
 )
 
 type kubeMQ struct {
@@ -17,12 +20,7 @@ type kubeMQ struct {
 
 func NewKubeMQ(logger logger.Logger) pubsub.PubSub {
 	return &kubeMQ{
-		metadata:         nil,
-		logger:           logger,
-		ctx:              nil,
-		ctxCancel:        nil,
-		eventsClient:     nil,
-		eventStoreClient: nil,
+		logger: logger,
 	}
 }
 
@@ -70,4 +68,12 @@ func (k *kubeMQ) Close() error {
 	} else {
 		return k.eventsClient.Close()
 	}
+}
+
+func getRandomID() string {
+	randomUuid, err := uuid.NewRandom()
+	if err != nil {
+		return fmt.Sprintf("%d", time.Now().UnixNano())
+	}
+	return randomUuid.String()
 }

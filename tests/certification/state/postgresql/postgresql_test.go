@@ -89,46 +89,44 @@ func TestPostgreSQL(t *testing.T) {
 	}
 
 	eTagTest := func(ctx flow.Context) error {
-		// It appears that the first set statement populates the etag with the value of 739
-		etag1 := "739"
-		etag900 := "900"
-		err := stateStore.Set(&state.SetRequest{
+		etag900invalid := "900invalid"
+
+		err1 := stateStore.Set(&state.SetRequest{
 			Key:   "k",
 			Value: "v1",
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err1)
+		resp1, err2 := stateStore.Get(&state.GetRequest{
+			Key: "k",
+		})
 
+		assert.NoError(t, err2)
+		err3 := stateStore.Set(&state.SetRequest{
+			Key:   "k",
+			Value: "v2",
+			ETag:  resp1.ETag,
+		})
+		assert.NoError(t, err3)
+
+		resp11, err12 := stateStore.Get(&state.GetRequest{
+			Key: "k",
+		})
+		expectedEtag := *resp11.ETag
+		assert.NoError(t, err12)
+
+		err4 := stateStore.Set(&state.SetRequest{
+			Key:   "k",
+			Value: "v3",
+			ETag:  &etag900invalid,
+		})
+
+		assert.Error(t, err4)
 		resp, err := stateStore.Get(&state.GetRequest{
 			Key: "k",
 		})
-		require.NoError(t, err)
-		assert.Equal(t, "\"v1\"", string(resp.Data))
 
-		err = stateStore.Set(&state.SetRequest{
-			Key:   "k",
-			Value: "v2",
-			ETag:  &etag1,
-		})
-		require.NoError(t, err)
-
-		resp, err = stateStore.Get(&state.GetRequest{
-			Key: "k",
-		})
-		require.NoError(t, err)
-		assert.Equal(t, "\"v2\"", string(resp.Data))
-
-		err = stateStore.Set(&state.SetRequest{
-			Key:   "k",
-			Value: "v3",
-			ETag:  &etag900,
-		})
-		assert.Error(t, err)
-
-		resp, err = stateStore.Get(&state.GetRequest{
-			Key: "k",
-		})
-		require.NoError(t, err)
-		assert.Equal(t, "740", *resp.ETag)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedEtag, *resp.ETag)
 		assert.Equal(t, "\"v2\"", string(resp.Data))
 
 		return nil
@@ -191,15 +189,11 @@ func TestPostgreSQL(t *testing.T) {
 		resp1, err := stateStore.Get(&state.GetRequest{
 			Key: "reqKey1",
 		})
-		require.NoError(t, err)
-		assert.Equal(t, "744", *resp1.ETag)
 		assert.Equal(t, "\"reqVal101\"", string(resp1.Data))
 
 		resp3, err := stateStore.Get(&state.GetRequest{
 			Key: "reqKey3",
 		})
-		require.NoError(t, err)
-		assert.Equal(t, "745", *resp3.ETag)
 		assert.Equal(t, "\"reqVal103\"", string(resp3.Data))
 		return nil
 	}

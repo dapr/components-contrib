@@ -2,11 +2,12 @@ package kubemq
 
 import (
 	"context"
+	"sync"
+	"time"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/kubemq-io/kubemq-go"
-	"go.uber.org/atomic"
-	"time"
 )
 
 type kubemqEventsClient interface {
@@ -16,6 +17,7 @@ type kubemqEventsClient interface {
 }
 
 type kubeMQEvents struct {
+	lock                 sync.RWMutex
 	client               kubemqEventsClient
 	metadata             *metadata
 	logger               logger.Logger
@@ -24,7 +26,7 @@ type kubeMQEvents struct {
 	waitForResultTimeout time.Duration
 	ctx                  context.Context
 	ctxCancel            context.CancelFunc
-	isInitialized        *atomic.Bool
+	isInitialized        bool
 }
 
 func newkubeMQEvents(logger logger.Logger) *kubeMQEvents {
@@ -37,15 +39,19 @@ func newkubeMQEvents(logger logger.Logger) *kubeMQEvents {
 		waitForResultTimeout: 60 * time.Second,
 		ctx:                  nil,
 		ctxCancel:            nil,
-		isInitialized:        atomic.NewBool(false),
+		isInitialized:        false,
 	}
 }
 func (k *kubeMQEvents) init() error {
-	k.ctx, k.ctxCancel = context.WithCancel(context.Background())
-	if k.metadata.useMock {
-		k.isInitialized.Store(true)
+	k.lock.RLock()
+	isInit := k.isInitialized
+	k.lock.RUnlock()
+	if isInit {
 		return nil
 	}
+	k.lock.Lock()
+	defer k.lock.Unlock()
+	k.ctx, k.ctxCancel = context.WithCancel(context.Background())
 	clientID := k.metadata.clientID
 	if clientID == "" {
 		clientID = getRandomID()
@@ -68,7 +74,7 @@ func (k *kubeMQEvents) init() error {
 		k.logger.Errorf("error init kubemq client error: %w", err.Error())
 		return err
 	}
-	k.isInitialized.Store(true)
+	k.isInitialized = true
 	return nil
 }
 func (k *kubeMQEvents) Init(meta *metadata) error {
@@ -87,10 +93,8 @@ func (k *kubeMQEvents) setPublishStream() error {
 	return err
 }
 func (k *kubeMQEvents) Publish(req *pubsub.PublishRequest) error {
-	if !k.isInitialized.Load() {
-		if err := k.init(); err != nil {
-			return err
-		}
+	if err := k.init(); err != nil {
+		return err
 	}
 	k.logger.Debugf("kubemq pub/sub: publishing message to %s", req.Topic)
 	event := &kubemq.Event{
@@ -112,10 +116,8 @@ func (k *kubeMQEvents) Features() []pubsub.Feature {
 }
 
 func (k *kubeMQEvents) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-	if !k.isInitialized.Load() {
-		if err := k.init(); err != nil {
-			return err
-		}
+	if err := k.init(); err != nil {
+		return err
 	}
 	clientID := k.metadata.clientID
 	if clientID == "" {
@@ -151,7 +153,6 @@ func (k *kubeMQEvents) Subscribe(ctx context.Context, req pubsub.SubscribeReques
 				k.logger.Errorf("kubemq pub/sub error: error resending message from topic '%s', %s", req.Topic, err.Error())
 			}
 		}
-
 	})
 	if err != nil {
 		k.logger.Errorf("kubemq events pub/sub error: error subscribing to topic '%s', %s", req.Topic, err.Error())

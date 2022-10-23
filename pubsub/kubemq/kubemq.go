@@ -3,10 +3,11 @@ package kubemq
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/google/uuid"
-	"time"
 )
 
 type kubeMQ struct {
@@ -71,9 +72,9 @@ func (k *kubeMQ) Close() error {
 }
 
 func getRandomID() string {
-	randomUuid, err := uuid.NewRandom()
+	randomUUID, err := uuid.NewRandom()
 	if err != nil {
 		return fmt.Sprintf("%d", time.Now().UnixNano())
 	}
-	return randomUuid.String()
+	return randomUUID.String()
 }

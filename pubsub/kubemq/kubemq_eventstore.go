@@ -3,11 +3,12 @@ package kubemq
 import (
 	"context"
 	"fmt"
+	"sync"
+	"time"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/kubemq-io/kubemq-go"
-	"go.uber.org/atomic"
-	"time"
 )
 
 // interface used to allow unit testing.
@@ -18,6 +19,7 @@ type kubemqEventsStoreClient interface {
 }
 
 type kubeMQEventStore struct {
+	lock                 sync.RWMutex
 	client               kubemqEventsStoreClient
 	metadata             *metadata
 	logger               logger.Logger
@@ -26,7 +28,7 @@ type kubeMQEventStore struct {
 	waitForResultTimeout time.Duration
 	ctx                  context.Context
 	ctxCancel            context.CancelFunc
-	isInitialized        *atomic.Bool
+	isInitialized        bool
 }
 
 func newKubeMQEventsStore(logger logger.Logger) *kubeMQEventStore {
@@ -39,15 +41,19 @@ func newKubeMQEventsStore(logger logger.Logger) *kubeMQEventStore {
 		waitForResultTimeout: 60 * time.Second,
 		ctx:                  nil,
 		ctxCancel:            nil,
-		isInitialized:        atomic.NewBool(false),
+		isInitialized:        false,
 	}
 }
 func (k *kubeMQEventStore) init() error {
-	k.ctx, k.ctxCancel = context.WithCancel(context.Background())
-	if k.metadata.useMock {
-		k.isInitialized.Store(true)
+	k.lock.RLock()
+	isInit := k.isInitialized
+	k.lock.RUnlock()
+	if isInit {
 		return nil
 	}
+	k.lock.Lock()
+	defer k.lock.Unlock()
+	k.ctx, k.ctxCancel = context.WithCancel(context.Background())
 	clientID := k.metadata.clientID
 	if clientID == "" {
 		clientID = getRandomID()
@@ -70,25 +76,9 @@ func (k *kubeMQEventStore) init() error {
 		k.logger.Errorf("error init kubemq client error: %w", err.Error())
 		return err
 	}
-	k.isInitialized.Store(true)
+	k.isInitialized = true
 	return nil
 }
-func (k *kubeMQEventStore) getSubscriberClient(clientID string) (kubemqEventsStoreClient, error) {
-	client, err := kubemq.NewEventsStoreClient(k.ctx,
-		kubemq.WithAddress(k.metadata.host, k.metadata.port),
-		kubemq.WithClientId(clientID),
-		kubemq.WithTransportType(kubemq.TransportTypeGRPC),
-		kubemq.WithCheckConnection(true),
-		kubemq.WithAuthToken(k.metadata.authToken),
-		kubemq.WithAutoReconnect(true),
-		kubemq.WithReconnectInterval(time.Second))
-	if err != nil {
-		k.logger.Errorf("error init kubemq client error: %s", err.Error())
-		return nil, err
-	}
-	return client, nil
-}
-
 func (k *kubeMQEventStore) Init(meta *metadata) error {
 	k.metadata = meta
 	_ = k.init()
@@ -108,10 +98,8 @@ func (k *kubeMQEventStore) setPublishStream() error {
 	return nil
 }
 func (k *kubeMQEventStore) Publish(req *pubsub.PublishRequest) error {
-	if !k.isInitialized.Load() {
-		if err := k.init(); err != nil {
-			return err
-		}
+	if err := k.init(); err != nil {
+		return err
 	}
 	k.logger.Debugf("kubemq pub/sub: publishing message to %s", req.Topic)
 	event := &kubemq.EventStore{
@@ -141,8 +129,8 @@ func (k *kubeMQEventStore) Features() []pubsub.Feature {
 }
 
 func (k *kubeMQEventStore) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-	if k.metadata.useMock {
-		return nil
+	if err := k.init(); err != nil {
+		return err
 	}
 	clientID := k.metadata.clientID
 	if clientID == "" {
@@ -182,7 +170,6 @@ func (k *kubeMQEventStore) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 				k.logger.Errorf("kubemq pub/sub error: error resending message from topic '%s', %s", req.Topic, err.Error())
 			}
 		}
-
 	})
 	if err != nil {
 		k.logger.Errorf("kubemq pub/sub error: error subscribing to topic '%s', %s", req.Topic, err.Error())

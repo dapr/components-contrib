@@ -14,7 +14,6 @@ type metadata struct {
 	authToken         string
 	group             string
 	isStore           bool
-	useMock           bool
 	disableReDelivery bool
 }
 
@@ -69,11 +68,6 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 			result.isStore = true
 		default:
 			return nil, fmt.Errorf("invalid kubeMQ store value, store can be true or false")
-		}
-	}
-	if val, found := pubSubMetadata.Properties["useMock"]; found && val != "" {
-		if val == "true" {
-			result.useMock = true
 		}
 	}
 	if val, found := pubSubMetadata.Properties["disableReDelivery"]; found && val != "" {

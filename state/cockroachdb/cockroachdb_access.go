@@ -239,17 +239,12 @@ func (p *cockroachDBAccess) Delete(req *state.DeleteRequest) error {
 func (p *cockroachDBAccess) deleteValue(req *state.DeleteRequest) error {
 	p.logger.Debug("Deleting state value from CockroachDB")
 
-	// Ensure that a connection to the database is actually established
-	err := p.Ping()
-	if err != nil {
-		return err
-	}
-
 	if req.Key == "" {
 		return fmt.Errorf("missing key in delete operation")
 	}
 
 	var result sql.Result
+	var err error
 
 	if req.ETag == nil {
 		result, err = p.db.Exec("DELETE FROM state WHERE key = $1", req.Key)

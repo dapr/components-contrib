@@ -27,9 +27,6 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-// Placeholder string for the task queue
-const TaskQueueString = "TestTaskQueue"
-
 type TemporalWF struct {
 	client client.Client
 	logger logger.Logger

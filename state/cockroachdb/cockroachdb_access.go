@@ -38,7 +38,7 @@ const (
 	connectionStringKey        = "connectionString"
 	errMissingConnectionString = "missing connection string"
 	tableName                  = "state"
-	maxRetries                 = 5 // A bad driver connection error can occur inside the sql code so this essentially allows for more retires since the sql code does not allow that to be changed
+	maxRetries                 = 5 // A bad driver connection error can occur inside the sql code so this essentially allows for more retries since the sql code does not allow that to be changed
 )
 
 // cockroachDBAccess implements dbaccess.
@@ -94,6 +94,12 @@ func (p *cockroachDBAccess) Init(metadata state.Metadata) error {
 		return err
 	}
 
+	// Ensure that a connection to the database is actually established
+	err = p.Ping()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -106,11 +112,6 @@ func (p *cockroachDBAccess) Set(req *state.SetRequest) error {
 func (p *cockroachDBAccess) setValue(req *state.SetRequest) error {
 	p.logger.Debug("Setting state value in CockroachDB")
 
-	// Ensure that a connection to the database is actually established
-	err := p.Ping()
-	if err != nil {
-		return err
-	}
 	value, isBinary, err := validateAndReturnValue(req)
 	if err != nil {
 		return err
@@ -138,7 +139,6 @@ func (p *cockroachDBAccess) setValue(req *state.SetRequest) error {
 			`UPDATE %s SET value = $1, isbinary = $2, updatedate = NOW(), etag = etag + 1
 			 WHERE key = $3 AND etag = $4;`,
 			tableName), value, isBinary, req.Key, etag)
-
 	}
 
 	if err != nil {
@@ -185,12 +185,6 @@ func (p *cockroachDBAccess) BulkSet(req []state.SetRequest) error {
 func (p *cockroachDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	p.logger.Debug("Getting state value from CockroachDB")
 
-	// Ensure that a connection to the database is actually established
-	err := p.Ping()
-	if err != nil {
-		return nil, err
-	}
-
 	if req.Key == "" {
 		return nil, fmt.Errorf("missing key in get operation")
 	}
@@ -198,7 +192,7 @@ func (p *cockroachDBAccess) Get(req *state.GetRequest) (*state.GetResponse, erro
 	var value string
 	var isBinary bool
 	var etag int
-	err = p.db.QueryRow(fmt.Sprintf("SELECT value, isbinary, etag FROM %s WHERE key = $1", tableName), req.Key).Scan(&value, &isBinary, &etag)
+	err := p.db.QueryRow(fmt.Sprintf("SELECT value, isbinary, etag FROM %s WHERE key = $1", tableName), req.Key).Scan(&value, &isBinary, &etag)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
 		if errors.Is(err, sql.ErrNoRows) {

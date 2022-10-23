@@ -12,6 +12,6 @@ spec:
   - name: initTimeout
     value: 5m
   - name: timeout
-    value: 100s
+    value: 20s
   - name: connectionString
     value: "host=localhost user=root port=26257 connect_timeout=10 database=dapr_test"

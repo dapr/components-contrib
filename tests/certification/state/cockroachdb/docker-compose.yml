@@ -9,10 +9,6 @@ services:
       - no-new-privileges
     ports:
       - "26257:26257"
-      - "8080:8080"
-      - "8000:8000"
-      - "34842:34842"
-
       
   cockroachdb-init:
     hostname: cockroachdb-init
@@ -23,4 +19,3 @@ services:
       - DATABASE_NAME=dapr_test
     depends_on:
       - cockroachdb
-

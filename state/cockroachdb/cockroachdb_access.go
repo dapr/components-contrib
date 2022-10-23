@@ -15,6 +15,7 @@ package cockroachdb
 
 import (
 	"database/sql"
+	"database/sql/driver"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -37,6 +38,7 @@ const (
 	connectionStringKey        = "connectionString"
 	errMissingConnectionString = "missing connection string"
 	tableName                  = "state"
+	maxRetries                 = 5 // A bad driver connection error can occur inside the sql code so this essentially allows for more retires since the sql code does not allow that to be changed
 )
 
 // cockroachDBAccess implements dbaccess.
@@ -104,6 +106,11 @@ func (p *cockroachDBAccess) Set(req *state.SetRequest) error {
 func (p *cockroachDBAccess) setValue(req *state.SetRequest) error {
 	p.logger.Debug("Setting state value in CockroachDB")
 
+	// Ensure that a connection to the database is actually established
+	err := p.Ping()
+	if err != nil {
+		return err
+	}
 	value, isBinary, err := validateAndReturnValue(req)
 	if err != nil {
 		return err
@@ -177,6 +184,13 @@ func (p *cockroachDBAccess) BulkSet(req []state.SetRequest) error {
 // Get returns data from the database. If data does not exist for the key an empty state.GetResponse will be returned.
 func (p *cockroachDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	p.logger.Debug("Getting state value from CockroachDB")
+
+	// Ensure that a connection to the database is actually established
+	err := p.Ping()
+	if err != nil {
+		return nil, err
+	}
+
 	if req.Key == "" {
 		return nil, fmt.Errorf("missing key in get operation")
 	}
@@ -184,7 +198,7 @@ func (p *cockroachDBAccess) Get(req *state.GetRequest) (*state.GetResponse, erro
 	var value string
 	var isBinary bool
 	var etag int
-	err := p.db.QueryRow(fmt.Sprintf("SELECT value, isbinary, etag FROM %s WHERE key = $1", tableName), req.Key).Scan(&value, &isBinary, &etag)
+	err = p.db.QueryRow(fmt.Sprintf("SELECT value, isbinary, etag FROM %s WHERE key = $1", tableName), req.Key).Scan(&value, &isBinary, &etag)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
 		if errors.Is(err, sql.ErrNoRows) {
@@ -230,12 +244,18 @@ func (p *cockroachDBAccess) Delete(req *state.DeleteRequest) error {
 // deleteValue is an internal implementation of delete to enable passing the logic to state.DeleteWithRetries as a func.
 func (p *cockroachDBAccess) deleteValue(req *state.DeleteRequest) error {
 	p.logger.Debug("Deleting state value from CockroachDB")
+
+	// Ensure that a connection to the database is actually established
+	err := p.Ping()
+	if err != nil {
+		return err
+	}
+
 	if req.Key == "" {
 		return fmt.Errorf("missing key in delete operation")
 	}
 
 	var result sql.Result
-	var err error
 
 	if req.ETag == nil {
 		result, err = p.db.Exec("DELETE FROM state WHERE key = $1", req.Key)
@@ -380,6 +400,13 @@ func (p *cockroachDBAccess) Query(req *state.QueryRequest) (*state.QueryResponse
 
 // Ping implements database ping.
 func (p *cockroachDBAccess) Ping() error {
+	for i := 0; i < maxRetries; i++ {
+		err := p.db.Ping()
+		if errors.Is(err, driver.ErrBadConn) {
+			continue
+		}
+		return err
+	}
 	return p.db.Ping()
 }
 

@@ -35,7 +35,6 @@ func Test_createMetadata(t *testing.T) {
 				authToken:         "authToken",
 				group:             "group",
 				isStore:           true,
-				useMock:           true,
 				disableReDelivery: true,
 			},
 			wantErr: false,

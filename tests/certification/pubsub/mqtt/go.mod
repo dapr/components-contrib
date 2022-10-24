@@ -9,7 +9,7 @@ require (
 	github.com/dapr/dapr v1.9.0-rc.3
 	github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721
 	github.com/dapr/kit v0.0.3-0.20221009070203-ca4d40d89ed5
-	github.com/eclipse/paho.mqtt.golang v1.4.1
+	github.com/eclipse/paho.mqtt.golang v1.4.2-0.20221018190109-a1800d8df9a4
 	github.com/stretchr/testify v1.8.0
 	go.uber.org/multierr v1.8.0
 )

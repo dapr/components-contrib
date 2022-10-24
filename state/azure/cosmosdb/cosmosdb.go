@@ -326,8 +326,10 @@ func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelEventual.ToPtr()
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	pk := azcosmos.NewPartitionKeyString(partitionKey)
 	_, err = c.client.DeleteItem(ctx, pk, req.Key, &options)
+	cancel()
 	if err != nil && !isNotFoundError(err) {
 		c.logger.Debugf("Error from cosmos.DeleteDocument e=%e, e.Error=%s", err, err.Error())
 		if req.ETag != nil && *req.ETag != "" {
@@ -407,7 +409,9 @@ func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 
 	c.logger.Debugf("#operations=%d,partitionkey=%s", numOperations, partitionKey)
 
+	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	batchResponse, err := c.client.ExecuteTransactionalBatch(ctx, batch, nil)
+	cancel()
 	if err != nil {
 		return err
 	}

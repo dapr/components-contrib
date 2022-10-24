@@ -25,7 +25,7 @@ import (
 
 	// Pub-Sub.
 
-	pubsub_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus"
+	pubsub_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus.topics"
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"

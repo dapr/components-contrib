@@ -23,11 +23,23 @@ components:
       checkInOrderProcessing: true
       publishMetadata:
         partitionKey: abcd
-  - component: azure.servicebus
+  - component: azure.servicebus.topics
     allOperations: true
     config:
       pubsubName: azure-servicebus
       testTopicName: dapr-conf-test
+      testTopicForBulkSub: dapr-conf-test-bulk
+      testMultiTopic1Name: dapr-conf-test-multi1
+      testMultiTopic2Name: dapr-conf-test-multi2
+      checkInOrderProcessing: false
+  - component: azure.servicebus.queues
+    allOperations: true
+    config:
+      pubsubName: azure-servicebus
+      testTopicName: dapr-conf-queue
+      testTopicForBulkSub: dapr-conf-queue-bulk
+      testMultiTopic1Name: dapr-conf-queue-multi1
+      testMultiTopic2Name: dapr-conf-queue-multi2
       checkInOrderProcessing: false
   - component: redis
     operations: ["publish", "subscribe", "multiplehandlers"]

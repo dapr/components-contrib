@@ -121,7 +121,9 @@ jobs:
           required-secrets: AzureCosmosDBTableAPI,AzureCosmosDBTableAPIMasterKey
         - component: pubsub.azure.eventhubs
           required-secrets: AzureEventHubsPubsubNamespaceConnectionString,AzureEventHubsPubsubConsumerGroup,AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureEventHubsPubsubContainer
-        - component: pubsub.azure.servicebus
+        - component: pubsub.azure.servicebus.topics
+          required-secrets: AzureServiceBusConnectionString
+        - component: pubsub.azure.servicebus.queues
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.blobstorage
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount

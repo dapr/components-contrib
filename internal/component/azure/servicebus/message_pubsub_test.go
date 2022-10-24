@@ -16,29 +16,9 @@ package servicebus
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	"github.com/stretchr/testify/assert"
-
-	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
-)
-
-var (
-	testMessageID            = "testMessageId"
-	testCorrelationID        = "testCorrelationId"
-	testSessionID            = "testSessionId"
-	testLabel                = "testLabel"
-	testReplyTo              = "testReplyTo"
-	testTo                   = "testTo"
-	testPartitionKey         = testSessionID
-	testContentType          = "testContentType"
-	testLockTokenString      = "bG9ja3Rva2VuAAAAAAAAAA==" //nolint:gosec
-	testLockTokenBytes       = [16]byte{108, 111, 99, 107, 116, 111, 107, 101, 110}
-	testDeliveryCount        = uint32(1)
-	testSampleTime           = time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
-	testSampleTimeHTTPFormat = "Thu, 01 Jan 1970 00:00:00 GMT"
-	testSequenceNumber       = int64(1)
 )
 
 func TestAddMessageAttributesToMetadata(t *testing.T) {
@@ -66,20 +46,20 @@ func TestAddMessageAttributesToMetadata(t *testing.T) {
 				LockedUntil:          &testSampleTime,
 			},
 			expectedMetadata: map[string]string{
-				"metadata." + impl.MessageKeyMessageID:               testMessageID,
-				"metadata." + impl.MessageKeySessionID:               testSessionID,
-				"metadata." + impl.MessageKeyCorrelationID:           testCorrelationID,
-				"metadata." + impl.MessageKeyLabel:                   testLabel, // Subject
-				"metadata." + impl.MessageKeyReplyTo:                 testReplyTo,
-				"metadata." + impl.MessageKeyTo:                      testTo,
-				"metadata." + impl.MessageKeyContentType:             testContentType,
-				"metadata." + impl.MessageKeyLockToken:               testLockTokenString,
-				"metadata." + impl.MessageKeyDeliveryCount:           "1",
-				"metadata." + impl.MessageKeyEnqueuedTimeUtc:         testSampleTimeHTTPFormat,
-				"metadata." + impl.MessageKeySequenceNumber:          "1",
-				"metadata." + impl.MessageKeyScheduledEnqueueTimeUtc: testSampleTimeHTTPFormat,
-				"metadata." + impl.MessageKeyPartitionKey:            testPartitionKey,
-				"metadata." + impl.MessageKeyLockedUntilUtc:          testSampleTimeHTTPFormat,
+				"metadata." + MessageKeyMessageID:               testMessageID,
+				"metadata." + MessageKeySessionID:               testSessionID,
+				"metadata." + MessageKeyCorrelationID:           testCorrelationID,
+				"metadata." + MessageKeyLabel:                   testLabel, // Subject
+				"metadata." + MessageKeyReplyTo:                 testReplyTo,
+				"metadata." + MessageKeyTo:                      testTo,
+				"metadata." + MessageKeyContentType:             testContentType,
+				"metadata." + MessageKeyLockToken:               testLockTokenString,
+				"metadata." + MessageKeyDeliveryCount:           "1",
+				"metadata." + MessageKeyEnqueuedTimeUtc:         testSampleTimeHTTPFormat,
+				"metadata." + MessageKeySequenceNumber:          "1",
+				"metadata." + MessageKeyScheduledEnqueueTimeUtc: testSampleTimeHTTPFormat,
+				"metadata." + MessageKeyPartitionKey:            testPartitionKey,
+				"metadata." + MessageKeyLockedUntilUtc:          testSampleTimeHTTPFormat,
 			},
 		},
 	}

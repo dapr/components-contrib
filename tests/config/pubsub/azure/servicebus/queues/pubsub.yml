@@ -3,10 +3,8 @@ kind: Component
 metadata:
   name: azure-servicebus
 spec:
-  type: pubsub.azure.servicebus
+  type: pubsub.azure.servicebus.queues
   version: v1
   metadata:
   - name: connectionString
     value: ${{AzureServiceBusConnectionString}}
-  - name: consumerID
-    value: "testConsumer"

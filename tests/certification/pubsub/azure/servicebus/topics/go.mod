@@ -161,7 +161,7 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-replace github.com/dapr/components-contrib => ../../../../..
+replace github.com/dapr/components-contrib => ../../../../../..
 
 replace github.com/dapr/components-contrib/tests/certification => ../../..
 

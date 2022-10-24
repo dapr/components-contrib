@@ -11,12 +11,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package servicebus
+package queues
 
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
@@ -31,7 +30,6 @@ import (
 )
 
 const (
-	errorMessagePrefix            = "azure service bus error:"
 	defaultMaxBulkSubCount        = 100
 	defaultMaxBulkPubBytes uint64 = 1024 * 128 // 128 KiB
 )
@@ -45,8 +43,8 @@ type azureServiceBus struct {
 	publishCancel context.CancelFunc
 }
 
-// NewAzureServiceBus returns a new Azure ServiceBus pub-sub implementation.
-func NewAzureServiceBus(logger logger.Logger) pubsub.PubSub {
+// NewAzureServiceBusQueues returns a new implementation.
+func NewAzureServiceBusQueues(logger logger.Logger) pubsub.PubSub {
 	return &azureServiceBus{
 		logger:   logger,
 		features: []pubsub.Feature{pubsub.FeatureMessageTTL},
@@ -54,7 +52,7 @@ func NewAzureServiceBus(logger logger.Logger) pubsub.PubSub {
 }
 
 func (a *azureServiceBus) Init(metadata pubsub.Metadata) (err error) {
-	a.metadata, err = impl.ParseMetadata(metadata.Properties, a.logger, impl.MetadataModeTopics)
+	a.metadata, err = impl.ParseMetadata(metadata.Properties, a.logger, impl.MetadataModeQueues)
 	if err != nil {
 		return err
 	}
@@ -86,9 +84,10 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	}
 	return retry.NotifyRecover(
 		func() (err error) {
-			// Ensure the queue or topic exists the first time it is referenced
+			// Ensure the queue exists the first time it is referenced
 			// This does nothing if DisableEntityManagement is true
-			err = a.client.EnsureTopic(a.publishCtx, req.Topic)
+			// Note that the parameter is called "Topic" but we're publishing to a queue
+			err = a.client.EnsureQueue(a.publishCtx, req.Topic)
 			if err != nil {
 				return err
 			}
@@ -139,9 +138,10 @@ func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPubli
 		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishSucceeded, nil), nil
 	}
 
-	// Ensure the queue or topic exists the first time it is referenced
+	// Ensure the queue exists the first time it is referenced
 	// This does nothing if DisableEntityManagement is true
-	err := a.client.EnsureTopic(a.publishCtx, req.Topic)
+	// Note that the parameter is called "Topic" but we're publishing to a queue
+	err := a.client.EnsureQueue(a.publishCtx, req.Topic)
 	if err != nil {
 		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
 	}
@@ -163,7 +163,7 @@ func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPubli
 	}
 
 	// Add messages from the bulk publish request to the batch.
-	err = UpdateASBBatchMessageWithBulkPublishRequest(batchMsg, req)
+	err = impl.UpdateASBBatchMessageWithBulkPublishRequest(batchMsg, req)
 	if err != nil {
 		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
 	}
@@ -185,13 +185,13 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 		nil,
 		a.metadata.MaxRetriableErrorsPerSec,
 		a.metadata.MaxConcurrentHandlers,
-		"topic "+req.Topic,
+		"queue "+req.Topic,
 		a.logger,
 	)
 
 	receiveAndBlockFn := func(onFirstSuccess func()) error {
 		return sub.ReceiveAndBlock(
-			a.getHandlerFunc(req.Topic, handler),
+			impl.GetPubSubHandlerFunc(req.Topic, handler, a.logger, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second),
 			a.metadata.LockRenewalInSec,
 			false, // Bulk is not supported in regular Subscribe.
 			onFirstSuccess,
@@ -210,13 +210,13 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 		&maxBulkSubCount,
 		a.metadata.MaxRetriableErrorsPerSec,
 		a.metadata.MaxConcurrentHandlers,
-		"topic "+req.Topic,
+		"queue "+req.Topic,
 		a.logger,
 	)
 
 	receiveAndBlockFn := func(onFirstSuccess func()) error {
 		return sub.ReceiveAndBlock(
-			a.getBulkHandlerFunc(req.Topic, handler),
+			impl.GetBulkPubSubHandlerFunc(req.Topic, handler, a.logger, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second),
 			a.metadata.LockRenewalInSec,
 			true, // Bulk is supported in BulkSubscribe.
 			onFirstSuccess,
@@ -232,7 +232,7 @@ func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
 	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(func()) error,
 ) error {
 	// Does nothing if DisableEntityManagement is true
-	err := a.client.EnsureSubscription(subscribeCtx, a.metadata.ConsumerID, req.Topic)
+	err := a.client.EnsureQueue(subscribeCtx, req.Topic)
 	if err != nil {
 		return err
 	}
@@ -253,12 +253,12 @@ func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
 		for {
 			// Blocks until a successful connection (or until context is canceled)
 			err := sub.Connect(func() (*servicebus.Receiver, error) {
-				return a.client.GetClient().NewReceiverForSubscription(req.Topic, a.metadata.ConsumerID, nil)
+				return a.client.GetClient().NewReceiverForQueue(req.Topic, nil)
 			})
 			if err != nil {
 				// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
 				if errors.Is(err, context.Canceled) {
-					a.logger.Errorf("%s could not instantiate subscription %s for topic %s", errorMessagePrefix, a.metadata.ConsumerID, req.Topic)
+					a.logger.Errorf("Could not instantiate subscription to queue %s", req.Topic)
 				}
 				return
 			}
@@ -289,62 +289,6 @@ func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
 	}()
 
 	return nil
-}
-
-func (a *azureServiceBus) getHandlerFunc(topic string, handler pubsub.Handler) impl.HandlerFunc {
-	emptyResponseItems := []impl.HandlerResponseItem{}
-	// Only the first ASB message is used in the actual handler invocation.
-	return func(ctx context.Context, asbMsgs []*servicebus.ReceivedMessage) ([]impl.HandlerResponseItem, error) {
-		if len(asbMsgs) != 1 {
-			return nil, fmt.Errorf("expected 1 message, got %d", len(asbMsgs))
-		}
-
-		pubsubMsg, err := NewPubsubMessageFromASBMessage(asbMsgs[0], topic)
-		if err != nil {
-			return emptyResponseItems, fmt.Errorf("failed to get pubsub message from azure service bus message: %+v", err)
-		}
-
-		handleCtx, handleCancel := context.WithTimeout(ctx, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second)
-		defer handleCancel()
-		a.logger.Debugf("Calling app's handler for message %s on topic %s", asbMsgs[0].MessageID, topic)
-		return emptyResponseItems, handler(handleCtx, pubsubMsg)
-	}
-}
-
-func (a *azureServiceBus) getBulkHandlerFunc(topic string, handler pubsub.BulkHandler) impl.HandlerFunc {
-	return func(ctx context.Context, asbMsgs []*servicebus.ReceivedMessage) ([]impl.HandlerResponseItem, error) {
-		pubsubMsgs := make([]pubsub.BulkMessageEntry, len(asbMsgs))
-		for i, asbMsg := range asbMsgs {
-			pubsubMsg, err := NewBulkMessageEntryFromASBMessage(asbMsg)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get pubsub message from azure service bus message: %+v", err)
-			}
-			pubsubMsgs[i] = pubsubMsg
-		}
-
-		// Note, no metadata is currently supported here.
-		// In the future, we could add propagate metadata to the handler if required.
-		bulkMessage := &pubsub.BulkMessage{
-			Entries:  pubsubMsgs,
-			Metadata: map[string]string{},
-			Topic:    topic,
-		}
-
-		handleCtx, handleCancel := context.WithTimeout(ctx, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second)
-		defer handleCancel()
-		a.logger.Debugf("Calling app's handler for %d messages on topic %s", len(asbMsgs), topic)
-		resps, err := handler(handleCtx, bulkMessage)
-
-		implResps := make([]impl.HandlerResponseItem, len(resps))
-		for i, resp := range resps {
-			implResps[i] = impl.HandlerResponseItem{
-				EntryId: resp.EntryId,
-				Error:   resp.Error,
-			}
-		}
-
-		return implResps, err
-	}
 }
 
 func (a *azureServiceBus) Close() (err error) {

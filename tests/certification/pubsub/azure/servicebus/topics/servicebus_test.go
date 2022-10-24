@@ -25,7 +25,7 @@ import (
 
 	// Pub-Sub.
 
-	pubsub_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus.topics"
+	pubsub_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus/topics"
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
@@ -1050,7 +1050,7 @@ func componentRuntimeOptions() []runtime.Option {
 
 	pubsubRegistry := pubsub_loader.NewRegistry()
 	pubsubRegistry.Logger = log
-	pubsubRegistry.RegisterComponent(pubsub_servicebus.NewAzureServiceBus, "azure.servicebus")
+	pubsubRegistry.RegisterComponent(pubsub_servicebus.NewAzureServiceBusTopics, "azure.servicebus.topics")
 
 	secretstoreRegistry := secretstores_loader.NewRegistry()
 	secretstoreRegistry.Logger = log

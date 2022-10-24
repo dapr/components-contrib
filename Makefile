@@ -130,9 +130,9 @@ modtidy-$(1):
 	cd $(shell dirname $(1)); go mod tidy -compat=1.19; cd -
 endef
 
-define goget-dapr
-.PHONY: goget-$(1)
-goget-$(1):
+define replaceruntime-dapr
+.PHONY: replaceruntime-$(1)
+replaceruntime-$(1):
 	cd $(shell dirname $(1)); go mod edit -replace github.com/dapr/dapr=$(DAPR_PACKAGE); cd -
 endef
 
@@ -140,7 +140,7 @@ endef
 $(foreach MODFILE,$(MODFILES),$(eval $(call modtidy-target,$(MODFILE))))
 
 # Go get dapr package to tests/.../go.mod.
-$(foreach MODFILE,$(MODFILES),$(eval $(call goget-dapr,$(MODFILE))))
+$(foreach MODFILE,$(MODFILES),$(eval $(call replaceruntime-dapr,$(MODFILE))))
 
 # Enumerate all generated modtidy targets
 # Note that the order of execution matters: root and tests/certification go.mod
@@ -148,15 +148,15 @@ $(foreach MODFILE,$(MODFILES),$(eval $(call goget-dapr,$(MODFILE))))
 # tree walk when finding the go.mod files.
 TIDY_MODFILES:=$(foreach ITEM,$(MODFILES),modtidy-$(ITEM))
 
-GOGET_MODFILES:=$(foreach ITEM,$(MODFILES),goget-$(ITEM))
+REPLACERUNTIME_MODFILES:=$(foreach ITEM,$(MODFILES),replaceruntime-$(ITEM))
 
 # Define modtidy-all action trigger to run make on all generated modtidy targets
 .PHONY: modtidy-all
 modtidy-all: $(TIDY_MODFILES)
 
-# Define goget-all action trigger to go get dapr package specified.
-.PHONY: goget-all
-goget-all: $(GOGET_MODFILES)
+# Define replaceruntime-all action trigger to go get dapr package specified.
+.PHONY: replaceruntime-all
+replaceruntime-all: $(REPLACERUNTIME_MODFILES)
 
 ################################################################################
 # Target: modtidy                                                              #

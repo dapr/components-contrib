@@ -4,7 +4,7 @@ metadata:
   name: messagebus
   namespace: default
 spec:
-  type: pubsub.azure.servicebus
+  type: pubsub.azure.servicebus.topics
   version: v1
   metadata:
     - name: consumerID

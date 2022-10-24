@@ -1,0 +1,573 @@
+=== RUN   TestPubsubConformance
+=== RUN   TestPubsubConformance/azure.servicebus.queues
+=== RUN   TestPubsubConformance/azure.servicebus.queues/init
+=== RUN   TestPubsubConformance/azure.servicebus.queues/ping
+=== RUN   TestPubsubConformance/azure.servicebus.queues/subscribe
+=== RUN   TestPubsubConformance/azure.servicebus.queues/bulkSubscribe
+=== RUN   TestPubsubConformance/azure.servicebus.queues/publish
+time="2022-10-21T17:11:26.395821892Z" level=debug msg="Received messages: 1; current active operations usage: 1/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.395876196Z" level=debug msg="Adding message c2b451f7424c40dc87558d02151d284f with sequence number 1 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.395889897Z" level=debug msg="Processing received message: c2b451f7424c40dc87558d02151d284f" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.395926401Z" level=debug msg="Calling app's handler for message c2b451f7424c40dc87558d02151d284f on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.412978761Z" level=debug msg="Received messages: 1; current active operations usage: 2/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.413011464Z" level=debug msg="Adding message 95474d7792f54f4ab420651b633664df with sequence number 2 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.413026265Z" level=debug msg="Processing received message: 95474d7792f54f4ab420651b633664df" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.413066669Z" level=debug msg="Calling app's handler for message 95474d7792f54f4ab420651b633664df on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.431767571Z" level=debug msg="Received messages: 1; current active operations usage: 3/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.431795773Z" level=debug msg="Adding message 86540d22f49e407eb7572b508642dd37 with sequence number 3 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.431807474Z" level=debug msg="Processing received message: 86540d22f49e407eb7572b508642dd37" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.431841577Z" level=debug msg="Calling app's handler for message 86540d22f49e407eb7572b508642dd37 on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.431912683Z" level=debug msg="Completing message 86540d22f49e407eb7572b508642dd37 on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.442586898Z" level=debug msg="Received messages: 1; current active operations usage: 4/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.4426182Z" level=debug msg="Adding message 4ada3f41140441358074af5b1349f9ce with sequence number 4 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.442629801Z" level=debug msg="Processing received message: 4ada3f41140441358074af5b1349f9ce" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.442648903Z" level=debug msg="Calling app's handler for message 4ada3f41140441358074af5b1349f9ce on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.442696907Z" level=debug msg="Completing message 4ada3f41140441358074af5b1349f9ce on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.44868002Z" level=debug msg="Removing message 86540d22f49e407eb7572b508642dd37 with sequence number 3 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.46280993Z" level=debug msg="Removing message 4ada3f41140441358074af5b1349f9ce with sequence number 4 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.463364778Z" level=debug msg="Received messages: 1; current active operations usage: 3/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.463431183Z" level=debug msg="Adding message 91372c562ec246d0bdb4d0f2d9bf5446 with sequence number 5 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.463456785Z" level=debug msg="Processing received message: 91372c562ec246d0bdb4d0f2d9bf5446" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.463597097Z" level=debug msg="Calling app's handler for message 91372c562ec246d0bdb4d0f2d9bf5446 on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.481405723Z" level=debug msg="Received messages: 1; current active operations usage: 4/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.481455427Z" level=debug msg="Adding message 0d32f6581cb44771880df44d2ae844d8 with sequence number 6 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.481467928Z" level=debug msg="Processing received message: 0d32f6581cb44771880df44d2ae844d8" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.481501831Z" level=debug msg="Calling app's handler for message 0d32f6581cb44771880df44d2ae844d8 on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.481565937Z" level=debug msg="Completing message 0d32f6581cb44771880df44d2ae844d8 on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.496949255Z" level=debug msg="Received messages: 1; current active operations usage: 5/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.496975257Z" level=debug msg="Adding message 23a02ed94fcc49d3ab3ed4ae7ce16616 with sequence number 7 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.496985758Z" level=debug msg="Processing received message: 23a02ed94fcc49d3ab3ed4ae7ce16616" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.49701646Z" level=debug msg="Calling app's handler for message 23a02ed94fcc49d3ab3ed4ae7ce16616 on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.497065165Z" level=debug msg="Completing message 23a02ed94fcc49d3ab3ed4ae7ce16616 on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.512720106Z" level=debug msg="Received messages: 1; current active operations usage: 6/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.512755909Z" level=debug msg="Adding message 1502fd1b75444dfebe5578b45b075f7a with sequence number 8 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.51276761Z" level=debug msg="Processing received message: 1502fd1b75444dfebe5578b45b075f7a" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.512809013Z" level=debug msg="Calling app's handler for message 1502fd1b75444dfebe5578b45b075f7a on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.512849617Z" level=debug msg="Completing message 1502fd1b75444dfebe5578b45b075f7a on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.527348659Z" level=debug msg="Received messages: 1; current active operations usage: 7/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.527384062Z" level=debug msg="Adding message 12b40a7dff534703b2709a228e45b904 with sequence number 9 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.527395663Z" level=debug msg="Processing received message: 12b40a7dff534703b2709a228e45b904" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.527425865Z" level=debug msg="Calling app's handler for message 12b40a7dff534703b2709a228e45b904 on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.52748357Z" level=debug msg="Completing message 12b40a7dff534703b2709a228e45b904 on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.540916021Z" level=debug msg="Received messages: 1; current active operations usage: 8/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.540981827Z" level=debug msg="Adding message bf309540abb140b5b4d308458aeda685 with sequence number 10 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.541007829Z" level=debug msg="Processing received message: bf309540abb140b5b4d308458aeda685" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.541146841Z" level=debug msg="Calling app's handler for message bf309540abb140b5b4d308458aeda685 on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.572266307Z" level=debug msg="Removing message 23a02ed94fcc49d3ab3ed4ae7ce16616 with sequence number 7 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.57230101Z" level=debug msg="Removing message 0d32f6581cb44771880df44d2ae844d8 with sequence number 6 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.572440722Z" level=debug msg="Removing message 12b40a7dff534703b2709a228e45b904 with sequence number 9 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.572443122Z" level=debug msg="Removing message 1502fd1b75444dfebe5578b45b075f7a with sequence number 8 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.5990339Z" level=error msg="Expected one message from Service Bus, but received 2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.599099905Z" level=debug msg="Received messages: 2; current active operations usage: 1/200" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.599126208Z" level=debug msg="Adding message aade0a9560324b1fbc0ce9d96d03b830 with sequence number 1 to active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.59915621Z" level=debug msg="Processing received message: aade0a9560324b1fbc0ce9d96d03b830" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.599178612Z" level=debug msg="Adding message 0496e73c3cd84f08973ca936cbb2b12e with sequence number 2 to active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.599198814Z" level=debug msg="Processing received message: 0496e73c3cd84f08973ca936cbb2b12e" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.599459236Z" level=debug msg="Calling app's handler for 2 messages on topic dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.633271733Z" level=error msg="Expected one message from Service Bus, but received 2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.633300835Z" level=debug msg="Received messages: 2; current active operations usage: 2/200" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.633312236Z" level=debug msg="Adding message 31154c7a587d49c389764f9fc5b22cf3 with sequence number 3 to active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.633322537Z" level=debug msg="Processing received message: 31154c7a587d49c389764f9fc5b22cf3" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.633330338Z" level=debug msg="Adding message 4003fbdd89a749ea96e4e5139877126d with sequence number 4 to active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.633339238Z" level=debug msg="Processing received message: 4003fbdd89a749ea96e4e5139877126d" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.633417945Z" level=debug msg="Calling app's handler for 2 messages on topic dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.65833828Z" level=error msg="Expected one message from Service Bus, but received 2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.658370483Z" level=debug msg="Received messages: 2; current active operations usage: 3/200" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.658383784Z" level=debug msg="Adding message 2215c6aaec834889a094382825340033 with sequence number 5 to active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.658395785Z" level=debug msg="Processing received message: 2215c6aaec834889a094382825340033" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.658438689Z" level=debug msg="Adding message 58764487c79e4877afaa6574318a8965 with sequence number 6 to active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.65845679Z" level=debug msg="Processing received message: 58764487c79e4877afaa6574318a8965" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.658548098Z" level=debug msg="Calling app's handler for 2 messages on topic dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.658615604Z" level=debug msg="Completing message 2215c6aaec834889a094382825340033 on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.675490749Z" level=debug msg="Completing message 58764487c79e4877afaa6574318a8965 on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.682600458Z" level=error msg="Expected one message from Service Bus, but received 2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.682629261Z" level=debug msg="Received messages: 2; current active operations usage: 4/200" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.682640062Z" level=debug msg="Adding message d0719819903543c0bfd311d19abbd56e with sequence number 7 to active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.682650463Z" level=debug msg="Processing received message: d0719819903543c0bfd311d19abbd56e" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.682658663Z" level=debug msg="Adding message 73b45235875a4381940a85afcecb2094 with sequence number 8 to active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.682667664Z" level=debug msg="Processing received message: 73b45235875a4381940a85afcecb2094" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.682706867Z" level=debug msg="Calling app's handler for 2 messages on topic dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.689058412Z" level=debug msg="Removing message 2215c6aaec834889a094382825340033 with sequence number 5 from active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.689084814Z" level=debug msg="Removing message 58764487c79e4877afaa6574318a8965 with sequence number 6 from active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.70678663Z" level=error msg="Expected one message from Service Bus, but received 2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.706814533Z" level=debug msg="Received messages: 2; current active operations usage: 4/200" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.706825234Z" level=debug msg="Adding message 2a362bd63b3b43c794a73d64c86a3dcb with sequence number 9 to active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.706835934Z" level=debug msg="Processing received message: 2a362bd63b3b43c794a73d64c86a3dcb" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.706844135Z" level=debug msg="Adding message f02fd05c562c4d25a871beaf967ffa15 with sequence number 10 to active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.706886539Z" level=debug msg="Processing received message: f02fd05c562c4d25a871beaf967ffa15" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.706930142Z" level=debug msg="Calling app's handler for 2 messages on topic dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.707037752Z" level=debug msg="Completing message 2a362bd63b3b43c794a73d64c86a3dcb on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+=== RUN   TestPubsubConformance/azure.servicebus.queues/bulkPublish
+time="2022-10-21T17:11:26.721509591Z" level=debug msg="Completing message f02fd05c562c4d25a871beaf967ffa15 on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.731805073Z" level=debug msg="Received messages: 1; current active operations usage: 5/200" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.731838176Z" level=debug msg="Adding message f53afce8d02e4796ad48e2942dd69998 with sequence number 11 to active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.731863978Z" level=debug msg="Processing received message: f53afce8d02e4796ad48e2942dd69998" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.73200129Z" level=debug msg="Calling app's handler for 1 messages on topic dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.732090898Z" level=debug msg="Completing message f53afce8d02e4796ad48e2942dd69998 on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.736286657Z" level=debug msg="Removing message 2a362bd63b3b43c794a73d64c86a3dcb with sequence number 9 from active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.73632126Z" level=debug msg="Removing message f02fd05c562c4d25a871beaf967ffa15 with sequence number 10 from active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:26.752067109Z" level=debug msg="Removing message f53afce8d02e4796ad48e2942dd69998 with sequence number 11 from active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.397027159Z" level=error msg="App handler returned an error for message c2b451f7424c40dc87558d02151d284f on queue dapr-conf-queue: conf test simulated error" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.397091065Z" level=debug msg="Abandoning message c2b451f7424c40dc87558d02151d284f on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.408090507Z" level=debug msg="Taking a retriable error token" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.40812771Z" level=debug msg="Resumed after pausing for 2.4µs" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.408143312Z" level=debug msg="Removing message c2b451f7424c40dc87558d02151d284f with sequence number 1 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.409220204Z" level=debug msg="Received messages: 1; current active operations usage: 4/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.409248606Z" level=debug msg="Adding message c2b451f7424c40dc87558d02151d284f with sequence number 1 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.409263608Z" level=debug msg="Processing received message: c2b451f7424c40dc87558d02151d284f" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.40928711Z" level=debug msg="Calling app's handler for message c2b451f7424c40dc87558d02151d284f on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.409377517Z" level=debug msg="Completing message c2b451f7424c40dc87558d02151d284f on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.413406162Z" level=error msg="App handler returned an error for message 95474d7792f54f4ab420651b633664df on queue dapr-conf-queue: conf test simulated error" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.413465768Z" level=debug msg="Abandoning message 95474d7792f54f4ab420651b633664df on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.427247948Z" level=debug msg="Received messages: 1; current active operations usage: 5/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.427278351Z" level=debug msg="Adding message 95474d7792f54f4ab420651b633664df with sequence number 2 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.427291752Z" level=debug msg="Processing received message: 95474d7792f54f4ab420651b633664df" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.427283351Z" level=debug msg="Taking a retriable error token" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.427351257Z" level=debug msg="Calling app's handler for message 95474d7792f54f4ab420651b633664df on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.427464267Z" level=debug msg="Completing message 95474d7792f54f4ab420651b633664df on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.437203701Z" level=debug msg="Removing message c2b451f7424c40dc87558d02151d284f with sequence number 1 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.464524341Z" level=error msg="App handler returned an error for message 91372c562ec246d0bdb4d0f2d9bf5446 on queue dapr-conf-queue: conf test simulated error" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.464606849Z" level=debug msg="Abandoning message 91372c562ec246d0bdb4d0f2d9bf5446 on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.473738331Z" level=debug msg="Taking a retriable error token" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.483363755Z" level=debug msg="Received messages: 1; current active operations usage: 5/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.483404759Z" level=debug msg="Adding message 91372c562ec246d0bdb4d0f2d9bf5446 with sequence number 5 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.48342186Z" level=debug msg="Processing received message: 91372c562ec246d0bdb4d0f2d9bf5446" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.483452563Z" level=debug msg="Calling app's handler for message 91372c562ec246d0bdb4d0f2d9bf5446 on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.483594675Z" level=debug msg="Completing message 91372c562ec246d0bdb4d0f2d9bf5446 on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.508812835Z" level=debug msg="Resumed after pausing for 81.469479ms" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.508859139Z" level=debug msg="Removing message 95474d7792f54f4ab420651b633664df with sequence number 2 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.532758187Z" level=debug msg="Removing message 91372c562ec246d0bdb4d0f2d9bf5446 with sequence number 5 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.53279719Z" level=debug msg="Removing message 95474d7792f54f4ab420651b633664df with sequence number 2 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.542078885Z" level=error msg="App handler returned an error for message bf309540abb140b5b4d308458aeda685 on queue dapr-conf-queue: conf test simulated error" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.542171493Z" level=debug msg="Abandoning message bf309540abb140b5b4d308458aeda685 on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.551028452Z" level=debug msg="Taking a retriable error token" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.551892726Z" level=debug msg="Received messages: 1; current active operations usage: 3/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.551986134Z" level=debug msg="Adding message bf309540abb140b5b4d308458aeda685 with sequence number 10 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.552016236Z" level=debug msg="Processing received message: bf309540abb140b5b4d308458aeda685" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.552201852Z" level=debug msg="Calling app's handler for message bf309540abb140b5b4d308458aeda685 on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.552297461Z" level=debug msg="Completing message bf309540abb140b5b4d308458aeda685 on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.60050269Z" level=error msg="App handler returned an error for message aade0a9560324b1fbc0ce9d96d03b830 on queue dapr-conf-queue-bulk: conf test simulated error" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.600565795Z" level=debug msg="Abandoning message aade0a9560324b1fbc0ce9d96d03b830 on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.60855868Z" level=debug msg="Resumed after pausing for 134.781246ms" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.608590683Z" level=debug msg="Removing message 91372c562ec246d0bdb4d0f2d9bf5446 with sequence number 5 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.6087923Z" level=debug msg="Taking a retriable error token" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.608812302Z" level=debug msg="Resumed after pausing for 1.801µs" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.608822303Z" level=debug msg="Completing message 0496e73c3cd84f08973ca936cbb2b12e on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.630412452Z" level=debug msg="Received messages: 1; current active operations usage: 4/200" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.630481458Z" level=debug msg="Adding message aade0a9560324b1fbc0ce9d96d03b830 with sequence number 1 to active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.630510761Z" level=debug msg="Processing received message: aade0a9560324b1fbc0ce9d96d03b830" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.630729779Z" level=debug msg="Calling app's handler for 1 messages on topic dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.633569023Z" level=error msg="App handler returned an error for message 31154c7a587d49c389764f9fc5b22cf3 on queue dapr-conf-queue-bulk: conf test simulated error" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.633671631Z" level=debug msg="Abandoning message 31154c7a587d49c389764f9fc5b22cf3 on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.640590824Z" level=debug msg="Taking a retriable error token" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.663163758Z" level=debug msg="Received messages: 1; current active operations usage: 5/200" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.663195461Z" level=debug msg="Adding message 31154c7a587d49c389764f9fc5b22cf3 with sequence number 3 to active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.663207962Z" level=debug msg="Processing received message: 31154c7a587d49c389764f9fc5b22cf3" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.663255666Z" level=debug msg="Calling app's handler for 1 messages on topic dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.66330817Z" level=debug msg="Completing message 31154c7a587d49c389764f9fc5b22cf3 on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.666958383Z" level=debug msg="Removing message bf309540abb140b5b4d308458aeda685 with sequence number 10 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.683174572Z" level=error msg="App handler returned an error for message d0719819903543c0bfd311d19abbd56e on queue dapr-conf-queue-bulk: conf test simulated error" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.683204375Z" level=debug msg="Abandoning message d0719819903543c0bfd311d19abbd56e on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.707420849Z" level=debug msg="Taking a retriable error token" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.707569662Z" level=debug msg="Removing message 31154c7a587d49c389764f9fc5b22cf3 with sequence number 3 from active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.707636368Z" level=debug msg="Removing message aade0a9560324b1fbc0ce9d96d03b830 with sequence number 1 from active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.707686372Z" level=debug msg="Removing message 0496e73c3cd84f08973ca936cbb2b12e with sequence number 2 from active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.708683357Z" level=debug msg="Resumed after pausing for 157.622602ms" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.70871316Z" level=debug msg="Removing message bf309540abb140b5b4d308458aeda685 with sequence number 10 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.709150797Z" level=debug msg="Resumed after pausing for 68.52757ms" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.7091818Z" level=debug msg="Completing message 4003fbdd89a749ea96e4e5139877126d on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.729602249Z" level=debug msg="Received messages: 1; current active operations usage: 4/200" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.729667255Z" level=debug msg="Adding message d0719819903543c0bfd311d19abbd56e with sequence number 7 to active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.729694657Z" level=debug msg="Processing received message: d0719819903543c0bfd311d19abbd56e" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.729830169Z" level=debug msg="Calling app's handler for 1 messages on topic dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.72996698Z" level=debug msg="Completing message d0719819903543c0bfd311d19abbd56e on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.78342706Z" level=debug msg="Removing message 31154c7a587d49c389764f9fc5b22cf3 with sequence number 3 from active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.783477364Z" level=debug msg="Removing message 4003fbdd89a749ea96e4e5139877126d with sequence number 4 from active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.78342746Z" level=debug msg="Removing message d0719819903543c0bfd311d19abbd56e with sequence number 7 from active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.809709912Z" level=debug msg="Resumed after pausing for 102.239959ms" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.80981022Z" level=debug msg="Completing message 73b45235875a4381940a85afcecb2094 on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.883649046Z" level=debug msg="Removing message d0719819903543c0bfd311d19abbd56e with sequence number 7 from active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:27.883689449Z" level=debug msg="Removing message 73b45235875a4381940a85afcecb2094 with sequence number 8 from active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:28.631513511Z" level=error msg="App handler returned an error for message aade0a9560324b1fbc0ce9d96d03b830 on queue dapr-conf-queue-bulk: conf test simulated error" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:28.631559015Z" level=debug msg="Abandoning message aade0a9560324b1fbc0ce9d96d03b830 on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:28.639281677Z" level=debug msg="Taking a retriable error token" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:28.639315779Z" level=debug msg="Resumed after pausing for 2µs" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:28.639339381Z" level=debug msg="Removing message aade0a9560324b1fbc0ce9d96d03b830 with sequence number 1 from active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:28.662598074Z" level=debug msg="Received messages: 1; current active operations usage: 1/200" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:28.662630877Z" level=debug msg="Adding message aade0a9560324b1fbc0ce9d96d03b830 with sequence number 1 to active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:28.662648978Z" level=debug msg="Processing received message: aade0a9560324b1fbc0ce9d96d03b830" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:28.662731785Z" level=debug msg="Calling app's handler for 1 messages on topic dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:29.662931867Z" level=error msg="App handler returned an error for message aade0a9560324b1fbc0ce9d96d03b830 on queue dapr-conf-queue-bulk: conf test simulated error" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:29.662979671Z" level=debug msg="Abandoning message aade0a9560324b1fbc0ce9d96d03b830 on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:29.771242945Z" level=debug msg="Taking a retriable error token" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:29.77130015Z" level=debug msg="Resumed after pausing for 3.201µs" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:29.771325452Z" level=debug msg="Removing message aade0a9560324b1fbc0ce9d96d03b830 with sequence number 1 from active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:29.794188511Z" level=debug msg="Received messages: 1; current active operations usage: 1/200" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:29.794247416Z" level=debug msg="Adding message aade0a9560324b1fbc0ce9d96d03b830 with sequence number 1 to active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:29.794259817Z" level=debug msg="Processing received message: aade0a9560324b1fbc0ce9d96d03b830" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:29.794344324Z" level=debug msg="Calling app's handler for 1 messages on topic dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:29.79441143Z" level=debug msg="Completing message aade0a9560324b1fbc0ce9d96d03b830 on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:29.8150735Z" level=debug msg="Removing message aade0a9560324b1fbc0ce9d96d03b830 with sequence number 1 from active messages on queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+    pubsub.go:383: Adding message with ID 11 for bulk publish
+    pubsub.go:383: Adding message with ID 12 for bulk publish
+    pubsub.go:383: Adding message with ID 13 for bulk publish
+    pubsub.go:383: Adding message with ID 14 for bulk publish
+    pubsub.go:383: Adding message with ID 15 for bulk publish
+    pubsub.go:383: Adding message with ID 16 for bulk publish
+    pubsub.go:383: Adding message with ID 17 for bulk publish
+    pubsub.go:383: Adding message with ID 18 for bulk publish
+    pubsub.go:383: Adding message with ID 19 for bulk publish
+    pubsub.go:383: Adding message with ID 20 for bulk publish
+    pubsub.go:388: Calling Bulk Publish on component azure.servicebus.queues
+    pubsub.go:394: adding to awaited messages message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-11
+    pubsub.go:394: adding to awaited messages message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-12
+    pubsub.go:394: adding to awaited messages message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-13
+time="2022-10-21T17:11:31.730272965Z" level=debug msg="Received messages: 1; current active operations usage: 1/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.730302867Z" level=debug msg="Adding message 76dc691b-0d90-4443-7087-06bfa80db737 with sequence number 11 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.730315668Z" level=debug msg="Processing received message: 76dc691b-0d90-4443-7087-06bfa80db737" instance=AleTestVM scope=testLogger type=log ver=unknown
+    pubsub.go:394: adding to awaited messages message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-14
+time="2022-10-21T17:11:31.73033777Z" level=debug msg="Calling app's handler for message 76dc691b-0d90-4443-7087-06bfa80db737 on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+    pubsub.go:394: adding to awaited messages message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-15
+    pubsub.go:394: adding to awaited messages message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-16
+    pubsub.go:394: adding to awaited messages message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-17
+    pubsub.go:394: adding to awaited messages message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-18
+    pubsub.go:394: adding to awaited messages message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-19
+    pubsub.go:394: adding to awaited messages message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-20
+=== RUN   TestPubsubConformance/azure.servicebus.queues/verify_read
+    pubsub.go:408: waiting for 1m0s to complete read
+    pubsub.go:414: deleting message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-3 processed message
+    pubsub.go:414: deleting message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-4 processed message
+    pubsub.go:414: deleting message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-6 processed message
+    pubsub.go:414: deleting message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-7 processed message
+    pubsub.go:414: deleting message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-8 processed message
+    pubsub.go:414: deleting message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-9 processed message
+    pubsub.go:414: deleting message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-1 processed message
+    pubsub.go:414: deleting message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-2 processed message
+    pubsub.go:414: deleting message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-5 processed message
+    pubsub.go:414: deleting message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-10 processed message
+time="2022-10-21T17:11:31.732263635Z" level=debug msg="Received messages: 1; current active operations usage: 2/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.732292238Z" level=debug msg="Adding message da786369-a040-4f72-785e-99b335574f6e with sequence number 12 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.732303039Z" level=debug msg="Processing received message: da786369-a040-4f72-785e-99b335574f6e" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.732356543Z" level=debug msg="Calling app's handler for message da786369-a040-4f72-785e-99b335574f6e on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.732420749Z" level=debug msg="Completing message da786369-a040-4f72-785e-99b335574f6e on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+    pubsub.go:414: deleting message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-12 processed message
+time="2022-10-21T17:11:31.734080391Z" level=debug msg="Received messages: 1; current active operations usage: 3/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.734131595Z" level=debug msg="Adding message a340a4bc-5737-4fe4-4835-cadab6f4ca2d with sequence number 13 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.734142496Z" level=debug msg="Processing received message: a340a4bc-5737-4fe4-4835-cadab6f4ca2d" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.734161498Z" level=debug msg="Calling app's handler for message a340a4bc-5737-4fe4-4835-cadab6f4ca2d on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.734203202Z" level=debug msg="Completing message a340a4bc-5737-4fe4-4835-cadab6f4ca2d on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+    pubsub.go:414: deleting message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-13 processed message
+time="2022-10-21T17:11:31.735847342Z" level=debug msg="Received messages: 1; current active operations usage: 4/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.735869244Z" level=debug msg="Adding message ba0ed6a5-f9af-4b2a-7739-35a893ecdf4c with sequence number 14 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.735880145Z" level=debug msg="Processing received message: ba0ed6a5-f9af-4b2a-7739-35a893ecdf4c" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.73593195Z" level=debug msg="Calling app's handler for message ba0ed6a5-f9af-4b2a-7739-35a893ecdf4c on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.735984754Z" level=debug msg="Completing message ba0ed6a5-f9af-4b2a-7739-35a893ecdf4c on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+    pubsub.go:414: deleting message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-14 processed message
+time="2022-10-21T17:11:31.737442279Z" level=debug msg="Received messages: 1; current active operations usage: 5/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.737464581Z" level=debug msg="Adding message 082a8e3b-4ad6-4a17-5b02-10c1df11a9ff with sequence number 15 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.737475482Z" level=debug msg="Processing received message: 082a8e3b-4ad6-4a17-5b02-10c1df11a9ff" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.737503784Z" level=debug msg="Calling app's handler for message 082a8e3b-4ad6-4a17-5b02-10c1df11a9ff on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.737538187Z" level=debug msg="Completing message 082a8e3b-4ad6-4a17-5b02-10c1df11a9ff on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+    pubsub.go:414: deleting message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-15 processed message
+time="2022-10-21T17:11:31.740632052Z" level=debug msg="Received messages: 1; current active operations usage: 6/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.740654054Z" level=debug msg="Adding message 4020d915-3b10-4e6e-5218-4b986d612518 with sequence number 16 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.740665455Z" level=debug msg="Processing received message: 4020d915-3b10-4e6e-5218-4b986d612518" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.74071806Z" level=debug msg="Calling app's handler for message 4020d915-3b10-4e6e-5218-4b986d612518 on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.742422306Z" level=debug msg="Received messages: 1; current active operations usage: 7/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.742445408Z" level=debug msg="Adding message 137695fe-f12e-4134-782f-b4a964df0592 with sequence number 17 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.742456309Z" level=debug msg="Processing received message: 137695fe-f12e-4134-782f-b4a964df0592" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.742512113Z" level=debug msg="Calling app's handler for message 137695fe-f12e-4134-782f-b4a964df0592 on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.742560917Z" level=debug msg="Completing message 137695fe-f12e-4134-782f-b4a964df0592 on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+    pubsub.go:414: deleting message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-17 processed message
+time="2022-10-21T17:11:31.74726332Z" level=debug msg="Received messages: 1; current active operations usage: 8/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.747289823Z" level=debug msg="Adding message 92584169-8acf-42c4-6a62-9e2b838a23fd with sequence number 18 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.747301424Z" level=debug msg="Processing received message: 92584169-8acf-42c4-6a62-9e2b838a23fd" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.747318625Z" level=debug msg="Calling app's handler for message 92584169-8acf-42c4-6a62-9e2b838a23fd on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.747353328Z" level=debug msg="Completing message 92584169-8acf-42c4-6a62-9e2b838a23fd on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+    pubsub.go:414: deleting message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-18 processed message
+time="2022-10-21T17:11:31.749043273Z" level=debug msg="Received messages: 1; current active operations usage: 9/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.749069575Z" level=debug msg="Adding message 7885c311-4299-4fe5-6aaf-96a90d0d3b78 with sequence number 19 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.749081676Z" level=debug msg="Processing received message: 7885c311-4299-4fe5-6aaf-96a90d0d3b78" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.749110079Z" level=debug msg="Calling app's handler for message 7885c311-4299-4fe5-6aaf-96a90d0d3b78 on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.749141981Z" level=debug msg="Completing message 7885c311-4299-4fe5-6aaf-96a90d0d3b78 on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+    pubsub.go:414: deleting message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-19 processed message
+time="2022-10-21T17:11:31.750746619Z" level=debug msg="Received messages: 1; current active operations usage: 10/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.750777821Z" level=debug msg="Adding message 7638fcb4-7c3e-47c0-6999-007a2e583b28 with sequence number 20 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.750789622Z" level=debug msg="Processing received message: 7638fcb4-7c3e-47c0-6999-007a2e583b28" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.750807324Z" level=debug msg="Calling app's handler for message 7638fcb4-7c3e-47c0-6999-007a2e583b28 on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.750846727Z" level=debug msg="Completing message 7638fcb4-7c3e-47c0-6999-007a2e583b28 on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+    pubsub.go:414: deleting message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-20 processed message
+time="2022-10-21T17:11:31.777711729Z" level=debug msg="Removing message da786369-a040-4f72-785e-99b335574f6e with sequence number 12 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.777920247Z" level=debug msg="Removing message 082a8e3b-4ad6-4a17-5b02-10c1df11a9ff with sequence number 15 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.777984852Z" level=debug msg="Removing message 7885c311-4299-4fe5-6aaf-96a90d0d3b78 with sequence number 19 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.777993153Z" level=debug msg="Removing message ba0ed6a5-f9af-4b2a-7739-35a893ecdf4c with sequence number 14 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.778003054Z" level=debug msg="Removing message 137695fe-f12e-4134-782f-b4a964df0592 with sequence number 17 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.778016555Z" level=debug msg="Removing message a340a4bc-5737-4fe4-4835-cadab6f4ca2d with sequence number 13 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.778022355Z" level=debug msg="Removing message 92584169-8acf-42c4-6a62-9e2b838a23fd with sequence number 18 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:31.778051058Z" level=debug msg="Removing message 7638fcb4-7c3e-47c0-6999-007a2e583b28 with sequence number 20 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:32.731185108Z" level=error msg="App handler returned an error for message 76dc691b-0d90-4443-7087-06bfa80db737 on queue dapr-conf-queue: conf test simulated error" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:32.731242312Z" level=debug msg="Abandoning message 76dc691b-0d90-4443-7087-06bfa80db737 on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:32.741385781Z" level=error msg="App handler returned an error for message 4020d915-3b10-4e6e-5218-4b986d612518 on queue dapr-conf-queue: conf test simulated error" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:32.741439886Z" level=debug msg="Abandoning message 4020d915-3b10-4e6e-5218-4b986d612518 on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:32.820248637Z" level=debug msg="Taking a retriable error token" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:32.820290541Z" level=debug msg="Resumed after pausing for 2.2µs" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:32.820309342Z" level=debug msg="Removing message 76dc691b-0d90-4443-7087-06bfa80db737 with sequence number 11 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:32.822156301Z" level=debug msg="Received messages: 1; current active operations usage: 2/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:32.822187703Z" level=debug msg="Adding message 76dc691b-0d90-4443-7087-06bfa80db737 with sequence number 11 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:32.822199304Z" level=debug msg="Processing received message: 76dc691b-0d90-4443-7087-06bfa80db737" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:32.822222306Z" level=debug msg="Calling app's handler for message 76dc691b-0d90-4443-7087-06bfa80db737 on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:32.822928967Z" level=debug msg="Taking a retriable error token" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:32.822950769Z" level=debug msg="Resumed after pausing for 1.4µs" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:32.82296237Z" level=debug msg="Removing message 4020d915-3b10-4e6e-5218-4b986d612518 with sequence number 16 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:32.825564893Z" level=debug msg="Received messages: 1; current active operations usage: 2/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:32.825590595Z" level=debug msg="Adding message 4020d915-3b10-4e6e-5218-4b986d612518 with sequence number 16 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:32.825602496Z" level=debug msg="Processing received message: 4020d915-3b10-4e6e-5218-4b986d612518" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:32.825624098Z" level=debug msg="Calling app's handler for message 4020d915-3b10-4e6e-5218-4b986d612518 on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:32.825671702Z" level=debug msg="Completing message 4020d915-3b10-4e6e-5218-4b986d612518 on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+    pubsub.go:414: deleting message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-16 processed message
+time="2022-10-21T17:11:32.868324455Z" level=debug msg="Removing message 4020d915-3b10-4e6e-5218-4b986d612518 with sequence number 16 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:33.822490294Z" level=error msg="App handler returned an error for message 76dc691b-0d90-4443-7087-06bfa80db737 on queue dapr-conf-queue: conf test simulated error" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:33.822531297Z" level=debug msg="Abandoning message 76dc691b-0d90-4443-7087-06bfa80db737 on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:33.832009309Z" level=debug msg="Taking a retriable error token" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:33.832059613Z" level=debug msg="Resumed after pausing for 2.8µs" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:33.832083015Z" level=debug msg="Removing message 76dc691b-0d90-4443-7087-06bfa80db737 with sequence number 11 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:33.833230314Z" level=debug msg="Received messages: 1; current active operations usage: 1/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:33.833255316Z" level=debug msg="Adding message 76dc691b-0d90-4443-7087-06bfa80db737 with sequence number 11 to active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:33.833266717Z" level=debug msg="Processing received message: 76dc691b-0d90-4443-7087-06bfa80db737" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:33.833287819Z" level=debug msg="Calling app's handler for message 76dc691b-0d90-4443-7087-06bfa80db737 on topic dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:33.833336323Z" level=debug msg="Completing message 76dc691b-0d90-4443-7087-06bfa80db737 on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+    pubsub.go:414: deleting message-ef257db6-2fb5-4a9d-982d-4b0f6c8163cd-11 processed message
+=== RUN   TestPubsubConformance/azure.servicebus.queues/verify_read_on_bulk_subscription
+    pubsub.go:434: waiting for 1m0s to complete read for bulk subscription
+=== RUN   TestPubsubConformance/azure.servicebus.queues/mutiple_handlers
+time="2022-10-21T17:11:33.855099687Z" level=debug msg="Removing message 76dc691b-0d90-4443-7087-06bfa80db737 with sequence number 11 from active messages on queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.430834401Z" level=debug msg="Received messages: 1; current active operations usage: 1/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.430867204Z" level=debug msg="Adding message efd730a468754bd9b418def537f870a7 with sequence number 1 to active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.430879305Z" level=debug msg="Processing received message: efd730a468754bd9b418def537f870a7" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.430913508Z" level=debug msg="Calling app's handler for message efd730a468754bd9b418def537f870a7 on topic dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.430953911Z" level=debug msg="Completing message efd730a468754bd9b418def537f870a7 on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.458156241Z" level=debug msg="Removing message efd730a468754bd9b418def537f870a7 with sequence number 1 from active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.459850886Z" level=debug msg="Received messages: 1; current active operations usage: 1/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.459878789Z" level=debug msg="Adding message 1cbf03930dcb460a9c3f8aae9496c44d with sequence number 1 to active messages on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.45989049Z" level=debug msg="Processing received message: 1cbf03930dcb460a9c3f8aae9496c44d" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.459922593Z" level=debug msg="Calling app's handler for message 1cbf03930dcb460a9c3f8aae9496c44d on topic dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.459951895Z" level=debug msg="Completing message 1cbf03930dcb460a9c3f8aae9496c44d on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.480530858Z" level=debug msg="Removing message 1cbf03930dcb460a9c3f8aae9496c44d with sequence number 1 from active messages on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.492200858Z" level=debug msg="Received messages: 1; current active operations usage: 1/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.492250362Z" level=debug msg="Adding message 3ea2ae22f96740759fa30b34e291e4ec with sequence number 2 to active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.492325168Z" level=debug msg="Processing received message: 3ea2ae22f96740759fa30b34e291e4ec" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.492405275Z" level=debug msg="Calling app's handler for message 3ea2ae22f96740759fa30b34e291e4ec on topic dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.492453579Z" level=debug msg="Completing message 3ea2ae22f96740759fa30b34e291e4ec on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.551978379Z" level=debug msg="Received messages: 1; current active operations usage: 1/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.552016382Z" level=debug msg="Adding message c1c9a586cad844c1832898f51c87a599 with sequence number 2 to active messages on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.552030683Z" level=debug msg="Processing received message: c1c9a586cad844c1832898f51c87a599" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.552066886Z" level=debug msg="Calling app's handler for message c1c9a586cad844c1832898f51c87a599 on topic dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.552095089Z" level=debug msg="Completing message c1c9a586cad844c1832898f51c87a599 on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.557089016Z" level=debug msg="Removing message 3ea2ae22f96740759fa30b34e291e4ec with sequence number 2 from active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.568465391Z" level=debug msg="Received messages: 1; current active operations usage: 1/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.568493793Z" level=debug msg="Adding message bfb619ffd5f14c6998d6b9d242ecf144 with sequence number 3 to active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.568505794Z" level=debug msg="Processing received message: bfb619ffd5f14c6998d6b9d242ecf144" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.568528596Z" level=debug msg="Calling app's handler for message bfb619ffd5f14c6998d6b9d242ecf144 on topic dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.568584901Z" level=debug msg="Completing message bfb619ffd5f14c6998d6b9d242ecf144 on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.582092758Z" level=debug msg="Received messages: 1; current active operations usage: 2/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.582119761Z" level=debug msg="Adding message 7f8e5a157a354e529148fad3542e8a7a with sequence number 3 to active messages on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.582131262Z" level=debug msg="Processing received message: 7f8e5a157a354e529148fad3542e8a7a" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.582165164Z" level=debug msg="Calling app's handler for message 7f8e5a157a354e529148fad3542e8a7a on topic dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.582197167Z" level=debug msg="Completing message 7f8e5a157a354e529148fad3542e8a7a on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.582985835Z" level=debug msg="Removing message bfb619ffd5f14c6998d6b9d242ecf144 with sequence number 3 from active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.603406584Z" level=debug msg="Received messages: 1; current active operations usage: 1/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.603434486Z" level=debug msg="Adding message 8f8c32d010e64b2aa2e2cb1960ab9e52 with sequence number 4 to active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.603445887Z" level=debug msg="Processing received message: 8f8c32d010e64b2aa2e2cb1960ab9e52" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.603466789Z" level=debug msg="Calling app's handler for message 8f8c32d010e64b2aa2e2cb1960ab9e52 on topic dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.603504592Z" level=debug msg="Completing message 8f8c32d010e64b2aa2e2cb1960ab9e52 on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.61468595Z" level=debug msg="Removing message 7f8e5a157a354e529148fad3542e8a7a with sequence number 3 from active messages on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.614720653Z" level=debug msg="Removing message c1c9a586cad844c1832898f51c87a599 with sequence number 2 from active messages on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.623917041Z" level=debug msg="Received messages: 1; current active operations usage: 1/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.623942543Z" level=debug msg="Adding message 63e259b820394d609cf088dc4d0ec199 with sequence number 4 to active messages on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.623954744Z" level=debug msg="Processing received message: 63e259b820394d609cf088dc4d0ec199" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.623974946Z" level=debug msg="Calling app's handler for message 63e259b820394d609cf088dc4d0ec199 on topic dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.624010149Z" level=debug msg="Completing message 63e259b820394d609cf088dc4d0ec199 on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.634845177Z" level=debug msg="Received messages: 1; current active operations usage: 2/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.634884181Z" level=debug msg="Adding message 249d708a9b644b2898dba64cad8db0e7 with sequence number 5 to active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.634898082Z" level=debug msg="Processing received message: 249d708a9b644b2898dba64cad8db0e7" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.634960887Z" level=debug msg="Calling app's handler for message 249d708a9b644b2898dba64cad8db0e7 on topic dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.635000691Z" level=debug msg="Completing message 249d708a9b644b2898dba64cad8db0e7 on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+    pubsub.go:498: waiting for 1m0s to complete read
+time="2022-10-21T17:11:37.646707393Z" level=debug msg="Received messages: 1; current active operations usage: 2/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.646730695Z" level=debug msg="Adding message 13d778a7ac084376b49c21025ba04ab6 with sequence number 5 to active messages on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.646742396Z" level=debug msg="Processing received message: 13d778a7ac084376b49c21025ba04ab6" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.646761298Z" level=debug msg="Calling app's handler for message 13d778a7ac084376b49c21025ba04ab6 on topic dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.646793501Z" level=debug msg="Completing message 13d778a7ac084376b49c21025ba04ab6 on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+=== RUN   TestPubsubConformance/azure.servicebus.queues/stop_subscribers
+time="2022-10-21T17:11:37.664195892Z" level=debug msg="Received messages: 1; current active operations usage: 3/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.664233795Z" level=debug msg="Adding message 85b3c21a32324febb070ec1f3936af57 with sequence number 6 to active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.664248596Z" level=debug msg="Processing received message: 85b3c21a32324febb070ec1f3936af57" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.6642969Z" level=debug msg="Calling app's handler for message 85b3c21a32324febb070ec1f3936af57 on topic dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.664346705Z" level=debug msg="Completing message 85b3c21a32324febb070ec1f3936af57 on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.666129457Z" level=debug msg="Removing message 63e259b820394d609cf088dc4d0ec199 with sequence number 4 from active messages on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.666138658Z" level=debug msg="Removing message 13d778a7ac084376b49c21025ba04ab6 with sequence number 5 from active messages on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.682592167Z" level=debug msg="Received messages: 1; current active operations usage: 1/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.68262057Z" level=debug msg="Adding message 857e655c1fe24b82b1dbfed7f7366d1a with sequence number 6 to active messages on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.682634271Z" level=debug msg="Processing received message: 857e655c1fe24b82b1dbfed7f7366d1a" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.682666574Z" level=debug msg="Calling app's handler for message 857e655c1fe24b82b1dbfed7f7366d1a on topic dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.682794485Z" level=debug msg="Completing message 857e655c1fe24b82b1dbfed7f7366d1a on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.696188832Z" level=debug msg="Removing message 857e655c1fe24b82b1dbfed7f7366d1a with sequence number 6 from active messages on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.697735065Z" level=debug msg="Removing message 85b3c21a32324febb070ec1f3936af57 with sequence number 6 from active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.697757167Z" level=debug msg="Removing message 8f8c32d010e64b2aa2e2cb1960ab9e52 with sequence number 4 from active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.697761167Z" level=debug msg="Removing message 249d708a9b644b2898dba64cad8db0e7 with sequence number 5 from active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.702226549Z" level=debug msg="Received messages: 1; current active operations usage: 1/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.702255652Z" level=debug msg="Adding message d010b929df654525a95f177ae002d215 with sequence number 7 to active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.702269253Z" level=debug msg="Processing received message: d010b929df654525a95f177ae002d215" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.702413165Z" level=debug msg="Calling app's handler for message d010b929df654525a95f177ae002d215 on topic dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.702487772Z" level=debug msg="Completing message d010b929df654525a95f177ae002d215 on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.713127883Z" level=debug msg="Received messages: 1; current active operations usage: 1/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.713195289Z" level=debug msg="Adding message 5b1d1c4d2b1443b1998b9a4c2e18db24 with sequence number 7 to active messages on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.713220891Z" level=debug msg="Processing received message: 5b1d1c4d2b1443b1998b9a4c2e18db24" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.713282497Z" level=debug msg="Calling app's handler for message 5b1d1c4d2b1443b1998b9a4c2e18db24 on topic dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.713339401Z" level=debug msg="Completing message 5b1d1c4d2b1443b1998b9a4c2e18db24 on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.728359588Z" level=debug msg="Removing message 5b1d1c4d2b1443b1998b9a4c2e18db24 with sequence number 7 from active messages on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.729168457Z" level=debug msg="Removing message d010b929df654525a95f177ae002d215 with sequence number 7 from active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.741888047Z" level=debug msg="Received messages: 1; current active operations usage: 1/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.741915649Z" level=debug msg="Adding message d3bf89faeda94a28a70ba8675b3aa1e0 with sequence number 8 to active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.74192715Z" level=debug msg="Processing received message: d3bf89faeda94a28a70ba8675b3aa1e0" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.741946852Z" level=debug msg="Calling app's handler for message d3bf89faeda94a28a70ba8675b3aa1e0 on topic dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.741981455Z" level=debug msg="Completing message d3bf89faeda94a28a70ba8675b3aa1e0 on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.757603193Z" level=debug msg="Received messages: 1; current active operations usage: 1/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.757626995Z" level=debug msg="Adding message 8b07e46c3cad4574ac4cf4fe0507e591 with sequence number 8 to active messages on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.757638396Z" level=debug msg="Processing received message: 8b07e46c3cad4574ac4cf4fe0507e591" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.757657698Z" level=debug msg="Calling app's handler for message 8b07e46c3cad4574ac4cf4fe0507e591 on topic dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.757692401Z" level=debug msg="Completing message 8b07e46c3cad4574ac4cf4fe0507e591 on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.769873344Z" level=debug msg="Received messages: 1; current active operations usage: 2/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.769898547Z" level=debug msg="Adding message e0031d4330634a22b1a656425c7aec3b with sequence number 9 to active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.769909848Z" level=debug msg="Processing received message: e0031d4330634a22b1a656425c7aec3b" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.76994055Z" level=debug msg="Calling app's handler for message e0031d4330634a22b1a656425c7aec3b on topic dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.769972453Z" level=debug msg="Completing message e0031d4330634a22b1a656425c7aec3b on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.783572318Z" level=debug msg="Received messages: 1; current active operations usage: 2/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.78359672Z" level=debug msg="Adding message 6aa1db02d0014cce91972d4ae6a7ce81 with sequence number 9 to active messages on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.783610921Z" level=debug msg="Processing received message: 6aa1db02d0014cce91972d4ae6a7ce81" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.783644024Z" level=debug msg="Calling app's handler for message 6aa1db02d0014cce91972d4ae6a7ce81 on topic dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.783672426Z" level=debug msg="Completing message 6aa1db02d0014cce91972d4ae6a7ce81 on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.796718244Z" level=debug msg="Received messages: 1; current active operations usage: 3/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.796745846Z" level=debug msg="Adding message 18efe971b3e34dbd8f2bc5bbb5e02410 with sequence number 10 to active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.796757447Z" level=debug msg="Processing received message: 18efe971b3e34dbd8f2bc5bbb5e02410" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.796799551Z" level=debug msg="Calling app's handler for message 18efe971b3e34dbd8f2bc5bbb5e02410 on topic dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.796846655Z" level=debug msg="Completing message 18efe971b3e34dbd8f2bc5bbb5e02410 on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.811212986Z" level=debug msg="Received messages: 1; current active operations usage: 3/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.811288992Z" level=debug msg="Adding message 5d3cb07bc55c414aa4d42b881c53874b with sequence number 10 to active messages on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.811309494Z" level=debug msg="Processing received message: 5d3cb07bc55c414aa4d42b881c53874b" instance=AleTestVM scope=testLogger type=log ver=unknown
+    pubsub.go:551: waiting for 1m0s to complete read
+time="2022-10-21T17:11:37.811395501Z" level=debug msg="Calling app's handler for message 5d3cb07bc55c414aa4d42b881c53874b on topic dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.811433105Z" level=debug msg="Completing message 5d3cb07bc55c414aa4d42b881c53874b on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.811472008Z" level=debug msg="Lock renewal context for queue dapr-conf-queue-multi1 done" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.811520612Z" level=debug msg="Closing subscription to queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.815614763Z" level=debug msg="Context canceled; will not reconnect" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.832458406Z" level=debug msg="Removing message 18efe971b3e34dbd8f2bc5bbb5e02410 with sequence number 10 from active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.832484208Z" level=debug msg="Removing message e0031d4330634a22b1a656425c7aec3b with sequence number 9 from active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:37.832482208Z" level=debug msg="Removing message d3bf89faeda94a28a70ba8675b3aa1e0 with sequence number 8 from active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:39.51044325Z" level=debug msg="No active messages require lock renewal for queue dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:41.076183978Z" level=warning msg="Error completing message 8b07e46c3cad4574ac4cf4fe0507e591 on queue dapr-conf-queue-multi1: link was closed by user" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:41.076242483Z" level=debug msg="Removing message 8b07e46c3cad4574ac4cf4fe0507e591 with sequence number 8 from active messages on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:41.264517211Z" level=debug msg="No active messages require lock renewal for queue dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.266648059Z" level=warning msg="Error completing message 6aa1db02d0014cce91972d4ae6a7ce81 on queue dapr-conf-queue-multi1: link was closed by user" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.266730266Z" level=debug msg="Removing message 6aa1db02d0014cce91972d4ae6a7ce81 with sequence number 9 from active messages on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.408934547Z" level=warning msg="Error completing message 5d3cb07bc55c414aa4d42b881c53874b on queue dapr-conf-queue-multi1: link was closed by user" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.408978051Z" level=debug msg="Removing message 5d3cb07bc55c414aa4d42b881c53874b with sequence number 10 from active messages on queue dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.827258983Z" level=debug msg="Received messages: 1; current active operations usage: 1/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.827319188Z" level=debug msg="Adding message c7c9fe5f80c147ec93ee7fd1b34d4e6e with sequence number 11 to active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.82733939Z" level=debug msg="Processing received message: c7c9fe5f80c147ec93ee7fd1b34d4e6e" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.827431998Z" level=debug msg="Calling app's handler for message c7c9fe5f80c147ec93ee7fd1b34d4e6e on topic dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.827492703Z" level=debug msg="Completing message c7c9fe5f80c147ec93ee7fd1b34d4e6e on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.840273698Z" level=debug msg="Removing message c7c9fe5f80c147ec93ee7fd1b34d4e6e with sequence number 11 from active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.859939383Z" level=debug msg="Received messages: 1; current active operations usage: 1/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.859969985Z" level=debug msg="Adding message 05bc9023f0254bfbbe6a446fbd08d258 with sequence number 12 to active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.859985787Z" level=debug msg="Processing received message: 05bc9023f0254bfbbe6a446fbd08d258" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.860007488Z" level=debug msg="Calling app's handler for message 05bc9023f0254bfbbe6a446fbd08d258 on topic dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.860045092Z" level=debug msg="Completing message 05bc9023f0254bfbbe6a446fbd08d258 on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.868374105Z" level=debug msg="Removing message 05bc9023f0254bfbbe6a446fbd08d258 with sequence number 12 from active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.886401749Z" level=debug msg="Received messages: 1; current active operations usage: 1/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.886442153Z" level=debug msg="Adding message 660355e249ad430ea5ecc5a1471b35bb with sequence number 13 to active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.886461955Z" level=debug msg="Processing received message: 660355e249ad430ea5ecc5a1471b35bb" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.886488957Z" level=debug msg="Calling app's handler for message 660355e249ad430ea5ecc5a1471b35bb on topic dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.886713076Z" level=debug msg="Completing message 660355e249ad430ea5ecc5a1471b35bb on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.918387189Z" level=debug msg="Received messages: 1; current active operations usage: 2/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.918433893Z" level=debug msg="Adding message 00448a9dc9d74dcc93f4d6c95342059c with sequence number 14 to active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.918447495Z" level=debug msg="Processing received message: 00448a9dc9d74dcc93f4d6c95342059c" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.918595207Z" level=debug msg="Calling app's handler for message 00448a9dc9d74dcc93f4d6c95342059c on topic dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.918651312Z" level=debug msg="Completing message 00448a9dc9d74dcc93f4d6c95342059c on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.943299524Z" level=debug msg="Received messages: 1; current active operations usage: 3/1000" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.943332826Z" level=debug msg="Adding message 90e408362acc45df999c0f227d57dd7b with sequence number 15 to active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.943344527Z" level=debug msg="Processing received message: 90e408362acc45df999c0f227d57dd7b" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.943366529Z" level=debug msg="Calling app's handler for message 90e408362acc45df999c0f227d57dd7b on topic dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.943404933Z" level=debug msg="Completing message 90e408362acc45df999c0f227d57dd7b on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+    pubsub.go:551: waiting for 1m0s to complete read
+time="2022-10-21T17:11:42.955760291Z" level=debug msg="Lock renewal context for queue dapr-conf-queue-multi2 done" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.955786093Z" level=debug msg="Closing subscription to queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:42.958822153Z" level=debug msg="Context canceled; will not reconnect" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:46.901542905Z" level=warning msg="Error completing message 90e408362acc45df999c0f227d57dd7b on queue dapr-conf-queue-multi2: link was closed by user" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:46.90160671Z" level=debug msg="Removing message 90e408362acc45df999c0f227d57dd7b with sequence number 15 from active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:47.433156345Z" level=warning msg="Error completing message 660355e249ad430ea5ecc5a1471b35bb on queue dapr-conf-queue-multi2: link was closed by user" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:47.43321885Z" level=debug msg="Removing message 660355e249ad430ea5ecc5a1471b35bb with sequence number 13 from active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:47.664621773Z" level=warning msg="Error completing message 00448a9dc9d74dcc93f4d6c95342059c on queue dapr-conf-queue-multi2: link was closed by user" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:47.66469408Z" level=debug msg="Removing message 00448a9dc9d74dcc93f4d6c95342059c with sequence number 14 from active messages on queue dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+    pubsub.go:551: waiting for 1m0s to complete read
+time="2022-10-21T17:11:48.113178999Z" level=debug msg="Closing sender dapr-conf-queue-multi2" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:48.1131925Z" level=debug msg="Closing sender dapr-conf-queue" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:48.1131975Z" level=debug msg="Closing sender dapr-conf-queue-bulk" instance=AleTestVM scope=testLogger type=log ver=unknown
+time="2022-10-21T17:11:48.116371972Z" level=debug msg="Closing sender dapr-conf-queue-multi1" instance=AleTestVM scope=testLogger type=log ver=unknown
+--- PASS: TestPubsubConformance (28.69s)
+    --- PASS: TestPubsubConformance/azure.servicebus.queues (28.69s)
+        --- PASS: TestPubsubConformance/azure.servicebus.queues/init (0.00s)
+        --- PASS: TestPubsubConformance/azure.servicebus.queues/ping (0.00s)
+        --- PASS: TestPubsubConformance/azure.servicebus.queues/subscribe (0.08s)
+        --- PASS: TestPubsubConformance/azure.servicebus.queues/bulkSubscribe (1.75s)
+        pubsub.go:202: Simulating subscriber success
+        pubsub.go:202: Simulating subscriber success
+        pubsub.go:202: Simulating subscriber success
+        pubsub.go:202: Simulating subscriber success
+        pubsub.go:202: Simulating subscriber success
+        pubsub.go:202: Simulating subscriber success
+        pubsub.go:292: Simulating subscriber success
+        pubsub.go:292: Simulating subscriber success
+        pubsub.go:292: Simulating subscriber success
+        pubsub.go:292: Simulating subscriber success
+        --- PASS: TestPubsubConformance/azure.servicebus.queues/publish (0.45s)
+        pubsub.go:292: Simulating subscriber success
+        pubsub.go:197: Simulating subscriber error
+        pubsub.go:202: Simulating subscriber success
+        pubsub.go:197: Simulating subscriber error
+        pubsub.go:202: Simulating subscriber success
+        pubsub.go:197: Simulating subscriber error
+        pubsub.go:202: Simulating subscriber success
+        pubsub.go:197: Simulating subscriber error
+        pubsub.go:202: Simulating subscriber success
+        pubsub.go:284: Simulating subscriber error
+        pubsub.go:292: Simulating subscriber success
+        pubsub.go:284: Simulating subscriber error
+        pubsub.go:292: Simulating subscriber success
+        pubsub.go:292: Simulating subscriber success
+        pubsub.go:284: Simulating subscriber error
+        pubsub.go:292: Simulating subscriber success
+        pubsub.go:292: Simulating subscriber success
+        pubsub.go:284: Simulating subscriber error
+        pubsub.go:284: Simulating subscriber error
+        pubsub.go:292: Simulating subscriber success
+        --- PASS: TestPubsubConformance/azure.servicebus.queues/bulkPublish (5.02s)
+        pubsub.go:202: Simulating subscriber success
+        pubsub.go:202: Simulating subscriber success
+        pubsub.go:202: Simulating subscriber success
+        pubsub.go:202: Simulating subscriber success
+        pubsub.go:202: Simulating subscriber success
+        pubsub.go:202: Simulating subscriber success
+        pubsub.go:202: Simulating subscriber success
+        pubsub.go:202: Simulating subscriber success
+        pubsub.go:197: Simulating subscriber error
+        pubsub.go:197: Simulating subscriber error
+        pubsub.go:202: Simulating subscriber success
+        pubsub.go:197: Simulating subscriber error
+        pubsub.go:202: Simulating subscriber success
+        --- PASS: TestPubsubConformance/azure.servicebus.queues/verify_read (2.10s)
+        --- PASS: TestPubsubConformance/azure.servicebus.queues/verify_read_on_bulk_subscription (0.00s)
+        --- PASS: TestPubsubConformance/azure.servicebus.queues/mutiple_handlers (3.81s)
+        --- PASS: TestPubsubConformance/azure.servicebus.queues/stop_subscribers (10.47s)
+PASS
+ok  	github.com/dapr/components-contrib/tests/conformance	28.730s

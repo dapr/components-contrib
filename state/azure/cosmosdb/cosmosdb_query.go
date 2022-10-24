@@ -160,7 +160,9 @@ func (q *Query) execute(ctx context.Context, client *azcosmos.ContainerClient) (
 
 	token := ""
 	for queryPager.More() {
+		ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 		queryResponse, innerErr := queryPager.NextPage(ctx)
+		cancel()
 		if innerErr != nil {
 			return nil, "", innerErr
 		}

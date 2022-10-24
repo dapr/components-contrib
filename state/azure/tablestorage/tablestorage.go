@@ -182,6 +182,8 @@ func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 func (r *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	r.logger.Debugf("fetching %s", req.Key)
 	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDBMode)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	resp, err := r.client.GetEntity(ctx, pk, rk, nil)
 	if err != nil {
 		if isNotFoundError(err) {
@@ -258,20 +260,24 @@ func (r *StateStore) writeRow(ctx context.Context, req *state.SetRequest) error 
 		return err
 	}
 
+	writeContext, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	// InsertOrReplace does not support ETag concurrency, therefore we will use Insert to check for key existence
 	// and then use Update to update the key if it exists with the specified ETag
-	_, err = r.client.AddEntity(ctx, marshalledEntity, nil)
+	_, err = r.client.AddEntity(writeContext, marshalledEntity, nil)
 
 	if err != nil {
 		// If Insert failed because item already exists, try to Update instead per Upsert semantics
 		if isEntityAlreadyExistsError(err) {
+			updateContext, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
 			// Always Update using the etag when provided even if Concurrency != FirstWrite.
 			// Today the presence of etag takes precedence over Concurrency.
 			// In the future #2739 will impose a breaking change which must disallow the use of etag when not using FirstWrite.
 			if req.ETag != nil && *req.ETag != "" {
 				etag := azcore.ETag(*req.ETag)
 
-				_, uerr := r.client.UpdateEntity(ctx, marshalledEntity, &aztables.UpdateEntityOptions{
+				_, uerr := r.client.UpdateEntity(updateContext, marshalledEntity, &aztables.UpdateEntityOptions{
 					IfMatch:    &etag,
 					UpdateMode: aztables.UpdateModeReplace,
 				})
@@ -289,7 +295,7 @@ func (r *StateStore) writeRow(ctx context.Context, req *state.SetRequest) error 
 				return state.NewETagError(state.ETagMismatch, errors.New("update with Concurrency.FirstWrite without ETag"))
 			} else {
 				// Finally, last write semantics without ETag should always perform a force update.
-				_, uerr := r.client.UpdateEntity(ctx, marshalledEntity, &aztables.UpdateEntityOptions{
+				_, uerr := r.client.UpdateEntity(updateContext, marshalledEntity, &aztables.UpdateEntityOptions{
 					IfMatch:    nil, // this is the same as "*" matching all ETags
 					UpdateMode: aztables.UpdateModeReplace,
 				})

@@ -299,8 +299,10 @@ func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 		return err
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	pk := azcosmos.NewPartitionKeyString(partitionKey)
 	_, err = c.client.UpsertItem(ctx, pk, marsh, &options)
+	cancel()
 	if err != nil {
 		return err
 	}

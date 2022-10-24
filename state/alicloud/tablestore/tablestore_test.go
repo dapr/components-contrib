@@ -64,7 +64,7 @@ func TestReadAndWrite(t *testing.T) {
 			Value: "value of key",
 			ETag:  ptr.String("the etag"),
 		}
-		err := store.Set(context.TODO(), setReq)
+		err := store.Set(context.Background(), setReq)
 		assert.Nil(t, err)
 	})
 
@@ -72,7 +72,7 @@ func TestReadAndWrite(t *testing.T) {
 		getReq := &state.GetRequest{
 			Key: "theFirstKey",
 		}
-		resp, err := store.Get(context.TODO(), getReq)
+		resp, err := store.Get(context.Background(), getReq)
 		assert.Nil(t, err)
 		assert.NotNil(t, resp)
 		assert.Equal(t, "value of key", string(resp.Data))
@@ -84,7 +84,7 @@ func TestReadAndWrite(t *testing.T) {
 			Value: "1234",
 			ETag:  ptr.String("the etag"),
 		}
-		err := store.Set(context.TODO(), setReq)
+		err := store.Set(context.Background(), setReq)
 		assert.Nil(t, err)
 	})
 
@@ -92,14 +92,14 @@ func TestReadAndWrite(t *testing.T) {
 		getReq := &state.GetRequest{
 			Key: "theSecondKey",
 		}
-		resp, err := store.Get(context.TODO(), getReq)
+		resp, err := store.Get(context.Background(), getReq)
 		assert.Nil(t, err)
 		assert.NotNil(t, resp)
 		assert.Equal(t, "1234", string(resp.Data))
 	})
 
 	t.Run("test BulkSet", func(t *testing.T) {
-		err := store.BulkSet(context.TODO(), []state.SetRequest{{
+		err := store.BulkSet(context.Background(), []state.SetRequest{{
 			Key:   "theFirstKey",
 			Value: "666",
 		}, {
@@ -111,7 +111,7 @@ func TestReadAndWrite(t *testing.T) {
 	})
 
 	t.Run("test BulkGet", func(t *testing.T) {
-		_, resp, err := store.BulkGet(context.TODO(), []state.GetRequest{{
+		_, resp, err := store.BulkGet(context.Background(), []state.GetRequest{{
 			Key: "theFirstKey",
 		}, {
 			Key: "theSecondKey",
@@ -127,12 +127,12 @@ func TestReadAndWrite(t *testing.T) {
 		req := &state.DeleteRequest{
 			Key: "theFirstKey",
 		}
-		err := store.Delete(context.TODO(), req)
+		err := store.Delete(context.Background(), req)
 		assert.Nil(t, err)
 	})
 
 	t.Run("test BulkGet2", func(t *testing.T) {
-		_, resp, err := store.BulkGet(context.TODO(), []state.GetRequest{{
+		_, resp, err := store.BulkGet(context.Background(), []state.GetRequest{{
 			Key: "theFirstKey",
 		}, {
 			Key: "theSecondKey",

@@ -224,7 +224,7 @@ func deleteItemThatDoesNotExist(t *testing.T, ods *OracleDatabase) {
 	deleteReq := &state.DeleteRequest{
 		Key: randomKey(),
 	}
-	err := ods.Delete(context.TODO(), deleteReq)
+	err := ods.Delete(context.Background(), deleteReq)
 	assert.Nil(t, err)
 }
 
@@ -243,7 +243,7 @@ func multiWithSetOnly(t *testing.T, ods *OracleDatabase) {
 		})
 	}
 
-	err := ods.Multi(context.TODO(), &state.TransactionalStateRequest{
+	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	assert.Nil(t, err)
@@ -273,7 +273,7 @@ func multiWithDeleteOnly(t *testing.T, ods *OracleDatabase) {
 		})
 	}
 
-	err := ods.Multi(context.TODO(), &state.TransactionalStateRequest{
+	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	assert.Nil(t, err)
@@ -316,7 +316,7 @@ func multiWithDeleteAndSet(t *testing.T, ods *OracleDatabase) {
 		})
 	}
 
-	err := ods.Multi(context.TODO(), &state.TransactionalStateRequest{
+	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	assert.Nil(t, err)
@@ -346,7 +346,7 @@ func deleteWithInvalidEtagFails(t *testing.T, ods *OracleDatabase) {
 			Concurrency: state.FirstWrite,
 		},
 	}
-	err := ods.Delete(context.TODO(), deleteReq)
+	err := ods.Delete(context.Background(), deleteReq)
 	assert.NotNil(t, err, "Deleting an item with the wrong etag while enforcing FirstWrite policy should fail")
 }
 
@@ -354,7 +354,7 @@ func deleteWithNoKeyFails(t *testing.T, ods *OracleDatabase) {
 	deleteReq := &state.DeleteRequest{
 		Key: "",
 	}
-	err := ods.Delete(context.TODO(), deleteReq)
+	err := ods.Delete(context.Background(), deleteReq)
 	assert.NotNil(t, err)
 }
 
@@ -372,7 +372,7 @@ func newItemWithEtagFails(t *testing.T, ods *OracleDatabase) {
 		},
 	}
 
-	err := ods.Set(context.TODO(), setReq)
+	err := ods.Set(context.Background(), setReq)
 	assert.NotNil(t, err)
 }
 
@@ -402,7 +402,7 @@ func updateWithOldEtagFails(t *testing.T, ods *OracleDatabase) {
 			Concurrency: state.FirstWrite,
 		},
 	}
-	err := ods.Set(context.TODO(), setReq)
+	err := ods.Set(context.Background(), setReq)
 	assert.NotNil(t, err)
 }
 
@@ -424,7 +424,7 @@ func updateAndDeleteWithEtagSucceeds(t *testing.T, ods *OracleDatabase) {
 			Concurrency: state.FirstWrite,
 		},
 	}
-	err := ods.Set(context.TODO(), setReq)
+	err := ods.Set(context.Background(), setReq)
 	assert.Nil(t, err, "Setting the item should be successful")
 	updateResponse, updatedItem := getItem(t, ods, key)
 	assert.Equal(t, value, updatedItem)
@@ -440,7 +440,7 @@ func updateAndDeleteWithEtagSucceeds(t *testing.T, ods *OracleDatabase) {
 			Concurrency: state.FirstWrite,
 		},
 	}
-	err = ods.Delete(context.TODO(), deleteReq)
+	err = ods.Delete(context.Background(), deleteReq)
 	assert.Nil(t, err, "Deleting an item with the right etag while enforcing FirstWrite policy should succeed")
 
 	// Item is not in the data store.
@@ -466,7 +466,7 @@ func updateAndDeleteWithWrongEtagAndNoFirstWriteSucceeds(t *testing.T, ods *Orac
 			Concurrency: state.LastWrite,
 		},
 	}
-	err := ods.Set(context.TODO(), setReq)
+	err := ods.Set(context.Background(), setReq)
 	assert.Nil(t, err, "Setting the item should be successful")
 	_, updatedItem := getItem(t, ods, key)
 	assert.Equal(t, value, updatedItem)
@@ -479,7 +479,7 @@ func updateAndDeleteWithWrongEtagAndNoFirstWriteSucceeds(t *testing.T, ods *Orac
 			Concurrency: state.LastWrite,
 		},
 	}
-	err = ods.Delete(context.TODO(), deleteReq)
+	err = ods.Delete(context.Background(), deleteReq)
 	assert.Nil(t, err, "Deleting an item with the wrong etag but not enforcing FirstWrite policy should succeed")
 
 	// Item is not in the data store.
@@ -501,7 +501,7 @@ func getItemWithNoKey(t *testing.T, ods *OracleDatabase) {
 		Key: "",
 	}
 
-	response, getErr := ods.Get(context.TODO(), getReq)
+	response, getErr := ods.Get(context.Background(), getReq)
 	assert.NotNil(t, getErr)
 	assert.Nil(t, response)
 }
@@ -549,7 +549,7 @@ func setTTLUpdatesExpiry(t *testing.T, ods *OracleDatabase) {
 		},
 	}
 
-	err := ods.Set(context.TODO(), setReq)
+	err := ods.Set(context.Background(), setReq)
 	assert.Nil(t, err)
 	connectionString := getConnectionString()
 	if getWalletLocation() != "" {
@@ -581,10 +581,10 @@ func setNoTTLUpdatesExpiry(t *testing.T, ods *OracleDatabase) {
 			"ttlInSeconds": "1000",
 		},
 	}
-	err := ods.Set(context.TODO(), setReq)
+	err := ods.Set(context.Background(), setReq)
 	assert.Nil(t, err)
 	delete(setReq.Metadata, "ttlInSeconds")
-	err = ods.Set(context.TODO(), setReq)
+	err = ods.Set(context.Background(), setReq)
 	assert.Nil(t, err)
 	connectionString := getConnectionString()
 	if getWalletLocation() != "" {
@@ -615,11 +615,11 @@ func expiredStateCannotBeRead(t *testing.T, ods *OracleDatabase) {
 			"ttlInSeconds": "1",
 		},
 	}
-	err := ods.Set(context.TODO(), setReq)
+	err := ods.Set(context.Background(), setReq)
 	assert.Nil(t, err)
 
 	time.Sleep(time.Second * time.Duration(2))
-	getResponse, err := ods.Get(context.TODO(), &state.GetRequest{Key: key})
+	getResponse, err := ods.Get(context.Background(), &state.GetRequest{Key: key})
 	assert.Equal(t, &state.GetResponse{}, getResponse, "Response must be empty")
 	assert.NoError(t, err, "Expired element must not be treated as error")
 
@@ -640,7 +640,7 @@ func unexpiredStateCanBeRead(t *testing.T, ods *OracleDatabase) {
 			"ttlInSeconds": "10000",
 		},
 	}
-	err := ods.Set(context.TODO(), setReq)
+	err := ods.Set(context.Background(), setReq)
 	assert.Nil(t, err)
 	_, getValue := getItem(t, ods, key)
 	assert.Equal(t, value.Color, getValue.Color, "Response must be as set")
@@ -654,7 +654,7 @@ func setItemWithNoKey(t *testing.T, ods *OracleDatabase) {
 		Key: "",
 	}
 
-	err := ods.Set(context.TODO(), setReq)
+	err := ods.Set(context.Background(), setReq)
 	assert.NotNil(t, err)
 }
 
@@ -703,7 +703,7 @@ func testSetItemWithInvalidTTL(t *testing.T, ods *OracleDatabase) {
 			"ttlInSeconds": "XX",
 		}),
 	}
-	err := ods.Set(context.TODO(), setReq)
+	err := ods.Set(context.Background(), setReq)
 	assert.NotNil(t, err, "Setting a value with a proper key and a incorrect TTL value should be produce an error")
 }
 
@@ -715,7 +715,7 @@ func testSetItemWithNegativeTTL(t *testing.T, ods *OracleDatabase) {
 			"ttlInSeconds": "-10",
 		}),
 	}
-	err := ods.Set(context.TODO(), setReq)
+	err := ods.Set(context.Background(), setReq)
 	assert.NotNil(t, err, "Setting a value with a proper key and a negative (other than -1) TTL value should be produce an error")
 }
 
@@ -732,7 +732,7 @@ func testBulkSetAndBulkDelete(t *testing.T, ods *OracleDatabase) {
 		},
 	}
 
-	err := ods.BulkSet(context.TODO(), setReq)
+	err := ods.BulkSet(context.Background(), setReq)
 	assert.Nil(t, err)
 	assert.True(t, storeItemExists(t, setReq[0].Key))
 	assert.True(t, storeItemExists(t, setReq[1].Key))
@@ -746,7 +746,7 @@ func testBulkSetAndBulkDelete(t *testing.T, ods *OracleDatabase) {
 		},
 	}
 
-	err = ods.BulkDelete(context.TODO(), deleteReq)
+	err = ods.BulkDelete(context.Background(), deleteReq)
 	assert.Nil(t, err)
 	assert.False(t, storeItemExists(t, setReq[0].Key))
 	assert.False(t, storeItemExists(t, setReq[1].Key))
@@ -813,7 +813,7 @@ func setItem(t *testing.T, ods *OracleDatabase, key string, value interface{}, e
 		Options: setOptions,
 	}
 
-	err := ods.Set(context.TODO(), setReq)
+	err := ods.Set(context.Background(), setReq)
 	assert.Nil(t, err)
 	itemExists := storeItemExists(t, key)
 	assert.True(t, itemExists, "Item should exist after set has been executed ")
@@ -825,7 +825,7 @@ func getItem(t *testing.T, ods *OracleDatabase, key string) (*state.GetResponse,
 		Options: state.GetStateOption{},
 	}
 
-	response, getErr := ods.Get(context.TODO(), getReq)
+	response, getErr := ods.Get(context.Background(), getReq)
 	assert.Nil(t, getErr)
 	assert.NotNil(t, response)
 	outputObject := &fakeItem{}
@@ -841,7 +841,7 @@ func deleteItem(t *testing.T, ods *OracleDatabase, key string, etag *string) {
 		Options: state.DeleteStateOption{},
 	}
 
-	deleteErr := ods.Delete(context.TODO(), deleteReq)
+	deleteErr := ods.Delete(context.Background(), deleteReq)
 	assert.Nil(t, deleteErr)
 	assert.False(t, storeItemExists(t, key), "item should no longer exist after delete has been performed")
 }

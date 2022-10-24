@@ -125,7 +125,7 @@ func TestGet(t *testing.T) {
 				Consistency: "strong",
 			},
 		}
-		out, err := ss.Get(context.TODO(), req)
+		out, err := ss.Get(context.Background(), req)
 		assert.Nil(t, err)
 		assert.Equal(t, []byte("some value"), out.Data)
 		assert.Equal(t, "1bdead4badc0ffee", *out.ETag)
@@ -161,7 +161,7 @@ func TestGet(t *testing.T) {
 				Consistency: "strong",
 			},
 		}
-		out, err := ss.Get(context.TODO(), req)
+		out, err := ss.Get(context.Background(), req)
 		assert.Nil(t, err)
 		assert.Equal(t, []byte("some value"), out.Data)
 		assert.Equal(t, "1bdead4badc0ffee", *out.ETag)
@@ -197,7 +197,7 @@ func TestGet(t *testing.T) {
 				Consistency: "strong",
 			},
 		}
-		out, err := ss.Get(context.TODO(), req)
+		out, err := ss.Get(context.Background(), req)
 		assert.Nil(t, err)
 		assert.Nil(t, out.Data)
 		assert.Nil(t, out.ETag)
@@ -217,7 +217,7 @@ func TestGet(t *testing.T) {
 				Consistency: "strong",
 			},
 		}
-		out, err := ss.Get(context.TODO(), req)
+		out, err := ss.Get(context.Background(), req)
 		assert.NotNil(t, err)
 		assert.Nil(t, out)
 	})
@@ -238,7 +238,7 @@ func TestGet(t *testing.T) {
 				Consistency: "strong",
 			},
 		}
-		out, err := ss.Get(context.TODO(), req)
+		out, err := ss.Get(context.Background(), req)
 		assert.Nil(t, err)
 		assert.Nil(t, out.Data)
 		assert.Nil(t, out.ETag)
@@ -264,7 +264,7 @@ func TestGet(t *testing.T) {
 				Consistency: "strong",
 			},
 		}
-		out, err := ss.Get(context.TODO(), req)
+		out, err := ss.Get(context.Background(), req)
 		assert.Nil(t, err)
 		assert.Empty(t, out.Data)
 	})
@@ -303,7 +303,7 @@ func TestSet(t *testing.T) {
 				Value: "value",
 			},
 		}
-		err := ss.Set(context.TODO(), req)
+		err := ss.Set(context.Background(), req)
 		assert.Nil(t, err)
 	})
 
@@ -341,7 +341,7 @@ func TestSet(t *testing.T) {
 				Value: "value",
 			},
 		}
-		err := ss.Set(context.TODO(), req)
+		err := ss.Set(context.Background(), req)
 		assert.Nil(t, err)
 	})
 
@@ -375,7 +375,7 @@ func TestSet(t *testing.T) {
 			},
 		}
 
-		err := ss.Set(context.TODO(), req)
+		err := ss.Set(context.Background(), req)
 		assert.NotNil(t, err)
 		switch tagErr := err.(type) {
 		case *state.ETagError:
@@ -417,7 +417,7 @@ func TestSet(t *testing.T) {
 				Concurrency: state.FirstWrite,
 			},
 		}
-		err := ss.Set(context.TODO(), req)
+		err := ss.Set(context.Background(), req)
 		assert.Nil(t, err)
 	})
 
@@ -448,7 +448,7 @@ func TestSet(t *testing.T) {
 				Concurrency: state.FirstWrite,
 			},
 		}
-		err := ss.Set(context.TODO(), req)
+		err := ss.Set(context.Background(), req)
 		assert.NotNil(t, err)
 		switch err.(type) {
 		case *state.ETagError:
@@ -489,7 +489,7 @@ func TestSet(t *testing.T) {
 				"ttlInSeconds": "-1",
 			},
 		}
-		err := ss.Set(context.TODO(), req)
+		err := ss.Set(context.Background(), req)
 		assert.Nil(t, err)
 	})
 	t.Run("Successfully set item with 'correct' ttl", func(t *testing.T) {
@@ -524,7 +524,7 @@ func TestSet(t *testing.T) {
 				"ttlInSeconds": "180",
 			},
 		}
-		err := ss.Set(context.TODO(), req)
+		err := ss.Set(context.Background(), req)
 		assert.Nil(t, err)
 	})
 
@@ -542,7 +542,7 @@ func TestSet(t *testing.T) {
 				Value: "value",
 			},
 		}
-		err := ss.Set(context.TODO(), req)
+		err := ss.Set(context.Background(), req)
 		assert.NotNil(t, err)
 	})
 	t.Run("Successfully set item with correct ttl but without component metadata", func(t *testing.T) {
@@ -576,7 +576,7 @@ func TestSet(t *testing.T) {
 				"ttlInSeconds": "180",
 			},
 		}
-		err := ss.Set(context.TODO(), req)
+		err := ss.Set(context.Background(), req)
 		assert.Nil(t, err)
 	})
 	t.Run("Unsuccessfully set item with ttl (invalid value)", func(t *testing.T) {
@@ -615,7 +615,7 @@ func TestSet(t *testing.T) {
 				"ttlInSeconds": "invalidvalue",
 			},
 		}
-		err := ss.Set(context.TODO(), req)
+		err := ss.Set(context.Background(), req)
 		assert.NotNil(t, err)
 		assert.Equal(t, "dynamodb error: failed to parse ttlInSeconds: strconv.ParseInt: parsing \"invalidvalue\": invalid syntax", err.Error())
 	})
@@ -690,7 +690,7 @@ func TestBulkSet(t *testing.T) {
 				},
 			},
 		}
-		err := ss.BulkSet(context.TODO(), req)
+		err := ss.BulkSet(context.Background(), req)
 		assert.Nil(t, err)
 	})
 	t.Run("Successfully set items with ttl = -1", func(t *testing.T) {
@@ -763,7 +763,7 @@ func TestBulkSet(t *testing.T) {
 				},
 			},
 		}
-		err := ss.BulkSet(context.TODO(), req)
+		err := ss.BulkSet(context.Background(), req)
 		assert.Nil(t, err)
 	})
 	t.Run("Successfully set items with ttl", func(t *testing.T) {
@@ -838,7 +838,7 @@ func TestBulkSet(t *testing.T) {
 				},
 			},
 		}
-		err := ss.BulkSet(context.TODO(), req)
+		err := ss.BulkSet(context.Background(), req)
 		assert.Nil(t, err)
 	})
 	t.Run("Unsuccessfully set items", func(t *testing.T) {
@@ -863,7 +863,7 @@ func TestBulkSet(t *testing.T) {
 				},
 			},
 		}
-		err := ss.BulkSet(context.TODO(), req)
+		err := ss.BulkSet(context.Background(), req)
 		assert.NotNil(t, err)
 	})
 }
@@ -887,7 +887,7 @@ func TestDelete(t *testing.T) {
 				},
 			},
 		}
-		err := ss.Delete(context.TODO(), req)
+		err := ss.Delete(context.Background(), req)
 		assert.Nil(t, err)
 	})
 
@@ -915,7 +915,7 @@ func TestDelete(t *testing.T) {
 				},
 			},
 		}
-		err := ss.Delete(context.TODO(), req)
+		err := ss.Delete(context.Background(), req)
 		assert.Nil(t, err)
 	})
 
@@ -944,7 +944,7 @@ func TestDelete(t *testing.T) {
 				},
 			},
 		}
-		err := ss.Delete(context.TODO(), req)
+		err := ss.Delete(context.Background(), req)
 		assert.NotNil(t, err)
 		switch tagErr := err.(type) {
 		case *state.ETagError:
@@ -965,7 +965,7 @@ func TestDelete(t *testing.T) {
 		req := &state.DeleteRequest{
 			Key: "key",
 		}
-		err := ss.Delete(context.TODO(), req)
+		err := ss.Delete(context.Background(), req)
 		assert.NotNil(t, err)
 	})
 }
@@ -1014,7 +1014,7 @@ func TestBulkDelete(t *testing.T) {
 				Key: "key2",
 			},
 		}
-		err := ss.BulkDelete(context.TODO(), req)
+		err := ss.BulkDelete(context.Background(), req)
 		assert.Nil(t, err)
 	})
 	t.Run("Unsuccessfully delete items", func(t *testing.T) {
@@ -1033,7 +1033,7 @@ func TestBulkDelete(t *testing.T) {
 				Key: "key",
 			},
 		}
-		err := ss.BulkDelete(context.TODO(), req)
+		err := ss.BulkDelete(context.Background(), req)
 		assert.NotNil(t, err)
 	})
 }

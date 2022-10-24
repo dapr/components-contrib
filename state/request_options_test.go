@@ -24,7 +24,7 @@ import (
 func TestSetRequestWithOptions(t *testing.T) {
 	t.Run("set with default options", func(t *testing.T) {
 		counter := 0
-		SetWithOptions(context.TODO(), func(ctx context.Context, req *SetRequest) error {
+		SetWithOptions(context.Background(), func(ctx context.Context, req *SetRequest) error {
 			counter++
 
 			return nil
@@ -34,7 +34,7 @@ func TestSetRequestWithOptions(t *testing.T) {
 
 	t.Run("set with no explicit options", func(t *testing.T) {
 		counter := 0
-		SetWithOptions(context.TODO(), func(ctx context.Context, req *SetRequest) error {
+		SetWithOptions(context.Background(), func(ctx context.Context, req *SetRequest) error {
 			counter++
 
 			return nil

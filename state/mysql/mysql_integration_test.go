@@ -206,7 +206,7 @@ func TestMySQLIntegration(t *testing.T) {
 			Key: "",
 		}
 
-		response, getErr := mys.Get(context.TODO(), getReq)
+		response, getErr := mys.Get(context.Background(), getReq)
 		assert.NotNil(t, getErr)
 		assert.Nil(t, response)
 	})
@@ -243,7 +243,7 @@ func TestMySQLIntegration(t *testing.T) {
 			Key: "",
 		}
 
-		err := mys.Set(context.TODO(), setReq)
+		err := mys.Set(context.Background(), setReq)
 		assert.NotNil(t, err, "Error was not nil when setting item with no key.")
 	})
 
@@ -303,7 +303,7 @@ func TestMySQLIntegration(t *testing.T) {
 			Value: newValue,
 		}
 
-		err := mys.Set(context.TODO(), setReq)
+		err := mys.Set(context.Background(), setReq)
 		assert.NotNil(t, err, "Error was not thrown using old eTag")
 	})
 
@@ -319,7 +319,7 @@ func TestMySQLIntegration(t *testing.T) {
 			Value: value,
 		}
 
-		err := mys.Set(context.TODO(), setReq)
+		err := mys.Set(context.Background(), setReq)
 		assert.NotNil(t, err)
 	})
 
@@ -339,7 +339,7 @@ func TestMySQLIntegration(t *testing.T) {
 			ETag: &eTag,
 		}
 
-		err := mys.Delete(context.TODO(), deleteReq)
+		err := mys.Delete(context.Background(), deleteReq)
 		assert.NotNil(t, err)
 	})
 
@@ -350,7 +350,7 @@ func TestMySQLIntegration(t *testing.T) {
 			Key: "",
 		}
 
-		err := mys.Delete(context.TODO(), deleteReq)
+		err := mys.Delete(context.Background(), deleteReq)
 		assert.NotNil(t, err)
 	})
 
@@ -362,7 +362,7 @@ func TestMySQLIntegration(t *testing.T) {
 			Key: randomKey(),
 		}
 
-		err := mys.Delete(context.TODO(), deleteReq)
+		err := mys.Delete(context.Background(), deleteReq)
 		assert.Nil(t, err)
 	})
 
@@ -379,7 +379,7 @@ func TestMySQLIntegration(t *testing.T) {
 			},
 		}
 
-		err := mys.Set(context.TODO(), setReq)
+		err := mys.Set(context.Background(), setReq)
 		assert.NoError(t, err)
 
 		// Get the etag
@@ -397,7 +397,7 @@ func TestMySQLIntegration(t *testing.T) {
 			},
 		}
 
-		err = mys.Set(context.TODO(), setReq)
+		err = mys.Set(context.Background(), setReq)
 		assert.ErrorContains(t, err, "Duplicate entry")
 
 		// Insert with invalid etag should fail on existing keys
@@ -410,7 +410,7 @@ func TestMySQLIntegration(t *testing.T) {
 			},
 		}
 
-		err = mys.Set(context.TODO(), setReq)
+		err = mys.Set(context.Background(), setReq)
 		assert.ErrorContains(t, err, "possible etag mismatch")
 
 		// Insert with valid etag should succeed on existing keys
@@ -423,7 +423,7 @@ func TestMySQLIntegration(t *testing.T) {
 			},
 		}
 
-		err = mys.Set(context.TODO(), setReq)
+		err = mys.Set(context.Background(), setReq)
 		assert.NoError(t, err)
 
 		// Insert with an etag should fail on new keys
@@ -436,7 +436,7 @@ func TestMySQLIntegration(t *testing.T) {
 			},
 		}
 
-		err = mys.Set(context.TODO(), setReq)
+		err = mys.Set(context.Background(), setReq)
 		assert.ErrorContains(t, err, "possible etag mismatch")
 	})
 
@@ -475,7 +475,7 @@ func TestMySQLIntegration(t *testing.T) {
 			})
 		}
 
-		err := mys.Multi(context.TODO(), &state.TransactionalStateRequest{
+		err := mys.Multi(context.Background(), &state.TransactionalStateRequest{
 			Operations: operations,
 		})
 		assert.Nil(t, err)
@@ -511,7 +511,7 @@ func TestMySQLIntegration(t *testing.T) {
 			})
 		}
 
-		err := mys.Multi(context.TODO(), &state.TransactionalStateRequest{
+		err := mys.Multi(context.Background(), &state.TransactionalStateRequest{
 			Operations: operations,
 		})
 		assert.Nil(t, err)
@@ -538,7 +538,7 @@ func TestMySQLIntegration(t *testing.T) {
 			})
 		}
 
-		err := mys.Multi(context.TODO(), &state.TransactionalStateRequest{
+		err := mys.Multi(context.Background(), &state.TransactionalStateRequest{
 			Operations: operations,
 		})
 		assert.Nil(t, err)
@@ -563,7 +563,7 @@ func testBulkSetAndBulkDelete(t *testing.T, mys *MySQL) {
 		},
 	}
 
-	err := mys.BulkSet(context.TODO(), setReq)
+	err := mys.BulkSet(context.Background(), setReq)
 	assert.Nil(t, err)
 	assert.True(t, storeItemExists(t, setReq[0].Key))
 	assert.True(t, storeItemExists(t, setReq[1].Key))
@@ -577,7 +577,7 @@ func testBulkSetAndBulkDelete(t *testing.T, mys *MySQL) {
 		},
 	}
 
-	err = mys.BulkDelete(context.TODO(), deleteReq)
+	err = mys.BulkDelete(context.Background(), deleteReq)
 	assert.Nil(t, err)
 	assert.False(t, storeItemExists(t, setReq[0].Key))
 	assert.False(t, storeItemExists(t, setReq[1].Key))
@@ -597,7 +597,7 @@ func setItem(t *testing.T, mys *MySQL, key string, value interface{}, eTag *stri
 		Value: value,
 	}
 
-	err := mys.Set(context.TODO(), setReq)
+	err := mys.Set(context.Background(), setReq)
 	assert.Nil(t, err, "Error setting an item")
 	itemExists := storeItemExists(t, key)
 	assert.True(t, itemExists, "Item does not exist after being set")
@@ -609,7 +609,7 @@ func getItem(t *testing.T, mys *MySQL, key string) (*state.GetResponse, *fakeIte
 		Options: state.GetStateOption{},
 	}
 
-	response, getErr := mys.Get(context.TODO(), getReq)
+	response, getErr := mys.Get(context.Background(), getReq)
 	assert.Nil(t, getErr)
 	assert.NotNil(t, response)
 	outputObject := &fakeItem{}
@@ -625,7 +625,7 @@ func deleteItem(t *testing.T, mys *MySQL, key string, eTag *string) {
 		Options: state.DeleteStateOption{},
 	}
 
-	deleteErr := mys.Delete(context.TODO(), deleteReq)
+	deleteErr := mys.Delete(context.Background(), deleteReq)
 	assert.Nil(t, deleteErr, "There was an error deleting a record")
 	assert.False(t, storeItemExists(t, key), "Item still exists after delete")
 }

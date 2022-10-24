@@ -111,7 +111,7 @@ func TestMultiWithNoRequests(t *testing.T) {
 	var operations []state.TransactionalStateOperation
 
 	// Act
-	err := m.pgDba.ExecuteMulti(context.TODO(), &state.TransactionalStateRequest{
+	err := m.pgDba.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -135,7 +135,7 @@ func TestInvalidMultiInvalidAction(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.ExecuteMulti(context.TODO(), &state.TransactionalStateRequest{
+	err := m.pgDba.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -160,7 +160,7 @@ func TestValidSetRequest(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.ExecuteMulti(context.TODO(), &state.TransactionalStateRequest{
+	err := m.pgDba.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -184,7 +184,7 @@ func TestInvalidMultiSetRequest(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.ExecuteMulti(context.TODO(), &state.TransactionalStateRequest{
+	err := m.pgDba.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -208,7 +208,7 @@ func TestInvalidMultiSetRequestNoKey(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.ExecuteMulti(context.TODO(), &state.TransactionalStateRequest{
+	err := m.pgDba.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -233,7 +233,7 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.ExecuteMulti(context.TODO(), &state.TransactionalStateRequest{
+	err := m.pgDba.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -257,7 +257,7 @@ func TestInvalidMultiDeleteRequest(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.ExecuteMulti(context.TODO(), &state.TransactionalStateRequest{
+	err := m.pgDba.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -281,7 +281,7 @@ func TestInvalidMultiDeleteRequestNoKey(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.ExecuteMulti(context.TODO(), &state.TransactionalStateRequest{
+	err := m.pgDba.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -313,7 +313,7 @@ func TestMultiOperationOrder(t *testing.T) {
 	)
 
 	// Act
-	err := m.pgDba.ExecuteMulti(context.TODO(), &state.TransactionalStateRequest{
+	err := m.pgDba.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -336,7 +336,7 @@ func TestInvalidBulkSetNoKey(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.BulkSet(context.TODO(), sets)
+	err := m.pgDba.BulkSet(context.Background(), sets)
 
 	// Assert
 	assert.NotNil(t, err)
@@ -358,7 +358,7 @@ func TestInvalidBulkSetEmptyValue(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.BulkSet(context.TODO(), sets)
+	err := m.pgDba.BulkSet(context.Background(), sets)
 
 	// Assert
 	assert.NotNil(t, err)
@@ -381,7 +381,7 @@ func TestValidBulkSet(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.BulkSet(context.TODO(), sets)
+	err := m.pgDba.BulkSet(context.Background(), sets)
 
 	// Assert
 	assert.Nil(t, err)
@@ -402,7 +402,7 @@ func TestInvalidBulkDeleteNoKey(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.BulkDelete(context.TODO(), deletes)
+	err := m.pgDba.BulkDelete(context.Background(), deletes)
 
 	// Assert
 	assert.NotNil(t, err)
@@ -424,7 +424,7 @@ func TestValidBulkDelete(t *testing.T) {
 	})
 
 	// Act
-	err := m.pgDba.BulkDelete(context.TODO(), deletes)
+	err := m.pgDba.BulkDelete(context.Background(), deletes)
 
 	// Assert
 	assert.Nil(t, err)

@@ -113,7 +113,7 @@ func TestSetGetAndDelete(t *testing.T) {
 		"dkey": "dvalue",
 	}
 
-	err = store.Set(context.TODO(), &state.SetRequest{
+	err = store.Set(context.Background(), &state.SetRequest{
 		Key:   tkey,
 		Value: tData,
 	})
@@ -122,7 +122,7 @@ func TestSetGetAndDelete(t *testing.T) {
 		return
 	}
 
-	resp, err := store.Get(context.TODO(), &state.GetRequest{
+	resp, err := store.Get(context.Background(), &state.GetRequest{
 		Key: tkey,
 	})
 	if err != nil {
@@ -135,7 +135,7 @@ func TestSetGetAndDelete(t *testing.T) {
 		t.Fatal("Response data does not match written data\n")
 	}
 
-	err = store.Delete(context.TODO(), &state.DeleteRequest{
+	err = store.Delete(context.Background(), &state.DeleteRequest{
 		Key: tkey,
 	})
 	if err != nil {
@@ -143,7 +143,7 @@ func TestSetGetAndDelete(t *testing.T) {
 		return
 	}
 
-	_, err = store.Get(context.TODO(), &state.GetRequest{
+	_, err = store.Get(context.Background(), &state.GetRequest{
 		Key: tkey,
 	})
 	if err == nil {

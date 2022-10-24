@@ -339,13 +339,15 @@ func isTableAlreadyExistsError(err error) bool {
 func (r *StateStore) deleteRow(ctx context.Context, req *state.DeleteRequest) error {
 	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDBMode)
 
+	deleteContext, cancel := context.WithTimeout(ctx, timeout)
+	cancel()
 	if req.ETag != nil {
 		azcoreETag := azcore.ETag(*req.ETag)
-		_, err := r.client.DeleteEntity(ctx, pk, rk, &aztables.DeleteEntityOptions{IfMatch: &azcoreETag})
+		_, err := r.client.DeleteEntity(deleteContext, pk, rk, &aztables.DeleteEntityOptions{IfMatch: &azcoreETag})
 		return err
 	}
 	all := azcore.ETagAny
-	_, err := r.client.DeleteEntity(ctx, pk, rk, &aztables.DeleteEntityOptions{IfMatch: &all})
+	_, err := r.client.DeleteEntity(deleteContext, pk, rk, &aztables.DeleteEntityOptions{IfMatch: &all})
 	return err
 }
 

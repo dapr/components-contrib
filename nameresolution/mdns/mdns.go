@@ -120,11 +120,11 @@ func (a *addressList) next() *string {
 	}
 
 	if a.counter.Load() == math.MaxUint32 {
+		// This will only reset unless another goroutine has done that already
 		a.counter.CompareAndSwap(math.MaxUint32, 0)
 	}
 	counter := a.counter.Add(1) - 1
-	index := counter % l
-	addr := a.addresses[index]
+	addr := a.addresses[counter%l]
 
 	return &addr.ip
 }
@@ -201,7 +201,6 @@ func NewResolver(logger logger.Logger) nameresolution.Resolver {
 }
 
 type Resolver struct {
-	resolver atomic.Pointer[zeroconf.Resolver]
 	// subscribers are used when multiple callers
 	// request the same app ID before it is cached.
 	// Only 1 will fetch the address, the rest will
@@ -225,29 +224,43 @@ type Resolver struct {
 	registrationMu sync.RWMutex
 	registrations  map[string]chan struct{}
 	// shutdown refreshes.
-	refreshCtx    context.Context
-	refreshCancel context.CancelFunc
-	logger        logger.Logger
+	refreshCtx     context.Context
+	refreshCancel  context.CancelFunc
+	refreshRunning atomic.Bool
+	logger         logger.Logger
 }
 
-func (r *Resolver) startRefreshers() {
+func (m *Resolver) startRefreshers() {
+	if !m.refreshRunning.CompareAndSwap(false, true) {
+		// Refreshers are already running
+		return
+	}
+
 	// refresh app addresses periodically and on demand
 	go func() {
+		defer func() {
+			m.refreshRunning.Store(false)
+		}()
+
 		for {
 			select {
 			// Refresh on demand
-			case appID := <-r.refreshChan:
-				if err := r.refreshApp(r.refreshCtx, appID); err != nil {
-					r.logger.Warnf(err.Error())
-				}
+			case appID := <-m.refreshChan:
+				go func() {
+					if err := m.refreshApp(m.refreshCtx, appID); err != nil {
+						m.logger.Warnf(err.Error())
+					}
+				}()
 			// Refresh periodically
 			case <-time.After(refreshInterval):
-				if err := r.refreshAllApps(r.refreshCtx); err != nil {
-					r.logger.Warnf(err.Error())
-				}
+				go func() {
+					if err := m.refreshAllApps(m.refreshCtx); err != nil {
+						m.logger.Warnf(err.Error())
+					}
+				}()
 			// Stop on context canceled
-			case <-r.refreshCtx.Done():
-				r.logger.Debug("stopping cache refreshes")
+			case <-m.refreshCtx.Done():
+				m.logger.Debug("stopping cache refreshes")
 				return
 			}
 		}
@@ -293,11 +306,7 @@ func (m *Resolver) Init(metadata nameresolution.Metadata) error {
 
 	m.logger.Infof("local service entry announced: %s -> %s:%d", appID, hostAddress, port)
 
-	resolver, err := m.getZeroconfResolver()
-	if err != nil {
-		return err
-	}
-	m.resolver.Store(resolver)
+	go m.startRefreshers()
 
 	return nil
 }
@@ -316,7 +325,7 @@ func (m *Resolver) getZeroconfResolver() (resolver *zeroconf.Resolver, err error
 		}
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize resolver: %w", err)
+		return nil, fmt.Errorf("failed to initialize resolver after attempting IPv4+IPv6, IPv4-only, and IPv6-only")
 	}
 	return resolver, nil
 }
@@ -761,26 +770,11 @@ func (m *Resolver) browse(ctx context.Context, appID string, onEach func(ip stri
 		}
 	}(entries)
 
-	// Try 2 times, in case the resolver needs to be recreated
-	var err error
-	for i := 0; i < 2; i++ {
-		resolver := m.resolver.Load()
-		resolverErr := resolver.Browse(ctx, appID, "local.", entries)
-		if resolverErr == nil {
-			err = nil
-			break
-		}
-		err = fmt.Errorf("failed to browse: %w", resolverErr)
-
-		// Recreate a client
-		newResolver, resolverErr := m.getZeroconfResolver()
-		if resolverErr == nil {
-			// This may not swap if the resolver has been swapped by another goroutine already, and that's ok
-			m.resolver.CompareAndSwap(resolver, newResolver)
-		}
+	resolver, err := m.getZeroconfResolver()
+	if err != nil {
+		return err
 	}
-
-	return err
+	return resolver.Browse(ctx, appID, "local.", entries)
 }
 
 // addAppAddressIPv4 adds an IPv4 address to the

@@ -16,19 +16,14 @@ package servicebusqueues
 import (
 	"context"
 	"errors"
-	"sync"
+	"fmt"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
-	sbadmin "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
-	"github.com/Azure/go-amqp"
 	backoff "github.com/cenkalti/backoff/v4"
 
 	"github.com/dapr/components-contrib/bindings"
-	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -40,98 +35,36 @@ const (
 
 // AzureServiceBusQueues is an input/output binding reading from and sending events to Azure Service Bus queues.
 type AzureServiceBusQueues struct {
-	metadata    *serviceBusQueuesMetadata
-	client      *servicebus.Client
-	adminClient *sbadmin.Client
-	timeout     time.Duration
-	sender      *servicebus.Sender
-	senderLock  sync.RWMutex
-	logger      logger.Logger
-	ctx         context.Context
-	cancel      context.CancelFunc
+	metadata *impl.Metadata
+	client   *impl.Client
+	timeout  time.Duration
+	logger   logger.Logger
 }
 
 // NewAzureServiceBusQueues returns a new AzureServiceBusQueues instance.
 func NewAzureServiceBusQueues(logger logger.Logger) bindings.InputOutputBinding {
 	return &AzureServiceBusQueues{
-		senderLock: sync.RWMutex{},
-		logger:     logger,
+		logger: logger,
 	}
 }
 
 // Init parses connection properties and creates a new Service Bus Queue client.
 func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) (err error) {
-	a.metadata, err = a.parseMetadata(metadata)
+	a.metadata, err = impl.ParseMetadata(metadata.Properties, a.logger, (impl.MetadataModeBinding | impl.MetadataModeQueues))
 	if err != nil {
 		return err
 	}
 	a.timeout = time.Duration(a.metadata.TimeoutInSec) * time.Second
 
-	userAgent := "dapr-" + logger.DaprVersion
-	if a.metadata.ConnectionString != "" {
-		a.client, err = servicebus.NewClientFromConnectionString(a.metadata.ConnectionString, &servicebus.ClientOptions{
-			ApplicationID: userAgent,
-		})
-		if err != nil {
-			return err
-		}
-
-		if !a.metadata.DisableEntityManagement {
-			a.adminClient, err = sbadmin.NewClientFromConnectionString(a.metadata.ConnectionString, nil)
-			if err != nil {
-				return err
-			}
-		}
-	} else {
-		settings, innerErr := azauth.NewEnvironmentSettings(azauth.AzureServiceBusResourceName, metadata.Properties)
-		if innerErr != nil {
-			return innerErr
-		}
-
-		token, innerErr := settings.GetTokenCredential()
-		if innerErr != nil {
-			return innerErr
-		}
-
-		a.client, innerErr = servicebus.NewClient(a.metadata.NamespaceName, token, &servicebus.ClientOptions{
-			ApplicationID: userAgent,
-		})
-		if innerErr != nil {
-			return innerErr
-		}
-
-		if !a.metadata.DisableEntityManagement {
-			a.adminClient, innerErr = sbadmin.NewClient(a.metadata.NamespaceName, token, nil)
-			if innerErr != nil {
-				return innerErr
-			}
-		}
+	a.client, err = impl.NewClient(a.metadata, metadata.Properties)
+	if err != nil {
+		return err
 	}
 
-	if a.adminClient != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
-		defer cancel()
-		getQueueRes, err := a.adminClient.GetQueue(ctx, a.metadata.QueueName, nil)
-		if err != nil {
-			return err
-		}
-		if getQueueRes == nil {
-			// Need to create the queue
-			ttlDur := contribMetadata.Duration{
-				Duration: a.metadata.ttl,
-			}
-			ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
-			defer cancel()
-			_, err = a.adminClient.CreateQueue(ctx, a.metadata.QueueName, &sbadmin.CreateQueueOptions{
-				Properties: &sbadmin.QueueProperties{
-					DefaultMessageTimeToLive: to.Ptr(ttlDur.ToISOString()),
-				},
-			})
-			if err != nil {
-				return err
-			}
-		}
-		a.ctx, a.cancel = context.WithCancel(context.Background())
+	// Will do nothing if DisableEntityManagement is false
+	err = a.client.EnsureQueue(context.Background(), a.metadata.QueueName)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -141,56 +74,30 @@ func (a *AzureServiceBusQueues) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (a *AzureServiceBusQueues) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	var err error
-
-	a.senderLock.RLock()
-	sender := a.sender
-	a.senderLock.RUnlock()
-
-	if sender == nil {
-		a.senderLock.Lock()
-		sender, err = a.client.NewSender(a.metadata.QueueName, nil)
-		if err != nil {
-			a.senderLock.Unlock()
-			return nil, err
-		}
-		a.sender = sender
-		a.senderLock.Unlock()
-	}
-
-	msg := &servicebus.Message{
-		Body:                  req.Data,
-		ApplicationProperties: make(map[string]interface{}),
-	}
-	if val, ok := req.Metadata[id]; ok && val != "" {
-		msg.MessageID = &val
-	}
-	if val, ok := req.Metadata[correlationID]; ok && val != "" {
-		msg.CorrelationID = &val
-	}
-
-	// Include incoming metadata in the message to be used when it is read.
-	for k, v := range req.Metadata {
-		// Don't include the values that are saved in MessageID or CorrelationID.
-		if k == id || k == correlationID {
-			continue
-		}
-		msg.ApplicationProperties[k] = v
-	}
-
-	ttl, ok, err := contribMetadata.TryGetTTL(req.Metadata)
+func (a *AzureServiceBusQueues) Invoke(invokeCtx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	sender, err := a.client.GetSender(invokeCtx, a.metadata.QueueName)
 	if err != nil {
+		return nil, fmt.Errorf("failed to create a sender for the Service Bus queue: %w", err)
+	}
+
+	msg, err := impl.NewASBMessageFromInvokeRequest(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create message: %w", err)
+	}
+
+	// Send the message
+	ctx, cancel := context.WithTimeout(invokeCtx, a.timeout)
+	defer cancel()
+	err = sender.SendMessage(ctx, msg, nil)
+	if err != nil {
+		if impl.IsNetworkError(err) {
+			// Force reconnection on next call
+			a.client.CloseSender(a.metadata.QueueName)
+		}
 		return nil, err
 	}
-	if ok {
-		msg.TimeToLive = &ttl
-	}
 
-	ctx, cancel := context.WithTimeout(ctx, a.timeout)
-	defer cancel()
-
-	return nil, sender.SendMessage(ctx, msg, nil)
+	return nil, nil
 }
 
 func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindings.Handler) error {
@@ -207,19 +114,20 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 				subscribeCtx,
 				a.metadata.MaxActiveMessages,
 				a.metadata.TimeoutInSec,
-				*a.metadata.MaxRetriableErrorsPerSec,
-				&a.metadata.MaxConcurrentHandlers,
+				nil,
+				a.metadata.MaxRetriableErrorsPerSec,
+				a.metadata.MaxConcurrentHandlers,
 				"queue "+a.metadata.QueueName,
 				a.logger,
 			)
 
 			// Blocks until a successful connection (or until context is canceled)
 			err := sub.Connect(func() (*servicebus.Receiver, error) {
-				return a.client.NewReceiverForQueue(a.metadata.QueueName, nil)
+				return a.client.GetClient().NewReceiverForQueue(a.metadata.QueueName, nil)
 			})
 			if err != nil {
 				// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
-				if err != context.Canceled {
+				if errors.Is(err, context.Canceled) {
 					a.logger.Warnf("Error reading from Azure Service Bus Queue binding: %s", err.Error())
 				}
 				return
@@ -230,20 +138,14 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 			err = sub.ReceiveAndBlock(
 				a.getHandlerFunc(handler),
 				a.metadata.LockRenewalInSec,
+				false, // Bulk is not supported here.
 				func() {
 					// Reset the backoff when the subscription is successful and we have received the first message
 					bo.Reset()
 				},
 			)
-			if err != nil {
-				var detachError *amqp.DetachError
-				var amqpError *amqp.Error
-				if errors.Is(err, detachError) ||
-					(errors.As(err, &amqpError) && amqpError.Condition == amqp.ErrorDetachForced) {
-					a.logger.Debug(err)
-				} else {
-					a.logger.Error(err)
-				}
+			if err != nil && !errors.Is(err, context.Canceled) {
+				a.logger.Error(err)
 			}
 
 			// Gracefully close the connection (in case it's not closed already)
@@ -268,7 +170,12 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 }
 
 func (a *AzureServiceBusQueues) getHandlerFunc(handler bindings.Handler) impl.HandlerFunc {
-	return func(ctx context.Context, msg *servicebus.ReceivedMessage) error {
+	return func(ctx context.Context, asbMsgs []*servicebus.ReceivedMessage) ([]impl.HandlerResponseItem, error) {
+		if len(asbMsgs) != 1 {
+			return nil, fmt.Errorf("expected 1 message, got %d", len(asbMsgs))
+		}
+
+		msg := asbMsgs[0]
 		metadata := make(map[string]string)
 		metadata[id] = msg.MessageID
 		if msg.CorrelationID != nil {
@@ -285,29 +192,16 @@ func (a *AzureServiceBusQueues) getHandlerFunc(handler bindings.Handler) impl.Ha
 			}
 		}
 
-		_, err := handler(a.ctx, &bindings.ReadResponse{
+		_, err := handler(ctx, &bindings.ReadResponse{
 			Data:     msg.Body,
 			Metadata: metadata,
 		})
-		return err
+		return []impl.HandlerResponseItem{}, err
 	}
 }
 
 func (a *AzureServiceBusQueues) Close() (err error) {
-	a.logger.Info("Shutdown called!")
-	a.senderLock.Lock()
-	defer func() {
-		a.senderLock.Unlock()
-		a.cancel()
-	}()
-	if a.sender != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), a.timeout)
-		err = a.sender.Close(ctx)
-		a.sender = nil
-		cancel()
-		if err != nil {
-			return err
-		}
-	}
+	a.logger.Debug("Closing component")
+	a.client.CloseSender(a.metadata.QueueName)
 	return nil
 }

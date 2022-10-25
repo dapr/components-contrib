@@ -15,6 +15,7 @@ package servicebus
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -23,47 +24,75 @@ import (
 	"go.uber.org/ratelimit"
 
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 	"github.com/dapr/kit/retry"
 )
 
+// HandlerResponseItem represents a response from the handler for each message.
+type HandlerResponseItem struct {
+	EntryId string //nolint:stylecheck
+	Error   error
+}
+
 // HandlerFunc is the type for handlers that receive messages
-type HandlerFunc func(ctx context.Context, msg *azservicebus.ReceivedMessage) error
+type HandlerFunc func(ctx context.Context, msgs []*azservicebus.ReceivedMessage) ([]HandlerResponseItem, error)
 
 // Subscription is an object that manages a subscription to an Azure Service Bus receiver, for a topic or queue.
 type Subscription struct {
-	entity             string
-	mu                 sync.RWMutex
-	activeMessages     map[int64]*azservicebus.ReceivedMessage
-	activeMessagesChan chan struct{}
-	receiver           *azservicebus.Receiver
-	timeout            time.Duration
-	retriableErrLimit  ratelimit.Limiter
-	handleChan         chan struct{}
-	logger             logger.Logger
-	ctx                context.Context
-	cancel             context.CancelFunc
+	entity               string
+	mu                   sync.RWMutex
+	activeMessages       map[int64]*azservicebus.ReceivedMessage
+	activeOperationsChan chan struct{}
+	receiver             *azservicebus.Receiver
+	timeout              time.Duration
+	maxBulkSubCount      int
+	retriableErrLimit    ratelimit.Limiter
+	handleChan           chan struct{}
+	logger               logger.Logger
+	ctx                  context.Context
+	cancel               context.CancelFunc
 }
 
-// NewSubscription returns a new Subscription object.
+// NewBulkSubscription returns a new Subscription object.
 // Parameter "entity" is usually in the format "topic <topicname>" or "queue <queuename>" and it's only used for logging.
 func NewSubscription(
 	parentCtx context.Context,
 	maxActiveMessages int,
 	timeoutInSec int,
+	maxBulkSubCount *int,
 	maxRetriableEPS int,
-	maxConcurrentHandlers *int,
+	maxConcurrentHandlers int,
 	entity string,
 	logger logger.Logger,
 ) *Subscription {
 	ctx, cancel := context.WithCancel(parentCtx)
+
+	if maxBulkSubCount != nil {
+		if *maxBulkSubCount < 1 {
+			logger.Warnf("maxBulkSubCount must be greater than 0, setting it to 1")
+			maxBulkSubCount = ptr.Of(1)
+		}
+	} else {
+		// for non-bulk subscriptions, we only get one message at a time
+		maxBulkSubCount = ptr.Of(1)
+	}
+
+	if *maxBulkSubCount > maxActiveMessages {
+		logger.Warnf("maxBulkSubCount must not be greater than maxActiveMessages, setting it to %d", maxActiveMessages)
+		maxBulkSubCount = &maxActiveMessages
+	}
+
 	s := &Subscription{
-		entity:             entity,
-		activeMessages:     make(map[int64]*azservicebus.ReceivedMessage),
-		activeMessagesChan: make(chan struct{}, maxActiveMessages),
-		timeout:            time.Duration(timeoutInSec) * time.Second,
-		logger:             logger,
-		ctx:                ctx,
-		cancel:             cancel,
+		entity:          entity,
+		activeMessages:  make(map[int64]*azservicebus.ReceivedMessage),
+		timeout:         time.Duration(timeoutInSec) * time.Second,
+		maxBulkSubCount: *maxBulkSubCount,
+		logger:          logger,
+		ctx:             ctx,
+		cancel:          cancel,
+		// This is a pessimistic estimate of the number of total operations that can be active at any given time.
+		// In case of a non-bulk subscription, one operation is one message.
+		activeOperationsChan: make(chan struct{}, maxActiveMessages/(*maxBulkSubCount)),
 	}
 
 	if maxRetriableEPS > 0 {
@@ -72,9 +101,9 @@ func NewSubscription(
 		s.retriableErrLimit = ratelimit.NewUnlimited()
 	}
 
-	if maxConcurrentHandlers != nil {
-		s.logger.Debugf("Subscription to %s is limited to %d message handler(s)", entity, *maxConcurrentHandlers)
-		s.handleChan = make(chan struct{}, *maxConcurrentHandlers)
+	if maxConcurrentHandlers > 0 {
+		s.logger.Debugf("Subscription to %s is limited to %d message handler(s)", entity, maxConcurrentHandlers)
+		s.handleChan = make(chan struct{}, maxConcurrentHandlers)
 	}
 
 	return s
@@ -111,7 +140,7 @@ func (s *Subscription) Connect(newReceiverFunc func() (*azservicebus.Receiver, e
 }
 
 // ReceiveAndBlock is a blocking call to receive messages on an Azure Service Bus subscription from a topic or queue.
-func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, lockRenewalInSec int, onFirstSuccess func()) error {
+func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, lockRenewalInSec int, bulkEnabled bool, onFirstSuccess func()) error {
 	ctx, cancel := context.WithCancel(s.ctx)
 	defer cancel()
 
@@ -138,24 +167,37 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, lockRenewalInSec int
 	// Receiver loop
 	for {
 		select {
-		// This blocks if there are too many active messages already
-		// This is released by the handler, but if the loop ends before it reaches the handler, make sure to release it with `<-s.activeMessagesChan`
-		case s.activeMessagesChan <- struct{}{}:
-		// Return if context is canceled
+		case s.activeOperationsChan <- struct{}{}:
+			// No-op
+			// This blocks if there are too many active operations already
+			// This is released by the handler, but if the loop ends before it reaches the handler, make sure to release it with `<-s.activeOperationsChan`
 		case <-ctx.Done():
+			// Return if context is canceled
 			s.logger.Debugf("Receive context for %s done", s.entity)
 			return ctx.Err()
 		}
 
 		// This method blocks until we get a message or the context is canceled
-		msgs, err := s.receiver.ReceiveMessages(s.ctx, 1, nil)
+		msgs, err := s.receiver.ReceiveMessages(s.ctx, s.maxBulkSubCount, nil)
 		if err != nil {
 			if err != context.Canceled {
 				s.logger.Errorf("Error reading from %s. %s", s.entity, err.Error())
 			}
-			<-s.activeMessagesChan
+			<-s.activeOperationsChan
 			// Return the error. This will cause the Service Bus component to try and reconnect.
 			return err
+		}
+
+		l := len(msgs)
+		if l == 0 {
+			// We got no message, which is unusual too
+			s.logger.Warn("Received 0 messages from Service Bus")
+			<-s.activeOperationsChan
+			// Return an error to force the Service Bus component to try and reconnect.
+			return errors.New("received 0 messages from Service Bus")
+		} else if l > 1 {
+			// We are requesting one message only; this should never happen
+			s.logger.Errorf("Expected one message from Service Bus, but received %d", l)
 		}
 
 		// Invoke only once
@@ -164,32 +206,83 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, lockRenewalInSec int
 			onFirstSuccess = nil
 		}
 
-		l := len(msgs)
-		if l == 0 {
-			// We got no message, which is unusual too
-			s.logger.Warn("Received 0 messages from Service Bus")
-			<-s.activeMessagesChan
-			continue
-		} else if l > 1 {
-			// We are requesting one message only; this should never happen
-			s.logger.Errorf("Expected one message from Service Bus, but received %d", l)
+		s.logger.Debugf("Received messages: %d; current active operations usage: %d/%d", l, len(s.activeOperationsChan), cap(s.activeOperationsChan))
+
+		skipProcessing := false
+		for _, msg := range msgs {
+			if err = s.addActiveMessage(msg); err != nil {
+				// If we cannot add the message then sequence number is not set, this must
+				// be a bug in the Azure Service Bus SDK so we will log the error and not
+				// handle the message. The message will eventually be retried until fixed.
+				s.logger.Errorf("Error adding message: %s", err.Error())
+				skipProcessing = true
+				break
+			}
+			s.logger.Debugf("Processing received message: %s", msg.MessageID)
 		}
 
-		msg := msgs[0]
-		s.logger.Debugf("Received message: %s; current active message usage: %d/%d", msg.MessageID, len(s.activeMessagesChan), cap(s.activeMessagesChan))
-		// s.logger.Debugf("Message body: %s", string(msg.Body))
-
-		if err = s.addActiveMessage(msg); err != nil {
-			// If we cannot add the message then sequence number is not set, this must
-			// be a bug in the Azure Service Bus SDK so we will log the error and not
-			// handle the message. The message will eventually be retried until fixed.
-			s.logger.Errorf("Error adding message: %s", err.Error())
-			<-s.activeMessagesChan
+		if skipProcessing {
+			<-s.activeOperationsChan
 			continue
 		}
 
-		s.logger.Debugf("Processing received message: %s", msg.MessageID)
-		s.handleAsync(s.ctx, msg, handler)
+		runHandlerFn := func(hctx context.Context) {
+			msg := msgs[0]
+
+			// Invoke the handler to process the message
+			_, err = handler(hctx, msgs)
+
+			// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
+			// If we fail to finalize the message, this message will eventually be reprocessed (at-least once delivery).
+			// This uses a background context in case ctx has been canceled already.
+			finalizeCtx, finalizeCancel := context.WithTimeout(context.Background(), s.timeout)
+			defer finalizeCancel()
+
+			if err != nil {
+				// Log the error only, as we're running asynchronously
+				s.logger.Errorf("App handler returned an error for message %s on %s: %s", msg.MessageID, s.entity, err)
+				s.AbandonMessage(finalizeCtx, msg)
+				return
+			}
+
+			s.CompleteMessage(finalizeCtx, msg)
+		}
+
+		bulkRunHandlerFunc := func(hctx context.Context) {
+			resps, err := handler(hctx, msgs)
+
+			// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
+			// If we fail to finalize the message, this message will eventually be reprocessed (at-least once delivery).
+			// This uses a background context in case ctx has been canceled already.
+			finalizeCtx, finalizeCancel := context.WithTimeout(context.Background(), s.timeout)
+			defer finalizeCancel()
+
+			if err != nil {
+				// Handle the error and mark messages accordingly.
+				// Note, the order of the responses match the order of the messages.
+				for i, resp := range resps {
+					if resp.Error != nil {
+						// Log the error only, as we're running asynchronously.
+						s.logger.Errorf("App handler returned an error for message %s on %s: %s", msgs[i].MessageID, s.entity, resp.Error)
+						s.AbandonMessage(finalizeCtx, msgs[i])
+					} else {
+						s.CompleteMessage(finalizeCtx, msgs[i])
+					}
+				}
+				return
+			}
+
+			// No error, so we can complete all messages.
+			for _, msg := range msgs {
+				s.CompleteMessage(finalizeCtx, msg)
+			}
+		}
+
+		if bulkEnabled {
+			s.handleAsync(s.ctx, msgs, bulkRunHandlerFunc)
+		} else {
+			s.handleAsync(s.ctx, msgs, runHandlerFn)
+		}
 	}
 }
 
@@ -204,69 +297,60 @@ func (s *Subscription) Close(closeCtx context.Context) {
 	s.cancel()
 }
 
-func (s *Subscription) handleAsync(ctx context.Context, msg *azservicebus.ReceivedMessage, handler HandlerFunc) {
+// handleAsync handles messages from azure service bus asynchronously.
+// runHandlerFn is responsible for calling the message handler function
+// and marking messages as complete/abandon.
+func (s *Subscription) handleAsync(ctx context.Context, msgs []*azservicebus.ReceivedMessage, runHandlerFn func(ctx context.Context)) {
 	go func() {
 		var (
 			consumeToken           bool
 			takenConcurrentHandler bool
-			err                    error
 		)
 
 		defer func() {
-			// Release a handler if needed
-			if takenConcurrentHandler {
-				<-s.handleChan
-				s.logger.Debugf("Released message handle for %s on %s", msg.MessageID, s.entity)
+			for _, msg := range msgs {
+				// Release a handler if needed
+				if takenConcurrentHandler {
+					<-s.handleChan
+					s.logger.Debugf("Released message handle for %s on %s", msg.MessageID, s.entity)
+				}
+
+				// If we got a retriable error (app handler returned a retriable error, or a network error while connecting to the app, etc) consume a retriable error token
+				// We do it here, after the handler has been released but before removing the active message (which would allow us to retrieve more messages)
+				if consumeToken {
+					s.logger.Debugf("Taking a retriable error token")
+					before := time.Now()
+					_ = s.retriableErrLimit.Take()
+					s.logger.Debugf("Resumed after pausing for %v", time.Since(before))
+				}
+
+				// Remove the message from the map of active ones
+				s.removeActiveMessage(msg.MessageID, *msg.SequenceNumber)
 			}
 
-			// If we got a retriable error (app handler returned a retriable error, or a network error while connecting to the app, etc) consume a retriable error token
-			// We do it here, after the handler has been released but before removing the active message (which would allow us to retrieve more messages)
-			if consumeToken {
-				s.logger.Debugf("Taking a retriable error token")
-				before := time.Now()
-				_ = s.retriableErrLimit.Take()
-				s.logger.Debugf("Resumed after pausing for %v", time.Now().Sub(before))
-			}
-
-			// Remove the message from the map of active ones
-			s.removeActiveMessage(msg.MessageID, *msg.SequenceNumber)
-
-			// Remove an entry from activeMessageChan to allow processing more messages
-			<-s.activeMessagesChan
+			// Remove an entry from activeOperationsChan to allow processing more messages
+			<-s.activeOperationsChan
 		}()
 
-		// If handleChan is non-nil, we have a limit on how many handler we can process
-		if cap(s.handleChan) > 0 {
-			s.logger.Debugf("Taking message handle for %s on %s", msg.MessageID, s.entity)
-			select {
-			// Context is done, so we will stop waiting
-			case <-ctx.Done():
-				s.logger.Debugf("Message context done for %s on %s", msg.MessageID, s.entity)
-				return
-			// Blocks until we have a handler available
-			case s.handleChan <- struct{}{}:
-				takenConcurrentHandler = true
-				s.logger.Debugf("Taken message handle for %s on %s", msg.MessageID, s.entity)
+		for _, msg := range msgs {
+			// If handleChan is non-nil, we have a limit on how many handler we can process
+			if cap(s.handleChan) > 0 {
+				s.logger.Debugf("Taking message handle for %s on %s", msg.MessageID, s.entity)
+				select {
+				// Context is done, so we will stop waiting
+				case <-ctx.Done():
+					s.logger.Debugf("Message context done for %s on %s", msg.MessageID, s.entity)
+					return
+				// Blocks until we have a handler available
+				case s.handleChan <- struct{}{}:
+					takenConcurrentHandler = true
+					s.logger.Debugf("Taken message handle for %s on %s", msg.MessageID, s.entity)
+				}
 			}
 		}
 
-		// Invoke the handler to process the message
-		err = handler(ctx, msg)
-
-		// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
-		// If we fail to finalize the message, this message will eventually be reprocessed (at-least once delivery).
-		// This uses a background context in case ctx has been canceled already.
-		finalizeCtx, finalizeCancel := context.WithTimeout(context.Background(), s.timeout)
-		defer finalizeCancel()
-
-		if err != nil {
-			// Log the error only, as we're running asynchronously
-			s.logger.Errorf("App handler returned an error for message %s on %s: %s", msg.MessageID, s.entity, err)
-			s.AbandonMessage(finalizeCtx, msg)
-			return
-		}
-
-		s.CompleteMessage(finalizeCtx, msg)
+		// Invoke the handler to process the message.
+		runHandlerFn(ctx)
 	}()
 }
 

@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestWorkflowConformance(t *testing.T) {
+func TestWorkflowsConformance(t *testing.T) {
 	tc, err := NewTestConfiguration("../config/workflows/tests.yml")
 	assert.NoError(t, err)
 	assert.NotNil(t, tc)

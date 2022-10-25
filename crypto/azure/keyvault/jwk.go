@@ -36,10 +36,10 @@ func (key JSONWebKey) Public() (crypto.PublicKey, error) {
 		return nil, errors.New("property Kty is nil")
 	}
 
-	switch *key.Kty {
-	case azkeys.JSONWebKeyTypeRSA, azkeys.JSONWebKeyTypeRSAHSM:
+	switch {
+	case IsRSAKey(*key.Kty):
 		return key.publicRSA()
-	case azkeys.JSONWebKeyTypeEC, azkeys.JSONWebKeyTypeECHSM:
+	case IsECKey(*key.Kty):
 		return key.publicEC()
 	}
 
@@ -97,4 +97,24 @@ func (key JSONWebKey) publicEC() (*ecdsa.PublicKey, error) {
 	res.Y.SetBytes(key.Y)
 
 	return res, nil
+}
+
+// IsRSAKey returns true if the key is an RSA key (RSA or RSA-HSM).
+func IsRSAKey(kt azkeys.JSONWebKeyType) bool {
+	return kt == azkeys.JSONWebKeyTypeRSA || kt == azkeys.JSONWebKeyTypeRSAHSM
+}
+
+// IsECKey returns true if the key is an EC key (EC or EC-HSM).
+func IsECKey(kt azkeys.JSONWebKeyType) bool {
+	return kt == azkeys.JSONWebKeyTypeEC || kt == azkeys.JSONWebKeyTypeECHSM
+}
+
+// IsSymmetricKey returns true if the key is a symmetric key (Oct or OctHSM).
+func IsSymmetricKey(kt azkeys.JSONWebKeyType) bool {
+	return kt == azkeys.JSONWebKeyTypeOct || kt == azkeys.JSONWebKeyTypeOctHSM
+}
+
+// IsAsymmetric returns true if the key type is asymmetric.
+func IsAsymmetric(kt azkeys.JSONWebKeyType) bool {
+	return IsECKey(kt) || IsRSAKey(kt)
 }

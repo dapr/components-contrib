@@ -46,6 +46,7 @@ require (
 	github.com/bradfitz/gomemcache v0.0.0-20220106215444-fb4bf637b56d
 	github.com/camunda/zeebe/clients/go/v8 v8.1.2
 	github.com/cenkalti/backoff/v4 v4.1.3
+	github.com/chebyrash/promise v0.0.0-20220530143319-1123826567d6
 	github.com/cinience/go_rocketmq v0.0.2
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/cyphar/filepath-securejoin v0.2.3

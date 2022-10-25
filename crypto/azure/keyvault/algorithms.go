@@ -18,8 +18,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys"
 )
 
-var validEncryptionAlgs map[string]struct{}
-var validSignatureAlgs map[string]struct{}
+var (
+	validEncryptionAlgs map[string]struct{}
+	validSignatureAlgs  map[string]struct{}
+)
 
 func init() {
 	listEncryption := azkeys.PossibleJSONWebKeyEncryptionAlgorithmValues()
@@ -35,8 +37,8 @@ func init() {
 	}
 }
 
-// getJWKEncryptionAlgorithm returns a JSONWebKeyEncryptionAlgorithm constant is the algorithm is a supported one.
-func getJWKEncryptionAlgorithm(algorithm string) *azkeys.JSONWebKeyEncryptionAlgorithm {
+// GetJWKEncryptionAlgorithm returns a JSONWebKeyEncryptionAlgorithm constant is the algorithm is a supported one.
+func GetJWKEncryptionAlgorithm(algorithm string) *azkeys.JSONWebKeyEncryptionAlgorithm {
 	if _, ok := validEncryptionAlgs[algorithm]; ok {
 		return to.Ptr(azkeys.JSONWebKeyEncryptionAlgorithm(algorithm))
 	} else {
@@ -44,11 +46,27 @@ func getJWKEncryptionAlgorithm(algorithm string) *azkeys.JSONWebKeyEncryptionAlg
 	}
 }
 
-// getJWKSignatureAlgorithm returns a JSONWebKeySignatureAlgorithm constant is the algorithm is a supported one.
-func getJWKSignatureAlgorithm(algorithm string) *azkeys.JSONWebKeySignatureAlgorithm {
+// GetJWKSignatureAlgorithm returns a JSONWebKeySignatureAlgorithm constant is the algorithm is a supported one.
+func GetJWKSignatureAlgorithm(algorithm string) *azkeys.JSONWebKeySignatureAlgorithm {
 	if _, ok := validEncryptionAlgs[algorithm]; ok {
 		return to.Ptr(azkeys.JSONWebKeySignatureAlgorithm(algorithm))
 	} else {
 		return nil
+	}
+}
+
+type algorithms interface {
+	azkeys.JSONWebKeyEncryptionAlgorithm | azkeys.JSONWebKeySignatureAlgorithm
+}
+
+// IsAlgorithmAsymmetric returns true if the algorithm identifier is asymmetric.
+func IsAlgorithmAsymmetric[T algorithms](algorithm T) bool {
+	algStr := string(algorithm)
+	switch algStr[0:2] {
+	case "RS", "ES", "PS":
+		// RSNULL is a reserved keyword
+		return algStr != "RSNULL"
+	default:
+		return false
 	}
 }

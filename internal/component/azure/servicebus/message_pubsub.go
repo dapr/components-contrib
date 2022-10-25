@@ -21,10 +21,10 @@ import (
 	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	"github.com/google/uuid"
 
-	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
 	"github.com/dapr/components-contrib/pubsub"
 )
 
+// NewPubsubMessageFromASBMessage returns a pubsub.NewMessage from a message received from ASB.
 func NewPubsubMessageFromASBMessage(asbMsg *azservicebus.ReceivedMessage, topic string) (*pubsub.NewMessage, error) {
 	pubsubMsg := &pubsub.NewMessage{
 		Topic: topic,
@@ -36,6 +36,7 @@ func NewPubsubMessageFromASBMessage(asbMsg *azservicebus.ReceivedMessage, topic 
 	return pubsubMsg, nil
 }
 
+// NewBulkMessageEntryFromASBMessage returns a pubsub.NewMessageEntry from a bulk message received from ASB.
 func NewBulkMessageEntryFromASBMessage(asbMsg *azservicebus.ReceivedMessage) (pubsub.BulkMessageEntry, error) {
 	entryId, err := uuid.NewRandom() //nolint:stylecheck
 	if err != nil {
@@ -57,55 +58,51 @@ func addMessageAttributesToMetadata(metadata map[string]string, asbMsg *azservic
 		metadata = map[string]string{}
 	}
 
-	addToMetadata := func(metadata map[string]string, key, value string) {
-		metadata["metadata."+key] = value
-	}
-
 	if asbMsg.MessageID != "" {
-		addToMetadata(metadata, impl.MessageKeyMessageID, asbMsg.MessageID)
+		metadata["metadata."+MessageKeyMessageID] = asbMsg.MessageID
 	}
 	if asbMsg.SessionID != nil {
-		addToMetadata(metadata, impl.MessageKeySessionID, *asbMsg.SessionID)
+		metadata["metadata."+MessageKeySessionID] = *asbMsg.SessionID
 	}
 	if asbMsg.CorrelationID != nil && *asbMsg.CorrelationID != "" {
-		addToMetadata(metadata, impl.MessageKeyCorrelationID, *asbMsg.CorrelationID)
+		metadata["metadata."+MessageKeyCorrelationID] = *asbMsg.CorrelationID
 	}
 	if asbMsg.Subject != nil && *asbMsg.Subject != "" {
-		addToMetadata(metadata, impl.MessageKeyLabel, *asbMsg.Subject)
+		metadata["metadata."+MessageKeyLabel] = *asbMsg.Subject
 	}
 	if asbMsg.ReplyTo != nil && *asbMsg.ReplyTo != "" {
-		addToMetadata(metadata, impl.MessageKeyReplyTo, *asbMsg.ReplyTo)
+		metadata["metadata."+MessageKeyReplyTo] = *asbMsg.ReplyTo
 	}
 	if asbMsg.To != nil && *asbMsg.To != "" {
-		addToMetadata(metadata, impl.MessageKeyTo, *asbMsg.To)
+		metadata["metadata."+MessageKeyTo] = *asbMsg.To
 	}
 	if asbMsg.ContentType != nil && *asbMsg.ContentType != "" {
-		addToMetadata(metadata, impl.MessageKeyContentType, *asbMsg.ContentType)
+		metadata["metadata."+MessageKeyContentType] = *asbMsg.ContentType
 	}
 	if asbMsg.LockToken != [16]byte{} {
-		addToMetadata(metadata, impl.MessageKeyLockToken, base64.StdEncoding.EncodeToString(asbMsg.LockToken[:]))
+		metadata["metadata."+MessageKeyLockToken] = base64.StdEncoding.EncodeToString(asbMsg.LockToken[:])
 	}
 
 	// Always set delivery count.
-	addToMetadata(metadata, impl.MessageKeyDeliveryCount, strconv.FormatInt(int64(asbMsg.DeliveryCount), 10))
+	metadata["metadata."+MessageKeyDeliveryCount] = strconv.FormatInt(int64(asbMsg.DeliveryCount), 10)
 
 	if asbMsg.EnqueuedTime != nil {
 		// Preserve RFC2616 time format.
-		addToMetadata(metadata, impl.MessageKeyEnqueuedTimeUtc, asbMsg.EnqueuedTime.UTC().Format(http.TimeFormat))
+		metadata["metadata."+MessageKeyEnqueuedTimeUtc] = asbMsg.EnqueuedTime.UTC().Format(http.TimeFormat)
 	}
 	if asbMsg.SequenceNumber != nil {
-		addToMetadata(metadata, impl.MessageKeySequenceNumber, strconv.FormatInt(*asbMsg.SequenceNumber, 10))
+		metadata["metadata."+MessageKeySequenceNumber] = strconv.FormatInt(*asbMsg.SequenceNumber, 10)
 	}
 	if asbMsg.ScheduledEnqueueTime != nil {
 		// Preserve RFC2616 time format.
-		addToMetadata(metadata, impl.MessageKeyScheduledEnqueueTimeUtc, asbMsg.ScheduledEnqueueTime.UTC().Format(http.TimeFormat))
+		metadata["metadata."+MessageKeyScheduledEnqueueTimeUtc] = asbMsg.ScheduledEnqueueTime.UTC().Format(http.TimeFormat)
 	}
 	if asbMsg.PartitionKey != nil {
-		addToMetadata(metadata, impl.MessageKeyPartitionKey, *asbMsg.PartitionKey)
+		metadata["metadata."+MessageKeyPartitionKey] = *asbMsg.PartitionKey
 	}
 	if asbMsg.LockedUntil != nil {
 		// Preserve RFC2616 time format.
-		addToMetadata(metadata, impl.MessageKeyLockedUntilUtc, asbMsg.LockedUntil.UTC().Format(http.TimeFormat))
+		metadata["metadata."+MessageKeyLockedUntilUtc] = asbMsg.LockedUntil.UTC().Format(http.TimeFormat)
 	}
 
 	return metadata
@@ -115,7 +112,7 @@ func addMessageAttributesToMetadata(metadata map[string]string, asbMsg *azservic
 func UpdateASBBatchMessageWithBulkPublishRequest(asbMsgBatch *azservicebus.MessageBatch, req *pubsub.BulkPublishRequest) error {
 	// Add entries from bulk request to batch.
 	for _, entry := range req.Entries {
-		asbMsg, err := impl.NewASBMessageFromBulkMessageEntry(entry)
+		asbMsg, err := NewASBMessageFromBulkMessageEntry(entry)
 		if err != nil {
 			return err
 		}

@@ -224,21 +224,21 @@ func TestResolverMultipleInstances(t *testing.T) {
 
 	// assert that when we resolve the test app id n times, we see only
 	// instance A and instance B and we see them each atleast m times.
-	instanceACount := atomic.Uint32{}
-	instanceBCount := atomic.Uint32{}
+	var instanceACount uint32
+	var instanceBCount uint32
 	for i := 0; i < 100; i++ {
 		addr, err := resolver.ResolveID(request)
 		require.NoError(t, err)
 		require.Contains(t, []string{instanceAPQDN, instanceBPQDN}, addr)
 		if addr == instanceAPQDN {
-			instanceACount.Add(1)
+			atomic.AddUint32(&instanceACount, 1)
 		} else if addr == instanceBPQDN {
-			instanceBCount.Add(1)
+			atomic.AddUint32(&instanceBCount, 1)
 		}
 	}
 	// 45 allows some variation in distribution.
-	require.Greater(t, instanceACount.Load(), uint32(45))
-	require.Greater(t, instanceBCount.Load(), uint32(45))
+	require.Greater(t, atomic.LoadUint32(&instanceACount), uint32(45))
+	require.Greater(t, atomic.LoadUint32(&instanceBCount), uint32(45))
 }
 
 func TestResolverNotFound(t *testing.T) {
@@ -617,7 +617,7 @@ func TestAddressListNextMaxCounter(t *testing.T) {
 	require.Equal(t, "addr1", *addressList.next())
 	require.Equal(t, "addr2", *addressList.next())
 	require.Equal(t, "addr3", *addressList.next())
-	addressList.counter.Store(math.MaxUint32)
+	atomic.StoreUint32(&addressList.counter, math.MaxUint32)
 	require.Equal(t, "addr0", *addressList.next())
 	require.Equal(t, "addr1", *addressList.next())
 	require.Equal(t, "addr2", *addressList.next())

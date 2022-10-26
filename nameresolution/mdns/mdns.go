@@ -66,7 +66,7 @@ type address struct {
 // data used to control and access said addresses.
 type addressList struct {
 	addresses []address
-	counter   atomic.Uint32
+	counter   uint32
 	mu        sync.RWMutex
 }
 
@@ -119,11 +119,11 @@ func (a *addressList) next() *string {
 		return nil
 	}
 
-	if a.counter.Load() == math.MaxUint32 {
-		// This will only reset unless another goroutine has done that already
-		a.counter.CompareAndSwap(math.MaxUint32, 0)
+	if atomic.LoadUint32(&a.counter) == math.MaxUint32 {
+		// This will only reset unless another goroutine has done that already+
+		atomic.CompareAndSwapUint32(&a.counter, math.MaxUint32, 0)
 	}
-	counter := a.counter.Add(1) - 1
+	counter := atomic.AddUint32(&a.counter, 1) - 1
 	addr := a.addresses[counter%l]
 
 	return &addr.ip

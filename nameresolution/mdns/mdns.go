@@ -226,12 +226,12 @@ type Resolver struct {
 	// shutdown refreshes.
 	refreshCtx     context.Context
 	refreshCancel  context.CancelFunc
-	refreshRunning atomic.Bool
+	refreshRunning int32
 	logger         logger.Logger
 }
 
 func (m *Resolver) startRefreshers() {
-	if !m.refreshRunning.CompareAndSwap(false, true) {
+	if !atomic.CompareAndSwapInt32(&m.refreshRunning, 0, 1) {
 		// Refreshers are already running
 		return
 	}
@@ -239,7 +239,7 @@ func (m *Resolver) startRefreshers() {
 	// refresh app addresses periodically and on demand
 	go func() {
 		defer func() {
-			m.refreshRunning.Store(false)
+			atomic.StoreInt32(&m.refreshRunning, 0)
 		}()
 
 		for {

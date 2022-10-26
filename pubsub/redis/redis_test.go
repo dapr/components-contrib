@@ -20,12 +20,13 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+
+	internalredis "github.com/dapr/components-contrib/internal/component/redis"
 )
 
 func getFakeProperties() map[string]string {
@@ -108,9 +109,9 @@ func TestProcessStreams(t *testing.T) {
 	assert.Equal(t, 3, messageCount)
 }
 
-func generateRedisStreamTestData(topicCount, messageCount int, data string) []redis.XMessage {
-	generateXMessage := func(id int) redis.XMessage {
-		return redis.XMessage{
+func generateRedisStreamTestData(topicCount, messageCount int, data string) []internalredis.RedisXMessage {
+	generateXMessage := func(id int) internalredis.RedisXMessage {
+		return internalredis.RedisXMessage{
 			ID: fmt.Sprintf("%d", id),
 			Values: map[string]interface{}{
 				"data": data,
@@ -118,7 +119,7 @@ func generateRedisStreamTestData(topicCount, messageCount int, data string) []re
 		}
 	}
 
-	xmessageArray := make([]redis.XMessage, messageCount)
+	xmessageArray := make([]internalredis.RedisXMessage, messageCount)
 	for i := range xmessageArray {
 		xmessageArray[i] = generateXMessage(i)
 	}

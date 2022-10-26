@@ -18,8 +18,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/go-redis/redis/v8"
-
 	"github.com/dapr/components-contrib/bindings"
 	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"github.com/dapr/kit/logger"
@@ -27,7 +25,7 @@ import (
 
 // Redis is a redis output binding.
 type Redis struct {
-	client         redis.UniversalClient
+	client         rediscomponent.RedisClient
 	clientSettings *rediscomponent.Settings
 	logger         logger.Logger
 
@@ -49,7 +47,7 @@ func (r *Redis) Init(meta bindings.Metadata) (err error) {
 
 	r.ctx, r.cancel = context.WithCancel(context.Background())
 
-	_, err = r.client.Ping(r.ctx).Result()
+	_, err = r.client.PingResult(r.ctx)
 	if err != nil {
 		return fmt.Errorf("redis binding: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
@@ -58,7 +56,7 @@ func (r *Redis) Init(meta bindings.Metadata) (err error) {
 }
 
 func (r *Redis) Ping() error {
-	if _, err := r.client.Ping(r.ctx).Result(); err != nil {
+	if _, err := r.client.PingResult(r.ctx); err != nil {
 		return fmt.Errorf("redis binding: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
 
@@ -72,7 +70,7 @@ func (r *Redis) Operations() []bindings.OperationKind {
 func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	if val, ok := req.Metadata["key"]; ok && val != "" {
 		key := val
-		_, err := r.client.Do(ctx, "SET", key, req.Data).Result()
+		_, err := r.client.DoResult(ctx, "SET", key, req.Data)
 		if err != nil {
 			return nil, err
 		}

@@ -58,6 +58,7 @@ require (
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-redis/redis/v8 v8.11.5
+	github.com/go-redis/redis/v9 v9.0.0-rc.1
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/gocql/gocql v1.2.1
 	github.com/golang-jwt/jwt/v4 v4.4.2

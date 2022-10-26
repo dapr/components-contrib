@@ -14,12 +14,9 @@ limitations under the License.
 package redis
 
 import (
-	"crypto/tls"
+	"context"
 	"fmt"
-	"strings"
 	"time"
-
-	"github.com/go-redis/redis/v8"
 )
 
 const (
@@ -27,7 +24,47 @@ const (
 	NodeType    = "node"
 )
 
-func ParseClientFromProperties(properties map[string]string, defaultSettings *Settings) (client redis.UniversalClient, settings *Settings, err error) {
+type RedisXMessage struct {
+	ID     string
+	Values map[string]interface{}
+}
+
+type RedisXStream struct {
+	Stream   string
+	Messages []RedisXMessage
+}
+
+type RedisXPendingExt struct {
+	ID         string
+	Consumer   string
+	Idle       time.Duration
+	RetryCount int64
+}
+
+type RedisPipeliner interface {
+	Exec(ctx context.Context) error
+	Do(ctx context.Context, args ...interface{})
+}
+
+type RedisClient interface {
+	Context() context.Context
+	DoResult(ctx context.Context, args ...interface{}) (interface{}, error)
+	DoErr(ctx context.Context, args ...interface{}) error
+	Close() error
+	PingResult(ctx context.Context) (string, error)
+	SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (*bool, error)
+	EvalInt(ctx context.Context, script string, keys []string, args ...interface{}) (*int, error, error)
+	XAdd(ctx context.Context, stream string, maxLenApprox int64, values map[string]interface{}) (string, error)
+	XGroupCreateMkStream(ctx context.Context, stream string, group string, start string) error
+	XAck(ctx context.Context, stream string, group string, messageID string) error
+	XReadGroupResult(ctx context.Context, group string, consumer string, streams []string, count int64, block time.Duration) ([]RedisXStream, error)
+	XPendingExtResult(ctx context.Context, stream string, group string, start string, end string, count int64) ([]RedisXPendingExt, error)
+	XClaimResult(ctx context.Context, stream string, group string, consumer string, minIdleTime time.Duration, messageIDs []string) ([]RedisXMessage, error)
+	TxPipeline() RedisPipeliner
+	TTLResult(ctx context.Context, key string) (time.Duration, error)
+}
+
+func ParseClientFromProperties(properties map[string]string, defaultSettings *Settings) (client RedisClient, settings *Settings, err error) {
 	if defaultSettings == nil {
 		settings = &Settings{}
 	} else {
@@ -37,110 +74,17 @@ func ParseClientFromProperties(properties map[string]string, defaultSettings *Se
 	if err != nil {
 		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
 	}
-	if settings.Failover {
-		return newFailoverClient(settings), settings, nil
-	}
 
-	return newClient(settings), settings, nil
-}
-
-func newFailoverClient(s *Settings) redis.UniversalClient {
-	if s == nil {
-		return nil
-	}
-	opts := &redis.FailoverOptions{
-		DB:                 s.DB,
-		MasterName:         s.SentinelMasterName,
-		SentinelAddrs:      []string{s.Host},
-		Password:           s.Password,
-		Username:           s.Username,
-		MaxRetries:         s.RedisMaxRetries,
-		MaxRetryBackoff:    time.Duration(s.RedisMaxRetryInterval),
-		MinRetryBackoff:    time.Duration(s.RedisMinRetryInterval),
-		DialTimeout:        time.Duration(s.DialTimeout),
-		ReadTimeout:        time.Duration(s.ReadTimeout),
-		WriteTimeout:       time.Duration(s.WriteTimeout),
-		PoolSize:           s.PoolSize,
-		MaxConnAge:         time.Duration(s.MaxConnAge),
-		MinIdleConns:       s.MinIdleConns,
-		PoolTimeout:        time.Duration(s.PoolTimeout),
-		IdleCheckFrequency: time.Duration(s.IdleCheckFrequency),
-		IdleTimeout:        time.Duration(s.IdleTimeout),
-	}
-
-	/* #nosec */
-	if s.EnableTLS {
-		opts.TLSConfig = &tls.Config{
-			InsecureSkipVerify: s.EnableTLS,
+	if settings.RedisVersion < 7 {
+		// init redis v8 clients
+		if settings.Failover {
+			return newV8FailoverClient(settings), settings, nil
 		}
-	}
-
-	if s.RedisType == ClusterType {
-		opts.SentinelAddrs = strings.Split(s.Host, ",")
-
-		return redis.NewFailoverClusterClient(opts)
-	}
-
-	return redis.NewFailoverClient(opts)
-}
-
-func newClient(s *Settings) redis.UniversalClient {
-	if s == nil {
-		return nil
-	}
-	if s.RedisType == ClusterType {
-		options := &redis.ClusterOptions{
-			Addrs:              strings.Split(s.Host, ","),
-			Password:           s.Password,
-			Username:           s.Username,
-			MaxRetries:         s.RedisMaxRetries,
-			MaxRetryBackoff:    time.Duration(s.RedisMaxRetryInterval),
-			MinRetryBackoff:    time.Duration(s.RedisMinRetryInterval),
-			DialTimeout:        time.Duration(s.DialTimeout),
-			ReadTimeout:        time.Duration(s.ReadTimeout),
-			WriteTimeout:       time.Duration(s.WriteTimeout),
-			PoolSize:           s.PoolSize,
-			MaxConnAge:         time.Duration(s.MaxConnAge),
-			MinIdleConns:       s.MinIdleConns,
-			PoolTimeout:        time.Duration(s.PoolTimeout),
-			IdleCheckFrequency: time.Duration(s.IdleCheckFrequency),
-			IdleTimeout:        time.Duration(s.IdleTimeout),
+		return newV8Client(settings), settings, nil
+	} else {
+		if settings.Failover {
+			return newV9FailoverClient(settings), settings, nil
 		}
-		/* #nosec */
-		if s.EnableTLS {
-			options.TLSConfig = &tls.Config{
-				InsecureSkipVerify: s.EnableTLS,
-			}
-		}
-
-		return redis.NewClusterClient(options)
+		return newV9Client(settings), settings, nil
 	}
-
-	options := &redis.Options{
-		Addr:               s.Host,
-		Password:           s.Password,
-		Username:           s.Username,
-		DB:                 s.DB,
-		MaxRetries:         s.RedisMaxRetries,
-		MaxRetryBackoff:    time.Duration(s.RedisMaxRetryInterval),
-		MinRetryBackoff:    time.Duration(s.RedisMinRetryInterval),
-		DialTimeout:        time.Duration(s.DialTimeout),
-		ReadTimeout:        time.Duration(s.ReadTimeout),
-		WriteTimeout:       time.Duration(s.WriteTimeout),
-		PoolSize:           s.PoolSize,
-		MaxConnAge:         time.Duration(s.MaxConnAge),
-		MinIdleConns:       s.MinIdleConns,
-		PoolTimeout:        time.Duration(s.PoolTimeout),
-		IdleCheckFrequency: time.Duration(s.IdleCheckFrequency),
-		IdleTimeout:        time.Duration(s.IdleTimeout),
-	}
-
-	/* #nosec */
-	if s.EnableTLS {
-		options.TLSConfig = &tls.Config{
-			InsecureSkipVerify: s.EnableTLS,
-		}
-	}
-
-	return redis.NewClient(options)
 }

@@ -20,7 +20,6 @@ import (
 	"strings"
 
 	"github.com/agrea/ptr"
-	"github.com/go-redis/redis/v8"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/contenttype"
@@ -91,7 +90,7 @@ const (
 // StateStore is a Redis state store.
 type StateStore struct {
 	state.DefaultBulkStore
-	client         redis.UniversalClient
+	client         rediscomponent.RedisClient
 	clientSettings *rediscomponent.Settings
 	json           jsoniter.API
 	metadata       rediscomponent.Metadata
@@ -118,7 +117,7 @@ func NewRedisStateStore(logger logger.Logger) state.Store {
 }
 
 func (r *StateStore) Ping() error {
-	if _, err := r.client.Ping(context.Background()).Result(); err != nil {
+	if _, err := r.client.PingResult(context.Background()); err != nil {
 		return fmt.Errorf("redis store: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
 
@@ -146,7 +145,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 
 	r.ctx, r.cancel = context.WithCancel(context.Background())
 
-	if _, err = r.client.Ping(r.ctx).Result(); err != nil {
+	if _, err = r.client.PingResult(r.ctx); err != nil {
 		return fmt.Errorf("redis store: error connecting to redis at %s: %v", r.clientSettings.Host, err)
 	}
 
@@ -167,7 +166,7 @@ func (r *StateStore) Features() []state.Feature {
 }
 
 func (r *StateStore) getConnectedSlaves() (int, error) {
-	res, err := r.client.Do(r.ctx, "INFO", "replication").Result()
+	res, err := r.client.DoResult(r.ctx, "INFO", "replication")
 	if err != nil {
 		return 0, err
 	}
@@ -207,7 +206,7 @@ func (r *StateStore) deleteValue(req *state.DeleteRequest) error {
 	} else {
 		delQuery = delDefaultQuery
 	}
-	_, err := r.client.Do(r.ctx, "EVAL", delQuery, 1, req.Key, *req.ETag).Result()
+	_, err := r.client.DoResult(r.ctx, "EVAL", delQuery, 1, req.Key, *req.ETag)
 	if err != nil {
 		return state.NewETagError(state.ETagMismatch, err)
 	}
@@ -226,7 +225,7 @@ func (r *StateStore) Delete(req *state.DeleteRequest) error {
 }
 
 func (r *StateStore) directGet(req *state.GetRequest) (*state.GetResponse, error) {
-	res, err := r.client.Do(r.ctx, "GET", req.Key).Result()
+	res, err := r.client.DoResult(r.ctx, "GET", req.Key)
 	if err != nil {
 		return nil, err
 	}
@@ -243,7 +242,7 @@ func (r *StateStore) directGet(req *state.GetRequest) (*state.GetResponse, error
 }
 
 func (r *StateStore) getDefault(req *state.GetRequest) (*state.GetResponse, error) {
-	res, err := r.client.Do(r.ctx, "HGETALL", req.Key).Result() // Prefer values with ETags
+	res, err := r.client.DoResult(r.ctx, "HGETALL", req.Key) // Prefer values with ETags
 	if err != nil {
 		return r.directGet(req) // Falls back to original get for backward compats.
 	}
@@ -267,7 +266,7 @@ func (r *StateStore) getDefault(req *state.GetRequest) (*state.GetResponse, erro
 }
 
 func (r *StateStore) getJSON(req *state.GetRequest) (*state.GetResponse, error) {
-	res, err := r.client.Do(r.ctx, "JSON.GET", req.Key).Result()
+	res, err := r.client.DoResult(r.ctx, "JSON.GET", req.Key)
 	if err != nil {
 		return nil, err
 	}
@@ -350,7 +349,7 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 		bt, _ = utils.Marshal(req.Value, r.json.Marshal)
 	}
 
-	err = r.client.Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt, firstWrite).Err()
+	err = r.client.DoErr(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt, firstWrite)
 	if err != nil {
 		if req.ETag != nil {
 			return state.NewETagError(state.ETagMismatch, err)
@@ -360,21 +359,21 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 	}
 
 	if ttl != nil && *ttl > 0 {
-		_, err = r.client.Do(r.ctx, "EXPIRE", req.Key, *ttl).Result()
+		_, err = r.client.DoResult(r.ctx, "EXPIRE", req.Key, *ttl)
 		if err != nil {
 			return fmt.Errorf("failed to set key %s ttl: %s", req.Key, err)
 		}
 	}
 
 	if ttl != nil && *ttl <= 0 {
-		_, err = r.client.Do(r.ctx, "PERSIST", req.Key).Result()
+		_, err = r.client.DoResult(r.ctx, "PERSIST", req.Key)
 		if err != nil {
 			return fmt.Errorf("failed to persist key %s: %s", req.Key, err)
 		}
 	}
 
 	if req.Options.Consistency == state.Strong && r.replicas > 0 {
-		_, err = r.client.Do(r.ctx, "WAIT", r.replicas, 1000).Result()
+		_, err = r.client.DoResult(r.ctx, "WAIT", r.replicas, 1000)
 		if err != nil {
 			return fmt.Errorf("redis waiting for %v replicas to acknowledge write, err: %s", r.replicas, err.Error())
 		}
@@ -440,7 +439,7 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 		}
 	}
 
-	_, err := pipe.Exec(r.ctx)
+	err := pipe.Exec(r.ctx)
 
 	return err
 }
@@ -448,15 +447,15 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 func (r *StateStore) registerSchemas() error {
 	for name, elem := range r.querySchemas {
 		r.logger.Infof("redis: create query index %s", name)
-		if err := r.client.Do(r.ctx, elem.schema...).Err(); err != nil {
+		if err := r.client.DoErr(r.ctx, elem.schema...); err != nil {
 			if err.Error() != "Index already exists" {
 				return err
 			}
 			r.logger.Infof("redis: drop stale query index %s", name)
-			if err = r.client.Do(r.ctx, "FT.DROPINDEX", name).Err(); err != nil {
+			if err = r.client.DoErr(r.ctx, "FT.DROPINDEX", name); err != nil {
 				return err
 			}
-			if err = r.client.Do(r.ctx, elem.schema...).Err(); err != nil {
+			if err = r.client.DoErr(r.ctx, elem.schema...); err != nil {
 				return err
 			}
 		}

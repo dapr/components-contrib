@@ -20,6 +20,10 @@ import (
 	"crypto/rsa"
 	"errors"
 	"math/big"
+
+	"github.com/lestrrat-go/jwx/v2/jwk"
+
+	daprcrypto "github.com/dapr/components-contrib/crypto"
 )
 
 // Errors
@@ -32,25 +36,25 @@ var (
 
 // EncryptPublicKey encrypts a message using a public key and the specified algorithm.
 // Note that "associatedData" is ignored if the cipher does not support labels/AAD.
-func EncryptPublicKey(plaintext []byte, algorithm string, key crypto.PublicKey, associatedData []byte) (ciphertext []byte, err error) {
+func EncryptPublicKey(plaintext []byte, algorithm string, key *daprcrypto.Key, associatedData []byte) (ciphertext []byte, err error) {
 	switch algorithm {
 	case "RSA1_5":
-		rsaKey, ok := key.(*rsa.PublicKey)
-		if !ok {
+		var rsaKey *rsa.PublicKey
+		if key.Raw(rsaKey) != nil {
 			return nil, ErrKeyTypeMismatch
 		}
 		return rsa.EncryptPKCS1v15(rand.Reader, rsaKey, plaintext)
 
 	case "RSA-OAEP":
-		rsaKey, ok := key.(*rsa.PublicKey)
-		if !ok {
+		var rsaKey *rsa.PublicKey
+		if key.Raw(rsaKey) != nil {
 			return nil, ErrKeyTypeMismatch
 		}
 		return rsa.EncryptOAEP(crypto.SHA1.New(), rand.Reader, rsaKey, plaintext, associatedData)
 
 	case "RSA-OAEP-256", "RSA-OAEP-384", "RSA-OAEP-512":
-		rsaKey, ok := key.(*rsa.PublicKey)
-		if !ok {
+		var rsaKey *rsa.PublicKey
+		if key.Raw(rsaKey) != nil {
 			return nil, ErrKeyTypeMismatch
 		}
 		return rsa.EncryptOAEP(getSHAHash(algorithm).New(), rand.Reader, rsaKey, plaintext, associatedData)
@@ -61,11 +65,11 @@ func EncryptPublicKey(plaintext []byte, algorithm string, key crypto.PublicKey, 
 }
 
 // EncryptPublicKey validates a signature using a public key and the specified algorithm.
-func VerifyPublicKey(digest []byte, signature []byte, algorithm string, key crypto.PublicKey) (valid bool, err error) {
+func VerifyPublicKey(digest []byte, signature []byte, algorithm string, key jwk.Key) (valid bool, err error) {
 	switch algorithm {
 	case "RS256", "RS384", "RS512":
-		rsaKey, ok := key.(*rsa.PublicKey)
-		if !ok {
+		var rsaKey *rsa.PublicKey
+		if key.Raw(rsaKey) != nil {
 			return false, ErrKeyTypeMismatch
 		}
 		err = rsa.VerifyPKCS1v15(rsaKey, getSHAHash(algorithm), digest, signature)
@@ -78,8 +82,8 @@ func VerifyPublicKey(digest []byte, signature []byte, algorithm string, key cryp
 		return true, nil
 
 	case "PS256", "PS384", "PS512":
-		rsaKey, ok := key.(*rsa.PublicKey)
-		if !ok {
+		var rsaKey *rsa.PublicKey
+		if key.Raw(rsaKey) != nil {
 			return false, ErrKeyTypeMismatch
 		}
 		err = rsa.VerifyPSS(rsaKey, getSHAHash(algorithm), digest, signature, nil)
@@ -92,8 +96,8 @@ func VerifyPublicKey(digest []byte, signature []byte, algorithm string, key cryp
 		return true, nil
 
 	case "ES256", "ES384", "ES512":
-		ecdsaKey, ok := key.(*ecdsa.PublicKey)
-		if !ok {
+		var ecdsaKey *ecdsa.PublicKey
+		if key.Raw(ecdsaKey) != nil {
 			return false, ErrKeyTypeMismatch
 		}
 

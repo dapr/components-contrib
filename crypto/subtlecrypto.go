@@ -15,7 +15,8 @@ package crypto
 
 import (
 	"context"
-	"crypto"
+
+	"github.com/lestrrat-go/jwx/v2/jwk"
 )
 
 // SubtleCrypto offers an interface to perform low-level ("subtle") cryptographic operations with keys stored in a vault.
@@ -27,8 +28,7 @@ type SubtleCrypto interface {
 		key string,
 	) (
 		// Object containing the public key
-		// The type of the key can be inferred from the type of the object
-		pubKey crypto.PublicKey,
+		pubKey *Key,
 		err error,
 	)
 
@@ -79,10 +79,9 @@ type SubtleCrypto interface {
 	)
 
 	// WrapKey wraps a key.
-	// The key must have been already serialized in the appropriate format.
 	WrapKey(ctx context.Context,
-		// Key to wrap, already serialized in the right format if needed
-		plaintextKey []byte,
+		// Key to wrap as Key object
+		plaintextKey jwk.Key,
 		// Encryption algorithm to use
 		algorithm string,
 		// Name (or name/version) of the key to use in the key vault
@@ -121,8 +120,8 @@ type SubtleCrypto interface {
 		// Optional, can be nil
 		associatedData []byte,
 	) (
-		// Key in plaintext (can be serialized)
-		plaintextKey []byte,
+		// Plaintext key
+		plaintextKey jwk.Key,
 		err error,
 	)
 

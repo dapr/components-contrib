@@ -78,6 +78,7 @@ require (
 	github.com/jackc/pgx/v5 v5.0.3
 	github.com/json-iterator/go v1.1.12
 	github.com/labd/commercetools-go-sdk v1.1.0
+	github.com/lestrrat-go/jwx/v2 v2.0.6
 	github.com/machinebox/graphql v0.2.2
 	github.com/matoous/go-nanoid/v2 v2.0.0
 	github.com/mitchellh/mapstructure v1.5.1-0.20220423185008-bf980b35cac4
@@ -109,6 +110,7 @@ require (
 	go.uber.org/atomic v1.10.0
 	go.uber.org/ratelimit v0.2.0
 	golang.org/x/crypto v0.1.0
+	golang.org/x/exp v0.0.0-20221026153819-32f3d567a233
 	golang.org/x/net v0.1.0
 	golang.org/x/oauth2 v0.1.0
 	google.golang.org/api v0.100.0
@@ -178,6 +180,7 @@ require (
 	github.com/creasty/defaults v1.5.2 // indirect
 	github.com/danieljoos/wincred v1.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0 // indirect
 	github.com/deepmap/oapi-codegen v1.3.6 // indirect
 	github.com/devigned/tab v0.1.1 // indirect
 	github.com/dghubble/sling v1.4.0 // indirect
@@ -206,6 +209,7 @@ require (
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/go-playground/validator/v10 v10.11.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
+	github.com/goccy/go-json v0.9.11 // indirect
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
 	github.com/gofrs/uuid v3.3.0+incompatible // indirect
 	github.com/gogap/errors v0.0.0-20200228125012-531a6449b28c // indirect
@@ -257,6 +261,11 @@ require (
 	github.com/labstack/echo/v4 v4.9.0 // indirect
 	github.com/labstack/gommon v0.3.1 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
+	github.com/lestrrat-go/blackmagic v1.0.1 // indirect
+	github.com/lestrrat-go/httpcc v1.0.1 // indirect
+	github.com/lestrrat-go/httprc v1.0.4 // indirect
+	github.com/lestrrat-go/iter v1.0.2 // indirect
+	github.com/lestrrat-go/option v1.0.0 // indirect
 	github.com/linkedin/goavro/v2 v2.9.8 // indirect
 	github.com/magiconair/properties v1.8.6 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect

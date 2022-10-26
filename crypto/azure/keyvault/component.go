@@ -15,22 +15,20 @@ package keyvault
 
 import (
 	"context"
-	stdcrypto "crypto"
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys"
-	"github.com/chebyrash/promise"
+	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwk"
 
-	"github.com/dapr/components-contrib/crypto"
+	daprcrypto "github.com/dapr/components-contrib/crypto"
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	internals "github.com/dapr/components-contrib/internal/crypto"
-	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 )
 
@@ -38,30 +36,29 @@ const (
 	requestTimeout = 30 * time.Second
 )
 
+var errKeyNotFound = errors.New("key not found in the vault")
+
 type keyvaultCrypto struct {
+	keyCache       *daprcrypto.PubKeyCache
 	vaultName      string
 	vaultClient    *azkeys.Client
 	vaultDNSSuffix string
-
-	pubKeys     map[string]*promise.Promise[stdcrypto.PublicKey]
-	pubKeysLock *sync.Mutex
-	logger      logger.Logger
+	logger         logger.Logger
 }
 
 // NewAzureKeyvaultCrypto returns a new Azure Key Vault crypto provider.
-func NewAzureKeyvaultCrypto(logger logger.Logger) crypto.SubtleCrypto {
+func NewAzureKeyvaultCrypto(logger logger.Logger) daprcrypto.SubtleCrypto {
 	return &keyvaultCrypto{
 		vaultName:   "",
 		vaultClient: nil,
 		logger:      logger,
-		pubKeys:     map[string]*promise.Promise[stdcrypto.PublicKey]{},
-		pubKeysLock: &sync.Mutex{},
 	}
 }
 
 // Init creates a Azure Key Vault client.
-func (k *keyvaultCrypto) Init(metadata secretstores.Metadata) error {
-	// Initialization code
+func (k *keyvaultCrypto) Init(metadata daprcrypto.Metadata) error {
+	k.keyCache = daprcrypto.NewPubKeyCache(k.getKeyCacheFn)
+
 	settings, err := azauth.NewEnvironmentSettings("keyvault", metadata.Properties)
 	if err != nil {
 		return err
@@ -86,79 +83,73 @@ func (k *keyvaultCrypto) Init(metadata secretstores.Metadata) error {
 }
 
 // Features returns the features available in this crypto provider.
-func (k *keyvaultCrypto) Features() []crypto.Feature {
-	return []crypto.Feature{} // No Feature supported.
+func (k *keyvaultCrypto) Features() []daprcrypto.Feature {
+	return []daprcrypto.Feature{} // No Feature supported.
 }
 
-func (k *keyvaultCrypto) GetKey(parentCtx context.Context, key string) (pubKey stdcrypto.PublicKey, err error) {
-	timeoutPromise := promise.New(func(_ func(stdcrypto.PublicKey), reject func(error)) {
-		<-parentCtx.Done()
-		reject(parentCtx.Err())
-	})
+// GetKey returns the public part of a key stored in the vault.
+// This method returns an error if the key is symmetric.
+// The key argument can be in the format "name" or "name/version".
+func (k *keyvaultCrypto) GetKey(parentCtx context.Context, key string) (pubKey *daprcrypto.Key, err error) {
+	kid := newKeyID(key)
 
-	// Check if the key is in the cache already
-	k.pubKeysLock.Lock()
-	p, ok := k.pubKeys[key]
-	if ok {
-		k.pubKeysLock.Unlock()
-		return promise.Race(p, timeoutPromise).Await()
+	// If the key is cacheable, get it from the cache
+	if kid.Cacheable() {
+		return k.keyCache.GetKey(parentCtx, key)
 	}
 
-	// Create a new promise, which resolves with a background context
-	p = promise.New(k.getKeyFn(key))
-	p = promise.Catch(p, func(err error) error {
-		k.pubKeysLock.Lock()
-		delete(k.pubKeys, key)
-		k.pubKeysLock.Unlock()
-		return err
-	})
-	k.pubKeys[key] = p
-	k.pubKeysLock.Unlock()
-
-	return promise.Race(p, timeoutPromise).Await()
+	return k.getKeyFromVault(parentCtx, kid)
 }
 
-func (k *keyvaultCrypto) getKeyFn(key string) func(resolve func(stdcrypto.PublicKey), reject func(error)) {
-	return func(resolve func(stdcrypto.PublicKey), reject func(error)) {
-		keyName, keyVersion := k.getKeyNameVersion(key)
+func (k *keyvaultCrypto) getKeyFromVault(parentCtx context.Context, kid keyID) (pubKey *daprcrypto.Key, err error) {
+	ctx, cancel := context.WithTimeout(parentCtx, requestTimeout)
+	res, err := k.vaultClient.GetKey(ctx, kid.Name, kid.Version, nil)
+	cancel()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get key from Key Vault: %w", err)
+	}
 
-		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-		res, err := k.vaultClient.GetKey(ctx, keyName, keyVersion, nil)
-		cancel()
+	return KeyBundleToKey(&res.KeyBundle)
+}
+
+// Handler for the getKeyCacheFn method
+func (k *keyvaultCrypto) getKeyCacheFn(key string) func(resolve func(*daprcrypto.Key), reject func(error)) {
+	kid := newKeyID(key)
+	parentCtx := context.Background()
+	return func(resolve func(*daprcrypto.Key), reject func(error)) {
+		pk, err := k.getKeyFromVault(parentCtx, kid)
 		if err != nil {
-			reject(fmt.Errorf("failed to get key from Key Vault: %w", err))
-			return
-		}
-
-		if res.Key == nil {
-			reject(fmt.Errorf("key not found: %s", key))
-			return
-		}
-
-		pk, err := JSONWebKey{*res.Key}.Public()
-		if err != nil {
-			reject(fmt.Errorf("failed to extract public key as crypto.PublicKey: %w", err))
+			reject(err)
 			return
 		}
 		resolve(pk)
 	}
 }
 
+// Encrypt a small message and returns the ciphertext.
+// The key argument can be in the format "name" or "name/version".
 func (k *keyvaultCrypto) Encrypt(parentCtx context.Context, plaintext []byte, algorithmStr string, key string, nonce []byte, associatedData []byte) (ciphertext []byte, tag []byte, err error) {
+	kid := newKeyID(key)
+
 	algorithm := GetJWKEncryptionAlgorithm(algorithmStr)
 	if algorithm == nil {
 		return nil, nil, fmt.Errorf("invalid algorithm: %s", algorithmStr)
 	}
 
-	// Encrypting with symmetric keys must happen in the vault
-	if !IsAlgorithmAsymmetric(*algorithm) {
-		return k.encryptInVault(parentCtx, plaintext, algorithm, key, nonce, associatedData)
+	// Encrypting with symmetric or non-cacheable keys must happen in the vault
+	if !kid.Cacheable() || !IsAlgorithmAsymmetric(*algorithm) {
+		return k.encryptInVault(parentCtx, plaintext, algorithm, kid, nonce, associatedData)
 	}
 
-	// Using an asymmetric key, we can encrypt the data directly here
-	pk, err := k.GetKey(parentCtx, key)
+	// Using a cacheable, asymmetric key, we can encrypt the data directly here
+	pk, err := k.keyCache.GetKey(parentCtx, key)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to retrieve public key: %w", err)
+	}
+
+	// If the key has expired, we cannot use that to encrypt data
+	if !pk.IsValid() {
+		return nil, nil, errors.New("the key is outside of its time validity bounds")
 	}
 
 	ciphertext, err = internals.EncryptPublicKey(plaintext, algorithmStr, pk, associatedData)
@@ -168,11 +159,9 @@ func (k *keyvaultCrypto) Encrypt(parentCtx context.Context, plaintext []byte, al
 	return ciphertext, nil, nil
 }
 
-func (k *keyvaultCrypto) encryptInVault(parentCtx context.Context, plaintext []byte, algorithm *azkeys.JSONWebKeyEncryptionAlgorithm, key string, nonce []byte, associatedData []byte) (ciphertext []byte, tag []byte, err error) {
-	keyName, keyVersion := k.getKeyNameVersion(key)
-
+func (k *keyvaultCrypto) encryptInVault(parentCtx context.Context, plaintext []byte, algorithm *azkeys.JSONWebKeyEncryptionAlgorithm, kid keyID, nonce []byte, associatedData []byte) (ciphertext []byte, tag []byte, err error) {
 	ctx, cancel := context.WithTimeout(parentCtx, requestTimeout)
-	res, err := k.vaultClient.Encrypt(ctx, keyName, keyVersion, azkeys.KeyOperationsParameters{
+	res, err := k.vaultClient.Encrypt(ctx, kid.Name, kid.Version, azkeys.KeyOperationsParameters{
 		Algorithm: algorithm,
 		Value:     plaintext,
 		IV:        nonce,
@@ -190,8 +179,10 @@ func (k *keyvaultCrypto) encryptInVault(parentCtx context.Context, plaintext []b
 	return res.Result, res.AuthenticationTag, nil
 }
 
+// Decrypt a small message and returns the plaintext.
+// The key argument can be in the format "name" or "name/version".
 func (k *keyvaultCrypto) Decrypt(parentCtx context.Context, ciphertext []byte, algorithmStr string, key string, nonce []byte, tag []byte, associatedData []byte) (plaintext []byte, err error) {
-	keyName, keyVersion := k.getKeyNameVersion(key)
+	kid := newKeyID(key)
 
 	algorithm := GetJWKEncryptionAlgorithm(algorithmStr)
 	if algorithm == nil {
@@ -199,7 +190,7 @@ func (k *keyvaultCrypto) Decrypt(parentCtx context.Context, ciphertext []byte, a
 	}
 
 	ctx, cancel := context.WithTimeout(parentCtx, requestTimeout)
-	res, err := k.vaultClient.Decrypt(ctx, keyName, keyVersion, azkeys.KeyOperationsParameters{
+	res, err := k.vaultClient.Decrypt(ctx, kid.Name, kid.Version, azkeys.KeyOperationsParameters{
 		Algorithm: algorithm,
 		Value:     ciphertext,
 		IV:        nonce,
@@ -218,35 +209,51 @@ func (k *keyvaultCrypto) Decrypt(parentCtx context.Context, ciphertext []byte, a
 	return res.Result, nil
 }
 
-func (k *keyvaultCrypto) WrapKey(parentCtx context.Context, plaintextKey []byte, algorithmStr string, key string, nonce []byte, associatedData []byte) (wrappedKey []byte, tag []byte, err error) {
+// WrapKey wraps a symmetric key.
+// The key argument can be in the format "name" or "name/version".
+func (k *keyvaultCrypto) WrapKey(parentCtx context.Context, plaintextKey jwk.Key, algorithmStr string, key string, nonce []byte, associatedData []byte) (wrappedKey []byte, tag []byte, err error) {
+	// Azure Key Vault does not support wrapping asymmetric keys
+	if plaintextKey.KeyType() != jwa.OctetSeq {
+		return nil, nil, errors.New("cannot wrap asymmetric keys")
+	}
+	plaintext, err := internals.SerializeKey(plaintextKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot serialize key: %w", err)
+	}
+
+	kid := newKeyID(key)
+
 	algorithm := GetJWKEncryptionAlgorithm(algorithmStr)
 	if algorithm == nil {
 		return nil, nil, fmt.Errorf("invalid algorithm: %s", algorithmStr)
 	}
 
-	// Encrypting with symmetric keys must happen in the vault
-	if !IsAlgorithmAsymmetric(*algorithm) {
-		return k.wrapKeyInVault(parentCtx, plaintextKey, algorithm, key, nonce, associatedData)
+	// Encrypting with symmetric or non-cacheable keys must happen in the vault
+	if !kid.Cacheable() || !IsAlgorithmAsymmetric(*algorithm) {
+		return k.wrapKeyInVault(parentCtx, plaintext, algorithm, kid, nonce, associatedData)
 	}
 
-	// Using an asymmetric key, we can encrypt the data directly here
-	pk, err := k.GetKey(parentCtx, key)
+	// Using a cacheable, asymmetric key, we can encrypt the data directly here
+	pk, err := k.keyCache.GetKey(parentCtx, key)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to retrieve public key: %w", err)
 	}
 
-	wrappedKey, err = internals.EncryptPublicKey(plaintextKey, algorithmStr, pk, associatedData)
+	// If the key has expired, we cannot use that to encrypt data
+	if !pk.IsValid() {
+		return nil, nil, errors.New("the key is outside of its time validity bounds")
+	}
+
+	wrappedKey, err = internals.EncryptPublicKey(plaintext, algorithmStr, pk, associatedData)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to wrap key: %w", err)
 	}
 	return wrappedKey, nil, nil
 }
 
-func (k *keyvaultCrypto) wrapKeyInVault(parentCtx context.Context, plaintextKey []byte, algorithm *azkeys.JSONWebKeyEncryptionAlgorithm, key string, nonce []byte, associatedData []byte) (wrappedKey []byte, tag []byte, err error) {
-	keyName, keyVersion := k.getKeyNameVersion(key)
-
+func (k *keyvaultCrypto) wrapKeyInVault(parentCtx context.Context, plaintextKey []byte, algorithm *azkeys.JSONWebKeyEncryptionAlgorithm, kid keyID, nonce []byte, associatedData []byte) (wrappedKey []byte, tag []byte, err error) {
 	ctx, cancel := context.WithTimeout(parentCtx, requestTimeout)
-	res, err := k.vaultClient.WrapKey(ctx, keyName, keyVersion, azkeys.KeyOperationsParameters{
+	res, err := k.vaultClient.WrapKey(ctx, kid.Name, kid.Version, azkeys.KeyOperationsParameters{
 		Algorithm: algorithm,
 		Value:     plaintextKey,
 		IV:        nonce,
@@ -264,8 +271,10 @@ func (k *keyvaultCrypto) wrapKeyInVault(parentCtx context.Context, plaintextKey 
 	return res.Result, res.AuthenticationTag, nil
 }
 
-func (k *keyvaultCrypto) UnwrapKey(parentCtx context.Context, wrappedKey []byte, algorithmStr string, key string, nonce []byte, tag []byte, associatedData []byte) (plaintextKey []byte, err error) {
-	keyName, keyVersion := k.getKeyNameVersion(key)
+// UnwrapKey unwraps a key.
+// The key argument can be in the format "name" or "name/version".
+func (k *keyvaultCrypto) UnwrapKey(parentCtx context.Context, wrappedKey []byte, algorithmStr string, key string, nonce []byte, tag []byte, associatedData []byte) (plaintextKey jwk.Key, err error) {
+	kid := newKeyID(key)
 
 	algorithm := GetJWKEncryptionAlgorithm(algorithmStr)
 	if algorithm == nil {
@@ -273,7 +282,7 @@ func (k *keyvaultCrypto) UnwrapKey(parentCtx context.Context, wrappedKey []byte,
 	}
 
 	ctx, cancel := context.WithTimeout(parentCtx, requestTimeout)
-	res, err := k.vaultClient.UnwrapKey(ctx, keyName, keyVersion, azkeys.KeyOperationsParameters{
+	res, err := k.vaultClient.UnwrapKey(ctx, kid.Name, kid.Version, azkeys.KeyOperationsParameters{
 		Algorithm: algorithm,
 		Value:     wrappedKey,
 		IV:        nonce,
@@ -289,11 +298,19 @@ func (k *keyvaultCrypto) UnwrapKey(parentCtx context.Context, wrappedKey []byte,
 		return nil, errors.New("response from Key Vault does not contain a valid unwrapped key")
 	}
 
-	return res.Result, nil
+	// Key Vault allows wrapping/unwrapping only symmetric keys, so no need to try and decode an ASN.1 DER-encoded sequence
+	keyObj, err := jwk.FromRaw(res.Result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create JWK from raw key: %w", err)
+	}
+
+	return keyObj, nil
 }
 
+// Sign a digest.
+// The key argument can be in the format "name" or "name/version".
 func (k *keyvaultCrypto) Sign(parentCtx context.Context, digest []byte, algorithmStr string, key string) (signature []byte, err error) {
-	keyName, keyVersion := k.getKeyNameVersion(key)
+	kid := newKeyID(key)
 
 	algorithm := GetJWKSignatureAlgorithm(algorithmStr)
 	if algorithm == nil {
@@ -301,7 +318,7 @@ func (k *keyvaultCrypto) Sign(parentCtx context.Context, digest []byte, algorith
 	}
 
 	ctx, cancel := context.WithTimeout(parentCtx, requestTimeout)
-	res, err := k.vaultClient.Sign(ctx, keyName, keyVersion, azkeys.SignParameters{
+	res, err := k.vaultClient.Sign(ctx, kid.Name, kid.Version, azkeys.SignParameters{
 		Algorithm: algorithm,
 		Value:     digest,
 	}, nil)
@@ -317,19 +334,23 @@ func (k *keyvaultCrypto) Sign(parentCtx context.Context, digest []byte, algorith
 	return res.Result, nil
 }
 
+// Verify a signature.
+// The key argument can be in the format "name" or "name/version".
 func (k *keyvaultCrypto) Verify(parentCtx context.Context, digest []byte, signature []byte, algorithmStr string, key string) (valid bool, err error) {
+	kid := newKeyID(key)
+
 	algorithm := GetJWKSignatureAlgorithm(algorithmStr)
 	if algorithm == nil {
 		return false, fmt.Errorf("invalid algorithm: %s", algorithmStr)
 	}
 
-	// Encrypting with symmetric keys must happen in the vault
-	if !IsAlgorithmAsymmetric(*algorithm) {
-		return k.verifyInVault(parentCtx, digest, signature, algorithm, key)
+	// Verifying with non-cacheable keys must happen in the vault
+	if !kid.Cacheable() {
+		return k.verifyInVault(parentCtx, digest, signature, algorithm, kid)
 	}
 
-	// Using an asymmetric key, we can encrypt the data directly here
-	pk, err := k.GetKey(parentCtx, key)
+	// Using a cacheable, asymmetric key, we can verify the data directly here
+	pk, err := k.keyCache.GetKey(parentCtx, key)
 	if err != nil {
 		return false, fmt.Errorf("failed to retrieve public key: %w", err)
 	}
@@ -341,11 +362,9 @@ func (k *keyvaultCrypto) Verify(parentCtx context.Context, digest []byte, signat
 	return valid, nil
 }
 
-func (k *keyvaultCrypto) verifyInVault(parentCtx context.Context, digest []byte, signature []byte, algorithm *azkeys.JSONWebKeySignatureAlgorithm, key string) (valid bool, err error) {
-	keyName, keyVersion := k.getKeyNameVersion(key)
-
+func (k *keyvaultCrypto) verifyInVault(parentCtx context.Context, digest []byte, signature []byte, algorithm *azkeys.JSONWebKeySignatureAlgorithm, kid keyID) (valid bool, err error) {
 	ctx, cancel := context.WithTimeout(parentCtx, requestTimeout)
-	res, err := k.vaultClient.Verify(ctx, keyName, keyVersion, azkeys.VerifyParameters{
+	res, err := k.vaultClient.Verify(ctx, kid.Name, kid.Version, azkeys.VerifyParameters{
 		Algorithm: algorithm,
 		Digest:    digest,
 		Signature: signature,
@@ -367,15 +386,30 @@ func (k *keyvaultCrypto) getVaultURI() string {
 	return fmt.Sprintf("https://%s.%s", k.vaultName, k.vaultDNSSuffix)
 }
 
-// getKeyNameVersion returns the key name and optional version from the key parameter.
-func (k *keyvaultCrypto) getKeyNameVersion(key string) (keyVersion, keyName string) {
-	idx := strings.IndexRune(key, '/')
+type keyID struct {
+	Version string
+	Name    string
+}
+
+func newKeyID(val string) keyID {
+	obj := keyID{}
+	idx := strings.IndexRune(val, '/')
 	// Can't be on position 0, because the key name must be at least 1 character
 	if idx > 0 {
-		keyVersion = key[idx+1:]
-		keyName = key[:idx]
+		obj.Version = val[idx+1:]
+		obj.Name = val[:idx]
 	} else {
-		keyName = key
+		obj.Name = val
 	}
-	return
+	return obj
+}
+
+// Cacheable returns true if the key can be cached locally.
+func (id keyID) Cacheable() bool {
+	switch strings.ToLower(id.Version) {
+	case "", "latest":
+		return false
+	default:
+		return true
+	}
 }

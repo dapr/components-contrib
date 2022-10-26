@@ -19,10 +19,36 @@ import (
 	"crypto/elliptic"
 	"crypto/rsa"
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys"
+	"github.com/lestrrat-go/jwx/v2/jwk"
+
+	daprcrypto "github.com/dapr/components-contrib/crypto"
 )
+
+// KeyBundleToKey converts an azkeys.KeyBundle object to a daprcrypto.Key one containing the public part of the asymmetric key.
+func KeyBundleToKey(bundle *azkeys.KeyBundle) (*daprcrypto.Key, error) {
+	if bundle == nil ||
+		bundle.Key == nil || bundle.Attributes == nil ||
+		bundle.Attributes.Enabled == nil || *bundle.Attributes.Enabled == false {
+		return nil, errKeyNotFound
+	}
+
+	// Extract the public key and create a jwk.Key from that
+	pk, err := JSONWebKey{*bundle.Key}.Public()
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract public key as crypto.PublicKey: %w", err)
+	}
+	jwkObj, err := jwk.FromRaw(pk)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create jwk.Key: %w", err)
+	}
+
+	// Convert to daprcrypto.Key
+	return daprcrypto.NewKey(jwkObj, bundle.Attributes.Expires, bundle.Attributes.NotBefore), nil
+}
 
 // JSONWebKey extends azkeys.JSONWebKey to add methods to export the key.
 type JSONWebKey struct {
@@ -107,14 +133,4 @@ func IsRSAKey(kt azkeys.JSONWebKeyType) bool {
 // IsECKey returns true if the key is an EC key (EC or EC-HSM).
 func IsECKey(kt azkeys.JSONWebKeyType) bool {
 	return kt == azkeys.JSONWebKeyTypeEC || kt == azkeys.JSONWebKeyTypeECHSM
-}
-
-// IsSymmetricKey returns true if the key is a symmetric key (Oct or OctHSM).
-func IsSymmetricKey(kt azkeys.JSONWebKeyType) bool {
-	return kt == azkeys.JSONWebKeyTypeOct || kt == azkeys.JSONWebKeyTypeOctHSM
-}
-
-// IsAsymmetric returns true if the key type is asymmetric.
-func IsAsymmetric(kt azkeys.JSONWebKeyType) bool {
-	return IsECKey(kt) || IsRSAKey(kt)
 }

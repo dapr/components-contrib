@@ -9,4 +9,4 @@ spec:
   metadata:
   - name: schedule
   # test standard crontab format
-    value: "3 * * * * *"
+    value: "*/3 * * * * *"

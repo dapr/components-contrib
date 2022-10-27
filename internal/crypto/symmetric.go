@@ -16,6 +16,7 @@ package crypto
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"errors"
 
 	"golang.org/x/crypto/chacha20poly1305"
 
@@ -42,11 +43,11 @@ func EncryptSymmetric(plaintext []byte, algorithm string, key []byte, nonce []by
 	}
 }
 
-func encryptSymmetricAESCBC(plaintext []byte, algorithm string, key []byte, nonce []byte) (ciphertext []byte, err error) {
+func encryptSymmetricAESCBC(plaintext []byte, algorithm string, key []byte, iv []byte) (ciphertext []byte, err error) {
 	if len(key) != expectedKeySize(algorithm) {
 		return nil, ErrKeyTypeMismatch
 	}
-	if len(nonce) != aes.BlockSize {
+	if len(iv) != aes.BlockSize {
 		return nil, ErrInvalidNonce
 	}
 
@@ -56,10 +57,30 @@ func encryptSymmetricAESCBC(plaintext []byte, algorithm string, key []byte, nonc
 	}
 
 	ciphertext = make([]byte, len(plaintext))
-	cipher.NewCBCEncrypter(block, nonce).
+	cipher.NewCBCEncrypter(block, iv).
 		CryptBlocks(ciphertext, plaintext)
 
 	return ciphertext, err
+}
+
+func decryptSymmetricAESCBC(ciphertext []byte, algorithm string, key []byte, iv []byte) (plaintext []byte, err error) {
+	if len(key) != expectedKeySize(algorithm) {
+		return nil, ErrKeyTypeMismatch
+	}
+	if len(iv) != aes.BlockSize {
+		return nil, ErrInvalidNonce
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, ErrKeyTypeMismatch
+	}
+
+	plaintext = make([]byte, len(ciphertext))
+	cipher.NewCBCDecrypter(block, iv).
+		CryptBlocks(plaintext, ciphertext)
+
+	return plaintext, err
 }
 
 func encryptSymmetricAESGCM(plaintext []byte, algorithm string, key []byte, nonce []byte, associatedData []byte) (ciphertext []byte, tag []byte, err error) {
@@ -72,19 +93,47 @@ func encryptSymmetricAESGCM(plaintext []byte, algorithm string, key []byte, nonc
 		return nil, nil, ErrKeyTypeMismatch
 	}
 
-	aesgcm, err := cipher.NewGCM(block)
+	aead, err := cipher.NewGCM(block)
 	if err != nil {
 		return nil, nil, ErrKeyTypeMismatch
 	}
 
-	if len(nonce) != aesgcm.NonceSize() {
+	if len(nonce) != aead.NonceSize() {
 		return nil, nil, ErrInvalidNonce
 	}
 
+	out := aead.Seal(nil, nonce, plaintext, associatedData)
 	// Tag is added at the end
-	out := aesgcm.Seal(nil, nonce, plaintext, associatedData)
-	tagSize := aesgcm.Overhead()
+	tagSize := aead.Overhead()
 	return out[0 : len(out)-tagSize], out[len(out)-tagSize:], nil
+}
+
+func decryptSymmetricAESGCM(ciphertext []byte, algorithm string, key []byte, nonce []byte, tag []byte, associatedData []byte) (plaintext []byte, err error) {
+	if len(key) != expectedKeySize(algorithm) {
+		return nil, ErrKeyTypeMismatch
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, ErrKeyTypeMismatch
+	}
+
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, ErrKeyTypeMismatch
+	}
+
+	if len(nonce) != aead.NonceSize() {
+		return nil, ErrInvalidNonce
+	}
+
+	if len(tag) != aead.Overhead() {
+		return nil, ErrInvalidTag
+	}
+
+	// Add the tag at the end of the ciphertext
+	ciphertext = append(ciphertext, tag...)
+	return aead.Open(nil, nonce, ciphertext, associatedData)
 }
 
 func encryptSymmetricAESKW(plaintext []byte, algorithm string, key []byte) (ciphertext []byte, err error) {
@@ -97,11 +146,20 @@ func encryptSymmetricAESKW(plaintext []byte, algorithm string, key []byte) (ciph
 		return nil, ErrKeyTypeMismatch
 	}
 
-	ciphertext, err = aeskw.Wrap(block, plaintext)
-	if err != nil {
-		return nil, err
+	return aeskw.Wrap(block, plaintext)
+}
+
+func decryptSymmetricAESKW(ciphertext []byte, algorithm string, key []byte) (plaintext []byte, err error) {
+	if len(key) != expectedKeySize(algorithm) {
+		return nil, ErrKeyTypeMismatch
 	}
-	return ciphertext, nil
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, ErrKeyTypeMismatch
+	}
+
+	return aeskw.Unwrap(block, ciphertext)
 }
 
 func encryptSymmetricChaCha20Poly1305(plaintext []byte, algorithm string, key []byte, nonce []byte, associatedData []byte) (ciphertext []byte, tag []byte, err error) {
@@ -109,32 +167,53 @@ func encryptSymmetricChaCha20Poly1305(plaintext []byte, algorithm string, key []
 		return nil, nil, ErrKeyTypeMismatch
 	}
 
-	var aead cipher.AEAD
-	switch algorithm {
-	case Algorithm_C20P:
-		aead, err = chacha20poly1305.New(key)
-		if err != nil {
-			return nil, nil, ErrKeyTypeMismatch
-		}
-
-		if len(nonce) != chacha20poly1305.NonceSize {
-			return nil, nil, ErrInvalidNonce
-		}
-
-	case Algorithm_XC20P:
-		aead, err = chacha20poly1305.NewX(key)
-		if err != nil {
-			return nil, nil, ErrKeyTypeMismatch
-		}
-
-		if len(nonce) != chacha20poly1305.NonceSizeX {
-			return nil, nil, ErrInvalidNonce
-		}
+	aead, err := getChaCha20Poly1305Cipher(algorithm, key, nonce)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	// Tag is added at the end
 	out := aead.Seal(nil, nonce, plaintext, associatedData)
 	return out[0 : len(out)-chacha20poly1305.Overhead], out[len(out)-chacha20poly1305.Overhead:], nil
+}
+
+func decryptSymmetricChaCha20Poly1305(ciphertext []byte, algorithm string, key []byte, nonce []byte, tag []byte, associatedData []byte) (plaintext []byte, err error) {
+	if len(key) != chacha20poly1305.KeySize {
+		return nil, ErrKeyTypeMismatch
+	}
+
+	aead, err := getChaCha20Poly1305Cipher(algorithm, key, nonce)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(tag) != aead.Overhead() {
+		return nil, ErrInvalidTag
+	}
+
+	// Add the tag at the end of the ciphertext
+	ciphertext = append(ciphertext, tag...)
+	return aead.Open(nil, nonce, ciphertext, associatedData)
+}
+
+func getChaCha20Poly1305Cipher(algorithm string, key []byte, nonce []byte) (aead cipher.AEAD, err error) {
+	switch algorithm {
+	case Algorithm_C20P:
+		aead, err = chacha20poly1305.New(key)
+		if err == nil && len(nonce) != chacha20poly1305.NonceSize {
+			err = ErrInvalidNonce
+		}
+		return
+
+	case Algorithm_XC20P:
+		aead, err = chacha20poly1305.NewX(key)
+		if err == nil && len(nonce) != chacha20poly1305.NonceSizeX {
+			err = ErrInvalidNonce
+		}
+		return
+	}
+
+	return nil, errors.New("invalid algorithm")
 }
 
 func expectedKeySize(alg string) int {

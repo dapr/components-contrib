@@ -25,6 +25,8 @@ var (
 	ErrKeyTypeMismatch = errors.New("key type mismatch")
 	// ErrInvalidNonce is returned when the nonce isn't valid for the requested operation.
 	ErrInvalidNonce = errors.New("invalid nonce")
+	// ErrInvalidTag is returned when the authentication tag is not of the required format (before the message is attempted to be opened).
+	ErrInvalidTag = errors.New("invalid tag")
 )
 
 // Algorithms

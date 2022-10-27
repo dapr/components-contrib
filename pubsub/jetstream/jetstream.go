@@ -115,6 +115,31 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 		opts = append(opts, nats.EnableFlowControl())
 	}
 
+	if js.meta.ackWait != 0 {
+		opts = append(opts, nats.AckWait(js.meta.ackWait))
+	}
+	if js.meta.maxDeliver != 0 {
+		opts = append(opts, nats.MaxDeliver(js.meta.maxDeliver))
+	}
+	if len(js.meta.backOff) != 0 {
+		opts = append(opts, nats.BackOff(js.meta.backOff))
+	}
+	if js.meta.maxAckPending != 0 {
+		opts = append(opts, nats.MaxAckPending(js.meta.maxAckPending))
+	}
+	if js.meta.replicas != 0 {
+		opts = append(opts, nats.ConsumerReplicas(js.meta.replicas))
+	}
+	if js.meta.memoryStorage {
+		opts = append(opts, nats.ConsumerMemoryStorage())
+	}
+	if js.meta.rateLimit != 0 {
+		opts = append(opts, nats.RateLimit(js.meta.rateLimit))
+	}
+	if js.meta.hearbeat != 0 {
+		opts = append(opts, nats.IdleHeartbeat(js.meta.hearbeat))
+	}
+
 	natsHandler := func(m *nats.Msg) {
 		jsm, err := m.Metadata()
 		if err != nil {

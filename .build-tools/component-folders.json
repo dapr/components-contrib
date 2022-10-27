@@ -22,6 +22,7 @@
         "configuration/redis/internal",
         "pubsub/aws",
         "pubsub/azure",
+        "pubsub/azure/servicebus",
         "pubsub/gcp",
         "secretstores/alicloud",
         "secretstores/aws",

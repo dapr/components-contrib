@@ -26,33 +26,25 @@ import (
 	daprcrypto "github.com/dapr/components-contrib/crypto"
 )
 
-// Errors
-var (
-	// ErrUnsupportedAlgorithm is returned when the algorithm is unsupported.
-	ErrUnsupportedAlgorithm = errors.New("unsupported algorithm")
-	// ErrKeyTypeMismatch is returned when the key type doesn't match the requested algorithm.
-	ErrKeyTypeMismatch = errors.New("key type mismatch")
-)
-
 // EncryptPublicKey encrypts a message using a public key and the specified algorithm.
 // Note that "associatedData" is ignored if the cipher does not support labels/AAD.
 func EncryptPublicKey(plaintext []byte, algorithm string, key *daprcrypto.Key, associatedData []byte) (ciphertext []byte, err error) {
 	switch algorithm {
-	case "RSA1_5":
+	case Algorithm_RSA1_5:
 		var rsaKey *rsa.PublicKey
 		if key.Raw(rsaKey) != nil {
 			return nil, ErrKeyTypeMismatch
 		}
 		return rsa.EncryptPKCS1v15(rand.Reader, rsaKey, plaintext)
 
-	case "RSA-OAEP":
+	case Algorithm_RSA_OAEP:
 		var rsaKey *rsa.PublicKey
 		if key.Raw(rsaKey) != nil {
 			return nil, ErrKeyTypeMismatch
 		}
 		return rsa.EncryptOAEP(crypto.SHA1.New(), rand.Reader, rsaKey, plaintext, associatedData)
 
-	case "RSA-OAEP-256", "RSA-OAEP-384", "RSA-OAEP-512":
+	case Algorithm_RSA_OAEP_256, Algorithm_RSA_OAEP_384, Algorithm_RSA_OAEP_512:
 		var rsaKey *rsa.PublicKey
 		if key.Raw(rsaKey) != nil {
 			return nil, ErrKeyTypeMismatch
@@ -64,10 +56,73 @@ func EncryptPublicKey(plaintext []byte, algorithm string, key *daprcrypto.Key, a
 	}
 }
 
-// EncryptPublicKey validates a signature using a public key and the specified algorithm.
+// DecryptPrivateKey decrypts a message using a private key and the specified algorithm.
+// Note that "associatedData" is ignored if the cipher does not support labels/AAD.
+func DecryptPrivateKey(ciphertext []byte, algorithm string, key jwk.Key, associatedData []byte) (plaintext []byte, err error) {
+	switch algorithm {
+	case Algorithm_RSA1_5:
+		var rsaKey *rsa.PrivateKey
+		if key.Raw(rsaKey) != nil {
+			return nil, ErrKeyTypeMismatch
+		}
+		return rsa.DecryptPKCS1v15(rand.Reader, rsaKey, ciphertext)
+
+	case Algorithm_RSA_OAEP:
+		var rsaKey *rsa.PrivateKey
+		if key.Raw(rsaKey) != nil {
+			return nil, ErrKeyTypeMismatch
+		}
+		return rsa.DecryptOAEP(crypto.SHA1.New(), rand.Reader, rsaKey, ciphertext, associatedData)
+
+	case Algorithm_RSA_OAEP_256, Algorithm_RSA_OAEP_384, Algorithm_RSA_OAEP_512:
+		var rsaKey *rsa.PrivateKey
+		if key.Raw(rsaKey) != nil {
+			return nil, ErrKeyTypeMismatch
+		}
+		return rsa.DecryptOAEP(getSHAHash(algorithm).New(), rand.Reader, rsaKey, ciphertext, associatedData)
+
+	default:
+		return nil, ErrUnsupportedAlgorithm
+	}
+}
+
+// SignPrivateKey creates a signature from a digest using a private key and the specified algorithm.
+func SignPrivateKey(digest []byte, algorithm string, key jwk.Key) (signature []byte, err error) {
+	switch algorithm {
+	case Algorithm_RS256, Algorithm_RS384, Algorithm_RS512:
+		var rsaKey *rsa.PrivateKey
+		if key.Raw(rsaKey) != nil {
+			return nil, ErrKeyTypeMismatch
+		}
+		return rsa.SignPKCS1v15(rand.Reader, rsaKey, getSHAHash(algorithm), digest)
+
+	case Algorithm_PS256, Algorithm_PS384, Algorithm_PS512:
+		var rsaKey *rsa.PrivateKey
+		if key.Raw(rsaKey) != nil {
+			return nil, ErrKeyTypeMismatch
+		}
+		return rsa.SignPSS(rand.Reader, rsaKey, getSHAHash(algorithm), digest, nil)
+
+	case Algorithm_ES256, Algorithm_ES384, Algorithm_ES512:
+		var ecdsaKey *ecdsa.PrivateKey
+		if key.Raw(ecdsaKey) != nil {
+			return nil, ErrKeyTypeMismatch
+		}
+		r, s, err := ecdsa.Sign(rand.Reader, ecdsaKey, digest)
+		if err != nil {
+			return nil, err
+		}
+		return append(r.Bytes(), s.Bytes()...), nil
+
+	default:
+		return nil, ErrUnsupportedAlgorithm
+	}
+}
+
+// VerifyPublicKey validates a signature using a public key and the specified algorithm.
 func VerifyPublicKey(digest []byte, signature []byte, algorithm string, key jwk.Key) (valid bool, err error) {
 	switch algorithm {
-	case "RS256", "RS384", "RS512":
+	case Algorithm_RS256, Algorithm_RS384, Algorithm_RS512:
 		var rsaKey *rsa.PublicKey
 		if key.Raw(rsaKey) != nil {
 			return false, ErrKeyTypeMismatch
@@ -81,7 +136,7 @@ func VerifyPublicKey(digest []byte, signature []byte, algorithm string, key jwk.
 		}
 		return true, nil
 
-	case "PS256", "PS384", "PS512":
+	case Algorithm_PS256, Algorithm_PS384, Algorithm_PS512:
 		var rsaKey *rsa.PublicKey
 		if key.Raw(rsaKey) != nil {
 			return false, ErrKeyTypeMismatch
@@ -95,7 +150,7 @@ func VerifyPublicKey(digest []byte, signature []byte, algorithm string, key jwk.
 		}
 		return true, nil
 
-	case "ES256", "ES384", "ES512":
+	case Algorithm_ES256, Algorithm_ES384, Algorithm_ES512:
 		var ecdsaKey *ecdsa.PublicKey
 		if key.Raw(ecdsaKey) != nil {
 			return false, ErrKeyTypeMismatch
@@ -108,6 +163,28 @@ func VerifyPublicKey(digest []byte, signature []byte, algorithm string, key jwk.
 		s.SetBytes(signature[n:])
 
 		return ecdsa.Verify(ecdsaKey, digest, r, s), nil
+
+	// Currently disabled because EdDSA requires a non-pre-hashed message
+	/*case "EdDSA":
+	if key.KeyType() != jwa.OKP {
+		return false, ErrKeyTypeMismatch
+	}
+	okpKey, ok := key.(jwk.OKPPrivateKey)
+	if !ok {
+		return false, ErrKeyTypeMismatch
+	}
+	switch okpKey.Crv() {
+	case jwa.Ed25519:
+		var ed25519Key *ed25519.PrivateKey
+		if okpKey.Raw(ed25519Key) != nil {
+			return false, ErrKeyTypeMismatch
+		}
+
+		return ed25519Key.Sign()
+	default:
+		return false, ErrKeyTypeMismatch
+	}*/
+
 	default:
 		return false, ErrUnsupportedAlgorithm
 	}

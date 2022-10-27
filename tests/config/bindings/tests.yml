@@ -7,7 +7,12 @@
 ## method: specific to http component, what method to use
 componentType: bindings
 components:
-  - component: redis
+  - component: redis.v6
+    operations: ["create", "operations"]
+    config:
+      output:
+        key: $((uuid))
+  - component: redis.v7
     operations: ["create", "operations"]
     config:
       output:

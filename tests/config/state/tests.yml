@@ -1,8 +1,11 @@
 # Supported operations: set, get, delete, bulkset, bulkdelete, transaction, etag, first-write, query
 componentType: state
 components:
-  - component: redis
+  - component: redis.v6
     allOperations: true
+  - component: redis.v7
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "first-write" ]
   - component: mongodb
     allOperations: true
   - component: memcached

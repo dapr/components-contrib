@@ -89,7 +89,8 @@ import (
 
 const (
 	eventhubs    = "azure.eventhubs"
-	redis        = "redis"
+	redisv6      = "redis.v6"
+	redisv7      = "redis.v7"
 	kafka        = "kafka"
 	mqtt         = "mqtt"
 	generateUUID = "$((uuid))"
@@ -371,7 +372,9 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 func loadPubSub(tc TestComponent) pubsub.PubSub {
 	var pubsub pubsub.PubSub
 	switch tc.Component {
-	case redis:
+	case redisv6:
+		pubsub = p_redis.NewRedisStreams(testLogger)
+	case redisv7:
 		pubsub = p_redis.NewRedisStreams(testLogger)
 	case eventhubs:
 		pubsub = p_eventhubs.NewAzureEventHubs(testLogger)
@@ -429,7 +432,9 @@ func loadSecretStore(tc TestComponent) secretstores.SecretStore {
 func loadStateStore(tc TestComponent) state.Store {
 	var store state.Store
 	switch tc.Component {
-	case redis:
+	case redisv6:
+		store = s_redis.NewRedisStateStore(testLogger)
+	case redisv7:
 		store = s_redis.NewRedisStateStore(testLogger)
 	case "azure.blobstorage":
 		store = s_blobstorage.NewAzureBlobStorageStore(testLogger)
@@ -468,7 +473,9 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 	var binding bindings.OutputBinding
 
 	switch tc.Component {
-	case redis:
+	case redisv6:
+		binding = b_redis.NewRedis(testLogger)
+	case redisv7:
 		binding = b_redis.NewRedis(testLogger)
 	case "azure.blobstorage":
 		binding = b_azure_blobstorage.NewAzureBlobStorage(testLogger)

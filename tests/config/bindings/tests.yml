@@ -33,12 +33,14 @@ components:
     operations: ["create", "operations", "read"]
   - component: azure.servicebusqueues
     operations: ["create", "operations", "read"]
+  - component: cron
+    operations: ["operations", "read", "delete"]
   - component: kafka
     profile: wurstmeister
     operations: ["create", "operations"]
   - component: kafka
     profile: confluent
-    operations: ["create", "operations"]    
+    operations: ["create", "operations"]
   - component: http
     operations: ["create", "operations"]
     config:

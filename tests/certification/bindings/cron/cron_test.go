@@ -49,17 +49,17 @@ func TestCronBinding(t *testing.T) {
 	// Test Frequent Trigger
 	application := func(ctx flow.Context, s common.Service) error {
 		// For cron component with trigger @every 1s, check if the app is invoked 10 times within 10 seconds
-		counter := 10
+		pending := 10
 		cronContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 
 		// Setup the input binding endpoint
 		err := s.AddBindingInvocationHandler("cron", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
 			ctx.Logf("Cron triggered at %s", time.Now().String())
 			log.Printf("Cron triggered at %s", time.Now().String())
-			counter--
+			pending--
 			select {
 			case <-cronContext.Done():
-				if counter > 0 {
+				if pending > 0 {
 					require.NoError(t, cronContext.Err(), "Cron failed to trigger within deadline.")
 					cancel()
 					return nil, cronContext.Err()
@@ -99,7 +99,7 @@ func TestCronBinding(t *testing.T) {
 		Run()
 
 	// Test app restart
-	counter := 3
+	pending := 3
 	cronContext, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	application3s := func(ctx flow.Context, s common.Service) error {
 		// For cron component with trigger @every 3s, check if the app is invoked correctly after app restart
@@ -108,10 +108,10 @@ func TestCronBinding(t *testing.T) {
 		err := s.AddBindingInvocationHandler("cron3s", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
 			ctx.Logf("Cron triggered at %s", time.Now().String())
 			log.Printf("Cron triggered at %s", time.Now().String())
-			counter--
+			pending--
 			select {
 			case <-cronContext.Done():
-				if counter > 0 {
+				if pending > 0 {
 					require.NoError(t, cronContext.Err(), "Cron failed to trigger within deadline.")
 					cancel()
 					return nil, cronContext.Err()
@@ -143,7 +143,7 @@ func TestCronBinding(t *testing.T) {
 		Run()
 
 	// Test sidecar restart
-	counter = 3
+	pending = 3
 	cronContext, cancel = context.WithTimeout(context.Background(), 15*time.Second)
 	application3s = func(ctx flow.Context, s common.Service) error {
 		// For cron component with trigger @every 3s, check if the app is invoked correctly after sidecar restart
@@ -152,10 +152,10 @@ func TestCronBinding(t *testing.T) {
 		err := s.AddBindingInvocationHandler("cron3s", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
 			ctx.Logf("Cron triggered at %s", time.Now().String())
 			log.Printf("Cron triggered at %s", time.Now().String())
-			counter--
+			pending--
 			select {
 			case <-cronContext.Done():
-				if counter > 0 {
+				if pending > 0 {
 					require.NoError(t, cronContext.Err(), "Cron failed to trigger within deadline.")
 					cancel()
 					return nil, cronContext.Err()

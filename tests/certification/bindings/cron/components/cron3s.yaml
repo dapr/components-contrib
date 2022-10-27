@@ -8,4 +8,5 @@ spec:
   version: v1
   metadata:
   - name: schedule
-    value: "@every 3s"
+  # test standard crontab format
+    value: "3 * * * * *"

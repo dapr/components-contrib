@@ -40,7 +40,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 )
 
-func TestCronBinding(t *testing.T) {
+func TestCronBindingFrequentTrigger(t *testing.T) {
 	ports, _ := dapr_testing.GetFreePorts(3)
 	grpcPort := ports[0]
 	httpPort := ports[1]
@@ -97,7 +97,13 @@ func TestCronBinding(t *testing.T) {
 		Step("stop sidecar", sidecar.Stop("cron-sidecar")).
 		Step("stop app", app.Stop("cronapp")).
 		Run()
+}
 
+func TestCronBindingWithAppRestart(t *testing.T) {
+	ports, _ := dapr_testing.GetFreePorts(3)
+	grpcPort := ports[0]
+	httpPort := ports[1]
+	appPort := ports[2]
 	// Test app restart
 	pending := 3
 	cronContext, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -141,11 +147,17 @@ func TestCronBinding(t *testing.T) {
 		Step("stop sidecar", sidecar.Stop("cron-sidecar3s")).
 		Step("stop app", app.Stop("cronapp3s")).
 		Run()
+}
 
+func TestCronBindingWithSidecarRestart(t *testing.T) {
+	ports, _ := dapr_testing.GetFreePorts(3)
+	grpcPort := ports[0]
+	httpPort := ports[1]
+	appPort := ports[2]
 	// Test sidecar restart
-	pending = 3
-	cronContext, cancel = context.WithTimeout(context.Background(), 15*time.Second)
-	application3s = func(ctx flow.Context, s common.Service) error {
+	pending := 3
+	cronContext, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	application3s := func(ctx flow.Context, s common.Service) error {
 		// For cron component with trigger @every 3s, check if the app is invoked correctly after sidecar restart
 
 		// Setup the input binding endpoint

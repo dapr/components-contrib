@@ -105,17 +105,31 @@ func encryptSymmetricAESKW(plaintext []byte, algorithm string, key []byte) (ciph
 }
 
 func encryptSymmetricChaCha20Poly1305(plaintext []byte, algorithm string, key []byte, nonce []byte, associatedData []byte) (ciphertext []byte, tag []byte, err error) {
-	if len(key) != expectedKeySize(algorithm) {
+	if len(key) != chacha20poly1305.KeySize {
 		return nil, nil, ErrKeyTypeMismatch
 	}
 
-	aead, err := chacha20poly1305.New(key)
-	if err != nil {
-		return nil, nil, ErrKeyTypeMismatch
-	}
+	var aead cipher.AEAD
+	switch algorithm {
+	case Algorithm_C20P:
+		aead, err = chacha20poly1305.New(key)
+		if err != nil {
+			return nil, nil, ErrKeyTypeMismatch
+		}
 
-	if len(nonce) != chacha20poly1305.NonceSize {
-		return nil, nil, ErrInvalidNonce
+		if len(nonce) != chacha20poly1305.NonceSize {
+			return nil, nil, ErrInvalidNonce
+		}
+
+	case Algorithm_XC20P:
+		aead, err = chacha20poly1305.NewX(key)
+		if err != nil {
+			return nil, nil, ErrKeyTypeMismatch
+		}
+
+		if len(nonce) != chacha20poly1305.NonceSizeX {
+			return nil, nil, ErrInvalidNonce
+		}
 	}
 
 	// Tag is added at the end

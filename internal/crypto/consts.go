@@ -29,25 +29,29 @@ var (
 
 // Algorithms
 const (
-	Algorithm_A128CBC        = "A128CBC"        // Encryption: AES-CBC 128-bit
-	Algorithm_A192CBC        = "A192CBC"        // Encryption: AES-CBC 192-bit
-	Algorithm_A256CBC        = "A256CBC"        // Encryption: AES-CBC 256-bit
-	Algorithm_A128GCM        = "A128GCM"        // Encryption: AES-GCM 128-bit
-	Algorithm_A192GCM        = "A192GCM"        // Encryption: AES-GCM 192-bit
-	Algorithm_A256GCM        = "A256GCM"        // Encryption: AES-GCM 256-bit
-	Algorithm_A128CBC_HS256  = "A128CBC-HS256"  // Encryption: AES-CBC + HMAC-SHA256 128-bit
-	Algorithm_A192CBC_HS384  = "A192CBC-HS384"  // Encryption: AES-CBC + HMAC-SHA384 192-bit
-	Algorithm_A256CBC_HS512  = "A256CBC-HS512"  // Encryption: AES-CBC + HMAC-SHA512 256-bit
-	Algorithm_A128KW         = "A128KW"         // Encryption: AES Key Wrap (RFC 3394) 128-bit
-	Algorithm_A192KW         = "A192KW"         // Encryption: AES Key Wrap (RFC 3394) 192-bit
-	Algorithm_A256KW         = "A256KW"         // Encryption: AES Key Wrap (RFC 3394) 256-bit
-	Algorithm_A128GCMKW      = "A128GCMKW"      // Encryption: AES-GCM key wrap 128-bit
-	Algorithm_A192GCMKW      = "A192GCMKW"      // Encryption: AES-GCM key wrap 192-bit
-	Algorithm_A256GCMKW      = "A256GCMKW"      // Encryption: AES-GCM key wrap 256-bit
+	Algorithm_A128CBC        = "A128CBC"        // Encryption: AES-CBC, 128-bit key
+	Algorithm_A192CBC        = "A192CBC"        // Encryption: AES-CBC, 192-bit key
+	Algorithm_A256CBC        = "A256CBC"        // Encryption: AES-CBC, 256-bit key
+	Algorithm_A128GCM        = "A128GCM"        // Encryption: AES-GCM, 128-bit key
+	Algorithm_A192GCM        = "A192GCM"        // Encryption: AES-GCM, 192-bit key
+	Algorithm_A256GCM        = "A256GCM"        // Encryption: AES-GCM, 256-bit key
+	Algorithm_A128CBC_HS256  = "A128CBC-HS256"  // Encryption: AES-CBC + HMAC-SHA256, 128-bit key
+	Algorithm_A192CBC_HS384  = "A192CBC-HS384"  // Encryption: AES-CBC + HMAC-SHA384, 192-bit key
+	Algorithm_A256CBC_HS512  = "A256CBC-HS512"  // Encryption: AES-CBC + HMAC-SHA512, 256-bit key
+	Algorithm_A128KW         = "A128KW"         // Encryption: AES Key Wrap (RFC 3394), 128-bit key
+	Algorithm_A192KW         = "A192KW"         // Encryption: AES Key Wrap (RFC 3394), 192-bit key
+	Algorithm_A256KW         = "A256KW"         // Encryption: AES Key Wrap (RFC 3394), 256-bit key
+	Algorithm_A128GCMKW      = "A128GCMKW"      // Encryption: AES-GCM key wrap, 128-bit key
+	Algorithm_A192GCMKW      = "A192GCMKW"      // Encryption: AES-GCM key wrap, 192-bit key
+	Algorithm_A256GCMKW      = "A256GCMKW"      // Encryption: AES-GCM key wrap, 256-bit key
+	Algorithm_C20P           = "C20P"           // Encryption: ChaCha20-Poly1305, 96-bit IV
+	Algorithm_XC20P          = "XC20P"          // Encryption: XChaCha20-Poly1305, 192-bit IV
+	Algorithm_C20PKW         = "C20PKW"         // Encryption: ChaCha20-Poly1305 key wrap, 96-bit IV
+	Algorithm_XC20PKW        = "XC20PKW"        // Encryption: XChaCha20-Poly1305 key wrap, 192-bit IV
 	Algorithm_ECDH_ES        = "ECDH-ES"        // Encryption: ECDH-ES
-	Algorithm_ECDH_ES_A128KW = "ECDH-ES+A128KW" // Encryption: ECDH-ES + AES key wrap 128-bit
-	Algorithm_ECDH_ES_A192KW = "ECDH-ES+A192KW" // Encryption: ECDH-ES + AES key wrap 192-bit
-	Algorithm_ECDH_ES_A256KW = "ECDH-ES+A256KW" // Encryption: ECDH-ES + AES key wrap 256-bit
+	Algorithm_ECDH_ES_A128KW = "ECDH-ES+A128KW" // Encryption: ECDH-ES + AES key wrap, 128-bit key
+	Algorithm_ECDH_ES_A192KW = "ECDH-ES+A192KW" // Encryption: ECDH-ES + AES key wrap, 192-bit key
+	Algorithm_ECDH_ES_A256KW = "ECDH-ES+A256KW" // Encryption: ECDH-ES + AES key wrap, 256-bit key
 	Algorithm_RSA1_5         = "RSA1_5"         // Encryption: RSA-PKCS1v1.5
 	Algorithm_RSA_OAEP       = "RSA-OAEP"       // Encryption: RSA-OAEP with SHA1 hash
 	Algorithm_RSA_OAEP_256   = "RSA-OAEP-256"   // Encryption: RSA-OAEP with SHA256 hash

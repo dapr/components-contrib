@@ -16,19 +16,19 @@ package crypto
 import (
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
 	"errors"
 	"math/big"
 
+	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
-
-	daprcrypto "github.com/dapr/components-contrib/crypto"
 )
 
 // EncryptPublicKey encrypts a message using a public key and the specified algorithm.
 // Note that "associatedData" is ignored if the cipher does not support labels/AAD.
-func EncryptPublicKey(plaintext []byte, algorithm string, key *daprcrypto.Key, associatedData []byte) (ciphertext []byte, err error) {
+func EncryptPublicKey(plaintext []byte, algorithm string, key jwk.Key, associatedData []byte) (ciphertext []byte, err error) {
 	switch algorithm {
 	case Algorithm_RSA1_5:
 		var rsaKey *rsa.PublicKey
@@ -114,13 +114,41 @@ func SignPrivateKey(digest []byte, algorithm string, key jwk.Key) (signature []b
 		}
 		return append(r.Bytes(), s.Bytes()...), nil
 
+	// Note that EdDSA hashes the message, so if a digest is passed, it will be hashed again
+	case "EdDSA":
+		if key.KeyType() != jwa.OKP {
+			return nil, ErrKeyTypeMismatch
+		}
+		okpKey, ok := key.(jwk.OKPPrivateKey)
+		if !ok {
+			return nil, ErrKeyTypeMismatch
+		}
+		switch okpKey.Crv() {
+		case jwa.Ed25519:
+			var ed25519Key *ed25519.PrivateKey
+			if okpKey.Raw(ed25519Key) != nil {
+				return nil, ErrKeyTypeMismatch
+			}
+
+			return ed25519.Sign(*ed25519Key, digest), nil
+		default:
+			return nil, ErrKeyTypeMismatch
+		}
+
 	default:
 		return nil, ErrUnsupportedAlgorithm
 	}
 }
 
 // VerifyPublicKey validates a signature using a public key and the specified algorithm.
+// Note: when using EdDSA, the message gets hashed as part of the signing process, so users should normally pass the full message for the "digest" parameter.
 func VerifyPublicKey(digest []byte, signature []byte, algorithm string, key jwk.Key) (valid bool, err error) {
+	// Ensure we are using a public key
+	key, err = key.PublicKey()
+	if err != nil {
+		return false, ErrKeyTypeMismatch
+	}
+
 	switch algorithm {
 	case Algorithm_RS256, Algorithm_RS384, Algorithm_RS512:
 		var rsaKey *rsa.PublicKey
@@ -164,26 +192,26 @@ func VerifyPublicKey(digest []byte, signature []byte, algorithm string, key jwk.
 
 		return ecdsa.Verify(ecdsaKey, digest, r, s), nil
 
-	// Currently disabled because EdDSA requires a non-pre-hashed message
-	/*case "EdDSA":
-	if key.KeyType() != jwa.OKP {
-		return false, ErrKeyTypeMismatch
-	}
-	okpKey, ok := key.(jwk.OKPPrivateKey)
-	if !ok {
-		return false, ErrKeyTypeMismatch
-	}
-	switch okpKey.Crv() {
-	case jwa.Ed25519:
-		var ed25519Key *ed25519.PrivateKey
-		if okpKey.Raw(ed25519Key) != nil {
+	// Note that EdDSA hashes the message, so if a digest is passed, it will be hashed again
+	case "EdDSA":
+		if key.KeyType() != jwa.OKP {
 			return false, ErrKeyTypeMismatch
 		}
+		okpKey, ok := key.(jwk.OKPPublicKey)
+		if !ok {
+			return false, ErrKeyTypeMismatch
+		}
+		switch okpKey.Crv() {
+		case jwa.Ed25519:
+			var ed25519Key *ed25519.PublicKey
+			if okpKey.Raw(ed25519Key) != nil {
+				return false, ErrKeyTypeMismatch
+			}
 
-		return ed25519Key.Sign()
-	default:
-		return false, ErrKeyTypeMismatch
-	}*/
+			return ed25519.Verify(*ed25519Key, digest, signature), nil
+		default:
+			return false, ErrKeyTypeMismatch
+		}
 
 	default:
 		return false, ErrUnsupportedAlgorithm

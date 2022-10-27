@@ -38,8 +38,32 @@ func EncryptSymmetric(plaintext []byte, algorithm string, key []byte, nonce []by
 		ciphertext, err = encryptSymmetricAESKW(plaintext, algorithm, key)
 		return ciphertext, tag, err
 
+	case Algorithm_C20P, Algorithm_C20PKW, Algorithm_XC20P, Algorithm_XC20PKW:
+		return encryptSymmetricChaCha20Poly1305(plaintext, algorithm, key, nonce, associatedData)
+
 	default:
 		return nil, nil, ErrUnsupportedAlgorithm
+	}
+}
+
+// DecryptSymmetric decrypts an encrypted message using a symmetric key and the specified algorithm.
+// Note that "associatedData" is ignored if the cipher does not support labels/AAD.
+func DecryptSymmetric(ciphertext []byte, algorithm string, key []byte, nonce []byte, tag []byte, associatedData []byte) (plaintext []byte, err error) {
+	switch algorithm {
+	case Algorithm_A128CBC, Algorithm_A192CBC, Algorithm_A256CBC:
+		return decryptSymmetricAESCBC(ciphertext, algorithm, key, nonce)
+
+	case Algorithm_A128GCM, Algorithm_A192GCM, Algorithm_A256GCM:
+		return decryptSymmetricAESGCM(ciphertext, algorithm, key, nonce, tag, associatedData)
+
+	case Algorithm_A128KW, Algorithm_A192KW, Algorithm_A256KW:
+		return decryptSymmetricAESKW(ciphertext, algorithm, key)
+
+	case Algorithm_C20P, Algorithm_C20PKW, Algorithm_XC20P, Algorithm_XC20PKW:
+		return decryptSymmetricChaCha20Poly1305(ciphertext, algorithm, key, nonce, tag, associatedData)
+
+	default:
+		return nil, ErrUnsupportedAlgorithm
 	}
 }
 
@@ -198,14 +222,14 @@ func decryptSymmetricChaCha20Poly1305(ciphertext []byte, algorithm string, key [
 
 func getChaCha20Poly1305Cipher(algorithm string, key []byte, nonce []byte) (aead cipher.AEAD, err error) {
 	switch algorithm {
-	case Algorithm_C20P:
+	case Algorithm_C20P, Algorithm_C20PKW:
 		aead, err = chacha20poly1305.New(key)
 		if err == nil && len(nonce) != chacha20poly1305.NonceSize {
 			err = ErrInvalidNonce
 		}
 		return
 
-	case Algorithm_XC20P:
+	case Algorithm_XC20P, Algorithm_XC20PKW:
 		aead, err = chacha20poly1305.NewX(key)
 		if err == nil && len(nonce) != chacha20poly1305.NonceSizeX {
 			err = ErrInvalidNonce

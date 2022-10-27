@@ -29,6 +29,12 @@ import (
 // EncryptPublicKey encrypts a message using a public key and the specified algorithm.
 // Note that "associatedData" is ignored if the cipher does not support labels/AAD.
 func EncryptPublicKey(plaintext []byte, algorithm string, key jwk.Key, associatedData []byte) (ciphertext []byte, err error) {
+	// Ensure we are using a public key
+	key, err = key.PublicKey()
+	if err != nil {
+		return nil, ErrKeyTypeMismatch
+	}
+
 	switch algorithm {
 	case Algorithm_RSA1_5:
 		var rsaKey *rsa.PublicKey

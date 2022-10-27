@@ -299,12 +299,12 @@ func (k *keyvaultCrypto) UnwrapKey(parentCtx context.Context, wrappedKey []byte,
 	}
 
 	// Key Vault allows wrapping/unwrapping only symmetric keys, so no need to try and decode an ASN.1 DER-encoded sequence
-	keyObj, err := jwk.FromRaw(res.Result)
+	plaintextKey, err = jwk.FromRaw(res.Result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create JWK from raw key: %w", err)
 	}
 
-	return keyObj, nil
+	return plaintextKey, nil
 }
 
 // Sign a digest.

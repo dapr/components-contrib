@@ -18,6 +18,8 @@ import (
 	"crypto/cipher"
 	"errors"
 
+	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwk"
 	"golang.org/x/crypto/chacha20poly1305"
 
 	"github.com/dapr/components-contrib/internal/crypto/aeskw"
@@ -25,21 +27,26 @@ import (
 
 // EncryptSymmetric encrypts a message using a symmetric key and the specified algorithm.
 // Note that "associatedData" is ignored if the cipher does not support labels/AAD.
-func EncryptSymmetric(plaintext []byte, algorithm string, key []byte, nonce []byte, associatedData []byte) (ciphertext []byte, tag []byte, err error) {
+func EncryptSymmetric(plaintext []byte, algorithm string, key jwk.Key, nonce []byte, associatedData []byte) (ciphertext []byte, tag []byte, err error) {
+	var keyBytes []byte
+	if key.KeyType() != jwa.OctetSeq || key.Raw(&keyBytes) != nil {
+		return nil, nil, ErrKeyTypeMismatch
+	}
+
 	switch algorithm {
 	case Algorithm_A128CBC, Algorithm_A192CBC, Algorithm_A256CBC:
-		ciphertext, err = encryptSymmetricAESCBC(plaintext, algorithm, key, nonce)
+		ciphertext, err = encryptSymmetricAESCBC(plaintext, algorithm, keyBytes, nonce)
 		return ciphertext, tag, err
 
 	case Algorithm_A128GCM, Algorithm_A192GCM, Algorithm_A256GCM:
-		return encryptSymmetricAESGCM(plaintext, algorithm, key, nonce, associatedData)
+		return encryptSymmetricAESGCM(plaintext, algorithm, keyBytes, nonce, associatedData)
 
 	case Algorithm_A128KW, Algorithm_A192KW, Algorithm_A256KW:
-		ciphertext, err = encryptSymmetricAESKW(plaintext, algorithm, key)
+		ciphertext, err = encryptSymmetricAESKW(plaintext, algorithm, keyBytes)
 		return ciphertext, tag, err
 
 	case Algorithm_C20P, Algorithm_C20PKW, Algorithm_XC20P, Algorithm_XC20PKW:
-		return encryptSymmetricChaCha20Poly1305(plaintext, algorithm, key, nonce, associatedData)
+		return encryptSymmetricChaCha20Poly1305(plaintext, algorithm, keyBytes, nonce, associatedData)
 
 	default:
 		return nil, nil, ErrUnsupportedAlgorithm
@@ -48,19 +55,24 @@ func EncryptSymmetric(plaintext []byte, algorithm string, key []byte, nonce []by
 
 // DecryptSymmetric decrypts an encrypted message using a symmetric key and the specified algorithm.
 // Note that "associatedData" is ignored if the cipher does not support labels/AAD.
-func DecryptSymmetric(ciphertext []byte, algorithm string, key []byte, nonce []byte, tag []byte, associatedData []byte) (plaintext []byte, err error) {
+func DecryptSymmetric(ciphertext []byte, algorithm string, key jwk.Key, nonce []byte, tag []byte, associatedData []byte) (plaintext []byte, err error) {
+	var keyBytes []byte
+	if key.KeyType() != jwa.OctetSeq || key.Raw(&keyBytes) != nil {
+		return nil, ErrKeyTypeMismatch
+	}
+
 	switch algorithm {
 	case Algorithm_A128CBC, Algorithm_A192CBC, Algorithm_A256CBC:
-		return decryptSymmetricAESCBC(ciphertext, algorithm, key, nonce)
+		return decryptSymmetricAESCBC(ciphertext, algorithm, keyBytes, nonce)
 
 	case Algorithm_A128GCM, Algorithm_A192GCM, Algorithm_A256GCM:
-		return decryptSymmetricAESGCM(ciphertext, algorithm, key, nonce, tag, associatedData)
+		return decryptSymmetricAESGCM(ciphertext, algorithm, keyBytes, nonce, tag, associatedData)
 
 	case Algorithm_A128KW, Algorithm_A192KW, Algorithm_A256KW:
-		return decryptSymmetricAESKW(ciphertext, algorithm, key)
+		return decryptSymmetricAESKW(ciphertext, algorithm, keyBytes)
 
 	case Algorithm_C20P, Algorithm_C20PKW, Algorithm_XC20P, Algorithm_XC20PKW:
-		return decryptSymmetricChaCha20Poly1305(ciphertext, algorithm, key, nonce, tag, associatedData)
+		return decryptSymmetricChaCha20Poly1305(ciphertext, algorithm, keyBytes, nonce, tag, associatedData)
 
 	default:
 		return nil, ErrUnsupportedAlgorithm

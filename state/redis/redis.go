@@ -523,6 +523,9 @@ func (r *StateStore) parseTTL(req *state.SetRequest) (*int, error) {
 
 // Query executes a query against store.
 func (r *StateStore) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
+	if !rediscomponent.ClientHasJSONSupport(r.client) {
+		return nil, fmt.Errorf("redis-json server support is required for query capability")
+	}
 	indexName, ok := daprmetadata.TryGetQueryIndexName(req.Metadata)
 	if !ok {
 		return nil, fmt.Errorf("query index not found")

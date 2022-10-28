@@ -18,16 +18,17 @@ import (
 	"sync"
 
 	"github.com/chebyrash/promise"
+	"github.com/lestrrat-go/jwx/v2/jwk"
 )
 
 // GetKeyFn is the type of the getKeyFn function used by the PubKeyCache.
-type GetKeyFn = func(key string) func(resolve func(*Key), reject func(error))
+type GetKeyFn = func(key string) func(resolve func(jwk.Key), reject func(error))
 
 // PubKeyCache implements GetKey with a local cache.
 type PubKeyCache struct {
 	getKeyFn GetKeyFn
 
-	pubKeys     map[string]*promise.Promise[*Key]
+	pubKeys     map[string]*promise.Promise[jwk.Key]
 	pubKeysLock *sync.Mutex
 }
 
@@ -35,15 +36,15 @@ type PubKeyCache struct {
 func NewPubKeyCache(getKeyFn GetKeyFn) *PubKeyCache {
 	return &PubKeyCache{
 		getKeyFn:    getKeyFn,
-		pubKeys:     map[string]*promise.Promise[*Key]{},
+		pubKeys:     map[string]*promise.Promise[jwk.Key]{},
 		pubKeysLock: &sync.Mutex{},
 	}
 
 }
 
 // GetKey returns a public key from the cache, or uses getKeyFn to request it
-func (kc *PubKeyCache) GetKey(parentCtx context.Context, key string) (pubKey *Key, err error) {
-	timeoutPromise := promise.New(func(_ func(*Key), reject func(error)) {
+func (kc *PubKeyCache) GetKey(parentCtx context.Context, key string) (pubKey jwk.Key, err error) {
+	timeoutPromise := promise.New(func(_ func(jwk.Key), reject func(error)) {
 		<-parentCtx.Done()
 		reject(parentCtx.Err())
 	})

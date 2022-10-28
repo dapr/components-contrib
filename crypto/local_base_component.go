@@ -35,7 +35,7 @@ type LocalCryptoBaseComponent struct {
 	RetrieveKeyFn func(parentCtx context.Context, key string) (jwk.Key, error)
 }
 
-func (k LocalCryptoBaseComponent) GetKey(parentCtx context.Context, key string) (pubKey *Key, err error) {
+func (k LocalCryptoBaseComponent) GetKey(parentCtx context.Context, key string) (pubKey jwk.Key, err error) {
 	jwkObj, err := k.RetrieveKeyFn(parentCtx, key)
 	if err != nil {
 		return nil, err
@@ -50,7 +50,7 @@ func (k LocalCryptoBaseComponent) GetKey(parentCtx context.Context, key string) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to obtain public key: %w", err)
 	}
-	return NewKey(pk, nil, nil), nil
+	return pk, nil
 }
 
 func (k LocalCryptoBaseComponent) Encrypt(parentCtx context.Context, plaintext []byte, algorithm string, keyName string, nonce []byte, associatedData []byte) (ciphertext []byte, tag []byte, err error) {

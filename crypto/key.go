@@ -24,17 +24,24 @@ import (
 type Key struct {
 	jwk.Key
 
+	kid string
 	exp *time.Time
 	nbf *time.Time
 }
 
 // NewKey returns a new Key object
-func NewKey(key jwk.Key, exp, nbf *time.Time) *Key {
+func NewKey(key jwk.Key, kid string, exp, nbf *time.Time) *Key {
 	return &Key{
 		Key: key,
+		kid: kid,
 		exp: exp,
 		nbf: nbf,
 	}
+}
+
+// KeyID returns the value of the kid (key ID) property if present.
+func (k Key) KeyID() string {
+	return k.kid
 }
 
 // CanPerformOperation returns true if the key can be used to perform a specific operation.

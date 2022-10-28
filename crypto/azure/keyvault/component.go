@@ -90,7 +90,7 @@ func (k *keyvaultCrypto) Features() []daprcrypto.Feature {
 // GetKey returns the public part of a key stored in the vault.
 // This method returns an error if the key is symmetric.
 // The key argument can be in the format "name" or "name/version".
-func (k *keyvaultCrypto) GetKey(parentCtx context.Context, key string) (pubKey *daprcrypto.Key, err error) {
+func (k *keyvaultCrypto) GetKey(parentCtx context.Context, key string) (pubKey jwk.Key, err error) {
 	kid := newKeyID(key)
 
 	// If the key is cacheable, get it from the cache
@@ -101,7 +101,7 @@ func (k *keyvaultCrypto) GetKey(parentCtx context.Context, key string) (pubKey *
 	return k.getKeyFromVault(parentCtx, kid)
 }
 
-func (k *keyvaultCrypto) getKeyFromVault(parentCtx context.Context, kid keyID) (pubKey *daprcrypto.Key, err error) {
+func (k *keyvaultCrypto) getKeyFromVault(parentCtx context.Context, kid keyID) (pubKey jwk.Key, err error) {
 	ctx, cancel := context.WithTimeout(parentCtx, requestTimeout)
 	res, err := k.vaultClient.GetKey(ctx, kid.Name, kid.Version, nil)
 	cancel()
@@ -113,10 +113,10 @@ func (k *keyvaultCrypto) getKeyFromVault(parentCtx context.Context, kid keyID) (
 }
 
 // Handler for the getKeyCacheFn method
-func (k *keyvaultCrypto) getKeyCacheFn(key string) func(resolve func(*daprcrypto.Key), reject func(error)) {
+func (k *keyvaultCrypto) getKeyCacheFn(key string) func(resolve func(jwk.Key), reject func(error)) {
 	kid := newKeyID(key)
 	parentCtx := context.Background()
-	return func(resolve func(*daprcrypto.Key), reject func(error)) {
+	return func(resolve func(jwk.Key), reject func(error)) {
 		pk, err := k.getKeyFromVault(parentCtx, kid)
 		if err != nil {
 			reject(err)
@@ -148,7 +148,7 @@ func (k *keyvaultCrypto) Encrypt(parentCtx context.Context, plaintext []byte, al
 	}
 
 	// If the key has expired, we cannot use that to encrypt data
-	if !pk.IsValid() {
+	if dpk, ok := pk.(*daprcrypto.Key); ok && !dpk.IsValid() {
 		return nil, nil, errors.New("the key is outside of its time validity bounds")
 	}
 
@@ -240,7 +240,7 @@ func (k *keyvaultCrypto) WrapKey(parentCtx context.Context, plaintextKey jwk.Key
 	}
 
 	// If the key has expired, we cannot use that to encrypt data
-	if !pk.IsValid() {
+	if dpk, ok := pk.(*daprcrypto.Key); ok && !dpk.IsValid() {
 		return nil, nil, errors.New("the key is outside of its time validity bounds")
 	}
 

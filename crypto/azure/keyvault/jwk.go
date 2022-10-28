@@ -31,9 +31,15 @@ import (
 // KeyBundleToKey converts an azkeys.KeyBundle object to a daprcrypto.Key one containing the public part of the asymmetric key.
 func KeyBundleToKey(bundle *azkeys.KeyBundle) (*daprcrypto.Key, error) {
 	if bundle == nil ||
-		bundle.Key == nil || bundle.Attributes == nil ||
-		bundle.Attributes.Enabled == nil || *bundle.Attributes.Enabled == false {
+		bundle.Key == nil || bundle.Key.KID == nil ||
+		bundle.Attributes == nil || bundle.Attributes.Enabled == nil || *bundle.Attributes.Enabled == false {
 		return nil, errKeyNotFound
+	}
+
+	// Get the key ID
+	kid := bundle.Key.KID.Name()
+	if ver := bundle.Key.KID.Version(); ver != "" {
+		kid += "/" + ver
 	}
 
 	// Extract the public key and create a jwk.Key from that
@@ -47,7 +53,7 @@ func KeyBundleToKey(bundle *azkeys.KeyBundle) (*daprcrypto.Key, error) {
 	}
 
 	// Convert to daprcrypto.Key
-	return daprcrypto.NewKey(jwkObj, bundle.Attributes.Expires, bundle.Attributes.NotBefore), nil
+	return daprcrypto.NewKey(jwkObj, kid, bundle.Attributes.Expires, bundle.Attributes.NotBefore), nil
 }
 
 // JSONWebKey extends azkeys.JSONWebKey to add methods to export the key.

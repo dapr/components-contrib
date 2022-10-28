@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"golang.org/x/mod/semver"
+
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -53,8 +55,8 @@ var clientHasJSONSupport *bool
 
 type RedisClient interface {
 	Context() context.Context
-	DoResult(ctx context.Context, args ...interface{}) (interface{}, error)
-	DoErr(ctx context.Context, args ...interface{}) error
+	DoRead(ctx context.Context, args ...interface{}) (interface{}, error)
+	DoWrite(ctx context.Context, args ...interface{}) error
 	Close() error
 	PingResult(ctx context.Context) (string, error)
 	SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (*bool, error)
@@ -114,27 +116,29 @@ func ClientHasJSONSupport(c RedisClient) bool {
 	if clientHasJSONSupport != nil {
 		return *clientHasJSONSupport
 	}
-	err := c.DoErr(context.Background(), "JSON.GET")
+	bgctx := context.Background()
+	ctx, cancel := context.WithTimeout(bgctx, 5*time.Second)
+	defer cancel()
+	err := c.DoWrite(ctx, "JSON.GET")
 
 	if err == nil {
-		trueVal := true
-		clientHasJSONSupport = &trueVal
+		clientHasJSONSupport = ptr.Of(true)
 		return true
 	}
 
 	if strings.HasPrefix(err.Error(), "ERR unknown command") {
-		falseVal := false
-		clientHasJSONSupport = &falseVal
+		clientHasJSONSupport = ptr.Of(false)
 		return false
 	}
-	trueVal := true
-	clientHasJSONSupport = &trueVal
+	clientHasJSONSupport = ptr.Of(true)
 	return true
 }
 
 func GetServerVersion(c RedisClient) (string, error) {
-	ctx := c.Context()
-	res, err := c.DoResult(ctx, "INFO", "server")
+	bgctx := context.Background()
+	ctx, cancel := context.WithTimeout(bgctx, 5*time.Second)
+	defer cancel()
+	res, err := c.DoRead(ctx, "INFO", "server")
 	if err != nil {
 		return "", err
 	}

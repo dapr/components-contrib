@@ -42,7 +42,7 @@ func TestInvoke(t *testing.T) {
 	}
 	bind.ctx, bind.cancel = context.WithCancel(context.Background())
 
-	_, err := c.DoResult(context.Background(), "GET", testKey)
+	_, err := c.DoRead(context.Background(), "GET", testKey)
 	assert.Equal(t, redis.Nil, err)
 
 	bindingRes, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
@@ -52,7 +52,7 @@ func TestInvoke(t *testing.T) {
 	assert.Equal(t, nil, err)
 	assert.Equal(t, true, bindingRes == nil)
 
-	getRes, err := c.DoResult(context.Background(), "GET", testKey)
+	getRes, err := c.DoRead(context.Background(), "GET", testKey)
 	assert.Equal(t, nil, err)
 	assert.Equal(t, true, getRes == testData)
 }

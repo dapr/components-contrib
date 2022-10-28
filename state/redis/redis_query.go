@@ -191,7 +191,7 @@ func (q *Query) Finalize(filters string, qq *query.Query) error {
 
 func (q *Query) execute(ctx context.Context, client rediscomponent.RedisClient) ([]state.QueryItem, string, error) {
 	query := append(append([]interface{}{"FT.SEARCH", q.schemaName}, q.query...), "RETURN", "2", "$.data", "$.version")
-	ret, err := client.DoResult(ctx, query...)
+	ret, err := client.DoRead(ctx, query...)
 	if err != nil {
 		return nil, "", err
 	}

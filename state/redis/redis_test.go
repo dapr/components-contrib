@@ -239,7 +239,7 @@ func TestTransactionalUpsert(t *testing.T) {
 	})
 	assert.Equal(t, nil, err)
 
-	res, err := c.DoResult(context.Background(), "HGETALL", "weapon")
+	res, err := c.DoRead(context.Background(), "HGETALL", "weapon")
 	assert.Equal(t, nil, err)
 
 	vals := res.([]interface{})
@@ -248,15 +248,15 @@ func TestTransactionalUpsert(t *testing.T) {
 	assert.Equal(t, ptr.String("1"), version)
 	assert.Equal(t, `"deathstar"`, data)
 
-	res, err = c.DoResult(context.Background(), "TTL", "weapon")
+	res, err = c.DoRead(context.Background(), "TTL", "weapon")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, int64(-1), res)
 
-	res, err = c.DoResult(context.Background(), "TTL", "weapon2")
+	res, err = c.DoRead(context.Background(), "TTL", "weapon2")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, int64(123), res)
 
-	res, err = c.DoResult(context.Background(), "TTL", "weapon3")
+	res, err = c.DoRead(context.Background(), "TTL", "weapon3")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, int64(-1), res)
 }
@@ -290,7 +290,7 @@ func TestTransactionalDelete(t *testing.T) {
 	})
 	assert.Equal(t, nil, err)
 
-	res, err := c.DoResult(context.Background(), "HGETALL", "weapon")
+	res, err := c.DoRead(context.Background(), "HGETALL", "weapon")
 	assert.Equal(t, nil, err)
 
 	vals := res.([]interface{})
@@ -388,7 +388,7 @@ func TestRequestsWithGlobalTTL(t *testing.T) {
 		})
 		assert.Equal(t, nil, err)
 
-		res, err := c.DoResult(context.Background(), "HGETALL", "weapon")
+		res, err := c.DoRead(context.Background(), "HGETALL", "weapon")
 		assert.Equal(t, nil, err)
 
 		vals := res.([]interface{})
@@ -397,15 +397,15 @@ func TestRequestsWithGlobalTTL(t *testing.T) {
 		assert.Equal(t, ptr.String("1"), version)
 		assert.Equal(t, `"deathstar"`, data)
 
-		res, err = c.DoResult(context.Background(), "TTL", "weapon")
+		res, err = c.DoRead(context.Background(), "TTL", "weapon")
 		assert.Equal(t, nil, err)
 		assert.Equal(t, int64(globalTTLInSeconds), res)
 
-		res, err = c.DoResult(context.Background(), "TTL", "weapon2")
+		res, err = c.DoRead(context.Background(), "TTL", "weapon2")
 		assert.Equal(t, nil, err)
 		assert.Equal(t, int64(123), res)
 
-		res, err = c.DoResult(context.Background(), "TTL", "weapon3")
+		res, err = c.DoRead(context.Background(), "TTL", "weapon3")
 		assert.Equal(t, nil, err)
 		assert.Equal(t, int64(-1), res)
 	})
@@ -508,7 +508,7 @@ func TestTransactionalDeleteNoEtag(t *testing.T) {
 	})
 	assert.Equal(t, nil, err)
 
-	res, err := c.DoResult(context.Background(), "HGETALL", "weapon100")
+	res, err := c.DoRead(context.Background(), "HGETALL", "weapon100")
 	assert.Equal(t, nil, err)
 
 	vals := res.([]interface{})

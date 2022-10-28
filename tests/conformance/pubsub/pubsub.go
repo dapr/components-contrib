@@ -545,7 +545,6 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 						Topic:      topic,
 						Metadata:   config.PublishMetadata,
 					})
-					//t.Logf("Published message %s/%s", topic, string(data))
 					assert.NoError(t, err, "expected no error on publishing data %s on topic %s", string(data), topic)
 				}
 

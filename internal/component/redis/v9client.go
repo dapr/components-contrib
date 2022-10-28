@@ -23,7 +23,8 @@ import (
 )
 
 type v9Pipeliner struct {
-	pipeliner v9.Pipeliner
+	pipeliner    v9.Pipeliner
+	writeTimeout Duration
 }
 
 func (p v9Pipeliner) Exec(ctx context.Context) error {
@@ -32,20 +33,38 @@ func (p v9Pipeliner) Exec(ctx context.Context) error {
 }
 
 func (p v9Pipeliner) Do(ctx context.Context, args ...interface{}) {
+	if p.writeTimeout > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(p.writeTimeout))
+		defer cancel()
+		p.pipeliner.Do(timeoutCtx, args...)
+	}
 	p.pipeliner.Do(ctx, args...)
 }
 
 // v9Client is an interface implementation of RedisClient
 
 type v9Client struct {
-	client v9.UniversalClient
+	client       v9.UniversalClient
+	readTimeout  Duration
+	writeTimeout Duration
+	dialTimeout  Duration
 }
 
-func (c v9Client) DoErr(ctx context.Context, args ...interface{}) error {
+func (c v9Client) DoWrite(ctx context.Context, args ...interface{}) error {
+	if c.writeTimeout > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(c.writeTimeout))
+		defer cancel()
+		return c.client.Do(timeoutCtx, args...).Err()
+	}
 	return c.client.Do(ctx, args...).Err()
 }
 
-func (c v9Client) DoResult(ctx context.Context, args ...interface{}) (interface{}, error) {
+func (c v9Client) DoRead(ctx context.Context, args ...interface{}) (interface{}, error) {
+	if c.readTimeout > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(c.readTimeout))
+		defer cancel()
+		return c.client.Do(timeoutCtx, args...).Result()
+	}
 	return c.client.Do(ctx, args...).Result()
 }
 
@@ -58,6 +77,11 @@ func (c v9Client) Close() error {
 }
 
 func (c v9Client) PingResult(ctx context.Context) (string, error) {
+	if c.dialTimeout > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(c.dialTimeout))
+		defer cancel()
+		return c.client.Ping(timeoutCtx).Result()
+	}
 	return c.client.Ping(ctx).Result()
 }
 
@@ -166,7 +190,10 @@ func (c v9Client) XClaimResult(ctx context.Context, stream string, group string,
 }
 
 func (c v9Client) TxPipeline() RedisPipeliner {
-	return v9Pipeliner{pipeliner: c.client.TxPipeline()}
+	return v9Pipeliner{
+		pipeliner:    c.client.TxPipeline(),
+		writeTimeout: c.writeTimeout,
+	}
 }
 
 func (c v9Client) TTLResult(ctx context.Context, key string) (time.Duration, error) {
@@ -207,10 +234,20 @@ func newV9FailoverClient(s *Settings) RedisClient {
 	if s.RedisType == ClusterType {
 		opts.SentinelAddrs = strings.Split(s.Host, ",")
 
-		return v9Client{client: v9.NewFailoverClusterClient(opts)}
+		return v9Client{
+			client:       v9.NewFailoverClusterClient(opts),
+			readTimeout:  s.ReadTimeout,
+			writeTimeout: s.WriteTimeout,
+			dialTimeout:  s.DialTimeout,
+		}
 	}
 
-	return v9Client{client: v9.NewFailoverClient(opts)}
+	return v9Client{
+		client:       v9.NewFailoverClient(opts),
+		readTimeout:  s.ReadTimeout,
+		writeTimeout: s.WriteTimeout,
+		dialTimeout:  s.DialTimeout,
+	}
 }
 
 func newV9Client(s *Settings) RedisClient {
@@ -242,7 +279,12 @@ func newV9Client(s *Settings) RedisClient {
 			}
 		}
 
-		return v9Client{client: v9.NewClusterClient(options)}
+		return v9Client{
+			client:       v9.NewClusterClient(options),
+			readTimeout:  s.ReadTimeout,
+			writeTimeout: s.WriteTimeout,
+			dialTimeout:  s.DialTimeout,
+		}
 	}
 
 	options := &v9.Options{
@@ -271,5 +313,10 @@ func newV9Client(s *Settings) RedisClient {
 		}
 	}
 
-	return v9Client{client: v9.NewClient(options)}
+	return v9Client{
+		client:       v9.NewClient(options),
+		readTimeout:  s.ReadTimeout,
+		writeTimeout: s.WriteTimeout,
+		dialTimeout:  s.DialTimeout,
+	}
 }

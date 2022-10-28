@@ -102,7 +102,7 @@ func needFailover(properties map[string]string) bool {
 }
 
 func (r *StandaloneRedisLock) getConnectedSlaves() (int, error) {
-	res, err := r.client.DoResult(r.ctx, "INFO", "replication")
+	res, err := r.client.DoRead(r.ctx, "INFO", "replication")
 	if err != nil {
 		return 0, err
 	}
@@ -155,9 +155,6 @@ func (r *StandaloneRedisLock) Unlock(req *lock.UnlockRequest) (*lock.UnlockRespo
 	if evalInt == nil {
 		return newInternalErrorUnlockResponse(), fmt.Errorf("[standaloneRedisLock]: Eval unlock script returned nil.ResourceID: %s", req.ResourceID)
 	}
-	if err != nil {
-		return newInternalErrorUnlockResponse(), err
-	}
 	// 3. parse result
 	i := *evalInt
 	status := lock.InternalError
@@ -190,7 +187,9 @@ func (r *StandaloneRedisLock) Close() error {
 		r.cancel()
 	}
 	if r.client != nil {
-		return r.client.Close()
+		closeErr := r.client.Close()
+		r.client = nil
+		return closeErr
 	}
 	return nil
 }

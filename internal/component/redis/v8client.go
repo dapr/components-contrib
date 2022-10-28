@@ -23,7 +23,8 @@ import (
 )
 
 type v8Pipeliner struct {
-	pipeliner v8.Pipeliner
+	pipeliner    v8.Pipeliner
+	writeTimeout Duration
 }
 
 func (p v8Pipeliner) Exec(ctx context.Context) error {
@@ -32,20 +33,38 @@ func (p v8Pipeliner) Exec(ctx context.Context) error {
 }
 
 func (p v8Pipeliner) Do(ctx context.Context, args ...interface{}) {
+	if p.writeTimeout > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(p.writeTimeout))
+		defer cancel()
+		p.pipeliner.Do(timeoutCtx, args...)
+	}
 	p.pipeliner.Do(ctx, args...)
 }
 
 // v8Client is an interface implementation of RedisClient
 
 type v8Client struct {
-	client v8.UniversalClient
+	client       v8.UniversalClient
+	readTimeout  Duration
+	writeTimeout Duration
+	dialTimeout  Duration
 }
 
-func (c v8Client) DoErr(ctx context.Context, args ...interface{}) error {
+func (c v8Client) DoWrite(ctx context.Context, args ...interface{}) error {
+	if c.writeTimeout > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(c.writeTimeout))
+		defer cancel()
+		return c.client.Do(timeoutCtx, args...).Err()
+	}
 	return c.client.Do(ctx, args...).Err()
 }
 
-func (c v8Client) DoResult(ctx context.Context, args ...interface{}) (interface{}, error) {
+func (c v8Client) DoRead(ctx context.Context, args ...interface{}) (interface{}, error) {
+	if c.readTimeout > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(c.readTimeout))
+		defer cancel()
+		return c.client.Do(timeoutCtx, args...).Result()
+	}
 	return c.client.Do(ctx, args...).Result()
 }
 
@@ -58,6 +77,11 @@ func (c v8Client) Close() error {
 }
 
 func (c v8Client) PingResult(ctx context.Context) (string, error) {
+	if c.dialTimeout > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(c.dialTimeout))
+		defer cancel()
+		return c.client.Ping(timeoutCtx).Result()
+	}
 	return c.client.Ping(ctx).Result()
 }
 
@@ -166,7 +190,10 @@ func (c v8Client) XClaimResult(ctx context.Context, stream string, group string,
 }
 
 func (c v8Client) TxPipeline() RedisPipeliner {
-	return v8Pipeliner{pipeliner: c.client.TxPipeline()}
+	return v8Pipeliner{
+		pipeliner:    c.client.TxPipeline(),
+		writeTimeout: c.writeTimeout,
+	}
 }
 
 func (c v8Client) TTLResult(ctx context.Context, key string) (time.Duration, error) {
@@ -207,10 +234,20 @@ func newV8FailoverClient(s *Settings) RedisClient {
 	if s.RedisType == ClusterType {
 		opts.SentinelAddrs = strings.Split(s.Host, ",")
 
-		return v8Client{client: v8.NewFailoverClusterClient(opts)}
+		return v8Client{
+			client:       v8.NewFailoverClusterClient(opts),
+			readTimeout:  s.ReadTimeout,
+			writeTimeout: s.WriteTimeout,
+			dialTimeout:  s.DialTimeout,
+		}
 	}
 
-	return v8Client{client: v8.NewFailoverClient(opts)}
+	return v8Client{
+		client:       v8.NewFailoverClient(opts),
+		readTimeout:  s.ReadTimeout,
+		writeTimeout: s.WriteTimeout,
+		dialTimeout:  s.DialTimeout,
+	}
 }
 
 func newV8Client(s *Settings) RedisClient {
@@ -242,7 +279,12 @@ func newV8Client(s *Settings) RedisClient {
 			}
 		}
 
-		return v8Client{client: v8.NewClusterClient(options)}
+		return v8Client{
+			client:       v8.NewClusterClient(options),
+			readTimeout:  s.ReadTimeout,
+			writeTimeout: s.WriteTimeout,
+			dialTimeout:  s.DialTimeout,
+		}
 	}
 
 	options := &v8.Options{
@@ -271,7 +313,12 @@ func newV8Client(s *Settings) RedisClient {
 		}
 	}
 
-	return v8Client{client: v8.NewClient(options)}
+	return v8Client{
+		client:       v8.NewClient(options),
+		readTimeout:  s.ReadTimeout,
+		writeTimeout: s.WriteTimeout,
+		dialTimeout:  s.DialTimeout,
+	}
 }
 
 func ClientFromV8Client(client v8.UniversalClient) RedisClient {

@@ -70,7 +70,7 @@ func (r *Redis) Operations() []bindings.OperationKind {
 func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	if val, ok := req.Metadata["key"]; ok && val != "" {
 		key := val
-		_, err := r.client.DoResult(ctx, "SET", key, req.Data)
+		err := r.client.DoWrite(ctx, "SET", key, req.Data)
 		if err != nil {
 			return nil, err
 		}

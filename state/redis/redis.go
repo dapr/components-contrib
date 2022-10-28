@@ -249,7 +249,16 @@ func (r *StateStore) getDefault(req *state.GetRequest) (*state.GetResponse, erro
 	if res == nil {
 		return &state.GetResponse{}, nil
 	}
-	vals := res.([]interface{})
+	vals, ok := res.([]interface{})
+	if !ok {
+		// we retrieved a JSON value from a non-JSON store
+		valMap := res.(map[interface{}]interface{})
+		// convert valMap to []interface{}
+		vals = make([]interface{}, 0, len(valMap))
+		for k, v := range valMap {
+			vals = append(vals, k, v)
+		}
+	}
 	if len(vals) == 0 {
 		return &state.GetResponse{}, nil
 	}
@@ -304,7 +313,7 @@ func (r *StateStore) getJSON(req *state.GetRequest) (*state.GetResponse, error) 
 
 // Get retrieves state from redis with a key.
 func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	if contentType, ok := req.Metadata[daprmetadata.ContentType]; ok && contentType == contenttype.JSONContentType {
+	if contentType, ok := req.Metadata[daprmetadata.ContentType]; ok && contentType == contenttype.JSONContentType && rediscomponent.ClientHasJSONSupport(r.client) {
 		return r.getJSON(req)
 	}
 
@@ -341,7 +350,7 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 
 	var bt []byte
 	var setQuery string
-	if contentType, ok := req.Metadata[daprmetadata.ContentType]; ok && contentType == contenttype.JSONContentType {
+	if contentType, ok := req.Metadata[daprmetadata.ContentType]; ok && contentType == contenttype.JSONContentType && rediscomponent.ClientHasJSONSupport(r.client) {
 		setQuery = setJSONQuery
 		bt, _ = utils.Marshal(&jsonEntry{Data: req.Value}, r.json.Marshal)
 	} else {

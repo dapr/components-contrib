@@ -16,7 +16,10 @@ package redis
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
+
+	"golang.org/x/mod/semver"
 )
 
 const (
@@ -45,6 +48,8 @@ type RedisPipeliner interface {
 	Exec(ctx context.Context) error
 	Do(ctx context.Context, args ...interface{})
 }
+
+var clientHasJSONSupport *bool
 
 type RedisClient interface {
 	Context() context.Context
@@ -75,16 +80,70 @@ func ParseClientFromProperties(properties map[string]string, defaultSettings *Se
 		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
 	}
 
-	if settings.RedisVersion < 7 {
-		// init redis v8 clients
-		if settings.Failover {
-			return newV8FailoverClient(settings), settings, nil
-		}
-		return newV8Client(settings), settings, nil
+	var c RedisClient
+	if settings.Failover {
+		c = newV8FailoverClient(settings)
 	} else {
+		c = newV8Client(settings)
+	}
+	version, versionErr := GetServerVersion(c)
+	c.Close() // close the client to avoid leaking connections
+
+	useNewClient := false
+	if versionErr != nil {
+		// we couldn't query the server version, so we will assume the v8 client is not supported
+		useNewClient = true
+	} else if semver.Compare(version, "7.0.0") > -1 {
+		// if the server version is >= 7, we will use the v9 client
+		useNewClient = true
+	}
+	if useNewClient {
 		if settings.Failover {
 			return newV9FailoverClient(settings), settings, nil
 		}
 		return newV9Client(settings), settings, nil
+	} else {
+		if settings.Failover {
+			return newV8FailoverClient(settings), settings, nil
+		}
+		return newV8Client(settings), settings, nil
 	}
+}
+
+func ClientHasJSONSupport(c RedisClient) bool {
+	if clientHasJSONSupport != nil {
+		return *clientHasJSONSupport
+	}
+	err := c.DoErr(context.Background(), "JSON.GET")
+
+	if err == nil {
+		trueVal := true
+		clientHasJSONSupport = &trueVal
+		return true
+	}
+
+	if strings.HasPrefix(err.Error(), "ERR unknown command") {
+		falseVal := false
+		clientHasJSONSupport = &falseVal
+		return false
+	}
+	trueVal := true
+	clientHasJSONSupport = &trueVal
+	return true
+}
+
+func GetServerVersion(c RedisClient) (string, error) {
+	ctx := c.Context()
+	res, err := c.DoResult(ctx, "INFO", "server")
+	if err != nil {
+		return "", err
+	}
+	// get row in string res beginning with "redis_version"
+	rows := strings.Split(res.(string), "\n")
+	for _, row := range rows {
+		if strings.HasPrefix(row, "redis_version:") {
+			return strings.TrimSpace(strings.Split(row, ":")[1]), nil
+		}
+	}
+	return "", fmt.Errorf("could not find redis_version in redis info response")
 }

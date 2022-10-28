@@ -110,6 +110,7 @@ require (
 	go.uber.org/atomic v1.10.0
 	go.uber.org/ratelimit v0.2.0
 	golang.org/x/crypto v0.1.0
+	golang.org/x/mod v0.6.0
 	golang.org/x/net v0.1.0
 	golang.org/x/oauth2 v0.1.0
 	google.golang.org/api v0.100.0

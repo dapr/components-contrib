@@ -32,10 +32,6 @@ type Settings struct {
 	DB int `mapstructure:"redisDB"`
 	// The redis type node or cluster
 	RedisType string `mapstructure:"redisType"`
-	// The redis version - controls which redis client to use
-	// >= 7 uses go-redis v9
-	// < 7 uses go-redis v8, this is also the default
-	RedisVersion int `mapstructure:"redisVersion"`
 	// Maximum number of retries before giving up.
 	// A value of -1 (not 0) disables retries
 	// Default is 3 retries

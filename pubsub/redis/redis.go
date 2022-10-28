@@ -413,8 +413,13 @@ func (r *redisStreams) removeMessagesThatNoLongerExistFromPending(ctx context.Co
 }
 
 func (r *redisStreams) Close() error {
-	r.cancel()
+	if r.cancel != nil {
+		r.cancel()
+	}
 
+	if r.client == nil {
+		return nil
+	}
 	return r.client.Close()
 }
 

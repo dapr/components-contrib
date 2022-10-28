@@ -41,7 +41,6 @@ import (
 )
 
 // Test cron trigger with most frequent schedule possible : @every 1s with a context deadline
-// and check if the app is invoked 10 times within 10 seconds
 func TestCronBindingFrequentTrigger(t *testing.T) {
 	ports, _ := dapr_testing.GetFreePorts(3)
 	grpcPort := ports[0]
@@ -53,18 +52,19 @@ func TestCronBindingFrequentTrigger(t *testing.T) {
 		triggerWatcher.ExpectInts(i)
 	}
 
+	// test if cron triggers 10 times within 10 seconds
 	testAssert := func(ctx flow.Context) error {
 		triggerWatcher.Assert(ctx, time.Second*10)
 		return nil
 	}
 
 	application := func(ctx flow.Context, s common.Service) error {
-		triggerCount := 0
+		triggeredCount := 0
 		// Setup the input binding endpoint
 		err := s.AddBindingInvocationHandler("cron", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
 			ctx.Logf("Cron triggered at %s", time.Now().String())
-			triggerCount++
-			triggerWatcher.Observe(triggerCount)
+			triggeredCount++
+			triggerWatcher.Observe(triggeredCount)
 			return []byte("{}"), nil
 		})
 		require.NoError(t, err)
@@ -99,7 +99,7 @@ func TestCronBindingFrequentTrigger(t *testing.T) {
 		Run()
 }
 
-// For cron component with trigger @every 3s, check if the app is invoked correctly after app restart
+// For cron component with trigger @every 3s, check if the app is invoked correctly on app restart
 func TestCronBindingWithAppRestart(t *testing.T) {
 	ports, _ := dapr_testing.GetFreePorts(3)
 	grpcPort := ports[0]
@@ -118,12 +118,12 @@ func TestCronBindingWithAppRestart(t *testing.T) {
 	}
 
 	application := func(ctx flow.Context, s common.Service) error {
-		triggerCount := 0
+		triggeredCount := 0
 		// Setup the input binding endpoint
 		err := s.AddBindingInvocationHandler("cron3s", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
 			ctx.Logf("Cron triggered at %s", time.Now().String())
-			triggerCount++
-			triggerWatcher.Observe(triggerCount)
+			triggeredCount++
+			triggerWatcher.Observe(triggeredCount)
 			return []byte("{}"), nil
 		})
 		require.NoError(t, err)
@@ -149,7 +149,7 @@ func TestCronBindingWithAppRestart(t *testing.T) {
 		Run()
 }
 
-// For cron component with trigger @every 3s, check if the app is invoked correctly after sidecar restart
+// For cron component with trigger @every 3s, check if the app is invoked correctly on sidecar restart
 func TestCronBindingWithSidecarRestart(t *testing.T) {
 	ports, _ := dapr_testing.GetFreePorts(3)
 	grpcPort := ports[0]
@@ -168,12 +168,12 @@ func TestCronBindingWithSidecarRestart(t *testing.T) {
 	}
 
 	application := func(ctx flow.Context, s common.Service) error {
-		triggerCount := 0
+		triggeredCount := 0
 		// Setup the input binding endpoint
 		err := s.AddBindingInvocationHandler("cron3s", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
 			ctx.Logf("Cron triggered at %s", time.Now().String())
-			triggerCount++
-			triggerWatcher.Observe(triggerCount)
+			triggeredCount++
+			triggerWatcher.Observe(triggeredCount)
 			return []byte("{}"), nil
 		})
 		require.NoError(t, err)

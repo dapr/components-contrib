@@ -103,7 +103,15 @@ func (c v9Client) EvalInt(ctx context.Context, script string, keys []string, arg
 }
 
 func (c v9Client) SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (*bool, error) {
-	nx := c.client.SetNX(ctx, key, value, expiration)
+	var writeCtx context.Context
+	if c.writeTimeout > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(c.writeTimeout))
+		defer cancel()
+		writeCtx = timeoutCtx
+	} else {
+		writeCtx = ctx
+	}
+	nx := c.client.SetNX(writeCtx, key, value, expiration)
 	if nx == nil {
 		return nil, nil
 	}
@@ -112,7 +120,15 @@ func (c v9Client) SetNX(ctx context.Context, key string, value interface{}, expi
 }
 
 func (c v9Client) XAdd(ctx context.Context, stream string, maxLenApprox int64, values map[string]interface{}) (string, error) {
-	return c.client.XAdd(ctx, &v9.XAddArgs{
+	var writeCtx context.Context
+	if c.writeTimeout > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(c.writeTimeout))
+		defer cancel()
+		writeCtx = timeoutCtx
+	} else {
+		writeCtx = ctx
+	}
+	return c.client.XAdd(writeCtx, &v9.XAddArgs{
 		Stream: stream,
 		Values: values,
 		MaxLen: maxLenApprox,
@@ -120,16 +136,40 @@ func (c v9Client) XAdd(ctx context.Context, stream string, maxLenApprox int64, v
 }
 
 func (c v9Client) XGroupCreateMkStream(ctx context.Context, stream string, group string, start string) error {
-	return c.client.XGroupCreateMkStream(ctx, stream, group, start).Err()
+	var writeCtx context.Context
+	if c.writeTimeout > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(c.writeTimeout))
+		defer cancel()
+		writeCtx = timeoutCtx
+	} else {
+		writeCtx = ctx
+	}
+	return c.client.XGroupCreateMkStream(writeCtx, stream, group, start).Err()
 }
 
 func (c v9Client) XAck(ctx context.Context, stream string, group string, messageID string) error {
-	ack := c.client.XAck(ctx, stream, group, messageID)
+	var readCtx context.Context
+	if c.readTimeout > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(c.readTimeout))
+		defer cancel()
+		readCtx = timeoutCtx
+	} else {
+		readCtx = ctx
+	}
+	ack := c.client.XAck(readCtx, stream, group, messageID)
 	return ack.Err()
 }
 
 func (c v9Client) XReadGroupResult(ctx context.Context, group string, consumer string, streams []string, count int64, block time.Duration) ([]RedisXStream, error) {
-	res, err := c.client.XReadGroup(ctx,
+	var readCtx context.Context
+	if c.readTimeout > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(c.readTimeout))
+		defer cancel()
+		readCtx = timeoutCtx
+	} else {
+		readCtx = ctx
+	}
+	res, err := c.client.XReadGroup(readCtx,
 		&v9.XReadGroupArgs{
 			Group:    group,
 			Consumer: consumer,
@@ -157,7 +197,15 @@ func (c v9Client) XReadGroupResult(ctx context.Context, group string, consumer s
 }
 
 func (c v9Client) XPendingExtResult(ctx context.Context, stream string, group string, start string, end string, count int64) ([]RedisXPendingExt, error) {
-	res, err := c.client.XPendingExt(ctx, &v9.XPendingExtArgs{
+	var readCtx context.Context
+	if c.readTimeout > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(c.readTimeout))
+		defer cancel()
+		readCtx = timeoutCtx
+	} else {
+		readCtx = ctx
+	}
+	res, err := c.client.XPendingExt(readCtx, &v9.XPendingExtArgs{
 		Stream: stream,
 		Group:  group,
 		Start:  start,
@@ -177,7 +225,15 @@ func (c v9Client) XPendingExtResult(ctx context.Context, stream string, group st
 }
 
 func (c v9Client) XClaimResult(ctx context.Context, stream string, group string, consumer string, minIdleTime time.Duration, messageIDs []string) ([]RedisXMessage, error) {
-	res, err := c.client.XClaim(ctx, &v9.XClaimArgs{
+	var readCtx context.Context
+	if c.readTimeout > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(c.readTimeout))
+		defer cancel()
+		readCtx = timeoutCtx
+	} else {
+		readCtx = ctx
+	}
+	res, err := c.client.XClaim(readCtx, &v9.XClaimArgs{
 		Stream:   stream,
 		Group:    group,
 		Consumer: consumer,
@@ -205,7 +261,15 @@ func (c v9Client) TxPipeline() RedisPipeliner {
 }
 
 func (c v9Client) TTLResult(ctx context.Context, key string) (time.Duration, error) {
-	return c.client.TTL(ctx, key).Result()
+	var writeCtx context.Context
+	if c.writeTimeout > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(c.writeTimeout))
+		defer cancel()
+		writeCtx = timeoutCtx
+	} else {
+		writeCtx = ctx
+	}
+	return c.client.TTL(writeCtx, key).Result()
 }
 
 func newV9FailoverClient(s *Settings) RedisClient {

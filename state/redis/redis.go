@@ -201,7 +201,7 @@ func (r *StateStore) deleteValue(req *state.DeleteRequest) error {
 	}
 
 	var delQuery string
-	if contentType, ok := req.Metadata[daprmetadata.ContentType]; ok && contentType == contenttype.JSONContentType {
+	if contentType, ok := req.Metadata[daprmetadata.ContentType]; ok && contentType == contenttype.JSONContentType && rediscomponent.ClientHasJSONSupport(r.client) {
 		delQuery = delJSONQuery
 	} else {
 		delQuery = delDefaultQuery
@@ -400,7 +400,7 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 	var setQuery, delQuery string
 	var isJSON bool
-	if contentType, ok := request.Metadata[daprmetadata.ContentType]; ok && contentType == contenttype.JSONContentType {
+	if contentType, ok := request.Metadata[daprmetadata.ContentType]; ok && contentType == contenttype.JSONContentType && rediscomponent.ClientHasJSONSupport(r.client) {
 		isJSON = true
 		setQuery = setJSONQuery
 		delQuery = delJSONQuery

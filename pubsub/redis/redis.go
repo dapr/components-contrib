@@ -189,7 +189,7 @@ func (r *redisStreams) enqueueMessages(ctx context.Context, stream string, handl
 		select {
 		// Might block if the queue is full so we need the ctx.Done below.
 		case r.queue <- rmsg:
-
+			// Noop
 		// Handle cancelation
 		case <-ctx.Done():
 			return

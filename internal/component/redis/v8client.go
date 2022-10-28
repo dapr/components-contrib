@@ -86,7 +86,15 @@ func (c v8Client) PingResult(ctx context.Context) (string, error) {
 }
 
 func (c v8Client) EvalInt(ctx context.Context, script string, keys []string, args ...interface{}) (*int, error, error) {
-	eval := c.client.Eval(ctx, script, keys, args...)
+	var evalCtx context.Context
+	if c.readTimeout > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(c.readTimeout))
+		defer cancel()
+		evalCtx = timeoutCtx
+	} else {
+		evalCtx = ctx
+	}
+	eval := c.client.Eval(evalCtx, script, keys, args...)
 	if eval == nil {
 		return nil, nil, nil
 	}

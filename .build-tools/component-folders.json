@@ -8,7 +8,8 @@
         "nameresolution",
         "pubsub",
         "secretstores",
-        "state"
+        "state",
+        "workflows"
     ],
     "excludeFolders": [
         "bindings/alicloud",

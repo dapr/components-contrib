@@ -1,7 +1,7 @@
 package internal_test
 
 import (
-	"fmt"
+	"bytes"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -10,13 +10,14 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/dapr/kit/logger"
+
 	"github.com/dapr/components-contrib/metadata"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/components-contrib/middleware/http/wasm/basic"
-	"github.com/dapr/components-contrib/middleware/http/wasm/basic/internal/test"
 )
 
 var guestWasm map[string][]byte
@@ -40,18 +41,23 @@ func TestMain(m *testing.M) {
 }
 
 func Test_EndToEnd(t *testing.T) {
+	l := logger.NewLogger(t.Name())
+	var buf bytes.Buffer
+	l.SetOutputLevel(logger.DebugLevel)
+	l.SetOutput(&buf)
+
 	type testCase struct {
 		name     string
 		guest    []byte
 		poolSize int
-		test     func(t *testing.T, handler http.Handler, log fmt.Stringer)
+		test     func(t *testing.T, handler http.Handler, log *bytes.Buffer)
 	}
 
 	tests := []testCase{
 		{
 			name:  "consoleLog stdout and stderr",
 			guest: guestWasm[guestWasmOutput],
-			test: func(t *testing.T, handler http.Handler, log fmt.Stringer) {
+			test: func(t *testing.T, handler http.Handler, log *bytes.Buffer) {
 				r := httptest.NewRequest(http.MethodGet, "/", nil)
 				w := httptest.NewRecorder()
 				handler.ServeHTTP(w, r)
@@ -61,22 +67,21 @@ func Test_EndToEnd(t *testing.T) {
 				//
 				// Then, we expect to see stdout and stderr from both scopes
 				// at debug level.
-				require.Equal(t, `Info(main ConsoleLog)
-Info(request[0] ConsoleLog)
-Debug(wasm stdout: main Stdout
-request[0] Stdout
-)
-Debug(wasm stderr: main Stderr
-request[0] Stderr
-)
-`, log.String())
+				for _, s := range []string{
+					`level=info msg="main ConsoleLog"`,
+					`level=info msg="request[0] ConsoleLog"`,
+					`level=debug msg="wasm stdout: main Stdout\nrequest[0] Stdout\n"`,
+					`level=debug msg="wasm stderr: main Stderr\nrequest[0] Stderr\n"`,
+				} {
+					require.Contains(t, log.String(), s)
+				}
 			},
 		},
 		{
 			name:     "multiple requests",
 			guest:    guestWasm[guestWasmOutput],
 			poolSize: 2,
-			test: func(t *testing.T, handler http.Handler, log fmt.Stringer) {
+			test: func(t *testing.T, handler http.Handler, log *bytes.Buffer) {
 				// Service more requests than the pool size to ensure it works properly.
 				for i := 0; i < 3; i++ {
 					r := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -87,28 +92,17 @@ request[0] Stderr
 				// We expect to see initialization (main) twice, once for each
 				// module in the pool. We expect to see request[1] which shows
 				// round-robin back to the first module in the pool.
-				require.Equal(t, `Info(main ConsoleLog)
-Info(main ConsoleLog)
-Info(request[0] ConsoleLog)
-Debug(wasm stdout: main Stdout
-main Stdout
-request[0] Stdout
-)
-Debug(wasm stderr: main Stderr
-main Stderr
-request[0] Stderr
-)
-Info(request[0] ConsoleLog)
-Debug(wasm stdout: request[0] Stdout
-)
-Debug(wasm stderr: request[0] Stderr
-)
-Info(request[1] ConsoleLog)
-Debug(wasm stdout: request[1] Stdout
-)
-Debug(wasm stderr: request[1] Stderr
-)
-`, log.String())
+				for _, s := range []string{
+					`level=info msg="main ConsoleLog"`,
+					`level=info msg="request[0] ConsoleLog"`,
+					`level=debug msg="wasm stdout: main Stdout\nmain Stdout\nrequest[0] Stdout\n"`,
+					`level=debug msg="wasm stderr: main Stderr\nmain Stderr\nrequest[0] Stderr\n"`,
+					`level=info msg="request[1] ConsoleLog"`,
+					`level=debug msg="wasm stdout: request[1] Stdout\n"`,
+					`level=debug msg="wasm stderr: request[1] Stderr\n"`,
+				} {
+					require.Contains(t, log.String(), s)
+				}
 			},
 		},
 	}
@@ -117,6 +111,8 @@ Debug(wasm stderr: request[1] Stderr
 	for _, tt := range tests {
 		tc := tt
 		t.Run(tc.name, func(t *testing.T) {
+			defer buf.Reset()
+
 			poolSize := "1"
 			if tc.poolSize > 0 {
 				poolSize = strconv.Itoa(tc.poolSize)
@@ -126,10 +122,10 @@ Debug(wasm stderr: request[1] Stderr
 			require.NoError(t, os.WriteFile(wasmPath, tc.guest, 0o600))
 
 			meta := metadata.Base{Properties: map[string]string{"path": wasmPath, "poolSize": poolSize}}
-			l := test.NewLogger()
+
 			handlerFn, err := basic.NewMiddleware(l).GetHandler(middleware.Metadata{Base: meta})
 			require.NoError(t, err)
-			tc.test(t, handlerFn(h), l.(fmt.Stringer))
+			tc.test(t, handlerFn(h), &buf)
 		})
 	}
 }

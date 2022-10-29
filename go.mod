@@ -49,7 +49,7 @@ require (
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/dancannon/gorethink v4.0.0+incompatible
-	github.com/dapr/kit v0.0.2
+	github.com/dapr/kit v0.0.3-0.20221024212643-ca65758d4538
 	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/dghubble/go-twitter v0.0.0-20220816163853-8a0df96f1e6d
 	github.com/dghubble/oauth1 v0.7.1
@@ -101,7 +101,7 @@ require (
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.0.518
 	github.com/valyala/fasthttp v1.40.0
 	github.com/vmware/vmware-go-kcl v1.5.0
-	github.com/wapc/wapc-go v0.5.4
+	github.com/wapc/wapc-go v0.5.5
 	github.com/xdg-go/scram v1.1.1
 	go.mongodb.org/mongo-driver v1.10.3
 	go.temporal.io/api v1.12.0
@@ -315,7 +315,7 @@ require (
 	github.com/stathat/consistent v1.0.0 // indirect
 	github.com/stretchr/objx v0.4.0 // indirect
 	github.com/tchap/go-patricia/v2 v2.3.1 // indirect
-	github.com/tetratelabs/wazero v1.0.0-pre.2 // indirect
+	github.com/tetratelabs/wazero v1.0.0-pre.3 // indirect
 	github.com/tidwall/gjson v1.9.3 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect

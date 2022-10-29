@@ -1,8 +1,7 @@
 package basic
 
 import (
-	"fmt"
-	"log"
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/middleware"
-	"github.com/dapr/components-contrib/middleware/http/wasm/basic/internal/test"
 	"github.com/dapr/kit/logger"
 )
 
@@ -25,23 +23,26 @@ func TestMain(m *testing.M) {
 	var err error
 	exampleWasm, err = os.ReadFile("example/example.wasm")
 	if err != nil {
-		log.Panicln(err)
+		panic(err)
 	}
 	os.Exit(m.Run())
 }
 
 func Test_NewMiddleWare(t *testing.T) {
-	l := test.NewLogger()
+	l := logger.NewLogger(t.Name())
 	require.Equal(t, &wapcMiddleware{logger: l}, NewMiddleware(l))
 }
 
 func Test_wapcMiddleware_log(t *testing.T) {
-	l := test.NewLogger()
+	l := logger.NewLogger(t.Name())
+	var buf bytes.Buffer
+	l.SetOutput(&buf)
+
 	m := &wapcMiddleware{logger: l}
 	message := "alert"
 	m.log(message)
 
-	require.Equal(t, "Info(alert)\n", l.(fmt.Stringer).String())
+	require.Contains(t, buf.String(), "level=info msg=alert")
 }
 
 func Test_wapcMiddleware_getMetadata(t *testing.T) {
@@ -164,14 +165,18 @@ func Test_Example(t *testing.T) {
 		"path":     "./example/example.wasm",
 		"poolSize": "2",
 	}}
-	l := test.NewLogger()
+
+	l := logger.NewLogger(t.Name())
+	var buf bytes.Buffer
+	l.SetOutput(&buf)
+
 	handlerFn, err := NewMiddleware(l).GetHandler(middleware.Metadata{Base: meta})
 	require.NoError(t, err)
 	handler := handlerFn(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 
-	r := httptest.NewRequest(http.MethodGet, "/v1.0/hi", nil)
+	r := httptest.NewRequest(http.MethodGet, "/v1.0/hi?name=panda", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, r)
-	require.Equal(t, "/v1.0/hello", httputils.RequestURI(r))
-	require.Empty(t, l.(fmt.Stringer).String())
+	require.Equal(t, "/v1.0/hello?name=teddy", httputils.RequestURI(r))
+	require.Empty(t, buf.String())
 }

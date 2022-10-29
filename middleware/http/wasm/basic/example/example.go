@@ -8,8 +8,8 @@ func main() {
 
 // rewrite returns a new URI if necessary.
 func rewrite(requestURI []byte) ([]byte, error) {
-	if string(requestURI) == "/v1.0/hi" {
-		return []byte("/v1.0/hello"), nil
+	if string(requestURI) == "/v1.0/hi?name=panda" {
+		return []byte("/v1.0/hello?name=teddy"), nil
 	}
 	return requestURI, nil
 }

@@ -37,21 +37,21 @@ func EncryptPublicKey(plaintext []byte, algorithm string, key jwk.Key, associate
 
 	switch algorithm {
 	case Algorithm_RSA1_5:
-		var rsaKey *rsa.PublicKey
+		rsaKey := &rsa.PublicKey{}
 		if key.Raw(rsaKey) != nil {
 			return nil, ErrKeyTypeMismatch
 		}
 		return rsa.EncryptPKCS1v15(rand.Reader, rsaKey, plaintext)
 
 	case Algorithm_RSA_OAEP:
-		var rsaKey *rsa.PublicKey
+		rsaKey := &rsa.PublicKey{}
 		if key.Raw(rsaKey) != nil {
 			return nil, ErrKeyTypeMismatch
 		}
 		return rsa.EncryptOAEP(crypto.SHA1.New(), rand.Reader, rsaKey, plaintext, associatedData)
 
 	case Algorithm_RSA_OAEP_256, Algorithm_RSA_OAEP_384, Algorithm_RSA_OAEP_512:
-		var rsaKey *rsa.PublicKey
+		rsaKey := &rsa.PublicKey{}
 		if key.Raw(rsaKey) != nil {
 			return nil, ErrKeyTypeMismatch
 		}
@@ -67,21 +67,21 @@ func EncryptPublicKey(plaintext []byte, algorithm string, key jwk.Key, associate
 func DecryptPrivateKey(ciphertext []byte, algorithm string, key jwk.Key, associatedData []byte) (plaintext []byte, err error) {
 	switch algorithm {
 	case Algorithm_RSA1_5:
-		var rsaKey *rsa.PrivateKey
+		rsaKey := &rsa.PrivateKey{}
 		if key.Raw(rsaKey) != nil {
 			return nil, ErrKeyTypeMismatch
 		}
 		return rsa.DecryptPKCS1v15(rand.Reader, rsaKey, ciphertext)
 
 	case Algorithm_RSA_OAEP:
-		var rsaKey *rsa.PrivateKey
+		rsaKey := &rsa.PrivateKey{}
 		if key.Raw(rsaKey) != nil {
 			return nil, ErrKeyTypeMismatch
 		}
 		return rsa.DecryptOAEP(crypto.SHA1.New(), rand.Reader, rsaKey, ciphertext, associatedData)
 
 	case Algorithm_RSA_OAEP_256, Algorithm_RSA_OAEP_384, Algorithm_RSA_OAEP_512:
-		var rsaKey *rsa.PrivateKey
+		rsaKey := &rsa.PrivateKey{}
 		if key.Raw(rsaKey) != nil {
 			return nil, ErrKeyTypeMismatch
 		}
@@ -96,21 +96,21 @@ func DecryptPrivateKey(ciphertext []byte, algorithm string, key jwk.Key, associa
 func SignPrivateKey(digest []byte, algorithm string, key jwk.Key) (signature []byte, err error) {
 	switch algorithm {
 	case Algorithm_RS256, Algorithm_RS384, Algorithm_RS512:
-		var rsaKey *rsa.PrivateKey
+		rsaKey := &rsa.PrivateKey{}
 		if key.Raw(rsaKey) != nil {
 			return nil, ErrKeyTypeMismatch
 		}
 		return rsa.SignPKCS1v15(rand.Reader, rsaKey, getSHAHash(algorithm), digest)
 
 	case Algorithm_PS256, Algorithm_PS384, Algorithm_PS512:
-		var rsaKey *rsa.PrivateKey
+		rsaKey := &rsa.PrivateKey{}
 		if key.Raw(rsaKey) != nil {
 			return nil, ErrKeyTypeMismatch
 		}
 		return rsa.SignPSS(rand.Reader, rsaKey, getSHAHash(algorithm), digest, nil)
 
 	case Algorithm_ES256, Algorithm_ES384, Algorithm_ES512:
-		var ecdsaKey *ecdsa.PrivateKey
+		ecdsaKey := &ecdsa.PrivateKey{}
 		if key.Raw(ecdsaKey) != nil {
 			return nil, ErrKeyTypeMismatch
 		}
@@ -131,7 +131,7 @@ func SignPrivateKey(digest []byte, algorithm string, key jwk.Key) (signature []b
 		}
 		switch okpKey.Crv() {
 		case jwa.Ed25519:
-			var ed25519Key *ed25519.PrivateKey
+			ed25519Key := &ed25519.PrivateKey{}
 			if okpKey.Raw(ed25519Key) != nil {
 				return nil, ErrKeyTypeMismatch
 			}
@@ -157,7 +157,7 @@ func VerifyPublicKey(digest []byte, signature []byte, algorithm string, key jwk.
 
 	switch algorithm {
 	case Algorithm_RS256, Algorithm_RS384, Algorithm_RS512:
-		var rsaKey *rsa.PublicKey
+		rsaKey := &rsa.PublicKey{}
 		if key.Raw(rsaKey) != nil {
 			return false, ErrKeyTypeMismatch
 		}
@@ -171,7 +171,7 @@ func VerifyPublicKey(digest []byte, signature []byte, algorithm string, key jwk.
 		return true, nil
 
 	case Algorithm_PS256, Algorithm_PS384, Algorithm_PS512:
-		var rsaKey *rsa.PublicKey
+		rsaKey := &rsa.PublicKey{}
 		if key.Raw(rsaKey) != nil {
 			return false, ErrKeyTypeMismatch
 		}

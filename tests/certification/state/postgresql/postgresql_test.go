@@ -24,6 +24,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/state"
 	state_postgres "github.com/dapr/components-contrib/state/postgresql"

@@ -443,7 +443,9 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_sqlserver.NewSQLServerStateStore(testLogger)
 	case "postgresql":
 		store = s_postgresql.NewPostgreSQLStateStore(testLogger)
-	case "mysql":
+	case "mysql.mysql":
+		store = s_mysql.NewMySQLStateStore(testLogger)
+	case "mysql.mariadb":
 		store = s_mysql.NewMySQLStateStore(testLogger)
 	case "azure.tablestorage.storage":
 		store = s_azuretablestorage.NewAzureTablesStateStore(testLogger)

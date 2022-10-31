@@ -15,7 +15,6 @@ package jetstream
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nkeys"
@@ -96,8 +95,6 @@ func (js *jetstreamPubSub) Publish(req *pubsub.PublishRequest) error {
 }
 
 func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-
-	js.l.Debug("STARTING SUbSCRIBE")
 
 	var opts []nats.SubOpt
 	var consumerConfig nats.ConsumerConfig
@@ -197,8 +194,7 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 	var err error
 	var subscription *nats.Subscription
 	if js.meta.streamName != "" {
-		js.l.Debug("STREAM NAME IS EMPTY")
-		fmt.Println("STREAM NAME IS NOT EMPTY")
+		js.l.Debug("Stream name provided. Explicitly creating Consumer")
 
 		info, err := js.jsc.StreamInfo(js.meta.streamName)
 		if err != nil {
@@ -211,7 +207,6 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 		}
 		opts = append(opts, nats.Bind(info.Config.Name, consumerInfo.Name))
 	}
-	fmt.Println("OPTS: ", opts)
 
 	if queue := js.meta.queueGroupName; queue != "" {
 		js.l.Debugf("nats: subscribed to subject %s with queue group %s",

@@ -20,11 +20,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/agrea/ptr"
-
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 type Query struct {
@@ -159,7 +158,7 @@ func (q *Query) execute(logger logger.Logger, db *sql.DB) ([]state.QueryItem, st
 		result := state.QueryItem{
 			Key:  key,
 			Data: data,
-			ETag: ptr.String(strconv.Itoa(etag)),
+			ETag: ptr.Of(strconv.Itoa(etag)),
 		}
 		ret = append(ret, result)
 	}

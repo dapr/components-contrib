@@ -16,12 +16,12 @@ package tablestore
 import (
 	"encoding/json"
 
-	"github.com/agrea/ptr"
 	"github.com/aliyun/aliyun-tablestore-go-sdk/tablestore"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -96,7 +96,7 @@ func (s *AliCloudTableStore) getResp(columns []*tablestore.AttributeColumn) *sta
 		if column.ColumnName == stateValue {
 			getResp.Data = unmarshal(column.Value)
 		} else if column.ColumnName == sateEtag {
-			getResp.ETag = ptr.String(column.Value.(string))
+			getResp.ETag = ptr.Of(column.Value.(string))
 		}
 	}
 

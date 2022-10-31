@@ -20,13 +20,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agrea/ptr"
 	"github.com/hashicorp/go-multierror"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/samuel/go-zookeeper/zk"
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -173,7 +173,7 @@ func (s *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	return &state.GetResponse{
 		Data: value,
-		ETag: ptr.String(strconv.Itoa(int(stat.Version))),
+		ETag: ptr.Of(strconv.Itoa(int(stat.Version))),
 	}, nil
 }
 

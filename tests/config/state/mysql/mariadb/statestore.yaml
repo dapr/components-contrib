@@ -4,6 +4,7 @@ metadata:
   name: statestore
 spec:
   type: state.mysql
+  version: v1
   metadata:
   - name: connectionString
-    value: "dapr:example@tcp(localhost:3306)/?allowNativePasswords=true"
+    value: "dapr:example@tcp(localhost:3306)/"

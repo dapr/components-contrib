@@ -1,0 +1,12 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: mariadb
+spec:
+  type: state.mysql
+  version: v1
+  metadata:
+    - name: connectionString
+      value: "dapr:example@tcp(localhost:3307)/"
+    - name: schemaName
+      value: dapr_state_store

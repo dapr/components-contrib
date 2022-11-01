@@ -1,0 +1,24 @@
+version: '3.2'
+services:
+  mysql:
+    image: mysql:8
+    command: --default-authentication-plugin=mysql_native_password --port 3306
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: dapr_state_store
+      MYSQL_USER: dapr
+      MYSQL_PASSWORD: example
+    ports:
+      - "3306:3306"
+  mariadb:
+    image: mariadb:10
+    command: --port 3307
+    restart: always
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: dapr_state_store
+      MARIADB_USER: dapr
+      MARIADB_PASSWORD: example
+    ports:
+      - "3307:3307"

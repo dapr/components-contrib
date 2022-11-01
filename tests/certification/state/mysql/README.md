@@ -29,4 +29,15 @@ d. Get and validate eTag, which should not have changed.
 
 ## Transactions
 
-Upsert in Multi function, using 3 keys with updating values and TTL for 2 of the keys, down in the order.
+1. Upsert in Multi function, using 3 keys with updating values and TTL for 2 of the keys, down in the order.
+
+## Close component
+
+1. Ensure the database connection is closed when the component is closed.
+
+## Metadata options
+
+1. Without `schemaName`, check that the default one is used
+2. Without `tableName`, check that the default one is used
+3. Instantiate a component with a custom `schemaName` and validate it's used
+4. Instantiate a component with a custom `tableName` and validate it's used

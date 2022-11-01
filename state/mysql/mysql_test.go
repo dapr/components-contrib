@@ -249,7 +249,7 @@ func TestSetHandlesOptionsError(t *testing.T) {
 	request.Options.Consistency = "Invalid"
 
 	// Act
-	err := m.mySQL.setValue(m.db, &request)
+	err := m.mySQL.Set(&request)
 
 	// Assert
 	assert.NotNil(t, err)
@@ -284,7 +284,7 @@ func TestSetHandlesUpdate(t *testing.T) {
 	request.ETag = &eTag
 
 	// Act
-	err := m.mySQL.setValue(m.db, &request)
+	err := m.mySQL.Set(&request)
 
 	// Assert
 	assert.Nil(t, err)
@@ -303,7 +303,7 @@ func TestSetHandlesErr(t *testing.T) {
 		request.ETag = &eTag
 
 		// Act
-		err := m.mySQL.setValue(m.db, &request)
+		err := m.mySQL.Set(&request)
 
 		// Assert
 		assert.NotNil(t, err)
@@ -316,7 +316,7 @@ func TestSetHandlesErr(t *testing.T) {
 		request := createSetRequest()
 
 		// Act
-		err := m.mySQL.setValue(m.db, &request)
+		err := m.mySQL.Set(&request)
 
 		// Assert
 		assert.NotNil(t, err)
@@ -328,7 +328,7 @@ func TestSetHandlesErr(t *testing.T) {
 		request := createSetRequest()
 
 		// Act
-		err := m.mySQL.setValue(m.db, &request)
+		err := m.mySQL.Set(&request)
 
 		// Assert
 		assert.Nil(t, err)
@@ -339,7 +339,7 @@ func TestSetHandlesErr(t *testing.T) {
 		request := createSetRequest()
 
 		// Act
-		err := m.mySQL.setValue(m.db, &request)
+		err := m.mySQL.Set(&request)
 
 		// Assert
 		assert.NotNil(t, err)
@@ -353,7 +353,7 @@ func TestSetHandlesErr(t *testing.T) {
 		request.ETag = &eTag
 
 		// Act
-		err := m.mySQL.setValue(m.db, &request)
+		err := m.mySQL.Set(&request)
 
 		// Assert
 		assert.NotNil(t, err)
@@ -389,7 +389,7 @@ func TestDeleteWithETag(t *testing.T) {
 	request.ETag = &eTag
 
 	// Act
-	err := m.mySQL.deleteValue(m.db, &request)
+	err := m.mySQL.Delete(&request)
 
 	// Assert
 	assert.Nil(t, err)
@@ -406,7 +406,7 @@ func TestDeleteWithErr(t *testing.T) {
 		request := createDeleteRequest()
 
 		// Act
-		err := m.mySQL.deleteValue(m.db, &request)
+		err := m.mySQL.Delete(&request)
 
 		// Assert
 		assert.NotNil(t, err)
@@ -421,7 +421,7 @@ func TestDeleteWithErr(t *testing.T) {
 		request.ETag = &eTag
 
 		// Act
-		err := m.mySQL.deleteValue(m.db, &request)
+		err := m.mySQL.Delete(&request)
 
 		// Assert
 		assert.NotNil(t, err)
@@ -610,6 +610,7 @@ func TestInitReturnsErrorOnFailOpen(t *testing.T) {
 	metadata := &state.Metadata{
 		Base: metadata.Base{Properties: map[string]string{keyConnectionString: fakeConnectionString}},
 	}
+	m.mock1.ExpectQuery("SELECT EXISTS").WillReturnError(sql.ErrConnDone)
 
 	// Act
 	err := m.mySQL.Init(*metadata)

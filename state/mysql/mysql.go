@@ -102,6 +102,7 @@ func newMySQLStateStore(logger logger.Logger, factory iMySQLFactory) *MySQL {
 	return &MySQL{
 		logger:  logger,
 		factory: factory,
+		timeout: 5 * time.Second,
 	}
 }
 
@@ -548,7 +549,7 @@ func (m *MySQL) setValue(querier querier, req *state.SetRequest) error {
 	}
 
 	if rows == 0 {
-		err = fmt.Errorf(`rows affected error: no rows match given key '%s' and eTag '%s'`, req.Key, *req.ETag)
+		err = errors.New(`rows affected error: no rows match given key and eTag`)
 		err = state.NewETagError(state.ETagMismatch, err)
 		m.logger.Error(err)
 		return err

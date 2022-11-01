@@ -340,7 +340,7 @@ func (r *StateStore) deleteRow(ctx context.Context, req *state.DeleteRequest) er
 	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDBMode)
 
 	deleteContext, cancel := context.WithTimeout(ctx, timeout)
-	cancel()
+	defer cancel()
 	if req.ETag != nil {
 		azcoreETag := azcore.ETag(*req.ETag)
 		_, err := r.client.DeleteEntity(deleteContext, pk, rk, &aztables.DeleteEntityOptions{IfMatch: &azcoreETag})

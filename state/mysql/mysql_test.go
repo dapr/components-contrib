@@ -249,7 +249,7 @@ func TestSetHandlesOptionsError(t *testing.T) {
 	request.Options.Consistency = "Invalid"
 
 	// Act
-	err := m.mySQL.setValue(&request)
+	err := m.mySQL.setValue(m.db, &request)
 
 	// Assert
 	assert.NotNil(t, err)
@@ -284,7 +284,7 @@ func TestSetHandlesUpdate(t *testing.T) {
 	request.ETag = &eTag
 
 	// Act
-	err := m.mySQL.setValue(&request)
+	err := m.mySQL.setValue(m.db, &request)
 
 	// Assert
 	assert.Nil(t, err)
@@ -303,7 +303,7 @@ func TestSetHandlesErr(t *testing.T) {
 		request.ETag = &eTag
 
 		// Act
-		err := m.mySQL.setValue(&request)
+		err := m.mySQL.setValue(m.db, &request)
 
 		// Assert
 		assert.NotNil(t, err)
@@ -316,7 +316,7 @@ func TestSetHandlesErr(t *testing.T) {
 		request := createSetRequest()
 
 		// Act
-		err := m.mySQL.setValue(&request)
+		err := m.mySQL.setValue(m.db, &request)
 
 		// Assert
 		assert.NotNil(t, err)
@@ -328,7 +328,7 @@ func TestSetHandlesErr(t *testing.T) {
 		request := createSetRequest()
 
 		// Act
-		err := m.mySQL.setValue(&request)
+		err := m.mySQL.setValue(m.db, &request)
 
 		// Assert
 		assert.Nil(t, err)
@@ -339,7 +339,7 @@ func TestSetHandlesErr(t *testing.T) {
 		request := createSetRequest()
 
 		// Act
-		err := m.mySQL.setValue(&request)
+		err := m.mySQL.setValue(m.db, &request)
 
 		// Assert
 		assert.NotNil(t, err)
@@ -353,7 +353,7 @@ func TestSetHandlesErr(t *testing.T) {
 		request.ETag = &eTag
 
 		// Act
-		err := m.mySQL.setValue(&request)
+		err := m.mySQL.setValue(m.db, &request)
 
 		// Assert
 		assert.NotNil(t, err)
@@ -389,7 +389,7 @@ func TestDeleteWithETag(t *testing.T) {
 	request.ETag = &eTag
 
 	// Act
-	err := m.mySQL.deleteValue(&request)
+	err := m.mySQL.deleteValue(m.db, &request)
 
 	// Assert
 	assert.Nil(t, err)
@@ -406,7 +406,7 @@ func TestDeleteWithErr(t *testing.T) {
 		request := createDeleteRequest()
 
 		// Act
-		err := m.mySQL.deleteValue(&request)
+		err := m.mySQL.deleteValue(m.db, &request)
 
 		// Assert
 		assert.NotNil(t, err)
@@ -421,7 +421,7 @@ func TestDeleteWithErr(t *testing.T) {
 		request.ETag = &eTag
 
 		// Act
-		err := m.mySQL.deleteValue(&request)
+		err := m.mySQL.deleteValue(m.db, &request)
 
 		// Assert
 		assert.NotNil(t, err)

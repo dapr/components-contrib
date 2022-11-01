@@ -39,8 +39,9 @@ jobs:
         with:
           api-key: ${{ env.FOSSA_API_KEY }}
 
-      - name: "Run FOSSA Test"
-        uses: fossas/fossa-action@v1.3.1 # Use a specific version if locking is preferred
-        with:
-          api-key: ${{ env.FOSSA_API_KEY }}
-          run-tests: true
+# REMOVING THIS STEP AS FOSSA API HAS BEEN FAILING FOR MONTHS NOW
+#      - name: "Run FOSSA Test"
+#        uses: fossas/fossa-action@v1.3.1 # Use a specific version if locking is preferred
+#        with:
+#          api-key: ${{ env.FOSSA_API_KEY }}
+#          run-tests: true

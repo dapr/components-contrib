@@ -1,7 +1,7 @@
 version: '2'
 services:
   db:
-    image: postgres
+    image: postgres:15
     restart: always
     ports:
       - "5432:5432"
@@ -9,3 +9,16 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: example
       POSTGRES_DB: dapr_test
+  # Uncomment for local development
+  #pgadmin:
+  #  image: dpage/pgadmin4
+  #  restart: always
+  #  ports:
+  #    - "9001:9001"
+  #  depends_on:
+  #    - db
+  #  environment:
+  #    - "PGADMIN_LISTEN_PORT=9001"
+  #    - "PGADMIN_DEFAULT_EMAIL=admin@local.dev"
+  #    - "PGADMIN_DEFAULT_PASSWORD=example"
+  #    - "PGADMIN_DISABLE_POSTFIX=1"

@@ -24,6 +24,7 @@ import (
 	"go.uber.org/ratelimit"
 
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 	"github.com/dapr/kit/retry"
 )
 
@@ -52,64 +53,46 @@ type Subscription struct {
 	cancel               context.CancelFunc
 }
 
-// NewSubscription returns a new Subscription object.
+// NewBulkSubscription returns a new Subscription object.
 // Parameter "entity" is usually in the format "topic <topicname>" or "queue <queuename>" and it's only used for logging.
 func NewSubscription(
 	parentCtx context.Context,
 	maxActiveMessages int,
 	timeoutInSec int,
+	maxBulkSubCount *int,
 	maxRetriableEPS int,
-	maxConcurrentHandlers *int,
+	maxConcurrentHandlers int,
 	entity string,
 	logger logger.Logger,
 ) *Subscription {
 	ctx, cancel := context.WithCancel(parentCtx)
-	s := &Subscription{
-		entity:               entity,
-		activeMessages:       make(map[int64]*azservicebus.ReceivedMessage),
-		activeOperationsChan: make(chan struct{}, maxActiveMessages), // In case of a non-bulk subscription, one operation is one message.
-		timeout:              time.Duration(timeoutInSec) * time.Second,
-		maxBulkSubCount:      1, // for non-bulk subscriptions, we only get one message at a time
-		logger:               logger,
-		ctx:                  ctx,
-		cancel:               cancel,
-	}
 
-	if maxRetriableEPS > 0 {
-		s.retriableErrLimit = ratelimit.New(maxRetriableEPS)
+	if maxBulkSubCount != nil {
+		if *maxBulkSubCount < 1 {
+			logger.Warnf("maxBulkSubCount must be greater than 0, setting it to 1")
+			maxBulkSubCount = ptr.Of(1)
+		}
 	} else {
-		s.retriableErrLimit = ratelimit.NewUnlimited()
+		// for non-bulk subscriptions, we only get one message at a time
+		maxBulkSubCount = ptr.Of(1)
 	}
 
-	if maxConcurrentHandlers != nil {
-		s.logger.Debugf("Subscription to %s is limited to %d message handler(s)", entity, *maxConcurrentHandlers)
-		s.handleChan = make(chan struct{}, *maxConcurrentHandlers)
+	if *maxBulkSubCount > maxActiveMessages {
+		logger.Warnf("maxBulkSubCount must not be greater than maxActiveMessages, setting it to %d", maxActiveMessages)
+		maxBulkSubCount = &maxActiveMessages
 	}
 
-	return s
-}
-
-// NewBulkSubscription returns a new Subscription object with bulk support.
-// Parameter "entity" is usually in the format "topic <topicname>" or "queue <queuename>" and it's only used for logging.
-func NewBulkSubscription(
-	parentCtx context.Context,
-	maxActiveMessages int,
-	timeoutInSec int,
-	maxBulkSubCount int,
-	maxRetriableEPS int,
-	maxConcurrentHandlers *int,
-	entity string,
-	logger logger.Logger,
-) *Subscription {
-	ctx, cancel := context.WithCancel(parentCtx)
 	s := &Subscription{
 		entity:          entity,
 		activeMessages:  make(map[int64]*azservicebus.ReceivedMessage),
 		timeout:         time.Duration(timeoutInSec) * time.Second,
-		maxBulkSubCount: maxBulkSubCount,
+		maxBulkSubCount: *maxBulkSubCount,
 		logger:          logger,
 		ctx:             ctx,
 		cancel:          cancel,
+		// This is a pessimistic estimate of the number of total operations that can be active at any given time.
+		// In case of a non-bulk subscription, one operation is one message.
+		activeOperationsChan: make(chan struct{}, maxActiveMessages/(*maxBulkSubCount)),
 	}
 
 	if maxRetriableEPS > 0 {
@@ -118,22 +101,9 @@ func NewBulkSubscription(
 		s.retriableErrLimit = ratelimit.NewUnlimited()
 	}
 
-	if maxBulkSubCount < 1 {
-		s.logger.Warnf("maxBulkSubCount must be greater than 0, setting it to 1")
-		s.maxBulkSubCount = 1
-	}
-
-	if maxBulkSubCount > maxActiveMessages {
-		s.logger.Warnf("maxBulkSubCount must not be greater than maxActiveMessages, setting it to %d", maxActiveMessages)
-		s.maxBulkSubCount = maxActiveMessages
-	}
-
-	// This is a pessimistic estimate of the number of total operations that can be active at any given time.
-	s.activeOperationsChan = make(chan struct{}, maxActiveMessages/s.maxBulkSubCount)
-
-	if maxConcurrentHandlers != nil {
-		s.logger.Debugf("Subscription to %s is limited to %d message handler(s)", entity, *maxConcurrentHandlers)
-		s.handleChan = make(chan struct{}, *maxConcurrentHandlers)
+	if maxConcurrentHandlers > 0 {
+		s.logger.Debugf("Subscription to %s is limited to %d message handler(s)", entity, maxConcurrentHandlers)
+		s.handleChan = make(chan struct{}, maxConcurrentHandlers)
 	}
 
 	return s

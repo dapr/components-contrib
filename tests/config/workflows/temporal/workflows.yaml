@@ -1,0 +1,12 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: temporal
+spec:
+  type: workflows.temporal
+  version: v1
+  metadata:
+  - name: Identity
+    value: TemporalTestClient
+  - name: HostPort
+    value: localhost:7233

@@ -75,8 +75,6 @@ type MySQL struct {
 	// Instance of the database to issue commands to
 	db *sql.DB
 
-	features []state.Feature
-
 	// Logger used in a functions
 	logger logger.Logger
 
@@ -97,9 +95,8 @@ func newMySQLStateStore(logger logger.Logger, factory iMySQLFactory) *MySQL {
 	// Store the provided logger and return the object. The rest of the
 	// properties will be populated in the Init function
 	return &MySQL{
-		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
-		logger:   logger,
-		factory:  factory,
+		logger:  logger,
+		factory: factory,
 	}
 }
 
@@ -163,7 +160,15 @@ func (m *MySQL) Init(metadata state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (m *MySQL) Features() []state.Feature {
-	return m.features
+	return []state.Feature{state.FeatureETag, state.FeatureTransactional}
+}
+
+// Ping the database.
+func (m *MySQL) Ping() error {
+	if m.db == nil {
+		return sql.ErrConnDone
+	}
+	return m.db.Ping()
 }
 
 // Separated out to make this portion of code testable.
@@ -176,7 +181,7 @@ func (m *MySQL) finishInit(db *sql.DB) error {
 		return err
 	}
 
-	err = m.db.Ping()
+	err = m.Ping()
 	if err != nil {
 		m.logger.Error(err)
 		return err
@@ -258,23 +263,23 @@ func (m *MySQL) ensureStateTable(stateTableName string) error {
 }
 
 func schemaExists(db *sql.DB, schemaName string) (bool, error) {
-	// Returns 1 or 0 as a string if the table exists or not
-	exists := ""
+	// Returns 1 or 0 if the table exists or not
+	var exists int
 	query := `SELECT EXISTS (
 		SELECT SCHEMA_NAME FROM information_schema.schemata WHERE SCHEMA_NAME = ?
 	) AS 'exists'`
 	err := db.QueryRow(query, schemaName).Scan(&exists)
-	return exists == "1", err
+	return exists == 1, err
 }
 
 func tableExists(db *sql.DB, tableName string) (bool, error) {
-	// Returns 1 or 0 as a string if the table exists or not
-	exists := ""
+	// Returns 1 or 0 if the table exists or not
+	var exists int
 	query := `SELECT EXISTS (
 		SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_NAME = ?
 	) AS 'exists'`
 	err := db.QueryRow(query, tableName).Scan(&exists)
-	return exists == "1", err
+	return exists == 1, err
 }
 
 // Delete removes an entity from the store
@@ -612,11 +617,13 @@ func (m *MySQL) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, 
 
 // Close implements io.Closer.
 func (m *MySQL) Close() error {
-	if m.db != nil {
-		return m.db.Close()
+	if m.db == nil {
+		return nil
 	}
 
-	return nil
+	err := m.db.Close()
+	m.db = nil
+	return err
 }
 
 // Validates an identifier, such as table or DB name.

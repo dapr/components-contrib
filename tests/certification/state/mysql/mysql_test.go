@@ -42,6 +42,7 @@ const (
 	sidecarNamePrefix       = "mysql-sidecar-"
 	dockerComposeYAML       = "docker-compose.yaml"
 	certificationTestPrefix = "stable-certification-"
+	timeout                 = 5 * time.Second
 
 	defaultSchemaName = "dapr_state_store"
 	defaultTableName  = "state"
@@ -251,6 +252,45 @@ func TestMySQL(t *testing.T) {
 		}
 	}
 
+	// checks that pings fail
+	pingFail := func(idx int) func(ctx flow.Context) error {
+		return func(ctx flow.Context) (err error) {
+			component := registeredComponents[idx]
+
+			// Should fail
+			err = component.Ping()
+			require.Error(t, err)
+			assert.Equal(t, "driver: bad connection", err.Error())
+
+			return nil
+		}
+	}
+
+	// checks that operations time out
+	// Currently disabled because the comcast library can't block traffic to a Docker container
+	/*timeoutTest := func(parentCtx flow.Context) (err error) {
+		ctx, cancel := context.WithCancel(parentCtx)
+		defer cancel()
+
+		go network.InterruptNetworkWithContext(ctx, 30*time.Second, nil, nil, "3306", "3307")
+		time.Sleep(5 * time.Second)
+
+		for idx := 0; idx < 2; idx++ {
+			log.Infof("Testing timeout for component %d", idx)
+
+			component := registeredComponents[idx]
+
+			start := time.Now()
+			// Should fail
+			err = component.Ping()
+			assert.Error(t, err)
+			assert.Truef(t, errors.Is(err, context.DeadlineExceeded), "expected context.DeadlineExceeded but got %v", err)
+			assert.GreaterOrEqual(t, time.Since(start), timeout)
+		}
+
+		return nil
+	}*/
+
 	// checks that the connection is closed when the component is closed
 	closeTest := func(idx int) func(ctx flow.Context) error {
 		return func(ctx flow.Context) (err error) {
@@ -334,32 +374,33 @@ func TestMySQL(t *testing.T) {
 
 	flow.New(t, "Run tests").
 		Step(dockercompose.Run("db", dockerComposeYAML)).
-		Step("wait for component to start", flow.Sleep(30*time.Second)).
+		Step("Wait for databases to start", flow.Sleep(30*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithComponentsPath("components/docker/default"),
 			runtime.WithStates(stateRegistry),
 		)).
-		// Test on MySQL
+		// Test flow on mysql and mariadb
 		Step("Run CRUD test on mysql", basicTest("mysql")).
-		Step("Run eTag test on mysql", eTagTest("mysql")).
-		Step("Run transactions test", transactionsTest("mysql")).
-		Step("Run SQL injection test on mysql", verifySQLInjectionTest("mysql")).
-		Step("stop mysql", dockercompose.Stop("db", dockerComposeYAML, "mysql")).
-		Step("wait for component to stop", flow.Sleep(10*time.Second)).
-		Step("start mysql", dockercompose.Start("db", dockerComposeYAML, "mysql")).
-		Step("wait for component to start", flow.Sleep(10*time.Second)).
-		Step("Run connection test on mysql", testGetAfterDBRestart("mysql")).
-		// Test on MariaDB
 		Step("Run CRUD test on mariadb", basicTest("mariadb")).
+		Step("Run eTag test on mysql", eTagTest("mysql")).
 		Step("Run eTag test on mariadb", eTagTest("mariadb")).
+		Step("Run transactions test", transactionsTest("mysql")).
 		Step("Run transactions test", transactionsTest("mariadb")).
+		Step("Run SQL injection test on mysql", verifySQLInjectionTest("mysql")).
 		Step("Run SQL injection test on mariadb", verifySQLInjectionTest("mariadb")).
-		Step("stop mariadb", dockercompose.Stop("db", dockerComposeYAML, "mariadb")).
-		Step("wait for component to stop", flow.Sleep(10*time.Second)).
-		Step("start mariadb", dockercompose.Start("db", dockerComposeYAML, "mariadb")).
-		Step("wait for component to start", flow.Sleep(10*time.Second)).
+		//Step("Interrupt network and simulate timeouts", timeoutTest).
+		Step("Stop mysql", dockercompose.Stop("db", dockerComposeYAML, "mysql")).
+		Step("Stop mariadb", dockercompose.Stop("db", dockerComposeYAML, "mariadb")).
+		Step("Wait for databases to stop", flow.Sleep(10*time.Second)).
+		// We don't know exactly which database is which (since init order isn't deterministic), so we'll just test both
+		Step("Close database connection 1", pingFail(0)).
+		Step("Close database connection 2", pingFail(1)).
+		Step("Start mysql", dockercompose.Start("db", dockerComposeYAML, "mysql")).
+		Step("Start mariadb", dockercompose.Start("db", dockerComposeYAML, "mariadb")).
+		Step("Wait for databases to start", flow.Sleep(10*time.Second)).
+		Step("Run connection test on mysql", testGetAfterDBRestart("mysql")).
 		Step("Run connection test on mariadb", testGetAfterDBRestart("mariadb")).
 		// Test closing the connection
 		// We don't know exactly which database is which (since init order isn't deterministic), so we'll just close both

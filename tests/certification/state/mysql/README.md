@@ -18,7 +18,7 @@ This project aims to test the MySQL State Store component under various conditio
 
 ## Connection Recovery
 
-1- When MySQL/MariaDB goes down and then comes back up - client is able to connect
+1. When MySQL/MariaDB goes down and comes back up, client is able to connect
 
 ## Concurrency
 

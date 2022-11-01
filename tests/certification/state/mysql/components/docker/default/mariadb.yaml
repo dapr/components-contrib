@@ -7,4 +7,6 @@ spec:
   version: v1
   metadata:
     - name: connectionString
-      value: "dapr:example@tcp(localhost:3307)/"
+      value: "dapr:example@tcp(127.0.0.1:3307)/"
+    - name: timeoutInSeconds
+      value: 5

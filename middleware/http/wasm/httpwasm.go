@@ -81,10 +81,21 @@ func (m *middleware) getHandler(metadata dapr.Metadata) (*requestHandler, error)
 }
 
 // IsEnabled implements the same method as documented on api.Logger.
-func (m *middleware) IsEnabled(l api.LogLevel) bool {
-	// TODO: https://github.com/dapr/kit/pull/24
-	// return m.logger.IsOutputLevelEnabled(toDaprLevel(l))
-	return true
+func (m *middleware) IsEnabled(level api.LogLevel) bool {
+	var l logger.LogLevel
+	switch level {
+	case api.LogLevelError:
+		l = logger.ErrorLevel
+	case api.LogLevelWarn:
+		l = logger.WarnLevel
+	case api.LogLevelInfo:
+		l = logger.InfoLevel
+	case api.LogLevelDebug:
+		l = logger.DebugLevel
+	default: // same as api.LogLevelNone
+		return false
+	}
+	return m.logger.IsOutputLevelEnabled(l)
 }
 
 // Log implements the same method as documented on api.Logger.

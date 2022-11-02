@@ -7,7 +7,7 @@ require (
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
 	github.com/dapr/dapr v1.9.1-0.20221101183153-7e3635f1491e
 	github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721
-	github.com/dapr/kit v0.0.3-0.20221031180407-5a284d0d92b7
+	github.com/dapr/kit v0.0.3-0.20221102045011-c213121f0b4f
 	github.com/rabbitmq/amqp091-go v1.5.0
 	github.com/stretchr/testify v1.8.1
 	go.uber.org/multierr v1.8.0

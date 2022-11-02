@@ -24,6 +24,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
@@ -89,17 +90,17 @@ func TestMySQLIntegration(t *testing.T) {
 			{
 				name: "Valid connection string",
 				props: map[string]string{
-					connectionStringKey: getConnectionString(""),
-					pemPathKey:          getPemPath(),
+					keyConnectionString: getConnectionString(""),
+					keyPemPath:          getPemPath(),
 				},
 				expectedErr: "",
 			},
 			{
 				name: "Valid table name",
 				props: map[string]string{
-					connectionStringKey: getConnectionString(""),
-					pemPathKey:          getPemPath(),
-					tableNameKey:        "stateStore",
+					keyConnectionString: getConnectionString(""),
+					keyPemPath:          getPemPath(),
+					keyTableName:        "stateStore",
 				},
 				expectedErr: "",
 			},
@@ -129,7 +130,7 @@ func TestMySQLIntegration(t *testing.T) {
 	pemPath := getPemPath()
 
 	metadata := state.Metadata{
-		Base: metadata.Base{Properties: map[string]string{connectionStringKey: connectionString, pemPathKey: pemPath}},
+		Base: metadata.Base{Properties: map[string]string{keyConnectionString: connectionString, keyPemPath: pemPath}},
 	}
 
 	mys := NewMySQLStateStore(logger.NewLogger("test")).(*MySQL)
@@ -148,7 +149,7 @@ func TestMySQLIntegration(t *testing.T) {
 		tableName := "test_state"
 
 		// Drop the table if it already exists
-		exists, err := tableExists(mys.db, tableName)
+		exists, err := tableExists(mys.db, tableName, 10*time.Second)
 		assert.Nil(t, err)
 		if exists {
 			dropTable(t, mys.db, tableName)
@@ -160,7 +161,7 @@ func TestMySQLIntegration(t *testing.T) {
 		assert.Nil(t, err)
 
 		// Now create it and make sure there are no errors
-		exists, err = tableExists(mys.db, tableName)
+		exists, err = tableExists(mys.db, tableName, 10*time.Second)
 		assert.Nil(t, err)
 		assert.True(t, exists)
 

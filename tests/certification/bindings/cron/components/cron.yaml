@@ -8,5 +8,5 @@ spec:
   version: v1
   metadata:
   - name: schedule
-  # test non-standard macro format
+    # test non-standard macro format
     value: "@every 1s"

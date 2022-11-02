@@ -125,7 +125,6 @@ func TestPostgreSQL(t *testing.T) {
 		resp, err := stateStore.Get(context.Background(), &state.GetRequest{
 			Key: "k",
 		})
-
 		require.NoError(t, err)
 		assert.Equal(t, expectedEtag, *resp.ETag)
 		assert.Equal(t, "\"v2\"", string(resp.Data))

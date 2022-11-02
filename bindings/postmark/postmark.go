@@ -93,7 +93,7 @@ func (p *Postmark) Operations() []bindings.OperationKind {
 }
 
 // Invoke does the work of sending message to Postmark API.
-func (p *Postmark) Invoke(_ context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (p *Postmark) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	// We allow two possible sources of the properties we need,
 	// the component metadata or request metadata, request takes priority if present
 
@@ -154,7 +154,7 @@ func (p *Postmark) Invoke(_ context.Context, req *bindings.InvokeRequest) (*bind
 
 	// Send the email
 	client := postmark.NewClient(p.metadata.ServerToken, p.metadata.AccountToken)
-	_, err := client.SendEmail(email)
+	_, err := client.SendEmail(ctx, email)
 	if err != nil {
 		return nil, fmt.Errorf("error from Postmark, sending email failed: %+v", err)
 	}

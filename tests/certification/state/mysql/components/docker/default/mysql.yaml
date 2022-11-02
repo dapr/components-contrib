@@ -1,0 +1,12 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: mysql
+spec:
+  type: state.mysql
+  version: v1
+  metadata:
+    - name: connectionString
+      value: "dapr:example@tcp(127.0.0.1:3306)/?allowNativePasswords=true"
+    - name: timeoutInSeconds
+      value: 5

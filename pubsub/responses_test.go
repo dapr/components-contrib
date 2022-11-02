@@ -65,12 +65,12 @@ func TestNewBulkPublishResponse(t *testing.T) {
 				{
 					EntryId: "1",
 					Status:  PublishFailed,
-					Error:   assert.AnError,
+					Error:   assert.AnError.Error(),
 				},
 				{
 					EntryId: "2",
 					Status:  PublishFailed,
-					Error:   assert.AnError,
+					Error:   assert.AnError.Error(),
 				},
 			},
 		}

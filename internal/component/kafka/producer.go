@@ -145,7 +145,7 @@ func (k *Kafka) mapKafkaProducerErrors(err error, entries []pubsub.BulkMessageEn
 			resp.Statuses = append(resp.Statuses, pubsub.BulkPublishResponseEntry{
 				Status:  pubsub.PublishFailed,
 				EntryId: entryId,
-				Error:   pErr.Err,
+				Error:   pErr.Err.Error(),
 			})
 		} else {
 			// Ideally this condition should not be executed, but in the scenario that the Metadata field

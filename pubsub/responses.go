@@ -54,12 +54,13 @@ type AppBulkResponse struct {
 type BulkPublishResponseEntry struct {
 	EntryId string            `json:"entryId"` //nolint:stylecheck
 	Status  BulkPublishStatus `json:"status"`
-	Error   error             `json:"error"`
+	Error   string            `json:"error,omitempty"`
 }
 
 // BulkPublishResponse is the whole bulk publish response sent to App
 type BulkPublishResponse struct {
-	Statuses []BulkPublishResponseEntry `json:"statuses"`
+	Statuses  []BulkPublishResponseEntry `json:"statuses"`
+	ErrorCode string                     `json:"errorCode,omitempty"`
 }
 
 // BulkSubscribeResponseEntry Represents single subscribe response item, as part of BulkSubscribeResponse
@@ -85,7 +86,7 @@ func NewBulkPublishResponse(messages []BulkMessageEntry, status BulkPublishStatu
 		st.EntryId = msg.EntryId
 		st.Status = status
 		if err != nil {
-			st.Error = err
+			st.Error = err.Error()
 		}
 		response.Statuses[i] = st
 	}

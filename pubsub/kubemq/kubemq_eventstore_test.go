@@ -3,12 +3,14 @@ package kubemq
 import (
 	"context"
 	"fmt"
-	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/kit/logger"
-	"github.com/kubemq-io/kubemq-go"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/kubemq-io/kubemq-go"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/logger"
 )
 
 type kubemqEventsStoreMock struct {
@@ -32,6 +34,7 @@ func (k *kubemqEventsStoreMock) publish(msg *kubemq.EventStore) error {
 
 	return nil
 }
+
 func (k *kubemqEventsStoreMock) Stream(ctx context.Context, onResult func(result *kubemq.EventStoreResult, err error)) (func(msg *kubemq.EventStore) error, error) {
 	go func() {
 		for {
@@ -45,33 +48,39 @@ func (k *kubemqEventsStoreMock) Stream(ctx context.Context, onResult func(result
 					Err:  result,
 				}, nil)
 			}
-
 		}
 	}()
 	return k.publish, nil
 }
+
 func (k *kubemqEventsStoreMock) Subscribe(ctx context.Context, request *kubemq.EventsStoreSubscription, onEvent func(msg *kubemq.EventStoreReceive, err error)) error {
 	return k.subscribeErr
 }
+
 func (k *kubemqEventsStoreMock) Close() error {
 	return nil
 }
+
 func (k *kubemqEventsStoreMock) setResultError(err error) *kubemqEventsStoreMock {
 	k.resultError = err
 	return k
 }
+
 func (k *kubemqEventsStoreMock) setSubscribeError(err error) *kubemqEventsStoreMock {
 	k.subscribeErr = err
 	return k
 }
+
 func (k *kubemqEventsStoreMock) setPublishTimeout(timeout time.Duration) *kubemqEventsStoreMock {
 	k.publishTimeout = timeout
 	return k
 }
+
 func (k *kubemqEventsStoreMock) setPublishError(err error) *kubemqEventsStoreMock {
 	k.publishError = err
 	return k
 }
+
 func newKubemqEventsStoreMock() *kubemqEventsStoreMock {
 	return &kubemqEventsStoreMock{
 		resultError:  nil,
@@ -98,7 +107,8 @@ func Test_kubeMQEventsStore_Publish(t *testing.T) {
 			resultError: nil,
 
 			wantErr: false,
-		}, {
+		},
+		{
 			name: "publish with  error",
 			req: &pubsub.PublishRequest{
 				Data:  []byte("data"),
@@ -159,6 +169,7 @@ func Test_kubeMQEventsStore_Publish(t *testing.T) {
 		_ = k.Close()
 	}
 }
+
 func Test_kubeMQkubeMQEventsStore_Subscribe(t *testing.T) {
 	tests := []struct {
 		name             string

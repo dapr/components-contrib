@@ -2,9 +2,10 @@ package kubemq
 
 import (
 	"fmt"
-	"github.com/dapr/components-contrib/pubsub"
 	"strconv"
 	"strings"
+
+	"github.com/dapr/components-contrib/pubsub"
 )
 
 type metadata struct {

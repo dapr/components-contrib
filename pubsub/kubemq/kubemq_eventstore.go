@@ -6,9 +6,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kubemq-io/kubemq-go"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
-	"github.com/kubemq-io/kubemq-go"
 )
 
 // interface used to allow unit testing.
@@ -44,6 +45,7 @@ func newKubeMQEventsStore(logger logger.Logger) *kubeMQEventStore {
 		isInitialized:        false,
 	}
 }
+
 func (k *kubeMQEventStore) init() error {
 	k.lock.RLock()
 	isInit := k.isInitialized
@@ -79,11 +81,13 @@ func (k *kubeMQEventStore) init() error {
 	k.isInitialized = true
 	return nil
 }
+
 func (k *kubeMQEventStore) Init(meta *metadata) error {
 	k.metadata = meta
 	_ = k.init()
 	return nil
 }
+
 func (k *kubeMQEventStore) setPublishStream() error {
 	var err error
 	k.publishFunc, err = k.client.Stream(k.ctx, func(result *kubemq.EventStoreResult, err error) {
@@ -97,6 +101,7 @@ func (k *kubeMQEventStore) setPublishStream() error {
 	}
 	return nil
 }
+
 func (k *kubeMQEventStore) Publish(req *pubsub.PublishRequest) error {
 	if err := k.init(); err != nil {
 		return err
@@ -124,6 +129,7 @@ func (k *kubeMQEventStore) Publish(req *pubsub.PublishRequest) error {
 	}
 	return nil
 }
+
 func (k *kubeMQEventStore) Features() []pubsub.Feature {
 	return nil
 }

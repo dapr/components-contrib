@@ -3,11 +3,13 @@ package kubemq
 import (
 	"context"
 	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func getMockEventsClient() *kubeMQEvents {
@@ -23,6 +25,7 @@ func getMockEventsClient() *kubeMQEvents {
 		isInitialized:        true,
 	}
 }
+
 func getMockEventsStoreClient() *kubeMQEventStore {
 	return &kubeMQEventStore{
 		client:               newKubemqEventsStoreMock(),
@@ -36,6 +39,7 @@ func getMockEventsStoreClient() *kubeMQEventStore {
 		isInitialized:        true,
 	}
 }
+
 func Test_kubeMQ_Init(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -46,16 +50,18 @@ func Test_kubeMQ_Init(t *testing.T) {
 	}{
 		{
 			name: "init events store client",
-			meta: pubsub.Metadata{Base: mdata.Base{
-				Properties: map[string]string{
-					"address":   "localhost:50000",
-					"channel":   "test",
-					"clientID":  "clientID",
-					"authToken": "authToken",
-					"group":     "group",
-					"store":     "true",
-					"useMock":   "true",
-				}},
+			meta: pubsub.Metadata{
+				Base: mdata.Base{
+					Properties: map[string]string{
+						"address":   "localhost:50000",
+						"channel":   "test",
+						"clientID":  "clientID",
+						"authToken": "authToken",
+						"group":     "group",
+						"store":     "true",
+						"useMock":   "true",
+					},
+				},
 			},
 			eventsClient:     nil,
 			eventStoreClient: getMockEventsStoreClient(),
@@ -63,16 +69,18 @@ func Test_kubeMQ_Init(t *testing.T) {
 		},
 		{
 			name: "init events client",
-			meta: pubsub.Metadata{Base: mdata.Base{
-				Properties: map[string]string{
-					"address":   "localhost:50000",
-					"channel":   "test",
-					"clientID":  "clientID",
-					"authToken": "authToken",
-					"group":     "group",
-					"store":     "false",
-					"useMock":   "true",
-				}},
+			meta: pubsub.Metadata{
+				Base: mdata.Base{
+					Properties: map[string]string{
+						"address":   "localhost:50000",
+						"channel":   "test",
+						"clientID":  "clientID",
+						"authToken": "authToken",
+						"group":     "group",
+						"store":     "false",
+						"useMock":   "true",
+					},
+				},
 			},
 			eventsClient:     getMockEventsClient(),
 			eventStoreClient: nil,
@@ -80,10 +88,12 @@ func Test_kubeMQ_Init(t *testing.T) {
 		},
 		{
 			name: "init error",
-			meta: pubsub.Metadata{Base: mdata.Base{
-				Properties: map[string]string{
-					"address": "badaddress",
-				}},
+			meta: pubsub.Metadata{
+				Base: mdata.Base{
+					Properties: map[string]string{
+						"address": "badaddress",
+					},
+				},
 			},
 			eventsClient:     nil,
 			eventStoreClient: nil,

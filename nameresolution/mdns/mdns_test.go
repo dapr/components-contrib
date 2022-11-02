@@ -15,7 +15,9 @@ package mdns
 
 import (
 	"fmt"
+	"math"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -223,21 +225,21 @@ func TestResolverMultipleInstances(t *testing.T) {
 
 	// assert that when we resolve the test app id n times, we see only
 	// instance A and instance B and we see them each atleast m times.
-	instanceACount := 0
-	instanceBCount := 0
+	instanceACount := atomic.Uint32{}
+	instanceBCount := atomic.Uint32{}
 	for i := 0; i < 100; i++ {
 		addr, err := resolver.ResolveID(request)
 		require.NoError(t, err)
 		require.Contains(t, []string{instanceAPQDN, instanceBPQDN}, addr)
 		if addr == instanceAPQDN {
-			instanceACount++
+			instanceACount.Add(1)
 		} else if addr == instanceBPQDN {
-			instanceBCount++
+			instanceBCount.Add(1)
 		}
 	}
 	// 45 allows some variation in distribution.
-	require.Greater(t, instanceACount, 45)
-	require.Greater(t, instanceBCount, 45)
+	require.Greater(t, instanceACount.Load(), uint32(45))
+	require.Greater(t, instanceBCount.Load(), uint32(45))
 }
 
 func TestResolverNotFound(t *testing.T) {
@@ -379,13 +381,12 @@ func ResolverConcurrencyFound(t *testing.T) {
 	// act...
 	wg := sync.WaitGroup{}
 	for i := 0; i < numConcurrency; i++ {
-		idx := i
 		wg.Add(1)
-		go func() {
+		go func(i int) {
 			defer wg.Done()
 
 			var appID string
-			r := idx % 3
+			r := i % 3
 			if r == 0 {
 				appID = "testAppA"
 			} else if r == 1 {
@@ -408,10 +409,9 @@ func ResolverConcurrencyFound(t *testing.T) {
 				assert.Equal(t, appCBPQDN, pt)
 			}
 
-			// It should tax a maximum of 3 seconds to
-			// resolve an address.
+			// It should take a maximum of 3 seconds to resolve an address.
 			assert.Less(t, elapsed, 3*time.Second)
-		}()
+		}(i)
 	}
 
 	wg.Wait()
@@ -618,7 +618,7 @@ func TestAddressListNextMaxCounter(t *testing.T) {
 	require.Equal(t, "addr1", *addressList.next())
 	require.Equal(t, "addr2", *addressList.next())
 	require.Equal(t, "addr3", *addressList.next())
-	addressList.counter = maxInt
+	addressList.counter.Store(math.MaxUint32)
 	require.Equal(t, "addr0", *addressList.next())
 	require.Equal(t, "addr1", *addressList.next())
 	require.Equal(t, "addr2", *addressList.next())

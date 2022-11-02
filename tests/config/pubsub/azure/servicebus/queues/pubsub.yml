@@ -1,0 +1,10 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: azure-servicebus
+spec:
+  type: pubsub.azure.servicebus.queues
+  version: v1
+  metadata:
+  - name: connectionString
+    value: ${{AzureServiceBusConnectionString}}

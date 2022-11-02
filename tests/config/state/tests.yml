@@ -22,7 +22,10 @@ components:
   - component: postgresql
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "query" ]
-  - component: mysql
+  - component: mysql.mysql
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write" ]
+  - component: mysql.mariadb
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write" ]
   - component: azure.tablestorage.storage

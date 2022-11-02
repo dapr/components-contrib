@@ -70,13 +70,15 @@ func TestQueuesWithTTL(t *testing.T) {
 	const maxGetDuration = ttlInSeconds * time.Second
 
 	metadata := bindings.Metadata{
-		Name: "testQueue",
-		Properties: map[string]string{
-			"queueName":                    queueName,
-			"host":                         rabbitmqHost,
-			"deleteWhenUnused":             strconv.FormatBool(exclusive),
-			"durable":                      strconv.FormatBool(durable),
-			contribMetadata.TTLMetadataKey: strconv.FormatInt(ttlInSeconds, 10),
+		Base: contribMetadata.Base{
+			Name: "testQueue",
+			Properties: map[string]string{
+				"queueName":                    queueName,
+				"host":                         rabbitmqHost,
+				"deleteWhenUnused":             strconv.FormatBool(exclusive),
+				"durable":                      strconv.FormatBool(durable),
+				contribMetadata.TTLMetadataKey: strconv.FormatInt(ttlInSeconds, 10),
+			},
 		},
 	}
 
@@ -96,7 +98,7 @@ func TestQueuesWithTTL(t *testing.T) {
 	defer ch.Close()
 
 	const tooLateMsgContent = "too_late_msg"
-	_, err = r.Invoke(context.Backgound(), &bindings.InvokeRequest{Data: []byte(tooLateMsgContent)})
+	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{Data: []byte(tooLateMsgContent)})
 	assert.Nil(t, err)
 
 	time.Sleep(time.Second + (ttlInSeconds * time.Second))
@@ -107,7 +109,7 @@ func TestQueuesWithTTL(t *testing.T) {
 
 	// Getting before it is expired, should return it
 	const testMsgContent = "test_msg"
-	_, err = r.Invoke(context.Backgound(), &bindings.InvokeRequest{Data: []byte(testMsgContent)})
+	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{Data: []byte(testMsgContent)})
 	assert.Nil(t, err)
 
 	msg, ok, err := getMessageWithRetries(ch, queueName, maxGetDuration)

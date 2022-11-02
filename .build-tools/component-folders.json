@@ -7,7 +7,8 @@
         "nameresolution",
         "pubsub",
         "secretstores",
-        "state"
+        "state",
+        "workflows"
     ],
     "excludeFolders": [
         "bindings/alicloud",
@@ -22,6 +23,7 @@
         "configuration/redis/internal",
         "pubsub/aws",
         "pubsub/azure",
+        "pubsub/azure/servicebus",
         "pubsub/gcp",
         "secretstores/alicloud",
         "secretstores/aws",

@@ -98,6 +98,10 @@ func parseRocketMQMetaData(metadata pubsub.Metadata, logger logger.Logger) (*roc
 		logger.Warn("pubsub.rocketmq: metadata property 'groupName' has been deprecated - use 'producerGroup' instead. See: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-rocketmq/")
 	}
 
+	if rMetaData.ProducerGroup == "" {
+		rMetaData.ProducerGroup = metadata.Properties[pubsub.RuntimeConsumerIDKey]
+	}
+
 	if rMetaData.SendTimeOut != 0 {
 		logger.Warn("pubsub.rocketmq: metadata property 'sendTimeOut' has been deprecated - use 'sendTimeOutSec' instead. See: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-rocketmq/")
 		if rMetaData.SendTimeOutSec == 0 {

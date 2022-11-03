@@ -407,18 +407,60 @@ func TestRabbitMQTTL(t *testing.T) {
 		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
 		Step("wait for rabbitmq readiness",
 			retry.Do(time.Second, 30, amqpReady(rabbitMQURL))).
+		// Start dapr and app to precreate all 3 queue in rabbitmq,
+		// if topic is not subscribed, then the message will be lost.
+		// Sidecar will block to wait app, so we need to start app first.
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+1),
+			application(pubsubMessageOnlyTTL, topicTTL1, fullMessages))).
+		Step(sidecar.Run(sidecarName1,
+			embedded.WithComponentsPath("./components/ttl"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+1),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+1),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+1),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+1),
+			componentRuntimeOptions(),
+		)).
+		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+2),
+			application(pubsubQueueOnlyTTL, topicTTL2, QueueOnlyMessages))).
+		Step(sidecar.Run(sidecarName2,
+			embedded.WithComponentsPath("./components/ttl"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+2),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+2),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+2),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+2),
+			componentRuntimeOptions(),
+		)).
+		Step(app.Run(appID3, fmt.Sprintf(":%d", appPort+4),
+			application(pubsubOverwriteTTL, topicTTL3, OverwriteMessages))).
+		Step(sidecar.Run(sidecarName3,
+			embedded.WithComponentsPath("./components/ttl"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+4),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+4),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+4),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+4),
+			componentRuntimeOptions(),
+		)).
+		// Wait for all queue crated and then stop.
+		Step("wait", flow.Sleep(10*time.Second)).
+		Step("stop sidecar1", sidecar.Stop(sidecarName1)).
+		Step("stop app1", app.Stop(appID1)).
+		Step("stop sidecar2", sidecar.Stop(sidecarName2)).
+		Step("stop app2", app.Stop(appID2)).
+		Step("stop sidecar3", sidecar.Stop(sidecarName3)).
+		Step("stop app3", app.Stop(appID3)).
 		// Run publishing sidecars and send to RabbitMQ.
 		Step(sidecar.Run(sidecarNameTTLClient,
 			embedded.WithComponentsPath("./components/ttl"),
-			// embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, 0),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
 			embedded.WithProfilePort(runtime.DefaultProfilePort),
 			componentRuntimeOptions(),
 		)).
+		Step("wait", flow.Sleep(5*time.Second)).
 		// base test case, send message with large ttl and check messages are received.
 		Step("send message only ttl messages", sendMessage(sidecarNameTTLClient, pubsubMessageOnlyTTL, topicTTL1, 100)).
-		Step("wait", flow.Sleep(10*time.Second)).
+		Step("wait", flow.Sleep(5*time.Second)).
 		// Run the application1 logic above.
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+1),
 			application(pubsubMessageOnlyTTL, topicTTL1, fullMessages))).

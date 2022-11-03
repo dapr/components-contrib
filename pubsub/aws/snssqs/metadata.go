@@ -281,6 +281,8 @@ func (md *snsSqsMetadata) setFifoConfig(props map[string]string) error {
 	// for more details, see: https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/using-messagegroupid-property.html
 	if val, ok := props["fifoMessageGroupID"]; ok {
 		md.fifoMessageGroupID = val
+	} else {
+		md.fifoMessageGroupID = props[pubsub.RuntimeConsumerIDKey]
 	}
 
 	return nil

@@ -396,6 +396,7 @@ func TestRabbitMQTTL(t *testing.T) {
 				}
 				require.NoError(ctx, err, "error publishing message")
 				fullMessages.Add(msg)
+				fullMessages.Prepare(msg)
 			}
 
 			return nil

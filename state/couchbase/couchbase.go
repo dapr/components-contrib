@@ -18,13 +18,13 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/agrea/ptr"
 	jsoniter "github.com/json-iterator/go"
 	"gopkg.in/couchbase/gocb.v1"
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -201,7 +201,7 @@ func (cbs *Couchbase) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	return &state.GetResponse{
 		Data: data.([]byte),
-		ETag: ptr.String(strconv.FormatUint(uint64(cas), 10)),
+		ETag: ptr.Of(strconv.FormatUint(uint64(cas), 10)),
 	}, nil
 }
 

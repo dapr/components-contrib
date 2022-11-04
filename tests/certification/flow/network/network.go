@@ -14,6 +14,7 @@ limitations under the License.
 package network
 
 import (
+	"context"
 	"errors"
 	"net"
 	"time"
@@ -72,48 +73,52 @@ func InterruptNetwork(duration time.Duration, ipv4s []string, ipv6s []string, po
 			InterruptNetwork(30 * time.Second, nil, nil, "8080", "9000:9999")
 	*/
 	return func(ctx flow.Context) error {
-		throttler.Run(&throttler.Config{
-			Device:           "",
-			Stop:             false,
-			Latency:          -1,
-			TargetBandwidth:  -1,
-			DefaultBandwidth: -1,
-			PacketLoss:       100,
-			TargetIps:        ipv4s,
-			TargetIps6:       ipv6s,
-			TargetPorts:      ports,
-			TargetProtos:     []string{"tcp", "udp"},
-			DryRun:           false,
-		})
-
-		alreadyCleanedUp := false
-
-		t := time.NewTimer(duration)
-		defer func() {
-			if !t.Stop() && !alreadyCleanedUp {
-				<-t.C
-			}
-		}()
-
-		select {
-		case <-ctx.Done():
-		case <-t.C:
-		}
-		alreadyCleanedUp = true
-		throttler.Run(&throttler.Config{
-			Device:           "",
-			Stop:             true,
-			Latency:          -1,
-			TargetBandwidth:  -1,
-			DefaultBandwidth: -1,
-			PacketLoss:       0,
-			TargetIps:        nil,
-			TargetIps6:       nil,
-			TargetPorts:      nil,
-			TargetProtos:     nil,
-			DryRun:           false,
-		})
-
+		InterruptNetworkWithContext(ctx, duration, ipv4s, ipv6s, ports...)
 		return nil
 	}
+}
+
+// InterruptNetworkWithContext interrupts the network until a timeout or a context is canceled.
+func InterruptNetworkWithContext(ctx context.Context, duration time.Duration, ipv4s []string, ipv6s []string, ports ...string) {
+	throttler.Run(&throttler.Config{
+		Device:           "",
+		Stop:             false,
+		Latency:          -1,
+		TargetBandwidth:  -1,
+		DefaultBandwidth: -1,
+		PacketLoss:       100,
+		TargetIps:        ipv4s,
+		TargetIps6:       ipv6s,
+		TargetPorts:      ports,
+		TargetProtos:     []string{"tcp", "udp"},
+		DryRun:           false,
+	})
+
+	alreadyCleanedUp := false
+
+	t := time.NewTimer(duration)
+	defer func() {
+		if !t.Stop() && !alreadyCleanedUp {
+			<-t.C
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+	case <-t.C:
+	}
+	alreadyCleanedUp = true
+	throttler.Run(&throttler.Config{
+		Device:           "",
+		Stop:             true,
+		Latency:          -1,
+		TargetBandwidth:  -1,
+		DefaultBandwidth: -1,
+		PacketLoss:       0,
+		TargetIps:        nil,
+		TargetIps6:       nil,
+		TargetPorts:      nil,
+		TargetProtos:     nil,
+		DryRun:           false,
+	})
 }

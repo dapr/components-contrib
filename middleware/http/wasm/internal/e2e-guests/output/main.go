@@ -6,22 +6,24 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/wapc/wapc-guest-tinygo"
+	"github.com/http-wasm/http-wasm-guest-tinygo/handler"
+	"github.com/http-wasm/http-wasm-guest-tinygo/handler/api"
 )
 
 func main() {
 	fmt.Fprintln(os.Stdout, "main Stdout")
 	fmt.Fprintln(os.Stderr, "main Stderr")
-	wapc.ConsoleLog("main ConsoleLog")
-	wapc.RegisterFunctions(wapc.Functions{"rewrite": rewrite})
+	handler.Host.Log(api.LogLevelInfo, "main ConsoleLog")
+	handler.HandleRequestFn = log
 }
 
 var requestCount int
 
-func rewrite(requestURI []byte) ([]byte, error) {
+func log(api.Request, api.Response) (next bool, reqCtx uint32) {
 	fmt.Fprintf(os.Stdout, "request[%d] Stdout\n", requestCount)
 	fmt.Fprintf(os.Stderr, "request[%d] Stderr\n", requestCount)
-	wapc.ConsoleLog(fmt.Sprintf("request[%d] ConsoleLog", requestCount))
+	handler.Host.Log(api.LogLevelInfo, fmt.Sprintf("request[%d] ConsoleLog", requestCount))
 	requestCount++
-	return requestURI, nil
+	next = true
+	return
 }

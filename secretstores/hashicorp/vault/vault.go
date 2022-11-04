@@ -157,7 +157,7 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 
 	vaultKVUsePrefix := props[componentVaultKVUsePrefix]
 	vaultKVPrefix := props[componentVaultKVPrefix]
-	convertedVaultKVUsePrefix := true
+	convertedVaultKVUsePrefix := false
 	if vaultKVUsePrefix != "" {
 		if v, err := strconv.ParseBool(vaultKVUsePrefix); err == nil {
 			convertedVaultKVUsePrefix = v
@@ -166,7 +166,7 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 		}
 	}
 
-	if !convertedVaultKVUsePrefix {
+	if convertedVaultKVUsePrefix {
 		vaultKVPrefix = ""
 	} else if vaultKVPrefix == "" {
 		vaultKVPrefix = defaultVaultKVPrefix

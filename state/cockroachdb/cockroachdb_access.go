@@ -21,13 +21,12 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/agrea/ptr"
-
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 
 	// Blank import for the underlying PostgreSQL driver.
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -207,7 +206,7 @@ func (p *cockroachDBAccess) Get(req *state.GetRequest) (*state.GetResponse, erro
 
 		return &state.GetResponse{
 			Data:        data,
-			ETag:        ptr.String(strconv.Itoa(etag)),
+			ETag:        ptr.Of(strconv.Itoa(etag)),
 			Metadata:    req.Metadata,
 			ContentType: nil,
 		}, nil
@@ -215,7 +214,7 @@ func (p *cockroachDBAccess) Get(req *state.GetRequest) (*state.GetResponse, erro
 
 	return &state.GetResponse{
 		Data:        []byte(value),
-		ETag:        ptr.String(strconv.Itoa(etag)),
+		ETag:        ptr.Of(strconv.Itoa(etag)),
 		Metadata:    req.Metadata,
 		ContentType: nil,
 	}, nil
@@ -348,7 +347,7 @@ func (p *cockroachDBAccess) Query(req *state.QueryRequest) (*state.QueryResponse
 		query:  "",
 		params: []interface{}{},
 		limit:  0,
-		skip:   ptr.Int64(0),
+		skip:   ptr.Of[int64](0),
 	}
 	qbuilder := query.NewQueryBuilder(stateQuery)
 	if err := qbuilder.BuildQuery(&req.Query); err != nil {

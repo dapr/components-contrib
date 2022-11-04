@@ -22,12 +22,12 @@ import (
 	"strconv"
 	"unicode"
 
-	"github.com/agrea/ptr"
 	mssql "github.com/denisenkom/go-mssqldb"
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 // KeyType defines type of the table identifier.
@@ -540,7 +540,7 @@ func (s *SQLServer) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	return &state.GetResponse{
 		Data: []byte(data),
-		ETag: ptr.String(etag),
+		ETag: ptr.Of(etag),
 	}, nil
 }
 

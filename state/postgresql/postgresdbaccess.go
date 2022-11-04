@@ -21,13 +21,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/agrea/ptr"
-	"github.com/pkg/errors"
-
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 
 	// Blank import for the underlying PostgreSQL driver.
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -232,14 +230,14 @@ func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 
 		return &state.GetResponse{
 			Data:     data,
-			ETag:     ptr.String(strconv.Itoa(etag)),
+			ETag:     ptr.Of(strconv.Itoa(etag)),
 			Metadata: req.Metadata,
 		}, nil
 	}
 
 	return &state.GetResponse{
 		Data:     []byte(value),
-		ETag:     ptr.String(strconv.Itoa(etag)),
+		ETag:     ptr.Of(strconv.Itoa(etag)),
 		Metadata: req.Metadata,
 	}, nil
 }
@@ -458,7 +456,7 @@ func propertyToDuration(props map[string]string, key string, setter func(time.Du
 		if d, err := time.ParseDuration(v); err == nil {
 			setter(d)
 		} else {
-			return errors.Wrapf(err, "error converitng %s:%s to time duration", key, v)
+			return fmt.Errorf("error converitng %s:%s to time duration: %w", key, v, err)
 		}
 	}
 

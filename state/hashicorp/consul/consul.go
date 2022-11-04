@@ -17,12 +17,12 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/agrea/ptr"
 	"github.com/hashicorp/consul/api"
 	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 // Consul is a state store implementation for HashiCorp Consul.
@@ -119,7 +119,7 @@ func (c *Consul) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	return &state.GetResponse{
 		Data: resp.Value,
-		ETag: ptr.String(queryMeta.LastContentHash),
+		ETag: ptr.Of(queryMeta.LastContentHash),
 	}, nil
 }
 

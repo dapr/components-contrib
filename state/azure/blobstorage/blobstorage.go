@@ -45,13 +45,13 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
-	"github.com/agrea/ptr"
 	jsoniter "github.com/json-iterator/go"
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -212,7 +212,7 @@ func (r *StateStore) readFile(ctx context.Context, req *state.GetRequest) (*stat
 
 	return &state.GetResponse{
 		Data:        data,
-		ETag:        ptr.String(string(resp.ETag())),
+		ETag:        ptr.Of(string(resp.ETag())),
 		ContentType: &contentType,
 	}, nil
 }

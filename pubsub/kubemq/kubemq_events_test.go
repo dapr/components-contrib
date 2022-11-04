@@ -3,12 +3,14 @@ package kubemq
 import (
 	"context"
 	"fmt"
-	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/kit/logger"
-	"github.com/kubemq-io/kubemq-go"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/kubemq-io/kubemq-go"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/logger"
 )
 
 type kubemqEventsMock struct {
@@ -32,6 +34,7 @@ func (k *kubemqEventsMock) publish(msg *kubemq.Event) error {
 
 	return nil
 }
+
 func (k *kubemqEventsMock) Stream(ctx context.Context, onError func(err error)) (func(msg *kubemq.Event) error, error) {
 	go func() {
 		for {
@@ -41,33 +44,39 @@ func (k *kubemqEventsMock) Stream(ctx context.Context, onError func(err error)) 
 			case result := <-k.resultCh:
 				onError(result)
 			}
-
 		}
 	}()
 	return k.publish, nil
 }
+
 func (k *kubemqEventsMock) Subscribe(ctx context.Context, request *kubemq.EventsSubscription, onEvent func(msg *kubemq.Event, err error)) error {
 	return k.subscribeErr
 }
+
 func (k *kubemqEventsMock) Close() error {
 	return nil
 }
+
 func (k *kubemqEventsMock) setResultError(err error) *kubemqEventsMock {
 	k.resultError = err
 	return k
 }
+
 func (k *kubemqEventsMock) setSubscribeError(err error) *kubemqEventsMock {
 	k.subscribeErr = err
 	return k
 }
+
 func (k *kubemqEventsMock) setPublishTimeout(timeout time.Duration) *kubemqEventsMock {
 	k.publishTimeout = timeout
 	return k
 }
+
 func (k *kubemqEventsMock) setPublishError(err error) *kubemqEventsMock {
 	k.publishError = err
 	return k
 }
+
 func newKubemqEventsMock() *kubemqEventsMock {
 	return &kubemqEventsMock{
 		resultError:  nil,
@@ -137,6 +146,7 @@ func Test_kubeMQEvents_Publish(t *testing.T) {
 		_ = k.Close()
 	}
 }
+
 func Test_kubeMQEvents_Subscribe(t *testing.T) {
 	tests := []struct {
 		name             string

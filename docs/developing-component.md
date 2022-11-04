@@ -55,6 +55,7 @@ make lint
 ## Validating with Dapr core
 
 1. Make sure you clone the `dapr/dapr` and `dapr/components-contrib` repositories side-by-side, within the same folder.
+1. In case of compatibility issues between `dapr/dapr` and `dapr/compoments-contrib` `go.mod` files during build, checkout the latest released version of `dapr/dapr`.
 1. Replace `github.com/dapr/components-contrib` with a reference to the locally-cloned `components-contrib`:
    ```bash
    go mod edit -replace github.com/dapr/components-contrib=../components-contrib

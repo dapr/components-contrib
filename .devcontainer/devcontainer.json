@@ -9,7 +9,9 @@
 
 		// Uncomment to disable docker-in-docker and automatically proxy default /var/run/docker.sock to
 		// the localhost bind-mount /var/run/docker-host.sock.
-		// "BIND_LOCALHOST_DOCKER": "true"
+		// "BIND_LOCALHOST_DOCKER": "true",
+
+		"GOLANG_PROTOBUF_REGISTRATION_CONFLICT": "true"
 	},
 	"extensions": [
 		"golang.go",

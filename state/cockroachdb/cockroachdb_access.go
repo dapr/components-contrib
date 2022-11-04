@@ -46,6 +46,11 @@ type cockroachDBAccess struct {
 	connectionString string
 }
 
+type cockroachDBMetadata struct {
+	connectionString string
+	tableName        string
+}
+
 // newCockroachDBAccess creates a new instance of cockroachDBAccess.
 func newCockroachDBAccess(logger logger.Logger) *cockroachDBAccess {
 	logger.Debug("Instantiating new CockroachDB state store")
@@ -58,6 +63,18 @@ func newCockroachDBAccess(logger logger.Logger) *cockroachDBAccess {
 		db:               nil,
 		connectionString: "",
 	}
+}
+
+func parseMetadata(metadata state.Metadata) (*cockroachDBMetadata, error) {
+	m := cockroachDBMetadata{}
+
+	if val, ok := metadata.Properties[connectionStringKey]; ok && val != "" {
+		m.connectionString = val
+	} else {
+		return nil, errors.New(errMissingConnectionString)
+	}
+
+	return &m, nil
 }
 
 // Init sets up CockroachDB connection and ensures that the state table exists.

@@ -18,6 +18,7 @@ package metadata
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
 	"time"
@@ -76,6 +77,7 @@ func toTimeDurationHookFunc() mapstructure.DecodeHookFunc {
 			return data, nil
 		}
 
+		fmt.Println(fmt.Errorf("f: %s, t: %s, data: %v", f, t, data))
 		switch f.Kind() {
 		case reflect.String:
 			val, err := time.ParseDuration(data.(string))

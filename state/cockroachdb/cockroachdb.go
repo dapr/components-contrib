@@ -14,6 +14,7 @@ limitations under the License.
 package cockroachdb
 
 import (
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -105,4 +106,9 @@ func (c *CockroachDB) Close() error {
 	}
 
 	return nil
+}
+
+func (c *CockroachDB) GetMetadata() map[string]string {
+	metadataStructPointer := &cockroachDBMetadata{}
+	return metadata.MetadataStructToStringMap(metadataStructPointer)
 }

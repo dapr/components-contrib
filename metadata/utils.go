@@ -16,9 +16,12 @@ package metadata
 import (
 	"fmt"
 	"math"
+	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 )
@@ -140,7 +143,10 @@ func GetMetadataProperty(props map[string]string, keys ...string) (val string, o
 func DecodeMetadata(input interface{}, result interface{}) error {
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		DecodeHook: mapstructure.ComposeDecodeHookFunc(
-			toTimeDurationHookFunc()),
+			toTimeDurationHookFunc(),
+			toTruthyBoolHookFunc(),
+			toStringArrayHookFunc(),
+		),
 		Metadata:         nil,
 		Result:           result,
 		WeaklyTypedInput: true,
@@ -150,4 +156,50 @@ func DecodeMetadata(input interface{}, result interface{}) error {
 	}
 	err = decoder.Decode(input)
 	return err
+}
+
+func toTruthyBoolHookFunc() mapstructure.DecodeHookFunc {
+	return func(
+		f reflect.Type,
+		t reflect.Type,
+		data interface{},
+	) (interface{}, error) {
+		if f == reflect.TypeOf("") && t == reflect.TypeOf(true) {
+			val := data.(string)
+			return utils.IsTruthy(val), nil
+		}
+		return data, nil
+	}
+}
+
+func toStringArrayHookFunc() mapstructure.DecodeHookFunc {
+	return func(
+		f reflect.Type,
+		t reflect.Type,
+		data interface{},
+	) (interface{}, error) {
+		if f == reflect.TypeOf("") && t == reflect.TypeOf([]string{}) {
+			val := data.(string)
+			return strings.Split(val, ","), nil
+		}
+		return data, nil
+	}
+}
+
+// MetadataStructToStringMap converts a struct to a map of field name (or struct tag) to field type.
+// This is used to generate metadata documentation for components.
+func MetadataStructToStringMap(T any) map[string]string {
+	metadataMap := make(map[string]string)
+	val := reflect.ValueOf(T).Elem()
+	for i := 0; i < val.NumField(); i++ {
+		fieldName := val.Type().Field(i).Name
+		fieldType := val.Type().Field(i).Type
+		mapStructureTag := val.Type().Field(i).Tag.Get("mapstructure")
+		tags := strings.Split(mapStructureTag, ",")
+		if len(tags) > 0 && tags[0] != "" {
+			fieldName = tags[0]
+		}
+		metadataMap[fieldName] = fieldType.String()
+	}
+	return metadataMap
 }

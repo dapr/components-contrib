@@ -48,6 +48,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
+	"github.com/dapr/components-contrib/metadata"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
@@ -75,8 +76,8 @@ type StateStore struct {
 }
 
 type blobStorageMetadata struct {
-	accountName   string
-	containerName string
+	AccountName   string
+	ContainerName string
 }
 
 // Init the connection to blob storage, optionally creates a blob container if it doesn't exist.
@@ -86,7 +87,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		return err
 	}
 
-	credential, env, err := azauth.GetAzureStorageBlobCredentials(r.logger, meta.accountName, metadata.Properties)
+	credential, env, err := azauth.GetAzureStorageBlobCredentials(r.logger, meta.AccountName, metadata.Properties)
 	if err != nil {
 		return fmt.Errorf("invalid credentials with error: %s", err.Error())
 	}
@@ -100,9 +101,9 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	var URL *url.URL
 	customEndpoint, ok := mdutils.GetMetadataProperty(metadata.Properties, azauth.StorageEndpointKeys...)
 	if ok && customEndpoint != "" {
-		URL, err = url.Parse(fmt.Sprintf("%s/%s/%s", customEndpoint, meta.accountName, meta.containerName))
+		URL, err = url.Parse(fmt.Sprintf("%s/%s/%s", customEndpoint, meta.AccountName, meta.ContainerName))
 	} else {
-		URL, err = url.Parse(fmt.Sprintf("https://%s.blob.%s/%s", meta.accountName, env.StorageEndpointSuffix, meta.containerName))
+		URL, err = url.Parse(fmt.Sprintf("https://%s.blob.%s/%s", meta.AccountName, env.StorageEndpointSuffix, meta.ContainerName))
 	}
 	if err != nil {
 		return err
@@ -119,7 +120,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	r.logger.Debugf("error creating container: %s", err)
 
 	r.containerURL = containerURL
-	r.logger.Debugf("using container '%s'", meta.containerName)
+	r.logger.Debugf("using container '%s'", meta.ContainerName)
 
 	return nil
 }
@@ -157,6 +158,11 @@ func (r *StateStore) Ping() error {
 	return nil
 }
 
+func (c *StateStore) GetMetadata() map[string]string {
+	metadataStructPointer := &blobStorageMetadata{}
+	return mdutils.MetadataStructToStringMap(metadataStructPointer)
+}
+
 // NewAzureBlobStorageStore instance.
 func NewAzureBlobStorageStore(logger logger.Logger) state.Store {
 	s := &StateStore{
@@ -169,22 +175,23 @@ func NewAzureBlobStorageStore(logger logger.Logger) state.Store {
 	return s
 }
 
-func getBlobStorageMetadata(metadata map[string]string) (*blobStorageMetadata, error) {
-	meta := blobStorageMetadata{}
+func getBlobStorageMetadata(meta map[string]string) (*blobStorageMetadata, error) {
+	m := blobStorageMetadata{}
+	err := metadata.DecodeMetadata(meta, &m)
 
-	if val, ok := mdutils.GetMetadataProperty(metadata, azauth.StorageAccountNameKeys...); ok && val != "" {
-		meta.accountName = val
+	if val, ok := mdutils.GetMetadataProperty(meta, azauth.StorageAccountNameKeys...); ok && val != "" {
+		m.AccountName = val
 	} else {
 		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageAccountNameKeys[0])
 	}
 
-	if val, ok := mdutils.GetMetadataProperty(metadata, azauth.StorageContainerNameKeys...); ok && val != "" {
-		meta.containerName = val
+	if val, ok := mdutils.GetMetadataProperty(meta, azauth.StorageContainerNameKeys...); ok && val != "" {
+		m.ContainerName = val
 	} else {
 		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageContainerNameKeys[0])
 	}
 
-	return &meta, nil
+	return &m, err
 }
 
 func (r *StateStore) readFile(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {

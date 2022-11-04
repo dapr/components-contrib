@@ -32,6 +32,7 @@ import (
 
 	"github.com/dapr/components-contrib/contenttype"
 	"github.com/dapr/components-contrib/internal/authentication/azure"
+	contribmeta "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/kit/logger"
@@ -104,23 +105,19 @@ func NewCosmosDBStateStore(logger logger.Logger) state.Store {
 	return s
 }
 
+func (c *StateStore) GetMetadata() map[string]string {
+	metadataStructPointer := &metadata{}
+	return contribmeta.MetadataStructToStringMap(metadataStructPointer)
+}
+
 // Init does metadata and connection parsing.
 func (c *StateStore) Init(meta state.Metadata) error {
 	c.logger.Debugf("CosmosDB init start")
 
-	b, err := json.Marshal(meta.Properties)
-	if err != nil {
-		return err
-	}
-
 	m := metadata{
 		ContentType: "application/json",
 	}
-
-	err = json.Unmarshal(b, &m)
-	if err != nil {
-		return err
-	}
+	err := contribmeta.DecodeMetadata(meta, &m)
 
 	if m.URL == "" {
 		return errors.New("url is required")

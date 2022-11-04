@@ -16,9 +16,11 @@ package tablestore
 import (
 	"encoding/json"
 
+	"github.com/agrea/ptr"
 	"github.com/aliyun/aliyun-tablestore-go-sdk/tablestore"
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
@@ -234,19 +236,10 @@ func (s *AliCloudTableStore) batchWrite(setReqs []state.SetRequest, deleteReqs [
 	return nil
 }
 
-func (s *AliCloudTableStore) parse(metadata state.Metadata) (*tablestoreMetadata, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
-
+func (s *AliCloudTableStore) parse(meta state.Metadata) (*tablestoreMetadata, error) {
 	var m tablestoreMetadata
-	err = json.Unmarshal(b, &m)
-	if err != nil {
-		return nil, err
-	}
-
-	return &m, nil
+	err := metadata.DecodeMetadata(meta.Properties, &m)
+	return &m, err
 }
 
 func (s *AliCloudTableStore) primaryKey(key string) *tablestore.PrimaryKey {
@@ -254,4 +247,9 @@ func (s *AliCloudTableStore) primaryKey(key string) *tablestore.PrimaryKey {
 	pk.AddPrimaryKeyColumn(stateKey, key)
 
 	return pk
+}
+
+func (c *AliCloudTableStore) GetMetadata() map[string]string {
+	metadataStructPointer := &tablestoreMetadata{}
+	return metadata.MetadataStructToStringMap(metadataStructPointer)
 }

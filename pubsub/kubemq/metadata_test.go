@@ -1,10 +1,12 @@
 package kubemq
 
 import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func Test_createMetadata(t *testing.T) {
@@ -16,17 +18,19 @@ func Test_createMetadata(t *testing.T) {
 	}{
 		{
 			name: "create valid metadata",
-			meta: pubsub.Metadata{Base: mdata.Base{
-				Properties: map[string]string{
-					"address":           "localhost:50000",
-					"channel":           "test",
-					"clientID":          "clientID",
-					"authToken":         "authToken",
-					"group":             "group",
-					"store":             "true",
-					"useMock":           "true",
-					"disableReDelivery": "true",
-				}},
+			meta: pubsub.Metadata{
+				Base: mdata.Base{
+					Properties: map[string]string{
+						"address":           "localhost:50000",
+						"channel":           "test",
+						"clientID":          "clientID",
+						"authToken":         "authToken",
+						"group":             "group",
+						"store":             "true",
+						"useMock":           "true",
+						"disableReDelivery": "true",
+					},
+				},
 			},
 			want: &metadata{
 				host:              "localhost",
@@ -41,13 +45,15 @@ func Test_createMetadata(t *testing.T) {
 		},
 		{
 			name: "create valid metadata with empty group",
-			meta: pubsub.Metadata{Base: mdata.Base{
-				Properties: map[string]string{
-					"address":   "localhost:50000",
-					"clientID":  "clientID",
-					"authToken": "authToken",
-					"store":     "false",
-				}},
+			meta: pubsub.Metadata{
+				Base: mdata.Base{
+					Properties: map[string]string{
+						"address":   "localhost:50000",
+						"clientID":  "clientID",
+						"authToken": "authToken",
+						"store":     "false",
+					},
+				},
 			},
 			want: &metadata{
 				host:      "localhost",
@@ -61,14 +67,16 @@ func Test_createMetadata(t *testing.T) {
 		},
 		{
 			name: "create valid metadata with empty authToken",
-			meta: pubsub.Metadata{Base: mdata.Base{
-				Properties: map[string]string{
-					"address":  "localhost:50000",
-					"channel":  "test",
-					"clientID": "clientID",
-					"group":    "group",
-					"store":    "true",
-				}},
+			meta: pubsub.Metadata{
+				Base: mdata.Base{
+					Properties: map[string]string{
+						"address":  "localhost:50000",
+						"channel":  "test",
+						"clientID": "clientID",
+						"group":    "group",
+						"store":    "true",
+					},
+				},
 			},
 			want: &metadata{
 				host:      "localhost",
@@ -82,56 +90,66 @@ func Test_createMetadata(t *testing.T) {
 		},
 		{
 			name: "create invalid metadata with bad host",
-			meta: pubsub.Metadata{Base: mdata.Base{
-				Properties: map[string]string{
-					"address":  ":50000",
-					"clientID": "clientID",
-				}},
+			meta: pubsub.Metadata{
+				Base: mdata.Base{
+					Properties: map[string]string{
+						"address":  ":50000",
+						"clientID": "clientID",
+					},
+				},
 			},
 			want:    nil,
 			wantErr: true,
 		},
 		{
 			name: "create invalid metadata with bad port",
-			meta: pubsub.Metadata{Base: mdata.Base{
-				Properties: map[string]string{
-					"address":  "localhost:badport",
-					"clientID": "clientID",
-				}},
+			meta: pubsub.Metadata{
+				Base: mdata.Base{
+					Properties: map[string]string{
+						"address":  "localhost:badport",
+						"clientID": "clientID",
+					},
+				},
 			},
 			want:    nil,
 			wantErr: true,
 		},
 		{
 			name: "create invalid metadata with empty address",
-			meta: pubsub.Metadata{Base: mdata.Base{
-				Properties: map[string]string{
-					"address":  "",
-					"clientID": "clientID",
-				}},
+			meta: pubsub.Metadata{
+				Base: mdata.Base{
+					Properties: map[string]string{
+						"address":  "",
+						"clientID": "clientID",
+					},
+				},
 			},
 			want:    nil,
 			wantErr: true,
 		},
 		{
 			name: "create invalid metadata with bad address format",
-			meta: pubsub.Metadata{Base: mdata.Base{
-				Properties: map[string]string{
-					"address":  "localhost:50000:badport",
-					"clientID": "clientID",
-				}},
+			meta: pubsub.Metadata{
+				Base: mdata.Base{
+					Properties: map[string]string{
+						"address":  "localhost:50000:badport",
+						"clientID": "clientID",
+					},
+				},
 			},
 			want:    nil,
 			wantErr: true,
 		},
 		{
 			name: "create invalid metadata with bad store info",
-			meta: pubsub.Metadata{Base: mdata.Base{
-				Properties: map[string]string{
-					"address":  "localhost:50000",
-					"clientID": "clientID",
-					"store":    "bad",
-				}},
+			meta: pubsub.Metadata{
+				Base: mdata.Base{
+					Properties: map[string]string{
+						"address":  "localhost:50000",
+						"clientID": "clientID",
+						"store":    "bad",
+					},
+				},
 			},
 			want:    nil,
 			wantErr: true,
@@ -143,7 +161,6 @@ func Test_createMetadata(t *testing.T) {
 			got, err := createMetadata(tt.meta)
 			if tt.wantErr {
 				assert.Error(t, err)
-
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.want, got)

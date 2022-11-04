@@ -1,0 +1,17 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messagebus
+  namespace: default
+spec:
+  type: pubsub.azure.servicebus.topics
+  version: v1
+  metadata:
+    - name: consumerID
+      value: ehcertification2
+    - name: connectionString
+      secretKeyRef:
+        name: AzureServiceBusConnectionString
+        key: AzureServiceBusConnectionString    
+auth:
+  secretstore: envvar-secret-store  

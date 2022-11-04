@@ -19,6 +19,7 @@ package eventhubs
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"testing"
@@ -27,6 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -57,12 +59,14 @@ const (
 
 func createIotHubBindingsMetadata() bindings.Metadata {
 	metadata := bindings.Metadata{
-		Properties: map[string]string{
-			connectionString:     os.Getenv(iotHubConnectionStringEnvKey),
-			consumerGroup:        os.Getenv(iotHubConsumerGroupEnvKey),
-			storageAccountName:   os.Getenv(storageAccountNameEnvKey),
-			storageAccountKey:    os.Getenv(storageAccountKeyEnvKey),
-			storageContainerName: testStorageContainerName,
+		Base: metadata.Base{
+			Properties: map[string]string{
+				connectionString:     os.Getenv(iotHubConnectionStringEnvKey),
+				consumerGroup:        os.Getenv(iotHubConsumerGroupEnvKey),
+				storageAccountName:   os.Getenv(storageAccountNameEnvKey),
+				storageAccountKey:    os.Getenv(storageAccountKeyEnvKey),
+				storageContainerName: testStorageContainerName,
+			},
 		},
 	}
 
@@ -71,15 +75,17 @@ func createIotHubBindingsMetadata() bindings.Metadata {
 
 func createEventHubsBindingsAADMetadata() bindings.Metadata {
 	metadata := bindings.Metadata{
-		Properties: map[string]string{
-			consumerGroup:        os.Getenv(eventHubsBindingsConsumerGroupEnvKey),
-			storageAccountName:   os.Getenv(azureBlobStorageAccountEnvKey),
-			storageContainerName: os.Getenv(eventHubsBindingsContainerEnvKey),
-			"eventHub":           os.Getenv(eventHubBindingsHubEnvKey),
-			"eventHubNamespace":  os.Getenv(eventHubBindingsNamespaceEnvKey),
-			"azureTenantId":      os.Getenv(azureTenantIdEnvKey),
-			"azureClientId":      os.Getenv(azureServicePrincipalClientIdEnvKey),
-			"azureClientSecret":  os.Getenv(azureServicePrincipalClientSecretEnvKey),
+		Base: metadata.Base{
+			Properties: map[string]string{
+				consumerGroup:        os.Getenv(eventHubsBindingsConsumerGroupEnvKey),
+				storageAccountName:   os.Getenv(azureBlobStorageAccountEnvKey),
+				storageContainerName: os.Getenv(eventHubsBindingsContainerEnvKey),
+				"eventHub":           os.Getenv(eventHubBindingsHubEnvKey),
+				"eventHubNamespace":  os.Getenv(eventHubBindingsNamespaceEnvKey),
+				"azureTenantId":      os.Getenv(azureTenantIdEnvKey),
+				"azureClientId":      os.Getenv(azureServicePrincipalClientIdEnvKey),
+				"azureClientSecret":  os.Getenv(azureServicePrincipalClientSecretEnvKey),
+			},
 		},
 	}
 
@@ -182,7 +188,9 @@ func testReadIotHubEvents(t *testing.T) {
 	}
 
 	cancel()
-	eh.Close()
+	if c, ok := eh.(io.Closer); ok {
+		c.Close()
+	}
 }
 
 func TestIntegrationCases(t *testing.T) {

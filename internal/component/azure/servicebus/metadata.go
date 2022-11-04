@@ -114,6 +114,8 @@ const (
 const (
 	MetadataModeBinding byte = 1 << iota
 	MetadataModeTopics
+
+	MetadataModeQueues byte = 0
 )
 
 // ParseMetadata parses metadata keys that are common to all Service Bus components

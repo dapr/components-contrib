@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
-	"github.com/google/uuid"
 )
 
 type kubeMQ struct {

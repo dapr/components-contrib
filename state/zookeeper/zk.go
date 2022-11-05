@@ -16,6 +16,7 @@ package zookeeper
 import (
 	"errors"
 	"path"
+	reflect "reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -59,7 +60,10 @@ type config struct {
 
 func newConfig(meta map[string]string) (c *config, err error) {
 	var props properties
-	metadata.DecodeMetadata(meta, &props)
+	errDecode := metadata.DecodeMetadata(meta, &props)
+	if errDecode != nil {
+		return nil, errDecode
+	}
 
 	return props.parse()
 }
@@ -384,7 +388,9 @@ func (s *StateStore) marshalData(v interface{}) ([]byte, error) {
 	return jsoniter.ConfigFastest.Marshal(v)
 }
 
-func (s *StateStore) GetMetadata() map[string]string {
-	metatadataStructPointer := &properties{}
-	return metadata.MetadataStructToStringMap(metatadataStructPointer)
+func (s *StateStore) GetComponentMetadata() map[string]string {
+	metadataStruct := properties{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

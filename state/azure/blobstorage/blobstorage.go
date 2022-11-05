@@ -42,13 +42,13 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"reflect"
 	"strings"
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	jsoniter "github.com/json-iterator/go"
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
-	"github.com/dapr/components-contrib/metadata"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
@@ -158,9 +158,11 @@ func (r *StateStore) Ping() error {
 	return nil
 }
 
-func (c *StateStore) GetMetadata() map[string]string {
-	metadataStructPointer := &blobStorageMetadata{}
-	return mdutils.MetadataStructToStringMap(metadataStructPointer)
+func (r *StateStore) GetComponentMetadata() map[string]string {
+	metadataStruct := blobStorageMetadata{}
+	metadataInfo := map[string]string{}
+	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }
 
 // NewAzureBlobStorageStore instance.
@@ -177,7 +179,7 @@ func NewAzureBlobStorageStore(logger logger.Logger) state.Store {
 
 func getBlobStorageMetadata(meta map[string]string) (*blobStorageMetadata, error) {
 	m := blobStorageMetadata{}
-	err := metadata.DecodeMetadata(meta, &m)
+	err := mdutils.DecodeMetadata(meta, &m)
 
 	if val, ok := mdutils.GetMetadataProperty(meta, azauth.StorageAccountNameKeys...); ok && val != "" {
 		m.AccountName = val

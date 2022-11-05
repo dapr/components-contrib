@@ -21,9 +21,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
+
+	"github.com/dapr/components-contrib/internal/utils"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -168,6 +170,10 @@ func toTruthyBoolHookFunc() mapstructure.DecodeHookFunc {
 			val := data.(string)
 			return utils.IsTruthy(val), nil
 		}
+		if f == reflect.TypeOf("") && t == reflect.TypeOf(reflect.TypeOf(ptr.Of(true))) {
+			val := data.(string)
+			return ptr.Of(utils.IsTruthy(val)), nil
+		}
 		return data, nil
 	}
 }
@@ -182,24 +188,42 @@ func toStringArrayHookFunc() mapstructure.DecodeHookFunc {
 			val := data.(string)
 			return strings.Split(val, ","), nil
 		}
+		if f == reflect.TypeOf("") && t == reflect.TypeOf(ptr.Of([]string{})) {
+			val := data.(string)
+			return ptr.Of(strings.Split(val, ",")), nil
+		}
 		return data, nil
 	}
 }
 
-// MetadataStructToStringMap converts a struct to a map of field name (or struct tag) to field type.
+// GetMetadataInfoFromStructType converts a struct to a map of field name (or struct tag) to field type.
 // This is used to generate metadata documentation for components.
-func MetadataStructToStringMap(T any) map[string]string {
-	metadataMap := make(map[string]string)
-	val := reflect.ValueOf(T).Elem()
-	for i := 0; i < val.NumField(); i++ {
-		fieldName := val.Type().Field(i).Name
-		fieldType := val.Type().Field(i).Type
-		mapStructureTag := val.Type().Field(i).Tag.Get("mapstructure")
-		tags := strings.Split(mapStructureTag, ",")
-		if len(tags) > 0 && tags[0] != "" {
-			fieldName = tags[0]
-		}
-		metadataMap[fieldName] = fieldType.String()
+func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *map[string]string) error {
+	// Return if not struct or pointer to struct.
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
 	}
-	return metadataMap
+	if t.Kind() != reflect.Struct {
+		return fmt.Errorf("not a struct: %s", t.Kind().String())
+	}
+
+	for i := 0; i < t.NumField(); i++ {
+		currentField := t.Field(i)
+		mapStructureTag := currentField.Tag.Get("mapstructure")
+		tags := strings.Split(mapStructureTag, ",")
+		numTags := len(tags)
+		if numTags > 1 && tags[numTags-1] == "squash" && currentField.Anonymous {
+			// traverse embedded struct
+			GetMetadataInfoFromStructType(currentField.Type, metadataMap)
+			continue
+		}
+		var fieldName string
+		if numTags > 0 && tags[0] != "" {
+			fieldName = tags[0]
+		} else {
+			fieldName = currentField.Name
+		}
+		(*metadataMap)[fieldName] = currentField.Type.String()
+	}
+	return nil
 }

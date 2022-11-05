@@ -17,6 +17,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
+	"reflect"
 	"strconv"
 	"time"
 
@@ -284,9 +285,11 @@ func (d *StateStore) BulkDelete(req []state.DeleteRequest) error {
 	return e
 }
 
-func (c *StateStore) GetMetadata() map[string]string {
-	metadataStructPointer := &dynamoDBMetadata{}
-	return metadata.MetadataStructToStringMap(metadataStructPointer)
+func (d *StateStore) GetComponentMetadata() map[string]string {
+	metadataStruct := dynamoDBMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }
 
 func (d *StateStore) getDynamoDBMetadata(meta state.Metadata) (*dynamoDBMetadata, error) {

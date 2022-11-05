@@ -515,6 +515,23 @@ func TestTransactionalDeleteNoEtag(t *testing.T) {
 	assert.Equal(t, 0, len(vals))
 }
 
+func TestGetMetadata(t *testing.T) {
+	s, c := setupMiniredis()
+	defer s.Close()
+
+	ss := &StateStore{
+		client: c,
+		json:   jsoniter.ConfigFastest,
+		logger: logger.NewLogger("test"),
+	}
+
+	metadataInfo := ss.GetComponentMetadata()
+	assert.Contains(t, metadataInfo, "redisHost")
+	assert.Contains(t, metadataInfo, "idleCheckFrequency")
+	assert.Equal(t, metadataInfo["redisHost"], "string")
+	assert.Equal(t, metadataInfo["idleCheckFrequency"], "redis.Duration")
+}
+
 func setupMiniredis() (*miniredis.Miniredis, *redis.Client) {
 	s, err := miniredis.Run()
 	if err != nil {

@@ -128,7 +128,7 @@ func (s *Store1) Set(req *SetRequest) error {
 	return nil
 }
 
-func (s *Store1) GetMetadata() map[string]string {
+func (s *Store1) GetComponentMetadata() map[string]string {
 	return map[string]string{}
 }
 
@@ -191,6 +191,6 @@ func (s *Store2) BulkDelete(req []DeleteRequest) error {
 	return nil
 }
 
-func (s *Store2) GetMetadata() map[string]string {
+func (s *Store2) GetComponentMetadata() map[string]string {
 	return map[string]string{}
 }

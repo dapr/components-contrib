@@ -14,9 +14,8 @@ limitations under the License.
 package tablestore
 
 import (
-	"encoding/json"
+	"reflect"
 
-	"github.com/agrea/ptr"
 	"github.com/aliyun/aliyun-tablestore-go-sdk/tablestore"
 	jsoniter "github.com/json-iterator/go"
 
@@ -249,7 +248,9 @@ func (s *AliCloudTableStore) primaryKey(key string) *tablestore.PrimaryKey {
 	return pk
 }
 
-func (c *AliCloudTableStore) GetMetadata() map[string]string {
-	metadataStructPointer := &tablestoreMetadata{}
-	return metadata.MetadataStructToStringMap(metadataStructPointer)
+func (s *AliCloudTableStore) GetComponentMetadata() map[string]string {
+	metadataStruct := tablestoreMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

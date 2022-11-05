@@ -15,6 +15,7 @@ package cassandra
 
 import (
 	"fmt"
+	"reflect"
 	"strconv"
 
 	"github.com/gocql/gocql"
@@ -174,7 +175,10 @@ func getCassandraMetadata(meta state.Metadata) (*cassandraMetadata, error) {
 		Consistency:       "All",
 		Port:              defaultPort,
 	}
-	metadata.DecodeMetadata(meta.Properties, &m)
+	err := metadata.DecodeMetadata(meta.Properties, &m)
+	if err != nil {
+		return nil, err
+	}
 
 	if m.Hosts == nil || len(m.Hosts) == 0 {
 		return nil, fmt.Errorf("missing or empty hosts field from metadata")
@@ -311,7 +315,9 @@ func parseTTL(requestMetadata map[string]string) (*int, error) {
 	return nil, nil
 }
 
-func (c *Cassandra) GetMetadata() map[string]string {
-	metadataStructPointer := &cassandraMetadata{}
-	return metadata.MetadataStructToStringMap(metadataStructPointer)
+func (c *Cassandra) GetComponentMetadata() map[string]string {
+	metadataStruct := cassandraMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

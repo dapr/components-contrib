@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -67,7 +68,10 @@ func NewAerospikeStateStore(logger logger.Logger) state.Store {
 
 func parseAndValidateMetadata(meta state.Metadata) (*aerospikeMetadata, error) {
 	var m aerospikeMetadata
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	decodeErr := metadata.DecodeMetadata(meta.Properties, &m)
+	if decodeErr != nil {
+		return nil, decodeErr
+	}
 
 	if m.Hosts == "" {
 		return nil, errMissingHosts
@@ -77,7 +81,7 @@ func parseAndValidateMetadata(meta state.Metadata) (*aerospikeMetadata, error) {
 	}
 
 	// format is host1:port1,host2:port2
-	_, err = parseHosts(m.Hosts)
+	_, err := parseHosts(m.Hosts)
 	if err != nil {
 		return nil, err
 	}
@@ -266,7 +270,9 @@ func convertETag(eTag string) (uint32, error) {
 	return uint32(i), nil
 }
 
-func (c *Aerospike) GetMetadata() map[string]string {
-	metadataStructPointer := &aerospikeMetadata{}
-	return metadata.MetadataStructToStringMap(metadataStructPointer)
+func (aspike *Aerospike) GetComponentMetadata() map[string]string {
+	metadataStruct := aerospikeMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

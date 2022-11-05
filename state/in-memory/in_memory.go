@@ -410,3 +410,8 @@ func (store *inMemoryStore) doCleanExpiredItems() {
 		}
 	}
 }
+
+func (store *inMemoryStore) GetComponentMetadata() map[string]string {
+	// no metadata, hence no metadata struct to convert here
+	return map[string]string{}
+}

@@ -15,10 +15,12 @@ package jetstream
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
@@ -37,11 +39,11 @@ type StateStore struct {
 }
 
 type jetstreamMetadata struct {
-	name    string
-	natsURL string
-	jwt     string
-	seedKey string
-	bucket  string
+	Name    string
+	NatsURL string
+	Jwt     string
+	SeedKey string
+	Bucket  string
 }
 
 // NewJetstreamStateStore returns a new nats jetstream KV state store.
@@ -63,18 +65,18 @@ func (js *StateStore) Init(metadata state.Metadata) error {
 	}
 
 	var opts []nats.Option
-	opts = append(opts, nats.Name(meta.name))
+	opts = append(opts, nats.Name(meta.Name))
 
 	// Set nats.UserJWT options when jwt and seed key is provided.
-	if meta.jwt != "" && meta.seedKey != "" {
+	if meta.Jwt != "" && meta.SeedKey != "" {
 		opts = append(opts, nats.UserJWT(func() (string, error) {
-			return meta.jwt, nil
+			return meta.Jwt, nil
 		}, func(nonce []byte) ([]byte, error) {
-			return sigHandler(meta.seedKey, nonce)
+			return sigHandler(meta.SeedKey, nonce)
 		}))
 	}
 
-	js.nc, err = nats.Connect(meta.natsURL, opts...)
+	js.nc, err = nats.Connect(meta.NatsURL, opts...)
 	if err != nil {
 		return err
 	}
@@ -84,7 +86,7 @@ func (js *StateStore) Init(metadata state.Metadata) error {
 		return err
 	}
 
-	js.bucket, err = jsc.KeyValue(meta.bucket)
+	js.bucket, err = jsc.KeyValue(meta.Bucket)
 	if err != nil {
 		return err
 	}
@@ -120,31 +122,30 @@ func (js *StateStore) Delete(req *state.DeleteRequest) error {
 	return js.bucket.Delete(escape(req.Key))
 }
 
-func (js *StateStore) getMetadata(metadata state.Metadata) (jetstreamMetadata, error) {
+func (js *StateStore) getMetadata(meta state.Metadata) (jetstreamMetadata, error) {
 	var m jetstreamMetadata
+	err := metadata.DecodeMetadata(meta.Properties, &m)
+	if err != nil {
+		return jetstreamMetadata{}, err
+	}
 
-	if v, ok := metadata.Properties["natsURL"]; ok && v != "" {
-		m.natsURL = v
-	} else {
+	if m.NatsURL == "" {
 		return jetstreamMetadata{}, fmt.Errorf("missing nats URL")
 	}
 
-	m.jwt = metadata.Properties["jwt"]
-	m.seedKey = metadata.Properties["seedKey"]
-
-	if m.jwt != "" && m.seedKey == "" {
+	if m.Jwt != "" && m.SeedKey == "" {
 		return jetstreamMetadata{}, fmt.Errorf("missing seed key")
 	}
 
-	if m.jwt == "" && m.seedKey != "" {
+	if m.Jwt == "" && m.SeedKey != "" {
 		return jetstreamMetadata{}, fmt.Errorf("missing jwt")
 	}
 
-	if m.name = metadata.Properties["name"]; m.name == "" {
-		m.name = "dapr.io - statestore.jetstream"
+	if m.Name == "" {
+		m.Name = "dapr.io - statestore.jetstream"
 	}
 
-	if m.bucket = metadata.Properties["bucket"]; m.bucket == "" {
+	if m.Bucket == "" {
 		return jetstreamMetadata{}, fmt.Errorf("missing bucket")
 	}
 
@@ -167,4 +168,11 @@ func sigHandler(seedKey string, nonce []byte) ([]byte, error) {
 // Escape dapr keys, because || is forbidden.
 func escape(key string) string {
 	return strings.ReplaceAll(key, "||", ".")
+}
+
+func (js *StateStore) GetComponentMetadata() map[string]string {
+	metadataStruct := jetstreamMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

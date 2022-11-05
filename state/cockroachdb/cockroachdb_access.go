@@ -41,14 +41,14 @@ const (
 // cockroachDBAccess implements dbaccess.
 type cockroachDBAccess struct {
 	logger           logger.Logger
-	metadata         state.Metadata
+	metadata         cockroachDBMetadata
 	db               *sql.DB
 	connectionString string
 }
 
 type cockroachDBMetadata struct {
-	connectionString string
-	tableName        string
+	ConnectionString string
+	TableName        string
 }
 
 // newCockroachDBAccess creates a new instance of cockroachDBAccess.
@@ -56,21 +56,18 @@ func newCockroachDBAccess(logger logger.Logger) *cockroachDBAccess {
 	logger.Debug("Instantiating new CockroachDB state store")
 
 	return &cockroachDBAccess{
-		logger: logger,
-		metadata: state.Metadata{
-			Base: metadata.Base{Properties: map[string]string{}},
-		},
+		logger:           logger,
+		metadata:         cockroachDBMetadata{},
 		db:               nil,
 		connectionString: "",
 	}
 }
 
-func parseMetadata(metadata state.Metadata) (*cockroachDBMetadata, error) {
+func parseMetadata(meta state.Metadata) (*cockroachDBMetadata, error) {
 	m := cockroachDBMetadata{}
+	metadata.DecodeMetadata(meta.Properties, &m)
 
-	if val, ok := metadata.Properties[connectionStringKey]; ok && val != "" {
-		m.connectionString = val
-	} else {
+	if m.ConnectionString == "" {
 		return nil, errors.New(errMissingConnectionString)
 	}
 
@@ -81,14 +78,18 @@ func parseMetadata(metadata state.Metadata) (*cockroachDBMetadata, error) {
 func (p *cockroachDBAccess) Init(metadata state.Metadata) error {
 	p.logger.Debug("Initializing CockroachDB state store")
 
-	p.metadata = metadata
+	meta, err := parseMetadata(metadata)
+	if err != nil {
+		return err
+	}
+	p.metadata = *meta
 
-	if val, ok := metadata.Properties[connectionStringKey]; ok && val != "" {
-		p.connectionString = val
-	} else {
+	if p.metadata.ConnectionString == "" {
 		p.logger.Error("Missing CockroachDB connection string")
 
 		return fmt.Errorf(errMissingConnectionString)
+	} else {
+		p.connectionString = p.metadata.ConnectionString
 	}
 
 	databaseConn, err := sql.Open("pgx", p.connectionString)

@@ -40,6 +40,7 @@ package tablestorage
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -58,10 +59,8 @@ const (
 	keyDelimiter        = "||"
 	valueEntityProperty = "Value"
 
-	cosmosDBModeKey    = "cosmosDbMode"
-	serviceURLKey      = "serviceURL"
-	skipCreateTableKey = "skipCreateTable"
-	timeout            = 15 * time.Second
+	cosmosDBModeKey = "cosmosDbMode"
+	timeout         = 15 * time.Second
 )
 
 type StateStore struct {
@@ -78,7 +77,7 @@ type tablesMetadata struct {
 	AccountName     string
 	AccountKey      string // optional, if not provided, will use Azure AD authentication
 	TableName       string
-	CosmosDbMode    bool   // if true, use CosmosDB Table API, otherwise use Azure Table Storage
+	CosmosDBMode    bool   // if true, use CosmosDB Table API, otherwise use Azure Table Storage
 	ServiceURL      string // optional, if not provided, will use default Azure service URL
 	SkipCreateTable bool   // skip attempt to create table - useful for fine grained AAD roles
 }
@@ -92,7 +91,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 
 	var client *aztables.ServiceClient
 
-	r.cosmosDBMode = meta.CosmosDbMode
+	r.cosmosDBMode = meta.CosmosDBMode
 	serviceURL := meta.ServiceURL
 
 	if serviceURL == "" {
@@ -152,7 +151,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	}
 	r.client = client.NewClient(meta.TableName)
 
-	r.logger.Debugf("table initialised, account: %s, cosmosDbMode: %s, table: %s", meta.AccountName, meta.CosmosDbMode, meta.TableName)
+	r.logger.Debugf("table initialised, account: %s, cosmosDbMode: %s, table: %s", meta.AccountName, meta.CosmosDBMode, meta.TableName)
 
 	return nil
 }
@@ -207,9 +206,11 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 	return err
 }
 
-func (c *StateStore) GetMetadata() map[string]string {
-	metadataStructPointer := &tablesMetadata{}
-	return mdutils.MetadataStructToStringMap(metadataStructPointer)
+func (r *StateStore) GetComponentMetadata() map[string]string {
+	metadataStruct := tablesMetadata{}
+	metadataInfo := map[string]string{}
+	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }
 
 func NewAzureTablesStateStore(logger logger.Logger) state.Store {

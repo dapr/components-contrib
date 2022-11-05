@@ -160,7 +160,7 @@ func TestGetObjectStorageMetadata(t *testing.T) {
 	t.Run("Test getObjectStorageMetadata with full properties map", func(t *testing.T) {
 		meta, err := getObjectStorageMetadata(getDummyOCIObjectStorageConfiguration())
 		assert.Nil(t, err, "No error expected in clean property set")
-		assert.Equal(t, getDummyOCIObjectStorageConfiguration()["region"], meta.region, "Region in object storage metadata should match region in properties")
+		assert.Equal(t, getDummyOCIObjectStorageConfiguration()["region"], meta.Region, "Region in object storage metadata should match region in properties")
 	})
 	t.Run("Test getObjectStorageMetadata with incomplete property set", func(t *testing.T) {
 		properties := map[string]string{
@@ -379,27 +379,6 @@ func TestDeleteWithMockClient(t *testing.T) {
 			Concurrency: state.FirstWrite,
 		}})
 		assert.NotNil(t, err, "Asking for FirstWrite concurrency policy without ETag should fail")
-	})
-}
-
-func TestGetValue(t *testing.T) {
-	meta := map[string]string{
-		"testKey": "theValue",
-	}
-	t.Parallel()
-	t.Run("Existing value", func(t *testing.T) {
-		value, _ := getValue(meta, "testKey", true)
-		assert.Equal(t, "theValue", value)
-	})
-	t.Run("Non-existing, required value", func(t *testing.T) {
-		value, err := getValue(meta, "noKey", true)
-		assert.NotNil(t, err, "Missing required value should result in error")
-		assert.Equal(t, "", value, "Empty string should be returned for non-existing value")
-	})
-	t.Run("Non-existing, optional value", func(t *testing.T) {
-		value, err := getValue(meta, "noKey", false)
-		assert.Nil(t, err, "Missing optional value should not result in error")
-		assert.Equal(t, "", value, "Empty string should be returned for non-existing value")
 	})
 }
 

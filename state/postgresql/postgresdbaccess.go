@@ -78,6 +78,7 @@ func (p *postgresDBAccess) Init(meta state.Metadata) error {
 
 		return fmt.Errorf(errMissingConnectionString)
 	}
+	p.connectionString = m.ConnectionString
 
 	db, err := sql.Open("pgx", p.connectionString)
 	if err != nil {
@@ -98,7 +99,7 @@ func (p *postgresDBAccess) Init(meta state.Metadata) error {
 		return err
 	}
 
-	err = p.ensureStateTable(defaultTableName)
+	err = p.ensureStateTable(m.TableName)
 	if err != nil {
 		return err
 	}

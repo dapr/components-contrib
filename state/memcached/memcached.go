@@ -16,20 +16,20 @@ package memcached
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/bradfitz/gomemcache/memcache"
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 )
 
 const (
-	hosts              = "hosts"
 	maxIdleConnections = "maxIdleConnections"
 	timeout            = "timeout"
 	ttlInSeconds       = "ttlInSeconds"
@@ -46,9 +46,9 @@ type Memcached struct {
 }
 
 type memcachedMetadata struct {
-	hosts              []string
-	maxIdleConnections int
-	timeout            time.Duration
+	Hosts              []string
+	MaxIdleConnections int
+	Timeout            int
 }
 
 func NewMemCacheStateStore(logger logger.Logger) state.Store {
@@ -67,9 +67,13 @@ func (m *Memcached) Init(metadata state.Metadata) error {
 		return err
 	}
 
-	client := memcache.New(meta.hosts...)
-	client.Timeout = meta.timeout
-	client.MaxIdleConns = meta.maxIdleConnections
+	client := memcache.New(meta.Hosts...)
+	if meta.Timeout < 0 {
+		client.Timeout = defaultTimeout
+	} else {
+		client.Timeout = time.Duration(meta.Timeout) * time.Millisecond
+	}
+	client.MaxIdleConns = meta.MaxIdleConnections
 
 	m.client = client
 
@@ -86,35 +90,38 @@ func (m *Memcached) Features() []state.Feature {
 	return nil
 }
 
-func getMemcachedMetadata(metadata state.Metadata) (*memcachedMetadata, error) {
-	meta := memcachedMetadata{
-		maxIdleConnections: defaultMaxIdleConnections,
-		timeout:            defaultTimeout,
+func getMemcachedMetadata(meta state.Metadata) (*memcachedMetadata, error) {
+	m := memcachedMetadata{
+		MaxIdleConnections: defaultMaxIdleConnections,
+		Timeout:            -1,
 	}
 
-	if val, ok := metadata.Properties[hosts]; ok && val != "" {
-		meta.hosts = strings.Split(val, ",")
-	} else {
+	err := metadata.DecodeMetadata(meta.Properties, &m)
+	if err != nil {
+		return nil, err
+	}
+
+	if m.Hosts == nil || len(m.Hosts) == 0 {
 		return nil, errors.New("missing or empty hosts field from metadata")
 	}
 
-	if val, ok := metadata.Properties[maxIdleConnections]; ok && val != "" {
+	if val, ok := meta.Properties[maxIdleConnections]; ok && val != "" {
 		p, err := strconv.Atoi(val)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing maxIdleConnections")
 		}
-		meta.maxIdleConnections = p
+		m.MaxIdleConnections = p
 	}
 
-	if val, ok := metadata.Properties[timeout]; ok && val != "" {
+	if val, ok := meta.Properties[timeout]; ok && val != "" {
 		p, err := strconv.Atoi(val)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing timeout")
 		}
-		meta.timeout = time.Duration(p) * time.Millisecond
+		m.Timeout = p
 	}
 
-	return &meta, nil
+	return &m, nil
 }
 
 func (m *Memcached) parseTTL(req *state.SetRequest) (*int32, error) {
@@ -189,4 +196,11 @@ func (m *Memcached) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 func (m *Memcached) Set(req *state.SetRequest) error {
 	return state.SetWithOptions(m.setValue, req)
+}
+
+func (m *Memcached) GetComponentMetadata() map[string]string {
+	metadataStruct := memcachedMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

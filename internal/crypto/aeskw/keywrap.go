@@ -115,7 +115,7 @@ func arrConcat(arrays ...[]byte) []byte {
 	out := make([]byte, len(arrays[0]))
 	copy(out, arrays[0])
 	for _, array := range arrays[1:] {
-		out = append(out, array...)
+		out = append(out, array...) //nolint:makezero
 	}
 
 	return out

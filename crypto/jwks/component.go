@@ -77,6 +77,9 @@ func (k *jwksCrypto) Init(metadata daprcrypto.Metadata) error {
 			k.requestTimeout = time.Duration(timeoutSec) * time.Second
 		}
 	}
+	if k.requestTimeout == 0 {
+		k.requestTimeout = defaultRequestTimeout
+	}
 
 	err := k.initJWKS(metadata.Properties[metadataKeyJWKS])
 	if err != nil {

@@ -383,6 +383,3 @@ replace github.com/toolkits/concurrent => github.com/niean/gotools v0.0.0-201512
 
 // this is a fork which addresses a performance issues due to go routines
 replace dubbo.apache.org/dubbo-go/v3 => dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20220610080020-48691a404537
-
-// TEMP until https://github.com/dapr/kit/pull/26 is merged
-replace github.com/dapr/kit => github.com/ItalyPaleAle/dapr-kit v0.0.2-0.20221028195534-024a03463ed8

@@ -39,7 +39,6 @@ func NewPubKeyCache(getKeyFn GetKeyFn) *PubKeyCache {
 		pubKeys:     map[string]*promise.Promise[jwk.Key]{},
 		pubKeysLock: &sync.Mutex{},
 	}
-
 }
 
 // GetKey returns a public key from the cache, or uses getKeyFn to request it

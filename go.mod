@@ -28,7 +28,6 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/Shopify/sarama v1.37.2
 	github.com/aerospike/aerospike-client-go v4.5.2+incompatible
-	github.com/agrea/ptr v0.0.0-20180711073057-77a518d99b7b
 	github.com/alibaba/sentinel-golang v1.0.4
 	github.com/alibabacloud-go/darabonba-openapi v0.2.1
 	github.com/alibabacloud-go/oos-20190601 v1.0.4
@@ -49,7 +48,7 @@ require (
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/dancannon/gorethink v4.0.0+incompatible
-	github.com/dapr/kit v0.0.2
+	github.com/dapr/kit v0.0.3-0.20221102045011-c213121f0b4f
 	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/dghubble/go-twitter v0.0.0-20221024160433-0cc1e72ed6d8
 	github.com/dghubble/oauth1 v0.7.1
@@ -70,6 +69,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/hazelcast/hazelcast-go-client v0.0.0-20190530123621-6cf767c2f31a
+	github.com/http-wasm/http-wasm-host-go v0.1.0
 	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.21.12+incompatible
 	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.6
 	github.com/influxdata/influxdb-client-go v1.4.0
@@ -99,9 +99,9 @@ require (
 	github.com/supplyon/gremcos v0.1.38
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.527
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.0.527
+	github.com/tetratelabs/wazero v1.0.0-pre.3
 	github.com/valyala/fasthttp v1.41.0
 	github.com/vmware/vmware-go-kcl v1.5.0
-	github.com/wapc/wapc-go v0.5.5
 	github.com/xdg-go/scram v1.1.1
 	go.mongodb.org/mongo-driver v1.10.3
 	go.temporal.io/api v1.12.0
@@ -314,7 +314,6 @@ require (
 	github.com/stathat/consistent v1.0.0 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
 	github.com/tchap/go-patricia/v2 v2.3.1 // indirect
-	github.com/tetratelabs/wazero v1.0.0-pre.3 // indirect
 	github.com/tidwall/gjson v1.13.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect

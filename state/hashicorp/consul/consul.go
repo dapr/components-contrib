@@ -16,13 +16,15 @@ package consul
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 
-	"github.com/agrea/ptr"
 	"github.com/hashicorp/consul/api"
 	"github.com/pkg/errors"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 // Consul is a state store implementation for HashiCorp Consul.
@@ -87,18 +89,9 @@ func (c *Consul) Features() []state.Feature {
 }
 
 func metadataToConfig(connInfo map[string]string) (*consulConfig, error) {
-	b, err := json.Marshal(connInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	var config consulConfig
-	err = json.Unmarshal(b, &config)
-	if err != nil {
-		return nil, err
-	}
-
-	return &config, nil
+	m := &consulConfig{}
+	err := metadata.DecodeMetadata(connInfo, m)
+	return m, err
 }
 
 // Get retrieves a Consul KV item.
@@ -119,7 +112,7 @@ func (c *Consul) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	return &state.GetResponse{
 		Data: resp.Value,
-		ETag: ptr.String(queryMeta.LastContentHash),
+		ETag: ptr.Of(queryMeta.LastContentHash),
 	}, nil
 }
 
@@ -155,4 +148,11 @@ func (c *Consul) Delete(req *state.DeleteRequest) error {
 	}
 
 	return nil
+}
+
+func (c *Consul) GetComponentMetadata() map[string]string {
+	metadataStruct := consulConfig{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

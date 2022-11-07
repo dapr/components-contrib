@@ -14,6 +14,9 @@ limitations under the License.
 package postgresql
 
 import (
+	"reflect"
+
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -100,4 +103,11 @@ func (p *PostgreSQL) Close() error {
 	}
 
 	return nil
+}
+
+func (p *PostgreSQL) GetComponentMetadata() map[string]string {
+	metadataStruct := postgresMetadataStruct{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

@@ -32,12 +32,14 @@ func TestGetTableStorageMetadata(t *testing.T) {
 		m["accountName"] = "acc"
 		m["accountKey"] = "key"
 		m["tableName"] = "dapr"
+		m[cosmosDBModeKey] = "on"
 		meta, err := getTablesMetadata(m)
 
 		assert.Nil(t, err)
-		assert.Equal(t, "acc", meta.accountName)
-		assert.Equal(t, "key", meta.accountKey)
-		assert.Equal(t, "dapr", meta.tableName)
+		assert.Equal(t, "acc", meta.AccountName)
+		assert.Equal(t, "key", meta.AccountKey)
+		assert.Equal(t, "dapr", meta.TableName)
+		assert.Equal(t, true, meta.CosmosDBMode)
 	})
 
 	t.Run("All parameters passed and parsed, using aliases", func(t *testing.T) {
@@ -48,9 +50,9 @@ func TestGetTableStorageMetadata(t *testing.T) {
 		meta, err := getTablesMetadata(m)
 
 		assert.Nil(t, err)
-		assert.Equal(t, "acc", meta.accountName)
-		assert.Equal(t, "key", meta.accountKey)
-		assert.Equal(t, "dapr", meta.tableName)
+		assert.Equal(t, "acc", meta.AccountName)
+		assert.Equal(t, "key", meta.AccountKey)
+		assert.Equal(t, "dapr", meta.TableName)
 	})
 }
 

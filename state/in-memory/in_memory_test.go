@@ -17,11 +17,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agrea/ptr"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 
 	"github.com/dapr/components-contrib/state"
 )
@@ -41,7 +41,7 @@ func TestReadAndWrite(t *testing.T) {
 		setReq := &state.SetRequest{
 			Key:   keyA,
 			Value: valueA,
-			ETag:  ptr.String("the etag"),
+			ETag:  ptr.Of("the etag"),
 		}
 		err := store.Set(setReq)
 		assert.Nil(t, err)
@@ -82,7 +82,7 @@ func TestReadAndWrite(t *testing.T) {
 		setReq := &state.SetRequest{
 			Key:   "theSecondKey",
 			Value: "1234",
-			ETag:  ptr.String("the etag"),
+			ETag:  ptr.Of("the etag"),
 		}
 		err := store.Set(setReq)
 		assert.Nil(t, err)

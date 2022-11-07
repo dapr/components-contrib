@@ -16,6 +16,7 @@ package zookeeper
 import (
 	"errors"
 	"path"
+	reflect "reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -24,6 +25,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/samuel/go-zookeeper/zk"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
@@ -56,16 +58,11 @@ type config struct {
 	keyPrefixPath     string
 }
 
-func newConfig(metadata map[string]string) (c *config, err error) {
-	var buf []byte
-
-	if buf, err = jsoniter.ConfigFastest.Marshal(metadata); err != nil {
-		return
-	}
-
+func newConfig(meta map[string]string) (c *config, err error) {
 	var props properties
-	if err = jsoniter.ConfigFastest.Unmarshal(buf, &props); err != nil {
-		return
+	errDecode := metadata.DecodeMetadata(meta, &props)
+	if errDecode != nil {
+		return nil, errDecode
 	}
 
 	return props.parse()
@@ -389,4 +386,11 @@ func (s *StateStore) marshalData(v interface{}) ([]byte, error) {
 	}
 
 	return jsoniter.ConfigFastest.Marshal(v)
+}
+
+func (s *StateStore) GetComponentMetadata() map[string]string {
+	metadataStruct := properties{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

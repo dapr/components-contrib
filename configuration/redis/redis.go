@@ -78,40 +78,40 @@ func parseRedisMetadata(meta configuration.Metadata) (metadata, error) {
 	m := metadata{}
 
 	if val, ok := meta.Properties[host]; ok && val != "" {
-		m.host = val
+		m.Host = val
 	} else {
 		return m, errors.New("redis store error: missing host address")
 	}
 
 	if val, ok := meta.Properties[password]; ok && val != "" {
-		m.password = val
+		m.Password = val
 	}
 
-	m.enableTLS = defaultEnableTLS
+	m.EnableTLS = defaultEnableTLS
 	if val, ok := meta.Properties[enableTLS]; ok && val != "" {
 		tls, err := strconv.ParseBool(val)
 		if err != nil {
 			return m, fmt.Errorf("redis store error: can't parse enableTLS field: %s", err)
 		}
-		m.enableTLS = tls
+		m.EnableTLS = tls
 	}
 
-	m.maxRetries = defaultMaxRetries
+	m.MaxRetries = defaultMaxRetries
 	if val, ok := meta.Properties[maxRetries]; ok && val != "" {
 		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
 		if err != nil {
 			return m, fmt.Errorf("redis store error: can't parse maxRetries field: %s", err)
 		}
-		m.maxRetries = int(parsedVal)
+		m.MaxRetries = int(parsedVal)
 	}
 
-	m.maxRetryBackoff = defaultMaxRetryBackoff
+	m.MaxRetryBackoff = defaultMaxRetryBackoff
 	if val, ok := meta.Properties[maxRetryBackoff]; ok && val != "" {
 		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
 		if err != nil {
 			return m, fmt.Errorf("redis store error: can't parse maxRetryBackoff field: %s", err)
 		}
-		m.maxRetryBackoff = time.Duration(parsedVal)
+		m.MaxRetryBackoff = time.Duration(parsedVal)
 	}
 
 	if val, ok := meta.Properties[failover]; ok && val != "" {
@@ -119,13 +119,13 @@ func parseRedisMetadata(meta configuration.Metadata) (metadata, error) {
 		if err != nil {
 			return m, fmt.Errorf("redis store error: can't parse failover field: %s", err)
 		}
-		m.failover = failover
+		m.Failover = failover
 	}
 
 	// set the sentinelMasterName only with failover == true.
-	if m.failover {
+	if m.Failover {
 		if val, ok := meta.Properties[sentinelMasterName]; ok && val != "" {
-			m.sentinelMasterName = val
+			m.SentinelMasterName = val
 		} else {
 			return m, errors.New("redis store error: missing sentinelMasterName")
 		}
@@ -142,14 +142,14 @@ func (r *ConfigurationStore) Init(metadata configuration.Metadata) error {
 	}
 	r.metadata = m
 
-	if r.metadata.failover {
+	if r.metadata.Failover {
 		r.client = r.newFailoverClient(m)
 	} else {
 		r.client = r.newClient(m)
 	}
 
 	if _, err = r.client.Ping(context.TODO()).Result(); err != nil {
-		return fmt.Errorf("redis store: error connecting to redis at %s: %s", m.host, err)
+		return fmt.Errorf("redis store: error connecting to redis at %s: %s", m.Host, err)
 	}
 
 	r.replicas, err = r.getConnectedSlaves()
@@ -159,18 +159,18 @@ func (r *ConfigurationStore) Init(metadata configuration.Metadata) error {
 
 func (r *ConfigurationStore) newClient(m metadata) *redis.Client {
 	opts := &redis.Options{
-		Addr:            m.host,
-		Password:        m.password,
+		Addr:            m.Host,
+		Password:        m.Password,
 		DB:              defaultDB,
-		MaxRetries:      m.maxRetries,
-		MaxRetryBackoff: m.maxRetryBackoff,
+		MaxRetries:      m.MaxRetries,
+		MaxRetryBackoff: m.MaxRetryBackoff,
 	}
 
 	// tell the linter to skip a check here.
 	/* #nosec */
-	if m.enableTLS {
+	if m.EnableTLS {
 		opts.TLSConfig = &tls.Config{
-			InsecureSkipVerify: m.enableTLS,
+			InsecureSkipVerify: m.EnableTLS,
 		}
 	}
 
@@ -179,17 +179,17 @@ func (r *ConfigurationStore) newClient(m metadata) *redis.Client {
 
 func (r *ConfigurationStore) newFailoverClient(m metadata) *redis.Client {
 	opts := &redis.FailoverOptions{
-		MasterName:      r.metadata.sentinelMasterName,
-		SentinelAddrs:   []string{r.metadata.host},
+		MasterName:      r.metadata.SentinelMasterName,
+		SentinelAddrs:   []string{r.metadata.Host},
 		DB:              defaultDB,
-		MaxRetries:      m.maxRetries,
-		MaxRetryBackoff: m.maxRetryBackoff,
+		MaxRetries:      m.MaxRetries,
+		MaxRetryBackoff: m.MaxRetryBackoff,
 	}
 
 	/* #nosec */
-	if m.enableTLS {
+	if m.EnableTLS {
 		opts.TLSConfig = &tls.Config{
-			InsecureSkipVerify: m.enableTLS,
+			InsecureSkipVerify: m.EnableTLS,
 		}
 	}
 

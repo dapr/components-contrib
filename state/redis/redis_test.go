@@ -19,7 +19,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agrea/ptr"
 	miniredis "github.com/alicebob/miniredis/v2"
 	redis "github.com/go-redis/redis/v8"
 	jsoniter "github.com/json-iterator/go"
@@ -28,6 +27,7 @@ import (
 	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 func TestGetKeyVersion(t *testing.T) {
@@ -36,7 +36,7 @@ func TestGetKeyVersion(t *testing.T) {
 		key, ver, err := store.getKeyVersion([]interface{}{"data", "TEST_KEY", "version", "TEST_VER"})
 		assert.Equal(t, nil, err, "failed to read all fields")
 		assert.Equal(t, "TEST_KEY", key, "failed to read key")
-		assert.Equal(t, ptr.String("TEST_VER"), ver, "failed to read version")
+		assert.Equal(t, ptr.Of("TEST_VER"), ver, "failed to read version")
 	})
 	t.Run("With missing data", func(t *testing.T) {
 		_, _, err := store.getKeyVersion([]interface{}{"version", "TEST_VER"})
@@ -50,7 +50,7 @@ func TestGetKeyVersion(t *testing.T) {
 		key, ver, err := store.getKeyVersion([]interface{}{"version", "TEST_VER", "dragon", "TEST_DRAGON", "data", "TEST_KEY"})
 		assert.Equal(t, nil, err, "failed to read all fields")
 		assert.Equal(t, "TEST_KEY", key, "failed to read key")
-		assert.Equal(t, ptr.String("TEST_VER"), ver, "failed to read version")
+		assert.Equal(t, ptr.Of("TEST_VER"), ver, "failed to read version")
 	})
 	t.Run("With no fields", func(t *testing.T) {
 		_, _, err := store.getKeyVersion([]interface{}{})
@@ -245,7 +245,7 @@ func TestTransactionalUpsert(t *testing.T) {
 	vals := res.([]interface{})
 	data, version, err := ss.getKeyVersion(vals)
 	assert.Equal(t, nil, err)
-	assert.Equal(t, ptr.String("1"), version)
+	assert.Equal(t, ptr.Of("1"), version)
 	assert.Equal(t, `"deathstar"`, data)
 
 	res, err = c.Do(context.Background(), "TTL", "weapon").Result()
@@ -394,7 +394,7 @@ func TestRequestsWithGlobalTTL(t *testing.T) {
 		vals := res.([]interface{})
 		data, version, err := ss.getKeyVersion(vals)
 		assert.Equal(t, nil, err)
-		assert.Equal(t, ptr.String("1"), version)
+		assert.Equal(t, ptr.Of("1"), version)
 		assert.Equal(t, `"deathstar"`, data)
 
 		res, err = c.Do(context.Background(), "TTL", "weapon").Result()
@@ -513,6 +513,23 @@ func TestTransactionalDeleteNoEtag(t *testing.T) {
 
 	vals := res.([]interface{})
 	assert.Equal(t, 0, len(vals))
+}
+
+func TestGetMetadata(t *testing.T) {
+	s, c := setupMiniredis()
+	defer s.Close()
+
+	ss := &StateStore{
+		client: c,
+		json:   jsoniter.ConfigFastest,
+		logger: logger.NewLogger("test"),
+	}
+
+	metadataInfo := ss.GetComponentMetadata()
+	assert.Contains(t, metadataInfo, "redisHost")
+	assert.Contains(t, metadataInfo, "idleCheckFrequency")
+	assert.Equal(t, metadataInfo["redisHost"], "string")
+	assert.Equal(t, metadataInfo["idleCheckFrequency"], "redis.Duration")
 }
 
 func setupMiniredis() (*miniredis.Miniredis, *redis.Client) {

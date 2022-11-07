@@ -14,17 +14,18 @@ limitations under the License.
 package couchbase
 
 import (
-	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 
-	"github.com/agrea/ptr"
 	jsoniter "github.com/json-iterator/go"
 	"gopkg.in/couchbase/gocb.v1"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -51,6 +52,15 @@ type Couchbase struct {
 	logger   logger.Logger
 }
 
+type couchbaseMetadata struct {
+	CouchbaseURL                  string
+	Username                      string
+	Password                      string
+	BucketName                    string
+	NumReplicasDurableReplication uint
+	NumReplicasDurablePersistence uint
+}
+
 // NewCouchbaseStateStore returns a new couchbase state store.
 func NewCouchbaseStateStore(logger logger.Logger) state.Store {
 	s := &Couchbase{
@@ -63,57 +73,65 @@ func NewCouchbaseStateStore(logger logger.Logger) state.Store {
 	return s
 }
 
-func validateMetadata(metadata state.Metadata) error {
-	if metadata.Properties[couchbaseURL] == "" {
-		return errors.New("couchbase error: couchbase URL is missing")
+func parseAndValidateMetadata(meta state.Metadata) (*couchbaseMetadata, error) {
+	m := couchbaseMetadata{}
+	err := metadata.DecodeMetadata(meta.Properties, &m)
+	if err != nil {
+		return nil, err
 	}
 
-	if metadata.Properties[username] == "" {
-		return errors.New("couchbase error: couchbase username is missing")
+	if m.CouchbaseURL == "" {
+		return nil, fmt.Errorf("couchbase error: couchbase URL is missing")
 	}
 
-	if metadata.Properties[password] == "" {
-		return errors.New("couchbase error: couchbase password is missing")
+	if m.Username == "" {
+		return nil, fmt.Errorf("couchbase error: couchbase username is missing")
 	}
 
-	if metadata.Properties[bucketName] == "" {
-		return errors.New("couchbase error: couchbase bucket name is missing")
+	if m.Password == "" {
+		return nil, fmt.Errorf("couchbase error: couchbase password is missing")
 	}
 
-	v := metadata.Properties[numReplicasDurableReplication]
+	if m.BucketName == "" {
+		return nil, fmt.Errorf("couchbase error: couchbase bucket name is missing")
+	}
+
+	v := meta.Properties[numReplicasDurableReplication]
 	if v != "" {
-		_, err := strconv.ParseUint(v, 10, 0)
+		num, err := strconv.ParseUint(v, 10, 0)
 		if err != nil {
-			return fmt.Errorf("couchbase error: %v", err)
+			return nil, fmt.Errorf("couchbase error: %v", err)
 		}
+		m.NumReplicasDurableReplication = uint(num)
 	}
 
-	v = metadata.Properties[numReplicasDurablePersistence]
+	v = meta.Properties[numReplicasDurablePersistence]
 	if v != "" {
-		_, err := strconv.ParseUint(v, 10, 0)
+		num, err := strconv.ParseUint(v, 10, 0)
 		if err != nil {
-			return fmt.Errorf("couchbase error: %v", err)
+			return nil, fmt.Errorf("couchbase error: %v", err)
 		}
+		m.NumReplicasDurablePersistence = uint(num)
 	}
 
-	return nil
+	return &m, nil
 }
 
 // Init does metadata and connection parsing.
 func (cbs *Couchbase) Init(metadata state.Metadata) error {
-	err := validateMetadata(metadata)
+	meta, err := parseAndValidateMetadata(metadata)
 	if err != nil {
 		return err
 	}
-	cbs.bucketName = metadata.Properties[bucketName]
-	c, err := gocb.Connect(metadata.Properties[couchbaseURL])
+	cbs.bucketName = meta.BucketName
+	c, err := gocb.Connect(meta.CouchbaseURL)
 	if err != nil {
-		return fmt.Errorf("couchbase error: unable to connect to couchbase at %s - %v ", metadata.Properties[couchbaseURL], err)
+		return fmt.Errorf("couchbase error: unable to connect to couchbase at %s - %v ", meta.CouchbaseURL, err)
 	}
 	// does not actually trigger the authentication
 	c.Authenticate(gocb.PasswordAuthenticator{
-		Username: metadata.Properties[username],
-		Password: metadata.Properties[password],
+		Username: meta.Username,
+		Password: meta.Password,
 	})
 
 	// with RBAC, bucket-passwords are no longer used - https://docs.couchbase.com/go-sdk/1.6/sdk-authentication-overview.html#authenticating-with-legacy-sdk-versions
@@ -125,14 +143,12 @@ func (cbs *Couchbase) Init(metadata state.Metadata) error {
 
 	r := metadata.Properties[numReplicasDurableReplication]
 	if r != "" {
-		r2, _ := strconv.ParseUint(r, 10, 0)
-		cbs.numReplicasDurableReplication = uint(r2)
+		cbs.numReplicasDurableReplication = meta.NumReplicasDurableReplication
 	}
 
 	p := metadata.Properties[numReplicasDurablePersistence]
 	if p != "" {
-		p2, _ := strconv.ParseUint(p, 10, 0)
-		cbs.numReplicasDurablePersistence = uint(p2)
+		cbs.numReplicasDurablePersistence = meta.NumReplicasDurablePersistence
 	}
 
 	return nil
@@ -201,7 +217,7 @@ func (cbs *Couchbase) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	return &state.GetResponse{
 		Data: data.([]byte),
-		ETag: ptr.String(strconv.FormatUint(uint64(cas), 10)),
+		ETag: ptr.Of(strconv.FormatUint(uint64(cas), 10)),
 	}, nil
 }
 
@@ -247,4 +263,11 @@ func eTagToCas(eTag string) (gocb.Cas, error) {
 	cas = gocb.Cas(temp)
 
 	return cas, nil
+}
+
+func (cbs *Couchbase) GetComponentMetadata() map[string]string {
+	metadataStruct := couchbaseMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

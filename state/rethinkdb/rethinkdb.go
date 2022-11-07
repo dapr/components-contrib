@@ -16,16 +16,16 @@ package rethinkdb
 import (
 	"encoding/json"
 	"io"
-	"strconv"
-	"strings"
+	"reflect"
 	"time"
 
-	"github.com/agrea/ptr"
 	r "github.com/dancannon/gorethink"
 	"github.com/pkg/errors"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -44,9 +44,9 @@ type RethinkDB struct {
 }
 
 type stateConfig struct {
-	r.ConnectOpts
-	Archive bool   `json:"archive"`
-	Table   string `json:"table"`
+	r.ConnectOpts `mapstructure:",squash"`
+	Archive       bool   `json:"archive"`
+	Table         string `json:"table"`
 }
 
 type stateRecord struct {
@@ -171,7 +171,7 @@ func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		return nil, errors.Wrap(err, "error parsing database content")
 	}
 
-	resp := &state.GetResponse{ETag: ptr.String(doc.Hash)}
+	resp := &state.GetResponse{ETag: ptr.Of(doc.Hash)}
 	b, ok := doc.Data.([]byte)
 	if ok {
 		resp.Data = b
@@ -323,87 +323,17 @@ func metadataToConfig(cfg map[string]string, logger logger.Logger) (*stateConfig
 		Table: stateTableNameDefault,
 	}
 
-	// runtime
-	for k, v := range cfg {
-		switch k {
-		case "table": // string
-			c.Table = v
-		case "address": // string
-			c.Address = v
-		case "addresses": // []string
-			c.Addresses = strings.Split(v, ",")
-		case "database": // string
-			c.Database = v
-		case "username": // string
-			c.Username = v
-		case "password": // string
-			c.Password = v
-		case "authkey": // string
-			c.AuthKey = v
-		case "timeout": // time.Duration
-			d, err := time.ParseDuration(v)
-			if err != nil {
-				return nil, errors.Wrapf(err, "invalid timeout format: %v", v)
-			}
-			c.Timeout = d
-		case "write_timeout": // time.Duration
-			d, err := time.ParseDuration(v)
-			if err != nil {
-				return nil, errors.Wrapf(err, "invalid write timeout format: %v", v)
-			}
-			c.WriteTimeout = d
-		case "read_timeout": // time.Duration
-			d, err := time.ParseDuration(v)
-			if err != nil {
-				return nil, errors.Wrapf(err, "invalid read timeout format: %v", v)
-			}
-			c.ReadTimeout = d
-		case "keep_alive_timeout": // time.Duration
-			d, err := time.ParseDuration(v)
-			if err != nil {
-				return nil, errors.Wrapf(err, "invalid keep alive timeout format: %v", v)
-			}
-			c.KeepAlivePeriod = d
-		case "initial_cap": // int
-			i, err := strconv.Atoi(v)
-			if err != nil {
-				return nil, errors.Wrapf(err, "invalid keep initial cap format: %v", v)
-			}
-			c.InitialCap = i
-		case "max_open": // int
-			i, err := strconv.Atoi(v)
-			if err != nil {
-				return nil, errors.Wrapf(err, "invalid keep max open format: %v", v)
-			}
-			c.MaxOpen = i
-		case "discover_hosts": // bool
-			b, err := strconv.ParseBool(v)
-			if err != nil {
-				return nil, errors.Wrapf(err, "invalid discover hosts format: %v", v)
-			}
-			c.DiscoverHosts = b
-		case "use-open-tracing": // bool
-			b, err := strconv.ParseBool(v)
-			if err != nil {
-				return nil, errors.Wrapf(err, "invalid use open tracing format: %v", v)
-			}
-			c.UseOpentracing = b
-		case "archive": // bool
-			b, err := strconv.ParseBool(v)
-			if err != nil {
-				return nil, errors.Wrapf(err, "invalid use open tracing format: %v", v)
-			}
-			c.Archive = b
-		case "max_idle": // int
-			i, err := strconv.Atoi(v)
-			if err != nil {
-				return nil, errors.Wrapf(err, "invalid keep max idle format: %v", v)
-			}
-			c.InitialCap = i
-		default:
-			logger.Infof("unrecognized metadata: %s", k)
-		}
+	err := metadata.DecodeMetadata(cfg, &c)
+	if err != nil {
+		return nil, err
 	}
 
 	return &c, nil
+}
+
+func (s *RethinkDB) GetComponentMetadata() map[string]string {
+	metadataStruct := stateConfig{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

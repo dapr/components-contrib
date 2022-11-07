@@ -18,13 +18,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agrea/ptr"
 	gomock "github.com/golang/mock/gomock"
 	"github.com/hashicorp/go-multierror"
 	"github.com/samuel/go-zookeeper/zk"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/ptr"
 )
 
 //go:generate mockgen -package zookeeper -source zk.go -destination zk_mock.go
@@ -83,7 +83,7 @@ func TestGet(t *testing.T) {
 		res, err := s.Get(&state.GetRequest{Key: "foo"})
 		assert.NotNil(t, res, "Key must be exists")
 		assert.Equal(t, "bar", string(res.Data), "Value must be equals")
-		assert.Equal(t, ptr.String("123"), res.ETag, "ETag must be equals")
+		assert.Equal(t, ptr.Of("123"), res.ETag, "ETag must be equals")
 		assert.NoError(t, err, "Key must be exists")
 	})
 

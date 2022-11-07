@@ -20,11 +20,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/agrea/ptr"
-
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 type Query struct {
@@ -102,7 +101,7 @@ func (q *Query) VisitOR(f *query.OR) (string, error) {
 }
 
 func (q *Query) Finalize(filters string, qq *query.Query) error {
-	q.query = fmt.Sprintf("SELECT key, value, xmin as etag FROM %s", tableName)
+	q.query = fmt.Sprintf("SELECT key, value, xmin as etag FROM %s", defaultTableName)
 
 	if filters != "" {
 		q.query += fmt.Sprintf(" WHERE %s", filters)
@@ -159,7 +158,7 @@ func (q *Query) execute(logger logger.Logger, db *sql.DB) ([]state.QueryItem, st
 		result := state.QueryItem{
 			Key:  key,
 			Data: data,
-			ETag: ptr.String(strconv.Itoa(etag)),
+			ETag: ptr.Of(strconv.Itoa(etag)),
 		}
 		ret = append(ret, result)
 	}

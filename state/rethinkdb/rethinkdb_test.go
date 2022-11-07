@@ -46,10 +46,10 @@ func TestGetRethinkDBMetadata(t *testing.T) {
 		p["timeout"] = fmt.Sprintf("%v", timeout)
 
 		maxOpen := 30
-		p["max_open"] = fmt.Sprintf("%v", maxOpen)
+		p["maxOpen"] = fmt.Sprintf("%v", maxOpen)
 
 		discoverHosts := true
-		p["discover_hosts"] = fmt.Sprintf("%v", discoverHosts)
+		p["discoverHosts"] = fmt.Sprintf("%v", discoverHosts)
 
 		m, err := metadataToConfig(p, testLogger)
 		assert.Nil(t, err)

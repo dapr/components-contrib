@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -32,6 +33,7 @@ import (
 
 	"github.com/dapr/components-contrib/contenttype"
 	"github.com/dapr/components-contrib/internal/authentication/azure"
+	contribmeta "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/kit/logger"
@@ -104,22 +106,23 @@ func NewCosmosDBStateStore(logger logger.Logger) state.Store {
 	return s
 }
 
+func (c *StateStore) GetComponentMetadata() map[string]string {
+	metadataStruct := metadata{}
+	metadataInfo := map[string]string{}
+	contribmeta.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
+}
+
 // Init does metadata and connection parsing.
 func (c *StateStore) Init(meta state.Metadata) error {
 	c.logger.Debugf("CosmosDB init start")
 
-	b, err := json.Marshal(meta.Properties)
-	if err != nil {
-		return err
-	}
-
 	m := metadata{
 		ContentType: "application/json",
 	}
-
-	err = json.Unmarshal(b, &m)
-	if err != nil {
-		return err
+	errDecode := contribmeta.DecodeMetadata(meta.Properties, &m)
+	if errDecode != nil {
+		return errDecode
 	}
 
 	if m.URL == "" {
@@ -147,7 +150,7 @@ func (c *StateStore) Init(meta state.Metadata) error {
 	var client *azcosmos.Client
 	if m.MasterKey != "" {
 		var cred azcosmos.KeyCredential
-		cred, err = azcosmos.NewKeyCredential(m.MasterKey)
+		cred, err := azcosmos.NewKeyCredential(m.MasterKey)
 		if err != nil {
 			return err
 		}
@@ -158,7 +161,7 @@ func (c *StateStore) Init(meta state.Metadata) error {
 	} else {
 		// Fallback to using Azure AD
 		var env azure.EnvironmentSettings
-		env, err = azure.NewEnvironmentSettings("cosmosdb", meta.Properties)
+		env, err := azure.NewEnvironmentSettings("cosmosdb", meta.Properties)
 		if err != nil {
 			return err
 		}

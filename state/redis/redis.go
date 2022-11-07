@@ -16,6 +16,7 @@ package redis
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -544,4 +545,11 @@ func (r *StateStore) Close() error {
 	r.cancel()
 
 	return r.client.Close()
+}
+
+func (r *StateStore) GetComponentMetadata() map[string]string {
+	metadataStruct := rediscomponent.Settings{}
+	metadataInfo := map[string]string{}
+	daprmetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

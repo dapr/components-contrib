@@ -19,15 +19,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"unicode"
 
-	"github.com/agrea/ptr"
 	mssql "github.com/denisenkom/go-mssqldb"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 // KeyType defines type of the table identifier.
@@ -119,6 +119,16 @@ type SQLServer struct {
 	db       *sql.DB
 }
 
+type sqlServerMetadata struct {
+	ConnectionString  string
+	DatabaseName      string
+	TableName         string
+	Schema            string
+	KeyType           string
+	KeyLength         int
+	IndexedProperties string
+}
+
 func isLetterOrNumber(c rune) bool {
 	return unicode.IsNumber(c) || unicode.IsLetter(c)
 }
@@ -155,29 +165,8 @@ func isValidIndexedPropertyType(s string) bool {
 
 // Init initializes the SQL server state store.
 func (s *SQLServer) Init(metadata state.Metadata) error {
-	if val, ok := metadata.Properties[connectionStringKey]; ok && val != "" {
-		s.connectionString = val
-	} else {
-		return fmt.Errorf("missing connection string")
-	}
-
-	if err := s.getTable(metadata); err != nil {
-		return err
-	}
-
-	if err := s.getDatabase(metadata); err != nil {
-		return err
-	}
-
-	if err := s.getKeyType(metadata); err != nil {
-		return err
-	}
-
-	if err := s.getSchema(metadata); err != nil {
-		return err
-	}
-
-	if err := s.getIndexedProperties(metadata); err != nil {
+	err := s.parseMetadata(metadata.Properties)
+	if err != nil {
 		return err
 	}
 
@@ -202,11 +191,50 @@ func (s *SQLServer) Init(metadata state.Metadata) error {
 	return nil
 }
 
+func (s *SQLServer) parseMetadata(meta map[string]string) error {
+	m := sqlServerMetadata{
+		TableName:    defaultTable,
+		Schema:       defaultSchema,
+		DatabaseName: defaultDatabase,
+		KeyLength:    defaultKeyLength,
+	}
+	err := metadata.DecodeMetadata(meta, &m)
+	if err != nil {
+		return err
+	}
+	if m.ConnectionString == "" {
+		return fmt.Errorf("missing connection string")
+	}
+	s.connectionString = m.ConnectionString
+
+	if err := s.setTable(m.TableName); err != nil {
+		return err
+	}
+
+	if err := s.setDatabase(m.DatabaseName); err != nil {
+		return err
+	}
+
+	if err := s.setKeyType(m.KeyType, m.KeyLength); err != nil {
+		return err
+	}
+
+	if err := s.setSchema(m.Schema); err != nil {
+		return err
+	}
+
+	if err := s.setIndexedProperties(m.IndexedProperties); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Returns validated index properties.
-func (s *SQLServer) getIndexedProperties(metadata state.Metadata) error {
-	if val, ok := metadata.Properties[indexedPropertiesKey]; ok && val != "" {
+func (s *SQLServer) setIndexedProperties(indexedPropertiesString string) error {
+	if indexedPropertiesString != "" {
 		var indexedProperties []IndexedProperty
-		err := json.Unmarshal([]byte(val), &indexedProperties)
+		err := json.Unmarshal([]byte(indexedPropertiesString), &indexedProperties)
 		if err != nil {
 			return err
 		}
@@ -255,9 +283,9 @@ func (s *SQLServer) validateIndexedProperties(indexedProperties []IndexedPropert
 }
 
 // Validates and returns the key type.
-func (s *SQLServer) getKeyType(metadata state.Metadata) error {
-	if val, ok := metadata.Properties[keyTypeKey]; ok && val != "" {
-		kt, err := KeyTypeFromString(val)
+func (s *SQLServer) setKeyType(keyType string, keyLength int) error {
+	if keyType != "" {
+		kt, err := KeyTypeFromString(keyType)
 		if err != nil {
 			return err
 		}
@@ -271,63 +299,43 @@ func (s *SQLServer) getKeyType(metadata state.Metadata) error {
 		return nil
 	}
 
-	if val, ok := metadata.Properties[keyLengthKey]; ok && val != "" {
-		var err error
-		s.keyLength, err = strconv.Atoi(val)
-		if err != nil {
-			return err
-		}
-
-		if s.keyLength <= 0 {
-			return fmt.Errorf("invalid key length value of %d", s.keyLength)
-		}
+	if keyLength <= 0 {
+		return fmt.Errorf("invalid key length value of %d", keyLength)
 	} else {
-		s.keyLength = defaultKeyLength
+		s.keyLength = keyLength
 	}
 
 	return nil
 }
 
 // Returns the schema name if set or the default value otherwise.
-func (s *SQLServer) getSchema(metadata state.Metadata) error {
-	if val, ok := metadata.Properties[schemaKey]; ok && val != "" {
-		if !isValidSQLName(val) {
-			return fmt.Errorf("invalid schema name, accepted characters are (A-Z, a-z, 0-9, _)")
-		}
-		s.schema = val
-	} else {
-		s.schema = defaultSchema
+func (s *SQLServer) setSchema(schemaName string) error {
+	if !isValidSQLName(schemaName) {
+		return fmt.Errorf("invalid schema name, accepted characters are (A-Z, a-z, 0-9, _)")
 	}
+	s.schema = schemaName
 
 	return nil
 }
 
 // Returns the database name if set or the default value otherwise.
-func (s *SQLServer) getDatabase(metadata state.Metadata) error {
-	if val, ok := metadata.Properties[databaseNameKey]; ok && val != "" {
-		if !isValidSQLName(val) {
-			return fmt.Errorf("invalid database name, accepted characters are (A-Z, a-z, 0-9, _)")
-		}
-
-		s.databaseName = val
-	} else {
-		s.databaseName = defaultDatabase
+func (s *SQLServer) setDatabase(databaseName string) error {
+	if !isValidSQLName(databaseName) {
+		return fmt.Errorf("invalid database name, accepted characters are (A-Z, a-z, 0-9, _)")
 	}
+
+	s.databaseName = databaseName
 
 	return nil
 }
 
 // Returns the table name if set or the default value otherwise.
-func (s *SQLServer) getTable(metadata state.Metadata) error {
-	if val, ok := metadata.Properties[tableNameKey]; ok && val != "" {
-		if !isValidSQLName(val) {
-			return fmt.Errorf("invalid table name, accepted characters are (A-Z, a-z, 0-9, _)")
-		}
-
-		s.tableName = val
-	} else {
-		s.tableName = defaultTable
+func (s *SQLServer) setTable(tableName string) error {
+	if !isValidSQLName(tableName) {
+		return fmt.Errorf("invalid table name, accepted characters are (A-Z, a-z, 0-9, _)")
 	}
+
+	s.tableName = tableName
 
 	return nil
 }
@@ -540,7 +548,7 @@ func (s *SQLServer) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	return &state.GetResponse{
 		Data: []byte(data),
-		ETag: ptr.String(etag),
+		ETag: ptr.Of(etag),
 	}, nil
 }
 
@@ -622,4 +630,8 @@ func (s *SQLServer) BulkSet(req []state.SetRequest) error {
 	err = tx.Commit()
 
 	return err
+}
+
+func (s *SQLServer) GetComponentMetadata() map[string]string {
+	return map[string]string{}
 }

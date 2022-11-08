@@ -47,54 +47,41 @@ func TestCronBindingFrequentTrigger(t *testing.T) {
 	httpPort := ports[1]
 	appPort := ports[2]
 
+	cronName := "cron"
+	appName := "cronapp"
+	sidecarName := "cron-sidecar"
+
+	// check if cron triggers 10 times within 10 seconds
+	expectedTriggerCount := 10
+	timeoutToObeserveTrigger := time.Second * 10
+
+	// wait after delete operation to check if cron still triggers
+	waitAfterDelete := time.Second * 5
+
 	triggerWatcher := watcher.NewOrdered()
-	for i := 1; i <= 10; i++ {
+	for i := 1; i <= expectedTriggerCount; i++ {
 		triggerWatcher.ExpectInts(i)
 	}
 
-	// test if cron triggers 10 times within 10 seconds
-	testAssert := func(ctx flow.Context) error {
-		triggerWatcher.Assert(ctx, time.Second*10)
-		return nil
-	}
-
-	application := func(ctx flow.Context, s common.Service) error {
-		triggeredCount := 0
-		// Setup the input binding endpoint
-		err := s.AddBindingInvocationHandler("cron", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
-			ctx.Logf("Cron triggered at %s", time.Now().String())
-			triggeredCount++
-			triggerWatcher.Observe(triggeredCount)
-			return []byte("{}"), nil
-		})
-		require.NoError(t, err)
-		return nil
-	}
-
-	testDelete := func(ctx flow.Context) error {
-		client := sidecar.GetClient(ctx, "cron-sidecar")
-
-		req := &daprClient.InvokeBindingRequest{Name: "cron", Operation: "delete"}
-		res, err := client.InvokeBinding(ctx, req)
-
-		require.Equal(t, res.Metadata["schedule"], "@every 1s")
-		require.NotEmpty(t, res.Metadata["stopTimeUTC"])
-		require.NoError(t, err, "Error cancelling cron schedule")
-		return nil
-	}
+	// total times cron is triggered
+	triggeredCount := 0
+	// store triggered count at the time of cron delete operation
+	var triggeredCountAtDelete int
 
 	flow.New(t, "test cron trigger schedule @every 1s").
-		Step(app.Run("cronapp", fmt.Sprintf(":%d", appPort), application)).
-		Step(sidecar.Run("cron-sidecar",
+		Step(app.Run(appName, fmt.Sprintf(":%d", appPort), appWithTriggerCounter(t, cronName, triggerWatcher, &triggeredCount))).
+		Step(sidecar.Run(sidecarName,
 			embedded.WithComponentsPath("./components"),
 			embedded.WithDaprGRPCPort(grpcPort),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprHTTPPort(httpPort),
 			componentRuntimeOptions(),
 		)).
-		Step("assert cron triggered within deadline", testAssert).
-		Step("test trigger delete operation", testDelete).
-		Step("stop sidecar", sidecar.Stop("cron-sidecar")).
+		Step("assert cron triggered within deadline", assertTriggerCount(triggerWatcher, timeoutToObeserveTrigger)).
+		Step("delete cron trigger", deleteCronTrigger(t, cronName, sidecarName, &triggeredCount, &triggeredCountAtDelete)).
+		Step("allow cron to trigger if delete operation failed", flow.Sleep(waitAfterDelete)).
+		Step("assert cron did not trigger after delete", assertTriggerDelete(t, &triggeredCountAtDelete, &triggeredCount)).
+		Step("stop sidecar", sidecar.Stop(sidecarName)).
 		Step("stop app", app.Stop("cronapp")).
 		Run()
 }
@@ -203,6 +190,51 @@ func TestCronBindingWithSidecarRestart(t *testing.T) {
 		Step("stop sidecar", sidecar.Stop("cron-sidecar")).
 		Step("stop app", app.Stop("cronapp")).
 		Run()
+}
+
+func appWithTriggerCounter(t *testing.T, cronName string, triggerWatcher *watcher.Watcher, triggeredCount *int) func(ctx flow.Context, s common.Service) error {
+	return func(ctx flow.Context, s common.Service) error {
+		// Setup the input binding endpoint
+		err := s.AddBindingInvocationHandler(cronName, func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
+			ctx.Logf("Cron triggered at %s", time.Now().String())
+			fmt.Println("Cron triggered at ", time.Now().String())
+			(*triggeredCount)++
+			triggerWatcher.Observe(*triggeredCount)
+			return []byte("{}"), nil
+		})
+		require.NoError(t, err)
+		return err
+	}
+}
+
+func assertTriggerCount(triggerWatcher *watcher.Watcher, time time.Duration) func(ctx flow.Context) error {
+	return func(ctx flow.Context) error {
+		triggerWatcher.Assert(ctx, time)
+		return nil
+	}
+}
+
+func deleteCronTrigger(t *testing.T, triggerName string, sidecarName string, triggeredCount *int, triggeredCountAtDelete *int) func(ctx flow.Context) error {
+	return func(ctx flow.Context) error {
+		client := sidecar.GetClient(ctx, sidecarName)
+
+		req := &daprClient.InvokeBindingRequest{Name: triggerName, Operation: "delete"}
+		res, err := client.InvokeBinding(ctx, req)
+
+		require.NotEmpty(t, res.Metadata["schedule"])
+		require.NotEmpty(t, res.Metadata["stopTimeUTC"])
+		require.NoError(t, err, "Error cancelling cron schedule")
+		// Store the count at the time of delete
+		*triggeredCountAtDelete = *triggeredCount
+		return nil
+	}
+}
+
+func assertTriggerDelete(t *testing.T, triggerCountAtDelete *int, triggerCountAfterDelete *int) func(ctx flow.Context) error {
+	return func(ctx flow.Context) error {
+		require.Equal(t, *triggerCountAtDelete, *triggerCountAfterDelete, "Cron triggered even after delete operation")
+		return nil
+	}
 }
 
 func componentRuntimeOptions() []runtime.Option {

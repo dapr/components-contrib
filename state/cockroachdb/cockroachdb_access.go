@@ -22,13 +22,12 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/agrea/ptr"
-
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 
 	// Blank import for the underlying PostgreSQL driver.
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -44,9 +43,14 @@ const (
 // cockroachDBAccess implements dbaccess.
 type cockroachDBAccess struct {
 	logger           logger.Logger
-	metadata         state.Metadata
+	metadata         cockroachDBMetadata
 	db               *sql.DB
 	connectionString string
+}
+
+type cockroachDBMetadata struct {
+	ConnectionString string
+	TableName        string
 }
 
 // newCockroachDBAccess creates a new instance of cockroachDBAccess.
@@ -54,27 +58,40 @@ func newCockroachDBAccess(logger logger.Logger) *cockroachDBAccess {
 	logger.Debug("Instantiating new CockroachDB state store")
 
 	return &cockroachDBAccess{
-		logger: logger,
-		metadata: state.Metadata{
-			Base: metadata.Base{Properties: map[string]string{}},
-		},
+		logger:           logger,
+		metadata:         cockroachDBMetadata{},
 		db:               nil,
 		connectionString: "",
 	}
+}
+
+func parseMetadata(meta state.Metadata) (*cockroachDBMetadata, error) {
+	m := cockroachDBMetadata{}
+	metadata.DecodeMetadata(meta.Properties, &m)
+
+	if m.ConnectionString == "" {
+		return nil, errors.New(errMissingConnectionString)
+	}
+
+	return &m, nil
 }
 
 // Init sets up CockroachDB connection and ensures that the state table exists.
 func (p *cockroachDBAccess) Init(metadata state.Metadata) error {
 	p.logger.Debug("Initializing CockroachDB state store")
 
-	p.metadata = metadata
+	meta, err := parseMetadata(metadata)
+	if err != nil {
+		return err
+	}
+	p.metadata = *meta
 
-	if val, ok := metadata.Properties[connectionStringKey]; ok && val != "" {
-		p.connectionString = val
-	} else {
+	if p.metadata.ConnectionString == "" {
 		p.logger.Error("Missing CockroachDB connection string")
 
 		return fmt.Errorf(errMissingConnectionString)
+	} else {
+		p.connectionString = p.metadata.ConnectionString
 	}
 
 	databaseConn, err := sql.Open("pgx", p.connectionString)
@@ -216,7 +233,7 @@ func (p *cockroachDBAccess) Get(req *state.GetRequest) (*state.GetResponse, erro
 
 		return &state.GetResponse{
 			Data:        data,
-			ETag:        ptr.String(strconv.Itoa(etag)),
+			ETag:        ptr.Of(strconv.Itoa(etag)),
 			Metadata:    req.Metadata,
 			ContentType: nil,
 		}, nil
@@ -224,7 +241,7 @@ func (p *cockroachDBAccess) Get(req *state.GetRequest) (*state.GetResponse, erro
 
 	return &state.GetResponse{
 		Data:        []byte(value),
-		ETag:        ptr.String(strconv.Itoa(etag)),
+		ETag:        ptr.Of(strconv.Itoa(etag)),
 		Metadata:    req.Metadata,
 		ContentType: nil,
 	}, nil
@@ -358,7 +375,7 @@ func (p *cockroachDBAccess) Query(req *state.QueryRequest) (*state.QueryResponse
 		query:  "",
 		params: []interface{}{},
 		limit:  0,
-		skip:   ptr.Int64(0),
+		skip:   ptr.Of[int64](0),
 	}
 	qbuilder := query.NewQueryBuilder(stateQuery)
 	if err := qbuilder.BuildQuery(&req.Query); err != nil {

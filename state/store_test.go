@@ -128,6 +128,10 @@ func (s *Store1) Set(req *SetRequest) error {
 	return nil
 }
 
+func (s *Store1) GetComponentMetadata() map[string]string {
+	return map[string]string{}
+}
+
 // example of store which supports bulk method.
 type Store2 struct {
 	// DefaultBulkStore
@@ -185,4 +189,8 @@ func (s *Store2) BulkDelete(req []DeleteRequest) error {
 	s.bulkCount++
 
 	return nil
+}
+
+func (s *Store2) GetComponentMetadata() map[string]string {
+	return map[string]string{}
 }

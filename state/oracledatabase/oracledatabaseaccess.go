@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
@@ -42,10 +43,16 @@ const (
 // oracleDatabaseAccess implements dbaccess.
 type oracleDatabaseAccess struct {
 	logger           logger.Logger
-	metadata         state.Metadata
+	metadata         oracleDatabaseMetadata
 	db               *sql.DB
 	connectionString string
 	tx               *sql.Tx
+}
+
+type oracleDatabaseMetadata struct {
+	ConnectionString     string
+	OracleWalletLocation string
+	TableName            string
 }
 
 // newOracleDatabaseAccess creates a new instance of oracleDatabaseAccess.
@@ -61,19 +68,31 @@ func (o *oracleDatabaseAccess) Ping() error {
 	return o.db.Ping()
 }
 
+func parseMetadata(meta map[string]string) (oracleDatabaseMetadata, error) {
+	m := oracleDatabaseMetadata{
+		TableName: "state",
+	}
+	err := metadata.DecodeMetadata(meta, &m)
+	return m, err
+}
+
 // Init sets up OracleDatabase connection and ensures that the state table exists.
 func (o *oracleDatabaseAccess) Init(metadata state.Metadata) error {
 	o.logger.Debug("Initializing OracleDatabase state store")
-	o.metadata = metadata
-	if val, ok := metadata.Properties[connectionStringKey]; ok && val != "" {
-		o.connectionString = val
+	meta, err := parseMetadata(metadata.Properties)
+	o.metadata = meta
+	if err != nil {
+		return err
+	}
+	if o.metadata.ConnectionString != "" {
+		o.connectionString = meta.ConnectionString
 	} else {
 		o.logger.Error("Missing Oracle Database connection string")
 
 		return fmt.Errorf(errMissingConnectionString)
 	}
-	if val, ok := o.metadata.Properties[oracleWalletLocationKey]; ok && val != "" {
-		o.connectionString += "?TRACE FILE=trace.log&SSL=enable&SSL Verify=false&WALLET=" + url.QueryEscape(val)
+	if o.metadata.OracleWalletLocation != "" {
+		o.connectionString += "?TRACE FILE=trace.log&SSL=enable&SSL Verify=false&WALLET=" + url.QueryEscape(o.metadata.OracleWalletLocation)
 	}
 	db, err := sql.Open("oracle", o.connectionString)
 	if err != nil {

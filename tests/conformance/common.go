@@ -33,6 +33,7 @@ import (
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/workflows"
 	"github.com/dapr/kit/logger"
 
 	b_azure_blobstorage "github.com/dapr/components-contrib/bindings/azure/blobstorage"
@@ -56,6 +57,7 @@ import (
 	p_inmemory "github.com/dapr/components-contrib/pubsub/in-memory"
 	p_jetstream "github.com/dapr/components-contrib/pubsub/jetstream"
 	p_kafka "github.com/dapr/components-contrib/pubsub/kafka"
+	p_kubemq "github.com/dapr/components-contrib/pubsub/kubemq"
 	p_mqtt "github.com/dapr/components-contrib/pubsub/mqtt"
 	p_natsstreaming "github.com/dapr/components-contrib/pubsub/natsstreaming"
 	p_pulsar "github.com/dapr/components-contrib/pubsub/pulsar"
@@ -82,6 +84,8 @@ import (
 	conf_pubsub "github.com/dapr/components-contrib/tests/conformance/pubsub"
 	conf_secret "github.com/dapr/components-contrib/tests/conformance/secretstores"
 	conf_state "github.com/dapr/components-contrib/tests/conformance/state"
+	conf_workflows "github.com/dapr/components-contrib/tests/conformance/workflows"
+	wf_temporal "github.com/dapr/components-contrib/workflows/temporal"
 )
 
 const (
@@ -348,6 +352,16 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 					break
 				}
 				conf_bindings.ConformanceTests(t, props, inputBinding, outputBinding, bindingsConfig)
+			case "workflows":
+				filepath := fmt.Sprintf("../config/workflows/%s", componentConfigPath)
+				props, err := tc.loadComponentsAndProperties(t, filepath)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
+					break
+				}
+				wf := loadWorkflow(comp)
+				wfConfig := conf_workflows.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				conf_workflows.ConformanceTests(t, props, wf, wfConfig)
 			default:
 				t.Errorf("unknown component type %s", tc.ComponentType)
 			}
@@ -384,6 +398,8 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_inmemory.New(testLogger)
 	case "aws.snssqs":
 		pubsub = p_snssqs.NewSnsSqs(testLogger)
+	case "kubemq":
+		pubsub = p_kubemq.NewKubeMQ(testLogger)
 	default:
 		return nil
 	}
@@ -430,7 +446,9 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_sqlserver.NewSQLServerStateStore(testLogger)
 	case "postgresql":
 		store = s_postgresql.NewPostgreSQLStateStore(testLogger)
-	case "mysql":
+	case "mysql.mysql":
+		store = s_mysql.NewMySQLStateStore(testLogger)
+	case "mysql.mariadb":
 		store = s_mysql.NewMySQLStateStore(testLogger)
 	case "azure.tablestorage.storage":
 		store = s_azuretablestorage.NewAzureTablesStateStore(testLogger)
@@ -511,6 +529,19 @@ func loadInputBindings(tc TestComponent) bindings.InputBinding {
 	}
 
 	return binding
+}
+
+func loadWorkflow(tc TestComponent) workflows.Workflow {
+	var wf workflows.Workflow
+
+	switch tc.Component {
+	case "temporal":
+		wf = wf_temporal.NewTemporalWorkflow(testLogger)
+	default:
+		return nil
+	}
+
+	return wf
 }
 
 func atLeastOne(t *testing.T, predicate func(interface{}) bool, items ...interface{}) {

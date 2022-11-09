@@ -73,8 +73,8 @@ func TestGetBlobStorageMetaData(t *testing.T) {
 		meta, err := getBlobStorageMetadata(m)
 
 		assert.Nil(t, err)
-		assert.Equal(t, "acc", meta.accountName)
-		assert.Equal(t, "dapr", meta.containerName)
+		assert.Equal(t, "acc", meta.AccountName)
+		assert.Equal(t, "dapr", meta.ContainerName)
 	})
 }
 

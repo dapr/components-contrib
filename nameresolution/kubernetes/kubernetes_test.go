@@ -36,7 +36,7 @@ func TestResolve(t *testing.T) {
 func TestResolveWithCustomClusterDomain(t *testing.T) {
 	resolver := NewResolver(logger.NewLogger("test"))
 	_ = resolver.Init(nameresolution.Metadata{
-		Configuration: map[string]string{
+		Configuration: map[string]interface{}{
 			"clusterDomain": "mydomain.com",
 		},
 	})

@@ -15,10 +15,10 @@ package redis
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/bindings"
 	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
@@ -66,21 +66,40 @@ func (r *Redis) Ping() error {
 }
 
 func (r *Redis) Operations() []bindings.OperationKind {
-	return []bindings.OperationKind{bindings.CreateOperation}
+	return []bindings.OperationKind{
+		bindings.CreateOperation,
+		bindings.DeleteOperation,
+		bindings.GetOperation,
+	}
 }
 
 func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	if val, ok := req.Metadata["key"]; ok && val != "" {
-		key := val
-		_, err := r.client.Do(ctx, "SET", key, req.Data).Result()
-		if err != nil {
-			return nil, err
+	if key, ok := req.Metadata["key"]; ok && key != "" {
+		switch req.Operation {
+		case bindings.DeleteOperation:
+			err := r.client.Del(ctx, key).Err()
+			if err != nil {
+				return nil, err
+			}
+		case bindings.GetOperation:
+			data, err := r.client.Get(ctx, key).Result()
+			if err != nil {
+				return nil, err
+			}
+			rep := &bindings.InvokeResponse{}
+			rep.Data = []byte(data)
+			return rep, nil
+		case bindings.CreateOperation:
+			_, err := r.client.Do(ctx, "SET", key, req.Data).Result()
+			if err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("invalid operation type: %s", req.Operation)
 		}
-
 		return nil, nil
 	}
-
-	return nil, errors.New("redis binding: missing key on write request metadata")
+	return nil, errors.New("redis binding: missing key in request metadata")
 }
 
 func (r *Redis) Close() error {

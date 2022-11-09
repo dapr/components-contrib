@@ -45,10 +45,13 @@ func (k *resolver) Init(metadata nameresolution.Metadata) error {
 	if err != nil {
 		return err
 	}
-	if config, ok := configInterface.(map[string]string); ok {
-		clusterDomain := config[ClusterDomainKey]
-		if clusterDomain != "" {
-			k.clusterDomain = clusterDomain
+	if config, ok := configInterface.(map[string]interface{}); ok {
+		clusterDomainPtr := config[ClusterDomainKey]
+		if clusterDomainPtr != nil {
+			clusterDomain, _ := clusterDomainPtr.(string)
+			if clusterDomain != "" {
+				k.clusterDomain = clusterDomain
+			}
 		}
 	}
 

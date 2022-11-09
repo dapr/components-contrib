@@ -159,4 +159,6 @@ require (
 
 replace github.com/dapr/components-contrib/tests/certification => ../../../
 
+replace github.com/dapr/dapr => github.com/berndverst/dapr v1.1.3-0.20221105062638-159383e4fac0
+
 replace github.com/dapr/components-contrib => ../../../../../

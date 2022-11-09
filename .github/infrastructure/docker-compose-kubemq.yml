@@ -1,0 +1,8 @@
+version: '2'
+services:
+  rabbitmq:
+    image: kubemq/kubemq-community:latest
+    ports:
+      - 8080:8080
+      - 9090:9090
+      - 50000:50000

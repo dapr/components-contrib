@@ -33,8 +33,9 @@ type TemporalWF struct {
 }
 
 type temporalMetadata struct {
-	Identity string `json:"identity"`
-	HostPort string `json:"hostport"`
+	Identity  string `json:"identity"`
+	HostPort  string `json:"hostport"`
+	Namespace string `json:"namespace"`
 }
 
 // NewTemporalWorkflow returns a new workflow.
@@ -57,6 +58,9 @@ func (c *TemporalWF) Init(metadata workflows.Metadata) error {
 	}
 	if m.Identity != "" {
 		cOpt.Identity = m.Identity
+	}
+	if m.Namespace != "" {
+		cOpt.Namespace = m.Namespace
 	}
 	// Create the workflow client
 	newClient, err := client.Dial(cOpt)

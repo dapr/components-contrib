@@ -25,7 +25,6 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
-	"github.com/dapr/components-contrib/internal/utils"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
@@ -50,6 +49,7 @@ type AzureQueueHelper struct {
 	queueURL     azqueue.QueueURL
 	logger       logger.Logger
 	decodeBase64 bool
+	encodeBase64 bool
 }
 
 // Init sets up this helper.
@@ -73,6 +73,7 @@ func (d *AzureQueueHelper) Init(metadata bindings.Metadata) (*storageQueuesMetad
 	p := azqueue.NewPipeline(credential, pipelineOptions)
 
 	d.decodeBase64 = m.DecodeBase64
+	d.encodeBase64 = m.EncodeBase64
 
 	if m.QueueEndpoint != "" {
 		URL, parseErr := url.Parse(fmt.Sprintf("%s/%s/%s", m.QueueEndpoint, m.AccountName, m.QueueName))
@@ -101,6 +102,10 @@ func (d *AzureQueueHelper) Write(ctx context.Context, data []byte, ttl *time.Dur
 	s, err := strconv.Unquote(string(data))
 	if err != nil {
 		s = string(data)
+	}
+
+	if d.encodeBase64 {
+		s = base64.StdEncoding.EncodeToString([]byte(s))
 	}
 
 	if ttl == nil {
@@ -174,6 +179,7 @@ type storageQueuesMetadata struct {
 	QueueEndpoint string
 	AccountName   string
 	DecodeBase64  bool
+	EncodeBase64  bool
 	ttl           *time.Duration
 }
 
@@ -192,29 +198,29 @@ func (a *AzureStorageQueues) Init(metadata bindings.Metadata) (err error) {
 	return nil
 }
 
-func parseMetadata(metadata bindings.Metadata) (*storageQueuesMetadata, error) {
+func parseMetadata(meta bindings.Metadata) (*storageQueuesMetadata, error) {
 	var m storageQueuesMetadata
 	// AccountKey is parsed in azauth
 
-	if val, ok := contribMetadata.GetMetadataProperty(metadata.Properties, azauth.StorageAccountNameKeys...); ok && val != "" {
+	contribMetadata.DecodeMetadata(meta.Properties, &m)
+
+	if val, ok := contribMetadata.GetMetadataProperty(meta.Properties, azauth.StorageAccountNameKeys...); ok && val != "" {
 		m.AccountName = val
 	} else {
 		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageAccountNameKeys[0])
 	}
 
-	if val, ok := contribMetadata.GetMetadataProperty(metadata.Properties, azauth.StorageQueueNameKeys...); ok && val != "" {
+	if val, ok := contribMetadata.GetMetadataProperty(meta.Properties, azauth.StorageQueueNameKeys...); ok && val != "" {
 		m.QueueName = val
 	} else {
 		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageQueueNameKeys[0])
 	}
 
-	if val, ok := contribMetadata.GetMetadataProperty(metadata.Properties, azauth.StorageEndpointKeys...); ok && val != "" {
+	if val, ok := contribMetadata.GetMetadataProperty(meta.Properties, azauth.StorageEndpointKeys...); ok && val != "" {
 		m.QueueEndpoint = val
 	}
 
-	m.DecodeBase64 = utils.IsTruthy(metadata.Properties["decodeBase64"])
-
-	ttl, ok, err := contribMetadata.TryGetTTL(metadata.Properties)
+	ttl, ok, err := contribMetadata.TryGetTTL(meta.Properties)
 	if err != nil {
 		return nil, err
 	}

@@ -20,6 +20,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -30,6 +31,7 @@ import (
 	"github.com/oracle/oci-go-sdk/v54/common/auth"
 	"github.com/oracle/oci-go-sdk/v54/objectstorage"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -39,7 +41,6 @@ const (
 	instancePrincipalAuthenticationKey = "instancePrincipalAuthentication"
 	configFileAuthenticationKey        = "configFileAuthentication"
 	configFilePathKey                  = "configFilePath"
-	configFileProfileKey               = "configFileProfile"
 	tenancyKey                         = "tenancyOCID"
 	compartmentKey                     = "compartmentOCID"
 	regionKey                          = "region"
@@ -62,19 +63,19 @@ type StateStore struct {
 	client   objectStoreClient
 }
 
-type Metadata struct {
-	userOCID                        string
-	bucketName                      string
-	region                          string
-	tenancyOCID                     string
-	fingerPrint                     string
-	privateKey                      string
-	compartmentOCID                 string
-	namespace                       string
-	configFilePath                  string
-	configFileProfile               string
-	instancePrincipalAuthentication bool
-	configFileAuthentication        bool
+type objectStoreMetadata struct {
+	UserOCID                        string
+	BucketName                      string
+	Region                          string
+	TenancyOCID                     string
+	FingerPrint                     string
+	PrivateKey                      string
+	CompartmentOCID                 string
+	Namespace                       string
+	ConfigFilePath                  string
+	ConfigFileProfile               string
+	InstancePrincipalAuthentication bool
+	ConfigFileAuthentication        bool
 
 	OCIObjectStorageClient *objectstorage.ObjectStorageClient
 }
@@ -89,7 +90,7 @@ type objectStoreClient interface {
 }
 
 type objectStorageClient struct {
-	objectStorageMetadata *Metadata
+	objectStorageMetadata *objectStoreMetadata
 }
 
 type ociObjectStorageClient struct {
@@ -122,7 +123,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	if cerr != nil {
 		return fmt.Errorf("failed to create bucket : %w", cerr)
 	}
-	r.logger.Debugf("OCI Object Storage State Store initialized using bucket '%s'", meta.bucketName)
+	r.logger.Debugf("OCI Object Storage State Store initialized using bucket '%s'", meta.BucketName)
 
 	return nil
 }
@@ -178,30 +179,8 @@ func NewOCIObjectStorageStore(logger logger.Logger) state.Store {
 
 /************** private helper functions. */
 
-func getValue(metadata map[string]string, key string, valueRequired bool) (value string, err error) {
-	if val, ok := metadata[key]; ok && val != "" {
-		return val, nil
-	}
-	if !valueRequired {
-		return "", nil
-	}
-	return "", fmt.Errorf("missing or empty %s field from metadata", key)
-}
-
-func getOptionalBooleanValue(metadata map[string]string, key string) (value bool, err error) {
-	stringValue, _ := getValue(metadata, key, false)
-	if stringValue == "" {
-		stringValue = "false"
-	}
-	value, err = strconv.ParseBool(stringValue)
-	if err != nil {
-		return false, fmt.Errorf("incorrect value %s for %s, should be 'true' or 'false'", stringValue, key)
-	}
-	return value, nil
-}
-
-func getConfigFilePath(meta map[string]string) (value string, err error) {
-	value, _ = getValue(meta, configFilePathKey, false)
+func getConfigFilePath(configFilePath string) (value string, err error) {
+	value = configFilePath
 	if strings.HasPrefix(value, "~/") {
 		return "", fmt.Errorf("%s is set to %s which starts with ~/; this is not supported - please provide absolute path to configuration file", configFilePathKey, value)
 	}
@@ -216,52 +195,51 @@ func getConfigFilePath(meta map[string]string) (value string, err error) {
 	return value, nil
 }
 
-func getObjectStorageMetadata(metadata map[string]string) (*Metadata, error) {
-	meta := Metadata{}
+func getObjectStorageMetadata(meta map[string]string) (*objectStoreMetadata, error) {
+	m := objectStoreMetadata{}
+	errDecode := metadata.DecodeMetadata(meta, &m)
+	if errDecode != nil {
+		return nil, errDecode
+	}
+
 	var err error
-	if meta.instancePrincipalAuthentication, err = getOptionalBooleanValue(metadata, instancePrincipalAuthenticationKey); err != nil {
-		return nil, err
-	}
-	if meta.configFileAuthentication, err = getOptionalBooleanValue(metadata, configFileAuthenticationKey); err != nil {
-		return nil, err
-	}
-	if meta.configFileAuthentication {
-		if meta.configFilePath, err = getConfigFilePath(metadata); err != nil {
+
+	if m.ConfigFileAuthentication {
+		if m.ConfigFilePath, err = getConfigFilePath(m.ConfigFilePath); err != nil {
 			return nil, err
 		}
-		meta.configFileProfile, _ = getValue(metadata, configFileProfileKey, false)
 	}
-	if meta.bucketName, err = getValue(metadata, bucketNameKey, true); err != nil {
-		return nil, err
+	if m.BucketName == "" {
+		return nil, fmt.Errorf("missing or empty %s field from metadata", bucketNameKey)
 	}
-	if meta.compartmentOCID, err = getValue(metadata, compartmentKey, true); err != nil {
-		return nil, err
+	if m.CompartmentOCID == "" {
+		return nil, fmt.Errorf("missing or empty %s field from metadata", compartmentKey)
 	}
-	externalAuthentication := meta.instancePrincipalAuthentication || meta.configFileAuthentication
+	externalAuthentication := m.InstancePrincipalAuthentication || m.ConfigFileAuthentication
 	if !externalAuthentication {
-		err = getIdentityAuthenticationDetails(metadata, &meta)
+		err = getIdentityAuthenticationDetails(m)
 		if err != nil {
 			return nil, err
 		}
 	}
-	return &meta, nil
+	return &m, nil
 }
 
-func getIdentityAuthenticationDetails(metadata map[string]string, meta *Metadata) (err error) {
-	if meta.region, err = getValue(metadata, regionKey, true); err != nil {
-		return err
+func getIdentityAuthenticationDetails(meta objectStoreMetadata) (err error) {
+	if meta.Region == "" {
+		return fmt.Errorf("missing or empty %s field from metadata", regionKey)
 	}
-	if meta.userOCID, err = getValue(metadata, userKey, true); err != nil {
-		return err
+	if meta.UserOCID == "" {
+		return fmt.Errorf("missing or empty %s field from metadata", userKey)
 	}
-	if meta.fingerPrint, err = getValue(metadata, fingerPrintKey, true); err != nil {
-		return err
+	if meta.FingerPrint == "" {
+		return fmt.Errorf("missing or empty %s field from metadata", fingerPrintKey)
 	}
-	if meta.privateKey, err = getValue(metadata, privateKeyKey, true); err != nil {
-		return err
+	if meta.PrivateKey == "" {
+		return fmt.Errorf("missing or empty %s field from metadata", privateKeyKey)
 	}
-	if meta.tenancyOCID, err = getValue(metadata, tenancyKey, true); err != nil {
-		return err
+	if meta.TenancyOCID == "" {
+		return fmt.Errorf("missing or empty %s field from metadata", tenancyKey)
 	}
 	return nil
 }
@@ -458,10 +436,10 @@ func createBucket(ctx context.Context, client objectstorage.ObjectStorageClient,
 // *****  the functions that interact with OCI Object Storage AND constitute the objectStoreClient interface.
 
 func (c *ociObjectStorageClient) getObject(ctx context.Context, objectname string) (content []byte, etag *string, metadata map[string]string, err error) {
-	c.logger.Debugf("read file %s from OCI ObjectStorage StateStore %s ", objectname, &c.objectStorageMetadata.bucketName)
+	c.logger.Debugf("read file %s from OCI ObjectStorage StateStore %s ", objectname, &c.objectStorageMetadata.BucketName)
 	request := objectstorage.GetObjectRequest{
-		NamespaceName: &c.objectStorageMetadata.namespace,
-		BucketName:    &c.objectStorageMetadata.bucketName,
+		NamespaceName: &c.objectStorageMetadata.Namespace,
+		BucketName:    &c.objectStorageMetadata.BucketName,
 		ObjectName:    &objectname,
 	}
 	response, err := c.objectStorageMetadata.OCIObjectStorageClient.GetObject(ctx, request)
@@ -479,8 +457,8 @@ func (c *ociObjectStorageClient) getObject(ctx context.Context, objectname strin
 
 func (c *ociObjectStorageClient) deleteObject(ctx context.Context, objectname string, etag *string) (err error) {
 	request := objectstorage.DeleteObjectRequest{
-		NamespaceName: &c.objectStorageMetadata.namespace,
-		BucketName:    &c.objectStorageMetadata.bucketName,
+		NamespaceName: &c.objectStorageMetadata.Namespace,
+		BucketName:    &c.objectStorageMetadata.BucketName,
 		ObjectName:    &objectname,
 		IfMatch:       etag,
 	}
@@ -493,8 +471,8 @@ func (c *ociObjectStorageClient) deleteObject(ctx context.Context, objectname st
 
 func (c *ociObjectStorageClient) putObject(ctx context.Context, objectname string, contentLen int64, content io.ReadCloser, metadata map[string]string, etag *string) error {
 	request := objectstorage.PutObjectRequest{
-		NamespaceName: &c.objectStorageMetadata.namespace,
-		BucketName:    &c.objectStorageMetadata.bucketName,
+		NamespaceName: &c.objectStorageMetadata.Namespace,
+		BucketName:    &c.objectStorageMetadata.BucketName,
 		ObjectName:    &objectname,
 		ContentLength: &contentLen,
 		PutObjectBody: content,
@@ -502,7 +480,7 @@ func (c *ociObjectStorageClient) putObject(ctx context.Context, objectname strin
 		IfMatch:       etag,
 	}
 	_, err := c.objectStorageMetadata.OCIObjectStorageClient.PutObject(ctx, request)
-	c.logger.Debugf("Put object ", objectname, " in bucket ", &c.objectStorageMetadata.bucketName)
+	c.logger.Debugf("Put object ", objectname, " in bucket ", &c.objectStorageMetadata.BucketName)
 	if err != nil {
 		return fmt.Errorf("failed to put object on OCI : %w", err)
 	}
@@ -511,7 +489,7 @@ func (c *ociObjectStorageClient) putObject(ctx context.Context, objectname strin
 
 func (c *ociObjectStorageClient) initStorageBucket() error {
 	ctx := context.Background()
-	err := c.ensureBucketExists(ctx, *c.objectStorageMetadata.OCIObjectStorageClient, c.objectStorageMetadata.namespace, c.objectStorageMetadata.bucketName, c.objectStorageMetadata.compartmentOCID)
+	err := c.ensureBucketExists(ctx, *c.objectStorageMetadata.OCIObjectStorageClient, c.objectStorageMetadata.Namespace, c.objectStorageMetadata.BucketName, c.objectStorageMetadata.CompartmentOCID)
 	if err != nil {
 		return fmt.Errorf("failed to read or create bucket : %w", err)
 	}
@@ -520,7 +498,7 @@ func (c *ociObjectStorageClient) initStorageBucket() error {
 
 func (c *ociObjectStorageClient) initOCIObjectStorageClient() (*objectstorage.ObjectStorageClient, error) {
 	var configurationProvider common.ConfigurationProvider
-	if c.objectStorageMetadata.instancePrincipalAuthentication {
+	if c.objectStorageMetadata.InstancePrincipalAuthentication {
 		c.logger.Debugf("instance principal authentication is used. ")
 		var err error
 		configurationProvider, err = auth.InstancePrincipalConfigurationProvider()
@@ -528,12 +506,12 @@ func (c *ociObjectStorageClient) initOCIObjectStorageClient() (*objectstorage.Ob
 			return nil, fmt.Errorf("failed to get oci configurationprovider based on instance principal authentication : %w", err)
 		}
 	} else {
-		if c.objectStorageMetadata.configFileAuthentication {
-			c.logger.Debugf("configuration file based authentication is used with configuration file path %s and configuration profile %s. ", c.objectStorageMetadata.configFilePath, c.objectStorageMetadata.configFileProfile)
-			configurationProvider = common.CustomProfileConfigProvider(c.objectStorageMetadata.configFilePath, c.objectStorageMetadata.configFileProfile)
+		if c.objectStorageMetadata.ConfigFileAuthentication {
+			c.logger.Debugf("configuration file based authentication is used with configuration file path %s and configuration profile %s. ", c.objectStorageMetadata.ConfigFilePath, c.objectStorageMetadata.ConfigFileProfile)
+			configurationProvider = common.CustomProfileConfigProvider(c.objectStorageMetadata.ConfigFilePath, c.objectStorageMetadata.ConfigFileProfile)
 		} else {
 			c.logger.Debugf("identity authentication is used with configuration provided through Dapr component configuration ")
-			configurationProvider = common.NewRawConfigurationProvider(c.objectStorageMetadata.tenancyOCID, c.objectStorageMetadata.userOCID, c.objectStorageMetadata.region, c.objectStorageMetadata.fingerPrint, c.objectStorageMetadata.privateKey, nil)
+			configurationProvider = common.NewRawConfigurationProvider(c.objectStorageMetadata.TenancyOCID, c.objectStorageMetadata.UserOCID, c.objectStorageMetadata.Region, c.objectStorageMetadata.FingerPrint, c.objectStorageMetadata.PrivateKey, nil)
 		}
 	}
 
@@ -542,7 +520,7 @@ func (c *ociObjectStorageClient) initOCIObjectStorageClient() (*objectstorage.Ob
 		return nil, fmt.Errorf("failed to create ObjectStorageClient : %w", cerr)
 	}
 	ctx := context.Background()
-	c.objectStorageMetadata.namespace, cerr = getNamespace(ctx, objectStorageClient)
+	c.objectStorageMetadata.Namespace, cerr = getNamespace(ctx, objectStorageClient)
 	if cerr != nil {
 		return nil, fmt.Errorf("failed to get namespace : %w", cerr)
 	}
@@ -551,12 +529,19 @@ func (c *ociObjectStorageClient) initOCIObjectStorageClient() (*objectstorage.Ob
 
 func (c *ociObjectStorageClient) pingBucket() error {
 	req := objectstorage.GetBucketRequest{
-		NamespaceName: &c.objectStorageMetadata.namespace,
-		BucketName:    &c.objectStorageMetadata.bucketName,
+		NamespaceName: &c.objectStorageMetadata.Namespace,
+		BucketName:    &c.objectStorageMetadata.BucketName,
 	}
 	_, err := c.objectStorageMetadata.OCIObjectStorageClient.GetBucket(context.Background(), req)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve bucket details : %w", err)
 	}
 	return nil
+}
+
+func (r *StateStore) GetComponentMetadata() map[string]string {
+	metadataStruct := objectStoreMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

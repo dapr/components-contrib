@@ -1,0 +1,12 @@
+version: '2'
+services:
+  mariadb:
+    image: mariadb:10
+    restart: always
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: dapr_state_store
+      MARIADB_USER: dapr
+      MARIADB_PASSWORD: example
+    ports:
+      - "3306:3306"

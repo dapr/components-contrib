@@ -20,10 +20,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"time"
 
-	"github.com/agrea/ptr"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -32,9 +32,11 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -44,8 +46,6 @@ const (
 	databaseName     = "databaseName"
 	collectionName   = "collectionName"
 	server           = "server"
-	writeConcern     = "writeConcern"
-	readConcern      = "readConcern"
 	operationTimeout = "operationTimeout"
 	params           = "params"
 	id               = "_id"
@@ -82,16 +82,16 @@ type MongoDB struct {
 }
 
 type mongoDBMetadata struct {
-	host             string
-	username         string
-	password         string
-	databaseName     string
-	collectionName   string
-	server           string
-	writeconcern     string
-	readconcern      string
-	params           string
-	operationTimeout time.Duration
+	Host             string
+	Username         string
+	Password         string
+	DatabaseName     string
+	CollectionName   string
+	Server           string
+	Writeconcern     string
+	Readconcern      string
+	Params           string
+	OperationTimeout time.Duration
 }
 
 // Item is Mongodb document wrapper.
@@ -119,7 +119,7 @@ func (m *MongoDB) Init(metadata state.Metadata) error {
 		return err
 	}
 
-	m.operationTimeout = meta.operationTimeout
+	m.operationTimeout = meta.OperationTimeout
 
 	client, err := getMongoDBClient(meta)
 	if err != nil {
@@ -127,26 +127,26 @@ func (m *MongoDB) Init(metadata state.Metadata) error {
 	}
 
 	if err = client.Ping(context.Background(), nil); err != nil {
-		return fmt.Errorf("error in connecting to mongodb, host: %s error: %s", meta.host, err)
+		return fmt.Errorf("error in connecting to mongodb, host: %s error: %s", meta.Host, err)
 	}
 
 	m.client = client
 
 	// get the write concern
-	wc, err := getWriteConcernObject(meta.writeconcern)
+	wc, err := getWriteConcernObject(meta.Writeconcern)
 	if err != nil {
 		return fmt.Errorf("error in getting write concern object: %s", err)
 	}
 
 	// get the read concern
-	rc, err := getReadConcernObject(meta.readconcern)
+	rc, err := getReadConcernObject(meta.Readconcern)
 	if err != nil {
 		return fmt.Errorf("error in getting read concern object: %s", err)
 	}
 
 	m.metadata = *meta
 	opts := options.Collection().SetWriteConcern(wc).SetReadConcern(rc)
-	collection := m.client.Database(meta.databaseName).Collection(meta.collectionName, opts)
+	collection := m.client.Database(meta.DatabaseName).Collection(meta.CollectionName, opts)
 
 	m.collection = collection
 
@@ -173,7 +173,7 @@ func (m *MongoDB) Set(req *state.SetRequest) error {
 
 func (m *MongoDB) Ping() error {
 	if err := m.client.Ping(context.Background(), nil); err != nil {
-		return fmt.Errorf("mongoDB store: error connecting to mongoDB at %s: %s", m.metadata.host, err)
+		return fmt.Errorf("mongoDB store: error connecting to mongoDB at %s: %s", m.metadata.Host, err)
 	}
 
 	return nil
@@ -259,7 +259,7 @@ func (m *MongoDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 	return &state.GetResponse{
 		Data: data,
-		ETag: ptr.String(result.Etag),
+		ETag: ptr.Of(result.Etag),
 	}, nil
 }
 
@@ -357,19 +357,19 @@ func (m *MongoDB) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
 }
 
 func getMongoURI(metadata *mongoDBMetadata) string {
-	if len(metadata.server) != 0 {
-		if metadata.username != "" && metadata.password != "" {
-			return fmt.Sprintf(connectionURIFormatWithSrvAndCredentials, metadata.username, metadata.password, metadata.server, metadata.databaseName, metadata.params)
+	if len(metadata.Server) != 0 {
+		if metadata.Username != "" && metadata.Password != "" {
+			return fmt.Sprintf(connectionURIFormatWithSrvAndCredentials, metadata.Username, metadata.Password, metadata.Server, metadata.DatabaseName, metadata.Params)
 		}
 
-		return fmt.Sprintf(connectionURIFormatWithSrv, metadata.server, metadata.params)
+		return fmt.Sprintf(connectionURIFormatWithSrv, metadata.Server, metadata.Params)
 	}
 
-	if metadata.username != "" && metadata.password != "" {
-		return fmt.Sprintf(connectionURIFormatWithAuthentication, metadata.username, metadata.password, metadata.host, metadata.databaseName, metadata.params)
+	if metadata.Username != "" && metadata.Password != "" {
+		return fmt.Sprintf(connectionURIFormatWithAuthentication, metadata.Username, metadata.Password, metadata.Host, metadata.DatabaseName, metadata.Params)
 	}
 
-	return fmt.Sprintf(connectionURIFormat, metadata.host, metadata.databaseName, metadata.params)
+	return fmt.Sprintf(connectionURIFormat, metadata.Host, metadata.DatabaseName, metadata.Params)
 }
 
 func getMongoDBClient(metadata *mongoDBMetadata) (*mongo.Client, error) {
@@ -379,7 +379,7 @@ func getMongoDBClient(metadata *mongoDBMetadata) (*mongo.Client, error) {
 	clientOptions := options.Client().ApplyURI(uri)
 
 	// Connect to MongoDB
-	ctx, cancel := context.WithTimeout(context.Background(), metadata.operationTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), metadata.OperationTimeout)
 	defer cancel()
 
 	daprUserAgent := "dapr-" + logger.DaprVersion
@@ -397,66 +397,35 @@ func getMongoDBClient(metadata *mongoDBMetadata) (*mongo.Client, error) {
 	return client, nil
 }
 
-func getMongoDBMetaData(metadata state.Metadata) (*mongoDBMetadata, error) {
-	meta := mongoDBMetadata{
-		databaseName:     defaultDatabaseName,
-		collectionName:   defaultCollectionName,
-		operationTimeout: defaultTimeout,
+func getMongoDBMetaData(meta state.Metadata) (*mongoDBMetadata, error) {
+	m := mongoDBMetadata{
+		DatabaseName:     defaultDatabaseName,
+		CollectionName:   defaultCollectionName,
+		OperationTimeout: defaultTimeout,
 	}
 
-	if val, ok := metadata.Properties[host]; ok && val != "" {
-		meta.host = val
+	decodeErr := metadata.DecodeMetadata(meta.Properties, &m)
+	if decodeErr != nil {
+		return nil, decodeErr
 	}
 
-	if val, ok := metadata.Properties[server]; ok && val != "" {
-		meta.server = val
-	}
-
-	if len(meta.host) == 0 && len(meta.server) == 0 {
+	if len(m.Host) == 0 && len(m.Server) == 0 {
 		return nil, errors.New("must set 'host' or 'server' fields in metadata")
 	}
 
-	if len(meta.host) != 0 && len(meta.server) != 0 {
+	if len(m.Host) != 0 && len(m.Server) != 0 {
 		return nil, errors.New("'host' or 'server' fields are mutually exclusive")
 	}
 
-	if val, ok := metadata.Properties[username]; ok && val != "" {
-		meta.username = val
-	}
-
-	if val, ok := metadata.Properties[password]; ok && val != "" {
-		meta.password = val
-	}
-
-	if val, ok := metadata.Properties[databaseName]; ok && val != "" {
-		meta.databaseName = val
-	}
-
-	if val, ok := metadata.Properties[collectionName]; ok && val != "" {
-		meta.collectionName = val
-	}
-
-	if val, ok := metadata.Properties[writeConcern]; ok && val != "" {
-		meta.writeconcern = val
-	}
-
-	if val, ok := metadata.Properties[readConcern]; ok && val != "" {
-		meta.readconcern = val
-	}
-
-	if val, ok := metadata.Properties[params]; ok && val != "" {
-		meta.params = val
-	}
-
 	var err error
-	if val, ok := metadata.Properties[operationTimeout]; ok && val != "" {
-		meta.operationTimeout, err = time.ParseDuration(val)
+	if val, ok := meta.Properties[operationTimeout]; ok && val != "" {
+		m.OperationTimeout, err = time.ParseDuration(val)
 		if err != nil {
 			return nil, errors.New("incorrect operationTimeout field from metadata")
 		}
 	}
 
-	return &meta, nil
+	return &m, nil
 }
 
 func getWriteConcernObject(cn string) (*writeconcern.WriteConcern, error) {
@@ -494,4 +463,11 @@ func getReadConcernObject(cn string) (*readconcern.ReadConcern, error) {
 	}
 
 	return nil, fmt.Errorf("readConcern %s not found", cn)
+}
+
+func (m *MongoDB) GetComponentMetadata() map[string]string {
+	metadataStruct := mongoDBMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

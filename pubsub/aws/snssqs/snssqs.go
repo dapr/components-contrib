@@ -406,22 +406,6 @@ func (s *snsSqs) createSnsSqsSubscription(parentCtx context.Context, queueArn, t
 	return *subscribeOutput.SubscriptionArn, nil
 }
 
-func (s *snsSqs) removeSnsSqsSubscription(parentCtx context.Context, subscriptionArn string) error {
-	ctx, cancel := context.WithTimeout(parentCtx, s.opsTimeout)
-	_, err := s.snsClient.UnsubscribeWithContext(ctx, &sns.UnsubscribeInput{
-		SubscriptionArn: aws.String(subscriptionArn),
-	})
-	cancel()
-	if err != nil {
-		wrappedErr := fmt.Errorf("error unsubscribing to arn: %s %w", subscriptionArn, err)
-		s.logger.Error(wrappedErr)
-
-		return wrappedErr
-	}
-
-	return nil
-}
-
 func (s *snsSqs) getSnsSqsSubscriptionArn(parentCtx context.Context, topicArn string) (string, error) {
 	ctx, cancel := context.WithTimeout(parentCtx, s.opsTimeout)
 	listSubscriptionsOutput, err := s.snsClient.ListSubscriptionsByTopicWithContext(ctx, &sns.ListSubscriptionsByTopicInput{TopicArn: aws.String(topicArn)})
@@ -817,7 +801,7 @@ func (s *snsSqs) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeReq
 	}
 
 	// subscription creation is idempotent. Subscriptions are unique by topic/queue.
-	subscriptionArn, err := s.getOrCreateSnsSqsSubscription(subscribeCtx, queueInfo.arn, topicArn)
+	_, err = s.getOrCreateSnsSqsSubscription(subscribeCtx, queueInfo.arn, topicArn)
 	if err != nil {
 		wrappedErr := fmt.Errorf("error subscribing topic: %s, to queue: %s, with error: %w", topicArn, queueInfo.arn, err)
 		s.logger.Error(wrappedErr)

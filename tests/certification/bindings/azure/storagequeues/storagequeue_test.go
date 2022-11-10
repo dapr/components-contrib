@@ -16,7 +16,6 @@ package storagequeue_test
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"testing"
 	"time"
@@ -312,7 +311,7 @@ func TestAzureStorageQueueForDecode(t *testing.T) {
 		// Declare the expected data.
 		msgs := make([]string, numOfMessages)
 		for i := 0; i < numOfMessages; i++ {
-			msgs[i] = fmt.Sprintf("Message %03d", i)
+			msgs[i] = fmt.Sprintf("Message 新 %03d", i) // the chinese character is part of the test for UTF-8 characters
 		}
 
 		messages.ExpectStrings(msgs...)
@@ -323,7 +322,6 @@ func TestAzureStorageQueueForDecode(t *testing.T) {
 		for _, msg := range msgs {
 			ctx.Logf("Sending: %q", msg)
 			dataBytes := []byte(msg)
-			dataBytes = []byte(base64.StdEncoding.EncodeToString(dataBytes))
 			req := &daprClient.InvokeBindingRequest{Name: "decode-binding", Operation: "create", Data: dataBytes, Metadata: metadata}
 			err := client.InvokeOutputBinding(ctx, req)
 			require.NoError(ctx, err, "error publishing message")

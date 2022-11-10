@@ -113,7 +113,6 @@ func (js *jetstreamPubSub) Publish(req *pubsub.PublishRequest) error {
 }
 
 func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-
 	var consumerConfig nats.ConsumerConfig
 
 	consumerConfig.DeliverSubject = nats.NewInbox()

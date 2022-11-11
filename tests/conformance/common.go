@@ -57,6 +57,7 @@ import (
 	p_inmemory "github.com/dapr/components-contrib/pubsub/in-memory"
 	p_jetstream "github.com/dapr/components-contrib/pubsub/jetstream"
 	p_kafka "github.com/dapr/components-contrib/pubsub/kafka"
+	p_kubemq "github.com/dapr/components-contrib/pubsub/kubemq"
 	p_mqtt "github.com/dapr/components-contrib/pubsub/mqtt"
 	p_natsstreaming "github.com/dapr/components-contrib/pubsub/natsstreaming"
 	p_pulsar "github.com/dapr/components-contrib/pubsub/pulsar"
@@ -397,6 +398,8 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_inmemory.New(testLogger)
 	case "aws.snssqs":
 		pubsub = p_snssqs.NewSnsSqs(testLogger)
+	case "kubemq":
+		pubsub = p_kubemq.NewKubeMQ(testLogger)
 	default:
 		return nil
 	}

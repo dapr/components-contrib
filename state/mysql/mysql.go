@@ -20,12 +20,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
@@ -86,6 +88,14 @@ type MySQL struct {
 	factory iMySQLFactory
 }
 
+type mySQLMetadata struct {
+	TableName        string
+	SchemaName       string
+	ConnectionString string
+	Timeout          int
+	PemPath          string
+}
+
 // NewMySQLStateStore creates a new instance of MySQL state store.
 func NewMySQLStateStore(logger logger.Logger) state.Store {
 	factory := newMySQLFactory(logger)
@@ -131,46 +141,46 @@ func (m *MySQL) Init(metadata state.Metadata) error {
 }
 
 func (m *MySQL) parseMetadata(md map[string]string) error {
-	val, ok := md[keyTableName]
-	if ok && val != "" {
+	meta := mySQLMetadata{
+		TableName:  defaultTableName,
+		SchemaName: defaultSchemaName,
+	}
+	err := metadata.DecodeMetadata(md, &meta)
+	if err != nil {
+		return err
+	}
+
+	if meta.TableName != "" {
 		// Sanitize the table name
-		if !validIdentifier(val) {
-			return fmt.Errorf("table name '%s' is not valid", val)
+		if !validIdentifier(meta.TableName) {
+			return fmt.Errorf("table name '%s' is not valid", meta.TableName)
 		}
-		m.tableName = val
-	} else {
-		// Default to the constant
-		m.tableName = defaultTableName
 	}
+	m.tableName = meta.TableName
 
-	val, ok = md[keySchemaName]
-	if ok && val != "" {
+	if meta.SchemaName != "" {
 		// Sanitize the schema name
-		if !validIdentifier(val) {
-			return fmt.Errorf("schema name '%s' is not valid", val)
+		if !validIdentifier(meta.SchemaName) {
+			return fmt.Errorf("schema name '%s' is not valid", meta.SchemaName)
 		}
-		m.schemaName = val
-	} else {
-		// Default to the constant
-		m.schemaName = defaultSchemaName
 	}
+	m.schemaName = meta.SchemaName
 
-	m.connectionString, ok = md[keyConnectionString]
-	if !ok || m.connectionString == "" {
+	if meta.ConnectionString == "" {
 		m.logger.Error("Missing MySql connection string")
 		return fmt.Errorf(errMissingConnectionString)
 	}
+	m.connectionString = meta.ConnectionString
 
-	val, ok = md[keyPemPath]
-	if ok && val != "" {
-		err := m.factory.RegisterTLSConfig(val)
+	if meta.PemPath != "" {
+		err := m.factory.RegisterTLSConfig(meta.PemPath)
 		if err != nil {
 			m.logger.Error(err)
 			return err
 		}
 	}
 
-	val, ok = md[keyTimeoutInSeconds]
+	val, ok := md[keyTimeoutInSeconds]
 	if ok && val != "" {
 		n, err := strconv.Atoi(val)
 		if err == nil && n > 0 {
@@ -720,4 +730,11 @@ type querier interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+func (m *MySQL) GetComponentMetadata() map[string]string {
+	metadataStruct := mySQLMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

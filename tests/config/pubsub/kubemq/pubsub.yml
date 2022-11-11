@@ -1,0 +1,12 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messages
+spec:
+  type: pubsub.kubemq
+  version: v1
+  metadata:
+    - name: address
+      value: localhost:50000
+    - name: store
+      value: false

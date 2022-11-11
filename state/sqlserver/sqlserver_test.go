@@ -230,11 +230,6 @@ func TestInvalidConfiguration(t *testing.T) {
 			expectedErr: "missing connection string",
 		},
 		{
-			name:        "Invalid maxKeyLength value",
-			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", keyLengthKey: "aa"},
-			expectedErr: "parsing \"aa\"",
-		},
-		{
 			name:        "Negative maxKeyLength value",
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", keyLengthKey: "-1"},
 			expectedErr: "invalid key length value of -1",

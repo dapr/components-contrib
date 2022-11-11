@@ -67,6 +67,8 @@ type rabbitMQ struct {
 }
 
 // interface used to allow unit testing.
+//
+//nolint:interfacebloat
 type rabbitMQChannelBroker interface {
 	PublishWithContext(ctx context.Context, exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) error
 	PublishWithDeferredConfirmWithContext(ctx context.Context, exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) (*amqp.DeferredConfirmation, error)

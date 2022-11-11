@@ -16,9 +16,6 @@ package pubsub
 // AppResponseStatus represents a status of a PubSub response.
 type AppResponseStatus string
 
-// BulkPublishStatus represents a status of a Bulk Publish response.
-type BulkPublishStatus string
-
 const (
 	// Success means the message is received and processed correctly.
 	Success AppResponseStatus = "SUCCESS"
@@ -26,10 +23,6 @@ const (
 	Retry AppResponseStatus = "RETRY"
 	// Drop means the message is received but should not be processed.
 	Drop AppResponseStatus = "DROP"
-	// PublishSucceeded represents that message was published successfully.
-	PublishSucceeded BulkPublishStatus = "SUCCESS"
-	// PublishFailed represents that message publishing failed.
-	PublishFailed BulkPublishStatus = "FAILED"
 )
 
 // AppResponse is the object describing the response from user code after a pubsub event.
@@ -52,14 +45,13 @@ type AppBulkResponse struct {
 // BulkPublishResponseEntry Represents single publish response, as part of BulkPublishResponse
 // to be sent to publishing App for the corresponding single message during bulk publish
 type BulkPublishResponseEntry struct {
-	EntryId string            `json:"entryId"` //nolint:stylecheck
-	Status  BulkPublishStatus `json:"status"`
-	Error   error             `json:"error"`
+	EntryId string `json:"entryId"` //nolint:stylecheck
+	Error   error  `json:"error"`
 }
 
-// BulkPublishResponse is the whole bulk publish response sent to App
+// BulkPublishResponse contains the list of failed entries in a bulk publish request.
 type BulkPublishResponse struct {
-	Statuses []BulkPublishResponseEntry `json:"statuses"`
+	FailedEntries []BulkPublishResponseEntry `json:"failedEntries"`
 }
 
 // BulkSubscribeResponseEntry Represents single subscribe response item, as part of BulkSubscribeResponse
@@ -75,19 +67,18 @@ type BulkSubscribeResponse struct {
 	Statuses []BulkSubscribeResponseEntry `json:"statuses"`
 }
 
-// NewBulkPublishResponse returns a BulkPublishResponse with each entry having same status and error.
-// This method is a helper method to map a single error/success response on BulkPublish to multiple events.
-func NewBulkPublishResponse(messages []BulkMessageEntry, status BulkPublishStatus, err error) BulkPublishResponse {
+// NewBulkPublishResponse returns a BulkPublishResponse with each entry having same error.
+// This method is a helper method to map a single error response on BulkPublish to multiple events.
+func NewBulkPublishResponse(messages []BulkMessageEntry, err error) BulkPublishResponse {
 	response := BulkPublishResponse{}
-	response.Statuses = make([]BulkPublishResponseEntry, len(messages))
-	for i, msg := range messages {
-		st := BulkPublishResponseEntry{}
-		st.EntryId = msg.EntryId
-		st.Status = status
+	response.FailedEntries = make([]BulkPublishResponseEntry, 0, len(messages))
+	for _, msg := range messages {
+		en := BulkPublishResponseEntry{}
+		en.EntryId = msg.EntryId
 		if err != nil {
-			st.Error = err
+			en.Error = err
 		}
-		response.Statuses[i] = st
+		response.FailedEntries = append(response.FailedEntries, en)
 	}
 	return response
 }

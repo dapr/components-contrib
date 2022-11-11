@@ -386,11 +386,13 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 			}
 
 			t.Logf("Calling Bulk Publish on component %s", config.ComponentName)
+			// Making use of entryMap defined above here to iterate through entryIds of messages published.
 			res, err := bP.BulkPublish(context.Background(), &req)
+			faileEntries := convertBulkPublishResponseToStringSlice(res)
 			if err == nil {
-				for _, status := range res.Statuses {
-					if status.Status == pubsub.PublishSucceeded {
-						data := entryMap[status.EntryId]
+				for k := range entryMap {
+					if !utils.Contains(faileEntries, k) {
+						data := entryMap[k]
 						t.Logf("adding to awaited messages %s", data)
 						awaitingMessages[string(data)] = struct{}{}
 					}
@@ -617,4 +619,12 @@ func createMultiSubscriber(t *testing.T, subscribeCtx context.Context, ch chan<-
 		return nil
 	})
 	require.NoError(t, err, "expected no error on subscribe")
+}
+
+func convertBulkPublishResponseToStringSlice(res pubsub.BulkPublishResponse) []string {
+	failedEntries := make([]string, 0, len(res.FailedEntries))
+	for _, failedEntry := range res.FailedEntries {
+		failedEntries = append(failedEntries, failedEntry.EntryId)
+	}
+	return failedEntries
 }

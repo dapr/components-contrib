@@ -33,16 +33,17 @@ func getTestKubeMQHost() string {
 }
 
 func getDefaultMetadata(channel string) bindings.Metadata {
-	return bindings.Metadata{Base: metadata.Base{
-		Name: "kubemq",
-		Properties: map[string]string{
-			"address":            getTestKubeMQHost(),
-			"channel":            channel,
-			"pollMaxItems":       "1",
-			"autoAcknowledged":   "true",
-			"pollTimeoutSeconds": "2",
+	return bindings.Metadata{
+		Base: metadata.Base{
+			Name: "kubemq",
+			Properties: map[string]string{
+				"address":            getTestKubeMQHost(),
+				"channel":            channel,
+				"pollMaxItems":       "1",
+				"autoAcknowledged":   "true",
+				"pollTimeoutSeconds": "2",
+			},
 		},
-	},
 	}
 }
 
@@ -54,46 +55,49 @@ func Test_kubeMQ_Init(t *testing.T) {
 	}{
 		{
 			name: "init with valid options",
-			meta: bindings.Metadata{Base: metadata.Base{
-				Name: "kubemq",
-				Properties: map[string]string{
-					"address":            getTestKubeMQHost(),
-					"channel":            "test",
-					"pollMaxItems":       "1",
-					"autoAcknowledged":   "true",
-					"pollTimeoutSeconds": "2",
+			meta: bindings.Metadata{
+				Base: metadata.Base{
+					Name: "kubemq",
+					Properties: map[string]string{
+						"address":            getTestKubeMQHost(),
+						"channel":            "test",
+						"pollMaxItems":       "1",
+						"autoAcknowledged":   "true",
+						"pollTimeoutSeconds": "2",
+					},
 				},
-			},
 			},
 			wantErr: false,
 		},
 		{
 			name: "init with invalid options",
-			meta: bindings.Metadata{Base: metadata.Base{
-				Name: "kubemq",
-				Properties: map[string]string{
-					"address":            "localhost-bad:50000",
-					"channel":            "test",
-					"pollMaxItems":       "1",
-					"autoAcknowledged":   "true",
-					"pollTimeoutSeconds": "2",
+			meta: bindings.Metadata{
+				Base: metadata.Base{
+					Name: "kubemq",
+					Properties: map[string]string{
+						"address":            "localhost-bad:50000",
+						"channel":            "test",
+						"pollMaxItems":       "1",
+						"autoAcknowledged":   "true",
+						"pollTimeoutSeconds": "2",
+					},
 				},
-			},
 			},
 			wantErr: true,
 		},
 		{
 			name: "init with invalid parsing options",
-			meta: bindings.Metadata{Base: metadata.Base{
-				Name: "kubemq",
-				Properties: map[string]string{
-					"address":            "bad",
-					"channel":            "test",
-					"pollMaxItems":       "1",
-					"autoAcknowledged":   "true",
-					"pollTimeoutSeconds": "2",
+			meta: bindings.Metadata{
+				Base: metadata.Base{
+					Name: "kubemq",
+					Properties: map[string]string{
+						"address":            "bad",
+						"channel":            "test",
+						"pollMaxItems":       "1",
+						"autoAcknowledged":   "true",
+						"pollTimeoutSeconds": "2",
+					},
 				},
-			},
 			},
 			wantErr: true,
 		},
@@ -136,6 +140,7 @@ func Test_kubeMQ_Invoke_Read_Single_Message(t *testing.T) {
 		require.Equal(t, invokeRequest.Data, data)
 	}
 }
+
 func Test_kubeMQ_Invoke_Read_Single_MessageWithHandlerError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()

@@ -18,17 +18,18 @@ func Test_createOptions(t *testing.T) {
 	}{
 		{
 			name: "create valid opts",
-			meta: bindings.Metadata{Base: metadata.Base{
-				Name: "kubemq",
-				Properties: map[string]string{
-					"address":            "localhost:50000",
-					"channel":            "test",
-					"authToken":          "authToken",
-					"pollMaxItems":       "10",
-					"autoAcknowledged":   "true",
-					"pollTimeoutSeconds": "10",
+			meta: bindings.Metadata{
+				Base: metadata.Base{
+					Name: "kubemq",
+					Properties: map[string]string{
+						"address":            "localhost:50000",
+						"channel":            "test",
+						"authToken":          "authToken",
+						"pollMaxItems":       "10",
+						"autoAcknowledged":   "true",
+						"pollTimeoutSeconds": "10",
+					},
 				},
-			},
 			},
 			want: &options{
 				host:               "localhost",
@@ -43,39 +44,42 @@ func Test_createOptions(t *testing.T) {
 		},
 		{
 			name: "create invalid opts with bad host",
-			meta: bindings.Metadata{Base: metadata.Base{
-				Name: "kubemq",
-				Properties: map[string]string{
-					"address":  ":50000",
-					"clientId": "clientId",
+			meta: bindings.Metadata{
+				Base: metadata.Base{
+					Name: "kubemq",
+					Properties: map[string]string{
+						"address":  ":50000",
+						"clientId": "clientId",
+					},
 				},
-			},
 			},
 			want:    nil,
 			wantErr: true,
 		},
 		{
 			name: "create invalid opts with bad port",
-			meta: bindings.Metadata{Base: metadata.Base{
-				Name: "kubemq",
-				Properties: map[string]string{
-					"address":  "localhost:badport",
-					"clientId": "clientId",
+			meta: bindings.Metadata{
+				Base: metadata.Base{
+					Name: "kubemq",
+					Properties: map[string]string{
+						"address":  "localhost:badport",
+						"clientId": "clientId",
+					},
 				},
-			},
 			},
 			want:    nil,
 			wantErr: true,
 		},
 		{
 			name: "create invalid opts with empty address",
-			meta: bindings.Metadata{Base: metadata.Base{
-				Name: "kubemq",
-				Properties: map[string]string{
-					"address":  "",
-					"clientId": "clientId",
+			meta: bindings.Metadata{
+				Base: metadata.Base{
+					Name: "kubemq",
+					Properties: map[string]string{
+						"address":  "",
+						"clientId": "clientId",
+					},
 				},
-			},
 			},
 			want:    nil,
 			wantErr: true,
@@ -174,7 +178,6 @@ func Test_createOptions(t *testing.T) {
 			got, err := createOptions(tt.meta)
 			if tt.wantErr {
 				assert.Error(t, err)
-
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.want, got)
@@ -251,7 +254,8 @@ func Test_parsePolicyExpirationSeconds(t *testing.T) {
 		args args
 		want int
 	}{
-		{name: "parse policy expiration seconds - nil",
+		{
+			name: "parse policy expiration seconds - nil",
 			args: args{
 				md: nil,
 			},

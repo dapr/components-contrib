@@ -32,6 +32,7 @@ type metadata struct {
 	tlsClientKey  string
 
 	name           string
+	streamName     string
 	durableName    string
 	queueGroupName string
 	startSequence  uint64
@@ -140,6 +141,8 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 	if v, err := time.ParseDuration(psm.Properties["hearbeat"]); err == nil {
 		m.hearbeat = v
 	}
+
+	m.streamName = psm.Properties["streamName"]
 
 	return m, nil
 }

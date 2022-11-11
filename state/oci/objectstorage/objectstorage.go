@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path"
 	"reflect"
@@ -405,7 +406,7 @@ func (c *ociObjectStorageClient) ensureBucketExists(ctx context.Context, client 
 	// verify if bucket exists.
 	response, err := client.GetBucket(ctx, req)
 	if err != nil {
-		if response.RawResponse.StatusCode == 404 {
+		if response.RawResponse.StatusCode == http.StatusNotFound {
 			err = createBucket(ctx, client, namespace, name, compartmentOCID)
 			if err == nil {
 				c.logger.Debugf("Created OCI Object Storage Bucket %s as State Store", name)
@@ -445,7 +446,7 @@ func (c *ociObjectStorageClient) getObject(ctx context.Context, objectname strin
 	response, err := c.objectStorageMetadata.OCIObjectStorageClient.GetObject(ctx, request)
 	if err != nil {
 		c.logger.Debugf("Issue in OCI ObjectStorage with retrieving object %s, error:  %s", objectname, err)
-		if response.RawResponse.StatusCode == 404 {
+		if response.RawResponse.StatusCode == http.StatusNotFound {
 			return nil, nil, nil, nil
 		}
 		return nil, nil, nil, fmt.Errorf("failed to retrieve object : %w", err)

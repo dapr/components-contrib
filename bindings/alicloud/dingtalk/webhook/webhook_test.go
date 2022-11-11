@@ -37,7 +37,7 @@ func TestPublishMsg(t *testing.T) { //nolint:paralleltest
 		w.WriteHeader(http.StatusOK)
 		_, err := w.Write([]byte("{\"errcode\":0}"))
 		require.NoError(t, err)
-		if r.Method != "POST" {
+		if r.Method != http.MethodPost {
 			t.Errorf("Expected 'POST' request, got '%s'", r.Method)
 		}
 		if r.URL.EscapedPath() != "/test" {

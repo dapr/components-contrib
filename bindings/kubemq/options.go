@@ -2,9 +2,10 @@ package kubemq
 
 import (
 	"fmt"
-	"github.com/dapr/components-contrib/bindings"
 	"strconv"
 	"strings"
+
+	"github.com/dapr/components-contrib/bindings"
 )
 
 type options struct {

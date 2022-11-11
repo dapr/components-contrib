@@ -6,13 +6,15 @@ package kubemq
 import (
 	"context"
 	"fmt"
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/metadata"
-	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -35,7 +37,7 @@ func getDefaultMetadata(channel string) bindings.Metadata {
 		Name: "kubemq",
 		Properties: map[string]string{
 			"address":            getTestKubeMQHost(),
-			"channel":            string(channel),
+			"channel":            channel,
 			"pollMaxItems":       "1",
 			"autoAcknowledged":   "true",
 			"pollTimeoutSeconds": "2",

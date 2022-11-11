@@ -295,15 +295,21 @@ func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 }
 
 func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, sentinelKey string, id string) {
+	var etagVal *azcore.ETag
 	for {
 		// get sentinel key changes
-		_, err := r.Get(ctx, &configuration.GetRequest{
-			Keys:     []string{sentinelKey},
-			Metadata: req.Metadata,
-		})
+		resp, err := r.client.GetSetting(
+			context.TODO(),
+			sentinelKey,
+			&azappconfig.GetSettingOptions{
+				Label:         r.getLabelFromMetadata(req.Metadata),
+				OnlyIfChanged: etagVal,
+			},
+		)
 		if err != nil {
 			r.logger.Debugf("azure appconfig error: fail to get sentinel key changes or sentinel key's value is unchanged: %s", err)
 		} else {
+			etagVal = resp.ETag
 			items, err := r.Get(ctx, &configuration.GetRequest{
 				Keys:     req.Keys,
 				Metadata: req.Metadata,

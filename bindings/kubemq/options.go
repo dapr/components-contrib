@@ -116,6 +116,7 @@ func parsePolicyDelaySeconds(md map[string]string) int {
 	}
 	return 0
 }
+
 func parsePolicyExpirationSeconds(md map[string]string) int {
 	if md == nil {
 		return 0
@@ -132,6 +133,7 @@ func parsePolicyExpirationSeconds(md map[string]string) int {
 	}
 	return 0
 }
+
 func parseSetPolicyMaxReceiveCount(md map[string]string) int {
 	if md == nil {
 		return 0

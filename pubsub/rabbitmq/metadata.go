@@ -21,8 +21,10 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
-	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+
+	contribMetadata "github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/pubsub"
 )
 
 type metadata struct {
@@ -45,6 +47,7 @@ type metadata struct {
 	exchangeKind     string
 	publisherConfirm bool
 	concurrency      pubsub.ConcurrencyMode
+	defaultQueueTTL  *time.Duration
 }
 
 const (
@@ -189,6 +192,15 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*metadat
 		if boolVal, err := strconv.ParseBool(val); err == nil {
 			result.publisherConfirm = boolVal
 		}
+	}
+
+	ttl, ok, err := contribMetadata.TryGetTTL(pubSubMetadata.Properties)
+	if err != nil {
+		return &result, fmt.Errorf("%s parse RabbitMQ ttl metadata with error: %s", errorMessagePrefix, err)
+	}
+
+	if ok {
+		result.defaultQueueTTL = &ttl
 	}
 
 	c, err := pubsub.Concurrency(pubSubMetadata.Properties)

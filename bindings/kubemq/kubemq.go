@@ -91,9 +91,8 @@ func (k *kubeMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 		}
 	}
 	return &bindings.InvokeResponse{
-		Data:        nil,
-		Metadata:    nil,
-		ContentType: nil,
+		Data:     nil,
+		Metadata: nil,
 	}, nil
 }
 

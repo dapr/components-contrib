@@ -35,6 +35,7 @@ func NewKubeMQ(logger logger.Logger) Kubemq {
 		ctxCancel: nil,
 	}
 }
+
 func (k *kubeMQ) Init(metadata bindings.Metadata) error {
 	opts, err := createOptions(metadata)
 	if err != nil {

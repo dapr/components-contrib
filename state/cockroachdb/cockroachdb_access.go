@@ -21,13 +21,16 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"time"
 
+	"github.com/cenkalti/backoff"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
+	"github.com/dapr/kit/retry"
 
 	// Blank import for the underlying PostgreSQL driver.
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -37,7 +40,7 @@ const (
 	connectionStringKey        = "connectionString"
 	errMissingConnectionString = "missing connection string"
 	tableName                  = "state"
-	maxRetries                 = 5 // A bad driver connection error can occur inside the sql code so this essentially allows for more retries since the sql code does not allow that to be changed
+	defaultMaxRetries          = 5 // A bad driver connection error can occur inside the sql code so this essentially allows for more retries since the sql code does not allow that to be changed
 )
 
 // cockroachDBAccess implements dbaccess.
@@ -51,6 +54,7 @@ type cockroachDBAccess struct {
 type cockroachDBMetadata struct {
 	ConnectionString string
 	TableName        string
+	MaxRetries       *int
 }
 
 // newCockroachDBAccess creates a new instance of cockroachDBAccess.
@@ -406,14 +410,35 @@ func (p *cockroachDBAccess) Query(req *state.QueryRequest) (*state.QueryResponse
 
 // Ping implements database ping.
 func (p *cockroachDBAccess) Ping() error {
-	for i := 0; i < maxRetries; i++ {
+
+	retryCount := defaultMaxRetries
+	if p.metadata.MaxRetries != nil && *p.metadata.MaxRetries >= 0 {
+		retryCount = *p.metadata.MaxRetries
+	}
+	publishBo := backoff.NewExponentialBackOff()
+	publishBo.InitialInterval = 100 * time.Millisecond
+	bo := backoff.WithMaxRetries(publishBo, uint64(retryCount))
+
+	return retry.NotifyRecover(func() error {
 		err := p.db.Ping()
 		if errors.Is(err, driver.ErrBadConn) {
-			continue
+			return fmt.Errorf("error when attempting to establish connection with cockroachDB: %v", err)
 		}
-		return err
-	}
-	return p.db.Ping()
+		return nil
+	}, bo, func(err error, _ time.Duration) {
+		p.logger.Debugf("Could not establish connection with cockroachDB. Retrying...: %v", err)
+	}, func() {
+		p.logger.Debug("Successfully established connection with cockroachDB after it previously failed")
+	})
+
+	// for i := 0; i < defaultMaxRetries; i++ {
+	// 	err := p.db.Ping()
+	// 	if errors.Is(err, driver.ErrBadConn) {
+	// 		continue
+	// 	}
+	// 	return err
+	// }
+	// return p.db.Ping()
 }
 
 // Close implements io.Close.

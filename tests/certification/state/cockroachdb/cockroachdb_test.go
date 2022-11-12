@@ -57,7 +57,6 @@ func TestCockroach(t *testing.T) {
 
 	currentGrpcPort := ports[0]
 	currentHTTPPort := ports[1]
-	// appPort := 34842
 
 	// Generate a unique value for the key being inserted to ensure no conflicts occur
 	keyOne := uuid.New()
@@ -113,7 +112,7 @@ func TestCockroach(t *testing.T) {
 			Key: keyOneString,
 		})
 		assert.NoError(t, err)
-		assert.Equal(t, "2", *resp.ETag) //2 is returned since the previous etag value of "1" was incremented by 1 when the update occurred
+		assert.Equal(t, "2", *resp.ETag) // 2 is returned since the previous etag value of "1" was incremented by 1 when the update occurred
 		assert.Equal(t, "\"Overwrite Success\"", string(resp.Data))
 
 		return nil

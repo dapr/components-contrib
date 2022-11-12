@@ -31,7 +31,7 @@ run:
   # skip-files:
   #  - ".*\\.my\\.go$"
   #  - lib/bad.go
-  
+
 # output configuration options
 output:
   # colored-line-number|line-number|json|tab|checkstyle, default is "colored-line-number"
@@ -277,3 +277,6 @@ linters:
     - rowserrcheck
     - sqlclosecheck
     - structcheck
+    - deadcode
+    - nosnakecase
+    - varcheck

@@ -196,7 +196,7 @@ func (g *GCPStorage) create(ctx context.Context, req *bindings.InvokeRequest) (*
 func (g *GCPStorage) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	metadata, err := g.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
-		return nil, fmt.Errorf("gcp binding binding error. error merge metadata : %w", err)
+		return nil, fmt.Errorf("gcp binding error. error merge metadata : %w", err)
 	}
 
 	var key string

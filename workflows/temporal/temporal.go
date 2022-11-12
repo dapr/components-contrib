@@ -15,7 +15,6 @@ package temporal
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -23,6 +22,7 @@ import (
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/client"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/workflows"
 	"github.com/dapr/kit/logger"
 )
@@ -128,20 +128,10 @@ func (c *TemporalWF) Close() {
 	c.client.Close()
 }
 
-func (c *TemporalWF) parseMetadata(metadata workflows.Metadata) (*temporalMetadata, error) {
-	connInfo := metadata.Properties
-	b, err := json.Marshal(connInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	var creds temporalMetadata
-	err = json.Unmarshal(b, &creds)
-	if err != nil {
-		return nil, err
-	}
-
-	return &creds, nil
+func (c *TemporalWF) parseMetadata(meta workflows.Metadata) (*temporalMetadata, error) {
+	var m temporalMetadata
+	err := metadata.DecodeMetadata(meta.Properties, &m)
+	return &m, err
 }
 
 func lookupStatus(status enums.WorkflowExecutionStatus) string {

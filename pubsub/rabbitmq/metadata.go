@@ -104,7 +104,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*metadat
 	if result.connectionString != "" {
 		uri, err := amqp.ParseURI(result.connectionString)
 		if err != nil {
-			return &result, err
+			return &result, fmt.Errorf("%s invalid connection string: %s, err: %w", errorMessagePrefix, result.connectionString, err)
 		}
 		result.protocol = uri.Scheme
 	}

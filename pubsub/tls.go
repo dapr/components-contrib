@@ -20,7 +20,7 @@ const (
 	ClientKey  = "clientKey"
 )
 
-// TLS takes a metadata object and returns the TlsCfg configured.
+// TLS takes a metadata object and returns the TLSProperties configured.
 func TLS(metadata map[string]string) (TLSProperties, error) {
 	cfg := TLSProperties{}
 

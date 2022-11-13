@@ -16,7 +16,6 @@ package mqtt
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -358,23 +357,9 @@ func (m *mqttPubSub) connect(ctx context.Context, clientID string) (mqtt.Client,
 }
 
 func (m *mqttPubSub) newTLSConfig() *tls.Config {
-	tlsConfig := new(tls.Config)
-
-	if m.metadata.clientCert != "" && m.metadata.clientKey != "" {
-		cert, err := tls.X509KeyPair([]byte(m.metadata.clientCert), []byte(m.metadata.clientKey))
-		if err != nil {
-			m.logger.Warnf("unable to load client certificate and key pair. Err: %v", err)
-
-			return tlsConfig
-		}
-		tlsConfig.Certificates = []tls.Certificate{cert}
-	}
-
-	if m.metadata.caCert != "" {
-		tlsConfig.RootCAs = x509.NewCertPool()
-		if ok := tlsConfig.RootCAs.AppendCertsFromPEM([]byte(m.metadata.caCert)); !ok {
-			m.logger.Warnf("unable to load ca certificate.")
-		}
+	tlsConfig, err := pubsub.ConvertTLSPropertiesToTLSConfig(m.metadata.TLSProperties)
+	if err != nil {
+		m.logger.Warnf("failed to load TLS config: %s", err)
 	}
 
 	return tlsConfig

@@ -15,6 +15,7 @@ package rabbitmq
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"testing"
 	"time"
@@ -37,7 +38,7 @@ func newRabbitMQTest(broker *rabbitMQInMemoryBroker) pubsub.PubSub {
 	return &rabbitMQ{
 		declaredExchanges: make(map[string]bool),
 		logger:            logger.NewLogger("test"),
-		connectionDial: func(uri string) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
+		connectionDial: func(schema, uri string, tlsCfg *tls.Config) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
 			broker.connectCount++
 
 			return broker, broker, nil

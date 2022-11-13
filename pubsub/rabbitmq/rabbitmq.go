@@ -15,6 +15,7 @@ package rabbitmq
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"strconv"
@@ -61,7 +62,7 @@ type rabbitMQ struct {
 	ctx               context.Context
 	cancel            context.CancelFunc
 
-	connectionDial func(uri string) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error)
+	connectionDial func(protocol, uri string, tlsCfg *tls.Config) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error)
 
 	logger logger.Logger
 }
@@ -98,13 +99,23 @@ func NewRabbitMQ(logger logger.Logger) pubsub.PubSub {
 	}
 }
 
-func dial(uri string) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
-	conn, err := amqp.Dial(uri)
+func dial(protocol, uri string, tlsCfg *tls.Config) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
+	var (
+		conn *amqp.Connection
+		ch   *amqp.Channel
+		err  error
+	)
+
+	if protocol == protocolAMQPS {
+		conn, err = amqp.DialTLS(uri, tlsCfg)
+	} else {
+		conn, err = amqp.Dial(uri)
+	}
 	if err != nil {
 		return nil, nil, err
 	}
 
-	ch, err := conn.Channel()
+	ch, err = conn.Channel()
 	if err != nil {
 		conn.Close()
 		return nil, nil, err
@@ -153,7 +164,12 @@ func (r *rabbitMQ) reconnect(connectionCount int) error {
 		return err
 	}
 
-	r.connection, r.channel, err = r.connectionDial(r.metadata.connectionURI())
+	tlsCfg, err := pubsub.ConvertTLSPropertiesToTLSConfig(r.metadata.TLSProperties)
+	if err != nil {
+		return err
+	}
+
+	r.connection, r.channel, err = r.connectionDial(r.metadata.protocol, r.metadata.connectionURI(), tlsCfg)
 	if err != nil {
 		r.reset()
 

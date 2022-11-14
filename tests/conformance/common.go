@@ -45,6 +45,7 @@ import (
 	b_http "github.com/dapr/components-contrib/bindings/http"
 	b_influx "github.com/dapr/components-contrib/bindings/influx"
 	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
+	b_kubemq "github.com/dapr/components-contrib/bindings/kubemq"
 	b_mqtt "github.com/dapr/components-contrib/bindings/mqtt"
 	b_postgres "github.com/dapr/components-contrib/bindings/postgres"
 	b_rabbitmq "github.com/dapr/components-contrib/bindings/rabbitmq"
@@ -497,6 +498,8 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_mqtt.NewMQTT(testLogger)
 	case "rabbitmq":
 		binding = b_rabbitmq.NewRabbitMQ(testLogger)
+	case "kubemq":
+		binding = b_kubemq.NewKubeMQ(testLogger)
 	case "postgres":
 		binding = b_postgres.NewPostgres(testLogger)
 	default:
@@ -524,6 +527,8 @@ func loadInputBindings(tc TestComponent) bindings.InputBinding {
 		binding = b_mqtt.NewMQTT(testLogger)
 	case "rabbitmq":
 		binding = b_rabbitmq.NewRabbitMQ(testLogger)
+	case "kubemq":
+		binding = b_kubemq.NewKubeMQ(testLogger)
 	default:
 		return nil
 	}

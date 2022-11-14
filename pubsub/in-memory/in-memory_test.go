@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -108,6 +109,7 @@ func TestBulkPublish(t *testing.T) {
 
 	ch := make(chan []byte)
 	bus.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: "demo"}, func(ctx context.Context, msg *pubsub.NewMessage) error {
+		time.Sleep(500 * time.Millisecond) // Ensure order of messages for the test
 		return publish(ch, msg)
 	})
 

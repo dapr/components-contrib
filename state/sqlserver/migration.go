@@ -277,6 +277,7 @@ func (m *migration) createStoredProcedureIfNotExists(db *sql.DB, name string, es
 }
 
 /* #nosec. */
+//nolint:dupword
 func (m *migration) ensureUpsertStoredProcedureExists(db *sql.DB, mr migrationResult) error {
 	tsql := fmt.Sprintf(`
 			CREATE PROCEDURE %s (

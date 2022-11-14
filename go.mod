@@ -83,7 +83,7 @@ require (
 	github.com/mrz1836/postmark v1.3.0
 	github.com/nacos-group/nacos-sdk-go/v2 v2.1.2
 	github.com/nats-io/nats-server/v2 v2.9.4
-	github.com/nats-io/nats.go v1.19.0
+	github.com/nats-io/nats.go v1.19.1
 	github.com/nats-io/nkeys v0.3.0
 	github.com/nats-io/stan.go v0.10.3
 	github.com/open-policy-agent/opa v0.45.0

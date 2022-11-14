@@ -27,6 +27,7 @@ import (
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -46,10 +47,11 @@ type QueueHelper interface {
 
 // AzureQueueHelper concrete impl of queue helper.
 type AzureQueueHelper struct {
-	queueURL     azqueue.QueueURL
-	logger       logger.Logger
-	decodeBase64 bool
-	encodeBase64 bool
+	queueURL          azqueue.QueueURL
+	logger            logger.Logger
+	decodeBase64      bool
+	encodeBase64      bool
+	visibilityTimeout time.Duration
 }
 
 // Init sets up this helper.
@@ -74,6 +76,7 @@ func (d *AzureQueueHelper) Init(metadata bindings.Metadata) (*storageQueuesMetad
 
 	d.decodeBase64 = m.DecodeBase64
 	d.encodeBase64 = m.EncodeBase64
+	d.visibilityTimeout = *m.VisibilityTimeout
 
 	if m.QueueEndpoint != "" {
 		URL, parseErr := url.Parse(fmt.Sprintf("%s/%s/%s", m.QueueEndpoint, m.AccountName, m.QueueName))
@@ -119,7 +122,7 @@ func (d *AzureQueueHelper) Write(ctx context.Context, data []byte, ttl *time.Dur
 
 func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 	messagesURL := d.queueURL.NewMessagesURL()
-	res, err := messagesURL.Dequeue(ctx, 1, time.Second*30)
+	res, err := messagesURL.Dequeue(ctx, 1, d.visibilityTimeout)
 	if err != nil {
 		return err
 	}
@@ -175,12 +178,13 @@ type AzureStorageQueues struct {
 }
 
 type storageQueuesMetadata struct {
-	QueueName     string
-	QueueEndpoint string
-	AccountName   string
-	DecodeBase64  bool
-	EncodeBase64  bool
-	ttl           *time.Duration
+	QueueName         string
+	QueueEndpoint     string
+	AccountName       string
+	DecodeBase64      bool
+	EncodeBase64      bool
+	ttl               *time.Duration
+	VisibilityTimeout *time.Duration
 }
 
 // NewAzureStorageQueues returns a new AzureStorageQueues instance.
@@ -199,7 +203,9 @@ func (a *AzureStorageQueues) Init(metadata bindings.Metadata) (err error) {
 }
 
 func parseMetadata(meta bindings.Metadata) (*storageQueuesMetadata, error) {
-	var m storageQueuesMetadata
+	var m storageQueuesMetadata = storageQueuesMetadata{
+		VisibilityTimeout: ptr.Of(time.Second * 30),
+	}
 	// AccountKey is parsed in azauth
 
 	contribMetadata.DecodeMetadata(meta.Properties, &m)

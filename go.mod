@@ -43,7 +43,6 @@ require (
 	github.com/aws/aws-sdk-go v1.44.128
 	github.com/bradfitz/gomemcache v0.0.0-20221031212613-62deef7fc822
 	github.com/camunda/zeebe/clients/go/v8 v8.1.3
-	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.1.3
 	github.com/cinience/go_rocketmq v0.0.2
 	github.com/coreos/go-oidc v2.2.1+incompatible
@@ -173,6 +172,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.2.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
+	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/clbanning/mxj/v2 v2.5.6 // indirect
 	github.com/creasty/defaults v1.5.2 // indirect

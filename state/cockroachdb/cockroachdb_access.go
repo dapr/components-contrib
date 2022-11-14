@@ -23,7 +23,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
@@ -410,7 +410,6 @@ func (p *cockroachDBAccess) Query(req *state.QueryRequest) (*state.QueryResponse
 
 // Ping implements database ping.
 func (p *cockroachDBAccess) Ping() error {
-
 	retryCount := defaultMaxRetries
 	if p.metadata.MaxRetries != nil && *p.metadata.MaxRetries >= 0 {
 		retryCount = *p.metadata.MaxRetries
@@ -430,15 +429,6 @@ func (p *cockroachDBAccess) Ping() error {
 	}, func() {
 		p.logger.Debug("Successfully established connection with cockroachDB after it previously failed")
 	})
-
-	// for i := 0; i < defaultMaxRetries; i++ {
-	// 	err := p.db.Ping()
-	// 	if errors.Is(err, driver.ErrBadConn) {
-	// 		continue
-	// 	}
-	// 	return err
-	// }
-	// return p.db.Ping()
 }
 
 // Close implements io.Close.

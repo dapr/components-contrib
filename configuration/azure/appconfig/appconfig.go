@@ -15,6 +15,7 @@ package appconfig
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -189,24 +190,19 @@ func parseMetadata(meta configuration.Metadata) (metadata, error) {
 }
 
 func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequest) (*configuration.GetResponse, error) {
-	timeoutContext, cancel := context.WithTimeout(ctx, r.metadata.requestTimeout)
-	defer cancel()
-
 	keys := req.Keys
 	var items map[string]*configuration.Item
 
 	if len(keys) == 0 {
 		var err error
-		if items, err = r.getAll(timeoutContext, req); err != nil {
+		if items, err = r.getAll(ctx, req); err != nil {
 			return &configuration.GetResponse{}, err
 		}
 	} else {
 		items = make(map[string]*configuration.Item, len(keys))
 		for _, key := range keys {
-			// TODO: here contxt.TODO() is used because the SDK panics when a cancelled context is passed in GetSetting
-			// Issue - https://github.com/Azure/azure-sdk-for-go/issues/19223 . Needs to be modified to use timeoutContext once the SDK is fixed
-			resp, err := r.client.GetSetting(
-				context.TODO(),
+			resp, err := r.getSettings(
+				ctx,
 				key,
 				&azappconfig.GetSettingOptions{
 					Label: r.getLabelFromMetadata(req.Metadata),
@@ -233,6 +229,9 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 }
 
 func (r *ConfigurationStore) getAll(ctx context.Context, req *configuration.GetRequest) (map[string]*configuration.Item, error) {
+	timeoutContext, cancel := context.WithTimeout(ctx, r.metadata.requestTimeout)
+	defer cancel()
+
 	items := make(map[string]*configuration.Item, 0)
 
 	labelFilter := r.getLabelFromMetadata(req.Metadata)
@@ -248,10 +247,8 @@ func (r *ConfigurationStore) getAll(ctx context.Context, req *configuration.GetR
 		},
 		nil)
 
-	// TODO: here contxt.TODO() is used because the SDK panics when a cancelled context is passed in NextPage
-	// Issue - https://github.com/Azure/azure-sdk-for-go/issues/19223 . It needs to be modified to use ctx once the SDK is fixed
 	for allSettingsPgr.More() {
-		if revResp, err := allSettingsPgr.NextPage(context.TODO()); err == nil {
+		if revResp, err := allSettingsPgr.NextPage(timeoutContext); err == nil {
 			for _, setting := range revResp.Settings {
 				item := &configuration.Item{
 					Metadata: map[string]string{},
@@ -297,9 +294,9 @@ func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, sentinelKey string, id string) {
 	var etagVal *azcore.ETag
 	for {
-		// get sentinel key changes
-		resp, err := r.client.GetSetting(
-			context.TODO(),
+		// get sentinel key changes.
+		resp, err := r.getSettings(
+			ctx,
 			sentinelKey,
 			&azappconfig.GetSettingOptions{
 				Label:         r.getLabelFromMetadata(req.Metadata),
@@ -307,15 +304,20 @@ func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 			},
 		)
 		if err != nil {
-			r.logger.Debugf("azure appconfig error: fail to get sentinel key changes or sentinel key's value is unchanged: %s", err)
+			if !errors.Is(err, context.Canceled) {
+				r.logger.Debugf("azure appconfig error: fail to get sentinel key or sentinel's key %s value is unchanged: %s", sentinelKey, err)
+			}
 		} else {
+			// if sentinel key has changed then update the Etag value.
 			etagVal = resp.ETag
 			items, err := r.Get(ctx, &configuration.GetRequest{
 				Keys:     req.Keys,
 				Metadata: req.Metadata,
 			})
 			if err != nil {
-				r.logger.Errorf("azure appconfig error: fail to get configuration key changes: %s", err)
+				if !errors.Is(err, context.Canceled) {
+					r.logger.Errorf("azure appconfig error: fail to get configuration key changes: %s", err)
+				}
 			} else {
 				r.handleSubscribedChange(ctx, handler, items, id)
 			}
@@ -326,6 +328,13 @@ func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 		case <-time.After(r.metadata.subscribePollInterval):
 		}
 	}
+}
+
+func (r *ConfigurationStore) getSettings(ctx context.Context, key string, getSettingsOptions *azappconfig.GetSettingOptions) (azappconfig.GetSettingResponse, error) {
+	timeoutContext, cancel := context.WithTimeout(ctx, r.metadata.requestTimeout)
+	defer cancel()
+	resp, err := r.client.GetSetting(timeoutContext, key, getSettingsOptions)
+	return resp, err
 }
 
 func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler configuration.UpdateHandler, items *configuration.GetResponse, id string) {

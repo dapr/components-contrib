@@ -53,6 +53,13 @@ func (a *bus) Publish(req *pubsub.PublishRequest) error {
 	return nil
 }
 
+func (a *bus) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
+	for _, m := range req.Entries {
+		a.bus.Publish(req.Topic, m.Event)
+	}
+	return pubsub.BulkPublishResponse{}, nil
+}
+
 func (a *bus) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	// For this component we allow built-in retries because it is backed by memory
 	retryHandler := func(data []byte) {

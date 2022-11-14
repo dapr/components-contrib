@@ -102,6 +102,35 @@ func TestRetry(t *testing.T) {
 	assert.Equal(t, 5, i)
 }
 
+func TestBulkPublish(t *testing.T) {
+	bus := New(logger.NewLogger("test"))
+	bus.Init(pubsub.Metadata{})
+
+	ch := make(chan []byte)
+	bus.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: "demo"}, func(ctx context.Context, msg *pubsub.NewMessage) error {
+		return publish(ch, msg)
+	})
+
+	bulkPublisher, ok := (bus).(pubsub.BulkPublisher)
+	assert.True(t, ok)
+
+	entries := []pubsub.BulkMessageEntry{
+		{
+			EntryId:     "1",
+			Event:       []byte("message 1"),
+			ContentType: "text/plain",
+		},
+		{
+			EntryId:     "2",
+			Event:       []byte("message 2"),
+			ContentType: "text/plain",
+		},
+	}
+	bulkPublisher.BulkPublish(context.Background(), &pubsub.BulkPublishRequest{Topic: "demo", Entries: entries})
+	assert.Equal(t, "message 1", string(<-ch))
+	assert.Equal(t, "message 2", string(<-ch))
+}
+
 func publish(ch chan []byte, msg *pubsub.NewMessage) error {
 	go func() { ch <- msg.Data }()
 

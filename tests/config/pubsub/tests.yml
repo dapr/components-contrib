@@ -75,7 +75,7 @@ components:
     config:
       checkInOrderProcessing: false
   - component: in-memory
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    operations: ["publish", "subscribe", "multiplehandlers", "bulkpublish"]
   - component: aws.snssqs
     operations: ["publish", "subscribe", "multiplehandlers"]
     config:

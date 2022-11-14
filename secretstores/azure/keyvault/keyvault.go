@@ -185,11 +185,11 @@ func (k *keyvaultSecretStore) getVaultURI() string {
 
 func (k *keyvaultSecretStore) getMaxResultsFromMetadata(metadata map[string]string) (*int32, error) {
 	if s, ok := metadata["maxresults"]; ok && s != "" {
-		val, err := strconv.Atoi(s) //nolint:gosec
+		val, err := strconv.Atoi(s)
 		if err != nil {
 			return nil, err
 		}
-		converted := int32(val)
+		converted := int32(val) //nolint:gosec
 
 		return &converted, nil
 	}

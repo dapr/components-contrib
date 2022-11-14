@@ -126,7 +126,7 @@ func TestParseMetadata(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			desc: "Invalid metadata with missing tls client client",
+			desc: "Invalid metadata with missing tls client",
 			input: pubsub.Metadata{Base: mdata.Base{
 				Properties: map[string]string{
 					"natsURL":        "nats://localhost:4222",

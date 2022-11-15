@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -60,6 +61,14 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 
 	c.partitionKey = m.PartitionKey
 
+	opts := azcosmos.ClientOptions{
+		ClientOptions: policy.ClientOptions{
+			Telemetry: policy.TelemetryOptions{
+				ApplicationID: "dapr-" + logger.DaprVersion,
+			},
+		},
+	}
+
 	// Create the client; first, try authenticating with a master key, if present
 	var client *azcosmos.Client
 	if m.MasterKey != "" {
@@ -67,7 +76,7 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 		if keyErr != nil {
 			return keyErr
 		}
-		client, err = azcosmos.NewClientWithKey(m.URL, cred, nil)
+		client, err = azcosmos.NewClientWithKey(m.URL, cred, &opts)
 		if err != nil {
 			return err
 		}
@@ -81,7 +90,7 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 		if errToken != nil {
 			return errToken
 		}
-		client, err = azcosmos.NewClient(m.URL, token, nil)
+		client, err = azcosmos.NewClient(m.URL, token, &opts)
 		if err != nil {
 			return err
 		}

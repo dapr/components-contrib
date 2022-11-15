@@ -203,7 +203,7 @@ func (a *AzureStorageQueues) Init(metadata bindings.Metadata) (err error) {
 }
 
 func parseMetadata(meta bindings.Metadata) (*storageQueuesMetadata, error) {
-	var m storageQueuesMetadata = storageQueuesMetadata{
+	var m storageQueuesMetadata = {
 		VisibilityTimeout: ptr.Of(time.Second * 30),
 	}
 	// AccountKey is parsed in azauth

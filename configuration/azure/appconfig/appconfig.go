@@ -15,7 +15,6 @@ package appconfig
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -229,9 +228,6 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 }
 
 func (r *ConfigurationStore) getAll(ctx context.Context, req *configuration.GetRequest) (map[string]*configuration.Item, error) {
-	timeoutContext, cancel := context.WithTimeout(ctx, r.metadata.requestTimeout)
-	defer cancel()
-
 	items := make(map[string]*configuration.Item, 0)
 
 	labelFilter := r.getLabelFromMetadata(req.Metadata)
@@ -248,6 +244,8 @@ func (r *ConfigurationStore) getAll(ctx context.Context, req *configuration.GetR
 		nil)
 
 	for allSettingsPgr.More() {
+		timeoutContext, cancel := context.WithTimeout(ctx, r.metadata.requestTimeout)
+		defer cancel()
 		if revResp, err := allSettingsPgr.NextPage(timeoutContext); err == nil {
 			for _, setting := range revResp.Settings {
 				item := &configuration.Item{
@@ -304,9 +302,7 @@ func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 			},
 		)
 		if err != nil {
-			if !errors.Is(err, context.Canceled) {
-				r.logger.Debugf("azure appconfig error: fail to get sentinel key or sentinel's key %s value is unchanged: %s", sentinelKey, err)
-			}
+			r.logger.Debugf("azure appconfig error: fail to get sentinel key or sentinel's key %s value is unchanged: %s", sentinelKey, err)
 		} else {
 			// if sentinel key has changed then update the Etag value.
 			etagVal = resp.ETag
@@ -315,9 +311,7 @@ func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 				Metadata: req.Metadata,
 			})
 			if err != nil {
-				if !errors.Is(err, context.Canceled) {
-					r.logger.Errorf("azure appconfig error: fail to get configuration key changes: %s", err)
-				}
+				r.logger.Errorf("azure appconfig error: fail to get configuration key changes: %s", err)
 			} else {
 				r.handleSubscribedChange(ctx, handler, items, id)
 			}

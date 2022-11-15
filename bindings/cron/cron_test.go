@@ -40,7 +40,7 @@ func getNewCron() *Binding {
 		l.SetOutputLevel(logger.DebugLevel)
 	}
 
-	return NewCron(l)
+	return NewCron(l).(*Binding)
 }
 
 // go test -v -timeout 15s -count=1 ./bindings/cron/.

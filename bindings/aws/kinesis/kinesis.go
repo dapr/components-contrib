@@ -24,13 +24,13 @@ import (
 	"github.com/aws/aws-sdk-go/service/kinesis"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
-	"github.com/mitchellh/mapstructure"
 	"github.com/vmware/vmware-go-kcl/clientlibrary/config"
 	"github.com/vmware/vmware-go-kcl/clientlibrary/interfaces"
 	"github.com/vmware/vmware-go-kcl/clientlibrary/worker"
 
 	"github.com/dapr/components-contrib/bindings"
-	aws_auth "github.com/dapr/components-contrib/internal/authentication/aws"
+	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -82,7 +82,7 @@ type recordProcessor struct {
 }
 
 // NewAWSKinesis returns a new AWS Kinesis instance.
-func NewAWSKinesis(logger logger.Logger) *AWSKinesis {
+func NewAWSKinesis(logger logger.Logger) bindings.InputOutputBinding {
 	return &AWSKinesis{logger: logger}
 }
 
@@ -313,7 +313,7 @@ func (a *AWSKinesis) waitUntilConsumerExists(ctx aws.Context, input *kinesis.Des
 }
 
 func (a *AWSKinesis) getClient(metadata *kinesisMetadata) (*kinesis.Kinesis, error) {
-	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
+	sess, err := awsAuth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -322,9 +322,9 @@ func (a *AWSKinesis) getClient(metadata *kinesisMetadata) (*kinesis.Kinesis, err
 	return k, nil
 }
 
-func (a *AWSKinesis) parseMetadata(metadata bindings.Metadata) (*kinesisMetadata, error) {
+func (a *AWSKinesis) parseMetadata(meta bindings.Metadata) (*kinesisMetadata, error) {
 	var m kinesisMetadata
-	err := mapstructure.WeakDecode(metadata.Properties, &m)
+	err := metadata.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}

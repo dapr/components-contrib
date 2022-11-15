@@ -13,8 +13,9 @@ limitations under the License.
 
 package bindings
 
+import "github.com/dapr/components-contrib/metadata"
+
 // Metadata represents a set of binding specific properties.
 type Metadata struct {
-	Name       string
-	Properties map[string]string `json:"properties"`
+	metadata.Base `json:",inline"`
 }

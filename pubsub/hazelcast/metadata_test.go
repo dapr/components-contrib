@@ -18,16 +18,17 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 )
 
 func TestValidateMetadata(t *testing.T) {
 	t.Run("return error when required servers is empty", func(t *testing.T) {
-		fakeMetaData := pubsub.Metadata{
+		fakeMetaData := pubsub.Metadata{Base: mdata.Base{
 			Properties: map[string]string{
 				hazelcastServers: "",
 			},
-		}
+		}}
 
 		m, err := parseHazelcastMetadata(fakeMetaData)
 

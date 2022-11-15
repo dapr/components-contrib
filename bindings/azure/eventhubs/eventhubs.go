@@ -146,7 +146,7 @@ func (m azureEventHubsMetadata) partitioned() bool {
 }
 
 // NewAzureEventHubs returns a new Azure Event hubs instance.
-func NewAzureEventHubs(logger logger.Logger) *AzureEventHubs {
+func NewAzureEventHubs(logger logger.Logger) bindings.InputOutputBinding {
 	return &AzureEventHubs{logger: logger}
 }
 

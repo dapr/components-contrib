@@ -14,44 +14,41 @@ limitations under the License.
 package mysql
 
 import (
+	"context"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
+	"strconv"
 	"strings"
+	"time"
 
-	"github.com/agrea/ptr"
 	"github.com/google/uuid"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
-// Optimistic Concurrency is implemented using a string column that stores
-// a UUID.
+// Optimistic Concurrency is implemented using a string column that stores a UUID.
 
 const (
-	// Used if the user does not configure a table name in the metadata.
-	defaultTableName = "state"
-
-	// Used if the user does not configure a database name in the metadata.
-	defaultSchemaName = "dapr_state_store"
-
 	// The key name in the metadata if the user wants a different table name
 	// than the defaultTableName.
-	tableNameKey = "tableName"
+	keyTableName = "tableName"
 
 	// The key name in the metadata if the user wants a different database name
 	// than the defaultSchemaName.
-	schemaNameKey = "schemaName"
+	keySchemaName = "schemaName"
+
+	// The key name in the metadata for the timeout of operations, in seconds.
+	keyTimeoutInSeconds = "timeoutInSeconds"
 
 	// The key for the mandatory connection string of the metadata.
-	connectionStringKey = "connectionString"
-
-	// Standard error message if not connection string is provided.
-	errMissingConnectionString = "missing connection string"
+	keyConnectionString = "connectionString"
 
 	// To connect to MySQL running in Azure over SSL you have to download a
 	// SSL certificate. If this is provided the driver will connect using
@@ -60,25 +57,30 @@ const (
 	// &tls=custom
 	// The connection string should be in the following format
 	// "%s:%s@tcp(%s:3306)/%s?allowNativePasswords=true&tls=custom",'myadmin@mydemoserver', 'yourpassword', 'mydemoserver.mysql.database.azure.com', 'targetdb'.
-	pemPathKey = "pemPath"
+	keyPemPath = "pemPath"
+
+	// Used if the user does not configure a table name in the metadata.
+	defaultTableName = "state"
+
+	// Used if the user does not configure a database name in the metadata.
+	defaultSchemaName = "dapr_state_store"
+
+	// Used if the user does not provide a timeoutInSeconds value in the metadata.
+	defaultTimeoutInSeconds = 20
+
+	// Standard error message if not connection string is provided.
+	errMissingConnectionString = "missing connection string"
 )
 
 // MySQL state store.
 type MySQL struct {
-	// Name of the table to store state. If the table does not exist it will
-	// be created.
-	tableName string
-
-	// Name of the table to create to store state. If the table does not exist
-	// it will be created.
-	schemaName string
-
+	tableName        string
+	schemaName       string
 	connectionString string
+	timeout          time.Duration
 
 	// Instance of the database to issue commands to
 	db *sql.DB
-
-	features []state.Feature
 
 	// Logger used in a functions
 	logger logger.Logger
@@ -86,8 +88,16 @@ type MySQL struct {
 	factory iMySQLFactory
 }
 
+type mySQLMetadata struct {
+	TableName        string
+	SchemaName       string
+	ConnectionString string
+	Timeout          int
+	PemPath          string
+}
+
 // NewMySQLStateStore creates a new instance of MySQL state store.
-func NewMySQLStateStore(logger logger.Logger) *MySQL {
+func NewMySQLStateStore(logger logger.Logger) state.Store {
 	factory := newMySQLFactory(logger)
 
 	// Store the provided logger and return the object. The rest of the
@@ -100,9 +110,9 @@ func newMySQLStateStore(logger logger.Logger, factory iMySQLFactory) *MySQL {
 	// Store the provided logger and return the object. The rest of the
 	// properties will be populated in the Init function
 	return &MySQL{
-		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
-		logger:   logger,
-		factory:  factory,
+		logger:  logger,
+		factory: factory,
+		timeout: 5 * time.Second,
 	}
 }
 
@@ -115,78 +125,105 @@ func newMySQLStateStore(logger logger.Logger, factory iMySQLFactory) *MySQL {
 func (m *MySQL) Init(metadata state.Metadata) error {
 	m.logger.Debug("Initializing MySql state store")
 
-	val, ok := metadata.Properties[tableNameKey]
-
-	if ok && val != "" {
-		m.tableName = val
-	} else {
-		// Default to the constant
-		m.tableName = defaultTableName
+	err := m.parseMetadata(metadata.Properties)
+	if err != nil {
+		return err
 	}
 
-	val, ok = metadata.Properties[schemaNameKey]
-
-	if ok && val != "" {
-		m.schemaName = val
-	} else {
-		// Default to the constant
-		m.schemaName = defaultSchemaName
+	db, err := m.factory.Open(m.connectionString)
+	if err != nil {
+		m.logger.Error(err)
+		return err
 	}
 
-	m.connectionString, ok = metadata.Properties[connectionStringKey]
+	// will be nil if everything is good or an err that needs to be returned
+	return m.finishInit(db)
+}
 
-	if !ok || m.connectionString == "" {
+func (m *MySQL) parseMetadata(md map[string]string) error {
+	meta := mySQLMetadata{
+		TableName:  defaultTableName,
+		SchemaName: defaultSchemaName,
+	}
+	err := metadata.DecodeMetadata(md, &meta)
+	if err != nil {
+		return err
+	}
+
+	if meta.TableName != "" {
+		// Sanitize the table name
+		if !validIdentifier(meta.TableName) {
+			return fmt.Errorf("table name '%s' is not valid", meta.TableName)
+		}
+	}
+	m.tableName = meta.TableName
+
+	if meta.SchemaName != "" {
+		// Sanitize the schema name
+		if !validIdentifier(meta.SchemaName) {
+			return fmt.Errorf("schema name '%s' is not valid", meta.SchemaName)
+		}
+	}
+	m.schemaName = meta.SchemaName
+
+	if meta.ConnectionString == "" {
 		m.logger.Error("Missing MySql connection string")
-
 		return fmt.Errorf(errMissingConnectionString)
 	}
+	m.connectionString = meta.ConnectionString
 
-	val, ok = metadata.Properties[pemPathKey]
-
-	if ok && val != "" {
-		err := m.factory.RegisterTLSConfig(val)
+	if meta.PemPath != "" {
+		err := m.factory.RegisterTLSConfig(meta.PemPath)
 		if err != nil {
 			m.logger.Error(err)
-
 			return err
 		}
 	}
 
-	db, err := m.factory.Open(m.connectionString)
+	val, ok := md[keyTimeoutInSeconds]
+	if ok && val != "" {
+		n, err := strconv.Atoi(val)
+		if err == nil && n > 0 {
+			m.timeout = time.Duration(n) * time.Second
+		}
+	}
+	if m.timeout <= 0 {
+		m.timeout = time.Duration(defaultTimeoutInSeconds) * time.Second
+	}
 
-	// will be nil if everything is good or an err that needs to be returned
-	return m.finishInit(db, err)
+	return nil
 }
 
 // Features returns the features available in this state store.
 func (m *MySQL) Features() []state.Feature {
-	return m.features
+	return []state.Feature{state.FeatureETag, state.FeatureTransactional}
+}
+
+// Ping the database.
+func (m *MySQL) Ping() error {
+	if m.db == nil {
+		return sql.ErrConnDone
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), m.timeout)
+	defer cancel()
+	return m.db.PingContext(ctx)
 }
 
 // Separated out to make this portion of code testable.
-func (m *MySQL) finishInit(db *sql.DB, err error) error {
+func (m *MySQL) finishInit(db *sql.DB) error {
+	m.db = db
+
+	err := m.ensureStateSchema()
 	if err != nil {
 		m.logger.Error(err)
-
 		return err
 	}
 
-	m.db = db
-
-	schemaErr := m.ensureStateSchema()
-
-	if schemaErr != nil {
-		m.logger.Error(schemaErr)
-
-		return schemaErr
-	}
-
-	pingErr := m.db.Ping()
-
-	if pingErr != nil {
-		m.logger.Error(pingErr)
-
-		return pingErr
+	err = m.Ping()
+	if err != nil {
+		m.logger.Error(err)
+		return err
 	}
 
 	// will be nil if everything is good or an err that needs to be returned
@@ -194,18 +231,18 @@ func (m *MySQL) finishInit(db *sql.DB, err error) error {
 }
 
 func (m *MySQL) ensureStateSchema() error {
-	exists, err := schemaExists(m.db, m.schemaName)
+	exists, err := schemaExists(m.db, m.schemaName, m.timeout)
 	if err != nil {
 		return err
 	}
 
 	if !exists {
 		m.logger.Infof("Creating MySql schema '%s'", m.schemaName)
-
-		createTable := fmt.Sprintf("CREATE DATABASE %s;", m.schemaName)
-
-		_, err = m.db.Exec(createTable)
-
+		ctx, cancel := context.WithTimeout(context.Background(), m.timeout)
+		defer cancel()
+		_, err = m.db.ExecContext(ctx,
+			fmt.Sprintf("CREATE DATABASE %s;", m.schemaName),
+		)
 		if err != nil {
 			return err
 		}
@@ -233,7 +270,7 @@ func (m *MySQL) ensureStateSchema() error {
 }
 
 func (m *MySQL) ensureStateTable(stateTableName string) error {
-	exists, err := tableExists(m.db, stateTableName)
+	exists, err := tableExists(m.db, stateTableName, m.timeout)
 	if err != nil {
 		return err
 	}
@@ -245,6 +282,8 @@ func (m *MySQL) ensureStateTable(stateTableName string) error {
 		// never need to pass it in.
 		// eTag is a UUID stored as a 36 characters string. It needs to be passed
 		// in on inserts and updates and is used for Optimistic Concurrency
+		// Note that stateTableName is sanitized
+		//nolint:gosec
 		createTable := fmt.Sprintf(`CREATE TABLE %s (
 			id VARCHAR(255) NOT NULL PRIMARY KEY,
 			value JSON NOT NULL,
@@ -254,7 +293,9 @@ func (m *MySQL) ensureStateTable(stateTableName string) error {
 			eTag VARCHAR(36) NOT NULL
 			);`, stateTableName)
 
-		_, err = m.db.Exec(createTable)
+		ctx, cancel := context.WithTimeout(context.Background(), m.timeout)
+		defer cancel()
+		_, err = m.db.ExecContext(ctx, createTable)
 
 		if err != nil {
 			return err
@@ -264,56 +305,60 @@ func (m *MySQL) ensureStateTable(stateTableName string) error {
 	return nil
 }
 
-func schemaExists(db *sql.DB, schemaName string) (bool, error) {
-	exists := ""
+func schemaExists(db *sql.DB, schemaName string, timeout time.Duration) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
+	// Returns 1 or 0 if the table exists or not
+	var exists int
 	query := `SELECT EXISTS (
 		SELECT SCHEMA_NAME FROM information_schema.schemata WHERE SCHEMA_NAME = ?
-		) AS 'exists'`
-
-	// Returns 1 or 0 as a string if the table exists or not
-	err := db.QueryRow(query, schemaName).Scan(&exists)
-
-	return exists == "1", err
+	) AS 'exists'`
+	err := db.QueryRowContext(ctx, query, schemaName).Scan(&exists)
+	return exists == 1, err
 }
 
-func tableExists(db *sql.DB, tableName string) (bool, error) {
-	exists := ""
+func tableExists(db *sql.DB, tableName string, timeout time.Duration) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
+	// Returns 1 or 0 if the table exists or not
+	var exists int
 	query := `SELECT EXISTS (
 		SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_NAME = ?
-		) AS 'exists'`
-
-	// Returns 1 or 0 as a string if the table exists or not
-	err := db.QueryRow(query, tableName).Scan(&exists)
-
-	return exists == "1", err
+	) AS 'exists'`
+	err := db.QueryRowContext(ctx, query, tableName).Scan(&exists)
+	return exists == 1, err
 }
 
 // Delete removes an entity from the store
 // Store Interface.
 func (m *MySQL) Delete(req *state.DeleteRequest) error {
-	return state.DeleteWithOptions(m.deleteValue, req)
+	return m.deleteValue(m.db, req)
 }
 
 // deleteValue is an internal implementation of delete to enable passing the
 // logic to state.DeleteWithRetries as a func.
-func (m *MySQL) deleteValue(req *state.DeleteRequest) error {
+func (m *MySQL) deleteValue(querier querier, req *state.DeleteRequest) error {
 	m.logger.Debug("Deleting state value from MySql")
 
 	if req.Key == "" {
 		return fmt.Errorf("missing key in delete operation")
 	}
 
-	var err error
-	var result sql.Result
+	var (
+		err    error
+		result sql.Result
+	)
+	ctx, cancel := context.WithTimeout(context.Background(), m.timeout)
+	defer cancel()
 
 	if req.ETag == nil || *req.ETag == "" {
-		result, err = m.db.Exec(fmt.Sprintf(
+		result, err = querier.ExecContext(ctx, fmt.Sprintf(
 			`DELETE FROM %s WHERE id = ?`,
 			m.tableName), req.Key)
 	} else {
-		result, err = m.db.Exec(fmt.Sprintf(
+		result, err = querier.ExecContext(ctx, fmt.Sprintf(
 			`DELETE FROM %s WHERE id = ? and eTag = ?`,
 			m.tableName), req.Key, *req.ETag)
 	}
@@ -347,10 +392,12 @@ func (m *MySQL) BulkDelete(req []state.DeleteRequest) error {
 	if len(req) > 0 {
 		for _, d := range req {
 			da := d // Fix for goSec G601: Implicit memory aliasing in for loop.
-			err = m.Delete(&da)
+			err = m.deleteValue(tx, &da)
 			if err != nil {
-				tx.Rollback()
-
+				rollbackErr := tx.Rollback()
+				if rollbackErr != nil {
+					m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
+				}
 				return err
 			}
 		}
@@ -370,12 +417,20 @@ func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		return nil, fmt.Errorf("missing key in get operation")
 	}
 
-	var eTag, value string
-	var isBinary bool
+	var (
+		eTag     string
+		value    []byte
+		isBinary bool
+	)
 
-	err := m.db.QueryRow(fmt.Sprintf(
+	ctx, cancel := context.WithTimeout(context.Background(), m.timeout)
+	defer cancel()
+	//nolint:gosec
+	query := fmt.Sprintf(
 		`SELECT value, eTag, isbinary FROM %s WHERE id = ?`,
-		m.tableName), req.Key).Scan(&value, &eTag, &isBinary)
+		m.tableName, // m.tableName is sanitized
+	)
+	err := m.db.QueryRowContext(ctx, query, req.Key).Scan(&value, &eTag, &isBinary)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return an error.
 		if errors.Is(err, sql.ErrNoRows) {
@@ -386,27 +441,31 @@ func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}
 
 	if isBinary {
-		var s string
-		var data []byte
+		var (
+			s    string
+			data []byte
+		)
 
-		if err = json.Unmarshal([]byte(value), &s); err != nil {
+		err = json.Unmarshal(value, &s)
+		if err != nil {
 			return nil, err
 		}
 
-		if data, err = base64.StdEncoding.DecodeString(s); err != nil {
+		data, err = base64.StdEncoding.DecodeString(s)
+		if err != nil {
 			return nil, err
 		}
 
 		return &state.GetResponse{
 			Data:     data,
-			ETag:     ptr.String(eTag),
+			ETag:     ptr.Of(eTag),
 			Metadata: req.Metadata,
 		}, nil
 	}
 
 	return &state.GetResponse{
-		Data:     []byte(value),
-		ETag:     ptr.String(eTag),
+		Data:     value,
+		ETag:     ptr.Of(eTag),
 		Metadata: req.Metadata,
 	}, nil
 }
@@ -414,12 +473,12 @@ func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 // Set adds/updates an entity on store
 // Store Interface.
 func (m *MySQL) Set(req *state.SetRequest) error {
-	return state.SetWithOptions(m.setValue, req)
+	return m.setValue(m.db, req)
 }
 
 // setValue is an internal implementation of set to enable passing the logic
 // to state.SetWithRetries as a func.
-func (m *MySQL) setValue(req *state.SetRequest) error {
+func (m *MySQL) setValue(querier querier, req *state.SetRequest) error {
 	m.logger.Debug("Setting state value in MySql")
 
 	err := state.CheckRequestOptions(req.Options)
@@ -428,41 +487,62 @@ func (m *MySQL) setValue(req *state.SetRequest) error {
 	}
 
 	if req.Key == "" {
-		return fmt.Errorf("missing key in set operation")
+		return errors.New("missing key in set operation")
 	}
 
-	if v, ok := req.Value.(string); ok && v == "" {
-		return fmt.Errorf("empty string is not allowed in set operation")
+	var v any
+	isBinary := false
+	switch x := req.Value.(type) {
+	case string:
+		if x == "" {
+			return errors.New("empty string is not allowed in set operation")
+		}
+		v = x
+	case []uint8:
+		isBinary = true
+		v = base64.StdEncoding.EncodeToString(x)
+	default:
+		v = x
 	}
 
-	v := req.Value
-	byteArray, isBinary := req.Value.([]uint8)
-	if isBinary {
-		v = base64.StdEncoding.EncodeToString(byteArray)
+	encB, _ := json.Marshal(v)
+	enc := string(encB)
+
+	eTagObj, err := uuid.NewRandom()
+	if err != nil {
+		return fmt.Errorf("failed to generate etag: %w", err)
 	}
+	eTag := eTagObj.String()
 
-	// Convert to json string
-	bt, _ := utils.Marshal(v, json.Marshal)
-	value := string(bt)
+	var (
+		result  sql.Result
+		maxRows int64 = 1
+	)
+	ctx, cancel := context.WithTimeout(context.Background(), m.timeout)
+	defer cancel()
 
-	var result sql.Result
-	eTag := uuid.New().String()
-
-	// Sprintf is required for table name because sql.DB does not substitute
-	// parameters for table names.
-	// Other parameters use sql.DB parameter substitution.
-	if req.ETag == nil || *req.ETag == "" {
-		// If this is a duplicate MySQL returns that two rows affected
-		result, err = m.db.Exec(fmt.Sprintf(
-			`INSERT INTO %s (value, id, eTag, isbinary)
-			 VALUES (?, ?, ?, ?) on duplicate key update value=?, eTag=?, isbinary=?;`,
-			m.tableName), value, req.Key, eTag, isBinary, value, eTag, isBinary)
-	} else {
+	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
+		// With first-write-wins and no etag, we can insert the row only if it doesn't exist
+		query := fmt.Sprintf(
+			`INSERT INTO %s (value, id, eTag, isbinary) VALUES (?, ?, ?, ?);`,
+			m.tableName, // m.tableName is sanitized
+		)
+		result, err = querier.ExecContext(ctx, query, enc, req.Key, eTag, isBinary)
+	} else if req.ETag != nil && *req.ETag != "" {
 		// When an eTag is provided do an update - not insert
-		result, err = m.db.Exec(fmt.Sprintf(
-			`UPDATE %s SET value = ?, eTag = ?, isbinary = ?
-			 WHERE id = ? AND eTag = ?;`,
-			m.tableName), value, eTag, isBinary, req.Key, *req.ETag)
+		query := fmt.Sprintf(
+			`UPDATE %s SET value = ?, eTag = ?, isbinary = ? WHERE id = ? AND eTag = ?;`,
+			m.tableName, // m.tableName is sanitized
+		)
+		result, err = querier.ExecContext(ctx, query, enc, eTag, isBinary, req.Key, *req.ETag)
+	} else {
+		// If this is a duplicate MySQL returns that two rows affected
+		maxRows = 2
+		query := fmt.Sprintf(
+			`INSERT INTO %s (value, id, eTag, isbinary) VALUES (?, ?, ?, ?) on duplicate key update value=?, eTag=?, isbinary=?;`,
+			m.tableName, // m.tableName is sanitized
+		)
+		result, err = querier.ExecContext(ctx, query, enc, req.Key, eTag, isBinary, enc, eTag, isBinary)
 	}
 
 	if err != nil {
@@ -479,17 +559,15 @@ func (m *MySQL) setValue(req *state.SetRequest) error {
 	}
 
 	if rows == 0 {
-		err = fmt.Errorf(`rows affected error: no rows match given key '%s' and eTag '%s'`, req.Key, *req.ETag)
+		err = errors.New(`rows affected error: no rows match given key and eTag`)
 		err = state.NewETagError(state.ETagMismatch, err)
 		m.logger.Error(err)
-
 		return err
 	}
 
-	if rows > 2 {
-		err = fmt.Errorf(`rows affected error: more than 2 row affected, expected 2, actual %d`, rows)
+	if rows > maxRows {
+		err = fmt.Errorf(`rows affected error: more than %d row affected; actual %d`, maxRows, rows)
 		m.logger.Error(err)
-
 		return err
 	}
 
@@ -507,20 +585,19 @@ func (m *MySQL) BulkSet(req []state.SetRequest) error {
 	}
 
 	if len(req) > 0 {
-		for _, s := range req {
-			sa := s // Fix for goSec G601: Implicit memory aliasing in for loop.
-			err = m.Set(&sa)
+		for i := range req {
+			err = m.setValue(tx, &req[i])
 			if err != nil {
-				tx.Rollback()
-
+				rollbackErr := tx.Rollback()
+				if rollbackErr != nil {
+					m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
+				}
 				return err
 			}
 		}
 	}
 
-	err = tx.Commit()
-
-	return err
+	return tx.Commit()
 }
 
 // Multi handles multiple transactions.
@@ -538,26 +615,38 @@ func (m *MySQL) Multi(request *state.TransactionalStateRequest) error {
 		case state.Upsert:
 			setReq, err := m.getSets(req)
 			if err != nil {
-				tx.Rollback()
+				rollbackErr := tx.Rollback()
+				if rollbackErr != nil {
+					m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
+				}
 				return err
 			}
 
-			err = m.Set(&setReq)
+			err = m.setValue(tx, &setReq)
 			if err != nil {
-				tx.Rollback()
+				rollbackErr := tx.Rollback()
+				if rollbackErr != nil {
+					m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
+				}
 				return err
 			}
 
 		case state.Delete:
 			delReq, err := m.getDeletes(req)
 			if err != nil {
-				tx.Rollback()
+				rollbackErr := tx.Rollback()
+				if rollbackErr != nil {
+					m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
+				}
 				return err
 			}
 
-			err = m.Delete(&delReq)
+			err = m.deleteValue(tx, &delReq)
 			if err != nil {
-				tx.Rollback()
+				rollbackErr := tx.Rollback()
+				if rollbackErr != nil {
+					m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
+				}
 				return err
 			}
 
@@ -591,7 +680,7 @@ func (m *MySQL) getDeletes(req state.TransactionalStateOperation) (state.DeleteR
 	}
 
 	if delReq.Key == "" {
-		return delReq, fmt.Errorf("missing key in upsert operation")
+		return delReq, fmt.Errorf("missing key in delete operation")
 	}
 
 	return delReq, nil
@@ -606,9 +695,46 @@ func (m *MySQL) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, 
 
 // Close implements io.Closer.
 func (m *MySQL) Close() error {
-	if m.db != nil {
-		return m.db.Close()
+	if m.db == nil {
+		return nil
 	}
 
-	return nil
+	err := m.db.Close()
+	m.db = nil
+	return err
+}
+
+// Validates an identifier, such as table or DB name.
+// This is based on the rules for allowed unquoted identifiers (https://dev.mysql.com/doc/refman/8.0/en/identifiers.html), but more restrictive as it doesn't allow non-ASCII characters or the $ sign
+func validIdentifier(v string) bool {
+	if v == "" {
+		return false
+	}
+
+	// Loop through the string as byte slice as we only care about ASCII characters
+	b := []byte(v)
+	for i := 0; i < len(b); i++ {
+		if (b[i] >= '0' && b[i] <= '9') ||
+			(b[i] >= 'a' && b[i] <= 'z') ||
+			(b[i] >= 'A' && b[i] <= 'Z') ||
+			b[i] == '_' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+// Interface for both sql.DB and sql.Tx
+type querier interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+func (m *MySQL) GetComponentMetadata() map[string]string {
+	metadataStruct := mySQLMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

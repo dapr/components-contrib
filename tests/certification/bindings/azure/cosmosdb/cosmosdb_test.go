@@ -23,9 +23,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dapr/components-contrib/bindings"
 	cosmosdbbinding "github.com/dapr/components-contrib/bindings/azure/cosmosdb"
-	"github.com/dapr/components-contrib/secretstores"
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	bindings_loader "github.com/dapr/dapr/pkg/components/bindings"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
@@ -70,8 +68,6 @@ func TestCosmosDBBinding(t *testing.T) {
 
 	currentGRPCPort := ports[0]
 	currentHTTPPort := ports[1]
-
-	log := logger.NewLogger("dapr.components")
 
 	invokeCreateWithDocument := func(ctx flow.Context, document map[string]interface{}) error {
 		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
@@ -192,16 +188,8 @@ func TestCosmosDBBinding(t *testing.T) {
 			embedded.WithComponentsPath("./components/serviceprincipal"),
 			embedded.WithDaprGRPCPort(currentGRPCPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-			),
-			runtime.WithOutputBindings(
-				bindings_loader.NewOutput("azure.cosmosdb", func() bindings.OutputBinding {
-					return cosmosdbbinding.NewCosmosDB(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Run()
 
 	ports, err = dapr_testing.GetFreePorts(2)
@@ -216,16 +204,8 @@ func TestCosmosDBBinding(t *testing.T) {
 			embedded.WithComponentsPath("./components/masterkey"),
 			embedded.WithDaprGRPCPort(currentGRPCPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-			),
-			runtime.WithOutputBindings(
-				bindings_loader.NewOutput("azure.cosmosdb", func() bindings.OutputBinding {
-					return cosmosdbbinding.NewCosmosDB(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("verify data sent to output binding is written to Cosmos DB", testInvokeCreateAndVerify).
 		Step("expect error if id is missing from document", testInvokeCreateWithoutID).
 		Step("expect error if partition key is missing from document", testInvokeCreateWithoutPartitionKey).
@@ -243,16 +223,25 @@ func TestCosmosDBBinding(t *testing.T) {
 			embedded.WithComponentsPath("./components/wrongPartitionKey"),
 			embedded.WithDaprGRPCPort(currentGRPCPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-			),
-			runtime.WithOutputBindings(
-				bindings_loader.NewOutput("azure.cosmosdb", func() bindings.OutputBinding {
-					return cosmosdbbinding.NewCosmosDB(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("verify error when wrong partition key used", testInvokeCreateWithWrongPartitionKey).
 		Run()
+}
+
+func componentRuntimeOptions() []runtime.Option {
+	log := logger.NewLogger("dapr.components")
+
+	bindingsRegistry := bindings_loader.NewRegistry()
+	bindingsRegistry.Logger = log
+	bindingsRegistry.RegisterOutputBinding(cosmosdbbinding.NewCosmosDB, "azure.cosmosdb")
+
+	secretstoreRegistry := secretstores_loader.NewRegistry()
+	secretstoreRegistry.Logger = log
+	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
+
+	return []runtime.Option{
+		runtime.WithBindings(bindingsRegistry),
+		runtime.WithSecretStores(secretstoreRegistry),
+	}
 }

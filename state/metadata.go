@@ -13,7 +13,9 @@ limitations under the License.
 
 package state
 
+import "github.com/dapr/components-contrib/metadata"
+
 // Metadata contains a state store specific set of metadata properties.
 type Metadata struct {
-	Properties map[string]string `json:"properties"`
+	metadata.Base `json:",inline"`
 }

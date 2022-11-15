@@ -32,6 +32,6 @@ func PingOutBinding(outputBinding OutputBinding) error {
 	if outputBindingWithPing, ok := outputBinding.(health.Pinger); ok {
 		return outputBindingWithPing.Ping()
 	} else {
-		return fmt.Errorf("Ping is not implemented by this output binding")
+		return fmt.Errorf("ping is not implemented by this output binding")
 	}
 }

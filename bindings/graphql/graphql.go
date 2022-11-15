@@ -53,7 +53,7 @@ type GraphQL struct {
 }
 
 // NewGraphQL returns a new GraphQL binding instance.
-func NewGraphQL(logger logger.Logger) *GraphQL {
+func NewGraphQL(logger logger.Logger) bindings.OutputBinding {
 	return &GraphQL{logger: logger}
 }
 
@@ -112,7 +112,7 @@ func (gql *GraphQL) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 
 	var graphqlResponse interface{}
 
-	switch req.Operation { // nolint: exhaustive
+	switch req.Operation { //nolint:exhaustive
 	case QueryOperation:
 		if err := gql.runRequest(ctx, commandQuery, req, &graphqlResponse); err != nil {
 			return nil, err

@@ -16,10 +16,10 @@ package redis
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 
-	"github.com/agrea/ptr"
 	"github.com/go-redis/redis/v8"
 	jsoniter "github.com/json-iterator/go"
 
@@ -30,6 +30,7 @@ import (
 	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -106,7 +107,7 @@ type StateStore struct {
 }
 
 // NewRedisStateStore returns a new redis state store.
-func NewRedisStateStore(logger logger.Logger) *StateStore {
+func NewRedisStateStore(logger logger.Logger) state.Store {
 	s := &StateStore{
 		json:     jsoniter.ConfigFastest,
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI},
@@ -476,7 +477,7 @@ func (r *StateStore) getKeyVersion(vals []interface{}) (data string, version *st
 			seenData = true
 		case "version":
 			versionVal, _ := strconv.Unquote(fmt.Sprintf("%q", vals[i+1]))
-			version = ptr.String(versionVal)
+			version = ptr.Of(versionVal)
 			seenVersion = true
 		}
 	}
@@ -544,4 +545,11 @@ func (r *StateStore) Close() error {
 	r.cancel()
 
 	return r.client.Close()
+}
+
+func (r *StateStore) GetComponentMetadata() map[string]string {
+	metadataStruct := rediscomponent.Settings{}
+	metadataInfo := map[string]string{}
+	daprmetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

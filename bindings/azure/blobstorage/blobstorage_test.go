@@ -26,7 +26,7 @@ import (
 
 func TestParseMetadata(t *testing.T) {
 	m := bindings.Metadata{}
-	blobStorage := NewAzureBlobStorage(logger.NewLogger("test"))
+	blobStorage := NewAzureBlobStorage(logger.NewLogger("test")).(*AzureBlobStorage)
 
 	t.Run("parse all metadata", func(t *testing.T) {
 		m.Properties = map[string]string{
@@ -80,10 +80,22 @@ func TestParseMetadata(t *testing.T) {
 		_, err := blobStorage.parseMetadata(m)
 		assert.Error(t, err)
 	})
+
+	t.Run("sanitize metadata if necessary", func(t *testing.T) {
+		m.Properties = map[string]string{
+			"somecustomfield": "some-custom-value",
+			"specialfield":    "special:valueÜ",
+			"not-allowed:":    "not-allowed",
+		}
+		meta := blobStorage.sanitizeMetadata(m.Properties)
+		assert.Equal(t, meta["somecustomfield"], "some-custom-value")
+		assert.Equal(t, meta["specialfield"], "special:value")
+		assert.Equal(t, meta["notallowed"], "not-allowed")
+	})
 }
 
 func TestGetOption(t *testing.T) {
-	blobStorage := NewAzureBlobStorage(logger.NewLogger("test"))
+	blobStorage := NewAzureBlobStorage(logger.NewLogger("test")).(*AzureBlobStorage)
 
 	t.Run("return error if blobName is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
@@ -95,7 +107,7 @@ func TestGetOption(t *testing.T) {
 }
 
 func TestDeleteOption(t *testing.T) {
-	blobStorage := NewAzureBlobStorage(logger.NewLogger("test"))
+	blobStorage := NewAzureBlobStorage(logger.NewLogger("test")).(*AzureBlobStorage)
 
 	t.Run("return error if blobName is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}

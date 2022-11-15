@@ -65,7 +65,7 @@ type APNS struct {
 }
 
 // NewAPNS will create a new APNS output binding.
-func NewAPNS(logger logger.Logger) *APNS {
+func NewAPNS(logger logger.Logger) bindings.OutputBinding {
 	return &APNS{
 		logger: logger,
 		client: &http.Client{},

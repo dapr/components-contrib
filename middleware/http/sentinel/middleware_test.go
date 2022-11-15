@@ -14,11 +14,13 @@ limitations under the License.
 package sentinel
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/valyala/fasthttp"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 )
@@ -27,12 +29,12 @@ type counter struct {
 	count int32
 }
 
-func (c *counter) handle(ctx *fasthttp.RequestCtx) {
+func (c *counter) handle(w http.ResponseWriter, r *http.Request) {
 	c.count++
 }
 
 func TestRequestHandlerWithFlowRules(t *testing.T) {
-	meta := middleware.Metadata{Properties: map[string]string{
+	meta := middleware.Metadata{Base: metadata.Base{Properties: map[string]string{
 		"appName": "test-app",
 		"flowRules": `[
 	{
@@ -42,21 +44,19 @@ func TestRequestHandlerWithFlowRules(t *testing.T) {
 		"controlBehavior": 0
 	}
 ]`,
-	}}
+	}}}
 
 	log := logger.NewLogger("sentinel.test")
 	sentinel := NewMiddleware(log)
 	handler, err := sentinel.GetHandler(meta)
 	assert.Nil(t, err)
 
-	var ctx fasthttp.RequestCtx
-	ctx.Request.SetHost("localhost:5001")
-	ctx.Request.SetRequestURI("/v1.0/nodeapp/healthz")
-	ctx.Request.Header.SetMethod("GET")
+	r := httptest.NewRequest(http.MethodGet, "http://localhost:5001/v1.0/nodeapp/healthz", nil)
 
 	counter := &counter{}
 	for i := 0; i < 100; i++ {
-		handler(counter.handle)(&ctx)
+		w := httptest.NewRecorder()
+		handler(http.HandlerFunc(counter.handle)).ServeHTTP(w, r)
 	}
 
 	assert.Equal(t, int32(10), counter.count)
@@ -125,7 +125,7 @@ func TestLoadRules(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			sentinel := NewMiddleware(nil)
+			sentinel, _ := NewMiddleware(nil).(*Middleware)
 			err := sentinel.loadSentinelRules(&c.meta)
 			if c.expectErr {
 				assert.NotNil(t, err)

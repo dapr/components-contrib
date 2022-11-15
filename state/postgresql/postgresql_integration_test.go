@@ -3,7 +3,9 @@ Copyright 2021 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -22,6 +24,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -45,10 +48,10 @@ func TestPostgreSQLIntegration(t *testing.T) {
 	})
 
 	metadata := state.Metadata{
-		Properties: map[string]string{connectionStringKey: connectionString},
+		Base: metadata.Base{Properties: map[string]string{connectionStringKey: connectionString}},
 	}
 
-	pgs := NewPostgreSQLStateStore(logger.NewLogger("test"))
+	pgs := NewPostgreSQLStateStore(logger.NewLogger("test")).(*PostgreSQL)
 	t.Cleanup(func() {
 		defer pgs.Close()
 	})
@@ -489,11 +492,11 @@ func testInitConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewPostgreSQLStateStore(logger)
+			p := NewPostgreSQLStateStore(logger).(*PostgreSQL)
 			defer p.Close()
 
 			metadata := state.Metadata{
-				Properties: tt.props,
+				Base: metadata.Base{Properties: tt.props},
 			}
 
 			err := p.Init(metadata)
@@ -557,7 +560,7 @@ func storeItemExists(t *testing.T, key string) bool {
 	defer db.Close()
 
 	exists := false
-	statement := fmt.Sprintf(`SELECT EXISTS (SELECT FROM %s WHERE key = $1)`, tableName)
+	statement := fmt.Sprintf(`SELECT EXISTS (SELECT FROM %s WHERE key = $1)`, defaultTableName)
 	err = db.QueryRow(statement, key).Scan(&exists)
 	assert.Nil(t, err)
 
@@ -569,7 +572,7 @@ func getRowData(t *testing.T, key string) (returnValue string, insertdate sql.Nu
 	assert.Nil(t, err)
 	defer db.Close()
 
-	err = db.QueryRow(fmt.Sprintf("SELECT value, insertdate, updatedate FROM %s WHERE key = $1", tableName), key).Scan(&returnValue, &insertdate, &updatedate)
+	err = db.QueryRow(fmt.Sprintf("SELECT value, insertdate, updatedate FROM %s WHERE key = $1", defaultTableName), key).Scan(&returnValue, &insertdate, &updatedate)
 	assert.Nil(t, err)
 
 	return returnValue, insertdate, updatedate

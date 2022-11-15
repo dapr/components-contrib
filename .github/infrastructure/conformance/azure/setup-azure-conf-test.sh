@@ -216,6 +216,7 @@ KEYVAULT_NAME_VAR_NAME="AzureKeyVaultName"
 RESOURCE_GROUP_NAME_VAR_NAME="AzureResourceGroupName"
 
 SERVICE_BUS_CONNECTION_STRING_VAR_NAME="AzureServiceBusConnectionString"
+SERVICE_BUS_NAMESPACE_VAR_NAME="AzureServiceBusNamespace"
 
 SQL_SERVER_NAME_VAR_NAME="AzureSqlServerName"
 SQL_SERVER_DB_NAME_VAR_NAME="AzureSqlServerDbName"
@@ -613,6 +614,9 @@ echo "Configuring Service Bus test settings ..."
 SERVICE_BUS_CONNECTION_STRING="$(az servicebus namespace authorization-rule keys list --name RootManageSharedAccessKey --namespace-name "${SERVICE_BUS_NAME}" --resource-group "${RESOURCE_GROUP_NAME}" --query "primaryConnectionString" --output tsv)"
 echo export ${SERVICE_BUS_CONNECTION_STRING_VAR_NAME}=\"${SERVICE_BUS_CONNECTION_STRING}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${SERVICE_BUS_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${SERVICE_BUS_CONNECTION_STRING}"
+SERVICE_BUS_NAMESPACE="${SERVICE_BUS_NAME}.servicebus.windows.net"
+echo export ${SERVICE_BUS_NAMESPACE_VAR_NAME}=\"${SERVICE_BUS_NAMESPACE}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${SERVICE_BUS_NAMESPACE_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${SERVICE_BUS_NAMESPACE}"
 
 # ----------------------------------
 # Populate SQL Server test settings
@@ -726,6 +730,9 @@ az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" -
 # IOT hub used in eventhubs certification test
 az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Devices/IotHubs/${IOT_HUB_NAME}"
 az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "IoT Hub Data Contributor" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Devices/IotHubs/${IOT_HUB_NAME}"
+# Azure Service Bus
+ASB_ID=$(az servicebus namespace show --resource-group "${RESOURCE_GROUP_NAME}" --name "${SERVICE_BUS_NAME}" --query "id" -otsv)
+az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Azure Service Bus Data Owner" --scope "${ASB_ID}"
 
 # Now export the service principal information
 CERTIFICATION_TENANT_ID="$(az ad sp list --display-name "${CERTIFICATION_SPAUTH_SP_NAME}" --query "[].appOwnerTenantId" --output tsv)"

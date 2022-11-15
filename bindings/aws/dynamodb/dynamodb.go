@@ -20,10 +20,10 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
-	"github.com/mitchellh/mapstructure"
 
 	"github.com/dapr/components-contrib/bindings"
-	aws_auth "github.com/dapr/components-contrib/internal/authentication/aws"
+	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -44,7 +44,7 @@ type dynamoDBMetadata struct {
 }
 
 // NewDynamoDB returns a new DynamoDB instance.
-func NewDynamoDB(logger logger.Logger) *DynamoDB {
+func NewDynamoDB(logger logger.Logger) bindings.OutputBinding {
 	return &DynamoDB{logger: logger}
 }
 
@@ -95,7 +95,7 @@ func (d *DynamoDB) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 
 func (d *DynamoDB) getDynamoDBMetadata(spec bindings.Metadata) (*dynamoDBMetadata, error) {
 	var meta dynamoDBMetadata
-	err := mapstructure.WeakDecode(spec.Properties, &meta)
+	err := metadata.DecodeMetadata(spec.Properties, &meta)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func (d *DynamoDB) getDynamoDBMetadata(spec bindings.Metadata) (*dynamoDBMetadat
 }
 
 func (d *DynamoDB) getClient(metadata *dynamoDBMetadata) (*dynamodb.DynamoDB, error) {
-	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
+	sess, err := awsAuth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
 	if err != nil {
 		return nil, err
 	}

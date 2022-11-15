@@ -38,7 +38,7 @@ type Binding struct {
 }
 
 // NewKafka returns a new kafka binding instance.
-func NewKafka(logger logger.Logger) *Binding {
+func NewKafka(logger logger.Logger) bindings.InputOutputBinding {
 	k := kafka.NewKafka(logger)
 	// in kafka binding component, disable consumer retry by default
 	k.DefaultConsumeRetryEnabled = false
@@ -89,9 +89,12 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 		return nil
 	}
 
-	ah := adaptHandler(handler)
+	handlerConfig := kafka.SubscriptionHandlerConfig{
+		IsBulkSubscribe: false,
+		Handler:         adaptHandler(handler),
+	}
 	for _, t := range b.topics {
-		b.kafka.AddTopicHandler(t, ah)
+		b.kafka.AddTopicHandler(t, handlerConfig)
 	}
 
 	go func() {

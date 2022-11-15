@@ -277,7 +277,7 @@ func (k *Kafka) getKafkaMetadata(metadata map[string]string) (*kafkaMetadata, er
 		}
 		meta.Version = version
 	} else {
-		meta.Version = sarama.V2_0_0_0
+		meta.Version = sarama.V2_0_0_0 //nolint:nosnakecase
 	}
 
 	return &meta, nil

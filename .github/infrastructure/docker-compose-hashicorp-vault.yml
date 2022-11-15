@@ -1,0 +1,32 @@
+version: '3.9'
+
+# Use a YAML reference to define VAULT_TOKEN and DOCKER_IMAGE only once
+x-common-vaues:
+  # This should match tests/config/secrestore/hashicorp/vault/hashicorp-vault.yaml
+  vault_token: &VAULT_TOKEN "vault-dev-root-token-id"
+  # Reuse the same docker image to save on resources and because the base vault image
+  # has everything we need for seeding the initial key values too.
+  vault_docker_image: &VAULT_DOCKER_IMAGE vault:1.11.2
+
+services:
+  hashicorp_vault:
+    image: *VAULT_DOCKER_IMAGE
+    ports:
+      - '8200:8200'
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: *VAULT_TOKEN
+
+  # We define a aux. service to seed the expected conformance secrets to vault
+  seed_conformance_secrets:
+    image: *VAULT_DOCKER_IMAGE
+    depends_on:
+     - hashicorp_vault
+    environment:
+      VAULT_TOKEN : *VAULT_TOKEN
+      VAULT_ADDR: http://hashicorp_vault:8200/
+    volumes:
+      - ./conformance/hashicorp/:/setup:ro
+    entrypoint: /setup/setup-hashicorp-vault-secrets.sh
+    

@@ -31,6 +31,15 @@ jobs:
   generate-matrix:
     runs-on: ubuntu-latest
     steps:
+    - name: Parse repository_dispatch payload
+      if: github.event_name == 'repository_dispatch'
+      working-directory: ${{ github.workspace }}
+      run: |
+        if [ ${{ github.event.client_payload.command }} = "ok-to-test" ]; then
+          echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV
+          echo "PR_NUMBER=${{ github.event.client_payload.issue.number }}" >> $GITHUB_ENV
+        fi
+
     - name: Install yq
       run: |
         sudo snap install yq
@@ -42,12 +51,21 @@ jobs:
         - pubsub.kafka
         - pubsub.rabbitmq
         - pubsub.mqtt
+        - state.mongodb
         - state.redis
         - state.postgresql
+        - state.cassandra
+        - state.memcached
+        - state.mysql
         - bindings.alicloud.dubbo
         - bindings.kafka
+        - bindings.redis
         - secretstores.local.env
         - secretstores.local.file
+        - secretstores.hashicorp.vault
+        - bindings.rabbitmq
+        - bindings.localstorage
+        - bindings.postgres
         EOF
         )
         echo "::set-output name=pr-components::$PR_COMPONENTS"
@@ -90,6 +108,8 @@ jobs:
           required-secrets: AzureEventHubsBindingsConnectionString,AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureEventHubsBindingsHub,AzureEventHubsBindingsNamespace,AzureEventHubsBindingsConsumerGroup,AzureCertificationServicePrincipalClientId,AzureCertificationTenantId,AzureCertificationServicePrincipalClientSecret,AzureResourceGroupName,AzureCertificationSubscriptionId,AzureEventHubsBindingsContainer,AzureIotHubEventHubConnectionString,AzureIotHubName,AzureIotHubBindingsConsumerGroup
         - component: pubsub.azure.eventhubs
           required-secrets: AzureEventHubsPubsubTopicActiveConnectionString,AzureEventHubsPubsubNamespace,AzureEventHubsPubsubNamespaceConnectionString,AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureEventHubsPubsubContainer,AzureIotHubName,AzureIotHubEventHubConnectionString,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret,AzureResourceGroupName,AzureCertificationSubscriptionId
+        - component: pubsub.azure.servicebus.topics
+          required-secrets: AzureServiceBusConnectionString,AzureServiceBusNamespace, AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
         - component: bindings.azure.blobstorage
           required-secrets: AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureBlobStorageContainer,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
         - component: bindings.azure.storagequeues
@@ -98,9 +118,26 @@ jobs:
           required-secrets: AzureBlobStorageAccount, AzureBlobStorageAccessKey, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
         - component: state.azure.blobstorage
           required-secrets: AzureBlobStorageContainer,AzureBlobStorageAccount, AzureBlobStorageAccessKey, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
+        - component: state.azure.cosmosdb
+          required-secrets: AzureCosmosDBMasterKey, AzureCosmosDBUrl, AzureCosmosDB, AzureCosmosDBCollection, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret    
         EOF
         )
         echo "::set-output name=cloud-components::$CRON_COMPONENTS"
+
+    - name: Create PR comment
+      if: env.PR_NUMBER != ''
+      uses: artursouza/sticky-pull-request-comment@v2.2.0
+      with:
+        header: ${{ github.run_id }}
+        number: ${{ env.PR_NUMBER }}
+        GITHUB_TOKEN: ${{ secrets.DAPR_BOT_TOKEN }}
+        message: |
+          # Components certification test
+
+          🔗 **[Link to Action run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})**
+
+          Commit ref: ${{ env.CHECKOUT_REF }}
+
     outputs:
       pr-components: ${{ steps.pr-components.outputs.pr-components }}
       cloud-components: ${{ steps.cloud-components.outputs.cloud-components }}
@@ -112,8 +149,6 @@ jobs:
       run:
         shell: bash
     needs: generate-matrix
-    env:
-      PROJECT_PATH: ./src/github.com/dapr/components-contrib
 
     strategy:
       fail-fast: false # Keep running even if one component fails
@@ -135,10 +170,9 @@ jobs:
           echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV
         fi
 
-    - name: Check out code onto GOPATH
-      uses: actions/checkout@v2
+    - name: Check out code
+      uses: actions/checkout@v3
       with:
-        path: ${{ env.PROJECT_PATH }}
         repository: ${{ env.CHECKOUT_REPO }}
         ref: ${{ env.CHECKOUT_REF }}
 
@@ -150,10 +184,13 @@ jobs:
     - name: Configure certification test and source path
       run: |
         TEST_COMPONENT=$(echo ${{ matrix.component }} | sed -E 's/\./\//g')
-        export TEST_PATH="${PROJECT_PATH}/tests/certification/${TEST_COMPONENT}"
+        export TEST_PATH="tests/certification/${TEST_COMPONENT}"
         echo "TEST_PATH=$TEST_PATH" >> $GITHUB_ENV
         export SOURCE_PATH="github.com/dapr/components-contrib/${TEST_COMPONENT}"
         echo "SOURCE_PATH=$SOURCE_PATH" >> $GITHUB_ENV
+        # converts slashes to dots in this string, so that it doesn't consider them sub-folders
+        export SOURCE_PATH_LINEAR=$(echo "$SOURCE_PATH" |sed 's#/#\.#g')
+        echo "SOURCE_PATH_LINEAR=$SOURCE_PATH_LINEAR" >> $GITHUB_ENV
 
     - uses: Azure/login@v1
       with:
@@ -185,9 +222,9 @@ jobs:
         done
 
     - name: Set up Go
-      uses: actions/setup-go@v2
+      uses: actions/setup-go@v3
       with:
-        go-version: '^1.18'
+        go-version: '^1.19'
 
     - name: Download Go dependencies
       working-directory: ${{ env.TEST_PATH }}
@@ -199,7 +236,7 @@ jobs:
     - name: Check that go mod tidy is up-to-date
       working-directory: ${{ env.TEST_PATH }}
       run: |
-        go mod tidy -compat=1.18
+        go mod tidy -compat=1.19
         git diff --exit-code ./go.mod
         git diff --exit-code ./go.sum
 
@@ -208,18 +245,11 @@ jobs:
       working-directory: ${{ env.TEST_PATH }}
       run: |
         echo "Running certification tests for ${{ matrix.component }} ... "
-
+        export GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore
         set +e
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.json \
           --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.xml --format standard-quiet -- \
-          -coverprofile=cover.out -covermode=set -coverpkg=${{ env.SOURCE_PATH }}
-
-        COVERAGE_REPORT=$(gocov convert cover.out | gocov report)
-        COVERAGE_LINE=$(echo $COVERAGE_REPORT  | grep -oP '(?<=Total Coverage:).*') # example: "80.00% (40/50)"
-        COVERAGE_PERCENTAGE=$(echo $COVERAGE_LINE | grep -oP '([0-9\.]*)' | head -n 1) # example "80.00"
-        echo "COVERAGE_LINE=$COVERAGE_LINE" >> $GITHUB_ENV
-        echo "COMPONENT_PERCENTAGE=$COVERAGE_PERCENTAGE" >> $GITHUB_ENV
-
+          -coverprofile=cover.out -covermode=set -tags=certtests -coverpkg=${{ env.SOURCE_PATH }}
         status=$?
         echo "Completed certification tests for ${{ matrix.component }} ... "
         if test $status -ne 0; then
@@ -227,6 +257,12 @@ jobs:
           export CERTIFICATION_FAILURE=true
         fi
         set -e
+
+        COVERAGE_REPORT=$(gocov convert cover.out | gocov report)
+        COVERAGE_LINE=$(echo $COVERAGE_REPORT  | grep -oP '(?<=Total Coverage:).*') # example: "80.00% (40/50)"
+        COVERAGE_PERCENTAGE=$(echo $COVERAGE_LINE | grep -oP '([0-9\.]*)' | head -n 1) # example "80.00"
+        echo "COVERAGE_LINE=$COVERAGE_LINE" >> $GITHUB_ENV
+        echo "COMPONENT_PERCENTAGE=$COVERAGE_PERCENTAGE" >> $GITHUB_ENV
 
         # Fail the step if we found no test to run
         if grep -q "\[no test files\]" ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.json ; then
@@ -242,23 +278,47 @@ jobs:
         done
 
         if [[ -v CERTIFICATION_FAILURE ]]; then
+          echo "CERTIFICATION_FAILURE=true" >> $GITHUB_ENV
           exit 1
+        else
+          echo "CERTIFICATION_FAILURE=false" >> $GITHUB_ENV
         fi
 
+    - name: Prepare test result info
+      if: always()
+      run: |
+        mkdir -p tmp/result_files
+        echo "Writing to tmp/result_files/${{ matrix.component }}.txt"
+        if [[ "${{ env.CERTIFICATION_FAILURE }}" == "true" ]]; then
+          echo "0" >> "tmp/result_files/${{ matrix.component }}.txt"
+        else
+          echo "1" >> "tmp/result_files/${{ matrix.component }}.txt"
+        fi
+
+    - name: Upload result files
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: result_files
+        path: tmp/result_files
+        retention-days: 1
+
     - name: Prepare Cert Coverage Info
+      if: github.event_name == 'schedule'
       run: |
        mkdir -p tmp/cov_files
-       SOURCE_PATH_LINEAR=$(echo ${{ env.SOURCE_PATH }} |sed 's#/#\.#g') # converts slashes to dots in this string, so that it doesn't consider them sub-folders
-       echo "${{ env.COVERAGE_LINE }}" >> tmp/cov_files/$SOURCE_PATH_LINEAR.txt
+       echo "${{ env.COVERAGE_LINE }}" >> tmp/cov_files/${{ env.SOURCE_PATH_LINEAR }}.txt
 
     - name: Upload Cert Coverage Artifact
       uses: actions/upload-artifact@v3
+      if: github.event_name == 'schedule'
       with:
         name: certtest_cov
         path: tmp/cov_files
         retention-days: 1
 
-    - name: Component Coverage Discord Notification 
+    - name: Component Coverage Discord Notification
+      if: github.event_name == 'schedule'
       env:
         DISCORD_WEBHOOK: ${{ secrets.DISCORD_MONITORING_WEBHOOK_URL }}
       uses: Ilshidur/action-discord@0c4b27844ba47cb1c7bee539c8eead5284ce9fa9
@@ -275,39 +335,176 @@ jobs:
         path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.*
 
   post_job:
-    name: Notify Total coverage
+    name: Post-completion
     runs-on: ubuntu-latest
-    needs: certification
     if: always()
+    needs: 
+      - certification
+      - generate-matrix
     steps:
+      - name: Parse repository_dispatch payload
+        if: github.event_name == 'repository_dispatch'
+        working-directory: ${{ github.workspace }}
+        run: |
+          if [ ${{ github.event.client_payload.command }} = "ok-to-test" ]; then
+            echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV
+            echo "PR_NUMBER=${{ github.event.client_payload.issue.number }}" >> $GITHUB_ENV
+          fi
+
+      - name: Download test result artifact
+        if: always() && env.PR_NUMBER != ''
+        uses: actions/download-artifact@v3
+        continue-on-error: true
+        id: testresults
+        with:
+          name: result_files
+          path: tmp/result_files
+
+      - name: Build message
+        if: always() && env.PR_NUMBER != ''
+        # Abusing of the github-script action to be able to write this in JS
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const prComponents = ('${{ needs.generate-matrix.outputs.pr-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.pr-components }}')) || []
+            const cloudComponents = ('${{ needs.generate-matrix.outputs.cloud-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.cloud-components }}')) || []
+            const allComponents = [...prComponents, ...cloudComponents]
+            const basePath = '${{ steps.testresults.outputs.download-path }}'
+            const testType = 'certification'
+
+            const fs = require('fs')
+            const path = require('path')
+
+            let message = `# Components ${testType} test
+
+            🔗 **[Link to Action run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})**
+
+            Commit ref: ${{ env.CHECKOUT_REF }}`
+
+            let allSuccess = true
+            let allFound = true
+            let notSuccess = []
+            let notFound = []
+            for (let i = 0; i < allComponents.length; i++) {
+                let component = allComponents[i]
+                if (!component) {
+                    continue
+                }
+                if (typeof component == 'object') {
+                    component = component.component
+                }
+                let found = false
+                let success = false
+                try {
+                    let read =fs.readFileSync(path.join(basePath, component + '.txt'), 'utf8')
+                    read = read.split('\n')[0]
+                    switch (read) {
+                        case '1':
+                            found = true
+                            success = true
+                            break
+                        case '0':
+                            found = true
+                            success = false
+                    }
+                } catch (e) {
+                    // ignore errors, leave found = false
+                }
+
+                if (!found) {
+                    allFound = false
+                    notFound.push(component)
+                }
+                if (!success) {
+                    allSuccess = false
+                    notSuccess.push(component)
+                }
+            }
+
+            if (allSuccess) {
+                if (allFound) {
+                    message += '\n\n' + `# ✅ All ${testType} tests passed
+
+            All tests have reported a successful status` + '\n\n'
+                } else {
+                    message += '\n\n' + `# ⚠️ Some ${testType} tests did not report status
+
+            Although there were no failures reported, some tests did not report a status:` + '\n\n'
+                    for (let i = 0; i < notFound.length; i++) {
+                        message += '- ' + notFound[i] + '\n'
+                    }
+                    message += '\n'
+                }
+            } else {
+                message += '\n\n' + `# ❌ Some ${testType} tests failed
+
+            These tests failed:` + '\n\n'
+                for (let i = 0; i < notSuccess.length; i++) {
+                    message += '- ' + notSuccess[i] + '\n'
+                }
+                message += '\n'
+
+                if (!allFound) {
+                    message += 'Additionally, some tests did not report a status:\n\n'
+                    for (let i = 0; i < notFound.length; i++) {
+                        message += '- ' + notFound[i] + '\n'
+                    }
+                    message += '\n'
+                }
+            }
+
+            fs.writeFileSync('message.txt', message)
+
+      - name: Replace PR comment
+        if: always() && env.PR_NUMBER != ''
+        uses: artursouza/sticky-pull-request-comment@v2.2.0
+        with:
+          header: ${{ github.run_id }}
+          number: ${{ env.PR_NUMBER }}
+          GITHUB_TOKEN: ${{ secrets.DAPR_BOT_TOKEN }}
+          path: message.txt
+
       - name: Download Cert Coverage Artifact
         uses: actions/download-artifact@v3
         continue-on-error: true
+        if: success() && github.event_name == 'schedule'
         id: download
         with:
           name: certtest_cov
           path: tmp/cov_files
 
       - name: Calculate total coverage
+        if: success() && github.event_name == 'schedule'
         run: |
+          threshold=60.0
+          echo "threshold=$threshold" >> $GITHUB_ENV
+          aboveThreshold=0
+          totalFiles=0
           ls "${{steps.download.outputs.download-path}}" | while read f; do
           while read LINE;
               do
               ratio=$(echo $LINE | cut -d "(" -f2 | cut -d ")" -f1)
+              prcnt=$(echo $LINE | cut -d "(" -f1 | cut -d ")" -f1)
+              tempPrcnt=$(echo $prcnt | cut -d'%' -f1)
+              if [ $tempPrcnt \> $threshold ]; then aboveThreshold=$(($aboveThreshold+1)); fi
+              totalFiles=$(($totalFiles+1))
               tempNumerator=$(echo $ratio | cut -d'/' -f1)
               tempDenominator=$(echo $ratio | cut -d'/' -f2)
               export numerator=$(($numerator+$tempNumerator))
               export denominator=$(($denominator+$tempDenominator))
               totalPer=$(awk "BEGIN { print (($numerator / $denominator) * 100) }")
               echo "totalPer=$totalPer" >> $GITHUB_ENV
-            done < ${{steps.download.outputs.download-path}}/$f
+              echo "aboveThreshold=$aboveThreshold" >> $GITHUB_ENV
+              echo "totalFiles=$totalFiles" >> $GITHUB_ENV
+            done < "${{steps.download.outputs.download-path}}/$f"
           done
         continue-on-error: true
-      
+
       - name: Final Coverage Discord Notification
+        if: success() && github.event_name == 'schedule'
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_MONITORING_WEBHOOK_URL }}
         uses: Ilshidur/action-discord@0c4b27844ba47cb1c7bee539c8eead5284ce9fa9
         continue-on-error: true
         with:
-          args: 'Total Coverage for Certification Tests is {{ totalPer }}%'
+          args: 'Total Coverage for Certification Tests is {{ totalPer }}%. {{ aboveThreshold }} out of {{ totalFiles }} components have certification tests with code coverage > {{ threshold }}%'

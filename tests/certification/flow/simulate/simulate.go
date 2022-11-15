@@ -16,8 +16,9 @@ package simulate
 import (
 	"sync/atomic"
 
-	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/pkg/errors"
+
+	"github.com/dapr/components-contrib/tests/certification/flow"
 )
 
 func PeriodicError(ctx flow.Context, frequency uint64) func() error {

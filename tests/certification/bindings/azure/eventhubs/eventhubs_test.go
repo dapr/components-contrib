@@ -33,7 +33,6 @@ import (
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/kit/logger"
 
-	"github.com/dapr/components-contrib/secretstores"
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 
@@ -58,17 +57,6 @@ const (
 )
 
 func TestSinglePartition(t *testing.T) {
-	logger := logger.NewLogger("dapr.components")
-	out_component := bindings_loader.NewOutput("azure.eventhubs", func() bindings.OutputBinding {
-		return eventhubs.NewAzureEventHubs(logger)
-	})
-	in_component := bindings_loader.NewInput("azure.eventhubs", func() bindings.InputBinding {
-		return eventhubs.NewAzureEventHubs(logger)
-	})
-	secrets_components := secretstores_loader.New("local.env", func() secretstores.SecretStore {
-		return secretstore_env.NewEnvSecretStore(logger)
-	})
-
 	ports, _ := dapr_testing.GetFreePorts(3)
 	grpcPort := ports[0]
 	httpPort := ports[1]
@@ -145,9 +133,7 @@ func TestSinglePartition(t *testing.T) {
 			embedded.WithDaprGRPCPort(grpcPort),
 			embedded.WithDaprHTTPPort(httpPort),
 			embedded.WithComponentsPath("./components/binding/consumer1"),
-			runtime.WithSecretStores(secrets_components),
-			runtime.WithOutputBindings(out_component),
-			runtime.WithInputBindings(in_component),
+			componentRuntimeOptions(),
 		)).
 		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "443", "5671", "5672")).
 		Step("send and wait", sendAndReceive(metadata)).
@@ -156,17 +142,6 @@ func TestSinglePartition(t *testing.T) {
 }
 
 func TestEventhubBindingSerivcePrincipalAuth(t *testing.T) {
-	logger := logger.NewLogger("dapr.components")
-	out_component := bindings_loader.NewOutput("azure.eventhubs", func() bindings.OutputBinding {
-		return eventhubs.NewAzureEventHubs(logger)
-	})
-	in_component := bindings_loader.NewInput("azure.eventhubs", func() bindings.InputBinding {
-		return eventhubs.NewAzureEventHubs(logger)
-	})
-	secrets_components := secretstores_loader.New("local.env", func() secretstores.SecretStore {
-		return secretstore_env.NewEnvSecretStore(logger)
-	})
-
 	ports, _ := dapr_testing.GetFreePorts(3)
 	grpcPort := ports[0]
 	httpPort := ports[1]
@@ -244,9 +219,7 @@ func TestEventhubBindingSerivcePrincipalAuth(t *testing.T) {
 			embedded.WithDaprGRPCPort(grpcPort),
 			embedded.WithDaprHTTPPort(httpPort),
 			embedded.WithComponentsPath("./components/binding/serviceprincipal"),
-			runtime.WithSecretStores(secrets_components),
-			runtime.WithOutputBindings(out_component),
-			runtime.WithInputBindings(in_component),
+			componentRuntimeOptions(),
 		)).
 		Step("send and wait", sendAndReceive(metadata)).
 		Step("delete containers", deleteEventhub).
@@ -254,17 +227,6 @@ func TestEventhubBindingSerivcePrincipalAuth(t *testing.T) {
 }
 
 func TestEventhubBindingIOTHub(t *testing.T) {
-	logger := logger.NewLogger("dapr.components")
-	out_component := bindings_loader.NewOutput("azure.eventhubs", func() bindings.OutputBinding {
-		return eventhubs.NewAzureEventHubs(logger)
-	})
-	in_component := bindings_loader.NewInput("azure.eventhubs", func() bindings.InputBinding {
-		return eventhubs.NewAzureEventHubs(logger)
-	})
-	secrets_components := secretstores_loader.New("local.env", func() secretstores.SecretStore {
-		return secretstore_env.NewEnvSecretStore(logger)
-	})
-
 	ports, _ := dapr_testing.GetFreePorts(3)
 	grpcPort := ports[0]
 	httpPort := ports[1]
@@ -318,9 +280,7 @@ func TestEventhubBindingIOTHub(t *testing.T) {
 			embedded.WithDaprGRPCPort(grpcPort),
 			embedded.WithDaprHTTPPort(httpPort),
 			embedded.WithComponentsPath("./components/binding/iothub"),
-			runtime.WithSecretStores(secrets_components),
-			runtime.WithOutputBindings(out_component),
-			runtime.WithInputBindings(in_component),
+			componentRuntimeOptions(),
 		)).
 		Step("Send messages to IoT", sendIOTDevice(consumerGroup3)).
 		Step("delete containers", deleteEventhub).
@@ -328,17 +288,6 @@ func TestEventhubBindingIOTHub(t *testing.T) {
 }
 
 func TestEventhubBindingMultiplePartition(t *testing.T) {
-	logger := logger.NewLogger("dapr.components")
-	out_component := bindings_loader.NewOutput("azure.eventhubs", func() bindings.OutputBinding {
-		return eventhubs.NewAzureEventHubs(logger)
-	})
-	in_component := bindings_loader.NewInput("azure.eventhubs", func() bindings.InputBinding {
-		return eventhubs.NewAzureEventHubs(logger)
-	})
-	secrets_components := secretstores_loader.New("local.env", func() secretstores.SecretStore {
-		return secretstore_env.NewEnvSecretStore(logger)
-	})
-
 	ports, _ := dapr_testing.GetFreePorts(3)
 	grpcPort := ports[0]
 	httpPort := ports[1]
@@ -451,11 +400,31 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 			embedded.WithDaprGRPCPort(grpcPort),
 			embedded.WithDaprHTTPPort(httpPort),
 			embedded.WithComponentsPath("./components/binding/consumer3"),
-			runtime.WithSecretStores(secrets_components),
-			runtime.WithOutputBindings(out_component),
-			runtime.WithInputBindings(in_component),
+			componentRuntimeOptions(),
 		)).
 		Step("send and wait", sendAndReceive(metadata0, metadata1)).
 		Step("delete containers", deleteEventhub).
 		Run()
+}
+
+func componentRuntimeOptions() []runtime.Option {
+	log := logger.NewLogger("dapr.components")
+
+	bindingsRegistry := bindings_loader.NewRegistry()
+	bindingsRegistry.Logger = log
+	bindingsRegistry.RegisterInputBinding(func(l logger.Logger) bindings.InputBinding {
+		return eventhubs.NewAzureEventHubs(l)
+	}, "azure.eventhubs")
+	bindingsRegistry.RegisterOutputBinding(func(l logger.Logger) bindings.OutputBinding {
+		return eventhubs.NewAzureEventHubs(l)
+	}, "azure.eventhubs")
+
+	secretstoreRegistry := secretstores_loader.NewRegistry()
+	secretstoreRegistry.Logger = log
+	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
+
+	return []runtime.Option{
+		runtime.WithBindings(bindingsRegistry),
+		runtime.WithSecretStores(secretstoreRegistry),
+	}
 }

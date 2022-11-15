@@ -36,7 +36,7 @@ type Binding struct {
 }
 
 // NewTwitter returns a new Twitter event input binding.
-func NewTwitter(logger logger.Logger) *Binding {
+func NewTwitter(logger logger.Logger) bindings.InputOutputBinding {
 	return &Binding{logger: logger}
 }
 

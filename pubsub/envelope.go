@@ -22,13 +22,15 @@ import (
 
 	"github.com/google/uuid"
 
-	contrib_contenttype "github.com/dapr/components-contrib/contenttype"
-	contrib_metadata "github.com/dapr/components-contrib/metadata"
+	contribContenttype "github.com/dapr/components-contrib/contenttype"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 )
 
 const (
 	// DefaultCloudEventType is the default event type for an Dapr published event.
 	DefaultCloudEventType = "com.dapr.event.sent"
+	// DefaultBulkEventType is the default bulk event type for a Dapr published event.
+	DefaultBulkEventType = "com.dapr.event.sent.bulk"
 	// CloudEventsSpecVersion is the specversion used by Dapr for the cloud events implementation.
 	CloudEventsSpecVersion = "1.0"
 	// DefaultCloudEventSource is the default event source.
@@ -51,6 +53,7 @@ const (
 	SourceField          = "source"
 	IDField              = "id"
 	SubjectField         = "subject"
+	TimeField            = "time"
 )
 
 // unmarshalPrecise is a wrapper around encoding/json's Decoder
@@ -86,9 +89,9 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 	var ceData interface{}
 	ceDataField := DataField
 	var err error
-	if contrib_contenttype.IsJSONContentType(dataContentType) {
+	if contribContenttype.IsJSONContentType(dataContentType) {
 		err = unmarshalPrecise(data, &ceData)
-	} else if contrib_contenttype.IsBinaryContentType(dataContentType) {
+	} else if contribContenttype.IsBinaryContentType(dataContentType) {
 		ceData = base64.StdEncoding.EncodeToString(data)
 		ceDataField = DataBase64Field
 	} else {
@@ -110,6 +113,7 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 		TraceIDField:         traceParent,
 		TraceParentField:     traceParent,
 		TraceStateField:      traceState,
+		TimeField:            time.Now().Format(time.RFC3339),
 	}
 
 	ce[ceDataField] = ceData
@@ -127,6 +131,14 @@ func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceParent string, traceS
 	err := unmarshalPrecise(cloudEvent, &m)
 	if err != nil {
 		return m, err
+	}
+
+	customTimeVal, keyExists := m[TimeField]
+
+	if keyExists {
+		m[TimeField] = customTimeVal
+	} else {
+		m[TimeField] = time.Now().Format(time.RFC3339)
 	}
 
 	m[TraceIDField] = traceParent
@@ -186,7 +198,7 @@ func HasExpired(cloudEvent map[string]interface{}) bool {
 
 // ApplyMetadata will process metadata to modify the cloud event based on the component's feature set.
 func ApplyMetadata(cloudEvent map[string]interface{}, componentFeatures []Feature, metadata map[string]string) {
-	ttl, hasTTL, _ := contrib_metadata.TryGetTTL(metadata)
+	ttl, hasTTL, _ := contribMetadata.TryGetTTL(metadata)
 	if hasTTL && !FeatureMessageTTL.IsPresent(componentFeatures) {
 		// Dapr only handles Message TTL if component does not.
 		now := time.Now().UTC()

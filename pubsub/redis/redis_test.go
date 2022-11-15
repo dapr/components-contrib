@@ -23,6 +23,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 
+	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -40,7 +41,7 @@ func TestParseRedisMetadata(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
+			Base: mdata.Base{Properties: fakeProperties},
 		}
 
 		// act
@@ -56,7 +57,7 @@ func TestParseRedisMetadata(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
+			Base: mdata.Base{Properties: fakeProperties},
 		}
 		fakeMetaData.Properties[consumerID] = ""
 

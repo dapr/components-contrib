@@ -47,7 +47,7 @@ type StandaloneRedisLock struct {
 
 // NewStandaloneRedisLock returns a new standalone redis lock.
 // Do not use this lock with a redis cluster, which might lead to unexpected lock loss.
-func NewStandaloneRedisLock(logger logger.Logger) *StandaloneRedisLock {
+func NewStandaloneRedisLock(logger logger.Logger) lock.Store {
 	s := &StandaloneRedisLock{
 		logger: logger,
 	}

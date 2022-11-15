@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	// SecretStores
-	"github.com/dapr/components-contrib/secretstores"
+
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 	"github.com/dapr/dapr/pkg/runtime"
@@ -44,8 +44,6 @@ func TestEnv(t *testing.T) {
 	currentGrpcPort := ports[0]
 	currentHttpPort := ports[1]
 
-	log := logger.NewLogger("dapr.components")
-
 	t.Setenv("certtestsecret", "abcd")
 
 	testGetKnownSecret := func(ctx flow.Context) error {
@@ -67,11 +65,20 @@ func TestEnv(t *testing.T) {
 			embedded.WithComponentsPath("./components/"),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHttpPort),
-			runtime.WithSecretStores(
-				secretstores_loader.New("local.env", func() secretstores.SecretStore {
-					return secretstore_env.NewEnvSecretStore(log)
-				}),
-			))).
+			componentRuntimeOptions(),
+		)).
 		Step("Getting known secret", testGetKnownSecret).
 		Run()
+}
+
+func componentRuntimeOptions() []runtime.Option {
+	log := logger.NewLogger("dapr.components")
+
+	secretstoreRegistry := secretstores_loader.NewRegistry()
+	secretstoreRegistry.Logger = log
+	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
+
+	return []runtime.Option{
+		runtime.WithSecretStores(secretstoreRegistry),
+	}
 }

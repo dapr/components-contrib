@@ -14,8 +14,9 @@ limitations under the License.
 package sentinel
 
 import (
+	"fmt"
+
 	"github.com/alibaba/sentinel-golang/ext/datasource"
-	"github.com/pkg/errors"
 )
 
 type propertyDataSource struct {
@@ -77,7 +78,7 @@ func (p propertyDataSource) ReadSource() ([]byte, error) {
 func (p propertyDataSource) Initialize() error {
 	src, err := p.ReadSource()
 	if err != nil {
-		err = errors.Errorf("Fail to read source, err: %+v", err)
+		err = fmt.Errorf("fail to read source, err: %w", err)
 
 		return err
 	}

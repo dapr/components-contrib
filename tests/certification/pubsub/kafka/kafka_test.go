@@ -29,7 +29,6 @@ import (
 
 	// Pub/Sub.
 
-	"github.com/dapr/components-contrib/pubsub"
 	pubsub_kafka "github.com/dapr/components-contrib/pubsub/kafka"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
 
@@ -76,11 +75,6 @@ var (
 )
 
 func TestKafka(t *testing.T) {
-	log := logger.NewLogger("dapr.components")
-	component := pubsub_loader.New("kafka", func() pubsub.PubSub {
-		return pubsub_kafka.NewKafka(log)
-	})
-
 	// For Kafka, we should ensure messages are received in order.
 	consumerGroup1 := watcher.NewOrdered()
 	// This watcher is across multiple consumers in the same group
@@ -277,7 +271,8 @@ func TestKafka(t *testing.T) {
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 		//
 		// Run the second application.
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset),
@@ -290,7 +285,8 @@ func TestKafka(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 		//
 		// Send messages using the same metadata/message key so we can expect
 		// in-order processing.
@@ -307,7 +303,8 @@ func TestKafka(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*2),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*2),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*2),
-			runtime.WithPubSubs(component))).
+			componentRuntimeOptions(),
+		)).
 		Step("reset", flow.Reset(consumerGroup2)).
 		//
 		// Send messages with random keys to test message consumption
@@ -365,4 +362,16 @@ func TestKafka(t *testing.T) {
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("assert messages(consumer rebalance)", assertMessages(consumerGroup2)).
 		Run()
+}
+
+func componentRuntimeOptions() []runtime.Option {
+	log := logger.NewLogger("dapr.components")
+
+	pubsubRegistry := pubsub_loader.NewRegistry()
+	pubsubRegistry.Logger = log
+	pubsubRegistry.RegisterComponent(pubsub_kafka.NewKafka, "kafka")
+
+	return []runtime.Option{
+		runtime.WithPubSubs(pubsubRegistry),
+	}
 }

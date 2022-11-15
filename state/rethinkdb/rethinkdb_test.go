@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -45,10 +46,10 @@ func TestGetRethinkDBMetadata(t *testing.T) {
 		p["timeout"] = fmt.Sprintf("%v", timeout)
 
 		maxOpen := 30
-		p["max_open"] = fmt.Sprintf("%v", maxOpen)
+		p["maxOpen"] = fmt.Sprintf("%v", maxOpen)
 
 		discoverHosts := true
-		p["discover_hosts"] = fmt.Sprintf("%v", discoverHosts)
+		p["discoverHosts"] = fmt.Sprintf("%v", discoverHosts)
 
 		m, err := metadataToConfig(p, testLogger)
 		assert.Nil(t, err)
@@ -64,8 +65,8 @@ func TestRethinkDBStateStore(t *testing.T) {
 		t.SkipNow()
 	}
 
-	m := state.Metadata{Properties: getTestMetadata()}
-	db := NewRethinkDBStateStore(logger.NewLogger("test"))
+	m := state.Metadata{Base: metadata.Base{Properties: getTestMetadata()}}
+	db := NewRethinkDBStateStore(logger.NewLogger("test")).(*RethinkDB)
 
 	t.Run("With init", func(t *testing.T) {
 		if err := db.Init(m); err != nil {
@@ -153,8 +154,8 @@ func TestRethinkDBStateStoreRongRun(t *testing.T) {
 		t.SkipNow()
 	}
 
-	m := state.Metadata{Properties: getTestMetadata()}
-	db := NewRethinkDBStateStore(logger.NewLogger("test"))
+	m := state.Metadata{Base: metadata.Base{Properties: getTestMetadata()}}
+	db := NewRethinkDBStateStore(logger.NewLogger("test")).(*RethinkDB)
 	if err := db.Init(m); err != nil {
 		t.Fatalf("error initializing db: %v", err)
 	}
@@ -208,8 +209,8 @@ func TestRethinkDBStateStoreMulti(t *testing.T) {
 		t.SkipNow()
 	}
 
-	m := state.Metadata{Properties: getTestMetadata()}
-	db := NewRethinkDBStateStore(logger.NewLogger("test"))
+	m := state.Metadata{Base: metadata.Base{Properties: getTestMetadata()}}
+	db := NewRethinkDBStateStore(logger.NewLogger("test")).(*RethinkDB)
 	if err := db.Init(m); err != nil {
 		t.Fatalf("error initializing db: %v", err)
 	}

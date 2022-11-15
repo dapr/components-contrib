@@ -66,6 +66,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 			"decodeBase64": "yes",
 			"encodeBase64": "false",
 			"filePath":     "/usr/vader.darth",
+			"presignTTL":   "15s",
 		}
 
 		mergedMeta, err := meta.mergeWithRequestMetadata(&request)
@@ -83,6 +84,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		assert.Equal(t, true, mergedMeta.DecodeBase64)
 		assert.Equal(t, false, mergedMeta.EncodeBase64)
 		assert.Equal(t, "/usr/vader.darth", mergedMeta.FilePath)
+		assert.Equal(t, "15s", mergedMeta.PresignTTL)
 	})
 
 	t.Run("Has invalid merged metadata decodeBase64", func(t *testing.T) {
@@ -143,7 +145,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 }
 
 func TestGetOption(t *testing.T) {
-	s3 := NewAWSS3(logger.NewLogger("s3"))
+	s3 := NewAWSS3(logger.NewLogger("s3")).(*AWSS3)
 	s3.metadata = &s3Metadata{}
 
 	t.Run("return error if key is missing", func(t *testing.T) {
@@ -154,7 +156,7 @@ func TestGetOption(t *testing.T) {
 }
 
 func TestDeleteOption(t *testing.T) {
-	s3 := NewAWSS3(logger.NewLogger("s3"))
+	s3 := NewAWSS3(logger.NewLogger("s3")).(*AWSS3)
 	s3.metadata = &s3Metadata{}
 
 	t.Run("return error if key is missing", func(t *testing.T) {

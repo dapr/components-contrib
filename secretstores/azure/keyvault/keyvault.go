@@ -36,6 +36,8 @@ const (
 	secretItemIDPrefix = "/secrets/"
 )
 
+var _ secretstores.SecretStore = (*keyvaultSecretStore)(nil)
+
 type keyvaultSecretStore struct {
 	vaultName      string
 	vaultClient    *azsecrets.Client
@@ -96,24 +98,21 @@ func (k *keyvaultSecretStore) Init(metadata secretstores.Metadata) error {
 			ApplicationID: "dapr-" + logger.DaprVersion,
 		},
 	}
-	k.vaultClient, err = azsecrets.NewClient(k.getVaultURI(), cred, &azsecrets.ClientOptions{
+	k.vaultClient = azsecrets.NewClient(k.getVaultURI(), cred, &azsecrets.ClientOptions{
 		ClientOptions: coreClientOpts,
 	})
-	if err != nil {
-		return err
-	}
 
 	return nil
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
-func (k *keyvaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
-	opts := &azsecrets.GetSecretOptions{}
-	if value, ok := req.Metadata[VersionID]; ok {
-		opts.Version = value
+func (k *keyvaultSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
+	version := "" // empty string means latest version
+	if val, ok := req.Metadata[VersionID]; ok {
+		version = val
 	}
 
-	secretResp, err := k.vaultClient.GetSecret(context.TODO(), req.Name, opts)
+	secretResp, err := k.vaultClient.GetSecret(ctx, req.Name, version, nil)
 	if err != nil {
 		return secretstores.GetSecretResponse{}, err
 	}
@@ -131,7 +130,7 @@ func (k *keyvaultSecretStore) GetSecret(req secretstores.GetSecretRequest) (secr
 }
 
 // BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
-func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
+func (k *keyvaultSecretStore) BulkGetSecret(ctx context.Context, req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
 	maxResults, err := k.getMaxResultsFromMetadata(req.Metadata)
 	if err != nil {
 		return secretstores.BulkGetSecretResponse{}, err
@@ -143,22 +142,22 @@ func (k *keyvaultSecretStore) BulkGetSecret(req secretstores.BulkGetSecretReques
 
 	secretIDPrefix := k.getVaultURI() + secretItemIDPrefix
 
-	pager := k.vaultClient.ListPropertiesOfSecrets(nil)
+	pager := k.vaultClient.NewListSecretsPager(nil)
 
 out:
 	for pager.More() {
-		pr, err := pager.NextPage(context.TODO())
+		pr, err := pager.NextPage(ctx)
 		if err != nil {
 			return secretstores.BulkGetSecretResponse{}, err
 		}
 
-		for _, secret := range pr.Secrets {
-			if secret.Properties == nil || secret.Properties.Enabled == nil || !*secret.Properties.Enabled {
+		for _, secret := range pr.Value {
+			if secret.Attributes == nil || secret.Attributes.Enabled == nil || !*secret.Attributes.Enabled {
 				continue
 			}
 
-			secretName := strings.TrimPrefix(*secret.ID, secretIDPrefix)
-			secretResp, err := k.vaultClient.GetSecret(context.TODO(), secretName, nil)
+			secretName := strings.TrimPrefix(secret.ID.Name(), secretIDPrefix)
+			secretResp, err := k.vaultClient.GetSecret(ctx, secretName, "", nil) // empty string means latest version
 			if err != nil {
 				return secretstores.BulkGetSecretResponse{}, err
 			}
@@ -186,15 +185,19 @@ func (k *keyvaultSecretStore) getVaultURI() string {
 
 func (k *keyvaultSecretStore) getMaxResultsFromMetadata(metadata map[string]string) (*int32, error) {
 	if s, ok := metadata["maxresults"]; ok && s != "" {
-		/* #nosec */
 		val, err := strconv.Atoi(s)
 		if err != nil {
 			return nil, err
 		}
-		converted := int32(val)
+		converted := int32(val) //nolint:gosec
 
 		return &converted, nil
 	}
 
 	return nil, nil
+}
+
+// Features returns the features available in this secret store.
+func (k *keyvaultSecretStore) Features() []secretstores.Feature {
+	return []secretstores.Feature{} // No Feature supported.
 }

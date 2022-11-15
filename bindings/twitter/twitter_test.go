@@ -58,7 +58,7 @@ func getRuntimeMetadata() map[string]string {
 // go test -v -count=1 ./bindings/twitter/.
 func TestInit(t *testing.T) {
 	m := getTestMetadata()
-	tw := NewTwitter(logger.NewLogger("test"))
+	tw := NewTwitter(logger.NewLogger("test")).(*Binding)
 	err := tw.Init(m)
 	assert.Nilf(t, err, "error initializing valid metadata properties")
 }
@@ -66,7 +66,7 @@ func TestInit(t *testing.T) {
 // TestReadError excutes the Read method and fails before the Twitter API call
 // go test -v -count=1 -run TestReadError ./bindings/twitter/.
 func TestReadError(t *testing.T) {
-	tw := NewTwitter(logger.NewLogger("test"))
+	tw := NewTwitter(logger.NewLogger("test")).(*Binding)
 	m := getTestMetadata()
 	err := tw.Init(m)
 	assert.Nilf(t, err, "error initializing valid metadata properties")
@@ -90,7 +90,7 @@ func TestRead(t *testing.T) {
 	m.Properties = getRuntimeMetadata()
 	// add query
 	m.Properties["query"] = "microsoft"
-	tw := NewTwitter(logger.NewLogger("test"))
+	tw := NewTwitter(logger.NewLogger("test")).(*Binding)
 	tw.logger.SetOutputLevel(logger.DebugLevel)
 	err := tw.Init(m)
 	assert.Nilf(t, err, "error initializing read")
@@ -126,7 +126,7 @@ func TestInvoke(t *testing.T) {
 	}
 	m := bindings.Metadata{}
 	m.Properties = getRuntimeMetadata()
-	tw := NewTwitter(logger.NewLogger("test"))
+	tw := NewTwitter(logger.NewLogger("test")).(*Binding)
 	tw.logger.SetOutputLevel(logger.DebugLevel)
 	err := tw.Init(m)
 	assert.Nilf(t, err, "error initializing Invoke")

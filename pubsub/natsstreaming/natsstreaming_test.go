@@ -20,6 +20,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 )
 
@@ -47,9 +48,9 @@ func TestParseNATSStreamingForMetadataMandatoryOptionsMissing(t *testing.T) {
 	}
 	for _, _test := range tests {
 		t.Run(_test.name, func(t *testing.T) {
-			fakeMetaData := pubsub.Metadata{
+			fakeMetaData := pubsub.Metadata{Base: mdata.Base{
 				Properties: _test.properties,
-			}
+			}}
 			_, err := parseNATSStreamingMetadata(fakeMetaData)
 			assert.NotEmpty(t, err)
 		})
@@ -117,7 +118,7 @@ func TestParseNATSStreamingMetadataForInvalidSubscriptionOptions(t *testing.T) {
 	for _, _test := range tests {
 		t.Run(_test.name, func(t *testing.T) {
 			fakeMetaData := pubsub.Metadata{
-				Properties: _test.properties,
+				Base: mdata.Base{Properties: _test.properties},
 			}
 			_, err := parseNATSStreamingMetadata(fakeMetaData)
 			assert.NotEmpty(t, err)
@@ -229,7 +230,7 @@ func TestParseNATSStreamingMetadataForValidSubscriptionOptions(t *testing.T) {
 	for _, _test := range tests {
 		t.Run(_test.name, func(t *testing.T) {
 			fakeMetaData := pubsub.Metadata{
-				Properties: _test.properties,
+				Base: mdata.Base{Properties: _test.properties},
 			}
 			m, err := parseNATSStreamingMetadata(fakeMetaData)
 
@@ -260,7 +261,7 @@ func TestParseNATSStreamingMetadata(t *testing.T) {
 			consumerID:             "consumer1",
 		}
 		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
+			Base: mdata.Base{Properties: fakeProperties},
 		}
 		m, err := parseNATSStreamingMetadata(fakeMetaData)
 
@@ -280,7 +281,7 @@ func TestParseNATSStreamingMetadata(t *testing.T) {
 			consumerID:             "consumer1",
 		}
 		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
+			Base: mdata.Base{Properties: fakeProperties},
 		}
 		_, err := parseNATSStreamingMetadata(fakeMetaData)
 		assert.Empty(t, err)
@@ -293,7 +294,7 @@ func TestParseNATSStreamingMetadata(t *testing.T) {
 			subscriptionType:       "baz",
 		}
 		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
+			Base: mdata.Base{Properties: fakeProperties},
 		}
 		_, err := parseNATSStreamingMetadata(fakeMetaData)
 		assert.NotEmpty(t, err)
@@ -309,7 +310,7 @@ func TestParseNATSStreamingMetadata(t *testing.T) {
 			deliverAll:             "true",
 		}
 		fakeMetaData := pubsub.Metadata{
-			Properties: fakeProperties,
+			Base: mdata.Base{Properties: fakeProperties},
 		}
 		m, err := parseNATSStreamingMetadata(fakeMetaData)
 		assert.NoError(t, err)

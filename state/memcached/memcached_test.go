@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -29,7 +30,7 @@ func TestMemcachedMetadata(t *testing.T) {
 	t.Run("without required configuration", func(t *testing.T) {
 		properties := map[string]string{}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 		_, err := getMemcachedMetadata(m)
 		assert.NotNil(t, err)
@@ -40,13 +41,13 @@ func TestMemcachedMetadata(t *testing.T) {
 			"hosts": "localhost:11211",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 		metadata, err := getMemcachedMetadata(m)
 		assert.Nil(t, err)
-		assert.Equal(t, properties["hosts"], metadata.hosts[0])
-		assert.Equal(t, defaultMaxIdleConnections, metadata.maxIdleConnections)
-		assert.Equal(t, defaultTimeout, metadata.timeout)
+		assert.Equal(t, properties["hosts"], metadata.Hosts[0])
+		assert.Equal(t, defaultMaxIdleConnections, metadata.MaxIdleConnections)
+		assert.Equal(t, -1, metadata.Timeout)
 	})
 
 	t.Run("with required configuration, multiple host", func(t *testing.T) {
@@ -54,14 +55,14 @@ func TestMemcachedMetadata(t *testing.T) {
 			"hosts": "localhost:11211,10.0.0.1:11211,10.0.0.2:10000",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 		split := strings.Split(properties["hosts"], ",")
 		metadata, err := getMemcachedMetadata(m)
 		assert.Nil(t, err)
-		assert.Equal(t, split, metadata.hosts)
-		assert.Equal(t, defaultMaxIdleConnections, metadata.maxIdleConnections)
-		assert.Equal(t, defaultTimeout, metadata.timeout)
+		assert.Equal(t, split, metadata.Hosts)
+		assert.Equal(t, defaultMaxIdleConnections, metadata.MaxIdleConnections)
+		assert.Equal(t, -1, metadata.Timeout)
 	})
 
 	t.Run("with optional configuration, multiple hosts", func(t *testing.T) {
@@ -71,19 +72,19 @@ func TestMemcachedMetadata(t *testing.T) {
 			"timeout":            "5000",
 		}
 		m := state.Metadata{
-			Properties: properties,
+			Base: metadata.Base{Properties: properties},
 		}
 		split := strings.Split(properties["hosts"], ",")
 		metadata, err := getMemcachedMetadata(m)
 		assert.Nil(t, err)
-		assert.Equal(t, split, metadata.hosts)
-		assert.Equal(t, 10, metadata.maxIdleConnections)
-		assert.Equal(t, 5000*time.Millisecond, metadata.timeout)
+		assert.Equal(t, split, metadata.Hosts)
+		assert.Equal(t, 10, metadata.MaxIdleConnections)
+		assert.Equal(t, int(5000*time.Millisecond), metadata.Timeout*int(time.Millisecond))
 	})
 }
 
 func TestParseTTL(t *testing.T) {
-	store := NewMemCacheStateStore(logger.NewLogger("test"))
+	store := NewMemCacheStateStore(logger.NewLogger("test")).(*Memcached)
 	t.Run("TTL Not an integer", func(t *testing.T) {
 		ttlInSeconds := "not an integer"
 		ttl, err := store.parseTTL(&state.SetRequest{
@@ -94,6 +95,16 @@ func TestParseTTL(t *testing.T) {
 
 		assert.NotNil(t, err, "tll is not an integer")
 		assert.Nil(t, ttl)
+	})
+	t.Run("TTL is a negative integer ends up translated to 0", func(t *testing.T) {
+		ttlInSeconds := -1
+		ttl, err := store.parseTTL(&state.SetRequest{
+			Metadata: map[string]string{
+				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
+			},
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, int(*ttl), 0)
 	})
 	t.Run("TTL specified with wrong key", func(t *testing.T) {
 		ttlInSeconds := 12345

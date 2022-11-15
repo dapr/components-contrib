@@ -18,11 +18,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 
 	"cloud.google.com/go/datastore"
 	jsoniter "github.com/json-iterator/go"
 	"google.golang.org/api/option"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -39,24 +41,24 @@ type Firestore struct {
 }
 
 type firestoreMetadata struct {
-	Type                string `json:"type"`
-	ProjectID           string `json:"project_id"`
-	PrivateKeyID        string `json:"private_key_id"`
-	PrivateKey          string `json:"private_key"`
-	ClientEmail         string `json:"client_email"`
-	ClientID            string `json:"client_id"`
-	AuthURI             string `json:"auth_uri"`
-	TokenURI            string `json:"token_uri"`
-	AuthProviderCertURL string `json:"auth_provider_x509_cert_url"`
-	ClientCertURL       string `json:"client_x509_cert_url"`
-	EntityKind          string `json:"entity_kind"`
+	Type                string `json:"type" mapstructure:"type"`
+	ProjectID           string `json:"project_id" mapstructure:"project_id"`
+	PrivateKeyID        string `json:"private_key_id" mapstructure:"private_key_id"`
+	PrivateKey          string `json:"private_key" mapstructure:"private_key"`
+	ClientEmail         string `json:"client_email" mapstructure:"client_email"`
+	ClientID            string `json:"client_id" mapstructure:"client_id"`
+	AuthURI             string `json:"auth_uri" mapstructure:"auth_uri"`
+	TokenURI            string `json:"token_uri" mapstructure:"token_uri"`
+	AuthProviderCertURL string `json:"auth_provider_x509_cert_url" mapstructure:"auth_provider_x509_cert_url"`
+	ClientCertURL       string `json:"client_x509_cert_url" mapstructure:"client_x509_cert_url"`
+	EntityKind          string `json:"entity_kind" mapstructure:"entity_kind"`
 }
 
 type StateEntity struct {
 	Value string
 }
 
-func NewFirestoreStateStore(logger logger.Logger) *Firestore {
+func NewFirestoreStateStore(logger logger.Logger) state.Store {
 	s := &Firestore{logger: logger}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 
@@ -162,35 +164,43 @@ func (f *Firestore) Delete(req *state.DeleteRequest) error {
 	return state.DeleteWithOptions(f.deleteValue, req)
 }
 
-func getFirestoreMetadata(metadata state.Metadata) (*firestoreMetadata, error) {
-	meta := firestoreMetadata{
+func getFirestoreMetadata(meta state.Metadata) (*firestoreMetadata, error) {
+	m := firestoreMetadata{
 		EntityKind: defaultEntityKind,
 	}
+
+	err := metadata.DecodeMetadata(meta.Properties, &m)
+	if err != nil {
+		return nil, err
+	}
+
 	requiredMetaProperties := []string{
 		"type", "project_id", "private_key_id", "private_key", "client_email", "client_id",
 		"auth_uri", "token_uri", "auth_provider_x509_cert_url", "client_x509_cert_url",
 	}
 
+	metadataMap := map[string]string{}
+	bytes, err := json.Marshal(m)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(bytes, &metadataMap)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, k := range requiredMetaProperties {
-		if val, ok := metadata.Properties[k]; !ok || len(val) < 1 {
+		if val, ok := metadataMap[k]; !ok || len(val) < 1 {
 			return nil, fmt.Errorf("error parsing required field: %s", k)
 		}
 	}
 
-	meta.Type = metadata.Properties["type"]
-	meta.ProjectID = metadata.Properties["project_id"]
-	meta.PrivateKeyID = metadata.Properties["private_key_id"]
-	meta.PrivateKey = metadata.Properties["private_key"]
-	meta.ClientEmail = metadata.Properties["client_email"]
-	meta.ClientID = metadata.Properties["client_id"]
-	meta.AuthURI = metadata.Properties["auth_uri"]
-	meta.TokenURI = metadata.Properties["token_uri"]
-	meta.AuthProviderCertURL = metadata.Properties["auth_provider_x509_cert_url"]
-	meta.ClientCertURL = metadata.Properties["client_x509_cert_url"]
+	return &m, nil
+}
 
-	if val, ok := metadata.Properties["entity_kind"]; ok && val != "" {
-		meta.EntityKind = val
-	}
-
-	return &meta, nil
+func (f *Firestore) GetComponentMetadata() map[string]string {
+	metadataStruct := firestoreMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

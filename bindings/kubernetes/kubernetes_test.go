@@ -34,7 +34,7 @@ func TestParseMetadata(t *testing.T) {
 		i.parseMetadata(m)
 
 		assert.Equal(t, nsName, i.namespace, "The namespaces should be the same.")
-		assert.Equal(t, resyncPeriod, i.resyncPeriodInSec, "The resyncPeriod should be the same.")
+		assert.Equal(t, resyncPeriod, i.resyncPeriod, "The resyncPeriod should be the same.")
 	})
 	t.Run("parse metadata no namespace", func(t *testing.T) {
 		m := bindings.Metadata{}
@@ -55,6 +55,6 @@ func TestParseMetadata(t *testing.T) {
 
 		assert.Nil(t, err, "Expected err to be nil.")
 		assert.Equal(t, nsName, i.namespace, "The namespaces should be the same.")
-		assert.Equal(t, time.Second*10, i.resyncPeriodInSec, "The resyncPeriod should be the same.")
+		assert.Equal(t, time.Second*10, i.resyncPeriod, "The resyncPeriod should be the same.")
 	})
 }

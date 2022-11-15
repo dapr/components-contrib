@@ -40,6 +40,7 @@ package tablestorage
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -49,7 +50,6 @@ import (
 	"github.com/pkg/errors"
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
-	"github.com/dapr/components-contrib/internal/utils"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
@@ -59,29 +59,27 @@ const (
 	keyDelimiter        = "||"
 	valueEntityProperty = "Value"
 
-	cosmosDbModeKey    = "cosmosDbMode"
-	serviceURLKey      = "serviceURL"
-	skipCreateTableKey = "skipCreateTable"
-	timeout            = 15 * time.Second
+	cosmosDBModeKey = "cosmosDbMode"
+	timeout         = 15 * time.Second
 )
 
 type StateStore struct {
 	state.DefaultBulkStore
 	client       *aztables.Client
 	json         jsoniter.API
-	cosmosDbMode bool
+	cosmosDBMode bool
 
 	features []state.Feature
 	logger   logger.Logger
 }
 
 type tablesMetadata struct {
-	accountName     string
-	accountKey      string // optional, if not provided, will use Azure AD authentication
-	tableName       string
-	cosmosDbMode    bool   // if true, use CosmosDB Table API, otherwise use Azure Table Storage
-	serviceURL      string // optional, if not provided, will use default Azure service URL
-	skipCreateTable bool   // skip attempt to create table - useful for fine grained AAD roles
+	AccountName     string
+	AccountKey      string // optional, if not provided, will use Azure AD authentication
+	TableName       string
+	CosmosDBMode    bool   // if true, use CosmosDB Table API, otherwise use Azure Table Storage
+	ServiceURL      string // optional, if not provided, will use default Azure service URL
+	SkipCreateTable bool   // skip attempt to create table - useful for fine grained AAD roles
 }
 
 // Init Initialises connection to table storage, optionally creates a table if it doesn't exist.
@@ -93,20 +91,20 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 
 	var client *aztables.ServiceClient
 
-	r.cosmosDbMode = meta.cosmosDbMode
-	serviceURL := meta.serviceURL
+	r.cosmosDBMode = meta.CosmosDBMode
+	serviceURL := meta.ServiceURL
 
 	if serviceURL == "" {
-		if r.cosmosDbMode {
-			serviceURL = fmt.Sprintf("https://%s.table.cosmos.azure.com", meta.accountName)
+		if r.cosmosDBMode {
+			serviceURL = fmt.Sprintf("https://%s.table.cosmos.azure.com", meta.AccountName)
 		} else {
-			serviceURL = fmt.Sprintf("https://%s.table.core.windows.net", meta.accountName)
+			serviceURL = fmt.Sprintf("https://%s.table.core.windows.net", meta.AccountName)
 		}
 	}
 
-	if meta.accountKey != "" {
+	if meta.AccountKey != "" {
 		// use shared key authentication
-		cred, innerErr := aztables.NewSharedKeyCredential(meta.accountName, meta.accountKey)
+		cred, innerErr := aztables.NewSharedKeyCredential(meta.AccountName, meta.AccountKey)
 		if innerErr != nil {
 			return innerErr
 		}
@@ -119,7 +117,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		// fallback to azure AD authentication
 		var settings azauth.EnvironmentSettings
 		var innerErr error
-		if r.cosmosDbMode {
+		if r.cosmosDBMode {
 			settings, innerErr = azauth.NewEnvironmentSettings("cosmosdb", metadata.Properties)
 		} else {
 			settings, innerErr = azauth.NewEnvironmentSettings("storage", metadata.Properties)
@@ -138,10 +136,10 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		}
 	}
 
-	if !meta.skipCreateTable {
+	if !meta.SkipCreateTable {
 		createContext, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
-		_, innerErr := client.CreateTable(createContext, meta.tableName, nil)
+		_, innerErr := client.CreateTable(createContext, meta.TableName, nil)
 		if innerErr != nil {
 			if isTableAlreadyExistsError(innerErr) {
 				// error creating table, but it already exists so we're fine
@@ -151,9 +149,9 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 			}
 		}
 	}
-	r.client = client.NewClient(meta.tableName)
+	r.client = client.NewClient(meta.TableName)
 
-	r.logger.Debugf("table initialised, account: %s, cosmosDbMode: %s, table: %s", meta.accountName, meta.cosmosDbMode, meta.tableName)
+	r.logger.Debugf("table initialised, account: %s, cosmosDbMode: %s, table: %s", meta.AccountName, meta.CosmosDBMode, meta.TableName)
 
 	return nil
 }
@@ -181,7 +179,7 @@ func (r *StateStore) Delete(req *state.DeleteRequest) error {
 
 func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	r.logger.Debugf("fetching %s", req.Key)
-	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDbMode)
+	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDBMode)
 	getContext, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	resp, err := r.client.GetEntity(getContext, pk, rk, nil)
@@ -208,7 +206,14 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 	return err
 }
 
-func NewAzureTablesStateStore(logger logger.Logger) *StateStore {
+func (r *StateStore) GetComponentMetadata() map[string]string {
+	metadataStruct := tablesMetadata{}
+	metadataInfo := map[string]string{}
+	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
+}
+
+func NewAzureTablesStateStore(logger logger.Logger) state.Store {
 	s := &StateStore{
 		json:     jsoniter.ConfigFastest,
 		features: []state.Feature{state.FeatureETag},
@@ -219,39 +224,26 @@ func NewAzureTablesStateStore(logger logger.Logger) *StateStore {
 	return s
 }
 
-func getTablesMetadata(metadata map[string]string) (*tablesMetadata, error) {
-	meta := tablesMetadata{}
+func getTablesMetadata(meta map[string]string) (*tablesMetadata, error) {
+	m := tablesMetadata{}
+	err := mdutils.DecodeMetadata(meta, &m)
 
-	if val, ok := mdutils.GetMetadataProperty(metadata, azauth.StorageAccountNameKeys...); ok && val != "" {
-		meta.accountName = val
+	if val, ok := mdutils.GetMetadataProperty(meta, azauth.StorageAccountNameKeys...); ok && val != "" {
+		m.AccountName = val
 	} else {
 		return nil, errors.New(fmt.Sprintf("missing or empty %s field from metadata", azauth.StorageAccountNameKeys[0]))
 	}
 
 	// Can be empty (such as when using Azure AD for auth)
-	meta.accountKey, _ = mdutils.GetMetadataProperty(metadata, azauth.StorageAccountKeyKeys...)
+	m.AccountKey, _ = mdutils.GetMetadataProperty(meta, azauth.StorageAccountKeyKeys...)
 
-	if val, ok := mdutils.GetMetadataProperty(metadata, azauth.StorageTableNameKeys...); ok && val != "" {
-		meta.tableName = val
+	if val, ok := mdutils.GetMetadataProperty(meta, azauth.StorageTableNameKeys...); ok && val != "" {
+		m.TableName = val
 	} else {
 		return nil, errors.New(fmt.Sprintf("missing or empty %s field from metadata", azauth.StorageTableNameKeys[0]))
 	}
 
-	if val, ok := metadata[cosmosDbModeKey]; ok && val != "" {
-		meta.cosmosDbMode = utils.IsTruthy(val)
-	}
-
-	if val, ok := metadata[serviceURLKey]; ok && val != "" {
-		meta.serviceURL = val
-	} else {
-		meta.serviceURL = ""
-	}
-
-	if val, ok := metadata[skipCreateTableKey]; ok && val != "" {
-		meta.skipCreateTable = utils.IsTruthy(val)
-	}
-
-	return &meta, nil
+	return &m, err
 }
 
 func (r *StateStore) writeRow(req *state.SetRequest) error {
@@ -337,7 +329,7 @@ func isTableAlreadyExistsError(err error) bool {
 }
 
 func (r *StateStore) deleteRow(req *state.DeleteRequest) error {
-	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDbMode)
+	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDBMode)
 
 	deleteContext, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -374,7 +366,7 @@ func (r *StateStore) marshal(req *state.SetRequest) ([]byte, error) {
 		value, _ = jsoniter.MarshalToString(req.Value)
 	}
 
-	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDbMode)
+	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDBMode)
 
 	entity := aztables.EDMEntity{
 		Entity: aztables.Entity{

@@ -26,9 +26,9 @@ git clone https://github.com/dapr/components-contrib.git dapr/components-contrib
 
 ### Write new component
 
-1. Create your component directory in the right component directory
-2. Copy component files from the reference component to your component directory
-3. Add go unit-test for your component
+1. Create your component directory in the right component directory.
+2. Copy component files from the reference component to your component directory.
+3. Add Go unit test files for your component.
 4. Add [conformance tests](/tests/conformance/README.md) for your component.
 
 | Type | Directory | Reference | Docs |
@@ -54,19 +54,19 @@ make lint
 
 ## Validating with Dapr core
 
-1. Make sure you clone the `dapr/dapr` and `dapr/component-contrib` repositories side-by-side
-2. Replace github.com/dapr/components-contrib reference to the locally-cloned component-contrib
+1. Make sure you clone the `dapr/dapr` and `dapr/components-contrib` repositories side-by-side, within the same folder.
+1. In case of compatibility issues between `dapr/dapr` and `dapr/compoments-contrib` `go.mod` files during build, checkout the latest released version of `dapr/dapr`.
+1. Replace `github.com/dapr/components-contrib` with a reference to the locally-cloned `components-contrib`:
    ```bash
    go mod edit -replace github.com/dapr/components-contrib=../components-contrib
    ```
-3. Import your component to dapr [cmd/daprd/main.go](https://github.com/dapr/dapr/blob/9b07bc23e7321b609b44fe31c554d25a2a4cdcd0/cmd/daprd/main.go#L33)
-4. Register your component in dapr [cmd/daprd/main.go](https://github.com/dapr/dapr/blob/9b07bc23e7321b609b44fe31c554d25a2a4cdcd0/cmd/daprd/main.go#L357-L406)(e.g. binding)
-5. Build debuggable dapr binary
+1. Register your components by creating a file (in the `dapr/dapr` repo) in [`cmd/daprd/components`](https://github.com/dapr/dapr/tree/master/cmd/daprd/components), similar to the ones in the folder (one file per component).
+1. Build debuggable dapr binary
    ```bash
    make modtidy-all
    make DEBUG=1 build
    ```
-6. Replace the installed daprd with the test binary (then dapr cli will use the test binary)
+1. Replace the installed `daprd` with the test binary (the Dapr CLI will then use the test binary):
    ```bash
    # Back up the current daprd
    cp ~/.dapr/bin/daprd ~/.dapr/bin/daprd.bak
@@ -76,24 +76,24 @@ make lint
    > Windows debuggable binary: `.\dist\windows_amd64\debug\daprd`
    > macOS (Intel) debuggable binary: `./dist/darwin_amd64/debug/daprd`
    > macOS (Apple Silicon) debuggable binary: `./dist/darwin_arm64/debug/daprd`
-7. Prepare your test app (e.g. kafka sample app: https://github.com/dapr/quickstarts/tree/master/bindings/nodeapp/)
-8. Create YAML for bindings in './components' under app's directory (e.g. kafka example: https://github.com/dapr/quickstarts/blob/master/bindings/components/kafka_bindings.yaml)
-9. Run your test app using Dapr cli
-10. Make sure your component is loaded successfully in daprd log
+1. Prepare your test app (e.g. kafka sample app: https://github.com/dapr/quickstarts/tree/master/bindings/nodeapp/)
+1. Create a YAML for the component in './components' under app's directory (e.g. kafka example: https://github.com/dapr/quickstarts/blob/master/bindings/components/kafka_bindings.yaml)
+1. Run your test app using Dapr CLI.
+1. Make sure your component is loaded successfully in the daprd log.
 
 ## Submit your component
 
 1. Create a Pull Request to add your component in [component-contrib](https://github.com/dapr/components-contrib/pulls) repo
-2. Get the approval from maintainers
-3. Fetch the latest dapr/dapr repo
-4. Update component-contrib in dapr/dapr's `go.mod` and ensure that component-contrib is updated to the latest version
+1. Get the approval from maintainers
+1. Fetch the latest `dapr/dapr` repo
+1. Update components-contrib in `dapr/dapr`'s `go.mod` and ensure that `components-contrib` is updated to the latest version
    ```bash
+   # In the folder where the dapr/dapr repo was cloned
    go get -u github.com/dapr/components-contrib@master
    make modtidy-all
    ```
-5. Import your component to dapr [cmd/daprd/main.go](https://github.com/dapr/dapr/blob/9b07bc23e7321b609b44fe31c554d25a2a4cdcd0/cmd/daprd/main.go#L33)
-6. Register your component in dapr [cmd/daprd/main.go](https://github.com/dapr/dapr/blob/9b07bc23e7321b609b44fe31c554d25a2a4cdcd0/cmd/daprd/main.go#L357-L406)(e.g. binding)
-7. Create a pullrequest in [dapr/dapr](https://github.com/dapr/dapr/pulls)
+1. Register your components by creating a file (in the `dapr/dapr` repo) in [`cmd/daprd/components`](https://github.com/dapr/dapr/tree/master/cmd/daprd/components), similar to the ones in the folder (one file per component).
+1. Create a pull request in [dapr/dapr](https://github.com/dapr/dapr/pulls).
 
 ## Version 2 and beyond of a component
 
@@ -107,8 +107,7 @@ API versioning of Dapr components follows the same approach as [Go modules](http
 In most cases, breaking changes can be avoided by using backward compatible `metadata` fields. When breaking changes cannot be avoided, here are the steps for creating the next major version of a component:
 
 1. Create a version subdirectory for the next major version (e.g. `bindings/redis/v2`, `bindings/redis/v3`, etc.)
-2. Copy any code into the new subdirectory that should be preserved from the previous version
-3. Submit your component as described in the previous section
-4. Import your component to Dapr [cmd/daprd/main.go](https://github.com/dapr/dapr/blob/9b07bc23e7321b609b44fe31c554d25a2a4cdcd0/cmd/daprd/main.go#L33) *without removing the package for the previous version*
-5. Register your component in Dapr [cmd/daprd/main.go](https://github.com/dapr/dapr/blob/9b07bc23e7321b609b44fe31c554d25a2a4cdcd0/cmd/daprd/main.go#L357-L406) like before, but append its new major version to the name (e.g. `redis/v2`)
-6. Validate your component as described previously
+1. Copy any code into the new subdirectory that should be preserved from the previous version
+1. Submit your component as described in the previous section
+1. Register your components by creating a **new** file (in the `dapr/dapr` repo) in [`cmd/daprd/components`](https://github.com/dapr/dapr/tree/master/cmd/daprd/components), *without removing the file for the previous version*. This time, append the new major version to the name, e.g. `redis/v2`.
+1. Validate your component as described previously

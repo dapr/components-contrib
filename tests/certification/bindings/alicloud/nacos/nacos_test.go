@@ -15,18 +15,19 @@ package nacosbinding_test
 
 import (
 	"fmt"
-	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
-	"github.com/nacos-group/nacos-sdk-go/v2/common/constant"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
+	"github.com/dapr/kit/logger"
+	"github.com/nacos-group/nacos-sdk-go/v2/common/constant"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
 	nacosbinding "github.com/dapr/components-contrib/bindings/alicloud/nacos"
 	bindings_loader "github.com/dapr/dapr/pkg/components/bindings"
 	"github.com/dapr/dapr/pkg/runtime"
 	daprsdk "github.com/dapr/go-sdk/client"
-	"github.com/dapr/kit/logger"
 
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
@@ -66,8 +67,6 @@ func createConfigAndData() (map[string]interface{}, map[string]string) {
 }
 
 func TestNacosBinding(t *testing.T) {
-	log := logger.NewLogger("dapr.components")
-
 	invokeCreateWithConfig := func(ctx flow.Context, config map[string]string) error {
 		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(runtime.DefaultDaprAPIGRPCPort))
 		if clientErr != nil {
@@ -183,13 +182,18 @@ func TestNacosBinding(t *testing.T) {
 			embedded.WithComponentsPath("./components"),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			runtime.WithOutputBindings(
-				bindings_loader.NewOutput("alicloud.nacos", func() bindings.OutputBinding {
-					return nacosbinding.NewNacos(log)
-				}),
-			))).
+			runtime.WithBindings(newBindingsRegistry()))).
 		Step("verify data sent to output binding is written to nacos", testInvokeCreateAndVerify).
 		Step("verify data sent in nacos can be got correctly", testInvokeGetAndVerify).
 		Step("verify get config with error", testInvokeGetWithErrorAndVerify).
 		Run()
+}
+
+func newBindingsRegistry() *bindings_loader.Registry {
+	log := logger.NewLogger("dapr.components")
+
+	r := bindings_loader.NewRegistry()
+	r.Logger = log
+	r.RegisterOutputBinding(nacosbinding.NewNacos, "alicloud.nacos")
+	return r
 }

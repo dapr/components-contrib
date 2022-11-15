@@ -18,6 +18,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -116,7 +117,7 @@ func createCockroachDB(t *testing.T) *CockroachDB {
 	assert.NotNil(t, pgs)
 
 	metadata := &state.Metadata{
-		Properties: map[string]string{connectionStringKey: fakeConnectionString},
+		Base: metadata.Base{Properties: map[string]string{connectionStringKey: fakeConnectionString}},
 	}
 
 	err := pgs.Init(*metadata)

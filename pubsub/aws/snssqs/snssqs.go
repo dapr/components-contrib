@@ -32,7 +32,7 @@ import (
 
 	gonanoid "github.com/matoous/go-nanoid/v2"
 
-	aws_auth "github.com/dapr/components-contrib/internal/authentication/aws"
+	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -162,7 +162,7 @@ func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 	s.queues = sync.Map{}
 	s.subscriptions = sync.Map{}
 
-	sess, err := aws_auth.GetClient(md.AccessKey, md.SecretKey, md.SessionToken, md.Region, md.Endpoint)
+	sess, err := awsAuth.GetClient(md.AccessKey, md.SecretKey, md.SessionToken, md.Region, md.Endpoint)
 	if err != nil {
 		return fmt.Errorf("error creating an AWS client: %w", err)
 	}
@@ -404,22 +404,6 @@ func (s *snsSqs) createSnsSqsSubscription(parentCtx context.Context, queueArn, t
 	}
 
 	return *subscribeOutput.SubscriptionArn, nil
-}
-
-func (s *snsSqs) removeSnsSqsSubscription(parentCtx context.Context, subscriptionArn string) error {
-	ctx, cancel := context.WithTimeout(parentCtx, s.opsTimeout)
-	_, err := s.snsClient.UnsubscribeWithContext(ctx, &sns.UnsubscribeInput{
-		SubscriptionArn: aws.String(subscriptionArn),
-	})
-	cancel()
-	if err != nil {
-		wrappedErr := fmt.Errorf("error unsubscribing to arn: %s %w", subscriptionArn, err)
-		s.logger.Error(wrappedErr)
-
-		return wrappedErr
-	}
-
-	return nil
 }
 
 func (s *snsSqs) getSnsSqsSubscriptionArn(parentCtx context.Context, topicArn string) (string, error) {
@@ -731,31 +715,18 @@ func (s *snsSqs) restrictQueuePublishPolicyToOnlySNS(parentCtx context.Context, 
 		return fmt.Errorf("error getting queue attributes: %w", err)
 	}
 
-	newStatement := &statement{
-		Effect:    "Allow",
-		Principal: principal{Service: "sns.amazonaws.com"},
-		Action:    "sqs:SendMessage",
-		Resource:  sqsQueueInfo.arn,
-		Condition: condition{
-			ArnEquals: arnEquals{
-				AwsSourceArn: snsARN,
-			},
-		},
-	}
-
 	policy := &policy{Version: "2012-10-17"}
 	if policyStr, ok := getQueueAttributesOutput.Attributes[sqs.QueueAttributeNamePolicy]; ok {
 		// look for the current statement if exists, else add it and store.
 		if err = json.Unmarshal([]byte(*policyStr), policy); err != nil {
 			return fmt.Errorf("error unmarshalling sqs policy: %w", err)
 		}
-		if policy.statementExists(newStatement) {
-			// nothing to do.
-			return nil
-		}
+	}
+	conditionExists := policy.tryInsertCondition(sqsQueueInfo.arn, snsARN)
+	if conditionExists {
+		return nil
 	}
 
-	policy.addStatement(newStatement)
 	b, uerr := json.Marshal(policy)
 	if uerr != nil {
 		return fmt.Errorf("failed serializing new sqs policy: %w", uerr)
@@ -830,7 +801,7 @@ func (s *snsSqs) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeReq
 	}
 
 	// subscription creation is idempotent. Subscriptions are unique by topic/queue.
-	subscriptionArn, err := s.getOrCreateSnsSqsSubscription(subscribeCtx, queueInfo.arn, topicArn)
+	_, err = s.getOrCreateSnsSqsSubscription(subscribeCtx, queueInfo.arn, topicArn)
 	if err != nil {
 		wrappedErr := fmt.Errorf("error subscribing topic: %s, to queue: %s, with error: %w", topicArn, queueInfo.arn, err)
 		s.logger.Error(wrappedErr)
@@ -867,13 +838,6 @@ func (s *snsSqs) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeReq
 
 		// Remove the handler
 		delete(s.topicHandlers, sanitizedName)
-
-		// If we can perform management operations, remove the subscription entirely
-		if !s.metadata.disableEntityManagement {
-			// Use a background context because subscribeCtx is canceled already
-			// Error is logged already
-			_ = s.removeSnsSqsSubscription(s.ctx, subscriptionArn)
-		}
 
 		// If we don't have any topic left, close the poller
 		if len(s.topicHandlers) == 0 {

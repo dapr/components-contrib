@@ -61,7 +61,7 @@ func (m *MockHuaweiOBSService) ListObjects(ctx context.Context, input *obs.ListO
 }
 
 func TestParseMetadata(t *testing.T) {
-	obs := NewHuaweiOBS(logger.NewLogger("test"))
+	obs := NewHuaweiOBS(logger.NewLogger("test")).(*HuaweiOBS)
 
 	t.Run("Has correct metadata", func(t *testing.T) {
 		m := bindings.Metadata{}

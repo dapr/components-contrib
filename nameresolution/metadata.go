@@ -13,6 +13,8 @@ limitations under the License.
 
 package nameresolution
 
+import "github.com/dapr/components-contrib/metadata"
+
 const (
 	// MDNSInstanceName is the instance name which is broadcasted.
 	MDNSInstanceName string = "name"
@@ -37,6 +39,6 @@ const (
 
 // Metadata contains a name resolution specific set of metadata properties.
 type Metadata struct {
-	Properties    map[string]string `json:"properties"`
+	metadata.Base `json:",inline"`
 	Configuration interface{}
 }

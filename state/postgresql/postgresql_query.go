@@ -3,7 +3,9 @@ Copyright 2022 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,11 +20,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/agrea/ptr"
-
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 type Query struct {
@@ -100,7 +101,7 @@ func (q *Query) VisitOR(f *query.OR) (string, error) {
 }
 
 func (q *Query) Finalize(filters string, qq *query.Query) error {
-	q.query = fmt.Sprintf("SELECT key, value, xmin as etag FROM %s", tableName)
+	q.query = fmt.Sprintf("SELECT key, value, xmin as etag FROM %s", defaultTableName)
 
 	if filters != "" {
 		q.query += fmt.Sprintf(" WHERE %s", filters)
@@ -157,7 +158,7 @@ func (q *Query) execute(logger logger.Logger, db *sql.DB) ([]state.QueryItem, st
 		result := state.QueryItem{
 			Key:  key,
 			Data: data,
-			ETag: ptr.String(strconv.Itoa(etag)),
+			ETag: ptr.Of(strconv.Itoa(etag)),
 		}
 		ret = append(ret, result)
 	}

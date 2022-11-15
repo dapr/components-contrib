@@ -15,28 +15,29 @@ package opa
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	fh "github.com/valyala/fasthttp"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 )
 
 // mockedRequestHandler acts like an upstream service returns success status code 200 and a fixed response body.
-func mockedRequestHandler(ctx *fh.RequestCtx) {
-	ctx.Response.SetStatusCode(200)
-	ctx.Response.SetBody([]byte("from mock"))
+func mockedRequestHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("from mock"))
 }
-
-type RequestConfiguator func(*fh.RequestCtx)
 
 func TestOpaPolicy(t *testing.T) {
 	tests := map[string]struct {
 		meta               middleware.Metadata
-		req                RequestConfiguator
+		req                func() *http.Request
 		status             int
 		headers            *[][]string
 		body               []string
@@ -44,27 +45,27 @@ func TestOpaPolicy(t *testing.T) {
 		shouldRegoError    bool
 	}{
 		"allow": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
 						allow = true`,
 				},
-			},
+			}},
 			status: 200,
 		},
 		"deny": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
 						allow = false`,
 				},
-			},
+			}},
 			status: 403,
 		},
 		"status": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
@@ -73,11 +74,11 @@ func TestOpaPolicy(t *testing.T) {
 							"status_code": 301
 						}`,
 				},
-			},
+			}},
 			status: 301,
 		},
 		"add redirect": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
@@ -87,14 +88,14 @@ func TestOpaPolicy(t *testing.T) {
 							"additional_headers": { "location": "https://my.site/login" }
 						}`,
 				},
-			},
+			}},
 			status: 301,
 			headers: &[][]string{
 				{"location", "https://my.site/login"},
 			},
 		},
 		"add headers": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
@@ -104,14 +105,14 @@ func TestOpaPolicy(t *testing.T) {
 							"additional_headers": { "x-key": "abc" }
 						}`,
 				},
-			},
+			}},
 			status: 301,
 			headers: &[][]string{
 				{"x-key", "abc"},
 			},
 		},
 		"allow with path": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
@@ -122,15 +123,14 @@ func TestOpaPolicy(t *testing.T) {
 						}
 						`,
 				},
-			},
-			req: func(ctx *fh.RequestCtx) {
-				ctx.Request.SetHost("https://my.site")
-				ctx.Request.URI().SetPath("/allowed")
+			}},
+			req: func() *http.Request {
+				return httptest.NewRequest(http.MethodGet, "https://my.site/allowed", nil)
 			},
 			status: 200,
 		},
 		"deny with path": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
@@ -141,15 +141,14 @@ func TestOpaPolicy(t *testing.T) {
 						}
 						`,
 				},
-			},
-			req: func(ctx *fh.RequestCtx) {
-				ctx.Request.SetHost("https://my.site")
-				ctx.Request.URI().SetPath("/forbidden")
+			}},
+			req: func() *http.Request {
+				return httptest.NewRequest(http.MethodGet, "https://my.site/forbidden", nil)
 			},
 			status: 403,
 		},
 		"allow when header not included": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
@@ -160,15 +159,16 @@ func TestOpaPolicy(t *testing.T) {
 						}
 						`,
 				},
-			},
-			req: func(ctx *fh.RequestCtx) {
-				ctx.Request.SetHost("https://my.site")
-				ctx.Request.Header.Add("x-bad-header", "1")
+			}},
+			req: func() *http.Request {
+				r := httptest.NewRequest(http.MethodGet, "https://my.site", nil)
+				r.Header.Add("x-bad-header", "1")
+				return r
 			},
 			status: 200,
 		},
 		"deny when header included": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
@@ -180,52 +180,53 @@ func TestOpaPolicy(t *testing.T) {
 						`,
 					"includedHeaders": "x-bad-header",
 				},
-			},
-			req: func(ctx *fh.RequestCtx) {
-				ctx.Request.SetHost("https://my.site")
-				ctx.Request.Header.Add("x-bad-header", "1")
+			}},
+			req: func() *http.Request {
+				r := httptest.NewRequest(http.MethodGet, "https://my.site", nil)
+				r.Header.Add("X-BAD-HEADER", "1")
+				return r
 			},
 			status: 403,
 		},
 		"err on no rego": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{},
-			},
+			}},
 			shouldHandlerError: true,
 		},
 		"err on bad allow": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
 						allow = 1`,
 				},
-			},
+			}},
 			shouldRegoError: true,
 		},
 		"err on bad package": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http.authz
 						allow = true`,
 				},
-			},
+			}},
 			shouldRegoError: true,
 		},
 		"status config": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
 						allow = false`,
 					"defaultStatus": "500",
 				},
-			},
+			}},
 			status: 500,
 		},
 		"rego priority over defaultStatus metadata": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
@@ -235,84 +236,133 @@ func TestOpaPolicy(t *testing.T) {
 						}`,
 					"defaultStatus": "500",
 				},
-			},
+			}},
 			status: 301,
 		},
 		"allow on body contains allow": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
+					"readBody": "true",
 					"rego": `
 						package http
 						default allow = false
-						
-						allow = { "status_code": 200 } {
+						allow = { "allow": true } {
 							input.request.body == "allow"
 						}
 						`,
 				},
-			},
-			req: func(ctx *fh.RequestCtx) {
-				ctx.SetContentType("text/plain; charset=utf8")
-				ctx.Request.SetHost("https://my.site")
-				ctx.Request.SetBodyString("allow")
+			}},
+			req: func() *http.Request {
+				r := httptest.NewRequest(http.MethodGet, "https://my.site", strings.NewReader("allow"))
+				r.Header.Add("content-type", "text/plain; charset=utf8")
+				return r
 			},
 			status: 200,
 		},
+		"body is not read by default": {
+			meta: middleware.Metadata{Base: metadata.Base{
+				Properties: map[string]string{
+					// `"readBody": "false"` is the default value
+					"rego": `
+						package http
+						default allow = false
+						allow = { "allow": true } {
+							input.request.body == "allow"
+						}
+						`,
+				},
+			}},
+			req: func() *http.Request {
+				r := httptest.NewRequest(http.MethodGet, "https://my.site", strings.NewReader("allow"))
+				r.Header.Add("content-type", "text/plain; charset=utf8")
+				return r
+			},
+			status: 403,
+		},
 		"allow when multiple headers included with space": {
-			meta: middleware.Metadata{
+			meta: middleware.Metadata{Base: metadata.Base{
 				Properties: map[string]string{
 					"rego": `
 						package http
 						default allow = false
-						allow = { "status_code": 200 } {
+						allow = { "allow": true } {
 							input.request.headers["X-Jwt-Header"]
 							input.request.headers["X-My-Custom-Header"]
 						}
 						`,
 					"includedHeaders": "x-my-custom-header, x-jwt-header",
 				},
-			},
-			req: func(ctx *fh.RequestCtx) {
-				ctx.Request.SetHost("https://my.site")
-				ctx.Request.Header.Add("x-jwt-header", "1")
-				ctx.Request.Header.Add("x-my-custom-header", "2")
+			}},
+			req: func() *http.Request {
+				r := httptest.NewRequest(http.MethodGet, "https://my.site", nil)
+				r.Header.Add("x-jwt-header", "1")
+				r.Header.Add("x-my-custom-header", "2")
+				return r
 			},
 			status: 200,
 		},
+		"reject when multiple headers included with space": {
+			meta: middleware.Metadata{Base: metadata.Base{
+				Properties: map[string]string{
+					"rego": `
+						package http
+						default allow = false
+						allow = { "allow": true } {
+							input.request.headers["X-Jwt-Header"]
+							input.request.headers["X-My-Custom-Header"]
+						}
+						`,
+					"includedHeaders": "x-my-custom-header, x-jwt-header",
+				},
+			}},
+			req: func() *http.Request {
+				r := httptest.NewRequest(http.MethodGet, "https://my.site", nil)
+				r.Header.Add("x-jwt-header", "1")
+				r.Header.Add("x-bad-header", "2")
+				return r
+			},
+			status: 403,
+		},
 	}
+
+	log := logger.NewLogger("opa.test")
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			log := logger.NewLogger("opa.test")
 			opaMiddleware := NewMiddleware(log)
-			handler, err := opaMiddleware.GetHandler(test.meta)
 
+			handler, err := opaMiddleware.GetHandler(test.meta)
 			if test.shouldHandlerError {
 				require.Error(t, err)
-
 				return
 			}
-
 			require.NoError(t, err)
 
-			var reqCtx fh.RequestCtx
+			var r *http.Request
 			if test.req != nil {
-				test.req(&reqCtx)
+				r = test.req()
+			} else {
+				r = httptest.NewRequest(http.MethodGet, "https://my.site", nil)
 			}
-			handler(mockedRequestHandler)(&reqCtx)
+			w := httptest.NewRecorder()
+
+			handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 
 			if test.shouldRegoError {
-				assert.Equal(t, 403, reqCtx.Response.StatusCode())
-				assert.Equal(t, "true", string(reqCtx.Response.Header.Peek(opaErrorHeaderKey)))
-
+				assert.Equal(t, 403, w.Code)
+				assert.Equal(t, "true", w.Header().Get(opaErrorHeaderKey))
 				return
 			}
 
-			assert.Equal(t, test.status, reqCtx.Response.StatusCode())
+			assert.Equal(t, test.status, w.Code)
+
+			if test.status == 200 {
+				assert.Equal(t, "from mock", w.Body.String())
+			}
 
 			if test.headers != nil {
 				for _, header := range *test.headers {
-					assert.Equal(t, header[1], string(reqCtx.Response.Header.Peek(header[0])))
+					assert.Equal(t, header[1], w.Header().Get(header[0]))
 				}
 			}
 		})

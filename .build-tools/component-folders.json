@@ -1,0 +1,43 @@
+{
+    "componentFolders": [
+        "bindings",
+        "configuration",
+        "lock",
+        "middleware/http",
+        "nameresolution",
+        "pubsub",
+        "secretstores",
+        "state",
+        "workflows"
+    ],
+    "excludeFolders": [
+        "bindings/alicloud",
+        "bindings/aws",
+        "bindings/azure",
+        "bindings/gcp",
+        "bindings/huawei",
+        "bindings/rethinkdb",
+        "bindings/twilio",
+        "bindings/zeebe",
+        "configuration/azure",
+        "configuration/redis/internal",
+        "pubsub/aws",
+        "pubsub/azure",
+        "pubsub/azure/servicebus",
+        "pubsub/gcp",
+        "secretstores/alicloud",
+        "secretstores/aws",
+        "secretstores/azure",
+        "secretstores/gcp",
+        "secretstores/hashicorp",
+        "secretstores/huaweicloud",
+        "secretstores/local",
+        "state/alicloud",
+        "state/aws",
+        "state/azure",
+        "state/gcp",
+        "state/hashicorp",
+        "state/oci",
+        "state/utils"
+    ]
+}

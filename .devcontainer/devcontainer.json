@@ -1,6 +1,6 @@
 {
 	"name": "Dapr Components Contributor Environment",
-	"image": "ghcr.io/dapr/dapr-dev:0.1.8",
+	"image": "ghcr.io/dapr/dapr-dev:0.1.9",
 	"containerEnv": {
 		// Uncomment to overwrite devcontainer .kube/config and .minikube certs with the localhost versions
 		// each time the devcontainer starts, if the respective .kube-localhost/config and .minikube-localhost
@@ -9,7 +9,9 @@
 
 		// Uncomment to disable docker-in-docker and automatically proxy default /var/run/docker.sock to
 		// the localhost bind-mount /var/run/docker-host.sock.
-		// "BIND_LOCALHOST_DOCKER": "true"
+		// "BIND_LOCALHOST_DOCKER": "true",
+
+		"GOLANG_PROTOBUF_REGISTRATION_CONFLICT": "true"
 	},
 	"extensions": [
 		"golang.go",

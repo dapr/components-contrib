@@ -11,3 +11,6 @@ components:
     allOperations: true
   - component: kubernetes
     allOperations: true
+  - component: hashicorp.vault
+    allOperations: true
+

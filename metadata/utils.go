@@ -16,10 +16,16 @@ package metadata
 import (
 	"fmt"
 	"math"
+	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
+
+	"github.com/dapr/components-contrib/internal/utils"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -37,6 +43,15 @@ const (
 
 	// QueryIndexName defines the metadata key for the name of query indexing schema (for redis).
 	QueryIndexName = "queryIndexName"
+
+	// MaxBulkCountSubKey defines the maximum number of messages to be sent in a single bulk subscribe request.
+	MaxBulkSubCountKey string = "maxBulkSubCount"
+
+	// MaxBulkAwaitDurationKey is the key for the max bulk await duration in the metadata.
+	MaxBulkSubAwaitDurationMsKey string = "maxBulkSubAwaitDurationMs"
+
+	// MaxBulkPubBytesKey defines the maximum bytes to publish in a bulk publish request metadata.
+	MaxBulkPubBytesKey string = "maxBulkPubBytes"
 )
 
 // TryGetTTL tries to get the ttl as a time.Duration value for pubsub, binding and any other building block.
@@ -123,4 +138,92 @@ func GetMetadataProperty(props map[string]string, keys ...string) (val string, o
 		}
 	}
 	return "", false
+}
+
+// DecodeMetadata decodes metadata into a struct
+// This is an extension of mitchellh/mapstructure which also supports decoding durations
+func DecodeMetadata(input interface{}, result interface{}) error {
+	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		DecodeHook: mapstructure.ComposeDecodeHookFunc(
+			toTimeDurationHookFunc(),
+			toTruthyBoolHookFunc(),
+			toStringArrayHookFunc(),
+		),
+		Metadata:         nil,
+		Result:           result,
+		WeaklyTypedInput: true,
+	})
+	if err != nil {
+		return err
+	}
+	err = decoder.Decode(input)
+	return err
+}
+
+func toTruthyBoolHookFunc() mapstructure.DecodeHookFunc {
+	return func(
+		f reflect.Type,
+		t reflect.Type,
+		data interface{},
+	) (interface{}, error) {
+		if f == reflect.TypeOf("") && t == reflect.TypeOf(true) {
+			val := data.(string)
+			return utils.IsTruthy(val), nil
+		}
+		if f == reflect.TypeOf("") && t == reflect.TypeOf(reflect.TypeOf(ptr.Of(true))) {
+			val := data.(string)
+			return ptr.Of(utils.IsTruthy(val)), nil
+		}
+		return data, nil
+	}
+}
+
+func toStringArrayHookFunc() mapstructure.DecodeHookFunc {
+	return func(
+		f reflect.Type,
+		t reflect.Type,
+		data interface{},
+	) (interface{}, error) {
+		if f == reflect.TypeOf("") && t == reflect.TypeOf([]string{}) {
+			val := data.(string)
+			return strings.Split(val, ","), nil
+		}
+		if f == reflect.TypeOf("") && t == reflect.TypeOf(ptr.Of([]string{})) {
+			val := data.(string)
+			return ptr.Of(strings.Split(val, ",")), nil
+		}
+		return data, nil
+	}
+}
+
+// GetMetadataInfoFromStructType converts a struct to a map of field name (or struct tag) to field type.
+// This is used to generate metadata documentation for components.
+func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *map[string]string) error {
+	// Return if not struct or pointer to struct.
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	if t.Kind() != reflect.Struct {
+		return fmt.Errorf("not a struct: %s", t.Kind().String())
+	}
+
+	for i := 0; i < t.NumField(); i++ {
+		currentField := t.Field(i)
+		mapStructureTag := currentField.Tag.Get("mapstructure")
+		tags := strings.Split(mapStructureTag, ",")
+		numTags := len(tags)
+		if numTags > 1 && tags[numTags-1] == "squash" && currentField.Anonymous {
+			// traverse embedded struct
+			GetMetadataInfoFromStructType(currentField.Type, metadataMap)
+			continue
+		}
+		var fieldName string
+		if numTags > 0 && tags[0] != "" {
+			fieldName = tags[0]
+		} else {
+			fieldName = currentField.Name
+		}
+		(*metadataMap)[fieldName] = currentField.Type.String()
+	}
+	return nil
 }

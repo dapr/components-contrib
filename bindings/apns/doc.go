@@ -15,7 +15,7 @@ limitations under the License.
 // send push notifications to Apple devices and Mac computers using Apple's
 // Push Notification Service (APNS).
 //
-// Configuring the Binding
+// # Configuring the Binding
 //
 // To use the APNS output binding, you will need to create the binding
 // configuration and add it to your components directory. The binding
@@ -31,37 +31,37 @@ limitations under the License.
 //
 // A sample configuration file for the APNS binding is shown below:
 //
-//     apiVersion: dapr.io/v1alpha1
-//     kind: Component
-//     metadata:
-//       name: apns
-//       namespace: default
-//     spec:
-//       type: bindings.apns
-//       metadata:
-//       - name: development
-//         value: false
-//       - name: key-id
-//         value: PUT-KEY-ID-HERE
-//       - name: team-id
-//         value: PUT-APPLE-TEAM-ID-HERE
-//       - name: private-key
-//         secretKeyRef:
-//           name: apns-secrets
-//           key: private-key
+//	apiVersion: dapr.io/v1alpha1
+//	kind: Component
+//	metadata:
+//	  name: apns
+//	  namespace: default
+//	spec:
+//	  type: bindings.apns
+//	  metadata:
+//	  - name: development
+//	    value: false
+//	  - name: key-id
+//	    value: PUT-KEY-ID-HERE
+//	  - name: team-id
+//	    value: PUT-APPLE-TEAM-ID-HERE
+//	  - name: private-key
+//	    secretKeyRef:
+//	      name: apns-secrets
+//	      key: private-key
 //
 // If using Kubernetes, a sample secret configuration may look like this:
 //
-//     apiVersion: v1
-//     kind: Secret
-//     metadata:
-//         name: apns-secrets
-//         namespace: default
-//     stringData:
-//         private-key: |
-//             -----BEGIN PRIVATE KEY-----
-//             KEY-DATA-GOES-HERE
-//             -----END PRIVATE KEY-----
+//	apiVersion: v1
+//	kind: Secret
+//	metadata:
+//	    name: apns-secrets
+//	    namespace: default
+//	stringData:
+//	    private-key: |
+//	        -----BEGIN PRIVATE KEY-----
+//	        KEY-DATA-GOES-HERE
+//	        -----END PRIVATE KEY-----
 //
 // The development parameter can be either "true" or "false". The development
 // parameter controls which APNS service is used. If development is set to
@@ -70,7 +70,7 @@ limitations under the License.
 // be used to send push notifications. If not specified, the production service
 // will be chosen by default.
 //
-// Push Notification Format
+// # Push Notification Format
 //
 // The APNS binding is a pass-through wrapper over the Apple Push Notification
 // Service. The APNS binding will send the request directly to the APNS service
@@ -81,14 +81,14 @@ limitations under the License.
 // Requests sent to the APNS binding should be a JSON object. A simple push
 // notification appears below:
 //
-//     {
-//         "aps": {
-//             "alert": {
-//                 "title": "New Updates!",
-//                 "body": "New updates are now available for your review."
-//             }
-//         }
-//     }
+//	{
+//	    "aps": {
+//	        "alert": {
+//	            "title": "New Updates!",
+//	            "body": "New updates are now available for your review."
+//	        }
+//	    }
+//	}
 //
 // The aps child object contains the push notification details that are used
 // by the Apple Push Notification Service and target devices to route and show
@@ -124,27 +124,27 @@ limitations under the License.
 // notifications from a chat room may have the same identifier causing them
 // to show up together in the device's notifications list.
 //
-// Sending a Push Notification Using the APNS Binding
+// # Sending a Push Notification Using the APNS Binding
 //
 // A simple request to the APNS binding looks like this:
 //
-//     {
-//         "data": {
-//             "aps": {
-//                 "alert": {
-//                     "title": "New Updates!",
-//                     "body": "New updates are available for your review."
-//                 }
-//             }
-//         },
-//         "metadata": {
-//             "device-token": "PUT-DEVICE-TOKEN-HERE",
-//             "apns-push-type": "alert",
-//             "apns-priority": "10",
-//             "apns-topic": "com.example.helloworld"
-//         },
-//         "operation": "create"
-//     }
+//	{
+//	    "data": {
+//	        "aps": {
+//	            "alert": {
+//	                "title": "New Updates!",
+//	                "body": "New updates are available for your review."
+//	            }
+//	        }
+//	    },
+//	    "metadata": {
+//	        "device-token": "PUT-DEVICE-TOKEN-HERE",
+//	        "apns-push-type": "alert",
+//	        "apns-priority": "10",
+//	        "apns-topic": "com.example.helloworld"
+//	    },
+//	    "operation": "create"
+//	}
 //
 // The device-token metadata field is required and should contain the token
 // for the device that will receive the push notification. Only one device
@@ -158,9 +158,9 @@ limitations under the License.
 // the apns-id metadata value, then the Apple Push Notification Serivce will
 // generate a unique ID and will return it.
 //
-//     {
-//         "messageID": "12345678-1234-1234-1234-1234567890AB"
-//     }
+//	{
+//	    "messageID": "12345678-1234-1234-1234-1234567890AB"
+//	}
 //
 // If the push notification could not be sent due to an authentication error
 // or payload error, the error code returned by Apple will be returned. For

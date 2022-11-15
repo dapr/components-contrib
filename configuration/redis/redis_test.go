@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/configuration"
+	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -68,9 +69,8 @@ func TestConfigurationStore_Get(t *testing.T) {
 				ctx: context.Background(),
 			},
 			want: &configuration.GetResponse{
-				Items: []*configuration.Item{
-					{
-						Key:      "testKey",
+				Items: map[string]*configuration.Item{
+					"testKey": {
 						Value:    "testValue",
 						Metadata: make(map[string]string),
 					},
@@ -89,13 +89,12 @@ func TestConfigurationStore_Get(t *testing.T) {
 				ctx: context.Background(),
 			},
 			want: &configuration.GetResponse{
-				Items: []*configuration.Item{
-					{
-						Key:      "testKey",
+				Items: map[string]*configuration.Item{
+					"testKey": {
 						Value:    "testValue",
 						Metadata: make(map[string]string),
-					}, {
-						Key:      "testKey2",
+					},
+					"testKey2": {
 						Value:    "testValue2",
 						Metadata: make(map[string]string),
 					},
@@ -116,7 +115,7 @@ func TestConfigurationStore_Get(t *testing.T) {
 				ctx: context.Background(),
 			},
 			want: &configuration.GetResponse{
-				Items: []*configuration.Item{},
+				Items: map[string]*configuration.Item{},
 			},
 			wantErr: true,
 		},
@@ -135,13 +134,12 @@ func TestConfigurationStore_Get(t *testing.T) {
 				ctx: context.Background(),
 			},
 			want: &configuration.GetResponse{
-				Items: []*configuration.Item{
-					{
-						Key:      "testKey",
+				Items: map[string]*configuration.Item{
+					"testKey": {
 						Value:    "testValue",
 						Metadata: make(map[string]string),
-					}, {
-						Key:      "testKey2",
+					},
+					"testKey2": {
 						Value:    "testValue2",
 						Metadata: make(map[string]string),
 					},
@@ -261,18 +259,18 @@ func Test_parseRedisMetadata(t *testing.T) {
 	}{
 		{
 			args: args{
-				meta: configuration.Metadata{
+				meta: configuration.Metadata{Base: mdata.Base{
 					Properties: testProperties,
-				},
+				}},
 			},
 			want: metadata{
-				host:               "testHost",
-				password:           "testPassword",
-				enableTLS:          true,
-				maxRetries:         10,
-				maxRetryBackoff:    time.Second,
-				failover:           true,
-				sentinelMasterName: "tesSentinelMasterName",
+				Host:               "testHost",
+				Password:           "testPassword",
+				EnableTLS:          true,
+				MaxRetries:         10,
+				MaxRetryBackoff:    time.Second,
+				Failover:           true,
+				SentinelMasterName: "tesSentinelMasterName",
 			},
 		},
 	}

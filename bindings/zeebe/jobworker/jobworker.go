@@ -28,7 +28,6 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/bindings/zeebe"
 	"github.com/dapr/components-contrib/metadata"
-	"github.com/dapr/kit/config"
 	"github.com/dapr/kit/logger"
 )
 
@@ -64,7 +63,7 @@ type jobHandler struct {
 }
 
 // NewZeebeJobWorker returns a new ZeebeJobWorker instance.
-func NewZeebeJobWorker(logger logger.Logger) *ZeebeJobWorker {
+func NewZeebeJobWorker(logger logger.Logger) bindings.InputBinding {
 	return &ZeebeJobWorker{clientFactory: zeebe.NewClientFactoryImpl(logger), logger: logger}
 }
 
@@ -111,13 +110,12 @@ func (z *ZeebeJobWorker) Read(ctx context.Context, handler bindings.Handler) err
 	return nil
 }
 
-func (z *ZeebeJobWorker) parseMetadata(metadata bindings.Metadata) (*jobWorkerMetadata, error) {
+func (z *ZeebeJobWorker) parseMetadata(meta bindings.Metadata) (*jobWorkerMetadata, error) {
 	var m jobWorkerMetadata
-	err := config.Decode(metadata.Properties, &m)
+	err := metadata.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}
-
 	return &m, nil
 }
 

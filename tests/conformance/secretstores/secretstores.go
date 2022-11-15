@@ -14,11 +14,13 @@ limitations under the License.
 package secretstores
 
 import (
+	"context"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 )
@@ -50,7 +52,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 	// Init
 	t.Run("init", func(t *testing.T) {
 		err := store.Init(secretstores.Metadata{
-			Properties: props,
+			Base: metadata.Base{Properties: props},
 		})
 		assert.NoError(t, err, "expected no error on initializing store")
 	})
@@ -61,7 +63,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
 		if err != nil {
-			assert.EqualError(t, err, "Ping is not implemented by this secret store")
+			assert.EqualError(t, err, "ping is not implemented by this secret store")
 		} else {
 			assert.Nil(t, err)
 		}
@@ -79,7 +81,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 		}
 
 		t.Run("get", func(t *testing.T) {
-			resp, err := store.GetSecret(getSecretRequest)
+			resp, err := store.GetSecret(context.Background(), getSecretRequest)
 			assert.NoError(t, err, "expected no error on getting secret %v", getSecretRequest)
 			assert.NotNil(t, resp, "expected value to be returned")
 			assert.NotNil(t, resp.Data, "expected value to be returned")
@@ -100,7 +102,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 		}
 
 		t.Run("bulkget", func(t *testing.T) {
-			resp, err := store.BulkGetSecret(bulkReq)
+			resp, err := store.BulkGetSecret(context.Background(), bulkReq)
 			assert.NoError(t, err, "expected no error on getting secret %v", bulkReq)
 			assert.NotNil(t, resp, "expected value to be returned")
 			assert.NotNil(t, resp.Data, "expected value to be returned")

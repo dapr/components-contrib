@@ -20,16 +20,17 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
 func TestParseMetadata(t *testing.T) {
-	m := bindings.Metadata{Properties: map[string]string{
+	m := bindings.Metadata{Base: metadata.Base{Properties: map[string]string{
 		"gatewayAddr":            "172.0.0.1:1234",
 		"gatewayKeepAlive":       "5s",
 		"caCertificatePath":      "/cert/path",
 		"usePlaintextConnection": "true",
-	}}
+	}}}
 	client := ClientFactoryImpl{logger: logger.NewLogger("test")}
 	meta, err := client.parseMetadata(m)
 	assert.NoError(t, err)
@@ -49,7 +50,7 @@ func TestGatewayAddrMetadataIsMandatory(t *testing.T) {
 }
 
 func TestParseMetadataDefaultValues(t *testing.T) {
-	m := bindings.Metadata{Properties: map[string]string{"gatewayAddr": "172.0.0.1:1234"}}
+	m := bindings.Metadata{Base: metadata.Base{Properties: map[string]string{"gatewayAddr": "172.0.0.1:1234"}}}
 	client := ClientFactoryImpl{logger: logger.NewLogger("test")}
 	meta, err := client.parseMetadata(m)
 	assert.NoError(t, err)

@@ -75,20 +75,6 @@ var (
 )
 
 func TestKafka(t *testing.T) {
-	log := logger.NewLogger("dapr.components")
-	kafka_input_1 := bindings_loader.NewInput("kafka", func() bindings.InputBinding {
-		return bindings_kafka.NewKafka(log)
-	})
-	kafka_output_1 := bindings_loader.NewOutput("kafka", func() bindings.OutputBinding {
-		return bindings_kafka.NewKafka(log)
-	})
-	kafka_input_2 := bindings_loader.NewInput("kafka", func() bindings.InputBinding {
-		return bindings_kafka.NewKafka(log)
-	})
-	kafka_input_3 := bindings_loader.NewInput("kafka", func() bindings.InputBinding {
-		return bindings_kafka.NewKafka(log)
-	})
-
 	// For Kafka, we should ensure messages are received in order.
 	consumerGroup1 := watcher.NewOrdered()
 	// This watcher is across multiple consumers in the same group
@@ -277,8 +263,8 @@ func TestKafka(t *testing.T) {
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			runtime.WithInputBindings(kafka_input_1),
-			runtime.WithOutputBindings(kafka_output_1))).
+			componentRuntimeOptions(),
+		)).
 		//
 		// Run the second application.
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset),
@@ -291,7 +277,8 @@ func TestKafka(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			runtime.WithInputBindings(kafka_input_2))).
+			componentRuntimeOptions(),
+		)).
 		//
 		// Send messages using the same metadata/message key so we can expect
 		// in-order processing.
@@ -308,7 +295,8 @@ func TestKafka(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*2),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*2),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*2),
-			runtime.WithInputBindings(kafka_input_3))).
+			componentRuntimeOptions(),
+		)).
 		Step("reset", flow.Reset(consumerGroup2)).
 		//
 		// Send messages with random keys to test message consumption
@@ -366,4 +354,21 @@ func TestKafka(t *testing.T) {
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("assert messages(consumer rebalance)", assertMessages(consumerGroup2)).
 		Run()
+}
+
+func componentRuntimeOptions() []runtime.Option {
+	log := logger.NewLogger("dapr.components")
+
+	bindingsRegistry := bindings_loader.NewRegistry()
+	bindingsRegistry.Logger = log
+	bindingsRegistry.RegisterInputBinding(func(l logger.Logger) bindings.InputBinding {
+		return bindings_kafka.NewKafka(l)
+	}, "kafka")
+	bindingsRegistry.RegisterOutputBinding(func(l logger.Logger) bindings.OutputBinding {
+		return bindings_kafka.NewKafka(l)
+	}, "kafka")
+
+	return []runtime.Option{
+		runtime.WithBindings(bindingsRegistry),
+	}
 }

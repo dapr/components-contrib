@@ -65,7 +65,8 @@ func (a *authorizationBuilder) generateAuthorizationHeader() (string, error) {
 	a.logger.Debug("Authorization token expired; generating new token")
 
 	now := time.Now()
-	claims := jwt.StandardClaims{
+	// TODO: Use jwt.RegisteredClaims instead of jwt.StandardClaims.
+	claims := jwt.StandardClaims{ //nolint:staticcheck
 		IssuedAt: time.Now().Unix(),
 		Issuer:   a.teamID,
 	}

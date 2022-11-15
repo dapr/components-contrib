@@ -14,13 +14,14 @@ limitations under the License.
 package oauth2clientcredentials
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	fh "github.com/valyala/fasthttp"
 	oauth2 "golang.org/x/oauth2"
 
 	"github.com/dapr/components-contrib/middleware"
@@ -28,7 +29,11 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-func mockedRequestHandler(ctx *fh.RequestCtx) {}
+// mockedRequestHandler acts like an upstream service returns success status code 200 and a fixed response body.
+func mockedRequestHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("from mock"))
+}
 
 // TestOAuth2ClientCredentialsMetadata will check
 // - if the metadata checks are correct in place.
@@ -41,7 +46,7 @@ func TestOAuth2ClientCredentialsMetadata(t *testing.T) {
 
 	log := logger.NewLogger("oauth2clientcredentials.test")
 	_, err := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(metadata)
-	assert.EqualError(t, err, "Parameter 'headerName' needs to be set. Parameter 'clientID' needs to be set. Parameter 'clientSecret' needs to be set. Parameter 'scopes' needs to be set. Parameter 'tokenURL' needs to be set. Parameter 'authStyle' needs to be set. Parameter 'authStyle' can only have the values 0,1,2. Received: ''. ")
+	assert.EqualError(t, err, "metadata errors: Parameter 'headerName' needs to be set. Parameter 'clientID' needs to be set. Parameter 'clientSecret' needs to be set. Parameter 'scopes' needs to be set. Parameter 'tokenURL' needs to be set. ")
 
 	// Invalid authStyle (non int)
 	metadata.Properties = map[string]string{
@@ -53,17 +58,17 @@ func TestOAuth2ClientCredentialsMetadata(t *testing.T) {
 		"authStyle":    "asdf", // This is the value to test
 	}
 	_, err2 := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(metadata)
-	assert.EqualError(t, err2, "Parameter 'authStyle' can only have the values 0,1,2. Received: 'asdf'. ")
+	assert.EqualError(t, err2, "metadata errors: 1 error(s) decoding:\n\n* cannot parse 'AuthStyle' as int: strconv.ParseInt: parsing \"asdf\": invalid syntax")
 
 	// Invalid authStyle (int > 2)
 	metadata.Properties["authStyle"] = "3"
 	_, err3 := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(metadata)
-	assert.EqualError(t, err3, "Parameter 'authStyle' can only have the values 0,1,2. Received: '3'. ")
+	assert.EqualError(t, err3, "metadata errors: Parameter 'authStyle' can only have the values 0,1,2. Received: '3'. ")
 
 	// Invalid authStyle (int < 0)
 	metadata.Properties["authStyle"] = "-1"
 	_, err4 := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(metadata)
-	assert.EqualError(t, err4, "Parameter 'authStyle' can only have the values 0,1,2. Received: '-1'. ")
+	assert.EqualError(t, err4, "metadata errors: Parameter 'authStyle' can only have the values 0,1,2. Received: '-1'. ")
 }
 
 // TestOAuth2ClientCredentialsToken will check
@@ -102,16 +107,18 @@ func TestOAuth2ClientCredentialsToken(t *testing.T) {
 
 	// Initialize middleware component and inject mocked TokenProvider
 	log := logger.NewLogger("oauth2clientcredentials.test")
-	oauth2clientcredentialsMiddleware := NewOAuth2ClientCredentialsMiddleware(log)
+	oauth2clientcredentialsMiddleware, _ := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
 	oauth2clientcredentialsMiddleware.SetTokenProvider(mockTokenProvider)
 	handler, err := oauth2clientcredentialsMiddleware.GetHandler(metadata)
 	require.NoError(t, err)
 
 	// First handler call should return abc Token
-	var requestContext1 fh.RequestCtx
-	handler(mockedRequestHandler)(&requestContext1)
+	r := httptest.NewRequest(http.MethodGet, "http://dapr.io", nil)
+	w := httptest.NewRecorder()
+	handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
+
 	// Assertion
-	assert.Equal(t, "Bearer abcd", string(requestContext1.Request.Header.Peek("someHeader")))
+	assert.Equal(t, "Bearer abcd", w.Header().Get("someHeader"))
 }
 
 // TestOAuth2ClientCredentialsCache will check
@@ -160,29 +167,35 @@ func TestOAuth2ClientCredentialsCache(t *testing.T) {
 
 	// Initialize middleware component and inject mocked TokenProvider
 	log := logger.NewLogger("oauth2clientcredentials.test")
-	oauth2clientcredentialsMiddleware := NewOAuth2ClientCredentialsMiddleware(log)
+	oauth2clientcredentialsMiddleware, _ := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
 	oauth2clientcredentialsMiddleware.SetTokenProvider(mockTokenProvider)
 	handler, err := oauth2clientcredentialsMiddleware.GetHandler(metadata)
 	require.NoError(t, err)
 
 	// First handler call should return abc Token
-	var requestContext1 fh.RequestCtx
-	handler(mockedRequestHandler)(&requestContext1)
+	r := httptest.NewRequest(http.MethodGet, "http://dapr.io", nil)
+	w := httptest.NewRecorder()
+	handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
+
 	// Assertion
-	assert.Equal(t, "Bearer abc", string(requestContext1.Request.Header.Peek("someHeader")))
+	assert.Equal(t, "Bearer abc", w.Header().Get("someHeader"))
 
 	// Second handler call should still return 'cached' abc Token
-	var requestContext2 fh.RequestCtx
-	handler(mockedRequestHandler)(&requestContext2)
+	r = httptest.NewRequest(http.MethodGet, "http://dapr.io", nil)
+	w = httptest.NewRecorder()
+	handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
+
 	// Assertion
-	assert.Equal(t, "Bearer abc", string(requestContext2.Request.Header.Peek("someHeader")))
+	assert.Equal(t, "Bearer abc", w.Header().Get("someHeader"))
 
 	// Wait at a second to invalidate cache entry for abc
 	time.Sleep(1 * time.Second)
 
 	// Third call should return def Token
-	var requestContext3 fh.RequestCtx
-	handler(mockedRequestHandler)(&requestContext3)
+	r = httptest.NewRequest(http.MethodGet, "http://dapr.io", nil)
+	w = httptest.NewRecorder()
+	handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
+
 	// Assertion
-	assert.Equal(t, "MAC def", string(requestContext3.Request.Header.Peek("someHeader")))
+	assert.Equal(t, "MAC def", w.Header().Get("someHeader"))
 }

@@ -56,7 +56,7 @@ type Metadata struct {
 }
 
 // NewSMTP returns a new smtp binding instance.
-func NewSMTP(logger logger.Logger) *Mailer {
+func NewSMTP(logger logger.Logger) bindings.OutputBinding {
 	return &Mailer{logger: logger}
 }
 

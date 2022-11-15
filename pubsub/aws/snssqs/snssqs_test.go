@@ -14,10 +14,12 @@ limitations under the License.
 package snssqs
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -45,7 +47,7 @@ func Test_getSnsSqsMetatdata_AllConfiguration(t *testing.T) {
 		logger: l,
 	}
 
-	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Properties: map[string]string{
+	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 		"consumerID":               "consumer",
 		"Endpoint":                 "endpoint",
 		"concurrencyMode":          string(pubsub.Single),
@@ -59,7 +61,7 @@ func Test_getSnsSqsMetatdata_AllConfiguration(t *testing.T) {
 		"messageWaitTimeSeconds":   "4",
 		"messageMaxNumber":         "5",
 		"messageReceiveLimit":      "6",
-	}})
+	}}})
 
 	r.NoError(err)
 
@@ -87,12 +89,12 @@ func Test_getSnsSqsMetatdata_defaults(t *testing.T) {
 		logger: l,
 	}
 
-	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Properties: map[string]string{
+	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 		"consumerID": "c",
 		"accessKey":  "a",
 		"secretKey":  "s",
 		"region":     "r",
-	}})
+	}}})
 
 	r.NoError(err)
 
@@ -121,12 +123,12 @@ func Test_getSnsSqsMetatdata_legacyaliases(t *testing.T) {
 		logger: l,
 	}
 
-	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Properties: map[string]string{
+	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 		"consumerID":   "consumer",
 		"awsAccountID": "acctId",
 		"awsSecret":    "secret",
 		"awsRegion":    "region",
-	}})
+	}}})
 
 	r.NoError(err)
 
@@ -160,7 +162,7 @@ func Test_getSnsSqsMetatdata_invalidMetadataSetup(t *testing.T) {
 
 	fixtures := []testUnitFixture{
 		{
-			metadata: pubsub.Metadata{Properties: map[string]string{
+			metadata: pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 				"consumerID": "consumer",
 				"Endpoint":   "endpoint",
 				"AccessKey":  "acctId",
@@ -168,11 +170,11 @@ func Test_getSnsSqsMetatdata_invalidMetadataSetup(t *testing.T) {
 				"awsToken":   "token",
 				"Region":     "region",
 				"fifo":       "none bool",
-			}},
+			}}},
 			name: "fifo not set to boolean",
 		},
 		{
-			metadata: pubsub.Metadata{Properties: map[string]string{
+			metadata: pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 				"consumerID":          "consumer",
 				"Endpoint":            "endpoint",
 				"AccessKey":           "acctId",
@@ -180,11 +182,11 @@ func Test_getSnsSqsMetatdata_invalidMetadataSetup(t *testing.T) {
 				"awsToken":            "token",
 				"Region":              "region",
 				"messageReceiveLimit": "100",
-			}},
+			}}},
 			name: "deadletters receive limit without deadletters queue name",
 		},
 		{
-			metadata: pubsub.Metadata{Properties: map[string]string{
+			metadata: pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 				"consumerID":              "consumer",
 				"Endpoint":                "endpoint",
 				"AccessKey":               "acctId",
@@ -192,11 +194,11 @@ func Test_getSnsSqsMetatdata_invalidMetadataSetup(t *testing.T) {
 				"awsToken":                "token",
 				"Region":                  "region",
 				"sqsDeadLettersQueueName": "my-queue",
-			}},
+			}}},
 			name: "deadletters message queue without deadletters receive limit",
 		},
 		{
-			metadata: pubsub.Metadata{Properties: map[string]string{
+			metadata: pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 				"consumerID":                "consumer",
 				"Endpoint":                  "endpoint",
 				"AccessKey":                 "acctId",
@@ -206,11 +208,11 @@ func Test_getSnsSqsMetatdata_invalidMetadataSetup(t *testing.T) {
 				"sqsDeadLettersQueueName":   "my-queue",
 				"messageReceiveLimit":       "9",
 				"disableDeleteOnRetryLimit": "true",
-			}},
+			}}},
 			name: "deadletters message queue with disableDeleteOnRetryLimit",
 		},
 		{
-			metadata: pubsub.Metadata{Properties: map[string]string{
+			metadata: pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 				"consumerID":       "consumer",
 				"Endpoint":         "endpoint",
 				"AccessKey":        "acctId",
@@ -218,11 +220,11 @@ func Test_getSnsSqsMetatdata_invalidMetadataSetup(t *testing.T) {
 				"awsToken":         "token",
 				"Region":           "region",
 				"messageMaxNumber": "-100",
-			}},
+			}}},
 			name: "illigal message max number (negative, too low)",
 		},
 		{
-			metadata: pubsub.Metadata{Properties: map[string]string{
+			metadata: pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 				"consumerID":       "consumer",
 				"Endpoint":         "endpoint",
 				"AccessKey":        "acctId",
@@ -230,11 +232,11 @@ func Test_getSnsSqsMetatdata_invalidMetadataSetup(t *testing.T) {
 				"awsToken":         "token",
 				"Region":           "region",
 				"messageMaxNumber": "100",
-			}},
+			}}},
 			name: "illigal message max number (too high)",
 		},
 		{
-			metadata: pubsub.Metadata{Properties: map[string]string{
+			metadata: pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 				"consumerID":             "consumer",
 				"Endpoint":               "endpoint",
 				"AccessKey":              "acctId",
@@ -242,11 +244,11 @@ func Test_getSnsSqsMetatdata_invalidMetadataSetup(t *testing.T) {
 				"awsToken":               "token",
 				"Region":                 "region",
 				"messageWaitTimeSeconds": "0",
-			}},
+			}}},
 			name: "invalid wait time seconds (too low)",
 		},
 		{
-			metadata: pubsub.Metadata{Properties: map[string]string{
+			metadata: pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 				"consumerID":               "consumer",
 				"Endpoint":                 "endpoint",
 				"AccessKey":                "acctId",
@@ -254,11 +256,11 @@ func Test_getSnsSqsMetatdata_invalidMetadataSetup(t *testing.T) {
 				"awsToken":                 "token",
 				"Region":                   "region",
 				"messageVisibilityTimeout": "-100",
-			}},
+			}}},
 			name: "invalid message visibility",
 		},
 		{
-			metadata: pubsub.Metadata{Properties: map[string]string{
+			metadata: pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 				"consumerID":        "consumer",
 				"Endpoint":          "endpoint",
 				"AccessKey":         "acctId",
@@ -266,12 +268,12 @@ func Test_getSnsSqsMetatdata_invalidMetadataSetup(t *testing.T) {
 				"awsToken":          "token",
 				"Region":            "region",
 				"messageRetryLimit": "-100",
-			}},
+			}}},
 			name: "invalid message retry limit",
 		},
 		// disableEntityManagement
 		{
-			metadata: pubsub.Metadata{Properties: map[string]string{
+			metadata: pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 				"consumerID":              "consumer",
 				"Endpoint":                "endpoint",
 				"AccessKey":               "acctId",
@@ -280,12 +282,12 @@ func Test_getSnsSqsMetatdata_invalidMetadataSetup(t *testing.T) {
 				"Region":                  "region",
 				"messageRetryLimit":       "10",
 				"disableEntityManagement": "y",
-			}},
+			}}},
 			name: "invalid message disableEntityManagement",
 		},
 		// invalid concurrencyMode
 		{
-			metadata: pubsub.Metadata{Properties: map[string]string{
+			metadata: pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 				"consumerID":        "consumer",
 				"Endpoint":          "endpoint",
 				"AccessKey":         "acctId",
@@ -294,7 +296,7 @@ func Test_getSnsSqsMetatdata_invalidMetadataSetup(t *testing.T) {
 				"Region":            "region",
 				"messageRetryLimit": "10",
 				"concurrencyMode":   "invalid",
-			}},
+			}}},
 			name: "invalid message concurrencyMode",
 		},
 	}
@@ -401,6 +403,97 @@ func Test_replaceNameToAWSSanitizedExistingFifoName_Trimmed(t *testing.T) {
 	r.Equal("012345678901234567890123456789012345678901234567890123456789012345678901234.fifo", v)
 }
 
+func Test_UnmarshalJSON_UnmarshallsToArray(t *testing.T) {
+	t.Parallel()
+	r := require.New(t)
+
+	s := `
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "sns.amazonaws.com"
+      },
+      "Action": "sqs:SendMessage",
+      "Resource": "sqsArn",
+      "Condition": {
+        "ForAllValues:ArnEquals": {
+          "aws:SourceArn": "snsArn"
+        }
+      }
+    }
+  ]
+}
+`
+	p := &policy{}
+
+	err := json.Unmarshal([]byte(s), p)
+	r.Equal(err, nil)
+
+	statement := p.Statement[0]
+	r.Equal(len(statement.Condition.ForAllValuesArnEquals.AwsSourceArn), 1)
+	r.Equal(statement.Condition.ForAllValuesArnEquals.AwsSourceArn[0], "snsArn")
+}
+
+func Test_tryInsertCondition(t *testing.T) {
+	t.Parallel()
+	r := require.New(t)
+
+	policy := &policy{Version: "2012-10-17"}
+	sqsArn := "sqsArn"
+	snsArns := []string{"snsArns1", "snsArns2", "snsArns3", "snsArns4"}
+
+	for _, snsArn := range snsArns {
+		policy.tryInsertCondition(sqsArn, snsArn)
+	}
+
+	r.Equal(len(policy.Statement), 1)
+	insertedStatement := policy.Statement[0]
+	r.Equal(insertedStatement.Resource, sqsArn)
+	r.Equal(len(insertedStatement.Condition.ForAllValuesArnEquals.AwsSourceArn), len(snsArns))
+	r.ElementsMatch(insertedStatement.Condition.ForAllValuesArnEquals.AwsSourceArn, snsArns)
+}
+
+func Test_policy_compatible(t *testing.T) {
+	t.Parallel()
+	r := require.New(t)
+
+	sqsArn := "sqsArn"
+	snsArn := "snsArn"
+	oldPolicy := `
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "sns.amazonaws.com"
+      },
+      "Action": "sqs:SendMessage",
+      "Resource": "sqsArn",
+      "Condition": {
+        "ArnEquals": {
+          "aws:SourceArn": "snsArn"
+        }
+      }
+    }
+  ]
+}
+`
+	policy := &policy{Version: "2012-10-17"}
+	err := json.Unmarshal([]byte(oldPolicy), policy)
+	r.Equal(err, nil)
+
+	policy.tryInsertCondition(sqsArn, snsArn)
+	r.Equal(len(policy.Statement), 1)
+	insertedStatement := policy.Statement[0]
+	r.Equal(insertedStatement.Resource, sqsArn)
+	r.Equal(len(insertedStatement.Condition.ForAllValuesArnEquals.AwsSourceArn), 1)
+	r.Equal(insertedStatement.Condition.ForAllValuesArnEquals.AwsSourceArn[0], snsArn)
+}
+
 func Test_buildARN_DefaultPartition(t *testing.T) {
 	t.Parallel()
 	r := require.New(t)
@@ -410,12 +503,12 @@ func Test_buildARN_DefaultPartition(t *testing.T) {
 		logger: l,
 	}
 
-	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Properties: map[string]string{
+	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 		"consumerID": "c",
 		"accessKey":  "a",
 		"secretKey":  "s",
 		"region":     "r",
-	}})
+	}}})
 	r.NoError(err)
 	md.accountID = "123456789012"
 	ps.metadata = md
@@ -433,12 +526,12 @@ func Test_buildARN_StandardPartition(t *testing.T) {
 		logger: l,
 	}
 
-	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Properties: map[string]string{
+	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 		"consumerID": "c",
 		"accessKey":  "a",
 		"secretKey":  "s",
 		"region":     "us-west-2",
-	}})
+	}}})
 	r.NoError(err)
 	md.accountID = "123456789012"
 	ps.metadata = md
@@ -456,12 +549,12 @@ func Test_buildARN_NonStandardPartition(t *testing.T) {
 		logger: l,
 	}
 
-	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Properties: map[string]string{
+	md, err := ps.getSnsSqsMetatdata(pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 		"consumerID": "c",
 		"accessKey":  "a",
 		"secretKey":  "s",
 		"region":     "cn-northwest-1",
-	}})
+	}}})
 	r.NoError(err)
 	md.accountID = "123456789012"
 	ps.metadata = md

@@ -19,7 +19,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -43,7 +43,7 @@ type Postgres struct {
 }
 
 // NewPostgres returns a new PostgreSQL output binding.
-func NewPostgres(logger logger.Logger) *Postgres {
+func NewPostgres(logger logger.Logger) bindings.OutputBinding {
 	return &Postgres{logger: logger}
 }
 
@@ -59,7 +59,7 @@ func (p *Postgres) Init(metadata bindings.Metadata) error {
 		return errors.Wrap(err, "error opening DB connection")
 	}
 
-	p.db, err = pgxpool.ConnectConfig(context.Background(), poolConfig)
+	p.db, err = pgxpool.NewWithConfig(context.Background(), poolConfig)
 	if err != nil {
 		return errors.Wrap(err, "unable to ping the DB")
 	}
@@ -107,7 +107,7 @@ func (p *Postgres) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 		},
 	}
 
-	switch req.Operation { // nolint: exhaustive
+	switch req.Operation { //nolint:exhaustive
 	case execOperation:
 		r, err := p.exec(ctx, sql)
 		if err != nil {
@@ -154,13 +154,13 @@ func (p *Postgres) query(ctx context.Context, sql string) (result []byte, err er
 		return nil, errors.Wrapf(err, "error executing %s", sql)
 	}
 
-	rs := make([]interface{}, 0)
+	rs := make([]any, 0)
 	for rows.Next() {
 		val, rowErr := rows.Values()
 		if rowErr != nil {
 			return nil, errors.Wrapf(rowErr, "error parsing result: %v", rows.Err())
 		}
-		rs = append(rs, val)
+		rs = append(rs, val) //nolint:asasalint
 	}
 
 	if result, err = json.Marshal(rs); err != nil {

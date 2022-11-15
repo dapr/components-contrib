@@ -25,7 +25,7 @@ import (
 
 func TestInit(t *testing.T) {
 	m := state.Metadata{}
-	s := NewAzureBlobStorageStore(logger.NewLogger("logger"))
+	s := NewAzureBlobStorageStore(logger.NewLogger("logger")).(*StateStore)
 	t.Run("Init with valid metadata", func(t *testing.T) {
 		m.Properties = map[string]string{
 			"accountName":   "acc",
@@ -73,8 +73,8 @@ func TestGetBlobStorageMetaData(t *testing.T) {
 		meta, err := getBlobStorageMetadata(m)
 
 		assert.Nil(t, err)
-		assert.Equal(t, "acc", meta.accountName)
-		assert.Equal(t, "dapr", meta.containerName)
+		assert.Equal(t, "acc", meta.AccountName)
+		assert.Equal(t, "dapr", meta.ContainerName)
 	})
 }
 
@@ -91,7 +91,7 @@ func TestFileName(t *testing.T) {
 }
 
 func TestBlobHTTPHeaderGeneration(t *testing.T) {
-	s := NewAzureBlobStorageStore(logger.NewLogger("logger"))
+	s := NewAzureBlobStorageStore(logger.NewLogger("logger")).(*StateStore)
 	t.Run("Content type is set from request, forward compatibility", func(t *testing.T) {
 		contentType := "application/json"
 		req := &state.SetRequest{

@@ -22,9 +22,12 @@ components:
   - component: postgresql
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "query" ]
-  - component: mysql
+  - component: mysql.mysql
     allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag" ]
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write" ]
+  - component: mysql.mariadb
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write" ]
   - component: azure.tablestorage.storage
     allOperations: false
     operations: ["set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write"]
@@ -37,3 +40,6 @@ components:
   - component: cockroachdb
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "query" ]
+  - component: rethinkdb
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete"]

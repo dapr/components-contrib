@@ -18,22 +18,24 @@ on:
     branches:
       - master
       - release-*
+      - feature/*
     tags:
       - v*
   pull_request:
     branches:
       - master
       - release-*
+      - feature/*
 jobs:
   build:
     name: Build ${{ matrix.target_os }}_${{ matrix.target_arch }} binaries
     runs-on: ${{ matrix.os }}
     env:
-      GOVER: "1.18"
+      GOVER: "1.19"
       GOOS: ${{ matrix.target_os }}
       GOARCH: ${{ matrix.target_arch }}
       GOPROXY: https://proxy.golang.org
-      GOLANGCI_LINT_VER: "v1.45.2"
+      GOLANGCI_LINT_VER: "v1.50.1"
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macOS-latest]
@@ -53,12 +55,12 @@ jobs:
     steps:
       - name: Set up Go ${{ env.GOVER }}
         if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GOVER }}
       - name: Check out code into the Go module directory
         if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Cache Go modules (Linux)
         if: matrix.target_os == 'linux'
         uses: actions/cache@v3
@@ -89,6 +91,9 @@ jobs:
           key: ${{ matrix.target_os }}-${{ matrix.target_arch }}-go-${{ env.GOVER }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ matrix.target_os }}-${{ matrix.target_arch }}-go-${{ env.GOVER }}-
+      - name: Check components-schema
+        if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux' && steps.skip_check.outputs.should_skip != 'true'
+        run: make check-component-metadata-schema-diff
       - name: Run golangci-lint
         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux' && steps.skip_check.outputs.should_skip != 'true'
         uses: golangci/golangci-lint-action@v3.2.0
@@ -98,7 +103,12 @@ jobs:
           args: --timeout 15m
       - name: Run go mod tidy check diff
         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux' && steps.skip_check.outputs.should_skip != 'true'
-        run: make modtidy-all check-diff
+        run: make modtidy-all check-mod-diff
+#       - name: Run Go Vulnerability Check
+#         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux' && steps.skip_check.outputs.should_skip != 'true'
+#         run: |
+#           go install golang.org/x/vuln/cmd/govulncheck@latest
+#           govulncheck ./...
       - name: Run make test
         env:
           COVERAGE_OPTS: "-coverprofile=coverage.txt -covermode=atomic"

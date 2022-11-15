@@ -41,7 +41,7 @@ func getDummyOCIObjectStorageConfiguration() map[string]string {
 
 func TestInit(t *testing.T) {
 	meta := state.Metadata{}
-	statestore := NewOCIObjectStorageStore(logger.NewLogger("logger"))
+	statestore := NewOCIObjectStorageStore(logger.NewLogger("logger")).(*StateStore)
 	t.Parallel()
 	t.Run("Init with beautifully complete yet incorrect metadata", func(t *testing.T) {
 		meta.Properties = getDummyOCIObjectStorageConfiguration()
@@ -148,7 +148,7 @@ func TestInit(t *testing.T) {
 
 func TestFeatures(t *testing.T) {
 	t.Parallel()
-	s := NewOCIObjectStorageStore(logger.NewLogger("logger"))
+	s := NewOCIObjectStorageStore(logger.NewLogger("logger")).(*StateStore)
 	t.Run("Test contents of Features", func(t *testing.T) {
 		features := s.Features()
 		assert.Contains(t, features, state.FeatureETag)
@@ -160,7 +160,7 @@ func TestGetObjectStorageMetadata(t *testing.T) {
 	t.Run("Test getObjectStorageMetadata with full properties map", func(t *testing.T) {
 		meta, err := getObjectStorageMetadata(getDummyOCIObjectStorageConfiguration())
 		assert.Nil(t, err, "No error expected in clean property set")
-		assert.Equal(t, getDummyOCIObjectStorageConfiguration()["region"], meta.region, "Region in object storage metadata should match region in properties")
+		assert.Equal(t, getDummyOCIObjectStorageConfiguration()["region"], meta.Region, "Region in object storage metadata should match region in properties")
 	})
 	t.Run("Test getObjectStorageMetadata with incomplete property set", func(t *testing.T) {
 		properties := map[string]string{
@@ -177,7 +177,6 @@ type mockedObjectStoreClient struct {
 	putIsCalled        bool
 	deleteIsCalled     bool
 	pingBucketIsCalled bool
-	logger             logger.Logger
 }
 
 func (c *mockedObjectStoreClient) getObject(ctx context.Context, objectname string) (content []byte, etag *string, metadata map[string]string, err error) {
@@ -232,7 +231,7 @@ func (c *mockedObjectStoreClient) pingBucket() error {
 }
 
 func TestGetWithMockClient(t *testing.T) {
-	s := NewOCIObjectStorageStore(logger.NewLogger("logger"))
+	s := NewOCIObjectStorageStore(logger.NewLogger("logger")).(*StateStore)
 	mockClient := &mockedObjectStoreClient{}
 	s.client = mockClient
 	t.Parallel()
@@ -262,7 +261,7 @@ func TestGetWithMockClient(t *testing.T) {
 
 func TestInitWithMockClient(t *testing.T) {
 	t.Parallel()
-	s := NewOCIObjectStorageStore(logger.NewLogger("logger"))
+	s := NewOCIObjectStorageStore(logger.NewLogger("logger")).(*StateStore)
 	s.client = &mockedObjectStoreClient{}
 	meta := state.Metadata{}
 	t.Run("Test Init with incomplete configuration", func(t *testing.T) {
@@ -273,7 +272,7 @@ func TestInitWithMockClient(t *testing.T) {
 
 func TestPingWithMockClient(t *testing.T) {
 	t.Parallel()
-	s := NewOCIObjectStorageStore(logger.NewLogger("logger"))
+	s := NewOCIObjectStorageStore(logger.NewLogger("logger")).(*StateStore)
 	mockClient := &mockedObjectStoreClient{}
 	s.client = mockClient
 
@@ -286,7 +285,7 @@ func TestPingWithMockClient(t *testing.T) {
 
 func TestSetWithMockClient(t *testing.T) {
 	t.Parallel()
-	statestore := NewOCIObjectStorageStore(logger.NewLogger("logger"))
+	statestore := NewOCIObjectStorageStore(logger.NewLogger("logger")).(*StateStore)
 	mockClient := &mockedObjectStoreClient{}
 	statestore.client = mockClient
 	t.Run("Set without a key", func(t *testing.T) {
@@ -345,7 +344,7 @@ func TestSetWithMockClient(t *testing.T) {
 
 func TestDeleteWithMockClient(t *testing.T) {
 	t.Parallel()
-	s := NewOCIObjectStorageStore(logger.NewLogger("logger"))
+	s := NewOCIObjectStorageStore(logger.NewLogger("logger")).(*StateStore)
 	mockClient := &mockedObjectStoreClient{}
 	s.client = mockClient
 	t.Run("Delete without a key", func(t *testing.T) {
@@ -380,27 +379,6 @@ func TestDeleteWithMockClient(t *testing.T) {
 			Concurrency: state.FirstWrite,
 		}})
 		assert.NotNil(t, err, "Asking for FirstWrite concurrency policy without ETag should fail")
-	})
-}
-
-func TestGetValue(t *testing.T) {
-	meta := map[string]string{
-		"testKey": "theValue",
-	}
-	t.Parallel()
-	t.Run("Existing value", func(t *testing.T) {
-		value, _ := getValue(meta, "testKey", true)
-		assert.Equal(t, "theValue", value)
-	})
-	t.Run("Non-existing, required value", func(t *testing.T) {
-		value, err := getValue(meta, "noKey", true)
-		assert.NotNil(t, err, "Missing required value should result in error")
-		assert.Equal(t, "", value, "Empty string should be returned for non-existing value")
-	})
-	t.Run("Non-existing, optional value", func(t *testing.T) {
-		value, err := getValue(meta, "noKey", false)
-		assert.Nil(t, err, "Missing optional value should not result in error")
-		assert.Equal(t, "", value, "Empty string should be returned for non-existing value")
 	})
 }
 

@@ -32,6 +32,7 @@ import (
 )
 
 // HTTPSource is a binding for an http url endpoint invocation
+//
 //revive:disable-next-line
 type HTTPSource struct {
 	metadata httpMetadata
@@ -45,7 +46,7 @@ type httpMetadata struct {
 }
 
 // NewHTTP returns a new HTTPSource.
-func NewHTTP(logger logger.Logger) *HTTPSource {
+func NewHTTP(logger logger.Logger) bindings.OutputBinding {
 	return &HTTPSource{logger: logger}
 }
 

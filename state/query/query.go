@@ -36,10 +36,15 @@ type Pagination struct {
 	Token string `json:"token,omitempty"`
 }
 
-type Query struct {
+// used only for intermediate query value.
+type QueryFields struct {
 	Filters map[string]interface{} `json:"filter"`
 	Sort    []Sorting              `json:"sort"`
 	Page    Pagination             `json:"page"`
+}
+
+type Query struct {
+	QueryFields `json:",inline"`
 
 	// derived from Filters
 	Filter Filter
@@ -96,45 +101,19 @@ func (h *Builder) buildFilter(filter Filter) (string, error) {
 }
 
 func (q *Query) UnmarshalJSON(data []byte) error {
-	var m map[string]interface{}
-	err := json.Unmarshal(data, &m)
+	err := json.Unmarshal(data, &q.QueryFields)
 	if err != nil {
 		return err
 	}
-	if elem, ok := m[FILTER]; ok {
-		q.Filter, err = parseFilter(elem)
-		if err != nil {
-			return err
-		}
-	}
-	// setting sorting
-	if elem, ok := m[SORT]; ok {
-		arr, ok := elem.([]interface{})
-		if !ok {
-			return fmt.Errorf("%q must be an array", SORT)
-		}
-		jdata, err := json.Marshal(arr)
-		if err != nil {
-			return err
-		}
-		if err = json.Unmarshal(jdata, &q.Sort); err != nil {
-			return err
-		}
-	}
-	// setting pagination
-	if elem, ok := m[PAGE]; ok {
-		page, ok := elem.(map[string]interface{})
-		if !ok {
-			return fmt.Errorf("%q must be a map", PAGE)
-		}
-		jdata, err := json.Marshal(page)
-		if err != nil {
-			return err
-		}
-		if err = json.Unmarshal(jdata, &q.Page); err != nil {
-			return err
-		}
+	if len(q.QueryFields.Filters) == 0 {
+		return nil
 	}
 
+	filter, err := parseFilter(q.QueryFields.Filters)
+	if err != nil {
+		return err
+	}
+
+	q.Filter = filter
 	return nil
 }

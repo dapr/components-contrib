@@ -58,7 +58,7 @@ func (m *migration) newMigrationResult() migrationResult {
 	r.bulkDeleteProcFullName = fmt.Sprintf("[%s].%s", m.store.schema, r.bulkDeleteProcName)
 	r.upsertProcFullName = fmt.Sprintf("[%s].%s", m.store.schema, r.upsertProcName)
 
-	// nolint: exhaustive
+	//nolint:exhaustive
 	switch m.store.keyType {
 	case StringKeyType:
 		r.pkColumnType = fmt.Sprintf("NVARCHAR(%d)", m.store.keyLength)
@@ -277,6 +277,7 @@ func (m *migration) createStoredProcedureIfNotExists(db *sql.DB, name string, es
 }
 
 /* #nosec. */
+//nolint:dupword
 func (m *migration) ensureUpsertStoredProcedureExists(db *sql.DB, mr migrationResult) error {
 	tsql := fmt.Sprintf(`
 			CREATE PROCEDURE %s (

@@ -47,7 +47,7 @@ type cosmosDBCredentials struct {
 const timeoutValue = 30
 
 // NewCosmosDB returns a new CosmosDB instance.
-func NewCosmosDB(logger logger.Logger) *CosmosDB {
+func NewCosmosDB(logger logger.Logger) bindings.OutputBinding {
 	return &CosmosDB{logger: logger}
 }
 

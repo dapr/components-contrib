@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -47,9 +48,9 @@ func TestDataEncodeAndDecode(t *testing.T) {
 
 	aliCloudTableStore := NewAliCloudTableStore(logger.NewLogger("test"))
 
-	metadata := bindings.Metadata{
+	metadata := bindings.Metadata{Base: metadata.Base{
 		Properties: getTestProperties(),
-	}
+	}}
 	aliCloudTableStore.Init(metadata)
 
 	// test create

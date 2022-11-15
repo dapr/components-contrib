@@ -22,7 +22,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/sqs"
 
 	"github.com/dapr/components-contrib/bindings"
-	aws_auth "github.com/dapr/components-contrib/internal/authentication/aws"
+	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
 	"github.com/dapr/kit/logger"
 )
 
@@ -44,7 +44,7 @@ type sqsMetadata struct {
 }
 
 // NewAWSSQS returns a new AWS SQS instance.
-func NewAWSSQS(logger logger.Logger) *AWSSQS {
+func NewAWSSQS(logger logger.Logger) bindings.InputOutputBinding {
 	return &AWSSQS{logger: logger}
 }
 
@@ -149,7 +149,7 @@ func (a *AWSSQS) parseSQSMetadata(metadata bindings.Metadata) (*sqsMetadata, err
 }
 
 func (a *AWSSQS) getClient(metadata *sqsMetadata) (*sqs.SQS, error) {
-	sess, err := aws_auth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
+	sess, err := awsAuth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, metadata.Endpoint)
 	if err != nil {
 		return nil, err
 	}

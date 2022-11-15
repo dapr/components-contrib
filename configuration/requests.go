@@ -15,7 +15,6 @@ package configuration
 
 // Item represents a configuration item with name, content and other information.
 type Item struct {
-	Key      string            `json:"key"`
 	Value    string            `json:"value,omitempty"`
 	Version  string            `json:"version,omitempty"`
 	Metadata map[string]string `json:"metadata,omitempty"`
@@ -40,6 +39,6 @@ type UnsubscribeRequest struct {
 
 // UpdateEvent is the object describing a configuration update event.
 type UpdateEvent struct {
-	ID    string  `json:"id"`
-	Items []*Item `json:"items"`
+	ID    string           `json:"id"`
+	Items map[string]*Item `json:"items"`
 }

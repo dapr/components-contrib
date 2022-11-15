@@ -1,4 +1,6 @@
-# Supported operation: publish, subscribe
+# Supported operation: publish, subscribe, multiplehandlers, bulkpublish, bulksubscribe
+# bulkpublish should only be run for components that implement pubsub.BulkPublisher interface
+# bulksubscribe should only be run for components that implement pubsub.BulkSubscriber interface
 # Config map:
 ## pubsubName : name of the pubsub
 ## testTopicName: name of the test topic to use
@@ -10,7 +12,7 @@
 componentType: pubsub
 components:
   - component: azure.eventhubs
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers", "bulkpublish"]
     config:
       pubsubName: azure-eventhubs
       testTopicName: eventhubs-pubsub-topic
@@ -21,42 +23,62 @@ components:
       checkInOrderProcessing: true
       publishMetadata:
         partitionKey: abcd
-  - component: azure.servicebus
+  - component: azure.servicebus.topics
     allOperations: true
     config:
       pubsubName: azure-servicebus
       testTopicName: dapr-conf-test
+      testTopicForBulkSub: dapr-conf-test-bulk
+      testMultiTopic1Name: dapr-conf-test-multi1
+      testMultiTopic2Name: dapr-conf-test-multi2
+      checkInOrderProcessing: false
+  - component: azure.servicebus.queues
+    allOperations: true
+    config:
+      pubsubName: azure-servicebus
+      testTopicName: dapr-conf-queue
+      testTopicForBulkSub: dapr-conf-queue-bulk
+      testMultiTopic1Name: dapr-conf-queue-multi1
+      testMultiTopic2Name: dapr-conf-queue-multi2
       checkInOrderProcessing: false
   - component: redis
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers"]
     config:
       checkInOrderProcessing: false
   - component: natsstreaming
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers"]
   - component: jetstream
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers"]
   - component: kafka
     allOperations: true
-  - component: pulsar
+  - component: kafka
+    profile: wurstmeister
     allOperations: true
+  - component: kafka
+    profile: confluent
+    allOperations: true
+  - component: pulsar
+    operations: ["publish", "subscribe", "multiplehandlers"]
   - component: mqtt
     profile: mosquitto
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers"]
   - component: mqtt
     profile: emqx
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers"]
   - component: mqtt
     profile: vernemq
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers"]
   - component: hazelcast
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers"]
   - component: rabbitmq
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers"]
     config:
       checkInOrderProcessing: false
   - component: in-memory
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers"]
   - component: aws.snssqs
-    allOperations: true
+    operations: ["publish", "subscribe", "multiplehandlers"]
     config:
       checkInOrderProcessing: false
+  - component: kubemq
+    operations: ["publish", "subscribe", "multiplehandlers"]

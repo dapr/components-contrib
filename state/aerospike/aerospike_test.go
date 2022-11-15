@@ -18,7 +18,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
+)
+
+const (
+	hosts     = "hosts"
+	namespace = "namespace"
+	set       = "set"
 )
 
 func TestValidateMetadataForValidInputs(t *testing.T) {
@@ -43,8 +50,8 @@ func TestValidateMetadataForValidInputs(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			metadata := state.Metadata{Properties: test.properties}
-			err := validateMetadata(metadata)
+			metadata := state.Metadata{Base: metadata.Base{Properties: test.properties}}
+			_, err := parseAndValidateMetadata(metadata)
 			assert.Nil(t, err)
 		})
 	}
@@ -77,8 +84,8 @@ func TestValidateMetadataForInvalidInputs(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			metadata := state.Metadata{Properties: test.properties}
-			err := validateMetadata(metadata)
+			metadata := state.Metadata{Base: metadata.Base{Properties: test.properties}}
+			_, err := parseAndValidateMetadata(metadata)
 			assert.NotNil(t, err)
 		})
 	}

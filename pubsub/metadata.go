@@ -13,7 +13,15 @@ limitations under the License.
 
 package pubsub
 
+import "github.com/dapr/components-contrib/metadata"
+
 // Metadata represents a set of message-bus specific properties.
 type Metadata struct {
-	Properties map[string]string `json:"properties"`
+	metadata.Base `json:",inline"`
 }
+
+// When the Dapr component does not explicitly specify a consumer group,
+// this value provided by the runtime must be used. This value is specific to each Dapr App.
+// As a result, by default, each Dapr App will receive all messages published to the topic at least once.
+// See https://github.com/dapr/dapr/blob/21566de8d7fdc7d43ae627ffc0698cc073fa71b0/pkg/runtime/runtime.go#L1735-L1739
+const RuntimeConsumerIDKey = "consumerID"

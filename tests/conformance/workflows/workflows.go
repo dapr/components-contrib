@@ -22,6 +22,7 @@ import (
 
 	"github.com/dapr/kit/logger"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 	"github.com/dapr/components-contrib/workflows"
 )
@@ -50,7 +51,7 @@ func ConformanceTests(t *testing.T, props map[string]string, workflowItem workfl
 	// Test vars
 	t.Run("init", func(t *testing.T) {
 		err := workflowItem.Init(workflows.Metadata{
-			Properties: props,
+			Base: metadata.Base{Properties: props},
 		})
 		assert.NoError(t, err)
 	})
@@ -60,7 +61,7 @@ func ConformanceTests(t *testing.T, props map[string]string, workflowItem workfl
 		t.Run("start", func(t *testing.T) {
 			testLogger.Info("Start test running...")
 			req := &workflows.StartRequest{
-				Parameters:   10, // Time that the activity within the workflow runs for
+				Input:        10, // Time that the activity within the workflow runs for
 				WorkflowName: "TestWorkflow",
 			}
 			req.WorkflowReference.InstanceID = "TestID"

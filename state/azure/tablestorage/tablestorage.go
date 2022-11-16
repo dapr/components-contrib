@@ -44,6 +44,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/aztables"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
@@ -104,6 +105,14 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		}
 	}
 
+	opts := aztables.ClientOptions{
+		ClientOptions: policy.ClientOptions{
+			Telemetry: policy.TelemetryOptions{
+				ApplicationID: "dapr-" + logger.DaprVersion,
+			},
+		},
+	}
+
 	if meta.accountKey != "" {
 		// use shared key authentication
 		cred, innerErr := aztables.NewSharedKeyCredential(meta.accountName, meta.accountKey)
@@ -111,7 +120,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 			return innerErr
 		}
 
-		client, innerErr = aztables.NewServiceClientWithSharedKey(serviceURL, cred, nil)
+		client, innerErr = aztables.NewServiceClientWithSharedKey(serviceURL, cred, &opts)
 		if innerErr != nil {
 			return innerErr
 		}
@@ -132,7 +141,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		if innerErr != nil {
 			return innerErr
 		}
-		client, innerErr = aztables.NewServiceClient(serviceURL, token, nil)
+		client, innerErr = aztables.NewServiceClient(serviceURL, token, &opts)
 		if err != nil {
 			return innerErr
 		}

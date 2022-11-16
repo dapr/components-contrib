@@ -875,7 +875,6 @@ func TestParseConfig(t *testing.T) {
 			true,
 			nil,
 			configSpec{
-				UseCache:        true,
 				DaprPortMetaKey: defaultDaprPortMetaKey,
 			},
 		},
@@ -940,7 +939,7 @@ func TestGetConfig(t *testing.T) {
 				assert.Equal(t, defaultDaprPortMetaKey, actual.DaprPortMetaKey)
 
 				// Cache
-				assert.Equal(t, true, actual.UseCache)
+				assert.Equal(t, false, actual.UseCache)
 			},
 		},
 		{
@@ -976,7 +975,7 @@ func TestGetConfig(t *testing.T) {
 				assert.Equal(t, defaultDaprPortMetaKey, actual.DaprPortMetaKey)
 
 				// Cache
-				assert.Equal(t, true, actual.UseCache)
+				assert.Equal(t, false, actual.UseCache)
 			},
 		},
 		{

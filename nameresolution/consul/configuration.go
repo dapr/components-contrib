@@ -55,7 +55,6 @@ type configSpec struct {
 
 func newIntermediateConfig() intermediateConfig {
 	return intermediateConfig{
-		UseCache:        true,
 		DaprPortMetaKey: defaultDaprPortMetaKey,
 	}
 }

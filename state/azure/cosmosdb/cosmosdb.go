@@ -143,6 +143,9 @@ func (c *StateStore) Init(meta state.Metadata) error {
 	opts := azcosmos.ClientOptions{
 		ClientOptions: policy.ClientOptions{
 			PerCallPolicies: []policy.Policy{queryPolicy},
+			Telemetry: policy.TelemetryOptions{
+				ApplicationID: "dapr-" + logger.DaprVersion,
+			},
 		},
 	}
 

@@ -38,10 +38,10 @@ import (
 )
 
 const (
-	connectionStringKey        = "connectionString"
-	errMissingConnectionString = "missing connection string"
-	tableName                  = "state"
-	defaultMaxRetries          = 5 // A bad driver connection error can occur inside the sql code so this essentially allows for more retries since the sql code does not allow that to be changed
+	connectionStringKey          = "connectionString"
+	errMissingConnectionString   = "missing connection string"
+	tableName                    = "state"
+	defaultMaxConnectionAttempts = 5 // A bad driver connection error can occur inside the sql code so this essentially allows for more retries since the sql code does not allow that to be changed
 )
 
 // cockroachDBAccess implements dbaccess.
@@ -53,9 +53,9 @@ type cockroachDBAccess struct {
 }
 
 type cockroachDBMetadata struct {
-	ConnectionString string
-	TableName        string
-	MaxRetries       *int
+	ConnectionString      string
+	TableName             string
+	MaxConnectionAttempts *int
 }
 
 // newCockroachDBAccess creates a new instance of cockroachDBAccess.
@@ -401,9 +401,9 @@ func (p *cockroachDBAccess) Query(req *state.QueryRequest) (*state.QueryResponse
 
 // Ping implements database ping.
 func (p *cockroachDBAccess) Ping() error {
-	retryCount := defaultMaxRetries
-	if p.metadata.MaxRetries != nil && *p.metadata.MaxRetries >= 0 {
-		retryCount = *p.metadata.MaxRetries
+	retryCount := defaultMaxConnectionAttempts
+	if p.metadata.MaxConnectionAttempts != nil && *p.metadata.MaxConnectionAttempts >= 0 {
+		retryCount = *p.metadata.MaxConnectionAttempts
 	}
 	publishBo := backoff.NewExponentialBackOff()
 	publishBo.InitialInterval = 100 * time.Millisecond

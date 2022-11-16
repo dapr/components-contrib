@@ -947,8 +947,8 @@ func TestGetConfig(t *testing.T) {
 			"empty configuration with SelfRegister should default correctly",
 			nr.Metadata{
 				Base: metadata.Base{Properties: getTestPropsWithoutKey("")},
-				Configuration: configSpec{
-					SelfRegister: true,
+				Configuration: map[interface{}]interface{}{
+					"SelfRegister": true,
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
@@ -983,9 +983,9 @@ func TestGetConfig(t *testing.T) {
 			"DaprPortMetaKey should set registration meta and config used for resolve",
 			nr.Metadata{
 				Base: metadata.Base{Properties: getTestPropsWithoutKey("")},
-				Configuration: configSpec{
-					SelfRegister:    true,
-					DaprPortMetaKey: "random_key",
+				Configuration: map[interface{}]interface{}{
+					"SelfRegister":    true,
+					"DaprPortMetaKey": "random_key",
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
@@ -1002,8 +1002,8 @@ func TestGetConfig(t *testing.T) {
 			"missing AppID property should error when SelfRegister true",
 			nr.Metadata{
 				Base: metadata.Base{Properties: getTestPropsWithoutKey(nr.AppID)},
-				Configuration: configSpec{
-					SelfRegister: true,
+				Configuration: map[interface{}]interface{}{
+					"SelfRegister": true,
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
@@ -1032,8 +1032,8 @@ func TestGetConfig(t *testing.T) {
 			"missing AppPort property should error when SelfRegister true",
 			nr.Metadata{
 				Base: metadata.Base{Properties: getTestPropsWithoutKey(nr.AppPort)},
-				Configuration: configSpec{
-					SelfRegister: true,
+				Configuration: map[interface{}]interface{}{
+					"SelfRegister": true,
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
@@ -1062,8 +1062,8 @@ func TestGetConfig(t *testing.T) {
 			"missing HostAddress property should error when SelfRegister true",
 			nr.Metadata{
 				Base: metadata.Base{Properties: getTestPropsWithoutKey(nr.HostAddress)},
-				Configuration: configSpec{
-					SelfRegister: true,
+				Configuration: map[interface{}]interface{}{
+					"SelfRegister": true,
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
@@ -1092,8 +1092,8 @@ func TestGetConfig(t *testing.T) {
 			"missing DaprHTTPPort property should error only when SelfRegister true",
 			nr.Metadata{
 				Base: metadata.Base{Properties: getTestPropsWithoutKey(nr.DaprHTTPPort)},
-				Configuration: configSpec{
-					SelfRegister: true,
+				Configuration: map[interface{}]interface{}{
+					"SelfRegister": true,
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
@@ -1155,27 +1155,29 @@ func TestGetConfig(t *testing.T) {
 			"registration should configure correctly",
 			nr.Metadata{
 				Base: metadata.Base{Properties: getTestPropsWithoutKey("")},
-				Configuration: configSpec{
-					Checks: []*consul.AgentServiceCheck{
-						{
-							Name:     "test-app health check name",
-							CheckID:  "test-app health check id",
-							Interval: "15s",
-							HTTP:     "http://127.0.0.1:3500/health",
+				Configuration: map[interface{}]interface{}{
+					"Checks": []interface{}{
+						map[interface{}]interface{}{
+							"Name":     "test-app health check name",
+							"CheckID":  "test-app health check id",
+							"Interval": "15s",
+							"HTTP":     "http://127.0.0.1:3500/health",
 						},
 					},
-					Tags: []string{
+					"Tags": []interface{}{
 						"test",
 					},
-					Meta: map[string]string{
+					"Meta": map[interface{}]interface{}{
 						"APP_PORT":       "8650",
 						"DAPR_GRPC_PORT": "50005",
 					},
-					QueryOptions: &consul.QueryOptions{
-						UseCache: false,
-						Filter:   "Checks.ServiceTags contains something",
+					"QueryOptions": map[interface{}]interface{}{
+						"UseCache": false,
+						"Filter":   "Checks.ServiceTags contains something",
 					},
-					SelfRegister: true,
+					"SelfRegister":    true,
+					"DaprPortMetaKey": "PORT",
+					"UseCache":        false,
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
@@ -1207,42 +1209,42 @@ func TestGetConfig(t *testing.T) {
 			"advanced registration should override/ignore other configs",
 			nr.Metadata{
 				Base: metadata.Base{Properties: getTestPropsWithoutKey("")},
-				Configuration: configSpec{
-					AdvancedRegistration: &consul.AgentServiceRegistration{
-						Name:    "random-app-id",
-						Port:    0o00,
-						Address: "123.345.678",
-						Tags:    []string{"random-tag"},
-						Meta: map[string]string{
+				Configuration: map[interface{}]interface{}{
+					"AdvancedRegistration": map[interface{}]interface{}{
+						"Name":    "random-app-id",
+						"Port":    0o00,
+						"Address": "123.345.678",
+						"Tags":    []string{"random-tag"},
+						"Meta": map[string]string{
 							"APP_PORT": "000",
 						},
-						Checks: []*consul.AgentServiceCheck{
-							{
-								Name:     "random health check name",
-								CheckID:  "random health check id",
-								Interval: "15s",
-								HTTP:     "http://127.0.0.1:3500/health",
+						"Checks": []interface{}{
+							map[interface{}]interface{}{
+								"Name":     "random health check name",
+								"CheckID":  "random health check id",
+								"Interval": "15s",
+								"HTTP":     "http://127.0.0.1:3500/health",
 							},
 						},
 					},
-					Checks: []*consul.AgentServiceCheck{
-						{
-							Name:     "test-app health check name",
-							CheckID:  "test-app health check id",
-							Interval: "15s",
-							HTTP:     "http://127.0.0.1:3500/health",
+					"Checks": []interface{}{
+						map[interface{}]interface{}{
+							"Name":     "test-app health check name",
+							"CheckID":  "test-app health check id",
+							"Interval": "15s",
+							"HTTP":     "http://127.0.0.1:3500/health",
 						},
 					},
-					Tags: []string{
+					"Tags": []string{
 						"dapr",
 						"test",
 					},
-					Meta: map[string]string{
+					"Meta": map[string]string{
 						"APP_PORT":       "123",
 						"DAPR_HTTP_PORT": "3500",
 						"DAPR_GRPC_PORT": "50005",
 					},
-					SelfRegister: false,
+					"SelfRegister": false,
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {

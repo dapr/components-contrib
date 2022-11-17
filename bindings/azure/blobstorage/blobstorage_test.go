@@ -17,7 +17,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Azure/azure-storage-blob-go/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -39,11 +39,11 @@ func TestParseMetadata(t *testing.T) {
 		meta, err := blobStorage.parseMetadata(m)
 		assert.Nil(t, err)
 		assert.Equal(t, "test", meta.Container)
-		assert.Equal(t, "account", meta.AccountName)
+		assert.Equal(t, "account", meta.StorageAccount)
 		// storageAccessKey is parsed in the azauth package
 		assert.Equal(t, true, meta.DecodeBase64)
 		assert.Equal(t, 5, meta.GetBlobRetryCount)
-		assert.Equal(t, azblob.PublicAccessNone, meta.PublicAccessLevel)
+		assert.Equal(t, "", string(meta.PublicAccessLevel))
 	})
 
 	t.Run("parse metadata with publicAccessLevel = blob", func(t *testing.T) {
@@ -55,7 +55,7 @@ func TestParseMetadata(t *testing.T) {
 		}
 		meta, err := blobStorage.parseMetadata(m)
 		assert.Nil(t, err)
-		assert.Equal(t, azblob.PublicAccessBlob, meta.PublicAccessLevel)
+		assert.Equal(t, azblob.PublicAccessTypeBlob, meta.PublicAccessLevel)
 	})
 
 	t.Run("parse metadata with publicAccessLevel = container", func(t *testing.T) {
@@ -67,7 +67,7 @@ func TestParseMetadata(t *testing.T) {
 		}
 		meta, err := blobStorage.parseMetadata(m)
 		assert.Nil(t, err)
-		assert.Equal(t, azblob.PublicAccessContainer, meta.PublicAccessLevel)
+		assert.Equal(t, azblob.PublicAccessTypeContainer, meta.PublicAccessLevel)
 	})
 
 	t.Run("parse metadata with invalid publicAccessLevel", func(t *testing.T) {

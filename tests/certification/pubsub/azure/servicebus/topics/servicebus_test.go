@@ -902,8 +902,6 @@ func TestServicebusDefaultTtl(t *testing.T) {
 				}
 				require.NoError(ctx, err, "error publishing message")
 			}
-			// Wait for double the TTL after sending the last message.
-			time.Sleep(time.Second * 20)
 			return nil
 		}
 	}
@@ -926,16 +924,25 @@ func TestServicebusDefaultTtl(t *testing.T) {
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 
 		// Run the Dapr sidecar with the component entitymanagement
-		Step(sidecar.Run(sidecarName1,
+		Step(sidecar.Run("initalSidecar",
 			embedded.WithComponentsPath("./components/default_ttl"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
+			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
 			componentRuntimeOptions(),
 		)).
-		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicActiveName), testTtlPublishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
+		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicActiveName), testTtlPublishMessages(metadata, "initalSidecar", topicActiveName, consumerGroup1)).
+		Step("stop initial sidecar", sidecar.Stop("initialSidecar")).
 		Step("wait", flow.Sleep(20*time.Second)).
+		Step(sidecar.Run(sidecarName1,
+			embedded.WithComponentsPath("./components/default_ttl"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*2),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*2),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*2),
+			componentRuntimeOptions(),
+		)).
 		Step("verify if app6 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
 		Run()
 }

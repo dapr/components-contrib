@@ -15,6 +15,7 @@ package appconfig
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -302,6 +303,9 @@ func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 			},
 		)
 		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return
+			}
 			r.logger.Debugf("azure appconfig error: fail to get sentinel key or sentinel's key %s value is unchanged: %s", sentinelKey, err)
 		} else {
 			// if sentinel key has changed then update the Etag value.
@@ -311,6 +315,9 @@ func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 				Metadata: req.Metadata,
 			})
 			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					return
+				}
 				r.logger.Errorf("azure appconfig error: fail to get configuration key changes: %s", err)
 			} else {
 				r.handleSubscribedChange(ctx, handler, items, id)

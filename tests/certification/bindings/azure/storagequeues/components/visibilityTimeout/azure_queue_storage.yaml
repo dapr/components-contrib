@@ -1,0 +1,23 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: visibilityBinding
+  namespace: default
+spec:
+  type: bindings.azure.storagequeues
+  version: v1
+  metadata:
+  - name: storageAccount
+    secretKeyRef:
+        name: AzureBlobStorageAccount
+        key:  AzureBlobStorageAccount
+  - name: storageAccessKey
+    secretKeyRef:
+        name: AzureBlobStorageAccessKey
+        key:  AzureBlobStorageAccessKey
+  - name: queue
+    value: "visibility"
+  - name: visibilityTimeout
+    value: "20s"
+auth:
+  secretStore: envvar-secret-store

@@ -44,6 +44,7 @@ type postgresDBAccess struct {
 	metadata         postgresMetadataStruct
 	db               *sql.DB
 	connectionString string
+	tableName        string
 }
 
 // newPostgresDBAccess creates a new instance of postgresAccess.
@@ -103,6 +104,7 @@ func (p *postgresDBAccess) Init(meta state.Metadata) error {
 	if err != nil {
 		return err
 	}
+	p.tableName = m.TableName
 
 	return nil
 }
@@ -143,11 +145,15 @@ func (p *postgresDBAccess) setValue(req *state.SetRequest) error {
 
 	// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
 	// Other parameters use sql.DB parameter substitution.
-	if req.ETag == nil {
+	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
+		result, err = p.db.Exec(fmt.Sprintf(
+			`INSERT INTO %s (key, value, isbinary) VALUES ($1, $2, $3);`,
+			p.tableName), req.Key, value, isBinary)
+	} else if req.ETag == nil {
 		result, err = p.db.Exec(fmt.Sprintf(
 			`INSERT INTO %s (key, value, isbinary) VALUES ($1, $2, $3)
 			ON CONFLICT (key) DO UPDATE SET value = $2, isbinary = $3, updatedate = NOW();`,
-			defaultTableName), req.Key, value, isBinary)
+			p.tableName), req.Key, value, isBinary)
 	} else {
 		// Convert req.ETag to uint32 for postgres XID compatibility
 		var etag64 uint64
@@ -161,7 +167,7 @@ func (p *postgresDBAccess) setValue(req *state.SetRequest) error {
 		result, err = p.db.Exec(fmt.Sprintf(
 			`UPDATE %s SET value = $1, isbinary = $2, updatedate = NOW()
 			 WHERE key = $3 AND xmin = $4;`,
-			defaultTableName), value, isBinary, req.Key, etag)
+			p.tableName), value, isBinary, req.Key, etag)
 	}
 
 	if err != nil {
@@ -218,7 +224,7 @@ func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 	var value string
 	var isBinary bool
 	var etag int
-	err := p.db.QueryRow(fmt.Sprintf("SELECT value, isbinary, xmin as etag FROM %s WHERE key = $1", defaultTableName), req.Key).Scan(&value, &isBinary, &etag)
+	err := p.db.QueryRow(fmt.Sprintf("SELECT value, isbinary, xmin as etag FROM %s WHERE key = $1", p.tableName), req.Key).Scan(&value, &isBinary, &etag)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
 		if err == sql.ErrNoRows {
@@ -378,8 +384,9 @@ func (p *postgresDBAccess) ExecuteMulti(request *state.TransactionalStateRequest
 func (p *postgresDBAccess) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
 	p.logger.Debug("Getting query value from PostgreSQL")
 	q := &Query{
-		query:  "",
-		params: []interface{}{},
+		query:     "",
+		params:    []interface{}{},
+		tableName: p.tableName,
 	}
 	qbuilder := query.NewQueryBuilder(q)
 	if err := qbuilder.BuildQuery(&req.Query); err != nil {

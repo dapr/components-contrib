@@ -15,7 +15,6 @@ package temporal
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -23,6 +22,7 @@ import (
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/client"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/workflows"
 	"github.com/dapr/kit/logger"
 )
@@ -33,8 +33,9 @@ type TemporalWF struct {
 }
 
 type temporalMetadata struct {
-	Identity string `json:"identity"`
-	HostPort string `json:"hostport"`
+	Identity  string `json:"identity"`
+	HostPort  string `json:"hostport"`
+	Namespace string `json:"namespace"`
 }
 
 // NewTemporalWorkflow returns a new workflow.
@@ -57,6 +58,9 @@ func (c *TemporalWF) Init(metadata workflows.Metadata) error {
 	}
 	if m.Identity != "" {
 		cOpt.Identity = m.Identity
+	}
+	if m.Namespace != "" {
+		cOpt.Namespace = m.Namespace
 	}
 	// Create the workflow client
 	newClient, err := client.Dial(cOpt)
@@ -83,7 +87,7 @@ func (c *TemporalWF) Start(ctx context.Context, req *workflows.StartRequest) (*w
 	taskQ := req.Options["task_queue"]
 
 	opt := client.StartWorkflowOptions{ID: req.WorkflowReference.InstanceID, TaskQueue: taskQ}
-	run, err := c.client.ExecuteWorkflow(ctx, opt, req.WorkflowName, req.Parameters)
+	run, err := c.client.ExecuteWorkflow(ctx, opt, req.WorkflowName, req.Input)
 	if err != nil {
 		return &workflows.WorkflowReference{}, fmt.Errorf("error executing workflow: %w", err)
 	}
@@ -124,20 +128,10 @@ func (c *TemporalWF) Close() {
 	c.client.Close()
 }
 
-func (c *TemporalWF) parseMetadata(metadata workflows.Metadata) (*temporalMetadata, error) {
-	connInfo := metadata.Properties
-	b, err := json.Marshal(connInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	var creds temporalMetadata
-	err = json.Unmarshal(b, &creds)
-	if err != nil {
-		return nil, err
-	}
-
-	return &creds, nil
+func (c *TemporalWF) parseMetadata(meta workflows.Metadata) (*temporalMetadata, error) {
+	var m temporalMetadata
+	err := metadata.DecodeMetadata(meta.Properties, &m)
+	return &m, err
 }
 
 func lookupStatus(status enums.WorkflowExecutionStatus) string {

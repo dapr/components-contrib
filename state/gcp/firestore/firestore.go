@@ -113,7 +113,8 @@ func (f *Firestore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, nil
 }
 
-func (f *Firestore) setValue(req *state.SetRequest) error {
+// Set saves state into Firestore.
+func (f *Firestore) Set(req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
@@ -142,12 +143,8 @@ func (f *Firestore) setValue(req *state.SetRequest) error {
 	return nil
 }
 
-// Set saves state into Firestore with retry.
-func (f *Firestore) Set(req *state.SetRequest) error {
-	return state.SetWithOptions(f.setValue, req)
-}
-
-func (f *Firestore) deleteValue(req *state.DeleteRequest) error {
+// Delete performs a delete operation.
+func (f *Firestore) Delete(req *state.DeleteRequest) error {
 	ctx := context.Background()
 	key := datastore.NameKey(f.entityKind, req.Key, nil)
 
@@ -157,11 +154,6 @@ func (f *Firestore) deleteValue(req *state.DeleteRequest) error {
 	}
 
 	return nil
-}
-
-// Delete performs a delete operation.
-func (f *Firestore) Delete(req *state.DeleteRequest) error {
-	return state.DeleteWithOptions(f.deleteValue, req)
 }
 
 func getFirestoreMetadata(meta state.Metadata) (*firestoreMetadata, error) {

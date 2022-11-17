@@ -13,7 +13,9 @@ limitations under the License.
 
 package workflows
 
-// Metadata represents a set of binding specific properties.
+import "github.com/dapr/components-contrib/metadata"
+
+// Metadata represents a set of workflow specific properties.
 type Metadata struct {
-	Properties map[string]string `json:"properties"`
+	metadata.Base `json:",inline"`
 }

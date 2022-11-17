@@ -30,7 +30,6 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/ptr"
 )
 
 // Optimistic Concurrency is implemented using a string column that stores a UUID.
@@ -337,8 +336,6 @@ func (m *MySQL) Delete(req *state.DeleteRequest) error {
 	return m.deleteValue(m.db, req)
 }
 
-// deleteValue is an internal implementation of delete to enable passing the
-// logic to state.DeleteWithRetries as a func.
 func (m *MySQL) deleteValue(querier querier, req *state.DeleteRequest) error {
 	m.logger.Debug("Deleting state value from MySql")
 
@@ -458,14 +455,14 @@ func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 		return &state.GetResponse{
 			Data:     data,
-			ETag:     ptr.Of(eTag),
+			ETag:     &eTag,
 			Metadata: req.Metadata,
 		}, nil
 	}
 
 	return &state.GetResponse{
 		Data:     value,
-		ETag:     ptr.Of(eTag),
+		ETag:     &eTag,
 		Metadata: req.Metadata,
 	}, nil
 }
@@ -476,8 +473,6 @@ func (m *MySQL) Set(req *state.SetRequest) error {
 	return m.setValue(m.db, req)
 }
 
-// setValue is an internal implementation of set to enable passing the logic
-// to state.SetWithRetries as a func.
 func (m *MySQL) setValue(querier querier, req *state.SetRequest) error {
 	m.logger.Debug("Setting state value in MySql")
 

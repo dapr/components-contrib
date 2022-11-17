@@ -9,5 +9,5 @@ type StartRequest struct {
 	Options           map[string]string `json:"workflow_options"`
 	WorkflowReference WorkflowReference `json:"workflow_reference"`
 	WorkflowName      string            `json:"function_name"`
-	Parameters        interface{}       `json:"parameters"`
+	Input             interface{}       `json:"input"`
 }

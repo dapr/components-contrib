@@ -14,24 +14,29 @@ limitations under the License.
 package blobstorage
 
 import (
+	"bytes"
 	"context"
 	b64 "encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
-	"github.com/Azure/azure-storage-blob-go/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/google/uuid"
 
 	"github.com/dapr/components-contrib/bindings"
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -63,25 +68,28 @@ const (
 	// Specifies the maximum number of blobs to return, including all BlobPrefix elements. If the request does not
 	// specify maxresults the server will return up to 5,000 items.
 	// See: https://docs.microsoft.com/en-us/rest/api/storageservices/list-blobs#uri-parameters
-	maxResults = 5000
+	maxResults  = 5000
+	endpointKey = "endpoint"
 )
 
 var ErrMissingBlobName = errors.New("blobName is a required attribute")
 
 // AzureBlobStorage allows saving blobs to an Azure Blob Storage account.
 type AzureBlobStorage struct {
-	metadata     *blobStorageMetadata
-	containerURL azblob.ContainerURL
+	metadata *blobStorageMetadata
+	// containerURL azblob.ContainerURL
+	containerClient *container.Client
 
 	logger logger.Logger
 }
 
 type blobStorageMetadata struct {
-	AccountName       string
-	Container         string
-	GetBlobRetryCount int
-	DecodeBase64      bool
-	PublicAccessLevel azblob.PublicAccessType
+	StorageAccount    string                  `json:"storageAccount"`
+	StorageAccessKey  string                  `json:"storageAccessKey"`
+	Container         string                  `json:"container"`
+	GetBlobRetryCount int                     `json:"getBlobRetryCount,string"`
+	DecodeBase64      bool                    `json:"decodeBase64,string"`
+	PublicAccessLevel azblob.PublicAccessType `json:"publicAccessLevel"`
 }
 
 type createResponse struct {
@@ -117,79 +125,100 @@ func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
 	}
 	a.metadata = m
 
-	credential, env, err := azauth.GetAzureStorageBlobCredentials(a.logger, m.AccountName, metadata.Properties)
-	if err != nil {
-		return fmt.Errorf("invalid credentials with error: %s", err.Error())
-	}
-
 	userAgent := "dapr-" + logger.DaprVersion
-	options := azblob.PipelineOptions{
-		Telemetry: azblob.TelemetryOptions{Value: userAgent},
+	options := container.ClientOptions{
+		ClientOptions: azcore.ClientOptions{
+			Retry: policy.RetryOptions{
+				MaxRetries: int32(a.metadata.GetBlobRetryCount),
+			},
+			Telemetry: policy.TelemetryOptions{
+				ApplicationID: userAgent,
+			},
+		},
 	}
-	p := azblob.NewPipeline(credential, options)
 
-	var containerURL azblob.ContainerURL
-	customEndpoint, ok := mdutils.GetMetadataProperty(metadata.Properties, azauth.StorageEndpointKeys...)
+	settings, err := azauth.NewEnvironmentSettings("storage", metadata.Properties)
+	if err != nil {
+		return err
+	}
+	customEndpoint, ok := metadata.Properties[endpointKey]
+	var URL *url.URL
 	if ok && customEndpoint != "" {
-		URL, parseErr := url.Parse(fmt.Sprintf("%s/%s/%s", customEndpoint, m.AccountName, m.Container))
+		var parseErr error
+		URL, parseErr = url.Parse(fmt.Sprintf("%s/%s/%s", customEndpoint, m.StorageAccount, m.Container))
 		if parseErr != nil {
 			return parseErr
 		}
-		containerURL = azblob.NewContainerURL(*URL, p)
 	} else {
-		URL, _ := url.Parse(fmt.Sprintf("https://%s.blob.%s/%s", m.AccountName, env.StorageEndpointSuffix, m.Container))
-		containerURL = azblob.NewContainerURL(*URL, p)
+		env := settings.AzureEnvironment
+		URL, _ = url.Parse(fmt.Sprintf("https://%s.blob.%s/%s", m.StorageAccount, env.StorageEndpointSuffix, m.Container))
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	_, err = containerURL.Create(ctx, azblob.Metadata{}, m.PublicAccessLevel)
+	var clientErr error
+	var client *container.Client
+	// Try using shared key credentials first
+	if m.StorageAccessKey != "" {
+		credential, newSharedKeyErr := azblob.NewSharedKeyCredential(m.StorageAccount, m.StorageAccessKey)
+		if err != nil {
+			return fmt.Errorf("invalid credentials with error: %w", newSharedKeyErr)
+		}
+		client, clientErr = container.NewClientWithSharedKeyCredential(URL.String(), credential, &options)
+		if clientErr != nil {
+			return fmt.Errorf("cannot init Blobstorage container client: %w", err)
+		}
+		container.NewClientWithSharedKeyCredential(URL.String(), credential, &options)
+		a.containerClient = client
+	} else {
+		// fallback to AAD
+		credential, tokenErr := settings.GetTokenCredential()
+		if err != nil {
+			return fmt.Errorf("invalid credentials with error: %w", tokenErr)
+		}
+		client, clientErr = container.NewClient(URL.String(), credential, &options)
+	}
+	if clientErr != nil {
+		return fmt.Errorf("cannot init Blobstorage client: %w", clientErr)
+	}
+
+	createContainerOptions := container.CreateOptions{
+		Access:   &m.PublicAccessLevel,
+		Metadata: map[string]string{},
+	}
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	_, err = client.Create(timeoutCtx, &createContainerOptions)
 	cancel()
 	// Don't return error, container might already exist
 	a.logger.Debugf("error creating container: %w", err)
-	a.containerURL = containerURL
+	a.containerClient = client
 
 	return nil
 }
 
-func (a *AzureBlobStorage) parseMetadata(metadata bindings.Metadata) (*blobStorageMetadata, error) {
-	var m blobStorageMetadata
-	if val, ok := mdutils.GetMetadataProperty(metadata.Properties, azauth.StorageAccountNameKeys...); ok && val != "" {
-		m.AccountName = val
+func (a *AzureBlobStorage) parseMetadata(meta bindings.Metadata) (*blobStorageMetadata, error) {
+	m := blobStorageMetadata{
+		GetBlobRetryCount: defaultGetBlobRetryCount,
+	}
+	mdutils.DecodeMetadata(meta.Properties, &m)
+
+	if val, ok := mdutils.GetMetadataProperty(meta.Properties, azauth.StorageAccountNameKeys...); ok && val != "" {
+		m.StorageAccount = val
 	} else {
 		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageAccountNameKeys[0])
 	}
 
-	if val, ok := mdutils.GetMetadataProperty(metadata.Properties, azauth.StorageContainerNameKeys...); ok && val != "" {
+	if val, ok := mdutils.GetMetadataProperty(meta.Properties, azauth.StorageContainerNameKeys...); ok && val != "" {
 		m.Container = val
 	} else {
 		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageContainerNameKeys[0])
 	}
 
-	m.GetBlobRetryCount = defaultGetBlobRetryCount
-	if val, ok := metadata.Properties["getBlobRetryCount"]; ok {
-		n, err := strconv.Atoi(val)
-		if err != nil || n == 0 {
-			return nil, fmt.Errorf("invalid getBlobRetryCount field from metadata")
-		}
-		m.GetBlobRetryCount = n
-	}
-
-	m.DecodeBase64 = false
-	if val, ok := metadata.Properties["decodeBase64"]; ok {
-		n, err := strconv.ParseBool(val)
-		if err != nil {
-			return nil, fmt.Errorf("invalid decodeBase64 field from metadata")
-		}
-		m.DecodeBase64 = n
-	}
-
-	m.PublicAccessLevel = azblob.PublicAccessType(strings.ToLower(metadata.Properties["publicAccessLevel"]))
 	// per the Dapr documentation "none" is a valid value
 	if m.PublicAccessLevel == "none" {
 		m.PublicAccessLevel = ""
 	}
-	if !a.isValidPublicAccessType(m.PublicAccessLevel) {
-		return nil, fmt.Errorf("invalid public access level: %s; allowed: %s", m.PublicAccessLevel, azblob.PossiblePublicAccessTypeValues())
+	if m.PublicAccessLevel != "" && !a.isValidPublicAccessType(m.PublicAccessLevel) {
+		return nil, fmt.Errorf("invalid public access level: %s; allowed: %s",
+			m.PublicAccessLevel, azblob.PossiblePublicAccessTypeValues())
 	}
 
 	return &m, nil
@@ -205,8 +234,6 @@ func (a *AzureBlobStorage) Operations() []bindings.OperationKind {
 }
 
 func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	var blobHTTPHeaders azblob.BlobHTTPHeaders
-	var blobURL azblob.BlockBlobURL
 	var blobName string
 	if val, ok := req.Metadata[metadataKeyBlobName]; ok && val != "" {
 		blobName = val
@@ -214,34 +241,38 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 	} else {
 		blobName = uuid.New().String()
 	}
-	blobURL = a.getBlobURL(blobName)
+
+	blobHTTPHeaders := blob.HTTPHeaders{}
 
 	if val, ok := req.Metadata[metadataKeyContentType]; ok && val != "" {
-		blobHTTPHeaders.ContentType = val
+		blobHTTPHeaders.BlobContentType = ptr.Of(val)
 		delete(req.Metadata, metadataKeyContentType)
 	}
+	var contentMD5 *[]byte
+
 	if val, ok := req.Metadata[metadataKeyContentMD5]; ok && val != "" {
 		sDec, err := b64.StdEncoding.DecodeString(val)
 		if err != nil || len(sDec) != 16 {
 			return nil, fmt.Errorf("the MD5 value specified in Content MD5 is invalid, MD5 value must be 128 bits and base64 encoded")
 		}
-		blobHTTPHeaders.ContentMD5 = sDec
+		blobHTTPHeaders.BlobContentMD5 = sDec
+		contentMD5 = &sDec
 		delete(req.Metadata, metadataKeyContentMD5)
 	}
 	if val, ok := req.Metadata[metadataKeyContentEncoding]; ok && val != "" {
-		blobHTTPHeaders.ContentEncoding = val
+		blobHTTPHeaders.BlobContentEncoding = ptr.Of(val)
 		delete(req.Metadata, metadataKeyContentEncoding)
 	}
 	if val, ok := req.Metadata[metadataKeyContentLanguage]; ok && val != "" {
-		blobHTTPHeaders.ContentLanguage = val
+		blobHTTPHeaders.BlobContentLanguage = ptr.Of(val)
 		delete(req.Metadata, metadataKeyContentLanguage)
 	}
 	if val, ok := req.Metadata[metadataKeyContentDisposition]; ok && val != "" {
-		blobHTTPHeaders.ContentDisposition = val
+		blobHTTPHeaders.BlobContentDisposition = ptr.Of(val)
 		delete(req.Metadata, metadataKeyContentDisposition)
 	}
 	if val, ok := req.Metadata[metadataKeyCacheControl]; ok && val != "" {
-		blobHTTPHeaders.CacheControl = val
+		blobHTTPHeaders.BlobCacheControl = ptr.Of(val)
 		delete(req.Metadata, metadataKeyCacheControl)
 	}
 
@@ -258,17 +289,22 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 		req.Data = decoded
 	}
 
-	_, err = azblob.UploadBufferToBlockBlob(ctx, req.Data, blobURL, azblob.UploadToBlockBlobOptions{
-		Parallelism:     16,
-		Metadata:        a.sanitizeMetadata(req.Metadata),
-		BlobHTTPHeaders: blobHTTPHeaders,
-	})
+	uploadOptions := azblob.UploadBufferOptions{
+		Metadata:                a.sanitizeMetadata(req.Metadata),
+		HTTPHeaders:             &blobHTTPHeaders,
+		Concurrency:             16,
+		TransactionalContentMD5: contentMD5,
+	}
+
+	blockBlobClient := a.containerClient.NewBlockBlobClient(blobName)
+	_, err = blockBlobClient.UploadBuffer(ctx, req.Data, &uploadOptions)
+
 	if err != nil {
 		return nil, fmt.Errorf("error uploading az blob: %w", err)
 	}
 
 	resp := createResponse{
-		BlobURL: blobURL.String(),
+		BlobURL: blockBlobClient.URL(),
 	}
 	b, err := json.Marshal(resp)
 	if err != nil {
@@ -286,23 +322,30 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 }
 
 func (a *AzureBlobStorage) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	var blobURL azblob.BlockBlobURL
+	var blockBlobClient *blockblob.Client
 	if val, ok := req.Metadata[metadataKeyBlobName]; ok && val != "" {
-		blobURL = a.getBlobURL(val)
+		blockBlobClient = a.containerClient.NewBlockBlobClient(val)
 	} else {
 		return nil, ErrMissingBlobName
 	}
 
-	resp, err := blobURL.Download(ctx, 0, azblob.CountToEnd, azblob.BlobAccessConditions{}, false)
+	downloadOptions := azblob.DownloadStreamOptions{
+		AccessConditions: &blob.AccessConditions{},
+	}
+
+	blobDownloadResponse, err := blockBlobClient.DownloadStream(ctx, &downloadOptions)
 	if err != nil {
 		return nil, fmt.Errorf("error downloading az blob: %w", err)
 	}
-
-	bodyStream := resp.Body(azblob.RetryReaderOptions{MaxRetryRequests: a.metadata.GetBlobRetryCount})
-
-	data, err := io.ReadAll(bodyStream)
+	blobData := &bytes.Buffer{}
+	reader := blobDownloadResponse.Body
+	_, err = blobData.ReadFrom(reader)
 	if err != nil {
-		return nil, fmt.Errorf("error reading az blob body: %w", err)
+		return nil, fmt.Errorf("error reading az blob: %w", err)
+	}
+	err = reader.Close()
+	if err != nil {
+		return nil, fmt.Errorf("error closing az blob reader: %w", err)
 	}
 
 	var metadata map[string]string
@@ -311,45 +354,54 @@ func (a *AzureBlobStorage) get(ctx context.Context, req *bindings.InvokeRequest)
 		return nil, fmt.Errorf("error parsing metadata: %w", err)
 	}
 
+	getPropertiesOptions := blob.GetPropertiesOptions{
+		AccessConditions: &blob.AccessConditions{},
+	}
+
 	if fetchMetadata {
-		props, err := blobURL.GetProperties(ctx, azblob.BlobAccessConditions{})
+		props, err := blockBlobClient.GetProperties(ctx, &getPropertiesOptions)
 		if err != nil {
 			return nil, fmt.Errorf("error reading blob metadata: %w", err)
 		}
 
-		metadata = props.NewMetadata()
+		metadata = props.Metadata
 	}
 
 	return &bindings.InvokeResponse{
-		Data:     data,
+		Data:     blobData.Bytes(),
 		Metadata: metadata,
 	}, nil
 }
 
 func (a *AzureBlobStorage) delete(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	var blobURL azblob.BlockBlobURL
-	if val, ok := req.Metadata[metadataKeyBlobName]; ok && val != "" {
-		blobURL = a.getBlobURL(val)
-	} else {
+	var blockBlobClient *blockblob.Client
+	val, ok := req.Metadata[metadataKeyBlobName]
+	if !ok || val == "" {
 		return nil, ErrMissingBlobName
 	}
 
-	deleteSnapshotsOptions := azblob.DeleteSnapshotsOptionNone
-	if val, ok := req.Metadata[metadataKeyDeleteSnapshots]; ok && val != "" {
-		deleteSnapshotsOptions = azblob.DeleteSnapshotsOptionType(val)
+	var deleteSnapshotsOptions blob.DeleteSnapshotsOptionType
+	if deleteSnapShotOption, ok := req.Metadata[metadataKeyDeleteSnapshots]; ok && val != "" {
+		deleteSnapshotsOptions = azblob.DeleteSnapshotsOptionType(deleteSnapShotOption)
 		if !a.isValidDeleteSnapshotsOptionType(deleteSnapshotsOptions) {
 			return nil, fmt.Errorf("invalid delete snapshot option type: %s; allowed: %s",
 				deleteSnapshotsOptions, azblob.PossibleDeleteSnapshotsOptionTypeValues())
 		}
 	}
 
-	_, err := blobURL.Delete(ctx, deleteSnapshotsOptions, azblob.BlobAccessConditions{})
+	deleteOptions := blob.DeleteOptions{
+		DeleteSnapshots:  &deleteSnapshotsOptions,
+		AccessConditions: &blob.AccessConditions{},
+	}
+
+	blockBlobClient = a.containerClient.NewBlockBlobClient(val)
+	_, err := blockBlobClient.Delete(context.Background(), &deleteOptions)
 
 	return nil, err
 }
 
 func (a *AzureBlobStorage) list(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	options := azblob.ListBlobsSegmentOptions{}
+	options := container.ListBlobsFlatOptions{}
 
 	hasPayload := false
 	var payload listPayload
@@ -360,50 +412,52 @@ func (a *AzureBlobStorage) list(ctx context.Context, req *bindings.InvokeRequest
 		}
 		hasPayload = true
 	}
-
 	if hasPayload {
-		options.Details.Copy = payload.Include.Copy
-		options.Details.Metadata = payload.Include.Metadata
-		options.Details.Snapshots = payload.Include.Snapshots
-		options.Details.UncommittedBlobs = payload.Include.UncommittedBlobs
-		options.Details.Deleted = payload.Include.Deleted
+		options.Include.Copy = payload.Include.Copy
+		options.Include.Metadata = payload.Include.Metadata
+		options.Include.Snapshots = payload.Include.Snapshots
+		options.Include.UncommittedBlobs = payload.Include.UncommittedBlobs
+		options.Include.Deleted = payload.Include.Deleted
 	}
 
 	if hasPayload && payload.MaxResults != int32(0) {
-		options.MaxResults = payload.MaxResults
+		options.MaxResults = ptr.Of(payload.MaxResults)
 	} else {
-		options.MaxResults = maxResults
+		options.MaxResults = ptr.Of(int32(maxResults))
 	}
 
 	if hasPayload && payload.Prefix != "" {
-		options.Prefix = payload.Prefix
+		options.Prefix = ptr.Of(payload.Prefix)
 	}
 
-	var initialMarker azblob.Marker
+	var initialMarker string
 	if hasPayload && payload.Marker != "" {
-		initialMarker = azblob.Marker{Val: &payload.Marker}
+		initialMarker = payload.Marker
 	} else {
-		initialMarker = azblob.Marker{}
+		initialMarker = ""
 	}
+	options.Marker = ptr.Of(initialMarker)
 
-	var blobs []azblob.BlobItem
 	metadata := map[string]string{}
-	for currentMaker := initialMarker; currentMaker.NotDone(); {
-		var listBlob *azblob.ListBlobsFlatSegmentResponse
-		listBlob, err := a.containerURL.ListBlobsFlatSegment(ctx, currentMaker, options)
+	blobs := []*container.BlobItem{}
+	pager := a.containerClient.NewListBlobsFlatPager(&options)
+
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("error listing blobs: %w", err)
 		}
 
-		blobs = append(blobs, listBlob.Segment.BlobItems...)
-
+		blobs = append(blobs, resp.Segment.BlobItems...)
 		numBlobs := len(blobs)
-		currentMaker = listBlob.NextMarker
-		metadata[metadataKeyMarker] = *currentMaker.Val
 		metadata[metadataKeyNumber] = strconv.FormatInt(int64(numBlobs), 10)
+		metadata[metadataKeyMarker] = ""
+		if resp.Marker != nil {
+			metadata[metadataKeyMarker] = *resp.Marker
+		}
 
-		if options.MaxResults-maxResults > 0 {
-			options.MaxResults -= maxResults
+		if *options.MaxResults-maxResults > 0 {
+			*options.MaxResults -= maxResults
 		} else {
 			break
 		}
@@ -433,12 +487,6 @@ func (a *AzureBlobStorage) Invoke(ctx context.Context, req *bindings.InvokeReque
 	default:
 		return nil, fmt.Errorf("unsupported operation %s", req.Operation)
 	}
-}
-
-func (a *AzureBlobStorage) getBlobURL(name string) azblob.BlockBlobURL {
-	blobURL := a.containerURL.NewBlockBlobURL(name)
-
-	return blobURL
 }
 
 func (a *AzureBlobStorage) isValidPublicAccessType(accessType azblob.PublicAccessType) bool {

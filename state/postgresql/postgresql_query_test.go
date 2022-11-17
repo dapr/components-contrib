@@ -60,7 +60,9 @@ func TestPostgresqlQueryBuildQuery(t *testing.T) {
 		err = json.Unmarshal(data, &qq)
 		assert.NoError(t, err)
 
-		q := &Query{}
+		q := &Query{
+			tableName: defaultTableName,
+		}
 		qbuilder := query.NewQueryBuilder(q)
 		err = qbuilder.BuildQuery(&qq)
 		assert.NoError(t, err)

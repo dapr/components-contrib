@@ -42,7 +42,7 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, "account", meta.StorageAccount)
 		// storageAccessKey is parsed in the azauth package
 		assert.Equal(t, true, meta.DecodeBase64)
-		assert.Equal(t, 5, meta.GetBlobRetryCount)
+		assert.Equal(t, int32(5), meta.GetBlobRetryCount)
 		assert.Equal(t, "", string(meta.PublicAccessLevel))
 	})
 

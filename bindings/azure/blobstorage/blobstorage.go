@@ -62,14 +62,14 @@ const (
 	metadataKeyContentLanguage    = "contentLanguage"
 	metadataKeyContentDisposition = "contentDisposition"
 	metadataKeyCacheControl       = "cacheControl"
-	// Specifies the maximum number of HTTP GET requests that will be made while reading from a RetryReader. A value
-	// of zero means that no additional HTTP GET requests will be made.
+	// Specifies the maximum number of HTTP requests that will be made to retry blob operations. A value
+	// of zero means that no additional HTTP requests will be made.
 	defaultGetBlobRetryCount = 10
 	// Specifies the maximum number of blobs to return, including all BlobPrefix elements. If the request does not
 	// specify maxresults the server will return up to 5,000 items.
 	// See: https://docs.microsoft.com/en-us/rest/api/storageservices/list-blobs#uri-parameters
-	maxResults  = 5000
-	endpointKey = "endpoint"
+	maxResults  int32 = 5000
+	endpointKey       = "endpoint"
 )
 
 var ErrMissingBlobName = errors.New("blobName is a required attribute")
@@ -87,7 +87,7 @@ type blobStorageMetadata struct {
 	StorageAccount    string                  `json:"storageAccount"`
 	StorageAccessKey  string                  `json:"storageAccessKey"`
 	Container         string                  `json:"container"`
-	GetBlobRetryCount int                     `json:"getBlobRetryCount,string"`
+	GetBlobRetryCount int32                   `json:"getBlobRetryCount,string"`
 	DecodeBase64      bool                    `json:"decodeBase64,string"`
 	PublicAccessLevel azblob.PublicAccessType `json:"publicAccessLevel"`
 }
@@ -129,7 +129,7 @@ func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
 	options := container.ClientOptions{
 		ClientOptions: azcore.ClientOptions{
 			Retry: policy.RetryOptions{
-				MaxRetries: int32(a.metadata.GetBlobRetryCount),
+				MaxRetries: a.metadata.GetBlobRetryCount,
 			},
 			Telemetry: policy.TelemetryOptions{
 				ApplicationID: userAgent,
@@ -245,7 +245,7 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 	blobHTTPHeaders := blob.HTTPHeaders{}
 
 	if val, ok := req.Metadata[metadataKeyContentType]; ok && val != "" {
-		blobHTTPHeaders.BlobContentType = ptr.Of(val)
+		blobHTTPHeaders.BlobContentType = &val
 		delete(req.Metadata, metadataKeyContentType)
 	}
 	var contentMD5 *[]byte
@@ -253,26 +253,26 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 	if val, ok := req.Metadata[metadataKeyContentMD5]; ok && val != "" {
 		sDec, err := b64.StdEncoding.DecodeString(val)
 		if err != nil || len(sDec) != 16 {
-			return nil, fmt.Errorf("the MD5 value specified in Content MD5 is invalid, MD5 value must be 128 bits and base64 encoded")
+			return nil, errors.New("the MD5 value specified in Content MD5 is invalid, MD5 value must be 128 bits and base64 encoded")
 		}
 		blobHTTPHeaders.BlobContentMD5 = sDec
 		contentMD5 = &sDec
 		delete(req.Metadata, metadataKeyContentMD5)
 	}
 	if val, ok := req.Metadata[metadataKeyContentEncoding]; ok && val != "" {
-		blobHTTPHeaders.BlobContentEncoding = ptr.Of(val)
+		blobHTTPHeaders.BlobContentEncoding = &val
 		delete(req.Metadata, metadataKeyContentEncoding)
 	}
 	if val, ok := req.Metadata[metadataKeyContentLanguage]; ok && val != "" {
-		blobHTTPHeaders.BlobContentLanguage = ptr.Of(val)
+		blobHTTPHeaders.BlobContentLanguage = &val
 		delete(req.Metadata, metadataKeyContentLanguage)
 	}
 	if val, ok := req.Metadata[metadataKeyContentDisposition]; ok && val != "" {
-		blobHTTPHeaders.BlobContentDisposition = ptr.Of(val)
+		blobHTTPHeaders.BlobContentDisposition = &val
 		delete(req.Metadata, metadataKeyContentDisposition)
 	}
 	if val, ok := req.Metadata[metadataKeyCacheControl]; ok && val != "" {
-		blobHTTPHeaders.BlobCacheControl = ptr.Of(val)
+		blobHTTPHeaders.BlobCacheControl = &val
 		delete(req.Metadata, metadataKeyCacheControl)
 	}
 
@@ -421,13 +421,13 @@ func (a *AzureBlobStorage) list(ctx context.Context, req *bindings.InvokeRequest
 	}
 
 	if hasPayload && payload.MaxResults != int32(0) {
-		options.MaxResults = ptr.Of(payload.MaxResults)
+		options.MaxResults = &payload.MaxResults
 	} else {
-		options.MaxResults = ptr.Of(int32(maxResults))
+		options.MaxResults = ptr.Of(maxResults) // cannot get address of constant directly
 	}
 
 	if hasPayload && payload.Prefix != "" {
-		options.Prefix = ptr.Of(payload.Prefix)
+		options.Prefix = &payload.Prefix
 	}
 
 	var initialMarker string
@@ -436,7 +436,7 @@ func (a *AzureBlobStorage) list(ctx context.Context, req *bindings.InvokeRequest
 	} else {
 		initialMarker = ""
 	}
-	options.Marker = ptr.Of(initialMarker)
+	options.Marker = &initialMarker
 
 	metadata := map[string]string{}
 	blobs := []*container.BlobItem{}

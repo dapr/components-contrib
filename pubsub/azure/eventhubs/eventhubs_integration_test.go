@@ -52,11 +52,11 @@ func createIotHubPubsubMetadata() pubsub.Metadata {
 	metadata := pubsub.Metadata{
 		Base: metadata.Base{
 			Properties: map[string]string{
-				connectionString:     os.Getenv(iotHubConnectionStringEnvKey),
-				consumerID:           os.Getenv(iotHubConsumerGroupEnvKey),
-				storageAccountName:   os.Getenv(storageAccountNameEnvKey),
-				storageAccountKey:    os.Getenv(storageAccountKeyEnvKey),
-				storageContainerName: testStorageContainerName,
+				"connectionString":     os.Getenv(iotHubConnectionStringEnvKey),
+				"consumerID":           os.Getenv(iotHubConsumerGroupEnvKey),
+				"storageAccountName":   os.Getenv(storageAccountNameEnvKey),
+				"storageAccountKey":    os.Getenv(storageAccountKeyEnvKey),
+				"storageContainerName": testStorageContainerName,
 			},
 		},
 	}

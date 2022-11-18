@@ -18,8 +18,9 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
-	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/kit/logger"
 )
 
 func TestParseMetadata(t *testing.T) {

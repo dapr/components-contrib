@@ -187,22 +187,20 @@ func (s *StateStore) Delete(req *state.DeleteRequest) error {
 		return err
 	}
 
-	return state.DeleteWithOptions(func(req *state.DeleteRequest) error {
-		err := s.conn.Delete(r.Path, r.Version)
-		if errors.Is(err, zk.ErrNoNode) {
-			return nil
-		}
-
-		if err != nil {
-			if req.ETag != nil {
-				return state.NewETagError(state.ETagMismatch, err)
-			}
-
-			return err
-		}
-
+	err = s.conn.Delete(r.Path, r.Version)
+	if errors.Is(err, zk.ErrNoNode) {
 		return nil
-	}, req)
+	}
+
+	if err != nil {
+		if req.ETag != nil {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 // BulkDelete performs a bulk delete operation.
@@ -239,23 +237,20 @@ func (s *StateStore) Set(req *state.SetRequest) error {
 		return err
 	}
 
-	return state.SetWithOptions(func(req *state.SetRequest) error {
-		_, err = s.conn.Set(r.Path, r.Data, r.Version)
+	_, err = s.conn.Set(r.Path, r.Data, r.Version)
+	if errors.Is(err, zk.ErrNoNode) {
+		_, err = s.conn.Create(r.Path, r.Data, 0, nil)
+	}
 
-		if errors.Is(err, zk.ErrNoNode) {
-			_, err = s.conn.Create(r.Path, r.Data, 0, nil)
+	if err != nil {
+		if req.ETag != nil {
+			return state.NewETagError(state.ETagMismatch, err)
 		}
 
-		if err != nil {
-			if req.ETag != nil {
-				return state.NewETagError(state.ETagMismatch, err)
-			}
+		return err
+	}
 
-			return err
-		}
-
-		return nil
-	}, req)
+	return nil
 }
 
 // BulkSet performs a bulks save operation.

@@ -41,6 +41,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 )
 
@@ -197,12 +198,12 @@ func TestBlobStorage(t *testing.T) {
 		// confirm the deletion.
 		_, invokeSecondGetErr := getBlobRequest(ctx, client, blobName, false)
 		assert.Error(t, invokeSecondGetErr)
-		assert.Contains(t, invokeSecondGetErr.Error(), "ERROR CODE: BlobNotFound")
+		assert.Contains(t, invokeSecondGetErr.Error(), bloberror.BlobNotFound)
 
 		// deleting the key again should fail.
 		_, invokeDeleteErr2 := deleteBlobRequest(ctx, client, blobName, nil)
 		assert.Error(t, invokeDeleteErr2)
-		assert.Contains(t, invokeDeleteErr2.Error(), "ERROR CODE: BlobNotFound")
+		assert.Contains(t, invokeDeleteErr2.Error(), bloberror.BlobNotFound)
 
 		return nil
 	}
@@ -235,7 +236,7 @@ func TestBlobStorage(t *testing.T) {
 
 		_, invokeCreateErr := client.InvokeBinding(ctx, invokeCreateRequest)
 		assert.Error(t, invokeCreateErr)
-		assert.Contains(t, invokeCreateErr.Error(), "ERROR CODE: Md5Mismatch")
+		assert.Contains(t, invokeCreateErr.Error(), bloberror.MD5Mismatch)
 
 		return nil
 	}
@@ -284,7 +285,7 @@ func TestBlobStorage(t *testing.T) {
 			// confirm the deletion.
 			_, invokeSecondGetErr := getBlobRequest(ctx, client, blobName, false)
 			assert.Error(t, invokeSecondGetErr)
-			assert.Contains(t, invokeSecondGetErr.Error(), "ERROR CODE: BlobNotFound")
+			assert.Contains(t, invokeSecondGetErr.Error(), bloberror.BlobNotFound)
 
 			return nil
 		}
@@ -424,7 +425,7 @@ func TestBlobStorage(t *testing.T) {
 		// confirm the deletion.
 		_, invokeSecondGetErr := getBlobRequest(ctx, client, "filename.txt", false)
 		assert.Error(t, invokeSecondGetErr)
-		assert.Contains(t, invokeSecondGetErr.Error(), "ERROR CODE: BlobNotFound")
+		assert.Contains(t, invokeSecondGetErr.Error(), bloberror.BlobNotFound)
 
 		return nil
 	}

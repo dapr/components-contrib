@@ -14,12 +14,12 @@ limitations under the License.
 package blobstorage
 
 import (
-	"bytes"
 	"context"
 	b64 "encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"strconv"
 	"time"
@@ -64,7 +64,7 @@ const (
 	metadataKeyCacheControl       = "cacheControl"
 	// Specifies the maximum number of HTTP requests that will be made to retry blob operations. A value
 	// of zero means that no additional HTTP requests will be made.
-	defaultGetBlobRetryCount = 10
+	defaultBlobRetryCount = 3
 	// Specifies the maximum number of blobs to return, including all BlobPrefix elements. If the request does not
 	// specify maxresults the server will return up to 5,000 items.
 	// See: https://docs.microsoft.com/en-us/rest/api/storageservices/list-blobs#uri-parameters
@@ -76,8 +76,7 @@ var ErrMissingBlobName = errors.New("blobName is a required attribute")
 
 // AzureBlobStorage allows saving blobs to an Azure Blob Storage account.
 type AzureBlobStorage struct {
-	metadata *blobStorageMetadata
-	// containerURL azblob.ContainerURL
+	metadata        *blobStorageMetadata
 	containerClient *container.Client
 
 	logger logger.Logger
@@ -166,7 +165,6 @@ func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
 		if clientErr != nil {
 			return fmt.Errorf("cannot init Blobstorage container client: %w", err)
 		}
-		container.NewClientWithSharedKeyCredential(URL.String(), credential, &options)
 		a.containerClient = client
 	} else {
 		// fallback to AAD
@@ -196,7 +194,7 @@ func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
 
 func (a *AzureBlobStorage) parseMetadata(meta bindings.Metadata) (*blobStorageMetadata, error) {
 	m := blobStorageMetadata{
-		GetBlobRetryCount: defaultGetBlobRetryCount,
+		GetBlobRetryCount: defaultBlobRetryCount,
 	}
 	mdutils.DecodeMetadata(meta.Properties, &m)
 
@@ -248,8 +246,8 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 		blobHTTPHeaders.BlobContentType = &val
 		delete(req.Metadata, metadataKeyContentType)
 	}
-	var contentMD5 *[]byte
 
+	var contentMD5 *[]byte
 	if val, ok := req.Metadata[metadataKeyContentMD5]; ok && val != "" {
 		sDec, err := b64.StdEncoding.DecodeString(val)
 		if err != nil || len(sDec) != 16 {
@@ -292,7 +290,6 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 	uploadOptions := azblob.UploadBufferOptions{
 		Metadata:                a.sanitizeMetadata(req.Metadata),
 		HTTPHeaders:             &blobHTTPHeaders,
-		Concurrency:             16,
 		TransactionalContentMD5: contentMD5,
 	}
 
@@ -337,9 +334,9 @@ func (a *AzureBlobStorage) get(ctx context.Context, req *bindings.InvokeRequest)
 	if err != nil {
 		return nil, fmt.Errorf("error downloading az blob: %w", err)
 	}
-	blobData := &bytes.Buffer{}
 	reader := blobDownloadResponse.Body
-	_, err = blobData.ReadFrom(reader)
+	defer reader.Close()
+	blobData, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, fmt.Errorf("error reading az blob: %w", err)
 	}
@@ -368,7 +365,7 @@ func (a *AzureBlobStorage) get(ctx context.Context, req *bindings.InvokeRequest)
 	}
 
 	return &bindings.InvokeResponse{
-		Data:     blobData.Bytes(),
+		Data:     blobData,
 		Metadata: metadata,
 	}, nil
 }
@@ -395,7 +392,7 @@ func (a *AzureBlobStorage) delete(ctx context.Context, req *bindings.InvokeReque
 	}
 
 	blockBlobClient = a.containerClient.NewBlockBlobClient(val)
-	_, err := blockBlobClient.Delete(context.Background(), &deleteOptions)
+	_, err := blockBlobClient.Delete(ctx, &deleteOptions)
 
 	return nil, err
 }
@@ -420,7 +417,7 @@ func (a *AzureBlobStorage) list(ctx context.Context, req *bindings.InvokeRequest
 		options.Include.Deleted = payload.Include.Deleted
 	}
 
-	if hasPayload && payload.MaxResults != int32(0) {
+	if hasPayload && payload.MaxResults > 0 {
 		options.MaxResults = &payload.MaxResults
 	} else {
 		options.MaxResults = ptr.Of(maxResults) // cannot get address of constant directly

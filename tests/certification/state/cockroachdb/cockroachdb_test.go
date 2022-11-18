@@ -181,21 +181,17 @@ func TestCockroach(t *testing.T) {
 				{
 					Operation: state.Upsert,
 					Request: state.SetRequest{
-						Key:   "reqKey1",
-						Value: "reqVal1",
-						Metadata: map[string]string{
-							"ttlInSeconds": "-1",
-						},
+						Key:      "reqKey1",
+						Value:    "reqVal1",
+						Metadata: map[string]string{},
 					},
 				},
 				{
 					Operation: state.Upsert,
 					Request: state.SetRequest{
-						Key:   "reqKey2",
-						Value: "reqVal2",
-						Metadata: map[string]string{
-							"ttlInSeconds": "222",
-						},
+						Key:      "reqKey2",
+						Value:    "reqVal2",
+						Metadata: map[string]string{},
 					},
 				},
 				{
@@ -208,30 +204,24 @@ func TestCockroach(t *testing.T) {
 				{
 					Operation: state.Upsert,
 					Request: state.SetRequest{
-						Key:   "reqKey1",
-						Value: "reqVal101",
-						Metadata: map[string]string{
-							"ttlInSeconds": "50",
-						},
+						Key:      "reqKey1",
+						Value:    "reqVal101",
+						Metadata: map[string]string{},
 					},
 				},
 				{
 					Operation: state.Upsert,
 					Request: state.SetRequest{
-						Key:   "reqKey3",
-						Value: "reqVal103",
-						Metadata: map[string]string{
-							"ttlInSeconds": "50",
-						},
+						Key:      "reqKey3",
+						Value:    "reqVal103",
+						Metadata: map[string]string{},
 					},
 				},
 				{
 					Operation: state.Delete,
 					Request: state.DeleteRequest{
-						Key: certificationTestPrefix + "key1",
-						Metadata: map[string]string{
-							"ttlInSeconds": "50",
-						},
+						Key:      certificationTestPrefix + "key1",
+						Metadata: map[string]string{},
 					},
 				},
 			},

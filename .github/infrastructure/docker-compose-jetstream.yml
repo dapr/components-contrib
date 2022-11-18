@@ -1,0 +1,19 @@
+version: '2'
+
+services:
+  nats:
+    image: nats:2.9.7
+    ports: 
+      - "4222:4222"
+    networks: ["nats"]
+    command: "--js"
+  startup:
+    image: natsio/nats-box
+    networks: ["nats"]
+    depends_on: 
+      - nats
+    entrypoint: sleep 5 && nats stream add myStream --subjects testTopic,multiTopic1,multiTopic2 --storage=file --replicas=1 --retention=limits --discard=old --max-msgs=-1 --max-msgs-per-subject=-1 --max-bytes=-1 --max-age=-1 --max-msg-size=-1 --dupe-window=2m0s --no-allow-rollup --no-deny-delete --no-deny-purge
+
+networks:
+  nats:
+    name: nats

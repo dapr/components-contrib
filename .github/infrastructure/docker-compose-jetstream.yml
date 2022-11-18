@@ -12,7 +12,7 @@ services:
     networks: ["nats"]
     depends_on: 
       - nats
-    entrypoint: sleep 5 && nats stream add myStream --subjects testTopic,multiTopic1,multiTopic2 --storage=file --replicas=1 --retention=limits --discard=old --max-msgs=-1 --max-msgs-per-subject=-1 --max-bytes=-1 --max-age=-1 --max-msg-size=-1 --dupe-window=2m0s --no-allow-rollup --no-deny-delete --no-deny-purge
+    entrypoint: sh -c "sleep 5 && nats -s nats:4222 stream add pubsub --subjects testTopic,multiTopic1,multiTopic2,testTopicBulk --storage=file --replicas=1 --retention=limits --discard=old --max-msgs=-1 --max-msgs-per-subject=-1 --max-bytes=-1 --max-age=-1 --max-msg-size=-1 --dupe-window=2m0s --no-allow-rollup --no-deny-delete --no-deny-purge"
 
 networks:
   nats:

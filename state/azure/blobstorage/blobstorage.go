@@ -40,20 +40,17 @@ import (
 	b64 "encoding/base64"
 	"fmt"
 	"io"
-	"net/url"
 	"reflect"
 	"strings"
-	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	jsoniter "github.com/json-iterator/go"
 
-	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
+	storageinternal "github.com/dapr/components-contrib/internal/component/azure/blobstorage"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
@@ -81,80 +78,13 @@ type StateStore struct {
 	logger   logger.Logger
 }
 
-type blobStorageMetadata struct {
-	AccountName   string
-	ContainerName string
-	AccountKey    string
-}
-
 // Init the connection to blob storage, optionally creates a blob container if it doesn't exist.
 func (r *StateStore) Init(metadata state.Metadata) error {
-	m, err := getBlobStorageMetadata(metadata.Properties)
+	var err error
+	r.containerClient, _, err = storageinternal.CreateContainerStorageClient(r.logger, metadata.Properties)
 	if err != nil {
 		return err
 	}
-
-	userAgent := "dapr-" + logger.DaprVersion
-	options := container.ClientOptions{
-		ClientOptions: azcore.ClientOptions{
-			Telemetry: policy.TelemetryOptions{
-				ApplicationID: userAgent,
-			},
-		},
-	}
-
-	settings, err := azauth.NewEnvironmentSettings("storage", metadata.Properties)
-	if err != nil {
-		return err
-	}
-	customEndpoint, ok := metadata.Properties[endpointKey]
-	var URL *url.URL
-	if ok && customEndpoint != "" {
-		var parseErr error
-		URL, parseErr = url.Parse(fmt.Sprintf("%s/%s/%s", customEndpoint, m.AccountName, m.ContainerName))
-		if parseErr != nil {
-			return parseErr
-		}
-	} else {
-		env := settings.AzureEnvironment
-		URL, _ = url.Parse(fmt.Sprintf("https://%s.blob.%s/%s", m.AccountName, env.StorageEndpointSuffix, m.ContainerName))
-	}
-
-	var clientErr error
-	var client *container.Client
-	// Try using shared key credentials first
-	if m.AccountKey != "" {
-		credential, newSharedKeyErr := azblob.NewSharedKeyCredential(m.AccountName, m.AccountKey)
-		if err != nil {
-			return fmt.Errorf("invalid credentials with error: %w", newSharedKeyErr)
-		}
-		client, clientErr = container.NewClientWithSharedKeyCredential(URL.String(), credential, &options)
-		if clientErr != nil {
-			return fmt.Errorf("cannot init Blobstorage container client: %w", err)
-		}
-		r.containerClient = client
-	} else {
-		// fallback to AAD
-		credential, tokenErr := settings.GetTokenCredential()
-		if err != nil {
-			return fmt.Errorf("invalid credentials with error: %w", tokenErr)
-		}
-		client, clientErr = container.NewClient(URL.String(), credential, &options)
-	}
-	if clientErr != nil {
-		return fmt.Errorf("cannot init Blobstorage client: %w", clientErr)
-	}
-
-	createContainerOptions := container.CreateOptions{
-		Access: nil,
-	}
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	_, err = client.Create(timeoutCtx, &createContainerOptions)
-	cancel()
-	// Don't return error, container might already exist
-	r.logger.Debugf("error creating container: %w", err)
-	r.containerClient = client
-
 	return nil
 }
 
@@ -193,7 +123,7 @@ func (r *StateStore) Ping() error {
 }
 
 func (r *StateStore) GetComponentMetadata() map[string]string {
-	metadataStruct := blobStorageMetadata{}
+	metadataStruct := storageinternal.BlobStorageMetadata{}
 	metadataInfo := map[string]string{}
 	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
 	return metadataInfo
@@ -209,25 +139,6 @@ func NewAzureBlobStorageStore(logger logger.Logger) state.Store {
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 
 	return s
-}
-
-func getBlobStorageMetadata(meta map[string]string) (*blobStorageMetadata, error) {
-	m := blobStorageMetadata{}
-	err := mdutils.DecodeMetadata(meta, &m)
-
-	if val, ok := mdutils.GetMetadataProperty(meta, azauth.StorageAccountNameKeys...); ok && val != "" {
-		m.AccountName = val
-	} else {
-		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageAccountNameKeys[0])
-	}
-
-	if val, ok := mdutils.GetMetadataProperty(meta, azauth.StorageContainerNameKeys...); ok && val != "" {
-		m.ContainerName = val
-	} else {
-		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageContainerNameKeys[0])
-	}
-
-	return &m, err
 }
 
 func (r *StateStore) readFile(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
@@ -289,7 +200,7 @@ func (r *StateStore) writeFile(ctx context.Context, req *state.SetRequest) error
 
 	uploadOptions := azblob.UploadBufferOptions{
 		AccessConditions: &accessConditions,
-		Metadata:         req.Metadata,
+		Metadata:         storageinternal.SanitizeMetadata(r.logger, req.Metadata),
 		HTTPHeaders:      &blobHTTPHeaders,
 		Concurrency:      16,
 	}

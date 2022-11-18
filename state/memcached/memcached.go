@@ -146,7 +146,7 @@ func (m *Memcached) parseTTL(req *state.SetRequest) (*int32, error) {
 	return nil, nil
 }
 
-func (m *Memcached) setValue(req *state.SetRequest) error {
+func (m *Memcached) Set(req *state.SetRequest) error {
 	var bt []byte
 	ttl, err := m.parseTTL(req)
 	if err != nil {
@@ -192,10 +192,6 @@ func (m *Memcached) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	return &state.GetResponse{
 		Data: item.Value,
 	}, nil
-}
-
-func (m *Memcached) Set(req *state.SetRequest) error {
-	return state.SetWithOptions(m.setValue, req)
 }
 
 func (m *Memcached) GetComponentMetadata() map[string]string {

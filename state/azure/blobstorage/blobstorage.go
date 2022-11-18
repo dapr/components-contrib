@@ -36,10 +36,10 @@ Concurrency is supported with ETags according to https://docs.microsoft.com/en-u
 package blobstorage
 
 import (
-	"bytes"
 	"context"
 	b64 "encoding/base64"
 	"fmt"
+	"io"
 	"net/url"
 	"reflect"
 	"strings"
@@ -132,7 +132,6 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		if clientErr != nil {
 			return fmt.Errorf("cannot init Blobstorage container client: %w", err)
 		}
-		container.NewClientWithSharedKeyCredential(URL.String(), credential, &options)
 		r.containerClient = client
 	} else {
 		// fallback to AAD
@@ -249,9 +248,9 @@ func (r *StateStore) readFile(ctx context.Context, req *state.GetRequest) (*stat
 		return &state.GetResponse{}, err
 	}
 
-	blobData := &bytes.Buffer{}
 	reader := blobDownloadResponse.Body
-	_, err = blobData.ReadFrom(reader)
+	defer reader.Close()
+	blobData, err := io.ReadAll(reader)
 	if err != nil {
 		return &state.GetResponse{}, fmt.Errorf("error reading az blob: %w", err)
 	}
@@ -263,7 +262,7 @@ func (r *StateStore) readFile(ctx context.Context, req *state.GetRequest) (*stat
 	contentType := blobDownloadResponse.ContentType
 
 	return &state.GetResponse{
-		Data:        blobData.Bytes(),
+		Data:        blobData,
 		ETag:        ptr.Of(string(*blobDownloadResponse.ETag)),
 		ContentType: contentType,
 	}, nil

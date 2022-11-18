@@ -58,26 +58,6 @@ func TestInit(t *testing.T) {
 	})
 }
 
-func TestGetBlobStorageMetaData(t *testing.T) {
-	t.Run("Nothing at all passed", func(t *testing.T) {
-		m := make(map[string]string)
-		_, err := getBlobStorageMetadata(m)
-
-		assert.NotNil(t, err)
-	})
-
-	t.Run("All parameters passed and parsed", func(t *testing.T) {
-		m := make(map[string]string)
-		m["accountName"] = "acc"
-		m["containerName"] = "dapr"
-		meta, err := getBlobStorageMetadata(m)
-
-		assert.Nil(t, err)
-		assert.Equal(t, "acc", meta.AccountName)
-		assert.Equal(t, "dapr", meta.ContainerName)
-	})
-}
-
 func TestFileName(t *testing.T) {
 	t.Run("Valid composite key", func(t *testing.T) {
 		key := getFileName("app_id||key")

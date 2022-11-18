@@ -20,12 +20,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"strconv"
-	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
@@ -33,8 +29,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/dapr/components-contrib/bindings"
-	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
-	mdutils "github.com/dapr/components-contrib/metadata"
+	storageinternal "github.com/dapr/components-contrib/internal/component/azure/blobstorage"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
 )
@@ -62,9 +57,6 @@ const (
 	metadataKeyContentLanguage    = "contentLanguage"
 	metadataKeyContentDisposition = "contentDisposition"
 	metadataKeyCacheControl       = "cacheControl"
-	// Specifies the maximum number of HTTP requests that will be made to retry blob operations. A value
-	// of zero means that no additional HTTP requests will be made.
-	defaultBlobRetryCount = 3
 	// Specifies the maximum number of blobs to return, including all BlobPrefix elements. If the request does not
 	// specify maxresults the server will return up to 5,000 items.
 	// See: https://docs.microsoft.com/en-us/rest/api/storageservices/list-blobs#uri-parameters
@@ -76,19 +68,10 @@ var ErrMissingBlobName = errors.New("blobName is a required attribute")
 
 // AzureBlobStorage allows saving blobs to an Azure Blob Storage account.
 type AzureBlobStorage struct {
-	metadata        *blobStorageMetadata
+	metadata        *storageinternal.BlobStorageMetadata
 	containerClient *container.Client
 
 	logger logger.Logger
-}
-
-type blobStorageMetadata struct {
-	StorageAccount    string                  `json:"storageAccount"`
-	StorageAccessKey  string                  `json:"storageAccessKey"`
-	Container         string                  `json:"container"`
-	GetBlobRetryCount int32                   `json:"getBlobRetryCount,string"`
-	DecodeBase64      bool                    `json:"decodeBase64,string"`
-	PublicAccessLevel azblob.PublicAccessType `json:"publicAccessLevel"`
 }
 
 type createResponse struct {
@@ -118,108 +101,12 @@ func NewAzureBlobStorage(logger logger.Logger) bindings.OutputBinding {
 
 // Init performs metadata parsing.
 func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
-	m, err := a.parseMetadata(metadata)
+	var err error
+	a.containerClient, a.metadata, err = storageinternal.CreateContainerStorageClient(a.logger, metadata.Properties)
 	if err != nil {
 		return err
 	}
-	a.metadata = m
-
-	userAgent := "dapr-" + logger.DaprVersion
-	options := container.ClientOptions{
-		ClientOptions: azcore.ClientOptions{
-			Retry: policy.RetryOptions{
-				MaxRetries: a.metadata.GetBlobRetryCount,
-			},
-			Telemetry: policy.TelemetryOptions{
-				ApplicationID: userAgent,
-			},
-		},
-	}
-
-	settings, err := azauth.NewEnvironmentSettings("storage", metadata.Properties)
-	if err != nil {
-		return err
-	}
-	customEndpoint, ok := metadata.Properties[endpointKey]
-	var URL *url.URL
-	if ok && customEndpoint != "" {
-		var parseErr error
-		URL, parseErr = url.Parse(fmt.Sprintf("%s/%s/%s", customEndpoint, m.StorageAccount, m.Container))
-		if parseErr != nil {
-			return parseErr
-		}
-	} else {
-		env := settings.AzureEnvironment
-		URL, _ = url.Parse(fmt.Sprintf("https://%s.blob.%s/%s", m.StorageAccount, env.StorageEndpointSuffix, m.Container))
-	}
-
-	var clientErr error
-	var client *container.Client
-	// Try using shared key credentials first
-	if m.StorageAccessKey != "" {
-		credential, newSharedKeyErr := azblob.NewSharedKeyCredential(m.StorageAccount, m.StorageAccessKey)
-		if err != nil {
-			return fmt.Errorf("invalid credentials with error: %w", newSharedKeyErr)
-		}
-		client, clientErr = container.NewClientWithSharedKeyCredential(URL.String(), credential, &options)
-		if clientErr != nil {
-			return fmt.Errorf("cannot init Blobstorage container client: %w", err)
-		}
-		a.containerClient = client
-	} else {
-		// fallback to AAD
-		credential, tokenErr := settings.GetTokenCredential()
-		if err != nil {
-			return fmt.Errorf("invalid credentials with error: %w", tokenErr)
-		}
-		client, clientErr = container.NewClient(URL.String(), credential, &options)
-	}
-	if clientErr != nil {
-		return fmt.Errorf("cannot init Blobstorage client: %w", clientErr)
-	}
-
-	createContainerOptions := container.CreateOptions{
-		Access:   &m.PublicAccessLevel,
-		Metadata: map[string]string{},
-	}
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	_, err = client.Create(timeoutCtx, &createContainerOptions)
-	cancel()
-	// Don't return error, container might already exist
-	a.logger.Debugf("error creating container: %w", err)
-	a.containerClient = client
-
 	return nil
-}
-
-func (a *AzureBlobStorage) parseMetadata(meta bindings.Metadata) (*blobStorageMetadata, error) {
-	m := blobStorageMetadata{
-		GetBlobRetryCount: defaultBlobRetryCount,
-	}
-	mdutils.DecodeMetadata(meta.Properties, &m)
-
-	if val, ok := mdutils.GetMetadataProperty(meta.Properties, azauth.StorageAccountNameKeys...); ok && val != "" {
-		m.StorageAccount = val
-	} else {
-		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageAccountNameKeys[0])
-	}
-
-	if val, ok := mdutils.GetMetadataProperty(meta.Properties, azauth.StorageContainerNameKeys...); ok && val != "" {
-		m.Container = val
-	} else {
-		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageContainerNameKeys[0])
-	}
-
-	// per the Dapr documentation "none" is a valid value
-	if m.PublicAccessLevel == "none" {
-		m.PublicAccessLevel = ""
-	}
-	if m.PublicAccessLevel != "" && !a.isValidPublicAccessType(m.PublicAccessLevel) {
-		return nil, fmt.Errorf("invalid public access level: %s; allowed: %s",
-			m.PublicAccessLevel, azblob.PossiblePublicAccessTypeValues())
-	}
-
-	return &m, nil
 }
 
 func (a *AzureBlobStorage) Operations() []bindings.OperationKind {
@@ -288,7 +175,7 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 	}
 
 	uploadOptions := azblob.UploadBufferOptions{
-		Metadata:                a.sanitizeMetadata(req.Metadata),
+		Metadata:                storageinternal.SanitizeMetadata(a.logger, req.Metadata),
 		HTTPHeaders:             &blobHTTPHeaders,
 		TransactionalContentMD5: contentMD5,
 	}
@@ -486,17 +373,6 @@ func (a *AzureBlobStorage) Invoke(ctx context.Context, req *bindings.InvokeReque
 	}
 }
 
-func (a *AzureBlobStorage) isValidPublicAccessType(accessType azblob.PublicAccessType) bool {
-	validTypes := azblob.PossiblePublicAccessTypeValues()
-	for _, item := range validTypes {
-		if item == accessType {
-			return true
-		}
-	}
-
-	return false
-}
-
 func (a *AzureBlobStorage) isValidDeleteSnapshotsOptionType(accessType azblob.DeleteSnapshotsOptionType) bool {
 	validTypes := azblob.PossibleDeleteSnapshotsOptionTypeValues()
 	for _, item := range validTypes {
@@ -506,42 +382,4 @@ func (a *AzureBlobStorage) isValidDeleteSnapshotsOptionType(accessType azblob.De
 	}
 
 	return false
-}
-
-func (a *AzureBlobStorage) sanitizeMetadata(metadata map[string]string) map[string]string {
-	for key, val := range metadata {
-		// Keep only letters and digits
-		n := 0
-		newKey := make([]byte, len(key))
-		for i := 0; i < len(key); i++ {
-			if (key[i] >= 'A' && key[i] <= 'Z') ||
-				(key[i] >= 'a' && key[i] <= 'z') ||
-				(key[i] >= '0' && key[i] <= '9') {
-				newKey[n] = key[i]
-				n++
-			}
-		}
-
-		if n != len(key) {
-			nks := string(newKey[:n])
-			a.logger.Warnf("metadata key %s contains disallowed characters, sanitized to %s", key, nks)
-			delete(metadata, key)
-			metadata[nks] = val
-			key = nks
-		}
-
-		// Remove all non-ascii characters
-		n = 0
-		newVal := make([]byte, len(val))
-		for i := 0; i < len(val); i++ {
-			if val[i] > 127 {
-				continue
-			}
-			newVal[n] = val[i]
-			n++
-		}
-		metadata[key] = string(newVal[:n])
-	}
-
-	return metadata
 }

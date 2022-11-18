@@ -23,8 +23,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
-
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
@@ -405,9 +403,11 @@ func (p *cockroachDBAccess) Ping() error {
 	if p.metadata.MaxConnectionAttempts != nil && *p.metadata.MaxConnectionAttempts >= 0 {
 		retryCount = *p.metadata.MaxConnectionAttempts
 	}
-	publishBo := backoff.NewExponentialBackOff()
-	publishBo.InitialInterval = 100 * time.Millisecond
-	bo := backoff.WithMaxRetries(publishBo, uint64(retryCount))
+	config := retry.DefaultConfig()
+	config.Policy = retry.PolicyExponential
+	config.MaxInterval = 100 * time.Millisecond
+	config.MaxRetries = int64(retryCount)
+	backoff := config.NewBackOff()
 
 	return retry.NotifyRecover(func() error {
 		err := p.db.Ping()
@@ -415,7 +415,7 @@ func (p *cockroachDBAccess) Ping() error {
 			return fmt.Errorf("error when attempting to establish connection with cockroachDB: %v", err)
 		}
 		return nil
-	}, bo, func(err error, _ time.Duration) {
+	}, backoff, func(err error, _ time.Duration) {
 		p.logger.Debugf("Could not establish connection with cockroachDB. Retrying...: %v", err)
 	}, func() {
 		p.logger.Debug("Successfully established connection with cockroachDB after it previously failed")

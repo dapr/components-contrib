@@ -34,8 +34,7 @@ func TestInit(t *testing.T) {
 		}
 		err := s.Init(m)
 		assert.Nil(t, err)
-		assert.Equal(t, "acc.blob.core.windows.net", s.containerURL.URL().Host)
-		assert.Equal(t, "/dapr", s.containerURL.URL().Path)
+		assert.Equal(t, "https://acc.blob.core.windows.net/dapr", s.containerClient.URL())
 	})
 
 	t.Run("Init with missing metadata", func(t *testing.T) {
@@ -53,7 +52,8 @@ func TestInit(t *testing.T) {
 			"accountKey":    "e+Dnvl8EOxYxV94nurVaRQ==",
 			"containerName": "dapr",
 		}
-		err := s.Init(m)
+		s.Init(m)
+		err := s.Ping()
 		assert.NotNil(t, err)
 	})
 }
@@ -100,7 +100,7 @@ func TestBlobHTTPHeaderGeneration(t *testing.T) {
 
 		blobHeaders, err := s.createBlobHTTPHeadersFromRequest(req)
 		assert.Nil(t, err)
-		assert.Equal(t, "application/json", blobHeaders.ContentType)
+		assert.Equal(t, "application/json", *blobHeaders.BlobContentType)
 	})
 	t.Run("Content type and metadata provided (conflict), content type chosen", func(t *testing.T) {
 		contentType := "application/json"
@@ -113,7 +113,7 @@ func TestBlobHTTPHeaderGeneration(t *testing.T) {
 
 		blobHeaders, err := s.createBlobHTTPHeadersFromRequest(req)
 		assert.Nil(t, err)
-		assert.Equal(t, "application/json", blobHeaders.ContentType)
+		assert.Equal(t, "application/json", *blobHeaders.BlobContentType)
 	})
 	t.Run("ContentType not provided, metadata provided set backward compatibility", func(t *testing.T) {
 		req := &state.SetRequest{
@@ -124,6 +124,6 @@ func TestBlobHTTPHeaderGeneration(t *testing.T) {
 
 		blobHeaders, err := s.createBlobHTTPHeadersFromRequest(req)
 		assert.Nil(t, err)
-		assert.Equal(t, "text/plain", blobHeaders.ContentType)
+		assert.Equal(t, "text/plain", *blobHeaders.BlobContentType)
 	})
 }

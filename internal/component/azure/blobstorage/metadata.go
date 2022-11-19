@@ -51,6 +51,10 @@ func parseMetadata(meta map[string]string) (*BlobStorageMetadata, error) {
 		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageContainerNameKeys[0])
 	}
 
+	if val, ok := mdutils.GetMetadataProperty(meta, azauth.StorageAccountKeyKeys...); ok && val != "" {
+		m.AccountKey = val
+	}
+
 	// per the Dapr documentation "none" is a valid value
 	if m.PublicAccessLevel == "none" {
 		m.PublicAccessLevel = ""

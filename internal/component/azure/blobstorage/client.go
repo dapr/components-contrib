@@ -25,11 +25,11 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
+	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
 const (
-	endpointKey = "endpoint"
 	// Specifies the maximum number of HTTP requests that will be made to retry blob operations. A value
 	// of zero means that no additional HTTP requests will be made.
 	defaultBlobRetryCount = 3
@@ -57,9 +57,12 @@ func CreateContainerStorageClient(log logger.Logger, meta map[string]string) (*c
 	if err != nil {
 		return nil, nil, err
 	}
-	customEndpoint, ok := meta[endpointKey]
+	var customEndpoint string
+	if val, ok := mdutils.GetMetadataProperty(meta, azauth.StorageEndpointKeys...); ok && val != "" {
+		customEndpoint = val
+	}
 	var URL *url.URL
-	if ok && customEndpoint != "" {
+	if customEndpoint != "" {
 		var parseErr error
 		URL, parseErr = url.Parse(fmt.Sprintf("%s/%s/%s", customEndpoint, m.AccountName, m.ContainerName))
 		if parseErr != nil {
@@ -76,7 +79,7 @@ func CreateContainerStorageClient(log logger.Logger, meta map[string]string) (*c
 	if m.AccountKey != "" {
 		credential, newSharedKeyErr := azblob.NewSharedKeyCredential(m.AccountName, m.AccountKey)
 		if err != nil {
-			return nil, nil, fmt.Errorf("invalid credentials with error: %w", newSharedKeyErr)
+			return nil, nil, fmt.Errorf("invalid shared key credentials with error: %w", newSharedKeyErr)
 		}
 		client, clientErr = container.NewClientWithSharedKeyCredential(URL.String(), credential, &options)
 		if clientErr != nil {
@@ -86,7 +89,7 @@ func CreateContainerStorageClient(log logger.Logger, meta map[string]string) (*c
 		// fallback to AAD
 		credential, tokenErr := settings.GetTokenCredential()
 		if err != nil {
-			return nil, nil, fmt.Errorf("invalid credentials with error: %w", tokenErr)
+			return nil, nil, fmt.Errorf("invalid token credentials with error: %w", tokenErr)
 		}
 		client, clientErr = container.NewClient(URL.String(), credential, &options)
 	}
@@ -102,7 +105,7 @@ func CreateContainerStorageClient(log logger.Logger, meta map[string]string) (*c
 	_, err = client.Create(timeoutCtx, &createContainerOptions)
 	cancel()
 	// Don't return error, container might already exist
-	log.Debugf("error creating container: %w", err)
+	log.Debugf("error creating container: %v", err)
 
 	return client, m, nil
 }

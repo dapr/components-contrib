@@ -49,14 +49,6 @@ const (
 	// Defines the delete snapshots option for the delete operation.
 	// See: https://docs.microsoft.com/en-us/rest/api/storageservices/delete-blob#request-headers
 	metadataKeyDeleteSnapshots = "deleteSnapshots"
-	// HTTP headers to be associated with the blob.
-	// See: https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob#request-headers-all-blob-types
-	metadataKeyContentType        = "contentType"
-	metadataKeyContentMD5         = "contentMD5"
-	metadataKeyContentEncoding    = "contentEncoding"
-	metadataKeyContentLanguage    = "contentLanguage"
-	metadataKeyContentDisposition = "contentDisposition"
-	metadataKeyCacheControl       = "cacheControl"
 	// Specifies the maximum number of blobs to return, including all BlobPrefix elements. If the request does not
 	// specify maxresults the server will return up to 5,000 items.
 	// See: https://docs.microsoft.com/en-us/rest/api/storageservices/list-blobs#uri-parameters
@@ -124,41 +116,16 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 		blobName = val
 		delete(req.Metadata, metadataKeyBlobName)
 	} else {
-		blobName = uuid.New().String()
-	}
-
-	blobHTTPHeaders := blob.HTTPHeaders{}
-
-	if val, ok := req.Metadata[metadataKeyContentType]; ok && val != "" {
-		blobHTTPHeaders.BlobContentType = &val
-		delete(req.Metadata, metadataKeyContentType)
-	}
-
-	var contentMD5 *[]byte
-	if val, ok := req.Metadata[metadataKeyContentMD5]; ok && val != "" {
-		sDec, err := b64.StdEncoding.DecodeString(val)
-		if err != nil || len(sDec) != 16 {
-			return nil, errors.New("the MD5 value specified in Content MD5 is invalid, MD5 value must be 128 bits and base64 encoded")
+		id, err := uuid.NewRandom()
+		if err != nil {
+			return nil, err
 		}
-		blobHTTPHeaders.BlobContentMD5 = sDec
-		contentMD5 = &sDec
-		delete(req.Metadata, metadataKeyContentMD5)
+		blobName = id.String()
 	}
-	if val, ok := req.Metadata[metadataKeyContentEncoding]; ok && val != "" {
-		blobHTTPHeaders.BlobContentEncoding = &val
-		delete(req.Metadata, metadataKeyContentEncoding)
-	}
-	if val, ok := req.Metadata[metadataKeyContentLanguage]; ok && val != "" {
-		blobHTTPHeaders.BlobContentLanguage = &val
-		delete(req.Metadata, metadataKeyContentLanguage)
-	}
-	if val, ok := req.Metadata[metadataKeyContentDisposition]; ok && val != "" {
-		blobHTTPHeaders.BlobContentDisposition = &val
-		delete(req.Metadata, metadataKeyContentDisposition)
-	}
-	if val, ok := req.Metadata[metadataKeyCacheControl]; ok && val != "" {
-		blobHTTPHeaders.BlobCacheControl = &val
-		delete(req.Metadata, metadataKeyCacheControl)
+
+	blobHTTPHeaders, err := storageinternal.CreateBlobHTTPHeadersFromRequest(req.Metadata, nil, a.logger)
+	if err != nil {
+		return nil, err
 	}
 
 	d, err := strconv.Unquote(string(req.Data))
@@ -177,7 +144,7 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 	uploadOptions := azblob.UploadBufferOptions{
 		Metadata:                storageinternal.SanitizeMetadata(a.logger, req.Metadata),
 		HTTPHeaders:             &blobHTTPHeaders,
-		TransactionalContentMD5: contentMD5,
+		TransactionalContentMD5: &blobHTTPHeaders.BlobContentMD5,
 	}
 
 	blockBlobClient := a.containerClient.NewBlockBlobClient(blobName)

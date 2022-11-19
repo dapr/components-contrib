@@ -37,7 +37,6 @@ package blobstorage
 
 import (
 	"context"
-	b64 "encoding/base64"
 	"fmt"
 	"io"
 	"reflect"
@@ -58,14 +57,7 @@ import (
 )
 
 const (
-	keyDelimiter       = "||"
-	contentType        = "ContentType"
-	contentMD5         = "ContentMD5"
-	contentEncoding    = "ContentEncoding"
-	contentLanguage    = "ContentLanguage"
-	contentDisposition = "ContentDisposition"
-	cacheControl       = "CacheControl"
-	endpointKey        = "endpoint"
+	keyDelimiter = "||"
 )
 
 // StateStore Type.
@@ -95,27 +87,21 @@ func (r *StateStore) Features() []state.Feature {
 
 // Delete the state.
 func (r *StateStore) Delete(req *state.DeleteRequest) error {
-	r.logger.Debugf("delete %s", req.Key)
 	return r.deleteFile(context.Background(), req)
 }
 
 // Get the state.
 func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	r.logger.Debugf("get %s", req.Key)
 	return r.readFile(context.Background(), req)
 }
 
 // Set the state.
 func (r *StateStore) Set(req *state.SetRequest) error {
-	r.logger.Debugf("saving %s", req.Key)
 	return r.writeFile(context.Background(), req)
 }
 
 func (r *StateStore) Ping() error {
-	getPropertiesOptions := container.GetPropertiesOptions{
-		LeaseAccessConditions: &container.LeaseAccessConditions{},
-	}
-	if _, err := r.containerClient.GetProperties(context.Background(), &getPropertiesOptions); err != nil {
+	if _, err := r.containerClient.GetProperties(context.Background(), nil); err != nil {
 		return fmt.Errorf("blob storage: error connecting to Blob storage at %s: %s", r.containerClient.URL(), err)
 	}
 
@@ -143,15 +129,8 @@ func NewAzureBlobStorageStore(logger logger.Logger) state.Store {
 
 func (r *StateStore) readFile(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	blockBlobClient := r.containerClient.NewBlockBlobClient(getFileName(req.Key))
-
-	downloadOptions := azblob.DownloadStreamOptions{
-		AccessConditions: &blob.AccessConditions{},
-	}
-
-	blobDownloadResponse, err := blockBlobClient.DownloadStream(ctx, &downloadOptions)
+	blobDownloadResponse, err := blockBlobClient.DownloadStream(ctx, nil)
 	if err != nil {
-		r.logger.Debugf("download file %s, err %s", req.Key, err)
-
 		if isNotFoundError(err) {
 			return &state.GetResponse{}, nil
 		}
@@ -164,10 +143,6 @@ func (r *StateStore) readFile(ctx context.Context, req *state.GetRequest) (*stat
 	blobData, err := io.ReadAll(reader)
 	if err != nil {
 		return &state.GetResponse{}, fmt.Errorf("error reading az blob: %w", err)
-	}
-	err = reader.Close()
-	if err != nil {
-		return &state.GetResponse{}, fmt.Errorf("error closing az blob reader: %w", err)
 	}
 
 	contentType := blobDownloadResponse.ContentType
@@ -193,7 +168,7 @@ func (r *StateStore) writeFile(ctx context.Context, req *state.SetRequest) error
 		ModifiedAccessConditions: &modifiedAccessConditions,
 	}
 
-	blobHTTPHeaders, err := r.createBlobHTTPHeadersFromRequest(req)
+	blobHTTPHeaders, err := storageinternal.CreateBlobHTTPHeadersFromRequest(req.Metadata, req.ContentType, r.logger)
 	if err != nil {
 		return err
 	}
@@ -202,7 +177,6 @@ func (r *StateStore) writeFile(ctx context.Context, req *state.SetRequest) error
 		AccessConditions: &accessConditions,
 		Metadata:         storageinternal.SanitizeMetadata(r.logger, req.Metadata),
 		HTTPHeaders:      &blobHTTPHeaders,
-		Concurrency:      16,
 	}
 
 	blockBlobClient := r.containerClient.NewBlockBlobClient(getFileName(req.Key))
@@ -218,47 +192,6 @@ func (r *StateStore) writeFile(ctx context.Context, req *state.SetRequest) error
 	}
 
 	return nil
-}
-
-func (r *StateStore) createBlobHTTPHeadersFromRequest(req *state.SetRequest) (blob.HTTPHeaders, error) {
-	blobHTTPHeaders := blob.HTTPHeaders{}
-	if val, ok := req.Metadata[contentType]; ok && val != "" {
-		blobHTTPHeaders.BlobContentType = &val
-		delete(req.Metadata, contentType)
-	}
-
-	if req.ContentType != nil {
-		if blobHTTPHeaders.BlobContentType != nil {
-			r.logger.Warnf("ContentType received from request Metadata %s, as well as ContentType property %s, choosing value from contentType property", blobHTTPHeaders.BlobContentType, req.ContentType)
-		}
-		blobHTTPHeaders.BlobContentType = req.ContentType
-	}
-
-	if val, ok := req.Metadata[contentMD5]; ok && val != "" {
-		sDec, err := b64.StdEncoding.DecodeString(val)
-		if err != nil || len(sDec) != 16 {
-			return blob.HTTPHeaders{}, fmt.Errorf("the MD5 value specified in Content MD5 is invalid, MD5 value must be 128 bits and base64 encoded")
-		}
-		blobHTTPHeaders.BlobContentMD5 = sDec
-		delete(req.Metadata, contentMD5)
-	}
-	if val, ok := req.Metadata[contentEncoding]; ok && val != "" {
-		blobHTTPHeaders.BlobContentEncoding = &val
-		delete(req.Metadata, contentEncoding)
-	}
-	if val, ok := req.Metadata[contentLanguage]; ok && val != "" {
-		blobHTTPHeaders.BlobContentLanguage = &val
-		delete(req.Metadata, contentLanguage)
-	}
-	if val, ok := req.Metadata[contentDisposition]; ok && val != "" {
-		blobHTTPHeaders.BlobContentDisposition = &val
-		delete(req.Metadata, contentDisposition)
-	}
-	if val, ok := req.Metadata[cacheControl]; ok && val != "" {
-		blobHTTPHeaders.BlobCacheControl = &val
-		delete(req.Metadata, cacheControl)
-	}
-	return blobHTTPHeaders, nil
 }
 
 func (r *StateStore) deleteFile(ctx context.Context, req *state.DeleteRequest) error {
@@ -278,8 +211,6 @@ func (r *StateStore) deleteFile(ctx context.Context, req *state.DeleteRequest) e
 
 	_, err := blockBlobClient.Delete(ctx, &deleteOptions)
 	if err != nil {
-		r.logger.Debugf("delete file %s, err %s", req.Key, err)
-
 		if req.ETag != nil && isETagConflictError(err) {
 			return state.NewETagError(state.ETagMismatch, err)
 		} else if isNotFoundError(err) {

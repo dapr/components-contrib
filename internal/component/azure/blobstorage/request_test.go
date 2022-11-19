@@ -51,3 +51,18 @@ func TestBlobHTTPHeaderGeneration(t *testing.T) {
 		assert.Equal(t, "text/plain", *blobHeaders.BlobContentType)
 	})
 }
+
+func TestSanitizeRequestMetadata(t *testing.T) {
+	log := logger.NewLogger("test")
+	t.Run("sanitize metadata if necessary", func(t *testing.T) {
+		m := map[string]string{
+			"somecustomfield": "some-custom-value",
+			"specialfield":    "special:valueÜ",
+			"not-allowed:":    "not-allowed",
+		}
+		meta := SanitizeMetadata(log, m)
+		assert.Equal(t, meta["somecustomfield"], "some-custom-value")
+		assert.Equal(t, meta["specialfield"], "special:value")
+		assert.Equal(t, meta["notallowed"], "not-allowed")
+	})
+}

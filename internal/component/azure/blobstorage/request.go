@@ -71,3 +71,41 @@ func CreateBlobHTTPHeadersFromRequest(meta map[string]string, contentType *strin
 	}
 	return blobHTTPHeaders, nil
 }
+
+func SanitizeMetadata(log logger.Logger, metadata map[string]string) map[string]string {
+	for key, val := range metadata {
+		// Keep only letters and digits
+		n := 0
+		newKey := make([]byte, len(key))
+		for i := 0; i < len(key); i++ {
+			if (key[i] >= 'A' && key[i] <= 'Z') ||
+				(key[i] >= 'a' && key[i] <= 'z') ||
+				(key[i] >= '0' && key[i] <= '9') {
+				newKey[n] = key[i]
+				n++
+			}
+		}
+
+		if n != len(key) {
+			nks := string(newKey[:n])
+			log.Warnf("metadata key %s contains disallowed characters, sanitized to %s", key, nks)
+			delete(metadata, key)
+			metadata[nks] = val
+			key = nks
+		}
+
+		// Remove all non-ascii characters
+		n = 0
+		newVal := make([]byte, len(val))
+		for i := 0; i < len(val); i++ {
+			if val[i] > 127 {
+				continue
+			}
+			newVal[n] = val[i]
+			n++
+		}
+		metadata[key] = string(newVal[:n])
+	}
+
+	return metadata
+}

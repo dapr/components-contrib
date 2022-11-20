@@ -114,11 +114,6 @@ func (p *cockroachDBAccess) Init(metadata state.Metadata) error {
 
 // Set makes an insert or update to the database.
 func (p *cockroachDBAccess) Set(req *state.SetRequest) error {
-	return state.SetWithOptions(p.setValue, req)
-}
-
-// setValue is an internal implementation of set to enable passing the logic to state.SetWithRetries as a func.
-func (p *cockroachDBAccess) setValue(req *state.SetRequest) error {
 	p.logger.Debug("Setting state value in CockroachDB")
 
 	value, isBinary, err := validateAndReturnValue(req)
@@ -240,11 +235,6 @@ func (p *cockroachDBAccess) Get(req *state.GetRequest) (*state.GetResponse, erro
 
 // Delete removes an item from the state store.
 func (p *cockroachDBAccess) Delete(req *state.DeleteRequest) error {
-	return state.DeleteWithOptions(p.deleteValue, req)
-}
-
-// deleteValue is an internal implementation of delete to enable passing the logic to state.DeleteWithRetries as a func.
-func (p *cockroachDBAccess) deleteValue(req *state.DeleteRequest) error {
 	p.logger.Debug("Deleting state value from CockroachDB")
 	if req.Key == "" {
 		return fmt.Errorf("missing key in delete operation")

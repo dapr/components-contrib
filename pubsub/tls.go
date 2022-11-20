@@ -8,6 +8,7 @@ import (
 	"fmt"
 )
 
+// TLSProperties is a struct that contains the TLS properties.
 type TLSProperties struct {
 	CACert     string
 	ClientCert string
@@ -15,9 +16,12 @@ type TLSProperties struct {
 }
 
 const (
-	CACert     = "caCert"
+	// CACert is the metadata key name for the CA certificate.
+	CACert = "caCert"
+	// ClientCert is the metadata key name for the client certificate.
 	ClientCert = "clientCert"
-	ClientKey  = "clientKey"
+	// ClientKey is the metadata key name for the client key.
+	ClientKey = "clientKey"
 )
 
 // TLS takes a metadata object and returns the TLSProperties configured.
@@ -46,13 +50,14 @@ func TLS(metadata map[string]string) (TLSProperties, error) {
 	return cfg, nil
 }
 
+// ConvertTLSPropertiesToTLSConfig converts the TLSProperties to a tls.Config.
 func ConvertTLSPropertiesToTLSConfig(properties TLSProperties) (*tls.Config, error) {
 	tlsConfig := new(tls.Config)
 
 	if properties.ClientCert != "" && properties.ClientKey != "" {
 		cert, err := tls.X509KeyPair([]byte(properties.ClientCert), []byte(properties.ClientKey))
 		if err != nil {
-			return &tls.Config{}, fmt.Errorf("unable to load client certificate and key pair. Err: %v", err)
+			return tlsConfig, fmt.Errorf("unable to load client certificate and key pair. Err: %v", err)
 		}
 		tlsConfig.Certificates = []tls.Certificate{cert}
 	}
@@ -60,7 +65,7 @@ func ConvertTLSPropertiesToTLSConfig(properties TLSProperties) (*tls.Config, err
 	if properties.CACert != "" {
 		tlsConfig.RootCAs = x509.NewCertPool()
 		if ok := tlsConfig.RootCAs.AppendCertsFromPEM([]byte(properties.CACert)); !ok {
-			return &tls.Config{}, fmt.Errorf("unable to load CA certificate")
+			return tlsConfig, fmt.Errorf("unable to load CA certificate")
 		}
 	}
 

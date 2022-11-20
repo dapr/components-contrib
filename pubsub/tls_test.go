@@ -3,8 +3,9 @@ package pubsub
 import (
 	"crypto/x509"
 	"encoding/pem"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestConvertTLSPropertiesToTLSConfig(t *testing.T) {

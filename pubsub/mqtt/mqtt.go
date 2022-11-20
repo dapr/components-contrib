@@ -16,7 +16,6 @@ package mqtt
 import (
 	"context"
 	"crypto/tls"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"net/url"
@@ -62,13 +61,6 @@ func NewMQTTPubSub(logger logger.Logger) pubsub.PubSub {
 		logger:          logger,
 		subscribingLock: sync.RWMutex{},
 	}
-}
-
-// isValidPEM validates the provided input has PEM formatted block.
-func isValidPEM(val string) bool {
-	block, _ := pem.Decode([]byte(val))
-
-	return block != nil
 }
 
 // Init parses metadata and creates a new Pub Sub client.

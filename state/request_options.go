@@ -66,13 +66,3 @@ func validateConsistencyOption(c string) error {
 
 	return nil
 }
-
-// SetWithOptions handles SetRequest with request options.
-func SetWithOptions(method func(req *SetRequest) error, req *SetRequest) error {
-	return method(req)
-}
-
-// DeleteWithOptions handles DeleteRequest with options.
-func DeleteWithOptions(method func(req *DeleteRequest) error, req *DeleteRequest) error {
-	return method(req)
-}

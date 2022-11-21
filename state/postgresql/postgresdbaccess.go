@@ -17,6 +17,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -44,6 +45,7 @@ type postgresDBAccess struct {
 	metadata         postgresMetadataStruct
 	db               *sql.DB
 	connectionString string
+	tableName        string
 }
 
 // newPostgresDBAccess creates a new instance of postgresAccess.
@@ -76,7 +78,7 @@ func (p *postgresDBAccess) Init(meta state.Metadata) error {
 	if m.ConnectionString == "" {
 		p.logger.Error("Missing postgreSQL connection string")
 
-		return fmt.Errorf(errMissingConnectionString)
+		return errors.New(errMissingConnectionString)
 	}
 	p.connectionString = m.ConnectionString
 
@@ -103,17 +105,13 @@ func (p *postgresDBAccess) Init(meta state.Metadata) error {
 	if err != nil {
 		return err
 	}
+	p.tableName = m.TableName
 
 	return nil
 }
 
 // Set makes an insert or update to the database.
 func (p *postgresDBAccess) Set(req *state.SetRequest) error {
-	return state.SetWithOptions(p.setValue, req)
-}
-
-// setValue is an internal implementation of set to enable passing the logic to state.SetWithRetries as a func.
-func (p *postgresDBAccess) setValue(req *state.SetRequest) error {
 	p.logger.Debug("Setting state value in PostgreSQL")
 
 	err := state.CheckRequestOptions(req.Options)
@@ -122,11 +120,11 @@ func (p *postgresDBAccess) setValue(req *state.SetRequest) error {
 	}
 
 	if req.Key == "" {
-		return fmt.Errorf("missing key in set operation")
+		return errors.New("missing key in set operation")
 	}
 
 	if v, ok := req.Value.(string); ok && v == "" {
-		return fmt.Errorf("empty string is not allowed in set operation")
+		return errors.New("empty string is not allowed in set operation")
 	}
 
 	v := req.Value
@@ -143,11 +141,15 @@ func (p *postgresDBAccess) setValue(req *state.SetRequest) error {
 
 	// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
 	// Other parameters use sql.DB parameter substitution.
-	if req.ETag == nil {
+	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
+		result, err = p.db.Exec(fmt.Sprintf(
+			`INSERT INTO %s (key, value, isbinary) VALUES ($1, $2, $3);`,
+			p.tableName), req.Key, value, isBinary)
+	} else if req.ETag == nil || *req.ETag == "" {
 		result, err = p.db.Exec(fmt.Sprintf(
 			`INSERT INTO %s (key, value, isbinary) VALUES ($1, $2, $3)
 			ON CONFLICT (key) DO UPDATE SET value = $2, isbinary = $3, updatedate = NOW();`,
-			defaultTableName), req.Key, value, isBinary)
+			p.tableName), req.Key, value, isBinary)
 	} else {
 		// Convert req.ETag to uint32 for postgres XID compatibility
 		var etag64 uint64
@@ -161,7 +163,7 @@ func (p *postgresDBAccess) setValue(req *state.SetRequest) error {
 		result, err = p.db.Exec(fmt.Sprintf(
 			`UPDATE %s SET value = $1, isbinary = $2, updatedate = NOW()
 			 WHERE key = $3 AND xmin = $4;`,
-			defaultTableName), value, isBinary, req.Key, etag)
+			p.tableName), value, isBinary, req.Key, etag)
 	}
 
 	if err != nil {
@@ -178,7 +180,7 @@ func (p *postgresDBAccess) setValue(req *state.SetRequest) error {
 	}
 
 	if rows != 1 {
-		return fmt.Errorf("no item was updated")
+		return errors.New("no item was updated")
 	}
 
 	return nil
@@ -212,27 +214,30 @@ func (p *postgresDBAccess) BulkSet(req []state.SetRequest) error {
 func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	p.logger.Debug("Getting state value from PostgreSQL")
 	if req.Key == "" {
-		return nil, fmt.Errorf("missing key in get operation")
+		return nil, errors.New("missing key in get operation")
 	}
 
-	var value string
-	var isBinary bool
-	var etag int
-	err := p.db.QueryRow(fmt.Sprintf("SELECT value, isbinary, xmin as etag FROM %s WHERE key = $1", defaultTableName), req.Key).Scan(&value, &isBinary, &etag)
+	var (
+		value    []byte
+		isBinary bool
+		etag     uint64 // Postgres uses uint32, but FormatUint requires uint64, so using uint64 directly to avoid re-allocations
+	)
+	err := p.db.QueryRow(fmt.Sprintf("SELECT value, isbinary, xmin as etag FROM %s WHERE key = $1", p.tableName), req.Key).Scan(&value, &isBinary, &etag)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
 		if err == sql.ErrNoRows {
 			return &state.GetResponse{}, nil
 		}
-
 		return nil, err
 	}
 
 	if isBinary {
-		var s string
-		var data []byte
+		var (
+			s    string
+			data []byte
+		)
 
-		if err = json.Unmarshal([]byte(value), &s); err != nil {
+		if err = json.Unmarshal(value, &s); err != nil {
 			return nil, err
 		}
 
@@ -242,34 +247,28 @@ func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 
 		return &state.GetResponse{
 			Data:     data,
-			ETag:     ptr.Of(strconv.Itoa(etag)),
+			ETag:     ptr.Of(strconv.FormatUint(etag, 10)),
 			Metadata: req.Metadata,
 		}, nil
 	}
 
 	return &state.GetResponse{
-		Data:     []byte(value),
-		ETag:     ptr.Of(strconv.Itoa(etag)),
+		Data:     value,
+		ETag:     ptr.Of(strconv.FormatUint(etag, 10)),
 		Metadata: req.Metadata,
 	}, nil
 }
 
 // Delete removes an item from the state store.
-func (p *postgresDBAccess) Delete(req *state.DeleteRequest) error {
-	return state.DeleteWithOptions(p.deleteValue, req)
-}
-
-// deleteValue is an internal implementation of delete to enable passing the logic to state.DeleteWithRetries as a func.
-func (p *postgresDBAccess) deleteValue(req *state.DeleteRequest) error {
+func (p *postgresDBAccess) Delete(req *state.DeleteRequest) (err error) {
 	p.logger.Debug("Deleting state value from PostgreSQL")
 	if req.Key == "" {
-		return fmt.Errorf("missing key in delete operation")
+		return errors.New("missing key in delete operation")
 	}
 
 	var result sql.Result
-	var err error
 
-	if req.ETag == nil {
+	if req.ETag == nil || *req.ETag == "" {
 		result, err = p.db.Exec("DELETE FROM state WHERE key = $1", req.Key)
 	} else {
 		// Convert req.ETag to uint32 for postgres XID compatibility
@@ -307,12 +306,10 @@ func (p *postgresDBAccess) BulkDelete(req []state.DeleteRequest) error {
 	}
 
 	if len(req) > 0 {
-		for _, d := range req {
-			da := d // Fix for gosec  G601: Implicit memory aliasing in for loop.
-			err = p.Delete(&da)
+		for i := range req {
+			err = p.Delete(&req[i])
 			if err != nil {
 				tx.Rollback()
-
 				return err
 			}
 		}
@@ -378,8 +375,9 @@ func (p *postgresDBAccess) ExecuteMulti(request *state.TransactionalStateRequest
 func (p *postgresDBAccess) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
 	p.logger.Debug("Getting query value from PostgreSQL")
 	q := &Query{
-		query:  "",
-		params: []interface{}{},
+		query:     "",
+		params:    []interface{}{},
+		tableName: p.tableName,
 	}
 	qbuilder := query.NewQueryBuilder(q)
 	if err := qbuilder.BuildQuery(&req.Query); err != nil {
@@ -439,11 +437,11 @@ func tableExists(db *sql.DB, tableName string) (bool, error) {
 func getSet(req state.TransactionalStateOperation) (state.SetRequest, error) {
 	setReq, ok := req.Request.(state.SetRequest)
 	if !ok {
-		return setReq, fmt.Errorf("expecting set request")
+		return setReq, errors.New("expecting set request")
 	}
 
 	if setReq.Key == "" {
-		return setReq, fmt.Errorf("missing key in upsert operation")
+		return setReq, errors.New("missing key in upsert operation")
 	}
 
 	return setReq, nil
@@ -453,11 +451,11 @@ func getSet(req state.TransactionalStateOperation) (state.SetRequest, error) {
 func getDelete(req state.TransactionalStateOperation) (state.DeleteRequest, error) {
 	delReq, ok := req.Request.(state.DeleteRequest)
 	if !ok {
-		return delReq, fmt.Errorf("expecting delete request")
+		return delReq, errors.New("expecting delete request")
 	}
 
 	if delReq.Key == "" {
-		return delReq, fmt.Errorf("missing key in upsert operation")
+		return delReq, errors.New("missing key in upsert operation")
 	}
 
 	return delReq, nil

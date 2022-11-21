@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -36,6 +35,7 @@ import (
 	contribmeta "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
+	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
 )
@@ -481,7 +481,7 @@ func createUpsertItem(contentType string, req state.SetRequest, partitionKey str
 		isBinary = false
 	}
 
-	ttl, err := parseTTL(req.Metadata)
+	ttl, err := stateutils.ParseTTL(req.Metadata)
 	if err != nil {
 		return CosmosItem{}, fmt.Errorf("error parsing TTL from metadata: %s", err)
 	}
@@ -532,20 +532,6 @@ func populatePartitionMetadata(key string, requestMetadata map[string]string) st
 	}
 
 	return key
-}
-
-func parseTTL(requestMetadata map[string]string) (*int, error) {
-	if val, found := requestMetadata[metadataTTLKey]; found && val != "" {
-		parsedVal, err := strconv.ParseInt(val, 10, 0)
-		if err != nil {
-			return nil, err
-		}
-		i := int(parsedVal)
-
-		return &i, nil
-	}
-
-	return nil, nil
 }
 
 func isNotFoundError(err error) bool {

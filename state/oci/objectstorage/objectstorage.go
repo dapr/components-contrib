@@ -22,7 +22,6 @@ import (
 	"os"
 	"path"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -34,6 +33,7 @@ import (
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
+	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 )
 
@@ -279,17 +279,13 @@ func (r *StateStore) writeDocument(req *state.SetRequest) error {
 }
 
 func (r *StateStore) convertTTLtoExpiryTime(req *state.SetRequest, metadata map[string]string) error {
-	ttl, ttlerr := parseTTL(req.Metadata)
+	ttl, ttlerr := stateutils.ParseTTL(req.Metadata)
 	if ttlerr != nil {
 		return fmt.Errorf("error in parsing TTL %w", ttlerr)
 	}
 	if ttl != nil {
-		if *ttl == -1 {
-			r.logger.Debugf("TTL is set to -1; this means: never expire. ")
-		} else {
-			metadata[expiryTimeMetaLabel] = time.Now().UTC().Add(time.Second * time.Duration(*ttl)).Format(isoDateTimeFormat)
-			r.logger.Debugf("Set %s in meta properties for object to ", expiryTimeMetaLabel, metadata[expiryTimeMetaLabel])
-		}
+		metadata[expiryTimeMetaLabel] = time.Now().UTC().Add(time.Second * time.Duration(*ttl)).Format(isoDateTimeFormat)
+		r.logger.Debugf("Set %s in meta properties for object to ", expiryTimeMetaLabel, metadata[expiryTimeMetaLabel])
 	}
 	return nil
 }
@@ -368,20 +364,6 @@ func getFileName(key string) string {
 	}
 
 	return path.Join(pr[0], pr[1])
-}
-
-func parseTTL(requestMetadata map[string]string) (*int, error) {
-	if val, found := requestMetadata[metadataTTLKey]; found && val != "" {
-		parsedVal, err := strconv.ParseInt(val, 10, 0)
-		if err != nil {
-			return nil, fmt.Errorf("error in parsing ttl metadata : %w", err)
-		}
-		parsedInt := int(parsedVal)
-
-		return &parsedInt, nil
-	}
-
-	return nil, nil
 }
 
 /**************** functions with OCI ObjectStorage Service interaction.   */

@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -281,8 +282,9 @@ func (m *mqttPubSub) onMessage(ctx context.Context) func(client mqtt.Client, mqt
 		}()
 
 		msg := pubsub.NewMessage{
-			Topic: mqttMsg.Topic(),
-			Data:  mqttMsg.Payload(),
+			Topic:    mqttMsg.Topic(),
+			Data:     mqttMsg.Payload(),
+			Metadata: map[string]string{"retained": strconv.FormatBool(mqttMsg.Retained())},
 		}
 
 		topicHandler := m.handlerForTopic(msg.Topic)

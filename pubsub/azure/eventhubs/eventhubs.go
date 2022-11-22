@@ -89,7 +89,7 @@ const (
 	maxPartitionCount   = int32(1024)
 )
 
-func subscribeHandler(ctx context.Context, topic string, getAllProperties bool , e *eventhub.Event, handler pubsub.Handler) error {
+func subscribeHandler(ctx context.Context, topic string, getAllProperties bool, e *eventhub.Event, handler pubsub.Handler) error {
 	res := pubsub.NewMessage{Data: e.Data, Topic: topic, Metadata: map[string]string{}}
 	if e.SystemProperties.SequenceNumber != nil {
 		res.Metadata[sysPropSequenceNumber] = strconv.FormatInt(*e.SystemProperties.SequenceNumber, 10)
@@ -639,7 +639,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 		return err
 	}
 
-	var getAllProperties = false
+	getAllProperties := false
 	if req.Metadata[requireAllProperties] != ""{
 		getAllProperties, err = strconv.ParseBool(req.Metadata[requireAllProperties])
 			if err!=nil{

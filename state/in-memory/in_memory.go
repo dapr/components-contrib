@@ -253,7 +253,8 @@ func (store *inMemoryStore) Set(req *state.SetRequest) error {
 	defer store.lock.Unlock()
 
 	// step2: validate etag if needed
-	if err := store.doValidateEtag(req.Key, req.ETag, req.Options.Concurrency); err != nil {
+	err = store.doValidateEtag(req.Key, req.ETag, req.Options.Concurrency)
+	if err != nil {
 		return err
 	}
 

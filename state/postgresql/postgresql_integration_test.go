@@ -48,7 +48,7 @@ func TestPostgreSQLIntegration(t *testing.T) {
 	})
 
 	metadata := state.Metadata{
-		Base: metadata.Base{Properties: map[string]string{connectionStringKey: connectionString}},
+		Base: metadata.Base{Properties: map[string]string{"connectionString": connectionString}},
 	}
 
 	pgs := NewPostgreSQLStateStore(logger.NewLogger("test")).(*PostgreSQL)
@@ -476,7 +476,7 @@ func testInitConfiguration(t *testing.T) {
 	tests := []struct {
 		name        string
 		props       map[string]string
-		expectedErr string
+		expectedErr error
 	}{
 		{
 			name:        "Empty",
@@ -485,8 +485,8 @@ func testInitConfiguration(t *testing.T) {
 		},
 		{
 			name:        "Valid connection string",
-			props:       map[string]string{connectionStringKey: getConnectionString()},
-			expectedErr: "",
+			props:       map[string]string{"connectionString": getConnectionString()},
+			expectedErr: nil,
 		},
 	}
 
@@ -500,11 +500,11 @@ func testInitConfiguration(t *testing.T) {
 			}
 
 			err := p.Init(metadata)
-			if tt.expectedErr == "" {
-				assert.Nil(t, err)
+			if tt.expectedErr == nil {
+				assert.NoError(t, err)
 			} else {
-				assert.NotNil(t, err)
-				assert.Equal(t, err.Error(), tt.expectedErr)
+				assert.Error(t, err)
+				assert.ErrorIs(t, err, tt.expectedErr)
 			}
 		})
 	}

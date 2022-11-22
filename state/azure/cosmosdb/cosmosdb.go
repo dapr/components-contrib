@@ -77,7 +77,6 @@ type CosmosItem struct {
 
 const (
 	metadataPartitionKey = "partitionKey"
-	metadataTTLKey       = "ttlInSeconds"
 	defaultTimeout       = 20 * time.Second
 	statusNotFound       = "NotFound"
 )

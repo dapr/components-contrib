@@ -489,6 +489,8 @@ func (p *postgresDBAccess) cleanupTimeout() {
 	}
 	defer tx.Rollback()
 
+	// Need to use fmt.Sprintf because we can't parametrize a table name
+	//nolint:gosec
 	stmt := fmt.Sprintf(`DELETE FROM %s WHERE expiredate IS NOT NULL AND expiredate < CURRENT_TIMESTAMP`, p.metadata.TableName)
 	res, err := tx.Exec(stmt)
 	if err != nil {

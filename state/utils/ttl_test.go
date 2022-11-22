@@ -14,7 +14,6 @@ limitations under the License.
 package utils
 
 import (
-	"fmt"
 	"math"
 	"strconv"
 	"testing"
@@ -69,7 +68,6 @@ func TestParseTTL(t *testing.T) {
 		ttl, err := ParseTTL(map[string]string{
 			MetadataTTLKey: strconv.FormatInt(math.MaxInt32+1, 10),
 		})
-		fmt.Println(err)
 		require.Error(t, err)
 		assert.Nil(t, ttl)
 	})

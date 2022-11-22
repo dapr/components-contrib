@@ -7,7 +7,7 @@ components:
     allOperations: true
   - component: memcached
     allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete" ]
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "ttl" ]
   - component: azure.cosmosdb
     allOperations: true
   - component: azure.blobstorage
@@ -36,7 +36,7 @@ components:
     operations: ["set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write"]
   - component: cassandra
     allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete" ]
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "ttl" ]
   - component: cockroachdb
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "query" ]

@@ -46,7 +46,7 @@ const (
 
 	testStorageContainerName = "iothub-pubsub-integration-test"
 	testTopic                = "integration-test-topic"
-	applicationProperty	 = "applicationProperty"	
+	applicationProperty	     = "applicationProperty"	
 )
 
 func createIotHubPubsubMetadata() pubsub.Metadata {
@@ -115,6 +115,8 @@ func testReadIotHubEvents(t *testing.T) {
 		assert.Contains(t, r.Metadata, sysPropIotHubConnectionAuthMethod, "IoT device event missing: %s", sysPropIotHubConnectionAuthMethod)
 		assert.Contains(t, r.Metadata, sysPropIotHubEnqueuedTime, "IoT device event missing: %s", sysPropIotHubEnqueuedTime)
 		assert.Contains(t, r.Metadata, sysPropMessageID, "IoT device event missing: %s", sysPropMessageID)
+		
+		// Verify sent custom application property is received in IoT Hub device event metadata
 		assert.Contains(t, r.Metadata, applicationProperty, "IoT device event missing: %s", applicationProperty)
 	}
 

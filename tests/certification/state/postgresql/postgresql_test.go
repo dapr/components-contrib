@@ -184,7 +184,8 @@ func TestPostgreSQL(t *testing.T) {
 				},
 			},
 		})
-		assert.Equal(t, nil, err)
+		require.NoError(t, err)
+
 		resp1, err := stateStore.Get(&state.GetRequest{
 			Key: "reqKey1",
 		})

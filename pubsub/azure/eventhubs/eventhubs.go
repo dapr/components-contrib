@@ -639,7 +639,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 		return err
 	}
 
-	var getAllProperties bool = false
+	var getAllProperties = false
 	if req.Metadata[requireAllProperties] != ""{
 		getAllProperties, err = strconv.ParseBool(req.Metadata[requireAllProperties])
 			if err!=nil{

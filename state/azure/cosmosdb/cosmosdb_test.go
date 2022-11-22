@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/state"
+	stateutils "github.com/dapr/components-contrib/state/utils"
 )
 
 type widget struct {
@@ -284,7 +285,7 @@ func TestCreateCosmosItemWithTTL(t *testing.T) {
 			Key:   "testKey",
 			Value: value,
 			Metadata: map[string]string{
-				metadataTTLKey: strconv.Itoa(ttl),
+				stateutils.MetadataTTLKey: strconv.Itoa(ttl),
 			},
 		}
 
@@ -316,7 +317,7 @@ func TestCreateCosmosItemWithTTL(t *testing.T) {
 			Key:   "testKey",
 			Value: value,
 			Metadata: map[string]string{
-				metadataTTLKey: strconv.Itoa(ttl),
+				stateutils.MetadataTTLKey: strconv.Itoa(ttl),
 			},
 		}
 
@@ -347,7 +348,7 @@ func TestCreateCosmosItemWithTTL(t *testing.T) {
 			Key:   "testKey",
 			Value: value,
 			Metadata: map[string]string{
-				metadataTTLKey: "notattl",
+				stateutils.MetadataTTLKey: "notattl",
 			},
 		}
 

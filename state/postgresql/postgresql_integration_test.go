@@ -165,7 +165,7 @@ func testCreateTable(t *testing.T, dba *postgresDBAccess) {
 	tableName := "test_state"
 
 	// Drop the table if it already exists
-	exists, err := tableExists(dba.db, tableName)
+	exists, _, _, err := tableExists(dba.db, tableName)
 	assert.Nil(t, err)
 	if exists {
 		dropTable(t, dba.db, tableName)
@@ -174,7 +174,7 @@ func testCreateTable(t *testing.T, dba *postgresDBAccess) {
 	// Create the state table and test for its existence
 	err = dba.ensureStateTable(tableName)
 	assert.Nil(t, err)
-	exists, err = tableExists(dba.db, tableName)
+	exists, _, _, err = tableExists(dba.db, tableName)
 	assert.Nil(t, err)
 	assert.True(t, exists)
 

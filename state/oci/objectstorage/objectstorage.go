@@ -281,7 +281,7 @@ func (r *StateStore) writeDocument(req *state.SetRequest) error {
 func (r *StateStore) convertTTLtoExpiryTime(req *state.SetRequest, metadata map[string]string) error {
 	ttl, ttlerr := stateutils.ParseTTL(req.Metadata)
 	if ttlerr != nil {
-		return fmt.Errorf("error in parsing TTL %w", ttlerr)
+		return fmt.Errorf("error parsing TTL: %w", ttlerr)
 	}
 	if ttl != nil {
 		metadata[expiryTimeMetaLabel] = time.Now().UTC().Add(time.Second * time.Duration(*ttl)).Format(isoDateTimeFormat)

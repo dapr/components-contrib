@@ -26,11 +26,11 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
-	"github.com/dapr/components-contrib/state/utils"
+	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
 
-	// Blank import for the underlying PostgreSQL driver.
+	// Blank import for the underlying Postgres driver.
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -51,7 +51,7 @@ type postgresDBAccess struct {
 
 // newPostgresDBAccess creates a new instance of postgresAccess.
 func newPostgresDBAccess(logger logger.Logger) *postgresDBAccess {
-	logger.Debug("Instantiating new PostgreSQL state store")
+	logger.Debug("Instantiating new Postgres state store")
 
 	return &postgresDBAccess{
 		logger: logger,
@@ -64,9 +64,9 @@ type postgresMetadataStruct struct {
 	TableName             string
 }
 
-// Init sets up PostgreSQL connection and ensures that the state table exists.
+// Init sets up Postgres connection and ensures that the state table exists.
 func (p *postgresDBAccess) Init(meta state.Metadata) error {
-	p.logger.Debug("Initializing PostgreSQL state store")
+	p.logger.Debug("Initializing Postgres state store")
 	m := postgresMetadataStruct{
 		TableName: defaultTableName,
 	}
@@ -77,7 +77,7 @@ func (p *postgresDBAccess) Init(meta state.Metadata) error {
 	p.metadata = m
 
 	if m.ConnectionString == "" {
-		p.logger.Error("Missing postgreSQL connection string")
+		p.logger.Error("Missing Postgres connection string")
 		return errors.New(errMissingConnectionString)
 	}
 	p.connectionString = m.ConnectionString
@@ -132,22 +132,47 @@ func (p *postgresDBAccess) Set(req *state.SetRequest) error {
 	}
 
 	// Convert to json string
-	bt, _ := utils.Marshal(v, json.Marshal)
+	bt, _ := stateutils.Marshal(v, json.Marshal)
 	value := string(bt)
+
+	// TTL
+	var ttlSeconds int
+	ttl, ttlerr := stateutils.ParseTTL(req.Metadata)
+	if ttlerr != nil {
+		return fmt.Errorf("error parsing TTL: %w", ttlerr)
+	}
+	if ttl != nil {
+		ttlSeconds = *ttl
+	}
 
 	var result sql.Result
 
-	// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
-	// Other parameters use sql.DB parameter substitution.
-	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
-		result, err = p.db.Exec(fmt.Sprintf(
-			`INSERT INTO %s (key, value, isbinary) VALUES ($1, $2, $3);`,
-			p.tableName), req.Key, value, isBinary)
-	} else if req.ETag == nil || *req.ETag == "" {
-		result, err = p.db.Exec(fmt.Sprintf(
-			`INSERT INTO %s (key, value, isbinary) VALUES ($1, $2, $3)
-			ON CONFLICT (key) DO UPDATE SET value = $2, isbinary = $3, updatedate = NOW();`,
-			p.tableName), req.Key, value, isBinary)
+	// Sprintf is required for table name because query.DB does not substitute parameters for table names.
+	// Other parameters use query.DB parameter substitution.
+	var (
+		query           string
+		queryExpiredate string
+		params          []any
+	)
+	if req.ETag == nil || *req.ETag == "" {
+		if req.Options.Concurrency == state.FirstWrite {
+			query = `INSERT INTO %[1]s
+					(key, value, isbinary, expiredate)
+				VALUES
+					($1, $2, $3, %[2]s)`
+		} else {
+			query = `INSERT INTO %[1]s
+					(key, value, isbinary, expiredate)
+				VALUES
+					($1, $2, $3, %[2]s)
+				ON CONFLICT (key)
+				DO UPDATE SET
+					value = $2,
+					isbinary = $3,
+					updatedate = CURRENT_TIMESTAMP,
+					expiredate = %[2]s`
+		}
+		params = []any{req.Key, value, isBinary}
 	} else {
 		// Convert req.ETag to uint32 for postgres XID compatibility
 		var etag64 uint64
@@ -155,20 +180,30 @@ func (p *postgresDBAccess) Set(req *state.SetRequest) error {
 		if err != nil {
 			return state.NewETagError(state.ETagInvalid, err)
 		}
-		etag := uint32(etag64)
 
-		// When an etag is provided do an update - no insert
-		result, err = p.db.Exec(fmt.Sprintf(
-			`UPDATE %s SET value = $1, isbinary = $2, updatedate = NOW()
-			 WHERE key = $3 AND xmin = $4;`,
-			p.tableName), value, isBinary, req.Key, etag)
+		query = `UPDATE %[1]s
+			SET
+				value = $1,
+				isbinary = $2,
+				updatedate = CURRENT_TIMESTAMP,
+				expiredate = %[2]s
+			WHERE
+				key = $3
+				AND xmin = $4`
+		params = []any{value, isBinary, req.Key, uint32(etag64)}
 	}
+
+	if ttlSeconds > 0 {
+		queryExpiredate = "CURRENT_TIMESTAMP + interval '" + strconv.Itoa(ttlSeconds) + " seconds'"
+	} else {
+		queryExpiredate = "NULL"
+	}
+	result, err = p.db.Exec(fmt.Sprintf(query, p.tableName, queryExpiredate), params...)
 
 	if err != nil {
 		if req.ETag != nil && *req.ETag != "" {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
-
 		return err
 	}
 
@@ -176,7 +211,6 @@ func (p *postgresDBAccess) Set(req *state.SetRequest) error {
 	if err != nil {
 		return err
 	}
-
 	if rows != 1 {
 		return errors.New("no item was updated")
 	}
@@ -218,7 +252,15 @@ func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 		isBinary bool
 		etag     uint64 // Postgres uses uint32, but FormatUint requires uint64, so using uint64 directly to avoid re-allocations
 	)
-	err := p.db.QueryRow(fmt.Sprintf("SELECT value, isbinary, xmin as etag FROM %s WHERE key = $1", p.tableName), req.Key).Scan(&value, &isBinary, &etag)
+	query := `SELECT
+			value, isbinary, xmin AS etag
+		FROM %s
+			WHERE
+				key = $1
+				AND expiredate IS NULL OR expiredate >= CURRENT_TIMESTAMP`
+	err := p.db.
+		QueryRow(fmt.Sprintf(query, p.tableName), req.Key).
+		Scan(&value, &isBinary, &etag)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
 		if err == sql.ErrNoRows {
@@ -274,7 +316,7 @@ func (p *postgresDBAccess) Delete(req *state.DeleteRequest) (err error) {
 		}
 		etag := uint32(etag64)
 
-		result, err = p.db.Exec("DELETE FROM state WHERE key = $1 and xmin = $2", req.Key, etag)
+		result, err = p.db.Exec("DELETE FROM state WHERE key = $1 AND xmin = $2", req.Key, etag)
 	}
 
 	if err != nil {

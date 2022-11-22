@@ -134,7 +134,7 @@ func (o *oracleDatabaseAccess) Set(req *state.SetRequest) error {
 	var ttlSeconds int
 	ttl, ttlerr := stateutils.ParseTTL(req.Metadata)
 	if ttlerr != nil {
-		return fmt.Errorf("error in parsing TTL %w", ttlerr)
+		return fmt.Errorf("error parsing TTL: %w", ttlerr)
 	}
 	if ttl != nil {
 		ttlSeconds = *ttl

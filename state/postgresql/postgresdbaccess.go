@@ -287,7 +287,7 @@ func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 		FROM %s
 			WHERE
 				key = $1
-				AND expiredate IS NULL OR expiredate >= CURRENT_TIMESTAMP`
+				AND (expiredate IS NULL OR expiredate >= CURRENT_TIMESTAMP)`
 	err := p.db.
 		QueryRow(fmt.Sprintf(query, p.metadata.TableName), req.Key).
 		Scan(&value, &isBinary, &etag)

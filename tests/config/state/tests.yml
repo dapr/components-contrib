@@ -42,3 +42,6 @@ components:
   - component: rethinkdb
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete"]
+  - component: in-memory
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]

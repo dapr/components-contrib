@@ -62,6 +62,9 @@ components:
   - component: mqtt
     profile: mosquitto
     operations: ["publish", "subscribe", "multiplehandlers"]
+  - component: amqp
+    profile: solace
+    operations: ["publish", "subscribe"]
   - component: mqtt
     profile: emqx
     operations: ["publish", "subscribe", "multiplehandlers"]

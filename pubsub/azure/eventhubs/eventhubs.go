@@ -129,7 +129,7 @@ func subscribeHandler(ctx context.Context, topic string, getAllProperties bool, 
 	}
 	// added properties if any ( includes application properties from iot-hub)
 	if getAllProperties {
-		if e.Properties != nil && len(e.Properties) > 0{
+		if e.Properties != nil && len(e.Properties) > 0 {
 			for key, value := range e.Properties {
 				if str, ok := value.(string); ok {
 						res.Metadata[key] = str

@@ -20,7 +20,7 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"github.com/pkg/errors"
-	cron "github.com/robfig/cron/v3"
+	cron "github.com/dapr/components-contrib/internal/cron"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"

@@ -492,8 +492,6 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_azure_eventhubs.NewAzureEventHubs(testLogger)
 	case "azure.cosmosdb":
 		binding = b_azure_cosmosdb.NewCosmosDB(testLogger)
-	case "cron":
-		binding = b_cron.NewCron(testLogger)
 	case kafka:
 		binding = b_kafka.NewKafka(testLogger)
 	case "http":

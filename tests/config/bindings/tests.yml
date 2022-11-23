@@ -34,7 +34,7 @@ components:
   - component: azure.servicebusqueues
     operations: ["create", "operations", "read"]
   - component: cron
-    operations: ["delete", operations", "read"]
+    operations: ["read"]
   - component: kafka
     profile: wurstmeister
     operations: ["create", "operations"]

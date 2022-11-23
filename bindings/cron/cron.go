@@ -35,10 +35,8 @@ type Binding struct {
 	clk      clock.Clock
 }
 
-var stopCh = make(map[string]chan bool)
-
 // NewCron returns a new Cron event input binding.
-func NewCron(logger logger.Logger) bindings.InputOutputBinding {
+func NewCron(logger logger.Logger) bindings.InputBinding {
 	return &Binding{
 		logger: logger,
 		parser: cron.NewParser(
@@ -63,9 +61,6 @@ func NewCronWithClock(logger logger.Logger, clk clock.Clock) bindings.InputBindi
 //	"15 * * * * *" - Every 15 sec
 //	"0 30 * * * *" - Every 30 min
 func (b *Binding) Init(metadata bindings.Metadata) error {
-	if _, ok := stopCh[metadata.Name]; !ok {
-		stopCh[metadata.Name] = make(chan bool)
-	}
 	b.name = metadata.Name
 	s, f := metadata.Properties["schedule"]
 	if !f || s == "" {
@@ -101,41 +96,5 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 	c.Start()
 	b.logger.Debugf("name: %s, next run: %v", b.name, time.Until(c.Entry(id).Next))
 
-	go func() {
-		// Wait for a context to be canceled
-		select {
-		case <-stopCh[b.name]:
-		case <-ctx.Done():
-		}
-		b.logger.Debugf("name: %s, stopping schedule: %s", b.name, b.schedule)
-		c.Stop()
-	}()
-
 	return nil
-}
-
-// Invoke exposes way to stop previously started cron.
-func (b *Binding) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	b.logger.Debugf("name: %s, operation: %v", b.name, req.Operation)
-
-	switch req.Operation {
-	case bindings.DeleteOperation:
-		stopCh[b.name] <- true
-		return &bindings.InvokeResponse{
-			Metadata: map[string]string{
-				"schedule":    b.schedule,
-				"stopTimeUTC": time.Now().UTC().String(),
-			},
-		}, nil
-	default:
-		return nil, fmt.Errorf("invalid operation: '%v', only '%v' supported",
-			req.Operation, bindings.DeleteOperation)
-	}
-}
-
-// Operations method returns the supported operations by this binding.
-func (b *Binding) Operations() []bindings.OperationKind {
-	return []bindings.OperationKind{
-		bindings.DeleteOperation,
-	}
 }

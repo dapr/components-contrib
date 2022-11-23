@@ -88,7 +88,9 @@ func testReadIotHubEvents(t *testing.T) {
 
 	req := pubsub.SubscribeRequest{
 		Topic:    testTopic, // TODO: Handle Topic configuration after EventHubs pubsub rewrite #951
-		Metadata: map[string]string{},
+		Metadata: map[string]string{
+			"requireAllProperties": "true",
+		},
 	}
 	err = eh.Subscribe(context.Background(), req, handler)
 	assert.Nil(t, err)

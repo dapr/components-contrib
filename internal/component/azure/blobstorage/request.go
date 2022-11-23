@@ -16,6 +16,7 @@ package blobstorage
 import (
 	b64 "encoding/base64"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 
@@ -23,19 +24,25 @@ import (
 )
 
 const (
-	contentTypeKey        = "ContentType"
-	contentMD5Key         = "ContentMD5"
-	contentEncodingKey    = "ContentEncoding"
-	contentLanguageKey    = "ContentLanguage"
-	contentDispositionKey = "ContentDisposition"
-	cacheControlKey       = "CacheControl"
+	contentTypeKey        = "contenttype"
+	contentMD5Key         = "contentmd5"
+	contentEncodingKey    = "contentencoding"
+	contentLanguageKey    = "contentlanguage"
+	contentDispositionKey = "contentdisposition"
+	cacheControlKey       = "cachecontrol"
 )
 
 func CreateBlobHTTPHeadersFromRequest(meta map[string]string, contentType *string, log logger.Logger) (blob.HTTPHeaders, error) {
+	// build map to support arbitrary case
+	caseMap := make(map[string]string)
+	for k := range meta {
+		caseMap[strings.ToLower(k)] = k
+	}
+
 	blobHTTPHeaders := blob.HTTPHeaders{}
-	if val, ok := meta[contentTypeKey]; ok && val != "" {
+	if val, ok := meta[caseMap[contentTypeKey]]; ok && val != "" {
 		blobHTTPHeaders.BlobContentType = &val
-		delete(meta, contentTypeKey)
+		delete(meta, caseMap[contentTypeKey])
 	}
 
 	if contentType != nil {
@@ -45,29 +52,29 @@ func CreateBlobHTTPHeadersFromRequest(meta map[string]string, contentType *strin
 		blobHTTPHeaders.BlobContentType = contentType
 	}
 
-	if val, ok := meta[contentMD5Key]; ok && val != "" {
+	if val, ok := meta[caseMap[contentMD5Key]]; ok && val != "" {
 		sDec, err := b64.StdEncoding.DecodeString(val)
 		if err != nil || len(sDec) != 16 {
 			return blob.HTTPHeaders{}, fmt.Errorf("the MD5 value specified in Content MD5 is invalid, MD5 value must be 128 bits and base64 encoded")
 		}
 		blobHTTPHeaders.BlobContentMD5 = sDec
-		delete(meta, contentMD5Key)
+		delete(meta, caseMap[contentMD5Key])
 	}
-	if val, ok := meta[contentEncodingKey]; ok && val != "" {
+	if val, ok := meta[caseMap[contentEncodingKey]]; ok && val != "" {
 		blobHTTPHeaders.BlobContentEncoding = &val
-		delete(meta, contentEncodingKey)
+		delete(meta, caseMap[contentEncodingKey])
 	}
-	if val, ok := meta[contentLanguageKey]; ok && val != "" {
+	if val, ok := meta[caseMap[contentLanguageKey]]; ok && val != "" {
 		blobHTTPHeaders.BlobContentLanguage = &val
-		delete(meta, contentLanguageKey)
+		delete(meta, caseMap[contentLanguageKey])
 	}
-	if val, ok := meta[contentDispositionKey]; ok && val != "" {
+	if val, ok := meta[caseMap[contentDispositionKey]]; ok && val != "" {
 		blobHTTPHeaders.BlobContentDisposition = &val
-		delete(meta, contentDispositionKey)
+		delete(meta, caseMap[contentDispositionKey])
 	}
-	if val, ok := meta[cacheControlKey]; ok && val != "" {
+	if val, ok := meta[caseMap[cacheControlKey]]; ok && val != "" {
 		blobHTTPHeaders.BlobCacheControl = &val
-		delete(meta, cacheControlKey)
+		delete(meta, caseMap[cacheControlKey])
 	}
 	return blobHTTPHeaders, nil
 }

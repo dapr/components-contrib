@@ -28,7 +28,7 @@ func TestValidateMetadata(t *testing.T) {
 		m := state.Metadata{
 			Base: metadata.Base{Properties: properties},
 		}
-		err := validateMetadata(m)
+		_, err := validateAndParseMetadata(m)
 		assert.NotNil(t, err)
 	})
 
@@ -39,7 +39,7 @@ func TestValidateMetadata(t *testing.T) {
 		m := state.Metadata{
 			Base: metadata.Base{Properties: properties},
 		}
-		err := validateMetadata(m)
+		_, err := validateAndParseMetadata(m)
 		assert.NotNil(t, err)
 	})
 
@@ -50,7 +50,7 @@ func TestValidateMetadata(t *testing.T) {
 		m := state.Metadata{
 			Base: metadata.Base{Properties: properties},
 		}
-		err := validateMetadata(m)
+		_, err := validateAndParseMetadata(m)
 		assert.NotNil(t, err)
 	})
 
@@ -62,7 +62,8 @@ func TestValidateMetadata(t *testing.T) {
 		m := state.Metadata{
 			Base: metadata.Base{Properties: properties},
 		}
-		err := validateMetadata(m)
+		meta, err := validateAndParseMetadata(m)
 		assert.Nil(t, err)
+		assert.Equal(t, properties["hazelcastServers"], meta.HazelcastServers)
 	})
 }

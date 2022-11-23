@@ -27,11 +27,13 @@ type metadata struct {
 
 	jwt     string
 	seedKey string
+	token   string
 
 	tlsClientCert string
 	tlsClientKey  string
 
 	name           string
+	streamName     string
 	durableName    string
 	queueGroupName string
 	startSequence  uint64
@@ -57,6 +59,7 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 		return metadata{}, fmt.Errorf("missing nats URL")
 	}
 
+	m.token = psm.Properties["token"]
 	m.jwt = psm.Properties["jwt"]
 	m.seedKey = psm.Properties["seedKey"]
 
@@ -140,6 +143,8 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 	if v, err := time.ParseDuration(psm.Properties["hearbeat"]); err == nil {
 		m.hearbeat = v
 	}
+
+	m.streamName = psm.Properties["streamName"]
 
 	return m, nil
 }

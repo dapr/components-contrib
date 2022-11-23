@@ -25,9 +25,9 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
-	"github.com/dapr/components-contrib/internal/utils"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -47,9 +47,11 @@ type QueueHelper interface {
 
 // AzureQueueHelper concrete impl of queue helper.
 type AzureQueueHelper struct {
-	queueURL     azqueue.QueueURL
-	logger       logger.Logger
-	decodeBase64 bool
+	queueURL          azqueue.QueueURL
+	logger            logger.Logger
+	decodeBase64      bool
+	encodeBase64      bool
+	visibilityTimeout time.Duration
 }
 
 // Init sets up this helper.
@@ -73,6 +75,8 @@ func (d *AzureQueueHelper) Init(metadata bindings.Metadata) (*storageQueuesMetad
 	p := azqueue.NewPipeline(credential, pipelineOptions)
 
 	d.decodeBase64 = m.DecodeBase64
+	d.encodeBase64 = m.EncodeBase64
+	d.visibilityTimeout = *m.VisibilityTimeout
 
 	if m.QueueEndpoint != "" {
 		URL, parseErr := url.Parse(fmt.Sprintf("%s/%s/%s", m.QueueEndpoint, m.AccountName, m.QueueName))
@@ -103,6 +107,10 @@ func (d *AzureQueueHelper) Write(ctx context.Context, data []byte, ttl *time.Dur
 		s = string(data)
 	}
 
+	if d.encodeBase64 {
+		s = base64.StdEncoding.EncodeToString([]byte(s))
+	}
+
 	if ttl == nil {
 		ttlToUse := defaultTTL
 		ttl = &ttlToUse
@@ -114,7 +122,7 @@ func (d *AzureQueueHelper) Write(ctx context.Context, data []byte, ttl *time.Dur
 
 func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 	messagesURL := d.queueURL.NewMessagesURL()
-	res, err := messagesURL.Dequeue(ctx, 1, time.Second*30)
+	res, err := messagesURL.Dequeue(ctx, 1, d.visibilityTimeout)
 	if err != nil {
 		return err
 	}
@@ -170,11 +178,13 @@ type AzureStorageQueues struct {
 }
 
 type storageQueuesMetadata struct {
-	QueueName     string
-	QueueEndpoint string
-	AccountName   string
-	DecodeBase64  bool
-	ttl           *time.Duration
+	QueueName         string
+	QueueEndpoint     string
+	AccountName       string
+	DecodeBase64      bool
+	EncodeBase64      bool
+	ttl               *time.Duration
+	VisibilityTimeout *time.Duration
 }
 
 // NewAzureStorageQueues returns a new AzureStorageQueues instance.
@@ -192,29 +202,31 @@ func (a *AzureStorageQueues) Init(metadata bindings.Metadata) (err error) {
 	return nil
 }
 
-func parseMetadata(metadata bindings.Metadata) (*storageQueuesMetadata, error) {
-	var m storageQueuesMetadata
+func parseMetadata(meta bindings.Metadata) (*storageQueuesMetadata, error) {
+	m := storageQueuesMetadata{
+		VisibilityTimeout: ptr.Of(time.Second * 30),
+	}
 	// AccountKey is parsed in azauth
 
-	if val, ok := contribMetadata.GetMetadataProperty(metadata.Properties, azauth.StorageAccountNameKeys...); ok && val != "" {
+	contribMetadata.DecodeMetadata(meta.Properties, &m)
+
+	if val, ok := contribMetadata.GetMetadataProperty(meta.Properties, azauth.StorageAccountNameKeys...); ok && val != "" {
 		m.AccountName = val
 	} else {
 		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageAccountNameKeys[0])
 	}
 
-	if val, ok := contribMetadata.GetMetadataProperty(metadata.Properties, azauth.StorageQueueNameKeys...); ok && val != "" {
+	if val, ok := contribMetadata.GetMetadataProperty(meta.Properties, azauth.StorageQueueNameKeys...); ok && val != "" {
 		m.QueueName = val
 	} else {
 		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageQueueNameKeys[0])
 	}
 
-	if val, ok := contribMetadata.GetMetadataProperty(metadata.Properties, azauth.StorageEndpointKeys...); ok && val != "" {
+	if val, ok := contribMetadata.GetMetadataProperty(meta.Properties, azauth.StorageEndpointKeys...); ok && val != "" {
 		m.QueueEndpoint = val
 	}
 
-	m.DecodeBase64 = utils.IsTruthy(metadata.Properties["decodeBase64"])
-
-	ttl, ok, err := contribMetadata.TryGetTTL(metadata.Properties)
+	ttl, ok, err := contribMetadata.TryGetTTL(meta.Properties)
 	if err != nil {
 		return nil, err
 	}

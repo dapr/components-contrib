@@ -25,6 +25,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 type MockHelper struct {
@@ -294,38 +295,49 @@ func TestParseMetadata(t *testing.T) {
 		properties map[string]string
 		// Account key is parsed in azauth
 		// expectedAccountKey       string
-		expectedQueueName        string
-		expectedQueueEndpointURL string
-		expectedTTL              *time.Duration
+		expectedQueueName         string
+		expectedQueueEndpointURL  string
+		expectedTTL               *time.Duration
+		expectedVisibilityTimeout *time.Duration
 	}{
 		{
 			name:       "Account and key",
 			properties: map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1"},
 			// expectedAccountKey:       "myKey",
-			expectedQueueName:        "queue1",
-			expectedQueueEndpointURL: "",
+			expectedQueueName:         "queue1",
+			expectedQueueEndpointURL:  "",
+			expectedVisibilityTimeout: ptr.Of(30 * time.Second),
 		},
 		{
 			name:       "Accout, key, and endpoint",
 			properties: map[string]string{"accountKey": "myKey", "queueName": "queue1", "storageAccount": "someAccount", "queueEndpointUrl": "https://foo.example.com:10001"},
 			// expectedAccountKey:       "myKey",
-			expectedQueueName:        "queue1",
-			expectedQueueEndpointURL: "https://foo.example.com:10001",
+			expectedQueueName:         "queue1",
+			expectedQueueEndpointURL:  "https://foo.example.com:10001",
+			expectedVisibilityTimeout: ptr.Of(30 * time.Second),
 		},
 		{
 			name:       "Empty TTL",
 			properties: map[string]string{"storageAccessKey": "myKey", "queue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: ""},
 			// expectedAccountKey:       "myKey",
-			expectedQueueName:        "queue1",
-			expectedQueueEndpointURL: "",
+			expectedQueueName:         "queue1",
+			expectedQueueEndpointURL:  "",
+			expectedVisibilityTimeout: ptr.Of(30 * time.Second),
 		},
 		{
 			name:       "With TTL",
 			properties: map[string]string{"accessKey": "myKey", "storageAccountQueue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: "1"},
 			// expectedAccountKey:       "myKey",
-			expectedQueueName:        "queue1",
-			expectedTTL:              &oneSecondDuration,
-			expectedQueueEndpointURL: "",
+			expectedQueueName:         "queue1",
+			expectedTTL:               &oneSecondDuration,
+			expectedQueueEndpointURL:  "",
+			expectedVisibilityTimeout: ptr.Of(30 * time.Second),
+		},
+		{
+			name:                      "With visibility timeout",
+			properties:                map[string]string{"accessKey": "myKey", "storageAccountQueue": "queue1", "storageAccount": "devstoreaccount1", "visibilityTimeout": "5s"},
+			expectedQueueName:         "queue1",
+			expectedVisibilityTimeout: ptr.Of(5 * time.Second),
 		},
 	}
 
@@ -341,6 +353,7 @@ func TestParseMetadata(t *testing.T) {
 			assert.Equal(t, tt.expectedQueueName, meta.QueueName)
 			assert.Equal(t, tt.expectedTTL, meta.ttl)
 			assert.Equal(t, tt.expectedQueueEndpointURL, meta.QueueEndpoint)
+			assert.Equal(t, tt.expectedVisibilityTimeout, meta.VisibilityTimeout)
 		})
 	}
 }

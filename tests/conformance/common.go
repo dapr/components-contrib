@@ -46,6 +46,7 @@ import (
 	b_http "github.com/dapr/components-contrib/bindings/http"
 	b_influx "github.com/dapr/components-contrib/bindings/influx"
 	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
+	b_kubemq "github.com/dapr/components-contrib/bindings/kubemq"
 	b_mqtt "github.com/dapr/components-contrib/bindings/mqtt"
 	b_postgres "github.com/dapr/components-contrib/bindings/postgres"
 	b_rabbitmq "github.com/dapr/components-contrib/bindings/rabbitmq"
@@ -58,6 +59,7 @@ import (
 	p_inmemory "github.com/dapr/components-contrib/pubsub/in-memory"
 	p_jetstream "github.com/dapr/components-contrib/pubsub/jetstream"
 	p_kafka "github.com/dapr/components-contrib/pubsub/kafka"
+	p_kubemq "github.com/dapr/components-contrib/pubsub/kubemq"
 	p_mqtt "github.com/dapr/components-contrib/pubsub/mqtt"
 	p_natsstreaming "github.com/dapr/components-contrib/pubsub/natsstreaming"
 	p_pulsar "github.com/dapr/components-contrib/pubsub/pulsar"
@@ -73,6 +75,7 @@ import (
 	s_azuretablestorage "github.com/dapr/components-contrib/state/azure/tablestorage"
 	s_cassandra "github.com/dapr/components-contrib/state/cassandra"
 	s_cockroachdb "github.com/dapr/components-contrib/state/cockroachdb"
+	s_inmemory "github.com/dapr/components-contrib/state/in-memory"
 	s_memcached "github.com/dapr/components-contrib/state/memcached"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
 	s_mysql "github.com/dapr/components-contrib/state/mysql"
@@ -398,6 +401,8 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_inmemory.New(testLogger)
 	case "aws.snssqs":
 		pubsub = p_snssqs.NewSnsSqs(testLogger)
+	case "kubemq":
+		pubsub = p_kubemq.NewKubeMQ(testLogger)
 	default:
 		return nil
 	}
@@ -460,6 +465,8 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_memcached.NewMemCacheStateStore(testLogger)
 	case "rethinkdb":
 		store = s_rethinkdb.NewRethinkDBStateStore(testLogger)
+	case "in-memory":
+		store = s_inmemory.NewInMemoryStateStore(testLogger)
 	default:
 		return nil
 	}
@@ -497,6 +504,8 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_mqtt.NewMQTT(testLogger)
 	case "rabbitmq":
 		binding = b_rabbitmq.NewRabbitMQ(testLogger)
+	case "kubemq":
+		binding = b_kubemq.NewKubeMQ(testLogger)
 	case "postgres":
 		binding = b_postgres.NewPostgres(testLogger)
 	default:
@@ -526,6 +535,8 @@ func loadInputBindings(tc TestComponent) bindings.InputBinding {
 		binding = b_mqtt.NewMQTT(testLogger)
 	case "rabbitmq":
 		binding = b_rabbitmq.NewRabbitMQ(testLogger)
+	case "kubemq":
+		binding = b_kubemq.NewKubeMQ(testLogger)
 	default:
 		return nil
 	}

@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -27,7 +28,6 @@ import (
 	"time"
 
 	"github.com/go-sql-driver/mysql"
-	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -117,7 +117,7 @@ func (m *Mysql) Init(metadata bindings.Metadata) error {
 
 	err = db.Ping()
 	if err != nil {
-		return errors.Wrap(err, "unable to ping the DB")
+		return fmt.Errorf("unable to ping the DB: %w", err)
 	}
 
 	m.db = db
@@ -128,7 +128,7 @@ func (m *Mysql) Init(metadata bindings.Metadata) error {
 // Invoke handles all invoke operations.
 func (m *Mysql) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	if req == nil {
-		return nil, errors.Errorf("invoke request required")
+		return nil, errors.New("invoke request required")
 	}
 
 	if req.Operation == closeOperation {
@@ -136,13 +136,13 @@ func (m *Mysql) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	}
 
 	if req.Metadata == nil {
-		return nil, errors.Errorf("metadata required")
+		return nil, errors.New("metadata required")
 	}
 	m.logger.Debugf("operation: %v", req.Operation)
 
 	s, ok := req.Metadata[commandSQLKey]
 	if !ok || s == "" {
-		return nil, errors.Errorf("required metadata not set: %s", commandSQLKey)
+		return nil, fmt.Errorf("required metadata not set: %s", commandSQLKey)
 	}
 
 	startTime := time.Now()
@@ -171,7 +171,7 @@ func (m *Mysql) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		resp.Data = d
 
 	default:
-		return nil, errors.Errorf("invalid operation type: %s. Expected %s, %s, or %s",
+		return nil, fmt.Errorf("invalid operation type: %s. Expected %s, %s, or %s",
 			req.Operation, execOperation, queryOperation, closeOperation)
 	}
 
@@ -201,11 +201,9 @@ func (m *Mysql) Close() error {
 }
 
 func (m *Mysql) query(ctx context.Context, sql string) ([]byte, error) {
-	m.logger.Debugf("query: %s", sql)
-
 	rows, err := m.db.QueryContext(ctx, sql)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error executing %s", sql)
+		return nil, fmt.Errorf("error executing query: %w", err)
 	}
 
 	defer func() {
@@ -215,7 +213,7 @@ func (m *Mysql) query(ctx context.Context, sql string) ([]byte, error) {
 
 	result, err := m.jsonify(rows)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error marshalling query result for %s", sql)
+		return nil, fmt.Errorf("error marshalling query result for query: %w", err)
 	}
 
 	return result, nil
@@ -226,7 +224,7 @@ func (m *Mysql) exec(ctx context.Context, sql string) (int64, error) {
 
 	res, err := m.db.ExecContext(ctx, sql)
 	if err != nil {
-		return 0, errors.Wrapf(err, "error executing %s", sql)
+		return 0, fmt.Errorf("error executing query: %w", err)
 	}
 
 	return res.RowsAffected()
@@ -237,7 +235,7 @@ func propertyToInt(props map[string]string, key string, setter func(int)) error 
 		if i, err := strconv.Atoi(v); err == nil {
 			setter(i)
 		} else {
-			return errors.Wrapf(err, "error converitng %s:%s to int", key, v)
+			return fmt.Errorf("error converting %s:%s to int: %w", key, v, err)
 		}
 	}
 
@@ -249,7 +247,7 @@ func propertyToDuration(props map[string]string, key string, setter func(time.Du
 		if d, err := time.ParseDuration(v); err == nil {
 			setter(d)
 		} else {
-			return errors.Wrapf(err, "error converitng %s:%s to time duration", key, v)
+			return fmt.Errorf("error converting %s:%s to duration: %w", key, v, err)
 		}
 	}
 
@@ -258,14 +256,14 @@ func propertyToDuration(props map[string]string, key string, setter func(time.Du
 
 func initDB(url, pemPath string) (*sql.DB, error) {
 	if _, err := mysql.ParseDSN(url); err != nil {
-		return nil, errors.Wrapf(err, "illegal Data Source Name (DNS) specified by %s", connectionURLKey)
+		return nil, fmt.Errorf("illegal Data Source Name (DSN) specified by %s", connectionURLKey)
 	}
 
 	if pemPath != "" {
 		rootCertPool := x509.NewCertPool()
 		pem, err := os.ReadFile(pemPath)
 		if err != nil {
-			return nil, errors.Wrapf(err, "Error reading PEM file from %s", pemPath)
+			return nil, fmt.Errorf("error reading PEM file from %s: %w", pemPath, err)
 		}
 
 		ok := rootCertPool.AppendCertsFromPEM(pem)
@@ -275,13 +273,13 @@ func initDB(url, pemPath string) (*sql.DB, error) {
 
 		err = mysql.RegisterTLSConfig("custom", &tls.Config{RootCAs: rootCertPool, MinVersion: tls.VersionTLS12})
 		if err != nil {
-			return nil, errors.Wrap(err, "Error register TLS config")
+			return nil, fmt.Errorf("error register TLS config: %w", err)
 		}
 	}
 
 	db, err := sql.Open("mysql", url)
 	if err != nil {
-		return nil, errors.Wrap(err, "error opening DB connection")
+		return nil, fmt.Errorf("error opening DB connection: %w", err)
 	}
 
 	return db, nil

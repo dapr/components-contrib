@@ -104,9 +104,9 @@ func appRouter() *mux.Router {
 
 func handleCall(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
-	case "POST":
+	case http.MethodPost:
 		s.handlePost(r)
-	case "GET":
+	case http.MethodGet:
 		w.Write(s.handleGet())
 	default:
 		w.WriteHeader(http.StatusInternalServerError)

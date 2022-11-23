@@ -74,6 +74,7 @@ import (
 	s_azuretablestorage "github.com/dapr/components-contrib/state/azure/tablestorage"
 	s_cassandra "github.com/dapr/components-contrib/state/cassandra"
 	s_cockroachdb "github.com/dapr/components-contrib/state/cockroachdb"
+	s_inmemory "github.com/dapr/components-contrib/state/in-memory"
 	s_memcached "github.com/dapr/components-contrib/state/memcached"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
 	s_mysql "github.com/dapr/components-contrib/state/mysql"
@@ -463,6 +464,8 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_memcached.NewMemCacheStateStore(testLogger)
 	case "rethinkdb":
 		store = s_rethinkdb.NewRethinkDBStateStore(testLogger)
+	case "in-memory":
+		store = s_inmemory.NewInMemoryStateStore(testLogger)
 	default:
 		return nil
 	}

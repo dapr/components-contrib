@@ -74,6 +74,17 @@ func (a *amqpPubSub) Init(metadata pubsub.Metadata) error {
 	return err
 }
 
+func AddPrefixToAddress(t string) string {
+	dest := t
+
+	//Unless the request comes in to publish on a queue, publish directly on a topic
+	if !strings.HasPrefix(dest, "queue://") && !strings.HasPrefix(dest, "topic://") {
+		dest = "topic://" + dest
+	}
+
+	return dest
+}
+
 // Publish the topic to amqp pubsub
 func (a *amqpPubSub) Publish(req *pubsub.PublishRequest) error {
 
@@ -99,15 +110,8 @@ func (a *amqpPubSub) Publish(req *pubsub.PublishRequest) error {
 		}
 	}
 
-	dest := req.Topic
-
-	//Unless the request comes in to publish on a queue, publish directly on a topic
-	if !strings.HasPrefix(dest, "queue://") && !strings.HasPrefix(dest, "topic://") {
-		dest = "topic://" + dest
-	}
-
 	sender, err := a.session.NewSender(
-		amqp.LinkTargetAddress(dest),
+		amqp.LinkTargetAddress(AddPrefixToAddress(req.Topic)),
 	)
 
 	if err != nil {
@@ -137,11 +141,10 @@ func (a *amqpPubSub) Publish(req *pubsub.PublishRequest) error {
 
 }
 
-// Set up a subscription directly to a queue. Subscriptions to topics are not currently supported
 func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 
 	receiver, err := a.session.NewReceiver(
-		amqp.LinkSourceAddress(req.Topic),
+		amqp.LinkSourceAddress(AddPrefixToAddress(req.Topic)),
 	)
 
 	if err == nil {
@@ -161,32 +164,34 @@ func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiv
 		// Receive next message
 		msg, err := receiver.Receive(ctx)
 
-		a.logger.Debugf("Received a message %s", msg.GetData())
+		if msg != nil {
+			a.logger.Debugf("Received a message %s", msg.GetData())
 
-		pubsubMsg := &pubsub.NewMessage{
-			Data:  msg.GetData(),
-			Topic: msg.LinkName(),
-		}
-
-		if err != nil {
-			a.logger.Errorf("failed to establish receiver")
-		}
-
-		err = handler(ctx, pubsubMsg)
-
-		if err == nil {
-			err := receiver.AcceptMessage(ctx, msg)
-			a.logger.Debugf("ACKed a message")
-			if err != nil {
-				a.logger.Errorf("failed to acknowledge a message")
+			pubsubMsg := &pubsub.NewMessage{
+				Data:  msg.GetData(),
+				Topic: msg.LinkName(),
 			}
-		} else {
-			a.logger.Errorf("Error processing message from %s", msg.LinkName())
-			a.logger.Debugf("NAKd a message")
-			err := receiver.RejectMessage(ctx, msg, nil)
-			if err != nil {
-				a.logger.Errorf("failed to NAK a message")
 
+			if err != nil {
+				a.logger.Errorf("failed to establish receiver")
+			}
+
+			err = handler(ctx, pubsubMsg)
+
+			if err == nil {
+				err := receiver.AcceptMessage(ctx, msg)
+				a.logger.Debugf("ACKed a message")
+				if err != nil {
+					a.logger.Errorf("failed to acknowledge a message")
+				}
+			} else {
+				a.logger.Errorf("Error processing message from %s", msg.LinkName())
+				a.logger.Debugf("NAKd a message")
+				err := receiver.RejectMessage(ctx, msg, nil)
+				if err != nil {
+					a.logger.Errorf("failed to NAK a message")
+
+				}
 			}
 		}
 

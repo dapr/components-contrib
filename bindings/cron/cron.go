@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/pkg/errors"
 	cron "github.com/robfig/cron/v3"
 
@@ -31,6 +32,7 @@ type Binding struct {
 	name     string
 	schedule string
 	parser   cron.Parser
+	clk      clock.Clock
 }
 
 var stopCh = make(map[string]chan bool)
@@ -39,6 +41,16 @@ var stopCh = make(map[string]chan bool)
 func NewCron(logger logger.Logger) bindings.InputOutputBinding {
 	return &Binding{
 		logger: logger,
+		parser: cron.NewParser(
+			cron.SecondOptional | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
+		),
+	}
+}
+
+func NewCronWithClock(logger logger.Logger, clk clock.Clock) bindings.InputBinding {
+	return &Binding{
+		logger: logger,
+		clk:    clk,
 		parser: cron.NewParser(
 			cron.SecondOptional | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
 		),
@@ -70,7 +82,10 @@ func (b *Binding) Init(metadata bindings.Metadata) error {
 
 // Read triggers the Cron scheduler.
 func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
-	c := cron.New(cron.WithParser(b.parser))
+	if b.clk == nil {
+		b.clk = clock.New()
+	}
+	c := cron.New(cron.WithParser(b.parser), cron.WithClock(b.clk))
 	id, err := c.AddFunc(b.schedule, func() {
 		b.logger.Debugf("name: %s, schedule fired: %v", b.name, time.Now())
 		handler(ctx, &bindings.ReadResponse{

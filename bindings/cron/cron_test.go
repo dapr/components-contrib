@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -35,12 +36,16 @@ func getTestMetadata(schedule string) bindings.Metadata {
 }
 
 func getNewCron() *Binding {
+	clk := clock.New()
+	return getNewCronWithClock(clk)
+}
+
+func getNewCronWithClock(clk clock.Clock) *Binding {
 	l := logger.NewLogger("cron")
 	if os.Getenv("DEBUG") != "" {
 		l.SetOutputLevel(logger.DebugLevel)
 	}
-
-	return NewCron(l).(*Binding)
+	return NewCronWithClock(l, clk).(*Binding)
 }
 
 // go test -v -timeout 15s -count=1 ./bindings/cron/.
@@ -65,7 +70,8 @@ func TestCronInitFailure(t *testing.T) {
 // TestLongRead
 // go test -v -count=1 -timeout 15s -run TestLongRead ./bindings/cron/.
 func TestCronRead(t *testing.T) {
-	c := getNewCron()
+	clk := clock.NewMock()
+	c := getNewCronWithClock(clk)
 	schedule := "@every 1s"
 	assert.NoErrorf(t, c.Init(getTestMetadata(schedule)), "error initializing valid schedule")
 	i := 0
@@ -74,8 +80,8 @@ func TestCronRead(t *testing.T) {
 		i++
 		return nil, nil
 	})
-	time.Sleep(time.Second * 5)
-	// Check if cron triggers at least twice within 5 seconds
-	assert.GreaterOrEqual(t, i, 2, "Cron did not trigger enough times")
+	// Check if cron triggers 5 times in 5 seconds
+	clk.Add(5 * time.Second)
+	assert.Equal(t, i, 5, "Cron did not trigger expected number of times, expected 5, got %d", i)
 	assert.NoErrorf(t, err, "error on read")
 }

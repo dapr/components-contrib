@@ -20,6 +20,7 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"github.com/pkg/errors"
+
 	cron "github.com/dapr/components-contrib/internal/cron"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -37,12 +38,7 @@ type Binding struct {
 
 // NewCron returns a new Cron event input binding.
 func NewCron(logger logger.Logger) bindings.InputBinding {
-	return &Binding{
-		logger: logger,
-		parser: cron.NewParser(
-			cron.SecondOptional | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
-		),
-	}
+	return NewCronWithClock(logger, clock.New())
 }
 
 func NewCronWithClock(logger logger.Logger, clk clock.Clock) bindings.InputBinding {
@@ -77,9 +73,6 @@ func (b *Binding) Init(metadata bindings.Metadata) error {
 
 // Read triggers the Cron scheduler.
 func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
-	if b.clk == nil {
-		b.clk = clock.New()
-	}
 	c := cron.New(cron.WithParser(b.parser), cron.WithClock(b.clk))
 	id, err := c.AddFunc(b.schedule, func() {
 		b.logger.Debugf("name: %s, schedule fired: %v", b.name, time.Now())
@@ -95,6 +88,13 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 	}
 	c.Start()
 	b.logger.Debugf("name: %s, next run: %v", b.name, time.Until(c.Entry(id).Next))
+
+	go func() {
+		// Wait for context to be canceled
+		<-ctx.Done()
+		b.logger.Debugf("name: %s, stopping schedule: %s", b.name, b.schedule)
+		c.Stop()
+	}()
 
 	return nil
 }

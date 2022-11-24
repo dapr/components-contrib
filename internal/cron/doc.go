@@ -1,15 +1,11 @@
 /*
-Package cron implements a cron spec parser and job runner.
+This package is a fork of "github.com/robfig/cron/v3" that implements cron spec parser and job runner with support for mocking the time.
 
-# Installation
-
-To download the specific tagged release, run:
-
-	go get github.com/robfig/cron/v3@v3.0.0
+# Usage
 
 Import it in your program as:
 
-	import "github.com/robfig/cron/v3"
+	import "github.com/dapr/components-contrib/internal/cron"
 
 It requires Go 1.11 or later due to usage of Go Modules.
 
@@ -35,6 +31,22 @@ them in their own goroutines.
 	inspect(c.Entries())
 	..
 	c.Stop()  // Stop the scheduler (does not stop any jobs already running).
+
+# Time mocking
+
+import "github.com/benbjohnson/clock"
+
+clk := clock.NewMock()
+
+c := cron.New(cron.WithClock(clk))
+
+	c.AddFunc("@every 1h", func() {
+		fmt.Println("Every hour")
+	})
+
+c.Start()
+
+clk.Add(1 * time.Hour)
 
 # CRON Expression Format
 

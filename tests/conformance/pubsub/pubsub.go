@@ -161,6 +161,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 
 					return err
 				}
+				fmt.Println("SEQUENCE: ", sequence)
 
 				// Ignore already processed messages
 				// in case we receive a redelivery from the broker
@@ -178,6 +179,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 
 				// Only consider order when we receive a message for the first time
 				// Messages that fail and are re-queued will naturally come out of order
+				fmt.Println("LAST SEQUENCE")
 				if errorCount == 0 {
 					if sequence < lastSequence {
 						outOfOrder = true
@@ -330,6 +332,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 				assert.NoError(t, err, "expected no error on publishing data %s on topic %s", data, config.TestTopicName)
 			}
 			if config.HasOperation("bulksubscribe") {
+				fmt.Println("BULK PUBLISH")
 				_, ok := ps.(pubsub.BulkSubscriber)
 				if !ok {
 					t.Fatalf("cannot run bulkSubscribe conformance, BulkSubscriber interface not implemented by the component %s", config.ComponentName)
@@ -405,6 +408,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 	// Verify read
 	if (config.HasOperation("publish") || config.HasOperation("bulkpublish")) && config.HasOperation("subscribe") {
 		t.Run("verify read", func(t *testing.T) {
+			fmt.Printf("VERIY READ CONFIG: %+v\n", config)
 			t.Logf("waiting for %v to complete read", config.MaxReadDuration)
 			timeout := time.After(config.MaxReadDuration)
 			waiting := true
@@ -414,11 +418,13 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 					t.Logf("deleting %s processed message", processed)
 					delete(awaitingMessages, processed)
 					waiting = len(awaitingMessages) > 0
+					fmt.Println("WAITING: ", len(awaitingMessages))
 				case <-timeout:
 					// Break out after the mamimum read duration has elapsed
 					waiting = false
 				}
 			}
+			fmt.Println("after waiting")
 			assert.False(t, config.CheckInOrderProcessing && outOfOrder, "received messages out of order")
 			assert.Empty(t, awaitingMessages, "expected to read %v messages", config.MessageCount)
 		})

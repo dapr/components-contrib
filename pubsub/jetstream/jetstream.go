@@ -15,6 +15,7 @@ package jetstream
 
 import (
 	"context"
+	"time"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nkeys"
@@ -117,7 +118,7 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 	}
 
 	if js.meta.flowControl {
-		consumerConfig.FlowControl = true
+		consumerConfig.FlowControl = js.meta.flowControl
 	}
 
 	if js.meta.ackWait != 0 {
@@ -136,7 +137,7 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 		consumerConfig.Replicas = js.meta.replicas
 	}
 	if js.meta.memoryStorage {
-		consumerConfig.MemoryStorage = true
+		consumerConfig.MemoryStorage = js.meta.memoryStorage
 	}
 	if js.meta.rateLimit != 0 {
 		consumerConfig.RateLimit = js.meta.rateLimit
@@ -189,6 +190,7 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 			return err
 		}
 	}
+	consumerConfig.FilterSubject = req.Topic
 	var subscription *nats.Subscription
 
 	consumerInfo, err := js.jsc.AddConsumer(streamName, &consumerConfig)

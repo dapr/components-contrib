@@ -14,3 +14,5 @@ spec:
     value: true
   - name: hearbeat
     value: 5s
+  - name: deliverAll
+    value: true

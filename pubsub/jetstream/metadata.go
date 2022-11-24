@@ -48,6 +48,7 @@ type metadata struct {
 	memoryStorage  bool
 	rateLimit      uint64
 	hearbeat       time.Duration
+	ackPolicy      string
 }
 
 func parseMetadata(psm pubsub.Metadata) (metadata, error) {
@@ -143,6 +144,7 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 	if v, err := time.ParseDuration(psm.Properties["hearbeat"]); err == nil {
 		m.hearbeat = v
 	}
+	m.ackPolicy = psm.Properties["ackPolicy"]
 
 	m.streamName = psm.Properties["streamName"]
 

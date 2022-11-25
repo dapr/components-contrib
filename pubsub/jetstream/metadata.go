@@ -154,7 +154,7 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 	case "time":
 		m.deliverPolicy = nats.DeliverByStartTimePolicy
 	default:
-		return metadata{}, fmt.Errorf("deliver policy %s is not one of: all, last, next", deliverPolicy)
+		return metadata{}, fmt.Errorf("deliver policy %s is not one of: all, last, new, sequence, time", deliverPolicy)
 	}
 
 	m.streamName = psm.Properties["streamName"]

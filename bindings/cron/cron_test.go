@@ -50,21 +50,45 @@ func getNewCronWithClock(clk clock.Clock) *Binding {
 
 // go test -v -timeout 15s -count=1 ./bindings/cron/.
 func TestCronInitSuccess(t *testing.T) {
-	c := getNewCron()
-	err := c.Init(getTestMetadata("@every 1h"))
-	assert.NoErrorf(t, err, "error initializing valid schedule")
-}
+	initTests := []struct {
+		schedule      string
+		errorExpected bool
+	}{
+		{
+			schedule:      "@every 1s", // macro cron format
+			errorExpected: false,
+		},
+		{
+			schedule:      "*/3 * * * * *", // non standard cron format
+			errorExpected: false,
+		},
+		{
+			schedule:      "*/15 * * * *", // standard cron format
+			errorExpected: false,
+		},
+		{
+			schedule:      "0 0 1 * *", // standard cron format
+			errorExpected: false,
+		},
+		{
+			schedule:      "0 0 */6 ? * *", // quartz cron format
+			errorExpected: false,
+		},
+		{
+			schedule:      "INVALID_SCHEDULE", // invalid cron format
+			errorExpected: true,
+		},
+	}
 
-func TestCronInitWithSeconds(t *testing.T) {
-	c := getNewCron()
-	err := c.Init(getTestMetadata("15 * * * * *"))
-	assert.NoErrorf(t, err, "error initializing schedule with seconds")
-}
-
-func TestCronInitFailure(t *testing.T) {
-	c := getNewCron()
-	err := c.Init(getTestMetadata("invalid schedule"))
-	assert.Errorf(t, err, "no error while initializing invalid schedule")
+	for _, test := range initTests {
+		c := getNewCron()
+		err := c.Init(getTestMetadata(test.schedule))
+		if test.errorExpected {
+			assert.Errorf(t, err, "Got no error while initializing an invalid schedule: %s", test.schedule)
+		} else {
+			assert.NoErrorf(t, err, "error initializing valid schedule: %s", test.schedule)
+		}
+	}
 }
 
 // TestLongRead

@@ -74,14 +74,39 @@ func TestCronRead(t *testing.T) {
 	c := getNewCronWithClock(clk)
 	schedule := "@every 1s"
 	assert.NoErrorf(t, c.Init(getTestMetadata(schedule)), "error initializing valid schedule")
-	i := 0
+	expectedCount := 5
+	observedCount := 0
 	err := c.Read(context.Background(), func(ctx context.Context, res *bindings.ReadResponse) ([]byte, error) {
 		assert.NotNil(t, res)
-		i++
+		observedCount++
 		return nil, nil
 	})
 	// Check if cron triggers 5 times in 5 seconds
 	clk.Add(5 * time.Second)
-	assert.Equal(t, i, 5, "Cron did not trigger expected number of times, expected 5, got %d", i)
+	assert.Equal(t, expectedCount, observedCount, "Cron did not trigger expected number of times, expected %d, got %d", expectedCount, observedCount)
+	assert.NoErrorf(t, err, "error on read")
+}
+
+func TestCronReadWithContextCancellation(t *testing.T) {
+	clk := clock.NewMock()
+	c := getNewCronWithClock(clk)
+	schedule := "@every 1s"
+	assert.NoErrorf(t, c.Init(getTestMetadata(schedule)), "error initializing valid schedule")
+	expectedCount := 5
+	observedCount := 0
+	ctx, cancel := context.WithCancel(context.Background())
+	err := c.Read(ctx, func(ctx context.Context, res *bindings.ReadResponse) ([]byte, error) {
+		assert.NotNil(t, res)
+		assert.LessOrEqualf(t, observedCount, expectedCount, "Invoke didn't stop the schedule")
+		observedCount++
+		if observedCount == expectedCount {
+			// Cancel context after 5 triggers
+			cancel()
+		}
+		return nil, nil
+	})
+	// Check if cron triggers only 5 times in 10 seconds since context should be cancelled after 5 triggers
+	clk.Add(10 * time.Second)
+	assert.Equal(t, expectedCount, observedCount, "Cron did not trigger expected number of times, expected %d, got %d", expectedCount, observedCount)
 	assert.NoErrorf(t, err, "error on read")
 }

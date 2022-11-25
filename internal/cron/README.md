@@ -4,6 +4,10 @@ This package is a fork of [`github.com/robfig/cron/v3@v3.0.0`](https://github.co
 
 See [LICENSE](./LICENSE) for the license of the original package.
 
+<!--
+TODO : Remove this package if this PR gets merged https://github.com/robfig/cron/pull/327
+-->
+
 ## Using Cron with Mock Clock
 
 ```go

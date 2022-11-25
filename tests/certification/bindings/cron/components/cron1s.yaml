@@ -2,7 +2,7 @@
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: cron
+  name: cron1s
 spec:
   type: bindings.cron
   version: v1

@@ -74,6 +74,42 @@ func TestCronBindingFrequentTrigger(t *testing.T) {
 		Run()
 }
 
+// Test two cron bindings having different schedules @every 1s and @every 3s triggering the same app route
+func TestCronBindingsWithSameRoute(t *testing.T) {
+	ports, _ := dapr_testing.GetFreePorts(3)
+	grpcPort := ports[0]
+	httpPort := ports[1]
+	appPort := ports[2]
+
+	cronName := "cron"
+	appName := "cronapp"
+	sidecarName := "cron-sidecar"
+
+	// check if cron triggers 20 times within 15 seconds (15 times from @every 1s binding and 5 times from @every 3s binding)
+	expectedTriggerCount := 20
+	// total times cron is triggered
+	observedTriggerCount := 0
+	// total time for all triggers to be observed
+	timeoutToObserveTriggers := time.Second * 15
+
+	clk := clock.NewMock()
+
+	flow.New(t, "test cron bindings with different schedules and same route").
+		Step(app.Run(appName, fmt.Sprintf(":%d", appPort), appWithTriggerCounter(t, cronName, &observedTriggerCount))).
+		Step(sidecar.Run(sidecarName,
+			embedded.WithComponentsPath("./components2"),
+			embedded.WithDaprGRPCPort(grpcPort),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
+			embedded.WithDaprHTTPPort(httpPort),
+			componentRuntimeOptions(clk),
+		)).
+		Step("advance the clock time", addTimeToMockClock(clk, timeoutToObserveTriggers)).
+		Step("assert cron triggered within deadline", assertTriggerCount(t, expectedTriggerCount, &observedTriggerCount)).
+		Step("stop sidecar", sidecar.Stop(sidecarName)).
+		Step("stop app", app.Stop(appName)).
+		Run()
+}
+
 // For cron component with trigger @every 3s, check if the app is invoked correctly on app restart
 func TestCronBindingWithAppRestart(t *testing.T) {
 	ports, _ := dapr_testing.GetFreePorts(3)

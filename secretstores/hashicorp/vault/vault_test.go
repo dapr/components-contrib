@@ -409,10 +409,49 @@ func getCertificate() []byte {
 }
 
 func TestGetFeatures(t *testing.T) {
-	s := NewHashiCorpVaultSecretStore(logger.NewLogger("test"))
-	// Yes, we are skipping initialization as feature retrieval doesn't depend on it.
-	t.Run("Vault supports MULTIPLE_KEY_VALUES_PER_SECRET", func(t *testing.T) {
+	initVaultWithVaultValueType := func(vaultValueType string) secretstores.SecretStore {
+		properties := map[string]string{
+			"vaultToken":     expectedTok,
+			"skipVerify":     "true",
+			"vaultValueType": vaultValueType,
+		}
+
+		m := secretstores.Metadata{
+			Base: metadata.Base{Properties: properties},
+		}
+
+		target := &vaultSecretStore{
+			client: nil,
+			logger: nil,
+		}
+
+		// This call will throw an error on Windows systems because of the of
+		// the call x509.SystemCertPool() because system root pool is not
+		// available on Windows so ignore the error for when the tests are run
+		// on the Windows platform during CI
+		_ = target.Init(m)
+
+		return target
+	}
+
+	t.Run("Vault supports MULTIPLE_KEY_VALUES_PER_SECRET by default", func(t *testing.T) {
+		// Yes, we are skipping initialization as feature retrieval doesn't depend on it for the default value
+		s := NewHashiCorpVaultSecretStore(logger.NewLogger("test"))
 		f := s.Features()
 		assert.True(t, secretstores.FeatureMultipleKeyValuesPerSecret.IsPresent(f))
+	})
+
+	t.Run("Vault supports MULTIPLE_KEY_VALUES_PER_SECRET if configured with vaultValueType=map", func(t *testing.T) {
+		// Yes, we are skipping initialization as feature retrieval doesn't depend on it for the default value
+		s := initVaultWithVaultValueType("text")
+		f := s.Features()
+		assert.False(t, secretstores.FeatureMultipleKeyValuesPerSecret.IsPresent(f))
+	})
+
+	t.Run("Vault does not support MULTIPLE_KEY_VALUES_PER_SECRET if configured with vaultValueType=text", func(t *testing.T) {
+		// Yes, we are skipping initialization as feature retrieval doesn't depend on it for the default value
+		s := initVaultWithVaultValueType("text")
+		f := s.Features()
+		assert.False(t, secretstores.FeatureMultipleKeyValuesPerSecret.IsPresent(f))
 	})
 }

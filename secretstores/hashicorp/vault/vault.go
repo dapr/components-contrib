@@ -508,5 +508,9 @@ func readCertificateFolder(certPool *x509.CertPool, path string) error {
 
 // Features returns the features available in this secret store.
 func (v *vaultSecretStore) Features() []secretstores.Feature {
-	return []secretstores.Feature{secretstores.FeatureMultipleKeyValuesPerSecret}
+	if v.vaultValueType == valueTypeText {
+		return []secretstores.Feature{}
+	} else {
+		return []secretstores.Feature{secretstores.FeatureMultipleKeyValuesPerSecret}
+	}
 }

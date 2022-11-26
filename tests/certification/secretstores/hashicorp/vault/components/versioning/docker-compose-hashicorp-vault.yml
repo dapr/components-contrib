@@ -7,7 +7,7 @@ x-common-values:
   vault_token: &VAULT_TOKEN "vault-dev-root-token-id"
   # Reuse the same docker image to save on resources and because the base vault image
   # has everything we need for seeding the initial key values too.
-  vault_docker_image: &VAULT_DOCKER_IMAGE vault:1.11.2
+  vault_docker_image: &VAULT_DOCKER_IMAGE vault:1.12.1
 
 services:
   hashicorp_vault:
@@ -17,7 +17,9 @@ services:
     cap_add:
       - IPC_LOCK
     environment:
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
       VAULT_DEV_ROOT_TOKEN_ID: *VAULT_TOKEN
+
 
   # We define a aux. service to seed the expected conformance secrets to vault
   seed_conformance_secrets:
@@ -26,8 +28,10 @@ services:
      - hashicorp_vault
     environment:
       VAULT_TOKEN : *VAULT_TOKEN
+      # We are using HTTPS
       VAULT_ADDR: http://hashicorp_vault:8200/
+      VAULT_SKIP_VERIFY: 'true'
     volumes:
-      - ./conformance/hashicorp/:/setup:ro
-    entrypoint: /setup/setup-hashicorp-vault-secrets.sh
+      - .:/setup:ro
+    entrypoint: /setup/seed-secret-with-multiple-versions.sh
     

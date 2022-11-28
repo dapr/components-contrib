@@ -49,6 +49,8 @@ func getNewCronWithClock(clk clock.Clock) *Binding {
 }
 
 // go test -v -timeout 15s -count=1 ./bindings/cron/.
+//
+//nolint:dupword
 func TestCronInitSuccess(t *testing.T) {
 	initTests := []struct {
 		schedule      string

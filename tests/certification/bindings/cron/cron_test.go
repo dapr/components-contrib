@@ -46,10 +46,10 @@ type cronTest struct {
 	clk                      *clock.Mock   // mock clock
 }
 
-//nolint:dupword
 // Test cron triggers with different schedules
+//
+//nolint:dupword
 func TestCronBindingTrigger(t *testing.T) {
-
 	appName := "cronapp"
 	sidecarName := "cron-sidecar"
 
@@ -90,7 +90,6 @@ func TestCronBindingTrigger(t *testing.T) {
 	}
 
 	for _, cronTest := range testMatrix {
-
 		cronTest.clk = clock.NewMock()
 		cronTest.clk.Set(startTime)
 

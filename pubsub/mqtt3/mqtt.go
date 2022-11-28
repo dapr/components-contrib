@@ -26,7 +26,6 @@ import (
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	"go.uber.org/ratelimit"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -39,15 +38,14 @@ const (
 
 // mqttPubSub type allows sending and receiving data to/from MQTT broker.
 type mqttPubSub struct {
-	producer          mqtt.Client
-	consumer          mqtt.Client
-	metadata          *metadata
-	logger            logger.Logger
-	topics            map[string]mqttPubSubSubscription
-	retriableErrLimit ratelimit.Limiter
-	subscribingLock   sync.RWMutex
-	ctx               context.Context
-	cancel            context.CancelFunc
+	producer        mqtt.Client
+	consumer        mqtt.Client
+	metadata        *metadata
+	logger          logger.Logger
+	topics          map[string]mqttPubSubSubscription
+	subscribingLock sync.RWMutex
+	ctx             context.Context
+	cancel          context.CancelFunc
 }
 
 type mqttPubSubSubscription struct {
@@ -71,12 +69,6 @@ func (m *mqttPubSub) Init(metadata pubsub.Metadata) error {
 		return err
 	}
 	m.metadata = mqttMeta
-
-	if m.metadata.maxRetriableErrorsPerSec > 0 {
-		m.retriableErrLimit = ratelimit.New(m.metadata.maxRetriableErrorsPerSec)
-	} else {
-		m.retriableErrLimit = ratelimit.NewUnlimited()
-	}
 
 	m.ctx, m.cancel = context.WithCancel(context.Background())
 

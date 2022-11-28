@@ -248,34 +248,6 @@ func (m *mqttPubSub) startSubscription(ctx context.Context) error {
 // onMessage returns the callback to be invoked when there's a new message from a topic
 func (m *mqttPubSub) onMessage(ctx context.Context) func(client mqtt.Client, mqttMsg mqtt.Message) {
 	return func(client mqtt.Client, mqttMsg mqtt.Message) {
-		ack := false
-		defer func() {
-			// MQTT does not support NACK's, so in case of error we need to re-enqueue the message and then send a positive ACK for this message
-			// Note that if the connection drops before the message is explicitly ACK'd below, then it's automatically re-sent (assuming QoS is 1 or greater, which is the default). So we do not risk losing messages.
-			// Problem with this approach is that if the service crashes between the time the message is re-enqueued and when the ACK is sent, the message may be delivered twice
-			if !ack {
-				m.logger.Debugf("Re-publishing message %s#%d", mqttMsg.Topic(), mqttMsg.MessageID())
-				publishErr := m.Publish(ctx, &pubsub.PublishRequest{
-					Topic: mqttMsg.Topic(),
-					Data:  mqttMsg.Payload(),
-				})
-				if publishErr != nil {
-					m.logger.Errorf("Failed to re-publish message %s#%d. Error: %v", mqttMsg.Topic(), mqttMsg.MessageID(), publishErr)
-					// Return so Ack() isn't invoked
-					return
-				}
-			}
-			mqttMsg.Ack()
-
-			// If we re-published the message, consume a retriable error token
-			if !ack {
-				m.logger.Debugf("Taking a retriable error token")
-				before := time.Now()
-				_ = m.retriableErrLimit.Take()
-				m.logger.Debugf("Resumed after pausing for %v", time.Now().Sub(before))
-			}
-		}()
-
 		msg := pubsub.NewMessage{
 			Topic:    mqttMsg.Topic(),
 			Data:     mqttMsg.Payload(),
@@ -296,7 +268,7 @@ func (m *mqttPubSub) onMessage(ctx context.Context) func(client mqtt.Client, mqt
 		}
 
 		m.logger.Debugf("Done processing MQTT message %s#%d; sending ACK", mqttMsg.Topic(), mqttMsg.MessageID())
-		ack = true
+		mqttMsg.Ack()
 	}
 }
 

@@ -161,8 +161,11 @@ func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 
 	// Add the topic then start the subscription
 	m.addTopic(req.Topic, handler)
-	// Use the global context here to maintain the connection
-	m.startSubscription(m.ctx)
+
+	if req.Metadata["lastSubscriptionTopic"] == "true" {
+		// Use the global context here to maintain the connection
+		m.startSubscription(m.ctx)
+	}
 
 	// Listen for context cancelation to remove the subscription
 	go func() {

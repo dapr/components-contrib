@@ -46,6 +46,7 @@ type cronTest struct {
 	clk                      *clock.Mock   // mock clock
 }
 
+//nolint:dupword
 // Test cron triggers with different schedules
 func TestCronBindingTrigger(t *testing.T) {
 

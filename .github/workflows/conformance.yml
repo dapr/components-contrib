@@ -297,7 +297,7 @@ jobs:
       if: contains(matrix.component, 'mysql')
 
     - name: Start KinD
-      uses: helm/kind-action@v1.0.0
+      uses: helm/kind-action@v1.4.0
       if: contains(matrix.component, 'kubernetes')
 
     - name: Start postgresql

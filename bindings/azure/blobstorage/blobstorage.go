@@ -194,10 +194,6 @@ func (a *AzureBlobStorage) get(ctx context.Context, req *bindings.InvokeRequest)
 	if err != nil {
 		return nil, fmt.Errorf("error reading az blob: %w", err)
 	}
-	err = reader.Close()
-	if err != nil {
-		return nil, fmt.Errorf("error closing az blob reader: %w", err)
-	}
 
 	var metadata map[string]string
 	fetchMetadata, err := req.GetMetadataAsBool(metadataKeyIncludeMetadata)

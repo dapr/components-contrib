@@ -43,7 +43,6 @@ type cronTest struct {
 	schedule                 string        // cron schedule
 	expectedTriggerCount     int           // expected number of triggers within the deadline
 	timeoutToObserveTriggers time.Duration // time to add to the mock clock to observe triggers
-	startTime                time.Time     // starting time for the mock clock
 	clk                      *clock.Mock   // mock clock
 }
 
@@ -53,48 +52,46 @@ func TestCronBindingTrigger(t *testing.T) {
 	appName := "cronapp"
 	sidecarName := "cron-sidecar"
 
+	// starting time for the mock clock
+	startTime := time.Date(2022, time.January, 1, 0, 0, 0, 0, time.UTC)
+
 	testMatrix := []cronTest{
 		{
 			cronName:                 "cron1s",
 			schedule:                 "@every 1s", // Test macro cron format
 			expectedTriggerCount:     10,
 			timeoutToObserveTriggers: time.Second * 10,
-			startTime:                time.Now(),
 		},
 		{
 			cronName:                 "cron3s",
 			schedule:                 "*/3 * * * * *", // Test non-standard crontab format
 			expectedTriggerCount:     5,
 			timeoutToObserveTriggers: time.Second * 15,
-			startTime:                time.Now(),
 		},
 		{
 			cronName:                 "cron15m",
 			schedule:                 "*/15 * * * *", // Test standard crontab format
 			expectedTriggerCount:     4,
 			timeoutToObserveTriggers: time.Hour * 1,
-			startTime:                time.Now(),
 		},
 		{
 			cronName:                 "cron6h",
 			schedule:                 "0 0 */6 ? * *", // Test quartz cron format
 			expectedTriggerCount:     4,
 			timeoutToObserveTriggers: time.Hour * 24,
-			startTime:                time.Now(),
 		},
 		{
 			cronName:                 "cronMonthly",
 			schedule:                 "0 0 1 * *", // Test standard cron format
 			expectedTriggerCount:     1,
 			timeoutToObserveTriggers: time.Hour * 24 * 31, // Add 31 days to the mock clock
-			startTime:                time.Date(2022, time.January, 1, 0, 0, 0, 0, time.UTC),
 		},
 	}
 
 	for _, cronTest := range testMatrix {
 
 		cronTest.clk = clock.NewMock()
-		cronTest.clk.Set(cronTest.startTime)
+		cronTest.clk.Set(startTime)
 
 		ports, _ := dapr_testing.GetFreePorts(3)
 		grpcPort := ports[0]
@@ -104,7 +101,7 @@ func TestCronBindingTrigger(t *testing.T) {
 		// total times cron is triggered
 		observedTriggerCount := 0
 
-		flow.New(t, "test cron trigger schedule @every 1s").
+		flow.New(t, "test cron trigger with different schedules").
 			Step(app.Run(appName, fmt.Sprintf(":%d", appPort), appWithTriggerCounter(t, cronTest.cronName, &observedTriggerCount))).
 			Step(sidecar.Run(sidecarName,
 				embedded.WithComponentsPath("./components"),
@@ -113,7 +110,8 @@ func TestCronBindingTrigger(t *testing.T) {
 				embedded.WithDaprHTTPPort(httpPort),
 				componentRuntimeOptions(cronTest.clk),
 			)).
-			Step("assert test case", assertTestCase(t, cronTest, &observedTriggerCount)).
+			Step("advance the clock time", addTimeToMockClock(cronTest.clk, cronTest.timeoutToObserveTriggers)).
+			Step("assert cron triggered within deadline", assertTriggerCount(t, cronTest.expectedTriggerCount, &observedTriggerCount)).
 			Step("stop sidecar", sidecar.Stop(sidecarName)).
 			Step("stop app", app.Stop(appName)).
 			Run()
@@ -143,7 +141,7 @@ func TestCronBindingsWithSameRoute(t *testing.T) {
 	flow.New(t, "test cron bindings with different schedules and same route").
 		Step(app.Run(appName, fmt.Sprintf(":%d", appPort), appWithTriggerCounter(t, cronName, &observedTriggerCount))).
 		Step(sidecar.Run(sidecarName,
-			embedded.WithComponentsPath("./components2"),
+			embedded.WithComponentsPath("./components_sameroute"),
 			embedded.WithDaprGRPCPort(grpcPort),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprHTTPPort(httpPort),
@@ -275,17 +273,6 @@ func assertTriggerCount(t *testing.T, expectedTriggerCount int, observedTriggerC
 		// allow up to 1 extra trigger to account for additional timeout(@schedule interval of cron trigger) provided in the tests
 		if *observedTriggerCount != expectedTriggerCount && *observedTriggerCount != expectedTriggerCount+1 {
 			t.Errorf("expected %d triggers, got %d", expectedTriggerCount, *observedTriggerCount)
-		}
-		return nil
-	}
-}
-
-func assertTestCase(t *testing.T, ct cronTest, observedTriggerCount *int) func(ctx flow.Context) error {
-	return func(ctx flow.Context) error {
-		// add time to mock clock to allow cron to trigger
-		ct.clk.Add(ct.timeoutToObserveTriggers)
-		if *observedTriggerCount != ct.expectedTriggerCount {
-			t.Errorf("Assertion failed for cron with schedule %s, expected %d triggers, got %d", ct.schedule, ct.expectedTriggerCount, *observedTriggerCount)
 		}
 		return nil
 	}

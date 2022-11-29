@@ -136,13 +136,13 @@ TODO: Should we add code to enforce that only one of these is provided?
 Under the current directory run:
 
 ```shell
-GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn go test -v vault_test.go
+GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn go test -v .
 ```
 
 To run an specific test run (replacing `TestVersioning` with the name of the test method):
 
 ```shell
-GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn go test -run TestVersioning  -v vault_test.go
+GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn go test -run TestVersioning  -v .
 ```
 
 ### Docker-compose

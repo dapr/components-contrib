@@ -33,12 +33,16 @@ import (
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	daprsdk "github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 )
 
 const (
@@ -104,10 +108,12 @@ func listBlobRequest(ctx flow.Context, client daprsdk.Client, prefix string, mar
 }
 
 // deleteBlobRequest is used to make a common binding request for the delete operation.
-func deleteBlobRequest(ctx flow.Context, client daprsdk.Client, name string, deleteSnapshotsOption string) (out *daprsdk.BindingEvent, err error) {
+func deleteBlobRequest(ctx flow.Context, client daprsdk.Client, name string, deleteSnapshotsOption *string) (out *daprsdk.BindingEvent, err error) {
 	invokeDeleteMetadata := map[string]string{
-		"blobName":        name,
-		"deleteSnapshots": deleteSnapshotsOption,
+		"blobName": name,
+	}
+	if deleteSnapshotsOption != nil {
+		invokeDeleteMetadata["deleteSnapshots"] = *deleteSnapshotsOption
 	}
 
 	invokeGetRequest := &daprsdk.InvokeBindingRequest{
@@ -185,19 +191,19 @@ func TestBlobStorage(t *testing.T) {
 		assert.Equal(t, newString, input2)
 
 		// cleanup.
-		out, invokeDeleteErr := deleteBlobRequest(ctx, client, blobName, "")
+		out, invokeDeleteErr := deleteBlobRequest(ctx, client, blobName, nil)
 		assert.NoError(t, invokeDeleteErr)
 		assert.Empty(t, out.Data)
 
 		// confirm the deletion.
 		_, invokeSecondGetErr := getBlobRequest(ctx, client, blobName, false)
 		assert.Error(t, invokeSecondGetErr)
-		assert.Contains(t, invokeSecondGetErr.Error(), "ServiceCode=BlobNotFound")
+		assert.Contains(t, invokeSecondGetErr.Error(), bloberror.BlobNotFound)
 
 		// deleting the key again should fail.
-		_, invokeDeleteErr2 := deleteBlobRequest(ctx, client, blobName, "")
+		_, invokeDeleteErr2 := deleteBlobRequest(ctx, client, blobName, nil)
 		assert.Error(t, invokeDeleteErr2)
-		assert.Contains(t, invokeDeleteErr2.Error(), "ServiceCode=BlobNotFound")
+		assert.Contains(t, invokeDeleteErr2.Error(), bloberror.BlobNotFound)
 
 		return nil
 	}
@@ -230,7 +236,7 @@ func TestBlobStorage(t *testing.T) {
 
 		_, invokeCreateErr := client.InvokeBinding(ctx, invokeCreateRequest)
 		assert.Error(t, invokeCreateErr)
-		assert.Contains(t, invokeCreateErr.Error(), "ServiceCode=Md5Mismatch")
+		assert.Contains(t, invokeCreateErr.Error(), bloberror.MD5Mismatch)
 
 		return nil
 	}
@@ -272,14 +278,14 @@ func TestBlobStorage(t *testing.T) {
 			assert.Equal(t, responseData, dataBytes)
 			assert.Empty(t, out.Metadata)
 
-			out, invokeDeleteErr := deleteBlobRequest(ctx, client, blobName, "")
+			out, invokeDeleteErr := deleteBlobRequest(ctx, client, blobName, nil)
 			assert.NoError(t, invokeDeleteErr)
 			assert.Empty(t, out.Data)
 
 			// confirm the deletion.
 			_, invokeSecondGetErr := getBlobRequest(ctx, client, blobName, false)
 			assert.Error(t, invokeSecondGetErr)
-			assert.Contains(t, invokeSecondGetErr.Error(), "ServiceCode=BlobNotFound")
+			assert.Contains(t, invokeSecondGetErr.Error(), bloberror.BlobNotFound)
 
 			return nil
 		}
@@ -327,7 +333,7 @@ func TestBlobStorage(t *testing.T) {
 			}
 
 			// cleanup.
-			_, invokeDeleteErr := deleteBlobRequest(ctx, client, blobName, "")
+			_, invokeDeleteErr := deleteBlobRequest(ctx, client, blobName, nil)
 			assert.NoError(t, invokeDeleteErr)
 
 			return nil
@@ -384,9 +390,9 @@ func TestBlobStorage(t *testing.T) {
 
 		out, invokeGetErr := client.InvokeBinding(ctx, invokeGetRequest)
 		assert.NoError(t, invokeGetErr)
-		assert.Equal(t, string(out.Data), input)
-		assert.Contains(t, out.Metadata, "custom")
-		assert.Equal(t, out.Metadata["custom"], "hello-world")
+		assert.Equal(t, input, string(out.Data))
+		assert.Contains(t, out.Metadata, "Custom")
+		assert.Equal(t, "hello-world", out.Metadata["Custom"])
 
 		out, invokeErr := listBlobRequest(ctx, client, "", "", -1, true, false, false, false, false)
 		assert.NoError(t, invokeErr)
@@ -412,14 +418,14 @@ func TestBlobStorage(t *testing.T) {
 		}
 		assert.True(t, found)
 
-		out, invokeDeleteErr := deleteBlobRequest(ctx, client, "filename.txt", "")
+		out, invokeDeleteErr := deleteBlobRequest(ctx, client, "filename.txt", nil)
 		assert.NoError(t, invokeDeleteErr)
 		assert.Empty(t, out.Data)
 
 		// confirm the deletion.
 		_, invokeSecondGetErr := getBlobRequest(ctx, client, "filename.txt", false)
 		assert.Error(t, invokeSecondGetErr)
-		assert.Contains(t, invokeSecondGetErr.Error(), "ServiceCode=BlobNotFound")
+		assert.Contains(t, invokeSecondGetErr.Error(), bloberror.BlobNotFound)
 
 		return nil
 	}
@@ -505,8 +511,8 @@ func TestBlobStorage(t *testing.T) {
 		unmarshalErr := json.Unmarshal(out.Data, &output)
 		assert.NoError(t, unmarshalErr)
 
-		assert.Equal(t, len(output), 1)
-		assert.Equal(t, output[0]["Name"], "prefixA/filename.txt")
+		assert.Equal(t, 1, len(output))
+		assert.Contains(t, output[0]["Name"], "prefixA")
 
 		nextMarker := out.Metadata["marker"]
 
@@ -518,27 +524,27 @@ func TestBlobStorage(t *testing.T) {
 		err2 := json.Unmarshal(out2.Data, &output2)
 		assert.NoError(t, err2)
 
-		assert.Equal(t, len(output2), 1)
-		assert.Equal(t, output2[0]["Name"], "prefixAfilename.txt")
+		assert.Equal(t, 1, len(output2))
+		assert.Contains(t, output2[0]["Name"], "prefixA")
 
 		// cleanup.
-		_, invokeDeleteErr1 := deleteBlobRequest(ctx, client, "prefixA/filename.txt", "")
+		_, invokeDeleteErr1 := deleteBlobRequest(ctx, client, "prefixA/filename.txt", nil)
 		assert.NoError(t, invokeDeleteErr1)
-		_, invokeDeleteErr2 := deleteBlobRequest(ctx, client, "prefixAfilename.txt", "")
+		_, invokeDeleteErr2 := deleteBlobRequest(ctx, client, "prefixAfilename.txt", nil)
 		assert.NoError(t, invokeDeleteErr2)
-		_, invokeDeleteErr3 := deleteBlobRequest(ctx, client, "prefixB/filename.txt", "")
+		_, invokeDeleteErr3 := deleteBlobRequest(ctx, client, "prefixB/filename.txt", nil)
 		assert.NoError(t, invokeDeleteErr3)
 
 		// list deleted items with prefix.
-		out3, listErr3 := listBlobRequest(ctx, client, "prefixA", "", -1, false, false, false, false, true)
+		out3, listErr3 := listBlobRequest(ctx, client, "prefixA/", "", -1, false, false, false, false, true)
 		assert.NoError(t, listErr3)
 
 		// this will only return the deleted items if soft delete policy is enabled for the blob service.
-		assert.Equal(t, out3.Metadata["number"], "2")
+		assert.Equal(t, "1", out3.Metadata["number"])
 		var output3 []map[string]interface{}
 		err3 := json.Unmarshal(out3.Data, &output3)
 		assert.NoError(t, err3)
-		assert.Equal(t, len(output3), 2)
+		assert.Equal(t, len(output3), 1)
 
 		return nil
 	}
@@ -553,17 +559,15 @@ func TestBlobStorage(t *testing.T) {
 		defer client.Close()
 
 		cred, _ := azblob.NewSharedKeyCredential(os.Getenv("AzureBlobStorageAccount"), os.Getenv("AzureBlobStorageAccessKey"))
-		service, _ := azblob.NewServiceClientWithSharedKey(fmt.Sprintf("https://%s.blob.core.windows.net/", os.Getenv("AzureBlobStorageAccount")), cred, nil)
-		containerClient, _ := service.NewContainerClient(os.Getenv("AzureBlobStorageContainer"))
+		containerClient, _ := container.NewClientWithSharedKeyCredential(fmt.Sprintf("https://%s.blob.core.windows.net/%s", os.Getenv("AzureBlobStorageAccount"), os.Getenv("AzureBlobStorageContainer")), cred, nil)
 
-		blobClient, _ := containerClient.NewBlockBlobClient("snapshotthis.txt")
-		uploadResp, uploadErr := blobClient.UploadBuffer(
+		blobClient := containerClient.NewBlockBlobClient("snapshotthis.txt")
+		_, uploadErr := blobClient.UploadBuffer(
 			ctx, []byte("some example content"),
-			azblob.UploadOption{}) //nolint:exhaustivestruct
+			&azblob.UploadBufferOptions{}) //nolint:exhaustivestruct
 		assert.NoError(t, uploadErr)
-		uploadResp.Body.Close()
 		_, createSnapshotErr := blobClient.CreateSnapshot(
-			ctx, &azblob.BlobCreateSnapshotOptions{}) //nolint:exhaustivestruct
+			ctx, &blob.CreateSnapshotOptions{}) //nolint:exhaustivestruct
 		assert.NoError(t, createSnapshotErr)
 
 		// list the contents of the container including snapshots for the specific blob only.
@@ -572,27 +576,27 @@ func TestBlobStorage(t *testing.T) {
 		assert.Equal(t, out.Metadata["number"], "2")
 
 		// delete snapshots.
-		_, invokeDeleteErr := deleteBlobRequest(ctx, client, "snapshotthis.txt", "only")
+		_, invokeDeleteErr := deleteBlobRequest(ctx, client, "snapshotthis.txt", ptr.Of(string(blob.DeleteSnapshotsOptionTypeOnly)))
 		assert.NoError(t, invokeDeleteErr)
 
 		// verify snapshot is deleted.
 		out2, listErr2 := listBlobRequest(ctx, client, "snapshotthis.txt", "", -1, false, true, false, false, false)
 		assert.NoError(t, listErr2)
-		assert.Equal(t, out2.Metadata["number"], "1")
+		assert.Equal(t, "1", out2.Metadata["number"])
 
 		// create another snapshot.
 		_, createSnapshotErr2 := blobClient.CreateSnapshot(
-			ctx, &azblob.BlobCreateSnapshotOptions{}) //nolint:exhaustivestruct
+			ctx, &blob.CreateSnapshotOptions{}) //nolint:exhaustivestruct
 		assert.NoError(t, createSnapshotErr2)
 
 		// delete base blob and snapshots all at once.
-		_, invokeDeleteErr2 := deleteBlobRequest(ctx, client, "snapshotthis.txt", "include")
+		_, invokeDeleteErr2 := deleteBlobRequest(ctx, client, "snapshotthis.txt", ptr.Of(string(blob.DeleteSnapshotsOptionTypeInclude)))
 		assert.NoError(t, invokeDeleteErr2)
 
 		// verify base blob and snapshots are deleted.
 		out3, listErr3 := listBlobRequest(ctx, client, "snapshotthis.txt", "", -1, false, true, false, false, false)
 		assert.NoError(t, listErr3)
-		assert.Equal(t, out3.Metadata["number"], "0")
+		assert.Equal(t, "0", out3.Metadata["number"])
 
 		return nil
 	}

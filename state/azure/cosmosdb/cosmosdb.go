@@ -366,7 +366,7 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) (err error)
 	numOperations := 0
 	// Loop through the list of operations. Create and add the operation to the batch
 	for _, o := range request.Operations {
-		var options *azcosmos.TransactionalBatchItemOptions
+		options := &azcosmos.TransactionalBatchItemOptions{}
 
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)

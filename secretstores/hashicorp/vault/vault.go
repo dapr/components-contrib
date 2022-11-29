@@ -510,7 +510,7 @@ func readCertificateFolder(certPool *x509.CertPool, path string) error {
 func (v *vaultSecretStore) Features() []secretstores.Feature {
 	if v.vaultValueType == valueTypeText {
 		return []secretstores.Feature{}
-	} else {
-		return []secretstores.Feature{secretstores.FeatureMultipleKeyValuesPerSecret}
 	}
+
+	return []secretstores.Feature{secretstores.FeatureMultipleKeyValuesPerSecret}
 }

@@ -71,11 +71,11 @@ func (tc TestCase) ToInvokeRequest() bindings.InvokeRequest {
 	}
 }
 
-type HttpHandler struct {
+type HTTPHandler struct {
 	Path string
 }
 
-func (h *HttpHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	h.Path = req.URL.Path
 
 	input := req.Method
@@ -102,8 +102,8 @@ func (h *HttpHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	w.Write([]byte(strings.ToUpper(input)))
 }
 
-func NewHttpHandler() *HttpHandler {
-	return &HttpHandler{
+func NewHTTPHandler() *HTTPHandler {
+	return &HTTPHandler{
 		Path: "/",
 	}
 }
@@ -127,7 +127,7 @@ func InitBinding(s *httptest.Server, extraProps map[string]string) (bindings.Out
 }
 
 func TestInit(t *testing.T) {
-	handler := NewHttpHandler()
+	handler := NewHTTPHandler()
 	s := httptest.NewServer(handler)
 	defer s.Close()
 
@@ -136,7 +136,7 @@ func TestInit(t *testing.T) {
 }
 
 func TestDefaultBehavior(t *testing.T) {
-	handler := NewHttpHandler()
+	handler := NewHTTPHandler()
 	s := httptest.NewServer(handler)
 	defer s.Close()
 
@@ -287,7 +287,7 @@ func TestDefaultBehavior(t *testing.T) {
 }
 
 func TestNon2XXErrorsSuppressed(t *testing.T) {
-	handler := NewHttpHandler()
+	handler := NewHTTPHandler()
 	s := httptest.NewServer(handler)
 	defer s.Close()
 

@@ -23,12 +23,12 @@ import (
 	"github.com/dapr/go-sdk/client"
 
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
-	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
-
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
+	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
 	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
+	daprClient "github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 )
@@ -73,6 +73,34 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 		}
 	}
 
+	transactionsTest := func(statestore string) func(ctx flow.Context) error {
+		return func(ctx flow.Context) error {
+			client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+			if err != nil {
+				panic(err)
+			}
+			defer client.Close()
+
+			err = client.ExecuteStateTransaction(ctx, statestore, nil, []*daprClient.StateOperation{
+				{
+					Type: daprClient.StateOperationTypeUpsert,
+					Item: &daprClient.SetStateItem{
+						Key:   "reqKey1",
+						Value: []byte("reqVal1"),
+						Etag: &daprClient.ETag{
+							Value: "test",
+						},
+						Metadata: map[string]string{
+							"ttlInSeconds": "-1",
+						},
+					},
+				},
+			})
+			assert.NoError(t, err)
+
+			return nil
+		}
+	}
 	partitionTest := func(statestore string) flow.Runnable {
 		return func(ctx flow.Context) error {
 			client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
@@ -131,6 +159,17 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 			embedded.WithComponentsPath("./components/basictest"),
 			componentRuntimeOptions())).
 		Step("Run basic test with master key", basicTest("statestore-basic")).
+		Run()
+
+	flow.New(t, "Test transaction operations").
+		// Run the Dapr sidecar with azure CosmosDB storage.
+		Step(sidecar.Run(sidecarNamePrefix,
+			embedded.WithoutApp(),
+			embedded.WithDaprGRPCPort(currentGrpcPort),
+			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithComponentsPath("./components/basictest"),
+			componentRuntimeOptions())).
+		Step("Run transaction test with etag present", transactionsTest("statestore-basic")).
 		Run()
 
 	flow.New(t, "Test basic operations with different partition keys").

@@ -172,6 +172,69 @@ func TestInit(t *testing.T) {
 			path:      "/",
 			err:       "received status code 500",
 		},
+		"internal server error suppressed": {
+			input:     "internal server error", // trigger 500
+			operation: "post",
+			metadata:  map[string]string{"path": "/", "errorIfNot2XX": "false"},
+			path:      "/",
+			err:       "",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			response, err := hs.Invoke(context.TODO(), &bindings.InvokeRequest{
+				Data:      []byte(tc.input),
+				Metadata:  tc.metadata,
+				Operation: bindings.OperationKind(tc.operation),
+			})
+			if tc.err == "" {
+				require.NoError(t, err)
+				assert.Equal(t, tc.path, path)
+				assert.Equal(t, strings.ToUpper(tc.input), string(response.Data))
+				assert.Equal(t, "text/plain", response.Metadata["Content-Type"])
+			} else {
+				require.Error(t, err)
+				assert.Equal(t, tc.err, err.Error())
+			}
+		})
+	}
+
+	// Test with errorIfNot2XX set to false
+	hs = bindingHttp.NewHTTP(logger.NewLogger("test"))
+	m.Properties["errorIfNot2XX"] = "false"
+
+	initErr := hs.Init(m)
+	require.NoError(t, initErr)
+
+	tests = map[string]struct {
+		input     string
+		operation string
+		metadata  map[string]string
+		path      string
+		err       string
+	}{
+		"internal server error": {
+			input:     "internal server error",
+			operation: "post",
+			metadata:  map[string]string{"path": "/"},
+			path:      "/",
+			err:       "",
+		},
+		"internal server error overridden": {
+			input:     "internal server error",
+			operation: "post",
+			metadata:  map[string]string{"path": "/", "errorIfNot2XX": "true"},
+			path:      "/",
+			err:       "received status code 500",
+		},
+		"internal server error suppressed by request and component": {
+			input:     "internal server error", // trigger 500
+			operation: "post",
+			metadata:  map[string]string{"path": "/", "errorIfNot2XX": "false"},
+			path:      "/",
+			err:       "",
+		},
 	}
 
 	for name, tc := range tests {

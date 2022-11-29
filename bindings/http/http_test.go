@@ -56,7 +56,6 @@ type TestCase struct {
 }
 
 func (tc TestCase) ToInvokeRequest() bindings.InvokeRequest {
-
 	requestMetadata := tc.metadata
 
 	if requestMetadata == nil {
@@ -110,7 +109,6 @@ func NewHttpHandler() *HttpHandler {
 }
 
 func InitBinding(s *httptest.Server, extraProps map[string]string) (bindings.OutputBinding, error) {
-
 	m := bindings.Metadata{Base: metadata.Base{
 		Properties: map[string]string{
 			"url": s.URL,
@@ -289,7 +287,6 @@ func TestDefaultBehavior(t *testing.T) {
 }
 
 func TestNon2XXErrorsSuppressed(t *testing.T) {
-
 	handler := NewHttpHandler()
 	s := httptest.NewServer(handler)
 	defer s.Close()

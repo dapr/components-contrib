@@ -28,10 +28,8 @@ services:
      - hashicorp_vault
     environment:
       VAULT_TOKEN : *VAULT_TOKEN
-      # We are using HTTPS
       VAULT_ADDR: http://hashicorp_vault:8200/
-      VAULT_SKIP_VERIFY: 'true'
     volumes:
       - .:/setup:ro
-    entrypoint: /setup/setup-hashicorp-vault-secrets.sh
+    entrypoint: /setup/setup-hashicorp-vault-secrets.sh # <<< Use our custom secret seeder for the enginePath/customSecretsPath
     

@@ -20,6 +20,7 @@ Besides `-dev-tls`, we also instruct vault to use a configuration that defines a
 We use this certificate we generated to assist with the validation of `caPem`, `caCert`, `caPath`, `skipValidate` and `tlsServerName` flags. All of these refer to the same certificate. Testing `caPem` is a bit special in that it needs the certificate inlined in the component YAML file.
 
 A Makefile is included here in order to document and to ease re-generation of the certificate and keys. It will also re-generate the `caPem`-dependent component YAML, so one does not have to remember updating it whenever the certificate is updated or regenerated.
+As a matter of fact, our code does not ship with any of these certificates. Instead, this Makefile is invoked at the begging on `TestCaFamilyOfFields` test.
 
 # Misc. references
 

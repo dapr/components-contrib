@@ -15,6 +15,7 @@ package vault_test
 
 import (
 	"fmt"
+
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/go-sdk/client"
 	"github.com/stretchr/testify/assert"
@@ -95,9 +96,9 @@ func testGetBulkSecretsWorksAndFoundKeys(currentGrpcPort int, secretStoreName st
 		assert.NotEmpty(ctx.T, res)
 
 		for k, v := range res {
-			ctx.Logf("💡 %s", k)
+			ctx.Logf("Secret %s", k)
 			for i, j := range v {
-				ctx.Logf("💡\t %s : %s", i, j)
+				ctx.Logf("\t key-value pair: %s : %s", i, j)
 			}
 		}
 

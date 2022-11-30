@@ -6,7 +6,7 @@ require (
 	github.com/benbjohnson/clock v1.3.0
 	github.com/dapr/components-contrib v1.9.1-0.20221025205611-e38369028650
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20220519061249-c2cb1dad5bb0
-	github.com/dapr/dapr v1.9.1-0.20221101183153-7e3635f1491e
+	github.com/dapr/dapr v1.9.4-0.20221121055721-6683f7582ac4
 	github.com/dapr/go-sdk v1.6.0
 	github.com/dapr/kit v0.0.3-0.20221102045011-c213121f0b4f
 	github.com/stretchr/testify v1.8.1
@@ -25,6 +25,7 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5 // indirect
 	github.com/tidwall/transform v0.0.0-20201103190739-32f242e2dbde // indirect
 	golang.org/x/exp v0.0.0-20221028150844-83b7d23a625f // indirect
 	golang.org/x/sync v0.1.0 // indirect

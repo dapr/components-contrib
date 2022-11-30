@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/dapr/components-contrib/metadata"
@@ -36,9 +35,10 @@ import (
 )
 
 const (
-	defaultTableName       = "state"
-	cleanupIntervalKey     = "cleanupIntervalInSeconds"
-	defaultCleanupInternal = 3600 // In seconds = 1 hour
+	defaultTableName         = "state"
+	defaultMetadataTableName = "dapr_metadata"
+	cleanupIntervalKey       = "cleanupIntervalInSeconds"
+	defaultCleanupInternal   = 3600 // In seconds = 1 hour
 )
 
 var errMissingConnectionString = errors.New("missing connection string")
@@ -66,6 +66,7 @@ type postgresMetadataStruct struct {
 	ConnectionString      string
 	ConnectionMaxIdleTime time.Duration
 	TableName             string // Could be in the format "schema.table" or just "table"
+	MetadataTableName     string // Could be in the format "schema.table" or just "table"
 }
 
 // Init sets up Postgres connection and ensures that the state table exists.
@@ -98,7 +99,13 @@ func (p *postgresDBAccess) Init(meta state.Metadata) error {
 		return err
 	}
 
-	err = p.ensureStateTable(p.metadata.TableName)
+	migrate := &migrations{
+		Logger:            p.logger,
+		Conn:              p.db,
+		MetadataTableName: p.metadata.MetadataTableName,
+		StateTableName:    p.metadata.TableName,
+	}
+	err = migrate.Perform(p.ctx)
 	if err != nil {
 		return err
 	}
@@ -110,7 +117,8 @@ func (p *postgresDBAccess) Init(meta state.Metadata) error {
 
 func (p *postgresDBAccess) parseMetadata(meta state.Metadata) error {
 	m := postgresMetadataStruct{
-		TableName: defaultTableName,
+		TableName:         defaultTableName,
+		MetadataTableName: defaultMetadataTableName,
 	}
 	err := metadata.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
@@ -142,6 +150,10 @@ func (p *postgresDBAccess) parseMetadata(meta state.Metadata) error {
 
 // Set makes an insert or update to the database.
 func (p *postgresDBAccess) Set(req *state.SetRequest) error {
+	return p.doSet(p.db, req)
+}
+
+func (p *postgresDBAccess) doSet(db dbquerier, req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
@@ -228,7 +240,7 @@ func (p *postgresDBAccess) Set(req *state.SetRequest) error {
 	} else {
 		queryExpiredate = "NULL"
 	}
-	result, err = p.db.Exec(fmt.Sprintf(query, p.metadata.TableName, queryExpiredate), params...)
+	result, err = db.Exec(fmt.Sprintf(query, p.metadata.TableName, queryExpiredate), params...)
 
 	if err != nil {
 		if req.ETag != nil && *req.ETag != "" {
@@ -251,24 +263,25 @@ func (p *postgresDBAccess) Set(req *state.SetRequest) error {
 func (p *postgresDBAccess) BulkSet(req []state.SetRequest) error {
 	tx, err := p.db.Begin()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
+	defer tx.Rollback()
 
 	if len(req) > 0 {
-		for _, s := range req {
-			sa := s // Fix for gosec  G601: Implicit memory aliasing in for loop.
-			err = p.Set(&sa)
+		for i := range req {
+			err = p.doSet(tx, &req[i])
 			if err != nil {
-				tx.Rollback()
-
 				return err
 			}
 		}
 	}
 
 	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // Get returns data from the database. If data does not exist for the key an empty state.GetResponse will be returned.
@@ -329,6 +342,10 @@ func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 
 // Delete removes an item from the state store.
 func (p *postgresDBAccess) Delete(req *state.DeleteRequest) (err error) {
+	return p.doDelete(p.db, req)
+}
+
+func (p *postgresDBAccess) doDelete(db dbquerier, req *state.DeleteRequest) (err error) {
 	if req.Key == "" {
 		return errors.New("missing key in delete operation")
 	}
@@ -346,7 +363,7 @@ func (p *postgresDBAccess) Delete(req *state.DeleteRequest) (err error) {
 		}
 		etag := uint32(etag64)
 
-		result, err = p.db.Exec("DELETE FROM state WHERE key = $1 AND xmin = $2", req.Key, etag)
+		result, err = db.Exec("DELETE FROM state WHERE key = $1 AND xmin = $2", req.Key, etag)
 	}
 
 	if err != nil {
@@ -368,69 +385,69 @@ func (p *postgresDBAccess) Delete(req *state.DeleteRequest) (err error) {
 func (p *postgresDBAccess) BulkDelete(req []state.DeleteRequest) error {
 	tx, err := p.db.Begin()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
+	defer tx.Rollback()
 
 	if len(req) > 0 {
 		for i := range req {
-			err = p.Delete(&req[i])
+			err = p.doDelete(tx, &req[i])
 			if err != nil {
-				tx.Rollback()
 				return err
 			}
 		}
 	}
 
 	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 func (p *postgresDBAccess) ExecuteMulti(request *state.TransactionalStateRequest) error {
 	tx, err := p.db.Begin()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
+	defer tx.Rollback()
 
 	for _, o := range request.Operations {
 		switch o.Operation {
 		case state.Upsert:
 			var setReq state.SetRequest
-
 			setReq, err = getSet(o)
 			if err != nil {
-				tx.Rollback()
 				return err
 			}
 
-			err = p.Set(&setReq)
+			err = p.doSet(tx, &setReq)
 			if err != nil {
-				tx.Rollback()
 				return err
 			}
 
 		case state.Delete:
 			var delReq state.DeleteRequest
-
 			delReq, err = getDelete(o)
 			if err != nil {
-				tx.Rollback()
 				return err
 			}
 
-			err = p.Delete(&delReq)
+			err = p.doDelete(tx, &delReq)
 			if err != nil {
-				tx.Rollback()
 				return err
 			}
 
 		default:
-			tx.Rollback()
 			return fmt.Errorf("unsupported operation: %s", o.Operation)
 		}
 	}
 
 	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
 
 	return err
 }
@@ -469,7 +486,10 @@ func (p *postgresDBAccess) scheduleCleanupExpiredData() {
 		for {
 			select {
 			case <-ticker.C:
-				p.cleanupTimeout()
+				err := p.cleanupTimeout()
+				if err != nil {
+					p.logger.Errorf("Error removing expired data: %v", err)
+				}
 			case <-p.ctx.Done():
 				p.logger.Debug("Stopped background cleanup of expired data")
 				return
@@ -478,14 +498,13 @@ func (p *postgresDBAccess) scheduleCleanupExpiredData() {
 	}()
 }
 
-func (p *postgresDBAccess) cleanupTimeout() {
+func (p *postgresDBAccess) cleanupTimeout() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	tx, err := p.db.BeginTx(ctx, nil)
 	if err != nil {
-		p.logger.Errorf("Error removing expired data: failed to begin transaction: %v", err)
-		return
+		return fmt.Errorf("failed to begin transaction: %v", err)
 	}
 	defer tx.Rollback()
 
@@ -494,23 +513,21 @@ func (p *postgresDBAccess) cleanupTimeout() {
 	stmt := fmt.Sprintf(`DELETE FROM %s WHERE expiredate IS NOT NULL AND expiredate < CURRENT_TIMESTAMP`, p.metadata.TableName)
 	res, err := tx.Exec(stmt)
 	if err != nil {
-		p.logger.Errorf("Error removing expired data: failed to execute query: %v", err)
-		return
+		return fmt.Errorf("failed to execute query: %v", err)
 	}
 
 	cleaned, err := res.RowsAffected()
 	if err != nil {
-		p.logger.Errorf("Error removing expired data: failed to count affected rows: %v", err)
-		return
+		return fmt.Errorf("failed to count affected rows: %v", err)
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		p.logger.Errorf("Error removing expired data: failed to commit transaction: %v", err)
-		return
+		return fmt.Errorf("failed to commit transaction: %v", err)
 	}
 
-	p.logger.Debugf("Removed %d expired rows", cleaned)
+	p.logger.Infof("Removed %d expired rows", cleaned)
+	return nil
 }
 
 // Close implements io.Close.
@@ -524,117 +541,6 @@ func (p *postgresDBAccess) Close() error {
 	}
 
 	return nil
-}
-
-func (p *postgresDBAccess) ensureStateTable(stateTableName string) error {
-	exists, schema, table, err := tableExists(p.db, stateTableName)
-	if err != nil {
-		return err
-	}
-
-	// Create the table if it doesn't exist
-	if !exists {
-		p.logger.Infof("Creating Postgres state table '%s'", stateTableName)
-		_, err = p.db.Exec(fmt.Sprintf(
-			`CREATE TABLE %s (
-				key text NOT NULL PRIMARY KEY,
-				value jsonb NOT NULL,
-				isbinary boolean NOT NULL,
-				insertdate TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-				updatedate TIMESTAMP WITH TIME ZONE NULL,
-				expiredate TIMESTAMP WITH TIME ZONE
-			)`,
-			stateTableName,
-		))
-		if err != nil {
-			return fmt.Errorf("failed to create state table: %w", err)
-		}
-		return nil
-	}
-
-	// If the table exists, ensure it has the "expiredate" column
-	exists, err = tableHasExpiredateCol(p.db, schema, table)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		p.logger.Infof("Adding column 'expiredate' to Postgres state table '%s'", stateTableName)
-		_, err = p.db.Exec(fmt.Sprintf(`ALTER TABLE %s ADD expiredate TIMESTAMP WITH TIME ZONE`, stateTableName))
-		if err != nil {
-			return fmt.Errorf("failed to add expiredate column to state table: %w", err)
-		}
-	}
-
-	return nil
-}
-
-// If the table exists, returns true and the name of the table and schema
-func tableExists(db *sql.DB, tableName string) (exists bool, schema string, table string, err error) {
-	table, schema, err = tableSchemaName(tableName)
-	if err != nil {
-		return false, "", "", err
-	}
-
-	if schema == "" {
-		err = db.
-			QueryRow(`
-				SELECT
-					table_name, table_schema
-				FROM
-					information_schema.tables 
-				WHERE
-					table_name = $1`, table).
-			Scan(&table, &schema)
-	} else {
-		err = db.
-			QueryRow(
-				`SELECT
-					table_name, table_schema
-				FROM
-					information_schema.tables 
-				WHERE
-					table_schema = $1
-					AND table_name = $2`, schema, table).
-			Scan(&table, &schema)
-	}
-
-	if err != nil && errors.Is(err, sql.ErrNoRows) {
-		return false, "", "", nil
-	} else if err != nil {
-		return false, "", "", fmt.Errorf("failed to check if table %s exists: %w", tableName, err)
-	}
-	return true, schema, table, nil
-}
-
-func tableHasExpiredateCol(db *sql.DB, schema string, table string) (colExists bool, err error) {
-	err = db.
-		QueryRow(`SELECT EXISTS (
-			SELECT 1
-			FROM
-				information_schema.columns
-			WHERE
-				table_schema = $1
-				AND table_name = $2
-				AND column_name='expiredate'
-		)`, schema, table).
-		Scan(&colExists)
-	if err != nil {
-		return false, fmt.Errorf("failed to check if table %s.%s has 'expiredate' column: %w", schema, table, err)
-	}
-	return colExists, nil
-}
-
-// If the table name includes a schema (e.g. `schema.table`, returns the two parts separately)
-func tableSchemaName(tableName string) (table string, schema string, err error) {
-	parts := strings.Split(tableName, ".")
-	switch len(parts) {
-	case 1:
-		return parts[0], "", nil
-	case 2:
-		return parts[1], parts[0], nil
-	default:
-		return "", "", errors.New("invalid table name: must be in the format 'table' or 'schema.table'")
-	}
 }
 
 // Returns the set requests.

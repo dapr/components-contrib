@@ -27,6 +27,7 @@ type metadata struct {
 
 	jwt     string
 	seedKey string
+	token   string
 
 	tlsClientCert string
 	tlsClientKey  string
@@ -58,6 +59,7 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 		return metadata{}, fmt.Errorf("missing nats URL")
 	}
 
+	m.token = psm.Properties["token"]
 	m.jwt = psm.Properties["jwt"]
 	m.seedKey = psm.Properties["seedKey"]
 

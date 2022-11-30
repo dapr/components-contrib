@@ -57,6 +57,9 @@ func (js *jetstreamPubSub) Init(metadata pubsub.Metadata) error {
 	} else if js.meta.tlsClientCert != "" && js.meta.tlsClientKey != "" {
 		js.l.Debug("Configure nats for tls client authentication")
 		opts = append(opts, nats.ClientCert(js.meta.tlsClientCert, js.meta.tlsClientKey))
+	} else if js.meta.token != "" {
+		js.l.Debug("Configure nats for token authentication")
+		opts = append(opts, nats.Token(js.meta.token))
 	}
 
 	js.nc, err = nats.Connect(js.meta.natsURL, opts...)
@@ -159,6 +162,7 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 	if js.meta.hearbeat != 0 {
 		consumerConfig.Heartbeat = js.meta.hearbeat
 	}
+	consumerConfig.FilterSubject = req.Topic
 
 	natsHandler := func(m *nats.Msg) {
 		jsm, err := m.Metadata()

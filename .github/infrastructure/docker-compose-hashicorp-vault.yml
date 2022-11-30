@@ -1,8 +1,9 @@
 version: '3.9'
 
 # Use a YAML reference to define VAULT_TOKEN and DOCKER_IMAGE only once
-x-common-vaues:
+x-common-values:
   # This should match tests/config/secrestore/hashicorp/vault/hashicorp-vault.yaml
+  # This should match .github/infrastructure/conformance/hashicorp/vault_token_file.txt
   vault_token: &VAULT_TOKEN "vault-dev-root-token-id"
   # Reuse the same docker image to save on resources and because the base vault image
   # has everything we need for seeding the initial key values too.

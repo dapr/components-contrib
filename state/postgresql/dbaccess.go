@@ -14,6 +14,9 @@ limitations under the License.
 package postgresql
 
 import (
+	"context"
+	"database/sql"
+
 	"github.com/dapr/components-contrib/state"
 )
 
@@ -28,4 +31,13 @@ type dbAccess interface {
 	ExecuteMulti(req *state.TransactionalStateRequest) error
 	Query(req *state.QueryRequest) (*state.QueryResponse, error)
 	Close() error // io.Closer
+}
+
+// Interface that contains methods for querying.
+// Applies to both *sql.DB and *sql.Tx
+type dbquerier interface {
+	Exec(query string, args ...any) (sql.Result, error)
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryRow(query string, args ...any) *sql.Row
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }

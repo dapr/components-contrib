@@ -61,11 +61,6 @@ func TestPostgreSQLIntegration(t *testing.T) {
 		t.Fatal(error)
 	}
 
-	t.Run("Create table succeeds", func(t *testing.T) {
-		t.Parallel()
-		testCreateTable(t, pgs.dbaccess.(*postgresDBAccess))
-	})
-
 	t.Run("Get Set Delete one item", func(t *testing.T) {
 		t.Parallel()
 		setGetUpdateDeleteOneItem(t, pgs)
@@ -158,33 +153,6 @@ func setGetUpdateDeleteOneItem(t *testing.T, pgs *PostgreSQL) {
 	assert.Equal(t, newValue, outputObject)
 
 	deleteItem(t, pgs, key, getResponse.ETag)
-}
-
-// testCreateTable tests the ability to create the state table.
-func testCreateTable(t *testing.T, dba *postgresDBAccess) {
-	tableName := "test_state"
-
-	// Drop the table if it already exists
-	exists, _, _, err := tableExists(dba.db, tableName)
-	assert.Nil(t, err)
-	if exists {
-		dropTable(t, dba.db, tableName)
-	}
-
-	// Create the state table and test for its existence
-	err = dba.ensureStateTable(tableName)
-	assert.Nil(t, err)
-	exists, _, _, err = tableExists(dba.db, tableName)
-	assert.Nil(t, err)
-	assert.True(t, exists)
-
-	// Drop the state table
-	dropTable(t, dba.db, tableName)
-}
-
-func dropTable(t *testing.T, db *sql.DB, tableName string) {
-	_, err := db.Exec(fmt.Sprintf("DROP TABLE %s", tableName))
-	assert.Nil(t, err)
 }
 
 func deleteItemThatDoesNotExist(t *testing.T, pgs *PostgreSQL) {

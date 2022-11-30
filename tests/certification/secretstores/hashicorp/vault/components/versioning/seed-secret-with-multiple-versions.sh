@@ -13,12 +13,13 @@ MAX_ATTEMPTS=30
 for attempt in `seq $MAX_ATTEMPTS`; do
     # Test connectivity to vault server and create secrets to match
     # conformance tests / contents from tests/conformance/secrets.json
-    if vault status && 
-        vault kv put secret/dapr/conftestsecret conftestsecret=abcd &&
-        vault kv put secret/dapr/secondsecret secondsecret=efgh &&
-        vault kv put secret/secretWithNoPrefix noPrefixKey=noProblem &&
-        vault kv put secret/alternativePrefix/secretUnderAlternativePrefix altPrefixKey=altPrefixValue &&
-        vault kv put secret/dapr/multiplekeyvaluessecret first=1 second=2 third=3;
+    if vault status &&
+        vault kv put secret/dapr/secretUnderTest versionedKey=initialVersion &&
+        vault kv put secret/dapr/secretUnderTest versionedKey=secondVersion &&
+        vault kv put secret/dapr/secretUnderTest versionedKey=v3 &&
+        vault kv put secret/dapr/secretUnderTest versionedKey=v4 &&
+        vault kv put secret/dapr/secretUnderTest versionedKey=latestValue &&
+        vault kv get secret/dapr/secretUnderTest ;
     then
         echo ✅ secrets set;
         sleep 1;

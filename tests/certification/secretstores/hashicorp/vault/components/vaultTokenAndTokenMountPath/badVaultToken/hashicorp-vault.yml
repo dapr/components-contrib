@@ -1,0 +1,14 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: my-hashicorp-vault-TestTokenAndTokenMountPath-badVaultToken
+  namespace: default
+spec:
+  type: secretstores.hashicorp.vault
+  version: v1
+  ignoreErrors: true  # This component will fail to load but we don't want Dapr to FATAL because of it.
+  metadata:
+  - name: vaultAddr
+    value: "http://127.0.0.1:8200"
+  - name: vaultToken
+    value: "this-is-not-the-correct-vault-token-to-talk-to-our-server"

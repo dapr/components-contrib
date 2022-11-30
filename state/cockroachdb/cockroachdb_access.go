@@ -15,11 +15,13 @@ package cockroachdb
 
 import (
 	"database/sql"
+	"database/sql/driver"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -27,15 +29,17 @@ import (
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
+	"github.com/dapr/kit/retry"
 
 	// Blank import for the underlying PostgreSQL driver.
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 const (
-	connectionStringKey        = "connectionString"
-	errMissingConnectionString = "missing connection string"
-	tableName                  = "state"
+	connectionStringKey          = "connectionString"
+	errMissingConnectionString   = "missing connection string"
+	tableName                    = "state"
+	defaultMaxConnectionAttempts = 5 // A bad driver connection error can occur inside the sql code so this essentially allows for more retries since the sql code does not allow that to be changed
 )
 
 // cockroachDBAccess implements dbaccess.
@@ -47,8 +51,9 @@ type cockroachDBAccess struct {
 }
 
 type cockroachDBMetadata struct {
-	ConnectionString string
-	TableName        string
+	ConnectionString      string
+	TableName             string
+	MaxConnectionAttempts *int
 }
 
 // newCockroachDBAccess creates a new instance of cockroachDBAccess.
@@ -106,6 +111,12 @@ func (p *cockroachDBAccess) Init(metadata state.Metadata) error {
 	}
 
 	if err = p.ensureStateTable(tableName); err != nil {
+		return err
+	}
+
+	// Ensure that a connection to the database is actually established
+	err = p.Ping()
+	if err != nil {
 		return err
 	}
 
@@ -188,6 +199,7 @@ func (p *cockroachDBAccess) BulkSet(req []state.SetRequest) error {
 // Get returns data from the database. If data does not exist for the key an empty state.GetResponse will be returned.
 func (p *cockroachDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	p.logger.Debug("Getting state value from CockroachDB")
+
 	if req.Key == "" {
 		return nil, fmt.Errorf("missing key in get operation")
 	}
@@ -236,6 +248,7 @@ func (p *cockroachDBAccess) Get(req *state.GetRequest) (*state.GetResponse, erro
 // Delete removes an item from the state store.
 func (p *cockroachDBAccess) Delete(req *state.DeleteRequest) error {
 	p.logger.Debug("Deleting state value from CockroachDB")
+
 	if req.Key == "" {
 		return fmt.Errorf("missing key in delete operation")
 	}
@@ -386,7 +399,27 @@ func (p *cockroachDBAccess) Query(req *state.QueryRequest) (*state.QueryResponse
 
 // Ping implements database ping.
 func (p *cockroachDBAccess) Ping() error {
-	return p.db.Ping()
+	retryCount := defaultMaxConnectionAttempts
+	if p.metadata.MaxConnectionAttempts != nil && *p.metadata.MaxConnectionAttempts >= 0 {
+		retryCount = *p.metadata.MaxConnectionAttempts
+	}
+	config := retry.DefaultConfig()
+	config.Policy = retry.PolicyExponential
+	config.MaxInterval = 100 * time.Millisecond
+	config.MaxRetries = int64(retryCount)
+	backoff := config.NewBackOff()
+
+	return retry.NotifyRecover(func() error {
+		err := p.db.Ping()
+		if errors.Is(err, driver.ErrBadConn) {
+			return fmt.Errorf("error when attempting to establish connection with cockroachDB: %v", err)
+		}
+		return nil
+	}, backoff, func(err error, _ time.Duration) {
+		p.logger.Debugf("Could not establish connection with cockroachDB. Retrying...: %v", err)
+	}, func() {
+		p.logger.Debug("Successfully established connection with cockroachDB after it previously failed")
+	})
 }
 
 // Close implements io.Close.

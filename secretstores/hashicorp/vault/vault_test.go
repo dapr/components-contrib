@@ -28,49 +28,53 @@ import (
 
 const (
 	// base64 encoded certificate.
-	certificate          = "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURVakNDQWpvQ0NRRFlZdzdMeXN4VXRUQU5CZ2txaGtpRzl3MEJBUXNGQURCck1Rc3dDUVlEVlFRR0V3SkQKUVRFWk1CY0dBMVVFQ0F3UVFuSnBkR2x6YUNCRGIyeDFiV0pwWVRFU01CQUdBMVVFQnd3SlZtRnVZMjkxZG1WeQpNUk13RVFZRFZRUUtEQXB0YVhOb2NtRmpiM0p3TVJnd0ZnWURWUVFEREE5MllYVnNkSEJ5YjJwbFkzUXVhVzh3CkhoY05NVGt4TVRBeE1UQTBPREV5V2hjTk1qQXhNRE14TVRBME9ERXlXakJyTVFzd0NRWURWUVFHRXdKRFFURVoKTUJjR0ExVUVDQXdRUW5KcGRHbHphQ0JEYjJ4MWJXSnBZVEVTTUJBR0ExVUVCd3dKVm1GdVkyOTFkbVZ5TVJNdwpFUVlEVlFRS0RBcHRhWE5vY21GamIzSndNUmd3RmdZRFZRUUREQTkyWVhWc2RIQnliMnBsWTNRdWFXOHdnZ0VpCk1BMEdDU3FHU0liM0RRRUJBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRQ3JtaitTTmtGUHEvK2FXUFV1MlpFamtSK3AKTm1PeEVNSnZZcGhHNkJvRFAySE9ZbGRzdk9FWkRkbTBpWFlmeFIwZm5rUmtTMWEzSlZiYmhINWJnTElKb0dxcwo5aWpzN2hyQ0Rrdk9uRWxpUEZuc05pQ2NWNDNxNkZYaFMvNFpoNGpOMnlyUkU2UmZiS1BEeUw0a282NkFhSld1CnVkTldKVWpzSFZBSWowZHlnTXFKYm0rT29iSzk5ckUxcDg5Z3RNUStJdzFkWnUvUFF4SjlYOStMeXdxZUxPckQKOWhpNWkxajNFUUp2RXQxSVUzclEwc2E0NU5zZkt4YzEwZjdhTjJuSDQzSnhnMVRiZXNPOWYrcWlyeDBHYmVSYQpyVmNaazNVaFc2cHZmam9XbDBEc0NwNTJwZDBQN05rUmhmak44b2RMN0h3bFVIc1NqemlSYytsTG5YREJBZ01CCkFBRXdEUVlKS29aSWh2Y05BUUVMQlFBRGdnRUJBSVdKdmRPZ01PUnQxWk53SENkNTNieTlkMlBkcW5tWHFZZ20KNDZHK2Fvb1dSeTJKMEMwS3ZOVGZGbEJFOUlydzNXUTVNMnpqY25qSUp5bzNLRUM5TDdPMnQ1WC9LTGVDck5ZVgpIc1d4cU5BTVBGY2VBa09HT0I1TThGVllkdjJTaVV2UDJjMEZQSzc2WFVzcVNkdnRsWGFkTk5ENzE3T0NTNm0yCnBIVjh1NWJNd1VmR2NCVFpEV2o4bjIzRVdHaXdnYkJkdDc3Z3h3YWc5NTROZkM2Ny9nSUc5ZlRrTTQ4aVJCUzEKc0NGYVBjMkFIT3hiMSs0ajVCMVY2Z29iZDZYWkFvbHdNaTNHUUtkbEM1NXZNeTNwK09WbDNNbEc3RWNTVUpMdApwZ2ZKaWw3L3dTWWhpUnhJU3hrYkk5cWhvNEwzZm5PZVB3clFVd2FzU1ZiL1lxbHZ2WHM9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"
-	expectedTok          = "myRootToken"
-	expectedTokMountPath = "./vault.txt"
+	certificate                    = "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURVakNDQWpvQ0NRRFlZdzdMeXN4VXRUQU5CZ2txaGtpRzl3MEJBUXNGQURCck1Rc3dDUVlEVlFRR0V3SkQKUVRFWk1CY0dBMVVFQ0F3UVFuSnBkR2x6YUNCRGIyeDFiV0pwWVRFU01CQUdBMVVFQnd3SlZtRnVZMjkxZG1WeQpNUk13RVFZRFZRUUtEQXB0YVhOb2NtRmpiM0p3TVJnd0ZnWURWUVFEREE5MllYVnNkSEJ5YjJwbFkzUXVhVzh3CkhoY05NVGt4TVRBeE1UQTBPREV5V2hjTk1qQXhNRE14TVRBME9ERXlXakJyTVFzd0NRWURWUVFHRXdKRFFURVoKTUJjR0ExVUVDQXdRUW5KcGRHbHphQ0JEYjJ4MWJXSnBZVEVTTUJBR0ExVUVCd3dKVm1GdVkyOTFkbVZ5TVJNdwpFUVlEVlFRS0RBcHRhWE5vY21GamIzSndNUmd3RmdZRFZRUUREQTkyWVhWc2RIQnliMnBsWTNRdWFXOHdnZ0VpCk1BMEdDU3FHU0liM0RRRUJBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRQ3JtaitTTmtGUHEvK2FXUFV1MlpFamtSK3AKTm1PeEVNSnZZcGhHNkJvRFAySE9ZbGRzdk9FWkRkbTBpWFlmeFIwZm5rUmtTMWEzSlZiYmhINWJnTElKb0dxcwo5aWpzN2hyQ0Rrdk9uRWxpUEZuc05pQ2NWNDNxNkZYaFMvNFpoNGpOMnlyUkU2UmZiS1BEeUw0a282NkFhSld1CnVkTldKVWpzSFZBSWowZHlnTXFKYm0rT29iSzk5ckUxcDg5Z3RNUStJdzFkWnUvUFF4SjlYOStMeXdxZUxPckQKOWhpNWkxajNFUUp2RXQxSVUzclEwc2E0NU5zZkt4YzEwZjdhTjJuSDQzSnhnMVRiZXNPOWYrcWlyeDBHYmVSYQpyVmNaazNVaFc2cHZmam9XbDBEc0NwNTJwZDBQN05rUmhmak44b2RMN0h3bFVIc1NqemlSYytsTG5YREJBZ01CCkFBRXdEUVlKS29aSWh2Y05BUUVMQlFBRGdnRUJBSVdKdmRPZ01PUnQxWk53SENkNTNieTlkMlBkcW5tWHFZZ20KNDZHK2Fvb1dSeTJKMEMwS3ZOVGZGbEJFOUlydzNXUTVNMnpqY25qSUp5bzNLRUM5TDdPMnQ1WC9LTGVDck5ZVgpIc1d4cU5BTVBGY2VBa09HT0I1TThGVllkdjJTaVV2UDJjMEZQSzc2WFVzcVNkdnRsWGFkTk5ENzE3T0NTNm0yCnBIVjh1NWJNd1VmR2NCVFpEV2o4bjIzRVdHaXdnYkJkdDc3Z3h3YWc5NTROZkM2Ny9nSUc5ZlRrTTQ4aVJCUzEKc0NGYVBjMkFIT3hiMSs0ajVCMVY2Z29iZDZYWkFvbHdNaTNHUUtkbEM1NXZNeTNwK09WbDNNbEc3RWNTVUpMdApwZ2ZKaWw3L3dTWWhpUnhJU3hrYkk5cWhvNEwzZm5PZVB3clFVd2FzU1ZiL1lxbHZ2WHM9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"
+	expectedTok                    = "myRootToken"
+	expectedTokenMountFileContents = "Hey! TokenMountFile contents here!"
 )
 
+func createTempFileWithContent(t *testing.T, contents string) (fileName string, cleanUpFunc func()) {
+	dir := os.TempDir()
+	f, err := os.CreateTemp(dir, "vault-token")
+	assert.NoError(t, err)
+	fileName = f.Name()
+	cleanUpFunc = func() {
+		os.Remove(fileName)
+	}
+
+	_, err = f.WriteString(contents)
+	assert.NoError(t, err)
+
+	return fileName, cleanUpFunc
+}
+
+func createTokenMountPathFile(t *testing.T) (fileName string, cleanUpFunc func()) {
+	return createTempFileWithContent(t, expectedTokenMountFileContents)
+}
+
 func TestReadVaultToken(t *testing.T) {
+	tokenString := "This-IS-TheRootToken"
+	tmpFileName, cleanUpFunc := createTempFileWithContent(t, tokenString)
+	defer cleanUpFunc()
+
 	t.Run("read correct token", func(t *testing.T) {
-		dir := os.TempDir()
-		f, err := os.CreateTemp(dir, "vault-token")
-		assert.NoError(t, err)
-		fileName := f.Name()
-		defer os.Remove(fileName)
-
-		tokenString := "thisisnottheroottoken"
-		_, err = f.WriteString(tokenString)
-		assert.NoError(t, err)
-
 		v := vaultSecretStore{
-			vaultTokenMountPath: f.Name(),
+			vaultTokenMountPath: tmpFileName,
 		}
 
-		err = v.initVaultToken()
+		err := v.initVaultToken()
 		assert.Nil(t, err)
 		assert.Equal(t, tokenString, v.vaultToken)
 	})
 
 	t.Run("read incorrect token", func(t *testing.T) {
-		dir := os.TempDir()
-		f, err := os.CreateTemp(dir, "vault-token")
-		assert.NoError(t, err)
-		fileName := f.Name()
-		defer os.Remove(fileName)
-
-		tokenString := "thisisnottheroottoken"
-		_, err = f.WriteString(tokenString)
-		assert.NoError(t, err)
-
 		v := vaultSecretStore{
-			vaultTokenMountPath: f.Name(),
+			vaultTokenMountPath: tmpFileName,
 		}
-		err = v.initVaultToken()
+
+		err := v.initVaultToken()
 		assert.Nil(t, err)
-		assert.NotEqual(t, "thisistheroottoken", v.vaultToken)
+		assert.NotEqual(t, "ThisIs-NOT-TheRootToken", v.vaultToken)
 	})
 
 	t.Run("read token from vaultToken", func(t *testing.T) {
@@ -126,6 +130,9 @@ func TestVaultEnginePath(t *testing.T) {
 }
 
 func TestVaultTokenPrefix(t *testing.T) {
+	expectedTokMountPath, cleanUpFunc := createTokenMountPathFile(t)
+	defer cleanUpFunc()
+
 	t.Run("default value of vaultKVUsePrefix is true to emulate previous behaviour", func(t *testing.T) {
 		properties := map[string]string{
 			componentVaultToken: expectedTok,
@@ -140,11 +147,9 @@ func TestVaultTokenPrefix(t *testing.T) {
 			logger: nil,
 		}
 
-		// This call will throw an error on Windows systems because of the of
-		// the call x509.SystemCertPool() because system root pool is not
-		// available on Windows so ignore the error for when the tests are run
-		// on the Windows platform during CI
-		_ = target.Init(m)
+		if err := target.Init(m); err != nil {
+			t.Fatal(err)
+		}
 
 		assert.Equal(t, defaultVaultKVPrefix, target.vaultKVPrefix)
 	})
@@ -165,11 +170,9 @@ func TestVaultTokenPrefix(t *testing.T) {
 			logger: nil,
 		}
 
-		// This call will throw an error on Windows systems because of the of
-		// the call x509.SystemCertPool() because system root pool is not
-		// available on Windows so ignore the error for when the tests are run
-		// on the Windows platform during CI
-		_ = target.Init(m)
+		if err := target.Init(m); err != nil {
+			t.Fatal(err)
+		}
 
 		assert.Equal(t, "", target.vaultKVPrefix)
 	})
@@ -190,10 +193,6 @@ func TestVaultTokenPrefix(t *testing.T) {
 			logger: nil,
 		}
 
-		// This call will throw an error on Windows systems because of the of
-		// the call x509.SystemCertPool() because system root pool is not
-		// available on Windows so ignore the error for when the tests are run
-		// on the Windows platform during CI
 		err := target.Init(m)
 
 		assert.NotNil(t, err)
@@ -201,6 +200,9 @@ func TestVaultTokenPrefix(t *testing.T) {
 }
 
 func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
+	expectedTokMountPath, cleanUpFunc := createTokenMountPathFile(t)
+	defer cleanUpFunc()
+
 	t.Run("without vaultTokenMount or vaultToken", func(t *testing.T) {
 		properties := map[string]string{}
 
@@ -235,13 +237,11 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 			logger: nil,
 		}
 
-		// This call will throw an error on Windows systems because of the of
-		// the call x509.SystemCertPool() because system root pool is not
-		// available on Windows so ignore the error for when the tests are run
-		// on the Windows platform during CI
-		_ = target.Init(m)
+		if err := target.Init(m); err != nil {
+			t.Fatal(err)
+		}
 
-		assert.Equal(t, "", target.vaultToken)
+		assert.Equal(t, expectedTokenMountFileContents, target.vaultToken)
 		assert.Equal(t, expectedTokMountPath, target.vaultTokenMountPath)
 	})
 
@@ -259,11 +259,9 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 			logger: nil,
 		}
 
-		// This call will throw an error on Windows systems because of the of
-		// the call x509.SystemCertPool() because system root pool is not
-		// available on Windows so ignore the error for when the tests are run
-		// on the Windows platform during CI
-		_ = target.Init(m)
+		if err := target.Init(m); err != nil {
+			t.Fatal(err)
+		}
 
 		assert.Equal(t, "", target.vaultTokenMountPath)
 		assert.Equal(t, expectedTok, target.vaultToken)
@@ -294,9 +292,12 @@ func TestVaultTokenMountPathOrVaultTokenRequired(t *testing.T) {
 }
 
 func TestDefaultVaultAddress(t *testing.T) {
+	expectedTokMountPath, cleanUpFunc := createTokenMountPathFile(t)
+	defer cleanUpFunc()
+
 	t.Run("with blank vaultAddr", func(t *testing.T) {
 		properties := map[string]string{
-			"vaultTokenMountPath": "./vault.txt",
+			"vaultTokenMountPath": expectedTokMountPath,
 		}
 
 		m := secretstores.Metadata{
@@ -308,11 +309,9 @@ func TestDefaultVaultAddress(t *testing.T) {
 			logger: nil,
 		}
 
-		// This call will throw an error on Windows systems because of the of
-		// the call x509.SystemCertPool() because system root pool is not
-		// available on Windows so ignore the error for when the tests are run
-		// on the Windows platform during CI
-		_ = target.Init(m)
+		if err := target.Init(m); err != nil {
+			t.Fatal(err)
+		}
 
 		assert.Equal(t, defaultVaultAddress, target.vaultAddress, "default was not set")
 	})

@@ -21,7 +21,7 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/pkg/errors"
 
-	cron "github.com/dapr/components-contrib/internal/cron"
+	cron "github.com/dapr/kit/cron"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"

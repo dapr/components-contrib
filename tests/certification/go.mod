@@ -6,7 +6,7 @@ require (
 	github.com/dapr/components-contrib v1.9.1-0.20221025205611-e38369028650
 	github.com/dapr/dapr v1.9.4-0.20221121055721-6683f7582ac4
 	github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721
-	github.com/dapr/kit v0.0.3-0.20221201202246-cba48a6fe2e8
+	github.com/dapr/kit v0.0.3
 	github.com/google/go-cmp v0.5.9
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.1

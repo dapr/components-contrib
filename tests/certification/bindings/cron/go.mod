@@ -8,7 +8,7 @@ require (
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20220519061249-c2cb1dad5bb0
 	github.com/dapr/dapr v1.9.4-0.20221121055721-6683f7582ac4
 	github.com/dapr/go-sdk v1.6.0
-	github.com/dapr/kit v0.0.3-0.20221201202246-cba48a6fe2e8
+	github.com/dapr/kit v0.0.3
 	github.com/stretchr/testify v1.8.1
 )
 

@@ -68,12 +68,16 @@ func (c v9Client) DoRead(ctx context.Context, args ...interface{}) (interface{},
 	return c.client.Do(ctx, args...).Result()
 }
 
-func (c v9Client) DoDel(ctx context.Context, keys ...string) error {
+func (c v9Client) Del(ctx context.Context, keys ...string) error {
 	err := c.client.Del(ctx, keys...).Err()
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func (c v9Client) Get(ctx context.Context, key string) (string, error) {
+	return c.client.Get(ctx, key).Result()
 }
 
 func (c v9Client) Context() context.Context {

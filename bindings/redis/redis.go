@@ -75,18 +75,17 @@ func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	if key, ok := req.Metadata["key"]; ok && key != "" {
 		switch req.Operation {
 		case bindings.DeleteOperation:
-			err := r.client.DoDel(ctx, key)
+			err := r.client.Del(ctx, key)
 			if err != nil {
 				return nil, err
 			}
 		case bindings.GetOperation:
-			data, err := r.client.DoRead(ctx, key)
+			data, err := r.client.Get(ctx, key)
 			if err != nil {
 				return nil, err
 			}
 			rep := &bindings.InvokeResponse{}
-
-			rep.Data = data.([]byte)
+			rep.Data = []byte(data)
 			return rep, nil
 		case bindings.CreateOperation:
 			err := r.client.DoWrite(ctx, "SET", key, req.Data)

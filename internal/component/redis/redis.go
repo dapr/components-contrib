@@ -53,11 +53,13 @@ type RedisPipeliner interface {
 
 var clientHasJSONSupport *bool
 
+//nolint:interfacebloat
 type RedisClient interface {
 	Context() context.Context
 	DoRead(ctx context.Context, args ...interface{}) (interface{}, error)
 	DoWrite(ctx context.Context, args ...interface{}) error
-	DoDel(ctx context.Context, keys ...string) error
+	Del(ctx context.Context, keys ...string) error
+	Get(ctx context.Context, key string) (string, error)
 	Close() error
 	PingResult(ctx context.Context) (string, error)
 	SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (*bool, error)

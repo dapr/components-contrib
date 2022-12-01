@@ -162,6 +162,7 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 	if js.meta.hearbeat != 0 {
 		consumerConfig.Heartbeat = js.meta.hearbeat
 	}
+	consumerConfig.FilterSubject = req.Topic
 
 	natsHandler := func(m *nats.Msg) {
 		jsm, err := m.Metadata()

@@ -1,0 +1,14 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: my-hashicorp-vault-TestVaultAddr-nonStdPort
+  namespace: default
+spec:
+  type: secretstores.hashicorp.vault
+  version: v1
+  metadata:
+  # Use non-standard port
+  - name: vaultAddr
+    value: "http://127.0.0.1:11200"
+  - name: vaultToken  # Matches docker compose VAULT_DEV_ROOT_TOKEN_ID env. var.
+    value: "vault-dev-root-token-id"

@@ -101,10 +101,13 @@ func (m *migrations) Perform(ctx context.Context) error {
 
 		queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
 		_, err = metadataTx.ExecContext(queryCtx,
-			fmt.Sprintf(`UPDATE %s SET value = $1 WHERE key = 'migrations'`, m.MetadataTableName),
+			fmt.Sprintf(`INSERT INTO %s (key, value) VALUES ('migrations', $1) ON CONFLICT (key) DO UPDATE SET value = $1`, m.MetadataTableName),
 			strconv.Itoa(i+1),
 		)
 		cancel()
+		if err != nil {
+			return fmt.Errorf("failed to update migration level in metadata table: %w", err)
+		}
 	}
 
 	// Commit changes to the metadata table, which also releases the lock

@@ -226,11 +226,11 @@ func (v *vaultSecretStore) getSecret(ctx context.Context, secret, version string
 
 	defer httpresp.Body.Close()
 
-	if httpresp.StatusCode != 200 {
+	if httpresp.StatusCode != http.StatusOK {
 		var b bytes.Buffer
 		io.Copy(&b, httpresp.Body)
 		v.logger.Debugf("getSecret %s couldn't get successful response: %#v, %s", secret, httpresp, b.String())
-		if httpresp.StatusCode == 404 {
+		if httpresp.StatusCode == http.StatusNotFound {
 			// handle not found error
 			return nil, fmt.Errorf("getSecret %s failed %w", secret, ErrNotFound)
 		}
@@ -344,7 +344,7 @@ func (v *vaultSecretStore) listKeysUnderPath(ctx context.Context, path string) (
 
 	defer httpresp.Body.Close()
 
-	if httpresp.StatusCode != 200 {
+	if httpresp.StatusCode != http.StatusOK {
 		var b bytes.Buffer
 		io.Copy(&b, httpresp.Body)
 		v.logger.Debugf("list keys couldn't get successful response: %#v, %s", httpresp, b.String())
@@ -508,5 +508,9 @@ func readCertificateFolder(certPool *x509.CertPool, path string) error {
 
 // Features returns the features available in this secret store.
 func (v *vaultSecretStore) Features() []secretstores.Feature {
+	if v.vaultValueType == valueTypeText {
+		return []secretstores.Feature{}
+	}
+
 	return []secretstores.Feature{secretstores.FeatureMultipleKeyValuesPerSecret}
 }

@@ -57,6 +57,9 @@ func (js *jetstreamPubSub) Init(metadata pubsub.Metadata) error {
 	} else if js.meta.tlsClientCert != "" && js.meta.tlsClientKey != "" {
 		js.l.Debug("Configure nats for tls client authentication")
 		opts = append(opts, nats.ClientCert(js.meta.tlsClientCert, js.meta.tlsClientKey))
+	} else if js.meta.token != "" {
+		js.l.Debug("Configure nats for token authentication")
+		opts = append(opts, nats.Token(js.meta.token))
 	}
 
 	js.nc, err = nats.Connect(js.meta.natsURL, opts...)
@@ -88,57 +91,78 @@ func (js *jetstreamPubSub) Features() []pubsub.Feature {
 }
 
 func (js *jetstreamPubSub) Publish(req *pubsub.PublishRequest) error {
-	js.l.Debugf("Publishing topic %v with data: %v", req.Topic, req.Data)
-	_, err := js.jsc.Publish(req.Topic, req.Data)
+	var opts []nats.PubOpt
+	var msgID string
+
+	event, err := pubsub.FromCloudEvent(req.Data, "", "", "", "")
+	if err != nil {
+		js.l.Debugf("error unmarshalling cloudevent: %v", err)
+	} else {
+		// Use the cloudevent id as the Nats-MsgId for deduplication
+		if id, ok := event["id"].(string); ok {
+			msgID = id
+			opts = append(opts, nats.MsgId(msgID))
+		}
+	}
+
+	if msgID == "" {
+		js.l.Warn("empty message ID, Jetstream deduplication will not be possible")
+	}
+
+	js.l.Debugf("Publishing to topic %v id: %s", req.Topic, msgID)
+	_, err = js.jsc.Publish(req.Topic, req.Data, opts...)
 
 	return err
 }
 
 func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-	var opts []nats.SubOpt
+	var consumerConfig nats.ConsumerConfig
+
+	consumerConfig.DeliverSubject = nats.NewInbox()
 
 	if v := js.meta.durableName; v != "" {
-		opts = append(opts, nats.Durable(v))
+		consumerConfig.Durable = v
 	}
 
 	if v := js.meta.startTime; !v.IsZero() {
-		opts = append(opts, nats.StartTime(v))
+		consumerConfig.OptStartTime = &v
 	} else if v := js.meta.startSequence; v > 0 {
-		opts = append(opts, nats.StartSequence(v))
+		consumerConfig.OptStartSeq = v
 	} else if js.meta.deliverAll {
-		opts = append(opts, nats.DeliverAll())
+		consumerConfig.DeliverPolicy = nats.DeliverAllPolicy
 	} else {
-		opts = append(opts, nats.DeliverLast())
+		consumerConfig.DeliverPolicy = nats.DeliverLastPolicy
 	}
 
 	if js.meta.flowControl {
-		opts = append(opts, nats.EnableFlowControl())
+		consumerConfig.FlowControl = true
 	}
 
 	if js.meta.ackWait != 0 {
-		opts = append(opts, nats.AckWait(js.meta.ackWait))
+		consumerConfig.AckWait = js.meta.ackWait
 	}
 	if js.meta.maxDeliver != 0 {
-		opts = append(opts, nats.MaxDeliver(js.meta.maxDeliver))
+		consumerConfig.MaxDeliver = js.meta.maxDeliver
 	}
 	if len(js.meta.backOff) != 0 {
-		opts = append(opts, nats.BackOff(js.meta.backOff))
+		consumerConfig.BackOff = js.meta.backOff
 	}
 	if js.meta.maxAckPending != 0 {
-		opts = append(opts, nats.MaxAckPending(js.meta.maxAckPending))
+		consumerConfig.MaxAckPending = js.meta.maxAckPending
 	}
 	if js.meta.replicas != 0 {
-		opts = append(opts, nats.ConsumerReplicas(js.meta.replicas))
+		consumerConfig.Replicas = js.meta.replicas
 	}
 	if js.meta.memoryStorage {
-		opts = append(opts, nats.ConsumerMemoryStorage())
+		consumerConfig.MemoryStorage = true
 	}
 	if js.meta.rateLimit != 0 {
-		opts = append(opts, nats.RateLimit(js.meta.rateLimit))
+		consumerConfig.RateLimit = js.meta.rateLimit
 	}
 	if js.meta.hearbeat != 0 {
-		opts = append(opts, nats.IdleHeartbeat(js.meta.hearbeat))
+		consumerConfig.Heartbeat = js.meta.hearbeat
 	}
+	consumerConfig.FilterSubject = req.Topic
 
 	natsHandler := func(m *nats.Msg) {
 		jsm, err := m.Metadata()
@@ -176,14 +200,27 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 	}
 
 	var err error
+	streamName := js.meta.streamName
+	if streamName == "" {
+		streamName, err = js.jsc.StreamNameBySubject(req.Topic)
+		if err != nil {
+			return err
+		}
+	}
 	var subscription *nats.Subscription
+
+	consumerInfo, err := js.jsc.AddConsumer(streamName, &consumerConfig)
+	if err != nil {
+		return err
+	}
+
 	if queue := js.meta.queueGroupName; queue != "" {
 		js.l.Debugf("nats: subscribed to subject %s with queue group %s",
 			req.Topic, js.meta.queueGroupName)
-		subscription, err = js.jsc.QueueSubscribe(req.Topic, queue, natsHandler, opts...)
+		subscription, err = js.jsc.QueueSubscribe(req.Topic, queue, natsHandler, nats.Bind(streamName, consumerInfo.Name))
 	} else {
 		js.l.Debugf("nats: subscribed to subject %s", req.Topic)
-		subscription, err = js.jsc.Subscribe(req.Topic, natsHandler, opts...)
+		subscription, err = js.jsc.Subscribe(req.Topic, natsHandler, nats.Bind(streamName, consumerInfo.Name))
 	}
 	if err != nil {
 		return err

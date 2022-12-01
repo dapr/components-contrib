@@ -16,6 +16,7 @@ package redis
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -194,7 +195,13 @@ func (r *StateStore) parseConnectedSlaves(res string) int {
 	return 0
 }
 
-func (r *StateStore) deleteValue(req *state.DeleteRequest) error {
+// Delete performs a delete operation.
+func (r *StateStore) Delete(req *state.DeleteRequest) error {
+	err := state.CheckRequestOptions(req.Options)
+	if err != nil {
+		return err
+	}
+
 	if req.ETag == nil {
 		etag := "0"
 		req.ETag = &etag
@@ -206,22 +213,12 @@ func (r *StateStore) deleteValue(req *state.DeleteRequest) error {
 	} else {
 		delQuery = delDefaultQuery
 	}
-	err := r.client.DoWrite(r.ctx, "EVAL", delQuery, 1, req.Key, *req.ETag)
+	err = r.client.DoWrite(r.ctx, "EVAL", delQuery, 1, req.Key, *req.ETag)
 	if err != nil {
 		return state.NewETagError(state.ETagMismatch, err)
 	}
 
 	return nil
-}
-
-// Delete performs a delete operation.
-func (r *StateStore) Delete(req *state.DeleteRequest) error {
-	err := state.CheckRequestOptions(req.Options)
-	if err != nil {
-		return err
-	}
-
-	return state.DeleteWithOptions(r.deleteValue, req)
 }
 
 func (r *StateStore) directGet(req *state.GetRequest) (*state.GetResponse, error) {
@@ -325,7 +322,8 @@ type jsonEntry struct {
 	Version *int        `json:"version,omitempty"`
 }
 
-func (r *StateStore) setValue(req *state.SetRequest) error {
+// Set saves state into redis.
+func (r *StateStore) Set(req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
@@ -389,11 +387,6 @@ func (r *StateStore) setValue(req *state.SetRequest) error {
 	}
 
 	return nil
-}
-
-// Set saves state into redis.
-func (r *StateStore) Set(req *state.SetRequest) error {
-	return state.SetWithOptions(r.setValue, req)
 }
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
@@ -555,4 +548,11 @@ func (r *StateStore) Close() error {
 	r.cancel()
 
 	return r.client.Close()
+}
+
+func (r *StateStore) GetComponentMetadata() map[string]string {
+	metadataStruct := rediscomponent.Settings{}
+	metadataInfo := map[string]string{}
+	daprmetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

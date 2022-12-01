@@ -17,6 +17,8 @@ spec:
         key:  AzureBlobStorageAccessKey
   - name: decodeBase64
     value: true
+  - name: encodeBase64
+    value: true
   - name: queue
     value: "decodequeue"
 auth:

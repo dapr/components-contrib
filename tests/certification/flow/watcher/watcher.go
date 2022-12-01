@@ -15,6 +15,7 @@ package watcher
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -344,8 +345,10 @@ func (w *Watcher) FailIfNotExpected(t TestingT, data ...interface{}) {
 	defer w.mu.Unlock()
 
 	for _, item := range data {
-		val, ok := w.remaining[item]
-		assert.False(t, ok, "Encountered an unexpected item: %v", val)
+		_, ok := w.remaining[item]
+		if !ok {
+			assert.Fail(t, fmt.Sprintf("Encountered an unexpected item: %v", item), item)
+		}
 	}
 }
 

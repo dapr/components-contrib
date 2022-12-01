@@ -84,3 +84,5 @@ components:
     operations: ["publish", "subscribe", "multiplehandlers"]
     config:
       checkInOrderProcessing: false
+  - component: kubemq
+    operations: ["publish", "subscribe", "multiplehandlers"]

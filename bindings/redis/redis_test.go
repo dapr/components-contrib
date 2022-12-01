@@ -31,7 +31,7 @@ const (
 	testKey  = "test"
 )
 
-func TestInvoke(t *testing.T) {
+func TestInvokeCreate(t *testing.T) {
 	s, c := setupMiniredis()
 	defer s.Close()
 
@@ -46,8 +46,9 @@ func TestInvoke(t *testing.T) {
 	assert.Equal(t, redis.Nil, err)
 
 	bindingRes, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
-		Data:     []byte(testData),
-		Metadata: map[string]string{"key": testKey},
+		Data:      []byte(testData),
+		Metadata:  map[string]string{"key": testKey},
+		Operation: bindings.CreateOperation,
 	})
 	assert.Equal(t, nil, err)
 	assert.Equal(t, true, bindingRes == nil)
@@ -55,6 +56,56 @@ func TestInvoke(t *testing.T) {
 	getRes, err := c.DoRead(context.Background(), "GET", testKey)
 	assert.Equal(t, nil, err)
 	assert.Equal(t, true, getRes == testData)
+}
+
+func TestInvokeGet(t *testing.T) {
+	s, c := setupMiniredis()
+	defer s.Close()
+
+	bind := &Redis{
+		client: c,
+		logger: logger.NewLogger("test"),
+	}
+	bind.ctx, bind.cancel = context.WithCancel(context.Background())
+
+	err := c.DoWrite(context.Background(), "SET", testKey, testData)
+	assert.Equal(t, nil, err)
+
+	bindingRes, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+		Metadata:  map[string]string{"key": testKey},
+		Operation: bindings.GetOperation,
+	})
+	assert.Equal(t, nil, err)
+	assert.Equal(t, true, string(bindingRes.Data) == testData)
+}
+
+func TestInvokeDelete(t *testing.T) {
+	s, c := setupMiniredis()
+	defer s.Close()
+
+	bind := &Redis{
+		client: c,
+		logger: logger.NewLogger("test"),
+	}
+	bind.ctx, bind.cancel = context.WithCancel(context.Background())
+
+	err := c.DoWrite(context.Background(), "SET", testKey, testData)
+	assert.Equal(t, nil, err)
+
+	getRes, err := c.DoRead(context.Background(), "GET", testKey)
+	assert.Equal(t, nil, err)
+	assert.Equal(t, true, getRes == testData)
+
+	_, err = bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+		Metadata:  map[string]string{"key": testKey},
+		Operation: bindings.DeleteOperation,
+	})
+
+	assert.Equal(t, nil, err)
+
+	rgetRep, err := c.DoRead(context.Background(), "GET", testKey)
+	assert.Equal(t, redis.Nil, err)
+	assert.Equal(t, nil, rgetRep)
 }
 
 func setupMiniredis() (*miniredis.Miniredis, internalredis.RedisClient) {

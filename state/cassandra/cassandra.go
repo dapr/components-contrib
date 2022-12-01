@@ -14,14 +14,14 @@ limitations under the License.
 package cassandra
 
 import (
-	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
-	"strings"
 
 	"github.com/gocql/gocql"
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -56,15 +56,15 @@ type Cassandra struct {
 }
 
 type cassandraMetadata struct {
-	hosts             []string
-	port              int
-	protoVersion      int
-	replicationFactor int
-	username          string
-	password          string
-	consistency       string
-	table             string
-	keyspace          string
+	Hosts             []string
+	Port              int
+	ProtoVersion      int
+	ReplicationFactor int
+	Username          string
+	Password          string
+	Consistency       string
+	Table             string
+	Keyspace          string
 }
 
 // NewCassandraStateStore returns a new cassandra state store.
@@ -94,17 +94,17 @@ func (c *Cassandra) Init(metadata state.Metadata) error {
 	}
 	c.session = session
 
-	err = c.tryCreateKeyspace(meta.keyspace, meta.replicationFactor)
+	err = c.tryCreateKeyspace(meta.Keyspace, meta.ReplicationFactor)
 	if err != nil {
-		return fmt.Errorf("error creating keyspace %s: %s", meta.keyspace, err)
+		return fmt.Errorf("error creating keyspace %s: %s", meta.Keyspace, err)
 	}
 
-	err = c.tryCreateTable(meta.table, meta.keyspace)
+	err = c.tryCreateTable(meta.Table, meta.Keyspace)
 	if err != nil {
-		return fmt.Errorf("error creating table %s: %s", meta.table, err)
+		return fmt.Errorf("error creating table %s: %s", meta.Table, err)
 	}
 
-	c.table = fmt.Sprintf("%s.%s", meta.keyspace, meta.table)
+	c.table = fmt.Sprintf("%s.%s", meta.Keyspace, meta.Table)
 
 	return nil
 }
@@ -123,13 +123,13 @@ func (c *Cassandra) tryCreateTable(table, keyspace string) error {
 }
 
 func (c *Cassandra) createClusterConfig(metadata *cassandraMetadata) (*gocql.ClusterConfig, error) {
-	clusterConfig := gocql.NewCluster(metadata.hosts...)
-	if metadata.username != "" && metadata.password != "" {
-		clusterConfig.Authenticator = gocql.PasswordAuthenticator{Username: metadata.username, Password: metadata.password}
+	clusterConfig := gocql.NewCluster(metadata.Hosts...)
+	if metadata.Username != "" && metadata.Password != "" {
+		clusterConfig.Authenticator = gocql.PasswordAuthenticator{Username: metadata.Username, Password: metadata.Password}
 	}
-	clusterConfig.Port = metadata.port
-	clusterConfig.ProtoVersion = metadata.protoVersion
-	cons, err := c.getConsistency(metadata.consistency)
+	clusterConfig.Port = metadata.Port
+	clusterConfig.ProtoVersion = metadata.ProtoVersion
+	cons, err := c.getConsistency(metadata.Consistency)
 	if err != nil {
 		return nil, err
 	}
@@ -166,67 +166,49 @@ func (c *Cassandra) getConsistency(consistency string) (gocql.Consistency, error
 	return 0, fmt.Errorf("consistency mode %s not found", consistency)
 }
 
-func getCassandraMetadata(metadata state.Metadata) (*cassandraMetadata, error) {
-	meta := cassandraMetadata{
-		protoVersion:      defaultProtoVersion,
-		table:             defaultTable,
-		keyspace:          defaultKeyspace,
-		replicationFactor: defaultReplicationFactor,
-		consistency:       "All",
-		port:              defaultPort,
+func getCassandraMetadata(meta state.Metadata) (*cassandraMetadata, error) {
+	m := cassandraMetadata{
+		ProtoVersion:      defaultProtoVersion,
+		Table:             defaultTable,
+		Keyspace:          defaultKeyspace,
+		ReplicationFactor: defaultReplicationFactor,
+		Consistency:       "All",
+		Port:              defaultPort,
+	}
+	err := metadata.DecodeMetadata(meta.Properties, &m)
+	if err != nil {
+		return nil, err
 	}
 
-	if val, ok := metadata.Properties[hosts]; ok && val != "" {
-		meta.hosts = strings.Split(val, ",")
-	} else {
-		return nil, errors.New("missing or empty hosts field from metadata")
+	if m.Hosts == nil || len(m.Hosts) == 0 {
+		return nil, fmt.Errorf("missing or empty hosts field from metadata")
 	}
 
-	if val, ok := metadata.Properties[port]; ok && val != "" {
+	if val, ok := meta.Properties[port]; ok && val != "" {
 		p, err := strconv.ParseInt(val, 0, 32)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing port field: %s", err)
 		}
-		meta.port = int(p)
+		m.Port = int(p)
 	}
 
-	if val, ok := metadata.Properties[consistency]; ok && val != "" {
-		meta.consistency = val
-	}
-
-	if val, ok := metadata.Properties[table]; ok && val != "" {
-		meta.table = val
-	}
-
-	if val, ok := metadata.Properties[keyspace]; ok && val != "" {
-		meta.keyspace = val
-	}
-
-	if val, ok := metadata.Properties[username]; ok && val != "" {
-		meta.username = val
-	}
-
-	if val, ok := metadata.Properties[password]; ok && val != "" {
-		meta.password = val
-	}
-
-	if val, ok := metadata.Properties[protoVersion]; ok && val != "" {
+	if val, ok := meta.Properties[protoVersion]; ok && val != "" {
 		p, err := strconv.ParseInt(val, 0, 32)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing protoVersion field: %s", err)
 		}
-		meta.protoVersion = int(p)
+		m.ProtoVersion = int(p)
 	}
 
-	if val, ok := metadata.Properties[replicationFactor]; ok && val != "" {
+	if val, ok := meta.Properties[replicationFactor]; ok && val != "" {
 		r, err := strconv.ParseInt(val, 0, 32)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing replicationFactor field: %s", err)
 		}
-		meta.replicationFactor = int(r)
+		m.ReplicationFactor = int(r)
 	}
 
-	return &meta, nil
+	return &m, nil
 }
 
 // Delete performs a delete operation.
@@ -331,4 +313,11 @@ func parseTTL(requestMetadata map[string]string) (*int, error) {
 	}
 
 	return nil, nil
+}
+
+func (c *Cassandra) GetComponentMetadata() map[string]string {
+	metadataStruct := cassandraMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

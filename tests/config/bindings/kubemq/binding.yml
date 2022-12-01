@@ -1,0 +1,13 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: binding-topic
+  namespace: default
+spec:
+  type: bindings.kubemq
+  version: v1
+  metadata:
+    - name: address
+      value: localhost:50000
+    - name: channel
+      value: queue1

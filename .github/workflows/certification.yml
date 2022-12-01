@@ -53,9 +53,11 @@ jobs:
         - pubsub.mqtt
         - state.mongodb
         - state.redis
+        - state.cockroachdb
         - state.postgresql
         - state.cassandra
         - state.memcached
+        - state.mysql
         - bindings.alicloud.dubbo
         - bindings.kafka
         - bindings.redis
@@ -244,11 +246,11 @@ jobs:
       working-directory: ${{ env.TEST_PATH }}
       run: |
         echo "Running certification tests for ${{ matrix.component }} ... "
-        export GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn
+        export GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore
         set +e
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.json \
           --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.xml --format standard-quiet -- \
-          -coverprofile=cover.out -covermode=set -coverpkg=${{ env.SOURCE_PATH }}
+          -coverprofile=cover.out -covermode=set -tags=certtests -coverpkg=${{ env.SOURCE_PATH }}
         status=$?
         echo "Completed certification tests for ${{ matrix.component }} ... "
         if test $status -ne 0; then

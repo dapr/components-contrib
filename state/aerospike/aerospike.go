@@ -17,24 +17,25 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 
 	as "github.com/aerospike/aerospike-client-go"
 	"github.com/aerospike/aerospike-client-go/types"
-	"github.com/agrea/ptr"
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
-// metadata values.
-const (
-	hosts     = "hosts"
-	namespace = "namespace"
-	set       = "set" // optional
-)
+type aerospikeMetadata struct {
+	Hosts     string
+	Namespace string
+	Set       string // optional
+}
 
 var (
 	errMissingHosts = errors.New("aerospike: value for 'hosts' missing")
@@ -65,32 +66,37 @@ func NewAerospikeStateStore(logger logger.Logger) state.Store {
 	return s
 }
 
-func validateMetadata(metadata state.Metadata) error {
-	if metadata.Properties[hosts] == "" {
-		return errMissingHosts
+func parseAndValidateMetadata(meta state.Metadata) (*aerospikeMetadata, error) {
+	var m aerospikeMetadata
+	decodeErr := metadata.DecodeMetadata(meta.Properties, &m)
+	if decodeErr != nil {
+		return nil, decodeErr
 	}
-	if metadata.Properties[namespace] == "" {
-		return errMissingHosts
+
+	if m.Hosts == "" {
+		return nil, errMissingHosts
+	}
+	if m.Namespace == "" {
+		return nil, errMissingHosts
 	}
 
 	// format is host1:port1,host2:port2
-	hostsMeta := metadata.Properties[hosts]
-	_, err := parseHosts(hostsMeta)
+	_, err := parseHosts(m.Hosts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return &m, nil
 }
 
 // Init does metadata and connection parsing.
 func (aspike *Aerospike) Init(metadata state.Metadata) error {
-	err := validateMetadata(metadata)
+	m, err := parseAndValidateMetadata(metadata)
 	if err != nil {
 		return err
 	}
 
-	hostsMeta := metadata.Properties[hosts]
+	hostsMeta := m.Hosts
 	hostPorts, _ := parseHosts(hostsMeta)
 
 	c, err := as.NewClientWithPolicyAndHost(nil, hostPorts...)
@@ -98,8 +104,8 @@ func (aspike *Aerospike) Init(metadata state.Metadata) error {
 		return fmt.Errorf("aerospike: failed to connect %v", err)
 	}
 	aspike.client = c
-	aspike.namespace = metadata.Properties[namespace]
-	aspike.set = metadata.Properties[set]
+	aspike.namespace = m.Namespace
+	aspike.set = m.Set
 
 	return nil
 }
@@ -191,7 +197,7 @@ func (aspike *Aerospike) Get(req *state.GetRequest) (*state.GetResponse, error) 
 
 	return &state.GetResponse{
 		Data: value,
-		ETag: ptr.String(strconv.FormatUint(uint64(record.Generation), 10)),
+		ETag: ptr.Of(strconv.FormatUint(uint64(record.Generation), 10)),
 	}, nil
 }
 
@@ -262,4 +268,11 @@ func convertETag(eTag string) (uint32, error) {
 	}
 
 	return uint32(i), nil
+}
+
+func (aspike *Aerospike) GetComponentMetadata() map[string]string {
+	metadataStruct := aerospikeMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

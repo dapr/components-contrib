@@ -181,7 +181,7 @@ func TestVaultTokenPrefix(t *testing.T) {
 		assert.Equal(t, "", target.vaultKVPrefix)
 	})
 
-	t.Run("if vaultKVUsePrefix is not castable to bool return error", func(t *testing.T) {
+	t.Run("if vaultKVUsePrefix is not castable to bool we treat it as False", func(t *testing.T) {
 		properties := map[string]string{
 			"vaultKVPrefix":       "myCustomString",
 			"vaultKVUsePrefix":    "invalidSetting",
@@ -192,14 +192,10 @@ func TestVaultTokenPrefix(t *testing.T) {
 			Base: metadata.Base{Properties: properties},
 		}
 
-		target := &vaultSecretStore{
-			client: nil,
-			logger: nil,
-		}
+		meta := VaultMetadata{}
+		metadata.DecodeMetadata(m.Properties, &meta)
 
-		err := target.Init(m)
-
-		assert.NotNil(t, err)
+		assert.False(t, meta.VaultKVUsePrefix)
 	})
 }
 

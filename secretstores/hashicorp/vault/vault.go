@@ -26,7 +26,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strconv"
 	"strings"
 
 	jsoniter "github.com/json-iterator/go"
@@ -98,7 +97,7 @@ type VaultMetadata struct {
 	TLSServerName       string
 	VaultAddr           string
 	VaultKVPrefix       string
-	VaultKVUsePrefix    string
+	VaultKVUsePrefix    bool
 	VaultToken          string
 	VaultTokenMountPath string
 	EnginePath          string
@@ -139,7 +138,9 @@ func NewHashiCorpVaultSecretStore(logger logger.Logger) secretstores.SecretStore
 
 // Init creates a HashiCorp Vault client.
 func (v *vaultSecretStore) Init(meta secretstores.Metadata) error {
-	m := VaultMetadata{}
+	m := VaultMetadata{
+		VaultKVUsePrefix: true,
+	}
 	err := metadata.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return err
@@ -176,23 +177,12 @@ func (v *vaultSecretStore) Init(meta secretstores.Metadata) error {
 		return initErr
 	}
 
-	vaultKVUsePrefix := m.VaultKVUsePrefix
 	vaultKVPrefix := m.VaultKVPrefix
-	convertedVaultKVUsePrefix := true
-	if vaultKVUsePrefix != "" {
-		if v, parseErr := strconv.ParseBool(vaultKVUsePrefix); parseErr == nil {
-			convertedVaultKVUsePrefix = v
-		} else if err != nil {
-			return fmt.Errorf("unable to convert Use Prefix to boolean")
-		}
-	}
-
-	if !convertedVaultKVUsePrefix {
+	if !m.VaultKVUsePrefix {
 		vaultKVPrefix = ""
 	} else if vaultKVPrefix == "" {
 		vaultKVPrefix = defaultVaultKVPrefix
 	}
-
 	v.vaultKVPrefix = vaultKVPrefix
 
 	// Generate TLS config

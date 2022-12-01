@@ -102,7 +102,11 @@ func TestVaultTLSConfig(t *testing.T) {
 			Base: metadata.Base{Properties: properties},
 		}
 
-		tlsConfig := metadataToTLSConfig(m.Properties)
+		meta := VaultMetadata{}
+		err := metadata.DecodeMetadata(m.Properties, &meta)
+		assert.NoError(t, err)
+
+		tlsConfig := metadataToTLSConfig(&meta)
 		skipVerify, err := strconv.ParseBool(properties["skipVerify"])
 		assert.Nil(t, err)
 		assert.Equal(t, properties["caCert"], tlsConfig.vaultCACert)

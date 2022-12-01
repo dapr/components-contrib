@@ -30,6 +30,8 @@ type SecretStore interface {
 	BulkGetSecret(ctx context.Context, req BulkGetSecretRequest) (BulkGetSecretResponse, error)
 	// Features lists the features supported by the secret store.
 	Features() []Feature
+	// GetComponentMetadata returns the metadata options for the secret store.
+	GetComponentMetadata() map[string]string
 }
 
 func Ping(secretStore SecretStore) error {

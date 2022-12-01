@@ -13,12 +13,10 @@ MAX_ATTEMPTS=30
 for attempt in `seq $MAX_ATTEMPTS`; do
     # Test connectivity to vault server and create secrets to match
     # conformance tests / contents from tests/conformance/secrets.json
-    if vault status && 
-        vault kv put secret/dapr/conftestsecret conftestsecret=abcd &&
-        vault kv put secret/dapr/secondsecret secondsecret=efgh &&
-        vault kv put secret/secretWithNoPrefix noPrefixKey=noProblem &&
-        vault kv put secret/alternativePrefix/secretUnderAlternativePrefix altPrefixKey=altPrefixValue &&
-        vault kv put secret/dapr/multiplekeyvaluessecret first=1 second=2 third=3;
+    if vault status &&
+        vault secrets enable -path=customSecretsPath kv-v2 &&  # Enable this path with kv/version2 engine
+        vault kv put customSecretsPath/dapr/secretUnderCustomPath the=trick was=the path=parameter &&
+        vault kv get customSecretsPath/dapr/secretUnderCustomPath ;
     then
         echo ✅ secrets set;
         sleep 1;

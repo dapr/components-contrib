@@ -20,8 +20,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-redis/redis/v8"
-
 	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -276,7 +274,7 @@ func (r *redisStreams) pollNewMessagesLoop(ctx context.Context, stream string, h
 		// Read messages
 		streams, err := r.client.XReadGroupResult(ctx, r.metadata.consumerID, r.metadata.consumerID, []string{stream, ">"}, int64(r.metadata.queueDepth), time.Duration(r.clientSettings.ReadTimeout))
 		if err != nil {
-			if !errors.Is(err, redis.Nil) && err != context.Canceled {
+			if !errors.Is(err, r.client.GetNilValueError()) && err != context.Canceled {
 				r.logger.Errorf("redis streams: error reading from stream %s: %s", stream, err)
 			}
 			continue
@@ -326,7 +324,7 @@ func (r *redisStreams) reclaimPendingMessages(ctx context.Context, stream string
 			"+",
 			int64(r.metadata.queueDepth),
 		)
-		if err != nil && !errors.Is(err, redis.Nil) {
+		if err != nil && !errors.Is(err, r.client.GetNilValueError()) {
 			r.logger.Errorf("error retrieving pending Redis messages: %v", err)
 
 			break
@@ -353,7 +351,7 @@ func (r *redisStreams) reclaimPendingMessages(ctx context.Context, stream string
 			r.metadata.processingTimeout,
 			msgIDs,
 		)
-		if err != nil && !errors.Is(err, redis.Nil) {
+		if err != nil && !errors.Is(err, r.client.GetNilValueError()) {
 			r.logger.Errorf("error claiming pending Redis messages: %v", err)
 
 			break
@@ -365,7 +363,7 @@ func (r *redisStreams) reclaimPendingMessages(ctx context.Context, stream string
 		// If the Redis nil error is returned, it means somes message in the pending
 		// state no longer exist. We need to acknowledge these messages to
 		// remove them from the pending list.
-		if errors.Is(err, redis.Nil) {
+		if errors.Is(err, r.client.GetNilValueError()) {
 			// Build a set of message IDs that were not returned
 			// that potentially no longer exist.
 			expectedMsgIDs := make(map[string]struct{}, len(msgIDs))
@@ -393,14 +391,14 @@ func (r *redisStreams) removeMessagesThatNoLongerExistFromPending(ctx context.Co
 			0,
 			[]string{pendingID},
 		)
-		if err != nil && !errors.Is(err, redis.Nil) {
+		if err != nil && !errors.Is(err, r.client.GetNilValueError()) {
 			r.logger.Errorf("error claiming pending Redis message %s: %v", pendingID, err)
 
 			continue
 		}
 
 		// Ack the message to remove it from the pending list.
-		if errors.Is(err, redis.Nil) {
+		if errors.Is(err, r.client.GetNilValueError()) {
 			// Use the background context in case subscriptionCtx is already closed
 			if err = r.client.XAck(context.Background(), stream, r.metadata.consumerID, pendingID); err != nil {
 				r.logger.Errorf("error acknowledging Redis message %s after failed claim for %s: %v", pendingID, stream, err)

@@ -55,6 +55,7 @@ var clientHasJSONSupport *bool
 
 //nolint:interfacebloat
 type RedisClient interface {
+	GetNilValueError() RedisError
 	Context() context.Context
 	DoRead(ctx context.Context, args ...interface{}) (interface{}, error)
 	DoWrite(ctx context.Context, args ...interface{}) error
@@ -154,3 +155,9 @@ func GetServerVersion(c RedisClient) (string, error) {
 	}
 	return "", fmt.Errorf("could not find redis_version in redis info response")
 }
+
+type RedisError string
+
+func (e RedisError) Error() string { return string(e) }
+
+func (RedisError) RedisError() {}

@@ -1,0 +1,21 @@
+version: '3.5'
+services:
+  cockroachdb:
+    image: cockroachdb/cockroach:v21.2.3
+    hostname: cockroachdb
+    command: start-single-node --cluster-name=single-node --logtostderr=WARNING --log-file-verbosity=WARNING --insecure
+    restart: always
+    security_opt:
+      - no-new-privileges
+    ports:
+      - "26257:26257"
+      
+  cockroachdb-init:
+    hostname: cockroachdb-init
+    image: timveil/cockroachdb-remote-client:latest
+    environment:
+      - COCKROACH_HOST=cockroachdb:26257
+      - COCKROACH_INSECURE=true
+      - DATABASE_NAME=dapr_test
+    depends_on:
+      - cockroachdb

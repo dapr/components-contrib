@@ -207,7 +207,7 @@ func TestPostgreSQL(t *testing.T) {
 
 		// save state
 		_, err = client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		return nil
 	}

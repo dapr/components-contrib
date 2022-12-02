@@ -58,7 +58,7 @@ require (
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-redis/redis/v8 v8.11.5
-	github.com/go-redis/redis/v9 v9.0.0-rc.1.0.20221020134405-f1d6bc91b735
+	github.com/go-redis/redis/v9 v9.0.0-rc.2
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/gocql/gocql v1.2.1
 	github.com/golang-jwt/jwt/v4 v4.4.2
@@ -113,7 +113,7 @@ require (
 	go.uber.org/ratelimit v0.2.0
 	golang.org/x/crypto v0.1.0
 	golang.org/x/mod v0.6.0
-	golang.org/x/net v0.1.0
+	golang.org/x/net v0.2.0
 	golang.org/x/oauth2 v0.1.0
 	google.golang.org/api v0.101.0
 	google.golang.org/grpc v1.50.1
@@ -342,8 +342,8 @@ require (
 	go.uber.org/multierr v1.7.0 // indirect
 	go.uber.org/zap v1.21.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
-	golang.org/x/sys v0.1.0 // indirect
-	golang.org/x/term v0.1.0 // indirect
+	golang.org/x/sys v0.2.0 // indirect
+	golang.org/x/term v0.2.0 // indirect
 	golang.org/x/text v0.4.0 // indirect
 	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect

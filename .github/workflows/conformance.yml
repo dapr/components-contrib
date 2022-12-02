@@ -70,7 +70,6 @@ jobs:
         - pubsub.pulsar
         - pubsub.rabbitmq
         - pubsub.redis.v6
-        - pubsub.redis.v7
         - pubsub.kafka-wurstmeister
         - pubsub.kafka-confluent
         - pubsub.kubemq

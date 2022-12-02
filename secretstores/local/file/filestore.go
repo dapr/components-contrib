@@ -30,9 +30,9 @@ import (
 )
 
 type localSecretStoreMetaData struct {
-	SecretsFile     string `mapstructure:"secretsFile"`
-	NestedSeparator string `mapstructure:"nestedSeparator"`
-	MultiValued     bool   `mapstructure:"multiValued"`
+	SecretsFile     string
+	NestedSeparator string
+	MultiValued     bool
 }
 
 var _ secretstores.SecretStore = (*localSecretStore)(nil)
@@ -275,4 +275,11 @@ func (j *localSecretStore) readLocalFile(secretsFile string) (map[string]interfa
 // Features returns the features available in this secret store.
 func (j *localSecretStore) Features() []secretstores.Feature {
 	return j.features
+}
+
+func (j *localSecretStore) GetComponentMetadata() map[string]string {
+	metadataStruct := localSecretStoreMetaData{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

@@ -61,6 +61,7 @@ jobs:
         - bindings.alicloud.dubbo
         - bindings.kafka
         - bindings.redis
+        - bindings.cron
         - secretstores.local.env
         - secretstores.local.file
         - secretstores.hashicorp.vault

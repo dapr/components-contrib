@@ -49,6 +49,9 @@ type Metadata struct {
 	PublishMaxRetries               int    `json:"publishMaxRetries"`
 	PublishInitialRetryIntervalInMs int    `json:"publishInitialRetryInternalInMs"`
 	NamespaceName                   string `json:"namespaceName"` // Only for Azure AD
+	SessionsEnabled                 bool   `json:"sessionsEnabled"`
+	MaxConcurrentSesions            *int   `json:"maxConcurrentSessions"`
+	SessionIdleTimeoutInSec         *int   `json:"sessionIdleTimeoutInSec"`
 
 	/** For bindings only **/
 	QueueName string `json:"queueName"` // Only queues

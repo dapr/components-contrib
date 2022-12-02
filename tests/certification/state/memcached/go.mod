@@ -57,7 +57,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
-	github.com/hashicorp/serf v0.9.7 // indirect
+	github.com/hashicorp/serf v0.10.1 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/jhump/protoreflect v1.13.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
@@ -78,7 +78,7 @@ require (
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/prometheus/client_golang v1.13.0 // indirect
+	github.com/prometheus/client_golang v1.13.1 // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.37.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
@@ -92,8 +92,8 @@ require (
 	github.com/tidwall/transform v0.0.0-20201103190739-32f242e2dbde // indirect
 	github.com/tylertreat/comcast v1.0.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
-	github.com/valyala/fasthttp v1.41.0 // indirect
-	go.opencensus.io v0.23.0 // indirect
+	github.com/valyala/fasthttp v1.43.0 // indirect
+	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/otel v1.11.1 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.11.1 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.11.1 // indirect
@@ -106,18 +106,18 @@ require (
 	go.uber.org/atomic v1.10.0 // indirect
 	golang.org/x/exp v0.0.0-20221028150844-83b7d23a625f // indirect
 	golang.org/x/mod v0.6.0 // indirect
-	golang.org/x/net v0.1.0 // indirect
-	golang.org/x/oauth2 v0.1.0 // indirect
+	golang.org/x/net v0.2.0 // indirect
+	golang.org/x/oauth2 v0.2.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
-	golang.org/x/sys v0.1.0 // indirect
-	golang.org/x/term v0.1.0 // indirect
+	golang.org/x/sys v0.2.0 // indirect
+	golang.org/x/term v0.2.0 // indirect
 	golang.org/x/text v0.4.0 // indirect
-	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af // indirect
+	golang.org/x/time v0.1.0 // indirect
 	golang.org/x/tools v0.2.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20221027153422-115e99e71e1c // indirect
-	google.golang.org/grpc v1.50.1 // indirect
+	google.golang.org/genproto v0.0.0-20221201164419-0e50fba7f41c // indirect
+	google.golang.org/grpc v1.51.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

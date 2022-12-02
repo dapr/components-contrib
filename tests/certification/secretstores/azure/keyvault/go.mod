@@ -16,10 +16,10 @@ require (
 	github.com/AdhityaRamadhanus/fasthttpcors v0.0.0-20170121111917-d4c07198763a // indirect
 	github.com/Azure/azure-amqp-common-go/v3 v3.2.3 // indirect
 	github.com/Azure/azure-pipeline-go v0.2.3 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.1.4 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.1.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.2.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.0.1 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets v0.10.1 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets v0.11.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/keyvault/internal v0.7.0 // indirect
 	github.com/Azure/azure-storage-blob-go v0.10.0 // indirect
 	github.com/Azure/azure-storage-queue-go v0.0.0-20191125232315-636801874cdd // indirect
@@ -31,7 +31,7 @@ require (
 	github.com/Azure/go-autorest/autorest/date v0.3.0 // indirect
 	github.com/Azure/go-autorest/logger v0.2.1 // indirect
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
-	github.com/AzureAD/microsoft-authentication-library-for-go v0.5.1 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v0.7.0 // indirect
 	github.com/PuerkitoBio/purell v1.2.0 // indirect
 	github.com/andybalholm/brotli v1.0.4 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20220418222510-f25a4f6275ed // indirect
@@ -56,8 +56,7 @@ require (
 	github.com/go-openapi/jsonreference v0.19.5 // indirect
 	github.com/go-openapi/swag v0.19.14 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
-	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
+	github.com/golang-jwt/jwt/v4 v4.4.3 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
@@ -77,7 +76,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
-	github.com/hashicorp/serf v0.9.7 // indirect
+	github.com/hashicorp/serf v0.10.1 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/jhump/protoreflect v1.13.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
@@ -101,7 +100,7 @@ require (
 	github.com/pkg/browser v0.0.0-20210115035449-ce105d075bb4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/prometheus/client_golang v1.13.0 // indirect
+	github.com/prometheus/client_golang v1.13.1 // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.37.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
@@ -114,8 +113,8 @@ require (
 	github.com/stretchr/objx v0.5.0 // indirect
 	github.com/tidwall/transform v0.0.0-20201103190739-32f242e2dbde // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
-	github.com/valyala/fasthttp v1.41.0 // indirect
-	go.opencensus.io v0.23.0 // indirect
+	github.com/valyala/fasthttp v1.43.0 // indirect
+	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/otel v1.11.1 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.11.1 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.11.1 // indirect
@@ -126,21 +125,21 @@ require (
 	go.opentelemetry.io/otel/trace v1.11.1 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
-	golang.org/x/crypto v0.1.0 // indirect
+	golang.org/x/crypto v0.3.0 // indirect
 	golang.org/x/exp v0.0.0-20221028150844-83b7d23a625f // indirect
 	golang.org/x/mod v0.6.0 // indirect
-	golang.org/x/net v0.1.0 // indirect
-	golang.org/x/oauth2 v0.1.0 // indirect
+	golang.org/x/net v0.2.0 // indirect
+	golang.org/x/oauth2 v0.2.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
-	golang.org/x/sys v0.1.0 // indirect
-	golang.org/x/term v0.1.0 // indirect
+	golang.org/x/sys v0.2.0 // indirect
+	golang.org/x/term v0.2.0 // indirect
 	golang.org/x/text v0.4.0 // indirect
-	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af // indirect
+	golang.org/x/time v0.1.0 // indirect
 	golang.org/x/tools v0.2.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20221027153422-115e99e71e1c // indirect
-	google.golang.org/grpc v1.50.1 // indirect
+	google.golang.org/genproto v0.0.0-20221201164419-0e50fba7f41c // indirect
+	google.golang.org/grpc v1.51.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

@@ -186,15 +186,18 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 		a.metadata.MaxRetriableErrorsPerSec,
 		a.metadata.MaxConcurrentHandlers,
 		"queue "+req.Topic,
+		a.metadata.LockRenewalInSec,
+		false,
 		a.logger,
 	)
 
 	receiveAndBlockFn := func(onFirstSuccess func()) error {
 		return sub.ReceiveAndBlock(
 			impl.GetPubSubHandlerFunc(req.Topic, handler, a.logger, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second),
-			a.metadata.LockRenewalInSec,
-			false, // Bulk is not supported in regular Subscribe.
 			onFirstSuccess,
+			impl.ReceiveOptions{
+				BulkEnabled: false, // Bulk is not supported in regular Subscribe.
+			},
 		)
 	}
 
@@ -211,15 +214,18 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 		a.metadata.MaxRetriableErrorsPerSec,
 		a.metadata.MaxConcurrentHandlers,
 		"queue "+req.Topic,
+		a.metadata.LockRenewalInSec,
+		false,
 		a.logger,
 	)
 
 	receiveAndBlockFn := func(onFirstSuccess func()) error {
 		return sub.ReceiveAndBlock(
 			impl.GetBulkPubSubHandlerFunc(req.Topic, handler, a.logger, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second),
-			a.metadata.LockRenewalInSec,
-			true, // Bulk is supported in BulkSubscribe.
 			onFirstSuccess,
+			impl.ReceiveOptions{
+				BulkEnabled: true, // Bulk is supported in BulkSubscribe.
+			},
 		)
 	}
 
@@ -252,9 +258,11 @@ func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
 		// Reconnect loop.
 		for {
 			// Blocks until a successful connection (or until context is canceled)
-			err := sub.Connect(func() (*servicebus.Receiver, error) {
-				return a.client.GetClient().NewReceiverForQueue(req.Topic, nil)
+			err := sub.Connect(func() (impl.Receiver, error) {
+				receiver, err := a.client.GetClient().NewReceiverForQueue(req.Topic, nil)
+				return &impl.MessageReceiver{Receiver: receiver}, err
 			})
+
 			if err != nil {
 				// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
 				if errors.Is(err, context.Canceled) {

@@ -63,6 +63,8 @@ func TestNewSubscription(t *testing.T) {
 				10,
 				100,
 				"test",
+				30,
+				false,
 				logger.NewLogger("test"),
 			)
 			if sub.maxBulkSubCount != tc.maxBulkSubCountExpected {

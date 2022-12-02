@@ -99,7 +99,7 @@ func ParseClientFromProperties(properties map[string]string, defaultSettings *Se
 	if versionErr != nil {
 		// we couldn't query the server version, so we will assume the v8 client is not supported
 		useNewClient = true
-	} else if semver.Compare(version, "7.0.0") > -1 {
+	} else if semver.Compare("v"+version, "v7.0.0") > -1 {
 		// if the server version is >= 7, we will use the v9 client
 		useNewClient = true
 	}

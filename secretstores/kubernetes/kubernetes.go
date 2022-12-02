@@ -18,11 +18,13 @@ import (
 	"context"
 	"errors"
 	"os"
+	"reflect"
 
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
 	kubeclient "github.com/dapr/components-contrib/internal/authentication/kubernetes"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 )
@@ -113,4 +115,12 @@ func (k *kubernetesSecretStore) getNamespaceFromMetadata(metadata map[string]str
 // Features returns the features available in this secret store.
 func (k *kubernetesSecretStore) Features() []secretstores.Feature {
 	return []secretstores.Feature{}
+}
+
+func (k *kubernetesSecretStore) GetComponentMetadata() map[string]string {
+	type unusedMetadataStruct struct{}
+	metadataStruct := unusedMetadataStruct{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

@@ -3,7 +3,7 @@ module github.com/dapr/components-contrib/tests/certification
 go 1.19
 
 require (
-	github.com/dapr/components-contrib v1.9.1-0.20221025205611-e38369028650
+	github.com/dapr/components-contrib v1.9.1-0.20221111215803-c92827c3defc
 	github.com/dapr/dapr v1.9.4-0.20221121055721-6683f7582ac4
 	github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721
 	github.com/dapr/kit v0.0.3
@@ -139,6 +139,7 @@ require (
 
 )
 
-replace github.com/dapr/dapr => github.com/berndverst/dapr v1.1.3-0.20221105062638-159383e4fac0
+// This replace is needed for till PR dapr/dapr#5498 is mereged
+replace github.com/dapr/dapr => github.com/mukundansundar/dapr v0.7.1-0.20221114120012-030cfadfc53d
 
 replace github.com/dapr/components-contrib => ../../

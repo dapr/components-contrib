@@ -3,7 +3,7 @@ module github.com/dapr/components-contrib/tests/certification/secretstores/hashi
 go 1.18
 
 require (
-	github.com/dapr/components-contrib v1.9.1-0.20221025205611-e38369028650
+	github.com/dapr/components-contrib v1.9.1-0.20221111215803-c92827c3defc
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20220526162429-d03aeba3e0d6
 	github.com/dapr/dapr v1.9.4-0.20221121055721-6683f7582ac4 // We require dapr/dapr#5208 merged
 	github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721

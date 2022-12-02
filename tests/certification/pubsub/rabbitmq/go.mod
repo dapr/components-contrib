@@ -3,8 +3,13 @@ module github.com/dapr/components-contrib/tests/certification/pubsub/rabbitmq
 go 1.19
 
 require (
+<<<<<<< HEAD
 	github.com/cenkalti/backoff/v4 v4.2.0
 	github.com/dapr/components-contrib v1.9.1-0.20221025205611-e38369028650
+=======
+	github.com/cenkalti/backoff/v4 v4.1.3
+	github.com/dapr/components-contrib v1.9.1-0.20221111215803-c92827c3defc
+>>>>>>> 5ab1df29 (fix cert test dependency to dapr/dapr PR dependency)
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
 	github.com/dapr/dapr v1.9.4-0.20221121055721-6683f7582ac4
 	github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721

@@ -48,6 +48,7 @@ jobs:
       id: pr-components
       run: |
         PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
+        - bindings.cron
         - bindings.http
         - bindings.influx
         - bindings.kafka-wurstmeister
@@ -84,6 +85,7 @@ jobs:
         - state.postgresql
         - state.redis
         - state.sqlserver
+        - state.in-memory
         - state.cockroachdb
         - workflows.temporal
         - state.rethinkdb
@@ -333,7 +335,7 @@ jobs:
       if: contains(matrix.component, 'mysql.mariadb')
 
     - name: Start KinD
-      uses: helm/kind-action@v1.0.0
+      uses: helm/kind-action@v1.4.0
       if: contains(matrix.component, 'kubernetes')
 
     - name: Start postgresql

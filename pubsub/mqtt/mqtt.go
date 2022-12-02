@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -240,11 +241,6 @@ func (m *mqttPubSub) onMessage(ctx context.Context) func(client mqtt.Client, mqt
 	return func(client mqtt.Client, mqttMsg mqtt.Message) {
 		ack := false
 		defer func() {
-			// Do not send N/ACKs on retained messages
-			if mqttMsg.Retained() {
-				return
-			}
-
 			// MQTT does not support NACK's, so in case of error we need to re-enqueue the message and then send a positive ACK for this message
 			// Note that if the connection drops before the message is explicitly ACK'd below, then it's automatically re-sent (assuming QoS is 1 or greater, which is the default). So we do not risk losing messages.
 			// Problem with this approach is that if the service crashes between the time the message is re-enqueued and when the ACK is sent, the message may be delivered twice
@@ -272,8 +268,9 @@ func (m *mqttPubSub) onMessage(ctx context.Context) func(client mqtt.Client, mqt
 		}()
 
 		msg := pubsub.NewMessage{
-			Topic: mqttMsg.Topic(),
-			Data:  mqttMsg.Payload(),
+			Topic:    mqttMsg.Topic(),
+			Data:     mqttMsg.Payload(),
+			Metadata: map[string]string{"retained": strconv.FormatBool(mqttMsg.Retained())},
 		}
 
 		topicHandler := m.handlerForTopic(msg.Topic)

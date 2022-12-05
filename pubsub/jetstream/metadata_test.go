@@ -18,9 +18,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nats-io/nats.go"
+
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/nats-io/nats.go"
 )
 
 func TestParseMetadata(t *testing.T) {

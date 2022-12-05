@@ -108,7 +108,12 @@ func TestCronRead(t *testing.T) {
 		return nil, nil
 	})
 	// Check if cron triggers 5 times in 5 seconds
-	clk.Add(5 * time.Second)
+	for i := 0; i < expectedCount; i++ {
+		// Add time to mock clock in 1 second intervals using loop to allow cron go routine to run
+		clk.Add(time.Second)
+	}
+	// Wait for 1 second after adding the last second to mock clock to allow cron to finish triggering
+	time.Sleep(1 * time.Second)
 	assert.Equal(t, expectedCount, observedCount, "Cron did not trigger expected number of times, expected %d, got %d", expectedCount, observedCount)
 	assert.NoErrorf(t, err, "error on read")
 }
@@ -132,7 +137,11 @@ func TestCronReadWithContextCancellation(t *testing.T) {
 		return nil, nil
 	})
 	// Check if cron triggers only 5 times in 10 seconds since context should be cancelled after 5 triggers
-	clk.Add(10 * time.Second)
+	for i := 0; i < 10; i++ {
+		// Add time to mock clock in 1 second intervals using loop to allow cron go routine to run
+		clk.Add(time.Second)
+	}
+	time.Sleep(1 * time.Second)
 	assert.Equal(t, expectedCount, observedCount, "Cron did not trigger expected number of times, expected %d, got %d", expectedCount, observedCount)
 	assert.NoErrorf(t, err, "error on read")
 }

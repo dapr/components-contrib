@@ -146,6 +146,7 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 		consumerConfig.Heartbeat = js.meta.hearbeat
 	}
 	consumerConfig.FilterSubject = req.Topic
+	consumerConfig.AckPolicy = nats.AckExplicitPolicy
 
 	natsHandler := func(m *nats.Msg) {
 		jsm, err := m.Metadata()
@@ -168,7 +169,7 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 		if err != nil {
 			js.l.Errorf("Error processing JetStream message %s/%d: %v", m.Subject, jsm.Sequence, err)
 
-			nakErr := m.Nak()
+			nakErr := m.NakWithDelay(time.Second * 1)
 			if nakErr != nil {
 				js.l.Errorf("Error while sending NAK for JetStream message %s/%d: %v", m.Subject, jsm.Sequence, nakErr)
 			}
@@ -201,10 +202,13 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 	if queue := js.meta.queueGroupName; queue != "" {
 		js.l.Debugf("nats: subscribed to subject %s with queue group %s",
 			req.Topic, js.meta.queueGroupName)
-		subscription, err = js.jsc.QueueSubscribe(req.Topic, queue, natsHandler, nats.Bind(streamName, consumerInfo.Name))
+		_, err := js.jsc.QueueSubscribe(req.Topic, queue, natsHandler, nats.Bind(streamName, consumerInfo.Name))
+		if err != nil {
+			panic(err)
+		}
 	} else {
 		js.l.Debugf("nats: subscribed to subject %s", req.Topic)
-		subscription, err = js.jsc.Subscribe(req.Topic, natsHandler, nats.Bind(streamName, consumerInfo.Name))
+		_, err = js.jsc.Subscribe(req.Topic, natsHandler, nats.Bind(streamName, consumerInfo.Name))
 	}
 	if err != nil {
 		return err

@@ -19,8 +19,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dapr/components-contrib/pubsub"
 	"github.com/nats-io/nats.go"
+
+	"github.com/dapr/components-contrib/pubsub"
 )
 
 type metadata struct {

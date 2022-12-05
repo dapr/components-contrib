@@ -17,12 +17,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 
@@ -31,21 +33,17 @@ import (
 
 const VersionID = "version_id"
 
-type gcpCredentials struct {
-	Type                string `json:"type"`
-	ProjectID           string `json:"project_id"`
-	PrivateKey          string `json:"private_key"`
-	ClientEmail         string `json:"client_email"`
-	PrivateKeyID        string `json:"private_key_id"`
-	ClientID            string `json:"client_id"`
-	AuthURI             string `json:"auth_uri"`
-	TokenURI            string `json:"token_uri"`
-	AuthProviderCertURL string `json:"auth_provider_x509_cert_url"`
-	ClientCertURL       string `json:"client_x509_cert_url"`
-}
-
-type secretManagerMetadata struct {
-	gcpCredentials
+type GcpSecretManagerMetadata struct {
+	Type                string `mapstructure:"type" json:"type"`
+	ProjectID           string `mapstructure:"project_id" json:"project_id"`
+	PrivateKey          string `mapstructure:"private_key" json:"private_key"`
+	ClientEmail         string `mapstructure:"client_email" json:"client_email"`
+	PrivateKeyID        string `mapstructure:"private_key_id" json:"private_key_id"`
+	ClientID            string `mapstructure:"client_id" json:"client_id"`
+	AuthURI             string `mapstructure:"auth_uri" json:"auth_uri"`
+	TokenURI            string `mapstructure:"token_uri" json:"token_uri"`
+	AuthProviderCertURL string `mapstructure:"auth_provider_x509_cert_url" json:"auth_provider_x509_cert_url"`
+	ClientCertURL       string `mapstructure:"client_x509_cert_url" json:"client_x509_cert_url"`
 }
 
 type gcpSecretemanagerClient interface {
@@ -87,7 +85,7 @@ func (s *Store) Init(metadataRaw secretstores.Metadata) error {
 	return nil
 }
 
-func (s *Store) getClient(metadata *secretManagerMetadata) (*secretmanager.Client, error) {
+func (s *Store) getClient(metadata *GcpSecretManagerMetadata) (*secretmanager.Client, error) {
 	b, _ := json.Marshal(metadata)
 	clientOptions := option.WithCredentialsJSON(b)
 	ctx := context.Background()
@@ -177,17 +175,9 @@ func (s *Store) getSecret(ctx context.Context, secretName string, versionID stri
 	return &secret, nil
 }
 
-func (s *Store) parseSecretManagerMetadata(metadataRaw secretstores.Metadata) (*secretManagerMetadata, error) {
-	b, err := json.Marshal(metadataRaw.Properties)
-	if err != nil {
-		return nil, err
-	}
-
-	var meta secretManagerMetadata
-	err = json.Unmarshal(b, &meta)
-	if err != nil {
-		return nil, err
-	}
+func (s *Store) parseSecretManagerMetadata(metadataRaw secretstores.Metadata) (*GcpSecretManagerMetadata, error) {
+	meta := GcpSecretManagerMetadata{}
+	metadata.DecodeMetadata(metadataRaw.Properties, &meta)
 
 	if meta.Type == "" {
 		return nil, fmt.Errorf("missing property `type` in metadata")
@@ -212,4 +202,11 @@ func (s *Store) Close() error {
 // Features returns the features available in this secret store.
 func (s *Store) Features() []secretstores.Feature {
 	return []secretstores.Feature{} // No Feature supported.
+}
+
+func (s *Store) GetComponentMetadata() map[string]string {
+	metadataStruct := GcpSecretManagerMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

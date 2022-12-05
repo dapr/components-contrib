@@ -20,6 +20,7 @@ import (
 
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/nats-io/nats.go"
 )
 
 func TestParseMetadata(t *testing.T) {
@@ -68,6 +69,7 @@ func TestParseMetadata(t *testing.T) {
 				memoryStorage:  true,
 				rateLimit:      20000,
 				hearbeat:       time.Second * 1,
+				ackPolicy:      nats.AckExplicitPolicy,
 			},
 			expectErr: false,
 		},
@@ -92,6 +94,7 @@ func TestParseMetadata(t *testing.T) {
 					"rateLimit":      "20000",
 					"hearbeat":       "1s",
 					"token":          "myToken",
+					"ackPolicy":      "all",
 				},
 			}},
 			want: metadata{
@@ -112,6 +115,7 @@ func TestParseMetadata(t *testing.T) {
 				rateLimit:      20000,
 				hearbeat:       time.Second * 1,
 				token:          "myToken",
+				ackPolicy:      nats.AckAllPolicy,
 			},
 			expectErr: false,
 		},

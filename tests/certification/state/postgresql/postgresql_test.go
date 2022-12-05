@@ -14,26 +14,31 @@ limitations under the License.
 package main
 
 import (
+	"context"
+	"database/sql"
+	"errors"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
+	pgx "github.com/jackc/pgx/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/state"
 	state_postgres "github.com/dapr/components-contrib/state/postgresql"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
 	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
-	"github.com/dapr/kit/logger"
-
 	"github.com/dapr/go-sdk/client"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -41,6 +46,9 @@ const (
 	dockerComposeYAML       = "docker-compose.yml"
 	stateStoreName          = "statestore"
 	certificationTestPrefix = "stable-certification-"
+	connStringValue         = "postgres://postgres:example@localhost:5432/dapr_test"
+	keyConnectionString     = "connectionString"
+	keyCleanupInterval      = "cleanupIntervalInSeconds"
 )
 
 func TestPostgreSQL(t *testing.T) {
@@ -58,8 +66,159 @@ func TestPostgreSQL(t *testing.T) {
 
 	currentGrpcPort := ports[0]
 
+	// Update this constant if you add more migrations
+	const migrationLevel = "2"
+
+	// Tests the "Init" method and the database migrations
+	// It also tests the metadata properties "tableName" and "metadataTableName"
+	initTest := func(ctx flow.Context) error {
+		// Acquire a DB client as the "postgres" (ie. "root") user which we'll use to validate migrations and other changes in state
+		dbClient, err := connectDB()
+		require.NoError(t, err, "failed to create a connection to the database")
+
+		md := state.Metadata{
+			Base: metadata.Base{
+				Name: "inittest",
+				Properties: map[string]string{
+					keyConnectionString: connStringValue,
+					keyCleanupInterval:  "-1",
+				},
+			},
+		}
+
+		t.Run("initial state clean", func(t *testing.T) {
+			storeObj := state_postgres.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
+			md.Properties["tableName"] = "clean_state"
+			md.Properties["metadataTableName"] = "clean_metadata"
+
+			// Init and perform the migrations
+			err := storeObj.Init(md)
+			require.NoError(t, err, "failed to init")
+
+			// We should have the tables correctly created
+			err = tableExists(dbClient, "public", "clean_state")
+			assert.NoError(t, err, "state table does not exist")
+			err = tableExists(dbClient, "public", "clean_metadata")
+			assert.NoError(t, err, "metadata table does not exist")
+
+			// Ensure migration level is correct
+			level, err := getMigrationLevel(dbClient, "clean_metadata")
+			assert.NoError(t, err, "failed to get migration level")
+			assert.Equal(t, migrationLevel, level, "migration level mismatch: found '%s' but expected '%s'", level, migrationLevel)
+
+			err = storeObj.Close()
+			require.NoError(t, err, "failed to close component")
+		})
+
+		t.Run("initial state clean, with explicit schema name", func(t *testing.T) {
+			storeObj := state_postgres.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
+			md.Properties["tableName"] = "public.clean2_state"
+			md.Properties["metadataTableName"] = "public.clean2_metadata"
+
+			// Init and perform the migrations
+			err := storeObj.Init(md)
+			require.NoError(t, err, "failed to init")
+
+			// We should have the tables correctly created
+			err = tableExists(dbClient, "public", "clean2_state")
+			assert.NoError(t, err, "state table does not exist")
+			err = tableExists(dbClient, "public", "clean2_metadata")
+			assert.NoError(t, err, "metadata table does not exist")
+
+			// Ensure migration level is correct
+			level, err := getMigrationLevel(dbClient, "clean2_metadata")
+			assert.NoError(t, err, "failed to get migration level")
+			assert.Equal(t, migrationLevel, level, "migration level mismatch: found '%s' but expected '%s'", level, migrationLevel)
+
+			err = storeObj.Close()
+			require.NoError(t, err, "failed to close component")
+		})
+
+		t.Run("all migrations performed", func(t *testing.T) {
+			// Re-use "clean_state" and "clean_metadata"
+			storeObj := state_postgres.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
+			md.Properties["tableName"] = "clean_state"
+			md.Properties["metadataTableName"] = "clean_metadata"
+
+			// Should already have migration level 2
+			level, err := getMigrationLevel(dbClient, "clean_metadata")
+			assert.NoError(t, err, "failed to get migration level")
+			assert.Equal(t, migrationLevel, level, "migration level mismatch: found '%s' but expected '%s'", level, migrationLevel)
+
+			// Init and perform the migrations
+			err = storeObj.Init(md)
+			require.NoError(t, err, "failed to init")
+
+			// Ensure migration level is correct
+			level, err = getMigrationLevel(dbClient, "clean_metadata")
+			assert.NoError(t, err, "failed to get migration level")
+			assert.Equal(t, migrationLevel, level, "migration level mismatch: found '%s' but expected '%s'", level, migrationLevel)
+
+			err = storeObj.Close()
+			require.NoError(t, err, "failed to close component")
+		})
+
+		t.Run("migrate from implied level 1", func(t *testing.T) {
+			// Before we added the metadata table, the "implied" level 1 had only the state table
+			// Create that table to simulate the old state and validate the migration
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			_, err := dbClient.Exec(
+				ctx,
+				`CREATE TABLE pre_state (
+					key text NOT NULL PRIMARY KEY,
+					value jsonb NOT NULL,
+					isbinary boolean NOT NULL,
+					insertdate TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+					updatedate TIMESTAMP WITH TIME ZONE NULL
+				)`,
+			)
+			require.NoError(t, err, "failed to create initial migration state")
+
+			storeObj := state_postgres.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
+			md.Properties["tableName"] = "pre_state"
+			md.Properties["metadataTableName"] = "pre_metadata"
+
+			// Init and perform the migrations
+			err = storeObj.Init(md)
+			require.NoError(t, err, "failed to init")
+
+			// We should have the metadata table created
+			err = tableExists(dbClient, "public", "pre_metadata")
+			assert.NoError(t, err, "metadata table does not exist")
+
+			// Ensure migration level is correct
+			level, err := getMigrationLevel(dbClient, "pre_metadata")
+			assert.NoError(t, err, "failed to get migration level")
+			assert.Equal(t, migrationLevel, level, "migration level mismatch: found '%s' but expected '%s'", level, migrationLevel)
+
+			// Ensure the expiredate column has been added
+			var colExists bool
+			ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			err = dbClient.
+				QueryRow(ctx,
+					`SELECT EXISTS (
+						SELECT 1
+						FROM information_schema.columns
+						WHERE
+							table_schema = 'public'
+							AND table_name = 'pre_state'
+							AND column_name = 'expiredate'
+					)`,
+				).
+				Scan(&colExists)
+			assert.True(t, colExists, "column expiredate not found in updated table")
+
+			err = storeObj.Close()
+			require.NoError(t, err, "failed to close component")
+		})
+
+		return nil
+	}
+
 	basicTest := func(ctx flow.Context) error {
-		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+		client, err := client.NewClientWithPort(strconv.Itoa(currentGrpcPort))
 		if err != nil {
 			panic(err)
 		}
@@ -247,6 +406,7 @@ func TestPostgreSQL(t *testing.T) {
 	flow.New(t, "Run tests").
 		Step(dockercompose.Run("db", dockerComposeYAML)).
 		Step("wait for component to start", flow.Sleep(10*time.Second)).
+		Step("Run Init test", initTest).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
@@ -263,4 +423,44 @@ func TestPostgreSQL(t *testing.T) {
 		Step("wait for component to start", flow.Sleep(10*time.Second)).
 		Step("Run connection test", testGetAfterPostgresRestart).
 		Run()
+}
+
+func connectDB() (*pgx.Conn, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	dbClient, err := pgx.Connect(ctx, connStringValue)
+	cancel()
+	return dbClient, err
+}
+
+func tableExists(dbClient *pgx.Conn, schema string, table string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	var scanTable, scanSchema string
+	err := dbClient.QueryRow(
+		ctx,
+		"SELECT table_name, table_schema FROM information_schema.tables WHERE table_name = $1 AND table_schema = $2",
+		table, schema,
+	).Scan(&scanTable, &scanSchema)
+	if err != nil {
+		return fmt.Errorf("error querying for table: %w", err)
+	}
+	if table != scanTable || schema != scanSchema {
+		return fmt.Errorf("found table '%s.%s' does not match", scanSchema, scanTable)
+	}
+	return nil
+}
+
+func getMigrationLevel(dbClient *pgx.Conn, metadataTable string) (level string, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	err = dbClient.
+		QueryRow(ctx, fmt.Sprintf(`SELECT value FROM %s WHERE key = 'migrations'`, metadataTable)).
+		Scan(&level)
+	if err != nil && errors.Is(err, sql.ErrNoRows) {
+		err = nil
+		level = ""
+	}
+	return level, err
 }

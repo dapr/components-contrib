@@ -37,7 +37,7 @@ func NewJetStream(logger logger.Logger) pubsub.PubSub {
 	return &jetstreamPubSub{l: logger}
 }
 
-func (js *jetstreamPubSub) Init(metadata pubsub.Metadata) error {
+func (js *jetstreamPubSub) Init(metadata pubsub.Metadat) error {
 	var err error
 	js.meta, err = parseMetadata(metadata)
 	if err != nil {
@@ -198,9 +198,9 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 
 		if js.meta.ackPolicy == nats.AckExplicitPolicy || js.meta.ackPolicy == nats.AckAllPolicy {
 			err = m.Ack()
-		}
-		if err != nil {
-			js.l.Errorf("Error while sending ACK for JetStream message %s/%d: %v", m.Subject, jsm.Sequence, err)
+			if err != nil {
+				js.l.Errorf("Error while sending ACK for JetStream message %s/%d: %v", m.Subject, jsm.Sequence, err)
+			}
 		}
 	}
 

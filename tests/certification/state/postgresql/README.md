@@ -18,6 +18,7 @@ Also test the `tableName` and `metadataTableName` metadata properties.
 1. Initializes the component with names for tables that don't exist, specifying an explicit schema
 1. Initializes the component with all migrations performed (current level is "2")
 1. Initializes the component with only the state table, created before the metadata table was added (implied migration level "1")
+1. Initializes three components at the same time and ensure no race conditions exist in performing migrations
 
 ## Test for CRUD operations
 

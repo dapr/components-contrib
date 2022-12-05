@@ -35,8 +35,32 @@ type migrations struct {
 
 // Perform the required migrations
 func (m *migrations) Perform(ctx context.Context) error {
+	// Use an advisory lock (with an arbitrary number) to ensure that no one else is performing migrations at the same time
+	// This is the only way to also ensure we are not running multiple "CREATE TABLE IF NOT EXISTS" at the exact same time
+	// See: https://www.postgresql.org/message-id/CA+TgmoZAdYVtwBfp1FL2sMZbiHCWT4UPrzRLNnX1Nb30Ku3-gg@mail.gmail.com
+	const lockId = 42
+
+	// Long timeout here as this query may block
+	queryCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	_, err := m.Conn.ExecContext(queryCtx, "SELECT pg_advisory_lock($1)", lockId)
+	cancel()
+	if err != nil {
+		return fmt.Errorf("faild to acquire advisory lock: %w", err)
+	}
+
+	// Release the lock
+	defer func() {
+		queryCtx, cancel = context.WithTimeout(ctx, time.Minute)
+		_, err = m.Conn.ExecContext(queryCtx, "SELECT pg_advisory_unlock($1)", lockId)
+		cancel()
+		if err != nil {
+			// Panicking here, as this forcibly closes the session and thus ensures we are not leaving locks hanging around
+			m.Logger.Fatalf("Failed to release advisory lock: %v", err)
+		}
+	}()
+
 	// Check if the metadata table exists, which we also use to store the migration level
-	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
 	exists, _, _, err := m.tableExists(queryCtx, m.MetadataTableName)
 	cancel()
 	if err != nil {
@@ -53,28 +77,13 @@ func (m *migrations) Perform(ctx context.Context) error {
 		}
 	}
 
-	// Acquire an exclusive lock on the metadata table, which we will use to ensure no one else is performing migrations
-	metadataTx, err := m.Conn.Begin()
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer metadataTx.Rollback()
-
-	// Long timeout here to wait for other processes to complete the migrations, since this query blocks
-	queryCtx, cancel = context.WithTimeout(ctx, 2*time.Minute)
-	_, err = metadataTx.ExecContext(queryCtx, fmt.Sprintf("LOCK TABLE %s IN SHARE MODE", m.MetadataTableName))
-	cancel()
-	if err != nil {
-		return fmt.Errorf("failed to acquire lock on metadata table: %w", err)
-	}
-
 	// Select the migration level
 	var (
 		migrationLevelStr string
 		migrationLevel    int
 	)
 	queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
-	err = metadataTx.
+	err = m.Conn.
 		QueryRowContext(queryCtx,
 			fmt.Sprintf(`SELECT value FROM %s WHERE key = 'migrations'`, m.MetadataTableName),
 		).Scan(&migrationLevelStr)
@@ -100,7 +109,7 @@ func (m *migrations) Perform(ctx context.Context) error {
 		}
 
 		queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
-		_, err = metadataTx.ExecContext(queryCtx,
+		_, err = m.Conn.ExecContext(queryCtx,
 			fmt.Sprintf(`INSERT INTO %s (key, value) VALUES ('migrations', $1) ON CONFLICT (key) DO UPDATE SET value = $1`, m.MetadataTableName),
 			strconv.Itoa(i+1),
 		)
@@ -108,12 +117,6 @@ func (m *migrations) Perform(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to update migration level in metadata table: %w", err)
 		}
-	}
-
-	// Commit changes to the metadata table, which also releases the lock
-	err = metadataTx.Commit()
-	if err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil

@@ -14,11 +14,15 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -212,6 +216,72 @@ func TestPostgreSQL(t *testing.T) {
 
 			err = storeObj.Close()
 			require.NoError(t, err, "failed to close component")
+		})
+
+		t.Run("initialize components concurrently", func(t *testing.T) {
+			// Initializes 3 components concurrently using the same table names, and ensure that they perform migrations without conflicts and race conditions
+			md.Properties["tableName"] = "mystate"
+			md.Properties["metadataTableName"] = "mymetadata"
+
+			errs := make(chan error, 3)
+			hasLogs := atomic.Int32{}
+			for i := 0; i < 3; i++ {
+				go func(i int) {
+					buf := &bytes.Buffer{}
+					l := logger.NewLogger("multi-init-" + strconv.Itoa(i))
+					l.SetOutput(io.MultiWriter(buf, os.Stdout))
+
+					// Init and perform the migrations
+					storeObj := state_postgres.NewPostgreSQLStateStore(l).(*state_postgres.PostgreSQL)
+					err := storeObj.Init(md)
+					if err != nil {
+						errs <- fmt.Errorf("%d failed to init: %w", i, err)
+						return
+					}
+
+					// One and only one of the loggers should have any message
+					if buf.Len() > 0 {
+						hasLogs.Add(1)
+					}
+
+					// Close the component right away
+					err = storeObj.Close()
+					if err != nil {
+						errs <- fmt.Errorf("%d failed to close: %w", i, err)
+						return
+					}
+
+					errs <- nil
+				}(i)
+			}
+
+			failed := false
+			for i := 0; i < 3; i++ {
+				select {
+				case err := <-errs:
+					failed = failed || !assert.NoError(t, err)
+				case <-time.After(time.Minute):
+					t.Fatal("timed out waiting for components to initialize")
+				}
+			}
+			if failed {
+				// Short-circuit
+				t.FailNow()
+			}
+
+			// Exactly one component should have written logs (which means generated any activity during migrations)
+			assert.Equal(t, int32(1), hasLogs.Load(), "expected 1 component to log anything to indicate migration activity, but got %d", hasLogs.Load())
+
+			// We should have the tables correctly created
+			err = tableExists(dbClient, "public", "mystate")
+			assert.NoError(t, err, "state table does not exist")
+			err = tableExists(dbClient, "public", "mymetadata")
+			assert.NoError(t, err, "metadata table does not exist")
+
+			// Ensure migration level is correct
+			level, err := getMigrationLevel(dbClient, "mymetadata")
+			assert.NoError(t, err, "failed to get migration level")
+			assert.Equal(t, migrationLevel, level, "migration level mismatch: found '%s' but expected '%s'", level, migrationLevel)
 		})
 
 		return nil

@@ -17,11 +17,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface"
 
 	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 )
@@ -38,7 +40,7 @@ func NewSecretManager(logger logger.Logger) secretstores.SecretStore {
 	return &smSecretStore{logger: logger}
 }
 
-type secretManagerMetaData struct {
+type SecretManagerMetaData struct {
 	Region       string `json:"region"`
 	AccessKey    string `json:"accessKey"`
 	SecretKey    string `json:"secretKey"`
@@ -134,7 +136,7 @@ func (s *smSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bulk
 	return resp, nil
 }
 
-func (s *smSecretStore) getClient(metadata *secretManagerMetaData) (*secretsmanager.SecretsManager, error) {
+func (s *smSecretStore) getClient(metadata *SecretManagerMetaData) (*secretsmanager.SecretsManager, error) {
 	sess, err := awsAuth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, "")
 	if err != nil {
 		return nil, err
@@ -143,13 +145,13 @@ func (s *smSecretStore) getClient(metadata *secretManagerMetaData) (*secretsmana
 	return secretsmanager.New(sess), nil
 }
 
-func (s *smSecretStore) getSecretManagerMetadata(spec secretstores.Metadata) (*secretManagerMetaData, error) {
+func (s *smSecretStore) getSecretManagerMetadata(spec secretstores.Metadata) (*SecretManagerMetaData, error) {
 	b, err := json.Marshal(spec.Properties)
 	if err != nil {
 		return nil, err
 	}
 
-	var meta secretManagerMetaData
+	var meta SecretManagerMetaData
 	err = json.Unmarshal(b, &meta)
 	if err != nil {
 		return nil, err
@@ -161,4 +163,11 @@ func (s *smSecretStore) getSecretManagerMetadata(spec secretstores.Metadata) (*s
 // Features returns the features available in this secret store.
 func (s *smSecretStore) Features() []secretstores.Feature {
 	return []secretstores.Feature{} // No Feature supported.
+}
+
+func (s *smSecretStore) GetComponentMetadata() map[string]string {
+	metadataStruct := SecretManagerMetaData{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

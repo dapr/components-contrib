@@ -2,7 +2,22 @@
 
 This project aims to test the PostgreSQL State Store component under various conditions.
 
+To run these tests:
+
+```sh
+go test -v -tags certtests -count=1 .
+```
+
 ## Test plan
+
+## Initialization and migrations
+
+Also test the `tableName` and `metadataTableName` metadata properties.
+
+1. Initializes the component with names for tables that don't exist
+1. Initializes the component with names for tables that don't exist, specifying an explicit schema
+1. Initializes the component with all migrations performed (current level is "2")
+1. Initializes the component with only the state table, created before the metadata table was added (implied migration level "1")
 
 ## Test for CRUD operations
 

@@ -15,8 +15,8 @@ package parameterstore
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 	"time"
 
@@ -25,6 +25,7 @@ import (
 	util "github.com/alibabacloud-go/tea-utils/service"
 	"github.com/alibabacloud-go/tea/tea"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 )
@@ -42,7 +43,7 @@ func NewParameterStore(logger logger.Logger) secretstores.SecretStore {
 	return &oosSecretStore{logger: logger}
 }
 
-type parameterStoreMetaData struct {
+type ParameterStoreMetaData struct {
 	RegionID        *string `json:"regionId"`
 	AccessKeyID     *string `json:"accessKeyId"`
 	AccessKeySecret *string `json:"accessKeySecret"`
@@ -151,7 +152,7 @@ func (o *oosSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bul
 	return response, nil
 }
 
-func (o *oosSecretStore) getClient(metadata *parameterStoreMetaData) (*oos.Client, error) {
+func (o *oosSecretStore) getClient(metadata *ParameterStoreMetaData) (*oos.Client, error) {
 	config := &client.Config{
 		RegionId:        metadata.RegionID,
 		AccessKeyId:     metadata.AccessKeyID,
@@ -161,18 +162,9 @@ func (o *oosSecretStore) getClient(metadata *parameterStoreMetaData) (*oos.Clien
 	return oos.NewClient(config)
 }
 
-func (o *oosSecretStore) getParameterStoreMetadata(spec secretstores.Metadata) (*parameterStoreMetaData, error) {
-	b, err := json.Marshal(spec.Properties)
-	if err != nil {
-		return nil, err
-	}
-
-	var meta parameterStoreMetaData
-	err = json.Unmarshal(b, &meta)
-	if err != nil {
-		return nil, err
-	}
-
+func (o *oosSecretStore) getParameterStoreMetadata(spec secretstores.Metadata) (*ParameterStoreMetaData, error) {
+	meta := ParameterStoreMetaData{}
+	metadata.DecodeMetadata(spec.Properties, &meta)
 	return &meta, nil
 }
 
@@ -203,4 +195,11 @@ func (o *oosSecretStore) getPathFromMetadata(metadata map[string]string) *string
 // Features returns the features available in this secret store.
 func (o *oosSecretStore) Features() []secretstores.Feature {
 	return []secretstores.Feature{} // No Feature supported.
+}
+
+func (o *oosSecretStore) GetComponentMetadata() map[string]string {
+	metadataStruct := ParameterStoreMetaData{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

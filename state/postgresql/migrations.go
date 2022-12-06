@@ -38,11 +38,11 @@ func (m *migrations) Perform(ctx context.Context) error {
 	// Use an advisory lock (with an arbitrary number) to ensure that no one else is performing migrations at the same time
 	// This is the only way to also ensure we are not running multiple "CREATE TABLE IF NOT EXISTS" at the exact same time
 	// See: https://www.postgresql.org/message-id/CA+TgmoZAdYVtwBfp1FL2sMZbiHCWT4UPrzRLNnX1Nb30Ku3-gg@mail.gmail.com
-	const lockId = 42
+	const lockID = 42
 
 	// Long timeout here as this query may block
 	queryCtx, cancel := context.WithTimeout(ctx, time.Minute)
-	_, err := m.Conn.ExecContext(queryCtx, "SELECT pg_advisory_lock($1)", lockId)
+	_, err := m.Conn.ExecContext(queryCtx, "SELECT pg_advisory_lock($1)", lockID)
 	cancel()
 	if err != nil {
 		return fmt.Errorf("faild to acquire advisory lock: %w", err)
@@ -51,7 +51,7 @@ func (m *migrations) Perform(ctx context.Context) error {
 	// Release the lock
 	defer func() {
 		queryCtx, cancel = context.WithTimeout(ctx, time.Minute)
-		_, err = m.Conn.ExecContext(queryCtx, "SELECT pg_advisory_unlock($1)", lockId)
+		_, err = m.Conn.ExecContext(queryCtx, "SELECT pg_advisory_unlock($1)", lockID)
 		cancel()
 		if err != nil {
 			// Panicking here, as this forcibly closes the session and thus ensures we are not leaving locks hanging around

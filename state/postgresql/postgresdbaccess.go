@@ -503,23 +503,9 @@ func (p *PostgresDBAccess) ScheduleCleanupExpiredData(ctx context.Context) {
 }
 
 func (p *PostgresDBAccess) CleanupExpired(ctx context.Context) error {
-	tx, err := p.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback()
-
-	// Acquire a lock for the metadata table
-	// We use NOWAIT because if there's another lock, another process is doing a cleanup so this will fail and we can just return right away
-	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	_, err = tx.ExecContext(queryCtx, fmt.Sprintf("LOCK TABLE %s IN SHARE MODE NOWAIT", p.metadata.MetadataTableName))
-	cancel()
-	if err != nil {
-		return fmt.Errorf("failed to acquire lock: %w", err)
-	}
-
 	// Check if the last iteration was too recent
-	canContinue, err := p.UpdateLastCleanup(ctx, tx, *p.cleanupInterval)
+	// This performs an atomic operation, so allows coordination with other daprd processes too
+	canContinue, err := p.UpdateLastCleanup(ctx, p.db, *p.cleanupInterval)
 	if err != nil {
 		// Log errors only
 		p.logger.Warnf("Failed to read last cleanup time from database: %v", err)
@@ -542,11 +528,6 @@ func (p *PostgresDBAccess) CleanupExpired(ctx context.Context) error {
 	cleaned, err := res.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("failed to count affected rows: %w", err)
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	p.logger.Infof("Removed %d expired rows", cleaned)

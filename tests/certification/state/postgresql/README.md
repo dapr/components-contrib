@@ -32,6 +32,15 @@ Also test the `tableName` and `metadataTableName` metadata properties.
 * Not prone to SQL injection on read
 * Not prone to SQL injection on delete
 
+## TTLs and cleanups
+
+1. Correctly parse the `cleanupIntervalInSeconds` metadata property:
+   - No value uses the default value (3600 seconds)
+   - A positive value sets the interval to the given number of seconds
+   - A zero or negative value disables the cleanup
+1. The cleanup method deletes expired records and updates the metadata table with the last time
+1. The cleanup method doesn't run if the last iteration was less than `cleanupIntervalInSeconds` or if another process is doing the cleanup
+
 ## Connection Recovery
 
 1. When PostgreSQL goes down and then comes back up - client is able to connect

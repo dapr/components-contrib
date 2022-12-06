@@ -99,8 +99,13 @@ func (p *PostgreSQL) Close() error {
 	if p.dbaccess != nil {
 		return p.dbaccess.Close()
 	}
-
 	return nil
+}
+
+// Returns the dbaccess property.
+// This method is used in tests.
+func (p *PostgreSQL) GetDBAccess() dbAccess {
+	return p.dbaccess
 }
 
 func (p *PostgreSQL) GetComponentMetadata() map[string]string {

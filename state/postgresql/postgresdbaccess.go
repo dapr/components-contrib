@@ -15,13 +15,11 @@ package postgresql
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/big"
 	"strconv"
 	"time"
 
@@ -45,8 +43,8 @@ const (
 
 var errMissingConnectionString = errors.New("missing connection string")
 
-// postgresDBAccess implements dbaccess.
-type postgresDBAccess struct {
+// PostgresDBAccess implements dbaccess.
+type PostgresDBAccess struct {
 	logger          logger.Logger
 	metadata        postgresMetadataStruct
 	cleanupInterval *time.Duration
@@ -56,10 +54,10 @@ type postgresDBAccess struct {
 }
 
 // newPostgresDBAccess creates a new instance of postgresAccess.
-func newPostgresDBAccess(logger logger.Logger) *postgresDBAccess {
+func newPostgresDBAccess(logger logger.Logger) *PostgresDBAccess {
 	logger.Debug("Instantiating new Postgres state store")
 
-	return &postgresDBAccess{
+	return &PostgresDBAccess{
 		logger: logger,
 	}
 }
@@ -72,12 +70,12 @@ type postgresMetadataStruct struct {
 }
 
 // Init sets up Postgres connection and ensures that the state table exists.
-func (p *postgresDBAccess) Init(meta state.Metadata) error {
+func (p *PostgresDBAccess) Init(meta state.Metadata) error {
 	p.logger.Debug("Initializing Postgres state store")
 
 	p.ctx, p.cancel = context.WithCancel(context.Background())
 
-	err := p.parseMetadata(meta)
+	err := p.ParseMetadata(meta)
 	if err != nil {
 		p.logger.Errorf("Failed to parse metadata: %v", err)
 		return err
@@ -112,12 +110,16 @@ func (p *postgresDBAccess) Init(meta state.Metadata) error {
 		return err
 	}
 
-	p.scheduleCleanupExpiredData()
+	p.ScheduleCleanupExpiredData(p.ctx)
 
 	return nil
 }
 
-func (p *postgresDBAccess) parseMetadata(meta state.Metadata) error {
+func (p *PostgresDBAccess) GetDB() *sql.DB {
+	return p.db
+}
+
+func (p *PostgresDBAccess) ParseMetadata(meta state.Metadata) error {
 	m := postgresMetadataStruct{
 		TableName:         defaultTableName,
 		MetadataTableName: defaultMetadataTableName,
@@ -151,11 +153,11 @@ func (p *postgresDBAccess) parseMetadata(meta state.Metadata) error {
 }
 
 // Set makes an insert or update to the database.
-func (p *postgresDBAccess) Set(req *state.SetRequest) error {
+func (p *PostgresDBAccess) Set(req *state.SetRequest) error {
 	return p.doSet(p.db, req)
 }
 
-func (p *postgresDBAccess) doSet(db dbquerier, req *state.SetRequest) error {
+func (p *PostgresDBAccess) doSet(db dbquerier, req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
@@ -262,7 +264,7 @@ func (p *postgresDBAccess) doSet(db dbquerier, req *state.SetRequest) error {
 	return nil
 }
 
-func (p *postgresDBAccess) BulkSet(req []state.SetRequest) error {
+func (p *PostgresDBAccess) BulkSet(req []state.SetRequest) error {
 	tx, err := p.db.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -287,7 +289,7 @@ func (p *postgresDBAccess) BulkSet(req []state.SetRequest) error {
 }
 
 // Get returns data from the database. If data does not exist for the key an empty state.GetResponse will be returned.
-func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (p *PostgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	if req.Key == "" {
 		return nil, errors.New("missing key in get operation")
 	}
@@ -343,11 +345,11 @@ func (p *postgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 }
 
 // Delete removes an item from the state store.
-func (p *postgresDBAccess) Delete(req *state.DeleteRequest) (err error) {
+func (p *PostgresDBAccess) Delete(req *state.DeleteRequest) (err error) {
 	return p.doDelete(p.db, req)
 }
 
-func (p *postgresDBAccess) doDelete(db dbquerier, req *state.DeleteRequest) (err error) {
+func (p *PostgresDBAccess) doDelete(db dbquerier, req *state.DeleteRequest) (err error) {
 	if req.Key == "" {
 		return errors.New("missing key in delete operation")
 	}
@@ -384,7 +386,7 @@ func (p *postgresDBAccess) doDelete(db dbquerier, req *state.DeleteRequest) (err
 	return nil
 }
 
-func (p *postgresDBAccess) BulkDelete(req []state.DeleteRequest) error {
+func (p *PostgresDBAccess) BulkDelete(req []state.DeleteRequest) error {
 	tx, err := p.db.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -408,7 +410,7 @@ func (p *postgresDBAccess) BulkDelete(req []state.DeleteRequest) error {
 	return nil
 }
 
-func (p *postgresDBAccess) ExecuteMulti(request *state.TransactionalStateRequest) error {
+func (p *PostgresDBAccess) ExecuteMulti(request *state.TransactionalStateRequest) error {
 	tx, err := p.db.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -455,7 +457,7 @@ func (p *postgresDBAccess) ExecuteMulti(request *state.TransactionalStateRequest
 }
 
 // Query executes a query against store.
-func (p *postgresDBAccess) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
+func (p *PostgresDBAccess) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
 	q := &Query{
 		query:     "",
 		params:    []any{},
@@ -476,7 +478,7 @@ func (p *postgresDBAccess) Query(req *state.QueryRequest) (*state.QueryResponse,
 	}, nil
 }
 
-func (p *postgresDBAccess) scheduleCleanupExpiredData() {
+func (p *PostgresDBAccess) ScheduleCleanupExpiredData(ctx context.Context) {
 	if p.cleanupInterval == nil {
 		return
 	}
@@ -484,19 +486,15 @@ func (p *postgresDBAccess) scheduleCleanupExpiredData() {
 	p.logger.Infof("Schedule expired data clean up every %d seconds", int(p.cleanupInterval.Seconds()))
 
 	go func() {
-		// Add a randomized delay here to ensure that not all sidecars will get here at the same time
-		delay, _ := rand.Int(rand.Reader, big.NewInt(20))
-		time.Sleep(time.Duration(delay.Int64()) * time.Second)
-
 		ticker := time.NewTicker(*p.cleanupInterval)
 		for {
 			select {
 			case <-ticker.C:
-				err := p.cleanupTimeout()
+				err := p.CleanupExpired(ctx)
 				if err != nil {
 					p.logger.Errorf("Error removing expired data: %v", err)
 				}
-			case <-p.ctx.Done():
+			case <-ctx.Done():
 				p.logger.Debug("Stopped background cleanup of expired data")
 				return
 			}
@@ -504,10 +502,7 @@ func (p *postgresDBAccess) scheduleCleanupExpiredData() {
 	}()
 }
 
-func (p *postgresDBAccess) cleanupTimeout() error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+func (p *PostgresDBAccess) CleanupExpired(ctx context.Context) error {
 	tx, err := p.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -515,7 +510,7 @@ func (p *postgresDBAccess) cleanupTimeout() error {
 	defer tx.Rollback()
 
 	// Acquire a lock for the metadata table
-	// We use NOWAIT because if there's another lock, another process is doing a cleanup so nothing to see there
+	// We use NOWAIT because if there's another lock, another process is doing a cleanup so this will fail and we can just return right away
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	_, err = tx.ExecContext(queryCtx, fmt.Sprintf("LOCK TABLE %s IN SHARE MODE NOWAIT", p.metadata.MetadataTableName))
 	cancel()
@@ -523,29 +518,20 @@ func (p *postgresDBAccess) cleanupTimeout() error {
 		return fmt.Errorf("failed to acquire lock: %w", err)
 	}
 
-	// Check when the last iteration was
-	var (
-		lastCleanupStr string
-		lastCleanup    int
-	)
-	queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
-	err = tx.QueryRowContext(queryCtx,
-		fmt.Sprintf(`SELECT value FROM %s WHERE key = 'last-cleanup'`, p.metadata.MetadataTableName),
-	).Scan(&lastCleanupStr)
-	cancel()
-	if err == nil {
-		lastCleanup, err = strconv.Atoi(lastCleanupStr)
-		if err != nil || lastCleanup < 0 {
-			p.logger.Warnf("Invalid last cleanup time found in metadata table: %s", lastCleanupStr)
-		}
-		lastCleanup = 0
-	} else if !errors.Is(err, sql.ErrNoRows) {
+	// Check if the last iteration was too recent
+	canContinue, err := p.UpdateLastCleanup(ctx, tx, *p.cleanupInterval)
+	if err != nil {
+		// Log errors only
 		p.logger.Warnf("Failed to read last cleanup time from database: %v", err)
-		lastCleanup = 0
+	}
+	if !canContinue {
+		p.logger.Debug("Last cleanup was performed too recently")
+		return nil
 	}
 
-	// Note we're not using the transaction here as we don't want this to be rolled back or to lock the table unnecessarily
+	// Note we're not using the transaction here as we don't want this to be rolled back half-way or to lock the table unnecessarily
 	// Need to use fmt.Sprintf because we can't parametrize a table name
+	// Note we are not setting a timeout here as this query can take a "long" time, especially if there's no index on expiredate
 	//nolint:gosec
 	stmt := fmt.Sprintf(`DELETE FROM %s WHERE expiredate IS NOT NULL AND expiredate < CURRENT_TIMESTAMP`, p.metadata.TableName)
 	res, err := p.db.ExecContext(ctx, stmt)
@@ -567,8 +553,34 @@ func (p *postgresDBAccess) cleanupTimeout() error {
 	return nil
 }
 
+// UpdateLastCleanup sets the 'last-cleanup' value only if it's less than cleanupInterval.
+// Returns true if the row was updated, which means that the cleanup can proceed.
+func (p *PostgresDBAccess) UpdateLastCleanup(ctx context.Context, db dbquerier, cleanupInterval time.Duration) (bool, error) {
+	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	res, err := db.ExecContext(queryCtx,
+		fmt.Sprintf(`INSERT INTO %[1]s (key, value)
+			VALUES ('last-cleanup', CURRENT_TIMESTAMP)
+			ON CONFLICT (key)
+			DO UPDATE SET value = CURRENT_TIMESTAMP
+				WHERE (EXTRACT('epoch' FROM CURRENT_TIMESTAMP - %[1]s.value::timestamp with time zone) * 1000)::bigint > $1`,
+			p.metadata.MetadataTableName),
+		cleanupInterval.Milliseconds()-100, // Subtract 100ms for some buffer
+	)
+	cancel()
+	if err != nil {
+		return true, fmt.Errorf("failed to execute query: %w", err)
+	}
+
+	n, err := res.RowsAffected()
+	if err != nil {
+		return true, fmt.Errorf("failed to count affected rows: %w", err)
+	}
+
+	return n > 0, nil
+}
+
 // Close implements io.Close.
-func (p *postgresDBAccess) Close() error {
+func (p *PostgresDBAccess) Close() error {
 	if p.cancel != nil {
 		p.cancel()
 		p.cancel = nil
@@ -578,6 +590,12 @@ func (p *postgresDBAccess) Close() error {
 	}
 
 	return nil
+}
+
+// GetCleanupInterval returns the cleanupInterval property.
+// This is primarily used for tests.
+func (p *PostgresDBAccess) GetCleanupInterval() *time.Duration {
+	return p.cleanupInterval
 }
 
 // Returns the set requests.

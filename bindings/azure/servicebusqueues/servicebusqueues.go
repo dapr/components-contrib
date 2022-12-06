@@ -124,7 +124,7 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 			)
 
 			// Blocks until a successful connection (or until context is canceled)
-			err := sub.Connect(func() (impl.Receiver, error) {
+			receiver, err := sub.Connect(func() (impl.Receiver, error) {
 				receiver, err := a.client.GetClient().NewReceiverForQueue(a.metadata.QueueName, nil)
 				return &impl.MessageReceiver{Receiver: receiver}, err
 			})
@@ -140,6 +140,7 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 			// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
 			err = sub.ReceiveAndBlock(
 				a.getHandlerFunc(handler),
+				receiver,
 				func() {
 					// Reset the backoff when the subscription is successful and we have received the first message
 					bo.Reset()

@@ -49,7 +49,7 @@ type Metadata struct {
 	PublishMaxRetries               int    `json:"publishMaxRetries"`
 	PublishInitialRetryIntervalInMs int    `json:"publishInitialRetryInternalInMs"`
 	NamespaceName                   string `json:"namespaceName"` // Only for Azure AD
-	SessionsEnabled                 bool   `json:"sessionsEnabled"`
+	RequireSessions                 bool   `json:"requireSessions"`
 	MaxConcurrentSesions            *int   `json:"maxConcurrentSessions"`
 	SessionIdleTimeoutInSec         *int   `json:"sessionIdleTimeoutInSec"`
 
@@ -78,6 +78,7 @@ const (
 	keyPublishInitialRetryInternalInMs = "publishInitialRetryInternalInMs"
 	keyNamespaceName                   = "namespaceName"
 	keyQueueName                       = "queueName"
+	keyRequireSessions                 = "requireSessions"
 )
 
 // Defaults.
@@ -309,6 +310,13 @@ func ParseMetadata(md map[string]string, logger logger.Logger, mode byte) (m *Me
 		m.AutoDeleteOnIdleInSec = &valAsInt
 	}
 
+	if val, ok := md[keyRequireSessions]; ok && val != "" {
+		m.RequireSessions, err = strconv.ParseBool(val)
+		if err != nil {
+			return m, fmt.Errorf("invalid requireSessions %s: %s", val, err)
+		}
+	}
+
 	return m, nil
 }
 
@@ -330,6 +338,10 @@ func (a Metadata) CreateSubscriptionProperties() *sbadmin.SubscriptionProperties
 
 	if a.AutoDeleteOnIdleInSec != nil {
 		properties.AutoDeleteOnIdle = toDurationISOString(*a.AutoDeleteOnIdleInSec)
+	}
+
+	if a.RequireSessions {
+		properties.RequiresSession = &a.RequireSessions
 	}
 
 	return properties

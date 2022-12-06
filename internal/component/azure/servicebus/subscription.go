@@ -37,63 +37,23 @@ type HandlerResponseItem struct {
 // HandlerFunc is the type for handlers that receive messages
 type HandlerFunc func(ctx context.Context, msgs []*azservicebus.ReceivedMessage) ([]HandlerResponseItem, error)
 
-type Receiver interface {
-	ID() string
-	ReceiveMessages(ctx context.Context, maxMessages int, options *azservicebus.ReceiveMessagesOptions) ([]*azservicebus.ReceivedMessage, error)
-	CompleteMessage(ctx context.Context, m *azservicebus.ReceivedMessage, opts *azservicebus.CompleteMessageOptions) error
-	AbandonMessage(ctx context.Context, m *azservicebus.ReceivedMessage, opts *azservicebus.AbandonMessageOptions) error
-	RenewLocks(ctx context.Context, m *azservicebus.ReceivedMessage) error
-	Close(ctx context.Context) error
-}
-
-var (
-	_ Receiver = (*SessionReceiver)(nil)
-	_ Receiver = (*MessageReceiver)(nil)
-)
-
-type SessionReceiver struct {
-	*azservicebus.SessionReceiver
-}
-
-func (s *SessionReceiver) ID() string {
-	return s.SessionID()
-}
-
-func (s *SessionReceiver) RenewLocks(ctx context.Context, msg *azservicebus.ReceivedMessage) error {
-	return s.RenewSessionLock(ctx, nil)
-}
-
-type MessageReceiver struct {
-	*azservicebus.Receiver
-}
-
-func (m *MessageReceiver) ID() string {
-	return ""
-}
-
-func (m *MessageReceiver) RenewLocks(ctx context.Context, msg *azservicebus.ReceivedMessage) error {
-	return m.RenewMessageLock(ctx, msg, nil)
-}
-
-type MessageRenewFunc func(ctx context.Context, message *azservicebus.ReceivedMessage) error
-
 // Subscription is an object that manages a subscription to an Azure Service Bus receiver, for a topic or queue.
 type Subscription struct {
 	entity               string
 	mu                   sync.RWMutex
 	activeMessages       map[int64]*azservicebus.ReceivedMessage
 	activeOperationsChan chan struct{}
-	receiver             *MessageReceiver
-	sessionMu            sync.RWMutex
-	sessionReceivers     map[string]*SessionReceiver
-	sessionsEnabled      bool // read-only once set
-	timeout              time.Duration
-	maxBulkSubCount      int
-	retriableErrLimit    ratelimit.Limiter
-	handleChan           chan struct{}
-	logger               logger.Logger
-	ctx                  context.Context
-	cancel               context.CancelFunc
+	// receiver             *MessageReceiver
+	// sessionMu            sync.RWMutex
+	// sessionReceivers     map[string]*SessionReceiver
+	requireSessions   bool // read-only once set
+	timeout           time.Duration
+	maxBulkSubCount   int
+	retriableErrLimit ratelimit.Limiter
+	handleChan        chan struct{}
+	logger            logger.Logger
+	ctx               context.Context
+	cancel            context.CancelFunc
 }
 
 // NewBulkSubscription returns a new Subscription object.
@@ -107,7 +67,7 @@ func NewSubscription(
 	maxConcurrentHandlers int,
 	entity string,
 	lockRenewalInSec int,
-	sessionsEnabled bool,
+	requireSessions bool,
 	logger logger.Logger,
 ) *Subscription {
 	ctx, cancel := context.WithCancel(parentCtx)
@@ -128,15 +88,15 @@ func NewSubscription(
 	}
 
 	s := &Subscription{
-		entity:           entity,
-		activeMessages:   make(map[int64]*azservicebus.ReceivedMessage),
-		timeout:          time.Duration(timeoutInSec) * time.Second,
-		maxBulkSubCount:  *maxBulkSubCount,
-		sessionReceivers: make(map[string]*SessionReceiver),
-		sessionsEnabled:  sessionsEnabled,
-		logger:           logger,
-		ctx:              ctx,
-		cancel:           cancel,
+		entity:          entity,
+		activeMessages:  make(map[int64]*azservicebus.ReceivedMessage),
+		timeout:         time.Duration(timeoutInSec) * time.Second,
+		maxBulkSubCount: *maxBulkSubCount,
+		//sessionReceivers: make(map[string]*SessionReceiver),
+		requireSessions: requireSessions,
+		logger:          logger,
+		ctx:             ctx,
+		cancel:          cancel,
 		// This is a pessimistic estimate of the number of total operations that can be active at any given time.
 		// In case of a non-bulk subscription, one operation is one message.
 		activeOperationsChan: make(chan struct{}, maxActiveMessages/(*maxBulkSubCount)),
@@ -153,31 +113,31 @@ func NewSubscription(
 		s.handleChan = make(chan struct{}, maxConcurrentHandlers)
 	}
 
-	// Lock renewal loop.
-	go func() {
-		shouldRenewLocks := lockRenewalInSec > 0
-		if !shouldRenewLocks {
-			s.logger.Debugf("Lock renewal for %s disabled", s.entity)
-			return
-		}
-		t := time.NewTicker(time.Second * time.Duration(lockRenewalInSec))
-		defer t.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				s.logger.Debugf("Lock renewal context for %s done", s.entity)
-				return
-			case <-t.C:
-				s.tryRenewLocks()
-			}
-		}
-	}()
+	// // Lock renewal loop.
+	// go func() {
+	// 	shouldRenewLocks := lockRenewalInSec > 0
+	// 	if !shouldRenewLocks {
+	// 		s.logger.Debugf("Lock renewal for %s disabled", s.entity)
+	// 		return
+	// 	}
+	// 	t := time.NewTicker(time.Second * time.Duration(lockRenewalInSec))
+	// 	defer t.Stop()
+	// 	for {
+	// 		select {
+	// 		case <-ctx.Done():
+	// 			s.logger.Debugf("Lock renewal context for %s done", s.entity)
+	// 			return
+	// 		case <-t.C:
+	// 			s.tryRenewLocks()
+	// 		}
+	// 	}
+	// }()
 
 	return s
 }
 
 // Connect to a Service Bus topic or queue, blocking until it succeeds; it can retry forever (until the context is canceled).
-func (s *Subscription) Connect(newReceiverFunc func() (Receiver, error)) error {
+func (s *Subscription) Connect(newReceiverFunc func() (Receiver, error)) (Receiver, error) {
 	// Connections need to retry forever with a maximum backoff of 5 minutes and exponential scaling.
 	config := retry.DefaultConfig()
 	config.Policy = retry.PolicyExponential
@@ -185,31 +145,42 @@ func (s *Subscription) Connect(newReceiverFunc func() (Receiver, error)) error {
 	config.MaxElapsedTime = 0
 	backoff := config.NewBackOffWithContext(s.ctx)
 
+	var receiver Receiver
+
 	err := retry.NotifyRecover(
 		func() error {
 			clientAttempt, innerErr := newReceiverFunc()
 			if innerErr != nil {
+				if s.requireSessions {
+					var sbErr *azservicebus.Error
+					if errors.As(innerErr, &sbErr) && sbErr.Code == azservicebus.CodeTimeout {
+						return errors.New("no sessions available")
+					}
+				}
 				return innerErr
 			}
-			if s.sessionsEnabled {
+			if s.requireSessions {
 				sessionReceiver, ok := clientAttempt.(*SessionReceiver)
 				if !ok {
 					return fmt.Errorf("expected a session receiver, got %T", clientAttempt)
 				}
-				s.sessionMu.Lock()
-				_, exists := s.sessionReceivers[sessionReceiver.ID()]
-				if exists {
-					s.sessionMu.Unlock()
-					return fmt.Errorf("session receiver %s already exists", sessionReceiver.ID())
-				}
-				s.sessionReceivers[sessionReceiver.ID()] = sessionReceiver
-				s.sessionMu.Unlock()
+				receiver = sessionReceiver
+
+				// s.sessionMu.Lock()
+				// _, exists := s.sessionReceivers[sessionReceiver.ID()]
+				// if exists {
+				// 	s.sessionMu.Unlock()
+				// 	return fmt.Errorf("session receiver %s already exists", sessionReceiver.ID())
+				// }
+				// s.logger.Debugf("Receiving from session %s", sessionReceiver.ID())
+				// s.sessionReceivers[sessionReceiver.ID()] = sessionReceiver
+				// s.sessionMu.Unlock()
 			} else {
 				msgReciever, ok := clientAttempt.(*MessageReceiver)
 				if !ok {
 					return fmt.Errorf("expected a message receiver, got %T", clientAttempt)
 				}
-				s.receiver = msgReciever
+				receiver = msgReciever
 			}
 			return nil
 		},
@@ -222,7 +193,7 @@ func (s *Subscription) Connect(newReceiverFunc func() (Receiver, error)) error {
 		},
 	)
 
-	return err
+	return receiver, err
 }
 
 type ReceiveOptions struct {
@@ -230,7 +201,7 @@ type ReceiveOptions struct {
 }
 
 // ReceiveAndBlock is a blocking call to receive messages on an Azure Service Bus subscription from a topic or queue.
-func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, onFirstSuccess func(), opts ReceiveOptions) error {
+func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, receiver Receiver, onFirstSuccess func(), opts ReceiveOptions) error {
 	ctx, cancel := context.WithCancel(s.ctx)
 	defer cancel()
 
@@ -251,7 +222,7 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, onFirstSuccess func(
 		defer recvCancel()
 
 		// This method blocks until we get a message or the context is canceled
-		msgs, err := s.receiver.ReceiveMessages(recvCtx, s.maxBulkSubCount, nil)
+		msgs, err := receiver.ReceiveMessages(recvCtx, s.maxBulkSubCount, nil)
 		if err != nil {
 			if err != context.Canceled {
 				s.logger.Errorf("Error reading from %s. %s", s.entity, err.Error())
@@ -314,11 +285,11 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, onFirstSuccess func(
 			if err != nil {
 				// Log the error only, as we're running asynchronously
 				s.logger.Errorf("App handler returned an error for message %s on %s: %s", msg.MessageID, s.entity, err)
-				s.AbandonMessage(finalizeCtx, msg)
+				s.AbandonMessage(finalizeCtx, receiver, msg)
 				return
 			}
 
-			s.CompleteMessage(finalizeCtx, msg)
+			s.CompleteMessage(finalizeCtx, receiver, msg)
 		}
 
 		bulkRunHandlerFunc := func(hctx context.Context) {
@@ -337,9 +308,9 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, onFirstSuccess func(
 					if resp.Error != nil {
 						// Log the error only, as we're running asynchronously.
 						s.logger.Errorf("App handler returned an error for message %s on %s: %s", msgs[i].MessageID, s.entity, resp.Error)
-						s.AbandonMessage(finalizeCtx, msgs[i])
+						s.AbandonMessage(finalizeCtx, receiver, msgs[i])
 					} else {
-						s.CompleteMessage(finalizeCtx, msgs[i])
+						s.CompleteMessage(finalizeCtx, receiver, msgs[i])
 					}
 				}
 				return
@@ -347,7 +318,7 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, onFirstSuccess func(
 
 			// No error, so we can complete all messages.
 			for _, msg := range msgs {
-				s.CompleteMessage(finalizeCtx, msg)
+				s.CompleteMessage(finalizeCtx, receiver, msg)
 			}
 		}
 
@@ -363,19 +334,78 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, onFirstSuccess func(
 func (s *Subscription) Close(closeCtx context.Context) {
 	s.logger.Debugf("Closing subscription to %s", s.entity)
 
-	s.sessionMu.Lock()
-	for _, session := range s.sessionReceivers {
-		if err := session.Close(closeCtx); err != nil {
-			s.logger.Warnf("Error closing session receiver: %s", err.Error())
+	// s.sessionMu.Lock()
+	// for _, session := range s.sessionReceivers {
+	// 	if err := session.Close(closeCtx); err != nil {
+	// 		s.logger.Warnf("Error closing session receiver: %s", err.Error())
+	// 	}
+	// }
+	// s.sessionMu.Unlock()
+
+	// // Ensure subscription entity is closed.
+	// if err := s.receiver.Close(closeCtx); err != nil {
+	// 	s.logger.Warnf("Error closing subscription for %s: %+v", s.entity, err)
+	// }
+	s.cancel()
+}
+
+type LockRenewalOptions struct {
+	RenewalInSec int
+	TimeoutInSec int
+}
+
+func (s *Subscription) RenewLocksBlocking(ctx context.Context, receiver Receiver, opts LockRenewalOptions) error {
+	if receiver == nil {
+		return nil
+	}
+
+	shouldRenewLocks := opts.RenewalInSec > 0
+	if !shouldRenewLocks {
+		s.logger.Debugf("Lock renewal for %s disabled", s.entity)
+		return nil
+	}
+
+	t := time.NewTicker(time.Second * time.Duration(opts.RenewalInSec))
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("context canceled while renewing locks for %s", s.entity)
+		case <-t.C:
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("context canceled while renewing locks for %s", s.entity)
+			default:
+				func() {
+					lockCtx, lockCancel := context.WithTimeout(ctx, time.Second*time.Duration(opts.TimeoutInSec))
+					defer lockCancel()
+
+					if s.requireSessions {
+						sessionReceiver := receiver.(*SessionReceiver)
+						if err := sessionReceiver.RenewSessionLocks(lockCtx); err != nil {
+							s.logger.Errorf("Error renewing session locks for %s: %s", s.entity, err)
+						}
+					} else {
+						// Snapshot the messages to try to renew locks for.
+						msgs := make([]*azservicebus.ReceivedMessage, 0)
+						s.mu.RLock()
+						for _, m := range s.activeMessages {
+							msgs = append(msgs, m)
+						}
+						s.mu.RUnlock()
+						if len(msgs) == 0 {
+							s.logger.Debugf("No active messages require lock renewal for %s", s.entity)
+							return
+						}
+						msgReceiver := receiver.(*MessageReceiver)
+						if err := msgReceiver.RenewMessageLocks(lockCtx, msgs); err != nil {
+							s.logger.Errorf("Error renewing message locks for %s: %s", s.entity, err)
+						}
+					}
+				}()
+			}
 		}
 	}
-	s.sessionMu.Unlock()
-
-	// Ensure subscription entity is closed.
-	if err := s.receiver.Close(closeCtx); err != nil {
-		s.logger.Warnf("Error closing subscription for %s: %+v", s.entity, err)
-	}
-	s.cancel()
 }
 
 // handleAsync handles messages from azure service bus asynchronously.
@@ -435,70 +465,70 @@ func (s *Subscription) handleAsync(ctx context.Context, msgs []*azservicebus.Rec
 	}()
 }
 
-func (s *Subscription) tryRenewLocks() {
-	if s.sessionsEnabled {
-		s.tryRenewSessionLocks()
-	} else {
-		s.tryRenewMessageLocks()
-	}
-}
+// func (s *Subscription) tryRenewLocks() {
+// 	if s.requireSessions {
+// 		s.tryRenewSessionLocks()
+// 	} else {
+// 		s.tryRenewMessageLocks()
+// 	}
+// }
 
-func (s *Subscription) tryRenewSessionLocks() {
-	s.sessionMu.Lock()
-	defer s.sessionMu.Unlock()
+// func (s *Subscription) tryRenewSessionLocks() {
+// 	s.sessionMu.Lock()
+// 	defer s.sessionMu.Unlock()
 
-	if len(s.sessionReceivers) == 0 {
-		return
-	}
+// 	if len(s.sessionReceivers) == 0 {
+// 		return
+// 	}
 
-	var ctx, cancel = context.WithTimeout(s.ctx, s.timeout)
-	defer cancel()
-	for _, session := range s.sessionReceivers {
-		session.RenewLocks(ctx, &azservicebus.ReceivedMessage{}) // mesage not used.
-	}
-}
+// 	var ctx, cancel = context.WithTimeout(s.ctx, s.timeout)
+// 	defer cancel()
+// 	for _, session := range s.sessionReceivers {
+// 		session.RenewLocks(ctx, &azservicebus.ReceivedMessage{}) // mesage not used.
+// 	}
+// }
 
-func (s *Subscription) tryRenewMessageLocks() {
-	if s.receiver == nil {
-		return
-	}
+// func (s *Subscription) tryRenewMessageLocks() {
+// 	if s.receiver == nil {
+// 		return
+// 	}
 
-	// Snapshot the messages to try to renew locks for.
-	msgs := make([]*azservicebus.ReceivedMessage, 0)
-	s.mu.RLock()
-	for _, m := range s.activeMessages {
-		msgs = append(msgs, m)
-	}
-	s.mu.RUnlock()
-	if len(msgs) == 0 {
-		s.logger.Debugf("No active messages require lock renewal for %s", s.entity)
-		return
-	}
+// 	// Snapshot the messages to try to renew locks for.
+// 	msgs := make([]*azservicebus.ReceivedMessage, 0)
+// 	s.mu.RLock()
+// 	for _, m := range s.activeMessages {
+// 		msgs = append(msgs, m)
+// 	}
+// 	s.mu.RUnlock()
+// 	if len(msgs) == 0 {
+// 		s.logger.Debugf("No active messages require lock renewal for %s", s.entity)
+// 		return
+// 	}
 
-	// Lock renewal is best effort and not guaranteed to succeed, warnings are expected.
-	s.logger.Debugf("Trying to renew %d active message lock(s) for %s", len(msgs), s.entity)
-	var err error
-	var ctx context.Context
-	var cancel context.CancelFunc
-	for _, msg := range msgs {
-		ctx, cancel = context.WithTimeout(context.Background(), s.timeout)
+// 	// Lock renewal is best effort and not guaranteed to succeed, warnings are expected.
+// 	s.logger.Debugf("Trying to renew %d active message lock(s) for %s", len(msgs), s.entity)
+// 	var err error
+// 	var ctx context.Context
+// 	var cancel context.CancelFunc
+// 	for _, msg := range msgs {
+// 		ctx, cancel = context.WithTimeout(context.Background(), s.timeout)
 
-		// Renew the lock for the message.
-		err = s.receiver.RenewLocks(ctx, msg)
+// 		// Renew the lock for the message.
+// 		err = s.receiver.RenewLocks(ctx, msg)
 
-		if err != nil {
-			s.logger.Debugf("Couldn't renew all active message lock(s) for %s, ", s.entity, err)
-		}
-		cancel()
-	}
-}
+// 		if err != nil {
+// 			s.logger.Debugf("Couldn't renew all active message lock(s) for %s, ", s.entity, err)
+// 		}
+// 		cancel()
+// 	}
+// }
 
 // AbandonMessage marks a messsage as abandoned.
-func (s *Subscription) AbandonMessage(ctx context.Context, m *azservicebus.ReceivedMessage) {
+func (s *Subscription) AbandonMessage(ctx context.Context, receiver Receiver, m *azservicebus.ReceivedMessage) {
 	s.logger.Debugf("Abandoning message %s on %s", m.MessageID, s.entity)
 
 	// Use a background context in case a.ctx has been canceled already
-	err := s.receiver.AbandonMessage(ctx, m, nil)
+	err := receiver.AbandonMessage(ctx, m, nil)
 	if err != nil {
 		// Log only
 		s.logger.Warnf("Error abandoning message %s on %s: %s", m.MessageID, s.entity, err.Error())
@@ -513,11 +543,11 @@ func (s *Subscription) AbandonMessage(ctx context.Context, m *azservicebus.Recei
 }
 
 // CompleteMessage marks a message as complete.
-func (s *Subscription) CompleteMessage(ctx context.Context, m *azservicebus.ReceivedMessage) {
+func (s *Subscription) CompleteMessage(ctx context.Context, receiver Receiver, m *azservicebus.ReceivedMessage) {
 	s.logger.Debugf("Completing message %s on %s", m.MessageID, s.entity)
 
 	// Use a background context in case a.ctx has been canceled already
-	err := s.receiver.CompleteMessage(ctx, m, nil)
+	err := receiver.CompleteMessage(ctx, m, nil)
 	if err != nil {
 		// Log only
 		s.logger.Warnf("Error completing message %s on %s: %s", m.MessageID, s.entity, err.Error())

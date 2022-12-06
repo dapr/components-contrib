@@ -193,9 +193,13 @@ func (c *Client) EnsureTopic(ctx context.Context, topic string) error {
 	return nil
 }
 
+type SubscriptionOpts struct {
+	RequireSessions *bool
+}
+
 // EnsureSubscription creates the topic subscription if it doesn't exist.
 // Returns with nil error if the admin client doesn't exist.
-func (c *Client) EnsureSubscription(ctx context.Context, name string, topic string) error {
+func (c *Client) EnsureSubscription(ctx context.Context, name string, topic string, opts SubscriptionOpts) error {
 	if c.adminClient == nil {
 		return nil
 	}
@@ -205,7 +209,7 @@ func (c *Client) EnsureSubscription(ctx context.Context, name string, topic stri
 		return err
 	}
 
-	shouldCreate, err := c.shouldCreateSubscription(ctx, topic, name)
+	shouldCreate, err := c.shouldCreateSubscription(ctx, topic, name, opts)
 	if err != nil {
 		return err
 	}
@@ -268,7 +272,7 @@ func (c *Client) createTopic(parentCtx context.Context, topic string) error {
 	return nil
 }
 
-func (c *Client) shouldCreateSubscription(parentCtx context.Context, topic, subscription string) (bool, error) {
+func (c *Client) shouldCreateSubscription(parentCtx context.Context, topic, subscription string, opts SubscriptionOpts) (bool, error) {
 	ctx, cancel := context.WithTimeout(parentCtx, time.Second*time.Duration(c.metadata.TimeoutInSec))
 	defer cancel()
 
@@ -280,6 +284,17 @@ func (c *Client) shouldCreateSubscription(parentCtx context.Context, topic, subs
 		// If res is nil, the subscription does not exist
 		return true, nil
 	}
+
+	required := func(b *bool) bool {
+		if b == nil {
+			return false
+		}
+		return *b
+	}
+	if required(opts.RequireSessions) != required(res.RequiresSession) {
+		return false, fmt.Errorf("subscription %s already exists but session requirement doesn't match", subscription)
+	}
+
 	return false, nil
 }
 

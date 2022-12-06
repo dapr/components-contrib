@@ -110,6 +110,9 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*metadat
 	}
 
 	if val, found := pubSubMetadata.Properties[metadataProtocolKey]; found && val != "" {
+		if result.connectionString != "" && result.protocol != val {
+			return &result, fmt.Errorf("%s protocol does not match connection string, protocol: %s, connection string: %s", errorMessagePrefix, val, result.connectionString)
+		}
 		result.protocol = val
 	}
 

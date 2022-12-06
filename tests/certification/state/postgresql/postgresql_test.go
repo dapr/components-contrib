@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -53,6 +54,8 @@ const (
 	connStringValue         = "postgres://postgres:example@localhost:5432/dapr_test"
 	keyConnectionString     = "connectionString"
 	keyCleanupInterval      = "cleanupIntervalInSeconds"
+	keyTableName            = "tableName"
+	keyMetadatTableName     = "metadataTableName"
 )
 
 func TestPostgreSQL(t *testing.T) {
@@ -73,13 +76,26 @@ func TestPostgreSQL(t *testing.T) {
 	// Update this constant if you add more migrations
 	const migrationLevel = "2"
 
+	// Holds a DB client as the "postgres" (ie. "root") user which we'll use to validate migrations and other changes in state
+	var dbClient *pgx.Conn
+	connectStep := func(ctx flow.Context) error {
+		connCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+
+		// Continue re-trying until the context times out, so we can wait for the DB to be up
+		for {
+			dbClient, err = pgx.Connect(connCtx, connStringValue)
+			if err == nil || connCtx.Err() != nil {
+				break
+			}
+			time.Sleep(750 * time.Millisecond)
+		}
+		return err
+	}
+
 	// Tests the "Init" method and the database migrations
 	// It also tests the metadata properties "tableName" and "metadataTableName"
 	initTest := func(ctx flow.Context) error {
-		// Acquire a DB client as the "postgres" (ie. "root") user which we'll use to validate migrations and other changes in state
-		dbClient, err := connectDB()
-		require.NoError(t, err, "failed to create a connection to the database")
-
 		md := state.Metadata{
 			Base: metadata.Base{
 				Name: "inittest",
@@ -92,8 +108,8 @@ func TestPostgreSQL(t *testing.T) {
 
 		t.Run("initial state clean", func(t *testing.T) {
 			storeObj := state_postgres.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
-			md.Properties["tableName"] = "clean_state"
-			md.Properties["metadataTableName"] = "clean_metadata"
+			md.Properties[keyTableName] = "clean_state"
+			md.Properties[keyMetadatTableName] = "clean_metadata"
 
 			// Init and perform the migrations
 			err := storeObj.Init(md)
@@ -116,8 +132,8 @@ func TestPostgreSQL(t *testing.T) {
 
 		t.Run("initial state clean, with explicit schema name", func(t *testing.T) {
 			storeObj := state_postgres.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
-			md.Properties["tableName"] = "public.clean2_state"
-			md.Properties["metadataTableName"] = "public.clean2_metadata"
+			md.Properties[keyTableName] = "public.clean2_state"
+			md.Properties[keyMetadatTableName] = "public.clean2_metadata"
 
 			// Init and perform the migrations
 			err := storeObj.Init(md)
@@ -141,8 +157,8 @@ func TestPostgreSQL(t *testing.T) {
 		t.Run("all migrations performed", func(t *testing.T) {
 			// Re-use "clean_state" and "clean_metadata"
 			storeObj := state_postgres.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
-			md.Properties["tableName"] = "clean_state"
-			md.Properties["metadataTableName"] = "clean_metadata"
+			md.Properties[keyTableName] = "clean_state"
+			md.Properties[keyMetadatTableName] = "clean_metadata"
 
 			// Should already have migration level 2
 			level, err := getMigrationLevel(dbClient, "clean_metadata")
@@ -180,8 +196,8 @@ func TestPostgreSQL(t *testing.T) {
 			require.NoError(t, err, "failed to create initial migration state")
 
 			storeObj := state_postgres.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
-			md.Properties["tableName"] = "pre_state"
-			md.Properties["metadataTableName"] = "pre_metadata"
+			md.Properties[keyTableName] = "pre_state"
+			md.Properties[keyMetadatTableName] = "pre_metadata"
 
 			// Init and perform the migrations
 			err = storeObj.Init(md)
@@ -220,8 +236,8 @@ func TestPostgreSQL(t *testing.T) {
 
 		t.Run("initialize components concurrently", func(t *testing.T) {
 			// Initializes 3 components concurrently using the same table names, and ensure that they perform migrations without conflicts and race conditions
-			md.Properties["tableName"] = "mystate"
-			md.Properties["metadataTableName"] = "mymetadata"
+			md.Properties[keyTableName] = "mystate"
+			md.Properties[keyMetadatTableName] = "mymetadata"
 
 			errs := make(chan error, 3)
 			hasLogs := atomic.Int32{}
@@ -428,7 +444,7 @@ func TestPostgreSQL(t *testing.T) {
 	}
 
 	testGetAfterPostgresRestart := func(ctx flow.Context) error {
-		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+		client, err := client.NewClientWithPort(strconv.Itoa(currentGrpcPort))
 		if err != nil {
 			panic(err)
 		}
@@ -443,7 +459,7 @@ func TestPostgreSQL(t *testing.T) {
 
 	// checks the state store component is not vulnerable to SQL injection
 	verifySQLInjectionTest := func(ctx flow.Context) error {
-		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+		client, err := client.NewClientWithPort(strconv.Itoa(currentGrpcPort))
 		if err != nil {
 			panic(err)
 		}
@@ -473,33 +489,196 @@ func TestPostgreSQL(t *testing.T) {
 		return nil
 	}
 
+	// Validates TTLs and garbage collections
+	ttlTest := func(ctx flow.Context) error {
+		md := state.Metadata{
+			Base: metadata.Base{
+				Name: "ttltest",
+				Properties: map[string]string{
+					keyConnectionString: connStringValue,
+					keyTableName:        "ttl_state",
+					keyMetadatTableName: "ttl_metadata",
+				},
+			},
+		}
+
+		t.Run("parse cleanupIntervalInSeconds", func(t *testing.T) {
+			t.Run("default value", func(t *testing.T) {
+				// Default value is 1 hr
+				md.Properties[keyCleanupInterval] = ""
+				storeObj := state_postgres.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
+
+				err := storeObj.Init(md)
+				require.NoError(t, err, "failed to init")
+				defer storeObj.Close()
+
+				dbAccess := storeObj.GetDBAccess().(*state_postgres.PostgresDBAccess)
+				require.NotNil(t, dbAccess)
+
+				cleanupInterval := dbAccess.GetCleanupInterval()
+				_ = assert.NotNil(t, cleanupInterval) &&
+					assert.Equal(t, time.Duration(1*time.Hour), *cleanupInterval)
+			})
+
+			t.Run("positive value", func(t *testing.T) {
+				// A positive value is interpreted in seconds
+				md.Properties[keyCleanupInterval] = "10"
+				storeObj := state_postgres.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
+
+				err := storeObj.Init(md)
+				require.NoError(t, err, "failed to init")
+				defer storeObj.Close()
+
+				dbAccess := storeObj.GetDBAccess().(*state_postgres.PostgresDBAccess)
+				require.NotNil(t, dbAccess)
+
+				cleanupInterval := dbAccess.GetCleanupInterval()
+				_ = assert.NotNil(t, cleanupInterval) &&
+					assert.Equal(t, time.Duration(10*time.Second), *cleanupInterval)
+			})
+
+			t.Run("disabled", func(t *testing.T) {
+				// A value of <=0 means that the cleanup is disabled
+				md.Properties[keyCleanupInterval] = "0"
+				storeObj := state_postgres.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
+
+				err := storeObj.Init(md)
+				require.NoError(t, err, "failed to init")
+				defer storeObj.Close()
+
+				dbAccess := storeObj.GetDBAccess().(*state_postgres.PostgresDBAccess)
+				require.NotNil(t, dbAccess)
+
+				cleanupInterval := dbAccess.GetCleanupInterval()
+				_ = assert.Nil(t, cleanupInterval)
+			})
+
+		})
+
+		t.Run("cleanup", func(t *testing.T) {
+			md := state.Metadata{
+				Base: metadata.Base{
+					Name: "ttltest",
+					Properties: map[string]string{
+						keyConnectionString: connStringValue,
+						keyTableName:        "ttl_state",
+						keyMetadatTableName: "ttl_metadata",
+					},
+				},
+			}
+
+			t.Run("automatically delete expired records", func(t *testing.T) {
+				// Run every second
+				md.Properties[keyCleanupInterval] = "1"
+
+				storeObj := state_postgres.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
+				err := storeObj.Init(md)
+				require.NoError(t, err, "failed to init")
+				defer storeObj.Close()
+
+				// Seed the database with some records
+				err = populateTTLRecords(ctx, dbClient)
+				require.NoError(t, err, "failed to seed records")
+
+				// Wait 2 seconds then verify we have only 10 rows left
+				time.Sleep(2 * time.Second)
+				count, err := countRowsInTable(ctx, dbClient, "ttl_state")
+				require.NoError(t, err, "failed to run query to count rows")
+				assert.Equal(t, 10, count)
+
+				// The "last-cleanup" value should be <= 1 second (+ a bit of buffer)
+				lastCleanup, err := loadLastCleanupInterval(ctx, dbClient, "ttl_metadata")
+				require.NoError(t, err, "failed to load value for 'last-cleanup'")
+				assert.LessOrEqual(t, lastCleanup, int64(1200))
+
+				// Wait 6 more seconds and verify there are no more rows left
+				time.Sleep(6 * time.Second)
+				count, err = countRowsInTable(ctx, dbClient, "ttl_state")
+				require.NoError(t, err, "failed to run query to count rows")
+				assert.Equal(t, 0, count)
+
+				// The "last-cleanup" value should be <= 1 second (+ a bit of buffer)
+				lastCleanup, err = loadLastCleanupInterval(ctx, dbClient, "ttl_metadata")
+				require.NoError(t, err, "failed to load value for 'last-cleanup'")
+				assert.LessOrEqual(t, lastCleanup, int64(1200))
+			})
+
+			t.Run("cleanup concurrency", func(t *testing.T) {
+				// Set to run every hour
+				// (we'll manually trigger more frequent iterations)
+				md.Properties[keyCleanupInterval] = "3600"
+
+				storeObj := state_postgres.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
+				err := storeObj.Init(md)
+				require.NoError(t, err, "failed to init")
+				defer storeObj.Close()
+
+				dbAccess := storeObj.GetDBAccess().(*state_postgres.PostgresDBAccess)
+				require.NotNil(t, dbAccess)
+
+				// Seed the database with some records
+				err = populateTTLRecords(ctx, dbClient)
+				require.NoError(t, err, "failed to seed records")
+
+				// Validate that 20 records are present
+				count, err := countRowsInTable(ctx, dbClient, "ttl_state")
+				require.NoError(t, err, "failed to run query to count rows")
+				assert.Equal(t, 20, count)
+
+				// Set last-cleanup to 1s ago (less than 3600s)
+				err = setValueInMetadataTable(ctx, dbClient, "ttl_metadata", "'last-cleanup'", "CURRENT_TIMESTAMP - interval '1 second'")
+				require.NoError(t, err, "failed to set last-cleanup")
+
+				// The "last-cleanup" value should be ~1 second (+ a bit of buffer)
+				lastCleanup, err := loadLastCleanupInterval(ctx, dbClient, "ttl_metadata")
+				require.NoError(t, err, "failed to load value for 'last-cleanup'")
+				assert.LessOrEqual(t, lastCleanup, int64(1200))
+				lastCleanupValueOrig, err := getValueFromMetadataTable(ctx, dbClient, "ttl_metadata", "last-cleanup")
+				require.NoError(t, err, "failed to load absolute value for 'last-cleanup'")
+				require.NotEmpty(t, lastCleanupValueOrig)
+
+				// Trigger the background cleanup, which should do nothing because the last cleanup was < 3600s
+				err = dbAccess.CleanupExpired(ctx)
+				require.NoError(t, err, "CleanupExpired returned an error")
+
+				// Validate that 20 records are still present
+				count, err = countRowsInTable(ctx, dbClient, "ttl_state")
+				require.NoError(t, err, "failed to run query to count rows")
+				assert.Equal(t, 20, count)
+
+				// The "last-cleanup" value should not have been changed
+				lastCleanupValue, err := getValueFromMetadataTable(ctx, dbClient, "ttl_metadata", "last-cleanup")
+				require.NoError(t, err, "failed to load absolute value for 'last-cleanup'")
+				assert.Equal(t, lastCleanupValueOrig, lastCleanupValue)
+			})
+		})
+
+		return nil
+	}
+
 	flow.New(t, "Run tests").
 		Step(dockercompose.Run("db", dockerComposeYAML)).
-		Step("wait for component to start", flow.Sleep(10*time.Second)).
-		Step("Run Init test", initTest).
+		// No waiting here, as connectStep retries until it's ready (or there's a timeout)
+		//Step("wait for component to start", flow.Sleep(10*time.Second)).
+		Step("connect to the database", connectStep).
+		Step("run Init test", initTest).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithComponentsPath("components/docker/default"),
 			runtime.WithStates(stateRegistry),
 		)).
-		Step("Run CRUD test", basicTest).
-		Step("Run eTag test", eTagTest).
-		Step("Run transactions test", transactionsTest).
-		Step("Run SQL injection test", verifySQLInjectionTest).
+		Step("run CRUD test", basicTest).
+		Step("run eTag test", eTagTest).
+		Step("run transactions test", transactionsTest).
+		Step("run SQL injection test", verifySQLInjectionTest).
+		Step("run TTL test", ttlTest).
 		Step("stop postgresql", dockercompose.Stop("db", dockerComposeYAML, "db")).
 		Step("wait for component to stop", flow.Sleep(10*time.Second)).
 		Step("start postgresql", dockercompose.Start("db", dockerComposeYAML, "db")).
 		Step("wait for component to start", flow.Sleep(10*time.Second)).
-		Step("Run connection test", testGetAfterPostgresRestart).
+		Step("run connection test", testGetAfterPostgresRestart).
 		Run()
-}
-
-func connectDB() (*pgx.Conn, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	dbClient, err := pgx.Connect(ctx, connStringValue)
-	cancel()
-	return dbClient, err
 }
 
 func tableExists(dbClient *pgx.Conn, schema string, table string) error {
@@ -533,4 +712,87 @@ func getMigrationLevel(dbClient *pgx.Conn, metadataTable string) (level string, 
 		level = ""
 	}
 	return level, err
+}
+
+func populateTTLRecords(ctx context.Context, dbClient *pgx.Conn) error {
+	// Insert 10 records that have expired, and 10 that will expire in 6 seconds
+	exp := time.Now().Add(-1 * time.Minute)
+	rows := make([][]any, 20)
+	for i := 0; i < 10; i++ {
+		rows[i] = []any{
+			fmt.Sprintf("expired_%d", i),
+			json.RawMessage(fmt.Sprintf(`"value_%d"`, i)),
+			false,
+			exp,
+		}
+	}
+	exp = time.Now().Add(4 * time.Second)
+	for i := 0; i < 10; i++ {
+		rows[i+10] = []any{
+			fmt.Sprintf("notexpired_%d", i),
+			json.RawMessage(fmt.Sprintf(`"value_%d"`, i)),
+			false,
+			exp,
+		}
+	}
+	queryCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	n, err := dbClient.CopyFrom(
+		queryCtx,
+		pgx.Identifier{"ttl_state"},
+		[]string{"key", "value", "isbinary", "expiredate"},
+		pgx.CopyFromRows(rows),
+	)
+	if err != nil {
+		return err
+	}
+	if n != 20 {
+		return fmt.Errorf("expected to copy 20 rows, but only got %d", n)
+	}
+	return nil
+}
+
+func countRowsInTable(ctx context.Context, dbClient *pgx.Conn, table string) (count int, err error) {
+	queryCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	err = dbClient.QueryRow(queryCtx, "SELECT COUNT(key) FROM "+table).Scan(&count)
+	cancel()
+	return
+}
+
+func loadLastCleanupInterval(ctx context.Context, dbClient *pgx.Conn, table string) (lastCleanup int64, err error) {
+	queryCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	err = dbClient.
+		QueryRow(queryCtx,
+			fmt.Sprintf("SELECT (EXTRACT('epoch' FROM CURRENT_TIMESTAMP - value::timestamp with time zone) * 1000)::bigint FROM %s WHERE key = 'last-cleanup'", table),
+		).
+		Scan(&lastCleanup)
+	cancel()
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	return
+}
+
+// Note this uses fmt.Sprintf and not parametrized queries-on purpose, so we can pass Postgres functions).
+// Normally this would be a very bad idea, just don't do it... (do as I say don't do as I do :) ).
+func setValueInMetadataTable(ctx context.Context, dbClient *pgx.Conn, table, key, value string) error {
+	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	_, err := dbClient.Exec(queryCtx,
+		//nolint:gosec
+		fmt.Sprintf(`INSERT INTO %[1]s (key, value) VALUES (%[2]s, %[3]s) ON CONFLICT (key) DO UPDATE SET value = %[3]s`, table, key, value),
+	)
+	cancel()
+	return err
+}
+
+func getValueFromMetadataTable(ctx context.Context, dbClient *pgx.Conn, table, key string) (value string, err error) {
+	queryCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	err = dbClient.
+		QueryRow(queryCtx, fmt.Sprintf("SELECT value FROM %s WHERE key = $1", table), key).
+		Scan(&value)
+	cancel()
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	return
 }

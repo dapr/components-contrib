@@ -191,9 +191,10 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 		a.logger,
 	)
 
-	receiveAndBlockFn := func(onFirstSuccess func()) error {
+	receiveAndBlockFn := func(receiver impl.Receiver, onFirstSuccess func()) error {
 		return sub.ReceiveAndBlock(
 			impl.GetPubSubHandlerFunc(req.Topic, handler, a.logger, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second),
+			receiver,
 			onFirstSuccess,
 			impl.ReceiveOptions{
 				BulkEnabled: false, // Bulk is not supported in regular Subscribe.
@@ -219,9 +220,10 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 		a.logger,
 	)
 
-	receiveAndBlockFn := func(onFirstSuccess func()) error {
+	receiveAndBlockFn := func(receiver impl.Receiver, onFirstSuccess func()) error {
 		return sub.ReceiveAndBlock(
 			impl.GetBulkPubSubHandlerFunc(req.Topic, handler, a.logger, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second),
+			receiver,
 			onFirstSuccess,
 			impl.ReceiveOptions{
 				BulkEnabled: true, // Bulk is supported in BulkSubscribe.
@@ -235,7 +237,7 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 // doSubscribe is a helper function that handles the common logic for both Subscribe and BulkSubscribe.
 // The receiveAndBlockFn is a function should invoke a blocking call to receive messages from the topic.
 func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
-	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(func()) error,
+	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(impl.Receiver, func()) error,
 ) error {
 	// Does nothing if DisableEntityManagement is true
 	err := a.client.EnsureQueue(subscribeCtx, req.Topic)
@@ -258,7 +260,7 @@ func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
 		// Reconnect loop.
 		for {
 			// Blocks until a successful connection (or until context is canceled)
-			err := sub.Connect(func() (impl.Receiver, error) {
+			receiver, err := sub.Connect(func() (impl.Receiver, error) {
 				receiver, err := a.client.GetClient().NewReceiverForQueue(req.Topic, nil)
 				return &impl.MessageReceiver{Receiver: receiver}, err
 			})
@@ -273,7 +275,7 @@ func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
 
 			// receiveAndBlockFn will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
 			// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
-			err = receiveAndBlockFn(onFirstSuccess)
+			err = receiveAndBlockFn(receiver, onFirstSuccess)
 			if err != nil && !errors.Is(err, context.Canceled) {
 				a.logger.Error(err)
 			}

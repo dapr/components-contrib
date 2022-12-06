@@ -16,6 +16,7 @@ package jetstream
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/dapr/components-contrib/pubsub"
@@ -26,17 +27,27 @@ type metadata struct {
 
 	jwt     string
 	seedKey string
+	token   string
 
 	tlsClientCert string
 	tlsClientKey  string
 
 	name           string
+	streamName     string
 	durableName    string
 	queueGroupName string
 	startSequence  uint64
 	startTime      time.Time
 	deliverAll     bool
 	flowControl    bool
+	ackWait        time.Duration
+	maxDeliver     int
+	backOff        []time.Duration
+	maxAckPending  int
+	replicas       int
+	memoryStorage  bool
+	rateLimit      uint64
+	hearbeat       time.Duration
 }
 
 func parseMetadata(psm pubsub.Metadata) (metadata, error) {
@@ -48,6 +59,7 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 		return metadata{}, fmt.Errorf("missing nats URL")
 	}
 
+	m.token = psm.Properties["token"]
 	m.jwt = psm.Properties["jwt"]
 	m.seedKey = psm.Properties["seedKey"]
 
@@ -75,7 +87,11 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 	}
 
 	m.durableName = psm.Properties["durableName"]
-	m.queueGroupName = psm.Properties["queueGroupName"]
+	if val, ok := psm.Properties["queueGroupName"]; ok && val != "" {
+		m.queueGroupName = val
+	} else {
+		m.queueGroupName = psm.Properties[pubsub.RuntimeConsumerIDKey]
+	}
 
 	if v, err := strconv.ParseUint(psm.Properties["startSequence"], 10, 64); err == nil {
 		m.startSequence = v
@@ -92,6 +108,43 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 	if v, err := strconv.ParseBool(psm.Properties["flowControl"]); err == nil {
 		m.flowControl = v
 	}
+	if v, err := time.ParseDuration(psm.Properties["ackWait"]); err == nil {
+		m.ackWait = v
+	}
+
+	if v, err := strconv.Atoi(psm.Properties["maxDeliver"]); err == nil {
+		m.maxDeliver = v
+	}
+
+	backOffSlice := strings.Split(psm.Properties["backOff"], ",")
+	var backOff []time.Duration
+
+	for _, item := range backOffSlice {
+		trimmed := strings.TrimSpace(item)
+		if duration, err := time.ParseDuration(trimmed); err == nil {
+			backOff = append(backOff, duration)
+		}
+	}
+	m.backOff = backOff
+
+	if v, err := strconv.Atoi(psm.Properties["maxAckPending"]); err == nil {
+		m.maxAckPending = v
+	}
+	if v, err := strconv.Atoi(psm.Properties["replicas"]); err == nil {
+		m.replicas = v
+	}
+	if v, err := strconv.ParseBool(psm.Properties["memoryStorage"]); err == nil {
+		m.memoryStorage = v
+	}
+	if v, err := strconv.ParseUint(psm.Properties["rateLimit"], 10, 64); err == nil {
+		m.rateLimit = v
+	}
+
+	if v, err := time.ParseDuration(psm.Properties["hearbeat"]); err == nil {
+		m.hearbeat = v
+	}
+
+	m.streamName = psm.Properties["streamName"]
 
 	return m, nil
 }

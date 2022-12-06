@@ -27,6 +27,7 @@ type Store interface {
 	Delete(req *DeleteRequest) error
 	Get(req *GetRequest) (*GetResponse, error)
 	Set(req *SetRequest) error
+	GetComponentMetadata() map[string]string
 }
 
 func Ping(store Store) error {

@@ -24,8 +24,10 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
-	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+
+	contribMetadata "github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/pubsub"
 )
 
 const (
@@ -65,9 +67,11 @@ type rabbitMQ struct {
 }
 
 // interface used to allow unit testing.
+//
+//nolint:interfacebloat
 type rabbitMQChannelBroker interface {
-	Publish(exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) error
-	PublishWithDeferredConfirm(exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) (*amqp.DeferredConfirmation, error)
+	PublishWithContext(ctx context.Context, exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) error
+	PublishWithDeferredConfirmWithContext(ctx context.Context, exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) (*amqp.DeferredConfirmation, error)
 	QueueDeclare(name string, durable bool, autoDelete bool, exclusive bool, noWait bool, args amqp.Table) (amqp.Queue, error)
 	QueueBind(name string, key string, exchange string, noWait bool, args amqp.Table) error
 	Consume(queue string, consumer string, autoAck bool, exclusive bool, noLocal bool, noWait bool, args amqp.Table) (<-chan amqp.Delivery, error)
@@ -190,10 +194,23 @@ func (r *rabbitMQ) publishSync(req *pubsub.PublishRequest) (rabbitMQChannelBroke
 		routingKey = val
 	}
 
-	confirm, err := r.channel.PublishWithDeferredConfirm(req.Topic, routingKey, false, false, amqp.Publishing{
+	ttl, ok, err := contribMetadata.TryGetTTL(req.Metadata)
+	if err != nil {
+		r.logger.Warnf("%s publishing to %s failed parse TryGetTTL: %v, it is ignored.", logMessagePrefix, req.Topic, err)
+	}
+	var expiration string
+	if ok {
+		// RabbitMQ expects the duration in ms
+		expiration = strconv.FormatInt(ttl.Milliseconds(), 10)
+	} else if r.metadata.defaultQueueTTL != nil {
+		expiration = strconv.FormatInt(r.metadata.defaultQueueTTL.Milliseconds(), 10)
+	}
+
+	confirm, err := r.channel.PublishWithDeferredConfirmWithContext(r.ctx, req.Topic, routingKey, false, false, amqp.Publishing{
 		ContentType:  "text/plain",
 		Body:         req.Data,
 		DeliveryMode: r.metadata.deliveryMode,
+		Expiration:   expiration,
 	})
 	if err != nil {
 		r.logger.Errorf("%s publishing to %s failed in channel.Publish: %v", logMessagePrefix, req.Topic, err)
@@ -545,7 +562,7 @@ func (r *rabbitMQ) Close() error {
 }
 
 func (r *rabbitMQ) Features() []pubsub.Feature {
-	return nil
+	return []pubsub.Feature{pubsub.FeatureMessageTTL}
 }
 
 func mustReconnect(channel rabbitMQChannelBroker, err error) bool {

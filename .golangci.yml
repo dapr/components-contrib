@@ -13,8 +13,8 @@ run:
   tests: true
 
   # list of build tags, all linters use it. Default is empty list.
-  #build-tags:
-  #  - mytag
+  build-tags:
+    - certtests
 
   # which dirs to skip: they won't be analyzed;
   # can use regexp here: generated.*, regexp is applied on full path;
@@ -31,7 +31,7 @@ run:
   # skip-files:
   #  - ".*\\.my\\.go$"
   #  - lib/bad.go
-  
+
 # output configuration options
 output:
   # colored-line-number|line-number|json|tab|checkstyle, default is "colored-line-number"
@@ -116,13 +116,14 @@ linters-settings:
     # minimal occurrences count to trigger, 3 by default
     min-occurrences: 5
   depguard:
-    list-type: blacklist
+    list-type: denylist
     include-go-root: false
-    packages:
-      - github.com/Sirupsen/logrus
-    packages-with-error-messages:
-      # specify an error message to output when a blacklisted package is used
-      github.com/Sirupsen/logrus: "must use github.com/dapr/kit/logger"
+    packages-with-error-message:
+      - "github.com/Sirupsen/logrus": "must use github.com/dapr/kit/logger"
+      - "github.com/agrea/ptr": "must use github.com/dapr/kit/ptr"
+      - "github.com/cenkalti/backoff": "must use github.com/cenkalti/backoff/v4"
+      - "github.com/cenkalti/backoff/v2": "must use github.com/cenkalti/backoff/v4"
+      - "github.com/cenkalti/backoff/v3": "must use github.com/cenkalti/backoff/v4"
   misspell:
     # Correct spellings using locale preferences for US or UK.
     # Default is to use a neutral variety of English.
@@ -276,3 +277,6 @@ linters:
     - rowserrcheck
     - sqlclosecheck
     - structcheck
+    - deadcode
+    - nosnakecase
+    - varcheck

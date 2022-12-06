@@ -22,6 +22,12 @@ import (
 	"github.com/dapr/components-contrib/state"
 )
 
+const (
+	hosts     = "hosts"
+	namespace = "namespace"
+	set       = "set"
+)
+
 func TestValidateMetadataForValidInputs(t *testing.T) {
 	type testCase struct {
 		name       string
@@ -45,7 +51,7 @@ func TestValidateMetadataForValidInputs(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			metadata := state.Metadata{Base: metadata.Base{Properties: test.properties}}
-			err := validateMetadata(metadata)
+			_, err := parseAndValidateMetadata(metadata)
 			assert.Nil(t, err)
 		})
 	}
@@ -79,7 +85,7 @@ func TestValidateMetadataForInvalidInputs(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			metadata := state.Metadata{Base: metadata.Base{Properties: test.properties}}
-			err := validateMetadata(metadata)
+			_, err := parseAndValidateMetadata(metadata)
 			assert.NotNil(t, err)
 		})
 	}

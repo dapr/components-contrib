@@ -18,12 +18,39 @@ import (
 	"fmt"
 	"testing"
 
+	secretmanager "cloud.google.com/go/secretmanager/apiv1"
+	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
+	"github.com/googleapis/gax-go/v2"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 )
+
+type MockStore struct {
+	gcpSecretemanagerClient
+}
+
+func (s *MockStore) ListSecrets(ctx context.Context, req *secretmanagerpb.ListSecretsRequest, opts ...gax.CallOption) *secretmanager.SecretIterator {
+	it := &secretmanager.SecretIterator{}
+	it.PageInfo().MaxSize = 1
+	it.Next()
+	return it
+}
+
+func (s *MockStore) AccessSecretVersion(ctx context.Context, req *secretmanagerpb.AccessSecretVersionRequest, opts ...gax.CallOption) (*secretmanagerpb.AccessSecretVersionResponse, error) {
+	return &secretmanagerpb.AccessSecretVersionResponse{
+		Name: "test",
+		Payload: &secretmanagerpb.SecretPayload{
+			Data: []byte("test"),
+		},
+	}, nil
+}
+
+func (s *MockStore) Close() error {
+	return nil
+}
 
 func TestInit(t *testing.T) {
 	m := secretstores.Metadata{}
@@ -95,6 +122,27 @@ func TestGetSecret(t *testing.T) {
 		v, err := sm.GetSecret(context.Background(), secretstores.GetSecretRequest{Name: "test"})
 		assert.NotNil(t, err)
 		assert.Equal(t, secretstores.GetSecretResponse{Data: nil}, v)
+	})
+
+	t.Run("Get single secret - with no key param", func(t *testing.T) {
+		s := sm.(*Store)
+		s.client = &MockStore{}
+		s.ProjectID = "test_project"
+
+		resp, err := sm.GetSecret(context.Background(), secretstores.GetSecretRequest{})
+		assert.NotNil(t, err)
+		assert.Nil(t, resp.Data)
+	})
+
+	t.Run("Get single secret - success scenario", func(t *testing.T) {
+		s := sm.(*Store)
+		s.client = &MockStore{}
+		s.ProjectID = "test_project"
+
+		resp, err := sm.GetSecret(context.Background(), secretstores.GetSecretRequest{Name: "test"})
+		assert.Nil(t, err)
+		assert.NotNil(t, resp.Data)
+		assert.Equal(t, resp.Data["test"], "test")
 	})
 }
 

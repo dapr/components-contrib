@@ -24,6 +24,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/state"
 	state_postgres "github.com/dapr/components-contrib/state/postgresql"
@@ -66,53 +67,66 @@ func TestPostgreSQL(t *testing.T) {
 
 		// save state
 		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("postgresqlcert1"), nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// get state
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "postgresqlcert1", string(item.Value))
 
 		// update state
 		errUpdate := client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("postgresqlcert2"), nil)
-		assert.NoError(t, errUpdate)
+		require.NoError(t, errUpdate)
 		item, errUpdatedGet := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, errUpdatedGet)
+		require.NoError(t, errUpdatedGet)
 		assert.Equal(t, "postgresqlcert2", string(item.Value))
 
 		// delete state
 		err = client.DeleteState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		return nil
 	}
 
 	eTagTest := func(ctx flow.Context) error {
-		etag1 := "739"
-		etag900 := "900"
+		etag900invalid := "900invalid"
 
 		err1 := stateStore.Set(&state.SetRequest{
 			Key:   "k",
 			Value: "v1",
 		})
-		assert.Equal(t, nil, err1)
-		err2 := stateStore.Set(&state.SetRequest{
-			Key:   "k",
-			Value: "v2",
-			ETag:  &etag1,
+		require.NoError(t, err1)
+		resp1, err2 := stateStore.Get(&state.GetRequest{
+			Key: "k",
 		})
-		assert.Equal(t, nil, err2)
+
+		require.NoError(t, err2)
 		err3 := stateStore.Set(&state.SetRequest{
 			Key:   "k",
-			Value: "v3",
-			ETag:  &etag900,
+			Value: "v2",
+			ETag:  resp1.ETag,
 		})
-		assert.Error(t, err3)
+		require.NoError(t, err3)
+
+		resp11, err12 := stateStore.Get(&state.GetRequest{
+			Key: "k",
+		})
+		expectedEtag := *resp11.ETag
+		require.NoError(t, err12)
+
+		err4 := stateStore.Set(&state.SetRequest{
+			Key:   "k",
+			Value: "v3",
+			ETag:  &etag900invalid,
+		})
+		require.Error(t, err4)
+
 		resp, err := stateStore.Get(&state.GetRequest{
 			Key: "k",
 		})
-		assert.Equal(t, nil, err)
-		assert.Equal(t, "740", *resp.ETag)
+
+		require.NoError(t, err)
+		assert.Equal(t, expectedEtag, *resp.ETag)
 		assert.Equal(t, "\"v2\"", string(resp.Data))
 
 		return nil
@@ -170,17 +184,16 @@ func TestPostgreSQL(t *testing.T) {
 				},
 			},
 		})
-		assert.Equal(t, nil, err)
+		require.NoError(t, err)
+
 		resp1, err := stateStore.Get(&state.GetRequest{
 			Key: "reqKey1",
 		})
-		assert.Equal(t, "744", *resp1.ETag)
 		assert.Equal(t, "\"reqVal101\"", string(resp1.Data))
 
 		resp3, err := stateStore.Get(&state.GetRequest{
 			Key: "reqKey3",
 		})
-		assert.Equal(t, "745", *resp3.ETag)
 		assert.Equal(t, "\"reqVal103\"", string(resp3.Data))
 		return nil
 	}
@@ -194,7 +207,7 @@ func TestPostgreSQL(t *testing.T) {
 
 		// save state
 		_, err = client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		return nil
 	}
@@ -245,7 +258,7 @@ func TestPostgreSQL(t *testing.T) {
 		Step("Run transactions test", transactionsTest).
 		Step("Run SQL injection test", verifySQLInjectionTest).
 		Step("stop postgresql", dockercompose.Stop("db", dockerComposeYAML, "db")).
-		Step("wait for component to start", flow.Sleep(10*time.Second)).
+		Step("wait for component to stop", flow.Sleep(10*time.Second)).
 		Step("start postgresql", dockercompose.Start("db", dockerComposeYAML, "db")).
 		Step("wait for component to start", flow.Sleep(10*time.Second)).
 		Step("Run connection test", testGetAfterPostgresRestart).

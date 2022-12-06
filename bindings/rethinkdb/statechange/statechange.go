@@ -28,7 +28,7 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-// Binding represents RethinkDB change change state input binding which fires handler with
+// Binding represents RethinkDB change state input binding which fires handler with
 // both the previous and current state store content each time there is a change.
 type Binding struct {
 	logger  logger.Logger

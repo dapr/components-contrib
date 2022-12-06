@@ -1,0 +1,12 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: azure-servicebus
+spec:
+  type: pubsub.azure.servicebus.topics
+  version: v1
+  metadata:
+  - name: connectionString
+    value: ${{AzureServiceBusConnectionString}}
+  - name: consumerID
+    value: "testConsumer"

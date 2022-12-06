@@ -27,3 +27,11 @@ This project aims to test the RabbitMQ Pub/Sub component under various condition
         * the total number of the messages received by subscribers "B"
     * App: Simulates periodic errors
     * Component: Retries on error
+* Test TTL is regarded.
+  * Setting a large TTL only at the message level but not component level, wait for a small period, and verify that the message is received.
+  * Setting a TTL only at the message level but not component level expires messages correctly
+  * Setting a default TTL at the component level expires messages correctly
+    * Create component spec with the field `ttlInSeconds`.
+    * Run dapr application with component.
+    * Send a message, wait TTL seconds, and verify the message is deleted/expired.
+  * Setting a TTL at the component level and message level ignores the default component level TTL and always uses the message level TTL specified

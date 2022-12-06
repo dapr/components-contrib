@@ -26,6 +26,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -49,12 +50,14 @@ const (
 
 func createIotHubPubsubMetadata() pubsub.Metadata {
 	metadata := pubsub.Metadata{
-		Properties: map[string]string{
-			connectionString:     os.Getenv(iotHubConnectionStringEnvKey),
-			consumerID:           os.Getenv(iotHubConsumerGroupEnvKey),
-			storageAccountName:   os.Getenv(storageAccountNameEnvKey),
-			storageAccountKey:    os.Getenv(storageAccountKeyEnvKey),
-			storageContainerName: testStorageContainerName,
+		Base: metadata.Base{
+			Properties: map[string]string{
+				"connectionString":     os.Getenv(iotHubConnectionStringEnvKey),
+				"consumerID":           os.Getenv(iotHubConsumerGroupEnvKey),
+				"storageAccountName":   os.Getenv(storageAccountNameEnvKey),
+				"storageAccountKey":    os.Getenv(storageAccountKeyEnvKey),
+				"storageContainerName": testStorageContainerName,
+			},
 		},
 	}
 
@@ -86,7 +89,7 @@ func testReadIotHubEvents(t *testing.T) {
 		Topic:    testTopic, // TODO: Handle Topic configuration after EventHubs pubsub rewrite #951
 		Metadata: map[string]string{},
 	}
-	err = eh.Subscribe(req, handler)
+	err = eh.Subscribe(context.Background(), req, handler)
 	assert.Nil(t, err)
 
 	// Note: azure-event-hubs-go SDK defaultLeasePersistenceInterval is 5s

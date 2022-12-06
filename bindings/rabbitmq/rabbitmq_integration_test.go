@@ -70,13 +70,15 @@ func TestQueuesWithTTL(t *testing.T) {
 	const maxGetDuration = ttlInSeconds * time.Second
 
 	metadata := bindings.Metadata{
-		Name: "testQueue",
-		Properties: map[string]string{
-			"queueName":                    queueName,
-			"host":                         rabbitmqHost,
-			"deleteWhenUnused":             strconv.FormatBool(exclusive),
-			"durable":                      strconv.FormatBool(durable),
-			contribMetadata.TTLMetadataKey: strconv.FormatInt(ttlInSeconds, 10),
+		Base: contribMetadata.Base{
+			Name: "testQueue",
+			Properties: map[string]string{
+				"queueName":                    queueName,
+				"host":                         rabbitmqHost,
+				"deleteWhenUnused":             strconv.FormatBool(exclusive),
+				"durable":                      strconv.FormatBool(durable),
+				contribMetadata.TTLMetadataKey: strconv.FormatInt(ttlInSeconds, 10),
+			},
 		},
 	}
 
@@ -96,7 +98,7 @@ func TestQueuesWithTTL(t *testing.T) {
 	defer ch.Close()
 
 	const tooLateMsgContent = "too_late_msg"
-	_, err = r.Invoke(context.Backgound(), &bindings.InvokeRequest{Data: []byte(tooLateMsgContent)})
+	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{Data: []byte(tooLateMsgContent)})
 	assert.Nil(t, err)
 
 	time.Sleep(time.Second + (ttlInSeconds * time.Second))
@@ -107,7 +109,7 @@ func TestQueuesWithTTL(t *testing.T) {
 
 	// Getting before it is expired, should return it
 	const testMsgContent = "test_msg"
-	_, err = r.Invoke(context.Backgound(), &bindings.InvokeRequest{Data: []byte(testMsgContent)})
+	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{Data: []byte(testMsgContent)})
 	assert.Nil(t, err)
 
 	msg, ok, err := getMessageWithRetries(ch, queueName, maxGetDuration)
@@ -128,12 +130,14 @@ func TestPublishingWithTTL(t *testing.T) {
 	const maxGetDuration = ttlInSeconds * time.Second
 
 	metadata := bindings.Metadata{
-		Name: "testQueue",
-		Properties: map[string]string{
-			"queueName":        queueName,
-			"host":             rabbitmqHost,
-			"deleteWhenUnused": strconv.FormatBool(exclusive),
-			"durable":          strconv.FormatBool(durable),
+		Base: contribMetadata.Base{
+			Name: "testQueue",
+			Properties: map[string]string{
+				"queueName":        queueName,
+				"host":             rabbitmqHost,
+				"deleteWhenUnused": strconv.FormatBool(exclusive),
+				"durable":          strconv.FormatBool(durable),
+			},
 		},
 	}
 
@@ -160,7 +164,7 @@ func TestPublishingWithTTL(t *testing.T) {
 		},
 	}
 
-	_, err = rabbitMQBinding1.Invoke(context.Backgound(), &writeRequest)
+	_, err = rabbitMQBinding1.Invoke(context.Background(), &writeRequest)
 	assert.Nil(t, err)
 
 	time.Sleep(time.Second + (ttlInSeconds * time.Second))
@@ -181,7 +185,7 @@ func TestPublishingWithTTL(t *testing.T) {
 			contribMetadata.TTLMetadataKey: strconv.Itoa(ttlInSeconds * 1000),
 		},
 	}
-	_, err = rabbitMQBinding2.Invoke(context.Backgound(), &writeRequest)
+	_, err = rabbitMQBinding2.Invoke(context.Background(), &writeRequest)
 	assert.Nil(t, err)
 
 	msg, ok, err := getMessageWithRetries(ch, queueName, maxGetDuration)
@@ -202,14 +206,16 @@ func TestExclusiveQueue(t *testing.T) {
 	const maxGetDuration = ttlInSeconds * time.Second
 
 	metadata := bindings.Metadata{
-		Name: "testQueue",
-		Properties: map[string]string{
-			"queueName":                    queueName,
-			"host":                         rabbitmqHost,
-			"deleteWhenUnused":             strconv.FormatBool(exclusive),
-			"durable":                      strconv.FormatBool(durable),
-			"exclusive":                    strconv.FormatBool(exclusive),
-			contribMetadata.TTLMetadataKey: strconv.FormatInt(ttlInSeconds, 10),
+		Base: contribMetadata.Base{
+			Name: "testQueue",
+			Properties: map[string]string{
+				"queueName":                    queueName,
+				"host":                         rabbitmqHost,
+				"deleteWhenUnused":             strconv.FormatBool(exclusive),
+				"durable":                      strconv.FormatBool(durable),
+				"exclusive":                    strconv.FormatBool(exclusive),
+				contribMetadata.TTLMetadataKey: strconv.FormatInt(ttlInSeconds, 10),
+			},
 		},
 	}
 
@@ -255,13 +261,15 @@ func TestPublishWithPriority(t *testing.T) {
 	const maxPriority = 10
 
 	metadata := bindings.Metadata{
-		Name: "testQueue",
-		Properties: map[string]string{
-			"queueName":        queueName,
-			"host":             rabbitmqHost,
-			"deleteWhenUnused": strconv.FormatBool(exclusive),
-			"durable":          strconv.FormatBool(durable),
-			"maxPriority":      strconv.FormatInt(maxPriority, 10),
+		Base: contribMetadata.Base{
+			Name: "testQueue",
+			Properties: map[string]string{
+				"queueName":        queueName,
+				"host":             rabbitmqHost,
+				"deleteWhenUnused": strconv.FormatBool(exclusive),
+				"durable":          strconv.FormatBool(durable),
+				"maxPriority":      strconv.FormatInt(maxPriority, 10),
+			},
 		},
 	}
 
@@ -281,7 +289,7 @@ func TestPublishWithPriority(t *testing.T) {
 	defer ch.Close()
 
 	const middlePriorityMsgContent = "middle"
-	_, err = r.Invoke(context.Backgound(), &bindings.InvokeRequest{
+	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{
 		Metadata: map[string]string{
 			contribMetadata.PriorityMetadataKey: "5",
 		},
@@ -290,7 +298,7 @@ func TestPublishWithPriority(t *testing.T) {
 	assert.Nil(t, err)
 
 	const lowPriorityMsgContent = "low"
-	_, err = r.Invoke(context.Backgound(), &bindings.InvokeRequest{
+	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{
 		Metadata: map[string]string{
 			contribMetadata.PriorityMetadataKey: "1",
 		},
@@ -299,7 +307,7 @@ func TestPublishWithPriority(t *testing.T) {
 	assert.Nil(t, err)
 
 	const highPriorityMsgContent = "high"
-	_, err = r.Invoke(context.Backgound(), &bindings.InvokeRequest{
+	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{
 		Metadata: map[string]string{
 			contribMetadata.PriorityMetadataKey: "10",
 		},

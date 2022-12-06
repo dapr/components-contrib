@@ -30,7 +30,7 @@ import (
 func getFakeProperties() map[string]string {
 	props := map[string]string{}
 	props[metadataConnectionStringKey] = "amqps://localhost:5671"
-	props[metadataProtocolKey] = "fakeprotocol"
+	props[metadataProtocolKey] = "amqps"
 	props[metadataHostnameKey] = "fakehostname"
 	props[metadataUsernameKey] = "fakeusername"
 	props[metadataPasswordKey] = "fakepassword"
@@ -79,6 +79,9 @@ func TestCreateMetadata(t *testing.T) {
 		assert.Equal(t, uint8(0), m.prefetchCount)
 		assert.Equal(t, int64(0), m.maxLen)
 		assert.Equal(t, int64(0), m.maxLenBytes)
+		assert.Equal(t, "", m.ClientKey)
+		assert.Equal(t, "", m.ClientCert)
+		assert.Equal(t, "", m.CACert)
 		assert.Equal(t, fanoutExchangeKind, m.exchangeKind)
 	})
 
@@ -120,6 +123,40 @@ func TestCreateMetadata(t *testing.T) {
 		assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
 		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
 		assert.Equal(t, uint8(2), m.deliveryMode)
+	})
+
+	t.Run("protocol does not match connection string", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Base: mdata.Base{Properties: fakeProperties},
+		}
+		fakeMetaData.Properties[metadataProtocolKey] = "fakeprotocol"
+
+		// act
+		_, err := createMetadata(fakeMetaData, log)
+
+		// assert
+		if assert.Error(t, err) {
+			assert.Equal(t, err.Error(), fmt.Sprintf("%s protocol does not match connection string, protocol: %s, connection string: %s", errorMessagePrefix, fakeMetaData.Properties[metadataProtocolKey], fakeMetaData.Properties[metadataConnectionStringKey]))
+		}
+	})
+
+	t.Run("connection string is empty, protocol is not empty", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Base: mdata.Base{Properties: fakeProperties},
+		}
+		fakeMetaData.Properties[metadataProtocolKey] = "fakeprotocol"
+		fakeMetaData.Properties[metadataConnectionStringKey] = ""
+
+		// act
+		m, err := createMetadata(fakeMetaData, log)
+
+		// assert
+		assert.Nil(t, err)
+		assert.Equal(t, fakeProperties[metadataProtocolKey], m.protocol)
 	})
 
 	t.Run("invalid concurrency", func(t *testing.T) {

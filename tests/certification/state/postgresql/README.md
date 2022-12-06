@@ -15,10 +15,10 @@ go test -v -tags certtests -count=1 .
 Also test the `tableName` and `metadataTableName` metadata properties.
 
 1. Initializes the component with names for tables that don't exist
-1. Initializes the component with names for tables that don't exist, specifying an explicit schema
-1. Initializes the component with all migrations performed (current level is "2")
-1. Initializes the component with only the state table, created before the metadata table was added (implied migration level "1")
-1. Initializes three components at the same time and ensure no race conditions exist in performing migrations
+2. Initializes the component with names for tables that don't exist, specifying an explicit schema
+3. Initializes the component with all migrations performed (current level is "2")
+4. Initializes the component with only the state table, created before the metadata table was added (implied migration level "1")
+5. Initializes three components at the same time and ensure no race conditions exist in performing migrations
 
 ## Test for CRUD operations
 
@@ -38,8 +38,8 @@ Also test the `tableName` and `metadataTableName` metadata properties.
    - No value uses the default value (3600 seconds)
    - A positive value sets the interval to the given number of seconds
    - A zero or negative value disables the cleanup
-1. The cleanup method deletes expired records and updates the metadata table with the last time
-1. The cleanup method doesn't run if the last iteration was less than `cleanupIntervalInSeconds` or if another process is doing the cleanup
+2. The cleanup method deletes expired records and updates the metadata table with the last time it ran
+3. The cleanup method doesn't run if the last iteration was less than `cleanupIntervalInSeconds` or if another process is doing the cleanup
 
 ## Connection Recovery
 

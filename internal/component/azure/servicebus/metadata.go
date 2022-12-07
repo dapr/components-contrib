@@ -80,6 +80,7 @@ const (
 	keyQueueName                       = "queueName"
 	keyRequireSessions                 = "requireSessions"
 	keyMaxConcurrentSessions           = "maxConcurrentSessions"
+	keySessionIdleTimeoutInSec         = "sessionIdleTimeoutInSec"
 )
 
 // Defaults.
@@ -114,7 +115,8 @@ const (
 	defaultPublishMaxRetries               = 5
 	defaultPublishInitialRetryInternalInMs = 500
 
-	defaultMaxConcurrentSessions = 8
+	defaultMaxConcurrentSessions    = 8
+	defaultSesssionIdleTimeoutInSec = -1 // -1 means use the value from `defaultTimeoutInSec`.
 )
 
 // Modes for ParseMetadata.
@@ -279,6 +281,14 @@ func ParseMetadata(md map[string]string, logger logger.Logger, mode byte) (m *Me
 		m.MaxConcurrentSesions, err = strconv.Atoi(val)
 		if err != nil {
 			return m, fmt.Errorf("invalid maxConcurrentSessions %s: %s", val, err)
+		}
+	}
+
+	m.SessionIdleTimeoutInSec = defaultSesssionIdleTimeoutInSec
+	if val, ok := md[keySessionIdleTimeoutInSec]; ok && val != "" {
+		m.SessionIdleTimeoutInSec, err = strconv.Atoi(val)
+		if err != nil {
+			return m, fmt.Errorf("invalid sessionIdleTimeoutInSec %s: %s", val, err)
 		}
 	}
 

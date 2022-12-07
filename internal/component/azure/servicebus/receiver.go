@@ -54,7 +54,7 @@ func (m *MessageReceiver) RenewMessageLocks(ctx context.Context, msgs []*azservi
 		// Renew the lock for the message.
 		err := m.RenewMessageLock(ctx, msg, nil)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("Couldn't renew all active message lock(s) for message %s, %w", msg.MessageID, err))
+			errs = append(errs, fmt.Errorf("couldn't renew all active message lock(s) for message %s, %w", msg.MessageID, err))
 		}
 	}
 

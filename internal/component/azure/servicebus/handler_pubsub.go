@@ -12,7 +12,7 @@ import (
 )
 
 // GetPubSubHandlerFunc returns the handler function for pubsub messages.
-func GetPubSubHandlerFunc(topic string, handler pubsub.Handler, log logger.Logger, timeout time.Duration) HandlerFunc {
+func GetPubSubHandlerFunc(topic string, handler pubsub.Handler, log logger.Logger, timeout time.Duration) HandlerFn {
 	emptyResponseItems := []HandlerResponseItem{}
 	// Only the first ASB message is used in the actual handler invocation.
 	return func(ctx context.Context, asbMsgs []*servicebus.ReceivedMessage) ([]HandlerResponseItem, error) {
@@ -33,7 +33,7 @@ func GetPubSubHandlerFunc(topic string, handler pubsub.Handler, log logger.Logge
 }
 
 // GetPubSubHandlerFunc returns the handler function for bulk pubsub messages.
-func GetBulkPubSubHandlerFunc(topic string, handler pubsub.BulkHandler, log logger.Logger, timeout time.Duration) HandlerFunc {
+func GetBulkPubSubHandlerFunc(topic string, handler pubsub.BulkHandler, log logger.Logger, timeout time.Duration) HandlerFn {
 	return func(ctx context.Context, asbMsgs []*servicebus.ReceivedMessage) ([]HandlerResponseItem, error) {
 		pubsubMsgs := make([]pubsub.BulkMessageEntry, len(asbMsgs))
 		for i, asbMsg := range asbMsgs {

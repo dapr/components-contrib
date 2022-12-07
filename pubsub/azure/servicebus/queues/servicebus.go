@@ -192,7 +192,7 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 	)
 
 	receiveAndBlockFn := func(receiver impl.Receiver, onFirstSuccess func()) error {
-		return sub.ReceiveAndBlock(
+		return sub.ReceiveBlocking(
 			impl.GetPubSubHandlerFunc(req.Topic, handler, a.logger, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second),
 			receiver,
 			onFirstSuccess,
@@ -221,7 +221,7 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 	)
 
 	receiveAndBlockFn := func(receiver impl.Receiver, onFirstSuccess func()) error {
-		return sub.ReceiveAndBlock(
+		return sub.ReceiveBlocking(
 			impl.GetBulkPubSubHandlerFunc(req.Topic, handler, a.logger, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second),
 			receiver,
 			onFirstSuccess,

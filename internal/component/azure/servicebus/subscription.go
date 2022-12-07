@@ -43,17 +43,14 @@ type Subscription struct {
 	mu                   sync.RWMutex
 	activeMessages       map[int64]*azservicebus.ReceivedMessage
 	activeOperationsChan chan struct{}
-	// receiver             *MessageReceiver
-	// sessionMu            sync.RWMutex
-	// sessionReceivers     map[string]*SessionReceiver
-	requireSessions   bool // read-only once set
-	timeout           time.Duration
-	maxBulkSubCount   int
-	retriableErrLimit ratelimit.Limiter
-	handleChan        chan struct{}
-	logger            logger.Logger
-	ctx               context.Context
-	cancel            context.CancelFunc
+	requireSessions      bool // read-only once set
+	timeout              time.Duration
+	maxBulkSubCount      int
+	retriableErrLimit    ratelimit.Limiter
+	handleChan           chan struct{}
+	logger               logger.Logger
+	ctx                  context.Context
+	cancel               context.CancelFunc
 }
 
 // NewBulkSubscription returns a new Subscription object.
@@ -113,26 +110,6 @@ func NewSubscription(
 		s.handleChan = make(chan struct{}, maxConcurrentHandlers)
 	}
 
-	// // Lock renewal loop.
-	// go func() {
-	// 	shouldRenewLocks := lockRenewalInSec > 0
-	// 	if !shouldRenewLocks {
-	// 		s.logger.Debugf("Lock renewal for %s disabled", s.entity)
-	// 		return
-	// 	}
-	// 	t := time.NewTicker(time.Second * time.Duration(lockRenewalInSec))
-	// 	defer t.Stop()
-	// 	for {
-	// 		select {
-	// 		case <-ctx.Done():
-	// 			s.logger.Debugf("Lock renewal context for %s done", s.entity)
-	// 			return
-	// 		case <-t.C:
-	// 			s.tryRenewLocks()
-	// 		}
-	// 	}
-	// }()
-
 	return s
 }
 
@@ -165,16 +142,6 @@ func (s *Subscription) Connect(newReceiverFunc func() (Receiver, error)) (Receiv
 					return fmt.Errorf("expected a session receiver, got %T", clientAttempt)
 				}
 				receiver = sessionReceiver
-
-				// s.sessionMu.Lock()
-				// _, exists := s.sessionReceivers[sessionReceiver.ID()]
-				// if exists {
-				// 	s.sessionMu.Unlock()
-				// 	return fmt.Errorf("session receiver %s already exists", sessionReceiver.ID())
-				// }
-				// s.logger.Debugf("Receiving from session %s", sessionReceiver.ID())
-				// s.sessionReceivers[sessionReceiver.ID()] = sessionReceiver
-				// s.sessionMu.Unlock()
 			} else {
 				msgReciever, ok := clientAttempt.(*MessageReceiver)
 				if !ok {
@@ -341,19 +308,6 @@ func (s *Subscription) ReceiveBlocking(handler HandlerFn, receiver Receiver, onF
 // Close the receiver and stops watching for new messages.
 func (s *Subscription) Close(closeCtx context.Context) {
 	s.logger.Debugf("Closing subscription to %s", s.entity)
-
-	// s.sessionMu.Lock()
-	// for _, session := range s.sessionReceivers {
-	// 	if err := session.Close(closeCtx); err != nil {
-	// 		s.logger.Warnf("Error closing session receiver: %s", err.Error())
-	// 	}
-	// }
-	// s.sessionMu.Unlock()
-
-	// // Ensure subscription entity is closed.
-	// if err := s.receiver.Close(closeCtx); err != nil {
-	// 	s.logger.Warnf("Error closing subscription for %s: %+v", s.entity, err)
-	// }
 	s.cancel()
 }
 
@@ -474,64 +428,6 @@ func (s *Subscription) handleAsync(ctx context.Context, msgs []*azservicebus.Rec
 		runHandlerFn(ctx)
 	}()
 }
-
-// func (s *Subscription) tryRenewLocks() {
-// 	if s.requireSessions {
-// 		s.tryRenewSessionLocks()
-// 	} else {
-// 		s.tryRenewMessageLocks()
-// 	}
-// }
-
-// func (s *Subscription) tryRenewSessionLocks() {
-// 	s.sessionMu.Lock()
-// 	defer s.sessionMu.Unlock()
-
-// 	if len(s.sessionReceivers) == 0 {
-// 		return
-// 	}
-
-// 	var ctx, cancel = context.WithTimeout(s.ctx, s.timeout)
-// 	defer cancel()
-// 	for _, session := range s.sessionReceivers {
-// 		session.RenewLocks(ctx, &azservicebus.ReceivedMessage{}) // mesage not used.
-// 	}
-// }
-
-// func (s *Subscription) tryRenewMessageLocks() {
-// 	if s.receiver == nil {
-// 		return
-// 	}
-
-// 	// Snapshot the messages to try to renew locks for.
-// 	msgs := make([]*azservicebus.ReceivedMessage, 0)
-// 	s.mu.RLock()
-// 	for _, m := range s.activeMessages {
-// 		msgs = append(msgs, m)
-// 	}
-// 	s.mu.RUnlock()
-// 	if len(msgs) == 0 {
-// 		s.logger.Debugf("No active messages require lock renewal for %s", s.entity)
-// 		return
-// 	}
-
-// 	// Lock renewal is best effort and not guaranteed to succeed, warnings are expected.
-// 	s.logger.Debugf("Trying to renew %d active message lock(s) for %s", len(msgs), s.entity)
-// 	var err error
-// 	var ctx context.Context
-// 	var cancel context.CancelFunc
-// 	for _, msg := range msgs {
-// 		ctx, cancel = context.WithTimeout(context.Background(), s.timeout)
-
-// 		// Renew the lock for the message.
-// 		err = s.receiver.RenewLocks(ctx, msg)
-
-// 		if err != nil {
-// 			s.logger.Debugf("Couldn't renew all active message lock(s) for %s, ", s.entity, err)
-// 		}
-// 		cancel()
-// 	}
-// }
 
 // AbandonMessage marks a messsage as abandoned.
 func (s *Subscription) AbandonMessage(ctx context.Context, receiver Receiver, m *azservicebus.ReceivedMessage) {

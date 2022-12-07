@@ -34,8 +34,8 @@ type HandlerResponseItem struct {
 	Error   error
 }
 
-// HandlerFunc is the type for handlers that receive messages
-type HandlerFunc func(ctx context.Context, msgs []*azservicebus.ReceivedMessage) ([]HandlerResponseItem, error)
+// HandlerFn is the type for handlers that receive messages
+type HandlerFn func(ctx context.Context, msgs []*azservicebus.ReceivedMessage) ([]HandlerResponseItem, error)
 
 // Subscription is an object that manages a subscription to an Azure Service Bus receiver, for a topic or queue.
 type Subscription struct {
@@ -197,11 +197,12 @@ func (s *Subscription) Connect(newReceiverFunc func() (Receiver, error)) (Receiv
 }
 
 type ReceiveOptions struct {
-	BulkEnabled bool
+	BulkEnabled        bool
+	SessionIdleTimeout time.Duration
 }
 
-// ReceiveAndBlock is a blocking call to receive messages on an Azure Service Bus subscription from a topic or queue.
-func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, receiver Receiver, onFirstSuccess func(), opts ReceiveOptions) error {
+// ReceiveBlocking is a blocking call to receive messages on an Azure Service Bus subscription from a topic or queue.
+func (s *Subscription) ReceiveBlocking(handler HandlerFn, receiver Receiver, onFirstSuccess func(), opts ReceiveOptions) error {
 	ctx, cancel := context.WithCancel(s.ctx)
 	defer cancel()
 
@@ -218,7 +219,14 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, receiver Receiver, o
 			return ctx.Err()
 		}
 
-		recvCtx, recvCancel := context.WithTimeout(ctx, s.timeout)
+		var recvTimeout time.Duration
+		if s.requireSessions && opts.SessionIdleTimeout > 0 {
+			recvTimeout = opts.SessionIdleTimeout
+		} else {
+			recvTimeout = s.timeout
+		}
+
+		recvCtx, recvCancel := context.WithTimeout(ctx, recvTimeout)
 		defer recvCancel()
 
 		// This method blocks until we get a message or the context is canceled
@@ -292,7 +300,7 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, receiver Receiver, o
 			s.CompleteMessage(finalizeCtx, receiver, msg)
 		}
 
-		bulkRunHandlerFunc := func(hctx context.Context) {
+		bulkRunHandlerFn := func(hctx context.Context) {
 			resps, err := handler(hctx, msgs)
 
 			// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
@@ -323,7 +331,7 @@ func (s *Subscription) ReceiveAndBlock(handler HandlerFunc, receiver Receiver, o
 		}
 
 		if opts.BulkEnabled {
-			s.handleAsync(s.ctx, msgs, bulkRunHandlerFunc)
+			s.handleAsync(s.ctx, msgs, bulkRunHandlerFn)
 		} else {
 			s.handleAsync(s.ctx, msgs, runHandlerFn)
 		}
@@ -383,8 +391,9 @@ func (s *Subscription) RenewLocksBlocking(ctx context.Context, receiver Receiver
 					if s.requireSessions {
 						sessionReceiver := receiver.(*SessionReceiver)
 						if err := sessionReceiver.RenewSessionLocks(lockCtx); err != nil {
-							s.logger.Errorf("Error renewing session locks for %s: %s", s.entity, err)
+							s.logger.Errorf("error renewing session locks for %s: %s", s.entity, err)
 						}
+						s.logger.Debugf("Renewed session %s locks for %s", sessionReceiver.SessionID(), s.entity)
 					} else {
 						// Snapshot the messages to try to renew locks for.
 						msgs := make([]*azservicebus.ReceivedMessage, 0)
@@ -399,8 +408,9 @@ func (s *Subscription) RenewLocksBlocking(ctx context.Context, receiver Receiver
 						}
 						msgReceiver := receiver.(*MessageReceiver)
 						if err := msgReceiver.RenewMessageLocks(lockCtx, msgs); err != nil {
-							s.logger.Errorf("Error renewing message locks for %s: %s", s.entity, err)
+							s.logger.Errorf("error renewing message locks for %s: %s", s.entity, err)
 						}
+						s.logger.Debugf("Renewed message locks for %s", s.entity)
 					}
 				}()
 			}
@@ -558,7 +568,15 @@ func (s *Subscription) addActiveMessage(m *azservicebus.ReceivedMessage) error {
 	if m.SequenceNumber == nil {
 		return fmt.Errorf("message sequence number is nil")
 	}
-	s.logger.Debugf("Adding message %s with sequence number %d to active messages on %s", m.MessageID, *m.SequenceNumber, s.entity)
+
+	var logSuffix string
+	if m.SessionID != nil {
+		if !s.requireSessions {
+			s.logger.Warnf("Message %s with sequence number %d has a session ID but the subscription is not configured to require sessions", m.MessageID, *m.SequenceNumber)
+		}
+		logSuffix = fmt.Sprintf(" with session id %s", *m.SessionID)
+	}
+	s.logger.Debugf("Adding message %s with sequence number %d to active messages on %s%s", m.MessageID, *m.SequenceNumber, s.entity, logSuffix)
 	s.mu.Lock()
 	s.activeMessages[*m.SequenceNumber] = m
 	s.mu.Unlock()

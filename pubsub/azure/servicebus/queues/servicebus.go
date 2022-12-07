@@ -264,7 +264,6 @@ func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
 				receiver, err := a.client.GetClient().NewReceiverForQueue(req.Topic, nil)
 				return &impl.MessageReceiver{Receiver: receiver}, err
 			})
-
 			if err != nil {
 				// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
 				if errors.Is(err, context.Canceled) {

@@ -89,7 +89,7 @@ func NewSubscription(
 		activeMessages:  make(map[int64]*azservicebus.ReceivedMessage),
 		timeout:         time.Duration(timeoutInSec) * time.Second,
 		maxBulkSubCount: *maxBulkSubCount,
-		//sessionReceivers: make(map[string]*SessionReceiver),
+		// sessionReceivers: make(map[string]*SessionReceiver),
 		requireSessions: requireSessions,
 		logger:          logger,
 		ctx:             ctx,

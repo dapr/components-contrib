@@ -139,7 +139,7 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 			// ReceiveAndBlock will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
 			// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
 			err = sub.ReceiveBlocking(
-				a.getHandlerFunc(handler),
+				a.getHandlerFn(handler),
 				receiver,
 				func() {
 					// Reset the backoff when the subscription is successful and we have received the first message
@@ -174,7 +174,7 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 	return nil
 }
 
-func (a *AzureServiceBusQueues) getHandlerFunc(handler bindings.Handler) impl.HandlerFn {
+func (a *AzureServiceBusQueues) getHandlerFn(handler bindings.Handler) impl.HandlerFn {
 	return func(ctx context.Context, asbMsgs []*servicebus.ReceivedMessage) ([]impl.HandlerResponseItem, error) {
 		if len(asbMsgs) != 1 {
 			return nil, fmt.Errorf("expected 1 message, got %d", len(asbMsgs))

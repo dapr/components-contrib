@@ -237,7 +237,8 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 // doSubscribe is a helper function that handles the common logic for both Subscribe and BulkSubscribe.
 // The receiveAndBlockFn is a function should invoke a blocking call to receive messages from the topic.
 func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
-	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(impl.Receiver, func()) error, requireSessions bool) error {
+	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(impl.Receiver, func()) error, requireSessions bool,
+) error {
 	// Does nothing if DisableEntityManagement is true
 	err := a.client.EnsureSubscription(subscribeCtx, a.metadata.ConsumerID, req.Topic, impl.SubscriptionOpts{
 		RequireSessions: &requireSessions,
@@ -286,8 +287,8 @@ func (a *azureServiceBus) Features() []pubsub.Feature {
 }
 
 func (a *azureServiceBus) ConnectAndReceive(subscribeCtx context.Context,
-	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(impl.Receiver, func()) error, onFirstSuccess func()) {
-
+	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(impl.Receiver, func()) error, onFirstSuccess func(),
+) {
 	// The receiver context is used to tie the subscription context to
 	// the lifetime of the receiver. This is necessary for shutting
 	// down the lock renewal goroutine.
@@ -315,12 +316,12 @@ func (a *azureServiceBus) ConnectAndReceive(subscribeCtx context.Context,
 
 	go func() {
 		a.logger.Debugf("Renewing locks for subscription %s for topic %s", a.metadata.ConsumerID, req.Topic)
-		err := sub.RenewLocksBlocking(receiverCtx, receiver, impl.LockRenewalOptions{
+		lockErr := sub.RenewLocksBlocking(receiverCtx, receiver, impl.LockRenewalOptions{
 			RenewalInSec: a.metadata.LockRenewalInSec,
 			TimeoutInSec: a.metadata.TimeoutInSec,
 		})
-		if err != nil {
-			a.logger.Error(err)
+		if lockErr != nil {
+			a.logger.Error(lockErr)
 		}
 	}()
 
@@ -347,8 +348,8 @@ func (a *azureServiceBus) ConnectAndReceive(subscribeCtx context.Context,
 }
 
 func (a *azureServiceBus) ConnectAndReceiveWithSessions(subscribeCtx context.Context,
-	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(impl.Receiver, func()) error, onFirstSuccess func()) {
-
+	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(impl.Receiver, func()) error, onFirstSuccess func(),
+) {
 	maxSessions := a.metadata.MaxConcurrentSesions
 	sessionsChan := make(chan struct{}, maxSessions)
 	for i := 0; i < maxSessions; i++ {
@@ -417,12 +418,12 @@ func (a *azureServiceBus) ConnectAndReceiveWithSessions(subscribeCtx context.Con
 
 					go func() {
 						a.logger.Debugf("Renewing locks for session %s receiver for subscription %s to topic %s", sessionID, a.metadata.ConsumerID, req.Topic)
-						err := sub.RenewLocksBlocking(receiverCtx, receiver, impl.LockRenewalOptions{
+						lockErr := sub.RenewLocksBlocking(receiverCtx, receiver, impl.LockRenewalOptions{
 							RenewalInSec: a.metadata.LockRenewalInSec,
 							TimeoutInSec: a.metadata.TimeoutInSec,
 						})
-						if err != nil {
-							a.logger.Error(err)
+						if lockErr != nil {
+							a.logger.Error(lockErr)
 						}
 					}()
 

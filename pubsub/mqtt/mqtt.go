@@ -313,23 +313,36 @@ func (m *mqttPubSub) connect(ctx context.Context, clientID string) (mqtt.Client,
 	}
 	opts := m.createClientOptions(uri, clientID)
 
+	fn := m.onMessage(ctx)
 	opts.SetOnConnectHandler(func(client mqtt.Client) {
+		if len(m.topics) == 0 {
+			return
+		}
+
+		// Subscribe to topics upon connecting
 		subscribeTopics := make(map[string]byte, len(m.topics))
 		for k := range m.topics {
 			subscribeTopics[k] = m.metadata.qos
 		}
 
-		_ = client.SubscribeMultiple(
-			subscribeTopics,
-			m.onMessage(ctx),
-		)
+		token := client.SubscribeMultiple(subscribeTopics, fn)
+		ok := token.WaitTimeout(30 * time.Second)
+		tokenErr := token.Error()
+		// In case of timeout, ok will be false and there won't be an error in the token
+		if tokenErr == nil && !ok {
+			tokenErr = context.DeadlineExceeded
+		}
+		if tokenErr != nil {
+			// Cause a disconnection
+			m.logger.Errorf("MQTT error while trying to subscribe to topics; will disconnect. Error: %v", tokenErr)
+			client.Disconnect(5)
+		}
 	})
 
 	client := mqtt.NewClient(opts)
 
 	// Add all routes before we connect to catch messages that may be delivered before client.Subscribe is invoked
 	// The routes will be overwritten later
-	fn := m.onMessage(ctx)
 	for topic := range m.topics {
 		client.AddRoute(topic, fn)
 	}

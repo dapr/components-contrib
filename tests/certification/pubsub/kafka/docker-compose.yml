@@ -1,7 +1,7 @@
 version: "3.7"
 services:
   zookeeper:
-    image: confluentinc/cp-zookeeper:5.4.0
+    image: confluentinc/cp-zookeeper:7.3.0
     hostname: zookeeper
     container_name: zookeeper
     ports:
@@ -11,7 +11,7 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
 
   kafka1:
-    image: confluentinc/cp-server:5.4.0
+    image: confluentinc/cp-server:7.3.0
     hostname: kafka1
     container_name: kafka1
     depends_on:
@@ -30,7 +30,7 @@ services:
       KAFKA_NUM_PARTITIONS: 10
 
   kafka2:
-    image: confluentinc/cp-server:5.4.0
+    image: confluentinc/cp-server:7.3.0
     hostname: kafka2
     container_name: kafka2
     depends_on:
@@ -49,7 +49,7 @@ services:
       KAFKA_NUM_PARTITIONS: 10
 
   kafka3:
-    image: confluentinc/cp-server:5.4.0
+    image: confluentinc/cp-server:7.3.0
     hostname: kafka3
     container_name: kafka3
     depends_on:

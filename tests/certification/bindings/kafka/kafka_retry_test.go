@@ -15,9 +15,7 @@ package kafka_test
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
-	"net/http"
 	"testing"
 	"time"
 
@@ -216,25 +214,6 @@ func TestKafka_with_retry(t *testing.T) {
 
 			return err
 		})).
-		Step("wait for Dapr OAuth client", retry.Do(20*time.Second, 6, func(ctx flow.Context) error {
-			httpClient := &http.Client{
-				Transport: &http.Transport{
-					TLSClientConfig: &tls.Config{
-						InsecureSkipVerify: true, // test server certificate is not trusted.
-					},
-				},
-			}
-
-			resp, err := httpClient.Get(oauthClientQuery)
-			if err != nil {
-				return err
-			}
-			if resp.StatusCode != 200 {
-				return fmt.Errorf("oauth client query for 'dapr' not successful")
-			}
-			return nil
-		})).
-
 		// Run the application logic above.
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			application(appID1, consumerGroup1))).
@@ -254,7 +233,7 @@ func TestKafka_with_retry(t *testing.T) {
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components-retry/mtls-consumer"),
+			embedded.WithComponentsPath("./components-retry/consumer2"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
@@ -272,7 +251,7 @@ func TestKafka_with_retry(t *testing.T) {
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName3,
-			embedded.WithComponentsPath("./components-retry/oauth-consumer"),
+			embedded.WithComponentsPath("./components-retry/consumer2"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*2),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*2),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*2),

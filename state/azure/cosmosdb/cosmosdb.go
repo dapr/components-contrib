@@ -218,7 +218,9 @@ func (c *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelEventual.ToPtr()
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	readItem, err := c.client.ReadItem(ctx, azcosmos.NewPartitionKeyString(partitionKey), req.Key, &options)
+	cancel()
 	if err != nil {
 		var responseErr *azcore.ResponseError
 		if errors.As(err, &responseErr) && responseErr.ErrorCode == "NotFound" {

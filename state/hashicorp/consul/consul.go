@@ -103,7 +103,7 @@ func (c *Consul) Get(ctx context.Context, req *state.GetRequest) (*state.GetResp
 	}
 	queryOpts = queryOpts.WithContext(ctx)
 
-	resp, queryMeta, err := c.client.KV().Get(fmt.Sprintf("%s/%s", c.keyPrefixPath, req.Key), queryOpts)
+	resp, queryMeta, err := c.client.KV().Get(c.keyPrefixPath+"/"+req.Key, queryOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +128,7 @@ func (c *Consul) Set(ctx context.Context, req *state.SetRequest) error {
 		reqValByte, _ = json.Marshal(req.Value)
 	}
 
-	keyWithPath := fmt.Sprintf("%s/%s", c.keyPrefixPath, req.Key)
+	keyWithPath := c.keyPrefixPath + "/" + req.Key
 
 	writeOptions := new(api.WriteOptions)
 	writeOptions = writeOptions.WithContext(ctx)
@@ -145,7 +145,7 @@ func (c *Consul) Set(ctx context.Context, req *state.SetRequest) error {
 
 // Delete performes a Consul KV delete operation.
 func (c *Consul) Delete(ctx context.Context, req *state.DeleteRequest) error {
-	keyWithPath := fmt.Sprintf("%s/%s", c.keyPrefixPath, req.Key)
+	keyWithPath := c.keyPrefixPath + "/" + req.Key
 	writeOptions := new(api.WriteOptions)
 	writeOptions = writeOptions.WithContext(ctx)
 	_, err := c.client.KV().Delete(keyWithPath, writeOptions)

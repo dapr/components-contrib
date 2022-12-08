@@ -13,7 +13,9 @@ limitations under the License.
 
 package state
 
-import "context"
+import (
+	"context"
+)
 
 // TransactionalStore is an interface for initialization and support multiple transactional requests.
 type TransactionalStore interface {

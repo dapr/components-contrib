@@ -22,4 +22,4 @@ require (
 
 replace github.com/dapr/components-contrib => ../../../../
 
-replace github.com/dapr/dapr => github.com/1046102779/dapr v0.0.0-20221021130037-635b70c24259
+replace github.com/dapr/dapr => github.com/1046102779/dapr v0.0.0-20221208082204-c47f9f07131e

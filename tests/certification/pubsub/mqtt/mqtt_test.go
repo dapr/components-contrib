@@ -321,7 +321,7 @@ func TestMQTT(t *testing.T) {
 		//
 		// Send messages and test
 		Step("send and wait", test(topicName, consumerGroup1)).
-		Step("reset", flow.Reset(consumerGroup1)).
+		Step("reset 1", flow.Reset(consumerGroup1)).
 		//
 		//Run Second application App2
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset),
@@ -338,7 +338,7 @@ func TestMQTT(t *testing.T) {
 		//
 		// Send messages and test
 		Step("multiple send and wait", multipleTest(consumerGroup1, consumerGroup2)).
-		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
+		Step("reset 2", flow.Reset(consumerGroup1, consumerGroup2)).
 		//
 		// Test multiple topics and wildcards
 		Step(
@@ -364,13 +364,13 @@ func TestMQTT(t *testing.T) {
 		Step("send and wait shared", test(sharedTopicPublish, consumerGroupMultiShared)).
 		//
 		// Infra test
-		StepAsync("steady flow of messages to publish", &task,
+		StepAsync("steady flow of messages to publish 1", &task,
 			sendMessagesInBackground(consumerGroup1, consumerGroup2)).
-		Step("wait", flow.Sleep(5*time.Second)).
+		Step("wait 1", flow.Sleep(5*time.Second)).
 		Step("stop sidecar 2", sidecar.Stop(sidecarName2)).
-		Step("wait", flow.Sleep(5*time.Second)).
+		Step("wait 2", flow.Sleep(5*time.Second)).
 		Step("stop sidecar 1", sidecar.Stop(sidecarName1)).
-		Step("wait", flow.Sleep(5*time.Second)).
+		Step("wait 3", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarName2,
 			embedded.WithComponentsPath("./components/consumer2"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
@@ -379,7 +379,7 @@ func TestMQTT(t *testing.T) {
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
 			componentRuntimeOptions(),
 		)).
-		Step("wait", flow.Sleep(5*time.Second)).
+		Step("wait 4", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/consumer1"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -387,24 +387,24 @@ func TestMQTT(t *testing.T) {
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
 			componentRuntimeOptions(),
 		)).
-		Step("wait", flow.Sleep(5*time.Second)).
-		Step("assert messages", assertMessages(consumerGroup1, consumerGroup2)).
-		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
+		Step("wait 5", flow.Sleep(10*time.Second)).
+		Step("assert messages 1", assertMessages(consumerGroup1, consumerGroup2)).
+		Step("reset 3", flow.Reset(consumerGroup1, consumerGroup2)).
 		//
 		// Simulate a network interruption.
 		// This tests the components ability to handle reconnections
 		// when Dapr is disconnected abnormally.
-		StepAsync("steady flow of messages to publish", &task,
+		StepAsync("steady flow of messages to publish 2", &task,
 			sendMessagesInBackground(consumerGroup1, consumerGroup2)).
-		Step("wait", flow.Sleep(5*time.Second)).
+		Step("wait 6", flow.Sleep(15*time.Second)).
 		//
 		// Errors will occurring here.
 		Step("interrupt network",
-			network.InterruptNetwork(5*time.Second, nil, nil, "18084")).
+			network.InterruptNetwork(10*time.Second, nil, nil, "18084")).
 		//
 		// Component should recover at this point.
-		Step("wait", flow.Sleep(5*time.Second)).
-		Step("assert messages", assertMessages(consumerGroup1, consumerGroup2)).
+		Step("wait 7", flow.Sleep(15*time.Second)).
+		Step("assert messages 2", assertMessages(consumerGroup1, consumerGroup2)).
 		Run()
 }
 

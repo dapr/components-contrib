@@ -88,6 +88,7 @@ func (m *mqttPubSub) Init(metadata pubsub.Metadata) error {
 	}
 
 	m.ctx, m.cancel = context.WithCancel(context.Background())
+	m.topics = make(map[string]mqttPubSubSubscription)
 
 	// mqtt broker allows only one connection at a given time from a clientID.
 	producerClientID := m.metadata.producerID
@@ -96,14 +97,13 @@ func (m *mqttPubSub) Init(metadata pubsub.Metadata) error {
 		producerClientID = m.metadata.consumerID + "-producer"
 	}
 	connCtx, connCancel := context.WithTimeout(m.ctx, defaultWait)
-	p, err := m.connect(connCtx, producerClientID)
+	p, err := m.connect(connCtx, producerClientID, false)
 	connCancel()
 	if err != nil {
 		return err
 	}
 
 	m.producer = p
-	m.topics = make(map[string]mqttPubSubSubscription)
 
 	m.logger.Debug("mqtt message bus initialization complete")
 
@@ -121,23 +121,20 @@ func (m *mqttPubSub) Publish(req *pubsub.PublishRequest) error {
 	m.logger.Debugf("mqtt publishing topic %s", req.Topic)
 
 	token := m.producer.Publish(req.Topic, m.metadata.qos, m.metadata.retain, req.Data)
-	t := time.NewTimer(defaultWait)
-	defer func() {
-		if !t.Stop() {
-			<-t.C
-		}
-	}()
+
+	ctx, cancel := context.WithTimeout(m.ctx, defaultWait)
+	defer cancel()
 	select {
 	case <-token.Done():
 		// Operation completed
-	case <-m.ctx.Done():
+	case <-ctx.Done():
 		// Context canceled
-		return m.ctx.Err()
-	case <-t.C:
-		return fmt.Errorf("mqtt timeout while publishing")
+		return ctx.Err()
 	}
-	if !token.WaitTimeout(defaultWait) || token.Error() != nil {
+	if token.Error() != nil {
 		return fmt.Errorf("mqtt error from publish: %v", token.Error())
+	} else if !token.WaitTimeout(defaultWait) {
+		return fmt.Errorf("mqtt error from publish: timeout %s", defaultWait.String())
 	}
 
 	return nil
@@ -217,7 +214,7 @@ func (m *mqttPubSub) startSubscription(ctx context.Context) error {
 		consumerClientID += "-consumer"
 	}
 	connCtx, connCancel := context.WithTimeout(ctx, defaultWait)
-	c, err := m.connect(connCtx, consumerClientID)
+	c, err := m.connect(connCtx, consumerClientID, true)
 	connCancel()
 	if err != nil {
 		return err
@@ -306,45 +303,51 @@ func (m *mqttPubSub) handlerForTopic(topic string) pubsub.Handler {
 	return nil
 }
 
-func (m *mqttPubSub) connect(ctx context.Context, clientID string) (mqtt.Client, error) {
+func (m *mqttPubSub) connect(ctx context.Context, clientID string, isConsumer bool) (mqtt.Client, error) {
 	uri, err := url.Parse(m.metadata.url)
 	if err != nil {
 		return nil, err
 	}
 	opts := m.createClientOptions(uri, clientID)
+	var client mqtt.Client
 
-	fn := m.onMessage(ctx)
-	opts.SetOnConnectHandler(func(client mqtt.Client) {
-		if len(m.topics) == 0 {
-			return
+	// For consumers, add the topics we're subscribing to in the OnConnectHandler
+	if isConsumer {
+		fn := m.onMessage(ctx)
+		opts.SetOnConnectHandler(func(client mqtt.Client) {
+			if len(m.topics) == 0 {
+				return
+			}
+
+			// Subscribe to topics upon connecting
+			subscribeTopics := make(map[string]byte, len(m.topics))
+			for k := range m.topics {
+				subscribeTopics[k] = m.metadata.qos
+			}
+
+			token := client.SubscribeMultiple(subscribeTopics, fn)
+			ok := token.WaitTimeout(30 * time.Second)
+			tokenErr := token.Error()
+			// In case of timeout, ok will be false and there won't be an error in the token
+			if tokenErr == nil && !ok {
+				tokenErr = context.DeadlineExceeded
+			}
+			if tokenErr != nil {
+				// Cause a disconnection
+				m.logger.Errorf("MQTT error while trying to subscribe to topics; will disconnect. Error: %v", tokenErr)
+				client.Disconnect(5)
+			}
+		})
+
+		client = mqtt.NewClient(opts)
+
+		// Add all routes before we connect to catch messages that may be delivered before client.Subscribe is invoked
+		// The routes will be overwritten later
+		for topic := range m.topics {
+			client.AddRoute(topic, fn)
 		}
-
-		// Subscribe to topics upon connecting
-		subscribeTopics := make(map[string]byte, len(m.topics))
-		for k := range m.topics {
-			subscribeTopics[k] = m.metadata.qos
-		}
-
-		token := client.SubscribeMultiple(subscribeTopics, fn)
-		ok := token.WaitTimeout(30 * time.Second)
-		tokenErr := token.Error()
-		// In case of timeout, ok will be false and there won't be an error in the token
-		if tokenErr == nil && !ok {
-			tokenErr = context.DeadlineExceeded
-		}
-		if tokenErr != nil {
-			// Cause a disconnection
-			m.logger.Errorf("MQTT error while trying to subscribe to topics; will disconnect. Error: %v", tokenErr)
-			client.Disconnect(5)
-		}
-	})
-
-	client := mqtt.NewClient(opts)
-
-	// Add all routes before we connect to catch messages that may be delivered before client.Subscribe is invoked
-	// The routes will be overwritten later
-	for topic := range m.topics {
-		client.AddRoute(topic, fn)
+	} else {
+		client = mqtt.NewClient(opts)
 	}
 
 	token := client.Connect()

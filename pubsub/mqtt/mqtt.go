@@ -325,7 +325,7 @@ func (m *mqttPubSub) connect(ctx context.Context, clientID string, isConsumer bo
 	if isConsumer {
 		sendNotification := func() {
 			if readyCh != nil {
-				readyCh <- struct{}{}
+				close(readyCh)
 				readyCh = nil
 			}
 		}

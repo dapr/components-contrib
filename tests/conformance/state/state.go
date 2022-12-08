@@ -253,7 +253,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					if len(scenario.contentType) != 0 {
 						req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
 					}
-					err := statestore.Set(context.TODO(), req)
+					err := statestore.Set(context.Background(), req)
 					assert.Nil(t, err)
 				}
 			}
@@ -271,7 +271,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					if len(scenario.contentType) != 0 {
 						req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
 					}
-					res, err := statestore.Get(context.TODO(), req)
+					res, err := statestore.Get(context.Background(), req)
 					assert.Nil(t, err)
 					assertEquals(t, scenario.value, res)
 				}
@@ -292,7 +292,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					metadata.ContentType:    contenttype.JSONContentType,
 					metadata.QueryIndexName: "qIndx",
 				}
-				resp, err := querier.Query(context.TODO(), &req)
+				resp, err := querier.Query(context.Background(), &req)
 				assert.NoError(t, err)
 				assert.Equal(t, len(scenario.results), len(resp.Results))
 				for i := range scenario.results {
@@ -320,11 +320,11 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					if len(scenario.contentType) != 0 {
 						req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
 					}
-					err := statestore.Delete(context.TODO(), req)
+					err := statestore.Delete(context.Background(), req)
 					assert.Nil(t, err, "no error expected while deleting %s", scenario.key)
 
 					t.Logf("Checking value absence for %s", scenario.key)
-					res, err := statestore.Get(context.TODO(), &state.GetRequest{
+					res, err := statestore.Get(context.Background(), &state.GetRequest{
 						Key: scenario.key,
 					})
 					assert.Nil(t, err, "no error expected while checking for absence for %s", scenario.key)
@@ -346,14 +346,14 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					})
 				}
 			}
-			err := statestore.BulkSet(context.TODO(), bulk)
+			err := statestore.BulkSet(context.Background(), bulk)
 			assert.Nil(t, err)
 
 			for _, scenario := range scenarios {
 				if scenario.bulkOnly {
 					t.Logf("Checking value presence for %s", scenario.key)
 					// Data should have been inserted at this point
-					res, err := statestore.Get(context.TODO(), &state.GetRequest{
+					res, err := statestore.Get(context.Background(), &state.GetRequest{
 						Key: scenario.key,
 					})
 					assert.Nil(t, err)
@@ -374,12 +374,12 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					})
 				}
 			}
-			err := statestore.BulkDelete(context.TODO(), bulk)
+			err := statestore.BulkDelete(context.Background(), bulk)
 			assert.Nil(t, err)
 
 			for _, req := range bulk {
 				t.Logf("Checking value absence for %s", req.Key)
-				res, err := statestore.Get(context.TODO(), &state.GetRequest{
+				res, err := statestore.Get(context.Background(), &state.GetRequest{
 					Key: req.Key,
 				})
 				assert.Nil(t, err)
@@ -432,7 +432,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			sort.Ints(transactionGroups)
 			for _, transactionGroup := range transactionGroups {
 				t.Logf("Testing transaction #%d", transactionGroup)
-				err := transactionStore.Multi(context.TODO(), &state.TransactionalStateRequest{
+				err := transactionStore.Multi(context.Background(), &state.TransactionalStateRequest{
 					Operations: transactions[transactionGroup],
 					// For CosmosDB
 					Metadata: map[string]string{
@@ -445,7 +445,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						if scenario.transactionGroup == transactionGroup {
 							t.Logf("Checking value presence for %s", scenario.key)
 							// Data should have been inserted at this point
-							res, err := statestore.Get(context.TODO(), &state.GetRequest{
+							res, err := statestore.Get(context.Background(), &state.GetRequest{
 								Key: scenario.key,
 								// For CosmosDB
 								Metadata: map[string]string{
@@ -459,7 +459,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						if scenario.toBeDeleted && (scenario.transactionGroup == transactionGroup-1) {
 							t.Logf("Checking value absence for %s", scenario.key)
 							// Data should have been deleted at this point
-							res, err := statestore.Get(context.TODO(), &state.GetRequest{
+							res, err := statestore.Get(context.Background(), &state.GetRequest{
 								Key: scenario.key,
 								// For CosmosDB
 								Metadata: map[string]string{
@@ -489,7 +489,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}
 
 			// prerequisite: key1 should be present
-			err := statestore.Set(context.TODO(), &state.SetRequest{
+			err := statestore.Set(context.Background(), &state.SetRequest{
 				Key:      firstKey,
 				Value:    firstValue,
 				Metadata: partitionMetadata,
@@ -497,14 +497,14 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			assert.NoError(t, err, "set request should be successful")
 
 			// prerequisite: key2 should not be present
-			err = statestore.Delete(context.TODO(), &state.DeleteRequest{
+			err = statestore.Delete(context.Background(), &state.DeleteRequest{
 				Key:      secondKey,
 				Metadata: partitionMetadata,
 			})
 			assert.NoError(t, err, "delete request should be successful")
 
 			// prerequisite: key3 should not be present
-			err = statestore.Delete(context.TODO(), &state.DeleteRequest{
+			err = statestore.Delete(context.Background(), &state.DeleteRequest{
 				Key:      thirdKey,
 				Metadata: partitionMetadata,
 			})
@@ -552,7 +552,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			// Act
 			transactionStore, ok := statestore.(state.TransactionalStore)
 			assert.True(t, ok)
-			err = transactionStore.Multi(context.TODO(), &state.TransactionalStateRequest{
+			err = transactionStore.Multi(context.Background(), &state.TransactionalStateRequest{
 				Operations: operations,
 				Metadata:   partitionMetadata,
 			})
@@ -560,7 +560,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 			// Assert
 			for k, v := range expected {
-				res, err := statestore.Get(context.TODO(), &state.GetRequest{
+				res, err := statestore.Get(context.Background(), &state.GetRequest{
 					Key:      k,
 					Metadata: partitionMetadata,
 				})
@@ -587,20 +587,20 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			require.True(t, state.FeatureETag.IsPresent(features))
 
 			// Delete any potential object, it's important to start from a clean slate.
-			err := statestore.Delete(context.TODO(), &state.DeleteRequest{
+			err := statestore.Delete(context.Background(), &state.DeleteRequest{
 				Key: testKey,
 			})
 			require.NoError(t, err)
 
 			// Set an object.
-			err = statestore.Set(context.TODO(), &state.SetRequest{
+			err = statestore.Set(context.Background(), &state.SetRequest{
 				Key:   testKey,
 				Value: firstValue,
 			})
 			require.NoError(t, err)
 
 			// Validate the set.
-			res, err := statestore.Get(context.TODO(), &state.GetRequest{
+			res, err := statestore.Get(context.Background(), &state.GetRequest{
 				Key: testKey,
 			})
 			require.NoError(t, err)
@@ -608,7 +608,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			etag := res.ETag
 
 			// Try and update with wrong ETag, expect failure.
-			err = statestore.Set(context.TODO(), &state.SetRequest{
+			err = statestore.Set(context.Background(), &state.SetRequest{
 				Key:   testKey,
 				Value: secondValue,
 				ETag:  &fakeEtag,
@@ -616,7 +616,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			require.Error(t, err)
 
 			// Try and update with corect ETag, expect success.
-			err = statestore.Set(context.TODO(), &state.SetRequest{
+			err = statestore.Set(context.Background(), &state.SetRequest{
 				Key:   testKey,
 				Value: secondValue,
 				ETag:  etag,
@@ -624,7 +624,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			require.NoError(t, err)
 
 			// Validate the set.
-			res, err = statestore.Get(context.TODO(), &state.GetRequest{
+			res, err = statestore.Get(context.Background(), &state.GetRequest{
 				Key: testKey,
 			})
 			require.NoError(t, err)
@@ -633,14 +633,14 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			etag = res.ETag
 
 			// Try and delete with wrong ETag, expect failure.
-			err = statestore.Delete(context.TODO(), &state.DeleteRequest{
+			err = statestore.Delete(context.Background(), &state.DeleteRequest{
 				Key:  testKey,
 				ETag: &fakeEtag,
 			})
 			require.Error(t, err)
 
 			// Try and delete with correct ETag, expect success.
-			err = statestore.Delete(context.TODO(), &state.DeleteRequest{
+			err = statestore.Delete(context.Background(), &state.DeleteRequest{
 				Key:  testKey,
 				ETag: etag,
 			})
@@ -699,16 +699,16 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			for i, requestSet := range requestSets {
 				t.Run(fmt.Sprintf("request set %d", i), func(t *testing.T) {
 					// Delete any potential object, it's important to start from a clean slate.
-					err := statestore.Delete(context.TODO(), &state.DeleteRequest{
+					err := statestore.Delete(context.Background(), &state.DeleteRequest{
 						Key: testKey,
 					})
 					require.NoError(t, err)
 
-					err = statestore.Set(context.TODO(), requestSet[0])
+					err = statestore.Set(context.Background(), requestSet[0])
 					require.NoError(t, err)
 
 					// Validate the set.
-					res, err := statestore.Get(context.TODO(), &state.GetRequest{
+					res, err := statestore.Get(context.Background(), &state.GetRequest{
 						Key: testKey,
 					})
 					require.NoError(t, err)
@@ -741,7 +741,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			require.NoError(t, err)
 
 			// Validate the set.
-			res, err := statestore.Get(context.TODO(), &state.GetRequest{
+			res, err := statestore.Get(context.Background(), &state.GetRequest{
 				Key: testKey,
 			})
 			require.NoError(t, err)

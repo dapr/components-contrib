@@ -48,6 +48,7 @@ jobs:
       id: pr-components
       run: |
         PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
+        - bindings.cron
         - bindings.http
         - bindings.influx
         - bindings.kafka-wurstmeister
@@ -57,6 +58,7 @@ jobs:
         - bindings.mqtt-vernemq
         - bindings.postgres
         - bindings.redis
+        - bindings.kubemq
         - bindings.rabbitmq
         - pubsub.aws.snssqs
         - pubsub.hazelcast
@@ -70,6 +72,7 @@ jobs:
         - pubsub.redis
         - pubsub.kafka-wurstmeister
         - pubsub.kafka-confluent
+        - pubsub.kubemq
         - secretstores.kubernetes
         - secretstores.localenv
         - secretstores.localfile
@@ -82,6 +85,7 @@ jobs:
         - state.postgresql
         - state.redis
         - state.sqlserver
+        - state.in-memory
         - state.cockroachdb
         - workflows.temporal
         - state.rethinkdb
@@ -292,7 +296,7 @@ jobs:
     - name: Start Eclipse Mosquitto (MQTT)
       run: docker-compose -f ./.github/infrastructure/docker-compose-mosquitto.yml -p mosquitto up -d
       if: contains(matrix.component, 'mqtt-mosquitto')
-    
+
     - name: Start EMQ X (MQTT)
       run: docker-compose -f ./.github/infrastructure/docker-compose-emqx.yml -p emqx up -d
       if: contains(matrix.component, 'mqtt-emqx')
@@ -331,7 +335,7 @@ jobs:
       if: contains(matrix.component, 'mysql.mariadb')
 
     - name: Start KinD
-      uses: helm/kind-action@v1.0.0
+      uses: helm/kind-action@v1.4.0
       if: contains(matrix.component, 'kubernetes')
 
     - name: Start postgresql
@@ -348,7 +352,7 @@ jobs:
       run: |
         docker-compose -f ./.github/infrastructure/docker-compose-cockroachdb.yml -p cockroachdb up -d
       if: contains(matrix.component, 'cockroachdb')
-    
+
     - name: Start vault
       run: |
         docker-compose -f ./.github/infrastructure/docker-compose-hashicorp-vault.yml -p vault up -d
@@ -358,6 +362,10 @@ jobs:
       run: |
         docker-compose -f ./.github/infrastructure/docker-compose-rethinkdb.yml -p rethinkdb up -d
       if: contains(matrix.component, 'rethinkdb')
+
+    - name: Start kubemq
+      run: docker-compose -f ./.github/infrastructure/docker-compose-kubemq.yml -p kubemq up -d
+      if: contains(matrix.component, 'kubemq')
 
     - name: Setup KinD test data
       if: contains(matrix.component, 'kubernetes')
@@ -369,7 +377,7 @@ jobs:
       uses: actions/setup-go@v3
       with:
         go-version: '^1.19'
-    
+
     - name: Download Go dependencies
       run: |
         go mod download

@@ -28,6 +28,7 @@ type Store interface {
 	Delete(ctx context.Context, req *DeleteRequest) error
 	Get(ctx context.Context, req *GetRequest) (*GetResponse, error)
 	Set(ctx context.Context, req *SetRequest) error
+	GetComponentMetadata() map[string]string
 }
 
 func Ping(store Store) error {

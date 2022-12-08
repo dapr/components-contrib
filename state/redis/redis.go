@@ -16,10 +16,10 @@ package redis
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 
-	"github.com/agrea/ptr"
 	"github.com/go-redis/redis/v8"
 	jsoniter "github.com/json-iterator/go"
 
@@ -30,6 +30,7 @@ import (
 	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -195,7 +196,13 @@ func (r *StateStore) parseConnectedSlaves(res string) int {
 	return 0
 }
 
-func (r *StateStore) deleteValue(ctx context.Context, req *state.DeleteRequest) error {
+// Delete performs a delete operation.
+func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
+	err := state.CheckRequestOptions(req.Options)
+	if err != nil {
+		return err
+	}
+
 	if req.ETag == nil {
 		etag := "0"
 		req.ETag = &etag
@@ -207,7 +214,7 @@ func (r *StateStore) deleteValue(ctx context.Context, req *state.DeleteRequest) 
 	} else {
 		delQuery = delDefaultQuery
 	}
-	_, err := r.client.Do(ctx, "EVAL", delQuery, 1, req.Key, *req.ETag).Result()
+	_, err = r.client.Do(ctx, "EVAL", delQuery, 1, req.Key, *req.ETag).Result()
 	if err != nil {
 		return state.NewETagError(state.ETagMismatch, err)
 	}
@@ -216,17 +223,8 @@ func (r *StateStore) deleteValue(ctx context.Context, req *state.DeleteRequest) 
 }
 
 // Delete performs a delete operation.
-func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
-	err := state.CheckRequestOptions(req.Options)
-	if err != nil {
-		return err
-	}
-
-	return state.DeleteWithOptions(ctx, r.deleteValue, req)
-}
-
 func (r *StateStore) directGet(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
-	res, err := r.client.Do(ctx, "GET", req.Key).Result()
+	res, err := r.client.Do(r.ctx, "GET", req.Key).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -317,7 +315,8 @@ type jsonEntry struct {
 	Version *int        `json:"version,omitempty"`
 }
 
-func (r *StateStore) setValue(ctx context.Context, req *state.SetRequest) error {
+// Set saves state into redis.
+func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
@@ -381,11 +380,6 @@ func (r *StateStore) setValue(ctx context.Context, req *state.SetRequest) error 
 	}
 
 	return nil
-}
-
-// Set saves state into redis.
-func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
-	return state.SetWithOptions(ctx, r.setValue, req)
 }
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
@@ -476,7 +470,7 @@ func (r *StateStore) getKeyVersion(vals []interface{}) (data string, version *st
 			seenData = true
 		case "version":
 			versionVal, _ := strconv.Unquote(fmt.Sprintf("%q", vals[i+1]))
-			version = ptr.String(versionVal)
+			version = ptr.Of(versionVal)
 			seenVersion = true
 		}
 	}
@@ -544,4 +538,11 @@ func (r *StateStore) Close() error {
 	r.cancel()
 
 	return r.client.Close()
+}
+
+func (r *StateStore) GetComponentMetadata() map[string]string {
+	metadataStruct := rediscomponent.Settings{}
+	metadataInfo := map[string]string{}
+	daprmetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

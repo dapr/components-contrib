@@ -18,10 +18,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/agrea/ptr"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/state/query"
+	"github.com/dapr/kit/ptr"
 )
 
 func TestPostgresqlQueryBuildQuery(t *testing.T) {
@@ -67,7 +67,7 @@ func TestPostgresqlQueryBuildQuery(t *testing.T) {
 			query:  "",
 			params: nil,
 			limit:  0,
-			skip:   ptr.Int64(0),
+			skip:   ptr.Of[int64](0),
 		}
 		qbuilder := query.NewQueryBuilder(stateQuery)
 		err = qbuilder.BuildQuery(&storeQuery)

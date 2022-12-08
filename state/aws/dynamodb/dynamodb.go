@@ -17,8 +17,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 	"time"
 
@@ -29,6 +29,7 @@ import (
 	jsoniterator "github.com/json-iterator/go"
 
 	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -285,22 +286,20 @@ func (d *StateStore) BulkDelete(ctx context.Context, req []state.DeleteRequest) 
 	return e
 }
 
-func (d *StateStore) getDynamoDBMetadata(metadata state.Metadata) (*dynamoDBMetadata, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
+func (d *StateStore) GetComponentMetadata() map[string]string {
+	metadataStruct := dynamoDBMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
+}
 
-	var meta dynamoDBMetadata
-	err = json.Unmarshal(b, &meta)
-	if err != nil {
-		return nil, err
-	}
-	if meta.Table == "" {
+func (d *StateStore) getDynamoDBMetadata(meta state.Metadata) (*dynamoDBMetadata, error) {
+	var m dynamoDBMetadata
+	err := metadata.DecodeMetadata(meta.Properties, &m)
+	if m.Table == "" {
 		return nil, fmt.Errorf("missing dynamodb table name")
 	}
-
-	return &meta, nil
+	return &m, err
 }
 
 func (d *StateStore) getClient(metadata *dynamoDBMetadata) (*dynamodb.DynamoDB, error) {

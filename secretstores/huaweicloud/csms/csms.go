@@ -15,23 +15,22 @@ package csms
 
 import (
 	"context"
+	"reflect"
 
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/auth/basic"
 	csms "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/csms/v1"
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/services/csms/v1/model"
 	csmsRegion "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/csms/v1/region"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 )
 
 const (
-	region          string = "region"
-	accessKey       string = "accessKey"
-	secretAccessKey string = "secretAccessKey"
-	pageLimit       string = "100"
-	latestVersion   string = "latest"
-	versionID       string = "version_id"
+	pageLimit     string = "100"
+	latestVersion string = "latest"
+	versionID     string = "version_id"
 )
 
 type csmsClient interface {
@@ -46,21 +45,29 @@ type csmsSecretStore struct {
 	logger logger.Logger
 }
 
+type CsmsSecretStoreMetadata struct {
+	Region          string
+	AccessKey       string
+	SecretAccessKey string
+}
+
 // NewHuaweiCsmsSecretStore returns a new Huawei csms secret store.
 func NewHuaweiCsmsSecretStore(logger logger.Logger) secretstores.SecretStore {
 	return &csmsSecretStore{logger: logger}
 }
 
 // Init creates a Huawei csms client.
-func (c *csmsSecretStore) Init(metadata secretstores.Metadata) error {
+func (c *csmsSecretStore) Init(meta secretstores.Metadata) error {
+	m := CsmsSecretStoreMetadata{}
+	metadata.DecodeMetadata(meta.Properties, &m)
 	auth := basic.NewCredentialsBuilder().
-		WithAk(metadata.Properties[accessKey]).
-		WithSk(metadata.Properties[secretAccessKey]).
+		WithAk(m.AccessKey).
+		WithSk(m.SecretAccessKey).
 		Build()
 
 	c.client = csms.NewCsmsClient(
 		csms.CsmsClientBuilder().
-			WithRegion(csmsRegion.ValueOf(metadata.Properties[region])).
+			WithRegion(csmsRegion.ValueOf(m.Region)).
 			WithCredential(auth).
 			Build())
 
@@ -148,4 +155,11 @@ func (c *csmsSecretStore) getSecretNames(ctx context.Context, marker *string) ([
 // Features returns the features available in this secret store.
 func (c *csmsSecretStore) Features() []secretstores.Feature {
 	return []secretstores.Feature{} // No Feature supported.
+}
+
+func (c *csmsSecretStore) GetComponentMetadata() map[string]string {
+	metadataStruct := CsmsSecretStoreMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

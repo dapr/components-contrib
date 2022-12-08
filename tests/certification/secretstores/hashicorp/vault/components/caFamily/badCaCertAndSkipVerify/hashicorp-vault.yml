@@ -1,0 +1,20 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: my-hashicorp-vault-TestCaFamilyOfFields-badCaCertAndSkipVerify
+  namespace: default
+spec:
+  type: secretstores.hashicorp.vault
+  version: v1
+  metadata:
+  - name: vaultAddr
+    value: "https://127.0.0.1:8200"
+  # Enforce TLS verification because this test is all about this
+  - name: skipVerify
+    value: true  # <<< flag under test
+  - name: vaultToken  # Matches docker compose VAULT_DEV_ROOT_TOKEN_ID env. var.
+    value: "vault-dev-root-token-id"
+  - name: tlsServerName
+    value: hashicorp_vault
+  - name: caCert
+    value: components/caFamily/certificates/incorrect-ca-cert.pem # <<<<< We would fail authentication if it wasn't for skipVerify

@@ -16,7 +16,9 @@ package oracledatabase
 import (
 	"context"
 	"fmt"
+	"reflect"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -129,4 +131,11 @@ func (o *OracleDatabase) Close() error {
 	}
 
 	return nil
+}
+
+func (o *OracleDatabase) GetComponentMetadata() map[string]string {
+	metadataStruct := oracleDatabaseMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

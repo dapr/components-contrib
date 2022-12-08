@@ -20,6 +20,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -589,21 +590,20 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			err := statestore.Delete(context.TODO(), &state.DeleteRequest{
 				Key: testKey,
 			})
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			// Set an object.
 			err = statestore.Set(context.TODO(), &state.SetRequest{
 				Key:   testKey,
 				Value: firstValue,
 			})
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			// Validate the set.
 			res, err := statestore.Get(context.TODO(), &state.GetRequest{
 				Key: testKey,
 			})
-
-			require.Nil(t, err)
+			require.NoError(t, err)
 			assertEquals(t, firstValue, res)
 			etag := res.ETag
 
@@ -613,7 +613,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				Value: secondValue,
 				ETag:  &fakeEtag,
 			})
-			require.NotNil(t, err)
+			require.Error(t, err)
 
 			// Try and update with corect ETag, expect success.
 			err = statestore.Set(context.TODO(), &state.SetRequest{
@@ -621,13 +621,13 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				Value: secondValue,
 				ETag:  etag,
 			})
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			// Validate the set.
 			res, err = statestore.Get(context.TODO(), &state.GetRequest{
 				Key: testKey,
 			})
-			require.Nil(t, err)
+			require.NoError(t, err)
 			assertEquals(t, secondValue, res)
 			require.NotEqual(t, etag, res.ETag)
 			etag = res.ETag
@@ -637,14 +637,14 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				Key:  testKey,
 				ETag: &fakeEtag,
 			})
-			require.NotNil(t, err)
+			require.Error(t, err)
 
 			// Try and delete with correct ETag, expect success.
 			err = statestore.Delete(context.TODO(), &state.DeleteRequest{
 				Key:  testKey,
 				ETag: etag,
 			})
-			require.Nil(t, err)
+			require.NoError(t, err)
 		})
 	} else {
 		// Check if eTag feature is NOT listed
@@ -702,21 +702,21 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					err := statestore.Delete(context.TODO(), &state.DeleteRequest{
 						Key: testKey,
 					})
-					require.Nil(t, err)
+					require.NoError(t, err)
 
 					err = statestore.Set(context.TODO(), requestSet[0])
-					require.Nil(t, err)
+					require.NoError(t, err)
 
 					// Validate the set.
 					res, err := statestore.Get(context.TODO(), &state.GetRequest{
 						Key: testKey,
 					})
-					require.Nil(t, err)
+					require.NoError(t, err)
 					assertEquals(t, firstValue, res)
 
 					// Second write expect fail
-					err = statestore.Set(context.TODO(), requestSet[1])
-					require.NotNil(t, err)
+					err = statestore.Set(context.Background(), requestSet[1])
+					require.Error(t, err)
 				})
 			}
 		})
@@ -732,19 +732,19 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}
 
 			// Delete any potential object, it's important to start from a clean slate.
-			err := statestore.Delete(context.TODO(), &state.DeleteRequest{
+			err := statestore.Delete(context.Background(), &state.DeleteRequest{
 				Key: testKey,
 			})
-			require.Nil(t, err)
+			require.NoError(t, err)
 
-			err = statestore.Set(context.TODO(), request)
-			require.Nil(t, err)
+			err = statestore.Set(context.Background(), request)
+			require.NoError(t, err)
 
 			// Validate the set.
 			res, err := statestore.Get(context.TODO(), &state.GetRequest{
 				Key: testKey,
 			})
-			require.Nil(t, err)
+			require.NoError(t, err)
 			assertEquals(t, firstValue, res)
 
 			etag := res.ETag
@@ -758,27 +758,55 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					Consistency: state.Strong,
 				},
 			}
-			err = statestore.Set(context.TODO(), request)
-			require.Nil(t, err)
+			err = statestore.Set(context.Background(), request)
+			require.NoError(t, err)
 
 			// Validate the set.
-			res, err = statestore.Get(context.TODO(), &state.GetRequest{
+			res, err = statestore.Get(context.Background(), &state.GetRequest{
 				Key: testKey,
 			})
-			require.Nil(t, err)
+			require.NoError(t, err)
 			require.NotEqual(t, etag, res.ETag)
 			assertEquals(t, secondValue, res)
 
 			request.ETag = etag
 
 			// Second write expect fail
-			err = statestore.Set(context.TODO(), request)
-			require.NotNil(t, err)
+			err = statestore.Set(context.Background(), request)
+			require.Error(t, err)
+		})
+	}
+
+	if config.HasOperation("ttl") {
+		t.Run("set and get with TTL", func(t *testing.T) {
+			err := statestore.Set(context.Background(), &state.SetRequest{
+				Key:   key + "-ttl",
+				Value: "⏱️",
+				Metadata: map[string]string{
+					"ttlInSeconds": "2",
+				},
+			})
+			require.NoError(t, err)
+
+			// Request immediately
+			res, err := statestore.Get(context.Background(), &state.GetRequest{
+				Key: key + "-ttl",
+			})
+			require.NoError(t, err)
+			assertEquals(t, "⏱️", res)
+
+			// Wait for the object to expire and request again
+			time.Sleep(3 * time.Second)
+			res, err = statestore.Get(context.Background(), &state.GetRequest{
+				Key: key + "-ttl",
+			})
+			require.NoError(t, err)
+			assert.Nil(t, res.Data)
 		})
 	}
 }
 
-func assertEquals(t *testing.T, value interface{}, res *state.GetResponse) {
+func assertEquals(t *testing.T, value any, res *state.GetResponse) {
 	switch v := value.(type) {
 	case intValueType:
 		// Custom type requires case mapping

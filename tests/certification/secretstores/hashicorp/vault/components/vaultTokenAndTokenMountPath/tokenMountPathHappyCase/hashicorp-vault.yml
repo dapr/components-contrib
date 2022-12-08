@@ -1,0 +1,15 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: my-hashicorp-vault-TestTokenAndTokenMountPath-tokenMountPathHappyCase
+  namespace: default
+spec:
+  type: secretstores.hashicorp.vault
+  version: v1
+  ignoreErrors: true  # This component will fail to load but we don't want Dapr to FATAL because of it.
+  metadata:
+  - name: vaultAddr
+    value: "http://127.0.0.1:8200"
+  - name: vaultTokenMountPath
+    # This is a long path but this file is in current directory ;)
+    value: components/vaultTokenAndTokenMountPath/tokenMountPathHappyCase/vault_token_file.txt 

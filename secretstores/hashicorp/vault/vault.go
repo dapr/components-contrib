@@ -25,12 +25,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
+	"reflect"
 	"strings"
 
 	jsoniter "github.com/json-iterator/go"
 	"golang.org/x/net/http2"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 )
@@ -88,6 +89,21 @@ type vaultSecretStore struct {
 	logger logger.Logger
 }
 
+type VaultMetadata struct {
+	CaCert              string
+	CaPath              string
+	CaPem               string
+	SkipVerify          string
+	TLSServerName       string
+	VaultAddr           string
+	VaultKVPrefix       string
+	VaultKVUsePrefix    bool
+	VaultToken          string
+	VaultTokenMountPath string
+	EnginePath          string
+	VaultValueType      string
+}
+
 // tlsConfig is TLS configuration to interact with HashiCorp Vault.
 type tlsConfig struct {
 	vaultCAPem      string
@@ -121,11 +137,17 @@ func NewHashiCorpVaultSecretStore(logger logger.Logger) secretstores.SecretStore
 }
 
 // Init creates a HashiCorp Vault client.
-func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
-	props := metadata.Properties
+func (v *vaultSecretStore) Init(meta secretstores.Metadata) error {
+	m := VaultMetadata{
+		VaultKVUsePrefix: true,
+	}
+	err := metadata.DecodeMetadata(meta.Properties, &m)
+	if err != nil {
+		return err
+	}
 
 	// Get Vault address
-	address := props[componentVaultAddress]
+	address := m.VaultAddr
 	if address == "" {
 		address = defaultVaultAddress
 	}
@@ -133,49 +155,38 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 	v.vaultAddress = address
 
 	v.vaultEnginePath = defaultVaultEnginePath
-	if val, ok := props[vaultEnginePath]; ok && val != "" {
-		v.vaultEnginePath = val
+	if m.EnginePath != "" {
+		v.vaultEnginePath = m.EnginePath
 	}
 
 	v.vaultValueType = valueTypeMap
-	if val, found := props[vaultValueType]; found && val != "" {
-		switch valueType(val) {
+	if m.VaultValueType != "" {
+		switch valueType(m.VaultValueType) {
 		case valueTypeMap:
 		case valueTypeText:
 			v.vaultValueType = valueTypeText
 		default:
-			return fmt.Errorf("vault init error, invalid value type %s, accepted values are map or text", val)
+			return fmt.Errorf("vault init error, invalid value type %s, accepted values are map or text", m.VaultValueType)
 		}
 	}
 
-	v.vaultToken = props[componentVaultToken]
-	v.vaultTokenMountPath = props[componentVaultTokenMountPath]
+	v.vaultToken = m.VaultToken
+	v.vaultTokenMountPath = m.VaultTokenMountPath
 	initErr := v.initVaultToken()
 	if initErr != nil {
 		return initErr
 	}
 
-	vaultKVUsePrefix := props[componentVaultKVUsePrefix]
-	vaultKVPrefix := props[componentVaultKVPrefix]
-	convertedVaultKVUsePrefix := true
-	if vaultKVUsePrefix != "" {
-		if v, err := strconv.ParseBool(vaultKVUsePrefix); err == nil {
-			convertedVaultKVUsePrefix = v
-		} else if err != nil {
-			return fmt.Errorf("unable to convert Use Prefix to boolean")
-		}
-	}
-
-	if !convertedVaultKVUsePrefix {
+	vaultKVPrefix := m.VaultKVPrefix
+	if !m.VaultKVUsePrefix {
 		vaultKVPrefix = ""
 	} else if vaultKVPrefix == "" {
 		vaultKVPrefix = defaultVaultKVPrefix
 	}
-
 	v.vaultKVPrefix = vaultKVPrefix
 
 	// Generate TLS config
-	tlsConf := metadataToTLSConfig(props)
+	tlsConf := metadataToTLSConfig(&m)
 
 	client, err := v.createHTTPClient(tlsConf)
 	if err != nil {
@@ -187,20 +198,20 @@ func (v *vaultSecretStore) Init(metadata secretstores.Metadata) error {
 	return nil
 }
 
-func metadataToTLSConfig(props map[string]string) *tlsConfig {
+func metadataToTLSConfig(meta *VaultMetadata) *tlsConfig {
 	tlsConf := tlsConfig{}
 
 	// Configure TLS settings
-	skipVerify := props[componentSkipVerify]
+	skipVerify := meta.SkipVerify
 	tlsConf.vaultSkipVerify = false
 	if skipVerify == "true" {
 		tlsConf.vaultSkipVerify = true
 	}
 
-	tlsConf.vaultCACert = props[componentCaCert]
-	tlsConf.vaultCAPem = props[componentCaPem]
-	tlsConf.vaultCAPath = props[componentCaPath]
-	tlsConf.vaultServerName = props[componentTLSServerName]
+	tlsConf.vaultCACert = meta.CaCert
+	tlsConf.vaultCAPem = meta.CaPem
+	tlsConf.vaultCAPath = meta.CaPath
+	tlsConf.vaultServerName = meta.TLSServerName
 
 	return &tlsConf
 }
@@ -226,11 +237,11 @@ func (v *vaultSecretStore) getSecret(ctx context.Context, secret, version string
 
 	defer httpresp.Body.Close()
 
-	if httpresp.StatusCode != 200 {
+	if httpresp.StatusCode != http.StatusOK {
 		var b bytes.Buffer
 		io.Copy(&b, httpresp.Body)
 		v.logger.Debugf("getSecret %s couldn't get successful response: %#v, %s", secret, httpresp, b.String())
-		if httpresp.StatusCode == 404 {
+		if httpresp.StatusCode == http.StatusNotFound {
 			// handle not found error
 			return nil, fmt.Errorf("getSecret %s failed %w", secret, ErrNotFound)
 		}
@@ -344,7 +355,7 @@ func (v *vaultSecretStore) listKeysUnderPath(ctx context.Context, path string) (
 
 	defer httpresp.Body.Close()
 
-	if httpresp.StatusCode != 200 {
+	if httpresp.StatusCode != http.StatusOK {
 		var b bytes.Buffer
 		io.Copy(&b, httpresp.Body)
 		v.logger.Debugf("list keys couldn't get successful response: %#v, %s", httpresp, b.String())
@@ -508,5 +519,16 @@ func readCertificateFolder(certPool *x509.CertPool, path string) error {
 
 // Features returns the features available in this secret store.
 func (v *vaultSecretStore) Features() []secretstores.Feature {
+	if v.vaultValueType == valueTypeText {
+		return []secretstores.Feature{}
+	}
+
 	return []secretstores.Feature{secretstores.FeatureMultipleKeyValuesPerSecret}
+}
+
+func (v *vaultSecretStore) GetComponentMetadata() map[string]string {
+	metadataStruct := VaultMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

@@ -15,21 +15,17 @@ package hazelcast
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/hazelcast/hazelcast-go-client"
 	"github.com/hazelcast/hazelcast-go-client/core"
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
-)
-
-const (
-	hazelcastServers = "hazelcastServers"
-	hazelcastMap     = "hazelcastMap"
 )
 
 // Hazelcast state store.
@@ -38,6 +34,11 @@ type Hazelcast struct {
 	hzMap  core.Map
 	json   jsoniter.API
 	logger logger.Logger
+}
+
+type hazelcastMetadata struct {
+	HazelcastServers string
+	HazelcastMap     string
 }
 
 // NewHazelcastStore returns a new hazelcast backed state store.
@@ -51,24 +52,29 @@ func NewHazelcastStore(logger logger.Logger) state.Store {
 	return s
 }
 
-func validateMetadata(metadata state.Metadata) error {
-	if metadata.Properties[hazelcastServers] == "" {
-		return errors.New("hazelcast error: missing hazelcast servers")
+func validateAndParseMetadata(meta state.Metadata) (*hazelcastMetadata, error) {
+	m := &hazelcastMetadata{}
+	err := metadata.DecodeMetadata(meta.Properties, m)
+	if err != nil {
+		return nil, err
 	}
-	if metadata.Properties[hazelcastMap] == "" {
-		return errors.New("hazelcast error: missing hazelcast map name")
+	if m.HazelcastServers == "" {
+		return nil, fmt.Errorf("hazelcast error: missing hazelcast servers")
+	}
+	if m.HazelcastMap == "" {
+		return nil, fmt.Errorf("hazelcast error: missing hazelcast map name")
 	}
 
-	return nil
+	return m, nil
 }
 
 // Init does metadata and connection parsing.
 func (store *Hazelcast) Init(metadata state.Metadata) error {
-	err := validateMetadata(metadata)
+	meta, err := validateAndParseMetadata(metadata)
 	if err != nil {
 		return err
 	}
-	servers := metadata.Properties[hazelcastServers]
+	servers := meta.HazelcastServers
 
 	hzConfig := hazelcast.NewConfig()
 	hzConfig.NetworkConfig().AddAddress(strings.Split(servers, ",")...)
@@ -77,7 +83,7 @@ func (store *Hazelcast) Init(metadata state.Metadata) error {
 	if err != nil {
 		return fmt.Errorf("hazelcast error: %v", err)
 	}
-	store.hzMap, err = client.GetMap(metadata.Properties[hazelcastMap])
+	store.hzMap, err = client.GetMap(meta.HazelcastMap)
 
 	if err != nil {
 		return fmt.Errorf("hazelcast error: %v", err)
@@ -150,4 +156,11 @@ func (store *Hazelcast) Delete(ctx context.Context, req *state.DeleteRequest) er
 	}
 
 	return nil
+}
+
+func (store *Hazelcast) GetComponentMetadata() map[string]string {
+	metadataStruct := hazelcastMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

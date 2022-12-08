@@ -17,12 +17,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agrea/ptr"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 func TestTableStoreMetadata(t *testing.T) {
@@ -62,7 +62,7 @@ func TestReadAndWrite(t *testing.T) {
 		setReq := &state.SetRequest{
 			Key:   "theFirstKey",
 			Value: "value of key",
-			ETag:  ptr.String("the etag"),
+			ETag:  ptr.Of("the etag"),
 		}
 		err := store.Set(context.Background(), setReq)
 		assert.Nil(t, err)
@@ -82,7 +82,7 @@ func TestReadAndWrite(t *testing.T) {
 		setReq := &state.SetRequest{
 			Key:   "theSecondKey",
 			Value: "1234",
-			ETag:  ptr.String("the etag"),
+			ETag:  ptr.Of("the etag"),
 		}
 		err := store.Set(context.Background(), setReq)
 		assert.Nil(t, err)

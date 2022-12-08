@@ -17,17 +17,19 @@ import (
 	"context"
 	"errors"
 	"path"
+	reflect "reflect"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/agrea/ptr"
 	"github.com/hashicorp/go-multierror"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/samuel/go-zookeeper/zk"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -57,16 +59,11 @@ type config struct {
 	keyPrefixPath     string
 }
 
-func newConfig(metadata map[string]string) (c *config, err error) {
-	var buf []byte
-
-	if buf, err = jsoniter.ConfigFastest.Marshal(metadata); err != nil {
-		return
-	}
-
+func newConfig(meta map[string]string) (c *config, err error) {
 	var props properties
-	if err = jsoniter.ConfigFastest.Unmarshal(buf, &props); err != nil {
-		return
+	errDecode := metadata.DecodeMetadata(meta, &props)
+	if errDecode != nil {
+		return nil, errDecode
 	}
 
 	return props.parse()
@@ -174,7 +171,7 @@ func (s *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 
 	return &state.GetResponse{
 		Data: value,
-		ETag: ptr.String(strconv.Itoa(int(stat.Version))),
+		ETag: ptr.Of(strconv.Itoa(int(stat.Version))),
 	}, nil
 }
 
@@ -191,22 +188,20 @@ func (s *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 		return err
 	}
 
-	return state.DeleteWithOptions(ctx, func(ctx context.Context, req *state.DeleteRequest) error {
-		err := s.conn.Delete(r.Path, r.Version)
-		if errors.Is(err, zk.ErrNoNode) {
-			return nil
-		}
-
-		if err != nil {
-			if req.ETag != nil {
-				return state.NewETagError(state.ETagMismatch, err)
-			}
-
-			return err
-		}
-
+	err = s.conn.Delete(r.Path, r.Version)
+	if errors.Is(err, zk.ErrNoNode) {
 		return nil
-	}, req)
+	}
+
+	if err != nil {
+		if req.ETag != nil {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+
+		return err
+	}
+
+	return nil
 }
 
 // BulkDelete performs a bulk delete operation.
@@ -243,23 +238,20 @@ func (s *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 		return err
 	}
 
-	return state.SetWithOptions(ctx, func(ctx context.Context, req *state.SetRequest) error {
-		_, err = s.conn.Set(r.Path, r.Data, r.Version)
+	_, err = s.conn.Set(r.Path, r.Data, r.Version)
+	if errors.Is(err, zk.ErrNoNode) {
+		_, err = s.conn.Create(r.Path, r.Data, 0, nil)
+	}
 
-		if errors.Is(err, zk.ErrNoNode) {
-			_, err = s.conn.Create(r.Path, r.Data, 0, nil)
+	if err != nil {
+		if req.ETag != nil {
+			return state.NewETagError(state.ETagMismatch, err)
 		}
 
-		if err != nil {
-			if req.ETag != nil {
-				return state.NewETagError(state.ETagMismatch, err)
-			}
+		return err
+	}
 
-			return err
-		}
-
-		return nil
-	}, req)
+	return nil
 }
 
 // BulkSet performs a bulks save operation.
@@ -390,4 +382,11 @@ func (s *StateStore) marshalData(v interface{}) ([]byte, error) {
 	}
 
 	return jsoniter.ConfigFastest.Marshal(v)
+}
+
+func (s *StateStore) GetComponentMetadata() map[string]string {
+	metadataStruct := properties{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

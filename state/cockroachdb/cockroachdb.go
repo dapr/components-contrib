@@ -15,7 +15,9 @@ package cockroachdb
 
 import (
 	"context"
+	"reflect"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -107,4 +109,11 @@ func (c *CockroachDB) Close() error {
 	}
 
 	return nil
+}
+
+func (c *CockroachDB) GetComponentMetadata() map[string]string {
+	metadataStruct := cockroachDBMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

@@ -1,0 +1,19 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: msg-ttl-pubsub
+  namespace: default
+spec:
+  type: pubsub.rabbitmq
+  version: v1
+  metadata:
+  - name: consumerID
+    value: msg
+  - name: host
+    value: "amqp://test:test@localhost:5672"
+  - name: durable
+    value: true
+  - name: deletedWhenUnused
+    value: false
+  - name: requeueInFailure
+    value: true

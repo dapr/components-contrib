@@ -53,6 +53,7 @@ jobs:
         - pubsub.mqtt
         - state.mongodb
         - state.redis
+        - state.cockroachdb
         - state.postgresql
         - state.cassandra
         - state.memcached
@@ -60,6 +61,7 @@ jobs:
         - bindings.alicloud.dubbo
         - bindings.kafka
         - bindings.redis
+        - bindings.cron
         - secretstores.local.env
         - secretstores.local.file
         - secretstores.hashicorp.vault
@@ -245,7 +247,7 @@ jobs:
       working-directory: ${{ env.TEST_PATH }}
       run: |
         echo "Running certification tests for ${{ matrix.component }} ... "
-        export GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn
+        export GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore
         set +e
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.json \
           --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.xml --format standard-quiet -- \

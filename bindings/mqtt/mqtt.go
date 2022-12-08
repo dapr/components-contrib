@@ -15,6 +15,7 @@ package mqtt
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
@@ -59,7 +60,6 @@ const (
 // MQTT allows sending and receiving data to/from an MQTT broker.
 type MQTT struct {
 	producer mqtt.Client
-	consumer mqtt.Client
 	metadata *metadata
 	logger   logger.Logger
 
@@ -162,7 +162,7 @@ func (m *MQTT) Init(metadata bindings.Metadata) error {
 
 	// mqtt broker allows only one connection at a given time from a clientID.
 	producerClientID := fmt.Sprintf("%s-producer", m.metadata.clientID)
-	p, err := m.connect(producerClientID)
+	p, err := m.connect(producerClientID, nil)
 	if err != nil {
 		return err
 	}
@@ -243,58 +243,96 @@ func (m *MQTT) handleMessage(ctx context.Context, handler bindings.Handler, mqtt
 }
 
 func (m *MQTT) Read(ctx context.Context, handler bindings.Handler) error {
-	// reset synchronization
-	if m.consumer != nil {
-		m.logger.Warnf("re-initializing the subscriber")
-		m.consumer.Disconnect(5)
-		m.consumer = nil
+	// mqtt broker allows only one connection at a given time from a clientID
+	topicHash := sha256.Sum256([]byte(m.metadata.topic))
+	consumerClientID := fmt.Sprintf("%s-consumer-%x", m.metadata.clientID, topicHash[0:4])
+
+	// Subscribe to the topics on the OnConnectHandler callback
+	readyCh := make(chan error)
+	onConn := func(client mqtt.Client) {
+		token := client.Subscribe(m.metadata.topic, m.metadata.qos, m.onMessage(ctx, handler))
+		ok := token.WaitTimeout(defaultWait)
+		tokenErr := token.Error()
+		// In case of timeout, ok will be false and there won't be an error in the token
+		if tokenErr == nil && !ok {
+			tokenErr = context.DeadlineExceeded
+		}
+		readyCh <- tokenErr
 	}
 
-	// mqtt broker allows only one connection at a given time from a clientID.
-	consumerClientID := fmt.Sprintf("%s-consumer", m.metadata.clientID)
-	c, err := m.connect(consumerClientID)
+	m.logger.Infof("mqtt subscribing to topic '%s' with consumer client ID '%s'", m.metadata.topic, consumerClientID)
+	client, err := m.connect(consumerClientID, onConn)
 	if err != nil {
 		return err
 	}
-	m.consumer = c
-
-	m.logger.Debugf("mqtt subscribing to topic %s", m.metadata.topic)
-	token := m.consumer.Subscribe(m.metadata.topic, m.metadata.qos, func(client mqtt.Client, mqttMsg mqtt.Message) {
-		var b backoff.BackOff = backoff.WithContext(m.backOff, ctx)
-		if m.metadata.backOffMaxRetries >= 0 {
-			b = backoff.WithMaxRetries(b, uint64(m.metadata.backOffMaxRetries))
-		}
-
-		if err := retry.NotifyRecover(func() error {
-			m.logger.Debugf("Processing MQTT message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
-			return m.handleMessage(ctx, handler, mqttMsg)
-		}, b, func(err error, d time.Duration) {
-			m.logger.Errorf("Error processing MQTT message: %s/%d. Retrying...", mqttMsg.Topic(), mqttMsg.MessageID())
-		}, func() {
-			m.logger.Infof("Successfully processed MQTT message after it previously failed: %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
-		}); err != nil {
-			m.logger.Errorf("Failed processing MQTT message: %s/%d: %v", mqttMsg.Topic(), mqttMsg.MessageID(), err)
-		}
-	})
-	if err := token.Error(); err != nil {
-		m.logger.Errorf("mqtt error from subscribe: %v", err)
-		return err
+	// m.connect returns after the connection has been established, now we need to wait for the subscription to be up
+	select {
+	case <-time.After(defaultWait):
+		// Timed out waiting for the subscription
+		err = context.DeadlineExceeded
+	case err = <-readyCh:
+		// nop
 	}
+	if err != nil {
+		return fmt.Errorf("mqtt error while subscribing to topic: %w", err)
+	}
+
+	// In background, disconnect when the context is canceled
+	go func() {
+		<-ctx.Done()
+		m.logger.Infof("mqtt disconnecting with client ID '%s'", consumerClientID)
+		client.Disconnect(5)
+	}()
 
 	return nil
 }
 
-func (m *MQTT) connect(clientID string) (mqtt.Client, error) {
+func (m *MQTT) onMessage(ctx context.Context, handler bindings.Handler) func(client mqtt.Client, mqttMsg mqtt.Message) {
+	var bo backoff.BackOff = backoff.WithContext(m.backOff, ctx)
+	if m.metadata.backOffMaxRetries >= 0 {
+		bo = backoff.WithMaxRetries(bo, uint64(m.metadata.backOffMaxRetries))
+	}
+
+	return func(client mqtt.Client, mqttMsg mqtt.Message) {
+		err := retry.NotifyRecover(
+			func() error {
+				m.logger.Debugf("Processing MQTT message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
+				return m.handleMessage(ctx, handler, mqttMsg)
+			},
+			bo,
+			func(_ error, _ time.Duration) {
+				m.logger.Errorf("Error processing MQTT message: %s/%d. Retrying...", mqttMsg.Topic(), mqttMsg.MessageID())
+			},
+			func() {
+				m.logger.Infof("Successfully processed MQTT message after it previously failed: %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
+			},
+		)
+		if err != nil {
+			m.logger.Errorf("Failed processing MQTT message: %s/%d: %v", mqttMsg.Topic(), mqttMsg.MessageID(), err)
+		}
+	}
+}
+
+func (m *MQTT) connect(clientID string, onConn mqtt.OnConnectHandler) (mqtt.Client, error) {
 	uri, err := url.Parse(m.metadata.url)
 	if err != nil {
 		return nil, err
 	}
+
 	opts := m.createClientOptions(uri, clientID)
+	if onConn != nil {
+		opts.SetOnConnectHandler(onConn)
+	}
+
 	client := mqtt.NewClient(opts)
 	token := client.Connect()
-	for !token.WaitTimeout(defaultWait) {
+	ok := token.WaitTimeout(defaultWait)
+	err = token.Error()
+	// In case of timeout, ok will be false and there won't be an error in the token
+	if err == nil && !ok {
+		err = context.DeadlineExceeded
 	}
-	if err := token.Error(); err != nil {
+	if err != nil {
 		return nil, err
 	}
 
@@ -328,6 +366,9 @@ func (m *MQTT) createClientOptions(uri *url.URL, clientID string) *mqtt.ClientOp
 	opts := mqtt.NewClientOptions()
 	opts.SetClientID(clientID)
 	opts.SetCleanSession(m.metadata.cleanSession)
+	opts.SetAutoReconnect(true)
+	opts.SetConnectRetry(true)
+	opts.SetConnectRetryInterval(5 * time.Second)
 	// URL scheme backward compatibility
 	scheme := uri.Scheme
 	switch scheme {
@@ -349,10 +390,6 @@ func (m *MQTT) createClientOptions(uri *url.URL, clientID string) *mqtt.ClientOp
 func (m *MQTT) Close() error {
 	// Cancel any read callback handlers before Disconnect to prevent deadlocks.
 	m.cancel()
-
-	if m.consumer != nil {
-		m.consumer.Disconnect(5)
-	}
 	m.producer.Disconnect(5)
 
 	return nil

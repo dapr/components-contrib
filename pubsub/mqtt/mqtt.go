@@ -214,19 +214,18 @@ func (m *mqttPubSub) startSubscription(ctx context.Context) error {
 		consumerClientID += "-consumer"
 	}
 
-	connCtx, connCancel := context.WithTimeout(ctx, defaultWait)
-	defer connCancel()
 	readyCh := make(chan struct{})
-	c, err := m.connect(connCtx, consumerClientID, true, readyCh)
+	c, err := m.connect(ctx, consumerClientID, true, readyCh)
 	if err != nil {
 		return err
 	}
 	// This is to wait for the subscriptions to be enabled, which happen in an async callback
 	// We do this after checking for errors returned by m.connect
 	select {
-	case <-connCtx.Done():
+	// Double the wait time here as we've seen that some brokers just need a bit more time
+	case <-time.After(defaultWait * 2):
 		// In case of timeouts
-		return connCtx.Err()
+		return context.DeadlineExceeded
 	case <-readyCh:
 		// all good - nop
 	}
@@ -352,8 +351,9 @@ func (m *mqttPubSub) connect(ctx context.Context, clientID string, isConsumer bo
 			}
 			if tokenErr != nil {
 				// Cause a disconnection and wait for reconnection
-				m.logger.Errorf("MQTT error while trying to subscribe to topics; will disconnect. Error: %v", tokenErr)
+				m.logger.Errorf("MQTT error while trying to subscribe to topics; will reconnect. Error: %v", tokenErr)
 				client.Disconnect(5)
+				m.connect(ctx, clientID, isConsumer, readyCh)
 				return
 			}
 			sendNotification()
@@ -413,7 +413,7 @@ func (m *mqttPubSub) createClientOptions(uri *url.URL, clientID string) *mqtt.Cl
 	opts.SetCleanSession(m.metadata.cleanSession)
 	opts.SetAutoReconnect(true)
 	opts.SetConnectRetry(true)
-	opts.SetConnectRetryInterval(5 * time.Second)
+	opts.SetConnectRetryInterval(2 * time.Second)
 	// URL scheme backward compatibility
 	scheme := uri.Scheme
 	switch scheme {

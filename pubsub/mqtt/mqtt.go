@@ -97,7 +97,7 @@ func (m *mqttPubSub) Init(metadata pubsub.Metadata) error {
 		producerClientID = m.metadata.consumerID + "-producer"
 	}
 	connCtx, connCancel := context.WithTimeout(m.ctx, defaultWait)
-	p, err := m.connect(connCtx, producerClientID, false)
+	p, err := m.connect(connCtx, producerClientID, false, nil)
 	connCancel()
 	if err != nil {
 		return err
@@ -213,11 +213,22 @@ func (m *mqttPubSub) startSubscription(ctx context.Context) error {
 		// for backwards-compatibility; see: https://github.com/dapr/components-contrib/pull/2104
 		consumerClientID += "-consumer"
 	}
+
 	connCtx, connCancel := context.WithTimeout(ctx, defaultWait)
-	c, err := m.connect(connCtx, consumerClientID, true)
-	connCancel()
+	defer connCancel()
+	readyCh := make(chan struct{})
+	c, err := m.connect(connCtx, consumerClientID, true, readyCh)
 	if err != nil {
 		return err
+	}
+	// This is to wait for the subscriptions to be enabled, which happen in an async callback
+	// We do this after checking for errors returned by m.connect
+	select {
+	case <-connCtx.Done():
+		// In case of timeouts
+		return connCtx.Err()
+	case <-readyCh:
+		// all good - nop
 	}
 	m.consumer = c
 
@@ -303,7 +314,7 @@ func (m *mqttPubSub) handlerForTopic(topic string) pubsub.Handler {
 	return nil
 }
 
-func (m *mqttPubSub) connect(ctx context.Context, clientID string, isConsumer bool) (mqtt.Client, error) {
+func (m *mqttPubSub) connect(ctx context.Context, clientID string, isConsumer bool, readyCh chan<- struct{}) (mqtt.Client, error) {
 	uri, err := url.Parse(m.metadata.url)
 	if err != nil {
 		return nil, err
@@ -313,9 +324,16 @@ func (m *mqttPubSub) connect(ctx context.Context, clientID string, isConsumer bo
 
 	// For consumers, add the topics we're subscribing to in the OnConnectHandler
 	if isConsumer {
+		sendNotification := func() {
+			if readyCh != nil {
+				readyCh <- struct{}{}
+				readyCh = nil
+			}
+		}
 		fn := m.onMessage(ctx)
 		opts.SetOnConnectHandler(func(client mqtt.Client) {
 			if len(m.topics) == 0 {
+				sendNotification()
 				return
 			}
 
@@ -326,17 +344,19 @@ func (m *mqttPubSub) connect(ctx context.Context, clientID string, isConsumer bo
 			}
 
 			token := client.SubscribeMultiple(subscribeTopics, fn)
-			ok := token.WaitTimeout(30 * time.Second)
+			ok := token.WaitTimeout(defaultWait)
 			tokenErr := token.Error()
 			// In case of timeout, ok will be false and there won't be an error in the token
 			if tokenErr == nil && !ok {
 				tokenErr = context.DeadlineExceeded
 			}
 			if tokenErr != nil {
-				// Cause a disconnection
+				// Cause a disconnection and wait for reconnection
 				m.logger.Errorf("MQTT error while trying to subscribe to topics; will disconnect. Error: %v", tokenErr)
 				client.Disconnect(5)
+				return
 			}
+			sendNotification()
 		})
 
 		client = mqtt.NewClient(opts)

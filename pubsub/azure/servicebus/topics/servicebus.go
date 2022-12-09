@@ -68,7 +68,9 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) (err error) {
 }
 
 func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
-	msg, err := impl.NewASBMessageFromPubsubRequest(req)
+	msg, err := impl.NewASBMessageFromPubsubRequest(req, impl.ASBMessageOptions{
+		RequireSessions: a.metadata.RequireSessions,
+	})
 	if err != nil {
 		return err
 	}

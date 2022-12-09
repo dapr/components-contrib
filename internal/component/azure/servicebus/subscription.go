@@ -186,18 +186,22 @@ func (s *Subscription) ReceiveBlocking(handler HandlerFn, receiver Receiver, onF
 			return ctx.Err()
 		}
 
-		var recvTimeout time.Duration
+		// If we require sessions then we must have a timeout to allow
+		// us to try and process any other sessions that have available
+		// messages. If we do not require sessions then we will block
+		// on the receiver until a message is available or the context
+		// is canceled.
+		var receiverCtx context.Context
 		if s.requireSessions && opts.SessionIdleTimeout > 0 {
-			recvTimeout = opts.SessionIdleTimeout
+			var receiverCancel context.CancelFunc
+			receiverCtx, receiverCancel = context.WithTimeout(ctx, opts.SessionIdleTimeout)
+			defer receiverCancel()
 		} else {
-			recvTimeout = s.timeout
+			receiverCtx = s.ctx
 		}
 
-		recvCtx, recvCancel := context.WithTimeout(ctx, recvTimeout)
-		defer recvCancel()
-
 		// This method blocks until we get a message or the context is canceled
-		msgs, err := receiver.ReceiveMessages(recvCtx, s.maxBulkSubCount, nil)
+		msgs, err := receiver.ReceiveMessages(receiverCtx, s.maxBulkSubCount, nil)
 		if err != nil {
 			if err != context.Canceled {
 				s.logger.Errorf("Error reading from %s. %s", s.entity, err.Error())

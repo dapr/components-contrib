@@ -107,7 +107,7 @@ func TestAddMetadataToMessage(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// act.
 			msg := &azservicebus.Message{}
-			err := addMetadataToMessage(msg, tc.metadata)
+			err := addMetadataToMessage(msg, tc.metadata, ASBMessageOptions{})
 
 			// assert.
 			if tc.expectError {

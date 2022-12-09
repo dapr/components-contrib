@@ -338,6 +338,7 @@ func (a *azureServiceBus) ConnectAndReceive(subscribeCtx context.Context,
 		closeReceiverCancel()
 	}()
 
+	// lock renewal loop
 	go func() {
 		a.logger.Debugf("Renewing locks for subscription %s for topic %s", a.metadata.ConsumerID, req.Topic)
 		lockErr := sub.RenewLocksBlocking(receiverCtx, receiver, impl.LockRenewalOptions{
@@ -439,6 +440,7 @@ func (a *azureServiceBus) ConnectAndReceiveWithSessions(subscribeCtx context.Con
 						closeReceiverCancel()
 					}()
 
+					// lock renewal loop
 					go func() {
 						a.logger.Debugf("Renewing locks for session %s receiver for subscription %s to topic %s", sessionID, a.metadata.ConsumerID, req.Topic)
 						lockErr := sub.RenewLocksBlocking(receiverCtx, receiver, impl.LockRenewalOptions{

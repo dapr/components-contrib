@@ -30,8 +30,14 @@ import (
 )
 
 const (
-	defaultMaxBulkSubCount        = 100
-	defaultMaxBulkPubBytes uint64 = 1024 * 128 // 128 KiB
+	requireSessionsMetadataKey       = "requireSessions"
+	sessionIdleTimeoutMetadataKey    = "sessionIdleTimeout"
+	maxConcurrentSessionsMetadataKey = "maxConcurrentSessions"
+
+	defaultMaxBulkSubCount                 = 100
+	defaultMaxBulkPubBytes          uint64 = 1024 * 128 // 128 KiB
+	defaultSesssionIdleTimeoutInSec        = 60
+	defaultMaxConcurrentSessions           = 8
 )
 
 type azureServiceBus struct {
@@ -68,8 +74,13 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) (err error) {
 }
 
 func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
+	var requireSessions bool
+	if val, ok := req.Metadata[requireSessionsMetadataKey]; ok && val != "" {
+		requireSessions = utils.IsTruthy(val)
+	}
+
 	msg, err := impl.NewASBMessageFromPubsubRequest(req, impl.ASBMessageOptions{
-		RequireSessions: a.metadata.RequireSessions,
+		RequireSessions: requireSessions,
 	})
 	if err != nil {
 		return err
@@ -178,6 +189,13 @@ func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPubli
 }
 
 func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	var requireSessions bool
+	if val, ok := req.Metadata[requireSessionsMetadataKey]; ok && val != "" {
+		requireSessions = utils.IsTruthy(val)
+	}
+	sessionIdleTimeout := time.Duration(utils.GetElemOrDefaultFromMap(req.Metadata, sessionIdleTimeoutMetadataKey, defaultSesssionIdleTimeoutInSec)) * time.Second
+	maxConcurrentSessions := utils.GetElemOrDefaultFromMap(req.Metadata, maxConcurrentSessionsMetadataKey, defaultMaxConcurrentSessions)
+
 	sub := impl.NewSubscription(
 		subscribeCtx,
 		a.metadata.MaxActiveMessages,
@@ -187,7 +205,7 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 		a.metadata.MaxConcurrentHandlers,
 		"topic "+req.Topic,
 		a.metadata.LockRenewalInSec,
-		a.metadata.RequireSessions,
+		requireSessions,
 		a.logger,
 	)
 
@@ -198,15 +216,25 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 			onFirstSuccess,
 			impl.ReceiveOptions{
 				BulkEnabled:        false, // Bulk is not supported in regular Subscribe.
-				SessionIdleTimeout: time.Duration(a.metadata.SessionIdleTimeoutInSec) * time.Second,
+				SessionIdleTimeout: sessionIdleTimeout,
 			},
 		)
 	}
 
-	return a.doSubscribe(subscribeCtx, req, sub, receiveAndBlockFn, a.metadata.RequireSessions)
+	return a.doSubscribe(subscribeCtx, req, sub, receiveAndBlockFn, impl.SubscriptionOpts{
+		RequireSessions:      requireSessions,
+		MaxConcurrentSesions: maxConcurrentSessions,
+	})
 }
 
 func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.BulkHandler) error {
+	var requireSessions bool
+	if val, ok := req.Metadata[requireSessionsMetadataKey]; ok && val != "" {
+		requireSessions = utils.IsTruthy(val)
+	}
+	sessionIdleTimeout := time.Duration(utils.GetElemOrDefaultFromMap(req.Metadata, sessionIdleTimeoutMetadataKey, defaultSesssionIdleTimeoutInSec)) * time.Second
+	maxConcurrentSessions := utils.GetElemOrDefaultFromMap(req.Metadata, maxConcurrentSessionsMetadataKey, defaultMaxConcurrentSessions)
+
 	maxBulkSubCount := utils.GetElemOrDefaultFromMap(req.Metadata, contribMetadata.MaxBulkSubCountKey, defaultMaxBulkSubCount)
 	sub := impl.NewSubscription(
 		subscribeCtx,
@@ -217,7 +245,7 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 		a.metadata.MaxConcurrentHandlers,
 		"topic "+req.Topic,
 		a.metadata.LockRenewalInSec,
-		a.metadata.RequireSessions,
+		requireSessions,
 		a.logger,
 	)
 
@@ -228,23 +256,24 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 			onFirstSuccess,
 			impl.ReceiveOptions{
 				BulkEnabled:        true, // Bulk is supported in BulkSubscribe.
-				SessionIdleTimeout: time.Duration(a.metadata.SessionIdleTimeoutInSec) * time.Second,
+				SessionIdleTimeout: sessionIdleTimeout,
 			},
 		)
 	}
 
-	return a.doSubscribe(subscribeCtx, req, sub, receiveAndBlockFn, a.metadata.RequireSessions)
+	return a.doSubscribe(subscribeCtx, req, sub, receiveAndBlockFn, impl.SubscriptionOpts{
+		RequireSessions:      requireSessions,
+		MaxConcurrentSesions: maxConcurrentSessions,
+	})
 }
 
 // doSubscribe is a helper function that handles the common logic for both Subscribe and BulkSubscribe.
 // The receiveAndBlockFn is a function should invoke a blocking call to receive messages from the topic.
 func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
-	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(impl.Receiver, func()) error, requireSessions bool,
+	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(impl.Receiver, func()) error, opts impl.SubscriptionOpts,
 ) error {
 	// Does nothing if DisableEntityManagement is true
-	err := a.client.EnsureSubscription(subscribeCtx, a.metadata.ConsumerID, req.Topic, impl.SubscriptionOpts{
-		RequireSessions: &requireSessions,
-	})
+	err := a.client.EnsureSubscription(subscribeCtx, a.metadata.ConsumerID, req.Topic, opts)
 	if err != nil {
 		return err
 	}
@@ -263,8 +292,8 @@ func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
 	go func() {
 		// Reconnect loop.
 		for {
-			if requireSessions {
-				a.ConnectAndReceiveWithSessions(subscribeCtx, req, sub, receiveAndBlockFn, onFirstSuccess)
+			if opts.RequireSessions {
+				a.ConnectAndReceiveWithSessions(subscribeCtx, req, sub, receiveAndBlockFn, onFirstSuccess, opts.MaxConcurrentSesions)
 			} else {
 				a.ConnectAndReceive(subscribeCtx, req, sub, receiveAndBlockFn, onFirstSuccess)
 			}
@@ -350,11 +379,10 @@ func (a *azureServiceBus) ConnectAndReceive(subscribeCtx context.Context,
 }
 
 func (a *azureServiceBus) ConnectAndReceiveWithSessions(subscribeCtx context.Context,
-	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(impl.Receiver, func()) error, onFirstSuccess func(),
+	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(impl.Receiver, func()) error, onFirstSuccess func(), maxConcurrentSessions int,
 ) {
-	maxSessions := a.metadata.MaxConcurrentSesions
-	sessionsChan := make(chan struct{}, maxSessions)
-	for i := 0; i < maxSessions; i++ {
+	sessionsChan := make(chan struct{}, maxConcurrentSessions)
+	for i := 0; i < maxConcurrentSessions; i++ {
 		sessionsChan <- struct{}{}
 	}
 

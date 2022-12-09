@@ -49,9 +49,6 @@ type Metadata struct {
 	PublishMaxRetries               int    `json:"publishMaxRetries"`
 	PublishInitialRetryIntervalInMs int    `json:"publishInitialRetryInternalInMs"`
 	NamespaceName                   string `json:"namespaceName"` // Only for Azure AD
-	RequireSessions                 bool   `json:"requireSessions"`
-	MaxConcurrentSesions            int    `json:"maxConcurrentSessions"`
-	SessionIdleTimeoutInSec         int    `json:"sessionIdleTimeoutInSec"`
 
 	/** For bindings only **/
 	QueueName string `json:"queueName"` // Only queues
@@ -78,9 +75,6 @@ const (
 	keyPublishInitialRetryInternalInMs = "publishInitialRetryInternalInMs"
 	keyNamespaceName                   = "namespaceName"
 	keyQueueName                       = "queueName"
-	keyRequireSessions                 = "requireSessions"
-	keyMaxConcurrentSessions           = "maxConcurrentSessions"
-	keySessionIdleTimeoutInSec         = "sessionIdleTimeoutInSec"
 )
 
 // Defaults.
@@ -150,10 +144,6 @@ func ParseMetadata(md map[string]string, logger logger.Logger, mode byte) (m *Me
 			m.ConsumerID = val
 		} else {
 			return m, errors.New("missing consumerID")
-		}
-	} else {
-		if ok := md[keyRequireSessions]; ok != "" {
-			return m, errors.New("requireSessions is only supported for topics")
 		}
 	}
 
@@ -269,29 +259,6 @@ func ParseMetadata(md map[string]string, logger logger.Logger, mode byte) (m *Me
 		}
 	}
 
-	if val, ok := md[keyRequireSessions]; ok && val != "" {
-		m.RequireSessions, err = strconv.ParseBool(val)
-		if err != nil {
-			return m, fmt.Errorf("invalid requireSessions %s: %s", val, err)
-		}
-	}
-
-	m.MaxConcurrentSesions = defaultMaxConcurrentSessions
-	if val, ok := md[keyMaxConcurrentSessions]; ok && val != "" {
-		m.MaxConcurrentSesions, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("invalid maxConcurrentSessions %s: %s", val, err)
-		}
-	}
-
-	m.SessionIdleTimeoutInSec = defaultSesssionIdleTimeoutInSec
-	if val, ok := md[keySessionIdleTimeoutInSec]; ok && val != "" {
-		m.SessionIdleTimeoutInSec, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("invalid sessionIdleTimeoutInSec %s: %s", val, err)
-		}
-	}
-
 	/* Nullable configuration settings - defaults will be set by the server. */
 	if val, ok := md[keyMaxDeliveryCount]; ok && val != "" {
 		var valAsInt int64
@@ -363,10 +330,6 @@ func (a Metadata) CreateSubscriptionProperties() *sbadmin.SubscriptionProperties
 
 	if a.AutoDeleteOnIdleInSec != nil {
 		properties.AutoDeleteOnIdle = toDurationISOString(*a.AutoDeleteOnIdleInSec)
-	}
-
-	if a.RequireSessions {
-		properties.RequiresSession = &a.RequireSessions
 	}
 
 	return properties

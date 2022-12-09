@@ -78,10 +78,6 @@ const (
 	MessageKeyReplyToSessionID = "ReplyToSessionId" // read, write.
 )
 
-type ASBMessageOptions struct {
-	RequireSessions bool
-}
-
 // NewASBMessageFromPubsubRequest builds a new Azure Service Bus message from a PublishRequest.
 func NewASBMessageFromPubsubRequest(req *pubsub.PublishRequest) (*azservicebus.Message, error) {
 	asbMsg := &azservicebus.Message{

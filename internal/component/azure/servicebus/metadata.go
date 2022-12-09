@@ -108,9 +108,6 @@ const (
 
 	defaultPublishMaxRetries               = 5
 	defaultPublishInitialRetryInternalInMs = 500
-
-	defaultMaxConcurrentSessions    = 8
-	defaultSesssionIdleTimeoutInSec = -1 // -1 means use the value from `defaultTimeoutInSec`.
 )
 
 // Modes for ParseMetadata.

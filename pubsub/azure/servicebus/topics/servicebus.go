@@ -74,14 +74,7 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) (err error) {
 }
 
 func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
-	var requireSessions bool
-	if val, ok := req.Metadata[requireSessionsMetadataKey]; ok && val != "" {
-		requireSessions = utils.IsTruthy(val)
-	}
-
-	msg, err := impl.NewASBMessageFromPubsubRequest(req, impl.ASBMessageOptions{
-		RequireSessions: requireSessions,
-	})
+	msg, err := impl.NewASBMessageFromPubsubRequest(req)
 	if err != nil {
 		return err
 	}

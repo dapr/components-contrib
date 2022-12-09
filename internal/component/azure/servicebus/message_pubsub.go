@@ -112,7 +112,7 @@ func addMessageAttributesToMetadata(metadata map[string]string, asbMsg *azservic
 func UpdateASBBatchMessageWithBulkPublishRequest(asbMsgBatch *azservicebus.MessageBatch, req *pubsub.BulkPublishRequest) error {
 	// Add entries from bulk request to batch.
 	for _, entry := range req.Entries {
-		asbMsg, err := NewASBMessageFromBulkMessageEntry(entry, ASBMessageOptions{})
+		asbMsg, err := NewASBMessageFromBulkMessageEntry(entry)
 		if err != nil {
 			return err
 		}

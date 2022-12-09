@@ -68,7 +68,7 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) (err error) {
 }
 
 func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
-	msg, err := impl.NewASBMessageFromPubsubRequest(req, impl.ASBMessageOptions{})
+	msg, err := impl.NewASBMessageFromPubsubRequest(req)
 	if err != nil {
 		return err
 	}

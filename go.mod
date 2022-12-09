@@ -109,6 +109,7 @@ require (
 	go.temporal.io/api v1.12.0
 	go.temporal.io/sdk v1.17.0
 	go.uber.org/atomic v1.10.0
+	go.uber.org/multierr v1.7.0
 	go.uber.org/ratelimit v0.2.0
 	golang.org/x/crypto v0.1.0
 	golang.org/x/net v0.1.0
@@ -337,7 +338,6 @@ require (
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect
 	github.com/yuin/gopher-lua v0.0.0-20210529063254-f4c35e4016d9 // indirect
 	go.opencensus.io v0.23.0 // indirect
-	go.uber.org/multierr v1.7.0 // indirect
 	go.uber.org/zap v1.21.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.1.0 // indirect

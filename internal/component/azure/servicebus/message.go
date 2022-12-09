@@ -116,7 +116,7 @@ func addMetadataToMessage(asbMsg *azservicebus.Message, metadata map[string]stri
 
 	for k, v := range metadata {
 		// Note: do not just do &v because we're in a loop
-		if v == "" {
+		if v == "" && k != MessageKeySessionID { // blank session ID is valid
 			continue
 		}
 

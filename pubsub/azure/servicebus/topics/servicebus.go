@@ -395,7 +395,7 @@ func (a *azureServiceBus) ConnectAndReceiveWithSessions(subscribeCtx context.Con
 					receiver, err := sub.Connect(func() (impl.Receiver, error) {
 						a.logger.Debugf("Accepting next available session subscription %s to topic %s", a.metadata.ConsumerID, req.Topic)
 						r, err := a.client.GetClient().AcceptNextSessionForSubscription(receiverCtx, req.Topic, a.metadata.ConsumerID, nil)
-						if err != nil && r != nil {
+						if err == nil && r != nil {
 							sessionID = r.SessionID()
 						}
 						return impl.NewSessionReceiver(r), err

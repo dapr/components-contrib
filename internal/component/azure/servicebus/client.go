@@ -194,7 +194,8 @@ func (c *Client) EnsureTopic(ctx context.Context, topic string) error {
 }
 
 type SubscriptionOpts struct {
-	RequireSessions *bool
+	RequireSessions      bool
+	MaxConcurrentSesions int
 }
 
 // EnsureSubscription creates the topic subscription if it doesn't exist.
@@ -291,7 +292,7 @@ func (c *Client) shouldCreateSubscription(parentCtx context.Context, topic, subs
 		}
 		return *b
 	}
-	if required(opts.RequireSessions) != required(res.RequiresSession) {
+	if required(&opts.RequireSessions) != required(res.RequiresSession) {
 		return false, fmt.Errorf("subscription %s already exists but session requirement doesn't match", subscription)
 	}
 

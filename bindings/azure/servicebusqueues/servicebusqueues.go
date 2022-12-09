@@ -80,7 +80,7 @@ func (a *AzureServiceBusQueues) Invoke(invokeCtx context.Context, req *bindings.
 		return nil, fmt.Errorf("failed to create a sender for the Service Bus queue: %w", err)
 	}
 
-	msg, err := impl.NewASBMessageFromInvokeRequest(req, impl.ASBMessageOptions{})
+	msg, err := impl.NewASBMessageFromInvokeRequest(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create message: %w", err)
 	}

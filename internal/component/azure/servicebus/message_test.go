@@ -42,7 +42,6 @@ var (
 	testSampleTime              = time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
 	testSampleTimeHTTPFormat    = "Thu, 01 Jan 1970 00:00:00 GMT"
 	testSequenceNumber          = int64(1)
-	testBlankSessionID          = ""
 )
 
 func TestAddMetadataToMessage(t *testing.T) {
@@ -51,7 +50,6 @@ func TestAddMetadataToMessage(t *testing.T) {
 		metadata                    map[string]string
 		expectedAzServiceBusMessage azservicebus.Message
 		expectError                 bool
-		options                     ASBMessageOptions
 	}{
 		{
 			name: "Maps pubsub request to azure service bus message.",
@@ -78,7 +76,6 @@ func TestAddMetadataToMessage(t *testing.T) {
 				ContentType:          &testContentType,
 			},
 			expectError: false,
-			options:     ASBMessageOptions{},
 		},
 		{
 			name: "Errors when partition key and session id set but not equal.",
@@ -103,35 +100,6 @@ func TestAddMetadataToMessage(t *testing.T) {
 				ContentType:   &testContentType,
 			},
 			expectError: true,
-			options:     ASBMessageOptions{},
-		},
-		{
-			name: "Set a blank session id when none provided but required.",
-			metadata: map[string]string{
-				MessageKeyMessageID:               testMessageID,
-				MessageKeyCorrelationID:           testCorrelationID,
-				MessageKeyLabel:                   testLabel,
-				MessageKeyReplyTo:                 testReplyTo,
-				MessageKeyTo:                      testTo,
-				MessageKeyPartitionKey:            testPartitionKey,
-				MessageKeyContentType:             testContentType,
-				MessageKeyScheduledEnqueueTimeUtc: testScheduledEnqueueTimeUtc,
-			},
-			expectedAzServiceBusMessage: azservicebus.Message{
-				MessageID:            &testMessageID,
-				CorrelationID:        &testCorrelationID,
-				SessionID:            &testBlankSessionID,
-				Subject:              &testLabel,
-				ReplyTo:              &testReplyTo,
-				To:                   &testTo,
-				PartitionKey:         &testPartitionKey,
-				ScheduledEnqueueTime: &nowUtc,
-				ContentType:          &testContentType,
-			},
-			expectError: false,
-			options: ASBMessageOptions{
-				RequireSessions: true,
-			},
 		},
 	}
 
@@ -139,7 +107,7 @@ func TestAddMetadataToMessage(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// act.
 			msg := &azservicebus.Message{}
-			err := addMetadataToMessage(msg, tc.metadata, tc.options)
+			err := addMetadataToMessage(msg, tc.metadata)
 
 			// assert.
 			if tc.expectError {

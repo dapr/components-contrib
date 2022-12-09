@@ -83,39 +83,39 @@ type ASBMessageOptions struct {
 }
 
 // NewASBMessageFromPubsubRequest builds a new Azure Service Bus message from a PublishRequest.
-func NewASBMessageFromPubsubRequest(req *pubsub.PublishRequest, opts ASBMessageOptions) (*azservicebus.Message, error) {
+func NewASBMessageFromPubsubRequest(req *pubsub.PublishRequest) (*azservicebus.Message, error) {
 	asbMsg := &azservicebus.Message{
 		Body: req.Data,
 	}
 
-	err := addMetadataToMessage(asbMsg, req.Metadata, opts)
+	err := addMetadataToMessage(asbMsg, req.Metadata)
 	return asbMsg, err
 }
 
 // NewASBMessageFromBulkMessageEntry builds a new Azure Service Bus message from a BulkMessageEntry.
-func NewASBMessageFromBulkMessageEntry(entry pubsub.BulkMessageEntry, opts ASBMessageOptions) (*azservicebus.Message, error) {
+func NewASBMessageFromBulkMessageEntry(entry pubsub.BulkMessageEntry) (*azservicebus.Message, error) {
 	asbMsg := &azservicebus.Message{
 		Body:        entry.Event,
 		ContentType: &entry.ContentType,
 	}
 
-	err := addMetadataToMessage(asbMsg, entry.Metadata, opts)
+	err := addMetadataToMessage(asbMsg, entry.Metadata)
 	return asbMsg, err
 }
 
 // NewASBMessageFromInvokeRequest builds a new Azure Service Bus message from a binding's Invoke request.
-func NewASBMessageFromInvokeRequest(req *bindings.InvokeRequest, opts ASBMessageOptions) (*azservicebus.Message, error) {
+func NewASBMessageFromInvokeRequest(req *bindings.InvokeRequest) (*azservicebus.Message, error) {
 	asbMsg := &azservicebus.Message{
 		Body: req.Data,
 	}
 
-	err := addMetadataToMessage(asbMsg, req.Metadata, opts)
+	err := addMetadataToMessage(asbMsg, req.Metadata)
 	return asbMsg, err
 }
 
 // Adds metadata to the message.
 // Reference for Azure Service Bus specific properties: https://docs.microsoft.com/en-us/rest/api/servicebus/message-headers-and-properties#message-headers
-func addMetadataToMessage(asbMsg *azservicebus.Message, metadata map[string]string, opts ASBMessageOptions) error {
+func addMetadataToMessage(asbMsg *azservicebus.Message, metadata map[string]string) error {
 	asbMsg.ApplicationProperties = make(map[string]interface{}, len(metadata))
 
 	for k, v := range metadata {
@@ -173,10 +173,6 @@ func addMetadataToMessage(asbMsg *azservicebus.Message, metadata map[string]stri
 
 	if asbMsg.PartitionKey != nil && asbMsg.SessionID != nil && *asbMsg.PartitionKey != *asbMsg.SessionID {
 		return fmt.Errorf("session id %s and partition key %s should be equal when both present", *asbMsg.SessionID, *asbMsg.PartitionKey)
-	}
-
-	if opts.RequireSessions && asbMsg.SessionID == nil {
-		asbMsg.SessionID = ptr.Of("") // default to blank session ID
 	}
 
 	return nil

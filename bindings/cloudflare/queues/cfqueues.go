@@ -15,7 +15,10 @@ package cfqueues
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -26,6 +29,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -34,6 +39,9 @@ import (
 
 // Minimum version required for the running Worker.
 const minWorkerVersion = 20221209
+
+// Issuer for JWTs
+const tokenIssuer = "dapr.io/cloudflare"
 
 // CFQueues is a binding for publishing messages on Cloudflare Queues
 type CFQueues struct {
@@ -88,6 +96,11 @@ type infoEndpointResponse struct {
 // Check the worker to ensure it's available and it's using a supported version.
 // In case the worker needs to be updated, the method returns false and no error
 func (q *CFQueues) checkWorker() (bool, error) {
+	token, err := q.createToken()
+	if err != nil {
+		return false, fmt.Errorf("failed to create authorization token: %w", err)
+	}
+
 	ctx, cancel := context.WithTimeout(q.ctx, 30*time.Second)
 	defer cancel()
 
@@ -95,6 +108,8 @@ func (q *CFQueues) checkWorker() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("error creating network request: %w", err)
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := q.client.Do(req)
 	if err != nil {
 		return false, fmt.Errorf("error invoking the worker: %w", err)
@@ -105,7 +120,7 @@ func (q *CFQueues) checkWorker() (bool, error) {
 		res.Body.Close()
 	}()
 	if res.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("invalid response status code: %d", err)
+		return false, fmt.Errorf("invalid response status code: %d", res.StatusCode)
 	}
 
 	var data infoEndpointResponse
@@ -139,17 +154,27 @@ func (q *CFQueues) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 }
 
 // Handler for invoke operations for publishing messages to the Workers Queue
-func (q *CFQueues) invokePublish(ctx context.Context, ir *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (q *CFQueues) invokePublish(parentCtx context.Context, ir *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	md := publishRequestMetadata{}
 	err := md.FromMetadata(ir.Metadata)
 	if err != nil {
 		return nil, fmt.Errorf("invalid request: %w", err)
 	}
 
+	token, err := q.createToken()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create authorization token: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
+	defer cancel()
+
 	req, err := http.NewRequestWithContext(ctx, "POST", q.metadata.WorkerURL+"publish/"+md.QueueName, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating network request: %w", err)
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
 	res, err := q.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("error invoking the worker: %w", err)
@@ -160,10 +185,31 @@ func (q *CFQueues) invokePublish(ctx context.Context, ir *bindings.InvokeRequest
 		res.Body.Close()
 	}()
 	if res.StatusCode != http.StatusCreated {
-		return nil, fmt.Errorf("invalid response status code: %d", err)
+		return nil, fmt.Errorf("invalid response status code: %d", res.StatusCode)
 	}
 
 	return nil, nil
+}
+
+// Create a JWT token for authorizing requests
+func (q CFQueues) createToken() (string, error) {
+	now := time.Now()
+	token, err := jwt.NewBuilder().
+		Audience([]string{q.metadata.WorkerName}).
+		Issuer(tokenIssuer).
+		IssuedAt(now).
+		Expiration(now.Add(5 * time.Minute)).
+		Build()
+	if err != nil {
+		return "", fmt.Errorf("failed to build token: %w", err)
+	}
+
+	signed, err := jwt.Sign(token, jwt.WithKey(jwa.EdDSA, q.metadata.privKey))
+	if err != nil {
+		return "", fmt.Errorf("failed to sign token: %w", err)
+	}
+
+	return string(signed), nil
 }
 
 // Close the component
@@ -176,11 +222,21 @@ func (q *CFQueues) Close() error {
 }
 
 type componentMetadata struct {
-	WorkerURL string `mapstructure:"workerUrl"`
+	WorkerURL  string `mapstructure:"workerUrl"`
+	Key        string `mapstructure:"key"`
+	WorkerName string `mapstructure:"workerName"`
+
+	privKey ed25519.PrivateKey
 }
 
 // Validate the metadata object
 func (m *componentMetadata) Validate() error {
+	// WorkerName
+	if m.WorkerName == "" {
+		return errors.New("property 'workerName' is required")
+	}
+
+	// WorkerURL
 	if m.WorkerURL == "" {
 		return errors.New("property 'workerUrl' is required")
 	}
@@ -196,6 +252,27 @@ func (m *componentMetadata) Validate() error {
 	if !strings.HasSuffix(m.WorkerURL, "/") {
 		m.WorkerURL += "/"
 	}
+
+	// Key
+	if m.Key == "" {
+		return errors.New("property 'key' is required")
+	}
+	block, _ := pem.Decode([]byte(m.Key))
+	if block == nil || len(block.Bytes) == 0 {
+		return errors.New("invalid property 'key': not a PEM-encoded key")
+	}
+	if block.Type != "PRIVATE KEY" {
+		return errors.New("invalid property 'key': not a private key in PKCS#8 format")
+	}
+	pkAny, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return fmt.Errorf("invalid property 'key': failed to import private key: %w", err)
+	}
+	pk, ok := pkAny.(ed25519.PrivateKey)
+	if !ok {
+		return errors.New("invalid property 'key': not an Ed25519 private key")
+	}
+	m.privKey = pk
 
 	return nil
 }

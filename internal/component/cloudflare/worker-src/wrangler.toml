@@ -1,0 +1,16 @@
+name = "daprdemo"
+main = "worker.ts"
+compatibility_date = "2022-12-09"
+
+# Worker defines a binding, named "QUEUE", which gives it a capability
+# to send messages to a Queue, named "daprdemo".
+[[queues.producers]]
+  queue = "daprdemo"
+  binding = "daprdemo"
+
+# Worker also receives messages from the Queue, named "daprdemo".
+[[queues.consumers]]
+  queue = "daprdemo"
+  max_batch_size = 10   # Max messages per batch
+  max_batch_timeout = 1 # Max seconds to wait before batch is full
+  max_retries = 3       # Max retries per batch

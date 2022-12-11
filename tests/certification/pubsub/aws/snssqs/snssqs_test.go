@@ -130,7 +130,9 @@ func TestSNSSQS(t *testing.T) {
 		return func(ctx flow.Context) error {
 			// assert for messages
 			for _, m := range messageWatchers {
-				m.Assert(ctx, 25*timeout)
+				if !m.Assert(ctx, 25*timeout) {
+					ctx.Errorf("message assersion failed: %#v\n", m)
+				}
 			}
 
 			return nil
@@ -143,7 +145,7 @@ func TestSNSSQS(t *testing.T) {
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
+		// Run the Dapr sidecar with ConsumerID "snssqscerttest1"
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/consumer_one"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -156,7 +158,7 @@ func TestSNSSQS(t *testing.T) {
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset),
 			subscriberApplication(appID2, topicActiveName, consumerGroup2))).
 
-		// Run the Dapr sidecar with the component 2.
+		// Run the Dapr sidecar with ConsumerID "snssqscerttest2"
 		Step(sidecar.Run(sidecarName2,
 			embedded.WithComponentsPath("./components/consumer_two"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
@@ -165,8 +167,8 @@ func TestSNSSQS(t *testing.T) {
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
 			componentRuntimeOptions(),
 		)).
-		Step("publish messages to topic1", publishMessages(nil, sidecarName1, topicActiveName, consumerGroup1, consumerGroup2)).
-		Step("publish messages to unUsedTopic", publishMessages(nil, sidecarName1, topicPassiveName)).
+		Step("publish messages to active topic ==> "+topicActiveName, publishMessages(nil, sidecarName1, topicActiveName, consumerGroup1, consumerGroup2)).
+		Step("publish messages to passive topic ==> "+topicPassiveName, publishMessages(nil, sidecarName1, topicPassiveName)).
 		Step("verify if app1 has recevied messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).
 		Step("verify if app2 has recevied messages published to passive topic", assertMessages(10*time.Second, consumerGroup2)).
 		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).

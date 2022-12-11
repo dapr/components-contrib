@@ -134,7 +134,7 @@ func TestSNSSQSBasic(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("message assersion failed: %#v\n", m)
+					ctx.Errorf("message assersion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -261,7 +261,7 @@ func TestSNSSQSMultipleSubsSameConsumerIDs(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("message assersion failed: %#v\n", m)
+					ctx.Errorf("message assersion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -275,7 +275,7 @@ func TestSNSSQSMultipleSubsSameConsumerIDs(t *testing.T) {
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
+		// Run the Dapr sidecar with ConsumerID "snssqscerttest1"
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/consumer_one"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -288,7 +288,7 @@ func TestSNSSQSMultipleSubsSameConsumerIDs(t *testing.T) {
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset),
 			subscriberApplication(appID2, topicActiveName, consumerGroup2))).
 
-		// Run the Dapr sidecar with the component 2.
+		// Run the Dapr sidecar with ConsumerID "snssqscerttest2"
 		Step(sidecar.Run(sidecarName2,
 			embedded.WithComponentsPath("./components/consumer_two"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
@@ -297,8 +297,8 @@ func TestSNSSQSMultipleSubsSameConsumerIDs(t *testing.T) {
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
 			componentRuntimeOptions(),
 		)).
-		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup2)).
-		Step("publish messages to topic1", publishMessages(metadata1, sidecarName2, topicActiveName, consumerGroup2)).
+		Step("publish messages to  ==> "+topicActiveName, publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup2)).
+		Step("publish messages to  ==> "+topicActiveName, publishMessages(metadata1, sidecarName2, topicActiveName, consumerGroup2)).
 		Step("verify if app1, app2 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
 		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
 		Run()

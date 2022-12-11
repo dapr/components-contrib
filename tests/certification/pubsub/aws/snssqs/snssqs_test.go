@@ -55,6 +55,7 @@ const (
 	pubsubName       = "snssqs-cert-tests"
 	topicActiveName  = "certification-pubsub-topic-active"
 	topicPassiveName = "certification-pubsub-topic-passive"
+	topicToBeCreated = "certification-topic-per-test-run"
 	partition0       = "partition-0"
 	partition1       = "partition-1"
 )
@@ -552,6 +553,114 @@ func TestSNSSQSMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 		Step("verify if app1, app2 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup1)).
 		Step("verify if app1, app2 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
 		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
+		Run()
+}
+
+// Verify data with a topic that does not exist
+func TestSNSSQSNonexistingTopic(t *testing.T) {
+	consumerGroup1 := watcher.NewUnordered()
+
+	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
+	metadata := map[string]string{
+		messageKey: partition0,
+	}
+
+	// subscriber of the given topic
+	subscriberApplication := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			// Simulate periodic errors.
+			sim := simulate.PeriodicError(ctx, 100)
+			// Setup the /orders event handler.
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      topicName,
+					Route:      "/orders",
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					if err := sim(); err != nil {
+						return true, err
+					}
+
+					// Track/Observe the data of the event.
+					messagesWatcher.Observe(e.Data)
+					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					return false, nil
+				}),
+			)
+		}
+	}
+
+	publishMessages := func(metadata map[string]string, sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			// prepare the messages
+			messages := make([]string, numMessages)
+			for i := range messages {
+				messages[i] = fmt.Sprintf("partitionKey: %s, message for topic: %s, index: %03d, uniqueId: %s", metadata[messageKey], topicName, i, uuid.New().String())
+			}
+
+			// add the messages as expectations to the watchers
+			for _, messageWatcher := range messageWatchers {
+				messageWatcher.ExpectStrings(messages...)
+			}
+
+			// get the sidecar (dapr) client
+			client := sidecar.GetClient(ctx, sidecarName)
+
+			// publish messages
+			ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+
+			var publishOptions dapr.PublishEventOption
+
+			if metadata != nil {
+				publishOptions = dapr.PublishEventWithMetadata(metadata)
+			}
+
+			for _, message := range messages {
+				ctx.Logf("Publishing: %q", message)
+				var err error
+
+				if publishOptions != nil {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message, publishOptions)
+				} else {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message)
+				}
+				require.NoError(ctx, err, "error publishing message")
+			}
+			return nil
+		}
+	}
+
+	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			// assert for messages
+			for _, m := range messageWatchers {
+				if !m.Assert(ctx, 25*timeout) {
+					ctx.Errorf("message assersion failed for watcher: %#v\n", m)
+				}
+			}
+
+			return nil
+		}
+	}
+
+	flow.New(t, "SNSSQS certification - non-existing topic").
+
+		// Run subscriberApplication app1
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset*3),
+			subscriberApplication(appID1, topicToBeCreated, consumerGroup1))).
+
+		// Run the Dapr sidecar with ConsumerID "snssqscerttest1"
+		Step(sidecar.Run(sidecarName1,
+			embedded.WithComponentsPath("./components/consumer_one"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*3),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*3),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*3),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*3),
+			componentRuntimeOptions(),
+		)).
+		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicToBeCreated), publishMessages(metadata, sidecarName1, topicToBeCreated, consumerGroup1)).
+		Step("wait", flow.Sleep(30*time.Second)).
+		Step("verify if app1 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
 		Run()
 }
 

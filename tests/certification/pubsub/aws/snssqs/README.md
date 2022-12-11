@@ -38,3 +38,8 @@ The purpose of this module is to provide tests that certify the AWS SNS/SQS Pubs
    - Publisher tries to publish to 1 topic that is not present
    - Verify that the topic and subscriptions do not get created
    - Verify that the error is returned saying that the topic not present when publishing
+- Verify data with an optional parameter `defaultMessageTimeToLiveInSec` set (TestSNSSQSDefaultTtl)
+   - Run dapr application with 1 publisher and 1 subscriber
+   - Subscriber is subscribed to 1 topic
+   - Publisher publishes to 1 topic, wait double the TTL seconds
+   - Verify the message is deleted/expired

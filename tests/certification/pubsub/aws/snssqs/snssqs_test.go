@@ -57,7 +57,8 @@ const (
 	topicPassiveName = "certification-pubsub-topic-passive"
 )
 
-func TestSNSSQS(t *testing.T) {
+// Verify with single publisher / single subscriber
+func TestSNSSQSBasic(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 
@@ -139,7 +140,7 @@ func TestSNSSQS(t *testing.T) {
 		}
 	}
 
-	flow.New(t, "SNSSQS certification basic test").
+	flow.New(t, "SNSSQS Verify with single publisher / single subscriber").
 
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),

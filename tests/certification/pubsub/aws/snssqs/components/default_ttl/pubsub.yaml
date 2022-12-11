@@ -1,0 +1,12 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: snssqs-cert-tests
+spec:
+  type: pubsub.snssqs
+  version: v1
+  metadata:
+    - name: consumerID
+      value: snssqscerttest1
+    - name: defaultMessageTimeToLiveInSec
+      value: 10

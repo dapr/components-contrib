@@ -22,3 +22,9 @@ The purpose of this module is to provide tests that certify the AWS SNS/SQS Pubs
    - Subscriber is subscribed to 1 topic
    - Simulate periodic errors and verify that the component retires on error
    - Verify that all expected messages were received
+- Verify with multiple publishers / multiple subscribers with different consumerIDs (TestSNSSQSMultiplePubSubsDifferentConsumerIDs)
+   - Run dapr application with 2 publishers and 2 subscribers
+   - Publisher publishes to 1 topic
+   - Subscriber is subscribed to 1 topic
+   - Simulate periodic errors and verify that the component retires on error
+   - Verify that all expected messages were received

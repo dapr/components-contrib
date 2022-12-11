@@ -33,3 +33,8 @@ The purpose of this module is to provide tests that certify the AWS SNS/SQS Pubs
    - Verify the creation of service bus
    - Send messages to the service created
    - Verify that subscriber received all the messages
+- Verify with an optional parameter `disableEntityManagement` set to true (TestSNSSQSEntityManagement)
+   - Run dapr application with 1 publisher
+   - Publisher tries to publish to 1 topic that is not present
+   - Verify that the topic and subscriptions do not get created
+   - Verify that the error is returned saying that the topic not present when publishing

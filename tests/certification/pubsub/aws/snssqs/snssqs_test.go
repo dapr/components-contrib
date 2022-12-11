@@ -56,6 +56,7 @@ const (
 	topicActiveName  = "certification-pubsub-topic-active"
 	topicPassiveName = "certification-pubsub-topic-passive"
 	topicToBeCreated = "certification-topic-per-test-run"
+	topicDefaultName = "certification-topic-default"
 	partition0       = "partition-0"
 	partition1       = "partition-1"
 )
@@ -661,6 +662,94 @@ func TestSNSSQSNonexistingTopic(t *testing.T) {
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicToBeCreated), publishMessages(metadata, sidecarName1, topicToBeCreated, consumerGroup1)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("verify if app1 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
+		Run()
+}
+
+// Verify with an optional parameter `disableEntityManagement` set to true
+func TestSNSSQSEntityManagement(t *testing.T) {
+	// TODO: Modify it to looks for component init error in the sidecar itself.
+	consumerGroup1 := watcher.NewUnordered()
+
+	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
+	metadata := map[string]string{
+		messageKey: partition0,
+	}
+
+	subscriberApplication := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			// Setup the /orders event handler.
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      topicName,
+					Route:      "/orders",
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					// Track/Observe the data of the event.
+					messagesWatcher.Observe(e.Data)
+					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					return false, nil
+				}),
+			)
+		}
+	}
+
+	publishMessages := func(metadata map[string]string, sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			// prepare the messages
+			messages := make([]string, numMessages)
+			for i := range messages {
+				messages[i] = fmt.Sprintf("partitionKey: %s, message for topic: %s, index: %03d, uniqueId: %s", metadata[messageKey], topicName, i, uuid.New().String())
+			}
+
+			// add the messages as expectations to the watchers
+			for _, messageWatcher := range messageWatchers {
+				messageWatcher.ExpectStrings(messages...)
+			}
+
+			// get the sidecar (dapr) client
+			client := sidecar.GetClient(ctx, sidecarName)
+
+			// publish messages
+			ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+
+			var publishOptions dapr.PublishEventOption
+
+			if metadata != nil {
+				publishOptions = dapr.PublishEventWithMetadata(metadata)
+			}
+
+			for _, message := range messages {
+				ctx.Logf("Publishing: %q", message)
+				var err error
+
+				if publishOptions != nil {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message, publishOptions)
+				} else {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message)
+				}
+				// Error is expected as the topic does not exist
+				require.Error(ctx, err, "error publishing message")
+			}
+			return nil
+		}
+	}
+
+	flow.New(t, "SNSSQS certification - entity management disabled").
+
+		// Run subscriberApplication app1
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset),
+			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
+
+		// Run the Dapr sidecar
+		Step(sidecar.Run(sidecarName1,
+			embedded.WithComponentsPath("./components/entity_mgmt"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
+			componentRuntimeOptions(),
+		)).
+		Step(fmt.Sprintf("publish messages to topicDefault: %s", topicDefaultName), publishMessages(metadata, sidecarName1, topicDefaultName, consumerGroup1)).
 		Run()
 }
 

@@ -1,0 +1,12 @@
+
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: cron3s
+spec:
+  type: bindings.cron
+  version: v1
+  metadata:
+  - name: schedule
+    # test non-standard crontab format
+    value: "*/3 * * * * *"

@@ -1,0 +1,19 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: my-hashicorp-vault-TestVaultAddr-missingSkipVerifyFalse
+  namespace: default
+spec:
+  type: secretstores.hashicorp.vault
+  version: v1
+  metadata:
+  # Yes, we commented out vaultAddr.
+  # Default value should kick in: https://127.0.0.1:8200. Notice: HTTPS (TLS)
+  # - name: vaultAddr
+  #   value: "http://127.0.0.1:8200"
+  # Do not perform TLS verification since e are starting vault in development
+  # mode with a self-signed certificate
+  - name: skipVerify
+    value: false
+  - name: vaultToken  # Matches docker compose VAULT_DEV_ROOT_TOKEN_ID env. var.
+    value: "vault-dev-root-token-id"

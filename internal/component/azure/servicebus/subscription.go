@@ -335,11 +335,13 @@ func (s *Subscription) RenewLocksBlocking(ctx context.Context, receiver Receiver
 	for {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("context canceled while renewing locks for %s", s.entity)
+			s.logger.Infof("context canceled while renewing locks for %s", s.entity)
+			return nil
 		case <-t.C:
 			select {
 			case <-ctx.Done():
-				return fmt.Errorf("context canceled while renewing locks for %s", s.entity)
+				s.logger.Infof("context canceled while renewing locks for %s", s.entity)
+				return nil
 			default:
 				func() {
 					lockCtx, lockCancel := context.WithTimeout(ctx, time.Second*time.Duration(opts.TimeoutInSec))

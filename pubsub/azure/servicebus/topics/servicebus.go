@@ -291,6 +291,12 @@ func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
 				a.ConnectAndReceive(subscribeCtx, req, sub, receiveAndBlockFn, onFirstSuccess)
 			}
 
+			// If context was canceled, do not attempt to reconnect
+			if subscribeCtx.Err() != nil {
+				a.logger.Debug("Context canceled; will not reconnect")
+				return
+			}
+
 			wait := bo.NextBackOff()
 			a.logger.Warnf("Subscription to topic %s lost connection, attempting to reconnect in %s...", req.Topic, wait)
 			time.Sleep(wait)
@@ -310,9 +316,7 @@ func (a *azureServiceBus) Features() []pubsub.Feature {
 	return a.features
 }
 
-func (a *azureServiceBus) ConnectAndReceive(subscribeCtx context.Context,
-	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(impl.Receiver, func()) error, onFirstSuccess func(),
-) {
+func (a *azureServiceBus) ConnectAndReceive(subscribeCtx context.Context, req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(impl.Receiver, func()) error, onFirstSuccess func()) error {
 	// The receiver context is used to tie the subscription context to
 	// the lifetime of the receiver. This is necessary for shutting
 	// down the lock renewal goroutine.
@@ -327,10 +331,10 @@ func (a *azureServiceBus) ConnectAndReceive(subscribeCtx context.Context,
 	})
 	if err != nil {
 		// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
-		if errors.Is(err, context.Canceled) {
-			a.logger.Errorf("Could not instantiate subscription %s for topic %s", a.metadata.ConsumerID, req.Topic)
+		if !errors.Is(err, context.Canceled) {
+			a.logger.Errorf("Could not instantiate session subscription %s to topic %s", a.metadata.ConsumerID, req.Topic)
 		}
-		return
+		return nil
 	}
 	defer func() {
 		closeReceiverCtx, closeReceiverCancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
@@ -354,27 +358,20 @@ func (a *azureServiceBus) ConnectAndReceive(subscribeCtx context.Context,
 
 	// receiveAndBlockFn will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
 	// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
-	err = receiveAndBlockFn(receiver, onFirstSuccess)
-	if err != nil && !errors.Is(err, context.Canceled) {
-		a.logger.Error(err)
+	if err := receiveAndBlockFn(receiver, onFirstSuccess); err != nil {
+		return err
 	}
 
 	// Gracefully close the connection (in case it's not closed already)
-	// Use a background context here (with timeout) because ctx may be closed already
+	// Use a background context here (with timeout) because ctx may be closed already.
 	closeCtx, closeCancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
 	sub.Close(closeCtx)
 	closeCancel()
 
-	// If context was canceled, do not attempt to reconnect
-	if subscribeCtx.Err() != nil {
-		a.logger.Debug("Context canceled; will not reconnect")
-		return
-	}
+	return nil
 }
 
-func (a *azureServiceBus) ConnectAndReceiveWithSessions(subscribeCtx context.Context,
-	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(impl.Receiver, func()) error, onFirstSuccess func(), maxConcurrentSessions int,
-) {
+func (a *azureServiceBus) ConnectAndReceiveWithSessions(subscribeCtx context.Context, req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(impl.Receiver, func()) error, onFirstSuccess func(), maxConcurrentSessions int) {
 	sessionsChan := make(chan struct{}, maxConcurrentSessions)
 	for i := 0; i < maxConcurrentSessions; i++ {
 		sessionsChan <- struct{}{}
@@ -391,12 +388,10 @@ func (a *azureServiceBus) ConnectAndReceiveWithSessions(subscribeCtx context.Con
 	for {
 		select {
 		case <-subscribeCtx.Done():
-			a.logger.Debugf("Session processing context canceled")
 			return
 		case <-sessionsChan:
 			select {
 			case <-subscribeCtx.Done():
-				a.logger.Debugf("Session processing context canceled")
 				return
 			default:
 				go func() {
@@ -426,10 +421,8 @@ func (a *azureServiceBus) ConnectAndReceiveWithSessions(subscribeCtx context.Con
 					})
 					if err != nil {
 						// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
-						if errors.Is(err, context.Canceled) {
+						if !errors.Is(err, context.Canceled) {
 							a.logger.Errorf("Could not instantiate session subscription %s to topic %s", a.metadata.ConsumerID, req.Topic)
-						} else {
-							a.logger.Error(err)
 						}
 						return
 					}
@@ -459,12 +452,6 @@ func (a *azureServiceBus) ConnectAndReceiveWithSessions(subscribeCtx context.Con
 					err = receiveAndBlockFn(receiver, onFirstSuccess)
 					if err != nil && !errors.Is(err, context.Canceled) {
 						a.logger.Error(err)
-					}
-
-					// If context was canceled, do not attempt to reconnect
-					if subscribeCtx.Err() != nil {
-						a.logger.Debug("Context canceled; will not reconnect")
-						return
 					}
 				}()
 			}

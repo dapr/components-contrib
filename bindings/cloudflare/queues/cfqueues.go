@@ -14,6 +14,7 @@ limitations under the License.
 package cfqueues
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/x509"
@@ -37,11 +38,14 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-// Minimum version required for the running Worker.
-const minWorkerVersion = 20221209
-
-// Issuer for JWTs
-const tokenIssuer = "dapr.io/cloudflare"
+const (
+	// Minimum version required for the running Worker.
+	minWorkerVersion = 20221209
+	// Issuer for JWTs
+	tokenIssuer = "dapr.io/cloudflare"
+	// JWT token expiration
+	tokenExpiration = 5 * time.Minute
+)
 
 // CFQueues is a binding for publishing messages on Cloudflare Queues
 type CFQueues struct {
@@ -169,7 +173,12 @@ func (q *CFQueues) invokePublish(parentCtx context.Context, ir *bindings.InvokeR
 	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "POST", q.metadata.WorkerURL+"publish/"+md.QueueName, nil)
+	d, err := strconv.Unquote(string(ir.Data))
+	if err == nil {
+		ir.Data = []byte(d)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", q.metadata.WorkerURL+"publish/"+md.QueueName, bytes.NewReader(ir.Data))
 	if err != nil {
 		return nil, fmt.Errorf("error creating network request: %w", err)
 	}
@@ -198,7 +207,7 @@ func (q CFQueues) createToken() (string, error) {
 		Audience([]string{q.metadata.WorkerName}).
 		Issuer(tokenIssuer).
 		IssuedAt(now).
-		Expiration(now.Add(5 * time.Minute)).
+		Expiration(now.Add(tokenExpiration)).
 		Build()
 	if err != nil {
 		return "", fmt.Errorf("failed to build token: %w", err)

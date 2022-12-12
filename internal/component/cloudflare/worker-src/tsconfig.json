@@ -11,6 +11,10 @@
         "noEmit": true,
         "isolatedModules": true,
         "allowSyntheticDefaultImports": true,
-        "strict": true
+        "strict": true,
+        "baseUrl": ".",
+        "paths": {
+            "$lib/*": ["lib/*"]
+        }
     }
 }

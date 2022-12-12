@@ -147,6 +147,8 @@ jobs:
           required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret
         - component: bindings.azure.cosmosdb
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
+        - component: pubsub.aws.snssqs
+          terraform-dir: pubsub/aws/snssqs
         EOF
         )
         echo "::set-output name=cron-components::$CRON_COMPONENTS"
@@ -176,6 +178,8 @@ jobs:
       run:
         shell: bash
     needs: generate-matrix
+    env:
+      UUID: ${{github.run_id}}
 
     strategy:
       fail-fast: false # Keep running even if one component fails
@@ -254,6 +258,43 @@ jobs:
           echo "$CERT_NAME=$CERT_FILE" >> $GITHUB_ENV
         done
 
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      if: matrix.terraform-dir != ''
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_KEY }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET }}
+        aws-region: us-west-2
+
+    - name: Terraform Init
+      id: init
+      run: |
+          rm -rf .terraform
+          terraform init
+      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
+      if: matrix.terraform-dir != ''
+      
+    - name: Terraform Validate
+      id: validate
+      run: terraform validate -no-color
+      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
+      if: matrix.terraform-dir != ''
+
+    - name: Terraform Plan
+      id: plan
+      run: terraform plan -no-color -var="UUID=${{github.run_id}}"
+      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
+      if: matrix.terraform-dir != ''
+
+    - name: Terraform Apply     
+      run: terraform apply -auto-approve -var="UUID=${{github.run_id}}"
+      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
+      if: matrix.terraform-dir != ''
+      continue-on-error: true
+
     - name: Start Redis
       run: docker-compose -f ./.github/infrastructure/docker-compose-redisjson.yml -p redis up -d
       if: contains(matrix.component, 'redis')
@@ -312,10 +353,6 @@ jobs:
     - name: Start rabbitmq
       run: docker-compose -f ./.github/infrastructure/docker-compose-rabbitmq.yml -p rabbitmq up -d
       if: contains(matrix.component, 'rabbitmq')
-
-    - name: Start aws snssqs
-      run: docker-compose -f ./.github/infrastructure/docker-compose-snssqs.yml -p snssqs up -d
-      if: contains(matrix.component, 'aws.snssqs')
 
     - name: Start influxdb
       run: |
@@ -392,6 +429,9 @@ jobs:
 
     - name: Run tests
       continue-on-error: true
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_KEY }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET }}  
       run: |
         set -e 
         KIND=$(echo ${{ matrix.component }} | cut -d. -f1)
@@ -456,6 +496,12 @@ jobs:
           echo "Cleaning up the certificate file $CERT_FILE..."
           rm $CERT_FILE
         done
+
+    - name: Terraform Destroy
+      continue-on-error: true    
+      run: terraform destroy -auto-approve -var="UUID=${{github.run_id}}"
+      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
+      if: matrix.terraform-dir != ''
 
     - name: Check conformance test passed
       continue-on-error: false

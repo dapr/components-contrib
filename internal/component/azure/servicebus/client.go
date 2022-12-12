@@ -286,13 +286,14 @@ func (c *Client) shouldCreateSubscription(parentCtx context.Context, topic, subs
 		return true, nil
 	}
 
-	required := func(b *bool) bool {
-		if b == nil {
+	bothTrue := func(a, b *bool) bool {
+		if a == nil || b == nil {
 			return false
 		}
-		return *b
+		return *a && *b
 	}
-	if required(&opts.RequireSessions) != required(res.RequiresSession) {
+
+	if bothTrue(res.RequiresSession, &opts.RequireSessions) {
 		return false, fmt.Errorf("subscription %s already exists but session requirement doesn't match", subscription)
 	}
 

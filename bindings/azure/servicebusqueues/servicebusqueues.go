@@ -119,7 +119,7 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 				a.metadata.MaxConcurrentHandlers,
 				"queue "+a.metadata.QueueName,
 				a.metadata.LockRenewalInSec,
-				false,
+				false, // Sessions not supported for queues yet.
 				a.logger,
 			)
 

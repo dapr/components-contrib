@@ -216,7 +216,7 @@ func (c *Client) EnsureSubscription(ctx context.Context, name string, topic stri
 	}
 
 	if shouldCreate {
-		err = c.createSubscription(ctx, topic, name)
+		err = c.createSubscription(ctx, topic, name, opts)
 		if err != nil {
 			return err
 		}
@@ -299,12 +299,12 @@ func (c *Client) shouldCreateSubscription(parentCtx context.Context, topic, subs
 	return false, nil
 }
 
-func (c *Client) createSubscription(parentCtx context.Context, topic, subscription string) error {
+func (c *Client) createSubscription(parentCtx context.Context, topic, subscription string, opts SubscriptionOpts) error {
 	ctx, cancel := context.WithTimeout(parentCtx, time.Second*time.Duration(c.metadata.TimeoutInSec))
 	defer cancel()
 
 	_, err := c.adminClient.CreateSubscription(ctx, topic, subscription, &sbadmin.CreateSubscriptionOptions{
-		Properties: c.metadata.CreateSubscriptionProperties(),
+		Properties: c.metadata.CreateSubscriptionProperties(opts),
 	})
 	if err != nil {
 		return fmt.Errorf("could not create subscription %s: %w", subscription, err)

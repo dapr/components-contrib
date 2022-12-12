@@ -43,3 +43,11 @@ The purpose of this module is to provide tests that certify the AWS SNS/SQS Pubs
    - Subscriber is subscribed to 1 topic
    - Publisher publishes to 1 topic, wait double the TTL seconds
    - Verify the message is deleted/expired
+
+### Running the tests
+
+This must be run in the GitHub Actions Workflow configured for test infrastructure setup.
+
+The runtime execution assumes that the appropriate AWS Profile or AWS environment variables (**AWS_ACCESS_KEY_ID**, **AWS_SECRET_ACCESS_KEY**) are configured.
+
+Also, the AWS IAM Permissions need to be configured as indicated by this document [`Create an SNS/SQS instance`](https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-aws-snssqs/#create-an-snssqs-instance)

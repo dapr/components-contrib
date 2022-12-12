@@ -7,14 +7,12 @@ spec:
   type: pubsub.aws.snssqs
   version: v1
   metadata:
-    - name: endpoint
-      value: "http://localhost:4566"
     - name: accessKey
-      value: "my-access"
+      value: ${{AWS_ACCESS_KEY_ID}}
     - name: secretKey
-      value: "my-secret"
+      value: ${{AWS_SECRET_ACCESS_KEY}}
     - name: region
-      value: "us-east-1"
+      value: "us-west-2"
     - name: consumerID
       value: "testQueue"
     - name: messageVisibilityTimeout
@@ -27,3 +25,5 @@ spec:
       value: 10
     - name: concurrencyMode
       value: "single"
+    - name: disableEntityManagement # Optional
+      value: "true"

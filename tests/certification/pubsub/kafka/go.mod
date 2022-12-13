@@ -5,10 +5,10 @@ go 1.19
 require (
 	github.com/Shopify/sarama v1.37.2
 	github.com/cenkalti/backoff/v4 v4.2.0
-	github.com/dapr/components-contrib v1.9.1-0.20221025205611-e38369028650
+	github.com/dapr/components-contrib v1.9.6
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20220519061249-c2cb1dad5bb0
-	github.com/dapr/dapr v1.9.4-0.20221121055721-6683f7582ac4
-	github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721
+	github.com/dapr/dapr v1.9.5
+	github.com/dapr/go-sdk v1.6.0
 	github.com/dapr/kit v0.0.3
 	github.com/google/uuid v1.3.0
 	github.com/stretchr/testify v1.8.1

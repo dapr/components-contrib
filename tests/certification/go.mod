@@ -3,9 +3,9 @@ module github.com/dapr/components-contrib/tests/certification
 go 1.19
 
 require (
-	github.com/dapr/components-contrib v1.9.1-0.20221025205611-e38369028650
-	github.com/dapr/dapr v1.9.4-0.20221121055721-6683f7582ac4
-	github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721
+	github.com/dapr/components-contrib v1.9.6
+	github.com/dapr/dapr v1.9.5
+	github.com/dapr/go-sdk v1.6.0
 	github.com/dapr/kit v0.0.3
 	github.com/google/go-cmp v0.5.9
 	github.com/pkg/errors v0.9.1
@@ -142,3 +142,5 @@ require (
 replace github.com/dapr/dapr => github.com/berndverst/dapr v1.1.3-0.20221105062638-159383e4fac0
 
 replace github.com/dapr/components-contrib => ../../
+
+replace k8s.io/client-go => k8s.io/client-go v0.25.3

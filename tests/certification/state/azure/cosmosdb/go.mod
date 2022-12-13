@@ -3,10 +3,10 @@ module github.com/dapr/components-contrib/tests/certification/state/azure/cosmos
 go 1.19
 
 require (
-	github.com/dapr/components-contrib v1.9.1-0.20221025205611-e38369028650
+	github.com/dapr/components-contrib v1.9.6
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211026011813-36b75e9ae272
-	github.com/dapr/dapr v1.9.4-0.20221121055721-6683f7582ac4
-	github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721
+	github.com/dapr/dapr v1.9.5
+	github.com/dapr/go-sdk v1.6.0
 	github.com/dapr/kit v0.0.3
 	github.com/stretchr/testify v1.8.1
 )
@@ -163,3 +163,5 @@ replace github.com/dapr/dapr => github.com/berndverst/dapr v1.1.3-0.202211050626
 replace github.com/dapr/components-contrib => ../../../../..
 
 replace github.com/dapr/components-contrib/tests/certification => ../../..
+
+replace k8s.io/client-go => k8s.io/client-go v0.25.3

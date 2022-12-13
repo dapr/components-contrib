@@ -277,7 +277,7 @@ jobs:
       
     - name: Terraform Validate
       id: validate
-      run: terraform validate -no-color -var="UUID=${{github.run_id}}"
+      run: terraform validate -no-color
       working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
 

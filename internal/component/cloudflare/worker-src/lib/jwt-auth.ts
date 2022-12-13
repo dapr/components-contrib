@@ -22,6 +22,11 @@ export async function AuthorizeRequest(
     req: Request,
     env: Environment
 ): Promise<boolean> {
+    // If "SKIP_AUTH" is set, we can allow skipping authorization
+    if (env.SKIP_AUTH === 'true') {
+        return true
+    }
+
     // Ensure we have an Authorization header with a bearer JWT token
     const match = tokenHeaderMatch.exec(req.headers.get('authorization') || '')
     if (!match || !match[1]) {

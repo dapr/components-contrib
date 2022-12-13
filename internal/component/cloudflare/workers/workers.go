@@ -29,7 +29,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dapr/components-contrib/bindings"
 	cfworkerscode "github.com/dapr/components-contrib/internal/component/cloudflare/workers/code"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
@@ -56,7 +55,7 @@ type Base struct {
 }
 
 // Init the base class.
-func (w *Base) Init(metadata bindings.Metadata, workerBindings []Binding, componentDocsUrl string, infoResponseValidate func(*InfoEndpointResponse) error) (err error) {
+func (w *Base) Init(workerBindings []Binding, componentDocsUrl string, infoResponseValidate func(*InfoEndpointResponse) error) (err error) {
 	w.ctx, w.cancel = context.WithCancel(context.Background())
 	w.client = &http.Client{
 		Timeout: time.Second * 30,
@@ -203,9 +202,13 @@ type deployWorkerMetadata struct {
 
 // Binding contains a binding that is attached to the worker
 type Binding struct {
-	Name      string  `json:"name"`
-	Type      string  `json:"type"`
-	Text      *string `json:"text,omitempty"`
+	Name string `json:"name"`
+	Type string `json:"type"`
+	// For variables
+	Text *string `json:"text,omitempty"`
+	// For KV namespaces
+	KVNamespaceID *string `json:"namespace_id,omitempty"`
+	// For queues
 	QueueName *string `json:"queue_name,omitempty"`
 }
 
@@ -329,6 +332,7 @@ func (w *Base) enableWorkersDevRoute() error {
 type InfoEndpointResponse struct {
 	Version string   `json:"version"`
 	Queues  []string `json:"queues"`
+	KV      []string `json:"kv"`
 }
 
 // Check a worker to ensure it's available and it's using a supported version.

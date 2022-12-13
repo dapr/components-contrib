@@ -92,13 +92,13 @@ func (q CFKV) Features() []state.Feature {
 	return []state.Feature{}
 }
 
-func (q *CFKV) Delete(stateReq *state.DeleteRequest) error {
+func (q *CFKV) Delete(parentCtx context.Context, stateReq *state.DeleteRequest) error {
 	token, err := q.metadata.CreateToken()
 	if err != nil {
 		return fmt.Errorf("failed to create authorization token: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
 	defer cancel()
 
 	u := q.metadata.WorkerURL + "kv/" + q.metadata.KVNamespaceID + "/" + url.PathEscape(stateReq.Key)
@@ -123,13 +123,13 @@ func (q *CFKV) Delete(stateReq *state.DeleteRequest) error {
 	return nil
 }
 
-func (q *CFKV) Get(stateReq *state.GetRequest) (*state.GetResponse, error) {
+func (q *CFKV) Get(parentCtx context.Context, stateReq *state.GetRequest) (*state.GetResponse, error) {
 	token, err := q.metadata.CreateToken()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create authorization token: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
 	defer cancel()
 
 	u := q.metadata.WorkerURL + "kv/" + q.metadata.KVNamespaceID + "/" + url.PathEscape(stateReq.Key)
@@ -166,13 +166,13 @@ func (q *CFKV) Get(stateReq *state.GetRequest) (*state.GetResponse, error) {
 	}, nil
 }
 
-func (q *CFKV) Set(stateReq *state.SetRequest) error {
+func (q *CFKV) Set(parentCtx context.Context, stateReq *state.SetRequest) error {
 	token, err := q.metadata.CreateToken()
 	if err != nil {
 		return fmt.Errorf("failed to create authorization token: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
 	defer cancel()
 
 	u := q.metadata.WorkerURL + "kv/" + q.metadata.KVNamespaceID + "/" + url.PathEscape(stateReq.Key)

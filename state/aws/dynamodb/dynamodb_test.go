@@ -15,12 +15,14 @@ limitations under the License.
 package dynamodb
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
@@ -31,10 +33,10 @@ import (
 )
 
 type mockedDynamoDB struct {
-	GetItemFn        func(input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error)
-	PutItemFn        func(input *dynamodb.PutItemInput) (*dynamodb.PutItemOutput, error)
-	DeleteItemFn     func(input *dynamodb.DeleteItemInput) (*dynamodb.DeleteItemOutput, error)
-	BatchWriteItemFn func(input *dynamodb.BatchWriteItemInput) (*dynamodb.BatchWriteItemOutput, error)
+	GetItemWithContextFn        func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (*dynamodb.GetItemOutput, error)
+	PutItemWithContextFn        func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (*dynamodb.PutItemOutput, error)
+	DeleteItemWithContextFn     func(ctx context.Context, input *dynamodb.DeleteItemInput, op ...request.Option) (*dynamodb.DeleteItemOutput, error)
+	BatchWriteItemWithContextFn func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (*dynamodb.BatchWriteItemOutput, error)
 	dynamodbiface.DynamoDBAPI
 }
 
@@ -44,20 +46,20 @@ type DynamoDBItem struct {
 	TestAttributeName int64  `json:"testAttributeName"`
 }
 
-func (m *mockedDynamoDB) GetItem(input *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
-	return m.GetItemFn(input)
+func (m *mockedDynamoDB) GetItemWithContext(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (*dynamodb.GetItemOutput, error) {
+	return m.GetItemWithContextFn(ctx, input, op...)
 }
 
-func (m *mockedDynamoDB) PutItem(input *dynamodb.PutItemInput) (*dynamodb.PutItemOutput, error) {
-	return m.PutItemFn(input)
+func (m *mockedDynamoDB) PutItemWithContext(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (*dynamodb.PutItemOutput, error) {
+	return m.PutItemWithContextFn(ctx, input, op...)
 }
 
-func (m *mockedDynamoDB) DeleteItem(input *dynamodb.DeleteItemInput) (*dynamodb.DeleteItemOutput, error) {
-	return m.DeleteItemFn(input)
+func (m *mockedDynamoDB) DeleteItemWithContext(ctx context.Context, input *dynamodb.DeleteItemInput, op ...request.Option) (*dynamodb.DeleteItemOutput, error) {
+	return m.DeleteItemWithContextFn(ctx, input, op...)
 }
 
-func (m *mockedDynamoDB) BatchWriteItem(input *dynamodb.BatchWriteItemInput) (*dynamodb.BatchWriteItemOutput, error) {
-	return m.BatchWriteItemFn(input)
+func (m *mockedDynamoDB) BatchWriteItemWithContext(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (*dynamodb.BatchWriteItemOutput, error) {
+	return m.BatchWriteItemWithContextFn(ctx, input, op...)
 }
 
 func TestInit(t *testing.T) {
@@ -99,7 +101,7 @@ func TestGet(t *testing.T) {
 	t.Run("Successfully retrieve item", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				GetItemFn: func(input *dynamodb.GetItemInput) (output *dynamodb.GetItemOutput, err error) {
+				GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (output *dynamodb.GetItemOutput, err error) {
 					return &dynamodb.GetItemOutput{
 						Item: map[string]*dynamodb.AttributeValue{
 							"key": {
@@ -123,7 +125,7 @@ func TestGet(t *testing.T) {
 				Consistency: "strong",
 			},
 		}
-		out, err := ss.Get(req)
+		out, err := ss.Get(context.Background(), req)
 		assert.Nil(t, err)
 		assert.Equal(t, []byte("some value"), out.Data)
 		assert.Equal(t, "1bdead4badc0ffee", *out.ETag)
@@ -131,7 +133,7 @@ func TestGet(t *testing.T) {
 	t.Run("Successfully retrieve item (with unexpired ttl)", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				GetItemFn: func(input *dynamodb.GetItemInput) (output *dynamodb.GetItemOutput, err error) {
+				GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (output *dynamodb.GetItemOutput, err error) {
 					return &dynamodb.GetItemOutput{
 						Item: map[string]*dynamodb.AttributeValue{
 							"key": {
@@ -159,7 +161,7 @@ func TestGet(t *testing.T) {
 				Consistency: "strong",
 			},
 		}
-		out, err := ss.Get(req)
+		out, err := ss.Get(context.Background(), req)
 		assert.Nil(t, err)
 		assert.Equal(t, []byte("some value"), out.Data)
 		assert.Equal(t, "1bdead4badc0ffee", *out.ETag)
@@ -167,7 +169,7 @@ func TestGet(t *testing.T) {
 	t.Run("Successfully retrieve item (with expired ttl)", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				GetItemFn: func(input *dynamodb.GetItemInput) (output *dynamodb.GetItemOutput, err error) {
+				GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (output *dynamodb.GetItemOutput, err error) {
 					return &dynamodb.GetItemOutput{
 						Item: map[string]*dynamodb.AttributeValue{
 							"key": {
@@ -195,7 +197,7 @@ func TestGet(t *testing.T) {
 				Consistency: "strong",
 			},
 		}
-		out, err := ss.Get(req)
+		out, err := ss.Get(context.Background(), req)
 		assert.Nil(t, err)
 		assert.Nil(t, out.Data)
 		assert.Nil(t, out.ETag)
@@ -203,7 +205,7 @@ func TestGet(t *testing.T) {
 	t.Run("Unsuccessfully get item", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				GetItemFn: func(input *dynamodb.GetItemInput) (output *dynamodb.GetItemOutput, err error) {
+				GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (output *dynamodb.GetItemOutput, err error) {
 					return nil, fmt.Errorf("failed to retrieve data")
 				},
 			},
@@ -215,14 +217,14 @@ func TestGet(t *testing.T) {
 				Consistency: "strong",
 			},
 		}
-		out, err := ss.Get(req)
+		out, err := ss.Get(context.Background(), req)
 		assert.NotNil(t, err)
 		assert.Nil(t, out)
 	})
 	t.Run("Unsuccessfully with empty response", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				GetItemFn: func(input *dynamodb.GetItemInput) (output *dynamodb.GetItemOutput, err error) {
+				GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (output *dynamodb.GetItemOutput, err error) {
 					return &dynamodb.GetItemOutput{
 						Item: map[string]*dynamodb.AttributeValue{},
 					}, nil
@@ -236,7 +238,7 @@ func TestGet(t *testing.T) {
 				Consistency: "strong",
 			},
 		}
-		out, err := ss.Get(req)
+		out, err := ss.Get(context.Background(), req)
 		assert.Nil(t, err)
 		assert.Nil(t, out.Data)
 		assert.Nil(t, out.ETag)
@@ -244,7 +246,7 @@ func TestGet(t *testing.T) {
 	t.Run("Unsuccessfully with no required key", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				GetItemFn: func(input *dynamodb.GetItemInput) (output *dynamodb.GetItemOutput, err error) {
+				GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (output *dynamodb.GetItemOutput, err error) {
 					return &dynamodb.GetItemOutput{
 						Item: map[string]*dynamodb.AttributeValue{
 							"value2": {
@@ -262,7 +264,7 @@ func TestGet(t *testing.T) {
 				Consistency: "strong",
 			},
 		}
-		out, err := ss.Get(req)
+		out, err := ss.Get(context.Background(), req)
 		assert.Nil(t, err)
 		assert.Empty(t, out.Data)
 	})
@@ -276,7 +278,7 @@ func TestSet(t *testing.T) {
 	t.Run("Successfully set item", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
+				PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
 					assert.Equal(t, dynamodb.AttributeValue{
 						S: aws.String("key"),
 					}, *input.Item["key"])
@@ -301,14 +303,14 @@ func TestSet(t *testing.T) {
 				Value: "value",
 			},
 		}
-		err := ss.Set(req)
+		err := ss.Set(context.Background(), req)
 		assert.Nil(t, err)
 	})
 
 	t.Run("Successfully set item with matching etag", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
+				PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
 					assert.Equal(t, dynamodb.AttributeValue{
 						S: aws.String("key"),
 					}, *input.Item["key"])
@@ -339,14 +341,14 @@ func TestSet(t *testing.T) {
 				Value: "value",
 			},
 		}
-		err := ss.Set(req)
+		err := ss.Set(context.Background(), req)
 		assert.Nil(t, err)
 	})
 
 	t.Run("Unsuccessfully set item with mismatched etag", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
+				PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
 					assert.Equal(t, dynamodb.AttributeValue{
 						S: aws.String("key"),
 					}, *input.Item["key"])
@@ -373,7 +375,7 @@ func TestSet(t *testing.T) {
 			},
 		}
 
-		err := ss.Set(req)
+		err := ss.Set(context.Background(), req)
 		assert.NotNil(t, err)
 		switch tagErr := err.(type) {
 		case *state.ETagError:
@@ -386,7 +388,7 @@ func TestSet(t *testing.T) {
 	t.Run("Successfully set item with first-write-concurrency", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
+				PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
 					assert.Equal(t, dynamodb.AttributeValue{
 						S: aws.String("key"),
 					}, *input.Item["key"])
@@ -415,14 +417,14 @@ func TestSet(t *testing.T) {
 				Concurrency: state.FirstWrite,
 			},
 		}
-		err := ss.Set(req)
+		err := ss.Set(context.Background(), req)
 		assert.Nil(t, err)
 	})
 
 	t.Run("Unsuccessfully set item with first-write-concurrency", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
+				PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
 					assert.Equal(t, dynamodb.AttributeValue{
 						S: aws.String("key"),
 					}, *input.Item["key"])
@@ -446,7 +448,7 @@ func TestSet(t *testing.T) {
 				Concurrency: state.FirstWrite,
 			},
 		}
-		err := ss.Set(req)
+		err := ss.Set(context.Background(), req)
 		assert.NotNil(t, err)
 		switch err.(type) {
 		case *state.ETagError:
@@ -458,7 +460,7 @@ func TestSet(t *testing.T) {
 	t.Run("Successfully set item with ttl = -1", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
+				PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
 					assert.Equal(t, len(input.Item), 4)
 					result := DynamoDBItem{}
 					dynamodbattribute.UnmarshalMap(input.Item, &result)
@@ -487,13 +489,13 @@ func TestSet(t *testing.T) {
 				"ttlInSeconds": "-1",
 			},
 		}
-		err := ss.Set(req)
+		err := ss.Set(context.Background(), req)
 		assert.Nil(t, err)
 	})
 	t.Run("Successfully set item with 'correct' ttl", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
+				PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
 					assert.Equal(t, len(input.Item), 4)
 					result := DynamoDBItem{}
 					dynamodbattribute.UnmarshalMap(input.Item, &result)
@@ -522,14 +524,14 @@ func TestSet(t *testing.T) {
 				"ttlInSeconds": "180",
 			},
 		}
-		err := ss.Set(req)
+		err := ss.Set(context.Background(), req)
 		assert.Nil(t, err)
 	})
 
 	t.Run("Unsuccessfully set item", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
+				PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
 					return nil, fmt.Errorf("unable to put item")
 				},
 			},
@@ -540,13 +542,13 @@ func TestSet(t *testing.T) {
 				Value: "value",
 			},
 		}
-		err := ss.Set(req)
+		err := ss.Set(context.Background(), req)
 		assert.NotNil(t, err)
 	})
 	t.Run("Successfully set item with correct ttl but without component metadata", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
+				PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
 					assert.Equal(t, dynamodb.AttributeValue{
 						S: aws.String("someKey"),
 					}, *input.Item["key"])
@@ -574,13 +576,13 @@ func TestSet(t *testing.T) {
 				"ttlInSeconds": "180",
 			},
 		}
-		err := ss.Set(req)
+		err := ss.Set(context.Background(), req)
 		assert.Nil(t, err)
 	})
 	t.Run("Unsuccessfully set item with ttl (invalid value)", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				PutItemFn: func(input *dynamodb.PutItemInput) (output *dynamodb.PutItemOutput, err error) {
+				PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
 					assert.Equal(t, map[string]*dynamodb.AttributeValue{
 						"key": {
 							S: aws.String("somekey"),
@@ -613,7 +615,7 @@ func TestSet(t *testing.T) {
 				"ttlInSeconds": "invalidvalue",
 			},
 		}
-		err := ss.Set(req)
+		err := ss.Set(context.Background(), req)
 		assert.NotNil(t, err)
 		assert.Equal(t, "dynamodb error: failed to parse ttlInSeconds: strconv.ParseInt: parsing \"invalidvalue\": invalid syntax", err.Error())
 	})
@@ -628,7 +630,7 @@ func TestBulkSet(t *testing.T) {
 		tableName := "table_name"
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				BatchWriteItemFn: func(input *dynamodb.BatchWriteItemInput) (output *dynamodb.BatchWriteItemOutput, err error) {
+				BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {
 					expected := map[string][]*dynamodb.WriteRequest{}
 					expected[tableName] = []*dynamodb.WriteRequest{
 						{
@@ -688,14 +690,14 @@ func TestBulkSet(t *testing.T) {
 				},
 			},
 		}
-		err := ss.BulkSet(req)
+		err := ss.BulkSet(context.Background(), req)
 		assert.Nil(t, err)
 	})
 	t.Run("Successfully set items with ttl = -1", func(t *testing.T) {
 		tableName := "table_name"
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				BatchWriteItemFn: func(input *dynamodb.BatchWriteItemInput) (output *dynamodb.BatchWriteItemOutput, err error) {
+				BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {
 					expected := map[string][]*dynamodb.WriteRequest{}
 					expected[tableName] = []*dynamodb.WriteRequest{
 						{
@@ -761,14 +763,14 @@ func TestBulkSet(t *testing.T) {
 				},
 			},
 		}
-		err := ss.BulkSet(req)
+		err := ss.BulkSet(context.Background(), req)
 		assert.Nil(t, err)
 	})
 	t.Run("Successfully set items with ttl", func(t *testing.T) {
 		tableName := "table_name"
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				BatchWriteItemFn: func(input *dynamodb.BatchWriteItemInput) (output *dynamodb.BatchWriteItemOutput, err error) {
+				BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {
 					expected := map[string][]*dynamodb.WriteRequest{}
 					// This might fail occasionally due to timestamp precision.
 					timestamp := time.Now().Unix() + 90
@@ -836,13 +838,13 @@ func TestBulkSet(t *testing.T) {
 				},
 			},
 		}
-		err := ss.BulkSet(req)
+		err := ss.BulkSet(context.Background(), req)
 		assert.Nil(t, err)
 	})
 	t.Run("Unsuccessfully set items", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				BatchWriteItemFn: func(input *dynamodb.BatchWriteItemInput) (output *dynamodb.BatchWriteItemOutput, err error) {
+				BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {
 					return nil, fmt.Errorf("unable to bulk write items")
 				},
 			},
@@ -861,7 +863,7 @@ func TestBulkSet(t *testing.T) {
 				},
 			},
 		}
-		err := ss.BulkSet(req)
+		err := ss.BulkSet(context.Background(), req)
 		assert.NotNil(t, err)
 	})
 }
@@ -874,7 +876,7 @@ func TestDelete(t *testing.T) {
 
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				DeleteItemFn: func(input *dynamodb.DeleteItemInput) (output *dynamodb.DeleteItemOutput, err error) {
+				DeleteItemWithContextFn: func(ctx context.Context, input *dynamodb.DeleteItemInput, op ...request.Option) (output *dynamodb.DeleteItemOutput, err error) {
 					assert.Equal(t, map[string]*dynamodb.AttributeValue{
 						"key": {
 							S: aws.String(req.Key),
@@ -885,7 +887,7 @@ func TestDelete(t *testing.T) {
 				},
 			},
 		}
-		err := ss.Delete(req)
+		err := ss.Delete(context.Background(), req)
 		assert.Nil(t, err)
 	})
 
@@ -898,7 +900,7 @@ func TestDelete(t *testing.T) {
 
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				DeleteItemFn: func(input *dynamodb.DeleteItemInput) (output *dynamodb.DeleteItemOutput, err error) {
+				DeleteItemWithContextFn: func(ctx context.Context, input *dynamodb.DeleteItemInput, op ...request.Option) (output *dynamodb.DeleteItemOutput, err error) {
 					assert.Equal(t, map[string]*dynamodb.AttributeValue{
 						"key": {
 							S: aws.String(req.Key),
@@ -913,7 +915,7 @@ func TestDelete(t *testing.T) {
 				},
 			},
 		}
-		err := ss.Delete(req)
+		err := ss.Delete(context.Background(), req)
 		assert.Nil(t, err)
 	})
 
@@ -926,7 +928,7 @@ func TestDelete(t *testing.T) {
 
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				DeleteItemFn: func(input *dynamodb.DeleteItemInput) (output *dynamodb.DeleteItemOutput, err error) {
+				DeleteItemWithContextFn: func(ctx context.Context, input *dynamodb.DeleteItemInput, op ...request.Option) (output *dynamodb.DeleteItemOutput, err error) {
 					assert.Equal(t, map[string]*dynamodb.AttributeValue{
 						"key": {
 							S: aws.String(req.Key),
@@ -942,7 +944,7 @@ func TestDelete(t *testing.T) {
 				},
 			},
 		}
-		err := ss.Delete(req)
+		err := ss.Delete(context.Background(), req)
 		assert.NotNil(t, err)
 		switch tagErr := err.(type) {
 		case *state.ETagError:
@@ -955,7 +957,7 @@ func TestDelete(t *testing.T) {
 	t.Run("Unsuccessfully delete item", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				DeleteItemFn: func(input *dynamodb.DeleteItemInput) (output *dynamodb.DeleteItemOutput, err error) {
+				DeleteItemWithContextFn: func(ctx context.Context, input *dynamodb.DeleteItemInput, op ...request.Option) (output *dynamodb.DeleteItemOutput, err error) {
 					return nil, fmt.Errorf("unable to delete item")
 				},
 			},
@@ -963,7 +965,7 @@ func TestDelete(t *testing.T) {
 		req := &state.DeleteRequest{
 			Key: "key",
 		}
-		err := ss.Delete(req)
+		err := ss.Delete(context.Background(), req)
 		assert.NotNil(t, err)
 	})
 }
@@ -973,7 +975,7 @@ func TestBulkDelete(t *testing.T) {
 		tableName := "table_name"
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				BatchWriteItemFn: func(input *dynamodb.BatchWriteItemInput) (output *dynamodb.BatchWriteItemOutput, err error) {
+				BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {
 					expected := map[string][]*dynamodb.WriteRequest{}
 					expected[tableName] = []*dynamodb.WriteRequest{
 						{
@@ -1012,13 +1014,13 @@ func TestBulkDelete(t *testing.T) {
 				Key: "key2",
 			},
 		}
-		err := ss.BulkDelete(req)
+		err := ss.BulkDelete(context.Background(), req)
 		assert.Nil(t, err)
 	})
 	t.Run("Unsuccessfully delete items", func(t *testing.T) {
 		ss := StateStore{
 			client: &mockedDynamoDB{
-				BatchWriteItemFn: func(input *dynamodb.BatchWriteItemInput) (output *dynamodb.BatchWriteItemOutput, err error) {
+				BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {
 					return nil, fmt.Errorf("unable to bulk write items")
 				},
 			},
@@ -1031,7 +1033,7 @@ func TestBulkDelete(t *testing.T) {
 				Key: "key",
 			},
 		}
-		err := ss.BulkDelete(req)
+		err := ss.BulkDelete(context.Background(), req)
 		assert.NotNil(t, err)
 	})
 }

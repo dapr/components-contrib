@@ -43,7 +43,7 @@ func TestNewBulkPublishResponse(t *testing.T) {
 		assert.NotEmpty(t, res, "expected res to be populated")
 		assert.Equal(t, 2, len(res.FailedEntries), "expected two statuses")
 		expectedRes := BulkPublishResponse{
-			FailedEntries: []BulkPublishResponseEntry{
+			FailedEntries: []BulkPublishResponseFailedEntry{
 				{
 					EntryId: "1",
 					Error:   assert.AnError,

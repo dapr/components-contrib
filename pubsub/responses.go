@@ -42,16 +42,16 @@ type AppBulkResponse struct {
 	AppResponses []AppBulkResponseEntry `json:"statuses"`
 }
 
-// BulkPublishResponseEntry Represents single publish response, as part of BulkPublishResponse
+// BulkPublishResponseFailedEntry Represents single publish response, as part of BulkPublishResponse
 // to be sent to publishing App for the corresponding single message during bulk publish
-type BulkPublishResponseEntry struct {
+type BulkPublishResponseFailedEntry struct {
 	EntryId string `json:"entryId"` //nolint:stylecheck
 	Error   error  `json:"error"`
 }
 
 // BulkPublishResponse contains the list of failed entries in a bulk publish request.
 type BulkPublishResponse struct {
-	FailedEntries []BulkPublishResponseEntry `json:"failedEntries"`
+	FailedEntries []BulkPublishResponseFailedEntry `json:"failedEntries"`
 }
 
 // BulkSubscribeResponseEntry Represents single subscribe response item, as part of BulkSubscribeResponse
@@ -71,9 +71,9 @@ type BulkSubscribeResponse struct {
 // This method is a helper method to map a single error response on BulkPublish to multiple events.
 func NewBulkPublishResponse(messages []BulkMessageEntry, err error) BulkPublishResponse {
 	response := BulkPublishResponse{}
-	response.FailedEntries = make([]BulkPublishResponseEntry, 0, len(messages))
+	response.FailedEntries = make([]BulkPublishResponseFailedEntry, 0, len(messages))
 	for _, msg := range messages {
-		en := BulkPublishResponseEntry{}
+		en := BulkPublishResponseFailedEntry{}
 		en.EntryId = msg.EntryId
 		if err != nil {
 			en.Error = err

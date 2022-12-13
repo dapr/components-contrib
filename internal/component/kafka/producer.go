@@ -134,7 +134,7 @@ func (k *Kafka) mapKafkaProducerErrors(err error, entries []pubsub.BulkMessageEn
 		return pubsub.NewBulkPublishResponse(entries, err)
 	}
 	resp := pubsub.BulkPublishResponse{
-		FailedEntries: make([]pubsub.BulkPublishResponseEntry, 0, len(entries)),
+		FailedEntries: make([]pubsub.BulkPublishResponseFailedEntry, 0, len(entries)),
 	}
 	// used in the case of the partial success scenario
 	alreadySeen := map[string]struct{}{}
@@ -142,7 +142,7 @@ func (k *Kafka) mapKafkaProducerErrors(err error, entries []pubsub.BulkMessageEn
 	for _, pErr := range pErrs {
 		if entryId, ok := pErr.Msg.Metadata.(string); ok { //nolint:stylecheck
 			alreadySeen[entryId] = struct{}{}
-			resp.FailedEntries = append(resp.FailedEntries, pubsub.BulkPublishResponseEntry{
+			resp.FailedEntries = append(resp.FailedEntries, pubsub.BulkPublishResponseFailedEntry{
 				EntryId: entryId,
 				Error:   pErr.Err,
 			})

@@ -86,18 +86,18 @@ func (r *StateStore) Features() []state.Feature {
 }
 
 // Delete the state.
-func (r *StateStore) Delete(req *state.DeleteRequest) error {
-	return r.deleteFile(context.Background(), req)
+func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
+	return r.deleteFile(ctx, req)
 }
 
 // Get the state.
-func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	return r.readFile(context.Background(), req)
+func (r *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
+	return r.readFile(ctx, req)
 }
 
 // Set the state.
-func (r *StateStore) Set(req *state.SetRequest) error {
-	return r.writeFile(context.Background(), req)
+func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
+	return r.writeFile(ctx, req)
 }
 
 func (r *StateStore) Ping() error {

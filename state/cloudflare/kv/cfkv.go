@@ -69,11 +69,11 @@ func (q *CFKV) Init(metadata state.Metadata) error {
 
 	// Init the base component
 	workerBindings := []workers.Binding{
-		{Type: "kv_namespace", Name: q.metadata.KVNamespaceName, KVNamespaceID: &q.metadata.KVNamespaceID},
+		{Type: "kv_namespace", Name: q.metadata.KVNamespaceID, KVNamespaceID: &q.metadata.KVNamespaceID},
 	}
 	infoResponseValidate := func(data *workers.InfoEndpointResponse) error {
-		if !slices.Contains(data.KV, q.metadata.KVNamespaceName) {
-			return fmt.Errorf("the worker is not bound to the namespace with name '%s'; please re-deploy the worker with the correct bindings per instructions in the documentation at %s", q.metadata.KVNamespaceName, componentDocsUrl)
+		if !slices.Contains(data.KV, q.metadata.KVNamespaceID) {
+			return fmt.Errorf("the worker is not bound to the namespace with ID '%s'; please re-deploy the worker with the correct bindings per instructions in the documentation at %s", q.metadata.KVNamespaceID, componentDocsUrl)
 		}
 		return nil
 	}
@@ -101,7 +101,7 @@ func (q *CFKV) Delete(stateReq *state.DeleteRequest) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	u := q.metadata.WorkerURL + "kv/" + q.metadata.KVNamespaceName + "/" + url.PathEscape(stateReq.Key)
+	u := q.metadata.WorkerURL + "kv/" + q.metadata.KVNamespaceID + "/" + url.PathEscape(stateReq.Key)
 	req, err := http.NewRequestWithContext(ctx, "DELETE", u, nil)
 	if err != nil {
 		return fmt.Errorf("error creating network request: %w", err)
@@ -132,7 +132,7 @@ func (q *CFKV) Get(stateReq *state.GetRequest) (*state.GetResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	u := q.metadata.WorkerURL + "kv/" + q.metadata.KVNamespaceName + "/" + url.PathEscape(stateReq.Key)
+	u := q.metadata.WorkerURL + "kv/" + q.metadata.KVNamespaceID + "/" + url.PathEscape(stateReq.Key)
 	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating network request: %w", err)
@@ -175,7 +175,7 @@ func (q *CFKV) Set(stateReq *state.SetRequest) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	u := q.metadata.WorkerURL + "kv/" + q.metadata.KVNamespaceName + "/" + url.PathEscape(stateReq.Key)
+	u := q.metadata.WorkerURL + "kv/" + q.metadata.KVNamespaceID + "/" + url.PathEscape(stateReq.Key)
 	req, err := http.NewRequestWithContext(ctx, "POST", u, bytes.NewReader(q.marshalData(stateReq.Value)))
 	if err != nil {
 		return fmt.Errorf("error creating network request: %w", err)

@@ -35,7 +35,7 @@ import (
 
 // Link to the documentation for the component
 // TODO: Add link to docs
-const componentDocsUrl = "https://TODO"
+const componentDocsURL = "https://TODO"
 
 // CFKV is a state store backed by Cloudflare KV.
 type CFKV struct {
@@ -73,11 +73,11 @@ func (q *CFKV) Init(metadata state.Metadata) error {
 	}
 	infoResponseValidate := func(data *workers.InfoEndpointResponse) error {
 		if !slices.Contains(data.KV, q.metadata.KVNamespaceID) {
-			return fmt.Errorf("the worker is not bound to the namespace with ID '%s'; please re-deploy the worker with the correct bindings per instructions in the documentation at %s", q.metadata.KVNamespaceID, componentDocsUrl)
+			return fmt.Errorf("the worker is not bound to the namespace with ID '%s'; please re-deploy the worker with the correct bindings per instructions in the documentation at %s", q.metadata.KVNamespaceID, componentDocsURL)
 		}
 		return nil
 	}
-	return q.Base.Init(workerBindings, componentDocsUrl, infoResponseValidate)
+	return q.Base.Init(workerBindings, componentDocsURL, infoResponseValidate)
 }
 
 func (q *CFKV) GetComponentMetadata() map[string]string {
@@ -102,7 +102,7 @@ func (q *CFKV) Delete(stateReq *state.DeleteRequest) error {
 	defer cancel()
 
 	u := q.metadata.WorkerURL + "kv/" + q.metadata.KVNamespaceID + "/" + url.PathEscape(stateReq.Key)
-	req, err := http.NewRequestWithContext(ctx, "DELETE", u, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, u, nil)
 	if err != nil {
 		return fmt.Errorf("error creating network request: %w", err)
 	}
@@ -133,7 +133,7 @@ func (q *CFKV) Get(stateReq *state.GetRequest) (*state.GetResponse, error) {
 	defer cancel()
 
 	u := q.metadata.WorkerURL + "kv/" + q.metadata.KVNamespaceID + "/" + url.PathEscape(stateReq.Key)
-	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating network request: %w", err)
 	}
@@ -176,7 +176,7 @@ func (q *CFKV) Set(stateReq *state.SetRequest) error {
 	defer cancel()
 
 	u := q.metadata.WorkerURL + "kv/" + q.metadata.KVNamespaceID + "/" + url.PathEscape(stateReq.Key)
-	req, err := http.NewRequestWithContext(ctx, "POST", u, bytes.NewReader(q.marshalData(stateReq.Value)))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, bytes.NewReader(q.marshalData(stateReq.Value)))
 	if err != nil {
 		return fmt.Errorf("error creating network request: %w", err)
 	}

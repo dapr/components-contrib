@@ -20,7 +20,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"regexp"
 	"strings"
 	"time"
 
@@ -41,8 +40,6 @@ type BaseMetadata struct {
 
 	privKey ed25519.PrivateKey
 }
-
-var queueNameValidation = regexp.MustCompile("^([a-zA-Z0-9_\\-\\.]+)$")
 
 // Validate the metadata object.
 func (m *BaseMetadata) Validate() error {

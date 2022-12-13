@@ -160,8 +160,6 @@ github.com/cncf/xds/go v0.0.0-20210805033703-aa0b78936158/go.mod h1:eXthEFrGJvWH
 github.com/cncf/xds/go v0.0.0-20210922020428-25de7278fc84/go.mod h1:eXthEFrGJvWHgFFCl3hGmgk+/aYT6PnTQLykKQRLhEs=
 github.com/cncf/xds/go v0.0.0-20211011173535-cb28da3451f1/go.mod h1:eXthEFrGJvWHgFFCl3hGmgk+/aYT6PnTQLykKQRLhEs=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
-github.com/dapr/dapr v1.9.4-0.20221121055721-6683f7582ac4 h1:WbME5tjM4LJybkpsgT9zpccX07N1cFhH2ShbeSUwynM=
-github.com/dapr/dapr v1.9.4-0.20221121055721-6683f7582ac4/go.mod h1:noFtU2Oo1/YfAgiqbU1/JVG81+20b/mOs3Ziwq/fMrU=
 github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721 h1:EXY9Z1GtR0MC3tQzlYsKryT2HcipE79LhF7u/njeOzM=
 github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721/go.mod h1:KLQBltoD9K0w5hKTihdcyg9Epob9gypwL5dYcQzPro4=
 github.com/dapr/kit v0.0.3 h1:1FCnWjIuAS3OJzJhOlUKNzLxoazYhYIS4oCOOULmWBA=
@@ -464,6 +462,8 @@ github.com/modern-go/reflect2 v1.0.1/go.mod h1:bx2lNnkwVCuqBIxFjflWJWanXIb3Rllmb
 github.com/modern-go/reflect2 v1.0.2 h1:xBagoLtFs94CBntxluKeaWgTMpvLxC4ur3nMaC9Gz0M=
 github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
 github.com/montanaflynn/stats v0.6.6/go.mod h1:etXPPgVO6n31NxCd9KQUMvCM+ve0ruNzt6R8Bnaayow=
+github.com/mukundansundar/dapr v0.7.1-0.20221213115421-c112fb4ff0f4 h1:ZQTfKZA9W9wvj4aY3OsOEqh2DYZCgMJUzEbjcPyUqq4=
+github.com/mukundansundar/dapr v0.7.1-0.20221213115421-c112fb4ff0f4/go.mod h1:Xw+OmGoIeFRROzr0V7dVkWgnR9TZee/3Udx/cEX1C/0=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=

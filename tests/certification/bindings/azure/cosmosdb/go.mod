@@ -38,6 +38,7 @@ require (
 	github.com/andybalholm/brotli v1.0.4 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20220418222510-f25a4f6275ed // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
+	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cenkalti/backoff/v4 v4.2.0 // indirect
@@ -162,6 +163,6 @@ require (
 
 replace github.com/dapr/components-contrib/tests/certification => ../../../
 
-replace github.com/dapr/dapr => github.com/berndverst/dapr v1.1.3-0.20221105062638-159383e4fac0
+// replace github.com/dapr/dapr => github.com/berndverst/dapr v1.1.3-0.20221105062638-159383e4fac0
 
 replace github.com/dapr/components-contrib => ../../../../../

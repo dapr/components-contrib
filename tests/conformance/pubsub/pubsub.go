@@ -28,6 +28,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
@@ -391,7 +392,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 			faileEntries := convertBulkPublishResponseToStringSlice(res)
 			if err == nil {
 				for k := range entryMap {
-					if !utils.Contains(faileEntries, k) {
+					if !slices.Contains(faileEntries, k) {
 						data := entryMap[k]
 						t.Logf("adding to awaited messages %s", data)
 						awaitingMessages[string(data)] = struct{}{}

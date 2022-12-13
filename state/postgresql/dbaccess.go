@@ -23,13 +23,13 @@ import (
 // dbAccess is a private interface which enables unit testing of PostgreSQL.
 type dbAccess interface {
 	Init(metadata state.Metadata) error
-	Set(req *state.SetRequest) error
-	BulkSet(req []state.SetRequest) error
-	Get(req *state.GetRequest) (*state.GetResponse, error)
-	Delete(req *state.DeleteRequest) error
-	BulkDelete(req []state.DeleteRequest) error
-	ExecuteMulti(req *state.TransactionalStateRequest) error
-	Query(req *state.QueryRequest) (*state.QueryResponse, error)
+	Set(ctx context.Context, req *state.SetRequest) error
+	BulkSet(ctx context.Context, req []state.SetRequest) error
+	Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error)
+	Delete(ctx context.Context, req *state.DeleteRequest) error
+	BulkDelete(ctx context.Context, req []state.DeleteRequest) error
+	ExecuteMulti(ctx context.Context, req *state.TransactionalStateRequest) error
+	Query(ctx context.Context, req *state.QueryRequest) (*state.QueryResponse, error)
 	Close() error // io.Closer
 }
 

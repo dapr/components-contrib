@@ -89,7 +89,9 @@ func (p *PostgresDBAccess) Init(meta state.Metadata) error {
 
 	p.db = db
 
-	pingErr := db.Ping()
+	pingCtx, pingCancel := context.WithTimeout(p.ctx, 30*time.Second)
+	pingErr := db.PingContext(pingCtx)
+	pingCancel()
 	if pingErr != nil {
 		return pingErr
 	}
@@ -153,11 +155,11 @@ func (p *PostgresDBAccess) ParseMetadata(meta state.Metadata) error {
 }
 
 // Set makes an insert or update to the database.
-func (p *PostgresDBAccess) Set(req *state.SetRequest) error {
-	return p.doSet(p.db, req)
+func (p *PostgresDBAccess) Set(ctx context.Context, req *state.SetRequest) error {
+	return p.doSet(ctx, p.db, req)
 }
 
-func (p *PostgresDBAccess) doSet(db dbquerier, req *state.SetRequest) error {
+func (p *PostgresDBAccess) doSet(parentCtx context.Context, db dbquerier, req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
@@ -244,7 +246,7 @@ func (p *PostgresDBAccess) doSet(db dbquerier, req *state.SetRequest) error {
 	} else {
 		queryExpiredate = "NULL"
 	}
-	result, err = db.Exec(fmt.Sprintf(query, p.metadata.TableName, queryExpiredate), params...)
+	result, err = db.ExecContext(parentCtx, fmt.Sprintf(query, p.metadata.TableName, queryExpiredate), params...)
 
 	if err != nil {
 		if req.ETag != nil && *req.ETag != "" {
@@ -264,8 +266,8 @@ func (p *PostgresDBAccess) doSet(db dbquerier, req *state.SetRequest) error {
 	return nil
 }
 
-func (p *PostgresDBAccess) BulkSet(req []state.SetRequest) error {
-	tx, err := p.db.Begin()
+func (p *PostgresDBAccess) BulkSet(parentCtx context.Context, req []state.SetRequest) error {
+	tx, err := p.db.BeginTx(parentCtx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
@@ -273,7 +275,7 @@ func (p *PostgresDBAccess) BulkSet(req []state.SetRequest) error {
 
 	if len(req) > 0 {
 		for i := range req {
-			err = p.doSet(tx, &req[i])
+			err = p.doSet(parentCtx, tx, &req[i])
 			if err != nil {
 				return err
 			}
@@ -289,7 +291,7 @@ func (p *PostgresDBAccess) BulkSet(req []state.SetRequest) error {
 }
 
 // Get returns data from the database. If data does not exist for the key an empty state.GetResponse will be returned.
-func (p *PostgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	if req.Key == "" {
 		return nil, errors.New("missing key in get operation")
 	}
@@ -306,7 +308,7 @@ func (p *PostgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 				key = $1
 				AND (expiredate IS NULL OR expiredate >= CURRENT_TIMESTAMP)`
 	err := p.db.
-		QueryRow(fmt.Sprintf(query, p.metadata.TableName), req.Key).
+		QueryRowContext(parentCtx, fmt.Sprintf(query, p.metadata.TableName), req.Key).
 		Scan(&value, &isBinary, &etag)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
@@ -345,11 +347,11 @@ func (p *PostgresDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error
 }
 
 // Delete removes an item from the state store.
-func (p *PostgresDBAccess) Delete(req *state.DeleteRequest) (err error) {
-	return p.doDelete(p.db, req)
+func (p *PostgresDBAccess) Delete(ctx context.Context, req *state.DeleteRequest) (err error) {
+	return p.doDelete(ctx, p.db, req)
 }
 
-func (p *PostgresDBAccess) doDelete(db dbquerier, req *state.DeleteRequest) (err error) {
+func (p *PostgresDBAccess) doDelete(parentCtx context.Context, db dbquerier, req *state.DeleteRequest) (err error) {
 	if req.Key == "" {
 		return errors.New("missing key in delete operation")
 	}
@@ -357,7 +359,7 @@ func (p *PostgresDBAccess) doDelete(db dbquerier, req *state.DeleteRequest) (err
 	var result sql.Result
 
 	if req.ETag == nil || *req.ETag == "" {
-		result, err = db.Exec("DELETE FROM state WHERE key = $1", req.Key)
+		result, err = db.ExecContext(parentCtx, "DELETE FROM state WHERE key = $1", req.Key)
 	} else {
 		// Convert req.ETag to uint32 for postgres XID compatibility
 		var etag64 uint64
@@ -367,7 +369,7 @@ func (p *PostgresDBAccess) doDelete(db dbquerier, req *state.DeleteRequest) (err
 		}
 		etag := uint32(etag64)
 
-		result, err = db.Exec("DELETE FROM state WHERE key = $1 AND xmin = $2", req.Key, etag)
+		result, err = db.ExecContext(parentCtx, "DELETE FROM state WHERE key = $1 AND xmin = $2", req.Key, etag)
 	}
 
 	if err != nil {
@@ -386,8 +388,8 @@ func (p *PostgresDBAccess) doDelete(db dbquerier, req *state.DeleteRequest) (err
 	return nil
 }
 
-func (p *PostgresDBAccess) BulkDelete(req []state.DeleteRequest) error {
-	tx, err := p.db.Begin()
+func (p *PostgresDBAccess) BulkDelete(parentCtx context.Context, req []state.DeleteRequest) error {
+	tx, err := p.db.BeginTx(parentCtx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
@@ -395,7 +397,7 @@ func (p *PostgresDBAccess) BulkDelete(req []state.DeleteRequest) error {
 
 	if len(req) > 0 {
 		for i := range req {
-			err = p.doDelete(tx, &req[i])
+			err = p.doDelete(parentCtx, tx, &req[i])
 			if err != nil {
 				return err
 			}
@@ -410,8 +412,8 @@ func (p *PostgresDBAccess) BulkDelete(req []state.DeleteRequest) error {
 	return nil
 }
 
-func (p *PostgresDBAccess) ExecuteMulti(request *state.TransactionalStateRequest) error {
-	tx, err := p.db.Begin()
+func (p *PostgresDBAccess) ExecuteMulti(parentCtx context.Context, request *state.TransactionalStateRequest) error {
+	tx, err := p.db.BeginTx(parentCtx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
@@ -426,7 +428,7 @@ func (p *PostgresDBAccess) ExecuteMulti(request *state.TransactionalStateRequest
 				return err
 			}
 
-			err = p.doSet(tx, &setReq)
+			err = p.doSet(parentCtx, tx, &setReq)
 			if err != nil {
 				return err
 			}
@@ -438,7 +440,7 @@ func (p *PostgresDBAccess) ExecuteMulti(request *state.TransactionalStateRequest
 				return err
 			}
 
-			err = p.doDelete(tx, &delReq)
+			err = p.doDelete(parentCtx, tx, &delReq)
 			if err != nil {
 				return err
 			}
@@ -457,7 +459,7 @@ func (p *PostgresDBAccess) ExecuteMulti(request *state.TransactionalStateRequest
 }
 
 // Query executes a query against store.
-func (p *PostgresDBAccess) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
+func (p *PostgresDBAccess) Query(parentCtx context.Context, req *state.QueryRequest) (*state.QueryResponse, error) {
 	q := &Query{
 		query:     "",
 		params:    []any{},
@@ -467,7 +469,7 @@ func (p *PostgresDBAccess) Query(req *state.QueryRequest) (*state.QueryResponse,
 	if err := qbuilder.BuildQuery(&req.Query); err != nil {
 		return &state.QueryResponse{}, err
 	}
-	data, token, err := q.execute(p.logger, p.db)
+	data, token, err := q.execute(parentCtx, p.logger, p.db)
 	if err != nil {
 		return &state.QueryResponse{}, err
 	}

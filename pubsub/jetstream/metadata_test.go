@@ -18,9 +18,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nats-io/nats.go"
+
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/nats-io/nats.go"
 )
 
 func TestParseMetadata(t *testing.T) {
@@ -68,6 +69,7 @@ func TestParseMetadata(t *testing.T) {
 				rateLimit:      20000,
 				hearbeat:       time.Second * 1,
 				deliverPolicy:  nats.DeliverAllPolicy,
+				ackPolicy:      nats.AckExplicitPolicy,
 			},
 			expectErr: false,
 		},
@@ -92,6 +94,7 @@ func TestParseMetadata(t *testing.T) {
 					"token":          "myToken",
 					"deliverPolicy":  "sequence",
 					"startSequence":  "5",
+					"ackPolicy":      "all",
 				},
 			}},
 			want: metadata{
@@ -112,6 +115,7 @@ func TestParseMetadata(t *testing.T) {
 				hearbeat:       time.Second * 1,
 				token:          "myToken",
 				deliverPolicy:  nats.DeliverByStartSequencePolicy,
+				ackPolicy:      nats.AckAllPolicy,
 			},
 			expectErr: false,
 		},

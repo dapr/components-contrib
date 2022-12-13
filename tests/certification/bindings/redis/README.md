@@ -1,4 +1,4 @@
-# RabbitMQ Binding Certification
+# Redis Binding Certification
 
 The purpose of this module is to provide tests that certify the Redis Binding as a stable component.
 

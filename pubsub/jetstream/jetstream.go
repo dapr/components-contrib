@@ -159,6 +159,8 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 	if js.meta.hearbeat != 0 {
 		consumerConfig.Heartbeat = js.meta.hearbeat
 	}
+	consumerConfig.AckPolicy = js.meta.ackPolicy
+	consumerConfig.FilterSubject = req.Topic
 
 	natsHandler := func(m *nats.Msg) {
 		jsm, err := m.Metadata()
@@ -181,17 +183,21 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 		if err != nil {
 			js.l.Errorf("Error processing JetStream message %s/%d: %v", m.Subject, jsm.Sequence, err)
 
-			nakErr := m.Nak()
-			if nakErr != nil {
-				js.l.Errorf("Error while sending NAK for JetStream message %s/%d: %v", m.Subject, jsm.Sequence, nakErr)
+			if js.meta.ackPolicy == nats.AckExplicitPolicy || js.meta.ackPolicy == nats.AckAllPolicy {
+				nakErr := m.Nak()
+				if nakErr != nil {
+					js.l.Errorf("Error while sending NAK for JetStream message %s/%d: %v", m.Subject, jsm.Sequence, nakErr)
+				}
 			}
 
 			return
 		}
 
-		err = m.Ack()
-		if err != nil {
-			js.l.Errorf("Error while sending ACK for JetStream message %s/%d: %v", m.Subject, jsm.Sequence, err)
+		if js.meta.ackPolicy == nats.AckExplicitPolicy || js.meta.ackPolicy == nats.AckAllPolicy {
+			err = m.Ack()
+			if err != nil {
+				js.l.Errorf("Error while sending ACK for JetStream message %s/%d: %v", m.Subject, jsm.Sequence, err)
+			}
 		}
 	}
 

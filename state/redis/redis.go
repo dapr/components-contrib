@@ -197,7 +197,7 @@ func (r *StateStore) parseConnectedSlaves(res string) int {
 }
 
 // Delete performs a delete operation.
-func (r *StateStore) Delete(req *state.DeleteRequest) error {
+func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
@@ -214,7 +214,7 @@ func (r *StateStore) Delete(req *state.DeleteRequest) error {
 	} else {
 		delQuery = delDefaultQuery
 	}
-	_, err = r.client.Do(r.ctx, "EVAL", delQuery, 1, req.Key, *req.ETag).Result()
+	_, err = r.client.Do(ctx, "EVAL", delQuery, 1, req.Key, *req.ETag).Result()
 	if err != nil {
 		return state.NewETagError(state.ETagMismatch, err)
 	}
@@ -222,7 +222,8 @@ func (r *StateStore) Delete(req *state.DeleteRequest) error {
 	return nil
 }
 
-func (r *StateStore) directGet(req *state.GetRequest) (*state.GetResponse, error) {
+// Delete performs a delete operation.
+func (r *StateStore) directGet(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	res, err := r.client.Do(r.ctx, "GET", req.Key).Result()
 	if err != nil {
 		return nil, err
@@ -239,10 +240,10 @@ func (r *StateStore) directGet(req *state.GetRequest) (*state.GetResponse, error
 	}, nil
 }
 
-func (r *StateStore) getDefault(req *state.GetRequest) (*state.GetResponse, error) {
-	res, err := r.client.Do(r.ctx, "HGETALL", req.Key).Result() // Prefer values with ETags
+func (r *StateStore) getDefault(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
+	res, err := r.client.Do(ctx, "HGETALL", req.Key).Result() // Prefer values with ETags
 	if err != nil {
-		return r.directGet(req) // Falls back to original get for backward compats.
+		return r.directGet(ctx, req) // Falls back to original get for backward compats.
 	}
 	if res == nil {
 		return &state.GetResponse{}, nil
@@ -301,12 +302,12 @@ func (r *StateStore) getJSON(req *state.GetRequest) (*state.GetResponse, error) 
 }
 
 // Get retrieves state from redis with a key.
-func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (r *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	if contentType, ok := req.Metadata[daprmetadata.ContentType]; ok && contentType == contenttype.JSONContentType {
 		return r.getJSON(req)
 	}
 
-	return r.getDefault(req)
+	return r.getDefault(ctx, req)
 }
 
 type jsonEntry struct {
@@ -315,7 +316,7 @@ type jsonEntry struct {
 }
 
 // Set saves state into redis.
-func (r *StateStore) Set(req *state.SetRequest) error {
+func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
@@ -348,7 +349,7 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 		bt, _ = utils.Marshal(req.Value, r.json.Marshal)
 	}
 
-	err = r.client.Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt, firstWrite).Err()
+	err = r.client.Do(ctx, "EVAL", setQuery, 1, req.Key, ver, bt, firstWrite).Err()
 	if err != nil {
 		if req.ETag != nil {
 			return state.NewETagError(state.ETagMismatch, err)
@@ -358,21 +359,21 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 	}
 
 	if ttl != nil && *ttl > 0 {
-		_, err = r.client.Do(r.ctx, "EXPIRE", req.Key, *ttl).Result()
+		_, err = r.client.Do(ctx, "EXPIRE", req.Key, *ttl).Result()
 		if err != nil {
 			return fmt.Errorf("failed to set key %s ttl: %s", req.Key, err)
 		}
 	}
 
 	if ttl != nil && *ttl <= 0 {
-		_, err = r.client.Do(r.ctx, "PERSIST", req.Key).Result()
+		_, err = r.client.Do(ctx, "PERSIST", req.Key).Result()
 		if err != nil {
 			return fmt.Errorf("failed to persist key %s: %s", req.Key, err)
 		}
 	}
 
 	if req.Options.Consistency == state.Strong && r.replicas > 0 {
-		_, err = r.client.Do(r.ctx, "WAIT", r.replicas, 1000).Result()
+		_, err = r.client.Do(ctx, "WAIT", r.replicas, 1000).Result()
 		if err != nil {
 			return fmt.Errorf("redis waiting for %v replicas to acknowledge write, err: %s", r.replicas, err.Error())
 		}
@@ -382,7 +383,7 @@ func (r *StateStore) Set(req *state.SetRequest) error {
 }
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
-func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
+func (r *StateStore) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
 	var setQuery, delQuery string
 	var isJSON bool
 	if contentType, ok := request.Metadata[daprmetadata.ContentType]; ok && contentType == contenttype.JSONContentType {
@@ -416,12 +417,12 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 			} else {
 				bt, _ = utils.Marshal(req.Value, r.json.Marshal)
 			}
-			pipe.Do(r.ctx, "EVAL", setQuery, 1, req.Key, ver, bt)
+			pipe.Do(ctx, "EVAL", setQuery, 1, req.Key, ver, bt)
 			if ttl != nil && *ttl > 0 {
-				pipe.Do(r.ctx, "EXPIRE", req.Key, *ttl)
+				pipe.Do(ctx, "EXPIRE", req.Key, *ttl)
 			}
 			if ttl != nil && *ttl <= 0 {
-				pipe.Do(r.ctx, "PERSIST", req.Key)
+				pipe.Do(ctx, "PERSIST", req.Key)
 			}
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
@@ -429,11 +430,11 @@ func (r *StateStore) Multi(request *state.TransactionalStateRequest) error {
 				etag := "0"
 				req.ETag = &etag
 			}
-			pipe.Do(r.ctx, "EVAL", delQuery, 1, req.Key, *req.ETag)
+			pipe.Do(ctx, "EVAL", delQuery, 1, req.Key, *req.ETag)
 		}
 	}
 
-	_, err := pipe.Exec(r.ctx)
+	_, err := pipe.Exec(ctx)
 
 	return err
 }
@@ -507,7 +508,7 @@ func (r *StateStore) parseTTL(req *state.SetRequest) (*int, error) {
 }
 
 // Query executes a query against store.
-func (r *StateStore) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
+func (r *StateStore) Query(ctx context.Context, req *state.QueryRequest) (*state.QueryResponse, error) {
 	indexName, ok := daprmetadata.TryGetQueryIndexName(req.Metadata)
 	if !ok {
 		return nil, fmt.Errorf("query index not found")
@@ -522,7 +523,7 @@ func (r *StateStore) Query(req *state.QueryRequest) (*state.QueryResponse, error
 	if err := qbuilder.BuildQuery(&req.Query); err != nil {
 		return &state.QueryResponse{}, err
 	}
-	data, token, err := q.execute(r.ctx, r.client)
+	data, token, err := q.execute(ctx, r.client)
 	if err != nil {
 		return &state.QueryResponse{}, err
 	}

@@ -160,7 +160,7 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-// replace github.com/dapr/dapr => github.com/berndverst/dapr v1.1.3-0.20221105062638-159383e4fac0
+replace github.com/dapr/dapr => github.com/mukundansundar/dapr v0.7.1-0.20221213115421-c112fb4ff0f4
 
 replace github.com/dapr/components-contrib => ../../../../..
 

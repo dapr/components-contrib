@@ -32,7 +32,7 @@ import (
 
 // Link to the documentation for the component
 // TODO: Add link to docs
-const componentDocsUrl = "https://TODO"
+const componentDocsURL = "https://TODO"
 
 // CFQueues is a binding for publishing messages on Cloudflare Queues
 type CFQueues struct {
@@ -68,11 +68,11 @@ func (q *CFQueues) Init(metadata bindings.Metadata) error {
 	}
 	infoResponseValidate := func(data *workers.InfoEndpointResponse) error {
 		if !slices.Contains(data.Queues, q.metadata.QueueName) {
-			return fmt.Errorf("the worker is not bound to the queue '%s'; please re-deploy the worker with the correct bindings per instructions in the documentation at %s", q.metadata.QueueName, componentDocsUrl)
+			return fmt.Errorf("the worker is not bound to the queue '%s'; please re-deploy the worker with the correct bindings per instructions in the documentation at %s", q.metadata.QueueName, componentDocsURL)
 		}
 		return nil
 	}
-	return q.Base.Init(workerBindings, componentDocsUrl, infoResponseValidate)
+	return q.Base.Init(workerBindings, componentDocsURL, infoResponseValidate)
 }
 
 // Operations returns the supported operations for this binding.
@@ -105,7 +105,7 @@ func (q *CFQueues) invokePublish(parentCtx context.Context, ir *bindings.InvokeR
 		ir.Data = []byte(d)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", q.metadata.WorkerURL+"queues/"+q.metadata.QueueName, bytes.NewReader(ir.Data))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, q.metadata.WorkerURL+"queues/"+q.metadata.QueueName, bytes.NewReader(ir.Data))
 	if err != nil {
 		return nil, fmt.Errorf("error creating network request: %w", err)
 	}

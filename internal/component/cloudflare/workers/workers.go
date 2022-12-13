@@ -38,7 +38,7 @@ const (
 	// Minimum version required for the running Worker.
 	minWorkerVersion = 20221209
 	// Issuer for JWTs
-	tokenIssuer = "dapr.io/cloudflare"
+	tokenIssuer = "dapr.io/cloudflare" //nolint:gosec
 	// JWT token expiration
 	tokenExpiration = 5 * time.Minute
 )
@@ -47,7 +47,7 @@ const (
 type Base struct {
 	metadata             *BaseMetadata
 	infoResponseValidate func(*InfoEndpointResponse) error
-	componentDocsUrl     string
+	componentDocsURL     string
 	client               *http.Client
 	logger               logger.Logger
 	ctx                  context.Context
@@ -55,12 +55,12 @@ type Base struct {
 }
 
 // Init the base class.
-func (w *Base) Init(workerBindings []Binding, componentDocsUrl string, infoResponseValidate func(*InfoEndpointResponse) error) (err error) {
+func (w *Base) Init(workerBindings []Binding, componentDocsURL string, infoResponseValidate func(*InfoEndpointResponse) error) (err error) {
 	w.ctx, w.cancel = context.WithCancel(context.Background())
 	w.client = &http.Client{
 		Timeout: time.Second * 30,
 	}
-	w.componentDocsUrl = componentDocsUrl
+	w.componentDocsURL = componentDocsURL
 	w.infoResponseValidate = infoResponseValidate
 
 	// Check if we're using an externally-managed worker
@@ -109,10 +109,10 @@ func (w *Base) setupWorker(workerBindings []Binding) error {
 
 	// Check if the worker exists and it's the supported version
 	// In case of error, any error, we will re-deploy the worker
-	workerUrl := fmt.Sprintf("https://%s.%s.workers.dev/", w.metadata.WorkerName, subdomain)
-	err = w.checkWorker(workerUrl)
+	workerURL := fmt.Sprintf("https://%s.%s.workers.dev/", w.metadata.WorkerName, subdomain)
+	err = w.checkWorker(workerURL)
 	if err != nil {
-		w.logger.Infof("Deploying updated worker at URL '%s'", workerUrl)
+		w.logger.Infof("Deploying updated worker at URL '%s'", workerURL)
 		err = w.deployWorker(workerBindings)
 		if err != nil {
 			return fmt.Errorf("error deploying or updating the worker with the Cloudflare APIs: %w", err)
@@ -125,10 +125,10 @@ func (w *Base) setupWorker(workerBindings []Binding) error {
 		}
 
 		// Wait for the worker to be deplopyed, which can take up to 30 seconds (but let's give it 1 minute)
-		w.logger.Debugf("Deployed a new version of the worker at '%s' - waiting for propagation", workerUrl)
+		w.logger.Debugf("Deployed a new version of the worker at '%s' - waiting for propagation", workerURL)
 		start := time.Now()
 		for time.Since(start) < time.Minute {
-			err = w.checkWorker(workerUrl)
+			err = w.checkWorker(workerURL)
 			if err == nil {
 				break
 			}
@@ -140,11 +140,11 @@ func (w *Base) setupWorker(workerBindings []Binding) error {
 		}
 		w.logger.Debug("Worker is ready")
 	} else {
-		w.logger.Infof("Using worker at URL '%s'", workerUrl)
+		w.logger.Infof("Using worker at URL '%s'", workerURL)
 	}
 
 	// Update the URL of the worker
-	w.metadata.WorkerURL = workerUrl
+	w.metadata.WorkerURL = workerURL
 
 	return nil
 }
@@ -160,7 +160,7 @@ func (w *Base) getWorkersSubdomain() (string, error) {
 	defer cancel()
 
 	u := fmt.Sprintf("https://api.cloudflare.com/client/v4/accounts/%s/workers/subdomain", w.metadata.CfAccountID)
-	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return "", fmt.Errorf("error creating network request: %w", err)
 	}
@@ -277,7 +277,7 @@ func (w *Base) deployWorker(workerBindings []Binding) error {
 	defer cancel()
 
 	u := fmt.Sprintf("https://api.cloudflare.com/client/v4/accounts/%s/workers/scripts/%s", w.metadata.CfAccountID, w.metadata.WorkerName)
-	req, err := http.NewRequestWithContext(ctx, "PUT", u, buf)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, u, buf)
 	if err != nil {
 		return fmt.Errorf("error creating network request: %w", err)
 	}
@@ -305,7 +305,7 @@ func (w *Base) enableWorkersDevRoute() error {
 	defer cancel()
 
 	u := fmt.Sprintf("https://api.cloudflare.com/client/v4/accounts/%s/workers/scripts/%s/subdomain", w.metadata.CfAccountID, w.metadata.WorkerName)
-	req, err := http.NewRequestWithContext(ctx, "POST", u, strings.NewReader(`{"enabled": true}`))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, strings.NewReader(`{"enabled": true}`))
 	if err != nil {
 		return fmt.Errorf("error creating network request: %w", err)
 	}
@@ -345,7 +345,7 @@ func (w *Base) checkWorker(workerURL string) error {
 	ctx, cancel := context.WithTimeout(w.ctx, 30*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", workerURL+".well-known/dapr/info", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, workerURL+".well-known/dapr/info", nil)
 	if err != nil {
 		return fmt.Errorf("error creating network request: %w", err)
 	}
@@ -372,7 +372,7 @@ func (w *Base) checkWorker(workerURL string) error {
 
 	version, _ := strconv.Atoi(data.Version)
 	if version < minWorkerVersion {
-		return fmt.Errorf("the worker is running an outdated version '%d'; please upgrade the worker per instructions in the documentation at %s", version, w.componentDocsUrl)
+		return fmt.Errorf("the worker is running an outdated version '%d'; please upgrade the worker per instructions in the documentation at %s", version, w.componentDocsURL)
 	}
 
 	if w.infoResponseValidate != nil {
@@ -386,10 +386,10 @@ func (w *Base) checkWorker(workerURL string) error {
 }
 
 // Close the base component.
-func (q *Base) Close() error {
-	if q.cancel != nil {
-		q.cancel()
-		q.cancel = nil
+func (w *Base) Close() error {
+	if w.cancel != nil {
+		w.cancel()
+		w.cancel = nil
 	}
 	return nil
 }

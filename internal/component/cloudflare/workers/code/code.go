@@ -18,13 +18,13 @@ import (
 	_ "embed"
 )
 
-// Contains the source code for the worker.
+// WorkerScript contains the source code for the worker.
 //
 //go:embed worker.js
 var WorkerScript []byte
 
-// Value for compatibility_date.
+// CompatibilityDate is the value for compatibility_date.
 const CompatibilityDate = "2022-12-09"
 
-// Value for usage_model.
+// UsageModel is the value for usage_model.
 const UsageModel = "bundled"

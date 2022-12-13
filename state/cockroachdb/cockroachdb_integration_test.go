@@ -14,6 +14,7 @@ limitations under the License.
 package cockroachdb
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -211,7 +212,7 @@ func deleteItemThatDoesNotExist(t *testing.T, pgs *CockroachDB) {
 			Consistency: "",
 		},
 	}
-	err := pgs.Delete(deleteReq)
+	err := pgs.Delete(context.Background(), deleteReq)
 	assert.Nil(t, err)
 }
 
@@ -239,7 +240,7 @@ func multiWithSetOnly(t *testing.T, pgs *CockroachDB) {
 		})
 	}
 
-	err := pgs.Multi(&state.TransactionalStateRequest{
+	err := pgs.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 		Metadata:   nil,
 	})
@@ -280,7 +281,7 @@ func multiWithDeleteOnly(t *testing.T, pgs *CockroachDB) {
 		})
 	}
 
-	err := pgs.Multi(&state.TransactionalStateRequest{
+	err := pgs.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 		Metadata:   nil,
 	})
@@ -341,7 +342,7 @@ func multiWithDeleteAndSet(t *testing.T, pgs *CockroachDB) {
 		})
 	}
 
-	err := pgs.Multi(&state.TransactionalStateRequest{
+	err := pgs.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 		Metadata:   nil,
 	})
@@ -376,7 +377,7 @@ func deleteWithInvalidEtagFails(t *testing.T, pgs *CockroachDB) {
 			Consistency: "",
 		},
 	}
-	err := pgs.Delete(deleteReq)
+	err := pgs.Delete(context.Background(), deleteReq)
 	assert.NotNil(t, err)
 }
 
@@ -392,7 +393,7 @@ func deleteWithNoKeyFails(t *testing.T, pgs *CockroachDB) {
 			Consistency: "",
 		},
 	}
-	err := pgs.Delete(deleteReq)
+	err := pgs.Delete(context.Background(), deleteReq)
 	assert.NotNil(t, err)
 }
 
@@ -415,7 +416,7 @@ func newItemWithEtagFails(t *testing.T, pgs *CockroachDB) {
 		ContentType: nil,
 	}
 
-	err := pgs.Set(setReq)
+	err := pgs.Set(context.Background(), setReq)
 	assert.NotNil(t, err)
 }
 
@@ -449,7 +450,7 @@ func updateWithOldEtagFails(t *testing.T, pgs *CockroachDB) {
 		},
 		ContentType: nil,
 	}
-	err := pgs.Set(setReq)
+	err := pgs.Set(context.Background(), setReq)
 	assert.NotNil(t, err)
 }
 
@@ -501,7 +502,7 @@ func getItemWithNoKey(t *testing.T, pgs *CockroachDB) {
 		},
 	}
 
-	response, getErr := pgs.Get(getReq)
+	response, getErr := pgs.Get(context.Background(), getReq)
 	assert.NotNil(t, getErr)
 	assert.Nil(t, response)
 }
@@ -544,7 +545,7 @@ func setItemWithNoKey(t *testing.T, pgs *CockroachDB) {
 		ContentType: nil,
 	}
 
-	err := pgs.Set(setReq)
+	err := pgs.Set(context.Background(), setReq)
 	assert.NotNil(t, err)
 }
 
@@ -563,7 +564,7 @@ func testBulkSetAndBulkDelete(t *testing.T, pgs *CockroachDB) {
 		},
 	}
 
-	err := pgs.BulkSet(setReq)
+	err := pgs.BulkSet(context.Background(), setReq)
 	assert.Nil(t, err)
 	assert.True(t, storeItemExists(t, setReq[0].Key))
 	assert.True(t, storeItemExists(t, setReq[1].Key))
@@ -577,7 +578,7 @@ func testBulkSetAndBulkDelete(t *testing.T, pgs *CockroachDB) {
 		},
 	}
 
-	err = pgs.BulkDelete(deleteReq)
+	err = pgs.BulkDelete(context.Background(), deleteReq)
 	assert.Nil(t, err)
 	assert.False(t, storeItemExists(t, setReq[0].Key))
 	assert.False(t, storeItemExists(t, setReq[1].Key))
@@ -644,7 +645,7 @@ func setItem(t *testing.T, pgs *CockroachDB, key string, value interface{}, etag
 		ContentType: nil,
 	}
 
-	err := pgs.Set(setReq)
+	err := pgs.Set(context.Background(), setReq)
 	assert.Nil(t, err)
 	itemExists := storeItemExists(t, key)
 	assert.True(t, itemExists)
@@ -661,7 +662,7 @@ func getItem(t *testing.T, pgs *CockroachDB, key string) (*state.GetResponse, *f
 		Metadata: map[string]string{},
 	}
 
-	response, getErr := pgs.Get(getReq)
+	response, getErr := pgs.Get(context.Background(), getReq)
 	assert.Nil(t, getErr)
 	assert.NotNil(t, response)
 	outputObject := &fakeItem{
@@ -685,7 +686,7 @@ func deleteItem(t *testing.T, pgs *CockroachDB, key string, etag *string) {
 		Metadata: map[string]string{},
 	}
 
-	deleteErr := pgs.Delete(deleteReq)
+	deleteErr := pgs.Delete(context.Background(), deleteReq)
 	assert.Nil(t, deleteErr)
 	assert.False(t, storeItemExists(t, key))
 }

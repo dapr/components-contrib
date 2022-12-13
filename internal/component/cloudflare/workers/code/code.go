@@ -11,10 +11,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cfworkercode
+package cfworkerscode
 
 import (
-	// Allow using go:embed
+	// Allow using go:embed.
 	_ "embed"
 )
 

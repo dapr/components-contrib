@@ -112,12 +112,12 @@ github.com/armon/go-metrics v0.4.1 h1:hR91U9KYmb6bLBYLQjyM+3j+rcd/UhE+G78SFnF8gJ
 github.com/armon/go-metrics v0.4.1/go.mod h1:E6amYzXo6aW1tqzoZGT755KkbgrJsSdpwZ+3JqfkOG4=
 github.com/armon/go-radix v0.0.0-20180808171621-7fddfc383310/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgIH9cCH8=
 github.com/armon/go-radix v1.0.0/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgIH9cCH8=
+github.com/benbjohnson/clock v1.3.0 h1:ip6w0uFQkncKQ979AypyG0ER7mqUSBdKLOgAle/AT8A=
+github.com/benbjohnson/clock v1.3.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
 github.com/beorn7/perks v1.0.0/go.mod h1:KWe93zE9D1o94FZ5RNwFwVgaQK1VOXiVxmqh+CedLV8=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
-github.com/berndverst/dapr v1.1.3-0.20221105062638-159383e4fac0 h1:DHv0Odl7nn296mOlv9HiqANeSywCLVLdoPeNY/t18x0=
-github.com/berndverst/dapr v1.1.3-0.20221105062638-159383e4fac0/go.mod h1:2Vqy6l1G2eq24stXXRqTE+Do9p+pAISrgGJ1BPknok8=
 github.com/bgentry/speakeasy v0.1.0/go.mod h1:+zsyZBPWlz7T6j88CTgSN5bM796AkVf0kBD4zp0CCIs=
 github.com/cenkalti/backoff v2.2.1+incompatible h1:tNowT99t7UNflLxfYYSlKYsBpXdEet03Pg2g16Swow4=
 github.com/cenkalti/backoff v2.2.1+incompatible/go.mod h1:90ReRw6GdpyfrHakVjL/QHaoyV4aDUVVkXQJJJ3NXXM=
@@ -142,6 +142,8 @@ github.com/cncf/xds/go v0.0.0-20210805033703-aa0b78936158/go.mod h1:eXthEFrGJvWH
 github.com/cncf/xds/go v0.0.0-20210922020428-25de7278fc84/go.mod h1:eXthEFrGJvWHgFFCl3hGmgk+/aYT6PnTQLykKQRLhEs=
 github.com/cncf/xds/go v0.0.0-20211011173535-cb28da3451f1/go.mod h1:eXthEFrGJvWHgFFCl3hGmgk+/aYT6PnTQLykKQRLhEs=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
+github.com/dapr/dapr v1.9.4-0.20221121055721-6683f7582ac4 h1:WbME5tjM4LJybkpsgT9zpccX07N1cFhH2ShbeSUwynM=
+github.com/dapr/dapr v1.9.4-0.20221121055721-6683f7582ac4/go.mod h1:noFtU2Oo1/YfAgiqbU1/JVG81+20b/mOs3Ziwq/fMrU=
 github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721 h1:EXY9Z1GtR0MC3tQzlYsKryT2HcipE79LhF7u/njeOzM=
 github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721/go.mod h1:KLQBltoD9K0w5hKTihdcyg9Epob9gypwL5dYcQzPro4=
 github.com/dapr/kit v0.0.3 h1:1FCnWjIuAS3OJzJhOlUKNzLxoazYhYIS4oCOOULmWBA=

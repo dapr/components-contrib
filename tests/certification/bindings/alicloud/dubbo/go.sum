@@ -111,12 +111,11 @@ github.com/aws/aws-sdk-go-v2/service/sts v1.7.2/go.mod h1:8EzeIqfWt2wWT4rJVu3f21
 github.com/aws/smithy-go v1.8.0/go.mod h1:SObp3lf9smib00L/v3U2eAKG8FyQ7iLrJnQiAmR5n+E=
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/benbjohnson/clock v1.3.0 h1:ip6w0uFQkncKQ979AypyG0ER7mqUSBdKLOgAle/AT8A=
+github.com/benbjohnson/clock v1.3.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
 github.com/beorn7/perks v1.0.0/go.mod h1:KWe93zE9D1o94FZ5RNwFwVgaQK1VOXiVxmqh+CedLV8=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
-github.com/berndverst/dapr v1.1.3-0.20221105062638-159383e4fac0 h1:DHv0Odl7nn296mOlv9HiqANeSywCLVLdoPeNY/t18x0=
-github.com/berndverst/dapr v1.1.3-0.20221105062638-159383e4fac0/go.mod h1:2Vqy6l1G2eq24stXXRqTE+Do9p+pAISrgGJ1BPknok8=
 github.com/bgentry/speakeasy v0.1.0/go.mod h1:+zsyZBPWlz7T6j88CTgSN5bM796AkVf0kBD4zp0CCIs=
 github.com/bits-and-blooms/bitset v1.2.0 h1:Kn4yilvwNtMACtf1eYDlG8H77R07mZSPbMjLyS07ChA=
 github.com/bits-and-blooms/bitset v1.2.0/go.mod h1:gIdJ4wp64HaoK2YrL1Q5/N7Y16edYb8uY+O0FJTyyDA=
@@ -171,6 +170,8 @@ github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ3
 github.com/creack/pty v1.1.11/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/creasty/defaults v1.5.2 h1:/VfB6uxpyp6h0fr7SPp7n8WJBoV8jfxQXPCnkVSjyls=
 github.com/creasty/defaults v1.5.2/go.mod h1:FPZ+Y0WNrbqOVw+c6av63eyHUAl6pMHZwqLPvXUZGfY=
+github.com/dapr/dapr v1.9.4-0.20221121055721-6683f7582ac4 h1:WbME5tjM4LJybkpsgT9zpccX07N1cFhH2ShbeSUwynM=
+github.com/dapr/dapr v1.9.4-0.20221121055721-6683f7582ac4/go.mod h1:noFtU2Oo1/YfAgiqbU1/JVG81+20b/mOs3Ziwq/fMrU=
 github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721 h1:EXY9Z1GtR0MC3tQzlYsKryT2HcipE79LhF7u/njeOzM=
 github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721/go.mod h1:KLQBltoD9K0w5hKTihdcyg9Epob9gypwL5dYcQzPro4=
 github.com/dapr/kit v0.0.3 h1:1FCnWjIuAS3OJzJhOlUKNzLxoazYhYIS4oCOOULmWBA=

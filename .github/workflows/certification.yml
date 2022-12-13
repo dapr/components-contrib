@@ -126,15 +126,6 @@ jobs:
         )
         echo "::set-output name=cloud-components::$CRON_COMPONENTS"
 
-    - name: Specify components requiring cloud resources to run and use terraform
-      id: terraform-components
-      run: |
-        TERRAFORM_COMPONENTS=$(yq -I0 --tojson eval - << EOF  
-        EOF
-        )
-        echo $TERRAFORM_COMPONENTS
-        echo "::set-output name=terraform-components::$TERRAFORM_COMPONENTS"
-
     - name: Create PR comment
       if: env.PR_NUMBER != ''
       uses: artursouza/sticky-pull-request-comment@v2.2.0
@@ -152,7 +143,6 @@ jobs:
     outputs:
       pr-components: ${{ steps.pr-components.outputs.pr-components }}
       cloud-components: ${{ steps.cloud-components.outputs.cloud-components }}
-      terraform-components: ${{ steps.terraform-components.outputs.terraform-components }}
 
   certification:
     name: ${{ matrix.component }} certification
@@ -168,9 +158,7 @@ jobs:
       fail-fast: false # Keep running even if one component fails
       matrix:
         component: ${{ fromJson(needs.generate-matrix.outputs.pr-components) }}
-        include: 
-        - ${{ fromJson(needs.generate-matrix.outputs.cloud-components) }}
-        - ${{ fromJson(needs.generate-matrix.outputs.terraform-components) }}
+        include: ${{ fromJson(needs.generate-matrix.outputs.cloud-components) }}
 
     steps:
     - name: Set default payload repo and ref
@@ -250,9 +238,7 @@ jobs:
 
     - name: Terraform Init
       id: init
-      run: |
-          rm -rf .terraform
-          terraform init
+      run: terraform init
       working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
       
@@ -430,8 +416,7 @@ jobs:
           script: |
             const prComponents = ('${{ needs.generate-matrix.outputs.pr-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.pr-components }}')) || []
             const cloudComponents = ('${{ needs.generate-matrix.outputs.cloud-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.cloud-components }}')) || []
-            const terraformComponents = ('${{ needs.generate-matrix.outputs.terraform-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.terraform-components }}')) || []
-            const allComponents = [...prComponents, ...cloudComponents, ...terraformComponents]
+            const allComponents = [...prComponents, ...cloudComponents]
             const basePath = '${{ steps.testresults.outputs.download-path }}'
             const testType = 'certification'
 

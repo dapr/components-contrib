@@ -271,15 +271,13 @@ jobs:
 
     - name: Terraform Init
       id: init
-      run: |
-          rm -rf .terraform
-          terraform init
+      run: terraform init
       working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
       
     - name: Terraform Validate
       id: validate
-      run: terraform validate -no-color
+      run: terraform validate -no-color -var="UUID=${{github.run_id}}"
       working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
 

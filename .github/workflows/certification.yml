@@ -229,19 +229,15 @@ jobs:
       uses: hashicorp/setup-terraform@v2
       if: matrix.terraform-dir != ''
 
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
-        aws-region: us-west-2
-
     - name: Terraform Init
       id: init
       run: terraform init
       working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
-      
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
+        
     - name: Terraform Validate
       id: validate
       run: terraform validate -no-color
@@ -253,13 +249,19 @@ jobs:
       run: terraform plan -no-color -var="UUID=${{github.run_id}}"
       working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
 
     - name: Terraform Apply     
       run: terraform apply -auto-approve -var="UUID=${{github.run_id}}"
       working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
       continue-on-error: true
-
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
+  
     - name: Set up Go
       uses: actions/setup-go@v3
       with:
@@ -381,7 +383,10 @@ jobs:
       run: terraform destroy -auto-approve -var="UUID=${{github.run_id}}"
       working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
-
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
+  
   post_job:
     name: Post-completion
     runs-on: ubuntu-latest

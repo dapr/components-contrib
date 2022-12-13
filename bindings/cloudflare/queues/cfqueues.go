@@ -72,7 +72,7 @@ func (q *CFQueues) Init(metadata bindings.Metadata) error {
 		}
 		return nil
 	}
-	return q.Base.Init(metadata, workerBindings, componentDocsUrl, infoResponseValidate)
+	return q.Base.Init(workerBindings, componentDocsUrl, infoResponseValidate)
 }
 
 // Operations returns the supported operations for this binding.
@@ -105,7 +105,7 @@ func (q *CFQueues) invokePublish(parentCtx context.Context, ir *bindings.InvokeR
 		ir.Data = []byte(d)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", q.metadata.WorkerURL+"publish/"+q.metadata.QueueName, bytes.NewReader(ir.Data))
+	req, err := http.NewRequestWithContext(ctx, "POST", q.metadata.WorkerURL+"queues/"+q.metadata.QueueName, bytes.NewReader(ir.Data))
 	if err != nil {
 		return nil, fmt.Errorf("error creating network request: %w", err)
 	}

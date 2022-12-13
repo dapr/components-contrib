@@ -1,17 +1,21 @@
+# This wrangler.toml is only used during local development
+# Dapr interacts with the Cloudflare APIs directly and doesn't use Wrangler, hence it doesn't use this file
 name = "daprdemo"
 main = "worker.ts"
 compatibility_date = "2022-12-09"
 usage_model = "bundled"
 
 [vars]
-PUBLIC_KEY = """-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAyutaN0GSzNkI3N/E/J9aCqpBE/UvLD4pd7tirq5f4tw=
------END PUBLIC KEY-----
-"""
-TOKEN_AUDIENCE = "daprdemo"
+PUBLIC_KEY = ""
+TOKEN_AUDIENCE = ""
+SKIP_AUTH = "true"
 
-# Worker defines a binding, named "QUEUE", which gives it a capability
-# to send messages to a Queue, named "daprdemo".
+[[kv_namespaces]]
+binding = "daprkv"
+# Fill these with the namespace you create
+id = "..."
+preview_id = "..."
+
 [[queues.producers]]
   queue = "daprdemo"
   binding = "daprdemo"

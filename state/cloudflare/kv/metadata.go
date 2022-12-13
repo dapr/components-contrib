@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cfqueues
+package cfkv
 
 import (
 	"errors"
@@ -23,10 +23,11 @@ import (
 // Component metadata struct.
 type componentMetadata struct {
 	workers.BaseMetadata `mapstructure:",squash"`
-	QueueName            string `mapstructure:"queueName"`
+	KVNamespaceName      string `mapstructure:"kvNamespaceName"`
+	KVNamespaceID        string `mapstructure:"kvNamespaceID"`
 }
 
-var queueNameValidation = regexp.MustCompile("^([a-zA-Z0-9_\\-\\.]+)$")
+var kvNamespaceValidation = regexp.MustCompile("^([a-zA-Z0-9_\\-\\.]+)$")
 
 // Validate the metadata object.
 func (m *componentMetadata) Validate() error {
@@ -36,12 +37,20 @@ func (m *componentMetadata) Validate() error {
 		return err
 	}
 
-	// QueueName
-	if m.QueueName == "" {
-		return errors.New("property 'queueName' is required")
+	// KVNamespaceName
+	if m.KVNamespaceName == "" {
+		return errors.New("property 'kvNamespaceName' is required")
 	}
-	if !queueNameValidation.MatchString(m.QueueName) {
-		return errors.New("metadata property 'queueName' is invalid")
+	if !kvNamespaceValidation.MatchString(m.KVNamespaceName) {
+		return errors.New("metadata property 'kvNamespaceName' is invalid")
+	}
+
+	// KVNamespaceID
+	if m.KVNamespaceID == "" {
+		return errors.New("property 'kvNamespaceID' is required")
+	}
+	if !kvNamespaceValidation.MatchString(m.KVNamespaceID) {
+		return errors.New("metadata property 'kvNamespaceID' is invalid")
 	}
 
 	return nil

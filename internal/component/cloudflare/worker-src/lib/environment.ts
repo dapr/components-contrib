@@ -12,8 +12,12 @@ limitations under the License.
 */
 
 export type Environment = {
+    // PEM-encoded Ed25519 public key used to verify JWT tokens
     PUBLIC_KEY: string
+    // Audience for the token - this is normally the worker's name
     TOKEN_AUDIENCE: string
+    // Skips authorization - used for development
+    SKIP_AUTH: string
     // Other values are assumed to be bindings: Queues, KV, R2
     readonly [x: string]: string | Queue<string> | KVNamespace | R2Bucket
 }

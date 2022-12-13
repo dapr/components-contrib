@@ -262,18 +262,14 @@ jobs:
       uses: hashicorp/setup-terraform@v2
       if: matrix.terraform-dir != ''
 
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
-        aws-region: us-west-2
-
     - name: Terraform Init
       id: init
       run: terraform init
       working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
       
     - name: Terraform Validate
       id: validate
@@ -286,12 +282,18 @@ jobs:
       run: terraform plan -no-color
       working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
-
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
+  
     - name: Terraform Apply     
       run: terraform apply -auto-approve
       working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
       continue-on-error: true
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
 
     - name: Start Redis
       run: docker-compose -f ./.github/infrastructure/docker-compose-redisjson.yml -p redis up -d
@@ -500,6 +502,9 @@ jobs:
       run: terraform destroy -auto-approve
       working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
 
     - name: Check conformance test passed
       continue-on-error: false

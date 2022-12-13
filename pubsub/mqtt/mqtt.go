@@ -89,14 +89,9 @@ func (m *mqttPubSub) Init(metadata pubsub.Metadata) error {
 	m.ctx, m.cancel = context.WithCancel(context.Background())
 	m.topics = make(map[string]mqttPubSubSubscription)
 
-	// mqtt broker allows only one connection at a given time from a clientID.
-	producerClientID := m.metadata.producerID
-	if producerClientID == "" {
-		// for backwards-compatibility; see: https://github.com/dapr/components-contrib/pull/2104
-		producerClientID = m.metadata.consumerID + "-producer"
-	}
 	connCtx, connCancel := context.WithTimeout(m.ctx, defaultWait)
-	p, err := m.connect(connCtx, producerClientID, false, nil)
+	// mqtt broker allows only one connection at a given time from a clientID.
+	p, err := m.connect(connCtx, m.metadata.GetProducerClientID(), false, nil)
 	connCancel()
 	if err != nil {
 		return err
@@ -115,9 +110,7 @@ func (m *mqttPubSub) Publish(req *pubsub.PublishRequest) error {
 		return errors.New("topic name is empty")
 	}
 
-	// Note this can contain PII
-	// m.logger.Debugf("mqtt publishing topic %s with data: %v", req.Topic, req.Data)
-	m.logger.Debugf("mqtt publishing topic %s", req.Topic)
+	m.logger.Debugf("mqtt publishing on topic %s", req.Topic)
 
 	token := m.producer.Publish(req.Topic, m.metadata.qos, m.metadata.retain, req.Data)
 
@@ -206,23 +199,19 @@ func (m *mqttPubSub) resetSubscription() {
 
 // startSubscription connects to the server and begins receiving messages
 func (m *mqttPubSub) startSubscription(ctx context.Context) error {
-	// mqtt broker allows only one connection at a given time from a clientID.
-	consumerClientID := m.metadata.consumerID
-	if m.metadata.producerID == "" {
-		// for backwards-compatibility; see: https://github.com/dapr/components-contrib/pull/2104
-		consumerClientID += "-consumer"
-	}
-
 	readyCh := make(chan struct{})
-	c, err := m.connect(ctx, consumerClientID, true, readyCh)
+	// mqtt broker allows only one connection at a given time from a clientID.
+	c, err := m.connect(ctx, m.metadata.GetConsumerClientID(), true, readyCh)
 	if err != nil {
 		return err
 	}
 	// This is to wait for the subscriptions to be enabled, which happen in an async callback
 	// We do this after checking for errors returned by m.connect
-	select {
 	// Double the wait time here as we've seen that some brokers just need a bit more time
-	case <-time.After(defaultWait * 2):
+	t := time.NewTimer(defaultWait * 2)
+	defer t.Stop()
+	select {
+	case <-t.C:
 		// In case of timeouts
 		return context.DeadlineExceeded
 	case <-readyCh:

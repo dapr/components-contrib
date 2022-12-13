@@ -10,6 +10,8 @@ spec:
     value: neworder
   - name: publishTopic # Outpub binding topic
     value: neworder
+  - name: consumeRetryEnabled # enable consumer retry
+    value: true
   - name: brokers
     value: localhost:19092,localhost:29092,localhost:39092
   - name: consumerGroup

@@ -2,10 +2,10 @@
     "private": true,
     "name": "dapr-cfworkers-client",
     "description": "Client code for Dapr to interact with Cloudflare Workers",
-    "version": "20221209",
+    "version": "20221212",
     "main": "worker.ts",
     "scripts": {
-        "build": "esbuild --bundle --minify --outfile=./dist/worker.js --format=esm --platform=browser worker.ts",
+        "build": "esbuild --bundle --minify --outfile=../workers/code/worker.js --format=esm --platform=browser --sourcemap worker.ts",
         "start": "wrangler dev --local",
         "format": "prettier --write ."
     },

@@ -266,8 +266,10 @@ func (m *MQTT) Read(ctx context.Context, handler bindings.Handler) error {
 		return err
 	}
 	// m.connect returns after the connection has been established, now we need to wait for the subscription to be up
+	t := time.NewTimer(defaultWait)
+	defer t.Stop()
 	select {
-	case <-time.After(defaultWait):
+	case <-t.C:
 		// Timed out waiting for the subscription
 		err = context.DeadlineExceeded
 	case err = <-readyCh:

@@ -170,10 +170,10 @@ func (r *StateStore) Features() []state.Feature {
 	return r.features
 }
 
-func (r *StateStore) Delete(req *state.DeleteRequest) error {
+func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	r.logger.Debugf("delete %s", req.Key)
 
-	err := r.deleteRow(req)
+	err := r.deleteRow(ctx, req)
 	if err != nil {
 		if req.ETag != nil {
 			return state.NewETagError(state.ETagMismatch, err)
@@ -186,12 +186,12 @@ func (r *StateStore) Delete(req *state.DeleteRequest) error {
 	return err
 }
 
-func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (r *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	r.logger.Debugf("fetching %s", req.Key)
 	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDBMode)
-	getContext, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	resp, err := r.client.GetEntity(getContext, pk, rk, nil)
+	resp, err := r.client.GetEntity(ctx, pk, rk, nil)
 	if err != nil {
 		if isNotFoundError(err) {
 			return &state.GetResponse{}, nil
@@ -207,10 +207,10 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, err
 }
 
-func (r *StateStore) Set(req *state.SetRequest) error {
+func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	r.logger.Debugf("saving %s", req.Key)
 
-	err := r.writeRow(req)
+	err := r.writeRow(ctx, req)
 
 	return err
 }
@@ -255,13 +255,13 @@ func getTablesMetadata(meta map[string]string) (*tablesMetadata, error) {
 	return &m, err
 }
 
-func (r *StateStore) writeRow(req *state.SetRequest) error {
+func (r *StateStore) writeRow(ctx context.Context, req *state.SetRequest) error {
 	marshalledEntity, err := r.marshal(req)
 	if err != nil {
 		return err
 	}
 
-	writeContext, cancel := context.WithTimeout(context.Background(), timeout)
+	writeContext, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	// InsertOrReplace does not support ETag concurrency, therefore we will use Insert to check for key existence
 	// and then use Update to update the key if it exists with the specified ETag
@@ -270,7 +270,7 @@ func (r *StateStore) writeRow(req *state.SetRequest) error {
 	if err != nil {
 		// If Insert failed because item already exists, try to Update instead per Upsert semantics
 		if isEntityAlreadyExistsError(err) {
-			updateContext, cancel := context.WithTimeout(context.Background(), timeout)
+			updateContext, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			// Always Update using the etag when provided even if Concurrency != FirstWrite.
 			// Today the presence of etag takes precedence over Concurrency.
@@ -337,12 +337,11 @@ func isTableAlreadyExistsError(err error) bool {
 	return false
 }
 
-func (r *StateStore) deleteRow(req *state.DeleteRequest) error {
+func (r *StateStore) deleteRow(ctx context.Context, req *state.DeleteRequest) error {
 	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDBMode)
 
-	deleteContext, cancel := context.WithTimeout(context.Background(), timeout)
+	deleteContext, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-
 	if req.ETag != nil {
 		azcoreETag := azcore.ETag(*req.ETag)
 		_, err := r.client.DeleteEntity(deleteContext, pk, rk, &aztables.DeleteEntityOptions{IfMatch: &azcoreETag})

@@ -19,6 +19,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nats-io/nats.go"
+
 	"github.com/dapr/components-contrib/pubsub"
 )
 
@@ -48,6 +50,7 @@ type metadata struct {
 	memoryStorage  bool
 	rateLimit      uint64
 	hearbeat       time.Duration
+	ackPolicy      nats.AckPolicy
 }
 
 func parseMetadata(psm pubsub.Metadata) (metadata, error) {
@@ -145,6 +148,17 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 	}
 
 	m.streamName = psm.Properties["streamName"]
+
+	switch psm.Properties["ackPolicy"] {
+	case "explicit":
+		m.ackPolicy = nats.AckExplicitPolicy
+	case "all":
+		m.ackPolicy = nats.AckAllPolicy
+	case "none":
+		m.ackPolicy = nats.AckNonePolicy
+	default:
+		m.ackPolicy = nats.AckExplicitPolicy
+	}
 
 	return m, nil
 }

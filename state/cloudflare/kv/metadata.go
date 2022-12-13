@@ -23,7 +23,6 @@ import (
 // Component metadata struct.
 type componentMetadata struct {
 	workers.BaseMetadata `mapstructure:",squash"`
-	KVNamespaceName      string `mapstructure:"kvNamespaceName"`
 	KVNamespaceID        string `mapstructure:"kvNamespaceID"`
 }
 
@@ -35,14 +34,6 @@ func (m *componentMetadata) Validate() error {
 	err := m.BaseMetadata.Validate()
 	if err != nil {
 		return err
-	}
-
-	// KVNamespaceName
-	if m.KVNamespaceName == "" {
-		return errors.New("property 'kvNamespaceName' is required")
-	}
-	if !kvNamespaceValidation.MatchString(m.KVNamespaceName) {
-		return errors.New("metadata property 'kvNamespaceName' is invalid")
 	}
 
 	// KVNamespaceID

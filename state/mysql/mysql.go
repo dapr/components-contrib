@@ -204,7 +204,12 @@ func (m *MySQL) Ping() error {
 		return sql.ErrConnDone
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), m.timeout)
+	return m.PingWithContext(context.Background())
+}
+
+// PingWithContext is like Ping but accepts a context.
+func (m *MySQL) PingWithContext(parentCtx context.Context) error {
+	ctx, cancel := context.WithTimeout(parentCtx, m.timeout)
 	defer cancel()
 	return m.db.PingContext(ctx)
 }
@@ -332,11 +337,13 @@ func tableExists(db *sql.DB, tableName string, timeout time.Duration) (bool, err
 
 // Delete removes an entity from the store
 // Store Interface.
-func (m *MySQL) Delete(req *state.DeleteRequest) error {
-	return m.deleteValue(m.db, req)
+func (m *MySQL) Delete(ctx context.Context, req *state.DeleteRequest) error {
+	return m.deleteValue(ctx, m.db, req)
 }
 
-func (m *MySQL) deleteValue(querier querier, req *state.DeleteRequest) error {
+// deleteValue is an internal implementation of delete to enable passing the
+// logic to state.DeleteWithRetries as a func.
+func (m *MySQL) deleteValue(parentCtx context.Context, querier querier, req *state.DeleteRequest) error {
 	m.logger.Debug("Deleting state value from MySql")
 
 	if req.Key == "" {
@@ -347,7 +354,8 @@ func (m *MySQL) deleteValue(querier querier, req *state.DeleteRequest) error {
 		err    error
 		result sql.Result
 	)
-	ctx, cancel := context.WithTimeout(context.Background(), m.timeout)
+
+	ctx, cancel := context.WithTimeout(parentCtx, m.timeout)
 	defer cancel()
 
 	if req.ETag == nil || *req.ETag == "" {
@@ -378,7 +386,7 @@ func (m *MySQL) deleteValue(querier querier, req *state.DeleteRequest) error {
 
 // BulkDelete removes multiple entries from the store
 // Store Interface.
-func (m *MySQL) BulkDelete(req []state.DeleteRequest) error {
+func (m *MySQL) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
 	m.logger.Debug("Executing BulkDelete request")
 
 	tx, err := m.db.Begin()
@@ -389,7 +397,7 @@ func (m *MySQL) BulkDelete(req []state.DeleteRequest) error {
 	if len(req) > 0 {
 		for _, d := range req {
 			da := d // Fix for goSec G601: Implicit memory aliasing in for loop.
-			err = m.deleteValue(tx, &da)
+			err = m.deleteValue(ctx, tx, &da)
 			if err != nil {
 				rollbackErr := tx.Rollback()
 				if rollbackErr != nil {
@@ -407,7 +415,7 @@ func (m *MySQL) BulkDelete(req []state.DeleteRequest) error {
 
 // Get returns an entity from store
 // Store Interface.
-func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (m *MySQL) Get(parentCtx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	m.logger.Debug("Getting state value from MySql")
 
 	if req.Key == "" {
@@ -420,7 +428,7 @@ func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		isBinary bool
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), m.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, m.timeout)
 	defer cancel()
 	//nolint:gosec
 	query := fmt.Sprintf(
@@ -469,11 +477,13 @@ func (m *MySQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
 
 // Set adds/updates an entity on store
 // Store Interface.
-func (m *MySQL) Set(req *state.SetRequest) error {
-	return m.setValue(m.db, req)
+func (m *MySQL) Set(ctx context.Context, req *state.SetRequest) error {
+	return m.setValue(ctx, m.db, req)
 }
 
-func (m *MySQL) setValue(querier querier, req *state.SetRequest) error {
+// setValue is an internal implementation of set to enable passing the logic
+// to state.SetWithRetries as a func.
+func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.SetRequest) error {
 	m.logger.Debug("Setting state value in MySql")
 
 	err := state.CheckRequestOptions(req.Options)
@@ -513,7 +523,8 @@ func (m *MySQL) setValue(querier querier, req *state.SetRequest) error {
 		result  sql.Result
 		maxRows int64 = 1
 	)
-	ctx, cancel := context.WithTimeout(context.Background(), m.timeout)
+
+	ctx, cancel := context.WithTimeout(parentCtx, m.timeout)
 	defer cancel()
 
 	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
@@ -571,7 +582,7 @@ func (m *MySQL) setValue(querier querier, req *state.SetRequest) error {
 
 // BulkSet adds/updates multiple entities on store
 // Store Interface.
-func (m *MySQL) BulkSet(req []state.SetRequest) error {
+func (m *MySQL) BulkSet(ctx context.Context, req []state.SetRequest) error {
 	m.logger.Debug("Executing BulkSet request")
 
 	tx, err := m.db.Begin()
@@ -581,7 +592,7 @@ func (m *MySQL) BulkSet(req []state.SetRequest) error {
 
 	if len(req) > 0 {
 		for i := range req {
-			err = m.setValue(tx, &req[i])
+			err = m.setValue(ctx, tx, &req[i])
 			if err != nil {
 				rollbackErr := tx.Rollback()
 				if rollbackErr != nil {
@@ -597,7 +608,7 @@ func (m *MySQL) BulkSet(req []state.SetRequest) error {
 
 // Multi handles multiple transactions.
 // TransactionalStore Interface.
-func (m *MySQL) Multi(request *state.TransactionalStateRequest) error {
+func (m *MySQL) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
 	m.logger.Debug("Executing Multi request")
 
 	tx, err := m.db.Begin()
@@ -617,7 +628,7 @@ func (m *MySQL) Multi(request *state.TransactionalStateRequest) error {
 				return err
 			}
 
-			err = m.setValue(tx, &setReq)
+			err = m.setValue(ctx, tx, &setReq)
 			if err != nil {
 				rollbackErr := tx.Rollback()
 				if rollbackErr != nil {
@@ -636,7 +647,7 @@ func (m *MySQL) Multi(request *state.TransactionalStateRequest) error {
 				return err
 			}
 
-			err = m.deleteValue(tx, &delReq)
+			err = m.deleteValue(ctx, tx, &delReq)
 			if err != nil {
 				rollbackErr := tx.Rollback()
 				if rollbackErr != nil {
@@ -682,7 +693,7 @@ func (m *MySQL) getDeletes(req state.TransactionalStateOperation) (state.DeleteR
 }
 
 // BulkGet performs a bulks get operations.
-func (m *MySQL) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+func (m *MySQL) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	// by default, the store doesn't support bulk get
 	// return false so daprd will fallback to call get() method one by one
 	return false, nil, nil

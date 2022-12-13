@@ -14,6 +14,7 @@ limitations under the License.
 package cassandra
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -213,12 +214,12 @@ func getCassandraMetadata(meta state.Metadata) (*cassandraMetadata, error) {
 }
 
 // Delete performs a delete operation.
-func (c *Cassandra) Delete(req *state.DeleteRequest) error {
-	return c.session.Query(fmt.Sprintf("DELETE FROM %s WHERE key = ?", c.table), req.Key).Exec()
+func (c *Cassandra) Delete(ctx context.Context, req *state.DeleteRequest) error {
+	return c.session.Query(fmt.Sprintf("DELETE FROM %s WHERE key = ?", c.table), req.Key).WithContext(ctx).Exec()
 }
 
 // Get retrieves state from cassandra with a key.
-func (c *Cassandra) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (c *Cassandra) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	session := c.session
 
 	if req.Options.Consistency == state.Strong {
@@ -237,7 +238,7 @@ func (c *Cassandra) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		session = sess
 	}
 
-	results, err := session.Query(fmt.Sprintf("SELECT value FROM %s WHERE key = ?", c.table), req.Key).Iter().SliceMap()
+	results, err := session.Query(fmt.Sprintf("SELECT value FROM %s WHERE key = ?", c.table), req.Key).WithContext(ctx).Iter().SliceMap()
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +253,7 @@ func (c *Cassandra) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // Set saves state into cassandra.
-func (c *Cassandra) Set(req *state.SetRequest) error {
+func (c *Cassandra) Set(ctx context.Context, req *state.SetRequest) error {
 	var bt []byte
 	b, ok := req.Value.([]byte)
 	if ok {
@@ -285,10 +286,10 @@ func (c *Cassandra) Set(req *state.SetRequest) error {
 	}
 
 	if ttl != nil {
-		return session.Query(fmt.Sprintf("INSERT INTO %s (key, value) VALUES (?, ?) USING TTL ?", c.table), req.Key, bt, *ttl).Exec()
+		return session.Query(fmt.Sprintf("INSERT INTO %s (key, value) VALUES (?, ?) USING TTL ?", c.table), req.Key, bt, *ttl).WithContext(ctx).Exec()
 	}
 
-	return session.Query(fmt.Sprintf("INSERT INTO %s (key, value) VALUES (?, ?)", c.table), req.Key, bt).Exec()
+	return session.Query(fmt.Sprintf("INSERT INTO %s (key, value) VALUES (?, ?)", c.table), req.Key, bt).WithContext(ctx).Exec()
 }
 
 func (c *Cassandra) createSession(consistency gocql.Consistency) (*gocql.Session, error) {

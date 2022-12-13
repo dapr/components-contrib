@@ -60,7 +60,6 @@ jobs:
         - bindings.redis
         - bindings.kubemq
         - bindings.rabbitmq
-        - pubsub.aws.snssqs
         - pubsub.hazelcast
         - pubsub.in-memory
         - pubsub.mqtt-emqx

@@ -14,6 +14,7 @@ limitations under the License.
 package redis_test
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"testing"
@@ -164,24 +165,24 @@ func TestRedis(t *testing.T) {
 		etag1 := "1"
 		etag100 := "100"
 
-		err1 := stateStore.Set(&state.SetRequest{
+		err1 := stateStore.Set(context.Background(), &state.SetRequest{
 			Key:   "k",
 			Value: "v1",
 		})
 		assert.Equal(t, nil, err1)
-		err2 := stateStore.Set(&state.SetRequest{
+		err2 := stateStore.Set(context.Background(), &state.SetRequest{
 			Key:   "k",
 			Value: "v2",
 			ETag:  &etag1,
 		})
 		assert.Equal(t, nil, err2)
-		err3 := stateStore.Set(&state.SetRequest{
+		err3 := stateStore.Set(context.Background(), &state.SetRequest{
 			Key:   "k",
 			Value: "v3",
 			ETag:  &etag100,
 		})
 		assert.Error(t, err3)
-		resp, err := stateStore.Get(&state.GetRequest{
+		resp, err := stateStore.Get(context.Background(), &state.GetRequest{
 			Key: "k",
 		})
 		assert.Equal(t, nil, err)
@@ -193,7 +194,7 @@ func TestRedis(t *testing.T) {
 
 	// Transaction related test - also for Multi
 	upsertTest := func(ctx flow.Context) error {
-		err := stateStore.Multi(&state.TransactionalStateRequest{
+		err := stateStore.Multi(context.Background(), &state.TransactionalStateRequest{
 			Operations: []state.TransactionalStateOperation{
 				{
 					Operation: state.Upsert,
@@ -245,13 +246,13 @@ func TestRedis(t *testing.T) {
 			},
 		})
 		assert.Equal(t, nil, err)
-		resp1, err := stateStore.Get(&state.GetRequest{
+		resp1, err := stateStore.Get(context.Background(), &state.GetRequest{
 			Key: "reqKey1",
 		})
 		assert.Equal(t, "2", *resp1.ETag)
 		assert.Equal(t, "\"reqVal101\"", string(resp1.Data))
 
-		resp3, err := stateStore.Get(&state.GetRequest{
+		resp3, err := stateStore.Get(context.Background(), &state.GetRequest{
 			Key: "reqKey3",
 		})
 		assert.Equal(t, "2", *resp3.ETag)

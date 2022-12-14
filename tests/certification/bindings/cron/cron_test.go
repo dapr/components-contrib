@@ -46,15 +46,15 @@ type cronTest struct {
 	clk                      *clock.Mock   // mock clock
 }
 
+// starting time for the mock clock
+var startTime = time.Date(2022, time.January, 1, 0, 0, 0, 0, time.UTC)
+
 // Test cron triggers with different schedules
 //
 //nolint:dupword
 func TestCronBindingTrigger(t *testing.T) {
 	appName := "cronapp"
 	sidecarName := "cron-sidecar"
-
-	// starting time for the mock clock
-	startTime := time.Date(2022, time.January, 1, 0, 0, 0, 0, time.UTC)
 
 	testMatrix := []cronTest{
 		{
@@ -66,26 +66,26 @@ func TestCronBindingTrigger(t *testing.T) {
 		{
 			cronName:                 "cron3s",
 			schedule:                 "*/3 * * * * *", // Test non-standard crontab format
-			expectedTriggerCount:     5,
-			timeoutToObserveTriggers: time.Second * 15,
+			expectedTriggerCount:     10,
+			timeoutToObserveTriggers: time.Second * 30,
 		},
 		{
 			cronName:                 "cron15m",
 			schedule:                 "*/15 * * * *", // Test standard crontab format
-			expectedTriggerCount:     4,
-			timeoutToObserveTriggers: time.Hour * 1,
+			expectedTriggerCount:     12,
+			timeoutToObserveTriggers: time.Hour * 3,
 		},
 		{
 			cronName:                 "cron6h",
 			schedule:                 "0 0 */6 ? * *", // Test quartz cron format
-			expectedTriggerCount:     4,
-			timeoutToObserveTriggers: time.Hour * 24,
+			expectedTriggerCount:     12,
+			timeoutToObserveTriggers: time.Hour * 24 * 3,
 		},
 		{
 			cronName:                 "cronMonthly",
 			schedule:                 "0 0 1 * *", // Test standard cron format
-			expectedTriggerCount:     1,
-			timeoutToObserveTriggers: time.Hour * 24 * 31, // Add 31 days to the mock clock
+			expectedTriggerCount:     10,
+			timeoutToObserveTriggers: time.Hour * 24 * 31 * 10, // Add 10 months to the mock clock
 		},
 	}
 
@@ -102,7 +102,7 @@ func TestCronBindingTrigger(t *testing.T) {
 		observedTriggerCount := 0
 
 		flow.New(t, "test cron trigger with different schedules").
-			Step(app.Run(appName, fmt.Sprintf(":%d", appPort), appWithTriggerCounter(t, cronTest.cronName, &observedTriggerCount))).
+			Step(app.Run(appName, fmt.Sprintf(":%d", appPort), appWithTriggerCounter(t, cronTest.clk, cronTest.cronName, &observedTriggerCount))).
 			Step(sidecar.Run(sidecarName,
 				embedded.WithComponentsPath("./components"),
 				embedded.WithDaprGRPCPort(grpcPort),
@@ -137,9 +137,10 @@ func TestCronBindingsWithSameRoute(t *testing.T) {
 	timeoutToObserveTriggers := time.Second * 15
 
 	clk := clock.NewMock()
+	clk.Set(startTime)
 
 	flow.New(t, "test cron bindings with different schedules and same route").
-		Step(app.Run(appName, fmt.Sprintf(":%d", appPort), appWithTriggerCounter(t, cronName, &observedTriggerCount))).
+		Step(app.Run(appName, fmt.Sprintf(":%d", appPort), appWithTriggerCounter(t, clk, cronName, &observedTriggerCount))).
 		Step(sidecar.Run(sidecarName,
 			embedded.WithComponentsPath("./components_sameroute"),
 			embedded.WithDaprGRPCPort(grpcPort),
@@ -177,9 +178,10 @@ func TestCronBindingWithAppRestart(t *testing.T) {
 	waitBeforeAppRestart := time.Second * 5
 
 	clk := clock.NewMock()
+	clk.Set(startTime)
 
 	flow.New(t, "test cron trigger schedule @every3s with app restart").
-		Step(app.Run(appName, fmt.Sprintf(":%d", appPort), appWithTriggerCounter(t, cronName, &observedTriggerCount))).
+		Step(app.Run(appName, fmt.Sprintf(":%d", appPort), appWithTriggerCounter(t, clk, cronName, &observedTriggerCount))).
 		Step(sidecar.Run(sidecarName,
 			embedded.WithComponentsPath("./components"),
 			embedded.WithDaprGRPCPort(grpcPort),
@@ -189,8 +191,8 @@ func TestCronBindingWithAppRestart(t *testing.T) {
 		)).
 		Step("allow cron to trigger once", addTimeToMockClock(clk, waitBeforeAppStop), flow.Sleep(waitBeforeAppStop)).
 		Step("stop app", app.Stop(appName)).
-		Step("wait before app restart", addTimeToMockClock(clk, waitBeforeAppRestart), flow.Sleep(waitBeforeAppRestart)).
-		Step(app.Run(appName, fmt.Sprintf(":%d", appPort), appWithTriggerCounter(t, cronName, &observedTriggerCount))).
+		Step("wait before app restart", flow.Sleep(waitBeforeAppRestart)).
+		Step(app.Run(appName, fmt.Sprintf(":%d", appPort), appWithTriggerCounter(t, clk, cronName, &observedTriggerCount))).
 		Step("advance the clock time", addTimeToMockClock(clk, timeoutToObserveTriggers)).
 		Step("assert cron triggered within deadline", assertTriggerCount(t, expectedTriggerCount, &observedTriggerCount)).
 		Step("stop sidecar", sidecar.Stop(sidecarName)).
@@ -221,9 +223,10 @@ func TestCronBindingWithSidecarRestart(t *testing.T) {
 	waitBeforeSidecarRestart := time.Second * 5
 
 	clk := clock.NewMock()
+	clk.Set(startTime)
 
 	flow.New(t, "test cron trigger schedule @every 3s with sidecar restart").
-		Step(app.Run(appName, fmt.Sprintf(":%d", appPort), appWithTriggerCounter(t, cronName, &observedTriggerCount))).
+		Step(app.Run(appName, fmt.Sprintf(":%d", appPort), appWithTriggerCounter(t, clk, cronName, &observedTriggerCount))).
 		Step(sidecar.Run(sidecarName,
 			embedded.WithComponentsPath("./components"),
 			embedded.WithDaprGRPCPort(grpcPort),
@@ -233,7 +236,7 @@ func TestCronBindingWithSidecarRestart(t *testing.T) {
 		)).
 		Step("allow cron to trigger once", addTimeToMockClock(clk, waitBeforeSidecarStop), flow.Sleep(waitBeforeSidecarStop)).
 		Step("stop sidecar", sidecar.Stop(sidecarName)).
-		Step("wait before sidecar restart", addTimeToMockClock(clk, waitBeforeSidecarRestart), flow.Sleep(waitBeforeSidecarRestart)).
+		Step("wait before sidecar restart", flow.Sleep(waitBeforeSidecarRestart)).
 		Step(sidecar.Run(sidecarName,
 			embedded.WithComponentsPath("./components"),
 			embedded.WithDaprGRPCPort(grpcPort),
@@ -248,11 +251,11 @@ func TestCronBindingWithSidecarRestart(t *testing.T) {
 		Run()
 }
 
-func appWithTriggerCounter(t *testing.T, cronName string, triggeredCount *int) func(ctx flow.Context, s common.Service) error {
+func appWithTriggerCounter(t *testing.T, clk *clock.Mock, cronName string, triggeredCount *int) func(ctx flow.Context, s common.Service) error {
 	return func(ctx flow.Context, s common.Service) error {
 		// Setup the input binding endpoint
 		err := s.AddBindingInvocationHandler(cronName, func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
-			ctx.Logf("Cron triggered at %s", time.Now().String())
+			ctx.Logf("Cron triggered at %s", clk.Now().String())
 			(*triggeredCount)++
 			return []byte("{}"), nil
 		})
@@ -264,14 +267,16 @@ func appWithTriggerCounter(t *testing.T, cronName string, triggeredCount *int) f
 func addTimeToMockClock(clk *clock.Mock, timeToAdd time.Duration) func(ctx flow.Context) error {
 	return func(ctx flow.Context) error {
 		clk.Add(timeToAdd)
+		// Wait for 1 second after adding time to mock clock to allow cron goroutine to run
+		time.Sleep(time.Second)
 		return nil
 	}
 }
 
 func assertTriggerCount(t *testing.T, expectedTriggerCount int, observedTriggerCount *int) func(ctx flow.Context) error {
 	return func(ctx flow.Context) error {
-		// allow up to 1 extra trigger to account for additional timeout(@schedule interval of cron trigger) provided in the tests
-		if *observedTriggerCount != expectedTriggerCount && *observedTriggerCount != expectedTriggerCount+1 {
+		// allow up to 1 less or extra trigger to account for additional timeout(@schedule interval of cron trigger) provided in the tests or if unable to observe up to 1 trigger during app or sidecar restart
+		if !(*observedTriggerCount >= expectedTriggerCount-1 && *observedTriggerCount <= expectedTriggerCount+1) {
 			t.Errorf("expected %d triggers, got %d", expectedTriggerCount, *observedTriggerCount)
 		}
 		return nil

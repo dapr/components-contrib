@@ -14,7 +14,7 @@ limitations under the License.
 package azure
 
 import (
-	amqpaad "github.com/Azure/azure-amqp-common-go/v4/aad"
+	amqpaad "github.com/Azure/azure-amqp-common-go/v3/aad"
 )
 
 const (

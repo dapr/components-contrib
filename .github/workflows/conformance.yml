@@ -78,7 +78,6 @@ jobs:
         - secretstores.localfile
         - secretstores.hashicorp.vault
         - state.cassandra
-        - state.cloudflare.kv
         - state.memcached
         - state.mongodb
         - state.mysql.mysql

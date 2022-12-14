@@ -145,6 +145,7 @@ func (k *jwksCrypto) initJWKS(md string) error {
 
 		// Start watching for changes in the filesystem
 		eventCh := make(chan struct{})
+		firstLoad := make(chan struct{})
 		go func() {
 			watchErr := fswatcher.Watch(k.ctx, path, eventCh)
 			if watchErr != nil && !errors.Is(watchErr, context.Canceled) {
@@ -158,14 +159,19 @@ func (k *jwksCrypto) initJWKS(md string) error {
 				case <-eventCh:
 					// When there's a change, reload the JWKS file
 					k.parseJWKSFile(md)
+					if firstLoad != nil {
+						close(firstLoad)
+						firstLoad = nil
+					}
 				case <-k.ctx.Done():
 					return
 				}
 			}
 		}()
 
-		// Trigger a refresh immediately
+		// Trigger a refresh immediately and wait for the first reload
 		eventCh <- struct{}{}
+		<-firstLoad
 		return nil
 	}
 

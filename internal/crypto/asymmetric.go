@@ -94,6 +94,7 @@ func DecryptPrivateKey(ciphertext []byte, algorithm string, key jwk.Key, associa
 }
 
 // SignPrivateKey creates a signature from a digest using a private key and the specified algorithm.
+// Note: when using EdDSA, the message gets hashed as part of the signing process, so users should normally pass the full message for the "digest" parameter.
 func SignPrivateKey(digest []byte, algorithm string, key jwk.Key) (signature []byte, err error) {
 	switch algorithm {
 	case Algorithm_RS256, Algorithm_RS384, Algorithm_RS512:
@@ -121,8 +122,7 @@ func SignPrivateKey(digest []byte, algorithm string, key jwk.Key) (signature []b
 		}
 		return append(r.Bytes(), s.Bytes()...), nil
 
-	// Note that EdDSA hashes the message, so if a digest is passed, it will be hashed again
-	case "EdDSA":
+	case Algorithm_EdDSA:
 		if key.KeyType() != jwa.OKP {
 			return nil, ErrKeyTypeMismatch
 		}
@@ -199,8 +199,7 @@ func VerifyPublicKey(digest []byte, signature []byte, algorithm string, key jwk.
 
 		return ecdsa.Verify(ecdsaKey, digest, r, s), nil
 
-	// Note that EdDSA hashes the message, so if a digest is passed, it will be hashed again
-	case "EdDSA":
+	case Algorithm_EdDSA:
 		if key.KeyType() != jwa.OKP {
 			return false, ErrKeyTypeMismatch
 		}

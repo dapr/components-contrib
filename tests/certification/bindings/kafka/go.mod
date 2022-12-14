@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/Shopify/sarama v1.37.2
 	github.com/cenkalti/backoff/v4 v4.2.0
-	github.com/dapr/components-contrib v1.9.1-0.20221203215942-a4b27ae49b7c
+	github.com/dapr/components-contrib v1.9.1-0.20221213185150-c5c985a68514
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20220519061249-c2cb1dad5bb0
 	github.com/dapr/dapr v1.9.4-0.20221121055721-6683f7582ac4
 	github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721
@@ -157,6 +157,6 @@ require (
 
 replace github.com/dapr/components-contrib/tests/certification => ../../
 
-replace github.com/dapr/dapr => github.com/mukundansundar/dapr v0.7.1-0.20221213115421-c112fb4ff0f4
+replace github.com/dapr/dapr => github.com/mukundansundar/dapr v0.7.1-0.20221214060805-f7f65f61c0bb
 
 replace github.com/dapr/components-contrib => ../../../../

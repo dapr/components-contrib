@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/cenkalti/backoff/v4 v4.2.0
-	github.com/dapr/components-contrib v1.9.1-0.20221203215942-a4b27ae49b7c
+	github.com/dapr/components-contrib v1.9.1-0.20221130202810-7d466c713020
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
 	github.com/dapr/dapr v1.9.4-0.20221121055721-6683f7582ac4
 	github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721

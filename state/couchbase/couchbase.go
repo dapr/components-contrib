@@ -14,6 +14,7 @@ limitations under the License.
 package couchbase
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -160,7 +161,7 @@ func (cbs *Couchbase) Features() []state.Feature {
 }
 
 // Set stores value for a key to couchbase. It honors ETag (for concurrency) and consistency settings.
-func (cbs *Couchbase) Set(req *state.SetRequest) error {
+func (cbs *Couchbase) Set(ctx context.Context, req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
@@ -204,7 +205,7 @@ func (cbs *Couchbase) Set(req *state.SetRequest) error {
 }
 
 // Get retrieves state from couchbase with a key.
-func (cbs *Couchbase) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (cbs *Couchbase) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	var data interface{}
 	cas, err := cbs.bucket.Get(req.Key, &data)
 	if err != nil {
@@ -222,7 +223,7 @@ func (cbs *Couchbase) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // Delete performs a delete operation.
-func (cbs *Couchbase) Delete(req *state.DeleteRequest) error {
+func (cbs *Couchbase) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err

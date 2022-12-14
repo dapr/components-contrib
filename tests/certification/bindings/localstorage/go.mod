@@ -3,7 +3,7 @@ module github.com/dapr/components-contrib/tests/certification/bindings/localstor
 go 1.19
 
 require (
-	github.com/dapr/components-contrib v1.9.1-0.20221130202810-7d466c713020
+	github.com/dapr/components-contrib v1.9.1-0.20221203215942-a4b27ae49b7c
 	github.com/dapr/components-contrib/tests/certification v0.0.0-00010101000000-000000000000
 	github.com/dapr/dapr v1.9.4-0.20221121055721-6683f7582ac4
 	github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721
@@ -141,4 +141,3 @@ replace github.com/dapr/dapr => github.com/mukundansundar/dapr v0.7.1-0.20221213
 replace github.com/dapr/components-contrib => ../../../..
 
 replace github.com/dapr/components-contrib/tests/certification => ../..
-

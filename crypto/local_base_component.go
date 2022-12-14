@@ -29,7 +29,7 @@ var ErrKeyNotFound = errors.New("key not found")
 
 // LocalCryptoBaseComponent is an "abstract" component that performs cryptographic operations locally in the Dapr runtime.
 // Concrete implementations build on top of this component and just need to provide retrieveKeyFromSecret.
-// Examples of components that build on top of this: crypto.kubernetes.secrets
+// Examples of components that build on top of this: crypto.kubernetes.secrets, crypto.jwks
 type LocalCryptoBaseComponent struct {
 	// RetrieveKeyFn is the function used to retrieve a key, and must be passed by concrete implementations
 	RetrieveKeyFn func(parentCtx context.Context, key string) (jwk.Key, error)

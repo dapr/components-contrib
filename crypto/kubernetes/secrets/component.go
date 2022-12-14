@@ -51,7 +51,7 @@ func NewKubeSecretsCrypto(_ logger.Logger) daprcrypto.SubtleCrypto {
 	return k
 }
 
-// Init creates a Kubernetes secrets crypto provider.
+// Init the crypto provider.
 func (k *kubeSecretsCrypto) Init(metadata daprcrypto.Metadata) error {
 	if len(metadata.Properties) > 0 {
 		if metadata.Properties[metadataKeyDefaultNamespace] != "" {

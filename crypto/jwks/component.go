@@ -65,7 +65,7 @@ func NewJWKSCrypto(logger logger.Logger) daprcrypto.SubtleCrypto {
 	return k
 }
 
-// Init creates a Kubernetes secrets crypto provider.
+// Init the crypto provider.
 func (k *jwksCrypto) Init(metadata daprcrypto.Metadata) error {
 	if len(metadata.Properties) == 0 {
 		return errors.New("empty metadata properties")

@@ -48,7 +48,48 @@ jobs:
       id: pr-components
       run: |
         PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
+        - bindings.cron
+        - bindings.http
+        - bindings.influx
+        - bindings.kafka-wurstmeister
+        - bindings.kafka-confluent
+        - bindings.mqtt-emqx
+        - bindings.mqtt-mosquitto
+        - bindings.mqtt-vernemq
+        - bindings.postgres
+        - bindings.redis
+        - bindings.kubemq
+        - bindings.rabbitmq
+        - pubsub.aws.snssqs
+        - pubsub.hazelcast
+        - pubsub.in-memory
+        - pubsub.mqtt-emqx
+        - pubsub.mqtt-mosquitto
+        - pubsub.mqtt-vernemq
+        - pubsub.natsstreaming
+        - pubsub.pulsar
+        - pubsub.rabbitmq
+        - pubsub.redis
+        - pubsub.kafka-wurstmeister
+        - pubsub.kafka-confluent
+        - pubsub.kubemq
+        - secretstores.kubernetes
+        - secretstores.localenv
+        - secretstores.localfile
+        - secretstores.hashicorp.vault
+        - state.cassandra
         - state.cloudflare.kv
+        - state.memcached
+        - state.mongodb
+        - state.mysql.mysql
+        - state.mysql.mariadb
+        - state.postgresql
+        - state.redis
+        - state.sqlserver
+        - state.in-memory
+        - state.cockroachdb
+        - workflows.temporal
+        - state.rethinkdb
         EOF
         )
         echo "pr-components=$PR_COMPONENTS" >> $GITHUB_OUTPUT

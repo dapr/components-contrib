@@ -48,6 +48,25 @@ jobs:
       id: pr-components
       run: |
         PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
+        - pubsub.kafka
+        - pubsub.rabbitmq
+        - pubsub.mqtt
+        - state.mongodb
+        - state.redis
+        - state.cockroachdb
+        - state.postgresql
+        - state.cassandra
+        - state.memcached
+        - state.mysql
+        - bindings.alicloud.dubbo
+        - bindings.kafka
+        - bindings.redis
+        - bindings.cron
+        - secretstores.local.env
+        - secretstores.local.file
+        - secretstores.hashicorp.vault
+        - bindings.rabbitmq
+        - bindings.localstorage
         - bindings.postgres
         EOF
         )

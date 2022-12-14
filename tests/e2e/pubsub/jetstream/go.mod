@@ -10,7 +10,6 @@ require (
 require (
 	github.com/cenkalti/backoff/v4 v4.2.0 // indirect
 	github.com/google/uuid v1.3.0 // indirect
-	github.com/klauspost/compress v1.15.12 // indirect
 	github.com/mitchellh/mapstructure v1.5.1-0.20220423185008-bf980b35cac4 // indirect
 	github.com/nats-io/nats.go v1.19.1 // indirect
 	github.com/nats-io/nkeys v0.3.0 // indirect
@@ -23,4 +22,4 @@ require (
 
 replace github.com/dapr/components-contrib => ../../../../
 
-replace github.com/dapr/dapr => github.com/1046102779/dapr 5e82abca
+replace github.com/dapr/dapr => github.com/1046102779/dapr v0.0.0-20221214124410-5e82abca48ab

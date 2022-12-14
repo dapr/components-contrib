@@ -51,13 +51,13 @@ jobs:
         - state.cloudflare.kv
         EOF
         )
-        echo "::set-output name=pr-components::$PR_COMPONENTS"
+        echo "pr-components=$PR_COMPONENTS" >> $GITHUB_OUTPUT
 
     - name: Specify components requiring secrets or certs
       id: cron-components
       run: |
         if [ "${{ github.event_name }}" = "pull_request" ]; then
-          echo "::set-output name=cron-components::[]"
+          echo "cron-components=[]" >> $GITHUB_OUTPUT
           exit
         fi
         # Unfortunately, Azure secrets can't have underscores in
@@ -109,7 +109,7 @@ jobs:
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
         EOF
         )
-        echo "::set-output name=cron-components::$CRON_COMPONENTS"
+        echo "cron-components=$CRON_COMPONENTS" >> $GITHUB_OUTPUT
 
     - name: Create PR comment
       if: env.PR_NUMBER != ''

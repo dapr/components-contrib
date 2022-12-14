@@ -51,7 +51,7 @@ jobs:
         - bindings.postgres
         EOF
         )
-        echo "::set-output name=pr-components::$PR_COMPONENTS"
+        echo "pr-components=$PR_COMPONENTS" >> $GITHUB_OUTPUT
 
     - name: Specify components requiring cloud resources to run
       id: cloud-components
@@ -59,7 +59,7 @@ jobs:
         # Skip cloud-components on PRs, requires scheduled run trigger
         # or approver to trigger via respository-dispatch on /ok-to-test
         if [ "${{ github.event_name }}" = "pull_request" ]; then
-          echo "::set-output name=cloud-components::[]"
+          echo "cloud-components=[]" >> $GITHUB_OUTPUT
           exit
         fi
         # Reuse the same cloud infrastructure as conformance.yml
@@ -105,7 +105,7 @@ jobs:
           required-secrets: AzureCosmosDBMasterKey, AzureCosmosDBUrl, AzureCosmosDB, AzureCosmosDBCollection, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret    
         EOF
         )
-        echo "::set-output name=cloud-components::$CRON_COMPONENTS"
+        echo "cloud-components=$CRON_COMPONENTS" >> $GITHUB_OUTPUT
 
     - name: Create PR comment
       if: env.PR_NUMBER != ''

@@ -86,7 +86,7 @@ func (k *localStorageCrypto) Features() []daprcrypto.Feature {
 }
 
 // Retrieves a key (public or private or symmetric) from a local file.
-// Paramter "key" must be the name of a file inside the "path"
+// Parameter "key" must be the name of a file inside the "path"
 func (k *localStorageCrypto) retrieveKey(parentCtx context.Context, key string) (jwk.Key, error) {
 	// Load the file
 	path := filepath.Join(k.path, key)

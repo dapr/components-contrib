@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/dapr/components-contrib v1.9.1
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20221111215803-c92827c3defc
-	github.com/dapr/dapr v1.9.4-0.20221121055721-6683f7582ac4
+	github.com/dapr/dapr v1.9.4-0.20221213225218-374a582b03d9
 	github.com/dapr/go-sdk v1.6.0
 	github.com/dapr/kit v0.0.3
 	github.com/google/uuid v1.3.0

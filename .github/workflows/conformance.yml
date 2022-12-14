@@ -148,6 +148,7 @@ jobs:
           required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret
         - component: bindings.azure.cosmosdb
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
+        - component: state.cloudflare.kv
         EOF
         )
         echo "cron-components=$CRON_COMPONENTS" >> $GITHUB_OUTPUT

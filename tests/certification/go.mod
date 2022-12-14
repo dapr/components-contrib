@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/dapr/components-contrib v1.9.6
-	github.com/dapr/dapr v1.9.5
+	github.com/dapr/dapr v1.9.4-0.20221213222644-64d468a693f1
 	github.com/dapr/go-sdk v1.6.0
 	github.com/dapr/kit v0.0.3
 	github.com/google/go-cmp v0.5.9
@@ -140,7 +140,7 @@ require (
 
 )
 
-replace github.com/dapr/dapr => github.com/1046102779/dapr v0.0.0-20221208082204-c47f9f07131e
+replace github.com/dapr/dapr => github.com/dapr/dapr v1.9.4-0.20221213222644-64d468a693f1
 
 replace github.com/dapr/components-contrib => ../../
 

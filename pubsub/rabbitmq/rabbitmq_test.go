@@ -135,13 +135,13 @@ func TestPublishAndSubscribe(t *testing.T) {
 	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic}, handler)
 	assert.Nil(t, err)
 
-	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
+	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
 	assert.Nil(t, err)
 	<-processed
 	assert.Equal(t, 1, messageCount)
 	assert.Equal(t, "hello world", lastMessage)
 
-	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
+	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
 	assert.Nil(t, err)
 	<-processed
 	assert.Equal(t, 2, messageCount)
@@ -178,13 +178,13 @@ func TestPublishReconnect(t *testing.T) {
 	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic}, handler)
 	assert.Nil(t, err)
 
-	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
+	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
 	assert.Nil(t, err)
 	<-processed
 	assert.Equal(t, 1, messageCount)
 	assert.Equal(t, "hello world", lastMessage)
 
-	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte(errorChannelConnection)})
+	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte(errorChannelConnection)})
 	assert.NotNil(t, err)
 	assert.Equal(t, 1, messageCount)
 	assert.Equal(t, "hello world", lastMessage)
@@ -192,7 +192,7 @@ func TestPublishReconnect(t *testing.T) {
 	assert.Equal(t, 3, broker.connectCount) // three counts - one initial connection plus 2 reconnect attempts
 	assert.Equal(t, 4, broker.closeCount)   // four counts - one for connection, one for channel , times 2 reconnect attempts
 
-	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
+	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
 	assert.Nil(t, err)
 	<-processed
 	assert.Equal(t, 2, messageCount)
@@ -229,7 +229,7 @@ func TestPublishReconnectAfterClose(t *testing.T) {
 	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic}, handler)
 	assert.Nil(t, err)
 
-	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
+	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
 	assert.Nil(t, err)
 	<-processed
 	assert.Equal(t, 1, messageCount)
@@ -240,7 +240,7 @@ func TestPublishReconnectAfterClose(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, 2, broker.closeCount) // two counts - one for connection, one for channel
 
-	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte(errorChannelConnection)})
+	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte(errorChannelConnection)})
 	assert.NotNil(t, err)
 	assert.Equal(t, 1, messageCount)
 	assert.Equal(t, "hello world", lastMessage)
@@ -306,13 +306,13 @@ func TestSubscribeReconnect(t *testing.T) {
 	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic}, handler)
 	assert.Nil(t, err)
 
-	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
+	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
 	assert.Nil(t, err)
 	<-processed
 	assert.Equal(t, 1, messageCount)
 	assert.Equal(t, "hello world", lastMessage)
 
-	err = pubsubRabbitMQ.Publish(&pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
+	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
 	assert.Nil(t, err)
 	<-processed
 	assert.Equal(t, 2, messageCount)

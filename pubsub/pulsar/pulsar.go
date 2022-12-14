@@ -201,7 +201,7 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 	return nil
 }
 
-func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
+func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	var (
 		producer pulsar.Producer
 		msg      *pulsar.ProducerMessage
@@ -231,7 +231,7 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 	if err != nil {
 		return err
 	}
-	if _, err = producer.Send(p.publishCtx, msg); err != nil {
+	if _, err = producer.Send(ctx, msg); err != nil {
 		return err
 	}
 

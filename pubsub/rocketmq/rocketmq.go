@@ -312,7 +312,7 @@ func (r *rocketMQ) resetProducer() {
 	r.producer = nil
 }
 
-func (r *rocketMQ) Publish(req *pubsub.PublishRequest) error {
+func (r *rocketMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	r.logger.Debugf("rocketmq publish topic:%s with data:%v", req.Topic, req.Data)
 	msg := primitive.NewMessage(req.Topic, req.Data)
 	for k, v := range req.Metadata {
@@ -331,7 +331,7 @@ func (r *rocketMQ) Publish(req *pubsub.PublishRequest) error {
 	if e != nil {
 		return fmt.Errorf("rocketmq message send fail because producer failed to initialize: %v", e)
 	}
-	result, e := producer.SendSync(r.ctx, msg)
+	result, e := producer.SendSync(ctx, msg)
 	if e != nil {
 		r.resetProducer()
 		m := fmt.Sprintf("rocketmq message send fail, topic[%s]: %v", req.Topic, e)

@@ -47,7 +47,7 @@ func (a *bus) Init(metadata pubsub.Metadata) error {
 	return nil
 }
 
-func (a *bus) Publish(req *pubsub.PublishRequest) error {
+func (a *bus) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	a.bus.Publish(req.Topic, req.Data)
 
 	return nil

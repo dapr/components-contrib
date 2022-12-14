@@ -61,7 +61,7 @@ func TestRocketMQ_Publish_Currently(t *testing.T) {
 		Topic:      "ZCY_ZHIXING_TEST_test",
 		Metadata:   map[string]string{},
 	}
-	e = r.Publish(req)
+	e = r.Publish(context.Background(), req)
 	if e != nil {
 		l.Error(e)
 		return
@@ -79,7 +79,7 @@ func TestRocketMQ_Publish_Currently(t *testing.T) {
 			"traceId":              "4a09073987b148348ae0420435cddf5e",
 		},
 	}
-	e = r.Publish(req)
+	e = r.Publish(context.Background(), req)
 	assert.Nil(t, e)
 
 	req = &pubsub.PublishRequest{
@@ -92,7 +92,7 @@ func TestRocketMQ_Publish_Currently(t *testing.T) {
 			"rocketmq-shardingkey": "key",
 		},
 	}
-	e = r.Publish(req)
+	e = r.Publish(context.Background(), req)
 	assert.Nil(t, e)
 
 	req = &pubsub.PublishRequest{
@@ -105,7 +105,7 @@ func TestRocketMQ_Publish_Currently(t *testing.T) {
 			"rocketmq-shardingkey": "key",
 		},
 	}
-	e = r.Publish(req)
+	e = r.Publish(context.Background(), req)
 	assert.Nil(t, e)
 }
 
@@ -124,7 +124,7 @@ func TestRocketMQ_Publish_Orderly(t *testing.T) {
 			"rocketmq-queue":       "2",
 		},
 	}
-	e = r.Publish(req)
+	e = r.Publish(context.Background(), req)
 	if e != nil {
 		l.Error(e)
 		return
@@ -142,7 +142,7 @@ func TestRocketMQ_Publish_Orderly(t *testing.T) {
 			"rocketmq-queue":       "3",
 		},
 	}
-	e = r.Publish(req)
+	e = r.Publish(context.Background(), req)
 	assert.Nil(t, e)
 
 	req = &pubsub.PublishRequest{
@@ -155,7 +155,7 @@ func TestRocketMQ_Publish_Orderly(t *testing.T) {
 			"rocketmq-shardingkey": "sKey",
 		},
 	}
-	e = r.Publish(req)
+	e = r.Publish(context.Background(), req)
 	assert.Nil(t, e)
 }
 

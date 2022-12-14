@@ -90,7 +90,7 @@ func (js *jetstreamPubSub) Features() []pubsub.Feature {
 	return nil
 }
 
-func (js *jetstreamPubSub) Publish(req *pubsub.PublishRequest) error {
+func (js *jetstreamPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	var opts []nats.PubOpt
 	var msgID string
 

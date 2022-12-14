@@ -243,11 +243,11 @@ func parseMetadataProperty(val string) (string, error) {
 	case strings.EqualFold(val, generateEd25519PrivateKey):
 		_, pk, err := ed25519.GenerateKey(rand.Reader)
 		if err != nil {
-			return "", fmt.Errorf("Failed to generate Ed25519 private key: %w", err)
+			return "", fmt.Errorf("failed to generate Ed25519 private key: %w", err)
 		}
 		der, err := x509.MarshalPKCS8PrivateKey(pk)
 		if err != nil {
-			return "", fmt.Errorf("Failed to marshal Ed25519 private key to X.509: %w", err)
+			return "", fmt.Errorf("failed to marshal Ed25519 private key to X.509: %w", err)
 		}
 		pemB := pem.EncodeToMemory(&pem.Block{
 			Type:  "PRIVATE KEY",

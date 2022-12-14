@@ -60,6 +60,8 @@ jobs:
         - bindings.redis
         - bindings.kubemq
         - bindings.rabbitmq
+        - crypto.localstorage
+        - crypto.jwks
         - pubsub.aws.snssqs
         - pubsub.hazelcast
         - pubsub.in-memory

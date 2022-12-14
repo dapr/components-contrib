@@ -4,9 +4,9 @@ go 1.19
 
 require (
 	github.com/benbjohnson/clock v1.3.0
-	github.com/dapr/components-contrib v1.9.1-0.20221130202810-7d466c713020
+	github.com/dapr/components-contrib v1.9.1-0.20221213185150-c5c985a68514
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20220519061249-c2cb1dad5bb0
-	github.com/dapr/dapr v1.9.4-0.20221121055721-6683f7582ac4
+	github.com/dapr/dapr v1.9.4-0.20221213225218-374a582b03d9
 	github.com/dapr/go-sdk v1.6.0
 	github.com/dapr/kit v0.0.3
 	github.com/stretchr/testify v1.8.1
@@ -139,8 +139,6 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
-
-replace github.com/dapr/dapr => github.com/1046102779/dapr v0.0.0-20221208082204-c47f9f07131e
 
 replace github.com/dapr/components-contrib/tests/certification => ../../
 

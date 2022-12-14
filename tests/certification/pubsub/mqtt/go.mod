@@ -4,9 +4,9 @@ go 1.19
 
 require (
 	github.com/cenkalti/backoff/v4 v4.2.0
-	github.com/dapr/components-contrib v1.9.1-0.20221130202810-7d466c713020
+	github.com/dapr/components-contrib v1.9.1-0.20221213185150-c5c985a68514
 	github.com/dapr/components-contrib/tests/certification v1.4.0-rc2
-	github.com/dapr/dapr v1.9.4-0.20221121055721-6683f7582ac4
+	github.com/dapr/dapr v1.9.4-0.20221213225218-374a582b03d9
 	github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721
 	github.com/dapr/kit v0.0.3
 	github.com/eclipse/paho.mqtt.golang v1.4.2
@@ -145,5 +145,3 @@ require (
 replace github.com/dapr/components-contrib/tests/certification => ../../
 
 replace github.com/dapr/components-contrib => ../../../../
-
-replace github.com/dapr/dapr => github.com/1046102779/dapr v0.0.0-20221208082204-c47f9f07131e

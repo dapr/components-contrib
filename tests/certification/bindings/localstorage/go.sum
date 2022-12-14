@@ -33,8 +33,6 @@ cloud.google.com/go/storage v1.10.0/go.mod h1:FLPqc6j+Ki4BU591ie1oL6qBQGu2Bl/tZ9
 contrib.go.opencensus.io/exporter/prometheus v0.4.2 h1:sqfsYl5GIY/L570iT+l93ehxaWJs2/OwXtiWwew3oAg=
 contrib.go.opencensus.io/exporter/prometheus v0.4.2/go.mod h1:dvEHbiKmgvbr5pjaF9fpw1KeYcjrnC1J8B+JKjsZyRQ=
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
-github.com/1046102779/dapr v0.0.0-20221208082204-c47f9f07131e h1:rlo0RzWa0GoqgJv+7dMc7vZiLrdFHmiQvXzsgDwNm9s=
-github.com/1046102779/dapr v0.0.0-20221208082204-c47f9f07131e/go.mod h1:ALoOl2/0F35j/j7nsapVYYLYAcaGiO/tJA8leATqO50=
 github.com/AdhityaRamadhanus/fasthttpcors v0.0.0-20170121111917-d4c07198763a h1:XVdatQFSP2YhJGjqLLIfW8QBk4loz/SCe/PxkXDiW+s=
 github.com/AdhityaRamadhanus/fasthttpcors v0.0.0-20170121111917-d4c07198763a/go.mod h1:C0A1KeiVHs+trY6gUTPhhGammbrZ30ZfXRW/nuT7HLw=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
@@ -94,6 +92,8 @@ github.com/cncf/xds/go v0.0.0-20211011173535-cb28da3451f1/go.mod h1:eXthEFrGJvWH
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/cyphar/filepath-securejoin v0.2.3 h1:YX6ebbZCZP7VkM3scTTokDgBL2TY741X51MTk3ycuNI=
 github.com/cyphar/filepath-securejoin v0.2.3/go.mod h1:aPGpWjXOXUn2NCNjFvBE6aRxGGx79pTxQpKOJNYHHl4=
+github.com/dapr/dapr v1.9.4-0.20221213225218-374a582b03d9 h1:7WzuDHZm9l7J1zdRCgjMNUgTt5kX9oXx36SxeMBWAD4=
+github.com/dapr/dapr v1.9.4-0.20221213225218-374a582b03d9/go.mod h1:uoW5jcwPhOgdzY391x1gRSCjFSmcf2FTcH5Gg7gf7Pc=
 github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721 h1:EXY9Z1GtR0MC3tQzlYsKryT2HcipE79LhF7u/njeOzM=
 github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721/go.mod h1:KLQBltoD9K0w5hKTihdcyg9Epob9gypwL5dYcQzPro4=
 github.com/dapr/kit v0.0.3 h1:1FCnWjIuAS3OJzJhOlUKNzLxoazYhYIS4oCOOULmWBA=

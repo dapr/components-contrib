@@ -5,9 +5,9 @@ go 1.19
 require (
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20220610080020-48691a404537
 	github.com/apache/dubbo-go-hessian2 v1.11.3
-	github.com/dapr/components-contrib v1.9.1-0.20221130202810-7d466c713020
+	github.com/dapr/components-contrib v1.9.1-0.20221213185150-c5c985a68514
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211026011813-36b75e9ae272
-	github.com/dapr/dapr v1.9.4-0.20221121055721-6683f7582ac4
+	github.com/dapr/dapr v1.9.4-0.20221213225218-374a582b03d9
 	github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721
 	github.com/dapr/kit v0.0.3
 	github.com/stretchr/testify v1.8.1
@@ -175,5 +175,3 @@ require (
 replace github.com/dapr/components-contrib => ../../../../..
 
 replace github.com/dapr/components-contrib/tests/certification => ../../..
-
-replace github.com/dapr/dapr => github.com/1046102779/dapr v0.0.0-20221208082204-c47f9f07131e

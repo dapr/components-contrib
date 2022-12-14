@@ -377,8 +377,8 @@ github.com/modern-go/reflect2 v0.0.0-20180701023420-4b7aa43c6742/go.mod h1:bx2lN
 github.com/modern-go/reflect2 v1.0.1/go.mod h1:bx2lNnkwVCuqBIxFjflWJWanXIb3RllmbCylyMrvgv0=
 github.com/modern-go/reflect2 v1.0.2 h1:xBagoLtFs94CBntxluKeaWgTMpvLxC4ur3nMaC9Gz0M=
 github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
-github.com/mukundansundar/dapr v0.7.1-0.20221213115421-c112fb4ff0f4 h1:ZQTfKZA9W9wvj4aY3OsOEqh2DYZCgMJUzEbjcPyUqq4=
-github.com/mukundansundar/dapr v0.7.1-0.20221213115421-c112fb4ff0f4/go.mod h1:Xw+OmGoIeFRROzr0V7dVkWgnR9TZee/3Udx/cEX1C/0=
+github.com/mukundansundar/dapr v0.7.1-0.20221214060805-f7f65f61c0bb h1:mlgaFoF+CfZIEmvp+4oNfBMrzarKHA7vNW7jsBZ4/Nw=
+github.com/mukundansundar/dapr v0.7.1-0.20221214060805-f7f65f61c0bb/go.mod h1:E+DmqdC3mr1kn0WujxhWpv1jXNrjP9dyeIZibw0JSSk=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=

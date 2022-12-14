@@ -3,7 +3,7 @@ module github.com/dapr/components-contrib/tests/certification
 go 1.19
 
 require (
-	github.com/dapr/components-contrib v1.9.1-0.20221203215942-a4b27ae49b7c
+	github.com/dapr/components-contrib v1.9.1-0.20221213185150-c5c985a68514
 	github.com/dapr/dapr v1.9.4-0.20221121055721-6683f7582ac4
 	github.com/dapr/go-sdk v1.5.1-0.20221004175845-b465b1fa0721
 	github.com/dapr/kit v0.0.3
@@ -142,4 +142,4 @@ require (
 
 replace github.com/dapr/components-contrib => ../../
 
-replace github.com/dapr/dapr => github.com/mukundansundar/dapr v0.7.1-0.20221213115421-c112fb4ff0f4
+replace github.com/dapr/dapr => github.com/mukundansundar/dapr v0.7.1-0.20221214060805-f7f65f61c0bb

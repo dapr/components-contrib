@@ -13,6 +13,7 @@ limitations under the License.
 
 package twitter
 
+//nolint:staticcheck
 import (
 	"context"
 	"encoding/json"

@@ -15,7 +15,11 @@ limitations under the License.
 package conformance
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"log"
@@ -74,6 +78,7 @@ import (
 	s_cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
 	s_azuretablestorage "github.com/dapr/components-contrib/state/azure/tablestorage"
 	s_cassandra "github.com/dapr/components-contrib/state/cassandra"
+	s_cloudflarekv "github.com/dapr/components-contrib/state/cloudflare/kv"
 	s_cockroachdb "github.com/dapr/components-contrib/state/cockroachdb"
 	s_inmemory "github.com/dapr/components-contrib/state/in-memory"
 	s_memcached "github.com/dapr/components-contrib/state/memcached"
@@ -92,11 +97,12 @@ import (
 )
 
 const (
-	eventhubs    = "azure.eventhubs"
-	redis        = "redis"
-	kafka        = "kafka"
-	mqtt         = "mqtt"
-	generateUUID = "$((uuid))"
+	eventhubs                 = "azure.eventhubs"
+	redis                     = "redis"
+	kafka                     = "kafka"
+	mqtt                      = "mqtt"
+	generateUUID              = "$((uuid))"
+	generateEd25519PrivateKey = "$((ed25519PrivateKey))"
 )
 
 //nolint:gochecknoglobals
@@ -209,20 +215,48 @@ func parseConfigurationInterfaceMap(t *testing.T, configMap map[interface{}]inte
 func ConvertMetadataToProperties(items []MetadataItem) (map[string]string, error) {
 	properties := map[string]string{}
 	for _, c := range items {
-		val := c.Value.String()
-		if strings.HasPrefix(c.Value.String(), "${{") {
-			// look up env var with that name. remove ${{}} and space
-			k := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(val, "${{"), "}}"))
-			v := LookUpEnv(k)
-			if v == "" {
-				return map[string]string{}, fmt.Errorf("required env var is not set %s", k)
-			}
-			val = v
+		val, err := parseMetadataProperty(c.Value.String())
+		if err != nil {
+			return map[string]string{}, err
 		}
 		properties[c.Name] = val
 	}
 
 	return properties, nil
+}
+
+func parseMetadataProperty(val string) (string, error) {
+	switch {
+	case strings.HasPrefix(val, "${{"):
+		// look up env var with that name. remove ${{}} and space
+		k := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(val, "${{"), "}}"))
+		v := LookUpEnv(k)
+		if v == "" {
+			return "", fmt.Errorf("required env var is not set %s", k)
+		}
+		return v, nil
+		// Generate a random UUID
+	case strings.EqualFold(val, generateUUID):
+		val = uuid.New().String()
+		return val, nil
+	// Generate a random Ed25519 private key (PEM-encoded)
+	case strings.EqualFold(val, generateEd25519PrivateKey):
+		_, pk, err := ed25519.GenerateKey(rand.Reader)
+		if err != nil {
+			return "", fmt.Errorf("Failed to generate Ed25519 private key: %w", err)
+		}
+		der, err := x509.MarshalPKCS8PrivateKey(pk)
+		if err != nil {
+			return "", fmt.Errorf("Failed to marshal Ed25519 private key to X.509: %w", err)
+		}
+		pemB := pem.EncodeToMemory(&pem.Block{
+			Type:  "PRIVATE KEY",
+			Bytes: der,
+		})
+		return string(pemB), nil
+	default:
+		return val, nil
+	}
 }
 
 // isYaml checks whether the file is yaml or not.
@@ -459,6 +493,8 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_azuretablestorage.NewAzureTablesStateStore(testLogger)
 	case "cassandra":
 		store = s_cassandra.NewCassandraStateStore(testLogger)
+	case "cloudflare.kv":
+		store = s_cloudflarekv.NewCFKV(testLogger)
 	case "cockroachdb":
 		store = s_cockroachdb.New(testLogger)
 	case "memcached":

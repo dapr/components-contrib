@@ -165,4 +165,4 @@ replace github.com/dapr/components-contrib => ../../../../..
 
 replace github.com/dapr/components-contrib/tests/certification => ../../..
 
-replace github.com/dapr/dapr => github.com/1046102779/dapr v0.0.0-20221208082204-c47f9f07131e
+replace github.com/dapr/dapr => github.com/1046102779/dapr 5e82abca

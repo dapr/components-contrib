@@ -144,6 +144,8 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
+replace k8s.io/client-go => k8s.io/client-go v0.25.3
+
 replace github.com/dapr/components-contrib/tests/certification => ../../
 
 replace github.com/dapr/dapr => github.com/dapr/dapr v1.9.4-0.20221213222644-64d468a693f1

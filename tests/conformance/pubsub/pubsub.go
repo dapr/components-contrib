@@ -318,7 +318,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 		t.Run("publish", func(t *testing.T) {
 			for k := 1; k <= config.MessageCount; k++ {
 				data := []byte(fmt.Sprintf("%s%d", dataPrefix, k))
-				err := ps.Publish(&pubsub.PublishRequest{
+				err := ps.Publish(ctx, &pubsub.PublishRequest{
 					Data:       data,
 					PubsubName: config.PubsubName,
 					Topic:      config.TestTopicName,
@@ -336,7 +336,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 				}
 				for k := bulkSubStartingKey; k <= (bulkSubStartingKey + config.MessageCount); k++ {
 					data := []byte(fmt.Sprintf("%s%d", dataPrefix, k))
-					err := ps.Publish(&pubsub.PublishRequest{
+					err := ps.Publish(ctx, &pubsub.PublishRequest{
 						Data:       data,
 						PubsubName: config.PubsubName,
 						Topic:      config.TestTopicForBulkSub,
@@ -486,7 +486,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 					topic = config.TestMultiTopic2Name
 					sent2Ch <- string(data)
 				}
-				err := ps.Publish(&pubsub.PublishRequest{
+				err := ps.Publish(ctx, &pubsub.PublishRequest{
 					Data:       data,
 					PubsubName: config.PubsubName,
 					Topic:      topic,
@@ -538,7 +538,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 							sent2Ch <- string(data)
 						}
 					}
-					err := ps.Publish(&pubsub.PublishRequest{
+					err := ps.Publish(ctx, &pubsub.PublishRequest{
 						Data:       data,
 						PubsubName: config.PubsubName,
 						Topic:      topic,

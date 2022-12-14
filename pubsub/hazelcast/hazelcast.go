@@ -87,7 +87,7 @@ func (p *Hazelcast) Init(metadata pubsub.Metadata) error {
 	return nil
 }
 
-func (p *Hazelcast) Publish(req *pubsub.PublishRequest) error {
+func (p *Hazelcast) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	topic, err := p.client.GetTopic(req.Topic)
 	if err != nil {
 		return fmt.Errorf("hazelcast error: failed to get topic for %s", req.Topic)

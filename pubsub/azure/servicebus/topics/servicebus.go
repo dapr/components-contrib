@@ -67,7 +67,7 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) (err error) {
 	return nil
 }
 
-func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
+func (a *azureServiceBus) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	msg, err := impl.NewASBMessageFromPubsubRequest(req)
 	if err != nil {
 		return err
@@ -76,7 +76,7 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	ebo := backoff.NewExponentialBackOff()
 	ebo.InitialInterval = time.Duration(a.metadata.PublishInitialRetryIntervalInMs) * time.Millisecond
 	bo := backoff.WithMaxRetries(ebo, uint64(a.metadata.PublishMaxRetries))
-	bo = backoff.WithContext(bo, a.publishCtx)
+	bo = backoff.WithContext(bo, ctx)
 
 	msgID := "nil"
 	if msg.MessageID != nil {
@@ -86,22 +86,22 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 		func() (err error) {
 			// Ensure the queue or topic exists the first time it is referenced
 			// This does nothing if DisableEntityManagement is true
-			err = a.client.EnsureTopic(a.publishCtx, req.Topic)
+			err = a.client.EnsureTopic(ctx, req.Topic)
 			if err != nil {
 				return err
 			}
 
 			// Get the sender
 			var sender *servicebus.Sender
-			sender, err = a.client.GetSender(a.publishCtx, req.Topic)
+			sender, err = a.client.GetSender(ctx, req.Topic)
 			if err != nil {
 				return err
 			}
 
 			// Try sending the message
-			ctx, cancel := context.WithTimeout(a.publishCtx, time.Second*time.Duration(a.metadata.TimeoutInSec))
+			newCtx, cancel := context.WithTimeout(ctx, time.Second*time.Duration(a.metadata.TimeoutInSec))
 			defer cancel()
-			err = sender.SendMessage(ctx, msg, nil)
+			err = sender.SendMessage(newCtx, msg, nil)
 			if err != nil {
 				if impl.IsNetworkError(err) {
 					// Retry after reconnecting

@@ -156,8 +156,8 @@ func (r *redisStreams) Init(metadata pubsub.Metadata) error {
 	return nil
 }
 
-func (r *redisStreams) Publish(req *pubsub.PublishRequest) error {
-	_, err := r.client.XAdd(r.ctx, &redis.XAddArgs{
+func (r *redisStreams) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
+	_, err := r.client.XAdd(ctx, &redis.XAddArgs{
 		Stream:       req.Topic,
 		MaxLenApprox: r.metadata.maxLenApprox,
 		Values:       map[string]interface{}{"data": req.Data},

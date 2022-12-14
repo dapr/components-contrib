@@ -83,7 +83,7 @@ func (store *inMemoryStore) Features() []state.Feature {
 	return []state.Feature{state.FeatureETag, state.FeatureTransactional}
 }
 
-func (store *inMemoryStore) Delete(req *state.DeleteRequest) error {
+func (store *inMemoryStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	// step1: validate parameters
 	if err := state.CheckRequestOptions(req.Options); err != nil {
 		return err
@@ -100,7 +100,7 @@ func (store *inMemoryStore) Delete(req *state.DeleteRequest) error {
 
 	// step3: do really delete
 	// this operation won't fail
-	store.doDelete(req.Key)
+	store.doDelete(ctx, req.Key)
 	return nil
 }
 
@@ -131,11 +131,11 @@ func (store *inMemoryStore) doValidateEtag(key string, etag *string, concurrency
 	return nil
 }
 
-func (store *inMemoryStore) doDelete(key string) {
+func (store *inMemoryStore) doDelete(ctx context.Context, key string) {
 	delete(store.items, key)
 }
 
-func (store *inMemoryStore) BulkDelete(req []state.DeleteRequest) error {
+func (store *inMemoryStore) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
 	if len(req) == 0 {
 		return nil
 	}
@@ -161,15 +161,15 @@ func (store *inMemoryStore) BulkDelete(req []state.DeleteRequest) error {
 
 	// step3: do really delete
 	for _, dr := range req {
-		store.doDelete(dr.Key)
+		store.doDelete(ctx, dr.Key)
 	}
 	return nil
 }
 
-func (store *inMemoryStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	item := store.doGetWithReadLock(req.Key)
+func (store *inMemoryStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
+	item := store.doGetWithReadLock(ctx, req.Key)
 	if item != nil && isExpired(item) {
-		item = store.doGetWithWriteLock(req.Key)
+		item = store.doGetWithWriteLock(ctx, req.Key)
 	}
 
 	if item == nil {
@@ -196,14 +196,14 @@ func (store *inMemoryStore) Get(req *state.GetRequest) (*state.GetResponse, erro
 	return &state.GetResponse{Data: data, ETag: item.etag}, nil
 }
 
-func (store *inMemoryStore) doGetWithReadLock(key string) *inMemStateStoreItem {
+func (store *inMemoryStore) doGetWithReadLock(ctx context.Context, key string) *inMemStateStoreItem {
 	store.lock.RLock()
 	defer store.lock.RUnlock()
 
 	return store.items[key]
 }
 
-func (store *inMemoryStore) doGetWithWriteLock(key string) *inMemStateStoreItem {
+func (store *inMemoryStore) doGetWithWriteLock(ctx context.Context, key string) *inMemStateStoreItem {
 	store.lock.Lock()
 	defer store.lock.Unlock()
 	// get item and check expired again to avoid if item changed between we got this write-lock
@@ -212,7 +212,7 @@ func (store *inMemoryStore) doGetWithWriteLock(key string) *inMemStateStoreItem 
 		return nil
 	}
 	if isExpired(item) {
-		store.doDelete(key)
+		store.doDelete(ctx, key)
 		return nil
 	}
 	return item
@@ -225,7 +225,7 @@ func isExpired(item *inMemStateStoreItem) bool {
 	return time.Now().UnixMilli() > *item.expire
 }
 
-func (store *inMemoryStore) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+func (store *inMemoryStore) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	return false, nil, nil
 }
 
@@ -241,7 +241,7 @@ func (store *inMemoryStore) marshal(v any) (bt []byte, isBinary bool, err error)
 	return bt, isBinary, nil
 }
 
-func (store *inMemoryStore) Set(req *state.SetRequest) error {
+func (store *inMemoryStore) Set(ctx context.Context, req *state.SetRequest) error {
 	// step1: validate parameters
 	ttlInSeconds, err := store.doSetValidateParameters(req)
 	if err != nil {
@@ -265,7 +265,7 @@ func (store *inMemoryStore) Set(req *state.SetRequest) error {
 	}
 
 	// this operation won't fail
-	store.doSet(req.Key, bt, ttlInSeconds, isBinary)
+	store.doSet(ctx, req.Key, bt, ttlInSeconds, isBinary)
 	return nil
 }
 
@@ -301,7 +301,7 @@ func doParseTTLInSeconds(metadata map[string]string) (int, error) {
 	return i, nil
 }
 
-func (store *inMemoryStore) doSet(key string, data []byte, ttlInSeconds int, isBinary bool) {
+func (store *inMemoryStore) doSet(ctx context.Context, key string, data []byte, ttlInSeconds int, isBinary bool) {
 	etag := uuid.New().String()
 	el := &inMemStateStoreItem{
 		data:     data,
@@ -323,7 +323,7 @@ type innerSetRequest struct {
 	isBinary bool
 }
 
-func (store *inMemoryStore) BulkSet(req []state.SetRequest) error {
+func (store *inMemoryStore) BulkSet(ctx context.Context, req []state.SetRequest) error {
 	if len(req) == 0 {
 		return nil
 	}
@@ -364,12 +364,12 @@ func (store *inMemoryStore) BulkSet(req []state.SetRequest) error {
 	// step3: do really set
 	// these operations won't fail
 	for _, innerSetRequest := range innerSetRequestList {
-		store.doSet(innerSetRequest.req.Key, innerSetRequest.data, innerSetRequest.ttl, innerSetRequest.isBinary)
+		store.doSet(ctx, innerSetRequest.req.Key, innerSetRequest.data, innerSetRequest.ttl, innerSetRequest.isBinary)
 	}
 	return nil
 }
 
-func (store *inMemoryStore) Multi(request *state.TransactionalStateRequest) error {
+func (store *inMemoryStore) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
 	if len(request.Operations) == 0 {
 		return nil
 	}
@@ -429,10 +429,10 @@ func (store *inMemoryStore) Multi(request *state.TransactionalStateRequest) erro
 	for _, o := range request.Operations {
 		if o.Operation == state.Upsert {
 			s := o.Request.(*innerSetRequest)
-			store.doSet(s.req.Key, s.data, s.ttl, s.isBinary)
+			store.doSet(ctx, s.req.Key, s.data, s.ttl, s.isBinary)
 		} else if o.Operation == state.Delete {
 			d := o.Request.(state.DeleteRequest)
-			store.doDelete(d.Key)
+			store.doDelete(ctx, d.Key)
 		}
 	}
 	return nil
@@ -455,7 +455,7 @@ func (store *inMemoryStore) doCleanExpiredItems() {
 
 	for key, item := range store.items {
 		if item.expire != nil && isExpired(item) {
-			store.doDelete(key)
+			store.doDelete(context.Background(), key)
 		}
 	}
 }

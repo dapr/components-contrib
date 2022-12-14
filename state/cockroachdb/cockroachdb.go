@@ -14,6 +14,7 @@ limitations under the License.
 package cockroachdb
 
 import (
+	"context"
 	"reflect"
 
 	"github.com/dapr/components-contrib/metadata"
@@ -56,18 +57,18 @@ func (c *CockroachDB) Features() []state.Feature {
 }
 
 // Delete removes an entity from the store.
-func (c *CockroachDB) Delete(req *state.DeleteRequest) error {
-	return c.dbaccess.Delete(req)
+func (c *CockroachDB) Delete(ctx context.Context, req *state.DeleteRequest) error {
+	return c.dbaccess.Delete(ctx, req)
 }
 
 // Get returns an entity from store.
-func (c *CockroachDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	return c.dbaccess.Get(req)
+func (c *CockroachDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
+	return c.dbaccess.Get(ctx, req)
 }
 
 // Set adds/updates an entity on store.
-func (c *CockroachDB) Set(req *state.SetRequest) error {
-	return c.dbaccess.Set(req)
+func (c *CockroachDB) Set(ctx context.Context, req *state.SetRequest) error {
+	return c.dbaccess.Set(ctx, req)
 }
 
 // Ping checks if database is available.
@@ -76,29 +77,29 @@ func (c *CockroachDB) Ping() error {
 }
 
 // BulkDelete removes multiple entries from the store.
-func (c *CockroachDB) BulkDelete(req []state.DeleteRequest) error {
-	return c.dbaccess.BulkDelete(req)
+func (c *CockroachDB) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
+	return c.dbaccess.BulkDelete(ctx, req)
 }
 
 // BulkGet performs a bulks get operations.
-func (c *CockroachDB) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+func (c *CockroachDB) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	// TODO: replace with ExecuteMulti for performance.
 	return false, nil, nil
 }
 
 // BulkSet adds/updates multiple entities on store.
-func (c *CockroachDB) BulkSet(req []state.SetRequest) error {
-	return c.dbaccess.BulkSet(req)
+func (c *CockroachDB) BulkSet(ctx context.Context, req []state.SetRequest) error {
+	return c.dbaccess.BulkSet(ctx, req)
 }
 
 // Multi handles multiple transactions. Implements TransactionalStore.
-func (c *CockroachDB) Multi(request *state.TransactionalStateRequest) error {
-	return c.dbaccess.ExecuteMulti(request)
+func (c *CockroachDB) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
+	return c.dbaccess.ExecuteMulti(ctx, request)
 }
 
 // Query executes a query against store.
-func (c *CockroachDB) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
-	return c.dbaccess.Query(req)
+func (c *CockroachDB) Query(ctx context.Context, req *state.QueryRequest) (*state.QueryResponse, error) {
+	return c.dbaccess.Query(ctx, req)
 }
 
 // Close implements io.Closer.

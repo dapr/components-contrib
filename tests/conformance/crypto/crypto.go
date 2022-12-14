@@ -17,7 +17,9 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/rsa"
+	"io"
 	"testing"
 	"time"
 
@@ -39,6 +41,7 @@ type TestConfig struct {
 	PrivateKeyName    string `mapstructure:"privateKeyName"`
 	AltPrivateKeyName string `mapstructure:"altPrivateKeyName"`
 	SymmetricKeyName  string `mapstructure:"symmetricKeyName"`
+	SymmetricCipher   string `mapstructure:"symmetricCipher"`
 }
 
 func NewTestConfig(name string, allOperations bool, operations []string, configMap map[string]interface{}) (TestConfig, error) {
@@ -53,6 +56,7 @@ func NewTestConfig(name string, allOperations bool, operations []string, configM
 		PrivateKeyName:    "privkey",
 		AltPrivateKeyName: "altprivkey",
 		SymmetricKeyName:  "symmetric",
+		SymmetricCipher:   "A256GCM",
 	}
 
 	err := config.Decode(configMap, &testConfig)
@@ -107,6 +111,50 @@ func ConformanceTests(t *testing.T, props map[string]string, component daprcrypt
 			assert.Nil(t, key)
 		})
 	})
+
+	t.Run("Symmetric encryption with "+config.SymmetricCipher, func(t *testing.T) {
+		nonce := randomBytes(t, 12)
+
+		const message = "Quel ramo del lago di Como"
+
+		// Encrypt the message
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		ciphertext, tag, err := component.Encrypt(ctx, []byte(message), config.SymmetricCipher, config.SymmetricKeyName, nonce, nil)
+		require.NoError(t, err)
+		assert.NotEmpty(t, ciphertext)
+		assert.NotEmpty(t, tag)
+
+		// Decrypt the message
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		plaintext, err := component.Decrypt(ctx, ciphertext, config.SymmetricCipher, config.SymmetricKeyName, nonce, tag, nil)
+		require.NoError(t, err)
+		assert.Equal(t, message, string(plaintext))
+
+		// Invalid key
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, err = component.Decrypt(ctx, ciphertext, config.SymmetricCipher, config.PrivateKeyName, nonce, tag, nil)
+		require.Error(t, err)
+
+		// Tag mismatch
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		badTag := randomBytes(t, 16)
+		_, err = component.Decrypt(ctx, ciphertext, config.SymmetricCipher, config.SymmetricKeyName, nonce, badTag, nil)
+		require.Error(t, err)
+	})
+}
+
+func randomBytes(t *testing.T, size int) []byte {
+	t.Helper()
+
+	b := make([]byte, size)
+	l, err := io.ReadFull(rand.Reader, b)
+	require.NoError(t, err)
+	require.Equal(t, size, l)
+	return b
 }
 
 func requireKeyPublic(t *testing.T, key jwk.Key) {

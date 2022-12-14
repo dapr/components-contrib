@@ -1,0 +1,261 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dapr/components-contrib/build-tools/pkg/metadataschema/component-metadata",
+  "$defs": {
+    "AuthenticationProfile": {
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Title of the authentication profile."
+        },
+        "description": {
+          "type": "string",
+          "description": "Additional description for the authentication profile, optional."
+        },
+        "metadata": {
+          "items": {
+            "$ref": "#/$defs/Metadata"
+          },
+          "type": "array",
+          "description": "Metadata options applicable when using this authentication profile."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "title",
+        "description"
+      ],
+      "description": "AuthenticationProfile is the type for an authentication profile."
+    },
+    "Binding": {
+      "properties": {
+        "input": {
+          "type": "boolean",
+          "description": "If \"true\", the binding can be used as input binding."
+        },
+        "output": {
+          "type": "boolean",
+          "description": "If \"true\", the binding can be used as output binding."
+        },
+        "operations": {
+          "items": {
+            "$ref": "#/$defs/BindingOperation"
+          },
+          "type": "array",
+          "description": "List of operations that the output binding support.\nRequired in output bindings, and not allowed in input-only bindings."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "operations"
+      ],
+      "description": "Binding represents properties that are specific to bindings"
+    },
+    "BindingOperation": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the operation, such as \"create\", \"post\", \"delete\", etc."
+        },
+        "description": {
+          "type": "string",
+          "description": "Descrption of the operation."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "description"
+      ],
+      "description": "BindingOperation represents an operation offered by an output binding."
+    },
+    "Metadata": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the metadata property."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the property."
+        },
+        "required": {
+          "type": "boolean",
+          "description": "If \"true\", the property is required"
+        },
+        "sensitive": {
+          "type": "boolean",
+          "description": "If \"true\", the property represents a sensitive value such as a password."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "string",
+            "number",
+            "bool",
+            "duration"
+          ],
+          "description": "Type of the property.\nIf this is empty, it's interpreted as \"string\"."
+        },
+        "default": {
+          "type": "string",
+          "description": "Default value for the property.\nIf it's a string, don't forget to add quotes."
+        },
+        "example": {
+          "type": "string",
+          "description": "Example value."
+        },
+        "allowedValues": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "If set, forces the value to be one of those specified in this allowlist."
+        },
+        "binding": {
+          "$ref": "#/$defs/MetadataBinding",
+          "description": "If set, specifies that the property is only applicable to bindings of the type specified below.\nAt least one of \"input\" and \"output\" must be \"true\"."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "description",
+        "example"
+      ],
+      "description": "Metadata property."
+    },
+    "MetadataBinding": {
+      "properties": {
+        "input": {
+          "type": "boolean",
+          "description": "If \"true\", the property can be used with the binding as input binding only."
+        },
+        "output": {
+          "type": "boolean",
+          "description": "If \"true\", the property can be used with the binding as output binding only."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "MetadataBinding is the type for the \"binding\" property in the \"metadata\" object."
+    },
+    "URL": {
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Title of the URL."
+        },
+        "url": {
+          "type": "string",
+          "description": "URL."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "title",
+        "url"
+      ],
+      "description": "URL represents one URL with additional resources."
+    }
+  },
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "enum": [
+        "v1"
+      ],
+      "description": "Version of the component metadata schema."
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "bindings",
+        "state",
+        "secretstores",
+        "pubsub",
+        "workflows",
+        "configuration",
+        "lock",
+        "middleware"
+      ],
+      "description": "Component type, of one of the allowed values."
+    },
+    "name": {
+      "type": "string",
+      "description": "Name of the component (without the inital type, e.g. \"http\" instead of \"bindings.http\")."
+    },
+    "version": {
+      "type": "string",
+      "description": "Version of the component, with the leading \"v\", e.g. \"v1\"."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "stable",
+        "beta",
+        "alpha",
+        "development-only"
+      ],
+      "description": "Component status."
+    },
+    "title": {
+      "type": "string",
+      "description": "Title of the component, e.g. \"HTTP\"."
+    },
+    "description": {
+      "type": "string",
+      "description": "Additional description for the component, optional."
+    },
+    "urls": {
+      "items": {
+        "$ref": "#/$defs/URL"
+      },
+      "type": "array",
+      "description": "URLs with additional resources for the component, such as docs."
+    },
+    "binding": {
+      "$ref": "#/$defs/Binding",
+      "description": "Properties for bindings only.\nThis should not present unless \"type\" is \"bindings\"."
+    },
+    "capabilities": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "description": "Component capabilities.\nFor state stores, the presence of \"actorStateStore\" implies that the metadata property \"actorStateStore\" can be set. In that case, do not manually specify \"actorStateStore\" as metadata option."
+    },
+    "authenticationProfiles": {
+      "items": {
+        "$ref": "#/$defs/AuthenticationProfile"
+      },
+      "type": "array",
+      "description": "Authentication profiles for the component."
+    },
+    "metadata": {
+      "items": {
+        "$ref": "#/$defs/Metadata"
+      },
+      "type": "array",
+      "description": "Metadata options for the component."
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "type",
+    "name",
+    "version",
+    "status",
+    "title",
+    "urls"
+  ],
+  "title": "ComponentMetadata",
+  "description": "ComponentMetadata is the schema for the metadata.yaml / metadata.json files."
+}

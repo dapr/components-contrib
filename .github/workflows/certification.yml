@@ -48,26 +48,6 @@ jobs:
       id: pr-components
       run: |
         PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
-        - pubsub.kafka
-        - pubsub.rabbitmq
-        - pubsub.mqtt
-        - state.mongodb
-        - state.redis
-        - state.cockroachdb
-        - state.postgresql
-        - state.cassandra
-        - state.memcached
-        - state.mysql
-        - bindings.alicloud.dubbo
-        - bindings.kafka
-        - bindings.redis
-        - bindings.cron
-        - secretstores.local.env
-        - secretstores.local.file
-        - secretstores.hashicorp.vault
-        - bindings.rabbitmq
-        - bindings.localstorage
-        - bindings.postgres
         EOF
         )
         echo "pr-components=$PR_COMPONENTS" >> $GITHUB_OUTPUT
@@ -97,31 +77,6 @@ jobs:
         #
         # Only list the secrets you need for the component.
         CRON_COMPONENTS=$(yq -I0 --tojson eval - << EOF
-        - component: secretstores.azure.keyvault
-          required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreClientId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret,AzureContainerRegistryName,AzureResourceGroupName
-          required-certs: AzureKeyVaultSecretStoreCert
-        - component: state.sqlserver
-          required-secrets: AzureSqlServerConnectionString
-        - component: bindings.azure.servicebusqueues
-          required-secrets: AzureServiceBusConnectionString
-        - component: bindings.azure.cosmosdb
-          required-secrets: AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection,AzureCosmosDBMasterKey,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
-        - component: bindings.azure.eventhubs
-          required-secrets: AzureEventHubsBindingsConnectionString,AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureEventHubsBindingsHub,AzureEventHubsBindingsNamespace,AzureEventHubsBindingsConsumerGroup,AzureCertificationServicePrincipalClientId,AzureCertificationTenantId,AzureCertificationServicePrincipalClientSecret,AzureResourceGroupName,AzureCertificationSubscriptionId,AzureEventHubsBindingsContainer,AzureIotHubEventHubConnectionString,AzureIotHubName,AzureIotHubBindingsConsumerGroup
-        - component: pubsub.azure.eventhubs
-          required-secrets: AzureEventHubsPubsubTopicActiveConnectionString,AzureEventHubsPubsubNamespace,AzureEventHubsPubsubNamespaceConnectionString,AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureEventHubsPubsubContainer,AzureIotHubName,AzureIotHubEventHubConnectionString,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret,AzureResourceGroupName,AzureCertificationSubscriptionId
-        - component: pubsub.azure.servicebus.topics
-          required-secrets: AzureServiceBusConnectionString,AzureServiceBusNamespace, AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
-        - component: bindings.azure.blobstorage
-          required-secrets: AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureBlobStorageContainer,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
-        - component: bindings.azure.storagequeues
-          required-secrets: AzureBlobStorageAccount, AzureBlobStorageAccessKey
-        - component: state.azure.tablestorage
-          required-secrets: AzureBlobStorageAccount, AzureBlobStorageAccessKey, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
-        - component: state.azure.blobstorage
-          required-secrets: AzureBlobStorageContainer,AzureBlobStorageAccount, AzureBlobStorageAccessKey, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
-        - component: state.azure.cosmosdb
-          required-secrets: AzureCosmosDBMasterKey, AzureCosmosDBUrl, AzureCosmosDB, AzureCosmosDBCollection, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret    
         EOF
         )
         echo "cloud-components=$CRON_COMPONENTS" >> $GITHUB_OUTPUT

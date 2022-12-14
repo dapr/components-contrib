@@ -1,0 +1,17 @@
+# Supported operations: 
+componentType: crypto
+components:
+  - component: localstorage
+    allOperations: true
+    config:
+      publicKeyName: "ed25519-public.pem"
+      privateKeyName: "ed25519-private.pem"
+      altPrivateKeyName: "rsa-private.pem"
+      symmetricKeyName: "symmetric.b64"
+  - component: jwks
+    allOperations: true
+    config:
+      publicKeyName: "ed25519-public"
+      privateKeyName: "ed25519-private"
+      altPrivateKeyName: "rsa-private"
+      symmetricKeyName: "symmetric"

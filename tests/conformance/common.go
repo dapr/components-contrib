@@ -30,6 +30,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/dapr/components-contrib/bindings"
+	daprcrypto "github.com/dapr/components-contrib/crypto"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/components-contrib/state"
@@ -51,6 +52,8 @@ import (
 	b_postgres "github.com/dapr/components-contrib/bindings/postgres"
 	b_rabbitmq "github.com/dapr/components-contrib/bindings/rabbitmq"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
+	c_jwks "github.com/dapr/components-contrib/crypto/jwks"
+	c_localstorage "github.com/dapr/components-contrib/crypto/localstorage"
 	p_snssqs "github.com/dapr/components-contrib/pubsub/aws/snssqs"
 	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
 	p_servicebusqueues "github.com/dapr/components-contrib/pubsub/azure/servicebus/queues"
@@ -84,6 +87,7 @@ import (
 	s_rethinkdb "github.com/dapr/components-contrib/state/rethinkdb"
 	s_sqlserver "github.com/dapr/components-contrib/state/sqlserver"
 	conf_bindings "github.com/dapr/components-contrib/tests/conformance/bindings"
+	conf_crypto "github.com/dapr/components-contrib/tests/conformance/crypto"
 	conf_pubsub "github.com/dapr/components-contrib/tests/conformance/pubsub"
 	conf_secret "github.com/dapr/components-contrib/tests/conformance/secretstores"
 	conf_state "github.com/dapr/components-contrib/tests/conformance/state"
@@ -365,6 +369,21 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				wf := loadWorkflow(comp)
 				wfConfig := conf_workflows.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
 				conf_workflows.ConformanceTests(t, props, wf, wfConfig)
+			case "crypto":
+				filepath := fmt.Sprintf("../config/crypto/%s", componentConfigPath)
+				props, err := tc.loadComponentsAndProperties(t, filepath)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
+					break
+				}
+				component := loadCryptoProvider(comp)
+				assert.NotNil(t, component)
+				cryptoConfig, err := conf_crypto.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
+					break
+				}
+				conf_crypto.ConformanceTests(t, props, component, cryptoConfig)
 			default:
 				t.Errorf("unknown component type %s", tc.ComponentType)
 			}
@@ -430,6 +449,20 @@ func loadSecretStore(tc TestComponent) secretstores.SecretStore {
 	}
 
 	return store
+}
+
+func loadCryptoProvider(tc TestComponent) daprcrypto.SubtleCrypto {
+	var component daprcrypto.SubtleCrypto
+	switch tc.Component {
+	case "localstorage":
+		component = c_localstorage.NewLocalStorageCrypto(testLogger)
+	case "jwks":
+		component = c_jwks.NewJWKSCrypto(testLogger)
+	default:
+		return nil
+	}
+
+	return component
 }
 
 func loadStateStore(tc TestComponent) state.Store {

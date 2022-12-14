@@ -78,6 +78,7 @@ jobs:
         - secretstores.localfile
         - secretstores.hashicorp.vault
         - state.cassandra
+        - state.cloudflare.kv
         - state.memcached
         - state.mongodb
         - state.mysql.mysql
@@ -313,6 +314,21 @@ jobs:
       run: docker-compose -f ./.github/infrastructure/docker-compose-rabbitmq.yml -p rabbitmq up -d
       if: contains(matrix.component, 'rabbitmq')
 
+    - name: Setup Cloudflare KV
+      if: matrix.component == 'state.cloudflare.kv'
+      run: |
+        CloudflareWorkerName="daprconfkv${{ github.run_id }}"
+        CloudflareKVNamespaceID=$( curl -X POST "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/storage/kv/namespaces" \
+          -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          --data "{\"title\":\"${CloudflareWorkerName}\"}" \
+            | jq -r ".result.id" )
+
+        echo "CloudflareWorkerName=${CloudflareWorkerName}" >> $GITHUB_ENV
+        echo "CloudflareAPIToken=${{ secrets.CLOUDFLARE_API_TOKEN }}" >> $GITHUB_ENV
+        echo "CloudflareAccountID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" >> $GITHUB_ENV
+        echo "CloudflareKVNamespaceID=${CloudflareKVNamespaceID}" >> $GITHUB_ENV
+
     - name: Start aws snssqs
       run: docker-compose -f ./.github/infrastructure/docker-compose-snssqs.yml -p snssqs up -d
       if: contains(matrix.component, 'aws.snssqs')
@@ -445,6 +461,17 @@ jobs:
         # deletion may be ongoing in sequential runs.
         sleep 1m
         az sql db delete --resource-group ${{ env.AzureResourceGroupName }} --server ${{ env.AzureSqlServerName }} -n ${{ env.AzureSqlServerDbName }} --yes
+
+    - name: Cleanup Cloudflare KV
+      if: always() && matrix.component == 'state.cloudflare.kv'
+      continue-on-error: true
+      run: |
+        # Delete the Worker
+        curl -X DELETE "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/workers/scripts/${{ env.CloudflareWorkerName }}" \
+          -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}"
+        # Delete the KV namespace
+        curl -X DELETE "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/storage/kv/namespaces/${{ env.CloudflareKVNamespaceID }}" \
+          -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}"
 
     # Download the required certificates into files, and set env var pointing to their names
     - name: Clean up certs

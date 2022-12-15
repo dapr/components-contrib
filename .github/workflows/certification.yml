@@ -162,7 +162,7 @@ jobs:
         shell: bash
     needs: generate-matrix
     env:
-      UUID: ${{github.run_id}}
+      RUN_ID: ${{github.run_id}}
 
     strategy:
       fail-fast: false # Keep running even if one component fails
@@ -246,7 +246,7 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
-        aws-region: us-west-2
+        aws-region: us-west-1
       if: matrix.terraform-dir != ''
 
     - name: Terraform Init
@@ -263,12 +263,12 @@ jobs:
 
     - name: Terraform Plan
       id: plan
-      run: terraform plan -no-color -var="UUID=${{github.run_id}}"
+      run: terraform plan -no-color -var="RUN_ID=${{github.run_id}}"
       working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
 
     - name: Terraform Apply     
-      run: terraform apply -auto-approve -var="UUID=${{github.run_id}}"
+      run: terraform apply -auto-approve -var="RUN_ID=${{github.run_id}}"
       working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
       continue-on-error: true
@@ -391,7 +391,7 @@ jobs:
 
     - name: Terraform Destroy
       continue-on-error: true    
-      run: terraform destroy -auto-approve -var="UUID=${{github.run_id}}"
+      run: terraform destroy -auto-approve -var="RUN_ID=${{github.run_id}}"
       working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
 

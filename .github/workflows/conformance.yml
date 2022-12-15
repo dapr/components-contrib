@@ -146,11 +146,20 @@ jobs:
           required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret
         - component: bindings.azure.cosmosdb
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
+        EOF
+        )
+        echo "::set-output name=cron-components::$CRON_COMPONENTS"
+
+    - name: Specify components requiring cloud resources to run and use terraform
+      id: terraform-components
+      run: |
+        TERRAFORM_COMPONENTS=$(yq -I0 --tojson eval - << EOF   
         - component: pubsub.aws.snssqs
           terraform-dir: pubsub/aws/snssqs
         EOF
         )
-        echo "::set-output name=cron-components::$CRON_COMPONENTS"
+        echo $TERRAFORM_COMPONENTS
+        echo "::set-output name=terraform-components::$TERRAFORM_COMPONENTS"
 
     - name: Create PR comment
       if: env.PR_NUMBER != ''
@@ -169,6 +178,7 @@ jobs:
     outputs:
       pr-components: ${{ steps.pr-components.outputs.pr-components }}
       cron-components: ${{ steps.cron-components.outputs.cron-components }}
+      terraform-components: ${{ steps.terraform-components.outputs.terraform-components }}
 
   conformance:
     name: ${{ matrix.component }} conformance
@@ -178,13 +188,15 @@ jobs:
         shell: bash
     needs: generate-matrix
     env:
-      UUID: ${{github.run_id}}
+      RUN_ID: ${{github.run_id}}
 
     strategy:
       fail-fast: false # Keep running even if one component fails
       matrix:
         component: ${{ fromJson(needs.generate-matrix.outputs.pr-components) }}
-        include: ${{ fromJson(needs.generate-matrix.outputs.cron-components) }}
+        include: 
+        - ${{ fromJson(needs.generate-matrix.outputs.cron-components) }}
+        - ${{ fromJson(needs.generate-matrix.outputs.terraform-components) }}
 
     steps:
     - name: Set default payload repo and ref
@@ -266,7 +278,7 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
-        aws-region: us-west-2
+        aws-region: us-west-1
       if: matrix.terraform-dir != ''
 
     - name: Terraform Init
@@ -283,12 +295,12 @@ jobs:
 
     - name: Terraform Plan
       id: plan
-      run: terraform plan -no-color
+      run: terraform plan -no-color -var="RUN_ID=${{github.run_id}}"
       working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
 
     - name: Terraform Apply     
-      run: terraform apply -auto-approve
+      run: terraform apply -auto-approve -var="RUN_ID=${{github.run_id}}"
       working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
       continue-on-error: true
@@ -307,6 +319,18 @@ jobs:
         mongodb-version: 4.2
         mongodb-replica-set: test-rs
       if: contains(matrix.component, 'mongodb')
+
+    - name: Create aws.snssqs variables
+      run: |
+        PUBSUB_AWS_SNSSQS_QUEUE="testQueue-${{ github.run_id }}"
+        echo "PUBSUB_AWS_SNSSQS_QUEUE=$PUBSUB_AWS_SNSSQS_QUEUE" >> $GITHUB_ENV
+        PUBSUB_AWS_SNSSQS_TOPIC="testTopic-${{ github.run_id }}"
+        echo "PUBSUB_AWS_SNSSQS_TOPIC=$PUBSUB_AWS_SNSSQS_TOPIC" >> $GITHUB_ENV
+        PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1="multiTopic1-${{ github.run_id }}"
+        echo "PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1=$PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1" >> $GITHUB_ENV
+        PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2="multiTopic2-${{ github.run_id }}"
+        echo "PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2=$PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2" >> $GITHUB_ENV
+      if: contains(matrix.component, 'snssqs')
 
     - name: Start sqlserver
       run: docker-compose -f ./.github/infrastructure/docker-compose-sqlserver.yml -p sqlserver up -d
@@ -497,7 +521,7 @@ jobs:
 
     - name: Terraform Destroy
       continue-on-error: true    
-      run: terraform destroy -auto-approve
+      run: terraform destroy -auto-approve -var="RUN_ID=${{github.run_id}}"
       working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
 
@@ -570,7 +594,8 @@ jobs:
           script: |
             const prComponents = ('${{ needs.generate-matrix.outputs.pr-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.pr-components }}')) || []
             const cronComponents = ('${{ needs.generate-matrix.outputs.cron-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.cron-components }}')) || []
-            const allComponents = [...prComponents, ...cronComponents]
+            const terraformComponents = ('${{ needs.generate-matrix.outputs.terraform-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.terraform-components }}')) || []
+            const allComponents = [...prComponents, ...cronComponents, ...cloudComponents]
             const basePath = '${{ steps.testresults.outputs.download-path }}'
             const testType = 'conformance'
 

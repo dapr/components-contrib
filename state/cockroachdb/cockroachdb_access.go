@@ -14,6 +14,7 @@ limitations under the License.
 package cockroachdb
 
 import (
+	"context"
 	"database/sql"
 	"database/sql/driver"
 	"encoding/base64"
@@ -124,7 +125,7 @@ func (p *cockroachDBAccess) Init(metadata state.Metadata) error {
 }
 
 // Set makes an insert or update to the database.
-func (p *cockroachDBAccess) Set(req *state.SetRequest) error {
+func (p *cockroachDBAccess) Set(ctx context.Context, req *state.SetRequest) error {
 	p.logger.Debug("Setting state value in CockroachDB")
 
 	value, isBinary, err := validateAndReturnValue(req)
@@ -137,7 +138,7 @@ func (p *cockroachDBAccess) Set(req *state.SetRequest) error {
 	// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
 	// Other parameters use sql.DB parameter substitution.
 	if req.ETag == nil {
-		result, err = p.db.Exec(fmt.Sprintf(
+		result, err = p.db.ExecContext(ctx, fmt.Sprintf(
 			`INSERT INTO %s (key, value, isbinary, etag) VALUES ($1, $2, $3, 1)
 			ON CONFLICT (key) DO UPDATE SET value = $2, isbinary = $3, updatedate = NOW(), etag = EXCLUDED.etag + 1;`,
 			tableName), req.Key, value, isBinary)
@@ -150,7 +151,7 @@ func (p *cockroachDBAccess) Set(req *state.SetRequest) error {
 		etag := uint32(etag64)
 
 		// When an etag is provided do an update - no insert.
-		result, err = p.db.Exec(fmt.Sprintf(
+		result, err = p.db.ExecContext(ctx, fmt.Sprintf(
 			`UPDATE %s SET value = $1, isbinary = $2, updatedate = NOW(), etag = etag + 1
 			 WHERE key = $3 AND etag = $4;`,
 			tableName), value, isBinary, req.Key, etag)
@@ -172,7 +173,7 @@ func (p *cockroachDBAccess) Set(req *state.SetRequest) error {
 	return nil
 }
 
-func (p *cockroachDBAccess) BulkSet(req []state.SetRequest) error {
+func (p *cockroachDBAccess) BulkSet(ctx context.Context, req []state.SetRequest) error {
 	p.logger.Debug("Executing BulkSet request")
 	tx, err := p.db.Begin()
 	if err != nil {
@@ -182,7 +183,7 @@ func (p *cockroachDBAccess) BulkSet(req []state.SetRequest) error {
 	if len(req) > 0 {
 		for _, s := range req {
 			sa := s // Fix for gosec  G601: Implicit memory aliasing in for loop.
-			err = p.Set(&sa)
+			err = p.Set(ctx, &sa)
 			if err != nil {
 				tx.Rollback()
 
@@ -197,7 +198,7 @@ func (p *cockroachDBAccess) BulkSet(req []state.SetRequest) error {
 }
 
 // Get returns data from the database. If data does not exist for the key an empty state.GetResponse will be returned.
-func (p *cockroachDBAccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (p *cockroachDBAccess) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	p.logger.Debug("Getting state value from CockroachDB")
 
 	if req.Key == "" {
@@ -207,7 +208,7 @@ func (p *cockroachDBAccess) Get(req *state.GetRequest) (*state.GetResponse, erro
 	var value string
 	var isBinary bool
 	var etag int
-	err := p.db.QueryRow(fmt.Sprintf("SELECT value, isbinary, etag FROM %s WHERE key = $1", tableName), req.Key).Scan(&value, &isBinary, &etag)
+	err := p.db.QueryRowContext(ctx, fmt.Sprintf("SELECT value, isbinary, etag FROM %s WHERE key = $1", tableName), req.Key).Scan(&value, &isBinary, &etag)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
 		if errors.Is(err, sql.ErrNoRows) {
@@ -246,7 +247,7 @@ func (p *cockroachDBAccess) Get(req *state.GetRequest) (*state.GetResponse, erro
 }
 
 // Delete removes an item from the state store.
-func (p *cockroachDBAccess) Delete(req *state.DeleteRequest) error {
+func (p *cockroachDBAccess) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	p.logger.Debug("Deleting state value from CockroachDB")
 
 	if req.Key == "" {
@@ -257,7 +258,7 @@ func (p *cockroachDBAccess) Delete(req *state.DeleteRequest) error {
 	var err error
 
 	if req.ETag == nil {
-		result, err = p.db.Exec("DELETE FROM state WHERE key = $1", req.Key)
+		result, err = p.db.ExecContext(ctx, "DELETE FROM state WHERE key = $1", req.Key)
 	} else {
 		var etag64 uint64
 		etag64, err = strconv.ParseUint(*req.ETag, 10, 32)
@@ -266,7 +267,7 @@ func (p *cockroachDBAccess) Delete(req *state.DeleteRequest) error {
 		}
 		etag := uint32(etag64)
 
-		result, err = p.db.Exec("DELETE FROM state WHERE key = $1 and etag = $2", req.Key, etag)
+		result, err = p.db.ExecContext(ctx, "DELETE FROM state WHERE key = $1 and etag = $2", req.Key, etag)
 	}
 
 	if err != nil {
@@ -285,7 +286,7 @@ func (p *cockroachDBAccess) Delete(req *state.DeleteRequest) error {
 	return nil
 }
 
-func (p *cockroachDBAccess) BulkDelete(req []state.DeleteRequest) error {
+func (p *cockroachDBAccess) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
 	p.logger.Debug("Executing BulkDelete request")
 	tx, err := p.db.Begin()
 	if err != nil {
@@ -295,7 +296,7 @@ func (p *cockroachDBAccess) BulkDelete(req []state.DeleteRequest) error {
 	if len(req) > 0 {
 		for _, d := range req {
 			da := d // Fix for gosec  G601: Implicit memory aliasing in for loop.
-			err = p.Delete(&da)
+			err = p.Delete(ctx, &da)
 			if err != nil {
 				tx.Rollback()
 
@@ -309,7 +310,7 @@ func (p *cockroachDBAccess) BulkDelete(req []state.DeleteRequest) error {
 	return err
 }
 
-func (p *cockroachDBAccess) ExecuteMulti(request *state.TransactionalStateRequest) error {
+func (p *cockroachDBAccess) ExecuteMulti(ctx context.Context, request *state.TransactionalStateRequest) error {
 	p.logger.Debug("Executing PostgreSQL transaction")
 
 	tx, err := p.db.Begin()
@@ -328,7 +329,7 @@ func (p *cockroachDBAccess) ExecuteMulti(request *state.TransactionalStateReques
 				return err
 			}
 
-			err = p.Set(&setReq)
+			err = p.Set(ctx, &setReq)
 			if err != nil {
 				tx.Rollback()
 				return err
@@ -343,7 +344,7 @@ func (p *cockroachDBAccess) ExecuteMulti(request *state.TransactionalStateReques
 				return err
 			}
 
-			err = p.Delete(&delReq)
+			err = p.Delete(ctx, &delReq)
 			if err != nil {
 				tx.Rollback()
 				return err
@@ -361,7 +362,7 @@ func (p *cockroachDBAccess) ExecuteMulti(request *state.TransactionalStateReques
 }
 
 // Query executes a query against store.
-func (p *cockroachDBAccess) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
+func (p *cockroachDBAccess) Query(ctx context.Context, req *state.QueryRequest) (*state.QueryResponse, error) {
 	p.logger.Debug("Getting query value from CockroachDB")
 
 	stateQuery := &Query{
@@ -381,7 +382,7 @@ func (p *cockroachDBAccess) Query(req *state.QueryRequest) (*state.QueryResponse
 
 	p.logger.Debug("Query: " + stateQuery.query)
 
-	data, token, err := stateQuery.execute(p.logger, p.db)
+	data, token, err := stateQuery.execute(ctx, p.logger, p.db)
 	if err != nil {
 		return &state.QueryResponse{
 			Results:  []state.QueryItem{},

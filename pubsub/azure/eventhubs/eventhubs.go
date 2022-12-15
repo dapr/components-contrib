@@ -22,8 +22,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/v3/aad"
-	"github.com/Azure/azure-amqp-common-go/v3/conn"
+	"github.com/Azure/azure-amqp-common-go/v4/aad"
+	"github.com/Azure/azure-amqp-common-go/v4/conn"
 	eventhub "github.com/Azure/azure-event-hubs-go/v3"
 	"github.com/Azure/azure-event-hubs-go/v3/eph"
 	"github.com/Azure/azure-event-hubs-go/v3/storage"

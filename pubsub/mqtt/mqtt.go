@@ -111,7 +111,7 @@ func (m *mqttPubSub) Init(metadata pubsub.Metadata) error {
 }
 
 // Publish the topic to mqtt pub sub.
-func (m *mqttPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
+func (m *mqttPubSub) Publish(_ context.Context, req *pubsub.PublishRequest) error {
 	if req.Topic == "" {
 		return errors.New("topic name is empty")
 	}

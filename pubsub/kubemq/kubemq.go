@@ -48,7 +48,7 @@ func (k *kubeMQ) Features() []pubsub.Feature {
 	return nil
 }
 
-func (k *kubeMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
+func (k *kubeMQ) Publish(_ context.Context, req *pubsub.PublishRequest) error {
 	if k.metadata.isStore {
 		return k.eventStoreClient.Publish(req)
 	} else {

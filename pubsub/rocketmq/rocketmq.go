@@ -74,8 +74,6 @@ type rocketMQ struct {
 	topics        map[string]mqc.MessageSelector
 	msgProperties map[string]bool
 	logger        logger.Logger
-	ctx           context.Context
-	cancel        context.CancelFunc
 }
 
 func NewRocketMQ(l logger.Logger) pubsub.PubSub {
@@ -102,7 +100,6 @@ func (r *rocketMQ) Init(metadata pubsub.Metadata) error {
 			r.msgProperties[mp] = true
 		}
 	}
-	r.ctx, r.cancel = context.WithCancel(context.Background())
 
 	return nil
 }
@@ -488,8 +485,6 @@ func (r *rocketMQ) Close() error {
 	defer r.producerLock.Unlock()
 	r.consumerLock.Lock()
 	defer r.consumerLock.Unlock()
-
-	r.cancel()
 
 	r.producer = nil
 

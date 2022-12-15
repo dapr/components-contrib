@@ -18,7 +18,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/didip/tollbooth"
+	tollbooth "github.com/didip/tollbooth/v7"
+	libstring "github.com/didip/tollbooth/v7/libstring"
 
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
@@ -54,7 +55,31 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 	limiter := tollbooth.NewLimiter(meta.MaxRequestsPerSecond, nil)
 
 	return func(next http.Handler) http.Handler {
-		return tollbooth.LimitHandler(limiter, next)
+		// Adapted from toolbooth.LimitHandler
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// The tollbooth library requires a remote IP. If this isn't present in the request's headers, then we need to set a value for X-Forwarded-For or the rate limiter won't work
+			remoteIP := libstring.RemoteIP(limiter.GetIPLookups(), limiter.GetForwardedForIndexFromBehind(), r)
+			remoteIP = libstring.CanonicalizeIP(remoteIP)
+			if remoteIP == "" {
+				// Forcefully set a remote IP
+				r.Header.Set("X-Forwarded-For", "0.0.0.0")
+			}
+
+			httpError := tollbooth.LimitByRequest(limiter, w, r)
+			if httpError != nil {
+				limiter.ExecOnLimitReached(w, r)
+				if limiter.GetOverrideDefaultResponseWriter() {
+					return
+				}
+				w.Header().Add("Content-Type", limiter.GetMessageContentType())
+				w.WriteHeader(httpError.StatusCode)
+				w.Write([]byte(httpError.Message))
+				return
+			}
+
+			// There's no rate-limit error, serve the next handler.
+			next.ServeHTTP(w, r)
+		})
 	}, nil
 }
 

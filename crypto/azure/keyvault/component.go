@@ -71,13 +71,16 @@ func (k *keyvaultCrypto) Init(metadata daprcrypto.Metadata) error {
 	if err != nil {
 		return err
 	}
-	k.vaultClient = azkeys.NewClient(k.getVaultURI(), cred, &azkeys.ClientOptions{
+	k.vaultClient, err = azkeys.NewClient(k.getVaultURI(), cred, &azkeys.ClientOptions{
 		ClientOptions: azcore.ClientOptions{
 			Telemetry: policy.TelemetryOptions{
 				ApplicationID: "dapr-" + logger.DaprVersion,
 			},
 		},
 	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

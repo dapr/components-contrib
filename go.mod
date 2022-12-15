@@ -110,20 +110,12 @@ require (
 	go.temporal.io/sdk v1.19.0
 	go.uber.org/atomic v1.10.0
 	go.uber.org/ratelimit v0.2.0
-<<<<<<< HEAD
-	golang.org/x/crypto v0.1.0
-	golang.org/x/exp v0.0.0-20221028150844-83b7d23a625f
-	golang.org/x/net v0.1.0
-	golang.org/x/oauth2 v0.1.0
-	google.golang.org/api v0.101.0
-	google.golang.org/grpc v1.50.1
-=======
 	golang.org/x/crypto v0.4.0
+	golang.org/x/exp v0.0.0-20221028150844-83b7d23a625f
 	golang.org/x/net v0.4.0
 	golang.org/x/oauth2 v0.3.0
 	google.golang.org/api v0.104.0
 	google.golang.org/grpc v1.51.0
->>>>>>> master
 	gopkg.in/couchbase/gocb.v1 v1.6.7
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gopkg.in/yaml.v3 v3.0.1

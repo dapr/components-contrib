@@ -90,8 +90,6 @@ github.com/cncf/xds/go v0.0.0-20210805033703-aa0b78936158/go.mod h1:eXthEFrGJvWH
 github.com/cncf/xds/go v0.0.0-20210922020428-25de7278fc84/go.mod h1:eXthEFrGJvWHgFFCl3hGmgk+/aYT6PnTQLykKQRLhEs=
 github.com/cncf/xds/go v0.0.0-20211011173535-cb28da3451f1/go.mod h1:eXthEFrGJvWHgFFCl3hGmgk+/aYT6PnTQLykKQRLhEs=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
-github.com/dapr/dapr v1.9.4-0.20221213222644-64d468a693f1 h1:kkrLjKnA3/rhoFaFJYEAmmo2apGv07A346Du/oOnMq4=
-github.com/dapr/dapr v1.9.4-0.20221213222644-64d468a693f1/go.mod h1:uoW5jcwPhOgdzY391x1gRSCjFSmcf2FTcH5Gg7gf7Pc=
 github.com/dapr/go-sdk v1.6.0 h1:jg5A2khSCHF8bGZsig5RWN/gD0jjitszc2V6Uq2pPdY=
 github.com/dapr/go-sdk v1.6.0/go.mod h1:KLQBltoD9K0w5hKTihdcyg9Epob9gypwL5dYcQzPro4=
 github.com/dapr/kit v0.0.3 h1:1FCnWjIuAS3OJzJhOlUKNzLxoazYhYIS4oCOOULmWBA=
@@ -376,8 +374,8 @@ github.com/modern-go/reflect2 v0.0.0-20180701023420-4b7aa43c6742/go.mod h1:bx2lN
 github.com/modern-go/reflect2 v1.0.1/go.mod h1:bx2lNnkwVCuqBIxFjflWJWanXIb3RllmbCylyMrvgv0=
 github.com/modern-go/reflect2 v1.0.2 h1:xBagoLtFs94CBntxluKeaWgTMpvLxC4ur3nMaC9Gz0M=
 github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
-github.com/mukundansundar/dapr v0.7.1-0.20221214060805-f7f65f61c0bb h1:mlgaFoF+CfZIEmvp+4oNfBMrzarKHA7vNW7jsBZ4/Nw=
-github.com/mukundansundar/dapr v0.7.1-0.20221214060805-f7f65f61c0bb/go.mod h1:E+DmqdC3mr1kn0WujxhWpv1jXNrjP9dyeIZibw0JSSk=
+github.com/mukundansundar/dapr v0.7.1-0.20221215171955-932ed4d7c0c8 h1:8xwJr+v0W/wughCQsdZ1k2Qzf7AWDfPrhT35hP8sk/c=
+github.com/mukundansundar/dapr v0.7.1-0.20221215171955-932ed4d7c0c8/go.mod h1:E+DmqdC3mr1kn0WujxhWpv1jXNrjP9dyeIZibw0JSSk=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=

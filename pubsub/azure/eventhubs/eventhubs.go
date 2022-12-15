@@ -22,8 +22,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/v3/aad"
-	"github.com/Azure/azure-amqp-common-go/v3/conn"
+	"github.com/Azure/azure-amqp-common-go/v4/aad"
+	"github.com/Azure/azure-amqp-common-go/v4/conn"
 	eventhub "github.com/Azure/azure-event-hubs-go/v3"
 	"github.com/Azure/azure-event-hubs-go/v3/eph"
 	"github.com/Azure/azure-event-hubs-go/v3/storage"
@@ -132,8 +132,6 @@ func subscribeHandler(ctx context.Context, topic string, e *eventhub.Event, hand
 type AzureEventHubs struct {
 	metadata           *azureEventHubsMetadata
 	logger             logger.Logger
-	publishCtx         context.Context
-	publishCancel      context.CancelFunc
 	backOffConfig      retry.Config
 	hubClients         map[string]*eventhub.Hub
 	eventProcessors    map[string]*eph.EventProcessorHost
@@ -533,8 +531,6 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 		return fmt.Errorf("invalid storage credentials with error: %w", storageCredsErr)
 	}
 
-	aeh.publishCtx, aeh.publishCancel = context.WithCancel(context.Background())
-
 	// Default retry configuration is used if no backOff properties are set.
 	if err := retry.DecodeConfigWithPrefix(
 		&aeh.backOffConfig,
@@ -672,10 +668,6 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 }
 
 func (aeh *AzureEventHubs) Close() (err error) {
-	if aeh.publishCancel != nil {
-		aeh.publishCancel()
-	}
-
 	flag := false
 	var ctx context.Context
 	var cancel context.CancelFunc

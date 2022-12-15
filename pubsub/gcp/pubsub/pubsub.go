@@ -57,11 +57,9 @@ const (
 
 // GCPPubSub type.
 type GCPPubSub struct {
-	client        *gcppubsub.Client
-	metadata      *metadata
-	logger        logger.Logger
-	publishCtx    context.Context
-	publishCancel context.CancelFunc
+	client   *gcppubsub.Client
+	metadata *metadata
+	logger   logger.Logger
 }
 
 type GCPAuthJSON struct {
@@ -190,8 +188,6 @@ func (g *GCPPubSub) Init(meta pubsub.Metadata) error {
 
 	g.client = pubsubClient
 	g.metadata = metadata
-
-	g.publishCtx, g.publishCancel = context.WithCancel(context.Background())
 
 	return nil
 }
@@ -394,7 +390,6 @@ func (g *GCPPubSub) getSubscription(subscription string) *gcppubsub.Subscription
 }
 
 func (g *GCPPubSub) Close() error {
-	g.publishCancel()
 	return g.client.Close()
 }
 

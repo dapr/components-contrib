@@ -144,7 +144,7 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 	uploadOptions := azblob.UploadBufferOptions{
 		Metadata:                storageinternal.SanitizeMetadata(a.logger, req.Metadata),
 		HTTPHeaders:             &blobHTTPHeaders,
-		TransactionalContentMD5: &blobHTTPHeaders.BlobContentMD5,
+		TransactionalContentMD5: blobHTTPHeaders.BlobContentMD5,
 	}
 
 	blockBlobClient := a.containerClient.NewBlockBlobClient(blobName)

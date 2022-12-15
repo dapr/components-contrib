@@ -8,13 +8,13 @@ import (
 	"github.com/Azure/go-amqp"
 )
 
-var retriableSendingErrors = map[amqp.ErrorCondition]struct{}{
+var retriableSendingErrors = map[amqp.ErrCond]struct{}{
 	"com.microsoft:server-busy'":             {},
-	amqp.ErrorResourceLimitExceeded:          {},
-	amqp.ErrorResourceLocked:                 {},
-	amqp.ErrorTransferLimitExceeded:          {},
-	amqp.ErrorInternalError:                  {},
-	amqp.ErrorIllegalState:                   {},
+	amqp.ErrCondResourceLimitExceeded:        {},
+	amqp.ErrCondResourceLocked:               {},
+	amqp.ErrCondTransferLimitExceeded:        {},
+	amqp.ErrCondInternalError:                {},
+	amqp.ErrCondIllegalState:                 {},
 	"com.microsoft:message-lock-lost":        {},
 	"com.microsoft:session-cannot-be-locked": {},
 	"com.microsoft:timeout":                  {},
@@ -36,7 +36,8 @@ func IsNetworkError(err error) bool {
 	}
 
 	// Context deadline exceeded errors often happen when the connection is just "hanging"
-	if errors.Is(err, amqp.ErrConnClosed) || errors.Is(err, context.DeadlineExceeded) {
+	var connErr *amqp.ConnError
+	if errors.Is(err, context.DeadlineExceeded) || errors.As(err, &connErr) {
 		return true
 	}
 

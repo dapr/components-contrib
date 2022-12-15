@@ -18,14 +18,15 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	amqp "github.com/Azure/go-amqp"
-	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/kit/logger"
 	"net/url"
 	"strconv"
 	"strings"
 	"sync"
 	time "time"
+
+	amqp "github.com/Azure/go-amqp"
+	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -78,8 +79,12 @@ func AddPrefixToAddress(t string) string {
 	dest := t
 
 	//Unless the request comes in to publish on a queue, publish directly on a topic
-	if !strings.HasPrefix(dest, "queue://") && !strings.HasPrefix(dest, "topic://") {
+	if !strings.HasPrefix(dest, "queue:") && !strings.HasPrefix(dest, "topic:") {
 		dest = "topic://" + dest
+	} else if strings.HasPrefix(dest, "queue:") {
+		dest = strings.Replace(dest, "queue:", "queue://", 1)
+	} else if strings.HasPrefix(dest, "topic:") {
+		dest = strings.Replace(dest, "topic:", "topic://", 1)
 	}
 
 	return dest
@@ -143,13 +148,15 @@ func (a *amqpPubSub) Publish(req *pubsub.PublishRequest) error {
 
 func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 
+	prefixedTopic := AddPrefixToAddress(req.Topic)
+
 	receiver, err := a.session.NewReceiver(
-		amqp.LinkSourceAddress(AddPrefixToAddress(req.Topic)),
+		amqp.LinkSourceAddress(prefixedTopic),
 	)
 
 	if err == nil {
-		a.logger.Infof("Attempting to subscribe to %s", req.Topic)
-		go a.subscribeForever(ctx, receiver, handler)
+		a.logger.Infof("Attempting to subscribe to %s", prefixedTopic)
+		go a.subscribeForever(ctx, receiver, handler, prefixedTopic)
 	} else {
 		a.logger.Error("Unable to create a receiver:", err)
 	}
@@ -159,7 +166,7 @@ func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 }
 
 // function that subscribes to a queue in a tight loop
-func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiver, handler pubsub.Handler) {
+func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiver, handler pubsub.Handler, t string) {
 	for {
 		// Receive next message
 		msg, err := receiver.Receive(ctx)

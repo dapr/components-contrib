@@ -1,28 +1,48 @@
+terraform {
+  required_version = ">=0.13"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 4.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = "us-west-1"
+}
+
+variable "RUN_ID" {
+    type        = string
+    description = "Run Id of the github worklow run."
+}
+
 resource "aws_sns_topic" "testTopic" {
-  name = "testTopic"
+  name = "testTopic-${var.RUN_ID}"
   tags = {
-    dapr-topic-name = "testTopic"
+    dapr-topic-name = "testTopic-${var.RUN_ID}"
   }
 }
 
 resource "aws_sns_topic" "multiTopic1" {
-  name = "multiTopic1"
+  name = "multiTopic1-${var.RUN_ID}"
   tags = {
-    dapr-topic-name = "multiTopic1"
+    dapr-topic-name = "multiTopic1-${var.RUN_ID}"
   }
 }
 
 resource "aws_sns_topic" "multiTopic2" {
-  name = "multiTopic2"
+  name = "multiTopic2-${var.RUN_ID}"
   tags = {
-    dapr-topic-name = "multiTopic2"
+    dapr-topic-name = "multiTopic2-${var.RUN_ID}"
   }
 }
 
 resource "aws_sqs_queue" "testQueue" {
-  name = "testQueue"
+  name = "testQueue-${var.RUN_ID}"
   tags = {
-    dapr-queue-name = "testQueue"
+    dapr-queue-name = "testQueue-${var.RUN_ID}"
   }
 }
 
@@ -51,44 +71,24 @@ resource "aws_sqs_queue_policy" "testQueue_policy" {
 {
   "Version": "2012-10-17",
   "Id": "sqspolicy",
-  "Statement": [
-    {
-      "Sid": "First",
-      "Effect": "Allow",
-      "Principal": "*",
-      "Action": "sqs:SendMessage",
-      "Resource": "${aws_sqs_queue.testQueue.arn}",
-      "Condition": {
-        "ArnEquals": {
-          "aws:SourceArn": "${aws_sns_topic.testTopic.arn}"
-        }
-      }
-    }, 
-    {
-      "Sid": "First",
-      "Effect": "Allow",
-      "Principal": "*",
-      "Action": "sqs:SendMessage",
-      "Resource": "${aws_sqs_queue.testQueue.arn}",
-      "Condition": {
-        "ArnEquals": {
-          "aws:SourceArn": "${aws_sns_topic.multiTopic1.arn}"
-        }
-      }
+  "Statement": [{
+    "Sid": "Allow-SNS-SendMessage",
+    "Effect": "Allow",
+    "Principal": {
+      "Service": "sns.amazonaws.com"
     },
-    {
-      "Sid": "First",
-      "Effect": "Allow",
-      "Principal": "*",
-      "Action": "sqs:SendMessage",
-      "Resource": "${aws_sqs_queue.testQueue.arn}",
-      "Condition": {
-        "ArnEquals": {
-          "aws:SourceArn": "${aws_sns_topic.multiTopic2.arn}"
-        }
+    "Action": "sqs:SendMessage",
+    "Resource": "${aws_sqs_queue.testQueue.arn}",
+    "Condition": {
+      "ArnEquals": {
+        "aws:SourceArn": [
+          "${aws_sns_topic.testTopic.arn}",
+          "${aws_sns_topic.multiTopic1.arn}",
+          "${aws_sns_topic.multiTopic2.arn}"
+        ]
       }
     }
-  ]
+  }]
 }
 POLICY
 }

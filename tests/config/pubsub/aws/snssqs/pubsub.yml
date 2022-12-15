@@ -12,9 +12,9 @@ spec:
     - name: secretKey
       value: ${{AWS_SECRET_ACCESS_KEY}}
     - name: region
-      value: "us-west-2"
+      value: "us-west-1"
     - name: consumerID
-      value: "testQueue"
+      value: ${{PUBSUB_AWS_SNSSQS_QUEUE}}
     - name: messageVisibilityTimeout
       value: 10
     - name: messageRetryLimit

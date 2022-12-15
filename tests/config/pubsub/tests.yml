@@ -79,6 +79,10 @@ components:
   - component: aws.snssqs
     operations: ["publish", "subscribe", "multiplehandlers"]
     config:
+      pubsubName: aws-snssqs
+      testTopicName: ${{PUBSUB_AWS_SNSSQS_TOPIC}}
+      testMultiTopic1Name: ${{PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1}}
+      testMultiTopic2Name: ${{PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2}}
       checkInOrderProcessing: false
   - component: kubemq
     operations: ["publish", "subscribe", "multiplehandlers"]

@@ -106,11 +106,11 @@ func (k *keyvaultSecretStore) Init(meta secretstores.Metadata) error {
 			ApplicationID: "dapr-" + logger.DaprVersion,
 		},
 	}
-	k.vaultClient = azsecrets.NewClient(k.getVaultURI(), cred, &azsecrets.ClientOptions{
+	client, clientErr := azsecrets.NewClient(k.getVaultURI(), cred, &azsecrets.ClientOptions{
 		ClientOptions: coreClientOpts,
 	})
-
-	return nil
+	k.vaultClient = client
+	return clientErr
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.

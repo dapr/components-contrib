@@ -51,6 +51,10 @@ resource cosmosDb 'Microsoft.DocumentDB/databaseAccounts@2021-04-15' = {
               '/partitionKey' // Defined by conformance test state.go
             ]
           }
+          // Based on https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/time-to-live,
+          // if defaultTtl is not set, the item will never expire and also ttl is not enabled at all so
+          // ttl set on a per item basis will not be honored.
+          defaultTtl: -1 // only enable ttl
         }
       }
     }

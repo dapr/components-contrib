@@ -14,6 +14,7 @@ limitations under the License.
 package cockroachdb
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strconv"
@@ -132,8 +133,8 @@ func (q *Query) Finalize(filters string, storeQuery *query.Query) error {
 	return nil
 }
 
-func (q *Query) execute(logger logger.Logger, db *sql.DB) ([]state.QueryItem, string, error) {
-	rows, err := db.Query(q.query, q.params...)
+func (q *Query) execute(ctx context.Context, logger logger.Logger, db *sql.DB) ([]state.QueryItem, string, error) {
+	rows, err := db.QueryContext(ctx, q.query, q.params...)
 	if err != nil {
 		return nil, "", fmt.Errorf("query executes '%s' failed: %w", q.query, err)
 	}

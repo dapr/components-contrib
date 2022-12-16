@@ -14,6 +14,7 @@ limitations under the License.
 package cockroachdb_test
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -108,7 +109,7 @@ func TestCockroach(t *testing.T) {
 		err = stateStore.Ping()
 		assert.Equal(t, nil, err)
 
-		resp, err := stateStore.Get(&state.GetRequest{
+		resp, err := stateStore.Get(context.Background(), &state.GetRequest{
 			Key: keyOneString,
 		})
 		assert.NoError(t, err)
@@ -124,21 +125,21 @@ func TestCockroach(t *testing.T) {
 		etag100 := "100"
 
 		// Setting with nil etag will insert an item with an etag value of 1 unless there is a conflict
-		err := stateStore.Set(&state.SetRequest{
+		err := stateStore.Set(context.Background(), &state.SetRequest{
 			Key:   keyOneString,
 			Value: "v1",
 		})
 		assert.NoError(t, err)
 
 		// Setting with an etag wil do an update, not an insert so an error is expected since the etag of 100 is not present
-		err = stateStore.Set(&state.SetRequest{
+		err = stateStore.Set(context.Background(), &state.SetRequest{
 			Key:   keyOneString,
 			Value: "v3",
 			ETag:  &etag100,
 		})
 		assert.Equal(t, fmt.Errorf("no item was updated"), err)
 
-		resp, err := stateStore.Get(&state.GetRequest{
+		resp, err := stateStore.Get(context.Background(), &state.GetRequest{
 			Key: keyOneString,
 		})
 		assert.NoError(t, err)
@@ -147,14 +148,14 @@ func TestCockroach(t *testing.T) {
 
 		// This will update the value stored in key K with "Overwrite Success" since the previously created etag has a value of 1
 		// It will also increment the etag stored by a value of 1
-		err = stateStore.Set(&state.SetRequest{
+		err = stateStore.Set(context.Background(), &state.SetRequest{
 			Key:   keyOneString,
 			Value: "Overwrite Success",
 			ETag:  &etag1,
 		})
 		assert.NoError(t, err)
 
-		resp, err = stateStore.Get(&state.GetRequest{
+		resp, err = stateStore.Get(context.Background(), &state.GetRequest{
 			Key: keyOneString,
 		})
 		assert.NoError(t, err)
@@ -168,15 +169,15 @@ func TestCockroach(t *testing.T) {
 	transactionsTest := func(ctx flow.Context) error {
 
 		// Set state to allow for a delete operation inside the multi list
-		err = stateStore.Set(&state.SetRequest{Key: certificationTestPrefix + "key1", Value: []byte("certificationdata")})
+		err = stateStore.Set(context.Background(), &state.SetRequest{Key: certificationTestPrefix + "key1", Value: []byte("certificationdata")})
 		assert.NoError(t, err)
 
 		// get state
-		item, errUpdatedGet := stateStore.Get(&state.GetRequest{Key: certificationTestPrefix + "key1"})
+		item, errUpdatedGet := stateStore.Get(context.Background(), &state.GetRequest{Key: certificationTestPrefix + "key1"})
 		assert.NoError(t, errUpdatedGet)
 		assert.Equal(t, []byte("certificationdata"), item.Data)
 
-		err = stateStore.Multi(&state.TransactionalStateRequest{
+		err = stateStore.Multi(context.Background(), &state.TransactionalStateRequest{
 			Operations: []state.TransactionalStateOperation{
 				{
 					Operation: state.Upsert,
@@ -229,18 +230,18 @@ func TestCockroach(t *testing.T) {
 		assert.Equal(t, nil, err)
 
 		// get state
-		item, errUpdatedGet = stateStore.Get(&state.GetRequest{Key: certificationTestPrefix + "key1"})
+		item, errUpdatedGet = stateStore.Get(context.Background(), &state.GetRequest{Key: certificationTestPrefix + "key1"})
 		assert.NoError(t, errUpdatedGet)
 		assert.Equal(t, []byte(nil), item.Data)
 
-		resp1, err := stateStore.Get(&state.GetRequest{
+		resp1, err := stateStore.Get(context.Background(), &state.GetRequest{
 			Key: "reqKey1",
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, "2", *resp1.ETag)
 		assert.Equal(t, "\"reqVal101\"", string(resp1.Data))
 
-		resp3, err := stateStore.Get(&state.GetRequest{
+		resp3, err := stateStore.Get(context.Background(), &state.GetRequest{
 			Key: "reqKey3",
 		})
 		assert.NoError(t, err)

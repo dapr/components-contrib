@@ -15,9 +15,7 @@ package kafka_test
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
-	"net/http"
 	"testing"
 	"time"
 
@@ -48,6 +46,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/retry"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
+	"github.com/dapr/components-contrib/tests/certification/flow/simulate"
 	"github.com/dapr/components-contrib/tests/certification/flow/watcher"
 )
 
@@ -71,10 +70,9 @@ const (
 
 var (
 	brokers          = []string{"localhost:19092", "localhost:29092", "localhost:39092"}
-	oauthClientQuery = "https://localhost:4444/clients/dapr"
 )
 
-func TestKafka(t *testing.T) {
+func TestKafka_with_retry(t *testing.T) {
 	// For Kafka, we should ensure messages are received in order.
 	consumerGroup1 := watcher.NewOrdered()
 	// This watcher is across multiple consumers in the same group
@@ -84,9 +82,15 @@ func TestKafka(t *testing.T) {
 	// Application logic that tracks messages from a topic.
 	application := func(appName string, watcher *watcher.Watcher) app.SetupFn {
 		return func(ctx flow.Context, s common.Service) error {
+			// Simulate periodic errors.
+			sim := simulate.PeriodicError(ctx, 100)
+
 			// Setup the /orders event handler.
 			return multierr.Combine(
 				s.AddBindingInvocationHandler(bindingName, func(_ context.Context, in *common.BindingEvent) (out []byte, err error) {
+					if err := sim(); err != nil {
+						return nil, err
+					}
 					// Track/Observe the data of the event.
 					watcher.Observe(string(in.Data))
 					ctx.Logf("======== %s received event: %s\n", appName, string(in.Data))
@@ -129,6 +133,7 @@ func TestKafka(t *testing.T) {
 			// Send events that the application above will observe.
 			ctx.Log("Sending messages!")
 			for _, msg := range msgs {
+				ctx.Logf("Sending: %q", msg)
 				err := client.InvokeOutputBinding(ctx, &dapr.InvokeBindingRequest{
 					Name:      bindingName,
 					Operation: string(bindings.CreateOperation),
@@ -183,7 +188,7 @@ func TestKafka(t *testing.T) {
 							Metadata:  metadata,
 						})
 					}, bo, func(err error, t time.Duration) {
-						ctx.Logf("Error outpub binding message, retrying in %s", t)
+						ctx.Logf("Error output binding message, retrying in %s", t)
 					}, func() {}); err == nil {
 						for _, m := range watchers {
 							m.Add(msg) // Success
@@ -210,7 +215,7 @@ func TestKafka(t *testing.T) {
 		}
 	}
 
-	flow.New(t, "kafka certification").
+	flow.New(t, "kafka certification with retry").
 		// Run Kafka using Docker Compose.
 		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
 		Step("wait for broker sockets",
@@ -234,25 +239,6 @@ func TestKafka(t *testing.T) {
 
 			return err
 		})).
-		Step("wait for Dapr OAuth client", retry.Do(20*time.Second, 6, func(ctx flow.Context) error {
-			httpClient := &http.Client{
-				Transport: &http.Transport{
-					TLSClientConfig: &tls.Config{
-						InsecureSkipVerify: true, // test server certificate is not trusted.
-					},
-				},
-			}
-
-			resp, err := httpClient.Get(oauthClientQuery)
-			if err != nil {
-				return err
-			}
-			if resp.StatusCode != 200 {
-				return fmt.Errorf("oauth client query for 'dapr' not successful")
-			}
-			return nil
-		})).
-		//
 		// Run the application logic above.
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			application(appID1, consumerGroup1))).
@@ -272,7 +258,7 @@ func TestKafka(t *testing.T) {
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/mtls-consumer"),
+			embedded.WithComponentsPath("./components/consumer2"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
@@ -290,7 +276,7 @@ func TestKafka(t *testing.T) {
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName3,
-			embedded.WithComponentsPath("./components/oauth-consumer"),
+			embedded.WithComponentsPath("./components/consumer2"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*2),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*2),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*2),

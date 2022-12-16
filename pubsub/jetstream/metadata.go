@@ -19,6 +19,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nats-io/nats.go"
+
 	"github.com/dapr/components-contrib/pubsub"
 )
 
@@ -38,7 +40,6 @@ type metadata struct {
 	queueGroupName string
 	startSequence  uint64
 	startTime      time.Time
-	deliverAll     bool
 	flowControl    bool
 	ackWait        time.Duration
 	maxDeliver     int
@@ -48,6 +49,8 @@ type metadata struct {
 	memoryStorage  bool
 	rateLimit      uint64
 	hearbeat       time.Duration
+	deliverPolicy  nats.DeliverPolicy
+	ackPolicy      nats.AckPolicy
 }
 
 func parseMetadata(psm pubsub.Metadata) (metadata, error) {
@@ -101,10 +104,6 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 		m.startTime = time.Unix(v, 0)
 	}
 
-	if v, err := strconv.ParseBool(psm.Properties["deliverAll"]); err == nil {
-		m.deliverAll = v
-	}
-
 	if v, err := strconv.ParseBool(psm.Properties["flowControl"]); err == nil {
 		m.flowControl = v
 	}
@@ -144,7 +143,34 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 		m.hearbeat = v
 	}
 
+	deliverPolicy := psm.Properties["deliverPolicy"]
+	switch deliverPolicy {
+	case "all", "":
+		m.deliverPolicy = nats.DeliverAllPolicy
+	case "last":
+		m.deliverPolicy = nats.DeliverLastPolicy
+	case "new":
+		m.deliverPolicy = nats.DeliverNewPolicy
+	case "sequence":
+		m.deliverPolicy = nats.DeliverByStartSequencePolicy
+	case "time":
+		m.deliverPolicy = nats.DeliverByStartTimePolicy
+	default:
+		return metadata{}, fmt.Errorf("deliver policy %s is not one of: all, last, new, sequence, time", deliverPolicy)
+	}
+
 	m.streamName = psm.Properties["streamName"]
+
+	switch psm.Properties["ackPolicy"] {
+	case "explicit":
+		m.ackPolicy = nats.AckExplicitPolicy
+	case "all":
+		m.ackPolicy = nats.AckAllPolicy
+	case "none":
+		m.ackPolicy = nats.AckNonePolicy
+	default:
+		m.ackPolicy = nats.AckExplicitPolicy
+	}
 
 	return m, nil
 }

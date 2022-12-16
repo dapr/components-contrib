@@ -18,6 +18,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nats-io/nats.go"
+
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 )
@@ -39,7 +41,6 @@ func TestParseMetadata(t *testing.T) {
 					"queueGroupName": "myQueue",
 					"startSequence":  "1",
 					"startTime":      "1629328511",
-					"deliverAll":     "true",
 					"flowControl":    "true",
 					"ackWait":        "2s",
 					"maxDeliver":     "10",
@@ -58,7 +59,6 @@ func TestParseMetadata(t *testing.T) {
 				queueGroupName: "myQueue",
 				startSequence:  1,
 				startTime:      time.Unix(1629328511, 0),
-				deliverAll:     true,
 				flowControl:    true,
 				ackWait:        2 * time.Second,
 				maxDeliver:     10,
@@ -68,6 +68,8 @@ func TestParseMetadata(t *testing.T) {
 				memoryStorage:  true,
 				rateLimit:      20000,
 				hearbeat:       time.Second * 1,
+				deliverPolicy:  nats.DeliverAllPolicy,
+				ackPolicy:      nats.AckExplicitPolicy,
 			},
 			expectErr: false,
 		},
@@ -79,9 +81,7 @@ func TestParseMetadata(t *testing.T) {
 					"name":           "myName",
 					"durableName":    "myDurable",
 					"queueGroupName": "myQueue",
-					"startSequence":  "1",
 					"startTime":      "1629328511",
-					"deliverAll":     "true",
 					"flowControl":    "true",
 					"ackWait":        "2s",
 					"maxDeliver":     "10",
@@ -92,6 +92,9 @@ func TestParseMetadata(t *testing.T) {
 					"rateLimit":      "20000",
 					"hearbeat":       "1s",
 					"token":          "myToken",
+					"deliverPolicy":  "sequence",
+					"startSequence":  "5",
+					"ackPolicy":      "all",
 				},
 			}},
 			want: metadata{
@@ -99,9 +102,8 @@ func TestParseMetadata(t *testing.T) {
 				name:           "myName",
 				durableName:    "myDurable",
 				queueGroupName: "myQueue",
-				startSequence:  1,
+				startSequence:  5,
 				startTime:      time.Unix(1629328511, 0),
-				deliverAll:     true,
 				flowControl:    true,
 				ackWait:        2 * time.Second,
 				maxDeliver:     10,
@@ -112,6 +114,8 @@ func TestParseMetadata(t *testing.T) {
 				rateLimit:      20000,
 				hearbeat:       time.Second * 1,
 				token:          "myToken",
+				deliverPolicy:  nats.DeliverByStartSequencePolicy,
+				ackPolicy:      nats.AckAllPolicy,
 			},
 			expectErr: false,
 		},
@@ -125,7 +129,6 @@ func TestParseMetadata(t *testing.T) {
 					"queueGroupName": "myQueue",
 					"startSequence":  "1",
 					"startTime":      "1629328511",
-					"deliverAll":     "true",
 					"flowControl":    "true",
 					"jwt":            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
 				},
@@ -143,7 +146,6 @@ func TestParseMetadata(t *testing.T) {
 					"queueGroupName": "myQueue",
 					"startSequence":  "1",
 					"startTime":      "1629328511",
-					"deliverAll":     "true",
 					"flowControl":    "true",
 					"seedKey":        "SUACS34K232OKPRDOMKC6QEWXWUDJTT6R6RZM2WPMURUS5Z3POU7BNIL4Y",
 				},
@@ -161,7 +163,6 @@ func TestParseMetadata(t *testing.T) {
 					"queueGroupName":  "myQueue",
 					"startSequence":   "1",
 					"startTime":       "1629328511",
-					"deliverAll":      "true",
 					"flowControl":     "true",
 					"tls_client_cert": "/path/to/tls.pem",
 				},
@@ -179,7 +180,6 @@ func TestParseMetadata(t *testing.T) {
 					"queueGroupName": "myQueue",
 					"startSequence":  "1",
 					"startTime":      "1629328511",
-					"deliverAll":     "true",
 					"flowControl":    "true",
 					"tls_client_key": "/path/to/tls.key",
 				},

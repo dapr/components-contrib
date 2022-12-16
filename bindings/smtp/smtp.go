@@ -18,6 +18,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 
@@ -28,10 +29,12 @@ import (
 )
 
 const (
-	defaultPriority = 3
-	lowestPriority  = 1
-	highestPriority = 5
-	mailSeparator   = ";"
+	defaultPriority           = 3
+	lowestPriority            = 1
+	highestPriority           = 5
+	mailSeparator             = ";"
+	attachmentSizeLimit       = 20 << (10 * 2) // 20MB
+	defaultAttachmentFilename = "attachement.bin"
 )
 
 // Mailer allows sending of emails using the Simple Mail Transfer Protocol.
@@ -42,17 +45,19 @@ type Mailer struct {
 
 // Metadata holds standard email properties.
 type Metadata struct {
-	Host          string `json:"host"`
-	Port          int    `json:"port"`
-	User          string `json:"user"`
-	SkipTLSVerify bool   `json:"skipTLSVerify"`
-	Password      string `json:"password"`
-	EmailFrom     string `json:"emailFrom"`
-	EmailTo       string `json:"emailTo"`
-	EmailCC       string `json:"emailCC"`
-	EmailBCC      string `json:"emailBCC"`
-	Subject       string `json:"subject"`
-	Priority      int    `json:"priority"`
+	Host               string `json:"host"`
+	Port               int    `json:"port"`
+	User               string `json:"user"`
+	SkipTLSVerify      bool   `json:"skipTLSVerify"`
+	Password           string `json:"password"`
+	EmailFrom          string `json:"emailFrom"`
+	EmailTo            string `json:"emailTo"`
+	EmailCC            string `json:"emailCC"`
+	EmailBCC           string `json:"emailBCC"`
+	Subject            string `json:"subject"`
+	Priority           int    `json:"priority"`
+	BodyAsAttachment   bool   `json:"bodyAsAttachment"`
+	AttachmentFilename string `json:"AttachmentFilename"`
 }
 
 // NewSMTP returns a new smtp binding instance.
@@ -108,15 +113,20 @@ func (s *Mailer) Invoke(_ context.Context, req *bindings.InvokeRequest) (*bindin
 	msg.SetHeader("Subject", metadata.Subject)
 	msg.SetHeader("X-priority", strconv.Itoa(metadata.Priority))
 
-	body, err := strconv.Unquote(string(req.Data))
-
-	if err != nil {
-		// When data arrives over gRPC it's not quoted. Unquoting the original data will result in an error.
-		// Instead of unquoting it we'll just use the raw string as that one's already in the right format.
-
-		msg.SetBody("text/html", string(req.Data))
+	if metadata.BodyAsAttachment {
+		if err := prepareAttachment(req, &metadata, msg); err != nil {
+			return nil, err
+		}
 	} else {
-		msg.SetBody("text/html", body)
+		body, err := strconv.Unquote(string(req.Data))
+		if err != nil {
+			// When data arrives over gRPC it's not quoted. Unquoting the original data will result in an error.
+			// Instead of unquoting it we'll just use the raw string as that one's already in the right format.
+
+			msg.SetBody("text/html", string(req.Data))
+		} else {
+			msg.SetBody("text/html", body)
+		}
 	}
 
 	// Send message
@@ -178,8 +188,12 @@ func (s *Mailer) parseMetadata(meta bindings.Metadata) (Metadata, error) {
 	smtpMeta.EmailBCC = meta.Properties["emailBCC"]
 	smtpMeta.EmailFrom = meta.Properties["emailFrom"]
 	smtpMeta.Subject = meta.Properties["subject"]
-	err = smtpMeta.parsePriority(meta.Properties["priority"])
 
+	bodyAsAttachment, _ := strconv.ParseBool(meta.Properties["bodyAsAttachment"])
+	smtpMeta.BodyAsAttachment = bodyAsAttachment
+	smtpMeta.AttachmentFilename = meta.Properties["AttachmentFilename"]
+
+	err = smtpMeta.parsePriority(meta.Properties["priority"])
 	if err != nil {
 		return smtpMeta, err
 	}
@@ -218,6 +232,18 @@ func (metadata Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest) (
 		}
 	}
 
+	if baa := req.Metadata["bodyAsAttachment"]; baa != "" {
+		bodyAsAttachment, err := strconv.ParseBool(baa)
+		if err != nil {
+			return merged, err
+		}
+		merged.BodyAsAttachment = bodyAsAttachment
+	}
+
+	if af := req.Metadata["AttachmentFilename"]; af != "" {
+		merged.AttachmentFilename = af
+	}
+
 	return merged, nil
 }
 
@@ -240,4 +266,23 @@ func (metadata *Metadata) parsePriority(req string) error {
 
 func (metadata Metadata) parseAddresses(addresses string) []string {
 	return strings.Split(addresses, mailSeparator)
+}
+
+func prepareAttachment(req *bindings.InvokeRequest, metadata *Metadata, msg *gomail.Message) error {
+	if len(req.Data) > attachmentSizeLimit {
+		return fmt.Errorf("error from smtp binding, attachement limit of %d bytes exceed", attachmentSizeLimit)
+	}
+
+	if metadata.AttachmentFilename == "" {
+		metadata.AttachmentFilename = defaultAttachmentFilename
+	}
+
+	msg.Attach(metadata.AttachmentFilename, gomail.SetCopyFunc(func(w io.Writer) error {
+		if _, err := w.Write(req.Data); err != nil {
+			return fmt.Errorf("error from smtp binding, unable to create attachment: %+v", err)
+		}
+		return nil
+	}))
+
+	return nil
 }

@@ -14,6 +14,7 @@ limitations under the License.
 package smtp
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -147,26 +148,28 @@ func TestParseMetadata(t *testing.T) {
 func TestMergeWithRequestMetadata(t *testing.T) {
 	t.Run("Has merged metadata", func(t *testing.T) {
 		smtpMeta := Metadata{
-			Host:          "mailserver.dapr.io",
-			Port:          25,
-			User:          "user@dapr.io",
-			SkipTLSVerify: true,
-			Password:      "P@$$w0rd!",
-			EmailFrom:     "from@dapr.io",
-			EmailTo:       "to@dapr.io",
-			EmailCC:       "cc@dapr.io",
-			EmailBCC:      "bcc@dapr.io",
-			Subject:       "Test email",
+			Host:             "mailserver.dapr.io",
+			Port:             25,
+			User:             "user@dapr.io",
+			SkipTLSVerify:    true,
+			Password:         "P@$$w0rd!",
+			EmailFrom:        "from@dapr.io",
+			EmailTo:          "to@dapr.io",
+			EmailCC:          "cc@dapr.io",
+			EmailBCC:         "bcc@dapr.io",
+			Subject:          "Test email",
+			BodyAsAttachment: false,
 		}
 
 		request := bindings.InvokeRequest{}
 		request.Metadata = map[string]string{
-			"emailFrom": "req-from@dapr.io",
-			"emailTo":   "req-to@dapr.io",
-			"emailCC":   "req-cc@dapr.io",
-			"emailBCC":  "req-bcc@dapr.io",
-			"subject":   "req-Test email",
-			"priority":  "1",
+			"emailFrom":        "req-from@dapr.io",
+			"emailTo":          "req-to@dapr.io",
+			"emailCC":          "req-cc@dapr.io",
+			"emailBCC":         "req-bcc@dapr.io",
+			"subject":          "req-Test email",
+			"priority":         "1",
+			"bodyAsAttachment": "true",
 		}
 
 		mergedMeta, err := smtpMeta.mergeWithRequestMetadata(&request)
@@ -184,23 +187,25 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		assert.Equal(t, "req-bcc@dapr.io", mergedMeta.EmailBCC)
 		assert.Equal(t, "req-Test email", mergedMeta.Subject)
 		assert.Equal(t, 1, mergedMeta.Priority)
+		assert.Equal(t, true, mergedMeta.BodyAsAttachment)
 	})
 }
 
 func TestMergeWithNoRequestMetadata(t *testing.T) {
 	t.Run("Has no merged metadata", func(t *testing.T) {
 		smtpMeta := Metadata{
-			Host:          "mailserver.dapr.io",
-			Port:          25,
-			User:          "user@dapr.io",
-			SkipTLSVerify: true,
-			Password:      "P@$$w0rd!",
-			EmailFrom:     "from@dapr.io",
-			EmailTo:       "to@dapr.io",
-			EmailCC:       "cc@dapr.io",
-			EmailBCC:      "bcc@dapr.io",
-			Subject:       "Test email",
-			Priority:      1,
+			Host:             "mailserver.dapr.io",
+			Port:             25,
+			User:             "user@dapr.io",
+			SkipTLSVerify:    true,
+			Password:         "P@$$w0rd!",
+			EmailFrom:        "from@dapr.io",
+			EmailTo:          "to@dapr.io",
+			EmailCC:          "cc@dapr.io",
+			EmailBCC:         "bcc@dapr.io",
+			Subject:          "Test email",
+			Priority:         1,
+			BodyAsAttachment: false,
 		}
 
 		request := bindings.InvokeRequest{}
@@ -220,6 +225,7 @@ func TestMergeWithNoRequestMetadata(t *testing.T) {
 		assert.Equal(t, "bcc@dapr.io", mergedMeta.EmailBCC)
 		assert.Equal(t, "Test email", mergedMeta.Subject)
 		assert.Equal(t, 1, mergedMeta.Priority)
+		assert.Equal(t, false, mergedMeta.BodyAsAttachment)
 	})
 }
 
@@ -318,5 +324,38 @@ func TestMergeWithRequestMetadata_invalidPriorityNotNumber(t *testing.T) {
 
 		assert.NotNil(t, mergedMeta)
 		assert.NotNil(t, err)
+	})
+}
+
+func TestAttachmentSizeLimit(t *testing.T) {
+	logger := logger.NewLogger("test")
+
+	t.Run("Attachment size greater than limit", func(t *testing.T) {
+		m := bindings.Metadata{}
+		m.Properties = map[string]string{
+			"host":          "mailserver.dapr.io",
+			"port":          "25",
+			"user":          "user@dapr.io",
+			"password":      "P@$$w0rd!",
+			"skipTLSVerify": "true",
+			"emailFrom":     "from@dapr.io",
+			"emailTo":       "to@dapr.io",
+			"emailCC":       "cc@dapr.io",
+			"emailBCC":      "bcc@dapr.io",
+			"subject":       "Test email",
+		}
+		r := Mailer{logger: logger}
+		r.Init(m)
+
+		var at = make([]byte, attachmentSizeLimit+1)
+		_, err := r.Invoke(context.TODO(), &bindings.InvokeRequest{
+			Metadata: map[string]string{
+				"bodyAsAttachment": "true",
+			},
+			Data: at,
+		})
+		if err == nil {
+			t.Errorf("attachment Limit Test failed: %v", err)
+		}
 	})
 }

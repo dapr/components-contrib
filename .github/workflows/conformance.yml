@@ -383,6 +383,12 @@ jobs:
         go mod download
         go install gotest.tools/gotestsum@latest
 
+    - name: Configure source path
+      run: |
+        TEST_COMPONENT=$(echo ${{ matrix.component }} | sed -E 's/\./\//g')
+        export SOURCE_PATH="github.com/dapr/components-contrib/${TEST_COMPONENT}"
+        echo "SOURCE_PATH=$SOURCE_PATH" >> $GITHUB_ENV
+
     - name: Generate Azure SQL DB name
       run: |
         # Use UUID with `-` stripped out for DB names to prevent collisions between workflows
@@ -407,6 +413,7 @@ jobs:
         set +e
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json \
           --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.xml --format standard-verbose -- \
+          -coverprofile=cover.out -covermode=set -tags=certtests -coverpkg=${{ env.SOURCE_PATH }}
           -p 2 -count=1 -timeout=15m -tags=conftests ./tests/conformance --run="Test${KIND_UPPER}Conformance/${NAME}"
 
         status=$?
@@ -416,6 +423,12 @@ jobs:
           echo "CONFORMANCE_FAILURE=true" >> $GITHUB_ENV
         fi
         set -e
+
+        COVERAGE_REPORT=$(gocov convert cover.out | gocov report)
+        COVERAGE_LINE=$(echo $COVERAGE_REPORT  | grep -oP '(?<=Total Coverage:).*') # example: "80.00% (40/50)"
+        COVERAGE_PERCENTAGE=$(echo $COVERAGE_LINE | grep -oP '([0-9\.]*)' | head -n 1) # example "80.00"
+        echo "COVERAGE_LINE=$COVERAGE_LINE" >> $GITHUB_ENV
+        echo "COMPONENT_PERCENTAGE=$COVERAGE_PERCENTAGE" >> $GITHUB_ENV
 
         # Fail the step if we found no test to run
         if grep -q "warning: no tests to run" ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json ; then

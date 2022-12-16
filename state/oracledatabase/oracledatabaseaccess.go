@@ -20,13 +20,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"strconv"
 
 	"github.com/google/uuid"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/components-contrib/state/utils"
+	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 
 	// Blank import for the underlying Oracle Database driver.
@@ -36,7 +35,6 @@ import (
 const (
 	connectionStringKey        = "connectionString"
 	oracleWalletLocationKey    = "oracleWalletLocation"
-	metadataTTLKey             = "ttlInSeconds"
 	errMissingConnectionString = "missing connection string"
 	tableName                  = "state"
 )
@@ -115,20 +113,6 @@ func (o *oracleDatabaseAccess) Init(metadata state.Metadata) error {
 	return nil
 }
 
-func parseTTL(requestMetadata map[string]string) (*int, error) {
-	if val, found := requestMetadata[metadataTTLKey]; found && val != "" {
-		parsedVal, err := strconv.ParseInt(val, 10, 0)
-		if err != nil {
-			return nil, fmt.Errorf("error in parsing ttl metadata : %w", err)
-		}
-		parsedInt := int(parsedVal)
-
-		return &parsedInt, nil
-	}
-
-	return nil, nil
-}
-
 // Set makes an insert or update to the database.
 func (o *oracleDatabaseAccess) Set(ctx context.Context, req *state.SetRequest) error {
 	o.logger.Debug("Setting state value in OracleDatabase")
@@ -149,19 +133,12 @@ func (o *oracleDatabaseAccess) Set(ctx context.Context, req *state.SetRequest) e
 		return fmt.Errorf("when FirstWrite is to be enforced, a value must be provided for the ETag")
 	}
 	var ttlSeconds int
-	ttl, ttlerr := parseTTL(req.Metadata)
+	ttl, ttlerr := stateutils.ParseTTL(req.Metadata)
 	if ttlerr != nil {
-		return fmt.Errorf("error in parsing TTL %w", ttlerr)
+		return fmt.Errorf("error parsing TTL: %w", ttlerr)
 	}
 	if ttl != nil {
-		if *ttl == -1 {
-			o.logger.Debugf("TTL is set to -1; this means: never expire. ")
-		} else {
-			if *ttl < -1 {
-				return fmt.Errorf("incorrect value for %s %d", metadataTTLKey, *ttl)
-			}
-			ttlSeconds = *ttl
-		}
+		ttlSeconds = *ttl
 	}
 	requestValue := req.Value
 	byteArray, isBinary := req.Value.([]uint8)
@@ -172,7 +149,7 @@ func (o *oracleDatabaseAccess) Set(ctx context.Context, req *state.SetRequest) e
 	}
 
 	// Convert to json string.
-	bt, _ := utils.Marshal(requestValue, json.Marshal)
+	bt, _ := stateutils.Marshal(requestValue, json.Marshal)
 	value := string(bt)
 
 	var result sql.Result

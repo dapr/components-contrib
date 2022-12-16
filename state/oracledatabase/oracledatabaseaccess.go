@@ -14,6 +14,7 @@ limitations under the License.
 package oracledatabase
 
 import (
+	"context"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -129,7 +130,7 @@ func parseTTL(requestMetadata map[string]string) (*int, error) {
 }
 
 // Set makes an insert or update to the database.
-func (o *oracleDatabaseAccess) Set(req *state.SetRequest) error {
+func (o *oracleDatabaseAccess) Set(ctx context.Context, req *state.SetRequest) error {
 	o.logger.Debug("Setting state value in OracleDatabase")
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
@@ -196,7 +197,7 @@ func (o *oracleDatabaseAccess) Set(req *state.SetRequest) error {
 			WHEN MATCHED THEN UPDATE SET value = new_state_to_store.value, binary_yn = new_state_to_store.binary_yn, update_time = systimestamp, etag = new_state_to_store.etag, t.expiration_time = case when new_state_to_store.ttl_in_seconds >0 then systimestamp + numtodsinterval(new_state_to_store.ttl_in_seconds, 'SECOND') end
 			WHEN NOT MATCHED THEN INSERT (t.key, t.value, t.binary_yn, t.etag, t.expiration_time) values (new_state_to_store.key, new_state_to_store.value, new_state_to_store.binary_yn, new_state_to_store.etag, case when new_state_to_store.ttl_in_seconds >0 then systimestamp + numtodsinterval(new_state_to_store.ttl_in_seconds, 'SECOND') end ) `,
 			tableName)
-		result, err = tx.Exec(mergeStatement, req.Key, value, binaryYN, etag, ttlSeconds)
+		result, err = tx.ExecContext(ctx, mergeStatement, req.Key, value, binaryYN, etag, ttlSeconds)
 	} else {
 		// when first write policy is indicated, an existing record has to be updated - one that has the etag provided.
 		// TODO: Needs to update ttl_in_seconds
@@ -204,7 +205,7 @@ func (o *oracleDatabaseAccess) Set(req *state.SetRequest) error {
 			`UPDATE %s SET value = :value, binary_yn = :binary_yn, etag = :new_etag
 			 WHERE key = :key AND etag = :etag`,
 			tableName)
-		result, err = tx.Exec(updateStatement, value, binaryYN, etag, req.Key, *req.ETag)
+		result, err = tx.ExecContext(ctx, updateStatement, value, binaryYN, etag, req.Key, *req.ETag)
 	}
 	if err != nil {
 		if req.ETag != nil && *req.ETag != "" {
@@ -229,7 +230,7 @@ func (o *oracleDatabaseAccess) Set(req *state.SetRequest) error {
 }
 
 // Get returns data from the database. If data does not exist for the key an empty state.GetResponse will be returned.
-func (o *oracleDatabaseAccess) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (o *oracleDatabaseAccess) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	o.logger.Debug("Getting state value from OracleDatabase")
 	if req.Key == "" {
 		return nil, fmt.Errorf("missing key in get operation")
@@ -237,7 +238,7 @@ func (o *oracleDatabaseAccess) Get(req *state.GetRequest) (*state.GetResponse, e
 	var value string
 	var binaryYN string
 	var etag string
-	err := o.db.QueryRow(fmt.Sprintf("SELECT value, binary_yn, etag  FROM %s WHERE key = :key and (expiration_time is null or expiration_time > systimestamp)", tableName), req.Key).Scan(&value, &binaryYN, &etag)
+	err := o.db.QueryRowContext(ctx, fmt.Sprintf("SELECT value, binary_yn, etag  FROM %s WHERE key = :key and (expiration_time is null or expiration_time > systimestamp)", tableName), req.Key).Scan(&value, &binaryYN, &etag)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
 		if err == sql.ErrNoRows {
@@ -268,7 +269,7 @@ func (o *oracleDatabaseAccess) Get(req *state.GetRequest) (*state.GetResponse, e
 }
 
 // Delete removes an item from the state store.
-func (o *oracleDatabaseAccess) Delete(req *state.DeleteRequest) error {
+func (o *oracleDatabaseAccess) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	o.logger.Debug("Deleting state value from OracleDatabase")
 	if req.Key == "" {
 		return fmt.Errorf("missing key in delete operation")
@@ -290,9 +291,9 @@ func (o *oracleDatabaseAccess) Delete(req *state.DeleteRequest) error {
 	}
 	// QUESTION: only check for etag if FirstWrite specified - or always when etag is supplied??
 	if req.Options.Concurrency != state.FirstWrite {
-		result, err = tx.Exec("DELETE FROM state WHERE key = :key", req.Key)
+		result, err = tx.ExecContext(ctx, "DELETE FROM state WHERE key = :key", req.Key)
 	} else {
-		result, err = tx.Exec("DELETE FROM state WHERE key = :key and etag = :etag", req.Key, *req.ETag)
+		result, err = tx.ExecContext(ctx, "DELETE FROM state WHERE key = :key and etag = :etag", req.Key, *req.ETag)
 	}
 	if err != nil {
 		if o.tx == nil { // not joining a preexisting transaction.
@@ -313,7 +314,7 @@ func (o *oracleDatabaseAccess) Delete(req *state.DeleteRequest) error {
 	return nil
 }
 
-func (o *oracleDatabaseAccess) ExecuteMulti(sets []state.SetRequest, deletes []state.DeleteRequest) error {
+func (o *oracleDatabaseAccess) ExecuteMulti(ctx context.Context, sets []state.SetRequest, deletes []state.DeleteRequest) error {
 	o.logger.Debug("Executing multiple OracleDatabase operations,  within a single transaction")
 	tx, err := o.db.Begin()
 	if err != nil {
@@ -323,7 +324,7 @@ func (o *oracleDatabaseAccess) ExecuteMulti(sets []state.SetRequest, deletes []s
 	if len(deletes) > 0 {
 		for _, d := range deletes {
 			da := d // Fix for gosec  G601: Implicit memory aliasing in for looo.
-			err = o.Delete(&da)
+			err = o.Delete(ctx, &da)
 			if err != nil {
 				tx.Rollback()
 				return err
@@ -333,7 +334,7 @@ func (o *oracleDatabaseAccess) ExecuteMulti(sets []state.SetRequest, deletes []s
 	if len(sets) > 0 {
 		for _, s := range sets {
 			sa := s // Fix for gosec  G601: Implicit memory aliasing in for looo.
-			err = o.Set(&sa)
+			err = o.Set(ctx, &sa)
 			if err != nil {
 				tx.Rollback()
 				return err

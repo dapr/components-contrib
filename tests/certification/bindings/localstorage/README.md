@@ -1,8 +1,8 @@
-# LocalStorage certifcation testing
+# LocalStorage certification testing
 
 This project aims to test the LocalStorage component under various conditions.
 
-## Test plain
+## Test plan
 
 - Invocation
   - create file and get data success

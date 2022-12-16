@@ -18,6 +18,8 @@ on:
     types: [created]
   issues:
     types: [labeled]
+  pull_request:
+    types: [labeled]
 
 jobs:
   daprbot:

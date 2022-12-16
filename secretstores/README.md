@@ -4,4 +4,4 @@ Secret Stores provide a common way to interact with different secret stores, clo
 
 ## Implementing a new Secret Store
 
-A compliant secret store needs to implement the `SecretStore` inteface included in the [`secret_store.go`](secret_store.go) file.
+A compliant secret store needs to implement the `SecretStore` interface included in the [`secret_store.go`](secret_store.go) file.

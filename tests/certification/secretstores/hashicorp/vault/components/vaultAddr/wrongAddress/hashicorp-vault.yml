@@ -1,0 +1,13 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: my-hashicorp-vault-TestVaultAddr-wrongAddress
+  namespace: default
+spec:
+  type: secretstores.hashicorp.vault
+  version: v1
+  metadata:
+  - name: vaultAddr
+    value: "http://127.0.0.1:28234"  # yeah.. let's hope no one starts a Vault here
+  - name: vaultToken  # Matches docker compose VAULT_DEV_ROOT_TOKEN_ID env. var.
+    value: "vault-dev-root-token-id"

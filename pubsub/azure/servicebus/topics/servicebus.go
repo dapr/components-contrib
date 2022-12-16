@@ -31,7 +31,7 @@ import (
 
 const (
 	requireSessionsMetadataKey       = "requireSessions"
-	sessionIdleTimeoutMetadataKey    = "sessionIdleTimeout"
+	sessionIdleTimeoutMetadataKey    = "sessionIdleTimeoutInSec"
 	maxConcurrentSessionsMetadataKey = "maxConcurrentSessions"
 
 	defaultMaxBulkSubCount                 = 100

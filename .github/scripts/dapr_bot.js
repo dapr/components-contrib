@@ -30,11 +30,18 @@ const docsIssueBodyTpl = (issueNumber) => `This issue was automatically created 
 was added to dapr/components-contrib#${issueNumber}. \n\n\
 TODO: Add more details as per [this template](.github/ISSUE_TEMPLATE/new-content-needed.md).`;
 
+const newComponentBodyTpl = (issueNumber) => `This issue was automatically created by \
+[Dapr Bot](https://github.com/dapr/dapr/blob/master/.github/workflows/dapr-bot.yml) because a \"new component\" label \
+was added to dapr/components-contrib#${issueNumber}. \n\n\
+
+Please register the component in [cmd/daprd/components](https://github.com/dapr/dapr/tree/master/cmd/daprd/components), \
+similar to the ones in the folder (one file per component).`;
+
 module.exports = async ({ github, context }) => {
     if (context.eventName == "issue_comment" && context.payload.action == "created") {
         await handleIssueCommentCreate({ github, context });
-    } else if (context.eventName == "issues" && context.payload.action == "labeled") {
-        await handleIssueLabeled({ github, context });
+    } else if ((context.eventName == "issues" || context.eventName == "pull_request") && context.payload.action == "labeled") {
+        await handleIssueOrPrLabeled({ github, context });
     } else {
         console.log(`[main] event ${context.eventName} not supported, exiting.`);
     }
@@ -84,23 +91,23 @@ async function handleIssueCommentCreate({ github, context }) {
 
 
 /**
- * Handle issue labeled event.
+ * Handle issue or PR labeled event.
  */
-async function handleIssueLabeled({ github, context }) {
+async function handleIssueOrPrLabeled({ github, context }) {
     const payload = context.payload;
     const label = payload.label.name;
     const issueNumber = payload.issue.number;
 
     // This should not run in forks.
     if (context.repo.owner !== "dapr") {
-        console.log("[handleIssueLabeled] not running in dapr repo, exiting.");
+        console.log("[handleIssueOrPrLabeled] not running in dapr repo, exiting.");
         return;
     }
 
     // Authorization is not required here because it's triggered by an issue label event.
     // Only authorized users can add labels to issues.
     if (label == "documentation required") {
-        // Open a new issue
+        // Open a new docs issue
         await github.issues.create({
             owner: "dapr",
             repo: "docs",
@@ -108,8 +115,17 @@ async function handleIssueLabeled({ github, context }) {
             labels: ["content/missing-information", "created-by/dapr-bot"],
             body: docsIssueBodyTpl(issueNumber),
         });
+    } else if (label == "new component") {
+        // Open a new dapr issue
+        await github.issues.create({
+            owner: "dapr",
+            repo: "dapr",
+            title: `Component registration for dapr/components-contrib#${issueNumber}`,
+            labels: ["area/components", "created-by/dapr-bot"],
+            body: newComponentBodyTpl(issueNumber),
+        });
     } else {
-        console.log(`[handleIssueLabeled] label ${label} not supported, exiting.`);
+        console.log(`[handleIssueOrPrLabeled] label ${label} not supported, exiting.`);
     }
 }
 

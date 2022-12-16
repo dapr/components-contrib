@@ -15,14 +15,15 @@ package parameterstore
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"reflect"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 
 	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 )
@@ -39,7 +40,7 @@ func NewParameterStore(logger logger.Logger) secretstores.SecretStore {
 	return &ssmSecretStore{logger: logger}
 }
 
-type parameterStoreMetaData struct {
+type ParameterStoreMetaData struct {
 	Region       string `json:"region"`
 	AccessKey    string `json:"accessKey"`
 	SecretKey    string `json:"secretKey"`
@@ -151,7 +152,7 @@ func (s *ssmSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bul
 	return resp, nil
 }
 
-func (s *ssmSecretStore) getClient(metadata *parameterStoreMetaData) (*ssm.SSM, error) {
+func (s *ssmSecretStore) getClient(metadata *ParameterStoreMetaData) (*ssm.SSM, error) {
 	sess, err := awsAuth.GetClient(metadata.AccessKey, metadata.SecretKey, metadata.SessionToken, metadata.Region, "")
 	if err != nil {
 		return nil, err
@@ -160,22 +161,20 @@ func (s *ssmSecretStore) getClient(metadata *parameterStoreMetaData) (*ssm.SSM, 
 	return ssm.New(sess), nil
 }
 
-func (s *ssmSecretStore) getSecretManagerMetadata(spec secretstores.Metadata) (*parameterStoreMetaData, error) {
-	b, err := json.Marshal(spec.Properties)
-	if err != nil {
-		return nil, err
-	}
-
-	var meta parameterStoreMetaData
-	err = json.Unmarshal(b, &meta)
-	if err != nil {
-		return nil, err
-	}
-
-	return &meta, nil
+func (s *ssmSecretStore) getSecretManagerMetadata(spec secretstores.Metadata) (*ParameterStoreMetaData, error) {
+	meta := ParameterStoreMetaData{}
+	err := metadata.DecodeMetadata(spec.Properties, &meta)
+	return &meta, err
 }
 
 // Features returns the features available in this secret store.
 func (s *ssmSecretStore) Features() []secretstores.Feature {
 	return []secretstores.Feature{} // No Feature supported.
+}
+
+func (s *ssmSecretStore) GetComponentMetadata() map[string]string {
+	metadataStruct := ParameterStoreMetaData{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

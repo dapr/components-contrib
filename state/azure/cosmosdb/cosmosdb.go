@@ -208,7 +208,7 @@ func (c *StateStore) Features() []state.Feature {
 }
 
 // Get retrieves a CosmosDB item.
-func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (c *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	partitionKey := populatePartitionMetadata(req.Key, req.Metadata)
 
 	options := azcosmos.ItemOptions{}
@@ -218,7 +218,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelEventual.ToPtr()
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	readItem, err := c.client.ReadItem(ctx, azcosmos.NewPartitionKeyString(partitionKey), req.Key, &options)
 	cancel()
 	if err != nil {
@@ -269,7 +269,7 @@ func (c *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // Set saves a CosmosDB item.
-func (c *StateStore) Set(req *state.SetRequest) error {
+func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
@@ -307,7 +307,7 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	pk := azcosmos.NewPartitionKeyString(partitionKey)
 	_, err = c.client.UpsertItem(ctx, pk, marsh, &options)
 	cancel()
@@ -318,7 +318,7 @@ func (c *StateStore) Set(req *state.SetRequest) error {
 }
 
 // Delete performs a delete operation.
-func (c *StateStore) Delete(req *state.DeleteRequest) error {
+func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
@@ -336,7 +336,7 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelEventual.ToPtr()
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	pk := azcosmos.NewPartitionKeyString(partitionKey)
 	_, err = c.client.DeleteItem(ctx, pk, req.Key, &options)
 	cancel()
@@ -352,7 +352,7 @@ func (c *StateStore) Delete(req *state.DeleteRequest) error {
 }
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
-func (c *StateStore) Multi(request *state.TransactionalStateRequest) (err error) {
+func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStateRequest) (err error) {
 	if len(request.Operations) == 0 {
 		c.logger.Debugf("No Operations Provided")
 		return nil
@@ -366,7 +366,7 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) (err error)
 	numOperations := 0
 	// Loop through the list of operations. Create and add the operation to the batch
 	for _, o := range request.Operations {
-		var options *azcosmos.TransactionalBatchItemOptions
+		options := &azcosmos.TransactionalBatchItemOptions{}
 
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
@@ -419,7 +419,7 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) (err error)
 
 	c.logger.Debugf("#operations=%d,partitionkey=%s", numOperations, partitionKey)
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	batchResponse, err := c.client.ExecuteTransactionalBatch(ctx, batch, nil)
 	cancel()
 	if err != nil {
@@ -446,7 +446,7 @@ func (c *StateStore) Multi(request *state.TransactionalStateRequest) (err error)
 	return nil
 }
 
-func (c *StateStore) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
+func (c *StateStore) Query(ctx context.Context, req *state.QueryRequest) (*state.QueryResponse, error) {
 	q := &Query{}
 
 	qbuilder := query.NewQueryBuilder(q)
@@ -454,7 +454,7 @@ func (c *StateStore) Query(req *state.QueryRequest) (*state.QueryResponse, error
 		return &state.QueryResponse{}, err
 	}
 
-	data, token, err := q.execute(c.client)
+	data, token, err := q.execute(ctx, c.client)
 	if err != nil {
 		return nil, err
 	}

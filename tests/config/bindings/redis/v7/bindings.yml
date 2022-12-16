@@ -1,0 +1,17 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: redis-binding
+  namespace: default
+spec:
+  type: bindings.redis
+  version: v1
+  metadata:
+  - name: redisHost
+    value: localhost:6380
+  - name: redisPassword
+    value: 
+  - name: enableTLS
+    value: false
+  - name: redisVersion
+    value: "7"

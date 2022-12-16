@@ -126,15 +126,6 @@ jobs:
         )
         echo "::set-output name=cloud-components::$CRON_COMPONENTS"
 
-    - name: Specify components requiring cloud resources to run and use terraform
-      id: terraform-components
-      run: |
-        TERRAFORM_COMPONENTS=$(yq -I0 --tojson eval - << EOF   
-        EOF
-        )
-        echo $TERRAFORM_COMPONENTS
-        echo "::set-output name=terraform-components::$TERRAFORM_COMPONENTS"
-
     - name: Create PR comment
       if: env.PR_NUMBER != ''
       uses: artursouza/sticky-pull-request-comment@v2.2.0
@@ -152,7 +143,6 @@ jobs:
     outputs:
       pr-components: ${{ steps.pr-components.outputs.pr-components }}
       cloud-components: ${{ steps.cloud-components.outputs.cloud-components }}
-      terraform-components: ${{ steps.terraform-components.outputs.terraform-components }}
 
   certification:
     name: ${{ matrix.component }} certification
@@ -162,15 +152,13 @@ jobs:
         shell: bash
     needs: generate-matrix
     env:
-      RUN_ID: ${{github.run_id}}
+      UNIQUE_ID: ${{github.run_id}}-${{github.run_attempt}}
 
     strategy:
       fail-fast: false # Keep running even if one component fails
       matrix:
         component: ${{ fromJson(needs.generate-matrix.outputs.pr-components) }}
-        include: 
-        - ${{ fromJson(needs.generate-matrix.outputs.cloud-components) }}
-        - ${{ fromJson(needs.generate-matrix.outputs.terraform-components) }}
+        include: ${{ fromJson(needs.generate-matrix.outputs.cloud-components) }}
 
     steps:
     - name: Set default payload repo and ref
@@ -263,12 +251,12 @@ jobs:
 
     - name: Terraform Plan
       id: plan
-      run: terraform plan -no-color -var="RUN_ID=${{github.run_id}}"
+      run: terraform plan -no-color -var="UNIQUE_ID=${{env.UNIQUE_ID}}"
       working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
 
     - name: Terraform Apply     
-      run: terraform apply -auto-approve -var="RUN_ID=${{github.run_id}}"
+      run: terraform apply -auto-approve -var="UNIQUE_ID=${{env.UNIQUE_ID}}"
       working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
       continue-on-error: true
@@ -391,7 +379,7 @@ jobs:
 
     - name: Terraform Destroy
       continue-on-error: true    
-      run: terraform destroy -auto-approve -var="RUN_ID=${{github.run_id}}"
+      run: terraform destroy -auto-approve -var="UNIQUE_ID=${{env.UNIQUE_ID}}"
       working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
 
@@ -429,8 +417,7 @@ jobs:
           script: |
             const prComponents = ('${{ needs.generate-matrix.outputs.pr-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.pr-components }}')) || []
             const cloudComponents = ('${{ needs.generate-matrix.outputs.cloud-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.cloud-components }}')) || []
-            const terraformComponents = ('${{ needs.generate-matrix.outputs.terraform-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.terraform-components }}')) || []
-            const allComponents = [...prComponents, ...cloudComponents, ...terraformComponents]
+            const allComponents = [...prComponents, ...cloudComponents]
             const basePath = '${{ steps.testresults.outputs.download-path }}'
             const testType = 'certification'
 

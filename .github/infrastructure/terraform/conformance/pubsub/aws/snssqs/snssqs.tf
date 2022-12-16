@@ -11,38 +11,43 @@ terraform {
 
 provider "aws" {
   region = "us-east-1"
+  default_tags {
+    tags = {
+      Purpose  = "AutomatedTesting"
+    }
+  }
 }
 
-variable "RUN_ID" {
+variable "UNIQUE_ID" {
     type        = string
     description = "Run Id of the github worklow run."
 }
 
 resource "aws_sns_topic" "testTopic" {
-  name = "testTopic-${var.RUN_ID}"
+  name = "testTopic-${var.UNIQUE_ID}"
   tags = {
-    dapr-topic-name = "testTopic-${var.RUN_ID}"
+    dapr-topic-name = "testTopic-${var.UNIQUE_ID}"
   }
 }
 
 resource "aws_sns_topic" "multiTopic1" {
-  name = "multiTopic1-${var.RUN_ID}"
+  name = "multiTopic1-${var.UNIQUE_ID}"
   tags = {
-    dapr-topic-name = "multiTopic1-${var.RUN_ID}"
+    dapr-topic-name = "multiTopic1-${var.UNIQUE_ID}"
   }
 }
 
 resource "aws_sns_topic" "multiTopic2" {
-  name = "multiTopic2-${var.RUN_ID}"
+  name = "multiTopic2-${var.UNIQUE_ID}"
   tags = {
-    dapr-topic-name = "multiTopic2-${var.RUN_ID}"
+    dapr-topic-name = "multiTopic2-${var.UNIQUE_ID}"
   }
 }
 
 resource "aws_sqs_queue" "testQueue" {
-  name = "testQueue-${var.RUN_ID}"
+  name = "testQueue-${var.UNIQUE_ID}"
   tags = {
-    dapr-queue-name = "testQueue-${var.RUN_ID}"
+    dapr-queue-name = "testQueue-${var.UNIQUE_ID}"
   }
 }
 

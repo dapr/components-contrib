@@ -78,7 +78,7 @@ func CreateContainerStorageClient(log logger.Logger, meta map[string]string) (*c
 	// Try using shared key credentials first
 	if m.AccountKey != "" {
 		credential, newSharedKeyErr := azblob.NewSharedKeyCredential(m.AccountName, m.AccountKey)
-		if err != nil {
+		if newSharedKeyErr != nil {
 			return nil, nil, fmt.Errorf("invalid shared key credentials with error: %w", newSharedKeyErr)
 		}
 		client, clientErr = container.NewClientWithSharedKeyCredential(URL.String(), credential, &options)
@@ -88,7 +88,7 @@ func CreateContainerStorageClient(log logger.Logger, meta map[string]string) (*c
 	} else {
 		// fallback to AAD
 		credential, tokenErr := settings.GetTokenCredential()
-		if err != nil {
+		if tokenErr != nil {
 			return nil, nil, fmt.Errorf("invalid token credentials with error: %w", tokenErr)
 		}
 		client, clientErr = container.NewClient(URL.String(), credential, &options)

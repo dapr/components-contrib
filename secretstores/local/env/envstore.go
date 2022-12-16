@@ -16,8 +16,10 @@ package env
 import (
 	"context"
 	"os"
+	"reflect"
 	"strings"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 )
@@ -66,4 +68,12 @@ func (s *envSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bul
 // Features returns the features available in this secret store.
 func (s *envSecretStore) Features() []secretstores.Feature {
 	return []secretstores.Feature{} // No Feature supported.
+}
+
+func (s *envSecretStore) GetComponentMetadata() map[string]string {
+	type unusedMetadataStruct struct{}
+	metadataStruct := unusedMetadataStruct{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

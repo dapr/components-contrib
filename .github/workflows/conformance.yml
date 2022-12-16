@@ -48,6 +48,7 @@ jobs:
       id: pr-components
       run: |
         PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
+        - bindings.cron
         - bindings.http
         - bindings.influx
         - bindings.kafka-wurstmeister

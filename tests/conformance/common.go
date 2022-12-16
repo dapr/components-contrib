@@ -42,6 +42,7 @@ import (
 	b_azure_eventhubs "github.com/dapr/components-contrib/bindings/azure/eventhubs"
 	b_azure_servicebusqueues "github.com/dapr/components-contrib/bindings/azure/servicebusqueues"
 	b_azure_storagequeues "github.com/dapr/components-contrib/bindings/azure/storagequeues"
+	b_cron "github.com/dapr/components-contrib/bindings/cron"
 	b_http "github.com/dapr/components-contrib/bindings/http"
 	b_influx "github.com/dapr/components-contrib/bindings/influx"
 	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
@@ -529,6 +530,8 @@ func loadInputBindings(tc TestComponent) bindings.InputBinding {
 		binding = b_azure_storagequeues.NewAzureStorageQueues(testLogger)
 	case "azure.eventgrid":
 		binding = b_azure_eventgrid.NewAzureEventGrid(testLogger)
+	case "cron":
+		binding = b_cron.NewCron(testLogger)
 	case eventhubs:
 		binding = b_azure_eventhubs.NewAzureEventHubs(testLogger)
 	case kafka:

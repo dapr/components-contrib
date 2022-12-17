@@ -61,9 +61,12 @@ const (
 	partition1       = "partition-1"
 )
 
-func teardown(t *testing.T) {
-	t.Logf("AWS SNS/SQS CertificationTests teardown...")
-
+// The following Queue names must match
+// the values of the "consumerID" metadata properties
+// found inside each of the components/*/pubsub.yaml files
+var queues = []string{
+	"snssqscerttest1",
+	"snssqscerttest2",
 }
 
 func TestAWSSNSSQSCertificationTests(t *testing.T) {
@@ -163,7 +166,7 @@ func SNSSQSBasic(t *testing.T) {
 				} else {
 					err = client.PublishEvent(ctx, pubsubName, topicName, message)
 				}
-				require.NoError(ctx, err, "error publishing message")
+				require.NoError(ctx, err, "SNSSQSBasic - error publishing message")
 			}
 			return nil
 		}
@@ -174,7 +177,7 @@ func SNSSQSBasic(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSBasic - message assersion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -291,7 +294,7 @@ func SNSSQSMultipleSubsSameConsumerIDs(t *testing.T) {
 				} else {
 					err = client.PublishEvent(ctx, pubsubName, topicName, message)
 				}
-				require.NoError(ctx, err, "error publishing message")
+				require.NoError(ctx, err, "SNSSQSMultipleSubsSameConsumerIDs - error publishing message")
 			}
 			return nil
 		}
@@ -302,7 +305,7 @@ func SNSSQSMultipleSubsSameConsumerIDs(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSMultipleSubsSameConsumerIDs - message assersion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -414,7 +417,7 @@ func SNSSQSMultipleSubsDifferentConsumerIDs(t *testing.T) {
 				} else {
 					err = client.PublishEvent(ctx, pubsubName, topicName, message)
 				}
-				require.NoError(ctx, err, "error publishing message")
+				require.NoError(ctx, err, "SNSSQSMultipleSubsDifferentConsumerIDs - error publishing message")
 			}
 			return nil
 		}
@@ -425,7 +428,7 @@ func SNSSQSMultipleSubsDifferentConsumerIDs(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSMultipleSubsDifferentConsumerIDs - message assersion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -540,7 +543,7 @@ func SNSSQSMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 				} else {
 					err = client.PublishEvent(ctx, pubsubName, topicName, message)
 				}
-				require.NoError(ctx, err, "error publishing message")
+				require.NoError(ctx, err, "SNSSQSMultiplePubSubsDifferentConsumerIDs - error publishing message")
 			}
 			return nil
 		}
@@ -551,7 +554,7 @@ func SNSSQSMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSMultiplePubSubsDifferentConsumerIDs - message assersion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -663,7 +666,7 @@ func SNSSQSNonexistingTopic(t *testing.T) {
 				} else {
 					err = client.PublishEvent(ctx, pubsubName, topicName, message)
 				}
-				require.NoError(ctx, err, "error publishing message")
+				require.NoError(ctx, err, "SNSSQSNonexistingTopic - error publishing message")
 			}
 			return nil
 		}
@@ -674,7 +677,7 @@ func SNSSQSNonexistingTopic(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSNonexistingTopic - message assersion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -766,7 +769,7 @@ func SNSSQSEntityManagement(t *testing.T) {
 					err = client.PublishEvent(ctx, pubsubName, topicName, message)
 				}
 				// Error is expected as the topic does not exist
-				require.Error(ctx, err, "error publishing message")
+				require.Error(ctx, err, "SNSSQSEntityManagement - error publishing message")
 			}
 			return nil
 		}
@@ -847,7 +850,7 @@ func SNSSQSDefaultTtl(t *testing.T) {
 				} else {
 					err = client.PublishEvent(ctx, pubsubName, topicName, message)
 				}
-				require.NoError(ctx, err, "error publishing message")
+				require.NoError(ctx, err, "SNSSQSDefaultTtl - error publishing message")
 			}
 			return nil
 		}
@@ -858,7 +861,7 @@ func SNSSQSDefaultTtl(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSDefaultTtl - message assersion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -906,4 +909,12 @@ func componentRuntimeOptions() []runtime.Option {
 	return []runtime.Option{
 		runtime.WithPubSubs(pubsubRegistry),
 	}
+}
+
+func teardown(t *testing.T) {
+	t.Logf("AWS SNS/SQS CertificationTests teardown...")
+	if err := deleteQueues(queues); err != nil {
+		t.Error(err)
+	}
+	t.Logf("AWS SNS/SQS CertificationTests teardown...done!")
 }

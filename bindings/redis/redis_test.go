@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
+	internalredis "github.com/dapr/components-contrib/internal/component/redis"
 	"github.com/dapr/kit/logger"
 )
 
@@ -34,13 +35,14 @@ func TestInvokeCreate(t *testing.T) {
 	s, c := setupMiniredis()
 	defer s.Close()
 
+	// miniRedis is compatible with the existing v8 client
 	bind := &Redis{
 		client: c,
 		logger: logger.NewLogger("test"),
 	}
 	bind.ctx, bind.cancel = context.WithCancel(context.Background())
 
-	_, err := c.Do(context.Background(), "GET", testKey).Result()
+	_, err := c.DoRead(context.Background(), "GET", testKey)
 	assert.Equal(t, redis.Nil, err)
 
 	bindingRes, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
@@ -51,7 +53,7 @@ func TestInvokeCreate(t *testing.T) {
 	assert.Equal(t, nil, err)
 	assert.Equal(t, true, bindingRes == nil)
 
-	getRes, err := c.Do(context.Background(), "GET", testKey).Result()
+	getRes, err := c.DoRead(context.Background(), "GET", testKey)
 	assert.Equal(t, nil, err)
 	assert.Equal(t, true, getRes == testData)
 }
@@ -66,7 +68,7 @@ func TestInvokeGet(t *testing.T) {
 	}
 	bind.ctx, bind.cancel = context.WithCancel(context.Background())
 
-	_, err := c.Do(context.Background(), "SET", testKey, testData).Result()
+	err := c.DoWrite(context.Background(), "SET", testKey, testData)
 	assert.Equal(t, nil, err)
 
 	bindingRes, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
@@ -87,10 +89,10 @@ func TestInvokeDelete(t *testing.T) {
 	}
 	bind.ctx, bind.cancel = context.WithCancel(context.Background())
 
-	_, err := c.Do(context.Background(), "SET", testKey, testData).Result()
+	err := c.DoWrite(context.Background(), "SET", testKey, testData)
 	assert.Equal(t, nil, err)
 
-	getRes, err := c.Do(context.Background(), "GET", testKey).Result()
+	getRes, err := c.DoRead(context.Background(), "GET", testKey)
 	assert.Equal(t, nil, err)
 	assert.Equal(t, true, getRes == testData)
 
@@ -101,12 +103,12 @@ func TestInvokeDelete(t *testing.T) {
 
 	assert.Equal(t, nil, err)
 
-	rgetRep, err := c.Do(context.Background(), "GET", testKey).Result()
+	rgetRep, err := c.DoRead(context.Background(), "GET", testKey)
 	assert.Equal(t, redis.Nil, err)
 	assert.Equal(t, nil, rgetRep)
 }
 
-func setupMiniredis() (*miniredis.Miniredis, *redis.Client) {
+func setupMiniredis() (*miniredis.Miniredis, internalredis.RedisClient) {
 	s, err := miniredis.Run()
 	if err != nil {
 		panic(err)
@@ -116,5 +118,5 @@ func setupMiniredis() (*miniredis.Miniredis, *redis.Client) {
 		DB:   0,
 	}
 
-	return s, redis.NewClient(opts)
+	return s, internalredis.ClientFromV8Client(redis.NewClient(opts))
 }

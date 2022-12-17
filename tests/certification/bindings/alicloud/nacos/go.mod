@@ -3,11 +3,7 @@ module github.com/dapr/components-contrib/tests/certification/bindings/alicloud/
 go 1.19
 
 require (
-<<<<<<< HEAD
-	github.com/dapr/components-contrib v1.9.1-0.20221213185150-c5c985a68514
-=======
 	github.com/dapr/components-contrib v1.9.6
->>>>>>> master
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211026011813-36b75e9ae272
 	github.com/dapr/dapr v1.9.5
 	github.com/dapr/go-sdk v1.6.0

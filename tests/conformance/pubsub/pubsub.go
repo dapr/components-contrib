@@ -511,6 +511,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 			}()
 
 			for i := 0; i < 3; i++ {
+				t.Logf("Starting iteration %d", i)
 				switch i {
 				case 1: // On iteration 1, close the first subscriber
 					subscribe1Cancel()
@@ -547,11 +548,11 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 						Topic:      topic,
 						Metadata:   config.PublishMetadata,
 					})
-					assert.NoError(t, err, "expected no error on publishing data %s on topic %s", data, topic)
+					assert.NoError(t, err, "expected no error on publishing data %s on topic %s", string(data), topic)
 				}
 
 				allSentCh <- true
-				t.Logf("waiting for %v to complete read", config.MaxReadDuration)
+				t.Logf("Waiting for %v to complete read", config.MaxReadDuration)
 				<-wait
 			}
 		})

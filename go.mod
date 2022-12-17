@@ -59,6 +59,7 @@ require (
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-redis/redis/v8 v8.11.5
+	github.com/go-redis/redis/v9 v9.0.0-rc.2
 	github.com/go-sql-driver/mysql v1.7.0
 	github.com/gocql/gocql v1.3.1
 	github.com/golang-jwt/jwt/v4 v4.4.3
@@ -112,6 +113,7 @@ require (
 	go.uber.org/ratelimit v0.2.0
 	golang.org/x/crypto v0.4.0
 	golang.org/x/exp v0.0.0-20221028150844-83b7d23a625f
+	golang.org/x/mod v0.6.0
 	golang.org/x/net v0.4.0
 	golang.org/x/oauth2 v0.3.0
 	google.golang.org/api v0.104.0

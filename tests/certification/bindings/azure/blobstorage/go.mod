@@ -3,13 +3,8 @@ module github.com/dapr/components-contrib/tests/certification/bindings/azure/blo
 go 1.19
 
 require (
-<<<<<<< HEAD
-	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v0.5.1
-	github.com/dapr/components-contrib v1.9.1-0.20221213185150-c5c985a68514
-=======
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v0.6.1
 	github.com/dapr/components-contrib v1.9.6
->>>>>>> master
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
 	github.com/dapr/dapr v1.9.5
 	github.com/dapr/go-sdk v1.6.0

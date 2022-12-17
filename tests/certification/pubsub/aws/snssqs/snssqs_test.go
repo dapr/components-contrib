@@ -61,8 +61,46 @@ const (
 	partition1       = "partition-1"
 )
 
+func teardown(t *testing.T) {
+	t.Logf("AWS SNS/SQS CertificationTests teardown...")
+
+}
+
+func TestAWSSNSSQSCertificationTests(t *testing.T) {
+	defer teardown(t)
+
+	t.Run("SNSSQSBasic", func(t *testing.T) {
+		SNSSQSBasic(t)
+	})
+
+	t.Run("SNSSQSMultipleSubsSameConsumerIDs", func(t *testing.T) {
+		SNSSQSMultipleSubsSameConsumerIDs(t)
+	})
+
+	t.Run("SNSSQSMultipleSubsDifferentConsumerIDs", func(t *testing.T) {
+		SNSSQSMultipleSubsDifferentConsumerIDs(t)
+	})
+
+	t.Run("SNSSQSMultiplePubSubsDifferentConsumerIDs", func(t *testing.T) {
+		SNSSQSMultiplePubSubsDifferentConsumerIDs(t)
+	})
+
+	t.Run("SNSSQSNonexistingTopic", func(t *testing.T) {
+		SNSSQSNonexistingTopic(t)
+	})
+
+	t.Run("SNSSQSEntityManagement", func(t *testing.T) {
+		SNSSQSEntityManagement(t)
+	})
+
+	t.Run("SNSSQSDefaultTtl", func(t *testing.T) {
+		SNSSQSDefaultTtl(t)
+	})
+}
+
 // Verify with single publisher / single subscriber
-func TestSNSSQSBasic(t *testing.T) {
+func SNSSQSBasic(t *testing.T) {
+
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 
@@ -181,7 +219,7 @@ func TestSNSSQSBasic(t *testing.T) {
 }
 
 // Verify with single publisher / multiple subscribers with same consumerID
-func TestSNSSQSMultipleSubsSameConsumerIDs(t *testing.T) {
+func SNSSQSMultipleSubsSameConsumerIDs(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 
@@ -308,7 +346,7 @@ func TestSNSSQSMultipleSubsSameConsumerIDs(t *testing.T) {
 }
 
 // Verify with single publisher / multiple subscribers with different consumerIDs
-func TestSNSSQSMultipleSubsDifferentConsumerIDs(t *testing.T) {
+func SNSSQSMultipleSubsDifferentConsumerIDs(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 
@@ -430,7 +468,7 @@ func TestSNSSQSMultipleSubsDifferentConsumerIDs(t *testing.T) {
 }
 
 // Verify with multiple publishers / multiple subscribers with different consumerIDs
-func TestSNSSQSMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
+func SNSSQSMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 
@@ -558,7 +596,7 @@ func TestSNSSQSMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 }
 
 // Verify data with a topic that does not exist
-func TestSNSSQSNonexistingTopic(t *testing.T) {
+func SNSSQSNonexistingTopic(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 
 	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
@@ -666,7 +704,7 @@ func TestSNSSQSNonexistingTopic(t *testing.T) {
 }
 
 // Verify with an optional parameter `disableEntityManagement` set to true
-func TestSNSSQSEntityManagement(t *testing.T) {
+func SNSSQSEntityManagement(t *testing.T) {
 	// TODO: Modify it to looks for component init error in the sidecar itself.
 	consumerGroup1 := watcher.NewUnordered()
 
@@ -754,7 +792,7 @@ func TestSNSSQSEntityManagement(t *testing.T) {
 }
 
 // Verify data with an optional parameter `defaultMessageTimeToLiveInSec` set
-func TestSNSSQSDefaultTtl(t *testing.T) {
+func SNSSQSDefaultTtl(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 
 	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.

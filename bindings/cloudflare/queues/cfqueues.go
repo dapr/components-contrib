@@ -63,7 +63,7 @@ func (q *CFQueues) Init(metadata bindings.Metadata) error {
 	q.SetMetadata(&q.metadata.BaseMetadata)
 
 	// Init the base component
-	workerBindings := []workers.Binding{
+	workerBindings := []workers.CFBinding{
 		{Type: "queue", Name: q.metadata.QueueName, QueueName: &q.metadata.QueueName},
 	}
 	infoResponseValidate := func(data *workers.InfoEndpointResponse) error {

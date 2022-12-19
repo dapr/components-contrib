@@ -20,7 +20,7 @@ provider "aws" {
 
 variable "UNIQUE_ID" {
     type        = string
-    description = "Run Id of the github worklow run."
+    description = "Unique Id of the github worklow run."
 }
 
 resource "aws_sns_topic" "testTopic" {

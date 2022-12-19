@@ -41,7 +41,11 @@ components:
       testMultiTopic1Name: dapr-conf-queue-multi1
       testMultiTopic2Name: dapr-conf-queue-multi2
       checkInOrderProcessing: false
-  - component: redis
+  - component: redis.v6
+    operations: ["publish", "subscribe", "multiplehandlers"]
+    config:
+      checkInOrderProcessing: false
+  - component: redis.v7
     operations: ["publish", "subscribe", "multiplehandlers"]
     config:
       checkInOrderProcessing: false

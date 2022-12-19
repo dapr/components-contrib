@@ -20,10 +20,9 @@ import (
 	"strconv"
 	"strings"
 
+	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
-
-	"github.com/go-redis/redis/v8"
 )
 
 var ErrMultipleSortBy error = errors.New("multiple SORTBY steps are not allowed. Sort multiple fields in a single step")
@@ -190,9 +189,9 @@ func (q *Query) Finalize(filters string, qq *query.Query) error {
 	return nil
 }
 
-func (q *Query) execute(ctx context.Context, client redis.UniversalClient) ([]state.QueryItem, string, error) {
+func (q *Query) execute(ctx context.Context, client rediscomponent.RedisClient) ([]state.QueryItem, string, error) {
 	query := append(append([]interface{}{"FT.SEARCH", q.schemaName}, q.query...), "RETURN", "2", "$.data", "$.version")
-	ret, err := client.Do(ctx, query...).Result()
+	ret, err := client.DoRead(ctx, query...)
 	if err != nil {
 		return nil, "", err
 	}

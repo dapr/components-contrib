@@ -78,8 +78,8 @@ func (b *Binding) Close() (err error) {
 	return b.kafka.Close()
 }
 
-func (b *Binding) Invoke(_ context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	err := b.kafka.Publish(b.publishTopic, req.Data, req.Metadata)
+func (b *Binding) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	err := b.kafka.Publish(ctx, b.publishTopic, req.Data, req.Metadata)
 	return nil, err
 }
 

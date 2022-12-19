@@ -24,7 +24,7 @@ import (
 type PubSub interface {
 	Init(metadata Metadata) error
 	Features() []Feature
-	Publish(req *PublishRequest) error
+	Publish(ctx context.Context, req *PublishRequest) error
 	Subscribe(ctx context.Context, req SubscribeRequest, handler Handler) error
 	Close() error
 }

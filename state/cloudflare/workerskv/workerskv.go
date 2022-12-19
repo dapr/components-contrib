@@ -37,16 +37,16 @@ import (
 // TODO: Add link to docs
 const componentDocsURL = "https://TODO"
 
-// CFKV is a state store backed by Cloudflare KV.
-type CFKV struct {
+// CFWorkersKV is a state store backed by Cloudflare Workers KV.
+type CFWorkersKV struct {
 	*workers.Base
 	state.DefaultBulkStore
 	metadata componentMetadata
 }
 
-// NewCFKV returns a new CFKV.
-func NewCFKV(logger logger.Logger) state.Store {
-	q := &CFKV{
+// NewCFWorkersKV returns a new CFWorkersKV.
+func NewCFWorkersKV(logger logger.Logger) state.Store {
+	q := &CFWorkersKV{
 		Base: &workers.Base{},
 	}
 	q.DefaultBulkStore = state.NewDefaultBulkStore(q)
@@ -55,7 +55,7 @@ func NewCFKV(logger logger.Logger) state.Store {
 }
 
 // Init the component.
-func (q *CFKV) Init(metadata state.Metadata) error {
+func (q *CFWorkersKV) Init(metadata state.Metadata) error {
 	// Decode the metadata
 	err := mapstructure.Decode(metadata.Properties, &q.metadata)
 	if err != nil {
@@ -80,7 +80,7 @@ func (q *CFKV) Init(metadata state.Metadata) error {
 	return q.Base.Init(workerBindings, componentDocsURL, infoResponseValidate)
 }
 
-func (q *CFKV) GetComponentMetadata() map[string]string {
+func (q *CFWorkersKV) GetComponentMetadata() map[string]string {
 	metadataStruct := componentMetadata{}
 	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
@@ -88,11 +88,11 @@ func (q *CFKV) GetComponentMetadata() map[string]string {
 }
 
 // Features returns the features supported by this state store.
-func (q CFKV) Features() []state.Feature {
+func (q CFWorkersKV) Features() []state.Feature {
 	return []state.Feature{}
 }
 
-func (q *CFKV) Delete(parentCtx context.Context, stateReq *state.DeleteRequest) error {
+func (q *CFWorkersKV) Delete(parentCtx context.Context, stateReq *state.DeleteRequest) error {
 	token, err := q.metadata.CreateToken()
 	if err != nil {
 		return fmt.Errorf("failed to create authorization token: %w", err)
@@ -123,7 +123,7 @@ func (q *CFKV) Delete(parentCtx context.Context, stateReq *state.DeleteRequest) 
 	return nil
 }
 
-func (q *CFKV) Get(parentCtx context.Context, stateReq *state.GetRequest) (*state.GetResponse, error) {
+func (q *CFWorkersKV) Get(parentCtx context.Context, stateReq *state.GetRequest) (*state.GetResponse, error) {
 	token, err := q.metadata.CreateToken()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create authorization token: %w", err)
@@ -166,7 +166,7 @@ func (q *CFKV) Get(parentCtx context.Context, stateReq *state.GetRequest) (*stat
 	}, nil
 }
 
-func (q *CFKV) Set(parentCtx context.Context, stateReq *state.SetRequest) error {
+func (q *CFWorkersKV) Set(parentCtx context.Context, stateReq *state.SetRequest) error {
 	token, err := q.metadata.CreateToken()
 	if err != nil {
 		return fmt.Errorf("failed to create authorization token: %w", err)
@@ -197,7 +197,7 @@ func (q *CFKV) Set(parentCtx context.Context, stateReq *state.SetRequest) error 
 	return nil
 }
 
-func (q *CFKV) marshalData(value any) []byte {
+func (q *CFWorkersKV) marshalData(value any) []byte {
 	switch x := value.(type) {
 	case []byte:
 		return x
@@ -208,7 +208,7 @@ func (q *CFKV) marshalData(value any) []byte {
 }
 
 // Close the component
-func (q *CFKV) Close() error {
+func (q *CFWorkersKV) Close() error {
 	err := q.Base.Close()
 	if err != nil {
 		return err

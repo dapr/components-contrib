@@ -17,11 +17,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"reflect"
+	"strconv"
 
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/exp/slices"
@@ -29,6 +31,7 @@ import (
 	"github.com/dapr/components-contrib/internal/component/cloudflare/workers"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
+	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 )
 
@@ -165,6 +168,16 @@ func (q *CFWorkersKV) Get(parentCtx context.Context, stateReq *state.GetRequest)
 }
 
 func (q *CFWorkersKV) Set(parentCtx context.Context, stateReq *state.SetRequest) error {
+	// TTL
+	ttl, err := stateutils.ParseTTL(stateReq.Metadata)
+	if err != nil {
+		return fmt.Errorf("error parsing TTL: %w", err)
+	}
+	// KV currently has a minimum TTL of 60 seconds. Setting a lower one will cause requests to fail with error 500
+	if ttl != nil && *ttl < 60 {
+		return errors.New("the minimum value for 'ttlInSeconds' for Cloudflare Workers KV is 60 seconds")
+	}
+
 	token, err := q.metadata.CreateToken()
 	if err != nil {
 		return fmt.Errorf("failed to create authorization token: %w", err)
@@ -174,6 +187,9 @@ func (q *CFWorkersKV) Set(parentCtx context.Context, stateReq *state.SetRequest)
 	defer cancel()
 
 	u := q.metadata.WorkerURL + "kv/" + q.metadata.KVNamespaceID + "/" + url.PathEscape(stateReq.Key)
+	if ttl != nil && *ttl > 0 {
+		u += "?ttl=" + strconv.Itoa(*ttl)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, bytes.NewReader(q.marshalData(stateReq.Value)))
 	if err != nil {
 		return fmt.Errorf("error creating network request: %w", err)

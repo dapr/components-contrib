@@ -2,6 +2,10 @@
 
 This folder contains the source code for the Worker that is used by Dapr components to interact with Cloudflare services such as KV and Queues.
 
+## Version
+
+If you make changes to the Worker, please change the version number in the `package.json` file. The code is versioned by date in the YYYYMMDD format.
+
 ## Build code
 
 The built Worker resides in `../workers/code`. You can build it with:

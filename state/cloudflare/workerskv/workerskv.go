@@ -67,7 +67,7 @@ func (q *CFWorkersKV) Init(metadata state.Metadata) error {
 	q.SetMetadata(&q.metadata.BaseMetadata)
 
 	// Init the base component
-	workerBindings := []workers.Binding{
+	workerBindings := []workers.CFBinding{
 		{Type: "kv_namespace", Name: q.metadata.KVNamespaceID, KVNamespaceID: &q.metadata.KVNamespaceID},
 	}
 	infoResponseValidate := func(data *workers.InfoEndpointResponse) error {

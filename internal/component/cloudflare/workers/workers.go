@@ -37,10 +37,11 @@ import (
 const (
 	// Minimum version required for the running Worker.
 	minWorkerVersion = 20221209
-	// Issuer for JWTs
+	// Issuer for JWTs.
 	tokenIssuer = "dapr.io/cloudflare" //nolint:gosec
-	// JWT token expiration
-	tokenExpiration = 5 * time.Minute
+	// JWT token expiration.
+	// Each token is disposable and used only once.
+	tokenExpiration = time.Minute
 )
 
 // Base is a base class for components that rely on Cloudflare Base
@@ -55,7 +56,7 @@ type Base struct {
 }
 
 // Init the base class.
-func (w *Base) Init(workerBindings []Binding, componentDocsURL string, infoResponseValidate func(*InfoEndpointResponse) error) (err error) {
+func (w *Base) Init(workerBindings []CFBinding, componentDocsURL string, infoResponseValidate func(*InfoEndpointResponse) error) (err error) {
 	w.ctx, w.cancel = context.WithCancel(context.Background())
 	w.client = &http.Client{
 		Timeout: time.Second * 30,
@@ -99,7 +100,7 @@ func (w Base) Client() *http.Client {
 }
 
 // Creates or upgrades the worker that is managed by Dapr.
-func (w *Base) setupWorker(workerBindings []Binding) error {
+func (w *Base) setupWorker(workerBindings []CFBinding) error {
 	// First, get the subdomain for the worker
 	// This also acts as a check for the API key
 	subdomain, err := w.getWorkersSubdomain()
@@ -194,14 +195,14 @@ func (w *Base) getWorkersSubdomain() (string, error) {
 }
 
 type deployWorkerMetadata struct {
-	Main              string    `json:"main_module"`
-	CompatibilityDate string    `json:"compatibility_date"`
-	UsageModel        string    `json:"usage_model"`
-	Bindings          []Binding `json:"bindings,omitempty"`
+	Main              string      `json:"main_module"`
+	CompatibilityDate string      `json:"compatibility_date"`
+	UsageModel        string      `json:"usage_model"`
+	Bindings          []CFBinding `json:"bindings,omitempty"`
 }
 
-// Binding contains a binding that is attached to the worker
-type Binding struct {
+// CFBinding contains a Cloudflare binding that is attached to the worker
+type CFBinding struct {
 	Name string `json:"name"`
 	Type string `json:"type"`
 	// For variables
@@ -212,7 +213,7 @@ type Binding struct {
 	QueueName *string `json:"queue_name,omitempty"`
 }
 
-func (w *Base) deployWorker(workerBindings []Binding) error {
+func (w *Base) deployWorker(workerBindings []CFBinding) error {
 	// Get the public part of the key as PEM-encoded
 	pubKey := w.metadata.privKey.Public()
 	pubKeyDer, err := x509.MarshalPKIXPublicKey(pubKey)
@@ -250,8 +251,8 @@ func (w *Base) deployWorker(workerBindings []Binding) error {
 	}
 	// Add variables to bindings
 	workerBindings = append(workerBindings,
-		Binding{Type: "plain_text", Name: "PUBLIC_KEY", Text: ptr.Of(string(publicKeyPem))},
-		Binding{Type: "plain_text", Name: "TOKEN_AUDIENCE", Text: &w.metadata.WorkerName},
+		CFBinding{Type: "plain_text", Name: "PUBLIC_KEY", Text: ptr.Of(string(publicKeyPem))},
+		CFBinding{Type: "plain_text", Name: "TOKEN_AUDIENCE", Text: &w.metadata.WorkerName},
 	)
 	metadata := deployWorkerMetadata{
 		Main:              "worker.js",

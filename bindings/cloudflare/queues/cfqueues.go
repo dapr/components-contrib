@@ -20,7 +20,6 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/exp/slices"
@@ -31,7 +30,6 @@ import (
 )
 
 // Link to the documentation for the component
-// TODO: Add link to docs
 const componentDocsURL = "https://docs.dapr.io/reference/components-reference/supported-bindings/cfqueues/"
 
 // CFQueues is a binding for publishing messages on Cloudflare Queues
@@ -97,7 +95,7 @@ func (q *CFQueues) invokePublish(parentCtx context.Context, ir *bindings.InvokeR
 		return nil, fmt.Errorf("failed to create authorization token: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(parentCtx, q.metadata.Timeout)
 	defer cancel()
 
 	d, err := strconv.Unquote(string(ir.Data))

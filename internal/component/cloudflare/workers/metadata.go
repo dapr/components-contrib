@@ -27,16 +27,20 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
 
+// Default timeout for network requests.
+const defaultTimeout = 20 * time.Second
+
 // Base metadata struct, common to all components
 // The components can be initialized in two ways:
 // - Instantiate the component with a "workerURL": assumes a worker that has been pre-deployed and it's ready to be used; we will not need API tokens
 // - Instantiate the component with a "cfAPIToken" and "cfAccountID": Dapr will take care of creating the worker if it doesn't exist (or upgrade it if needed)
 type BaseMetadata struct {
-	WorkerURL   string `mapstructure:"workerUrl"`
-	CfAPIToken  string `mapstructure:"cfAPIToken"`
-	CfAccountID string `mapstructure:"cfAccountID"`
-	Key         string `mapstructure:"key"`
-	WorkerName  string `mapstructure:"workerName"`
+	WorkerURL   string        `mapstructure:"workerUrl"`
+	CfAPIToken  string        `mapstructure:"cfAPIToken"`
+	CfAccountID string        `mapstructure:"cfAccountID"`
+	Key         string        `mapstructure:"key"`
+	WorkerName  string        `mapstructure:"workerName"`
+	Timeout     time.Duration `mapstructure:"timeout"`
 
 	privKey ed25519.PrivateKey
 }
@@ -60,6 +64,11 @@ func (m *BaseMetadata) Validate() error {
 	} else if m.CfAPIToken == "" || m.CfAccountID == "" {
 		// Option 2: we need cfAPIToken and cfAccountID
 		return errors.New("invalid component metadata: either 'workerUrl' or the combination of 'cfAPIToken'/'cfAccountID' is required")
+	}
+
+	// Timeout
+	if m.Timeout < time.Second {
+		m.Timeout = defaultTimeout
 	}
 
 	// WorkerName

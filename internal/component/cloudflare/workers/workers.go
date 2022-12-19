@@ -59,7 +59,7 @@ type Base struct {
 func (w *Base) Init(workerBindings []CFBinding, componentDocsURL string, infoResponseValidate func(*InfoEndpointResponse) error) (err error) {
 	w.ctx, w.cancel = context.WithCancel(context.Background())
 	w.client = &http.Client{
-		Timeout: time.Second * 30,
+		Timeout: w.metadata.Timeout,
 	}
 	w.componentDocsURL = componentDocsURL
 	w.infoResponseValidate = infoResponseValidate
@@ -343,7 +343,7 @@ func (w *Base) checkWorker(workerURL string) error {
 		return fmt.Errorf("failed to create authorization token: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(w.ctx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(w.ctx, w.metadata.Timeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, workerURL+".well-known/dapr/info", nil)

@@ -22,7 +22,6 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
-	"time"
 
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/exp/slices"
@@ -97,7 +96,7 @@ func (q *CFWorkersKV) Delete(parentCtx context.Context, stateReq *state.DeleteRe
 		return fmt.Errorf("failed to create authorization token: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(parentCtx, q.metadata.Timeout)
 	defer cancel()
 
 	u := q.metadata.WorkerURL + "kv/" + q.metadata.KVNamespaceID + "/" + url.PathEscape(stateReq.Key)
@@ -128,7 +127,7 @@ func (q *CFWorkersKV) Get(parentCtx context.Context, stateReq *state.GetRequest)
 		return nil, fmt.Errorf("failed to create authorization token: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(parentCtx, q.metadata.Timeout)
 	defer cancel()
 
 	u := q.metadata.WorkerURL + "kv/" + q.metadata.KVNamespaceID + "/" + url.PathEscape(stateReq.Key)
@@ -171,7 +170,7 @@ func (q *CFWorkersKV) Set(parentCtx context.Context, stateReq *state.SetRequest)
 		return fmt.Errorf("failed to create authorization token: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(parentCtx, q.metadata.Timeout)
 	defer cancel()
 
 	u := q.metadata.WorkerURL + "kv/" + q.metadata.KVNamespaceID + "/" + url.PathEscape(stateReq.Key)

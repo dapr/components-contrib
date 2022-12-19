@@ -95,9 +95,9 @@ func (a *azureServiceBus) Publish(ctx context.Context, req *pubsub.PublishReques
 			}
 
 			// Try sending the message
-			parentCtx, cancel := context.WithTimeout(ctx, time.Second*time.Duration(a.metadata.TimeoutInSec))
-			defer cancel()
-			err = sender.SendMessage(parentCtx, msg, nil)
+			publishCtx, publishCancel := context.WithTimeout(ctx, time.Second*time.Duration(a.metadata.TimeoutInSec))
+			err = sender.SendMessage(publishCtx, msg, nil)
+			publishCancel()
 			if err != nil {
 				if impl.IsNetworkError(err) {
 					// Retry after reconnecting

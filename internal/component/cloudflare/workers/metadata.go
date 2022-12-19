@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,13 +36,14 @@ const defaultTimeout = 20 * time.Second
 // - Instantiate the component with a "workerURL": assumes a worker that has been pre-deployed and it's ready to be used; we will not need API tokens
 // - Instantiate the component with a "cfAPIToken" and "cfAccountID": Dapr will take care of creating the worker if it doesn't exist (or upgrade it if needed)
 type BaseMetadata struct {
-	WorkerURL   string        `mapstructure:"workerUrl"`
-	CfAPIToken  string        `mapstructure:"cfAPIToken"`
-	CfAccountID string        `mapstructure:"cfAccountID"`
-	Key         string        `mapstructure:"key"`
-	WorkerName  string        `mapstructure:"workerName"`
-	Timeout     time.Duration `mapstructure:"timeout"`
+	WorkerURL        string `mapstructure:"workerUrl"`
+	CfAPIToken       string `mapstructure:"cfAPIToken"`
+	CfAccountID      string `mapstructure:"cfAccountID"`
+	Key              string `mapstructure:"key"`
+	WorkerName       string `mapstructure:"workerName"`
+	TimeoutInSeconds string `mapstructure:"timeoutInSeconds"`
 
+	Timeout time.Duration `mapstructure:"-"`
 	privKey ed25519.PrivateKey
 }
 
@@ -67,8 +69,15 @@ func (m *BaseMetadata) Validate() error {
 	}
 
 	// Timeout
-	if m.Timeout < time.Second {
-		m.Timeout = defaultTimeout
+	m.Timeout = defaultTimeout
+	if m.TimeoutInSeconds != "" {
+		timeout, err := strconv.Atoi(m.TimeoutInSeconds)
+		if err != nil {
+			return fmt.Errorf("failed to parse value for 'timeoutInSeconds': %w", err)
+		}
+		if timeout > 0 {
+			m.Timeout = time.Duration(timeout) * time.Second
+		}
 	}
 
 	// WorkerName

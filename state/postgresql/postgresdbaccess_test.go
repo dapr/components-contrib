@@ -18,18 +18,23 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+
+	// Blank import for pgx
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 type mocks struct {
 	db    *sql.DB
 	mock  sqlmock.Sqlmock
-	pgDba *postgresDBAccess
+	pgDba *PostgresDBAccess
 }
 
 func TestGetSetWithWrongType(t *testing.T) {
@@ -451,7 +456,7 @@ func mockDatabase(t *testing.T) (*mocks, error) {
 		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
 	}
 
-	dba := &postgresDBAccess{
+	dba := &PostgresDBAccess{
 		logger: logger,
 		db:     db,
 	}
@@ -461,4 +466,96 @@ func mockDatabase(t *testing.T) (*mocks, error) {
 		mock:  mock,
 		pgDba: dba,
 	}, err
+}
+
+func TestParseMetadata(t *testing.T) {
+	t.Run("missing connection string", func(t *testing.T) {
+		p := &PostgresDBAccess{}
+		props := map[string]string{}
+
+		err := p.ParseMetadata(state.Metadata{Base: metadata.Base{Properties: props}})
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, errMissingConnectionString)
+	})
+
+	t.Run("has connection string", func(t *testing.T) {
+		p := &PostgresDBAccess{}
+		props := map[string]string{
+			"connectionString": "foo",
+		}
+
+		err := p.ParseMetadata(state.Metadata{Base: metadata.Base{Properties: props}})
+		assert.NoError(t, err)
+	})
+
+	t.Run("default table name", func(t *testing.T) {
+		p := &PostgresDBAccess{}
+		props := map[string]string{
+			"connectionString": "foo",
+		}
+
+		err := p.ParseMetadata(state.Metadata{Base: metadata.Base{Properties: props}})
+		assert.NoError(t, err)
+		assert.Equal(t, p.metadata.TableName, defaultTableName)
+	})
+
+	t.Run("custom table name", func(t *testing.T) {
+		p := &PostgresDBAccess{}
+		props := map[string]string{
+			"connectionString": "foo",
+			"tableName":        "mytable",
+		}
+
+		err := p.ParseMetadata(state.Metadata{Base: metadata.Base{Properties: props}})
+		assert.NoError(t, err)
+		assert.Equal(t, p.metadata.TableName, "mytable")
+	})
+
+	t.Run("default cleanupIntervalInSeconds", func(t *testing.T) {
+		p := &PostgresDBAccess{}
+		props := map[string]string{
+			"connectionString": "foo",
+		}
+
+		err := p.ParseMetadata(state.Metadata{Base: metadata.Base{Properties: props}})
+		assert.NoError(t, err)
+		_ = assert.NotNil(t, p.cleanupInterval) &&
+			assert.Equal(t, *p.cleanupInterval, defaultCleanupInternal*time.Second)
+	})
+
+	t.Run("invalid cleanupIntervalInSeconds", func(t *testing.T) {
+		p := &PostgresDBAccess{}
+		props := map[string]string{
+			"connectionString":         "foo",
+			"cleanupIntervalInSeconds": "NaN",
+		}
+
+		err := p.ParseMetadata(state.Metadata{Base: metadata.Base{Properties: props}})
+		assert.Error(t, err)
+	})
+
+	t.Run("positive cleanupIntervalInSeconds", func(t *testing.T) {
+		p := &PostgresDBAccess{}
+		props := map[string]string{
+			"connectionString":         "foo",
+			"cleanupIntervalInSeconds": "42",
+		}
+
+		err := p.ParseMetadata(state.Metadata{Base: metadata.Base{Properties: props}})
+		assert.NoError(t, err)
+		_ = assert.NotNil(t, p.cleanupInterval) &&
+			assert.Equal(t, *p.cleanupInterval, 42*time.Second)
+	})
+
+	t.Run("zero cleanupIntervalInSeconds", func(t *testing.T) {
+		p := &PostgresDBAccess{}
+		props := map[string]string{
+			"connectionString":         "foo",
+			"cleanupIntervalInSeconds": "0",
+		}
+
+		err := p.ParseMetadata(state.Metadata{Base: metadata.Base{Properties: props}})
+		assert.NoError(t, err)
+		assert.Nil(t, p.cleanupInterval)
+	})
 }

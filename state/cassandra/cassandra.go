@@ -24,6 +24,7 @@ import (
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
+	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 )
 
@@ -279,7 +280,7 @@ func (c *Cassandra) Set(ctx context.Context, req *state.SetRequest) error {
 		session = sess
 	}
 
-	ttl, err := parseTTL(req.Metadata)
+	ttl, err := stateutils.ParseTTL(req.Metadata)
 	if err != nil {
 		return fmt.Errorf("error parsing TTL from Metadata: %s", err)
 	}
@@ -300,20 +301,6 @@ func (c *Cassandra) createSession(consistency gocql.Consistency) (*gocql.Session
 	session.SetConsistency(consistency)
 
 	return session, nil
-}
-
-func parseTTL(requestMetadata map[string]string) (*int, error) {
-	if val, found := requestMetadata[metadataTTLKey]; found && val != "" {
-		parsedVal, err := strconv.ParseInt(val, 10, 0)
-		if err != nil {
-			return nil, err
-		}
-		parsedInt := int(parsedVal)
-
-		return &parsedInt, nil
-	}
-
-	return nil, nil
 }
 
 func (c *Cassandra) GetComponentMetadata() map[string]string {

@@ -102,7 +102,7 @@ func (m *mqttPubSub) Init(metadata pubsub.Metadata) error {
 }
 
 // Publish the topic to mqtt pub sub.
-func (m *mqttPubSub) Publish(req *pubsub.PublishRequest) error {
+func (m *mqttPubSub) Publish(_ context.Context, req *pubsub.PublishRequest) error {
 	if req.Topic == "" {
 		return errors.New("topic name is empty")
 	}
@@ -246,7 +246,7 @@ func (m *mqttPubSub) onMessage(ctx context.Context) func(client mqtt.Client, mqt
 			// Problem with this approach is that if the service crashes between the time the message is re-enqueued and when the ACK is sent, the message may be delivered twice
 			if !ack {
 				m.logger.Debugf("Re-publishing message %s#%d", mqttMsg.Topic(), mqttMsg.MessageID())
-				publishErr := m.Publish(&pubsub.PublishRequest{
+				publishErr := m.Publish(ctx, &pubsub.PublishRequest{
 					Topic: mqttMsg.Topic(),
 					Data:  mqttMsg.Payload(),
 				})

@@ -410,7 +410,9 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_rabbitmq.NewRabbitMQ(testLogger)
 	case "in-memory":
 		pubsub = p_inmemory.New(testLogger)
-	case "aws.snssqs":
+	case "aws.snssqs.terraform":
+		pubsub = p_snssqs.NewSnsSqs(testLogger)
+	case "aws.snssqs.docker":
 		pubsub = p_snssqs.NewSnsSqs(testLogger)
 	case "kubemq":
 		pubsub = p_kubemq.NewKubeMQ(testLogger)

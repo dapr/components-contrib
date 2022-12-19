@@ -61,6 +61,7 @@ jobs:
         - bindings.redis.v7
         - bindings.kubemq
         - bindings.rabbitmq
+        - pubsub.aws.snssqs.docker
         - pubsub.hazelcast
         - pubsub.in-memory
         - pubsub.mqtt-emqx
@@ -148,7 +149,7 @@ jobs:
           required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret
         - component: bindings.azure.cosmosdb
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
-        - component: pubsub.aws.snssqs
+        - component: pubsub.aws.snssqs.terraform
           terraform-dir: pubsub/aws/snssqs        
         EOF
         )
@@ -294,6 +295,10 @@ jobs:
       working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
       continue-on-error: true
+
+    - name: Start aws snssqs
+      run: docker-compose -f ./.github/infrastructure/docker-compose-snssqs.yml -p snssqs up -d
+      if: contains(matrix.component, 'aws.snssqs.docker')
 
     - name: Start Redis 6 with Redis JSON
       run: docker-compose -f ./.github/infrastructure/docker-compose-redisjson.yml -p redis up -d

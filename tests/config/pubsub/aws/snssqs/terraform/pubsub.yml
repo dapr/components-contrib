@@ -25,5 +25,5 @@ spec:
       value: 10
     - name: concurrencyMode
       value: "single"
-    - name: disableEntityManagement # Optional
+    - name: disableEntityManagement
       value: "true"

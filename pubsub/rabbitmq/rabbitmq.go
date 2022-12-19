@@ -176,7 +176,7 @@ func (r *rabbitMQ) reconnect(connectionCount int) error {
 	return nil
 }
 
-func (r *rabbitMQ) publishSync(req *pubsub.PublishRequest) (rabbitMQChannelBroker, int, error) {
+func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) (rabbitMQChannelBroker, int, error) {
 	r.channelMutex.Lock()
 	defer r.channelMutex.Unlock()
 
@@ -206,7 +206,7 @@ func (r *rabbitMQ) publishSync(req *pubsub.PublishRequest) (rabbitMQChannelBroke
 		expiration = strconv.FormatInt(r.metadata.defaultQueueTTL.Milliseconds(), 10)
 	}
 
-	confirm, err := r.channel.PublishWithDeferredConfirmWithContext(r.ctx, req.Topic, routingKey, false, false, amqp.Publishing{
+	confirm, err := r.channel.PublishWithDeferredConfirmWithContext(ctx, req.Topic, routingKey, false, false, amqp.Publishing{
 		ContentType:  "text/plain",
 		Body:         req.Data,
 		DeliveryMode: r.metadata.deliveryMode,
@@ -231,13 +231,13 @@ func (r *rabbitMQ) publishSync(req *pubsub.PublishRequest) (rabbitMQChannelBroke
 	return r.channel, r.connectionCount, nil
 }
 
-func (r *rabbitMQ) Publish(req *pubsub.PublishRequest) error {
+func (r *rabbitMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	r.logger.Debugf("%s publishing message to %s", logMessagePrefix, req.Topic)
 
 	attempt := 0
 	for {
 		attempt++
-		channel, connectionCount, err := r.publishSync(req)
+		channel, connectionCount, err := r.publishSync(ctx, req)
 		if err == nil {
 			return nil
 		}

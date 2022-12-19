@@ -107,7 +107,7 @@ func createPostgreSQL(t *testing.T) *PostgreSQL {
 	assert.NotNil(t, pgs)
 
 	metadata := &state.Metadata{
-		Base: metadata.Base{Properties: map[string]string{connectionStringKey: fakeConnectionString}},
+		Base: metadata.Base{Properties: map[string]string{"connectionString": fakeConnectionString}},
 	}
 
 	err := pgs.Init(*metadata)

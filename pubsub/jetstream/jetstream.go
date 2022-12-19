@@ -90,7 +90,7 @@ func (js *jetstreamPubSub) Features() []pubsub.Feature {
 	return nil
 }
 
-func (js *jetstreamPubSub) Publish(req *pubsub.PublishRequest) error {
+func (js *jetstreamPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	var opts []nats.PubOpt
 	var msgID string
 
@@ -126,14 +126,11 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 
 	if v := js.meta.startTime; !v.IsZero() {
 		consumerConfig.OptStartTime = &v
-	} else if v := js.meta.startSequence; v > 0 {
-		consumerConfig.OptStartSeq = v
-	} else if js.meta.deliverAll {
-		consumerConfig.DeliverPolicy = nats.DeliverAllPolicy
-	} else {
-		consumerConfig.DeliverPolicy = nats.DeliverLastPolicy
 	}
-
+	if v := js.meta.startSequence; v > 0 {
+		consumerConfig.OptStartSeq = v
+	}
+	consumerConfig.DeliverPolicy = js.meta.deliverPolicy
 	if js.meta.flowControl {
 		consumerConfig.FlowControl = true
 	}

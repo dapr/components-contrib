@@ -15,10 +15,8 @@ package redis
 
 import (
 	"context"
+	"errors"
 	"fmt"
-
-	"github.com/go-redis/redis/v8"
-	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/bindings"
 	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
@@ -27,7 +25,7 @@ import (
 
 // Redis is a redis output binding.
 type Redis struct {
-	client         redis.UniversalClient
+	client         rediscomponent.RedisClient
 	clientSettings *rediscomponent.Settings
 	logger         logger.Logger
 
@@ -49,7 +47,7 @@ func (r *Redis) Init(meta bindings.Metadata) (err error) {
 
 	r.ctx, r.cancel = context.WithCancel(context.Background())
 
-	_, err = r.client.Ping(r.ctx).Result()
+	_, err = r.client.PingResult(r.ctx)
 	if err != nil {
 		return fmt.Errorf("redis binding: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
@@ -58,7 +56,7 @@ func (r *Redis) Init(meta bindings.Metadata) (err error) {
 }
 
 func (r *Redis) Ping() error {
-	if _, err := r.client.Ping(r.ctx).Result(); err != nil {
+	if _, err := r.client.PingResult(r.ctx); err != nil {
 		return fmt.Errorf("redis binding: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
 
@@ -77,12 +75,12 @@ func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	if key, ok := req.Metadata["key"]; ok && key != "" {
 		switch req.Operation {
 		case bindings.DeleteOperation:
-			err := r.client.Del(ctx, key).Err()
+			err := r.client.Del(ctx, key)
 			if err != nil {
 				return nil, err
 			}
 		case bindings.GetOperation:
-			data, err := r.client.Get(ctx, key).Result()
+			data, err := r.client.Get(ctx, key)
 			if err != nil {
 				return nil, err
 			}
@@ -90,7 +88,7 @@ func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 			rep.Data = []byte(data)
 			return rep, nil
 		case bindings.CreateOperation:
-			_, err := r.client.Do(ctx, "SET", key, req.Data).Result()
+			err := r.client.DoWrite(ctx, "SET", key, req.Data)
 			if err != nil {
 				return nil, err
 			}

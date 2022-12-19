@@ -18,6 +18,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
@@ -172,10 +173,16 @@ func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiv
 		msg, err := receiver.Receive(ctx)
 
 		if msg != nil {
-			a.logger.Debugf("Received a message %s", msg.GetData())
+
+			data := msg.GetData()
+
+			//if data is empty, then check the value field for data
+			if data == nil || len(data) == 0 {
+				data = []byte(fmt.Sprint(msg.Value))
+			}
 
 			pubsubMsg := &pubsub.NewMessage{
-				Data:  msg.GetData(),
+				Data:  data,
 				Topic: msg.LinkName(),
 			}
 

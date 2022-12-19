@@ -143,23 +143,27 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 	})
 
 	t.Run("ping", func(t *testing.T) {
-		errInp := bindings.PingInpBinding(inputBinding)
-		// TODO: Ideally, all stable components should implenment ping function,
-		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
-		// implements ping in existing stable components
-		if errInp != nil {
-			assert.EqualError(t, errInp, "ping is not implemented by this input binding")
-		} else {
-			assert.Nil(t, errInp)
+		if config.HasOperation("read") {
+			errInp := bindings.PingInpBinding(inputBinding)
+			// TODO: Ideally, all stable components should implenment ping function,
+			// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
+			// implements ping in existing stable components
+			if errInp != nil {
+				assert.EqualError(t, errInp, "ping is not implemented by this input binding")
+			} else {
+				assert.Nil(t, errInp)
+			}
 		}
-		errOut := bindings.PingOutBinding(outputBinding)
-		// TODO: Ideally, all stable components should implenment ping function,
-		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
-		// implements ping in existing stable components
-		if errOut != nil {
-			assert.EqualError(t, errOut, "ping is not implemented by this output binding")
-		} else {
-			assert.Nil(t, errOut)
+		if config.HasOperation("operations") {
+			errOut := bindings.PingOutBinding(outputBinding)
+			// TODO: Ideally, all stable components should implenment ping function,
+			// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
+			// implements ping in existing stable components
+			if errOut != nil {
+				assert.EqualError(t, errOut, "ping is not implemented by this output binding")
+			} else {
+				assert.Nil(t, errOut)
+			}
 		}
 	})
 

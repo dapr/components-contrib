@@ -57,7 +57,8 @@ jobs:
         - bindings.mqtt-mosquitto
         - bindings.mqtt-vernemq
         - bindings.postgres
-        - bindings.redis
+        - bindings.redis.v6
+        - bindings.redis.v7
         - bindings.kubemq
         - bindings.rabbitmq
         - crypto.localstorage
@@ -71,7 +72,7 @@ jobs:
         - pubsub.natsstreaming
         - pubsub.pulsar
         - pubsub.rabbitmq
-        - pubsub.redis
+        - pubsub.redis.v6
         - pubsub.kafka-wurstmeister
         - pubsub.kafka-confluent
         - pubsub.kubemq
@@ -85,7 +86,8 @@ jobs:
         - state.mysql.mysql
         - state.mysql.mariadb
         - state.postgresql
-        - state.redis
+        - state.redis.v6
+        - state.redis.v7
         - state.sqlserver
         - state.in-memory
         - state.cockroachdb
@@ -256,9 +258,13 @@ jobs:
           echo "$CERT_NAME=$CERT_FILE" >> $GITHUB_ENV
         done
 
-    - name: Start Redis
+    - name: Start Redis 6 with Redis JSON
       run: docker-compose -f ./.github/infrastructure/docker-compose-redisjson.yml -p redis up -d
-      if: contains(matrix.component, 'redis')
+      if: contains(matrix.component, 'redis.v6')
+  
+    - name: Start Redis 7
+      run: docker-compose -f ./.github/infrastructure/docker-compose-redis7.yml -p redis up -d
+      if: contains(matrix.component, 'redis.v7')
 
     - name: Start Temporal
       run: docker-compose -f ./.github/infrastructure/docker-compose-temporal.yml -p temporal up -d

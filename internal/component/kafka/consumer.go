@@ -189,7 +189,7 @@ func (consumer *consumer) doCallback(session sarama.ConsumerGroupSession, messag
 		Data:  message.Value,
 	}
 	// This is true only when headers are set (Kafka > 0.11)
-	if message.Headers != nil && len(message.Headers) > 0 {
+	if len(message.Headers) > 0 {
 		event.Metadata = make(map[string]string, len(message.Headers))
 		for _, header := range message.Headers {
 			event.Metadata[string(header.Key)] = string(header.Value)

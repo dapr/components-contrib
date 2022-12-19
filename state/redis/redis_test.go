@@ -239,7 +239,7 @@ func TestTransactionalUpsert(t *testing.T) {
 	})
 	assert.Equal(t, nil, err)
 
-	res, err := c.Do(context.Background(), "HGETALL", "weapon").Result()
+	res, err := c.DoRead(context.Background(), "HGETALL", "weapon")
 	assert.Equal(t, nil, err)
 
 	vals := res.([]interface{})
@@ -248,15 +248,15 @@ func TestTransactionalUpsert(t *testing.T) {
 	assert.Equal(t, ptr.Of("1"), version)
 	assert.Equal(t, `"deathstar"`, data)
 
-	res, err = c.Do(context.Background(), "TTL", "weapon").Result()
+	res, err = c.DoRead(context.Background(), "TTL", "weapon")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, int64(-1), res)
 
-	res, err = c.Do(context.Background(), "TTL", "weapon2").Result()
+	res, err = c.DoRead(context.Background(), "TTL", "weapon2")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, int64(123), res)
 
-	res, err = c.Do(context.Background(), "TTL", "weapon3").Result()
+	res, err = c.DoRead(context.Background(), "TTL", "weapon3")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, int64(-1), res)
 }
@@ -290,7 +290,7 @@ func TestTransactionalDelete(t *testing.T) {
 	})
 	assert.Equal(t, nil, err)
 
-	res, err := c.Do(context.Background(), "HGETALL", "weapon").Result()
+	res, err := c.DoRead(context.Background(), "HGETALL", "weapon")
 	assert.Equal(t, nil, err)
 
 	vals := res.([]interface{})
@@ -335,7 +335,7 @@ func TestRequestsWithGlobalTTL(t *testing.T) {
 			Key:   "weapon100",
 			Value: "deathstar100",
 		})
-		ttl, _ := ss.client.TTL(ss.ctx, "weapon100").Result()
+		ttl, _ := ss.client.TTLResult(ss.ctx, "weapon100")
 
 		assert.Equal(t, time.Duration(globalTTLInSeconds)*time.Second, ttl)
 	})
@@ -349,7 +349,7 @@ func TestRequestsWithGlobalTTL(t *testing.T) {
 				"ttlInSeconds": strconv.Itoa(requestTTL),
 			},
 		})
-		ttl, _ := ss.client.TTL(ss.ctx, "weapon100").Result()
+		ttl, _ := ss.client.TTLResult(ss.ctx, "weapon100")
 
 		assert.Equal(t, time.Duration(requestTTL)*time.Second, ttl)
 	})
@@ -388,7 +388,7 @@ func TestRequestsWithGlobalTTL(t *testing.T) {
 		})
 		assert.Equal(t, nil, err)
 
-		res, err := c.Do(context.Background(), "HGETALL", "weapon").Result()
+		res, err := c.DoRead(context.Background(), "HGETALL", "weapon")
 		assert.Equal(t, nil, err)
 
 		vals := res.([]interface{})
@@ -397,15 +397,15 @@ func TestRequestsWithGlobalTTL(t *testing.T) {
 		assert.Equal(t, ptr.Of("1"), version)
 		assert.Equal(t, `"deathstar"`, data)
 
-		res, err = c.Do(context.Background(), "TTL", "weapon").Result()
+		res, err = c.DoRead(context.Background(), "TTL", "weapon")
 		assert.Equal(t, nil, err)
 		assert.Equal(t, int64(globalTTLInSeconds), res)
 
-		res, err = c.Do(context.Background(), "TTL", "weapon2").Result()
+		res, err = c.DoRead(context.Background(), "TTL", "weapon2")
 		assert.Equal(t, nil, err)
 		assert.Equal(t, int64(123), res)
 
-		res, err = c.Do(context.Background(), "TTL", "weapon3").Result()
+		res, err = c.DoRead(context.Background(), "TTL", "weapon3")
 		assert.Equal(t, nil, err)
 		assert.Equal(t, int64(-1), res)
 	})
@@ -432,7 +432,7 @@ func TestSetRequestWithTTL(t *testing.T) {
 			},
 		})
 
-		ttl, _ := ss.client.TTL(ss.ctx, "weapon100").Result()
+		ttl, _ := ss.client.TTLResult(ss.ctx, "weapon100")
 
 		assert.Equal(t, time.Duration(ttlInSeconds)*time.Second, ttl)
 	})
@@ -443,7 +443,7 @@ func TestSetRequestWithTTL(t *testing.T) {
 			Value: "deathstar200",
 		})
 
-		ttl, _ := ss.client.TTL(ss.ctx, "weapon200").Result()
+		ttl, _ := ss.client.TTLResult(ss.ctx, "weapon200")
 
 		assert.Equal(t, time.Duration(-1), ttl)
 	})
@@ -453,7 +453,7 @@ func TestSetRequestWithTTL(t *testing.T) {
 			Key:   "weapon300",
 			Value: "deathstar300",
 		})
-		ttl, _ := ss.client.TTL(ss.ctx, "weapon300").Result()
+		ttl, _ := ss.client.TTLResult(ss.ctx, "weapon300")
 		assert.Equal(t, time.Duration(-1), ttl)
 
 		// make the key no longer persistent
@@ -465,7 +465,7 @@ func TestSetRequestWithTTL(t *testing.T) {
 				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
 			},
 		})
-		ttl, _ = ss.client.TTL(ss.ctx, "weapon300").Result()
+		ttl, _ = ss.client.TTLResult(ss.ctx, "weapon300")
 		assert.Equal(t, time.Duration(ttlInSeconds)*time.Second, ttl)
 
 		// make the key persistent again
@@ -476,7 +476,7 @@ func TestSetRequestWithTTL(t *testing.T) {
 				"ttlInSeconds": strconv.Itoa(-1),
 			},
 		})
-		ttl, _ = ss.client.TTL(ss.ctx, "weapon300").Result()
+		ttl, _ = ss.client.TTLResult(ss.ctx, "weapon300")
 		assert.Equal(t, time.Duration(-1), ttl)
 	})
 }
@@ -508,7 +508,7 @@ func TestTransactionalDeleteNoEtag(t *testing.T) {
 	})
 	assert.Equal(t, nil, err)
 
-	res, err := c.Do(context.Background(), "HGETALL", "weapon100").Result()
+	res, err := c.DoRead(context.Background(), "HGETALL", "weapon100")
 	assert.Equal(t, nil, err)
 
 	vals := res.([]interface{})
@@ -532,7 +532,7 @@ func TestGetMetadata(t *testing.T) {
 	assert.Equal(t, metadataInfo["idleCheckFrequency"], "redis.Duration")
 }
 
-func setupMiniredis() (*miniredis.Miniredis, *redis.Client) {
+func setupMiniredis() (*miniredis.Miniredis, rediscomponent.RedisClient) {
 	s, err := miniredis.Run()
 	if err != nil {
 		panic(err)
@@ -542,5 +542,5 @@ func setupMiniredis() (*miniredis.Miniredis, *redis.Client) {
 		DB:   defaultDB,
 	}
 
-	return s, redis.NewClient(opts)
+	return s, rediscomponent.ClientFromV8Client(redis.NewClient(opts))
 }

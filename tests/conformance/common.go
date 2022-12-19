@@ -78,7 +78,7 @@ import (
 	s_cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
 	s_azuretablestorage "github.com/dapr/components-contrib/state/azure/tablestorage"
 	s_cassandra "github.com/dapr/components-contrib/state/cassandra"
-	s_cloudflarekv "github.com/dapr/components-contrib/state/cloudflare/kv"
+	s_cloudflareworkerskv "github.com/dapr/components-contrib/state/cloudflare/workerskv"
 	s_cockroachdb "github.com/dapr/components-contrib/state/cockroachdb"
 	s_inmemory "github.com/dapr/components-contrib/state/in-memory"
 	s_memcached "github.com/dapr/components-contrib/state/memcached"
@@ -498,8 +498,8 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_azuretablestorage.NewAzureTablesStateStore(testLogger)
 	case "cassandra":
 		store = s_cassandra.NewCassandraStateStore(testLogger)
-	case "cloudflare.kv":
-		store = s_cloudflarekv.NewCFKV(testLogger)
+	case "cloudflare.workerskv":
+		store = s_cloudflareworkerskv.NewCFWorkersKV(testLogger)
 	case "cockroachdb":
 		store = s_cockroachdb.New(testLogger)
 	case "memcached":

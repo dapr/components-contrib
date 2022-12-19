@@ -3,7 +3,7 @@ kind: Component
 metadata:
   name: statestore
 spec:
-  type: state.cloudflare.kv
+  type: state.cloudflare.workerskv
   version: v1
   metadata:
     - name: workerName

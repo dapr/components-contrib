@@ -34,8 +34,7 @@ import (
 )
 
 // Link to the documentation for the component
-// TODO: Add link to docs
-const componentDocsURL = "https://TODO"
+const componentDocsURL = "https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-cloudflare-workerskv/"
 
 // CFWorkersKV is a state store backed by Cloudflare Workers KV.
 type CFWorkersKV struct {

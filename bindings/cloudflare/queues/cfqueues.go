@@ -32,7 +32,7 @@ import (
 
 // Link to the documentation for the component
 // TODO: Add link to docs
-const componentDocsURL = "https://TODO"
+const componentDocsURL = "https://docs.dapr.io/reference/components-reference/supported-bindings/cfqueues/"
 
 // CFQueues is a binding for publishing messages on Cloudflare Queues
 type CFQueues struct {

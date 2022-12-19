@@ -8,6 +8,7 @@ require (
 	github.com/dapr/dapr v1.9.5
 	github.com/dapr/go-sdk v1.6.0
 	github.com/dapr/kit v0.0.3
+	github.com/jackc/pgx/v5 v5.2.0
 	github.com/stretchr/testify v1.8.1
 )
 
@@ -61,7 +62,6 @@ require (
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
-	github.com/jackc/pgx/v5 v5.2.0 // indirect
 	github.com/jhump/protoreflect v1.13.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -143,6 +143,6 @@ replace k8s.io/client-go => k8s.io/client-go v0.25.3
 
 replace github.com/dapr/components-contrib/tests/certification => ../../
 
-replace github.com/dapr/dapr => github.com/dapr/dapr v1.9.4-0.20221213222644-64d468a693f1
+replace github.com/dapr/dapr => github.com/1046102779/dapr v0.0.0-20221214124410-5e82abca48ab
 
 replace github.com/dapr/components-contrib => ../../../../

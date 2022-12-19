@@ -848,8 +848,8 @@ func (s *snsSqs) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeReq
 	return nil
 }
 
-func (s *snsSqs) Publish(req *pubsub.PublishRequest) error {
-	topicArn, _, err := s.getOrCreateTopic(s.ctx, req.Topic)
+func (s *snsSqs) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
+	topicArn, _, err := s.getOrCreateTopic(ctx, req.Topic)
 	if err != nil {
 		s.logger.Errorf("error getting topic ARN for %s: %v", req.Topic, err)
 	}
@@ -864,7 +864,7 @@ func (s *snsSqs) Publish(req *pubsub.PublishRequest) error {
 	}
 
 	// sns client has internal exponential backoffs.
-	_, err = s.snsClient.PublishWithContext(s.ctx, snsPublishInput)
+	_, err = s.snsClient.PublishWithContext(ctx, snsPublishInput)
 	if err != nil {
 		wrappedErr := fmt.Errorf("error publishing to topic: %s with topic ARN %s: %w", req.Topic, topicArn, err)
 		s.logger.Error(wrappedErr)

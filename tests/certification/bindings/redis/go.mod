@@ -39,6 +39,7 @@ require (
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.20.0 // indirect
 	github.com/go-openapi/swag v0.19.14 // indirect
+	github.com/go-redis/redis/v9 v9.0.0-rc.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/mock v1.6.0 // indirect
@@ -138,10 +139,10 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-replace github.com/dapr/dapr => github.com/dapr/dapr v1.9.4-0.20221213222644-64d468a693f1
-
 replace github.com/dapr/components-contrib => ../../../..
 
 replace k8s.io/client-go => k8s.io/client-go v0.25.3
+
+replace github.com/dapr/dapr => github.com/1046102779/dapr v0.0.0-20221214124410-5e82abca48ab
 
 replace github.com/dapr/components-contrib/tests/certification => ../..

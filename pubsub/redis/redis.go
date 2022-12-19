@@ -154,8 +154,8 @@ func (r *redisStreams) Init(metadata pubsub.Metadata) error {
 	return nil
 }
 
-func (r *redisStreams) Publish(req *pubsub.PublishRequest) error {
-	_, err := r.client.XAdd(r.ctx, req.Topic, r.metadata.maxLenApprox, map[string]interface{}{"data": req.Data})
+func (r *redisStreams) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
+	_, err := r.client.XAdd(ctx, req.Topic, r.metadata.maxLenApprox, map[string]interface{}{"data": req.Data})
 	if err != nil {
 		return fmt.Errorf("redis streams: error from publish: %s", err)
 	}

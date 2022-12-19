@@ -36,7 +36,7 @@ import (
 
 const (
 	// Minimum version required for the running Worker.
-	minWorkerVersion = 20221209
+	minWorkerVersion = 20221219
 	// Issuer for JWTs.
 	tokenIssuer = "dapr.io/cloudflare" //nolint:gosec
 	// JWT token expiration.

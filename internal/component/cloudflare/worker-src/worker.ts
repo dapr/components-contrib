@@ -108,7 +108,13 @@ const router = Router()
                 return errorRes
             }
 
-            await namespace!.put(key!, req.body!)
+            let expirationTtl: number|undefined = undefined
+            const reqUrl = new URL(req.url)
+            const ttlParam = parseInt(reqUrl.searchParams.get('ttl') ||'', 10)
+            if (ttlParam > 0) {
+                expirationTtl = ttlParam
+            }
+            await namespace!.put(key!, req.body!, {expirationTtl})
 
             return new Response('', { status: 201 })
         }

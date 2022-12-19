@@ -41,6 +41,7 @@ components:
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "ttl" ]
   - component: cloudflare.workerskv
     allOperations: false
+    # Although this component supports TTLs, the minimum TTL is 60s, which makes it not suitable for our conformance tests
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete"]
   - component: cockroachdb
     allOperations: false

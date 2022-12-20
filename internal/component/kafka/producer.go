@@ -41,7 +41,7 @@ func getSyncProducer(config sarama.Config, brokers []string, maxMessageBytes int
 }
 
 // Publish message to Kafka cluster.
-func (k *Kafka) Publish(topic string, data []byte, metadata map[string]string) error {
+func (k *Kafka) Publish(_ context.Context, topic string, data []byte, metadata map[string]string) error {
 	if k.producer == nil {
 		return errors.New("component is closed")
 	}

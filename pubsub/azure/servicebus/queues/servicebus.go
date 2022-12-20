@@ -35,12 +35,10 @@ const (
 )
 
 type azureServiceBus struct {
-	metadata      *impl.Metadata
-	client        *impl.Client
-	logger        logger.Logger
-	features      []pubsub.Feature
-	publishCtx    context.Context
-	publishCancel context.CancelFunc
+	metadata *impl.Metadata
+	client   *impl.Client
+	logger   logger.Logger
+	features []pubsub.Feature
 }
 
 // NewAzureServiceBusQueues returns a new implementation.
@@ -62,12 +60,10 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) (err error) {
 		return err
 	}
 
-	a.publishCtx, a.publishCancel = context.WithCancel(context.Background())
-
 	return nil
 }
 
-func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
+func (a *azureServiceBus) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	msg, err := impl.NewASBMessageFromPubsubRequest(req)
 	if err != nil {
 		return err
@@ -76,7 +72,7 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 	ebo := backoff.NewExponentialBackOff()
 	ebo.InitialInterval = time.Duration(a.metadata.PublishInitialRetryIntervalInMs) * time.Millisecond
 	bo := backoff.WithMaxRetries(ebo, uint64(a.metadata.PublishMaxRetries))
-	bo = backoff.WithContext(bo, a.publishCtx)
+	bo = backoff.WithContext(bo, ctx)
 
 	msgID := "nil"
 	if msg.MessageID != nil {
@@ -87,22 +83,22 @@ func (a *azureServiceBus) Publish(req *pubsub.PublishRequest) error {
 			// Ensure the queue exists the first time it is referenced
 			// This does nothing if DisableEntityManagement is true
 			// Note that the parameter is called "Topic" but we're publishing to a queue
-			err = a.client.EnsureQueue(a.publishCtx, req.Topic)
+			err = a.client.EnsureQueue(ctx, req.Topic)
 			if err != nil {
 				return err
 			}
 
 			// Get the sender
 			var sender *servicebus.Sender
-			sender, err = a.client.GetSender(a.publishCtx, req.Topic)
+			sender, err = a.client.GetSender(ctx, req.Topic)
 			if err != nil {
 				return err
 			}
 
 			// Try sending the message
-			ctx, cancel := context.WithTimeout(a.publishCtx, time.Second*time.Duration(a.metadata.TimeoutInSec))
-			defer cancel()
-			err = sender.SendMessage(ctx, msg, nil)
+			publishCtx, publisCancel := context.WithTimeout(ctx, time.Second*time.Duration(a.metadata.TimeoutInSec))
+			err = sender.SendMessage(publishCtx, msg, nil)
+			publisCancel()
 			if err != nil {
 				if impl.IsNetworkError(err) {
 					// Retry after reconnecting
@@ -141,7 +137,7 @@ func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPubli
 	// Ensure the queue exists the first time it is referenced
 	// This does nothing if DisableEntityManagement is true
 	// Note that the parameter is called "Topic" but we're publishing to a queue
-	err := a.client.EnsureQueue(a.publishCtx, req.Topic)
+	err := a.client.EnsureQueue(ctx, req.Topic)
 	if err != nil {
 		return pubsub.NewBulkPublishResponse(req.Entries, err), err
 	}
@@ -292,7 +288,6 @@ func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
 }
 
 func (a *azureServiceBus) Close() (err error) {
-	a.publishCancel()
 	a.client.CloseAllSenders(a.logger)
 	return nil
 }

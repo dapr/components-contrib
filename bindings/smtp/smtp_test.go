@@ -347,7 +347,7 @@ func TestAttachmentSizeLimit(t *testing.T) {
 		r := Mailer{logger: logger}
 		r.Init(m)
 
-		var at = make([]byte, attachmentSizeLimit+1)
+		at := make([]byte, attachmentSizeLimit+1)
 		_, err := r.Invoke(context.TODO(), &bindings.InvokeRequest{
 			Metadata: map[string]string{
 				"bodyAsAttachment": "true",

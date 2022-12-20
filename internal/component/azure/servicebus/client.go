@@ -286,14 +286,7 @@ func (c *Client) shouldCreateSubscription(parentCtx context.Context, topic, subs
 		return true, nil
 	}
 
-	neq := func(a, b *bool) bool {
-		if a == nil || b == nil {
-			return true
-		}
-		return *a != *b
-	}
-
-	if neq(res.RequiresSession, &opts.RequireSessions) {
+	if notEqual(res.RequiresSession, &opts.RequireSessions) {
 		return false, fmt.Errorf("subscription %s already exists but session requirement doesn't match", subscription)
 	}
 
@@ -339,4 +332,14 @@ func (c *Client) createQueue(parentCtx context.Context, queue string) error {
 		return fmt.Errorf("could not create queue %s: %w", queue, err)
 	}
 	return nil
+}
+
+func notEqual(a, b *bool) bool {
+	if a == nil && b == nil {
+		return false
+	} else if a == nil || b == nil {
+		return true
+	} else {
+		return *a != *b
+	}
 }

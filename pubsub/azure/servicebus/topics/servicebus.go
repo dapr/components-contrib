@@ -30,14 +30,8 @@ import (
 )
 
 const (
-	requireSessionsMetadataKey       = "requireSessions"
-	sessionIdleTimeoutMetadataKey    = "sessionIdleTimeoutInSec"
-	maxConcurrentSessionsMetadataKey = "maxConcurrentSessions"
-
-	defaultMaxBulkSubCount                 = 100
-	defaultMaxBulkPubBytes          uint64 = 1024 * 128 // 128 KiB
-	defaultSesssionIdleTimeoutInSec        = 60
-	defaultMaxConcurrentSessions           = 8
+	defaultMaxBulkSubCount        = 100
+	defaultMaxBulkPubBytes uint64 = 1024 * 128 // 128 KiB
 )
 
 type azureServiceBus struct {
@@ -183,11 +177,11 @@ func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPubli
 
 func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	var requireSessions bool
-	if val, ok := req.Metadata[requireSessionsMetadataKey]; ok && val != "" {
+	if val, ok := req.Metadata[impl.RequireSessionsMetadataKey]; ok && val != "" {
 		requireSessions = utils.IsTruthy(val)
 	}
-	sessionIdleTimeout := time.Duration(utils.GetElemOrDefaultFromMap(req.Metadata, sessionIdleTimeoutMetadataKey, defaultSesssionIdleTimeoutInSec)) * time.Second
-	maxConcurrentSessions := utils.GetElemOrDefaultFromMap(req.Metadata, maxConcurrentSessionsMetadataKey, defaultMaxConcurrentSessions)
+	sessionIdleTimeout := time.Duration(utils.GetElemOrDefaultFromMap(req.Metadata, impl.SessionIdleTimeoutMetadataKey, impl.DefaultSesssionIdleTimeoutInSec)) * time.Second
+	maxConcurrentSessions := utils.GetElemOrDefaultFromMap(req.Metadata, impl.MaxConcurrentSessionsMetadataKey, impl.DefaultMaxConcurrentSessions)
 
 	sub := impl.NewSubscription(
 		subscribeCtx, impl.SubsriptionOptions{
@@ -223,11 +217,11 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 
 func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.BulkHandler) error {
 	var requireSessions bool
-	if val, ok := req.Metadata[requireSessionsMetadataKey]; ok && val != "" {
+	if val, ok := req.Metadata[impl.RequireSessionsMetadataKey]; ok && val != "" {
 		requireSessions = utils.IsTruthy(val)
 	}
-	sessionIdleTimeout := time.Duration(utils.GetElemOrDefaultFromMap(req.Metadata, sessionIdleTimeoutMetadataKey, defaultSesssionIdleTimeoutInSec)) * time.Second
-	maxConcurrentSessions := utils.GetElemOrDefaultFromMap(req.Metadata, maxConcurrentSessionsMetadataKey, defaultMaxConcurrentSessions)
+	sessionIdleTimeout := time.Duration(utils.GetElemOrDefaultFromMap(req.Metadata, impl.SessionIdleTimeoutMetadataKey, impl.DefaultSesssionIdleTimeoutInSec)) * time.Second
+	maxConcurrentSessions := utils.GetElemOrDefaultFromMap(req.Metadata, impl.MaxConcurrentSessionsMetadataKey, impl.DefaultMaxConcurrentSessions)
 
 	maxBulkSubCount := utils.GetElemOrDefaultFromMap(req.Metadata, contribMetadata.MaxBulkSubCountKey, defaultMaxBulkSubCount)
 	sub := impl.NewSubscription(

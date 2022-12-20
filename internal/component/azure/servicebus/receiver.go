@@ -16,6 +16,8 @@ package servicebus
 import (
 	"context"
 	"fmt"
+	"sync"
+	"time"
 
 	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	"go.uber.org/multierr"
@@ -41,12 +43,15 @@ type SessionReceiver struct {
 	*azservicebus.SessionReceiver
 }
 
-func (s *SessionReceiver) RenewSessionLocks(ctx context.Context) error {
+func (s *SessionReceiver) RenewSessionLocks(ctx context.Context, timeoutInSec int) error {
 	if s == nil {
 		return nil
 	}
 
-	return s.RenewSessionLock(ctx, nil)
+	lockCtx, lockCancel := context.WithTimeout(ctx, time.Second*time.Duration(timeoutInSec))
+	defer lockCancel()
+
+	return s.RenewSessionLock(lockCtx, nil)
 }
 
 func NewMessageReceiver(r *azservicebus.Receiver) *MessageReceiver {
@@ -57,19 +62,42 @@ type MessageReceiver struct {
 	*azservicebus.Receiver
 }
 
-func (m *MessageReceiver) RenewMessageLocks(ctx context.Context, msgs []*azservicebus.ReceivedMessage) error {
+func (m *MessageReceiver) RenewMessageLocks(ctx context.Context, msgs []*azservicebus.ReceivedMessage, timeoutInSec int) error {
 	if m == nil {
 		return nil
 	}
 
-	var errs []error
+	var wg sync.WaitGroup
+
+	errChan := make(chan error, len(msgs))
 	for _, msg := range msgs {
-		// Renew the lock for the message.
-		err := m.RenewMessageLock(ctx, msg, nil)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("couldn't renew all active message lock(s) for message %s, %w", msg.MessageID, err))
-		}
+		wg.Add(1)
+
+		go func(rmsg *azservicebus.ReceivedMessage) {
+			defer wg.Done()
+
+			lockCtx, lockCancel := context.WithTimeout(ctx, time.Second*time.Duration(timeoutInSec))
+			defer lockCancel()
+
+			// Renew the lock for the message.
+			err := m.RenewMessageLock(lockCtx, rmsg, nil)
+			if err != nil {
+				errChan <- fmt.Errorf("couldn't renew active message lock for message %s, %w", rmsg.MessageID, err)
+			}
+		}(msg)
 	}
 
-	return multierr.Combine(errs...)
+	wg.Wait()
+	close(errChan)
+
+	var errs []error
+	for err := range errChan {
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return multierr.Combine(errs...)
+	}
+
+	return nil
 }

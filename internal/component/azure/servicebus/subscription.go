@@ -28,6 +28,15 @@ import (
 	"github.com/dapr/kit/retry"
 )
 
+const (
+	RequireSessionsMetadataKey       = "requireSessions"
+	SessionIdleTimeoutMetadataKey    = "sessionIdleTimeoutInSec"
+	MaxConcurrentSessionsMetadataKey = "maxConcurrentSessions"
+
+	DefaultSesssionIdleTimeoutInSec = 60
+	DefaultMaxConcurrentSessions    = 8
+)
+
 // HandlerResponseItem represents a response from the handler for each message.
 type HandlerResponseItem struct {
 	EntryId string //nolint:stylecheck
@@ -347,35 +356,31 @@ func (s *Subscription) RenewLocksBlocking(ctx context.Context, receiver Receiver
 				s.logger.Infof("context canceled while renewing locks for %s", s.entity)
 				return nil
 			default:
-				func() {
-					lockCtx, lockCancel := context.WithTimeout(ctx, time.Second*time.Duration(opts.TimeoutInSec))
-					defer lockCancel()
-
-					if s.requireSessions {
-						sessionReceiver := receiver.(*SessionReceiver)
-						if err := sessionReceiver.RenewSessionLocks(lockCtx); err != nil {
-							s.logger.Errorf("error renewing session locks for %s: %s", s.entity, err)
-						}
-						s.logger.Debugf("Renewed session %s locks for %s", sessionReceiver.SessionID(), s.entity)
-					} else {
-						// Snapshot the messages to try to renew locks for.
-						msgs := make([]*azservicebus.ReceivedMessage, 0)
-						s.mu.RLock()
-						for _, m := range s.activeMessages {
-							msgs = append(msgs, m)
-						}
-						s.mu.RUnlock()
-						if len(msgs) == 0 {
-							s.logger.Debugf("No active messages require lock renewal for %s", s.entity)
-							return
-						}
-						msgReceiver := receiver.(*MessageReceiver)
-						if err := msgReceiver.RenewMessageLocks(lockCtx, msgs); err != nil {
-							s.logger.Errorf("error renewing message locks for %s: %s", s.entity, err)
-						}
-						s.logger.Debugf("Renewed message locks for %s", s.entity)
+				if s.requireSessions {
+					sessionReceiver := receiver.(*SessionReceiver)
+					if err := sessionReceiver.RenewSessionLocks(ctx, opts.TimeoutInSec); err != nil {
+						s.logger.Errorf("error renewing session locks for %s: %s", s.entity, err)
 					}
-				}()
+					s.logger.Debugf("Renewed session %s locks for %s", sessionReceiver.SessionID(), s.entity)
+				} else {
+					// Snapshot the messages to try to renew locks for.
+					msgs := make([]*azservicebus.ReceivedMessage, len(s.activeMessages))
+					s.mu.RLock()
+					for i, m := range s.activeMessages {
+						msgs[i] = m
+					}
+					s.mu.RUnlock()
+
+					if len(msgs) == 0 {
+						s.logger.Debugf("No active messages require lock renewal for %s", s.entity)
+						continue
+					}
+					msgReceiver := receiver.(*MessageReceiver)
+					if err := msgReceiver.RenewMessageLocks(ctx, msgs, opts.TimeoutInSec); err != nil {
+						s.logger.Errorf("error renewing message locks for %s: %s", s.entity, err)
+					}
+					s.logger.Debugf("Renewed message locks for %s", s.entity)
+				}
 			}
 		}
 	}

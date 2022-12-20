@@ -53,60 +53,64 @@ type Subscription struct {
 	cancel               context.CancelFunc
 }
 
+type SubsriptionOptions struct {
+	MaxActiveMessages     int
+	TimeoutInSec          int
+	MaxBulkSubCount       *int
+	MaxRetriableEPS       int
+	MaxConcurrentHandlers int
+	Entity                string
+	LockRenewalInSec      int
+	RequireSessions       bool
+}
+
 // NewBulkSubscription returns a new Subscription object.
 // Parameter "entity" is usually in the format "topic <topicname>" or "queue <queuename>" and it's only used for logging.
 func NewSubscription(
 	parentCtx context.Context,
-	maxActiveMessages int,
-	timeoutInSec int,
-	maxBulkSubCount *int,
-	maxRetriableEPS int,
-	maxConcurrentHandlers int,
-	entity string,
-	lockRenewalInSec int,
-	requireSessions bool,
+	opts SubsriptionOptions,
 	logger logger.Logger,
 ) *Subscription {
 	ctx, cancel := context.WithCancel(parentCtx)
 
-	if maxBulkSubCount != nil {
-		if *maxBulkSubCount < 1 {
+	if opts.MaxBulkSubCount != nil {
+		if *opts.MaxBulkSubCount < 1 {
 			logger.Warnf("maxBulkSubCount must be greater than 0, setting it to 1")
-			maxBulkSubCount = ptr.Of(1)
+			opts.MaxBulkSubCount = ptr.Of(1)
 		}
 	} else {
 		// for non-bulk subscriptions, we only get one message at a time
-		maxBulkSubCount = ptr.Of(1)
+		opts.MaxBulkSubCount = ptr.Of(1)
 	}
 
-	if *maxBulkSubCount > maxActiveMessages {
-		logger.Warnf("maxBulkSubCount must not be greater than maxActiveMessages, setting it to %d", maxActiveMessages)
-		maxBulkSubCount = &maxActiveMessages
+	if *opts.MaxBulkSubCount > opts.MaxActiveMessages {
+		logger.Warnf("maxBulkSubCount must not be greater than maxActiveMessages, setting it to %d", opts.MaxActiveMessages)
+		opts.MaxBulkSubCount = &opts.MaxActiveMessages
 	}
 
 	s := &Subscription{
-		entity:          entity,
+		entity:          opts.Entity,
 		activeMessages:  make(map[int64]*azservicebus.ReceivedMessage),
-		timeout:         time.Duration(timeoutInSec) * time.Second,
-		maxBulkSubCount: *maxBulkSubCount,
-		requireSessions: requireSessions,
+		timeout:         time.Duration(opts.TimeoutInSec) * time.Second,
+		maxBulkSubCount: *opts.MaxBulkSubCount,
+		requireSessions: opts.RequireSessions,
 		logger:          logger,
 		ctx:             ctx,
 		cancel:          cancel,
 		// This is a pessimistic estimate of the number of total operations that can be active at any given time.
 		// In case of a non-bulk subscription, one operation is one message.
-		activeOperationsChan: make(chan struct{}, maxActiveMessages/(*maxBulkSubCount)),
+		activeOperationsChan: make(chan struct{}, opts.MaxActiveMessages/(*opts.MaxBulkSubCount)),
 	}
 
-	if maxRetriableEPS > 0 {
-		s.retriableErrLimit = ratelimit.New(maxRetriableEPS)
+	if opts.MaxRetriableEPS > 0 {
+		s.retriableErrLimit = ratelimit.New(opts.MaxRetriableEPS)
 	} else {
 		s.retriableErrLimit = ratelimit.NewUnlimited()
 	}
 
-	if maxConcurrentHandlers > 0 {
-		s.logger.Debugf("Subscription to %s is limited to %d message handler(s)", entity, maxConcurrentHandlers)
-		s.handleChan = make(chan struct{}, maxConcurrentHandlers)
+	if opts.MaxConcurrentHandlers > 0 {
+		s.logger.Debugf("Subscription to %s is limited to %d message handler(s)", opts.Entity, opts.MaxConcurrentHandlers)
+		s.handleChan = make(chan struct{}, opts.MaxConcurrentHandlers)
 	}
 
 	return s

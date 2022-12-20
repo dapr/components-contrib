@@ -310,7 +310,7 @@ func ParseMetadata(md map[string]string, logger logger.Logger, mode byte) (m *Me
 }
 
 // CreateSubscriptionProperties returns the SubscriptionProperties object to create new Subscriptions to Service Bus topics.
-func (a Metadata) CreateSubscriptionProperties(opts SubscriptionOpts) *sbadmin.SubscriptionProperties {
+func (a Metadata) CreateSubscriptionProperties(opts SubscribeOptions) *sbadmin.SubscriptionProperties {
 	properties := &sbadmin.SubscriptionProperties{}
 
 	if a.MaxDeliveryCount != nil {

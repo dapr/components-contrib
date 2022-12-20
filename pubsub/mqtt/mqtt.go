@@ -16,8 +16,6 @@ package mqtt
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"net/url"
@@ -66,13 +64,6 @@ func NewMQTTPubSub(logger logger.Logger) pubsub.PubSub {
 	}
 }
 
-// isValidPEM validates the provided input has PEM formatted block.
-func isValidPEM(val string) bool {
-	block, _ := pem.Decode([]byte(val))
-
-	return block != nil
-}
-
 // Init parses metadata and creates a new Pub Sub client.
 func (m *mqttPubSub) Init(metadata pubsub.Metadata) error {
 	mqttMeta, err := parseMQTTMetaData(metadata, m.logger)
@@ -111,7 +102,7 @@ func (m *mqttPubSub) Init(metadata pubsub.Metadata) error {
 }
 
 // Publish the topic to mqtt pub sub.
-func (m *mqttPubSub) Publish(req *pubsub.PublishRequest) error {
+func (m *mqttPubSub) Publish(_ context.Context, req *pubsub.PublishRequest) error {
 	if req.Topic == "" {
 		return errors.New("topic name is empty")
 	}
@@ -255,7 +246,7 @@ func (m *mqttPubSub) onMessage(ctx context.Context) func(client mqtt.Client, mqt
 			// Problem with this approach is that if the service crashes between the time the message is re-enqueued and when the ACK is sent, the message may be delivered twice
 			if !ack {
 				m.logger.Debugf("Re-publishing message %s#%d", mqttMsg.Topic(), mqttMsg.MessageID())
-				publishErr := m.Publish(&pubsub.PublishRequest{
+				publishErr := m.Publish(ctx, &pubsub.PublishRequest{
 					Topic: mqttMsg.Topic(),
 					Data:  mqttMsg.Payload(),
 				})
@@ -355,23 +346,9 @@ func (m *mqttPubSub) connect(ctx context.Context, clientID string) (mqtt.Client,
 }
 
 func (m *mqttPubSub) newTLSConfig() *tls.Config {
-	tlsConfig := new(tls.Config)
-
-	if m.metadata.clientCert != "" && m.metadata.clientKey != "" {
-		cert, err := tls.X509KeyPair([]byte(m.metadata.clientCert), []byte(m.metadata.clientKey))
-		if err != nil {
-			m.logger.Warnf("unable to load client certificate and key pair. Err: %v", err)
-
-			return tlsConfig
-		}
-		tlsConfig.Certificates = []tls.Certificate{cert}
-	}
-
-	if m.metadata.caCert != "" {
-		tlsConfig.RootCAs = x509.NewCertPool()
-		if ok := tlsConfig.RootCAs.AppendCertsFromPEM([]byte(m.metadata.caCert)); !ok {
-			m.logger.Warnf("unable to load ca certificate.")
-		}
+	tlsConfig, err := pubsub.ConvertTLSPropertiesToTLSConfig(m.metadata.TLSProperties)
+	if err != nil {
+		m.logger.Warnf("failed to load TLS config: %s", err)
 	}
 
 	return tlsConfig

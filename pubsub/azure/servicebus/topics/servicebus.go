@@ -346,7 +346,9 @@ func (a *azureServiceBus) ConnectAndReceive(subscribeCtx context.Context, req pu
 			TimeoutInSec: a.metadata.TimeoutInSec,
 		})
 		if lockErr != nil {
-			a.logger.Error(lockErr)
+			if !errors.Is(lockErr, context.Canceled) {
+				a.logger.Error(lockErr)
+			}
 		}
 	}()
 

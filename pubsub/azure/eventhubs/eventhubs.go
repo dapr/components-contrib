@@ -567,7 +567,7 @@ func (aeh *AzureEventHubs) BulkPublish(ctx context.Context, req *pubsub.BulkPubl
 	if _, ok := aeh.hubClients[req.Topic]; !ok {
 		if err := aeh.ensurePublisherClient(ctx, req.Topic); err != nil {
 			err = fmt.Errorf("error on establishing hub connection: %s", err)
-			return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
+			return pubsub.NewBulkPublishResponse(req.Entries, err), err
 		}
 	}
 
@@ -591,10 +591,10 @@ func (aeh *AzureEventHubs) BulkPublish(ctx context.Context, req *pubsub.BulkPubl
 	if err != nil {
 		// Partial success is not supported by Azure Event Hubs.
 		// If an error occurs, all events are considered failed.
-		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
+		return pubsub.NewBulkPublishResponse(req.Entries, err), err
 	}
 
-	return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishSucceeded, nil), nil
+	return pubsub.BulkPublishResponse{}, nil
 }
 
 // Subscribe receives data from Azure Event Hubs.

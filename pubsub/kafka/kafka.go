@@ -101,8 +101,8 @@ func NewKafka(logger logger.Logger) pubsub.PubSub {
 }
 
 // Publish message to Kafka cluster.
-func (p *PubSub) Publish(req *pubsub.PublishRequest) error {
-	return p.kafka.Publish(req.Topic, req.Data, req.Metadata)
+func (p *PubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
+	return p.kafka.Publish(ctx, req.Topic, req.Data, req.Metadata)
 }
 
 // BatchPublish messages to Kafka cluster.

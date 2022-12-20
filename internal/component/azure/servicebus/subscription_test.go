@@ -68,15 +68,16 @@ func TestNewSubscription(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			sub := NewSubscription(
-				context.Background(),
-				1000,
-				1,
-				tc.maxBulkSubCountParam,
-				10,
-				100,
-				"test",
-				30,
-				tc.requireSessionsParam,
+				context.Background(), SubsriptionOptions{
+					MaxActiveMessages:     1000,
+					TimeoutInSec:          1,
+					MaxBulkSubCount:       tc.maxBulkSubCountParam,
+					MaxRetriableEPS:       10,
+					MaxConcurrentHandlers: 100,
+					Entity:                "test",
+					LockRenewalInSec:      30,
+					RequireSessions:       tc.requireSessionsParam,
+				},
 				logger.NewLogger("test"),
 			)
 			if sub.maxBulkSubCount != tc.maxBulkSubCountExpected {

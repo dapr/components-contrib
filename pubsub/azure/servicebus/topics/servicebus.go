@@ -190,15 +190,16 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 	maxConcurrentSessions := utils.GetElemOrDefaultFromMap(req.Metadata, maxConcurrentSessionsMetadataKey, defaultMaxConcurrentSessions)
 
 	sub := impl.NewSubscription(
-		subscribeCtx,
-		a.metadata.MaxActiveMessages,
-		a.metadata.TimeoutInSec,
-		nil,
-		a.metadata.MaxRetriableErrorsPerSec,
-		a.metadata.MaxConcurrentHandlers,
-		"topic "+req.Topic,
-		a.metadata.LockRenewalInSec,
-		requireSessions,
+		subscribeCtx, impl.SubsriptionOptions{
+			MaxActiveMessages:     a.metadata.MaxActiveMessages,
+			TimeoutInSec:          a.metadata.TimeoutInSec,
+			MaxBulkSubCount:       nil,
+			MaxRetriableEPS:       a.metadata.MaxRetriableErrorsPerSec,
+			MaxConcurrentHandlers: a.metadata.MaxConcurrentHandlers,
+			Entity:                "topic " + req.Topic,
+			LockRenewalInSec:      a.metadata.LockRenewalInSec,
+			RequireSessions:       requireSessions,
+		},
 		a.logger,
 	)
 
@@ -214,7 +215,7 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 		)
 	}
 
-	return a.doSubscribe(subscribeCtx, req, sub, receiveAndBlockFn, impl.SubscriptionOpts{
+	return a.doSubscribe(subscribeCtx, req, sub, receiveAndBlockFn, impl.SubscribeOptions{
 		RequireSessions:      requireSessions,
 		MaxConcurrentSesions: maxConcurrentSessions,
 	})
@@ -230,15 +231,16 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 
 	maxBulkSubCount := utils.GetElemOrDefaultFromMap(req.Metadata, contribMetadata.MaxBulkSubCountKey, defaultMaxBulkSubCount)
 	sub := impl.NewSubscription(
-		subscribeCtx,
-		a.metadata.MaxActiveMessages,
-		a.metadata.TimeoutInSec,
-		&maxBulkSubCount,
-		a.metadata.MaxRetriableErrorsPerSec,
-		a.metadata.MaxConcurrentHandlers,
-		"topic "+req.Topic,
-		a.metadata.LockRenewalInSec,
-		requireSessions,
+		subscribeCtx, impl.SubsriptionOptions{
+			MaxActiveMessages:     a.metadata.MaxActiveMessages,
+			TimeoutInSec:          a.metadata.TimeoutInSec,
+			MaxBulkSubCount:       &maxBulkSubCount,
+			MaxRetriableEPS:       a.metadata.MaxRetriableErrorsPerSec,
+			MaxConcurrentHandlers: a.metadata.MaxConcurrentHandlers,
+			Entity:                "topic " + req.Topic,
+			LockRenewalInSec:      a.metadata.LockRenewalInSec,
+			RequireSessions:       requireSessions,
+		},
 		a.logger,
 	)
 
@@ -254,7 +256,7 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 		)
 	}
 
-	return a.doSubscribe(subscribeCtx, req, sub, receiveAndBlockFn, impl.SubscriptionOpts{
+	return a.doSubscribe(subscribeCtx, req, sub, receiveAndBlockFn, impl.SubscribeOptions{
 		RequireSessions:      requireSessions,
 		MaxConcurrentSesions: maxConcurrentSessions,
 	})
@@ -263,7 +265,7 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 // doSubscribe is a helper function that handles the common logic for both Subscribe and BulkSubscribe.
 // The receiveAndBlockFn is a function should invoke a blocking call to receive messages from the topic.
 func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
-	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(impl.Receiver, func()) error, opts impl.SubscriptionOpts,
+	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(impl.Receiver, func()) error, opts impl.SubscribeOptions,
 ) error {
 	// Does nothing if DisableEntityManagement is true
 	err := a.client.EnsureSubscription(subscribeCtx, a.metadata.ConsumerID, req.Topic, opts)

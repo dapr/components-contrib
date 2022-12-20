@@ -193,14 +193,14 @@ func (c *Client) EnsureTopic(ctx context.Context, topic string) error {
 	return nil
 }
 
-type SubscriptionOpts struct {
+type SubscribeOptions struct {
 	RequireSessions      bool
 	MaxConcurrentSesions int
 }
 
 // EnsureSubscription creates the topic subscription if it doesn't exist.
 // Returns with nil error if the admin client doesn't exist.
-func (c *Client) EnsureSubscription(ctx context.Context, name string, topic string, opts SubscriptionOpts) error {
+func (c *Client) EnsureSubscription(ctx context.Context, name string, topic string, opts SubscribeOptions) error {
 	if c.adminClient == nil {
 		return nil
 	}
@@ -273,7 +273,7 @@ func (c *Client) createTopic(parentCtx context.Context, topic string) error {
 	return nil
 }
 
-func (c *Client) shouldCreateSubscription(parentCtx context.Context, topic, subscription string, opts SubscriptionOpts) (bool, error) {
+func (c *Client) shouldCreateSubscription(parentCtx context.Context, topic, subscription string, opts SubscribeOptions) (bool, error) {
 	ctx, cancel := context.WithTimeout(parentCtx, time.Second*time.Duration(c.metadata.TimeoutInSec))
 	defer cancel()
 
@@ -300,7 +300,7 @@ func (c *Client) shouldCreateSubscription(parentCtx context.Context, topic, subs
 	return false, nil
 }
 
-func (c *Client) createSubscription(parentCtx context.Context, topic, subscription string, opts SubscriptionOpts) error {
+func (c *Client) createSubscription(parentCtx context.Context, topic, subscription string, opts SubscribeOptions) error {
 	ctx, cancel := context.WithTimeout(parentCtx, time.Second*time.Duration(c.metadata.TimeoutInSec))
 	defer cancel()
 

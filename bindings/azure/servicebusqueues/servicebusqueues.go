@@ -110,18 +110,16 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 	go func() {
 		// Reconnect loop.
 		for {
-			sub := impl.NewSubscription(
-				subscribeCtx,
-				a.metadata.MaxActiveMessages,
-				a.metadata.TimeoutInSec,
-				nil,
-				a.metadata.MaxRetriableErrorsPerSec,
-				a.metadata.MaxConcurrentHandlers,
-				"queue "+a.metadata.QueueName,
-				a.metadata.LockRenewalInSec,
-				false, // Sessions not supported for queues yet.
-				a.logger,
-			)
+			sub := impl.NewSubscription(subscribeCtx, impl.SubsriptionOptions{
+				MaxActiveMessages:     a.metadata.MaxActiveMessages,
+				TimeoutInSec:          a.metadata.TimeoutInSec,
+				MaxBulkSubCount:       nil,
+				MaxRetriableEPS:       a.metadata.MaxRetriableErrorsPerSec,
+				MaxConcurrentHandlers: a.metadata.MaxConcurrentHandlers,
+				Entity:                "queue " + a.metadata.QueueName,
+				LockRenewalInSec:      a.metadata.LockRenewalInSec,
+				RequireSessions:       false, // Sessions not supported for queues yet.
+			}, a.logger)
 
 			// Blocks until a successful connection (or until context is canceled)
 			receiver, err := sub.Connect(func() (impl.Receiver, error) {

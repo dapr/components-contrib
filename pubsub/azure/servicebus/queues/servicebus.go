@@ -179,15 +179,16 @@ func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPubli
 
 func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	sub := impl.NewSubscription(
-		subscribeCtx,
-		a.metadata.MaxActiveMessages,
-		a.metadata.TimeoutInSec,
-		nil,
-		a.metadata.MaxRetriableErrorsPerSec,
-		a.metadata.MaxConcurrentHandlers,
-		"queue "+req.Topic,
-		a.metadata.LockRenewalInSec,
-		false,
+		subscribeCtx, impl.SubsriptionOptions{
+			MaxActiveMessages:     a.metadata.MaxActiveMessages,
+			TimeoutInSec:          a.metadata.TimeoutInSec,
+			MaxBulkSubCount:       nil,
+			MaxRetriableEPS:       a.metadata.MaxRetriableErrorsPerSec,
+			MaxConcurrentHandlers: a.metadata.MaxConcurrentHandlers,
+			Entity:                "queue " + req.Topic,
+			LockRenewalInSec:      a.metadata.LockRenewalInSec,
+			RequireSessions:       false,
+		},
 		a.logger,
 	)
 
@@ -208,15 +209,16 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.BulkHandler) error {
 	maxBulkSubCount := utils.GetElemOrDefaultFromMap(req.Metadata, contribMetadata.MaxBulkSubCountKey, defaultMaxBulkSubCount)
 	sub := impl.NewSubscription(
-		subscribeCtx,
-		a.metadata.MaxActiveMessages,
-		a.metadata.TimeoutInSec,
-		&maxBulkSubCount,
-		a.metadata.MaxRetriableErrorsPerSec,
-		a.metadata.MaxConcurrentHandlers,
-		"queue "+req.Topic,
-		a.metadata.LockRenewalInSec,
-		false,
+		subscribeCtx, impl.SubsriptionOptions{
+			MaxActiveMessages:     a.metadata.MaxActiveMessages,
+			TimeoutInSec:          a.metadata.TimeoutInSec,
+			MaxBulkSubCount:       &maxBulkSubCount,
+			MaxRetriableEPS:       a.metadata.MaxRetriableErrorsPerSec,
+			MaxConcurrentHandlers: a.metadata.MaxConcurrentHandlers,
+			Entity:                "queue " + req.Topic,
+			LockRenewalInSec:      a.metadata.LockRenewalInSec,
+			RequireSessions:       false,
+		},
 		a.logger,
 	)
 

@@ -143,5 +143,3 @@ require (
 replace github.com/dapr/dapr => github.com/mukundansundar/dapr v0.7.1-0.20221220174105-1a807e36d43b
 
 replace github.com/dapr/components-contrib => ../../
-
-replace k8s.io/client-go => k8s.io/client-go v0.25.3

@@ -176,10 +176,7 @@ func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPubli
 }
 
 func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-	var requireSessions bool
-	if val, ok := req.Metadata[impl.RequireSessionsMetadataKey]; ok && val != "" {
-		requireSessions = utils.IsTruthy(val)
-	}
+	requireSessions := utils.IsTruthy(req.Metadata[impl.RequireSessionsMetadataKey])
 	sessionIdleTimeout := time.Duration(utils.GetElemOrDefaultFromMap(req.Metadata, impl.SessionIdleTimeoutMetadataKey, impl.DefaultSesssionIdleTimeoutInSec)) * time.Second
 	maxConcurrentSessions := utils.GetElemOrDefaultFromMap(req.Metadata, impl.MaxConcurrentSessionsMetadataKey, impl.DefaultMaxConcurrentSessions)
 
@@ -216,10 +213,7 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 }
 
 func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.BulkHandler) error {
-	var requireSessions bool
-	if val, ok := req.Metadata[impl.RequireSessionsMetadataKey]; ok && val != "" {
-		requireSessions = utils.IsTruthy(val)
-	}
+	requireSessions := utils.IsTruthy(req.Metadata[impl.RequireSessionsMetadataKey])
 	sessionIdleTimeout := time.Duration(utils.GetElemOrDefaultFromMap(req.Metadata, impl.SessionIdleTimeoutMetadataKey, impl.DefaultSesssionIdleTimeoutInSec)) * time.Second
 	maxConcurrentSessions := utils.GetElemOrDefaultFromMap(req.Metadata, impl.MaxConcurrentSessionsMetadataKey, impl.DefaultMaxConcurrentSessions)
 

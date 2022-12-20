@@ -33,7 +33,7 @@ func TestNewInMemoryBus(t *testing.T) {
 		return publish(ch, msg)
 	})
 
-	bus.Publish(&pubsub.PublishRequest{Data: []byte("ABCD"), Topic: "demo"})
+	bus.Publish(context.Background(), &pubsub.PublishRequest{Data: []byte("ABCD"), Topic: "demo"})
 	assert.Equal(t, "ABCD", string(<-ch))
 }
 
@@ -51,7 +51,7 @@ func TestMultipleSubscribers(t *testing.T) {
 		return publish(ch2, msg)
 	})
 
-	bus.Publish(&pubsub.PublishRequest{Data: []byte("ABCD"), Topic: "demo"})
+	bus.Publish(context.Background(), &pubsub.PublishRequest{Data: []byte("ABCD"), Topic: "demo"})
 
 	assert.Equal(t, "ABCD", string(<-ch1))
 	assert.Equal(t, "ABCD", string(<-ch2))
@@ -71,13 +71,13 @@ func TestWildcards(t *testing.T) {
 		return publish(ch2, msg)
 	})
 
-	bus.Publish(&pubsub.PublishRequest{Data: []byte("1"), Topic: "mytopic"})
+	bus.Publish(context.Background(), &pubsub.PublishRequest{Data: []byte("1"), Topic: "mytopic"})
 	assert.Equal(t, "1", string(<-ch1))
 
-	bus.Publish(&pubsub.PublishRequest{Data: []byte("2"), Topic: "topic1"})
+	bus.Publish(context.Background(), &pubsub.PublishRequest{Data: []byte("2"), Topic: "topic1"})
 	assert.Equal(t, "2", string(<-ch2))
 
-	bus.Publish(&pubsub.PublishRequest{Data: []byte("3"), Topic: "topicX"})
+	bus.Publish(context.Background(), &pubsub.PublishRequest{Data: []byte("3"), Topic: "topicX"})
 	assert.Equal(t, "3", string(<-ch2))
 }
 
@@ -97,7 +97,7 @@ func TestRetry(t *testing.T) {
 		return publish(ch, msg)
 	})
 
-	bus.Publish(&pubsub.PublishRequest{Data: []byte("ABCD"), Topic: "demo"})
+	bus.Publish(context.Background(), &pubsub.PublishRequest{Data: []byte("ABCD"), Topic: "demo"})
 	assert.Equal(t, "ABCD", string(<-ch))
 	assert.Equal(t, 5, i)
 }

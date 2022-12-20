@@ -14,6 +14,7 @@ provider "aws" {
   default_tags {
     tags = {
       Purpose  = "AutomatedTesting"
+      Timestamp = "${timestamp()}"
     }
   }
 }

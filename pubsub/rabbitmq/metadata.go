@@ -28,6 +28,7 @@ import (
 )
 
 type metadata struct {
+	pubsub.TLSProperties
 	consumerID       string
 	connectionString string
 	protocol         string
@@ -75,6 +76,9 @@ const (
 	metadataPublisherConfirmKey     = "publisherConfirm"
 
 	defaultReconnectWaitSeconds = 3
+
+	protocolAMQP  = "amqp"
+	protocolAMQPS = "amqps"
 )
 
 // createMetadata creates a new instance from the pubsub metadata.
@@ -97,7 +101,18 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*metadat
 		log.Warn("[DEPRECATION NOTICE] The 'host' argument is deprecated. Use 'connectionString' or individual connection arguments instead: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-rabbitmq/")
 	}
 
+	if result.connectionString != "" {
+		uri, err := amqp.ParseURI(result.connectionString)
+		if err != nil {
+			return &result, fmt.Errorf("%s invalid connection string: %s, err: %w", errorMessagePrefix, result.connectionString, err)
+		}
+		result.protocol = uri.Scheme
+	}
+
 	if val, found := pubSubMetadata.Properties[metadataProtocolKey]; found && val != "" {
+		if result.connectionString != "" && result.protocol != val {
+			return &result, fmt.Errorf("%s protocol does not match connection string, protocol: %s, connection string: %s", errorMessagePrefix, val, result.connectionString)
+		}
 		result.protocol = val
 	}
 
@@ -201,6 +216,11 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*metadat
 
 	if ok {
 		result.defaultQueueTTL = &ttl
+	}
+
+	result.TLSProperties, err = pubsub.TLS(pubSubMetadata.Properties)
+	if err != nil {
+		return &result, fmt.Errorf("%s invalid TLS configuration: %w", errorMessagePrefix, err)
 	}
 
 	c, err := pubsub.Concurrency(pubSubMetadata.Properties)

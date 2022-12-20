@@ -13,13 +13,15 @@ limitations under the License.
 
 package lock
 
+import "context"
+
 type Store interface {
 	// Init this component.
 	InitLockStore(metadata Metadata) error
 
 	// TryLock tries to acquire a lock.
-	TryLock(req *TryLockRequest) (*TryLockResponse, error)
+	TryLock(ctx context.Context, req *TryLockRequest) (*TryLockResponse, error)
 
 	// Unlock tries to release a lock.
-	Unlock(req *UnlockRequest) (*UnlockResponse, error)
+	Unlock(ctx context.Context, req *UnlockRequest) (*UnlockResponse, error)
 }

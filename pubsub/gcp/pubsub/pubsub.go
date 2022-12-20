@@ -57,11 +57,9 @@ const (
 
 // GCPPubSub type.
 type GCPPubSub struct {
-	client        *gcppubsub.Client
-	metadata      *metadata
-	logger        logger.Logger
-	publishCtx    context.Context
-	publishCancel context.CancelFunc
+	client   *gcppubsub.Client
+	metadata *metadata
+	logger   logger.Logger
 }
 
 type GCPAuthJSON struct {
@@ -191,8 +189,6 @@ func (g *GCPPubSub) Init(meta pubsub.Metadata) error {
 	g.client = pubsubClient
 	g.metadata = metadata
 
-	g.publishCtx, g.publishCancel = context.WithCancel(context.Background())
-
 	return nil
 }
 
@@ -233,9 +229,9 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 }
 
 // Publish the topic to GCP Pubsub.
-func (g *GCPPubSub) Publish(req *pubsub.PublishRequest) error {
+func (g *GCPPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if !g.metadata.DisableEntityManagement {
-		err := g.ensureTopic(g.publishCtx, req.Topic)
+		err := g.ensureTopic(ctx, req.Topic)
 		if err != nil {
 			return fmt.Errorf("%s could not get valid topic %s, %s", errorMessagePrefix, req.Topic, err)
 		}
@@ -243,9 +239,9 @@ func (g *GCPPubSub) Publish(req *pubsub.PublishRequest) error {
 
 	topic := g.getTopic(req.Topic)
 
-	_, err := topic.Publish(g.publishCtx, &gcppubsub.Message{
+	_, err := topic.Publish(ctx, &gcppubsub.Message{
 		Data: req.Data,
-	}).Get(g.publishCtx)
+	}).Get(ctx)
 
 	return err
 }
@@ -394,7 +390,6 @@ func (g *GCPPubSub) getSubscription(subscription string) *gcppubsub.Subscription
 }
 
 func (g *GCPPubSub) Close() error {
-	g.publishCancel()
 	return g.client.Close()
 }
 

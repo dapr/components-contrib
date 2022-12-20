@@ -300,9 +300,17 @@ jobs:
       if: matrix.terraform-dir != ''
       continue-on-error: true
 
-    - name: Start aws snssqs
-      run: docker-compose -f ./.github/infrastructure/docker-compose-snssqs.yml -p snssqs up -d
-      if: contains(matrix.component, 'aws.snssqs.docker')
+    - name: Create aws.snssqs variables
+      run: |
+        PUBSUB_AWS_SNSSQS_QUEUE="testQueue-${{ env.UNIQUE_ID }}"
+        echo "PUBSUB_AWS_SNSSQS_QUEUE=$PUBSUB_AWS_SNSSQS_QUEUE" >> $GITHUB_ENV
+        PUBSUB_AWS_SNSSQS_TOPIC="testTopic-${{ env.UNIQUE_ID }}"
+        echo "PUBSUB_AWS_SNSSQS_TOPIC=$PUBSUB_AWS_SNSSQS_TOPIC" >> $GITHUB_ENV
+        PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1="multiTopic1-${{ env.UNIQUE_ID }}"
+        echo "PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1=$PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1" >> $GITHUB_ENV
+        PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2="multiTopic2-${{ env.UNIQUE_ID }}"
+        echo "PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2=$PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2" >> $GITHUB_ENV
+      if: contains(matrix.component, 'snssqs')
 
     - name: Start Redis 6 with Redis JSON
       run: docker-compose -f ./.github/infrastructure/docker-compose-redisjson.yml -p redis up -d
@@ -322,18 +330,6 @@ jobs:
         mongodb-version: 4.2
         mongodb-replica-set: test-rs
       if: contains(matrix.component, 'mongodb')
-
-    - name: Create aws.snssqs variables
-      run: |
-        PUBSUB_AWS_SNSSQS_QUEUE="testQueue-${{ env.UNIQUE_ID }}"
-        echo "PUBSUB_AWS_SNSSQS_QUEUE=$PUBSUB_AWS_SNSSQS_QUEUE" >> $GITHUB_ENV
-        PUBSUB_AWS_SNSSQS_TOPIC="testTopic-${{ env.UNIQUE_ID }}"
-        echo "PUBSUB_AWS_SNSSQS_TOPIC=$PUBSUB_AWS_SNSSQS_TOPIC" >> $GITHUB_ENV
-        PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1="multiTopic1-${{ env.UNIQUE_ID }}"
-        echo "PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1=$PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1" >> $GITHUB_ENV
-        PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2="multiTopic2-${{ env.UNIQUE_ID }}"
-        echo "PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2=$PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2" >> $GITHUB_ENV
-      if: contains(matrix.component, 'snssqs')
 
     - name: Start sqlserver
       run: docker-compose -f ./.github/infrastructure/docker-compose-sqlserver.yml -p sqlserver up -d
@@ -378,6 +374,10 @@ jobs:
     - name: Start rabbitmq
       run: docker-compose -f ./.github/infrastructure/docker-compose-rabbitmq.yml -p rabbitmq up -d
       if: contains(matrix.component, 'rabbitmq')
+
+    - name: Start aws snssqs
+      run: docker-compose -f ./.github/infrastructure/docker-compose-snssqs.yml -p snssqs up -d
+      if: contains(matrix.component, 'aws.snssqs.docker')
 
     - name: Start influxdb
       run: |

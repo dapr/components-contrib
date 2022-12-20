@@ -131,9 +131,9 @@ func (r *StandaloneRedisLock) parseConnectedSlaves(res string) int {
 }
 
 // Try to acquire a redis lock.
-func (r *StandaloneRedisLock) TryLock(req *lock.TryLockRequest) (*lock.TryLockResponse, error) {
+func (r *StandaloneRedisLock) TryLock(ctx context.Context, req *lock.TryLockRequest) (*lock.TryLockResponse, error) {
 	// 1.Setting redis expiration time
-	nxval, err := r.client.SetNX(r.ctx, req.ResourceID, req.LockOwner, time.Second*time.Duration(req.ExpiryInSeconds))
+	nxval, err := r.client.SetNX(ctx, req.ResourceID, req.LockOwner, time.Second*time.Duration(req.ExpiryInSeconds))
 	if nxval == nil {
 		return &lock.TryLockResponse{}, fmt.Errorf("[standaloneRedisLock]: SetNX returned nil.ResourceID: %s", req.ResourceID)
 	}
@@ -148,9 +148,9 @@ func (r *StandaloneRedisLock) TryLock(req *lock.TryLockRequest) (*lock.TryLockRe
 }
 
 // Try to release a redis lock.
-func (r *StandaloneRedisLock) Unlock(req *lock.UnlockRequest) (*lock.UnlockResponse, error) {
+func (r *StandaloneRedisLock) Unlock(ctx context.Context, req *lock.UnlockRequest) (*lock.UnlockResponse, error) {
 	// 1. delegate to client.eval lua script
-	evalInt, parseErr, err := r.client.EvalInt(r.ctx, unlockScript, []string{req.ResourceID}, req.LockOwner)
+	evalInt, parseErr, err := r.client.EvalInt(ctx, unlockScript, []string{req.ResourceID}, req.LockOwner)
 	// 2. check error
 	if evalInt == nil {
 		return newInternalErrorUnlockResponse(), fmt.Errorf("[standaloneRedisLock]: Eval unlock script returned nil.ResourceID: %s", req.ResourceID)

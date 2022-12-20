@@ -68,10 +68,7 @@ type Pulsar struct {
 	logger   logger.Logger
 	client   pulsar.Client
 	metadata pulsarMetadata
-
-	publishCtx    context.Context
-	publishCancel context.CancelFunc
-	cache         *lru.Cache
+	cache    *lru.Cache
 }
 
 func NewPulsar(l logger.Logger) pubsub.PubSub {
@@ -193,15 +190,13 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 	p.cache = c
 	defer p.cache.Purge()
 
-	p.publishCtx, p.publishCancel = context.WithCancel(context.Background())
-
 	p.client = client
 	p.metadata = *m
 
 	return nil
 }
 
-func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
+func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	var (
 		producer pulsar.Producer
 		msg      *pulsar.ProducerMessage
@@ -231,7 +226,7 @@ func (p *Pulsar) Publish(req *pubsub.PublishRequest) error {
 	if err != nil {
 		return err
 	}
-	if _, err = producer.Send(p.publishCtx, msg); err != nil {
+	if _, err = producer.Send(ctx, msg); err != nil {
 		return err
 	}
 
@@ -322,7 +317,6 @@ func (p *Pulsar) handleMessage(ctx context.Context, originTopic string, msg puls
 }
 
 func (p *Pulsar) Close() error {
-	p.publishCancel()
 	for _, k := range p.cache.Keys() {
 		producer, _ := p.cache.Peek(k)
 		if producer != nil {

@@ -132,8 +132,6 @@ func subscribeHandler(ctx context.Context, topic string, e *eventhub.Event, hand
 type AzureEventHubs struct {
 	metadata           *azureEventHubsMetadata
 	logger             logger.Logger
-	publishCtx         context.Context
-	publishCancel      context.CancelFunc
 	backOffConfig      retry.Config
 	hubClients         map[string]*eventhub.Hub
 	eventProcessors    map[string]*eph.EventProcessorHost
@@ -533,8 +531,6 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 		return fmt.Errorf("invalid storage credentials with error: %w", storageCredsErr)
 	}
 
-	aeh.publishCtx, aeh.publishCancel = context.WithCancel(context.Background())
-
 	// Default retry configuration is used if no backOff properties are set.
 	if err := retry.DecodeConfigWithPrefix(
 		&aeh.backOffConfig,
@@ -547,9 +543,9 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 }
 
 // Publish sends data to Azure Event Hubs.
-func (aeh *AzureEventHubs) Publish(req *pubsub.PublishRequest) error {
+func (aeh *AzureEventHubs) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if _, ok := aeh.hubClients[req.Topic]; !ok {
-		if err := aeh.ensurePublisherClient(aeh.publishCtx, req.Topic); err != nil {
+		if err := aeh.ensurePublisherClient(ctx, req.Topic); err != nil {
 			return fmt.Errorf("error on establishing hub connection: %s", err)
 		}
 	}
@@ -558,7 +554,7 @@ func (aeh *AzureEventHubs) Publish(req *pubsub.PublishRequest) error {
 	if ok {
 		event.PartitionKey = &val
 	}
-	err := aeh.hubClients[req.Topic].Send(aeh.publishCtx, event)
+	err := aeh.hubClients[req.Topic].Send(ctx, event)
 	if err != nil {
 		return fmt.Errorf("error from publish: %s", err)
 	}
@@ -571,7 +567,7 @@ func (aeh *AzureEventHubs) BulkPublish(ctx context.Context, req *pubsub.BulkPubl
 	if _, ok := aeh.hubClients[req.Topic]; !ok {
 		if err := aeh.ensurePublisherClient(ctx, req.Topic); err != nil {
 			err = fmt.Errorf("error on establishing hub connection: %s", err)
-			return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
+			return pubsub.NewBulkPublishResponse(req.Entries, err), err
 		}
 	}
 
@@ -595,10 +591,10 @@ func (aeh *AzureEventHubs) BulkPublish(ctx context.Context, req *pubsub.BulkPubl
 	if err != nil {
 		// Partial success is not supported by Azure Event Hubs.
 		// If an error occurs, all events are considered failed.
-		return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishFailed, err), err
+		return pubsub.NewBulkPublishResponse(req.Entries, err), err
 	}
 
-	return pubsub.NewBulkPublishResponse(req.Entries, pubsub.PublishSucceeded, nil), nil
+	return pubsub.BulkPublishResponse{}, nil
 }
 
 // Subscribe receives data from Azure Event Hubs.
@@ -672,10 +668,6 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 }
 
 func (aeh *AzureEventHubs) Close() (err error) {
-	if aeh.publishCancel != nil {
-		aeh.publishCancel()
-	}
-
 	flag := false
 	var ctx context.Context
 	var cancel context.CancelFunc

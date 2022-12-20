@@ -225,6 +225,10 @@ jobs:
           echo "$CERT_NAME=$CERT_FILE" >> $GITHUB_ENV
         done
 
+    - name: Get current time
+      run: |
+        echo "CURRENT_TIME=$(date --rfc-3339=date)" >> ${GITHUB_ENV}
+
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v2
       if: matrix.terraform-dir != ''
@@ -251,12 +255,12 @@ jobs:
 
     - name: Terraform Plan
       id: plan
-      run: terraform plan -no-color -var="UNIQUE_ID=${{env.UNIQUE_ID}}"
+      run: terraform plan -no-color -var="UNIQUE_ID=${{env.UNIQUE_ID}}" -var="TIMESTAMP=${{env.CURRENT_TIME}}"
       working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
 
     - name: Terraform Apply     
-      run: terraform apply -auto-approve -var="UNIQUE_ID=${{env.UNIQUE_ID}}"
+      run: terraform apply -auto-approve -var="UNIQUE_ID=${{env.UNIQUE_ID}}" -var="TIMESTAMP=${{env.CURRENT_TIME}}"
       working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
       continue-on-error: true
@@ -379,7 +383,7 @@ jobs:
 
     - name: Terraform Destroy
       continue-on-error: true    
-      run: terraform destroy -auto-approve -var="UNIQUE_ID=${{env.UNIQUE_ID}}"
+      run: terraform destroy -auto-approve -var="UNIQUE_ID=${{env.UNIQUE_ID}}" -var="TIMESTAMP=${{env.CURRENT_TIME}}"
       working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
 

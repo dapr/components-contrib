@@ -9,19 +9,24 @@ terraform {
   }
 }
 
-provider "aws" {
-  region = "us-east-1"
-  default_tags {
-    tags = {
-      Purpose  = "AutomatedTesting"
-      Timestamp = "${timestamp()}"
-    }
-  }
+variable "TIMESTAMP" {
+    type        = string
+    description = "Timestamp of the github worklow run."
 }
 
 variable "UNIQUE_ID" {
     type        = string
     description = "Unique Id of the github worklow run."
+}
+
+provider "aws" {
+  region = "us-east-1"
+  default_tags {
+    tags = {
+      Purpose  = "AutomatedTesting"
+      Timestamp = "${var.TIMESTAMP}"
+    }
+  }
 }
 
 resource "aws_sns_topic" "testTopic" {

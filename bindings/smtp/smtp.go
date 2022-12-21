@@ -57,7 +57,7 @@ type Metadata struct {
 	Subject            string `json:"subject"`
 	Priority           int    `json:"priority"`
 	BodyAsAttachment   bool   `json:"bodyAsAttachment"`
-	AttachmentFilename string `json:"AttachmentFilename"`
+	AttachmentFilename string `json:"attachmentFilename"`
 }
 
 // NewSMTP returns a new smtp binding instance.

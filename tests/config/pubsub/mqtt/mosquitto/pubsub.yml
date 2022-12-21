@@ -16,5 +16,3 @@ spec:
     value: 1
   - name: cleanSession
     value: false
-  - name: backOffMaxRetries
-    value: 5

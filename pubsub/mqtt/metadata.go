@@ -145,3 +145,29 @@ func parseMQTTMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error)
 
 	return &m, nil
 }
+
+// GetProducerClientID returns the client ID to use for the producer connection.
+func (m metadata) GetProducerClientID() string {
+	// First, let's use the value of producerID if set
+	producerClientID := m.producerID
+	if producerClientID == "" {
+		// If not set, fallback to consumerID + the "-producer" suffix.
+		// For backwards-compatibility; see: https://github.com/dapr/components-contrib/pull/2104
+		producerClientID = m.consumerID + "-producer"
+	}
+	return producerClientID
+}
+
+// GetConsumerClientID returns the client ID to use for the consumer connection.
+func (m metadata) GetConsumerClientID() string {
+	// Get the consumerID from the metadata
+	consumerClientID := m.consumerID
+
+	// The use of "producerID" here is not a typo and is due to legacy reasons (see https://github.com/dapr/components-contrib/pull/2104)
+	// If there's no producerID, it means that the consumerID was used for both consumer and producer, so we need to add the "-consumer" suffix.
+	if m.producerID == "" {
+		consumerClientID += "-consumer"
+	}
+
+	return consumerClientID
+}

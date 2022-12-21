@@ -90,7 +90,7 @@ func (js *jetstreamPubSub) Features() []pubsub.Feature {
 	return nil
 }
 
-func (js *jetstreamPubSub) Publish(req *pubsub.PublishRequest) error {
+func (js *jetstreamPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	var opts []nats.PubOpt
 	var msgID string
 
@@ -126,14 +126,11 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 
 	if v := js.meta.startTime; !v.IsZero() {
 		consumerConfig.OptStartTime = &v
-	} else if v := js.meta.startSequence; v > 0 {
-		consumerConfig.OptStartSeq = v
-	} else if js.meta.deliverAll {
-		consumerConfig.DeliverPolicy = nats.DeliverAllPolicy
-	} else {
-		consumerConfig.DeliverPolicy = nats.DeliverLastPolicy
 	}
-
+	if v := js.meta.startSequence; v > 0 {
+		consumerConfig.OptStartSeq = v
+	}
+	consumerConfig.DeliverPolicy = js.meta.deliverPolicy
 	if js.meta.flowControl {
 		consumerConfig.FlowControl = true
 	}
@@ -162,6 +159,7 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 	if js.meta.hearbeat != 0 {
 		consumerConfig.Heartbeat = js.meta.hearbeat
 	}
+	consumerConfig.AckPolicy = js.meta.ackPolicy
 	consumerConfig.FilterSubject = req.Topic
 
 	natsHandler := func(m *nats.Msg) {
@@ -185,17 +183,21 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 		if err != nil {
 			js.l.Errorf("Error processing JetStream message %s/%d: %v", m.Subject, jsm.Sequence, err)
 
-			nakErr := m.Nak()
-			if nakErr != nil {
-				js.l.Errorf("Error while sending NAK for JetStream message %s/%d: %v", m.Subject, jsm.Sequence, nakErr)
+			if js.meta.ackPolicy == nats.AckExplicitPolicy || js.meta.ackPolicy == nats.AckAllPolicy {
+				nakErr := m.Nak()
+				if nakErr != nil {
+					js.l.Errorf("Error while sending NAK for JetStream message %s/%d: %v", m.Subject, jsm.Sequence, nakErr)
+				}
 			}
 
 			return
 		}
 
-		err = m.Ack()
-		if err != nil {
-			js.l.Errorf("Error while sending ACK for JetStream message %s/%d: %v", m.Subject, jsm.Sequence, err)
+		if js.meta.ackPolicy == nats.AckExplicitPolicy || js.meta.ackPolicy == nats.AckAllPolicy {
+			err = m.Ack()
+			if err != nil {
+				js.l.Errorf("Error while sending ACK for JetStream message %s/%d: %v", m.Subject, jsm.Sequence, err)
+			}
 		}
 	}
 

@@ -23,7 +23,7 @@ import (
 )
 
 type metadata struct {
-	tlsCfg
+	pubsub.TLSProperties
 	url                      string
 	consumerID               string
 	producerID               string
@@ -31,12 +31,6 @@ type metadata struct {
 	retain                   bool
 	cleanSession             bool
 	maxRetriableErrorsPerSec int
-}
-
-type tlsCfg struct {
-	caCert     string
-	clientCert string
-	clientKey  string
 }
 
 const (
@@ -47,9 +41,6 @@ const (
 	mqttConsumerID               = "consumerID"
 	mqttProducerID               = "producerID"
 	mqttCleanSession             = "cleanSession"
-	mqttCACert                   = "caCert"
-	mqttClientCert               = "clientCert"
-	mqttClientKey                = "clientKey"
 	mqttMaxRetriableErrorsPerSec = "maxRetriableErrorsPerSec"
 
 	// Defaults
@@ -118,23 +109,10 @@ func parseMQTTMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error)
 		}
 	}
 
-	if val, ok := md.Properties[mqttCACert]; ok && val != "" {
-		if !isValidPEM(val) {
-			return &m, fmt.Errorf("%s invalid caCert", errorMsgPrefix)
-		}
-		m.tlsCfg.caCert = val
-	}
-	if val, ok := md.Properties[mqttClientCert]; ok && val != "" {
-		if !isValidPEM(val) {
-			return &m, fmt.Errorf("%s invalid clientCert", errorMsgPrefix)
-		}
-		m.tlsCfg.clientCert = val
-	}
-	if val, ok := md.Properties[mqttClientKey]; ok && val != "" {
-		if !isValidPEM(val) {
-			return &m, fmt.Errorf("%s invalid clientKey", errorMsgPrefix)
-		}
-		m.tlsCfg.clientKey = val
+	var err error
+	m.TLSProperties, err = pubsub.TLS(md.Properties)
+	if err != nil {
+		return &m, fmt.Errorf("%s invalid TLS configuration: %w", errorMsgPrefix, err)
 	}
 
 	// Deprecated config option

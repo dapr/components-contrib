@@ -14,6 +14,7 @@ limitations under the License.
 package rethinkdb
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"reflect"
@@ -86,7 +87,9 @@ func (s *RethinkDB) Init(metadata state.Metadata) error {
 	s.config = cfg
 
 	// check if table already exists
-	c, err := r.DB(s.config.Database).TableList().Run(s.session)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	c, err := r.DB(s.config.Database).TableList().Run(s.session, r.RunOpts{Context: ctx})
+	cancel()
 	if err != nil {
 		return errors.Wrap(err, "error checking for state table existence in DB")
 	}
@@ -103,9 +106,11 @@ func (s *RethinkDB) Init(metadata state.Metadata) error {
 	}
 
 	if !tableExists(list, s.config.Table) {
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 		_, err = r.DB(s.config.Database).TableCreate(s.config.Table, r.TableCreateOpts{
 			PrimaryKey: stateTablePKName,
-		}).RunWrite(s.session)
+		}).RunWrite(s.session, r.RunOpts{Context: ctx})
+		cancel()
 		if err != nil {
 			return errors.Wrap(err, "error creating state table in DB")
 		}
@@ -113,16 +118,21 @@ func (s *RethinkDB) Init(metadata state.Metadata) error {
 
 	if s.config.Archive && !tableExists(list, stateArchiveTableName) {
 		// create archive table with autokey to preserve state id
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 		_, err = r.DB(s.config.Database).TableCreate(stateArchiveTableName,
-			r.TableCreateOpts{PrimaryKey: stateArchiveTablePKName}).RunWrite(s.session)
+			r.TableCreateOpts{PrimaryKey: stateArchiveTablePKName}).RunWrite(s.session, r.RunOpts{Context: ctx})
+		cancel()
 		if err != nil {
 			return errors.Wrap(err, "error creating state archive table in DB")
 		}
+
 		// index archive table for id and timestamp
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 		_, err = r.DB(s.config.Database).Table(stateArchiveTableName).
 			IndexCreateFunc("state_index", func(row r.Term) interface{} {
 				return []interface{}{row.Field("id"), row.Field("timestamp")}
-			}).RunWrite(s.session)
+			}).RunWrite(s.session, r.RunOpts{Context: ctx})
+		cancel()
 		if err != nil {
 			return errors.Wrap(err, "error creating state archive index in DB")
 		}
@@ -147,12 +157,12 @@ func tableExists(arr []string, table string) bool {
 }
 
 // Get retrieves a RethinkDB KV item.
-func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (s *RethinkDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	if req == nil || req.Key == "" {
 		return nil, errors.New("invalid state request, missing key")
 	}
 
-	c, err := r.Table(s.config.Table).Get(req.Key).Run(s.session)
+	c, err := r.Table(s.config.Table).Get(req.Key).Run(s.session, r.RunOpts{Context: ctx})
 	if err != nil {
 		return nil, errors.Wrap(err, "error getting record from the database")
 	}
@@ -187,22 +197,22 @@ func (s *RethinkDB) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // BulkGet performs a bulks get operations.
-func (s *RethinkDB) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+func (s *RethinkDB) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	// TODO: replace with bulk get for performance
 	return false, nil, nil
 }
 
 // Set saves a state KV item.
-func (s *RethinkDB) Set(req *state.SetRequest) error {
+func (s *RethinkDB) Set(ctx context.Context, req *state.SetRequest) error {
 	if req == nil || req.Key == "" || req.Value == nil {
 		return errors.New("invalid state request, key and value required")
 	}
 
-	return s.BulkSet([]state.SetRequest{*req})
+	return s.BulkSet(ctx, []state.SetRequest{*req})
 }
 
 // BulkSet performs a bulk save operation.
-func (s *RethinkDB) BulkSet(req []state.SetRequest) error {
+func (s *RethinkDB) BulkSet(ctx context.Context, req []state.SetRequest) error {
 	docs := make([]*stateRecord, len(req))
 	for i, v := range req {
 		var etag string
@@ -221,19 +231,19 @@ func (s *RethinkDB) BulkSet(req []state.SetRequest) error {
 	resp, err := r.Table(s.config.Table).Insert(docs, r.InsertOpts{
 		Conflict:      "replace",
 		ReturnChanges: true,
-	}).RunWrite(s.session)
+	}).RunWrite(s.session, r.RunOpts{Context: ctx})
 	if err != nil {
 		return errors.Wrap(err, "error saving records to the database")
 	}
 
 	if s.config.Archive && len(resp.Changes) > 0 {
-		s.archive(resp.Changes)
+		s.archive(ctx, resp.Changes)
 	}
 
 	return nil
 }
 
-func (s *RethinkDB) archive(changes []r.ChangeResponse) error {
+func (s *RethinkDB) archive(ctx context.Context, changes []r.ChangeResponse) error {
 	list := make([]map[string]interface{}, 0)
 	for _, c := range changes {
 		if c.NewValue != nil {
@@ -247,7 +257,7 @@ func (s *RethinkDB) archive(changes []r.ChangeResponse) error {
 		}
 	}
 	if len(list) > 0 {
-		_, err := r.Table(stateArchiveTableName).Insert(list).RunWrite(s.session)
+		_, err := r.Table(stateArchiveTableName).Insert(list).RunWrite(s.session, r.RunOpts{Context: ctx})
 		if err != nil {
 			return errors.Wrap(err, "error archiving records to the database")
 		}
@@ -257,22 +267,22 @@ func (s *RethinkDB) archive(changes []r.ChangeResponse) error {
 }
 
 // Delete performes a RethinkDB KV delete operation.
-func (s *RethinkDB) Delete(req *state.DeleteRequest) error {
+func (s *RethinkDB) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	if req == nil || req.Key == "" {
 		return errors.New("invalid request, missing key")
 	}
 
-	return s.BulkDelete([]state.DeleteRequest{*req})
+	return s.BulkDelete(ctx, []state.DeleteRequest{*req})
 }
 
 // BulkDelete performs a bulk delete operation.
-func (s *RethinkDB) BulkDelete(req []state.DeleteRequest) error {
+func (s *RethinkDB) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
 	list := make([]string, 0)
 	for _, d := range req {
 		list = append(list, d.Key)
 	}
 
-	c, err := r.Table(s.config.Table).GetAll(r.Args(list)).Delete().Run(s.session)
+	c, err := r.Table(s.config.Table).GetAll(r.Args(list)).Delete().Run(s.session, r.RunOpts{Context: ctx})
 	if err != nil {
 		return errors.Wrap(err, "error deleting record from the database")
 	}
@@ -282,7 +292,7 @@ func (s *RethinkDB) BulkDelete(req []state.DeleteRequest) error {
 }
 
 // Multi performs multiple operations.
-func (s *RethinkDB) Multi(req *state.TransactionalStateRequest) error {
+func (s *RethinkDB) Multi(ctx context.Context, req *state.TransactionalStateRequest) error {
 	upserts := make([]state.SetRequest, 0)
 	deletes := make([]state.DeleteRequest, 0)
 
@@ -306,11 +316,11 @@ func (s *RethinkDB) Multi(req *state.TransactionalStateRequest) error {
 	}
 
 	// best effort, no transacts supported
-	if err := s.BulkSet(upserts); err != nil {
+	if err := s.BulkSet(ctx, upserts); err != nil {
 		return errors.Wrap(err, "error saving records to the database")
 	}
 
-	if err := s.BulkDelete(deletes); err != nil {
+	if err := s.BulkDelete(ctx, deletes); err != nil {
 		return errors.Wrap(err, "error deleting records to the database")
 	}
 

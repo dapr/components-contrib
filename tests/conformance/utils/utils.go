@@ -134,3 +134,13 @@ func NewStringSet(values ...string) map[string]struct{} {
 
 	return set
 }
+
+func Contains[V comparable](arr []V, str V) bool {
+	for _, a := range arr {
+		if a == str {
+			return true
+		}
+	}
+
+	return false
+}

@@ -62,25 +62,13 @@ func isValidPEM(val string) bool {
 }
 
 func parseAMQPMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error) {
-	m := metadata{}
+	m := metadata{anonymous: false}
 
 	// required configuration settings
 	if val, ok := md.Properties[amqpUrl]; ok && val != "" {
 		m.url = val
 	} else {
 		return &m, fmt.Errorf("%s missing url", errorMsgPrefix)
-	}
-
-	if val, ok := md.Properties[username]; ok && val != "" {
-		m.username = val
-	} else {
-		return &m, fmt.Errorf("%s missing username", errorMsgPrefix)
-	}
-
-	if val, ok := md.Properties[password]; ok && val != "" {
-		m.password = val
-	} else {
-		return &m, fmt.Errorf("%s missing username", errorMsgPrefix)
 	}
 
 	// optional configuration settings
@@ -91,6 +79,22 @@ func parseAMQPMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error)
 			return &m, fmt.Errorf("%s invalid anonymous %s, %s", errorMsgPrefix, val, err)
 		}
 	}
+
+	if !m.anonymous {
+
+		if val, ok := md.Properties[username]; ok && val != "" {
+			m.username = val
+		} else {
+			return &m, fmt.Errorf("%s missing username", errorMsgPrefix)
+		}
+
+		if val, ok := md.Properties[password]; ok && val != "" {
+			m.password = val
+		} else {
+			return &m, fmt.Errorf("%s missing username", errorMsgPrefix)
+		}
+	}
+
 	if val, ok := md.Properties[amqpCACert]; ok && val != "" {
 		if !isValidPEM(val) {
 			return &m, fmt.Errorf("%s invalid caCert", errorMsgPrefix)

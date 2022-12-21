@@ -1,0 +1,19 @@
+version: '2'
+
+services:
+  nats:
+    image: nats:2.9.9
+    ports: 
+      - "4222:4222"
+    networks: ["nats"]
+    command: "--js"
+  startup:
+    image: natsio/nats-box
+    networks: ["nats"]
+    depends_on: 
+      - nats
+    entrypoint: sh -c "sleep 5 && nats -s nats:4222 stream add pubsub --subjects testTopic,multiTopic1,multiTopic2,testTopicBulk --storage=file --replicas=1 --retention=limits --discard=old --max-msgs=-1 --max-msgs-per-subject=-1 --max-bytes=-1 --max-age=-1 --max-msg-size=-1 --dupe-window=2m0s --no-allow-rollup --no-deny-delete --no-deny-purge"
+
+networks:
+  nats:
+    name: nats

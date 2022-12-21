@@ -17,11 +17,12 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"testing"
+
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func getFakeProperties() map[string]string {

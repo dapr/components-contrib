@@ -2,13 +2,14 @@ module snssqs_test
 
 go 1.19
 
-replace github.com/dapr/dapr => github.com/dapr/dapr v1.9.4-0.20221213225218-374a582b03d9
+replace github.com/dapr/dapr => github.com/dapr/dapr v1.9.4-0.20221221150048-640772d83bd1
 
 replace github.com/dapr/components-contrib => ../../../../..
 
 replace github.com/dapr/components-contrib/tests/certification => ../../..
 
 require (
+	github.com/aws/aws-sdk-go v1.44.158
 	github.com/dapr/components-contrib v1.9.6
 	github.com/dapr/components-contrib/tests/certification v0.0.0-00010101000000-000000000000
 	github.com/dapr/dapr v1.9.4-0.20221213222644-64d468a693f1
@@ -26,7 +27,6 @@ require (
 	github.com/andybalholm/brotli v1.0.4 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
-	github.com/aws/aws-sdk-go v1.44.158 // indirect
 	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
@@ -122,7 +122,7 @@ require (
 	golang.org/x/sys v0.3.0 // indirect
 	golang.org/x/term v0.3.0 // indirect
 	golang.org/x/text v0.5.0 // indirect
-	golang.org/x/time v0.1.0 // indirect
+	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.2.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
@@ -140,7 +140,7 @@ require (
 	k8s.io/klog/v2 v2.80.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280 // indirect
 	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448 // indirect
-	sigs.k8s.io/controller-runtime v0.13.0 // indirect
+	sigs.k8s.io/controller-runtime v0.14.1 // indirect
 	sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect

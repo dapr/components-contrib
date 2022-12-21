@@ -374,9 +374,9 @@ jobs:
       if: contains(matrix.component, 'kubemq')
 
     - name: Start nats with JetStream
-       run: |
-         docker-compose -f ./.github/infrastructure/docker-compose-jetstream.yml up -p jetstream -d
-       if: contains(matrix.component, 'jetstream')
+      run: |
+        docker-compose -f ./.github/infrastructure/docker-compose-jetstream.yml up -p jetstream -d
+      if: contains(matrix.component, 'jetstream')
 
     - name: Setup KinD test data
       if: contains(matrix.component, 'kubernetes')

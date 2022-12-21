@@ -12,7 +12,7 @@
 componentType: pubsub
 components:
   - component: azure.eventhubs
-    operations: ["publish", "subscribe", "multiplehandlers", "bulkpublish"]
+    operations: ['publish', 'subscribe', 'multiplehandlers', 'bulkpublish']
     config:
       pubsubName: azure-eventhubs
       testTopicName: eventhubs-pubsub-topic
@@ -42,13 +42,13 @@ components:
       testMultiTopic2Name: dapr-conf-queue-multi2
       checkInOrderProcessing: false
   - component: redis
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    operations: ['publish', 'subscribe', 'multiplehandlers']
     config:
       checkInOrderProcessing: false
   - component: natsstreaming
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    operations: ['publish', 'subscribe', 'multiplehandlers']
   - component: jetstream
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    operations: ['publish', 'subscribe', 'multiplehandlers']
   - component: kafka
     allOperations: true
   - component: kafka
@@ -58,30 +58,29 @@ components:
     profile: confluent
     allOperations: true
   - component: pulsar
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    operations: ['publish', 'subscribe', 'multiplehandlers']
   - component: mqtt
     profile: mosquitto
-    operations: ["publish", "subscribe", "multiplehandlers"]
-  - component: amqp
-    profile: solace
-    operations: ["publish", "subscribe"]
+    operations: ['publish', 'subscribe', 'multiplehandlers']
+  - component: solace.amqp
+    operations: ['publish', 'subscribe']
   - component: mqtt
     profile: emqx
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    operations: ['publish', 'subscribe', 'multiplehandlers']
   - component: mqtt
     profile: vernemq
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    operations: ['publish', 'subscribe', 'multiplehandlers']
   - component: hazelcast
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    operations: ['publish', 'subscribe', 'multiplehandlers']
   - component: rabbitmq
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    operations: ['publish', 'subscribe', 'multiplehandlers']
     config:
       checkInOrderProcessing: false
   - component: in-memory
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    operations: ['publish', 'subscribe', 'multiplehandlers']
   - component: aws.snssqs
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    operations: ['publish', 'subscribe', 'multiplehandlers']
     config:
       checkInOrderProcessing: false
   - component: kubemq
-    operations: ["publish", "subscribe", "multiplehandlers"]
+    operations: ['publish', 'subscribe', 'multiplehandlers']

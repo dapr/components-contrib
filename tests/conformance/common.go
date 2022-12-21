@@ -50,7 +50,6 @@ import (
 	b_postgres "github.com/dapr/components-contrib/bindings/postgres"
 	b_rabbitmq "github.com/dapr/components-contrib/bindings/rabbitmq"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
-	p_amqp "github.com/dapr/components-contrib/pubsub/amqp"
 	p_snssqs "github.com/dapr/components-contrib/pubsub/aws/snssqs"
 	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
 	p_servicebusqueues "github.com/dapr/components-contrib/pubsub/azure/servicebus/queues"
@@ -65,6 +64,7 @@ import (
 	p_pulsar "github.com/dapr/components-contrib/pubsub/pulsar"
 	p_rabbitmq "github.com/dapr/components-contrib/pubsub/rabbitmq"
 	p_redis "github.com/dapr/components-contrib/pubsub/redis"
+	p_solaceamqp "github.com/dapr/components-contrib/pubsub/solace/amqp"
 	ss_azure "github.com/dapr/components-contrib/secretstores/azure/keyvault"
 	ss_hashicorp_vault "github.com/dapr/components-contrib/secretstores/hashicorp/vault"
 	ss_kubernetes "github.com/dapr/components-contrib/secretstores/kubernetes"
@@ -402,8 +402,8 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_snssqs.NewSnsSqs(testLogger)
 	case "kubemq":
 		pubsub = p_kubemq.NewKubeMQ(testLogger)
-	case "amqp":
-		pubsub = p_amqp.NewAMQPPubsub(testLogger)
+	case "solace.amqp":
+		pubsub = p_solaceamqp.NewAMQPPubsub(testLogger)
 	default:
 		return nil
 	}

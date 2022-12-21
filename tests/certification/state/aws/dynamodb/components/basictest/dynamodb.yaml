@@ -1,0 +1,10 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore-basic
+spec:
+  type: state.aws.dynamodb
+  version: v1
+  metadata:
+  - name: table
+    value: "cert-test-basic"

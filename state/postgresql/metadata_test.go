@@ -17,9 +17,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestMetadata(t *testing.T) {

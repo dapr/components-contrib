@@ -234,6 +234,9 @@ func (p *PostgresDBAccess) doSet(parentCtx context.Context, db dbquerier, req *s
 
 func (p *PostgresDBAccess) BulkSet(parentCtx context.Context, req []state.SetRequest) error {
 	tx, err := p.beginTx(parentCtx)
+	if err != nil {
+		return err
+	}
 	defer p.rollbackTx(parentCtx, tx, "BulkSet")
 
 	if len(req) > 0 {
@@ -348,6 +351,9 @@ func (p *PostgresDBAccess) doDelete(parentCtx context.Context, db dbquerier, req
 
 func (p *PostgresDBAccess) BulkDelete(parentCtx context.Context, req []state.DeleteRequest) error {
 	tx, err := p.beginTx(parentCtx)
+	if err != nil {
+		return err
+	}
 	defer p.rollbackTx(parentCtx, tx, "BulkDelete")
 
 	if len(req) > 0 {
@@ -371,6 +377,9 @@ func (p *PostgresDBAccess) BulkDelete(parentCtx context.Context, req []state.Del
 
 func (p *PostgresDBAccess) ExecuteMulti(parentCtx context.Context, request *state.TransactionalStateRequest) error {
 	tx, err := p.beginTx(parentCtx)
+	if err != nil {
+		return err
+	}
 	defer p.rollbackTx(parentCtx, tx, "ExecMulti")
 
 	for _, o := range request.Operations {

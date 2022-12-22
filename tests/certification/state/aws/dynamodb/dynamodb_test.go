@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2022 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -31,11 +31,21 @@ import (
 )
 
 const (
-	sidecarNamePrefix       = "dynamodb-sidecar-"
-	certificationTestPrefix = ""
+	sidecarNamePrefix = "dynamodb-sidecar-"
+	key               = "key"
 )
 
+// The following Test Tables names must match
+// the values of the "table" metadata properties
+// found inside each of the components/*/dynamodb.yaml files
+var testTables = []string{
+	"cert-test-basic",
+}
+
 func TestAWSDynamoDBStorage(t *testing.T) {
+	setup(t)
+	defer teardown(t)
+
 	ports, err := dapr_testing.GetFreePorts(2)
 	assert.NoError(t, err)
 
@@ -50,7 +60,7 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 			}
 			defer client.Close()
 
-			stateKey := certificationTestPrefix + "key"
+			stateKey := key
 			stateValue := "certificationdata"
 
 			// save state, default options: strong, last-write
@@ -92,4 +102,20 @@ func componentRuntimeOptions() []runtime.Option {
 	return []runtime.Option{
 		runtime.WithStates(stateRegistry),
 	}
+}
+
+func setup(t *testing.T) {
+	t.Logf("AWS DynamoDB CertificationTests setup (could take some time to create test tables)...")
+	if err := createTestTables(testTables); err != nil {
+		t.Error(err)
+	}
+	t.Logf("AWS DynamoDB CertificationTests setup...done!")
+}
+
+func teardown(t *testing.T) {
+	t.Logf("AWS DynamoDB CertificationTests teardown...")
+	if err := deleteTestTables(testTables); err != nil {
+		t.Error(err)
+	}
+	t.Logf("AWS DynamoDB CertificationTests teardown...done!")
 }

@@ -1,0 +1,20 @@
+{
+    "compilerOptions": {
+        "target": "es2022",
+        "lib": ["es2022"],
+        "module": "es2022",
+        "moduleResolution": "node",
+        "typeRoots": ["node_modules", "."],
+        "types": ["@cloudflare/workers-types"],
+        "resolveJsonModule": true,
+        "allowJs": true,
+        "noEmit": true,
+        "isolatedModules": true,
+        "allowSyntheticDefaultImports": true,
+        "strict": true,
+        "baseUrl": ".",
+        "paths": {
+            "$lib/*": ["lib/*"]
+        }
+    }
+}

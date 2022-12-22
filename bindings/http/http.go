@@ -16,10 +16,13 @@ package http
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -43,7 +46,11 @@ type HTTPSource struct {
 }
 
 type httpMetadata struct {
-	URL string `mapstructure:"url"`
+	URL                          string `mapstructure:"url"`
+	ClientCertVerify             string `mapstructure:"clientCertVerify"`
+	ClientCertificateFilePath    string `mapstructure:"clientCertificateFilePath"`
+	ClientCertificateKeyFilePath string `mapstructure:"clientCertificateKeyFilePath"`
+	CACertificateFilePath        string `mapstructure:"caCertificateFilePath"`
 }
 
 // NewHTTP returns a new HTTPSource.
@@ -56,6 +63,25 @@ func (h *HTTPSource) Init(metadata bindings.Metadata) error {
 	if err := mapstructure.Decode(metadata.Properties, &h.metadata); err != nil {
 		return err
 	}
+	var tlsConfig *tls.Config
+	if h.metadata.ClientCertVerify == "true" {
+		caCert, err := os.ReadFile(h.metadata.CACertificateFilePath)
+		if err != nil {
+			return fmt.Errorf("failed to read client CA certificate: %w", err)
+		}
+		caCertPool := x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(caCert)
+		clientCertPath := h.metadata.ClientCertificateFilePath
+		clientKeyPath := h.metadata.ClientCertificateKeyFilePath
+		cert, err := tls.LoadX509KeyPair(clientCertPath, clientKeyPath)
+		if err != nil {
+			return fmt.Errorf("failed to load client certificate: %w", err)
+		}
+		tlsConfig = &tls.Config{
+			RootCAs:      caCertPool,
+			Certificates: []tls.Certificate{cert},
+		}
+	}
 
 	// See guidance on proper HTTP client settings here:
 	// https://medium.com/@nate510/don-t-use-go-s-default-http-client-4804cb19f779
@@ -65,6 +91,10 @@ func (h *HTTPSource) Init(metadata bindings.Metadata) error {
 	netTransport := &http.Transport{
 		Dial:                dialer.Dial,
 		TLSHandshakeTimeout: 5 * time.Second,
+	}
+	fmt.Println("tlsConfig.Certificates=======", tlsConfig)
+	if tlsConfig != nil && len(tlsConfig.Certificates) > 0 && tlsConfig.RootCAs != nil {
+		netTransport.TLSClientConfig = tlsConfig
 	}
 	h.client = &http.Client{
 		Timeout:   time.Second * 30,

@@ -39,3 +39,24 @@ metadata:
     # If omitted, uses the same values as "<root>.binding"
     binding:
       output: true
+  - name: ClientCertVerify
+    required: false
+    description: "Whether to use mTLS to connect to the HTTP endpoint"
+    example: "true"
+    binding:
+      output: true
+  - name: CACertificateFilePath
+    required: false
+    description: "The CA certificate to used to generate the client certificate"
+    binding:
+      output: true
+  - name: ClientCertificateFilePath
+    required: false
+    description: "The client certificate to present to server to enable client verification"
+    binding:
+      output: true
+  - name: ClientCertificateKeyFilePath
+    required: false
+    description: "The client certificate key to present to server to enable client verification"
+    binding:
+      output: true

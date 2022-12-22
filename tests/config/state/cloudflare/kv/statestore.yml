@@ -1,0 +1,19 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.cloudflare.workerskv
+  version: v1
+  metadata:
+    - name: workerName
+      value: ${{CloudflareWorkerName}}
+    - name: kvNamespaceID
+      value: ${{CloudflareKVNamespaceID}}
+    - name: cfAPIToken
+      value: ${{CloudflareAPIToken}}
+    - name: cfAccountID
+      value: ${{CloudflareAccountID}}
+    # Randomly-generated private key
+    - name: key
+      value: $((ed25519PrivateKey))

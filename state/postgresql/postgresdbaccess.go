@@ -233,20 +233,8 @@ func (p *PostgresDBAccess) doSet(parentCtx context.Context, db dbquerier, req *s
 }
 
 func (p *PostgresDBAccess) BulkSet(parentCtx context.Context, req []state.SetRequest) error {
-	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
-	tx, err := p.db.Begin(ctx)
-	cancel()
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() {
-		rollbackCtx, rollbackCancel := context.WithTimeout(parentCtx, p.metadata.timeout)
-		rollbackErr := tx.Rollback(rollbackCtx)
-		rollbackCancel()
-		if rollbackErr != nil && !errors.Is(rollbackErr, pgx.ErrTxClosed) {
-			p.logger.Errorf("Failed to rollback transaction in BulkSet: %v", rollbackErr)
-		}
-	}()
+	tx, err := p.beginTx(parentCtx)
+	defer p.rollbackTx(parentCtx, tx, "BulkSet")
 
 	if len(req) > 0 {
 		for i := range req {
@@ -257,7 +245,7 @@ func (p *PostgresDBAccess) BulkSet(parentCtx context.Context, req []state.SetReq
 		}
 	}
 
-	ctx, cancel = context.WithTimeout(parentCtx, p.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
 	err = tx.Commit(ctx)
 	cancel()
 	if err != nil {
@@ -359,20 +347,8 @@ func (p *PostgresDBAccess) doDelete(parentCtx context.Context, db dbquerier, req
 }
 
 func (p *PostgresDBAccess) BulkDelete(parentCtx context.Context, req []state.DeleteRequest) error {
-	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
-	tx, err := p.db.Begin(ctx)
-	cancel()
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() {
-		rollbackCtx, rollbackCancel := context.WithTimeout(parentCtx, p.metadata.timeout)
-		rollbackErr := tx.Rollback(rollbackCtx)
-		rollbackCancel()
-		if rollbackErr != nil && !errors.Is(rollbackErr, pgx.ErrTxClosed) {
-			p.logger.Errorf("Failed to rollback transaction in BulkDelete: %v", rollbackErr)
-		}
-	}()
+	tx, err := p.beginTx(parentCtx)
+	defer p.rollbackTx(parentCtx, tx, "BulkDelete")
 
 	if len(req) > 0 {
 		for i := range req {
@@ -383,7 +359,7 @@ func (p *PostgresDBAccess) BulkDelete(parentCtx context.Context, req []state.Del
 		}
 	}
 
-	ctx, cancel = context.WithTimeout(parentCtx, p.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
 	err = tx.Commit(ctx)
 	cancel()
 	if err != nil {
@@ -394,20 +370,8 @@ func (p *PostgresDBAccess) BulkDelete(parentCtx context.Context, req []state.Del
 }
 
 func (p *PostgresDBAccess) ExecuteMulti(parentCtx context.Context, request *state.TransactionalStateRequest) error {
-	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
-	tx, err := p.db.Begin(ctx)
-	cancel()
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() {
-		rollbackCtx, rollbackCancel := context.WithTimeout(parentCtx, p.metadata.timeout)
-		rollbackErr := tx.Rollback(rollbackCtx)
-		rollbackCancel()
-		if rollbackErr != nil && !errors.Is(rollbackErr, pgx.ErrTxClosed) {
-			p.logger.Errorf("Failed to rollback transaction in ExecMulti: %v", rollbackErr)
-		}
-	}()
+	tx, err := p.beginTx(parentCtx)
+	defer p.rollbackTx(parentCtx, tx, "ExecMulti")
 
 	for _, o := range request.Operations {
 		switch o.Operation {
@@ -440,7 +404,7 @@ func (p *PostgresDBAccess) ExecuteMulti(parentCtx context.Context, request *stat
 		}
 	}
 
-	ctx, cancel = context.WithTimeout(parentCtx, p.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
 	err = tx.Commit(ctx)
 	cancel()
 	if err != nil {
@@ -590,4 +554,27 @@ func getDelete(req state.TransactionalStateOperation) (state.DeleteRequest, erro
 	}
 
 	return delReq, nil
+}
+
+// Internal function that begins a transaction.
+func (p *PostgresDBAccess) beginTx(parentCtx context.Context) (pgx.Tx, error) {
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
+	tx, err := p.db.Begin(ctx)
+	cancel()
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	return tx, nil
+}
+
+// Internal function that rolls back a transaction.
+// Normally called as a deferred function in methods that use transactions.
+// In case of errors, they are logged but not actioned upon.
+func (p *PostgresDBAccess) rollbackTx(parentCtx context.Context, tx pgx.Tx, methodName string) {
+	rollbackCtx, rollbackCancel := context.WithTimeout(parentCtx, p.metadata.timeout)
+	rollbackErr := tx.Rollback(rollbackCtx)
+	rollbackCancel()
+	if rollbackErr != nil && !errors.Is(rollbackErr, pgx.ErrTxClosed) {
+		p.logger.Errorf("Failed to rollback transaction in %s: %v", methodName, rollbackErr)
+	}
 }

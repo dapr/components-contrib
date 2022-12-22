@@ -26,19 +26,11 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
-)
-
-const (
-	defaultTableName         = "state"
-	defaultMetadataTableName = "dapr_metadata"
-	cleanupIntervalKey       = "cleanupIntervalInSeconds"
-	defaultCleanupInternal   = 3600 // In seconds = 1 hour
 )
 
 var errMissingConnectionString = errors.New("missing connection string")
@@ -57,12 +49,11 @@ type pgxPoolConn interface {
 
 // PostgresDBAccess implements dbaccess.
 type PostgresDBAccess struct {
-	logger          logger.Logger
-	metadata        postgresMetadataStruct
-	cleanupInterval *time.Duration
-	db              pgxPoolConn
-	ctx             context.Context
-	cancel          context.CancelFunc
+	logger   logger.Logger
+	metadata postgresMetadataStruct
+	db       pgxPoolConn
+	ctx      context.Context
+	cancel   context.CancelFunc
 }
 
 // newPostgresDBAccess creates a new instance of postgresAccess.
@@ -74,20 +65,13 @@ func newPostgresDBAccess(logger logger.Logger) *PostgresDBAccess {
 	}
 }
 
-type postgresMetadataStruct struct {
-	ConnectionString      string
-	ConnectionMaxIdleTime time.Duration
-	TableName             string // Could be in the format "schema.table" or just "table"
-	MetadataTableName     string // Could be in the format "schema.table" or just "table"
-}
-
 // Init sets up Postgres connection and ensures that the state table exists.
 func (p *PostgresDBAccess) Init(meta state.Metadata) error {
 	p.logger.Debug("Initializing Postgres state store")
 
 	p.ctx, p.cancel = context.WithCancel(context.Background())
 
-	err := p.ParseMetadata(meta)
+	err := p.metadata.InitWithMetadata(meta)
 	if err != nil {
 		p.logger.Errorf("Failed to parse metadata: %v", err)
 		return err
@@ -103,7 +87,7 @@ func (p *PostgresDBAccess) Init(meta state.Metadata) error {
 		config.MaxConnIdleTime = p.metadata.ConnectionMaxIdleTime
 	}
 
-	connCtx, connCancel := context.WithTimeout(p.ctx, 30*time.Second)
+	connCtx, connCancel := context.WithTimeout(p.ctx, p.metadata.timeout)
 	p.db, err = pgxpool.NewWithConfig(connCtx, config)
 	connCancel()
 	if err != nil {
@@ -112,7 +96,7 @@ func (p *PostgresDBAccess) Init(meta state.Metadata) error {
 		return err
 	}
 
-	pingCtx, pingCancel := context.WithTimeout(p.ctx, 30*time.Second)
+	pingCtx, pingCancel := context.WithTimeout(p.ctx, p.metadata.timeout)
 	err = p.db.Ping(pingCtx)
 	pingCancel()
 	if err != nil {
@@ -140,39 +124,6 @@ func (p *PostgresDBAccess) Init(meta state.Metadata) error {
 func (p *PostgresDBAccess) GetDB() *pgxpool.Pool {
 	// We can safely cast to *pgxpool.Pool because this method is never used in unit tests where we mock the DB
 	return p.db.(*pgxpool.Pool)
-}
-
-func (p *PostgresDBAccess) ParseMetadata(meta state.Metadata) error {
-	m := postgresMetadataStruct{
-		TableName:         defaultTableName,
-		MetadataTableName: defaultMetadataTableName,
-	}
-	err := metadata.DecodeMetadata(meta.Properties, &m)
-	if err != nil {
-		return err
-	}
-	p.metadata = m
-
-	if m.ConnectionString == "" {
-		return errMissingConnectionString
-	}
-
-	s, ok := meta.Properties[cleanupIntervalKey]
-	if ok && s != "" {
-		cleanupIntervalInSec, err := strconv.ParseInt(s, 10, 0)
-		if err != nil {
-			return fmt.Errorf("invalid value for '%s': %s", cleanupIntervalKey, s)
-		}
-
-		// Non-positive value from meta means disable auto cleanup.
-		if cleanupIntervalInSec > 0 {
-			p.cleanupInterval = ptr.Of(time.Duration(cleanupIntervalInSec) * time.Second)
-		}
-	} else {
-		p.cleanupInterval = ptr.Of(defaultCleanupInternal * time.Second)
-	}
-
-	return nil
 }
 
 // Set makes an insert or update to the database.
@@ -282,14 +233,14 @@ func (p *PostgresDBAccess) doSet(parentCtx context.Context, db dbquerier, req *s
 }
 
 func (p *PostgresDBAccess) BulkSet(parentCtx context.Context, req []state.SetRequest) error {
-	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
 	tx, err := p.db.Begin(ctx)
 	cancel()
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
-		rollbackCtx, rollbackCancel := context.WithTimeout(parentCtx, 30*time.Second)
+		rollbackCtx, rollbackCancel := context.WithTimeout(parentCtx, p.metadata.timeout)
 		rollbackErr := tx.Rollback(rollbackCtx)
 		rollbackCancel()
 		if rollbackErr != nil && !errors.Is(rollbackErr, pgx.ErrTxClosed) {
@@ -306,7 +257,7 @@ func (p *PostgresDBAccess) BulkSet(parentCtx context.Context, req []state.SetReq
 		}
 	}
 
-	ctx, cancel = context.WithTimeout(parentCtx, 30*time.Second)
+	ctx, cancel = context.WithTimeout(parentCtx, p.metadata.timeout)
 	err = tx.Commit(ctx)
 	cancel()
 	if err != nil {
@@ -408,14 +359,14 @@ func (p *PostgresDBAccess) doDelete(parentCtx context.Context, db dbquerier, req
 }
 
 func (p *PostgresDBAccess) BulkDelete(parentCtx context.Context, req []state.DeleteRequest) error {
-	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
 	tx, err := p.db.Begin(ctx)
 	cancel()
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
-		rollbackCtx, rollbackCancel := context.WithTimeout(parentCtx, 30*time.Second)
+		rollbackCtx, rollbackCancel := context.WithTimeout(parentCtx, p.metadata.timeout)
 		rollbackErr := tx.Rollback(rollbackCtx)
 		rollbackCancel()
 		if rollbackErr != nil && !errors.Is(rollbackErr, pgx.ErrTxClosed) {
@@ -432,7 +383,7 @@ func (p *PostgresDBAccess) BulkDelete(parentCtx context.Context, req []state.Del
 		}
 	}
 
-	ctx, cancel = context.WithTimeout(parentCtx, 30*time.Second)
+	ctx, cancel = context.WithTimeout(parentCtx, p.metadata.timeout)
 	err = tx.Commit(ctx)
 	cancel()
 	if err != nil {
@@ -443,14 +394,14 @@ func (p *PostgresDBAccess) BulkDelete(parentCtx context.Context, req []state.Del
 }
 
 func (p *PostgresDBAccess) ExecuteMulti(parentCtx context.Context, request *state.TransactionalStateRequest) error {
-	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
 	tx, err := p.db.Begin(ctx)
 	cancel()
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
-		rollbackCtx, rollbackCancel := context.WithTimeout(parentCtx, 30*time.Second)
+		rollbackCtx, rollbackCancel := context.WithTimeout(parentCtx, p.metadata.timeout)
 		rollbackErr := tx.Rollback(rollbackCtx)
 		rollbackCancel()
 		if rollbackErr != nil && !errors.Is(rollbackErr, pgx.ErrTxClosed) {
@@ -489,7 +440,7 @@ func (p *PostgresDBAccess) ExecuteMulti(parentCtx context.Context, request *stat
 		}
 	}
 
-	ctx, cancel = context.WithTimeout(parentCtx, 30*time.Second)
+	ctx, cancel = context.WithTimeout(parentCtx, p.metadata.timeout)
 	err = tx.Commit(ctx)
 	cancel()
 	if err != nil {
@@ -522,14 +473,14 @@ func (p *PostgresDBAccess) Query(parentCtx context.Context, req *state.QueryRequ
 }
 
 func (p *PostgresDBAccess) ScheduleCleanupExpiredData(ctx context.Context) {
-	if p.cleanupInterval == nil {
+	if p.metadata.cleanupInterval == nil {
 		return
 	}
 
-	p.logger.Infof("Schedule expired data clean up every %d seconds", int(p.cleanupInterval.Seconds()))
+	p.logger.Infof("Schedule expired data clean up every %d seconds", int(p.metadata.cleanupInterval.Seconds()))
 
 	go func() {
-		ticker := time.NewTicker(*p.cleanupInterval)
+		ticker := time.NewTicker(*p.metadata.cleanupInterval)
 		for {
 			select {
 			case <-ticker.C:
@@ -548,7 +499,7 @@ func (p *PostgresDBAccess) ScheduleCleanupExpiredData(ctx context.Context) {
 func (p *PostgresDBAccess) CleanupExpired(ctx context.Context) error {
 	// Check if the last iteration was too recent
 	// This performs an atomic operation, so allows coordination with other daprd processes too
-	canContinue, err := p.UpdateLastCleanup(ctx, p.db, *p.cleanupInterval)
+	canContinue, err := p.UpdateLastCleanup(ctx, p.db, *p.metadata.cleanupInterval)
 	if err != nil {
 		// Log errors only
 		p.logger.Warnf("Failed to read last cleanup time from database: %v", err)
@@ -574,7 +525,7 @@ func (p *PostgresDBAccess) CleanupExpired(ctx context.Context) error {
 // UpdateLastCleanup sets the 'last-cleanup' value only if it's less than cleanupInterval.
 // Returns true if the row was updated, which means that the cleanup can proceed.
 func (p *PostgresDBAccess) UpdateLastCleanup(ctx context.Context, db dbquerier, cleanupInterval time.Duration) (bool, error) {
-	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	queryCtx, cancel := context.WithTimeout(ctx, p.metadata.timeout)
 	res, err := db.Exec(queryCtx,
 		fmt.Sprintf(`INSERT INTO %[1]s (key, value)
 			VALUES ('last-cleanup', CURRENT_TIMESTAMP)
@@ -610,7 +561,7 @@ func (p *PostgresDBAccess) Close() error {
 // GetCleanupInterval returns the cleanupInterval property.
 // This is primarily used for tests.
 func (p *PostgresDBAccess) GetCleanupInterval() *time.Duration {
-	return p.cleanupInterval
+	return p.metadata.cleanupInterval
 }
 
 // Returns the set requests.

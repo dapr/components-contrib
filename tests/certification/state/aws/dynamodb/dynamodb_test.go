@@ -80,6 +80,47 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 		}
 	}
 
+	ttlTest := func(statestore string) flow.Runnable {
+		return func(ctx flow.Context) error {
+			client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+			if err != nil {
+				panic(err)
+			}
+			defer client.Close()
+
+			stateKey := key
+			stateValue := "certificationdata"
+
+			metaTTL := map[string]string{
+				"ttlInSeconds": "300", // 5 minutes TTL
+			}
+
+			metaExpiredTTL := map[string]string{
+				"ttlInSeconds": "-1",
+			}
+
+			test := func(metaTTL map[string]string, expectedValue string) {
+				err = client.SaveState(ctx, statestore, stateKey, []byte(stateValue), metaTTL)
+				assert.NoError(t, err)
+
+				item, err := client.GetState(ctx, statestore, stateKey, nil)
+				assert.NoError(t, err)
+				assert.Equal(t, expectedValue, string(item.Value))
+
+				err = client.DeleteState(ctx, statestore, stateKey, nil)
+				assert.NoError(t, err)
+			}
+
+			// Test	with TTL long enough for value to exist
+			test(metaTTL, stateValue)
+
+			// Test with expired TTL; value must not exist
+			test(metaExpiredTTL, "")
+
+			return nil
+		}
+	}
+
 	flow.New(t, "Test basic operations").
 		// Run the Dapr sidecar with AWS DynamoDB storage.
 		Step(sidecar.Run(sidecarNamePrefix,
@@ -89,6 +130,17 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 			embedded.WithComponentsPath("./components/basictest"),
 			componentRuntimeOptions())).
 		Step("Run basic test with master key", basicTest("statestore-basic")).
+		Run()
+
+	flow.New(t, "Test TTL").
+		// Run the Dapr sidecar with AWS DynamoDB storage.
+		Step(sidecar.Run(sidecarNamePrefix,
+			embedded.WithoutApp(),
+			embedded.WithDaprGRPCPort(currentGrpcPort),
+			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithComponentsPath("./components/basictest"),
+			componentRuntimeOptions())).
+		Step("Run basic test with master key", ttlTest("statestore-basic")).
 		Run()
 }
 

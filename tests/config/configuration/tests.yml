@@ -1,0 +1,6 @@
+# Supported operation: get, subscribe, unsubscribe
+componentType: configuration
+components:
+  - component: redis
+    allOperations: true
+  

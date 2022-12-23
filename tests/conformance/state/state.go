@@ -229,6 +229,11 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		assert.Nil(t, err)
 	})
 
+	// Don't run more tests if init failed
+	if t.Failed() {
+		t.Fatal("Init test failed, stopping further tests")
+	}
+
 	t.Run("ping", func(t *testing.T) {
 		err := state.Ping(statestore)
 		// TODO: Ideally, all stable components should implenment ping function,

@@ -659,6 +659,42 @@ func TestSet(t *testing.T) {
 		assert.NotNil(t, err)
 		assert.Equal(t, "dynamodb error: failed to parse ttlInSeconds: strconv.ParseInt: parsing \"invalidvalue\": invalid syntax", err.Error())
 	})
+	t.Run("Successfully set item with metadata partition key", func(t *testing.T) {
+		pkey := "partitionKey"
+		ss := StateStore{
+			client: &mockedDynamoDB{
+				PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
+					assert.Equal(t, dynamodb.AttributeValue{
+						S: aws.String(pkey),
+					}, *input.Item["key"])
+					assert.Equal(t, dynamodb.AttributeValue{
+						S: aws.String(`{"Value":"value"}`),
+					}, *input.Item["value"])
+					assert.Equal(t, len(input.Item), 3)
+
+					return &dynamodb.PutItemOutput{
+						Attributes: map[string]*dynamodb.AttributeValue{
+							"key": {
+								S: aws.String("value"),
+							},
+						},
+					}, nil
+				},
+			},
+		}
+		req := &state.SetRequest{
+			Key: "key",
+			Metadata: map[string]string{
+				metadataPartitionKey: pkey,
+			},
+			Value: value{
+				Value: "value",
+			},
+		}
+		err := ss.Set(context.Background(), req)
+		assert.Nil(t, err)
+	})
+
 }
 
 func TestBulkSet(t *testing.T) {

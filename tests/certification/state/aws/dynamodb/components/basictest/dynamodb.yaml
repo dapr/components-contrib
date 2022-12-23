@@ -8,3 +8,5 @@ spec:
   metadata:
   - name: table
     value: "cert-test-basic"
+  - name: ttlAttributeName
+    value: "expiresAt"

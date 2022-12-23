@@ -1118,6 +1118,33 @@ func TestDelete(t *testing.T) {
 		err := ss.Delete(context.Background(), req)
 		assert.NotNil(t, err)
 	})
+
+	t.Run("Successfully delete item  with metadata partition key", func(t *testing.T) {
+		pkey := "partitionKey"
+		req := &state.DeleteRequest{
+			Key: "key",
+			Metadata: map[string]string{
+				metadataPartitionKey: pkey,
+			},
+		}
+
+		ss := StateStore{
+			client: &mockedDynamoDB{
+				DeleteItemWithContextFn: func(ctx context.Context, input *dynamodb.DeleteItemInput, op ...request.Option) (output *dynamodb.DeleteItemOutput, err error) {
+					assert.Equal(t, map[string]*dynamodb.AttributeValue{
+						"key": {
+							S: aws.String(pkey),
+						},
+					}, input.Key)
+
+					return nil, nil
+				},
+			},
+		}
+		err := ss.Delete(context.Background(), req)
+		assert.Nil(t, err)
+	})
+
 }
 
 func TestBulkDelete(t *testing.T) {

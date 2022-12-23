@@ -20,15 +20,17 @@ import (
 	"testing"
 
 	mdata "github.com/dapr/components-contrib/metadata"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+
 	"github.com/stretchr/testify/assert"
 )
 
 func getFakeProperties() map[string]string {
 	return map[string]string{
 		"consumerID": "client",
-		amqpUrl:      "tcp://fakeUser:fakePassword@fake.mqtt.host:1883",
+		amqpURL:      "tcp://fakeUser:fakePassword@fake.mqtt.host:1883",
 		anonymous:    "false",
 		username:     "default",
 		password:     "default",
@@ -46,7 +48,7 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		assert.NoError(t, err)
-		assert.Equal(t, fakeProperties[amqpUrl], m.url)
+		assert.Equal(t, fakeProperties[amqpURL], m.url)
 	})
 
 	t.Run("url is not given", func(t *testing.T) {
@@ -55,13 +57,13 @@ func TestParseMetadata(t *testing.T) {
 		fakeMetaData := pubsub.Metadata{
 			Base: mdata.Base{Properties: fakeProperties},
 		}
-		fakeMetaData.Properties[amqpUrl] = ""
+		fakeMetaData.Properties[amqpURL] = ""
 
 		m, err := parseAMQPMetaData(fakeMetaData, log)
 
 		// assert
 		assert.EqualError(t, err, errors.New(errorMsgPrefix+" missing url").Error())
-		assert.Equal(t, fakeProperties[amqpUrl], m.url)
+		assert.Equal(t, fakeProperties[amqpURL], m.url)
 	})
 
 	t.Run("invalid ca certificate", func(t *testing.T) {

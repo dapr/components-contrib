@@ -6,9 +6,5 @@ spec:
   metadata:
     - name: url
       value: 'amqp://localhost:5672'
-    - name: username
-      value: 'default'
-    - name: password
-      value: 'default'
     - name: anonymous
       value: true

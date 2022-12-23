@@ -942,6 +942,80 @@ func TestBulkSet(t *testing.T) {
 		err := ss.BulkSet(context.Background(), req)
 		assert.NotNil(t, err)
 	})
+	t.Run("Successfully set items  with metadata partition key", func(t *testing.T) {
+		tableName := "table_name"
+		pkey := "partitionKey"
+		ss := StateStore{
+			client: &mockedDynamoDB{
+				BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {
+					expected := map[string][]*dynamodb.WriteRequest{}
+					expected[tableName] = []*dynamodb.WriteRequest{
+						{
+							PutRequest: &dynamodb.PutRequest{
+								Item: map[string]*dynamodb.AttributeValue{
+									"key": {
+										S: aws.String(pkey),
+									},
+									"value": {
+										S: aws.String(`{"Value":"value1"}`),
+									},
+								},
+							},
+						},
+						{
+							PutRequest: &dynamodb.PutRequest{
+								Item: map[string]*dynamodb.AttributeValue{
+									"key": {
+										S: aws.String(pkey),
+									},
+									"value": {
+										S: aws.String(`{"Value":"value2"}`),
+									},
+								},
+							},
+						},
+					}
+
+					for tbl := range expected {
+						for reqNum := range expected[tbl] {
+							expectedItem := expected[tbl][reqNum].PutRequest.Item
+							inputItem := input.RequestItems[tbl][reqNum].PutRequest.Item
+
+							assert.Equal(t, expectedItem["key"], inputItem["key"])
+							assert.Equal(t, expectedItem["value"], inputItem["value"])
+						}
+					}
+
+					return &dynamodb.BatchWriteItemOutput{
+						UnprocessedItems: map[string][]*dynamodb.WriteRequest{},
+					}, nil
+				},
+			},
+			table: tableName,
+		}
+		req := []state.SetRequest{
+			{
+				Key: "key1",
+				Metadata: map[string]string{
+					metadataPartitionKey: pkey,
+				},
+				Value: value{
+					Value: "value1",
+				},
+			},
+			{
+				Key: "key2",
+				Metadata: map[string]string{
+					metadataPartitionKey: pkey,
+				},
+				Value: value{
+					Value: "value2",
+				},
+			},
+		}
+		err := ss.BulkSet(context.Background(), req)
+		assert.Nil(t, err)
+	})
 }
 
 func TestDelete(t *testing.T) {

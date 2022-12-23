@@ -268,6 +268,46 @@ func TestGet(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Empty(t, out.Data)
 	})
+	t.Run("Successfully retrieve item with metadata partition key", func(t *testing.T) {
+		pkey := "partitionKey"
+		ss := StateStore{
+			client: &mockedDynamoDB{
+				GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (output *dynamodb.GetItemOutput, err error) {
+					if *input.Key["key"].S != pkey {
+						return &dynamodb.GetItemOutput{
+							Item: map[string]*dynamodb.AttributeValue{},
+						}, nil
+					}
+					return &dynamodb.GetItemOutput{
+						Item: map[string]*dynamodb.AttributeValue{
+							"key": {
+								S: input.Key["key"].S,
+							},
+							"value": {
+								S: aws.String("some value"),
+							},
+							"etag": {
+								S: aws.String("1bdead4badc0ffee"),
+							},
+						},
+					}, nil
+				},
+			},
+		}
+		req := &state.GetRequest{
+			Key: "someKey",
+			Metadata: map[string]string{
+				metadataPartitionKey: pkey,
+			},
+			Options: state.GetStateOption{
+				Consistency: "strong",
+			},
+		}
+		out, err := ss.Get(context.Background(), req)
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("some value"), out.Data)
+		assert.Equal(t, "1bdead4badc0ffee", *out.ETag)
+	})
 }
 
 func TestSet(t *testing.T) {

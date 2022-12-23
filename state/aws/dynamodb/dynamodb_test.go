@@ -1213,4 +1213,57 @@ func TestBulkDelete(t *testing.T) {
 		err := ss.BulkDelete(context.Background(), req)
 		assert.NotNil(t, err)
 	})
+	t.Run("Successfully delete items with metadata partition key", func(t *testing.T) {
+		tableName := "table_name"
+		pkey := "partitionKey"
+		ss := StateStore{
+			client: &mockedDynamoDB{
+				BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {
+					expected := map[string][]*dynamodb.WriteRequest{}
+					expected[tableName] = []*dynamodb.WriteRequest{
+						{
+							DeleteRequest: &dynamodb.DeleteRequest{
+								Key: map[string]*dynamodb.AttributeValue{
+									"key": {
+										S: aws.String(pkey),
+									},
+								},
+							},
+						},
+						{
+							DeleteRequest: &dynamodb.DeleteRequest{
+								Key: map[string]*dynamodb.AttributeValue{
+									"key": {
+										S: aws.String(pkey),
+									},
+								},
+							},
+						},
+					}
+					assert.Equal(t, expected, input.RequestItems)
+
+					return &dynamodb.BatchWriteItemOutput{
+						UnprocessedItems: map[string][]*dynamodb.WriteRequest{},
+					}, nil
+				},
+			},
+			table: tableName,
+		}
+		req := []state.DeleteRequest{
+			{
+				Key: "key1",
+				Metadata: map[string]string{
+					metadataPartitionKey: pkey,
+				},
+			},
+			{
+				Key: "key2",
+				Metadata: map[string]string{
+					metadataPartitionKey: pkey,
+				},
+			},
+		}
+		err := ss.BulkDelete(context.Background(), req)
+		assert.Nil(t, err)
+	})
 }

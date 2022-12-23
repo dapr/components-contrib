@@ -46,6 +46,11 @@ type DynamoDBItem struct {
 	TestAttributeName int64  `json:"testAttributeName"`
 }
 
+const (
+	tableName = "table_name"
+	pkey      = "partitionKey"
+)
+
 func (m *mockedDynamoDB) GetItemWithContext(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (*dynamodb.GetItemOutput, error) {
 	return m.GetItemWithContextFn(ctx, input, op...)
 }
@@ -269,7 +274,6 @@ func TestGet(t *testing.T) {
 		assert.Empty(t, out.Data)
 	})
 	t.Run("Successfully retrieve item with metadata partition key", func(t *testing.T) {
-		pkey := "partitionKey"
 		ss := StateStore{
 			client: &mockedDynamoDB{
 				GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (output *dynamodb.GetItemOutput, err error) {
@@ -660,7 +664,6 @@ func TestSet(t *testing.T) {
 		assert.Equal(t, "dynamodb error: failed to parse ttlInSeconds: strconv.ParseInt: parsing \"invalidvalue\": invalid syntax", err.Error())
 	})
 	t.Run("Successfully set item with metadata partition key", func(t *testing.T) {
-		pkey := "partitionKey"
 		ss := StateStore{
 			client: &mockedDynamoDB{
 				PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
@@ -694,7 +697,6 @@ func TestSet(t *testing.T) {
 		err := ss.Set(context.Background(), req)
 		assert.Nil(t, err)
 	})
-
 }
 
 func TestBulkSet(t *testing.T) {
@@ -703,7 +705,6 @@ func TestBulkSet(t *testing.T) {
 	}
 
 	t.Run("Successfully set items", func(t *testing.T) {
-		tableName := "table_name"
 		ss := StateStore{
 			client: &mockedDynamoDB{
 				BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {
@@ -770,7 +771,6 @@ func TestBulkSet(t *testing.T) {
 		assert.Nil(t, err)
 	})
 	t.Run("Successfully set items with ttl = -1", func(t *testing.T) {
-		tableName := "table_name"
 		ss := StateStore{
 			client: &mockedDynamoDB{
 				BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {
@@ -843,7 +843,6 @@ func TestBulkSet(t *testing.T) {
 		assert.Nil(t, err)
 	})
 	t.Run("Successfully set items with ttl", func(t *testing.T) {
-		tableName := "table_name"
 		ss := StateStore{
 			client: &mockedDynamoDB{
 				BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {
@@ -943,8 +942,6 @@ func TestBulkSet(t *testing.T) {
 		assert.NotNil(t, err)
 	})
 	t.Run("Successfully set items  with metadata partition key", func(t *testing.T) {
-		tableName := "table_name"
-		pkey := "partitionKey"
 		ss := StateStore{
 			client: &mockedDynamoDB{
 				BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {
@@ -1120,7 +1117,6 @@ func TestDelete(t *testing.T) {
 	})
 
 	t.Run("Successfully delete item  with metadata partition key", func(t *testing.T) {
-		pkey := "partitionKey"
 		req := &state.DeleteRequest{
 			Key: "key",
 			Metadata: map[string]string{
@@ -1144,12 +1140,10 @@ func TestDelete(t *testing.T) {
 		err := ss.Delete(context.Background(), req)
 		assert.Nil(t, err)
 	})
-
 }
 
 func TestBulkDelete(t *testing.T) {
 	t.Run("Successfully delete items", func(t *testing.T) {
-		tableName := "table_name"
 		ss := StateStore{
 			client: &mockedDynamoDB{
 				BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {
@@ -1214,8 +1208,6 @@ func TestBulkDelete(t *testing.T) {
 		assert.NotNil(t, err)
 	})
 	t.Run("Successfully delete items with metadata partition key", func(t *testing.T) {
-		tableName := "table_name"
-		pkey := "partitionKey"
 		ss := StateStore{
 			client: &mockedDynamoDB{
 				BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {

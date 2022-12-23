@@ -1,0 +1,21 @@
+# This wrangler.toml is only used during local development
+# Dapr interacts with the Cloudflare APIs directly and doesn't use Wrangler, hence it doesn't use this file
+name = "daprdemo"
+main = "worker.ts"
+compatibility_date = "2022-12-09"
+usage_model = "bundled"
+
+[vars]
+PUBLIC_KEY = ""
+TOKEN_AUDIENCE = ""
+SKIP_AUTH = "true"
+
+[[kv_namespaces]]
+binding = "daprkv"
+# Fill these with the namespace you create
+id = "..."
+preview_id = "..."
+
+[[queues.producers]]
+  queue = "daprdemo"
+  binding = "daprdemo"

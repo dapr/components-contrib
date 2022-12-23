@@ -44,7 +44,7 @@ type tlsCfg struct {
 
 const (
 	// Keys
-	amqpUrl        = "url"
+	amqpURL        = "url"
 	anonymous      = "anonymous"
 	username       = "username"
 	password       = "password"
@@ -65,7 +65,7 @@ func parseAMQPMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error)
 	m := metadata{anonymous: false}
 
 	// required configuration settings
-	if val, ok := md.Properties[amqpUrl]; ok && val != "" {
+	if val, ok := md.Properties[amqpURL]; ok && val != "" {
 		m.url = val
 	} else {
 		return &m, fmt.Errorf("%s missing url", errorMsgPrefix)
@@ -81,7 +81,6 @@ func parseAMQPMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error)
 	}
 
 	if !m.anonymous {
-
 		if val, ok := md.Properties[username]; ok && val != "" {
 			m.username = val
 		} else {

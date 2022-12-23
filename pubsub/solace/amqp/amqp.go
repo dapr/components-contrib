@@ -26,6 +26,7 @@ import (
 	time "time"
 
 	amqp "github.com/Azure/go-amqp"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -37,7 +38,7 @@ const (
 
 // amqpPubSub type allows sending and receiving data to/from an AMQP 1.0 broker
 type amqpPubSub struct {
-	session           amqp.Session
+	session           *amqp.Session
 	metadata          *metadata
 	logger            logger.Logger
 	publishLock       sync.RWMutex
@@ -66,12 +67,11 @@ func (a *amqpPubSub) Init(metadata pubsub.Metadata) error {
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 
 	s, err := a.connect()
-
 	if err != nil {
 		return err
 	}
 
-	a.session = *s
+	a.session = s
 
 	return err
 }
@@ -79,7 +79,7 @@ func (a *amqpPubSub) Init(metadata pubsub.Metadata) error {
 func AddPrefixToAddress(t string) string {
 	dest := t
 
-	//Unless the request comes in to publish on a queue, publish directly on a topic
+	// Unless the request comes in to publish on a queue, publish directly on a topic
 	if !strings.HasPrefix(dest, "queue:") && !strings.HasPrefix(dest, "topic:") {
 		dest = "topic://" + dest
 	} else if strings.HasPrefix(dest, "queue:") {
@@ -93,7 +93,6 @@ func AddPrefixToAddress(t string) string {
 
 // Publish the topic to amqp pubsub
 func (a *amqpPubSub) Publish(req *pubsub.PublishRequest) error {
-
 	a.publishLock.Lock()
 	defer a.publishLock.Unlock()
 
@@ -105,7 +104,7 @@ func (a *amqpPubSub) Publish(req *pubsub.PublishRequest) error {
 
 	m := amqp.NewMessage(req.Data)
 
-	//If the request has ttl specified, put it on the message header
+	// If the request has ttl specified, put it on the message header
 	ttlProp := req.Metadata["ttlInSeconds"]
 	if ttlProp != "" {
 		ttlInSeconds, err := strconv.Atoi(ttlProp)
@@ -123,10 +122,9 @@ func (a *amqpPubSub) Publish(req *pubsub.PublishRequest) error {
 	if err != nil {
 		a.logger.Errorf("Unable to create link to %s", req.Topic, err)
 	} else {
-
 		err = sender.Send(a.ctx, m)
 
-		//If the publish operation has failed, attemp to republish a maximum number of times
+		// If the publish operation has failed, attempt to republish a maximum number of times
 		// before giving up
 		if err != nil {
 			for a.publishRetryCount <= publishMaxRetries {
@@ -144,11 +142,9 @@ func (a *amqpPubSub) Publish(req *pubsub.PublishRequest) error {
 	}
 
 	return err
-
 }
 
 func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-
 	prefixedTopic := AddPrefixToAddress(req.Topic)
 
 	receiver, err := a.session.NewReceiver(
@@ -163,7 +159,6 @@ func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	}
 
 	return err
-
 }
 
 // function that subscribes to a queue in a tight loop
@@ -173,10 +168,9 @@ func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiv
 		msg, err := receiver.Receive(ctx)
 
 		if msg != nil {
-
 			data := msg.GetData()
 
-			//if data is empty, then check the value field for data
+			// if data is empty, then check the value field for data
 			if data == nil || len(data) == 0 {
 				data = []byte(fmt.Sprint(msg.Value))
 			}
@@ -204,11 +198,9 @@ func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiv
 				err := receiver.RejectMessage(ctx, msg, nil)
 				if err != nil {
 					a.logger.Errorf("failed to NAK a message")
-
 				}
 			}
 		}
-
 	}
 }
 
@@ -234,7 +226,6 @@ func (a *amqpPubSub) connect() (*amqp.Session, error) {
 	}
 
 	return session, nil
-
 }
 
 func (a *amqpPubSub) newTLSConfig() *tls.Config {
@@ -261,7 +252,6 @@ func (a *amqpPubSub) newTLSConfig() *tls.Config {
 }
 
 func (a *amqpPubSub) createClientOptions(uri *url.URL) []amqp.ConnOption {
-
 	var opts []amqp.ConnOption
 
 	scheme := uri.Scheme
@@ -270,14 +260,11 @@ func (a *amqpPubSub) createClientOptions(uri *url.URL) []amqp.ConnOption {
 	case "amqp":
 		if a.metadata.anonymous == true {
 			opts = append(opts, amqp.ConnSASLAnonymous())
-
 		} else {
 			opts = append(opts, amqp.ConnSASLPlain(a.metadata.username, a.metadata.password))
 		}
 	case "amqps":
-		opts = append(opts, amqp.ConnSASLPlain(a.metadata.username, a.metadata.password))
-		opts = append(opts, amqp.ConnTLS(true))
-		opts = append(opts, amqp.ConnTLSConfig(a.newTLSConfig()))
+		opts = append(opts, amqp.ConnSASLPlain(a.metadata.username, a.metadata.password), amqp.ConnTLS((true)), amqp.ConnTLSConfig(a.newTLSConfig()))
 	}
 
 	return opts
@@ -290,12 +277,10 @@ func (a *amqpPubSub) Close() error {
 	defer a.publishLock.Unlock()
 
 	err := a.session.Close(a.ctx)
-
 	if err != nil {
 		a.logger.Warnf("failed to close the connection.", err)
 	}
 	return err
-
 }
 
 // Feature list for AMQP PubSub

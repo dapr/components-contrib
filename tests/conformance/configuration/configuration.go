@@ -60,6 +60,7 @@ func getKeys(mymap map[string]*configuration.Item) []string {
 	return keys
 }
 
+// Generates key-value pairs
 func generateKeyValues(runID string, counter int, keyCount int, version string) map[string]*configuration.Item {
 	m := make(map[string]*configuration.Item, keyCount)
 	for k := counter; k < counter+keyCount; k++ {
@@ -74,6 +75,7 @@ func generateKeyValues(runID string, counter int, keyCount int, version string) 
 	return m
 }
 
+// Updates `mymap` with new values for every key
 func updateKeyValues(mymap map[string]*configuration.Item, runID string, counter int, version string) map[string]*configuration.Item {
 	m := make(map[string]*configuration.Item, len(mymap))
 	k := counter
@@ -110,31 +112,28 @@ func getStringItem(item *configuration.Item) string {
 
 func ConformanceTests(t *testing.T, props map[string]string, store configuration.Store, updater configupdater.Updater, config TestConfig) {
 
+	var subscribeIDs []string
 	initValues := make(map[string]*configuration.Item)
-
 	runID := uuid.Must(uuid.NewRandom()).String()
 	counter := 0
 
 	awaitingMessages1 := make(map[string]map[string]struct{}, keyCount*4)
 	awaitingMessages2 := make(map[string]map[string]struct{}, keyCount*4)
-
 	processedC1 := make(chan *configuration.UpdateEvent, keyCount*4)
 	processedC2 := make(chan *configuration.UpdateEvent, keyCount*4)
-
-	var subscribeIDs []string
 
 	t.Run("init", func(t *testing.T) {
 		err := store.Init(configuration.Metadata{
 			Base: metadata.Base{Properties: props},
 		})
 		assert.Nil(t, err)
-
+		// Initializing config updater
 		err = updater.Init(props)
 		assert.Nil(t, err)
 	})
 
 	t.Run("insert initial keys", func(t *testing.T) {
-		//Insert initial keys
+		//Insert initial key values in config store
 		initValues = generateKeyValues(runID, counter, keyCount, v1)
 		err := updater.AddKey(initValues)
 		assert.NoError(t, err, "expected no error on adding keys")
@@ -172,6 +171,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 	if config.HasOperation("subscribe") {
 		t.Run("subscribe with non-empty keys", func(t *testing.T) {
 			keys := getKeys(initValues)
+			// Subscriber 1
 			Id1, err := store.Subscribe(context.Background(),
 				&configuration.SubscribeRequest{
 					Keys:     keys,
@@ -187,6 +187,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 
 		t.Run("subscribe with empty keys", func(t *testing.T) {
 			keys := []string{}
+			// Subscriber 2
 			Id2, err := store.Subscribe(context.Background(),
 				&configuration.SubscribeRequest{
 					Keys:     keys,
@@ -280,7 +281,6 @@ func verifyMessages(t *testing.T, processedChan chan *configuration.UpdateEvent,
 				assert.True(t, keyExists)
 
 				stringReceivedItem := getStringItem(receivedItem)
-
 				_, itemExists := items[stringReceivedItem]
 				assert.True(t, itemExists)
 
@@ -296,5 +296,4 @@ func verifyMessages(t *testing.T, processedChan chan *configuration.UpdateEvent,
 		}
 	}
 	assert.Empty(t, awaitingMessages, "expected to read all subscribed configuration updates")
-
 }

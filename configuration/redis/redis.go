@@ -265,32 +265,34 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 
 func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
 	subscribeID := uuid.New().String()
+	keyStopChanMap := make(map[string]chan struct{})
 	if len(req.Keys) == 0 {
 		// subscribe all keys
 		stop := make(chan struct{})
-		r.subscribeStopChanMap.Store(subscribeID, stop)
+		keyStopChanMap[keySpaceAny] = stop
 		go r.doSubscribe(ctx, req, handler, keySpaceAny, subscribeID, stop)
+		r.subscribeStopChanMap.Store(subscribeID, keyStopChanMap)
 		return subscribeID, nil
 	}
+
 	for _, k := range req.Keys {
 		// subscribe single key
 		stop := make(chan struct{})
 		keySpacePrefixAndKey := keySpacePrefix + k
-		if oldStopChan, ok := r.subscribeStopChanMap.Load(keySpacePrefixAndKey); ok {
-			// already exist subscription
-			close(oldStopChan.(chan struct{}))
-		}
-		r.subscribeStopChanMap.Store(subscribeID, stop)
+		keyStopChanMap[keySpacePrefixAndKey] = stop
 		go r.doSubscribe(ctx, req, handler, keySpacePrefixAndKey, subscribeID, stop)
 	}
+	r.subscribeStopChanMap.Store(subscribeID, keyStopChanMap)
 	return subscribeID, nil
 }
 
 func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnsubscribeRequest) error {
-	if oldStopChan, ok := r.subscribeStopChanMap.Load(req.ID); ok {
+	if keyStopChanMap, ok := r.subscribeStopChanMap.Load(req.ID); ok {
 		// already exist subscription
+		for _, stop := range keyStopChanMap.(map[string]chan struct{}) {
+			close(stop)
+		}
 		r.subscribeStopChanMap.Delete(req.ID)
-		close(oldStopChan.(chan struct{}))
 		return nil
 	}
 	return fmt.Errorf("subscription with id %s does not exist", req.ID)
@@ -305,6 +307,7 @@ func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 	} else {
 		p = r.client.Subscribe(ctx, redisChannel4revision)
 	}
+	defer p.Close()
 	for {
 		select {
 		case <-stop:

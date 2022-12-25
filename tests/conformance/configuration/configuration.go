@@ -31,7 +31,8 @@ import (
 const (
 	keyCount               = 10
 	v1                     = "1.0.0"
-	defaultMaxReadDuration = 60 * time.Second
+	defaultMaxReadDuration = 30 * time.Second
+	defaultWaitDuration    = 5 * time.Second
 )
 
 type TestConfig struct {
@@ -197,6 +198,10 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 				})
 			assert.NoError(t, err, "expected no error on subscribe")
 			subscribeIDs = append(subscribeIDs, Id2)
+		})
+
+		t.Run("wait", func(t *testing.T) {
+			time.Sleep(defaultWaitDuration)
 		})
 
 		t.Run("Update Keys/Add new keys", func(t *testing.T) {

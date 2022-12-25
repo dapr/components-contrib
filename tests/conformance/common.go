@@ -439,7 +439,10 @@ func loadConfigurationStore(tc TestComponent) (configuration.Store, configupdate
 	var store configuration.Store
 	var updater configupdater.Updater
 	switch tc.Component {
-	case "redis":
+	case redisv6:
+		store = c_redis.NewRedisConfigurationStore(testLogger)
+		updater = cu_redis.NewRedisConfigUpdater(testLogger)
+	case redisv7:
 		store = c_redis.NewRedisConfigurationStore(testLogger)
 		updater = cu_redis.NewRedisConfigUpdater(testLogger)
 	default:

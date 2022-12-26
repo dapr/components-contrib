@@ -20,12 +20,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/dapr/components-contrib/configuration"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 	"github.com/dapr/components-contrib/tests/utils/configupdater"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -127,7 +128,6 @@ func getStringItem(item *configuration.Item) string {
 }
 
 func ConformanceTests(t *testing.T, props map[string]string, store configuration.Store, updater configupdater.Updater, config TestConfig) {
-
 	var subscribeIDs []string
 	initValues1 := make(map[string]*configuration.Item)
 	initValues2 := make(map[string]*configuration.Item)
@@ -154,7 +154,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 	})
 
 	t.Run("insert initial keys", func(t *testing.T) {
-		//Insert initial key values in config store
+
 		initValues1, counter = generateKeyValues(runID, counter, keyCount, v1)
 		initValues2, counter = generateKeyValues(runID, counter, keyCount, v1)
 		initValues = mergeMaps(initValues1, initValues2)
@@ -241,11 +241,11 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 		})
 
 		t.Run("update key values and verify messages received", func(t *testing.T) {
-			//Update initValues1
+
 			initValues1, counter = updateKeyValues(initValues1, runID, counter, v1)
 			errUpdate1 := updater.UpdateKey(initValues1)
 			assert.NoError(t, errUpdate1, "expected no error on updating keys")
-			//All subscribers should receive these updates
+
 			updateAwaitingMessages(awaitingMessages1, initValues1)
 			updateAwaitingMessages(awaitingMessages2, initValues1)
 			updateAwaitingMessages(awaitingMessages3, initValues1)
@@ -254,15 +254,15 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			initValues2, counter = updateKeyValues(initValues2, runID, counter, v1)
 			errUpdate2 := updater.UpdateKey(initValues2)
 			assert.NoError(t, errUpdate2, "expected no error on updating keys")
-			//Only Subscriber 2 and 3 should receive these updates
+
 			updateAwaitingMessages(awaitingMessages2, initValues2)
 			updateAwaitingMessages(awaitingMessages3, initValues2)
 
-			//Add new keys
+
 			newValues, counter = generateKeyValues(runID, counter, keyCount, v1)
 			errAdd := updater.AddKey(newValues)
 			assert.NoError(t, errAdd, "expected no error on adding new keys")
-			//Only Subscriber 3 should receive these updates
+
 			updateAwaitingMessages(awaitingMessages3, newValues)
 
 			verifyMessagesReceived(t, setOperation, processedC1, awaitingMessages1)
@@ -277,7 +277,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			for k := range initValues2 {
 				initValues2[k] = nil
 			}
-			//Only Subscriber 2 and 3 should receive thse updates
+
 			updateAwaitingMessages(awaitingMessages2, initValues2)
 			updateAwaitingMessages(awaitingMessages3, initValues2)
 

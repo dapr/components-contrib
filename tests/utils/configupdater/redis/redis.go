@@ -5,10 +5,11 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/go-redis/redis/v8"
+
 	"github.com/dapr/components-contrib/configuration"
 	"github.com/dapr/components-contrib/tests/utils/configupdater"
 	"github.com/dapr/kit/logger"
-	"github.com/go-redis/redis/v8"
 )
 
 const (

@@ -154,7 +154,6 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 	})
 
 	t.Run("insert initial keys", func(t *testing.T) {
-
 		initValues1, counter = generateKeyValues(runID, counter, keyCount, v1)
 		initValues2, counter = generateKeyValues(runID, counter, keyCount, v1)
 		initValues = mergeMaps(initValues1, initValues2)
@@ -241,7 +240,6 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 		})
 
 		t.Run("update key values and verify messages received", func(t *testing.T) {
-
 			initValues1, counter = updateKeyValues(initValues1, runID, counter, v1)
 			errUpdate1 := updater.UpdateKey(initValues1)
 			assert.NoError(t, errUpdate1, "expected no error on updating keys")
@@ -257,7 +255,6 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 
 			updateAwaitingMessages(awaitingMessages2, initValues2)
 			updateAwaitingMessages(awaitingMessages3, initValues2)
-
 
 			newValues, counter = generateKeyValues(runID, counter, keyCount, v1)
 			errAdd := updater.AddKey(newValues)

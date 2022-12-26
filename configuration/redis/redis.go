@@ -336,11 +336,11 @@ func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *co
 		}
 	} else {
 		// get all keys if only one is changed
-		getResponse, err := r.Get(ctx, &configuration.GetRequest{
+		getResponse, errGet := r.Get(ctx, &configuration.GetRequest{
 			Metadata: req.Metadata,
 			Keys:     []string{targetKey},
 		})
-		if err != nil {
+		if errGet != nil {
 			r.logger.Errorf("get response from redis failed: %s", err)
 			return
 		}

@@ -60,10 +60,22 @@ func getKeys(mymap map[string]*configuration.Item) []string {
 	return keys
 }
 
+func mergeMaps(map1, map2 map[string]*configuration.Item) map[string]*configuration.Item {
+	ret := make(map[string]*configuration.Item)
+	for key, val := range map1 {
+		ret[key] = val
+	}
+	for key, val := range map2 {
+		ret[key] = val
+	}
+	return ret
+}
+
 // Generates key-value pairs
-func generateKeyValues(runID string, counter int, keyCount int, version string) map[string]*configuration.Item {
+func generateKeyValues(runID string, counter int, keyCount int, version string) (map[string]*configuration.Item, int) {
 	m := make(map[string]*configuration.Item, keyCount)
-	for k := counter; k < counter+keyCount; k++ {
+	k := counter
+	for ; k < counter+keyCount; k++ {
 		key := runID + "-key-" + strconv.Itoa(k)
 		val := runID + "-val-" + strconv.Itoa(k)
 		m[key] = &configuration.Item{
@@ -72,11 +84,11 @@ func generateKeyValues(runID string, counter int, keyCount int, version string) 
 			Metadata: map[string]string{},
 		}
 	}
-	return m
+	return m, k
 }
 
 // Updates `mymap` with new values for every key
-func updateKeyValues(mymap map[string]*configuration.Item, runID string, counter int, version string) map[string]*configuration.Item {
+func updateKeyValues(mymap map[string]*configuration.Item, runID string, counter int, version string) (map[string]*configuration.Item, int) {
 	m := make(map[string]*configuration.Item, len(mymap))
 	k := counter
 	for key := range mymap {
@@ -88,10 +100,10 @@ func updateKeyValues(mymap map[string]*configuration.Item, runID string, counter
 		}
 		k++
 	}
-	return m
+	return m, k
 }
 
-func updateAwaitingMessages(awaitingMessages map[string]map[string]struct{}, updatedValues map[string]*configuration.Item) map[string]map[string]struct{} {
+func updateAwaitingMessages(awaitingMessages map[string]map[string]struct{}, updatedValues map[string]*configuration.Item) {
 	for key, val := range updatedValues {
 		if _, ok := awaitingMessages[key]; !ok {
 			awaitingMessages[key] = make(map[string]struct{})
@@ -99,7 +111,6 @@ func updateAwaitingMessages(awaitingMessages map[string]map[string]struct{}, upd
 		valString := getStringItem(val)
 		awaitingMessages[key][valString] = struct{}{}
 	}
-	return awaitingMessages
 }
 
 func getStringItem(item *configuration.Item) string {
@@ -113,14 +124,19 @@ func getStringItem(item *configuration.Item) string {
 func ConformanceTests(t *testing.T, props map[string]string, store configuration.Store, updater configupdater.Updater, config TestConfig) {
 
 	var subscribeIDs []string
+	initValues1 := make(map[string]*configuration.Item)
+	initValues2 := make(map[string]*configuration.Item)
 	initValues := make(map[string]*configuration.Item)
+	newValues := make(map[string]*configuration.Item)
 	runID := uuid.Must(uuid.NewRandom()).String()
 	counter := 0
 
 	awaitingMessages1 := make(map[string]map[string]struct{}, keyCount*4)
 	awaitingMessages2 := make(map[string]map[string]struct{}, keyCount*4)
+	awaitingMessages3 := make(map[string]map[string]struct{}, keyCount*4)
 	processedC1 := make(chan *configuration.UpdateEvent, keyCount*4)
 	processedC2 := make(chan *configuration.UpdateEvent, keyCount*4)
+	processedC3 := make(chan *configuration.UpdateEvent, keyCount*4)
 
 	t.Run("init", func(t *testing.T) {
 		err := store.Init(configuration.Metadata{
@@ -134,15 +150,16 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 
 	t.Run("insert initial keys", func(t *testing.T) {
 		//Insert initial key values in config store
-		initValues = generateKeyValues(runID, counter, keyCount, v1)
+		initValues1, counter = generateKeyValues(runID, counter, keyCount, v1)
+		initValues2, counter = generateKeyValues(runID, counter, keyCount, v1)
+		initValues = mergeMaps(initValues1, initValues2)
 		err := updater.AddKey(initValues)
 		assert.NoError(t, err, "expected no error on adding keys")
-		counter += keyCount
 	})
 
 	if config.HasOperation("get") {
-		t.Run("get with non-empty keys", func(t *testing.T) {
-			keys := getKeys(initValues)
+		t.Run("get with non-empty key list", func(t *testing.T) {
+			keys := getKeys(initValues1)
 
 			req := &configuration.GetRequest{
 				Keys:     keys,
@@ -151,10 +168,10 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 
 			resp, err := store.Get(context.Background(), req)
 			assert.Nil(t, err)
-			assert.Equal(t, initValues, resp.Items)
+			assert.Equal(t, initValues1, resp.Items)
 		})
 
-		t.Run("get with empty keys", func(t *testing.T) {
+		t.Run("get with empty key list", func(t *testing.T) {
 			keys := []string{}
 
 			req := &configuration.GetRequest{
@@ -169,10 +186,9 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 	}
 
 	if config.HasOperation("subscribe") {
-		t.Run("subscribe with non-empty keys", func(t *testing.T) {
-			keys := getKeys(initValues)
-			// Subscriber 1
-			Id1, err := store.Subscribe(context.Background(),
+		t.Run("subscriber 1 with non-empty key list", func(t *testing.T) {
+			keys := getKeys(initValues1)
+			ID, err := store.Subscribe(context.Background(),
 				&configuration.SubscribeRequest{
 					Keys:     keys,
 					Metadata: make(map[string]string),
@@ -182,13 +198,12 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 					return nil
 				})
 			assert.NoError(t, err, "expected no error on subscribe")
-			subscribeIDs = append(subscribeIDs, Id1)
+			subscribeIDs = append(subscribeIDs, ID)
 		})
 
-		t.Run("subscribe with empty keys", func(t *testing.T) {
-			keys := []string{}
-			// Subscriber 2
-			Id2, err := store.Subscribe(context.Background(),
+		t.Run("subscriber 2 with non-empty key list", func(t *testing.T) {
+			keys := getKeys(initValues)
+			ID, err := store.Subscribe(context.Background(),
 				&configuration.SubscribeRequest{
 					Keys:     keys,
 					Metadata: make(map[string]string),
@@ -198,79 +213,137 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 					return nil
 				})
 			assert.NoError(t, err, "expected no error on subscribe")
-			subscribeIDs = append(subscribeIDs, Id2)
+			subscribeIDs = append(subscribeIDs, ID)
+		})
+
+		t.Run("subscriber 3 with empty key list", func(t *testing.T) {
+			keys := []string{}
+			ID, err := store.Subscribe(context.Background(),
+				&configuration.SubscribeRequest{
+					Keys:     keys,
+					Metadata: make(map[string]string),
+				},
+				func(ctx context.Context, e *configuration.UpdateEvent) error {
+					processedC3 <- e
+					return nil
+				})
+			assert.NoError(t, err, "expected no error on subscribe")
+			subscribeIDs = append(subscribeIDs, ID)
 		})
 
 		t.Run("wait", func(t *testing.T) {
 			time.Sleep(defaultWaitDuration)
 		})
 
-		t.Run("Update Keys/Add new keys", func(t *testing.T) {
-			//Update existing keys
-			updatedValues := updateKeyValues(initValues, runID, counter, v1)
-			counter += len(initValues)
-			errUpdate := updater.UpdateKey(updatedValues)
-			assert.NoError(t, errUpdate, "expected no error on updating keys")
-			//Both Subscriber should receive these updates
-			awaitingMessages1 = updateAwaitingMessages(awaitingMessages1, updatedValues)
-			awaitingMessages2 = updateAwaitingMessages(awaitingMessages2, updatedValues)
+		t.Run("update key values and verify messages received", func(t *testing.T) {
+			//Update initValues1
+			initValues1, counter = updateKeyValues(initValues1, runID, counter, v1)
+			errUpdate1 := updater.UpdateKey(initValues1)
+			assert.NoError(t, errUpdate1, "expected no error on updating keys")
+			//All subscribers should receive these updates
+			updateAwaitingMessages(awaitingMessages1, initValues1)
+			updateAwaitingMessages(awaitingMessages2, initValues1)
+			updateAwaitingMessages(awaitingMessages3, initValues1)
+
+			// Update initValues2
+			initValues2, counter = updateKeyValues(initValues2, runID, counter, v1)
+			errUpdate2 := updater.UpdateKey(initValues2)
+			assert.NoError(t, errUpdate2, "expected no error on updating keys")
+			//Only Subscriber 2 and 3 should receive these updates
+			updateAwaitingMessages(awaitingMessages2, initValues2)
+			updateAwaitingMessages(awaitingMessages3, initValues2)
 
 			//Add new keys
-			newValues := generateKeyValues(runID, counter, keyCount, v1)
-			counter += keyCount
+			newValues, counter = generateKeyValues(runID, counter, keyCount, v1)
 			errAdd := updater.AddKey(newValues)
 			assert.NoError(t, errAdd, "expected no error on adding new keys")
-			//Only Subscriber 2 should receive these messages
-			awaitingMessages2 = updateAwaitingMessages(awaitingMessages2, newValues)
-		})
+			//Only Subscriber 3 should receive these updates
+			updateAwaitingMessages(awaitingMessages3, newValues)
 
-		t.Run("verify messages received for non-empty keys", func(t *testing.T) {
-			verifyMessages(t, processedC1, awaitingMessages1)
-		})
-
-		t.Run("verify messages received for empty keys", func(t *testing.T) {
-			verifyMessages(t, processedC2, awaitingMessages2)
+			verifyMessagesReceived(t, processedC1, awaitingMessages1)
+			verifyMessagesReceived(t, processedC2, awaitingMessages2)
+			verifyMessagesReceived(t, processedC3, awaitingMessages3)
 		})
 	}
 
 	if config.HasOperation("unsubscribe") {
-		t.Run("Unsubscribe from all subscriptions", func(t *testing.T) {
-			for _, id := range subscribeIDs {
-				err := store.Unsubscribe(context.Background(),
-					&configuration.UnsubscribeRequest{
-						ID: id,
-					},
-				)
-				assert.NoError(t, err, "expected no error in unsubscribe")
-			}
+		t.Run("unsubscribe subscriber 1", func(t *testing.T) {
+			ID1 := subscribeIDs[0]
+			err := store.Unsubscribe(context.Background(),
+				&configuration.UnsubscribeRequest{
+					ID: ID1,
+				},
+			)
+			assert.NoError(t, err, "expected no error in unsubscribe")
 		})
 
-		//Update existing keys
-		t.Run("Update keys again", func(t *testing.T) {
-			updatedValues := updateKeyValues(initValues, runID, counter, v1)
-			counter += len(initValues)
-			errUpdate := updater.UpdateKey(updatedValues)
+		t.Run("update key values and verify subscriber 1 receives no messages", func(t *testing.T) {
+			initValues1, counter = updateKeyValues(initValues1, runID, counter, v1)
+			errUpdate := updater.UpdateKey(initValues1)
 			assert.NoError(t, errUpdate, "expected no error on updating keys")
+
+			updateAwaitingMessages(awaitingMessages2, initValues1)
+			updateAwaitingMessages(awaitingMessages3, initValues1)
+
+			verifyMessagesReceived(t, processedC2, awaitingMessages2)
+			verifyMessagesReceived(t, processedC3, awaitingMessages3)
+			verifyNoMessagesReceived(t, processedC1)
 		})
 
-		t.Run("verify no messages received after unsubscribe", func(t *testing.T) {
-			waiting := true
-			timeout := time.After(defaultMaxReadDuration)
-			for waiting {
-				select {
-				case <-processedC1:
-					assert.FailNow(t, "expected no messages after unsubscribe")
-				case <-processedC2:
-					assert.FailNow(t, "expected no messages after unsubscribe")
-				case <-timeout:
-					waiting = false
-				}
-			}
+		t.Run("unsubscribe subscriber 2", func(t *testing.T) {
+			ID2 := subscribeIDs[1]
+			err := store.Unsubscribe(context.Background(),
+				&configuration.UnsubscribeRequest{
+					ID: ID2,
+				},
+			)
+			assert.NoError(t, err, "expected no error in unsubscribe")
+		})
+
+		t.Run("update key values and verify subscriber 2 receives no messages", func(t *testing.T) {
+			initValues1, counter = updateKeyValues(initValues1, runID, counter, v1)
+			errUpdate := updater.UpdateKey(initValues1)
+			assert.NoError(t, errUpdate, "expected no error on updating keys")
+
+			updateAwaitingMessages(awaitingMessages3, initValues1)
+
+			verifyMessagesReceived(t, processedC3, awaitingMessages3)
+			verifyNoMessagesReceived(t, processedC2)
+		})
+
+		t.Run("unsubscribe subscriber 3", func(t *testing.T) {
+			ID3 := subscribeIDs[2]
+			err := store.Unsubscribe(context.Background(),
+				&configuration.UnsubscribeRequest{
+					ID: ID3,
+				},
+			)
+			assert.NoError(t, err, "expected no error in unsubscribe")
+		})
+
+		t.Run("update key values and verify subscriber 3 receives no messages", func(t *testing.T) {
+			initValues1, counter = updateKeyValues(initValues1, runID, counter, v1)
+			errUpdate := updater.UpdateKey(initValues1)
+			assert.NoError(t, errUpdate, "expected no error on updating keys")
+
+			verifyNoMessagesReceived(t, processedC3)
 		})
 	}
 }
 
-func verifyMessages(t *testing.T, processedChan chan *configuration.UpdateEvent, awaitingMessages map[string]map[string]struct{}) {
+func verifyNoMessagesReceived(t *testing.T, processedChan chan *configuration.UpdateEvent) {
+	waiting := true
+	timeout := time.After(defaultMaxReadDuration)
+	for waiting {
+		select {
+		case <-processedChan:
+			assert.FailNow(t, "expected no messages after unsubscribe")
+		case <-timeout:
+			waiting = false
+		}
+	}
+}
+func verifyMessagesReceived(t *testing.T, processedChan chan *configuration.UpdateEvent, awaitingMessages map[string]map[string]struct{}) {
 	waiting := true
 	timeout := time.After(defaultMaxReadDuration)
 	for waiting {

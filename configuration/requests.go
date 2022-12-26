@@ -39,6 +39,7 @@ type UnsubscribeRequest struct {
 
 // UpdateEvent is the object describing a configuration update event.
 type UpdateEvent struct {
-	ID    string           `json:"id"`
-	Items map[string]*Item `json:"items"`
+	ID        string           `json:"id"`
+	Operation string           `json:"operation"`
+	Items     map[string]*Item `json:"items"`
 }

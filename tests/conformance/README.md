@@ -181,7 +181,7 @@ terraform framework we have in place. To enable your component test to use terra
 
 ## Adding new AWS component in github actions
 
-1. For tests involving aws components we use a service account to provision the resources needed. If you are contributing a brand new component you will need to make sure our account has sufficient permissions to provision resources and use handle component. A Dapr STC/Maintainer will have to update the service account so contact them for assistance.
+1. For tests involving aws components we use a service account to provision the resources needed. If you are contributing a brand new component you will need to make sure our account has sufficient permissions to provision resources and use handle component. A Dapr STC member will have to update the service account so contact them for assistance.
 
 2. In your component yaml for your tests you should set the component metadata properties `accesskey` and `secretkey` to the values of `${{AWS_ACCESS_KEY_ID}}` and `${{AWS_SECRET_ACCESS_KEY}}`. These env values will contain the credentials for the testing service account.
 

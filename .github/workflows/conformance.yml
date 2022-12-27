@@ -223,15 +223,25 @@ jobs:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
       if: matrix.required-secrets != ''
 
+    # Set this GitHub secret to your KeyVault, and grant the KeyVault policy to your Service Principal:
+    #    az keyvault set-policy -n $AZURE_KEYVAULT --secret-permissions get list --spn $SPN_CLIENT_ID
+    # Using az cli to query keyvault as Azure/get-keyvault-secrets@v1 is deprecated
     - name: Setup secrets
-      uses: Azure/get-keyvault-secrets@v1
-      with:
-        # Set this GitHub secret to your KeyVault, and grant the KeyVault policy to your Service Principal:
-        #    az keyvault set-policy -n $AZURE_KEYVAULT --secret-permissions get list --spn $SPN_CLIENT_ID
-        keyvault: ${{ secrets.AZURE_KEYVAULT }}
-        secrets: ${{ matrix.required-secrets }}
       id: get-azure-secrets
       if: matrix.required-secrets != ''
+      env:
+        VAULT_NAME: ${{ secrets.AZURE_KEYVAULT }}
+      run: |
+        secrets="${{ matrix.required-secrets }}"
+        for secretName in $(echo -n $secrets | tr ',' ' '); do
+          value=$(az keyvault secret show \
+            --name $secretName \
+            --vault-name $VAULT_NAME \
+            --query value \
+            --output tsv)
+          echo "::add-mask::$value"
+          echo "$secretName=$value" >> $GITHUB_OUTPUT
+        done
 
     - name: Start ngrok
       if: contains(matrix.component, 'azure.eventgrid')

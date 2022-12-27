@@ -31,6 +31,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -293,8 +294,8 @@ func decodeYaml(b []byte) (TestConfiguration, error) {
 
 func (tc *TestConfiguration) loadComponentsAndProperties(t *testing.T, filepath string) (map[string]string, error) {
 	comps, err := LoadComponents(filepath)
-	assert.Nil(t, err)
-	assert.Equal(t, 1, len(comps)) // We only expect a single component per file
+	require.NoError(t, err)
+	require.Equal(t, 1, len(comps)) // We only expect a single component per file
 	c := comps[0]
 	props, err := ConvertMetadataToProperties(c.Spec.Metadata)
 

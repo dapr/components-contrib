@@ -150,6 +150,7 @@ func LoadComponents(componentPath string) ([]Component, error) {
 	return components, nil
 }
 
+// LookUpEnv returns the value of the specified environment variable or the empty string.
 func LookUpEnv(key string) string {
 	if val, ok := os.LookupEnv(key); ok {
 		return val

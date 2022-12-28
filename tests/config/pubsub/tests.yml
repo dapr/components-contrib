@@ -80,9 +80,18 @@ components:
       checkInOrderProcessing: false
   - component: in-memory
     operations: ["publish", "subscribe", "multiplehandlers"]
-  - component: aws.snssqs
+  - component: aws.snssqs.terraform
     operations: ["publish", "subscribe", "multiplehandlers"]
     config:
+      pubsubName: aws-snssqs
+      testTopicName: ${{PUBSUB_AWS_SNSSQS_TOPIC}}
+      testMultiTopic1Name: ${{PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1}}
+      testMultiTopic2Name: ${{PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2}}
+      checkInOrderProcessing: false
+  - component: aws.snssqs.docker
+    operations: ["publish", "subscribe", "multiplehandlers"]
+    config:
+      pubsubName: aws-snssqs
       checkInOrderProcessing: false
   - component: kubemq
     operations: ["publish", "subscribe", "multiplehandlers"]

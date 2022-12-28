@@ -219,7 +219,7 @@ func (n *natsStreamingPubSub) Init(metadata pubsub.Metadata) error {
 	return nil
 }
 
-func (n *natsStreamingPubSub) Publish(req *pubsub.PublishRequest) error {
+func (n *natsStreamingPubSub) Publish(_ context.Context, req *pubsub.PublishRequest) error {
 	err := n.natStreamingConn.Publish(req.Topic, req.Data)
 	if err != nil {
 		return fmt.Errorf("nats-streaming: error from publish: %s", err)

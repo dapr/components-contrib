@@ -181,12 +181,11 @@ jobs:
       # Version of Node.js to use
       # Currently used by the Cloudflare components
       NODE_VERSION: 18.x
+      UNIQUE_ID: ${{github.run_id}}-${{github.run_attempt}}
     defaults:
       run:
         shell: bash
     needs: generate-matrix
-    env:
-      UNIQUE_ID: ${{github.run_id}}-${{github.run_attempt}}
 
     strategy:
       fail-fast: false # Keep running even if one component fails

@@ -109,7 +109,7 @@ func (q *Query) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
-	filter, err := parseFilter(q.QueryFields.Filters)
+	filter, err := ParseFilter(q.QueryFields.Filters)
 	if err != nil {
 		return err
 	}

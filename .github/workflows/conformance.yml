@@ -241,6 +241,7 @@ jobs:
             --output tsv)
           echo "::add-mask::$value"
           echo "$secretName=$value" >> $GITHUB_OUTPUT
+          echo "$secretName=$value" >> $GITHUB_ENV
         done
 
     - name: Start ngrok

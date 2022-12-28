@@ -219,6 +219,7 @@ jobs:
             --output tsv)
           echo "::add-mask::$value"
           echo "$secretName=$value" >> $GITHUB_OUTPUT
+          echo "$secretName=$value" >> $GITHUB_ENV
         done
 
     # Download the required certificates into files, and set env var pointing to their names

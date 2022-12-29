@@ -70,6 +70,7 @@ import (
 	p_pulsar "github.com/dapr/components-contrib/pubsub/pulsar"
 	p_rabbitmq "github.com/dapr/components-contrib/pubsub/rabbitmq"
 	p_redis "github.com/dapr/components-contrib/pubsub/redis"
+	p_solaceamqp "github.com/dapr/components-contrib/pubsub/solace/amqp"
 	ss_azure "github.com/dapr/components-contrib/secretstores/azure/keyvault"
 	ss_hashicorp_vault "github.com/dapr/components-contrib/secretstores/hashicorp/vault"
 	ss_kubernetes "github.com/dapr/components-contrib/secretstores/kubernetes"
@@ -452,6 +453,8 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_snssqs.NewSnsSqs(testLogger)
 	case "kubemq":
 		pubsub = p_kubemq.NewKubeMQ(testLogger)
+	case "solace.amqp":
+		pubsub = p_solaceamqp.NewAMQPPubsub(testLogger)
 	default:
 		return nil
 	}

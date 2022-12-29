@@ -6,7 +6,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v0.6.1
 	github.com/dapr/components-contrib v1.9.6
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
-	github.com/dapr/dapr v1.9.5
+	github.com/dapr/dapr v1.9.4-0.20221221150048-640772d83bd1
 	github.com/dapr/go-sdk v1.6.0
 	github.com/dapr/kit v0.0.3
 	github.com/stretchr/testify v1.8.1
@@ -159,7 +159,5 @@ require (
 )
 
 replace github.com/dapr/components-contrib/tests/certification => ../../../
-
-replace github.com/dapr/dapr => github.com/mukundansundar/dapr v0.7.1-0.20221220174105-1a807e36d43b
 
 replace github.com/dapr/components-contrib => ../../../../../

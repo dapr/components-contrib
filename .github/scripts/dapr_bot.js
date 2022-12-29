@@ -53,7 +53,7 @@ module.exports = async ({ github, context }) => {
 async function handleIssueCommentCreate({ github, context }) {
     const payload = context.payload;
     const issue = context.issue;
-    const username = context.actor;
+    const username = (context.actor || "").toLowerCase();
     const isFromPulls = !!payload.issue.pull_request;
     const commentBody = payload.comment.body;
 
@@ -70,15 +70,12 @@ async function handleIssueCommentCreate({ github, context }) {
     }
 
     // Commands that can only be executed by owners.
-    if (owners.indexOf(username) < 0) {
+    if (owners.map((v) => v.toLowerCase()).indexOf(username) < 0) {
         console.log(`[handleIssueCommentCreate] user ${username} is not an owner, exiting.`);
         return;
     }
 
     switch (command) {
-        case "/make-me-laugh":
-            await cmdMakeMeLaugh(github, issue);
-            break;
         case "/ok-to-test":
             await cmdOkToTest(github, issue, isFromPulls);
             break;
@@ -108,7 +105,7 @@ async function handleIssueOrPrLabeled({ github, context }) {
     // Only authorized users can add labels to issues.
     if (label == "documentation required") {
         // Open a new docs issue
-        await github.issues.create({
+        await github.rest.issues.create({
             owner: "dapr",
             repo: "docs",
             title: `New content needed for dapr/components-contrib#${issueNumber}`,
@@ -117,7 +114,7 @@ async function handleIssueOrPrLabeled({ github, context }) {
         });
     } else if (label == "new component") {
         // Open a new dapr issue
-        await github.issues.create({
+        await github.rest.issues.create({
             owner: "dapr",
             repo: "dapr",
             title: `Component registration for dapr/components-contrib#${issueNumber}`,
@@ -145,32 +142,11 @@ async function cmdAssign(github, issue, username, isFromPulls) {
         return;
     }
 
-    await github.issues.addAssignees({
+    await github.rest.issues.addAssignees({
         owner: issue.owner,
         repo: issue.repo,
         issue_number: issue.number,
         assignees: [username],
-    });
-}
-
-/**
- * Comment a funny joke.
- * @param {*} github GitHub object reference
- * @param {*} issue GitHub issue object
- */
-async function cmdMakeMeLaugh(github, issue) {
-    const result = await github.request("https://official-joke-api.appspot.com/random_joke");
-    jokedata = result.data;
-    joke = "I have a bad feeling about this.";
-    if (jokedata && jokedata.setup && jokedata.punchline) {
-        joke = `${jokedata.setup} - ${jokedata.punchline}`;
-    }
-
-    await github.issues.createComment({
-        owner: issue.owner,
-        repo: issue.repo,
-        issue_number: issue.number,
-        body: joke,
     });
 }
 
@@ -188,7 +164,7 @@ async function cmdOkToTest(github, issue, isFromPulls) {
     }
 
     // Get pull request
-    const pull = await github.pulls.get({
+    const pull = await github.rest.pulls.get({
         owner: issue.owner,
         repo: issue.repo,
         pull_number: issue.number
@@ -204,7 +180,7 @@ async function cmdOkToTest(github, issue, isFromPulls) {
         };
 
         // Fire repository_dispatch event to trigger certification test
-        await github.repos.createDispatchEvent({
+        await github.rest.repos.createDispatchEvent({
             owner: issue.owner,
             repo: issue.repo,
             event_type: "certification-test",
@@ -212,7 +188,7 @@ async function cmdOkToTest(github, issue, isFromPulls) {
         });
 
         // Fire repository_dispatch event to trigger conformance test
-        await github.repos.createDispatchEvent({
+        await github.rest.repos.createDispatchEvent({
             owner: issue.owner,
             repo: issue.repo,
             event_type: "conformance-test",

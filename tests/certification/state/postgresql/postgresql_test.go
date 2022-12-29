@@ -16,7 +16,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -706,7 +705,7 @@ func getMigrationLevel(dbClient *pgx.Conn, metadataTable string) (level string, 
 	err = dbClient.
 		QueryRow(ctx, fmt.Sprintf(`SELECT value FROM %s WHERE key = 'migrations'`, metadataTable)).
 		Scan(&level)
-	if err != nil && errors.Is(err, sql.ErrNoRows) {
+	if err != nil && errors.Is(err, pgx.ErrNoRows) {
 		err = nil
 		level = ""
 	}
@@ -766,7 +765,7 @@ func loadLastCleanupInterval(ctx context.Context, dbClient *pgx.Conn, table stri
 		).
 		Scan(&lastCleanup)
 	cancel()
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, pgx.ErrNoRows) {
 		err = nil
 	}
 	return
@@ -790,7 +789,7 @@ func getValueFromMetadataTable(ctx context.Context, dbClient *pgx.Conn, table, k
 		QueryRow(queryCtx, fmt.Sprintf("SELECT value FROM %s WHERE key = $1", table), key).
 		Scan(&value)
 	cancel()
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, pgx.ErrNoRows) {
 		err = nil
 	}
 	return

@@ -80,6 +80,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/kubemq-io/kubemq-go v1.7.6
 	github.com/labd/commercetools-go-sdk v1.2.0
+	github.com/lestrrat-go/jwx/v2 v2.0.8
 	github.com/machinebox/graphql v0.2.2
 	github.com/matoous/go-nanoid/v2 v2.0.0
 	github.com/mitchellh/mapstructure v1.5.1-0.20220423185008-bf980b35cac4
@@ -112,6 +113,7 @@ require (
 	go.uber.org/atomic v1.10.0
 	go.uber.org/ratelimit v0.2.0
 	golang.org/x/crypto v0.4.0
+	golang.org/x/exp v0.0.0-20221028150844-83b7d23a625f
 	golang.org/x/mod v0.6.0
 	golang.org/x/net v0.4.0
 	golang.org/x/oauth2 v0.3.0
@@ -132,7 +134,7 @@ require (
 	cloud.google.com/go/compute v1.13.0 // indirect
 	cloud.google.com/go/compute/metadata v0.2.2 // indirect
 	cloud.google.com/go/iam v0.8.0 // indirect
-	contrib.go.opencensus.io/exporter/prometheus v0.4.1 // indirect
+	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/99designs/keyring v1.2.1 // indirect
 	github.com/AthenZ/athenz v1.10.39 // indirect
@@ -179,6 +181,7 @@ require (
 	github.com/creasty/defaults v1.5.2 // indirect
 	github.com/danieljoos/wincred v1.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0 // indirect
 	github.com/deepmap/oapi-codegen v1.3.6 // indirect
 	github.com/devigned/tab v0.1.1 // indirect
 	github.com/dghubble/sling v1.4.0 // indirect
@@ -210,6 +213,7 @@ require (
 	github.com/go-playground/validator/v10 v10.11.0 // indirect
 	github.com/go-resty/resty/v2 v2.7.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
+	github.com/goccy/go-json v0.9.11 // indirect
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
 	github.com/gofrs/uuid v3.3.0+incompatible // indirect
 	github.com/gogap/errors v0.0.0-20200228125012-531a6449b28c // indirect
@@ -265,6 +269,11 @@ require (
 	github.com/labstack/echo/v4 v4.9.0 // indirect
 	github.com/labstack/gommon v0.3.1 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
+	github.com/lestrrat-go/blackmagic v1.0.1 // indirect
+	github.com/lestrrat-go/httpcc v1.0.1 // indirect
+	github.com/lestrrat-go/httprc v1.0.4 // indirect
+	github.com/lestrrat-go/iter v1.0.2 // indirect
+	github.com/lestrrat-go/option v1.0.0 // indirect
 	github.com/linkedin/goavro/v2 v2.9.8 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/magiconair/properties v1.8.6 // indirect
@@ -343,12 +352,12 @@ require (
 	go.opencensus.io v0.24.0 // indirect
 	go.uber.org/goleak v1.2.0 // indirect
 	go.uber.org/multierr v1.8.0 // indirect
-	go.uber.org/zap v1.21.0 // indirect
+	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.3.0 // indirect
 	golang.org/x/term v0.3.0 // indirect
 	golang.org/x/text v0.5.0 // indirect
-	golang.org/x/time v0.1.0 // indirect
+	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20221206210731-b1a01be3a5f6 // indirect
@@ -379,5 +388,3 @@ replace github.com/toolkits/concurrent => github.com/niean/gotools v0.0.0-201512
 
 // this is a fork which addresses a performance issues due to go routines
 replace dubbo.apache.org/dubbo-go/v3 => dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20220610080020-48691a404537
-
-replace github.com/dapr/dapr => github.com/1046102779/dapr v0.0.0-20221214124410-5e82abca48ab

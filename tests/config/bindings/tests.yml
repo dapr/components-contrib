@@ -7,7 +7,12 @@
 ## method: specific to http component, what method to use
 componentType: bindings
 components:
-  - component: redis
+  - component: redis.v6
+    operations: ["create", "operations"]
+    config:
+      output:
+        key: $((uuid))
+  - component: redis.v7
     operations: ["create", "operations"]
     config:
       output:
@@ -33,6 +38,8 @@ components:
     operations: ["create", "operations", "read"]
   - component: azure.servicebusqueues
     operations: ["create", "operations", "read"]
+  - component: cron
+    operations: ["read"]
   - component: kafka
     profile: wurstmeister
     operations: ["create", "operations"]

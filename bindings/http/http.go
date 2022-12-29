@@ -28,6 +28,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/kit/logger"
 )
 
@@ -35,10 +36,10 @@ import (
 //
 //revive:disable-next-line
 type HTTPSource struct {
-	metadata httpMetadata
-	client   *http.Client
-
-	logger logger.Logger
+	metadata      httpMetadata
+	client        *http.Client
+	errorIfNot2XX bool
+	logger        logger.Logger
 }
 
 type httpMetadata struct {
@@ -70,6 +71,13 @@ func (h *HTTPSource) Init(metadata bindings.Metadata) error {
 		Transport: netTransport,
 	}
 
+	if val, ok := metadata.Properties["errorIfNot2XX"]; ok {
+		h.errorIfNot2XX = utils.IsTruthy(val)
+	} else {
+		// Default behavior
+		h.errorIfNot2XX = true
+	}
+
 	return nil
 }
 
@@ -91,6 +99,9 @@ func (h *HTTPSource) Operations() []bindings.OperationKind {
 // Invoke performs an HTTP request to the configured HTTP endpoint.
 func (h *HTTPSource) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	u := h.metadata.URL
+
+	errorIfNot2XX := h.errorIfNot2XX // Default to the component config (default is true)
+
 	if req.Metadata != nil {
 		if path, ok := req.Metadata["path"]; ok {
 			// Simplicity and no "../../.." type exploits.
@@ -99,6 +110,13 @@ func (h *HTTPSource) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 				return nil, fmt.Errorf("invalid path: %s", path)
 			}
 		}
+
+		if _, ok := req.Metadata["errorIfNot2XX"]; ok {
+			errorIfNot2XX = utils.IsTruthy(req.Metadata["errorIfNot2XX"])
+		}
+	} else {
+		// Prevent things below from failing if req.Metadata is nil.
+		req.Metadata = make(map[string]string)
 	}
 
 	var body io.Reader
@@ -164,8 +182,8 @@ func (h *HTTPSource) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 		metadata[key] = strings.Join(values, ", ")
 	}
 
-	// Create an error for non-200 status codes.
-	if resp.StatusCode/100 != 2 {
+	// Create an error for non-200 status codes unless suppressed.
+	if errorIfNot2XX && resp.StatusCode/100 != 2 {
 		err = fmt.Errorf("received status code %d", resp.StatusCode)
 	}
 

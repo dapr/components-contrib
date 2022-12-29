@@ -93,7 +93,7 @@ func TestParseTTL(t *testing.T) {
 			},
 		})
 
-		assert.NotNil(t, err, "tll is not an integer")
+		assert.Error(t, err)
 		assert.Nil(t, ttl)
 	})
 	t.Run("TTL is a negative integer ends up translated to 0", func(t *testing.T) {

@@ -41,7 +41,7 @@ func getSyncProducer(config sarama.Config, brokers []string, maxMessageBytes int
 }
 
 // Publish message to Kafka cluster.
-func (k *Kafka) Publish(topic string, data []byte, metadata map[string]string) error {
+func (k *Kafka) Publish(_ context.Context, topic string, data []byte, metadata map[string]string) error {
 	if k.producer == nil {
 		return errors.New("component is closed")
 	}
@@ -81,7 +81,7 @@ func (k *Kafka) Publish(topic string, data []byte, metadata map[string]string) e
 func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.BulkMessageEntry, metadata map[string]string) (pubsub.BulkPublishResponse, error) {
 	if k.producer == nil {
 		err := errors.New("component is closed")
-		return pubsub.NewBulkPublishResponse(entries, pubsub.PublishFailed, err), err
+		return pubsub.NewBulkPublishResponse(entries, err), err
 	}
 	k.logger.Debugf("Bulk Publishing on topic %v", topic)
 
@@ -122,7 +122,7 @@ func (k *Kafka) BulkPublish(_ context.Context, topic string, entries []pubsub.Bu
 		return k.mapKafkaProducerErrors(err, entries), err
 	}
 
-	return pubsub.NewBulkPublishResponse(entries, pubsub.PublishSucceeded, nil), nil
+	return pubsub.BulkPublishResponse{}, nil
 }
 
 // mapKafkaProducerErrors to correct response statuses
@@ -131,10 +131,10 @@ func (k *Kafka) mapKafkaProducerErrors(err error, entries []pubsub.BulkMessageEn
 	if !errors.As(err, &pErrs) {
 		// Ideally this condition should not be executed, but in the scenario that the err is not of sarama.ProducerErrors type
 		// return a default error that all messages have failed
-		return pubsub.NewBulkPublishResponse(entries, pubsub.PublishFailed, err)
+		return pubsub.NewBulkPublishResponse(entries, err)
 	}
 	resp := pubsub.BulkPublishResponse{
-		Statuses: make([]pubsub.BulkPublishResponseEntry, 0, len(entries)),
+		FailedEntries: make([]pubsub.BulkPublishResponseFailedEntry, 0, len(entries)),
 	}
 	// used in the case of the partial success scenario
 	alreadySeen := map[string]struct{}{}
@@ -142,8 +142,7 @@ func (k *Kafka) mapKafkaProducerErrors(err error, entries []pubsub.BulkMessageEn
 	for _, pErr := range pErrs {
 		if entryId, ok := pErr.Msg.Metadata.(string); ok { //nolint:stylecheck
 			alreadySeen[entryId] = struct{}{}
-			resp.Statuses = append(resp.Statuses, pubsub.BulkPublishResponseEntry{
-				Status:  pubsub.PublishFailed,
+			resp.FailedEntries = append(resp.FailedEntries, pubsub.BulkPublishResponseFailedEntry{
 				EntryId: entryId,
 				Error:   pErr.Err,
 			})
@@ -151,21 +150,7 @@ func (k *Kafka) mapKafkaProducerErrors(err error, entries []pubsub.BulkMessageEn
 			// Ideally this condition should not be executed, but in the scenario that the Metadata field
 			// is not of string type return a default error that all messages have failed
 			k.logger.Warnf("error parsing bulk errors from Kafka, returning default error response of all failed")
-			return pubsub.NewBulkPublishResponse(entries, pubsub.PublishFailed, err)
-		}
-	}
-	// Check if all the messages have failed
-	if len(pErrs) != len(entries) {
-		// This is a partial success scenario
-		for _, entry := range entries {
-			// Check if the entryId was not seen in the pErrs list
-			if _, ok := alreadySeen[entry.EntryId]; !ok {
-				// this is a message that has succeeded
-				resp.Statuses = append(resp.Statuses, pubsub.BulkPublishResponseEntry{
-					Status:  pubsub.PublishSucceeded,
-					EntryId: entry.EntryId,
-				})
-			}
+			return pubsub.NewBulkPublishResponse(entries, err)
 		}
 	}
 	return resp

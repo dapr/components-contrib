@@ -18,8 +18,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/pkg/errors"
-	cron "github.com/robfig/cron/v3"
+
+	cron "github.com/dapr/kit/cron"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -27,18 +29,22 @@ import (
 
 // Binding represents Cron input binding.
 type Binding struct {
-	logger        logger.Logger
-	name          string
-	schedule      string
-	parser        cron.Parser
-	runningCtx    context.Context
-	runningCancel context.CancelFunc
+	logger   logger.Logger
+	name     string
+	schedule string
+	parser   cron.Parser
+	clk      clock.Clock
 }
 
 // NewCron returns a new Cron event input binding.
-func NewCron(logger logger.Logger) bindings.InputOutputBinding {
+func NewCron(logger logger.Logger) bindings.InputBinding {
+	return NewCronWithClock(logger, clock.New())
+}
+
+func NewCronWithClock(logger logger.Logger, clk clock.Clock) bindings.InputBinding {
 	return &Binding{
 		logger: logger,
+		clk:    clk,
 		parser: cron.NewParser(
 			cron.SecondOptional | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
 		),
@@ -62,14 +68,12 @@ func (b *Binding) Init(metadata bindings.Metadata) error {
 	}
 	b.schedule = s
 
-	b.resetContext()
-
 	return nil
 }
 
 // Read triggers the Cron scheduler.
 func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
-	c := cron.New(cron.WithParser(b.parser))
+	c := cron.New(cron.WithParser(b.parser), cron.WithClock(b.clk))
 	id, err := c.AddFunc(b.schedule, func() {
 		b.logger.Debugf("name: %s, schedule fired: %v", b.name, time.Now())
 		handler(ctx, &bindings.ReadResponse{
@@ -86,50 +90,11 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 	b.logger.Debugf("name: %s, next run: %v", b.name, time.Until(c.Entry(id).Next))
 
 	go func() {
-		// Wait for a context to be canceled
-		select {
-		case <-b.runningCtx.Done():
-			// Do nothing
-		case <-ctx.Done():
-			b.resetContext()
-		}
+		// Wait for context to be canceled
+		<-ctx.Done()
 		b.logger.Debugf("name: %s, stopping schedule: %s", b.name, b.schedule)
 		c.Stop()
 	}()
 
 	return nil
-}
-
-// Invoke exposes way to stop previously started cron.
-func (b *Binding) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	b.logger.Debugf("name: %s, operation: %v", b.name, req.Operation)
-
-	switch req.Operation {
-	case bindings.DeleteOperation:
-		b.resetContext()
-		return &bindings.InvokeResponse{
-			Metadata: map[string]string{
-				"schedule":    b.schedule,
-				"stopTimeUTC": time.Now().UTC().String(),
-			},
-		}, nil
-	default:
-		return nil, fmt.Errorf("invalid operation: '%v', only '%v' supported",
-			req.Operation, bindings.DeleteOperation)
-	}
-}
-
-// Operations method returns the supported operations by this binding.
-func (b *Binding) Operations() []bindings.OperationKind {
-	return []bindings.OperationKind{
-		bindings.DeleteOperation,
-	}
-}
-
-// Resets the runningCtx
-func (b *Binding) resetContext() {
-	if b.runningCancel != nil {
-		b.runningCancel()
-	}
-	b.runningCtx, b.runningCancel = context.WithCancel(context.Background())
 }

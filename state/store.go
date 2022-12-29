@@ -14,6 +14,7 @@ limitations under the License.
 package state
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/dapr/components-contrib/health"
@@ -24,9 +25,9 @@ type Store interface {
 	BulkStore
 	Init(metadata Metadata) error
 	Features() []Feature
-	Delete(req *DeleteRequest) error
-	Get(req *GetRequest) (*GetResponse, error)
-	Set(req *SetRequest) error
+	Delete(ctx context.Context, req *DeleteRequest) error
+	Get(ctx context.Context, req *GetRequest) (*GetResponse, error)
+	Set(ctx context.Context, req *SetRequest) error
 	GetComponentMetadata() map[string]string
 }
 
@@ -41,9 +42,9 @@ func Ping(store Store) error {
 
 // BulkStore is an interface to perform bulk operations on store.
 type BulkStore interface {
-	BulkDelete(req []DeleteRequest) error
-	BulkGet(req []GetRequest) (bool, []BulkGetResponse, error)
-	BulkSet(req []SetRequest) error
+	BulkDelete(ctx context.Context, req []DeleteRequest) error
+	BulkGet(ctx context.Context, req []GetRequest) (bool, []BulkGetResponse, error)
+	BulkSet(ctx context.Context, req []SetRequest) error
 }
 
 // DefaultBulkStore is a default implementation of BulkStore.
@@ -65,16 +66,16 @@ func (b *DefaultBulkStore) Features() []Feature {
 }
 
 // BulkGet performs a bulks get operations.
-func (b *DefaultBulkStore) BulkGet(req []GetRequest) (bool, []BulkGetResponse, error) {
+func (b *DefaultBulkStore) BulkGet(ctx context.Context, req []GetRequest) (bool, []BulkGetResponse, error) {
 	// by default, the store doesn't support bulk get
 	// return false so daprd will fallback to call get() method one by one
 	return false, nil, nil
 }
 
 // BulkSet performs a bulks save operation.
-func (b *DefaultBulkStore) BulkSet(req []SetRequest) error {
+func (b *DefaultBulkStore) BulkSet(ctx context.Context, req []SetRequest) error {
 	for i := range req {
-		err := b.s.Set(&req[i])
+		err := b.s.Set(ctx, &req[i])
 		if err != nil {
 			return err
 		}
@@ -84,9 +85,9 @@ func (b *DefaultBulkStore) BulkSet(req []SetRequest) error {
 }
 
 // BulkDelete performs a bulk delete operation.
-func (b *DefaultBulkStore) BulkDelete(req []DeleteRequest) error {
+func (b *DefaultBulkStore) BulkDelete(ctx context.Context, req []DeleteRequest) error {
 	for i := range req {
-		err := b.s.Delete(&req[i])
+		err := b.s.Delete(ctx, &req[i])
 		if err != nil {
 			return err
 		}
@@ -97,5 +98,5 @@ func (b *DefaultBulkStore) BulkDelete(req []DeleteRequest) error {
 
 // Querier is an interface to execute queries.
 type Querier interface {
-	Query(req *QueryRequest) (*QueryResponse, error)
+	Query(ctx context.Context, req *QueryRequest) (*QueryResponse, error)
 }

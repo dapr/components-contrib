@@ -15,22 +15,29 @@ package inmemory
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/utils"
 )
 
 type inMemStateStoreItem struct {
-	data   []byte
-	etag   *string
-	expire int64
+	data     []byte
+	etag     *string
+	expire   *int64
+	isBinary bool
 }
 
 type inMemoryStore struct {
@@ -61,10 +68,13 @@ func (store *inMemoryStore) Close() error {
 	if store.cancel != nil {
 		store.cancel()
 	}
+
 	// release memory reference
 	store.lock.Lock()
 	defer store.lock.Unlock()
-	store.items = map[string]*inMemStateStoreItem{}
+	for k := range store.items {
+		delete(store.items, k)
+	}
 
 	return nil
 }
@@ -73,9 +83,9 @@ func (store *inMemoryStore) Features() []state.Feature {
 	return []state.Feature{state.FeatureETag, state.FeatureTransactional}
 }
 
-func (store *inMemoryStore) Delete(req *state.DeleteRequest) error {
+func (store *inMemoryStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	// step1: validate parameters
-	if err := store.doDeleteValidateParameters(req); err != nil {
+	if err := state.CheckRequestOptions(req.Options); err != nil {
 		return err
 	}
 
@@ -90,17 +100,21 @@ func (store *inMemoryStore) Delete(req *state.DeleteRequest) error {
 
 	// step3: do really delete
 	// this operation won't fail
-	store.doDelete(req.Key)
+	store.doDelete(ctx, req.Key)
 	return nil
 }
 
-func (store *inMemoryStore) doDeleteValidateParameters(req *state.DeleteRequest) error {
-	return state.CheckRequestOptions(req.Options)
-}
-
 func (store *inMemoryStore) doValidateEtag(key string, etag *string, concurrency string) error {
-	if etag != nil && *etag != "" && concurrency == state.FirstWrite {
-		// For FirstWrite, we need to validate etag before delete
+	hasEtag := etag != nil && *etag != ""
+
+	if concurrency == state.FirstWrite && !hasEtag {
+		item := store.items[key]
+		if item != nil {
+			return state.NewETagError(state.ETagMismatch, errors.New("item already exists and no etag was passed"))
+		} else {
+			return nil
+		}
+	} else if hasEtag {
 		item := store.items[key]
 		if item == nil {
 			return state.NewETagError(state.ETagMismatch, fmt.Errorf("state not exist or expired for key=%s", key))
@@ -117,19 +131,18 @@ func (store *inMemoryStore) doValidateEtag(key string, etag *string, concurrency
 	return nil
 }
 
-func (store *inMemoryStore) doDelete(key string) {
+func (store *inMemoryStore) doDelete(ctx context.Context, key string) {
 	delete(store.items, key)
 }
 
-func (store *inMemoryStore) BulkDelete(req []state.DeleteRequest) error {
+func (store *inMemoryStore) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
 	if len(req) == 0 {
 		return nil
 	}
 
 	// step1: validate parameters
-
 	for i := 0; i < len(req); i++ {
-		if err := store.doDeleteValidateParameters(&req[i]); err != nil {
+		if err := state.CheckRequestOptions(&req[i].Options); err != nil {
 			return err
 		}
 	}
@@ -148,31 +161,49 @@ func (store *inMemoryStore) BulkDelete(req []state.DeleteRequest) error {
 
 	// step3: do really delete
 	for _, dr := range req {
-		store.doDelete(dr.Key)
+		store.doDelete(ctx, dr.Key)
 	}
 	return nil
 }
 
-func (store *inMemoryStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	item := store.doGetWithReadLock(req.Key)
-	if item != nil && isExpired(item.expire) {
-		item = store.doGetWithWriteLock(req.Key)
+func (store *inMemoryStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
+	item := store.doGetWithReadLock(ctx, req.Key)
+	if item != nil && isExpired(item) {
+		item = store.doGetWithWriteLock(ctx, req.Key)
 	}
 
 	if item == nil {
 		return &state.GetResponse{Data: nil, ETag: nil}, nil
 	}
-	return &state.GetResponse{Data: unmarshal(item.data), ETag: item.etag}, nil
+
+	data := item.data
+	if item.isBinary {
+		var (
+			s   string
+			err error
+		)
+
+		if err = jsoniter.Unmarshal(data, &s); err != nil {
+			return nil, err
+		}
+
+		data, err = base64.StdEncoding.DecodeString(s)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &state.GetResponse{Data: data, ETag: item.etag}, nil
 }
 
-func (store *inMemoryStore) doGetWithReadLock(key string) *inMemStateStoreItem {
+func (store *inMemoryStore) doGetWithReadLock(ctx context.Context, key string) *inMemStateStoreItem {
 	store.lock.RLock()
 	defer store.lock.RUnlock()
 
 	return store.items[key]
 }
 
-func (store *inMemoryStore) doGetWithWriteLock(key string) *inMemStateStoreItem {
+func (store *inMemoryStore) doGetWithWriteLock(ctx context.Context, key string) *inMemStateStoreItem {
 	store.lock.Lock()
 	defer store.lock.Unlock()
 	// get item and check expired again to avoid if item changed between we got this write-lock
@@ -180,56 +211,73 @@ func (store *inMemoryStore) doGetWithWriteLock(key string) *inMemStateStoreItem 
 	if item == nil {
 		return nil
 	}
-	if isExpired(item.expire) {
-		store.doDelete(key)
+	if isExpired(item) {
+		store.doDelete(ctx, key)
 		return nil
 	}
 	return item
 }
 
-func isExpired(expire int64) bool {
-	if expire <= 0 {
+func isExpired(item *inMemStateStoreItem) bool {
+	if item == nil || item.expire == nil {
 		return false
 	}
-	return time.Now().UnixMilli() > expire
+	return time.Now().UnixMilli() > *item.expire
 }
 
-func (store *inMemoryStore) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+func (store *inMemoryStore) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	return false, nil, nil
 }
 
-func (store *inMemoryStore) Set(req *state.SetRequest) error {
+func (store *inMemoryStore) marshal(v any) (bt []byte, isBinary bool, err error) {
+	byteArray, isBinary := v.([]uint8)
+	if isBinary {
+		v = base64.StdEncoding.EncodeToString(byteArray)
+	}
+	bt, err = utils.Marshal(v, json.Marshal)
+	if err != nil {
+		return nil, false, err
+	}
+	return bt, isBinary, nil
+}
+
+func (store *inMemoryStore) Set(ctx context.Context, req *state.SetRequest) error {
 	// step1: validate parameters
 	ttlInSeconds, err := store.doSetValidateParameters(req)
 	if err != nil {
 		return err
 	}
 
-	b, _ := marshal(req.Value)
 	// step2 and step3 should be protected by write-lock
 	store.lock.Lock()
 	defer store.lock.Unlock()
 
 	// step2: validate etag if needed
-	if err := store.doValidateEtag(req.Key, req.ETag, req.Options.Concurrency); err != nil {
+	err = store.doValidateEtag(req.Key, req.ETag, req.Options.Concurrency)
+	if err != nil {
 		return err
 	}
 
 	// step3: do really set
+	bt, isBinary, err := store.marshal(req.Value)
+	if err != nil {
+		return err
+	}
+
 	// this operation won't fail
-	store.doSet(req.Key, b, req.ETag, ttlInSeconds)
+	store.doSet(ctx, req.Key, bt, ttlInSeconds, isBinary)
 	return nil
 }
 
 func (store *inMemoryStore) doSetValidateParameters(req *state.SetRequest) (int, error) {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
-		return -1, err
+		return 0, err
 	}
 
 	ttlInSeconds, err := doParseTTLInSeconds(req.Metadata)
 	if err != nil {
-		return -1, err
+		return 0, err
 	}
 
 	return ttlInSeconds, nil
@@ -253,22 +301,29 @@ func doParseTTLInSeconds(metadata map[string]string) (int, error) {
 	return i, nil
 }
 
-func (store *inMemoryStore) doSet(key string, data []byte, etag *string, ttlInSeconds int) {
-	store.items[key] = &inMemStateStoreItem{
-		data:   data,
-		etag:   etag,
-		expire: time.Now().UnixMilli() + int64(ttlInSeconds)*1000,
+func (store *inMemoryStore) doSet(ctx context.Context, key string, data []byte, ttlInSeconds int, isBinary bool) {
+	etag := uuid.New().String()
+	el := &inMemStateStoreItem{
+		data:     data,
+		etag:     &etag,
+		isBinary: isBinary,
 	}
+	if ttlInSeconds > 0 {
+		el.expire = ptr.Of(time.Now().UnixMilli() + int64(ttlInSeconds)*1000)
+	}
+
+	store.items[key] = el
 }
 
 // innerSetRequest is only used to pass ttlInSeconds and data with SetRequest.
 type innerSetRequest struct {
-	req          state.SetRequest
-	ttlInSeconds int
-	data         []byte
+	req      state.SetRequest
+	ttl      int
+	data     []byte
+	isBinary bool
 }
 
-func (store *inMemoryStore) BulkSet(req []state.SetRequest) error {
+func (store *inMemoryStore) BulkSet(ctx context.Context, req []state.SetRequest) error {
 	if len(req) == 0 {
 		return nil
 	}
@@ -281,11 +336,15 @@ func (store *inMemoryStore) BulkSet(req []state.SetRequest) error {
 			return err
 		}
 
-		b, _ := marshal(req[i].Value)
+		bt, isBinary, err := store.marshal(req[i].Value)
+		if err != nil {
+			return err
+		}
 		innerSetRequest := &innerSetRequest{
-			req:          req[i],
-			ttlInSeconds: ttlInSeconds,
-			data:         b,
+			req:      req[i],
+			ttl:      ttlInSeconds,
+			data:     bt,
+			isBinary: isBinary,
 		}
 		innerSetRequestList = append(innerSetRequestList, innerSetRequest)
 	}
@@ -305,35 +364,39 @@ func (store *inMemoryStore) BulkSet(req []state.SetRequest) error {
 	// step3: do really set
 	// these operations won't fail
 	for _, innerSetRequest := range innerSetRequestList {
-		store.doSet(innerSetRequest.req.Key, innerSetRequest.data, innerSetRequest.req.ETag, innerSetRequest.ttlInSeconds)
+		store.doSet(ctx, innerSetRequest.req.Key, innerSetRequest.data, innerSetRequest.ttl, innerSetRequest.isBinary)
 	}
 	return nil
 }
 
-func (store *inMemoryStore) Multi(request *state.TransactionalStateRequest) error {
+func (store *inMemoryStore) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
 	if len(request.Operations) == 0 {
 		return nil
 	}
 
 	// step1: validate parameters
-	for _, o := range request.Operations {
+	for i, o := range request.Operations {
 		if o.Operation == state.Upsert {
 			s := o.Request.(state.SetRequest)
 			ttlInSeconds, err := store.doSetValidateParameters(&s)
 			if err != nil {
 				return err
 			}
-			b, _ := marshal(s.Value)
+			bt, isBinary, err := store.marshal(s.Value)
+			if err != nil {
+				return err
+			}
 			innerSetRequest := &innerSetRequest{
-				req:          s,
-				ttlInSeconds: ttlInSeconds,
-				data:         b,
+				req:      s,
+				ttl:      ttlInSeconds,
+				data:     bt,
+				isBinary: isBinary,
 			}
 			// replace with innerSetRequest
-			o.Request = innerSetRequest
+			request.Operations[i].Request = innerSetRequest
 		} else if o.Operation == state.Delete {
 			d := o.Request.(state.DeleteRequest)
-			err := store.doDeleteValidateParameters(&d)
+			err := state.CheckRequestOptions(&d)
 			if err != nil {
 				return err
 			}
@@ -347,7 +410,7 @@ func (store *inMemoryStore) Multi(request *state.TransactionalStateRequest) erro
 	// step2: validate etag if needed
 	for _, o := range request.Operations {
 		if o.Operation == state.Upsert {
-			s := o.Request.(innerSetRequest)
+			s := o.Request.(*innerSetRequest)
 			err := store.doValidateEtag(s.req.Key, s.req.ETag, s.req.Options.Concurrency)
 			if err != nil {
 				return err
@@ -365,28 +428,14 @@ func (store *inMemoryStore) Multi(request *state.TransactionalStateRequest) erro
 	// these operations won't fail
 	for _, o := range request.Operations {
 		if o.Operation == state.Upsert {
-			s := o.Request.(innerSetRequest)
-			store.doSet(s.req.Key, s.data, s.req.ETag, s.ttlInSeconds)
+			s := o.Request.(*innerSetRequest)
+			store.doSet(ctx, s.req.Key, s.data, s.ttl, s.isBinary)
 		} else if o.Operation == state.Delete {
 			d := o.Request.(state.DeleteRequest)
-			store.doDelete(d.Key)
+			store.doDelete(ctx, d.Key)
 		}
 	}
 	return nil
-}
-
-func marshal(value interface{}) ([]byte, error) {
-	v, _ := jsoniter.MarshalToString(value)
-
-	return []byte(v), nil
-}
-
-func unmarshal(val interface{}) []byte {
-	var output string
-
-	jsoniter.UnmarshalFromString(string(val.([]byte)), &output)
-
-	return []byte(output)
 }
 
 func (store *inMemoryStore) startCleanThread() {
@@ -405,8 +454,8 @@ func (store *inMemoryStore) doCleanExpiredItems() {
 	defer store.lock.Unlock()
 
 	for key, item := range store.items {
-		if isExpired(item.expire) {
-			store.doDelete(key)
+		if item.expire != nil && isExpired(item) {
+			store.doDelete(context.Background(), key)
 		}
 	}
 }

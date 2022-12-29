@@ -28,6 +28,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
@@ -318,7 +319,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 		t.Run("publish", func(t *testing.T) {
 			for k := 1; k <= config.MessageCount; k++ {
 				data := []byte(fmt.Sprintf("%s%d", dataPrefix, k))
-				err := ps.Publish(&pubsub.PublishRequest{
+				err := ps.Publish(ctx, &pubsub.PublishRequest{
 					Data:       data,
 					PubsubName: config.PubsubName,
 					Topic:      config.TestTopicName,
@@ -336,7 +337,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 				}
 				for k := bulkSubStartingKey; k <= (bulkSubStartingKey + config.MessageCount); k++ {
 					data := []byte(fmt.Sprintf("%s%d", dataPrefix, k))
-					err := ps.Publish(&pubsub.PublishRequest{
+					err := ps.Publish(ctx, &pubsub.PublishRequest{
 						Data:       data,
 						PubsubName: config.PubsubName,
 						Topic:      config.TestTopicForBulkSub,
@@ -386,11 +387,13 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 			}
 
 			t.Logf("Calling Bulk Publish on component %s", config.ComponentName)
+			// Making use of entryMap defined above here to iterate through entryIds of messages published.
 			res, err := bP.BulkPublish(context.Background(), &req)
+			faileEntries := convertBulkPublishResponseToStringSlice(res)
 			if err == nil {
-				for _, status := range res.Statuses {
-					if status.Status == pubsub.PublishSucceeded {
-						data := entryMap[status.EntryId]
+				for k := range entryMap {
+					if !slices.Contains(faileEntries, k) {
+						data := entryMap[k]
 						t.Logf("adding to awaited messages %s", data)
 						awaitingMessages[string(data)] = struct{}{}
 					}
@@ -486,7 +489,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 					topic = config.TestMultiTopic2Name
 					sent2Ch <- string(data)
 				}
-				err := ps.Publish(&pubsub.PublishRequest{
+				err := ps.Publish(ctx, &pubsub.PublishRequest{
 					Data:       data,
 					PubsubName: config.PubsubName,
 					Topic:      topic,
@@ -508,6 +511,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 			}()
 
 			for i := 0; i < 3; i++ {
+				t.Logf("Starting iteration %d", i)
 				switch i {
 				case 1: // On iteration 1, close the first subscriber
 					subscribe1Cancel()
@@ -538,17 +542,17 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 							sent2Ch <- string(data)
 						}
 					}
-					err := ps.Publish(&pubsub.PublishRequest{
+					err := ps.Publish(ctx, &pubsub.PublishRequest{
 						Data:       data,
 						PubsubName: config.PubsubName,
 						Topic:      topic,
 						Metadata:   config.PublishMetadata,
 					})
-					assert.NoError(t, err, "expected no error on publishing data %s on topic %s", data, topic)
+					assert.NoError(t, err, "expected no error on publishing data %s on topic %s", string(data), topic)
 				}
 
 				allSentCh <- true
-				t.Logf("waiting for %v to complete read", config.MaxReadDuration)
+				t.Logf("Waiting for %v to complete read", config.MaxReadDuration)
 				<-wait
 			}
 		})
@@ -617,4 +621,12 @@ func createMultiSubscriber(t *testing.T, subscribeCtx context.Context, ch chan<-
 		return nil
 	})
 	require.NoError(t, err, "expected no error on subscribe")
+}
+
+func convertBulkPublishResponseToStringSlice(res pubsub.BulkPublishResponse) []string {
+	failedEntries := make([]string, 0, len(res.FailedEntries))
+	for _, failedEntry := range res.FailedEntries {
+		failedEntries = append(failedEntries, failedEntry.EntryId)
+	}
+	return failedEntries
 }

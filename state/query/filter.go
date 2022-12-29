@@ -21,7 +21,8 @@ type Filter interface {
 	Parse(interface{}) error
 }
 
-func parseFilter(obj interface{}) (Filter, error) {
+// ParseFilter parses a filter struct using the visitor pattern returning a built Filter interface.
+func ParseFilter(obj interface{}) (Filter, error) {
 	m, ok := obj.(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("filter unit must be a map")
@@ -134,7 +135,7 @@ func parseFilters(t string, obj interface{}) ([]Filter, error) {
 	filters := make([]Filter, len(arr))
 	for i, entry := range arr {
 		var err error
-		if filters[i], err = parseFilter(entry); err != nil {
+		if filters[i], err = ParseFilter(entry); err != nil {
 			return nil, err
 		}
 	}

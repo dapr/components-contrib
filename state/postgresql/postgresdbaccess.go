@@ -15,7 +15,6 @@ package postgresql
 
 import (
 	"context"
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -23,34 +22,38 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
-
-	// Blank import for the underlying Postgres driver.
-	_ "github.com/jackc/pgx/v5/stdlib"
-)
-
-const (
-	defaultTableName         = "state"
-	defaultMetadataTableName = "dapr_metadata"
-	cleanupIntervalKey       = "cleanupIntervalInSeconds"
-	defaultCleanupInternal   = 3600 // In seconds = 1 hour
 )
 
 var errMissingConnectionString = errors.New("missing connection string")
 
+// Interface that applies to *pgxpool.Pool.
+// We need this to be able to mock the connection in tests.
+type pgxPoolConn interface {
+	Begin(context.Context) (pgx.Tx, error)
+	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
+	Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error)
+	Query(context.Context, string, ...interface{}) (pgx.Rows, error)
+	QueryRow(context.Context, string, ...interface{}) pgx.Row
+	Ping(context.Context) error
+	Close()
+}
+
 // PostgresDBAccess implements dbaccess.
 type PostgresDBAccess struct {
-	logger          logger.Logger
-	metadata        postgresMetadataStruct
-	cleanupInterval *time.Duration
-	db              *sql.DB
-	ctx             context.Context
-	cancel          context.CancelFunc
+	logger   logger.Logger
+	metadata postgresMetadataStruct
+	db       pgxPoolConn
+	ctx      context.Context
+	cancel   context.CancelFunc
 }
 
 // newPostgresDBAccess creates a new instance of postgresAccess.
@@ -62,42 +65,43 @@ func newPostgresDBAccess(logger logger.Logger) *PostgresDBAccess {
 	}
 }
 
-type postgresMetadataStruct struct {
-	ConnectionString      string
-	ConnectionMaxIdleTime time.Duration
-	TableName             string // Could be in the format "schema.table" or just "table"
-	MetadataTableName     string // Could be in the format "schema.table" or just "table"
-}
-
 // Init sets up Postgres connection and ensures that the state table exists.
 func (p *PostgresDBAccess) Init(meta state.Metadata) error {
 	p.logger.Debug("Initializing Postgres state store")
 
 	p.ctx, p.cancel = context.WithCancel(context.Background())
 
-	err := p.ParseMetadata(meta)
+	err := p.metadata.InitWithMetadata(meta)
 	if err != nil {
 		p.logger.Errorf("Failed to parse metadata: %v", err)
 		return err
 	}
 
-	db, err := sql.Open("pgx", p.metadata.ConnectionString)
+	config, err := pgxpool.ParseConfig(p.metadata.ConnectionString)
 	if err != nil {
+		err = fmt.Errorf("failed to parse connection string: %w", err)
+		p.logger.Error(err)
+		return err
+	}
+	if p.metadata.ConnectionMaxIdleTime > 0 {
+		config.MaxConnIdleTime = p.metadata.ConnectionMaxIdleTime
+	}
+
+	connCtx, connCancel := context.WithTimeout(p.ctx, p.metadata.timeout)
+	p.db, err = pgxpool.NewWithConfig(connCtx, config)
+	connCancel()
+	if err != nil {
+		err = fmt.Errorf("failed to connect to the database: %w", err)
 		p.logger.Error(err)
 		return err
 	}
 
-	p.db = db
-
-	pingCtx, pingCancel := context.WithTimeout(p.ctx, 30*time.Second)
-	pingErr := db.PingContext(pingCtx)
+	pingCtx, pingCancel := context.WithTimeout(p.ctx, p.metadata.timeout)
+	err = p.db.Ping(pingCtx)
 	pingCancel()
-	if pingErr != nil {
-		return pingErr
-	}
-
-	p.db.SetConnMaxIdleTime(p.metadata.ConnectionMaxIdleTime)
 	if err != nil {
+		err = fmt.Errorf("failed to ping the database: %w", err)
+		p.logger.Error(err)
 		return err
 	}
 
@@ -117,41 +121,9 @@ func (p *PostgresDBAccess) Init(meta state.Metadata) error {
 	return nil
 }
 
-func (p *PostgresDBAccess) GetDB() *sql.DB {
-	return p.db
-}
-
-func (p *PostgresDBAccess) ParseMetadata(meta state.Metadata) error {
-	m := postgresMetadataStruct{
-		TableName:         defaultTableName,
-		MetadataTableName: defaultMetadataTableName,
-	}
-	err := metadata.DecodeMetadata(meta.Properties, &m)
-	if err != nil {
-		return err
-	}
-	p.metadata = m
-
-	if m.ConnectionString == "" {
-		return errMissingConnectionString
-	}
-
-	s, ok := meta.Properties[cleanupIntervalKey]
-	if ok && s != "" {
-		cleanupIntervalInSec, err := strconv.ParseInt(s, 10, 0)
-		if err != nil {
-			return fmt.Errorf("invalid value for '%s': %s", cleanupIntervalKey, s)
-		}
-
-		// Non-positive value from meta means disable auto cleanup.
-		if cleanupIntervalInSec > 0 {
-			p.cleanupInterval = ptr.Of(time.Duration(cleanupIntervalInSec) * time.Second)
-		}
-	} else {
-		p.cleanupInterval = ptr.Of(defaultCleanupInternal * time.Second)
-	}
-
-	return nil
+func (p *PostgresDBAccess) GetDB() *pgxpool.Pool {
+	// We can safely cast to *pgxpool.Pool because this method is never used in unit tests where we mock the DB
+	return p.db.(*pgxpool.Pool)
 }
 
 // Set makes an insert or update to the database.
@@ -192,8 +164,6 @@ func (p *PostgresDBAccess) doSet(parentCtx context.Context, db dbquerier, req *s
 	if ttl != nil {
 		ttlSeconds = *ttl
 	}
-
-	var result sql.Result
 
 	// Sprintf is required for table name because query.DB does not substitute parameters for table names.
 	// Other parameters use query.DB parameter substitution.
@@ -246,8 +216,8 @@ func (p *PostgresDBAccess) doSet(parentCtx context.Context, db dbquerier, req *s
 	} else {
 		queryExpiredate = "NULL"
 	}
-	result, err = db.ExecContext(parentCtx, fmt.Sprintf(query, p.metadata.TableName, queryExpiredate), params...)
 
+	result, err := db.Exec(parentCtx, fmt.Sprintf(query, p.metadata.TableName, queryExpiredate), params...)
 	if err != nil {
 		if req.ETag != nil && *req.ETag != "" {
 			return state.NewETagError(state.ETagMismatch, err)
@@ -255,11 +225,7 @@ func (p *PostgresDBAccess) doSet(parentCtx context.Context, db dbquerier, req *s
 		return err
 	}
 
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows != 1 {
+	if result.RowsAffected() != 1 {
 		return errors.New("no item was updated")
 	}
 
@@ -267,11 +233,11 @@ func (p *PostgresDBAccess) doSet(parentCtx context.Context, db dbquerier, req *s
 }
 
 func (p *PostgresDBAccess) BulkSet(parentCtx context.Context, req []state.SetRequest) error {
-	tx, err := p.db.BeginTx(parentCtx, nil)
+	tx, err := p.beginTx(parentCtx)
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+		return err
 	}
-	defer tx.Rollback()
+	defer p.rollbackTx(parentCtx, tx, "BulkSet")
 
 	if len(req) > 0 {
 		for i := range req {
@@ -282,7 +248,9 @@ func (p *PostgresDBAccess) BulkSet(parentCtx context.Context, req []state.SetReq
 		}
 	}
 
-	err = tx.Commit()
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
+	err = tx.Commit(ctx)
+	cancel()
 	if err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
@@ -299,7 +267,7 @@ func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest)
 	var (
 		value    []byte
 		isBinary bool
-		etag     uint64 // Postgres uses uint32, but FormatUint requires uint64, so using uint64 directly to avoid re-allocations
+		etag     uint32
 	)
 	query := `SELECT
 			value, isbinary, xmin AS etag
@@ -307,12 +275,11 @@ func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest)
 			WHERE
 				key = $1
 				AND (expiredate IS NULL OR expiredate >= CURRENT_TIMESTAMP)`
-	err := p.db.
-		QueryRowContext(parentCtx, fmt.Sprintf(query, p.metadata.TableName), req.Key).
+	err := p.db.QueryRow(parentCtx, fmt.Sprintf(query, p.metadata.TableName), req.Key).
 		Scan(&value, &isBinary, &etag)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
-		if err == sql.ErrNoRows {
+		if err == pgx.ErrNoRows {
 			return &state.GetResponse{}, nil
 		}
 		return nil, err
@@ -334,14 +301,14 @@ func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest)
 
 		return &state.GetResponse{
 			Data:     data,
-			ETag:     ptr.Of(strconv.FormatUint(etag, 10)),
+			ETag:     ptr.Of(strconv.FormatUint(uint64(etag), 10)),
 			Metadata: req.Metadata,
 		}, nil
 	}
 
 	return &state.GetResponse{
 		Data:     value,
-		ETag:     ptr.Of(strconv.FormatUint(etag, 10)),
+		ETag:     ptr.Of(strconv.FormatUint(uint64(etag), 10)),
 		Metadata: req.Metadata,
 	}, nil
 }
@@ -356,10 +323,9 @@ func (p *PostgresDBAccess) doDelete(parentCtx context.Context, db dbquerier, req
 		return errors.New("missing key in delete operation")
 	}
 
-	var result sql.Result
-
+	var result pgconn.CommandTag
 	if req.ETag == nil || *req.ETag == "" {
-		result, err = db.ExecContext(parentCtx, "DELETE FROM state WHERE key = $1", req.Key)
+		result, err = db.Exec(parentCtx, "DELETE FROM state WHERE key = $1", req.Key)
 	} else {
 		// Convert req.ETag to uint32 for postgres XID compatibility
 		var etag64 uint64
@@ -367,20 +333,15 @@ func (p *PostgresDBAccess) doDelete(parentCtx context.Context, db dbquerier, req
 		if err != nil {
 			return state.NewETagError(state.ETagInvalid, err)
 		}
-		etag := uint32(etag64)
 
-		result, err = db.ExecContext(parentCtx, "DELETE FROM state WHERE key = $1 AND xmin = $2", req.Key, etag)
+		result, err = db.Exec(parentCtx, "DELETE FROM state WHERE key = $1 AND xmin = $2", req.Key, uint32(etag64))
 	}
 
 	if err != nil {
 		return err
 	}
 
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-
+	rows := result.RowsAffected()
 	if rows != 1 && req.ETag != nil && *req.ETag != "" {
 		return state.NewETagError(state.ETagMismatch, nil)
 	}
@@ -389,11 +350,11 @@ func (p *PostgresDBAccess) doDelete(parentCtx context.Context, db dbquerier, req
 }
 
 func (p *PostgresDBAccess) BulkDelete(parentCtx context.Context, req []state.DeleteRequest) error {
-	tx, err := p.db.BeginTx(parentCtx, nil)
+	tx, err := p.beginTx(parentCtx)
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+		return err
 	}
-	defer tx.Rollback()
+	defer p.rollbackTx(parentCtx, tx, "BulkDelete")
 
 	if len(req) > 0 {
 		for i := range req {
@@ -404,7 +365,9 @@ func (p *PostgresDBAccess) BulkDelete(parentCtx context.Context, req []state.Del
 		}
 	}
 
-	err = tx.Commit()
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
+	err = tx.Commit(ctx)
+	cancel()
 	if err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
@@ -413,11 +376,11 @@ func (p *PostgresDBAccess) BulkDelete(parentCtx context.Context, req []state.Del
 }
 
 func (p *PostgresDBAccess) ExecuteMulti(parentCtx context.Context, request *state.TransactionalStateRequest) error {
-	tx, err := p.db.BeginTx(parentCtx, nil)
+	tx, err := p.beginTx(parentCtx)
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+		return err
 	}
-	defer tx.Rollback()
+	defer p.rollbackTx(parentCtx, tx, "ExecMulti")
 
 	for _, o := range request.Operations {
 		switch o.Operation {
@@ -450,7 +413,9 @@ func (p *PostgresDBAccess) ExecuteMulti(parentCtx context.Context, request *stat
 		}
 	}
 
-	err = tx.Commit()
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
+	err = tx.Commit(ctx)
+	cancel()
 	if err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
@@ -481,14 +446,14 @@ func (p *PostgresDBAccess) Query(parentCtx context.Context, req *state.QueryRequ
 }
 
 func (p *PostgresDBAccess) ScheduleCleanupExpiredData(ctx context.Context) {
-	if p.cleanupInterval == nil {
+	if p.metadata.cleanupInterval == nil {
 		return
 	}
 
-	p.logger.Infof("Schedule expired data clean up every %d seconds", int(p.cleanupInterval.Seconds()))
+	p.logger.Infof("Schedule expired data clean up every %d seconds", int(p.metadata.cleanupInterval.Seconds()))
 
 	go func() {
-		ticker := time.NewTicker(*p.cleanupInterval)
+		ticker := time.NewTicker(*p.metadata.cleanupInterval)
 		for {
 			select {
 			case <-ticker.C:
@@ -507,7 +472,7 @@ func (p *PostgresDBAccess) ScheduleCleanupExpiredData(ctx context.Context) {
 func (p *PostgresDBAccess) CleanupExpired(ctx context.Context) error {
 	// Check if the last iteration was too recent
 	// This performs an atomic operation, so allows coordination with other daprd processes too
-	canContinue, err := p.UpdateLastCleanup(ctx, p.db, *p.cleanupInterval)
+	canContinue, err := p.UpdateLastCleanup(ctx, p.db, *p.metadata.cleanupInterval)
 	if err != nil {
 		// Log errors only
 		p.logger.Warnf("Failed to read last cleanup time from database: %v", err)
@@ -520,27 +485,21 @@ func (p *PostgresDBAccess) CleanupExpired(ctx context.Context) error {
 	// Note we're not using the transaction here as we don't want this to be rolled back half-way or to lock the table unnecessarily
 	// Need to use fmt.Sprintf because we can't parametrize a table name
 	// Note we are not setting a timeout here as this query can take a "long" time, especially if there's no index on expiredate
-	//nolint:gosec
 	stmt := fmt.Sprintf(`DELETE FROM %s WHERE expiredate IS NOT NULL AND expiredate < CURRENT_TIMESTAMP`, p.metadata.TableName)
-	res, err := p.db.ExecContext(ctx, stmt)
+	res, err := p.db.Exec(ctx, stmt)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
 
-	cleaned, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to count affected rows: %w", err)
-	}
-
-	p.logger.Infof("Removed %d expired rows", cleaned)
+	p.logger.Infof("Removed %d expired rows", res.RowsAffected())
 	return nil
 }
 
 // UpdateLastCleanup sets the 'last-cleanup' value only if it's less than cleanupInterval.
 // Returns true if the row was updated, which means that the cleanup can proceed.
 func (p *PostgresDBAccess) UpdateLastCleanup(ctx context.Context, db dbquerier, cleanupInterval time.Duration) (bool, error) {
-	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	res, err := db.ExecContext(queryCtx,
+	queryCtx, cancel := context.WithTimeout(ctx, p.metadata.timeout)
+	res, err := db.Exec(queryCtx,
 		fmt.Sprintf(`INSERT INTO %[1]s (key, value)
 			VALUES ('last-cleanup', CURRENT_TIMESTAMP)
 			ON CONFLICT (key)
@@ -554,11 +513,7 @@ func (p *PostgresDBAccess) UpdateLastCleanup(ctx context.Context, db dbquerier, 
 		return true, fmt.Errorf("failed to execute query: %w", err)
 	}
 
-	n, err := res.RowsAffected()
-	if err != nil {
-		return true, fmt.Errorf("failed to count affected rows: %w", err)
-	}
-
+	n := res.RowsAffected()
 	return n > 0, nil
 }
 
@@ -569,7 +524,8 @@ func (p *PostgresDBAccess) Close() error {
 		p.cancel = nil
 	}
 	if p.db != nil {
-		return p.db.Close()
+		p.db.Close()
+		p.db = nil
 	}
 
 	return nil
@@ -578,7 +534,7 @@ func (p *PostgresDBAccess) Close() error {
 // GetCleanupInterval returns the cleanupInterval property.
 // This is primarily used for tests.
 func (p *PostgresDBAccess) GetCleanupInterval() *time.Duration {
-	return p.cleanupInterval
+	return p.metadata.cleanupInterval
 }
 
 // Returns the set requests.
@@ -607,4 +563,27 @@ func getDelete(req state.TransactionalStateOperation) (state.DeleteRequest, erro
 	}
 
 	return delReq, nil
+}
+
+// Internal function that begins a transaction.
+func (p *PostgresDBAccess) beginTx(parentCtx context.Context) (pgx.Tx, error) {
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
+	tx, err := p.db.Begin(ctx)
+	cancel()
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	return tx, nil
+}
+
+// Internal function that rolls back a transaction.
+// Normally called as a deferred function in methods that use transactions.
+// In case of errors, they are logged but not actioned upon.
+func (p *PostgresDBAccess) rollbackTx(parentCtx context.Context, tx pgx.Tx, methodName string) {
+	rollbackCtx, rollbackCancel := context.WithTimeout(parentCtx, p.metadata.timeout)
+	rollbackErr := tx.Rollback(rollbackCtx)
+	rollbackCancel()
+	if rollbackErr != nil && !errors.Is(rollbackErr, pgx.ErrTxClosed) {
+		p.logger.Errorf("Failed to rollback transaction in %s: %v", methodName, rollbackErr)
+	}
 }

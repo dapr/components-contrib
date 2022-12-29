@@ -2,8 +2,6 @@ module snssqs_test
 
 go 1.19
 
-replace github.com/dapr/dapr => github.com/dapr/dapr v1.9.4-0.20221221150048-640772d83bd1
-
 replace github.com/dapr/components-contrib => ../../../../..
 
 replace github.com/dapr/components-contrib/tests/certification => ../../..

@@ -121,7 +121,9 @@ jobs:
         - component: state.azure.blobstorage
           required-secrets: AzureBlobStorageContainer,AzureBlobStorageAccount, AzureBlobStorageAccessKey, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
         - component: state.azure.cosmosdb
-          required-secrets: AzureCosmosDBMasterKey, AzureCosmosDBUrl, AzureCosmosDB, AzureCosmosDBCollection, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret    
+          required-secrets: AzureCosmosDBMasterKey, AzureCosmosDBUrl, AzureCosmosDB, AzureCosmosDBCollection, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
+        - component: pubsub.aws.snssqs
+          terraform-dir: pubsub/aws/snssqs
         EOF
         )
         echo "cloud-components=$CRON_COMPONENTS" >> $GITHUB_OUTPUT

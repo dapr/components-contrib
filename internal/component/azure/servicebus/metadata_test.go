@@ -14,6 +14,7 @@ limitations under the License.
 package servicebus
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -48,7 +49,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, MetadataModeTopics)
+		m, err := ParseMetadata(context.Background(), fakeProperties, MetadataModeTopics)
 
 		// assert.
 		assert.NoError(t, err)
@@ -84,7 +85,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, 0)
+		m, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.NoError(t, err)
@@ -119,7 +120,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties := getFakeProperties()
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, MetadataModeBinding)
+		m, err := ParseMetadata(context.Background(), fakeProperties, MetadataModeBinding)
 
 		// assert.
 		assert.NoError(t, err)
@@ -157,7 +158,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyNamespaceName] = ""
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, 0)
+		m, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Error(t, err)
@@ -169,7 +170,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyNamespaceName] = ""
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, 0)
+		m, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.NoError(t, err)
@@ -182,7 +183,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyConnectionString] = ""
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, 0)
+		m, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.NoError(t, err)
@@ -195,7 +196,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyNamespaceName] = "fakeNamespace"
 
 		// act.
-		_, err := ParseMetadata(fakeProperties, nil, 0)
+		_, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Error(t, err)
@@ -206,7 +207,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyConsumerID] = ""
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, MetadataModeTopics)
+		m, err := ParseMetadata(context.Background(), fakeProperties, MetadataModeTopics)
 
 		// assert.
 		assert.Error(t, err)
@@ -218,7 +219,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyQueueName] = ""
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, MetadataModeBinding)
+		m, err := ParseMetadata(context.Background(), fakeProperties, MetadataModeBinding)
 
 		// assert.
 		assert.Error(t, err)
@@ -230,7 +231,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyTimeoutInSec] = ""
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, 0)
+		m, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Equal(t, defaultTimeoutInSec, m.TimeoutInSec)
@@ -242,7 +243,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyTimeoutInSec] = invalidNumber
 
 		// act.
-		_, err := ParseMetadata(fakeProperties, nil, 0)
+		_, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Error(t, err)
@@ -253,7 +254,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyDisableEntityManagement] = ""
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, 0)
+		m, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Equal(t, false, m.DisableEntityManagement)
@@ -265,7 +266,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyDisableEntityManagement] = "invalid_bool"
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, 0)
+		m, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Equal(t, false, m.DisableEntityManagement)
@@ -277,7 +278,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyHandlerTimeoutInSec] = ""
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, MetadataModeBinding)
+		m, err := ParseMetadata(context.Background(), fakeProperties, MetadataModeBinding)
 
 		// assert.
 		assert.Equal(t, defaultHandlerTimeoutInSecBinding, m.HandlerTimeoutInSec)
@@ -289,7 +290,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyHandlerTimeoutInSec] = ""
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, 0)
+		m, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Equal(t, defaultHandlerTimeoutInSecPubSub, m.HandlerTimeoutInSec)
@@ -301,7 +302,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyHandlerTimeoutInSec] = invalidNumber
 
 		// act.
-		_, err := ParseMetadata(fakeProperties, nil, 0)
+		_, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Error(t, err)
@@ -312,7 +313,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyLockRenewalInSec] = ""
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, 0)
+		m, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Equal(t, defaultLockRenewalInSec, m.LockRenewalInSec)
@@ -324,7 +325,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyLockRenewalInSec] = invalidNumber
 
 		// act.
-		_, err := ParseMetadata(fakeProperties, nil, 0)
+		_, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Error(t, err)
@@ -335,7 +336,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyMaxRetriableErrorsPerSec] = ""
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, 0)
+		m, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Equal(t, defaultMaxRetriableErrorsPerSec, m.MaxRetriableErrorsPerSec)
@@ -348,7 +349,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyMaxRetriableErrorsPerSec] = invalidNumber
 
 		// act.
-		_, err := ParseMetadata(fakeProperties, nil, 0)
+		_, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Error(t, err)
@@ -358,7 +359,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyMaxRetriableErrorsPerSec] = "-1"
 
 		// act.
-		_, err = ParseMetadata(fakeProperties, nil, 0)
+		_, err = ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Error(t, err)
@@ -369,7 +370,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyMaxActiveMessages] = ""
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, MetadataModeBinding)
+		m, err := ParseMetadata(context.Background(), fakeProperties, MetadataModeBinding)
 
 		// assert.
 		assert.Equal(t, defaultMaxActiveMessagesBinding, m.MaxActiveMessages)
@@ -381,7 +382,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyMaxActiveMessages] = ""
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, 0)
+		m, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Equal(t, defaultMaxActiveMessagesPubSub, m.MaxActiveMessages)
@@ -393,7 +394,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyMaxActiveMessages] = invalidNumber
 
 		// act.
-		_, err := ParseMetadata(fakeProperties, nil, 0)
+		_, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Error(t, err)
@@ -404,7 +405,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyMaxConnectionRecoveryInSec] = ""
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, 0)
+		m, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Equal(t, defaultMaxConnectionRecoveryInSec, m.MaxConnectionRecoveryInSec)
@@ -416,7 +417,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyMaxConnectionRecoveryInSec] = invalidNumber
 
 		// act.
-		_, err := ParseMetadata(fakeProperties, nil, 0)
+		_, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Error(t, err)
@@ -427,7 +428,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyMinConnectionRecoveryInSec] = ""
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, 0)
+		m, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Equal(t, defaultMinConnectionRecoveryInSec, m.MinConnectionRecoveryInSec)
@@ -439,7 +440,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyMinConnectionRecoveryInSec] = invalidNumber
 
 		// act.
-		_, err := ParseMetadata(fakeProperties, nil, 0)
+		_, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Error(t, err)
@@ -450,7 +451,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyMaxConcurrentHandlers] = ""
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, 0)
+		m, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Equal(t, 0, m.MaxConcurrentHandlers)
@@ -462,7 +463,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyMaxConcurrentHandlers] = invalidNumber
 
 		// act.
-		_, err := ParseMetadata(fakeProperties, nil, 0)
+		_, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Error(t, err)
@@ -473,7 +474,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyMaxDeliveryCount] = ""
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, 0)
+		m, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Nil(t, m.MaxDeliveryCount)
@@ -485,7 +486,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyMaxDeliveryCount] = invalidNumber
 
 		// act.
-		_, err := ParseMetadata(fakeProperties, nil, 0)
+		_, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Error(t, err)
@@ -496,7 +497,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyDefaultMessageTimeToLiveInSec] = ""
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, 0)
+		m, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Nil(t, m.DefaultMessageTimeToLiveInSec)
@@ -508,7 +509,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyDefaultMessageTimeToLiveInSec] = invalidNumber
 
 		// act.
-		_, err := ParseMetadata(fakeProperties, nil, 0)
+		_, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Error(t, err)
@@ -519,7 +520,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyAutoDeleteOnIdleInSec] = ""
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, 0)
+		m, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Nil(t, m.AutoDeleteOnIdleInSec)
@@ -531,7 +532,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyAutoDeleteOnIdleInSec] = invalidNumber
 
 		// act.
-		_, err := ParseMetadata(fakeProperties, nil, 0)
+		_, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Error(t, err)
@@ -542,7 +543,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyLockDurationInSec] = ""
 
 		// act.
-		m, err := ParseMetadata(fakeProperties, nil, 0)
+		m, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Nil(t, m.LockDurationInSec)
@@ -554,7 +555,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		fakeProperties[keyLockDurationInSec] = invalidNumber
 
 		// act.
-		_, err := ParseMetadata(fakeProperties, nil, 0)
+		_, err := ParseMetadata(context.Background(), fakeProperties, 0)
 
 		// assert.
 		assert.Error(t, err)

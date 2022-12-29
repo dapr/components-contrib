@@ -50,7 +50,7 @@ require (
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/dancannon/gorethink v4.0.0+incompatible
-	github.com/dapr/kit v0.0.3
+	github.com/dapr/kit v0.0.4-0.20221211173611-bcf6ee09314e
 	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/dghubble/go-twitter v0.0.0-20221104224141-912508c3888b
 	github.com/dghubble/oauth1 v0.7.2

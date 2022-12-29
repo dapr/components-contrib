@@ -14,6 +14,7 @@ limitations under the License.
 package servicebus
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -23,7 +24,6 @@ import (
 
 	"github.com/dapr/components-contrib/internal/utils"
 	mdutils "github.com/dapr/components-contrib/metadata"
-	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
 )
 
@@ -119,7 +119,7 @@ const (
 )
 
 // ParseMetadata parses metadata keys that are common to all Service Bus components
-func ParseMetadata(md map[string]string, logger logger.Logger, mode byte) (m *Metadata, err error) {
+func ParseMetadata(ctx context.Context, md map[string]string, mode byte) (m *Metadata, err error) {
 	m = &Metadata{}
 
 	/* Required configuration settings - no defaults. */

@@ -22,7 +22,6 @@ import (
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
-	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
 )
 
@@ -133,7 +132,7 @@ func (q *Query) Finalize(filters string, storeQuery *query.Query) error {
 	return nil
 }
 
-func (q *Query) execute(ctx context.Context, logger logger.Logger, db *sql.DB) ([]state.QueryItem, string, error) {
+func (q *Query) execute(ctx context.Context, db *sql.DB) ([]state.QueryItem, string, error) {
 	rows, err := db.QueryContext(ctx, q.query, q.params...)
 	if err != nil {
 		return nil, "", fmt.Errorf("query executes '%s' failed: %w", q.query, err)

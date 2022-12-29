@@ -51,7 +51,8 @@ func NewRethinkDBStateChangeBinding(logger logger.Logger) bindings.InputBinding 
 
 // Init initializes the RethinkDB binding.
 func (b *Binding) Init(metadata bindings.Metadata) error {
-	cfg, err := metadataToConfig(metadata.Properties, b.logger)
+	ctx := logger.NewContext(context.Background(), b.logger)
+	cfg, err := metadataToConfig(ctx, metadata.Properties)
 	if err != nil {
 		return errors.Wrap(err, "unable to parse metadata properties")
 	}
@@ -117,7 +118,8 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 	return nil
 }
 
-func metadataToConfig(cfg map[string]string, logger logger.Logger) (StateConfig, error) {
+func metadataToConfig(ctx context.Context, cfg map[string]string) (StateConfig, error) {
+	logger := logger.FromContextOrDefault(ctx)
 	c := StateConfig{}
 	for k, v := range cfg {
 		switch k {

@@ -50,7 +50,8 @@ func NewAzureServiceBusQueues(logger logger.Logger) bindings.InputOutputBinding 
 
 // Init parses connection properties and creates a new Service Bus Queue client.
 func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) (err error) {
-	a.metadata, err = impl.ParseMetadata(metadata.Properties, a.logger, (impl.MetadataModeBinding | impl.MetadataModeQueues))
+	ctx := logger.NewContext(context.Background(), a.logger)
+	a.metadata, err = impl.ParseMetadata(ctx, metadata.Properties, (impl.MetadataModeBinding | impl.MetadataModeQueues))
 	if err != nil {
 		return err
 	}

@@ -364,6 +364,7 @@ func (p *cockroachDBAccess) ExecuteMulti(ctx context.Context, request *state.Tra
 // Query executes a query against store.
 func (p *cockroachDBAccess) Query(ctx context.Context, req *state.QueryRequest) (*state.QueryResponse, error) {
 	p.logger.Debug("Getting query value from CockroachDB")
+	ctx = logger.NewContext(ctx, p.logger)
 
 	stateQuery := &Query{
 		query:  "",
@@ -382,7 +383,7 @@ func (p *cockroachDBAccess) Query(ctx context.Context, req *state.QueryRequest) 
 
 	p.logger.Debug("Query: " + stateQuery.query)
 
-	data, token, err := stateQuery.execute(ctx, p.logger, p.db)
+	data, token, err := stateQuery.execute(ctx, p.db)
 	if err != nil {
 		return &state.QueryResponse{
 			Results:  []state.QueryItem{},

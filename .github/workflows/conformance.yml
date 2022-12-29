@@ -74,6 +74,7 @@ jobs:
         - pubsub.kafka-wurstmeister
         - pubsub.kafka-confluent
         - pubsub.kubemq
+        - pubsub.solace
         - secretstores.kubernetes
         - secretstores.localenv
         - secretstores.localfile
@@ -480,6 +481,10 @@ jobs:
     - name: Start kubemq
       run: docker-compose -f ./.github/infrastructure/docker-compose-kubemq.yml -p kubemq up -d
       if: contains(matrix.component, 'kubemq')
+    
+    - name: Start solace
+      run: docker-compose -f ./.github/infrastructure/docker-compose-solace.yml -p solace up -d
+      if: contains(matrix.component, 'solace')
 
     - name: Start nats with JetStream
       run: |

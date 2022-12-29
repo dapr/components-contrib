@@ -12,3 +12,5 @@ spec:
     value: config-test
   - name: flowControl
     value: true
+  - name: hearbeat
+    value: 5s

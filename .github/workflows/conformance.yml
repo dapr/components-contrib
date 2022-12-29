@@ -61,7 +61,7 @@ jobs:
         - bindings.redis.v7
         - bindings.kubemq
         - bindings.rabbitmq
-        - pubsub.aws.snssqs
+        - pubsub.aws.snssqs.docker
         - pubsub.hazelcast
         - pubsub.in-memory
         - pubsub.mqtt-emqx
@@ -74,6 +74,7 @@ jobs:
         - pubsub.kafka-wurstmeister
         - pubsub.kafka-confluent
         - pubsub.kubemq
+        - pubsub.solace
         - secretstores.kubernetes
         - secretstores.localenv
         - secretstores.localfile
@@ -149,6 +150,8 @@ jobs:
           required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret
         - component: bindings.azure.cosmosdb
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
+        - component: pubsub.aws.snssqs.terraform
+          terraform-dir: pubsub/aws/snssqs        
         - component: state.cloudflare.workerskv
         EOF
         )
@@ -179,6 +182,7 @@ jobs:
       # Version of Node.js to use
       # Currently used by the Cloudflare components
       NODE_VERSION: 18.x
+      UNIQUE_ID: ${{github.run_id}}-${{github.run_attempt}}
     defaults:
       run:
         shell: bash
@@ -271,6 +275,58 @@ jobs:
           echo 'Setting $CERT_NAME to' "$CERT_FILE"
           echo "$CERT_NAME=$CERT_FILE" >> $GITHUB_ENV
         done
+
+    - name: Get current time
+      run: |
+        echo "CURRENT_TIME=$(date --rfc-3339=date)" >> ${GITHUB_ENV}
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      if: matrix.terraform-dir != ''
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+        aws-region: us-west-1
+      if: matrix.terraform-dir != ''
+
+    - name: Terraform Init
+      id: init
+      run: terraform init
+      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
+      if: matrix.terraform-dir != ''
+      
+    - name: Terraform Validate
+      id: validate
+      run: terraform validate -no-color
+      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
+      if: matrix.terraform-dir != ''
+
+    - name: Terraform Plan
+      id: plan
+      run: terraform plan -no-color -var="UNIQUE_ID=${{env.UNIQUE_ID}}" -var="TIMESTAMP=${{env.CURRENT_TIME}}"
+      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
+      if: matrix.terraform-dir != ''
+
+    - name: Terraform Apply
+      run: terraform apply -auto-approve -var="UNIQUE_ID=${{env.UNIQUE_ID}}" -var="TIMESTAMP=${{env.CURRENT_TIME}}"
+      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
+      if: matrix.terraform-dir != ''
+      continue-on-error: true
+
+    - name: Create aws.snssqs variables
+      run: |
+        PUBSUB_AWS_SNSSQS_QUEUE="testQueue-${{ env.UNIQUE_ID }}"
+        echo "PUBSUB_AWS_SNSSQS_QUEUE=$PUBSUB_AWS_SNSSQS_QUEUE" >> $GITHUB_ENV
+        PUBSUB_AWS_SNSSQS_TOPIC="testTopic-${{ env.UNIQUE_ID }}"
+        echo "PUBSUB_AWS_SNSSQS_TOPIC=$PUBSUB_AWS_SNSSQS_TOPIC" >> $GITHUB_ENV
+        PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1="multiTopic1-${{ env.UNIQUE_ID }}"
+        echo "PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1=$PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1" >> $GITHUB_ENV
+        PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2="multiTopic2-${{ env.UNIQUE_ID }}"
+        echo "PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2=$PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2" >> $GITHUB_ENV
+      if: contains(matrix.component, 'snssqs')
 
     - name: Start Redis 6 with Redis JSON
       run: docker-compose -f ./.github/infrastructure/docker-compose-redisjson.yml -p redis up -d
@@ -374,7 +430,7 @@ jobs:
 
     - name: Start aws snssqs
       run: docker-compose -f ./.github/infrastructure/docker-compose-snssqs.yml -p snssqs up -d
-      if: contains(matrix.component, 'aws.snssqs')
+      if: contains(matrix.component, 'aws.snssqs.docker')
 
     - name: Start influxdb
       run: |
@@ -425,6 +481,10 @@ jobs:
     - name: Start kubemq
       run: docker-compose -f ./.github/infrastructure/docker-compose-kubemq.yml -p kubemq up -d
       if: contains(matrix.component, 'kubemq')
+    
+    - name: Start solace
+      run: docker-compose -f ./.github/infrastructure/docker-compose-solace.yml -p solace up -d
+      if: contains(matrix.component, 'solace')
 
     - name: Start nats with JetStream
       run: |
@@ -456,6 +516,9 @@ jobs:
 
     - name: Run tests
       continue-on-error: true
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}  
       run: |
         set -e 
         KIND=$(echo ${{ matrix.component }} | cut -d. -f1)
@@ -534,6 +597,12 @@ jobs:
           echo "Cleaning up the certificate file $CERT_FILE..."
           rm $CERT_FILE
         done
+
+    - name: Terraform Destroy
+      continue-on-error: true    
+      run: terraform destroy -auto-approve -var="UNIQUE_ID=${{env.UNIQUE_ID}}" -var="TIMESTAMP=${{env.CURRENT_TIME}}"
+      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
+      if: matrix.terraform-dir != ''
 
     - name: Check conformance test passed
       continue-on-error: false

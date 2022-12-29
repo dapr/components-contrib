@@ -14,6 +14,7 @@ limitations under the License.
 package postgresql
 
 import (
+	"context"
 	"reflect"
 
 	"github.com/dapr/components-contrib/metadata"
@@ -23,7 +24,6 @@ import (
 
 // PostgreSQL state store.
 type PostgreSQL struct {
-	features []state.Feature
 	logger   logger.Logger
 	dbaccess dbAccess
 }
@@ -39,7 +39,6 @@ func NewPostgreSQLStateStore(logger logger.Logger) state.Store {
 // This unexported constructor allows injecting a dbAccess instance for unit testing.
 func newPostgreSQLStateStore(logger logger.Logger, dba dbAccess) *PostgreSQL {
 	return &PostgreSQL{
-		features: []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI},
 		logger:   logger,
 		dbaccess: dba,
 	}
@@ -52,48 +51,48 @@ func (p *PostgreSQL) Init(metadata state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (p *PostgreSQL) Features() []state.Feature {
-	return p.features
+	return []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI}
 }
 
 // Delete removes an entity from the store.
-func (p *PostgreSQL) Delete(req *state.DeleteRequest) error {
-	return p.dbaccess.Delete(req)
+func (p *PostgreSQL) Delete(ctx context.Context, req *state.DeleteRequest) error {
+	return p.dbaccess.Delete(ctx, req)
 }
 
 // BulkDelete removes multiple entries from the store.
-func (p *PostgreSQL) BulkDelete(req []state.DeleteRequest) error {
-	return p.dbaccess.BulkDelete(req)
+func (p *PostgreSQL) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
+	return p.dbaccess.BulkDelete(ctx, req)
 }
 
 // Get returns an entity from store.
-func (p *PostgreSQL) Get(req *state.GetRequest) (*state.GetResponse, error) {
-	return p.dbaccess.Get(req)
+func (p *PostgreSQL) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
+	return p.dbaccess.Get(ctx, req)
 }
 
 // BulkGet performs a bulks get operations.
-func (p *PostgreSQL) BulkGet(req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+func (p *PostgreSQL) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
 	// TODO: replace with ExecuteMulti for performance
 	return false, nil, nil
 }
 
 // Set adds/updates an entity on store.
-func (p *PostgreSQL) Set(req *state.SetRequest) error {
-	return p.dbaccess.Set(req)
+func (p *PostgreSQL) Set(ctx context.Context, req *state.SetRequest) error {
+	return p.dbaccess.Set(ctx, req)
 }
 
 // BulkSet adds/updates multiple entities on store.
-func (p *PostgreSQL) BulkSet(req []state.SetRequest) error {
-	return p.dbaccess.BulkSet(req)
+func (p *PostgreSQL) BulkSet(ctx context.Context, req []state.SetRequest) error {
+	return p.dbaccess.BulkSet(ctx, req)
 }
 
 // Multi handles multiple transactions. Implements TransactionalStore.
-func (p *PostgreSQL) Multi(request *state.TransactionalStateRequest) error {
-	return p.dbaccess.ExecuteMulti(request)
+func (p *PostgreSQL) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
+	return p.dbaccess.ExecuteMulti(ctx, request)
 }
 
 // Query executes a query against store.
-func (p *PostgreSQL) Query(req *state.QueryRequest) (*state.QueryResponse, error) {
-	return p.dbaccess.Query(req)
+func (p *PostgreSQL) Query(ctx context.Context, req *state.QueryRequest) (*state.QueryResponse, error) {
+	return p.dbaccess.Query(ctx, req)
 }
 
 // Close implements io.Closer.
@@ -101,8 +100,13 @@ func (p *PostgreSQL) Close() error {
 	if p.dbaccess != nil {
 		return p.dbaccess.Close()
 	}
-
 	return nil
+}
+
+// Returns the dbaccess property.
+// This method is used in tests.
+func (p *PostgreSQL) GetDBAccess() dbAccess {
+	return p.dbaccess
 }
 
 func (p *PostgreSQL) GetComponentMetadata() map[string]string {

@@ -22,7 +22,6 @@ import (
 	"os"
 	"path"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -34,6 +33,7 @@ import (
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
+	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 )
 
@@ -133,15 +133,15 @@ func (r *StateStore) Features() []state.Feature {
 	return r.features
 }
 
-func (r *StateStore) Delete(req *state.DeleteRequest) error {
+func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	r.logger.Debugf("Delete entry from OCI Object Storage State Store with key ", req.Key)
-	err := r.deleteDocument(req)
+	err := r.deleteDocument(ctx, req)
 	return err
 }
 
-func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (r *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	r.logger.Debugf("Get from OCI Object Storage State Store with key ", req.Key)
-	content, etag, err := r.readDocument((req))
+	content, etag, err := r.readDocument(ctx, req)
 	if err != nil {
 		r.logger.Debugf("error %s", err)
 		if err.Error() == "ObjectNotFound" {
@@ -157,9 +157,9 @@ func (r *StateStore) Get(req *state.GetRequest) (*state.GetResponse, error) {
 	}, err
 }
 
-func (r *StateStore) Set(req *state.SetRequest) error {
+func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	r.logger.Debugf("saving %s to OCI Object Storage State Store", req.Key)
-	return r.writeDocument(req)
+	return r.writeDocument(ctx, req)
 }
 
 func (r *StateStore) Ping() error {
@@ -246,7 +246,7 @@ func getIdentityAuthenticationDetails(meta objectStoreMetadata) (err error) {
 }
 
 // functions that bridge from the Dapr State API to the OCI ObjectStorage Client.
-func (r *StateStore) writeDocument(req *state.SetRequest) error {
+func (r *StateStore) writeDocument(ctx context.Context, req *state.SetRequest) error {
 	if len(req.Key) == 0 || req.Key == "" {
 		return fmt.Errorf("key for value to set was missing from request")
 	}
@@ -265,7 +265,6 @@ func (r *StateStore) writeDocument(req *state.SetRequest) error {
 	objectName := getFileName(req.Key)
 	content := r.marshal(req)
 	objectLength := int64(len(content))
-	ctx := context.Background()
 	etag := req.ETag
 	if req.Options.Concurrency != state.FirstWrite {
 		etag = nil
@@ -279,27 +278,22 @@ func (r *StateStore) writeDocument(req *state.SetRequest) error {
 }
 
 func (r *StateStore) convertTTLtoExpiryTime(req *state.SetRequest, metadata map[string]string) error {
-	ttl, ttlerr := parseTTL(req.Metadata)
+	ttl, ttlerr := stateutils.ParseTTL(req.Metadata)
 	if ttlerr != nil {
-		return fmt.Errorf("error in parsing TTL %w", ttlerr)
+		return fmt.Errorf("error parsing TTL: %w", ttlerr)
 	}
 	if ttl != nil {
-		if *ttl == -1 {
-			r.logger.Debugf("TTL is set to -1; this means: never expire. ")
-		} else {
-			metadata[expiryTimeMetaLabel] = time.Now().UTC().Add(time.Second * time.Duration(*ttl)).Format(isoDateTimeFormat)
-			r.logger.Debugf("Set %s in meta properties for object to ", expiryTimeMetaLabel, metadata[expiryTimeMetaLabel])
-		}
+		metadata[expiryTimeMetaLabel] = time.Now().UTC().Add(time.Second * time.Duration(*ttl)).Format(isoDateTimeFormat)
+		r.logger.Debugf("Set %s in meta properties for object to ", expiryTimeMetaLabel, metadata[expiryTimeMetaLabel])
 	}
 	return nil
 }
 
-func (r *StateStore) readDocument(req *state.GetRequest) ([]byte, *string, error) {
+func (r *StateStore) readDocument(ctx context.Context, req *state.GetRequest) ([]byte, *string, error) {
 	if len(req.Key) == 0 || req.Key == "" {
 		return nil, nil, fmt.Errorf("key for value to get was missing from request")
 	}
 	objectName := getFileName(req.Key)
-	ctx := context.Background()
 	content, etag, meta, err := r.client.getObject(ctx, objectName)
 	if err != nil {
 		r.logger.Debugf("download file %s, err %s", req.Key, err)
@@ -327,13 +321,12 @@ func (r *StateStore) pingBucket() error {
 	return nil
 }
 
-func (r *StateStore) deleteDocument(req *state.DeleteRequest) error {
+func (r *StateStore) deleteDocument(ctx context.Context, req *state.DeleteRequest) error {
 	if len(req.Key) == 0 || req.Key == "" {
 		return fmt.Errorf("key for value to delete was missing from request")
 	}
 
 	objectName := getFileName(req.Key)
-	ctx := context.Background()
 	etag := req.ETag
 	if req.Options.Concurrency != state.FirstWrite {
 		etag = nil
@@ -368,20 +361,6 @@ func getFileName(key string) string {
 	}
 
 	return path.Join(pr[0], pr[1])
-}
-
-func parseTTL(requestMetadata map[string]string) (*int, error) {
-	if val, found := requestMetadata[metadataTTLKey]; found && val != "" {
-		parsedVal, err := strconv.ParseInt(val, 10, 0)
-		if err != nil {
-			return nil, fmt.Errorf("error in parsing ttl metadata : %w", err)
-		}
-		parsedInt := int(parsedVal)
-
-		return &parsedInt, nil
-	}
-
-	return nil, nil
 }
 
 /**************** functions with OCI ObjectStorage Service interaction.   */

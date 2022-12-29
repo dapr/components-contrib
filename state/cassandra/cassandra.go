@@ -14,6 +14,7 @@ limitations under the License.
 package cassandra
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -23,6 +24,7 @@ import (
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
+	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 )
 
@@ -212,12 +214,12 @@ func getCassandraMetadata(meta state.Metadata) (*cassandraMetadata, error) {
 }
 
 // Delete performs a delete operation.
-func (c *Cassandra) Delete(req *state.DeleteRequest) error {
-	return c.session.Query(fmt.Sprintf("DELETE FROM %s WHERE key = ?", c.table), req.Key).Exec()
+func (c *Cassandra) Delete(ctx context.Context, req *state.DeleteRequest) error {
+	return c.session.Query(fmt.Sprintf("DELETE FROM %s WHERE key = ?", c.table), req.Key).WithContext(ctx).Exec()
 }
 
 // Get retrieves state from cassandra with a key.
-func (c *Cassandra) Get(req *state.GetRequest) (*state.GetResponse, error) {
+func (c *Cassandra) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	session := c.session
 
 	if req.Options.Consistency == state.Strong {
@@ -236,7 +238,7 @@ func (c *Cassandra) Get(req *state.GetRequest) (*state.GetResponse, error) {
 		session = sess
 	}
 
-	results, err := session.Query(fmt.Sprintf("SELECT value FROM %s WHERE key = ?", c.table), req.Key).Iter().SliceMap()
+	results, err := session.Query(fmt.Sprintf("SELECT value FROM %s WHERE key = ?", c.table), req.Key).WithContext(ctx).Iter().SliceMap()
 	if err != nil {
 		return nil, err
 	}
@@ -251,7 +253,7 @@ func (c *Cassandra) Get(req *state.GetRequest) (*state.GetResponse, error) {
 }
 
 // Set saves state into cassandra.
-func (c *Cassandra) Set(req *state.SetRequest) error {
+func (c *Cassandra) Set(ctx context.Context, req *state.SetRequest) error {
 	var bt []byte
 	b, ok := req.Value.([]byte)
 	if ok {
@@ -278,16 +280,16 @@ func (c *Cassandra) Set(req *state.SetRequest) error {
 		session = sess
 	}
 
-	ttl, err := parseTTL(req.Metadata)
+	ttl, err := stateutils.ParseTTL(req.Metadata)
 	if err != nil {
 		return fmt.Errorf("error parsing TTL from Metadata: %s", err)
 	}
 
 	if ttl != nil {
-		return session.Query(fmt.Sprintf("INSERT INTO %s (key, value) VALUES (?, ?) USING TTL ?", c.table), req.Key, bt, *ttl).Exec()
+		return session.Query(fmt.Sprintf("INSERT INTO %s (key, value) VALUES (?, ?) USING TTL ?", c.table), req.Key, bt, *ttl).WithContext(ctx).Exec()
 	}
 
-	return session.Query(fmt.Sprintf("INSERT INTO %s (key, value) VALUES (?, ?)", c.table), req.Key, bt).Exec()
+	return session.Query(fmt.Sprintf("INSERT INTO %s (key, value) VALUES (?, ?)", c.table), req.Key, bt).WithContext(ctx).Exec()
 }
 
 func (c *Cassandra) createSession(consistency gocql.Consistency) (*gocql.Session, error) {
@@ -299,20 +301,6 @@ func (c *Cassandra) createSession(consistency gocql.Consistency) (*gocql.Session
 	session.SetConsistency(consistency)
 
 	return session, nil
-}
-
-func parseTTL(requestMetadata map[string]string) (*int, error) {
-	if val, found := requestMetadata[metadataTTLKey]; found && val != "" {
-		parsedVal, err := strconv.ParseInt(val, 10, 0)
-		if err != nil {
-			return nil, err
-		}
-		parsedInt := int(parsedVal)
-
-		return &parsedInt, nil
-	}
-
-	return nil, nil
 }
 
 func (c *Cassandra) GetComponentMetadata() map[string]string {

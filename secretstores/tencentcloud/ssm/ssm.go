@@ -16,21 +16,19 @@ package ssm
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strconv"
 
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
 	ssm "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm/v20190923"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 )
 
 const (
-	SecretID         = "SecretID"
-	SecretKey        = "SecretKey"
-	Token            = "Token"
-	Region           = "Region"
 	VersionID        = "VersionID"
 	RequestID        = "RequestID"
 	ValueType        = "SecretValueType"
@@ -56,6 +54,13 @@ type ssmSecretStore struct {
 	logger logger.Logger
 }
 
+type SsmMetadata struct {
+	SecretID  string
+	SecretKey string
+	Token     string
+	Region    string
+}
+
 // NewSSM returns a new TencentCloud ssm secret store.
 func NewSSM(logger logger.Logger) secretstores.SecretStore {
 	return &ssmSecretStore{
@@ -64,22 +69,19 @@ func NewSSM(logger logger.Logger) secretstores.SecretStore {
 }
 
 // Init creates a TencentCloud ssm client.
-func (s *ssmSecretStore) Init(metadata secretstores.Metadata) error {
-	var (
-		err    error
-		region string
-	)
+func (s *ssmSecretStore) Init(meta secretstores.Metadata) error {
+	m := SsmMetadata{}
+	err := metadata.DecodeMetadata(meta.Properties, &m)
+	if err != nil {
+		return err
+	}
 
-	secretID := metadata.Properties[SecretID]
-	secretKey := metadata.Properties[SecretKey]
-	token := metadata.Properties[Token]
-	region = metadata.Properties[Region]
-	if secretID == "" || secretKey == "" {
+	if m.SecretID == "" || m.SecretKey == "" {
 		return errors.New("secret params are empty")
 	}
 
-	credential := common.NewTokenCredential(secretID, secretKey, token)
-	s.client, err = ssm.NewClient(credential, region, profile.NewClientProfile())
+	credential := common.NewTokenCredential(m.SecretID, m.SecretKey, m.Token)
+	s.client, err = ssm.NewClient(credential, m.Region, profile.NewClientProfile())
 	if err != nil {
 		return err
 	}
@@ -189,4 +191,11 @@ func (s *ssmSecretStore) getSecretNames(ctx context.Context, offset *uint64) ([]
 // Features returns the features available in this secret store.
 func (s *ssmSecretStore) Features() []secretstores.Feature {
 	return []secretstores.Feature{} // No Feature supported.
+}
+
+func (s *ssmSecretStore) GetComponentMetadata() map[string]string {
+	metadataStruct := SsmMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

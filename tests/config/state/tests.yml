@@ -1,13 +1,16 @@
-# Supported operations: set, get, delete, bulkset, bulkdelete, transaction, etag, first-write, query
+# Supported operations: set, get, delete, bulkset, bulkdelete, transaction, etag, first-write, query, ttl
 componentType: state
 components:
-  - component: redis
+  - component: redis.v6
     allOperations: true
+  - component: redis.v7
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "first-write" ]
   - component: mongodb
-    allOperations: true
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "query" ]
   - component: memcached
     allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete" ]
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "ttl" ]
   - component: azure.cosmosdb
     allOperations: true
   - component: azure.blobstorage
@@ -20,8 +23,7 @@ components:
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "first-write" ]
   - component: postgresql
-    allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "query", "first-write" ]
+    allOperations: true
   - component: mysql.mysql
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write" ]
@@ -36,10 +38,17 @@ components:
     operations: ["set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write"]
   - component: cassandra
     allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete" ]
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "ttl" ]
+  - component: cloudflare.workerskv
+    allOperations: false
+    # Although this component supports TTLs, the minimum TTL is 60s, which makes it not suitable for our conformance tests
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete"]
   - component: cockroachdb
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "query" ]
   - component: rethinkdb
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete"]
+  - component: in-memory
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]

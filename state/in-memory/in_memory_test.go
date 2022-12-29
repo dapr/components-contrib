@@ -14,6 +14,7 @@ limitations under the License.
 package inmemory
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -21,7 +22,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/ptr"
 
 	"github.com/dapr/components-contrib/state"
 )
@@ -41,18 +41,19 @@ func TestReadAndWrite(t *testing.T) {
 		setReq := &state.SetRequest{
 			Key:   keyA,
 			Value: valueA,
-			ETag:  ptr.Of("the etag"),
 		}
-		err := store.Set(setReq)
+		err := store.Set(context.Background(), setReq)
 		assert.Nil(t, err)
 		// get after set
 		getReq := &state.GetRequest{
 			Key: keyA,
 		}
-		resp, err := store.Get(getReq)
-		assert.Nil(t, err)
+		resp, err := store.Get(context.Background(), getReq)
+		assert.NoError(t, err)
 		assert.NotNil(t, resp)
-		assert.Equal(t, valueA, string(resp.Data))
+		assert.Equal(t, `"`+valueA+`"`, string(resp.Data))
+		_ = assert.NotNil(t, resp.ETag) &&
+			assert.NotEmpty(t, *resp.ETag)
 	})
 
 	t.Run("get nothing when expired", func(t *testing.T) {
@@ -62,16 +63,16 @@ func TestReadAndWrite(t *testing.T) {
 			Value:    valueA,
 			Metadata: map[string]string{"ttlInSeconds": "1"},
 		}
-		err := store.Set(setReq)
-		assert.Nil(t, err)
+		err := store.Set(context.Background(), setReq)
+		assert.NoError(t, err)
 		// simulate expiration
 		time.Sleep(2 * time.Second)
 		// get
 		getReq := &state.GetRequest{
 			Key: keyA,
 		}
-		resp, err := store.Get(getReq)
-		assert.Nil(t, err)
+		resp, err := store.Get(context.Background(), getReq)
+		assert.NoError(t, err)
 		assert.NotNil(t, resp)
 		assert.Nil(t, resp.Data)
 		assert.Nil(t, resp.ETag)
@@ -81,41 +82,40 @@ func TestReadAndWrite(t *testing.T) {
 		// set
 		setReq := &state.SetRequest{
 			Key:   "theSecondKey",
-			Value: "1234",
-			ETag:  ptr.Of("the etag"),
+			Value: 1234,
 		}
-		err := store.Set(setReq)
-		assert.Nil(t, err)
+		err := store.Set(context.Background(), setReq)
+		assert.NoError(t, err)
 		// get
 		getReq := &state.GetRequest{
 			Key: "theSecondKey",
 		}
-		resp, err := store.Get(getReq)
-		assert.Nil(t, err)
+		resp, err := store.Get(context.Background(), getReq)
+		assert.NoError(t, err)
 		assert.NotNil(t, resp)
-		assert.Equal(t, "1234", string(resp.Data))
+		assert.Equal(t, `1234`, string(resp.Data))
 	})
 
 	t.Run("BulkSet two keys", func(t *testing.T) {
-		err := store.BulkSet([]state.SetRequest{{
+		err := store.BulkSet(context.Background(), []state.SetRequest{{
 			Key:   "theFirstKey",
-			Value: "666",
+			Value: "42",
 		}, {
 			Key:   "theSecondKey",
-			Value: "777",
+			Value: "84",
 		}})
 
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("BulkGet fails when not supported", func(t *testing.T) {
-		supportBulk, _, err := store.BulkGet([]state.GetRequest{{
+		supportBulk, _, err := store.BulkGet(context.Background(), []state.GetRequest{{
 			Key: "theFirstKey",
 		}, {
 			Key: "theSecondKey",
 		}})
 
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, false, supportBulk)
 	})
 
@@ -123,7 +123,7 @@ func TestReadAndWrite(t *testing.T) {
 		req := &state.DeleteRequest{
 			Key: "theFirstKey",
 		}
-		err := store.Delete(req)
-		assert.Nil(t, err)
+		err := store.Delete(context.Background(), req)
+		assert.NoError(t, err)
 	})
 }

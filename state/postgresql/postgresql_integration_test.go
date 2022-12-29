@@ -15,6 +15,7 @@ limitations under the License.
 package postgresql
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -48,7 +49,7 @@ func TestPostgreSQLIntegration(t *testing.T) {
 	})
 
 	metadata := state.Metadata{
-		Base: metadata.Base{Properties: map[string]string{connectionStringKey: connectionString}},
+		Base: metadata.Base{Properties: map[string]string{"connectionString": connectionString}},
 	}
 
 	pgs := NewPostgreSQLStateStore(logger.NewLogger("test")).(*PostgreSQL)
@@ -60,11 +61,6 @@ func TestPostgreSQLIntegration(t *testing.T) {
 	if error != nil {
 		t.Fatal(error)
 	}
-
-	t.Run("Create table succeeds", func(t *testing.T) {
-		t.Parallel()
-		testCreateTable(t, pgs.dbaccess.(*postgresDBAccess))
-	})
 
 	t.Run("Get Set Delete one item", func(t *testing.T) {
 		t.Parallel()
@@ -160,39 +156,12 @@ func setGetUpdateDeleteOneItem(t *testing.T, pgs *PostgreSQL) {
 	deleteItem(t, pgs, key, getResponse.ETag)
 }
 
-// testCreateTable tests the ability to create the state table.
-func testCreateTable(t *testing.T, dba *postgresDBAccess) {
-	tableName := "test_state"
-
-	// Drop the table if it already exists
-	exists, err := tableExists(dba.db, tableName)
-	assert.Nil(t, err)
-	if exists {
-		dropTable(t, dba.db, tableName)
-	}
-
-	// Create the state table and test for its existence
-	err = dba.ensureStateTable(tableName)
-	assert.Nil(t, err)
-	exists, err = tableExists(dba.db, tableName)
-	assert.Nil(t, err)
-	assert.True(t, exists)
-
-	// Drop the state table
-	dropTable(t, dba.db, tableName)
-}
-
-func dropTable(t *testing.T, db *sql.DB, tableName string) {
-	_, err := db.Exec(fmt.Sprintf("DROP TABLE %s", tableName))
-	assert.Nil(t, err)
-}
-
 func deleteItemThatDoesNotExist(t *testing.T, pgs *PostgreSQL) {
 	// Delete the item with a key not in the store
 	deleteReq := &state.DeleteRequest{
 		Key: randomKey(),
 	}
-	err := pgs.Delete(deleteReq)
+	err := pgs.Delete(context.Background(), deleteReq)
 	assert.Nil(t, err)
 }
 
@@ -211,7 +180,7 @@ func multiWithSetOnly(t *testing.T, pgs *PostgreSQL) {
 		})
 	}
 
-	err := pgs.Multi(&state.TransactionalStateRequest{
+	err := pgs.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	assert.Nil(t, err)
@@ -241,7 +210,7 @@ func multiWithDeleteOnly(t *testing.T, pgs *PostgreSQL) {
 		})
 	}
 
-	err := pgs.Multi(&state.TransactionalStateRequest{
+	err := pgs.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	assert.Nil(t, err)
@@ -284,7 +253,7 @@ func multiWithDeleteAndSet(t *testing.T, pgs *PostgreSQL) {
 		})
 	}
 
-	err := pgs.Multi(&state.TransactionalStateRequest{
+	err := pgs.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	assert.Nil(t, err)
@@ -311,7 +280,7 @@ func deleteWithInvalidEtagFails(t *testing.T, pgs *PostgreSQL) {
 		Key:  key,
 		ETag: &etag,
 	}
-	err := pgs.Delete(deleteReq)
+	err := pgs.Delete(context.Background(), deleteReq)
 	assert.NotNil(t, err)
 }
 
@@ -319,7 +288,7 @@ func deleteWithNoKeyFails(t *testing.T, pgs *PostgreSQL) {
 	deleteReq := &state.DeleteRequest{
 		Key: "",
 	}
-	err := pgs.Delete(deleteReq)
+	err := pgs.Delete(context.Background(), deleteReq)
 	assert.NotNil(t, err)
 }
 
@@ -334,7 +303,7 @@ func newItemWithEtagFails(t *testing.T, pgs *PostgreSQL) {
 		Value: value,
 	}
 
-	err := pgs.Set(setReq)
+	err := pgs.Set(context.Background(), setReq)
 	assert.NotNil(t, err)
 }
 
@@ -360,7 +329,7 @@ func updateWithOldEtagFails(t *testing.T, pgs *PostgreSQL) {
 		ETag:  originalEtag,
 		Value: newValue,
 	}
-	err := pgs.Set(setReq)
+	err := pgs.Set(context.Background(), setReq)
 	assert.NotNil(t, err)
 }
 
@@ -402,7 +371,7 @@ func getItemWithNoKey(t *testing.T, pgs *PostgreSQL) {
 		Key: "",
 	}
 
-	response, getErr := pgs.Get(getReq)
+	response, getErr := pgs.Get(context.Background(), getReq)
 	assert.NotNil(t, getErr)
 	assert.Nil(t, response)
 }
@@ -433,7 +402,7 @@ func setItemWithNoKey(t *testing.T, pgs *PostgreSQL) {
 		Key: "",
 	}
 
-	err := pgs.Set(setReq)
+	err := pgs.Set(context.Background(), setReq)
 	assert.NotNil(t, err)
 }
 
@@ -450,7 +419,7 @@ func testBulkSetAndBulkDelete(t *testing.T, pgs *PostgreSQL) {
 		},
 	}
 
-	err := pgs.BulkSet(setReq)
+	err := pgs.BulkSet(context.Background(), setReq)
 	assert.Nil(t, err)
 	assert.True(t, storeItemExists(t, setReq[0].Key))
 	assert.True(t, storeItemExists(t, setReq[1].Key))
@@ -464,7 +433,7 @@ func testBulkSetAndBulkDelete(t *testing.T, pgs *PostgreSQL) {
 		},
 	}
 
-	err = pgs.BulkDelete(deleteReq)
+	err = pgs.BulkDelete(context.Background(), deleteReq)
 	assert.Nil(t, err)
 	assert.False(t, storeItemExists(t, setReq[0].Key))
 	assert.False(t, storeItemExists(t, setReq[1].Key))
@@ -476,7 +445,7 @@ func testInitConfiguration(t *testing.T) {
 	tests := []struct {
 		name        string
 		props       map[string]string
-		expectedErr string
+		expectedErr error
 	}{
 		{
 			name:        "Empty",
@@ -485,8 +454,8 @@ func testInitConfiguration(t *testing.T) {
 		},
 		{
 			name:        "Valid connection string",
-			props:       map[string]string{connectionStringKey: getConnectionString()},
-			expectedErr: "",
+			props:       map[string]string{"connectionString": getConnectionString()},
+			expectedErr: nil,
 		},
 	}
 
@@ -500,11 +469,11 @@ func testInitConfiguration(t *testing.T) {
 			}
 
 			err := p.Init(metadata)
-			if tt.expectedErr == "" {
-				assert.Nil(t, err)
+			if tt.expectedErr == nil {
+				assert.NoError(t, err)
 			} else {
-				assert.NotNil(t, err)
-				assert.Equal(t, err.Error(), tt.expectedErr)
+				assert.Error(t, err)
+				assert.ErrorIs(t, err, tt.expectedErr)
 			}
 		})
 	}
@@ -521,7 +490,7 @@ func setItem(t *testing.T, pgs *PostgreSQL, key string, value interface{}, etag 
 		Value: value,
 	}
 
-	err := pgs.Set(setReq)
+	err := pgs.Set(context.Background(), setReq)
 	assert.Nil(t, err)
 	itemExists := storeItemExists(t, key)
 	assert.True(t, itemExists)
@@ -533,7 +502,7 @@ func getItem(t *testing.T, pgs *PostgreSQL, key string) (*state.GetResponse, *fa
 		Options: state.GetStateOption{},
 	}
 
-	response, getErr := pgs.Get(getReq)
+	response, getErr := pgs.Get(context.Background(), getReq)
 	assert.Nil(t, getErr)
 	assert.NotNil(t, response)
 	outputObject := &fakeItem{}
@@ -549,7 +518,7 @@ func deleteItem(t *testing.T, pgs *PostgreSQL, key string, etag *string) {
 		Options: state.DeleteStateOption{},
 	}
 
-	deleteErr := pgs.Delete(deleteReq)
+	deleteErr := pgs.Delete(context.Background(), deleteReq)
 	assert.Nil(t, deleteErr)
 	assert.False(t, storeItemExists(t, key))
 }

@@ -16,7 +16,6 @@ package postgresql
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strconv"
 	"strings"
@@ -140,8 +139,8 @@ func (q *Query) Finalize(filters string, qq *query.Query) error {
 	return nil
 }
 
-func (q *Query) execute(ctx context.Context, logger logger.Logger, db *sql.DB) ([]state.QueryItem, string, error) {
-	rows, err := db.QueryContext(ctx, q.query, q.params...)
+func (q *Query) execute(ctx context.Context, logger logger.Logger, db dbquerier) ([]state.QueryItem, string, error) {
+	rows, err := db.Query(ctx, q.query, q.params...)
 	if err != nil {
 		return nil, "", err
 	}
@@ -152,7 +151,7 @@ func (q *Query) execute(ctx context.Context, logger logger.Logger, db *sql.DB) (
 		var (
 			key  string
 			data []byte
-			etag uint64 // Postgres uses uint32, but FormatUint requires uint64, so using uint64 directly to avoid re-allocations
+			etag uint32
 		)
 		if err = rows.Scan(&key, &data, &etag); err != nil {
 			return nil, "", err
@@ -160,7 +159,7 @@ func (q *Query) execute(ctx context.Context, logger logger.Logger, db *sql.DB) (
 		result := state.QueryItem{
 			Key:  key,
 			Data: data,
-			ETag: ptr.Of(strconv.FormatUint(etag, 10)),
+			ETag: ptr.Of(strconv.FormatUint(uint64(etag), 10)),
 		}
 		ret = append(ret, result)
 	}

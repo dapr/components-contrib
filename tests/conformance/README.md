@@ -120,3 +120,75 @@ If you want to combine VS Code & dlv for debugging so you can set breakpoints in
     ]
 }
 ```
+
+## Using terraform for conformance tests
+
+If you are writing new conformance tests and they require cloud resources, you should use the 
+terraform framework we have in place. To enable your component test to use terraform there are a few changes in the normal steps you must do.
+
+1. In the `conformance.yml` you should create a new step in a workflow for your component that creates new env variables. You will need a variable for each specific resource your tests will use. If you require 3 different topics and 2 different tables for your tests you should have 5 different env variables set. The only convention you must follow for the variables is the value must use `env.UNIQUE_ID` to ensure there are no conflicts with the resource names.
+
+    ```bash
+    PUBSUB_AWS_SNSSQS_QUEUE="testQueue-${{ env.UNIQUE_ID }}"
+    echo "PUBSUB_AWS_SNSSQS_QUEUE=$PUBSUB_AWS_SNSSQS_QUEUE" >> $GITHUB_ENV
+    ```
+
+2. When updating the `tests.yml` defined inside `tests/config/<COMPONENT-TYPE>/` folder you should overwrite the default names of any resources the conformance tests use. These values should reference env variables which should be defined in the conformance.yml.
+
+    ```yaml
+    - component: aws.snssqs.terraform
+        operations: ["publish", "subscribe", "multiplehandlers"]
+        config:
+        pubsubName: aws-snssqs
+        testTopicName: ${{PUBSUB_AWS_SNSSQS_TOPIC}}
+        testMultiTopic1Name: ${{PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1}}
+        testMultiTopic2Name: ${{PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2}}
+    ```
+
+3. When writing your `component.yml` you should reference your credentials using env variables and any resources specified in the yaml should use env variables as well just as you did in the `test.yml`. Also if your component has an option that controls resource creation such as `disableEntityManagement` you will need to set it so it prohibits new resource creation. We want to use only terraform to provision resources and not dapr itself for these tests.
+
+    ```yaml
+    metadata:
+        - name: accessKey
+        value: ${{AWS_ACCESS_KEY_ID}}
+        - name: secretKey
+        value: ${{AWS_SECRET_ACCESS_KEY}}
+        - name: region
+        value: "us-east-1"
+        - name: consumerID
+        value: ${{PUBSUB_AWS_SNSSQS_QUEUE}}
+        - name: disableEntityManagement
+        value: "true"
+    ```
+
+
+4. You will need to create a new terrafrorm file `component.tf` to provision your resources. The file should be placed in its own folder in the `.github/infrastructure/terraform/conformance` directory such as 
+`.github/infrastructure/terraform/conformance/pubsub/aws/snsqsq`. The terraform file should use a UNIQUE_ID variables and use this variables when naming its resources so they matched the names defined earlier. Make sure any resources your tests will use are defined in terraform.
+
+    ```
+    variable "UNIQUE_ID" {
+        type        = string
+        description = "Unique Id of the github worklow run."
+    }
+    ```
+
+5. The component should be added to the `cron-components` step in conformance test workflow `.github/conformance.yml`. The component should have a variable named `terraform-dir` and the value should be the relative path from `.github/infrastructure/terraform/conformance` to the folder which the tests personal terraform files are located such as `pubsub/aws/snsqsq`.
+
+    ```
+    - component: pubsub.aws.snssqs.terraform      
+    terraform-dir: pubsub/aws/snssqs    
+    ```
+
+## Adding new AWS component in github actions
+
+1. For tests involving aws components we use a service account to provision the resources needed. If you are contributing a brand new component you will need to make sure our account has sufficient permissions to provision resources and use handle component. A Dapr STC member will have to update the service account so contact them for assistance.
+
+2. In your component yaml for your tests you should set the component metadata properties `accesskey` and `secretkey` to the values of `${{AWS_ACCESS_KEY_ID}}` and `${{AWS_SECRET_ACCESS_KEY}}`. These env values will contain the credentials for the testing service account.
+
+    ```yaml
+    metadata:
+        - name: accessKey
+        value: ${{AWS_ACCESS_KEY_ID}}
+        - name: secretKey
+        value: ${{AWS_SECRET_ACCESS_KEY}}
+    ```

@@ -243,6 +243,10 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 
 		redisValue, err := r.client.Get(ctx, redisKey).Result()
 		if err != nil {
+			if err == redis.Nil {
+				r.logger.Warnf("redis key %s does not exist, ignore it\n", redisKey)
+				continue
+			}
 			if strings.Contains(err.Error(), redisWrongTypeIdentifyStr) {
 				r.logger.Warnf("redis key %s 's type is not supported, ignore it\n", redisKey)
 				continue
@@ -345,6 +349,11 @@ func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *co
 			return
 		}
 		items = getResponse.Items
+		if len(items) == 0 {
+			items = map[string]*configuration.Item{
+				targetKey: nil,
+			}
+		}
 	}
 
 	e := &configuration.UpdateEvent{

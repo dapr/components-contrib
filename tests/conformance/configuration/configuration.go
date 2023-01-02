@@ -187,6 +187,21 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			assert.Nil(t, err)
 			assert.Equal(t, initValues, resp.Items)
 		})
+
+		t.Run("get with non-existent key list", func(t *testing.T) {
+			newValues, counter = generateKeyValues(runID, counter, keyCount, v1)
+			keys := getKeys(newValues)
+			expectedResponse := make(map[string]*configuration.Item)
+
+			req := &configuration.GetRequest{
+				Keys:     keys,
+				Metadata: make(map[string]string),
+			}
+
+			resp, err := store.Get(context.Background(), req)
+			assert.Nil(t, err)
+			assert.Equal(t, expectedResponse, resp.Items)
+		})
 	}
 
 	if config.HasOperation("subscribe") {

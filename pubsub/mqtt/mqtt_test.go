@@ -19,13 +19,14 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"math/rand"
 	"reflect"
 	"regexp"
 	"sync"
 	"testing"
 	"time"
+
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 
 	"github.com/stretchr/testify/assert"
 
@@ -114,13 +115,6 @@ func (t *mockedMQTTToken) Error() error {
 	t.m.RLock()
 	defer t.m.RUnlock()
 	return t.err
-}
-
-func (t *mockedMQTTToken) setError(e error) {
-	t.m.Lock()
-	t.err = e
-	t.flowComplete()
-	t.m.Unlock()
 }
 
 type mockedMQTTClient struct {

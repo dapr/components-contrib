@@ -159,7 +159,6 @@ func (m mockedMQTTClient) Publish(topic string, qos byte, retained bool, payload
 		qos:      qos,
 	}
 	m.msgCh <- msg
-	close(m.msgCh)
 
 	token.flowComplete()
 
@@ -719,6 +718,7 @@ func Test_mqttPubSub_Publish(t *testing.T) {
 
 			ctx := context.Background()
 			tt.wantErr(t, m.Publish(ctx, tt.args.req), fmt.Sprintf("Publish(%v, %v)", ctx, tt.args.req))
+			close(msgCh)
 
 			for msg := range msgCh {
 				if !reflect.DeepEqual(msg, tt.wantedMsg) {

@@ -61,7 +61,7 @@ jobs:
         - bindings.redis.v7
         - bindings.kubemq
         - bindings.rabbitmq
-        - pubsub.aws.snssqs
+        - pubsub.aws.snssqs.docker
         - pubsub.hazelcast
         - pubsub.in-memory
         - pubsub.mqtt-emqx
@@ -74,6 +74,7 @@ jobs:
         - pubsub.kafka-wurstmeister
         - pubsub.kafka-confluent
         - pubsub.kubemq
+        - pubsub.solace
         - secretstores.kubernetes
         - secretstores.localenv
         - secretstores.localfile
@@ -93,13 +94,13 @@ jobs:
         - state.rethinkdb
         EOF
         )
-        echo "::set-output name=pr-components::$PR_COMPONENTS"
+        echo "pr-components=$PR_COMPONENTS" >> $GITHUB_OUTPUT
 
     - name: Specify components requiring secrets or certs
       id: cron-components
       run: |
         if [ "${{ github.event_name }}" = "pull_request" ]; then
-          echo "::set-output name=cron-components::[]"
+          echo "cron-components=[]" >> $GITHUB_OUTPUT
           exit
         fi
         # Unfortunately, Azure secrets can't have underscores in
@@ -149,9 +150,12 @@ jobs:
           required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret
         - component: bindings.azure.cosmosdb
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
+        - component: pubsub.aws.snssqs.terraform
+          terraform-dir: pubsub/aws/snssqs        
+        - component: state.cloudflare.workerskv
         EOF
         )
-        echo "::set-output name=cron-components::$CRON_COMPONENTS"
+        echo "cron-components=$CRON_COMPONENTS" >> $GITHUB_OUTPUT
 
     - name: Create PR comment
       if: env.PR_NUMBER != ''
@@ -174,6 +178,11 @@ jobs:
   conformance:
     name: ${{ matrix.component }} conformance
     runs-on: ubuntu-latest
+    env:
+      # Version of Node.js to use
+      # Currently used by the Cloudflare components
+      NODE_VERSION: 18.x
+      UNIQUE_ID: ${{github.run_id}}-${{github.run_attempt}}
     defaults:
       run:
         shell: bash
@@ -218,15 +227,26 @@ jobs:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
       if: matrix.required-secrets != ''
 
+    # Set this GitHub secret to your KeyVault, and grant the KeyVault policy to your Service Principal:
+    #    az keyvault set-policy -n $AZURE_KEYVAULT --secret-permissions get list --spn $SPN_CLIENT_ID
+    # Using az cli to query keyvault as Azure/get-keyvault-secrets@v1 is deprecated
     - name: Setup secrets
-      uses: Azure/get-keyvault-secrets@v1
-      with:
-        # Set this GitHub secret to your KeyVault, and grant the KeyVault policy to your Service Principal:
-        #    az keyvault set-policy -n $AZURE_KEYVAULT --secret-permissions get list --spn $SPN_CLIENT_ID
-        keyvault: ${{ secrets.AZURE_KEYVAULT }}
-        secrets: ${{ matrix.required-secrets }}
       id: get-azure-secrets
       if: matrix.required-secrets != ''
+      env:
+        VAULT_NAME: ${{ secrets.AZURE_KEYVAULT }}
+      run: |
+        secrets="${{ matrix.required-secrets }}"
+        for secretName in $(echo -n $secrets | tr ',' ' '); do
+          value=$(az keyvault secret show \
+            --name $secretName \
+            --vault-name $VAULT_NAME \
+            --query value \
+            --output tsv)
+          echo "::add-mask::$value"
+          echo "$secretName=$value" >> $GITHUB_OUTPUT
+          echo "$secretName=$value" >> $GITHUB_ENV
+        done
 
     - name: Start ngrok
       if: contains(matrix.component, 'azure.eventgrid')
@@ -255,6 +275,58 @@ jobs:
           echo 'Setting $CERT_NAME to' "$CERT_FILE"
           echo "$CERT_NAME=$CERT_FILE" >> $GITHUB_ENV
         done
+
+    - name: Get current time
+      run: |
+        echo "CURRENT_TIME=$(date --rfc-3339=date)" >> ${GITHUB_ENV}
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      if: matrix.terraform-dir != ''
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+        aws-region: us-west-1
+      if: matrix.terraform-dir != ''
+
+    - name: Terraform Init
+      id: init
+      run: terraform init
+      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
+      if: matrix.terraform-dir != ''
+      
+    - name: Terraform Validate
+      id: validate
+      run: terraform validate -no-color
+      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
+      if: matrix.terraform-dir != ''
+
+    - name: Terraform Plan
+      id: plan
+      run: terraform plan -no-color -var="UNIQUE_ID=${{env.UNIQUE_ID}}" -var="TIMESTAMP=${{env.CURRENT_TIME}}"
+      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
+      if: matrix.terraform-dir != ''
+
+    - name: Terraform Apply
+      run: terraform apply -auto-approve -var="UNIQUE_ID=${{env.UNIQUE_ID}}" -var="TIMESTAMP=${{env.CURRENT_TIME}}"
+      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
+      if: matrix.terraform-dir != ''
+      continue-on-error: true
+
+    - name: Create aws.snssqs variables
+      run: |
+        PUBSUB_AWS_SNSSQS_QUEUE="testQueue-${{ env.UNIQUE_ID }}"
+        echo "PUBSUB_AWS_SNSSQS_QUEUE=$PUBSUB_AWS_SNSSQS_QUEUE" >> $GITHUB_ENV
+        PUBSUB_AWS_SNSSQS_TOPIC="testTopic-${{ env.UNIQUE_ID }}"
+        echo "PUBSUB_AWS_SNSSQS_TOPIC=$PUBSUB_AWS_SNSSQS_TOPIC" >> $GITHUB_ENV
+        PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1="multiTopic1-${{ env.UNIQUE_ID }}"
+        echo "PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1=$PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1" >> $GITHUB_ENV
+        PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2="multiTopic2-${{ env.UNIQUE_ID }}"
+        echo "PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2=$PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2" >> $GITHUB_ENV
+      if: contains(matrix.component, 'snssqs')
 
     - name: Start Redis 6 with Redis JSON
       run: docker-compose -f ./.github/infrastructure/docker-compose-redisjson.yml -p redis up -d
@@ -319,9 +391,46 @@ jobs:
       run: docker-compose -f ./.github/infrastructure/docker-compose-rabbitmq.yml -p rabbitmq up -d
       if: contains(matrix.component, 'rabbitmq')
 
+    - name: Install Node.js ${{ env.NODE_VERSION }}
+      if: contains(matrix.component, 'cloudflare')
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+
+    - name: Check Cloudflare Workers code
+      if: contains(matrix.component, 'cloudflare')
+      run: |
+        # Build the Worker
+        (
+          cd internal/component/cloudflare/worker-src;
+          npm ci;
+          npm run build;
+        )
+        # Check no changes
+        git diff --exit-code ./internal/component/cloudflare/workers/code \
+          || (echo "The source code of the Cloudflare Worker has changed, but the Worker has not been recompiled. Please re-compile the Worker by running 'npm ci && npm run build' in 'internal/component/cloudflare/worker-src'" && exit 1)
+
+    - name: Setup Cloudflare KV
+      if: matrix.component == 'state.cloudflare.workerskv'
+      env:
+        CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      run: |
+        CloudflareWorkerName="daprconfkv${{ github.run_id }}${{ github.run_attempt }}"
+        CloudflareKVNamespaceID=$( curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces" \
+          -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+          -H "Content-Type: application/json" \
+          --data "{\"title\":\"${CloudflareWorkerName}\"}" \
+            | jq -r ".result.id" )
+
+        echo "CloudflareWorkerName=${CloudflareWorkerName}" >> $GITHUB_ENV
+        echo "CloudflareAPIToken=${CLOUDFLARE_API_TOKEN}" >> $GITHUB_ENV
+        echo "CloudflareAccountID=${CLOUDFLARE_ACCOUNT_ID}" >> $GITHUB_ENV
+        echo "CloudflareKVNamespaceID=${CloudflareKVNamespaceID}" >> $GITHUB_ENV
+
     - name: Start aws snssqs
       run: docker-compose -f ./.github/infrastructure/docker-compose-snssqs.yml -p snssqs up -d
-      if: contains(matrix.component, 'aws.snssqs')
+      if: contains(matrix.component, 'aws.snssqs.docker')
 
     - name: Start influxdb
       run: |
@@ -372,6 +481,15 @@ jobs:
     - name: Start kubemq
       run: docker-compose -f ./.github/infrastructure/docker-compose-kubemq.yml -p kubemq up -d
       if: contains(matrix.component, 'kubemq')
+    
+    - name: Start solace
+      run: docker-compose -f ./.github/infrastructure/docker-compose-solace.yml -p solace up -d
+      if: contains(matrix.component, 'solace')
+
+    - name: Start nats with JetStream
+      run: |
+        docker-compose -f ./.github/infrastructure/docker-compose-jetstream.yml up -p jetstream -d
+      if: contains(matrix.component, 'jetstream')
 
     - name: Setup KinD test data
       if: contains(matrix.component, 'kubernetes')
@@ -398,6 +516,9 @@ jobs:
 
     - name: Run tests
       continue-on-error: true
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}  
       run: |
         set -e 
         KIND=$(echo ${{ matrix.component }} | cut -d. -f1)
@@ -452,6 +573,20 @@ jobs:
         sleep 1m
         az sql db delete --resource-group ${{ env.AzureResourceGroupName }} --server ${{ env.AzureSqlServerName }} -n ${{ env.AzureSqlServerDbName }} --yes
 
+    - name: Cleanup Cloudflare KV
+      if: always() && matrix.component == 'state.cloudflare.workerskv'
+      continue-on-error: true
+      env:
+        CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      run: |
+        # Delete the Worker
+        curl -X DELETE "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${{ env.CloudflareWorkerName }}" \
+          -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
+        # Delete the KV namespace
+        curl -X DELETE "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${{ env.CloudflareKVNamespaceID }}" \
+          -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
+
     # Download the required certificates into files, and set env var pointing to their names
     - name: Clean up certs
       if: matrix.required-certs != ''
@@ -462,6 +597,12 @@ jobs:
           echo "Cleaning up the certificate file $CERT_FILE..."
           rm $CERT_FILE
         done
+
+    - name: Terraform Destroy
+      continue-on-error: true    
+      run: terraform destroy -auto-approve -var="UNIQUE_ID=${{env.UNIQUE_ID}}" -var="TIMESTAMP=${{env.CURRENT_TIME}}"
+      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
+      if: matrix.terraform-dir != ''
 
     - name: Check conformance test passed
       continue-on-error: false

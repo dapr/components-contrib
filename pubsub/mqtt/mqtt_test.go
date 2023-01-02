@@ -19,6 +19,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"reflect"
 	"regexp"
@@ -61,7 +62,7 @@ func (m mqttMessage) Topic() string {
 }
 
 func (m mqttMessage) MessageID() uint16 {
-	return uint16(rand.Uint32())
+	return uint16(rand.Intn(math.MaxUint16 + 1)) //nolint:gosec
 }
 
 func (m mqttMessage) Payload() []byte {

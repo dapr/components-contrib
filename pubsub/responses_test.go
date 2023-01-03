@@ -38,42 +38,22 @@ func TestNewBulkPublishResponse(t *testing.T) {
 			ContentType: "text/plain",
 		},
 	}
-	t.Run("populate success", func(t *testing.T) {
-		res := NewBulkPublishResponse(messages, PublishSucceeded, nil)
-		assert.NotEmpty(t, res, "expected res to be populated")
-		assert.Equal(t, 2, len(res.Statuses), "expected two statuses")
-		expectedRes := BulkPublishResponse{
-			Statuses: []BulkPublishResponseEntry{
-				{
-					EntryId: "1",
-					Status:  PublishSucceeded,
-				},
-				{
-					EntryId: "2",
-					Status:  PublishSucceeded,
-				},
-			},
-		}
-		assert.ElementsMatch(t, expectedRes.Statuses, res.Statuses, "expected output to match")
-	})
 	t.Run("populate failure", func(t *testing.T) {
-		res := NewBulkPublishResponse(messages, PublishFailed, assert.AnError)
+		res := NewBulkPublishResponse(messages, assert.AnError)
 		assert.NotEmpty(t, res, "expected res to be populated")
-		assert.Equal(t, 2, len(res.Statuses), "expected two statuses")
+		assert.Equal(t, 2, len(res.FailedEntries), "expected two statuses")
 		expectedRes := BulkPublishResponse{
-			Statuses: []BulkPublishResponseEntry{
+			FailedEntries: []BulkPublishResponseFailedEntry{
 				{
 					EntryId: "1",
-					Status:  PublishFailed,
 					Error:   assert.AnError,
 				},
 				{
 					EntryId: "2",
-					Status:  PublishFailed,
 					Error:   assert.AnError,
 				},
 			},
 		}
-		assert.ElementsMatch(t, expectedRes.Statuses, res.Statuses, "expected output to match")
+		assert.ElementsMatch(t, expectedRes.FailedEntries, res.FailedEntries, "expected output to match")
 	})
 }

@@ -16,10 +16,10 @@ package postgresql
 
 import (
 	"context"
-	"database/sql"
+	"encoding/json"
 	"testing"
 
-	"github.com/DATA-DOG/go-sqlmock"
+	pgxmock "github.com/pashagolub/pgxmock/v2"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/state"
@@ -27,9 +27,8 @@ import (
 )
 
 type mocks struct {
-	db    *sql.DB
-	mock  sqlmock.Sqlmock
-	pgDba *postgresDBAccess
+	db    pgxmock.PgxPoolIface
+	pgDba *PostgresDBAccess
 }
 
 func TestGetSetWithWrongType(t *testing.T) {
@@ -62,7 +61,7 @@ func TestGetSetValid(t *testing.T) {
 	}
 
 	set, err := getSet(operation)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "key1", set.Key)
 }
 
@@ -96,7 +95,7 @@ func TestGetDeleteValid(t *testing.T) {
 	}
 
 	delete, err := getDelete(operation)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "key1", delete.Key)
 }
 
@@ -105,8 +104,10 @@ func TestMultiWithNoRequests(t *testing.T) {
 	m, _ := mockDatabase(t)
 	defer m.db.Close()
 
-	m.mock.ExpectBegin()
-	m.mock.ExpectCommit()
+	m.db.ExpectBegin()
+	m.db.ExpectCommit()
+	// There's also a rollback called after a commit, which is expected and will not have effect
+	m.db.ExpectRollback()
 
 	var operations []state.TransactionalStateOperation
 
@@ -116,7 +117,7 @@ func TestMultiWithNoRequests(t *testing.T) {
 	})
 
 	// Assert
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestInvalidMultiInvalidAction(t *testing.T) {
@@ -124,8 +125,8 @@ func TestInvalidMultiInvalidAction(t *testing.T) {
 	m, _ := mockDatabase(t)
 	defer m.db.Close()
 
-	m.mock.ExpectBegin()
-	m.mock.ExpectRollback()
+	m.db.ExpectBegin()
+	m.db.ExpectRollback()
 
 	var operations []state.TransactionalStateOperation
 
@@ -148,16 +149,19 @@ func TestValidSetRequest(t *testing.T) {
 	m, _ := mockDatabase(t)
 	defer m.db.Close()
 
-	m.mock.ExpectBegin()
-	m.mock.ExpectExec("INSERT INTO").WillReturnResult(sqlmock.NewResult(1, 1))
-	m.mock.ExpectCommit()
+	setReq := createSetRequest()
+	operations := []state.TransactionalStateOperation{
+		{Operation: state.Upsert, Request: setReq},
+	}
+	val, _ := json.Marshal(setReq.Value)
 
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: state.Upsert,
-		Request:   createSetRequest(),
-	})
+	m.db.ExpectBegin()
+	m.db.ExpectExec("INSERT INTO").
+		WithArgs(setReq.Key, string(val), false).
+		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	m.db.ExpectCommit()
+	// There's also a rollback called after a commit, which is expected and will not have effect
+	m.db.ExpectRollback()
 
 	// Act
 	err := m.pgDba.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
@@ -165,7 +169,7 @@ func TestValidSetRequest(t *testing.T) {
 	})
 
 	// Assert
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestInvalidMultiSetRequest(t *testing.T) {
@@ -173,15 +177,15 @@ func TestInvalidMultiSetRequest(t *testing.T) {
 	m, _ := mockDatabase(t)
 	defer m.db.Close()
 
-	m.mock.ExpectBegin()
-	m.mock.ExpectRollback()
+	m.db.ExpectBegin()
+	m.db.ExpectRollback()
 
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: state.Upsert,
-		Request:   createDeleteRequest(), // Delete request is not valid for Upsert operation
-	})
+	operations := []state.TransactionalStateOperation{
+		{
+			Operation: state.Upsert,
+			Request:   createDeleteRequest(), // Delete request is not valid for Upsert operation
+		},
+	}
 
 	// Act
 	err := m.pgDba.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
@@ -197,8 +201,8 @@ func TestInvalidMultiSetRequestNoKey(t *testing.T) {
 	m, _ := mockDatabase(t)
 	defer m.db.Close()
 
-	m.mock.ExpectBegin()
-	m.mock.ExpectRollback()
+	m.db.ExpectBegin()
+	m.db.ExpectRollback()
 
 	var operations []state.TransactionalStateOperation
 
@@ -221,16 +225,18 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 	m, _ := mockDatabase(t)
 	defer m.db.Close()
 
-	m.mock.ExpectBegin()
-	m.mock.ExpectExec("DELETE FROM").WillReturnResult(sqlmock.NewResult(1, 1))
-	m.mock.ExpectCommit()
+	deleteReq := createDeleteRequest()
+	operations := []state.TransactionalStateOperation{
+		{Operation: state.Delete, Request: deleteReq},
+	}
 
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: state.Delete,
-		Request:   createDeleteRequest(),
-	})
+	m.db.ExpectBegin()
+	m.db.ExpectExec("DELETE FROM").
+		WithArgs(deleteReq.Key).
+		WillReturnResult(pgxmock.NewResult("DELETE", 1))
+	m.db.ExpectCommit()
+	// There's also a rollback called after a commit, which is expected and will not have effect
+	m.db.ExpectRollback()
 
 	// Act
 	err := m.pgDba.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
@@ -238,7 +244,7 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 	})
 
 	// Assert
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestInvalidMultiDeleteRequest(t *testing.T) {
@@ -246,8 +252,8 @@ func TestInvalidMultiDeleteRequest(t *testing.T) {
 	m, _ := mockDatabase(t)
 	defer m.db.Close()
 
-	m.mock.ExpectBegin()
-	m.mock.ExpectRollback()
+	m.db.ExpectBegin()
+	m.db.ExpectRollback()
 
 	var operations []state.TransactionalStateOperation
 
@@ -270,8 +276,8 @@ func TestInvalidMultiDeleteRequestNoKey(t *testing.T) {
 	m, _ := mockDatabase(t)
 	defer m.db.Close()
 
-	m.mock.ExpectBegin()
-	m.mock.ExpectRollback()
+	m.db.ExpectBegin()
+	m.db.ExpectRollback()
 
 	var operations []state.TransactionalStateOperation
 
@@ -294,23 +300,27 @@ func TestMultiOperationOrder(t *testing.T) {
 	m, _ := mockDatabase(t)
 	defer m.db.Close()
 
-	m.mock.ExpectBegin()
-	m.mock.ExpectExec("INSERT INTO").WillReturnResult(sqlmock.NewResult(1, 1))
-	m.mock.ExpectExec("DELETE FROM").WillReturnResult(sqlmock.NewResult(1, 1))
-	m.mock.ExpectCommit()
-
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations,
-		state.TransactionalStateOperation{
+	operations := []state.TransactionalStateOperation{
+		{
 			Operation: state.Upsert,
 			Request:   state.SetRequest{Key: "key1", Value: "value1"},
 		},
-		state.TransactionalStateOperation{
+		{
 			Operation: state.Delete,
 			Request:   state.DeleteRequest{Key: "key1"},
 		},
-	)
+	}
+
+	m.db.ExpectBegin()
+	m.db.ExpectExec("INSERT INTO").
+		WithArgs("key1", `"value1"`, false).
+		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	m.db.ExpectExec("DELETE FROM").
+		WithArgs("key1").
+		WillReturnResult(pgxmock.NewResult("DELETE", 1))
+	m.db.ExpectCommit()
+	// There's also a rollback called after a commit, which is expected and will not have effect
+	m.db.ExpectRollback()
 
 	// Act
 	err := m.pgDba.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
@@ -318,7 +328,7 @@ func TestMultiOperationOrder(t *testing.T) {
 	})
 
 	// Assert
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestInvalidBulkSetNoKey(t *testing.T) {
@@ -326,14 +336,13 @@ func TestInvalidBulkSetNoKey(t *testing.T) {
 	m, _ := mockDatabase(t)
 	defer m.db.Close()
 
-	m.mock.ExpectBegin()
-	m.mock.ExpectRollback()
+	m.db.ExpectBegin()
+	m.db.ExpectRollback()
 
-	var sets []state.SetRequest
-
-	sets = append(sets, state.SetRequest{ // Set request without key is not valid for Set operation
-		Value: "value1",
-	})
+	sets := []state.SetRequest{
+		// Set request without key is not valid for Set operation
+		{Value: "value1"},
+	}
 
 	// Act
 	err := m.pgDba.BulkSet(context.Background(), sets)
@@ -347,15 +356,13 @@ func TestInvalidBulkSetEmptyValue(t *testing.T) {
 	m, _ := mockDatabase(t)
 	defer m.db.Close()
 
-	m.mock.ExpectBegin()
-	m.mock.ExpectRollback()
+	m.db.ExpectBegin()
+	m.db.ExpectRollback()
 
-	var sets []state.SetRequest
-
-	sets = append(sets, state.SetRequest{ // Set request without value is not valid for Set operation
-		Key:   "key1",
-		Value: "",
-	})
+	sets := []state.SetRequest{
+		// Set request without value is not valid for Set operation
+		{Key: "key1", Value: "value1"},
+	}
 
 	// Act
 	err := m.pgDba.BulkSet(context.Background(), sets)
@@ -369,22 +376,26 @@ func TestValidBulkSet(t *testing.T) {
 	m, _ := mockDatabase(t)
 	defer m.db.Close()
 
-	m.mock.ExpectBegin()
-	m.mock.ExpectExec("INSERT INTO").WillReturnResult(sqlmock.NewResult(1, 1))
-	m.mock.ExpectCommit()
+	sets := []state.SetRequest{
+		{
+			Key:   "key1",
+			Value: "value1",
+		},
+	}
 
-	var sets []state.SetRequest
-
-	sets = append(sets, state.SetRequest{
-		Key:   "key1",
-		Value: "value1",
-	})
+	m.db.ExpectBegin()
+	m.db.ExpectExec("INSERT INTO").
+		WithArgs("key1", `"value1"`, false).
+		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	m.db.ExpectCommit()
+	// There's also a rollback called after a commit, which is expected and will not have effect
+	m.db.ExpectRollback()
 
 	// Act
 	err := m.pgDba.BulkSet(context.Background(), sets)
 
 	// Assert
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestInvalidBulkDeleteNoKey(t *testing.T) {
@@ -392,8 +403,8 @@ func TestInvalidBulkDeleteNoKey(t *testing.T) {
 	m, _ := mockDatabase(t)
 	defer m.db.Close()
 
-	m.mock.ExpectBegin()
-	m.mock.ExpectRollback()
+	m.db.ExpectBegin()
+	m.db.ExpectRollback()
 
 	var deletes []state.DeleteRequest
 
@@ -413,21 +424,23 @@ func TestValidBulkDelete(t *testing.T) {
 	m, _ := mockDatabase(t)
 	defer m.db.Close()
 
-	m.mock.ExpectBegin()
-	m.mock.ExpectExec("DELETE FROM").WillReturnResult(sqlmock.NewResult(1, 1))
-	m.mock.ExpectCommit()
+	deletes := []state.DeleteRequest{
+		{Key: "key1"},
+	}
 
-	var deletes []state.DeleteRequest
-
-	deletes = append(deletes, state.DeleteRequest{
-		Key: "key1",
-	})
+	m.db.ExpectBegin()
+	m.db.ExpectExec("DELETE FROM").
+		WithArgs("key1").
+		WillReturnResult(pgxmock.NewResult("DELETE", 1))
+	m.db.ExpectCommit()
+	// There's also a rollback called after a commit, which is expected and will not have effect
+	m.db.ExpectRollback()
 
 	// Act
 	err := m.pgDba.BulkDelete(context.Background(), deletes)
 
 	// Assert
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func createSetRequest() state.SetRequest {
@@ -446,19 +459,18 @@ func createDeleteRequest() state.DeleteRequest {
 func mockDatabase(t *testing.T) (*mocks, error) {
 	logger := logger.NewLogger("test")
 
-	db, mock, err := sqlmock.New()
+	db, err := pgxmock.NewPool()
 	if err != nil {
 		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
 	}
 
-	dba := &postgresDBAccess{
+	dba := &PostgresDBAccess{
 		logger: logger,
 		db:     db,
 	}
 
 	return &mocks{
 		db:    db,
-		mock:  mock,
 		pgDba: dba,
 	}, err
 }

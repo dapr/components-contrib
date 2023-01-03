@@ -16,6 +16,9 @@ package postgresql
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/dapr/components-contrib/state"
 )
 
@@ -30,4 +33,12 @@ type dbAccess interface {
 	ExecuteMulti(ctx context.Context, req *state.TransactionalStateRequest) error
 	Query(ctx context.Context, req *state.QueryRequest) (*state.QueryResponse, error)
 	Close() error // io.Closer
+}
+
+// Interface that contains methods for querying.
+// Applies to *pgx.Conn, *pgxpool.Pool, and pgx.Tx
+type dbquerier interface {
+	Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error)
+	Query(context.Context, string, ...interface{}) (pgx.Rows, error)
+	QueryRow(context.Context, string, ...interface{}) pgx.Row
 }

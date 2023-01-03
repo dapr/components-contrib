@@ -5,9 +5,10 @@ go 1.19
 require (
 	github.com/dapr/components-contrib v1.9.6
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20220526162429-d03aeba3e0d6
-	github.com/dapr/dapr v1.9.5
+	github.com/dapr/dapr v1.9.4-0.20221221150048-640772d83bd1
 	github.com/dapr/go-sdk v1.6.0
 	github.com/dapr/kit v0.0.3
+	github.com/jackc/pgx/v5 v5.2.0
 	github.com/stretchr/testify v1.8.1
 )
 
@@ -61,7 +62,7 @@ require (
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
-	github.com/jackc/pgx/v5 v5.2.0 // indirect
+	github.com/jackc/puddle/v2 v2.1.2 // indirect
 	github.com/jhump/protoreflect v1.13.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -115,7 +116,7 @@ require (
 	golang.org/x/sys v0.3.0 // indirect
 	golang.org/x/term v0.3.0 // indirect
 	golang.org/x/text v0.5.0 // indirect
-	golang.org/x/time v0.1.0 // indirect
+	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.2.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
@@ -133,16 +134,12 @@ require (
 	k8s.io/klog/v2 v2.80.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280 // indirect
 	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448 // indirect
-	sigs.k8s.io/controller-runtime v0.13.0 // indirect
+	sigs.k8s.io/controller-runtime v0.14.1 // indirect
 	sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-replace k8s.io/client-go => k8s.io/client-go v0.25.3
-
 replace github.com/dapr/components-contrib/tests/certification => ../../
-
-replace github.com/dapr/dapr => github.com/dapr/dapr v1.9.4-0.20221213222644-64d468a693f1
 
 replace github.com/dapr/components-contrib => ../../../../

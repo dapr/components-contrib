@@ -277,7 +277,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
 					}
 					res, err := statestore.Get(context.Background(), req)
-					assert.Nil(t, err)
+					require.NoError(t, err)
 					assertEquals(t, scenario.value, res)
 				}
 			}
@@ -292,13 +292,13 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				t.Logf("Querying value presence for %s", scenario.query)
 				var req state.QueryRequest
 				err := json.Unmarshal([]byte(scenario.query), &req.Query)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				req.Metadata = map[string]string{
 					metadata.ContentType:    contenttype.JSONContentType,
 					metadata.QueryIndexName: "qIndx",
 				}
 				resp, err := querier.Query(context.Background(), &req)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, len(scenario.results), len(resp.Results))
 				for i := range scenario.results {
 					var expected, actual interface{}

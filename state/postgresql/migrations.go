@@ -15,12 +15,13 @@ package postgresql
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/dapr/kit/logger"
 )
@@ -28,7 +29,7 @@ import (
 // Performs migrations for the database schema
 type migrations struct {
 	Logger            logger.Logger
-	Conn              *sql.DB
+	Conn              pgxPoolConn
 	StateTableName    string
 	MetadataTableName string
 }
@@ -42,7 +43,7 @@ func (m *migrations) Perform(ctx context.Context) error {
 
 	// Long timeout here as this query may block
 	queryCtx, cancel := context.WithTimeout(ctx, time.Minute)
-	_, err := m.Conn.ExecContext(queryCtx, "SELECT pg_advisory_lock($1)", lockID)
+	_, err := m.Conn.Exec(queryCtx, "SELECT pg_advisory_lock($1)", lockID)
 	cancel()
 	if err != nil {
 		return fmt.Errorf("faild to acquire advisory lock: %w", err)
@@ -51,7 +52,7 @@ func (m *migrations) Perform(ctx context.Context) error {
 	// Release the lock
 	defer func() {
 		queryCtx, cancel = context.WithTimeout(ctx, time.Minute)
-		_, err = m.Conn.ExecContext(queryCtx, "SELECT pg_advisory_unlock($1)", lockID)
+		_, err = m.Conn.Exec(queryCtx, "SELECT pg_advisory_unlock($1)", lockID)
 		cancel()
 		if err != nil {
 			// Panicking here, as this forcibly closes the session and thus ensures we are not leaving locks hanging around
@@ -84,11 +85,11 @@ func (m *migrations) Perform(ctx context.Context) error {
 	)
 	queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
 	err = m.Conn.
-		QueryRowContext(queryCtx,
+		QueryRow(queryCtx,
 			fmt.Sprintf(`SELECT value FROM %s WHERE key = 'migrations'`, m.MetadataTableName),
 		).Scan(&migrationLevelStr)
 	cancel()
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, pgx.ErrNoRows) {
 		// If there's no row...
 		migrationLevel = 0
 	} else if err != nil {
@@ -109,7 +110,7 @@ func (m *migrations) Perform(ctx context.Context) error {
 		}
 
 		queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
-		_, err = m.Conn.ExecContext(queryCtx,
+		_, err = m.Conn.Exec(queryCtx,
 			fmt.Sprintf(`INSERT INTO %s (key, value) VALUES ('migrations', $1) ON CONFLICT (key) DO UPDATE SET value = $1`, m.MetadataTableName),
 			strconv.Itoa(i+1),
 		)
@@ -126,7 +127,7 @@ func (m migrations) createMetadataTable(ctx context.Context) error {
 	m.Logger.Infof("Creating metadata table '%s'", m.MetadataTableName)
 	// Add an "IF NOT EXISTS" in case another Dapr sidecar is creating the same table at the same time
 	// In the next step we'll acquire a lock so there won't be issues with concurrency
-	_, err := m.Conn.Exec(fmt.Sprintf(
+	_, err := m.Conn.Exec(ctx, fmt.Sprintf(
 		`CREATE TABLE IF NOT EXISTS %s (
 			key text NOT NULL PRIMARY KEY,
 			value text NOT NULL
@@ -148,7 +149,7 @@ func (m migrations) tableExists(ctx context.Context, tableName string) (exists b
 
 	if schema == "" {
 		err = m.Conn.
-			QueryRowContext(
+			QueryRow(
 				ctx,
 				`SELECT table_name, table_schema
 				FROM information_schema.tables 
@@ -158,7 +159,7 @@ func (m migrations) tableExists(ctx context.Context, tableName string) (exists b
 			Scan(&table, &schema)
 	} else {
 		err = m.Conn.
-			QueryRowContext(
+			QueryRow(
 				ctx,
 				`SELECT table_name, table_schema
 				FROM information_schema.tables 
@@ -168,7 +169,7 @@ func (m migrations) tableExists(ctx context.Context, tableName string) (exists b
 			Scan(&table, &schema)
 	}
 
-	if err != nil && errors.Is(err, sql.ErrNoRows) {
+	if err != nil && errors.Is(err, pgx.ErrNoRows) {
 		return false, "", "", nil
 	} else if err != nil {
 		return false, "", "", fmt.Errorf("failed to check if table '%s' exists: %w", tableName, err)
@@ -195,6 +196,7 @@ var allMigrations = [2]func(ctx context.Context, m *migrations) error{
 		// We need to add an "IF NOT EXISTS" because we may be migrating from when we did not use a metadata table
 		m.Logger.Infof("Creating state table '%s'", m.StateTableName)
 		_, err := m.Conn.Exec(
+			ctx,
 			fmt.Sprintf(
 				`CREATE TABLE IF NOT EXISTS %s (
 					key text NOT NULL PRIMARY KEY,
@@ -215,7 +217,7 @@ var allMigrations = [2]func(ctx context.Context, m *migrations) error{
 	// Migration 1: add the "expiredate" column
 	func(ctx context.Context, m *migrations) error {
 		m.Logger.Infof("Adding expiredate column to state table '%s'", m.StateTableName)
-		_, err := m.Conn.Exec(fmt.Sprintf(
+		_, err := m.Conn.Exec(ctx, fmt.Sprintf(
 			`ALTER TABLE %s ADD expiredate TIMESTAMP WITH TIME ZONE`,
 			m.StateTableName,
 		))

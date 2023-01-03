@@ -25,7 +25,7 @@ func deleteQueues(queues []string) error {
 	svc := sqsService()
 	for _, queue := range queues {
 		if err := deleteQueue(svc, queue); err != nil {
-			return fmt.Errorf("Got an error deleting the queue URL: %q err:%v\n", queue, err)
+			return fmt.Errorf("error deleting the queue URL: %q err:%v", queue, err)
 		}
 	}
 	return nil
@@ -46,7 +46,7 @@ func deleteQueue(svc *sqs.SQS, queue string) error {
 		QueueName: &queue,
 	})
 	if err != nil {
-		return fmt.Errorf("error getting the queue URL: %q err:%v\n", queue, err)
+		return fmt.Errorf("error getting the queue URL: %q err:%v", queue, err)
 	}
 
 	_, err = svc.DeleteQueue(&sqs.DeleteQueueInput{

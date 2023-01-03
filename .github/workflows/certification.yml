@@ -302,7 +302,8 @@ jobs:
       working-directory: ${{ env.TEST_PATH }}
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}  
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
+        AWS_REGION: "us-west-1"
       run: |
         echo "Running certification tests for ${{ matrix.component }} ... "
         export GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore

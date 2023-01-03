@@ -15,7 +15,11 @@ limitations under the License.
 package conformance
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"log"
@@ -27,6 +31,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -68,6 +73,7 @@ import (
 	p_pulsar "github.com/dapr/components-contrib/pubsub/pulsar"
 	p_rabbitmq "github.com/dapr/components-contrib/pubsub/rabbitmq"
 	p_redis "github.com/dapr/components-contrib/pubsub/redis"
+	p_solaceamqp "github.com/dapr/components-contrib/pubsub/solace/amqp"
 	ss_azure "github.com/dapr/components-contrib/secretstores/azure/keyvault"
 	ss_hashicorp_vault "github.com/dapr/components-contrib/secretstores/hashicorp/vault"
 	ss_kubernetes "github.com/dapr/components-contrib/secretstores/kubernetes"
@@ -77,6 +83,7 @@ import (
 	s_cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
 	s_azuretablestorage "github.com/dapr/components-contrib/state/azure/tablestorage"
 	s_cassandra "github.com/dapr/components-contrib/state/cassandra"
+	s_cloudflareworkerskv "github.com/dapr/components-contrib/state/cloudflare/workerskv"
 	s_cockroachdb "github.com/dapr/components-contrib/state/cockroachdb"
 	s_inmemory "github.com/dapr/components-contrib/state/in-memory"
 	s_memcached "github.com/dapr/components-contrib/state/memcached"
@@ -96,12 +103,13 @@ import (
 )
 
 const (
-	eventhubs    = "azure.eventhubs"
-	redisv6      = "redis.v6"
-	redisv7      = "redis.v7"
-	kafka        = "kafka"
-	mqtt         = "mqtt"
-	generateUUID = "$((uuid))"
+	eventhubs                 = "azure.eventhubs"
+	redisv6                   = "redis.v6"
+	redisv7                   = "redis.v7"
+	kafka                     = "kafka"
+	mqtt                      = "mqtt"
+	generateUUID              = "$((uuid))"
+	generateEd25519PrivateKey = "$((ed25519PrivateKey))"
 )
 
 //nolint:gochecknoglobals
@@ -147,6 +155,7 @@ func LoadComponents(componentPath string) ([]Component, error) {
 	return components, nil
 }
 
+// LookUpEnv returns the value of the specified environment variable or the empty string.
 func LookUpEnv(key string) string {
 	if val, ok := os.LookupEnv(key); ok {
 		return val
@@ -164,6 +173,10 @@ func ParseConfigurationMap(t *testing.T, configMap map[string]interface{}) {
 				val = uuid.New().String()
 				t.Logf("Generated UUID %s", val)
 				configMap[k] = val
+			} else if strings.Contains(val, "${{") {
+				s := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(val, "${{"), "}}"))
+				v := LookUpEnv(s)
+				configMap[k] = v
 			} else {
 				jsonMap := make(map[string]interface{})
 				err := json.Unmarshal([]byte(val), &jsonMap)
@@ -192,6 +205,10 @@ func parseConfigurationInterfaceMap(t *testing.T, configMap map[interface{}]inte
 				val = uuid.New().String()
 				t.Logf("Generated UUID %s", val)
 				configMap[k] = val
+			} else if strings.Contains(val, "${{") {
+				s := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(val, "${{"), "}}"))
+				v := LookUpEnv(s)
+				configMap[k] = v
 			} else {
 				jsonMap := make(map[string]interface{})
 				err := json.Unmarshal([]byte(val), &jsonMap)
@@ -214,20 +231,48 @@ func parseConfigurationInterfaceMap(t *testing.T, configMap map[interface{}]inte
 func ConvertMetadataToProperties(items []MetadataItem) (map[string]string, error) {
 	properties := map[string]string{}
 	for _, c := range items {
-		val := c.Value.String()
-		if strings.HasPrefix(c.Value.String(), "${{") {
-			// look up env var with that name. remove ${{}} and space
-			k := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(val, "${{"), "}}"))
-			v := LookUpEnv(k)
-			if v == "" {
-				return map[string]string{}, fmt.Errorf("required env var is not set %s", k)
-			}
-			val = v
+		val, err := parseMetadataProperty(c.Value.String())
+		if err != nil {
+			return map[string]string{}, err
 		}
 		properties[c.Name] = val
 	}
 
 	return properties, nil
+}
+
+func parseMetadataProperty(val string) (string, error) {
+	switch {
+	case strings.HasPrefix(val, "${{"):
+		// look up env var with that name. remove ${{}} and space
+		k := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(val, "${{"), "}}"))
+		v := LookUpEnv(k)
+		if v == "" {
+			return "", fmt.Errorf("required env var is not set %s", k)
+		}
+		return v, nil
+		// Generate a random UUID
+	case strings.EqualFold(val, generateUUID):
+		val = uuid.New().String()
+		return val, nil
+	// Generate a random Ed25519 private key (PEM-encoded)
+	case strings.EqualFold(val, generateEd25519PrivateKey):
+		_, pk, err := ed25519.GenerateKey(rand.Reader)
+		if err != nil {
+			return "", fmt.Errorf("failed to generate Ed25519 private key: %w", err)
+		}
+		der, err := x509.MarshalPKCS8PrivateKey(pk)
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal Ed25519 private key to X.509: %w", err)
+		}
+		pemB := pem.EncodeToMemory(&pem.Block{
+			Type:  "PRIVATE KEY",
+			Bytes: der,
+		})
+		return string(pemB), nil
+	default:
+		return val, nil
+	}
 }
 
 // isYaml checks whether the file is yaml or not.
@@ -263,8 +308,8 @@ func decodeYaml(b []byte) (TestConfiguration, error) {
 
 func (tc *TestConfiguration) loadComponentsAndProperties(t *testing.T, filepath string) (map[string]string, error) {
 	comps, err := LoadComponents(filepath)
-	assert.Nil(t, err)
-	assert.Equal(t, 1, len(comps)) // We only expect a single component per file
+	require.NoError(t, err)
+	require.Equal(t, 1, len(comps)) // We only expect a single component per file
 	c := comps[0]
 	props, err := ConvertMetadataToProperties(c.Spec.Metadata)
 
@@ -421,10 +466,14 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_rabbitmq.NewRabbitMQ(testLogger)
 	case "in-memory":
 		pubsub = p_inmemory.New(testLogger)
-	case "aws.snssqs":
+	case "aws.snssqs.terraform":
+		pubsub = p_snssqs.NewSnsSqs(testLogger)
+	case "aws.snssqs.docker":
 		pubsub = p_snssqs.NewSnsSqs(testLogger)
 	case "kubemq":
 		pubsub = p_kubemq.NewKubeMQ(testLogger)
+	case "solace.amqp":
+		pubsub = p_solaceamqp.NewAMQPPubsub(testLogger)
 	default:
 		return nil
 	}
@@ -497,6 +546,8 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_azuretablestorage.NewAzureTablesStateStore(testLogger)
 	case "cassandra":
 		store = s_cassandra.NewCassandraStateStore(testLogger)
+	case "cloudflare.workerskv":
+		store = s_cloudflareworkerskv.NewCFWorkersKV(testLogger)
 	case "cockroachdb":
 		store = s_cockroachdb.New(testLogger)
 	case "memcached":

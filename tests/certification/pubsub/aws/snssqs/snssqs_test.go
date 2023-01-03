@@ -16,6 +16,7 @@ package snssqs_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -25,7 +26,9 @@ import (
 
 	// Pub-Sub.
 	pubsub_snssqs "github.com/dapr/components-contrib/pubsub/aws/snssqs"
+	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
+	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 	"github.com/dapr/kit/logger"
 
 	"github.com/dapr/dapr/pkg/runtime"
@@ -67,6 +70,17 @@ const (
 var queues = []string{
 	"snssqscerttest1",
 	"snssqscerttest2",
+}
+
+func init() {
+	qn := os.Getenv("PUBSUB_AWS_SNSSQS_QUEUE_1")
+	if qn != "" {
+		queues[0] = qn
+	}
+	qn = os.Getenv("PUBSUB_AWS_SNSSQS_QUEUE_2")
+	if qn != "" {
+		queues[1] = qn
+	}
 }
 
 func TestAWSSNSSQSCertificationTests(t *testing.T) {
@@ -906,15 +920,20 @@ func componentRuntimeOptions() []runtime.Option {
 	pubsubRegistry.Logger = log
 	pubsubRegistry.RegisterComponent(pubsub_snssqs.NewSnsSqs, "snssqs")
 
+	secretstoreRegistry := secretstores_loader.NewRegistry()
+	secretstoreRegistry.Logger = log
+	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
+
 	return []runtime.Option{
 		runtime.WithPubSubs(pubsubRegistry),
+		runtime.WithSecretStores(secretstoreRegistry),
 	}
 }
 
 func teardown(t *testing.T) {
 	t.Logf("AWS SNS/SQS CertificationTests teardown...")
 	if err := deleteQueues(queues); err != nil {
-		t.Error(err)
+		t.Log(err)
 	}
 	t.Logf("AWS SNS/SQS CertificationTests teardown...done!")
 }

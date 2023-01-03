@@ -6,8 +6,18 @@ spec:
   type: pubsub.snssqs
   version: v1
   metadata:
-    - name: consumerID
-      value: snssqscerttest1
+    - name: accessKey
+      secretKeyRef:
+        name: AWS_ACCESS_KEY_ID
+        key: AWS_ACCESS_KEY_ID
+    - name: secretKey
+      secretKeyRef:
+        name: AWS_SECRET_ACCESS_KEY
+        key: AWS_SECRET_ACCESS_KEY
+    - name: region
+      secretKeyRef:
+        name: AWS_REGION
+        key: AWS_REGION
     - name: timeoutInSec
       value: 60
     - name: handlerTimeoutInSec
@@ -38,3 +48,5 @@ spec:
       value: 5
     - name: publishInitialRetryInternalInMs
       value: 500
+auth:
+  secretstore: envvar-secret-store

@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go v1.44.158
 	github.com/dapr/components-contrib v1.9.6
 	github.com/dapr/components-contrib/tests/certification v0.0.0-00010101000000-000000000000
-	github.com/dapr/dapr v1.9.4-0.20221213222644-64d468a693f1
+	github.com/dapr/dapr v1.9.4-0.20221221150048-640772d83bd1
 	github.com/dapr/go-sdk v1.6.0
 	github.com/dapr/kit v0.0.3
 	github.com/google/uuid v1.3.0

@@ -90,8 +90,8 @@ github.com/cncf/xds/go v0.0.0-20210805033703-aa0b78936158/go.mod h1:eXthEFrGJvWH
 github.com/cncf/xds/go v0.0.0-20210922020428-25de7278fc84/go.mod h1:eXthEFrGJvWHgFFCl3hGmgk+/aYT6PnTQLykKQRLhEs=
 github.com/cncf/xds/go v0.0.0-20211011173535-cb28da3451f1/go.mod h1:eXthEFrGJvWHgFFCl3hGmgk+/aYT6PnTQLykKQRLhEs=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
-github.com/dapr/dapr v1.9.4-0.20221213222644-64d468a693f1 h1:kkrLjKnA3/rhoFaFJYEAmmo2apGv07A346Du/oOnMq4=
-github.com/dapr/dapr v1.9.4-0.20221213222644-64d468a693f1/go.mod h1:uoW5jcwPhOgdzY391x1gRSCjFSmcf2FTcH5Gg7gf7Pc=
+github.com/dapr/dapr v1.9.4-0.20221221150048-640772d83bd1 h1:PGuXMMTAXKiOBs20NTQEno8z7Q6VD48wHSMhsnq6EVU=
+github.com/dapr/dapr v1.9.4-0.20221221150048-640772d83bd1/go.mod h1:4PA3jx7h6qkDxgERV6pQM+kRk0pUcQNUd+prdLUyra4=
 github.com/dapr/go-sdk v1.6.0 h1:jg5A2khSCHF8bGZsig5RWN/gD0jjitszc2V6Uq2pPdY=
 github.com/dapr/go-sdk v1.6.0/go.mod h1:KLQBltoD9K0w5hKTihdcyg9Epob9gypwL5dYcQzPro4=
 github.com/dapr/kit v0.0.3 h1:1FCnWjIuAS3OJzJhOlUKNzLxoazYhYIS4oCOOULmWBA=

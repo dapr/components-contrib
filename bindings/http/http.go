@@ -18,6 +18,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"net"
@@ -35,6 +36,13 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
+const (
+	MTLSEnable     = "MTLSEnable"
+	MTLSRootCA     = "MTLSRootCA"
+	MTLSClientCert = "MTLSClientCert"
+	MTLSClientKey  = "MTLSClientKey"
+)
+
 // HTTPSource is a binding for an http url endpoint invocation
 //
 //revive:disable-next-line
@@ -46,11 +54,11 @@ type HTTPSource struct {
 }
 
 type httpMetadata struct {
-	URL                          string `mapstructure:"url"`
-	ClientCertVerify             string `mapstructure:"clientCertVerify"`
-	ClientCertificateFilePath    string `mapstructure:"clientCertificateFilePath"`
-	ClientCertificateKeyFilePath string `mapstructure:"clientCertificateKeyFilePath"`
-	CACertificateFilePath        string `mapstructure:"caCertificateFilePath"`
+	URL            string `mapstructure:"url"`
+	MTLSEnable     string `mapstructure:"mtlsEnable"`
+	MTLSClientCert string `mapstructure:"mtlsClientCert"`
+	MTLSClientKey  string `mapstructure:"mtlsClientKey"`
+	MTLSRootCA     string `mapstructure:"mtlsRootCA"`
 }
 
 // NewHTTP returns a new HTTPSource.
@@ -60,26 +68,15 @@ func NewHTTP(logger logger.Logger) bindings.OutputBinding {
 
 // Init performs metadata parsing.
 func (h *HTTPSource) Init(metadata bindings.Metadata) error {
-	if err := mapstructure.Decode(metadata.Properties, &h.metadata); err != nil {
+	var err error
+	if err = mapstructure.Decode(metadata.Properties, &h.metadata); err != nil {
 		return err
 	}
 	var tlsConfig *tls.Config
-	if h.metadata.ClientCertVerify == "true" {
-		caCert, err := os.ReadFile(h.metadata.CACertificateFilePath)
+	if h.metadata.MTLSEnable == "true" {
+		tlsConfig, err = h.readMTLSCertificates()
 		if err != nil {
-			return fmt.Errorf("failed to read client CA certificate: %w", err)
-		}
-		caCertPool := x509.NewCertPool()
-		caCertPool.AppendCertsFromPEM(caCert)
-		clientCertPath := h.metadata.ClientCertificateFilePath
-		clientKeyPath := h.metadata.ClientCertificateKeyFilePath
-		cert, err := tls.LoadX509KeyPair(clientCertPath, clientKeyPath)
-		if err != nil {
-			return fmt.Errorf("failed to load client certificate: %w", err)
-		}
-		tlsConfig = &tls.Config{
-			RootCAs:      caCertPool,
-			Certificates: []tls.Certificate{cert},
+			return err
 		}
 	}
 
@@ -92,7 +89,6 @@ func (h *HTTPSource) Init(metadata bindings.Metadata) error {
 		Dial:                dialer.Dial,
 		TLSHandshakeTimeout: 5 * time.Second,
 	}
-	fmt.Println("tlsConfig.Certificates=======", tlsConfig)
 	if tlsConfig != nil && len(tlsConfig.Certificates) > 0 && tlsConfig.RootCAs != nil {
 		netTransport.TLSClientConfig = tlsConfig
 	}
@@ -109,6 +105,59 @@ func (h *HTTPSource) Init(metadata bindings.Metadata) error {
 	}
 
 	return nil
+}
+
+// readMTLSCertificates reads the certificates and key from the metadata and returns a tls.Config.
+func (h *HTTPSource) readMTLSCertificates() (*tls.Config, error) {
+	if h.metadata.MTLSClientCert == "" || h.metadata.MTLSClientKey == "" || h.metadata.MTLSRootCA == "" {
+		return nil, fmt.Errorf("metadata %q is set to %s but required certificates and key are missing", MTLSEnable, h.metadata.MTLSEnable)
+	}
+	caCertBytes, err := getPemBytes(MTLSRootCA, h.metadata.MTLSRootCA)
+	if err != nil {
+		return nil, err
+	}
+	clientCertBytes, err := getPemBytes(MTLSClientCert, h.metadata.MTLSClientCert)
+	if err != nil {
+		return nil, err
+	}
+	clientKeyBytes, err := getPemBytes(MTLSClientKey, h.metadata.MTLSClientKey)
+	if err != nil {
+		return nil, err
+	}
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCertBytes)
+	cert, err := tls.X509KeyPair(clientCertBytes, clientKeyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load client certificate: %w", err)
+	}
+	return &tls.Config{
+		MinVersion:   tls.VersionTLS12,
+		RootCAs:      caCertPool,
+		Certificates: []tls.Certificate{cert},
+	}, nil
+}
+
+// getPemBytes returns the PEM encoded bytes from the provided certName and certData.
+// If the certData is a file path, it reads the file and returns the bytes.
+// Else if the certData is a PEM encoded string, it returns the bytes.
+// Else it returns an error.
+func getPemBytes(certName, certData string) ([]byte, error) {
+	// Read the file
+	pemBytes, err := os.ReadFile(certData)
+	// If there is an error assume it is already PEM encoded string not a file path.
+	if err != nil {
+		if !isValidPEM(certData) {
+			return nil, fmt.Errorf("provided %q value is neither a valid file path or nor a valid pem encoded string", certName)
+		}
+		return []byte(certData), nil
+	}
+	return pemBytes, nil
+}
+
+// isValidPEM validates the provided input has PEM formatted block.
+func isValidPEM(val string) bool {
+	block, _ := pem.Decode([]byte(val))
+	return block != nil
 }
 
 // Operations returns the supported operations for this binding.

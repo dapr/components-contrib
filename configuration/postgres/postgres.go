@@ -15,7 +15,6 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -114,7 +113,7 @@ func (p *ConfigurationStore) Init(metadata configuration.Metadata) error {
 	exists := false
 	err = p.client.QueryRow(ctx, QueryTableExists, p.metadata.configTable).Scan(&exists)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf(ErrorMissingTable, p.metadata.configTable)
 		}
 		return fmt.Errorf("error in checking if configtable '%s' exists - '%w'", p.metadata.configTable, err)
@@ -135,7 +134,7 @@ func (p *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 	rows, err := p.client.Query(ctx, query, params...)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
-		if err == sql.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return &configuration.GetResponse{}, nil
 		}
 		return nil, fmt.Errorf("error in querying configuration store: '%w'", err)

@@ -51,6 +51,8 @@ type metadata struct {
 	hearbeat       time.Duration
 	deliverPolicy  nats.DeliverPolicy
 	ackPolicy      nats.AckPolicy
+	domain         string
+	apiPrefix      string
 }
 
 func parseMetadata(psm pubsub.Metadata) (metadata, error) {
@@ -141,6 +143,13 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 
 	if v, err := time.ParseDuration(psm.Properties["hearbeat"]); err == nil {
 		m.hearbeat = v
+	}
+
+	if domain := psm.Properties["domain"]; domain != "" {
+		m.domain = domain
+	}
+	if apiPrefix := psm.Properties["apiPrefix"]; apiPrefix != "" {
+		m.apiPrefix = apiPrefix
 	}
 
 	deliverPolicy := psm.Properties["deliverPolicy"]

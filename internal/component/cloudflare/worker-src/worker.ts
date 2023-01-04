@@ -44,6 +44,7 @@ const router = Router()
                     continue
                 }
                 switch (obj.constructor.name) {
+                    case 'KvNamespace':
                     case 'KVNamespace':
                         kv.push(all[i])
                         break
@@ -170,7 +171,7 @@ async function setupKVRequest(
         return { errorRes: new Response('Bad request', { status: 400 }) }
     }
     const namespace = env[req.params.namespace] as KVNamespace<string>
-    if (typeof namespace != 'object' || namespace?.constructor?.name != 'KVNamespace') {
+    if (typeof namespace != 'object' || !['KVNamespace', 'KvNamespace'].includes(namespace?.constructor?.name)) {
         return {
             errorRes: new Response(
                 `Worker is not bound to KV '${req.params.kv}'`,

@@ -1,0 +1,10 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+spec:
+  type: pubsub.solace.amqp
+  version: v1
+  metadata:
+    - name: url
+      value: 'amqp://localhost:5672'
+    - name: anonymous
+      value: true

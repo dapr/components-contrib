@@ -46,3 +46,14 @@ func GetElemOrDefaultFromMap[T int | uint64](m map[string]string, key string, de
 	}
 	return def
 }
+
+// GetIntValFromStringVal returns an int value from corresponding string value OR default value if its
+// value not convertible to int.
+func GetIntValFromStringVal(val string, defaultValue int) int {
+	if val != "" {
+		if intVal, err := strconv.Atoi(val); err == nil {
+			return intVal
+		}
+	}
+	return defaultValue
+}

@@ -19,7 +19,7 @@ import (
 	"github.com/dapr/kit/logger"
 
 	"github.com/dapr/components-contrib/internal/component/kafka"
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/internal/utils"
 
 	"github.com/dapr/components-contrib/pubsub"
 )
@@ -49,10 +49,8 @@ func (p *PubSub) BulkSubscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	handler pubsub.BulkHandler,
 ) error {
 	subConfig := pubsub.BulkSubscribeConfig{
-		MaxBulkSubCount: kafka.GetIntFromMetadata(req.Metadata, metadata.MaxBulkSubCountKey,
-			kafka.DefaultMaxBulkSubCount),
-		MaxBulkSubAwaitDurationMs: kafka.GetIntFromMetadata(req.Metadata,
-			metadata.MaxBulkSubAwaitDurationMsKey, kafka.DefaultMaxBulkSubAwaitDurationMs),
+		MaxMessagesCount:   utils.GetIntValFromStringVal(req.BulkSubscribeRequest.MaxMessagesCount, kafka.DefaultMaxBulkSubCount),
+		MaxAwaitDurationMs: utils.GetIntValFromStringVal(req.BulkSubscribeRequest.MaxAwaitDurationMs, kafka.DefaultMaxBulkSubAwaitDurationMs),
 	}
 	handlerConfig := kafka.SubscriptionHandlerConfig{
 		IsBulkSubscribe: true,

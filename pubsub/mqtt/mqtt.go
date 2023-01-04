@@ -111,7 +111,16 @@ func (m *mqttPubSub) Publish(_ context.Context, req *pubsub.PublishRequest) erro
 	// m.logger.Debugf("mqtt publishing topic %s with data: %v", req.Topic, req.Data)
 	m.logger.Debugf("mqtt publishing topic %s", req.Topic)
 
-	token := m.producer.Publish(req.Topic, m.metadata.qos, m.metadata.retain, req.Data)
+	retain := m.metadata.retain
+	if val, ok := req.Metadata[mqttRetain]; ok && val != "" {
+		var err error
+		retain, err = strconv.ParseBool(val)
+		if err != nil {
+			return fmt.Errorf("mqtt invalid retain %s, %s", val, err)
+		}
+	}
+
+	token := m.producer.Publish(req.Topic, m.metadata.qos, retain, req.Data)
 	t := time.NewTimer(defaultWait)
 	defer func() {
 		if !t.Stop() {

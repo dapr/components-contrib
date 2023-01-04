@@ -18,3 +18,5 @@ require (
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
+
+replace github.com/dapr/dapr => github.com/DeepanshuA/dapr v1.6.1-0.20230104160440-d2df8763f4c5

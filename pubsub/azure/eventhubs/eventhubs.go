@@ -73,6 +73,9 @@ const (
 	sysPropIotHubEnqueuedTime         = "iothub-enqueuedtime"
 	sysPropMessageID                  = "message-id"
 
+	// Metadata field to ensure all Event Hub properties pass through
+	requireAllProperties = "requireAllProperties"
+
 	defaultMessageRetentionInDays = 1
 	defaultPartitionCount         = 1
 
@@ -86,7 +89,7 @@ const (
 	maxPartitionCount   = int32(1024)
 )
 
-func subscribeHandler(ctx context.Context, topic string, e *eventhub.Event, handler pubsub.Handler) error {
+func subscribeHandler(ctx context.Context, topic string, getAllProperties bool, e *eventhub.Event, handler pubsub.Handler) error {
 	res := pubsub.NewMessage{Data: e.Data, Topic: topic, Metadata: map[string]string{}}
 	if e.SystemProperties.SequenceNumber != nil {
 		res.Metadata[sysPropSequenceNumber] = strconv.FormatInt(*e.SystemProperties.SequenceNumber, 10)
@@ -123,6 +126,16 @@ func subscribeHandler(ctx context.Context, topic string, e *eventhub.Event, hand
 	// azure-event-hubs-go SDK pulls out the AMQP message-id property to the Event.ID property, map it from there.
 	if e.ID != "" {
 		res.Metadata[sysPropMessageID] = e.ID
+	}
+	// added properties if any ( includes application properties from iot-hub)
+	if getAllProperties {
+		if e.Properties != nil && len(e.Properties) > 0 {
+			for key, value := range e.Properties {
+				if str, ok := value.(string); ok {
+					res.Metadata[key] = str
+				}
+			}
+		}
 	}
 
 	return handler(ctx, &res)
@@ -622,6 +635,14 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 		return err
 	}
 
+	getAllProperties := false
+	if req.Metadata[requireAllProperties] != "" {
+		getAllProperties, err = strconv.ParseBool(req.Metadata[requireAllProperties])
+		if err != nil {
+			aeh.logger.Errorf("invalid value for metadata : %s . Error: %v.", requireAllProperties, err)
+		}
+	}
+
 	aeh.logger.Debugf("registering handler for topic %s", req.Topic)
 	_, err = processor.RegisterHandler(subscribeCtx,
 		func(_ context.Context, e *eventhub.Event) error {
@@ -631,7 +652,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 			retryerr := retry.NotifyRecover(func() error {
 				aeh.logger.Debugf("Processing EventHubs event %s/%s", req.Topic, e.ID)
 
-				return subscribeHandler(subscribeCtx, req.Topic, e, handler)
+				return subscribeHandler(subscribeCtx, req.Topic, getAllProperties, e, handler)
 			}, b, func(_ error, _ time.Duration) {
 				aeh.logger.Warnf("Error processing EventHubs event: %s/%s. Retrying...", req.Topic, e.ID)
 			}, func() {

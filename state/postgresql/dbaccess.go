@@ -15,7 +15,9 @@ package postgresql
 
 import (
 	"context"
-	"database/sql"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/dapr/components-contrib/state"
 )
@@ -34,10 +36,9 @@ type dbAccess interface {
 }
 
 // Interface that contains methods for querying.
-// Applies to both *sql.DB and *sql.Tx
+// Applies to *pgx.Conn, *pgxpool.Pool, and pgx.Tx
 type dbquerier interface {
-	Exec(query string, args ...any) (sql.Result, error)
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-	QueryRow(query string, args ...any) *sql.Row
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error)
+	Query(context.Context, string, ...interface{}) (pgx.Rows, error)
+	QueryRow(context.Context, string, ...interface{}) pgx.Row
 }

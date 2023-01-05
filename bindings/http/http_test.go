@@ -398,6 +398,7 @@ func TestGetWithHTTPS(t *testing.T) {
 
 	// Create the TLS Config with the CA pool and enable Client certificate validation
 	tlsConfig := &tls.Config{
+		MinVersion: tls.VersionTLS12,
 		ClientCAs:  caCertPool,
 		ClientAuth: tls.RequireAndVerifyClientCert,
 	}

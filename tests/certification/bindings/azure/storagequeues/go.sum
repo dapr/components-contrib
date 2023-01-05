@@ -77,8 +77,8 @@ github.com/AzureAD/microsoft-authentication-library-for-go v0.7.0/go.mod h1:BDJ5
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
-github.com/DeepanshuA/dapr v1.6.1-0.20230104160440-d2df8763f4c5 h1:9QXzr5bDKMS813k/cKN/ryWlHIzi92TtpXeRo+J8NIg=
-github.com/DeepanshuA/dapr v1.6.1-0.20230104160440-d2df8763f4c5/go.mod h1:szatKTSz1doYvDtj+Ik/LCAM1pAeH52uwLxzg2emZUE=
+github.com/DeepanshuA/dapr v1.6.1-0.20230105152238-c078996d99e9 h1:yU3iv9n35Ls3ZbhfX7geWsGatyatfBSIYi95nLWARxk=
+github.com/DeepanshuA/dapr v1.6.1-0.20230105152238-c078996d99e9/go.mod h1:+pxjQoV7lF4nhe1j7xyKTiLjK8ryxbCg59CrLq0hsjs=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/PuerkitoBio/purell v1.2.0 h1:/Jdm5QfyM8zdlqT6WVZU4cfP23sot6CEHA4CS49Ezig=
 github.com/PuerkitoBio/purell v1.2.0/go.mod h1:OhLRTaaIzhvIyofkJfB24gokC7tM42Px5UhoT32THBk=

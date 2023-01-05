@@ -389,4 +389,4 @@ replace github.com/toolkits/concurrent => github.com/niean/gotools v0.0.0-201512
 // this is a fork which addresses a performance issues due to go routines
 replace dubbo.apache.org/dubbo-go/v3 => dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20220610080020-48691a404537
 
-replace github.com/dapr/dapr => github.com/DeepanshuA/dapr v1.6.1-0.20230104160440-d2df8763f4c5
+replace github.com/dapr/dapr => github.com/DeepanshuA/dapr v1.6.1-0.20230105152238-c078996d99e9

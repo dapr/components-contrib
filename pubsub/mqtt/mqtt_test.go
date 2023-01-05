@@ -14,11 +14,20 @@ limitations under the License.
 package mqtt
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"fmt"
+	"math"
+	"math/rand"
+	"reflect"
 	"regexp"
+	"sync"
 	"testing"
+	"time"
+
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 
 	"github.com/stretchr/testify/assert"
 
@@ -26,6 +35,176 @@ import (
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
+
+type mqttMessage struct {
+	data     []byte
+	retained bool
+	topic    string
+	qos      byte
+}
+
+var _ mqtt.Message = (*mqttMessage)(nil)
+
+func (m mqttMessage) Duplicate() bool {
+	return false
+}
+
+func (m mqttMessage) Qos() byte {
+	return m.qos
+}
+
+func (m mqttMessage) Retained() bool {
+	return m.retained
+}
+
+func (m mqttMessage) Topic() string {
+	return m.topic
+}
+
+func (m mqttMessage) MessageID() uint16 {
+	return uint16(rand.Intn(math.MaxUint16 + 1)) //nolint:gosec
+}
+
+func (m mqttMessage) Payload() []byte {
+	return m.data
+}
+
+func (m mqttMessage) Ack() {
+	return
+}
+
+type mockedMQTTToken struct {
+	m        sync.RWMutex
+	complete chan struct{}
+	err      error
+}
+
+var _ mqtt.Token = (*mockedMQTTToken)(nil)
+
+func (t *mockedMQTTToken) Wait() bool {
+	<-t.complete
+	return true
+}
+
+func (t *mockedMQTTToken) WaitTimeout(d time.Duration) bool {
+	timer := time.NewTimer(d)
+	select {
+	case <-t.complete:
+		if !timer.Stop() {
+			<-timer.C
+		}
+		return true
+	case <-timer.C:
+	}
+
+	return false
+}
+
+func (t *mockedMQTTToken) Done() <-chan struct{} {
+	return t.complete
+}
+
+func (t *mockedMQTTToken) flowComplete() {
+	select {
+	case <-t.complete:
+	default:
+		close(t.complete)
+	}
+}
+
+func (t *mockedMQTTToken) Error() error {
+	t.m.RLock()
+	defer t.m.RUnlock()
+	return t.err
+}
+
+type mockedMQTTClient struct {
+	msgCh chan mqttMessage
+}
+
+var _ mqtt.Client = (*mockedMQTTClient)(nil)
+
+func newMockedMQTTClient(ch chan mqttMessage) *mockedMQTTClient {
+	return &mockedMQTTClient{
+		msgCh: ch,
+	}
+}
+
+func (m mockedMQTTClient) IsConnected() bool {
+	return true
+}
+
+func (m mockedMQTTClient) IsConnectionOpen() bool {
+	return true
+}
+
+func (m mockedMQTTClient) Connect() mqtt.Token {
+	token := &mockedMQTTToken{complete: make(chan struct{})}
+	token.flowComplete()
+
+	return token
+}
+
+func (m mockedMQTTClient) Disconnect(quiesce uint) {
+	return
+}
+
+func (m mockedMQTTClient) Publish(topic string, qos byte, retained bool, payload interface{}) mqtt.Token {
+	token := &mockedMQTTToken{complete: make(chan struct{})}
+
+	msg := mqttMessage{
+		data:     payload.([]byte),
+		retained: retained,
+		topic:    topic,
+		qos:      qos,
+	}
+	m.msgCh <- msg
+
+	token.flowComplete()
+
+	return token
+}
+
+func (m mockedMQTTClient) Subscribe(topic string, qos byte, callback mqtt.MessageHandler) mqtt.Token {
+	token := &mockedMQTTToken{complete: make(chan struct{})}
+	token.flowComplete()
+
+	go func() {
+		for msg := range m.msgCh {
+			callback(m, msg)
+		}
+	}()
+
+	return token
+}
+
+func (m mockedMQTTClient) SubscribeMultiple(filters map[string]byte, callback mqtt.MessageHandler) mqtt.Token {
+	token := &mockedMQTTToken{complete: make(chan struct{})}
+	token.flowComplete()
+
+	go func() {
+		for msg := range m.msgCh {
+			callback(m, msg)
+		}
+	}()
+
+	return token
+}
+
+func (m mockedMQTTClient) Unsubscribe(topics ...string) mqtt.Token {
+	token := &mockedMQTTToken{complete: make(chan struct{})}
+	token.flowComplete()
+
+	return token
+}
+
+func (m mockedMQTTClient) AddRoute(topic string, callback mqtt.MessageHandler) {
+	return
+}
+
+func (m mockedMQTTClient) OptionsReader() mqtt.ClientOptionsReader {
+	return mqtt.ClientOptionsReader{}
+}
 
 func getFakeProperties() map[string]string {
 	return map[string]string{
@@ -451,6 +630,99 @@ func Test_buildRegexForTopic(t *testing.T) {
 					if matched := re.MatchString(topic); matched != match {
 						t.Errorf("buildRegexForTopic(%v) - match(%v) returned %v but expected %v", tt.args.topicName, topic, matched, match)
 					}
+				}
+			}
+		})
+	}
+}
+
+func Test_mqttPubSub_Publish(t *testing.T) {
+	type fields struct {
+		logger   logger.Logger
+		metadata *metadata
+		ctx      context.Context
+	}
+	type args struct {
+		req *pubsub.PublishRequest
+	}
+	tests := []struct {
+		name      string
+		fields    fields
+		args      args
+		wantErr   assert.ErrorAssertionFunc
+		wantedMsg mqttMessage
+	}{
+		{
+			name: "publish request does not contain retain metadata",
+			fields: fields{
+				logger: logger.NewLogger("mqtt-test"),
+				ctx:    context.Background(),
+				metadata: &metadata{
+					retain: true,
+				},
+			},
+			args: args{
+				req: &pubsub.PublishRequest{
+					Data:        []byte("test"),
+					PubsubName:  "mqtt",
+					Metadata:    map[string]string{},
+					Topic:       "test",
+					ContentType: nil,
+				},
+			},
+			wantErr: assert.NoError,
+			wantedMsg: mqttMessage{
+				data:     []byte("test"),
+				retained: true,
+				topic:    "test",
+				qos:      0,
+			},
+		},
+		{
+			name: "publish request contains retain metadata",
+			fields: fields{
+				logger: logger.NewLogger("mqtt-test"),
+				ctx:    context.Background(),
+				metadata: &metadata{
+					retain: true,
+				},
+			},
+			args: args{
+				req: &pubsub.PublishRequest{
+					Data:        []byte("test"),
+					PubsubName:  "mqtt",
+					Metadata:    map[string]string{"retain": "false"},
+					Topic:       "test",
+					ContentType: nil,
+				},
+			},
+			wantErr: assert.NoError,
+			wantedMsg: mqttMessage{
+				data:     []byte("test"),
+				retained: false,
+				topic:    "test",
+				qos:      0,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msgCh := make(chan mqttMessage, 1)
+
+			m := &mqttPubSub{
+				producer: newMockedMQTTClient(msgCh),
+				logger:   tt.fields.logger,
+				ctx:      tt.fields.ctx,
+				metadata: tt.fields.metadata,
+			}
+
+			ctx := context.Background()
+			tt.wantErr(t, m.Publish(ctx, tt.args.req), fmt.Sprintf("Publish(%v, %v)", ctx, tt.args.req))
+			close(msgCh)
+
+			for msg := range msgCh {
+				if !reflect.DeepEqual(msg, tt.wantedMsg) {
+					t.Errorf("received different message than expected, got = %v, want %v", m, tt.wantedMsg)
 				}
 			}
 		})

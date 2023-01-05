@@ -15,9 +15,14 @@ package http_test
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -361,6 +366,68 @@ func TestNon2XXErrorsSuppressed(t *testing.T) {
 				require.Error(t, err)
 				assert.Equal(t, tc.err, err.Error())
 			}
+		})
+	}
+}
+
+func InitBindingForHTTPS(s *httptest.Server, extraProps map[string]string) (bindings.OutputBinding, error) {
+	m := bindings.Metadata{Base: metadata.Base{
+		Properties: map[string]string{
+			"url":            s.URL,
+			"MTLSEnable":     "true",
+			"MTLSRootCA":     filepath.Join(".", "testdata", "ca.pem"),
+			"MTLSClientCert": filepath.Join(".", "testdata", "client.pem"),
+			"MTLSClientKey":  filepath.Join(".", "testdata", "client.key"),
+		},
+	}}
+
+	hs := bindingHttp.NewHTTP(logger.NewLogger("test"))
+	err := hs.Init(m)
+	return hs, err
+}
+
+func TestGetWithHTTPS(t *testing.T) {
+	handler := NewHTTPHandler()
+	server := httptest.NewUnstartedServer(handler)
+	caCertFile, err := os.ReadFile(filepath.Join(".", "testdata", "ca.pem"))
+	if err != nil {
+		log.Fatal("Failed to read ca.pem")
+	}
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCertFile)
+
+	// Create the TLS Config with the CA pool and enable Client certificate validation
+	tlsConfig := &tls.Config{
+		ClientCAs:  caCertPool,
+		ClientAuth: tls.RequireAndVerifyClientCert,
+	}
+	server.Config.Addr = ":8443"
+	server.Config.TLSConfig = tlsConfig
+	server.StartTLS()
+	defer server.Close()
+
+	hs, err := InitBindingForHTTPS(server, nil)
+	require.NoError(t, err)
+
+	tests := map[string]TestCase{
+		"get with https": {
+			input:      "GET",
+			operation:  "get",
+			metadata:   map[string]string{"path": "/hello"},
+			path:       "/hello",
+			err:        "x509: certificate signed by unknown authority",
+			statusCode: 200,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			req := tc.ToInvokeRequest()
+			response, err := hs.Invoke(context.TODO(), &req)
+			// It will error out in the 1st phase of TLS handshake only as the server certificate is not trusted by the client.
+			require.Error(t, err)
+			assert.Nil(t, response)
+			assert.Contains(t, err.Error(), tc.err)
 		})
 	}
 }

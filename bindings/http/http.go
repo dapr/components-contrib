@@ -112,15 +112,15 @@ func (h *HTTPSource) readMTLSCertificates() (*tls.Config, error) {
 	if h.metadata.MTLSClientCert == "" || h.metadata.MTLSClientKey == "" || h.metadata.MTLSRootCA == "" {
 		return nil, fmt.Errorf("metadata %q is set to %s but required certificates and key are missing", MTLSEnable, h.metadata.MTLSEnable)
 	}
-	caCertBytes, err := getPemBytes(MTLSRootCA, h.metadata.MTLSRootCA)
+	caCertBytes, err := h.getPemBytes(MTLSRootCA, h.metadata.MTLSRootCA)
 	if err != nil {
 		return nil, err
 	}
-	clientCertBytes, err := getPemBytes(MTLSClientCert, h.metadata.MTLSClientCert)
+	clientCertBytes, err := h.getPemBytes(MTLSClientCert, h.metadata.MTLSClientCert)
 	if err != nil {
 		return nil, err
 	}
-	clientKeyBytes, err := getPemBytes(MTLSClientKey, h.metadata.MTLSClientKey)
+	clientKeyBytes, err := h.getPemBytes(MTLSClientKey, h.metadata.MTLSClientKey)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +141,7 @@ func (h *HTTPSource) readMTLSCertificates() (*tls.Config, error) {
 // If the certData is a file path, it reads the file and returns the bytes.
 // Else if the certData is a PEM encoded string, it returns the bytes.
 // Else it returns an error.
-func getPemBytes(certName, certData string) ([]byte, error) {
+func (h *HTTPSource) getPemBytes(certName, certData string) ([]byte, error) {
 	// Read the file
 	pemBytes, err := os.ReadFile(certData)
 	// If there is an error assume it is already PEM encoded string not a file path.

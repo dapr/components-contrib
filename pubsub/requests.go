@@ -60,15 +60,9 @@ type BulkMessageEntry struct {
 	Metadata    map[string]string `json:"metadata"`
 }
 
-// BulkSubscribeRequest represents the parameters for bulk subscribing to a topic.
-type BulkSubscribeRequest struct {
-	MaxMessagesCount   string `json:"maxMessagesCount,omitempty"`
-	MaxAwaitDurationMs string `json:"maxAwaitDurationMs,omitempty"`
-}
-
-// BulkSubscribeConfig represents the configuration for bulk subscribe.
+// BulkSubscribeRequest represents the configuration for bulk subscribe.
 // It depends on specific componets to support these.
-type BulkSubscribeConfig struct {
+type BulkSubscribeRequest struct {
 	MaxMessagesCount   int `json:"maxMessagesCount,omitempty"`
 	MaxAwaitDurationMs int `json:"maxAwaitDurationMs,omitempty"`
 }

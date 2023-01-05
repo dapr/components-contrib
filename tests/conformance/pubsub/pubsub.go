@@ -228,8 +228,8 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 				Topic:    config.TestTopicForBulkSub,
 				Metadata: config.BulkSubscribeMetadata,
 				BulkSubscribeRequest: pubsub.BulkSubscribeRequest{
-					MaxMessagesCount:   strconv.Itoa(defaultMaxBulkCount),
-					MaxAwaitDurationMs: strconv.Itoa(defaultMaxBulkAwaitDurationMs),
+					MaxMessagesCount:   defaultMaxBulkCount,
+					MaxAwaitDurationMs: defaultMaxBulkAwaitDurationMs,
 				},
 			}, func(ctx context.Context, bulkMsg *pubsub.BulkMessage) ([]pubsub.BulkSubscribeResponseEntry, error) {
 				bulkResponses := make([]pubsub.BulkSubscribeResponseEntry, len(bulkMsg.Entries))

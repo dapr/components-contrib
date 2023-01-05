@@ -351,7 +351,7 @@ func (s *Subscription) RenewLocksBlocking(ctx context.Context, receiver Receiver
 			// Check if the context is still valid
 			if ctx.Err() != nil {
 				s.logger.Infof("Context canceled while renewing locks for %s", s.entity)
-				return nil
+				return nil //nolint:nilerr
 			}
 			if s.requireSessions {
 				sessionReceiver := receiver.(*SessionReceiver)

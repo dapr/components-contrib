@@ -90,7 +90,7 @@ func (m *MessageReceiver) RenewMessageLocks(ctx context.Context, msgs []*azservi
 	wg.Wait()
 	close(errChan)
 
-	var errs []error
+	errs := []error{}
 	for err := range errChan {
 		errs = append(errs, err)
 	}

@@ -40,24 +40,21 @@ const router = Router()
                     continue
                 }
                 const obj = env[all[i]]
-                if (!obj || typeof obj != 'object') {
+                if (!obj || typeof obj != 'object' || !obj.constructor) {
                     continue
                 }
-                if (
-                    (obj as Queue<string>) &&
-                    typeof (obj as Queue<string>).send == 'function'
-                ) {
-                    queues.push(all[i])
-                } else if (
-                    (obj as KVNamespace) &&
-                    typeof (obj as KVNamespace).getWithMetadata == 'function'
-                ) {
-                    kv.push(all[i])
-                } else if (
-                    (obj as R2Bucket) &&
-                    typeof (obj as R2Bucket).createMultipartUpload == 'function'
-                ) {
-                    r2.push(all[i])
+                switch (obj.constructor.name) {
+                    case 'KvNamespace':
+                    case 'KVNamespace':
+                        kv.push(all[i])
+                        break
+                    case 'Queue':
+                        queues.push(all[i])
+                        break
+                    case 'R2Bucket':
+                        // Note that we currently don't support R2 yet
+                        r2.push(all[i])
+                        break
                 }
             }
 
@@ -174,7 +171,7 @@ async function setupKVRequest(
         return { errorRes: new Response('Bad request', { status: 400 }) }
     }
     const namespace = env[req.params.namespace] as KVNamespace<string>
-    if (!namespace || typeof namespace.getWithMetadata != 'function') {
+    if (typeof namespace != 'object' || !['KVNamespace', 'KvNamespace'].includes(namespace?.constructor?.name)) {
         return {
             errorRes: new Response(
                 `Worker is not bound to KV '${req.params.kv}'`,
@@ -200,7 +197,7 @@ async function setupQueueRequest(
         return { errorRes: new Response('Bad request', { status: 400 }) }
     }
     const queue = env[req.params.queue] as Queue<string>
-    if (!queue || typeof queue.send != 'function') {
+    if (typeof queue != 'object' || queue?.constructor?.name != 'Queue') {
         return {
             errorRes: new Response(
                 `Worker is not bound to queue '${req.params.queue}'`,

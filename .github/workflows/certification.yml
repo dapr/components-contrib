@@ -287,7 +287,6 @@ jobs:
     - name: Create aws.snssqs specific variables
       if: contains(matrix.component, 'snssqs')
       working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
-      if: matrix.terraform-dir != ''
       run: |
         PUBSUB_AWS_SNSSQS_QUEUE_1="sqssnscerttest-q1-${{env.UNIQUE_ID}}"
         echo "PUBSUB_AWS_SNSSQS_QUEUE_1=$PUBSUB_AWS_SNSSQS_QUEUE_1" >> $GITHUB_ENV

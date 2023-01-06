@@ -37,16 +37,16 @@ resource "aws_sns_topic" "testTopic" {
 }
 
 resource "aws_sns_topic" "multiTopic1" {
-  name = "multiTopic1-${var.UNIQUE_ID}"
+  name = "sqsssnscerttest-q1-${var.UNIQUE_ID}"
   tags = {
-    dapr-topic-name = "multiTopic1-${var.UNIQUE_ID}"
+    dapr-topic-name = "sqsssnscerttest-q1-${var.UNIQUE_ID}"
   }
 }
 
 resource "aws_sns_topic" "multiTopic2" {
-  name = "multiTopic2-${var.UNIQUE_ID}"
+  name = "sqsssnscerttest-q2-${var.UNIQUE_ID}"
   tags = {
-    dapr-topic-name = "multiTopic2-${var.UNIQUE_ID}"
+    dapr-topic-name = "sqsssnscerttest-q2-${var.UNIQUE_ID}"
   }
 }
 

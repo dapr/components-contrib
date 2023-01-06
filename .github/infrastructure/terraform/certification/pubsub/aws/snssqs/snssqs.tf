@@ -29,24 +29,10 @@ provider "aws" {
   }
 }
 
-resource "aws_sns_topic" "testTopic" {
-  name = "testTopic-${var.UNIQUE_ID}"
-  tags = {
-    dapr-topic-name = "testTopic-${var.UNIQUE_ID}"
-  }
-}
-
 resource "aws_sns_topic" "multiTopic1" {
   name = "sqsssnscerttest-q1-${var.UNIQUE_ID}"
   tags = {
     dapr-topic-name = "sqsssnscerttest-q1-${var.UNIQUE_ID}"
-  }
-}
-
-resource "aws_sns_topic" "multiTopic2" {
-  name = "sqsssnscerttest-q2-${var.UNIQUE_ID}"
-  tags = {
-    dapr-topic-name = "sqsssnscerttest-q2-${var.UNIQUE_ID}"
   }
 }
 
@@ -59,18 +45,6 @@ resource "aws_sqs_queue" "testQueue" {
 
 resource "aws_sns_topic_subscription" "multiTopic1_testQueue" {
   topic_arn = aws_sns_topic.multiTopic1.arn
-  protocol  = "sqs"
-  endpoint  = aws_sqs_queue.testQueue.arn
-}
-
-resource "aws_sns_topic_subscription" "multiTopic2_testQueue" {
-  topic_arn = aws_sns_topic.multiTopic2.arn
-  protocol  = "sqs"
-  endpoint  = aws_sqs_queue.testQueue.arn
-}
-
-resource "aws_sns_topic_subscription" "testTopic_testQueue" {
-  topic_arn = aws_sns_topic.testTopic.arn
   protocol  = "sqs"
   endpoint  = aws_sqs_queue.testQueue.arn
 }
@@ -93,9 +67,7 @@ resource "aws_sqs_queue_policy" "testQueue_policy" {
     "Condition": {
       "ArnEquals": {
         "aws:SourceArn": [
-          "${aws_sns_topic.testTopic.arn}",
-          "${aws_sns_topic.multiTopic1.arn}",
-          "${aws_sns_topic.multiTopic2.arn}"
+          "${aws_sns_topic.multiTopic1.arn}"
         ]
       }
     }

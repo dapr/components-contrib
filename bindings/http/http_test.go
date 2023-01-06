@@ -17,8 +17,8 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -373,62 +373,98 @@ func TestNon2XXErrorsSuppressed(t *testing.T) {
 func InitBindingForHTTPS(s *httptest.Server, extraProps map[string]string) (bindings.OutputBinding, error) {
 	m := bindings.Metadata{Base: metadata.Base{
 		Properties: map[string]string{
-			"url":            s.URL,
-			"MTLSEnable":     "true",
-			"MTLSRootCA":     filepath.Join(".", "testdata", "ca.pem"),
-			"MTLSClientCert": filepath.Join(".", "testdata", "client.pem"),
-			"MTLSClientKey":  filepath.Join(".", "testdata", "client.key"),
+			"url": s.URL,
 		},
 	}}
-
+	for k, v := range extraProps {
+		m.Properties[k] = v
+	}
 	hs := bindingHttp.NewHTTP(logger.NewLogger("test"))
 	err := hs.Init(m)
 	return hs, err
 }
 
-func TestGetWithHTTPS(t *testing.T) {
-	handler := NewHTTPHandler()
+func httpsHandler(w http.ResponseWriter, r *http.Request) {
+	// r.TLS gets ignored by HTTP handlers.
+	// in case where client auth is not required, r.TLS.PeerCertificates will be empty.
+	res := fmt.Sprintf("%v", len(r.TLS.PeerCertificates))
+	io.WriteString(w, res)
+}
+
+func TestHTTPSBinding(t *testing.T) {
+	t.Run("get with https with valid client cert and clientAuthEnabled true", func(t *testing.T) {
+		server := setupHTTPSServer(t, true)
+		defer server.Close()
+
+		certMap := map[string]string{
+			"MTLSEnable":     "true",
+			"MTLSRootCA":     filepath.Join(".", "testdata", "ca.pem"),
+			"MTLSClientCert": filepath.Join(".", "testdata", "client.pem"),
+			"MTLSClientKey":  filepath.Join(".", "testdata", "client.key"),
+		}
+		hs, err := InitBindingForHTTPS(server, certMap)
+		require.NoError(t, err)
+
+		req := TestCase{
+			input:      "GET",
+			operation:  "get",
+			metadata:   map[string]string{"path": "/testhttps"},
+			path:       "/testhttps",
+			err:        "",
+			statusCode: 200,
+		}.ToInvokeRequest()
+		response, err := hs.Invoke(context.TODO(), &req)
+		assert.Nil(t, err)
+		peerCerts, err := strconv.Atoi(string(response.Data))
+		assert.Nil(t, err)
+		assert.True(t, peerCerts > 0)
+	})
+	t.Run("get with https with no client cert and clientAuthEnabled true", func(t *testing.T) {
+		server := setupHTTPSServer(t, true)
+		defer server.Close()
+
+		certMap := map[string]string{}
+		hs, err := InitBindingForHTTPS(server, certMap)
+		require.NoError(t, err)
+
+		req := TestCase{
+			input:      "GET",
+			operation:  "get",
+			metadata:   map[string]string{"path": "/testhttps"},
+			path:       "/testhttps",
+			err:        "",
+			statusCode: 200,
+		}.ToInvokeRequest()
+		_, err = hs.Invoke(context.TODO(), &req)
+		assert.NotNil(t, err)
+	})
+}
+
+func setupHTTPSServer(t *testing.T, clientAuthEnabled bool) *httptest.Server {
+	handler := http.NewServeMux()
+	handler.HandleFunc("/testhttps", httpsHandler)
 	server := httptest.NewUnstartedServer(handler)
 	caCertFile, err := os.ReadFile(filepath.Join(".", "testdata", "ca.pem"))
-	if err != nil {
-		log.Fatal("Failed to read ca.pem")
-	}
+	assert.Nil(t, err)
+
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM(caCertFile)
 
+	serverCert := filepath.Join(".", "testdata", "server.pem")
+	serverKey := filepath.Join(".", "testdata", "server.key")
+	cert, err := tls.LoadX509KeyPair(serverCert, serverKey)
+	assert.NoError(t, err)
+
 	// Create the TLS Config with the CA pool and enable Client certificate validation
 	tlsConfig := &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		ClientCAs:  caCertPool,
-		ClientAuth: tls.RequireAndVerifyClientCert,
+		MinVersion:   tls.VersionTLS12,
+		ClientCAs:    caCertPool,
+		Certificates: []tls.Certificate{cert},
 	}
-	server.Config.Addr = ":8443"
-	server.Config.TLSConfig = tlsConfig
+	if clientAuthEnabled {
+		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	}
+	server.TLS = tlsConfig
 	server.StartTLS()
-	defer server.Close()
-
-	hs, err := InitBindingForHTTPS(server, nil)
-	require.NoError(t, err)
-
-	tests := map[string]TestCase{
-		"get with https": {
-			input:      "GET",
-			operation:  "get",
-			metadata:   map[string]string{"path": "/hello"},
-			path:       "/hello",
-			err:        "x509: certificate signed by unknown authority",
-			statusCode: 200,
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			req := tc.ToInvokeRequest()
-			response, err := hs.Invoke(context.TODO(), &req)
-			// It will error out in the 1st phase of TLS handshake only as the server certificate is not trusted by the client.
-			require.Error(t, err)
-			assert.Nil(t, response)
-			assert.Contains(t, err.Error(), tc.err)
-		})
-	}
+	return server
 }

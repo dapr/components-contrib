@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	channelPrefix = "__keyspace@0__:"
-	separator     = "||"
+	keySpacePrefix = "__keyspace@"
+	separator      = "||"
 )
 
 func GetRedisValueAndVersion(redisValue string) (string, string) {
@@ -34,11 +34,17 @@ func GetRedisValueAndVersion(redisValue string) (string, string) {
 	return valueAndRevision[0], valueAndRevision[1]
 }
 
-func ParseRedisKeyFromEvent(eventChannel string) (string, error) {
+func ParseRedisKeyFromChannel(eventChannel string, redisDB int) (string, error) {
+	channelPrefix := keySpacePrefix + fmt.Sprint(redisDB) + "__:"
 	index := strings.Index(eventChannel, channelPrefix)
 	if index == -1 {
 		return "", fmt.Errorf("wrong format of event channel, it should start with '%s': eventChannel=%s", channelPrefix, eventChannel)
 	}
 
 	return eventChannel[len(channelPrefix):], nil
+}
+
+func GetRedisChannelFromKey(key string, redisDB int) string {
+	redisEvent := keySpacePrefix + fmt.Sprint(redisDB) + "__:" + key
+	return redisEvent
 }

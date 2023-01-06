@@ -250,6 +250,7 @@ func Test_parseRedisMetadata(t *testing.T) {
 	testProperties[maxRetryBackoff] = "1000000000"
 	testProperties[failover] = "true"
 	testProperties[sentinelMasterName] = "tesSentinelMasterName"
+	testProperties[redisDB] = "0"
 	tests := []struct {
 		name    string
 		args    args
@@ -270,6 +271,7 @@ func Test_parseRedisMetadata(t *testing.T) {
 				MaxRetryBackoff:    time.Second,
 				Failover:           true,
 				SentinelMasterName: "tesSentinelMasterName",
+				DB:                 0,
 			},
 		},
 	}

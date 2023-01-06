@@ -50,6 +50,7 @@ func TestParseMetadata(t *testing.T) {
 					"memoryStorage":  "true",
 					"rateLimit":      "20000",
 					"hearbeat":       "1s",
+					"domain":         "hub",
 				},
 			}},
 			want: metadata{
@@ -70,6 +71,7 @@ func TestParseMetadata(t *testing.T) {
 				hearbeat:       time.Second * 1,
 				deliverPolicy:  nats.DeliverAllPolicy,
 				ackPolicy:      nats.AckExplicitPolicy,
+				domain:         "hub",
 			},
 			expectErr: false,
 		},
@@ -95,6 +97,7 @@ func TestParseMetadata(t *testing.T) {
 					"deliverPolicy":  "sequence",
 					"startSequence":  "5",
 					"ackPolicy":      "all",
+					"apiPrefix":      "HUB",
 				},
 			}},
 			want: metadata{
@@ -116,6 +119,7 @@ func TestParseMetadata(t *testing.T) {
 				token:          "myToken",
 				deliverPolicy:  nats.DeliverByStartSequencePolicy,
 				ackPolicy:      nats.AckAllPolicy,
+				apiPrefix:      "HUB",
 			},
 			expectErr: false,
 		},

@@ -41,4 +41,4 @@ fi
 
 # Send the test IoT device messages to the IoT Hub.`testmessageForEventHubCertificationTest` is being asserted in the certification test
 # TODO : read messageCount and data as an argument
-az iot device simulate -n ${AzureIotHubName} -d ${IOT_HUB_TEST_DEVICE_NAME} --data 'testmessageForEventHubCertificationTest' --msg-count 10 --msg-interval 1 --protocol http --properties "iothub-userid=dapr-user-id;iothub-messageid=dapr-message-id"
+az iot device simulate -n ${AzureIotHubName} -d ${IOT_HUB_TEST_DEVICE_NAME} --data 'testmessageForEventHubCertificationTest' --msg-count 10 --msg-interval 1 --protocol http --properties "iothub-userid=dapr-user-id;iothub-messageid=dapr-message-id;applicationProperty=custom-value"

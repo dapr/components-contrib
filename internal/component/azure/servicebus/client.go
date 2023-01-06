@@ -193,9 +193,14 @@ func (c *Client) EnsureTopic(ctx context.Context, topic string) error {
 	return nil
 }
 
+type SubscribeOptions struct {
+	RequireSessions      bool
+	MaxConcurrentSesions int
+}
+
 // EnsureSubscription creates the topic subscription if it doesn't exist.
 // Returns with nil error if the admin client doesn't exist.
-func (c *Client) EnsureSubscription(ctx context.Context, name string, topic string) error {
+func (c *Client) EnsureSubscription(ctx context.Context, name string, topic string, opts SubscribeOptions) error {
 	if c.adminClient == nil {
 		return nil
 	}
@@ -205,13 +210,13 @@ func (c *Client) EnsureSubscription(ctx context.Context, name string, topic stri
 		return err
 	}
 
-	shouldCreate, err := c.shouldCreateSubscription(ctx, topic, name)
+	shouldCreate, err := c.shouldCreateSubscription(ctx, topic, name, opts)
 	if err != nil {
 		return err
 	}
 
 	if shouldCreate {
-		err = c.createSubscription(ctx, topic, name)
+		err = c.createSubscription(ctx, topic, name, opts)
 		if err != nil {
 			return err
 		}
@@ -268,7 +273,7 @@ func (c *Client) createTopic(parentCtx context.Context, topic string) error {
 	return nil
 }
 
-func (c *Client) shouldCreateSubscription(parentCtx context.Context, topic, subscription string) (bool, error) {
+func (c *Client) shouldCreateSubscription(parentCtx context.Context, topic, subscription string, opts SubscribeOptions) (bool, error) {
 	ctx, cancel := context.WithTimeout(parentCtx, time.Second*time.Duration(c.metadata.TimeoutInSec))
 	defer cancel()
 
@@ -280,15 +285,20 @@ func (c *Client) shouldCreateSubscription(parentCtx context.Context, topic, subs
 		// If res is nil, the subscription does not exist
 		return true, nil
 	}
+
+	if notEqual(res.RequiresSession, &opts.RequireSessions) {
+		return false, fmt.Errorf("subscription %s already exists but session requirement doesn't match", subscription)
+	}
+
 	return false, nil
 }
 
-func (c *Client) createSubscription(parentCtx context.Context, topic, subscription string) error {
+func (c *Client) createSubscription(parentCtx context.Context, topic, subscription string, opts SubscribeOptions) error {
 	ctx, cancel := context.WithTimeout(parentCtx, time.Second*time.Duration(c.metadata.TimeoutInSec))
 	defer cancel()
 
 	_, err := c.adminClient.CreateSubscription(ctx, topic, subscription, &sbadmin.CreateSubscriptionOptions{
-		Properties: c.metadata.CreateSubscriptionProperties(),
+		Properties: c.metadata.CreateSubscriptionProperties(opts),
 	})
 	if err != nil {
 		return fmt.Errorf("could not create subscription %s: %w", subscription, err)
@@ -322,4 +332,14 @@ func (c *Client) createQueue(parentCtx context.Context, queue string) error {
 		return fmt.Errorf("could not create queue %s: %w", queue, err)
 	}
 	return nil
+}
+
+func notEqual(a, b *bool) bool {
+	if a == nil && b == nil {
+		return false
+	} else if a == nil || b == nil {
+		return true
+	} else {
+		return *a != *b
+	}
 }

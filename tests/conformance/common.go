@@ -31,6 +31,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -69,6 +70,7 @@ import (
 	p_pulsar "github.com/dapr/components-contrib/pubsub/pulsar"
 	p_rabbitmq "github.com/dapr/components-contrib/pubsub/rabbitmq"
 	p_redis "github.com/dapr/components-contrib/pubsub/redis"
+	p_solaceamqp "github.com/dapr/components-contrib/pubsub/solace/amqp"
 	ss_azure "github.com/dapr/components-contrib/secretstores/azure/keyvault"
 	ss_hashicorp_vault "github.com/dapr/components-contrib/secretstores/hashicorp/vault"
 	ss_kubernetes "github.com/dapr/components-contrib/secretstores/kubernetes"
@@ -149,6 +151,7 @@ func LoadComponents(componentPath string) ([]Component, error) {
 	return components, nil
 }
 
+// LookUpEnv returns the value of the specified environment variable or the empty string.
 func LookUpEnv(key string) string {
 	if val, ok := os.LookupEnv(key); ok {
 		return val
@@ -166,6 +169,10 @@ func ParseConfigurationMap(t *testing.T, configMap map[string]interface{}) {
 				val = uuid.New().String()
 				t.Logf("Generated UUID %s", val)
 				configMap[k] = val
+			} else if strings.Contains(val, "${{") {
+				s := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(val, "${{"), "}}"))
+				v := LookUpEnv(s)
+				configMap[k] = v
 			} else {
 				jsonMap := make(map[string]interface{})
 				err := json.Unmarshal([]byte(val), &jsonMap)
@@ -194,6 +201,10 @@ func parseConfigurationInterfaceMap(t *testing.T, configMap map[interface{}]inte
 				val = uuid.New().String()
 				t.Logf("Generated UUID %s", val)
 				configMap[k] = val
+			} else if strings.Contains(val, "${{") {
+				s := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(val, "${{"), "}}"))
+				v := LookUpEnv(s)
+				configMap[k] = v
 			} else {
 				jsonMap := make(map[string]interface{})
 				err := json.Unmarshal([]byte(val), &jsonMap)
@@ -293,8 +304,8 @@ func decodeYaml(b []byte) (TestConfiguration, error) {
 
 func (tc *TestConfiguration) loadComponentsAndProperties(t *testing.T, filepath string) (map[string]string, error) {
 	comps, err := LoadComponents(filepath)
-	assert.Nil(t, err)
-	assert.Equal(t, 1, len(comps)) // We only expect a single component per file
+	require.NoError(t, err)
+	require.Equal(t, 1, len(comps)) // We only expect a single component per file
 	c := comps[0]
 	props, err := ConvertMetadataToProperties(c.Spec.Metadata)
 
@@ -436,10 +447,14 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_rabbitmq.NewRabbitMQ(testLogger)
 	case "in-memory":
 		pubsub = p_inmemory.New(testLogger)
-	case "aws.snssqs":
+	case "aws.snssqs.terraform":
+		pubsub = p_snssqs.NewSnsSqs(testLogger)
+	case "aws.snssqs.docker":
 		pubsub = p_snssqs.NewSnsSqs(testLogger)
 	case "kubemq":
 		pubsub = p_kubemq.NewKubeMQ(testLogger)
+	case "solace.amqp":
+		pubsub = p_solaceamqp.NewAMQPPubsub(testLogger)
 	default:
 		return nil
 	}

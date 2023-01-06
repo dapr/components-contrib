@@ -110,20 +110,21 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 	go func() {
 		// Reconnect loop.
 		for {
-			sub := impl.NewSubscription(
-				subscribeCtx,
-				a.metadata.MaxActiveMessages,
-				a.metadata.TimeoutInSec,
-				nil,
-				a.metadata.MaxRetriableErrorsPerSec,
-				a.metadata.MaxConcurrentHandlers,
-				"queue "+a.metadata.QueueName,
-				a.logger,
-			)
+			sub := impl.NewSubscription(subscribeCtx, impl.SubsriptionOptions{
+				MaxActiveMessages:     a.metadata.MaxActiveMessages,
+				TimeoutInSec:          a.metadata.TimeoutInSec,
+				MaxBulkSubCount:       nil,
+				MaxRetriableEPS:       a.metadata.MaxRetriableErrorsPerSec,
+				MaxConcurrentHandlers: a.metadata.MaxConcurrentHandlers,
+				Entity:                "queue " + a.metadata.QueueName,
+				LockRenewalInSec:      a.metadata.LockRenewalInSec,
+				RequireSessions:       false, // Sessions not supported for queues yet.
+			}, a.logger)
 
 			// Blocks until a successful connection (or until context is canceled)
-			err := sub.Connect(func() (*servicebus.Receiver, error) {
-				return a.client.GetClient().NewReceiverForQueue(a.metadata.QueueName, nil)
+			receiver, err := sub.Connect(func() (impl.Receiver, error) {
+				receiver, err := a.client.GetClient().NewReceiverForQueue(a.metadata.QueueName, nil)
+				return &impl.MessageReceiver{Receiver: receiver}, err
 			})
 			if err != nil {
 				// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
@@ -135,13 +136,15 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 
 			// ReceiveAndBlock will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
 			// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
-			err = sub.ReceiveAndBlock(
-				a.getHandlerFunc(handler),
-				a.metadata.LockRenewalInSec,
-				false, // Bulk is not supported here.
+			err = sub.ReceiveBlocking(
+				a.getHandlerFn(handler),
+				receiver,
 				func() {
 					// Reset the backoff when the subscription is successful and we have received the first message
 					bo.Reset()
+				},
+				impl.ReceiveOptions{
+					BulkEnabled: false, // Bulk is not supported here.
 				},
 			)
 			if err != nil && !errors.Is(err, context.Canceled) {
@@ -169,7 +172,7 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 	return nil
 }
 
-func (a *AzureServiceBusQueues) getHandlerFunc(handler bindings.Handler) impl.HandlerFunc {
+func (a *AzureServiceBusQueues) getHandlerFn(handler bindings.Handler) impl.HandlerFn {
 	return func(ctx context.Context, asbMsgs []*servicebus.ReceivedMessage) ([]impl.HandlerResponseItem, error) {
 		if len(asbMsgs) != 1 {
 			return nil, fmt.Errorf("expected 1 message, got %d", len(asbMsgs))

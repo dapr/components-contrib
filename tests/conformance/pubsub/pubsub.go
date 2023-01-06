@@ -227,7 +227,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 			err := bS.BulkSubscribe(ctx, pubsub.SubscribeRequest{
 				Topic:    config.TestTopicForBulkSub,
 				Metadata: config.BulkSubscribeMetadata,
-				BulkSubscribeRequest: pubsub.BulkSubscribeRequest{
+				BulkSubscribeConfig: pubsub.BulkSubscribeConfig{
 					MaxMessagesCount:   defaultMaxBulkCount,
 					MaxAwaitDurationMs: defaultMaxBulkAwaitDurationMs,
 				},

@@ -196,7 +196,7 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 }
 
 func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.BulkHandler) error {
-	maxBulkSubCount := utils.GetIntValOrDefault(req.BulkSubscribeRequest.MaxMessagesCount, defaultMaxBulkSubCount)
+	maxBulkSubCount := utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxMessagesCount, defaultMaxBulkSubCount)
 	sub := impl.NewSubscription(
 		subscribeCtx,
 		a.metadata.MaxActiveMessages,

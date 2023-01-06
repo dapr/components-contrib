@@ -48,9 +48,9 @@ func (p *PubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 func (p *PubSub) BulkSubscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	handler pubsub.BulkHandler,
 ) error {
-	subConfig := pubsub.BulkSubscribeRequest{
-		MaxMessagesCount:   utils.GetIntValOrDefault(req.BulkSubscribeRequest.MaxMessagesCount, kafka.DefaultMaxBulkSubCount),
-		MaxAwaitDurationMs: utils.GetIntValOrDefault(req.BulkSubscribeRequest.MaxAwaitDurationMs, kafka.DefaultMaxBulkSubAwaitDurationMs),
+	subConfig := pubsub.BulkSubscribeConfig{
+		MaxMessagesCount:   utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxMessagesCount, kafka.DefaultMaxBulkSubCount),
+		MaxAwaitDurationMs: utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxAwaitDurationMs, kafka.DefaultMaxBulkSubAwaitDurationMs),
 	}
 	handlerConfig := kafka.SubscriptionHandlerConfig{
 		IsBulkSubscribe: true,

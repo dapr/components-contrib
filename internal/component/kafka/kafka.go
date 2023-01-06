@@ -153,7 +153,7 @@ type BulkEventHandler func(ctx context.Context, msg *KafkaBulkMessage) ([]pubsub
 // SubscriptionHandlerConfig is the handler and configuration for subscription.
 type SubscriptionHandlerConfig struct {
 	IsBulkSubscribe bool
-	SubscribeConfig pubsub.BulkSubscribeRequest
+	SubscribeConfig pubsub.BulkSubscribeConfig
 	BulkHandler     BulkEventHandler
 	Handler         EventHandler
 }

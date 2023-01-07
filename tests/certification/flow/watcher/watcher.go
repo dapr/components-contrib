@@ -376,6 +376,27 @@ func (w *Watcher) Result(t TestingT, timeout time.Duration) (TestingT, interface
 	}
 }
 
+// Partial waits for up to `timeout` for any
+// expected data to be observed and returns
+// the expected and observed slices even if
+// not complete.
+func (w *Watcher) Partial(t TestingT, timeout time.Duration) (TestingT, interface{}, interface{}) {
+	w.checkClosable()
+
+	select {
+	case <-time.After(timeout):
+		w.mu.Lock()
+		defer w.mu.Unlock()
+
+		return t, w.expected, w.observed
+	case <-w.finished:
+		w.mu.Lock()
+		defer w.mu.Unlock()
+
+		return t, w.expected, w.observed
+	}
+}
+
 // Assert waits for up to `timeout` for all
 // expected data to be observed and asserts
 // the expected and observed data are either

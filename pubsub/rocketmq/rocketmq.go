@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -119,7 +120,9 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 	if r.metadata.InstanceName != "" {
 		opts = append(opts, mqc.WithInstance(r.metadata.InstanceName))
 	}
-	if r.metadata.ConsumerGroup != "" {
+	if os.Getenv("ConsumerGroup") != "" {
+		opts = append(opts, mqc.WithGroupName(os.Getenv("ConsumerGroup")))
+	} else if r.metadata.ConsumerGroup != "" {
 		opts = append(opts, mqc.WithGroupName(r.metadata.ConsumerGroup))
 	} else if r.metadata.GroupName != "" {
 		r.metadata.ConsumerGroup = r.metadata.GroupName
@@ -217,7 +220,9 @@ func (r *rocketMQ) setUpProducer() (mq.Producer, error) {
 	if r.metadata.InstanceName != "" {
 		opts = append(opts, mqp.WithInstanceName(r.metadata.InstanceName))
 	}
-	if r.metadata.ProducerGroup != "" {
+	if os.Getenv("ProducerGroup") != "" {
+		opts = append(opts, mqp.WithGroupName(os.Getenv("ProducerGroup")))
+	} else if r.metadata.ProducerGroup != "" {
 		opts = append(opts, mqp.WithGroupName(r.metadata.ProducerGroup))
 	} else if r.metadata.GroupName != "" {
 		r.metadata.ProducerGroup = r.metadata.GroupName

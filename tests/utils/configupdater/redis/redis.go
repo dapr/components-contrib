@@ -17,10 +17,10 @@ const (
 )
 
 type ConfigUpdater struct {
-	client         rediscomponent.RedisClient
-	clientSettings *rediscomponent.Settings
+	Client rediscomponent.RedisClient
 
-	logger logger.Logger
+	clientSettings *rediscomponent.Settings
+	logger         logger.Logger
 }
 
 func NewRedisConfigUpdater(logger logger.Logger) configupdater.Updater {
@@ -47,12 +47,12 @@ func getRedisValuesFromItems(items map[string]*configuration.Item) map[string]st
 
 func (r *ConfigUpdater) Init(props map[string]string) error {
 	var err error
-	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(props, nil)
+	r.Client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(props, nil)
 	if err != nil {
 		return err
 	}
 
-	if _, err = r.client.PingResult(context.TODO()); err != nil {
+	if _, err = r.Client.PingResult(context.TODO()); err != nil {
 		return fmt.Errorf("redis store: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
 
@@ -63,7 +63,7 @@ func (r *ConfigUpdater) AddKey(items map[string]*configuration.Item) error {
 	values := getRedisValuesFromItems(items)
 
 	for key, val := range values {
-		err := r.client.DoWrite(context.Background(), "SET", key, val)
+		err := r.Client.DoWrite(context.Background(), "SET", key, val)
 		if err != nil {
 			return err
 		}
@@ -77,7 +77,7 @@ func (r *ConfigUpdater) UpdateKey(items map[string]*configuration.Item) error {
 }
 
 func (r *ConfigUpdater) DeleteKey(keys []string) error {
-	err := r.client.Del(context.Background(), keys...)
+	err := r.Client.Del(context.Background(), keys...)
 
 	return err
 }

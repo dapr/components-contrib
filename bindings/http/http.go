@@ -146,6 +146,9 @@ func (h *HTTPSource) getPemBytes(certName, certData string) ([]byte, error) {
 	pemBytes, err := os.ReadFile(certData)
 	// If there is an error assume it is already PEM encoded string not a file path.
 	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("failed to read %q file: %w", certName, err)
+		}
 		if !isValidPEM(certData) {
 			return nil, fmt.Errorf("provided %q value is neither a valid file path or nor a valid pem encoded string", certName)
 		}

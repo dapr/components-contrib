@@ -34,12 +34,12 @@ func getRedisValueFromItem(item *configuration.Item) string {
 	return val
 }
 
-func getRedisValuesFromItems(items map[string]*configuration.Item) map[string]string {
-	m := make(map[string]string)
+func getRedisValuesFromItems(items map[string]*configuration.Item) []interface{} {
+	var m []interface{}
 
 	for key, item := range items {
 		val := getRedisValueFromItem(item)
-		m[key] = val
+		m = append(m, key, val)
 	}
 
 	return m
@@ -61,15 +61,11 @@ func (r *ConfigUpdater) Init(props map[string]string) error {
 
 func (r *ConfigUpdater) AddKey(items map[string]*configuration.Item) error {
 	values := getRedisValuesFromItems(items)
+	values = append([]interface{}{"MSET"}, values...)
 
-	for key, val := range values {
-		err := r.Client.DoWrite(context.Background(), "SET", key, val)
-		if err != nil {
-			return err
-		}
-	}
+	err := r.Client.DoWrite(context.Background(), values...)
 
-	return nil
+	return err
 }
 
 func (r *ConfigUpdater) UpdateKey(items map[string]*configuration.Item) error {

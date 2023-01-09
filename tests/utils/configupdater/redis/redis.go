@@ -35,7 +35,7 @@ func getRedisValueFromItem(item *configuration.Item) string {
 }
 
 func getRedisValuesFromItems(items map[string]*configuration.Item) []interface{} {
-	var m []interface{}
+	m := make([]interface{}, 0, 2*len(items)+1)
 
 	for key, item := range items {
 		val := getRedisValueFromItem(item)

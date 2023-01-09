@@ -19,6 +19,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -55,7 +56,6 @@ type HTTPSource struct {
 
 type httpMetadata struct {
 	URL            string `mapstructure:"url"`
-	MTLSEnable     string `mapstructure:"mtlsEnable"`
 	MTLSClientCert string `mapstructure:"mtlsClientCert"`
 	MTLSClientKey  string `mapstructure:"mtlsClientKey"`
 	MTLSRootCA     string `mapstructure:"mtlsRootCA"`
@@ -73,7 +73,7 @@ func (h *HTTPSource) Init(metadata bindings.Metadata) error {
 		return err
 	}
 	var tlsConfig *tls.Config
-	if h.metadata.MTLSEnable == "true" {
+	if h.metadata.MTLSClientCert != "" && h.metadata.MTLSClientKey != "" && h.metadata.MTLSRootCA != "" {
 		tlsConfig, err = h.readMTLSCertificates()
 		if err != nil {
 			return err
@@ -109,9 +109,6 @@ func (h *HTTPSource) Init(metadata bindings.Metadata) error {
 
 // readMTLSCertificates reads the certificates and key from the metadata and returns a tls.Config.
 func (h *HTTPSource) readMTLSCertificates() (*tls.Config, error) {
-	if h.metadata.MTLSClientCert == "" || h.metadata.MTLSClientKey == "" || h.metadata.MTLSRootCA == "" {
-		return nil, fmt.Errorf("metadata %q is set to %s but required certificates and key are missing", MTLSEnable, h.metadata.MTLSEnable)
-	}
 	caCertBytes, err := h.getPemBytes(MTLSRootCA, h.metadata.MTLSRootCA)
 	if err != nil {
 		return nil, err
@@ -125,7 +122,10 @@ func (h *HTTPSource) readMTLSCertificates() (*tls.Config, error) {
 		return nil, err
 	}
 	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(caCertBytes)
+	ok := caCertPool.AppendCertsFromPEM(caCertBytes)
+	if !ok {
+		return nil, errors.New("failed to add root certificate to certpool")
+	}
 	cert, err := tls.X509KeyPair(clientCertBytes, clientKeyBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load client certificate: %w", err)

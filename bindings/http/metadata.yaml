@@ -39,12 +39,6 @@ metadata:
     # If omitted, uses the same values as "<root>.binding"
     binding:
       output: true
-  - name: MTLSEnable
-    required: false
-    description: "Whether to use mTLS to connect to the HTTPS endpoint"
-    example: "true"
-    binding:
-      output: true
   - name: MTLSRootCA
     required: false
     description: "The CA certificate used to generate the client certificate"

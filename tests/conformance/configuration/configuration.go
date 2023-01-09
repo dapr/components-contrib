@@ -34,8 +34,6 @@ const (
 	v1                     = "1.0.0"
 	defaultMaxReadDuration = 30 * time.Second
 	defaultWaitDuration    = 5 * time.Second
-	setOperation           = "set"
-	deleteOperation        = "del"
 )
 
 type TestConfig struct {
@@ -277,9 +275,9 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 
 			updateAwaitingMessages(awaitingMessages3, newValues)
 
-			verifyMessagesReceived(t, setOperation, processedC1, awaitingMessages1)
-			verifyMessagesReceived(t, setOperation, processedC2, awaitingMessages2)
-			verifyMessagesReceived(t, setOperation, processedC3, awaitingMessages3)
+			verifyMessagesReceived(t, processedC1, awaitingMessages1)
+			verifyMessagesReceived(t, processedC2, awaitingMessages2)
+			verifyMessagesReceived(t, processedC3, awaitingMessages3)
 		})
 
 		t.Run("delete keys and verify messages received", func(t *testing.T) {
@@ -293,8 +291,8 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			updateAwaitingMessages(awaitingMessages2, initValues2)
 			updateAwaitingMessages(awaitingMessages3, initValues2)
 
-			verifyMessagesReceived(t, deleteOperation, processedC2, awaitingMessages2)
-			verifyMessagesReceived(t, deleteOperation, processedC3, awaitingMessages3)
+			verifyMessagesReceived(t, processedC2, awaitingMessages2)
+			verifyMessagesReceived(t, processedC3, awaitingMessages3)
 		})
 	}
 
@@ -317,8 +315,8 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			updateAwaitingMessages(awaitingMessages2, initValues1)
 			updateAwaitingMessages(awaitingMessages3, initValues1)
 
-			verifyMessagesReceived(t, setOperation, processedC2, awaitingMessages2)
-			verifyMessagesReceived(t, setOperation, processedC3, awaitingMessages3)
+			verifyMessagesReceived(t, processedC2, awaitingMessages2)
+			verifyMessagesReceived(t, processedC3, awaitingMessages3)
 			verifyNoMessagesReceived(t, processedC1)
 		})
 
@@ -339,7 +337,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 
 			updateAwaitingMessages(awaitingMessages3, initValues1)
 
-			verifyMessagesReceived(t, setOperation, processedC3, awaitingMessages3)
+			verifyMessagesReceived(t, processedC3, awaitingMessages3)
 			verifyNoMessagesReceived(t, processedC2)
 		})
 
@@ -376,13 +374,12 @@ func verifyNoMessagesReceived(t *testing.T, processedChan chan *configuration.Up
 	}
 }
 
-func verifyMessagesReceived(t *testing.T, operation string, processedChan chan *configuration.UpdateEvent, awaitingMessages map[string]map[string]struct{}) {
+func verifyMessagesReceived(t *testing.T, processedChan chan *configuration.UpdateEvent, awaitingMessages map[string]map[string]struct{}) {
 	waiting := true
 	timeout := time.After(defaultMaxReadDuration)
 	for waiting {
 		select {
 		case processed := <-processedChan:
-			assert.Equal(t, operation, processed.Operation)
 			for key, receivedItem := range processed.Items {
 				items, keyExists := awaitingMessages[key]
 				assert.True(t, keyExists)

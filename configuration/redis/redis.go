@@ -331,35 +331,27 @@ func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *co
 		return
 	}
 
-	operation := msg.Payload
 	var items map[string]*configuration.Item
 
-	if operation == "del" {
+	// get all keys if only one is changed
+	getResponse, errGet := r.Get(ctx, &configuration.GetRequest{
+		Metadata: req.Metadata,
+		Keys:     []string{targetKey},
+	})
+	if errGet != nil {
+		r.logger.Errorf("get response from redis failed: %s", err)
+		return
+	}
+	items = getResponse.Items
+	if len(items) == 0 {
 		items = map[string]*configuration.Item{
 			targetKey: nil,
-		}
-	} else {
-		// get all keys if only one is changed
-		getResponse, errGet := r.Get(ctx, &configuration.GetRequest{
-			Metadata: req.Metadata,
-			Keys:     []string{targetKey},
-		})
-		if errGet != nil {
-			r.logger.Errorf("get response from redis failed: %s", err)
-			return
-		}
-		items = getResponse.Items
-		if len(items) == 0 {
-			items = map[string]*configuration.Item{
-				targetKey: nil,
-			}
 		}
 	}
 
 	e := &configuration.UpdateEvent{
-		Items:     items,
-		ID:        id,
-		Operation: operation,
+		Items: items,
+		ID:    id,
 	}
 	err = handler(ctx, e)
 	if err != nil {

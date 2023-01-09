@@ -41,8 +41,8 @@ github.com/Azure/azure-sdk-for-go/sdk/internal v0.7.0/go.mod h1:yqy467j36fJxcRV2
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
-github.com/DeepanshuA/dapr v1.6.1-0.20230106005824-3f4c7cdaa331 h1:rC+G3EpnXE5YeIr1I8b1vyLxoTm5XprpUAk+1h3TL/w=
-github.com/DeepanshuA/dapr v1.6.1-0.20230106005824-3f4c7cdaa331/go.mod h1:hWcHDDBQH+54xHzAteSOD87tLFiefDgJ20I829wxG6E=
+github.com/DeepanshuA/dapr v1.6.1-0.20230109081951-60504eb904b0 h1:BY4tyxrcbZYveRxnwGGbUZBakeo9fP1Gb+/I8roMY6Q=
+github.com/DeepanshuA/dapr v1.6.1-0.20230109081951-60504eb904b0/go.mod h1:QskWxKcLykohpJisgIH5CzlHZDj9BslGhChHKiTKAz4=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/PuerkitoBio/purell v1.2.0 h1:/Jdm5QfyM8zdlqT6WVZU4cfP23sot6CEHA4CS49Ezig=
 github.com/PuerkitoBio/purell v1.2.0/go.mod h1:OhLRTaaIzhvIyofkJfB24gokC7tM42Px5UhoT32THBk=

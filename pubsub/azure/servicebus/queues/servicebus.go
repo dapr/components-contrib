@@ -175,22 +175,27 @@ func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPubli
 
 func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	sub := impl.NewSubscription(
-		subscribeCtx,
-		a.metadata.MaxActiveMessages,
-		a.metadata.TimeoutInSec,
-		nil,
-		a.metadata.MaxRetriableErrorsPerSec,
-		a.metadata.MaxConcurrentHandlers,
-		"queue "+req.Topic,
+		subscribeCtx, impl.SubsriptionOptions{
+			MaxActiveMessages:     a.metadata.MaxActiveMessages,
+			TimeoutInSec:          a.metadata.TimeoutInSec,
+			MaxBulkSubCount:       nil,
+			MaxRetriableEPS:       a.metadata.MaxRetriableErrorsPerSec,
+			MaxConcurrentHandlers: a.metadata.MaxConcurrentHandlers,
+			Entity:                "queue " + req.Topic,
+			LockRenewalInSec:      a.metadata.LockRenewalInSec,
+			RequireSessions:       false,
+		},
 		a.logger,
 	)
 
-	receiveAndBlockFn := func(onFirstSuccess func()) error {
-		return sub.ReceiveAndBlock(
+	receiveAndBlockFn := func(receiver impl.Receiver, onFirstSuccess func()) error {
+		return sub.ReceiveBlocking(
 			impl.GetPubSubHandlerFunc(req.Topic, handler, a.logger, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second),
-			a.metadata.LockRenewalInSec,
-			false, // Bulk is not supported in regular Subscribe.
+			receiver,
 			onFirstSuccess,
+			impl.ReceiveOptions{
+				BulkEnabled: false, // Bulk is not supported in regular Subscribe.
+			},
 		)
 	}
 
@@ -200,22 +205,27 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.BulkHandler) error {
 	maxBulkSubCount := utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxMessagesCount, defaultMaxBulkSubCount)
 	sub := impl.NewSubscription(
-		subscribeCtx,
-		a.metadata.MaxActiveMessages,
-		a.metadata.TimeoutInSec,
-		&maxBulkSubCount,
-		a.metadata.MaxRetriableErrorsPerSec,
-		a.metadata.MaxConcurrentHandlers,
-		"queue "+req.Topic,
+		subscribeCtx, impl.SubsriptionOptions{
+			MaxActiveMessages:     a.metadata.MaxActiveMessages,
+			TimeoutInSec:          a.metadata.TimeoutInSec,
+			MaxBulkSubCount:       &maxBulkSubCount,
+			MaxRetriableEPS:       a.metadata.MaxRetriableErrorsPerSec,
+			MaxConcurrentHandlers: a.metadata.MaxConcurrentHandlers,
+			Entity:                "queue " + req.Topic,
+			LockRenewalInSec:      a.metadata.LockRenewalInSec,
+			RequireSessions:       false,
+		},
 		a.logger,
 	)
 
-	receiveAndBlockFn := func(onFirstSuccess func()) error {
-		return sub.ReceiveAndBlock(
+	receiveAndBlockFn := func(receiver impl.Receiver, onFirstSuccess func()) error {
+		return sub.ReceiveBlocking(
 			impl.GetBulkPubSubHandlerFunc(req.Topic, handler, a.logger, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second),
-			a.metadata.LockRenewalInSec,
-			true, // Bulk is supported in BulkSubscribe.
+			receiver,
 			onFirstSuccess,
+			impl.ReceiveOptions{
+				BulkEnabled: true, // Bulk is supported in BulkSubscribe.
+			},
 		)
 	}
 
@@ -225,7 +235,7 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 // doSubscribe is a helper function that handles the common logic for both Subscribe and BulkSubscribe.
 // The receiveAndBlockFn is a function should invoke a blocking call to receive messages from the topic.
 func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
-	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(func()) error,
+	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(impl.Receiver, func()) error,
 ) error {
 	// Does nothing if DisableEntityManagement is true
 	err := a.client.EnsureQueue(subscribeCtx, req.Topic)
@@ -248,8 +258,9 @@ func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
 		// Reconnect loop.
 		for {
 			// Blocks until a successful connection (or until context is canceled)
-			err := sub.Connect(func() (*servicebus.Receiver, error) {
-				return a.client.GetClient().NewReceiverForQueue(req.Topic, nil)
+			receiver, err := sub.Connect(func() (impl.Receiver, error) {
+				receiver, err := a.client.GetClient().NewReceiverForQueue(req.Topic, nil)
+				return &impl.MessageReceiver{Receiver: receiver}, err
 			})
 			if err != nil {
 				// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
@@ -261,7 +272,7 @@ func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
 
 			// receiveAndBlockFn will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
 			// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
-			err = receiveAndBlockFn(onFirstSuccess)
+			err = receiveAndBlockFn(receiver, onFirstSuccess)
 			if err != nil && !errors.Is(err, context.Canceled) {
 				a.logger.Error(err)
 			}

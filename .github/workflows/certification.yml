@@ -51,6 +51,7 @@ jobs:
         - pubsub.kafka
         - pubsub.rabbitmq
         - pubsub.mqtt
+        - pubsub.pulsar
         - state.mongodb
         - state.redis
         - state.cockroachdb

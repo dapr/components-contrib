@@ -9,6 +9,7 @@ terraform {
   }
 }
 
+// ###### INPUT VARIABLES ########
 variable "TIMESTAMP" {
     type        = string
     description = "Timestamp of the github worklow run."
@@ -29,28 +30,29 @@ provider "aws" {
   }
 }
 
-resource "aws_sns_topic" "multiTopic1" {
-  name = "sqsssnscerttest-q1-${var.UNIQUE_ID}"
+// ###### RESOURCES ########
+resource "aws_sns_topic" "existingTopic" {
+  name = "sqssnscerttest-t3-${var.UNIQUE_ID}"
   tags = {
-    dapr-topic-name = "sqsssnscerttest-q1-${var.UNIQUE_ID}"
+    dapr-topic-name = "sqssnscerttest-t3-${var.UNIQUE_ID}"
   }
 }
 
-resource "aws_sqs_queue" "testQueue" {
-  name = "testQueue-${var.UNIQUE_ID}"
+resource "aws_sqs_queue" "existingQueue" {
+  name = "sqssnscerttest-q3-${var.UNIQUE_ID}"
   tags = {
-    dapr-queue-name = "testQueue-${var.UNIQUE_ID}"
+    dapr-queue-name = "sqssnscerttest-q3-${var.UNIQUE_ID}"
   }
 }
 
-resource "aws_sns_topic_subscription" "multiTopic1_testQueue" {
-  topic_arn = aws_sns_topic.multiTopic1.arn
+resource "aws_sns_topic_subscription" "existingTopic_existingQueue" {
+  topic_arn = aws_sns_topic.existingTopic.arn
   protocol  = "sqs"
-  endpoint  = aws_sqs_queue.testQueue.arn
+  endpoint  = aws_sqs_queue.existingQueue.arn
 }
 
-resource "aws_sqs_queue_policy" "testQueue_policy" {
-    queue_url = "${aws_sqs_queue.testQueue.id}"
+resource "aws_sqs_queue_policy" "existingQueue_policy" {
+    queue_url = "${aws_sqs_queue.existingQueue.id}"
 
     policy = <<POLICY
 {
@@ -63,15 +65,24 @@ resource "aws_sqs_queue_policy" "testQueue_policy" {
       "Service": "sns.amazonaws.com"
     },
     "Action": "sqs:SendMessage",
-    "Resource": "${aws_sqs_queue.testQueue.arn}",
+    "Resource": "${aws_sqs_queue.existingQueue.arn}",
     "Condition": {
       "ArnEquals": {
         "aws:SourceArn": [
-          "${aws_sns_topic.multiTopic1.arn}"
+          "${aws_sns_topic.existingTopic.arn}"
         ]
       }
     }
   }]
 }
 POLICY
+}
+
+// ###### OUTPUT VARIABLES ########
+output "existingQueue" {
+  value = aws_sqs_queue.existingQueue.name
+}
+
+output "existingTopic" {
+  value = aws_sns_topic.existingTopic.name
 }

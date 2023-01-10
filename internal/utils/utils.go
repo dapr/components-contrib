@@ -14,8 +14,11 @@ limitations under the License.
 package utils
 
 import (
+	"encoding/json"
 	"strconv"
 	"strings"
+
+	"github.com/spf13/cast"
 )
 
 // IsTruthy returns true if a string is a truthy value.
@@ -45,4 +48,30 @@ func GetElemOrDefaultFromMap[T int | uint64](m map[string]string, key string, de
 		}
 	}
 	return def
+}
+
+// GetIntValOrDefault returns an int value if greater than 0 OR default value.
+func GetIntValOrDefault(val int, defaultValue int) int {
+	if val > 0 {
+		return val
+	}
+	return defaultValue
+}
+
+// Unquote parses a request data that may be quoted due to JSON encoding, and removes the quotes.
+func Unquote(data []byte) (res string) {
+	var dataObj any
+	err := json.Unmarshal(data, &dataObj)
+	if err != nil {
+		// If data can't be un-marshalled, keep as-is
+		res = string(data)
+	} else {
+		// Try casting to string
+		res, err = cast.ToStringE(dataObj)
+		if err != nil {
+			// If dataObj can't be cast to string, keep as-is
+			res = string(data)
+		}
+	}
+	return res
 }

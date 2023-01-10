@@ -15,7 +15,6 @@ package sms
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -24,9 +23,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cast"
-
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/kit/logger"
 )
 
@@ -109,21 +107,7 @@ func (t *SMS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*binding
 		toNumberValue = toNumberFromRequest
 	}
 
-	var (
-		bodyObj any
-		body    string
-	)
-	err := json.Unmarshal(req.Data, &bodyObj)
-	if err != nil {
-		// If req.Data can't be un-marshalled, keep body as-is
-		body = string(req.Data)
-	} else {
-		// Try casting to string
-		body, err = cast.ToStringE(bodyObj)
-		if err != nil {
-			body = string(req.Data)
-		}
-	}
+	body := utils.Unquote(req.Data)
 
 	v := url.Values{}
 	v.Set("To", toNumberValue)

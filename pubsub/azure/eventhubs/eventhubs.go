@@ -158,17 +158,17 @@ type AzureEventHubs struct {
 }
 
 type azureEventHubsMetadata struct {
-	ConnectionString       string `json:"connectionString,omitempty"`
-	EventHubNamespace      string `json:"eventHubNamespace,omitempty"`
-	ConsumerGroup          string `json:"consumerID"`
-	StorageAccountName     string `json:"storageAccountName,omitempty"`
-	StorageAccountKey      string `json:"storageAccountKey,omitempty"`
-	StorageContainerName   string `json:"storageContainerName,omitempty"`
-	EnableEntityManagement bool   `json:"enableEntityManagement,omitempty,string"`
-	MessageRetentionInDays int32  `json:"messageRetentionInDays,omitempty,string"`
-	PartitionCount         int32  `json:"partitionCount,omitempty,string"`
-	SubscriptionID         string `json:"subscriptionID,omitempty"`
-	ResourceGroupName      string `json:"resourceGroupName,omitempty"`
+	ConnectionString       string `json:"connectionString,omitempty" mapstructure:"connectionString"`
+	EventHubNamespace      string `json:"eventHubNamespace,omitempty" mapstructure:"eventHubNamespace"`
+	ConsumerGroup          string `json:"consumerID" mapstructure:"consumerID"`
+	StorageAccountName     string `json:"storageAccountName,omitempty" mapstructure:"storageAccountName"`
+	StorageAccountKey      string `json:"storageAccountKey,omitempty" mapstructure:"storageAccountKey"`
+	StorageContainerName   string `json:"storageContainerName,omitempty" mapstructure:"storageContainerName"`
+	EnableEntityManagement bool   `json:"enableEntityManagement,omitempty,string" mapstructure:"enableEntityManagement"`
+	MessageRetentionInDays int32  `json:"messageRetentionInDays,omitempty,string" mapstructure:"messageRetentionInDays"`
+	PartitionCount         int32  `json:"partitionCount,omitempty,string" mapstructure:"partitionCount"`
+	SubscriptionID         string `json:"subscriptionID,omitempty" mapstructure:"subscriptionID"`
+	ResourceGroupName      string `json:"resourceGroupName,omitempty" mapstructure:"resourceGroupName"`
 }
 
 // NewAzureEventHubs returns a new Azure Event hubs instance.

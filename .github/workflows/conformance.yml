@@ -62,6 +62,8 @@ jobs:
         - bindings.kubemq
         - bindings.rabbitmq
         - pubsub.aws.snssqs.docker
+        - configuration.redis.v6
+        - configuration.redis.v7
         - pubsub.hazelcast
         - pubsub.in-memory
         - pubsub.mqtt-emqx

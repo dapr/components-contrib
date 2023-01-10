@@ -117,7 +117,6 @@ func TestConfigurationStore_Get(t *testing.T) {
 			want: &configuration.GetResponse{
 				Items: map[string]*configuration.Item{},
 			},
-			wantErr: true,
 		},
 		{
 			name: "test does not throw error for wrong type during get all",

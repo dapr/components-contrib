@@ -156,7 +156,8 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 
 	key := req.Metadata[metadataKey]
 	if key == "" {
-		u, err := uuid.NewRandom()
+		var u uuid.UUID
+		u, err = uuid.NewRandom()
 		if err != nil {
 			return nil, fmt.Errorf("s3 binding error: failed to generate UUID: %w", err)
 		}

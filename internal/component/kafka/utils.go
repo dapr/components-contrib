@@ -17,7 +17,6 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/Shopify/sarama"
@@ -74,15 +73,4 @@ func (tbh TopicHandlerConfig) TopicList() []string {
 		i++
 	}
 	return topics
-}
-
-// GetIntFromMetadata returns an int value from metadata OR default value if key not found or if its
-// value not convertible to int.
-func GetIntFromMetadata(metadata map[string]string, key string, defaultValue int) int {
-	if val, ok := metadata[key]; ok {
-		if intVal, err := strconv.Atoi(val); err == nil {
-			return intVal
-		}
-	}
-	return defaultValue
 }

@@ -99,6 +99,7 @@ require (
 	github.com/samuel/go-zookeeper v0.0.0-20201211165307-7117e9ea2414
 	github.com/sendgrid/sendgrid-go v3.12.0+incompatible
 	github.com/sijms/go-ora/v2 v2.5.18
+	github.com/spf13/cast v1.5.0
 	github.com/stretchr/testify v1.8.1
 	github.com/supplyon/gremcos v0.1.39
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.557
@@ -325,7 +326,6 @@ require (
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/sony/gobreaker v0.5.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
-	github.com/spf13/cast v1.4.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stathat/consistent v1.0.0 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect

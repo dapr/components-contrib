@@ -32,8 +32,9 @@ type BulkPublishRequest struct {
 
 // SubscribeRequest is the request to subscribe to a topic.
 type SubscribeRequest struct {
-	Topic    string            `json:"topic"`
-	Metadata map[string]string `json:"metadata"`
+	Topic               string              `json:"topic"`
+	Metadata            map[string]string   `json:"metadata"`
+	BulkSubscribeConfig BulkSubscribeConfig `json:"bulkSubscribe,omitempty"`
 }
 
 // NewMessage is an event arriving from a message bus instance.
@@ -62,7 +63,6 @@ type BulkMessageEntry struct {
 // BulkSubscribeConfig represents the configuration for bulk subscribe.
 // It depends on specific componets to support these.
 type BulkSubscribeConfig struct {
-	MaxBulkSubCount           int `json:"maxBulkSubCount"`
-	MaxBulkSubAwaitDurationMs int `json:"maxBulkSubAwaitDurationMs"`
-	MaxBulkSizeBytes          int `json:"maxBulkSizeBytes"`
+	MaxMessagesCount   int `json:"maxMessagesCount,omitempty"`
+	MaxAwaitDurationMs int `json:"maxAwaitDurationMs,omitempty"`
 }

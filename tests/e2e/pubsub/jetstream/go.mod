@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/dapr/components-contrib v1.9.1-0.20221222230611-870ff8dc2e34
-	github.com/dapr/kit v0.0.3
+	github.com/dapr/kit v0.0.4-0.20230105202559-fcb09958bfb0
 )
 
 require (
@@ -16,8 +16,9 @@ require (
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
+	github.com/spf13/cast v1.4.1 // indirect
 	golang.org/x/crypto v0.4.0 // indirect
-	golang.org/x/sys v0.3.0 // indirect
+	golang.org/x/sys v0.4.0 // indirect
 )
 
 replace github.com/dapr/components-contrib => ../../../../

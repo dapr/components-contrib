@@ -7,7 +7,7 @@ require (
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211026011813-36b75e9ae272
 	github.com/dapr/dapr v1.9.4-0.20230109055003-ce6dbf12fab1
 	github.com/dapr/go-sdk v1.6.0
-	github.com/dapr/kit v0.0.3
+	github.com/dapr/kit v0.0.4-0.20230105202559-fcb09958bfb0
 	github.com/google/uuid v1.3.0
 	github.com/stretchr/testify v1.8.1
 	go.uber.org/multierr v1.8.0
@@ -112,6 +112,7 @@ require (
 	github.com/savsgio/gotils v0.0.0-20220530130905-52f3993e8d6d // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/sony/gobreaker v0.5.0 // indirect
+	github.com/spf13/cast v1.4.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stoewer/go-strcase v1.2.0 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
@@ -132,12 +133,12 @@ require (
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/ratelimit v0.2.0 // indirect
 	golang.org/x/crypto v0.4.0 // indirect
-	golang.org/x/exp v0.0.0-20221028150844-83b7d23a625f // indirect
+	golang.org/x/exp v0.0.0-20230105000112-eab7a2c85304 // indirect
 	golang.org/x/mod v0.6.0 // indirect
 	golang.org/x/net v0.4.0 // indirect
 	golang.org/x/oauth2 v0.3.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
-	golang.org/x/sys v0.3.0 // indirect
+	golang.org/x/sys v0.4.0 // indirect
 	golang.org/x/term v0.3.0 // indirect
 	golang.org/x/text v0.5.0 // indirect
 	golang.org/x/time v0.3.0 // indirect

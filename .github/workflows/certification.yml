@@ -121,7 +121,9 @@ jobs:
         - component: state.azure.blobstorage
           required-secrets: AzureBlobStorageContainer,AzureBlobStorageAccount, AzureBlobStorageAccessKey, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
         - component: state.azure.cosmosdb
-          required-secrets: AzureCosmosDBMasterKey, AzureCosmosDBUrl, AzureCosmosDB, AzureCosmosDBCollection, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret    
+          required-secrets: AzureCosmosDBMasterKey, AzureCosmosDBUrl, AzureCosmosDB, AzureCosmosDBCollection, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
+        - component: pubsub.aws.snssqs
+          terraform-dir: pubsub/aws/snssqs
         EOF
         )
         echo "cloud-components=$CRON_COMPONENTS" >> $GITHUB_OUTPUT
@@ -244,12 +246,18 @@ jobs:
       uses: hashicorp/setup-terraform@v2
       if: matrix.terraform-dir != ''
 
+    - name: Set AWS Region
+      if: contains(matrix.component, 'aws')
+      run: |
+        AWS_REGION="us-west-1"
+        echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
+   
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v1
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
-        aws-region: us-west-1
+        aws-region: "${{ env.AWS_REGION }}"
       if: matrix.terraform-dir != ''
 
     - name: Terraform Init
@@ -275,6 +283,21 @@ jobs:
       working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
       if: matrix.terraform-dir != ''
       continue-on-error: true
+    
+    - name: Create aws.snssqs specific variables
+      if: contains(matrix.component, 'snssqs')
+      working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
+      run: |
+        PUBSUB_AWS_SNSSQS_QUEUE_1="sqssnscerttest-q1-${{env.UNIQUE_ID}}"
+        echo "PUBSUB_AWS_SNSSQS_QUEUE_1=$PUBSUB_AWS_SNSSQS_QUEUE_1" >> $GITHUB_ENV
+        PUBSUB_AWS_SNSSQS_QUEUE_2="sqssnscerttest-q2-${{env.UNIQUE_ID}}"
+        echo "PUBSUB_AWS_SNSSQS_QUEUE_2=$PUBSUB_AWS_SNSSQS_QUEUE_2" >> $GITHUB_ENV
+        PUBSUB_AWS_SNSSQS_QUEUE_3="$(terraform output -raw existingQueue)"
+        echo "PUBSUB_AWS_SNSSQS_QUEUE_3=$PUBSUB_AWS_SNSSQS_QUEUE_3" >> $GITHUB_ENV
+        PUBSUB_AWS_SNSSQS_TOPIC_3="$(terraform output -raw existingTopic)"
+        echo "PUBSUB_AWS_SNSSQS_TOPIC_3=$PUBSUB_AWS_SNSSQS_TOPIC_3" >> $GITHUB_ENV
+        AWS_REGION="us-east-1"
+        echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
 
     - name: Set up Go
       uses: actions/setup-go@v3
@@ -294,13 +317,14 @@ jobs:
         go mod tidy -compat=1.19
         git diff --exit-code ./go.mod
         git diff --exit-code ./go.sum
-
+  
     - name: Run tests
       continue-on-error: false
       working-directory: ${{ env.TEST_PATH }}
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}  
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
+        AWS_REGION: "${{ env.AWS_REGION }}"
       run: |
         echo "Running certification tests for ${{ matrix.component }} ... "
         export GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore

@@ -68,7 +68,17 @@ func (js *jetstreamPubSub) Init(metadata pubsub.Metadata) error {
 	}
 	js.l.Debugf("Connected to nats at %s", js.meta.natsURL)
 
-	js.jsc, err = js.nc.JetStream()
+	jsOpts := []nats.JSOpt{}
+
+	if js.meta.domain != "" {
+		jsOpts = append(jsOpts, nats.Domain(js.meta.domain))
+	}
+
+	if js.meta.apiPrefix != "" {
+		jsOpts = append(jsOpts, nats.APIPrefix(js.meta.apiPrefix))
+	}
+
+	js.jsc, err = js.nc.JetStream(jsOpts...)
 	if err != nil {
 		return err
 	}

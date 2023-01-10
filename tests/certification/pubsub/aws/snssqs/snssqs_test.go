@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2022 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -11,23 +11,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package servicebus_test
+package snssqs_test
 
 import (
 	"context"
 	"fmt"
-	"regexp"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 
 	// Pub-Sub.
-
-	pubsub_servicebus "github.com/dapr/components-contrib/pubsub/azure/servicebus/topics"
+	pubsub_snssqs "github.com/dapr/components-contrib/pubsub/aws/snssqs"
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
@@ -41,7 +39,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/app"
-	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	"github.com/dapr/components-contrib/tests/certification/flow/simulate"
 	"github.com/dapr/components-contrib/tests/certification/flow/watcher"
@@ -58,7 +55,7 @@ const (
 	appPort          = 8000
 	portOffset       = 2
 	messageKey       = "partitionKey"
-	pubsubName       = "messagebus"
+	pubsubName       = "snssqs-cert-tests"
 	topicActiveName  = "certification-pubsub-topic-active"
 	topicPassiveName = "certification-pubsub-topic-passive"
 	topicToBeCreated = "certification-topic-per-test-run"
@@ -68,10 +65,78 @@ const (
 )
 
 var (
-	sessionIDRegex = regexp.MustCompile("sessionId: (.*)")
+	existingTopic = "existingTopic" // replaced with env var PUBSUB_AWS_SNSSQS_TOPIC_3
 )
 
-func TestServicebus(t *testing.T) {
+// The following Queue names must match
+// the values of the "consumerID" metadata properties
+// found inside each of the components/*/pubsub.yaml files
+// The names will be passed in with Env Vars like:
+//
+//	PUBSUB_AWS_SNSSQS_TOPIC_*
+var queues = []string{
+	"snscerttest1",
+	"snssqscerttest2",
+}
+
+func init() {
+	qn := os.Getenv("PUBSUB_AWS_SNSSQS_QUEUE_1")
+	if qn != "" {
+		queues[0] = qn
+	}
+	qn = os.Getenv("PUBSUB_AWS_SNSSQS_QUEUE_2")
+	if qn != "" {
+		queues[1] = qn
+	}
+	qn = os.Getenv("PUBSUB_AWS_SNSSQS_TOPIC_3")
+	if qn != "" {
+		existingTopic = qn
+	}
+}
+
+func TestAWSSNSSQSCertificationTests(t *testing.T) {
+	defer teardown(t)
+
+	t.Run("SNSSQSBasic", func(t *testing.T) {
+		SNSSQSBasic(t)
+	})
+
+	t.Run("SNSSQSMultipleSubsSameConsumerIDs", func(t *testing.T) {
+		SNSSQSMultipleSubsSameConsumerIDs(t)
+	})
+
+	t.Run("SNSSQSMultipleSubsDifferentConsumerIDs", func(t *testing.T) {
+		SNSSQSMultipleSubsDifferentConsumerIDs(t)
+	})
+
+	t.Run("SNSSQSMultiplePubSubsDifferentConsumerIDs", func(t *testing.T) {
+		SNSSQSMultiplePubSubsDifferentConsumerIDs(t)
+	})
+
+	t.Run("SNSSQSExistingQueueAndTopic", func(t *testing.T) {
+		SNSSQSExistingQueueAndTopic(t)
+	})
+
+	t.Run("TestSNSSQSExistingQueueNonexistingTopic", func(t *testing.T) {
+		TestSNSSQSExistingQueueNonexistingTopic(t)
+	})
+
+	t.Run("SNSSQSNonexistingTopic", func(t *testing.T) {
+		SNSSQSNonexistingTopic(t)
+	})
+
+	t.Run("SNSSQSEntityManagement", func(t *testing.T) {
+		SNSSQSEntityManagement(t)
+	})
+
+	t.Run("SNSSQSDefaultTtl", func(t *testing.T) {
+		SNSSQSDefaultTtl(t)
+	})
+}
+
+// Verify with single publisher / single subscriber
+func SNSSQSBasic(t *testing.T) {
+
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 
@@ -134,7 +199,7 @@ func TestServicebus(t *testing.T) {
 				} else {
 					err = client.PublishEvent(ctx, pubsubName, topicName, message)
 				}
-				require.NoError(ctx, err, "error publishing message")
+				require.NoError(ctx, err, "SNSSQSBasic - error publishing message")
 			}
 			return nil
 		}
@@ -144,20 +209,22 @@ func TestServicebus(t *testing.T) {
 		return func(ctx flow.Context) error {
 			// assert for messages
 			for _, m := range messageWatchers {
-				m.Assert(ctx, 25*timeout)
+				if !m.Assert(ctx, 25*timeout) {
+					ctx.Errorf("SNSSQSBasic - message assersion failed for watcher: %#v\n", m)
+				}
 			}
 
 			return nil
 		}
 	}
 
-	flow.New(t, "servicebus certification basic test").
+	flow.New(t, "SNSSQS Verify with single publisher / single subscriber").
 
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
+		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_QUEUE_1"
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/consumer_one"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -170,7 +237,7 @@ func TestServicebus(t *testing.T) {
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset),
 			subscriberApplication(appID2, topicActiveName, consumerGroup2))).
 
-		// Run the Dapr sidecar with the component 2.
+		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_QUEUE_2"
 		Step(sidecar.Run(sidecarName2,
 			embedded.WithComponentsPath("./components/consumer_two"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
@@ -179,15 +246,16 @@ func TestServicebus(t *testing.T) {
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
 			componentRuntimeOptions(),
 		)).
-		Step("publish messages to topic1", publishMessages(nil, sidecarName1, topicActiveName, consumerGroup1, consumerGroup2)).
-		Step("publish messages to unUsedTopic", publishMessages(nil, sidecarName1, topicPassiveName)).
+		Step("publish messages to active topic ==> "+topicActiveName, publishMessages(nil, sidecarName1, topicActiveName, consumerGroup1, consumerGroup2)).
+		Step("publish messages to passive topic ==> "+topicPassiveName, publishMessages(nil, sidecarName1, topicPassiveName)).
 		Step("verify if app1 has recevied messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).
 		Step("verify if app2 has recevied messages published to passive topic", assertMessages(10*time.Second, consumerGroup2)).
 		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
 		Run()
 }
 
-func TestServicebusMultipleSubsSameConsumerIDs(t *testing.T) {
+// Verify with single publisher / multiple subscribers with same consumerID
+func SNSSQSMultipleSubsSameConsumerIDs(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 
@@ -259,7 +327,7 @@ func TestServicebusMultipleSubsSameConsumerIDs(t *testing.T) {
 				} else {
 					err = client.PublishEvent(ctx, pubsubName, topicName, message)
 				}
-				require.NoError(ctx, err, "error publishing message")
+				require.NoError(ctx, err, "SNSSQSMultipleSubsSameConsumerIDs - error publishing message")
 			}
 			return nil
 		}
@@ -269,20 +337,22 @@ func TestServicebusMultipleSubsSameConsumerIDs(t *testing.T) {
 		return func(ctx flow.Context) error {
 			// assert for messages
 			for _, m := range messageWatchers {
-				m.Assert(ctx, 25*timeout)
+				if !m.Assert(ctx, 25*timeout) {
+					ctx.Errorf("SNSSQSMultipleSubsSameConsumerIDs - message assersion failed for watcher: %#v\n", m)
+				}
 			}
 
 			return nil
 		}
 	}
 
-	flow.New(t, "servicebus certification - single publisher and multiple subscribers with same consumer IDs").
+	flow.New(t, "SNSSQS certification - single publisher and multiple subscribers with same consumer IDs").
 
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
+		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_QUEUE_1"
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/consumer_one"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -295,7 +365,7 @@ func TestServicebusMultipleSubsSameConsumerIDs(t *testing.T) {
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset),
 			subscriberApplication(appID2, topicActiveName, consumerGroup2))).
 
-		// Run the Dapr sidecar with the component 2.
+		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_QUEUE_2"
 		Step(sidecar.Run(sidecarName2,
 			embedded.WithComponentsPath("./components/consumer_two"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
@@ -304,14 +374,15 @@ func TestServicebusMultipleSubsSameConsumerIDs(t *testing.T) {
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
 			componentRuntimeOptions(),
 		)).
-		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup2)).
-		Step("publish messages to topic1", publishMessages(metadata1, sidecarName2, topicActiveName, consumerGroup2)).
+		Step("publish messages to  ==> "+topicActiveName, publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup2)).
+		Step("publish messages to  ==> "+topicActiveName, publishMessages(metadata1, sidecarName2, topicActiveName, consumerGroup2)).
 		Step("verify if app1, app2 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
 		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
 		Run()
 }
 
-func TestServicebusMultipleSubsDifferentConsumerIDs(t *testing.T) {
+// Verify with single publisher / multiple subscribers with different consumerIDs
+func SNSSQSMultipleSubsDifferentConsumerIDs(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 
@@ -379,7 +450,7 @@ func TestServicebusMultipleSubsDifferentConsumerIDs(t *testing.T) {
 				} else {
 					err = client.PublishEvent(ctx, pubsubName, topicName, message)
 				}
-				require.NoError(ctx, err, "error publishing message")
+				require.NoError(ctx, err, "SNSSQSMultipleSubsDifferentConsumerIDs - error publishing message")
 			}
 			return nil
 		}
@@ -389,20 +460,22 @@ func TestServicebusMultipleSubsDifferentConsumerIDs(t *testing.T) {
 		return func(ctx flow.Context) error {
 			// assert for messages
 			for _, m := range messageWatchers {
-				m.Assert(ctx, 25*timeout)
+				if !m.Assert(ctx, 25*timeout) {
+					ctx.Errorf("SNSSQSMultipleSubsDifferentConsumerIDs - message assersion failed for watcher: %#v\n", m)
+				}
 			}
 
 			return nil
 		}
 	}
 
-	flow.New(t, "servicebus certification - single publisher and multiple subscribers with different consumer IDs").
+	flow.New(t, "SNSSQS certification - single publisher and multiple subscribers with different consumer IDs").
 
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
+		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_QUEUE_1"
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/consumer_one"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -415,7 +488,7 @@ func TestServicebusMultipleSubsDifferentConsumerIDs(t *testing.T) {
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset),
 			subscriberApplication(appID2, topicActiveName, consumerGroup2))).
 
-		// Run the Dapr sidecar with the component 2.
+		// RRun the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_QUEUE_2"
 		Step(sidecar.Run(sidecarName2,
 			embedded.WithComponentsPath("./components/consumer_two"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
@@ -424,13 +497,14 @@ func TestServicebusMultipleSubsDifferentConsumerIDs(t *testing.T) {
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
 			componentRuntimeOptions(),
 		)).
-		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
+		Step("publish messages to ==>"+topicActiveName, publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
 		Step("verify if app1, app2 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup1)).
 		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
 		Run()
 }
 
-func TestServicebusMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
+// Verify with multiple publishers / multiple subscribers with different consumerIDs
+func SNSSQSMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 
@@ -502,7 +576,7 @@ func TestServicebusMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 				} else {
 					err = client.PublishEvent(ctx, pubsubName, topicName, message)
 				}
-				require.NoError(ctx, err, "error publishing message")
+				require.NoError(ctx, err, "SNSSQSMultiplePubSubsDifferentConsumerIDs - error publishing message")
 			}
 			return nil
 		}
@@ -512,20 +586,22 @@ func TestServicebusMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 		return func(ctx flow.Context) error {
 			// assert for messages
 			for _, m := range messageWatchers {
-				m.Assert(ctx, 25*timeout)
+				if !m.Assert(ctx, 25*timeout) {
+					ctx.Errorf("SNSSQSMultiplePubSubsDifferentConsumerIDs - message assersion failed for watcher: %#v\n", m)
+				}
 			}
 
 			return nil
 		}
 	}
 
-	flow.New(t, "servicebus certification - multiple publishers and multiple subscribers with different consumer IDs").
+	flow.New(t, "SNSSQS certification - multiple publishers and multiple subscribers with different consumer IDs").
 
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
+		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_QUEUE_1"
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/consumer_one"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -538,7 +614,7 @@ func TestServicebusMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset),
 			subscriberApplication(appID2, topicActiveName, consumerGroup2))).
 
-		// Run the Dapr sidecar with the component 2.
+		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_QUEUE_2"
 		Step(sidecar.Run(sidecarName2,
 			embedded.WithComponentsPath("./components/consumer_two"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
@@ -547,15 +623,16 @@ func TestServicebusMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
 			componentRuntimeOptions(),
 		)).
-		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
-		Step("publish messages to topic1", publishMessages(metadata1, sidecarName2, topicActiveName, consumerGroup2)).
+		Step("publish messages to ==> "+topicActiveName, publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
+		Step("publish messages to ==> "+topicActiveName, publishMessages(metadata1, sidecarName2, topicActiveName, consumerGroup2)).
 		Step("verify if app1, app2 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup1)).
 		Step("verify if app1, app2 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
 		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
 		Run()
 }
 
-func TestServicebusNonexistingTopic(t *testing.T) {
+// Verify data with a topic that does not exist
+func SNSSQSNonexistingTopic(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 
 	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
@@ -622,7 +699,7 @@ func TestServicebusNonexistingTopic(t *testing.T) {
 				} else {
 					err = client.PublishEvent(ctx, pubsubName, topicName, message)
 				}
-				require.NoError(ctx, err, "error publishing message")
+				require.NoError(ctx, err, "SNSSQSNonexistingTopic - error publishing message")
 			}
 			return nil
 		}
@@ -632,20 +709,22 @@ func TestServicebusNonexistingTopic(t *testing.T) {
 		return func(ctx flow.Context) error {
 			// assert for messages
 			for _, m := range messageWatchers {
-				m.Assert(ctx, 25*timeout)
+				if !m.Assert(ctx, 25*timeout) {
+					ctx.Errorf("SNSSQSNonexistingTopic - message assersion failed for watcher: %#v\n", m)
+				}
 			}
 
 			return nil
 		}
 	}
 
-	flow.New(t, "servicebus certification - non-existing topic").
+	flow.New(t, "SNSSQS certification - non-existing topic").
 
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset*3),
 			subscriberApplication(appID1, topicToBeCreated, consumerGroup1))).
 
-		// Run the Dapr sidecar with the component entitymanagement
+		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_QUEUE_1"
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/consumer_one"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*3),
@@ -660,7 +739,8 @@ func TestServicebusNonexistingTopic(t *testing.T) {
 		Run()
 }
 
-func TestServicebusNetworkInterruption(t *testing.T) {
+// Verify data with an existing Queue and existing Topic
+func SNSSQSExistingQueueAndTopic(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 
 	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
@@ -727,7 +807,7 @@ func TestServicebusNetworkInterruption(t *testing.T) {
 				} else {
 					err = client.PublishEvent(ctx, pubsubName, topicName, message)
 				}
-				require.NoError(ctx, err, "error publishing message")
+				require.NoError(ctx, err, "SNSSQSExistingQueueAndTopic - error publishing message")
 			}
 			return nil
 		}
@@ -737,36 +817,146 @@ func TestServicebusNetworkInterruption(t *testing.T) {
 		return func(ctx flow.Context) error {
 			// assert for messages
 			for _, m := range messageWatchers {
-				m.Assert(ctx, 25*timeout)
+				if !m.Assert(ctx, 25*timeout) {
+					ctx.Errorf("SNSSQSExistingQueueAndTopic - message assersion failed for watcher: %#v\n", m)
+				}
 			}
 
 			return nil
 		}
 	}
 
-	flow.New(t, "servicebus certification - network interruption").
+	flow.New(t, "SNSSQS certification - Existing Queue Existing Topic").
 
 		// Run subscriberApplication app1
-		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset),
-			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset*3),
+			subscriberApplication(appID1, existingTopic, consumerGroup1))).
 
-		// Run the Dapr sidecar with the component entitymanagement
+		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_QUEUE_3"
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer_one"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
+			embedded.WithComponentsPath("./components/existing_queue"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*3),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*3),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*3),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*3),
 			componentRuntimeOptions(),
 		)).
-		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicActiveName), publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
-		Step("interrupt network", network.InterruptNetwork(time.Minute, []string{}, []string{}, "5671", "5672")).
+		Step(fmt.Sprintf("publish messages to existingTopic: %s", existingTopic), publishMessages(metadata, sidecarName1, existingTopic, consumerGroup1)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("verify if app1 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
 		Run()
 }
 
-func TestServicebusEntityManagement(t *testing.T) {
+// Verify data with an existing Queue with a topic that does not exist
+func TestSNSSQSExistingQueueNonexistingTopic(t *testing.T) {
+	consumerGroup1 := watcher.NewUnordered()
+
+	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
+	metadata := map[string]string{
+		messageKey: partition0,
+	}
+
+	// subscriber of the given topic
+	subscriberApplication := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			// Simulate periodic errors.
+			sim := simulate.PeriodicError(ctx, 100)
+			// Setup the /orders event handler.
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      topicName,
+					Route:      "/orders",
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					if err := sim(); err != nil {
+						return true, err
+					}
+
+					// Track/Observe the data of the event.
+					messagesWatcher.Observe(e.Data)
+					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					return false, nil
+				}),
+			)
+		}
+	}
+
+	publishMessages := func(metadata map[string]string, sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			// prepare the messages
+			messages := make([]string, numMessages)
+			for i := range messages {
+				messages[i] = fmt.Sprintf("partitionKey: %s, message for topic: %s, index: %03d, uniqueId: %s", metadata[messageKey], topicName, i, uuid.New().String())
+			}
+
+			// add the messages as expectations to the watchers
+			for _, messageWatcher := range messageWatchers {
+				messageWatcher.ExpectStrings(messages...)
+			}
+
+			// get the sidecar (dapr) client
+			client := sidecar.GetClient(ctx, sidecarName)
+
+			// publish messages
+			ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+
+			var publishOptions dapr.PublishEventOption
+
+			if metadata != nil {
+				publishOptions = dapr.PublishEventWithMetadata(metadata)
+			}
+
+			for _, message := range messages {
+				ctx.Logf("Publishing: %q", message)
+				var err error
+
+				if publishOptions != nil {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message, publishOptions)
+				} else {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message)
+				}
+				require.NoError(ctx, err, "TestSNSSQSExistingQueueNonexistingTopic - error publishing message")
+			}
+			return nil
+		}
+	}
+
+	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			// assert for messages
+			for _, m := range messageWatchers {
+				if !m.Assert(ctx, 25*timeout) {
+					ctx.Errorf("TestSNSSQSExistingQueueNonexistingTopic - message assersion failed for watcher: %#v\n", m)
+				}
+			}
+
+			return nil
+		}
+	}
+
+	flow.New(t, "SNSSQS certification - Existing Queue None Existing Topic").
+
+		// Run subscriberApplication app1
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset*3),
+			subscriberApplication(appID1, topicToBeCreated, consumerGroup1))).
+
+		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_QUEUE_3"
+		Step(sidecar.Run(sidecarName1,
+			embedded.WithComponentsPath("./components/existing_queue"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*3),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*3),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*3),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*3),
+			componentRuntimeOptions(),
+		)).
+		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicToBeCreated), publishMessages(metadata, sidecarName1, topicToBeCreated, consumerGroup1)).
+		Step("wait", flow.Sleep(30*time.Second)).
+		Step("verify if app1 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
+		Run()
+}
+
+// Verify with an optional parameter `disableEntityManagement` set to true
+func SNSSQSEntityManagement(t *testing.T) {
 	// TODO: Modify it to looks for component init error in the sidecar itself.
 	consumerGroup1 := watcher.NewUnordered()
 
@@ -828,17 +1018,19 @@ func TestServicebusEntityManagement(t *testing.T) {
 					err = client.PublishEvent(ctx, pubsubName, topicName, message)
 				}
 				// Error is expected as the topic does not exist
-				require.Error(ctx, err, "error publishing message")
+				require.Error(ctx, err, "SNSSQSEntityManagement - error publishing message")
 			}
 			return nil
 		}
 	}
 
-	flow.New(t, "servicebus certification - entity management disabled").
+	flow.New(t, "SNSSQS certification - entity management disabled").
 
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
+
+		// Run the Dapr sidecar
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/entity_mgmt"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
@@ -851,7 +1043,8 @@ func TestServicebusEntityManagement(t *testing.T) {
 		Run()
 }
 
-func TestServicebusDefaultTtl(t *testing.T) {
+// Verify data with an optional parameter `defaultMessageTimeToLiveInSec` set
+func SNSSQSDefaultTtl(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 
 	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
@@ -906,7 +1099,7 @@ func TestServicebusDefaultTtl(t *testing.T) {
 				} else {
 					err = client.PublishEvent(ctx, pubsubName, topicName, message)
 				}
-				require.NoError(ctx, err, "error publishing message")
+				require.NoError(ctx, err, "SNSSQSDefaultTtl - error publishing message")
 			}
 			return nil
 		}
@@ -916,20 +1109,22 @@ func TestServicebusDefaultTtl(t *testing.T) {
 		return func(ctx flow.Context) error {
 			// assert for messages
 			for _, m := range messageWatchers {
-				m.Assert(ctx, 25*timeout)
+				if !m.Assert(ctx, 25*timeout) {
+					ctx.Errorf("SNSSQSDefaultTtl - message assersion failed for watcher: %#v\n", m)
+				}
 			}
 
 			return nil
 		}
 	}
 
-	flow.New(t, "servicebus certification - default ttl attribute").
+	flow.New(t, "SNSSQS certification - default ttl attribute").
 
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 
-		// Run the Dapr sidecar with the component entitymanagement
+		// Run the Dapr sidecar with the ttl
 		Step(sidecar.Run("initalSidecar",
 			embedded.WithComponentsPath("./components/default_ttl"),
 			embedded.WithoutApp(),
@@ -953,412 +1148,12 @@ func TestServicebusDefaultTtl(t *testing.T) {
 		Run()
 }
 
-func TestServicebusAuthentication(t *testing.T) {
-	consumerGroup1 := watcher.NewUnordered()
-
-	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
-	metadata := map[string]string{
-		messageKey: partition0,
-	}
-
-	// subscriber of the given topic
-	subscriberApplication := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
-		return func(ctx flow.Context, s common.Service) error {
-			// Simulate periodic errors.
-			sim := simulate.PeriodicError(ctx, 100)
-			// Setup the /orders event handler.
-			return multierr.Combine(
-				s.AddTopicEventHandler(&common.Subscription{
-					PubsubName: pubsubName,
-					Topic:      topicName,
-					Route:      "/orders",
-				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
-					if err := sim(); err != nil {
-						return true, err
-					}
-
-					// Track/Observe the data of the event.
-					messagesWatcher.Observe(e.Data)
-					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
-					return false, nil
-				}),
-			)
-		}
-	}
-
-	publishMessages := func(metadata map[string]string, sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
-		return func(ctx flow.Context) error {
-			// prepare the messages
-			messages := make([]string, numMessages)
-			for i := range messages {
-				messages[i] = fmt.Sprintf("partitionKey: %s, message for topic: %s, index: %03d, uniqueId: %s", metadata[messageKey], topicName, i, uuid.New().String())
-			}
-
-			// add the messages as expectations to the watchers
-			for _, messageWatcher := range messageWatchers {
-				messageWatcher.ExpectStrings(messages...)
-			}
-
-			// get the sidecar (dapr) client
-			client := sidecar.GetClient(ctx, sidecarName)
-
-			// publish messages
-			ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
-
-			var publishOptions dapr.PublishEventOption
-
-			if metadata != nil {
-				publishOptions = dapr.PublishEventWithMetadata(metadata)
-			}
-
-			for _, message := range messages {
-				ctx.Logf("Publishing: %q", message)
-				var err error
-
-				if publishOptions != nil {
-					err = client.PublishEvent(ctx, pubsubName, topicName, message, publishOptions)
-				} else {
-					err = client.PublishEvent(ctx, pubsubName, topicName, message)
-				}
-				require.NoError(ctx, err, "error publishing message")
-			}
-			return nil
-		}
-	}
-
-	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
-		return func(ctx flow.Context) error {
-			// assert for messages
-			for _, m := range messageWatchers {
-				m.Assert(ctx, 25*timeout)
-			}
-
-			return nil
-		}
-	}
-
-	flow.New(t, "servicebus certification - authentication").
-
-		// Run subscriberApplication app1
-		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset),
-			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
-
-		// Run the Dapr sidecar with the component entitymanagement
-		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/authentication"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
-		)).
-		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicActiveName), publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
-		Step("wait", flow.Sleep(30*time.Second)).
-		Step("verify if app1 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
-		Run()
-}
-
-// TestServicebusWithSessionsFIFO tests that if we publish messages to the same
-// topic but with 2 different session ids (session1 and session2), then the
-// receiver only receives messages from a single session and in FIFO order.
-func TestServicebusWithSessionsFIFO(t *testing.T) {
-	topic := "sessions-fifo"
-	session1 := "session1"
-	session2 := "session2"
-
-	sessionWatcher := watcher.NewOrdered()
-
-	// subscriber of the given topic
-	subscriberApplicationWithSessions := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
-		return func(ctx flow.Context, s common.Service) error {
-			// Setup the /orders event handler.
-			return multierr.Combine(
-				s.AddTopicEventHandler(&common.Subscription{
-					PubsubName: pubsubName,
-					Topic:      topicName,
-					Route:      "/orders",
-					Metadata: map[string]string{
-						"requireSessions":       "true",
-						"maxConcurrentSessions": "1",
-					},
-				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
-					// Track/Observe the data of the event.
-					messagesWatcher.Observe(e.Data)
-					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
-					return false, nil
-				}),
-			)
-		}
-	}
-
-	publishMessages := func(metadata map[string]string, sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
-		return func(ctx flow.Context) error {
-			// prepare the messages
-			messages := make([]string, numMessages)
-			for i := range messages {
-				var msgSuffix string
-				if metadata["SessionId"] != "" {
-					msgSuffix = fmt.Sprintf(", sessionId: %s", metadata["SessionId"])
-				}
-				messages[i] = fmt.Sprintf("partitionKey: %s, message for topic: %s, index: %03d, uniqueId: %s%s", metadata[messageKey], topicName, i, uuid.New().String(), msgSuffix)
-			}
-
-			// add the messages as expectations to the watchers
-			for _, messageWatcher := range messageWatchers {
-				messageWatcher.ExpectStrings(messages...)
-			}
-
-			// get the sidecar (dapr) client
-			client := sidecar.GetClient(ctx, sidecarName)
-
-			// publish messages
-			ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
-
-			var publishOptions dapr.PublishEventOption
-
-			if metadata != nil {
-				publishOptions = dapr.PublishEventWithMetadata(metadata)
-			}
-
-			for _, message := range messages {
-				ctx.Logf("Publishing: %q", message)
-				var err error
-
-				if publishOptions != nil {
-					err = client.PublishEvent(ctx, pubsubName, topicName, message, publishOptions)
-				} else {
-					err = client.PublishEvent(ctx, pubsubName, topicName, message)
-				}
-				require.NoError(ctx, err, "error publishing message")
-			}
-			return nil
-		}
-	}
-
-	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
-		return func(ctx flow.Context) error {
-
-			// assert for messages
-			for _, m := range messageWatchers {
-				t, exp, obs := m.Partial(ctx, timeout)
-
-				var observed []string
-				if obs != nil {
-					for _, v := range obs.([]interface{}) {
-						observed = append(observed, v.(string))
-					}
-				}
-				var expected []string
-				if exp != nil {
-					for _, v := range exp.([]interface{}) {
-						expected = append(expected, v.(string))
-					}
-				}
-
-				// ensure all the observed messages
-				// are present in the expected messages.
-				for _, msg := range observed {
-					found := false
-					for _, expMsg := range expected {
-						if msg == expMsg {
-							found = true
-							break
-						}
-					}
-					if !found {
-						t.Errorf("message not found in expected messages: %s", msg)
-					}
-				}
-
-				// we don't know which session id will
-				// be accepted first but we should only
-				// receive messages from one session id
-				// as the max concurrent sessions is
-				// set to 1.
-				var sessionID string
-				for _, msg := range observed {
-					match := sessionIDRegex.FindStringSubmatch(msg)
-					if len(match) > 0 {
-						if sessionID == "" {
-							sessionID = match[1]
-						} else if sessionID != match[1] {
-							t.Errorf("session id is %s, expected %s", match[1], sessionID)
-						}
-					} else {
-						t.Error("session id not found in message")
-					}
-				}
-
-				// ensure the messages are ordered.
-				var ordered []string
-				for _, msg := range expected {
-					match := sessionIDRegex.FindStringSubmatch(msg)
-					if len(match) > 0 {
-						if sessionID == match[1] {
-							ordered = append(ordered, msg)
-						}
-					} else {
-						t.Error("session id not found in message")
-					}
-				}
-
-				if !assert.Equal(t, ordered, observed) {
-					t.Errorf("expected: %v, observed: %v", ordered, observed)
-				}
-			}
-
-			return nil
-		}
-	}
-
-	flow.New(t, "servicebus certification sessions test").
-
-		// Run subscriberApplicationWithSessions app1
-		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
-			subscriberApplicationWithSessions(appID1, topic, sessionWatcher))).
-
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
-		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer_one"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			componentRuntimeOptions(),
-		)).
-		Step("publish messages to topic1 on session 2", publishMessages(map[string]string{
-			"SessionId": session2,
-		}, sidecarName1, topic, sessionWatcher)).
-		Step("publish messages to topic1 on session 1", publishMessages(map[string]string{
-			"SessionId": session1,
-		}, sidecarName1, topic, sessionWatcher)).
-		Step("publish messages to topic1 on session 2", publishMessages(map[string]string{
-			"SessionId": session2,
-		}, sidecarName1, topic, sessionWatcher)).
-		Step("verify if app1 has recevied messages published to only a single session", assertMessages(10*time.Second, sessionWatcher)).
-		Step("reset", flow.Reset(sessionWatcher)).
-		Run()
-}
-
-// TestServicebusWithSessionsRoundRobin tests that if we publish messages to the same
-// topic but with 2 different session ids (session1 and session2), then eventually
-// the receiver will receive messages from both the sessions.
-func TestServicebusWithSessionsRoundRobin(t *testing.T) {
-	topic := "sessions-rr"
-	session1 := "session1"
-	session2 := "session2"
-
-	sessionWatcher := watcher.NewUnordered()
-
-	// subscriber of the given topic
-	subscriberApplicationWithSessions := func(appID string, topicName string, messageWatcher *watcher.Watcher) app.SetupFn {
-		return func(ctx flow.Context, s common.Service) error {
-			// Setup the /orders event handler.
-			return multierr.Combine(
-				s.AddTopicEventHandler(&common.Subscription{
-					PubsubName: pubsubName,
-					Topic:      topicName,
-					Route:      "/orders",
-					Metadata: map[string]string{
-						"requireSessions":         "true",
-						"maxConcurrentSessions":   "1",
-						"sessionIdleTimeoutInSec": "2", // timeout and try another session
-					},
-				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
-					// Track/Observe the data of the event.
-					messageWatcher.Observe(e.Data)
-					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
-					return false, nil
-				}),
-			)
-		}
-	}
-
-	publishMessages := func(metadata map[string]string, sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
-		return func(ctx flow.Context) error {
-			// prepare the messages
-			messages := make([]string, numMessages)
-			for i := range messages {
-				var msgSuffix string
-				if metadata["SessionId"] != "" {
-					msgSuffix = fmt.Sprintf(", sessionId: %s", metadata["SessionId"])
-				}
-				messages[i] = fmt.Sprintf("partitionKey: %s, message for topic: %s, index: %03d, uniqueId: %s%s", metadata[messageKey], topicName, i, uuid.New().String(), msgSuffix)
-			}
-
-			// add the messages as expectations to the watchers
-			for _, messageWatcher := range messageWatchers {
-				messageWatcher.ExpectStrings(messages...)
-			}
-
-			// get the sidecar (dapr) client
-			client := sidecar.GetClient(ctx, sidecarName)
-
-			// publish messages
-			ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
-
-			var publishOptions dapr.PublishEventOption
-
-			if metadata != nil {
-				publishOptions = dapr.PublishEventWithMetadata(metadata)
-			}
-
-			for _, message := range messages {
-				ctx.Logf("Publishing: %q", message)
-				var err error
-
-				if publishOptions != nil {
-					err = client.PublishEvent(ctx, pubsubName, topicName, message, publishOptions)
-				} else {
-					err = client.PublishEvent(ctx, pubsubName, topicName, message)
-				}
-				require.NoError(ctx, err, "error publishing message")
-			}
-			return nil
-		}
-	}
-
-	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
-		return func(ctx flow.Context) error {
-			// assert for messages
-			for _, m := range messageWatchers {
-				m.Assert(ctx, 25*timeout)
-			}
-
-			return nil
-		}
-	}
-
-	flow.New(t, "servicebus certification sessions test").
-
-		// Run subscriberApplicationWithSessions app1
-		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
-			subscriberApplicationWithSessions(appID1, topic, sessionWatcher))).
-
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
-		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer_one"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			componentRuntimeOptions(),
-		)).
-		Step("publish messages to topic1 on session 2", publishMessages(map[string]string{
-			"SessionId": session2,
-		}, sidecarName1, topic, sessionWatcher)).
-		Step("publish messages to topic1 on session 1", publishMessages(map[string]string{
-			"SessionId": session1,
-		}, sidecarName1, topic, sessionWatcher)).
-		Step("verify if app1 has recevied messages published to both sessions", assertMessages(1*time.Second, sessionWatcher)).
-		Step("reset", flow.Reset(sessionWatcher)).
-		Run()
-}
-
 func componentRuntimeOptions() []runtime.Option {
 	log := logger.NewLogger("dapr.components")
 
 	pubsubRegistry := pubsub_loader.NewRegistry()
 	pubsubRegistry.Logger = log
-	pubsubRegistry.RegisterComponent(pubsub_servicebus.NewAzureServiceBusTopics, "azure.servicebus.topics")
+	pubsubRegistry.RegisterComponent(pubsub_snssqs.NewSnsSqs, "snssqs")
 
 	secretstoreRegistry := secretstores_loader.NewRegistry()
 	secretstoreRegistry.Logger = log
@@ -1368,4 +1163,14 @@ func componentRuntimeOptions() []runtime.Option {
 		runtime.WithPubSubs(pubsubRegistry),
 		runtime.WithSecretStores(secretstoreRegistry),
 	}
+}
+
+func teardown(t *testing.T) {
+	t.Logf("AWS SNS/SQS CertificationTests teardown...")
+	// Dapr runtime automatically creates the following queues
+	// so here they get deleted.
+	if err := deleteQueues(queues); err != nil {
+		t.Log(err)
+	}
+	t.Logf("AWS SNS/SQS CertificationTests teardown...done!")
 }

@@ -114,6 +114,7 @@ require (
 	go.temporal.io/api v1.13.0
 	go.temporal.io/sdk v1.19.0
 	go.uber.org/atomic v1.10.0
+	go.uber.org/multierr v1.8.0
 	go.uber.org/ratelimit v0.2.0
 	golang.org/x/crypto v0.4.0
 	golang.org/x/exp v0.0.0-20221028150844-83b7d23a625f
@@ -354,7 +355,6 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.uber.org/goleak v1.2.0 // indirect
-	go.uber.org/multierr v1.8.0 // indirect
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.3.0 // indirect

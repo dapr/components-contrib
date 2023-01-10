@@ -34,6 +34,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
 	"github.com/dapr/components-contrib/internal/utils"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
 )
@@ -152,10 +153,9 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: error merging metadata: %w", err)
 	}
-	var key string
-	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
-		key = val
-	} else {
+
+	key := req.Metadata[metadataKey]
+	if key == "" {
 		u, err := uuid.NewRandom()
 		if err != nil {
 			return nil, fmt.Errorf("s3 binding error: failed to generate UUID: %w", err)
@@ -216,10 +216,9 @@ func (s *AWSS3) presign(ctx context.Context, req *bindings.InvokeRequest) (*bind
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: error merging metadata: %w", err)
 	}
-	var key string
-	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
-		key = val
-	} else {
+
+	key := req.Metadata[metadataKey]
+	if key == "" {
 		return nil, fmt.Errorf("s3 binding error: required metadata '%s' missing", metadataKey)
 	}
 
@@ -268,11 +267,9 @@ func (s *AWSS3) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings
 		return nil, fmt.Errorf("s3 binding error: error merging metadata : %w", err)
 	}
 
-	var key string
-	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
-		key = val
-	} else {
-		return nil, fmt.Errorf("s3 binding error: can't read key value")
+	key := req.Metadata[metadataKey]
+	if key == "" {
+		return nil, fmt.Errorf("s3 binding error: required metadata '%s' missing", metadataKey)
 	}
 
 	buff := &aws.WriteAtBuffer{}
@@ -303,11 +300,9 @@ func (s *AWSS3) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings
 }
 
 func (s *AWSS3) delete(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	var key string
-	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
-		key = val
-	} else {
-		return nil, fmt.Errorf("s3 binding error: can't read key value")
+	key := req.Metadata[metadataKey]
+	if key == "" {
+		return nil, fmt.Errorf("s3 binding error: required metadata '%s' missing", metadataKey)
 	}
 
 	_, err := s.s3Client.DeleteObjectWithContext(
@@ -317,8 +312,11 @@ func (s *AWSS3) delete(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 			Key:    ptr.Of(key),
 		},
 	)
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: delete operation failed: %w", err)
+	}
 
-	return nil, err
+	return nil, nil
 }
 
 func (s *AWSS3) list(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -340,12 +338,12 @@ func (s *AWSS3) list(ctx context.Context, req *bindings.InvokeRequest) (*binding
 		Delimiter: ptr.Of(payload.Delimiter),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("s3 binding error: list operation: cannot marshal blobs to json: %w", err)
+		return nil, fmt.Errorf("s3 binding error: list operation failed: %w", err)
 	}
 
 	jsonResponse, err := json.Marshal(result)
 	if err != nil {
-		return nil, fmt.Errorf("s3 binding error: list operation: cannot marshal blobs to json: %w", err)
+		return nil, fmt.Errorf("s3 binding error: list operation: cannot marshal list to json: %w", err)
 	}
 
 	return &bindings.InvokeResponse{
@@ -370,18 +368,12 @@ func (s *AWSS3) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	}
 }
 
-func (s *AWSS3) parseMetadata(metadata bindings.Metadata) (*s3Metadata, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
-
+func (s *AWSS3) parseMetadata(md bindings.Metadata) (*s3Metadata, error) {
 	var m s3Metadata
-	err = json.Unmarshal(b, &m)
+	err := metadata.DecodeMetadata(md.Properties, &m)
 	if err != nil {
 		return nil, err
 	}
-
 	return &m, nil
 }
 

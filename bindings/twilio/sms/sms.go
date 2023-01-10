@@ -15,8 +15,10 @@ package sms
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -24,6 +26,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
+	"github.com/spf13/cast"
 )
 
 const (
@@ -105,14 +108,29 @@ func (t *SMS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*binding
 		toNumberValue = toNumberFromRequest
 	}
 
+	var (
+		bodyObj any
+		body    string
+	)
+	err := json.Unmarshal(req.Data, &bodyObj)
+	if err != nil {
+		// If req.Data can't be un-marshalled, keep body as-is
+		body = string(req.Data)
+	} else {
+		// Try casting to string
+		body, err = cast.ToStringE(bodyObj)
+		if err != nil {
+			body = string(req.Data)
+		}
+	}
+
 	v := url.Values{}
 	v.Set("To", toNumberValue)
 	v.Set("From", t.metadata.fromNumber)
-	v.Set("Body", string(req.Data))
-	vDr := *strings.NewReader(v.Encode())
+	v.Set("Body", body)
 
-	twilioURL := fmt.Sprintf("%s%s/Messages.json", twilioURLBase, t.metadata.accountSid)
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, twilioURL, &vDr)
+	twilioURL := twilioURLBase + t.metadata.accountSid + "/Messages.json"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, twilioURL, strings.NewReader(v.Encode()))
 	if err != nil {
 		return nil, err
 	}
@@ -124,9 +142,13 @@ func (t *SMS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*binding
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		// Drain the body before closing
+		_, _ = io.ReadAll(resp.Body)
+		resp.Body.Close()
+	}()
 	if !(resp.StatusCode >= 200 && resp.StatusCode < 300) {
-		return nil, fmt.Errorf("error from Twilio: %s", resp.Status)
+		return nil, fmt.Errorf("error from Twilio (%d): %s", resp.StatusCode, resp.Status)
 	}
 
 	return nil, nil

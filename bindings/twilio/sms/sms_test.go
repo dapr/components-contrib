@@ -18,11 +18,13 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -58,8 +60,10 @@ func TestInit(t *testing.T) {
 func TestParseDuration(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{
-		"toNumber": "toNumber", "fromNumber": "fromNumber",
-		"accountSid": "accountSid", "authToken": "authToken", "timeout": "badtimeout",
+		"toNumber":   "toNumber",
+		"fromNumber": "fromNumber",
+		"accountSid": "accountSid",
+		"authToken":  "authToken", "timeout": "badtimeout",
 	}
 	tw := NewSMS(logger.NewLogger("test"))
 	err := tw.Init(m)
@@ -72,15 +76,17 @@ func TestWriteShouldSucceed(t *testing.T) {
 	}
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{
-		"toNumber": "toNumber", "fromNumber": "fromNumber",
-		"accountSid": "accountSid", "authToken": "authToken",
+		"toNumber":   "toNumber",
+		"fromNumber": "fromNumber",
+		"accountSid": "accountSid",
+		"authToken":  "authToken",
 	}
 	tw := NewSMS(logger.NewLogger("test")).(*SMS)
 	tw.httpClient = &http.Client{
 		Transport: httpTransport,
 	}
 	err := tw.Init(m)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	t.Run("Should succeed with expected url and headers", func(t *testing.T) {
 		httpTransport.reset()
@@ -91,7 +97,7 @@ func TestWriteShouldSucceed(t *testing.T) {
 			},
 		})
 
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, int32(1), httpTransport.requestCount)
 		assert.Equal(t, "https://api.twilio.com/2010-04-01/Accounts/accountSid/Messages.json", httpTransport.request.URL.String())
 		assert.NotNil(t, httpTransport.request)
@@ -110,14 +116,15 @@ func TestWriteShouldFail(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{
 		"fromNumber": "fromNumber",
-		"accountSid": "accountSid", "authToken": "authToken",
+		"accountSid": "accountSid",
+		"authToken":  "authToken",
 	}
 	tw := NewSMS(logger.NewLogger("test")).(*SMS)
 	tw.httpClient = &http.Client{
 		Transport: httpTransport,
 	}
 	err := tw.Init(m)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	t.Run("Missing 'to' should fail", func(t *testing.T) {
 		httpTransport.reset()
@@ -155,5 +162,62 @@ func TestWriteShouldFail(t *testing.T) {
 		})
 
 		assert.NotNil(t, err)
+	})
+}
+
+func TestMessageBody(t *testing.T) {
+	httpTransport := &mockTransport{
+		response: &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))},
+	}
+	m := bindings.Metadata{}
+	m.Properties = map[string]string{
+		"toNumber":   "toNumber",
+		"fromNumber": "fromNumber",
+		"accountSid": "accountSid",
+		"authToken":  "authToken",
+	}
+	tw := NewSMS(logger.NewLogger("test")).(*SMS)
+	tw.httpClient = &http.Client{
+		Transport: httpTransport,
+	}
+	err := tw.Init(m)
+	require.NoError(t, err)
+
+	tester := func(reqData []byte, expectBody string) func(t *testing.T) {
+		return func(t *testing.T) {
+			httpTransport.reset()
+			_, err := tw.Invoke(context.Background(), &bindings.InvokeRequest{
+				Data: reqData,
+				Metadata: map[string]string{
+					toNumber: "toNumber",
+				},
+			})
+
+			require.NoError(t, err)
+			assert.Equal(t, int32(1), httpTransport.requestCount)
+			assert.Equal(t, "https://api.twilio.com/2010-04-01/Accounts/accountSid/Messages.json", httpTransport.request.URL.String())
+			assert.NotNil(t, httpTransport.request)
+
+			body, err := io.ReadAll(httpTransport.request.Body)
+			require.NoError(t, err)
+			q, err := url.ParseQuery(string(body))
+			require.NoError(t, err)
+
+			found := q.Get("Body")
+			assert.Equal(t, expectBody, found)
+		}
+	}
+
+	t.Run("Data is not JSON-encoded", func(t *testing.T) {
+		t.Run("Message body is string", tester([]byte("hello world"), "hello world"))
+		t.Run("Message body is int", tester([]byte("42"), "42"))
+		t.Run("Message body is empty", tester([]byte(""), ""))
+	})
+
+	t.Run("Data is JSON-encoded", func(t *testing.T) {
+		t.Run("Message body is string", tester([]byte(`"hello world"`), "hello world"))
+		t.Run("Message body is int", tester([]byte("42"), "42"))
+		t.Run("Message body is bool", tester([]byte("true"), "true"))
+		t.Run("Message body is empty", tester([]byte(""), ""))
 	})
 }

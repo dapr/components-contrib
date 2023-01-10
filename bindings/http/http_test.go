@@ -187,7 +187,6 @@ func TestDefaultBehaviorHTTPS(t *testing.T) {
 	defer server.Close()
 
 	certMap := map[string]string{
-		"MTLSEnable":     "true",
 		"MTLSRootCA":     filepath.Join(".", "testdata", "ca.pem"),
 		"MTLSClientCert": filepath.Join(".", "testdata", "client.pem"),
 		"MTLSClientKey":  filepath.Join(".", "testdata", "client.key"),
@@ -204,7 +203,6 @@ func TestNon2XXErrorsSuppressedHTTPS(t *testing.T) {
 	defer server.Close()
 
 	certMap := map[string]string{
-		"MTLSEnable":     "true",
 		"MTLSRootCA":     filepath.Join(".", "testdata", "ca.pem"),
 		"MTLSClientCert": filepath.Join(".", "testdata", "client.pem"),
 		"MTLSClientKey":  filepath.Join(".", "testdata", "client.key"),
@@ -222,7 +220,6 @@ func TestHTTPSBinding(t *testing.T) {
 	defer server.Close()
 	t.Run("get with https with valid client cert and clientAuthEnabled true", func(t *testing.T) {
 		certMap := map[string]string{
-			"MTLSEnable":     "true",
 			"MTLSRootCA":     filepath.Join(".", "testdata", "ca.pem"),
 			"MTLSClientCert": filepath.Join(".", "testdata", "client.pem"),
 			"MTLSClientKey":  filepath.Join(".", "testdata", "client.key"),
@@ -238,10 +235,10 @@ func TestHTTPSBinding(t *testing.T) {
 			err:        "",
 			statusCode: 200,
 		}.ToInvokeRequest()
-		response, err := hs.Invoke(context.TODO(), &req)
-		assert.Nil(t, err)
+		response, err := hs.Invoke(context.Background(), &req)
+		assert.NoError(t, err)
 		peerCerts, err := strconv.Atoi(string(response.Data))
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.True(t, peerCerts > 0)
 
 		req = TestCase{
@@ -252,10 +249,10 @@ func TestHTTPSBinding(t *testing.T) {
 			err:        "",
 			statusCode: 201,
 		}.ToInvokeRequest()
-		response, err = hs.Invoke(context.TODO(), &req)
-		assert.Nil(t, err)
+		response, err = hs.Invoke(context.Background(), &req)
+		assert.NoError(t, err)
 		peerCerts, err = strconv.Atoi(string(response.Data))
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.True(t, peerCerts > 0)
 	})
 	t.Run("get with https with no client cert and clientAuthEnabled true", func(t *testing.T) {
@@ -271,15 +268,15 @@ func TestHTTPSBinding(t *testing.T) {
 			err:        "",
 			statusCode: 200,
 		}.ToInvokeRequest()
-		_, err = hs.Invoke(context.TODO(), &req)
-		assert.NotNil(t, err)
+		_, err = hs.Invoke(context.Background(), &req)
+		assert.Error(t, err)
 	})
 }
 
 func setupHTTPSServer(t *testing.T, clientAuthEnabled bool, handler http.Handler) *httptest.Server {
 	server := httptest.NewUnstartedServer(handler)
 	caCertFile, err := os.ReadFile(filepath.Join(".", "testdata", "ca.pem"))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM(caCertFile)
@@ -430,7 +427,7 @@ func verifyDefaultBehaviors(t *testing.T, hs bindings.OutputBinding, handler *HT
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			req := tc.ToInvokeRequest()
-			response, err := hs.Invoke(context.TODO(), &req)
+			response, err := hs.Invoke(context.Background(), &req)
 			if tc.err == "" {
 				require.NoError(t, err)
 				assert.Equal(t, tc.path, handler.Path)
@@ -502,7 +499,7 @@ func verifyNon2XXErrorsSuppressed(t *testing.T, hs bindings.OutputBinding, handl
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			req := tc.ToInvokeRequest()
-			response, err := hs.Invoke(context.TODO(), &req)
+			response, err := hs.Invoke(context.Background(), &req)
 			if tc.err == "" {
 				require.NoError(t, err)
 				assert.Equal(t, tc.path, handler.Path)

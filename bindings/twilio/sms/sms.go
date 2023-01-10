@@ -24,9 +24,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/cast"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-	"github.com/spf13/cast"
 )
 
 const (

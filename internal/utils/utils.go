@@ -46,3 +46,11 @@ func GetElemOrDefaultFromMap[T int | uint64](m map[string]string, key string, de
 	}
 	return def
 }
+
+// GetIntValOrDefault returns an int value if greater than 0 OR default value.
+func GetIntValOrDefault(val int, defaultValue int) int {
+	if val > 0 {
+		return val
+	}
+	return defaultValue
+}

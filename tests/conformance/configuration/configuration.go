@@ -285,7 +285,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			errDelete := updater.DeleteKey(getKeys(initValues2))
 			assert.NoError(t, errDelete, "expected no error on updating keys")
 			for k := range initValues2 {
-				initValues2[k] = nil
+				initValues2[k] = &configuration.Item{}
 			}
 
 			updateAwaitingMessages(awaitingMessages2, initValues2)

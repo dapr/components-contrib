@@ -39,3 +39,18 @@ metadata:
     # If omitted, uses the same values as "<root>.binding"
     binding:
       output: true
+  - name: MTLSRootCA
+    required: false
+    description: "The CA certificate used to generate the client certificate"
+    binding:
+      output: true
+  - name: MTLSClientCert
+    required: false
+    description: "The client certificate to present to server to enable client verification"
+    binding:
+      output: true
+  - name: MTLSClientKey
+    required: false
+    description: "The client certificate key to present to server to enable client verification"
+    binding:
+      output: true

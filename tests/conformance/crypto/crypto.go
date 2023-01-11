@@ -1,5 +1,5 @@
 /*
-Copyright 2022 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -15,15 +15,10 @@ package crypto
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/ed25519"
-	"crypto/rand"
-	"crypto/rsa"
-	"io"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -33,15 +28,39 @@ import (
 	"github.com/dapr/kit/config"
 )
 
-// creating this struct so that it can be expanded later.
+const (
+	// List of required algorithms for private keys
+	algsPrivateRequired = "RSA-OAEP PS256 PS384 PS512 RS256 RS384 RS512"
+	// List of required algorithms for symmetric keys
+	algsSymmetricRequired = "A256CBC A256GCM A256KW"
+
+	// List of all possible symmetric encryption algorithms
+	algsEncryptionSymmetric = "A128CBC A192CBC A256CBC A128GCM A192GCM A256GCM A128CBC-HS256 A192CBC-HS384 A256CBC-HS512 C20P XC20P"
+	// List of all possible symmetric key wrapping algorithms
+	algsKeywrapSymmetric = "A128KW A192KW A256KW A128GCMKW A192GCMKW A256GCMKW C20PKW XC20PKW"
+	// List of all possible asymmetric encryption algorithms
+	algsEncryptionAsymmetric = "ECDH-ES ECDH-ES+A128KW ECDH-ES+A192KW ECDH-ES+A256KW RSA1_5 RSA-OAEP RSA-OAEP-256 RSA-OAEP-384 RSA-OAEP-512"
+	// List of all possible asymmetric key wrapping algorithms
+	algsKeywrapAsymmetric = "ECDH-ES ECDH-ES+A128KW ECDH-ES+A192KW ECDH-ES+A256KW RSA1_5 RSA-OAEP RSA-OAEP-256 RSA-OAEP-384 RSA-OAEP-512"
+	// List of all possible asymmetric signing algorithms
+	algsSignAsymmetric = "ES256 ES384 ES512 EdDSA PS256 PS384 PS512 RS256 RS384 RS512"
+	// List of all possible symmetric signing algorithms
+	algsSignSymmetric = "HS256 HS384 HS512"
+)
+
+type testConfigKey struct {
+	// "public", "private", or "symmetric"
+	KeyType string `mapstructure:"type"`
+	// Algorithm identifiers constant (e.g. "A256CBC")
+	Algorithms []string `mapstructure:"algorithms"`
+	// Name of the key
+	Name string `mapstructure:"name"`
+}
+
 type TestConfig struct {
 	utils.CommonConfig
 
-	PublicKeyName     string `mapstructure:"publicKeyName"`
-	PrivateKeyName    string `mapstructure:"privateKeyName"`
-	AltPrivateKeyName string `mapstructure:"altPrivateKeyName"`
-	SymmetricKeyName  string `mapstructure:"symmetricKeyName"`
-	SymmetricCipher   string `mapstructure:"symmetricCipher"`
+	Keys []testConfigKey `mapstructure:"keys"`
 }
 
 func NewTestConfig(name string, allOperations bool, operations []string, configMap map[string]interface{}) (TestConfig, error) {
@@ -52,11 +71,6 @@ func NewTestConfig(name string, allOperations bool, operations []string, configM
 			AllOperations: allOperations,
 			Operations:    utils.NewStringSet(operations...),
 		},
-		PublicKeyName:     "pubkey",
-		PrivateKeyName:    "privkey",
-		AltPrivateKeyName: "altprivkey",
-		SymmetricKeyName:  "symmetric",
-		SymmetricCipher:   "A256GCM",
 	}
 
 	err := config.Decode(configMap, &testConfig)
@@ -68,6 +82,24 @@ func NewTestConfig(name string, allOperations bool, operations []string, configM
 }
 
 func ConformanceTests(t *testing.T, props map[string]string, component daprcrypto.SubtleCrypto, config TestConfig) {
+	// Parse all keys and algorithms, then ensure the required ones are present
+	keys := newKeybagFromConfig(config)
+	for _, alg := range strings.Split(algsPrivateRequired, " ") {
+		require.Greaterf(t, len(keys.private[alg]), 0, "could not find a private key for algorithm '%s' in configuration, which is required", alg)
+	}
+	for _, alg := range strings.Split(algsSymmetricRequired, " ") {
+		require.Greaterf(t, len(keys.symmetric[alg]), 0, "could not find a symmetric key for algorithm '%s' in configuration, which is required", alg)
+	}
+	// Require at least one public key
+	found := false
+	for _, v := range keys.public {
+		found = len(v) > 0
+		if found {
+			break
+		}
+	}
+	require.True(t, found, "could not find any public key in configuration; at least one is required")
+
 	// Init
 	t.Run("Init", func(t *testing.T) {
 		err := component.Init(daprcrypto.Metadata{
@@ -81,97 +113,84 @@ func ConformanceTests(t *testing.T, props map[string]string, component daprcrypt
 		t.Fatal("Init test failed, stopping further tests")
 	}
 
-	t.Run("Get key", func(t *testing.T) {
+	t.Run("GetKey method", func(t *testing.T) {
 		t.Run("Get public keys", func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
+			keys.public.testForAllAlgorithms(t, func(algorithm, keyName string) func(t *testing.T) {
+				return func(t *testing.T) {
+					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+					defer cancel()
 
-			key, err := component.GetKey(ctx, config.PublicKeyName)
-			require.NoError(t, err)
-			assert.NotNil(t, key)
-			requireKeyPublic(t, key)
+					key, err := component.GetKey(ctx, keyName)
+					require.NoError(t, err)
+					assert.NotNil(t, key)
+					requireKeyPublic(t, key)
+				}
+			})
 		})
 
 		t.Run("Get public part from private keys", func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
+			keys.private.testForAllAlgorithms(t, func(algorithm, keyName string) func(t *testing.T) {
+				return func(t *testing.T) {
+					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+					defer cancel()
 
-			key, err := component.GetKey(ctx, config.PrivateKeyName)
-			require.NoError(t, err)
-			assert.NotNil(t, key)
-			requireKeyPublic(t, key)
+					key, err := component.GetKey(ctx, keyName)
+					require.NoError(t, err)
+					assert.NotNil(t, key)
+					requireKeyPublic(t, key)
+				}
+			})
 		})
 
 		t.Run("Cannot get symmetric keys", func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
+			keys.symmetric.testForAllAlgorithms(t, func(algorithm, keyName string) func(t *testing.T) {
+				return func(t *testing.T) {
+					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+					defer cancel()
 
-			key, err := component.GetKey(ctx, config.SymmetricKeyName)
-			require.Error(t, err)
-			assert.Nil(t, key)
+					key, err := component.GetKey(ctx, keyName)
+					require.Error(t, err)
+					assert.Nil(t, key)
+				}
+			})
 		})
 	})
 
-	t.Run("Symmetric encryption with "+config.SymmetricCipher, func(t *testing.T) {
-		nonce := randomBytes(t, 12)
+	t.Run("Symmetric encryption", func(t *testing.T) {
+		keys.symmetric.testForAllAlgorithmsInList(t, algsEncryptionSymmetric, func(algorithm, keyName string) func(t *testing.T) {
+			return func(t *testing.T) {
+				nonce := randomBytes(t, nonceSizeForAlgorithm(algorithm))
 
-		const message = "Quel ramo del lago di Como"
+				const message = "Quel ramo del lago di Como"
 
-		// Encrypt the message
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		ciphertext, tag, err := component.Encrypt(ctx, []byte(message), config.SymmetricCipher, config.SymmetricKeyName, nonce, nil)
-		require.NoError(t, err)
-		assert.NotEmpty(t, ciphertext)
-		assert.NotEmpty(t, tag)
+				// Encrypt the message
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				ciphertext, tag, err := component.Encrypt(ctx, []byte(message), algorithm, keyName, nonce, nil)
+				require.NoError(t, err)
+				assert.NotEmpty(t, ciphertext)
+				assert.NotEmpty(t, tag)
 
-		// Decrypt the message
-		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		plaintext, err := component.Decrypt(ctx, ciphertext, config.SymmetricCipher, config.SymmetricKeyName, nonce, tag, nil)
-		require.NoError(t, err)
-		assert.Equal(t, message, string(plaintext))
+				// Decrypt the message
+				ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				plaintext, err := component.Decrypt(ctx, ciphertext, algorithm, keyName, nonce, tag, nil)
+				require.NoError(t, err)
+				assert.Equal(t, message, string(plaintext))
 
-		// Invalid key
-		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		_, err = component.Decrypt(ctx, ciphertext, config.SymmetricCipher, config.PrivateKeyName, nonce, tag, nil)
-		require.Error(t, err)
+				// Invalid key
+				ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				_, err = component.Decrypt(ctx, ciphertext, algorithm, "foo", nonce, tag, nil)
+				require.Error(t, err)
 
-		// Tag mismatch
-		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		badTag := randomBytes(t, 16)
-		_, err = component.Decrypt(ctx, ciphertext, config.SymmetricCipher, config.SymmetricKeyName, nonce, badTag, nil)
-		require.Error(t, err)
+				// Tag mismatch
+				ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				badTag := randomBytes(t, 16)
+				_, err = component.Decrypt(ctx, ciphertext, algorithm, keyName, nonce, badTag, nil)
+				require.Error(t, err)
+			}
+		})
 	})
-}
-
-func randomBytes(t *testing.T, size int) []byte {
-	t.Helper()
-
-	b := make([]byte, size)
-	l, err := io.ReadFull(rand.Reader, b)
-	require.NoError(t, err)
-	require.Equal(t, size, l)
-	return b
-}
-
-func requireKeyPublic(t *testing.T, key jwk.Key) {
-	t.Helper()
-
-	var rawKey any
-	err := key.Raw(&rawKey)
-	require.NoError(t, err)
-
-	switch rawKey.(type) {
-	case ed25519.PublicKey,
-		rsa.PublicKey,
-		*rsa.PublicKey,
-		ecdsa.PublicKey,
-		*ecdsa.PublicKey:
-		// all good - nop
-	default:
-		t.Errorf("key is not a public key: %T", rawKey)
-	}
 }

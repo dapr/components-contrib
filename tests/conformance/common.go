@@ -354,7 +354,6 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				props, err := tc.loadComponentsAndProperties(t, filepath)
 				if err != nil {
 					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-
 					break
 				}
 				store := loadStateStore(comp)
@@ -366,7 +365,6 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				props, err := tc.loadComponentsAndProperties(t, filepath)
 				if err != nil {
 					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-
 					break
 				}
 				store := loadSecretStore(comp)
@@ -378,7 +376,6 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				props, err := tc.loadComponentsAndProperties(t, filepath)
 				if err != nil {
 					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-
 					break
 				}
 				pubsub := loadPubSub(comp)
@@ -386,7 +383,6 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				pubsubConfig, err := conf_pubsub.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
 				if err != nil {
 					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-
 					break
 				}
 				conf_pubsub.ConformanceTests(t, props, pubsub, pubsubConfig)
@@ -395,7 +391,6 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				props, err := tc.loadComponentsAndProperties(t, filepath)
 				if err != nil {
 					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-
 					break
 				}
 				inputBinding := loadInputBindings(comp)
@@ -406,7 +401,6 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				bindingsConfig, err := conf_bindings.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
 				if err != nil {
 					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-
 					break
 				}
 				conf_bindings.ConformanceTests(t, props, inputBinding, outputBinding, bindingsConfig)

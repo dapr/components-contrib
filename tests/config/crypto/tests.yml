@@ -4,10 +4,42 @@ components:
   - component: localstorage
     allOperations: true
     config:
-      publicKeyName: "ed25519-public.pem"
-      privateKeyName: "ed25519-private.pem"
-      altPrivateKeyName: "rsa-private.pem"
-      symmetricKeyName: "symmetric.b64"
+      keys:
+        - algorithms:
+            - EdDSA
+          type: public
+          name: ed25519-public.pem
+        - algorithms:
+            - EdDSA
+          type: private
+          name: ed25519-private.pem
+        - algorithms:
+            - PS256
+            - PS384
+            - PS512
+            - RS256
+            - RS384
+            - RS512
+            - RSA1_5
+            - RSA-OAEP 
+            - RSA-OAEP-256
+            - RSA-OAEP-384
+            - RSA-OAEP-512
+          type: private
+          name: rsa-private.pem
+        - algorithms:
+            - A256CBC
+            - A256GCM
+            - A256KW
+            - C20P
+            - XC20P
+            - C20PKW
+            - XC20PKW
+            - HS256
+            - HS384
+            - HS512
+          type: symmetric
+          name: symmetric-256.b64
   - component: jwks
     allOperations: true
     config:

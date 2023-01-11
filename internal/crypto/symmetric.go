@@ -21,7 +21,6 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
-	pkcs7 "github.com/mergermarket/go-pkcs7"
 	"golang.org/x/crypto/chacha20poly1305"
 
 	"github.com/dapr/components-contrib/internal/crypto/aeskw"
@@ -81,6 +80,7 @@ func DecryptSymmetric(ciphertext []byte, algorithm string, key jwk.Key, nonce []
 	}
 }
 
+// Note this uses PKCS#7 padding, as standard with AES-CBC (especially with JSON Web Encryption)
 func encryptSymmetricAESCBC(plaintext []byte, algorithm string, key []byte, iv []byte) (ciphertext []byte, err error) {
 	if len(key) != expectedKeySize(algorithm) {
 		return nil, ErrKeyTypeMismatch
@@ -94,7 +94,7 @@ func encryptSymmetricAESCBC(plaintext []byte, algorithm string, key []byte, iv [
 		return nil, ErrKeyTypeMismatch
 	}
 
-	plaintext, err = pkcs7.Pad(plaintext, aes.BlockSize)
+	plaintext, err = PadPKCS7(plaintext, aes.BlockSize)
 	if err != nil {
 		return nil, err
 	}
@@ -106,6 +106,9 @@ func encryptSymmetricAESCBC(plaintext []byte, algorithm string, key []byte, iv [
 	return ciphertext, err
 }
 
+// Note this uses PKCS#7 padding and returns a special error if padding mismatches.
+// Callers are responsible for handling these errors in a way that doesn't introduce the possibility of padding oracle attacks.
+// See: https://research.nccgroup.com/2021/02/17/cryptopals-exploiting-cbc-padding-oracles/
 func decryptSymmetricAESCBC(ciphertext []byte, algorithm string, key []byte, iv []byte) (plaintext []byte, err error) {
 	if len(key) != expectedKeySize(algorithm) {
 		return nil, ErrKeyTypeMismatch
@@ -123,7 +126,7 @@ func decryptSymmetricAESCBC(ciphertext []byte, algorithm string, key []byte, iv 
 	cipher.NewCBCDecrypter(block, iv).
 		CryptBlocks(plaintext, ciphertext)
 
-	plaintext, err = pkcs7.Unpad(plaintext, aes.BlockSize)
+	plaintext, err = UnpadPKCS7(plaintext, aes.BlockSize)
 	if err != nil {
 		return nil, err
 	}

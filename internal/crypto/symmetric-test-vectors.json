@@ -95,6 +95,14 @@
             "nonce": "39f23369a9d9bacfa530e26304231461",
             "plaintext": "f69f2445df4f9b17ad2b417be66c3710",
             "ciphertext": "b2eb05e2c39be9fcda6c19078c6a9d1b3f461796d6b0d6b2e0c2a72b4d80e644"
+        },
+        {
+            "name": "Length not multiple of block size",
+            "algorithm": "A256CBC",
+            "key": "603deb1015ca71be2b73aef0857d77811f352c073b6108d72d9810a30914dff4",
+            "nonce": "39f23369a9d9bacfa530e26304231461",
+            "plaintext": "fafafa",
+            "ciphertext": "d8cf185cabef0846056352cd43885f97"
         }
     ],
     "aes-gcm": [

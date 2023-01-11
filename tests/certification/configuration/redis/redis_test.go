@@ -72,7 +72,6 @@ func getUpdateEvent(key string, val string) configuration.UpdateEvent {
 }
 
 func runRedisCommands(ctx flow.Context, updater *cu_redis.ConfigUpdater, messages *watcher.Watcher) error {
-
 	scenarios := []struct {
 		cmd          []interface{}
 		want         [][]string
@@ -231,7 +230,6 @@ func TestRedis(t *testing.T) {
 
 	subscribefn := func(keys []string, message *watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
-
 			client := sidecar.GetClient(ctx, sidecarName1)
 			message.Reset()
 			errSubscribe := client.SubscribeConfigurationItems(task, storeName, keys, func(id string, items map[string]*dapr.ConfigurationItem) {
@@ -261,7 +259,7 @@ func TestRedis(t *testing.T) {
 
 	saveBeforeRestart := func(ctx flow.Context) error {
 		items := map[string]*configuration.Item{
-			key1: &configuration.Item{
+			key1: {
 				Value: "val1",
 			},
 		}

@@ -16,6 +16,7 @@ package embedded
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/dapr/dapr/pkg/acl"
@@ -145,12 +146,12 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, *runtime.Co
 
 	variables := map[string]string{
 		env.AppID:           runtimeConfig.ID,
-		env.AppPort:         fmt.Sprintf("%d", runtimeConfig.ApplicationPort),
+		env.AppPort:         strconv.Itoa(runtimeConfig.ApplicationPort),
 		env.HostAddress:     "127.0.0.1",
-		env.DaprPort:        fmt.Sprintf("%d", runtimeConfig.InternalGRPCPort),
-		env.DaprGRPCPort:    fmt.Sprintf("%d", runtimeConfig.APIGRPCPort),
-		env.DaprHTTPPort:    fmt.Sprintf("%d", runtimeConfig.HTTPPort),
-		env.DaprProfilePort: fmt.Sprintf("%d", runtimeConfig.ProfilePort),
+		env.DaprPort:        strconv.Itoa(runtimeConfig.InternalGRPCPort),
+		env.DaprGRPCPort:    strconv.Itoa(runtimeConfig.APIGRPCPort),
+		env.DaprHTTPPort:    strconv.Itoa(runtimeConfig.HTTPPort),
+		env.DaprProfilePort: strconv.Itoa(runtimeConfig.ProfilePort),
 	}
 
 	for key, value := range variables {
@@ -205,5 +206,7 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, *runtime.Co
 		return nil, nil, err
 	}
 
-	return runtime.NewDaprRuntime(runtimeConfig, globalConfig, accessControlList, &resiliency.NoOp{}), runtimeConfig, nil
+	rt := runtime.NewDaprRuntime(runtimeConfig, globalConfig, accessControlList, &resiliency.NoOp{})
+	rt.SetRunning(true)
+	return rt, runtimeConfig, nil
 }

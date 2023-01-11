@@ -14,7 +14,7 @@ limitations under the License.
 package sidecar
 
 import (
-	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/dapr/dapr/pkg/runtime"
@@ -122,7 +122,7 @@ func (s Sidecar) Start(ctx flow.Context) error {
 		return err
 	}
 
-	daprClient, err := dapr.NewClientWithPort(fmt.Sprintf("%d", rtConf.APIGRPCPort))
+	daprClient, err := dapr.NewClientWithPort(strconv.Itoa(rtConf.APIGRPCPort))
 	if err != nil {
 		return err
 	}

@@ -21,6 +21,7 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
+	pkcs7 "github.com/mergermarket/go-pkcs7"
 	"golang.org/x/crypto/chacha20poly1305"
 
 	"github.com/dapr/components-contrib/internal/crypto/aeskw"
@@ -93,6 +94,11 @@ func encryptSymmetricAESCBC(plaintext []byte, algorithm string, key []byte, iv [
 		return nil, ErrKeyTypeMismatch
 	}
 
+	plaintext, err = pkcs7.Pad(plaintext, aes.BlockSize)
+	if err != nil {
+		return nil, err
+	}
+
 	ciphertext = make([]byte, len(plaintext))
 	cipher.NewCBCEncrypter(block, iv).
 		CryptBlocks(ciphertext, plaintext)
@@ -116,6 +122,11 @@ func decryptSymmetricAESCBC(ciphertext []byte, algorithm string, key []byte, iv 
 	plaintext = make([]byte, len(ciphertext))
 	cipher.NewCBCDecrypter(block, iv).
 		CryptBlocks(plaintext, ciphertext)
+
+	plaintext, err = pkcs7.Unpad(plaintext, aes.BlockSize)
+	if err != nil {
+		return nil, err
+	}
 
 	return plaintext, err
 }

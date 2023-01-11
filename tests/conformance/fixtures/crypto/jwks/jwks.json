@@ -28,7 +28,7 @@
             "qi": "c5Um3YYkhh2QScQBy5-kumH40LhFFy2ETznWEp0tS2NwmTfTm_NlSg-Ct2nOw93cIhwDjWyoilkIapuuX2obY-sUc3kj2ugU-hONfuBStsF020IPP1skA9okIZVbz8ycqcjaBiNc4-TeiXED1K7bV9Kg-A9lxDxfGRybJ1_ECWA"
         },
         {
-            "kid": "symmetric",
+            "kid": "symmetric-256",
             "kty": "oct",
             "k": "RjJPhQzsDB5dvjQZ-85l_D_SBXWCBFx7IVsesenVvts"
         }

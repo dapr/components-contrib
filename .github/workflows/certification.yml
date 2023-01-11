@@ -68,6 +68,7 @@ jobs:
         - bindings.rabbitmq
         - bindings.localstorage
         - bindings.postgres
+        - configuration.redis
         EOF
         )
         echo "pr-components=$PR_COMPONENTS" >> $GITHUB_OUTPUT

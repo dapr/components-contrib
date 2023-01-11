@@ -14,6 +14,7 @@ limitations under the License.
 package crypto
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/rsa"
@@ -77,15 +78,18 @@ func parseSymmetricKey(raw []byte) (jwk.Key, error) {
 		return jwk.FromRaw(raw)
 	}
 
+	// Try parsing as base64; first: remove any padding if present
+	trimmedRaw := bytes.TrimRight(raw, "=")
+
 	// Try parsing as base64-standard
 	dst := make([]byte, base64.RawStdEncoding.DecodedLen(l))
-	n, err := base64.RawStdEncoding.Decode(dst, raw)
+	n, err := base64.RawStdEncoding.Decode(dst, trimmedRaw)
 	if err == nil {
 		return jwk.FromRaw(dst[:n])
 	}
 
 	// Try parsing as base64-url
-	n, err = base64.RawURLEncoding.Decode(dst, raw)
+	n, err = base64.RawURLEncoding.Decode(dst, trimmedRaw)
 	if err == nil {
 		return jwk.FromRaw(dst[:n])
 	}

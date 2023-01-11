@@ -67,7 +67,7 @@ require (
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
-	github.com/matttproud/golang_protobuf_extensions v1.0.2 // indirect
+	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/miekg/dns v1.1.50 // indirect
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
@@ -81,7 +81,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.14.0 // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect
-	github.com/prometheus/common v0.37.0 // indirect
+	github.com/prometheus/common v0.39.0 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
 	github.com/prometheus/statsd_exporter v0.22.7 // indirect
 	github.com/savsgio/gotils v0.0.0-20220530130905-52f3993e8d6d // indirect

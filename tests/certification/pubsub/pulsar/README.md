@@ -39,11 +39,11 @@ The purpose of this module is to provide tests that certify the Pulsar Pubsub as
    - Subscriber is subscribed to 1 topic
    - Simulate network interruptions and verify that the component retires on error
    - Verify that all expected messages were received
-- Verify data with an optional parameter delayqueue set
+- Verify data with an optional metadata query parameter delayqueue set
    - Run dapr application with 1 publisher and 1 subscriber
    - Publisher publishes to 1 topic
    - Subscriber is subscribed to 1 topic
-   - Verify that subscriber has not immediately recieved messages
+   - Verify that subscriber has not immediately received messages
    - Wait for message delay to pass
    - Verify that all expected messages were received
 - Verify data with persistent topics after pulsar restart

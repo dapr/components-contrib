@@ -345,7 +345,7 @@ func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *co
 	items = getResponse.Items
 	if len(items) == 0 {
 		items = map[string]*configuration.Item{
-			targetKey: &configuration.Item{},
+			targetKey: {},
 		}
 	}
 

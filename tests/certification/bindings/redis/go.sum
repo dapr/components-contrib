@@ -38,8 +38,8 @@ github.com/AdhityaRamadhanus/fasthttpcors v0.0.0-20170121111917-d4c07198763a/go.
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
-github.com/DeepanshuA/dapr v1.6.1-0.20230111073406-3e0fea981e4e h1:+kV1LMyeUbytce4rDrtUuXH3969WEmTHm/bDhZ8Nj/w=
-github.com/DeepanshuA/dapr v1.6.1-0.20230111073406-3e0fea981e4e/go.mod h1:gI1WBCngrFTTkXb+Z1svrb9DpmaI5LyYIDji9sbZ4mk=
+github.com/DeepanshuA/dapr v1.6.1-0.20230111084858-b5da3b73ac78 h1:X5MAOuNrXIZ8ROuIg1hfv4ASfcWy577/4oLrLM9QFHk=
+github.com/DeepanshuA/dapr v1.6.1-0.20230111084858-b5da3b73ac78/go.mod h1:gI1WBCngrFTTkXb+Z1svrb9DpmaI5LyYIDji9sbZ4mk=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/PuerkitoBio/purell v1.2.0 h1:/Jdm5QfyM8zdlqT6WVZU4cfP23sot6CEHA4CS49Ezig=
 github.com/PuerkitoBio/purell v1.2.0/go.mod h1:OhLRTaaIzhvIyofkJfB24gokC7tM42Px5UhoT32THBk=

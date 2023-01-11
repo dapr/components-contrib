@@ -148,4 +148,4 @@ replace github.com/dapr/components-contrib/tests/certification => ../../
 
 replace github.com/dapr/components-contrib => ../../../../
 
-replace github.com/dapr/dapr => github.com/DeepanshuA/dapr v1.6.1-0.20230111073406-3e0fea981e4e
+replace github.com/dapr/dapr => github.com/DeepanshuA/dapr v1.6.1-0.20230111084858-b5da3b73ac78

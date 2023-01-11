@@ -161,6 +161,7 @@ func ConformanceTests(t *testing.T, props map[string]string, component daprcrypt
 			return func(t *testing.T) {
 				nonce := randomBytes(t, nonceSizeForAlgorithm(algorithm))
 
+				// Note: if you change this, make sure it's not a multiple of 16 in length
 				const message = "Quel ramo del lago di Como"
 
 				// Encrypt the message
@@ -169,7 +170,9 @@ func ConformanceTests(t *testing.T, props map[string]string, component daprcrypt
 				ciphertext, tag, err := component.Encrypt(ctx, []byte(message), algorithm, keyName, nonce, nil)
 				require.NoError(t, err)
 				assert.NotEmpty(t, ciphertext)
-				assert.NotEmpty(t, tag)
+				if hasTag(algorithm) {
+					assert.NotEmpty(t, tag)
+				}
 
 				// Decrypt the message
 				ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
@@ -185,11 +188,13 @@ func ConformanceTests(t *testing.T, props map[string]string, component daprcrypt
 				require.Error(t, err)
 
 				// Tag mismatch
-				ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-				defer cancel()
-				badTag := randomBytes(t, 16)
-				_, err = component.Decrypt(ctx, ciphertext, algorithm, keyName, nonce, badTag, nil)
-				require.Error(t, err)
+				if hasTag(algorithm) {
+					ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+					defer cancel()
+					badTag := randomBytes(t, 16)
+					_, err = component.Decrypt(ctx, ciphertext, algorithm, keyName, nonce, badTag, nil)
+					require.Error(t, err)
+				}
 			}
 		})
 	})

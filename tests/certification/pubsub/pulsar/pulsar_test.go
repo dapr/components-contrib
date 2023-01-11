@@ -1,5 +1,5 @@
 /*
-Copyright 2022 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -23,19 +23,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 
-	// Pub/Sub.
-
 	pubsub_pulsar "github.com/dapr/components-contrib/pubsub/pulsar"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
 
-	// Dapr runtime and Go-SDK
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/dapr/dapr/pkg/runtime"
 	dapr "github.com/dapr/go-sdk/client"
 	"github.com/dapr/go-sdk/service/common"
 	"github.com/dapr/kit/logger"
 
-	// Certification testing runnables
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/app"
@@ -65,7 +61,7 @@ const (
 	topicDefaultName  = "certification-topic-default"
 	partition0        = "partition-0"
 	partition1        = "partition-1"
-	clusterName       = "pulsarmqcertification"
+	clusterName       = "pulsarcertification"
 	dockerComposeYAML = "docker-compose.yml"
 	pulsarURL         = "localhost:6650"
 )
@@ -107,7 +103,6 @@ func TestPulsar(t *testing.T) {
 				messages[i] = fmt.Sprintf("partitionKey: %s, message for topic: %s, index: %03d, uniqueId: %s", metadata[messageKey], topicName, i, uuid.New().String())
 			}
 
-			// add the messages as expectations to the watchers
 			for _, messageWatcher := range messageWatchers {
 				messageWatcher.ExpectStrings(messages...)
 			}
@@ -160,7 +155,7 @@ func TestPulsar(t *testing.T) {
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
 			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
-				return fmt.Errorf("could not instantiate pulsar client: %v", err)
+				return fmt.Errorf("could not create pulsar client: %v", err)
 			}
 
 			defer client.Close()
@@ -171,15 +166,12 @@ func TestPulsar(t *testing.T) {
 				Type:             pulsar.Shared,
 			})
 			if err != nil {
-				return fmt.Errorf("could not instantiate pulsar Topic: %v", err)
+				return fmt.Errorf("could not create pulsar Topic: %v", err)
 			}
 			defer consumer.Close()
 
-			// Ensure the brokers are ready by attempting to consume
-			// a topic partition.
 			return err
 		})).
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/consumer_one"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -203,8 +195,8 @@ func TestPulsar(t *testing.T) {
 		)).
 		Step("publish messages to topic1", publishMessages(nil, sidecarName1, topicActiveName, consumerGroup1, consumerGroup2)).
 		Step("publish messages to unUsedTopic", publishMessages(nil, sidecarName1, topicPassiveName)).
-		Step("verify if app1 has recevied messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).
-		Step("verify if app2 has recevied messages published to passive topic", assertMessages(10*time.Second, consumerGroup2)).
+		Step("verify if app1 has received messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).
+		Step("verify if app2 has received messages published to passive topic", assertMessages(10*time.Second, consumerGroup2)).
 		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
 		Run()
 }
@@ -213,7 +205,6 @@ func TestPulsarMultipleSubsSameConsumerIDs(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 
-	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
 	metadata := map[string]string{
 		messageKey: partition0,
 	}
@@ -238,9 +229,8 @@ func TestPulsarMultipleSubsSameConsumerIDs(t *testing.T) {
 						return true, err
 					}
 
-					// Track/Observe the data of the event.
 					messagesWatcher.Observe(e.Data)
-					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					ctx.Logf("Message received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
 					return false, nil
 				}),
 			)
@@ -308,7 +298,7 @@ func TestPulsarMultipleSubsSameConsumerIDs(t *testing.T) {
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
 			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
-				return fmt.Errorf("could not instantiate pulsar client: %v", err)
+				return fmt.Errorf("could not create pulsar client: %v", err)
 			}
 
 			defer client.Close()
@@ -319,15 +309,12 @@ func TestPulsarMultipleSubsSameConsumerIDs(t *testing.T) {
 				Type:             pulsar.Shared,
 			})
 			if err != nil {
-				return fmt.Errorf("could not instantiate pulsar Topic: %v", err)
+				return fmt.Errorf("could not create pulsar Topic: %v", err)
 			}
 			defer consumer.Close()
 
-			// Ensure the brokers are ready by attempting to consume
-			// a topic partition.
 			return err
 		})).
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/consumer_one"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -351,7 +338,7 @@ func TestPulsarMultipleSubsSameConsumerIDs(t *testing.T) {
 		)).
 		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup2)).
 		Step("publish messages to topic1", publishMessages(metadata1, sidecarName2, topicActiveName, consumerGroup2)).
-		Step("verify if app1, app2 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
+		Step("verify if app1, app2 together have received messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
 		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
 		Run()
 }
@@ -451,7 +438,7 @@ func TestPulsarMultipleSubsDifferentConsumerIDs(t *testing.T) {
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
 			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
-				return fmt.Errorf("could not instantiate pulsar client: %v", err)
+				return fmt.Errorf("could not create pulsar client: %v", err)
 			}
 
 			defer client.Close()
@@ -462,7 +449,7 @@ func TestPulsarMultipleSubsDifferentConsumerIDs(t *testing.T) {
 				Type:             pulsar.Shared,
 			})
 			if err != nil {
-				return fmt.Errorf("could not instantiate pulsar Topic: %v", err)
+				return fmt.Errorf("could not create pulsar Topic: %v", err)
 			}
 			defer consumer.Close()
 
@@ -470,7 +457,6 @@ func TestPulsarMultipleSubsDifferentConsumerIDs(t *testing.T) {
 			// a topic partition.
 			return err
 		})).
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/consumer_one"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -493,7 +479,7 @@ func TestPulsarMultipleSubsDifferentConsumerIDs(t *testing.T) {
 			componentRuntimeOptions(),
 		)).
 		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
-		Step("verify if app1, app2 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup1)).
+		Step("verify if app1, app2 together have received messages published to topic1", assertMessages(10*time.Second, consumerGroup1)).
 		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
 		Run()
 }
@@ -597,7 +583,7 @@ func TestPulsarMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
 			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
-				return fmt.Errorf("could not instantiate pulsar client: %v", err)
+				return fmt.Errorf("could not create pulsar client: %v", err)
 			}
 
 			defer client.Close()
@@ -608,7 +594,7 @@ func TestPulsarMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 				Type:             pulsar.Shared,
 			})
 			if err != nil {
-				return fmt.Errorf("could not instantiate pulsar Topic: %v", err)
+				return fmt.Errorf("could not create pulsar Topic: %v", err)
 			}
 			defer consumer.Close()
 
@@ -616,7 +602,6 @@ func TestPulsarMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 			// a topic partition.
 			return err
 		})).
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/consumer_one"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -640,8 +625,8 @@ func TestPulsarMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 		)).
 		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
 		Step("publish messages to topic1", publishMessages(metadata1, sidecarName2, topicActiveName, consumerGroup2)).
-		Step("verify if app1, app2 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup1)).
-		Step("verify if app1, app2 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
+		Step("verify if app1, app2 together have received messages published to topic1", assertMessages(10*time.Second, consumerGroup1)).
+		Step("verify if app1, app2 together have received messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
 		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
 		Run()
 }
@@ -740,7 +725,7 @@ func TestPulsarNonexistingTopic(t *testing.T) {
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
 			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
-				return fmt.Errorf("could not instantiate pulsar client: %v", err)
+				return fmt.Errorf("could not create pulsar client: %v", err)
 			}
 
 			defer client.Close()
@@ -751,7 +736,7 @@ func TestPulsarNonexistingTopic(t *testing.T) {
 				Type:             pulsar.Shared,
 			})
 			if err != nil {
-				return fmt.Errorf("could not instantiate pulsar Topic: %v", err)
+				return fmt.Errorf("could not create pulsar Topic: %v", err)
 			}
 			defer consumer.Close()
 
@@ -770,7 +755,7 @@ func TestPulsarNonexistingTopic(t *testing.T) {
 		)).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicToBeCreated), publishMessages(metadata, sidecarName1, topicToBeCreated, consumerGroup1)).
 		Step("wait", flow.Sleep(30*time.Second)).
-		Step("verify if app1 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
+		Step("verify if app1 has received messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
 		Run()
 }
 
@@ -868,7 +853,7 @@ func TestPulsarNetworkInterruption(t *testing.T) {
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
 			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
-				return fmt.Errorf("could not instantiate pulsar client: %v", err)
+				return fmt.Errorf("could not create pulsar client: %v", err)
 			}
 
 			defer client.Close()
@@ -879,7 +864,7 @@ func TestPulsarNetworkInterruption(t *testing.T) {
 				Type:             pulsar.Shared,
 			})
 			if err != nil {
-				return fmt.Errorf("could not instantiate pulsar Topic: %v", err)
+				return fmt.Errorf("could not create pulsar Topic: %v", err)
 			}
 			defer consumer.Close()
 
@@ -899,7 +884,7 @@ func TestPulsarNetworkInterruption(t *testing.T) {
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicActiveName), publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
 		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "6650")).
 		Step("wait", flow.Sleep(30*time.Second)).
-		Step("verify if app1 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
+		Step("verify if app1 has received messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
 		Run()
 }
 
@@ -992,7 +977,7 @@ func TestPulsarPersitant(t *testing.T) {
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
 			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
-				return fmt.Errorf("could not instantiate pulsar client: %v", err)
+				return fmt.Errorf("could not create pulsar client: %v", err)
 			}
 
 			defer client.Close()
@@ -1003,7 +988,7 @@ func TestPulsarPersitant(t *testing.T) {
 				Type:             pulsar.Shared,
 			})
 			if err != nil {
-				return fmt.Errorf("could not instantiate pulsar Topic: %v", err)
+				return fmt.Errorf("could not create pulsar Topic: %v", err)
 			}
 			defer consumer.Close()
 
@@ -1011,7 +996,6 @@ func TestPulsarPersitant(t *testing.T) {
 			// a topic partition.
 			return err
 		})).
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/consumer_one"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -1024,7 +1008,7 @@ func TestPulsarPersitant(t *testing.T) {
 		Step("wait", flow.Sleep(5*time.Second)).
 		Step("start pulsar server", dockercompose.Start(clusterName, dockerComposeYAML, "standalone")).
 		Step("wait", flow.Sleep(20*time.Second)).
-		Step("verify if app1 has recevied messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).
+		Step("verify if app1 has received messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).
 		Step("reset", flow.Reset(consumerGroup1)).
 		Run()
 }
@@ -1133,7 +1117,7 @@ func TestPulsarDelay(t *testing.T) {
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
 			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
-				return fmt.Errorf("could not instantiate pulsar client: %v", err)
+				return fmt.Errorf("could not create pulsar client: %v", err)
 			}
 
 			defer client.Close()
@@ -1144,7 +1128,7 @@ func TestPulsarDelay(t *testing.T) {
 				Type:             pulsar.Shared,
 			})
 			if err != nil {
-				return fmt.Errorf("could not instantiate pulsar Topic: %v", err)
+				return fmt.Errorf("could not create pulsar Topic: %v", err)
 			}
 			defer consumer.Close()
 
@@ -1152,7 +1136,6 @@ func TestPulsarDelay(t *testing.T) {
 			// a topic partition.
 			return err
 		})).
-		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/consumer_three"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -1161,8 +1144,10 @@ func TestPulsarDelay(t *testing.T) {
 			componentRuntimeOptions(),
 		)).
 		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
-		Step("verify if app1 has recevied no messages published to topic", assertMessagesNot(1*time.Second, consumerGroup1)).
-		Step("verify if app1 has recevied messages published to topic", assertMessages(10*time.Second, consumerGroup1)).
+		// receive no messages due to delay
+		Step("verify if app1 has received no messages published to topic", assertMessagesNot(1*time.Second, consumerGroup1)).
+		// delay has passed, messages should be received
+		Step("verify if app1 has received messages published to topic", assertMessages(10*time.Second, consumerGroup1)).
 		Step("reset", flow.Reset(consumerGroup1)).
 		Run()
 }

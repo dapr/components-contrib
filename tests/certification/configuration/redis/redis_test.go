@@ -43,7 +43,6 @@ const (
 	storeName                     = "configstore"
 	key1                          = "key1"
 	key2                          = "key2"
-	subscribeWaitDuration         = 3 * time.Second
 	subscribedMessageWaitDuration = 1000 * time.Millisecond
 	sidecarName1                  = "dapr-1"
 )

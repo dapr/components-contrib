@@ -39,6 +39,7 @@ type StateStore struct {
 	client           dynamodbiface.DynamoDBAPI
 	table            string
 	ttlAttributeName string
+	partitionKey     string
 }
 
 type dynamoDBMetadata struct {
@@ -49,15 +50,19 @@ type dynamoDBMetadata struct {
 	SessionToken     string `json:"sessionToken"`
 	Table            string `json:"table"`
 	TTLAttributeName string `json:"ttlAttributeName"`
+	PartitionKey     string `json:"partitionKey"`
 }
 
 const (
-	metadataPartitionKey = "partitionKey"
+	defaultPartitionKeyName = "key"
+	metadataPartitionKey    = "partitionKey"
 )
 
 // NewDynamoDBStateStore returns a new dynamoDB state store.
 func NewDynamoDBStateStore(_ logger.Logger) state.Store {
-	return &StateStore{}
+	return &StateStore{
+		partitionKey: defaultPartitionKeyName,
+	}
 }
 
 // Init does metadata and connection parsing.
@@ -75,6 +80,7 @@ func (d *StateStore) Init(metadata state.Metadata) error {
 	d.client = client
 	d.table = meta.Table
 	d.ttlAttributeName = meta.TTLAttributeName
+	d.partitionKey = meta.PartitionKey
 
 	return nil
 }
@@ -90,8 +96,8 @@ func (d *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 		ConsistentRead: aws.Bool(req.Options.Consistency == state.Strong),
 		TableName:      aws.String(d.table),
 		Key: map[string]*dynamodb.AttributeValue{
-			"key": {
-				S: aws.String(populatePartitionMetadata(req.Key, req.Metadata)),
+			d.partitionKey: {
+				S: aws.String(req.Key),
 			},
 		},
 	}
@@ -227,8 +233,8 @@ func (d *StateStore) BulkSet(ctx context.Context, req []state.SetRequest) error 
 func (d *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	input := &dynamodb.DeleteItemInput{
 		Key: map[string]*dynamodb.AttributeValue{
-			"key": {
-				S: aws.String(populatePartitionMetadata(req.Key, req.Metadata)),
+			d.partitionKey: {
+				S: aws.String(req.Key),
 			},
 		},
 		TableName: aws.String(d.table),
@@ -271,8 +277,8 @@ func (d *StateStore) BulkDelete(ctx context.Context, req []state.DeleteRequest) 
 		writeRequest := &dynamodb.WriteRequest{
 			DeleteRequest: &dynamodb.DeleteRequest{
 				Key: map[string]*dynamodb.AttributeValue{
-					"key": {
-						S: aws.String(populatePartitionMetadata(r.Key, r.Metadata)),
+					d.partitionKey: {
+						S: aws.String(r.Key),
 					},
 				},
 			},
@@ -303,6 +309,7 @@ func (d *StateStore) getDynamoDBMetadata(meta state.Metadata) (*dynamoDBMetadata
 	if m.Table == "" {
 		return nil, fmt.Errorf("missing dynamodb table name")
 	}
+	m.PartitionKey = populatePartitionMetadata(meta.Properties, defaultPartitionKeyName)
 	return &m, err
 }
 
@@ -318,10 +325,9 @@ func (d *StateStore) getClient(metadata *dynamoDBMetadata) (*dynamodb.DynamoDB, 
 
 // getItemFromReq converts a dapr state.SetRequest into an dynamodb item
 func (d *StateStore) getItemFromReq(req *state.SetRequest) (map[string]*dynamodb.AttributeValue, error) {
-	partitionKey := populatePartitionMetadata(req.Key, req.Metadata)
 	value, err := d.marshalToString(req.Value)
 	if err != nil {
-		return nil, fmt.Errorf("dynamodb error: failed to set key %s: %s", partitionKey, err)
+		return nil, fmt.Errorf("dynamodb error: failed to marshal value for key %s: %s", req.Key, err)
 	}
 
 	ttl, err := d.parseTTL(req)
@@ -335,8 +341,8 @@ func (d *StateStore) getItemFromReq(req *state.SetRequest) (map[string]*dynamodb
 	}
 
 	item := map[string]*dynamodb.AttributeValue{
-		"key": {
-			S: aws.String(partitionKey),
+		d.partitionKey: {
+			S: aws.String(req.Key),
 		},
 		"value": {
 			S: aws.String(value),
@@ -393,11 +399,11 @@ func (d *StateStore) parseTTL(req *state.SetRequest) (*int64, error) {
 }
 
 // This is a helper to return the partition key to use.  If if metadata["partitionkey"] is present,
-// use that, otherwise use what's in "key".
-func populatePartitionMetadata(key string, requestMetadata map[string]string) string {
+// use that, otherwise use default primay key "key".
+func populatePartitionMetadata(requestMetadata map[string]string, defaultPartitionKeyName string) string {
 	if val, found := requestMetadata[metadataPartitionKey]; found {
 		return val
 	}
 
-	return key
+	return defaultPartitionKeyName
 }

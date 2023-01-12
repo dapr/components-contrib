@@ -240,12 +240,10 @@ func TestRedis(t *testing.T) {
 			DB:       0,                // use default DB
 		})
 		defer rdb.Close()
-
 		if err := rdb.Ping(ctx).Err(); err != nil {
 			return err
-		} else {
-			log.Info("Setup for Redis done")
 		}
+		log.Info("Setup for Redis done")
 		return nil
 	}
 

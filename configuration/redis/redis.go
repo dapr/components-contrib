@@ -313,7 +313,7 @@ func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration
 
 func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, redisChannel4revision string, id string, stop chan struct{}) {
 	// enable notify-keyspace-events by redis Set command
-	r.client.ConfigSet(ctx, "notify-keyspace-events", "KA")
+	r.client.ConfigSet(ctx, "notify-keyspace-events", "Kg$xe")
 	var p *redis.PubSub
 	allKeysChannel := internal.GetRedisChannelFromKey("*", r.metadata.DB)
 	if redisChannel4revision == allKeysChannel {

@@ -18,12 +18,10 @@ spec:
       secretKeyRef:
         name: AWS_REGION
         key: AWS_REGION
-    - name: consumerID
-      secretKeyRef:
-        name: PUBSUB_AWS_SNSSQS_QUEUE_3
-        key: PUBSUB_AWS_SNSSQS_QUEUE_3
     - name: table
-      value: "cert-test-partition-key"
+      secretKeyRef:
+        name: STATE_AWS_DYNAMODB_TABLE_2
+        key: STATE_AWS_DYNAMODB_TABLE_2
     - name: partitionKey
       value: "pkey"
 

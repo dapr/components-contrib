@@ -212,4 +212,59 @@ func ConformanceTests(t *testing.T, props map[string]string, component daprcrypt
 			})
 		})
 	}
+
+	t.Run("Asymmetric encryption with private key", func(t *testing.T) {
+		keys.private.testForAllAlgorithmsInList(t, algsEncryptionAsymmetric, func(algorithm, keyName string) func(t *testing.T) {
+			return func(t *testing.T) {
+				// Note: if you change this, make sure it's not a multiple of 16 in length
+				const message = "Quel ramo del lago di Como"
+				require.False(t, (len(message)%16) == 0, "message must have a length that's not a multiple of 16")
+
+				// Encrypt the message
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				ciphertext, tag, err := component.Encrypt(ctx, []byte(message), algorithm, keyName, nil, nil)
+				require.NoError(t, err)
+				assert.NotEmpty(t, ciphertext)
+				if hasTag(algorithm) {
+					assert.NotEmpty(t, tag)
+				}
+
+				// Decrypt the message
+				ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				plaintext, err := component.Decrypt(ctx, ciphertext, algorithm, keyName, nil, tag, nil)
+				require.NoError(t, err)
+				assert.Equal(t, message, string(plaintext))
+
+				// Invalid key
+				ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				_, err = component.Decrypt(ctx, ciphertext, algorithm, "foo", nil, tag, nil)
+				require.Error(t, err)
+			}
+		})
+	})
+
+	if config.HasOperation(opPublic) {
+		t.Run("Asymmetric encryption with public key", func(t *testing.T) {
+			keys.public.testForAllAlgorithmsInList(t, algsEncryptionAsymmetric, func(algorithm, keyName string) func(t *testing.T) {
+				return func(t *testing.T) {
+					// Note: if you change this, make sure it's not a multiple of 16 in length
+					const message = "Quel ramo del lago di Como"
+					require.False(t, (len(message)%16) == 0, "message must have a length that's not a multiple of 16")
+
+					// Encrypt the message
+					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+					defer cancel()
+					ciphertext, tag, err := component.Encrypt(ctx, []byte(message), algorithm, keyName, nil, nil)
+					require.NoError(t, err)
+					assert.NotEmpty(t, ciphertext)
+					if hasTag(algorithm) {
+						assert.NotEmpty(t, tag)
+					}
+				}
+			})
+		})
+	}
 }

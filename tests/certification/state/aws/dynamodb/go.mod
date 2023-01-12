@@ -9,7 +9,6 @@ replace github.com/dapr/components-contrib => ../../../../..
 replace github.com/dapr/components-contrib/tests/certification => ../../..
 
 require (
-	github.com/aws/aws-sdk-go v1.44.178
 	github.com/dapr/components-contrib v1.9.6
 	github.com/dapr/components-contrib/tests/certification v0.0.0-00010101000000-000000000000
 	github.com/dapr/dapr v1.9.4-0.20230112074057-9f143d8deeed
@@ -25,6 +24,7 @@ require (
 	github.com/andybalholm/brotli v1.0.4 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
+	github.com/aws/aws-sdk-go v1.44.178 // indirect
 	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect

@@ -2,12 +2,16 @@ module github.com/dapr/components-contrib/tests/certification/pubsub/pulsar
 
 go 1.19
 
+replace github.com/dapr/components-contrib/tests/certification => ../../
+
+replace github.com/dapr/components-contrib => ../../../../
+
 require (
 	github.com/apache/pulsar-client-go v0.9.0
 	github.com/cenkalti/backoff/v4 v4.2.0 // indirect
 	github.com/dapr/components-contrib v1.9.6
-	github.com/dapr/components-contrib/tests/certification v0.0.0-20220519061249-c2cb1dad5bb0
-	github.com/dapr/dapr v1.9.5
+	github.com/dapr/components-contrib/tests/certification v0.0.0-00010101000000-000000000000
+	github.com/dapr/dapr v1.9.4-0.20230112074057-9f143d8deeed
 	github.com/dapr/go-sdk v1.6.0
 	github.com/dapr/kit v0.0.3
 	github.com/google/uuid v1.3.0
@@ -38,7 +42,6 @@ require (
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/fasthttp/router v1.4.14 // indirect
 	github.com/fatih/color v1.13.0 // indirect
-	github.com/frankban/quicktest v1.14.4 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
@@ -155,9 +158,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
-
-replace github.com/dapr/components-contrib/tests/certification => ../../
-
-replace github.com/dapr/dapr => github.com/mukundansundar/dapr v0.7.1-0.20221220174105-1a807e36d43b
-
-replace github.com/dapr/components-contrib => ../../../../

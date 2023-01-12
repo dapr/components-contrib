@@ -1,4 +1,4 @@
-module github.com/dapr/components-contrib/tests/certification/pubsub/kafka
+module github.com/dapr/components-contrib/tests/certification/pubsub/pulsar
 
 go 1.19
 

@@ -29,8 +29,8 @@ provider "aws" {
   }
 }
 
-resource "aws_dynamodb_table" "conformance_test_table" {
-  name           = "conformance-test-terraform-${var.UNIQUE_ID}"
+resource "aws_dynamodb_table" "conformance_test_basic_table" {
+  name           = "conformance-test-terraform-basic-${var.UNIQUE_ID}"
   billing_mode   = "PROVISIONED"
   read_capacity  = "10"
   write_capacity = "10"
@@ -39,4 +39,16 @@ resource "aws_dynamodb_table" "conformance_test_table" {
     type = "S"
   }
   hash_key = "key"
+}
+
+resource "aws_dynamodb_table" "conformance_test_partition_key_table" {
+  name           = "conformance-test-terraform-partition-key-${var.UNIQUE_ID}"
+  billing_mode   = "PROVISIONED"
+  read_capacity  = "10"
+  write_capacity = "10"
+  attribute {
+    name = "pkey"
+    type = "S"
+  }
+  hash_key = "pkey"
 }

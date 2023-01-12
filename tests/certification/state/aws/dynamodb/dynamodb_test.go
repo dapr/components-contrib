@@ -22,7 +22,9 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/go-sdk/client"
 
+	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
+	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
 	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
@@ -35,24 +37,7 @@ const (
 	key               = "key"
 )
 
-// The following Test Tables names must match
-// the values of the "table" metadata properties
-// found inside each of the components/*/dynamodb.yaml files
-var testTables = []map[string]string{
-	{
-		key:       key,
-		tableName: "cert-test-basic",
-	},
-	{
-		key:       "pkey",
-		tableName: "cert-test-partition-key",
-	},
-}
-
 func TestAWSDynamoDBStorage(t *testing.T) {
-	setup(t)
-	defer teardown(t)
-
 	ports, err := dapr_testing.GetFreePorts(2)
 	assert.NoError(t, err)
 
@@ -77,6 +62,7 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 			// get state
 			item, err := client.GetState(ctx, statestore, stateKey, nil)
 			assert.NoError(t, err)
+			assert.NotNil(t, item)
 			assert.Equal(t, stateValue, string(item.Value))
 
 			// delete state
@@ -158,7 +144,7 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 			embedded.WithDaprHTTPPort(currentHTTPPort),
 			embedded.WithComponentsPath("./components/partition_key"),
 			componentRuntimeOptions())).
-		Step("Run basic test with partition key", ttlTest("statestore-basic")).
+		Step("Run basic test with partition key", basicTest("statestore-partition-key")).
 		Run()
 }
 
@@ -177,20 +163,4 @@ func componentRuntimeOptions() []runtime.Option {
 		runtime.WithStates(stateRegistry),
 		runtime.WithSecretStores(secretstoreRegistry),
 	}
-}
-
-func setup(t *testing.T) {
-	t.Logf("AWS DynamoDB CertificationTests setup (could take some time to create test tables)...")
-	if err := createTestTables(testTables); err != nil {
-		t.Error(err)
-	}
-	t.Logf("AWS DynamoDB CertificationTests setup...done!")
-}
-
-func teardown(t *testing.T) {
-	t.Logf("AWS DynamoDB CertificationTests teardown...")
-	if err := deleteTestTables(testTables); err != nil {
-		t.Error(err)
-	}
-	t.Logf("AWS DynamoDB CertificationTests teardown...done!")
 }

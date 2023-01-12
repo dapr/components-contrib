@@ -147,11 +147,13 @@ jobs:
           required-secrets: AzureServiceBusConnectionString
         - component: bindings.azure.storagequeues
           required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageQueue
+        - component: crypto.azure.keyvault
+          required-secrets: AzureKeyVaultName,AzureKeyVaultTenantId,AzureKeyVaultServicePrincipalClientId,AzureKeyVaultServicePrincipalClientSecret
         - component: secretstores.azure.keyvault.certificate
-          required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreClientId
-          required-certs: AzureKeyVaultSecretStoreCert
+          required-secrets: AzureKeyVaultName,AzureKeyVaultTenantId,AzureKeyVaultClientId
+          required-certs: AzureKeyVaultCert
         - component: secretstores.azure.keyvault.serviceprincipal
-          required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret
+          required-secrets: AzureKeyVaultName,AzureKeyVaultTenantId,AzureKeyVaultServicePrincipalClientId,AzureKeyVaultServicePrincipalClientSecret
         - component: bindings.azure.cosmosdb
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
         - component: pubsub.aws.snssqs.terraform

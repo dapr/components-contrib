@@ -49,7 +49,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2019-09-01' = {
           ]
         }
       }
-      // This access policy is used by the AKV conformance test to Get and BulkGet secrets.
+      // This access policy is used by the AKV conformance test to Get and BulkGet secrets, and to perform cryptographic operations.
       {
         tenantId: tenantId
         objectId: certAuthSpId
@@ -57,6 +57,12 @@ resource keyVault 'Microsoft.KeyVault/vaults@2019-09-01' = {
           keys: [
             'get'
             'list'
+            'encrypt'
+            'decrypt'
+            'wrapKey'
+            'unwrapKey'
+            'sign'
+            'verify'
           ]
           secrets: [
             'get'

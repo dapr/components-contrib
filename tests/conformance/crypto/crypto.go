@@ -29,6 +29,11 @@ import (
 )
 
 const (
+	// Supported operation "public": if the crypto provider has a public key
+	opPublic = "public"
+	// Supported operation "symmetric": if the crypto provider has a symmetric key
+	opSymmetric = "symmetric"
+
 	// List of required algorithms for private keys
 	algsPrivateRequired = "RSA-OAEP PS256 PS384 PS512 RS256 RS384 RS512"
 	// List of required algorithms for symmetric keys
@@ -87,18 +92,22 @@ func ConformanceTests(t *testing.T, props map[string]string, component daprcrypt
 	for _, alg := range strings.Split(algsPrivateRequired, " ") {
 		require.Greaterf(t, len(keys.private[alg]), 0, "could not find a private key for algorithm '%s' in configuration, which is required", alg)
 	}
-	for _, alg := range strings.Split(algsSymmetricRequired, " ") {
-		require.Greaterf(t, len(keys.symmetric[alg]), 0, "could not find a symmetric key for algorithm '%s' in configuration, which is required", alg)
-	}
-	// Require at least one public key
-	found := false
-	for _, v := range keys.public {
-		found = len(v) > 0
-		if found {
-			break
+	if config.HasOperation(opSymmetric) {
+		for _, alg := range strings.Split(algsSymmetricRequired, " ") {
+			require.Greaterf(t, len(keys.symmetric[alg]), 0, "could not find a symmetric key for algorithm '%s' in configuration, which is required", alg)
 		}
 	}
-	require.True(t, found, "could not find any public key in configuration; at least one is required")
+	if config.HasOperation(opPublic) {
+		// Require at least one public key
+		found := false
+		for _, v := range keys.public {
+			found = len(v) > 0
+			if found {
+				break
+			}
+		}
+		require.True(t, found, "could not find any public key in configuration; at least one is required")
+	}
 
 	// Init
 	t.Run("Init", func(t *testing.T) {
@@ -114,19 +123,21 @@ func ConformanceTests(t *testing.T, props map[string]string, component daprcrypt
 	}
 
 	t.Run("GetKey method", func(t *testing.T) {
-		t.Run("Get public keys", func(t *testing.T) {
-			keys.public.testForAllAlgorithms(t, func(algorithm, keyName string) func(t *testing.T) {
-				return func(t *testing.T) {
-					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-					defer cancel()
+		if config.HasOperation(opPublic) {
+			t.Run("Get public keys", func(t *testing.T) {
+				keys.public.testForAllAlgorithms(t, func(algorithm, keyName string) func(t *testing.T) {
+					return func(t *testing.T) {
+						ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+						defer cancel()
 
-					key, err := component.GetKey(ctx, keyName)
-					require.NoError(t, err)
-					assert.NotNil(t, key)
-					requireKeyPublic(t, key)
-				}
+						key, err := component.GetKey(ctx, keyName)
+						require.NoError(t, err)
+						assert.NotNil(t, key)
+						requireKeyPublic(t, key)
+					}
+				})
 			})
-		})
+		}
 
 		t.Run("Get public part from private keys", func(t *testing.T) {
 			keys.private.testForAllAlgorithms(t, func(algorithm, keyName string) func(t *testing.T) {
@@ -156,47 +167,49 @@ func ConformanceTests(t *testing.T, props map[string]string, component daprcrypt
 		})
 	})
 
-	t.Run("Symmetric encryption", func(t *testing.T) {
-		keys.symmetric.testForAllAlgorithmsInList(t, algsEncryptionSymmetric, func(algorithm, keyName string) func(t *testing.T) {
-			return func(t *testing.T) {
-				nonce := randomBytes(t, nonceSizeForAlgorithm(algorithm))
+	if config.HasOperation(opSymmetric) {
+		t.Run("Symmetric encryption", func(t *testing.T) {
+			keys.symmetric.testForAllAlgorithmsInList(t, algsEncryptionSymmetric, func(algorithm, keyName string) func(t *testing.T) {
+				return func(t *testing.T) {
+					nonce := randomBytes(t, nonceSizeForAlgorithm(algorithm))
 
-				// Note: if you change this, make sure it's not a multiple of 16 in length
-				const message = "Quel ramo del lago di Como"
-				require.False(t, (len(message)%16) == 0, "message must have a length that's not a multiple of 16")
+					// Note: if you change this, make sure it's not a multiple of 16 in length
+					const message = "Quel ramo del lago di Como"
+					require.False(t, (len(message)%16) == 0, "message must have a length that's not a multiple of 16")
 
-				// Encrypt the message
-				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-				defer cancel()
-				ciphertext, tag, err := component.Encrypt(ctx, []byte(message), algorithm, keyName, nonce, nil)
-				require.NoError(t, err)
-				assert.NotEmpty(t, ciphertext)
-				if hasTag(algorithm) {
-					assert.NotEmpty(t, tag)
-				}
+					// Encrypt the message
+					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+					defer cancel()
+					ciphertext, tag, err := component.Encrypt(ctx, []byte(message), algorithm, keyName, nonce, nil)
+					require.NoError(t, err)
+					assert.NotEmpty(t, ciphertext)
+					if hasTag(algorithm) {
+						assert.NotEmpty(t, tag)
+					}
 
-				// Decrypt the message
-				ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-				defer cancel()
-				plaintext, err := component.Decrypt(ctx, ciphertext, algorithm, keyName, nonce, tag, nil)
-				require.NoError(t, err)
-				assert.Equal(t, message, string(plaintext))
-
-				// Invalid key
-				ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-				defer cancel()
-				_, err = component.Decrypt(ctx, ciphertext, algorithm, "foo", nonce, tag, nil)
-				require.Error(t, err)
-
-				// Tag mismatch
-				if hasTag(algorithm) {
+					// Decrypt the message
 					ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 					defer cancel()
-					badTag := randomBytes(t, 16)
-					_, err = component.Decrypt(ctx, ciphertext, algorithm, keyName, nonce, badTag, nil)
+					plaintext, err := component.Decrypt(ctx, ciphertext, algorithm, keyName, nonce, tag, nil)
+					require.NoError(t, err)
+					assert.Equal(t, message, string(plaintext))
+
+					// Invalid key
+					ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+					defer cancel()
+					_, err = component.Decrypt(ctx, ciphertext, algorithm, "foo", nonce, tag, nil)
 					require.Error(t, err)
+
+					// Tag mismatch
+					if hasTag(algorithm) {
+						ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+						defer cancel()
+						badTag := randomBytes(t, 16)
+						_, err = component.Decrypt(ctx, ciphertext, algorithm, keyName, nonce, badTag, nil)
+						require.Error(t, err)
+					}
 				}
-			}
+			})
 		})
-	})
+	}
 }

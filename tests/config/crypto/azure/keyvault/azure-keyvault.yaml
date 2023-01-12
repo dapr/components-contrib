@@ -1,9 +1,9 @@
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: azurekeyvault-service-principal
+  name: azurekeyvault
 spec:
-  type: secretstores.azure.keyvault
+  type: crypto.azure.keyvault
   metadata:
   - name: vaultName
     value: ${{AzureKeyVaultName}}

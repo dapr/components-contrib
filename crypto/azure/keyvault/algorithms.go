@@ -16,6 +16,8 @@ package keyvault
 import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys"
+
+	internals "github.com/dapr/components-contrib/internal/crypto"
 )
 
 var (
@@ -39,6 +41,16 @@ func init() {
 
 // GetJWKEncryptionAlgorithm returns a JSONWebKeyEncryptionAlgorithm constant is the algorithm is a supported one.
 func GetJWKEncryptionAlgorithm(algorithm string) *azkeys.JSONWebKeyEncryptionAlgorithm {
+	// Special case for AES-CBC, since we treat A[NNN]CBC as having PKCS#7 padding, and A[NNN]CBC-NOPAD as not using padding
+	switch algorithm {
+	case internals.Algorithm_A128CBC, internals.Algorithm_A192CBC, internals.Algorithm_A256CBC:
+		// Append "PAD", e.g. "A128CBCPAD"
+		algorithm += "PAD"
+	case internals.Algorithm_A128CBC_NOPAD, internals.Algorithm_A192CBC_NOPAD, internals.Algorithm_A256CBC_NOPAD:
+		// Remove the "-NOPAD" prefix, e.g. "A128CBC"
+		algorithm = algorithm[:len(algorithm)-6]
+	}
+
 	if _, ok := validEncryptionAlgs[algorithm]; ok {
 		return to.Ptr(azkeys.JSONWebKeyEncryptionAlgorithm(algorithm))
 	} else {

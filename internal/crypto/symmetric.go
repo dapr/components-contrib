@@ -35,7 +35,8 @@ func EncryptSymmetric(plaintext []byte, algorithm string, key jwk.Key, nonce []b
 	}
 
 	switch algorithm {
-	case Algorithm_A128CBC, Algorithm_A192CBC, Algorithm_A256CBC:
+	case Algorithm_A128CBC, Algorithm_A192CBC, Algorithm_A256CBC,
+		Algorithm_A128CBC_NOPAD, Algorithm_A192CBC_NOPAD, Algorithm_A256CBC_NOPAD:
 		ciphertext, err = encryptSymmetricAESCBC(plaintext, algorithm, keyBytes, nonce)
 		return ciphertext, tag, err
 
@@ -63,7 +64,8 @@ func DecryptSymmetric(ciphertext []byte, algorithm string, key jwk.Key, nonce []
 	}
 
 	switch algorithm {
-	case Algorithm_A128CBC, Algorithm_A192CBC, Algorithm_A256CBC:
+	case Algorithm_A128CBC, Algorithm_A192CBC, Algorithm_A256CBC,
+		Algorithm_A128CBC_NOPAD, Algorithm_A192CBC_NOPAD, Algorithm_A256CBC_NOPAD:
 		return decryptSymmetricAESCBC(ciphertext, algorithm, keyBytes, nonce)
 
 	case Algorithm_A128GCM, Algorithm_A192GCM, Algorithm_A256GCM:
@@ -80,7 +82,6 @@ func DecryptSymmetric(ciphertext []byte, algorithm string, key jwk.Key, nonce []
 	}
 }
 
-// Note this uses PKCS#7 padding, as standard with AES-CBC (especially with JSON Web Encryption)
 func encryptSymmetricAESCBC(plaintext []byte, algorithm string, key []byte, iv []byte) (ciphertext []byte, err error) {
 	if len(key) != expectedKeySize(algorithm) {
 		return nil, ErrKeyTypeMismatch
@@ -89,14 +90,26 @@ func encryptSymmetricAESCBC(plaintext []byte, algorithm string, key []byte, iv [
 		return nil, ErrInvalidNonce
 	}
 
+	switch algorithm {
+	case Algorithm_A128CBC_NOPAD, Algorithm_A192CBC_NOPAD, Algorithm_A256CBC_NOPAD:
+		if (len(plaintext) % aes.BlockSize) != 0 {
+			return nil, ErrInvalidPlaintextLength
+		}
+	}
+
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, ErrKeyTypeMismatch
 	}
 
-	plaintext, err = PadPKCS7(plaintext, aes.BlockSize)
-	if err != nil {
-		return nil, err
+	switch algorithm {
+	case Algorithm_A128CBC_NOPAD, Algorithm_A192CBC_NOPAD, Algorithm_A256CBC_NOPAD:
+		// nop
+	default:
+		plaintext, err = PadPKCS7(plaintext, aes.BlockSize)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	ciphertext = make([]byte, len(plaintext))
@@ -106,7 +119,7 @@ func encryptSymmetricAESCBC(plaintext []byte, algorithm string, key []byte, iv [
 	return ciphertext, err
 }
 
-// Note this uses PKCS#7 padding and returns a special error if padding mismatches.
+// Note that when using PKCS#7 padding, this returns a specific error if padding mismatches.
 // Callers are responsible for handling these errors in a way that doesn't introduce the possibility of padding oracle attacks.
 // See: https://research.nccgroup.com/2021/02/17/cryptopals-exploiting-cbc-padding-oracles/
 func decryptSymmetricAESCBC(ciphertext []byte, algorithm string, key []byte, iv []byte) (plaintext []byte, err error) {
@@ -115,6 +128,9 @@ func decryptSymmetricAESCBC(ciphertext []byte, algorithm string, key []byte, iv 
 	}
 	if len(iv) != aes.BlockSize {
 		return nil, ErrInvalidNonce
+	}
+	if (len(ciphertext) % aes.BlockSize) != 0 {
+		return nil, ErrInvalidCiphertextLength
 	}
 
 	block, err := aes.NewCipher(key)
@@ -126,9 +142,14 @@ func decryptSymmetricAESCBC(ciphertext []byte, algorithm string, key []byte, iv 
 	cipher.NewCBCDecrypter(block, iv).
 		CryptBlocks(plaintext, ciphertext)
 
-	plaintext, err = UnpadPKCS7(plaintext, aes.BlockSize)
-	if err != nil {
-		return nil, err
+	switch algorithm {
+	case Algorithm_A128CBC_NOPAD, Algorithm_A192CBC_NOPAD, Algorithm_A256CBC_NOPAD:
+		// nop
+	default:
+		plaintext, err = UnpadPKCS7(plaintext, aes.BlockSize)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return plaintext, err

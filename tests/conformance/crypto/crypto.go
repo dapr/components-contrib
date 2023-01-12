@@ -35,7 +35,7 @@ const (
 	algsSymmetricRequired = "A256CBC A256GCM A256KW"
 
 	// List of all possible symmetric encryption algorithms
-	algsEncryptionSymmetric = "A128CBC A192CBC A256CBC A128GCM A192GCM A256GCM A128CBC-HS256 A192CBC-HS384 A256CBC-HS512 C20P XC20P"
+	algsEncryptionSymmetric = "A128CBC A192CBC A256CBC A128CBC-NOPAD A192CBC-NOPAD A256CBC-NOPAD A128GCM A192GCM A256GCM A128CBC-HS256 A192CBC-HS384 A256CBC-HS512 C20P XC20P"
 	// List of all possible symmetric key wrapping algorithms
 	algsKeywrapSymmetric = "A128KW A192KW A256KW A128GCMKW A192GCMKW A256GCMKW C20PKW XC20PKW"
 	// List of all possible asymmetric encryption algorithms
@@ -163,6 +163,7 @@ func ConformanceTests(t *testing.T, props map[string]string, component daprcrypt
 
 				// Note: if you change this, make sure it's not a multiple of 16 in length
 				const message = "Quel ramo del lago di Como"
+				require.False(t, (len(message)%16) == 0, "message must have a length that's not a multiple of 16")
 
 				// Encrypt the message
 				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

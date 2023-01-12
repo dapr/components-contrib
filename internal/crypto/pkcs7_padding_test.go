@@ -25,14 +25,16 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-const BLOCK_SIZE = 16
-
 func TestPkcs7(t *testing.T) {
+	const BLOCK_SIZE = 16
+
 	t.Run("Pads", func(t *testing.T) {
-		result, _ := PadPKCS7([]byte("1234567890"), BLOCK_SIZE)
 		expected := []byte("1234567890\x06\x06\x06\x06\x06\x06")
+		result, err := PadPKCS7([]byte("1234567890"), BLOCK_SIZE)
+		require.NoError(t, err)
 		assert.Equal(t, expected, result)
 	})
 
@@ -44,21 +46,24 @@ func TestPkcs7(t *testing.T) {
 
 	t.Run("Handles long", func(t *testing.T) {
 		longStr := []byte("123456789012345678901234567890123456789012345678901234567890")
-		padded, _ := PadPKCS7(longStr, BLOCK_SIZE)
 		expected := []byte("123456789012345678901234567890123456789012345678901234567890\x04\x04\x04\x04")
+		padded, err := PadPKCS7(longStr, BLOCK_SIZE)
+		require.NoError(t, err)
 		assert.Equal(t, expected, padded)
 		if bytes.Equal(padded, expected) == false {
 			panic(fmt.Sprintf(`Padding wrong - expected "%x" but got "%x"`, expected, padded))
 		}
 
-		unpadded, _ := UnpadPKCS7(padded, BLOCK_SIZE)
+		unpadded, err := UnpadPKCS7(padded, BLOCK_SIZE)
+		require.NoError(t, err)
 		assert.Equal(t, longStr, unpadded)
 	})
 
 	t.Run("Handles short", func(t *testing.T) {
 		shortStr := []byte("1")
-		padded, _ := PadPKCS7(shortStr, BLOCK_SIZE)
 		expected := []byte("1\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f\x0f")
+		padded, err := PadPKCS7(shortStr, BLOCK_SIZE)
+		require.NoError(t, err)
 		assert.Equal(t, expected, padded)
 
 		unpadded, _ := UnpadPKCS7(padded, BLOCK_SIZE)
@@ -67,21 +72,66 @@ func TestPkcs7(t *testing.T) {
 
 	t.Run("Handles empty", func(t *testing.T) {
 		emptyStr := []byte("")
-		padded, _ := PadPKCS7(emptyStr, BLOCK_SIZE)
 		expected := []byte("\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10")
+		padded, err := PadPKCS7(emptyStr, BLOCK_SIZE)
+		require.NoError(t, err)
 		assert.Equal(t, expected, padded)
 
-		unpadded, _ := UnpadPKCS7(padded, BLOCK_SIZE)
+		unpadded, err := UnpadPKCS7(padded, BLOCK_SIZE)
+		require.NoError(t, err)
 		assert.Equal(t, emptyStr, unpadded)
 	})
 
 	t.Run("Handles block size", func(t *testing.T) {
 		val := []byte("1234567890ABCDEF")
-		padded, _ := PadPKCS7(val, BLOCK_SIZE)
 		expected := []byte("1234567890ABCDEF\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10\x10")
+		padded, err := PadPKCS7(val, BLOCK_SIZE)
+		require.NoError(t, err)
 		assert.Equal(t, expected, padded)
 
-		unpadded, _ := UnpadPKCS7(padded, BLOCK_SIZE)
+		unpadded, err := UnpadPKCS7(padded, BLOCK_SIZE)
+		require.NoError(t, err)
 		assert.Equal(t, val, unpadded)
+	})
+
+	t.Run("Invalid length while unpadding", func(t *testing.T) {
+		unpadded, err := UnpadPKCS7([]byte("1234567890\x06\x06\x06\x06"), BLOCK_SIZE)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrInvalidPKCS7Padding)
+		assert.Nil(t, unpadded)
+	})
+
+	t.Run("Invalid padding bytes", func(t *testing.T) {
+		tests := [][]byte{
+			[]byte("1234567890\x06\x06\x06\x06\x06\x07"),
+			[]byte("1234567890\x06\x06\x07\x07\x06\x06"),
+			[]byte("1234567890\x01\x06\x06\x06\x06\x06"),
+			[]byte("1234567890\x0A\x0A\x0A\x0A\x0A\x0A"),
+			[]byte("1234567890\xEE\xEE\xEE\xEE\xEE\xEE"),
+		}
+		for _, tt := range tests {
+			unpadded, err := UnpadPKCS7(tt, BLOCK_SIZE)
+			require.Error(t, err)
+			assert.ErrorIs(t, err, ErrInvalidPKCS7Padding)
+			assert.Nil(t, unpadded)
+		}
+	})
+
+	t.Run("Invalid block size", func(t *testing.T) {
+		res, err := PadPKCS7([]byte("1234567890ABCDEF"), 260)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrInvalidPKCS7BlockSize)
+		assert.Nil(t, res)
+
+		res, err = UnpadPKCS7([]byte("1234567890ABCDEF"), 260)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrInvalidPKCS7BlockSize)
+		assert.Nil(t, res)
+	})
+
+	t.Run("Unpad empty string", func(t *testing.T) {
+		res, err := UnpadPKCS7([]byte{}, BLOCK_SIZE)
+		require.NoError(t, err)
+		assert.Empty(t, res)
 	})
 }

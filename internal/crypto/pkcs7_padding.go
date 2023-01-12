@@ -20,27 +20,48 @@ License: MIT https://github.com/mergermarket/go-pkcs7/blob/153b18ea13c9b94f69807
 */
 
 import (
+	"bytes"
 	"errors"
+)
+
+var (
+	ErrInvalidPKCS7BlockSize = errors.New("pkcs7: invalid block size")
+	ErrInvalidPKCS7Padding   = errors.New("pkcs7: incorrect padding")
 )
 
 // PadPKCS7 adds PKCS#7 padding to a message.
 func PadPKCS7(buf []byte, size int) ([]byte, error) {
+	if size <= 1 || size >= 256 {
+		return nil, ErrInvalidPKCS7BlockSize
+	}
 	bufLen := len(buf)
 	padLen := size - bufLen%size
-	padded := make([]byte, bufLen+padLen)
-	copy(padded, buf)
-	for i := 0; i < padLen; i++ {
-		padded[bufLen+i] = byte(padLen)
-	}
-	return padded, nil
+	padding := bytes.Repeat([]byte{byte(padLen)}, padLen)
+	return append(buf, padding...), nil
 }
 
 // UnpadPKCS7 removes PKCS#7 from a message.
 func UnpadPKCS7(buf []byte, size int) ([]byte, error) {
-	if len(buf)%size != 0 {
-		return nil, errors.New("pkcs7: incorrect padding value")
+	if size <= 1 || size >= 256 {
+		return nil, ErrInvalidPKCS7BlockSize
+	}
+	l := len(buf)
+	if l == 0 {
+		return []byte{}, nil
+	}
+	if l%size != 0 {
+		return nil, ErrInvalidPKCS7Padding
 	}
 
-	unpaddedLen := len(buf) - int(buf[len(buf)-1])
-	return buf[:unpaddedLen], nil
+	padLen := int(buf[l-1])
+	if padLen <= 0 || padLen > size {
+		return nil, ErrInvalidPKCS7Padding
+	}
+	padLenB := byte(padLen)
+	for i := l - padLen; i < l; i++ {
+		if buf[i] != padLenB {
+			return nil, ErrInvalidPKCS7Padding
+		}
+	}
+	return buf[:l-padLen], nil
 }

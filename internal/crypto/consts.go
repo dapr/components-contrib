@@ -28,13 +28,20 @@ var (
 	ErrInvalidNonce = errors.New("invalid nonce")
 	// ErrInvalidTag is returned when the authentication tag is not of the required format (before the message is attempted to be opened).
 	ErrInvalidTag = errors.New("invalid tag")
+	// ErrInvalidPlaintextLength is returned when the plaintext's length is invalid.
+	ErrInvalidPlaintextLength = errors.New("invalid plaintext length")
+	// ErrInvalidCiphertextLength is returned when the ciphertext's length is invalid.
+	ErrInvalidCiphertextLength = errors.New("invalid ciphertext length")
 )
 
 // Algorithms
 const (
-	Algorithm_A128CBC        = "A128CBC"        // Encryption: AES-CBC, 128-bit key
-	Algorithm_A192CBC        = "A192CBC"        // Encryption: AES-CBC, 192-bit key
-	Algorithm_A256CBC        = "A256CBC"        // Encryption: AES-CBC, 256-bit key
+	Algorithm_A128CBC        = "A128CBC"        // Encryption: AES-CBC, 128-bit key, with PKCS#7 padding
+	Algorithm_A192CBC        = "A192CBC"        // Encryption: AES-CBC, 192-bit key, with PKCS#7 padding
+	Algorithm_A256CBC        = "A256CBC"        // Encryption: AES-CBC, 256-bit key, with PKCS#7 padding
+	Algorithm_A128CBC_NOPAD  = "A128CBC-NOPAD"  // Encryption: AES-CBC, 128-bit key, no padding
+	Algorithm_A192CBC_NOPAD  = "A192CBC-NOPAD"  // Encryption: AES-CBC, 192-bit key, no padding
+	Algorithm_A256CBC_NOPAD  = "A256CBC-NOPAD"  // Encryption: AES-CBC, 256-bit key, no padding
 	Algorithm_A128GCM        = "A128GCM"        // Encryption: AES-GCM, 128-bit key
 	Algorithm_A192GCM        = "A192GCM"        // Encryption: AES-GCM, 192-bit key
 	Algorithm_A256GCM        = "A256GCM"        // Encryption: AES-GCM, 256-bit key

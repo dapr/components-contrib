@@ -48,7 +48,7 @@ type metadata struct {
 	replicas       int
 	memoryStorage  bool
 	rateLimit      uint64
-	hearbeat       time.Duration
+	heartbeat      time.Duration
 	deliverPolicy  nats.DeliverPolicy
 	ackPolicy      nats.AckPolicy
 	domain         string
@@ -141,8 +141,8 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 		m.rateLimit = v
 	}
 
-	if v, err := time.ParseDuration(psm.Properties["hearbeat"]); err == nil {
-		m.hearbeat = v
+	if v, err := time.ParseDuration(psm.Properties["heartbeat"]); err == nil {
+		m.heartbeat = v
 	}
 
 	if domain := psm.Properties["domain"]; domain != "" {

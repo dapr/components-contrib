@@ -49,6 +49,7 @@ const (
 	sidecarName1                  = "dapr-1"
 )
 
+// Cast go-sdk ConfigurationItem to contrib ConfigurationItem
 func castConfigurationItems(items map[string]*dapr.ConfigurationItem) map[string]*configuration.Item {
 	configItems := make(map[string]*configuration.Item)
 	for key, item := range items {
@@ -61,6 +62,7 @@ func castConfigurationItems(items map[string]*dapr.ConfigurationItem) map[string
 	return configItems
 }
 
+// Create UpdateEvent struct from given key, val pair
 func getUpdateEvent(key string, val string) configuration.UpdateEvent {
 	expectedUpdateEvent := configuration.UpdateEvent{
 		Items: map[string]*configuration.Item{
@@ -72,6 +74,7 @@ func getUpdateEvent(key string, val string) configuration.UpdateEvent {
 	return expectedUpdateEvent
 }
 
+// Run redis commands and and add them in watcher
 func runRedisCommands(ctx flow.Context, updater *cu_redis.ConfigUpdater, messages *watcher.Watcher, basicTest bool) error {
 	scenarios := []struct {
 		cmd          []interface{}
@@ -196,6 +199,7 @@ func runRedisCommands(ctx flow.Context, updater *cu_redis.ConfigUpdater, message
 		if err != nil {
 			return err
 		}
+		// Wait for the update to be received by the subscriber
 		if scenario.waitDuration == 0 {
 			time.Sleep(subscribedMessageWaitDuration)
 		} else {
@@ -315,8 +319,10 @@ func TestRedis(t *testing.T) {
 	}
 
 	flow.New(t, "redis certification test").
+		// Run redis server
 		Step(dockercompose.Run("redis", dockerComposeYAML)).
 		Step("wait for redis to be ready", retry.Do(time.Second*3, 10, checkRedisConnection)).
+		// Run dapr sidecar with redis configuration store component
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
@@ -324,17 +330,27 @@ func TestRedis(t *testing.T) {
 			embedded.WithComponentsPath("components/default"),
 			runtime.WithConfigurations(configurationRegistry),
 		)).
+		//
+		// Start subscriber subscribing to keys {key1,key2}
 		StepAsync("start subscriber", &task, subscribefn([]string{key1, key2}, watcher1)).
 		Step("wait for subscriber to be ready", flow.Sleep(5*time.Second)).
+		//Run redis commands and test updates are received by the subscriber
 		Step("testSubscribe", testSubscribe(watcher1)).
+		Step("reset", flow.Reset(watcher1)).
+		//
+		// Simulate network interruptions and verify the connection still remains intact
 		Step("interrupt network",
 			network.InterruptNetwork(10*time.Second, nil, nil, "6379:6379")).
 		Step("testSubscribe", testSubscribeBasic(watcher1)).
+		// Stop the subscriber
 		Step("stop subscriber", stopSubscriber).
+		//
+		// Save a key before restarting redis server
 		Step("save before restart", saveBeforeRestart).
 		Step("stop redis server", dockercompose.Stop("redis", dockerComposeYAML, "redis")).
 		Step("start redis server", dockercompose.Start("redis", dockerComposeYAML, "redis")).
 		Step("wait for redis to be ready after restart", retry.Do(time.Second*3, 10, checkRedisConnection)).
+		// Get the key after restarting redis server
 		Step("get after restart", getAfterRestart).
 		Run()
 }

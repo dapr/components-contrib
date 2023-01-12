@@ -15,7 +15,6 @@ package redis_test
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 	"time"
 
@@ -259,9 +258,8 @@ func TestRedis(t *testing.T) {
 				updateEvent := &configuration.UpdateEvent{
 					Items: castConfigurationItems(items),
 				}
-				fmt.Println(updateEvent)
 				updateEventInJson, err := json.Marshal(updateEvent)
-				assert.Nil(t, err)
+				assert.NoError(t, err)
 				message.Observe(string(updateEventInJson))
 			})
 			return errSubscribe

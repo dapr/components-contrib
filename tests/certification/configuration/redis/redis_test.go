@@ -231,7 +231,7 @@ func TestRedis(t *testing.T) {
 	currentGrpcPort := ports[0]
 	currentHTTPPort := ports[1]
 
-	watcher1 := watcher.NewUnordered()
+	messageWatcher := watcher.NewUnordered()
 
 	checkRedisConnection := func(ctx flow.Context) error {
 		rdb := redis.NewClient(&redis.Options{
@@ -327,16 +327,16 @@ func TestRedis(t *testing.T) {
 		)).
 		//
 		// Start subscriber subscribing to keys {key1,key2}
-		StepAsync("start subscriber", &task, subscribefn([]string{key1, key2}, watcher1)).
+		StepAsync("start subscriber", &task, subscribefn([]string{key1, key2}, messageWatcher)).
 		Step("wait for subscriber to be ready", flow.Sleep(5*time.Second)).
 		//Run redis commands and test updates are received by the subscriber
-		Step("testSubscribe", testSubscribe(watcher1)).
-		Step("reset", flow.Reset(watcher1)).
+		Step("testSubscribe", testSubscribe(messageWatcher)).
+		Step("reset", flow.Reset(messageWatcher)).
 		//
 		// Simulate network interruptions and verify the connection still remains intact
 		Step("interrupt network",
 			network.InterruptNetwork(10*time.Second, nil, nil, "6379:6379")).
-		Step("testSubscribe", testSubscribeBasic(watcher1)).
+		Step("testSubscribe", testSubscribeBasic(messageWatcher)).
 		// Stop the subscriber
 		Step("stop subscriber", stopSubscriber).
 		//

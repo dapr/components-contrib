@@ -13,5 +13,4 @@ spec:
     - name: region
       value: "us-east-1"
     - name: table
-      value: ${{STATE_AWS_DYNAMODB_TABLE}}
-  
+      value: ${{STATE_AWS_DYNAMODB_TABLE_1}}

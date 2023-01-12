@@ -292,9 +292,9 @@ jobs:
         echo "PUBSUB_AWS_SNSSQS_QUEUE_1=$PUBSUB_AWS_SNSSQS_QUEUE_1" >> $GITHUB_ENV
         PUBSUB_AWS_SNSSQS_QUEUE_2="sqssnscerttest-q2-${{env.UNIQUE_ID}}"
         echo "PUBSUB_AWS_SNSSQS_QUEUE_2=$PUBSUB_AWS_SNSSQS_QUEUE_2" >> $GITHUB_ENV
-        PUBSUB_AWS_SNSSQS_QUEUE_3="$(terraform output -raw existingQueue)"
+        PUBSUB_AWS_SNSSQS_QUEUE_3="sqssnscerttest-q3-${{env.UNIQUE_ID}}"
         echo "PUBSUB_AWS_SNSSQS_QUEUE_3=$PUBSUB_AWS_SNSSQS_QUEUE_3" >> $GITHUB_ENV
-        PUBSUB_AWS_SNSSQS_TOPIC_3="$(terraform output -raw existingTopic)"
+        PUBSUB_AWS_SNSSQS_TOPIC_3="sqssnscerttest-t3-${{env.UNIQUE_ID}}"
         echo "PUBSUB_AWS_SNSSQS_TOPIC_3=$PUBSUB_AWS_SNSSQS_TOPIC_3" >> $GITHUB_ENV
         AWS_REGION="us-east-1"
         echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV

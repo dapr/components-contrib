@@ -95,6 +95,7 @@ require (
 	github.com/stoewer/go-strcase v1.2.0 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
 	github.com/tidwall/transform v0.0.0-20201103190739-32f242e2dbde // indirect
+	github.com/tylertreat/comcast v1.0.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.43.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
@@ -142,3 +143,5 @@ require (
 replace github.com/dapr/components-contrib/tests/certification => ../../
 
 replace github.com/dapr/components-contrib => ../../../../
+
+replace github.com/dapr/dapr => github.com/DeepanshuA/dapr v1.6.1-0.20230109081951-60504eb904b0

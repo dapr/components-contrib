@@ -38,6 +38,8 @@ github.com/AdhityaRamadhanus/fasthttpcors v0.0.0-20170121111917-d4c07198763a/go.
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
+github.com/DeepanshuA/dapr v1.6.1-0.20230109081951-60504eb904b0 h1:BY4tyxrcbZYveRxnwGGbUZBakeo9fP1Gb+/I8roMY6Q=
+github.com/DeepanshuA/dapr v1.6.1-0.20230109081951-60504eb904b0/go.mod h1:QskWxKcLykohpJisgIH5CzlHZDj9BslGhChHKiTKAz4=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/PuerkitoBio/purell v1.2.0 h1:/Jdm5QfyM8zdlqT6WVZU4cfP23sot6CEHA4CS49Ezig=
 github.com/PuerkitoBio/purell v1.2.0/go.mod h1:OhLRTaaIzhvIyofkJfB24gokC7tM42Px5UhoT32THBk=
@@ -90,8 +92,6 @@ github.com/cncf/xds/go v0.0.0-20210805033703-aa0b78936158/go.mod h1:eXthEFrGJvWH
 github.com/cncf/xds/go v0.0.0-20210922020428-25de7278fc84/go.mod h1:eXthEFrGJvWHgFFCl3hGmgk+/aYT6PnTQLykKQRLhEs=
 github.com/cncf/xds/go v0.0.0-20211011173535-cb28da3451f1/go.mod h1:eXthEFrGJvWHgFFCl3hGmgk+/aYT6PnTQLykKQRLhEs=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
-github.com/dapr/dapr v1.9.4-0.20230109055003-ce6dbf12fab1 h1:bpqZTmrFFcURviiffm9pyhroUx38fN9YfDFUYEx1ijk=
-github.com/dapr/dapr v1.9.4-0.20230109055003-ce6dbf12fab1/go.mod h1:7GU5WqgMtfKxlyPBrevXJFud2ao0JVybUxKR8YmqExs=
 github.com/dapr/go-sdk v1.6.0 h1:jg5A2khSCHF8bGZsig5RWN/gD0jjitszc2V6Uq2pPdY=
 github.com/dapr/go-sdk v1.6.0/go.mod h1:KLQBltoD9K0w5hKTihdcyg9Epob9gypwL5dYcQzPro4=
 github.com/dapr/kit v0.0.3 h1:1FCnWjIuAS3OJzJhOlUKNzLxoazYhYIS4oCOOULmWBA=
@@ -475,6 +475,8 @@ github.com/stvp/go-udp-testing v0.0.0-20201019212854-469649b16807/go.mod h1:7jxm
 github.com/tidwall/transform v0.0.0-20201103190739-32f242e2dbde h1:AMNpJRc7P+GTwVbl8DkK2I9I8BBUzNiHuH/tlxrpan0=
 github.com/tidwall/transform v0.0.0-20201103190739-32f242e2dbde/go.mod h1:MvrEmduDUz4ST5pGZ7CABCnOU5f3ZiOAZzT6b1A6nX8=
 github.com/tv42/httpunix v0.0.0-20150427012821-b75d8614f926/go.mod h1:9ESjWnEqriFuLhtthL60Sar/7RFoluCcXsuvEwTV5KM=
+github.com/tylertreat/comcast v1.0.1 h1:+B8add2s9PrhX4lx5gGqOKUTebGD7lzdfwKZHYoF98Y=
+github.com/tylertreat/comcast v1.0.1/go.mod h1:8mA9mMCnmAGjTnrWNKQ7PXsBy6FfguO+U9pSxifaka8=
 github.com/valyala/bytebufferpool v1.0.0 h1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6KllzawFIhcdPw=
 github.com/valyala/bytebufferpool v1.0.0/go.mod h1:6bBcMArwyJ5K/AmCkWv1jt77kVWyCJ6HpOuEn7z0Csc=
 github.com/valyala/fasthttp v1.42.0/go.mod h1:f6VbjjoI3z1NDOZOv17o6RvtRSWxC77seBFc2uWtgiY=

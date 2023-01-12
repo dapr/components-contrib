@@ -24,6 +24,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
+	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/retry"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	cu_redis "github.com/dapr/components-contrib/tests/utils/configupdater/redis"
@@ -71,7 +72,7 @@ func getUpdateEvent(key string, val string) configuration.UpdateEvent {
 	return expectedUpdateEvent
 }
 
-func runRedisCommands(ctx flow.Context, updater *cu_redis.ConfigUpdater, messages *watcher.Watcher) error {
+func runRedisCommands(ctx flow.Context, updater *cu_redis.ConfigUpdater, messages *watcher.Watcher, basicTest bool) error {
 	scenarios := []struct {
 		cmd          []interface{}
 		want         [][]string
@@ -164,6 +165,24 @@ func runRedisCommands(ctx flow.Context, updater *cu_redis.ConfigUpdater, message
 		},
 	}
 
+	// Only run set and mset for basic test
+	if basicTest {
+		scenarios = []struct {
+			cmd          []interface{}
+			want         [][]string
+			waitDuration time.Duration
+		}{
+			{
+				cmd:  []interface{}{"set", key1, "val1"},
+				want: [][]string{{key1, "val1"}},
+			},
+			{
+				cmd:  []interface{}{"mset", key1, "val1", key2, "val2"},
+				want: [][]string{{key1, "val1"}, {key2, "val2"}},
+			},
+		}
+	}
+
 	for _, scenario := range scenarios {
 		for _, keyValue := range scenario.want {
 			updateEvent := getUpdateEvent(keyValue[0], keyValue[1])
@@ -248,7 +267,19 @@ func TestRedis(t *testing.T) {
 	testSubscribe := func(messages *watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
 			messages.Reset()
-			errRun := runRedisCommands(ctx, updater, messages)
+			errRun := runRedisCommands(ctx, updater, messages, false)
+			if errRun != nil {
+				return errRun
+			}
+			messages.Assert(t, 10*time.Second)
+			return nil
+		}
+	}
+
+	testSubscribeBasic := func(messages *watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			messages.Reset()
+			errRun := runRedisCommands(ctx, updater, messages, true)
 			if errRun != nil {
 				return errRun
 			}
@@ -296,17 +327,14 @@ func TestRedis(t *testing.T) {
 		StepAsync("start subscriber", &task, subscribefn([]string{key1, key2}, watcher1)).
 		Step("wait for subscriber to be ready", flow.Sleep(5*time.Second)).
 		Step("testSubscribe", testSubscribe(watcher1)).
+		Step("interrupt network",
+			network.InterruptNetwork(10*time.Second, nil, nil, "6379:6379")).
+		Step("testSubscribe", testSubscribeBasic(watcher1)).
 		Step("stop subscriber", stopSubscriber).
 		Step("save before restart", saveBeforeRestart).
 		Step("stop redis server", dockercompose.Stop("redis", dockerComposeYAML, "redis")).
 		Step("start redis server", dockercompose.Start("redis", dockerComposeYAML, "redis")).
 		Step("wait for redis to be ready after restart", retry.Do(time.Second*3, 10, checkRedisConnection)).
 		Step("get after restart", getAfterRestart).
-		// Step("save before network interrupts", saveBeforeRestart).
-		// Step("interrupt network",
-		// 	network.InterruptNetwork(10*time.Second, nil, nil, "6379:6379")).
-		// // Component should recover at this point.
-		// Step("wait", flow.Sleep(10*time.Second)).
-		// Step("get after network interrupts", getAfterRestart).
 		Run()
 }

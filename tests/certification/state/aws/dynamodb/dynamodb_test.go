@@ -38,8 +38,15 @@ const (
 // The following Test Tables names must match
 // the values of the "table" metadata properties
 // found inside each of the components/*/dynamodb.yaml files
-var testTables = []string{
-	"cert-test-basic",
+var testTables = []map[string]string{
+	{
+		key:       key,
+		tableName: "cert-test-basic",
+	},
+	{
+		key:       "pkey",
+		tableName: "cert-test-partition-key",
+	},
 }
 
 func TestAWSDynamoDBStorage(t *testing.T) {
@@ -140,7 +147,18 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 			embedded.WithDaprHTTPPort(currentHTTPPort),
 			embedded.WithComponentsPath("./components/basictest"),
 			componentRuntimeOptions())).
-		Step("Run basic test with master key", ttlTest("statestore-basic")).
+		Step("Run basic test with default key", ttlTest("statestore-basic")).
+		Run()
+
+	flow.New(t, "Test Partition Key").
+		// Run the Dapr sidecar with AWS DynamoDB storage.
+		Step(sidecar.Run(sidecarNamePrefix,
+			embedded.WithoutApp(),
+			embedded.WithDaprGRPCPort(currentGrpcPort),
+			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithComponentsPath("./components/partition_key"),
+			componentRuntimeOptions())).
+		Step("Run basic test with partition key", ttlTest("statestore-basic")).
 		Run()
 }
 
@@ -151,8 +169,13 @@ func componentRuntimeOptions() []runtime.Option {
 	stateRegistry.Logger = log
 	stateRegistry.RegisterComponent(dynamodb.NewDynamoDBStateStore, "aws.dynamodb")
 
+	secretstoreRegistry := secretstores_loader.NewRegistry()
+	secretstoreRegistry.Logger = log
+	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
+
 	return []runtime.Option{
 		runtime.WithStates(stateRegistry),
+		runtime.WithSecretStores(secretstoreRegistry),
 	}
 }
 

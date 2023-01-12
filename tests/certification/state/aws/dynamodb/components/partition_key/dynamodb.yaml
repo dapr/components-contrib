@@ -1,7 +1,7 @@
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: statestore-basic
+  name: statestore-partition-key
 spec:
   type: state.aws.dynamodb
   version: v1
@@ -23,9 +23,9 @@ spec:
         name: PUBSUB_AWS_SNSSQS_QUEUE_3
         key: PUBSUB_AWS_SNSSQS_QUEUE_3
     - name: table
-      value: "cert-test-basic"
-    - name: ttlAttributeName
-      value: "expiresAt"
+      value: "cert-test-partition-key"
+    - name: partitionKey
+      value: "pkey"
 
 auth:
   secretStore: envvar-secret-store

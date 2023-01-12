@@ -21,7 +21,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 )
 
-func createTestTables(tables []string) error {
+const (
+	tableName = "tableName"
+)
+
+func createTestTables(tables []map[string]string) error {
 	svc := dynamoDBService()
 	for _, t := range tables {
 		if err := createTable(svc, t); err != nil {
@@ -49,18 +53,18 @@ func dynamoDBService() dynamodbiface.DynamoDBAPI {
 	return dynamodb.New(sess)
 }
 
-func createTable(svc dynamodbiface.DynamoDBAPI, tableName string) error {
-	key := "key"
+func createTable(svc dynamodbiface.DynamoDBAPI, table map[string]string) error {
+
 	attributeDefinitions := []*dynamodb.AttributeDefinition{
 		{
-			AttributeName: aws.String(key),
+			AttributeName: aws.String(table[key]),
 			AttributeType: aws.String("S"),
 		},
 	}
 
 	keySchema := []*dynamodb.KeySchemaElement{
 		{
-			AttributeName: aws.String(key),
+			AttributeName: aws.String(table[key]),
 			KeyType:       aws.String("HASH"),
 		},
 	}
@@ -74,7 +78,7 @@ func createTable(svc dynamodbiface.DynamoDBAPI, tableName string) error {
 		AttributeDefinitions:  attributeDefinitions,
 		KeySchema:             keySchema,
 		ProvisionedThroughput: provisionedThroughput,
-		TableName:             aws.String(tableName),
+		TableName:             aws.String(table[tableName]),
 	})
 	if err != nil {
 		return err

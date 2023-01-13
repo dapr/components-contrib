@@ -66,7 +66,7 @@ const (
 	pulsarURL         = "localhost:6650"
 )
 
-  func subscriberApplication(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+func subscriberApplication(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
 	return func(ctx flow.Context, s common.Service) error {
 		// Simulate periodic errors.
 		sim := simulate.PeriodicError(ctx, 100)
@@ -140,7 +140,6 @@ func assertMessages(timeout time.Duration, messageWatchers ...*watcher.Watcher) 
 	}
 }
 
-
 func TestPulsar(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
@@ -184,14 +183,13 @@ func TestPulsar(t *testing.T) {
 		}
 	}
 
-    
 	flow.New(t, "pulsar certification basic test").
 
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
-		Step("wait", flow.Sleep(20*time.Second)).
+		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
 			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
@@ -252,14 +250,14 @@ func TestPulsarMultipleSubsSameConsumerIDs(t *testing.T) {
 	metadata1 := map[string]string{
 		messageKey: partition1,
 	}
-    
+
 	flow.New(t, "pulsar certification - single publisher and multiple subscribers with same consumer IDs").
 
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
-		Step("wait", flow.Sleep(20*time.Second)).
+		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
 			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
@@ -316,14 +314,14 @@ func TestPulsarMultipleSubsDifferentConsumerIDs(t *testing.T) {
 	metadata := map[string]string{
 		messageKey: partition0,
 	}
-    
+
 	flow.New(t, "pulsar certification - single publisher and multiple subscribers with different consumer IDs").
 
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
-		Step("wait", flow.Sleep(20*time.Second)).
+		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
 			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
@@ -385,14 +383,14 @@ func TestPulsarMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 	metadata1 := map[string]string{
 		messageKey: partition1,
 	}
-    
+
 	flow.New(t, "pulsar certification - multiple publishers and multiple subscribers with different consumer IDs").
 
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
-		Step("wait", flow.Sleep(20*time.Second)).
+		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
 			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
@@ -451,14 +449,14 @@ func TestPulsarNonexistingTopic(t *testing.T) {
 	metadata := map[string]string{
 		messageKey: partition0,
 	}
-    
+
 	flow.New(t, "pulsar certification - non-existing topic").
 
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset*3),
 			subscriberApplication(appID1, topicToBeCreated, consumerGroup1))).
 		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
-		Step("wait", flow.Sleep(20*time.Second)).
+		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
 			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
@@ -503,14 +501,14 @@ func TestPulsarNetworkInterruption(t *testing.T) {
 	metadata := map[string]string{
 		messageKey: partition0,
 	}
-    
+
 	flow.New(t, "pulsar certification - network interruption").
 
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
-		Step("wait", flow.Sleep(20*time.Second)).
+		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
 			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
@@ -552,14 +550,13 @@ func TestPulsarNetworkInterruption(t *testing.T) {
 func TestPulsarPersitant(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 
-    
 	flow.New(t, "pulsar certification persistant test").
 
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
-		Step("wait", flow.Sleep(20*time.Second)).
+		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
 			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
@@ -593,7 +590,7 @@ func TestPulsarPersitant(t *testing.T) {
 		Step("stop pulsar server", dockercompose.Stop(clusterName, dockerComposeYAML, "standalone")).
 		Step("wait", flow.Sleep(5*time.Second)).
 		Step("start pulsar server", dockercompose.Start(clusterName, dockerComposeYAML, "standalone")).
-		Step("wait", flow.Sleep(20*time.Second)).
+		Step("wait", flow.Sleep(10*time.Second)).
 		Step("verify if app1 has received messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).
 		Step("reset", flow.Reset(consumerGroup1)).
 		Run()
@@ -602,10 +599,17 @@ func TestPulsarPersitant(t *testing.T) {
 func TestPulsarDelay(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 
-	metadata := map[string]string{
+	date := time.Now()
+	deliverTime := date.Add(time.Second * 60)
+
+	metadataAfter := map[string]string{
 		"deliverAfter": "30s",
 	}
-    
+
+	metadataAt := map[string]string{
+		"deliverAt": deliverTime.Format(time.RFC3339Nano),
+	}
+
 	assertMessagesNot := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
 			// assert for messages
@@ -623,7 +627,7 @@ func TestPulsarDelay(t *testing.T) {
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
-		Step("wait", flow.Sleep(20*time.Second)).
+		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
 			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
@@ -653,12 +657,15 @@ func TestPulsarDelay(t *testing.T) {
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
 			componentRuntimeOptions(),
 		)).
-		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
-		// receive no messages due to delay
+		Step("publish messages to topic1", publishMessages(metadataAfter, sidecarName1, topicActiveName, consumerGroup1)).
+		// receive no messages due to deliverAfter delay
 		Step("verify if app1 has received no messages published to topic", assertMessagesNot(1*time.Second, consumerGroup1)).
 		// delay has passed, messages should be received
 		Step("verify if app1 has received messages published to topic", assertMessages(10*time.Second, consumerGroup1)).
 		Step("reset", flow.Reset(consumerGroup1)).
+		// publish messages using deliverAt property
+		Step("publish messages to topic1", publishMessages(metadataAt, sidecarName1, topicActiveName, consumerGroup1)).
+		Step("verify if app1 has received messages published to topic", assertMessages(10*time.Second, consumerGroup1)).
 		Run()
 }
 

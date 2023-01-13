@@ -1,15 +1,15 @@
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: pubsub
+  name: messagebus
 spec:
-  type: pubsub.mqtt
+  type: pubsub.mqtt3
   version: v1
   metadata:
   - name: url
-    value: "tcp://localhost:1885"
+    value: "tcp://localhost:1884"
   - name: consumerID
-    value: "testConsumer"
+    value: "testConsumer1"
   - name: retain
     value: false
   - name: qos

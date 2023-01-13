@@ -1,4 +1,4 @@
-module github.com/dapr/components-contrib/tests/certification/pubsub/mqtt
+module github.com/dapr/components-contrib/tests/certification/pubsub/mqtt3
 
 go 1.19
 

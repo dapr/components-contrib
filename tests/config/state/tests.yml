@@ -52,3 +52,9 @@ components:
   - component: in-memory
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]
+  - component: aws.dynamodb.docker
+    allOperations: false
+    operations: [ "set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write" ]
+  - component: aws.dynamodb.terraform
+    allOperations: false
+    operations: [ "set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write" ]

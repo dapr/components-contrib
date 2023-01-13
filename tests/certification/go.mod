@@ -3,13 +3,16 @@ module github.com/dapr/components-contrib/tests/certification
 go 1.19
 
 require (
+	github.com/cenkalti/backoff/v4 v4.2.0
 	github.com/dapr/components-contrib v1.9.6
 	github.com/dapr/dapr v1.9.4-0.20230112074057-9f143d8deeed
 	github.com/dapr/go-sdk v1.6.0
-	github.com/dapr/kit v0.0.3
+	github.com/dapr/kit v0.0.4-0.20230105202559-fcb09958bfb0
 	github.com/google/go-cmp v0.5.9
+	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.1
+	github.com/tylertreat/comcast v1.0.1
 )
 
 require (
@@ -101,12 +104,12 @@ require (
 	go.opentelemetry.io/otel/sdk v1.11.1 // indirect
 	go.opentelemetry.io/otel/trace v1.11.1 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
-	golang.org/x/exp v0.0.0-20221028150844-83b7d23a625f // indirect
+	golang.org/x/exp v0.0.0-20230105000112-eab7a2c85304 // indirect
 	golang.org/x/mod v0.6.0 // indirect
 	golang.org/x/net v0.4.0 // indirect
 	golang.org/x/oauth2 v0.3.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
-	golang.org/x/sys v0.3.0 // indirect
+	golang.org/x/sys v0.4.0 // indirect
 	golang.org/x/term v0.3.0 // indirect
 	golang.org/x/text v0.5.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
@@ -131,13 +134,6 @@ require (
 	sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
-)
-
-require (
-	github.com/cenkalti/backoff/v4 v4.2.0
-	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
-	github.com/tylertreat/comcast v1.0.1
-
 )
 
 replace github.com/dapr/components-contrib => ../../

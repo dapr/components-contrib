@@ -1,0 +1,16 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.aws.dynamodb
+  version: v1
+  metadata:
+    - name: accessKey
+      value: ${{AWS_ACCESS_KEY_ID}}
+    - name: secretKey
+      value: ${{AWS_SECRET_ACCESS_KEY}}
+    - name: region
+      value: "us-east-1"
+    - name: table
+      value: ${{STATE_AWS_DYNAMODB_TABLE_1}}

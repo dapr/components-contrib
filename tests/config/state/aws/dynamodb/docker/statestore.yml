@@ -1,0 +1,18 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.aws.dynamodb
+  version: v1
+  metadata:
+   - name: endpoint
+     value: "http://localhost:4566"
+   - name: accessKey
+     value: "my-access"
+   - name: secretKey
+     value: "my-secret"
+   - name: region
+     value: "us-east-1"
+   - name: table
+     value: "conformance-test-docker"

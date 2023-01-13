@@ -53,9 +53,9 @@ jobs:
         - bindings.influx
         - bindings.kafka-wurstmeister
         - bindings.kafka-confluent
-        - bindings.mqtt-emqx
-        - bindings.mqtt-mosquitto
-        - bindings.mqtt-vernemq
+        - bindings.mqtt3-emqx
+        - bindings.mqtt3-mosquitto
+        - bindings.mqtt3-vernemq
         - bindings.postgres
         - bindings.redis.v6
         - bindings.redis.v7
@@ -66,9 +66,9 @@ jobs:
         - configuration.redis.v7
         - pubsub.hazelcast
         - pubsub.in-memory
-        - pubsub.mqtt-emqx
-        - pubsub.mqtt-mosquitto
-        - pubsub.mqtt-vernemq
+        - pubsub.mqtt3-emqx
+        - pubsub.mqtt3-mosquitto
+        - pubsub.mqtt3-vernemq
         - pubsub.natsstreaming
         - pubsub.pulsar
         - pubsub.rabbitmq
@@ -383,17 +383,17 @@ jobs:
       run: docker-compose -f ./.github/infrastructure/docker-compose-pulsar.yml -p pulsar up -d
       if: contains(matrix.component, 'pulsar')
 
-    - name: Start Eclipse Mosquitto (MQTT)
+    - name: Start Eclipse Mosquitto (MQTT3)
       run: docker-compose -f ./.github/infrastructure/docker-compose-mosquitto.yml -p mosquitto up -d
-      if: contains(matrix.component, 'mqtt-mosquitto')
+      if: contains(matrix.component, 'mqtt3-mosquitto')
 
-    - name: Start EMQ X (MQTT)
+    - name: Start EMQ X (MQTT3)
       run: docker-compose -f ./.github/infrastructure/docker-compose-emqx.yml -p emqx up -d
-      if: contains(matrix.component, 'mqtt-emqx')
+      if: contains(matrix.component, 'mqtt3-emqx')
 
-    - name: Start VerneMQ (MQTT)
+    - name: Start VerneMQ (MQTT3)
       run: docker-compose -f ./.github/infrastructure/docker-compose-vernemq.yml -p vernemq up -d
-      if: contains(matrix.component, 'mqtt-vernemq')
+      if: contains(matrix.component, 'mqtt3-vernemq')
 
     - name: Start hazelcast
       run: docker-compose -f ./.github/infrastructure/docker-compose-hazelcast.yml -p hazelcast up -d

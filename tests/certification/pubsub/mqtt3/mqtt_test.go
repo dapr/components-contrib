@@ -31,7 +31,7 @@ import (
 
 	// Pub/Sub.
 
-	pubsub_mqtt "github.com/dapr/components-contrib/pubsub/mqtt"
+	pubsub_mqtt "github.com/dapr/components-contrib/pubsub/mqtt3"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
 
 	// Dapr runtime and Go-SDK
@@ -419,7 +419,7 @@ func componentRuntimeOptions() []runtime.Option {
 
 	pubsubRegistry := pubsub_loader.NewRegistry()
 	pubsubRegistry.Logger = log
-	pubsubRegistry.RegisterComponent(pubsub_mqtt.NewMQTTPubSub, "mqtt")
+	pubsubRegistry.RegisterComponent(pubsub_mqtt.NewMQTTPubSub, "mqtt3")
 
 	return []runtime.Option{
 		runtime.WithPubSubs(pubsubRegistry),

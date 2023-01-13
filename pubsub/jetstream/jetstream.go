@@ -166,8 +166,8 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 	if js.meta.rateLimit != 0 {
 		consumerConfig.RateLimit = js.meta.rateLimit
 	}
-	if js.meta.hearbeat != 0 {
-		consumerConfig.Heartbeat = js.meta.hearbeat
+	if js.meta.heartbeat != 0 {
+		consumerConfig.Heartbeat = js.meta.heartbeat
 	}
 	consumerConfig.AckPolicy = js.meta.ackPolicy
 	consumerConfig.FilterSubject = req.Topic

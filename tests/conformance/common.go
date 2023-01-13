@@ -78,6 +78,7 @@ import (
 	ss_kubernetes "github.com/dapr/components-contrib/secretstores/kubernetes"
 	ss_local_env "github.com/dapr/components-contrib/secretstores/local/env"
 	ss_local_file "github.com/dapr/components-contrib/secretstores/local/file"
+	s_awsdynamodb "github.com/dapr/components-contrib/state/aws/dynamodb"
 	s_blobstorage "github.com/dapr/components-contrib/state/azure/blobstorage"
 	s_cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
 	s_azuretablestorage "github.com/dapr/components-contrib/state/azure/tablestorage"
@@ -556,6 +557,10 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_rethinkdb.NewRethinkDBStateStore(testLogger)
 	case "in-memory":
 		store = s_inmemory.NewInMemoryStateStore(testLogger)
+	case "aws.dynamodb.docker":
+		store = s_awsdynamodb.NewDynamoDBStateStore(testLogger)
+	case "aws.dynamodb.terraform":
+		store = s_awsdynamodb.NewDynamoDBStateStore(testLogger)
 	default:
 		return nil
 	}

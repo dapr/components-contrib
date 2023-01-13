@@ -27,11 +27,20 @@ func TestParseMetadata(t *testing.T) {
 	t.Run("Has correct metadata", func(t *testing.T) {
 		m := bindings.Metadata{}
 		m.Properties = map[string]string{
-			"AccessKey": "key", "Region": "region", "SecretKey": "secret", "Bucket": "test", "Endpoint": "endpoint", "SessionToken": "token", "ForcePathStyle": "true", "DisableSSL": "true", "InsecureSSL": "true",
+			"AccessKey":      "key",
+			"Region":         "region",
+			"SecretKey":      "secret",
+			"Bucket":         "test",
+			"Endpoint":       "endpoint",
+			"SessionToken":   "token",
+			"ForcePathStyle": "yes",
+			"DisableSSL":     "true",
+			"InsecureSSL":    "1",
 		}
 		s3 := AWSS3{}
 		meta, err := s3.parseMetadata(m)
-		assert.Nil(t, err)
+
+		assert.NoError(t, err)
 		assert.Equal(t, "key", meta.AccessKey)
 		assert.Equal(t, "region", meta.Region)
 		assert.Equal(t, "secret", meta.SecretKey)
@@ -48,11 +57,17 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 	t.Run("Has merged metadata", func(t *testing.T) {
 		m := bindings.Metadata{}
 		m.Properties = map[string]string{
-			"AccessKey": "key", "Region": "region", "SecretKey": "secret", "Bucket": "test", "Endpoint": "endpoint", "SessionToken": "token", "ForcePathStyle": "true",
+			"AccessKey":      "key",
+			"Region":         "region",
+			"SecretKey":      "secret",
+			"Bucket":         "test",
+			"Endpoint":       "endpoint",
+			"SessionToken":   "token",
+			"ForcePathStyle": "YES",
 		}
 		s3 := AWSS3{}
 		meta, err := s3.parseMetadata(m)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, "key", meta.AccessKey)
 		assert.Equal(t, "region", meta.Region)
 		assert.Equal(t, "secret", meta.SecretKey)
@@ -71,9 +86,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 
 		mergedMeta, err := meta.mergeWithRequestMetadata(&request)
 
-		assert.Nil(t, err)
-
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, "key", mergedMeta.AccessKey)
 		assert.Equal(t, "region", mergedMeta.Region)
 		assert.Equal(t, "secret", mergedMeta.SecretKey)
@@ -90,11 +103,17 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 	t.Run("Has invalid merged metadata decodeBase64", func(t *testing.T) {
 		m := bindings.Metadata{}
 		m.Properties = map[string]string{
-			"AccessKey": "key", "Region": "region", "SecretKey": "secret", "Bucket": "test", "Endpoint": "endpoint", "SessionToken": "token", "ForcePathStyle": "true",
+			"AccessKey":      "key",
+			"Region":         "region",
+			"SecretKey":      "secret",
+			"Bucket":         "test",
+			"Endpoint":       "endpoint",
+			"SessionToken":   "token",
+			"ForcePathStyle": "true",
 		}
 		s3 := AWSS3{}
 		meta, err := s3.parseMetadata(m)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, "key", meta.AccessKey)
 		assert.Equal(t, "region", meta.Region)
 		assert.Equal(t, "secret", meta.SecretKey)
@@ -110,19 +129,24 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 
 		mergedMeta, err := meta.mergeWithRequestMetadata(&request)
 
-		assert.Nil(t, err)
-		assert.NotNil(t, mergedMeta)
+		assert.NoError(t, err)
 		assert.False(t, mergedMeta.DecodeBase64)
 	})
 
 	t.Run("Has invalid merged metadata encodeBase64", func(t *testing.T) {
 		m := bindings.Metadata{}
 		m.Properties = map[string]string{
-			"AccessKey": "key", "Region": "region", "SecretKey": "secret", "Bucket": "test", "Endpoint": "endpoint", "SessionToken": "token", "ForcePathStyle": "true",
+			"AccessKey":      "key",
+			"Region":         "region",
+			"SecretKey":      "secret",
+			"Bucket":         "test",
+			"Endpoint":       "endpoint",
+			"SessionToken":   "token",
+			"ForcePathStyle": "true",
 		}
 		s3 := AWSS3{}
 		meta, err := s3.parseMetadata(m)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, "key", meta.AccessKey)
 		assert.Equal(t, "region", meta.Region)
 		assert.Equal(t, "secret", meta.SecretKey)
@@ -138,8 +162,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 
 		mergedMeta, err := meta.mergeWithRequestMetadata(&request)
 
-		assert.Nil(t, err)
-		assert.NotNil(t, mergedMeta)
+		assert.NoError(t, err)
 		assert.False(t, mergedMeta.EncodeBase64)
 	})
 }

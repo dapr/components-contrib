@@ -361,8 +361,8 @@ func (s *Subscription) RenewLocksBlocking(ctx context.Context, receiver Receiver
 				s.logger.Debugf("Renewed session %s locks for %s", sessionReceiver.SessionID(), s.entity)
 			} else {
 				// Snapshot the messages to try to renew locks for.
-				msgs := make([]*azservicebus.ReceivedMessage, len(s.activeMessages))
 				s.mu.RLock()
+				msgs := make([]*azservicebus.ReceivedMessage, len(s.activeMessages))
 				for i, m := range s.activeMessages {
 					msgs[i] = m
 				}

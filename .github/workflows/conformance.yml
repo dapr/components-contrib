@@ -153,7 +153,9 @@ jobs:
         - component: bindings.azure.cosmosdb
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
         - component: pubsub.aws.snssqs.terraform
-          terraform-dir: pubsub/aws/snssqs        
+          terraform-dir: pubsub/aws/snssqs
+        - component: state.aws.dynamodb.terraform
+          terraform-dir: state/aws/dynamodb
         - component: state.cloudflare.workerskv
         EOF
         )
@@ -329,6 +331,14 @@ jobs:
         PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2="multiTopic2-${{ env.UNIQUE_ID }}"
         echo "PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2=$PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2" >> $GITHUB_ENV
       if: contains(matrix.component, 'snssqs')
+    
+    - name: Create aws.dynamodb variables
+      run: |
+        STATE_AWS_DYNAMODB_TABLE_1="conformance-test-terraform-basic-${{ env.UNIQUE_ID }}"
+        echo "STATE_AWS_DYNAMODB_TABLE_1=$STATE_AWS_DYNAMODB_TABLE_1" >> $GITHUB_ENV
+        STATE_AWS_DYNAMODB_TABLE_2="conformance-test-terraform-partition-key-${{ env.UNIQUE_ID }}"
+        echo "STATE_AWS_DYNAMODB_TABLE_2=$STATE_AWS_DYNAMODB_TABLE_2" >> $GITHUB_ENV
+      if: contains(matrix.component, 'dynamodb')
 
     - name: Start Redis 6 with Redis JSON
       run: docker-compose -f ./.github/infrastructure/docker-compose-redisjson.yml -p redis up -d

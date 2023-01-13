@@ -3,7 +3,7 @@ kind: Component
 metadata:
   name: binding-mqtt-vernemq
 spec:
-  type: bindings.mqtt
+  type: bindings.mqtt3
   version: v1
   metadata:
   - name: url

@@ -100,8 +100,10 @@ func runRedisCommands(ctx flow.Context, updater *cu_redis.ConfigUpdater, message
 			want: [][]string{{key1, "val1-offset"}},
 		},
 		{
-			cmd:          []interface{}{"expire", key1, 3},
-			want:         [][]string{{key1, "val1-offset"}, {key1, ""}},
+			cmd:  []interface{}{"expire", key1, 3},
+			want: [][]string{{key1, "val1-offset"}, {key1, ""}},
+			// This wait duration is required because `expire` command would generate an `expired` event for the key
+			// after the expiration time (3 seconds here). Setting waitDuration to 5 seconds to wait for it.
 			waitDuration: 5 * time.Second,
 		},
 		{

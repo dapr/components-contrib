@@ -383,17 +383,17 @@ jobs:
       run: docker-compose -f ./.github/infrastructure/docker-compose-pulsar.yml -p pulsar up -d
       if: contains(matrix.component, 'pulsar')
 
-    - name: Start Eclipse Mosquitto (MQTT)
+    - name: Start Eclipse Mosquitto (MQTT3)
       run: docker-compose -f ./.github/infrastructure/docker-compose-mosquitto.yml -p mosquitto up -d
-      if: contains(matrix.component, 'mqtt-mosquitto')
+      if: contains(matrix.component, 'mqtt3-mosquitto')
 
-    - name: Start EMQ X (MQTT)
+    - name: Start EMQ X (MQTT3)
       run: docker-compose -f ./.github/infrastructure/docker-compose-emqx.yml -p emqx up -d
-      if: contains(matrix.component, 'mqtt-emqx')
+      if: contains(matrix.component, 'mqtt3-emqx')
 
-    - name: Start VerneMQ (MQTT)
+    - name: Start VerneMQ (MQTT3)
       run: docker-compose -f ./.github/infrastructure/docker-compose-vernemq.yml -p vernemq up -d
-      if: contains(matrix.component, 'mqtt-vernemq')
+      if: contains(matrix.component, 'mqtt3-vernemq')
 
     - name: Start hazelcast
       run: docker-compose -f ./.github/infrastructure/docker-compose-hazelcast.yml -p hazelcast up -d

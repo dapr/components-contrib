@@ -1,0 +1,29 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore-basic
+spec:
+  type: state.aws.dynamodb
+  version: v1
+  metadata:
+    - name: accessKey
+      secretKeyRef:
+        name: AWS_ACCESS_KEY_ID
+        key: AWS_ACCESS_KEY_ID
+    - name: secretKey
+      secretKeyRef:
+        name: AWS_SECRET_ACCESS_KEY
+        key: AWS_SECRET_ACCESS_KEY
+    - name: region
+      secretKeyRef:
+        name: AWS_REGION
+        key: AWS_REGION
+    - name: table
+      secretKeyRef:
+        name: STATE_AWS_DYNAMODB_TABLE_1
+        key: STATE_AWS_DYNAMODB_TABLE_1
+    - name: ttlAttributeName
+      value: "expiresAt"
+
+auth:
+  secretStore: envvar-secret-store

@@ -362,9 +362,9 @@ func (s *Subscription) RenewLocksBlocking(ctx context.Context, receiver Receiver
 			} else {
 				// Snapshot the messages to try to renew locks for.
 				s.mu.RLock()
-				msgs := make([]*azservicebus.ReceivedMessage, len(s.activeMessages))
-				for i, m := range s.activeMessages {
-					msgs[i] = m
+				msgs := make([]*azservicebus.ReceivedMessage, 0, len(s.activeMessages))
+				for _, m := range s.activeMessages {
+					msgs = append(msgs, m)
 				}
 				s.mu.RUnlock()
 

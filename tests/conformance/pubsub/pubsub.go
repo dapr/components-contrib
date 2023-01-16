@@ -43,7 +43,7 @@ const (
 	defaultMultiTopic1Name        = "multiTopic1"
 	defaultMultiTopic2Name        = "multiTopic2"
 	defaultMessageCount           = 10
-	defaultMaxReadDuration        = 600 * time.Second
+	defaultMaxReadDuration        = 60 * time.Second
 	defaultWaitDurationToPublish  = 5 * time.Second
 	defaultCheckInOrderProcessing = true
 	defaultMaxBulkCount           = 5

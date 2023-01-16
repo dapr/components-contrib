@@ -1,21 +1,19 @@
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: binding-mqtt-vernemq
+  name: messagebus
 spec:
-  type: bindings.mqtt
+  type: pubsub.mqtt3
   version: v1
   metadata:
   - name: url
-    value: "tcp://localhost:1885"
+    value: "tcp://localhost:1884"
   - name: consumerID
-    value: "testBindingConsumer"
-  - name: topic
-    value: "testBindingTopic"
+    value: "testConsumer2"
   - name: retain
     value: false
   - name: qos
-    value: 1
+    value: 2
   - name: cleanSession
     value: false
   - name: backOffMaxRetries

@@ -1,18 +1,22 @@
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: pubsub
+  name: binding-mqtt-emqx
 spec:
-  type: pubsub.mqtt
+  type: bindings.mqtt3
   version: v1
   metadata:
   - name: url
-    value: "tcp://localhost:1885"
+    value: "tcp://localhost:1884"
   - name: consumerID
-    value: "testConsumer"
+    value: "testBindingConsumer"
+  - name: topic
+    value: "testBindingTopic"
   - name: retain
     value: false
   - name: qos
     value: 1
   - name: cleanSession
     value: false
+  - name: backOffMaxRetries
+    value: 5

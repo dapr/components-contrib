@@ -224,11 +224,13 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 			}
 			var counter int
 			var lastSequence int
-			config.BulkSubscribeMetadata[metadata.MaxBulkSubCountKey] = strconv.Itoa(defaultMaxBulkCount)
-			config.BulkSubscribeMetadata[metadata.MaxBulkSubAwaitDurationMsKey] = strconv.Itoa(defaultMaxBulkAwaitDurationMs)
 			err := bS.BulkSubscribe(ctx, pubsub.SubscribeRequest{
 				Topic:    config.TestTopicForBulkSub,
 				Metadata: config.BulkSubscribeMetadata,
+				BulkSubscribeConfig: pubsub.BulkSubscribeConfig{
+					MaxMessagesCount:   defaultMaxBulkCount,
+					MaxAwaitDurationMs: defaultMaxBulkAwaitDurationMs,
+				},
 			}, func(ctx context.Context, bulkMsg *pubsub.BulkMessage) ([]pubsub.BulkSubscribeResponseEntry, error) {
 				bulkResponses := make([]pubsub.BulkSubscribeResponseEntry, len(bulkMsg.Entries))
 				hasAnyError := false

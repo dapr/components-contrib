@@ -34,11 +34,13 @@ func GetRedisValueAndVersion(redisValue string) (string, string) {
 	return valueAndRevision[0], valueAndRevision[1]
 }
 
-func ParseRedisKeyFromEvent(eventChannel string) (string, error) {
+func ParseRedisKeyFromEvent(eventChannel string) (string, string, error) {
 	index := strings.Index(eventChannel, channelPrefix)
 	if index == -1 {
-		return "", fmt.Errorf("wrong format of event channel, it should start with '%s': eventChannel=%s", channelPrefix, eventChannel)
+		return "", "", fmt.Errorf("wrong format of event channel, it should start with '%s': eventChannel=%s", channelPrefix, eventChannel)
 	}
+	redisKey := eventChannel[len(channelPrefix):]
+	key, version := GetRedisValueAndVersion(redisKey)
 
-	return eventChannel[len(channelPrefix):], nil
+	return key, version, nil
 }

@@ -61,11 +61,12 @@ func castConfigurationItems(items map[string]*dapr.ConfigurationItem) map[string
 }
 
 // Create UpdateEvent struct from given key, val pair
-func getUpdateEvent(key string, val string) configuration.UpdateEvent {
+func getUpdateEvent(key, val, version string) configuration.UpdateEvent {
 	expectedUpdateEvent := configuration.UpdateEvent{
 		Items: map[string]*configuration.Item{
 			key: {
-				Value: val,
+				Value:   val,
+				Version: version,
 			},
 		},
 	}
@@ -188,7 +189,11 @@ func runRedisCommands(ctx flow.Context, updater *cu_redis.ConfigUpdater, message
 
 	for _, scenario := range scenarios {
 		for _, keyValue := range scenario.want {
-			updateEvent := getUpdateEvent(keyValue[0], keyValue[1])
+			version := ""
+			if len(keyValue) == 3 {
+				version = keyValue[2]
+			}
+			updateEvent := getUpdateEvent(keyValue[0], keyValue[1], version)
 			updateEventInJson, err := json.Marshal(updateEvent)
 			if err != nil {
 				return err

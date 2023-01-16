@@ -26,6 +26,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
+	"golang.org/x/mod/semver"
 
 	"github.com/dapr/components-contrib/configuration"
 	"github.com/dapr/components-contrib/configuration/redis/internal"
@@ -51,6 +52,7 @@ const (
 	keySpacePrefix            = "__keyspace@0__:"
 	keySpaceAny               = "__keyspace@0__:*"
 	redisWrongTypeIdentifyStr = "WRONGTYPE"
+	redisVersion              = "version"
 )
 
 // ConfigurationStore is a Redis configuration store.
@@ -224,6 +226,33 @@ func (r *ConfigurationStore) parseConnectedSlaves(res string) int {
 	return 0
 }
 
+func getKeyandVersion(redisKeyList []string, meta map[string]string) (string, string, bool) {
+	if len(redisKeyList) == 0 {
+		return "", "", false
+	}
+	requiredVersion := ""
+	if version, ok := meta[redisVersion]; ok {
+		requiredVersion = version
+	}
+	retKey, retVersion := internal.GetRedisValueAndVersion(redisKeyList[0])
+
+	for _, redisKey := range redisKeyList {
+		k, v := internal.GetRedisValueAndVersion(redisKey)
+
+		if requiredVersion != "" && v == requiredVersion {
+			return k, v, true
+		}
+
+		if res := semver.Compare(v, retVersion); res > 0 {
+			retVersion = v
+		}
+	}
+	if requiredVersion != "" {
+		return "", "", false
+	}
+	return retKey, retVersion, true
+}
+
 func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequest) (*configuration.GetResponse, error) {
 	keys := req.Keys
 	var err error
@@ -236,12 +265,31 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 	items := make(map[string]*configuration.Item, len(keys))
 
 	// query by keys
-	for _, redisKey := range keys {
+	for _, key := range keys {
 		item := &configuration.Item{
 			Metadata: map[string]string{},
 		}
+		keyPattern := key + "||*"
+		keyList, err := r.client.Keys(ctx, keyPattern).Result()
+		if err != nil {
+			return &configuration.GetResponse{}, fmt.Errorf("fail to get configuration for redis key=%s, error is %s", key, err)
+		}
+		if len(keyList) == 0 {
+			keyList = append(keyList, key)
+		}
+		_, version, keyFound := getKeyandVersion(keyList, req.Metadata)
 
-		redisValue, err := r.client.Get(ctx, redisKey).Result()
+		if !keyFound {
+			r.logger.Warnf("redis key %s does not exist, ignore it\n", key)
+			continue
+		}
+
+		redisKey := key
+		if version != "" {
+			redisKey = key + "||" + version
+		}
+
+		val, err := r.client.Get(ctx, redisKey).Result()
 		if err != nil {
 			if err == redis.Nil {
 				r.logger.Warnf("redis key %s does not exist, ignore it\n", redisKey)
@@ -253,13 +301,10 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 			}
 			return &configuration.GetResponse{}, fmt.Errorf("fail to get configuration for redis key=%s, error is %s", redisKey, err)
 		}
-		val, version := internal.GetRedisValueAndVersion(redisValue)
 		item.Version = version
 		item.Value = val
 
-		if item.Value != "" {
-			items[redisKey] = item
-		}
+		items[key] = item
 	}
 
 	return &configuration.GetResponse{
@@ -310,7 +355,7 @@ func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 	if redisChannel4revision == keySpaceAny {
 		p = r.client.PSubscribe(ctx, redisChannel4revision)
 	} else {
-		p = r.client.Subscribe(ctx, redisChannel4revision)
+		p = r.client.PSubscribe(ctx, redisChannel4revision, redisChannel4revision+"||*")
 	}
 	defer p.Close()
 	for {
@@ -326,17 +371,22 @@ func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 }
 
 func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, msg *redis.Message, id string) {
-	targetKey, err := internal.ParseRedisKeyFromEvent(msg.Channel)
+	targetKey, version, err := internal.ParseRedisKeyFromEvent(msg.Channel)
 	if err != nil {
 		r.logger.Errorf("parse redis key failed: %s", err)
 		return
 	}
 
 	var items map[string]*configuration.Item
+	meta := req.Metadata
+	if meta == nil {
+		meta = make(map[string]string)
+	}
+	meta[redisVersion] = version
 
 	// get all keys if only one is changed
 	getResponse, errGet := r.Get(ctx, &configuration.GetRequest{
-		Metadata: req.Metadata,
+		Metadata: meta,
 		Keys:     []string{targetKey},
 	})
 	if errGet != nil {

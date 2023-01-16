@@ -134,7 +134,7 @@ func parseRedisMetadata(meta configuration.Metadata) (metadata, error) {
 	if val, ok := meta.Properties[redisDB]; ok && val != "" {
 		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
 		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse redisDB field: %s", err)
+			return m, fmt.Errorf("redis store error: can't parse redisDB field from metadata: %w", err)
 		}
 		m.DB = int(parsedVal)
 	}

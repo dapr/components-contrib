@@ -50,7 +50,7 @@ jobs:
         PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
         - pubsub.kafka
         - pubsub.rabbitmq
-        - pubsub.mqtt
+        - pubsub.mqtt3
         - state.mongodb
         - state.redis
         - state.cockroachdb
@@ -124,6 +124,9 @@ jobs:
           required-secrets: AzureCosmosDBMasterKey, AzureCosmosDBUrl, AzureCosmosDB, AzureCosmosDBCollection, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
         - component: pubsub.aws.snssqs
           terraform-dir: pubsub/aws/snssqs
+        - component: state.aws.dynamodb
+          terraform-dir: state/aws/dynamodb
+        
         EOF
         )
         echo "cloud-components=$CRON_COMPONENTS" >> $GITHUB_OUTPUT
@@ -286,11 +289,27 @@ jobs:
     
     - name: Create aws.snssqs specific variables
       if: contains(matrix.component, 'snssqs')
+      working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
       run: |
-        PUBSUB_AWS_SNSSQS_QUEUE_1="sqsssnscerttest-q1-${{env.UNIQUE_ID}}"
+        PUBSUB_AWS_SNSSQS_QUEUE_1="sqssnscerttest-q1-${{env.UNIQUE_ID}}"
         echo "PUBSUB_AWS_SNSSQS_QUEUE_1=$PUBSUB_AWS_SNSSQS_QUEUE_1" >> $GITHUB_ENV
-        PUBSUB_AWS_SNSSQS_QUEUE_2="sqsssnscerttest-q2-${{env.UNIQUE_ID}}"
+        PUBSUB_AWS_SNSSQS_QUEUE_2="sqssnscerttest-q2-${{env.UNIQUE_ID}}"
         echo "PUBSUB_AWS_SNSSQS_QUEUE_2=$PUBSUB_AWS_SNSSQS_QUEUE_2" >> $GITHUB_ENV
+        PUBSUB_AWS_SNSSQS_QUEUE_3="sqssnscerttest-q3-${{env.UNIQUE_ID}}"
+        echo "PUBSUB_AWS_SNSSQS_QUEUE_3=$PUBSUB_AWS_SNSSQS_QUEUE_3" >> $GITHUB_ENV
+        PUBSUB_AWS_SNSSQS_TOPIC_3="sqssnscerttest-t3-${{env.UNIQUE_ID}}"
+        echo "PUBSUB_AWS_SNSSQS_TOPIC_3=$PUBSUB_AWS_SNSSQS_TOPIC_3" >> $GITHUB_ENV
+        AWS_REGION="us-east-1"
+        echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
+    
+    - name: Create state aws.dynamodb specific variables
+      if: contains(matrix.component, 'dynamodb')
+      working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
+      run: |
+        STATE_AWS_DYNAMODB_TABLE_1="certification-test-terraform-basic-${{ env.UNIQUE_ID }}"
+        echo "STATE_AWS_DYNAMODB_TABLE_1=$STATE_AWS_DYNAMODB_TABLE_1" >> $GITHUB_ENV
+        STATE_AWS_DYNAMODB_TABLE_2="certification-test-terraform-partition-key-${{ env.UNIQUE_ID }}"
+        echo "STATE_AWS_DYNAMODB_TABLE_2=$STATE_AWS_DYNAMODB_TABLE_2" >> $GITHUB_ENV
         AWS_REGION="us-east-1"
         echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
 

@@ -13,7 +13,9 @@ limitations under the License.
 
 package utils
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestGetElemOrDefaultFromMap(t *testing.T) {
 	t.Run("test int", func(t *testing.T) {
@@ -95,4 +97,29 @@ func TestGetElemOrDefaultFromMap(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestUnquote(t *testing.T) {
+	type args struct {
+		data []byte
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantRes string
+	}{
+		{name: "empty data", args: args{data: []byte{}}, wantRes: ""},
+		{name: "string", args: args{data: []byte("ciao mondo")}, wantRes: "ciao mondo"},
+		{name: "JSON-encoded string", args: args{data: []byte(`"ciao mondo"`)}, wantRes: "ciao mondo"},
+		{name: "int", args: args{data: []byte("42")}, wantRes: "42"},
+		{name: "bool", args: args{data: []byte("true")}, wantRes: "true"},
+		{name: "JSON-encoded array", args: args{data: []byte(`["ciao","mondo"]`)}, wantRes: `["ciao","mondo"]`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if gotRes := Unquote(tt.args.data); gotRes != tt.wantRes {
+				t.Errorf("Unquote() = %v, want %v", gotRes, tt.wantRes)
+			}
+		})
+	}
 }

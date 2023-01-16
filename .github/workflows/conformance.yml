@@ -67,7 +67,6 @@ jobs:
         - pubsub.hazelcast
         - pubsub.in-memory
         - pubsub.mqtt3-emqx
-        - pubsub.mqtt3-mosquitto
         - pubsub.mqtt3-vernemq
         - pubsub.natsstreaming
         - pubsub.pulsar

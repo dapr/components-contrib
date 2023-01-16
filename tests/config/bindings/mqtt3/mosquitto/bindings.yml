@@ -1,13 +1,13 @@
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: binding-mqtt-emqx
+  name: binding-mqtt-mosquitto
 spec:
-  type: bindings.mqtt
+  type: bindings.mqtt3
   version: v1
   metadata:
   - name: url
-    value: "tcp://localhost:1884"
+    value: "tcp://localhost:1883"
   - name: consumerID
     value: "testBindingConsumer"
   - name: topic

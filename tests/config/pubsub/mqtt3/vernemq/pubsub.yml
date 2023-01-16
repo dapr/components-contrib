@@ -3,11 +3,11 @@ kind: Component
 metadata:
   name: pubsub
 spec:
-  type: pubsub.mqtt
+  type: pubsub.mqtt3
   version: v1
   metadata:
   - name: url
-    value: "tcp://localhost:1883"
+    value: "tcp://localhost:1885"
   - name: consumerID
     value: "testConsumer"
   - name: retain
@@ -16,5 +16,3 @@ spec:
     value: 1
   - name: cleanSession
     value: false
-  - name: backOffMaxRetries
-    value: 5

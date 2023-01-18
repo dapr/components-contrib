@@ -49,7 +49,8 @@ type HandlerFn func(ctx context.Context, msgs []*azservicebus.ReceivedMessage) (
 // Subscription is an object that manages a subscription to an Azure Service Bus receiver, for a topic or queue.
 type Subscription struct {
 	entity               string
-	activeMessages       sync.Map
+	mu                   sync.RWMutex
+	activeMessages       map[int64]*azservicebus.ReceivedMessage
 	activeOperationsChan chan struct{}
 	requireSessions      bool // read-only once set
 	timeout              time.Duration
@@ -98,6 +99,7 @@ func NewSubscription(
 
 	s := &Subscription{
 		entity:          opts.Entity,
+		activeMessages:  make(map[int64]*azservicebus.ReceivedMessage),
 		timeout:         time.Duration(opts.TimeoutInSec) * time.Second,
 		maxBulkSubCount: *opts.MaxBulkSubCount,
 		requireSessions: opts.RequireSessions,
@@ -359,11 +361,14 @@ func (s *Subscription) RenewLocksBlocking(ctx context.Context, receiver Receiver
 				s.logger.Debugf("Renewed session %s locks for %s", sessionReceiver.SessionID(), s.entity)
 			} else {
 				// Snapshot the messages to try to renew locks for.
-				msgs := make([]*azservicebus.ReceivedMessage, 0)
-				s.activeMessages.Range(func(key, value interface{}) bool {
-					msgs = append(msgs, value.(*azservicebus.ReceivedMessage))
-					return true
-				})
+				s.mu.RLock()
+				msgs := make([]*azservicebus.ReceivedMessage, len(s.activeMessages))
+				var i int
+				for _, m := range s.activeMessages {
+					msgs[i] = m
+					i++
+				}
+				s.mu.RUnlock()
 
 				if len(msgs) == 0 {
 					s.logger.Debugf("No active messages require lock renewal for %s", s.entity)
@@ -480,11 +485,15 @@ func (s *Subscription) addActiveMessage(m *azservicebus.ReceivedMessage) error {
 		logSuffix = fmt.Sprintf(" with session id %s", *m.SessionID)
 	}
 	s.logger.Debugf("Adding message %s with sequence number %d to active messages on %s%s", m.MessageID, *m.SequenceNumber, s.entity, logSuffix)
-	s.activeMessages.Store(*m.SequenceNumber, m)
+	s.mu.Lock()
+	s.activeMessages[*m.SequenceNumber] = m
+	s.mu.Unlock()
 	return nil
 }
 
 func (s *Subscription) removeActiveMessage(messageID string, messageKey int64) {
 	s.logger.Debugf("Removing message %s with sequence number %d from active messages on %s", messageID, messageKey, s.entity)
-	s.activeMessages.Delete(messageKey)
+	s.mu.Lock()
+	delete(s.activeMessages, messageKey)
+	s.mu.Unlock()
 }

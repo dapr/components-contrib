@@ -210,8 +210,12 @@ func (ls *LocalStorage) get(filename string, req *bindings.InvokeRequest) (*bind
 
 	f, err := os.Open(absPath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("file not found: %s", absPath)
+		}
 		return nil, fmt.Errorf("error opening path %s: %w", absPath, err)
 	}
+	defer f.Close()
 
 	b, err := io.ReadAll(f)
 	if err != nil {

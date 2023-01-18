@@ -16,6 +16,7 @@ package localstorage
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,11 +28,15 @@ import (
 
 func TestParseMetadata(t *testing.T) {
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"rootPath": filepath.Clean("/files")}
+	var path string = "/files"
+	if runtime.GOOS == "windows" {
+		path = "C:\\files"
+	}
+	m.Properties = map[string]string{"rootPath": path}
 	localStorage := NewLocalStorage(logger.NewLogger("test")).(*LocalStorage)
 	meta, err := localStorage.parseMetadata(m)
 	require.NoError(t, err)
-	assert.Equal(t, "/files", meta.RootPath)
+	assert.Equal(t, path, meta.RootPath)
 }
 
 func TestValidateRootPath(t *testing.T) {
@@ -47,11 +52,18 @@ func TestValidateRootPath(t *testing.T) {
 	f.Close()
 	require.NoError(t, err)
 
+	rootDir := "/"
+	if runtime.GOOS == "windows" {
+		rootDir = "C:\\"
+	}
+
 	// Set the list of disallowed paths to some locations that don't exist
 	// This is because the list contains folders that otherwise are resolved as symlinks in some OS's (like macOS)
 	oldDisallowedRootPaths := disallowedRootPaths
 	disallowedRootPaths = []string{
-		filepath.Clean("/notgood"),
+		// Explicitly set both the Linux and Windows formats
+		filepath.Join("/notgood"),
+		filepath.Join("C:\\notgood"),
 		filepath.Join(joinWithMustEvalSymlinks(tmpDir), "notgood"),
 	}
 	defer func() {
@@ -77,8 +89,8 @@ func TestValidateRootPath(t *testing.T) {
 		{name: "resolve symlinks subfolder", rootPath: filepath.Join(tmpDir, "zzz/link/sub"), wantRes: filepath.Join(joinWithMustEvalSymlinks(tmpDir, "aaa/bbb"), "sub")},
 		{name: "file", rootPath: filepath.Join(tmpDir, "aaa/file"), wantErr: "not a directory"},
 		{name: "file in higher level", rootPath: filepath.Join(tmpDir, "aaa/file/2"), wantErr: "not a directory"},
-		{name: "disallowed path 1", rootPath: filepath.Clean("/notgood"), wantErr: "disallowed location"},
-		{name: "disallowed path 1 subfolder", rootPath: filepath.Clean("/notgood/foo"), wantErr: "disallowed location"},
+		{name: "disallowed path 1", rootPath: filepath.Join(rootDir, "notgood"), wantErr: "disallowed location"},
+		{name: "disallowed path 1 subfolder", rootPath: filepath.Join(rootDir, "notgood", "foo"), wantErr: "disallowed location"},
 		{name: "disallowed path 2", rootPath: filepath.Join(tmpDir, "notgood"), wantErr: "disallowed location"},
 		{name: "disallowed path 2 subfolder", rootPath: filepath.Join(tmpDir, "notgood", "foo"), wantErr: "disallowed location"},
 		{name: "symlink to disallowed path", rootPath: filepath.Join(tmpDir, "aaa/notgood"), wantErr: "disallowed location"},

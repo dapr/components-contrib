@@ -28,7 +28,7 @@ import (
 
 func TestParseMetadata(t *testing.T) {
 	m := bindings.Metadata{}
-	var path string = "/files"
+	path := "/files"
 	if runtime.GOOS == "windows" {
 		path = "C:\\files"
 	}
@@ -62,8 +62,8 @@ func TestValidateRootPath(t *testing.T) {
 	oldDisallowedRootPaths := disallowedRootPaths
 	disallowedRootPaths = []string{
 		// Explicitly set both the Linux and Windows formats
-		filepath.Join("/notgood"),
-		filepath.Join("C:\\notgood"),
+		"/notgood",
+		"C:\\notgood",
 		filepath.Join(joinWithMustEvalSymlinks(tmpDir), "notgood"),
 	}
 	defer func() {

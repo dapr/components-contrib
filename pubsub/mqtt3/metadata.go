@@ -112,7 +112,7 @@ func parseMQTTMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error)
 	// Deprecated config option
 	// TODO: Remove in the future
 	if _, ok := md.Properties["maxRetriableErrorsPerSec"]; ok {
-		log.Warnf("Metadata property 'maxRetriableErrorsPerSec' for component pubsub.mqtt has been deprecated and will be ignored. See: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-mqtt/")
+		log.Warnf("Metadata property 'maxRetriableErrorsPerSec' for component pubsub.mqtt3 has been deprecated and will be ignored. See: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-mqtt/")
 	}
 
 	return &m, nil

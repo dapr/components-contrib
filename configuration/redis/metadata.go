@@ -23,4 +23,5 @@ type metadata struct {
 	MaxRetryBackoff    time.Duration
 	EnableTLS          bool
 	Failover           bool
+	DB                 int
 }

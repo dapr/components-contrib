@@ -42,14 +42,13 @@ const (
 	maxRetryBackoff           = "maxRetryBackoff"
 	failover                  = "failover"
 	sentinelMasterName        = "sentinelMasterName"
+	redisDB                   = "redisDB"
 	defaultBase               = 10
 	defaultBitSize            = 0
 	defaultDB                 = 0
 	defaultMaxRetries         = 3
 	defaultMaxRetryBackoff    = time.Second * 2
 	defaultEnableTLS          = false
-	keySpacePrefix            = "__keyspace@0__:"
-	keySpaceAny               = "__keyspace@0__:*"
 	redisWrongTypeIdentifyStr = "WRONGTYPE"
 )
 
@@ -131,6 +130,15 @@ func parseRedisMetadata(meta configuration.Metadata) (metadata, error) {
 		}
 	}
 
+	m.DB = defaultDB
+	if val, ok := meta.Properties[redisDB]; ok && val != "" {
+		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
+		if err != nil {
+			return m, fmt.Errorf("redis store error: can't parse redisDB field from metadata: %w", err)
+		}
+		m.DB = int(parsedVal)
+	}
+
 	return m, nil
 }
 
@@ -161,7 +169,7 @@ func (r *ConfigurationStore) newClient(m metadata) *redis.Client {
 	opts := &redis.Options{
 		Addr:            m.Host,
 		Password:        m.Password,
-		DB:              defaultDB,
+		DB:              m.DB,
 		MaxRetries:      m.MaxRetries,
 		MaxRetryBackoff: m.MaxRetryBackoff,
 	}
@@ -181,7 +189,7 @@ func (r *ConfigurationStore) newFailoverClient(m metadata) *redis.Client {
 	opts := &redis.FailoverOptions{
 		MasterName:      r.metadata.SentinelMasterName,
 		SentinelAddrs:   []string{r.metadata.Host},
-		DB:              defaultDB,
+		DB:              m.DB,
 		MaxRetries:      m.MaxRetries,
 		MaxRetryBackoff: m.MaxRetryBackoff,
 	}
@@ -273,8 +281,9 @@ func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 	if len(req.Keys) == 0 {
 		// subscribe all keys
 		stop := make(chan struct{})
-		keyStopChanMap[keySpaceAny] = stop
-		go r.doSubscribe(ctx, req, handler, keySpaceAny, subscribeID, stop)
+		allKeysChannel := internal.GetRedisChannelFromKey("*", r.metadata.DB)
+		keyStopChanMap[allKeysChannel] = stop
+		go r.doSubscribe(ctx, req, handler, allKeysChannel, subscribeID, stop)
 		r.subscribeStopChanMap.Store(subscribeID, keyStopChanMap)
 		return subscribeID, nil
 	}
@@ -282,9 +291,9 @@ func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 	for _, k := range req.Keys {
 		// subscribe single key
 		stop := make(chan struct{})
-		keySpacePrefixAndKey := keySpacePrefix + k
-		keyStopChanMap[keySpacePrefixAndKey] = stop
-		go r.doSubscribe(ctx, req, handler, keySpacePrefixAndKey, subscribeID, stop)
+		redisChannel := internal.GetRedisChannelFromKey(k, r.metadata.DB)
+		keyStopChanMap[redisChannel] = stop
+		go r.doSubscribe(ctx, req, handler, redisChannel, subscribeID, stop)
 	}
 	r.subscribeStopChanMap.Store(subscribeID, keyStopChanMap)
 	return subscribeID, nil
@@ -306,7 +315,8 @@ func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 	// enable notify-keyspace-events by redis Set command
 	r.client.ConfigSet(ctx, "notify-keyspace-events", "KA")
 	var p *redis.PubSub
-	if redisChannel4revision == keySpaceAny {
+	allKeysChannel := internal.GetRedisChannelFromKey("*", r.metadata.DB)
+	if redisChannel4revision == allKeysChannel {
 		p = r.client.PSubscribe(ctx, redisChannel4revision)
 	} else {
 		p = r.client.Subscribe(ctx, redisChannel4revision)
@@ -325,7 +335,7 @@ func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 }
 
 func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, msg *redis.Message, id string) {
-	targetKey, err := internal.ParseRedisKeyFromEvent(msg.Channel)
+	targetKey, err := internal.ParseRedisKeyFromChannel(msg.Channel, r.metadata.DB)
 	if err != nil {
 		r.logger.Errorf("parse redis key failed: %s", err)
 		return

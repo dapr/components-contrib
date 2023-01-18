@@ -27,10 +27,10 @@ import (
 
 func TestParseMetadata(t *testing.T) {
 	m := bindings.Metadata{}
-	m.Properties = map[string]string{"rootPath": "/files"}
+	m.Properties = map[string]string{"rootPath": filepath.Clean("/files")}
 	localStorage := NewLocalStorage(logger.NewLogger("test")).(*LocalStorage)
 	meta, err := localStorage.parseMetadata(m)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "/files", meta.RootPath)
 }
 

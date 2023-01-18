@@ -71,9 +71,10 @@ func TestGetRedisValueAndVersion(t *testing.T) {
 	}
 }
 
-func TestParseRedisKeyFromEvent(t *testing.T) {
+func TestParseRedisKeyFromChannel(t *testing.T) {
 	type args struct {
 		eventChannel string
+		redisDB      int
 	}
 	tests := []struct {
 		name    string
@@ -84,14 +85,24 @@ func TestParseRedisKeyFromEvent(t *testing.T) {
 		{
 			name: "invalid channel name",
 			args: args{
-				eventChannel: "invalie channel name",
+				eventChannel: "invalid channel name",
+				redisDB:      0,
 			},
 			want:    "",
 			wantErr: true,
 		}, {
-			name: "valid channel name",
+			name: "valid channel name with DB 0",
 			args: args{
-				eventChannel: channelPrefix + "key",
+				eventChannel: keySpacePrefix + "0__:key",
+				redisDB:      0,
+			},
+			want:    "key",
+			wantErr: false,
+		}, {
+			name: "valid channel name with DB 1",
+			args: args{
+				eventChannel: keySpacePrefix + "1__:key",
+				redisDB:      1,
 			},
 			want:    "key",
 			wantErr: false,
@@ -99,13 +110,49 @@ func TestParseRedisKeyFromEvent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseRedisKeyFromEvent(tt.args.eventChannel)
+			got, err := ParseRedisKeyFromChannel(tt.args.eventChannel, tt.args.redisDB)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("ParseRedisKeyFromEvent() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("ParseRedisKeyFromChannel() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if got != tt.want {
-				t.Errorf("ParseRedisKeyFromEvent() got = %v, want %v", got, tt.want)
+				t.Errorf("ParseRedisKeyFromChannel() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetRedisChannelFromKey(t *testing.T) {
+	type args struct {
+		key     string
+		redisDB int
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "key with redisDB 0",
+			args: args{
+				key:     "key",
+				redisDB: 0,
+			},
+			want: keySpacePrefix + "0__:key",
+		}, {
+			name: "key with redisDB 1",
+			args: args{
+				key:     "key",
+				redisDB: 1,
+			},
+			want: keySpacePrefix + "1__:key",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GetRedisChannelFromKey(tt.args.key, tt.args.redisDB)
+			if got != tt.want {
+				t.Errorf("GetRedisChannelFromKey() got = %v, want %v", got, tt.want)
 			}
 		})
 	}

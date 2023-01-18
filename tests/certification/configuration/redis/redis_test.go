@@ -38,6 +38,14 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/watcher"
 )
 
+type testType int
+
+const (
+	basicTest testType = iota
+	allOperationsTest
+	redisDBTest
+)
+
 const (
 	dockerComposeYAML             = "docker-compose.yml"
 	storeName                     = "configstore"
@@ -73,107 +81,20 @@ func getUpdateEvent(key string, val string) configuration.UpdateEvent {
 }
 
 // Run redis commands and and add them in watcher
-func runRedisCommands(ctx flow.Context, updater *cu_redis.ConfigUpdater, messages *watcher.Watcher, basicTest bool) error {
-	scenarios := []struct {
+func runRedisCommands(ctx flow.Context, updater *cu_redis.ConfigUpdater, messages *watcher.Watcher, test testType) error {
+	var scenarios []struct {
 		cmd          []interface{}
 		want         [][]string
 		waitDuration time.Duration
-	}{
-		{
-			cmd:  []interface{}{"set", key1, "val1"},
-			want: [][]string{{key1, "val1"}},
-		},
-		{
-			cmd:  []interface{}{"mset", key1, "val1", key2, "val2"},
-			want: [][]string{{key1, "val1"}, {key2, "val2"}},
-		},
-		{
-			cmd:  []interface{}{"copy", key1, key2, "REPLACE"},
-			want: [][]string{{key2, "val1"}},
-		},
-		{
-			cmd:  []interface{}{"append", key1, "-append"},
-			want: [][]string{{key1, "val1-append"}},
-		},
-		{
-			cmd:  []interface{}{"setrange", key1, 4, "-offset"},
-			want: [][]string{{key1, "val1-offset"}},
-		},
-		{
-			cmd:  []interface{}{"expire", key1, 3},
-			want: [][]string{{key1, "val1-offset"}, {key1, ""}},
-			// This wait duration is required because `expire` command would generate an `expired` event for the key
-			// after the expiration time (3 seconds here). Setting waitDuration to 5 seconds to wait for it.
-			waitDuration: 5 * time.Second,
-		},
-		{
-			cmd:  []interface{}{"set", key1, "val1"},
-			want: [][]string{{key1, "val1"}},
-		},
-		{
-			cmd:  []interface{}{"expire", key1, 10},
-			want: [][]string{{key1, "val1"}},
-		},
-		{
-			cmd:  []interface{}{"persist", key1},
-			want: [][]string{{key1, "val1"}},
-		},
-		{
-			cmd:  []interface{}{"expire", key1, -2},
-			want: [][]string{{key1, ""}},
-		},
-		{
-			cmd:  []interface{}{"set", key1, "val1"},
-			want: [][]string{{key1, "val1"}},
-		},
-		{
-			cmd:  []interface{}{"set", key2, "val2"},
-			want: [][]string{{key2, "val2"}},
-		},
-		{
-			cmd:  []interface{}{"rename", key2, key1},
-			want: [][]string{{key1, "val2"}},
-		},
-		{
-			cmd:  []interface{}{"move", key1, 1},
-			want: [][]string{{key1, ""}},
-		},
-		{
-			cmd:  []interface{}{"set", key1, 1},
-			want: [][]string{{key1, "1"}},
-		},
-		{
-			cmd:  []interface{}{"incr", key1},
-			want: [][]string{{key1, "2"}},
-		},
-		{
-			cmd:  []interface{}{"decr", key1},
-			want: [][]string{{key1, "1"}},
-		},
-		{
-			cmd:  []interface{}{"incrby", key1, 2},
-			want: [][]string{{key1, "3"}},
-		},
-		{
-			cmd:  []interface{}{"decrby", key1, 2},
-			want: [][]string{{key1, "1"}},
-		},
-		{
-			cmd:  []interface{}{"incrbyfloat", key1, 0.5},
-			want: [][]string{{key1, "1.5"}},
-		},
-		{
-			cmd:  []interface{}{"del", key1},
-			want: [][]string{{key1, ""}},
-		},
+		nowant       bool
 	}
-
-	// Only run set and mset for basic test
-	if basicTest {
+	switch test {
+	case basicTest:
 		scenarios = []struct {
 			cmd          []interface{}
 			want         [][]string
 			waitDuration time.Duration
+			nowant       bool
 		}{
 			{
 				cmd:  []interface{}{"set", key1, "val1"},
@@ -184,16 +105,131 @@ func runRedisCommands(ctx flow.Context, updater *cu_redis.ConfigUpdater, message
 				want: [][]string{{key1, "val1"}, {key2, "val2"}},
 			},
 		}
+	case allOperationsTest:
+		scenarios = []struct {
+			cmd          []interface{}
+			want         [][]string
+			waitDuration time.Duration
+			nowant       bool
+		}{
+			{
+				cmd:  []interface{}{"set", key1, "val1"},
+				want: [][]string{{key1, "val1"}},
+			},
+			{
+				cmd:  []interface{}{"mset", key1, "val1", key2, "val2"},
+				want: [][]string{{key1, "val1"}, {key2, "val2"}},
+			},
+			{
+				cmd:  []interface{}{"copy", key1, key2, "REPLACE"},
+				want: [][]string{{key2, "val1"}},
+			},
+			{
+				cmd:  []interface{}{"append", key1, "-append"},
+				want: [][]string{{key1, "val1-append"}},
+			},
+			{
+				cmd:  []interface{}{"setrange", key1, 4, "-offset"},
+				want: [][]string{{key1, "val1-offset"}},
+			},
+			{
+				cmd:  []interface{}{"expire", key1, 3},
+				want: [][]string{{key1, "val1-offset"}, {key1, ""}},
+				// This wait duration is required because `expire` command would generate an `expired` event for the key
+				// after the expiration time (3 seconds here). Setting waitDuration to 5 seconds to wait for it.
+				waitDuration: 5 * time.Second,
+			},
+			{
+				cmd:  []interface{}{"set", key1, "val1"},
+				want: [][]string{{key1, "val1"}},
+			},
+			{
+				cmd:  []interface{}{"expire", key1, 10},
+				want: [][]string{{key1, "val1"}},
+			},
+			{
+				cmd:  []interface{}{"persist", key1},
+				want: [][]string{{key1, "val1"}},
+			},
+			{
+				cmd:  []interface{}{"expire", key1, -2},
+				want: [][]string{{key1, ""}},
+			},
+			{
+				cmd:  []interface{}{"set", key1, "val1"},
+				want: [][]string{{key1, "val1"}},
+			},
+			{
+				cmd:  []interface{}{"set", key2, "val2"},
+				want: [][]string{{key2, "val2"}},
+			},
+			{
+				cmd:  []interface{}{"rename", key2, key1},
+				want: [][]string{{key1, "val2"}},
+			},
+			{
+				cmd:  []interface{}{"move", key1, 1},
+				want: [][]string{{key1, ""}},
+			},
+			{
+				cmd:  []interface{}{"set", key1, 1},
+				want: [][]string{{key1, "1"}},
+			},
+			{
+				cmd:  []interface{}{"incr", key1},
+				want: [][]string{{key1, "2"}},
+			},
+			{
+				cmd:  []interface{}{"decr", key1},
+				want: [][]string{{key1, "1"}},
+			},
+			{
+				cmd:  []interface{}{"incrby", key1, 2},
+				want: [][]string{{key1, "3"}},
+			},
+			{
+				cmd:  []interface{}{"decrby", key1, 2},
+				want: [][]string{{key1, "1"}},
+			},
+			{
+				cmd:  []interface{}{"incrbyfloat", key1, 0.5},
+				want: [][]string{{key1, "1.5"}},
+			},
+			{
+				cmd:  []interface{}{"del", key1},
+				want: [][]string{{key1, ""}},
+			},
+		}
+	case redisDBTest:
+		scenarios = []struct {
+			cmd          []interface{}
+			want         [][]string
+			waitDuration time.Duration
+			nowant       bool
+		}{
+			{
+				cmd: []interface{}{"set", key1, "val1"},
+				// For this test, client connection is set to DB 1, while the updater connects to DB 0. So no update should be received in case of set
+				nowant: true,
+			},
+			{
+				cmd: []interface{}{"move", key1, 1},
+				// When key1 is moved to DB 1, update should be received to the subscriber.
+				want: [][]string{{key1, "val1"}},
+			},
+		}
 	}
 
 	for _, scenario := range scenarios {
-		for _, keyValue := range scenario.want {
-			updateEvent := getUpdateEvent(keyValue[0], keyValue[1])
-			updateEventInJson, err := json.Marshal(updateEvent)
-			if err != nil {
-				return err
+		if !scenario.nowant {
+			for _, keyValue := range scenario.want {
+				updateEvent := getUpdateEvent(keyValue[0], keyValue[1])
+				updateEventInJson, err := json.Marshal(updateEvent)
+				if err != nil {
+					return err
+				}
+				messages.Expect(string(updateEventInJson))
 			}
-			messages.Expect(string(updateEventInJson))
 		}
 		err := updater.Client.DoWrite(ctx, scenario.cmd...)
 		if err != nil {
@@ -268,7 +304,7 @@ func TestRedis(t *testing.T) {
 	testSubscribe := func(messages *watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
 			messages.Reset()
-			errRun := runRedisCommands(ctx, updater, messages, false)
+			errRun := runRedisCommands(ctx, updater, messages, allOperationsTest)
 			if errRun != nil {
 				return errRun
 			}
@@ -280,7 +316,19 @@ func TestRedis(t *testing.T) {
 	testSubscribeBasic := func(messages *watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
 			messages.Reset()
-			errRun := runRedisCommands(ctx, updater, messages, true)
+			errRun := runRedisCommands(ctx, updater, messages, basicTest)
+			if errRun != nil {
+				return errRun
+			}
+			messages.Assert(t, 10*time.Second)
+			return nil
+		}
+	}
+
+	testredisDBMetadata := func(messages *watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			messages.Reset()
+			errRun := runRedisCommands(ctx, updater, messages, redisDBTest)
 			if errRun != nil {
 				return errRun
 			}
@@ -350,4 +398,24 @@ func TestRedis(t *testing.T) {
 		// Get the key after restarting redis server
 		Step("get after restart", getAfterRestart).
 		Run()
+
+	flow.New(t, "Test connection to specified redisDB").
+		// Run redis server
+		Step(dockercompose.Run("redis", dockerComposeYAML)).
+		Step("wait for redis to be ready", retry.Do(time.Second*3, 10, checkRedisConnection)).
+		// Run dapr sidecar with redis configuration store component
+		Step(sidecar.Run(sidecarName1,
+			embedded.WithoutApp(),
+			embedded.WithDaprGRPCPort(currentGrpcPort),
+			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithComponentsPath("components/redisDB1"),
+			runtime.WithConfigurations(configurationRegistry),
+		)).
+		StepAsync("start subscriber", &task, subscribefn([]string{key1, key2}, messageWatcher)).
+		Step("wait for subscriber to be ready", flow.Sleep(5*time.Second)).
+		Step("verify database connected", testredisDBMetadata(messageWatcher)).
+		// // Stop the subscriber
+		Step("stop subscriber", stopSubscriber).
+		Run()
+
 }

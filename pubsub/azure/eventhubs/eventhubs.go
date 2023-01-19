@@ -19,7 +19,9 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs"
+	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs/checkpoints"
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/components-contrib/pubsub"
@@ -32,16 +34,21 @@ type AzureEventHubs struct {
 	metadata *azureEventHubsMetadata
 	logger   logger.Logger
 
-	clientsLock     *sync.RWMutex
-	producerClients map[string]*azeventhubs.ProducerClient
+	producersLock   *sync.RWMutex
+	producers       map[string]*azeventhubs.ProducerClient
+	processorsLock  *sync.RWMutex
+	processors      map[string]*azeventhubs.Processor
+	checkpointStore azeventhubs.CheckpointStore
 }
 
 // NewAzureEventHubs returns a new Azure Event hubs instance.
 func NewAzureEventHubs(logger logger.Logger) pubsub.PubSub {
 	return &AzureEventHubs{
-		logger:          logger,
-		clientsLock:     &sync.RWMutex{},
-		producerClients: make(map[string]*azeventhubs.ProducerClient, 1),
+		logger:         logger,
+		producersLock:  &sync.RWMutex{},
+		producers:      make(map[string]*azeventhubs.ProducerClient, 1),
+		processorsLock: &sync.RWMutex{},
+		processors:     make(map[string]*azeventhubs.Processor, 1),
 	}
 }
 
@@ -101,16 +108,6 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 		}*/
 	}
 
-	// Connect to the Azure Storage account
-	/*if m.StorageAccountKey != "" {
-		metadata.Properties["accountKey"] = m.StorageAccountKey
-	}
-	var storageCredsErr error
-	aeh.storageCredential, aeh.azureEnvironment, storageCredsErr = azauth.GetAzureStorageBlobCredentials(aeh.logger, m.StorageAccountName, metadata.Properties)
-	if storageCredsErr != nil {
-		return fmt.Errorf("invalid storage credentials with error: %w", storageCredsErr)
-	}*/
-
 	return nil
 }
 
@@ -156,25 +153,54 @@ func (aeh *AzureEventHubs) Publish(ctx context.Context, req *pubsub.PublishReque
 	return nil
 }
 
+// BulkPublish sends data to Azure Event Hubs in bulk.
+func (aeh *AzureEventHubs) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
+	return pubsub.BulkPublishResponse{}, nil
+}
+
+// Subscribe receives data from Azure Event Hubs.
+func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	if aeh.metadata.ConsumerGroup == "" {
+		return errors.New("property consumerID is required to subscribe to an Event Hub topic")
+	}
+	if req.Topic == "" {
+		return errors.New("parameter 'topic' is required")
+	}
+
+	// Get the processor client
+	processor, err := aeh.getProcessorForTopic(subscribeCtx, req.Topic)
+	if err != nil {
+		return fmt.Errorf("error trying to establish a connection: %w", err)
+	}
+
+	return nil
+}
+
+func (aeh *AzureEventHubs) Close() (err error) {
+	return nil
+}
+
+// Returns a producer client for a given topic.
+// If the client doesn't exist in the cache, it will create one.
 func (aeh *AzureEventHubs) getProducerClientForTopic(ctx context.Context, topic string) (client *azeventhubs.ProducerClient, err error) {
 	// Check if we have the producer client in the cache
-	aeh.clientsLock.RLock()
-	client = aeh.producerClients[topic]
-	aeh.clientsLock.RUnlock()
+	aeh.producersLock.RLock()
+	client = aeh.producers[topic]
+	aeh.producersLock.RUnlock()
 	if client != nil {
 		return client, nil
 	}
 
 	// After acquiring a write lock, check again if the producer exists in the cache just in case another goroutine created it in the meanwhile
-	aeh.clientsLock.Lock()
-	defer aeh.clientsLock.Unlock()
+	aeh.producersLock.Lock()
+	defer aeh.producersLock.Unlock()
 
-	client = aeh.producerClients[topic]
+	client = aeh.producers[topic]
 	if client != nil {
 		return client, nil
 	}
 
-	// Start by creating a new entity if needed
+	// Create a new entity if needed
 	if aeh.metadata.EnableEntityManagement {
 		// TODO: Create a new entity
 	}
@@ -195,32 +221,133 @@ func (aeh *AzureEventHubs) getProducerClientForTopic(ctx context.Context, topic 
 			return nil, fmt.Errorf("unable to connect to Azure Event Hub using a connection string: %w", err)
 		}
 	} else {
-		client, err = azeventhubs.NewProducerClient(aeh.metadata.EventHubNamespace, topic, aeh.metadata.aadTokenProvider, nil)
+		// Use Azure AD
+		client, err = azeventhubs.NewProducerClient(aeh.metadata.EventHubNamespace, topic, aeh.metadata.aadTokenProvider, clientOpts)
 		if err != nil {
 			return nil, fmt.Errorf("unable to connect to Azure Event Hub using Azure AD: %w", err)
 		}
 	}
 
-	// Store in the cache before returning
-	aeh.producerClients[topic] = client
+	// Store in the cache before returning it
+	aeh.producers[topic] = client
 	return client, nil
 }
 
-// BulkPublish sends data to Azure Event Hubs in bulk.
-func (aeh *AzureEventHubs) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
-	return pubsub.BulkPublishResponse{}, nil
+// Returns a processor for a given topic.
+// If the processor doesn't exist in the cache, it will create one.
+func (aeh *AzureEventHubs) getProcessorForTopic(ctx context.Context, topic string) (processor *azeventhubs.Processor, err error) {
+	// Check if we have the producer client in the cache
+	aeh.processorsLock.RLock()
+	processor = aeh.processors[topic]
+	aeh.processorsLock.RUnlock()
+	if processor != nil {
+		return processor, nil
+	}
+
+	// After acquiring a write lock, check again if the producer exists in the cache just in case another goroutine created it in the meanwhile
+	aeh.processorsLock.Lock()
+	defer aeh.processorsLock.Unlock()
+
+	processor = aeh.processors[topic]
+	if processor != nil {
+		return processor, nil
+	}
+
+	// Init the checkpoint store
+	err = aeh.initCheckpointStore()
+	if err != nil {
+		return nil, fmt.Errorf("unable to connect to the checkpoint store: %w", err)
+	}
+
+	// Create a new entity if needed
+	if aeh.metadata.EnableEntityManagement {
+		// TODO: Create a new entity
+	}
+
+	// Create a consumer client
+	var consumerClient *azeventhubs.ConsumerClient
+	clientOpts := &azeventhubs.ConsumerClientOptions{
+		ApplicationID: "dapr-" + logger.DaprVersion,
+	}
+
+	// Check if we're authenticating using a connection string
+	if aeh.metadata.ConnectionString != "" {
+		var connString string
+		connString, err = aeh.constructConnectionStringFromTopic(topic)
+		if err != nil {
+			return nil, err
+		}
+		consumerClient, err = azeventhubs.NewConsumerClientFromConnectionString(connString, "", aeh.metadata.ConsumerGroup, clientOpts)
+		if err != nil {
+			return nil, fmt.Errorf("unable to connect to Azure Event Hub using a connection string: %w", err)
+		}
+	} else {
+		// Use Azure AD
+		consumerClient, err = azeventhubs.NewConsumerClient(aeh.metadata.EventHubNamespace, topic, aeh.metadata.ConsumerGroup, aeh.metadata.aadTokenProvider, clientOpts)
+		if err != nil {
+			return nil, fmt.Errorf("unable to connect to Azure Event Hub using Azure AD: %w", err)
+		}
+	}
+
+	// Create the processor from the consumer client and checkpoint store
+	processor, err = azeventhubs.NewProcessor(consumerClient, aeh.checkpointStore, nil)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create the processor: %w", err)
+	}
+
+	// Store in the cache before returning it
+	aeh.processors[topic] = processor
+	return processor, nil
 }
 
-// Subscribe receives data from Azure Event Hubs.
-func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+// Initializes the checkpoint store in the object.
+// The initialization happens lazily before the first subscription is started
+func (aeh *AzureEventHubs) initCheckpointStore() (err error) {
+	if aeh.metadata.StorageAccountName == "" {
+		return errors.New("property storageAccountName is required to subscribe to an Event Hub topic")
+	}
+	if aeh.metadata.StorageContainerName == "" {
+		return errors.New("property storageContainerName is required to subscribe to an Event Hub topic")
+	}
+
+	checkpointStoreOpts := &checkpoints.BlobStoreOptions{
+		ClientOptions: policy.ClientOptions{
+			Telemetry: policy.TelemetryOptions{
+				ApplicationID: "dapr-" + logger.DaprVersion,
+			},
+		},
+	}
+	var checkpointStore azeventhubs.CheckpointStore
+	if aeh.metadata.StorageConnectionString != "" {
+		// Authenticate with a connection string
+		checkpointStore, err = checkpoints.NewBlobStoreFromConnectionString(aeh.metadata.StorageConnectionString, aeh.metadata.StorageContainerName, checkpointStoreOpts)
+		if err != nil {
+			return fmt.Errorf("error creating checkpointer from connection string: %w", err)
+		}
+	} else if aeh.metadata.StorageAccountKey != "" {
+		// Authenticate with a shared key
+		// TODO: BLOCKED BY https://github.com/Azure/azure-sdk-for-go/issues/19842
+		panic("unimplemented")
+	} else {
+		// Use Azure AD
+		// If Event Hub is authenticated using a connection string, we can't use Azure AD here
+		if aeh.metadata.ConnectionString != "" {
+			return errors.New("either one of storageConnectionString or storageAccountKey is required when subscribing to an Event Hub topic without using Azure AD")
+		}
+		// Use the global URL for Azure Storage
+		containerURL := fmt.Sprintf("https://%s.blob.%s/%s", aeh.metadata.StorageAccountName, "core.windows.net", aeh.metadata.StorageContainerName)
+		checkpointStore, err = checkpoints.NewBlobStore(containerURL, aeh.metadata.aadTokenProvider, checkpointStoreOpts)
+		if err != nil {
+			return fmt.Errorf("error creating checkpointer from Azure AD credentials: %w", err)
+		}
+	}
+
+	// Store the checkpoint store in the object
+	aeh.checkpointStore = checkpointStore
 	return nil
 }
 
-func (aeh *AzureEventHubs) Close() (err error) {
-	return nil
-}
-
-// Returns a connection string with the Event Hub name (entity path) set if not present
+// Returns a connection string with the Event Hub name (entity path) set if not present.
 func (aeh *AzureEventHubs) constructConnectionStringFromTopic(topic string) (string, error) {
 	if aeh.metadata.hubName != "" {
 		if aeh.metadata.hubName != topic {

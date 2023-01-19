@@ -55,13 +55,13 @@ components:
     operations: ["create", "operations"]
     config:
       outputData: '{ "measurement": "TestMeasurement", "tags": "unit=temperature", "values": "avg=23.5" }'
-  - component: mqtt
+  - component: mqtt3
     profile: mosquitto
     operations: ["create", "operations", "read"]
-  - component: mqtt
+  - component: mqtt3
     profile: emqx
     operations: ["create", "operations", "read"]
-  - component: mqtt
+  - component: mqtt3
     profile: vernemq
     operations: ["create", "operations", "read"]
   - component: rabbitmq

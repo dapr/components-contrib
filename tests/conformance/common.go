@@ -53,7 +53,7 @@ import (
 	b_influx "github.com/dapr/components-contrib/bindings/influx"
 	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
 	b_kubemq "github.com/dapr/components-contrib/bindings/kubemq"
-	b_mqtt "github.com/dapr/components-contrib/bindings/mqtt"
+	b_mqtt3 "github.com/dapr/components-contrib/bindings/mqtt3"
 	b_postgres "github.com/dapr/components-contrib/bindings/postgres"
 	b_rabbitmq "github.com/dapr/components-contrib/bindings/rabbitmq"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
@@ -67,7 +67,7 @@ import (
 	p_jetstream "github.com/dapr/components-contrib/pubsub/jetstream"
 	p_kafka "github.com/dapr/components-contrib/pubsub/kafka"
 	p_kubemq "github.com/dapr/components-contrib/pubsub/kubemq"
-	p_mqtt "github.com/dapr/components-contrib/pubsub/mqtt"
+	p_mqtt3 "github.com/dapr/components-contrib/pubsub/mqtt3"
 	p_natsstreaming "github.com/dapr/components-contrib/pubsub/natsstreaming"
 	p_pulsar "github.com/dapr/components-contrib/pubsub/pulsar"
 	p_rabbitmq "github.com/dapr/components-contrib/pubsub/rabbitmq"
@@ -78,6 +78,7 @@ import (
 	ss_kubernetes "github.com/dapr/components-contrib/secretstores/kubernetes"
 	ss_local_env "github.com/dapr/components-contrib/secretstores/local/env"
 	ss_local_file "github.com/dapr/components-contrib/secretstores/local/file"
+	s_awsdynamodb "github.com/dapr/components-contrib/state/aws/dynamodb"
 	s_blobstorage "github.com/dapr/components-contrib/state/azure/blobstorage"
 	s_cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
 	s_azuretablestorage "github.com/dapr/components-contrib/state/azure/tablestorage"
@@ -108,7 +109,6 @@ const (
 	redisv6                   = "redis.v6"
 	redisv7                   = "redis.v7"
 	kafka                     = "kafka"
-	mqtt                      = "mqtt"
 	generateUUID              = "$((uuid))"
 	generateEd25519PrivateKey = "$((ed25519PrivateKey))"
 )
@@ -472,8 +472,8 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_kafka.NewKafka(testLogger)
 	case "pulsar":
 		pubsub = p_pulsar.NewPulsar(testLogger)
-	case mqtt:
-		pubsub = p_mqtt.NewMQTTPubSub(testLogger)
+	case "mqtt3":
+		pubsub = p_mqtt3.NewMQTTPubSub(testLogger)
 	case "hazelcast":
 		pubsub = p_hazelcast.NewHazelcastPubSub(testLogger)
 	case "rabbitmq":
@@ -556,6 +556,10 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_rethinkdb.NewRethinkDBStateStore(testLogger)
 	case "in-memory":
 		store = s_inmemory.NewInMemoryStateStore(testLogger)
+	case "aws.dynamodb.docker":
+		store = s_awsdynamodb.NewDynamoDBStateStore(testLogger)
+	case "aws.dynamodb.terraform":
+		store = s_awsdynamodb.NewDynamoDBStateStore(testLogger)
 	default:
 		return nil
 	}
@@ -589,8 +593,8 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_http.NewHTTP(testLogger)
 	case "influx":
 		binding = b_influx.NewInflux(testLogger)
-	case mqtt:
-		binding = b_mqtt.NewMQTT(testLogger)
+	case "mqtt3":
+		binding = b_mqtt3.NewMQTT(testLogger)
 	case "rabbitmq":
 		binding = b_rabbitmq.NewRabbitMQ(testLogger)
 	case "kubemq":
@@ -620,8 +624,8 @@ func loadInputBindings(tc TestComponent) bindings.InputBinding {
 		binding = b_azure_eventhubs.NewAzureEventHubs(testLogger)
 	case kafka:
 		binding = b_kafka.NewKafka(testLogger)
-	case mqtt:
-		binding = b_mqtt.NewMQTT(testLogger)
+	case "mqtt3":
+		binding = b_mqtt3.NewMQTT(testLogger)
 	case "rabbitmq":
 		binding = b_rabbitmq.NewRabbitMQ(testLogger)
 	case "kubemq":

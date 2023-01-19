@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs"
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs/checkpoints"
+	"golang.org/x/exp/maps"
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/components-contrib/internal/utils"
@@ -186,6 +187,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 		return fmt.Errorf("error trying to establish a connection: %w", err)
 	}
 
+	// Get the subscribe handler
 	eventHandler := subscribeHandler(subscribeCtx, req.Topic, getAllProperties, handler)
 
 	// Process all partition clients as they come in
@@ -197,11 +199,13 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 			if partitionClient == nil {
 				return
 			}
+			aeh.logger.Debugf("Received client for partition %s", partitionClient.PartitionID())
 
 			// Once we get a partition client, process the events in a separate goroutine
 			go func() {
-				processErr := aeh.processEvents(subscribeCtx, partitionClient, eventHandler)
-				if processErr != nil {
+				processErr := aeh.processEvents(subscribeCtx, req.Topic, partitionClient, eventHandler)
+				// Do not log context.Canceled which happens at shutdown
+				if processErr != nil && !errors.Is(processErr, context.Canceled) {
 					aeh.logger.Errorf("Error processing events from partition client: %v", processErr)
 				}
 			}()
@@ -212,7 +216,8 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 	go func() {
 		// This is a blocking call that runs until the context is canceled
 		err = processor.Run(subscribeCtx)
-		if err != nil {
+		// Do not log context.Canceled which happens at shutdown
+		if err != nil && !errors.Is(err, context.Canceled) {
 			aeh.logger.Errorf("Error from event processor: %v", err)
 		}
 	}()
@@ -220,7 +225,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 	return nil
 }
 
-func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, partitionClient *azeventhubs.ProcessorPartitionClient, eventHandler func(e *azeventhubs.ReceivedEventData) error) error {
+func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, topic string, partitionClient *azeventhubs.ProcessorPartitionClient, eventHandler func(e *azeventhubs.ReceivedEventData) error) error {
 	// At the end of the method we need to do some cleanup and close the partition client
 	defer func() {
 		closeCtx, closeCancel := context.WithTimeout(context.Background(), resourceGetTimeout)
@@ -251,22 +256,21 @@ func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, partition
 			// We'll just stop this subscription and return
 			eventHubError := (*azeventhubs.Error)(nil)
 			if errors.As(err, &eventHubError) && eventHubError.Code == azeventhubs.ErrorCodeOwnershipLost {
-				aeh.logger.Debug("Partition client lost ownership; stopping")
+				aeh.logger.Debug("Client lost ownership of partition %s for topic %s", partitionClient.PartitionID(), topic)
 				return nil
 			}
 
 			return fmt.Errorf("error receiving events: %w", err)
 		}
 
-		// TODO: Comment out
-		aeh.logger.Debugf("Received batch with %d events", len(events))
+		aeh.logger.Debugf("Received batch with %d events on topic %s, partition %s", len(events), topic, partitionClient.PartitionID())
 
 		if len(events) != 0 {
 			for _, event := range events {
 				// TODO: Handle errors
 				// Maybe consider exiting this method (without updating the checkpoint) so another app will re-try it?
 				err := eventHandler(event)
-				fmt.Printf("Event processed - err: %v", err)
+				fmt.Printf("EVENT PROCESSED - err: %v\n", err)
 			}
 
 			// Update the checkpoint with the last event received. If we lose ownership of this partition or have to restart the next owner will start from this point.
@@ -289,6 +293,25 @@ func (aeh *AzureEventHubs) Close() (err error) {
 	defer aeh.producersLock.Unlock()
 
 	// Close all producers
+	wg := sync.WaitGroup{}
+	for _, producer := range aeh.producers {
+		if producer == nil {
+			continue
+		}
+		wg.Add(1)
+		go func(producer *azeventhubs.ProducerClient) {
+			closeCtx, closeCancel := context.WithTimeout(context.Background(), resourceGetTimeout)
+			defer closeCancel()
+			producer.Close(closeCtx)
+			wg.Done()
+		}(producer)
+	}
+	wg.Wait()
+	maps.Clear(aeh.producers)
+
+	// Remove the cached checkpoint store and metadata
+	aeh.checkpointStoreCache = nil
+	aeh.metadata = nil
 
 	return nil
 }

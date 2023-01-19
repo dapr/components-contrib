@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs/checkpoints"
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
+	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/components-contrib/pubsub/azure/eventhubs/conn"
 	"github.com/dapr/kit/logger"
@@ -168,7 +169,7 @@ func (aeh *AzureEventHubs) BulkPublish(ctx context.Context, req *pubsub.BulkPubl
 }
 
 // Subscribe receives data from Azure Event Hubs.
-func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) (err error) {
 	if aeh.metadata.ConsumerGroup == "" {
 		return errors.New("property consumerID is required to subscribe to an Event Hub topic")
 	}
@@ -176,11 +177,16 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 		return errors.New("parameter 'topic' is required")
 	}
 
+	// Check if requireAllProperties is set and is truthy
+	getAllProperties := utils.IsTruthy(req.Metadata["requireAllProperties"])
+
 	// Get the processor client
 	processor, err := aeh.getProcessorForTopic(subscribeCtx, req.Topic)
 	if err != nil {
 		return fmt.Errorf("error trying to establish a connection: %w", err)
 	}
+
+	eventHandler := subscribeHandler(subscribeCtx, req.Topic, getAllProperties, handler)
 
 	// Process all partition clients as they come in
 	go func() {
@@ -194,7 +200,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 
 			// Once we get a partition client, process the events in a separate goroutine
 			go func() {
-				processErr := aeh.processEvents(subscribeCtx, partitionClient)
+				processErr := aeh.processEvents(subscribeCtx, partitionClient, eventHandler)
 				if processErr != nil {
 					aeh.logger.Errorf("Error processing events from partition client: %v", processErr)
 				}
@@ -214,7 +220,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 	return nil
 }
 
-func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, partitionClient *azeventhubs.ProcessorPartitionClient) error {
+func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, partitionClient *azeventhubs.ProcessorPartitionClient, eventHandler func(e *azeventhubs.ReceivedEventData) error) error {
 	// At the end of the method we need to do some cleanup and close the partition client
 	defer func() {
 		closeCtx, closeCancel := context.WithTimeout(context.Background(), resourceGetTimeout)
@@ -257,8 +263,10 @@ func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, partition
 
 		if len(events) != 0 {
 			for _, event := range events {
-				// process the event in some way
-				fmt.Printf("Event received with body %v\n", event.Body)
+				// TODO: Handle errors
+				// Maybe consider exiting this method (without updating the checkpoint) so another app will re-try it?
+				err := eventHandler(event)
+				fmt.Printf("Event processed - err: %v", err)
 			}
 
 			// Update the checkpoint with the last event received. If we lose ownership of this partition or have to restart the next owner will start from this point.

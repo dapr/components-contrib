@@ -14,10 +14,13 @@ limitations under the License.
 package localstorage_test
 
 import (
-	"fmt"
 	"os"
+	"strconv"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	bindings_localstorage "github.com/dapr/components-contrib/bindings/localstorage"
@@ -28,20 +31,19 @@ import (
 	"github.com/dapr/dapr/pkg/runtime"
 	daprsdk "github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
 )
 
 const (
 	sidecarName = "localstorage-sidecar"
 	bindingName = "localstorage-binding"
-	dir         = "./tmp"
+	dir         = "/tmp/dapr-cert-test/bindings.localstorage"
 	fileName    = "test.txt"
 	fileData    = "test data"
 )
 
 func TestLocalStorage(t *testing.T) {
 	invokeCreateWithConfig := func(ctx flow.Context, config map[string]string) error {
-		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(runtime.DefaultDaprAPIGRPCPort))
+		client, clientErr := daprsdk.NewClientWithPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort))
 		if clientErr != nil {
 			panic(clientErr)
 		}
@@ -58,7 +60,7 @@ func TestLocalStorage(t *testing.T) {
 	}
 
 	invokeGetWithConfig := func(ctx flow.Context, config map[string]string) ([]byte, error) {
-		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(runtime.DefaultDaprAPIGRPCPort))
+		client, clientErr := daprsdk.NewClientWithPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort))
 		if clientErr != nil {
 			panic(clientErr)
 		}
@@ -78,7 +80,7 @@ func TestLocalStorage(t *testing.T) {
 	}
 
 	invokeDeleteWithConfig := func(ctx flow.Context, config map[string]string) error {
-		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(runtime.DefaultDaprAPIGRPCPort))
+		client, clientErr := daprsdk.NewClientWithPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort))
 		if clientErr != nil {
 			panic(clientErr)
 		}
@@ -94,7 +96,7 @@ func TestLocalStorage(t *testing.T) {
 	}
 
 	invokeListWithConfig := func(ctx flow.Context, config map[string]string) ([]byte, error) {
-		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(runtime.DefaultDaprAPIGRPCPort))
+		client, clientErr := daprsdk.NewClientWithPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort))
 		if clientErr != nil {
 			panic(clientErr)
 		}
@@ -132,7 +134,9 @@ func TestLocalStorage(t *testing.T) {
 		flow.Sleep(3 * time.Second)
 
 		_, err := invokeGetWithConfig(ctx, map[string]string{"fileName": "not-exists.txt"})
-		assert.Error(t, err)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "file not found:")
+		assert.ErrorContains(t, err, "not-exists.txt")
 
 		return clear()
 	}

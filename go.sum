@@ -396,8 +396,8 @@ contrib.go.opencensus.io/exporter/prometheus v0.4.1/go.mod h1:t9wvfitlUjGXG2IXAZ
 contrib.go.opencensus.io/exporter/prometheus v0.4.2 h1:sqfsYl5GIY/L570iT+l93ehxaWJs2/OwXtiWwew3oAg=
 contrib.go.opencensus.io/exporter/prometheus v0.4.2/go.mod h1:dvEHbiKmgvbr5pjaF9fpw1KeYcjrnC1J8B+JKjsZyRQ=
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
-dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20220610080020-48691a404537 h1:NblXw7tbHBFZ0AWEH09fgM9MwQ3XNPUPHDFeBjM7HV4=
-dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20220610080020-48691a404537/go.mod h1:O7eTHAilCWlqBjEkG2MW9khZFImiARb/tSOE8PJas+g=
+dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3 h1:j08GKvXilDMHuVuGy+X0CMTL+Wxrte5a4XrWGDypZf0=
+dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3/go.mod h1:bxe6StRQ4PVbZa+B5nsREuez4agzmWiELS9NhEoDscI=
 github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 h1:/vQbFIOMbk2FiG/kXiLl8BRyzTWDw7gX/Hz7Dd5eDMs=
 github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4/go.mod h1:hN7oaIRCjzsZ2dE+yG5k+rsdt3qcwykqK6HVGcKwsw4=
 github.com/99designs/keyring v1.2.1 h1:tYLp1ULvO7i3fI5vE21ReQuj99QFSs7lGm0xWyJo87o=
@@ -1186,8 +1186,8 @@ github.com/hashicorp/yamux v0.0.0-20181012175058-2f1d1f20f75d/go.mod h1:+NfK9FKe
 github.com/hazelcast/hazelcast-go-client v0.0.0-20190530123621-6cf767c2f31a h1:j6SSiw7fWemWfrJL801xiQ6xRT7ZImika50xvmPN+tg=
 github.com/hazelcast/hazelcast-go-client v0.0.0-20190530123621-6cf767c2f31a/go.mod h1:VhwtcZ7sg3xq7REqGzEy7ylSWGKz4jZd05eCJropNzI=
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
-github.com/http-wasm/http-wasm-host-go v0.2.0 h1:BEu3SsCtx8JwVTCdITsvod5XlgjF9UQVJ8TxjFQJNs8=
-github.com/http-wasm/http-wasm-host-go v0.2.0/go.mod h1:OTNlRT3nkPc+WpuxZe1lgZ+X31GaoghBg01SQkPKMjs=
+github.com/http-wasm/http-wasm-host-go v0.3.1 h1:4BzT7KneoXOB+RC5IqflOezrhrZTRT16Qoz8OxUmTW4=
+github.com/http-wasm/http-wasm-host-go v0.3.1/go.mod h1:fjRN9smjCFxvb8k7kvmYyFfHg3RRigRvzVA8H3C78FU=
 github.com/huaweicloud/huaweicloud-sdk-go-obs v3.22.11+incompatible h1:bSww59mgbqFRGCRvlvfQutsptE3lRjNiU5C0YNT/bWw=
 github.com/huaweicloud/huaweicloud-sdk-go-obs v3.22.11+incompatible/go.mod h1:l7VUhRbTKCzdOacdT4oWCwATKyvZqUOlOqr0Ous3k4s=
 github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.22 h1:V3Gepk/C5loW57exp3VN82WxwOVQ9K+GsxRz4J2tPs4=
@@ -1637,8 +1637,6 @@ github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da/go.mod h1:gi+0
 github.com/samuel/go-zookeeper v0.0.0-20201211165307-7117e9ea2414 h1:AJNDS0kP60X8wwWFvbLPwDuojxubj9pbfK7pjHw0vKg=
 github.com/samuel/go-zookeeper v0.0.0-20201211165307-7117e9ea2414/go.mod h1:gi+0XIa01GRL2eRQVjQkKGqKF3SF9vZR/HnPullcV2E=
 github.com/satori/go.uuid v1.2.0/go.mod h1:dA0hQrYB0VpLJoorglMZABFdXlWrHn1NEOzdhQKdks0=
-github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b h1:gQZ0qzfKHQIybLANtM3mBXNUtOfsCFXeTsnBqCsx1KM=
-github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b/go.mod h1:dA0hQrYB0VpLJoorglMZABFdXlWrHn1NEOzdhQKdks0=
 github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 h1:nn5Wsu0esKSJiIVhscUtVbo7ada43DJhG55ua/hjS5I=
 github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529/go.mod h1:DxrIzT+xaE7yg65j358z/aeFdxmN0P9QXhEzd20vsDc=
 github.com/sendgrid/rest v2.6.9+incompatible h1:1EyIcsNdn9KIisLW50MKwmSRSK+ekueiEMJ7NEoxJo0=
@@ -1735,8 +1733,8 @@ github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.579 h1:tIMp
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.579/go.mod h1:7sCQWVkxcsR38nffDW057DRGk8mUjK1Ing/EFOK8s8Y=
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.0.579 h1:v/+eYLpFuTSjCuBWAuNzcWsuzxFH3UeGoTmobgTGNrc=
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.0.579/go.mod h1:aVVzZ9F/usb3tUXX09nAr4HSg2x4E6B0j7kehJdMdSc=
-github.com/tetratelabs/wazero v1.0.0-pre.4 h1:RBJQT5OzmORkSp6MmZDWoFEr0zXjk4pmvMKAdeUnsaI=
-github.com/tetratelabs/wazero v1.0.0-pre.4/go.mod h1:u8wrFmpdrykiFK0DFPiFm5a4+0RzsdmXYVtijBKqUVo=
+github.com/tetratelabs/wazero v1.0.0-pre.7 h1:WI5N14XxoXw+ZWhcjSazJ6rEowhJbH/x8hglxC5gN7k=
+github.com/tetratelabs/wazero v1.0.0-pre.7/go.mod h1:u8wrFmpdrykiFK0DFPiFm5a4+0RzsdmXYVtijBKqUVo=
 github.com/tevid/gohamcrest v1.1.1/go.mod h1:3UvtWlqm8j5JbwYZh80D/PVBt0mJ1eJiYgZMibh0H/k=
 github.com/tidwall/gjson v1.2.1/go.mod h1:c/nTNbUr0E0OrXEhq1pwa8iEgc2DOt4ZZqAt1HtCkPA=
 github.com/tidwall/gjson v1.8.1/go.mod h1:5/xDoumyyDNerp2U36lyolv46b3uF/9Bu6OfyQ9GImk=

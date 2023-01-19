@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs"
@@ -29,26 +30,34 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
+const (
+	defaultMessageRetentionInDays = 1
+	defaultPartitionCount         = 1
+
+	resourceCheckMaxRetry         = 5
+	resourceCheckMaxRetryInterval = 5 * time.Minute
+	resourceCreationTimeout       = 15 * time.Second
+	resourceGetTimeout            = 5 * time.Second
+)
+
 // AzureEventHubs allows sending/receiving Azure Event Hubs events.
 type AzureEventHubs struct {
 	metadata *azureEventHubsMetadata
 	logger   logger.Logger
 
-	producersLock   *sync.RWMutex
-	producers       map[string]*azeventhubs.ProducerClient
-	processorsLock  *sync.RWMutex
-	processors      map[string]*azeventhubs.Processor
-	checkpointStore azeventhubs.CheckpointStore
+	producersLock        *sync.RWMutex
+	producers            map[string]*azeventhubs.ProducerClient
+	checkpointStoreCache azeventhubs.CheckpointStore
+	checkpointStoreLock  *sync.RWMutex
 }
 
 // NewAzureEventHubs returns a new Azure Event hubs instance.
 func NewAzureEventHubs(logger logger.Logger) pubsub.PubSub {
 	return &AzureEventHubs{
-		logger:         logger,
-		producersLock:  &sync.RWMutex{},
-		producers:      make(map[string]*azeventhubs.ProducerClient, 1),
-		processorsLock: &sync.RWMutex{},
-		processors:     make(map[string]*azeventhubs.Processor, 1),
+		logger:              logger,
+		producersLock:       &sync.RWMutex{},
+		producers:           make(map[string]*azeventhubs.ProducerClient, 1),
+		checkpointStoreLock: &sync.RWMutex{},
 	}
 }
 
@@ -173,10 +182,106 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 		return fmt.Errorf("error trying to establish a connection: %w", err)
 	}
 
+	// Process all partition clients as they come in
+	go func() {
+		for {
+			// This will block until a new partition client is available
+			// It returns nil if processor.Run terminates or if the context is canceled
+			partitionClient := processor.NextPartitionClient(subscribeCtx)
+			if partitionClient == nil {
+				return
+			}
+
+			// Once we get a partition client, process the events in a separate goroutine
+			go func() {
+				processErr := aeh.processEvents(subscribeCtx, partitionClient)
+				if processErr != nil {
+					aeh.logger.Errorf("Error processing events from partition client: %v", processErr)
+				}
+			}()
+		}
+	}()
+
+	// Start the processor
+	go func() {
+		// This is a blocking call that runs until the context is canceled
+		err = processor.Run(subscribeCtx)
+		if err != nil {
+			aeh.logger.Errorf("Error from event processor: %v", err)
+		}
+	}()
+
 	return nil
 }
 
+func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, partitionClient *azeventhubs.ProcessorPartitionClient) error {
+	// At the end of the method we need to do some cleanup and close the partition client
+	defer func() {
+		closeCtx, closeCancel := context.WithTimeout(context.Background(), resourceGetTimeout)
+		defer closeCancel()
+		closeErr := partitionClient.Close(closeCtx)
+		if closeErr != nil {
+			aeh.logger.Errorf("Error while closing partition client: %v", closeErr)
+		}
+	}()
+
+	// Loop to receive messages
+	var (
+		ctx    context.Context
+		cancel context.CancelFunc
+		events []*azeventhubs.ReceivedEventData
+		err    error
+	)
+	for {
+		// TODO: Support setting a batch size
+		const batchSize = 1
+		ctx, cancel = context.WithCancel(subscribeCtx)
+		events, err = partitionClient.ReceiveEvents(ctx, batchSize, nil)
+		cancel()
+
+		// A DeadlineExceeded error means that the context timed out before we received the full batch of messages, and that's fine
+		if err != nil && !errors.Is(err, context.DeadlineExceeded) {
+			// If we get an error like ErrorCodeOwnershipLost, it means that the partition was rebalanced and we lost it
+			// We'll just stop this subscription and return
+			eventHubError := (*azeventhubs.Error)(nil)
+			if errors.As(err, &eventHubError) && eventHubError.Code == azeventhubs.ErrorCodeOwnershipLost {
+				aeh.logger.Debug("Partition client lost ownership; stopping")
+				return nil
+			}
+
+			return fmt.Errorf("error receiving events: %w", err)
+		}
+
+		// TODO: Comment out
+		aeh.logger.Debugf("Received batch with %d events", len(events))
+
+		if len(events) != 0 {
+			for _, event := range events {
+				// process the event in some way
+				fmt.Printf("Event received with body %v\n", event.Body)
+			}
+
+			// Update the checkpoint with the last event received. If we lose ownership of this partition or have to restart the next owner will start from this point.
+			// This context inherits from the background one in case subscriptionCtx gets canceled
+			ctx, cancel = context.WithTimeout(context.Background(), resourceCreationTimeout)
+			err = partitionClient.UpdateCheckpoint(ctx, events[len(events)-1])
+			cancel()
+			if err != nil {
+				return fmt.Errorf("failed to update checkpoint: %w", err)
+			}
+		}
+	}
+}
+
 func (aeh *AzureEventHubs) Close() (err error) {
+	// Acquire locks
+	aeh.checkpointStoreLock.Lock()
+	defer aeh.checkpointStoreLock.Unlock()
+	aeh.producersLock.Lock()
+	defer aeh.producersLock.Unlock()
+
+	// Close all producers
+
 	return nil
 }
 
@@ -233,28 +338,10 @@ func (aeh *AzureEventHubs) getProducerClientForTopic(ctx context.Context, topic 
 	return client, nil
 }
 
-// Returns a processor for a given topic.
-// If the processor doesn't exist in the cache, it will create one.
-func (aeh *AzureEventHubs) getProcessorForTopic(ctx context.Context, topic string) (processor *azeventhubs.Processor, err error) {
-	// Check if we have the producer client in the cache
-	aeh.processorsLock.RLock()
-	processor = aeh.processors[topic]
-	aeh.processorsLock.RUnlock()
-	if processor != nil {
-		return processor, nil
-	}
-
-	// After acquiring a write lock, check again if the producer exists in the cache just in case another goroutine created it in the meanwhile
-	aeh.processorsLock.Lock()
-	defer aeh.processorsLock.Unlock()
-
-	processor = aeh.processors[topic]
-	if processor != nil {
-		return processor, nil
-	}
-
-	// Init the checkpoint store
-	err = aeh.initCheckpointStore()
+// Creates a processor for a given topic.
+func (aeh *AzureEventHubs) getProcessorForTopic(ctx context.Context, topic string) (*azeventhubs.Processor, error) {
+	// Get the checkpoint store
+	checkpointStore, err := aeh.getCheckpointStore()
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to the checkpoint store: %w", err)
 	}
@@ -290,24 +377,49 @@ func (aeh *AzureEventHubs) getProcessorForTopic(ctx context.Context, topic strin
 	}
 
 	// Create the processor from the consumer client and checkpoint store
-	processor, err = azeventhubs.NewProcessor(consumerClient, aeh.checkpointStore, nil)
+	processor, err := azeventhubs.NewProcessor(consumerClient, checkpointStore, nil)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create the processor: %w", err)
 	}
 
-	// Store in the cache before returning it
-	aeh.processors[topic] = processor
 	return processor, nil
 }
 
-// Initializes the checkpoint store in the object.
-// The initialization happens lazily before the first subscription is started
-func (aeh *AzureEventHubs) initCheckpointStore() (err error) {
+// Returns the checkpoint store from the object. If it doesn't exist, it lazily initializes it.
+func (aeh *AzureEventHubs) getCheckpointStore() (azeventhubs.CheckpointStore, error) {
+	// Check if we have the checkpoint store
+	aeh.checkpointStoreLock.RLock()
+	if aeh.checkpointStoreCache != nil {
+		aeh.checkpointStoreLock.RUnlock()
+		return aeh.checkpointStoreCache, nil
+	}
+	aeh.checkpointStoreLock.RUnlock()
+
+	// After acquiring a write lock, check again if the checkpoint store exists in case another goroutine created it in the meanwhile
+	aeh.checkpointStoreLock.Lock()
+	defer aeh.checkpointStoreLock.Unlock()
+
+	if aeh.checkpointStoreCache != nil {
+		return aeh.checkpointStoreCache, nil
+	}
+
+	// Init the checkpoint store and store it in the object
+	var err error
+	aeh.checkpointStoreCache, err = aeh.createCheckpointStore()
+	if err != nil {
+		return nil, fmt.Errorf("unable to connect to the checkpoint store: %w", err)
+	}
+
+	return aeh.checkpointStoreCache, nil
+}
+
+// Initializes a new checkpoint store
+func (aeh *AzureEventHubs) createCheckpointStore() (checkpointStore azeventhubs.CheckpointStore, err error) {
 	if aeh.metadata.StorageAccountName == "" {
-		return errors.New("property storageAccountName is required to subscribe to an Event Hub topic")
+		return nil, errors.New("property storageAccountName is required to subscribe to an Event Hub topic")
 	}
 	if aeh.metadata.StorageContainerName == "" {
-		return errors.New("property storageContainerName is required to subscribe to an Event Hub topic")
+		return nil, errors.New("property storageContainerName is required to subscribe to an Event Hub topic")
 	}
 
 	checkpointStoreOpts := &checkpoints.BlobStoreOptions{
@@ -317,34 +429,35 @@ func (aeh *AzureEventHubs) initCheckpointStore() (err error) {
 			},
 		},
 	}
-	var checkpointStore azeventhubs.CheckpointStore
 	if aeh.metadata.StorageConnectionString != "" {
 		// Authenticate with a connection string
 		checkpointStore, err = checkpoints.NewBlobStoreFromConnectionString(aeh.metadata.StorageConnectionString, aeh.metadata.StorageContainerName, checkpointStoreOpts)
 		if err != nil {
-			return fmt.Errorf("error creating checkpointer from connection string: %w", err)
+			return nil, fmt.Errorf("error creating checkpointer from connection string: %w", err)
 		}
 	} else if aeh.metadata.StorageAccountKey != "" {
 		// Authenticate with a shared key
-		// TODO: BLOCKED BY https://github.com/Azure/azure-sdk-for-go/issues/19842
-		panic("unimplemented")
+		// TODO: This is a workaround in which we assemble a connection string until https://github.com/Azure/azure-sdk-for-go/issues/19842 is fixed
+		connString := fmt.Sprintf("DefaultEndpointsProtocol=https;AccountName=%s;AccountKey=%s;EndpointSuffix=core.windows.net", aeh.metadata.StorageAccountName, aeh.metadata.StorageAccountKey)
+		checkpointStore, err = checkpoints.NewBlobStoreFromConnectionString(connString, aeh.metadata.StorageContainerName, checkpointStoreOpts)
+		if err != nil {
+			return nil, fmt.Errorf("error creating checkpointer from storage account credentials: %w", err)
+		}
 	} else {
 		// Use Azure AD
 		// If Event Hub is authenticated using a connection string, we can't use Azure AD here
 		if aeh.metadata.ConnectionString != "" {
-			return errors.New("either one of storageConnectionString or storageAccountKey is required when subscribing to an Event Hub topic without using Azure AD")
+			return nil, errors.New("either one of storageConnectionString or storageAccountKey is required when subscribing to an Event Hub topic without using Azure AD")
 		}
 		// Use the global URL for Azure Storage
 		containerURL := fmt.Sprintf("https://%s.blob.%s/%s", aeh.metadata.StorageAccountName, "core.windows.net", aeh.metadata.StorageContainerName)
 		checkpointStore, err = checkpoints.NewBlobStore(containerURL, aeh.metadata.aadTokenProvider, checkpointStoreOpts)
 		if err != nil {
-			return fmt.Errorf("error creating checkpointer from Azure AD credentials: %w", err)
+			return nil, fmt.Errorf("error creating checkpointer from Azure AD credentials: %w", err)
 		}
 	}
 
-	// Store the checkpoint store in the object
-	aeh.checkpointStore = checkpointStore
-	return nil
+	return checkpointStore, nil
 }
 
 // Returns a connection string with the Event Hub name (entity path) set if not present.

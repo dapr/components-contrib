@@ -25,17 +25,18 @@ import (
 )
 
 type azureEventHubsMetadata struct {
-	ConnectionString       string `json:"connectionString" mapstructure:"connectionString"`
-	EventHubNamespace      string `json:"eventHubNamespace" mapstructure:"eventHubNamespace"`
-	ConsumerGroup          string `json:"consumerID" mapstructure:"consumerID"`
-	StorageAccountName     string `json:"storageAccountName" mapstructure:"storageAccountName"`
-	StorageAccountKey      string `json:"storageAccountKey" mapstructure:"storageAccountKey"`
-	StorageContainerName   string `json:"storageContainerName" mapstructure:"storageContainerName"`
-	EnableEntityManagement bool   `json:"enableEntityManagement,string" mapstructure:"enableEntityManagement"`
-	MessageRetentionInDays int32  `json:"messageRetentionInDays,string" mapstructure:"messageRetentionInDays"`
-	PartitionCount         int32  `json:"partitionCount,string" mapstructure:"partitionCount"`
-	SubscriptionID         string `json:"subscriptionID" mapstructure:"subscriptionID"`
-	ResourceGroupName      string `json:"resourceGroupName" mapstructure:"resourceGroupName"`
+	ConnectionString        string `json:"connectionString" mapstructure:"connectionString"`
+	EventHubNamespace       string `json:"eventHubNamespace" mapstructure:"eventHubNamespace"`
+	ConsumerGroup           string `json:"consumerID" mapstructure:"consumerID"`
+	StorageConnectionString string `json:"storageConnectionString" mapstructure:"storageConnectionString"`
+	StorageAccountName      string `json:"storageAccountName" mapstructure:"storageAccountName"`
+	StorageAccountKey       string `json:"storageAccountKey" mapstructure:"storageAccountKey"`
+	StorageContainerName    string `json:"storageContainerName" mapstructure:"storageContainerName"`
+	EnableEntityManagement  bool   `json:"enableEntityManagement,string" mapstructure:"enableEntityManagement"`
+	MessageRetentionInDays  int32  `json:"messageRetentionInDays,string" mapstructure:"messageRetentionInDays"`
+	PartitionCount          int32  `json:"partitionCount,string" mapstructure:"partitionCount"`
+	SubscriptionID          string `json:"subscriptionID" mapstructure:"subscriptionID"`
+	ResourceGroupName       string `json:"resourceGroupName" mapstructure:"resourceGroupName"`
 
 	// Internal properties
 	hubName          string
@@ -49,17 +50,23 @@ func parseEventHubsMetadata(meta pubsub.Metadata, log logger.Logger) (*azureEven
 		return nil, fmt.Errorf("failed to decode metada: %w", err)
 	}
 
+	// One and only one of connectionString and eventHubNamespace is required
 	if m.ConnectionString == "" && m.EventHubNamespace == "" {
 		return nil, errors.New("one of connectionString or eventHubNamespace is required")
 	}
-
 	if m.ConnectionString != "" && m.EventHubNamespace != "" {
 		return nil, errors.New("only one of connectionString or eventHubNamespace should be passed")
 	}
 
+	// If both storageConnectionString and storageAccountKey are specified, show a warning because the connection string will take priority
+	if m.StorageConnectionString != "" && m.StorageAccountName != "" {
+		log.Warn("Property storageAccountKey is ignored when storageConnectionString is present")
+	}
+
+	// Entity management is only possible when using Azure AD
 	if m.EnableEntityManagement && m.ConnectionString != "" {
 		m.EnableEntityManagement = false
-		log.Warn("entity management support is not available when connecting with a connection string")
+		log.Warn("Entity management support is not available when connecting with a connection string")
 	}
 
 	return &m, nil

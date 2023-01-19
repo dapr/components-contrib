@@ -20,9 +20,9 @@ spec:
         key: AWS_REGION
     - name: consumerID
       secretKeyRef:
-        name: PUBSUB_AWS_SNSSQS_QUEUE_1
-        key: PUBSUB_AWS_SNSSQS_QUEUE_1
-    - name: defaultMessageTimeToLiveInSec
-      value: 10
+        name: PUBSUB_AWS_SNSSQS_QUEUE_MVT
+        key: PUBSUB_AWS_SNSSQS_QUEUE_MVT
+    - name: messageVisibilityTimeout
+      value: 60
 auth:
   secretstore: envvar-secret-store

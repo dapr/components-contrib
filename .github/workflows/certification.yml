@@ -50,7 +50,6 @@ jobs:
         PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
         - pubsub.kafka
         - pubsub.rabbitmq
-        - pubsub.mqtt
         - pubsub.pulsar
         - pubsub.mqtt3
         - state.mongodb

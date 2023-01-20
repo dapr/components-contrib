@@ -105,7 +105,10 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 		}
 	}
 
-	// Default retry configuration is used if no backOff properties are set.
+	// Default retry configuration is used if no backOff properties are set
+	// backOff max retry config is set to 3, which means 3 retries by default
+	aeh.backOffConfig = retry.DefaultConfig()
+	aeh.backOffConfig.MaxRetries = 3
 	err = retry.DecodeConfigWithPrefix(&aeh.backOffConfig, metadata.Properties, "backOff")
 	if err != nil {
 		return fmt.Errorf("failed to decode backoff configuration")

@@ -98,15 +98,15 @@ func (aeh *AzureEventHubs) ensureEventHubEntity(parentCtx context.Context, topic
 		return fmt.Errorf("failed to create Event Hubs ARM client: %w", err)
 	}
 
-	aeh.logger.Debugf("Checking if entity %s exists on Event Hub namespace %s", topic, aeh.metadata.EventHubNamespace)
+	aeh.logger.Debugf("Checking if entity %s exists on Event Hub namespace %s", topic, aeh.metadata.namespaceName)
 
 	// Check if the entity exists
 	ctx, cancel := context.WithTimeout(parentCtx, resourceGetTimeout)
 	defer cancel()
-	_, err = client.Get(ctx, aeh.metadata.ResourceGroupName, aeh.metadata.EventHubNamespace, topic, nil)
+	_, err = client.Get(ctx, aeh.metadata.ResourceGroupName, aeh.metadata.namespaceName, topic, nil)
 	if err == nil {
 		// If there's no error, the entity already exists, so all good
-		aeh.logger.Debugf("Entity %s already exists on Event Hub namespace %s", topic, aeh.metadata.EventHubNamespace)
+		aeh.logger.Debugf("Entity %s already exists on Event Hub namespace %s", topic, aeh.metadata.namespaceName)
 		return nil
 	}
 
@@ -118,7 +118,7 @@ func (aeh *AzureEventHubs) ensureEventHubEntity(parentCtx context.Context, topic
 	}
 
 	// Create the entity
-	aeh.logger.Infof("Will create entity %s on Event Hub namespace %s", topic, aeh.metadata.EventHubNamespace)
+	aeh.logger.Infof("Will create entity %s on Event Hub namespace %s", topic, aeh.metadata.namespaceName)
 	params := armeventhub.Eventhub{
 		Properties: &armeventhub.Properties{
 			MessageRetentionInDays: ptr.Of(int64(aeh.metadata.MessageRetentionInDays)),
@@ -127,12 +127,12 @@ func (aeh *AzureEventHubs) ensureEventHubEntity(parentCtx context.Context, topic
 	}
 	ctx, cancel = context.WithTimeout(parentCtx, resourceCreationTimeout)
 	defer cancel()
-	_, err = client.CreateOrUpdate(ctx, aeh.metadata.ResourceGroupName, aeh.metadata.EventHubNamespace, topic, params, nil)
+	_, err = client.CreateOrUpdate(ctx, aeh.metadata.ResourceGroupName, aeh.metadata.namespaceName, topic, params, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create Event Hub entity %s: %w", topic, err)
 	}
 
-	aeh.logger.Infof("Entity %s created on Event Hub namespace %s", topic, aeh.metadata.EventHubNamespace)
+	aeh.logger.Infof("Entity %s created on Event Hub namespace %s", topic, aeh.metadata.namespaceName)
 	return nil
 }
 
@@ -184,7 +184,7 @@ func (aeh *AzureEventHubs) ensureSubscription(parentCtx context.Context, hubName
 
 	ctx, cancel := context.WithTimeout(parentCtx, resourceCreationTimeout)
 	defer cancel()
-	_, err = client.CreateOrUpdate(ctx, aeh.metadata.ResourceGroupName, aeh.metadata.EventHubNamespace, hubName, aeh.metadata.ConsumerGroup, armeventhub.ConsumerGroup{}, nil)
+	_, err = client.CreateOrUpdate(ctx, aeh.metadata.ResourceGroupName, aeh.metadata.namespaceName, hubName, aeh.metadata.ConsumerGroup, armeventhub.ConsumerGroup{}, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create consumer group  %s: %w", aeh.metadata.ConsumerGroup, err)
 	}
@@ -196,10 +196,10 @@ func (aeh *AzureEventHubs) ensureSubscription(parentCtx context.Context, hubName
 func (aeh *AzureEventHubs) shouldCreateConsumerGroup(parentCtx context.Context, client *armeventhub.ConsumerGroupsClient, hubName string) (bool, error) {
 	ctx, cancel := context.WithTimeout(parentCtx, resourceGetTimeout)
 	defer cancel()
-	_, err := client.Get(ctx, aeh.metadata.ResourceGroupName, aeh.metadata.EventHubNamespace, hubName, aeh.metadata.ConsumerGroup, nil)
+	_, err := client.Get(ctx, aeh.metadata.ResourceGroupName, aeh.metadata.namespaceName, hubName, aeh.metadata.ConsumerGroup, nil)
 	if err == nil {
 		// If there's no error, the consumer group already exists, so all good
-		return true, nil
+		return false, nil
 	}
 
 	// Check if the error is NotFound or something else
@@ -210,5 +210,5 @@ func (aeh *AzureEventHubs) shouldCreateConsumerGroup(parentCtx context.Context, 
 	}
 
 	// Consumer group doesn't exist
-	return false, nil
+	return true, nil
 }

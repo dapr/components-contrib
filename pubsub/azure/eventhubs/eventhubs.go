@@ -264,7 +264,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 			}
 
 			// In case of other errors, just return the error
-			return fmt.Errorf("failed to check for subscribers using an old version of Dapr")
+			return fmt.Errorf("failed to check for subscribers using an old version of Dapr: %w", err)
 		}
 	}
 

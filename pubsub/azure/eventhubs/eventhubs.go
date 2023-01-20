@@ -17,7 +17,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -30,6 +32,7 @@ import (
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/components-contrib/pubsub/azure/eventhubs/conn"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/retry"
 )
 
 // AzureEventHubs allows sending/receiving Azure Event Hubs events.
@@ -37,6 +40,7 @@ type AzureEventHubs struct {
 	metadata *azureEventHubsMetadata
 	logger   logger.Logger
 
+	backOffConfig        retry.Config
 	producersLock        *sync.RWMutex
 	producers            map[string]*azeventhubs.ProducerClient
 	checkpointStoreCache azeventhubs.CheckpointStore
@@ -98,6 +102,12 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 				return fmt.Errorf("failed to initialize entity manager: %w", err)
 			}
 		}
+	}
+
+	// Default retry configuration is used if no backOff properties are set.
+	err = retry.DecodeConfigWithPrefix(&aeh.backOffConfig, metadata.Properties, "backOff")
+	if err != nil {
+		return fmt.Errorf("failed to decode backoff configuration")
 	}
 
 	return nil
@@ -168,8 +178,38 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 		return fmt.Errorf("error trying to establish a connection: %w", err)
 	}
 
+	// This component has built-in retries because Event Hubs doesn't support N/ACK for messages
+	retryHandler := func(ctx context.Context, msg *pubsub.NewMessage) error {
+		b := aeh.backOffConfig.NewBackOffWithContext(subscribeCtx)
+
+		mID := msg.Metadata[sysPropMessageID]
+		if mID == "" {
+			mID = "(nil)"
+		}
+		// This method is synchronous so no risk of race conditions if using side effects
+		var attempts int
+		retryerr := retry.NotifyRecover(func() error {
+			attempts++
+			aeh.logger.Debugf("Processing EventHubs event %s/%s (attempt: %d)", msg.Topic, mID, attempts)
+
+			if attempts > 1 {
+				msg.Metadata["dapr-attempt"] = strconv.Itoa(attempts)
+			}
+
+			return handler(ctx, msg)
+		}, b, func(_ error, _ time.Duration) {
+			aeh.logger.Warnf("Error processing EventHubs event: %s/%s. Retrying...", msg.Topic, mID)
+		}, func() {
+			aeh.logger.Warnf("Successfully processed EventHubs event after it previously failed: %s/%s", msg.Topic, mID)
+		})
+		if retryerr != nil {
+			aeh.logger.Errorf("Too many failed attempts at processing Eventhubs event: %s/%s. Error: %v", msg.Topic, mID, err)
+		}
+		return retryerr
+	}
+
 	// Get the subscribe handler
-	eventHandler := subscribeHandler(subscribeCtx, req.Topic, getAllProperties, handler)
+	eventHandler := subscribeHandler(subscribeCtx, req.Topic, getAllProperties, retryHandler)
 
 	// Process all partition clients as they come in
 	go func() {
@@ -248,10 +288,8 @@ func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, topic str
 
 		if len(events) != 0 {
 			for _, event := range events {
-				// TODO: Handle errors
-				// Maybe consider exiting this method (without updating the checkpoint) so another app will re-try it?
-				err := eventHandler(event)
-				fmt.Printf("EVENT PROCESSED - err: %v\n", err)
+				// Process the event in its own goroutine
+				go eventHandler(event)
 			}
 
 			// Update the checkpoint with the last event received. If we lose ownership of this partition or have to restart the next owner will start from this point.

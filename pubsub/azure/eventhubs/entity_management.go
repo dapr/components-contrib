@@ -160,9 +160,9 @@ func (aeh *AzureEventHubs) ensureSubscription(parentCtx context.Context, hubName
 	backOffConfig.MaxRetries = resourceCheckMaxRetry
 	b := backOffConfig.NewBackOffWithContext(parentCtx)
 	create, err := retry.NotifyRecoverWithData(func() (bool, error) {
-		c, err := aeh.shouldCreateConsumerGroup(parentCtx, client, hubName)
-		if err != nil {
-			return false, err
+		c, cErr := aeh.shouldCreateConsumerGroup(parentCtx, client, hubName)
+		if cErr != nil {
+			return false, cErr
 		}
 		return c, nil
 	}, b, func(_ error, _ time.Duration) {

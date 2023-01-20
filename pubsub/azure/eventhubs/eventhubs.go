@@ -18,8 +18,8 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs"
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs/checkpoints"
@@ -32,16 +32,6 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-const (
-	defaultMessageRetentionInDays = 1
-	defaultPartitionCount         = 1
-
-	resourceCheckMaxRetry         = 5
-	resourceCheckMaxRetryInterval = 5 * time.Minute
-	resourceCreationTimeout       = 15 * time.Second
-	resourceGetTimeout            = 5 * time.Second
-)
-
 // AzureEventHubs allows sending/receiving Azure Event Hubs events.
 type AzureEventHubs struct {
 	metadata *azureEventHubsMetadata
@@ -51,6 +41,8 @@ type AzureEventHubs struct {
 	producers            map[string]*azeventhubs.ProducerClient
 	checkpointStoreCache azeventhubs.CheckpointStore
 	checkpointStoreLock  *sync.RWMutex
+
+	managementCreds azcore.TokenCredential
 }
 
 // NewAzureEventHubs returns a new Azure Event hubs instance.
@@ -100,23 +92,12 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 
 		aeh.logger.Info("connecting to Azure Event Hub using Azure AD; the connection will be established on first publish/subscribe and req.Topic field in incoming requests will be honored")
 
-		/*if aeh.metadata.EnableEntityManagement {
-			if err := aeh.validateEnitityManagementMetadata(); err != nil {
-				return err
-			}
-
-			// Create hubManager for eventHub management with AAD.
-			if managerCreateErr := aeh.createHubManager(); managerCreateErr != nil {
-				return managerCreateErr
-			}
-
-			// Get Azure Management plane settings for creating consumer groups using event hubs management client.
-			settings, err := azauth.NewEnvironmentSettings("azure", metadata.Properties)
+		if aeh.metadata.EnableEntityManagement {
+			err = aeh.initEntityManagement(metadata.Properties)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to initialize entity manager: %w", err)
 			}
-			aeh.managementSettings = settings
-		}*/
+		}
 	}
 
 	return nil
@@ -338,7 +319,10 @@ func (aeh *AzureEventHubs) getProducerClientForTopic(ctx context.Context, topic 
 
 	// Create a new entity if needed
 	if aeh.metadata.EnableEntityManagement {
-		// TODO: Create a new entity
+		err = aeh.ensureEventHubEntity(ctx, topic)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create Event Hub entity %s: %w", topic, err)
+		}
 	}
 
 	clientOpts := &azeventhubs.ProducerClientOptions{
@@ -379,7 +363,22 @@ func (aeh *AzureEventHubs) getProcessorForTopic(ctx context.Context, topic strin
 
 	// Create a new entity if needed
 	if aeh.metadata.EnableEntityManagement {
-		// TODO: Create a new entity
+		// First ensure that the Event Hub entity exists
+		// We need to acquire a lock on producers, as creating a producer can perform the same operations
+		aeh.producersLock.Lock()
+		err = aeh.ensureEventHubEntity(ctx, topic)
+		aeh.producersLock.Unlock()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create Event Hub entity %s: %w", topic, err)
+		}
+
+		// Abuse on the lock on checkpoints which are used by all tasks creating processors
+		aeh.checkpointStoreLock.Lock()
+		err = aeh.ensureSubscription(ctx, topic)
+		aeh.checkpointStoreLock.Unlock()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create Event Hub subscription to entity %s: %w", topic, err)
+		}
 	}
 
 	// Create a consumer client

@@ -203,7 +203,6 @@ func validateAndGetHubName(connectionString string) (string, error) {
 
 func (aeh *AzureEventHubs) ensureEventHub(ctx context.Context, hubName string) error {
 	if aeh.hubManager == nil {
-		aeh.logger.Errorf("hubManager client not initialized properly")
 		return fmt.Errorf("hubManager client not initialized properly")
 	}
 	entity, err := aeh.getHubEntity(ctx, hubName)

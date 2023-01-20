@@ -98,7 +98,7 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 		aeh.logger.Info("connecting to Azure Event Hub using Azure AD; the connection will be established on first publish/subscribe and req.Topic field in incoming requests will be honored")
 
 		if aeh.metadata.EnableEntityManagement {
-			err = aeh.initEntityManagement(metadata.Properties)
+			err = aeh.initEntityManagement()
 			if err != nil {
 				return fmt.Errorf("failed to initialize entity manager: %w", err)
 			}
@@ -235,6 +235,24 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 	processor, err := aeh.getProcessorForTopic(subscribeCtx, req.Topic)
 	if err != nil {
 		return fmt.Errorf("error trying to establish a connection: %w", err)
+	}
+
+	// Ensure that no subscriber using the old "track 1" SDK is active
+	// TODO(@ItalyPaleAle): Remove this for Dapr 1.13
+	{
+		ctx, cancel := context.WithTimeout(subscribeCtx, 10*time.Minute)
+		err = aeh.ensureNoTrack1Subscribers(ctx, req.Topic)
+		cancel()
+		if err != nil {
+			// If there's a timeout, it means that the other client was still active after the timeout
+			// In this case, we actually panic to make sure the user notices the error and ensures the rollout of the new version of Dapr is complete
+			if errors.Is(err, context.DeadlineExceeded) {
+				aeh.logger.Fatalf("Another instance is currently subscribed to the topic %s in this Event Hub using an old version of Dapr, and this is not supported. Please ensure that all applications subscribed to the same topic, with this consumer group, are using Dapr 1.10 or newer.")
+			}
+
+			// In case of other errors, just return the error
+			return fmt.Errorf("failed to check for subscribers using an old version of Dapr")
+		}
 	}
 
 	// This component has built-in retries because Event Hubs doesn't support N/ACK for messages

@@ -251,8 +251,8 @@ echo "Created Service Principal for cert auth: ${CERT_AUTH_SP_NAME}"
 
 if [[ -n ${CREDENTIALS_PATH} ]]; then
     SDK_AUTH_SP_INFO="$(cat ${CREDENTIALS_PATH})"
-    SDK_AUTH_SP_APPID="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientId' | sed -E 's/(.*clientId\"\: \")|\",//g')"
-    SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientSecret' | sed -E 's/(.*clientSecret\"\: \")|\",//g')"
+    SDK_AUTH_SP_APPID="$(echo "${SDK_AUTH_SP_INFO}" | jq -r '.clientId')"
+    SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | jq -r '.clientSecret')"
     if [[ -z ${SDK_AUTH_SP_APPID} || -z ${SDK_AUTH_SP_CLIENT_SECRET} ]]; then
         echo "Invalid credentials JSON file. Contents should match output of 'az ad sp create-for-rbac' command."
         exit 1
@@ -263,7 +263,7 @@ if [[ -n ${CREDENTIALS_PATH} ]]; then
 else
     SDK_AUTH_SP_NAME="${PREFIX}-conf-test-runner-sp"
     SDK_AUTH_SP_INFO="$(az ad sp create-for-rbac --name "${SDK_AUTH_SP_NAME}" --sdk-auth --years 1)"
-    SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientSecret' | sed -E 's/(.*clientSecret\"\: \")|\".*//g')"
+    SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | jq -r '.clientSecret')"
     SDK_AUTH_SP_ID="$(az ad sp list --display-name "${SDK_AUTH_SP_NAME}" --query "[].id" --output tsv)"
     echo "${SDK_AUTH_SP_INFO}"
     echo "Created Service Principal for SDK Auth: ${SDK_AUTH_SP_NAME}"
@@ -386,7 +386,7 @@ az keyvault set-policy --name "${KEYVAULT_NAME}" -g "${RESOURCE_GROUP_NAME}" --s
 
 # Update service principal credentials and roles for created resources
 echo "Creating ${CERT_AUTH_SP_NAME} certificate ..."
-az ad sp credential reset --name "${CERT_AUTH_SP_NAME}" --create-cert --cert "${KEYVAULT_CERT_NAME}" --keyvault "${KEYVAULT_NAME}"
+az ad sp credential reset --id "${CERT_AUTH_SP_ID}" --create-cert --cert "${KEYVAULT_CERT_NAME}" --keyvault "${KEYVAULT_NAME}"
 
 # Add an EventGrid role to the SDK auth Service Principal so that it can be reused for the EventGrid binding conformance tests.
 EVENT_GRID_SCOPE="/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.EventGrid/topics/${EVENT_GRID_TOPIC_NAME}"
@@ -499,7 +499,7 @@ echo export ${KEYVAULT_CERT_NAME}=\"${KEYVAULT_CERT_FILE}\" >> "${ENV_CONFIG_FIL
 echo export ${KEYVAULT_NAME_VAR_NAME}=\"${KEYVAULT_NAME}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${KEYVAULT_NAME_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${KEYVAULT_NAME}"
 
-KEYVAULT_TENANT_ID="$(az ad sp list --display-name "${CERT_AUTH_SP_NAME}" --query "[].appOwnerTenantId" --output tsv)"
+KEYVAULT_TENANT_ID="$(az ad sp list --display-name "${CERT_AUTH_SP_NAME}" --query "[].appOwnerOrganizationId" --output tsv)"
 echo export ${KEYVAULT_TENANT_ID_VAR_NAME}=\"${KEYVAULT_TENANT_ID}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${KEYVAULT_TENANT_ID_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${KEYVAULT_TENANT_ID}"
 
@@ -735,7 +735,7 @@ ASB_ID=$(az servicebus namespace show --resource-group "${RESOURCE_GROUP_NAME}" 
 az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Azure Service Bus Data Owner" --scope "${ASB_ID}"
 
 # Now export the service principal information
-CERTIFICATION_TENANT_ID="$(az ad sp list --display-name "${CERTIFICATION_SPAUTH_SP_NAME}" --query "[].appOwnerTenantId" --output tsv)"
+CERTIFICATION_TENANT_ID="$(az ad sp list --display-name "${CERTIFICATION_SPAUTH_SP_NAME}" --query "[].appOwnerOrganizationId" --output tsv)"
 echo export ${CERTIFICATION_SERVICE_PRINCIPAL_CLIENT_ID_VAR_NAME}=\"${CERTIFICATION_SPAUTH_SP_CLIENT_ID}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${CERTIFICATION_SERVICE_PRINCIPAL_CLIENT_ID_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${CERTIFICATION_SPAUTH_SP_CLIENT_ID}"
 echo export ${CERTIFICATION_SERVICE_PRINCIPAL_CLIENT_SECRET_VAR_NAME}=\"${CERTIFICATION_SPAUTH_SP_CLIENT_SECRET}\" >> "${ENV_CONFIG_FILENAME}"

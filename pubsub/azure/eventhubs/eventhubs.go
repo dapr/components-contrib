@@ -240,14 +240,21 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 	// Ensure that no subscriber using the old "track 1" SDK is active
 	// TODO(@ItalyPaleAle): Remove this for Dapr 1.13
 	{
-		ctx, cancel := context.WithTimeout(subscribeCtx, 10*time.Minute)
+		ctx, cancel := context.WithTimeout(subscribeCtx, 2*time.Minute)
 		err = aeh.ensureNoTrack1Subscribers(ctx, req.Topic)
 		cancel()
 		if err != nil {
 			// If there's a timeout, it means that the other client was still active after the timeout
-			// In this case, we actually panic to make sure the user notices the error and ensures the rollout of the new version of Dapr is complete
+			// In this case, we return an error here so Dapr can continue the initialization and report a "healthy" status (but this subscription won't be active)
+			// After 2 minutes, then, we panic, which ensures that during a rollout Kubernetes will see that this pod is unhealthy and re-creates that. Hopefully, by then other instances of the app will have been updated and no more locks will be present
 			if errors.Is(err, context.DeadlineExceeded) {
-				aeh.logger.Fatalf("Another instance is currently subscribed to the topic %s in this Event Hub using an old version of Dapr, and this is not supported. Please ensure that all applications subscribed to the same topic, with this consumer group, are using Dapr 1.10 or newer.")
+				errMsg := fmt.Sprintf("Another instance is currently subscribed to the topic %s in this Event Hub using an old version of Dapr, and this is not supported. Please ensure that all applications subscribed to the same topic, with this consumer group, are using Dapr 1.10 or newer.", req.Topic)
+				aeh.logger.Error(errMsg + " ⚠️⚠️⚠️ Dapr will crash in 2 minutes to force the orchestrator to restart the process after the rollout of other instances is complete.")
+				go func() {
+					time.Sleep(2 * time.Minute)
+					aeh.logger.Fatalf("Another instance is currently subscribed to the topic %s in this Event Hub using an old version of Dapr, and this is not supported. Please ensure that all applications subscribed to the same topic, with this consumer group, are using Dapr 1.10 or newer.", req.Topic)
+				}()
+				return fmt.Errorf("another instance is currently subscribed to the topic %s in this Event Hub using an old version of Dapr", req.Topic)
 			}
 
 			// In case of other errors, just return the error

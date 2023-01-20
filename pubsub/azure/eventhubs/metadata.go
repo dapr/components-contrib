@@ -16,6 +16,7 @@ package eventhubs
 import (
 	"errors"
 	"fmt"
+	"regexp"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
@@ -74,4 +75,16 @@ func parseEventHubsMetadata(meta pubsub.Metadata, log logger.Logger) (*azureEven
 	}
 
 	return &m, nil
+}
+
+var hubNameMatch = regexp.MustCompile(`(?i)(^|;)EntityPath=([^;]+)(;|$)`)
+
+// Returns the hub name (topic) from the connection string.
+// TODO: Temporary until https://github.com/Azure/azure-sdk-for-go/issues/19840 is fixed - then use `conn.ParsedConnectionFromStr(aeh.metadata.ConnectionString)` and look at the `HubName` property.
+func hubNameFromConnString(connString string) string {
+	match := hubNameMatch.FindStringSubmatch(connString)
+	if len(match) < 3 {
+		return ""
+	}
+	return match[2]
 }

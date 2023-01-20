@@ -89,6 +89,7 @@ func TestConstructConnectionStringFromTopic(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, connectionString+";EntityPath=testHub", c)
 	})
+
 	t.Run("valid connectionString with hub name", func(t *testing.T) {
 		connectionString := "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=fakeKey;SharedAccessKey=key;EntityPath=testHub"
 		topic := "testHub"
@@ -106,18 +107,7 @@ func TestConstructConnectionStringFromTopic(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, connectionString, c)
 	})
-	t.Run("invalid connectionString with hub name", func(t *testing.T) {
-		connectionString := "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=fakeKey;NoKey=key;EntityPath=testHub"
 
-		metadata := pubsub.Metadata{Base: metadata.Base{
-			Properties: map[string]string{
-				"connectionString": connectionString,
-			},
-		}}
-		aeh := &AzureEventHubs{logger: testLogger}
-		err := aeh.Init(metadata)
-		require.Error(t, err)
-	})
 	t.Run("valid connectionString with different hub name", func(t *testing.T) {
 		connectionString := "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=fakeKey;SharedAccessKey=key;EntityPath=testHub"
 		topic := "differentHub"

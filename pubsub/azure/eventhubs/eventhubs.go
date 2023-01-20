@@ -32,7 +32,6 @@ import (
 	"github.com/dapr/components-contrib/internal/utils"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/components-contrib/pubsub/azure/eventhubs/conn"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
 	"github.com/dapr/kit/retry"
@@ -76,19 +75,14 @@ func (aeh *AzureEventHubs) Init(metadata pubsub.Metadata) error {
 
 	if aeh.metadata.ConnectionString != "" {
 		// Connect using the connection string
-		var parsedConn *conn.ParsedConn
-		parsedConn, err = conn.ParsedConnectionFromStr(aeh.metadata.ConnectionString)
-		if err != nil {
-			return fmt.Errorf("connectionString is invalid: %w", err)
-		}
-
-		if parsedConn.HubName != "" {
-			aeh.logger.Infof(`The provided connection string is specific to the Event Hub ("entity path") '%s'; publishing or subscribing to a topic that does not match this Event Hub will fail when attempted`, parsedConn.HubName)
+		hubName := hubNameFromConnString(aeh.metadata.ConnectionString)
+		if hubName != "" {
+			aeh.logger.Infof(`The provided connection string is specific to the Event Hub ("entity path") '%s'; publishing or subscribing to a topic that does not match this Event Hub will fail when attempted`, hubName)
 		} else {
 			aeh.logger.Infof(`The provided connection string does not contain an Event Hub name ("entity path"); the connection will be established on first publish/subscribe and req.Topic field in incoming requests will be honored`)
 		}
 
-		aeh.metadata.hubName = parsedConn.HubName
+		aeh.metadata.hubName = hubName
 	} else {
 		// Connect via Azure AD
 		var env azauth.EnvironmentSettings

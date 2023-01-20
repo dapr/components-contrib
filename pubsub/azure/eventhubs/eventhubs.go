@@ -33,6 +33,7 @@ import (
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/components-contrib/pubsub/azure/eventhubs/conn"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 	"github.com/dapr/kit/retry"
 )
 
@@ -167,7 +168,7 @@ func (aeh *AzureEventHubs) BulkPublish(ctx context.Context, req *pubsub.BulkPubl
 			Body: entry.Event,
 		}
 		if entry.ContentType != "" {
-			messages[i].ContentType = &entry.ContentType
+			messages[i].ContentType = ptr.Of(entry.ContentType)
 		}
 		if val := entry.Metadata["partitionKey"]; val != "" {
 			if batchOpts.PartitionKey != nil && *batchOpts.PartitionKey != val {

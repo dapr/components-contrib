@@ -162,7 +162,7 @@ func TestEventhubs(t *testing.T) {
 		return func(ctx flow.Context) error {
 			// assert for messages
 			for _, m := range messageWatchers {
-				m.Assert(ctx, 10*timeout)
+				m.Assert(ctx, 15*timeout)
 			}
 
 			return nil
@@ -269,6 +269,7 @@ func TestEventhubs(t *testing.T) {
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*3),
 			componentRuntimeOptions(4),
 		)).
+		Step("wait", flow.Sleep(10*time.Second)).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicToBeCreated), publishMessages(metadata, sidecarName4, topicToBeCreated, consumerGroup4)).
 		Step("verify if app4 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup4)).
 
@@ -285,6 +286,7 @@ func TestEventhubs(t *testing.T) {
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*4),
 			componentRuntimeOptions(5),
 		)).
+		Step("wait", flow.Sleep(10*time.Second)).
 		Step("add expected IOT messages (simulate add message to iot)", publishMessageAsDevice(consumerGroup5)).
 		Step("verify if app5 has recevied messages published to iot topic", assertMessages(40*time.Second, consumerGroup5)).
 		Step("wait", flow.Sleep(5*time.Second)).

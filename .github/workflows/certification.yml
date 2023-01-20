@@ -294,12 +294,20 @@ jobs:
       run: |
         PUBSUB_AWS_SNSSQS_QUEUE_1="sqssnscerttest-q1-${{env.UNIQUE_ID}}"
         echo "PUBSUB_AWS_SNSSQS_QUEUE_1=$PUBSUB_AWS_SNSSQS_QUEUE_1" >> $GITHUB_ENV
+
         PUBSUB_AWS_SNSSQS_QUEUE_2="sqssnscerttest-q2-${{env.UNIQUE_ID}}"
         echo "PUBSUB_AWS_SNSSQS_QUEUE_2=$PUBSUB_AWS_SNSSQS_QUEUE_2" >> $GITHUB_ENV
+
         PUBSUB_AWS_SNSSQS_QUEUE_3="sqssnscerttest-q3-${{env.UNIQUE_ID}}"
         echo "PUBSUB_AWS_SNSSQS_QUEUE_3=$PUBSUB_AWS_SNSSQS_QUEUE_3" >> $GITHUB_ENV
         PUBSUB_AWS_SNSSQS_TOPIC_3="sqssnscerttest-t3-${{env.UNIQUE_ID}}"
         echo "PUBSUB_AWS_SNSSQS_TOPIC_3=$PUBSUB_AWS_SNSSQS_TOPIC_3" >> $GITHUB_ENV
+
+        PUBSUB_AWS_SNSSQS_QUEUE_MVT="sqssnscerttest-q-mvt-${{env.UNIQUE_ID}}"
+        echo "PUBSUB_AWS_SNSSQS_QUEUE_MVT=$PUBSUB_AWS_SNSSQS_QUEUE_MVT" >> $GITHUB_ENV
+        PUBSUB_AWS_SNSSQS_TOPIC_MVT="sqssnscerttest-tp-mvt-${{env.UNIQUE_ID}}"
+        echo "PUBSUB_AWS_SNSSQS_TOPIC_MVT=$PUBSUB_AWS_SNSSQS_TOPIC_MVT" >> $GITHUB_ENV
+
         AWS_REGION="us-east-1"
         echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
     

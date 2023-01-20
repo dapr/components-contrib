@@ -24,31 +24,28 @@ import (
 
 type metadata struct {
 	pubsub.TLSProperties
-	url                      string
-	consumerID               string
-	producerID               string
-	qos                      byte
-	retain                   bool
-	cleanSession             bool
-	maxRetriableErrorsPerSec int
+	url          string
+	consumerID   string
+	producerID   string
+	qos          byte
+	retain       bool
+	cleanSession bool
 }
 
 const (
 	// Keys
-	mqttURL                      = "url"
-	mqttQOS                      = "qos"
-	mqttRetain                   = "retain"
-	mqttConsumerID               = "consumerID"
-	mqttProducerID               = "producerID"
-	mqttCleanSession             = "cleanSession"
-	mqttMaxRetriableErrorsPerSec = "maxRetriableErrorsPerSec"
+	mqttURL          = "url"
+	mqttQOS          = "qos"
+	mqttRetain       = "retain"
+	mqttConsumerID   = "consumerID"
+	mqttProducerID   = "producerID"
+	mqttCleanSession = "cleanSession"
 
 	// Defaults
-	defaultQOS                      = 1
-	defaultRetain                   = false
-	defaultWait                     = 30 * time.Second
-	defaultCleanSession             = false
-	defaultMaxRetriableErrorsPerSec = 10
+	defaultQOS          = 1
+	defaultRetain       = false
+	defaultWait         = 30 * time.Second
+	defaultCleanSession = false
 )
 
 func parseMQTTMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error) {
@@ -100,15 +97,6 @@ func parseMQTTMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error)
 		}
 	}
 
-	m.maxRetriableErrorsPerSec = defaultMaxRetriableErrorsPerSec
-	if val, ok := md.Properties[mqttMaxRetriableErrorsPerSec]; ok && val != "" {
-		var err error
-		m.maxRetriableErrorsPerSec, err = strconv.Atoi(val)
-		if err != nil {
-			return &m, fmt.Errorf("%s invalid maxRetriableErrorsPerSec %s, %s", errorMsgPrefix, val, err)
-		}
-	}
-
 	var err error
 	m.TLSProperties, err = pubsub.TLS(md.Properties)
 	if err != nil {
@@ -119,6 +107,12 @@ func parseMQTTMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error)
 	// TODO: Remove in the future
 	if _, ok := md.Properties["backOffMaxRetries"]; ok {
 		log.Warnf("Metadata property 'backOffMaxRetries' for component pubsub.mqtt has been deprecated and will be ignored. See: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-mqtt/")
+	}
+
+	// Deprecated config option
+	// TODO: Remove in the future
+	if _, ok := md.Properties["maxRetriableErrorsPerSec"]; ok {
+		log.Warnf("Metadata property 'maxRetriableErrorsPerSec' for component pubsub.mqtt3 has been deprecated and will be ignored. See: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-mqtt/")
 	}
 
 	return &m, nil

@@ -17,16 +17,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/cenkalti/backoff/v4"
 
-	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
-	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
 )
 
@@ -37,7 +34,7 @@ import (
 // TODO(@ItalyPaleAle): Remove this for Dapr 1.13
 func (aeh *AzureEventHubs) ensureNoTrack1Subscribers(parentCtx context.Context, topic string) error {
 	// Get a client to Azure Blob Storage
-	client, err := aeh.createContainerStorageClient()
+	client, err := aeh.createStorageClient()
 	if err != nil {
 		return err
 	}
@@ -55,7 +52,7 @@ func (aeh *AzureEventHubs) ensureNoTrack1Subscribers(parentCtx context.Context, 
 	backOffConfig.MaxRetries = -1
 	b := backOffConfig.NewBackOffWithContext(parentCtx)
 	err = backoff.Retry(func() error {
-		pager := client.NewListBlobsFlatPager(&container.ListBlobsFlatOptions{
+		pager := client.NewListBlobsFlatPager(aeh.metadata.StorageContainerName, &container.ListBlobsFlatOptions{
 			Prefix: &prefix,
 		})
 		for pager.More() {
@@ -64,6 +61,12 @@ func (aeh *AzureEventHubs) ensureNoTrack1Subscribers(parentCtx context.Context, 
 			cancel()
 			if innerErr != nil {
 				// Treat these errors as permanent
+				resErr := &azcore.ResponseError{}
+				if !errors.As(err, &resErr) || resErr.StatusCode != http.StatusNotFound {
+					// A "not-found" error means that the storage container doesn't exist, so let's not handle it here
+					// Just return no error
+					return nil
+				}
 				return backoff.Permanent(fmt.Errorf("failed to list blobs: %w", innerErr))
 			}
 			for _, blob := range resp.Segment.BlobItems {
@@ -86,55 +89,4 @@ func (aeh *AzureEventHubs) ensureNoTrack1Subscribers(parentCtx context.Context, 
 		err = errors.New("failed to list blobs: request timed out")
 	}
 	return err
-}
-
-func (aeh *AzureEventHubs) createContainerStorageClient() (*container.Client, error) {
-	options := container.ClientOptions{
-		ClientOptions: azcore.ClientOptions{
-			Telemetry: policy.TelemetryOptions{
-				ApplicationID: "dapr-" + logger.DaprVersion,
-			},
-		},
-	}
-
-	var (
-		err    error
-		client *container.Client
-	)
-	// Use the global URL for Azure Storage
-	containerURL := fmt.Sprintf("https://%s.blob.%s/%s", aeh.metadata.StorageAccountName, "core.windows.net", aeh.metadata.StorageContainerName)
-
-	if aeh.metadata.StorageConnectionString != "" {
-		// Authenticate with a connection string
-		client, err = container.NewClientFromConnectionString(aeh.metadata.StorageConnectionString, aeh.metadata.StorageContainerName, &options)
-		if err != nil {
-			return nil, fmt.Errorf("error creating Azure Storage client from connection string: %w", err)
-		}
-	} else if aeh.metadata.StorageAccountKey != "" {
-		// Authenticate with a shared key
-		credential, newSharedKeyErr := azblob.NewSharedKeyCredential(aeh.metadata.StorageAccountName, aeh.metadata.StorageAccountKey)
-		if newSharedKeyErr != nil {
-			return nil, fmt.Errorf("invalid Azure Storage shared key credentials with error: %w", newSharedKeyErr)
-		}
-		client, err = container.NewClientWithSharedKeyCredential(containerURL, credential, &options)
-		if err != nil {
-			return nil, fmt.Errorf("error creating Azure Storage client from shared key credentials: %w", err)
-		}
-	} else {
-		// Use Azure AD
-		settings, err := azauth.NewEnvironmentSettings("storage", aeh.metadata.properties)
-		if err != nil {
-			return nil, err
-		}
-		credential, tokenErr := settings.GetTokenCredential()
-		if tokenErr != nil {
-			return nil, fmt.Errorf("invalid Azure Storage token credentials with error: %w", tokenErr)
-		}
-		client, err = container.NewClient(containerURL, credential, &options)
-		if err != nil {
-			return nil, fmt.Errorf("error creating Azure Storage client from token credentials: %w", err)
-		}
-	}
-
-	return client, nil
 }

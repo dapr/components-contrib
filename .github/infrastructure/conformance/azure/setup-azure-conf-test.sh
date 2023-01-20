@@ -381,7 +381,7 @@ echo "Creating service principal ${AKV_SPAUTH_SP_NAME} for use with KeyVault ${K
 { read AKV_SPAUTH_SP_CLIENT_ID ; read AKV_SPAUTH_SP_CLIENT_SECRET ; } <  <(az ad sp create-for-rbac --name ${AKV_SPAUTH_SP_NAME} --years 1 --query "[appId,password]" -otsv)
 
 # Give the service principal read access to the KeyVault Secrets
-AKV_SPAUTH_SP_OBJECTID="$(az ad sp show --id ${AKV_SPAUTH_SP_CLIENT_ID} --query objectId -otsv)"
+AKV_SPAUTH_SP_OBJECTID="$(az ad sp show --id ${AKV_SPAUTH_SP_CLIENT_ID} --query id -otsv)"
 az keyvault set-policy --name "${KEYVAULT_NAME}" -g "${RESOURCE_GROUP_NAME}" --secret-permissions get list --object-id "${AKV_SPAUTH_SP_OBJECTID}"
 
 # Update service principal credentials and roles for created resources
@@ -717,7 +717,7 @@ az keyvault secret set --name "${IOT_HUB_PUBSUB_CONSUMER_GROUP_VAR_NAME}" --vaul
 # ------------------------------------------------------------------------
 CERTIFICATION_SPAUTH_SP_NAME="${PREFIX}-certification-spauth-conf-test-sp"
 { read CERTIFICATION_SPAUTH_SP_CLIENT_ID ; read CERTIFICATION_SPAUTH_SP_CLIENT_SECRET ; } <  <(az ad sp create-for-rbac --name ${CERTIFICATION_SPAUTH_SP_NAME} --years 1 --query "[appId,password]" -otsv)
-CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID="$(az ad sp list --display-name "${CERTIFICATION_SPAUTH_SP_NAME}" --query "[].objectId" --output tsv)"
+CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID="$(az ad sp list --display-name "${CERTIFICATION_SPAUTH_SP_NAME}" --query "[].id" --output tsv)"
 
 # Give the service principal used for certification test access to the relevant data plane resources
 # Cosmos DB

@@ -26,6 +26,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs"
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs/checkpoints"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"golang.org/x/exp/maps"
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
@@ -486,7 +488,7 @@ func (aeh *AzureEventHubs) getProducerClientForTopic(ctx context.Context, topic 
 // Creates a processor for a given topic.
 func (aeh *AzureEventHubs) getProcessorForTopic(ctx context.Context, topic string) (*azeventhubs.Processor, error) {
 	// Get the checkpoint store
-	checkpointStore, err := aeh.getCheckpointStore()
+	checkpointStore, err := aeh.getCheckpointStore(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to the checkpoint store: %w", err)
 	}
@@ -546,7 +548,7 @@ func (aeh *AzureEventHubs) getProcessorForTopic(ctx context.Context, topic strin
 }
 
 // Returns the checkpoint store from the object. If it doesn't exist, it lazily initializes it.
-func (aeh *AzureEventHubs) getCheckpointStore() (azeventhubs.CheckpointStore, error) {
+func (aeh *AzureEventHubs) getCheckpointStore(ctx context.Context) (azeventhubs.CheckpointStore, error) {
 	// Check if we have the checkpoint store
 	aeh.checkpointStoreLock.RLock()
 	if aeh.checkpointStoreCache != nil {
@@ -565,7 +567,7 @@ func (aeh *AzureEventHubs) getCheckpointStore() (azeventhubs.CheckpointStore, er
 
 	// Init the checkpoint store and store it in the object
 	var err error
-	aeh.checkpointStoreCache, err = aeh.createCheckpointStore()
+	aeh.checkpointStoreCache, err = aeh.createCheckpointStore(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to the checkpoint store: %w", err)
 	}
@@ -574,7 +576,7 @@ func (aeh *AzureEventHubs) getCheckpointStore() (azeventhubs.CheckpointStore, er
 }
 
 // Initializes a new checkpoint store
-func (aeh *AzureEventHubs) createCheckpointStore() (checkpointStore azeventhubs.CheckpointStore, err error) {
+func (aeh *AzureEventHubs) createCheckpointStore(ctx context.Context) (checkpointStore azeventhubs.CheckpointStore, err error) {
 	if aeh.metadata.StorageAccountName == "" {
 		return nil, errors.New("property storageAccountName is required to subscribe to an Event Hub topic")
 	}
@@ -582,6 +584,13 @@ func (aeh *AzureEventHubs) createCheckpointStore() (checkpointStore azeventhubs.
 		return nil, errors.New("property storageContainerName is required to subscribe to an Event Hub topic")
 	}
 
+	// Ensure the container exists
+	err = aeh.ensureStorageContainer(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create the checkpoint store
 	checkpointStoreOpts := &checkpoints.BlobStoreOptions{
 		ClientOptions: policy.ClientOptions{
 			Telemetry: policy.TelemetryOptions{
@@ -618,6 +627,89 @@ func (aeh *AzureEventHubs) createCheckpointStore() (checkpointStore azeventhubs.
 	}
 
 	return checkpointStore, nil
+}
+
+// Ensures that the container exists in the Azure Storage Account.
+// This is done to preserve backwards-compatibility with Dapr 1.9, as the old checkpoint SDK created them automatically.
+func (aeh *AzureEventHubs) ensureStorageContainer(parentCtx context.Context) error {
+	// Get a client to Azure Blob Storage
+	client, err := aeh.createStorageClient()
+	if err != nil {
+		return err
+	}
+
+	// Create the container
+	// This will return an error if it already exists
+	ctx, cancel := context.WithTimeout(parentCtx, resourceCreationTimeout)
+	defer cancel()
+	_, err = client.CreateContainer(ctx, aeh.metadata.StorageContainerName, &container.CreateOptions{
+		// Default is private
+		Access: nil,
+	})
+	if err != nil {
+		// Check if it's an Azure Storage error
+		resErr := &azcore.ResponseError{}
+		// If the container already exists, return no error
+		if errors.As(err, &resErr) && (resErr.ErrorCode == "ContainerAlreadyExists" || resErr.ErrorCode == "ResourceAlreadyExists") {
+			return nil
+		}
+
+		return fmt.Errorf("failed to create Azure Storage container %s: %w", aeh.metadata.StorageContainerName, err)
+	}
+
+	return nil
+}
+
+// Creates a client to access Azure Blob Storage
+func (aeh *AzureEventHubs) createStorageClient() (*azblob.Client, error) {
+	options := azblob.ClientOptions{
+		ClientOptions: azcore.ClientOptions{
+			Telemetry: policy.TelemetryOptions{
+				ApplicationID: "dapr-" + logger.DaprVersion,
+			},
+		},
+	}
+
+	var (
+		err    error
+		client *azblob.Client
+	)
+	// Use the global URL for Azure Storage
+	accountURL := fmt.Sprintf("https://%s.blob.%s", aeh.metadata.StorageAccountName, "core.windows.net")
+
+	if aeh.metadata.StorageConnectionString != "" {
+		// Authenticate with a connection string
+		client, err = azblob.NewClientFromConnectionString(aeh.metadata.StorageConnectionString, &options)
+		if err != nil {
+			return nil, fmt.Errorf("error creating Azure Storage client from connection string: %w", err)
+		}
+	} else if aeh.metadata.StorageAccountKey != "" {
+		// Authenticate with a shared key
+		credential, newSharedKeyErr := azblob.NewSharedKeyCredential(aeh.metadata.StorageAccountName, aeh.metadata.StorageAccountKey)
+		if newSharedKeyErr != nil {
+			return nil, fmt.Errorf("invalid Azure Storage shared key credentials with error: %w", newSharedKeyErr)
+		}
+		client, err = azblob.NewClientWithSharedKeyCredential(accountURL, credential, &options)
+		if err != nil {
+			return nil, fmt.Errorf("error creating Azure Storage client from shared key credentials: %w", err)
+		}
+	} else {
+		// Use Azure AD
+		settings, err := azauth.NewEnvironmentSettings("storage", aeh.metadata.properties)
+		if err != nil {
+			return nil, err
+		}
+		credential, tokenErr := settings.GetTokenCredential()
+		if tokenErr != nil {
+			return nil, fmt.Errorf("invalid Azure Storage token credentials with error: %w", tokenErr)
+		}
+		client, err = azblob.NewClient(accountURL, credential, &options)
+		if err != nil {
+			return nil, fmt.Errorf("error creating Azure Storage client from token credentials: %w", err)
+		}
+	}
+
+	return client, nil
 }
 
 // Returns a connection string with the Event Hub name (entity path) set if not present.

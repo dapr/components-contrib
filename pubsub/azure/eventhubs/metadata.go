@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
@@ -40,6 +41,7 @@ type azureEventHubsMetadata struct {
 	ResourceGroupName       string `json:"resourceGroupName" mapstructure:"resourceGroupName"`
 
 	// Internal properties
+	namespaceName    string
 	hubName          string
 	aadTokenProvider azcore.TokenCredential
 	properties       map[string]string
@@ -72,6 +74,18 @@ func parseEventHubsMetadata(meta pubsub.Metadata, log logger.Logger) (*azureEven
 	if m.EnableEntityManagement && m.ConnectionString != "" {
 		m.EnableEntityManagement = false
 		log.Warn("Entity management support is not available when connecting with a connection string")
+	}
+
+	if m.EventHubNamespace != "" {
+		// Older versions of Dapr required the namespace name to be just the name and not a FQDN
+		// Automatically append ".servicebus.windows.net" to make them a FQDN if not present, but show a log
+		if !strings.ContainsRune(m.EventHubNamespace, '.') {
+			m.EventHubNamespace += ".servicebus.windows.net"
+			log.Info("Property eventHubNamespace is not a FQDN; the suffix '.servicebus.windows.net' will be added automatically")
+		}
+
+		// The namespace name is the first part of the FQDN, until the first dot
+		m.namespaceName = m.EventHubNamespace[0:strings.IndexRune(m.EventHubNamespace, '.')]
 	}
 
 	return &m, nil

@@ -28,7 +28,7 @@ import (
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/kit/logger"
+	kitLogger "github.com/dapr/kit/logger"
 )
 
 const (
@@ -36,7 +36,7 @@ const (
 
 	// iotHubConnectionStringEnvKey defines the key containing the integration test connection string
 	// For the default EventHub endpoint for an Azure IoT Hub, it will resemble:
-	// Endpoint=sb://<iotHubGeneratedNamespace>.servicebus.windows.net/;SharedAccessKeyName=service;SharedAccessKey=<key>;EntityPath=<iotHubGeneratedPath>
+	// Endpoint=sb://<iotHubGeneratedNamespace>.servicebus.windows.net/;SharedAccessKeyName=service;SharedAccessKey=<key>;EntityPath=integration-test-topic
 	iotHubConnectionStringEnvKey = "AzureIotHubEventHubConnectionString"
 	iotHubConsumerGroupEnvKey    = "AzureIotHubPubsubConsumerGroup"
 	iotHubNameEnvKey             = "AzureIotHubName"
@@ -66,17 +66,18 @@ func createIotHubPubsubMetadata() pubsub.Metadata {
 }
 
 func testReadIotHubEvents(t *testing.T) {
-	logger := logger.NewLogger("pubsub.azure.eventhubs.integration.test")
+	logger := kitLogger.NewLogger("pubsub.azure.eventhubs.integration.test")
+	logger.SetOutputLevel(kitLogger.DebugLevel)
 	eh := NewAzureEventHubs(logger).(*AzureEventHubs)
 	err := eh.Init(createIotHubPubsubMetadata())
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	// Invoke az CLI via bash script to send test IoT device events
 	// Requires the AZURE_CREDENTIALS environment variable to be already set (output of `az ad sp create-for-rbac`)
 	cmd := exec.Command("/bin/bash", "../../../tests/scripts/send-iot-device-events.sh")
 	cmd.Env = append(os.Environ(), fmt.Sprintf("IOT_HUB_NAME=%s", os.Getenv(iotHubNameEnvKey)))
 	out, err := cmd.CombinedOutput()
-	assert.Nil(t, err, "Error in send-iot-device-events.sh:\n%s", out)
+	assert.NoError(t, err, "Error in send-iot-device-events.sh:\n%s", string(out))
 
 	// Setup subscription to capture messages in a closure so that test asserts can be
 	// performed on the main thread, including the case where the handler is never invoked.
@@ -87,13 +88,13 @@ func testReadIotHubEvents(t *testing.T) {
 	}
 
 	req := pubsub.SubscribeRequest{
-		Topic: testTopic, // TODO: Handle Topic configuration after EventHubs pubsub rewrite #951
+		Topic: testTopic,
 		Metadata: map[string]string{
 			"requireAllProperties": "true",
 		},
 	}
 	err = eh.Subscribe(context.Background(), req, handler)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	// Note: azure-event-hubs-go SDK defaultLeasePersistenceInterval is 5s
 	// Sleep long enough so that the azure event hubs SDK has time to persist updated checkpoints

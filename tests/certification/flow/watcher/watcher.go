@@ -425,6 +425,22 @@ func (w *Watcher) Assert(t TestingT, timeout time.Duration) bool {
 	}
 }
 
+func (w *Watcher) AssertNotDelivered(t TestingT, timeout time.Duration) bool {
+	w.checkClosable()
+
+	select {
+	case <-time.After(timeout):
+		w.mu.Lock()
+		defer w.mu.Unlock()
+		return true
+	case <-w.finished:
+		w.mu.Lock()
+		defer w.mu.Unlock()
+
+		return len(w.observed) == 0
+	}
+}
+
 // Assert waits for up to `timeout` for all
 // expected data to be observed and requires
 // the expected and observed data are either

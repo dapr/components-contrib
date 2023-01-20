@@ -29,6 +29,7 @@ import (
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/components-contrib/internal/utils"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/components-contrib/pubsub/azure/eventhubs/conn"
 	"github.com/dapr/kit/logger"
@@ -123,41 +124,96 @@ func (aeh *AzureEventHubs) Publish(ctx context.Context, req *pubsub.PublishReque
 		return errors.New("parameter 'topic' is required")
 	}
 
+	// Get the partition key and create the batch of messages
+	batchOpts := &azeventhubs.EventDataBatchOptions{}
+	if pk := req.Metadata["partitionKey"]; pk != "" {
+		batchOpts.PartitionKey = &pk
+	}
+	messages := []*azeventhubs.EventData{
+		{
+			Body:        req.Data,
+			ContentType: req.ContentType,
+		},
+	}
+
+	// Publish the message
+	return aeh.doPublish(ctx, req.Topic, messages, batchOpts)
+}
+
+// BulkPublish sends data to Azure Event Hubs in bulk.
+func (aeh *AzureEventHubs) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
+	res := pubsub.BulkPublishResponse{}
+
+	if req.Topic == "" {
+		return res, errors.New("parameter 'topic' is required")
+	}
+
+	// Batch options
+	batchOpts := &azeventhubs.EventDataBatchOptions{}
+	if val := req.Metadata[contribMetadata.MaxBulkPubBytesKey]; val != "" {
+		maxBytes, err := strconv.ParseUint(val, 10, 63)
+		if err == nil && maxBytes > 0 {
+			batchOpts.MaxBytes = maxBytes
+		}
+	}
+
+	// Build the batch of messages
+	messages := make([]*azeventhubs.EventData, len(req.Entries))
+	for i, entry := range req.Entries {
+		messages[i] = &azeventhubs.EventData{
+			Body: entry.Event,
+		}
+		if entry.ContentType != "" {
+			messages[i].ContentType = &entry.ContentType
+		}
+		if val := entry.Metadata["partitionKey"]; val != "" {
+			if batchOpts.PartitionKey != nil && *batchOpts.PartitionKey != val {
+				return res, errors.New("cannot send messages to different partitions")
+			}
+			batchOpts.PartitionKey = &val
+		}
+	}
+
+	// Publish the message
+	err := aeh.doPublish(ctx, req.Topic, messages, batchOpts)
+	if err != nil {
+		// Partial success is not supported by Azure Event Hubs.
+		// If an error occurs, all events are considered failed.
+		return pubsub.NewBulkPublishResponse(req.Entries, err), err
+	}
+
+	return res, nil
+}
+
+// Internal method used by Publish and BulkPublish to send messages
+func (aeh *AzureEventHubs) doPublish(ctx context.Context, topic string, messages []*azeventhubs.EventData, batchOpts *azeventhubs.EventDataBatchOptions) error {
 	// Get the producer client
-	client, err := aeh.getProducerClientForTopic(ctx, req.Topic)
+	client, err := aeh.getProducerClientForTopic(ctx, topic)
 	if err != nil {
 		return fmt.Errorf("error trying to establish a connection: %w", err)
 	}
 
 	// Build the batch of messages
-	batchOpts := &azeventhubs.EventDataBatchOptions{}
-	if pk := req.Metadata["partitionKey"]; pk != "" {
-		batchOpts.PartitionKey = &pk
-	}
 	batch, err := client.NewEventDataBatch(ctx, batchOpts)
 	if err != nil {
 		return fmt.Errorf("error creating batch: %w", err)
 	}
-	err = batch.AddEventData(&azeventhubs.EventData{
-		Body:        req.Data,
-		ContentType: req.ContentType,
-	}, nil)
-	if err != nil {
-		return fmt.Errorf("error adding message to batch: %w", err)
+
+	// Add all messages
+	for _, msg := range messages {
+		err = batch.AddEventData(msg, nil)
+		if err != nil {
+			return fmt.Errorf("error adding messages to batch: %w", err)
+		}
 	}
 
 	// Send the message
-	client.SendEventDataBatch(ctx, batch, nil)
+	err = client.SendEventDataBatch(ctx, batch, nil)
 	if err != nil {
 		return fmt.Errorf("error publishing batch: %w", err)
 	}
 
 	return nil
-}
-
-// BulkPublish sends data to Azure Event Hubs in bulk.
-func (aeh *AzureEventHubs) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
-	return pubsub.BulkPublishResponse{}, nil
 }
 
 // Subscribe receives data from Azure Event Hubs.

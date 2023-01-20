@@ -228,7 +228,7 @@ STORAGE_CONTAINER_VAR_NAME="AzureBlobStorageContainer"
 STORAGE_QUEUE_VAR_NAME="AzureBlobStorageQueue"
 
 # Derived variables
-ADMIN_ID="$(az ad user list --filter "userPrincipalName eq '${ADMIN_UPN}'" --query "[].objectId" --output tsv)"
+ADMIN_ID="$(az ad user list --filter "userPrincipalName eq '${ADMIN_UPN}'" --query "[].id" --output tsv)"
 if [[ -z "${ADMIN_ID}" ]]; then
     echo "Could not find user with upn ${ADMIN_UPN}"
     exit 1
@@ -245,8 +245,8 @@ az config set extension.use_dynamic_install=yes_without_prompt
 
 # Create Service Principals for use with the conformance tests
 CERT_AUTH_SP_NAME="${PREFIX}-akv-conf-test-sp"
-az ad sp create-for-rbac --name "${CERT_AUTH_SP_NAME}" --skip-assignment --years 1
-CERT_AUTH_SP_ID="$(az ad sp list --display-name "${CERT_AUTH_SP_NAME}" --query "[].objectId" --output tsv)"
+az ad sp create-for-rbac --name "${CERT_AUTH_SP_NAME}" --years 1
+CERT_AUTH_SP_ID="$(az ad sp list --display-name "${CERT_AUTH_SP_NAME}" --query "[].id" --output tsv)"
 echo "Created Service Principal for cert auth: ${CERT_AUTH_SP_NAME}"
 
 if [[ -n ${CREDENTIALS_PATH} ]]; then
@@ -258,13 +258,13 @@ if [[ -n ${CREDENTIALS_PATH} ]]; then
         exit 1
     fi
     SDK_AUTH_SP_NAME="$(az ad sp show --id "${SDK_AUTH_SP_APPID}" --query "appDisplayName" --output tsv)"
-    SDK_AUTH_SP_ID="$(az ad sp show --id "${SDK_AUTH_SP_APPID}" --query "objectId" --output tsv)"
+    SDK_AUTH_SP_ID="$(az ad sp show --id "${SDK_AUTH_SP_APPID}" --query "id" --output tsv)"
     echo "Using Service Principal from ${CREDENTIALS_PATH} for SDK Auth: ${SDK_AUTH_SP_NAME}"
 else
     SDK_AUTH_SP_NAME="${PREFIX}-conf-test-runner-sp"
-    SDK_AUTH_SP_INFO="$(az ad sp create-for-rbac --name "${SDK_AUTH_SP_NAME}" --sdk-auth --skip-assignment --years 1)"
+    SDK_AUTH_SP_INFO="$(az ad sp create-for-rbac --name "${SDK_AUTH_SP_NAME}" --sdk-auth --years 1)"
     SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | grep 'clientSecret' | sed -E 's/(.*clientSecret\"\: \")|\".*//g')"
-    SDK_AUTH_SP_ID="$(az ad sp list --display-name "${SDK_AUTH_SP_NAME}" --query "[].objectId" --output tsv)"
+    SDK_AUTH_SP_ID="$(az ad sp list --display-name "${SDK_AUTH_SP_NAME}" --query "[].id" --output tsv)"
     echo "${SDK_AUTH_SP_INFO}"
     echo "Created Service Principal for SDK Auth: ${SDK_AUTH_SP_NAME}"
     AZURE_CREDENTIALS_FILENAME="${OUTPUT_PATH}/AZURE_CREDENTIALS"
@@ -378,7 +378,7 @@ az keyvault set-policy --name "${KEYVAULT_NAME}" -g "${RESOURCE_GROUP_NAME}" --s
 # Creating service principal for service principal authentication with KeyVault
 AKV_SPAUTH_SP_NAME="${PREFIX}-akv-spauth-conf-test-sp"
 echo "Creating service principal ${AKV_SPAUTH_SP_NAME} for use with KeyVault ${KEYVAULT_NAME}"
-{ read AKV_SPAUTH_SP_CLIENT_ID ; read AKV_SPAUTH_SP_CLIENT_SECRET ; } <  <(az ad sp create-for-rbac --name ${AKV_SPAUTH_SP_NAME} --skip-assignment --years 1 --query "[appId,password]" -otsv)
+{ read AKV_SPAUTH_SP_CLIENT_ID ; read AKV_SPAUTH_SP_CLIENT_SECRET ; } <  <(az ad sp create-for-rbac --name ${AKV_SPAUTH_SP_NAME} --years 1 --query "[appId,password]" -otsv)
 
 # Give the service principal read access to the KeyVault Secrets
 AKV_SPAUTH_SP_OBJECTID="$(az ad sp show --id ${AKV_SPAUTH_SP_CLIENT_ID} --query objectId -otsv)"
@@ -716,7 +716,7 @@ az keyvault secret set --name "${IOT_HUB_PUBSUB_CONSUMER_GROUP_VAR_NAME}" --vaul
 # CERTIFICATION TESTS: Create service principal and grant resource access
 # ------------------------------------------------------------------------
 CERTIFICATION_SPAUTH_SP_NAME="${PREFIX}-certification-spauth-conf-test-sp"
-{ read CERTIFICATION_SPAUTH_SP_CLIENT_ID ; read CERTIFICATION_SPAUTH_SP_CLIENT_SECRET ; } <  <(az ad sp create-for-rbac --name ${CERTIFICATION_SPAUTH_SP_NAME} --skip-assignment --years 1 --query "[appId,password]" -otsv)
+{ read CERTIFICATION_SPAUTH_SP_CLIENT_ID ; read CERTIFICATION_SPAUTH_SP_CLIENT_SECRET ; } <  <(az ad sp create-for-rbac --name ${CERTIFICATION_SPAUTH_SP_NAME} --years 1 --query "[appId,password]" -otsv)
 CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID="$(az ad sp list --display-name "${CERTIFICATION_SPAUTH_SP_NAME}" --query "[].objectId" --output tsv)"
 
 # Give the service principal used for certification test access to the relevant data plane resources

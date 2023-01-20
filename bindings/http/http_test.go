@@ -77,11 +77,15 @@ func (tc TestCase) ToInvokeRequest() bindings.InvokeRequest {
 }
 
 type HTTPHandler struct {
-	Path string
+	Path    string
+	Headers map[string]string
 }
 
 func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	h.Path = req.URL.Path
+	for headerKey, headerValue := range req.Header {
+		h.Headers[headerKey] = headerValue[0]
+	}
 
 	input := req.Method
 	if req.Body != nil {
@@ -109,7 +113,8 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 func NewHTTPHandler() *HTTPHandler {
 	return &HTTPHandler{
-		Path: "/",
+		Path:    "/",
+		Headers: make(map[string]string),
 	}
 }
 
@@ -158,6 +163,48 @@ func TestNon2XXErrorsSuppressed(t *testing.T) {
 	hs, err := InitBinding(s, map[string]string{"errorIfNot2XX": "false"})
 	require.NoError(t, err)
 	verifyNon2XXErrorsSuppressed(t, hs, handler)
+}
+
+func TestTraceHeadersForwarded(t *testing.T) {
+	handler := NewHTTPHandler()
+	s := httptest.NewServer(handler)
+	defer s.Close()
+
+	hs, err := InitBinding(s, map[string]string{"traceHeaders": "false"})
+	require.NoError(t, err)
+
+	t.Run("trace headers not forwarded when traceHeaders set to false", func(t *testing.T) {
+		req := TestCase{
+			input:      "GET",
+			operation:  "get",
+			metadata:   map[string]string{"path": "/somewhere", "traceparent": "12345", "tracestate": "67890"},
+			path:       "/somewhere",
+			err:        "",
+			statusCode: 200,
+		}.ToInvokeRequest()
+		_, err = hs.Invoke(context.Background(), &req)
+		assert.NoError(t, err)
+		assert.Empty(t, handler.Headers["Traceparent"])
+		assert.Empty(t, handler.Headers["Tracestate"])
+	})
+
+	hs, err = InitBinding(s, map[string]string{"traceHeaders": "true"})
+	require.NoError(t, err)
+
+	t.Run("trace headers are forwarded when traceHeaders set to true", func(t *testing.T) {
+		req := TestCase{
+			input:      "GET",
+			operation:  "get",
+			metadata:   map[string]string{"path": "/somewhere", "traceparent": "12345", "tracestate": "67890"},
+			path:       "/somewhere",
+			err:        "",
+			statusCode: 200,
+		}.ToInvokeRequest()
+		_, err = hs.Invoke(context.Background(), &req)
+		assert.NoError(t, err)
+		assert.Equal(t, "12345", handler.Headers["Traceparent"])
+		assert.Equal(t, "67890", handler.Headers["Tracestate"])
+	})
 }
 
 func InitBindingForHTTPS(s *httptest.Server, extraProps map[string]string) (bindings.OutputBinding, error) {

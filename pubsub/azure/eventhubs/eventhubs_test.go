@@ -38,13 +38,23 @@ func TestParseEventHubsMetadata(t *testing.T) {
 	})
 
 	t.Run("test namespace given", func(t *testing.T) {
+		props := map[string]string{"eventHubNamespace": "fake.servicebus.windows.net"}
+
+		metadata := pubsub.Metadata{Base: metadata.Base{Properties: props}}
+		m, err := parseEventHubsMetadata(metadata, testLogger)
+
+		require.NoError(t, err)
+		assert.Equal(t, "fake.servicebus.windows.net", m.EventHubNamespace)
+	})
+
+	t.Run("test namespace adds FQDN", func(t *testing.T) {
 		props := map[string]string{"eventHubNamespace": "fake"}
 
 		metadata := pubsub.Metadata{Base: metadata.Base{Properties: props}}
 		m, err := parseEventHubsMetadata(metadata, testLogger)
 
 		require.NoError(t, err)
-		assert.Equal(t, "fake", m.EventHubNamespace)
+		assert.Equal(t, "fake.servicebus.windows.net", m.EventHubNamespace)
 	})
 
 	t.Run("test both connectionString and eventHubNamespace given", func(t *testing.T) {

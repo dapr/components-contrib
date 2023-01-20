@@ -46,7 +46,7 @@ const (
 )
 
 // Intializes the entity management capabilities. This method is invoked by Init.
-func (aeh *AzureEventHubs) initEntityManagement(md map[string]string) error {
+func (aeh *AzureEventHubs) initEntityManagement() error {
 	// Validate the metadata
 	err := aeh.validateEnitityManagementMetadata()
 	if err != nil {
@@ -54,7 +54,7 @@ func (aeh *AzureEventHubs) initEntityManagement(md map[string]string) error {
 	}
 
 	// Get Azure Management plane credentials object
-	settings, err := azauth.NewEnvironmentSettings("azure", md)
+	settings, err := azauth.NewEnvironmentSettings("azure", aeh.metadata.properties)
 	if err != nil {
 		return err
 	}

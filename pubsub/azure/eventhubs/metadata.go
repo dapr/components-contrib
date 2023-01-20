@@ -41,6 +41,7 @@ type azureEventHubsMetadata struct {
 	// Internal properties
 	hubName          string
 	aadTokenProvider azcore.TokenCredential
+	properties       map[string]string
 }
 
 func parseEventHubsMetadata(meta pubsub.Metadata, log logger.Logger) (*azureEventHubsMetadata, error) {
@@ -49,6 +50,9 @@ func parseEventHubsMetadata(meta pubsub.Metadata, log logger.Logger) (*azureEven
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode metada: %w", err)
 	}
+
+	// Store the raw properties in the object
+	m.properties = meta.Properties
 
 	// One and only one of connectionString and eventHubNamespace is required
 	if m.ConnectionString == "" && m.EventHubNamespace == "" {

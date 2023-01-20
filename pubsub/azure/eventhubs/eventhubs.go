@@ -157,7 +157,8 @@ func (aeh *AzureEventHubs) BulkPublish(ctx context.Context, req *pubsub.BulkPubl
 	// Batch options
 	batchOpts := &azeventhubs.EventDataBatchOptions{}
 	if val := req.Metadata[contribMetadata.MaxBulkPubBytesKey]; val != "" {
-		maxBytes, err := strconv.ParseUint(val, 10, 63)
+		var maxBytes uint64
+		maxBytes, err = strconv.ParseUint(val, 10, 63)
 		if err == nil && maxBytes > 0 {
 			batchOpts.MaxBytes = maxBytes
 		}

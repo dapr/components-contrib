@@ -63,9 +63,6 @@ components:
     allOperations: true
   - component: pulsar
     operations: ['publish', 'subscribe', 'multiplehandlers']
-  - component: mqtt3
-    profile: mosquitto
-    operations: ['publish', 'subscribe', 'multiplehandlers']
   - component: solace.amqp
     operations: ['publish', 'subscribe']
   - component: mqtt3

@@ -60,10 +60,10 @@ func (aeh *AzureEventHubs) ensureNoTrack1Subscribers(parentCtx context.Context, 
 		})
 		for pager.More() {
 			ctx, cancel := context.WithTimeout(parentCtx, resourceGetTimeout)
-			resp, err := pager.NextPage(ctx)
+			resp, innerErr := pager.NextPage(ctx)
 			cancel()
-			if err != nil {
-				return fmt.Errorf("failed to list blobs: %w", err)
+			if innerErr != nil {
+				return fmt.Errorf("failed to list blobs: %w", innerErr)
 			}
 			for _, blob := range resp.Segment.BlobItems {
 				if blob == nil || blob.Name == nil || blob.Properties == nil || blob.Properties.LeaseState == nil {

@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -49,6 +50,9 @@ type AzureEventHubs struct {
 	checkpointStoreLock  *sync.RWMutex
 
 	managementCreds azcore.TokenCredential
+
+	// TODO(@ItalyPaleAle): Remove in Dapr 1.13
+	isFailed *atomic.Bool
 }
 
 // NewAzureEventHubs returns a new Azure Event hubs instance.
@@ -58,6 +62,7 @@ func NewAzureEventHubs(logger logger.Logger) pubsub.PubSub {
 		producersLock:       &sync.RWMutex{},
 		producers:           make(map[string]*azeventhubs.ProducerClient, 1),
 		checkpointStoreLock: &sync.RWMutex{},
+		isFailed:            &atomic.Bool{},
 	}
 }
 
@@ -241,6 +246,11 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 	// Ensure that no subscriber using the old "track 1" SDK is active
 	// TODO(@ItalyPaleAle): Remove this for Dapr 1.13
 	{
+		// If a previous topic already failed, no need to try with other topics, as we're about to panic anyways
+		if aeh.isFailed.Load() {
+			return errors.New("subscribing to another topic on this component failed and Dapr is scheduled to crash; will not try subscribing to a new topic")
+		}
+
 		ctx, cancel := context.WithTimeout(subscribeCtx, 2*time.Minute)
 		err = aeh.ensureNoTrack1Subscribers(ctx, req.Topic)
 		cancel()
@@ -249,6 +259,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, req pubsub.Su
 			// In this case, we return an error here so Dapr can continue the initialization and report a "healthy" status (but this subscription won't be active)
 			// After 2 minutes, then, we panic, which ensures that during a rollout Kubernetes will see that this pod is unhealthy and re-creates that. Hopefully, by then other instances of the app will have been updated and no more locks will be present
 			if errors.Is(err, context.DeadlineExceeded) {
+				aeh.isFailed.Store(true)
 				errMsg := fmt.Sprintf("Another instance is currently subscribed to the topic %s in this Event Hub using an old version of Dapr, and this is not supported. Please ensure that all applications subscribed to the same topic, with this consumer group, are using Dapr 1.10 or newer.", req.Topic)
 				aeh.logger.Error(errMsg + " ⚠️⚠️⚠️ Dapr will crash in 2 minutes to force the orchestrator to restart the process after the rollout of other instances is complete.")
 				go func() {

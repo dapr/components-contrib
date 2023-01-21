@@ -28,7 +28,7 @@ import (
 type azureEventHubsMetadata struct {
 	ConnectionString        string `json:"connectionString" mapstructure:"connectionString"`
 	EventHubNamespace       string `json:"eventHubNamespace" mapstructure:"eventHubNamespace"`
-	ConsumerGroup           string `json:"consumerID" mapstructure:"consumerID"`
+	ConsumerID              string `json:"consumerID" mapstructure:"consumerID"`
 	StorageConnectionString string `json:"storageConnectionString" mapstructure:"storageConnectionString"`
 	StorageAccountName      string `json:"storageAccountName" mapstructure:"storageAccountName"`
 	StorageAccountKey       string `json:"storageAccountKey" mapstructure:"storageAccountKey"`
@@ -40,7 +40,8 @@ type azureEventHubsMetadata struct {
 	ResourceGroupName       string `json:"resourceGroupName" mapstructure:"resourceGroupName"`
 
 	// Binding only
-	EventHub string `json:"eventHub" mapstructure:"eventHub"`
+	EventHub      string `json:"eventHub" mapstructure:"eventHub"`
+	ConsumerGroup string `json:"consumerGroup" mapstructure:"consumerGroup"` // Alias for ConsumerID
 
 	// Internal properties
 	namespaceName    string
@@ -65,6 +66,11 @@ func parseEventHubsMetadata(meta map[string]string, isBinding bool, log logger.L
 	}
 	if m.ConnectionString != "" && m.EventHubNamespace != "" {
 		return nil, errors.New("only one of connectionString or eventHubNamespace should be passed")
+	}
+
+	// ConsumerGroup is an alias for ConsumerID
+	if m.ConsumerID != "" && m.ConsumerGroup == "" {
+		m.ConsumerGroup = m.ConsumerID
 	}
 
 	// For the binding, we need to have a property "eventHub" which is the topic name unless it's included in the connection string

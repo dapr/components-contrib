@@ -146,23 +146,23 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		if config.HasOperation("read") {
 			errInp := bindings.PingInpBinding(inputBinding)
 			// TODO: Ideally, all stable components should implenment ping function,
-			// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
+			// so will only assert assert.NoError(t, err) finally, i.e. when current implementation
 			// implements ping in existing stable components
 			if errInp != nil {
 				assert.EqualError(t, errInp, "ping is not implemented by this input binding")
 			} else {
-				assert.Nil(t, errInp)
+				assert.NoError(t, errInp)
 			}
 		}
 		if config.HasOperation("operations") {
 			errOut := bindings.PingOutBinding(outputBinding)
 			// TODO: Ideally, all stable components should implenment ping function,
-			// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
+			// so will only assert assert.NoError(t, err) finally, i.e. when current implementation
 			// implements ping in existing stable components
 			if errOut != nil {
 				assert.EqualError(t, errOut, "ping is not implemented by this output binding")
 			} else {
-				assert.Nil(t, errOut)
+				assert.NoError(t, errOut)
 			}
 		}
 	})
@@ -233,7 +233,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			req := config.createInvokeRequest()
 			req.Operation = bindings.GetOperation
 			resp, err := outputBinding.Invoke(context.Background(), &req)
-			assert.Nil(t, err, "expected no error invoking output binding")
+			assert.NoError(t, err, "expected no error invoking output binding")
 			if createPerformed {
 				assert.Equal(t, req.Data, resp.Data)
 			}
@@ -276,7 +276,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			req := config.createInvokeRequest()
 			req.Operation = bindings.DeleteOperation
 			_, err := outputBinding.Invoke(context.Background(), &req)
-			assert.Nil(t, err, "expected no error invoking output binding")
+			assert.NoError(t, err, "expected no error invoking output binding")
 
 			if createPerformed && config.HasOperation(string(bindings.GetOperation)) {
 				req.Operation = bindings.GetOperation

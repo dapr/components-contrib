@@ -29,7 +29,9 @@ spec:
     - name: fifo
       value: "true"
     - name: messageMaxNumber
-      value: "1"
+      value: "10"
+    - name: concurrencyMode
+      value: "single"
     
 auth:
   secretstore: envvar-secret-store

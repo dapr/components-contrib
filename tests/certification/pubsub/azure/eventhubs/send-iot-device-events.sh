@@ -30,7 +30,7 @@ fi
 az config set extension.use_dynamic_install=yes_without_prompt
 
 # login to azure
-az login --service-principal -u $AzureCertificationServicePrincipalClientId -p $AzureCertificationServicePrincipalClientSecret --tenant $AzureCertificationTenantId > /dev/null
+az login --service-principal -u $AzureCertificationServicePrincipalClientId -p $AzureCertificationServicePrincipalClientSecret --tenant $AzureCertificationTenantId
 
 # Create test device ID if not already present
 IOT_HUB_TEST_DEVICE_NAME="certification-test-device"

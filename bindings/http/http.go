@@ -38,12 +38,14 @@ import (
 )
 
 const (
-	MTLSEnable        = "MTLSEnable"
-	MTLSRootCA        = "MTLSRootCA"
-	MTLSClientCert    = "MTLSClientCert"
-	MTLSClientKey     = "MTLSClientKey"
-	traceparentHeader = "traceparent"
-	tracestateHeader  = "tracestate"
+	MTLSEnable     = "MTLSEnable"
+	MTLSRootCA     = "MTLSRootCA"
+	MTLSClientCert = "MTLSClientCert"
+	MTLSClientKey  = "MTLSClientKey"
+
+	TraceparentHeaderKey = "traceparent"
+	TracestateHeaderKey  = "tracestate"
+	TraceMetadataKey     = "traceHeaders"
 )
 
 // HTTPSource is a binding for an http url endpoint invocation
@@ -107,12 +109,7 @@ func (h *HTTPSource) Init(metadata bindings.Metadata) error {
 		h.errorIfNot2XX = true
 	}
 
-	if val, ok := metadata.Properties["traceHeaders"]; ok {
-		h.traceHeaders = utils.IsTruthy(val)
-	} else {
-		// Default behavior
-		h.traceHeaders = false
-	}
+	h.traceHeaders = utils.IsTruthy(metadata.Properties[TraceMetadataKey])
 
 	return nil
 }
@@ -196,7 +193,6 @@ func (h *HTTPSource) Operations() []bindings.OperationKind {
 func (h *HTTPSource) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	u := h.metadata.URL
 
-	traceHeaders := h.traceHeaders
 	errorIfNot2XX := h.errorIfNot2XX // Default to the component config (default is true)
 
 	if req.Metadata != nil {
@@ -246,12 +242,12 @@ func (h *HTTPSource) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 	}
 
 	// HTTP binding needs to inject traceparent header for proper tracing stack.
-	if traceHeaders {
-		if tp, ok := req.Metadata[traceparentHeader]; ok {
-			request.Header.Set(traceparentHeader, tp)
+	if h.traceHeaders {
+		if tp, ok := req.Metadata[TraceparentHeaderKey]; ok && tp != "" {
+			request.Header.Set(TraceparentHeaderKey, tp)
 		}
-		if ts, ok := req.Metadata[tracestateHeader]; ok {
-			request.Header.Set(tracestateHeader, ts)
+		if ts, ok := req.Metadata[TracestateHeaderKey]; ok && ts != "" {
+			request.Header.Set(TracestateHeaderKey, ts)
 		}
 	}
 

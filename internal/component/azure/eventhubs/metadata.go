@@ -42,6 +42,7 @@ type azureEventHubsMetadata struct {
 	// Binding only
 	EventHub      string `json:"eventHub" mapstructure:"eventHub"`
 	ConsumerGroup string `json:"consumerGroup" mapstructure:"consumerGroup"` // Alias for ConsumerID
+	PartitionID   string `json:"partitionID" mapstructure:"partitionID"`     // Deprecated
 
 	// Internal properties
 	namespaceName    string
@@ -90,9 +91,16 @@ func parseEventHubsMetadata(meta map[string]string, isBinding bool, log logger.L
 				return nil, errors.New("the provided connection string does not contain a value for 'EntityPath' and no eventHub property was passed")
 			}
 		}
+
+		// Property partitionID is deprecated
+		if m.PartitionID != "" {
+			log.Info("Property partitionID is deprecated and will be ignored")
+			m.PartitionID = ""
+		}
 	} else {
 		// Ignored when not a binding
 		m.EventHub = ""
+		m.PartitionID = ""
 
 		// If connecting using a connection string, parse hubName
 		if m.ConnectionString != "" {

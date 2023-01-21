@@ -169,7 +169,13 @@ func TestEventhubs(t *testing.T) {
 		}
 	}
 
-	deleteEventhub := func(ctx flow.Context) error {
+	flowDoneCh := make(chan struct{}, 1)
+	flowDone := func(ctx flow.Context) error {
+		close(flowDoneCh)
+		return nil
+	}
+
+	deleteEventhub := func() error {
 		output, err := exec.Command("/bin/sh", "delete-eventhub.sh", topicToBeCreated).Output()
 		assert.NoErrorf(t, err, "Error in delete-eventhub.sh.:\n%s", string(output))
 		return nil
@@ -295,10 +301,15 @@ func TestEventhubs(t *testing.T) {
 		Step("add expected IoT messages (simulate add message to IoT Hub)", publishMessageAsDevice(consumerGroup5)).
 		Step("verify if app5 has recevied messages published to IoT topic", assertMessages(10*time.Second, consumerGroup5)).
 
-		// cleanup azure assets created as part of tests
-		Step("wait", flow.Sleep(5*time.Second)).
-		Step("delete eventhub created as part of the eventhub management test", deleteEventhub).
+		// Run the flow
+		Step("mark as complete", flowDone).
 		Run()
+
+	// Cleanup Azure assets created as part of tests
+	<-flowDoneCh
+	time.Sleep(5 * time.Second)
+	fmt.Println("Deleting EventHub resources created as part of the management test…")
+	deleteEventhub()
 }
 
 func componentRuntimeOptions(instance int) []runtime.Option {

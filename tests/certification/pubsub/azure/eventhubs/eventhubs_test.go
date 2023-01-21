@@ -171,7 +171,7 @@ func TestEventhubs(t *testing.T) {
 
 	deleteEventhub := func(ctx flow.Context) error {
 		output, err := exec.Command("/bin/sh", "delete-eventhub.sh", topicToBeCreated).Output()
-		assert.Nil(t, err, "Error in delete-eventhub.sh.:\n%s", string(output))
+		assert.NoErrorf(t, err, "Error in delete-eventhub.sh.:\n%s", string(output))
 		return nil
 	}
 
@@ -192,10 +192,15 @@ func TestEventhubs(t *testing.T) {
 	iotHubName := os.Getenv(iotHubNameEnvKey)
 
 	// Here so we can comment out tests as needed
-	_ = publishMessageAsDevice
-	_ = iotHubName
+	_ = consumerGroup1
+	_ = consumerGroup2
 	_ = consumerGroup4
 	_ = consumerGroup5
+	_ = publishMessageAsDevice
+	_ = iotHubName
+	_ = metadata
+	_ = metadata1
+	_ = publishMessages
 
 	flow.New(t, "eventhubs certification").
 
@@ -286,12 +291,12 @@ func TestEventhubs(t *testing.T) {
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*4),
 			componentRuntimeOptions(5),
 		)).
-		Step("wait", flow.Sleep(10*time.Second)).
-		Step("add expected IOT messages (simulate add message to iot)", publishMessageAsDevice(consumerGroup5)).
-		Step("verify if app5 has recevied messages published to iot topic", assertMessages(40*time.Second, consumerGroup5)).
-		Step("wait", flow.Sleep(5*time.Second)).
+		Step("wait", flow.Sleep(20*time.Second)).
+		Step("add expected IoT messages (simulate add message to IoT Hub)", publishMessageAsDevice(consumerGroup5)).
+		Step("verify if app5 has recevied messages published to IoT topic", assertMessages(10*time.Second, consumerGroup5)).
 
 		// cleanup azure assets created as part of tests
+		Step("wait", flow.Sleep(5*time.Second)).
 		Step("delete eventhub created as part of the eventhub management test", deleteEventhub).
 		Run()
 }

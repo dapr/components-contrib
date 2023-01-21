@@ -177,15 +177,17 @@ func TestTraceHeadersForwarded(t *testing.T) {
 		req := TestCase{
 			input:      "GET",
 			operation:  "get",
-			metadata:   map[string]string{"path": "/somewhere", "traceparent": "12345", "tracestate": "67890"},
-			path:       "/somewhere",
+			metadata:   map[string]string{"path": "/", "traceparent": "12345", "tracestate": "67890"},
+			path:       "/",
 			err:        "",
 			statusCode: 200,
 		}.ToInvokeRequest()
 		_, err = hs.Invoke(context.Background(), &req)
 		assert.NoError(t, err)
-		assert.Empty(t, handler.Headers["Traceparent"])
-		assert.Empty(t, handler.Headers["Tracestate"])
+		_, traceParentExists := handler.Headers["Traceparent"]
+		assert.False(t, traceParentExists)
+		_, traceStateExists := handler.Headers["Traceparent"]
+		assert.False(t, traceStateExists)
 	})
 
 	hs, err = InitBinding(s, map[string]string{"traceHeaders": "true"})
@@ -195,8 +197,8 @@ func TestTraceHeadersForwarded(t *testing.T) {
 		req := TestCase{
 			input:      "GET",
 			operation:  "get",
-			metadata:   map[string]string{"path": "/somewhere", "traceparent": "12345", "tracestate": "67890"},
-			path:       "/somewhere",
+			metadata:   map[string]string{"path": "/", "traceparent": "12345", "tracestate": "67890"},
+			path:       "/",
 			err:        "",
 			statusCode: 200,
 		}.ToInvokeRequest()
@@ -204,6 +206,23 @@ func TestTraceHeadersForwarded(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, "12345", handler.Headers["Traceparent"])
 		assert.Equal(t, "67890", handler.Headers["Tracestate"])
+	})
+
+	t.Run("trace headers should not be forwarded if empty", func(t *testing.T) {
+		req := TestCase{
+			input:      "GET",
+			operation:  "get",
+			metadata:   map[string]string{"path": "/", "traceparent": "", "tracestate": ""},
+			path:       "/",
+			err:        "",
+			statusCode: 200,
+		}.ToInvokeRequest()
+		_, err = hs.Invoke(context.Background(), &req)
+		assert.NoError(t, err)
+		_, traceParentExists := handler.Headers["Traceparent"]
+		assert.False(t, traceParentExists)
+		_, traceStateExists := handler.Headers["Traceparent"]
+		assert.False(t, traceStateExists)
 	})
 }
 

@@ -90,7 +90,6 @@ var topics = []string{
 	topicPassiveName,
 	topicToBeCreated,
 	topicDefaultName,
-	fifoTopic,
 }
 
 func init() {
@@ -119,10 +118,12 @@ func init() {
 	qn = os.Getenv("PUBSUB_AWS_SNSSQS_TOPIC_MVT")
 	if qn != "" {
 		messageVisibilityTimeoutTopic = qn
+		topics = append(topics, messageVisibilityTimeoutTopic)
 	}
 	qn = os.Getenv("PUBSUB_AWS_SNSSQS_TOPIC_FIFO")
 	if qn != "" {
 		fifoTopic = qn
+		topics = append(topics, fifoTopic)
 	}
 }
 
@@ -1219,7 +1220,7 @@ func SNSSQSFIFOMessages(t *testing.T) {
 	consumerGroup1 := watcher.NewOrdered()
 
 	// prepare the messages
-	maxFifoMessages := 10
+	maxFifoMessages := 20
 	fifoMessages := make([]string, maxFifoMessages)
 	for i := 0; i < maxFifoMessages; i++ {
 		fifoMessages[i] = fmt.Sprintf("m%d", i+1)

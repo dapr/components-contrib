@@ -18,15 +18,14 @@ package eventhubs
 import (
 	"context"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs"
 	"github.com/spf13/cast"
-	"golang.org/x/exp/maps"
-
-	"github.com/dapr/components-contrib/pubsub"
 )
+
+// Type for the handler for messages coming in from the subscriptions.
+type SubscribeHandler func(ctx context.Context, data []byte, metadata map[string]string) error
 
 const (
 	// Event Hubs SystemProperties names for metadata passthrough.
@@ -43,40 +42,23 @@ const (
 	sysPropMessageID                  = "message-id"
 )
 
-// Pool of map[string]string that we can use to optimize memory usage
-var metadataPool = sync.Pool{
-	New: func() any {
-		// Initial capacity is 5 which is the number of properties we normally find in a message
-		// The map can expand as needed, and when it's added back to the pool, we'll keep the larger size
-		m := make(map[string]string, 5)
-		return &m
-	},
-}
-
-func subscribeHandler(ctx context.Context, topic string, getAllProperties bool, handler pubsub.Handler) func(e *azeventhubs.ReceivedEventData) error {
+func subscribeHandler(ctx context.Context, getAllProperties bool, handler SubscribeHandler) func(e *azeventhubs.ReceivedEventData) error {
 	return func(e *azeventhubs.ReceivedEventData) error {
-		md := metadataPool.Get().(*map[string]string)
-		maps.Clear(*md)
-		defer metadataPool.Put(md)
+		// Allocate with an initial capacity of 10 which covers the common properties, also from IoT Hub
+		md := make(map[string]string, 10)
 
-		res := pubsub.NewMessage{
-			Data:     e.Body,
-			Topic:    topic,
-			Metadata: *md,
-		}
-
-		res.Metadata[sysPropSequenceNumber] = strconv.FormatInt(e.SequenceNumber, 10)
+		md[sysPropSequenceNumber] = strconv.FormatInt(e.SequenceNumber, 10)
 		if e.EnqueuedTime != nil {
-			res.Metadata[sysPropEnqueuedTime] = e.EnqueuedTime.Format(time.RFC3339)
+			md[sysPropEnqueuedTime] = e.EnqueuedTime.Format(time.RFC3339)
 		}
 		if e.Offset != nil {
-			res.Metadata[sysPropOffset] = strconv.FormatInt(*e.Offset, 10)
+			md[sysPropOffset] = strconv.FormatInt(*e.Offset, 10)
 		}
 		if e.PartitionKey != nil {
-			res.Metadata[sysPropPartitionKey] = *e.PartitionKey
+			md[sysPropPartitionKey] = *e.PartitionKey
 		}
 		if e.MessageID != nil && *e.MessageID != "" {
-			res.Metadata[sysPropMessageID] = *e.MessageID
+			md[sysPropMessageID] = *e.MessageID
 		}
 
 		// Iterate through the system properties looking for those coming from IoT Hub
@@ -88,7 +70,7 @@ func subscribeHandler(ctx context.Context, topic string, getAllProperties bool, 
 				sysPropIotHubConnectionAuthMethod,
 				sysPropIotHubConnectionModuleID,
 				sysPropIotHubEnqueuedTime:
-				addPropertyToMetadata(k, v, res.Metadata)
+				addPropertyToMetadata(k, v, md)
 			default:
 				// nop
 			}
@@ -97,11 +79,11 @@ func subscribeHandler(ctx context.Context, topic string, getAllProperties bool, 
 		// Added properties if any (includes application properties from Azure IoT Hub)
 		if getAllProperties && len(e.Properties) > 0 {
 			for k, v := range e.Properties {
-				addPropertyToMetadata(k, v, res.Metadata)
+				addPropertyToMetadata(k, v, md)
 			}
 		}
 
-		return handler(ctx, &res)
+		return handler(ctx, e.Body, md)
 	}
 }
 

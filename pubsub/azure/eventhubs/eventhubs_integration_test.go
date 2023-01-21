@@ -110,14 +110,14 @@ func testReadIotHubEvents(t *testing.T) {
 
 		// Verify expected IoT Hub device event metadata exists
 		// TODO: add device messages than can populate the sysPropPartitionKey and sysPropIotHubConnectionModuleID metadata
-		assert.Contains(t, r.Metadata, sysPropSequenceNumber, "IoT device event missing: %s", sysPropSequenceNumber)
-		assert.Contains(t, r.Metadata, sysPropEnqueuedTime, "IoT device event missing: %s", sysPropEnqueuedTime)
-		assert.Contains(t, r.Metadata, sysPropOffset, "IoT device event missing: %s", sysPropOffset)
-		assert.Contains(t, r.Metadata, sysPropIotHubDeviceConnectionID, "IoT device event missing: %s", sysPropIotHubDeviceConnectionID)
-		assert.Contains(t, r.Metadata, sysPropIotHubAuthGenerationID, "IoT device event missing: %s", sysPropIotHubAuthGenerationID)
-		assert.Contains(t, r.Metadata, sysPropIotHubConnectionAuthMethod, "IoT device event missing: %s", sysPropIotHubConnectionAuthMethod)
-		assert.Contains(t, r.Metadata, sysPropIotHubEnqueuedTime, "IoT device event missing: %s", sysPropIotHubEnqueuedTime)
-		assert.Contains(t, r.Metadata, sysPropMessageID, "IoT device event missing: %s", sysPropMessageID)
+		assert.Contains(t, r.Metadata, "x-opt-sequence-number", "IoT device event missing: %s", "x-opt-sequence-number")
+		assert.Contains(t, r.Metadata, "x-opt-enqueued-time", "IoT device event missing: %s", "x-opt-enqueued-time")
+		assert.Contains(t, r.Metadata, "x-opt-offset", "IoT device event missing: %s", "x-opt-offset")
+		assert.Contains(t, r.Metadata, "iothub-connection-device-id", "IoT device event missing: %s", "iothub-connection-device-id")
+		assert.Contains(t, r.Metadata, "iothub-connection-auth-generation-id", "IoT device event missing: %s", "iothub-connection-auth-generation-id")
+		assert.Contains(t, r.Metadata, "iothub-connection-auth-method", "IoT device event missing: %s", "iothub-connection-auth-method")
+		assert.Contains(t, r.Metadata, "iothub-enqueuedtime", "IoT device event missing: %s", "iothub-enqueuedtime")
+		assert.Contains(t, r.Metadata, "message-id", "IoT device event missing: %s", "message-id")
 
 		// Verify sent custom application property is received in IoT Hub device event metadata
 		assert.Contains(t, r.Metadata, applicationProperty, "IoT device event missing: %s", applicationProperty)

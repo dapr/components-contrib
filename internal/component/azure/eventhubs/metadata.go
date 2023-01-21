@@ -22,7 +22,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	"github.com/dapr/components-contrib/metadata"
-	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
 
@@ -47,15 +46,15 @@ type azureEventHubsMetadata struct {
 	properties       map[string]string
 }
 
-func parseEventHubsMetadata(meta pubsub.Metadata, log logger.Logger) (*azureEventHubsMetadata, error) {
+func parseEventHubsMetadata(meta map[string]string, log logger.Logger) (*azureEventHubsMetadata, error) {
 	var m azureEventHubsMetadata
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := metadata.DecodeMetadata(meta, &m)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode metada: %w", err)
 	}
 
 	// Store the raw properties in the object
-	m.properties = meta.Properties
+	m.properties = meta
 
 	// One and only one of connectionString and eventHubNamespace is required
 	if m.ConnectionString == "" && m.EventHubNamespace == "" {

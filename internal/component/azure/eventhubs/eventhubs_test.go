@@ -19,8 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dapr/components-contrib/metadata"
-	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
 
@@ -28,9 +26,8 @@ var testLogger = logger.NewLogger("test")
 
 func TestParseEventHubsMetadata(t *testing.T) {
 	t.Run("test valid connectionString configuration", func(t *testing.T) {
-		props := map[string]string{"connectionString": "fake"}
+		metadata := map[string]string{"connectionString": "fake"}
 
-		metadata := pubsub.Metadata{Base: metadata.Base{Properties: props}}
 		m, err := parseEventHubsMetadata(metadata, testLogger)
 
 		require.NoError(t, err)
@@ -38,9 +35,8 @@ func TestParseEventHubsMetadata(t *testing.T) {
 	})
 
 	t.Run("test namespace given", func(t *testing.T) {
-		props := map[string]string{"eventHubNamespace": "fake.servicebus.windows.net"}
+		metadata := map[string]string{"eventHubNamespace": "fake.servicebus.windows.net"}
 
-		metadata := pubsub.Metadata{Base: metadata.Base{Properties: props}}
 		m, err := parseEventHubsMetadata(metadata, testLogger)
 
 		require.NoError(t, err)
@@ -48,9 +44,8 @@ func TestParseEventHubsMetadata(t *testing.T) {
 	})
 
 	t.Run("test namespace adds FQDN", func(t *testing.T) {
-		props := map[string]string{"eventHubNamespace": "fake"}
+		metadata := map[string]string{"eventHubNamespace": "fake"}
 
-		metadata := pubsub.Metadata{Base: metadata.Base{Properties: props}}
 		m, err := parseEventHubsMetadata(metadata, testLogger)
 
 		require.NoError(t, err)
@@ -58,12 +53,11 @@ func TestParseEventHubsMetadata(t *testing.T) {
 	})
 
 	t.Run("test both connectionString and eventHubNamespace given", func(t *testing.T) {
-		props := map[string]string{
+		metadata := map[string]string{
 			"connectionString":  "fake",
 			"eventHubNamespace": "fake",
 		}
 
-		metadata := pubsub.Metadata{Base: metadata.Base{Properties: props}}
 		_, err := parseEventHubsMetadata(metadata, testLogger)
 
 		require.Error(t, err)
@@ -71,9 +65,8 @@ func TestParseEventHubsMetadata(t *testing.T) {
 	})
 
 	t.Run("test missing metadata", func(t *testing.T) {
-		props := map[string]string{}
+		metadata := map[string]string{}
 
-		metadata := pubsub.Metadata{Base: metadata.Base{Properties: props}}
 		_, err := parseEventHubsMetadata(metadata, testLogger)
 
 		require.Error(t, err)
@@ -86,11 +79,9 @@ func TestConstructConnectionStringFromTopic(t *testing.T) {
 		connectionString := "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=fakeKey;SharedAccessKey=key"
 		topic := "testHub"
 
-		metadata := pubsub.Metadata{Base: metadata.Base{
-			Properties: map[string]string{
-				"connectionString": connectionString,
-			},
-		}}
+		metadata := map[string]string{
+			"connectionString": connectionString,
+		}
 		aeh := &AzureEventHubs{logger: testLogger}
 		err := aeh.Init(metadata)
 		require.NoError(t, err)
@@ -104,11 +95,9 @@ func TestConstructConnectionStringFromTopic(t *testing.T) {
 		connectionString := "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=fakeKey;SharedAccessKey=key;EntityPath=testHub"
 		topic := "testHub"
 
-		metadata := pubsub.Metadata{Base: metadata.Base{
-			Properties: map[string]string{
-				"connectionString": connectionString,
-			},
-		}}
+		metadata := map[string]string{
+			"connectionString": connectionString,
+		}
 		aeh := &AzureEventHubs{logger: testLogger}
 		err := aeh.Init(metadata)
 		require.NoError(t, err)
@@ -122,11 +111,9 @@ func TestConstructConnectionStringFromTopic(t *testing.T) {
 		connectionString := "Endpoint=sb://fake.servicebus.windows.net/;SharedAccessKeyName=fakeKey;SharedAccessKey=key;EntityPath=testHub"
 		topic := "differentHub"
 
-		metadata := pubsub.Metadata{Base: metadata.Base{
-			Properties: map[string]string{
-				"connectionString": connectionString,
-			},
-		}}
+		metadata := map[string]string{
+			"connectionString": connectionString,
+		}
 		aeh := &AzureEventHubs{logger: testLogger}
 		err := aeh.Init(metadata)
 		require.NoError(t, err)

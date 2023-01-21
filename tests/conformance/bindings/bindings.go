@@ -202,7 +202,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 
 				return nil, nil
 			})
-			assert.True(t, err == nil || errors.Is(err, context.Canceled), "expected Read canceled on Close")
+			assert.Truef(t, err == nil || errors.Is(err, context.Canceled), "expected Read canceled on Close, got: %v", err)
 		})
 		// Special case for message brokers that are also bindings
 		// Need a small wait here because with brokers like MQTT

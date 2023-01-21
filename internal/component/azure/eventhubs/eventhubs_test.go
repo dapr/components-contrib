@@ -28,7 +28,7 @@ func TestParseEventHubsMetadata(t *testing.T) {
 	t.Run("test valid connectionString configuration", func(t *testing.T) {
 		metadata := map[string]string{"connectionString": "fake"}
 
-		m, err := parseEventHubsMetadata(metadata, testLogger)
+		m, err := parseEventHubsMetadata(metadata, false, testLogger)
 
 		require.NoError(t, err)
 		assert.Equal(t, "fake", m.ConnectionString)
@@ -37,7 +37,7 @@ func TestParseEventHubsMetadata(t *testing.T) {
 	t.Run("test namespace given", func(t *testing.T) {
 		metadata := map[string]string{"eventHubNamespace": "fake.servicebus.windows.net"}
 
-		m, err := parseEventHubsMetadata(metadata, testLogger)
+		m, err := parseEventHubsMetadata(metadata, false, testLogger)
 
 		require.NoError(t, err)
 		assert.Equal(t, "fake.servicebus.windows.net", m.EventHubNamespace)
@@ -46,7 +46,7 @@ func TestParseEventHubsMetadata(t *testing.T) {
 	t.Run("test namespace adds FQDN", func(t *testing.T) {
 		metadata := map[string]string{"eventHubNamespace": "fake"}
 
-		m, err := parseEventHubsMetadata(metadata, testLogger)
+		m, err := parseEventHubsMetadata(metadata, false, testLogger)
 
 		require.NoError(t, err)
 		assert.Equal(t, "fake.servicebus.windows.net", m.EventHubNamespace)
@@ -58,7 +58,7 @@ func TestParseEventHubsMetadata(t *testing.T) {
 			"eventHubNamespace": "fake",
 		}
 
-		_, err := parseEventHubsMetadata(metadata, testLogger)
+		_, err := parseEventHubsMetadata(metadata, false, testLogger)
 
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "only one of connectionString or eventHubNamespace should be passed")
@@ -67,7 +67,7 @@ func TestParseEventHubsMetadata(t *testing.T) {
 	t.Run("test missing metadata", func(t *testing.T) {
 		metadata := map[string]string{}
 
-		_, err := parseEventHubsMetadata(metadata, testLogger)
+		_, err := parseEventHubsMetadata(metadata, false, testLogger)
 
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "one of connectionString or eventHubNamespace is required")

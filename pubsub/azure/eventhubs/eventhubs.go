@@ -36,7 +36,7 @@ type AzureEventHubs struct {
 // NewAzureEventHubs returns a new Azure Event hubs instance.
 func NewAzureEventHubs(logger logger.Logger) pubsub.PubSub {
 	return &AzureEventHubs{
-		AzureEventHubs: impl.NewAzureEventHubs(logger),
+		AzureEventHubs: impl.NewAzureEventHubs(logger, false),
 	}
 }
 
@@ -130,6 +130,7 @@ func (aeh *AzureEventHubs) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 	getAllProperties := utils.IsTruthy(req.Metadata["requireAllProperties"])
 
 	// Start the subscription
+	// This is non-blocking
 	return aeh.AzureEventHubs.Subscribe(ctx, topic, getAllProperties, func(ctx context.Context, data []byte, metadata map[string]string) error {
 		res := pubsub.NewMessage{
 			Data:     data,

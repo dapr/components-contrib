@@ -39,6 +39,9 @@ type azureEventHubsMetadata struct {
 	SubscriptionID          string `json:"subscriptionID" mapstructure:"subscriptionID"`
 	ResourceGroupName       string `json:"resourceGroupName" mapstructure:"resourceGroupName"`
 
+	// Binding only
+	EventHub string `json:"eventHub" mapstructure:"eventHub"`
+
 	// Internal properties
 	namespaceName    string
 	hubName          string
@@ -46,7 +49,7 @@ type azureEventHubsMetadata struct {
 	properties       map[string]string
 }
 
-func parseEventHubsMetadata(meta map[string]string, log logger.Logger) (*azureEventHubsMetadata, error) {
+func parseEventHubsMetadata(meta map[string]string, isBinding bool, log logger.Logger) (*azureEventHubsMetadata, error) {
 	var m azureEventHubsMetadata
 	err := metadata.DecodeMetadata(meta, &m)
 	if err != nil {
@@ -62,6 +65,40 @@ func parseEventHubsMetadata(meta map[string]string, log logger.Logger) (*azureEv
 	}
 	if m.ConnectionString != "" && m.EventHubNamespace != "" {
 		return nil, errors.New("only one of connectionString or eventHubNamespace should be passed")
+	}
+
+	// For the binding, we need to have a property "eventHub" which is the topic name unless it's included in the connection string
+	if isBinding {
+		if m.ConnectionString == "" {
+			if m.EventHub == "" {
+				return nil, errors.New("property eventHub is required when connecting with a connection string")
+			}
+			m.hubName = m.EventHub
+		} else {
+			hubName := hubNameFromConnString(m.ConnectionString)
+			if hubName != "" {
+				m.hubName = hubName
+			} else if m.EventHub != "" {
+				m.hubName = m.EventHub
+			} else {
+				return nil, errors.New("the provided connection string does not contain a value for 'EntityPath' and no eventHub property was passed")
+			}
+		}
+	} else {
+		// Ignored when not a binding
+		m.EventHub = ""
+
+		// If connecting using a connection string, parse hubName
+		if m.ConnectionString != "" {
+			hubName := hubNameFromConnString(m.ConnectionString)
+			if hubName != "" {
+				log.Infof(`The provided connection string is specific to the Event Hub ("entity path") '%s'; publishing or subscribing to a topic that does not match this Event Hub will fail when attempted`, hubName)
+			} else {
+				log.Infof(`The provided connection string does not contain an Event Hub name ("entity path"); the connection will be established on first publish/subscribe and req.Topic field in incoming requests will be honored`)
+			}
+
+			m.hubName = hubName
+		}
 	}
 
 	// If both storageConnectionString and storageAccountKey are specified, show a warning because the connection string will take priority

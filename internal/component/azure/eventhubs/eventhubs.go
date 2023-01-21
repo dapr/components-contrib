@@ -38,8 +38,9 @@ import (
 // AzureEventHubs allows sending/receiving Azure Event Hubs events.
 // This is an abstract class used by both the pubsub and binding components.
 type AzureEventHubs struct {
-	metadata *azureEventHubsMetadata
-	logger   logger.Logger
+	metadata  *azureEventHubsMetadata
+	logger    logger.Logger
+	isBinding bool
 
 	backOffConfig        retry.Config
 	producersLock        *sync.RWMutex
@@ -54,9 +55,10 @@ type AzureEventHubs struct {
 }
 
 // NewAzureEventHubs returns a new Azure Event hubs instance.
-func NewAzureEventHubs(logger logger.Logger) *AzureEventHubs {
+func NewAzureEventHubs(logger logger.Logger, isBinding bool) *AzureEventHubs {
 	return &AzureEventHubs{
 		logger:              logger,
+		isBinding:           isBinding,
 		producersLock:       &sync.RWMutex{},
 		producers:           make(map[string]*azeventhubs.ProducerClient, 1),
 		checkpointStoreLock: &sync.RWMutex{},
@@ -66,24 +68,14 @@ func NewAzureEventHubs(logger logger.Logger) *AzureEventHubs {
 
 // Init connects to Azure Event Hubs.
 func (aeh *AzureEventHubs) Init(metadata map[string]string) error {
-	m, err := parseEventHubsMetadata(metadata, aeh.logger)
+	m, err := parseEventHubsMetadata(metadata, aeh.isBinding, aeh.logger)
 	if err != nil {
 		return err
 	}
 	aeh.metadata = m
 
-	if aeh.metadata.ConnectionString != "" {
-		// Connect using the connection string
-		hubName := hubNameFromConnString(aeh.metadata.ConnectionString)
-		if hubName != "" {
-			aeh.logger.Infof(`The provided connection string is specific to the Event Hub ("entity path") '%s'; publishing or subscribing to a topic that does not match this Event Hub will fail when attempted`, hubName)
-		} else {
-			aeh.logger.Infof(`The provided connection string does not contain an Event Hub name ("entity path"); the connection will be established on first publish/subscribe and req.Topic field in incoming requests will be honored`)
-		}
-
-		aeh.metadata.hubName = hubName
-	} else {
-		// Connect via Azure AD
+	if aeh.metadata.ConnectionString == "" {
+		// If connecting via Azure AD, we need to do some more initialization
 		var env azauth.EnvironmentSettings
 		env, err = azauth.NewEnvironmentSettings("eventhubs", metadata)
 		if err != nil {
@@ -114,6 +106,12 @@ func (aeh *AzureEventHubs) Init(metadata map[string]string) error {
 	}
 
 	return nil
+}
+
+// EventHubName returns the parsed eventHub property from the metadata.
+// It's used by the binding only.
+func (aeh *AzureEventHubs) EventHubName() string {
+	return aeh.metadata.hubName
 }
 
 // Publish a batch of messages.
@@ -147,7 +145,7 @@ func (aeh *AzureEventHubs) Publish(ctx context.Context, topic string, messages [
 	return nil
 }
 
-// Subscribe receives data from Azure Event Hubs.
+// Subscribe receives data from Azure Event Hubs in background.
 func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, topic string, getAllProperties bool, handler SubscribeHandler) (err error) {
 	if aeh.metadata.ConsumerGroup == "" {
 		return errors.New("property consumerID is required to subscribe to an Event Hub topic")
@@ -613,13 +611,17 @@ func (aeh *AzureEventHubs) createStorageClient() (*azblob.Client, error) {
 		}
 	} else {
 		// Use Azure AD
-		settings, err := azauth.NewEnvironmentSettings("storage", aeh.metadata.properties)
+		var (
+			settings   azauth.EnvironmentSettings
+			credential azcore.TokenCredential
+		)
+		settings, err = azauth.NewEnvironmentSettings("storage", aeh.metadata.properties)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error getting Azure environment settings: %w", err)
 		}
-		credential, tokenErr := settings.GetTokenCredential()
-		if tokenErr != nil {
-			return nil, fmt.Errorf("invalid Azure Storage token credentials with error: %w", tokenErr)
+		credential, err = settings.GetTokenCredential()
+		if err != nil {
+			return nil, fmt.Errorf("invalid Azure Storage token credentials with error: %w", err)
 		}
 		client, err = azblob.NewClient(accountURL, credential, &options)
 		if err != nil {

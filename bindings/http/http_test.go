@@ -83,6 +83,7 @@ type HTTPHandler struct {
 
 func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	h.Path = req.URL.Path
+	h.Headers = make(map[string]string)
 	for headerKey, headerValue := range req.Header {
 		h.Headers[headerKey] = headerValue[0]
 	}
@@ -186,7 +187,7 @@ func TestTraceHeadersForwarded(t *testing.T) {
 		assert.NoError(t, err)
 		_, traceParentExists := handler.Headers["Traceparent"]
 		assert.False(t, traceParentExists)
-		_, traceStateExists := handler.Headers["Traceparent"]
+		_, traceStateExists := handler.Headers["Tracestate"]
 		assert.False(t, traceStateExists)
 	})
 
@@ -221,7 +222,7 @@ func TestTraceHeadersForwarded(t *testing.T) {
 		assert.NoError(t, err)
 		_, traceParentExists := handler.Headers["Traceparent"]
 		assert.False(t, traceParentExists)
-		_, traceStateExists := handler.Headers["Traceparent"]
+		_, traceStateExists := handler.Headers["Tracestate"]
 		assert.False(t, traceStateExists)
 	})
 }

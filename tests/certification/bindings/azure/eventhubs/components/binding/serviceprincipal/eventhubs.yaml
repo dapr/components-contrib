@@ -10,19 +10,19 @@ spec:
     - name: eventHubNamespace
       secretKeyRef:
         name: AzureEventHubsBindingsNamespace
-        key: AzureEventHubsBindingsNamespace 
-    - name: connectionString
+        value: AzureEventHubsBindingsNamespace
+    - name: eventHub
       secretKeyRef:
-        name: AzureEventHubsBindingsConnectionString
-        value: AzureEventHubsBindingsConnectionString   
+        name: AzureEventHubsBindingsHub
+        value: AzureEventHubsBindingsHub
     - name: azureTenantId
       secretKeyRef:
         name: AzureCertificationTenantId
-        key: AzureCertificationTenantId    
+        key: AzureCertificationTenantId
     - name: azureClientId
       secretKeyRef:
         name: AzureCertificationServicePrincipalClientId
-        key: AzureCertificationServicePrincipalClientId   
+        key: AzureCertificationServicePrincipalClientId
     - name: azureClientSecret
       secretKeyRef:
         name: AzureCertificationServicePrincipalClientSecret
@@ -43,15 +43,12 @@ spec:
       secretKeyRef:
         name: AzureBlobStorageAccount
         key: AzureBlobStorageAccount
-    - name: storageAccountKey
-      secretKeyRef:
-        name: AzureBlobStorageAccessKey
-        key: AzureBlobStorageAccessKey
+    # Use Azure AD for the storage account too
+    #- name: storageAccountKey
+    #  secretKeyRef:
+    #    name: AzureBlobStorageAccessKey
+    #    key: AzureBlobStorageAccessKey
     - name: storageContainerName
-      secretKeyRef:
-        name: AzureEventHubsBindingsContainer
-        value: AzureEventHubsBindingsContainer
-    - name: partitionID
-      value: 0
+      value: eventhubs-bindings-container-sp
 auth:
   secretStore: envvar-secret-store

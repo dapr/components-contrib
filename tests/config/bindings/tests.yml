@@ -29,6 +29,9 @@ components:
       outputData: '{"id": "$((uuid))", "orderid": "abcdef-test", "partitionKey": "partitionValue", "nestedproperty": {"subproperty": "something of value for testing"}, "description": "conformance test item"}'
   - component: azure.eventhubs
     operations: ["create", "operations", "read"]
+    config:
+      # Need to wait for Event Hubs to acquire a lock, which can take up to 1m
+      readBindingWait: 60s
   - component: azure.eventgrid
     operations: ["create", "operations", "read"]
     config:

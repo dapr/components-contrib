@@ -42,18 +42,51 @@ func deleteQueues(queues []string) error {
 }
 
 func deleteQueue(svc *sqs.SQS, queue string) error {
-	queueUrlOutput, err := svc.GetQueueUrl(&sqs.GetQueueUrlInput{
-		QueueName: &queue,
-	})
+	fmt.Printf("deleteQueue: %q\n", queue)
+	queueUrl, err := getQueueURL(svc, &queue)
 	if err != nil {
 		return fmt.Errorf("error getting the queue URL: %q err:%v", queue, err)
 	}
 
 	_, err = svc.DeleteQueue(&sqs.DeleteQueueInput{
-		QueueUrl: queueUrlOutput.QueueUrl,
+		QueueUrl: &queueUrl,
 	})
 
 	return err
+}
+
+func getQueueURL(svc *sqs.SQS, queue *string) (string, error) {
+	urlResult, err := svc.GetQueueUrl(&sqs.GetQueueUrlInput{
+		QueueName: queue,
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	return *urlResult.QueueUrl, nil
+}
+
+func getMessages(svc *sqs.SQS, queueURL string) (*sqs.ReceiveMessageOutput, error) {
+	msgResult, err := svc.ReceiveMessage(&sqs.ReceiveMessageInput{
+		MessageAttributeNames: []*string{
+			aws.String(sqs.QueueAttributeNameAll),
+		},
+		// use this property to decide when a message should be discarded.
+		AttributeNames: []*string{
+			aws.String(sqs.QueueAttributeNameAll),
+		},
+		MaxNumberOfMessages: aws.Int64(10),
+		QueueUrl:            aws.String(queueURL),
+		VisibilityTimeout:   aws.Int64(5),
+		WaitTimeSeconds:     aws.Int64(20),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return msgResult, nil
 }
 
 func deleteTopics(topics []string, region string) error {

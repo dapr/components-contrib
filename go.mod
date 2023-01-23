@@ -28,7 +28,7 @@ require (
 	github.com/Azure/go-autorest/autorest/to v0.4.0
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/Shopify/sarama v1.38.0
-	github.com/aerospike/aerospike-client-go v4.5.2+incompatible
+	github.com/aerospike/aerospike-client-go/v6 v6.9.1
 	github.com/alibaba/sentinel-golang v1.0.4
 	github.com/alibabacloud-go/darabonba-openapi v0.2.1
 	github.com/alibabacloud-go/oos-20190601 v1.0.4

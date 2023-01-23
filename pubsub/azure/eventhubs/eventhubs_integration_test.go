@@ -2,7 +2,7 @@
 // +build integration_test
 
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -28,7 +28,7 @@ import (
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
-	"github.com/dapr/kit/logger"
+	kitLogger "github.com/dapr/kit/logger"
 )
 
 const (
@@ -36,7 +36,7 @@ const (
 
 	// iotHubConnectionStringEnvKey defines the key containing the integration test connection string
 	// For the default EventHub endpoint for an Azure IoT Hub, it will resemble:
-	// Endpoint=sb://<iotHubGeneratedNamespace>.servicebus.windows.net/;SharedAccessKeyName=service;SharedAccessKey=<key>;EntityPath=<iotHubGeneratedPath>
+	// Endpoint=sb://<iotHubGeneratedNamespace>.servicebus.windows.net/;SharedAccessKeyName=service;SharedAccessKey=<key>;EntityPath=integration-test-topic
 	iotHubConnectionStringEnvKey = "AzureIotHubEventHubConnectionString"
 	iotHubConsumerGroupEnvKey    = "AzureIotHubPubsubConsumerGroup"
 	iotHubNameEnvKey             = "AzureIotHubName"
@@ -66,17 +66,18 @@ func createIotHubPubsubMetadata() pubsub.Metadata {
 }
 
 func testReadIotHubEvents(t *testing.T) {
-	logger := logger.NewLogger("pubsub.azure.eventhubs.integration.test")
+	logger := kitLogger.NewLogger("pubsub.azure.eventhubs.integration.test")
+	logger.SetOutputLevel(kitLogger.DebugLevel)
 	eh := NewAzureEventHubs(logger).(*AzureEventHubs)
 	err := eh.Init(createIotHubPubsubMetadata())
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	// Invoke az CLI via bash script to send test IoT device events
 	// Requires the AZURE_CREDENTIALS environment variable to be already set (output of `az ad sp create-for-rbac`)
 	cmd := exec.Command("/bin/bash", "../../../tests/scripts/send-iot-device-events.sh")
 	cmd.Env = append(os.Environ(), fmt.Sprintf("IOT_HUB_NAME=%s", os.Getenv(iotHubNameEnvKey)))
 	out, err := cmd.CombinedOutput()
-	assert.Nil(t, err, "Error in send-iot-device-events.sh:\n%s", out)
+	assert.NoError(t, err, "Error in send-iot-device-events.sh:\n%s", string(out))
 
 	// Setup subscription to capture messages in a closure so that test asserts can be
 	// performed on the main thread, including the case where the handler is never invoked.
@@ -87,13 +88,13 @@ func testReadIotHubEvents(t *testing.T) {
 	}
 
 	req := pubsub.SubscribeRequest{
-		Topic: testTopic, // TODO: Handle Topic configuration after EventHubs pubsub rewrite #951
+		Topic: testTopic,
 		Metadata: map[string]string{
 			"requireAllProperties": "true",
 		},
 	}
 	err = eh.Subscribe(context.Background(), req, handler)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	// Note: azure-event-hubs-go SDK defaultLeasePersistenceInterval is 5s
 	// Sleep long enough so that the azure event hubs SDK has time to persist updated checkpoints
@@ -109,14 +110,14 @@ func testReadIotHubEvents(t *testing.T) {
 
 		// Verify expected IoT Hub device event metadata exists
 		// TODO: add device messages than can populate the sysPropPartitionKey and sysPropIotHubConnectionModuleID metadata
-		assert.Contains(t, r.Metadata, sysPropSequenceNumber, "IoT device event missing: %s", sysPropSequenceNumber)
-		assert.Contains(t, r.Metadata, sysPropEnqueuedTime, "IoT device event missing: %s", sysPropEnqueuedTime)
-		assert.Contains(t, r.Metadata, sysPropOffset, "IoT device event missing: %s", sysPropOffset)
-		assert.Contains(t, r.Metadata, sysPropIotHubDeviceConnectionID, "IoT device event missing: %s", sysPropIotHubDeviceConnectionID)
-		assert.Contains(t, r.Metadata, sysPropIotHubAuthGenerationID, "IoT device event missing: %s", sysPropIotHubAuthGenerationID)
-		assert.Contains(t, r.Metadata, sysPropIotHubConnectionAuthMethod, "IoT device event missing: %s", sysPropIotHubConnectionAuthMethod)
-		assert.Contains(t, r.Metadata, sysPropIotHubEnqueuedTime, "IoT device event missing: %s", sysPropIotHubEnqueuedTime)
-		assert.Contains(t, r.Metadata, sysPropMessageID, "IoT device event missing: %s", sysPropMessageID)
+		assert.Contains(t, r.Metadata, "x-opt-sequence-number", "IoT device event missing: %s", "x-opt-sequence-number")
+		assert.Contains(t, r.Metadata, "x-opt-enqueued-time", "IoT device event missing: %s", "x-opt-enqueued-time")
+		assert.Contains(t, r.Metadata, "x-opt-offset", "IoT device event missing: %s", "x-opt-offset")
+		assert.Contains(t, r.Metadata, "iothub-connection-device-id", "IoT device event missing: %s", "iothub-connection-device-id")
+		assert.Contains(t, r.Metadata, "iothub-connection-auth-generation-id", "IoT device event missing: %s", "iothub-connection-auth-generation-id")
+		assert.Contains(t, r.Metadata, "iothub-connection-auth-method", "IoT device event missing: %s", "iothub-connection-auth-method")
+		assert.Contains(t, r.Metadata, "iothub-enqueuedtime", "IoT device event missing: %s", "iothub-enqueuedtime")
+		assert.Contains(t, r.Metadata, "message-id", "IoT device event missing: %s", "message-id")
 
 		// Verify sent custom application property is received in IoT Hub device event metadata
 		assert.Contains(t, r.Metadata, applicationProperty, "IoT device event missing: %s", applicationProperty)

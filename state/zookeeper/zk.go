@@ -22,9 +22,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-zookeeper/zk"
 	"github.com/hashicorp/go-multierror"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/samuel/go-zookeeper/zk"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"

@@ -19,9 +19,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-zookeeper/zk"
 	gomock "github.com/golang/mock/gomock"
 	"github.com/hashicorp/go-multierror"
-	"github.com/samuel/go-zookeeper/zk"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/state"

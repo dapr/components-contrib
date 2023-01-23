@@ -22,8 +22,8 @@ import (
 	"strconv"
 	"strings"
 
-	as "github.com/aerospike/aerospike-client-go"
-	"github.com/aerospike/aerospike-client-go/types"
+	as "github.com/aerospike/aerospike-client-go/v6"
+	"github.com/aerospike/aerospike-client-go/v6/types"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/metadata"
@@ -185,15 +185,15 @@ func (aspike *Aerospike) Get(ctx context.Context, req *state.GetRequest) (*state
 	}
 	record, err := aspike.client.Get(policy, asKey)
 	if err != nil {
-		if err == types.ErrKeyNotFound {
+		if err.Matches(types.KEY_NOT_FOUND_ERROR) {
 			return &state.GetResponse{}, nil
 		}
 
 		return nil, fmt.Errorf("aerospike: failed to get value for key %s - %v", req.Key, err)
 	}
-	value, err := aspike.json.Marshal(record.Bins)
+	value, jsonErr := aspike.json.Marshal(record.Bins)
 	if err != nil {
-		return nil, err
+		return nil, jsonErr
 	}
 
 	return &state.GetResponse{

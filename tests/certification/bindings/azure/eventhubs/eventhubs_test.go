@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"testing"
 	"time"
 
@@ -68,7 +69,7 @@ func TestSinglePartition(t *testing.T) {
 	sendAndReceive := func(metadata map[string]string, messages ...*watcher.Watcher) flow.Runnable {
 		_, hasKey := metadata[messageKey]
 		return func(ctx flow.Context) error {
-			client, err := dapr.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
+			client, err := dapr.NewClientWithPort(strconv.Itoa(grpcPort))
 			require.NoError(t, err, "dapr init failed")
 
 			// Define what is expected
@@ -108,10 +109,10 @@ func TestSinglePartition(t *testing.T) {
 		// Setup the binding endpoints
 		err = multierr.Combine(err,
 			s.AddBindingInvocationHandler("azure-single-partition-binding", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
-				received.Observe(string(in.Data))
 				if err := sim(); err != nil {
 					return nil, err
 				}
+				received.Observe(string(in.Data))
 				ctx.Logf("Receiving eventhubs message: %s", string(in.Data))
 				return []byte("{}"), nil
 			}))
@@ -123,7 +124,7 @@ func TestSinglePartition(t *testing.T) {
 		return nil
 	}
 	// Flow of events: Start app, sidecar, interrupt network to check reconnection, send and receive
-	flow.New(t, "eventhubs binding authentication using connection string single partition").
+	flow.New(t, "eventhubs binding authentication using connection string").
 		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run("sidecar",
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -135,7 +136,7 @@ func TestSinglePartition(t *testing.T) {
 		Step("wait", flow.Sleep(15*time.Second)).
 		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "443", "5671", "5672")).
 		Step("send and wait", sendAndReceive(metadata)).
-		Step("delete containers", deleteEventhub).
+		Step("delete container", deleteEventhub).
 		Step("wait", flow.Sleep(5*time.Second)).
 		Run()
 }
@@ -155,7 +156,7 @@ func TestEventhubBindingSerivcePrincipalAuth(t *testing.T) {
 	sendAndReceive := func(metadata map[string]string, messages ...*watcher.Watcher) flow.Runnable {
 		_, hasKey := metadata[messageKey]
 		return func(ctx flow.Context) error {
-			client, err := dapr.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
+			client, err := dapr.NewClientWithPort(strconv.Itoa(grpcPort))
 			require.NoError(t, err, "dapr init failed")
 
 			// Define what is expected
@@ -195,10 +196,10 @@ func TestEventhubBindingSerivcePrincipalAuth(t *testing.T) {
 		// Setup the binding endpoints
 		err = multierr.Combine(err,
 			s.AddBindingInvocationHandler("azure-eventhubs-binding", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
-				received.Observe(string(in.Data))
 				if err := sim(); err != nil {
 					return nil, err
 				}
+				received.Observe(string(in.Data))
 				ctx.Logf("Receiving eventhubs message: %s", string(in.Data))
 				return []byte("{}"), nil
 			}))
@@ -242,10 +243,10 @@ func TestEventhubBindingIOTHub(t *testing.T) {
 		// Setup the binding endpoints
 		err = multierr.Combine(err,
 			s.AddBindingInvocationHandler("azure-eventhubs-binding", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
-				received.Observe(string(in.Data))
 				if err := sim(); err != nil {
 					return nil, err
 				}
+				received.Observe(string(in.Data))
 				ctx.Logf("Receiving eventhubs message: %s", string(in.Data))
 				return []byte("{}"), nil
 			}))
@@ -305,72 +306,62 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 		messageKey: partition1,
 	}
 
-	sendAndReceive := func(metadata0 map[string]string, metadata1 map[string]string) flow.Runnable {
-		return func(ctx flow.Context) error {
-			client, err := dapr.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
-			require.NoError(t, err, "dapr init failed")
+	sendAndReceive := func(ctx flow.Context) error {
+		client, err := dapr.NewClientWithPort(strconv.Itoa(grpcPort))
+		require.NoError(t, err, "dapr init failed")
 
-			// Define what is expected
-			outputmsg := make([]string, 50)
-			for i := 0; i < 50; i++ {
-				outputmsg[i] = fmt.Sprintf("output binding: Message %d, partitionkey: %s", i, metadata0[messageKey])
+		// Define what is expected
+		outputmsg := make([]string, 100)
+		for i := 0; i < 100; i++ {
+			var md map[string]string
+			if i < 50 {
+				md = metadata0
+			} else {
+				md = metadata1
 			}
-			received.ExpectStrings(outputmsg...)
-			time.Sleep(40 * time.Second)
-
-			// Send events from output binding
-			for _, msg := range outputmsg {
-				ctx.Logf("Sending eventhub message: %q", msg)
-
-				err := client.InvokeOutputBinding(
-					ctx, &dapr.InvokeBindingRequest{
-						Name:      "azure-partitioned-binding",
-						Operation: "create",
-						Data:      []byte(msg),
-						Metadata:  metadata0,
-					})
-				require.NoError(ctx, err, "error publishing message")
-			}
-
-			// Define what is expected
-			outputmsg2 := make([]string, 50)
-			for i := 0; i < 50; i++ {
-				outputmsg2[i] = fmt.Sprintf("output binding: Message %d, partitionkey: %s", i+50, metadata1[messageKey])
-			}
-			received.ExpectStrings(outputmsg2...)
-			time.Sleep(120 * time.Second)
-
-			// Send events from output binding
-			for _, msg2 := range outputmsg2 {
-				ctx.Logf("Sending eventhub message: %q", msg2)
-
-				err := client.InvokeOutputBinding(
-					ctx, &dapr.InvokeBindingRequest{
-						Name:      "azure-partitioned-binding",
-						Operation: "create",
-						Data:      []byte(msg2),
-						Metadata:  metadata1,
-					})
-				require.NoError(ctx, err, "error publishing message")
-			}
-
-			// Assert the observed messages
-			received.Assert(ctx, time.Minute)
-			return nil
+			outputmsg[i] = fmt.Sprintf("output binding: Message %d, partitionkey: %s", i, md[messageKey])
 		}
+		received.ExpectStrings(outputmsg...)
+
+		// Send events from output binding
+		for i, msg := range outputmsg {
+			var md map[string]string
+			if i < 50 {
+				md = metadata0
+			} else {
+				md = metadata1
+			}
+
+			ctx.Logf("Sending eventhub message '%s' on partition '%s'", msg, md[messageKey])
+
+			err := client.InvokeOutputBinding(
+				ctx, &dapr.InvokeBindingRequest{
+					Name:      "azure-partitioned-binding",
+					Operation: "create",
+					Data:      []byte(msg),
+					Metadata:  md,
+				})
+			require.NoError(ctx, err, "error publishing message")
+		}
+
+		// Assert the observed messages
+		time.Sleep(20 * time.Second)
+		received.Assert(ctx, time.Minute)
+		return nil
 	}
+
 	// Application logic that tracks messages from eventhub.
 	application := func(ctx flow.Context, s common.Service) (err error) {
 		// Simulate periodic errors.
 		sim := simulate.PeriodicError(ctx, 100)
 		// Setup the binding endpoints
 		err = s.AddBindingInvocationHandler("azure-partitioned-binding", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
-			received.Observe(string(in.Data))
 			if err := sim(); err != nil {
 				return nil, err
 			}
-			received.FailIfNotExpected(t, string(in.Data))
 			ctx.Logf("Receiving eventhubs message: %s", string(in.Data))
+			received.FailIfNotExpected(t, string(in.Data))
+			received.Observe(string(in.Data))
 			return []byte("{}"), nil
 		})
 		return err
@@ -393,7 +384,7 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 			componentRuntimeOptions(),
 		)).
 		Step("wait", flow.Sleep(15*time.Second)).
-		Step("send and wait", sendAndReceive(metadata0, metadata1)).
+		Step("send and wait", sendAndReceive).
 		Step("delete containers", deleteEventhub).
 		Step("wait", flow.Sleep(5*time.Second)).
 		Run()

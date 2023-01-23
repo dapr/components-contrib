@@ -24,8 +24,6 @@ spec:
       name: AzureBlobStorageAccessKey
       value: AzureBlobStorageAccessKey  
   - name: storageContainerName  # Azure Storage Container Name
-    secretKeyRef:
-      name: AzureEventHubsBindingsContainer
-      value: AzureEventHubsBindingsContainer
+    value: eventhubs-bindings-container-c1
 auth:
   secretStore: envvar-secret-store

@@ -1,14 +1,14 @@
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: azure-partition1-binding
+  name: azure-partitioned-binding
   namespace: default
 spec:
   type: bindings.azure.eventhubs
   version: v1
   metadata:
   - name: consumerID
-    value: ehcertification2
+    value: ehcertification1
   - name: connectionString      # Azure EventHubs connection string
     secretKeyRef:
       name: AzureEventHubsBindingsConnectionString
@@ -26,11 +26,6 @@ spec:
       name: AzureBlobStorageAccessKey
       value: AzureBlobStorageAccessKey  
   - name: storageContainerName  # Azure Storage Container Name
-    secretKeyRef:
-      name: AzureEventHubsBindingsContainer
-      value: AzureEventHubsBindingsContainer
-  - name: partitionID
-    value: 1
+    value: eventhubs-bindings-container-c3
 auth:
   secretStore: envvar-secret-store
-  

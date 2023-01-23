@@ -7,10 +7,6 @@ spec:
   type: bindings.azure.eventhubs
   version: v1
   metadata:
-    - name: eventHubNamespace
-      secretKeyRef:
-        name: AzureEventHubsBindingsNamespace
-        key: AzureEventHubsBindingsNamespace 
     - name: connectionString
       secretKeyRef:
         name: AzureEventHubsBindingsConnectionString
@@ -43,13 +39,12 @@ spec:
       secretKeyRef:
         name: AzureBlobStorageAccount
         key: AzureBlobStorageAccount
-    - name: storageAccountKey
-      secretKeyRef:
-        name: AzureBlobStorageAccessKey
-        key: AzureBlobStorageAccessKey
+    # Use Azure AD for the storage account too
+    #- name: storageAccountKey
+    #  secretKeyRef:
+    #    name: AzureBlobStorageAccessKey
+    #    key: AzureBlobStorageAccessKey
     - name: storageContainerName
-      secretKeyRef:
-        name: AzureEventHubsBindingsContainer
-        value: AzureEventHubsBindingsContainer
+      value: eventhubs-bindings-container-sp
 auth:
   secretStore: envvar-secret-store

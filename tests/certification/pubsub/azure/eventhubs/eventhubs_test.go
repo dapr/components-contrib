@@ -75,6 +75,7 @@ const (
 )
 
 func TestEventhubs(t *testing.T) {
+	// Tests that simulate failures are un-ordered
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 	consumerGroup4 := watcher.NewOrdered()
@@ -90,7 +91,7 @@ func TestEventhubs(t *testing.T) {
 	}
 
 	// subscriber of the given topic
-	subscriberApplication := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+	subscriberApplication := func(appID string, topicName string, messagesWatcher *watcher.Watcher, withFailures bool) app.SetupFn {
 		return func(ctx flow.Context, s common.Service) error {
 			// Simulate periodic errors.
 			sim := simulate.PeriodicError(ctx, 100)
@@ -101,8 +102,10 @@ func TestEventhubs(t *testing.T) {
 					Topic:      topicName,
 					Route:      "/orders",
 				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
-					if err := sim(); err != nil {
-						return true, err
+					if withFailures {
+						if err := sim(); err != nil {
+							return true, err
+						}
 					}
 
 					// Track/Observe the data of the event.
@@ -213,7 +216,7 @@ func TestEventhubs(t *testing.T) {
 		// Test : single publisher, multiple subscriber with their own consumerID
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
-			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
+			subscriberApplication(appID1, topicActiveName, consumerGroup1, true))).
 
 		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
@@ -227,7 +230,7 @@ func TestEventhubs(t *testing.T) {
 
 		// Run subscriberApplication app2
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset),
-			subscriberApplication(appID2, topicActiveName, consumerGroup2))).
+			subscriberApplication(appID2, topicActiveName, consumerGroup2, true))).
 
 		// Run the Dapr sidecar with the component 2.
 		Step(sidecar.Run(sidecarName2,
@@ -238,7 +241,7 @@ func TestEventhubs(t *testing.T) {
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
 			componentRuntimeOptions(2),
 		)).
-		Step("wait", flow.Sleep(10*time.Second)).
+		Step("wait", flow.Sleep(15*time.Second)).
 		Step("publish messages to topic1", publishMessages(nil, sidecarName1, topicActiveName, consumerGroup1, consumerGroup2)).
 		Step("publish messages to unUsedTopic", publishMessages(nil, sidecarName1, topicPassiveName)).
 		Step("verify if app1 has recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup1)).
@@ -248,7 +251,7 @@ func TestEventhubs(t *testing.T) {
 		// Test : multiple publisher with different partitionkey, multiple subscriber with same consumer ID
 		// Run subscriberApplication app3
 		Step(app.Run(appID3, fmt.Sprintf(":%d", appPort+portOffset*2),
-			subscriberApplication(appID3, topicActiveName, consumerGroup2))).
+			subscriberApplication(appID3, topicActiveName, consumerGroup2, true))).
 
 		// Run the Dapr sidecar with the component 3.
 		Step(sidecar.Run(sidecarName3,
@@ -259,7 +262,7 @@ func TestEventhubs(t *testing.T) {
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*2),
 			componentRuntimeOptions(3),
 		)).
-		Step("wait", flow.Sleep(10*time.Second)).
+		Step("wait", flow.Sleep(15*time.Second)).
 
 		// publish message in topic1 from two publisher apps, however there are two subscriber apps (app2,app3) with same consumerID
 		Step("publish messages to topic1 from app1", publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup2)).
@@ -269,7 +272,7 @@ func TestEventhubs(t *testing.T) {
 		// Test : Entitymanagement , Test partition key, in order processing with single publisher/subscriber
 		// Run subscriberApplication app4
 		Step(app.Run(appID4, fmt.Sprintf(":%d", appPort+portOffset*3),
-			subscriberApplication(appID4, topicToBeCreated, consumerGroup4))).
+			subscriberApplication(appID4, topicToBeCreated, consumerGroup4, false))).
 
 		// Run the Dapr sidecar with the component entitymanagement
 		Step(sidecar.Run(sidecarName4,
@@ -280,14 +283,14 @@ func TestEventhubs(t *testing.T) {
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*3),
 			componentRuntimeOptions(4),
 		)).
-		Step("wait", flow.Sleep(10*time.Second)).
+		Step("wait", flow.Sleep(15*time.Second)).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicToBeCreated), publishMessages(metadata, sidecarName4, topicToBeCreated, consumerGroup4)).
 		Step("verify if app4 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup4)).
 
 		// Test : IOT hub
 		// Run subscriberApplication app5
 		Step(app.Run(appID5, fmt.Sprintf(":%d", appPort+portOffset*4),
-			subscriberApplication(appID5, iotHubName, consumerGroup5))).
+			subscriberApplication(appID5, iotHubName, consumerGroup5, true))).
 		// Run the Dapr sidecar with the iot component
 		Step(sidecar.Run(sidecarName5,
 			embedded.WithComponentsPath("./components/iotconsumer"),

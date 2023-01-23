@@ -16,6 +16,7 @@ package snssqs_test
 import (
 	"context"
 	"fmt"
+
 	"os"
 	"testing"
 	"time"
@@ -68,6 +69,7 @@ var (
 	region                        = "us-east-1"                     // replaced with env var AWS_REGION
 	existingTopic                 = "existingTopic"                 // replaced with env var PUBSUB_AWS_SNSSQS_TOPIC_3
 	messageVisibilityTimeoutTopic = "messageVisibilityTimeoutTopic" // replaced with env var PUBSUB_AWS_SNSSQS_TOPIC_MVT
+	fifoTopic                     = "fifoTopic"                     // replaced with env var PUBSUB_AWS_SNSSQS_TOPIC_FIFO
 )
 
 // The following Queue names must match
@@ -80,6 +82,7 @@ var (
 var queues = []string{
 	"snscerttest1",
 	"snssqscerttest2",
+	"snssqscerttestfifo",
 }
 
 var topics = []string{
@@ -103,6 +106,11 @@ func init() {
 	if qn != "" {
 		queues[1] = qn
 	}
+	qn = os.Getenv("PUBSUB_AWS_SNSSQS_QUEUE_FIFO")
+	if qn != "" {
+		queues[2] = qn
+	}
+
 	qn = os.Getenv("PUBSUB_AWS_SNSSQS_TOPIC_3")
 	if qn != "" {
 		existingTopic = qn
@@ -110,6 +118,12 @@ func init() {
 	qn = os.Getenv("PUBSUB_AWS_SNSSQS_TOPIC_MVT")
 	if qn != "" {
 		messageVisibilityTimeoutTopic = qn
+		topics = append(topics, messageVisibilityTimeoutTopic)
+	}
+	qn = os.Getenv("PUBSUB_AWS_SNSSQS_TOPIC_FIFO")
+	if qn != "" {
+		fifoTopic = qn
+		topics = append(topics, fifoTopic)
 	}
 }
 
@@ -150,6 +164,10 @@ func TestAWSSNSSQSCertificationTests(t *testing.T) {
 
 	t.Run("SNSSQSMessageVisibilityTimeout", func(t *testing.T) {
 		SNSSQSMessageVisibilityTimeout(t)
+	})
+
+	t.Run("SNSSQSFIFOMessages", func(t *testing.T) {
+		SNSSQSFIFOMessages(t)
 	})
 }
 
@@ -1193,6 +1211,145 @@ func SNSSQSMessageVisibilityTimeout(t *testing.T) {
 		Step("No messages will be sent here",
 			connectToSideCar(sidecarName2)).
 		Step("wait", flow.Sleep(10*time.Second)).
+		Run()
+
+}
+
+// Verify data with an optional parameters `fifo` and `fifoMessageGroupID` takes affect (SNSSQSFIFOMessages)
+func SNSSQSFIFOMessages(t *testing.T) {
+	consumerGroup1 := watcher.NewOrdered()
+
+	// prepare the messages
+	maxFifoMessages := 20
+	fifoMessages := make([]string, maxFifoMessages)
+	for i := 0; i < maxFifoMessages; i++ {
+		fifoMessages[i] = fmt.Sprintf("m%d", i+1)
+	}
+	consumerGroup1.ExpectStrings(fifoMessages...)
+
+	// There are multiple publishers so the following
+	// generator will supply messages to each one in order
+	msgCh := make(chan string)
+	go func(mc chan string) {
+		for _, m := range fifoMessages {
+			mc <- m
+		}
+		close(mc)
+	}(msgCh)
+
+	doNothingApp := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			return nil
+		}
+	}
+
+	subscriberApplication := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      topicName,
+					Route:      "/orders",
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					ctx.Logf("SNSSQSFIFOMessages.subscriberApplication: Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %#v", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					messagesWatcher.Observe(e.Data)
+					return false, nil
+				}),
+			)
+		}
+	}
+
+	publishMessages := func(metadata map[string]string, sidecarName string, topicName string, mw *watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+
+			// get the sidecar (dapr) client
+			client := sidecar.GetClient(ctx, sidecarName)
+
+			// publish messages
+			ctx.Logf("SNSSQSFIFOMessages Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+
+			var publishOptions dapr.PublishEventOption
+
+			if metadata != nil {
+				publishOptions = dapr.PublishEventWithMetadata(metadata)
+			}
+
+			for message := range msgCh {
+				ctx.Logf("SNSSQSFIFOMessages Publishing: sidecarName: %s, topicName: %s - %q", sidecarName, topicName, message)
+				var err error
+
+				if publishOptions != nil {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message, publishOptions)
+				} else {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message)
+				}
+				require.NoError(ctx, err, "SNSSQSFIFOMessages - error publishing message")
+			}
+			return nil
+		}
+	}
+	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			// assert for messages
+			for _, m := range messageWatchers {
+				if !m.Assert(ctx, 10*timeout) {
+					ctx.Errorf("SNSSQSFIFOMessages - message assersion failed for watcher: %#v\n", m)
+				}
+			}
+
+			return nil
+		}
+	}
+
+	pub1 := "publisher1"
+	sc1 := pub1 + "_sidecar"
+	pub2 := "publisher2"
+	sc2 := pub2 + "_sidecar"
+	sub := "subscriber"
+	subsc := sub + "_sidecar"
+
+	flow.New(t, "SNSSQSFIFOMessages Verify FIFO with multiple publishers and single subscriber receiving messages in order").
+
+		// Subscriber
+		Step(app.Run(sub, fmt.Sprintf(":%d", appPort),
+			subscriberApplication(sub, fifoTopic, consumerGroup1))).
+		Step(sidecar.Run(subsc,
+			embedded.WithComponentsPath("./components/fifo"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
+			componentRuntimeOptions(),
+		)).
+		Step("wait", flow.Sleep(5*time.Second)).
+
+		// Publisher 1
+		Step(app.Run(pub1, fmt.Sprintf(":%d", appPort+portOffset+2),
+			doNothingApp(pub1, fifoTopic, consumerGroup1))).
+		Step(sidecar.Run(sc1,
+			embedded.WithComponentsPath("./components/fifo"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset+2),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset+2),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset+2),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset+2),
+			componentRuntimeOptions(),
+		)).
+		Step("publish messages to topic ==> "+fifoTopic, publishMessages(nil, sc1, fifoTopic, consumerGroup1)).
+
+		// Publisher 2
+		Step(app.Run(pub2, fmt.Sprintf(":%d", appPort+portOffset+4),
+			doNothingApp(pub2, fifoTopic, consumerGroup1))).
+		Step(sidecar.Run(sc2,
+			embedded.WithComponentsPath("./components/fifo"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset+4),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset+4),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset+4),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset+4),
+			componentRuntimeOptions(),
+		)).
+		Step("publish messages to topic ==> "+fifoTopic, publishMessages(nil, sc2, fifoTopic, consumerGroup1)).
+		Step("wait", flow.Sleep(10*time.Second)).
+		Step("verify if recevied ordered messages published to active topic", assertMessages(1*time.Second, consumerGroup1)).
+		Step("reset", flow.Reset(consumerGroup1)).
 		Run()
 
 }

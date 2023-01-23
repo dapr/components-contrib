@@ -29,6 +29,8 @@ components:
       outputData: '{"id": "$((uuid))", "orderid": "abcdef-test", "partitionKey": "partitionValue", "nestedproperty": {"subproperty": "something of value for testing"}, "description": "conformance test item"}'
   - component: azure.eventhubs
     operations: ["create", "operations", "read"]
+    config:
+      readBindingWait: 15s
   - component: azure.eventgrid
     operations: ["create", "operations", "read"]
     config:

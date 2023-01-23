@@ -19,6 +19,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -189,16 +190,17 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		})
 	}
 
-	inputBindingCall := 0
-	readChan := make(chan int)
+	inputBindingCall := atomic.Int32{}
+	readChan := make(chan int, 1)
 	readCtx, readCancel := context.WithCancel(context.Background())
 	defer readCancel()
 	if config.HasOperation("read") {
 		t.Run("read", func(t *testing.T) {
 			testLogger.Info("Read test running ...")
 			err := inputBinding.Read(readCtx, func(ctx context.Context, r *bindings.ReadResponse) ([]byte, error) {
-				inputBindingCall++
-				readChan <- inputBindingCall
+				t.Logf("Read message: %s", string(r.Data))
+				v := inputBindingCall.Add(1)
+				readChan <- int(v)
 
 				return nil, nil
 			})
@@ -208,6 +210,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		// Need a small wait here because with brokers like MQTT
 		// if you publish before there is a consumer, the message is thrown out
 		// Currently, there is no way to know when Read is successfully subscribed.
+		t.Logf("Sleeping for %v", config.ReadBindingWait)
 		time.Sleep(config.ReadBindingWait)
 	}
 
@@ -262,7 +265,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 				assert.Greater(t, inputBindingCall, 0)
 				testLogger.Info("Read channel signalled.")
 			case <-time.After(config.ReadBindingTimeout):
-				assert.Greater(t, inputBindingCall, 0)
+				assert.Greaterf(t, inputBindingCall, 0, "Timed out after %v while reading", config.ReadBindingTimeout)
 				testLogger.Info("Read timeout.")
 			}
 			testLogger.Info("Verify Read test done.")

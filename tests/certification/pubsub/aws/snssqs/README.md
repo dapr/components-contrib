@@ -56,8 +56,12 @@ The purpose of this module is to provide tests that certify the AWS SNS/SQS Pubs
    - Subscriber 1 reeives message,  notifies subscriber 2 and sumlates being busy for time shorter than messageVisibilityTimeout seconds
    - Subscriber 2 receives go ahead and subscribes to 1 topic
    - Subscriber 2 must not receive message
+- Verify data with an optional parameters `fifo` and `fifoMessageGroupID` takes affect (SNSSQSFIFOMessages)
+   - Run dapr application with 2 publisher and 1 subscriber
+   - Publishers publishe to 1 topic
+   - Subscriber 1 subscribes to 1 topic
+   - Message are expected to arrive in order
 - Verify data with an optional parameters `sqsDeadLettersQueueName`, `messageRetryLimit`, and `messageReceiveLimit` takes affect (SNSSQSMessageDeadLetter)
-
 ### Running the tests
 
 This must be run in the GitHub Actions Workflow configured for test infrastructure setup.

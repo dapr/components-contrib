@@ -16,6 +16,7 @@ package snssqs_test
 import (
 	"context"
 	"fmt"
+
 	"os"
 	"testing"
 	"time"
@@ -68,8 +69,12 @@ var (
 	region                        = "us-east-1"                     // replaced with env var AWS_REGION
 	existingTopic                 = "existingTopic"                 // replaced with env var PUBSUB_AWS_SNSSQS_TOPIC_3
 	messageVisibilityTimeoutTopic = "messageVisibilityTimeoutTopic" // replaced with env var PUBSUB_AWS_SNSSQS_TOPIC_MVT
+<<<<<<< HEAD
 	deadLetterTopic               = "deadLetterTopic"               // replaced with env var PUBSUB_AWS_SNSSQS_TOPIC_DL
 	dealLetterQueueName           = "dealLetterQueueName"           // replaced with env var PUBSUB_AWS_SNSSQS_QUEUE_DLOUT
+=======
+	fifoTopic                     = "fifoTopic"                     // replaced with env var PUBSUB_AWS_SNSSQS_TOPIC_FIFO
+>>>>>>> master
 )
 
 // The following Queue names must match
@@ -82,8 +87,12 @@ var (
 var queues = []string{
 	"snscerttest1",
 	"snssqscerttest2",
+<<<<<<< HEAD
 	"snssqscerttestdeadletterin",
 	"snssqscerttestdeadletterout",
+=======
+	"snssqscerttestfifo",
+>>>>>>> master
 }
 
 var topics = []string{
@@ -107,6 +116,7 @@ func init() {
 	if qn != "" {
 		queues[1] = qn
 	}
+<<<<<<< HEAD
 	qn = os.Getenv("PUBSUB_AWS_SNSSQS_QUEUE_DLIN")
 	if qn != "" {
 		queues[2] = qn
@@ -116,6 +126,12 @@ func init() {
 		dealLetterQueueName = qn
 		queues[3] = qn
 	}
+=======
+	qn = os.Getenv("PUBSUB_AWS_SNSSQS_QUEUE_FIFO")
+	if qn != "" {
+		queues[2] = qn
+	}
+>>>>>>> master
 
 	qn = os.Getenv("PUBSUB_AWS_SNSSQS_TOPIC_3")
 	if qn != "" {
@@ -124,6 +140,12 @@ func init() {
 	qn = os.Getenv("PUBSUB_AWS_SNSSQS_TOPIC_MVT")
 	if qn != "" {
 		messageVisibilityTimeoutTopic = qn
+		topics = append(topics, messageVisibilityTimeoutTopic)
+	}
+	qn = os.Getenv("PUBSUB_AWS_SNSSQS_TOPIC_FIFO")
+	if qn != "" {
+		fifoTopic = qn
+		topics = append(topics, fifoTopic)
 	}
 	qn = os.Getenv("PUBSUB_AWS_SNSSQS_TOPIC_DL")
 	if qn != "" {
@@ -170,8 +192,13 @@ func TestAWSSNSSQSCertificationTests(t *testing.T) {
 		SNSSQSMessageVisibilityTimeout(t)
 	})
 
+<<<<<<< HEAD
 	t.Run("SNSSQSMessageDeadLetter", func(t *testing.T) {
 		SNSSQSMessageDeadLetter(t)
+=======
+	t.Run("SNSSQSFIFOMessages", func(t *testing.T) {
+		SNSSQSFIFOMessages(t)
+>>>>>>> master
 	})
 }
 
@@ -1219,6 +1246,7 @@ func SNSSQSMessageVisibilityTimeout(t *testing.T) {
 
 }
 
+<<<<<<< HEAD
 // Verify data with an optional parameters `sqsDeadLettersQueueName` and `messageReceiveLimit` takes affect
 func SNSSQSMessageDeadLetter(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
@@ -1226,6 +1254,36 @@ func SNSSQSMessageDeadLetter(t *testing.T) {
 	failedMessagesNum := 1
 
 	// subscriber of the given topic
+=======
+// Verify data with an optional parameters `fifo` and `fifoMessageGroupID` takes affect (SNSSQSFIFOMessages)
+func SNSSQSFIFOMessages(t *testing.T) {
+	consumerGroup1 := watcher.NewOrdered()
+
+	// prepare the messages
+	maxFifoMessages := 20
+	fifoMessages := make([]string, maxFifoMessages)
+	for i := 0; i < maxFifoMessages; i++ {
+		fifoMessages[i] = fmt.Sprintf("m%d", i+1)
+	}
+	consumerGroup1.ExpectStrings(fifoMessages...)
+
+	// There are multiple publishers so the following
+	// generator will supply messages to each one in order
+	msgCh := make(chan string)
+	go func(mc chan string) {
+		for _, m := range fifoMessages {
+			mc <- m
+		}
+		close(mc)
+	}(msgCh)
+
+	doNothingApp := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			return nil
+		}
+	}
+
+>>>>>>> master
 	subscriberApplication := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
 		return func(ctx flow.Context, s common.Service) error {
 			return multierr.Combine(
@@ -1234,13 +1292,20 @@ func SNSSQSMessageDeadLetter(t *testing.T) {
 					Topic:      topicName,
 					Route:      "/orders",
 				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+<<<<<<< HEAD
 					ctx.Logf("subscriberApplication - Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s - causing failure...", appID, e.PubsubName, e.Topic, e.ID, e.Data)
 					return true, fmt.Errorf("failure on purpose")
+=======
+					ctx.Logf("SNSSQSFIFOMessages.subscriberApplication: Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %#v", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					messagesWatcher.Observe(e.Data)
+					return false, nil
+>>>>>>> master
 				}),
 			)
 		}
 	}
 
+<<<<<<< HEAD
 	// subscriber of the given deadletter queue
 	deadLetterReceiverApplication := func(appID string, deadLetterQueueName string, messagesWatcher *watcher.Watcher) app.SetupFn {
 		return func(ctx flow.Context, s common.Service) error {
@@ -1296,12 +1361,20 @@ func SNSSQSMessageDeadLetter(t *testing.T) {
 			for _, messageWatcher := range messageWatchers {
 				messageWatcher.ExpectStrings(messages...)
 			}
+=======
+	publishMessages := func(metadata map[string]string, sidecarName string, topicName string, mw *watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+>>>>>>> master
 
 			// get the sidecar (dapr) client
 			client := sidecar.GetClient(ctx, sidecarName)
 
 			// publish messages
+<<<<<<< HEAD
 			ctx.Logf("SNSSQSMessageDeadLetter - Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+=======
+			ctx.Logf("SNSSQSFIFOMessages Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+>>>>>>> master
 
 			var publishOptions dapr.PublishEventOption
 
@@ -1309,8 +1382,13 @@ func SNSSQSMessageDeadLetter(t *testing.T) {
 				publishOptions = dapr.PublishEventWithMetadata(metadata)
 			}
 
+<<<<<<< HEAD
 			for _, message := range messages {
 				ctx.Logf("Publishing: %q", message)
+=======
+			for message := range msgCh {
+				ctx.Logf("SNSSQSFIFOMessages Publishing: sidecarName: %s, topicName: %s - %q", sidecarName, topicName, message)
+>>>>>>> master
 				var err error
 
 				if publishOptions != nil {
@@ -1318,18 +1396,30 @@ func SNSSQSMessageDeadLetter(t *testing.T) {
 				} else {
 					err = client.PublishEvent(ctx, pubsubName, topicName, message)
 				}
+<<<<<<< HEAD
 				require.NoError(ctx, err, "SNSSQSMessageDeadLetter - error publishing message")
+=======
+				require.NoError(ctx, err, "SNSSQSFIFOMessages - error publishing message")
+>>>>>>> master
 			}
 			return nil
 		}
 	}
+<<<<<<< HEAD
 
+=======
+>>>>>>> master
 	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
 			// assert for messages
 			for _, m := range messageWatchers {
+<<<<<<< HEAD
 				if !m.Assert(ctx, 2*timeout) {
 					ctx.Errorf("SNSSQSMessageDeadLetter - message assersion failed for watcher: %#v\n", m)
+=======
+				if !m.Assert(ctx, 10*timeout) {
+					ctx.Errorf("SNSSQSFIFOMessages - message assersion failed for watcher: %#v\n", m)
+>>>>>>> master
 				}
 			}
 
@@ -1337,6 +1427,7 @@ func SNSSQSMessageDeadLetter(t *testing.T) {
 		}
 	}
 
+<<<<<<< HEAD
 	connectToSideCar := func(sidecarName string) flow.Runnable {
 		return func(ctx flow.Context) error {
 			ctx.Logf("####### connect to sidecar (dapr) client sidecarName: %s and exit", sidecarName)
@@ -1359,12 +1450,41 @@ func SNSSQSMessageDeadLetter(t *testing.T) {
 			deadLetterReceiverApplication(deadletterApp, dealLetterQueueName, deadLetterConsumerGroup))).
 		Step(sidecar.Run(deadletterApp,
 			embedded.WithComponentsPath("./components/message_visibility_timeout"),
+=======
+	pub1 := "publisher1"
+	sc1 := pub1 + "_sidecar"
+	pub2 := "publisher2"
+	sc2 := pub2 + "_sidecar"
+	sub := "subscriber"
+	subsc := sub + "_sidecar"
+
+	flow.New(t, "SNSSQSFIFOMessages Verify FIFO with multiple publishers and single subscriber receiving messages in order").
+
+		// Subscriber
+		Step(app.Run(sub, fmt.Sprintf(":%d", appPort),
+			subscriberApplication(sub, fifoTopic, consumerGroup1))).
+		Step(sidecar.Run(subsc,
+			embedded.WithComponentsPath("./components/fifo"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
+			componentRuntimeOptions(),
+		)).
+		Step("wait", flow.Sleep(5*time.Second)).
+
+		// Publisher 1
+		Step(app.Run(pub1, fmt.Sprintf(":%d", appPort+portOffset+2),
+			doNothingApp(pub1, fifoTopic, consumerGroup1))).
+		Step(sidecar.Run(sc1,
+			embedded.WithComponentsPath("./components/fifo"),
+>>>>>>> master
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset+2),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset+2),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset+2),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset+2),
 			componentRuntimeOptions(),
 		)).
+<<<<<<< HEAD
 		Step("No messages will be sent here",
 			connectToSideCar(deadLetterSideCar)).
 		Step("wait", flow.Sleep(10*time.Second)).
@@ -1386,6 +1506,27 @@ func SNSSQSMessageDeadLetter(t *testing.T) {
 		Step("reset", flow.Reset(consumerGroup1, deadLetterConsumerGroup)).
 		Step("wait", flow.Sleep(10*time.Second)).
 		Run()
+=======
+		Step("publish messages to topic ==> "+fifoTopic, publishMessages(nil, sc1, fifoTopic, consumerGroup1)).
+
+		// Publisher 2
+		Step(app.Run(pub2, fmt.Sprintf(":%d", appPort+portOffset+4),
+			doNothingApp(pub2, fifoTopic, consumerGroup1))).
+		Step(sidecar.Run(sc2,
+			embedded.WithComponentsPath("./components/fifo"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset+4),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset+4),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset+4),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset+4),
+			componentRuntimeOptions(),
+		)).
+		Step("publish messages to topic ==> "+fifoTopic, publishMessages(nil, sc2, fifoTopic, consumerGroup1)).
+		Step("wait", flow.Sleep(10*time.Second)).
+		Step("verify if recevied ordered messages published to active topic", assertMessages(1*time.Second, consumerGroup1)).
+		Step("reset", flow.Reset(consumerGroup1)).
+		Run()
+
+>>>>>>> master
 }
 
 func componentRuntimeOptions() []runtime.Option {

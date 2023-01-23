@@ -34,6 +34,15 @@ resource iotHub 'Microsoft.Devices/IotHubs@2021-03-31' = {
         partitionCount: 2
       }
     }
+    routing: {
+      fallbackRoute: {
+        name: '$fallback'
+        source: 'DeviceMessages'
+        condition: 'true'
+        endpointNames: ['events']
+        isEnabled: true
+      }
+    }
   }
 }
 

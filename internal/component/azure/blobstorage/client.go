@@ -83,7 +83,7 @@ func CreateContainerStorageClient(log logger.Logger, meta map[string]string) (*c
 		}
 		client, clientErr = container.NewClientWithSharedKeyCredential(URL.String(), credential, &options)
 		if clientErr != nil {
-			return nil, nil, fmt.Errorf("cannot init Blobstorage container client: %w", err)
+			return nil, nil, fmt.Errorf("cannot init Blobstorage container client: %w", clientErr)
 		}
 	} else {
 		// fallback to AAD

@@ -7,18 +7,22 @@ spec:
   type: bindings.azure.eventhubs
   version: v1
   metadata:
-    - name: connectionString
+    - name: eventHubNamespace
       secretKeyRef:
-        name: AzureEventHubsBindingsConnectionString
-        value: AzureEventHubsBindingsConnectionString   
+        name: AzureEventHubsBindingsNamespace
+        value: AzureEventHubsBindingsNamespace
+    - name: eventHub
+      secretKeyRef:
+        name: AzureEventHubsBindingsHub
+        value: AzureEventHubsBindingsHub
     - name: azureTenantId
       secretKeyRef:
         name: AzureCertificationTenantId
-        key: AzureCertificationTenantId    
+        key: AzureCertificationTenantId
     - name: azureClientId
       secretKeyRef:
         name: AzureCertificationServicePrincipalClientId
-        key: AzureCertificationServicePrincipalClientId   
+        key: AzureCertificationServicePrincipalClientId
     - name: azureClientSecret
       secretKeyRef:
         name: AzureCertificationServicePrincipalClientSecret

@@ -324,6 +324,7 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 		received.ExpectStrings(outputmsg...)
 
 		// Send events from output binding
+		time.Sleep(20 * time.Second)
 		for i, msg := range outputmsg {
 			var md map[string]string
 			if i < 50 {
@@ -345,7 +346,6 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 		}
 
 		// Assert the observed messages
-		time.Sleep(20 * time.Second)
 		received.Assert(ctx, time.Minute)
 		return nil
 	}

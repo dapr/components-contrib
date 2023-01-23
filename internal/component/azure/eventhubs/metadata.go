@@ -78,7 +78,7 @@ func parseEventHubsMetadata(meta map[string]string, isBinding bool, log logger.L
 	if isBinding {
 		if m.ConnectionString == "" {
 			if m.EventHub == "" {
-				return nil, errors.New("property eventHub is required when connecting with a connection string")
+				return nil, errors.New("property 'eventHub' is required when connecting with Azure AD")
 			}
 			m.hubName = m.EventHub
 		} else {
@@ -88,7 +88,7 @@ func parseEventHubsMetadata(meta map[string]string, isBinding bool, log logger.L
 			} else if m.EventHub != "" {
 				m.hubName = m.EventHub
 			} else {
-				return nil, errors.New("the provided connection string does not contain a value for 'EntityPath' and no eventHub property was passed")
+				return nil, errors.New("the provided connection string does not contain a value for 'EntityPath' and no 'eventHub' property was passed")
 			}
 		}
 

@@ -114,7 +114,12 @@ const (
 )
 
 //nolint:gochecknoglobals
-var testLogger = logger.NewLogger("testLogger")
+var testLogger logger.Logger
+
+func init() {
+	testLogger = logger.NewLogger("testLogger")
+	testLogger.SetOutputLevel(logger.DebugLevel)
+}
 
 type TestConfiguration struct {
 	ComponentType string          `yaml:"componentType,omitempty"`

@@ -262,10 +262,10 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			// To stop the test from hanging if there's no response, we can setup a simple timeout.
 			select {
 			case <-readChan:
-				assert.Greater(t, inputBindingCall, 0)
+				assert.Greater(t, inputBindingCall.Load(), int32(0))
 				testLogger.Info("Read channel signalled.")
 			case <-time.After(config.ReadBindingTimeout):
-				assert.Greaterf(t, inputBindingCall, 0, "Timed out after %v while reading", config.ReadBindingTimeout)
+				assert.Greaterf(t, inputBindingCall.Load(), int32(0), "Timed out after %v while reading", config.ReadBindingTimeout)
 				testLogger.Info("Read timeout.")
 			}
 			testLogger.Info("Verify Read test done.")

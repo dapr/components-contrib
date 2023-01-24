@@ -121,18 +121,18 @@ func (a *AzureEventGrid) Read(ctx context.Context, handler bindings.Handler) err
 	// Run the server in background
 	go func() {
 		a.logger.Debugf("About to start listening for Event Grid events at http://localhost:%s/api/events", a.metadata.HandshakePort)
-		err := srv.ListenAndServe(":" + a.metadata.HandshakePort)
+		srvErr := srv.ListenAndServe(":" + a.metadata.HandshakePort)
 		if err != nil {
-			a.logger.Errorf("Error starting server: %v", err)
+			a.logger.Errorf("Error starting server: %v", srvErr)
 		}
 	}()
 
 	// Close the server when context is canceled
 	go func() {
 		<-ctx.Done()
-		err := srv.Shutdown()
+		srvErr := srv.Shutdown()
 		if err != nil {
-			a.logger.Errorf("Error shutting down server: %v", err)
+			a.logger.Errorf("Error shutting down server: %v", srvErr)
 		}
 	}()
 
@@ -182,7 +182,7 @@ func (a *AzureEventGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest
 		return nil, err
 	}
 
-	//a.logger.Debugf("Successfully posted event to %s", a.metadata.TopicEndpoint)
+	// a.logger.Debugf("Successfully posted event to %s", a.metadata.TopicEndpoint)
 
 	return nil, nil
 }

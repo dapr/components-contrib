@@ -250,14 +250,14 @@ func (h *HTTPSource) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 	// HTTP binding needs to inject traceparent header for proper tracing stack.
 	if tp, ok := req.Metadata[TraceparentHeaderKey]; ok && tp != "" {
 		if _, ok := request.Header[http.CanonicalHeaderKey(TraceparentHeaderKey)]; ok {
-			h.logger.Warn("tracing enabled, overwriting Traceparent in request headers")
+			h.logger.Warn("Tracing is enabled. A custom Traceparent request header cannot be specified and is ignored.")
 		}
 
 		request.Header.Set(TraceparentHeaderKey, tp)
 	}
 	if ts, ok := req.Metadata[TracestateHeaderKey]; ok && ts != "" {
 		if _, ok := request.Header[http.CanonicalHeaderKey(TracestateHeaderKey)]; ok {
-			h.logger.Warn("tracing enabled, overwriting Tracestate in request headers")
+			h.logger.Warn("Tracing is enabled. A custom Tracestate request header cannot be specified and is ignored.")
 		}
 
 		request.Header.Set(TracestateHeaderKey, ts)

@@ -55,7 +55,6 @@ type HTTPSource struct {
 	metadata      httpMetadata
 	client        *http.Client
 	errorIfNot2XX bool
-	traceHeaders  bool
 	logger        logger.Logger
 }
 

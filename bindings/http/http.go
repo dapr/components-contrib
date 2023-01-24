@@ -38,7 +38,6 @@ import (
 )
 
 const (
-	MTLSEnable     = "MTLSEnable"
 	MTLSRootCA     = "MTLSRootCA"
 	MTLSClientCert = "MTLSClientCert"
 	MTLSClientKey  = "MTLSClientKey"
@@ -146,23 +145,19 @@ func (h *HTTPSource) readMTLSCertificates() (*tls.Config, error) {
 }
 
 // getPemBytes returns the PEM encoded bytes from the provided certName and certData.
-// If the certData is a file path, it reads the file and returns the bytes.
-// Else if the certData is a PEM encoded string, it returns the bytes.
-// Else it returns an error.
+// If the certData is a PEM encoded string, it returns the bytes.
+// If there is an error in decoding the PEM, assume it is a filepath and try to read its content.
+// Return the error occurred while reading the file.
 func (h *HTTPSource) getPemBytes(certName, certData string) ([]byte, error) {
-	// Read the file
-	pemBytes, err := os.ReadFile(certData)
-	// If there is an error assume it is already PEM encoded string not a file path.
-	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("failed to read %q file: %w", certName, err)
+	if !isValidPEM(certData) {
+		// Read the file
+		pemBytes, err := os.ReadFile(certData)
+		if err != nil {
+			return nil, fmt.Errorf("provided %q value is neither a valid file path or nor a valid pem encoded string: %w", certName, err)
 		}
-		if !isValidPEM(certData) {
-			return nil, fmt.Errorf("provided %q value is neither a valid file path or nor a valid pem encoded string", certName)
-		}
-		return []byte(certData), nil
+		return pemBytes, nil
 	}
-	return pemBytes, nil
+	return []byte(certData), nil
 }
 
 // isValidPEM validates the provided input has PEM formatted block.

@@ -20,6 +20,7 @@ import (
 	"crypto/rsa"
 	"fmt"
 	"io"
+	"log"
 	"strings"
 	"testing"
 
@@ -101,7 +102,7 @@ func newKeybagFromConfig(config TestConfig) keybag {
 		case "private":
 			bag.private.addKey(k.Name, k.Algorithms...)
 		default:
-			fmt.Printf("WARN: found key with invalid type: '%s'\n", k.KeyType)
+			log.Printf("WARN: found key with invalid type: '%s'\n", k.KeyType)
 		}
 	}
 	return bag

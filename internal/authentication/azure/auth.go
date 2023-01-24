@@ -16,6 +16,7 @@ package azure
 import (
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"os"
@@ -313,7 +314,7 @@ func (c CertConfig) ServicePrincipalTokenByCertBytes() (*adal.ServicePrincipalTo
 		return nil, err
 	}
 
-	certificate, rsaPrivateKey, err := c.decodePkcs12(c.CertificateData, c.CertificatePassword)
+	certificate, rsaPrivateKey, err := c.decodeCertificate(c.CertificateData, c.CertificatePassword)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode pkcs12 certificate while creating spt: %v", err)
 	}
@@ -340,8 +341,8 @@ func (c CertConfig) GetTokenCredential() (token azcore.TokenCredential, err erro
 		return nil, fmt.Errorf("certificate is not given")
 	}
 
-	// Decode the PKCS#12 certificate
-	cert, key, err := c.decodePkcs12(data, c.CertificatePassword)
+	// Decode the certificate
+	cert, key, err := c.decodeCertificate(data, c.CertificatePassword)
 	if err != nil || cert == nil {
 		return nil, fmt.Errorf("failed to decode pkcs12 certificate while creating spt: %v", err)
 	}
@@ -358,6 +359,24 @@ func (c CertConfig) GetTokenCredential() (token azcore.TokenCredential, err erro
 	return azidentity.NewClientCertificateCredential(c.TenantID, c.ClientID, certs, key, opts)
 }
 
+// Decode a certificate, either as a PKCS#12 (PFX) bundle, or as a single file with both certificate and key encoded in PEM blocks.
+// The password is only used for PFX (and could be empty).
+func (c CertConfig) decodeCertificate(data []byte, password string) (certificate *x509.Certificate, privateKey *rsa.PrivateKey, err error) {
+	// First, try to decode the certificate as PKCS#12
+	certificate, privateKey, err = c.decodePkcs12(data, password)
+	if err == nil && certificate != nil {
+		return certificate, privateKey, nil
+	}
+
+	// If it failed, try decoding as PEM
+	certificate, privateKey, err = c.decodePEM(data)
+	if err == nil && certificate != nil {
+		return certificate, privateKey, nil
+	}
+
+	return nil, nil, errors.New("certificate is not valid")
+}
+
 func (c CertConfig) decodePkcs12(pkcs []byte, password string) (*x509.Certificate, *rsa.PrivateKey, error) {
 	privateKey, certificate, err := pkcs12.Decode(pkcs, password)
 	if err != nil {
@@ -370,6 +389,65 @@ func (c CertConfig) decodePkcs12(pkcs []byte, password string) (*x509.Certificat
 	}
 
 	return certificate, rsaPrivateKey, nil
+}
+
+func (c CertConfig) decodePEM(data []byte) (certificate *x509.Certificate, privateKey *rsa.PrivateKey, err error) {
+	// We should have 2 PEM blocks: a certificate and a key
+	var (
+		block     *pem.Block
+		parsedKey any
+		ok        bool
+	)
+	for i := 0; i < 2; i++ {
+		block, data = pem.Decode(data)
+		if block == nil {
+			break
+		}
+
+		switch block.Type {
+		case "CERTIFICATE":
+			// If we already have a certificate decoded, return an error
+			if certificate != nil {
+				return nil, nil, errors.New("invalid certificate")
+			}
+			certificate, err = x509.ParseCertificate(block.Bytes)
+			if err != nil {
+				return nil, nil, err
+			}
+		case "PRIVATE KEY": // PKCS#8
+			// If we already have a key decoded, return an error
+			if privateKey != nil {
+				return nil, nil, errors.New("invalid certificate")
+			}
+			parsedKey, err = x509.ParsePKCS8PrivateKey(block.Bytes)
+			if err != nil {
+				return nil, nil, err
+			}
+			privateKey, ok = parsedKey.(*rsa.PrivateKey)
+			if !ok || privateKey == nil {
+				return nil, nil, fmt.Errorf("certificate must contain an RSA private key")
+			}
+		case "RSA PRIVATE KEY": // PKCS#1
+			// If we already have a key decoded, return an error
+			if privateKey != nil {
+				return nil, nil, errors.New("invalid certificate")
+			}
+			parsedKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
+			if err != nil {
+				return nil, nil, err
+			}
+			privateKey, ok = parsedKey.(*rsa.PrivateKey)
+			if !ok || privateKey == nil {
+				return nil, nil, fmt.Errorf("certificate must contain an RSA private key")
+			}
+		}
+	}
+
+	// We should have both a private key and a certificate
+	if privateKey == nil || certificate == nil {
+		return nil, nil, errors.New("invalid certificate")
+	}
+	return certificate, privateKey, nil
 }
 
 // MSIConfig provides the options to get a bearer authorizer through MSI.

@@ -171,30 +171,10 @@ func TestTraceHeadersForwarded(t *testing.T) {
 	s := httptest.NewServer(handler)
 	defer s.Close()
 
-	hs, err := InitBinding(s, map[string]string{"traceHeaders": "false"})
+	hs, err := InitBinding(s, nil)
 	require.NoError(t, err)
 
-	t.Run("trace headers not forwarded when traceHeaders set to false", func(t *testing.T) {
-		req := TestCase{
-			input:      "GET",
-			operation:  "get",
-			metadata:   map[string]string{"path": "/", "traceparent": "12345", "tracestate": "67890"},
-			path:       "/",
-			err:        "",
-			statusCode: 200,
-		}.ToInvokeRequest()
-		_, err = hs.Invoke(context.Background(), &req)
-		assert.NoError(t, err)
-		_, traceParentExists := handler.Headers["Traceparent"]
-		assert.False(t, traceParentExists)
-		_, traceStateExists := handler.Headers["Tracestate"]
-		assert.False(t, traceStateExists)
-	})
-
-	hs, err = InitBinding(s, map[string]string{"traceHeaders": "true"})
-	require.NoError(t, err)
-
-	t.Run("trace headers are forwarded when traceHeaders set to true", func(t *testing.T) {
+	t.Run("trace headers are forwarded", func(t *testing.T) {
 		req := TestCase{
 			input:      "GET",
 			operation:  "get",
@@ -224,6 +204,21 @@ func TestTraceHeadersForwarded(t *testing.T) {
 		assert.False(t, traceParentExists)
 		_, traceStateExists := handler.Headers["Tracestate"]
 		assert.False(t, traceStateExists)
+	})
+
+	t.Run("trace headers override headers in request metadata", func(t *testing.T) {
+		req := TestCase{
+			input:      "GET",
+			operation:  "get",
+			metadata:   map[string]string{"path": "/", "Traceparent": "abcde", "Tracestate": "fghijk", "traceparent": "12345", "tracestate": "67890"},
+			path:       "/",
+			err:        "",
+			statusCode: 200,
+		}.ToInvokeRequest()
+		_, err = hs.Invoke(context.Background(), &req)
+		assert.NoError(t, err)
+		assert.Equal(t, "12345", handler.Headers["Traceparent"])
+		assert.Equal(t, "67890", handler.Headers["Tracestate"])
 	})
 }
 

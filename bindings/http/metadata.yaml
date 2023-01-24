@@ -54,9 +54,3 @@ metadata:
     description: "The client certificate key to present to server to enable client verification"
     binding:
       output: true
-  - name: traceHeaders
-    required: false
-    description: "If true, trace headers are forwarded with HTTP request"
-    example: 'true'
-    binding:
-      output: true

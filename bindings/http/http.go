@@ -109,8 +109,6 @@ func (h *HTTPSource) Init(metadata bindings.Metadata) error {
 		h.errorIfNot2XX = true
 	}
 
-	h.traceHeaders = utils.IsTruthy(metadata.Properties[TraceMetadataKey])
-
 	return nil
 }
 
@@ -241,16 +239,6 @@ func (h *HTTPSource) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 		request.Header.Set("Accept", "application/json; charset=utf-8")
 	}
 
-	// HTTP binding needs to inject traceparent header for proper tracing stack.
-	if h.traceHeaders {
-		if tp, ok := req.Metadata[TraceparentHeaderKey]; ok && tp != "" {
-			request.Header.Set(TraceparentHeaderKey, tp)
-		}
-		if ts, ok := req.Metadata[TracestateHeaderKey]; ok && ts != "" {
-			request.Header.Set(TracestateHeaderKey, ts)
-		}
-	}
-
 	// Any metadata keys that start with a capital letter
 	// are treated as request headers
 	for mdKey, mdValue := range req.Metadata {
@@ -258,6 +246,22 @@ func (h *HTTPSource) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 		if len(keyAsRunes) > 0 && unicode.IsUpper(keyAsRunes[0]) {
 			request.Header.Set(mdKey, mdValue)
 		}
+	}
+
+	// HTTP binding needs to inject traceparent header for proper tracing stack.
+	if tp, ok := req.Metadata[TraceparentHeaderKey]; ok && tp != "" {
+		if _, ok := request.Header[http.CanonicalHeaderKey(TraceparentHeaderKey)]; ok {
+			h.logger.Warn("tracing enabled, overwriting Traceparent in request headers")
+		}
+
+		request.Header.Set(TraceparentHeaderKey, tp)
+	}
+	if ts, ok := req.Metadata[TracestateHeaderKey]; ok && ts != "" {
+		if _, ok := request.Header[http.CanonicalHeaderKey(TracestateHeaderKey)]; ok {
+			h.logger.Warn("tracing enabled, overwriting Tracestate in request headers")
+		}
+
+		request.Header.Set(TracestateHeaderKey, ts)
 	}
 
 	// Send the question

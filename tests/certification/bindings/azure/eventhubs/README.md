@@ -7,11 +7,9 @@ This project aims to test the Azure Event Hubs bindings component under various 
 - Test sending /receiving data between single partition
    - Start an app with 1 sender and 1 receiver
    - Provide multiple partitions but store data in one partition
-   - Receiver should only receive message from one partition
    - Sends 100+ unique messages
    - Simulates periodic errors
    - Confirm that all expected messages were received
-   - Confirm that receiver does not receive messages from other than one partition
 
 - Test sending /receiving data multiple partitions/sender and receivers
    - Start an app with 1 sender and 1 receiver

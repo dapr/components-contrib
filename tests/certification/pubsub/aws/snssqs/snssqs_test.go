@@ -16,6 +16,7 @@ package snssqs_test
 import (
 	"context"
 	"fmt"
+
 	"os"
 	"testing"
 	"time"
@@ -65,7 +66,10 @@ const (
 )
 
 var (
-	existingTopic = "existingTopic" // replaced with env var PUBSUB_AWS_SNSSQS_TOPIC_3
+	region                        = "us-east-1"                     // replaced with env var AWS_REGION
+	existingTopic                 = "existingTopic"                 // replaced with env var PUBSUB_AWS_SNSSQS_TOPIC_3
+	messageVisibilityTimeoutTopic = "messageVisibilityTimeoutTopic" // replaced with env var PUBSUB_AWS_SNSSQS_TOPIC_MVT
+	fifoTopic                     = "fifoTopic"                     // replaced with env var PUBSUB_AWS_SNSSQS_TOPIC_FIFO
 )
 
 // The following Queue names must match
@@ -73,14 +77,28 @@ var (
 // found inside each of the components/*/pubsub.yaml files
 // The names will be passed in with Env Vars like:
 //
+//	PUBSUB_AWS_SNSSQS_QUEUE_*
 //	PUBSUB_AWS_SNSSQS_TOPIC_*
 var queues = []string{
 	"snscerttest1",
 	"snssqscerttest2",
+	"snssqscerttestfifo",
+}
+
+var topics = []string{
+	topicActiveName,
+	topicPassiveName,
+	topicToBeCreated,
+	topicDefaultName,
 }
 
 func init() {
-	qn := os.Getenv("PUBSUB_AWS_SNSSQS_QUEUE_1")
+	qn := os.Getenv("AWS_REGION")
+	if qn != "" {
+		region = qn
+	}
+
+	qn = os.Getenv("PUBSUB_AWS_SNSSQS_QUEUE_1")
 	if qn != "" {
 		queues[0] = qn
 	}
@@ -88,9 +106,24 @@ func init() {
 	if qn != "" {
 		queues[1] = qn
 	}
+	qn = os.Getenv("PUBSUB_AWS_SNSSQS_QUEUE_FIFO")
+	if qn != "" {
+		queues[2] = qn
+	}
+
 	qn = os.Getenv("PUBSUB_AWS_SNSSQS_TOPIC_3")
 	if qn != "" {
 		existingTopic = qn
+	}
+	qn = os.Getenv("PUBSUB_AWS_SNSSQS_TOPIC_MVT")
+	if qn != "" {
+		messageVisibilityTimeoutTopic = qn
+		topics = append(topics, messageVisibilityTimeoutTopic)
+	}
+	qn = os.Getenv("PUBSUB_AWS_SNSSQS_TOPIC_FIFO")
+	if qn != "" {
+		fifoTopic = qn
+		topics = append(topics, fifoTopic)
 	}
 }
 
@@ -117,8 +150,8 @@ func TestAWSSNSSQSCertificationTests(t *testing.T) {
 		SNSSQSExistingQueueAndTopic(t)
 	})
 
-	t.Run("TestSNSSQSExistingQueueNonexistingTopic", func(t *testing.T) {
-		TestSNSSQSExistingQueueNonexistingTopic(t)
+	t.Run("SNSSQSExistingQueueNonexistingTopic", func(t *testing.T) {
+		SNSSQSExistingQueueNonexistingTopic(t)
 	})
 
 	t.Run("SNSSQSNonexistingTopic", func(t *testing.T) {
@@ -129,8 +162,12 @@ func TestAWSSNSSQSCertificationTests(t *testing.T) {
 		SNSSQSEntityManagement(t)
 	})
 
-	t.Run("SNSSQSDefaultTtl", func(t *testing.T) {
-		SNSSQSDefaultTtl(t)
+	t.Run("SNSSQSMessageVisibilityTimeout", func(t *testing.T) {
+		SNSSQSMessageVisibilityTimeout(t)
+	})
+
+	t.Run("SNSSQSFIFOMessages", func(t *testing.T) {
+		SNSSQSFIFOMessages(t)
 	})
 }
 
@@ -848,7 +885,7 @@ func SNSSQSExistingQueueAndTopic(t *testing.T) {
 }
 
 // Verify data with an existing Queue with a topic that does not exist
-func TestSNSSQSExistingQueueNonexistingTopic(t *testing.T) {
+func SNSSQSExistingQueueNonexistingTopic(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 
 	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
@@ -915,7 +952,7 @@ func TestSNSSQSExistingQueueNonexistingTopic(t *testing.T) {
 				} else {
 					err = client.PublishEvent(ctx, pubsubName, topicName, message)
 				}
-				require.NoError(ctx, err, "TestSNSSQSExistingQueueNonexistingTopic - error publishing message")
+				require.NoError(ctx, err, "SNSSQSExistingQueueNonexistingTopic - error publishing message")
 			}
 			return nil
 		}
@@ -926,7 +963,7 @@ func TestSNSSQSExistingQueueNonexistingTopic(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("TestSNSSQSExistingQueueNonexistingTopic - message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSExistingQueueNonexistingTopic - message assersion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -1043,26 +1080,53 @@ func SNSSQSEntityManagement(t *testing.T) {
 		Run()
 }
 
-// Verify data with an optional parameter `defaultMessageTimeToLiveInSec` set
-func SNSSQSDefaultTtl(t *testing.T) {
+// Verify data with an optional parameter `messageVisibilityTimeout` takes affect
+func SNSSQSMessageVisibilityTimeout(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
-
-	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
-	metadata := map[string]string{
-		messageKey: partition0,
+	metadata := map[string]string{}
+	latch := make(chan struct{})
+	busyTime := 10 * time.Second
+	messagesToSend := 1
+	waitForLatch := func(appID string, ctx flow.Context, l chan struct{}) error {
+		ctx.Logf("waitForLatch %s is waiting...\n", appID)
+		<-l
+		ctx.Logf("waitForLatch %s ready to continue!\n", appID)
+		return nil
 	}
 
-	// subscriber of the given topic
-	subscriberApplication := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+	subscriberMVTimeoutApp := func(appID string, topicName string, messagesWatcher *watcher.Watcher, l chan struct{}) app.SetupFn {
 		return func(ctx flow.Context, s common.Service) error {
-			// Setup the /orders event handler.
+			ctx.Logf("SNSSQSMessageVisibilityTimeout.subscriberApplicationMVTimeout App: %q topicName: %q\n", appID, topicName)
 			return multierr.Combine(
 				s.AddTopicEventHandler(&common.Subscription{
 					PubsubName: pubsubName,
 					Topic:      topicName,
 					Route:      "/orders",
 				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
-					ctx.Logf("Got message: %s", e.Data)
+					ctx.Logf("SNSSQSMessageVisibilityTimeout.subscriberApplicationMVTimeout App: %q got message: %s busy for %v\n", appID, e.Data, busyTime)
+					time.Sleep(busyTime)
+					ctx.Logf("SNSSQSMessageVisibilityTimeout.subscriberApplicationMVTimeout App: %q - notifying next Subscriber to continue...\n", appID)
+					l <- struct{}{}
+					ctx.Logf("SNSSQSMessageVisibilityTimeout.subscriberApplicationMVTimeoutApp: %q - sent  busy for %v\n", appID, busyTime)
+					time.Sleep(busyTime)
+					ctx.Logf("SNSSQSMessageVisibilityTimeout.subscriberApplicationMVTimeoutApp: %q - done!\n", appID)
+					return false, nil
+				}),
+			)
+		}
+	}
+
+	notExpectingMessagesSubscriberApp := func(appID string, topicName string, messagesWatcher *watcher.Watcher, l chan struct{}) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			ctx.Logf("SNSSQSMessageVisibilityTimeout.notExpectingMessagesSubscriberApp App: %q topicName: %q waiting for notification to start receiving messages\n", appID, topicName)
+			return multierr.Combine(
+				waitForLatch(appID, ctx, l),
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      topicName,
+					Route:      "/orders",
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					ctx.Logf("SNSSQSMessageVisibilityTimeout.notExpectingMessagesSubscriberApp App: %q got unexpected message: %s\n", appID, e.Data)
 					messagesWatcher.FailIfNotExpected(t, e.Data)
 					return false, nil
 				}),
@@ -1073,16 +1137,17 @@ func SNSSQSDefaultTtl(t *testing.T) {
 	testTtlPublishMessages := func(metadata map[string]string, sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
 			// prepare the messages
-			messages := make([]string, numMessages)
+			messages := make([]string, messagesToSend)
 			for i := range messages {
 				messages[i] = fmt.Sprintf("partitionKey: %s, message for topic: %s, index: %03d, uniqueId: %s", metadata[messageKey], topicName, i, uuid.New().String())
 			}
 
+			ctx.Logf("####### get the sidecar (dapr) client sidecarName: %s, topicName: %s", sidecarName, topicName)
 			// get the sidecar (dapr) client
 			client := sidecar.GetClient(ctx, sidecarName)
 
 			// publish messages
-			ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+			ctx.Logf("####### Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
 
 			var publishOptions dapr.PublishEventOption
 
@@ -1099,18 +1164,136 @@ func SNSSQSDefaultTtl(t *testing.T) {
 				} else {
 					err = client.PublishEvent(ctx, pubsubName, topicName, message)
 				}
-				require.NoError(ctx, err, "SNSSQSDefaultTtl - error publishing message")
+				require.NoError(ctx, err, "SNSSQSMessageVisibilityTimeout - error publishing message")
 			}
 			return nil
 		}
 	}
 
+	connectToSideCar := func(sidecarName string) flow.Runnable {
+		return func(ctx flow.Context) error {
+			ctx.Logf("####### connect to sidecar (dapr) client sidecarName: %s and exit", sidecarName)
+			// get the sidecar (dapr) client
+			sidecar.GetClient(ctx, sidecarName)
+			return nil
+		}
+	}
+
+	flow.New(t, "SNSSQS certification - messageVisibilityTimeout attribute receive").
+		// App1 should receive the messages, wait some time (busy), notify App2, wait some time (busy),
+		// and finish processing message.
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset),
+			subscriberMVTimeoutApp(appID1, messageVisibilityTimeoutTopic, consumerGroup1, latch))).
+		Step(sidecar.Run(sidecarName1,
+			embedded.WithComponentsPath("./components/message_visibility_timeout"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
+			componentRuntimeOptions(),
+		)).
+		Step(fmt.Sprintf("publish messages to messageVisibilityTimeoutTopic: %s", messageVisibilityTimeoutTopic),
+			testTtlPublishMessages(metadata, sidecarName1, messageVisibilityTimeoutTopic, consumerGroup1)).
+
+		// App2 waits for App1 notification to subscribe to message
+		// After subscribing, if App2 receives any messages, the messageVisibilityTimeoutTopic is either too short,
+		// or code is broken somehow
+		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset+2),
+			notExpectingMessagesSubscriberApp(appID2, messageVisibilityTimeoutTopic, consumerGroup1, latch))).
+		Step(sidecar.Run(sidecarName2,
+			embedded.WithComponentsPath("./components/message_visibility_timeout"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset+2),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset+2),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset+2),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset+2),
+			componentRuntimeOptions(),
+		)).
+		Step("No messages will be sent here",
+			connectToSideCar(sidecarName2)).
+		Step("wait", flow.Sleep(10*time.Second)).
+		Run()
+
+}
+
+// Verify data with an optional parameters `fifo` and `fifoMessageGroupID` takes affect (SNSSQSFIFOMessages)
+func SNSSQSFIFOMessages(t *testing.T) {
+	consumerGroup1 := watcher.NewOrdered()
+
+	// prepare the messages
+	maxFifoMessages := 20
+	fifoMessages := make([]string, maxFifoMessages)
+	for i := 0; i < maxFifoMessages; i++ {
+		fifoMessages[i] = fmt.Sprintf("m%d", i+1)
+	}
+	consumerGroup1.ExpectStrings(fifoMessages...)
+
+	// There are multiple publishers so the following
+	// generator will supply messages to each one in order
+	msgCh := make(chan string)
+	go func(mc chan string) {
+		for _, m := range fifoMessages {
+			mc <- m
+		}
+		close(mc)
+	}(msgCh)
+
+	doNothingApp := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			return nil
+		}
+	}
+
+	subscriberApplication := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      topicName,
+					Route:      "/orders",
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					ctx.Logf("SNSSQSFIFOMessages.subscriberApplication: Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %#v", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					messagesWatcher.Observe(e.Data)
+					return false, nil
+				}),
+			)
+		}
+	}
+
+	publishMessages := func(metadata map[string]string, sidecarName string, topicName string, mw *watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+
+			// get the sidecar (dapr) client
+			client := sidecar.GetClient(ctx, sidecarName)
+
+			// publish messages
+			ctx.Logf("SNSSQSFIFOMessages Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+
+			var publishOptions dapr.PublishEventOption
+
+			if metadata != nil {
+				publishOptions = dapr.PublishEventWithMetadata(metadata)
+			}
+
+			for message := range msgCh {
+				ctx.Logf("SNSSQSFIFOMessages Publishing: sidecarName: %s, topicName: %s - %q", sidecarName, topicName, message)
+				var err error
+
+				if publishOptions != nil {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message, publishOptions)
+				} else {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message)
+				}
+				require.NoError(ctx, err, "SNSSQSFIFOMessages - error publishing message")
+			}
+			return nil
+		}
+	}
 	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
 			// assert for messages
 			for _, m := range messageWatchers {
-				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("SNSSQSDefaultTtl - message assersion failed for watcher: %#v\n", m)
+				if !m.Assert(ctx, 10*timeout) {
+					ctx.Errorf("SNSSQSFIFOMessages - message assersion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -1118,34 +1301,57 @@ func SNSSQSDefaultTtl(t *testing.T) {
 		}
 	}
 
-	flow.New(t, "SNSSQS certification - default ttl attribute").
+	pub1 := "publisher1"
+	sc1 := pub1 + "_sidecar"
+	pub2 := "publisher2"
+	sc2 := pub2 + "_sidecar"
+	sub := "subscriber"
+	subsc := sub + "_sidecar"
 
-		// Run subscriberApplication app1
-		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset),
-			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
+	flow.New(t, "SNSSQSFIFOMessages Verify FIFO with multiple publishers and single subscriber receiving messages in order").
 
-		// Run the Dapr sidecar with the ttl
-		Step(sidecar.Run("initalSidecar",
-			embedded.WithComponentsPath("./components/default_ttl"),
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
+		// Subscriber
+		Step(app.Run(sub, fmt.Sprintf(":%d", appPort),
+			subscriberApplication(sub, fifoTopic, consumerGroup1))).
+		Step(sidecar.Run(subsc,
+			embedded.WithComponentsPath("./components/fifo"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
 			componentRuntimeOptions(),
 		)).
-		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicActiveName), testTtlPublishMessages(metadata, "initalSidecar", topicActiveName, consumerGroup1)).
-		Step("stop initial sidecar", sidecar.Stop("initialSidecar")).
-		Step("wait", flow.Sleep(20*time.Second)).
-		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/default_ttl"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*2),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*2),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*2),
+		Step("wait", flow.Sleep(5*time.Second)).
+
+		// Publisher 1
+		Step(app.Run(pub1, fmt.Sprintf(":%d", appPort+portOffset+2),
+			doNothingApp(pub1, fifoTopic, consumerGroup1))).
+		Step(sidecar.Run(sc1,
+			embedded.WithComponentsPath("./components/fifo"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset+2),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset+2),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset+2),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset+2),
 			componentRuntimeOptions(),
 		)).
-		Step("verify if app6 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
+		Step("publish messages to topic ==> "+fifoTopic, publishMessages(nil, sc1, fifoTopic, consumerGroup1)).
+
+		// Publisher 2
+		Step(app.Run(pub2, fmt.Sprintf(":%d", appPort+portOffset+4),
+			doNothingApp(pub2, fifoTopic, consumerGroup1))).
+		Step(sidecar.Run(sc2,
+			embedded.WithComponentsPath("./components/fifo"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset+4),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset+4),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset+4),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset+4),
+			componentRuntimeOptions(),
+		)).
+		Step("publish messages to topic ==> "+fifoTopic, publishMessages(nil, sc2, fifoTopic, consumerGroup1)).
+		Step("wait", flow.Sleep(10*time.Second)).
+		Step("verify if recevied ordered messages published to active topic", assertMessages(1*time.Second, consumerGroup1)).
+		Step("reset", flow.Reset(consumerGroup1)).
 		Run()
+
 }
 
 func componentRuntimeOptions() []runtime.Option {
@@ -1167,10 +1373,15 @@ func componentRuntimeOptions() []runtime.Option {
 
 func teardown(t *testing.T) {
 	t.Logf("AWS SNS/SQS CertificationTests teardown...")
-	// Dapr runtime automatically creates the following queues
-	// so here they get deleted.
+	//Dapr runtime automatically creates the following queues, topics
+	//so here they get deleted.
 	if err := deleteQueues(queues); err != nil {
 		t.Log(err)
 	}
+
+	if err := deleteTopics(topics, region); err != nil {
+		t.Log(err)
+	}
+
 	t.Logf("AWS SNS/SQS CertificationTests teardown...done!")
 }

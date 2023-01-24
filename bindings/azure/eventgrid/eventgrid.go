@@ -15,46 +15,56 @@ package eventgrid
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	"net/http"
+	"net/url"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/services/eventgrid/mgmt/2021-12-01/eventgrid"
-	"github.com/Azure/go-autorest/autorest/azure/auth"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	armeventgrid "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventgrid/armeventgrid/v2"
 	"github.com/valyala/fasthttp"
 
 	"github.com/dapr/components-contrib/bindings"
+	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
+
+const armOperationTimeout = 30 * time.Second
 
 // AzureEventGrid allows sending/receiving Azure Event Grid events.
 type AzureEventGrid struct {
-	metadata  *azureEventGridMetadata
-	logger    logger.Logger
-	userAgent string
+	metadata *azureEventGridMetadata
+	logger   logger.Logger
 }
 
 type azureEventGridMetadata struct {
 	// Component Name
-	Name string
+	Name string `json:"-" mapstructure:"-"`
 
 	// Required Input Binding Metadata
-	TenantID           string `json:"tenantId"`
-	SubscriptionID     string `json:"subscriptionId"`
-	ClientID           string `json:"clientId"`
-	ClientSecret       string `json:"clientSecret"`
-	SubscriberEndpoint string `json:"subscriberEndpoint"`
-	HandshakePort      string `json:"handshakePort"`
-	Scope              string `json:"scope"`
+	TenantID           string `json:"tenantId" mapstructure:"tenantId"`
+	SubscriptionID     string `json:"subscriptionId" mapstructure:"subscriptionId"`
+	ClientID           string `json:"clientId" mapstructure:"clientId"`
+	ClientSecret       string `json:"clientSecret" mapstructure:"clientSecret"`
+	SubscriberEndpoint string `json:"subscriberEndpoint" mapstructure:"subscriberEndpoint"`
+	HandshakePort      string `json:"handshakePort" mapstructure:"handshakePort"`
+	Scope              string `json:"scope" mapstructure:"scope"`
 
 	// Optional Input Binding Metadata
-	EventSubscriptionName string `json:"eventSubscriptionName"`
+	EventSubscriptionName string `json:"eventSubscriptionName" mapstructure:"eventSubscriptionName"`
 
 	// Required Output Binding Metadata
-	AccessKey     string `json:"accessKey"`
-	TopicEndpoint string `json:"topicEndpoint"`
+	AccessKey     string `json:"accessKey" mapstructure:"accessKey"`
+	TopicEndpoint string `json:"topicEndpoint" mapstructure:"topicEndpoint"`
+
+	// Internal
+	properties map[string]string
 }
 
 // NewAzureEventGrid returns a new Azure Event Grid instance.
@@ -64,7 +74,6 @@ func NewAzureEventGrid(logger logger.Logger) bindings.InputOutputBinding {
 
 // Init performs metadata init.
 func (a *AzureEventGrid) Init(metadata bindings.Metadata) error {
-	a.userAgent = "dapr-" + logger.DaprVersion
 	m, err := a.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -80,18 +89,13 @@ func (a *AzureEventGrid) Read(ctx context.Context, handler bindings.Handler) err
 		return err
 	}
 
-	err = a.createSubscription(ctx)
-	if err != nil {
-		return err
-	}
-
 	m := func(ctx *fasthttp.RequestCtx) {
 		if string(ctx.Path()) == "/api/events" {
 			switch string(ctx.Method()) {
 			case "OPTIONS":
 				ctx.Response.Header.Add("WebHook-Allowed-Origin", string(ctx.Request.Header.Peek("WebHook-Request-Origin")))
 				ctx.Response.Header.Add("WebHook-Allowed-Rate", "*")
-				ctx.Response.Header.SetStatusCode(fasthttp.StatusOK)
+				ctx.Response.Header.SetStatusCode(http.StatusOK)
 				_, err = ctx.Response.BodyWriter().Write([]byte(""))
 				if err != nil {
 					a.logger.Error(err.Error())
@@ -104,7 +108,7 @@ func (a *AzureEventGrid) Read(ctx context.Context, handler bindings.Handler) err
 				})
 				if err != nil {
 					a.logger.Error(err.Error())
-					ctx.Error(err.Error(), fasthttp.StatusInternalServerError)
+					ctx.Error(err.Error(), http.StatusInternalServerError)
 				}
 			}
 		}
@@ -117,20 +121,25 @@ func (a *AzureEventGrid) Read(ctx context.Context, handler bindings.Handler) err
 	// Run the server in background
 	go func() {
 		a.logger.Debugf("About to start listening for Event Grid events at http://localhost:%s/api/events", a.metadata.HandshakePort)
-		err := srv.ListenAndServe(fmt.Sprintf(":%s", a.metadata.HandshakePort))
+		srvErr := srv.ListenAndServe(":" + a.metadata.HandshakePort)
 		if err != nil {
-			a.logger.Errorf("Error starting server: %v", err)
+			a.logger.Errorf("Error starting server: %v", srvErr)
 		}
 	}()
 
 	// Close the server when context is canceled
 	go func() {
 		<-ctx.Done()
-		err := srv.Shutdown()
+		srvErr := srv.Shutdown()
 		if err != nil {
-			a.logger.Errorf("Error shutting down server: %v", err)
+			a.logger.Errorf("Error shutting down server: %v", srvErr)
 		}
 	}()
+
+	err = a.createSubscription(ctx)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -143,7 +152,6 @@ func (a *AzureEventGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest
 	err := a.ensureOutputBindingMetadata()
 	if err != nil {
 		a.logger.Error(err.Error())
-
 		return nil, err
 	}
 
@@ -152,7 +160,7 @@ func (a *AzureEventGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest
 	request.Header.SetMethod(fasthttp.MethodPost)
 	request.Header.Set("Content-Type", "application/cloudevents+json")
 	request.Header.Set("aeg-sas-key", a.metadata.AccessKey)
-	request.Header.Set("User-Agent", a.userAgent)
+	request.Header.Set("User-Agent", "dapr/"+logger.DaprVersion)
 	request.SetRequestURI(a.metadata.TopicEndpoint)
 	request.SetBody(req.Data)
 
@@ -162,19 +170,19 @@ func (a *AzureEventGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest
 	client := &fasthttp.Client{WriteTimeout: time.Second * 10}
 	err = client.Do(request, response)
 	if err != nil {
+		err = fmt.Errorf("request error: %w", err)
 		a.logger.Error(err.Error())
-
 		return nil, err
 	}
 
-	if response.StatusCode() != fasthttp.StatusOK {
+	if response.StatusCode() != http.StatusOK {
 		body := response.Body()
-		a.logger.Error(string(body))
-
-		return nil, errors.New(string(body))
+		err = fmt.Errorf("invalid status code (%d) - response: %s", response.StatusCode(), string(body))
+		a.logger.Error(err.Error())
+		return nil, err
 	}
 
-	a.logger.Debugf("Successfully posted event to %s", a.metadata.TopicEndpoint)
+	// a.logger.Debugf("Successfully posted event to %s", a.metadata.TopicEndpoint)
 
 	return nil, nil
 }
@@ -185,12 +193,6 @@ func (a *AzureEventGrid) ensureInputBindingMetadata() error {
 	}
 	if a.metadata.SubscriptionID == "" {
 		return errors.New("metadata field 'SubscriptionID' is empty in EventGrid binding")
-	}
-	if a.metadata.ClientID == "" {
-		return errors.New("metadata field 'ClientID' is empty in EventGrid binding")
-	}
-	if a.metadata.ClientSecret == "" {
-		return errors.New("metadata field 'ClientSecret' is empty in EventGrid binding")
 	}
 	if a.metadata.SubscriberEndpoint == "" {
 		return errors.New("metadata field 'SubscriberEndpoint' is empty in EventGrid binding")
@@ -207,92 +209,135 @@ func (a *AzureEventGrid) ensureInputBindingMetadata() error {
 
 func (a *AzureEventGrid) ensureOutputBindingMetadata() error {
 	if a.metadata.AccessKey == "" {
-		msg := fmt.Sprintf("metadata field 'AccessKey' is empty in EventGrid binding (%s)", a.metadata.Name)
-
-		return errors.New(msg)
+		return fmt.Errorf("metadata field 'AccessKey' is empty in EventGrid binding (%s)", a.metadata.Name)
 	}
 	if a.metadata.TopicEndpoint == "" {
-		msg := fmt.Sprintf("metadata field 'TopicEndpoint' is empty in EventGrid binding (%s)", a.metadata.Name)
-
-		return errors.New(msg)
+		return fmt.Errorf("metadata field 'TopicEndpoint' is empty in EventGrid binding (%s)", a.metadata.Name)
 	}
 
 	return nil
 }
 
-func (a *AzureEventGrid) parseMetadata(metadata bindings.Metadata) (*azureEventGridMetadata, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
-
+func (a *AzureEventGrid) parseMetadata(md bindings.Metadata) (*azureEventGridMetadata, error) {
 	var eventGridMetadata azureEventGridMetadata
-	err = json.Unmarshal(b, &eventGridMetadata)
+	err := metadata.DecodeMetadata(md.Properties, &eventGridMetadata)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error decoding metadata: %w", err)
 	}
 
-	eventGridMetadata.Name = metadata.Name
+	// Save the raw properties in the object as we'll need them to authenticate with Azure AD
+	eventGridMetadata.properties = md.Properties
+
+	// Sanitize "SubscriberEndpoint"
+	// If there's no path at the end of the subscriber endpoint, add "/api/events"
+	u, err := url.Parse(eventGridMetadata.SubscriberEndpoint)
+	if err != nil {
+		return nil, errors.New("property 'subscriberEndpoint' is not a valid URL")
+	}
+	if u.Path == "" || u.Path == "/" {
+		a.logger.Info("property 'subscriberEndpoint' does not include a path; adding '/api/events' automatically")
+		u.Path = "/api/events"
+	} else if u.Path != "/api/events" && u.Path != "api/events" {
+		// Show a warning but still continue
+		a.logger.Warn("property 'subscriberEndpoint' includes a path different from '/api/events': this is probably a mistake")
+	}
+	eventGridMetadata.SubscriberEndpoint = u.String()
+
+	eventGridMetadata.Name = md.Name
 
 	if eventGridMetadata.HandshakePort == "" {
 		eventGridMetadata.HandshakePort = "8080"
 	}
 
 	if eventGridMetadata.EventSubscriptionName == "" {
-		eventGridMetadata.EventSubscriptionName = metadata.Name
+		eventGridMetadata.EventSubscriptionName = md.Name
 	}
 
 	return &eventGridMetadata, nil
 }
 
-func (a *AzureEventGrid) createSubscription(ctx context.Context) error {
-	clientCredentialsConfig := auth.NewClientCredentialsConfig(a.metadata.ClientID, a.metadata.ClientSecret, a.metadata.TenantID)
-
-	subscriptionClient := eventgrid.NewEventSubscriptionsClient(a.metadata.SubscriptionID)
-	subscriptionClient.AddToUserAgent(a.userAgent)
-	authorizer, err := clientCredentialsConfig.Authorizer()
+func (a *AzureEventGrid) createSubscription(parentCtx context.Context) error {
+	// Get Azure Management plane credentials object
+	settings, err := azauth.NewEnvironmentSettings("azure", a.metadata.properties)
 	if err != nil {
 		return err
 	}
-	subscriptionClient.Authorizer = authorizer
+	creds, err := settings.GetTokenCredential()
+	if err != nil {
+		return fmt.Errorf("failed to obtain Azure AD management credentials: %w", err)
+	}
 
-	eventInfo := eventgrid.EventSubscription{
-		EventSubscriptionProperties: &eventgrid.EventSubscriptionProperties{
-			Destination: eventgrid.WebHookEventSubscriptionDestination{
-				EndpointType: eventgrid.EndpointTypeWebHook,
-				WebHookEventSubscriptionDestinationProperties: &eventgrid.WebHookEventSubscriptionDestinationProperties{
-					EndpointURL: &a.metadata.SubscriberEndpoint,
-				},
+	// Create a client
+	client, err := armeventgrid.NewEventSubscriptionsClient(a.metadata.SubscriptionID, creds, &arm.ClientOptions{
+		ClientOptions: policy.ClientOptions{
+			Telemetry: policy.TelemetryOptions{
+				ApplicationID: "dapr-" + logger.DaprVersion,
 			},
-			EventDeliverySchema: eventgrid.EventDeliverySchemaCloudEventSchemaV10,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create Azure Resource Manager client: %w", err)
+	}
+
+	// First, check if the event subscription already exists so we don't override it
+	ctx, cancel := context.WithTimeout(parentCtx, armOperationTimeout)
+	defer cancel()
+	res, err := client.Get(ctx, a.metadata.Scope, a.metadata.EventSubscriptionName, nil)
+	if err == nil {
+		// If there's no error, the subscription already exists, but check if the endpoint URL matches
+		if res.Properties != nil && res.Properties.Destination != nil &&
+			res.Properties.EventDeliverySchema != nil && *res.Properties.EventDeliverySchema == armeventgrid.EventDeliverySchemaCloudEventSchemaV10 &&
+			*res.Properties.Destination.GetEventSubscriptionDestination().EndpointType == armeventgrid.EndpointTypeWebHook {
+			webhookDestination, ok := res.Properties.Destination.(*armeventgrid.WebHookEventSubscriptionDestination)
+			if ok && webhookDestination != nil && webhookDestination.Properties != nil {
+				props := webhookDestination.Properties
+				// Could either be endpointURL or EndpointBaseURL
+				if (props.EndpointURL != nil && *props.EndpointURL == a.metadata.SubscriberEndpoint) ||
+					(props.EndpointBaseURL != nil && *props.EndpointBaseURL == a.metadata.SubscriberEndpoint) {
+					a.logger.Debug("Event subscription already exists with the correct endpoint")
+					return nil
+				}
+			}
+		}
+	} else {
+		// Check if the error is a "not found" (just means we have to create the subscription) or something else
+		resErr := &azcore.ResponseError{}
+		if !errors.As(err, &resErr) || resErr.StatusCode != http.StatusNotFound {
+			// Error is not a "Not found" but something else
+			return fmt.Errorf("failed to check existing event subscription: %w", err)
+		}
+	}
+
+	// Need to create or update the subscription
+	// There can be a "race condition" here if multiple instances of Dapr are creating this at the same time
+	// This may cause a failure but it will make Dapr un-healthy, and a restart of Dapr should fix it
+	// It should only happen on the first startup anyways
+	a.logger.Infof("Event subscription needs to be created or updated for endpoint URL '%s'", a.metadata.SubscriberEndpoint)
+	var properties *armeventgrid.EventSubscriptionProperties
+	if res.Properties != nil {
+		properties = res.Properties
+	} else {
+		properties = &armeventgrid.EventSubscriptionProperties{}
+	}
+	properties.EventDeliverySchema = ptr.Of(armeventgrid.EventDeliverySchemaCloudEventSchemaV10)
+	properties.Destination = &armeventgrid.WebHookEventSubscriptionDestination{
+		EndpointType: ptr.Of(armeventgrid.EndpointTypeWebHook),
+		Properties: &armeventgrid.WebHookEventSubscriptionDestinationProperties{
+			EndpointURL: &a.metadata.SubscriberEndpoint,
 		},
 	}
-
-	a.logger.Debugf("Attempting to create or update Event Grid subscription. scope=%s endpointURL=%s", a.metadata.Scope, a.metadata.SubscriberEndpoint)
-	result, err := subscriptionClient.CreateOrUpdate(ctx, a.metadata.Scope, a.metadata.EventSubscriptionName, eventInfo)
+	ctx, cancel = context.WithTimeout(parentCtx, armOperationTimeout)
+	defer cancel()
+	poller, err := client.BeginCreateOrUpdate(ctx, a.metadata.Scope, a.metadata.EventSubscriptionName, armeventgrid.EventSubscription{Properties: properties}, nil)
 	if err != nil {
-		a.logger.Debugf("Failed to create or update Event Grid subscription: %v", err)
-
-		return err
+		return fmt.Errorf("failed to create or update event subscription: %w", err)
 	}
-
-	res := result.FutureAPI.Response()
-
-	if res.StatusCode != fasthttp.StatusCreated {
-		bodyBytes, err := io.ReadAll(res.Body)
-		if err != nil {
-			a.logger.Debugf("Failed reading error body when creating or updating Event Grid subscription: %v", err)
-
-			return err
-		}
-
-		bodyStr := string(bodyBytes)
-		a.logger.Debugf("Code HTTP %d in response to create or update Event Grid subscription: %s", res.StatusCode, bodyStr)
-
-		return errors.New(bodyStr)
+	// Need to use parentCtx here because it can be long-lasting
+	_, err = poller.PollUntilDone(parentCtx, &runtime.PollUntilDoneOptions{Frequency: 10 * time.Second})
+	if err != nil {
+		return fmt.Errorf("failed to create or update event subscription: %w", err)
 	}
-
-	a.logger.Debugf("Succeeded to create or update Event Grid subscription. scope=%s endpointURL=%s", a.metadata.Scope, a.metadata.SubscriberEndpoint)
+	a.logger.Info("Event subscription has been updated")
 
 	return nil
 }

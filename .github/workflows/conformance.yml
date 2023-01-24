@@ -53,9 +53,9 @@ jobs:
         - bindings.influx
         - bindings.kafka-wurstmeister
         - bindings.kafka-confluent
-        - bindings.mqtt-emqx
-        - bindings.mqtt-mosquitto
-        - bindings.mqtt-vernemq
+        - bindings.mqtt3-emqx
+        - bindings.mqtt3-mosquitto
+        - bindings.mqtt3-vernemq
         - bindings.postgres
         - bindings.redis.v6
         - bindings.redis.v7
@@ -68,9 +68,8 @@ jobs:
         - configuration.redis.v7
         - pubsub.hazelcast
         - pubsub.in-memory
-        - pubsub.mqtt-emqx
-        - pubsub.mqtt-mosquitto
-        - pubsub.mqtt-vernemq
+        - pubsub.mqtt3-emqx
+        - pubsub.mqtt3-vernemq
         - pubsub.natsstreaming
         - pubsub.pulsar
         - pubsub.rabbitmq
@@ -157,7 +156,9 @@ jobs:
         - component: bindings.azure.cosmosdb
           required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
         - component: pubsub.aws.snssqs.terraform
-          terraform-dir: pubsub/aws/snssqs        
+          terraform-dir: pubsub/aws/snssqs
+        - component: state.aws.dynamodb.terraform
+          terraform-dir: state/aws/dynamodb
         - component: state.cloudflare.workerskv
         EOF
         )
@@ -165,7 +166,7 @@ jobs:
 
     - name: Create PR comment
       if: env.PR_NUMBER != ''
-      uses: artursouza/sticky-pull-request-comment@v2.2.0
+      uses: artursouza/sticky-pull-request-comment@da9e86aa2a80e4ae3b854d251add33bd6baabcba
       with:
         header: ${{ github.run_id }}
         number: ${{ env.PR_NUMBER }}
@@ -333,6 +334,14 @@ jobs:
         PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2="multiTopic2-${{ env.UNIQUE_ID }}"
         echo "PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2=$PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2" >> $GITHUB_ENV
       if: contains(matrix.component, 'snssqs')
+    
+    - name: Create aws.dynamodb variables
+      run: |
+        STATE_AWS_DYNAMODB_TABLE_1="conformance-test-terraform-basic-${{ env.UNIQUE_ID }}"
+        echo "STATE_AWS_DYNAMODB_TABLE_1=$STATE_AWS_DYNAMODB_TABLE_1" >> $GITHUB_ENV
+        STATE_AWS_DYNAMODB_TABLE_2="conformance-test-terraform-partition-key-${{ env.UNIQUE_ID }}"
+        echo "STATE_AWS_DYNAMODB_TABLE_2=$STATE_AWS_DYNAMODB_TABLE_2" >> $GITHUB_ENV
+      if: contains(matrix.component, 'dynamodb')
 
     - name: Start Redis 6 with Redis JSON
       run: docker-compose -f ./.github/infrastructure/docker-compose-redisjson.yml -p redis up -d
@@ -377,17 +386,17 @@ jobs:
       run: docker-compose -f ./.github/infrastructure/docker-compose-pulsar.yml -p pulsar up -d
       if: contains(matrix.component, 'pulsar')
 
-    - name: Start Eclipse Mosquitto (MQTT)
+    - name: Start Eclipse Mosquitto (MQTT3)
       run: docker-compose -f ./.github/infrastructure/docker-compose-mosquitto.yml -p mosquitto up -d
-      if: contains(matrix.component, 'mqtt-mosquitto')
+      if: contains(matrix.component, 'mqtt3-mosquitto')
 
-    - name: Start EMQ X (MQTT)
+    - name: Start EMQ X (MQTT3)
       run: docker-compose -f ./.github/infrastructure/docker-compose-emqx.yml -p emqx up -d
-      if: contains(matrix.component, 'mqtt-emqx')
+      if: contains(matrix.component, 'mqtt3-emqx')
 
-    - name: Start VerneMQ (MQTT)
+    - name: Start VerneMQ (MQTT3)
       run: docker-compose -f ./.github/infrastructure/docker-compose-vernemq.yml -p vernemq up -d
-      if: contains(matrix.component, 'mqtt-vernemq')
+      if: contains(matrix.component, 'mqtt3-vernemq')
 
     - name: Start hazelcast
       run: docker-compose -f ./.github/infrastructure/docker-compose-hazelcast.yml -p hazelcast up -d
@@ -768,7 +777,7 @@ jobs:
 
       - name: Replace PR comment
         if: env.PR_NUMBER != ''
-        uses: artursouza/sticky-pull-request-comment@v2.2.0
+        uses: artursouza/sticky-pull-request-comment@da9e86aa2a80e4ae3b854d251add33bd6baabcba
         with:
           header: ${{ github.run_id }}
           number: ${{ env.PR_NUMBER }}

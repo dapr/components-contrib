@@ -50,7 +50,8 @@ jobs:
         PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
         - pubsub.kafka
         - pubsub.rabbitmq
-        - pubsub.mqtt
+        - pubsub.pulsar
+        - pubsub.mqtt3
         - state.mongodb
         - state.redis
         - state.cockroachdb
@@ -124,13 +125,16 @@ jobs:
           required-secrets: AzureCosmosDBMasterKey, AzureCosmosDBUrl, AzureCosmosDB, AzureCosmosDBCollection, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
         - component: pubsub.aws.snssqs
           terraform-dir: pubsub/aws/snssqs
+        - component: state.aws.dynamodb
+          terraform-dir: state/aws/dynamodb
+        
         EOF
         )
         echo "cloud-components=$CRON_COMPONENTS" >> $GITHUB_OUTPUT
 
     - name: Create PR comment
       if: env.PR_NUMBER != ''
-      uses: artursouza/sticky-pull-request-comment@v2.2.0
+      uses: artursouza/sticky-pull-request-comment@da9e86aa2a80e4ae3b854d251add33bd6baabcba
       with:
         header: ${{ github.run_id }}
         number: ${{ env.PR_NUMBER }}
@@ -290,12 +294,38 @@ jobs:
       run: |
         PUBSUB_AWS_SNSSQS_QUEUE_1="sqssnscerttest-q1-${{env.UNIQUE_ID}}"
         echo "PUBSUB_AWS_SNSSQS_QUEUE_1=$PUBSUB_AWS_SNSSQS_QUEUE_1" >> $GITHUB_ENV
+
         PUBSUB_AWS_SNSSQS_QUEUE_2="sqssnscerttest-q2-${{env.UNIQUE_ID}}"
         echo "PUBSUB_AWS_SNSSQS_QUEUE_2=$PUBSUB_AWS_SNSSQS_QUEUE_2" >> $GITHUB_ENV
-        PUBSUB_AWS_SNSSQS_QUEUE_3="$(terraform output -raw existingQueue)"
+
+        PUBSUB_AWS_SNSSQS_QUEUE_3="sqssnscerttest-q3-${{env.UNIQUE_ID}}"
         echo "PUBSUB_AWS_SNSSQS_QUEUE_3=$PUBSUB_AWS_SNSSQS_QUEUE_3" >> $GITHUB_ENV
-        PUBSUB_AWS_SNSSQS_TOPIC_3="$(terraform output -raw existingTopic)"
+        PUBSUB_AWS_SNSSQS_TOPIC_3="sqssnscerttest-t3-${{env.UNIQUE_ID}}"
         echo "PUBSUB_AWS_SNSSQS_TOPIC_3=$PUBSUB_AWS_SNSSQS_TOPIC_3" >> $GITHUB_ENV
+
+        PUBSUB_AWS_SNSSQS_QUEUE_MVT="sqssnscerttest-q-mvt-${{env.UNIQUE_ID}}"
+        echo "PUBSUB_AWS_SNSSQS_QUEUE_MVT=$PUBSUB_AWS_SNSSQS_QUEUE_MVT" >> $GITHUB_ENV
+        PUBSUB_AWS_SNSSQS_TOPIC_MVT="sqssnscerttest-tp-mvt-${{env.UNIQUE_ID}}"
+        echo "PUBSUB_AWS_SNSSQS_TOPIC_MVT=$PUBSUB_AWS_SNSSQS_TOPIC_MVT" >> $GITHUB_ENV
+
+        PUBSUB_AWS_SNSSQS_QUEUE_FIFO="sqssnscerttest-q-fifo-${{env.UNIQUE_ID}}.fifo"
+        echo "PUBSUB_AWS_SNSSQS_QUEUE_FIFO=$PUBSUB_AWS_SNSSQS_QUEUE_FIFO" >> $GITHUB_ENV
+        PUBSUB_AWS_SNSSQS_TOPIC_FIFO="sqssnscerttest-t-fifo-${{env.UNIQUE_ID}}.fifo"
+        echo "PUBSUB_AWS_SNSSQS_TOPIC_FIFO=$PUBSUB_AWS_SNSSQS_TOPIC_FIFO" >> $GITHUB_ENV
+        PUBSUB_AWS_SNSSQS_FIFO_GROUP_ID="sqssnscerttest-q-fifo-${{env.UNIQUE_ID}}"
+        echo "PUBSUB_AWS_SNSSQS_FIFO_GROUP_ID=$PUBSUB_AWS_SNSSQS_FIFO_GROUP_ID" >> $GITHUB_ENV
+
+        AWS_REGION="us-east-1"
+        echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
+    
+    - name: Create state aws.dynamodb specific variables
+      if: contains(matrix.component, 'dynamodb')
+      working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
+      run: |
+        STATE_AWS_DYNAMODB_TABLE_1="certification-test-terraform-basic-${{ env.UNIQUE_ID }}"
+        echo "STATE_AWS_DYNAMODB_TABLE_1=$STATE_AWS_DYNAMODB_TABLE_1" >> $GITHUB_ENV
+        STATE_AWS_DYNAMODB_TABLE_2="certification-test-terraform-partition-key-${{ env.UNIQUE_ID }}"
+        echo "STATE_AWS_DYNAMODB_TABLE_2=$STATE_AWS_DYNAMODB_TABLE_2" >> $GITHUB_ENV
         AWS_REGION="us-east-1"
         echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
 
@@ -545,7 +575,7 @@ jobs:
 
       - name: Replace PR comment
         if: always() && env.PR_NUMBER != ''
-        uses: artursouza/sticky-pull-request-comment@v2.2.0
+        uses: artursouza/sticky-pull-request-comment@da9e86aa2a80e4ae3b854d251add33bd6baabcba
         with:
           header: ${{ github.run_id }}
           number: ${{ env.PR_NUMBER }}

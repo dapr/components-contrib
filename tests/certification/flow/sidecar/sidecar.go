@@ -145,6 +145,7 @@ func Stop(appID string) flow.Runnable {
 func (s Sidecar) Stop(ctx flow.Context) error {
 	var client *Client
 	if ctx.Get(s.appID, &client) {
+		client.rt.SetRunning(true)
 		client.rt.Shutdown(2 * time.Second)
 
 		return client.rt.WaitUntilShutdown()

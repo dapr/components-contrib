@@ -194,12 +194,6 @@ func (a *AzureEventGrid) ensureInputBindingMetadata() error {
 	if a.metadata.SubscriptionID == "" {
 		return errors.New("metadata field 'SubscriptionID' is empty in EventGrid binding")
 	}
-	if a.metadata.ClientID == "" {
-		return errors.New("metadata field 'ClientID' is empty in EventGrid binding")
-	}
-	if a.metadata.ClientSecret == "" {
-		return errors.New("metadata field 'ClientSecret' is empty in EventGrid binding")
-	}
 	if a.metadata.SubscriberEndpoint == "" {
 		return errors.New("metadata field 'SubscriberEndpoint' is empty in EventGrid binding")
 	}

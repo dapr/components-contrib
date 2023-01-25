@@ -17,7 +17,6 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -255,7 +254,7 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseMQTTMetaData(fakeMetaData, log)
 
 		// assert
-		assert.EqualError(t, err, errors.New("mqtt pub sub error: missing url").Error())
+		assert.ErrorContains(t, err, "missing url")
 		assert.Equal(t, fakeProperties[mqttURL], m.url)
 	})
 

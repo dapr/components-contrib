@@ -88,6 +88,7 @@ jobs:
         - state.postgresql
         - state.redis.v6
         - state.redis.v7
+        - state.sqlite
         - state.sqlserver
         - state.in-memory
         - state.cockroachdb

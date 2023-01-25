@@ -33,8 +33,6 @@ import (
 )
 
 const (
-	errorMsgPrefix = "mqtt pub sub error:"
-
 	// Keys for request metadata
 	unsubscribeOnCloseKey = "unsubscribeOnClose"
 )
@@ -118,7 +116,7 @@ func (m *mqttPubSub) Publish(parentCtx context.Context, req *pubsub.PublishReque
 		err = ctx.Err()
 	}
 	if err != nil {
-		return fmt.Errorf("mqtt error from publish: %v", err)
+		return fmt.Errorf("failed to publish: %w", err)
 	}
 
 	return nil
@@ -267,12 +265,6 @@ func (m *mqttPubSub) doConnect(ctx context.Context, clientID string) (mqtt.Clien
 	opts := m.createClientOptions(uri, clientID)
 	client := mqtt.NewClient(opts)
 
-	// Add all routes before we connect to catch messages that may be delivered before client.Subscribe is invoked
-	// The routes will be overwritten later
-	for topic := range m.topics {
-		client.AddRoute(topic, m.onMessage(ctx))
-	}
-
 	token := client.Connect()
 	select {
 	case <-token.Done():
@@ -382,7 +374,7 @@ func (m *mqttPubSub) createClientOptions(uri *url.URL, clientID string) *mqtt.Cl
 
 		// Note that this is a bit unusual for a pubsub component as we're using m.ctx on the handler, which is tied to the component rather than the individual subscription
 		// This is because we can't really use a different context for each handler in a single SubscribeMultiple call, and the alternative (multiple individual Subscribe calls) is not ideal
-		token := m.conn.SubscribeMultiple(
+		token := c.SubscribeMultiple(
 			subscribeTopics,
 			m.onMessage(m.ctx),
 		)

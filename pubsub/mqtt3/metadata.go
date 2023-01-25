@@ -14,6 +14,7 @@ limitations under the License.
 package mqtt
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -54,7 +55,7 @@ func parseMQTTMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error)
 	if val, ok := md.Properties[mqttURL]; ok && val != "" {
 		m.url = val
 	} else {
-		return &m, fmt.Errorf("%s missing url", errorMsgPrefix)
+		return &m, errors.New("missing url")
 	}
 
 	// optional configuration settings
@@ -62,7 +63,7 @@ func parseMQTTMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error)
 	if val, ok := md.Properties[mqttQOS]; ok && val != "" {
 		qosInt, err := strconv.Atoi(val)
 		if err != nil || qosInt < 0 || qosInt > 7 {
-			return &m, fmt.Errorf("%s invalid qos %s, %s", errorMsgPrefix, val, err)
+			return &m, fmt.Errorf("invalid qos %s: %w", val, err)
 		}
 		m.qos = byte(qosInt)
 	}
@@ -76,7 +77,7 @@ func parseMQTTMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error)
 	if val, ok := md.Properties[mqttConsumerID]; ok && val != "" {
 		m.consumerID = val
 	} else {
-		return &m, fmt.Errorf("%s missing consumerID", errorMsgPrefix)
+		return &m, errors.New("missing consumerID")
 	}
 
 	m.cleanSession = defaultCleanSession
@@ -87,7 +88,7 @@ func parseMQTTMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error)
 	var err error
 	m.TLSProperties, err = pubsub.TLS(md.Properties)
 	if err != nil {
-		return &m, fmt.Errorf("%s invalid TLS configuration: %w", errorMsgPrefix, err)
+		return &m, fmt.Errorf("invalid TLS configuration: %w", err)
 	}
 
 	return &m, nil

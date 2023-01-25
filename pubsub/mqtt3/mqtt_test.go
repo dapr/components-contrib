@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -30,6 +30,7 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
@@ -270,25 +271,10 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseMQTTMetaData(fakeMetaData, log)
 
 		// assert
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, fakeProperties[mqttURL], m.url)
 		assert.Equal(t, byte(1), m.qos)
 		assert.Equal(t, false, m.retain)
-	})
-
-	t.Run("invalid clean session field", func(t *testing.T) {
-		fakeProperties := getFakeProperties()
-
-		fakeMetaData := pubsub.Metadata{
-			Base: mdata.Base{Properties: fakeProperties},
-		}
-		fakeMetaData.Properties[mqttCleanSession] = "randomString"
-
-		m, err := parseMQTTMetaData(fakeMetaData, log)
-
-		// assert
-		assert.Contains(t, err.Error(), "invalid cleanSession")
-		assert.Equal(t, fakeProperties[mqttURL], m.url)
 	})
 
 	t.Run("invalid ca certificate", func(t *testing.T) {
@@ -710,7 +696,7 @@ func Test_mqttPubSub_Publish(t *testing.T) {
 			msgCh := make(chan mqttMessage, 1)
 
 			m := &mqttPubSub{
-				producer: newMockedMQTTClient(msgCh),
+				conn:     newMockedMQTTClient(msgCh),
 				logger:   tt.fields.logger,
 				ctx:      tt.fields.ctx,
 				metadata: tt.fields.metadata,

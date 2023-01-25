@@ -54,3 +54,14 @@ metadata:
     description: "The client certificate key to present to server to enable client verification"
     binding:
       output: true
+  - name: securityToken
+    required: false
+    description: "The security token to include on an outgoing HTTP request as a header"
+    binding:
+      output: true
+  - name: securityTokenHeader
+    required: false
+    description: "The header name on an outgoing HTTP request for a security token"
+    binding:
+      output: true
+

@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
 )
 
 func TestParseMetadata(t *testing.T) {
@@ -36,7 +37,9 @@ func TestParseMetadata(t *testing.T) {
 		"topicEndpoint":         "a",
 	}
 
-	eh := AzureEventGrid{}
+	eh := AzureEventGrid{
+		logger: logger.NewLogger("test"),
+	}
 	meta, err := eh.parseMetadata(m)
 
 	assert.Nil(t, err)

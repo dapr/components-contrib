@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"testing"
 	"time"
 
@@ -27,16 +28,8 @@ import (
 	"go.uber.org/multierr"
 
 	"github.com/dapr/components-contrib/bindings"
-
-	bindings_loader "github.com/dapr/dapr/pkg/components/bindings"
-	"github.com/dapr/dapr/pkg/runtime"
-	dapr_testing "github.com/dapr/dapr/pkg/testing"
-	"github.com/dapr/kit/logger"
-
-	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
-	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
-
 	"github.com/dapr/components-contrib/bindings/azure/eventhubs"
+	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/app"
@@ -44,8 +37,13 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	"github.com/dapr/components-contrib/tests/certification/flow/simulate"
 	"github.com/dapr/components-contrib/tests/certification/flow/watcher"
+	bindings_loader "github.com/dapr/dapr/pkg/components/bindings"
+	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
+	"github.com/dapr/dapr/pkg/runtime"
+	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	dapr "github.com/dapr/go-sdk/client"
 	"github.com/dapr/go-sdk/service/common"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -62,7 +60,7 @@ func TestSinglePartition(t *testing.T) {
 	httpPort := ports[1]
 	appPort := ports[2]
 
-	consumerGroup1 := watcher.NewUnordered()
+	received := watcher.NewUnordered()
 
 	metadata := map[string]string{
 		messageKey: "test",
@@ -71,7 +69,7 @@ func TestSinglePartition(t *testing.T) {
 	sendAndReceive := func(metadata map[string]string, messages ...*watcher.Watcher) flow.Runnable {
 		_, hasKey := metadata[messageKey]
 		return func(ctx flow.Context) error {
-			client, err := dapr.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
+			client, err := dapr.NewClientWithPort(strconv.Itoa(grpcPort))
 			require.NoError(t, err, "dapr init failed")
 
 			// Define what is expected
@@ -79,7 +77,7 @@ func TestSinglePartition(t *testing.T) {
 			for i := 0; i < numMessages; i++ {
 				outputmsg[i] = fmt.Sprintf("output binding: Message %03d", i)
 			}
-			consumerGroup1.ExpectStrings(outputmsg...)
+			received.ExpectStrings(outputmsg...)
 			time.Sleep(20 * time.Second)
 			if !hasKey {
 				metadata[messageKey] = uuid.NewString()
@@ -99,7 +97,7 @@ func TestSinglePartition(t *testing.T) {
 			}
 
 			// Assert the observed messages
-			consumerGroup1.Assert(ctx, time.Minute)
+			received.Assert(ctx, time.Minute)
 			return nil
 		}
 	}
@@ -111,22 +109,22 @@ func TestSinglePartition(t *testing.T) {
 		// Setup the binding endpoints
 		err = multierr.Combine(err,
 			s.AddBindingInvocationHandler("azure-single-partition-binding", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
-				consumerGroup1.Observe(string(in.Data))
 				if err := sim(); err != nil {
 					return nil, err
 				}
+				received.Observe(string(in.Data))
 				ctx.Logf("Receiving eventhubs message: %s", string(in.Data))
 				return []byte("{}"), nil
 			}))
 		return err
 	}
 	deleteEventhub := func(ctx flow.Context) error {
-		output, err := exec.Command("/bin/sh", "deleteeventhub.sh").Output()
+		output, err := exec.Command("/bin/sh", "deleteeventhub.sh", "eventhubs-bindings-container-c1").Output()
 		assert.Nil(t, err, "Error in deleteeventhub.sh.:\n%s", string(output))
 		return nil
 	}
 	// Flow of events: Start app, sidecar, interrupt network to check reconnection, send and receive
-	flow.New(t, "eventhubs binding authentication using connection string single partition").
+	flow.New(t, "eventhubs binding authentication using connection string").
 		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run("sidecar",
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
@@ -135,9 +133,11 @@ func TestSinglePartition(t *testing.T) {
 			embedded.WithComponentsPath("./components/binding/consumer1"),
 			componentRuntimeOptions(),
 		)).
+		Step("wait", flow.Sleep(15*time.Second)).
 		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "443", "5671", "5672")).
 		Step("send and wait", sendAndReceive(metadata)).
-		Step("delete containers", deleteEventhub).
+		Step("delete container", deleteEventhub).
+		Step("wait", flow.Sleep(5*time.Second)).
 		Run()
 }
 
@@ -147,7 +147,7 @@ func TestEventhubBindingSerivcePrincipalAuth(t *testing.T) {
 	httpPort := ports[1]
 	appPort := ports[2]
 
-	consumerGroup1 := watcher.NewUnordered()
+	received := watcher.NewUnordered()
 
 	metadata := map[string]string{
 		messageKey: "test",
@@ -156,7 +156,7 @@ func TestEventhubBindingSerivcePrincipalAuth(t *testing.T) {
 	sendAndReceive := func(metadata map[string]string, messages ...*watcher.Watcher) flow.Runnable {
 		_, hasKey := metadata[messageKey]
 		return func(ctx flow.Context) error {
-			client, err := dapr.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
+			client, err := dapr.NewClientWithPort(strconv.Itoa(grpcPort))
 			require.NoError(t, err, "dapr init failed")
 
 			// Define what is expected
@@ -164,7 +164,7 @@ func TestEventhubBindingSerivcePrincipalAuth(t *testing.T) {
 			for i := 0; i < numMessages; i++ {
 				outputmsg[i] = fmt.Sprintf("output binding: Message %03d", i)
 			}
-			consumerGroup1.ExpectStrings(outputmsg...)
+			received.ExpectStrings(outputmsg...)
 			time.Sleep(20 * time.Second)
 			if !hasKey {
 				metadata[messageKey] = uuid.NewString()
@@ -184,7 +184,7 @@ func TestEventhubBindingSerivcePrincipalAuth(t *testing.T) {
 			}
 
 			// Assert the observed messages
-			consumerGroup1.Assert(ctx, time.Minute)
+			received.Assert(ctx, time.Minute)
 			return nil
 		}
 	}
@@ -196,10 +196,10 @@ func TestEventhubBindingSerivcePrincipalAuth(t *testing.T) {
 		// Setup the binding endpoints
 		err = multierr.Combine(err,
 			s.AddBindingInvocationHandler("azure-eventhubs-binding", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
-				consumerGroup1.Observe(string(in.Data))
 				if err := sim(); err != nil {
 					return nil, err
 				}
+				received.Observe(string(in.Data))
 				ctx.Logf("Receiving eventhubs message: %s", string(in.Data))
 				return []byte("{}"), nil
 			}))
@@ -207,7 +207,7 @@ func TestEventhubBindingSerivcePrincipalAuth(t *testing.T) {
 	}
 
 	deleteEventhub := func(ctx flow.Context) error {
-		output, err := exec.Command("/bin/sh", "deleteeventhub.sh").Output()
+		output, err := exec.Command("/bin/sh", "deleteeventhub.sh", "eventhubs-bindings-container-sp").Output()
 		assert.Nil(t, err, "Error in deleteeventhub.sh.:\n%s", string(output))
 		return nil
 	}
@@ -221,8 +221,10 @@ func TestEventhubBindingSerivcePrincipalAuth(t *testing.T) {
 			embedded.WithComponentsPath("./components/binding/serviceprincipal"),
 			componentRuntimeOptions(),
 		)).
+		Step("wait", flow.Sleep(15*time.Second)).
 		Step("send and wait", sendAndReceive(metadata)).
 		Step("delete containers", deleteEventhub).
+		Step("wait", flow.Sleep(5*time.Second)).
 		Run()
 }
 
@@ -232,7 +234,7 @@ func TestEventhubBindingIOTHub(t *testing.T) {
 	httpPort := ports[1]
 	appPort := ports[2]
 
-	consumerGroup1 := watcher.NewUnordered()
+	received := watcher.NewUnordered()
 
 	// Application logic that tracks messages from eventhub.
 	application := func(ctx flow.Context, s common.Service) (err error) {
@@ -241,10 +243,10 @@ func TestEventhubBindingIOTHub(t *testing.T) {
 		// Setup the binding endpoints
 		err = multierr.Combine(err,
 			s.AddBindingInvocationHandler("azure-eventhubs-binding", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
-				consumerGroup1.Observe(string(in.Data))
 				if err := sim(); err != nil {
 					return nil, err
 				}
+				received.Observe(string(in.Data))
 				ctx.Logf("Receiving eventhubs message: %s", string(in.Data))
 				return []byte("{}"), nil
 			}))
@@ -269,7 +271,7 @@ func TestEventhubBindingIOTHub(t *testing.T) {
 		}
 	}
 	deleteEventhub := func(ctx flow.Context) error {
-		output, err := exec.Command("/bin/sh", "deleteeventhub.sh").Output()
+		output, err := exec.Command("/bin/sh", "deleteeventhub.sh", "eventhubs-bindings-container-iot").Output()
 		assert.Nil(t, err, "Error in deleteeventhub.sh.:\n%s", string(output))
 		return nil
 	}
@@ -282,8 +284,10 @@ func TestEventhubBindingIOTHub(t *testing.T) {
 			embedded.WithComponentsPath("./components/binding/iothub"),
 			componentRuntimeOptions(),
 		)).
+		Step("wait", flow.Sleep(15*time.Second)).
 		Step("Send messages to IoT", sendIOTDevice(consumerGroup3)).
 		Step("delete containers", deleteEventhub).
+		Step("wait", flow.Sleep(5*time.Second)).
 		Run()
 }
 
@@ -293,101 +297,78 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 	httpPort := ports[1]
 	appPort := ports[2]
 
-	consumerGroup1 := watcher.NewUnordered()
-	consumerGroup2 := watcher.NewUnordered()
+	received := watcher.NewUnordered()
 
 	metadata0 := map[string]string{
 		messageKey: partition0,
 	}
-
 	metadata1 := map[string]string{
 		messageKey: partition1,
 	}
-	sendAndReceive := func(metadata0 map[string]string, metadata1 map[string]string) flow.Runnable {
-		return func(ctx flow.Context) error {
-			client, err := dapr.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
-			require.NoError(t, err, "dapr init failed")
 
-			// Define what is expected
-			outputmsg := make([]string, 50)
-			for i := 0; i < 50; i++ {
-				outputmsg[i] = fmt.Sprintf("output binding: Message %d, partitionkey: %s", i, metadata0[messageKey])
+	sendAndReceive := func(ctx flow.Context) error {
+		client, err := dapr.NewClientWithPort(strconv.Itoa(grpcPort))
+		require.NoError(t, err, "dapr init failed")
+
+		// Define what is expected
+		outputmsg := make([]string, 100)
+		for i := 0; i < 100; i++ {
+			var md map[string]string
+			if i < 50 {
+				md = metadata0
+			} else {
+				md = metadata1
 			}
-			consumerGroup1.ExpectStrings(outputmsg...)
-			time.Sleep(40 * time.Second)
-
-			// Send events from output binding
-			for _, msg := range outputmsg {
-				ctx.Logf("Sending eventhub message: %q", msg)
-
-				err := client.InvokeOutputBinding(
-					ctx, &dapr.InvokeBindingRequest{
-						Name:      "azure-partition0-binding",
-						Operation: "create",
-						Data:      []byte(msg),
-						Metadata:  metadata0,
-					})
-				require.NoError(ctx, err, "error publishing message")
-			}
-
-			// Define what is expected
-			outputmsg2 := make([]string, 50)
-			for i := 0; i < 50; i++ {
-				outputmsg2[i] = fmt.Sprintf("output binding: Message %d, partitionkey: %s", i+50, metadata1[messageKey])
-			}
-			consumerGroup2.ExpectStrings(outputmsg2...)
-			time.Sleep(120 * time.Second)
-
-			// Send events from output binding
-			for _, msg2 := range outputmsg2 {
-				ctx.Logf("Sending eventhub message: %q", msg2)
-
-				err := client.InvokeOutputBinding(
-					ctx, &dapr.InvokeBindingRequest{
-						Name:      "azure-partition1-binding",
-						Operation: "create",
-						Data:      []byte(msg2),
-						Metadata:  metadata1,
-					})
-				require.NoError(ctx, err, "error publishing message")
-			}
-
-			// Assert the observed messages
-			consumerGroup1.Assert(ctx, time.Minute)
-			consumerGroup2.Assert(ctx, time.Minute)
-			return nil
+			outputmsg[i] = fmt.Sprintf("output binding: Message %d, partitionkey: %s", i, md[messageKey])
 		}
+		received.ExpectStrings(outputmsg...)
+
+		// Send events from output binding
+		time.Sleep(20 * time.Second)
+		for i, msg := range outputmsg {
+			var md map[string]string
+			if i < 50 {
+				md = metadata0
+			} else {
+				md = metadata1
+			}
+
+			ctx.Logf("Sending eventhub message '%s' on partition '%s'", msg, md[messageKey])
+
+			err := client.InvokeOutputBinding(
+				ctx, &dapr.InvokeBindingRequest{
+					Name:      "azure-partitioned-binding",
+					Operation: "create",
+					Data:      []byte(msg),
+					Metadata:  md,
+				})
+			require.NoError(ctx, err, "error publishing message")
+		}
+
+		// Assert the observed messages
+		received.Assert(ctx, time.Minute)
+		return nil
 	}
+
 	// Application logic that tracks messages from eventhub.
 	application := func(ctx flow.Context, s common.Service) (err error) {
 		// Simulate periodic errors.
 		sim := simulate.PeriodicError(ctx, 100)
 		// Setup the binding endpoints
-		err = multierr.Combine(err,
-			s.AddBindingInvocationHandler("azure-partition0-binding", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
-				consumerGroup1.Observe(string(in.Data))
-				if err := sim(); err != nil {
-					return nil, err
-				}
-				consumerGroup1.FailIfNotExpected(t, string(in.Data))
-				ctx.Logf("Receiving eventhubs message: %s", string(in.Data))
-				return []byte("{}"), nil
-			}),
-
-			s.AddBindingInvocationHandler("azure-partition1-binding", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
-				consumerGroup2.Observe(string(in.Data))
-				if err := sim(); err != nil {
-					return nil, err
-				}
-				consumerGroup2.FailIfNotExpected(t, string(in.Data))
-				ctx.Logf("Receiving eventhubs message: %s", string(in.Data))
-				return []byte("{}"), nil
-			}))
+		err = s.AddBindingInvocationHandler("azure-partitioned-binding", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
+			if err := sim(); err != nil {
+				return nil, err
+			}
+			ctx.Logf("Receiving eventhubs message: %s", string(in.Data))
+			received.FailIfNotExpected(t, string(in.Data))
+			received.Observe(string(in.Data))
+			return []byte("{}"), nil
+		})
 		return err
 	}
 
 	deleteEventhub := func(ctx flow.Context) error {
-		output, err := exec.Command("/bin/sh", "deleteeventhub.sh").Output()
+		output, err := exec.Command("/bin/sh", "deleteeventhub.sh", "eventhubs-bindings-container-c3").Output()
 		assert.Nil(t, err, "Error in deleteeventhub.sh.:\n%s", string(output))
 		return nil
 	}
@@ -402,13 +383,16 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 			embedded.WithComponentsPath("./components/binding/consumer3"),
 			componentRuntimeOptions(),
 		)).
-		Step("send and wait", sendAndReceive(metadata0, metadata1)).
+		Step("wait", flow.Sleep(15*time.Second)).
+		Step("send and wait", sendAndReceive).
 		Step("delete containers", deleteEventhub).
+		Step("wait", flow.Sleep(5*time.Second)).
 		Run()
 }
 
 func componentRuntimeOptions() []runtime.Option {
 	log := logger.NewLogger("dapr.components")
+	log.SetOutputLevel(logger.DebugLevel)
 
 	bindingsRegistry := bindings_loader.NewRegistry()
 	bindingsRegistry.Logger = log

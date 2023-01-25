@@ -22,12 +22,12 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig"
-	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/configuration"
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 type MockConfigurationStore struct {
@@ -38,8 +38,8 @@ func (m *MockConfigurationStore) GetSetting(ctx context.Context, key string, opt
 	if key == "testKey" || key == "test_sentinel_key" {
 		settings := azappconfig.Setting{}
 
-		settings.Key = to.StringPtr("testKey")
-		settings.Value = to.StringPtr("testValue")
+		settings.Key = ptr.Of("testKey")
+		settings.Value = ptr.Of("testValue")
 
 		resp := azappconfig.GetSettingResponse{}
 		resp.Setting = settings
@@ -53,12 +53,12 @@ func (m *MockConfigurationStore) NewListSettingsPager(selector azappconfig.Setti
 	settings := make([]azappconfig.Setting, 2)
 
 	setting1 := azappconfig.Setting{}
-	setting1.Key = to.StringPtr("testKey-1")
-	setting1.Value = to.StringPtr("testValue-1")
+	setting1.Key = ptr.Of("testKey-1")
+	setting1.Value = ptr.Of("testValue-1")
 
 	setting2 := azappconfig.Setting{}
-	setting2.Key = to.StringPtr("testKey-2")
-	setting2.Value = to.StringPtr("testValue-2")
+	setting2.Key = ptr.Of("testKey-2")
+	setting2.Value = ptr.Of("testValue-2")
 	settings[0] = setting1
 	settings[1] = setting2
 

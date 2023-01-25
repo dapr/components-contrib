@@ -136,8 +136,6 @@ func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	m.subscribingLock.Lock()
 	defer m.subscribingLock.Unlock()
 
-	// TODO: CALLBACK MUST NOT BLOCK OR SET ORDERMATTERS=FALSE
-
 	// Add the topic then start the subscription
 	m.addTopic(topic, handler)
 
@@ -159,6 +157,8 @@ func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 		return fmt.Errorf("mqtt error from subscribe: %v", err)
 	}
 
+	m.logger.Infof("MQTT is subscribed to topic %s (qos: %d)", topic, m.metadata.qos)
+
 	// Listen for context cancelation to remove the subscription
 	go func() {
 		select {
@@ -175,7 +175,21 @@ func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 		m.subscribingLock.Lock()
 		defer m.subscribingLock.Unlock()
 		delete(m.topics, topic)
-		m.conn.Unsubscribe(topic)
+
+		unsubscribeToken := m.conn.Unsubscribe(topic)
+		unsubscribeCtx, unsubscribeCancel := context.WithTimeout(m.ctx, defaultWait)
+		defer unsubscribeCancel()
+		var unsubscribeErr error
+		select {
+		case <-unsubscribeToken.Done():
+			// Subscription went through (sucecessfully or not)
+			unsubscribeErr = token.Error()
+		case <-unsubscribeCtx.Done():
+			unsubscribeErr = fmt.Errorf("error while waiting for subscription token: %w", unsubscribeCtx.Err())
+		}
+		if unsubscribeErr != nil {
+			m.logger.Warnf("Failed to ubsubscribe from topic %s: %v", topic, err)
+		}
 	}()
 
 	return nil
@@ -292,7 +306,7 @@ func (m *mqttPubSub) ResetConection() {
 
 	// Disconnect
 	m.logger.Info("Closing connection with broker… will reconnect in " + reconnectDelay.String())
-	m.conn.Disconnect(200)
+	m.conn.Disconnect(100)
 
 	for m.ctx.Err() == nil {
 		time.Sleep(reconnectDelay)
@@ -320,9 +334,14 @@ func (m *mqttPubSub) createClientOptions(uri *url.URL, clientID string) *mqtt.Cl
 	opts := mqtt.NewClientOptions().
 		SetClientID(clientID).
 		SetCleanSession(m.metadata.cleanSession).
+		// If OrderMatters is true (default), handlers must not block, which is not an option for us
+		SetOrderMatters(false).
+		// Disable automatic ACKs as we need to do it manually
+		SetAutoAckDisabled(true).
+		// Configure reconnections
 		SetAutoReconnect(true).
 		SetConnectRetry(true).
-		SetConnectRetryInterval(30 * time.Second)
+		SetConnectRetryInterval(20 * time.Second)
 
 	opts.OnConnectionLost = func(c mqtt.Client, err error) {
 		m.logger.Errorf("Connection with broker lost; error: %v", err)
@@ -373,9 +392,6 @@ func (m *mqttPubSub) createClientOptions(uri *url.URL, clientID string) *mqtt.Cl
 		}
 	}
 
-	// Turn off auto-ack
-	opts.SetAutoAckDisabled(true)
-
 	// URL scheme backwards-compatibility
 	scheme := uri.Scheme
 	switch scheme {
@@ -406,6 +422,8 @@ func (m *mqttPubSub) Close() error {
 	m.subscribingLock.Lock()
 	defer m.subscribingLock.Unlock()
 
+	m.logger.Debug("Closing component")
+
 	// Clear all topics from the map as a first thing, before stopping all subscriptions (we have the lock anyways)
 	maps.Clear(m.topics)
 
@@ -413,7 +431,7 @@ func (m *mqttPubSub) Close() error {
 	m.cancel()
 
 	// Disconnect
-	m.conn.Disconnect(200)
+	m.conn.Disconnect(100)
 
 	return nil
 }

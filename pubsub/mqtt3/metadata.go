@@ -61,7 +61,7 @@ func parseMQTTMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error)
 	m.qos = defaultQOS
 	if val, ok := md.Properties[mqttQOS]; ok && val != "" {
 		qosInt, err := strconv.Atoi(val)
-		if err != nil {
+		if err != nil || qosInt < 0 || qosInt > 7 {
 			return &m, fmt.Errorf("%s invalid qos %s, %s", errorMsgPrefix, val, err)
 		}
 		m.qos = byte(qosInt)

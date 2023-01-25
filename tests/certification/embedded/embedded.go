@@ -105,6 +105,12 @@ func WithProfilePort(port int) Option {
 	}
 }
 
+func WithGracefulShutdownDuration(d time.Duration) Option {
+	return func(config *runtime.Config) {
+		config.GracefulShutdownDuration = d
+	}
+}
+
 func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, *runtime.Config, error) {
 	var err error
 	runtimeConfig := runtime.NewRuntimeConfig(runtime.NewRuntimeConfigOpts{

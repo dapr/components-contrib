@@ -43,7 +43,7 @@ func deleteQueues(queues []string) error {
 
 func deleteQueue(svc *sqs.SQS, queue string) error {
 	fmt.Printf("deleteQueue: %q\n", queue)
-	queueUrl, err := getQueueURL(svc, &queue)
+	queueUrl, err := getQueueURL(svc, queue)
 	if err != nil {
 		return fmt.Errorf("error getting the queue URL: %q err:%v", queue, err)
 	}
@@ -55,9 +55,9 @@ func deleteQueue(svc *sqs.SQS, queue string) error {
 	return err
 }
 
-func getQueueURL(svc *sqs.SQS, queue *string) (string, error) {
+func getQueueURL(svc *sqs.SQS, queue string) (string, error) {
 	urlResult, err := svc.GetQueueUrl(&sqs.GetQueueUrlInput{
-		QueueName: queue,
+		QueueName: aws.String(queue),
 	})
 
 	if err != nil {
@@ -68,25 +68,35 @@ func getQueueURL(svc *sqs.SQS, queue *string) (string, error) {
 }
 
 func getMessages(svc *sqs.SQS, queueURL string) (*sqs.ReceiveMessageOutput, error) {
-	msgResult, err := svc.ReceiveMessage(&sqs.ReceiveMessageInput{
-		MessageAttributeNames: []*string{
-			aws.String(sqs.QueueAttributeNameAll),
-		},
+	input := sqs.ReceiveMessageInput{
 		// use this property to decide when a message should be discarded.
 		AttributeNames: []*string{
-			aws.String(sqs.QueueAttributeNameAll),
+			aws.String(sqs.MessageSystemAttributeNameApproximateReceiveCount),
 		},
 		MaxNumberOfMessages: aws.Int64(10),
 		QueueUrl:            aws.String(queueURL),
 		VisibilityTimeout:   aws.Int64(5),
 		WaitTimeSeconds:     aws.Int64(20),
-	})
+	}
 
+	msgResult, err := svc.ReceiveMessage(&input)
 	if err != nil {
 		return nil, err
 	}
 
 	return msgResult, nil
+}
+
+func deleteMessage(svc *sqs.SQS, queueURL, messageHandle string) error {
+	_, err := svc.DeleteMessage(&sqs.DeleteMessageInput{
+		QueueUrl:      aws.String(queueURL),
+		ReceiptHandle: aws.String(messageHandle),
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func deleteTopics(topics []string, region string) error {
@@ -125,6 +135,7 @@ func deleteTopics(topics []string, region string) error {
 }
 
 func deleteTopic(svc snsiface.SNSAPI, topic string) error {
+	fmt.Printf("deleteTopic: %q\n", topic)
 	_, err := svc.DeleteTopic(&sns.DeleteTopicInput{
 		TopicArn: aws.String(topic),
 	})

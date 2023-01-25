@@ -27,13 +27,16 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"golang.org/x/exp/maps"
 
+	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
 
 const (
-	// errors.
 	errorMsgPrefix = "mqtt pub sub error:"
+
+	// Keys for request metadata
+	unsubscribeOnCloseKey = "unsubscribeOnClose"
 )
 
 // mqttPubSub type allows sending and receiving data to/from MQTT broker.
@@ -121,7 +124,9 @@ func (m *mqttPubSub) Publish(parentCtx context.Context, req *pubsub.PublishReque
 	return nil
 }
 
-// Subscribe to the mqtt pub sub topic.
+// Subscribe to the topic on MQTT.
+// Request metadata includes:
+// - "unsubscribeOnClose": if true, when the subscription is stopped (context canceled), then an Unsubscribe message is sent to the MQTT broker, which will stop delivering messages to this consumer ID until the subscription is explicitly re-started with a new Subscribe call. Otherwise, messages continue to be delivered but are not handled and are NACK'd automatically. "unsubscribeOnClose" should be used with dynamic subscriptions.
 func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if ctxErr := m.ctx.Err(); ctxErr != nil {
 		// If the global context has been canceled, we do not allow more subscriptions
@@ -132,6 +137,7 @@ func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	if topic == "" {
 		return errors.New("topic name is empty")
 	}
+	unsubscribeOnClose := utils.IsTruthy(req.Metadata[unsubscribeOnCloseKey])
 
 	m.subscribingLock.Lock()
 	defer m.subscribingLock.Unlock()
@@ -171,10 +177,16 @@ func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 			return
 		}
 
-		// Delete the topic from the map, then stop the subscription
+		// Delete the topic from the map first, which stops routing messages to handlers
 		m.subscribingLock.Lock()
 		defer m.subscribingLock.Unlock()
 		delete(m.topics, topic)
+
+		// We will call Unsubscribe only if cleanSession is true or if "unsubscribeOnClose" in the request metadata is true
+		// Otherwise, calling this will make the broker lose the position of our subscription, which is not what we want if we are going to reconnect later
+		if !m.metadata.cleanSession && !unsubscribeOnClose {
+			return
+		}
 
 		unsubscribeToken := m.conn.Unsubscribe(topic)
 		unsubscribeCtx, unsubscribeCancel := context.WithTimeout(m.ctx, defaultWait)
@@ -206,7 +218,7 @@ func (m *mqttPubSub) onMessage(ctx context.Context) func(client mqtt.Client, mqt
 
 		topicHandler := m.handlerForTopic(msg.Topic)
 		if topicHandler == nil {
-			m.logger.Errorf("no handler defined for topic %s", msg.Topic)
+			m.logger.Warnf("No handler defined for messages received on topic %s", msg.Topic)
 			return
 		}
 
@@ -339,6 +351,7 @@ func (m *mqttPubSub) createClientOptions(uri *url.URL, clientID string) *mqtt.Cl
 		// Disable automatic ACKs as we need to do it manually
 		SetAutoAckDisabled(true).
 		// Configure reconnections
+		SetResumeSubs(true).
 		SetAutoReconnect(true).
 		SetConnectRetry(true).
 		SetConnectRetryInterval(20 * time.Second)

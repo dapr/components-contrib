@@ -17,7 +17,6 @@ import (
 	"context"
 	"fmt"
 
-	"encoding/json"
 	"os"
 	"testing"
 	"time"
@@ -1393,61 +1392,44 @@ func SNSSQSMessageDeadLetter(t *testing.T) {
 	}
 
 	var task flow.AsyncTask
-	deadLetterReceiverApplication := func(deadLetterQueueName string, messagesWatcher *watcher.Watcher) flow.Runnable {
+	deadLetterReceiverApplication := func(deadLetterQueueName string, msgTimeout time.Duration, messagesWatcher *watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
 			t := time.NewTicker(500 * time.Millisecond)
 			defer t.Stop()
-			svc := sqsService()
 			counter := 1
+			qm := NewQueueManager()
 
 			for {
 				select {
 				case <-task.Done():
 					ctx.Log("deadLetterReceiverApplication - task done called!")
 					return nil
+				case <-time.After(msgTimeout * time.Second):
+					ctx.Logf("deadLetterReceiverApplication - timeout waiting for messages from (%q)", deadLetterQueueName)
+					return fmt.Errorf("deadLetterReceiverApplication - timeout waiting for messages from (%q)", deadLetterQueueName)
 				case <-t.C:
-					queueURL, err := getQueueURL(svc, deadLetterQueueName)
+					numMsgs, err := qm.GetMessages(deadLetterQueueName, true, func(m *DataMessage) error {
+						ctx.Logf("deadLetterReceiverApplication - received message counter(%d) (%v)\n", counter, m.Data)
+						messagesWatcher.Observe(m.Data)
+						return nil
+					})
 					if err != nil {
-						ctx.Logf("deadLetterReceiverApplication - failed get queue URL %q %v\n", deadLetterQueueName, err)
+						ctx.Logf("deadLetterReceiverApplication - failed to get messages from (%q) counter(%d) %v  - trying again\n", deadLetterQueueName, counter, err)
 						continue
 					}
-					ctx.Logf("deadLetterReceiverApplication - gettting messages (%q) counter(%d)\n", queueURL, counter)
-					msgResult, err := getMessages(svc, queueURL)
-					if err != nil {
-						ctx.Logf("deadLetterReceiverApplication - failed getting messages %v\n", err)
+					if numMsgs == 0 {
+						// No messages yet, try again
+						ctx.Logf("deadLetterReceiverApplication -  no messages yet from (%q) counter(%d)  - trying again\n", deadLetterQueueName, counter)
 						continue
 					}
-					for _, msg := range msgResult.Messages {
-						err = deleteMessage(svc, queueURL, *msg.ReceiptHandle)
-						if err != nil {
-							ctx.Logf("deadLetterReceiverApplication - failed deleting message %q %v\n", *msg.ReceiptHandle, err)
-							return err
-						}
 
-						var snsMessagePayload struct {
-							Message  string
-							TopicArn string
-						}
-						err := json.Unmarshal([]byte(*(msg.Body)), &snsMessagePayload)
-						if err != nil {
-							return fmt.Errorf("deadLetterReceiverApplication - error unmarshalling message Body: %v", err)
-						}
-						var messageWrapper struct {
-							Data string `json:"data"`
-						}
-						err = json.Unmarshal([]byte(snsMessagePayload.Message), &messageWrapper)
-						if err != nil {
-							return fmt.Errorf("deadLetterReceiverApplication - error unmarshalling message data: %v", err)
-						}
-
-						messagesWatcher.Observe(messageWrapper.Data)
-						if counter >= failedMessagesNum {
-							ctx.Logf("deadLetterReceiverApplication - received all expected (%d) failed message!\n", failedMessagesNum)
-							return nil
-						}
-						counter += 1
+					if counter >= failedMessagesNum {
+						ctx.Logf("deadLetterReceiverApplication - received all expected (%d) failed message!\n", failedMessagesNum)
+						return nil
 					}
+					counter += numMsgs
 				}
+
 			}
 		}
 	}
@@ -1509,13 +1491,14 @@ func SNSSQSMessageDeadLetter(t *testing.T) {
 	deadletterApp := prefix + "deadLetterReceiverApp"
 	subApp := prefix + "subscriberApp"
 	subAppSideCar := prefix + sidecarName2
+	msgTimeout := time.Duration(60) //seconds
 
 	flow.New(t, "SNSSQSMessageDeadLetter Verify with single publisher / single subscriber and DeadLetter").
 
 		// Run deadLetterReceiverApplication - should receive messages from dead letter queue
 		// "PUBSUB_AWS_SNSSQS_QUEUE_DLOUT"
 		StepAsync(deadletterApp, &task,
-			deadLetterReceiverApplication(deadLetterQueueName, deadLetterConsumerGroup)).
+			deadLetterReceiverApplication(deadLetterQueueName, msgTimeout, deadLetterConsumerGroup)).
 
 		// Run subscriberApplication - will fail to process messages
 		Step(app.Run(subApp, fmt.Sprintf(":%d", appPort+portOffset+4),
@@ -1531,7 +1514,7 @@ func SNSSQSMessageDeadLetter(t *testing.T) {
 			componentRuntimeOptions(),
 		)).
 		Step("publish messages to deadLetterTopicIn ==> "+deadLetterTopicIn, publishMessages(nil, subAppSideCar, deadLetterTopicIn, deadLetterConsumerGroup)).
-		Step("wait", flow.Sleep(10*time.Second)).
+		Step("wait", flow.Sleep(30*time.Second)).
 		Step("verify if app1 has 0 recevied messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).
 		Step("verify if app2 has deadletterMessageNum recevied messages send to dead letter queue", assertMessages(10*time.Second, deadLetterConsumerGroup)).
 		Step("reset", flow.Reset(consumerGroup1, deadLetterConsumerGroup)).

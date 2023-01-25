@@ -263,7 +263,7 @@ func SNSSQSBasic(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("SNSSQSBasic - message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSBasic - message assertion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -391,7 +391,7 @@ func SNSSQSMultipleSubsSameConsumerIDs(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("SNSSQSMultipleSubsSameConsumerIDs - message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSMultipleSubsSameConsumerIDs - message assertion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -514,7 +514,7 @@ func SNSSQSMultipleSubsDifferentConsumerIDs(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("SNSSQSMultipleSubsDifferentConsumerIDs - message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSMultipleSubsDifferentConsumerIDs - message assertion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -640,7 +640,7 @@ func SNSSQSMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("SNSSQSMultiplePubSubsDifferentConsumerIDs - message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSMultiplePubSubsDifferentConsumerIDs - message assertion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -763,7 +763,7 @@ func SNSSQSNonexistingTopic(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("SNSSQSNonexistingTopic - message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSNonexistingTopic - message assertion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -871,7 +871,7 @@ func SNSSQSExistingQueueAndTopic(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("SNSSQSExistingQueueAndTopic - message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSExistingQueueAndTopic - message assertion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -979,7 +979,7 @@ func SNSSQSExistingQueueNonexistingTopic(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("SNSSQSExistingQueueNonexistingTopic - message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSExistingQueueNonexistingTopic - message assertion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -1309,7 +1309,7 @@ func SNSSQSFIFOMessages(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 10*timeout) {
-					ctx.Errorf("SNSSQSFIFOMessages - message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSFIFOMessages - message assertion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -1479,7 +1479,7 @@ func SNSSQSMessageDeadLetter(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 3*timeout) {
-					ctx.Errorf("SNSSQSMessageDeadLetter - message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSMessageDeadLetter - message assertion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -1504,7 +1504,7 @@ func SNSSQSMessageDeadLetter(t *testing.T) {
 		Step(app.Run(subApp, fmt.Sprintf(":%d", appPort+portOffset+4),
 			subscriberApplication(subApp, deadLetterTopicIn, consumerGroup1))).
 
-		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_QUEUE_DLIN"
+		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_TOPIC_DLIN"
 		Step(sidecar.Run(subAppSideCar,
 			embedded.WithComponentsPath("./components/deadletter"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset+4),

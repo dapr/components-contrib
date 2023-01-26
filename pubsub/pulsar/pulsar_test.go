@@ -97,6 +97,20 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		assert.Equal(t, avroProtocol, meta.topicSchemas["obiwan"].protocol)
 		assert.Equal(t, jsonProtocol, meta.topicSchemas["kenobi"].protocol)
 	})
+
+	t.Run("test funky edge case", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"host":                         "a",
+			"obiwan.jsonschema.avroschema": "1",
+		}
+		meta, err := parsePulsarMetadata(m)
+
+		assert.Nil(t, err)
+		assert.Equal(t, "a", meta.Host)
+		assert.Len(t, meta.topicSchemas, 1)
+		assert.Equal(t, "1", meta.topicSchemas["obiwan.jsonschema"].value)
+	})
 }
 
 func TestGetPulsarSchema(t *testing.T) {

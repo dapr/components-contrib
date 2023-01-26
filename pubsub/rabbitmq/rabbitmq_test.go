@@ -43,6 +43,7 @@ func newRabbitMQTest(broker *rabbitMQInMemoryBroker) pubsub.PubSub {
 
 			return broker, broker, nil
 		},
+		closeCh: make(chan struct{}),
 	}
 }
 
@@ -54,7 +55,7 @@ func TestNoConsumer(t *testing.T) {
 			metadataHostnameKey: "anyhost",
 		},
 	}}
-	err := pubsubRabbitMQ.Init(metadata)
+	err := pubsubRabbitMQ.Init(context.Background(), metadata)
 	assert.NoError(t, err)
 	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{}, nil)
 	assert.Contains(t, err.Error(), "consumerID is required for subscriptions")
@@ -71,7 +72,7 @@ func TestConcurrencyMode(t *testing.T) {
 				pubsub.ConcurrencyKey: string(pubsub.Parallel),
 			},
 		}}
-		err := pubsubRabbitMQ.Init(metadata)
+		err := pubsubRabbitMQ.Init(context.Background(), metadata)
 		assert.Nil(t, err)
 		assert.Equal(t, pubsub.Parallel, pubsubRabbitMQ.(*rabbitMQ).metadata.concurrency)
 	})
@@ -86,7 +87,7 @@ func TestConcurrencyMode(t *testing.T) {
 				pubsub.ConcurrencyKey: string(pubsub.Single),
 			},
 		}}
-		err := pubsubRabbitMQ.Init(metadata)
+		err := pubsubRabbitMQ.Init(context.Background(), metadata)
 		assert.Nil(t, err)
 		assert.Equal(t, pubsub.Single, pubsubRabbitMQ.(*rabbitMQ).metadata.concurrency)
 	})
@@ -100,7 +101,7 @@ func TestConcurrencyMode(t *testing.T) {
 				metadataConsumerIDKey: "consumer",
 			},
 		}}
-		err := pubsubRabbitMQ.Init(metadata)
+		err := pubsubRabbitMQ.Init(context.Background(), metadata)
 		assert.Nil(t, err)
 		assert.Equal(t, pubsub.Parallel, pubsubRabbitMQ.(*rabbitMQ).metadata.concurrency)
 	})
@@ -115,7 +116,7 @@ func TestPublishAndSubscribe(t *testing.T) {
 			metadataConsumerIDKey: "consumer",
 		},
 	}}
-	err := pubsubRabbitMQ.Init(metadata)
+	err := pubsubRabbitMQ.Init(context.Background(), metadata)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, broker.connectCount)
 	assert.Equal(t, 0, broker.closeCount)
@@ -158,7 +159,7 @@ func TestPublishReconnect(t *testing.T) {
 			metadataConsumerIDKey: "consumer",
 		},
 	}}
-	err := pubsubRabbitMQ.Init(metadata)
+	err := pubsubRabbitMQ.Init(context.Background(), metadata)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, broker.connectCount)
 	assert.Equal(t, 0, broker.closeCount)
@@ -209,7 +210,7 @@ func TestPublishReconnectAfterClose(t *testing.T) {
 			metadataConsumerIDKey: "consumer",
 		},
 	}}
-	err := pubsubRabbitMQ.Init(metadata)
+	err := pubsubRabbitMQ.Init(context.Background(), metadata)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, broker.connectCount)
 	assert.Equal(t, 0, broker.closeCount)
@@ -259,7 +260,7 @@ func TestSubscribeBindRoutingKeys(t *testing.T) {
 			metadataConsumerIDKey: "consumer",
 		},
 	}}
-	err := pubsubRabbitMQ.Init(metadata)
+	err := pubsubRabbitMQ.Init(context.Background(), metadata)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, broker.connectCount)
 	assert.Equal(t, 0, broker.closeCount)
@@ -286,7 +287,7 @@ func TestSubscribeReconnect(t *testing.T) {
 			pubsub.ConcurrencyKey:           string(pubsub.Single),
 		},
 	}}
-	err := pubsubRabbitMQ.Init(metadata)
+	err := pubsubRabbitMQ.Init(context.Background(), metadata)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, broker.connectCount)
 	assert.Equal(t, 0, broker.closeCount)

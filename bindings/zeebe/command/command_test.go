@@ -58,7 +58,7 @@ func TestInit(t *testing.T) {
 		}
 
 		cmd := ZeebeCommand{clientFactory: mcf, logger: testLogger}
-		err := cmd.Init(metadata)
+		err := cmd.Init(context.Background(), metadata)
 		assert.Error(t, err, errParsing)
 	})
 
@@ -67,7 +67,7 @@ func TestInit(t *testing.T) {
 		mcf := mockClientFactory{}
 
 		cmd := ZeebeCommand{clientFactory: mcf, logger: testLogger}
-		err := cmd.Init(metadata)
+		err := cmd.Init(context.Background(), metadata)
 
 		assert.NoError(t, err)
 

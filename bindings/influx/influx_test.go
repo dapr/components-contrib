@@ -54,7 +54,7 @@ func TestInflux_Init(t *testing.T) {
 	assert.Nil(t, influx.client)
 
 	m := bindings.Metadata{Base: metadata.Base{Properties: map[string]string{"Url": "a", "Token": "a", "Org": "a", "Bucket": "a"}}}
-	err := influx.Init(m)
+	err := influx.Init(context.Background(), m)
 	assert.Nil(t, err)
 
 	assert.NotNil(t, influx.queryAPI)

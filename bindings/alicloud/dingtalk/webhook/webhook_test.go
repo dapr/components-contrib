@@ -57,7 +57,7 @@ func TestPublishMsg(t *testing.T) { //nolint:paralleltest
 	}}}
 
 	d := NewDingTalkWebhook(logger.NewLogger("test"))
-	err := d.Init(m)
+	err := d.Init(context.Background(), m)
 	require.NoError(t, err)
 
 	req := &bindings.InvokeRequest{Data: []byte(msg), Operation: bindings.CreateOperation, Metadata: map[string]string{}}
@@ -78,7 +78,7 @@ func TestBindingReadAndInvoke(t *testing.T) { //nolint:paralleltest
 	}}
 
 	d := NewDingTalkWebhook(logger.NewLogger("test"))
-	err := d.Init(m)
+	err := d.Init(context.Background(), m)
 	assert.NoError(t, err)
 
 	var count int32

@@ -38,7 +38,7 @@ type fakeDBaccess struct {
 	deleteExecuted bool
 }
 
-func (m *fakeDBaccess) Init(metadata state.Metadata) error {
+func (m *fakeDBaccess) Init(ctx context.Context, metadata state.Metadata) error {
 	m.initExecuted = true
 
 	return nil
@@ -110,7 +110,7 @@ func createPostgreSQL(t *testing.T) *PostgreSQL {
 		Base: metadata.Base{Properties: map[string]string{"connectionString": fakeConnectionString}},
 	}
 
-	err := pgs.Init(*metadata)
+	err := pgs.Init(context.Background(), *metadata)
 
 	assert.Nil(t, err)
 	assert.NotNil(t, pgs.dbaccess)

@@ -43,7 +43,7 @@ func (m *fakeDBaccess) Ping() error {
 	return nil
 }
 
-func (m *fakeDBaccess) Init(metadata state.Metadata) error {
+func (m *fakeDBaccess) Init(ctx context.Context, metadata state.Metadata) error {
 	m.initExecuted = true
 
 	return nil
@@ -212,7 +212,7 @@ func createOracleDatabase(t *testing.T) *OracleDatabase {
 		Base: metadata.Base{Properties: map[string]string{connectionStringKey: fakeConnectionString}},
 	}
 
-	err := odb.Init(*metadata)
+	err := odb.Init(context.Background(), *metadata)
 
 	assert.Nil(t, err)
 	assert.NotNil(t, odb.dbaccess)

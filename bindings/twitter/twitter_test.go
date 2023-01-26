@@ -60,7 +60,7 @@ func getRuntimeMetadata() map[string]string {
 func TestInit(t *testing.T) {
 	m := getTestMetadata()
 	tw := NewTwitter(logger.NewLogger("test")).(*Binding)
-	err := tw.Init(m)
+	err := tw.Init(context.Background(), m)
 	assert.Nilf(t, err, "error initializing valid metadata properties")
 }
 
@@ -69,7 +69,7 @@ func TestInit(t *testing.T) {
 func TestReadError(t *testing.T) {
 	tw := NewTwitter(logger.NewLogger("test")).(*Binding)
 	m := getTestMetadata()
-	err := tw.Init(m)
+	err := tw.Init(context.Background(), m)
 	assert.Nilf(t, err, "error initializing valid metadata properties")
 
 	err = tw.Read(context.Background(), func(ctx context.Context, res *bindings.ReadResponse) ([]byte, error) {
@@ -93,7 +93,7 @@ func TestRead(t *testing.T) {
 	m.Properties["query"] = "microsoft"
 	tw := NewTwitter(logger.NewLogger("test")).(*Binding)
 	tw.logger.SetOutputLevel(logger.DebugLevel)
-	err := tw.Init(m)
+	err := tw.Init(context.Background(), m)
 	assert.Nilf(t, err, "error initializing read")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -129,7 +129,7 @@ func TestInvoke(t *testing.T) {
 	m.Properties = getRuntimeMetadata()
 	tw := NewTwitter(logger.NewLogger("test")).(*Binding)
 	tw.logger.SetOutputLevel(logger.DebugLevel)
-	err := tw.Init(m)
+	err := tw.Init(context.Background(), m)
 	assert.Nilf(t, err, "error initializing Invoke")
 
 	req := &bindings.InvokeRequest{

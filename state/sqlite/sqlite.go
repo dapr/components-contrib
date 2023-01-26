@@ -45,8 +45,8 @@ func newSQLiteStateStore(logger logger.Logger, dba DBAccess) *SQLiteStore {
 }
 
 // Init initializes the Sql server state store.
-func (s *SQLiteStore) Init(metadata state.Metadata) error {
-	return s.dbaccess.Init(metadata)
+func (s *SQLiteStore) Init(ctx context.Context, metadata state.Metadata) error {
+	return s.dbaccess.Init(ctx, metadata)
 }
 
 func (s SQLiteStore) GetComponentMetadata() map[string]string {
@@ -57,7 +57,7 @@ func (s SQLiteStore) GetComponentMetadata() map[string]string {
 }
 
 // Features returns the features available in this state store.
-func (s *SQLiteStore) Features() []state.Feature {
+func (s *SQLiteStore) Features(ctx context.Context) []state.Feature {
 	return []state.Feature{
 		state.FeatureETag,
 		state.FeatureTransactional,

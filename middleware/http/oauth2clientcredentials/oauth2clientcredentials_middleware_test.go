@@ -45,7 +45,7 @@ func TestOAuth2ClientCredentialsMetadata(t *testing.T) {
 	metadata.Properties = map[string]string{}
 
 	log := logger.NewLogger("oauth2clientcredentials.test")
-	_, err := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(metadata)
+	_, err := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(nil, metadata)
 	assert.EqualError(t, err, "metadata errors: Parameter 'headerName' needs to be set. Parameter 'clientID' needs to be set. Parameter 'clientSecret' needs to be set. Parameter 'scopes' needs to be set. Parameter 'tokenURL' needs to be set. ")
 
 	// Invalid authStyle (non int)
@@ -57,17 +57,17 @@ func TestOAuth2ClientCredentialsMetadata(t *testing.T) {
 		"headerName":   "someHeader",
 		"authStyle":    "asdf", // This is the value to test
 	}
-	_, err2 := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(metadata)
+	_, err2 := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(nil, metadata)
 	assert.EqualError(t, err2, "metadata errors: 1 error(s) decoding:\n\n* cannot parse 'AuthStyle' as int: strconv.ParseInt: parsing \"asdf\": invalid syntax")
 
 	// Invalid authStyle (int > 2)
 	metadata.Properties["authStyle"] = "3"
-	_, err3 := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(metadata)
+	_, err3 := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(nil, metadata)
 	assert.EqualError(t, err3, "metadata errors: Parameter 'authStyle' can only have the values 0,1,2. Received: '3'. ")
 
 	// Invalid authStyle (int < 0)
 	metadata.Properties["authStyle"] = "-1"
-	_, err4 := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(metadata)
+	_, err4 := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(nil, metadata)
 	assert.EqualError(t, err4, "metadata errors: Parameter 'authStyle' can only have the values 0,1,2. Received: '-1'. ")
 }
 
@@ -109,7 +109,7 @@ func TestOAuth2ClientCredentialsToken(t *testing.T) {
 	log := logger.NewLogger("oauth2clientcredentials.test")
 	oauth2clientcredentialsMiddleware, _ := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
 	oauth2clientcredentialsMiddleware.SetTokenProvider(mockTokenProvider)
-	handler, err := oauth2clientcredentialsMiddleware.GetHandler(metadata)
+	handler, err := oauth2clientcredentialsMiddleware.GetHandler(nil, metadata)
 	require.NoError(t, err)
 
 	// First handler call should return abc Token
@@ -169,7 +169,7 @@ func TestOAuth2ClientCredentialsCache(t *testing.T) {
 	log := logger.NewLogger("oauth2clientcredentials.test")
 	oauth2clientcredentialsMiddleware, _ := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
 	oauth2clientcredentialsMiddleware.SetTokenProvider(mockTokenProvider)
-	handler, err := oauth2clientcredentialsMiddleware.GetHandler(metadata)
+	handler, err := oauth2clientcredentialsMiddleware.GetHandler(nil, metadata)
 	require.NoError(t, err)
 
 	// First handler call should return abc Token

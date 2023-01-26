@@ -107,7 +107,7 @@ type Store1 struct {
 	bulkCount int
 }
 
-func (s *Store1) Init(metadata Metadata) error {
+func (s *Store1) Init(ctx context.Context, metadata Metadata) error {
 	return nil
 }
 
@@ -142,11 +142,11 @@ type Store2 struct {
 	supportBulkGet bool
 }
 
-func (s *Store2) Init(metadata Metadata) error {
+func (s *Store2) Init(ctx context.Context, metadata Metadata) error {
 	return nil
 }
 
-func (s *Store2) Features() []Feature {
+func (s *Store2) Features(ctx context.Context) []Feature {
 	return nil
 }
 

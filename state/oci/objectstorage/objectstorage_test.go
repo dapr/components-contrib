@@ -44,7 +44,7 @@ func TestInit(t *testing.T) {
 	t.Parallel()
 	t.Run("Init with beautifully complete yet incorrect metadata", func(t *testing.T) {
 		meta.Properties = getDummyOCIObjectStorageConfiguration()
-		err := statestore.Init(meta)
+		err := statestore.Init(context.Background(), meta)
 		assert.NotNil(t, err)
 		assert.Error(t, err, "Incorrect configuration data should result in failure to create client")
 		assert.Contains(t, err.Error(), "failed to initialize client", "Incorrect configuration data should result in failure to create client")
@@ -52,56 +52,56 @@ func TestInit(t *testing.T) {
 	t.Run("Init with missing region", func(t *testing.T) {
 		meta.Properties = getDummyOCIObjectStorageConfiguration()
 		meta.Properties[regionKey] = ""
-		err := statestore.Init(meta)
+		err := statestore.Init(context.Background(), meta)
 		assert.NotNil(t, err)
 		assert.Equal(t, fmt.Errorf("missing or empty region field from metadata"), err, "Lacking configuration property should be spotted")
 	})
 	t.Run("Init with missing tenancyOCID", func(t *testing.T) {
 		meta.Properties = getDummyOCIObjectStorageConfiguration()
 		meta.Properties["tenancyOCID"] = ""
-		err := statestore.Init(meta)
+		err := statestore.Init(context.Background(), meta)
 		assert.NotNil(t, err)
 		assert.Equal(t, fmt.Errorf("missing or empty tenancyOCID field from metadata"), err, "Lacking configuration property should be spotted")
 	})
 	t.Run("Init with missing userOCID", func(t *testing.T) {
 		meta.Properties = getDummyOCIObjectStorageConfiguration()
 		meta.Properties[userKey] = ""
-		err := statestore.Init(meta)
+		err := statestore.Init(context.Background(), meta)
 		assert.NotNil(t, err)
 		assert.Equal(t, fmt.Errorf("missing or empty userOCID field from metadata"), err, "Lacking configuration property should be spotted")
 	})
 	t.Run("Init with missing compartmentOCID", func(t *testing.T) {
 		meta.Properties = getDummyOCIObjectStorageConfiguration()
 		meta.Properties[compartmentKey] = ""
-		err := statestore.Init(meta)
+		err := statestore.Init(context.Background(), meta)
 		assert.NotNil(t, err)
 		assert.Equal(t, fmt.Errorf("missing or empty compartmentOCID field from metadata"), err, "Lacking configuration property should be spotted")
 	})
 	t.Run("Init with missing fingerprint", func(t *testing.T) {
 		meta.Properties = getDummyOCIObjectStorageConfiguration()
 		meta.Properties[fingerPrintKey] = ""
-		err := statestore.Init(meta)
+		err := statestore.Init(context.Background(), meta)
 		assert.NotNil(t, err)
 		assert.Equal(t, fmt.Errorf("missing or empty fingerPrint field from metadata"), err, "Lacking configuration property should be spotted")
 	})
 	t.Run("Init with missing private key", func(t *testing.T) {
 		meta.Properties = getDummyOCIObjectStorageConfiguration()
 		meta.Properties[privateKeyKey] = ""
-		err := statestore.Init(meta)
+		err := statestore.Init(context.Background(), meta)
 		assert.NotNil(t, err)
 		assert.Equal(t, fmt.Errorf("missing or empty privateKey field from metadata"), err, "Lacking configuration property should be spotted")
 	})
 	t.Run("Init with incorrect value for instancePrincipalAuthentication", func(t *testing.T) {
 		meta.Properties = getDummyOCIObjectStorageConfiguration()
 		meta.Properties[instancePrincipalAuthenticationKey] = "ZQWE"
-		err := statestore.Init(meta)
+		err := statestore.Init(context.Background(), meta)
 		assert.NotNil(t, err, "if instancePrincipalAuthentication is defined, it should be true or false; if not: error should be raised ")
 	})
 	t.Run("Init with missing fingerprint with instancePrincipalAuthentication", func(t *testing.T) {
 		meta.Properties = getDummyOCIObjectStorageConfiguration()
 		meta.Properties[fingerPrintKey] = ""
 		meta.Properties[instancePrincipalAuthenticationKey] = "true"
-		err := statestore.Init(meta)
+		err := statestore.Init(context.Background(), meta)
 		if err != nil {
 			assert.Contains(t, err.Error(), "failed to initialize client", "unit tests not run on OCI will not be able to correctly create an OCI client based on instance principal authentication")
 		}
@@ -110,7 +110,7 @@ func TestInit(t *testing.T) {
 		meta.Properties = getDummyOCIObjectStorageConfiguration()
 		meta.Properties[configFileAuthenticationKey] = "true"
 		meta.Properties[configFilePathKey] = "file_does_not_exist"
-		err := statestore.Init(meta)
+		err := statestore.Init(context.Background(), meta)
 		assert.NotNil(t, err, "if configFileAuthentication is true and configFilePath does not indicate an existing file, then an error should be produced")
 		if err != nil {
 			assert.Contains(t, err.Error(), "does not exist", "if configFileAuthentication is true and configFilePath does not indicate an existing file, then an error should be produced that indicates this")
@@ -120,7 +120,7 @@ func TestInit(t *testing.T) {
 		meta.Properties = getDummyOCIObjectStorageConfiguration()
 		meta.Properties[configFileAuthenticationKey] = "true"
 		meta.Properties[configFilePathKey] = "~/some-file"
-		err := statestore.Init(meta)
+		err := statestore.Init(context.Background(), meta)
 		assert.NotNil(t, err, "if configFileAuthentication is true and configFilePath contains a value that starts with ~/ , then an error should be produced")
 		if err != nil {
 			assert.Contains(t, err.Error(), "~", "if configFileAuthentication is true and configFilePath starts with ~/, then an error should be produced that indicates this")
@@ -130,7 +130,7 @@ func TestInit(t *testing.T) {
 		meta.Properties = getDummyOCIObjectStorageConfiguration()
 		meta.Properties[fingerPrintKey] = ""
 		meta.Properties[instancePrincipalAuthenticationKey] = "false"
-		err := statestore.Init(meta)
+		err := statestore.Init(context.Background(), meta)
 		assert.NotNil(t, err, "if instancePrincipalAuthentication and configFileAuthentication are both false, then fingerprint is required and an error should be raised when it is missing")
 	})
 	t.Run("Init with missing fingerprint with configFileAuthentication", func(t *testing.T) {
@@ -138,7 +138,7 @@ func TestInit(t *testing.T) {
 		meta.Properties[fingerPrintKey] = ""
 		meta.Properties[instancePrincipalAuthenticationKey] = "false"
 		meta.Properties[configFileAuthenticationKey] = "true"
-		err := statestore.Init(meta)
+		err := statestore.Init(context.Background(), meta)
 		if err != nil {
 			assert.Contains(t, err.Error(), "failed to initialize client", "if configFileAuthentication is true, then fingerprint is not required and error should be raised for failed to initialize client, not for missing fingerprint")
 		}
@@ -149,7 +149,7 @@ func TestFeatures(t *testing.T) {
 	t.Parallel()
 	s := NewOCIObjectStorageStore(logger.NewLogger("logger")).(*StateStore)
 	t.Run("Test contents of Features", func(t *testing.T) {
-		features := s.Features()
+		features := s.Features(context.Background())
 		assert.Contains(t, features, state.FeatureETag)
 	})
 }
@@ -220,11 +220,11 @@ func (c *mockedObjectStoreClient) putObject(ctx context.Context, objectname stri
 	return nil
 }
 
-func (c *mockedObjectStoreClient) initStorageBucket() error {
+func (c *mockedObjectStoreClient) initStorageBucket(ctx context.Context) error {
 	return nil
 }
 
-func (c *mockedObjectStoreClient) pingBucket() error {
+func (c *mockedObjectStoreClient) pingBucket(ctx context.Context) error {
 	c.pingBucketIsCalled = true
 	return nil
 }
@@ -264,7 +264,7 @@ func TestInitWithMockClient(t *testing.T) {
 	s.client = &mockedObjectStoreClient{}
 	meta := state.Metadata{}
 	t.Run("Test Init with incomplete configuration", func(t *testing.T) {
-		err := s.Init(meta)
+		err := s.Init(context.Background(), meta)
 		assert.NotNil(t, err, "Init should complain about lacking configuration settings")
 	})
 }
@@ -276,7 +276,7 @@ func TestPingWithMockClient(t *testing.T) {
 	s.client = mockClient
 
 	t.Run("Test Ping", func(t *testing.T) {
-		err := s.Ping()
+		err := s.Ping(context.Background())
 		assert.Nil(t, err)
 		assert.True(t, mockClient.pingBucketIsCalled, "function pingBucket should be invoked on the mockClient")
 	})

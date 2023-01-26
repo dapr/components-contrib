@@ -125,7 +125,7 @@ func TestParsePublishMetadata(t *testing.T) {
 		"deliverAt":    "2021-08-31T11:45:02Z",
 		"deliverAfter": "60s",
 	}
-	msg, err := parsePublishMetadata(m, false)
+	msg, err := parsePublishMetadata(m, schemaMetadata{})
 	assert.Nil(t, err)
 
 	val, _ := time.ParseDuration("60s")

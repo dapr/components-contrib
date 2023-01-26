@@ -157,14 +157,15 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 	}
 
 	for k, v := range meta.Properties {
-		if strings.LastIndex(k, topicJSONSchemaIdentifier) > 0 {
-			topic := k[:strings.LastIndex(k, topicJSONSchemaIdentifier)]
+		if idx := strings.LastIndex(k, topicJSONSchemaIdentifier); idx > 0 {
+			topic := k[:idx]
+
 			m.topicSchemas[topic] = schemaMetadata{
 				protocol: jsonProtocol,
 				value:    v,
 			}
-		} else if strings.LastIndex(k, topicAvroSchemaIdentifier) > 0 {
-			topic := k[:strings.LastIndex(k, topicAvroSchemaIdentifier)]
+		} else if idx := strings.LastIndex(k, topicAvroSchemaIdentifier); idx > 0 {
+			topic := k[:idx]
 			m.topicSchemas[topic] = schemaMetadata{
 				protocol: avroProtocol,
 				value:    v,

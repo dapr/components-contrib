@@ -2,6 +2,7 @@ package wasm
 
 import (
 	"bytes"
+	"context"
 	_ "embed"
 	"net/http"
 	"net/http/httptest"
@@ -31,7 +32,7 @@ func Test_middleware_log(t *testing.T) {
 
 	m := &middleware{logger: l}
 	message := "alert"
-	m.Log(ctx, api.LogLevelInfo, message)
+	m.Log(context.Background(), api.LogLevelInfo, message)
 
 	require.Contains(t, buf.String(), `level=info msg=alert`)
 }
@@ -114,7 +115,7 @@ func Test_middleware_getHandler(t *testing.T) {
 	for _, tt := range tests {
 		tc := tt
 		t.Run(tc.name, func(t *testing.T) {
-			h, err := m.getHandler(dapr.Metadata{Base: tc.metadata})
+			h, err := m.getHandler(context.Background(), dapr.Metadata{Base: tc.metadata})
 			if tc.expectedErr == "" {
 				require.NoError(t, err)
 				require.NotNil(t, h.mw)
@@ -135,7 +136,7 @@ func Test_Example(t *testing.T) {
 		//	tinygo build -o router.wasm -scheduler=none --no-debug -target=wasi router.go`
 		"path": "./example/router.wasm",
 	}}
-	handlerFn, err := NewMiddleware(l).GetHandler(dapr.Metadata{Base: meta})
+	handlerFn, err := NewMiddleware(l).GetHandler(context.Background(), dapr.Metadata{Base: meta})
 	require.NoError(t, err)
 
 	handler := handlerFn(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))

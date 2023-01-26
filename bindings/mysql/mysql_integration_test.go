@@ -75,7 +75,7 @@ func TestMysqlIntegration(t *testing.T) {
 
 	b := NewMysql(logger.NewLogger("test")).(*Mysql)
 	m := bindings.Metadata{Base: metadata.Base{Properties: map[string]string{connectionURLKey: url}}}
-	if err := b.Init(m); err != nil {
+	if err := b.Init(context.Background(), m); err != nil {
 		t.Fatal(err)
 	}
 

@@ -57,7 +57,7 @@ func TestSqliteIntegration(t *testing.T) {
 		defer s.Close()
 	})
 
-	if initerror := s.Init(metadata); initerror != nil {
+	if initerror := s.Init(context.Background(), metadata); initerror != nil {
 		t.Fatal(initerror)
 	}
 
@@ -683,7 +683,7 @@ func testInitConfiguration(t *testing.T) {
 				},
 			}
 
-			err := p.Init(metadata)
+			err := p.Init(context.Background(), metadata)
 			if tt.expectedErr == "" {
 				assert.NoError(t, err)
 			} else {

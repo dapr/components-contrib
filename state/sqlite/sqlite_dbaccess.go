@@ -35,7 +35,7 @@ import (
 
 // DBAccess is a private interface which enables unit testing of SQLite.
 type DBAccess interface {
-	Init(metadata state.Metadata) error
+	Init(ctx context.Context, metadata state.Metadata) error
 	Ping(ctx context.Context) error
 	Set(ctx context.Context, req *state.SetRequest) error
 	Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error)
@@ -73,7 +73,7 @@ func newSqliteDBAccess(logger logger.Logger) *sqliteDBAccess {
 
 // Init sets up SQLite Database connection and ensures that the state table
 // exists.
-func (a *sqliteDBAccess) Init(md state.Metadata) error {
+func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 	err := a.metadata.InitWithMetadata(md)
 	if err != nil {
 		return err

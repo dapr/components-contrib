@@ -43,7 +43,7 @@ func (m *fakeDBaccess) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (m *fakeDBaccess) Init(metadata state.Metadata) error {
+func (m *fakeDBaccess) Init(ctx context.Context, metadata state.Metadata) error {
 	m.initExecuted = true
 
 	return nil
@@ -168,7 +168,7 @@ func createSqlite(t *testing.T) *SQLiteStore {
 		},
 	}
 
-	err := odb.Init(*metadata)
+	err := odb.Init(context.Background(), *metadata)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, odb.dbaccess)

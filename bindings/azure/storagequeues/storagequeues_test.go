@@ -34,7 +34,7 @@ type MockHelper struct {
 	metadata *storageQueuesMetadata
 }
 
-func (m *MockHelper) Init(metadata bindings.Metadata) (*storageQueuesMetadata, error) {
+func (m *MockHelper) Init(ctx context.Context, metadata bindings.Metadata) (*storageQueuesMetadata, error) {
 	m.messages = make(chan []byte, 10)
 	var err error
 	m.metadata, err = parseMetadata(metadata)
@@ -75,7 +75,7 @@ func TestWriteQueue(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
-	err := a.Init(m)
+	err := a.Init(context.Background(), m)
 	assert.Nil(t, err)
 
 	r := bindings.InvokeRequest{Data: []byte("This is my message")}
@@ -96,7 +96,7 @@ func TestWriteWithTTLInQueue(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: "1"}
 
-	err := a.Init(m)
+	err := a.Init(context.Background(), m)
 	assert.Nil(t, err)
 
 	r := bindings.InvokeRequest{Data: []byte("This is my message")}
@@ -117,7 +117,7 @@ func TestWriteWithTTLInWrite(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: "1"}
 
-	err := a.Init(m)
+	err := a.Init(context.Background(), m)
 	assert.Nil(t, err)
 
 	r := bindings.InvokeRequest{
@@ -138,7 +138,7 @@ func TestWriteWithTTLInWrite(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
-	err := a.Init(m)
+	err := a.Init(context.Background(), m)
 	assert.Nil(t, err)
 
 	r := bindings.InvokeRequest{Data: []byte("This is my message")}
@@ -157,7 +157,7 @@ func TestReadQueue(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
-	err := a.Init(m)
+	err := a.Init(context.Background(), m)
 	assert.Nil(t, err)
 
 	r := bindings.InvokeRequest{Data: []byte("This is my message")}
@@ -198,7 +198,7 @@ func TestReadQueueDecode(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1", "decodeBase64": "true"}
 
-	err := a.Init(m)
+	err := a.Init(context.Background(), m)
 	assert.Nil(t, err)
 
 	r := bindings.InvokeRequest{Data: []byte("VGhpcyBpcyBteSBtZXNzYWdl")}
@@ -237,7 +237,7 @@ func TestReadQueueDecode(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
-	err := a.Init(m)
+	err := a.Init(context.Background(), m)
 	assert.Nil(t, err)
 
 	r := bindings.InvokeRequest{Data: []byte("This is my message")}
@@ -268,7 +268,7 @@ func TestReadQueueNoMessage(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
-	err := a.Init(m)
+	err := a.Init(context.Background(), m)
 	assert.Nil(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())

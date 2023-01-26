@@ -53,7 +53,7 @@ func TestInit(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"toNumber": "toNumber", "fromNumber": "fromNumber"}
 	tw := NewSMS(logger.NewLogger("test"))
-	err := tw.Init(m)
+	err := tw.Init(context.Background(), m)
 	assert.NotNil(t, err)
 }
 
@@ -66,7 +66,7 @@ func TestParseDuration(t *testing.T) {
 		"authToken":  "authToken", "timeout": "badtimeout",
 	}
 	tw := NewSMS(logger.NewLogger("test"))
-	err := tw.Init(m)
+	err := tw.Init(context.Background(), m)
 	assert.NotNil(t, err)
 }
 
@@ -85,7 +85,7 @@ func TestWriteShouldSucceed(t *testing.T) {
 	tw.httpClient = &http.Client{
 		Transport: httpTransport,
 	}
-	err := tw.Init(m)
+	err := tw.Init(context.Background(), m)
 	assert.NoError(t, err)
 
 	t.Run("Should succeed with expected url and headers", func(t *testing.T) {
@@ -123,7 +123,7 @@ func TestWriteShouldFail(t *testing.T) {
 	tw.httpClient = &http.Client{
 		Transport: httpTransport,
 	}
-	err := tw.Init(m)
+	err := tw.Init(context.Background(), m)
 	assert.NoError(t, err)
 
 	t.Run("Missing 'to' should fail", func(t *testing.T) {
@@ -180,7 +180,7 @@ func TestMessageBody(t *testing.T) {
 	tw.httpClient = &http.Client{
 		Transport: httpTransport,
 	}
-	err := tw.Init(m)
+	err := tw.Init(context.Background(), m)
 	require.NoError(t, err)
 
 	tester := func(reqData []byte, expectBody string) func(t *testing.T) {

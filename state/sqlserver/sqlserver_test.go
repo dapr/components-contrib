@@ -15,6 +15,7 @@ limitations under the License.
 package sqlserver
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -192,7 +193,7 @@ func TestValidConfiguration(t *testing.T) {
 				Base: metadata.Base{Properties: tt.props},
 			}
 
-			err := sqlStore.Init(metadata)
+			err := sqlStore.Init(context.Background(), metadata)
 			assert.Nil(t, err)
 			assert.Equal(t, tt.expected.connectionString, sqlStore.connectionString)
 			assert.Equal(t, tt.expected.tableName, sqlStore.tableName)
@@ -329,7 +330,7 @@ func TestInvalidConfiguration(t *testing.T) {
 				Base: metadata.Base{Properties: tt.props},
 			}
 
-			err := sqlStore.Init(metadata)
+			err := sqlStore.Init(context.Background(), metadata)
 			assert.NotNil(t, err)
 
 			if tt.expectedErr != "" {
@@ -350,14 +351,14 @@ func TestExecuteMigrationFails(t *testing.T) {
 		Base: metadata.Base{Properties: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, databaseNameKey: "dapr_test_table"}},
 	}
 
-	err := sqlStore.Init(metadata)
+	err := sqlStore.Init(context.Background(), metadata)
 	assert.NotNil(t, err)
 }
 
 func TestSupportedFeatures(t *testing.T) {
 	sqlStore := NewSQLServerStateStore(logger.NewLogger("test")).(*SQLServer)
 
-	actual := sqlStore.Features()
+	actual := sqlStore.Features(context.Background())
 	assert.NotNil(t, actual)
 	assert.Equal(t, state.FeatureETag, actual[0])
 	assert.Equal(t, state.FeatureTransactional, actual[1])

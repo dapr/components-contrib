@@ -84,7 +84,7 @@ func TestCronInitSuccess(t *testing.T) {
 
 	for _, test := range initTests {
 		c := getNewCron()
-		err := c.Init(getTestMetadata(test.schedule))
+		err := c.Init(context.Background(), getTestMetadata(test.schedule))
 		if test.errorExpected {
 			assert.Errorf(t, err, "Got no error while initializing an invalid schedule: %s", test.schedule)
 		} else {
@@ -99,7 +99,7 @@ func TestCronRead(t *testing.T) {
 	clk := clock.NewMock()
 	c := getNewCronWithClock(clk)
 	schedule := "@every 1s"
-	assert.NoErrorf(t, c.Init(getTestMetadata(schedule)), "error initializing valid schedule")
+	assert.NoErrorf(t, c.Init(context.Background(), getTestMetadata(schedule)), "error initializing valid schedule")
 	expectedCount := 5
 	observedCount := 0
 	err := c.Read(context.Background(), func(ctx context.Context, res *bindings.ReadResponse) ([]byte, error) {
@@ -122,7 +122,7 @@ func TestCronReadWithContextCancellation(t *testing.T) {
 	clk := clock.NewMock()
 	c := getNewCronWithClock(clk)
 	schedule := "@every 1s"
-	assert.NoErrorf(t, c.Init(getTestMetadata(schedule)), "error initializing valid schedule")
+	assert.NoErrorf(t, c.Init(context.Background(), getTestMetadata(schedule)), "error initializing valid schedule")
 	expectedCount := 5
 	observedCount := 0
 	ctx, cancel := context.WithCancel(context.Background())

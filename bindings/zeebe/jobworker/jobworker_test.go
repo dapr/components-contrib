@@ -14,6 +14,7 @@ limitations under the License.
 package jobworker
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -54,7 +55,7 @@ func TestInit(t *testing.T) {
 		var mcf mockClientFactory
 
 		jobWorker := ZeebeJobWorker{clientFactory: &mcf, logger: testLogger}
-		err := jobWorker.Init(metadata)
+		err := jobWorker.Init(context.Background(), metadata)
 
 		assert.Error(t, err, ErrMissingJobType)
 	})
@@ -67,7 +68,7 @@ func TestInit(t *testing.T) {
 			metadata: metadata,
 		}
 		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger}
-		err := jobWorker.Init(metadata)
+		err := jobWorker.Init(context.Background(), metadata)
 
 		assert.NoError(t, err)
 
@@ -86,7 +87,7 @@ func TestInit(t *testing.T) {
 		}
 
 		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger}
-		err := jobWorker.Init(metadata)
+		err := jobWorker.Init(context.Background(), metadata)
 		assert.Error(t, err, errParsing)
 	})
 
@@ -99,7 +100,7 @@ func TestInit(t *testing.T) {
 		}
 
 		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger}
-		err := jobWorker.Init(metadata)
+		err := jobWorker.Init(context.Background(), metadata)
 
 		assert.NoError(t, err)
 

@@ -85,7 +85,7 @@ func TestInit(t *testing.T) {
 			"Table":            "a",
 			"TtlAttributeName": "a",
 		}
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.Nil(t, err)
 	})
 
@@ -93,7 +93,7 @@ func TestInit(t *testing.T) {
 		m.Properties = map[string]string{
 			"Dummy": "a",
 		}
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.NotNil(t, err)
 		assert.Equal(t, err, fmt.Errorf("missing dynamodb table name"))
 	})
@@ -103,7 +103,7 @@ func TestInit(t *testing.T) {
 			"Table":  "a",
 			"Region": "eu-west-1",
 		}
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.Nil(t, err)
 	})
 
@@ -113,7 +113,7 @@ func TestInit(t *testing.T) {
 			"Table":        "a",
 			"partitionKey": pkey,
 		}
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.Nil(t, err)
 		assert.Equal(t, s.partitionKey, pkey)
 	})

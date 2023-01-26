@@ -51,7 +51,7 @@ func TestInit(t *testing.T) {
 			},
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
-		err := binding.Init(metadata)
+		err := binding.Init(context.Background(), metadata)
 		assert.Nil(t, err)
 		assert.Equal(t, developmentPrefix, binding.urlPrefix)
 	})
@@ -66,7 +66,7 @@ func TestInit(t *testing.T) {
 			},
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
-		err := binding.Init(metadata)
+		err := binding.Init(context.Background(), metadata)
 		assert.Nil(t, err)
 		assert.Equal(t, productionPrefix, binding.urlPrefix)
 	})
@@ -80,7 +80,7 @@ func TestInit(t *testing.T) {
 			},
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
-		err := binding.Init(metadata)
+		err := binding.Init(context.Background(), metadata)
 		assert.Nil(t, err)
 		assert.Equal(t, productionPrefix, binding.urlPrefix)
 	})
@@ -95,7 +95,7 @@ func TestInit(t *testing.T) {
 			},
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
-		err := binding.Init(metadata)
+		err := binding.Init(context.Background(), metadata)
 		assert.Error(t, err, "invalid value for development parameter: True")
 	})
 
@@ -107,7 +107,7 @@ func TestInit(t *testing.T) {
 			},
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
-		err := binding.Init(metadata)
+		err := binding.Init(context.Background(), metadata)
 		assert.Error(t, err, "the key-id parameter is required")
 	})
 
@@ -120,7 +120,7 @@ func TestInit(t *testing.T) {
 			},
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
-		err := binding.Init(metadata)
+		err := binding.Init(context.Background(), metadata)
 		assert.Nil(t, err)
 		assert.Equal(t, testKeyID, binding.authorizationBuilder.keyID)
 	})
@@ -133,7 +133,7 @@ func TestInit(t *testing.T) {
 			},
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
-		err := binding.Init(metadata)
+		err := binding.Init(context.Background(), metadata)
 		assert.Error(t, err, "the team-id parameter is required")
 	})
 
@@ -146,7 +146,7 @@ func TestInit(t *testing.T) {
 			},
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
-		err := binding.Init(metadata)
+		err := binding.Init(context.Background(), metadata)
 		assert.Nil(t, err)
 		assert.Equal(t, testTeamID, binding.authorizationBuilder.teamID)
 	})
@@ -159,7 +159,7 @@ func TestInit(t *testing.T) {
 			},
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
-		err := binding.Init(metadata)
+		err := binding.Init(context.Background(), metadata)
 		assert.Error(t, err, "the private-key parameter is required")
 	})
 
@@ -172,7 +172,7 @@ func TestInit(t *testing.T) {
 			},
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
-		err := binding.Init(metadata)
+		err := binding.Init(context.Background(), metadata)
 		assert.Nil(t, err)
 		assert.NotNil(t, binding.authorizationBuilder.privateKey)
 	})
@@ -335,7 +335,7 @@ func makeTestBinding(t *testing.T, log logger.Logger) *APNS {
 			privateKeyKey:  testPrivateKey,
 		},
 	}}
-	err := testBinding.Init(bindingMetadata)
+	err := testBinding.Init(context.Background(), bindingMetadata)
 	assert.Nil(t, err)
 
 	return testBinding

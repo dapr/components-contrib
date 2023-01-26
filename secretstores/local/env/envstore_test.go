@@ -35,12 +35,12 @@ func TestInit(t *testing.T) {
 	assert.Equal(t, secret, os.Getenv(key))
 
 	t.Run("Test init", func(t *testing.T) {
-		err := s.Init(secretstores.Metadata{})
+		err := s.Init(context.Background(), secretstores.Metadata{})
 		assert.Nil(t, err)
 	})
 
 	t.Run("Test set and get", func(t *testing.T) {
-		err := s.Init(secretstores.Metadata{})
+		err := s.Init(context.Background(), secretstores.Metadata{})
 		assert.Nil(t, err)
 		resp, err := s.GetSecret(context.Background(), secretstores.GetSecretRequest{Name: key})
 		assert.Nil(t, err)
@@ -49,7 +49,7 @@ func TestInit(t *testing.T) {
 	})
 
 	t.Run("Test bulk get", func(t *testing.T) {
-		err := s.Init(secretstores.Metadata{})
+		err := s.Init(context.Background(), secretstores.Metadata{})
 		assert.Nil(t, err)
 		resp, err := s.BulkGetSecret(context.Background(), secretstores.BulkGetSecretRequest{})
 		assert.Nil(t, err)

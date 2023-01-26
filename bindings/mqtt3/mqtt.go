@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -290,54 +290,56 @@ func (m *MQTT) createClientOptions(uri *url.URL, clientID string) *mqtt.ClientOp
 	return opts
 }
 
+func (m *MQTT) handleMessage(client mqtt.Client, mqttMsg mqtt.Message) {
+	// We're using m.ctx as context in this method because we don't have access to the Read context
+	// Canceling the Read context makes Read invoke "Disconnect" anyways
+	ctx := m.ctx
+
+	var bo backoff.BackOff = backoff.WithContext(m.backOff, ctx)
+	if m.metadata.backOffMaxRetries >= 0 {
+		bo = backoff.WithMaxRetries(bo, uint64(m.metadata.backOffMaxRetries))
+	}
+
+	err := retry.NotifyRecover(
+		func() error {
+			m.logger.Debugf("Processing MQTT message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
+			_, err := m.readHandler(ctx, &bindings.ReadResponse{
+				Data: mqttMsg.Payload(),
+				Metadata: map[string]string{
+					mqttTopic: mqttMsg.Topic(),
+				},
+			})
+			if err != nil {
+				return err
+			}
+
+			// Ack the message on success
+			mqttMsg.Ack()
+			return nil
+		},
+		bo,
+		func(err error, d time.Duration) {
+			m.logger.Errorf("Error processing MQTT message: %s/%d. Retrying…", mqttMsg.Topic(), mqttMsg.MessageID())
+		},
+		func() {
+			m.logger.Infof("Successfully processed MQTT message after it previously failed: %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
+		},
+	)
+	if err != nil {
+		m.logger.Errorf("Failed processing MQTT message: %s/%d: %v", mqttMsg.Topic(), mqttMsg.MessageID(), err)
+	}
+}
+
 // Extends createClientOptions with options for subscribers only
 func (m *MQTT) createSubscriberClientOptions(uri *url.URL, clientID string) *mqtt.ClientOptions {
 	opts := m.createClientOptions(uri, clientID)
 
 	// On (re-)connection, add the topic subscription
 	opts.OnConnect = func(c mqtt.Client) {
-		// We're using m.ctx as context in this method because we don't have access to the Read context
-		// Canceling the Read context makes Read invoke "Disconnect" anyways
-		ctx := m.ctx
-
-		token := c.Subscribe(m.metadata.topic, m.metadata.qos, func(client mqtt.Client, mqttMsg mqtt.Message) {
-			var bo backoff.BackOff = backoff.WithContext(m.backOff, ctx)
-			if m.metadata.backOffMaxRetries >= 0 {
-				bo = backoff.WithMaxRetries(bo, uint64(m.metadata.backOffMaxRetries))
-			}
-
-			err := retry.NotifyRecover(
-				func() error {
-					m.logger.Debugf("Processing MQTT message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
-					_, err := m.readHandler(ctx, &bindings.ReadResponse{
-						Data: mqttMsg.Payload(),
-						Metadata: map[string]string{
-							mqttTopic: mqttMsg.Topic(),
-						},
-					})
-					if err != nil {
-						return err
-					}
-
-					// Ack the message on success
-					mqttMsg.Ack()
-					return nil
-				},
-				bo,
-				func(err error, d time.Duration) {
-					m.logger.Errorf("Error processing MQTT message: %s/%d. Retrying…", mqttMsg.Topic(), mqttMsg.MessageID())
-				},
-				func() {
-					m.logger.Infof("Successfully processed MQTT message after it previously failed: %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
-				},
-			)
-			if err != nil {
-				m.logger.Errorf("Failed processing MQTT message: %s/%d: %v", mqttMsg.Topic(), mqttMsg.MessageID(), err)
-			}
-		})
+		token := c.Subscribe(m.metadata.topic, m.metadata.qos, m.handleMessage)
 
 		var err error
-		subscribeCtx, subscribeCancel := context.WithTimeout(ctx, defaultWait)
+		subscribeCtx, subscribeCancel := context.WithTimeout(m.ctx, defaultWait)
 		defer subscribeCancel()
 		select {
 		case <-token.Done():

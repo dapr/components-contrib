@@ -45,6 +45,8 @@ const (
 	TraceparentHeaderKey = "traceparent"
 	TracestateHeaderKey  = "tracestate"
 	TraceMetadataKey     = "traceHeaders"
+	securityToken        = "securityToken"
+	securityTokenHeader  = "securityTokenHeader"
 )
 
 // HTTPSource is a binding for an http url endpoint invocation
@@ -58,10 +60,12 @@ type HTTPSource struct {
 }
 
 type httpMetadata struct {
-	URL            string `mapstructure:"url"`
-	MTLSClientCert string `mapstructure:"mtlsClientCert"`
-	MTLSClientKey  string `mapstructure:"mtlsClientKey"`
-	MTLSRootCA     string `mapstructure:"mtlsRootCA"`
+	URL                 string `mapstructure:"url"`
+	MTLSClientCert      string `mapstructure:"mtlsClientCert"`
+	MTLSClientKey       string `mapstructure:"mtlsClientKey"`
+	MTLSRootCA          string `mapstructure:"mtlsRootCA"`
+	SecurityToken       string `mapstructure:"securityToken"`
+	SecurityTokenHeader string `mapstructure:"securityTokenHeader"`
 }
 
 // NewHTTP returns a new HTTPSource.
@@ -231,6 +235,11 @@ func (h *HTTPSource) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 	}
 	if _, ok := req.Metadata["Accept"]; !ok {
 		request.Header.Set("Accept", "application/json; charset=utf-8")
+	}
+
+	// Set security token values if set.
+	if h.metadata.SecurityToken != "" && h.metadata.SecurityTokenHeader != "" {
+		request.Header.Set(h.metadata.SecurityTokenHeader, h.metadata.SecurityToken)
 	}
 
 	// Any metadata keys that start with a capital letter

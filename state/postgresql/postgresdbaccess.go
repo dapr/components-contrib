@@ -300,16 +300,14 @@ func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest)
 		}
 
 		return &state.GetResponse{
-			Data:     data,
-			ETag:     ptr.Of(strconv.FormatUint(uint64(etag), 10)),
-			Metadata: req.Metadata,
+			Data: data,
+			ETag: ptr.Of(strconv.FormatUint(uint64(etag), 10)),
 		}, nil
 	}
 
 	return &state.GetResponse{
-		Data:     value,
-		ETag:     ptr.Of(strconv.FormatUint(uint64(etag), 10)),
-		Metadata: req.Metadata,
+		Data: value,
+		ETag: ptr.Of(strconv.FormatUint(uint64(etag), 10)),
 	}, nil
 }
 

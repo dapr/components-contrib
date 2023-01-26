@@ -227,7 +227,7 @@ func (f *Flow) Run() {
 			err := r.runnable(ctx)
 			t.Logf("Completed step: %s", r.name)
 			if err != nil {
-				t.Fatal(err)
+				t.Fatalf("Fatal error in step %s: %v", r.name, err)
 
 				return
 			}

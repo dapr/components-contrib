@@ -28,4 +28,10 @@ type pulsarMetadata struct {
 	Persistent              bool          `json:"persistent"`
 	Token                   string        `json:"token"`
 	RedeliveryDelay         time.Duration `json:"redeliveryDelay"`
+	topicSchemas            map[string]schemaMetadata
+}
+
+type schemaMetadata struct {
+	protocol string
+	value    string
 }

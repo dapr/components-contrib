@@ -94,8 +94,8 @@ github.com/dapr/dapr v1.9.4-0.20230112074057-9f143d8deeed h1:EfUlBjGuAz2HtFy9ad3
 github.com/dapr/dapr v1.9.4-0.20230112074057-9f143d8deeed/go.mod h1:gI1WBCngrFTTkXb+Z1svrb9DpmaI5LyYIDji9sbZ4mk=
 github.com/dapr/go-sdk v1.6.0 h1:jg5A2khSCHF8bGZsig5RWN/gD0jjitszc2V6Uq2pPdY=
 github.com/dapr/go-sdk v1.6.0/go.mod h1:KLQBltoD9K0w5hKTihdcyg9Epob9gypwL5dYcQzPro4=
-github.com/dapr/kit v0.0.4-0.20230105202559-fcb09958bfb0 h1:/gb6V6ua7hgizjYrg/q25wd2G3J3o/gZfvQDc37AUHQ=
-github.com/dapr/kit v0.0.4-0.20230105202559-fcb09958bfb0/go.mod h1:RFN6r5pZzhrelB0SUr8Dha44ckRBl7t+B01X5aw8WeE=
+github.com/dapr/kit v0.0.4 h1:i+7TIN4crC1Mo0JFyWpIkwAE8orlliA0O6/ibvs2AaE=
+github.com/dapr/kit v0.0.4/go.mod h1:RFN6r5pZzhrelB0SUr8Dha44ckRBl7t+B01X5aw8WeE=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

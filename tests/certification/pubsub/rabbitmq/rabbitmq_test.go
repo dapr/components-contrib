@@ -287,9 +287,10 @@ func TestRabbitMQ(t *testing.T) {
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/alpha"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+10),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
 			embedded.WithProfilePort(runtime.DefaultProfilePort),
+			embedded.WithGracefulShutdownDuration(2*time.Second),
 			componentRuntimeOptions(),
 		)).
 		// Run the application2 logic above.
@@ -299,9 +300,10 @@ func TestRabbitMQ(t *testing.T) {
 		Step(sidecar.Run(sidecarName2,
 			embedded.WithComponentsPath("./components/beta"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+2),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+2),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+11),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+2),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+2),
+			embedded.WithGracefulShutdownDuration(2*time.Second),
 			componentRuntimeOptions(),
 		)).
 		// Run the application3 logic above.
@@ -311,9 +313,10 @@ func TestRabbitMQ(t *testing.T) {
 		Step(sidecar.Run(sidecarName3,
 			embedded.WithComponentsPath("./components/beta"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+4),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+4),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+12),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+4),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+4),
+			embedded.WithGracefulShutdownDuration(2*time.Second),
 			componentRuntimeOptions(),
 		)).
 		Step("wait", flow.Sleep(5*time.Second)).
@@ -348,30 +351,25 @@ func TestRabbitMQTTL(t *testing.T) {
 		return func(ctx flow.Context, s common.Service) (err error) {
 			// Simulate periodic errors.
 			sim := simulate.PeriodicError(ctx, errFrequency)
-			err = multierr.Combine(
-				err,
-				s.AddTopicEventHandler(&common.Subscription{
-					PubsubName: pubsubName,
-					Topic:      topic,
-					Route:      fmt.Sprintf("/%s", topic),
-				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
-					if err := sim(); err != nil {
-						log.Debugf("Simulated error - pubsub: %s, topic: %s, id: %s, data: %s", e.PubsubName, e.Topic, e.ID, e.Data)
-						return true, err
-					}
+			return s.AddTopicEventHandler(&common.Subscription{
+				PubsubName: pubsubName,
+				Topic:      topic,
+				Route:      "/" + topic,
+			}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+				if err := sim(); err != nil {
+					log.Debugf("Simulated error - pubsub: %s, topic: %s, id: %s, data: %s", e.PubsubName, e.Topic, e.ID, e.Data)
+					return true, err
+				}
 
-					// Track/Observe the data of the event.
-					w.Observe(e.Data)
-					log.Debugf("Event - pubsub: %s, topic: %s, id: %s, data: %s", e.PubsubName, e.Topic, e.ID, e.Data)
-					return false, nil
-				}),
-			)
-
-			return err
+				// Track/Observe the data of the event.
+				w.Observe(e.Data)
+				log.Debugf("Event - pubsub: %s, topic: %s, id: %s, data: %s", e.PubsubName, e.Topic, e.ID, e.Data)
+				return false, nil
+			})
 		}
 	}
 
-	sendMessage := func(sidecarName, pubsubName, topic string, ttlInSeconds int) func(ctx flow.Context) error {
+	sendMessage := func(sidecarName, pubsubName, topic string, ttlInSecond int) func(ctx flow.Context) error {
 		fullMessages.Reset()
 		return func(ctx flow.Context) error {
 			// Declare what is expected BEFORE performing any steps
@@ -389,8 +387,8 @@ func TestRabbitMQTTL(t *testing.T) {
 			var err error
 			for _, msg := range msgs {
 				log.Debugf("Sending: '%s' on topic '%s'", msg, topic)
-				if ttlInSeconds > 0 {
-					err = sc.PublishEvent(ctx, pubsubName, topic, msg, daprClient.PublishEventWithMetadata(map[string]string{"ttlInSeconds": strconv.Itoa(ttlInSeconds)}))
+				if ttlInSecond > 0 {
+					err = sc.PublishEvent(ctx, pubsubName, topic, msg, daprClient.PublishEventWithMetadata(map[string]string{"ttlInSecond": strconv.Itoa(ttlInSecond)}))
 				} else {
 					err = sc.PublishEvent(ctx, pubsubName, topic, msg)
 				}
@@ -416,9 +414,10 @@ func TestRabbitMQTTL(t *testing.T) {
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/ttl"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+1),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+1),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+10),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+1),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+1),
+			embedded.WithGracefulShutdownDuration(2*time.Second),
 			componentRuntimeOptions(),
 		)).
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+2),
@@ -426,9 +425,10 @@ func TestRabbitMQTTL(t *testing.T) {
 		Step(sidecar.Run(sidecarName2,
 			embedded.WithComponentsPath("./components/ttl"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+2),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+2),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+11),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+2),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+2),
+			embedded.WithGracefulShutdownDuration(2*time.Second),
 			componentRuntimeOptions(),
 		)).
 		Step(app.Run(appID3, fmt.Sprintf(":%d", appPort+4),
@@ -436,9 +436,10 @@ func TestRabbitMQTTL(t *testing.T) {
 		Step(sidecar.Run(sidecarName3,
 			embedded.WithComponentsPath("./components/ttl"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+4),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+4),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+12),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+4),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+4),
+			embedded.WithGracefulShutdownDuration(2*time.Second),
 			componentRuntimeOptions(),
 		)).
 		// Wait for all queue crated and then stop.
@@ -453,9 +454,10 @@ func TestRabbitMQTTL(t *testing.T) {
 		Step(sidecar.Run(sidecarNameTTLClient,
 			embedded.WithComponentsPath("./components/ttl"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, 0),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+14),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
 			embedded.WithProfilePort(runtime.DefaultProfilePort),
+			embedded.WithGracefulShutdownDuration(2*time.Second),
 			componentRuntimeOptions(),
 		)).
 		Step("wait", flow.Sleep(5*time.Second)).
@@ -469,9 +471,10 @@ func TestRabbitMQTTL(t *testing.T) {
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/ttl"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+1),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+1),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+10),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+1),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+1),
+			embedded.WithGracefulShutdownDuration(2*time.Second),
 			componentRuntimeOptions(),
 		)).
 		Step("verify full messages", func(ctx flow.Context) error {
@@ -489,9 +492,10 @@ func TestRabbitMQTTL(t *testing.T) {
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/ttl"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+1),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+1),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+10),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+1),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+1),
+			embedded.WithGracefulShutdownDuration(2*time.Second),
 			componentRuntimeOptions(),
 		)).
 		Step("verify messages only ttl", func(ctx flow.Context) error {
@@ -509,9 +513,10 @@ func TestRabbitMQTTL(t *testing.T) {
 		Step(sidecar.Run(sidecarName2,
 			embedded.WithComponentsPath("./components/ttl"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+2),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+2),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+11),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+2),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+2),
+			embedded.WithGracefulShutdownDuration(2*time.Second),
 			componentRuntimeOptions(),
 		)).
 		Step("verify messages only ttl", func(ctx flow.Context) error {
@@ -529,9 +534,10 @@ func TestRabbitMQTTL(t *testing.T) {
 		Step(sidecar.Run(sidecarName3,
 			embedded.WithComponentsPath("./components/ttl"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+4),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+4),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+12),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+4),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+4),
+			embedded.WithGracefulShutdownDuration(2*time.Second),
 			componentRuntimeOptions(),
 		)).
 		Step("verify messages only ttl", func(ctx flow.Context) error {

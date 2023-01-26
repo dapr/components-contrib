@@ -14,6 +14,9 @@ limitations under the License.
 package app
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -81,7 +84,16 @@ func Stop(appName string) flow.Runnable {
 func (a App) Stop(ctx flow.Context) error {
 	var s common.Service
 	if ctx.Get(a.appName, &s) {
-		return s.Stop()
+		err := s.Stop()
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				// If the error is a context deadline exceeded, it just means the HTTP server couldn't shut down gracefully
+				// We will log that error but we can safely ignore it
+				log.Println("Service did not shut down gracefully - ignoring the error")
+				return nil
+			}
+			return fmt.Errorf("failed to stop service: %w", err)
+		}
 	}
 
 	return nil

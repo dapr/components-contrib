@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/dapr/components-contrib v1.9.6
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20220526162429-d03aeba3e0d6
-	github.com/dapr/dapr v1.9.4-0.20230112074057-9f143d8deeed
+	github.com/dapr/dapr v1.9.4-0.20230126201028-81bc49c384ef
 	github.com/dapr/go-sdk v1.6.0
 	github.com/dapr/kit v0.0.4
 	github.com/jackc/pgx/v5 v5.2.0
@@ -27,7 +27,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.9.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
-	github.com/fasthttp/router v1.4.14 // indirect
+	github.com/fasthttp/router v1.4.15 // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
@@ -42,7 +42,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
-	github.com/google/cel-go v0.12.6 // indirect
+	github.com/google/cel-go v0.13.0 // indirect
 	github.com/google/gnostic v0.5.7-v3refs // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
@@ -63,14 +63,16 @@ require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
 	github.com/jackc/puddle/v2 v2.1.2 // indirect
-	github.com/jhump/protoreflect v1.13.0 // indirect
+	github.com/jhump/protoreflect v1.14.1 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.15.15 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
+	github.com/marusama/semaphore/v2 v2.5.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
+	github.com/microsoft/durabletask-go v0.1.2 // indirect
 	github.com/miekg/dns v1.1.50 // indirect
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
@@ -98,14 +100,14 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.44.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	go.opentelemetry.io/otel v1.11.1 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.11.1 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.11.1 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.11.1 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.11.1 // indirect
-	go.opentelemetry.io/otel/exporters/zipkin v1.11.1 // indirect
-	go.opentelemetry.io/otel/sdk v1.11.1 // indirect
-	go.opentelemetry.io/otel/trace v1.11.1 // indirect
+	go.opentelemetry.io/otel v1.11.2 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.11.2 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.11.2 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.11.2 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.11.2 // indirect
+	go.opentelemetry.io/otel/exporters/zipkin v1.11.2 // indirect
+	go.opentelemetry.io/otel/sdk v1.11.2 // indirect
+	go.opentelemetry.io/otel/trace v1.11.2 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	golang.org/x/crypto v0.5.0 // indirect

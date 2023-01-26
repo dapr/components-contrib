@@ -226,7 +226,7 @@ func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 	topic := p.formatTopic(req.Topic)
 	producer, ok := p.cache.Get(topic)
 
-	schemaMetadata, hasSchema := p.metadata.topicSchemas[req.Topic]
+	sm, hasSchema := p.metadata.topicSchemas[req.Topic]
 
 	if !ok || producer == nil {
 		p.logger.Debugf("creating producer for topic %s, full topic name in pulsar is %s", req.Topic, topic)
@@ -239,7 +239,7 @@ func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 		}
 
 		if hasSchema {
-			opts.Schema = getPulsarSchema(schemaMetadata)
+			opts.Schema = getPulsarSchema(sm)
 		}
 
 		producer, err = p.client.CreateProducer(opts)
@@ -250,7 +250,7 @@ func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 		p.cache.Add(topic, producer)
 	}
 
-	msg, err = parsePublishMetadata(req, schemaMetadata)
+	msg, err = parsePublishMetadata(req, sm)
 	if err != nil {
 		return err
 	}
@@ -335,8 +335,8 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 		NackRedeliveryDelay: p.metadata.RedeliveryDelay,
 	}
 
-	if schemaMetadata, ok := p.metadata.topicSchemas[req.Topic]; ok {
-		options.Schema = getPulsarSchema(schemaMetadata)
+	if sm, ok := p.metadata.topicSchemas[req.Topic]; ok {
+		options.Schema = getPulsarSchema(sm)
 	}
 	consumer, err := p.client.Subscribe(options)
 	if err != nil {

@@ -317,7 +317,7 @@ func (p *Pulsar) Close() error {
 		producer, _ := p.cache.Peek(k)
 		if producer != nil {
 			p.logger.Debugf("closing producer for topic %s", k)
-			producer.(pulsar.Producer).Close()
+			producer.Close()
 		}
 	}
 	p.client.Close()

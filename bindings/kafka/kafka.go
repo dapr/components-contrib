@@ -29,12 +29,11 @@ const (
 )
 
 type Binding struct {
-	kafka           *kafka.Kafka
-	publishTopic    string
-	topics          []string
-	logger          logger.Logger
-	subscribeCtx    context.Context
-	subscribeCancel context.CancelFunc
+	kafka        *kafka.Kafka
+	publishTopic string
+	topics       []string
+	logger       logger.Logger
+	closeCh      chan struct{}
 }
 
 // NewKafka returns a new kafka binding instance.
@@ -43,15 +42,14 @@ func NewKafka(logger logger.Logger) bindings.InputOutputBinding {
 	// in kafka binding component, disable consumer retry by default
 	k.DefaultConsumeRetryEnabled = false
 	return &Binding{
-		kafka:  k,
-		logger: logger,
+		kafka:   k,
+		logger:  logger,
+		closeCh: make(chan struct{}),
 	}
 }
 
-func (b *Binding) Init(metadata bindings.Metadata) error {
-	b.subscribeCtx, b.subscribeCancel = context.WithCancel(context.Background())
-
-	err := b.kafka.Init(metadata.Properties)
+func (b *Binding) Init(ctx context.Context, metadata bindings.Metadata) error {
+	err := b.kafka.Init(ctx, metadata.Properties)
 	if err != nil {
 		return err
 	}
@@ -74,7 +72,7 @@ func (b *Binding) Operations() []bindings.OperationKind {
 }
 
 func (b *Binding) Close() (err error) {
-	b.subscribeCancel()
+	close(b.closeCh)
 	return b.kafka.Close()
 }
 
@@ -101,7 +99,7 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 		// Wait for context cancelation
 		select {
 		case <-ctx.Done():
-		case <-b.subscribeCtx.Done():
+		case <-b.closeCh:
 		}
 
 		// Remove the topic handler before restarting the subscriber
@@ -110,17 +108,19 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 		}
 
 		// If the component's context has been canceled, do not re-subscribe
-		if b.subscribeCtx.Err() != nil {
+		select {
+		case <-ctx.Done():
 			return
+		default:
 		}
 
-		err := b.kafka.Subscribe(b.subscribeCtx)
+		err := b.kafka.Subscribe(ctx)
 		if err != nil {
 			b.logger.Errorf("kafka binding: error re-subscribing: %v", err)
 		}
 	}()
 
-	return b.kafka.Subscribe(b.subscribeCtx)
+	return b.kafka.Subscribe(ctx)
 }
 
 func adaptHandler(handler bindings.Handler) kafka.EventHandler {

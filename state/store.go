@@ -23,18 +23,18 @@ import (
 // Store is an interface to perform operations on store.
 type Store interface {
 	BulkStore
-	Init(metadata Metadata) error
-	Features() []Feature
+	Init(ctx context.Context, metadata Metadata) error
+	Features(ctx context.Context) []Feature
 	Delete(ctx context.Context, req *DeleteRequest) error
 	Get(ctx context.Context, req *GetRequest) (*GetResponse, error)
 	Set(ctx context.Context, req *SetRequest) error
 	GetComponentMetadata() map[string]string
 }
 
-func Ping(store Store) error {
+func Ping(ctx context.Context, store Store) error {
 	// checks if this store has the ping option then executes
 	if storeWithPing, ok := store.(health.Pinger); ok {
-		return storeWithPing.Ping()
+		return storeWithPing.Ping(ctx)
 	} else {
 		return fmt.Errorf("ping is not implemented by this state store")
 	}
@@ -61,8 +61,8 @@ func NewDefaultBulkStore(store Store) DefaultBulkStore {
 }
 
 // Features returns the features of the encapsulated store.
-func (b *DefaultBulkStore) Features() []Feature {
-	return b.s.Features()
+func (b *DefaultBulkStore) Features(ctx context.Context) []Feature {
+	return b.s.Features(ctx)
 }
 
 // BulkGet performs a bulks get operations.

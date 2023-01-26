@@ -85,7 +85,7 @@ func NewRocketMQ(l logger.Logger) pubsub.PubSub {
 	}
 }
 
-func (r *rocketMQ) Init(metadata pubsub.Metadata) error {
+func (r *rocketMQ) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	var err error
 	r.metadata, err = parseRocketMQMetaData(metadata)
 	if err != nil {

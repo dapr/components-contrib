@@ -87,7 +87,7 @@ func NewAWSKinesis(logger logger.Logger) bindings.InputOutputBinding {
 }
 
 // Init does metadata parsing and connection creation.
-func (a *AWSKinesis) Init(metadata bindings.Metadata) error {
+func (a *AWSKinesis) Init(ctx context.Context, metadata bindings.Metadata) error {
 	m, err := a.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -107,7 +107,7 @@ func (a *AWSKinesis) Init(metadata bindings.Metadata) error {
 	}
 
 	streamName := aws.String(m.StreamName)
-	stream, err := client.DescribeStream(&kinesis.DescribeStreamInput{
+	stream, err := client.DescribeStreamWithContext(ctx, &kinesis.DescribeStreamInput{
 		StreamName: streamName,
 	})
 	if err != nil {
@@ -230,15 +230,21 @@ func (a *AWSKinesis) Subscribe(ctx context.Context, streamDesc kinesis.StreamDes
 	return nil
 }
 
-func (a *AWSKinesis) ensureConsumer(parentCtx context.Context, streamARN *string) (*string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	consumer, err := a.client.DescribeStreamConsumerWithContext(ctx, &kinesis.DescribeStreamConsumerInput{
-		ConsumerName: &a.metadata.ConsumerName,
-		StreamARN:    streamARN,
-	})
-	cancel()
+func (a *AWSKinesis) ensureConsumer(ctx context.Context, streamARN *string) (*string, error) {
+	var (
+		err      error
+		consumer *kinesis.DescribeStreamConsumerOutput
+	)
+	{
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		consumer, err = a.client.DescribeStreamConsumerWithContext(ctx, &kinesis.DescribeStreamConsumerInput{
+			ConsumerName: &a.metadata.ConsumerName,
+			StreamARN:    streamARN,
+		})
+	}
 	if err != nil {
-		return a.registerConsumer(parentCtx, streamARN)
+		return a.registerConsumer(ctx, streamARN)
 	}
 
 	return consumer.ConsumerDescription.ConsumerARN, nil

@@ -165,7 +165,7 @@ func isValidIndexedPropertyType(s string) bool {
 }
 
 // Init initializes the SQL server state store.
-func (s *SQLServer) Init(metadata state.Metadata) error {
+func (s *SQLServer) Init(ctx context.Context, metadata state.Metadata) error {
 	err := s.parseMetadata(metadata.Properties)
 	if err != nil {
 		return err
@@ -342,7 +342,7 @@ func (s *SQLServer) setTable(tableName string) error {
 }
 
 // Features returns the features available in this state store.
-func (s *SQLServer) Features() []state.Feature {
+func (s *SQLServer) Features(ctx context.Context) []state.Feature {
 	return s.features
 }
 

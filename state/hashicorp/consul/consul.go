@@ -54,7 +54,7 @@ func NewConsulStateStore(logger logger.Logger) state.Store {
 
 // Init does metadata and config parsing and initializes the
 // Consul client.
-func (c *Consul) Init(metadata state.Metadata) error {
+func (c *Consul) Init(ctx context.Context, metadata state.Metadata) error {
 	consulConfig, err := metadataToConfig(metadata.Properties)
 	if err != nil {
 		return fmt.Errorf("couldn't convert metadata properties: %s", err)
@@ -84,7 +84,7 @@ func (c *Consul) Init(metadata state.Metadata) error {
 }
 
 // Features returns the features available in this state store.
-func (c *Consul) Features() []state.Feature {
+func (c *Consul) Features(ctx context.Context) []state.Feature {
 	// Etag is just returned and not handled in set or delete operations.
 	return nil
 }

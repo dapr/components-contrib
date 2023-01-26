@@ -137,7 +137,7 @@ func NewHashiCorpVaultSecretStore(logger logger.Logger) secretstores.SecretStore
 }
 
 // Init creates a HashiCorp Vault client.
-func (v *vaultSecretStore) Init(meta secretstores.Metadata) error {
+func (v *vaultSecretStore) Init(ctx context.Context, meta secretstores.Metadata) error {
 	m := VaultMetadata{
 		VaultKVUsePrefix: true,
 	}

@@ -21,9 +21,6 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-// ctx substitutes for context propagation until middleware APIs support it.
-var ctx = context.Background()
-
 // middlewareMetadata includes configuration used for the WebAssembly handler.
 // Detailed notes are in README.md for visibility.
 //
@@ -47,8 +44,8 @@ func NewMiddleware(logger logger.Logger) dapr.Middleware {
 	return &middleware{logger: logger}
 }
 
-func (m *middleware) GetHandler(metadata dapr.Metadata) (func(next http.Handler) http.Handler, error) {
-	rh, err := m.getHandler(metadata)
+func (m *middleware) GetHandler(ctx context.Context, metadata dapr.Metadata) (func(next http.Handler) http.Handler, error) {
+	rh, err := m.getHandler(ctx, metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +53,7 @@ func (m *middleware) GetHandler(metadata dapr.Metadata) (func(next http.Handler)
 }
 
 // getHandler is extracted for unit testing.
-func (m *middleware) getHandler(metadata dapr.Metadata) (*requestHandler, error) {
+func (m *middleware) getHandler(ctx context.Context, metadata dapr.Metadata) (*requestHandler, error) {
 	meta, err := m.getMetadata(metadata)
 	if err != nil {
 		return nil, fmt.Errorf("wasm basic: failed to parse metadata: %w", err)
@@ -164,6 +161,6 @@ func (rh *requestHandler) requestHandler(next http.Handler) http.Handler {
 }
 
 // Close implements io.Closer
-func (rh *requestHandler) Close() error {
+func (rh *requestHandler) Close(ctx context.Context) error {
 	return rh.mw.Close(ctx)
 }

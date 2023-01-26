@@ -80,7 +80,7 @@ func NewDingTalkWebhook(l logger.Logger) bindings.InputOutputBinding {
 }
 
 // Init performs metadata parsing.
-func (t *DingTalkWebhook) Init(metadata bindings.Metadata) error {
+func (t *DingTalkWebhook) Init(ctx context.Context, metadata bindings.Metadata) error {
 	var err error
 	if err = t.settings.Decode(metadata.Properties); err != nil {
 		return fmt.Errorf("dingtalk configuration error: %w", err)

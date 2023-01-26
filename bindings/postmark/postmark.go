@@ -74,7 +74,7 @@ func (p *Postmark) parseMetadata(meta bindings.Metadata) (postmarkMetadata, erro
 }
 
 // Init does metadata parsing and not much else :).
-func (p *Postmark) Init(metadata bindings.Metadata) error {
+func (p *Postmark) Init(ctx context.Context, metadata bindings.Metadata) error {
 	// Parse input metadata
 	meta, err := p.parseMetadata(metadata)
 	if err != nil {

@@ -40,7 +40,7 @@ type consumer struct {
 
 // QueueHelper enables injection for testnig.
 type QueueHelper interface {
-	Init(metadata bindings.Metadata) (*storageQueuesMetadata, error)
+	Init(ctx context.Context, metadata bindings.Metadata) (*storageQueuesMetadata, error)
 	Write(ctx context.Context, data []byte, ttl *time.Duration) error
 	Read(ctx context.Context, consumer *consumer) error
 }
@@ -55,7 +55,7 @@ type AzureQueueHelper struct {
 }
 
 // Init sets up this helper.
-func (d *AzureQueueHelper) Init(metadata bindings.Metadata) (*storageQueuesMetadata, error) {
+func (d *AzureQueueHelper) Init(ctx context.Context, metadata bindings.Metadata) (*storageQueuesMetadata, error) {
 	m, err := parseMetadata(metadata)
 	if err != nil {
 		return nil, err
@@ -89,7 +89,7 @@ func (d *AzureQueueHelper) Init(metadata bindings.Metadata) (*storageQueuesMetad
 		d.queueURL = azqueue.NewQueueURL(*URL, p)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	_, err = d.queueURL.Create(ctx, azqueue.Metadata{})
 	cancel()
 	if err != nil {
@@ -193,8 +193,8 @@ func NewAzureStorageQueues(logger logger.Logger) bindings.InputOutputBinding {
 }
 
 // Init parses connection properties and creates a new Storage Queue client.
-func (a *AzureStorageQueues) Init(metadata bindings.Metadata) (err error) {
-	a.metadata, err = a.helper.Init(metadata)
+func (a *AzureStorageQueues) Init(ctx context.Context, metadata bindings.Metadata) (err error) {
+	a.metadata, err = a.helper.Init(ctx, metadata)
 	if err != nil {
 		return err
 	}

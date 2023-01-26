@@ -14,6 +14,7 @@ limitations under the License.
 package ratelimit
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -46,7 +47,7 @@ func NewRateLimitMiddleware(_ logger.Logger) middleware.Middleware {
 type Middleware struct{}
 
 // GetHandler returns the HTTP handler provided by the middleware.
-func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
+func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {
 		return nil, err

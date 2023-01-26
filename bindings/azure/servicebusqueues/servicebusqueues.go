@@ -49,7 +49,7 @@ func NewAzureServiceBusQueues(logger logger.Logger) bindings.InputOutputBinding 
 }
 
 // Init parses connection properties and creates a new Service Bus Queue client.
-func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) (err error) {
+func (a *AzureServiceBusQueues) Init(ctx context.Context, metadata bindings.Metadata) (err error) {
 	a.metadata, err = impl.ParseMetadata(metadata.Properties, a.logger, (impl.MetadataModeBinding | impl.MetadataModeQueues))
 	if err != nil {
 		return err
@@ -62,7 +62,7 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) (err error) {
 	}
 
 	// Will do nothing if DisableEntityManagement is false
-	err = a.client.EnsureQueue(context.Background(), a.metadata.QueueName)
+	err = a.client.EnsureQueue(ctx, a.metadata.QueueName)
 	if err != nil {
 		return err
 	}

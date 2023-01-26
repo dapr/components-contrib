@@ -119,7 +119,7 @@ func parseAndValidateMetadata(meta state.Metadata) (*couchbaseMetadata, error) {
 }
 
 // Init does metadata and connection parsing.
-func (cbs *Couchbase) Init(metadata state.Metadata) error {
+func (cbs *Couchbase) Init(ctx context.Context, metadata state.Metadata) error {
 	meta, err := parseAndValidateMetadata(metadata)
 	if err != nil {
 		return err
@@ -156,7 +156,7 @@ func (cbs *Couchbase) Init(metadata state.Metadata) error {
 }
 
 // Features returns the features available in this state store.
-func (cbs *Couchbase) Features() []state.Feature {
+func (cbs *Couchbase) Features(ctx context.Context) []state.Feature {
 	return cbs.features
 }
 

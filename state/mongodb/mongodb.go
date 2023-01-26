@@ -113,7 +113,7 @@ func NewMongoDB(logger logger.Logger) state.Store {
 }
 
 // Init establishes connection to the store based on the metadata.
-func (m *MongoDB) Init(metadata state.Metadata) error {
+func (m *MongoDB) Init(ctx context.Context, metadata state.Metadata) error {
 	meta, err := getMongoDBMetaData(metadata)
 	if err != nil {
 		return err
@@ -121,12 +121,12 @@ func (m *MongoDB) Init(metadata state.Metadata) error {
 
 	m.operationTimeout = meta.OperationTimeout
 
-	client, err := getMongoDBClient(meta)
+	client, err := getMongoDBClient(ctx, meta)
 	if err != nil {
 		return fmt.Errorf("error in creating mongodb client: %s", err)
 	}
 
-	if err = client.Ping(context.Background(), nil); err != nil {
+	if err = client.Ping(ctx, nil); err != nil {
 		return fmt.Errorf("error in connecting to mongodb, host: %s error: %s", meta.Host, err)
 	}
 
@@ -154,7 +154,7 @@ func (m *MongoDB) Init(metadata state.Metadata) error {
 }
 
 // Features returns the features available in this state store.
-func (m *MongoDB) Features() []state.Feature {
+func (m *MongoDB) Features(ctx context.Context) []state.Feature {
 	return m.features
 }
 
@@ -168,8 +168,8 @@ func (m *MongoDB) Set(ctx context.Context, req *state.SetRequest) error {
 	return nil
 }
 
-func (m *MongoDB) Ping() error {
-	if err := m.client.Ping(context.Background(), nil); err != nil {
+func (m *MongoDB) Ping(ctx context.Context) error {
+	if err := m.client.Ping(ctx, nil); err != nil {
 		return fmt.Errorf("mongoDB store: error connecting to mongoDB at %s: %s", m.metadata.Host, err)
 	}
 
@@ -360,14 +360,14 @@ func getMongoURI(metadata *mongoDBMetadata) string {
 	return fmt.Sprintf(connectionURIFormat, metadata.Host, metadata.DatabaseName, metadata.Params)
 }
 
-func getMongoDBClient(metadata *mongoDBMetadata) (*mongo.Client, error) {
+func getMongoDBClient(ctx context.Context, metadata *mongoDBMetadata) (*mongo.Client, error) {
 	uri := getMongoURI(metadata)
 
 	// Set client options
 	clientOptions := options.Client().ApplyURI(uri)
 
 	// Connect to MongoDB
-	ctx, cancel := context.WithTimeout(context.Background(), metadata.OperationTimeout)
+	ctx, cancel := context.WithTimeout(ctx, metadata.OperationTimeout)
 	defer cancel()
 
 	daprUserAgent := "dapr-" + logger.DaprVersion

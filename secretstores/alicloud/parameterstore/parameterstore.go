@@ -61,7 +61,7 @@ type oosSecretStore struct {
 }
 
 // Init creates a Alicloud parameter store client.
-func (o *oosSecretStore) Init(metadata secretstores.Metadata) error {
+func (o *oosSecretStore) Init(ctx context.Context, metadata secretstores.Metadata) error {
 	meta, err := o.getParameterStoreMetadata(metadata)
 	if err != nil {
 		return err

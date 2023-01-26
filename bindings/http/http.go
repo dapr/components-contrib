@@ -74,7 +74,7 @@ func NewHTTP(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init performs metadata parsing.
-func (h *HTTPSource) Init(metadata bindings.Metadata) error {
+func (h *HTTPSource) Init(ctx context.Context, metadata bindings.Metadata) error {
 	var err error
 	if err = mapstructure.Decode(metadata.Properties, &h.metadata); err != nil {
 		return err

@@ -113,7 +113,7 @@ func (c *StateStore) GetComponentMetadata() map[string]string {
 }
 
 // Init does metadata and connection parsing.
-func (c *StateStore) Init(meta state.Metadata) error {
+func (c *StateStore) Init(ctx context.Context, meta state.Metadata) error {
 	c.logger.Debugf("CosmosDB init start")
 
 	m := metadata{
@@ -191,14 +191,14 @@ func (c *StateStore) Init(meta state.Metadata) error {
 	c.metadata = m
 	c.contentType = m.ContentType
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
 	_, err = c.client.Read(ctx, nil)
-	cancel()
 	return err
 }
 
 // Features returns the features available in this state store.
-func (c *StateStore) Features() []state.Feature {
+func (c *StateStore) Features(ctx context.Context) []state.Feature {
 	return []state.Feature{
 		state.FeatureETag,
 		state.FeatureTransactional,
@@ -464,8 +464,8 @@ func (c *StateStore) Query(ctx context.Context, req *state.QueryRequest) (*state
 	}, nil
 }
 
-func (c *StateStore) Ping() error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+func (c *StateStore) Ping(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	_, err := c.client.Read(ctx, nil)
 	cancel()
 	if err != nil {

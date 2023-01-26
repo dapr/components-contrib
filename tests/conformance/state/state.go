@@ -223,7 +223,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	}
 
 	t.Run("init", func(t *testing.T) {
-		err := statestore.Init(state.Metadata{
+		err := statestore.Init(context.Background(), state.Metadata{
 			Base: metadata.Base{Properties: props},
 		})
 		assert.Nil(t, err)
@@ -235,7 +235,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	}
 
 	t.Run("ping", func(t *testing.T) {
-		err := state.Ping(statestore)
+		err := state.Ping(context.Background(), statestore)
 		// TODO: Ideally, all stable components should implenment ping function,
 		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
@@ -397,7 +397,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	if config.HasOperation("transaction") {
 		t.Run("transaction", func(t *testing.T) {
 			// Check if transactional feature is listed
-			features := statestore.Features()
+			features := statestore.Features(context.Background())
 			assert.True(t, state.FeatureTransactional.IsPresent(features))
 
 			var transactionGroups []int
@@ -575,7 +575,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		})
 	} else {
 		// Check if transactional feature is NOT listed
-		features := statestore.Features()
+		features := statestore.Features(context.Background())
 		assert.False(t, state.FeatureTransactional.IsPresent(features))
 	}
 
@@ -588,7 +588,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			fakeEtag := "not-an-etag"
 
 			// Check if eTag feature is listed
-			features := statestore.Features()
+			features := statestore.Features(context.Background())
 			require.True(t, state.FeatureETag.IsPresent(features))
 
 			// Delete any potential object, it's important to start from a clean slate.
@@ -653,7 +653,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		})
 	} else {
 		// Check if eTag feature is NOT listed
-		features := statestore.Features()
+		features := statestore.Features(context.Background())
 		require.False(t, state.FeatureETag.IsPresent(features))
 	}
 

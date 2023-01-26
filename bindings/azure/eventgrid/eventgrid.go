@@ -74,7 +74,7 @@ func NewAzureEventGrid(logger logger.Logger) bindings.InputOutputBinding {
 }
 
 // Init performs metadata init.
-func (a *AzureEventGrid) Init(metadata bindings.Metadata) error {
+func (a *AzureEventGrid) Init(ctx context.Context, metadata bindings.Metadata) error {
 	m, err := a.parseMetadata(metadata)
 	if err != nil {
 		return err

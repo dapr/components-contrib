@@ -48,7 +48,7 @@ func NewKubernetes(logger logger.Logger) bindings.InputBinding {
 	return &kubernetesInput{logger: logger}
 }
 
-func (k *kubernetesInput) Init(metadata bindings.Metadata) error {
+func (k *kubernetesInput) Init(ctx context.Context, metadata bindings.Metadata) error {
 	client, err := kubeclient.GetKubeClient()
 	if err != nil {
 		return err

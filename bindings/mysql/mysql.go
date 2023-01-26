@@ -81,7 +81,7 @@ func NewMysql(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init initializes the MySQL binding.
-func (m *Mysql) Init(metadata bindings.Metadata) error {
+func (m *Mysql) Init(ctx context.Context, metadata bindings.Metadata) error {
 	m.logger.Debug("Initializing MySql binding")
 
 	p := metadata.Properties

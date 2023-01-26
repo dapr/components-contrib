@@ -35,26 +35,24 @@ type RocketMQ struct {
 	settings Settings
 	producer mqw.Producer
 
-	ctx           context.Context
-	cancel        context.CancelFunc
 	backOffConfig retry.Config
+	closeCh       chan struct{}
 }
 
 func NewRocketMQ(l logger.Logger) *RocketMQ {
 	return &RocketMQ{ //nolint:exhaustivestruct
 		logger:   l,
 		producer: nil,
+		closeCh:  make(chan struct{}),
 	}
 }
 
 // Init performs metadata parsing.
-func (a *RocketMQ) Init(metadata bindings.Metadata) error {
+func (a *RocketMQ) Init(ctx context.Context, metadata bindings.Metadata) error {
 	var err error
 	if err = a.settings.Decode(metadata.Properties); err != nil {
 		return err
 	}
-
-	a.ctx, a.cancel = context.WithCancel(context.Background())
 
 	// Default retry configuration is used if no
 	// backOff properties are set.
@@ -117,7 +115,7 @@ func (a *RocketMQ) Read(ctx context.Context, handler bindings.Handler) error {
 	go func() {
 		select {
 		case <-ctx.Done():
-		case <-a.ctx.Done():
+		case <-a.closeCh:
 		}
 
 		innerErr := consumer.Shutdown()
@@ -131,8 +129,7 @@ func (a *RocketMQ) Read(ctx context.Context, handler bindings.Handler) error {
 
 // Close implements cancel all listeners, see https://github.com/dapr/components-contrib/issues/779
 func (a *RocketMQ) Close() error {
-	a.cancel()
-
+	close(a.closeCh)
 	return nil
 }
 
@@ -199,21 +196,21 @@ func (a *RocketMQ) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (a *RocketMQ) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (a *RocketMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	rst := &bindings.InvokeResponse{Data: nil, Metadata: nil}
 
 	if req.Operation != bindings.CreateOperation {
 		return rst, fmt.Errorf("binding-rocketmq error: unsupported operation %s", req.Operation)
 	}
 
-	return rst, a.sendMessage(req)
+	return rst, a.sendMessage(ctx, req)
 }
 
-func (a *RocketMQ) sendMessage(req *bindings.InvokeRequest) error {
+func (a *RocketMQ) sendMessage(ctx context.Context, req *bindings.InvokeRequest) error {
 	topic := req.Metadata[metadataRocketmqTopic]
 
 	if topic != "" {
-		_, err := a.send(topic, req.Metadata[metadataRocketmqTag], req.Metadata[metadataRocketmqKey], req.Data)
+		_, err := a.send(ctx, topic, req.Metadata[metadataRocketmqTag], req.Metadata[metadataRocketmqKey], req.Data)
 		if err != nil {
 			return err
 		}
@@ -229,7 +226,7 @@ func (a *RocketMQ) sendMessage(req *bindings.InvokeRequest) error {
 		if err != nil {
 			return err
 		}
-		_, err = a.send(topic, mqExpression, req.Metadata[metadataRocketmqKey], req.Data)
+		_, err = a.send(ctx, topic, mqExpression, req.Metadata[metadataRocketmqKey], req.Data)
 		if err != nil {
 			return err
 		}
@@ -239,9 +236,9 @@ func (a *RocketMQ) sendMessage(req *bindings.InvokeRequest) error {
 	return nil
 }
 
-func (a *RocketMQ) send(topic, mqExpr, key string, data []byte) (bool, error) {
+func (a *RocketMQ) send(ctx context.Context, topic, mqExpr, key string, data []byte) (bool, error) {
 	msg := primitive.NewMessage(topic, data).WithTag(mqExpr).WithKeys([]string{key})
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	rst, err := a.producer.SendSync(ctx, msg)
 	if err != nil {

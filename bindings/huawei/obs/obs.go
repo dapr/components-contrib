@@ -75,7 +75,7 @@ func NewHuaweiOBS(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init does metadata parsing and connection creation.
-func (o *HuaweiOBS) Init(metadata bindings.Metadata) error {
+func (o *HuaweiOBS) Init(ctx context.Context, metadata bindings.Metadata) error {
 	o.logger.Debugf("initializing Huawei OBS binding and parsing metadata")
 
 	m, err := o.parseMetadata(metadata)

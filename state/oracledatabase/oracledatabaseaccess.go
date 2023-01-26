@@ -76,7 +76,7 @@ func parseMetadata(meta map[string]string) (oracleDatabaseMetadata, error) {
 }
 
 // Init sets up OracleDatabase connection and ensures that the state table exists.
-func (o *oracleDatabaseAccess) Init(metadata state.Metadata) error {
+func (o *oracleDatabaseAccess) Init(ctx context.Context, metadata state.Metadata) error {
 	o.logger.Debug("Initializing OracleDatabase state store")
 	meta, err := parseMetadata(metadata.Properties)
 	o.metadata = meta

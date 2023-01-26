@@ -66,7 +66,7 @@ func newPostgresDBAccess(logger logger.Logger) *PostgresDBAccess {
 }
 
 // Init sets up Postgres connection and ensures that the state table exists.
-func (p *PostgresDBAccess) Init(meta state.Metadata) error {
+func (p *PostgresDBAccess) Init(ctx context.Context, meta state.Metadata) error {
 	p.logger.Debug("Initializing Postgres state store")
 
 	p.ctx, p.cancel = context.WithCancel(context.Background())

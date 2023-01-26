@@ -91,7 +91,7 @@ func parseAndValidateMetadata(meta state.Metadata) (*aerospikeMetadata, error) {
 }
 
 // Init does metadata and connection parsing.
-func (aspike *Aerospike) Init(metadata state.Metadata) error {
+func (aspike *Aerospike) Init(ctx context.Context, metadata state.Metadata) error {
 	m, err := parseAndValidateMetadata(metadata)
 	if err != nil {
 		return err
@@ -112,7 +112,7 @@ func (aspike *Aerospike) Init(metadata state.Metadata) error {
 }
 
 // Features returns the features available in this state store.
-func (aspike *Aerospike) Features() []state.Feature {
+func (aspike *Aerospike) Features(ctx context.Context) []state.Feature {
 	return aspike.features
 }
 

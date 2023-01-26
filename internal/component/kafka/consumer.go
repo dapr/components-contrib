@@ -275,9 +275,6 @@ func (k *Kafka) Subscribe(ctx context.Context) error {
 
 	k.cg = cg
 
-	ctx, cancel := context.WithCancel(ctx)
-	k.cancel = cancel
-
 	ready := make(chan bool)
 	k.consumer = consumer{
 		k:       k,
@@ -331,7 +328,6 @@ func (k *Kafka) Subscribe(ctx context.Context) error {
 // Close down consumer group resources, refresh once.
 func (k *Kafka) closeSubscriptionResources() {
 	if k.cg != nil {
-		k.cancel()
 		err := k.cg.Close()
 		if err != nil {
 			k.logger.Errorf("Error closing consumer group: %v", err)

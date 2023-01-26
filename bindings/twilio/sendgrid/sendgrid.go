@@ -84,7 +84,7 @@ func (sg *SendGrid) parseMetadata(meta bindings.Metadata) (sendGridMetadata, err
 }
 
 // Init does metadata parsing and not much else :).
-func (sg *SendGrid) Init(metadata bindings.Metadata) error {
+func (sg *SendGrid) Init(ctx context.Context, metadata bindings.Metadata) error {
 	// Parse input metadata
 	meta, err := sg.parseMetadata(metadata)
 	if err != nil {

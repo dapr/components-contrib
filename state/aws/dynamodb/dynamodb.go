@@ -66,7 +66,7 @@ func NewDynamoDBStateStore(_ logger.Logger) state.Store {
 }
 
 // Init does metadata and connection parsing.
-func (d *StateStore) Init(metadata state.Metadata) error {
+func (d *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	meta, err := d.getDynamoDBMetadata(metadata)
 	if err != nil {
 		return err
@@ -86,7 +86,7 @@ func (d *StateStore) Init(metadata state.Metadata) error {
 }
 
 // Features returns the features available in this state store.
-func (d *StateStore) Features() []state.Feature {
+func (d *StateStore) Features(ctx context.Context) []state.Feature {
 	return []state.Feature{state.FeatureETag}
 }
 

@@ -40,30 +40,27 @@ type MQTT struct {
 	logger       logger.Logger
 	isSubscribed atomic.Bool
 	readHandler  bindings.Handler
-	ctx          context.Context
-	cancel       context.CancelFunc
 	backOff      backoff.BackOff
+	closeCh      chan struct{}
 }
 
 // NewMQTT returns a new MQTT instance.
 func NewMQTT(logger logger.Logger) bindings.InputOutputBinding {
 	return &MQTT{
-		logger: logger,
+		logger:  logger,
+		closeCh: make(chan struct{}),
 	}
 }
 
 // Init does MQTT connection parsing.
-func (m *MQTT) Init(metadata bindings.Metadata) (err error) {
+func (m *MQTT) Init(ctx context.Context, metadata bindings.Metadata) (err error) {
 	m.metadata, err = parseMQTTMetaData(metadata, m.logger)
 	if err != nil {
 		return err
 	}
 
-	m.ctx, m.cancel = context.WithCancel(context.Background())
-
 	// TODO: Make the backoff configurable for constant or exponential
-	b := backoff.NewConstantBackOff(5 * time.Second)
-	m.backOff = backoff.WithContext(b, m.ctx)
+	m.backOff = backoff.NewConstantBackOff(5 * time.Second)
 
 	return nil
 }
@@ -74,7 +71,7 @@ func (m *MQTT) Operations() []bindings.OperationKind {
 	}
 }
 
-func (m *MQTT) getProducer() (mqtt.Client, error) {
+func (m *MQTT) getProducer(ctx context.Context) (mqtt.Client, error) {
 	// Get the producer from the cache
 	m.producerLock.RLock()
 	producer := m.producer
@@ -95,7 +92,7 @@ func (m *MQTT) getProducer() (mqtt.Client, error) {
 
 	// mqtt broker allows only one connection at a given time from a clientID.
 	producerClientID := fmt.Sprintf("%s-producer", m.metadata.clientID)
-	p, err := m.connect(producerClientID, false)
+	p, err := m.connect(ctx, producerClientID, false)
 	if err != nil {
 		return nil, err
 	}
@@ -104,8 +101,8 @@ func (m *MQTT) getProducer() (mqtt.Client, error) {
 	return p, nil
 }
 
-func (m *MQTT) Invoke(parentCtx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	producer, err := m.getProducer()
+func (m *MQTT) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	producer, err := m.getProducer(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create producer connection: %w", err)
 	}
@@ -118,7 +115,7 @@ func (m *MQTT) Invoke(parentCtx context.Context, req *bindings.InvokeRequest) (*
 	bo := backoff.WithMaxRetries(
 		backoff.NewConstantBackOff(200*time.Millisecond), 3,
 	)
-	bo = backoff.WithContext(bo, parentCtx)
+	bo = backoff.WithContext(bo, ctx)
 
 	topic, ok := req.Metadata[mqttTopic]
 	if !ok || topic == "" {
@@ -127,14 +124,13 @@ func (m *MQTT) Invoke(parentCtx context.Context, req *bindings.InvokeRequest) (*
 	}
 	return nil, retry.NotifyRecover(func() (err error) {
 		token := producer.Publish(topic, m.metadata.qos, m.metadata.retain, req.Data)
-		ctx, cancel := context.WithTimeout(parentCtx, defaultWait)
+		ctx, cancel := context.WithTimeout(ctx, defaultWait)
 		defer cancel()
 		select {
 		case <-token.Done():
 			err = token.Error()
-		case <-m.ctx.Done():
-			// Context canceled
-			err = m.ctx.Err()
+		case <-m.closeCh:
+			err = errors.New("mqtt client closed")
 		case <-ctx.Done():
 			// Context canceled
 			err = ctx.Err()
@@ -170,7 +166,7 @@ func (m *MQTT) Read(ctx context.Context, handler bindings.Handler) error {
 
 	// Establish the connection
 	// This will also create the subscription in the OnConnect handler
-	consumer, err := m.connect(consumerClientID, true)
+	consumer, err := m.connect(ctx, consumerClientID, true)
 	if err != nil {
 		return err
 	}
@@ -181,7 +177,7 @@ func (m *MQTT) Read(ctx context.Context, handler bindings.Handler) error {
 		select {
 		case <-ctx.Done():
 			// nop
-		case <-m.ctx.Done():
+		case <-m.closeCh:
 			// nop
 		}
 
@@ -195,20 +191,20 @@ func (m *MQTT) Read(ctx context.Context, handler bindings.Handler) error {
 	return nil
 }
 
-func (m *MQTT) connect(clientID string, isSubscriber bool) (mqtt.Client, error) {
+func (m *MQTT) connect(ctx context.Context, clientID string, isSubscriber bool) (mqtt.Client, error) {
 	uri, err := url.Parse(m.metadata.url)
 	if err != nil {
 		return nil, err
 	}
 	var opts *mqtt.ClientOptions
 	if isSubscriber {
-		opts = m.createSubscriberClientOptions(uri, clientID)
+		opts = m.createSubscriberClientOptions(ctx, uri, clientID)
 	} else {
 		opts = m.createClientOptions(uri, clientID)
 	}
 	client := mqtt.NewClient(opts)
 
-	ctx, cancel := context.WithTimeout(m.ctx, defaultWait)
+	ctx, cancel := context.WithTimeout(ctx, defaultWait)
 	defer cancel()
 	token := client.Connect()
 	select {
@@ -290,63 +286,61 @@ func (m *MQTT) createClientOptions(uri *url.URL, clientID string) *mqtt.ClientOp
 	return opts
 }
 
-func (m *MQTT) handleMessage(client mqtt.Client, mqttMsg mqtt.Message) {
-	// We're using m.ctx as context in this method because we don't have access to the Read context
-	// Canceling the Read context makes Read invoke "Disconnect" anyways
-	ctx := m.ctx
+func (m *MQTT) handleMessage(ctx context.Context) func(client mqtt.Client, mqttMsg mqtt.Message) {
+	return func(client mqtt.Client, mqttMsg mqtt.Message) {
+		var bo backoff.BackOff = backoff.WithContext(m.backOff, ctx)
+		if m.metadata.backOffMaxRetries >= 0 {
+			bo = backoff.WithMaxRetries(bo, uint64(m.metadata.backOffMaxRetries))
+		}
 
-	var bo backoff.BackOff = backoff.WithContext(m.backOff, ctx)
-	if m.metadata.backOffMaxRetries >= 0 {
-		bo = backoff.WithMaxRetries(bo, uint64(m.metadata.backOffMaxRetries))
-	}
+		err := retry.NotifyRecover(
+			func() error {
+				m.logger.Debugf("Processing MQTT message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
+				_, err := m.readHandler(ctx, &bindings.ReadResponse{
+					Data: mqttMsg.Payload(),
+					Metadata: map[string]string{
+						mqttTopic: mqttMsg.Topic(),
+					},
+				})
+				if err != nil {
+					return err
+				}
 
-	err := retry.NotifyRecover(
-		func() error {
-			m.logger.Debugf("Processing MQTT message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
-			_, err := m.readHandler(ctx, &bindings.ReadResponse{
-				Data: mqttMsg.Payload(),
-				Metadata: map[string]string{
-					mqttTopic: mqttMsg.Topic(),
-				},
-			})
-			if err != nil {
-				return err
-			}
-
-			// Ack the message on success
-			mqttMsg.Ack()
-			return nil
-		},
-		bo,
-		func(err error, d time.Duration) {
-			m.logger.Errorf("Error processing MQTT message: %s/%d. Retrying…", mqttMsg.Topic(), mqttMsg.MessageID())
-		},
-		func() {
-			m.logger.Infof("Successfully processed MQTT message after it previously failed: %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
-		},
-	)
-	if err != nil {
-		m.logger.Errorf("Failed processing MQTT message: %s/%d: %v", mqttMsg.Topic(), mqttMsg.MessageID(), err)
+				// Ack the message on success
+				mqttMsg.Ack()
+				return nil
+			},
+			bo,
+			func(err error, d time.Duration) {
+				m.logger.Errorf("Error processing MQTT message: %s/%d. Retrying…", mqttMsg.Topic(), mqttMsg.MessageID())
+			},
+			func() {
+				m.logger.Infof("Successfully processed MQTT message after it previously failed: %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
+			},
+		)
+		if err != nil {
+			m.logger.Errorf("Failed processing MQTT message: %s/%d: %v", mqttMsg.Topic(), mqttMsg.MessageID(), err)
+		}
 	}
 }
 
 // Extends createClientOptions with options for subscribers only
-func (m *MQTT) createSubscriberClientOptions(uri *url.URL, clientID string) *mqtt.ClientOptions {
+func (m *MQTT) createSubscriberClientOptions(ctx context.Context, uri *url.URL, clientID string) *mqtt.ClientOptions {
 	opts := m.createClientOptions(uri, clientID)
 
 	// On (re-)connection, add the topic subscription
 	opts.OnConnect = func(c mqtt.Client) {
-		token := c.Subscribe(m.metadata.topic, m.metadata.qos, m.handleMessage)
+		token := c.Subscribe(m.metadata.topic, m.metadata.qos, m.handleMessage(ctx))
 
 		var err error
-		subscribeCtx, subscribeCancel := context.WithTimeout(m.ctx, defaultWait)
-		defer subscribeCancel()
+		ctx, cancel := context.WithTimeout(ctx, defaultWait)
+		defer cancel()
 		select {
 		case <-token.Done():
 			// Subscription went through (sucecessfully or not)
 			err = token.Error()
-		case <-subscribeCtx.Done():
-			err = fmt.Errorf("error while waiting for subscription token: %w", subscribeCtx.Err())
+		case <-ctx.Done():
+			err = fmt.Errorf("error while waiting for subscription token: %w", ctx.Err())
 		}
 
 		// Nothing we can do in case of errors besides logging them
@@ -363,8 +357,7 @@ func (m *MQTT) Close() error {
 	m.producerLock.Lock()
 	defer m.producerLock.Unlock()
 
-	// Canceling the context also causes Read to stop receiving messages
-	m.cancel()
+	close(m.closeCh)
 
 	if m.producer != nil {
 		m.producer.Disconnect(200)

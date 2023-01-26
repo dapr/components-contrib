@@ -308,6 +308,14 @@ jobs:
         PUBSUB_AWS_SNSSQS_TOPIC_MVT="sqssnscerttest-tp-mvt-${{env.UNIQUE_ID}}"
         echo "PUBSUB_AWS_SNSSQS_TOPIC_MVT=$PUBSUB_AWS_SNSSQS_TOPIC_MVT" >> $GITHUB_ENV
 
+        PUBSUB_AWS_SNSSQS_QUEUE_DLIN="sqssnscerttest-dlq-in-${{env.UNIQUE_ID}}"
+        echo "PUBSUB_AWS_SNSSQS_QUEUE_DLIN=$PUBSUB_AWS_SNSSQS_QUEUE_DLIN" >> $GITHUB_ENV
+        PUBSUB_AWS_SNSSQS_QUEUE_DLOUT="sqssnscerttest-dlq-out-${{env.UNIQUE_ID}}"
+        echo "PUBSUB_AWS_SNSSQS_QUEUE_DLOUT=$PUBSUB_AWS_SNSSQS_QUEUE_DLOUT" >> $GITHUB_ENV
+
+        PUBSUB_AWS_SNSSQS_TOPIC_DLIN="sqssnscerttest-dlt-in-${{env.UNIQUE_ID}}"
+        echo "PUBSUB_AWS_SNSSQS_TOPIC_DLIN=$PUBSUB_AWS_SNSSQS_TOPIC_DLIN" >> $GITHUB_ENV
+    
         PUBSUB_AWS_SNSSQS_QUEUE_FIFO="sqssnscerttest-q-fifo-${{env.UNIQUE_ID}}.fifo"
         echo "PUBSUB_AWS_SNSSQS_QUEUE_FIFO=$PUBSUB_AWS_SNSSQS_QUEUE_FIFO" >> $GITHUB_ENV
         PUBSUB_AWS_SNSSQS_TOPIC_FIFO="sqssnscerttest-t-fifo-${{env.UNIQUE_ID}}.fifo"

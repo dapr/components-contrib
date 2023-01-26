@@ -14,6 +14,7 @@ limitations under the License.
 package snssqs_test
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -42,18 +43,61 @@ func deleteQueues(queues []string) error {
 }
 
 func deleteQueue(svc *sqs.SQS, queue string) error {
-	queueUrlOutput, err := svc.GetQueueUrl(&sqs.GetQueueUrlInput{
-		QueueName: &queue,
-	})
+	fmt.Printf("deleteQueue: %q\n", queue)
+	queueUrl, err := getQueueURL(svc, queue)
 	if err != nil {
 		return fmt.Errorf("error getting the queue URL: %q err:%v", queue, err)
 	}
 
 	_, err = svc.DeleteQueue(&sqs.DeleteQueueInput{
-		QueueUrl: queueUrlOutput.QueueUrl,
+		QueueUrl: &queueUrl,
 	})
 
 	return err
+}
+
+func getQueueURL(svc *sqs.SQS, queue string) (string, error) {
+	urlResult, err := svc.GetQueueUrl(&sqs.GetQueueUrlInput{
+		QueueName: aws.String(queue),
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	return *urlResult.QueueUrl, nil
+}
+
+func getMessages(svc *sqs.SQS, queueURL string) (*sqs.ReceiveMessageOutput, error) {
+	input := sqs.ReceiveMessageInput{
+		// use this property to decide when a message should be discarded.
+		AttributeNames: []*string{
+			aws.String(sqs.MessageSystemAttributeNameApproximateReceiveCount),
+		},
+		MaxNumberOfMessages: aws.Int64(10),
+		QueueUrl:            aws.String(queueURL),
+		VisibilityTimeout:   aws.Int64(5),
+		WaitTimeSeconds:     aws.Int64(20),
+	}
+
+	msgResult, err := svc.ReceiveMessage(&input)
+	if err != nil {
+		return nil, err
+	}
+
+	return msgResult, nil
+}
+
+func deleteMessage(svc *sqs.SQS, queueURL, messageHandle string) error {
+	_, err := svc.DeleteMessage(&sqs.DeleteMessageInput{
+		QueueUrl:      aws.String(queueURL),
+		ReceiptHandle: aws.String(messageHandle),
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func deleteTopics(topics []string, region string) error {
@@ -92,6 +136,7 @@ func deleteTopics(topics []string, region string) error {
 }
 
 func deleteTopic(svc snsiface.SNSAPI, topic string) error {
+	fmt.Printf("deleteTopic: %q\n", topic)
 	_, err := svc.DeleteTopic(&sns.DeleteTopicInput{
 		TopicArn: aws.String(topic),
 	})
@@ -139,4 +184,79 @@ func getIdentity(svc stsiface.STSAPI) (*sts.GetCallerIdentityOutput, error) {
 
 func buildARN(partition, serviceName, entityName, region string, id *sts.GetCallerIdentityOutput) string {
 	return fmt.Sprintf("arn:%s:%s:%s:%s:%s", partition, serviceName, region, *id.Account, entityName)
+}
+
+type QueueManager struct {
+	svc *sqs.SQS
+}
+
+type SNSMessagePayload struct {
+	Message  string
+	TopicArn string
+}
+type DataMessage struct {
+	Data string `json:"data"`
+}
+
+type MessageFunc func(*DataMessage) error
+
+func NewQueueManager() *QueueManager {
+	qm := QueueManager{}
+	qm.connect()
+	return &qm
+}
+
+func (qm *QueueManager) connect() error {
+	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	}))
+	qm.svc = sqs.New(sess)
+	return nil
+}
+
+func (qm *QueueManager) GetMessages(queue string, deleteMsg bool, mf MessageFunc) (int, error) {
+	queueURL, err := getQueueURL(qm.svc, queue)
+	if err != nil {
+		return -1, err
+	}
+
+	msgResult, err := getMessages(qm.svc, queueURL)
+	if err != nil {
+		return -1, err
+	}
+
+	numMgs := len(msgResult.Messages)
+	for _, msg := range msgResult.Messages {
+		dm, err := extractDataMessage(msg)
+		if err != nil {
+			return -1, err
+		}
+
+		if err := mf(dm); err != nil {
+			return -1, err
+		}
+		if deleteMsg {
+			err = deleteMessage(qm.svc, queueURL, *msg.ReceiptHandle)
+			if err != nil {
+				return -1, err
+			}
+		}
+	}
+
+	return numMgs, nil
+}
+
+func extractDataMessage(msg *sqs.Message) (*DataMessage, error) {
+	snsMP := SNSMessagePayload{}
+	err := json.Unmarshal([]byte(*(msg.Body)), &snsMP)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshalling message Body: %v", err)
+	}
+	dm := DataMessage{}
+	err = json.Unmarshal([]byte(snsMP.Message), &dm)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshalling message data: %v", err)
+	}
+
+	return &dm, nil
 }

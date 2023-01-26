@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -73,7 +73,7 @@ type Pulsar struct {
 	logger   logger.Logger
 	client   pulsar.Client
 	metadata pulsarMetadata
-	cache    *lru.Cache
+	cache    *lru.Cache[string, pulsar.Producer]
 }
 
 func NewPulsar(l logger.Logger) pubsub.PubSub {
@@ -199,10 +199,9 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 
 	// initialize lru cache with size 10
 	// TODO: make this number configurable in pulsar metadata
-	c, err := lru.NewWithEvict(cachedNumProducer, func(k interface{}, v interface{}) {
-		producer := v.(pulsar.Producer)
-		if producer != nil {
-			producer.Close()
+	c, err := lru.NewWithEvict(cachedNumProducer, func(k string, v pulsar.Producer) {
+		if v != nil {
+			v.Close()
 		}
 	})
 	if err != nil {
@@ -219,16 +218,15 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 
 func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	var (
-		producer pulsar.Producer
-		msg      *pulsar.ProducerMessage
-		err      error
+		msg *pulsar.ProducerMessage
+		err error
 	)
 	topic := p.formatTopic(req.Topic)
-	cache, _ := p.cache.Get(topic)
+	producer, ok := p.cache.Get(topic)
 
 	schemaMetadata, hasSchema := p.metadata.topicSchemas[req.Topic]
 
-	if cache == nil {
+	if !ok || producer == nil {
 		p.logger.Debugf("creating producer for topic %s, full topic name in pulsar is %s", req.Topic, topic)
 		opts := pulsar.ProducerOptions{
 			Topic:                   topic,
@@ -248,8 +246,6 @@ func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 		}
 
 		p.cache.Add(topic, producer)
-	} else {
-		producer = cache.(pulsar.Producer)
 	}
 
 	msg, err = parsePublishMetadata(req, hasSchema)
@@ -378,7 +374,7 @@ func (p *Pulsar) Close() error {
 		producer, _ := p.cache.Peek(k)
 		if producer != nil {
 			p.logger.Debugf("closing producer for topic %s", k)
-			producer.(pulsar.Producer).Close()
+			producer.Close()
 		}
 	}
 	p.client.Close()

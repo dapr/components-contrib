@@ -60,7 +60,7 @@ func NewSMS(logger logger.Logger) bindings.OutputBinding {
 	}
 }
 
-func (t *SMS) Init(metadata bindings.Metadata) error {
+func (t *SMS) Init(ctx context.Context, metadata bindings.Metadata) error {
 	twilioM := twilioMetadata{
 		timeout: time.Minute * 5,
 	}

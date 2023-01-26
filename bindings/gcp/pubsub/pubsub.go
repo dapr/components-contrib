@@ -59,7 +59,7 @@ func NewGCPPubSub(logger logger.Logger) bindings.InputOutputBinding {
 }
 
 // Init parses metadata and creates a new Pub Sub client.
-func (g *GCPPubSub) Init(metadata bindings.Metadata) error {
+func (g *GCPPubSub) Init(ctx context.Context, metadata bindings.Metadata) error {
 	b, err := g.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -71,7 +71,6 @@ func (g *GCPPubSub) Init(metadata bindings.Metadata) error {
 		return err
 	}
 	clientOptions := option.WithCredentialsJSON(b)
-	ctx := context.Background()
 	pubsubClient, err := pubsub.NewClient(ctx, pubsubMeta.ProjectID, clientOptions)
 	if err != nil {
 		return fmt.Errorf("error creating pubsub client: %s", err)

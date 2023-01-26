@@ -56,7 +56,7 @@ func NewCFWorkersKV(logger logger.Logger) state.Store {
 }
 
 // Init the component.
-func (q *CFWorkersKV) Init(metadata state.Metadata) error {
+func (q *CFWorkersKV) Init(ctx context.Context, metadata state.Metadata) error {
 	// Decode the metadata
 	err := mapstructure.Decode(metadata.Properties, &q.metadata)
 	if err != nil {
@@ -89,7 +89,7 @@ func (q *CFWorkersKV) GetComponentMetadata() map[string]string {
 }
 
 // Features returns the features supported by this state store.
-func (q CFWorkersKV) Features() []state.Feature {
+func (q CFWorkersKV) Features(ctx context.Context) []state.Feature {
 	return []state.Feature{}
 }
 

@@ -67,7 +67,7 @@ func NewNacos(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init implements InputBinding/OutputBinding's Init method.
-func (n *Nacos) Init(metadata bindings.Metadata) error {
+func (n *Nacos) Init(ctx context.Context, metadata bindings.Metadata) error {
 	n.settings = Settings{
 		Timeout: defaultTimeout,
 	}

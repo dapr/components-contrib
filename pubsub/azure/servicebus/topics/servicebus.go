@@ -49,7 +49,7 @@ func NewAzureServiceBusTopics(logger logger.Logger) pubsub.PubSub {
 	}
 }
 
-func (a *azureServiceBus) Init(metadata pubsub.Metadata) (err error) {
+func (a *azureServiceBus) Init(ctx context.Context, metadata pubsub.Metadata) (err error) {
 	a.metadata, err = impl.ParseMetadata(metadata.Properties, a.logger, impl.MetadataModeTopics)
 	if err != nil {
 		return err

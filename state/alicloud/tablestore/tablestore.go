@@ -54,7 +54,7 @@ func NewAliCloudTableStore(logger logger.Logger) state.Store {
 	}
 }
 
-func (s *AliCloudTableStore) Init(metadata state.Metadata) error {
+func (s *AliCloudTableStore) Init(ctx context.Context, metadata state.Metadata) error {
 	m, err := s.parse(metadata)
 	if err != nil {
 		return err
@@ -66,7 +66,7 @@ func (s *AliCloudTableStore) Init(metadata state.Metadata) error {
 	return nil
 }
 
-func (s *AliCloudTableStore) Features() []state.Feature {
+func (s *AliCloudTableStore) Features(ctx context.Context) []state.Feature {
 	return s.features
 }
 

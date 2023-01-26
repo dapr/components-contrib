@@ -57,7 +57,7 @@ func NewHuaweiCsmsSecretStore(logger logger.Logger) secretstores.SecretStore {
 }
 
 // Init creates a Huawei csms client.
-func (c *csmsSecretStore) Init(meta secretstores.Metadata) error {
+func (c *csmsSecretStore) Init(ctx context.Context, meta secretstores.Metadata) error {
 	m := CsmsSecretStoreMetadata{}
 	metadata.DecodeMetadata(meta.Properties, &m)
 	auth := basic.NewCredentialsBuilder().

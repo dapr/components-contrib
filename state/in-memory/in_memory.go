@@ -41,34 +41,29 @@ type inMemStateStoreItem struct {
 }
 
 type inMemoryStore struct {
-	items map[string]*inMemStateStoreItem
-	lock  *sync.RWMutex
-	log   logger.Logger
-
-	ctx    context.Context
-	cancel context.CancelFunc
+	items   map[string]*inMemStateStoreItem
+	lock    *sync.RWMutex
+	log     logger.Logger
+	closeCh chan struct{}
 }
 
 func NewInMemoryStateStore(logger logger.Logger) state.Store {
 	return &inMemoryStore{
-		items: map[string]*inMemStateStoreItem{},
-		lock:  &sync.RWMutex{},
-		log:   logger,
+		items:   map[string]*inMemStateStoreItem{},
+		lock:    &sync.RWMutex{},
+		log:     logger,
+		closeCh: make(chan struct{}),
 	}
 }
 
-func (store *inMemoryStore) Init(metadata state.Metadata) error {
-	store.ctx, store.cancel = context.WithCancel(context.Background())
+func (store *inMemoryStore) Init(ctx context.Context, metadata state.Metadata) error {
 	// start a background go routine to clean expired item
 	go store.startCleanThread()
 	return nil
 }
 
 func (store *inMemoryStore) Close() error {
-	if store.cancel != nil {
-		store.cancel()
-	}
-
+	close(store.closeCh)
 	// release memory reference
 	store.lock.Lock()
 	defer store.lock.Unlock()
@@ -79,7 +74,7 @@ func (store *inMemoryStore) Close() error {
 	return nil
 }
 
-func (store *inMemoryStore) Features() []state.Feature {
+func (store *inMemoryStore) Features(ctx context.Context) []state.Feature {
 	return []state.Feature{state.FeatureETag, state.FeatureTransactional}
 }
 
@@ -443,7 +438,7 @@ func (store *inMemoryStore) startCleanThread() {
 		select {
 		case <-time.After(time.Second):
 			store.doCleanExpiredItems()
-		case <-store.ctx.Done():
+		case <-store.closeCh:
 			return
 		}
 	}

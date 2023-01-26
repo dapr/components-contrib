@@ -70,7 +70,7 @@ func NewRabbitMQ(logger logger.Logger) bindings.InputOutputBinding {
 }
 
 // Init does metadata parsing and connection creation.
-func (r *RabbitMQ) Init(metadata bindings.Metadata) error {
+func (r *RabbitMQ) Init(ctx context.Context, metadata bindings.Metadata) error {
 	err := r.parseMetadata(metadata)
 	if err != nil {
 		return err

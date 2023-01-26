@@ -5,6 +5,7 @@
 package mock_oauth2clientcredentials
 
 import (
+	"context"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
@@ -36,7 +37,7 @@ func (m *MockTokenProviderInterface) EXPECT() *MockTokenProviderInterfaceMockRec
 }
 
 // GetToken mocks base method
-func (m *MockTokenProviderInterface) GetToken(arg0 *clientcredentials.Config) (*oauth2.Token, error) {
+func (m *MockTokenProviderInterface) GetToken(ctx context.Context, arg0 *clientcredentials.Config) (*oauth2.Token, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetToken", arg0)
 	ret0, _ := ret[0].(*oauth2.Token)

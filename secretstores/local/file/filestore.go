@@ -56,7 +56,7 @@ func NewLocalSecretStore(logger logger.Logger) secretstores.SecretStore {
 }
 
 // Init creates a Local secret store.
-func (j *localSecretStore) Init(metadata secretstores.Metadata) error {
+func (j *localSecretStore) Init(ctx context.Context, metadata secretstores.Metadata) error {
 	meta, err := j.getLocalSecretStoreMetadata(metadata)
 	if err != nil {
 		return err

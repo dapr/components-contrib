@@ -69,7 +69,7 @@ func Command() (*command.ZeebeCommand, error) {
 	envVars := GetEnvVars()
 
 	cmd := command.NewZeebeCommand(testLogger).(*command.ZeebeCommand)
-	err := cmd.Init(bindings.Metadata{Base: metadata.Base{
+	err := cmd.Init(context.Background(), bindings.Metadata{Base: metadata.Base{
 		Name: "test",
 		Properties: map[string]string{
 			"gatewayAddr":            envVars.ZeebeBrokerHost + ":" + envVars.ZeebeBrokerGatewayPort,
@@ -103,7 +103,7 @@ func JobWorker(jobType string, additionalMetadata ...MetadataPair) (*jobworker.Z
 	}
 
 	cmd := jobworker.NewZeebeJobWorker(testLogger).(*jobworker.ZeebeJobWorker)
-	if err := cmd.Init(metadata); err != nil {
+	if err := cmd.Init(context.Background(), metadata); err != nil {
 		return nil, err
 	}
 

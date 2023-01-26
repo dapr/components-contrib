@@ -47,12 +47,12 @@ func internalNew(logger logger.Logger, dba dbAccess) *CockroachDB {
 }
 
 // Init initializes the CockroachDB state store.
-func (c *CockroachDB) Init(metadata state.Metadata) error {
-	return c.dbaccess.Init(metadata)
+func (c *CockroachDB) Init(ctx context.Context, metadata state.Metadata) error {
+	return c.dbaccess.Init(ctx, metadata)
 }
 
 // Features returns the features available in this state store.
-func (c *CockroachDB) Features() []state.Feature {
+func (c *CockroachDB) Features(ctx context.Context) []state.Feature {
 	return c.features
 }
 

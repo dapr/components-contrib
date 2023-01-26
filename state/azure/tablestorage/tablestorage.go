@@ -84,7 +84,7 @@ type tablesMetadata struct {
 }
 
 // Init Initialises connection to table storage, optionally creates a table if it doesn't exist.
-func (r *StateStore) Init(metadata state.Metadata) error {
+func (r *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	meta, err := getTablesMetadata(metadata.Properties)
 	if err != nil {
 		return err
@@ -146,7 +146,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	}
 
 	if !meta.SkipCreateTable {
-		createContext, cancel := context.WithTimeout(context.Background(), timeout)
+		createContext, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 		_, innerErr := client.CreateTable(createContext, meta.TableName, nil)
 		if innerErr != nil {
@@ -166,7 +166,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 }
 
 // Features returns the features available in this state store.
-func (r *StateStore) Features() []state.Feature {
+func (r *StateStore) Features(ctx context.Context) []state.Feature {
 	return r.features
 }
 

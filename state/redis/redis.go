@@ -100,9 +100,6 @@ type StateStore struct {
 
 	features []state.Feature
 	logger   logger.Logger
-
-	ctx    context.Context
-	cancel context.CancelFunc
 }
 
 // NewRedisStateStore returns a new redis state store.
@@ -117,8 +114,8 @@ func NewRedisStateStore(logger logger.Logger) state.Store {
 	return s
 }
 
-func (r *StateStore) Ping() error {
-	if _, err := r.client.PingResult(context.Background()); err != nil {
+func (r *StateStore) Ping(ctx context.Context) error {
+	if _, err := r.client.PingResult(ctx); err != nil {
 		return fmt.Errorf("redis store: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
 
@@ -126,7 +123,7 @@ func (r *StateStore) Ping() error {
 }
 
 // Init does metadata and connection parsing.
-func (r *StateStore) Init(metadata state.Metadata) error {
+func (r *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	m, err := rediscomponent.ParseRedisMetadata(metadata.Properties)
 	if err != nil {
 		return err
@@ -144,17 +141,15 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		return fmt.Errorf("redis store: error parsing query index schema: %v", err)
 	}
 
-	r.ctx, r.cancel = context.WithCancel(context.Background())
-
-	if _, err = r.client.PingResult(r.ctx); err != nil {
+	if _, err = r.client.PingResult(ctx); err != nil {
 		return fmt.Errorf("redis store: error connecting to redis at %s: %v", r.clientSettings.Host, err)
 	}
 
-	if r.replicas, err = r.getConnectedSlaves(); err != nil {
+	if r.replicas, err = r.getConnectedSlaves(ctx); err != nil {
 		return err
 	}
 
-	if err = r.registerSchemas(); err != nil {
+	if err = r.registerSchemas(ctx); err != nil {
 		return fmt.Errorf("redis store: error registering query schemas: %v", err)
 	}
 
@@ -162,12 +157,12 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 }
 
 // Features returns the features available in this state store.
-func (r *StateStore) Features() []state.Feature {
+func (r *StateStore) Features(ctx context.Context) []state.Feature {
 	return r.features
 }
 
-func (r *StateStore) getConnectedSlaves() (int, error) {
-	res, err := r.client.DoRead(r.ctx, "INFO", "replication")
+func (r *StateStore) getConnectedSlaves(ctx context.Context) (int, error) {
+	res, err := r.client.DoRead(ctx, "INFO", "replication")
 	if err != nil {
 		return 0, err
 	}
@@ -271,8 +266,8 @@ func (r *StateStore) getDefault(ctx context.Context, req *state.GetRequest) (*st
 	}, nil
 }
 
-func (r *StateStore) getJSON(req *state.GetRequest) (*state.GetResponse, error) {
-	res, err := r.client.DoRead(r.ctx, "JSON.GET", req.Key)
+func (r *StateStore) getJSON(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
+	res, err := r.client.DoRead(ctx, "JSON.GET", req.Key)
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +306,7 @@ func (r *StateStore) getJSON(req *state.GetRequest) (*state.GetResponse, error) 
 // Get retrieves state from redis with a key.
 func (r *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	if contentType, ok := req.Metadata[daprmetadata.ContentType]; ok && contentType == contenttype.JSONContentType && rediscomponent.ClientHasJSONSupport(r.client) {
-		return r.getJSON(req)
+		return r.getJSON(ctx, req)
 	}
 
 	return r.getDefault(ctx, req)
@@ -446,18 +441,18 @@ func (r *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 	return err
 }
 
-func (r *StateStore) registerSchemas() error {
+func (r *StateStore) registerSchemas(ctx context.Context) error {
 	for name, elem := range r.querySchemas {
 		r.logger.Infof("redis: create query index %s", name)
-		if err := r.client.DoWrite(r.ctx, elem.schema...); err != nil {
+		if err := r.client.DoWrite(ctx, elem.schema...); err != nil {
 			if err.Error() != "Index already exists" {
 				return err
 			}
 			r.logger.Infof("redis: drop stale query index %s", name)
-			if err = r.client.DoWrite(r.ctx, "FT.DROPINDEX", name); err != nil {
+			if err = r.client.DoWrite(ctx, "FT.DROPINDEX", name); err != nil {
 				return err
 			}
-			if err = r.client.DoWrite(r.ctx, elem.schema...); err != nil {
+			if err = r.client.DoWrite(ctx, elem.schema...); err != nil {
 				return err
 			}
 		}
@@ -545,8 +540,6 @@ func (r *StateStore) Query(ctx context.Context, req *state.QueryRequest) (*state
 }
 
 func (r *StateStore) Close() error {
-	r.cancel()
-
 	return r.client.Close()
 }
 

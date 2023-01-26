@@ -49,7 +49,7 @@ func NewAWSSQS(logger logger.Logger) bindings.InputOutputBinding {
 }
 
 // Init does metadata parsing and connection creation.
-func (a *AWSSQS) Init(metadata bindings.Metadata) error {
+func (a *AWSSQS) Init(ctx context.Context, metadata bindings.Metadata) error {
 	m, err := a.parseSQSMetadata(metadata)
 	if err != nil {
 		return err
@@ -61,7 +61,7 @@ func (a *AWSSQS) Init(metadata bindings.Metadata) error {
 	}
 
 	queueName := m.QueueName
-	resultURL, err := client.GetQueueUrl(&sqs.GetQueueUrlInput{
+	resultURL, err := client.GetQueueUrlWithContext(ctx, &sqs.GetQueueUrlInput{
 		QueueName: aws.String(queueName),
 	})
 	if err != nil {

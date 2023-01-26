@@ -58,10 +58,9 @@ type rabbitMQ struct {
 	connectionCount   int
 	metadata          *metadata
 	declaredExchanges map[string]bool
-	ctx               context.Context
-	cancel            context.CancelFunc
 
 	connectionDial func(protocol, uri string, tlsCfg *tls.Config) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error)
+	closeCh        chan struct{}
 
 	logger logger.Logger
 }
@@ -95,6 +94,7 @@ func NewRabbitMQ(logger logger.Logger) pubsub.PubSub {
 		declaredExchanges: make(map[string]bool),
 		logger:            logger,
 		connectionDial:    dial,
+		closeCh:           make(chan struct{}),
 	}
 }
 
@@ -124,13 +124,11 @@ func dial(protocol, uri string, tlsCfg *tls.Config) (rabbitMQConnectionBroker, r
 }
 
 // Init does metadata parsing and connection creation.
-func (r *rabbitMQ) Init(metadata pubsub.Metadata) error {
+func (r *rabbitMQ) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	meta, err := createMetadata(metadata, r.logger)
 	if err != nil {
 		return err
 	}
-
-	r.ctx, r.cancel = context.WithCancel(context.Background())
 
 	r.metadata = meta
 
@@ -563,17 +561,19 @@ func (r *rabbitMQ) reset() (err error) {
 }
 
 func (r *rabbitMQ) isStopped() bool {
-	return r.ctx.Err() != nil
+	select {
+	case <-r.closeCh:
+		return true
+	default:
+		return false
+	}
 }
 
 func (r *rabbitMQ) Close() error {
 	r.channelMutex.Lock()
 	defer r.channelMutex.Unlock()
-
-	r.cancel()
-	err := r.reset()
-
-	return err
+	close(r.closeCh)
+	return r.reset()
 }
 
 func (r *rabbitMQ) Features() []pubsub.Feature {

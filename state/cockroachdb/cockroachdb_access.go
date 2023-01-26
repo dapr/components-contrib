@@ -81,7 +81,7 @@ func parseMetadata(meta state.Metadata) (*cockroachDBMetadata, error) {
 }
 
 // Init sets up CockroachDB connection and ensures that the state table exists.
-func (p *cockroachDBAccess) Init(metadata state.Metadata) error {
+func (p *cockroachDBAccess) Init(ctx context.Context, metadata state.Metadata) error {
 	p.logger.Debug("Initializing CockroachDB state store")
 
 	meta, err := parseMetadata(metadata)

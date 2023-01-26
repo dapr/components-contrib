@@ -48,8 +48,8 @@ func newOracleDatabaseStateStore(logger logger.Logger, dba dbAccess) *OracleData
 }
 
 // Init initializes the SQL server state store.
-func (o *OracleDatabase) Init(metadata state.Metadata) error {
-	return o.dbaccess.Init(metadata)
+func (o *OracleDatabase) Init(ctx context.Context, metadata state.Metadata) error {
+	return o.dbaccess.Init(ctx, metadata)
 }
 
 func (o *OracleDatabase) Ping() error {
@@ -57,7 +57,7 @@ func (o *OracleDatabase) Ping() error {
 }
 
 // Features returns the features available in this state store.
-func (o *OracleDatabase) Features() []state.Feature {
+func (o *OracleDatabase) Features(ctx context.Context) []state.Feature {
 	return o.features
 }
 

@@ -78,7 +78,7 @@ func NewCassandraStateStore(logger logger.Logger) state.Store {
 }
 
 // Init performs metadata and connection parsing.
-func (c *Cassandra) Init(metadata state.Metadata) error {
+func (c *Cassandra) Init(ctx context.Context, metadata state.Metadata) error {
 	meta, err := getCassandraMetadata(metadata)
 	if err != nil {
 		return err
@@ -112,7 +112,7 @@ func (c *Cassandra) Init(metadata state.Metadata) error {
 }
 
 // Features returns the features available in this state store.
-func (c *Cassandra) Features() []state.Feature {
+func (c *Cassandra) Features(ctx context.Context) []state.Feature {
 	return nil
 }
 

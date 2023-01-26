@@ -205,7 +205,6 @@ func TestParseMetadata(t *testing.T) {
 		logger := logger.NewLogger("test")
 		m := NewMQTT(logger).(*MQTT)
 		m.backOff = backoff.NewConstantBackOff(5 * time.Second)
-		m.ctx, m.cancel = context.WithCancel(context.Background())
 		m.readHandler = func(ctx context.Context, r *bindings.ReadResponse) ([]byte, error) {
 			assert.Equal(t, payload, r.Data)
 			metadata := r.Metadata
@@ -215,7 +214,7 @@ func TestParseMetadata(t *testing.T) {
 			return r.Data, nil
 		}
 
-		m.handleMessage(nil, &mqttMockMessage{
+		m.handleMessage(context.Background())(nil, &mqttMockMessage{
 			topic:   topic,
 			payload: payload,
 		})

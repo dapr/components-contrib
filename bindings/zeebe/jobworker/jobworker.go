@@ -68,7 +68,7 @@ func NewZeebeJobWorker(logger logger.Logger) bindings.InputBinding {
 }
 
 // Init does metadata parsing and connection creation.
-func (z *ZeebeJobWorker) Init(metadata bindings.Metadata) error {
+func (z *ZeebeJobWorker) Init(ctx context.Context, metadata bindings.Metadata) error {
 	meta, err := z.parseMetadata(metadata)
 	if err != nil {
 		return err

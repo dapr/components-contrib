@@ -85,9 +85,9 @@ type objectStoreClient interface {
 	getObject(ctx context.Context, objectname string) (content []byte, etag *string, metadata map[string]string, err error)
 	deleteObject(ctx context.Context, objectname string, etag *string) (err error)
 	putObject(ctx context.Context, objectname string, contentLen int64, content io.ReadCloser, metadata map[string]string, etag *string) error
-	initStorageBucket() error
-	initOCIObjectStorageClient() (*objectstorage.ObjectStorageClient, error)
-	pingBucket() error
+	initStorageBucket(ctx context.Context) error
+	initOCIObjectStorageClient(ctx context.Context) (*objectstorage.ObjectStorageClient, error)
+	pingBucket(ctx context.Context) error
 }
 
 type objectStorageClient struct {
@@ -101,7 +101,7 @@ type ociObjectStorageClient struct {
 
 /*********  Interface Implementations Init, Features, Get, Set, Delete and the instantiation function NewOCIObjectStorageStore. */
 
-func (r *StateStore) Init(metadata state.Metadata) error {
+func (r *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	r.logger.Debugf("Init OCI Object Storage State Store")
 	meta, err := getObjectStorageMetadata(metadata.Properties)
 	if err != nil {
@@ -114,13 +114,13 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		logger: r.logger,
 	}
 
-	objectStorageClient, cerr := r.client.initOCIObjectStorageClient()
+	objectStorageClient, cerr := r.client.initOCIObjectStorageClient(ctx)
 	if cerr != nil {
 		return fmt.Errorf("failed to initialize client or create bucket : %w", cerr)
 	}
 	meta.OCIObjectStorageClient = objectStorageClient
 
-	cerr = r.client.initStorageBucket()
+	cerr = r.client.initStorageBucket(ctx)
 	if cerr != nil {
 		return fmt.Errorf("failed to create bucket : %w", cerr)
 	}
@@ -129,7 +129,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	return nil
 }
 
-func (r *StateStore) Features() []state.Feature {
+func (r *StateStore) Features(ctx context.Context) []state.Feature {
 	return r.features
 }
 
@@ -162,8 +162,8 @@ func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	return r.writeDocument(ctx, req)
 }
 
-func (r *StateStore) Ping() error {
-	return r.pingBucket()
+func (r *StateStore) Ping(ctx context.Context) error {
+	return r.pingBucket(ctx)
 }
 
 func NewOCIObjectStorageStore(logger logger.Logger) state.Store {
@@ -312,8 +312,8 @@ func (r *StateStore) readDocument(ctx context.Context, req *state.GetRequest) ([
 	return content, etag, nil
 }
 
-func (r *StateStore) pingBucket() error {
-	err := r.client.pingBucket()
+func (r *StateStore) pingBucket(ctx context.Context) error {
+	err := r.client.pingBucket(ctx)
 	if err != nil {
 		r.logger.Debugf("ping bucket failed err %s", err)
 		return fmt.Errorf("failed to ping bucket on OCI Object storage : %w", err)
@@ -467,8 +467,7 @@ func (c *ociObjectStorageClient) putObject(ctx context.Context, objectname strin
 	return nil
 }
 
-func (c *ociObjectStorageClient) initStorageBucket() error {
-	ctx := context.Background()
+func (c *ociObjectStorageClient) initStorageBucket(ctx context.Context) error {
 	err := c.ensureBucketExists(ctx, *c.objectStorageMetadata.OCIObjectStorageClient, c.objectStorageMetadata.Namespace, c.objectStorageMetadata.BucketName, c.objectStorageMetadata.CompartmentOCID)
 	if err != nil {
 		return fmt.Errorf("failed to read or create bucket : %w", err)
@@ -476,7 +475,7 @@ func (c *ociObjectStorageClient) initStorageBucket() error {
 	return nil
 }
 
-func (c *ociObjectStorageClient) initOCIObjectStorageClient() (*objectstorage.ObjectStorageClient, error) {
+func (c *ociObjectStorageClient) initOCIObjectStorageClient(ctx context.Context) (*objectstorage.ObjectStorageClient, error) {
 	var configurationProvider common.ConfigurationProvider
 	if c.objectStorageMetadata.InstancePrincipalAuthentication {
 		c.logger.Debugf("instance principal authentication is used. ")
@@ -499,7 +498,6 @@ func (c *ociObjectStorageClient) initOCIObjectStorageClient() (*objectstorage.Ob
 	if cerr != nil {
 		return nil, fmt.Errorf("failed to create ObjectStorageClient : %w", cerr)
 	}
-	ctx := context.Background()
 	c.objectStorageMetadata.Namespace, cerr = getNamespace(ctx, objectStorageClient)
 	if cerr != nil {
 		return nil, fmt.Errorf("failed to get namespace : %w", cerr)
@@ -507,12 +505,12 @@ func (c *ociObjectStorageClient) initOCIObjectStorageClient() (*objectstorage.Ob
 	return &objectStorageClient, nil
 }
 
-func (c *ociObjectStorageClient) pingBucket() error {
+func (c *ociObjectStorageClient) pingBucket(ctx context.Context) error {
 	req := objectstorage.GetBucketRequest{
 		NamespaceName: &c.objectStorageMetadata.Namespace,
 		BucketName:    &c.objectStorageMetadata.BucketName,
 	}
-	_, err := c.objectStorageMetadata.OCIObjectStorageClient.GetBucket(context.Background(), req)
+	_, err := c.objectStorageMetadata.OCIObjectStorageClient.GetBucket(ctx, req)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve bucket details : %w", err)
 	}

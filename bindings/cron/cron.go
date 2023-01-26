@@ -56,7 +56,7 @@ func NewCronWithClock(logger logger.Logger, clk clock.Clock) bindings.InputBindi
 //
 //	"15 * * * * *" - Every 15 sec
 //	"0 30 * * * *" - Every 30 min
-func (b *Binding) Init(metadata bindings.Metadata) error {
+func (b *Binding) Init(ctx context.Context, metadata bindings.Metadata) error {
 	b.name = metadata.Name
 	s, f := metadata.Properties["schedule"]
 	if !f || s == "" {

@@ -134,7 +134,7 @@ func NewZookeeperStateStore(logger logger.Logger) state.Store {
 	}
 }
 
-func (s *StateStore) Init(metadata state.Metadata) (err error) {
+func (s *StateStore) Init(ctx context.Context, metadata state.Metadata) (err error) {
 	var c *config
 
 	if c, err = newConfig(metadata.Properties); err != nil {
@@ -154,7 +154,7 @@ func (s *StateStore) Init(metadata state.Metadata) (err error) {
 }
 
 // Features returns the features available in this state store.
-func (s *StateStore) Features() []state.Feature {
+func (s *StateStore) Features(ctx context.Context) []state.Feature {
 	return s.features
 }
 

@@ -37,7 +37,7 @@ func NewAzureEventHubs(logger logger.Logger) bindings.InputOutputBinding {
 }
 
 // Init performs metadata init.
-func (a *AzureEventHubs) Init(metadata bindings.Metadata) error {
+func (a *AzureEventHubs) Init(ctx context.Context, metadata bindings.Metadata) error {
 	return a.AzureEventHubs.Init(metadata.Properties)
 }
 

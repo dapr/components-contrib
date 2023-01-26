@@ -1,5 +1,7 @@
 package health
 
+import "context"
+
 type Pinger interface {
-	Ping() error
+	Ping(ctx context.Context) error
 }

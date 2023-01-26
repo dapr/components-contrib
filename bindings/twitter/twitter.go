@@ -42,7 +42,7 @@ func NewTwitter(logger logger.Logger) bindings.InputOutputBinding {
 }
 
 // Init initializes the Twitter binding.
-func (t *Binding) Init(metadata bindings.Metadata) error {
+func (t *Binding) Init(ctx context.Context, metadata bindings.Metadata) error {
 	ck, f := metadata.Properties["consumerKey"]
 	if !f || ck == "" {
 		return fmt.Errorf("consumerKey not set")

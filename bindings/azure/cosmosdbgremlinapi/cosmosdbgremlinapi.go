@@ -59,7 +59,7 @@ func NewCosmosDBGremlinAPI(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init performs CosmosDBGremlinAPI connection parsing and connecting.
-func (c *CosmosDBGremlinAPI) Init(metadata bindings.Metadata) error {
+func (c *CosmosDBGremlinAPI) Init(ctx context.Context, metadata bindings.Metadata) error {
 	c.logger.Debug("Initializing Cosmos Graph DB binding")
 
 	m, err := c.parseMetadata(metadata)

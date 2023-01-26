@@ -45,12 +45,12 @@ func newPostgreSQLStateStore(logger logger.Logger, dba dbAccess) *PostgreSQL {
 }
 
 // Init initializes the SQL server state store.
-func (p *PostgreSQL) Init(metadata state.Metadata) error {
-	return p.dbaccess.Init(metadata)
+func (p *PostgreSQL) Init(ctx context.Context, metadata state.Metadata) error {
+	return p.dbaccess.Init(ctx, metadata)
 }
 
 // Features returns the features available in this state store.
-func (p *PostgreSQL) Features() []state.Feature {
+func (p *PostgreSQL) Features(ctx context.Context) []state.Feature {
 	return []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI}
 }
 

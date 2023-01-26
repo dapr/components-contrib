@@ -51,7 +51,7 @@ func NewCommercetools(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init does metadata parsing and connection establishment.
-func (ct *Binding) Init(metadata bindings.Metadata) error {
+func (ct *Binding) Init(ctx context.Context, metadata bindings.Metadata) error {
 	commercetoolsM, err := ct.getCommercetoolsMetadata(metadata)
 	if err != nil {
 		return err

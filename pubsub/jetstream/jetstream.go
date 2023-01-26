@@ -37,7 +37,7 @@ func NewJetStream(logger logger.Logger) pubsub.PubSub {
 	return &jetstreamPubSub{l: logger}
 }
 
-func (js *jetstreamPubSub) Init(metadata pubsub.Metadata) error {
+func (js *jetstreamPubSub) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	var err error
 	js.meta, err = parseMetadata(metadata)
 	if err != nil {

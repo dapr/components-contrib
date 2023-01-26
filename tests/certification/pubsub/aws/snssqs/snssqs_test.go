@@ -70,6 +70,8 @@ var (
 	existingTopic                 = "existingTopic"                 // replaced with env var PUBSUB_AWS_SNSSQS_TOPIC_3
 	messageVisibilityTimeoutTopic = "messageVisibilityTimeoutTopic" // replaced with env var PUBSUB_AWS_SNSSQS_TOPIC_MVT
 	fifoTopic                     = "fifoTopic"                     // replaced with env var PUBSUB_AWS_SNSSQS_TOPIC_FIFO
+	deadLetterTopicIn             = "deadLetterTopicIn"             // replaced with env var PUBSUB_AWS_SNSSQS_TOPIC_DLIN
+	deadLetterQueueName           = "deadLetterQueueName"           // replaced with env var PUBSUB_AWS_SNSSQS_QUEUE_DLOUT
 )
 
 // The following Queue names must match
@@ -79,11 +81,7 @@ var (
 //
 //	PUBSUB_AWS_SNSSQS_QUEUE_*
 //	PUBSUB_AWS_SNSSQS_TOPIC_*
-var queues = []string{
-	"snscerttest1",
-	"snssqscerttest2",
-	"snssqscerttestfifo",
-}
+var queues = []string{}
 
 var topics = []string{
 	topicActiveName,
@@ -100,15 +98,24 @@ func init() {
 
 	qn = os.Getenv("PUBSUB_AWS_SNSSQS_QUEUE_1")
 	if qn != "" {
-		queues[0] = qn
+		queues = append(queues, qn)
 	}
 	qn = os.Getenv("PUBSUB_AWS_SNSSQS_QUEUE_2")
 	if qn != "" {
-		queues[1] = qn
+		queues = append(queues, qn)
 	}
 	qn = os.Getenv("PUBSUB_AWS_SNSSQS_QUEUE_FIFO")
 	if qn != "" {
-		queues[2] = qn
+		queues = append(queues, qn)
+	}
+	qn = os.Getenv("PUBSUB_AWS_SNSSQS_QUEUE_DLIN")
+	if qn != "" {
+		queues = append(queues, qn)
+	}
+	qn = os.Getenv("PUBSUB_AWS_SNSSQS_QUEUE_DLOUT")
+	if qn != "" {
+		deadLetterQueueName = qn
+		queues = append(queues, qn)
 	}
 
 	qn = os.Getenv("PUBSUB_AWS_SNSSQS_TOPIC_3")
@@ -124,6 +131,11 @@ func init() {
 	if qn != "" {
 		fifoTopic = qn
 		topics = append(topics, fifoTopic)
+	}
+	qn = os.Getenv("PUBSUB_AWS_SNSSQS_TOPIC_DLIN")
+	if qn != "" {
+		deadLetterTopicIn = qn
+		topics = append(topics, deadLetterTopicIn)
 	}
 }
 
@@ -168,6 +180,10 @@ func TestAWSSNSSQSCertificationTests(t *testing.T) {
 
 	t.Run("SNSSQSFIFOMessages", func(t *testing.T) {
 		SNSSQSFIFOMessages(t)
+	})
+
+	t.Run("SNSSQSMessageDeadLetter", func(t *testing.T) {
+		SNSSQSMessageDeadLetter(t)
 	})
 }
 
@@ -247,7 +263,7 @@ func SNSSQSBasic(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("SNSSQSBasic - message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSBasic - message assertion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -375,7 +391,7 @@ func SNSSQSMultipleSubsSameConsumerIDs(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("SNSSQSMultipleSubsSameConsumerIDs - message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSMultipleSubsSameConsumerIDs - message assertion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -498,7 +514,7 @@ func SNSSQSMultipleSubsDifferentConsumerIDs(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("SNSSQSMultipleSubsDifferentConsumerIDs - message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSMultipleSubsDifferentConsumerIDs - message assertion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -624,7 +640,7 @@ func SNSSQSMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("SNSSQSMultiplePubSubsDifferentConsumerIDs - message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSMultiplePubSubsDifferentConsumerIDs - message assertion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -747,7 +763,7 @@ func SNSSQSNonexistingTopic(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("SNSSQSNonexistingTopic - message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSNonexistingTopic - message assertion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -855,7 +871,7 @@ func SNSSQSExistingQueueAndTopic(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("SNSSQSExistingQueueAndTopic - message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSExistingQueueAndTopic - message assertion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -963,7 +979,7 @@ func SNSSQSExistingQueueNonexistingTopic(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 25*timeout) {
-					ctx.Errorf("SNSSQSExistingQueueNonexistingTopic - message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSExistingQueueNonexistingTopic - message assertion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -1293,7 +1309,7 @@ func SNSSQSFIFOMessages(t *testing.T) {
 			// assert for messages
 			for _, m := range messageWatchers {
 				if !m.Assert(ctx, 10*timeout) {
-					ctx.Errorf("SNSSQSFIFOMessages - message assersion failed for watcher: %#v\n", m)
+					ctx.Errorf("SNSSQSFIFOMessages - message assertion failed for watcher: %#v\n", m)
 				}
 			}
 
@@ -1352,6 +1368,157 @@ func SNSSQSFIFOMessages(t *testing.T) {
 		Step("reset", flow.Reset(consumerGroup1)).
 		Run()
 
+}
+
+// Verify data with an optional parameters `sqsDeadLettersQueueName`, `messageRetryLimit`, and `messageReceiveLimit` takes affect
+func SNSSQSMessageDeadLetter(t *testing.T) {
+	consumerGroup1 := watcher.NewUnordered()
+	deadLetterConsumerGroup := watcher.NewUnordered()
+	failedMessagesNum := 1
+
+	subscriberApplication := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      topicName,
+					Route:      "/orders",
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					ctx.Logf("subscriberApplication - Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s - causing failure on purpose...", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					return true, fmt.Errorf("failure on purpose")
+				}),
+			)
+		}
+	}
+
+	var task flow.AsyncTask
+	deadLetterReceiverApplication := func(deadLetterQueueName string, msgTimeout time.Duration, messagesWatcher *watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			t := time.NewTicker(500 * time.Millisecond)
+			defer t.Stop()
+			counter := 1
+			qm := NewQueueManager()
+
+			for {
+				select {
+				case <-task.Done():
+					ctx.Log("deadLetterReceiverApplication - task done called!")
+					return nil
+				case <-time.After(msgTimeout * time.Second):
+					ctx.Logf("deadLetterReceiverApplication - timeout waiting for messages from (%q)", deadLetterQueueName)
+					return fmt.Errorf("deadLetterReceiverApplication - timeout waiting for messages from (%q)", deadLetterQueueName)
+				case <-t.C:
+					numMsgs, err := qm.GetMessages(deadLetterQueueName, true, func(m *DataMessage) error {
+						ctx.Logf("deadLetterReceiverApplication - received message counter(%d) (%v)\n", counter, m.Data)
+						messagesWatcher.Observe(m.Data)
+						return nil
+					})
+					if err != nil {
+						ctx.Logf("deadLetterReceiverApplication - failed to get messages from (%q) counter(%d) %v  - trying again\n", deadLetterQueueName, counter, err)
+						continue
+					}
+					if numMsgs == 0 {
+						// No messages yet, try again
+						ctx.Logf("deadLetterReceiverApplication -  no messages yet from (%q) counter(%d)  - trying again\n", deadLetterQueueName, counter)
+						continue
+					}
+
+					if counter >= failedMessagesNum {
+						ctx.Logf("deadLetterReceiverApplication - received all expected (%d) failed message!\n", failedMessagesNum)
+						return nil
+					}
+					counter += numMsgs
+				}
+
+			}
+		}
+	}
+
+	publishMessages := func(metadata map[string]string, sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			// prepare the messages
+			messages := make([]string, failedMessagesNum)
+			for i := range messages {
+				messages[i] = fmt.Sprintf("partitionKey: %s, message for topic: %s, index: %03d, uniqueId: %s", metadata[messageKey], topicName, i, uuid.New().String())
+			}
+
+			// add the messages as expectations to the watchers
+			for _, messageWatcher := range messageWatchers {
+				messageWatcher.ExpectStrings(messages...)
+			}
+
+			// get the sidecar (dapr) client
+			client := sidecar.GetClient(ctx, sidecarName)
+
+			// publish messages
+			ctx.Logf("SNSSQSMessageDeadLetter - Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+
+			var publishOptions dapr.PublishEventOption
+
+			if metadata != nil {
+				publishOptions = dapr.PublishEventWithMetadata(metadata)
+			}
+
+			for _, message := range messages {
+				ctx.Logf("Publishing: %q", message)
+				var err error
+
+				if publishOptions != nil {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message, publishOptions)
+				} else {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message)
+				}
+				require.NoError(ctx, err, "SNSSQSMessageDeadLetter - error publishing message")
+			}
+			return nil
+		}
+	}
+
+	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			// assert for messages
+			for _, m := range messageWatchers {
+				if !m.Assert(ctx, 3*timeout) {
+					ctx.Errorf("SNSSQSMessageDeadLetter - message assertion failed for watcher: %#v\n", m)
+				}
+			}
+
+			return nil
+		}
+	}
+
+	prefix := "SNSSQSMessageDeadLetter-"
+	deadletterApp := prefix + "deadLetterReceiverApp"
+	subApp := prefix + "subscriberApp"
+	subAppSideCar := prefix + sidecarName2
+	msgTimeout := time.Duration(60) //seconds
+
+	flow.New(t, "SNSSQSMessageDeadLetter Verify with single publisher / single subscriber and DeadLetter").
+
+		// Run deadLetterReceiverApplication - should receive messages from dead letter queue
+		// "PUBSUB_AWS_SNSSQS_QUEUE_DLOUT"
+		StepAsync(deadletterApp, &task,
+			deadLetterReceiverApplication(deadLetterQueueName, msgTimeout, deadLetterConsumerGroup)).
+
+		// Run subscriberApplication - will fail to process messages
+		Step(app.Run(subApp, fmt.Sprintf(":%d", appPort+portOffset+4),
+			subscriberApplication(subApp, deadLetterTopicIn, consumerGroup1))).
+
+		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_TOPIC_DLIN"
+		Step(sidecar.Run(subAppSideCar,
+			embedded.WithComponentsPath("./components/deadletter"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset+4),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset+4),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset+4),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset+4),
+			componentRuntimeOptions(),
+		)).
+		Step("publish messages to deadLetterTopicIn ==> "+deadLetterTopicIn, publishMessages(nil, subAppSideCar, deadLetterTopicIn, deadLetterConsumerGroup)).
+		Step("wait", flow.Sleep(30*time.Second)).
+		Step("verify if app1 has 0 recevied messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).
+		Step("verify if app2 has deadletterMessageNum recevied messages send to dead letter queue", assertMessages(10*time.Second, deadLetterConsumerGroup)).
+		Step("reset", flow.Reset(consumerGroup1, deadLetterConsumerGroup)).
+		Run()
 }
 
 func componentRuntimeOptions() []runtime.Option {

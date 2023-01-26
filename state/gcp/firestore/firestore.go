@@ -41,7 +41,7 @@ type Firestore struct {
 }
 
 type firestoreMetadata struct {
-	Type                string
+	Type                string `json:"type"`
 	ProjectID           string `json:"project_id" mapstructure:"project_id"`
 	PrivateKeyID        string `json:"private_key_id" mapstructure:"private_key_id"`
 	PrivateKey          string `json:"private_key" mapstructure:"private_key"`
@@ -52,7 +52,7 @@ type firestoreMetadata struct {
 	AuthProviderCertURL string `json:"auth_provider_x509_cert_url" mapstructure:"auth_provider_x509_cert_url"`
 	ClientCertURL       string `json:"client_x509_cert_url" mapstructure:"client_x509_cert_url"`
 	EntityKind          string `json:"entity_kind" mapstructure:"entity_kind"`
-	NoIndex             bool
+	NoIndex             bool   `json:"-"`
 }
 
 type StateEntity struct {

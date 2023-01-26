@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -19,7 +19,9 @@ import (
 	"encoding/pem"
 	"errors"
 	"testing"
+	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -202,16 +204,18 @@ func TestParseMetadata(t *testing.T) {
 
 		logger := logger.NewLogger("test")
 		m := NewMQTT(logger).(*MQTT)
+		m.backOff = backoff.NewConstantBackOff(5 * time.Second)
 		m.ctx, m.cancel = context.WithCancel(context.Background())
-
-		m.handleMessage(context.Background(), func(ctx context.Context, r *bindings.ReadResponse) ([]byte, error) {
+		m.readHandler = func(ctx context.Context, r *bindings.ReadResponse) ([]byte, error) {
 			assert.Equal(t, payload, r.Data)
 			metadata := r.Metadata
 			responseTopic, ok := metadata[mqttTopic]
 			assert.True(t, ok)
 			assert.Equal(t, topic, responseTopic)
 			return r.Data, nil
-		}, &mqttMockMessage{
+		}
+
+		m.handleMessage(nil, &mqttMockMessage{
 			topic:   topic,
 			payload: payload,
 		})

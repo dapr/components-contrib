@@ -14,6 +14,7 @@ limitations under the License.
 package watcher
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -311,6 +312,29 @@ func (w *Watcher) Observe(data ...interface{}) {
 		if _, ok := w.remaining[item]; ok {
 			w.observed = append(w.observed, item)
 			delete(w.remaining, item)
+		}
+	}
+
+	if w.closable && len(w.remaining) == 0 {
+		w.finish()
+	}
+}
+
+// ObserveJSON adds any json data that is in `remaining` to
+// the `observed` slice. If the the watcher is closable
+// (all expected data captured) and there is no more
+// remaining data to observe, then the finish channel
+// is closed.
+func (w *Watcher) ObserveJSON(data ...interface{}) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	for _, item := range data {
+		b, _ := json.Marshal(&item)
+		str := string(b)
+		if _, ok := w.remaining[str]; ok {
+			w.observed = append(w.observed, str)
+			delete(w.remaining, str)
 		}
 	}
 

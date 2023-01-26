@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,10 +14,12 @@ limitations under the License.
 package mqtt
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
 
+	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -26,7 +28,6 @@ type metadata struct {
 	pubsub.TLSProperties
 	url          string
 	consumerID   string
-	producerID   string
 	qos          byte
 	retain       bool
 	cleanSession bool
@@ -38,13 +39,12 @@ const (
 	mqttQOS          = "qos"
 	mqttRetain       = "retain"
 	mqttConsumerID   = "consumerID"
-	mqttProducerID   = "producerID"
 	mqttCleanSession = "cleanSession"
 
 	// Defaults
 	defaultQOS          = 1
 	defaultRetain       = false
-	defaultWait         = 30 * time.Second
+	defaultWait         = 20 * time.Second
 	defaultCleanSession = false
 )
 
@@ -55,64 +55,40 @@ func parseMQTTMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error)
 	if val, ok := md.Properties[mqttURL]; ok && val != "" {
 		m.url = val
 	} else {
-		return &m, fmt.Errorf("%s missing url", errorMsgPrefix)
+		return &m, errors.New("missing url")
 	}
 
 	// optional configuration settings
 	m.qos = defaultQOS
 	if val, ok := md.Properties[mqttQOS]; ok && val != "" {
 		qosInt, err := strconv.Atoi(val)
-		if err != nil {
-			return &m, fmt.Errorf("%s invalid qos %s, %s", errorMsgPrefix, val, err)
+		if err != nil || qosInt < 0 || qosInt > 7 {
+			return &m, fmt.Errorf("invalid qos %s: %w", val, err)
 		}
 		m.qos = byte(qosInt)
 	}
 
 	m.retain = defaultRetain
 	if val, ok := md.Properties[mqttRetain]; ok && val != "" {
-		var err error
-		m.retain, err = strconv.ParseBool(val)
-		if err != nil {
-			return &m, fmt.Errorf("%s invalid retain %s, %s", errorMsgPrefix, val, err)
-		}
+		m.retain = utils.IsTruthy(val)
 	}
 
 	// Note: the runtime sets the default value to the Dapr app ID if empty
 	if val, ok := md.Properties[mqttConsumerID]; ok && val != "" {
 		m.consumerID = val
 	} else {
-		return &m, fmt.Errorf("%s missing consumerID", errorMsgPrefix)
-	}
-
-	if val, ok := md.Properties[mqttProducerID]; ok && val != "" {
-		m.producerID = val
+		return &m, errors.New("missing consumerID")
 	}
 
 	m.cleanSession = defaultCleanSession
 	if val, ok := md.Properties[mqttCleanSession]; ok && val != "" {
-		var err error
-		m.cleanSession, err = strconv.ParseBool(val)
-		if err != nil {
-			return &m, fmt.Errorf("%s invalid cleanSession %s, %s", errorMsgPrefix, val, err)
-		}
+		m.cleanSession = utils.IsTruthy(val)
 	}
 
 	var err error
 	m.TLSProperties, err = pubsub.TLS(md.Properties)
 	if err != nil {
-		return &m, fmt.Errorf("%s invalid TLS configuration: %w", errorMsgPrefix, err)
-	}
-
-	// Deprecated config option
-	// TODO: Remove in the future
-	if _, ok := md.Properties["backOffMaxRetries"]; ok {
-		log.Warnf("Metadata property 'backOffMaxRetries' for component pubsub.mqtt has been deprecated and will be ignored. See: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-mqtt/")
-	}
-
-	// Deprecated config option
-	// TODO: Remove in the future
-	if _, ok := md.Properties["maxRetriableErrorsPerSec"]; ok {
-		log.Warnf("Metadata property 'maxRetriableErrorsPerSec' for component pubsub.mqtt3 has been deprecated and will be ignored. See: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-mqtt/")
+		return &m, fmt.Errorf("invalid TLS configuration: %w", err)
 	}
 
 	return &m, nil

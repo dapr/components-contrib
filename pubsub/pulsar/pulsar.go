@@ -22,6 +22,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hamba/avro/v2"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	lru "github.com/hashicorp/golang-lru/v2"
 
@@ -56,7 +58,7 @@ const (
 	topicFormat               = "%s://%s/%s/%s"
 	persistentStr             = "persistent"
 	nonPersistentStr          = "non-persistent"
-	topicJsonSchemaIdentifier = ".jsonschema"
+	topicJSONSchemaIdentifier = ".jsonschema"
 	topicAvroSchemaIdentifier = ".avroschema"
 
 	// defaultBatchingMaxPublishDelay init default for maximum delay to batch messages.
@@ -155,8 +157,8 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 	}
 
 	for k, v := range meta.Properties {
-		if strings.LastIndex(k, topicJsonSchemaIdentifier) > 0 {
-			topic := k[:strings.LastIndex(k, topicJsonSchemaIdentifier)]
+		if strings.LastIndex(k, topicJSONSchemaIdentifier) > 0 {
+			topic := k[:strings.LastIndex(k, topicJSONSchemaIdentifier)]
 			m.topicSchemas[topic] = schemaMetadata{
 				protocol: jsonProtocol,
 				value:    v,
@@ -248,7 +250,7 @@ func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 		p.cache.Add(topic, producer)
 	}
 
-	msg, err = parsePublishMetadata(req, hasSchema)
+	msg, err = parsePublishMetadata(req, schemaMetadata)
 	if err != nil {
 		return err
 	}
@@ -271,16 +273,31 @@ func getPulsarSchema(metadata schemaMetadata) pulsar.Schema {
 }
 
 // parsePublishMetadata parse publish metadata.
-func parsePublishMetadata(req *pubsub.PublishRequest, enforceSchema bool) (
+func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 	msg *pulsar.ProducerMessage, err error,
 ) {
 	msg = &pulsar.ProducerMessage{}
 
-	if !enforceSchema {
+	switch schema.protocol {
+	case "":
 		msg.Payload = req.Data
-	} else {
+	case jsonProtocol:
 		var obj interface{}
-		err := json.Unmarshal(req.Data, &obj)
+		err = json.Unmarshal(req.Data, &obj)
+
+		if err != nil {
+			return nil, err
+		}
+
+		msg.Value = obj
+	case avroProtocol:
+		var obj interface{}
+		avroSchema, parseErr := avro.Parse(schema.value)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+
+		err = avro.Unmarshal(avroSchema, req.Data, &obj)
 
 		if err != nil {
 			return nil, err
@@ -302,7 +319,7 @@ func parsePublishMetadata(req *pubsub.PublishRequest, enforceSchema bool) (
 		}
 	}
 
-	return
+	return msg, nil
 }
 
 func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {

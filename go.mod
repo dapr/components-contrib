@@ -130,6 +130,8 @@ require (
 	modernc.org/sqlite v1.20.3
 )
 
+require github.com/hamba/avro/v2 v2.4.0
+
 require (
 	cloud.google.com/go v0.107.0 // indirect
 	cloud.google.com/go/compute v1.14.0 // indirect

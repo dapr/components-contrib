@@ -12,5 +12,5 @@ spec:
     value: certification4
   - name: redeliveryDelay
     value: 200ms
-  - name: certification-pubsub-topic-active.schema
+  - name: certification-pubsub-topic-active.jsonschema
     value: "{\"type\":\"record\",\"name\":\"Example\",\"namespace\":\"test\",\"fields\":[{\"name\":\"ID\",\"type\":\"int\"},{\"name\":\"Name\",\"type\":\"string\"}]}"

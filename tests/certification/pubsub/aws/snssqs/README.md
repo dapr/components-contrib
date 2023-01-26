@@ -61,7 +61,12 @@ The purpose of this module is to provide tests that certify the AWS SNS/SQS Pubs
    - Publishers publishe to 1 topic
    - Subscriber 1 subscribes to 1 topic
    - Message are expected to arrive in order
-
+- Verify data with an optional parameters `sqsDeadLettersQueueName`, `messageRetryLimit`, and `messageReceiveLimit` takes affect (SNSSQSMessageDeadLetter)
+   - Run dapr application with 1 publisher, 2 subscriber, and 1 topics
+   - Publishers publishes to 1 topic
+   - Subscriber 1 subscribes to 1 topic and fails causing messages to go to deadletter queue
+   - Subscriber 2 polls messages from the deadletter queue
+   - Message are expected to only be successfully consumed by Subscriber 2 from deadletter queue
 ### Running the tests
 
 This must be run in the GitHub Actions Workflow configured for test infrastructure setup.

@@ -67,6 +67,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.7.0
 	github.com/gorilla/mux v1.8.0
 	github.com/grandcat/zeroconf v1.0.0
+	github.com/hamba/avro/v2 v2.4.0
 	github.com/hashicorp/consul/api v1.13.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.1
@@ -129,8 +130,6 @@ require (
 	k8s.io/utils v0.0.0-20230115233650-391b47cb4029
 	modernc.org/sqlite v1.20.3
 )
-
-require github.com/hamba/avro/v2 v2.4.0
 
 require (
 	cloud.google.com/go v0.107.0 // indirect

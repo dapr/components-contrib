@@ -62,20 +62,20 @@ type tlsCfg struct {
 	clientKey  string
 }
 
-func parseMQTTMetaData(md bindings.Metadata, log logger.Logger) (*metadata, error) {
+func parseMQTTMetaData(md bindings.Metadata, log logger.Logger) (metadata, error) {
 	m := metadata{}
 
 	// required configuration settings
 	if val, ok := md.Properties[mqttURL]; ok && val != "" {
 		m.url = val
 	} else {
-		return &m, errors.New("missing url")
+		return m, errors.New("missing url")
 	}
 
 	if val, ok := md.Properties[mqttTopic]; ok && val != "" {
 		m.topic = val
 	} else {
-		return &m, errors.New("missing topic")
+		return m, errors.New("missing topic")
 	}
 
 	// optional configuration settings
@@ -87,7 +87,7 @@ func parseMQTTMetaData(md bindings.Metadata, log logger.Logger) (*metadata, erro
 	if val, ok := md.Properties[mqttClientID]; ok && val != "" {
 		m.clientID = val
 	} else {
-		return &m, errors.New("missing consumerID")
+		return m, errors.New("missing consumerID")
 	}
 
 	m.cleanSession = defaultCleanSession
@@ -97,19 +97,19 @@ func parseMQTTMetaData(md bindings.Metadata, log logger.Logger) (*metadata, erro
 
 	if val, ok := md.Properties[mqttCACert]; ok && val != "" {
 		if !isValidPEM(val) {
-			return &m, errors.New("invalid ca certificate")
+			return m, errors.New("invalid ca certificate")
 		}
 		m.tlsCfg.caCert = val
 	}
 	if val, ok := md.Properties[mqttClientCert]; ok && val != "" {
 		if !isValidPEM(val) {
-			return &m, errors.New("invalid client certificate")
+			return m, errors.New("invalid client certificate")
 		}
 		m.tlsCfg.clientCert = val
 	}
 	if val, ok := md.Properties[mqttClientKey]; ok && val != "" {
 		if !isValidPEM(val) {
-			return &m, errors.New("invalid client certificate key")
+			return m, errors.New("invalid client certificate key")
 		}
 		m.tlsCfg.clientKey = val
 	}
@@ -117,7 +117,7 @@ func parseMQTTMetaData(md bindings.Metadata, log logger.Logger) (*metadata, erro
 	if val, ok := md.Properties[mqttBackOffMaxRetries]; ok && val != "" {
 		backOffMaxRetriesInt, err := strconv.Atoi(val)
 		if err != nil {
-			return &m, fmt.Errorf("invalid backOffMaxRetries %s: %v", val, err)
+			return m, fmt.Errorf("invalid backOffMaxRetries %s: %v", val, err)
 		}
 		m.backOffMaxRetries = backOffMaxRetriesInt
 	}
@@ -128,7 +128,7 @@ func parseMQTTMetaData(md bindings.Metadata, log logger.Logger) (*metadata, erro
 		log.Warn("Metadata property 'qos' has been deprecated and is ignored; qos is set to 1")
 	}
 
-	return &m, nil
+	return m, nil
 }
 
 // isValidPEM validates the provided input has PEM formatted block.

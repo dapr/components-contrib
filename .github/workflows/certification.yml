@@ -323,6 +323,11 @@ jobs:
         PUBSUB_AWS_SNSSQS_FIFO_GROUP_ID="sqssnscerttest-q-fifo-${{env.UNIQUE_ID}}"
         echo "PUBSUB_AWS_SNSSQS_FIFO_GROUP_ID=$PUBSUB_AWS_SNSSQS_FIFO_GROUP_ID" >> $GITHUB_ENV
 
+        PUBSUB_AWS_SNSSQS_QUEUE_NODRT="sqssnscerttest-q-nodrt-${{env.UNIQUE_ID}}"
+        echo "PUBSUB_AWS_SNSSQS_QUEUE_NODRT=$PUBSUB_AWS_SNSSQS_QUEUE_NODRT" >> $GITHUB_ENV
+        PUBSUB_AWS_SNSSQS_TOPIC_NODRT="sqssnscerttest-t-nodrt-${{env.UNIQUE_ID}}"
+        echo "PUBSUB_AWS_SNSSQS_TOPIC_NODRT=$PUBSUB_AWS_SNSSQS_TOPIC_NODRT" >> $GITHUB_ENV
+
         AWS_REGION="us-east-1"
         echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
     

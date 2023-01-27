@@ -87,9 +87,9 @@ func (s *RethinkDB) Init(ctx context.Context, metadata state.Metadata) error {
 	s.config = cfg
 
 	// check if table already exists
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	listContext, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	c, err := r.DB(s.config.Database).TableList().Run(s.session, r.RunOpts{Context: ctx})
+	c, err := r.DB(s.config.Database).TableList().Run(s.session, r.RunOpts{Context: listContext})
 	if err != nil {
 		return errors.Wrap(err, "error checking for state table existence in DB")
 	}
@@ -106,12 +106,11 @@ func (s *RethinkDB) Init(ctx context.Context, metadata state.Metadata) error {
 	}
 
 	if !tableExists(list, s.config.Table) {
-		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 		_, err = r.DB(s.config.Database).TableCreate(s.config.Table, r.TableCreateOpts{
 			PrimaryKey: stateTablePKName,
-		}).RunWrite(s.session, r.RunOpts{Context: ctx})
-		cancel()
+		}).RunWrite(s.session, r.RunOpts{Context: cctx})
 		if err != nil {
 			return errors.Wrap(err, "error creating state table in DB")
 		}
@@ -119,25 +118,23 @@ func (s *RethinkDB) Init(ctx context.Context, metadata state.Metadata) error {
 
 	if s.config.Archive && !tableExists(list, stateArchiveTableName) {
 		// create archive table with autokey to preserve state id
-		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		ctblCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 		_, err = r.DB(s.config.Database).TableCreate(stateArchiveTableName,
-			r.TableCreateOpts{PrimaryKey: stateArchiveTablePKName}).RunWrite(s.session, r.RunOpts{Context: ctx})
+			r.TableCreateOpts{PrimaryKey: stateArchiveTablePKName}).RunWrite(s.session, r.RunOpts{Context: ctblCtx})
 		if err != nil {
 			return errors.Wrap(err, "error creating state archive table in DB")
 		}
 
-		{
-			// index archive table for id and timestamp
-			ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-			defer cancel()
-			_, err = r.DB(s.config.Database).Table(stateArchiveTableName).
-				IndexCreateFunc("state_index", func(row r.Term) interface{} {
-					return []interface{}{row.Field("id"), row.Field("timestamp")}
-				}).RunWrite(s.session, r.RunOpts{Context: ctx})
-			if err != nil {
-				return errors.Wrap(err, "error creating state archive index in DB")
-			}
+		// index archive table for id and timestamp
+		cindCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		_, err = r.DB(s.config.Database).Table(stateArchiveTableName).
+			IndexCreateFunc("state_index", func(row r.Term) interface{} {
+				return []interface{}{row.Field("id"), row.Field("timestamp")}
+			}).RunWrite(s.session, r.RunOpts{Context: cindCtx})
+		if err != nil {
+			return errors.Wrap(err, "error creating state archive index in DB")
 		}
 	}
 

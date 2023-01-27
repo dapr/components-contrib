@@ -236,6 +236,9 @@ func (a *AWSKinesis) ensureConsumer(ctx context.Context, streamARN *string) (*st
 		consumer *kinesis.DescribeStreamConsumerOutput
 	)
 	{
+		// goling complains about redeclaring a ctx here, but we want a timeout on
+		// the describe call and not register consumer.
+		//nolint:govet
 		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 		consumer, err = a.client.DescribeStreamConsumerWithContext(ctx, &kinesis.DescribeStreamConsumerInput{

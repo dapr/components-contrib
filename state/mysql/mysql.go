@@ -242,9 +242,9 @@ func (m *MySQL) ensureStateSchema(ctx context.Context) error {
 
 	if !exists {
 		m.logger.Infof("Creating MySql schema '%s'", m.schemaName)
-		ctx, cancel := context.WithTimeout(ctx, m.timeout)
+		cctx, cancel := context.WithTimeout(ctx, m.timeout)
 		defer cancel()
-		_, err = m.db.ExecContext(ctx,
+		_, err = m.db.ExecContext(cctx,
 			fmt.Sprintf("CREATE DATABASE %s;", m.schemaName),
 		)
 		if err != nil {
@@ -297,10 +297,10 @@ func (m *MySQL) ensureStateTable(ctx context.Context, stateTableName string) err
 			eTag VARCHAR(36) NOT NULL
 			);`, stateTableName)
 
+		//nolint:govet
 		ctx, cancel := context.WithTimeout(ctx, m.timeout)
 		defer cancel()
 		_, err = m.db.ExecContext(ctx, createTable)
-
 		if err != nil {
 			return err
 		}

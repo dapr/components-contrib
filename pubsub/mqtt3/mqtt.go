@@ -142,22 +142,20 @@ func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	m.addTopic(topic, handler)
 
 	token := m.conn.Subscribe(topic, m.metadata.qos, m.onMessage(ctx))
-	{
-		ctx, cancel := context.WithTimeout(ctx, defaultWait)
-		defer cancel()
-		var err error
-		select {
-		case <-token.Done():
-			// Subscription went through (sucecessfully or not)
-			err = token.Error()
-		case <-ctx.Done():
-			err = fmt.Errorf("error while waiting for subscription token: %w", ctx.Err())
-		}
-		if err != nil {
-			// Return an error
-			delete(m.topics, topic)
-			return fmt.Errorf("mqtt error from subscribe: %v", err)
-		}
+	var err error
+	select {
+	case <-token.Done():
+		// Subscription went through (sucecessfully or not)
+		err = token.Error()
+	case <-ctx.Done():
+		err = fmt.Errorf("error while waiting for subscription token: %w", ctx.Err())
+	case <-time.After(defaultWait):
+		err = errors.New("timeout waiting for subscription")
+	}
+	if err != nil {
+		// Return an error
+		delete(m.topics, topic)
+		return fmt.Errorf("mqtt error from subscribe: %v", err)
 	}
 
 	m.logger.Infof("MQTT is subscribed to topic %s (qos: %d)", topic, m.metadata.qos)

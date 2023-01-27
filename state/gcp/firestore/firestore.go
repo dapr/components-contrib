@@ -36,12 +36,12 @@ type Firestore struct {
 	state.DefaultBulkStore
 	client     *datastore.Client
 	entityKind string
-
-	logger logger.Logger
+	noIndex    bool
+	logger     logger.Logger
 }
 
 type firestoreMetadata struct {
-	Type                string `json:"type" mapstructure:"type"`
+	Type                string `json:"type"`
 	ProjectID           string `json:"project_id" mapstructure:"project_id"`
 	PrivateKeyID        string `json:"private_key_id" mapstructure:"private_key_id"`
 	PrivateKey          string `json:"private_key" mapstructure:"private_key"`
@@ -52,10 +52,15 @@ type firestoreMetadata struct {
 	AuthProviderCertURL string `json:"auth_provider_x509_cert_url" mapstructure:"auth_provider_x509_cert_url"`
 	ClientCertURL       string `json:"client_x509_cert_url" mapstructure:"client_x509_cert_url"`
 	EntityKind          string `json:"entity_kind" mapstructure:"entity_kind"`
+	NoIndex             bool   `json:"-"`
 }
 
 type StateEntity struct {
 	Value string
+}
+
+type StateEntityNoIndex struct {
+	Value string `datastore:",noindex"`
 }
 
 func NewFirestoreStateStore(logger logger.Logger) state.Store {
@@ -85,6 +90,7 @@ func (f *Firestore) Init(metadata state.Metadata) error {
 
 	f.client = client
 	f.entityKind = meta.EntityKind
+	f.noIndex = meta.NoIndex
 
 	return nil
 }
@@ -128,8 +134,15 @@ func (f *Firestore) Set(ctx context.Context, req *state.SetRequest) error {
 		v, _ = jsoniter.MarshalToString(req.Value)
 	}
 
-	entity := &StateEntity{
-		Value: v,
+	var entity interface{}
+	if f.noIndex {
+		entity = &StateEntityNoIndex{
+			Value: v,
+		}
+	} else {
+		entity = &StateEntity{
+			Value: v,
+		}
 	}
 	key := datastore.NameKey(f.entityKind, req.Key, nil)
 

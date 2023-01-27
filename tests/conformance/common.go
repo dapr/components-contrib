@@ -96,6 +96,7 @@ import (
 	s_postgresql "github.com/dapr/components-contrib/state/postgresql"
 	s_redis "github.com/dapr/components-contrib/state/redis"
 	s_rethinkdb "github.com/dapr/components-contrib/state/rethinkdb"
+	s_sqlite "github.com/dapr/components-contrib/state/sqlite"
 	s_sqlserver "github.com/dapr/components-contrib/state/sqlserver"
 	conf_bindings "github.com/dapr/components-contrib/tests/conformance/bindings"
 	conf_configuration "github.com/dapr/components-contrib/tests/conformance/configuration"
@@ -571,6 +572,8 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_sqlserver.NewSQLServerStateStore(testLogger)
 	case "postgresql":
 		store = s_postgresql.NewPostgreSQLStateStore(testLogger)
+	case "sqlite":
+		store = s_sqlite.NewSQLiteStateStore(testLogger)
 	case "mysql.mysql":
 		store = s_mysql.NewMySQLStateStore(testLogger)
 	case "mysql.mariadb":

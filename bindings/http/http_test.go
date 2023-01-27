@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package http_test
+package http
 
 import (
 	"context"
@@ -31,13 +31,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
-	bindingHttp "github.com/dapr/components-contrib/bindings/http"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
 func TestOperations(t *testing.T) {
-	opers := (*bindingHttp.HTTPSource)(nil).Operations()
+	opers := (*HTTPSource)(nil).Operations()
 	assert.Equal(t, []bindings.OperationKind{
 		bindings.CreateOperation,
 		"get",
@@ -132,7 +131,7 @@ func InitBinding(s *httptest.Server, extraProps map[string]string) (bindings.Out
 		}
 	}
 
-	hs := bindingHttp.NewHTTP(logger.NewLogger("test"))
+	hs := NewHTTP(logger.NewLogger("test"))
 	err := hs.Init(m)
 	return hs, err
 }
@@ -164,6 +163,44 @@ func TestNon2XXErrorsSuppressed(t *testing.T) {
 	hs, err := InitBinding(s, map[string]string{"errorIfNot2XX": "false"})
 	require.NoError(t, err)
 	verifyNon2XXErrorsSuppressed(t, hs, handler)
+}
+
+func TestSecurityTokenHeaderForwarded(t *testing.T) {
+	handler := NewHTTPHandler()
+	s := httptest.NewServer(handler)
+	defer s.Close()
+
+	t.Run("security token headers are forwarded", func(t *testing.T) {
+		hs, err := InitBinding(s, map[string]string{securityTokenHeader: "X-Token", securityToken: "12345"})
+		require.NoError(t, err)
+
+		req := TestCase{
+			input:      "GET",
+			operation:  "get",
+			path:       "/",
+			err:        "",
+			statusCode: 200,
+		}.ToInvokeRequest()
+		_, err = hs.Invoke(context.Background(), &req)
+		assert.NoError(t, err)
+		assert.Equal(t, "12345", handler.Headers["X-Token"])
+	})
+
+	t.Run("security token headers are forwarded", func(t *testing.T) {
+		hs, err := InitBinding(s, nil)
+		require.NoError(t, err)
+
+		req := TestCase{
+			input:      "GET",
+			operation:  "get",
+			path:       "/",
+			err:        "",
+			statusCode: 200,
+		}.ToInvokeRequest()
+		_, err = hs.Invoke(context.Background(), &req)
+		assert.NoError(t, err)
+		assert.Empty(t, handler.Headers["X-Token"])
+	})
 }
 
 func TestTraceHeadersForwarded(t *testing.T) {
@@ -231,7 +268,7 @@ func InitBindingForHTTPS(s *httptest.Server, extraProps map[string]string) (bind
 	for k, v := range extraProps {
 		m.Properties[k] = v
 	}
-	hs := bindingHttp.NewHTTP(logger.NewLogger("test"))
+	hs := NewHTTP(logger.NewLogger("test"))
 	err := hs.Init(m)
 	return hs, err
 }

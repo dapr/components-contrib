@@ -61,7 +61,6 @@ type snsSqs struct {
 	logger        logger.Logger
 	id            string
 	opsTimeout    time.Duration
-	pollerCancel  context.CancelFunc
 	backOffConfig retry.Config
 	pollerRunning chan struct{}
 
@@ -820,12 +819,12 @@ func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	// Start the poller for the queue if it's not running already
 	select {
 	case s.pollerRunning <- struct{}{}:
-		ctx, cancel := context.WithCancel(context.Background())
+		subctx, cancel := context.WithCancel(context.Background())
 		go func() {
 			defer cancel()
 			<-s.closeCh
 		}()
-		go s.consumeSubscription(ctx, queueInfo, deadLettersQueueInfo)
+		go s.consumeSubscription(subctx, queueInfo, deadLettersQueueInfo)
 	default:
 		// Do nothing, it means the poller is already running
 	}
@@ -839,11 +838,6 @@ func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 
 		// Remove the handler
 		delete(s.topicHandlers, sanitizedName)
-
-		// If we don't have any topic left, close the poller
-		if len(s.topicHandlers) == 0 {
-			s.pollerCancel()
-		}
 	}()
 
 	return nil

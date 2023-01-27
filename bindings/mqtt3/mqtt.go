@@ -124,13 +124,13 @@ func (m *MQTT) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindin
 	}
 	return nil, retry.NotifyRecover(func() (err error) {
 		token := producer.Publish(topic, m.metadata.qos, m.metadata.retain, req.Data)
-		ctx, cancel := context.WithTimeout(ctx, defaultWait)
-		defer cancel()
 		select {
 		case <-token.Done():
 			err = token.Error()
 		case <-m.closeCh:
 			err = errors.New("mqtt client closed")
+		case <-time.After(defaultWait):
+			err = errors.New("mqtt client timeout")
 		case <-ctx.Done():
 			// Context canceled
 			err = ctx.Err()
@@ -333,12 +333,12 @@ func (m *MQTT) createSubscriberClientOptions(ctx context.Context, uri *url.URL, 
 		token := c.Subscribe(m.metadata.topic, m.metadata.qos, m.handleMessage(ctx))
 
 		var err error
-		ctx, cancel := context.WithTimeout(ctx, defaultWait)
-		defer cancel()
 		select {
 		case <-token.Done():
 			// Subscription went through (sucecessfully or not)
 			err = token.Error()
+		case <-time.After(defaultWait):
+			err = errors.New("timed out waiting for subscription to complete")
 		case <-ctx.Done():
 			err = fmt.Errorf("error while waiting for subscription token: %w", ctx.Err())
 		}

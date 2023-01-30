@@ -370,12 +370,6 @@ func (a *sqliteDBAccess) ensureStateTable(parentCtx context.Context, stateTableN
 		return err
 	}
 
-	stmt = fmt.Sprintf(`CREATE INDEX idx_%s_expiration_time ON %s (expiration_time)`, stateTableName, stateTableName)
-	_, err = tx.Exec(stmt)
-	if err != nil {
-		return err
-	}
-
 	return tx.Commit()
 }
 

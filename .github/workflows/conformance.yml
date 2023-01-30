@@ -650,18 +650,7 @@ jobs:
       with:
         name: ${{ matrix.component }}_conformance_test
         path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.*
-
-    #download artifacts from certification test
-    - name: Download workflow artifact
-      if: always()
-      uses: dawidd6/action-download-artifact@v2.24.3
-      with:
-        workflow: certification.yml
-        workflow_conclusion: ""
-        branch: master
-        path: tmp/result_files
-        if_no_artifact_found: warn
-
+        
   post_job:
     name: Post-completion
     runs-on: ubuntu-latest

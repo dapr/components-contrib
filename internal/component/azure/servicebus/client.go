@@ -126,14 +126,20 @@ func (c *Client) GetSender(ctx context.Context, queueOrTopic string) (*servicebu
 }
 
 // CloseSender closes a sender for a queue or topic.
-func (c *Client) CloseSender(queueOrTopic string) {
+func (c *Client) CloseSender(queueOrTopic string, log logger.Logger) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
 	sender, ok := c.senders[queueOrTopic]
 	if ok && sender != nil {
+		log.Info("Closing sender: " + queueOrTopic)
 		closeCtx, closeCancel := context.WithTimeout(context.Background(), time.Second)
-		_ = sender.Close(closeCtx)
+		// Log only
+		err := sender.Close(closeCtx)
+		if err != nil {
+			// Log only
+			log.Warnf("Error closing sender %s: %v", queueOrTopic, err)
+		}
 		closeCancel()
 	}
 	delete(c.senders, queueOrTopic)
@@ -150,7 +156,7 @@ func (c *Client) CloseAllSenders(log logger.Logger) {
 		// Blocks if we have too many goroutines
 		workersCh <- true
 		go func(k string, t *servicebus.Sender) {
-			log.Debugf("Closing sender %s", k)
+			log.Debug("Closing sender: " + k)
 			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(c.metadata.TimeoutInSec)*time.Second)
 			err := t.Close(ctx)
 			cancel()

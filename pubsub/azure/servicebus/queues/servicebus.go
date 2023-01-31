@@ -102,7 +102,7 @@ func (a *azureServiceBus) Publish(ctx context.Context, req *pubsub.PublishReques
 			if err != nil {
 				if impl.IsNetworkError(err) {
 					// Retry after reconnecting
-					a.client.CloseSender(req.Topic)
+					a.client.CloseSender(req.Topic, a.logger)
 					return err
 				}
 

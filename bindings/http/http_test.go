@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package http_test
+package http
 
 import (
 	"context"
@@ -31,13 +31,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
-	bindingHttp "github.com/dapr/components-contrib/bindings/http"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
 func TestOperations(t *testing.T) {
-	opers := (*bindingHttp.HTTPSource)(nil).Operations()
+	opers := (*HTTPSource)(nil).Operations()
 	assert.Equal(t, []bindings.OperationKind{
 		bindings.CreateOperation,
 		"get",
@@ -77,11 +76,16 @@ func (tc TestCase) ToInvokeRequest() bindings.InvokeRequest {
 }
 
 type HTTPHandler struct {
-	Path string
+	Path    string
+	Headers map[string]string
 }
 
 func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	h.Path = req.URL.Path
+	h.Headers = make(map[string]string)
+	for headerKey, headerValue := range req.Header {
+		h.Headers[headerKey] = headerValue[0]
+	}
 
 	input := req.Method
 	if req.Body != nil {
@@ -109,7 +113,8 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 func NewHTTPHandler() *HTTPHandler {
 	return &HTTPHandler{
-		Path: "/",
+		Path:    "/",
+		Headers: make(map[string]string),
 	}
 }
 
@@ -126,7 +131,7 @@ func InitBinding(s *httptest.Server, extraProps map[string]string) (bindings.Out
 		}
 	}
 
-	hs := bindingHttp.NewHTTP(logger.NewLogger("test"))
+	hs := NewHTTP(logger.NewLogger("test"))
 	err := hs.Init(m)
 	return hs, err
 }
@@ -160,6 +165,100 @@ func TestNon2XXErrorsSuppressed(t *testing.T) {
 	verifyNon2XXErrorsSuppressed(t, hs, handler)
 }
 
+func TestSecurityTokenHeaderForwarded(t *testing.T) {
+	handler := NewHTTPHandler()
+	s := httptest.NewServer(handler)
+	defer s.Close()
+
+	t.Run("security token headers are forwarded", func(t *testing.T) {
+		hs, err := InitBinding(s, map[string]string{securityTokenHeader: "X-Token", securityToken: "12345"})
+		require.NoError(t, err)
+
+		req := TestCase{
+			input:      "GET",
+			operation:  "get",
+			path:       "/",
+			err:        "",
+			statusCode: 200,
+		}.ToInvokeRequest()
+		_, err = hs.Invoke(context.Background(), &req)
+		assert.NoError(t, err)
+		assert.Equal(t, "12345", handler.Headers["X-Token"])
+	})
+
+	t.Run("security token headers are forwarded", func(t *testing.T) {
+		hs, err := InitBinding(s, nil)
+		require.NoError(t, err)
+
+		req := TestCase{
+			input:      "GET",
+			operation:  "get",
+			path:       "/",
+			err:        "",
+			statusCode: 200,
+		}.ToInvokeRequest()
+		_, err = hs.Invoke(context.Background(), &req)
+		assert.NoError(t, err)
+		assert.Empty(t, handler.Headers["X-Token"])
+	})
+}
+
+func TestTraceHeadersForwarded(t *testing.T) {
+	handler := NewHTTPHandler()
+	s := httptest.NewServer(handler)
+	defer s.Close()
+
+	hs, err := InitBinding(s, nil)
+	require.NoError(t, err)
+
+	t.Run("trace headers are forwarded", func(t *testing.T) {
+		req := TestCase{
+			input:      "GET",
+			operation:  "get",
+			metadata:   map[string]string{"path": "/", "traceparent": "12345", "tracestate": "67890"},
+			path:       "/",
+			err:        "",
+			statusCode: 200,
+		}.ToInvokeRequest()
+		_, err = hs.Invoke(context.Background(), &req)
+		assert.NoError(t, err)
+		assert.Equal(t, "12345", handler.Headers["Traceparent"])
+		assert.Equal(t, "67890", handler.Headers["Tracestate"])
+	})
+
+	t.Run("trace headers should not be forwarded if empty", func(t *testing.T) {
+		req := TestCase{
+			input:      "GET",
+			operation:  "get",
+			metadata:   map[string]string{"path": "/", "traceparent": "", "tracestate": ""},
+			path:       "/",
+			err:        "",
+			statusCode: 200,
+		}.ToInvokeRequest()
+		_, err = hs.Invoke(context.Background(), &req)
+		assert.NoError(t, err)
+		_, traceParentExists := handler.Headers["Traceparent"]
+		assert.False(t, traceParentExists)
+		_, traceStateExists := handler.Headers["Tracestate"]
+		assert.False(t, traceStateExists)
+	})
+
+	t.Run("trace headers override headers in request metadata", func(t *testing.T) {
+		req := TestCase{
+			input:      "GET",
+			operation:  "get",
+			metadata:   map[string]string{"path": "/", "Traceparent": "abcde", "Tracestate": "fghijk", "traceparent": "12345", "tracestate": "67890"},
+			path:       "/",
+			err:        "",
+			statusCode: 200,
+		}.ToInvokeRequest()
+		_, err = hs.Invoke(context.Background(), &req)
+		assert.NoError(t, err)
+		assert.Equal(t, "12345", handler.Headers["Traceparent"])
+		assert.Equal(t, "67890", handler.Headers["Tracestate"])
+	})
+}
+
 func InitBindingForHTTPS(s *httptest.Server, extraProps map[string]string) (bindings.OutputBinding, error) {
 	m := bindings.Metadata{Base: metadata.Base{
 		Properties: map[string]string{
@@ -169,7 +268,7 @@ func InitBindingForHTTPS(s *httptest.Server, extraProps map[string]string) (bind
 	for k, v := range extraProps {
 		m.Properties[k] = v
 	}
-	hs := bindingHttp.NewHTTP(logger.NewLogger("test"))
+	hs := NewHTTP(logger.NewLogger("test"))
 	err := hs.Init(m)
 	return hs, err
 }

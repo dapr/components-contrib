@@ -38,10 +38,15 @@ import (
 )
 
 const (
-	MTLSEnable     = "MTLSEnable"
 	MTLSRootCA     = "MTLSRootCA"
 	MTLSClientCert = "MTLSClientCert"
 	MTLSClientKey  = "MTLSClientKey"
+
+	TraceparentHeaderKey = "traceparent"
+	TracestateHeaderKey  = "tracestate"
+	TraceMetadataKey     = "traceHeaders"
+	securityToken        = "securityToken"
+	securityTokenHeader  = "securityTokenHeader"
 )
 
 // HTTPSource is a binding for an http url endpoint invocation
@@ -55,10 +60,12 @@ type HTTPSource struct {
 }
 
 type httpMetadata struct {
-	URL            string `mapstructure:"url"`
-	MTLSClientCert string `mapstructure:"mtlsClientCert"`
-	MTLSClientKey  string `mapstructure:"mtlsClientKey"`
-	MTLSRootCA     string `mapstructure:"mtlsRootCA"`
+	URL                 string `mapstructure:"url"`
+	MTLSClientCert      string `mapstructure:"mtlsClientCert"`
+	MTLSClientKey       string `mapstructure:"mtlsClientKey"`
+	MTLSRootCA          string `mapstructure:"mtlsRootCA"`
+	SecurityToken       string `mapstructure:"securityToken"`
+	SecurityTokenHeader string `mapstructure:"securityTokenHeader"`
 }
 
 // NewHTTP returns a new HTTPSource.
@@ -142,23 +149,19 @@ func (h *HTTPSource) readMTLSCertificates() (*tls.Config, error) {
 }
 
 // getPemBytes returns the PEM encoded bytes from the provided certName and certData.
-// If the certData is a file path, it reads the file and returns the bytes.
-// Else if the certData is a PEM encoded string, it returns the bytes.
-// Else it returns an error.
+// If the certData is a PEM encoded string, it returns the bytes.
+// If there is an error in decoding the PEM, assume it is a filepath and try to read its content.
+// Return the error occurred while reading the file.
 func (h *HTTPSource) getPemBytes(certName, certData string) ([]byte, error) {
-	// Read the file
-	pemBytes, err := os.ReadFile(certData)
-	// If there is an error assume it is already PEM encoded string not a file path.
-	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("failed to read %q file: %w", certName, err)
+	if !isValidPEM(certData) {
+		// Read the file
+		pemBytes, err := os.ReadFile(certData)
+		if err != nil {
+			return nil, fmt.Errorf("provided %q value is neither a valid file path or nor a valid pem encoded string: %w", certName, err)
 		}
-		if !isValidPEM(certData) {
-			return nil, fmt.Errorf("provided %q value is neither a valid file path or nor a valid pem encoded string", certName)
-		}
-		return []byte(certData), nil
+		return pemBytes, nil
 	}
-	return pemBytes, nil
+	return []byte(certData), nil
 }
 
 // isValidPEM validates the provided input has PEM formatted block.
@@ -234,6 +237,11 @@ func (h *HTTPSource) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 		request.Header.Set("Accept", "application/json; charset=utf-8")
 	}
 
+	// Set security token values if set.
+	if h.metadata.SecurityToken != "" && h.metadata.SecurityTokenHeader != "" {
+		request.Header.Set(h.metadata.SecurityTokenHeader, h.metadata.SecurityToken)
+	}
+
 	// Any metadata keys that start with a capital letter
 	// are treated as request headers
 	for mdKey, mdValue := range req.Metadata {
@@ -241,6 +249,22 @@ func (h *HTTPSource) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 		if len(keyAsRunes) > 0 && unicode.IsUpper(keyAsRunes[0]) {
 			request.Header.Set(mdKey, mdValue)
 		}
+	}
+
+	// HTTP binding needs to inject traceparent header for proper tracing stack.
+	if tp, ok := req.Metadata[TraceparentHeaderKey]; ok && tp != "" {
+		if _, ok := request.Header[http.CanonicalHeaderKey(TraceparentHeaderKey)]; ok {
+			h.logger.Warn("Tracing is enabled. A custom Traceparent request header cannot be specified and is ignored.")
+		}
+
+		request.Header.Set(TraceparentHeaderKey, tp)
+	}
+	if ts, ok := req.Metadata[TracestateHeaderKey]; ok && ts != "" {
+		if _, ok := request.Header[http.CanonicalHeaderKey(TracestateHeaderKey)]; ok {
+			h.logger.Warn("Tracing is enabled. A custom Tracestate request header cannot be specified and is ignored.")
+		}
+
+		request.Header.Set(TracestateHeaderKey, ts)
 	}
 
 	// Send the question

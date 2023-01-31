@@ -67,7 +67,6 @@ jobs:
         - pubsub.hazelcast
         - pubsub.in-memory
         - pubsub.mqtt3-emqx
-        - pubsub.mqtt3-mosquitto
         - pubsub.mqtt3-vernemq
         - pubsub.natsstreaming
         - pubsub.pulsar
@@ -89,6 +88,7 @@ jobs:
         - state.postgresql
         - state.redis.v6
         - state.redis.v7
+        - state.sqlite
         - state.sqlserver
         - state.in-memory
         - state.cockroachdb
@@ -163,7 +163,7 @@ jobs:
 
     - name: Create PR comment
       if: env.PR_NUMBER != ''
-      uses: artursouza/sticky-pull-request-comment@v2.2.0
+      uses: artursouza/sticky-pull-request-comment@da9e86aa2a80e4ae3b854d251add33bd6baabcba
       with:
         header: ${{ github.run_id }}
         number: ${{ env.PR_NUMBER }}
@@ -774,7 +774,7 @@ jobs:
 
       - name: Replace PR comment
         if: env.PR_NUMBER != ''
-        uses: artursouza/sticky-pull-request-comment@v2.2.0
+        uses: artursouza/sticky-pull-request-comment@da9e86aa2a80e4ae3b854d251add33bd6baabcba
         with:
           header: ${{ github.run_id }}
           number: ${{ env.PR_NUMBER }}

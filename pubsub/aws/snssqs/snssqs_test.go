@@ -403,40 +403,6 @@ func Test_replaceNameToAWSSanitizedExistingFifoName_Trimmed(t *testing.T) {
 	r.Equal("012345678901234567890123456789012345678901234567890123456789012345678901234.fifo", v)
 }
 
-func Test_UnmarshalJSON_UnmarshallsToArray(t *testing.T) {
-	t.Parallel()
-	r := require.New(t)
-
-	s := `
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "sns.amazonaws.com"
-      },
-      "Action": "sqs:SendMessage",
-      "Resource": "sqsArn",
-      "Condition": {
-        "ForAllValues:ArnEquals": {
-          "aws:SourceArn": "snsArn"
-        }
-      }
-    }
-  ]
-}
-`
-	p := &policy{}
-
-	err := json.Unmarshal([]byte(s), p)
-	r.Equal(err, nil)
-
-	statement := p.Statement[0]
-	r.Equal(len(statement.Condition.ForAllValuesArnEquals.AwsSourceArn), 1)
-	r.Equal(statement.Condition.ForAllValuesArnEquals.AwsSourceArn[0], "snsArn")
-}
-
 func Test_tryInsertCondition(t *testing.T) {
 	t.Parallel()
 	r := require.New(t)
@@ -449,11 +415,19 @@ func Test_tryInsertCondition(t *testing.T) {
 		policy.tryInsertCondition(sqsArn, snsArn)
 	}
 
-	r.Equal(len(policy.Statement), 1)
+	r.Equal(len(policy.Statement), 4)
 	insertedStatement := policy.Statement[0]
 	r.Equal(insertedStatement.Resource, sqsArn)
-	r.Equal(len(insertedStatement.Condition.ForAllValuesArnEquals.AwsSourceArn), len(snsArns))
-	r.ElementsMatch(insertedStatement.Condition.ForAllValuesArnEquals.AwsSourceArn, snsArns)
+	r.Equal(insertedStatement.Condition.ValueArnEquals.AwsSourceArn, snsArns[0])
+	insertedStatement1 := policy.Statement[1]
+	r.Equal(insertedStatement1.Resource, sqsArn)
+	r.Equal(insertedStatement1.Condition.ValueArnEquals.AwsSourceArn, snsArns[1])
+	insertedStatement2 := policy.Statement[2]
+	r.Equal(insertedStatement2.Resource, sqsArn)
+	r.Equal(insertedStatement2.Condition.ValueArnEquals.AwsSourceArn, snsArns[2])
+	insertedStatement3 := policy.Statement[3]
+	r.Equal(insertedStatement3.Resource, sqsArn)
+	r.Equal(insertedStatement3.Condition.ValueArnEquals.AwsSourceArn, snsArns[3])
 }
 
 func Test_policy_compatible(t *testing.T) {
@@ -490,8 +464,7 @@ func Test_policy_compatible(t *testing.T) {
 	r.Equal(len(policy.Statement), 1)
 	insertedStatement := policy.Statement[0]
 	r.Equal(insertedStatement.Resource, sqsArn)
-	r.Equal(len(insertedStatement.Condition.ForAllValuesArnEquals.AwsSourceArn), 1)
-	r.Equal(insertedStatement.Condition.ForAllValuesArnEquals.AwsSourceArn[0], snsArn)
+	r.Equal(insertedStatement.Condition.ValueArnEquals.AwsSourceArn, snsArn)
 }
 
 func Test_buildARN_DefaultPartition(t *testing.T) {

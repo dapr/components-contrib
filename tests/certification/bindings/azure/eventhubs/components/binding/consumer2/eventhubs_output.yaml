@@ -17,17 +17,6 @@ spec:
     secretKeyRef:
       name: AzureEventHubsBindingsConsumerGroup
       value: AzureEventHubsBindingsConsumerGroup
-  - name: storageAccountName    # Azure Storage Account Name
-    secretKeyRef:
-      name: AzureBlobStorageAccount
-      value: AzureBlobStorageAccount
-  - name: storageAccountKey     # Azure Storage Account Key
-    secretKeyRef:
-      name: AzureBlobStorageAccessKey
-      value: AzureBlobStorageAccessKey  
-  - name: storageContainerName  # Azure Storage Container Name
-    secretKeyRef:
-      name: AzureEventHubsBindingsContainer
-      value: AzureEventHubsBindingsContainer
+  # No storage account configuration here since this is only an output binding
 auth:
   secretStore: envvar-secret-store

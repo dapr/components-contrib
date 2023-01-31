@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -15,7 +15,6 @@ package mqtt
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/url"
@@ -26,28 +25,28 @@ import (
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	"go.uber.org/ratelimit"
+	"golang.org/x/exp/maps"
 
+	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
 
 const (
-	// errors.
-	errorMsgPrefix = "mqtt pub sub error:"
+	// Keys for request metadata
+	unsubscribeOnCloseKey = "unsubscribeOnClose"
 )
 
 // mqttPubSub type allows sending and receiving data to/from MQTT broker.
 type mqttPubSub struct {
-	producer          mqtt.Client
-	consumer          mqtt.Client
-	metadata          *metadata
-	logger            logger.Logger
-	topics            map[string]mqttPubSubSubscription
-	retriableErrLimit ratelimit.Limiter
-	subscribingLock   sync.RWMutex
-	ctx               context.Context
-	cancel            context.CancelFunc
+	conn            mqtt.Client
+	metadata        *metadata
+	logger          logger.Logger
+	topics          map[string]mqttPubSubSubscription
+	subscribingLock sync.RWMutex
+	reconnectCh     chan struct{}
+	ctx             context.Context
+	cancel          context.CancelFunc
 }
 
 type mqttPubSubSubscription struct {
@@ -59,8 +58,8 @@ type mqttPubSubSubscription struct {
 // NewMQTTPubSub returns a new mqttPubSub instance.
 func NewMQTTPubSub(logger logger.Logger) pubsub.PubSub {
 	return &mqttPubSub{
-		logger:          logger,
-		subscribingLock: sync.RWMutex{},
+		logger:      logger,
+		reconnectCh: make(chan struct{}, 1),
 	}
 }
 
@@ -72,28 +71,12 @@ func (m *mqttPubSub) Init(metadata pubsub.Metadata) error {
 	}
 	m.metadata = mqttMeta
 
-	if m.metadata.maxRetriableErrorsPerSec > 0 {
-		m.retriableErrLimit = ratelimit.New(m.metadata.maxRetriableErrorsPerSec)
-	} else {
-		m.retriableErrLimit = ratelimit.NewUnlimited()
-	}
-
 	m.ctx, m.cancel = context.WithCancel(context.Background())
 
-	// mqtt broker allows only one connection at a given time from a clientID.
-	producerClientID := m.metadata.producerID
-	if producerClientID == "" {
-		// for backwards-compatibility; see: https://github.com/dapr/components-contrib/pull/2104
-		producerClientID = m.metadata.consumerID + "-producer"
-	}
-	connCtx, connCancel := context.WithTimeout(m.ctx, defaultWait)
-	p, err := m.connect(connCtx, producerClientID)
-	connCancel()
+	err = m.connect()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to establish connection to broker: %w", err)
 	}
-
-	m.producer = p
 	m.topics = make(map[string]mqttPubSubSubscription)
 
 	m.logger.Debug("mqtt message bus initialization complete")
@@ -102,7 +85,7 @@ func (m *mqttPubSub) Init(metadata pubsub.Metadata) error {
 }
 
 // Publish the topic to mqtt pub sub.
-func (m *mqttPubSub) Publish(_ context.Context, req *pubsub.PublishRequest) error {
+func (m *mqttPubSub) Publish(parentCtx context.Context, req *pubsub.PublishRequest) (err error) {
 	if req.Topic == "" {
 		return errors.New("topic name is empty")
 	}
@@ -113,57 +96,72 @@ func (m *mqttPubSub) Publish(_ context.Context, req *pubsub.PublishRequest) erro
 
 	retain := m.metadata.retain
 	if val, ok := req.Metadata[mqttRetain]; ok && val != "" {
-		var err error
 		retain, err = strconv.ParseBool(val)
 		if err != nil {
 			return fmt.Errorf("mqtt invalid retain %s, %s", val, err)
 		}
 	}
 
-	token := m.producer.Publish(req.Topic, m.metadata.qos, retain, req.Data)
-	t := time.NewTimer(defaultWait)
-	defer func() {
-		if !t.Stop() {
-			<-t.C
-		}
-	}()
+	token := m.conn.Publish(req.Topic, m.metadata.qos, retain, req.Data)
+	ctx, cancel := context.WithTimeout(parentCtx, defaultWait)
+	defer cancel()
 	select {
 	case <-token.Done():
-		// Operation completed
+		err = token.Error()
 	case <-m.ctx.Done():
 		// Context canceled
-		return m.ctx.Err()
-	case <-t.C:
-		return fmt.Errorf("mqtt timeout while publishing")
+		err = m.ctx.Err()
+	case <-ctx.Done():
+		// Context canceled
+		err = ctx.Err()
 	}
-	if !token.WaitTimeout(defaultWait) || token.Error() != nil {
-		return fmt.Errorf("mqtt error from publish: %v", token.Error())
+	if err != nil {
+		return fmt.Errorf("failed to publish: %w", err)
 	}
 
 	return nil
 }
 
-// Subscribe to the mqtt pub sub topic.
+// Subscribe to the topic on MQTT.
+// Request metadata includes:
+// - "unsubscribeOnClose": if true, when the subscription is stopped (context canceled), then an Unsubscribe message is sent to the MQTT broker, which will stop delivering messages to this consumer ID until the subscription is explicitly re-started with a new Subscribe call. Otherwise, messages continue to be delivered but are not handled and are NACK'd automatically. "unsubscribeOnClose" should be used with dynamic subscriptions.
 func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if ctxErr := m.ctx.Err(); ctxErr != nil {
 		// If the global context has been canceled, we do not allow more subscriptions
 		return ctxErr
 	}
 
-	if req.Topic == "" {
+	topic := req.Topic
+	if topic == "" {
 		return errors.New("topic name is empty")
 	}
+	unsubscribeOnClose := utils.IsTruthy(req.Metadata[unsubscribeOnCloseKey])
 
 	m.subscribingLock.Lock()
 	defer m.subscribingLock.Unlock()
 
-	// Reset subscription if active
-	m.resetSubscription()
-
 	// Add the topic then start the subscription
-	m.addTopic(req.Topic, handler)
-	// Use the global context here to maintain the connection
-	m.startSubscription(m.ctx)
+	m.addTopic(topic, handler)
+
+	// Use the global context here to maintain the handler
+	token := m.conn.Subscribe(topic, m.metadata.qos, m.onMessage(m.ctx))
+	subscribeCtx, subscribeCancel := context.WithTimeout(m.ctx, defaultWait)
+	defer subscribeCancel()
+	var err error
+	select {
+	case <-token.Done():
+		// Subscription went through (sucecessfully or not)
+		err = token.Error()
+	case <-subscribeCtx.Done():
+		err = fmt.Errorf("error while waiting for subscription token: %w", subscribeCtx.Err())
+	}
+	if err != nil {
+		// Return an error
+		delete(m.topics, topic)
+		return fmt.Errorf("mqtt error from subscribe: %v", err)
+	}
+
+	m.logger.Infof("MQTT is subscribed to topic %s (qos: %d)", topic, m.metadata.qos)
 
 	// Listen for context cancelation to remove the subscription
 	go func() {
@@ -171,76 +169,38 @@ func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 		case <-ctx.Done():
 		case <-m.ctx.Done():
 		}
-		m.subscribingLock.Lock()
-		defer m.subscribingLock.Unlock()
 
-		// If this is the last subscription or if the global context is done, close the connection entirely
-		if len(m.topics) <= 1 || m.ctx.Err() != nil {
-			m.closeSubscription()
-			delete(m.topics, req.Topic)
+		// If m.ctx has been canceled, nothing to do here as the entire connection will be closed
+		if m.ctx.Err() != nil {
 			return
 		}
 
-		// Reconnect with one less topic
-		m.resetSubscription()
-		delete(m.topics, req.Topic)
-		m.startSubscription(m.ctx)
+		// Delete the topic from the map first, which stops routing messages to handlers
+		m.subscribingLock.Lock()
+		defer m.subscribingLock.Unlock()
+		delete(m.topics, topic)
+
+		// We will call Unsubscribe only if cleanSession is true or if "unsubscribeOnClose" in the request metadata is true
+		// Otherwise, calling this will make the broker lose the position of our subscription, which is not what we want if we are going to reconnect later
+		if !m.metadata.cleanSession && !unsubscribeOnClose {
+			return
+		}
+
+		unsubscribeToken := m.conn.Unsubscribe(topic)
+		unsubscribeCtx, unsubscribeCancel := context.WithTimeout(m.ctx, defaultWait)
+		defer unsubscribeCancel()
+		var unsubscribeErr error
+		select {
+		case <-unsubscribeToken.Done():
+			// Subscription went through (sucecessfully or not)
+			unsubscribeErr = token.Error()
+		case <-unsubscribeCtx.Done():
+			unsubscribeErr = fmt.Errorf("error while waiting for subscription token: %w", unsubscribeCtx.Err())
+		}
+		if unsubscribeErr != nil {
+			m.logger.Warnf("Failed to ubsubscribe from topic %s: %v", topic, err)
+		}
 	}()
-
-	return nil
-}
-
-func (m *mqttPubSub) closeSubscription() {
-	m.consumer.Disconnect(5)
-	m.consumer = nil
-}
-
-// resetSubscription closes the subscription if it's currently active
-func (m *mqttPubSub) resetSubscription() {
-	if m.consumer != nil && m.consumer.IsConnectionOpen() {
-		m.logger.Infof("re-initializing the subscriber")
-		m.closeSubscription()
-	} else {
-		m.logger.Infof("initializing the subscriber")
-	}
-}
-
-// startSubscription connects to the server and begins receiving messages
-func (m *mqttPubSub) startSubscription(ctx context.Context) error {
-	// mqtt broker allows only one connection at a given time from a clientID.
-	consumerClientID := m.metadata.consumerID
-	if m.metadata.producerID == "" {
-		// for backwards-compatibility; see: https://github.com/dapr/components-contrib/pull/2104
-		consumerClientID += "-consumer"
-	}
-	connCtx, connCancel := context.WithTimeout(ctx, defaultWait)
-	c, err := m.connect(connCtx, consumerClientID)
-	connCancel()
-	if err != nil {
-		return err
-	}
-	m.consumer = c
-
-	subscribeTopics := make(map[string]byte, len(m.topics))
-	for k := range m.topics {
-		subscribeTopics[k] = m.metadata.qos
-	}
-
-	token := m.consumer.SubscribeMultiple(
-		subscribeTopics,
-		m.onMessage(ctx),
-	)
-	subscribeCtx, subscribeCancel := context.WithTimeout(m.ctx, defaultWait)
-	defer subscribeCancel()
-	select {
-	case <-token.Done():
-		// Subscription went through
-	case <-subscribeCtx.Done():
-		return subscribeCtx.Err()
-	}
-	if err := token.Error(); err != nil {
-		return fmt.Errorf("mqtt error from subscribe: %v", err)
-	}
 
 	return nil
 }
@@ -248,34 +208,6 @@ func (m *mqttPubSub) startSubscription(ctx context.Context) error {
 // onMessage returns the callback to be invoked when there's a new message from a topic
 func (m *mqttPubSub) onMessage(ctx context.Context) func(client mqtt.Client, mqttMsg mqtt.Message) {
 	return func(client mqtt.Client, mqttMsg mqtt.Message) {
-		ack := false
-		defer func() {
-			// MQTT does not support NACK's, so in case of error we need to re-enqueue the message and then send a positive ACK for this message
-			// Note that if the connection drops before the message is explicitly ACK'd below, then it's automatically re-sent (assuming QoS is 1 or greater, which is the default). So we do not risk losing messages.
-			// Problem with this approach is that if the service crashes between the time the message is re-enqueued and when the ACK is sent, the message may be delivered twice
-			if !ack {
-				m.logger.Debugf("Re-publishing message %s#%d", mqttMsg.Topic(), mqttMsg.MessageID())
-				publishErr := m.Publish(ctx, &pubsub.PublishRequest{
-					Topic: mqttMsg.Topic(),
-					Data:  mqttMsg.Payload(),
-				})
-				if publishErr != nil {
-					m.logger.Errorf("Failed to re-publish message %s#%d. Error: %v", mqttMsg.Topic(), mqttMsg.MessageID(), publishErr)
-					// Return so Ack() isn't invoked
-					return
-				}
-			}
-			mqttMsg.Ack()
-
-			// If we re-published the message, consume a retriable error token
-			if !ack {
-				m.logger.Debugf("Taking a retriable error token")
-				before := time.Now()
-				_ = m.retriableErrLimit.Take()
-				m.logger.Debugf("Resumed after pausing for %v", time.Now().Sub(before))
-			}
-		}()
-
 		msg := pubsub.NewMessage{
 			Topic:    mqttMsg.Topic(),
 			Data:     mqttMsg.Payload(),
@@ -284,7 +216,7 @@ func (m *mqttPubSub) onMessage(ctx context.Context) func(client mqtt.Client, mqt
 
 		topicHandler := m.handlerForTopic(msg.Topic)
 		if topicHandler == nil {
-			m.logger.Errorf("no handler defined for topic %s", msg.Topic)
+			m.logger.Warnf("No handler defined for messages received on topic %s", msg.Topic)
 			return
 		}
 
@@ -296,7 +228,7 @@ func (m *mqttPubSub) onMessage(ctx context.Context) func(client mqtt.Client, mqt
 		}
 
 		m.logger.Debugf("Done processing MQTT message %s#%d; sending ACK", mqttMsg.Topic(), mqttMsg.MessageID())
-		ack = true
+		mqttMsg.Ack()
 	}
 }
 
@@ -324,50 +256,148 @@ func (m *mqttPubSub) handlerForTopic(topic string) pubsub.Handler {
 	return nil
 }
 
-func (m *mqttPubSub) connect(ctx context.Context, clientID string) (mqtt.Client, error) {
+func (m *mqttPubSub) doConnect(ctx context.Context, clientID string) (mqtt.Client, error) {
 	uri, err := url.Parse(m.metadata.url)
 	if err != nil {
 		return nil, err
 	}
-	opts := m.createClientOptions(uri, clientID)
-	// Turn off auto-ack
-	opts.SetAutoAckDisabled(true)
-	client := mqtt.NewClient(opts)
 
-	// Add all routes before we connect to catch messages that may be delivered before client.Subscribe is invoked
-	// The routes will be overwritten later
-	for topic := range m.topics {
-		client.AddRoute(topic, m.onMessage(ctx))
-	}
+	opts := m.createClientOptions(uri, clientID)
+	client := mqtt.NewClient(opts)
 
 	token := client.Connect()
 	select {
 	case <-token.Done():
-		// Connection went through
+		err = token.Error()
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		err = ctx.Err()
 	}
-	if err := token.Error(); err != nil {
+	if err != nil {
 		return nil, err
 	}
 
 	return client, nil
 }
 
-func (m *mqttPubSub) newTLSConfig() *tls.Config {
-	tlsConfig, err := pubsub.ConvertTLSPropertiesToTLSConfig(m.metadata.TLSProperties)
+// Create a connection
+func (m *mqttPubSub) connect() error {
+	m.subscribingLock.Lock()
+	defer m.subscribingLock.Unlock()
+
+	connCtx, connCancel := context.WithTimeout(m.ctx, defaultWait)
+	conn, err := m.doConnect(connCtx, m.metadata.consumerID)
+	connCancel()
 	if err != nil {
-		m.logger.Warnf("failed to load TLS config: %s", err)
+		return err
+	}
+	m.conn = conn
+
+	return nil
+}
+
+// Forcefully closes the connection and, after a delay, reconnects
+func (m *mqttPubSub) ResetConection() {
+	const reconnectDelay = 30 * time.Second
+
+	// Do not reconnect if there's already one attempt in progress
+	select {
+	case m.reconnectCh <- struct{}{}:
+		// nop
+	default:
+		// Already a reconnection attempt in progress, so abort
+		return
 	}
 
-	return tlsConfig
+	// Disconnect
+	m.logger.Info("Closing connection with broker… will reconnect in " + reconnectDelay.String())
+	m.conn.Disconnect(100)
+
+	for m.ctx.Err() == nil {
+		time.Sleep(reconnectDelay)
+
+		// Check for context cancelation before reconnecting, since we slept
+		if m.ctx.Err() != nil {
+			return
+		}
+
+		m.logger.Debug("Reconnecting…")
+		err := m.connect()
+		if err != nil {
+			m.logger.Errorf("Failed to reconnect, will retry in " + reconnectDelay.String())
+		} else {
+			m.logger.Info("Connection with broker re-established")
+			break
+		}
+	}
+
+	// Release the reconnection token
+	<-m.reconnectCh
 }
 
 func (m *mqttPubSub) createClientOptions(uri *url.URL, clientID string) *mqtt.ClientOptions {
-	opts := mqtt.NewClientOptions()
-	opts.SetClientID(clientID)
-	opts.SetCleanSession(m.metadata.cleanSession)
-	// URL scheme backward compatibility
+	opts := mqtt.NewClientOptions().
+		SetClientID(clientID).
+		SetCleanSession(m.metadata.cleanSession).
+		// If OrderMatters is true (default), handlers must not block, which is not an option for us
+		SetOrderMatters(false).
+		// Disable automatic ACKs as we need to do it manually
+		SetAutoAckDisabled(true).
+		// Configure reconnections
+		SetResumeSubs(true).
+		SetAutoReconnect(true).
+		SetConnectRetry(true).
+		SetConnectRetryInterval(20 * time.Second)
+
+	opts.OnConnectionLost = func(c mqtt.Client, err error) {
+		m.logger.Errorf("Connection with broker lost; error: %v", err)
+	}
+
+	opts.OnReconnecting = func(c mqtt.Client, co *mqtt.ClientOptions) {
+		m.logger.Info("Attempting to reconnect to broker…")
+	}
+
+	// On (re-)connection, add all established topic subscriptions
+	opts.OnConnect = func(c mqtt.Client) {
+		m.subscribingLock.RLock()
+		defer m.subscribingLock.RUnlock()
+
+		// If there's nothing to subscribe to, just return
+		if len(m.topics) == 0 {
+			return
+		}
+
+		// Create the list of topics to subscribe to
+		subscribeTopics := make(map[string]byte, len(m.topics))
+		for k := range m.topics {
+			subscribeTopics[k] = m.metadata.qos
+		}
+
+		// Note that this is a bit unusual for a pubsub component as we're using m.ctx on the handler, which is tied to the component rather than the individual subscription
+		// This is because we can't really use a different context for each handler in a single SubscribeMultiple call, and the alternative (multiple individual Subscribe calls) is not ideal
+		token := c.SubscribeMultiple(
+			subscribeTopics,
+			m.onMessage(m.ctx),
+		)
+
+		var err error
+		subscribeCtx, subscribeCancel := context.WithTimeout(m.ctx, defaultWait)
+		defer subscribeCancel()
+		select {
+		case <-token.Done():
+			// Subscription went through (sucecessfully or not)
+			err = token.Error()
+		case <-subscribeCtx.Done():
+			err = fmt.Errorf("error while waiting for subscription token: %w", subscribeCtx.Err())
+		}
+
+		// Nothing we can do in case of errors besides logging them
+		// If we get here, the connection is almost likely broken anyways, so the client will attempt a reconnection soon if it hasn't already
+		if err != nil {
+			m.logger.Errorf("Error starting subscriptions in the OnConnect handler: %v", err)
+		}
+	}
+
+	// URL scheme backwards-compatibility
 	scheme := uri.Scheme
 	switch scheme {
 	case "mqtt":
@@ -378,9 +408,17 @@ func (m *mqttPubSub) createClientOptions(uri *url.URL, clientID string) *mqtt.Cl
 	opts.AddBroker(scheme + "://" + uri.Host)
 	opts.SetUsername(uri.User.Username())
 	password, _ := uri.User.Password()
-	opts.SetPassword(password)
-	// tls config
-	opts.SetTLSConfig(m.newTLSConfig())
+	if password != "" {
+		opts.SetPassword(password)
+	}
+
+	// TLS
+	tlsConfig, err := pubsub.ConvertTLSPropertiesToTLSConfig(m.metadata.TLSProperties)
+	if err != nil {
+		m.logger.Warnf("failed to load TLS config: %s", err)
+	} else {
+		opts.SetTLSConfig(tlsConfig)
+	}
 
 	return opts
 }
@@ -389,12 +427,16 @@ func (m *mqttPubSub) Close() error {
 	m.subscribingLock.Lock()
 	defer m.subscribingLock.Unlock()
 
+	m.logger.Debug("Closing component")
+
+	// Clear all topics from the map as a first thing, before stopping all subscriptions (we have the lock anyways)
+	maps.Clear(m.topics)
+
+	// Cancel the context
 	m.cancel()
 
-	if m.consumer != nil {
-		m.consumer.Disconnect(5)
-	}
-	m.producer.Disconnect(5)
+	// Disconnect
+	m.conn.Disconnect(100)
 
 	return nil
 }

@@ -92,7 +92,7 @@ func (a *AzureServiceBusQueues) Invoke(invokeCtx context.Context, req *bindings.
 	if err != nil {
 		if impl.IsNetworkError(err) {
 			// Force reconnection on next call
-			a.client.CloseSender(a.metadata.QueueName)
+			a.client.CloseSender(a.metadata.QueueName, a.logger)
 		}
 		return nil, err
 	}
@@ -205,6 +205,6 @@ func (a *AzureServiceBusQueues) getHandlerFn(handler bindings.Handler) impl.Hand
 
 func (a *AzureServiceBusQueues) Close() (err error) {
 	a.logger.Debug("Closing component")
-	a.client.CloseSender(a.metadata.QueueName)
+	a.client.CloseAllSenders(a.logger)
 	return nil
 }

@@ -17,17 +17,12 @@ type arnEquals struct {
 	AwsSourceArn string `json:"aws:SourceArn"`
 }
 
-type awsSourceArn []string
-
 type condition struct {
 	ValueArnEquals arnEquals `json:"ArnEquals"`
 }
 
 type principal struct {
 	Service string
-}
-
-type arn struct {
 }
 
 type statement struct {
@@ -51,7 +46,6 @@ func (p *policy) tryInsertCondition(sqsArn string, snsArn string) bool {
 			if s.Condition.ValueArnEquals.AwsSourceArn == snsArn {
 				return true
 			}
-
 		}
 	}
 	// insert a new statement if no statement for the sqsArn or is new sns subscriber

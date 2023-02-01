@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -41,6 +42,11 @@ func TestParseMetadata(t *testing.T) {
 		logger: logger.NewLogger("test"),
 	}
 	meta, err := eh.parseMetadata(m)
+	require.NoError(t, err)
+	eh.metadata = meta
+
+	err = eh.ensureInputBindingMetadata()
+	require.NoError(t, err)
 
 	assert.Nil(t, err)
 	assert.Equal(t, "a", meta.azureTenantID)

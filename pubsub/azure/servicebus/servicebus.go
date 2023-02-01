@@ -493,8 +493,14 @@ func (a *azureServiceBus) deleteSenderForTopic(topic string) {
 
 	sender, ok := a.topics[topic]
 	if ok && sender != nil {
+		a.logger.Info("Closing sender: " + topic)
 		closeCtx, closeCancel := context.WithTimeout(context.Background(), time.Second)
-		_ = sender.Close(closeCtx)
+		// Log only
+		err := sender.Close(closeCtx)
+		if err != nil {
+			// Log only
+			a.logger.Warnf("Error closing sender %s: %v", topic, err)
+		}
 		closeCancel()
 	}
 	delete(a.topics, topic)

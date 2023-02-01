@@ -289,8 +289,14 @@ func (a *AzureServiceBusQueues) getSender() (*servicebus.Sender, error) {
 func (a *AzureServiceBusQueues) deleteSender() {
 	a.senderLock.Lock()
 	if a.sender != nil {
+		a.logger.Info("Closing sender")
 		closeCtx, closeCancel := context.WithTimeout(context.Background(), time.Second)
-		_ = a.sender.Close(closeCtx)
+		// Log only
+		err := a.sender.Close(closeCtx)
+		if err != nil {
+			// Log only
+			a.logger.Warnf("Error closing sender: %v", err)
+		}
 		closeCancel()
 		a.sender = nil
 	}

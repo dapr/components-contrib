@@ -197,11 +197,11 @@ func (r *redisStreams) Subscribe(ctx context.Context, req pubsub.SubscribeReques
 	}()
 	go func() {
 		defer r.wg.Done()
-		r.pollNewMessagesLoop(ctx, req.Topic, handler)
+		r.pollNewMessagesLoop(loopCtx, req.Topic, handler)
 	}()
 	go func() {
 		defer r.wg.Done()
-		r.reclaimPendingMessagesLoop(ctx, req.Topic, handler)
+		r.reclaimPendingMessagesLoop(loopCtx, req.Topic, handler)
 	}()
 
 	return nil

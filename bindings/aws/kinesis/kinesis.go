@@ -231,21 +231,13 @@ func (a *AWSKinesis) Subscribe(ctx context.Context, streamDesc kinesis.StreamDes
 }
 
 func (a *AWSKinesis) ensureConsumer(ctx context.Context, streamARN *string) (*string, error) {
-	var (
-		err      error
-		consumer *kinesis.DescribeStreamConsumerOutput
-	)
-	{
-		// goling complains about redeclaring a ctx here, but we want a timeout on
-		// the describe call and not register consumer.
-		//nolint:govet
-		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		defer cancel()
-		consumer, err = a.client.DescribeStreamConsumerWithContext(ctx, &kinesis.DescribeStreamConsumerInput{
-			ConsumerName: &a.metadata.ConsumerName,
-			StreamARN:    streamARN,
-		})
-	}
+	// Only set timeout on consumer call.
+	conCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	consumer, err := a.client.DescribeStreamConsumerWithContext(conCtx, &kinesis.DescribeStreamConsumerInput{
+		ConsumerName: &a.metadata.ConsumerName,
+		StreamARN:    streamARN,
+	})
 	if err != nil {
 		return a.registerConsumer(ctx, streamARN)
 	}

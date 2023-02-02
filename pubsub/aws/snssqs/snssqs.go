@@ -640,10 +640,10 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 				f(message)
 			case pubsub.Parallel:
 				wg.Add(1)
-				go func() {
+				go func(message *sqs.Message) {
 					defer wg.Done()
 					f(message)
-				}()
+				}(message)
 			}
 		}
 		wg.Wait()

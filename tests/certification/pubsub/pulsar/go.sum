@@ -116,8 +116,8 @@ github.com/cpuguy83/go-md2man/v2 v2.0.0/go.mod h1:maD7wRr/U5Z6m/iR4s+kqSMx2CaBsr
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/danieljoos/wincred v1.1.2 h1:QLdCxFs1/Yl4zduvBdcHB8goaYk9RARS2SgLLRuAyr0=
 github.com/danieljoos/wincred v1.1.2/go.mod h1:GijpziifJoIBfYh+S7BbkdUTU4LfM+QnGqR5Vl2tAx0=
-github.com/dapr/dapr v1.10.0-rc.1 h1:+EL1FRABNeym1+sP4xE3UEBYhS4CBwlwiHzQmdrb5IA=
-github.com/dapr/dapr v1.10.0-rc.1/go.mod h1:FKbdohZfTLdum+UFlYGWWq70DZgxV9Tgu1omKsaxGVk=
+github.com/dapr/dapr v1.10.0-rc.2 h1:lTtoinTVdYnOcr+S5NqWv+E3tvnov1erRtRfcOJ+4ls=
+github.com/dapr/dapr v1.10.0-rc.2/go.mod h1:nO5hqRcuUlRWsQddX1haHCCJ0t+c4V03lxMCqToWwPA=
 github.com/dapr/go-sdk v1.6.0 h1:jg5A2khSCHF8bGZsig5RWN/gD0jjitszc2V6Uq2pPdY=
 github.com/dapr/go-sdk v1.6.0/go.mod h1:KLQBltoD9K0w5hKTihdcyg9Epob9gypwL5dYcQzPro4=
 github.com/dapr/kit v0.0.4 h1:i+7TIN4crC1Mo0JFyWpIkwAE8orlliA0O6/ibvs2AaE=

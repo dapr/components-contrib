@@ -3,9 +3,9 @@ module github.com/dapr/components-contrib/tests/certification/pubsub/azure/event
 go 1.19
 
 require (
-	github.com/dapr/components-contrib v1.10.0-rc.1
+	github.com/dapr/components-contrib v1.10.0-rc.2
 	github.com/dapr/components-contrib/tests/certification v1.4.0-rc2
-	github.com/dapr/dapr v1.10.0-rc.1
+	github.com/dapr/dapr v1.10.0-rc.2
 	github.com/dapr/go-sdk v1.6.0
 	github.com/dapr/kit v0.0.4
 	github.com/google/uuid v1.3.0

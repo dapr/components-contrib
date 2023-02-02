@@ -81,7 +81,7 @@ func (m *fakeDBaccess) Close() error {
 	return nil
 }
 
-func (m *fakeDBaccess) Ping() error {
+func (m *fakeDBaccess) Ping(ctx context.Context) error {
 	return nil
 }
 

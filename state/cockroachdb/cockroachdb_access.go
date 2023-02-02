@@ -107,7 +107,7 @@ func (p *cockroachDBAccess) Init(ctx context.Context, metadata state.Metadata) e
 
 	p.db = databaseConn
 
-	if err = databaseConn.Ping(); err != nil {
+	if err = databaseConn.PingContext(ctx); err != nil {
 		return err
 	}
 
@@ -116,7 +116,7 @@ func (p *cockroachDBAccess) Init(ctx context.Context, metadata state.Metadata) e
 	}
 
 	// Ensure that a connection to the database is actually established
-	err = p.Ping()
+	err = p.Ping(ctx)
 	if err != nil {
 		return err
 	}
@@ -399,7 +399,7 @@ func (p *cockroachDBAccess) Query(ctx context.Context, req *state.QueryRequest) 
 }
 
 // Ping implements database ping.
-func (p *cockroachDBAccess) Ping() error {
+func (p *cockroachDBAccess) Ping(ctx context.Context) error {
 	retryCount := defaultMaxConnectionAttempts
 	if p.metadata.MaxConnectionAttempts != nil && *p.metadata.MaxConnectionAttempts >= 0 {
 		retryCount = *p.metadata.MaxConnectionAttempts
@@ -411,7 +411,7 @@ func (p *cockroachDBAccess) Ping() error {
 	backoff := config.NewBackOff()
 
 	return retry.NotifyRecover(func() error {
-		err := p.db.Ping()
+		err := p.db.PingContext(ctx)
 		if errors.Is(err, driver.ErrBadConn) {
 			return fmt.Errorf("error when attempting to establish connection with cockroachDB: %v", err)
 		}

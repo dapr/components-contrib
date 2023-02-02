@@ -15,7 +15,10 @@ package kafka
 
 import (
 	"context"
+	"errors"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/dapr/kit/logger"
 
@@ -34,6 +37,7 @@ type Binding struct {
 	topics       []string
 	logger       logger.Logger
 	closeCh      chan struct{}
+	closed       atomic.Bool
 }
 
 // NewKafka returns a new kafka binding instance.
@@ -72,7 +76,9 @@ func (b *Binding) Operations() []bindings.OperationKind {
 }
 
 func (b *Binding) Close() (err error) {
-	close(b.closeCh)
+	if b.closed.CompareAndSwap(false, true) {
+		close(b.closeCh)
+	}
 	return b.kafka.Close()
 }
 
@@ -82,6 +88,10 @@ func (b *Binding) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bin
 }
 
 func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
+	if b.closed.Load() {
+		return errors.New("error: binding is closed")
+	}
+
 	if len(b.topics) == 0 {
 		b.logger.Warnf("kafka binding: no topic defined, input bindings will not be started")
 		return nil
@@ -95,7 +105,11 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 		b.kafka.AddTopicHandler(t, handlerConfig)
 	}
 
+	var wg sync.WaitGroup
+	defer wg.Wait()
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		// Wait for context cancelation
 		select {
 		case <-ctx.Done():

@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -46,6 +47,8 @@ type mqttPubSub struct {
 	subscribingLock sync.RWMutex
 	reconnectCh     chan struct{}
 	closeCh         chan struct{}
+	closed          atomic.Bool
+	wg              sync.WaitGroup
 }
 
 type mqttPubSubSubscription struct {
@@ -84,6 +87,10 @@ func (m *mqttPubSub) Init(ctx context.Context, metadata pubsub.Metadata) error {
 
 // Publish the topic to mqtt pub sub.
 func (m *mqttPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) (err error) {
+	if m.closed.Load() {
+		return errors.New("error: mqtt client closed")
+	}
+
 	if req.Topic == "" {
 		return errors.New("topic name is empty")
 	}
@@ -123,10 +130,8 @@ func (m *mqttPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) (e
 // Request metadata includes:
 // - "unsubscribeOnClose": if true, when the subscription is stopped (context canceled), then an Unsubscribe message is sent to the MQTT broker, which will stop delivering messages to this consumer ID until the subscription is explicitly re-started with a new Subscribe call. Otherwise, messages continue to be delivered but are not handled and are NACK'd automatically. "unsubscribeOnClose" should be used with dynamic subscriptions.
 func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-	select {
-	case <-m.closeCh:
-		return errors.New("mqtt client closed")
-	default:
+	if m.closed.Load() {
+		return errors.New("error: mqtt client closed")
 	}
 
 	topic := req.Topic
@@ -161,7 +166,10 @@ func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	m.logger.Infof("MQTT is subscribed to topic %s (qos: %d)", topic, m.metadata.qos)
 
 	// Listen for context cancelation to remove the subscription
+	m.wg.Add(1)
 	go func() {
+		defer m.wg.Done()
+
 		select {
 		case <-ctx.Done():
 		case <-m.closeCh:
@@ -372,7 +380,9 @@ func (m *mqttPubSub) createClientOptions(uri *url.URL, clientID string) *mqtt.Cl
 		// in a single SubscribeMultiple call, and the alternative (multiple
 		// individual Subscribe calls) is not ideal
 		ctx, cancel := context.WithCancel(context.Background())
+		m.wg.Add(1)
 		go func() {
+			defer m.wg.Done()
 			defer cancel()
 			<-m.closeCh
 		}()
@@ -425,7 +435,10 @@ func (m *mqttPubSub) createClientOptions(uri *url.URL, clientID string) *mqtt.Cl
 	return opts
 }
 
+// Close the connection. Blocks until all subscriptions are closed.
 func (m *mqttPubSub) Close() error {
+	defer m.wg.Wait()
+
 	m.subscribingLock.Lock()
 	defer m.subscribingLock.Unlock()
 
@@ -434,7 +447,9 @@ func (m *mqttPubSub) Close() error {
 	// Clear all topics from the map as a first thing, before stopping all subscriptions (we have the lock anyways)
 	maps.Clear(m.topics)
 
-	close(m.closeCh)
+	if m.closed.CompareAndSwap(false, true) {
+		close(m.closeCh)
+	}
 
 	// Disconnect
 	m.conn.Disconnect(100)

@@ -297,10 +297,9 @@ func (m *MySQL) ensureStateTable(ctx context.Context, stateTableName string) err
 			eTag VARCHAR(36) NOT NULL
 			);`, stateTableName)
 
-		//nolint:govet
-		ctx, cancel := context.WithTimeout(ctx, m.timeout)
-		defer cancel()
-		_, err = m.db.ExecContext(ctx, createTable)
+		execCtx, execCancel := context.WithTimeout(ctx, m.timeout)
+		defer execCancel()
+		_, err = m.db.ExecContext(execCtx, createTable)
 		if err != nil {
 			return err
 		}
@@ -310,7 +309,7 @@ func (m *MySQL) ensureStateTable(ctx context.Context, stateTableName string) err
 }
 
 func schemaExists(ctx context.Context, db *sql.DB, schemaName string, timeout time.Duration) (bool, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	schemeCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	// Returns 1 or 0 if the table exists or not
@@ -318,12 +317,12 @@ func schemaExists(ctx context.Context, db *sql.DB, schemaName string, timeout ti
 	query := `SELECT EXISTS (
 		SELECT SCHEMA_NAME FROM information_schema.schemata WHERE SCHEMA_NAME = ?
 	) AS 'exists'`
-	err := db.QueryRowContext(ctx, query, schemaName).Scan(&exists)
+	err := db.QueryRowContext(schemeCtx, query, schemaName).Scan(&exists)
 	return exists == 1, err
 }
 
 func tableExists(ctx context.Context, db *sql.DB, tableName string, timeout time.Duration) (bool, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	tableCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	// Returns 1 or 0 if the table exists or not
@@ -331,7 +330,7 @@ func tableExists(ctx context.Context, db *sql.DB, tableName string, timeout time
 	query := `SELECT EXISTS (
 		SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_NAME = ?
 	) AS 'exists'`
-	err := db.QueryRowContext(ctx, query, tableName).Scan(&exists)
+	err := db.QueryRowContext(tableCtx, query, tableName).Scan(&exists)
 	return exists == 1, err
 }
 
@@ -355,15 +354,15 @@ func (m *MySQL) deleteValue(parentCtx context.Context, querier querier, req *sta
 		result sql.Result
 	)
 
-	ctx, cancel := context.WithTimeout(parentCtx, m.timeout)
+	execCtx, cancel := context.WithTimeout(parentCtx, m.timeout)
 	defer cancel()
 
 	if req.ETag == nil || *req.ETag == "" {
-		result, err = querier.ExecContext(ctx, fmt.Sprintf(
+		result, err = querier.ExecContext(execCtx, fmt.Sprintf(
 			`DELETE FROM %s WHERE id = ?`,
 			m.tableName), req.Key)
 	} else {
-		result, err = querier.ExecContext(ctx, fmt.Sprintf(
+		result, err = querier.ExecContext(execCtx, fmt.Sprintf(
 			`DELETE FROM %s WHERE id = ? and eTag = ?`,
 			m.tableName), req.Key, *req.ETag)
 	}

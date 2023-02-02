@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -146,4 +147,8 @@ func Test_Example(t *testing.T) {
 	handler.ServeHTTP(w, r)
 	require.Equal(t, "/hi?name=panda", httputils.RequestURI(r))
 	require.Empty(t, buf.String())
+}
+
+func Test_ioCloser(t *testing.T) {
+	var _ io.Closer = &requestHandler{}
 }

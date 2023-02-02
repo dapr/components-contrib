@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/http-wasm/http-wasm-host-go/handler"
 
@@ -161,6 +162,8 @@ func (rh *requestHandler) requestHandler(next http.Handler) http.Handler {
 }
 
 // Close implements io.Closer
-func (rh *requestHandler) Close(ctx context.Context) error {
+func (rh *requestHandler) Close() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	return rh.mw.Close(ctx)
 }

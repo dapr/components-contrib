@@ -57,7 +57,7 @@ func (o *OracleDatabase) Ping(ctx context.Context) error {
 }
 
 // Features returns the features available in this state store.
-func (o *OracleDatabase) Features(ctx context.Context) []state.Feature {
+func (o *OracleDatabase) Features() []state.Feature {
 	return o.features
 }
 

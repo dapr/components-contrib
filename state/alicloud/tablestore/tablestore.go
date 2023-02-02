@@ -66,7 +66,7 @@ func (s *AliCloudTableStore) Init(ctx context.Context, metadata state.Metadata) 
 	return nil
 }
 
-func (s *AliCloudTableStore) Features(ctx context.Context) []state.Feature {
+func (s *AliCloudTableStore) Features() []state.Feature {
 	return s.features
 }
 

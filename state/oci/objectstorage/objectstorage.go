@@ -129,7 +129,7 @@ func (r *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	return nil
 }
 
-func (r *StateStore) Features(ctx context.Context) []state.Feature {
+func (r *StateStore) Features() []state.Feature {
 	return r.features
 }
 

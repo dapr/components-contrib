@@ -166,7 +166,7 @@ func (r *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 }
 
 // Features returns the features available in this state store.
-func (r *StateStore) Features(ctx context.Context) []state.Feature {
+func (r *StateStore) Features() []state.Feature {
 	return r.features
 }
 

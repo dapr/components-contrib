@@ -156,7 +156,7 @@ func (cbs *Couchbase) Init(ctx context.Context, metadata state.Metadata) error {
 }
 
 // Features returns the features available in this state store.
-func (cbs *Couchbase) Features(ctx context.Context) []state.Feature {
+func (cbs *Couchbase) Features() []state.Feature {
 	return cbs.features
 }
 

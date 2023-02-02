@@ -146,7 +146,7 @@ func (s *Store2) Init(ctx context.Context, metadata Metadata) error {
 	return nil
 }
 
-func (s *Store2) Features(ctx context.Context) []Feature {
+func (s *Store2) Features() []Feature {
 	return nil
 }
 

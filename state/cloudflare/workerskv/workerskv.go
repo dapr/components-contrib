@@ -89,7 +89,7 @@ func (q *CFWorkersKV) GetComponentMetadata() map[string]string {
 }
 
 // Features returns the features supported by this state store.
-func (q CFWorkersKV) Features(ctx context.Context) []state.Feature {
+func (q CFWorkersKV) Features() []state.Feature {
 	return []state.Feature{}
 }
 

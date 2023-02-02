@@ -24,7 +24,7 @@ import (
 type Store interface {
 	BulkStore
 	Init(ctx context.Context, metadata Metadata) error
-	Features(ctx context.Context) []Feature
+	Features() []Feature
 	Delete(ctx context.Context, req *DeleteRequest) error
 	Get(ctx context.Context, req *GetRequest) (*GetResponse, error)
 	Set(ctx context.Context, req *SetRequest) error
@@ -61,8 +61,8 @@ func NewDefaultBulkStore(store Store) DefaultBulkStore {
 }
 
 // Features returns the features of the encapsulated store.
-func (b *DefaultBulkStore) Features(ctx context.Context) []Feature {
-	return b.s.Features(ctx)
+func (b *DefaultBulkStore) Features() []Feature {
+	return b.s.Features()
 }
 
 // BulkGet performs a bulks get operations.

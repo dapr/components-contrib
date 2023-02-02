@@ -342,7 +342,7 @@ func (s *SQLServer) setTable(tableName string) error {
 }
 
 // Features returns the features available in this state store.
-func (s *SQLServer) Features(ctx context.Context) []state.Feature {
+func (s *SQLServer) Features() []state.Feature {
 	return s.features
 }
 

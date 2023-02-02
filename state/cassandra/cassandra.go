@@ -112,7 +112,7 @@ func (c *Cassandra) Init(ctx context.Context, metadata state.Metadata) error {
 }
 
 // Features returns the features available in this state store.
-func (c *Cassandra) Features(ctx context.Context) []state.Feature {
+func (c *Cassandra) Features() []state.Feature {
 	return nil
 }
 

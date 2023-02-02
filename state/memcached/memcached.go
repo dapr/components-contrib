@@ -89,7 +89,7 @@ func (m *Memcached) Init(ctx context.Context, metadata state.Metadata) error {
 }
 
 // Features returns the features available in this state store.
-func (m *Memcached) Features(ctx context.Context) []state.Feature {
+func (m *Memcached) Features() []state.Feature {
 	return nil
 }
 

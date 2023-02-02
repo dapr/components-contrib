@@ -194,7 +194,7 @@ func (m *MySQL) parseMetadata(md map[string]string) error {
 }
 
 // Features returns the features available in this state store.
-func (m *MySQL) Features(ctx context.Context) []state.Feature {
+func (m *MySQL) Features() []state.Feature {
 	return []state.Feature{state.FeatureETag, state.FeatureTransactional}
 }
 

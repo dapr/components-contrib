@@ -95,7 +95,7 @@ func (js *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	return nil
 }
 
-func (js *StateStore) Features(ctx context.Context) []state.Feature {
+func (js *StateStore) Features() []state.Feature {
 	return nil
 }
 

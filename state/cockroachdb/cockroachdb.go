@@ -52,7 +52,7 @@ func (c *CockroachDB) Init(ctx context.Context, metadata state.Metadata) error {
 }
 
 // Features returns the features available in this state store.
-func (c *CockroachDB) Features(ctx context.Context) []state.Feature {
+func (c *CockroachDB) Features() []state.Feature {
 	return c.features
 }
 

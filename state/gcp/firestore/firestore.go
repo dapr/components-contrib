@@ -95,7 +95,7 @@ func (f *Firestore) Init(ctx context.Context, metadata state.Metadata) error {
 }
 
 // Features returns the features available in this state store.
-func (f *Firestore) Features(ctx context.Context) []state.Feature {
+func (f *Firestore) Features() []state.Feature {
 	return nil
 }
 

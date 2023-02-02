@@ -57,7 +57,7 @@ func (s SQLiteStore) GetComponentMetadata() map[string]string {
 }
 
 // Features returns the features available in this state store.
-func (s *SQLiteStore) Features(ctx context.Context) []state.Feature {
+func (s *SQLiteStore) Features() []state.Feature {
 	return []state.Feature{
 		state.FeatureETag,
 		state.FeatureTransactional,

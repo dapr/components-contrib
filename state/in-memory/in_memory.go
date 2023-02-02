@@ -85,7 +85,7 @@ func (store *inMemoryStore) Close() error {
 	return nil
 }
 
-func (store *inMemoryStore) Features(ctx context.Context) []state.Feature {
+func (store *inMemoryStore) Features() []state.Feature {
 	return []state.Feature{state.FeatureETag, state.FeatureTransactional}
 }
 

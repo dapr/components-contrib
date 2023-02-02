@@ -149,7 +149,7 @@ func TestFeatures(t *testing.T) {
 	t.Parallel()
 	s := NewOCIObjectStorageStore(logger.NewLogger("logger")).(*StateStore)
 	t.Run("Test contents of Features", func(t *testing.T) {
-		features := s.Features(context.Background())
+		features := s.Features()
 		assert.Contains(t, features, state.FeatureETag)
 	})
 }

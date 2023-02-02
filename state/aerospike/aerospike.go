@@ -112,7 +112,7 @@ func (aspike *Aerospike) Init(ctx context.Context, metadata state.Metadata) erro
 }
 
 // Features returns the features available in this state store.
-func (aspike *Aerospike) Features(ctx context.Context) []state.Feature {
+func (aspike *Aerospike) Features() []state.Feature {
 	return aspike.features
 }
 

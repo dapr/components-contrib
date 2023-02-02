@@ -142,7 +142,7 @@ func (s *RethinkDB) Init(ctx context.Context, metadata state.Metadata) error {
 }
 
 // Features returns the features available in this state store.
-func (s *RethinkDB) Features(ctx context.Context) []state.Feature {
+func (s *RethinkDB) Features() []state.Feature {
 	return s.features
 }
 

@@ -397,7 +397,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	if config.HasOperation("transaction") {
 		t.Run("transaction", func(t *testing.T) {
 			// Check if transactional feature is listed
-			features := statestore.Features(context.Background())
+			features := statestore.Features()
 			assert.True(t, state.FeatureTransactional.IsPresent(features))
 
 			var transactionGroups []int
@@ -575,7 +575,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		})
 	} else {
 		// Check if transactional feature is NOT listed
-		features := statestore.Features(context.Background())
+		features := statestore.Features()
 		assert.False(t, state.FeatureTransactional.IsPresent(features))
 	}
 
@@ -588,7 +588,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			fakeEtag := "not-an-etag"
 
 			// Check if eTag feature is listed
-			features := statestore.Features(context.Background())
+			features := statestore.Features()
 			require.True(t, state.FeatureETag.IsPresent(features))
 
 			// Delete any potential object, it's important to start from a clean slate.
@@ -653,7 +653,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		})
 	} else {
 		// Check if eTag feature is NOT listed
-		features := statestore.Features(context.Background())
+		features := statestore.Features()
 		require.False(t, state.FeatureETag.IsPresent(features))
 	}
 

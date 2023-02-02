@@ -154,7 +154,7 @@ func (m *MongoDB) Init(ctx context.Context, metadata state.Metadata) error {
 }
 
 // Features returns the features available in this state store.
-func (m *MongoDB) Features(ctx context.Context) []state.Feature {
+func (m *MongoDB) Features() []state.Feature {
 	return m.features
 }
 

@@ -16,6 +16,9 @@ package sqs
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -31,7 +34,10 @@ type AWSSQS struct {
 	Client   *sqs.SQS
 	QueueURL *string
 
-	logger logger.Logger
+	logger  logger.Logger
+	wg      sync.WaitGroup
+	closeCh chan struct{}
+	closed  atomic.Bool
 }
 
 type sqsMetadata struct {
@@ -45,7 +51,7 @@ type sqsMetadata struct {
 
 // NewAWSSQS returns a new AWS SQS instance.
 func NewAWSSQS(logger logger.Logger) bindings.InputOutputBinding {
-	return &AWSSQS{logger: logger}
+	return &AWSSQS{logger: logger, closeCh: make(chan struct{})}
 }
 
 // Init does metadata parsing and connection creation.
@@ -89,9 +95,20 @@ func (a *AWSSQS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 }
 
 func (a *AWSSQS) Read(ctx context.Context, handler bindings.Handler) error {
+	if a.closed.Load() {
+		return errors.New("binding is closed")
+	}
+
+	a.wg.Add(1)
 	go func() {
+		defer a.wg.Done()
+
 		// Repeat until the context is canceled
-		for ctx.Err() == nil {
+		for {
+			if ctx.Err() != nil || a.closed.Load() {
+				return
+			}
+
 			result, err := a.Client.ReceiveMessageWithContext(ctx, &sqs.ReceiveMessageInput{
 				QueueUrl: a.QueueURL,
 				AttributeNames: aws.StringSlice([]string{
@@ -126,9 +143,23 @@ func (a *AWSSQS) Read(ctx context.Context, handler bindings.Handler) error {
 				}
 			}
 
-			time.Sleep(time.Millisecond * 50)
+			select {
+			case <-ctx.Done():
+			case <-a.closeCh:
+			case <-time.After(time.Millisecond * 50):
+			}
 		}
 	}()
+
+	return nil
+}
+
+func (a *AWSSQS) Close() error {
+	defer a.wg.Wait()
+
+	if a.closed.CompareAndSwap(false, true) {
+		close(a.closeCh)
+	}
 
 	return nil
 }

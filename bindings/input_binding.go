@@ -26,6 +26,9 @@ type InputBinding interface {
 	Init(ctx context.Context, metadata Metadata) error
 	// Read is a method that runs in background and triggers the callback function whenever an event arrives.
 	Read(ctx context.Context, handler Handler) error
+	// Close is a method that closes the connection to the binding. Must be
+	// called when the binding is no longer needed to free up resources.
+	Close() error
 }
 
 // Handler is the handler used to invoke the app handler.

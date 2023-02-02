@@ -79,6 +79,8 @@ func TestReadError(t *testing.T) {
 		return nil, nil
 	})
 	assert.Error(t, err)
+
+	assert.NoError(t, tw.Close())
 }
 
 // TestRead executes the Read method which calls Twiter API
@@ -116,6 +118,8 @@ func TestRead(t *testing.T) {
 		cancel()
 		t.Fatal("Timeout waiting for messages")
 	}
+
+	assert.NoError(t, tw.Close())
 }
 
 // TestInvoke executes the Invoke method which calls Twiter API
@@ -141,4 +145,5 @@ func TestInvoke(t *testing.T) {
 	resp, err := tw.Invoke(context.Background(), req)
 	assert.Nilf(t, err, "error on invoke")
 	assert.NotNil(t, resp)
+	assert.NoError(t, tw.Close())
 }

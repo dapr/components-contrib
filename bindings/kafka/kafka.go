@@ -38,6 +38,7 @@ type Binding struct {
 	logger       logger.Logger
 	closeCh      chan struct{}
 	closed       atomic.Bool
+	wg           sync.WaitGroup
 }
 
 // NewKafka returns a new kafka binding instance.
@@ -76,6 +77,7 @@ func (b *Binding) Operations() []bindings.OperationKind {
 }
 
 func (b *Binding) Close() (err error) {
+	defer b.wg.Wait()
 	if b.closed.CompareAndSwap(false, true) {
 		close(b.closeCh)
 	}
@@ -104,12 +106,9 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 	for _, t := range b.topics {
 		b.kafka.AddTopicHandler(t, handlerConfig)
 	}
-
-	var wg sync.WaitGroup
-	defer wg.Wait()
-	wg.Add(1)
+	b.wg.Add(1)
 	go func() {
-		defer wg.Done()
+		defer b.wg.Done()
 		// Wait for context cancelation
 		select {
 		case <-ctx.Done():

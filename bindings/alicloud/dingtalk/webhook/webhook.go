@@ -107,6 +107,13 @@ func (t *DingTalkWebhook) Read(ctx context.Context, handler bindings.Handler) er
 	return nil
 }
 
+func (t *DingTalkWebhook) Close() error {
+	webhooks.Lock()
+	defer webhooks.Unlock()
+	delete(webhooks.m, t.settings.ID)
+	return nil
+}
+
 // Operations returns list of operations supported by dingtalk webhook binding.
 func (t *DingTalkWebhook) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation, bindings.GetOperation}

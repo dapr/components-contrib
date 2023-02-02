@@ -15,7 +15,10 @@ package kinesis
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -45,6 +48,10 @@ type AWSKinesis struct {
 	streamARN   *string
 	consumerARN *string
 	logger      logger.Logger
+
+	closed  atomic.Bool
+	closeCh chan struct{}
+	wg      sync.WaitGroup
 }
 
 type kinesisMetadata struct {
@@ -83,7 +90,7 @@ type recordProcessor struct {
 
 // NewAWSKinesis returns a new AWS Kinesis instance.
 func NewAWSKinesis(logger logger.Logger) bindings.InputOutputBinding {
-	return &AWSKinesis{logger: logger}
+	return &AWSKinesis{logger: logger, closeCh: make(chan struct{})}
 }
 
 // Init does metadata parsing and connection creation.
@@ -147,6 +154,10 @@ func (a *AWSKinesis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 }
 
 func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err error) {
+	if a.closed.Load() {
+		return errors.New("binding is closed")
+	}
+
 	if a.metadata.KinesisConsumerMode == SharedThroughput {
 		a.worker = worker.NewWorker(a.recordProcessorFactory(ctx, handler), a.workerConfig)
 		err = a.worker.Start()
@@ -166,8 +177,13 @@ func (a *AWSKinesis) Read(ctx context.Context, handler bindings.Handler) (err er
 	}
 
 	// Wait for context cancelation then stop
+	a.wg.Add(1)
 	go func() {
-		<-ctx.Done()
+		defer a.wg.Done()
+		select {
+		case <-ctx.Done():
+		case <-a.closeCh:
+		}
 		if a.metadata.KinesisConsumerMode == SharedThroughput {
 			a.worker.Shutdown()
 		} else if a.metadata.KinesisConsumerMode == ExtendedFanout {
@@ -188,14 +204,25 @@ func (a *AWSKinesis) Subscribe(ctx context.Context, streamDesc kinesis.StreamDes
 
 	a.consumerARN = consumerARN
 
+	a.wg.Add(len(streamDesc.Shards))
 	for i, shard := range streamDesc.Shards {
-		go func(idx int, s *kinesis.Shard) error {
+		go func(idx int, s *kinesis.Shard) {
+			defer a.wg.Done()
+
 			// Reconnection backoff
 			bo := backoff.NewExponentialBackOff()
 			bo.InitialInterval = 2 * time.Second
 
-			// Repeat until context is canceled
-			for ctx.Err() == nil {
+			// Repeat until context is canceled or binding closed.
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-a.closeCh:
+					return
+				default:
+				}
+
 				sub, err := a.client.SubscribeToShardWithContext(ctx, &kinesis.SubscribeToShardInput{
 					ConsumerARN:      consumerARN,
 					ShardId:          s.ShardId,
@@ -204,8 +231,12 @@ func (a *AWSKinesis) Subscribe(ctx context.Context, streamDesc kinesis.StreamDes
 				if err != nil {
 					wait := bo.NextBackOff()
 					a.logger.Errorf("Error while reading from shard %v: %v. Attempting to reconnect in %s...", s.ShardId, err, wait)
-					time.Sleep(wait)
-					continue
+					select {
+					case <-ctx.Done():
+						return
+					case <-time.After(wait):
+						continue
+					}
 				}
 
 				// Reset the backoff on connection success
@@ -223,10 +254,17 @@ func (a *AWSKinesis) Subscribe(ctx context.Context, streamDesc kinesis.StreamDes
 					}
 				}
 			}
-			return nil
 		}(i, shard)
 	}
 
+	return nil
+}
+
+func (a *AWSKinesis) Close() error {
+	defer a.wg.Wait()
+	if a.closed.CompareAndSwap(false, true) {
+		close(a.closeCh)
+	}
 	return nil
 }
 

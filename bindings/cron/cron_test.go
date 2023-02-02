@@ -16,6 +16,7 @@ package cron
 import (
 	"context"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -100,22 +101,25 @@ func TestCronRead(t *testing.T) {
 	c := getNewCronWithClock(clk)
 	schedule := "@every 1s"
 	assert.NoErrorf(t, c.Init(context.Background(), getTestMetadata(schedule)), "error initializing valid schedule")
-	expectedCount := 5
-	observedCount := 0
+	expectedCount := int32(5)
+	var observedCount atomic.Int32
 	err := c.Read(context.Background(), func(ctx context.Context, res *bindings.ReadResponse) ([]byte, error) {
 		assert.NotNil(t, res)
-		observedCount++
+		observedCount.Add(1)
 		return nil, nil
 	})
 	// Check if cron triggers 5 times in 5 seconds
-	for i := 0; i < expectedCount; i++ {
+	for i := int32(0); i < expectedCount; i++ {
 		// Add time to mock clock in 1 second intervals using loop to allow cron go routine to run
 		clk.Add(time.Second)
 	}
 	// Wait for 1 second after adding the last second to mock clock to allow cron to finish triggering
-	time.Sleep(1 * time.Second)
-	assert.Equal(t, expectedCount, observedCount, "Cron did not trigger expected number of times, expected %d, got %d", expectedCount, observedCount)
+	assert.Eventually(t, func() bool {
+		return observedCount.Load() == expectedCount
+	}, time.Second, time.Millisecond*10,
+		"Cron did not trigger expected number of times, expected %d, got %d", expectedCount, observedCount.Load())
 	assert.NoErrorf(t, err, "error on read")
+	assert.NoError(t, c.Close())
 }
 
 func TestCronReadWithContextCancellation(t *testing.T) {
@@ -123,14 +127,14 @@ func TestCronReadWithContextCancellation(t *testing.T) {
 	c := getNewCronWithClock(clk)
 	schedule := "@every 1s"
 	assert.NoErrorf(t, c.Init(context.Background(), getTestMetadata(schedule)), "error initializing valid schedule")
-	expectedCount := 5
-	observedCount := 0
+	expectedCount := int32(5)
+	var observedCount atomic.Int32
 	ctx, cancel := context.WithCancel(context.Background())
 	err := c.Read(ctx, func(ctx context.Context, res *bindings.ReadResponse) ([]byte, error) {
 		assert.NotNil(t, res)
-		assert.LessOrEqualf(t, observedCount, expectedCount, "Invoke didn't stop the schedule")
-		observedCount++
-		if observedCount == expectedCount {
+		assert.LessOrEqualf(t, observedCount.Load(), expectedCount, "Invoke didn't stop the schedule")
+		observedCount.Add(1)
+		if observedCount.Load() == expectedCount {
 			// Cancel context after 5 triggers
 			cancel()
 		}
@@ -141,7 +145,10 @@ func TestCronReadWithContextCancellation(t *testing.T) {
 		// Add time to mock clock in 1 second intervals using loop to allow cron go routine to run
 		clk.Add(time.Second)
 	}
-	time.Sleep(1 * time.Second)
-	assert.Equal(t, expectedCount, observedCount, "Cron did not trigger expected number of times, expected %d, got %d", expectedCount, observedCount)
+	assert.Eventually(t, func() bool {
+		return observedCount.Load() == expectedCount
+	}, time.Second, time.Millisecond*10,
+		"Cron did not trigger expected number of times, expected %d, got %d", expectedCount, observedCount.Load())
 	assert.NoErrorf(t, err, "error on read")
+	assert.NoError(t, c.Close())
 }

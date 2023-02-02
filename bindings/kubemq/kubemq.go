@@ -2,8 +2,11 @@ package kubemq
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	qs "github.com/kubemq-io/kubemq-go/queues_stream"
@@ -19,9 +22,12 @@ type Kubemq interface {
 }
 
 type kubeMQ struct {
-	client *qs.QueuesStreamClient
-	opts   *options
-	logger logger.Logger
+	client  *qs.QueuesStreamClient
+	opts    *options
+	logger  logger.Logger
+	closed  atomic.Bool
+	closeCh chan struct{}
+	wg      sync.WaitGroup
 }
 
 func NewKubeMQ(logger logger.Logger) Kubemq {
@@ -53,14 +59,28 @@ func (k *kubeMQ) Init(ctx context.Context, metadata bindings.Metadata) error {
 }
 
 func (k *kubeMQ) Read(ctx context.Context, handler bindings.Handler) error {
+	if k.closed.Load() {
+		return errors.New("binding is closed")
+	}
+	k.wg.Add(2)
+	processCtx, cancel := context.WithCancel(ctx)
 	go func() {
+		defer k.wg.Done()
+		select {
+		case <-k.closeCh:
+			cancel()
+		case <-processCtx.Done():
+		}
+	}()
+	go func() {
+		defer k.wg.Done()
 		for {
-			err := k.processQueueMessage(ctx, handler)
+			err := k.processQueueMessage(processCtx, handler)
 			if err != nil {
 				k.logger.Error(err.Error())
 				time.Sleep(time.Second)
 			}
-			if ctx.Err() != nil {
+			if processCtx.Err() != nil {
 				return
 			}
 		}
@@ -93,6 +113,14 @@ func (k *kubeMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 
 func (k *kubeMQ) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
+}
+
+func (k *kubeMQ) Close() error {
+	defer k.wg.Wait()
+	if k.closed.CompareAndSwap(false, true) {
+		close(k.closeCh)
+	}
+	return nil
 }
 
 func (k *kubeMQ) processQueueMessage(ctx context.Context, handler bindings.Handler) error {

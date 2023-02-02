@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -61,6 +62,8 @@ type rabbitMQ struct {
 
 	connectionDial func(protocol, uri string, tlsCfg *tls.Config) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error)
 	closeCh        chan struct{}
+	closed         atomic.Bool
+	wg             sync.WaitGroup
 
 	logger logger.Logger
 }
@@ -245,6 +248,10 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 }
 
 func (r *rabbitMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
+	if r.closed.Load() {
+		return errors.New("error: rabbitMQ is closed")
+	}
+
 	r.logger.Debugf("%s publishing message to %s", logMessagePrefix, req.Topic)
 
 	attempt := 0
@@ -270,6 +277,10 @@ func (r *rabbitMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) erro
 }
 
 func (r *rabbitMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	if r.closed.Load() {
+		return errors.New("error: rabbitMQ is closed")
+	}
+
 	if r.metadata.consumerID == "" {
 		return errors.New("consumerID is required for subscriptions")
 	}
@@ -280,7 +291,18 @@ func (r *rabbitMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, h
 	// Do not set a timeout on the context, as we're just waiting for the first ack; we're using a semaphore instead
 	ackCh := make(chan struct{}, 1)
 	defer close(ackCh)
-	go r.subscribeForever(ctx, req, queueName, handler, ackCh)
+
+	subctx, cancel := context.WithCancel(ctx)
+	r.wg.Add(2)
+	go func() {
+		defer r.wg.Done()
+		r.subscribeForever(subctx, req, queueName, handler, ackCh)
+	}()
+	go func() {
+		defer r.wg.Done()
+		defer cancel()
+		<-r.closeCh
+	}()
 
 	// Wait for the ack for 1 minute or return an error
 	select {
@@ -465,13 +487,17 @@ func (r *rabbitMQ) listenMessages(ctx context.Context, channel rabbitMQChannelBr
 			switch r.metadata.concurrency {
 			case pubsub.Single:
 				err = r.handleMessage(ctx, d, topic, handler)
+				if err != nil && mustReconnect(channel, err) {
+					return err
+				}
 			case pubsub.Parallel:
+				r.wg.Add(1)
 				go func(d amqp.Delivery) {
-					err = r.handleMessage(ctx, d, topic, handler)
+					defer r.wg.Done()
+					if err := r.handleMessage(ctx, d, topic, handler); err != nil {
+						r.logger.Errorf("%s error handling message: %v", logMessagePrefix, err)
+					}
 				}(d)
-			}
-			if err != nil && mustReconnect(channel, err) {
-				return err
 			}
 		}
 	}
@@ -561,18 +587,20 @@ func (r *rabbitMQ) reset() (err error) {
 }
 
 func (r *rabbitMQ) isStopped() bool {
-	select {
-	case <-r.closeCh:
-		return true
-	default:
-		return false
-	}
+	return r.closed.Load()
 }
 
+// Close closes the rabbitMQ connection. Blocks until all go routines are done.
 func (r *rabbitMQ) Close() error {
+	defer r.wg.Wait()
+
 	r.channelMutex.Lock()
 	defer r.channelMutex.Unlock()
-	close(r.closeCh)
+
+	if r.closed.CompareAndSwap(false, true) {
+		close(r.closeCh)
+	}
+
 	return r.reset()
 }
 

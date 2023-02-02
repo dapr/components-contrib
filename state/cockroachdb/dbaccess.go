@@ -29,6 +29,6 @@ type dbAccess interface {
 	BulkDelete(ctx context.Context, req []state.DeleteRequest) error
 	ExecuteMulti(ctx context.Context, req *state.TransactionalStateRequest) error
 	Query(ctx context.Context, req *state.QueryRequest) (*state.QueryResponse, error)
-	Ping() error
+	Ping(context.Context) error
 	Close() error
 }

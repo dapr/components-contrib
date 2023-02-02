@@ -59,6 +59,8 @@ func (p *Postgres) Init(ctx context.Context, metadata bindings.Metadata) error {
 		return errors.Wrap(err, "error opening DB connection")
 	}
 
+	// This context doesn't control the lifetime of the connection pool, and is
+	// only scoped to postgres creating resources at init.
 	p.db, err = pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
 		return errors.Wrap(err, "unable to ping the DB")

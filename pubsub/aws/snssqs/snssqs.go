@@ -16,10 +16,12 @@ package snssqs
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -65,6 +67,8 @@ type snsSqs struct {
 	pollerRunning chan struct{}
 
 	closeCh chan struct{}
+	closed  atomic.Bool
+	wg      sync.WaitGroup
 }
 
 type sqsQueueInfo struct {
@@ -635,7 +639,11 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 			case pubsub.Single:
 				f(message)
 			case pubsub.Parallel:
-				go f(message)
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					f(message)
+				}()
 			}
 		}
 		wg.Wait()
@@ -746,6 +754,10 @@ func (s *snsSqs) restrictQueuePublishPolicyToOnlySNS(parentCtx context.Context, 
 }
 
 func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	if s.closed.Load() {
+		return errors.New("error: pubsub has been closed")
+	}
+
 	// subscribers declare a topic ARN and declare a SQS queue to use
 	// these should be idempotent - queues should not be created if they exist.
 	topicArn, sanitizedName, err := s.getOrCreateTopic(ctx, req.Topic)
@@ -816,21 +828,35 @@ func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 		ctx:       ctx,
 	}
 
+	// pollerCancel is used to cancel the polling goroutine. We use a noop cancel
+	// func in case the poller is already running and there is no cancel to use
+	// from the select below.
+	pollerCancel := func() {}
 	// Start the poller for the queue if it's not running already
 	select {
 	case s.pollerRunning <- struct{}{}:
-		subctx, cancel := context.WithCancel(context.Background())
+		// If inserting in the channel succeeds, then it's not running already
+		// Use a context that is tied to the background context
+		var subctx context.Context
+		subctx, pollerCancel = context.WithCancel(context.Background())
+		s.wg.Add(2)
 		go func() {
-			defer cancel()
+			defer s.wg.Done()
+			defer pollerCancel()
 			<-s.closeCh
 		}()
-		go s.consumeSubscription(subctx, queueInfo, deadLettersQueueInfo)
+		go func() {
+			defer s.wg.Done()
+			s.consumeSubscription(subctx, queueInfo, deadLettersQueueInfo)
+		}()
 	default:
 		// Do nothing, it means the poller is already running
 	}
 
-	// Watch for subscription context cancelation to remove this subscription
+	// Watch for subscription context cancellation to remove this subscription
+	s.wg.Add(1)
 	go func() {
+		defer s.wg.Done()
 		<-ctx.Done()
 
 		s.topicsLock.Lock()
@@ -838,12 +864,21 @@ func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 
 		// Remove the handler
 		delete(s.topicHandlers, sanitizedName)
+
+		// If we don't have any topic left, close the poller.
+		if len(s.topicHandlers) == 0 {
+			pollerCancel()
+		}
 	}()
 
 	return nil
 }
 
 func (s *snsSqs) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
+	if s.closed.Load() {
+		return errors.New("error: pubsub has been closed")
+	}
+
 	topicArn, _, err := s.getOrCreateTopic(ctx, req.Topic)
 	if err != nil {
 		s.logger.Errorf("error getting topic ARN for %s: %v", req.Topic, err)
@@ -870,8 +905,13 @@ func (s *snsSqs) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 	return nil
 }
 
+// Close should always be called to release the resources used by the SNS/SQS
+// client. Blocks until all goroutines have returned.
 func (s *snsSqs) Close() error {
-	close(s.closeCh)
+	defer s.wg.Wait()
+	if s.closed.CompareAndSwap(false, true) {
+		close(s.closeCh)
+	}
 	return nil
 }
 

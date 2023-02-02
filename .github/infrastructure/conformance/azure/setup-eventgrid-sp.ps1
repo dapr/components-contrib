@@ -56,7 +56,7 @@ try {
     try
     {
         Write-Host "Creating the Azure AD Application role assignment: " $webhookAppId
-        $eventGridAppRole = $app.AppRoles | Where-Object -Property "DisplayName" -eq -Value $eventGridRoleName
+        $eventGridAppRole = $appRoles | Where-Object -Property "DisplayName" -eq -Value $eventGridRoleName
         New-MgServicePrincipalAppRoleAssignment -AppRoleId $eventGridAppRole.Id -ResourceId $servicePrincipal.Id -ServicePrincipalId $servicePrincipal.Id -PrincipalId $servicePrincipal.Id -ErrorAction Stop
     }
     catch
@@ -72,7 +72,7 @@ try {
     # Creates the service app role assignment for the Event Grid Azure AD Application
     try
     {
-        $eventGridAppRole = $app.AppRoles | Where-Object -Property "DisplayName" -eq -Value $eventGridRoleName
+        $eventGridAppRole = $appRoles | Where-Object -Property "DisplayName" -eq -Value $eventGridRoleName
         New-MgServicePrincipalAppRoleAssignment -AppRoleId $eventGridAppRole.Id -ResourceId $servicePrincipal.Id -ServicePrincipalId $eventGridSP.Id -PrincipalId $eventGridSP.Id -ErrorAction Stop
     }
     catch

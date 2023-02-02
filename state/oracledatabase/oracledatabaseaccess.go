@@ -63,8 +63,8 @@ func newOracleDatabaseAccess(logger logger.Logger) *oracleDatabaseAccess {
 	}
 }
 
-func (o *oracleDatabaseAccess) Ping() error {
-	return o.db.Ping()
+func (o *oracleDatabaseAccess) Ping(ctx context.Context) error {
+	return o.db.PingContext(ctx)
 }
 
 func parseMetadata(meta map[string]string) (oracleDatabaseMetadata, error) {
@@ -102,7 +102,7 @@ func (o *oracleDatabaseAccess) Init(ctx context.Context, metadata state.Metadata
 
 	o.db = db
 
-	if pingErr := db.Ping(); pingErr != nil {
+	if pingErr := db.PingContext(ctx); pingErr != nil {
 		return pingErr
 	}
 	err = o.ensureStateTable(tableName)

@@ -52,8 +52,8 @@ func (o *OracleDatabase) Init(ctx context.Context, metadata state.Metadata) erro
 	return o.dbaccess.Init(ctx, metadata)
 }
 
-func (o *OracleDatabase) Ping() error {
-	return o.dbaccess.Ping()
+func (o *OracleDatabase) Ping(ctx context.Context) error {
+	return o.dbaccess.Ping(ctx)
 }
 
 // Features returns the features available in this state store.

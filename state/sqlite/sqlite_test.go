@@ -259,7 +259,7 @@ func TestGetConnectionString(t *testing.T) {
 func TestInitRunsDBAccessInit(t *testing.T) {
 	t.Parallel()
 	ods, fake := createSqliteWithFake(t)
-	ods.Ping()
+	ods.Ping(context.Background())
 	assert.True(t, fake.initExecuted)
 }
 
@@ -309,7 +309,7 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 func TestPingRunsDBAccessPing(t *testing.T) {
 	t.Parallel()
 	odb, fake := createSqliteWithFake(t)
-	odb.Ping()
+	odb.Ping(context.Background())
 	assert.True(t, fake.pingExecuted)
 }
 

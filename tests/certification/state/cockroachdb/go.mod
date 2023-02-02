@@ -6,7 +6,7 @@ require (
 	github.com/dapr/components-contrib v1.10.0-rc.2
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20221111215803-c92827c3defc
 	github.com/dapr/dapr v1.10.0-rc.2
-	github.com/dapr/go-sdk v1.6.0
+	github.com/dapr/go-sdk v1.7.0
 	github.com/dapr/kit v0.0.4
 	github.com/google/uuid v1.3.0
 	github.com/stretchr/testify v1.8.1

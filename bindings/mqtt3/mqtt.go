@@ -42,6 +42,7 @@ type MQTT struct {
 	readHandler  bindings.Handler
 	backOff      backoff.BackOff
 	closeCh      chan struct{}
+	closed       atomic.Bool
 }
 
 // NewMQTT returns a new MQTT instance.
@@ -147,6 +148,10 @@ func (m *MQTT) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindin
 }
 
 func (m *MQTT) Read(ctx context.Context, handler bindings.Handler) error {
+	if m.closed.Load() {
+		return errors.New("error: binding is closed")
+	}
+
 	// If the subscription is already active, wait 2s before retrying (in case we're still disconnecting), otherwise return an error
 	if !m.isSubscribed.CompareAndSwap(false, true) {
 		m.logger.Debug("Subscription is already active; waiting 2s before retrying…")
@@ -357,7 +362,9 @@ func (m *MQTT) Close() error {
 	m.producerLock.Lock()
 	defer m.producerLock.Unlock()
 
-	close(m.closeCh)
+	if m.closed.CompareAndSwap(false, true) {
+		close(m.closeCh)
+	}
 
 	if m.producer != nil {
 		m.producer.Disconnect(200)

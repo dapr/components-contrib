@@ -530,7 +530,7 @@ jobs:
         go mod download
         go install gotest.tools/gotestsum@latest
         go install github.com/axw/gocov/gocov@v1.1.0
-        go get github.com/wadey/gocovmerge@latest
+        go install github.com/wadey/gocovmerge@latest
 
     - name: Generate Azure SQL DB name
       run: |

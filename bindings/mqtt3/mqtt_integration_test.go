@@ -128,4 +128,5 @@ func TestInvokeWithTopic(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, dataCustomized, mqttMessage.Payload())
 	assert.Equal(t, topicCustomized, mqttMessage.Topic())
+	assert.NoError(t, r.Close())
 }

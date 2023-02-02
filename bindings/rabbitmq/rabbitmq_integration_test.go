@@ -117,6 +117,7 @@ func TestQueuesWithTTL(t *testing.T) {
 	assert.True(t, ok)
 	msgBody := string(msg.Body)
 	assert.Equal(t, testMsgContent, msgBody)
+	assert.NoError(t, r.Close())
 }
 
 func TestPublishingWithTTL(t *testing.T) {
@@ -193,6 +194,9 @@ func TestPublishingWithTTL(t *testing.T) {
 	assert.True(t, ok)
 	msgBody := string(msg.Body)
 	assert.Equal(t, testMsgContent, msgBody)
+
+	assert.NoError(t, rabbitMQBinding1.Close())
+	assert.NoError(t, rabbitMQBinding1.Close())
 }
 
 func TestExclusiveQueue(t *testing.T) {

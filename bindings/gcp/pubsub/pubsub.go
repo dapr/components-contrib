@@ -16,7 +16,10 @@ package pubsub
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"sync"
+	"sync/atomic"
 
 	"cloud.google.com/go/pubsub"
 	"google.golang.org/api/option"
@@ -36,6 +39,9 @@ type GCPPubSub struct {
 	client   *pubsub.Client
 	metadata *pubSubMetadata
 	logger   logger.Logger
+	closed   atomic.Bool
+	closeCh  chan struct{}
+	wg       sync.WaitGroup
 }
 
 type pubSubMetadata struct {
@@ -55,7 +61,7 @@ type pubSubMetadata struct {
 
 // NewGCPPubSub returns a new GCPPubSub instance.
 func NewGCPPubSub(logger logger.Logger) bindings.InputOutputBinding {
-	return &GCPPubSub{logger: logger}
+	return &GCPPubSub{logger: logger, closeCh: make(chan struct{})}
 }
 
 // Init parses metadata and creates a new Pub Sub client.
@@ -87,7 +93,12 @@ func (g *GCPPubSub) parseMetadata(metadata bindings.Metadata) ([]byte, error) {
 }
 
 func (g *GCPPubSub) Read(ctx context.Context, handler bindings.Handler) error {
+	if g.closed.Load() {
+		return errors.New("binding is closed")
+	}
+	g.wg.Add(1)
 	go func() {
+		defer g.wg.Done()
 		sub := g.client.Subscription(g.metadata.Subscription)
 		err := sub.Receive(ctx, func(c context.Context, m *pubsub.Message) {
 			_, err := handler(c, &bindings.ReadResponse{
@@ -127,5 +138,9 @@ func (g *GCPPubSub) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 }
 
 func (g *GCPPubSub) Close() error {
+	defer g.wg.Wait()
+	if g.closed.CompareAndSwap(false, true) {
+		close(g.closeCh)
+	}
 	return g.client.Close()
 }

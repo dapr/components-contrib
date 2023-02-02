@@ -43,6 +43,7 @@ type MQTT struct {
 	backOff      backoff.BackOff
 	closeCh      chan struct{}
 	closed       atomic.Bool
+	wg           sync.WaitGroup
 }
 
 // NewMQTT returns a new MQTT instance.
@@ -178,7 +179,10 @@ func (m *MQTT) Read(ctx context.Context, handler bindings.Handler) error {
 
 	// In background, watch for contexts cancelation and stop the connection
 	// However, do not call "unsubscribe" which would cause the broker to stop tracking the last message received by this consumer group
+	m.wg.Add(1)
 	go func() {
+		defer m.wg.Done()
+
 		select {
 		case <-ctx.Done():
 			// nop
@@ -364,6 +368,8 @@ func (m *MQTT) createSubscriberClientOptions(ctx context.Context, uri *url.URL, 
 }
 
 func (m *MQTT) Close() error {
+	defer m.wg.Wait()
+
 	m.producerLock.Lock()
 	defer m.producerLock.Unlock()
 

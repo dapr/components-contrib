@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -39,6 +40,7 @@ type RocketMQ struct {
 	backOffConfig retry.Config
 	closeCh       chan struct{}
 	closed        atomic.Bool
+	wg            sync.WaitGroup
 }
 
 func NewRocketMQ(l logger.Logger) *RocketMQ {
@@ -118,7 +120,9 @@ func (a *RocketMQ) Read(ctx context.Context, handler bindings.Handler) error {
 	a.logger.Debugf("binding-rocketmq: consumer started")
 
 	// Listen for context cancelation to stop the subscription
+	a.wg.Add(1)
 	go func() {
+		defer a.wg.Done()
 		select {
 		case <-ctx.Done():
 		case <-a.closeCh:
@@ -135,6 +139,7 @@ func (a *RocketMQ) Read(ctx context.Context, handler bindings.Handler) error {
 
 // Close implements cancel all listeners, see https://github.com/dapr/components-contrib/issues/779
 func (a *RocketMQ) Close() error {
+	defer a.wg.Wait()
 	if a.closed.CompareAndSwap(false, true) {
 		close(a.closeCh)
 	}

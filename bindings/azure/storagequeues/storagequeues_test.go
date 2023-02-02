@@ -16,6 +16,7 @@ package storagequeues
 import (
 	"context"
 	"encoding/base64"
+	"sync"
 	"testing"
 	"time"
 
@@ -32,6 +33,8 @@ type MockHelper struct {
 	mock.Mock
 	messages chan []byte
 	metadata *storageQueuesMetadata
+	closeCh  chan struct{}
+	wg       sync.WaitGroup
 }
 
 func (m *MockHelper) Init(ctx context.Context, metadata bindings.Metadata) (*storageQueuesMetadata, error) {
@@ -50,12 +53,23 @@ func (m *MockHelper) Write(ctx context.Context, data []byte, ttl *time.Duration)
 func (m *MockHelper) Read(ctx context.Context, consumer *consumer) error {
 	retvals := m.Called(ctx, consumer)
 
+	readCtx, cancel := context.WithCancel(ctx)
+	m.wg.Add(2)
 	go func() {
+		defer m.wg.Done()
+		defer cancel()
+		select {
+		case <-readCtx.Done():
+		case <-m.closeCh:
+		}
+	}()
+	go func() {
+		defer m.wg.Done()
 		for msg := range m.messages {
 			if m.metadata.DecodeBase64 {
 				msg, _ = base64.StdEncoding.DecodeString(string(msg))
 			}
-			go consumer.callback(ctx, &bindings.ReadResponse{
+			go consumer.callback(readCtx, &bindings.ReadResponse{
 				Data: msg,
 			})
 		}
@@ -64,13 +78,19 @@ func (m *MockHelper) Read(ctx context.Context, consumer *consumer) error {
 	return retvals.Error(0)
 }
 
+func (m *MockHelper) Close() error {
+	defer m.wg.Wait()
+	close(m.closeCh)
+	return nil
+}
+
 func TestWriteQueue(t *testing.T) {
 	mm := new(MockHelper)
 	mm.On("Write", mock.AnythingOfType("[]uint8"), mock.MatchedBy(func(in *time.Duration) bool {
 		return in == nil
 	})).Return(nil)
 
-	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
+	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test"), closeCh: make(chan struct{})}
 
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
@@ -83,6 +103,7 @@ func TestWriteQueue(t *testing.T) {
 	_, err = a.Invoke(context.Background(), &r)
 
 	assert.Nil(t, err)
+	assert.NoError(t, a.Close())
 }
 
 func TestWriteWithTTLInQueue(t *testing.T) {
@@ -91,7 +112,7 @@ func TestWriteWithTTLInQueue(t *testing.T) {
 		return in != nil && *in == time.Second
 	})).Return(nil)
 
-	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
+	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test"), closeCh: make(chan struct{})}
 
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: "1"}
@@ -104,6 +125,7 @@ func TestWriteWithTTLInQueue(t *testing.T) {
 	_, err = a.Invoke(context.Background(), &r)
 
 	assert.Nil(t, err)
+	assert.NoError(t, a.Close())
 }
 
 func TestWriteWithTTLInWrite(t *testing.T) {
@@ -112,7 +134,7 @@ func TestWriteWithTTLInWrite(t *testing.T) {
 		return in != nil && *in == time.Second
 	})).Return(nil)
 
-	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
+	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test"), closeCh: make(chan struct{})}
 
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: "1"}
@@ -128,6 +150,7 @@ func TestWriteWithTTLInWrite(t *testing.T) {
 	_, err = a.Invoke(context.Background(), &r)
 
 	assert.Nil(t, err)
+	assert.NoError(t, a.Close())
 }
 
 // Uncomment this function to write a message to local storage queue
@@ -152,7 +175,7 @@ func TestReadQueue(t *testing.T) {
 	mm := new(MockHelper)
 	mm.On("Write", mock.AnythingOfType("[]uint8"), mock.AnythingOfType("*time.Duration")).Return(nil)
 	mm.On("Read", mock.AnythingOfType("*context.cancelCtx"), mock.AnythingOfType("*storagequeues.consumer")).Return(nil)
-	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
+	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test"), closeCh: make(chan struct{})}
 
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
@@ -186,6 +209,7 @@ func TestReadQueue(t *testing.T) {
 		t.Fatal("Timeout waiting for messages")
 	}
 	assert.Equal(t, 1, received)
+	assert.NoError(t, a.Close())
 }
 
 func TestReadQueueDecode(t *testing.T) {
@@ -193,7 +217,7 @@ func TestReadQueueDecode(t *testing.T) {
 	mm.On("Write", mock.AnythingOfType("[]uint8"), mock.AnythingOfType("*time.Duration")).Return(nil)
 	mm.On("Read", mock.AnythingOfType("*context.cancelCtx"), mock.AnythingOfType("*storagequeues.consumer")).Return(nil)
 
-	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
+	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test"), closeCh: make(chan struct{})}
 
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1", "decodeBase64": "true"}
@@ -227,6 +251,7 @@ func TestReadQueueDecode(t *testing.T) {
 		t.Fatal("Timeout waiting for messages")
 	}
 	assert.Equal(t, 1, received)
+	assert.NoError(t, a.Close())
 }
 
 // Uncomment this function to test reding from local queue
@@ -263,7 +288,7 @@ func TestReadQueueNoMessage(t *testing.T) {
 	mm.On("Write", mock.AnythingOfType("[]uint8"), mock.AnythingOfType("*time.Duration")).Return(nil)
 	mm.On("Read", mock.AnythingOfType("*context.cancelCtx"), mock.AnythingOfType("*storagequeues.consumer")).Return(nil)
 
-	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test")}
+	a := AzureStorageQueues{helper: mm, logger: logger.NewLogger("test"), closeCh: make(chan struct{})}
 
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
@@ -285,6 +310,7 @@ func TestReadQueueNoMessage(t *testing.T) {
 	time.Sleep(1 * time.Second)
 	cancel()
 	assert.Equal(t, 0, received)
+	assert.NoError(t, a.Close())
 }
 
 func TestParseMetadata(t *testing.T) {

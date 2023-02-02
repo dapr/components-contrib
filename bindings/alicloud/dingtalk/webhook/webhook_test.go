@@ -106,3 +106,18 @@ func TestBindingReadAndInvoke(t *testing.T) { //nolint:paralleltest
 		require.FailNow(t, "read timeout")
 	}
 }
+
+func TestBindingClose(t *testing.T) {
+	d := NewDingTalkWebhook(logger.NewLogger("test"))
+	m := bindings.Metadata{Base: metadata.Base{
+		Name: "test",
+		Properties: map[string]string{
+			"url":    "/test",
+			"secret": "",
+			"id":     "x",
+		},
+	}}
+	assert.NoError(t, d.Init(context.Background(), m))
+	assert.NoError(t, d.Close())
+	assert.NoError(t, d.Close(), "second close should not error")
+}

@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -42,6 +44,9 @@ const armOperationTimeout = 30 * time.Second
 type AzureEventGrid struct {
 	metadata *azureEventGridMetadata
 	logger   logger.Logger
+	closeCh  chan struct{}
+	closed   atomic.Bool
+	wg       sync.WaitGroup
 }
 
 type azureEventGridMetadata struct {
@@ -70,7 +75,7 @@ type azureEventGridMetadata struct {
 
 // NewAzureEventGrid returns a new Azure Event Grid instance.
 func NewAzureEventGrid(logger logger.Logger) bindings.InputOutputBinding {
-	return &AzureEventGrid{logger: logger}
+	return &AzureEventGrid{logger: logger, closeCh: make(chan struct{})}
 }
 
 // Init performs metadata init.
@@ -85,6 +90,10 @@ func (a *AzureEventGrid) Init(ctx context.Context, metadata bindings.Metadata) e
 }
 
 func (a *AzureEventGrid) Read(ctx context.Context, handler bindings.Handler) error {
+	if a.closed.Load() {
+		return errors.New("binding is closed")
+	}
+
 	err := a.ensureInputBindingMetadata()
 	if err != nil {
 		return err
@@ -120,17 +129,22 @@ func (a *AzureEventGrid) Read(ctx context.Context, handler bindings.Handler) err
 	}
 
 	// Run the server in background
+	a.wg.Add(2)
 	go func() {
+		defer a.wg.Done()
 		a.logger.Debugf("About to start listening for Event Grid events at http://localhost:%s/api/events", a.metadata.HandshakePort)
 		srvErr := srv.ListenAndServe(":" + a.metadata.HandshakePort)
 		if err != nil {
 			a.logger.Errorf("Error starting server: %v", srvErr)
 		}
 	}()
-
-	// Close the server when context is canceled
+	// Close the server when context is canceled or binding closed.
 	go func() {
-		<-ctx.Done()
+		defer a.wg.Done()
+		select {
+		case <-ctx.Done():
+		case <-a.closeCh:
+		}
 		srvErr := srv.Shutdown()
 		if err != nil {
 			a.logger.Errorf("Error shutting down server: %v", srvErr)
@@ -147,6 +161,14 @@ func (a *AzureEventGrid) Read(ctx context.Context, handler bindings.Handler) err
 
 func (a *AzureEventGrid) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
+}
+
+func (a *AzureEventGrid) Close() error {
+	defer a.wg.Wait()
+	if a.closed.CompareAndSwap(false, true) {
+		close(a.closeCh)
+	}
+	return nil
 }
 
 func (a *AzureEventGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {

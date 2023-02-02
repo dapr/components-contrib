@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/nacos-group/nacos-sdk-go/v2/clients"
@@ -56,6 +57,9 @@ type Nacos struct {
 	logger       logger.Logger
 	configClient config_client.IConfigClient //nolint:nosnakecase
 	readHandler  func(ctx context.Context, response *bindings.ReadResponse) ([]byte, error)
+	wg           sync.WaitGroup
+	closed       atomic.Bool
+	closeCh      chan struct{}
 }
 
 // NewNacos returns a new Nacos instance.
@@ -63,6 +67,7 @@ func NewNacos(logger logger.Logger) bindings.OutputBinding {
 	return &Nacos{
 		logger:      logger,
 		watchesLock: sync.Mutex{},
+		closeCh:     make(chan struct{}),
 	}
 }
 
@@ -146,6 +151,10 @@ func (n *Nacos) createConfigClient() error {
 
 // Read implements InputBinding's Read method.
 func (n *Nacos) Read(ctx context.Context, handler bindings.Handler) error {
+	if n.closed.Load() {
+		return errors.New("binding is closed")
+	}
+
 	n.readHandler = handler
 
 	n.watchesLock.Lock()
@@ -154,9 +163,14 @@ func (n *Nacos) Read(ctx context.Context, handler bindings.Handler) error {
 	}
 	n.watchesLock.Unlock()
 
+	n.wg.Add(1)
 	go func() {
+		defer n.wg.Done()
 		// Cancel all listeners when the context is done
-		<-ctx.Done()
+		select {
+		case <-ctx.Done():
+		case <-n.closeCh:
+		}
 		n.cancelAllListeners()
 	}()
 
@@ -165,6 +179,11 @@ func (n *Nacos) Read(ctx context.Context, handler bindings.Handler) error {
 
 // Close implements cancel all listeners, see https://github.com/dapr/components-contrib/issues/779
 func (n *Nacos) Close() error {
+	defer n.wg.Wait()
+	if n.closed.CompareAndSwap(false, true) {
+		close(n.closeCh)
+	}
+
 	n.cancelAllListeners()
 
 	return nil
@@ -223,7 +242,11 @@ func (n *Nacos) addListener(ctx context.Context, config configParam) {
 
 func (n *Nacos) addListenerFoInputBinding(ctx context.Context, config configParam) {
 	if n.addToWatches(config) {
-		go n.addListener(ctx, config)
+		n.wg.Add(1)
+		go func() {
+			defer n.wg.Done()
+			n.addListener(ctx, config)
+		}()
 	}
 }
 

@@ -442,7 +442,7 @@ func (r *redisStreams) removeMessagesThatNoLongerExistFromPending(ctx context.Co
 
 func (r *redisStreams) Close() error {
 	defer r.wg.Wait()
-	if r.closed.CompareAndSwap(true, false) {
+	if r.closed.CompareAndSwap(false, true) {
 		close(r.closeCh)
 	}
 

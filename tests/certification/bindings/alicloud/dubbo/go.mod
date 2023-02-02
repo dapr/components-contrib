@@ -5,9 +5,9 @@ go 1.19
 require (
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
 	github.com/apache/dubbo-go-hessian2 v1.11.5
-	github.com/dapr/components-contrib v1.10.0-rc.1
+	github.com/dapr/components-contrib v1.10.0-rc.2
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211026011813-36b75e9ae272
-	github.com/dapr/dapr v1.10.0-rc.1
+	github.com/dapr/dapr v1.10.0-rc.2
 	github.com/dapr/go-sdk v1.6.0
 	github.com/dapr/kit v0.0.4
 	github.com/stretchr/testify v1.8.1

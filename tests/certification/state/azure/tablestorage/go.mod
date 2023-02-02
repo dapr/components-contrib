@@ -3,9 +3,9 @@ module github.com/dapr/components-contrib/tests/certification/state/azure/tables
 go 1.19
 
 require (
-	github.com/dapr/components-contrib v1.10.0-rc.1
+	github.com/dapr/components-contrib v1.10.0-rc.2
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211026011813-36b75e9ae272
-	github.com/dapr/dapr v1.10.0-rc.1
+	github.com/dapr/dapr v1.10.0-rc.2
 	github.com/dapr/go-sdk v1.6.0
 	github.com/dapr/kit v0.0.4
 	github.com/stretchr/testify v1.8.1

@@ -335,7 +335,12 @@ func (m *MQTT) createSubscriberClientOptions(ctx context.Context, uri *url.URL, 
 
 	// On (re-)connection, add the topic subscription
 	opts.OnConnect = func(c mqtt.Client) {
-		token := c.Subscribe(m.metadata.topic, m.metadata.qos, m.handleMessage(ctx))
+		// Use a background context here so that the context is not tied to the
+		// first Invoke first created the producer.
+		// TODO: add context to mqtt library, and add a OnConnectWithContext option
+		// to change this func signature to
+		// func(c mqtt.Client, ctx context.Context)
+		token := c.Subscribe(m.metadata.topic, m.metadata.qos, m.handleMessage(context.Background()))
 
 		var err error
 		select {

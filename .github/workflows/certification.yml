@@ -442,6 +442,20 @@ jobs:
         path: tmp/cov_files
         retention-days: 1
 
+    - name: Prepare Cert Coverage Entire File Artifact
+      if: github.event_name == 'schedule'
+      run: |
+       mkdir -p tmp/actual_cov_files
+       echo "$(<cover.out )" >> tmp/actual_cov_files/${{ env.SOURCE_PATH_LINEAR }}.txt
+
+    - name: Upload Cert Coverage Entire File Artifact
+      uses: actions/upload-artifact@v3
+      if: github.event_name == 'schedule'
+      with:
+        name: certtest_cov_entire
+        path: tmp/actual_cov_files
+        retention-days: 1
+
     - name: Component Coverage Discord Notification
       if: github.event_name == 'schedule'
       env:

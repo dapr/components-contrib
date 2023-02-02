@@ -226,6 +226,17 @@ jobs:
         export TEST_OUTPUT_FILE_PREFIX=$GITHUB_WORKSPACE/test_report
         echo "TEST_OUTPUT_FILE_PREFIX=$TEST_OUTPUT_FILE_PREFIX" >> $GITHUB_ENV
 
+    - name: Configure conformance test and source path
+      run: |
+        TEST_COMPONENT=$(echo ${{ matrix.component }} | sed -E 's/\./\//g')
+        export TEST_PATH="tests/certification/${TEST_COMPONENT}"
+        echo "TEST_PATH=$TEST_PATH" >> $GITHUB_ENV
+        export SOURCE_PATH="github.com/dapr/components-contrib/${TEST_COMPONENT}"
+        echo "SOURCE_PATH=$SOURCE_PATH" >> $GITHUB_ENV
+        # converts slashes to dots in this string, so that it doesn't consider them sub-folders
+        export SOURCE_PATH_LINEAR=$(echo "$SOURCE_PATH" |sed 's#/#\.#g')
+        echo "SOURCE_PATH_LINEAR=$SOURCE_PATH_LINEAR" >> $GITHUB_ENV
+
     - uses: Azure/login@v1
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
@@ -518,6 +529,8 @@ jobs:
       run: |
         go mod download
         go install gotest.tools/gotestsum@latest
+        go install github.com/axw/gocov/gocov@v1.1.0
+        go install github.com/wadey/gocovmerge
 
     - name: Generate Azure SQL DB name
       run: |
@@ -546,7 +559,7 @@ jobs:
         set +e
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json \
           --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.xml --format standard-verbose -- \
-          -p 2 -count=1 -timeout=15m -tags=conftests ./tests/conformance --run="Test${KIND_UPPER}Conformance/${NAME}"
+          -p 2 -count=1 -timeout=15m -tags=conftests ./tests/conformance --run="Test${KIND_UPPER}Conformance/${NAME}" -coverprofile=cover.out -coverpkg=github.com/dapr/components-contrib/${KIND}/${NAME}/...
 
         status=$?
         echo "Completed tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
@@ -555,6 +568,12 @@ jobs:
           echo "CONFORMANCE_FAILURE=true" >> $GITHUB_ENV
         fi
         set -e
+
+        COVERAGE_REPORT=$(gocov convert cover.out | gocov report)
+        COVERAGE_LINE=$(echo $COVERAGE_REPORT  | grep -oP '(?<=Total Coverage:).*') # example: "80.00% (40/50)"
+        COVERAGE_PERCENTAGE=$(echo $COVERAGE_LINE | grep -oP '([0-9\.]*)' | head -n 1) # example "80.00"
+        echo "COVERAGE_LINE=$COVERAGE_LINE" >> $GITHUB_ENV
+        echo "COMPONENT_PERCENTAGE=$COVERAGE_PERCENTAGE" >> $GITHUB_ENV
 
         # Fail the step if we found no test to run
         if grep -q "warning: no tests to run" ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json ; then
@@ -651,7 +670,39 @@ jobs:
         name: ${{ matrix.component }}_conformance_test
         path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.*
 
-      
+    - name: Prepare Conf Coverage Info
+      if: github.event_name == 'schedule'
+      run: |
+       mkdir -p tmp/cov_files
+       echo "${{ env.COVERAGE_LINE }}" >> tmp/cov_files/${{ env.SOURCE_PATH_LINEAR }}.txt
+
+    - name: Upload Conf Coverage Artifact
+      uses: actions/upload-artifact@v3
+      if: github.event_name == 'schedule'
+      with:
+        name: conftest_cov
+        path: tmp/cov_files
+        retention-days: 1
+
+    - name: Prepare Conf Coverage Entire File Artifact
+      if: github.event_name == 'schedule'
+      run: |
+       mkdir -p tmp/actual_cov_files
+       echo "$(<cover.out )" >> tmp/actual_cov_files/${{ env.SOURCE_PATH_LINEAR }}.txt
+
+    - name: Upload Conf Coverage Entire File Artifact
+      uses: actions/upload-artifact@v3
+      if: github.event_name == 'schedule'
+      with:
+        name: conftest_cov_entire
+        path: tmp/actual_cov_files
+        retention-days: 1
+
+    #prepare to download artifacts from certification test
+    - name: Prepare to download artifacts from certification test
+      run: |
+       mkdir -p tmp/actual_cert_files
+
 
     #download artifacts from certification test
     - name: Download workflow artifact
@@ -662,6 +713,38 @@ jobs:
         workflow_conclusion: ""
         branch: master
         if_no_artifact_found: warn
+        name: certtest_cov_entire
+        path: tmp/actual_cert_files
+
+    
+    - name: Prepare to merge certification and conformance test coverage
+      run: |
+       mkdir -p tmp/total_cov 
+
+    #merge conf test coverage and cert test coverage
+    - name: Merge conf test and cert test coverage
+      run: | 
+       gocovmerge tmp/actual_cov_files/${{ env.SOURCE_PATH_LINEAR }}.txt tmp/actual_cert_files/${{ env.SOURCE_PATH_LINEAR }}.txt > final.out
+
+       FINAL_COVERAGE_REPORT=$(gocov convert final.out | gocov report)
+       FINAL_COVERAGE_LINE=$(echo $COVERAGE_REPORT  | grep -oP '(?<=Total Coverage:).*') # example: "80.00% (40/50)"
+       FINAL_COVERAGE_PERCENTAGE=$(echo $COVERAGE_LINE | grep -oP '([0-9\.]*)' | head -n 1) # example "80.00"
+       echo "FINAL_COVERAGE_LINE=$COVERAGE_LINE" >> $GITHUB_ENV
+       echo "FINAL_COMPONENT_PERCENTAGE=$COVERAGE_PERCENTAGE" >> $GITHUB_ENV
+
+    - name: Prepare final Coverage Info
+      if: github.event_name == 'schedule'
+      run: |
+       mkdir -p tmp/final_cov_files
+       echo "${{ env.FINAL_COVERAGE_LINE }}" >> tmp/final_cov_files/${{ env.SOURCE_PATH_LINEAR }}.txt
+
+    - name: Upload Conf Coverage Artifact
+      uses: actions/upload-artifact@v3
+      if: github.event_name == 'schedule'
+      with:
+        name: finaltest_cov
+        path: tmp/final_cov_files
+        retention-days: 1
         
   post_job:
     name: Post-completion

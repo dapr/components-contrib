@@ -22,7 +22,7 @@ import (
 // dbAccess is a private interface which enables unit testing of Oracle Database.
 type dbAccess interface {
 	Init(ctx context.Context, metadata state.Metadata) error
-	Ping() error
+	Ping(ctx context.Context) error
 	Set(ctx context.Context, req *state.SetRequest) error
 	Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error)
 	Delete(ctx context.Context, req *state.DeleteRequest) error

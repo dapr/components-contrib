@@ -77,7 +77,7 @@ func (m *fakeDBaccess) Close() error {
 func TestInitRunsDBAccessInit(t *testing.T) {
 	t.Parallel()
 	ods, fake := createSqliteWithFake(t)
-	ods.Ping()
+	ods.Ping(context.Background())
 	assert.True(t, fake.initExecuted)
 }
 
@@ -146,7 +146,7 @@ func createSqliteWithFake(t *testing.T) (*SQLiteStore, *fakeDBaccess) {
 func TestPingRunsDBAccessPing(t *testing.T) {
 	t.Parallel()
 	odb, fake := createSqliteWithFake(t)
-	odb.Ping()
+	odb.Ping(context.Background())
 	assert.True(t, fake.pingExecuted)
 }
 

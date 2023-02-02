@@ -115,7 +115,7 @@ func (m *Mysql) Init(ctx context.Context, metadata bindings.Metadata) error {
 		return err
 	}
 
-	err = db.Ping()
+	err = db.PingContext(ctx)
 	if err != nil {
 		return fmt.Errorf("unable to ping the DB: %w", err)
 	}

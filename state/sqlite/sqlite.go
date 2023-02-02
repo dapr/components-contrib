@@ -64,8 +64,8 @@ func (s *SQLiteStore) Features(ctx context.Context) []state.Feature {
 	}
 }
 
-func (s *SQLiteStore) Ping() error {
-	return s.dbaccess.Ping(context.TODO())
+func (s *SQLiteStore) Ping(ctx context.Context) error {
+	return s.dbaccess.Ping(ctx)
 }
 
 // Delete removes an entity from the store.

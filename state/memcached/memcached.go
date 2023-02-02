@@ -78,6 +78,8 @@ func (m *Memcached) Init(ctx context.Context, metadata state.Metadata) error {
 
 	m.client = client
 
+	// TODO: pass context when PR is merged.
+	// https://github.com/bradfitz/gomemcache/pull/126
 	err = client.Ping()
 	if err != nil {
 		return err

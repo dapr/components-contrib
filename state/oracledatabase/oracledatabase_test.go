@@ -38,7 +38,7 @@ type fakeDBaccess struct {
 	getExecuted  bool
 }
 
-func (m *fakeDBaccess) Ping() error {
+func (m *fakeDBaccess) Ping(ctx context.Context) error {
 	m.pingExecuted = true
 	return nil
 }
@@ -77,7 +77,7 @@ func (m *fakeDBaccess) Close() error {
 func TestInitRunsDBAccessInit(t *testing.T) {
 	t.Parallel()
 	ods, fake := createOracleDatabaseWithFake(t)
-	ods.Ping()
+	ods.Ping(context.Background())
 	assert.True(t, fake.initExecuted)
 }
 
@@ -194,7 +194,7 @@ func createOracleDatabaseWithFake(t *testing.T) (*OracleDatabase, *fakeDBaccess)
 func TestPingRunsDBAccessPing(t *testing.T) {
 	t.Parallel()
 	odb, fake := createOracleDatabaseWithFake(t)
-	odb.Ping()
+	odb.Ping(context.Background())
 	assert.True(t, fake.pingExecuted)
 }
 

@@ -143,7 +143,7 @@ func parseRedisMetadata(meta configuration.Metadata) (metadata, error) {
 }
 
 // Init does metadata and connection parsing.
-func (r *ConfigurationStore) Init(metadata configuration.Metadata) error {
+func (r *ConfigurationStore) Init(ctx context.Context, metadata configuration.Metadata) error {
 	m, err := parseRedisMetadata(metadata)
 	if err != nil {
 		return err
@@ -156,11 +156,11 @@ func (r *ConfigurationStore) Init(metadata configuration.Metadata) error {
 		r.client = r.newClient(m)
 	}
 
-	if _, err = r.client.Ping(context.TODO()).Result(); err != nil {
+	if _, err = r.client.Ping(ctx).Result(); err != nil {
 		return fmt.Errorf("redis store: error connecting to redis at %s: %s", m.Host, err)
 	}
 
-	r.replicas, err = r.getConnectedSlaves()
+	r.replicas, err = r.getConnectedSlaves(ctx)
 
 	return err
 }
@@ -204,8 +204,8 @@ func (r *ConfigurationStore) newFailoverClient(m metadata) *redis.Client {
 	return redis.NewFailoverClient(opts)
 }
 
-func (r *ConfigurationStore) getConnectedSlaves() (int, error) {
-	res, err := r.client.Do(context.Background(), "INFO", "replication").Result()
+func (r *ConfigurationStore) getConnectedSlaves(ctx context.Context) (int, error) {
+	res, err := r.client.Do(ctx, "INFO", "replication").Result()
 	if err != nil {
 		return 0, err
 	}

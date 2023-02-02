@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	mqc "github.com/apache/rocketmq-client-go/v2/consumer"
@@ -37,6 +38,7 @@ type RocketMQ struct {
 
 	backOffConfig retry.Config
 	closeCh       chan struct{}
+	closed        atomic.Bool
 }
 
 func NewRocketMQ(l logger.Logger) *RocketMQ {
@@ -73,6 +75,10 @@ func (a *RocketMQ) Init(ctx context.Context, metadata bindings.Metadata) error {
 
 // Read triggers the rocketmq subscription.
 func (a *RocketMQ) Read(ctx context.Context, handler bindings.Handler) error {
+	if a.closed.Load() {
+		return errors.New("error: binding is closed")
+	}
+
 	a.logger.Debugf("binding rocketmq: start read input binding")
 
 	consumer, err := a.setupConsumer()
@@ -129,7 +135,9 @@ func (a *RocketMQ) Read(ctx context.Context, handler bindings.Handler) error {
 
 // Close implements cancel all listeners, see https://github.com/dapr/components-contrib/issues/779
 func (a *RocketMQ) Close() error {
-	close(a.closeCh)
+	if a.closed.CompareAndSwap(false, true) {
+		close(a.closeCh)
+	}
 	return nil
 }
 

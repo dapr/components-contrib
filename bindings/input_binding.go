@@ -16,6 +16,7 @@ package bindings
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/dapr/components-contrib/health"
 )
@@ -28,7 +29,7 @@ type InputBinding interface {
 	Read(ctx context.Context, handler Handler) error
 	// Close is a method that closes the connection to the binding. Must be
 	// called when the binding is no longer needed to free up resources.
-	Close() error
+	io.Closer
 }
 
 // Handler is the handler used to invoke the app handler.

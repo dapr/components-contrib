@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -45,6 +46,8 @@ type inMemoryStore struct {
 	lock    *sync.RWMutex
 	log     logger.Logger
 	closeCh chan struct{}
+	closed  atomic.Bool
+	wg      sync.WaitGroup
 }
 
 func NewInMemoryStateStore(logger logger.Logger) state.Store {
@@ -58,12 +61,20 @@ func NewInMemoryStateStore(logger logger.Logger) state.Store {
 
 func (store *inMemoryStore) Init(ctx context.Context, metadata state.Metadata) error {
 	// start a background go routine to clean expired item
-	go store.startCleanThread()
+	store.wg.Add(1)
+	go func() {
+		defer store.wg.Done()
+		store.startCleanThread()
+	}()
 	return nil
 }
 
 func (store *inMemoryStore) Close() error {
-	close(store.closeCh)
+	defer store.wg.Wait()
+	if store.closed.CompareAndSwap(true, false) {
+		close(store.closeCh)
+	}
+
 	// release memory reference
 	store.lock.Lock()
 	defer store.lock.Unlock()

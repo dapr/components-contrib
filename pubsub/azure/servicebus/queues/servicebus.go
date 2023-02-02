@@ -17,6 +17,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
@@ -34,12 +36,16 @@ type azureServiceBus struct {
 	metadata *impl.Metadata
 	client   *impl.Client
 	logger   logger.Logger
+	closed   atomic.Bool
+	closeCh  chan struct{}
+	wg       sync.WaitGroup
 }
 
 // NewAzureServiceBusQueues returns a new implementation.
 func NewAzureServiceBusQueues(logger logger.Logger) pubsub.PubSub {
 	return &azureServiceBus{
-		logger: logger,
+		logger:  logger,
+		closeCh: make(chan struct{}),
 	}
 }
 
@@ -58,14 +64,26 @@ func (a *azureServiceBus) Init(_ context.Context, metadata pubsub.Metadata) (err
 }
 
 func (a *azureServiceBus) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
+	if a.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	return a.client.PublishPubSub(ctx, req, a.client.EnsureQueue, a.logger)
 }
 
 func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
+	if a.closed.Load() {
+		return pubsub.BulkPublishResponse{}, errors.New("component is closed")
+	}
+
 	return a.client.PublishPubSubBulk(ctx, req, a.client.EnsureQueue, a.logger)
 }
 
 func (a *azureServiceBus) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	if a.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	sub := impl.NewSubscription(
 		impl.SubscriptionOptions{
 			MaxActiveMessages:     a.metadata.MaxActiveMessages,
@@ -84,6 +102,10 @@ func (a *azureServiceBus) Subscribe(ctx context.Context, req pubsub.SubscribeReq
 }
 
 func (a *azureServiceBus) BulkSubscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.BulkHandler) error {
+	if a.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	maxBulkSubCount := utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxMessagesCount, defaultMaxBulkSubCount)
 	sub := impl.NewSubscription(
 		impl.SubscriptionOptions{
@@ -105,13 +127,24 @@ func (a *azureServiceBus) BulkSubscribe(ctx context.Context, req pubsub.Subscrib
 // doSubscribe is a helper function that handles the common logic for both Subscribe and BulkSubscribe.
 // The receiveAndBlockFn is a function should invoke a blocking call to receive messages from the topic.
 func (a *azureServiceBus) doSubscribe(
-	ctx context.Context,
+	parentCtx context.Context,
 	req pubsub.SubscribeRequest,
 	sub *impl.Subscription,
 	handlerFn impl.HandlerFn,
 ) error {
+	subscribeCtx, cancel := context.WithCancel(parentCtx)
+	a.wg.Add(1)
+	go func() {
+		select {
+		case <-parentCtx.Done():
+		case <-a.closeCh:
+		}
+		a.wg.Done()
+		cancel()
+	}()
+
 	// Does nothing if DisableEntityManagement is true
-	err := a.client.EnsureQueue(ctx, req.Topic)
+	err := a.client.EnsureQueue(subscribeCtx, req.Topic)
 	if err != nil {
 		return err
 	}
@@ -119,13 +152,16 @@ func (a *azureServiceBus) doSubscribe(
 	// Reconnection backoff policy
 	bo := a.client.ReconnectionBackoff()
 
+	a.wg.Add(1)
 	go func() {
+		defer a.wg.Done()
+
 		logMsg := fmt.Sprintf("subscription %s to queue %s", a.metadata.ConsumerID, req.Topic)
 
 		// Reconnect loop.
 		for {
 			// Blocks until a successful connection (or until context is canceled)
-			receiver, err := sub.Connect(ctx, func() (impl.Receiver, error) {
+			receiver, err := sub.Connect(subscribeCtx, func() (impl.Receiver, error) {
 				a.logger.Debug("Connecting to " + logMsg)
 				r, rErr := a.client.GetClient().NewReceiverForQueue(req.Topic, nil)
 				if rErr != nil {
@@ -144,23 +180,22 @@ func (a *azureServiceBus) doSubscribe(
 			// ReceiveBlocking will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
 			// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
 			// Reset the backoff when the subscription is successful and we have received the first message
-			err = sub.ReceiveBlocking(ctx, handlerFn, receiver, bo.Reset, logMsg)
+			err = sub.ReceiveBlocking(subscribeCtx, handlerFn, receiver, bo.Reset, logMsg)
 			if err != nil && !errors.Is(err, context.Canceled) {
 				a.logger.Error(err)
 			}
 
 			// If context was canceled, do not attempt to reconnect
-			if ctx.Err() != nil {
+			if subscribeCtx.Err() != nil {
 				a.logger.Debug("Context canceled; will not reconnect")
 				return
 			}
 
 			wait := bo.NextBackOff()
 			a.logger.Warnf("Subscription to queue %s lost connection, attempting to reconnect in %s...", req.Topic, wait)
-			time.Sleep(wait)
-
-			// Check for context canceled again, after sleeping
-			if ctx.Err() != nil {
+			select {
+			case <-time.After(wait):
+			case <-subscribeCtx.Done():
 				a.logger.Debug("Context canceled; will not reconnect")
 				return
 			}
@@ -171,6 +206,14 @@ func (a *azureServiceBus) doSubscribe(
 }
 
 func (a *azureServiceBus) Close() (err error) {
+	defer a.wg.Done()
+
+	if !a.closed.CompareAndSwap(false, true) {
+		return nil
+	}
+
+	close(a.closeCh)
+
 	a.client.Close(a.logger)
 	return nil
 }

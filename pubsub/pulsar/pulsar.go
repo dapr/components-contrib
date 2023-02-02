@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hamba/avro/v2"
@@ -76,6 +78,9 @@ type Pulsar struct {
 	client   pulsar.Client
 	metadata pulsarMetadata
 	cache    *lru.Cache[string, pulsar.Producer]
+	closed   atomic.Bool
+	closeCh  chan struct{}
+	wg       sync.WaitGroup
 }
 
 func NewPulsar(l logger.Logger) pubsub.PubSub {
@@ -219,6 +224,10 @@ func (p *Pulsar) Init(_ context.Context, metadata pubsub.Metadata) error {
 }
 
 func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
+	if p.closed.Load() {
+		return errors.New("pubsub is closed")
+	}
+
 	var (
 		msg *pulsar.ProducerMessage
 		err error
@@ -323,6 +332,10 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 }
 
 func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	if p.closed.Load() {
+		return errors.New("pubsub is closed")
+	}
+
 	channel := make(chan pulsar.ConsumerMessage, 100)
 
 	topic := p.formatTopic(req.Topic)
@@ -344,7 +357,20 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 		return err
 	}
 
-	go p.listenMessage(ctx, req.Topic, consumer, handler)
+	p.wg.Add(2)
+	listenCtx, cancel := context.WithCancel(ctx)
+	go func() {
+		defer p.wg.Done()
+		defer cancel()
+		select {
+		case <-listenCtx.Done():
+		case <-p.closeCh:
+		}
+	}()
+	go func() {
+		defer p.wg.Done()
+		p.listenMessage(ctx, req.Topic, consumer, handler)
+	}()
 
 	return nil
 }
@@ -387,6 +413,11 @@ func (p *Pulsar) handleMessage(ctx context.Context, originTopic string, msg puls
 }
 
 func (p *Pulsar) Close() error {
+	defer p.wg.Wait()
+	if p.closed.CompareAndSwap(false, true) {
+		close(p.closeCh)
+	}
+
 	for _, k := range p.cache.Keys() {
 		producer, _ := p.cache.Peek(k)
 		if producer != nil {

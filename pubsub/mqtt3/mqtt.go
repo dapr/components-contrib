@@ -88,7 +88,7 @@ func (m *mqttPubSub) Init(ctx context.Context, metadata pubsub.Metadata) error {
 // Publish the topic to mqtt pub sub.
 func (m *mqttPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) (err error) {
 	if m.closed.Load() {
-		return errors.New("error: mqtt client closed")
+		return errors.New("pubsub is closed")
 	}
 
 	if req.Topic == "" {
@@ -131,7 +131,7 @@ func (m *mqttPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) (e
 // - "unsubscribeOnClose": if true, when the subscription is stopped (context canceled), then an Unsubscribe message is sent to the MQTT broker, which will stop delivering messages to this consumer ID until the subscription is explicitly re-started with a new Subscribe call. Otherwise, messages continue to be delivered but are not handled and are NACK'd automatically. "unsubscribeOnClose" should be used with dynamic subscriptions.
 func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if m.closed.Load() {
-		return errors.New("error: mqtt client closed")
+		return errors.New("pubsub is closed")
 	}
 
 	topic := req.Topic

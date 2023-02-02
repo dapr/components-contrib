@@ -15,6 +15,9 @@ package inmemory
 
 import (
 	"context"
+	"errors"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/dapr/components-contrib/internal/eventbus"
@@ -23,8 +26,11 @@ import (
 )
 
 type bus struct {
-	bus eventbus.Bus
-	log logger.Logger
+	bus     eventbus.Bus
+	log     logger.Logger
+	closed  atomic.Bool
+	closeCh chan struct{}
+	wg      sync.WaitGroup
 }
 
 func New(logger logger.Logger) pubsub.PubSub {
@@ -34,6 +40,10 @@ func New(logger logger.Logger) pubsub.PubSub {
 }
 
 func (a *bus) Close() error {
+	defer a.wg.Wait()
+	if a.closed.CompareAndSwap(false, true) {
+		close(a.closeCh)
+	}
 	return nil
 }
 
@@ -48,12 +58,20 @@ func (a *bus) Init(_ context.Context, metadata pubsub.Metadata) error {
 }
 
 func (a *bus) Publish(_ context.Context, req *pubsub.PublishRequest) error {
+	if a.closed.Load() {
+		return errors.New("pubsub is closed")
+	}
+
 	a.bus.Publish(req.Topic, req.Data)
 
 	return nil
 }
 
 func (a *bus) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	if a.closed.Load() {
+		return errors.New("pubsub is closed")
+	}
+
 	// For this component we allow built-in retries because it is backed by memory
 	retryHandler := func(data []byte) {
 		for i := 0; i < 10; i++ {
@@ -62,7 +80,11 @@ func (a *bus) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handle
 				break
 			}
 			a.log.Error(handleErr)
-			time.Sleep(100 * time.Millisecond)
+			select {
+			case <-time.After(100 * time.Millisecond):
+			case <-ctx.Done():
+				return
+			}
 		}
 	}
 	err := a.bus.SubscribeAsync(req.Topic, retryHandler, true)
@@ -71,8 +93,13 @@ func (a *bus) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handle
 	}
 
 	// Unsubscribe when context is done
+	a.wg.Add(1)
 	go func() {
-		<-ctx.Done()
+		defer a.wg.Done()
+		select {
+		case <-ctx.Done():
+		case <-a.closeCh:
+		}
 		err := a.bus.Unsubscribe(req.Topic, retryHandler)
 		if err != nil {
 			a.log.Errorf("error while unsubscribing from topic %s: %v", req.Topic, err)

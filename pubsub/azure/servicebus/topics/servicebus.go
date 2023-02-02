@@ -17,6 +17,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
@@ -34,12 +36,16 @@ type azureServiceBus struct {
 	metadata *impl.Metadata
 	client   *impl.Client
 	logger   logger.Logger
+	closed   atomic.Bool
+	closeCh  chan struct{}
+	wg       sync.WaitGroup
 }
 
 // NewAzureServiceBusTopics returns a new pub-sub implementation.
 func NewAzureServiceBusTopics(logger logger.Logger) pubsub.PubSub {
 	return &azureServiceBus{
-		logger: logger,
+		logger:  logger,
+		closeCh: make(chan struct{}),
 	}
 }
 
@@ -58,14 +64,24 @@ func (a *azureServiceBus) Init(_ context.Context, metadata pubsub.Metadata) (err
 }
 
 func (a *azureServiceBus) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
+	if a.closed.Load() {
+		return errors.New("component is closed")
+	}
 	return a.client.PublishPubSub(ctx, req, a.client.EnsureTopic, a.logger)
 }
 
 func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
+	if a.closed.Load() {
+		return pubsub.BulkPublishResponse{}, errors.New("component is closed")
+	}
 	return a.client.PublishPubSubBulk(ctx, req, a.client.EnsureTopic, a.logger)
 }
 
 func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	if a.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	requireSessions := utils.IsTruthy(req.Metadata[impl.RequireSessionsMetadataKey])
 	sessionIdleTimeout := time.Duration(utils.GetElemOrDefaultFromMap(req.Metadata, impl.SessionIdleTimeoutMetadataKey, impl.DefaultSesssionIdleTimeoutInSec)) * time.Second
 	maxConcurrentSessions := utils.GetElemOrDefaultFromMap(req.Metadata, impl.MaxConcurrentSessionsMetadataKey, impl.DefaultMaxConcurrentSessions)
@@ -123,12 +139,24 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 // doSubscribe is a helper function that handles the common logic for both Subscribe and BulkSubscribe.
 // The receiveAndBlockFn is a function should invoke a blocking call to receive messages from the topic.
 func (a *azureServiceBus) doSubscribe(
-	subscribeCtx context.Context,
+	parentCtx context.Context,
 	req pubsub.SubscribeRequest,
 	sub *impl.Subscription,
 	handlerFn impl.HandlerFn,
 	opts impl.SubscribeOptions,
 ) error {
+
+	subscribeCtx, cancel := context.WithCancel(parentCtx)
+	a.wg.Add(1)
+	go func() {
+		defer a.wg.Done()
+		defer cancel()
+		select {
+		case <-parentCtx.Done():
+		case <-a.closeCh:
+		}
+	}()
+
 	// Does nothing if DisableEntityManagement is true
 	err := a.client.EnsureSubscription(subscribeCtx, a.metadata.ConsumerID, req.Topic, opts)
 	if err != nil {
@@ -138,7 +166,10 @@ func (a *azureServiceBus) doSubscribe(
 	// Reconnection backoff policy
 	bo := a.client.ReconnectionBackoff()
 
+	a.wg.Add(1)
 	go func() {
+		defer a.wg.Done()
+
 		// Reconnect loop.
 		for {
 			// Reset the backoff when the subscription is successful and we have received the first message
@@ -156,10 +187,9 @@ func (a *azureServiceBus) doSubscribe(
 
 			wait := bo.NextBackOff()
 			a.logger.Warnf("Subscription to topic %s lost connection, attempting to reconnect in %s...", req.Topic, wait)
-			time.Sleep(wait)
-
-			// Check for context canceled again, after sleeping
-			if subscribeCtx.Err() != nil {
+			select {
+			case <-time.After(wait):
+			case <-subscribeCtx.Done():
 				a.logger.Debug("Context canceled; will not reconnect")
 				return
 			}
@@ -170,6 +200,13 @@ func (a *azureServiceBus) doSubscribe(
 }
 
 func (a *azureServiceBus) Close() (err error) {
+	defer a.wg.Wait()
+	if !a.closed.CompareAndSwap(false, true) {
+		return nil
+	}
+
+	close(a.closeCh)
+
 	a.client.Close(a.logger)
 	return nil
 }
@@ -250,7 +287,10 @@ func (a *azureServiceBus) connectAndReceiveWithSessions(ctx context.Context, req
 		}
 
 		// Receive messages for the session in a goroutine
+		a.wg.Add(1)
 		go func() {
+			defer a.wg.Done()
+
 			logMsg := fmt.Sprintf("session %s for subscription %s to topic %s", receiver.(*impl.SessionReceiver).SessionID(), a.metadata.ConsumerID, req.Topic)
 
 			defer func() {

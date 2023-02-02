@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	mq "github.com/apache/rocketmq-client-go/v2"
@@ -74,6 +75,9 @@ type rocketMQ struct {
 	topics        map[string]mqc.MessageSelector
 	msgProperties map[string]bool
 	logger        logger.Logger
+	wg            sync.WaitGroup
+	closed        atomic.Bool
+	closeCh       chan struct{}
 }
 
 func NewRocketMQ(l logger.Logger) pubsub.PubSub {
@@ -82,6 +86,7 @@ func NewRocketMQ(l logger.Logger) pubsub.PubSub {
 		logger:       l,
 		producerLock: sync.Mutex{},
 		consumerLock: sync.Mutex{},
+		closeCh:      make(chan struct{}),
 	}
 }
 
@@ -310,6 +315,10 @@ func (r *rocketMQ) resetProducer() {
 }
 
 func (r *rocketMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
+	if r.closed.Load() {
+		return errors.New("pubsub is closed")
+	}
+
 	r.logger.Debugf("rocketmq publish topic:%s with data:%v", req.Topic, req.Data)
 	msg := primitive.NewMessage(req.Topic, req.Data)
 	for k, v := range req.Metadata {
@@ -340,6 +349,10 @@ func (r *rocketMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) erro
 }
 
 func (r *rocketMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	if r.closed.Load() {
+		return errors.New("pubsub is closed")
+	}
+
 	selector, e := buildMessageSelector(req)
 	if e != nil {
 		r.logger.Warnf("rocketmq subscribe failed: %v", e)
@@ -367,12 +380,25 @@ func (r *rocketMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, h
 		// Consumers who complete the subscription within 1 second, will begin the subscription immediately upon launch.
 		// Consumers who do not complete the subscription within 1 second, will start the subscription after 20 seconds.
 		// The 20-second time is the interval for RocketMQ to refresh the topic route.
+		r.wg.Add(1)
 		go func() {
-			time.Sleep(time.Second)
-			if e = r.consumer.Start(); e == nil {
-				r.logger.Infof("consumer start success: Group[%s], Topics[%v]", r.metadata.ConsumerGroup, r.topics)
+			defer r.wg.Done()
+
+			// Lock to ensure consumer is not nil because the pubsub is closed.
+			r.consumerLock.Lock()
+			consumer := r.consumer
+			r.consumerLock.Unlock()
+
+			select {
+			case <-time.After(time.Second):
+			case <-r.closeCh:
+				return
+			}
+
+			if err := consumer.Start(); err != nil {
+				r.logger.Errorf("consumer start failed: %v", err)
 			} else {
-				r.logger.Errorf("consumer start failed: %v", e)
+				r.logger.Infof("consumer start success: Group[%s], Topics[%v]", r.metadata.ConsumerGroup, r.topics)
 			}
 		}()
 	}
@@ -481,14 +507,19 @@ func (r *rocketMQ) consumeMessageConcurrently(topic string, selector *mqc.Messag
 }
 
 func (r *rocketMQ) Close() error {
+	defer r.wg.Wait()
 	r.producerLock.Lock()
 	defer r.producerLock.Unlock()
 	r.consumerLock.Lock()
 	defer r.consumerLock.Unlock()
 
+	if r.closed.CompareAndSwap(false, true) {
+		close(r.closeCh)
+	}
+
 	r.producer = nil
 
-	if nil != r.consumer {
+	if r.consumer != nil {
 		_ = r.consumer.Shutdown()
 		r.consumer = nil
 	}

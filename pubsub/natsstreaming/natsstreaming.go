@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"math/rand"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	nats "github.com/nats-io/nats.go"
@@ -74,11 +76,15 @@ type natsStreamingPubSub struct {
 	logger logger.Logger
 
 	backOffConfig retry.Config
+
+	closed  atomic.Bool
+	closeCh chan struct{}
+	wg      sync.WaitGroup
 }
 
 // NewNATSStreamingPubSub returns a new NATS Streaming pub-sub implementation.
 func NewNATSStreamingPubSub(logger logger.Logger) pubsub.PubSub {
-	return &natsStreamingPubSub{logger: logger}
+	return &natsStreamingPubSub{logger: logger, closeCh: make(chan struct{})}
 }
 
 func parseNATSStreamingMetadata(meta pubsub.Metadata) (metadata, error) {
@@ -220,6 +226,10 @@ func (n *natsStreamingPubSub) Init(_ context.Context, metadata pubsub.Metadata) 
 }
 
 func (n *natsStreamingPubSub) Publish(_ context.Context, req *pubsub.PublishRequest) error {
+	if n.closed.Load() {
+		return errors.New("pubsub is closed")
+	}
+
 	err := n.natStreamingConn.Publish(req.Topic, req.Data)
 	if err != nil {
 		return fmt.Errorf("nats-streaming: error from publish: %s", err)
@@ -229,6 +239,10 @@ func (n *natsStreamingPubSub) Publish(_ context.Context, req *pubsub.PublishRequ
 }
 
 func (n *natsStreamingPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	if n.closed.Load() {
+		return errors.New("pubsub is closed")
+	}
+
 	natStreamingsubscriptionOptions, err := n.subscriptionOptions()
 	if err != nil {
 		return fmt.Errorf("nats-streaming: error getting subscription options %s", err)
@@ -253,7 +267,11 @@ func (n *natsStreamingPubSub) Subscribe(ctx context.Context, req pubsub.Subscrib
 		case pubsub.Single:
 			f()
 		case pubsub.Parallel:
-			go f()
+			n.wg.Add(1)
+			go func() {
+				defer n.wg.Done()
+				f()
+			}()
 		}
 	}
 
@@ -268,8 +286,13 @@ func (n *natsStreamingPubSub) Subscribe(ctx context.Context, req pubsub.Subscrib
 		return fmt.Errorf("nats-streaming: subscribe error %s", err)
 	}
 
+	n.wg.Add(1)
 	go func() {
-		<-ctx.Done()
+		defer n.wg.Done()
+		select {
+		case <-ctx.Done():
+		case <-n.closeCh:
+		}
 		err := subscription.Unsubscribe()
 		if err != nil {
 			n.logger.Warnf("nats-streaming: error while unsubscribing from topic %s: %v", req.Topic, err)
@@ -342,6 +365,11 @@ func genRandomString(n int) string {
 }
 
 func (n *natsStreamingPubSub) Close() error {
+	defer n.wg.Wait()
+	if n.closed.CompareAndSwap(false, true) {
+		close(n.closeCh)
+	}
+
 	return n.natStreamingConn.Close()
 }
 

@@ -47,16 +47,7 @@ type sqliteMetadataStruct struct {
 }
 
 func (m *sqliteMetadataStruct) InitWithMetadata(meta state.Metadata) error {
-	// Reset the object
-	m.ConnectionString = ""
-	m.TableName = defaultTableName
-	m.TimeoutInSeconds = ""
-	m.CleanupIntervalStr = ""
-	m.BusyTimeoutStr = ""
-	m.DisableWAL = false
-	m.timeout = defaultTimeout
-	m.cleanupInterval = defaultCleanupInternal
-	m.busyTimeout = defaultBusyTimeout
+	m.reset()
 
 	// Decode the metadata
 	err := metadata.DecodeMetadata(meta.Properties, &m)
@@ -111,6 +102,19 @@ func (m *sqliteMetadataStruct) InitWithMetadata(meta state.Metadata) error {
 	}
 
 	return nil
+}
+
+// Reset the object
+func (m *sqliteMetadataStruct) reset() {
+	m.ConnectionString = ""
+	m.TableName = defaultTableName
+	m.TimeoutInSeconds = ""
+	m.CleanupIntervalStr = ""
+	m.BusyTimeoutStr = ""
+	m.DisableWAL = false
+	m.timeout = defaultTimeout
+	m.cleanupInterval = defaultCleanupInternal
+	m.busyTimeout = defaultBusyTimeout
 }
 
 // Validates an identifier, such as table or DB name.

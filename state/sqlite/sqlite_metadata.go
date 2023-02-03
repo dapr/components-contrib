@@ -24,10 +24,11 @@ import (
 )
 
 const (
-	defaultTableName       = "state"
-	defaultCleanupInternal = time.Duration(0) // Disabled by default
-	defaultTimeout         = 20 * time.Second // Default timeout for database requests, in seconds
-	defaultBusyTimeout     = 2 * time.Second
+	defaultTableName         = "state"
+	defaultMetadataTableName = "metadata"
+	defaultCleanupInternal   = time.Duration(0) // Disabled by default
+	defaultTimeout           = 20 * time.Second // Default timeout for database requests, in seconds
+	defaultBusyTimeout       = 2 * time.Second
 
 	errMissingConnectionString = "missing connection string"
 	errInvalidIdentifier       = "invalid identifier: %s" // specify identifier type, e.g. "table name"
@@ -36,6 +37,7 @@ const (
 type sqliteMetadataStruct struct {
 	ConnectionString   string `json:"connectionString" mapstructure:"connectionString"`
 	TableName          string `json:"tableName" mapstructure:"tableName"`
+	MetadataTableName  string `json:"metadataTableName" mapstructure:"metadataTableName"`
 	TimeoutInSeconds   string `json:"timeoutInSeconds" mapstructure:"timeoutInSeconds"`
 	CleanupIntervalStr string `json:"cleanupInterval" mapstructure:"cleanupInterval"` // Cleanup interval as a time.Duration string
 	BusyTimeoutStr     string `json:"busyTimeout" mapstructure:"busyTimeout"`         // Busy timeout as a time.Duration string
@@ -108,6 +110,7 @@ func (m *sqliteMetadataStruct) InitWithMetadata(meta state.Metadata) error {
 func (m *sqliteMetadataStruct) reset() {
 	m.ConnectionString = ""
 	m.TableName = defaultTableName
+	m.MetadataTableName = defaultMetadataTableName
 	m.TimeoutInSeconds = ""
 	m.CleanupIntervalStr = ""
 	m.BusyTimeoutStr = ""

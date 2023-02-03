@@ -76,7 +76,7 @@ func TestGetConnectionString(t *testing.T) {
 			assert.Contains(t, logs, "prefix 'file:' added to the connection string")
 		})
 
-		t.Run("in-memory database", func(t *testing.T) {
+		t.Run("in-memory database also adds cache=shared", func(t *testing.T) {
 			logDest.Reset()
 			db.metadata.reset()
 			db.metadata.ConnectionString = ":memory:"
@@ -87,6 +87,7 @@ func TestGetConnectionString(t *testing.T) {
 			values := url.Values{
 				"_txlock": []string{"immediate"},
 				"_pragma": []string{"busy_timeout(2000)", "journal_mode(MEMORY)"},
+				"cache":   []string{"shared"},
 			}
 			assert.Equal(t, "file::memory:?"+values.Encode(), connString)
 
@@ -214,6 +215,7 @@ func TestGetConnectionString(t *testing.T) {
 			values := url.Values{
 				"_txlock": []string{"immediate"},
 				"_pragma": []string{"busy_timeout(2000)", "journal_mode(MEMORY)"},
+				"cache":   []string{"shared"},
 			}
 			assert.Equal(t, "file::memory:?"+values.Encode(), connString)
 		})

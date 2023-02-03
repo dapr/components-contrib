@@ -16,20 +16,21 @@ package main
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
-	pgx "github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
@@ -47,6 +48,11 @@ const (
 	certificationTestPrefix = "stable-certification-"
 	portOffset              = 2
 	readonlyDBPath          = "artifacts/readonly.db"
+
+	keyConnectionString  = "connectionString"
+	keyTableName         = "tableName"
+	keyMetadataTableName = "metadataTableName"
+	keyCleanupInterval   = "cleanupInterval"
 )
 
 func TestSQLite(t *testing.T) {
@@ -177,20 +183,20 @@ func TestSQLite(t *testing.T) {
 	}
 
 	// Validates TTLs and garbage collections
-	/*ttlTest := func(ctx flow.Context) error {
+	ttlTest := func(ctx flow.Context) error {
 		md := state.Metadata{
 			Base: metadata.Base{
 				Name: "ttltest",
 				Properties: map[string]string{
-					"connectionString": ":memory:",
-					"tableName":        "ttl_state",
+					keyConnectionString: "file::memory:",
+					keyTableName:        "ttl_state",
 				},
 			},
 		}
 
-		t.Run("parse cleanupIntervalInSeconds", func(t *testing.T) {
+		ctx.T.Run("parse cleanupIntervalInSeconds", func(t *testing.T) {
 			t.Run("default value", func(t *testing.T) {
-				// Default value is 1 hr
+				// Default value is disabled
 				md.Properties[keyCleanupInterval] = ""
 				storeObj := state_sqlite.NewSQLiteStateStore(log).(*state_sqlite.SQLiteStore)
 
@@ -198,57 +204,54 @@ func TestSQLite(t *testing.T) {
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
-				dbAccess := storeObj.GetDBAccess().(*state_sqlite.PostgresDBAccess)
+				dbAccess := storeObj.GetDBAccess()
 				require.NotNil(t, dbAccess)
 
 				cleanupInterval := dbAccess.GetCleanupInterval()
-				_ = assert.NotNil(t, cleanupInterval) &&
-					assert.Equal(t, time.Duration(1*time.Hour), *cleanupInterval)
+				assert.Equal(t, time.Duration(0), cleanupInterval)
 			})
 
 			t.Run("positive value", func(t *testing.T) {
-				// A positive value is interpreted in seconds
-				md.Properties[keyCleanupInterval] = "10"
+				md.Properties[keyCleanupInterval] = "10s"
 				storeObj := state_sqlite.NewSQLiteStateStore(log).(*state_sqlite.SQLiteStore)
 
 				err := storeObj.Init(md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
-				dbAccess := storeObj.GetDBAccess().(*state_sqlite.PostgresDBAccess)
+				dbAccess := storeObj.GetDBAccess()
 				require.NotNil(t, dbAccess)
 
 				cleanupInterval := dbAccess.GetCleanupInterval()
-				_ = assert.NotNil(t, cleanupInterval) &&
-					assert.Equal(t, time.Duration(10*time.Second), *cleanupInterval)
+				assert.Equal(t, time.Duration(10*time.Second), cleanupInterval)
 			})
 
 			t.Run("disabled", func(t *testing.T) {
 				// A value of <=0 means that the cleanup is disabled
-				md.Properties[keyCleanupInterval] = "0"
+				md.Properties[keyCleanupInterval] = "-1"
 				storeObj := state_sqlite.NewSQLiteStateStore(log).(*state_sqlite.SQLiteStore)
 
 				err := storeObj.Init(md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
-				dbAccess := storeObj.GetDBAccess().(*state_sqlite.PostgresDBAccess)
+				dbAccess := storeObj.GetDBAccess()
 				require.NotNil(t, dbAccess)
 
 				cleanupInterval := dbAccess.GetCleanupInterval()
-				_ = assert.Nil(t, cleanupInterval)
+				assert.Equal(t, time.Duration(0), cleanupInterval)
 			})
 
 		})
 
-		t.Run("cleanup", func(t *testing.T) {
+		ctx.T.Run("cleanup", func(t *testing.T) {
 			md := state.Metadata{
 				Base: metadata.Base{
 					Name: "ttltest",
 					Properties: map[string]string{
-						keyConnectionString: connStringValue,
-						keyTableName:        "ttl_state",
-						keyMetadatTableName: "ttl_metadata",
+						keyConnectionString:  "file::memory:",
+						keyTableName:         "ttl_state",
+						keyMetadataTableName: "ttl_metadata",
 					},
 				},
 			}
@@ -299,7 +302,7 @@ func TestSQLite(t *testing.T) {
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
-				dbAccess := storeObj.GetDBAccess().(*state_sqlite.PostgresDBAccess)
+				dbAccess := storeObj.GetDBAccess()
 				require.NotNil(t, dbAccess)
 
 				// Seed the database with some records
@@ -340,7 +343,7 @@ func TestSQLite(t *testing.T) {
 		})
 
 		return nil
-	}*/
+	}
 
 	flow.New(t, "Run tests").
 		// Start the sidecar with the in-memory database
@@ -371,90 +374,80 @@ func TestSQLite(t *testing.T) {
 		Step("confirm read-only test", readonlyConfirmTest).
 
 		// Run TTL tests
-		// Step("run TTL test", ttlTest).
+		Step("run TTL test", ttlTest).
 
 		// Start tests
 		Run()
 }
 
-func populateTTLRecords(ctx context.Context, dbClient *pgx.Conn) error {
-	// Insert 10 records that have expired, and 10 that will expire in 6 seconds
+func populateTTLRecords(ctx context.Context, dbClient *sql.DB) error {
+	// Insert 10 records that have expired, and 10 that will expire in 4 seconds
+	// Note this uses fmt.Sprintf and not parametrized queries-on purpose, so we can pass multiple rows in the same INSERT query
+	// Normally this would be a very bad idea, just don't do it outside of tests (and maybe not even in tests like I'm doing right now)...
 	exp := time.Now().Add(-1 * time.Minute)
-	rows := make([][]any, 20)
+	rows := make([]string, 20)
 	for i := 0; i < 10; i++ {
-		rows[i] = []any{
-			fmt.Sprintf("expired_%d", i),
-			json.RawMessage(fmt.Sprintf(`"value_%d"`, i)),
-			false,
-			exp,
-		}
+		rows[i] = fmt.Sprintf(`("expired_%d", '"value_%d"', false, datetime('now', '-1 minute')`, i)
 	}
 	exp = time.Now().Add(4 * time.Second)
 	for i := 0; i < 10; i++ {
-		rows[i+10] = []any{
-			fmt.Sprintf("notexpired_%d", i),
-			json.RawMessage(fmt.Sprintf(`"value_%d"`, i)),
-			false,
-			exp,
-		}
+		rows[i+10] = fmt.Sprintf(`("notexpired_%d", '"value_%d"', false, datetime('now', '+4 seconds')`, i)
 	}
 	queryCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	n, err := dbClient.CopyFrom(
-		queryCtx,
-		pgx.Identifier{"ttl_state"},
-		[]string{"key", "value", "isbinary", "expiredate"},
-		pgx.CopyFromRows(rows),
+	res, err := dbClient.ExecContext(queryCtx,
+		"INSERT INTO ttl_state VALUES "+strings.Join(rows, ", "),
 	)
 	if err != nil {
 		return err
 	}
+	n, _ := res.RowsAffected()
 	if n != 20 {
-		return fmt.Errorf("expected to copy 20 rows, but only got %d", n)
+		return fmt.Errorf("expected to insert 20 rows, but only got %d", n)
 	}
 	return nil
 }
 
-func countRowsInTable(ctx context.Context, dbClient *pgx.Conn, table string) (count int, err error) {
+func countRowsInTable(ctx context.Context, dbClient *sql.DB, table string) (count int, err error) {
 	queryCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	err = dbClient.QueryRow(queryCtx, "SELECT COUNT(key) FROM "+table).Scan(&count)
+	err = dbClient.QueryRowContext(queryCtx, "SELECT COUNT(key) FROM "+table).Scan(&count)
 	cancel()
 	return
 }
 
-func loadLastCleanupInterval(ctx context.Context, dbClient *pgx.Conn, table string) (lastCleanup int64, err error) {
+func loadLastCleanupInterval(ctx context.Context, dbClient *sql.DB, table string) (lastCleanup int64, err error) {
 	queryCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	err = dbClient.
-		QueryRow(queryCtx,
-			fmt.Sprintf("SELECT (EXTRACT('epoch' FROM CURRENT_TIMESTAMP - value::timestamp with time zone) * 1000)::bigint FROM %s WHERE key = 'last-cleanup'", table),
+		QueryRowContext(queryCtx,
+			fmt.Sprintf("SELECT unixepoch(CURRENT_TIMESTAMP) - unixepoch(value) FROM %s WHERE key = 'last-cleanup'", table),
 		).
 		Scan(&lastCleanup)
 	cancel()
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
 	return
 }
 
-// Note this uses fmt.Sprintf and not parametrized queries-on purpose, so we can pass Postgres functions).
+// Note this uses fmt.Sprintf and not parametrized queries-on purpose, so we can pass SQLite functions.
 // Normally this would be a very bad idea, just don't do it... (do as I say don't do as I do :) ).
-func setValueInMetadataTable(ctx context.Context, dbClient *pgx.Conn, table, key, value string) error {
+func setValueInMetadataTable(ctx context.Context, dbClient *sql.DB, table, key, value string) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	_, err := dbClient.Exec(queryCtx,
+	_, err := dbClient.ExecContext(queryCtx,
 		//nolint:gosec
-		fmt.Sprintf(`INSERT INTO %[1]s (key, value) VALUES (%[2]s, %[3]s) ON CONFLICT (key) DO UPDATE SET value = %[3]s`, table, key, value),
+		fmt.Sprintf(`REPLACE INTO %s (key, value) VALUES (%s, %s)`, table, key, value),
 	)
 	cancel()
 	return err
 }
 
-func getValueFromMetadataTable(ctx context.Context, dbClient *pgx.Conn, table, key string) (value string, err error) {
+func getValueFromMetadataTable(ctx context.Context, dbClient *sql.DB, table, key string) (value string, err error) {
 	queryCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	err = dbClient.
-		QueryRow(queryCtx, fmt.Sprintf("SELECT value FROM %s WHERE key = $1", table), key).
+		QueryRowContext(queryCtx, fmt.Sprintf("SELECT value FROM %s WHERE key = ?", table), key).
 		Scan(&value)
 	cancel()
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
 	return

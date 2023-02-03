@@ -508,7 +508,7 @@ func (p *PostgresDBAccess) UpdateLastCleanup(ctx context.Context, db dbquerier, 
 	)
 	cancel()
 	if err != nil {
-		return true, fmt.Errorf("failed to execute query: %w", err)
+		return false, fmt.Errorf("failed to execute query: %w", err)
 	}
 
 	n := res.RowsAffected()

@@ -91,10 +91,10 @@ func (m *migrations) Perform(ctx context.Context) error {
 
 	// Perform the migrations
 	for i := migrationLevel; i < len(allMigrations); i++ {
-		m.Logger.Infof("Performing migration %d", i)
+		m.Logger.Infof("Performing migration %d", i+1)
 		err = allMigrations[i](ctx, tx, m)
 		if err != nil {
-			return fmt.Errorf("failed to perform migration %d: %w", i, err)
+			return fmt.Errorf("failed to perform migration %d: %w", i+1, err)
 		}
 
 		queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)

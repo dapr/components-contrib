@@ -84,8 +84,7 @@ func (a *sqliteDBAccess) Init(md state.Metadata) error {
 
 	db, err := sql.Open("sqlite", connString)
 	if err != nil {
-		a.logger.Error(err)
-		return err
+		return fmt.Errorf("failed to create connection: %w", err)
 	}
 
 	a.db = db
@@ -93,7 +92,7 @@ func (a *sqliteDBAccess) Init(md state.Metadata) error {
 
 	err = a.Ping(a.ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to ping: %w", err)
 	}
 
 	// Performs migrations
@@ -105,7 +104,7 @@ func (a *sqliteDBAccess) Init(md state.Metadata) error {
 	}
 	err = migrate.Perform(a.ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to perform migrations: %w", err)
 	}
 
 	a.scheduleCleanupExpiredData()

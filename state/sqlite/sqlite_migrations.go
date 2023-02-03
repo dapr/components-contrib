@@ -63,7 +63,7 @@ func (m *migrations) Perform(ctx context.Context) error {
 	exists, err := m.tableExists(queryCtx, m.MetadataTableName)
 	cancel()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to check if the metadata table exists: %w", err)
 	}
 
 	// If the table doesn't exist, create it
@@ -72,7 +72,7 @@ func (m *migrations) Perform(ctx context.Context) error {
 		err = m.createMetadataTable(queryCtx)
 		cancel()
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to create metadata table: %w", err)
 		}
 	}
 

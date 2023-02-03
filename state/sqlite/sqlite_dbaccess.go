@@ -76,7 +76,13 @@ func (a *sqliteDBAccess) Init(md state.Metadata) error {
 		return err
 	}
 
-	db, err := sql.Open("sqlite", a.getConnectionString())
+	connString, err := a.getConnectionString()
+	if err != nil {
+		// Already logged
+		return err
+	}
+
+	db, err := sql.Open("sqlite", connString)
 	if err != nil {
 		a.logger.Error(err)
 		return err
@@ -100,7 +106,11 @@ func (a *sqliteDBAccess) Init(md state.Metadata) error {
 	return nil
 }
 
-func (a *sqliteDBAccess) getConnectionString() string {
+func (a *sqliteDBAccess) getConnectionString() (string, error) {
+	// Check if we're using the in-memory database
+	lc := strings.ToLower(a.metadata.ConnectionString)
+	isMemoryDB := strings.HasPrefix(lc, ":memory:") || strings.HasPrefix(lc, "file::memory:")
+
 	// Get the "query string" from the connection string if present
 	idx := strings.IndexRune(a.metadata.ConnectionString, '?')
 	var qs url.Values
@@ -126,10 +136,31 @@ func (a *sqliteDBAccess) getConnectionString() string {
 
 	// Add pragma values
 	if len(qs["_pragma"]) == 0 {
-		qs["_pragma"] = make([]string, 0, 1)
+		qs["_pragma"] = make([]string, 0, 2)
+	} else {
+		for _, p := range qs["_pragma"] {
+			p = strings.ToLower(p)
+			if strings.HasPrefix(p, "busy_timeout") {
+				a.logger.Error("Cannot set `_pragma=busy_timeout` option in the connection string; please use the `busyTimeout` metadata property instead")
+				return "", errors.New("found forbidden option '_pragma=busy_timeout' in the connection string")
+			} else if strings.HasPrefix(p, "journal_mode") {
+				a.logger.Error("Cannot set `_pragma=journal_mode` option in the connection string; please use the `disableWAL` metadata property instead")
+				return "", errors.New("found forbidden option '_pragma=journal_mode' in the connection string")
+			}
+		}
 	}
 	if a.metadata.busyTimeout > 0 {
 		qs["_pragma"] = append(qs["_pragma"], fmt.Sprintf("busy_timeout(%d)", a.metadata.busyTimeout.Milliseconds()))
+	}
+	if isMemoryDB {
+		// For in-memory databases, set the journal to MEMORY, the only allowed option besides OFF (which would make transactions ineffective)
+		qs["_pragma"] = append(qs["_pragma"], "journal_mode(MEMORY)")
+	} else if a.metadata.DisableWAL {
+		// Set the journaling mode to "DELETE" (the default) if WAL is disabled
+		qs["_pragma"] = append(qs["_pragma"], "journal_mode(DELETE)")
+	} else {
+		// Enable WAL
+		qs["_pragma"] = append(qs["_pragma"], "journal_mode(WAL)")
 	}
 
 	// Build the final connection string
@@ -140,12 +171,12 @@ func (a *sqliteDBAccess) getConnectionString() string {
 	connString += "?" + qs.Encode()
 
 	// If the connection string doesn't begin with "file:", add the prefix
-	if !strings.HasPrefix(connString, "file:") {
+	if !strings.HasPrefix(lc, "file:") {
 		a.logger.Info("prefix 'file:' added to the connection string")
 		connString = "file:" + connString
 	}
 
-	return connString
+	return connString, nil
 }
 
 func (a *sqliteDBAccess) Ping(parentCtx context.Context) error {

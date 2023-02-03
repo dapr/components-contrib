@@ -227,8 +227,8 @@ func TestSQLite(t *testing.T) {
 			})
 
 			t.Run("disabled", func(t *testing.T) {
-				// A value of <=0 means that the cleanup is disabled
-				md.Properties[keyCleanupInterval] = "-1"
+				// A value of 0 means that the cleanup is disabled
+				md.Properties[keyCleanupInterval] = "0"
 				storeObj := state_sqlite.NewSQLiteStateStore(log).(*state_sqlite.SQLiteStore)
 
 				err := storeObj.Init(md)
@@ -258,12 +258,13 @@ func TestSQLite(t *testing.T) {
 
 			t.Run("automatically delete expired records", func(t *testing.T) {
 				// Run every second
-				md.Properties[keyCleanupInterval] = "1"
+				md.Properties[keyCleanupInterval] = "1s"
 
 				storeObj := state_sqlite.NewSQLiteStateStore(log).(*state_sqlite.SQLiteStore)
 				err := storeObj.Init(md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
+				dbClient := storeObj.GetDBAccess().GetConnection()
 
 				// Seed the database with some records
 				err = populateTTLRecords(ctx, dbClient)
@@ -272,7 +273,7 @@ func TestSQLite(t *testing.T) {
 				// Wait 2 seconds then verify we have only 10 rows left
 				time.Sleep(2 * time.Second)
 				count, err := countRowsInTable(ctx, dbClient, "ttl_state")
-				require.NoError(t, err, "failed to run query to count rows")
+				assert.NoError(t, err, "failed to run query to count rows")
 				assert.Equal(t, 10, count)
 
 				// The "last-cleanup" value should be <= 1 second (+ a bit of buffer)
@@ -295,7 +296,7 @@ func TestSQLite(t *testing.T) {
 			t.Run("cleanup concurrency", func(t *testing.T) {
 				// Set to run every hour
 				// (we'll manually trigger more frequent iterations)
-				md.Properties[keyCleanupInterval] = "3600"
+				md.Properties[keyCleanupInterval] = "1h"
 
 				storeObj := state_sqlite.NewSQLiteStateStore(log).(*state_sqlite.SQLiteStore)
 				err := storeObj.Init(md)
@@ -304,6 +305,8 @@ func TestSQLite(t *testing.T) {
 
 				dbAccess := storeObj.GetDBAccess()
 				require.NotNil(t, dbAccess)
+
+				dbClient := dbAccess.GetConnection()
 
 				// Seed the database with some records
 				err = populateTTLRecords(ctx, dbClient)
@@ -315,7 +318,7 @@ func TestSQLite(t *testing.T) {
 				assert.Equal(t, 20, count)
 
 				// Set last-cleanup to 1s ago (less than 3600s)
-				err = setValueInMetadataTable(ctx, dbClient, "ttl_metadata", "'last-cleanup'", "CURRENT_TIMESTAMP - interval '1 second'")
+				err = setValueInMetadataTable(ctx, dbClient, "ttl_metadata", "'last-cleanup'", "datetime('now', '-1 second')")
 				require.NoError(t, err, "failed to set last-cleanup")
 
 				// The "last-cleanup" value should be ~1 second (+ a bit of buffer)
@@ -327,7 +330,7 @@ func TestSQLite(t *testing.T) {
 				require.NotEmpty(t, lastCleanupValueOrig)
 
 				// Trigger the background cleanup, which should do nothing because the last cleanup was < 3600s
-				err = dbAccess.CleanupExpired(ctx)
+				err = dbAccess.CleanupExpired()
 				require.NoError(t, err, "CleanupExpired returned an error")
 
 				// Validate that 20 records are still present
@@ -384,20 +387,17 @@ func populateTTLRecords(ctx context.Context, dbClient *sql.DB) error {
 	// Insert 10 records that have expired, and 10 that will expire in 4 seconds
 	// Note this uses fmt.Sprintf and not parametrized queries-on purpose, so we can pass multiple rows in the same INSERT query
 	// Normally this would be a very bad idea, just don't do it outside of tests (and maybe not even in tests like I'm doing right now)...
-	exp := time.Now().Add(-1 * time.Minute)
 	rows := make([]string, 20)
 	for i := 0; i < 10; i++ {
-		rows[i] = fmt.Sprintf(`("expired_%d", '"value_%d"', false, datetime('now', '-1 minute')`, i)
+		rows[i] = fmt.Sprintf(`("expired_%d", '"value_%d"', false, "etag", datetime('now', '-1 minute'))`, i, i)
 	}
-	exp = time.Now().Add(4 * time.Second)
 	for i := 0; i < 10; i++ {
-		rows[i+10] = fmt.Sprintf(`("notexpired_%d", '"value_%d"', false, datetime('now', '+4 seconds')`, i)
+		rows[i+10] = fmt.Sprintf(`("notexpired_%d", '"value_%d"', false, "etag", datetime('now', '+4 seconds'))`, i, i)
 	}
 	queryCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	res, err := dbClient.ExecContext(queryCtx,
-		"INSERT INTO ttl_state VALUES "+strings.Join(rows, ", "),
-	)
+	q := "INSERT INTO ttl_state (key, value, is_binary, etag, expiration_time) VALUES " + strings.Join(rows, ", ")
+	res, err := dbClient.ExecContext(queryCtx, q)
 	if err != nil {
 		return err
 	}

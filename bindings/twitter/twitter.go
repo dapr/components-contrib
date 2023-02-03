@@ -43,6 +43,7 @@ func NewTwitter(logger logger.Logger) bindings.InputOutputBinding {
 
 // Init initializes the Twitter binding.
 func (t *Binding) Init(metadata bindings.Metadata) error {
+	t.logger.Warnf("DEPRECATION NOTICE: Component bindings.twitter has been deprecated and will be removed in a future Dapr release.")
 	ck, f := metadata.Properties["consumerKey"]
 	if !f || ck == "" {
 		return fmt.Errorf("consumerKey not set")

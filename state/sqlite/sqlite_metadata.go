@@ -39,6 +39,7 @@ type sqliteMetadataStruct struct {
 	TimeoutInSeconds   string `json:"timeoutInSeconds" mapstructure:"timeoutInSeconds"`
 	CleanupIntervalStr string `json:"cleanupInterval" mapstructure:"cleanupInterval"` // Cleanup interval as a time.Duration string
 	BusyTimeoutStr     string `json:"busyTimeout" mapstructure:"busyTimeout"`         // Busy timeout as a time.Duration string
+	DisableWAL         bool   `json:"disableWAL" mapstructure:"disableWAL"`           // Disable WAL journaling. You should not use WAL if the database is stored on a network filesystem (or data corruption may happen). This is ignored if the database is in-memory.
 
 	timeout         time.Duration
 	cleanupInterval time.Duration
@@ -49,8 +50,12 @@ func (m *sqliteMetadataStruct) InitWithMetadata(meta state.Metadata) error {
 	// Reset the object
 	m.ConnectionString = ""
 	m.TableName = defaultTableName
-	m.cleanupInterval = defaultCleanupInternal
+	m.TimeoutInSeconds = ""
+	m.CleanupIntervalStr = ""
+	m.BusyTimeoutStr = ""
+	m.DisableWAL = false
 	m.timeout = defaultTimeout
+	m.cleanupInterval = defaultCleanupInternal
 	m.busyTimeout = defaultBusyTimeout
 
 	// Decode the metadata

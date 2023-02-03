@@ -104,7 +104,8 @@ func validateRootPath(rootPath string) (string, error) {
 	// If the root path is relative, resolve it as absolute
 	rootPath = filepath.Clean(rootPath)
 	if !filepath.IsAbs(rootPath) {
-		cwd, err := os.Getwd()
+		var cwd string
+		cwd, err = os.Getwd()
 		if err != nil {
 			return "", fmt.Errorf("failed to obtain current working directory: %w", err)
 		}

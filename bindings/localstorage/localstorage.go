@@ -101,10 +101,14 @@ func validateRootPath(rootPath string) (string, error) {
 		return "", errors.New("property rootPath must not be empty")
 	}
 
-	// Require the path to be absolute since we can't depend on the Dapr binary to always be in a specific directory
+	// If the root path is relative, resolve it as absolute
 	rootPath = filepath.Clean(rootPath)
 	if !filepath.IsAbs(rootPath) {
-		return "", errors.New("property rootPath must be an absolute path")
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("failed to obtain current working directory: %w", err)
+		}
+		rootPath = filepath.Join(cwd, rootPath)
 	}
 
 	// Resolve symlinks

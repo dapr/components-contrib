@@ -96,7 +96,14 @@ func (a *sqliteDBAccess) Init(md state.Metadata) error {
 		return err
 	}
 
-	err = a.ensureStateTable(a.ctx, a.metadata.TableName)
+	// Performs migrations
+	migrate := &migrations{
+		Logger:            a.logger,
+		Conn:              a.db,
+		MetadataTableName: a.metadata.MetadataTableName,
+		StateTableName:    a.metadata.TableName,
+	}
+	err = migrate.Perform(a.ctx)
 	if err != nil {
 		return err
 	}
@@ -395,63 +402,6 @@ func (a *sqliteDBAccess) Close() error {
 		_ = a.db.Close()
 	}
 	return nil
-}
-
-// Create table if not exists.
-func (a *sqliteDBAccess) ensureStateTable(parentCtx context.Context, stateTableName string) error {
-	exists, err := a.tableExists(parentCtx)
-	if err != nil || exists {
-		return err
-	}
-
-	a.logger.Infof("Creating SQLite state table '%s'", stateTableName)
-
-	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
-	defer cancel()
-
-	tx, err := a.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	stmt := fmt.Sprintf(
-		`CREATE TABLE %s (
-			key TEXT NOT NULL PRIMARY KEY,
-			value TEXT NOT NULL,
-			is_binary BOOLEAN NOT NULL,
-			etag TEXT NOT NULL,
-			expiration_time TIMESTAMP DEFAULT NULL,
-			update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)`,
-		stateTableName,
-	)
-	_, err = tx.Exec(stmt)
-	if err != nil {
-		return err
-	}
-
-	stmt = fmt.Sprintf(`CREATE INDEX idx_%s_expiration_time ON %s (expiration_time)`, stateTableName, stateTableName)
-	_, err = tx.Exec(stmt)
-	if err != nil {
-		return err
-	}
-
-	return tx.Commit()
-}
-
-// Check if table exists.
-func (a *sqliteDBAccess) tableExists(parentCtx context.Context) (bool, error) {
-	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
-	defer cancel()
-
-	var exists string
-	// Returns 1 or 0 as a string if the table exists or not.
-	const q = `SELECT EXISTS (
-		SELECT name FROM sqlite_master WHERE type='table' AND name = ?
-	) AS 'exists'`
-	err := a.db.QueryRowContext(ctx, q, a.metadata.TableName).Scan(&exists)
-	return exists == "1", err
 }
 
 func (a *sqliteDBAccess) doDelete(parentCtx context.Context, db querier, req *state.DeleteRequest) error {

@@ -489,6 +489,20 @@ func (a *sqliteDBAccess) cleanupTimeout() {
 	ctx, cancel := context.WithTimeout(a.ctx, a.metadata.timeout)
 	defer cancel()
 
+	// Check if the last iteration was too recent
+	// This performs an atomic operation, so allows coordination with other daprd processes too
+	// We do this before beginning the transaction
+	canContinue, err := a.UpdateLastCleanup(ctx, a.db, a.metadata.cleanupInterval)
+	if err != nil {
+		// Log errors only
+		a.logger.Warnf("Failed to read last cleanup time from database: %v", err)
+	}
+	if !canContinue {
+		a.logger.Debug("Last cleanup was performed too recently")
+		return
+	}
+
+	// Begin a transaction
 	tx, err := a.db.BeginTx(ctx, nil)
 	if err != nil {
 		a.logger.Errorf("Error removing expired data: failed to begin transaction: %v", err)
@@ -524,4 +538,35 @@ func (a *sqliteDBAccess) cleanupTimeout() {
 	}
 
 	a.logger.Debugf("Removed %d expired rows", cleaned)
+}
+
+// UpdateLastCleanup sets the 'last-cleanup' value only if it's less than cleanupInterval.
+// Returns true if the row was updated, which means that the cleanup can proceed.
+func (a *sqliteDBAccess) UpdateLastCleanup(ctx context.Context, db querier, cleanupInterval time.Duration) (bool, error) {
+	queryCtx, cancel := context.WithTimeout(ctx, a.metadata.timeout)
+	defer cancel()
+	res, err := db.ExecContext(queryCtx,
+		fmt.Sprintf(`INSERT INTO %s (key, value)
+		VALUES ('last-cleanup', CURRENT_TIMESTAMP)
+		ON CONFLICT (key)
+		DO UPDATE SET value = CURRENT_TIMESTAMP
+			WHERE (unixepoch(CURRENT_TIMESTAMP) - unixepoch(value)) > 1;`,
+			a.metadata.MetadataTableName),
+		cleanupInterval.Milliseconds()-100, // Subtract 100ms for some buffer
+	)
+	if err != nil {
+		return false, fmt.Errorf("failed to execute query: %w", err)
+	}
+
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("failed to retrieve affected row count: %w", err)
+	}
+	return n > 0, nil
+}
+
+// GetCleanupInterval returns the cleanupInterval property.
+// This is primarily used for tests.
+func (a *sqliteDBAccess) GetCleanupInterval() time.Duration {
+	return a.metadata.cleanupInterval
 }

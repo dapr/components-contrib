@@ -127,6 +127,27 @@ func (a *sqliteDBAccess) getConnectionString() (string, error) {
 		qs = make(url.Values, 2)
 	}
 
+	// Check if the database is read-only or immutable
+	isReadOnly := false
+	if len(qs["mode"]) > 0 {
+		// Keep the first value only
+		qs["mode"] = []string{
+			qs["mode"][0],
+		}
+		if qs["mode"][0] == "ro" {
+			isReadOnly = true
+		}
+	}
+	if len(qs["immutable"]) > 0 {
+		// Keep the first value only
+		qs["immutable"] = []string{
+			qs["immutable"][0],
+		}
+		if qs["immutable"][0] == "1" {
+			isReadOnly = true
+		}
+	}
+
 	// We do not want to override a _txlock if set, but we'll show a warning if it's not "immediate"
 	if len(qs["_txlock"]) > 0 {
 		// Keep the first value only
@@ -161,8 +182,8 @@ func (a *sqliteDBAccess) getConnectionString() (string, error) {
 	if isMemoryDB {
 		// For in-memory databases, set the journal to MEMORY, the only allowed option besides OFF (which would make transactions ineffective)
 		qs["_pragma"] = append(qs["_pragma"], "journal_mode(MEMORY)")
-	} else if a.metadata.DisableWAL {
-		// Set the journaling mode to "DELETE" (the default) if WAL is disabled
+	} else if a.metadata.DisableWAL || isReadOnly {
+		// Set the journaling mode to "DELETE" (the default) if WAL is disabled or if the database is read-only
 		qs["_pragma"] = append(qs["_pragma"], "journal_mode(DELETE)")
 	} else {
 		// Enable WAL

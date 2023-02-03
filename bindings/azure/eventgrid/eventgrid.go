@@ -29,6 +29,7 @@ import (
 	"github.com/valyala/fasthttp"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/contenttype"
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
@@ -158,7 +159,7 @@ func (a *AzureEventGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest
 	request := fasthttp.AcquireRequest()
 	defer fasthttp.ReleaseRequest(request)
 	request.Header.SetMethod(fasthttp.MethodPost)
-	request.Header.Set("Content-Type", "application/cloudevents+json")
+	request.Header.Set("Content-Type", contenttype.CloudEventContentType)
 	request.Header.Set("aeg-sas-key", a.metadata.AccessKey)
 	request.Header.Set("User-Agent", "dapr/"+logger.DaprVersion)
 	request.SetRequestURI(a.metadata.TopicEndpoint)

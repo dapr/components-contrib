@@ -472,43 +472,38 @@ func (a *sqliteDBAccess) scheduleCleanupExpiredData() {
 
 	a.logger.Infof("Schedule expired data clean up every %v", a.metadata.cleanupInterval)
 
-	ticker := time.NewTicker(a.metadata.cleanupInterval)
 	go func() {
+		ticker := time.NewTicker(a.metadata.cleanupInterval)
+		defer ticker.Stop()
+
+		var err error
 		for {
 			select {
 			case <-ticker.C:
-				a.cleanupTimeout()
+				err = a.CleanupExpired()
+				if err != nil {
+					a.logger.Errorf("Error removing expired data: %v", err)
+				}
 			case <-a.ctx.Done():
+				a.logger.Debug("Stopped background cleanup of expired data")
 				return
 			}
 		}
 	}()
 }
 
-func (a *sqliteDBAccess) cleanupTimeout() {
-	ctx, cancel := context.WithTimeout(a.ctx, a.metadata.timeout)
-	defer cancel()
-
+func (a *sqliteDBAccess) CleanupExpired() error {
 	// Check if the last iteration was too recent
 	// This performs an atomic operation, so allows coordination with other daprd processes too
 	// We do this before beginning the transaction
-	canContinue, err := a.UpdateLastCleanup(ctx, a.db, a.metadata.cleanupInterval)
+	canContinue, err := a.UpdateLastCleanup(a.db, a.metadata.cleanupInterval)
 	if err != nil {
-		// Log errors only
-		a.logger.Warnf("Failed to read last cleanup time from database: %v", err)
+		return fmt.Errorf("failed to read last cleanup time from database: %w", err)
 	}
 	if !canContinue {
 		a.logger.Debug("Last cleanup was performed too recently")
-		return
+		return nil
 	}
-
-	// Begin a transaction
-	tx, err := a.db.BeginTx(ctx, nil)
-	if err != nil {
-		a.logger.Errorf("Error removing expired data: failed to begin transaction: %v", err)
-		return
-	}
-	defer tx.Rollback()
 
 	// Sprintf is required for table name because sql.DB does not substitute parameters for table names
 	//nolint:gosec
@@ -519,31 +514,25 @@ func (a *sqliteDBAccess) cleanupTimeout() {
 			AND expiration_time < CURRENT_TIMESTAMP`,
 		a.metadata.TableName,
 	)
-	res, err := tx.Exec(stmt)
+	// Not we're not using a context here because this query can take a bit of time, especially if there's no index on expiration_time
+	res, err := a.db.Exec(stmt)
 	if err != nil {
-		a.logger.Errorf("Error removing expired data: failed to execute query: %v", err)
-		return
+		return fmt.Errorf("failed to execute query: %w", err)
 	}
 
 	cleaned, err := res.RowsAffected()
 	if err != nil {
-		a.logger.Errorf("Error removing expired data: failed to count affected rows: %v", err)
-		return
+		return fmt.Errorf("failed to count affected rows: %w", err)
 	}
 
-	err = tx.Commit()
-	if err != nil {
-		a.logger.Errorf("Error removing expired data: failed to commit transaction: %v", err)
-		return
-	}
-
-	a.logger.Debugf("Removed %d expired rows", cleaned)
+	a.logger.Infof("Removed %d expired rows", cleaned)
+	return nil
 }
 
 // UpdateLastCleanup sets the 'last-cleanup' value only if it's less than cleanupInterval.
 // Returns true if the row was updated, which means that the cleanup can proceed.
-func (a *sqliteDBAccess) UpdateLastCleanup(ctx context.Context, db querier, cleanupInterval time.Duration) (bool, error) {
-	queryCtx, cancel := context.WithTimeout(ctx, a.metadata.timeout)
+func (a *sqliteDBAccess) UpdateLastCleanup(db querier, cleanupInterval time.Duration) (bool, error) {
+	queryCtx, cancel := context.WithTimeout(a.ctx, a.metadata.timeout)
 	defer cancel()
 	res, err := db.ExecContext(queryCtx,
 		fmt.Sprintf(`INSERT INTO %s (key, value)
@@ -563,6 +552,12 @@ func (a *sqliteDBAccess) UpdateLastCleanup(ctx context.Context, db querier, clea
 		return false, fmt.Errorf("failed to retrieve affected row count: %w", err)
 	}
 	return n > 0, nil
+}
+
+// GetConnection returns the database connection object.
+// This is primarily used for tests.
+func (a *sqliteDBAccess) GetConnection() *sql.DB {
+	return a.db
 }
 
 // GetCleanupInterval returns the cleanupInterval property.

@@ -444,7 +444,7 @@ func (p *PostgresDBAccess) Query(parentCtx context.Context, req *state.QueryRequ
 }
 
 func (p *PostgresDBAccess) ScheduleCleanupExpiredData(ctx context.Context) {
-	if p.metadata.cleanupInterval == nil {
+	if p.metadata.cleanupInterval == nil || *p.metadata.cleanupInterval <= 0 {
 		return
 	}
 
@@ -452,10 +452,13 @@ func (p *PostgresDBAccess) ScheduleCleanupExpiredData(ctx context.Context) {
 
 	go func() {
 		ticker := time.NewTicker(*p.metadata.cleanupInterval)
+		defer ticker.Stop()
+
+		var err error
 		for {
 			select {
 			case <-ticker.C:
-				err := p.CleanupExpired(ctx)
+				err = p.CleanupExpired(ctx)
 				if err != nil {
 					p.logger.Errorf("Error removing expired data: %v", err)
 				}

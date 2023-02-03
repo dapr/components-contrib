@@ -493,10 +493,16 @@ func (a *sqliteDBAccess) scheduleCleanupExpiredData() {
 }
 
 func (a *sqliteDBAccess) CleanupExpired() error {
+	tx, err := a.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback()
+
 	// Check if the last iteration was too recent
 	// This performs an atomic operation, so allows coordination with other daprd processes too
 	// We do this before beginning the transaction
-	canContinue, err := a.UpdateLastCleanup(a.db, a.metadata.cleanupInterval)
+	canContinue, err := a.UpdateLastCleanup(tx, a.metadata.cleanupInterval)
 	if err != nil {
 		return fmt.Errorf("failed to read last cleanup time from database: %w", err)
 	}
@@ -515,7 +521,7 @@ func (a *sqliteDBAccess) CleanupExpired() error {
 		a.metadata.TableName,
 	)
 	// Not we're not using a context here because this query can take a bit of time, especially if there's no index on expiration_time
-	res, err := a.db.Exec(stmt)
+	res, err := tx.Exec(stmt)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -523,6 +529,12 @@ func (a *sqliteDBAccess) CleanupExpired() error {
 	cleaned, err := res.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("failed to count affected rows: %w", err)
+	}
+
+	// Commit
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	a.logger.Infof("Removed %d expired rows", cleaned)

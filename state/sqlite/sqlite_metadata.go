@@ -21,34 +21,37 @@ import (
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/kit/ptr"
 )
 
 const (
 	defaultTableName       = "state"
-	defaultCleanupInternal = 3600 // In seconds = 1 hour
-	defaultTimeout         = 20   // Default timeout for database requests, in seconds
+	defaultCleanupInternal = time.Duration(0) // Disabled by default
+	defaultTimeout         = 20 * time.Second // Default timeout for database requests, in seconds
+	defaultBusyTimeout     = 2 * time.Second
 
 	errMissingConnectionString = "missing connection string"
 	errInvalidIdentifier       = "invalid identifier: %s" // specify identifier type, e.g. "table name"
 )
 
 type sqliteMetadataStruct struct {
-	ConnectionString         string `json:"connectionString" mapstructure:"connectionString"`
-	TableName                string `json:"tableName" mapstructure:"tableName"`
-	TimeoutInSeconds         string `json:"timeoutInSeconds" mapstructure:"timeoutInSeconds"`
-	CleanupIntervalInSeconds string `json:"cleanupIntervalInSeconds" mapstructure:"cleanupIntervalInSeconds"`
+	ConnectionString   string `json:"connectionString" mapstructure:"connectionString"`
+	TableName          string `json:"tableName" mapstructure:"tableName"`
+	TimeoutInSeconds   string `json:"timeoutInSeconds" mapstructure:"timeoutInSeconds"`
+	CleanupIntervalStr string `json:"cleanupInterval" mapstructure:"cleanupInterval"` // Cleanup interval as a time.Duration string
+	BusyTimeoutStr     string `json:"busyTimeout" mapstructure:"busyTimeout"`         // Busy timeout as a time.Duration string
 
 	timeout         time.Duration
-	cleanupInterval *time.Duration
+	cleanupInterval time.Duration
+	busyTimeout     time.Duration
 }
 
 func (m *sqliteMetadataStruct) InitWithMetadata(meta state.Metadata) error {
 	// Reset the object
 	m.ConnectionString = ""
 	m.TableName = defaultTableName
-	m.cleanupInterval = ptr.Of(defaultCleanupInternal * time.Second)
-	m.timeout = defaultTimeout * time.Second
+	m.cleanupInterval = defaultCleanupInternal
+	m.timeout = defaultTimeout
+	m.busyTimeout = defaultBusyTimeout
 
 	// Decode the metadata
 	err := metadata.DecodeMetadata(meta.Properties, &m)
@@ -79,18 +82,27 @@ func (m *sqliteMetadataStruct) InitWithMetadata(meta state.Metadata) error {
 
 	// Cleanup interval
 	// Nil duration means never clean up expired data
-	if m.CleanupIntervalInSeconds != "" {
-		cleanupIntervalInSec, err := strconv.ParseInt(m.CleanupIntervalInSeconds, 10, 0)
+	if m.CleanupIntervalStr != "" {
+		parsed, err := time.ParseDuration(m.CleanupIntervalStr)
 		if err != nil {
-			return fmt.Errorf("invalid value for 'cleanupIntervalInSeconds': %s", m.CleanupIntervalInSeconds)
+			return fmt.Errorf("invalid value for 'cleanupInterval': %s", m.CleanupIntervalStr)
 		}
 
 		// Non-positive value from meta means disable auto cleanup.
-		if cleanupIntervalInSec > 0 {
-			m.cleanupInterval = ptr.Of(time.Duration(cleanupIntervalInSec) * time.Second)
-		} else {
-			m.cleanupInterval = nil
+		if parsed > 0 {
+			m.cleanupInterval = parsed
 		}
+	}
+
+	// Busy timeout
+	// Values must be in milliseconds. Values <= 0 do not set any timeout
+	if m.BusyTimeoutStr != "" {
+		parsed, err := time.ParseDuration(m.BusyTimeoutStr)
+		parsed = parsed.Truncate(time.Millisecond)
+		if err != nil || parsed < 0 {
+			return fmt.Errorf("invalid value for 'busyTimeout': %s", m.BusyTimeoutStr)
+		}
+		m.busyTimeout = parsed
 	}
 
 	return nil

@@ -139,6 +139,12 @@ func (a *sqliteDBAccess) getConnectionString() string {
 	}
 	connString += "?" + qs.Encode()
 
+	// If the connection string doesn't begin with "file:", add the prefix
+	if !strings.HasPrefix(connString, "file:") {
+		a.logger.Info("prefix 'file:' added to the connection string")
+		connString = "file:" + connString
+	}
+
 	return connString
 }
 

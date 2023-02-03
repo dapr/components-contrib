@@ -20,7 +20,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sync"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -58,16 +59,12 @@ type sqliteDBAccess struct {
 	db       *sql.DB
 	ctx      context.Context
 	cancel   context.CancelFunc
-
-	// Lock only on public write API. Any public API's implementation should not call other public write APIs.
-	lock *sync.Mutex
 }
 
 // newSqliteDBAccess creates a new instance of sqliteDbAccess.
 func newSqliteDBAccess(logger logger.Logger) *sqliteDBAccess {
 	return &sqliteDBAccess{
 		logger: logger,
-		lock:   &sync.Mutex{},
 	}
 }
 
@@ -79,7 +76,7 @@ func (a *sqliteDBAccess) Init(md state.Metadata) error {
 		return err
 	}
 
-	db, err := sql.Open("sqlite", a.metadata.ConnectionString)
+	db, err := sql.Open("sqlite", a.getConnectionString())
 	if err != nil {
 		a.logger.Error(err)
 		return err
@@ -103,10 +100,49 @@ func (a *sqliteDBAccess) Init(md state.Metadata) error {
 	return nil
 }
 
-func (a *sqliteDBAccess) Ping(parentCtx context.Context) error {
-	a.lock.Lock()
-	defer a.lock.Unlock()
+func (a *sqliteDBAccess) getConnectionString() string {
+	// Get the "query string" from the connection string if present
+	idx := strings.IndexRune(a.metadata.ConnectionString, '?')
+	var qs url.Values
+	if idx > 0 {
+		qs, _ = url.ParseQuery(a.metadata.ConnectionString[(idx + 1):])
+	}
+	if len(qs) == 0 {
+		qs = make(url.Values, 2)
+	}
 
+	// We do not want to override a _txlock if set, but we'll show a warning if it's not "immediate"
+	if len(qs["_txlock"]) > 0 {
+		// Keep the first value only
+		qs["_txlock"] = []string{
+			strings.ToLower(qs["_txlock"][0]),
+		}
+		if qs["_txlock"][0] != "immediate" {
+			a.logger.Warn("Database connection is being created with a _txlock different from the recommended value 'immediate'")
+		}
+	} else {
+		qs["_txlock"] = []string{"immediate"}
+	}
+
+	// Add pragma values
+	if len(qs["_pragma"]) == 0 {
+		qs["_pragma"] = make([]string, 0, 1)
+	}
+	if a.metadata.busyTimeout > 0 {
+		qs["_pragma"] = append(qs["_pragma"], fmt.Sprintf("busy_timeout(%d)", a.metadata.busyTimeout.Milliseconds()))
+	}
+
+	// Build the final connection string
+	connString := a.metadata.ConnectionString
+	if idx > 0 {
+		connString = connString[:idx]
+	}
+	connString += "?" + qs.Encode()
+
+	return connString
+}
+
+func (a *sqliteDBAccess) Ping(parentCtx context.Context) error {
 	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
 	err := a.db.PingContext(ctx)
 	cancel()
@@ -114,9 +150,6 @@ func (a *sqliteDBAccess) Ping(parentCtx context.Context) error {
 }
 
 func (a *sqliteDBAccess) Get(parentCtx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-
 	if req.Key == "" {
 		return nil, errors.New("missing key in get operation")
 	}
@@ -167,9 +200,6 @@ func (a *sqliteDBAccess) Get(parentCtx context.Context, req *state.GetRequest) (
 }
 
 func (a *sqliteDBAccess) Set(ctx context.Context, req *state.SetRequest) error {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-
 	return a.doSet(ctx, a.db, req)
 }
 
@@ -282,16 +312,10 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 }
 
 func (a *sqliteDBAccess) Delete(ctx context.Context, req *state.DeleteRequest) error {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-
 	return a.doDelete(ctx, a.db, req)
 }
 
 func (a *sqliteDBAccess) ExecuteMulti(parentCtx context.Context, reqs []state.TransactionalStateOperation) error {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-
 	tx, err := a.db.BeginTx(parentCtx, nil)
 	if err != nil {
 		return err
@@ -435,14 +459,13 @@ func (a *sqliteDBAccess) doDelete(parentCtx context.Context, db querier, req *st
 }
 
 func (a *sqliteDBAccess) scheduleCleanupExpiredData() {
-	if a.metadata.cleanupInterval == nil {
+	if a.metadata.cleanupInterval <= 0 {
 		return
 	}
 
-	d := *a.metadata.cleanupInterval
-	a.logger.Infof("Schedule expired data clean up every %v", d)
+	a.logger.Infof("Schedule expired data clean up every %v", a.metadata.cleanupInterval)
 
-	ticker := time.NewTicker(d)
+	ticker := time.NewTicker(a.metadata.cleanupInterval)
 	go func() {
 		for {
 			select {
@@ -456,9 +479,6 @@ func (a *sqliteDBAccess) scheduleCleanupExpiredData() {
 }
 
 func (a *sqliteDBAccess) cleanupTimeout() {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-
 	ctx, cancel := context.WithTimeout(a.ctx, a.metadata.timeout)
 	defer cancel()
 

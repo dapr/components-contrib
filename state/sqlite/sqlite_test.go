@@ -217,6 +217,38 @@ func TestGetConnectionString(t *testing.T) {
 			}
 			assert.Equal(t, "file::memory:?"+values.Encode(), connString)
 		})
+
+		t.Run("default to use DELETE for read-only databases", func(t *testing.T) {
+			logDest.Reset()
+			db.metadata.reset()
+			db.metadata.ConnectionString = "file:test.db?mode=ro"
+
+			connString, err := db.getConnectionString()
+			require.NoError(t, err)
+
+			values := url.Values{
+				"_txlock": []string{"immediate"},
+				"_pragma": []string{"busy_timeout(2000)", "journal_mode(DELETE)"},
+				"mode":    []string{"ro"},
+			}
+			assert.Equal(t, "file:test.db?"+values.Encode(), connString)
+		})
+
+		t.Run("default to use DELETE for immutable databases", func(t *testing.T) {
+			logDest.Reset()
+			db.metadata.reset()
+			db.metadata.ConnectionString = "file:test.db?immutable=1"
+
+			connString, err := db.getConnectionString()
+			require.NoError(t, err)
+
+			values := url.Values{
+				"_txlock":   []string{"immediate"},
+				"_pragma":   []string{"busy_timeout(2000)", "journal_mode(DELETE)"},
+				"immutable": []string{"1"},
+			}
+			assert.Equal(t, "file:test.db?"+values.Encode(), connString)
+		})
 	})
 }
 

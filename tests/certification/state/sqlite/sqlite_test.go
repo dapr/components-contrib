@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -59,6 +60,7 @@ const (
 	keyTableName         = "tableName"
 	keyMetadataTableName = "metadataTableName"
 	keyCleanupInterval   = "cleanupInterval"
+	keyBusyTimeout       = "busyTimeout"
 
 	// Update this constant if you add more migrations
 	migrationLevel = "1"
@@ -529,12 +531,115 @@ func TestSQLite(t *testing.T) {
 		return nil
 	}
 
+	// Tests many concurrent operations to ensure the database can operate successfully
+	concurrencyTest := func(ctx flow.Context) error {
+		ctx.T.Run("init and migrations", func(t *testing.T) {
+			// Create a temporary database
+			tmpDir := t.TempDir()
+			dbPath := filepath.Join(tmpDir, "init.db")
+
+			md := state.Metadata{
+				Base: metadata.Base{
+					Name: "inittest",
+					Properties: map[string]string{
+						keyConnectionString: dbPath,
+						// Connect with a higher busy timeout
+						keyBusyTimeout: "10s",
+					},
+				},
+			}
+
+			storeObj := state_sqlite.NewSQLiteStateStore(log).(*state_sqlite.SQLiteStore)
+			err := storeObj.Init(md)
+			require.NoError(t, err, "failed to init")
+			defer storeObj.Close()
+
+			t.Run("write to multiple keys", func(t *testing.T) {
+				const parallel = 10
+				const runs = 30
+
+				ctx := context.Background()
+
+				wg := sync.WaitGroup{}
+				wg.Add(parallel)
+				for i := 0; i < parallel; i++ {
+					go func(i int) {
+						defer wg.Done()
+
+						var (
+							res *state.GetResponse
+							err error
+						)
+
+						key := fmt.Sprintf("multiple_%d", i)
+						for j := 0; j < runs; j++ {
+							// Save state
+							err = storeObj.Set(ctx, &state.SetRequest{
+								Key:   key,
+								Value: j,
+							})
+							assert.NoError(t, err)
+
+							// Retrieve state
+							res, err = storeObj.Get(ctx, &state.GetRequest{
+								Key: key,
+							})
+							assert.NoError(t, err)
+							assert.Equal(t, strconv.Itoa(j), string(res.Data))
+						}
+					}(i)
+				}
+
+				wg.Wait()
+			})
+
+			t.Run("write to the same key", func(t *testing.T) {
+				const parallel = 10
+				const runs = 30
+
+				ctx := context.Background()
+
+				wg := sync.WaitGroup{}
+				wg.Add(parallel)
+				counter := atomic.Int32{}
+				key := "same"
+				for i := 0; i < parallel; i++ {
+					go func(i int) {
+						defer wg.Done()
+
+						var err error
+						for j := 0; j < runs; j++ {
+							save := counter.Add(1)
+							// Save state
+							err = storeObj.Set(ctx, &state.SetRequest{
+								Key:   key,
+								Value: int(save),
+							})
+							assert.NoError(t, err)
+						}
+					}(i)
+				}
+
+				wg.Wait()
+
+				// Retrieve state
+				res, err := storeObj.Get(ctx, &state.GetRequest{
+					Key: key,
+				})
+				assert.NoError(t, err)
+				assert.Equal(t, strconv.Itoa(int(counter.Load())), string(res.Data))
+			})
+		})
+		return nil
+	}
+
 	// This makes it possible to comment-out individual tests
 	_ = basicTest
 	_ = verifySQLInjectionTest
 	_ = readonlyTest
 	_ = ttlTest
 	_ = initTest
+	_ = concurrencyTest
 
 	flow.New(t, "Run tests").
 		// Start the sidecar with the in-memory database
@@ -565,10 +670,13 @@ func TestSQLite(t *testing.T) {
 		Step("confirm read-only test", readonlyConfirmTest).
 
 		// Run TTL tests
-		//Step("run TTL test", ttlTest).
+		Step("run TTL test", ttlTest).
 
 		// Run init and migrations tests
 		Step("run init and migrations test", initTest).
+
+		// Concurrency test
+		Step("run concurrency test", concurrencyTest).
 
 		// Start tests
 		Run()

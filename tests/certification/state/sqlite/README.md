@@ -53,5 +53,9 @@ Also tests the `tableName` and `metadataTableName` metadata properties.
 
 ## Concurrency
 
-1. Using 10 parallel goroutines, write to a key in the database (unique per goroutine), then retrieve the value and ensure it's the one that was just stored
-2. Using 10 parallel goroutines, write to the same key multiple times; at the end of the writes, ensure the last value written is the one in the database
+1. Test concurrency using a single connection (single component)
+   1. Using 10 parallel goroutines, write to a key in the database (unique per goroutine), then retrieve the value and ensure it's the one that was just stored
+   2. Using 10 parallel goroutines, write to the same key multiple times; at the end of the writes, ensure the last value written is the one in the database
+2. Test concurrency using a 3 connections (3 components)
+   1. Using 10 parallel goroutines selecting from the 3 connections, write to a key in the database (unique per goroutine), then retrieve the value and ensure it's the one that was just stored
+   2. Using 10 parallel goroutines selecting from the 3 connections, write to the same key multiple times; at the end of the writes, ensure the last value written is the one in the database

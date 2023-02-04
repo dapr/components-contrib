@@ -37,6 +37,7 @@ func TestGetConnectionString(t *testing.T) {
 	logDest := &bytes.Buffer{}
 	log := logger.NewLogger("test")
 	log.SetOutput(logDest)
+	log.SetOutputLevel(logger.DebugLevel)
 
 	db := &sqliteDBAccess{
 		logger: log,

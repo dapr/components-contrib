@@ -55,6 +55,9 @@ const (
 	keyCleanupInterval      = "cleanupIntervalInSeconds"
 	keyTableName            = "tableName"
 	keyMetadataTableName    = "metadataTableName"
+
+	// Update this constant if you add more migrations
+	migrationLevel = "2"
 )
 
 func TestPostgreSQL(t *testing.T) {
@@ -71,9 +74,6 @@ func TestPostgreSQL(t *testing.T) {
 	}, "postgresql")
 
 	currentGrpcPort := ports[0]
-
-	// Update this constant if you add more migrations
-	const migrationLevel = "2"
 
 	// Holds a DB client as the "postgres" (ie. "root") user which we'll use to validate migrations and other changes in state
 	var dbClient *pgx.Conn

@@ -33,7 +33,7 @@ Uses an in-memory, temporary database.
 
 ## TTLs and cleanups
 
-Also test the `tableName` and `metadataTableName` metadata properties.
+Also tests the `tableName` and `metadataTableName` metadata properties.
 
 1. Correctly parse the `cleanupIntervalInSeconds` metadata property:
    - No value uses the default value (disabled)
@@ -41,3 +41,12 @@ Also test the `tableName` and `metadataTableName` metadata properties.
    - A zero or negative value disables the cleanup
 2. The cleanup method deletes expired records and updates the metadata table with the last time it ran
 3. The cleanup method doesn't run if the last iteration was less than `cleanupIntervalInSeconds` or if another process is doing the cleanup
+
+## Initialization and migrations
+
+Also tests the `tableName` and `metadataTableName` metadata properties.
+
+1. Initializes the component with names for tables that don't exist
+3. Initializes the component with all migrations performed (current level is "1")
+4. Initializes the component with only the state table, created before the metadata table was added (implied migration level "1")
+5. Initializes three components at the same time and ensure no race conditions exist in performing migrations

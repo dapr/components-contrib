@@ -533,7 +533,7 @@ func TestSQLite(t *testing.T) {
 
 	// Tests many concurrent operations to ensure the database can operate successfully
 	concurrencyTest := func(ctx flow.Context) error {
-		ctx.T.Run("init and migrations", func(t *testing.T) {
+		ctx.T.Run("concurrency", func(t *testing.T) {
 			// Create a temporary database
 			tmpDir := t.TempDir()
 			dbPath := filepath.Join(tmpDir, "init.db")
@@ -549,12 +549,24 @@ func TestSQLite(t *testing.T) {
 				},
 			}
 
-			storeObj := state_sqlite.NewSQLiteStateStore(log).(*state_sqlite.SQLiteStore)
-			err := storeObj.Init(md)
-			require.NoError(t, err, "failed to init")
-			defer storeObj.Close()
+			// Maintain all store objects
+			var storeObjs []*state_sqlite.SQLiteStore
+			newStoreObj := func() error {
+				storeObj := state_sqlite.NewSQLiteStateStore(log).(*state_sqlite.SQLiteStore)
+				err := storeObj.Init(md)
+				if err != nil {
+					return err
+				}
+				storeObjs = append(storeObjs, storeObj)
+				return nil
+			}
+			defer func() {
+				for _, storeObj := range storeObjs {
+					_ = storeObj.Close()
+				}
+			}()
 
-			t.Run("write to multiple keys", func(t *testing.T) {
+			testMultipleKeys := func(t *testing.T) {
 				const parallel = 10
 				const runs = 30
 
@@ -570,6 +582,8 @@ func TestSQLite(t *testing.T) {
 							res *state.GetResponse
 							err error
 						)
+
+						storeObj := storeObjs[i%len(storeObjs)]
 
 						key := fmt.Sprintf("multiple_%d", i)
 						for j := 0; j < runs; j++ {
@@ -591,9 +605,9 @@ func TestSQLite(t *testing.T) {
 				}
 
 				wg.Wait()
-			})
+			}
 
-			t.Run("write to the same key", func(t *testing.T) {
+			testSameKey := func(t *testing.T) {
 				const parallel = 10
 				const runs = 30
 
@@ -608,6 +622,9 @@ func TestSQLite(t *testing.T) {
 						defer wg.Done()
 
 						var err error
+
+						storeObj := storeObjs[i%len(storeObjs)]
+
 						for j := 0; j < runs; j++ {
 							save := counter.Add(1)
 							// Save state
@@ -623,12 +640,25 @@ func TestSQLite(t *testing.T) {
 				wg.Wait()
 
 				// Retrieve state
-				res, err := storeObj.Get(ctx, &state.GetRequest{
+				res, err := storeObjs[0].Get(ctx, &state.GetRequest{
 					Key: key,
 				})
 				assert.NoError(t, err)
 				assert.Equal(t, strconv.Itoa(int(counter.Load())), string(res.Data))
-			})
+			}
+
+			// Init one store object
+			require.NoError(t, newStoreObj(), "failed to init")
+
+			t.Run("same connection, multiple keys", testMultipleKeys)
+			t.Run("same connection, same key", testSameKey)
+
+			// Init two more store objects
+			require.NoError(t, newStoreObj(), "failed to init")
+			require.NoError(t, newStoreObj(), "failed to init")
+
+			t.Run("multiple connections, multiple keys", testMultipleKeys)
+			t.Run("multiple connections, same key", testSameKey)
 		})
 		return nil
 	}

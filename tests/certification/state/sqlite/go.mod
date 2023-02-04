@@ -1,4 +1,4 @@
-module github.com/dapr/components-contrib/tests/certification/state/postgresql
+module github.com/dapr/components-contrib/tests/certification/state/sqlite
 
 go 1.19
 

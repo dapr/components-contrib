@@ -176,11 +176,6 @@ func setGetUpdateDeleteOneItem(t *testing.T, s *SQLiteStore) {
 	deleteItem(t, s, key, getResponse.ETag)
 }
 
-func dropTable(t *testing.T, db *sql.DB, tableName string) {
-	_, err := db.Exec("DROP TABLE " + tableName)
-	assert.NoError(t, err)
-}
-
 func deleteItemThatDoesNotExist(t *testing.T, s *SQLiteStore) {
 	// Delete the item with a key not in the store.
 	deleteReq := &state.DeleteRequest{

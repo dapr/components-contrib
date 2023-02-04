@@ -34,24 +34,33 @@ type migrations struct {
 
 // Perform the required migrations
 func (m *migrations) Perform(ctx context.Context) error {
-	// Begin a transaction
-	tx, err := m.Conn.Begin()
+	// Begin an exclusive transaction
+	// We can't use Begin because that doesn't allow us setting the level of transaction
+	queryCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	_, err := m.Conn.ExecContext(queryCtx, "BEGIN EXCLUSIVE TRANSACTION")
+	cancel()
 	if err != nil {
 		return fmt.Errorf("faild to begin transaction: %w", err)
 	}
 
 	// Rollback the transaction in a deferred statement to catch errors
+	success := false
 	defer func() {
-		err = tx.Rollback()
-		if err != nil && err != sql.ErrTxDone {
+		if success {
+			return
+		}
+		queryCtx, cancel = context.WithTimeout(ctx, time.Minute)
+		_, err = m.Conn.ExecContext(queryCtx, "ROLLBACK TRANSACTION")
+		cancel()
+		if err != nil {
 			// Panicking here, as this forcibly closes the session and thus ensures we are not leaving locks hanging around
 			m.Logger.Fatalf("Failed to rollback transaction: %v", err)
 		}
 	}()
 
 	// Check if the metadata table exists, which we also use to store the migration level
-	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	exists, err := m.tableExists(queryCtx, tx, m.MetadataTableName)
+	queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
+	exists, err := m.tableExists(queryCtx, m.Conn, m.MetadataTableName)
 	cancel()
 	if err != nil {
 		return fmt.Errorf("failed to check if the metadata table exists: %w", err)
@@ -60,7 +69,7 @@ func (m *migrations) Perform(ctx context.Context) error {
 	// If the table doesn't exist, create it
 	if !exists {
 		queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
-		err = m.createMetadataTable(queryCtx, tx)
+		err = m.createMetadataTable(queryCtx, m.Conn)
 		cancel()
 		if err != nil {
 			return fmt.Errorf("failed to create metadata table: %w", err)
@@ -73,7 +82,7 @@ func (m *migrations) Perform(ctx context.Context) error {
 		migrationLevel    int
 	)
 	queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
-	err = tx.QueryRowContext(queryCtx,
+	err = m.Conn.QueryRowContext(queryCtx,
 		fmt.Sprintf(`SELECT value FROM %s WHERE key = 'migrations'`, m.MetadataTableName),
 	).Scan(&migrationLevelStr)
 	cancel()
@@ -92,13 +101,13 @@ func (m *migrations) Perform(ctx context.Context) error {
 	// Perform the migrations
 	for i := migrationLevel; i < len(allMigrations); i++ {
 		m.Logger.Infof("Performing migration %d", i+1)
-		err = allMigrations[i](ctx, tx, m)
+		err = allMigrations[i](ctx, m.Conn, m)
 		if err != nil {
 			return fmt.Errorf("failed to perform migration %d: %w", i+1, err)
 		}
 
 		queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
-		_, err = tx.ExecContext(queryCtx,
+		_, err = m.Conn.ExecContext(queryCtx,
 			fmt.Sprintf(`REPLACE INTO %s (key, value) VALUES ('migrations', ?)`, m.MetadataTableName),
 			strconv.Itoa(i+1),
 		)
@@ -109,10 +118,15 @@ func (m *migrations) Perform(ctx context.Context) error {
 	}
 
 	// Commit the transaction
-	err = tx.Commit()
+	queryCtx, cancel = context.WithTimeout(ctx, time.Minute)
+	_, err = m.Conn.ExecContext(queryCtx, "COMMIT TRANSACTION")
+	cancel()
 	if err != nil {
 		return fmt.Errorf("failed to commit transaction")
 	}
+
+	// Set success to true so we don't also run a rollback
+	success = true
 
 	return nil
 }
@@ -157,7 +171,7 @@ var allMigrations = [1]func(ctx context.Context, db querier, m *migrations) erro
 		_, err := db.ExecContext(
 			ctx,
 			fmt.Sprintf(
-				`CREATE TABLE %s (
+				`CREATE TABLE IF NOT EXISTS %s (
 					key TEXT NOT NULL PRIMARY KEY,
 					value TEXT NOT NULL,
 					is_binary BOOLEAN NOT NULL,

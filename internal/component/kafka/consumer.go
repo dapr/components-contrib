@@ -27,6 +27,11 @@ import (
 	"github.com/dapr/kit/retry"
 )
 
+const (
+	keyPartitionKey = "partitionKey"
+	keyPartition    = "partition"
+)
+
 type consumer struct {
 	k       *Kafka
 	ready   chan bool
@@ -136,7 +141,10 @@ func (consumer *consumer) doBulkCallback(session sarama.ConsumerGroupSession,
 
 	for i, message := range messages {
 		if message != nil {
-			metadata := make(map[string]string, len(message.Headers))
+			metadata := make(map[string]string, len(message.Headers)+2)
+			metadata[keyPartitionKey] = string(message.Key)
+			metadata[keyPartition] = strconv.Itoa(int(message.Partition))
+
 			if message.Headers != nil {
 				for _, t := range message.Headers {
 					metadata[string(t.Key)] = string(t.Value)
@@ -188,13 +196,16 @@ func (consumer *consumer) doCallback(session sarama.ConsumerGroupSession, messag
 		Topic: message.Topic,
 		Data:  message.Value,
 	}
-	// This is true only when headers are set (Kafka > 0.11)
-	if len(message.Headers) > 0 {
-		event.Metadata = make(map[string]string, len(message.Headers))
-		for _, header := range message.Headers {
-			event.Metadata[string(header.Key)] = string(header.Value)
-		}
+
+	event.Metadata = make(map[string]string, len(message.Headers)+2)
+	event.Metadata[keyPartitionKey] = string(message.Key)
+	event.Metadata[keyPartition] = strconv.Itoa(int(message.Partition))
+
+	// This will happen only when headers are set (Kafka > 0.11)
+	for _, header := range message.Headers {
+		event.Metadata[string(header.Key)] = string(header.Value)
 	}
+
 	err = handlerConfig.Handler(session.Context(), &event)
 	if err == nil {
 		session.MarkMessage(message, "")

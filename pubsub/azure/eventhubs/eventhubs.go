@@ -41,7 +41,7 @@ func NewAzureEventHubs(logger logger.Logger) pubsub.PubSub {
 }
 
 // Init the object.
-func (aeh *AzureEventHubs) Init(ctx context.Context, metadata pubsub.Metadata) error {
+func (aeh *AzureEventHubs) Init(_ context.Context, metadata pubsub.Metadata) error {
 	return aeh.AzureEventHubs.Init(metadata.Properties)
 }
 

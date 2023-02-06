@@ -78,7 +78,7 @@ type SignalR struct {
 }
 
 // Init is responsible for initializing the SignalR output based on the metadata.
-func (s *SignalR) Init(ctx context.Context, metadata bindings.Metadata) (err error) {
+func (s *SignalR) Init(_ context.Context, metadata bindings.Metadata) (err error) {
 	s.userAgent = "dapr-" + logger.DaprVersion
 
 	err = s.parseMetadata(metadata.Properties)

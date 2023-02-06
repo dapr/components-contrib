@@ -165,7 +165,7 @@ func isValidIndexedPropertyType(s string) bool {
 }
 
 // Init initializes the SQL server state store.
-func (s *SQLServer) Init(ctx context.Context, metadata state.Metadata) error {
+func (s *SQLServer) Init(_ context.Context, metadata state.Metadata) error {
 	err := s.parseMetadata(metadata.Properties)
 	if err != nil {
 		return err

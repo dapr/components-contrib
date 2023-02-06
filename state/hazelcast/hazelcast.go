@@ -69,7 +69,7 @@ func validateAndParseMetadata(meta state.Metadata) (*hazelcastMetadata, error) {
 }
 
 // Init does metadata and connection parsing.
-func (store *Hazelcast) Init(ctx context.Context, metadata state.Metadata) error {
+func (store *Hazelcast) Init(_ context.Context, metadata state.Metadata) error {
 	meta, err := validateAndParseMetadata(metadata)
 	if err != nil {
 		return err

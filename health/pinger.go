@@ -13,7 +13,9 @@ limitations under the License.
 
 package health
 
-import "context"
+import (
+	"context"
+)
 
 type Pinger interface {
 	Ping(ctx context.Context) error

@@ -49,7 +49,7 @@ func NewDynamoDB(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init performs connection parsing for DynamoDB.
-func (d *DynamoDB) Init(ctx context.Context, metadata bindings.Metadata) error {
+func (d *DynamoDB) Init(_ context.Context, metadata bindings.Metadata) error {
 	meta, err := d.getDynamoDBMetadata(metadata)
 	if err != nil {
 		return err

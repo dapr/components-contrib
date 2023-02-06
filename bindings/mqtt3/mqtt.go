@@ -368,8 +368,6 @@ func (m *MQTT) createSubscriberClientOptions(ctx context.Context, uri *url.URL, 
 }
 
 func (m *MQTT) Close() error {
-	defer m.wg.Wait()
-
 	m.producerLock.Lock()
 	defer m.producerLock.Unlock()
 
@@ -381,6 +379,8 @@ func (m *MQTT) Close() error {
 		m.producer.Disconnect(200)
 		m.producer = nil
 	}
+
+	m.wg.Wait()
 
 	return nil
 }

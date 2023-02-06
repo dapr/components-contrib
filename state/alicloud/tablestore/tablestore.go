@@ -54,7 +54,7 @@ func NewAliCloudTableStore(logger logger.Logger) state.Store {
 	}
 }
 
-func (s *AliCloudTableStore) Init(ctx context.Context, metadata state.Metadata) error {
+func (s *AliCloudTableStore) Init(_ context.Context, metadata state.Metadata) error {
 	m, err := s.parse(metadata)
 	if err != nil {
 		return err

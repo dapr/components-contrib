@@ -52,7 +52,7 @@ type Middleware struct {
 }
 
 // GetHandler returns the HTTP handler provided by sentinel middleware.
-func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
+func (m *Middleware) GetHandler(_ context.Context, metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
 	var (
 		meta *middlewareMetadata
 		err  error

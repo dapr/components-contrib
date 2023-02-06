@@ -61,7 +61,10 @@ type pubSubMetadata struct {
 
 // NewGCPPubSub returns a new GCPPubSub instance.
 func NewGCPPubSub(logger logger.Logger) bindings.InputOutputBinding {
-	return &GCPPubSub{logger: logger, closeCh: make(chan struct{})}
+	return &GCPPubSub{
+		logger:  logger,
+		closeCh: make(chan struct{}),
+	}
 }
 
 // Init parses metadata and creates a new Pub Sub client.
@@ -138,9 +141,9 @@ func (g *GCPPubSub) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 }
 
 func (g *GCPPubSub) Close() error {
-	defer g.wg.Wait()
 	if g.closed.CompareAndSwap(false, true) {
 		close(g.closeCh)
 	}
+	defer g.wg.Wait()
 	return g.client.Close()
 }

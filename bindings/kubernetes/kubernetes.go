@@ -50,7 +50,10 @@ type EventResponse struct {
 
 // NewKubernetes returns a new Kubernetes event input binding.
 func NewKubernetes(logger logger.Logger) bindings.InputBinding {
-	return &kubernetesInput{logger: logger, closeCh: make(chan struct{})}
+	return &kubernetesInput{
+		logger:  logger,
+		closeCh: make(chan struct{}),
+	}
 }
 
 func (k *kubernetesInput) Init(ctx context.Context, metadata bindings.Metadata) error {
@@ -182,9 +185,9 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 }
 
 func (k *kubernetesInput) Close() error {
-	defer k.wg.Wait()
 	if k.closed.CompareAndSwap(false, true) {
 		close(k.closeCh)
 	}
+	k.wg.Wait()
 	return nil
 }

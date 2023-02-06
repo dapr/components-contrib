@@ -48,7 +48,7 @@ func NewCFQueues(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init the component.
-func (q *CFQueues) Init(ctx context.Context, metadata bindings.Metadata) error {
+func (q *CFQueues) Init(_ context.Context, metadata bindings.Metadata) error {
 	// Decode the metadata
 	err := mapstructure.Decode(metadata.Properties, &q.metadata)
 	if err != nil {

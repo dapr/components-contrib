@@ -69,7 +69,7 @@ func NewSSM(logger logger.Logger) secretstores.SecretStore {
 }
 
 // Init creates a TencentCloud ssm client.
-func (s *ssmSecretStore) Init(ctx context.Context, meta secretstores.Metadata) error {
+func (s *ssmSecretStore) Init(_ context.Context, meta secretstores.Metadata) error {
 	m := SsmMetadata{}
 	err := metadata.DecodeMetadata(meta.Properties, &m)
 	if err != nil {

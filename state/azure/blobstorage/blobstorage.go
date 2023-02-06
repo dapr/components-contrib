@@ -71,7 +71,7 @@ type StateStore struct {
 }
 
 // Init the connection to blob storage, optionally creates a blob container if it doesn't exist.
-func (r *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
+func (r *StateStore) Init(_ context.Context, metadata state.Metadata) error {
 	var err error
 	r.containerClient, _, err = storageinternal.CreateContainerStorageClient(r.logger, metadata.Properties)
 	if err != nil {

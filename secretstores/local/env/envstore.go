@@ -38,7 +38,7 @@ func NewEnvSecretStore(logger logger.Logger) secretstores.SecretStore {
 }
 
 // Init creates a Local secret store.
-func (s *envSecretStore) Init(ctx context.Context, metadata secretstores.Metadata) error {
+func (s *envSecretStore) Init(_ context.Context, metadata secretstores.Metadata) error {
 	return nil
 }
 

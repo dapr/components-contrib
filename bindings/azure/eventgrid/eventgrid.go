@@ -75,11 +75,14 @@ type azureEventGridMetadata struct {
 
 // NewAzureEventGrid returns a new Azure Event Grid instance.
 func NewAzureEventGrid(logger logger.Logger) bindings.InputOutputBinding {
-	return &AzureEventGrid{logger: logger, closeCh: make(chan struct{})}
+	return &AzureEventGrid{
+		logger:  logger,
+		closeCh: make(chan struct{}),
+	}
 }
 
 // Init performs metadata init.
-func (a *AzureEventGrid) Init(ctx context.Context, metadata bindings.Metadata) error {
+func (a *AzureEventGrid) Init(_ context.Context, metadata bindings.Metadata) error {
 	m, err := a.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -164,10 +167,10 @@ func (a *AzureEventGrid) Operations() []bindings.OperationKind {
 }
 
 func (a *AzureEventGrid) Close() error {
-	defer a.wg.Wait()
 	if a.closed.CompareAndSwap(false, true) {
 		close(a.closeCh)
 	}
+	a.wg.Wait()
 	return nil
 }
 

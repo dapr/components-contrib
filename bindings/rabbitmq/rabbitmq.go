@@ -71,11 +71,14 @@ type rabbitMQMetadata struct {
 
 // NewRabbitMQ returns a new rabbitmq instance.
 func NewRabbitMQ(logger logger.Logger) bindings.InputOutputBinding {
-	return &RabbitMQ{logger: logger, closeCh: make(chan struct{})}
+	return &RabbitMQ{
+		logger:  logger,
+		closeCh: make(chan struct{}),
+	}
 }
 
 // Init does metadata parsing and connection creation.
-func (r *RabbitMQ) Init(ctx context.Context, metadata bindings.Metadata) error {
+func (r *RabbitMQ) Init(_ context.Context, metadata bindings.Metadata) error {
 	err := r.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -284,9 +287,9 @@ func (r *RabbitMQ) Read(ctx context.Context, handler bindings.Handler) error {
 }
 
 func (r *RabbitMQ) Close() error {
-	defer r.wg.Wait()
 	if r.closed.CompareAndSwap(false, true) {
 		close(r.closeCh)
 	}
+	defer r.wg.Wait()
 	return r.channel.Close()
 }

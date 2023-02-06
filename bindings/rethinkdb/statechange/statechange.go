@@ -141,10 +141,10 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 }
 
 func (b *Binding) Close() error {
-	defer b.wg.Wait()
 	if b.closed.CompareAndSwap(false, true) {
 		close(b.closeCh)
 	}
+	defer b.wg.Wait()
 	return b.session.Close()
 }
 

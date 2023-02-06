@@ -831,7 +831,7 @@ func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	// pollerCancel is used to cancel the polling goroutine. We use a noop cancel
 	// func in case the poller is already running and there is no cancel to use
 	// from the select below.
-	pollerCancel := func() {}
+	var pollerCancel context.CancelFunc = func() {}
 	// Start the poller for the queue if it's not running already
 	select {
 	case s.pollerRunning <- struct{}{}:
@@ -914,10 +914,10 @@ func (s *snsSqs) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 // Close should always be called to release the resources used by the SNS/SQS
 // client. Blocks until all goroutines have returned.
 func (s *snsSqs) Close() error {
-	defer s.wg.Wait()
 	if s.closed.CompareAndSwap(false, true) {
 		close(s.closeCh)
 	}
+	s.wg.Wait()
 	return nil
 }
 

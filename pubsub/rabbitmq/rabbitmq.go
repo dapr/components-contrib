@@ -127,7 +127,7 @@ func dial(protocol, uri string, tlsCfg *tls.Config) (rabbitMQConnectionBroker, r
 }
 
 // Init does metadata parsing and connection creation.
-func (r *rabbitMQ) Init(ctx context.Context, metadata pubsub.Metadata) error {
+func (r *rabbitMQ) Init(_ context.Context, metadata pubsub.Metadata) error {
 	meta, err := createMetadata(metadata, r.logger)
 	if err != nil {
 		return err
@@ -592,14 +592,14 @@ func (r *rabbitMQ) isStopped() bool {
 
 // Close closes the rabbitMQ connection. Blocks until all go routines are done.
 func (r *rabbitMQ) Close() error {
-	defer r.wg.Wait()
-
 	r.channelMutex.Lock()
 	defer r.channelMutex.Unlock()
 
 	if r.closed.CompareAndSwap(false, true) {
 		close(r.closeCh)
 	}
+
+	defer r.wg.Wait()
 
 	return r.reset()
 }

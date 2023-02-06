@@ -91,7 +91,7 @@ func parseAndValidateMetadata(meta state.Metadata) (*aerospikeMetadata, error) {
 }
 
 // Init does metadata and connection parsing.
-func (aspike *Aerospike) Init(ctx context.Context, metadata state.Metadata) error {
+func (aspike *Aerospike) Init(_ context.Context, metadata state.Metadata) error {
 	m, err := parseAndValidateMetadata(metadata)
 	if err != nil {
 		return err

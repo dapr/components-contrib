@@ -103,9 +103,9 @@ func (c *CosmosDB) Init(ctx context.Context, metadata bindings.Metadata) error {
 	}
 
 	c.client = dbContainer
-	ctx, cancel := context.WithTimeout(ctx, timeoutValue*time.Second)
-	defer cancel()
-	_, err = c.client.Read(ctx, nil)
+	readCtx, readCancel := context.WithTimeout(ctx, timeoutValue*time.Second)
+	defer readCancel()
+	_, err = c.client.Read(readCtx, nil)
 	return err
 }
 

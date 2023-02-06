@@ -121,10 +121,10 @@ func (k *kubeMQ) Operations() []bindings.OperationKind {
 }
 
 func (k *kubeMQ) Close() error {
-	defer k.wg.Wait()
 	if k.closed.CompareAndSwap(false, true) {
 		close(k.closeCh)
 	}
+	defer k.wg.Wait()
 	return k.client.Close()
 }
 

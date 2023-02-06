@@ -93,9 +93,9 @@ func (d *AzureQueueHelper) Init(ctx context.Context, metadata bindings.Metadata)
 		d.queueURL = azqueue.NewQueueURL(*URL, p)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	_, err = d.queueURL.Create(ctx, azqueue.Metadata{})
-	cancel()
+	createCtx, createCancel := context.WithTimeout(ctx, 2*time.Minute)
+	_, err = d.queueURL.Create(createCtx, azqueue.Metadata{})
+	createCancel()
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +204,11 @@ type storageQueuesMetadata struct {
 
 // NewAzureStorageQueues returns a new AzureStorageQueues instance.
 func NewAzureStorageQueues(logger logger.Logger) bindings.InputOutputBinding {
-	return &AzureStorageQueues{helper: NewAzureQueueHelper(logger), logger: logger, closeCh: make(chan struct{})}
+	return &AzureStorageQueues{
+		helper:  NewAzureQueueHelper(logger),
+		logger:  logger,
+		closeCh: make(chan struct{}),
+	}
 }
 
 // Init parses connection properties and creates a new Storage Queue client.
@@ -290,6 +294,7 @@ func (a *AzureStorageQueues) Read(ctx context.Context, handler bindings.Handler)
 	go func() {
 		defer a.wg.Done()
 		defer cancel()
+
 		select {
 		case <-a.closeCh:
 		case <-ctx.Done():
@@ -311,9 +316,9 @@ func (a *AzureStorageQueues) Read(ctx context.Context, handler bindings.Handler)
 }
 
 func (a *AzureStorageQueues) Close() error {
-	defer a.wg.Wait()
 	if a.closed.CompareAndSwap(false, true) {
 		close(a.closeCh)
 	}
+	a.wg.Wait()
 	return nil
 }

@@ -90,7 +90,10 @@ type recordProcessor struct {
 
 // NewAWSKinesis returns a new AWS Kinesis instance.
 func NewAWSKinesis(logger logger.Logger) bindings.InputOutputBinding {
-	return &AWSKinesis{logger: logger, closeCh: make(chan struct{})}
+	return &AWSKinesis{
+		logger:  logger,
+		closeCh: make(chan struct{}),
+	}
 }
 
 // Init does metadata parsing and connection creation.
@@ -261,10 +264,10 @@ func (a *AWSKinesis) Subscribe(ctx context.Context, streamDesc kinesis.StreamDes
 }
 
 func (a *AWSKinesis) Close() error {
-	defer a.wg.Wait()
 	if a.closed.CompareAndSwap(false, true) {
 		close(a.closeCh)
 	}
+	a.wg.Wait()
 	return nil
 }
 

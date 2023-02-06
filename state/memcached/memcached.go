@@ -62,7 +62,7 @@ func NewMemCacheStateStore(logger logger.Logger) state.Store {
 	return s
 }
 
-func (m *Memcached) Init(ctx context.Context, metadata state.Metadata) error {
+func (m *Memcached) Init(_ context.Context, metadata state.Metadata) error {
 	meta, err := getMemcachedMetadata(metadata)
 	if err != nil {
 		return err

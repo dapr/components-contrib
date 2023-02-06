@@ -72,7 +72,7 @@ func NewNacos(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init implements InputBinding/OutputBinding's Init method.
-func (n *Nacos) Init(ctx context.Context, metadata bindings.Metadata) error {
+func (n *Nacos) Init(_ context.Context, metadata bindings.Metadata) error {
 	n.settings = Settings{
 		Timeout: defaultTimeout,
 	}
@@ -179,12 +179,13 @@ func (n *Nacos) Read(ctx context.Context, handler bindings.Handler) error {
 
 // Close implements cancel all listeners, see https://github.com/dapr/components-contrib/issues/779
 func (n *Nacos) Close() error {
-	defer n.wg.Wait()
 	if n.closed.CompareAndSwap(false, true) {
 		close(n.closeCh)
 	}
 
 	n.cancelAllListeners()
+
+	n.wg.Wait()
 
 	return nil
 }

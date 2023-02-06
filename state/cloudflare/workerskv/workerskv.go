@@ -56,7 +56,7 @@ func NewCFWorkersKV(logger logger.Logger) state.Store {
 }
 
 // Init the component.
-func (q *CFWorkersKV) Init(ctx context.Context, metadata state.Metadata) error {
+func (q *CFWorkersKV) Init(_ context.Context, metadata state.Metadata) error {
 	// Decode the metadata
 	err := mapstructure.Decode(metadata.Properties, &q.metadata)
 	if err != nil {

@@ -85,7 +85,7 @@ func TestQueuesWithTTL(t *testing.T) {
 	logger := logger.NewLogger("test")
 
 	r := NewRabbitMQ(logger).(*RabbitMQ)
-	err := r.Init(metadata)
+	err := r.Init(context.Background(), metadata)
 	assert.Nil(t, err)
 
 	// Assert that if waited too long, we won't see any message
@@ -145,7 +145,7 @@ func TestPublishingWithTTL(t *testing.T) {
 	logger := logger.NewLogger("test")
 
 	rabbitMQBinding1 := NewRabbitMQ(logger).(*RabbitMQ)
-	err := rabbitMQBinding1.Init(metadata)
+	err := rabbitMQBinding1.Init(context.Background(), metadata)
 	assert.Nil(t, err)
 
 	// Assert that if waited too long, we won't see any message
@@ -176,7 +176,7 @@ func TestPublishingWithTTL(t *testing.T) {
 
 	// Getting before it is expired, should return it
 	rabbitMQBinding2 := NewRabbitMQ(logger).(*RabbitMQ)
-	err = rabbitMQBinding2.Init(metadata)
+	err = rabbitMQBinding2.Init(context.Background(), metadata)
 	assert.Nil(t, err)
 
 	const testMsgContent = "test_msg"
@@ -226,7 +226,7 @@ func TestExclusiveQueue(t *testing.T) {
 	logger := logger.NewLogger("test")
 
 	r := NewRabbitMQ(logger).(*RabbitMQ)
-	err := r.Init(metadata)
+	err := r.Init(context.Background(), metadata)
 	assert.Nil(t, err)
 
 	// Assert that if waited too long, we won't see any message
@@ -280,7 +280,7 @@ func TestPublishWithPriority(t *testing.T) {
 	logger := logger.NewLogger("test")
 
 	r := NewRabbitMQ(logger).(*RabbitMQ)
-	err := r.Init(metadata)
+	err := r.Init(context.Background(), metadata)
 	assert.Nil(t, err)
 
 	// Assert that if waited too long, we won't see any message

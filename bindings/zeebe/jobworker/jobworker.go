@@ -69,7 +69,11 @@ type jobHandler struct {
 
 // NewZeebeJobWorker returns a new ZeebeJobWorker instance.
 func NewZeebeJobWorker(logger logger.Logger) bindings.InputBinding {
-	return &ZeebeJobWorker{clientFactory: zeebe.NewClientFactoryImpl(logger), logger: logger, closeCh: make(chan struct{})}
+	return &ZeebeJobWorker{
+		clientFactory: zeebe.NewClientFactoryImpl(logger),
+		logger:        logger,
+		closeCh:       make(chan struct{}),
+	}
 }
 
 // Init does metadata parsing and connection creation.
@@ -111,6 +115,7 @@ func (z *ZeebeJobWorker) Read(ctx context.Context, handler bindings.Handler) err
 	z.wg.Add(1)
 	go func() {
 		defer z.wg.Done()
+
 		select {
 		case <-z.closeCh:
 		case <-ctx.Done():
@@ -125,10 +130,10 @@ func (z *ZeebeJobWorker) Read(ctx context.Context, handler bindings.Handler) err
 }
 
 func (z *ZeebeJobWorker) Close() error {
-	defer z.wg.Wait()
 	if z.closed.CompareAndSwap(false, true) {
 		close(z.closeCh)
 	}
+	z.wg.Wait()
 	return nil
 }
 

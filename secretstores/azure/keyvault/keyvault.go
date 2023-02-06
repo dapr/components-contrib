@@ -61,7 +61,7 @@ func NewAzureKeyvaultSecretStore(logger logger.Logger) secretstores.SecretStore 
 }
 
 // Init creates a Azure Key Vault client.
-func (k *keyvaultSecretStore) Init(ctx context.Context, meta secretstores.Metadata) error {
+func (k *keyvaultSecretStore) Init(_ context.Context, meta secretstores.Metadata) error {
 	m := KeyvaultMetadata{}
 	if err := metadata.DecodeMetadata(meta.Properties, &m); err != nil {
 		return err

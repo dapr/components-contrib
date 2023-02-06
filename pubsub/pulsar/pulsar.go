@@ -175,7 +175,7 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 	return &m, nil
 }
 
-func (p *Pulsar) Init(ctx context.Context, metadata pubsub.Metadata) error {
+func (p *Pulsar) Init(_ context.Context, metadata pubsub.Metadata) error {
 	m, err := parsePulsarMetadata(metadata)
 	if err != nil {
 		return err

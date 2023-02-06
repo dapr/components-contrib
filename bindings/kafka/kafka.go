@@ -77,10 +77,10 @@ func (b *Binding) Operations() []bindings.OperationKind {
 }
 
 func (b *Binding) Close() (err error) {
-	defer b.wg.Wait()
 	if b.closed.CompareAndSwap(false, true) {
 		close(b.closeCh)
 	}
+	defer b.wg.Wait()
 	return b.kafka.Close()
 }
 
@@ -120,9 +120,9 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 			b.kafka.RemoveTopicHandler(t)
 		}
 
-		// If the component's context has been canceled, do not re-subscribe
+		// If the component has been stopped, do not re-subscribe
 		select {
-		case <-ctx.Done():
+		case <-b.closeCh:
 			return
 		default:
 		}

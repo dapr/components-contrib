@@ -148,10 +148,10 @@ func (t *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 }
 
 func (t *Binding) Close() error {
-	defer t.wg.Wait()
 	if t.closed.CompareAndSwap(false, true) {
 		close(t.closeCh)
 	}
+	t.wg.Wait()
 	return nil
 }
 

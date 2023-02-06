@@ -171,8 +171,6 @@ func (r *StateStore) Features() []state.Feature {
 }
 
 func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
-	r.logger.Debugf("delete %s", req.Key)
-
 	err := r.deleteRow(ctx, req)
 	if err != nil {
 		if req.ETag != nil {
@@ -187,7 +185,6 @@ func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 }
 
 func (r *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
-	r.logger.Debugf("fetching %s", req.Key)
 	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDBMode)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -208,11 +205,7 @@ func (r *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 }
 
 func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
-	r.logger.Debugf("saving %s", req.Key)
-
-	err := r.writeRow(ctx, req)
-
-	return err
+	return r.writeRow(ctx, req)
 }
 
 func (r *StateStore) GetComponentMetadata() map[string]string {

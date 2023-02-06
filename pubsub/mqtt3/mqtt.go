@@ -373,12 +373,8 @@ func (m *mqttPubSub) createClientOptions(uri *url.URL, clientID string) *mqtt.Cl
 			subscribeTopics[k] = m.metadata.qos
 		}
 
-		// Note that this is a bit unusual for a pubsub component as we're using
-		// closeCh on the handler, which is tied to the component rather than the
-		// individual subscription.
-		// This is because we can't really use a different context for each handler
-		// in a single SubscribeMultiple call, and the alternative (multiple
-		// individual Subscribe calls) is not ideal
+		// Note that this is a bit unusual for a pubsub component as we're using a background context for the handler.
+		// This is because we can't really use a different context for each handler in a single SubscribeMultiple call, and the alternative (multiple individual Subscribe calls) is not ideal
 		ctx, cancel := context.WithCancel(context.Background())
 		m.wg.Add(1)
 		go func() {
@@ -437,8 +433,6 @@ func (m *mqttPubSub) createClientOptions(uri *url.URL, clientID string) *mqtt.Cl
 
 // Close the connection. Blocks until all subscriptions are closed.
 func (m *mqttPubSub) Close() error {
-	defer m.wg.Wait()
-
 	m.subscribingLock.Lock()
 	defer m.subscribingLock.Unlock()
 
@@ -453,6 +447,8 @@ func (m *mqttPubSub) Close() error {
 
 	// Disconnect
 	m.conn.Disconnect(100)
+
+	m.wg.Wait()
 
 	return nil
 }

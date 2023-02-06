@@ -70,7 +70,6 @@ func (store *inMemoryStore) Init(ctx context.Context, metadata state.Metadata) e
 }
 
 func (store *inMemoryStore) Close() error {
-	defer store.wg.Wait()
 	if store.closed.CompareAndSwap(false, true) {
 		close(store.closeCh)
 	}
@@ -81,6 +80,8 @@ func (store *inMemoryStore) Close() error {
 	for k := range store.items {
 		delete(store.items, k)
 	}
+
+	store.wg.Wait()
 
 	return nil
 }

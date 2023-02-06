@@ -58,7 +58,7 @@ func NewGraphQL(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init initializes the GraphQL binding.
-func (gql *GraphQL) Init(ctx context.Context, metadata bindings.Metadata) error {
+func (gql *GraphQL) Init(_ context.Context, metadata bindings.Metadata) error {
 	gql.logger.Debug("GraphQL Error: Initializing GraphQL binding")
 
 	p := metadata.Properties

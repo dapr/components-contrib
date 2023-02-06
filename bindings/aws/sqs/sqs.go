@@ -51,7 +51,10 @@ type sqsMetadata struct {
 
 // NewAWSSQS returns a new AWS SQS instance.
 func NewAWSSQS(logger logger.Logger) bindings.InputOutputBinding {
-	return &AWSSQS{logger: logger, closeCh: make(chan struct{})}
+	return &AWSSQS{
+		logger:  logger,
+		closeCh: make(chan struct{}),
+	}
 }
 
 // Init does metadata parsing and connection creation.
@@ -103,7 +106,7 @@ func (a *AWSSQS) Read(ctx context.Context, handler bindings.Handler) error {
 	go func() {
 		defer a.wg.Done()
 
-		// Repeat until the context is canceled
+		// Repeat until the context is canceled or component is closed
 		for {
 			if ctx.Err() != nil || a.closed.Load() {
 				return
@@ -155,12 +158,10 @@ func (a *AWSSQS) Read(ctx context.Context, handler bindings.Handler) error {
 }
 
 func (a *AWSSQS) Close() error {
-	defer a.wg.Wait()
-
 	if a.closed.CompareAndSwap(false, true) {
 		close(a.closeCh)
 	}
-
+	a.wg.Wait()
 	return nil
 }
 

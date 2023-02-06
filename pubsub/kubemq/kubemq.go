@@ -24,7 +24,7 @@ func NewKubeMQ(logger logger.Logger) pubsub.PubSub {
 	}
 }
 
-func (k *kubeMQ) Init(ctx context.Context, metadata pubsub.Metadata) error {
+func (k *kubeMQ) Init(_ context.Context, metadata pubsub.Metadata) error {
 	meta, err := createMetadata(metadata)
 	if err != nil {
 		k.logger.Errorf("error init kubemq client error: %s", err.Error())

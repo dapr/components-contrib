@@ -60,19 +60,19 @@ func NewSMS(logger logger.Logger) bindings.OutputBinding {
 	}
 }
 
-func (t *SMS) Init(ctx context.Context, metadata bindings.Metadata) error {
+func (t *SMS) Init(_ context.Context, metadata bindings.Metadata) error {
 	twilioM := twilioMetadata{
 		timeout: time.Minute * 5,
 	}
 
 	if metadata.Properties[fromNumber] == "" {
-		return errors.New("\"fromNumber\" is a required field")
+		return errors.New(`"fromNumber" is a required field`)
 	}
 	if metadata.Properties[accountSid] == "" {
-		return errors.New("\"accountSid\" is a required field")
+		return errors.New(`"accountSid" is a required field`)
 	}
 	if metadata.Properties[authToken] == "" {
-		return errors.New("\"authToken\" is a required field")
+		return errors.New(`"authToken" is a required field`)
 	}
 
 	twilioM.toNumber = metadata.Properties[toNumber]

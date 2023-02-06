@@ -127,6 +127,7 @@ func (a *AzureServiceBusQueues) Read(parentCtx context.Context, handler bindings
 		case <-a.closeCh:
 			subscribeCancel()
 		case <-parentCtx.Done():
+			// nop
 		}
 	}()
 
@@ -191,6 +192,7 @@ func (a *AzureServiceBusQueues) Read(parentCtx context.Context, handler bindings
 			a.logger.Warnf("Subscription to queue %s lost connection, attempting to reconnect in %s...", a.metadata.QueueName, wait)
 			select {
 			case <-time.After(wait):
+				// nop
 			case <-a.closeCh:
 				return
 			}
@@ -232,11 +234,11 @@ func (a *AzureServiceBusQueues) getHandlerFn(handler bindings.Handler) impl.Hand
 }
 
 func (a *AzureServiceBusQueues) Close() (err error) {
-	defer a.wg.Wait()
 	if a.closed.CompareAndSwap(false, true) {
 		close(a.closeCh)
 	}
 	a.logger.Debug("Closing component")
 	a.client.CloseSender(a.metadata.QueueName)
+	a.wg.Wait()
 	return nil
 }

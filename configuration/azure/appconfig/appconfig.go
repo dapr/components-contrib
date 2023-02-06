@@ -73,7 +73,7 @@ func NewAzureAppConfigurationStore(logger logger.Logger) configuration.Store {
 }
 
 // Init does metadata and connection parsing.
-func (r *ConfigurationStore) Init(ctx context.Context, metadata configuration.Metadata) error {
+func (r *ConfigurationStore) Init(_ context.Context, metadata configuration.Metadata) error {
 	m, err := parseMetadata(metadata)
 	if err != nil {
 		return err

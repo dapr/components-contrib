@@ -163,4 +163,4 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-replace github.com/dapr/dapr => github.com/JoshVanL/dapr 708ff00f7181b224d569e09b52126d98b48a8e0d
+replace github.com/dapr/dapr => github.com/JoshVanL/dapr v0.0.0-20230206115221-708ff00f7181

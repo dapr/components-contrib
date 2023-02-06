@@ -528,7 +528,6 @@ func (p *PostgresDBAccess) UpdateLastCleanup(ctx context.Context, db dbquerier, 
 
 // Close implements io.Close.
 func (p *PostgresDBAccess) Close() error {
-	defer p.wg.Wait()
 	if p.closed.CompareAndSwap(false, true) {
 		close(p.closeCh)
 	}
@@ -537,6 +536,8 @@ func (p *PostgresDBAccess) Close() error {
 		p.db.Close()
 		p.db = nil
 	}
+
+	p.wg.Wait()
 
 	return nil
 }

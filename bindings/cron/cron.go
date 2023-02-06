@@ -102,7 +102,7 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 	b.wg.Add(1)
 	go func() {
 		defer b.wg.Done()
-		// Wait for context to be canceled or closed.
+		// Wait for context to be canceled or component to be closed.
 		select {
 		case <-ctx.Done():
 		case <-b.closeCh:
@@ -115,9 +115,9 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 }
 
 func (b *Binding) Close() error {
-	defer b.wg.Wait()
 	if b.closed.CompareAndSwap(false, true) {
 		close(b.closeCh)
 	}
+	b.wg.Wait()
 	return nil
 }

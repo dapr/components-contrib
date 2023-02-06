@@ -61,7 +61,7 @@ func NewAWSSES(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init does metadata parsing.
-func (a *AWSSES) Init(ctx context.Context, metadata bindings.Metadata) error {
+func (a *AWSSES) Init(_ context.Context, metadata bindings.Metadata) error {
 	// Parse input metadata
 	meta, err := a.parseMetadata(metadata)
 	if err != nil {

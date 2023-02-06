@@ -151,7 +151,7 @@ func (r *redisStreams) Init(ctx context.Context, metadata pubsub.Metadata) error
 		r.wg.Add(1)
 		go func() {
 			defer r.wg.Done()
-			r.worker(ctx)
+			r.worker()
 		}()
 	}
 
@@ -251,11 +251,11 @@ func createRedisMessageWrapper(ctx context.Context, stream string, handler pubsu
 
 // worker runs in separate goroutine(s) and pull messages from a channel for processing.
 // The number of workers is controlled by the `concurrency` setting.
-func (r *redisStreams) worker(ctx context.Context) {
+func (r *redisStreams) worker() {
 	for {
 		select {
-		// Handle cancelation
-		case <-ctx.Done():
+		// Handle closing
+		case <-r.closeCh:
 			return
 
 		case msg := <-r.queue:

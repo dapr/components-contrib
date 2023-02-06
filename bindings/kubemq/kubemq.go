@@ -66,9 +66,9 @@ func (k *kubeMQ) Read(ctx context.Context, handler bindings.Handler) error {
 	processCtx, cancel := context.WithCancel(ctx)
 	go func() {
 		defer k.wg.Done()
+		defer cancel()
 		select {
 		case <-k.closeCh:
-			cancel()
 		case <-processCtx.Done():
 		}
 	}()
@@ -78,11 +78,16 @@ func (k *kubeMQ) Read(ctx context.Context, handler bindings.Handler) error {
 			err := k.processQueueMessage(processCtx, handler)
 			if err != nil {
 				k.logger.Error(err.Error())
-				time.Sleep(time.Second)
 			}
-			if processCtx.Err() != nil {
-				return
+			// If context cancelled or kubeMQ closed, exit. Otherwise, continue
+			// after a second.
+			select {
+			case <-time.After(time.Second):
+				continue
+			case <-processCtx.Done():
+			case <-k.closeCh:
 			}
+			return
 		}
 	}()
 	return nil

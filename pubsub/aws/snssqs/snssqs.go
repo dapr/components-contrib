@@ -843,7 +843,10 @@ func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 		go func() {
 			defer s.wg.Done()
 			defer pollerCancel()
-			<-s.closeCh
+			select {
+			case <-s.closeCh:
+			case <-subctx.Done():
+			}
 		}()
 		go func() {
 			defer s.wg.Done()
@@ -857,7 +860,10 @@ func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		<-ctx.Done()
+		select {
+		case <-ctx.Done():
+		case <-s.closeCh:
+		}
 
 		s.topicsLock.Lock()
 		defer s.topicsLock.Unlock()

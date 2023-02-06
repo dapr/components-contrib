@@ -297,10 +297,8 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		// Check for an input-binding specific operation before close
 		if config.HasOperation("read") {
 			testLogger.Info("Closing read connection ...")
-			if closer, ok := inputBinding.(io.Closer); ok {
-				err := closer.Close()
-				assert.NoError(t, err, "expected no error closing input binding")
-			}
+			err := inputBinding.Close()
+			assert.NoError(t, err, "expected no error closing input binding")
 		}
 		// Check for an output-binding specific operation before close
 		if config.HasOperation("operations") {

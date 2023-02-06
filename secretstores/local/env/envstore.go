@@ -87,7 +87,8 @@ func (s *envSecretStore) GetComponentMetadata() map[string]string {
 
 func (s *envSecretStore) isKeyAllowed(key string) bool {
 	switch key {
-	case "APP_API_TOKEN", "DAPR_API_TOKEN":
+	case "APP_API_TOKEN", "DAPR_API_TOKEN",
+		"DAPR_TRUST_ANCHORS", "DAPR_CERT_CHAIN", "DAPR_CERT_KEY":
 		return false
 	default:
 		return true

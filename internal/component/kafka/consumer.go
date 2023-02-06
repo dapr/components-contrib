@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Shopify/sarama"
@@ -31,6 +32,7 @@ type consumer struct {
 	k       *Kafka
 	ready   chan bool
 	running chan struct{}
+	stopped atomic.Bool
 	once    sync.Once
 	mutex   sync.Mutex
 }
@@ -317,7 +319,10 @@ func (k *Kafka) Subscribe(ctx context.Context) error {
 			k.logger.Errorf("Error closing consumer group: %v", err)
 		}
 
-		close(k.consumer.running)
+		// Ensure running channel is only closed once.
+		if k.consumer.stopped.CompareAndSwap(false, true) {
+			close(k.consumer.running)
+		}
 	}()
 
 	<-ready

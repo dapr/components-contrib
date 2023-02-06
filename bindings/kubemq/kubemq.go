@@ -32,9 +32,10 @@ type kubeMQ struct {
 
 func NewKubeMQ(logger logger.Logger) Kubemq {
 	return &kubeMQ{
-		client: nil,
-		opts:   nil,
-		logger: logger,
+		client:  nil,
+		opts:    nil,
+		logger:  logger,
+		closeCh: make(chan struct{}),
 	}
 }
 
@@ -85,7 +86,6 @@ func (k *kubeMQ) Read(ctx context.Context, handler bindings.Handler) error {
 			case <-time.After(time.Second):
 				continue
 			case <-processCtx.Done():
-			case <-k.closeCh:
 			}
 			return
 		}
@@ -125,7 +125,7 @@ func (k *kubeMQ) Close() error {
 	if k.closed.CompareAndSwap(false, true) {
 		close(k.closeCh)
 	}
-	return nil
+	return k.client.Close()
 }
 
 func (k *kubeMQ) processQueueMessage(ctx context.Context, handler bindings.Handler) error {

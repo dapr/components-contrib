@@ -28,6 +28,32 @@
             "qi": "c5Um3YYkhh2QScQBy5-kumH40LhFFy2ETznWEp0tS2NwmTfTm_NlSg-Ct2nOw93cIhwDjWyoilkIapuuX2obY-sUc3kj2ugU-hONfuBStsF020IPP1skA9okIZVbz8ycqcjaBiNc4-TeiXED1K7bV9Kg-A9lxDxfGRybJ1_ECWA"
         },
         {
+            "kid": "rsa-public",
+            "kty": "RSA",
+            "e": "AQAB",
+            "n": "3I2mdIK4mRRu-ywMrYjUZzBxt0NlAVLrMhGlaJsby7PWTMiLpZVip4SBD9GwnCU0TGFD7k2-7tfs0y9U6WV7MwgCjc9m_DUUGbE-kKjEU7JYkLzYlndys-6xuhD4Jf1hu9AZVdfXftpWSy_NNg6fVwTH4nckOAbOSL1hXToOYWQcDDW95Rhw3U4z04PqssEpRKn5KGBuTahNNNiZcWns99pChpLTxgdm93LjMBI1KCGBpOaz7fcQJ9V3c6rSwMKyY3IPm1LwS6PIs7xb2ZJ0Eb8A6MtCkGhgNsodpkxhqKbqtxI-KqTuZy9g4jb8WKjJq9lB9q-HPHoQqIEDom6P8w",
+            "use": "sig"
+        },
+        {
+            "kid": "p256-private",
+            "kty": "EC",
+            "alg": "ES256",
+            "crv": "P-256",
+            "d": "5wV7hDpqt1L3uaXa1Xj7X3ieaV9A-Hyj2Kv-qxpwSjM",
+            "use": "sig",
+            "x": "UMn1c2ioMNi2DqvC8hdBVUERFZ97eVFsNVcQIgR0Hso",
+            "y": "uT1a0P3UOLiObve2-pOMFx2BVzLz5rFtU-qmQBPWwd0"
+        },
+        {
+            "kid": "p256-public",
+            "kty": "EC",
+            "alg": "ES256",
+            "crv": "P-256",
+            "use": "sig",
+            "x": "UMn1c2ioMNi2DqvC8hdBVUERFZ97eVFsNVcQIgR0Hso",
+            "y": "uT1a0P3UOLiObve2-pOMFx2BVzLz5rFtU-qmQBPWwd0"
+        },
+        {
             "kid": "symmetric-256",
             "kty": "oct",
             "k": "RjJPhQzsDB5dvjQZ-85l_D_SBXWCBFx7IVsesenVvts"

@@ -295,9 +295,9 @@ func (m *MQTT) createClientOptions(uri *url.URL, clientID string) *mqtt.ClientOp
 	return opts
 }
 
-func (m *MQTT) handleMessage(ctx context.Context) func(client mqtt.Client, mqttMsg mqtt.Message) {
+func (m *MQTT) handleMessage() func(client mqtt.Client, mqttMsg mqtt.Message) {
 	return func(client mqtt.Client, mqttMsg mqtt.Message) {
-		var bo backoff.BackOff = backoff.WithContext(m.backOff, ctx)
+		var bo backoff.BackOff = m.backOff
 		if m.metadata.backOffMaxRetries >= 0 {
 			bo = backoff.WithMaxRetries(bo, uint64(m.metadata.backOffMaxRetries))
 		}
@@ -305,7 +305,12 @@ func (m *MQTT) handleMessage(ctx context.Context) func(client mqtt.Client, mqttM
 		err := retry.NotifyRecover(
 			func() error {
 				m.logger.Debugf("Processing MQTT message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
-				_, err := m.readHandler(ctx, &bindings.ReadResponse{
+				// Use a background context here so that the context is not tied to the
+				// first Invoke first created the producer.
+				// TODO: add context to mqtt library, and add a OnConnectWithContext option
+				// to change this func signature to
+				// func(c mqtt.Client, ctx context.Context)
+				_, err := m.readHandler(context.Background(), &bindings.ReadResponse{
 					Data: mqttMsg.Payload(),
 					Metadata: map[string]string{
 						mqttTopic: mqttMsg.Topic(),
@@ -339,12 +344,7 @@ func (m *MQTT) createSubscriberClientOptions(ctx context.Context, uri *url.URL, 
 
 	// On (re-)connection, add the topic subscription
 	opts.OnConnect = func(c mqtt.Client) {
-		// Use a background context here so that the context is not tied to the
-		// first Invoke first created the producer.
-		// TODO: add context to mqtt library, and add a OnConnectWithContext option
-		// to change this func signature to
-		// func(c mqtt.Client, ctx context.Context)
-		token := c.Subscribe(m.metadata.topic, m.metadata.qos, m.handleMessage(context.Background()))
+		token := c.Subscribe(m.metadata.topic, m.metadata.qos, m.handleMessage())
 
 		var err error
 		select {

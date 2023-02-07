@@ -209,12 +209,12 @@ func VerifyPublicKey(digest []byte, signature []byte, algorithm string, key jwk.
 		}
 		switch okpKey.Crv() {
 		case jwa.Ed25519:
-			var ed25519Key *ed25519.PublicKey
-			if okpKey.Raw(ed25519Key) != nil {
+			var ed25519Key ed25519.PublicKey
+			if okpKey.Raw(&ed25519Key) != nil {
 				return false, ErrKeyTypeMismatch
 			}
 
-			return ed25519.Verify(*ed25519Key, digest, signature), nil
+			return ed25519.Verify(ed25519Key, digest, signature), nil
 		default:
 			return false, ErrKeyTypeMismatch
 		}

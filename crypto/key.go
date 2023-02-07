@@ -46,10 +46,32 @@ func (k Key) KeyID() string {
 
 // CanPerformOperation returns true if the key can be used to perform a specific operation.
 func (k Key) CanPerformOperation(op jwk.KeyOperation) bool {
+	return KeyCanPerformOperation(k, op)
+}
+
+// IsValid checks if the key is within the time bounds of validity.
+func (k Key) IsValid() bool {
+	return k.isValidAtTime(time.Now())
+}
+
+func (k Key) isValidAtTime(t time.Time) bool {
+	if k.exp != nil && k.exp.Before(t) {
+		return false
+	}
+
+	if k.nbf != nil && k.nbf.After(t) {
+		return false
+	}
+
+	return true
+}
+
+// KeyCanPerformOperation returns true if the key can be used to perform a specific operation.
+func KeyCanPerformOperation(key jwk.Key, op jwk.KeyOperation) bool {
 	// keyUsage is the value of "use" ("sig" or "enc"), while keyOps is the value of "key_ops" (an array of allowed operations)
 	// Per RFC 7517: `The "use" and "key_ops" JWK members SHOULD NOT be used together; however, if both are used, the information they convey MUST be consistent.`
-	keyUsage := k.KeyUsage()
-	keyOps := k.KeyOps()
+	keyUsage := key.KeyUsage()
+	keyOps := key.KeyOps()
 
 	// If the key has nothin in both fields, then just allow any operation
 	if len(keyOps) == 0 && keyUsage == "" {
@@ -76,19 +98,17 @@ func (k Key) CanPerformOperation(op jwk.KeyOperation) bool {
 	return true
 }
 
-// IsValid checks if the key is within the time bounds of validity.
-func (k Key) IsValid() bool {
-	return k.isValidAtTime(time.Now())
-}
-
-func (k Key) isValidAtTime(t time.Time) bool {
-	if k.exp != nil && k.exp.Before(t) {
-		return false
+// KeyCanPerformAlgorithm returns true if the key can be used with a specific algorithm.
+func KeyCanPerformAlgorithm(key jwk.Key, alg string) bool {
+	// "alg" is the supported algorithm
+	var keyAlg string
+	if key != nil {
+		keyAlg = key.Algorithm().String()
+	}
+	// If there's no "alg", then allow the operation
+	if keyAlg == "" {
+		return true
 	}
 
-	if k.nbf != nil && k.nbf.After(t) {
-		return false
-	}
-
-	return true
+	return alg == keyAlg
 }

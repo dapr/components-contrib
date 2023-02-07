@@ -60,6 +60,14 @@ func (k LocalCryptoBaseComponent) Encrypt(parentCtx context.Context, plaintext [
 		return nil, nil, fmt.Errorf("failed to retrieve the key: %w", err)
 	}
 
+	// Check if the key can perform the operation
+	if !KeyCanPerformOperation(key, jwk.KeyOpEncrypt) {
+		return nil, nil, errors.New("key cannot perform the 'encrypt' operation")
+	}
+	if !KeyCanPerformAlgorithm(key, algorithm) {
+		return nil, nil, fmt.Errorf("key cannot be used with algorithm '%s'", algorithm)
+	}
+
 	// Encrypt the data
 	ciphertext, tag, err = internals.Encrypt(plaintext, algorithm, key, nonce, associatedData)
 	if err != nil {
@@ -73,6 +81,14 @@ func (k LocalCryptoBaseComponent) Decrypt(parentCtx context.Context, ciphertext 
 	key, err := k.RetrieveKeyFn(parentCtx, keyName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve the key: %w", err)
+	}
+
+	// Check if the key can perform the operation
+	if !KeyCanPerformOperation(key, jwk.KeyOpDecrypt) {
+		return nil, errors.New("key cannot perform the 'decrypt' operation")
+	}
+	if !KeyCanPerformAlgorithm(key, algorithm) {
+		return nil, fmt.Errorf("key cannot be used with algorithm '%s'", algorithm)
 	}
 
 	// Decrypt the data
@@ -96,6 +112,14 @@ func (k LocalCryptoBaseComponent) WrapKey(parentCtx context.Context, plaintextKe
 		return nil, nil, fmt.Errorf("failed to retrieve the key encryption key: %w", err)
 	}
 
+	// Check if the key can perform the operation
+	if !KeyCanPerformOperation(kek, jwk.KeyOpWrapKey) {
+		return nil, nil, errors.New("key cannot perform the 'wrapKey' operation")
+	}
+	if !KeyCanPerformAlgorithm(kek, algorithm) {
+		return nil, nil, fmt.Errorf("key cannot be used with algorithm '%s'", algorithm)
+	}
+
 	// Encrypt the data
 	wrappedKey, tag, err = internals.Encrypt(plaintext, algorithm, kek, nonce, associatedData)
 	if err != nil {
@@ -109,6 +133,14 @@ func (k LocalCryptoBaseComponent) UnwrapKey(parentCtx context.Context, wrappedKe
 	kek, err := k.RetrieveKeyFn(parentCtx, keyName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve the key encryption key: %w", err)
+	}
+
+	// Check if the key can perform the operation
+	if !KeyCanPerformOperation(kek, jwk.KeyOpUnwrapKey) {
+		return nil, errors.New("key cannot perform the 'unwrapKey' operation")
+	}
+	if !KeyCanPerformAlgorithm(kek, algorithm) {
+		return nil, fmt.Errorf("key cannot be used with algorithm '%s'", algorithm)
 	}
 
 	// Decrypt the data
@@ -133,6 +165,14 @@ func (k LocalCryptoBaseComponent) Sign(parentCtx context.Context, digest []byte,
 		return nil, fmt.Errorf("failed to retrieve the key: %w", err)
 	}
 
+	// Check if the key can perform the operation
+	if !KeyCanPerformOperation(key, jwk.KeyOpSign) {
+		return nil, errors.New("key cannot perform the 'sign' operation")
+	}
+	if !KeyCanPerformAlgorithm(key, algorithm) {
+		return nil, fmt.Errorf("key cannot be used with algorithm '%s'", algorithm)
+	}
+
 	// Sign the message
 	signature, err = internals.SignPrivateKey(digest, algorithm, key)
 	if err != nil {
@@ -146,6 +186,14 @@ func (k LocalCryptoBaseComponent) Verify(parentCtx context.Context, digest []byt
 	key, err := k.RetrieveKeyFn(parentCtx, keyName)
 	if err != nil {
 		return false, fmt.Errorf("failed to retrieve the key: %w", err)
+	}
+
+	// Check if the key can perform the operation
+	if !KeyCanPerformOperation(key, jwk.KeyOpVerify) {
+		return false, errors.New("key cannot perform the 'verify' operation")
+	}
+	if !KeyCanPerformAlgorithm(key, algorithm) {
+		return false, fmt.Errorf("key cannot be used with algorithm '%s'", algorithm)
 	}
 
 	// Verify the signature

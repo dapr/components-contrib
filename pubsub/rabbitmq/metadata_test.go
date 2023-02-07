@@ -438,7 +438,10 @@ func TestConnectionURI(t *testing.T) {
 			args:           map[string]string{"protocol": "amqps", "hostname": "localhost", "username": "testusername", "password": "testpassword"},
 			expectedOutput: "amqps://testusername:testpassword@localhost",
 		},
-
+		{
+			args:           map[string]string{"protocol": "amqps_external", "hostname": "localhost"},
+			expectedOutput: "amqps_external://localhost",
+		},
 		// legacy argument
 		{
 			args:           map[string]string{"host": "amqp://fake-hostname"},

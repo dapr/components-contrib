@@ -79,14 +79,15 @@ const (
 
 	defaultReconnectWaitSeconds = 3
 
-	protocolAMQP  = "amqp"
-	protocolAMQPS = "amqps"
+	protocolAMQP           = "amqp"
+	protocolAMQPS          = "amqps"
+	protocolAMQPS_external = "amqps_external"
 )
 
 // createMetadata creates a new instance from the pubsub metadata.
 func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*metadata, error) {
 	result := metadata{
-		protocol:         "amqp",
+		protocol:         protocolAMQP,
 		hostname:         "localhost",
 		durable:          true,
 		deleteWhenUnused: true,
@@ -216,7 +217,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*metadat
 
 	if ok {
 		result.defaultQueueTTL = &ttl
-	}team
+	}
 
 	result.TLSProperties, err = pubsub.TLS(pubSubMetadata.Properties)
 	if err != nil {
@@ -228,6 +229,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*metadat
 			if boolVal && (result.TLSProperties.CACert == "" || result.TLSProperties.ClientCert == "" || result.TLSProperties.ClientKey == "") {
 				return &result, fmt.Errorf("%s can only be set to true, when all these properties are set: %s, %s, %s", metadataSaslExternal, pubsub.CACert, pubsub.ClientCert, pubsub.ClientKey)
 			}
+			result.protocol = protocolAMQPS_external
 			result.saslExternal = boolVal
 		}
 	}

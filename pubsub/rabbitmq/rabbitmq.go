@@ -107,6 +107,8 @@ func dial(protocol, uri string, tlsCfg *tls.Config) (rabbitMQConnectionBroker, r
 
 	if protocol == protocolAMQPS {
 		conn, err = amqp.DialTLS(uri, tlsCfg)
+	} else if protocol == protocolAMQPS_external {
+		conn, err = amqp.DialTLS_ExternalAuth(uri, tlsCfg)
 	} else {
 		conn, err = amqp.Dial(uri)
 	}

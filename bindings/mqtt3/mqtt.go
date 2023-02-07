@@ -207,7 +207,7 @@ func (m *MQTT) connect(ctx context.Context, clientID string, isSubscriber bool) 
 	}
 	var opts *mqtt.ClientOptions
 	if isSubscriber {
-		opts = m.createSubscriberClientOptions(ctx, uri, clientID)
+		opts = m.createSubscriberClientOptions(uri, clientID)
 	} else {
 		opts = m.createClientOptions(uri, clientID)
 	}
@@ -339,7 +339,7 @@ func (m *MQTT) handleMessage() func(client mqtt.Client, mqttMsg mqtt.Message) {
 }
 
 // Extends createClientOptions with options for subscribers only
-func (m *MQTT) createSubscriberClientOptions(ctx context.Context, uri *url.URL, clientID string) *mqtt.ClientOptions {
+func (m *MQTT) createSubscriberClientOptions(uri *url.URL, clientID string) *mqtt.ClientOptions {
 	opts := m.createClientOptions(uri, clientID)
 
 	// On (re-)connection, add the topic subscription
@@ -353,8 +353,6 @@ func (m *MQTT) createSubscriberClientOptions(ctx context.Context, uri *url.URL, 
 			err = token.Error()
 		case <-time.After(defaultWait):
 			err = errors.New("timed out waiting for subscription to complete")
-		case <-ctx.Done():
-			err = fmt.Errorf("error while waiting for subscription token: %w", ctx.Err())
 		}
 
 		// Nothing we can do in case of errors besides logging them

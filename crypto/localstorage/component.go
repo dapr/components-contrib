@@ -95,7 +95,7 @@ func (k *localStorageCrypto) retrieveKey(parentCtx context.Context, key string) 
 		return nil, fmt.Errorf("failed to load key '%s': %w", key, err)
 	}
 
-	// Check if we can determine the file type heuristically from the extension
+	// Check if we can determine the file type from the extension
 	var contentType string
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".json": // Assume a JWK

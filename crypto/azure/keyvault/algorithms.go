@@ -34,7 +34,7 @@ func init() {
 
 	listSignature := azkeys.PossibleJSONWebKeySignatureAlgorithmValues()
 	validSignatureAlgs = make(map[string]struct{}, len(listSignature))
-	for _, v := range listEncryption {
+	for _, v := range listSignature {
 		validSignatureAlgs[string(v)] = struct{}{}
 	}
 }
@@ -60,7 +60,7 @@ func GetJWKEncryptionAlgorithm(algorithm string) *azkeys.JSONWebKeyEncryptionAlg
 
 // GetJWKSignatureAlgorithm returns a JSONWebKeySignatureAlgorithm constant is the algorithm is a supported one.
 func GetJWKSignatureAlgorithm(algorithm string) *azkeys.JSONWebKeySignatureAlgorithm {
-	if _, ok := validEncryptionAlgs[algorithm]; ok {
+	if _, ok := validSignatureAlgs[algorithm]; ok {
 		return to.Ptr(azkeys.JSONWebKeySignatureAlgorithm(algorithm))
 	} else {
 		return nil

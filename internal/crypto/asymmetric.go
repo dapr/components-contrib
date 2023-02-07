@@ -186,7 +186,7 @@ func VerifyPublicKey(digest []byte, signature []byte, algorithm string, key jwk.
 		return true, nil
 
 	case Algorithm_ES256, Algorithm_ES384, Algorithm_ES512:
-		var ecdsaKey *ecdsa.PublicKey
+		ecdsaKey := &ecdsa.PublicKey{}
 		if key.Raw(ecdsaKey) != nil {
 			return false, ErrKeyTypeMismatch
 		}
@@ -209,7 +209,7 @@ func VerifyPublicKey(digest []byte, signature []byte, algorithm string, key jwk.
 		}
 		switch okpKey.Crv() {
 		case jwa.Ed25519:
-			var ed25519Key ed25519.PublicKey
+			ed25519Key := ed25519.PublicKey{}
 			if okpKey.Raw(&ed25519Key) != nil {
 				return false, ErrKeyTypeMismatch
 			}

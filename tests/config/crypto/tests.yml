@@ -7,103 +7,47 @@ components:
     allOperations: true
     config:
       keys:
-        - algorithms:
-            - EdDSA
+        - algorithms: ["EdDSA"]
           type: public
           name: ed25519-public.pem
-        - algorithms:
-            - EdDSA
+        - algorithms: ["EdDSA"]
           type: private
           name: ed25519-private.pem
-        - algorithms:
-            - PS256
-            - PS384
-            - PS512
-            - RS256
-            - RS384
-            - RS512
-            - RSA1_5
-            - RSA-OAEP 
-            - RSA-OAEP-256
-            - RSA-OAEP-384
-            - RSA-OAEP-512
+        - algorithms: ["PS256", "PS384", "PS512", "RS256", "RS384", "RS512", "RSA1_5", "RSA-OAEP", "RSA-OAEP-256", "RSA-OAEP-384", "RSA-OAEP-512"]
           type: private
           name: rsa-private.pem
-        - algorithms:
-            - A256CBC
-            - A256GCM
-            - A256KW
-            - C20P
-            - XC20P
-            - C20PKW
-            - XC20PKW
-            - HS256
-            - HS384
-            - HS512
+        - algorithms: ["A256CBC", "A256GCM", "A256KW", "C20P", "XC20P", "C20PKW", "XC20PKW"]
           type: symmetric
           name: symmetric-256.b64
   - component: jwks
     allOperations: true
     config:
       keys:
-        - algorithms:
-            - EdDSA
+        - algorithms: ["EdDSA"]
           type: public
           name: ed25519-public
-        - algorithms:
-            - EdDSA
+        - algorithms: ["EdDSA"]
           type: private
           name: ed25519-private
-        - algorithms:
-            - PS256
-            - PS384
-            - PS512
-            - RS256
-            - RS384
-            - RS512
-            - RSA1_5
-            - RSA-OAEP 
-            - RSA-OAEP-256
-            - RSA-OAEP-384
-            - RSA-OAEP-512
+        - algorithms: ["PS256", "PS384", "PS512", "RS256", "RS384", "RS512", "RSA1_5", "RSA-OAEP", "RSA-OAEP-256", "RSA-OAEP-384", "RSA-OAEP-512"]
           type: private
           name: rsa-private
-        - algorithms:
-            - A256CBC
-            - A256GCM
-            - A256KW
-            - C20P
-            - XC20P
-            - C20PKW
-            - XC20PKW
-            - HS256
-            - HS384
-            - HS512
+        - algorithms: ["A256CBC", "A256GCM", "A256KW", "C20P", "XC20P", "C20PKW", "XC20PKW"]
           type: symmetric
           name: symmetric-256
   - component: azure.keyvault
     # Althoguh Azure Key Vault supports symmetric keys, those are only available in "Managed HSMs", which are too impractical for our tests
     allOperations: false
+    operations: []
     config:
       keys:
-        - algorithms:
-            - ES256
+        - algorithms: ["ES256"]
           type: private
           name: ec256key
-        - algorithms:
-            - ES512
+        - algorithms: ["ES512"]
           type: private
           # "521" is not a typo
           name: ec521key
-        - algorithms:
-            - PS256
-            - PS384
-            - PS512
-            - RS256
-            - RS384
-            - RS512
-            - RSA1_5
-            - RSA-OAEP 
-            - RSA-OAEP-256
+        - algorithms: ["PS256" , "PS384" , "PS512" , "RS256" , "RS384" , "RS512" , "RSA1_5" , "RSA-OAEP" , "RSA-OAEP-256"]
           type: private
           name: rsakey

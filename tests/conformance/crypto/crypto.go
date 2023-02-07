@@ -14,11 +14,13 @@ limitations under the License.
 package crypto
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -47,10 +49,10 @@ const (
 	algsEncryptionAsymmetric = "ECDH-ES ECDH-ES+A128KW ECDH-ES+A192KW ECDH-ES+A256KW RSA1_5 RSA-OAEP RSA-OAEP-256 RSA-OAEP-384 RSA-OAEP-512"
 	// List of all possible asymmetric key wrapping algorithms
 	algsKeywrapAsymmetric = "ECDH-ES ECDH-ES+A128KW ECDH-ES+A192KW ECDH-ES+A256KW RSA1_5 RSA-OAEP RSA-OAEP-256 RSA-OAEP-384 RSA-OAEP-512"
-	// List of all possible asymmetric signing algorithms
-	algsSignAsymmetric = "ES256 ES384 ES512 EdDSA PS256 PS384 PS512 RS256 RS384 RS512"
 	// List of all possible symmetric signing algorithms
 	algsSignSymmetric = "HS256 HS384 HS512"
+	// List of all possible asymmetric signing algorithms
+	algsSignAsymmetric = "ES256 ES384 ES512 EdDSA PS256 PS384 PS512 RS256 RS384 RS512"
 )
 
 type testConfigKey struct {
@@ -167,82 +169,61 @@ func ConformanceTests(t *testing.T, props map[string]string, component daprcrypt
 		})
 	})
 
+	// Used to test symmetric and asymmetric ciphers for encryption
+	testEncryption := func(algorithm string, keyName string, nonce []byte) func(t *testing.T) {
+		return func(t *testing.T) {
+			// Note: if you change this, make sure it's not a multiple of 16 in length
+			const message = "Quel ramo del lago di Como"
+			require.False(t, (len(message)%16) == 0, "message must have a length that's not a multiple of 16")
+
+			// Encrypt the message
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			ciphertext, tag, err := component.Encrypt(ctx, []byte(message), algorithm, keyName, nonce, nil)
+			require.NoError(t, err)
+			assert.NotEmpty(t, ciphertext)
+			if hasTag(algorithm) {
+				assert.NotEmpty(t, tag)
+			} else {
+				assert.Nil(t, tag)
+			}
+
+			// Decrypt the message
+			ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			plaintext, err := component.Decrypt(ctx, ciphertext, algorithm, keyName, nonce, tag, nil)
+			require.NoError(t, err)
+			assert.Equal(t, message, string(plaintext))
+
+			// Invalid key
+			ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			_, err = component.Decrypt(ctx, ciphertext, algorithm, "foo", nonce, tag, nil)
+			require.Error(t, err)
+
+			// Tag mismatch
+			if hasTag(algorithm) {
+				ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				badTag := randomBytes(t, 16)
+				_, err = component.Decrypt(ctx, ciphertext, algorithm, keyName, nonce, badTag, nil)
+				require.Error(t, err)
+			}
+		}
+	}
+
 	if config.HasOperation(opSymmetric) {
 		t.Run("Symmetric encryption", func(t *testing.T) {
 			keys.symmetric.testForAllAlgorithmsInList(t, algsEncryptionSymmetric, func(algorithm, keyName string) func(t *testing.T) {
-				return func(t *testing.T) {
-					nonce := randomBytes(t, nonceSizeForAlgorithm(algorithm))
-
-					// Note: if you change this, make sure it's not a multiple of 16 in length
-					const message = "Quel ramo del lago di Como"
-					require.False(t, (len(message)%16) == 0, "message must have a length that's not a multiple of 16")
-
-					// Encrypt the message
-					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-					defer cancel()
-					ciphertext, tag, err := component.Encrypt(ctx, []byte(message), algorithm, keyName, nonce, nil)
-					require.NoError(t, err)
-					assert.NotEmpty(t, ciphertext)
-					if hasTag(algorithm) {
-						assert.NotEmpty(t, tag)
-					}
-
-					// Decrypt the message
-					ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-					defer cancel()
-					plaintext, err := component.Decrypt(ctx, ciphertext, algorithm, keyName, nonce, tag, nil)
-					require.NoError(t, err)
-					assert.Equal(t, message, string(plaintext))
-
-					// Invalid key
-					ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-					defer cancel()
-					_, err = component.Decrypt(ctx, ciphertext, algorithm, "foo", nonce, tag, nil)
-					require.Error(t, err)
-
-					// Tag mismatch
-					if hasTag(algorithm) {
-						ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-						defer cancel()
-						badTag := randomBytes(t, 16)
-						_, err = component.Decrypt(ctx, ciphertext, algorithm, keyName, nonce, badTag, nil)
-						require.Error(t, err)
-					}
-				}
+				nonce := randomBytes(t, nonceSizeForAlgorithm(algorithm))
+				return testEncryption(algorithm, keyName, nonce)
 			})
 		})
 	}
 
 	t.Run("Asymmetric encryption with private key", func(t *testing.T) {
 		keys.private.testForAllAlgorithmsInList(t, algsEncryptionAsymmetric, func(algorithm, keyName string) func(t *testing.T) {
-			return func(t *testing.T) {
-				// Note: if you change this, make sure it's not a multiple of 16 in length
-				const message = "Quel ramo del lago di Como"
-				require.False(t, (len(message)%16) == 0, "message must have a length that's not a multiple of 16")
-
-				// Encrypt the message
-				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-				defer cancel()
-				ciphertext, tag, err := component.Encrypt(ctx, []byte(message), algorithm, keyName, nil, nil)
-				require.NoError(t, err)
-				assert.NotEmpty(t, ciphertext)
-				if hasTag(algorithm) {
-					assert.NotEmpty(t, tag)
-				}
-
-				// Decrypt the message
-				ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-				defer cancel()
-				plaintext, err := component.Decrypt(ctx, ciphertext, algorithm, keyName, nil, tag, nil)
-				require.NoError(t, err)
-				assert.Equal(t, message, string(plaintext))
-
-				// Invalid key
-				ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-				defer cancel()
-				_, err = component.Decrypt(ctx, ciphertext, algorithm, "foo", nil, tag, nil)
-				require.Error(t, err)
-			}
+			return testEncryption(algorithm, keyName, nil)
 		})
 	})
 
@@ -262,9 +243,136 @@ func ConformanceTests(t *testing.T, props map[string]string, component daprcrypt
 					assert.NotEmpty(t, ciphertext)
 					if hasTag(algorithm) {
 						assert.NotEmpty(t, tag)
+					} else {
+						assert.Nil(t, tag)
 					}
 				}
 			})
+		})
+	}
+
+	// Used to test symmetric and asymmetric ciphers for key wrapping
+	testKeyWrap := func(algorithm string, keyName string, nonce []byte) func(t *testing.T) {
+		return func(t *testing.T) {
+			// Key to wrap, random 256-bit
+			rawKey := randomBytes(t, 32)
+			rawKeyObj, err := jwk.FromRaw(rawKey)
+			require.NoError(t, err, "failed to generate key to wrap")
+
+			// Wrap the key
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			wrapped, tag, err := component.WrapKey(ctx, rawKeyObj, algorithm, keyName, nonce, nil)
+			require.NoError(t, err)
+			assert.NotEmpty(t, wrapped)
+			if hasTag(algorithm) {
+				assert.NotEmpty(t, tag)
+			} else {
+				assert.Nil(t, tag)
+			}
+
+			// Unwrap the key
+			ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			unwrappedObj, err := component.UnwrapKey(ctx, wrapped, algorithm, keyName, nonce, tag, nil)
+			require.NoError(t, err)
+			var unwrapped []byte
+			err = unwrappedObj.Raw(&unwrapped)
+			require.NoError(t, err)
+			assert.True(t, bytes.Equal(rawKey, unwrapped))
+
+			// Invalid key
+			ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			_, err = component.UnwrapKey(ctx, wrapped, algorithm, "foo", nonce, tag, nil)
+			require.Error(t, err)
+
+			// Tag mismatch
+			if hasTag(algorithm) {
+				ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				badTag := randomBytes(t, 16)
+				_, err = component.UnwrapKey(ctx, wrapped, algorithm, keyName, nonce, badTag, nil)
+				require.Error(t, err)
+			}
+		}
+	}
+
+	if config.HasOperation(opSymmetric) {
+		t.Run("Symmetric key wrap", func(t *testing.T) {
+			keys.symmetric.testForAllAlgorithmsInList(t, algsKeywrapSymmetric, func(algorithm, keyName string) func(t *testing.T) {
+				nonce := randomBytes(t, nonceSizeForAlgorithm(algorithm))
+				return testKeyWrap(algorithm, keyName, nonce)
+			})
+		})
+	}
+
+	t.Run("Asymmetric key wrap with private key", func(t *testing.T) {
+		keys.private.testForAllAlgorithmsInList(t, algsKeywrapAsymmetric, func(algorithm, keyName string) func(t *testing.T) {
+			return testKeyWrap(algorithm, keyName, nil)
+		})
+	})
+
+	if config.HasOperation(opPublic) {
+		t.Run("Asymmetric key wrap with public key", func(t *testing.T) {
+			keys.public.testForAllAlgorithmsInList(t, algsKeywrapAsymmetric, func(algorithm, keyName string) func(t *testing.T) {
+				return func(t *testing.T) {
+					// Key to wrap, random 256-bit
+					rawKey := randomBytes(t, 32)
+					rawKeyObj, err := jwk.FromRaw(rawKey)
+					require.NoError(t, err, "failed to generate key to wrap")
+
+					// Wrap the key
+					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+					defer cancel()
+					wrapped, tag, err := component.WrapKey(ctx, rawKeyObj, algorithm, keyName, nil, nil)
+					require.NoError(t, err)
+					assert.NotEmpty(t, wrapped)
+					if hasTag(algorithm) {
+						assert.NotEmpty(t, tag)
+					} else {
+						assert.Nil(t, tag)
+					}
+				}
+			})
+		})
+	}
+
+	// Used to test symmetric and asymmetric ciphers for signing
+	testSign := func(algorithm string, keyName string) func(t *testing.T) {
+		const message = "Qui dove il mare luccica, e tira forte il vento, su una vecchia terrazza, davanti al golfo di Surriento"
+
+		// Calculate the digest of the message
+		digest := hashMessageForSigning([]byte(message), algorithm)
+
+		return func(t *testing.T) {
+			// Sign the message
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			signature, err := component.Sign(ctx, digest, algorithm, keyName)
+			require.NoError(t, err)
+			assert.NotEmpty(t, signature)
+
+			// Verify the signature
+			valid, err := component.Verify(ctx, digest, signature, algorithm, keyName)
+			require.NoError(t, err)
+			assert.True(t, valid)
+
+			// Change the digest to make the verification fail
+			digest[0]++ // Note that this may overflow, and that's ok
+			valid, err = component.Verify(ctx, digest, signature, algorithm, keyName)
+			require.NoError(t, err)
+			assert.False(t, valid)
+		}
+	}
+
+	t.Run("Sign and verify with private key", func(t *testing.T) {
+		keys.private.testForAllAlgorithmsInList(t, algsSignAsymmetric, testSign)
+	})
+
+	if config.HasOperation(opSymmetric) {
+		t.Run("Sign and verify with symmetric key", func(t *testing.T) {
+			keys.symmetric.testForAllAlgorithmsInList(t, algsSignSymmetric, testSign)
 		})
 	}
 }

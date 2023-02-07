@@ -14,11 +14,13 @@ limitations under the License.
 package crypto
 
 import (
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
+	"hash"
 	"io"
 	"log"
 	"strings"
@@ -165,4 +167,32 @@ func hasTag(alg string) bool {
 	default:
 		return false
 	}
+}
+
+// Returns a digest of the message for signing with the given algorithm
+func hashMessageForSigning(message []byte, alg string) []byte {
+	// For EdDSA, we need to pass the raw message as "digest", as it gets hashed internally by the algorithm
+	if alg == "EdDSA" {
+		return message
+	}
+
+	// Calculate the SHA hash depending on the size
+	var h hash.Hash
+	switch alg {
+	case "ES256", "PS256", "RS256", "HS256":
+		h = crypto.SHA256.New()
+	case "ES384", "PS384", "RS384", "HS384":
+		h = crypto.SHA384.New()
+	case "ES512", "PS512", "RS512", "HS512":
+		h = crypto.SHA512.New()
+	default:
+		panic("Unsupported algorithm")
+	}
+
+	_, err := h.Write(message)
+	if err != nil {
+		panic(err)
+	}
+
+	return h.Sum(nil)
 }

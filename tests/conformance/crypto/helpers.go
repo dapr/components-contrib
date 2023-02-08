@@ -49,6 +49,7 @@ func (l keylist) addKey(key string, algorithms ...string) {
 	}
 }
 
+//nolint:unused
 func (l keylist) testForAlgorithm(t *testing.T, algorithm string, tf func(keyName string) func(t *testing.T)) {
 	t.Helper()
 

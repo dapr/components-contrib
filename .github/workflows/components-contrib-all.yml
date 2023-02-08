@@ -29,12 +29,13 @@ on:
       - release-*
 jobs:
   post-comment:
-    name: Post PR comment - repository dispatch only
+    name: Post comment on Repository Dispatch
     runs-on: ubuntu-latest
     steps:
     - name: Parse repository_dispatch payload
       if: github.event_name == 'repository_dispatch'
       working-directory: ${{ github.workspace }}
+      shell: bash
       run: |
         if [ ${{ github.event.client_payload.command }} = "ok-to-test" ]; then
           echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV
@@ -90,6 +91,7 @@ jobs:
       - name: Parse repository_dispatch payload
         if: github.event_name == 'repository_dispatch'
         working-directory: ${{ github.workspace }}
+        shell: bash
         run: |
           if [ ${{ github.event.client_payload.command }} = "ok-to-test" ]; then
             echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV

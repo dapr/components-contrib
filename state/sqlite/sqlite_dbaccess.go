@@ -20,7 +20,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sync"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -58,16 +59,12 @@ type sqliteDBAccess struct {
 	db       *sql.DB
 	ctx      context.Context
 	cancel   context.CancelFunc
-
-	// Lock only on public write API. Any public API's implementation should not call other public write APIs.
-	lock *sync.Mutex
 }
 
 // newSqliteDBAccess creates a new instance of sqliteDbAccess.
 func newSqliteDBAccess(logger logger.Logger) *sqliteDBAccess {
 	return &sqliteDBAccess{
 		logger: logger,
-		lock:   &sync.Mutex{},
 	}
 }
 
@@ -79,10 +76,15 @@ func (a *sqliteDBAccess) Init(md state.Metadata) error {
 		return err
 	}
 
-	db, err := sql.Open("sqlite", a.metadata.ConnectionString)
+	connString, err := a.getConnectionString()
 	if err != nil {
-		a.logger.Error(err)
+		// Already logged
 		return err
+	}
+
+	db, err := sql.Open("sqlite", connString)
+	if err != nil {
+		return fmt.Errorf("failed to create connection: %w", err)
 	}
 
 	a.db = db
@@ -90,12 +92,19 @@ func (a *sqliteDBAccess) Init(md state.Metadata) error {
 
 	err = a.Ping(a.ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to ping: %w", err)
 	}
 
-	err = a.ensureStateTable(a.ctx, a.metadata.TableName)
+	// Performs migrations
+	migrate := &migrations{
+		Logger:            a.logger,
+		Conn:              a.db,
+		MetadataTableName: a.metadata.MetadataTableName,
+		StateTableName:    a.metadata.TableName,
+	}
+	err = migrate.Perform(a.ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to perform migrations: %w", err)
 	}
 
 	a.scheduleCleanupExpiredData()
@@ -103,10 +112,106 @@ func (a *sqliteDBAccess) Init(md state.Metadata) error {
 	return nil
 }
 
-func (a *sqliteDBAccess) Ping(parentCtx context.Context) error {
-	a.lock.Lock()
-	defer a.lock.Unlock()
+func (a *sqliteDBAccess) getConnectionString() (string, error) {
+	// Check if we're using the in-memory database
+	lc := strings.ToLower(a.metadata.ConnectionString)
+	isMemoryDB := strings.HasPrefix(lc, ":memory:") || strings.HasPrefix(lc, "file::memory:")
 
+	// Get the "query string" from the connection string if present
+	idx := strings.IndexRune(a.metadata.ConnectionString, '?')
+	var qs url.Values
+	if idx > 0 {
+		qs, _ = url.ParseQuery(a.metadata.ConnectionString[(idx + 1):])
+	}
+	if len(qs) == 0 {
+		qs = make(url.Values, 2)
+	}
+
+	// If the database is in-memory, we must ensure that cache=shared is set
+	if isMemoryDB {
+		qs["cache"] = []string{"shared"}
+	}
+
+	// Check if the database is read-only or immutable
+	isReadOnly := false
+	if len(qs["mode"]) > 0 {
+		// Keep the first value only
+		qs["mode"] = []string{
+			qs["mode"][0],
+		}
+		if qs["mode"][0] == "ro" {
+			isReadOnly = true
+		}
+	}
+	if len(qs["immutable"]) > 0 {
+		// Keep the first value only
+		qs["immutable"] = []string{
+			qs["immutable"][0],
+		}
+		if qs["immutable"][0] == "1" {
+			isReadOnly = true
+		}
+	}
+
+	// We do not want to override a _txlock if set, but we'll show a warning if it's not "immediate"
+	if len(qs["_txlock"]) > 0 {
+		// Keep the first value only
+		qs["_txlock"] = []string{
+			strings.ToLower(qs["_txlock"][0]),
+		}
+		if qs["_txlock"][0] != "immediate" {
+			a.logger.Warn("Database connection is being created with a _txlock different from the recommended value 'immediate'")
+		}
+	} else {
+		qs["_txlock"] = []string{"immediate"}
+	}
+
+	// Add pragma values
+	if len(qs["_pragma"]) == 0 {
+		qs["_pragma"] = make([]string, 0, 2)
+	} else {
+		for _, p := range qs["_pragma"] {
+			p = strings.ToLower(p)
+			if strings.HasPrefix(p, "busy_timeout") {
+				a.logger.Error("Cannot set `_pragma=busy_timeout` option in the connection string; please use the `busyTimeout` metadata property instead")
+				return "", errors.New("found forbidden option '_pragma=busy_timeout' in the connection string")
+			} else if strings.HasPrefix(p, "journal_mode") {
+				a.logger.Error("Cannot set `_pragma=journal_mode` option in the connection string; please use the `disableWAL` metadata property instead")
+				return "", errors.New("found forbidden option '_pragma=journal_mode' in the connection string")
+			}
+		}
+	}
+	if a.metadata.BusyTimeout > 0 {
+		qs["_pragma"] = append(qs["_pragma"], fmt.Sprintf("busy_timeout(%d)", a.metadata.BusyTimeout.Milliseconds()))
+	}
+	if isMemoryDB {
+		// For in-memory databases, set the journal to MEMORY, the only allowed option besides OFF (which would make transactions ineffective)
+		qs["_pragma"] = append(qs["_pragma"], "journal_mode(MEMORY)")
+	} else if a.metadata.DisableWAL || isReadOnly {
+		// Set the journaling mode to "DELETE" (the default) if WAL is disabled or if the database is read-only
+		qs["_pragma"] = append(qs["_pragma"], "journal_mode(DELETE)")
+	} else {
+		// Enable WAL
+		qs["_pragma"] = append(qs["_pragma"], "journal_mode(WAL)")
+	}
+
+	// Build the final connection string
+	connString := a.metadata.ConnectionString
+	if idx > 0 {
+		connString = connString[:idx]
+	}
+	connString += "?" + qs.Encode()
+
+	// If the connection string doesn't begin with "file:", add the prefix
+	if !strings.HasPrefix(lc, "file:") {
+		a.logger.Debug("prefix 'file:' added to the connection string")
+		connString = "file:" + connString
+	}
+
+	return connString, nil
+}
+
+func (a *sqliteDBAccess) Ping(parentCtx context.Context) error {
 	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
 	err := a.db.PingContext(ctx)
 	cancel()
@@ -114,9 +219,6 @@ func (a *sqliteDBAccess) Ping(parentCtx context.Context) error {
 }
 
 func (a *sqliteDBAccess) Get(parentCtx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-
 	if req.Key == "" {
 		return nil, errors.New("missing key in get operation")
 	}
@@ -167,9 +269,6 @@ func (a *sqliteDBAccess) Get(parentCtx context.Context, req *state.GetRequest) (
 }
 
 func (a *sqliteDBAccess) Set(ctx context.Context, req *state.SetRequest) error {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-
 	return a.doSet(ctx, a.db, req)
 }
 
@@ -282,16 +381,10 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 }
 
 func (a *sqliteDBAccess) Delete(ctx context.Context, req *state.DeleteRequest) error {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-
 	return a.doDelete(ctx, a.db, req)
 }
 
 func (a *sqliteDBAccess) ExecuteMulti(parentCtx context.Context, reqs []state.TransactionalStateOperation) error {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-
 	tx, err := a.db.BeginTx(parentCtx, nil)
 	if err != nil {
 		return err
@@ -336,63 +429,6 @@ func (a *sqliteDBAccess) Close() error {
 	return nil
 }
 
-// Create table if not exists.
-func (a *sqliteDBAccess) ensureStateTable(parentCtx context.Context, stateTableName string) error {
-	exists, err := a.tableExists(parentCtx)
-	if err != nil || exists {
-		return err
-	}
-
-	a.logger.Infof("Creating SQLite state table '%s'", stateTableName)
-
-	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
-	defer cancel()
-
-	tx, err := a.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	stmt := fmt.Sprintf(
-		`CREATE TABLE %s (
-			key TEXT NOT NULL PRIMARY KEY,
-			value TEXT NOT NULL,
-			is_binary BOOLEAN NOT NULL,
-			etag TEXT NOT NULL,
-			expiration_time TIMESTAMP DEFAULT NULL,
-			update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)`,
-		stateTableName,
-	)
-	_, err = tx.Exec(stmt)
-	if err != nil {
-		return err
-	}
-
-	stmt = fmt.Sprintf(`CREATE INDEX idx_%s_expiration_time ON %s (expiration_time)`, stateTableName, stateTableName)
-	_, err = tx.Exec(stmt)
-	if err != nil {
-		return err
-	}
-
-	return tx.Commit()
-}
-
-// Check if table exists.
-func (a *sqliteDBAccess) tableExists(parentCtx context.Context) (bool, error) {
-	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
-	defer cancel()
-
-	var exists string
-	// Returns 1 or 0 as a string if the table exists or not.
-	const q = `SELECT EXISTS (
-		SELECT name FROM sqlite_master WHERE type='table' AND name = ?
-	) AS 'exists'`
-	err := a.db.QueryRowContext(ctx, q, a.metadata.TableName).Scan(&exists)
-	return exists == "1", err
-}
-
 func (a *sqliteDBAccess) doDelete(parentCtx context.Context, db querier, req *state.DeleteRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
@@ -435,39 +471,50 @@ func (a *sqliteDBAccess) doDelete(parentCtx context.Context, db querier, req *st
 }
 
 func (a *sqliteDBAccess) scheduleCleanupExpiredData() {
-	if a.metadata.cleanupInterval == nil {
+	if a.metadata.CleanupInterval <= 0 {
 		return
 	}
 
-	d := *a.metadata.cleanupInterval
-	a.logger.Infof("Schedule expired data clean up every %v", d)
+	a.logger.Infof("Schedule expired data clean up every %v", a.metadata.CleanupInterval)
 
-	ticker := time.NewTicker(d)
 	go func() {
+		ticker := time.NewTicker(a.metadata.CleanupInterval)
+		defer ticker.Stop()
+
+		var err error
 		for {
 			select {
 			case <-ticker.C:
-				a.cleanupTimeout()
+				err = a.CleanupExpired()
+				if err != nil {
+					a.logger.Errorf("Error removing expired data: %v", err)
+				}
 			case <-a.ctx.Done():
+				a.logger.Debug("Stopped background cleanup of expired data")
 				return
 			}
 		}
 	}()
 }
 
-func (a *sqliteDBAccess) cleanupTimeout() {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-
-	ctx, cancel := context.WithTimeout(a.ctx, a.metadata.timeout)
-	defer cancel()
-
-	tx, err := a.db.BeginTx(ctx, nil)
+func (a *sqliteDBAccess) CleanupExpired() error {
+	tx, err := a.db.Begin()
 	if err != nil {
-		a.logger.Errorf("Error removing expired data: failed to begin transaction: %v", err)
-		return
+		return fmt.Errorf("failed to start transaction: %w", err)
 	}
 	defer tx.Rollback()
+
+	// Check if the last iteration was too recent
+	// This performs an atomic operation, so allows coordination with other daprd processes too
+	// We do this before beginning the transaction
+	canContinue, err := a.UpdateLastCleanup(tx, a.metadata.CleanupInterval)
+	if err != nil {
+		return fmt.Errorf("failed to read last cleanup time from database: %w", err)
+	}
+	if !canContinue {
+		a.logger.Debug("Last cleanup was performed too recently")
+		return nil
+	}
 
 	// Sprintf is required for table name because sql.DB does not substitute parameters for table names
 	//nolint:gosec
@@ -478,23 +525,60 @@ func (a *sqliteDBAccess) cleanupTimeout() {
 			AND expiration_time < CURRENT_TIMESTAMP`,
 		a.metadata.TableName,
 	)
+	// Not we're not using a context here because this query can take a bit of time, especially if there's no index on expiration_time
 	res, err := tx.Exec(stmt)
 	if err != nil {
-		a.logger.Errorf("Error removing expired data: failed to execute query: %v", err)
-		return
+		return fmt.Errorf("failed to execute query: %w", err)
 	}
 
 	cleaned, err := res.RowsAffected()
 	if err != nil {
-		a.logger.Errorf("Error removing expired data: failed to count affected rows: %v", err)
-		return
+		return fmt.Errorf("failed to count affected rows: %w", err)
 	}
 
+	// Commit
 	err = tx.Commit()
 	if err != nil {
-		a.logger.Errorf("Error removing expired data: failed to commit transaction: %v", err)
-		return
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	a.logger.Debugf("Removed %d expired rows", cleaned)
+	a.logger.Infof("Removed %d expired rows", cleaned)
+	return nil
+}
+
+// UpdateLastCleanup sets the 'last-cleanup' value only if it's less than cleanupInterval.
+// Returns true if the row was updated, which means that the cleanup can proceed.
+func (a *sqliteDBAccess) UpdateLastCleanup(db querier, cleanupInterval time.Duration) (bool, error) {
+	queryCtx, cancel := context.WithTimeout(a.ctx, a.metadata.timeout)
+	defer cancel()
+	res, err := db.ExecContext(queryCtx,
+		fmt.Sprintf(`INSERT INTO %s (key, value)
+		VALUES ('last-cleanup', CURRENT_TIMESTAMP)
+		ON CONFLICT (key)
+		DO UPDATE SET value = CURRENT_TIMESTAMP
+			WHERE (unixepoch(CURRENT_TIMESTAMP) - unixepoch(value)) > 1;`,
+			a.metadata.MetadataTableName),
+		cleanupInterval.Milliseconds()-100, // Subtract 100ms for some buffer
+	)
+	if err != nil {
+		return false, fmt.Errorf("failed to execute query: %w", err)
+	}
+
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("failed to retrieve affected row count: %w", err)
+	}
+	return n > 0, nil
+}
+
+// GetConnection returns the database connection object.
+// This is primarily used for tests.
+func (a *sqliteDBAccess) GetConnection() *sql.DB {
+	return a.db
+}
+
+// GetCleanupInterval returns the cleanupInterval property.
+// This is primarily used for tests.
+func (a *sqliteDBAccess) GetCleanupInterval() time.Duration {
+	return a.metadata.CleanupInterval
 }

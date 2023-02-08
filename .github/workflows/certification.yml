@@ -61,6 +61,7 @@ jobs:
         - state.cassandra
         - state.memcached
         - state.mysql
+        - state.sqlite
         - bindings.alicloud.dubbo
         - bindings.kafka
         - bindings.redis

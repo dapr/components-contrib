@@ -195,6 +195,14 @@ async function cmdOkToTest(github, issue, isFromPulls) {
             client_payload: testPayload,
         });
 
+        // Fire repository_dispatch event to trigger unit tests for other architectures and OS
+        await github.rest.repos.createDispatchEvent({
+            owner: issue.owner,
+            repo: issue.repo,
+            event_type: "build-all",
+            client_payload: testPayload,
+        });
+
         console.log(`[cmdOkToTest] triggered certification and conformance tests for ${JSON.stringify(testPayload)}`);
     }
 }

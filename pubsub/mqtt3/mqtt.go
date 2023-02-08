@@ -296,45 +296,6 @@ func (m *mqttPubSub) connect(ctx context.Context) error {
 	return nil
 }
 
-// Forcefully closes the connection and, after a delay, reconnects
-func (m *mqttPubSub) ResetConection(ctx context.Context) {
-	const reconnectDelay = 30 * time.Second
-
-	// Do not reconnect if there's already one attempt in progress
-	select {
-	case m.reconnectCh <- struct{}{}:
-		// nop
-	default:
-		// Already a reconnection attempt in progress, so abort
-		return
-	}
-
-	// Disconnect
-	m.logger.Info("Closing connection with broker… will reconnect in " + reconnectDelay.String())
-	m.conn.Disconnect(100)
-
-	for ctx.Err() == nil {
-		time.Sleep(reconnectDelay)
-
-		// Check for context cancelation before reconnecting, since we slept
-		if ctx.Err() != nil {
-			return
-		}
-
-		m.logger.Debug("Reconnecting…")
-		err := m.connect(ctx)
-		if err != nil {
-			m.logger.Errorf("Failed to reconnect, will retry in " + reconnectDelay.String())
-		} else {
-			m.logger.Info("Connection with broker re-established")
-			break
-		}
-	}
-
-	// Release the reconnection token
-	<-m.reconnectCh
-}
-
 func (m *mqttPubSub) createClientOptions(uri *url.URL, clientID string) *mqtt.ClientOptions {
 	opts := mqtt.NewClientOptions().
 		SetClientID(clientID).

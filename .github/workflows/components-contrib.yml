@@ -42,31 +42,10 @@ jobs:
         if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
         uses: actions/checkout@v3
       - name: Cache Go modules (Linux)
-        if: matrix.target_os == 'linux'
         uses: actions/cache@v3
         with:
           path: |
             ~/.cache/go-build
-            ~/go/pkg/mod
-          key: linux-amd64-go-${{ env.GOVER }}-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            linux-amd64-go-${{ env.GOVER }}-
-      - name: Cache Go modules (Windows)
-        if: matrix.target_os == 'windows'
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~\AppData\Local\go-build
-            ~\go\pkg\mod
-          key: linux-amd64-go-${{ env.GOVER }}-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            linux-amd64-go-${{ env.GOVER }}-
-      - name: Cache Go modules (macOS)
-        if: matrix.target_os == 'darwin'
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/Library/Caches/go-build
             ~/go/pkg/mod
           key: linux-amd64-go-${{ env.GOVER }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |

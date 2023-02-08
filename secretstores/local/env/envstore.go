@@ -47,6 +47,8 @@ func (s *envSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecr
 	var value string
 	if s.isKeyAllowed(req.Name) {
 		value = os.Getenv(req.Name)
+	} else {
+		s.logger.Warnf("Access to env var %s is forbidden", req.Name)
 	}
 	return secretstores.GetSecretResponse{
 		Data: map[string]string{

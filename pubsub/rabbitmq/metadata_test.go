@@ -449,8 +449,8 @@ func TestConnectionURI(t *testing.T) {
 			expectedOutput: "amqps://testusername:testpassword@localhost",
 		},
 		{
-			args:           map[string]string{"protocol": "amqps_external", "hostname": "localhost", "caCert": getFakeCaCert(), "clientCert": getFakeClientCert(), "clientKey": getFakeClientKey()},
-			expectedOutput: "amqps_external://localhost",
+			args:           map[string]string{"protocol": "amqps", "hostname": "localhost", "saslExternal": "true", "caCert": getFakeCaCert(), "clientCert": getFakeClientCert(), "clientKey": getFakeClientKey()},
+			expectedOutput: "amqps://localhost",
 		},
 		// legacy argument
 		{

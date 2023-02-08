@@ -61,7 +61,7 @@ type rabbitMQ struct {
 	ctx               context.Context
 	cancel            context.CancelFunc
 
-	connectionDial func(protocol, uri string, tlsCfg *tls.Config) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error)
+	connectionDial func(protocol, uri string, tlsCfg *tls.Config, externalSasl bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error)
 
 	logger logger.Logger
 }
@@ -98,7 +98,7 @@ func NewRabbitMQ(logger logger.Logger) pubsub.PubSub {
 	}
 }
 
-func dial(protocol, uri string, tlsCfg *tls.Config) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
+func dial(protocol, uri string, tlsCfg *tls.Config, externalSasl bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
 	var (
 		conn *amqp.Connection
 		ch   *amqp.Channel
@@ -106,9 +106,11 @@ func dial(protocol, uri string, tlsCfg *tls.Config) (rabbitMQConnectionBroker, r
 	)
 
 	if protocol == protocolAMQPS {
-		conn, err = amqp.DialTLS(uri, tlsCfg)
-	} else if protocol == protocolAMQPS_external {
-		conn, err = amqp.DialTLS_ExternalAuth(uri, tlsCfg)
+		if externalSasl {
+			conn, err = amqp.DialTLS_ExternalAuth(uri, tlsCfg)
+		} else {
+			conn, err = amqp.DialTLS(uri, tlsCfg)
+		}
 	} else {
 		conn, err = amqp.Dial(uri)
 	}
@@ -170,7 +172,7 @@ func (r *rabbitMQ) reconnect(connectionCount int) error {
 		return err
 	}
 
-	r.connection, r.channel, err = r.connectionDial(r.metadata.protocol, r.metadata.connectionURI(), tlsCfg)
+	r.connection, r.channel, err = r.connectionDial(r.metadata.protocol, r.metadata.connectionURI(), tlsCfg, r.metadata.saslExternal)
 	if err != nil {
 		r.reset()
 

@@ -208,7 +208,7 @@ func TestSQLite(t *testing.T) {
 		ctx.T.Run("parse cleanupIntervalInSeconds", func(t *testing.T) {
 			t.Run("default value", func(t *testing.T) {
 				// Default value is disabled
-				md.Properties[keyCleanupInterval] = ""
+				delete(md.Properties, keyCleanupInterval)
 				storeObj := state_sqlite.NewSQLiteStateStore(log).(*state_sqlite.SQLiteStore)
 
 				err := storeObj.Init(md)

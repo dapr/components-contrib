@@ -160,7 +160,7 @@ func TestGetConnectionString(t *testing.T) {
 		logDest.Reset()
 		db.metadata.reset()
 		db.metadata.ConnectionString = "file:test.db"
-		db.metadata.busyTimeout = time.Second
+		db.metadata.BusyTimeout = time.Second
 
 		connString, err := db.getConnectionString()
 		require.NoError(t, err)

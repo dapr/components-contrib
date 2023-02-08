@@ -35,20 +35,19 @@ const (
 )
 
 type sqliteMetadataStruct struct {
-	ConnectionString   string `json:"connectionString" mapstructure:"connectionString"`
-	TableName          string `json:"tableName" mapstructure:"tableName"`
-	MetadataTableName  string `json:"metadataTableName" mapstructure:"metadataTableName"`
-	TimeoutInSeconds   string `json:"timeoutInSeconds" mapstructure:"timeoutInSeconds"`
-	CleanupIntervalStr string `json:"cleanupInterval" mapstructure:"cleanupInterval"` // Cleanup interval as a time.Duration string
-	BusyTimeoutStr     string `json:"busyTimeout" mapstructure:"busyTimeout"`         // Busy timeout as a time.Duration string
-	DisableWAL         bool   `json:"disableWAL" mapstructure:"disableWAL"`           // Disable WAL journaling. You should not use WAL if the database is stored on a network filesystem (or data corruption may happen). This is ignored if the database is in-memory.
+	ConnectionString  string        `json:"connectionString" mapstructure:"connectionString"`
+	TableName         string        `json:"tableName" mapstructure:"tableName"`
+	MetadataTableName string        `json:"metadataTableName" mapstructure:"metadataTableName"`
+	TimeoutInSeconds  string        `json:"timeoutInSeconds" mapstructure:"timeoutInSeconds"`
+	CleanupInterval   time.Duration `json:"cleanupInterval" mapstructure:"cleanupInterval"`
+	BusyTimeout       time.Duration `json:"busyTimeout" mapstructure:"busyTimeout"`
+	DisableWAL        bool          `json:"disableWAL" mapstructure:"disableWAL"` // Disable WAL journaling. You should not use WAL if the database is stored on a network filesystem (or data corruption may happen). This is ignored if the database is in-memory.
 
 	// Deprecated properties, maintained for backwards-compatibility
 	CleanupIntervalInSeconds string `json:"cleanupIntervalInSeconds" mapstructure:"cleanupIntervalInSeconds"`
 
-	timeout         time.Duration
-	cleanupInterval time.Duration
-	busyTimeout     time.Duration
+	// Internal properties
+	timeout time.Duration
 }
 
 func (m *sqliteMetadataStruct) InitWithMetadata(meta state.Metadata) error {
@@ -81,19 +80,9 @@ func (m *sqliteMetadataStruct) InitWithMetadata(meta state.Metadata) error {
 		m.timeout = time.Duration(timeoutInSec) * time.Second
 	}
 
-	// Cleanup interval
-	// Nil duration means never clean up expired data
-	if m.CleanupIntervalStr != "" {
-		parsed, err := time.ParseDuration(m.CleanupIntervalStr)
-		if err != nil {
-			return fmt.Errorf("invalid value for 'cleanupInterval': %s", m.CleanupIntervalStr)
-		}
-
-		// Non-positive value from meta means disable auto cleanup.
-		if parsed > 0 {
-			m.cleanupInterval = parsed
-		}
-	} else if m.CleanupIntervalInSeconds != "" {
+	// Legacy "CleanupIntervalInSeconds" property
+	// Non-positive duration means never clean up expired data
+	if v := meta.Properties["cleanupInterval"]; v == "" && m.CleanupIntervalInSeconds != "" {
 		cleanupIntervalInSec, err := strconv.ParseInt(m.CleanupIntervalInSeconds, 10, 0)
 		if err != nil {
 			return fmt.Errorf("invalid value for 'cleanupIntervalInSeconds': %s", m.CleanupIntervalInSeconds)
@@ -101,20 +90,13 @@ func (m *sqliteMetadataStruct) InitWithMetadata(meta state.Metadata) error {
 
 		// Non-positive value from meta means disable auto cleanup.
 		if cleanupIntervalInSec > 0 {
-			m.cleanupInterval = time.Duration(cleanupIntervalInSec) * time.Second
+			m.CleanupInterval = time.Duration(cleanupIntervalInSec) * time.Second
 		}
 	}
 
 	// Busy timeout
-	// Values must be in milliseconds. Values <= 0 do not set any timeout
-	if m.BusyTimeoutStr != "" {
-		parsed, err := time.ParseDuration(m.BusyTimeoutStr)
-		parsed = parsed.Truncate(time.Millisecond)
-		if err != nil || parsed < 0 {
-			return fmt.Errorf("invalid value for 'busyTimeout': %s", m.BusyTimeoutStr)
-		}
-		m.busyTimeout = parsed
-	}
+	// Truncate values to milliseconds. Values <= 0 do not set any timeout
+	m.BusyTimeout = m.BusyTimeout.Truncate(time.Millisecond)
 
 	return nil
 }
@@ -125,15 +107,13 @@ func (m *sqliteMetadataStruct) reset() {
 	m.TableName = defaultTableName
 	m.MetadataTableName = defaultMetadataTableName
 	m.TimeoutInSeconds = ""
-	m.CleanupIntervalStr = ""
-	m.BusyTimeoutStr = ""
+	m.CleanupInterval = defaultCleanupInternal
+	m.BusyTimeout = defaultBusyTimeout
 	m.DisableWAL = false
 
 	m.CleanupIntervalInSeconds = ""
 
 	m.timeout = defaultTimeout
-	m.cleanupInterval = defaultCleanupInternal
-	m.busyTimeout = defaultBusyTimeout
 }
 
 // Validates an identifier, such as table or DB name.

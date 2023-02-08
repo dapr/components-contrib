@@ -181,8 +181,8 @@ func (a *sqliteDBAccess) getConnectionString() (string, error) {
 			}
 		}
 	}
-	if a.metadata.busyTimeout > 0 {
-		qs["_pragma"] = append(qs["_pragma"], fmt.Sprintf("busy_timeout(%d)", a.metadata.busyTimeout.Milliseconds()))
+	if a.metadata.BusyTimeout > 0 {
+		qs["_pragma"] = append(qs["_pragma"], fmt.Sprintf("busy_timeout(%d)", a.metadata.BusyTimeout.Milliseconds()))
 	}
 	if isMemoryDB {
 		// For in-memory databases, set the journal to MEMORY, the only allowed option besides OFF (which would make transactions ineffective)
@@ -471,14 +471,14 @@ func (a *sqliteDBAccess) doDelete(parentCtx context.Context, db querier, req *st
 }
 
 func (a *sqliteDBAccess) scheduleCleanupExpiredData() {
-	if a.metadata.cleanupInterval <= 0 {
+	if a.metadata.CleanupInterval <= 0 {
 		return
 	}
 
-	a.logger.Infof("Schedule expired data clean up every %v", a.metadata.cleanupInterval)
+	a.logger.Infof("Schedule expired data clean up every %v", a.metadata.CleanupInterval)
 
 	go func() {
-		ticker := time.NewTicker(a.metadata.cleanupInterval)
+		ticker := time.NewTicker(a.metadata.CleanupInterval)
 		defer ticker.Stop()
 
 		var err error
@@ -507,7 +507,7 @@ func (a *sqliteDBAccess) CleanupExpired() error {
 	// Check if the last iteration was too recent
 	// This performs an atomic operation, so allows coordination with other daprd processes too
 	// We do this before beginning the transaction
-	canContinue, err := a.UpdateLastCleanup(tx, a.metadata.cleanupInterval)
+	canContinue, err := a.UpdateLastCleanup(tx, a.metadata.CleanupInterval)
 	if err != nil {
 		return fmt.Errorf("failed to read last cleanup time from database: %w", err)
 	}
@@ -580,5 +580,5 @@ func (a *sqliteDBAccess) GetConnection() *sql.DB {
 // GetCleanupInterval returns the cleanupInterval property.
 // This is primarily used for tests.
 func (a *sqliteDBAccess) GetCleanupInterval() time.Duration {
-	return a.metadata.cleanupInterval
+	return a.metadata.CleanupInterval
 }

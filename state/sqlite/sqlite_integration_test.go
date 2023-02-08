@@ -61,10 +61,6 @@ func TestSqliteIntegration(t *testing.T) {
 		t.Fatal(initerror)
 	}
 
-	t.Run("Create table succeeds", func(t *testing.T) {
-		testCreateTable(t, s.dbaccess.(*sqliteDBAccess))
-	})
-
 	t.Run("Get Set Delete one item", func(t *testing.T) {
 		setGetUpdateDeleteOneItem(t, s)
 	})
@@ -178,38 +174,6 @@ func setGetUpdateDeleteOneItem(t *testing.T, s *SQLiteStore) {
 	assert.Equal(t, newValue, outputObject)
 
 	deleteItem(t, s, key, getResponse.ETag)
-}
-
-// testCreateTable tests the ability to create the state table.
-func testCreateTable(t *testing.T, dba *sqliteDBAccess) {
-	tableName := "test_state_creation"
-	oldTableName := dba.metadata.TableName
-	dba.metadata.TableName = tableName
-	defer func() {
-		dba.metadata.TableName = oldTableName
-	}()
-
-	// Drop the table if it already exists.
-	exists, err := dba.tableExists(context.Background())
-	assert.NoError(t, err)
-	if exists {
-		dropTable(t, dba.db, tableName)
-	}
-
-	// Create the state table and test for its existence.
-	err = dba.ensureStateTable(context.Background(), tableName)
-	assert.NoError(t, err)
-	exists, err = dba.tableExists(context.Background())
-	assert.NoError(t, err)
-	assert.True(t, exists)
-
-	// Drop the state table.
-	dropTable(t, dba.db, tableName)
-}
-
-func dropTable(t *testing.T, db *sql.DB, tableName string) {
-	_, err := db.Exec("DROP TABLE " + tableName)
-	assert.NoError(t, err)
 }
 
 func deleteItemThatDoesNotExist(t *testing.T, s *SQLiteStore) {

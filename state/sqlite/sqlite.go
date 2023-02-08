@@ -126,3 +126,9 @@ func (s *SQLiteStore) Close() error {
 
 	return nil
 }
+
+// Returns the dbaccess property.
+// This method is used in tests.
+func (s *SQLiteStore) GetDBAccess() *sqliteDBAccess {
+	return s.dbaccess.(*sqliteDBAccess)
+}

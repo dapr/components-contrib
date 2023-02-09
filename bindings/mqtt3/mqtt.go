@@ -295,7 +295,7 @@ func (m *MQTT) createClientOptions(uri *url.URL, clientID string) *mqtt.ClientOp
 
 func (m *MQTT) handleMessage() func(client mqtt.Client, mqttMsg mqtt.Message) {
 	return func(client mqtt.Client, mqttMsg mqtt.Message) {
-		var bo backoff.BackOff = m.backOff
+		bo := m.backOff
 		if m.metadata.backOffMaxRetries >= 0 {
 			bo = backoff.WithMaxRetries(bo, uint64(m.metadata.backOffMaxRetries))
 		}

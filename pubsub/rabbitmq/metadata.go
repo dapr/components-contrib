@@ -15,6 +15,7 @@ package rabbitmq
 
 import (
 	"fmt"
+	"github.com/dapr/components-contrib/internal/utils"
 	"net/url"
 	"strconv"
 	"time"
@@ -227,12 +228,11 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*metadat
 	}
 
 	if val, found := pubSubMetadata.Properties[metadataSaslExternal]; found && val != "" {
-		if boolVal, err := strconv.ParseBool(val); err == nil {
-			if boolVal && (result.TLSProperties.CACert == "" || result.TLSProperties.ClientCert == "" || result.TLSProperties.ClientKey == "") {
-				return &result, fmt.Errorf("%s can only be set to true, when all these properties are set: %s, %s, %s", metadataSaslExternal, pubsub.CACert, pubsub.ClientCert, pubsub.ClientKey)
-			}
-			result.saslExternal = boolVal
+		boolVal := utils.IsTruthy(val)
+		if boolVal && (result.TLSProperties.CACert == "" || result.TLSProperties.ClientCert == "" || result.TLSProperties.ClientKey == "") {
+			return &result, fmt.Errorf("%s can only be set to true, when all these properties are set: %s, %s, %s", metadataSaslExternal, pubsub.CACert, pubsub.ClientCert, pubsub.ClientKey)
 		}
+		result.saslExternal = boolVal
 	}
 
 	c, err := pubsub.Concurrency(pubSubMetadata.Properties)

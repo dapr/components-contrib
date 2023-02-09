@@ -214,7 +214,7 @@ func TestParseMetadata(t *testing.T) {
 			return r.Data, nil
 		}
 
-		m.handleMessage(context.Background())(nil, &mqttMockMessage{
+		m.handleMessage()(nil, &mqttMockMessage{
 			topic:   topic,
 			payload: payload,
 		})

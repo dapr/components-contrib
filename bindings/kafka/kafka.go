@@ -109,27 +109,15 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 	b.wg.Add(1)
 	go func() {
 		defer b.wg.Done()
-		// Wait for context cancelation
+		// Wait for context cancelation or closure.
 		select {
 		case <-ctx.Done():
 		case <-b.closeCh:
 		}
 
-		// Remove the topic handler before restarting the subscriber
+		// Remove the topic handlers.
 		for _, t := range b.topics {
 			b.kafka.RemoveTopicHandler(t)
-		}
-
-		// If the component has been stopped, do not re-subscribe
-		select {
-		case <-b.closeCh:
-			return
-		default:
-		}
-
-		err := b.kafka.Subscribe(ctx)
-		if err != nil {
-			b.logger.Errorf("kafka binding: error re-subscribing: %v", err)
 		}
 	}()
 

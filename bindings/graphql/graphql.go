@@ -168,6 +168,12 @@ func (gql *GraphQL) runRequest(ctx context.Context, requestKey string, req *bind
 		}
 	}
 
+	for k, v := range req.Metadata {
+		if strings.HasPrefix(k, "variable:") {
+			request.Var(strings.TrimPrefix(k, "variable:"), v)
+		}
+	}
+
 	if err := gql.client.Run(ctx, request, response); err != nil {
 		return fmt.Errorf("GraphQL Error: %w", err)
 	}

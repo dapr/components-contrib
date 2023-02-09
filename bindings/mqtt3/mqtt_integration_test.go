@@ -83,7 +83,7 @@ func TestInvokeWithTopic(t *testing.T) {
 	err := r.Init(ctx, metadata)
 	assert.Nil(t, err)
 
-	conn, err := r.connect(ctx, uuid.NewString(), false)
+	conn, err := r.connect(uuid.NewString(), false)
 	assert.Nil(t, err)
 	defer conn.Disconnect(1)
 

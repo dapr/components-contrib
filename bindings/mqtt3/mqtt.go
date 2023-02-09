@@ -73,7 +73,7 @@ func (m *MQTT) Operations() []bindings.OperationKind {
 	}
 }
 
-func (m *MQTT) getProducer(ctx context.Context) (mqtt.Client, error) {
+func (m *MQTT) getProducer() (mqtt.Client, error) {
 	// Get the producer from the cache
 	m.producerLock.RLock()
 	producer := m.producer
@@ -94,7 +94,7 @@ func (m *MQTT) getProducer(ctx context.Context) (mqtt.Client, error) {
 
 	// mqtt broker allows only one connection at a given time from a clientID.
 	producerClientID := fmt.Sprintf("%s-producer", m.metadata.clientID)
-	p, err := m.connect(ctx, producerClientID, false)
+	p, err := m.connect(producerClientID, false)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func (m *MQTT) getProducer(ctx context.Context) (mqtt.Client, error) {
 }
 
 func (m *MQTT) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	producer, err := m.getProducer(ctx)
+	producer, err := m.getProducer()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create producer connection: %w", err)
 	}
@@ -172,7 +172,7 @@ func (m *MQTT) Read(ctx context.Context, handler bindings.Handler) error {
 
 	// Establish the connection
 	// This will also create the subscription in the OnConnect handler
-	consumer, err := m.connect(ctx, consumerClientID, true)
+	consumer, err := m.connect(consumerClientID, true)
 	if err != nil {
 		return err
 	}
@@ -200,7 +200,7 @@ func (m *MQTT) Read(ctx context.Context, handler bindings.Handler) error {
 	return nil
 }
 
-func (m *MQTT) connect(ctx context.Context, clientID string, isSubscriber bool) (mqtt.Client, error) {
+func (m *MQTT) connect(clientID string, isSubscriber bool) (mqtt.Client, error) {
 	uri, err := url.Parse(m.metadata.url)
 	if err != nil {
 		return nil, err
@@ -213,14 +213,12 @@ func (m *MQTT) connect(ctx context.Context, clientID string, isSubscriber bool) 
 	}
 	client := mqtt.NewClient(opts)
 
-	ctx, cancel := context.WithTimeout(ctx, defaultWait)
-	defer cancel()
 	token := client.Connect()
 	select {
 	case <-token.Done():
 		err = token.Error()
-	case <-ctx.Done():
-		err = ctx.Err()
+	case <-time.After(defaultWait):
+		err = errors.New("mqtt client timed out connecting")
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect: %w", err)

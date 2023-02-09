@@ -1,4 +1,4 @@
-# RabbitMQ certifcation testing
+# RabbitMQ certification testing
 
 This project aims to test the RabbitMQ Pub/Sub component under various conditions.
 

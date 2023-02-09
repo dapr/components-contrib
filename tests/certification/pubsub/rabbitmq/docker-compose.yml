@@ -1,5 +1,15 @@
 version: "3.7"
 services:
+  rabbitmq_external_sasl:
+    image: rabbitmq_external_sasl
+    build: ./docker_sasl_external
+    container_name: 'rabbitmq_external_sasl'
+    ports:
+    - 5671:5671
+    - 15673:15672
+    networks:
+    - rabbitmq_go_net
+    hostname: rmq_e
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: 'rabbitmq'

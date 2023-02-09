@@ -175,7 +175,8 @@ func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPubli
 
 func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	sub := impl.NewSubscription(
-		subscribeCtx, impl.SubsriptionOptions{
+		subscribeCtx,
+		impl.SubsriptionOptions{
 			MaxActiveMessages:     a.metadata.MaxActiveMessages,
 			TimeoutInSec:          a.metadata.TimeoutInSec,
 			MaxBulkSubCount:       nil,
@@ -205,7 +206,8 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.BulkHandler) error {
 	maxBulkSubCount := utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxMessagesCount, defaultMaxBulkSubCount)
 	sub := impl.NewSubscription(
-		subscribeCtx, impl.SubsriptionOptions{
+		subscribeCtx,
+		impl.SubsriptionOptions{
 			MaxActiveMessages:     a.metadata.MaxActiveMessages,
 			TimeoutInSec:          a.metadata.TimeoutInSec,
 			MaxBulkSubCount:       &maxBulkSubCount,

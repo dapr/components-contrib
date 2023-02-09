@@ -177,7 +177,8 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 	maxConcurrentSessions := utils.GetElemOrDefaultFromMap(req.Metadata, impl.MaxConcurrentSessionsMetadataKey, impl.DefaultMaxConcurrentSessions)
 
 	sub := impl.NewSubscription(
-		subscribeCtx, impl.SubsriptionOptions{
+		subscribeCtx,
+		impl.SubsriptionOptions{
 			MaxActiveMessages:     a.metadata.MaxActiveMessages,
 			TimeoutInSec:          a.metadata.TimeoutInSec,
 			MaxBulkSubCount:       nil,
@@ -215,7 +216,8 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 
 	maxBulkSubCount := utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxMessagesCount, defaultMaxBulkSubCount)
 	sub := impl.NewSubscription(
-		subscribeCtx, impl.SubsriptionOptions{
+		subscribeCtx,
+		impl.SubsriptionOptions{
 			MaxActiveMessages:     a.metadata.MaxActiveMessages,
 			TimeoutInSec:          a.metadata.TimeoutInSec,
 			MaxBulkSubCount:       &maxBulkSubCount,

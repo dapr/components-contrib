@@ -228,11 +228,14 @@ func (s *Subscription) ReceiveBlocking(handler HandlerFn, receiver Receiver, onF
 		l := len(msgs)
 		if l == 0 {
 			// We got no message, which is unusual too
+			// Treat this as error
 			s.logger.Warn("Received 0 messages from Service Bus")
 			<-s.activeOperationsChan
 			// Return an error to force the Service Bus component to try and reconnect.
 			return errors.New("received 0 messages from Service Bus")
-		} else if l > 1 {
+		}
+
+		if l > 1 {
 			// We are requesting one message only; this should never happen
 			s.logger.Errorf("Expected one message from Service Bus, but received %d", l)
 		}
@@ -247,7 +250,8 @@ func (s *Subscription) ReceiveBlocking(handler HandlerFn, receiver Receiver, onF
 
 		skipProcessing := false
 		for _, msg := range msgs {
-			if err = s.addActiveMessage(msg); err != nil {
+			err = s.addActiveMessage(msg)
+			if err != nil {
 				// If we cannot add the message then sequence number is not set, this must
 				// be a bug in the Azure Service Bus SDK so we will log the error and not
 				// handle the message. The message will eventually be retried until fixed.
@@ -301,17 +305,18 @@ func (s *Subscription) ReceiveBlocking(handler HandlerFn, receiver Receiver, onF
 					if resp.Error != nil {
 						// Log the error only, as we're running asynchronously.
 						s.logger.Errorf("App handler returned an error for message %s on %s: %s", msgs[i].MessageID, s.entity, resp.Error)
-						s.AbandonMessage(finalizeCtx, receiver, msgs[i])
+						go s.AbandonMessage(finalizeCtx, receiver, msgs[i])
 					} else {
-						s.CompleteMessage(finalizeCtx, receiver, msgs[i])
+						go s.CompleteMessage(finalizeCtx, receiver, msgs[i])
 					}
 				}
 				return
 			}
 
 			// No error, so we can complete all messages.
+			// Each message is completed in a goroutine because otherwise if we have too many messages, we may reach the timeout in finalizeCtx just by virtue of that
 			for _, msg := range msgs {
-				s.CompleteMessage(finalizeCtx, receiver, msg)
+				go s.CompleteMessage(finalizeCtx, receiver, msg)
 			}
 		}
 
@@ -487,12 +492,13 @@ func (s *Subscription) addActiveMessage(m *azservicebus.ReceivedMessage) error {
 		if !s.requireSessions {
 			s.logger.Warnf("Message %s with sequence number %d has a session ID but the subscription is not configured to require sessions", m.MessageID, *m.SequenceNumber)
 		}
-		logSuffix = fmt.Sprintf(" with session id %s", *m.SessionID)
+		logSuffix = " with session id " + *m.SessionID
 	}
 	s.logger.Debugf("Adding message %s with sequence number %d to active messages on %s%s", m.MessageID, *m.SequenceNumber, s.entity, logSuffix)
 	s.mu.Lock()
 	s.activeMessages[*m.SequenceNumber] = m
 	s.mu.Unlock()
+	s.logger.Debugf("Added message %s with sequence number %d to active messages on %s%s", m.MessageID, *m.SequenceNumber, s.entity, logSuffix)
 	return nil
 }
 
@@ -501,4 +507,5 @@ func (s *Subscription) removeActiveMessage(messageID string, messageKey int64) {
 	s.mu.Lock()
 	delete(s.activeMessages, messageKey)
 	s.mu.Unlock()
+	s.logger.Debugf("Removed message %s with sequence number %d from active messages on %s", messageID, messageKey, s.entity)
 }

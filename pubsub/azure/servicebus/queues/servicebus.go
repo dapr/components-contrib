@@ -16,9 +16,8 @@ package queues
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
-
-	"github.com/cenkalti/backoff/v4"
 
 	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
 	"github.com/dapr/components-contrib/internal/utils"
@@ -120,23 +119,26 @@ func (a *azureServiceBus) doSubscribe(
 	}
 
 	// Reconnection backoff policy
-	bo := backoff.NewExponentialBackOff()
-	bo.MaxElapsedTime = 0
-	bo.InitialInterval = time.Duration(a.metadata.MinConnectionRecoveryInSec) * time.Second
-	bo.MaxInterval = time.Duration(a.metadata.MaxConnectionRecoveryInSec) * time.Second
+	bo := a.client.ReconnectionBackoff()
 
 	go func() {
+		logMsg := fmt.Sprintf("subscription %s to queue %s", a.metadata.ConsumerID, req.Topic)
+
 		// Reconnect loop.
 		for {
 			// Blocks until a successful connection (or until context is canceled)
 			receiver, err := sub.Connect(func() (impl.Receiver, error) {
-				receiver, err := a.client.GetClient().NewReceiverForQueue(req.Topic, nil)
-				return &impl.MessageReceiver{Receiver: receiver}, err
+				a.logger.Debug("Connecting to " + logMsg)
+				r, rErr := a.client.GetClient().NewReceiverForQueue(req.Topic, nil)
+				if rErr != nil {
+					return nil, rErr
+				}
+				return impl.NewMessageReceiver(r), nil
 			})
 			if err != nil {
 				// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
 				if errors.Is(err, context.Canceled) {
-					a.logger.Errorf("Could not instantiate subscription to queue %s", req.Topic)
+					a.logger.Error("Could not instantiate subscription " + logMsg)
 				}
 				return
 			}
@@ -144,7 +146,7 @@ func (a *azureServiceBus) doSubscribe(
 			// ReceiveBlocking will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
 			// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
 			// Reset the backoff when the subscription is successful and we have received the first message
-			err = sub.ReceiveBlocking(handlerFn, receiver, bo.Reset)
+			err = sub.ReceiveBlocking(handlerFn, receiver, bo.Reset, logMsg)
 			if err != nil && !errors.Is(err, context.Canceled) {
 				a.logger.Error(err)
 			}
@@ -162,7 +164,7 @@ func (a *azureServiceBus) doSubscribe(
 			}
 
 			wait := bo.NextBackOff()
-			a.logger.Warnf("Subscription to topic %s lost connection, attempting to reconnect in %s...", req.Topic, wait)
+			a.logger.Warnf("Subscription to queue %s lost connection, attempting to reconnect in %s...", req.Topic, wait)
 			time.Sleep(wait)
 
 			// Check for context canceled again, after sleeping

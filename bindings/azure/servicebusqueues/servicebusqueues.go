@@ -20,7 +20,6 @@ import (
 	"time"
 
 	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
-	backoff "github.com/cenkalti/backoff/v4"
 
 	"github.com/dapr/components-contrib/bindings"
 	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
@@ -80,12 +79,11 @@ func (a *AzureServiceBusQueues) Invoke(ctx context.Context, req *bindings.Invoke
 
 func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindings.Handler) error {
 	// Reconnection backoff policy
-	bo := backoff.NewExponentialBackOff()
-	bo.MaxElapsedTime = 0
-	bo.InitialInterval = time.Duration(a.metadata.MinConnectionRecoveryInSec) * time.Second
-	bo.MaxInterval = time.Duration(a.metadata.MaxConnectionRecoveryInSec) * time.Second
+	bo := a.client.ReconnectionBackoff()
 
 	go func() {
+		logMsg := "queue " + a.metadata.QueueName
+
 		// Reconnect loop.
 		for {
 			sub := impl.NewSubscription(subscribeCtx, impl.SubscriptionOptions{
@@ -101,8 +99,12 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 
 			// Blocks until a successful connection (or until context is canceled)
 			receiver, err := sub.Connect(func() (impl.Receiver, error) {
-				receiver, err := a.client.GetClient().NewReceiverForQueue(a.metadata.QueueName, nil)
-				return &impl.MessageReceiver{Receiver: receiver}, err
+				a.logger.Debug("Connecting to " + logMsg)
+				r, rErr := a.client.GetClient().NewReceiverForQueue(a.metadata.QueueName, nil)
+				if rErr != nil {
+					return nil, rErr
+				}
+				return impl.NewMessageReceiver(r), nil
 			})
 			if err != nil {
 				// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
@@ -118,6 +120,7 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 				a.getHandlerFn(handler),
 				receiver,
 				bo.Reset, // Reset the backoff when the subscription is successful and we have received the first message
+				logMsg,
 			)
 			if err != nil && !errors.Is(err, context.Canceled) {
 				a.logger.Errorf("Error from receiver: %v", err)

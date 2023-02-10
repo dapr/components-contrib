@@ -55,6 +55,7 @@ type Subscription struct {
 	requireSessions      bool // read-only once set
 	sessionIdleTimeout   time.Duration
 	timeout              time.Duration
+	lockRenewalInterval  time.Duration
 	maxBulkSubCount      int
 	retriableErrLimiter  ratelimit.Limiter
 	handleChan           chan struct{}
@@ -100,15 +101,16 @@ func NewSubscription(
 	}
 
 	s := &Subscription{
-		entity:             opts.Entity,
-		activeMessages:     make(map[int64]*azservicebus.ReceivedMessage),
-		timeout:            time.Duration(opts.TimeoutInSec) * time.Second,
-		sessionIdleTimeout: opts.SessionIdleTimeout,
-		maxBulkSubCount:    *opts.MaxBulkSubCount,
-		requireSessions:    opts.RequireSessions,
-		logger:             logger,
-		ctx:                ctx,
-		cancel:             cancel,
+		entity:              opts.Entity,
+		activeMessages:      make(map[int64]*azservicebus.ReceivedMessage),
+		timeout:             time.Duration(opts.TimeoutInSec) * time.Second,
+		lockRenewalInterval: time.Duration(opts.LockRenewalInSec) * time.Second,
+		sessionIdleTimeout:  opts.SessionIdleTimeout,
+		maxBulkSubCount:     *opts.MaxBulkSubCount,
+		requireSessions:     opts.RequireSessions,
+		logger:              logger,
+		ctx:                 ctx,
+		cancel:              cancel,
 		// This is a pessimistic estimate of the number of total operations that can be active at any given time.
 		// In case of a non-bulk subscription, one operation is one message.
 		activeOperationsChan: make(chan struct{}, opts.MaxActiveMessages/(*opts.MaxBulkSubCount)),
@@ -167,9 +169,34 @@ func (s *Subscription) Connect(newReceiverFunc func() (Receiver, error)) (Receiv
 }
 
 // ReceiveBlocking is a blocking call to receive messages on an Azure Service Bus subscription from a topic or queue.
-func (s *Subscription) ReceiveBlocking(handler HandlerFn, receiver Receiver, onFirstSuccess func()) error {
+func (s *Subscription) ReceiveBlocking(handler HandlerFn, receiver Receiver, onFirstSuccess func(), logMsg string) error {
 	ctx, cancel := context.WithCancel(s.ctx)
-	defer cancel()
+
+	defer func() {
+		// Cancel the context which also stops the lock renewal loop
+		cancel()
+
+		// Close the receiver
+		s.logger.Debug("Closing message receiver for " + logMsg)
+		closeReceiverCtx, closeReceiverCancel := context.WithTimeout(context.Background(), time.Second*time.Duration(s.timeout))
+		err := receiver.Close(closeReceiverCtx)
+		if err != nil {
+			s.logger.Warn("Error while closing receiver for " + logMsg)
+		}
+		closeReceiverCancel()
+	}()
+
+	// Lock renewal loop
+	go func() {
+		s.logger.Debug("Renewing locks for " + logMsg)
+		lockErr := s.RenewLocksBlocking(ctx, receiver)
+		if lockErr != nil {
+			if !errors.Is(lockErr, context.Canceled) {
+				s.logger.Errorf("Error from lock renewal for %s: %v", logMsg, lockErr)
+			}
+		}
+		s.logger.Debug("Exiting lock renewal loop for " + logMsg)
+	}()
 
 	// Receiver loop
 	for {
@@ -267,22 +294,17 @@ func (s *Subscription) Close(closeCtx context.Context) {
 	s.cancel()
 }
 
-type LockRenewalOptions struct {
-	RenewalInSec int
-	TimeoutInSec int
-}
-
-func (s *Subscription) RenewLocksBlocking(ctx context.Context, receiver Receiver, opts LockRenewalOptions) error {
+func (s *Subscription) RenewLocksBlocking(ctx context.Context, receiver Receiver) error {
 	if receiver == nil {
 		return nil
 	}
 
-	if opts.RenewalInSec <= 0 {
+	if s.lockRenewalInterval <= 0 {
 		s.logger.Debugf("Lock renewal for %s disabled", s.entity)
 		return nil
 	}
 
-	t := time.NewTicker(time.Second * time.Duration(opts.RenewalInSec))
+	t := time.NewTicker(s.lockRenewalInterval)
 	defer t.Stop()
 	for {
 		select {
@@ -291,15 +313,15 @@ func (s *Subscription) RenewLocksBlocking(ctx context.Context, receiver Receiver
 			return nil
 		case <-t.C:
 			if s.requireSessions {
-				s.doRenewLocksSession(ctx, receiver.(*SessionReceiver), opts.TimeoutInSec)
+				s.doRenewLocksSession(ctx, receiver.(*SessionReceiver))
 			} else {
-				s.doRenewLocks(ctx, receiver.(*MessageReceiver), opts.TimeoutInSec)
+				s.doRenewLocks(ctx, receiver.(*MessageReceiver))
 			}
 		}
 	}
 }
 
-func (s *Subscription) doRenewLocks(ctx context.Context, msgReceiver *MessageReceiver, timeoutInSec int) {
+func (s *Subscription) doRenewLocks(ctx context.Context, msgReceiver *MessageReceiver) {
 	// Snapshot the messages to try to renew locks for.
 	s.mu.RLock()
 	msgs := make([]*azservicebus.ReceivedMessage, len(s.activeMessages))
@@ -315,7 +337,7 @@ func (s *Subscription) doRenewLocks(ctx context.Context, msgReceiver *MessageRec
 		return
 	}
 
-	err := msgReceiver.RenewMessageLocks(ctx, msgs, timeoutInSec)
+	err := msgReceiver.RenewMessageLocks(ctx, msgs, s.timeout)
 	if err != nil {
 		s.logger.Warnf("Error renewing message locks for %s: %v", s.entity, err)
 	} else {
@@ -323,8 +345,8 @@ func (s *Subscription) doRenewLocks(ctx context.Context, msgReceiver *MessageRec
 	}
 }
 
-func (s *Subscription) doRenewLocksSession(ctx context.Context, sessionReceiver *SessionReceiver, timeoutInSec int) {
-	err := sessionReceiver.RenewSessionLocks(ctx, timeoutInSec)
+func (s *Subscription) doRenewLocksSession(ctx context.Context, sessionReceiver *SessionReceiver) {
+	err := sessionReceiver.RenewSessionLocks(ctx, s.timeout)
 	if err != nil {
 		s.logger.Warnf("Error renewing session locks for %s: %v", s.entity, err)
 	} else {

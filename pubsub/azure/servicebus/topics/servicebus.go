@@ -182,7 +182,7 @@ func (a *azureServiceBus) Features() []pubsub.Feature {
 	}
 }
 
-func (a *azureServiceBus) connectAndReceive(subscribeCtx context.Context, req pubsub.SubscribeRequest, sub *impl.Subscription, handlerFn impl.HandlerFn, onFirstSuccess func()) error {
+func (a *azureServiceBus) connectAndReceive(subscribeCtx context.Context, req pubsub.SubscribeRequest, sub *impl.Subscription, handlerFn impl.HandlerFn, onFirstSuccess func()) {
 	defer func() {
 		// Gracefully close the connection (in case it's not closed already)
 		// Use a background context here (with timeout) because ctx may be closed already.
@@ -207,7 +207,7 @@ func (a *azureServiceBus) connectAndReceive(subscribeCtx context.Context, req pu
 		if !errors.Is(err, context.Canceled) {
 			a.logger.Error("Could not instantiate " + logMsg)
 		}
-		return nil
+		return
 	}
 
 	a.logger.Debug("Receiving messages for " + logMsg)
@@ -218,7 +218,6 @@ func (a *azureServiceBus) connectAndReceive(subscribeCtx context.Context, req pu
 	if err != nil && !errors.Is(err, context.Canceled) {
 		a.logger.Error(err)
 	}
-	return err
 }
 
 func (a *azureServiceBus) connectAndReceiveWithSessions(subscribeCtx context.Context, req pubsub.SubscribeRequest, sub *impl.Subscription, handlerFn impl.HandlerFn, onFirstSuccess func(), maxConcurrentSessions int) {

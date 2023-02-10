@@ -284,17 +284,6 @@ func (s *Subscription) renewLocksBlocking(ctx context.Context, receiver Receiver
 		return nil
 	}
 
-	// Initial delay before starting the loop
-	initial := time.NewTimer(s.lockRenewalInterval)
-	select {
-	case <-ctx.Done():
-		initial.Stop()
-		return nil
-	case <-initial.C:
-		// nop
-	}
-
-	// Start the periodic loop
 	t := time.NewTicker(s.lockRenewalInterval)
 	defer t.Stop()
 	for {

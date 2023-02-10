@@ -38,7 +38,7 @@ const (
 func (c *Client) PublishPubSub(
 	ctx context.Context,
 	req *pubsub.PublishRequest,
-	ensureMethod func(context.Context, string) error,
+	ensureFn ensureFn,
 	log logger.Logger,
 ) error {
 	msg, err := NewASBMessageFromPubsubRequest(req)
@@ -53,18 +53,9 @@ func (c *Client) PublishPubSub(
 		msgID = *msg.MessageID
 	}
 	return retry.NotifyRecover(
-		func() (err error) {
-			// Ensure the queue or topic exists the first time it is referenced
-			// This does nothing if DisableEntityManagement is true
-			// Note that the parameter is called "Topic" but it could be the name of a queue
-			err = ensureMethod(ctx, req.Topic)
-			if err != nil {
-				return err
-			}
-
+		func() error {
 			// Get the sender
-			var sender *servicebus.Sender
-			sender, err = c.GetSender(ctx, req.Topic)
+			sender, err := c.GetSender(ctx, req.Topic, ensureFn)
 			if err != nil {
 				return fmt.Errorf("failed to create a sender: %w", err)
 			}
@@ -104,7 +95,7 @@ func (c *Client) PublishPubSub(
 func (c *Client) PublishPubSubBulk(
 	ctx context.Context,
 	req *pubsub.BulkPublishRequest,
-	ensureMethod func(context.Context, string) error,
+	ensureFn ensureFn,
 	log logger.Logger,
 ) (pubsub.BulkPublishResponse, error) {
 	// If the request is empty, sender.SendMessageBatch will panic later.
@@ -114,16 +105,8 @@ func (c *Client) PublishPubSubBulk(
 		return pubsub.BulkPublishResponse{}, nil
 	}
 
-	// Ensure the queue or topic exists the first time it is referenced
-	// This does nothing if DisableEntityManagement is true
-	// Note that the parameter is called "Topic" but it could be the name of a queue
-	err := ensureMethod(ctx, req.Topic)
-	if err != nil {
-		return pubsub.NewBulkPublishResponse(req.Entries, err), err
-	}
-
 	// Get the sender
-	sender, err := c.GetSender(ctx, req.Topic)
+	sender, err := c.GetSender(ctx, req.Topic, ensureFn)
 	if err != nil {
 		return pubsub.NewBulkPublishResponse(req.Entries, err), err
 	}
@@ -169,10 +152,9 @@ func (c *Client) PublishBinding(ctx context.Context, req *bindings.InvokeRequest
 	}
 
 	err = retry.NotifyRecover(
-		func() (err error) {
+		func() error {
 			// Get the sender
-			var sender *servicebus.Sender
-			sender, err = c.GetSender(ctx, queueOrTopic)
+			sender, err := c.GetSender(ctx, queueOrTopic, nil)
 			if err != nil {
 				return fmt.Errorf("failed to create a sender: %w", err)
 			}

@@ -26,6 +26,9 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
+// Type that matches Client.EnsureTopic and Client.EnsureSubscription
+type ensureFn func(context.Context, string) error
+
 // Client contains the clients for Service Bus and methods to get senders and to create topics, subscriptions, queues.
 type Client struct {
 	client      *servicebus.Client
@@ -97,8 +100,8 @@ func (c *Client) GetClient() *servicebus.Client {
 	return c.client
 }
 
-// GetSenderForTopic returns the sender for a topic, or creates a new one if it doesn't exist
-func (c *Client) GetSender(ctx context.Context, queueOrTopic string) (*servicebus.Sender, error) {
+// GetSenderForTopic returns the sender for a queue or topic, or creates a new one if it doesn't exist
+func (c *Client) GetSender(ctx context.Context, queueOrTopic string, ensureFn ensureFn) (*servicebus.Sender, error) {
 	c.lock.RLock()
 	sender, ok := c.senders[queueOrTopic]
 	c.lock.RUnlock()
@@ -113,6 +116,16 @@ func (c *Client) GetSender(ctx context.Context, queueOrTopic string) (*servicebu
 	sender, ok = c.senders[queueOrTopic]
 	if ok && sender != nil {
 		return sender, nil
+	}
+
+	// Ensure the queue or topic exists, if needed
+	if ensureFn != nil {
+		// Ensure the queue or topic exists the first time it is referenced
+		// This does nothing if DisableEntityManagement is true
+		err := ensureFn(ctx, queueOrTopic)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Create the sender

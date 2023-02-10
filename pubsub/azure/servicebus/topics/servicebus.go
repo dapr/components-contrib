@@ -172,7 +172,7 @@ func (a *azureServiceBus) doSubscribe(
 }
 
 func (a *azureServiceBus) Close() (err error) {
-	a.client.CloseAllSenders(a.logger)
+	a.client.Close(a.logger)
 	return nil
 }
 

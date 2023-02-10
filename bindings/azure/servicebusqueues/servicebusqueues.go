@@ -183,6 +183,6 @@ func (a *AzureServiceBusQueues) getHandlerFn(handler bindings.Handler) impl.Hand
 
 func (a *AzureServiceBusQueues) Close() (err error) {
 	a.logger.Debug("Closing component")
-	a.client.CloseAllSenders(a.logger)
+	a.client.Close(a.logger)
 	return nil
 }

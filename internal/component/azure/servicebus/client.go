@@ -128,21 +128,24 @@ func (c *Client) GetSender(ctx context.Context, queueOrTopic string) (*servicebu
 // CloseSender closes a sender for a queue or topic.
 func (c *Client) CloseSender(queueOrTopic string, log logger.Logger) {
 	c.lock.Lock()
-	defer c.lock.Unlock()
-
 	sender, ok := c.senders[queueOrTopic]
-	if ok && sender != nil {
+	if ok {
+		delete(c.senders, queueOrTopic)
+	}
+	c.lock.Unlock()
+
+	if sender != nil {
 		log.Info("Closing sender: " + queueOrTopic)
 		closeCtx, closeCancel := context.WithTimeout(context.Background(), time.Second)
 		// Log only
 		err := sender.Close(closeCtx)
+		closeCancel()
 		if err != nil {
 			// Log only
 			log.Warnf("Error closing sender %s: %v", queueOrTopic, err)
 		}
-		closeCancel()
+		log.Debug("Closed sender: " + queueOrTopic)
 	}
-	delete(c.senders, queueOrTopic)
 }
 
 // CloseAllSenders closes all sender connections.

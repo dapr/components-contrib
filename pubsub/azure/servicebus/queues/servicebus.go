@@ -294,6 +294,12 @@ func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
 			wait := bo.NextBackOff()
 			a.logger.Warnf("Subscription to topic %s lost connection, attempting to reconnect in %s...", req.Topic, wait)
 			time.Sleep(wait)
+
+			// Check for context canceled again, after sleeping
+			if subscribeCtx.Err() != nil {
+				a.logger.Debug("Context canceled; will not reconnect")
+				return
+			}
 		}
 	}()
 

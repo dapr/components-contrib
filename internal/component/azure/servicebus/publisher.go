@@ -176,13 +176,15 @@ func (c *Client) PublishBinding(ctx context.Context, req *bindings.InvokeRequest
 		},
 		bo,
 		func(err error, _ time.Duration) {
-			log.Warnf("Could not publish service bus message (%s). Retrying...: %v", msgID, err)
+			log.Warnf("Could not publish Service Bus message (%s). Retrying...: %v", msgID, err)
 		},
 		func() {
-			log.Infof("Successfully published service bus message (%s) after it previously failed", msgID)
+			log.Infof("Successfully published Service Bus message (%s) after it previously failed", msgID)
 		},
 	)
-
+	if err != nil {
+		log.Errorf("Too many failed attempts while publishing Service Bus message (%s): %v", msgID, err)
+	}
 	return nil, err
 }
 

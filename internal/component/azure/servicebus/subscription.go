@@ -55,7 +55,7 @@ type Subscription struct {
 	requireSessions      bool // read-only once set
 	timeout              time.Duration
 	maxBulkSubCount      int
-	retriableErrLimit    ratelimit.Limiter
+	retriableErrLimiter  ratelimit.Limiter
 	handleChan           chan struct{}
 	logger               logger.Logger
 	ctx                  context.Context
@@ -112,9 +112,9 @@ func NewSubscription(
 	}
 
 	if opts.MaxRetriableEPS > 0 {
-		s.retriableErrLimit = ratelimit.New(opts.MaxRetriableEPS)
+		s.retriableErrLimiter = ratelimit.New(opts.MaxRetriableEPS)
 	} else {
-		s.retriableErrLimit = ratelimit.NewUnlimited()
+		s.retriableErrLimiter = ratelimit.NewUnlimited()
 	}
 
 	if opts.MaxConcurrentHandlers > 0 {
@@ -258,64 +258,8 @@ func (s *Subscription) ReceiveBlocking(handler HandlerFn, receiver Receiver, onF
 			continue
 		}
 
-		runHandlerFn := func(hctx context.Context) {
-			msg := msgs[0]
-
-			// Invoke the handler to process the message
-			_, err = handler(hctx, msgs)
-
-			// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
-			// If we fail to finalize the message, this message will eventually be reprocessed (at-least once delivery).
-			// This uses a background context in case ctx has been canceled already.
-			finalizeCtx, finalizeCancel := context.WithTimeout(context.Background(), s.timeout)
-			defer finalizeCancel()
-
-			if err != nil {
-				// Log the error only, as we're running asynchronously
-				s.logger.Errorf("App handler returned an error for message %s on %s: %s", msg.MessageID, s.entity, err)
-				s.AbandonMessage(finalizeCtx, receiver, msg)
-				return
-			}
-
-			s.CompleteMessage(finalizeCtx, receiver, msg)
-		}
-
-		bulkRunHandlerFn := func(hctx context.Context) {
-			resps, err := handler(hctx, msgs)
-
-			// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
-			// If we fail to finalize the message, this message will eventually be reprocessed (at-least once delivery).
-			// This uses a background context in case ctx has been canceled already.
-			finalizeCtx, finalizeCancel := context.WithTimeout(context.Background(), s.timeout)
-			defer finalizeCancel()
-
-			if err != nil {
-				// Handle the error and mark messages accordingly.
-				// Note, the order of the responses match the order of the messages.
-				for i, resp := range resps {
-					if resp.Error != nil {
-						// Log the error only, as we're running asynchronously.
-						s.logger.Errorf("App handler returned an error for message %s on %s: %s", msgs[i].MessageID, s.entity, resp.Error)
-						go s.AbandonMessage(finalizeCtx, receiver, msgs[i])
-					} else {
-						go s.CompleteMessage(finalizeCtx, receiver, msgs[i])
-					}
-				}
-				return
-			}
-
-			// No error, so we can complete all messages.
-			// Each message is completed in a goroutine because otherwise if we have too many messages, we may reach the timeout in finalizeCtx just by virtue of that
-			for _, msg := range msgs {
-				go s.CompleteMessage(finalizeCtx, receiver, msg)
-			}
-		}
-
-		if opts.BulkEnabled {
-			s.handleAsync(s.ctx, msgs, bulkRunHandlerFn)
-		} else {
-			s.handleAsync(s.ctx, msgs, runHandlerFn)
-		}
+		// Handle the messages in background
+		go s.handleAsync(s.ctx, msgs, handler, receiver)
 	}
 }
 
@@ -335,8 +279,7 @@ func (s *Subscription) RenewLocksBlocking(ctx context.Context, receiver Receiver
 		return nil
 	}
 
-	shouldRenewLocks := opts.RenewalInSec > 0
-	if !shouldRenewLocks {
+	if opts.RenewalInSec <= 0 {
 		s.logger.Debugf("Lock renewal for %s disabled", s.entity)
 		return nil
 	}
@@ -349,97 +292,144 @@ func (s *Subscription) RenewLocksBlocking(ctx context.Context, receiver Receiver
 			s.logger.Infof("Context canceled while renewing locks for %s", s.entity)
 			return nil
 		case <-t.C:
-			// Check if the context is still valid
-			if ctx.Err() != nil {
-				s.logger.Infof("Context canceled while renewing locks for %s", s.entity)
-				return nil //nolint:nilerr
-			}
 			if s.requireSessions {
-				sessionReceiver := receiver.(*SessionReceiver)
-				if err := sessionReceiver.RenewSessionLocks(ctx, opts.TimeoutInSec); err != nil {
-					s.logger.Warnf("Error renewing session locks for %s: %s", s.entity, err)
-				}
-				s.logger.Debugf("Renewed session %s locks for %s", sessionReceiver.SessionID(), s.entity)
+				s.doRenewLocksSession(ctx, receiver.(*SessionReceiver), opts.TimeoutInSec)
 			} else {
-				// Snapshot the messages to try to renew locks for.
-				s.mu.RLock()
-				msgs := make([]*azservicebus.ReceivedMessage, len(s.activeMessages))
-				var i int
-				for _, m := range s.activeMessages {
-					msgs[i] = m
-					i++
-				}
-				s.mu.RUnlock()
-
-				if len(msgs) == 0 {
-					s.logger.Debugf("No active messages require lock renewal for %s", s.entity)
-					continue
-				}
-				msgReceiver := receiver.(*MessageReceiver)
-				if err := msgReceiver.RenewMessageLocks(ctx, msgs, opts.TimeoutInSec); err != nil {
-					s.logger.Warnf("Error renewing message locks for %s: %s", s.entity, err)
-				}
-				s.logger.Debugf("Renewed message locks for %s", s.entity)
+				s.doRenewLocks(ctx, receiver.(*MessageReceiver), opts.TimeoutInSec)
 			}
 		}
 	}
 }
 
-// handleAsync handles messages from azure service bus asynchronously.
-// runHandlerFn is responsible for calling the message handler function
-// and marking messages as complete/abandon.
-func (s *Subscription) handleAsync(ctx context.Context, msgs []*azservicebus.ReceivedMessage, runHandlerFn func(ctx context.Context)) {
-	go func() {
-		var (
-			consumeToken           bool
-			takenConcurrentHandler bool
-		)
+func (s *Subscription) doRenewLocks(ctx context.Context, msgReceiver *MessageReceiver, timeoutInSec int) {
+	// Snapshot the messages to try to renew locks for.
+	s.mu.RLock()
+	msgs := make([]*azservicebus.ReceivedMessage, len(s.activeMessages))
+	var i int
+	for _, m := range s.activeMessages {
+		msgs[i] = m
+		i++
+	}
+	s.mu.RUnlock()
 
-		defer func() {
-			for _, msg := range msgs {
-				// Release a handler if needed
-				if takenConcurrentHandler {
-					<-s.handleChan
-					s.logger.Debugf("Released message handle for %s on %s", msg.MessageID, s.entity)
-				}
+	if len(msgs) == 0 {
+		s.logger.Debugf("No active messages require lock renewal for %s", s.entity)
+		return
+	}
 
-				// If we got a retriable error (app handler returned a retriable error, or a network error while connecting to the app, etc) consume a retriable error token
-				// We do it here, after the handler has been released but before removing the active message (which would allow us to retrieve more messages)
-				if consumeToken {
-					s.logger.Debugf("Taking a retriable error token")
-					before := time.Now()
-					_ = s.retriableErrLimit.Take()
-					s.logger.Debugf("Resumed after pausing for %v", time.Since(before))
-				}
+	err := msgReceiver.RenewMessageLocks(ctx, msgs, timeoutInSec)
+	if err != nil {
+		s.logger.Warnf("Error renewing message locks for %s: %v", s.entity, err)
+	} else {
+		s.logger.Debugf("Renewed message locks for %s", s.entity)
+	}
+}
 
-				// Remove the message from the map of active ones
-				s.removeActiveMessage(msg.MessageID, *msg.SequenceNumber)
-			}
+func (s *Subscription) doRenewLocksSession(ctx context.Context, sessionReceiver *SessionReceiver, timeoutInSec int) {
+	err := sessionReceiver.RenewSessionLocks(ctx, timeoutInSec)
+	if err != nil {
+		s.logger.Warnf("Error renewing session locks for %s: %v", s.entity, err)
+	} else {
+		s.logger.Debugf("Renewed session %s locks for %s", sessionReceiver.SessionID(), s.entity)
+	}
+}
 
-			// Remove an entry from activeOperationsChan to allow processing more messages
-			<-s.activeOperationsChan
-		}()
+// handleAsync handles messages from azure service bus and is meant to be called in a goroutine (go s.handleAsync).
+func (s *Subscription) handleAsync(ctx context.Context, msgs []*azservicebus.ReceivedMessage, handler HandlerFn, receiver Receiver) {
+	var (
+		consumeToken           bool
+		takenConcurrentHandler bool
+	)
 
-		for _, msg := range msgs {
-			// If handleChan is non-nil, we have a limit on how many handler we can process
-			if cap(s.handleChan) > 0 {
-				s.logger.Debugf("Taking message handle for %s on %s", msg.MessageID, s.entity)
-				select {
-				// Context is done, so we will stop waiting
-				case <-ctx.Done():
-					s.logger.Debugf("Message context done for %s on %s", msg.MessageID, s.entity)
-					return
-				// Blocks until we have a handler available
-				case s.handleChan <- struct{}{}:
-					takenConcurrentHandler = true
-					s.logger.Debugf("Taken message handle for %s on %s", msg.MessageID, s.entity)
-				}
+	// Invoke this at the end of the execution to release all taken tokens
+	defer func() {
+		// Release a handler if needed
+		if takenConcurrentHandler {
+			<-s.handleChan
+			s.logger.Debugf("Released message handle for %s on %s", msgs[0].MessageID, s.entity)
+		}
+
+		// If we got a retriable error (app handler returned a retriable error, or a network error while connecting to the app, etc) consume a retriable error token
+		// We do it here, after the handler has been released but before removing the active message (which would allow us to retrieve more messages)
+		if consumeToken {
+			if s.logger.IsOutputLevelEnabled(logger.DebugLevel) {
+				s.logger.Debugf("Taking a retriable error token")
+				before := time.Now()
+				_ = s.retriableErrLimiter.Take()
+				s.logger.Debugf("Resumed after pausing for %v", time.Since(before))
+			} else {
+				_ = s.retriableErrLimiter.Take()
 			}
 		}
 
-		// Invoke the handler to process the message.
-		runHandlerFn(ctx)
+		for _, msg := range msgs {
+			// Remove the message from the map of active ones
+			s.removeActiveMessage(msg.MessageID, *msg.SequenceNumber)
+		}
+
+		// Remove an entry from activeOperationsChan to allow processing more messages
+		<-s.activeOperationsChan
 	}()
+
+	// If handleChan is non-nil, we have a limit on how many handler we can process
+	// Note that in log messages we only log the message ID of the first one in a batch, if there are more than one
+	if cap(s.handleChan) > 0 {
+		s.logger.Debugf("Taking message handle for %s on %s", msgs[0].MessageID, s.entity)
+		select {
+		// Context is done, so we will stop waiting
+		case <-ctx.Done():
+			s.logger.Debugf("Message context done for %s on %s", msgs[0].MessageID, s.entity)
+			return
+		// Blocks until we have a handler available
+		case s.handleChan <- struct{}{}:
+			takenConcurrentHandler = true
+			s.logger.Debugf("Taken message handle for %s on %s", msgs[0].MessageID, s.entity)
+		}
+	}
+
+	// Invoke the handler to process the message.
+	resps, err := handler(ctx, msgs)
+
+	// Handle bulk responses now
+	if err != nil {
+		// Errors here are from the app, so consume a retriable error token
+		consumeToken = true
+
+		// If we have a response with 0 items (or a nil response), it means the handler was a non-bulk one
+		if len(resps) == 0 {
+			// Log the error only, as we're running asynchronously
+			s.logger.Errorf("App handler returned an error for message %s on %s: %s", msgs[0].MessageID, s.entity, err)
+			finalizeCtx, finalizeCancel := context.WithTimeout(context.Background(), s.timeout)
+			s.AbandonMessage(finalizeCtx, receiver, msgs[0])
+			finalizeCancel()
+			return
+		}
+
+		// Handle the errors on bulk messages and mark messages accordingly.
+		// Note, the order of the responses match the order of the messages.
+		for i, resp := range resps {
+			// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
+			// If we fail to finalize the message, this message will eventually be reprocessed (at-least once delivery).
+			// This uses a background context in case ctx has been canceled already.
+			finalizeCtx, finalizeCancel := context.WithTimeout(context.Background(), s.timeout)
+			if resp.Error != nil {
+				// Log the error only, as we're running asynchronously.
+				s.logger.Errorf("App handler returned an error for message %s on %s: %s", msgs[i].MessageID, s.entity, resp.Error)
+				s.AbandonMessage(finalizeCtx, receiver, msgs[i])
+			} else {
+				s.CompleteMessage(finalizeCtx, receiver, msgs[i])
+			}
+			finalizeCancel()
+		}
+		return
+	}
+
+	// No error, so we can complete all messages.
+	for _, msg := range msgs {
+		finalizeCtx, finalizeCancel := context.WithTimeout(context.Background(), s.timeout)
+		s.CompleteMessage(finalizeCtx, receiver, msg)
+		finalizeCancel()
+	}
 }
 
 // AbandonMessage marks a messsage as abandoned.
@@ -452,13 +442,6 @@ func (s *Subscription) AbandonMessage(ctx context.Context, receiver Receiver, m 
 		// Log only
 		s.logger.Warnf("Error abandoning message %s on %s: %s", m.MessageID, s.entity, err.Error())
 	}
-
-	// If we're here, it means we got a retriable error, so we need to consume a retriable error token before this (synchronous) method returns
-	// If there have been too many retriable errors per second, this method slows the consumer down
-	s.logger.Debugf("Taking a retriable error token")
-	before := time.Now()
-	_ = s.retriableErrLimit.Take()
-	s.logger.Debugf("Resumed after pausing for %v", time.Since(before))
 }
 
 // CompleteMessage marks a message as complete.
@@ -489,7 +472,6 @@ func (s *Subscription) addActiveMessage(m *azservicebus.ReceivedMessage) error {
 	s.mu.Lock()
 	s.activeMessages[*m.SequenceNumber] = m
 	s.mu.Unlock()
-	s.logger.Debugf("Added message %s with sequence number %d to active messages on %s%s", m.MessageID, *m.SequenceNumber, s.entity, logSuffix)
 	return nil
 }
 
@@ -498,5 +480,4 @@ func (s *Subscription) removeActiveMessage(messageID string, messageKey int64) {
 	s.mu.Lock()
 	delete(s.activeMessages, messageKey)
 	s.mu.Unlock()
-	s.logger.Debugf("Removed message %s with sequence number %d from active messages on %s", messageID, messageKey, s.entity)
 }

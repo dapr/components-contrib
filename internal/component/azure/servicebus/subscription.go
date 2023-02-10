@@ -136,8 +136,7 @@ func (s *Subscription) Connect(newReceiverFunc func() (Receiver, error)) (Receiv
 
 	return retry.NotifyRecoverWithData(
 		func() (Receiver, error) {
-			var receiver Receiver
-			clientAttempt, innerErr := newReceiverFunc()
+			receiver, innerErr := newReceiverFunc()
 			if innerErr != nil {
 				if s.requireSessions {
 					var sbErr *azservicebus.Error
@@ -147,18 +146,10 @@ func (s *Subscription) Connect(newReceiverFunc func() (Receiver, error)) (Receiv
 				}
 				return nil, innerErr
 			}
-			if s.requireSessions {
-				sessionReceiver, ok := clientAttempt.(*SessionReceiver)
-				if !ok {
-					return nil, fmt.Errorf("expected a session receiver, got %T", clientAttempt)
-				}
-				receiver = sessionReceiver
-			} else {
-				msgReciever, ok := clientAttempt.(*MessageReceiver)
-				if !ok {
-					return nil, fmt.Errorf("expected a message receiver, got %T", clientAttempt)
-				}
-				receiver = msgReciever
+			if _, ok := receiver.(*SessionReceiver); !ok && s.requireSessions {
+				return nil, fmt.Errorf("expected a session receiver, got %T", receiver)
+			} else if _, ok := receiver.(*MessageReceiver); !ok && !s.requireSessions {
+				return nil, fmt.Errorf("expected a message receiver, got %T", receiver)
 			}
 			return receiver, nil
 		},
@@ -184,13 +175,13 @@ func (s *Subscription) ReceiveBlocking(handler HandlerFn, receiver Receiver, onF
 
 	// Receiver loop
 	for {
+		// This blocks if there are too many active operations already
+		// This is released by the handler, but if the loop ends before it reaches the handler, make sure to release it with `<-s.activeOperationsChan`
 		select {
 		case s.activeOperationsChan <- struct{}{}:
 			// No-op
-			// This blocks if there are too many active operations already
-			// This is released by the handler, but if the loop ends before it reaches the handler, make sure to release it with `<-s.activeOperationsChan`
 		case <-ctx.Done():
-			// Return if context is canceled
+			// Context is canceled or expired; return
 			s.logger.Debugf("Receive context for %s done", s.entity)
 			return ctx.Err()
 		}

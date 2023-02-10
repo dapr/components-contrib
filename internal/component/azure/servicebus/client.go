@@ -348,7 +348,6 @@ func notEqual(a, b *bool) bool {
 		return false
 	} else if a == nil || b == nil {
 		return true
-	} else {
-		return *a != *b
 	}
+	return *a != *b
 }

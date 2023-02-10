@@ -37,7 +37,6 @@ const (
 type AzureServiceBusQueues struct {
 	metadata *impl.Metadata
 	client   *impl.Client
-	timeout  time.Duration
 	logger   logger.Logger
 }
 
@@ -54,7 +53,6 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) (err error) {
 	if err != nil {
 		return err
 	}
-	a.timeout = time.Duration(a.metadata.TimeoutInSec) * time.Second
 
 	a.client, err = impl.NewClient(a.metadata, metadata.Properties)
 	if err != nil {
@@ -71,33 +69,13 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) (err error) {
 }
 
 func (a *AzureServiceBusQueues) Operations() []bindings.OperationKind {
-	return []bindings.OperationKind{bindings.CreateOperation}
+	return []bindings.OperationKind{
+		bindings.CreateOperation,
+	}
 }
 
-func (a *AzureServiceBusQueues) Invoke(invokeCtx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	sender, err := a.client.GetSender(invokeCtx, a.metadata.QueueName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create a sender for the Service Bus queue: %w", err)
-	}
-
-	msg, err := impl.NewASBMessageFromInvokeRequest(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create message: %w", err)
-	}
-
-	// Send the message
-	ctx, cancel := context.WithTimeout(invokeCtx, a.timeout)
-	defer cancel()
-	err = sender.SendMessage(ctx, msg, nil)
-	if err != nil {
-		if impl.IsNetworkError(err) {
-			// Force reconnection on next call
-			a.client.CloseSender(a.metadata.QueueName, a.logger)
-		}
-		return nil, err
-	}
-
-	return nil, nil
+func (a *AzureServiceBusQueues) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	return a.client.PublishBinding(ctx, req, a.metadata.QueueName, a.logger)
 }
 
 func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindings.Handler) error {
@@ -148,7 +126,7 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 				},
 			)
 			if err != nil && !errors.Is(err, context.Canceled) {
-				a.logger.Error(err)
+				a.logger.Errorf("Error from receiver: %v", err)
 			}
 
 			// Gracefully close the connection (in case it's not closed already)

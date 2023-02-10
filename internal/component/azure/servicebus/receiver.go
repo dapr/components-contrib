@@ -92,6 +92,9 @@ func (m *MessageReceiver) RenewMessageLocks(ctx context.Context, msgs []*azservi
 
 	errs := []error{}
 	for err := range errChan {
+		if err == nil {
+			continue
+		}
 		errs = append(errs, err)
 	}
 

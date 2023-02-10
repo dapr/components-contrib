@@ -18,15 +18,12 @@ import (
 	"errors"
 	"time"
 
-	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	"github.com/cenkalti/backoff/v4"
 
 	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
 	"github.com/dapr/components-contrib/internal/utils"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/retry"
 )
 
 const (
@@ -38,14 +35,12 @@ type azureServiceBus struct {
 	metadata *impl.Metadata
 	client   *impl.Client
 	logger   logger.Logger
-	features []pubsub.Feature
 }
 
 // NewAzureServiceBusQueues returns a new implementation.
 func NewAzureServiceBusQueues(logger logger.Logger) pubsub.PubSub {
 	return &azureServiceBus{
-		logger:   logger,
-		features: []pubsub.Feature{pubsub.FeatureMessageTTL},
+		logger: logger,
 	}
 }
 
@@ -64,113 +59,11 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) (err error) {
 }
 
 func (a *azureServiceBus) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
-	msg, err := impl.NewASBMessageFromPubsubRequest(req)
-	if err != nil {
-		return err
-	}
-
-	ebo := backoff.NewExponentialBackOff()
-	ebo.InitialInterval = time.Duration(a.metadata.PublishInitialRetryIntervalInMs) * time.Millisecond
-	bo := backoff.WithMaxRetries(ebo, uint64(a.metadata.PublishMaxRetries))
-	bo = backoff.WithContext(bo, ctx)
-
-	msgID := "nil"
-	if msg.MessageID != nil {
-		msgID = *msg.MessageID
-	}
-	return retry.NotifyRecover(
-		func() (err error) {
-			// Ensure the queue exists the first time it is referenced
-			// This does nothing if DisableEntityManagement is true
-			// Note that the parameter is called "Topic" but we're publishing to a queue
-			err = a.client.EnsureQueue(ctx, req.Topic)
-			if err != nil {
-				return err
-			}
-
-			// Get the sender
-			var sender *servicebus.Sender
-			sender, err = a.client.GetSender(ctx, req.Topic)
-			if err != nil {
-				return err
-			}
-
-			// Try sending the message
-			publishCtx, publisCancel := context.WithTimeout(ctx, time.Second*time.Duration(a.metadata.TimeoutInSec))
-			err = sender.SendMessage(publishCtx, msg, nil)
-			publisCancel()
-			if err != nil {
-				if impl.IsNetworkError(err) {
-					// Retry after reconnecting
-					a.client.CloseSender(req.Topic, a.logger)
-					return err
-				}
-
-				if impl.IsRetriableAMQPError(err) {
-					// Retry (no need to reconnect)
-					return err
-				}
-
-				// Do not retry on other errors
-				return backoff.Permanent(err)
-			}
-			return nil
-		},
-		bo,
-		func(err error, _ time.Duration) {
-			a.logger.Warnf("Could not publish service bus message (%s). Retrying...: %v", msgID, err)
-		},
-		func() {
-			a.logger.Infof("Successfully published service bus message (%s) after it previously failed", msgID)
-		},
-	)
+	return a.client.PublishPubSub(ctx, req, a.client.EnsureQueue, a.logger)
 }
 
 func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
-	// If the request is empty, sender.SendMessageBatch will panic later.
-	// Return an empty response to avoid this.
-	if len(req.Entries) == 0 {
-		a.logger.Warnf("Empty bulk publish request, skipping")
-		return pubsub.BulkPublishResponse{}, nil
-	}
-
-	// Ensure the queue exists the first time it is referenced
-	// This does nothing if DisableEntityManagement is true
-	// Note that the parameter is called "Topic" but we're publishing to a queue
-	err := a.client.EnsureQueue(ctx, req.Topic)
-	if err != nil {
-		return pubsub.NewBulkPublishResponse(req.Entries, err), err
-	}
-
-	// Get the sender
-	sender, err := a.client.GetSender(ctx, req.Topic)
-	if err != nil {
-		return pubsub.NewBulkPublishResponse(req.Entries, err), err
-	}
-
-	// Create a new batch of messages with batch options.
-	batchOpts := &servicebus.MessageBatchOptions{
-		MaxBytes: utils.GetElemOrDefaultFromMap(req.Metadata, contribMetadata.MaxBulkPubBytesKey, defaultMaxBulkPubBytes),
-	}
-
-	batchMsg, err := sender.NewMessageBatch(ctx, batchOpts)
-	if err != nil {
-		return pubsub.NewBulkPublishResponse(req.Entries, err), err
-	}
-
-	// Add messages from the bulk publish request to the batch.
-	err = impl.UpdateASBBatchMessageWithBulkPublishRequest(batchMsg, req)
-	if err != nil {
-		return pubsub.NewBulkPublishResponse(req.Entries, err), err
-	}
-
-	// Azure Service Bus does not return individual status for each message in the request.
-	err = sender.SendMessageBatch(ctx, batchMsg, nil)
-	if err != nil {
-		return pubsub.NewBulkPublishResponse(req.Entries, err), err
-	}
-
-	return pubsub.BulkPublishResponse{}, nil
+	return a.client.PublishPubSubBulk(ctx, req, a.client.EnsureQueue, a.logger)
 }
 
 func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
@@ -312,5 +205,7 @@ func (a *azureServiceBus) Close() (err error) {
 }
 
 func (a *azureServiceBus) Features() []pubsub.Feature {
-	return a.features
+	return []pubsub.Feature{
+		pubsub.FeatureMessageTTL,
+	}
 }

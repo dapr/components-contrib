@@ -180,7 +180,7 @@ func (s *Subscription) ReceiveBlocking(parentCtx context.Context, handler Handle
 
 	// Lock renewal loop
 	go func() {
-		s.logger.Debug("Starting log renewal loop for " + logMsg)
+		s.logger.Debug("Starting lock renewal loop for " + logMsg)
 		lockErr := s.renewLocksBlocking(ctx, receiver)
 		if lockErr != nil {
 			if !errors.Is(lockErr, context.Canceled) {

@@ -35,12 +35,7 @@ const (
 )
 
 // PublishPubSub is used by PubSub components to publish messages. It includes a retry logic that can also cause reconnections.
-func (c *Client) PublishPubSub(
-	ctx context.Context,
-	req *pubsub.PublishRequest,
-	ensureFn ensureFn,
-	log logger.Logger,
-) error {
+func (c *Client) PublishPubSub(ctx context.Context, req *pubsub.PublishRequest, ensureFn ensureFn, log logger.Logger) error {
 	msg, err := NewASBMessageFromPubsubRequest(req)
 	if err != nil {
 		return err
@@ -52,7 +47,7 @@ func (c *Client) PublishPubSub(
 	if msg.MessageID != nil {
 		msgID = *msg.MessageID
 	}
-	return retry.NotifyRecover(
+	err = retry.NotifyRecover(
 		func() error {
 			// Get the sender
 			sender, err := c.GetSender(ctx, req.Topic, ensureFn)
@@ -83,21 +78,20 @@ func (c *Client) PublishPubSub(
 		},
 		bo,
 		func(err error, _ time.Duration) {
-			log.Warnf("Could not publish service bus message (%s). Retrying...: %v", msgID, err)
+			log.Warnf("Could not publish Service Bus message (%s). Retrying...: %v", msgID, err)
 		},
 		func() {
-			log.Infof("Successfully published service bus message (%s) after it previously failed", msgID)
+			log.Infof("Successfully published Service Bus message (%s) after it previously failed", msgID)
 		},
 	)
+	if err != nil {
+		log.Errorf("Too many failed attempts while publishing Service Bus message (%s): %v", msgID, err)
+	}
+	return err
 }
 
 // PublishPubSubBulk is used by PubSub components to publush bulk messages.
-func (c *Client) PublishPubSubBulk(
-	ctx context.Context,
-	req *pubsub.BulkPublishRequest,
-	ensureFn ensureFn,
-	log logger.Logger,
-) (pubsub.BulkPublishResponse, error) {
+func (c *Client) PublishPubSubBulk(ctx context.Context, req *pubsub.BulkPublishRequest, ensureFn ensureFn, log logger.Logger) (pubsub.BulkPublishResponse, error) {
 	// If the request is empty, sender.SendMessageBatch will panic later.
 	// Return an empty response to avoid this.
 	if len(req.Entries) == 0 {

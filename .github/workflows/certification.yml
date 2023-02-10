@@ -62,7 +62,7 @@ jobs:
         - state.memcached
         - state.mysql
         - state.sqlite
-        - bindings.alicloud.dubbo
+        - bindings.dubbo
         - bindings.kafka
         - bindings.redis
         - bindings.cron

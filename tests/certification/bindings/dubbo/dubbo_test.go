@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/bindings/alicloud/dubbo"
+	"github.com/dapr/components-contrib/bindings/dubbo"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"

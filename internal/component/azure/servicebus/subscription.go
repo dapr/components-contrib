@@ -60,7 +60,6 @@ type Subscription struct {
 	retriableErrLimiter  ratelimit.Limiter
 	handleChan           chan struct{}
 	logger               logger.Logger
-	ctx                  context.Context
 	cancel               context.CancelFunc
 }
 
@@ -78,13 +77,7 @@ type SubscriptionOptions struct {
 
 // NewBulkSubscription returns a new Subscription object.
 // Parameter "entity" is usually in the format "topic <topicname>" or "queue <queuename>" and it's only used for logging.
-func NewSubscription(
-	parentCtx context.Context,
-	opts SubscriptionOptions,
-	logger logger.Logger,
-) *Subscription {
-	ctx, cancel := context.WithCancel(parentCtx)
-
+func NewSubscription(opts SubscriptionOptions, logger logger.Logger) *Subscription {
 	if opts.MaxBulkSubCount != nil {
 		if *opts.MaxBulkSubCount < 1 {
 			logger.Warnf("maxBulkSubCount must be greater than 0, setting it to 1")
@@ -109,8 +102,6 @@ func NewSubscription(
 		maxBulkSubCount:     *opts.MaxBulkSubCount,
 		requireSessions:     opts.RequireSessions,
 		logger:              logger,
-		ctx:                 ctx,
-		cancel:              cancel,
 		// This is a pessimistic estimate of the number of total operations that can be active at any given time.
 		// In case of a non-bulk subscription, one operation is one message.
 		activeOperationsChan: make(chan struct{}, opts.MaxActiveMessages/(*opts.MaxBulkSubCount)),
@@ -131,13 +122,13 @@ func NewSubscription(
 }
 
 // Connect to a Service Bus topic or queue, blocking until it succeeds; it can retry forever (until the context is canceled).
-func (s *Subscription) Connect(newReceiverFunc func() (Receiver, error)) (Receiver, error) {
+func (s *Subscription) Connect(ctx context.Context, newReceiverFunc func() (Receiver, error)) (Receiver, error) {
 	// Connections need to retry forever with a maximum backoff of 5 minutes and exponential scaling.
 	config := retry.DefaultConfig()
 	config.Policy = retry.PolicyExponential
 	config.MaxInterval = 5 * time.Minute
 	config.MaxElapsedTime = 0
-	backoff := config.NewBackOffWithContext(s.ctx)
+	backoff := config.NewBackOffWithContext(ctx)
 
 	return retry.NotifyRecoverWithData(
 		func() (Receiver, error) {
@@ -169,8 +160,8 @@ func (s *Subscription) Connect(newReceiverFunc func() (Receiver, error)) (Receiv
 }
 
 // ReceiveBlocking is a blocking call to receive messages on an Azure Service Bus subscription from a topic or queue.
-func (s *Subscription) ReceiveBlocking(handler HandlerFn, receiver Receiver, onFirstSuccess func(), logMsg string) error {
-	ctx, cancel := context.WithCancel(s.ctx)
+func (s *Subscription) ReceiveBlocking(parentCtx context.Context, handler HandlerFn, receiver Receiver, onFirstSuccess func(), logMsg string) error {
+	ctx, cancel := context.WithCancel(parentCtx)
 
 	defer func() {
 		// Cancel the context which also stops the lock renewal loop
@@ -225,7 +216,7 @@ func (s *Subscription) ReceiveBlocking(handler HandlerFn, receiver Receiver, onF
 			// Canceled below after the context is used (we can't defer a cancelation because we're in a loop)
 			receiverCtx, receiverCancel = context.WithTimeout(ctx, s.sessionIdleTimeout)
 		} else {
-			receiverCtx = s.ctx
+			receiverCtx = ctx
 		}
 
 		// This method blocks until we get a message or the context is canceled
@@ -279,14 +270,8 @@ func (s *Subscription) ReceiveBlocking(handler HandlerFn, receiver Receiver, onF
 		}
 
 		// Handle the messages in background
-		go s.handleAsync(s.ctx, msgs, handler, receiver)
+		go s.handleAsync(ctx, msgs, handler, receiver)
 	}
-}
-
-// Close the receiver and stops watching for new messages.
-func (s *Subscription) Close() {
-	s.logger.Debugf("Closing subscription to %s", s.entity)
-	s.cancel()
 }
 
 func (s *Subscription) renewLocksBlocking(ctx context.Context, receiver Receiver) error {

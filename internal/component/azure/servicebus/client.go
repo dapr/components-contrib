@@ -21,6 +21,7 @@ import (
 
 	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	sbadmin "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
+	"github.com/cenkalti/backoff/v4"
 	"golang.org/x/exp/maps"
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
@@ -375,6 +376,15 @@ func (c *Client) createQueue(parentCtx context.Context, queue string) error {
 		return fmt.Errorf("could not create queue %s: %w", queue, err)
 	}
 	return nil
+}
+
+// ReconnectionBackoff returns the backoff for reconnecting in a subscription.
+func (c *Client) ReconnectionBackoff() backoff.BackOff {
+	bo := backoff.NewExponentialBackOff()
+	bo.MaxElapsedTime = 0
+	bo.InitialInterval = time.Duration(c.metadata.MinConnectionRecoveryInSec) * time.Second
+	bo.MaxInterval = time.Duration(c.metadata.MaxConnectionRecoveryInSec) * time.Second
+	return bo
 }
 
 func notEqual(a, b *bool) bool {

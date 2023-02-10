@@ -77,7 +77,7 @@ func (a *AzureServiceBusQueues) Invoke(ctx context.Context, req *bindings.Invoke
 	return a.client.PublishBinding(ctx, req, a.metadata.QueueName, a.logger)
 }
 
-func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindings.Handler) error {
+func (a *AzureServiceBusQueues) Read(ctx context.Context, handler bindings.Handler) error {
 	// Reconnection backoff policy
 	bo := a.client.ReconnectionBackoff()
 
@@ -86,7 +86,7 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 
 		// Reconnect loop.
 		for {
-			sub := impl.NewSubscription(subscribeCtx, impl.SubscriptionOptions{
+			sub := impl.NewSubscription(impl.SubscriptionOptions{
 				MaxActiveMessages:     a.metadata.MaxActiveMessages,
 				TimeoutInSec:          a.metadata.TimeoutInSec,
 				MaxBulkSubCount:       nil,
@@ -98,7 +98,7 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 			}, a.logger)
 
 			// Blocks until a successful connection (or until context is canceled)
-			receiver, err := sub.Connect(func() (impl.Receiver, error) {
+			receiver, err := sub.Connect(ctx, func() (impl.Receiver, error) {
 				a.logger.Debug("Connecting to " + logMsg)
 				r, rErr := a.client.GetClient().NewReceiverForQueue(a.metadata.QueueName, nil)
 				if rErr != nil {
@@ -117,6 +117,7 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 			// ReceiveAndBlock will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
 			// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
 			err = sub.ReceiveBlocking(
+				ctx,
 				a.getHandlerFn(handler),
 				receiver,
 				bo.Reset, // Reset the backoff when the subscription is successful and we have received the first message
@@ -126,11 +127,8 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 				a.logger.Errorf("Error from receiver: %v", err)
 			}
 
-			// Close the receiver to release resources
-			sub.Close()
-
 			// If context was canceled, do not attempt to reconnect
-			if subscribeCtx.Err() != nil {
+			if ctx.Err() != nil {
 				a.logger.Debug("Context canceled; will not reconnect")
 				return
 			}
@@ -140,7 +138,7 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 			time.Sleep(wait)
 
 			// Check for context canceled again, after sleeping
-			if subscribeCtx.Err() != nil {
+			if ctx.Err() != nil {
 				a.logger.Debug("Context canceled; will not reconnect")
 				return
 			}

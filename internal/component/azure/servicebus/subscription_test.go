@@ -14,7 +14,6 @@ limitations under the License.
 package servicebus
 
 import (
-	"context"
 	"testing"
 
 	"github.com/dapr/kit/logger"
@@ -68,7 +67,7 @@ func TestNewSubscription(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			sub := NewSubscription(
-				context.Background(), SubscriptionOptions{
+				SubscriptionOptions{
 					MaxActiveMessages:     1000,
 					TimeoutInSec:          1,
 					MaxBulkSubCount:       tc.maxBulkSubCountParam,

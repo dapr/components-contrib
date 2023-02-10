@@ -71,7 +71,6 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 	maxConcurrentSessions := utils.GetElemOrDefaultFromMap(req.Metadata, impl.MaxConcurrentSessionsMetadataKey, impl.DefaultMaxConcurrentSessions)
 
 	sub := impl.NewSubscription(
-		subscribeCtx,
 		impl.SubscriptionOptions{
 			MaxActiveMessages:     a.metadata.MaxActiveMessages,
 			TimeoutInSec:          a.metadata.TimeoutInSec,
@@ -100,7 +99,6 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 
 	maxBulkSubCount := utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxMessagesCount, defaultMaxBulkSubCount)
 	sub := impl.NewSubscription(
-		subscribeCtx,
 		impl.SubscriptionOptions{
 			MaxActiveMessages:     a.metadata.MaxActiveMessages,
 			TimeoutInSec:          a.metadata.TimeoutInSec,
@@ -182,14 +180,11 @@ func (a *azureServiceBus) Features() []pubsub.Feature {
 	}
 }
 
-func (a *azureServiceBus) connectAndReceive(subscribeCtx context.Context, req pubsub.SubscribeRequest, sub *impl.Subscription, handlerFn impl.HandlerFn, onFirstSuccess func()) {
-	// Close the receiver to release resources on exit
-	defer sub.Close()
-
+func (a *azureServiceBus) connectAndReceive(ctx context.Context, req pubsub.SubscribeRequest, sub *impl.Subscription, handlerFn impl.HandlerFn, onFirstSuccess func()) {
 	logMsg := fmt.Sprintf("subscription %s to topic %s", a.metadata.ConsumerID, req.Topic)
 
 	// Blocks until a successful connection (or until context is canceled)
-	receiver, err := sub.Connect(func() (impl.Receiver, error) {
+	receiver, err := sub.Connect(ctx, func() (impl.Receiver, error) {
 		a.logger.Debug("Connecting to " + logMsg)
 		r, rErr := a.client.GetClient().NewReceiverForSubscription(req.Topic, a.metadata.ConsumerID, nil)
 		if rErr != nil {
@@ -209,16 +204,13 @@ func (a *azureServiceBus) connectAndReceive(subscribeCtx context.Context, req pu
 
 	// ReceiveBlocking will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
 	// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
-	err = sub.ReceiveBlocking(handlerFn, receiver, onFirstSuccess, logMsg)
+	err = sub.ReceiveBlocking(ctx, handlerFn, receiver, onFirstSuccess, logMsg)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		a.logger.Error(err)
 	}
 }
 
-func (a *azureServiceBus) connectAndReceiveWithSessions(subscribeCtx context.Context, req pubsub.SubscribeRequest, sub *impl.Subscription, handlerFn impl.HandlerFn, onFirstSuccess func(), maxConcurrentSessions int) {
-	// Close the receiver to release resources on exit
-	defer sub.Close()
-
+func (a *azureServiceBus) connectAndReceiveWithSessions(ctx context.Context, req pubsub.SubscribeRequest, sub *impl.Subscription, handlerFn impl.HandlerFn, onFirstSuccess func(), maxConcurrentSessions int) {
 	sessionsChan := make(chan struct{}, maxConcurrentSessions)
 	for i := 0; i < maxConcurrentSessions; i++ {
 		sessionsChan <- struct{}{}
@@ -226,21 +218,21 @@ func (a *azureServiceBus) connectAndReceiveWithSessions(subscribeCtx context.Con
 
 	for {
 		select {
-		case <-subscribeCtx.Done():
+		case <-ctx.Done():
 			return
 		case <-sessionsChan:
 			// nop - continue
 		}
 
 		// Check again if the context was canceled
-		if subscribeCtx.Err() != nil {
+		if ctx.Err() != nil {
 			return
 		}
 
-		acceptCtx, acceptCancel := context.WithCancel(subscribeCtx)
+		acceptCtx, acceptCancel := context.WithCancel(ctx)
 
 		// Blocks until a successful connection (or until context is canceled)
-		receiver, err := sub.Connect(func() (impl.Receiver, error) {
+		receiver, err := sub.Connect(ctx, func() (impl.Receiver, error) {
 			a.logger.Debugf("Accepting next available session subscription %s to topic %s", a.metadata.ConsumerID, req.Topic)
 			r, rErr := a.client.GetClient().AcceptNextSessionForSubscription(acceptCtx, req.Topic, a.metadata.ConsumerID, nil)
 			if rErr != nil {
@@ -270,7 +262,7 @@ func (a *azureServiceBus) connectAndReceiveWithSessions(subscribeCtx context.Con
 
 			// ReceiveBlocking will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
 			// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
-			err = sub.ReceiveBlocking(handlerFn, receiver, onFirstSuccess, logMsg)
+			err = sub.ReceiveBlocking(ctx, handlerFn, receiver, onFirstSuccess, logMsg)
 			if err != nil && !errors.Is(err, context.Canceled) {
 				a.logger.Error(err)
 			}

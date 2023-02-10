@@ -30,7 +30,7 @@ import (
 	"github.com/dapr/kit/retry"
 )
 
-type AliCloudRocketMQ struct {
+type RocketMQ struct {
 	logger   logger.Logger
 	settings Settings
 	producer mqw.Producer
@@ -40,15 +40,15 @@ type AliCloudRocketMQ struct {
 	backOffConfig retry.Config
 }
 
-func NewAliCloudRocketMQ(l logger.Logger) *AliCloudRocketMQ {
-	return &AliCloudRocketMQ{ //nolint:exhaustivestruct
+func NewRocketMQ(l logger.Logger) *RocketMQ {
+	return &RocketMQ{ //nolint:exhaustivestruct
 		logger:   l,
 		producer: nil,
 	}
 }
 
 // Init performs metadata parsing.
-func (a *AliCloudRocketMQ) Init(metadata bindings.Metadata) error {
+func (a *RocketMQ) Init(metadata bindings.Metadata) error {
 	var err error
 	if err = a.settings.Decode(metadata.Properties); err != nil {
 		return err
@@ -74,7 +74,7 @@ func (a *AliCloudRocketMQ) Init(metadata bindings.Metadata) error {
 }
 
 // Read triggers the rocketmq subscription.
-func (a *AliCloudRocketMQ) Read(ctx context.Context, handler bindings.Handler) error {
+func (a *RocketMQ) Read(ctx context.Context, handler bindings.Handler) error {
 	a.logger.Debugf("binding rocketmq: start read input binding")
 
 	consumer, err := a.setupConsumer()
@@ -130,7 +130,7 @@ func (a *AliCloudRocketMQ) Read(ctx context.Context, handler bindings.Handler) e
 }
 
 // Close implements cancel all listeners, see https://github.com/dapr/components-contrib/issues/779
-func (a *AliCloudRocketMQ) Close() error {
+func (a *RocketMQ) Close() error {
 	a.cancel()
 
 	return nil
@@ -155,7 +155,7 @@ func parseTopic(key string) (mqType, mqExpression, topic string, err error) {
 	return
 }
 
-func (a *AliCloudRocketMQ) setupConsumer() (mqw.PushConsumer, error) {
+func (a *RocketMQ) setupConsumer() (mqw.PushConsumer, error) {
 	if consumer, ok := mqw.Consumers[a.settings.AccessProto]; ok {
 		md := a.settings.ToRocketMQMetadata()
 		if err := consumer.Init(md); err != nil {
@@ -172,7 +172,7 @@ func (a *AliCloudRocketMQ) setupConsumer() (mqw.PushConsumer, error) {
 	return nil, errors.New("binding-rocketmq error: cannot found rocketmq consumer")
 }
 
-func (a *AliCloudRocketMQ) setupPublisher() (mqw.Producer, error) {
+func (a *RocketMQ) setupPublisher() (mqw.Producer, error) {
 	if producer, ok := mqw.Producers[a.settings.AccessProto]; ok {
 		md := a.settings.ToRocketMQMetadata()
 		if err := producer.Init(md); err != nil {
@@ -195,11 +195,11 @@ func (a *AliCloudRocketMQ) setupPublisher() (mqw.Producer, error) {
 }
 
 // Operations returns list of operations supported by rocketmq binding.
-func (a *AliCloudRocketMQ) Operations() []bindings.OperationKind {
+func (a *RocketMQ) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (a *AliCloudRocketMQ) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (a *RocketMQ) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	rst := &bindings.InvokeResponse{Data: nil, Metadata: nil}
 
 	if req.Operation != bindings.CreateOperation {
@@ -209,7 +209,7 @@ func (a *AliCloudRocketMQ) Invoke(req *bindings.InvokeRequest) (*bindings.Invoke
 	return rst, a.sendMessage(req)
 }
 
-func (a *AliCloudRocketMQ) sendMessage(req *bindings.InvokeRequest) error {
+func (a *RocketMQ) sendMessage(req *bindings.InvokeRequest) error {
 	topic := req.Metadata[metadataRocketmqTopic]
 
 	if topic != "" {
@@ -239,7 +239,7 @@ func (a *AliCloudRocketMQ) sendMessage(req *bindings.InvokeRequest) error {
 	return nil
 }
 
-func (a *AliCloudRocketMQ) send(topic, mqExpr, key string, data []byte) (bool, error) {
+func (a *RocketMQ) send(topic, mqExpr, key string, data []byte) (bool, error) {
 	msg := primitive.NewMessage(topic, data).WithTag(mqExpr).WithKeys([]string{key})
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -256,7 +256,7 @@ func (a *AliCloudRocketMQ) send(topic, mqExpr, key string, data []byte) (bool, e
 
 type mqCallback func(ctx context.Context, msgs ...*primitive.MessageExt) (mqc.ConsumeResult, error)
 
-func (a *AliCloudRocketMQ) adaptCallback(_, consumerGroup, mqType, mqExpr string, handler bindings.Handler) mqCallback {
+func (a *RocketMQ) adaptCallback(_, consumerGroup, mqType, mqExpr string, handler bindings.Handler) mqCallback {
 	return func(ctx context.Context, msgs ...*primitive.MessageExt) (mqc.ConsumeResult, error) {
 		success := true
 		for _, v := range msgs {

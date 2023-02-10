@@ -52,7 +52,7 @@ type Subscription struct {
 	mu                   sync.RWMutex
 	activeMessages       map[int64]*azservicebus.ReceivedMessage
 	activeOperationsChan chan struct{}
-	requireSessions      bool // read-only once set
+	requireSessions      bool
 	sessionIdleTimeout   time.Duration
 	timeout              time.Duration
 	lockRenewalInterval  time.Duration
@@ -180,7 +180,7 @@ func (s *Subscription) ReceiveBlocking(parentCtx context.Context, handler Handle
 
 	// Lock renewal loop
 	go func() {
-		s.logger.Debug("Renewing locks for " + logMsg)
+		s.logger.Debug("Starting log renewal loop for " + logMsg)
 		lockErr := s.renewLocksBlocking(ctx, receiver)
 		if lockErr != nil {
 			if !errors.Is(lockErr, context.Canceled) {
@@ -280,16 +280,26 @@ func (s *Subscription) renewLocksBlocking(ctx context.Context, receiver Receiver
 	}
 
 	if s.lockRenewalInterval <= 0 {
-		s.logger.Debugf("Lock renewal for %s disabled", s.entity)
+		s.logger.Info("Lock renewal for %s disabled", s.entity)
 		return nil
 	}
 
+	// Initial delay before starting the loop
+	initial := time.NewTimer(s.lockRenewalInterval)
+	select {
+	case <-ctx.Done():
+		initial.Stop()
+		return nil
+	case <-initial.C:
+		// nop
+	}
+
+	// Start the periodic loop
 	t := time.NewTicker(s.lockRenewalInterval)
 	defer t.Stop()
 	for {
 		select {
 		case <-ctx.Done():
-			s.logger.Infof("Context canceled while renewing locks for %s", s.entity)
 			return nil
 		case <-t.C:
 			if s.requireSessions {

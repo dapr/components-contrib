@@ -151,11 +151,8 @@ func (a *azureServiceBus) doSubscribe(
 				a.logger.Error(err)
 			}
 
-			// Gracefully close the connection (in case it's not closed already)
-			// Use a background context here (with timeout) because ctx may be closed already
-			closeCtx, closeCancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
-			sub.Close(closeCtx)
-			closeCancel()
+			// Close the receiver to release resources
+			sub.Close()
 
 			// If context was canceled, do not attempt to reconnect
 			if subscribeCtx.Err() != nil {

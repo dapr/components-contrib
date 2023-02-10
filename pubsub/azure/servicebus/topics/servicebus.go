@@ -183,13 +183,8 @@ func (a *azureServiceBus) Features() []pubsub.Feature {
 }
 
 func (a *azureServiceBus) connectAndReceive(subscribeCtx context.Context, req pubsub.SubscribeRequest, sub *impl.Subscription, handlerFn impl.HandlerFn, onFirstSuccess func()) {
-	defer func() {
-		// Gracefully close the connection (in case it's not closed already)
-		// Use a background context here (with timeout) because ctx may be closed already.
-		closeSubCtx, closeSubCancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
-		sub.Close(closeSubCtx)
-		closeSubCancel()
-	}()
+	// Close the receiver to release resources on exit
+	defer sub.Close()
 
 	logMsg := fmt.Sprintf("subscription %s to topic %s", a.metadata.ConsumerID, req.Topic)
 
@@ -221,18 +216,13 @@ func (a *azureServiceBus) connectAndReceive(subscribeCtx context.Context, req pu
 }
 
 func (a *azureServiceBus) connectAndReceiveWithSessions(subscribeCtx context.Context, req pubsub.SubscribeRequest, sub *impl.Subscription, handlerFn impl.HandlerFn, onFirstSuccess func(), maxConcurrentSessions int) {
+	// Close the receiver to release resources on exit
+	defer sub.Close()
+
 	sessionsChan := make(chan struct{}, maxConcurrentSessions)
 	for i := 0; i < maxConcurrentSessions; i++ {
 		sessionsChan <- struct{}{}
 	}
-
-	defer func() {
-		// Gracefully close the connection (in case it's not closed already)
-		// Use a background context here (with timeout) because ctx may be closed already
-		closeSubCtx, closeSubCancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
-		sub.Close(closeSubCtx)
-		closeSubCancel()
-	}()
 
 	for {
 		select {

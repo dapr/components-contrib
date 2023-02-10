@@ -176,20 +176,21 @@ func (s *Subscription) ReceiveBlocking(handler HandlerFn, receiver Receiver, onF
 		// Cancel the context which also stops the lock renewal loop
 		cancel()
 
-		// Close the receiver
+		// Close the receiver when we're done
 		s.logger.Debug("Closing message receiver for " + logMsg)
 		closeReceiverCtx, closeReceiverCancel := context.WithTimeout(context.Background(), time.Second*time.Duration(s.timeout))
 		err := receiver.Close(closeReceiverCtx)
+		closeReceiverCancel()
 		if err != nil {
+			// Log errors only
 			s.logger.Warn("Error while closing receiver for " + logMsg)
 		}
-		closeReceiverCancel()
 	}()
 
 	// Lock renewal loop
 	go func() {
 		s.logger.Debug("Renewing locks for " + logMsg)
-		lockErr := s.RenewLocksBlocking(ctx, receiver)
+		lockErr := s.renewLocksBlocking(ctx, receiver)
 		if lockErr != nil {
 			if !errors.Is(lockErr, context.Canceled) {
 				s.logger.Errorf("Error from lock renewal for %s: %v", logMsg, lockErr)
@@ -241,8 +242,7 @@ func (s *Subscription) ReceiveBlocking(handler HandlerFn, receiver Receiver, onF
 			return err
 		}
 
-		l := len(msgs)
-		if l == 0 {
+		if len(msgs) == 0 {
 			// We got no message, which is unusual too
 			// Treat this as error
 			s.logger.Warn("Received 0 messages from Service Bus")
@@ -251,18 +251,13 @@ func (s *Subscription) ReceiveBlocking(handler HandlerFn, receiver Receiver, onF
 			return errors.New("received 0 messages from Service Bus")
 		}
 
-		if l > 1 {
-			// We are requesting one message only; this should never happen
-			s.logger.Errorf("Expected one message from Service Bus, but received %d", l)
-		}
-
 		// Invoke only once
 		if onFirstSuccess != nil {
 			onFirstSuccess()
 			onFirstSuccess = nil
 		}
 
-		s.logger.Debugf("Received messages: %d; current active operations usage: %d/%d", l, len(s.activeOperationsChan), cap(s.activeOperationsChan))
+		s.logger.Debugf("Received messages: %d; current active operations usage: %d/%d", len(msgs), len(s.activeOperationsChan), cap(s.activeOperationsChan))
 
 		skipProcessing := false
 		for _, msg := range msgs {
@@ -289,12 +284,12 @@ func (s *Subscription) ReceiveBlocking(handler HandlerFn, receiver Receiver, onF
 }
 
 // Close the receiver and stops watching for new messages.
-func (s *Subscription) Close(closeCtx context.Context) {
+func (s *Subscription) Close() {
 	s.logger.Debugf("Closing subscription to %s", s.entity)
 	s.cancel()
 }
 
-func (s *Subscription) RenewLocksBlocking(ctx context.Context, receiver Receiver) error {
+func (s *Subscription) renewLocksBlocking(ctx context.Context, receiver Receiver) error {
 	if receiver == nil {
 		return nil
 	}

@@ -53,6 +53,7 @@ type Subscription struct {
 	activeMessages       map[int64]*azservicebus.ReceivedMessage
 	activeOperationsChan chan struct{}
 	requireSessions      bool // read-only once set
+	sessionIdleTimeout   time.Duration
 	timeout              time.Duration
 	maxBulkSubCount      int
 	retriableErrLimiter  ratelimit.Limiter
@@ -62,7 +63,7 @@ type Subscription struct {
 	cancel               context.CancelFunc
 }
 
-type SubsriptionOptions struct {
+type SubscriptionOptions struct {
 	MaxActiveMessages     int
 	TimeoutInSec          int
 	MaxBulkSubCount       *int
@@ -71,13 +72,14 @@ type SubsriptionOptions struct {
 	Entity                string
 	LockRenewalInSec      int
 	RequireSessions       bool
+	SessionIdleTimeout    time.Duration
 }
 
 // NewBulkSubscription returns a new Subscription object.
 // Parameter "entity" is usually in the format "topic <topicname>" or "queue <queuename>" and it's only used for logging.
 func NewSubscription(
 	parentCtx context.Context,
-	opts SubsriptionOptions,
+	opts SubscriptionOptions,
 	logger logger.Logger,
 ) *Subscription {
 	ctx, cancel := context.WithCancel(parentCtx)
@@ -98,14 +100,15 @@ func NewSubscription(
 	}
 
 	s := &Subscription{
-		entity:          opts.Entity,
-		activeMessages:  make(map[int64]*azservicebus.ReceivedMessage),
-		timeout:         time.Duration(opts.TimeoutInSec) * time.Second,
-		maxBulkSubCount: *opts.MaxBulkSubCount,
-		requireSessions: opts.RequireSessions,
-		logger:          logger,
-		ctx:             ctx,
-		cancel:          cancel,
+		entity:             opts.Entity,
+		activeMessages:     make(map[int64]*azservicebus.ReceivedMessage),
+		timeout:            time.Duration(opts.TimeoutInSec) * time.Second,
+		sessionIdleTimeout: opts.SessionIdleTimeout,
+		maxBulkSubCount:    *opts.MaxBulkSubCount,
+		requireSessions:    opts.RequireSessions,
+		logger:             logger,
+		ctx:                ctx,
+		cancel:             cancel,
 		// This is a pessimistic estimate of the number of total operations that can be active at any given time.
 		// In case of a non-bulk subscription, one operation is one message.
 		activeOperationsChan: make(chan struct{}, opts.MaxActiveMessages/(*opts.MaxBulkSubCount)),
@@ -163,13 +166,8 @@ func (s *Subscription) Connect(newReceiverFunc func() (Receiver, error)) (Receiv
 	)
 }
 
-type ReceiveOptions struct {
-	BulkEnabled        bool
-	SessionIdleTimeout time.Duration
-}
-
 // ReceiveBlocking is a blocking call to receive messages on an Azure Service Bus subscription from a topic or queue.
-func (s *Subscription) ReceiveBlocking(handler HandlerFn, receiver Receiver, onFirstSuccess func(), opts ReceiveOptions) error {
+func (s *Subscription) ReceiveBlocking(handler HandlerFn, receiver Receiver, onFirstSuccess func()) error {
 	ctx, cancel := context.WithCancel(s.ctx)
 	defer cancel()
 
@@ -195,9 +193,9 @@ func (s *Subscription) ReceiveBlocking(handler HandlerFn, receiver Receiver, onF
 			receiverCtx    context.Context
 			receiverCancel context.CancelFunc
 		)
-		if s.requireSessions && opts.SessionIdleTimeout > 0 {
+		if s.requireSessions && s.sessionIdleTimeout > 0 {
 			// Canceled below after the context is used (we can't defer a cancelation because we're in a loop)
-			receiverCtx, receiverCancel = context.WithTimeout(ctx, opts.SessionIdleTimeout)
+			receiverCtx, receiverCancel = context.WithTimeout(ctx, s.sessionIdleTimeout)
 		} else {
 			receiverCtx = s.ctx
 		}

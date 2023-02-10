@@ -88,7 +88,7 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 	go func() {
 		// Reconnect loop.
 		for {
-			sub := impl.NewSubscription(subscribeCtx, impl.SubsriptionOptions{
+			sub := impl.NewSubscription(subscribeCtx, impl.SubscriptionOptions{
 				MaxActiveMessages:     a.metadata.MaxActiveMessages,
 				TimeoutInSec:          a.metadata.TimeoutInSec,
 				MaxBulkSubCount:       nil,
@@ -117,13 +117,7 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 			err = sub.ReceiveBlocking(
 				a.getHandlerFn(handler),
 				receiver,
-				func() {
-					// Reset the backoff when the subscription is successful and we have received the first message
-					bo.Reset()
-				},
-				impl.ReceiveOptions{
-					BulkEnabled: false, // Bulk is not supported here.
-				},
+				bo.Reset, // Reset the backoff when the subscription is successful and we have received the first message
 			)
 			if err != nil && !errors.Is(err, context.Canceled) {
 				a.logger.Errorf("Error from receiver: %v", err)

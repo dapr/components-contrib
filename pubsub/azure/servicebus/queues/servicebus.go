@@ -69,7 +69,7 @@ func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPubli
 func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	sub := impl.NewSubscription(
 		subscribeCtx,
-		impl.SubsriptionOptions{
+		impl.SubscriptionOptions{
 			MaxActiveMessages:     a.metadata.MaxActiveMessages,
 			TimeoutInSec:          a.metadata.TimeoutInSec,
 			MaxBulkSubCount:       nil,
@@ -82,25 +82,20 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 		a.logger,
 	)
 
-	receiveAndBlockFn := func(receiver impl.Receiver, onFirstSuccess func()) error {
+	return a.doSubscribe(subscribeCtx, req, sub, func(receiver impl.Receiver, onFirstSuccess func()) error {
 		return sub.ReceiveBlocking(
 			impl.GetPubSubHandlerFunc(req.Topic, handler, a.logger, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second),
 			receiver,
 			onFirstSuccess,
-			impl.ReceiveOptions{
-				BulkEnabled: false, // Bulk is not supported in regular Subscribe.
-			},
 		)
-	}
-
-	return a.doSubscribe(subscribeCtx, req, sub, receiveAndBlockFn)
+	})
 }
 
 func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.BulkHandler) error {
 	maxBulkSubCount := utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxMessagesCount, defaultMaxBulkSubCount)
 	sub := impl.NewSubscription(
 		subscribeCtx,
-		impl.SubsriptionOptions{
+		impl.SubscriptionOptions{
 			MaxActiveMessages:     a.metadata.MaxActiveMessages,
 			TimeoutInSec:          a.metadata.TimeoutInSec,
 			MaxBulkSubCount:       &maxBulkSubCount,
@@ -113,24 +108,22 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 		a.logger,
 	)
 
-	receiveAndBlockFn := func(receiver impl.Receiver, onFirstSuccess func()) error {
+	return a.doSubscribe(subscribeCtx, req, sub, func(receiver impl.Receiver, onFirstSuccess func()) error {
 		return sub.ReceiveBlocking(
 			impl.GetBulkPubSubHandlerFunc(req.Topic, handler, a.logger, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second),
 			receiver,
 			onFirstSuccess,
-			impl.ReceiveOptions{
-				BulkEnabled: true, // Bulk is supported in BulkSubscribe.
-			},
 		)
-	}
-
-	return a.doSubscribe(subscribeCtx, req, sub, receiveAndBlockFn)
+	})
 }
 
 // doSubscribe is a helper function that handles the common logic for both Subscribe and BulkSubscribe.
 // The receiveAndBlockFn is a function should invoke a blocking call to receive messages from the topic.
-func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
-	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(impl.Receiver, func()) error,
+func (a *azureServiceBus) doSubscribe(
+	subscribeCtx context.Context,
+	req pubsub.SubscribeRequest,
+	sub *impl.Subscription,
+	receiveAndBlockFn func(receiver impl.Receiver, onFirstSuccess func()) error,
 ) error {
 	// Does nothing if DisableEntityManagement is true
 	err := a.client.EnsureQueue(subscribeCtx, req.Topic)

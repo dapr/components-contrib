@@ -73,7 +73,7 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 
 	sub := impl.NewSubscription(
 		subscribeCtx,
-		impl.SubsriptionOptions{
+		impl.SubscriptionOptions{
 			MaxActiveMessages:     a.metadata.MaxActiveMessages,
 			TimeoutInSec:          a.metadata.TimeoutInSec,
 			MaxBulkSubCount:       nil,
@@ -82,6 +82,7 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 			Entity:                "topic " + req.Topic,
 			LockRenewalInSec:      a.metadata.LockRenewalInSec,
 			RequireSessions:       requireSessions,
+			SessionIdleTimeout:    sessionIdleTimeout,
 		},
 		a.logger,
 	)
@@ -91,10 +92,6 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 			impl.GetPubSubHandlerFunc(req.Topic, handler, a.logger, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second),
 			receiver,
 			onFirstSuccess,
-			impl.ReceiveOptions{
-				BulkEnabled:        false, // Bulk is not supported in regular Subscribe.
-				SessionIdleTimeout: sessionIdleTimeout,
-			},
 		)
 	}
 
@@ -112,7 +109,7 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 	maxBulkSubCount := utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxMessagesCount, defaultMaxBulkSubCount)
 	sub := impl.NewSubscription(
 		subscribeCtx,
-		impl.SubsriptionOptions{
+		impl.SubscriptionOptions{
 			MaxActiveMessages:     a.metadata.MaxActiveMessages,
 			TimeoutInSec:          a.metadata.TimeoutInSec,
 			MaxBulkSubCount:       &maxBulkSubCount,
@@ -121,6 +118,7 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 			Entity:                "topic " + req.Topic,
 			LockRenewalInSec:      a.metadata.LockRenewalInSec,
 			RequireSessions:       requireSessions,
+			SessionIdleTimeout:    sessionIdleTimeout,
 		},
 		a.logger,
 	)
@@ -130,10 +128,6 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 			impl.GetBulkPubSubHandlerFunc(req.Topic, handler, a.logger, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second),
 			receiver,
 			onFirstSuccess,
-			impl.ReceiveOptions{
-				BulkEnabled:        true, // Bulk is supported in BulkSubscribe.
-				SessionIdleTimeout: sessionIdleTimeout,
-			},
 		)
 	}
 

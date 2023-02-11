@@ -50,29 +50,29 @@ func (c *Client) PublishPubSub(ctx context.Context, req *pubsub.PublishRequest, 
 	err = retry.NotifyRecover(
 		func() error {
 			// Get the sender
-			sender, err := c.GetSender(ctx, req.Topic, ensureFn)
-			if err != nil {
-				return fmt.Errorf("failed to create a sender: %w", err)
+			sender, rErr := c.GetSender(ctx, req.Topic, ensureFn)
+			if rErr != nil {
+				return fmt.Errorf("failed to create a sender: %w", rErr)
 			}
 
 			// Try sending the message
 			publishCtx, publisCancel := context.WithTimeout(ctx, time.Second*time.Duration(c.metadata.TimeoutInSec))
-			err = sender.SendMessage(publishCtx, msg, nil)
+			rErr = sender.SendMessage(publishCtx, msg, nil)
 			publisCancel()
-			if err != nil {
-				if IsNetworkError(err) {
+			if rErr != nil {
+				if IsNetworkError(rErr) {
 					// Retry after reconnecting
 					c.CloseSender(req.Topic, log)
-					return err
+					return rErr
 				}
 
-				if IsRetriableAMQPError(err) {
+				if IsRetriableAMQPError(rErr) {
 					// Retry (no need to reconnect)
-					return err
+					return rErr
 				}
 
 				// Do not retry on other errors
-				return backoff.Permanent(err)
+				return backoff.Permanent(rErr)
 			}
 			return nil
 		},
@@ -148,29 +148,29 @@ func (c *Client) PublishBinding(ctx context.Context, req *bindings.InvokeRequest
 	err = retry.NotifyRecover(
 		func() error {
 			// Get the sender
-			sender, err := c.GetSender(ctx, queueOrTopic, nil)
-			if err != nil {
-				return fmt.Errorf("failed to create a sender: %w", err)
+			sender, rErr := c.GetSender(ctx, queueOrTopic, nil)
+			if rErr != nil {
+				return fmt.Errorf("failed to create a sender: %w", rErr)
 			}
 
 			// Try sending the message
 			publishCtx, publisCancel := context.WithTimeout(ctx, time.Second*time.Duration(c.metadata.TimeoutInSec))
-			err = sender.SendMessage(publishCtx, msg, nil)
+			rErr = sender.SendMessage(publishCtx, msg, nil)
 			publisCancel()
-			if err != nil {
-				if IsNetworkError(err) {
+			if rErr != nil {
+				if IsNetworkError(rErr) {
 					// Retry after reconnecting
 					c.CloseSender(queueOrTopic, log)
-					return err
+					return rErr
 				}
 
-				if IsRetriableAMQPError(err) {
+				if IsRetriableAMQPError(rErr) {
 					// Retry (no need to reconnect)
-					return err
+					return rErr
 				}
 
 				// Do not retry on other errors
-				return backoff.Permanent(err)
+				return backoff.Permanent(rErr)
 			}
 			return nil
 		},

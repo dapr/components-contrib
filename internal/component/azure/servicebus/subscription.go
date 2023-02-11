@@ -60,7 +60,6 @@ type Subscription struct {
 	retriableErrLimiter  ratelimit.Limiter
 	handleChan           chan struct{}
 	logger               logger.Logger
-	cancel               context.CancelFunc
 }
 
 type SubscriptionOptions struct {
@@ -169,7 +168,7 @@ func (s *Subscription) ReceiveBlocking(parentCtx context.Context, handler Handle
 
 		// Close the receiver when we're done
 		s.logger.Debug("Closing message receiver for " + logMsg)
-		closeReceiverCtx, closeReceiverCancel := context.WithTimeout(context.Background(), time.Second*time.Duration(s.timeout))
+		closeReceiverCtx, closeReceiverCancel := context.WithTimeout(context.Background(), s.timeout)
 		err := receiver.Close(closeReceiverCtx)
 		closeReceiverCancel()
 		if err != nil {
@@ -388,8 +387,6 @@ func (s *Subscription) handleAsync(ctx context.Context, msgs []*azservicebus.Rec
 
 	// Invoke the handler to process the message.
 	resps, err := handler(ctx, msgs)
-
-	// Handle bulk responses now
 	if err != nil {
 		// Errors here are from the app, so consume a retriable error token
 		consumeToken = true

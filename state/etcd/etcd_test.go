@@ -40,6 +40,7 @@ func TestGetEtcdMetadata(t *testing.T) {
 		properties := map[string]string{
 			"endpoints":     "127.0.0.1:2379",
 			"keyPrefixPath": "dapr",
+			"tlsEnable":     "disable",
 		}
 		m := state.Metadata{
 			Base: metadata.Base{Properties: properties},
@@ -49,5 +50,6 @@ func TestGetEtcdMetadata(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, properties["endpoints"], metadata.Endpoints)
 		assert.Equal(t, properties["keyPrefixPath"], metadata.KeyPrefixPath)
+		assert.Equal(t, properties["tlsEnable"], metadata.TlsEnable)
 	})
 }

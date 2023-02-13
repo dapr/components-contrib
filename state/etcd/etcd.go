@@ -22,7 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
 	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/dapr/components-contrib/metadata"
@@ -30,6 +29,10 @@ import (
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
+)
+
+const (
+	tlsEnable = "enable"
 )
 
 // Etcd is a state store implementation for Etcd.
@@ -45,6 +48,7 @@ type etcdConfig struct {
 	Endpoints     string `json:"endpoints"`
 	KeyPrefixPath string `json:"keyPrefixPath"`
 	// TLS
+	TlsEnable   string `json:"tlsEnable"`
 	Ca          string `json:"ca"`
 	Cert        string `json:"cert"`
 	Key         string `json:"key"`
@@ -55,7 +59,7 @@ type etcdConfig struct {
 func NewEtcdStateStore(logger logger.Logger) state.Store {
 	s := &Etcd{
 		logger:   logger,
-		features: []state.Feature{state.FeatureTransactional},
+		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
 	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 
@@ -70,38 +74,49 @@ func (e *Etcd) Init(metadata state.Metadata) error {
 		return fmt.Errorf("couldn't convert metadata properties: %s", err)
 	}
 
-	endpoints := strings.Split(etcdConfig.Endpoints, ",")
-	if len(endpoints) == 0 || endpoints[0] == "" {
-		return fmt.Errorf("endpoints required")
-	}
-
-	var tlsConfig *tls.Config
-	if etcdConfig.Cert != "" && etcdConfig.Key != "" && etcdConfig.Ca != "" {
-		tlsConfig, err = utils.NewTLSConfigWithPassword(etcdConfig.Cert, etcdConfig.Key, etcdConfig.KeyPassword, etcdConfig.Ca)
-		if err != nil {
-			return err
-		}
-	}
-	tlsConfig.InsecureSkipVerify = true
-	config := clientv3.Config{
-		Endpoints:   endpoints,
-		DialTimeout: 5 * time.Second,
-		TLS:         tlsConfig,
-	}
-
-	client, err := clientv3.New(config)
+	e.client, err = e.ParseClientFromConfig(etcdConfig)
 	if err != nil {
-		return errors.Wrap(err, "initializing etcd client")
+		return fmt.Errorf("initializing etcd client: %s", err)
 	}
-	e.client = client
+
 	e.keyPrefixPath = etcdConfig.KeyPrefixPath
 
 	return nil
 }
 
+func (e *Etcd) ParseClientFromConfig(etcdConfig *etcdConfig) (*clientv3.Client, error) {
+	endpoints := strings.Split(etcdConfig.Endpoints, ",")
+	if len(endpoints) == 0 || endpoints[0] == "" {
+		return nil, fmt.Errorf("endpoints required")
+	}
+
+	var tlsConfig *tls.Config
+	if etcdConfig.TlsEnable == tlsEnable {
+		if etcdConfig.Cert != "" && etcdConfig.Key != "" && etcdConfig.Ca != "" {
+			var err error
+			tlsConfig, err = utils.NewTLSConfigWithPassword(etcdConfig.Cert, etcdConfig.Key, etcdConfig.KeyPassword, etcdConfig.Ca)
+			if err != nil {
+				return nil, fmt.Errorf("tls authentication error: %s", err)
+			}
+		} else {
+			return nil, fmt.Errorf("tls authentication information is incomplete")
+		}
+	}
+
+	config := clientv3.Config{
+		Endpoints:   endpoints,
+		DialTimeout: 5 * time.Second,
+		TLS:         tlsConfig,
+	}
+	client, err := clientv3.New(config)
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
+}
+
 // Features returns the features available in this state store.
 func (e *Etcd) Features() []state.Feature {
-	// Etag is just returned and not handled in set or delete operations.
 	return e.features
 }
 
@@ -113,61 +128,235 @@ func metadataToConfig(connInfo map[string]string) (*etcdConfig, error) {
 
 // Get retrieves a Etcd KV item.
 func (e *Etcd) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
+	keyWithPath := e.keyPrefixPath + "/" + req.Key
+
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	resp, err := e.client.Get(ctx, e.keyPrefixPath+"/"+req.Key)
+	resp, err := e.client.Get(ctx, keyWithPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("couldn't get key %s: %s", keyWithPath, err)
 	}
 
-	if resp.Kvs == nil {
+	if resp == nil || resp.Kvs == nil {
 		return &state.GetResponse{}, nil
 	}
 
 	return &state.GetResponse{
 		Data: resp.Kvs[0].Value,
-		ETag: ptr.Of(strconv.Itoa(int(resp.Kvs[0].Version))),
+		ETag: ptr.Of(strconv.Itoa(int(resp.Kvs[0].ModRevision))),
 	}, nil
 }
 
 // Set saves a Etcd KV item.
 func (e *Etcd) Set(ctx context.Context, req *state.SetRequest) error {
+	ttlInSeconds, err := e.doSetValidateParameters(req)
+	if err != nil {
+		return err
+	}
+
+	err = e.doValidateEtag(req.Key, req.ETag, req.Options.Concurrency)
+	if err != nil {
+		return err
+	}
+
+	reqVal, err := e.marshal(req.Value)
+	if err != nil {
+		return err
+	}
+
+	keyWithPath := e.keyPrefixPath + "/" + req.Key
+	return e.doSet(ctx, keyWithPath, reqVal, ttlInSeconds)
+}
+
+func (e *Etcd) BulkSet(ctx context.Context, req []state.SetRequest) error {
+	if len(req) == 0 {
+		return nil
+	}
+
+	ttls := make([]int, 0)
+	for i := 0; i < len(req); i++ {
+		ttlInSeconds, err := e.doSetValidateParameters(&req[i])
+		if err != nil {
+			return err
+		}
+		ttls = append(ttls, ttlInSeconds)
+	}
+
+	for _, dr := range req {
+		keyWithPath := e.keyPrefixPath + "/" + dr.Key
+		err := e.doValidateEtag(keyWithPath, dr.ETag, dr.Options.Concurrency)
+		if err != nil {
+			return err
+		}
+	}
+
+	for i, dr := range req {
+		reqVal, err := e.marshal(dr.Value)
+		if err != nil {
+			return err
+		}
+
+		keyWithPath := e.keyPrefixPath + "/" + dr.Key
+		err = e.doSet(ctx, keyWithPath, reqVal, ttls[i])
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (e *Etcd) marshal(v interface{}) (string, error) {
 	var reqVal string
-	switch obj := req.Value.(type) {
+	switch obj := v.(type) {
 	case []byte:
 		reqVal = string(obj)
 	case string:
 		reqVal = fmt.Sprintf("%s", obj)
 	default:
-		return fmt.Errorf("request value %v is not valid", reqVal)
+		return "", fmt.Errorf("request value %v is not valid", reqVal)
 	}
+	return reqVal, nil
+}
 
-	keyWithPath := e.keyPrefixPath + "/" + req.Key
-
+func (e *Etcd) doSet(ctx context.Context, key, reqVal string, ttlInSeconds int) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	_, err := e.client.Put(ctx, keyWithPath, reqVal)
+	if ttlInSeconds > 0 {
+		resp, err := e.client.Grant(ctx, int64(ttlInSeconds))
+		if err != nil {
+			return fmt.Errorf("couldn't grant lease %s: %s", key, err)
+		}
+
+		_, err = e.client.Put(ctx, key, reqVal, clientv3.WithLease(resp.ID))
+		if err != nil {
+			return fmt.Errorf("couldn't set key %s: %s", key, err)
+		}
+	} else {
+		_, err := e.client.Put(ctx, key, reqVal)
+		if err != nil {
+			return fmt.Errorf("couldn't set key %s: %s", key, err)
+		}
+	}
+	return nil
+}
+
+func (e *Etcd) doSetValidateParameters(req *state.SetRequest) (int, error) {
+	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
-		return fmt.Errorf("couldn't set key %s: %s", keyWithPath, err)
+		return 0, err
 	}
 
-	return nil
+	ttlInSeconds, err := doParseTTLInSeconds(req.Metadata)
+	if err != nil {
+		return 0, err
+	}
+
+	return ttlInSeconds, nil
+}
+
+func doParseTTLInSeconds(metadata map[string]string) (int, error) {
+	s := metadata["ttlInSeconds"]
+	if s == "" {
+		return 0, nil
+	}
+
+	i, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, err
+	}
+
+	if i < 0 {
+		i = 0
+	}
+
+	return i, nil
 }
 
 // Delete performes a Etcd KV delete operation.
 func (e *Etcd) Delete(ctx context.Context, req *state.DeleteRequest) error {
+	if err := state.CheckRequestOptions(req.Options); err != nil {
+		return err
+	}
+
 	keyWithPath := e.keyPrefixPath + "/" + req.Key
 
+	if err := e.doValidateEtag(keyWithPath, req.ETag, req.Options.Concurrency); err != nil {
+		return err
+	}
+
+	return e.doDelete(ctx, keyWithPath)
+}
+
+func (e *Etcd) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
+	if len(req) == 0 {
+		return nil
+	}
+
+	for i := 0; i < len(req); i++ {
+		if err := state.CheckRequestOptions(&req[i].Options); err != nil {
+			return err
+		}
+	}
+
+	for _, dr := range req {
+		keyWithPath := e.keyPrefixPath + "/" + dr.Key
+		err := e.doValidateEtag(keyWithPath, dr.ETag, dr.Options.Concurrency)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, dr := range req {
+		keyWithPath := e.keyPrefixPath + "/" + dr.Key
+		err := e.doDelete(ctx, keyWithPath)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (e *Etcd) doDelete(ctx context.Context, key string) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	_, err := e.client.Delete(ctx, keyWithPath)
+	_, err := e.client.Delete(ctx, key)
 	if err != nil {
-		return fmt.Errorf("couldn't delete key %s: %s", keyWithPath, err)
+		return fmt.Errorf("couldn't delete key %s: %s", key, err)
 	}
+	return nil
+}
 
+func (e *Etcd) doValidateEtag(key string, etag *string, concurrency string) error {
+	hasEtag := etag != nil && *etag != ""
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if concurrency == state.FirstWrite && !hasEtag {
+		item, err := e.client.Get(ctx, key)
+		if err != nil {
+			return fmt.Errorf("couldn't get key %s: %s", key, err)
+		} else if item != nil {
+			return state.NewETagError(state.ETagMismatch, fmt.Errorf("item already exists and no etag was passed"))
+		} else {
+			return nil
+		}
+	} else if hasEtag {
+		item, err := e.client.Get(ctx, key)
+		if err != nil {
+			return fmt.Errorf("couldn't get key %s: %s", key, err)
+		}
+		if item == nil || item.Kvs == nil {
+			return state.NewETagError(state.ETagMismatch, fmt.Errorf("state not exist or expired for key=%s", key))
+		}
+		currentEtag := strconv.Itoa(int(item.Kvs[0].ModRevision))
+		if currentEtag != *etag {
+			return state.NewETagError(state.ETagMismatch, fmt.Errorf(
+				"state etag not match for key=%s: current=%s, expect=%s", key, currentEtag, *etag))
+		}
+	}
 	return nil
 }
 
@@ -199,22 +388,54 @@ func (e *Etcd) Ping() error {
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
 func (e *Etcd) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
+	if len(request.Operations) == 0 {
+		return nil
+	}
+
 	ops := make([]clientv3.Op, 0)
+	ttls := make([]int, 0)
+	for _, o := range request.Operations {
+		if o.Operation == state.Upsert {
+			req := o.Request.(state.SetRequest)
+			ttlInSeconds, err := e.doSetValidateParameters(&req)
+			if err != nil {
+				return err
+			}
+			ttls = append(ttls, ttlInSeconds)
+		} else if o.Operation == state.Delete {
+			req := o.Request.(state.DeleteRequest)
+			if err := state.CheckRequestOptions(req.Options); err != nil {
+				return err
+			}
+			ttls = append(ttls, 0)
+		}
+	}
+
+	for _, o := range request.Operations {
+		if o.Operation == state.Upsert {
+			req := o.Request.(state.SetRequest)
+			err := e.doValidateEtag(req.Key, req.ETag, req.Options.Concurrency)
+			if err != nil {
+				return err
+			}
+		} else if o.Operation == state.Delete {
+			req := o.Request.(state.DeleteRequest)
+			err := e.doValidateEtag(req.Key, req.ETag, req.Options.Concurrency)
+			if err != nil {
+				return err
+			}
+		}
+	}
 
 	for _, o := range request.Operations {
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
 			keyWithPath := e.keyPrefixPath + "/" + req.Key
-			var v string
-			switch x := req.Value.(type) {
-			case string:
-				v = x
-			case []uint8:
-				v = string(x)
-			default:
-				return fmt.Errorf("request value %v is not valid", v)
+			reqVal, err := e.marshal(req.Value)
+			if err != nil {
+				return err
 			}
-			ops = append(ops, clientv3.OpPut(keyWithPath, v))
+			ops = append(ops, clientv3.OpPut(keyWithPath, reqVal))
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
 			keyWithPath := e.keyPrefixPath + "/" + req.Key

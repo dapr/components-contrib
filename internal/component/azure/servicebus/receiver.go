@@ -43,12 +43,12 @@ type SessionReceiver struct {
 	*azservicebus.SessionReceiver
 }
 
-func (s *SessionReceiver) RenewSessionLocks(ctx context.Context, timeoutInSec int) error {
+func (s *SessionReceiver) RenewSessionLocks(ctx context.Context, timeout time.Duration) error {
 	if s == nil {
 		return nil
 	}
 
-	lockCtx, lockCancel := context.WithTimeout(ctx, time.Second*time.Duration(timeoutInSec))
+	lockCtx, lockCancel := context.WithTimeout(ctx, timeout)
 	defer lockCancel()
 
 	return s.RenewSessionLock(lockCtx, nil)
@@ -62,7 +62,7 @@ type MessageReceiver struct {
 	*azservicebus.Receiver
 }
 
-func (m *MessageReceiver) RenewMessageLocks(ctx context.Context, msgs []*azservicebus.ReceivedMessage, timeoutInSec int) error {
+func (m *MessageReceiver) RenewMessageLocks(ctx context.Context, msgs []*azservicebus.ReceivedMessage, timeout time.Duration) error {
 	if m == nil {
 		return nil
 	}
@@ -76,7 +76,7 @@ func (m *MessageReceiver) RenewMessageLocks(ctx context.Context, msgs []*azservi
 		go func(rmsg *azservicebus.ReceivedMessage) {
 			defer wg.Done()
 
-			lockCtx, lockCancel := context.WithTimeout(ctx, time.Second*time.Duration(timeoutInSec))
+			lockCtx, lockCancel := context.WithTimeout(ctx, timeout)
 			defer lockCancel()
 
 			// Renew the lock for the message.
@@ -92,6 +92,9 @@ func (m *MessageReceiver) RenewMessageLocks(ctx context.Context, msgs []*azservi
 
 	errs := []error{}
 	for err := range errChan {
+		if err == nil {
+			continue
+		}
 		errs = append(errs, err)
 	}
 

@@ -20,7 +20,6 @@ import (
 	"time"
 
 	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
-	backoff "github.com/cenkalti/backoff/v4"
 
 	"github.com/dapr/components-contrib/bindings"
 	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
@@ -37,7 +36,6 @@ const (
 type AzureServiceBusQueues struct {
 	metadata *impl.Metadata
 	client   *impl.Client
-	timeout  time.Duration
 	logger   logger.Logger
 }
 
@@ -54,7 +52,6 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) (err error) {
 	if err != nil {
 		return err
 	}
-	a.timeout = time.Duration(a.metadata.TimeoutInSec) * time.Second
 
 	a.client, err = impl.NewClient(a.metadata, metadata.Properties)
 	if err != nil {
@@ -71,46 +68,25 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) (err error) {
 }
 
 func (a *AzureServiceBusQueues) Operations() []bindings.OperationKind {
-	return []bindings.OperationKind{bindings.CreateOperation}
+	return []bindings.OperationKind{
+		bindings.CreateOperation,
+	}
 }
 
-func (a *AzureServiceBusQueues) Invoke(invokeCtx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	sender, err := a.client.GetSender(invokeCtx, a.metadata.QueueName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create a sender for the Service Bus queue: %w", err)
-	}
-
-	msg, err := impl.NewASBMessageFromInvokeRequest(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create message: %w", err)
-	}
-
-	// Send the message
-	ctx, cancel := context.WithTimeout(invokeCtx, a.timeout)
-	defer cancel()
-	err = sender.SendMessage(ctx, msg, nil)
-	if err != nil {
-		if impl.IsNetworkError(err) {
-			// Force reconnection on next call
-			a.client.CloseSender(a.metadata.QueueName, a.logger)
-		}
-		return nil, err
-	}
-
-	return nil, nil
+func (a *AzureServiceBusQueues) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	return a.client.PublishBinding(ctx, req, a.metadata.QueueName, a.logger)
 }
 
-func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindings.Handler) error {
+func (a *AzureServiceBusQueues) Read(ctx context.Context, handler bindings.Handler) error {
 	// Reconnection backoff policy
-	bo := backoff.NewExponentialBackOff()
-	bo.MaxElapsedTime = 0
-	bo.InitialInterval = time.Duration(a.metadata.MinConnectionRecoveryInSec) * time.Second
-	bo.MaxInterval = time.Duration(a.metadata.MaxConnectionRecoveryInSec) * time.Second
+	bo := a.client.ReconnectionBackoff()
 
 	go func() {
+		logMsg := "queue " + a.metadata.QueueName
+
 		// Reconnect loop.
 		for {
-			sub := impl.NewSubscription(subscribeCtx, impl.SubsriptionOptions{
+			sub := impl.NewSubscription(impl.SubscriptionOptions{
 				MaxActiveMessages:     a.metadata.MaxActiveMessages,
 				TimeoutInSec:          a.metadata.TimeoutInSec,
 				MaxBulkSubCount:       nil,
@@ -122,9 +98,13 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 			}, a.logger)
 
 			// Blocks until a successful connection (or until context is canceled)
-			receiver, err := sub.Connect(func() (impl.Receiver, error) {
-				receiver, err := a.client.GetClient().NewReceiverForQueue(a.metadata.QueueName, nil)
-				return &impl.MessageReceiver{Receiver: receiver}, err
+			receiver, err := sub.Connect(ctx, func() (impl.Receiver, error) {
+				a.logger.Debug("Connecting to " + logMsg)
+				r, rErr := a.client.GetClient().NewReceiverForQueue(a.metadata.QueueName, nil)
+				if rErr != nil {
+					return nil, rErr
+				}
+				return impl.NewMessageReceiver(r), nil
 			})
 			if err != nil {
 				// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
@@ -137,28 +117,18 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 			// ReceiveAndBlock will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
 			// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
 			err = sub.ReceiveBlocking(
+				ctx,
 				a.getHandlerFn(handler),
 				receiver,
-				func() {
-					// Reset the backoff when the subscription is successful and we have received the first message
-					bo.Reset()
-				},
-				impl.ReceiveOptions{
-					BulkEnabled: false, // Bulk is not supported here.
-				},
+				bo.Reset, // Reset the backoff when the subscription is successful and we have received the first message
+				logMsg,
 			)
 			if err != nil && !errors.Is(err, context.Canceled) {
-				a.logger.Error(err)
+				a.logger.Errorf("Error from receiver: %v", err)
 			}
 
-			// Gracefully close the connection (in case it's not closed already)
-			// Use a background context here (with timeout) because ctx may be closed already
-			closeCtx, closeCancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
-			sub.Close(closeCtx)
-			closeCancel()
-
 			// If context was canceled, do not attempt to reconnect
-			if subscribeCtx.Err() != nil {
+			if ctx.Err() != nil {
 				a.logger.Debug("Context canceled; will not reconnect")
 				return
 			}
@@ -166,6 +136,12 @@ func (a *AzureServiceBusQueues) Read(subscribeCtx context.Context, handler bindi
 			wait := bo.NextBackOff()
 			a.logger.Warnf("Subscription to queue %s lost connection, attempting to reconnect in %s...", a.metadata.QueueName, wait)
 			time.Sleep(wait)
+
+			// Check for context canceled again, after sleeping
+			if ctx.Err() != nil {
+				a.logger.Debug("Context canceled; will not reconnect")
+				return
+			}
 		}
 	}()
 
@@ -205,6 +181,6 @@ func (a *AzureServiceBusQueues) getHandlerFn(handler bindings.Handler) impl.Hand
 
 func (a *AzureServiceBusQueues) Close() (err error) {
 	a.logger.Debug("Closing component")
-	a.client.CloseAllSenders(a.logger)
+	a.client.Close(a.logger)
 	return nil
 }

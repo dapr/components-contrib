@@ -43,7 +43,7 @@ require (
 	github.com/aws/aws-sdk-go v1.44.187
 	github.com/benbjohnson/clock v1.3.0
 	github.com/bradfitz/gomemcache v0.0.0-20221031212613-62deef7fc822
-	github.com/camunda/zeebe/clients/go/v8 v8.1.6
+	github.com/camunda/zeebe/clients/go/v8 v8.0.11
 	github.com/cenkalti/backoff/v4 v4.2.0
 	github.com/cinience/go_rocketmq v0.0.2
 	github.com/coreos/go-oidc v2.2.1+incompatible
@@ -400,3 +400,6 @@ replace github.com/toolkits/concurrent => github.com/niean/gotools v0.0.0-201512
 
 // this is a fork which addresses a performance issues due to go routines
 replace dubbo.apache.org/dubbo-go/v3 => dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
+
+// Zeebe must stay on version 8.0.X. This replacement here acts as a reminder
+replace github.com/camunda/zeebe/clients/go/v8 => github.com/camunda/zeebe/clients/go/v8 v8.0.11

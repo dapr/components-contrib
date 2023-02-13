@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
-	nacosbinding "github.com/dapr/components-contrib/bindings/alicloud/nacos"
+	nacosbinding "github.com/dapr/components-contrib/bindings/nacos"
 	bindings_loader "github.com/dapr/dapr/pkg/components/bindings"
 	"github.com/dapr/dapr/pkg/runtime"
 	daprsdk "github.com/dapr/go-sdk/client"
@@ -50,7 +50,7 @@ func createConfigAndData() (map[string]interface{}, map[string]string) {
 		"config-id":    "123abc456def",
 		"config-group": "test-group",
 	}
-	//Another way of create serverConfigs
+	// Another way of create serverConfigs
 	serverConfigs := []constant.ServerConfig{
 		*constant.NewServerConfig(
 			"localhost",

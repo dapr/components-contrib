@@ -34,7 +34,7 @@ func TestInputBindingRead(t *testing.T) { //nolint:paralleltest
 	}
 	m := bindings.Metadata{} //nolint:exhaustivestruct
 	m.Properties = getTestMetadata()
-	r := NewAliCloudRocketMQ(logger.NewLogger("test"))
+	r := NewRocketMQ(logger.NewLogger("test"))
 	err := r.Init(m)
 	require.NoError(t, err)
 

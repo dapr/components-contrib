@@ -166,7 +166,7 @@ func (e *Etcd) Set(ctx context.Context, req *state.SetRequest) error {
 	}
 
 	keyWithPath := e.keyPrefixPath + "/" + req.Key
-	return e.doSet(ctx, keyWithPath, reqVal, ttlInSeconds)
+	return e.doSet(ctx, keyWithPath, reqVal, req.ETag, ttlInSeconds)
 }
 
 func (e *Etcd) BulkSet(ctx context.Context, req []state.SetRequest) error {
@@ -183,12 +183,14 @@ func (e *Etcd) BulkSet(ctx context.Context, req []state.SetRequest) error {
 		ttls = append(ttls, ttlInSeconds)
 	}
 
+	etags := make([]*string, 0)
 	for _, dr := range req {
 		keyWithPath := e.keyPrefixPath + "/" + dr.Key
 		err := e.doValidateEtag(keyWithPath, dr.ETag, dr.Options.Concurrency)
 		if err != nil {
 			return err
 		}
+		etags = append(etags, dr.ETag)
 	}
 
 	for i, dr := range req {
@@ -198,7 +200,7 @@ func (e *Etcd) BulkSet(ctx context.Context, req []state.SetRequest) error {
 		}
 
 		keyWithPath := e.keyPrefixPath + "/" + dr.Key
-		err = e.doSet(ctx, keyWithPath, reqVal, ttls[i])
+		err = e.doSet(ctx, keyWithPath, reqVal, etags[i], ttls[i])
 		if err != nil {
 			return err
 		}
@@ -219,7 +221,7 @@ func (e *Etcd) marshal(v interface{}) (string, error) {
 	return reqVal, nil
 }
 
-func (e *Etcd) doSet(ctx context.Context, key, reqVal string, ttlInSeconds int) error {
+func (e *Etcd) doSet(ctx context.Context, key, reqVal string, etag *string, ttlInSeconds int) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -228,13 +230,29 @@ func (e *Etcd) doSet(ctx context.Context, key, reqVal string, ttlInSeconds int) 
 		if err != nil {
 			return fmt.Errorf("couldn't grant lease %s: %s", key, err)
 		}
-
-		_, err = e.client.Put(ctx, key, reqVal, clientv3.WithLease(resp.ID))
+		if etag != nil {
+			etag, _ := strconv.ParseInt(*etag, 10, 64)
+			_, err = e.client.Txn(ctx).
+				If(clientv3.Compare(clientv3.ModRevision(key), "=", etag)).
+				Then(clientv3.OpPut(key, reqVal, clientv3.WithLease(resp.ID))).
+				Commit()
+		} else {
+			_, err = e.client.Put(ctx, key, reqVal, clientv3.WithLease(resp.ID))
+		}
 		if err != nil {
 			return fmt.Errorf("couldn't set key %s: %s", key, err)
 		}
 	} else {
-		_, err := e.client.Put(ctx, key, reqVal)
+		var err error
+		if etag != nil {
+			etag, _ := strconv.ParseInt(*etag, 10, 64)
+			_, err = e.client.Txn(ctx).
+				If(clientv3.Compare(clientv3.ModRevision(key), "=", etag)).
+				Then(clientv3.OpPut(key, reqVal)).
+				Commit()
+		} else {
+			_, err = e.client.Put(ctx, key, reqVal)
+		}
 		if err != nil {
 			return fmt.Errorf("couldn't set key %s: %s", key, err)
 		}
@@ -286,7 +304,7 @@ func (e *Etcd) Delete(ctx context.Context, req *state.DeleteRequest) error {
 		return err
 	}
 
-	return e.doDelete(ctx, keyWithPath)
+	return e.doDelete(ctx, keyWithPath, req.ETag)
 }
 
 func (e *Etcd) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
@@ -300,17 +318,19 @@ func (e *Etcd) BulkDelete(ctx context.Context, req []state.DeleteRequest) error 
 		}
 	}
 
+	etags := make([]*string, 0)
 	for _, dr := range req {
 		keyWithPath := e.keyPrefixPath + "/" + dr.Key
 		err := e.doValidateEtag(keyWithPath, dr.ETag, dr.Options.Concurrency)
 		if err != nil {
 			return err
 		}
+		etags = append(etags, dr.ETag)
 	}
 
-	for _, dr := range req {
+	for i, dr := range req {
 		keyWithPath := e.keyPrefixPath + "/" + dr.Key
-		err := e.doDelete(ctx, keyWithPath)
+		err := e.doDelete(ctx, keyWithPath, etags[i])
 		if err != nil {
 			return err
 		}
@@ -318,11 +338,20 @@ func (e *Etcd) BulkDelete(ctx context.Context, req []state.DeleteRequest) error 
 	return nil
 }
 
-func (e *Etcd) doDelete(ctx context.Context, key string) error {
+func (e *Etcd) doDelete(ctx context.Context, key string, etag *string) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	_, err := e.client.Delete(ctx, key)
+	var err error
+	if etag != nil {
+		etag, _ := strconv.ParseInt(*etag, 10, 64)
+		_, err = e.client.Txn(ctx).
+			If(clientv3.Compare(clientv3.ModRevision(key), "=", etag)).
+			Then(clientv3.OpDelete(key)).
+			Commit()
+	} else {
+		_, err = e.client.Delete(ctx, key)
+	}
 	if err != nil {
 		return fmt.Errorf("couldn't delete key %s: %s", key, err)
 	}

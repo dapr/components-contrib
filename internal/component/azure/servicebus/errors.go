@@ -30,7 +30,7 @@ func IsNetworkError(err error) bool {
 
 	var expError *azservicebus.Error
 	if errors.As(err, &expError) {
-		if expError.Code == "connlost" {
+		if expError.Code == azservicebus.CodeConnectionLost {
 			return true
 		}
 	}
@@ -54,5 +54,21 @@ func IsRetriableAMQPError(err error) bool {
 			return true
 		}
 	}
+	return false
+}
+
+// IsLockLostError returns true if the error is "locklost".
+func IsLockLostError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var expError *azservicebus.Error
+	if errors.As(err, &expError) {
+		if expError.Code == azservicebus.CodeLockLost {
+			return true
+		}
+	}
+
 	return false
 }

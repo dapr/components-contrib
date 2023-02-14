@@ -317,17 +317,12 @@ func (s *Subscription) doRenewLocks(ctx context.Context, receiver *MessageReceiv
 	}
 
 	// Renew the locks for each message
-	var wg sync.WaitGroup
-	errChan := make(chan error, len(msgs))
+	errChan := make(chan error)
 	for _, msg := range msgs {
-		wg.Add(1)
-
-		go func(rmsg *azservicebus.ReceivedMessage) {
-			defer wg.Done()
-
+		go func(rMsg *azservicebus.ReceivedMessage) {
 			// Check again if the message is active, in case it was already completed in the meanwhile
 			s.mu.RLock()
-			_, ok := s.activeMessages[*rmsg.SequenceNumber]
+			_, ok := s.activeMessages[*rMsg.SequenceNumber]
 			s.mu.RUnlock()
 			if !ok {
 				return
@@ -336,27 +331,25 @@ func (s *Subscription) doRenewLocks(ctx context.Context, receiver *MessageReceiv
 			// Renew the lock for the message.
 			lockCtx, lockCancel := context.WithTimeout(ctx, s.timeout)
 			defer lockCancel()
-			err := receiver.RenewMessageLock(lockCtx, rmsg, nil)
-			if IsLockLostError(err) {
-				errChan <- errors.New("couldn't renew active message lock for message " + rmsg.MessageID + ": lock has been lost (this often happens if the message has already been completed or abandoned)")
-			} else if err != nil {
-				errChan <- fmt.Errorf("couldn't renew active message lock for message %s: %w", rmsg.MessageID, err)
+			rErr := receiver.RenewMessageLock(lockCtx, rMsg, nil)
+			switch {
+			case IsLockLostError(rErr):
+				errChan <- errors.New("couldn't renew active message lock for message " + rMsg.MessageID + ": lock has been lost (this often happens if the message has already been completed or abandoned)")
+			case rErr != nil:
+				errChan <- fmt.Errorf("couldn't renew active message lock for message %s: %w", rMsg.MessageID, rErr)
+			default:
+				errChan <- nil
 			}
 		}(msg)
 	}
-	wg.Wait()
-	close(errChan)
 
-	errs := []error{}
-	for err := range errChan {
-		if err == nil {
-			continue
-		}
-		errs = append(errs, err)
+	var err error
+	for i := 0; i < len(msgs); i++ {
+		multierr.AppendInto(&err, <-errChan)
 	}
 
-	if len(errs) > 0 {
-		s.logger.Warnf("Error renewing message locks for %s: %v", s.entity, multierr.Combine(errs...))
+	if err != nil {
+		s.logger.Warnf("Error renewing message locks for %s: %v", s.entity, err)
 		return
 	}
 	s.logger.Debugf("Renewed message locks for %s", s.entity)

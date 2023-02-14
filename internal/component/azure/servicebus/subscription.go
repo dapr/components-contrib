@@ -38,7 +38,7 @@ const (
 	DefaultMaxConcurrentSessions    = 8
 
 	// Maximum number of concurrent operations such as lock renewals or message completion/abandonment
-	maxConcurrentOps = 10
+	maxConcurrentOps = 20
 )
 
 // HandlerResponseItem represents a response from the handler for each message.
@@ -321,7 +321,7 @@ func (s *Subscription) doRenewLocks(ctx context.Context, receiver *MessageReceiv
 		return
 	}
 
-	// Renew the locks for each message, with a limit of 10 in parallel
+	// Renew the locks for each message, with a limit of maxConcurrentOps in parallel
 	limitCh := make(chan struct{}, maxConcurrentOps)
 	errChan := make(chan error)
 	for _, msg := range msgs {
@@ -444,7 +444,7 @@ func (s *Subscription) handleAsync(ctx context.Context, msgs []*azservicebus.Rec
 
 		// Handle the errors on bulk messages and mark messages accordingly.
 		// Note, the order of the responses match the order of the messages.
-		// Perform the operations in a background goroutine with a limit of 10 concurrent
+		// Perform the operations in a background goroutine with a limit of maxConcurrentOps concurrent
 		limitCh := make(chan struct{}, maxConcurrentOps)
 		wg := sync.WaitGroup{}
 		for i := range resps {
@@ -482,7 +482,7 @@ func (s *Subscription) handleAsync(ctx context.Context, msgs []*azservicebus.Rec
 		s.CompleteMessage(finalizeCtx, receiver, msgs[0])
 		finalizeCancel()
 	} else {
-		// Perform the operations in a background goroutine with a limit of 10 concurrent
+		// Perform the operations in a background goroutine with a limit of maxConcurrentOps concurrent
 		limitCh := make(chan struct{}, maxConcurrentOps)
 		wg := sync.WaitGroup{}
 		for _, msg := range msgs {

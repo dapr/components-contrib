@@ -15,12 +15,9 @@ package servicebus
 
 import (
 	"context"
-	"fmt"
-	"sync"
 	"time"
 
 	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
-	"go.uber.org/multierr"
 )
 
 type Receiver interface {
@@ -60,47 +57,4 @@ func NewMessageReceiver(r *azservicebus.Receiver) *MessageReceiver {
 
 type MessageReceiver struct {
 	*azservicebus.Receiver
-}
-
-func (m *MessageReceiver) RenewMessageLocks(ctx context.Context, msgs []*azservicebus.ReceivedMessage, timeout time.Duration) error {
-	if m == nil {
-		return nil
-	}
-
-	var wg sync.WaitGroup
-
-	errChan := make(chan error, len(msgs))
-	for _, msg := range msgs {
-		wg.Add(1)
-
-		go func(rmsg *azservicebus.ReceivedMessage) {
-			defer wg.Done()
-
-			lockCtx, lockCancel := context.WithTimeout(ctx, timeout)
-			defer lockCancel()
-
-			// Renew the lock for the message.
-			err := m.RenewMessageLock(lockCtx, rmsg, nil)
-			if err != nil {
-				errChan <- fmt.Errorf("couldn't renew active message lock for message %s, %w", rmsg.MessageID, err)
-			}
-		}(msg)
-	}
-
-	wg.Wait()
-	close(errChan)
-
-	errs := []error{}
-	for err := range errChan {
-		if err == nil {
-			continue
-		}
-		errs = append(errs, err)
-	}
-
-	if len(errs) > 0 {
-		return multierr.Combine(errs...)
-	}
-
-	return nil
 }

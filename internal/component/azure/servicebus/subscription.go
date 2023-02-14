@@ -21,6 +21,7 @@ import (
 	"time"
 
 	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
+	"go.uber.org/multierr"
 	"go.uber.org/ratelimit"
 
 	"github.com/dapr/kit/logger"
@@ -299,7 +300,7 @@ func (s *Subscription) renewLocksBlocking(ctx context.Context, receiver Receiver
 	}
 }
 
-func (s *Subscription) doRenewLocks(ctx context.Context, msgReceiver *MessageReceiver) {
+func (s *Subscription) doRenewLocks(ctx context.Context, receiver *MessageReceiver) {
 	// Snapshot the messages to try to renew locks for.
 	s.mu.RLock()
 	msgs := make([]*azservicebus.ReceivedMessage, len(s.activeMessages))
@@ -315,12 +316,50 @@ func (s *Subscription) doRenewLocks(ctx context.Context, msgReceiver *MessageRec
 		return
 	}
 
-	err := msgReceiver.RenewMessageLocks(ctx, msgs, s.timeout)
-	if err != nil {
-		s.logger.Warnf("Error renewing message locks for %s: %v", s.entity, err)
-	} else {
-		s.logger.Debugf("Renewed message locks for %s", s.entity)
+	// Renew the locks for each message
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(msgs))
+	for _, msg := range msgs {
+		wg.Add(1)
+
+		go func(rmsg *azservicebus.ReceivedMessage) {
+			defer wg.Done()
+
+			// Check again if the message is active, in case it was already completed in the meanwhile
+			s.mu.RLock()
+			_, ok := s.activeMessages[*rmsg.SequenceNumber]
+			s.mu.RUnlock()
+			if !ok {
+				return
+			}
+
+			// Renew the lock for the message.
+			lockCtx, lockCancel := context.WithTimeout(ctx, s.timeout)
+			defer lockCancel()
+			err := receiver.RenewMessageLock(lockCtx, rmsg, nil)
+			if IsLockLostError(err) {
+				errChan <- errors.New("couldn't renew active message lock for message " + rmsg.MessageID + ": lock has been lost (this often happens if the message has already been completed or abandoned)")
+			} else if err != nil {
+				errChan <- fmt.Errorf("couldn't renew active message lock for message %s: %w", rmsg.MessageID, err)
+			}
+		}(msg)
 	}
+	wg.Wait()
+	close(errChan)
+
+	errs := []error{}
+	for err := range errChan {
+		if err == nil {
+			continue
+		}
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		s.logger.Warnf("Error renewing message locks for %s: %v", s.entity, multierr.Combine(errs...))
+		return
+	}
+	s.logger.Debugf("Renewed message locks for %s", s.entity)
 }
 
 func (s *Subscription) doRenewLocksSession(ctx context.Context, sessionReceiver *SessionReceiver) {
@@ -347,8 +386,11 @@ func (s *Subscription) handleAsync(ctx context.Context, msgs []*azservicebus.Rec
 			s.logger.Debugf("Released message handle for %s on %s", msgs[0].MessageID, s.entity)
 		}
 
+		// Remove the messages from the map of active ones
+		s.removeActiveMessages(msgs)
+
 		// If we got a retriable error (app handler returned a retriable error, or a network error while connecting to the app, etc) consume a retriable error token
-		// We do it here, after the handler has been released but before removing the active message (which would allow us to retrieve more messages)
+		// We do it here, after the handler has been released but before releasing the active operation (which would allow us to retrieve more messages)
 		if consumeToken {
 			if s.logger.IsOutputLevelEnabled(logger.DebugLevel) {
 				s.logger.Debugf("Taking a retriable error token")
@@ -358,11 +400,6 @@ func (s *Subscription) handleAsync(ctx context.Context, msgs []*azservicebus.Rec
 			} else {
 				_ = s.retriableErrLimiter.Take()
 			}
-		}
-
-		for _, msg := range msgs {
-			// Remove the message from the map of active ones
-			s.removeActiveMessage(msg.MessageID, *msg.SequenceNumber)
 		}
 
 		// Remove an entry from activeOperationsChan to allow processing more messages
@@ -471,9 +508,12 @@ func (s *Subscription) addActiveMessage(m *azservicebus.ReceivedMessage) error {
 	return nil
 }
 
-func (s *Subscription) removeActiveMessage(messageID string, messageKey int64) {
-	s.logger.Debugf("Removing message %s with sequence number %d from active messages on %s", messageID, messageKey, s.entity)
+func (s *Subscription) removeActiveMessages(msgs []*azservicebus.ReceivedMessage) {
 	s.mu.Lock()
-	delete(s.activeMessages, messageKey)
-	s.mu.Unlock()
+	defer s.mu.Unlock()
+
+	for _, msg := range msgs {
+		s.logger.Debugf("Removing message %s with sequence number %d from active messages on %s", msg.MessageID, *msg.SequenceNumber, s.entity)
+		delete(s.activeMessages, *msg.SequenceNumber)
+	}
 }

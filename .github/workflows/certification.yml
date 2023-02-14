@@ -31,7 +31,7 @@ jobs:
   # subset of the certification tests. This allows all the tests not requiring
   # secrets to be executed on pull requests.
   generate-matrix:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - name: Parse repository_dispatch payload
       if: github.event_name == 'repository_dispatch'
@@ -42,98 +42,16 @@ jobs:
           echo "PR_NUMBER=${{ github.event.client_payload.issue.number }}" >> $GITHUB_ENV
         fi
 
-    - name: Install yq
+    - name: Generate the test matrix
+      id: generate-matrix
       run: |
-        sudo snap install yq
-
-    - name: Specify components that can be run on every PR
-      id: pr-components
-      run: |
-        PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
-        - pubsub.kafka
-        - pubsub.rabbitmq
-        - pubsub.pulsar
-        - pubsub.mqtt3
-        - state.mongodb
-        - state.redis
-        - state.cockroachdb
-        - state.postgresql
-        - state.cassandra
-        - state.memcached
-        - state.mysql
-        - state.sqlite
-        - bindings.dubbo
-        - bindings.kafka
-        - bindings.redis
-        - bindings.cron
-        - secretstores.local.env
-        - secretstores.local.file
-        - secretstores.hashicorp.vault
-        - bindings.rabbitmq
-        - bindings.localstorage
-        - bindings.postgres
-        EOF
-        )
-        echo "pr-components=$PR_COMPONENTS" >> $GITHUB_OUTPUT
-
-    - name: Specify components requiring cloud resources to run
-      id: cloud-components
-      run: |
-        # Skip cloud-components on PRs, requires scheduled run trigger
-        # or approver to trigger via respository-dispatch on /ok-to-test
         if [ "${{ github.event_name }}" = "pull_request" ]; then
-          echo "cloud-components=[]" >> $GITHUB_OUTPUT
-          exit
+          # Do not generate include tests on PRs
+          node .github/scripts/test-info.mjs certification false
+        else
+          # Include cloud tests
+          node .github/scripts/test-info.mjs certification true
         fi
-        # Reuse the same cloud infrastructure as conformance.yml
-        #
-        # Unfortunately, Azure secrets can't have underscores in
-        # names, while environment variables with hyphens ('-') are
-        # troublesome.
-        #
-        # We work around here by leveraging the fact that
-        # environment variable names are case sensitive, so
-        # CamelCase would still work.
-        #
-        # That is slightly better than something like
-        # AZURECOSMOSDBMASTERKEY, which is extremely hard to read
-        # and errorprone.
-        #
-        # Only list the secrets you need for the component.
-        CRON_COMPONENTS=$(yq -I0 --tojson eval - << EOF
-        - component: secretstores.azure.keyvault
-          required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreClientId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret,AzureContainerRegistryName,AzureResourceGroupName
-          required-certs: AzureKeyVaultSecretStoreCert
-        - component: state.sqlserver
-          required-secrets: AzureSqlServerConnectionString
-        - component: bindings.azure.servicebusqueues
-          required-secrets: AzureServiceBusConnectionString
-        - component: bindings.azure.cosmosdb
-          required-secrets: AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection,AzureCosmosDBMasterKey,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
-        - component: bindings.azure.eventhubs
-          required-secrets: AzureEventHubsBindingsConnectionString,AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureEventHubsBindingsHub,AzureEventHubsBindingsNamespace,AzureEventHubsBindingsConsumerGroup,AzureCertificationServicePrincipalClientId,AzureCertificationTenantId,AzureCertificationServicePrincipalClientSecret,AzureResourceGroupName,AzureCertificationSubscriptionId,AzureEventHubsBindingsContainer,AzureIotHubEventHubConnectionString,AzureIotHubName,AzureIotHubBindingsConsumerGroup
-        - component: pubsub.azure.eventhubs
-          required-secrets: AzureEventHubsPubsubTopicActiveConnectionString,AzureEventHubsPubsubNamespace,AzureEventHubsPubsubNamespaceConnectionString,AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureEventHubsPubsubContainer,AzureIotHubName,AzureIotHubEventHubConnectionString,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret,AzureResourceGroupName,AzureCertificationSubscriptionId
-        - component: pubsub.azure.servicebus.topics
-          required-secrets: AzureServiceBusConnectionString,AzureServiceBusNamespace, AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
-        - component: bindings.azure.blobstorage
-          required-secrets: AzureBlobStorageAccount,AzureBlobStorageAccessKey,AzureBlobStorageContainer,AzureCertificationTenantId,AzureCertificationServicePrincipalClientId,AzureCertificationServicePrincipalClientSecret
-        - component: bindings.azure.storagequeues
-          required-secrets: AzureBlobStorageAccount, AzureBlobStorageAccessKey
-        - component: state.azure.tablestorage
-          required-secrets: AzureBlobStorageAccount, AzureBlobStorageAccessKey, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
-        - component: state.azure.blobstorage
-          required-secrets: AzureBlobStorageContainer,AzureBlobStorageAccount, AzureBlobStorageAccessKey, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
-        - component: state.azure.cosmosdb
-          required-secrets: AzureCosmosDBMasterKey, AzureCosmosDBUrl, AzureCosmosDB, AzureCosmosDBCollection, AzureCertificationTenantId, AzureCertificationServicePrincipalClientId, AzureCertificationServicePrincipalClientSecret
-        - component: pubsub.aws.snssqs
-          terraform-dir: pubsub/aws/snssqs
-        - component: state.aws.dynamodb
-          terraform-dir: state/aws/dynamodb
-        
-        EOF
-        )
-        echo "cloud-components=$CRON_COMPONENTS" >> $GITHUB_OUTPUT
 
     - name: Create PR comment
       if: env.PR_NUMBER != ''
@@ -150,24 +68,21 @@ jobs:
           Commit ref: ${{ env.CHECKOUT_REF }}
 
     outputs:
-      pr-components: ${{ steps.pr-components.outputs.pr-components }}
-      cloud-components: ${{ steps.cloud-components.outputs.cloud-components }}
+      test-matrix: ${{ steps.generate-matrix.outputs.test-matrix }}
 
   certification:
     name: ${{ matrix.component }} certification
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     defaults:
       run:
         shell: bash
     needs: generate-matrix
     env:
-      UNIQUE_ID: ${{github.run_id}}-${{github.run_attempt}}
+      UNIQUE_ID: "${{ github.run_id }}-${{ github.run_attempt }}"
 
     strategy:
       fail-fast: false # Keep running even if one component fails
-      matrix:
-        component: ${{ fromJson(needs.generate-matrix.outputs.pr-components) }}
-        include: ${{ fromJson(needs.generate-matrix.outputs.cloud-components) }}
+      matrix: ${{ fromJson(needs.generate-matrix.outputs.test-matrix) }}
 
     steps:
     - name: Set default payload repo and ref
@@ -191,8 +106,7 @@ jobs:
 
     - name: Setup test output
       run: |
-        export TEST_OUTPUT_FILE_PREFIX=$GITHUB_WORKSPACE/test_report
-        echo "TEST_OUTPUT_FILE_PREFIX=$TEST_OUTPUT_FILE_PREFIX" >> $GITHUB_ENV
+        echo "TEST_OUTPUT_FILE_PREFIX=$GITHUB_WORKSPACE/test_report" >> $GITHUB_ENV
 
     - name: Configure certification test and source path
       run: |
@@ -214,7 +128,6 @@ jobs:
     #    az keyvault set-policy -n $AZURE_KEYVAULT --secret-permissions get list --spn $SPN_CLIENT_ID
     # Using az cli to query keyvault as Azure/get-keyvault-secrets@v1 is deprecated
     - name: Setup secrets
-      id: get-azure-secrets
       if: matrix.required-secrets != ''
       env:
         VAULT_NAME: ${{ secrets.AZURE_KEYVAULT }}
@@ -245,105 +158,38 @@ jobs:
           echo "$CERT_NAME=$CERT_FILE" >> $GITHUB_ENV
         done
 
-    - name: Get current time
+    - name: Set current time
       run: |
         echo "CURRENT_TIME=$(date --rfc-3339=date)" >> ${GITHUB_ENV}
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v2
-      if: matrix.terraform-dir != ''
+      if: matrix.require-terraform == 'true'
 
-    - name: Set AWS Region
-      if: contains(matrix.component, 'aws')
+    - name: Set Cloudflare env vars
+      if: matrix.require-cloudflare-credentials == 'true'
       run: |
-        AWS_REGION="us-west-1"
-        echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
-   
+        echo "CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" >> $GITHUB_ENV
+        echo "CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }}" >> $GITHUB_ENV
+
+    - name: Set AWS env vars
+      if: matrix.require-aws-credentials == 'true'
+      run: |
+        echo "AWS_REGION=us-west-1" >> $GITHUB_ENV
+        echo "AWS_ACCESS_KEY=${{ secrets.AWS_ACCESS_KEY }}" >> $GITHUB_ENV
+        echo "AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }}" >> $GITHUB_ENV
+
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v1
+      if: matrix.require-aws-credentials == 'true'
       with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+        aws-access-key-id: "${{ secrets.AWS_ACCESS_KEY }}"
+        aws-secret-access-key: "${{ secrets.AWS_SECRET_KEY }}"
         aws-region: "${{ env.AWS_REGION }}"
-      if: matrix.terraform-dir != ''
 
-    - name: Terraform Init
-      id: init
-      run: terraform init
-      working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
-      if: matrix.terraform-dir != ''
-      
-    - name: Terraform Validate
-      id: validate
-      run: terraform validate -no-color
-      working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
-      if: matrix.terraform-dir != ''
-
-    - name: Terraform Plan
-      id: plan
-      run: terraform plan -no-color -var="UNIQUE_ID=${{env.UNIQUE_ID}}" -var="TIMESTAMP=${{env.CURRENT_TIME}}"
-      working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
-      if: matrix.terraform-dir != ''
-
-    - name: Terraform Apply     
-      run: terraform apply -auto-approve -var="UNIQUE_ID=${{env.UNIQUE_ID}}" -var="TIMESTAMP=${{env.CURRENT_TIME}}"
-      working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
-      if: matrix.terraform-dir != ''
-      continue-on-error: true
-    
-    - name: Create aws.snssqs specific variables
-      if: contains(matrix.component, 'snssqs')
-      working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
-      run: |
-        PUBSUB_AWS_SNSSQS_QUEUE_1="sqssnscerttest-q1-${{env.UNIQUE_ID}}"
-        echo "PUBSUB_AWS_SNSSQS_QUEUE_1=$PUBSUB_AWS_SNSSQS_QUEUE_1" >> $GITHUB_ENV
-
-        PUBSUB_AWS_SNSSQS_QUEUE_2="sqssnscerttest-q2-${{env.UNIQUE_ID}}"
-        echo "PUBSUB_AWS_SNSSQS_QUEUE_2=$PUBSUB_AWS_SNSSQS_QUEUE_2" >> $GITHUB_ENV
-
-        PUBSUB_AWS_SNSSQS_QUEUE_3="sqssnscerttest-q3-${{env.UNIQUE_ID}}"
-        echo "PUBSUB_AWS_SNSSQS_QUEUE_3=$PUBSUB_AWS_SNSSQS_QUEUE_3" >> $GITHUB_ENV
-        PUBSUB_AWS_SNSSQS_TOPIC_3="sqssnscerttest-t3-${{env.UNIQUE_ID}}"
-        echo "PUBSUB_AWS_SNSSQS_TOPIC_3=$PUBSUB_AWS_SNSSQS_TOPIC_3" >> $GITHUB_ENV
-
-        PUBSUB_AWS_SNSSQS_QUEUE_MVT="sqssnscerttest-q-mvt-${{env.UNIQUE_ID}}"
-        echo "PUBSUB_AWS_SNSSQS_QUEUE_MVT=$PUBSUB_AWS_SNSSQS_QUEUE_MVT" >> $GITHUB_ENV
-        PUBSUB_AWS_SNSSQS_TOPIC_MVT="sqssnscerttest-tp-mvt-${{env.UNIQUE_ID}}"
-        echo "PUBSUB_AWS_SNSSQS_TOPIC_MVT=$PUBSUB_AWS_SNSSQS_TOPIC_MVT" >> $GITHUB_ENV
-
-        PUBSUB_AWS_SNSSQS_QUEUE_DLIN="sqssnscerttest-dlq-in-${{env.UNIQUE_ID}}"
-        echo "PUBSUB_AWS_SNSSQS_QUEUE_DLIN=$PUBSUB_AWS_SNSSQS_QUEUE_DLIN" >> $GITHUB_ENV
-        PUBSUB_AWS_SNSSQS_QUEUE_DLOUT="sqssnscerttest-dlq-out-${{env.UNIQUE_ID}}"
-        echo "PUBSUB_AWS_SNSSQS_QUEUE_DLOUT=$PUBSUB_AWS_SNSSQS_QUEUE_DLOUT" >> $GITHUB_ENV
-
-        PUBSUB_AWS_SNSSQS_TOPIC_DLIN="sqssnscerttest-dlt-in-${{env.UNIQUE_ID}}"
-        echo "PUBSUB_AWS_SNSSQS_TOPIC_DLIN=$PUBSUB_AWS_SNSSQS_TOPIC_DLIN" >> $GITHUB_ENV
-    
-        PUBSUB_AWS_SNSSQS_QUEUE_FIFO="sqssnscerttest-q-fifo-${{env.UNIQUE_ID}}.fifo"
-        echo "PUBSUB_AWS_SNSSQS_QUEUE_FIFO=$PUBSUB_AWS_SNSSQS_QUEUE_FIFO" >> $GITHUB_ENV
-        PUBSUB_AWS_SNSSQS_TOPIC_FIFO="sqssnscerttest-t-fifo-${{env.UNIQUE_ID}}.fifo"
-        echo "PUBSUB_AWS_SNSSQS_TOPIC_FIFO=$PUBSUB_AWS_SNSSQS_TOPIC_FIFO" >> $GITHUB_ENV
-        PUBSUB_AWS_SNSSQS_FIFO_GROUP_ID="sqssnscerttest-q-fifo-${{env.UNIQUE_ID}}"
-        echo "PUBSUB_AWS_SNSSQS_FIFO_GROUP_ID=$PUBSUB_AWS_SNSSQS_FIFO_GROUP_ID" >> $GITHUB_ENV
-
-        PUBSUB_AWS_SNSSQS_QUEUE_NODRT="sqssnscerttest-q-nodrt-${{env.UNIQUE_ID}}"
-        echo "PUBSUB_AWS_SNSSQS_QUEUE_NODRT=$PUBSUB_AWS_SNSSQS_QUEUE_NODRT" >> $GITHUB_ENV
-        PUBSUB_AWS_SNSSQS_TOPIC_NODRT="sqssnscerttest-t-nodrt-${{env.UNIQUE_ID}}"
-        echo "PUBSUB_AWS_SNSSQS_TOPIC_NODRT=$PUBSUB_AWS_SNSSQS_TOPIC_NODRT" >> $GITHUB_ENV
-
-        AWS_REGION="us-east-1"
-        echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
-    
-    - name: Create state aws.dynamodb specific variables
-      if: contains(matrix.component, 'dynamodb')
-      working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
-      run: |
-        STATE_AWS_DYNAMODB_TABLE_1="certification-test-terraform-basic-${{ env.UNIQUE_ID }}"
-        echo "STATE_AWS_DYNAMODB_TABLE_1=$STATE_AWS_DYNAMODB_TABLE_1" >> $GITHUB_ENV
-        STATE_AWS_DYNAMODB_TABLE_2="certification-test-terraform-partition-key-${{ env.UNIQUE_ID }}"
-        echo "STATE_AWS_DYNAMODB_TABLE_2=$STATE_AWS_DYNAMODB_TABLE_2" >> $GITHUB_ENV
-        AWS_REGION="us-east-1"
-        echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
+    - name: Run setup script
+      if: matrix.setup-script != ''
+      run: ${{ matrix.setup-script }}
 
     - name: Set up Go
       uses: actions/setup-go@v3
@@ -363,7 +209,12 @@ jobs:
         go mod tidy -compat=1.19
         git diff --exit-code ./go.mod
         git diff --exit-code ./go.sum
-  
+
+    - name: Catch setup failures
+      if: failure()
+      run: |
+        echo "CERTIFICATION_FAILURE=true" >> $GITHUB_ENV
+
     - name: Run tests
       continue-on-error: false
       working-directory: ${{ env.TEST_PATH }}
@@ -462,11 +313,7 @@ jobs:
         name: ${{ matrix.component }}_certification_test
         path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.*
 
-    - name: Terraform Destroy
-      continue-on-error: true    
-      run: terraform destroy -auto-approve -var="UNIQUE_ID=${{env.UNIQUE_ID}}" -var="TIMESTAMP=${{env.CURRENT_TIME}}"
-      working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
-      if: matrix.terraform-dir != ''
+    # HERE: RUN TEARDOWN SCRIPTS
 
   post_job:
     name: Post-completion
@@ -500,9 +347,7 @@ jobs:
         uses: actions/github-script@v6
         with:
           script: |
-            const prComponents = ('${{ needs.generate-matrix.outputs.pr-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.pr-components }}')) || []
-            const cloudComponents = ('${{ needs.generate-matrix.outputs.cloud-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.cloud-components }}')) || []
-            const allComponents = [...prComponents, ...cloudComponents]
+            const allComponents = JSON.parse('${{ needs.generate-matrix.outputs.test-matrix }}')
             const basePath = '${{ steps.testresults.outputs.download-path }}'
             const testType = 'certification'
 
@@ -530,7 +375,7 @@ jobs:
                 let found = false
                 let success = false
                 try {
-                    let read =fs.readFileSync(path.join(basePath, component + '.txt'), 'utf8')
+                    let read = fs.readFileSync(path.join(basePath, component + '.txt'), 'utf8')
                     read = read.split('\n')[0]
                     switch (read) {
                         case '1':

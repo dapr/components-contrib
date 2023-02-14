@@ -33,7 +33,7 @@ jobs:
   # subset of the conformance tests. This allows all the tests not requiring
   # secrets to be executed on pull requests.
   generate-matrix:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - name: Parse repository_dispatch payload
       if: github.event_name == 'repository_dispatch'
@@ -44,126 +44,16 @@ jobs:
           echo "PR_NUMBER=${{ github.event.client_payload.issue.number }}" >> $GITHUB_ENV
         fi
 
-    - name: Install yq
-      run: |
-        sudo snap install yq
-
-    - name: Specify components not requiring secrets nor certs
-      id: pr-components
-      run: |
-        PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
-        - bindings.cron
-        - bindings.http
-        - bindings.influx
-        - bindings.kafka-wurstmeister
-        - bindings.kafka-confluent
-        - bindings.mqtt3-emqx
-        - bindings.mqtt3-mosquitto
-        - bindings.mqtt3-vernemq
-        - bindings.postgres
-        - bindings.redis.v6
-        - bindings.redis.v7
-        - bindings.kubemq
-        - bindings.rabbitmq
-        - pubsub.aws.snssqs.docker
-        - configuration.redis.v6
-        - configuration.redis.v7
-        - pubsub.hazelcast
-        - pubsub.in-memory
-        - pubsub.mqtt3-emqx
-        - pubsub.mqtt3-vernemq
-        - pubsub.natsstreaming
-        - pubsub.pulsar
-        - pubsub.rabbitmq
-        - pubsub.redis.v6
-        - pubsub.kafka-wurstmeister
-        - pubsub.kafka-confluent
-        - pubsub.kubemq
-        - pubsub.solace
-        - secretstores.kubernetes
-        - secretstores.localenv
-        - secretstores.localfile
-        - secretstores.hashicorp.vault
-        - state.cassandra
-        - state.memcached
-        - state.mongodb
-        - state.mysql.mysql
-        - state.mysql.mariadb
-        - state.postgresql
-        - state.redis.v6
-        - state.redis.v7
-        - state.sqlite
-        - state.sqlserver
-        - state.in-memory
-        - state.cockroachdb
-        - workflows.temporal
-        - state.rethinkdb
-        EOF
-        )
-        echo "pr-components=$PR_COMPONENTS" >> $GITHUB_OUTPUT
-
-    - name: Specify components requiring secrets or certs
-      id: cron-components
+    - name: Generate the test matrix
+      id: generate-matrix
       run: |
         if [ "${{ github.event_name }}" = "pull_request" ]; then
-          echo "cron-components=[]" >> $GITHUB_OUTPUT
-          exit
+          # Do not generate include tests on PRs
+          node .github/scripts/test-info.mjs conformance false
+        else
+          # Include cloud tests
+          node .github/scripts/test-info.mjs conformance true
         fi
-        # Unfortunately, Azure secrets can't have underscores in
-        # names, while environment variables with hyphens ('-') are
-        # troublesome.
-        #
-        # We work around here by leveraging the fact that
-        # environment variable names are case sensitive, so
-        # CamelCase would still work.
-        #
-        # That is slightly better than something like
-        # AZURECOSMOSDBMASTERKEY, which is extremely hard to read
-        # and errorprone.
-        #
-        # Only list the secrets you need for the component.
-        CRON_COMPONENTS=$(yq -I0 --tojson eval - << EOF
-        - component: state.azure.blobstorage
-          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount
-        - component: state.azure.cosmosdb
-          required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
-        - component: state.azure.sql
-          required-secrets: AzureResourceGroupName, AzureSqlServerName, AzureSqlServerConnectionString
-        - component: state.azure.tablestorage.storage
-          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount
-        - component: state.azure.tablestorage.cosmosdb
-          required-secrets: AzureCosmosDBTableAPI,AzureCosmosDBTableAPIMasterKey
-        - component: pubsub.azure.eventhubs
-          required-secrets: AzureEventHubsPubsubNamespaceConnectionString,AzureEventHubsPubsubConsumerGroup,AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureEventHubsPubsubContainer
-        - component: pubsub.azure.servicebus.topics
-          required-secrets: AzureServiceBusConnectionString
-        - component: pubsub.azure.servicebus.queues
-          required-secrets: AzureServiceBusConnectionString
-        - component: bindings.azure.blobstorage
-          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount
-        - component: bindings.azure.eventgrid
-          required-secrets: AzureEventGridNgrokToken,AzureEventGridAccessKey,AzureEventGridTopicEndpoint,AzureEventGridScope,AzureEventGridClientSecret,AzureEventGridClientId,AzureEventGridTenantId,AzureEventGridSubscriptionId
-        - component: bindings.azure.eventhubs
-          required-secrets: AzureEventHubsBindingsConnectionString,AzureEventHubsBindingsConsumerGroup,AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureEventHubsBindingsContainer
-        - component: bindings.azure.servicebusqueues
-          required-secrets: AzureServiceBusConnectionString
-        - component: bindings.azure.storagequeues
-          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageQueue
-        - component: secretstores.azure.keyvault.certificate
-          required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreClientId
-          required-certs: AzureKeyVaultSecretStoreCert
-        - component: secretstores.azure.keyvault.serviceprincipal
-          required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret
-        - component: bindings.azure.cosmosdb
-          required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
-        - component: pubsub.aws.snssqs.terraform
-          terraform-dir: pubsub/aws/snssqs
-        - component: state.aws.dynamodb.terraform
-          terraform-dir: state/aws/dynamodb
-        - component: state.cloudflare.workerskv
-        EOF
-        )
-        echo "cron-components=$CRON_COMPONENTS" >> $GITHUB_OUTPUT
 
     - name: Create PR comment
       if: env.PR_NUMBER != ''
@@ -180,12 +70,11 @@ jobs:
           Commit ref: ${{ env.CHECKOUT_REF }}
 
     outputs:
-      pr-components: ${{ steps.pr-components.outputs.pr-components }}
-      cron-components: ${{ steps.cron-components.outputs.cron-components }}
+      test-matrix: ${{ steps.generate-matrix.outputs.test-matrix }}
 
   conformance:
     name: ${{ matrix.component }} conformance
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     env:
       # Version of Node.js to use
       # Currently used by the Cloudflare components
@@ -198,9 +87,7 @@ jobs:
 
     strategy:
       fail-fast: false # Keep running even if one component fails
-      matrix:
-        component: ${{ fromJson(needs.generate-matrix.outputs.pr-components) }}
-        include: ${{ fromJson(needs.generate-matrix.outputs.cron-components) }}
+      matrix: ${{ fromJson(needs.generate-matrix.outputs.test-matrix) }}
 
     steps:
     - name: Set default payload repo and ref
@@ -239,7 +126,6 @@ jobs:
     #    az keyvault set-policy -n $AZURE_KEYVAULT --secret-permissions get list --spn $SPN_CLIENT_ID
     # Using az cli to query keyvault as Azure/get-keyvault-secrets@v1 is deprecated
     - name: Setup secrets
-      id: get-azure-secrets
       if: matrix.required-secrets != ''
       env:
         VAULT_NAME: ${{ secrets.AZURE_KEYVAULT }}
@@ -289,53 +175,33 @@ jobs:
         echo "CURRENT_TIME=$(date --rfc-3339=date)" >> ${GITHUB_ENV}
 
     - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
       if: matrix.terraform-dir != ''
+      uses: hashicorp/setup-terraform@v2
+
+    - name: Set Cloudflare env vars
+      if: matrix.require-cloudflare-credentials == 'true'
+      run: |
+        echo "CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" >> $GITHUB_ENV
+        echo "CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }}" >> $GITHUB_ENV
+
+    - name: Set AWS env vars
+      if: matrix.require-aws-credentials == 'true'
+      run: |
+        echo "AWS_ACCESS_KEY=${{ secrets.AWS_ACCESS_KEY }}" >> $GITHUB_ENV
+        echo "AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }}" >> $GITHUB_ENV
 
     - name: Configure AWS Credentials
+      if: matrix.require-aws-credentials == 'true'
       uses: aws-actions/configure-aws-credentials@v1
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
         aws-region: us-west-1
-      if: matrix.terraform-dir != ''
 
-    - name: Terraform Init
-      id: init
-      run: terraform init
-      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
-      if: matrix.terraform-dir != ''
-      
-    - name: Terraform Validate
-      id: validate
-      run: terraform validate -no-color
-      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
-      if: matrix.terraform-dir != ''
+    - name: Run setup script
+      if: matrix.setup-script != ''
+      run: ${{ matrix.setup-script }}
 
-    - name: Terraform Plan
-      id: plan
-      run: terraform plan -no-color -var="UNIQUE_ID=${{env.UNIQUE_ID}}" -var="TIMESTAMP=${{env.CURRENT_TIME}}"
-      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
-      if: matrix.terraform-dir != ''
-
-    - name: Terraform Apply
-      run: terraform apply -auto-approve -var="UNIQUE_ID=${{env.UNIQUE_ID}}" -var="TIMESTAMP=${{env.CURRENT_TIME}}"
-      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
-      if: matrix.terraform-dir != ''
-      continue-on-error: true
-
-    - name: Create aws.snssqs variables
-      run: |
-        PUBSUB_AWS_SNSSQS_QUEUE="testQueue-${{ env.UNIQUE_ID }}"
-        echo "PUBSUB_AWS_SNSSQS_QUEUE=$PUBSUB_AWS_SNSSQS_QUEUE" >> $GITHUB_ENV
-        PUBSUB_AWS_SNSSQS_TOPIC="testTopic-${{ env.UNIQUE_ID }}"
-        echo "PUBSUB_AWS_SNSSQS_TOPIC=$PUBSUB_AWS_SNSSQS_TOPIC" >> $GITHUB_ENV
-        PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1="multiTopic1-${{ env.UNIQUE_ID }}"
-        echo "PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1=$PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1" >> $GITHUB_ENV
-        PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2="multiTopic2-${{ env.UNIQUE_ID }}"
-        echo "PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2=$PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2" >> $GITHUB_ENV
-      if: contains(matrix.component, 'snssqs')
-    
     - name: Create aws.dynamodb variables
       run: |
         STATE_AWS_DYNAMODB_TABLE_1="conformance-test-terraform-basic-${{ env.UNIQUE_ID }}"
@@ -351,10 +217,6 @@ jobs:
     - name: Start Redis 7
       run: docker-compose -f ./.github/infrastructure/docker-compose-redis7.yml -p redis up -d
       if: contains(matrix.component, 'redis.v7')
-
-    - name: Start Temporal
-      run: docker-compose -f ./.github/infrastructure/docker-compose-temporal.yml -p temporal up -d
-      if: contains(matrix.component, 'temporal')
 
     - name: Start MongoDB
       uses: supercharge/mongodb-github-action@1.3.0
@@ -374,10 +236,6 @@ jobs:
     - name: Start kafka Confluent
       run: docker-compose -f ./.github/infrastructure/docker-compose-confluent.yml -p confluent up -d
       if: contains(matrix.component, 'confluent')
-
-    - name: Start memcached
-      run: docker-compose -f ./.github/infrastructure/docker-compose-memcached.yml -p memcached up -d
-      if: contains(matrix.component, 'memcached')
 
     - name: Start natsstreaming
       run: docker-compose -f ./.github/infrastructure/docker-compose-natsstreaming.yml -p natsstreaming up -d
@@ -529,6 +387,11 @@ jobs:
         export AzureSqlServerDbName=$(cat /proc/sys/kernel/random/uuid | sed -E 's/-//g')
         echo "AzureSqlServerDbName=$AzureSqlServerDbName" >> $GITHUB_ENV
       if: contains(matrix.component, 'azure.sql')
+
+    - name: Catch setup failures
+      if: failure()
+      run: |
+        echo "CONFORMANCE_FAILURE=true" >> $GITHUB_ENV
 
     - name: Run tests
       continue-on-error: true

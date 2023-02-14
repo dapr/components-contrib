@@ -36,6 +36,9 @@ const (
 
 	DefaultSesssionIdleTimeoutInSec = 60
 	DefaultMaxConcurrentSessions    = 8
+
+	// Maximum number of concurrent operations such as lock renewals or message completion/abandonment
+	maxConcurrentOps = 10
 )
 
 // HandlerResponseItem represents a response from the handler for each message.
@@ -301,6 +304,8 @@ func (s *Subscription) renewLocksBlocking(ctx context.Context, receiver Receiver
 }
 
 func (s *Subscription) doRenewLocks(ctx context.Context, receiver *MessageReceiver) {
+	s.logger.Debugf("Renewing message locks for %s", s.entity)
+
 	// Snapshot the messages to try to renew locks for.
 	s.mu.RLock()
 	msgs := make([]*azservicebus.ReceivedMessage, len(s.activeMessages))
@@ -316,10 +321,16 @@ func (s *Subscription) doRenewLocks(ctx context.Context, receiver *MessageReceiv
 		return
 	}
 
-	// Renew the locks for each message
+	// Renew the locks for each message, with a limit of 10 in parallel
+	limitCh := make(chan struct{}, maxConcurrentOps)
 	errChan := make(chan error)
 	for _, msg := range msgs {
+		// Limit parllel executions
+		limitCh <- struct{}{}
 		go func(rMsg *azservicebus.ReceivedMessage) {
+			defer func() {
+				<-limitCh
+			}()
 			// Check again if the message is active, in case it was already completed in the meanwhile
 			s.mu.RLock()
 			_, ok := s.activeMessages[*rMsg.SequenceNumber]
@@ -433,28 +444,63 @@ func (s *Subscription) handleAsync(ctx context.Context, msgs []*azservicebus.Rec
 
 		// Handle the errors on bulk messages and mark messages accordingly.
 		// Note, the order of the responses match the order of the messages.
-		for i, resp := range resps {
-			// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
-			// If we fail to finalize the message, this message will eventually be reprocessed (at-least once delivery).
-			// This uses a background context in case ctx has been canceled already.
-			finalizeCtx, finalizeCancel := context.WithTimeout(context.Background(), s.timeout)
-			if resp.Error != nil {
-				// Log the error only, as we're running asynchronously.
-				s.logger.Errorf("App handler returned an error for message %s on %s: %s", msgs[i].MessageID, s.entity, resp.Error)
-				s.AbandonMessage(finalizeCtx, receiver, msgs[i])
-			} else {
-				s.CompleteMessage(finalizeCtx, receiver, msgs[i])
-			}
-			finalizeCancel()
+		// Perform the operations in a background goroutine with a limit of 10 concurrent
+		limitCh := make(chan struct{}, maxConcurrentOps)
+		wg := sync.WaitGroup{}
+		for i := range resps {
+			// Limit parllel executions
+			limitCh <- struct{}{}
+			wg.Add(1)
+
+			go func(i int) {
+				defer func() {
+					wg.Done()
+					<-limitCh
+				}()
+
+				// This context is used for the calls to service bus to finalize (i.e. complete/abandon) the message.
+				// If we fail to finalize the message, this message will eventually be reprocessed (at-least once delivery).
+				// This uses a background context in case ctx has been canceled already.
+				finalizeCtx, finalizeCancel := context.WithTimeout(context.Background(), s.timeout)
+				if resps[i].Error != nil {
+					// Log the error only, as we're running asynchronously.
+					s.logger.Errorf("App handler returned an error for message %s on %s: %s", msgs[i].MessageID, s.entity, resps[i].Error)
+					s.AbandonMessage(finalizeCtx, receiver, msgs[i])
+				} else {
+					s.CompleteMessage(finalizeCtx, receiver, msgs[i])
+				}
+				finalizeCancel()
+			}(i)
 		}
 		return
 	}
 
 	// No error, so we can complete all messages.
-	for _, msg := range msgs {
+	if len(msgs) == 1 {
+		// Avoid spawning goroutines for 1 message
 		finalizeCtx, finalizeCancel := context.WithTimeout(context.Background(), s.timeout)
-		s.CompleteMessage(finalizeCtx, receiver, msg)
+		s.CompleteMessage(finalizeCtx, receiver, msgs[0])
 		finalizeCancel()
+	} else {
+		// Perform the operations in a background goroutine with a limit of 10 concurrent
+		limitCh := make(chan struct{}, maxConcurrentOps)
+		wg := sync.WaitGroup{}
+		for _, msg := range msgs {
+			// Limit parllel executions
+			limitCh <- struct{}{}
+			wg.Add(1)
+
+			go func(msg *azservicebus.ReceivedMessage) {
+				defer func() {
+					wg.Done()
+					<-limitCh
+				}()
+
+				finalizeCtx, finalizeCancel := context.WithTimeout(context.Background(), s.timeout)
+				s.CompleteMessage(finalizeCtx, receiver, msg)
+				finalizeCancel()
+			}(msg)
+		}
 	}
 }
 

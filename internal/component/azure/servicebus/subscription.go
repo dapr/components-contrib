@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
@@ -321,21 +322,45 @@ func (s *Subscription) doRenewLocks(ctx context.Context, receiver *MessageReceiv
 		return
 	}
 
+	// Collect errors
+	count := atomic.Int64{}
+	count.Store(int64(len(msgs)))
+	errCh := make(chan error)
+	go func() {
+		var (
+			err     error
+			errored int
+		)
+		for i := 0; i < len(msgs); i++ {
+			// This is a nop if the received error is nil
+			if multierr.AppendInto(&err, <-errCh) {
+				errored++
+			}
+		}
+		close(errCh)
+
+		if err != nil {
+			s.logger.Warnf("Error renewing message locks for %s (failed: %d/%d): %v", s.entity, errored, count.Load(), err)
+		} else {
+			s.logger.Debugf("Renewed message locks for %s for %d messages", s.entity, count.Load())
+		}
+	}()
+
 	// Renew the locks for each message, with a limit of maxConcurrentOps in parallel
 	limitCh := make(chan struct{}, maxConcurrentOps)
-	errChan := make(chan error)
 	for _, msg := range msgs {
 		// Limit parllel executions
 		limitCh <- struct{}{}
 		go func(rMsg *azservicebus.ReceivedMessage) {
-			defer func() {
-				<-limitCh
-			}()
 			// Check again if the message is active, in case it was already completed in the meanwhile
 			s.mu.RLock()
 			_, ok := s.activeMessages[*rMsg.SequenceNumber]
 			s.mu.RUnlock()
 			if !ok {
+				count.Add(-1)
+				// Release the limitCh lock and return no error
+				<-limitCh
+				errCh <- nil
 				return
 			}
 
@@ -343,27 +368,20 @@ func (s *Subscription) doRenewLocks(ctx context.Context, receiver *MessageReceiv
 			lockCtx, lockCancel := context.WithTimeout(ctx, s.timeout)
 			defer lockCancel()
 			rErr := receiver.RenewMessageLock(lockCtx, rMsg, nil)
+
+			// Since errChan is unbuffered, release the limitCh before we try to put the error back in errChan
+			<-limitCh
 			switch {
 			case IsLockLostError(rErr):
-				errChan <- errors.New("couldn't renew active message lock for message " + rMsg.MessageID + ": lock has been lost (this often happens if the message has already been completed or abandoned)")
+				errCh <- errors.New("couldn't renew active message lock for message " + rMsg.MessageID + ": lock has been lost (this often happens if the message has already been completed or abandoned)")
 			case rErr != nil:
-				errChan <- fmt.Errorf("couldn't renew active message lock for message %s: %w", rMsg.MessageID, rErr)
+				errCh <- fmt.Errorf("couldn't renew active message lock for message %s: %w", rMsg.MessageID, rErr)
 			default:
-				errChan <- nil
+				errCh <- nil
 			}
 		}(msg)
 	}
-
-	var err error
-	for i := 0; i < len(msgs); i++ {
-		multierr.AppendInto(&err, <-errChan)
-	}
-
-	if err != nil {
-		s.logger.Warnf("Error renewing message locks for %s: %v", s.entity, err)
-		return
-	}
-	s.logger.Debugf("Renewed message locks for %s", s.entity)
+	close(limitCh)
 }
 
 func (s *Subscription) doRenewLocksSession(ctx context.Context, sessionReceiver *SessionReceiver) {

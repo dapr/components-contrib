@@ -104,18 +104,22 @@ const components = {
     },
     'bindings.kubemq': {
         conformance: true,
+        conformanceSetup: 'conformance-kubemq-setup.sh'
     },
     'bindings.localstorage': {
         certification: true,
     },
     'bindings.mqtt3-emqx': {
         conformance: true,
+        conformanceSetup: 'conformance-mqtt3-emqx-setup.sh'
     },
     'bindings.mqtt3-mosquitto': {
         conformance: true,
+        conformanceSetup: 'conformance-mqtt3-mosquitto-setup.sh'
     },
     'bindings.mqtt3-vernemq': {
         conformance: true,
+        conformanceSetup: 'conformance-mqtt3-vernemq-setup.sh'
     },
     'bindings.postgres': {
         conformance: true,
@@ -124,21 +128,26 @@ const components = {
     'bindings.rabbitmq': {
         conformance: true,
         certification: true,
+        conformanceSetup: 'conformance-rabbitmq-setup.sh'
     },
     'bindings.redis': {
         certification: true,
     },
     'bindings.redis.v6': {
         conformance: true,
+        conformanceSetup: 'conformance-redisv6-setup.sh'
     },
     'bindings.redis.v7': {
         conformance: true,
+        conformanceSetup: 'conformance-redisv7-setup.sh'
     },
     'configuration.redis.v6': {
         conformance: true,
+        conformanceSetup: 'conformance-redisv6-setup.sh'
     },
     'configuration.redis.v7': {
         conformance: true,
+        conformanceSetup: 'conformance-redisv7-setup.sh'
     },
     'pubsub.aws.snssqs': {
         certification: true,
@@ -194,6 +203,7 @@ const components = {
     },
     'pubsub.hazelcast': {
         conformance: true,
+        conformanceSetup: 'conformance-hazelcast-setup.sh'
     },
     'pubsub.in-memory': {
         conformance: true,
@@ -209,32 +219,44 @@ const components = {
     },
     'pubsub.kubemq': {
         conformance: true,
+        conformanceSetup: 'conformance-kubemq-setup.sh'
     },
     'pubsub.mqtt3': {
         certification: true,
     },
     'pubsub.mqtt3-emqx': {
         conformance: true,
+        conformanceSetup: 'conformance-mqtt3-emqx-setup.sh'
     },
     'pubsub.mqtt3-vernemq': {
         conformance: true,
+        conformanceSetup: 'conformance-mqtt3-vernemq-setup.sh'
     },
     'pubsub.natsstreaming': {
         conformance: true,
+        conformanceSetup: 'conformance-natsstreaming-setup.sh'
     },
     'pubsub.pulsar': {
         conformance: true,
         certification: true,
+        conformanceSetup: 'conformance-pulsar-setup.sh'
     },
     'pubsub.rabbitmq': {
         conformance: true,
         certification: true,
+        conformanceSetup: 'conformance-rabbitmq-setup.sh'
     },
     'pubsub.redis.v6': {
         conformance: true,
+        conformanceSetup: 'conformance-redisv6-setup.sh'
+    },
+    'pubsub.redis.v7': {
+        conformance: true,
+        conformanceSetup: 'conformance-redisv7-setup.sh'
     },
     'pubsub.solace': {
         conformance: true,
+        //conformanceSetup: 'conformance-solace-setup.sh'
     },
     'secretstores.azure.keyvault': {
         certification: true,
@@ -270,6 +292,7 @@ const components = {
     'secretstores.hashicorp.vault': {
         conformance: true,
         certification: true,
+        conformanceSetup: 'conformance-hashicorp-vault-setup.sh'
     },
     'secretstores.kubernetes': {
         conformance: true,
@@ -371,7 +394,7 @@ const components = {
     'state.memcached': {
         conformance: true,
         certification: true,
-        conformanceSetup: 'conformance-state.memcached-setup.sh',
+        conformanceSetup: 'conformance-memcached-setup.sh',
     },
     'state.mongodb': {
         conformance: true,
@@ -413,7 +436,7 @@ const components = {
     },
     'workflows.temporal': {
         conformance: true,
-        conformanceSetup: 'conformance-workflows.temporal-setup.sh',
+        conformanceSetup: 'conformance-temporal-setup.sh',
     },
 }
 

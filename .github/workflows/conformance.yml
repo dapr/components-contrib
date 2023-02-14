@@ -210,14 +210,6 @@ jobs:
         echo "STATE_AWS_DYNAMODB_TABLE_2=$STATE_AWS_DYNAMODB_TABLE_2" >> $GITHUB_ENV
       if: contains(matrix.component, 'dynamodb')
 
-    - name: Start Redis 6 with Redis JSON
-      run: docker-compose -f ./.github/infrastructure/docker-compose-redisjson.yml -p redis up -d
-      if: contains(matrix.component, 'redis.v6')
-  
-    - name: Start Redis 7
-      run: docker-compose -f ./.github/infrastructure/docker-compose-redis7.yml -p redis up -d
-      if: contains(matrix.component, 'redis.v7')
-
     - name: Start MongoDB
       uses: supercharge/mongodb-github-action@1.3.0
       with:
@@ -226,47 +218,18 @@ jobs:
       if: contains(matrix.component, 'mongodb')
 
     - name: Start sqlserver
-      run: docker-compose -f ./.github/infrastructure/docker-compose-sqlserver.yml -p sqlserver up -d
+      run: docker-compose -f .github/infrastructure/docker-compose-sqlserver.yml -p sqlserver up -d
       if: contains(matrix.component, 'sqlserver')
 
     - name: Start kafka
-      run: docker-compose -f ./.github/infrastructure/docker-compose-kafka.yml -p kafka up -d
+      run: docker-compose -f .github/infrastructure/docker-compose-kafka.yml -p kafka up -d
       if: contains(matrix.component, 'wurstmeister')
 
     - name: Start kafka Confluent
-      run: docker-compose -f ./.github/infrastructure/docker-compose-confluent.yml -p confluent up -d
+      run: docker-compose -f .github/infrastructure/docker-compose-confluent.yml -p confluent up -d
       if: contains(matrix.component, 'confluent')
 
-    - name: Start natsstreaming
-      run: docker-compose -f ./.github/infrastructure/docker-compose-natsstreaming.yml -p natsstreaming up -d
-      if: contains(matrix.component, 'natsstreaming')
-
-    - name: Start pulsar
-      run: docker-compose -f ./.github/infrastructure/docker-compose-pulsar.yml -p pulsar up -d
-      if: contains(matrix.component, 'pulsar')
-
-    - name: Start Eclipse Mosquitto (MQTT3)
-      run: docker-compose -f ./.github/infrastructure/docker-compose-mosquitto.yml -p mosquitto up -d
-      if: contains(matrix.component, 'mqtt3-mosquitto')
-
-    - name: Start EMQ X (MQTT3)
-      run: docker-compose -f ./.github/infrastructure/docker-compose-emqx.yml -p emqx up -d
-      if: contains(matrix.component, 'mqtt3-emqx')
-
-    - name: Start VerneMQ (MQTT3)
-      run: docker-compose -f ./.github/infrastructure/docker-compose-vernemq.yml -p vernemq up -d
-      if: contains(matrix.component, 'mqtt3-vernemq')
-
-    - name: Start hazelcast
-      run: docker-compose -f ./.github/infrastructure/docker-compose-hazelcast.yml -p hazelcast up -d
-      if: contains(matrix.component, 'hazelcast')
-
-    - name: Start rabbitmq
-      run: docker-compose -f ./.github/infrastructure/docker-compose-rabbitmq.yml -p rabbitmq up -d
-      if: contains(matrix.component, 'rabbitmq')
-
     - name: Install Node.js ${{ env.NODE_VERSION }}
-      if: contains(matrix.component, 'cloudflare')
       uses: actions/setup-node@v3
       with:
         node-version: ${{ env.NODE_VERSION }}
@@ -303,24 +266,24 @@ jobs:
         echo "CloudflareKVNamespaceID=${CloudflareKVNamespaceID}" >> $GITHUB_ENV
 
     - name: Start aws snssqs
-      run: docker-compose -f ./.github/infrastructure/docker-compose-snssqs.yml -p snssqs up -d
+      run: docker-compose -f .github/infrastructure/docker-compose-snssqs.yml -p snssqs up -d
       if: contains(matrix.component, 'aws.snssqs.docker')
 
     - name: Start influxdb
       run: |
         export INFLUX_TOKEN=$(openssl rand -base64 32)
         echo "INFLUX_TOKEN=$INFLUX_TOKEN" >> $GITHUB_ENV
-        docker-compose -f ./.github/infrastructure/docker-compose-influxdb.yml -p influxdb up -d
+        docker-compose -f .github/infrastructure/docker-compose-influxdb.yml -p influxdb up -d
       if: contains(matrix.component, 'influx')
 
     - name: Start mysql
       run: |
-        docker-compose -f ./.github/infrastructure/docker-compose-mysql.yml -p mysql up -d
+        docker-compose -f .github/infrastructure/docker-compose-mysql.yml -p mysql up -d
       if: contains(matrix.component, 'mysql.mysql')
 
     - name: Start mariadb
       run: |
-        docker-compose -f ./.github/infrastructure/docker-compose-mariadb.yml -p mariadb up -d
+        docker-compose -f .github/infrastructure/docker-compose-mariadb.yml -p mariadb up -d
       if: contains(matrix.component, 'mysql.mariadb')
 
     - name: Start KinD
@@ -329,40 +292,31 @@ jobs:
 
     - name: Start postgresql
       run: |
-        docker-compose -f ./.github/infrastructure/docker-compose-postgresql.yml -p postgresql up -d
+        docker-compose -f .github/infrastructure/docker-compose-postgresql.yml -p postgresql up -d
       if: contains(matrix.component, 'postgres')
 
     - name: Start cassandra
       run: |
-        docker-compose -f ./.github/infrastructure/docker-compose-cassandra.yml -p cassandra up -d
+        docker-compose -f .github/infrastructure/docker-compose-cassandra.yml -p cassandra up -d
       if: contains(matrix.component, 'cassandra')
 
     - name: Start cockroachdb
       run: |
-        docker-compose -f ./.github/infrastructure/docker-compose-cockroachdb.yml -p cockroachdb up -d
+        docker-compose -f .github/infrastructure/docker-compose-cockroachdb.yml -p cockroachdb up -d
       if: contains(matrix.component, 'cockroachdb')
-
-    - name: Start vault
-      run: |
-        docker-compose -f ./.github/infrastructure/docker-compose-hashicorp-vault.yml -p vault up -d
-      if: contains(matrix.component, 'hashicorp.vault')
 
     - name: Start rethinkdb
       run: |
-        docker-compose -f ./.github/infrastructure/docker-compose-rethinkdb.yml -p rethinkdb up -d
+        docker-compose -f .github/infrastructure/docker-compose-rethinkdb.yml -p rethinkdb up -d
       if: contains(matrix.component, 'rethinkdb')
 
-    - name: Start kubemq
-      run: docker-compose -f ./.github/infrastructure/docker-compose-kubemq.yml -p kubemq up -d
-      if: contains(matrix.component, 'kubemq')
-    
     - name: Start solace
-      run: docker-compose -f ./.github/infrastructure/docker-compose-solace.yml -p solace up -d
+      run: docker-compose -f .github/infrastructure/docker-compose-solace.yml -p solace up -d
       if: contains(matrix.component, 'solace')
 
     - name: Start nats with JetStream
       run: |
-        docker-compose -f ./.github/infrastructure/docker-compose-jetstream.yml up -p jetstream -d
+        docker-compose -f .github/infrastructure/docker-compose-jetstream.yml up -p jetstream -d
       if: contains(matrix.component, 'jetstream')
 
     - name: Setup KinD test data
@@ -580,7 +534,7 @@ jobs:
                 let found = false
                 let success = false
                 try {
-                    let read =fs.readFileSync(path.join(basePath, component + '.txt'), 'utf8')
+                    let read = fs.readFileSync(path.join(basePath, component + '.txt'), 'utf8')
                     read = read.split('\n')[0]
                     switch (read) {
                         case '1':

@@ -24,7 +24,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	jwt "github.com/golang-jwt/jwt/v4"
+	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -251,7 +252,9 @@ func (s *SignalR) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bin
 }
 
 // Returns an access token for a request to the given URL
-func (s *SignalR) getToken(ctx context.Context, url string) (token string, err error) {
+func (s *SignalR) getToken(ctx context.Context, url string) (string, error) {
+	var err error
+
 	// If we have an Azure AD token provider, use that first
 	if s.aadToken != nil {
 		var at azcore.AccessToken
@@ -261,24 +264,21 @@ func (s *SignalR) getToken(ctx context.Context, url string) (token string, err e
 		if err != nil {
 			return "", err
 		}
-		token = at.Token
-	} else {
-		// TODO: Use jwt.RegisteredClaims instead
-		claims := &jwt.StandardClaims{ //nolint:staticcheck
-			ExpiresAt: time.Now().Add(15 * time.Minute).Unix(),
-			Audience:  url,
-		}
-		err = claims.Valid()
-		if err != nil {
-			return "", err
-		}
-
-		jwtToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-		token, err = jwtToken.SignedString([]byte(s.accessKey))
-		if err != nil {
-			return "", err
-		}
+		return at.Token, nil
 	}
 
-	return token, nil
+	now := time.Now()
+	token, err := jwt.NewBuilder().
+		Audience([]string{url}).
+		Expiration(now.Add(15 * time.Minute)).
+		Build()
+	if err != nil {
+		return "", fmt.Errorf("failed to build token: %w", err)
+	}
+	signed, err := jwt.Sign(token, jwt.WithKey(jwa.HS256, s.accessKey))
+	if err != nil {
+		return "", fmt.Errorf("failed to sign token: %w", err)
+	}
+
+	return string(signed), nil
 }

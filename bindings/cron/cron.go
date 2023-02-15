@@ -19,11 +19,9 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/pkg/errors"
-
-	cron "github.com/dapr/kit/cron"
 
 	"github.com/dapr/components-contrib/bindings"
+	cron "github.com/dapr/kit/cron"
 	"github.com/dapr/kit/logger"
 )
 
@@ -64,7 +62,7 @@ func (b *Binding) Init(metadata bindings.Metadata) error {
 	}
 	_, err := b.parser.Parse(s)
 	if err != nil {
-		return errors.Wrapf(err, "invalid schedule format: %s", s)
+		return fmt.Errorf("invalid schedule format '%s': %w", s, err)
 	}
 	b.schedule = s
 
@@ -84,7 +82,7 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 		})
 	})
 	if err != nil {
-		return errors.Wrapf(err, "name: %s, error scheduling %s", b.name, b.schedule)
+		return fmt.Errorf("name: %s, error scheduling %s: %w", b.name, b.schedule, err)
 	}
 	c.Start()
 	b.logger.Debugf("name: %s, next run: %v", b.name, time.Until(c.Entry(id).Next))

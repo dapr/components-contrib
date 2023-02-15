@@ -39,6 +39,7 @@ package tablestorage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -48,7 +49,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/aztables"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/pkg/errors"
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	mdutils "github.com/dapr/components-contrib/metadata"
@@ -240,7 +240,7 @@ func getTablesMetadata(meta map[string]string) (*tablesMetadata, error) {
 	if val, ok := mdutils.GetMetadataProperty(meta, azauth.StorageAccountNameKeys...); ok && val != "" {
 		m.AccountName = val
 	} else {
-		return nil, errors.New(fmt.Sprintf("missing or empty %s field from metadata", azauth.StorageAccountNameKeys[0]))
+		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageAccountNameKeys[0])
 	}
 
 	// Can be empty (such as when using Azure AD for auth)
@@ -249,7 +249,7 @@ func getTablesMetadata(meta map[string]string) (*tablesMetadata, error) {
 	if val, ok := mdutils.GetMetadataProperty(meta, azauth.StorageTableNameKeys...); ok && val != "" {
 		m.TableName = val
 	} else {
-		return nil, errors.New(fmt.Sprintf("missing or empty %s field from metadata", azauth.StorageTableNameKeys[0]))
+		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageTableNameKeys[0])
 	}
 
 	return &m, err
@@ -411,7 +411,7 @@ func (r *StateStore) unmarshal(row *aztables.GetEntityResponse) ([]byte, *string
 	// must be a string
 	sv, ok := raw.(string)
 	if !ok {
-		return nil, nil, errors.New(fmt.Sprintf("expected string in column '%s'", valueEntityProperty))
+		return nil, nil, fmt.Errorf("expected string in column '%s'", valueEntityProperty)
 	}
 
 	// use native ETag

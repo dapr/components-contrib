@@ -119,6 +119,9 @@ linters-settings:
     list-type: denylist
     include-go-root: false
     packages-with-error-message:
+      - "go.uber.org/atomic": "must use sync/atomic"
+      - "golang.org/x/net/context": "must use context"
+      - "github.com/pkg/errors": "must use standard library (errors package and/or fmt.Errorf)"
       - "github.com/Sirupsen/logrus": "must use github.com/dapr/kit/logger"
       - "github.com/agrea/ptr": "must use github.com/dapr/kit/ptr"
       - "github.com/cenkalti/backoff$": "must use github.com/cenkalti/backoff/v4"

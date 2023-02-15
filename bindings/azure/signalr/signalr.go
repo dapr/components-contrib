@@ -26,7 +26,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwt"
-	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/bindings"
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
@@ -209,7 +208,7 @@ func (s *SignalR) sendMessageToSignalR(ctx context.Context, url string, token st
 
 	resp, err := s.httpClient.Do(httpReq)
 	if err != nil {
-		return errors.Wrap(err, "request to azure signalr api failed")
+		return fmt.Errorf("request to azure signalr api failed: %w", err)
 	}
 	defer resp.Body.Close()
 

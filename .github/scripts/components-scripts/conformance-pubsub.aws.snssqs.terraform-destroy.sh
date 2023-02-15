@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set +e
+
 # Navigate to the Terraform directory
 cd ".github/infrastructure/terraform/conformance/pubsub/aws/snssqs"
 

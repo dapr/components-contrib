@@ -25,8 +25,12 @@ on:
     - 'release-*'
   pull_request:
     branches:
-      - master
+      - 'master'
       - 'release-*'
+
+env:
+  # Only specify a major version, such as 1.20
+  GO_VERSION: '1.19'
 
 jobs:
   # Based on whether this is a PR or a scheduled run, we will run a different
@@ -44,11 +48,13 @@ jobs:
           echo "PR_NUMBER=${{ github.event.client_payload.issue.number }}" >> $GITHUB_ENV
         fi
 
-    - name: Generate the test matrix
+    - name: Generate test matrix
       id: generate-matrix
+      env:
+        VAULT_NAME: ${{ secrets.AZURE_KEYVAULT }}
       run: |
-        if [ "${{ github.event_name }}" = "pull_request" ]; then
-          # Do not generate include tests on PRs
+        if [ -z "$VAULT_NAME" ]; then
+          # Do not include cloud tests when credentials are not available
           node .github/scripts/test-info.mjs conformance false
         else
           # Include cloud tests
@@ -103,16 +109,19 @@ jobs:
           echo "PR_NUMBER=${{ github.event.client_payload.issue.number }}" >> $GITHUB_ENV
         fi
 
-    - name: Check out code onto GOPATH
+    - name: Check out code
       uses: actions/checkout@v3
       with:
         repository: ${{ env.CHECKOUT_REPO }}
         ref: ${{ env.CHECKOUT_REF }}
 
-    - name: Setup test output
+    - name: Setup test environment
       run: |
-        export TEST_OUTPUT_FILE_PREFIX=$GITHUB_WORKSPACE/test_report
-        echo "TEST_OUTPUT_FILE_PREFIX=$TEST_OUTPUT_FILE_PREFIX" >> $GITHUB_ENV
+        # Output file
+        echo "TEST_OUTPUT_FILE_PREFIX=$GITHUB_WORKSPACE/test_report" >> $GITHUB_ENV
+
+        # Current time (used by Terraform)
+        echo "CURRENT_TIME=$(date --rfc-3339=date)" >> ${GITHUB_ENV}
 
     - uses: Azure/login@v1
       if: matrix.required-secrets != ''
@@ -152,10 +161,6 @@ jobs:
           echo "$CERT_NAME=$CERT_FILE" >> $GITHUB_ENV
         done
 
-    - name: Get current time
-      run: |
-        echo "CURRENT_TIME=$(date --rfc-3339=date)" >> ${GITHUB_ENV}
-
     - name: Setup Terraform
       if: matrix.require-terraform == 'true'
       uses: hashicorp/setup-terraform@v2
@@ -180,23 +185,25 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
         aws-region: us-west-1
 
-    - name: Run setup script
-      if: matrix.setup-script != ''
-      run: .github/scripts/${{ matrix.setup-script }}
-
     - name: Start MongoDB
-      uses: supercharge/mongodb-github-action@1.3.0
+      if: matrix.mongodb-version != ''
+      uses: supercharge/mongodb-github-action@1.8.0
       with:
-        mongodb-version: 4.2
+        mongodb-version: ${{ matrix.mongodb-version }}
         mongodb-replica-set: test-rs
-      if: contains(matrix.component, 'mongodb')
+
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: '^${{ env.GO_VERSION }}'
 
     - name: Install Node.js ${{ matrix.nodejs-version }}
-      if: ${{ matrix.nodejs-version != '' }}
+      if: matrix.nodejs-version != ''
       uses: actions/setup-node@v3
       with:
         node-version: ${{ matrix.nodejs-version }}
 
+    # This is added to the pipeline because it's not an init step, but more similar to checking the go.mod file
     - name: Check Cloudflare Workers code
       if: contains(matrix.component, 'cloudflare')
       run: |
@@ -210,50 +217,18 @@ jobs:
         git diff --exit-code ./internal/component/cloudflare/workers/code \
           || (echo "The source code of the Cloudflare Worker has changed, but the Worker has not been recompiled. Please re-compile the Worker by running 'npm ci && npm run build' in 'internal/component/cloudflare/worker-src'" && exit 1)
 
-    - name: Setup Cloudflare KV
-      if: matrix.component == 'state.cloudflare.workerskv'
-      env:
-        CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      run: |
-        CloudflareWorkerName="daprconfkv${{ github.run_id }}${{ github.run_attempt }}"
-        CloudflareKVNamespaceID=$( curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces" \
-          -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-          -H "Content-Type: application/json" \
-          --data "{\"title\":\"${CloudflareWorkerName}\"}" \
-            | jq -r ".result.id" )
-
-        echo "CloudflareWorkerName=${CloudflareWorkerName}" >> $GITHUB_ENV
-        echo "CloudflareAPIToken=${CLOUDFLARE_API_TOKEN}" >> $GITHUB_ENV
-        echo "CloudflareAccountID=${CLOUDFLARE_ACCOUNT_ID}" >> $GITHUB_ENV
-        echo "CloudflareKVNamespaceID=${CloudflareKVNamespaceID}" >> $GITHUB_ENV
-
     - name: Start KinD
-      uses: helm/kind-action@v1.4.0
-      if: contains(matrix.component, 'kubernetes')
-
-    - name: Setup KinD test data
-      if: contains(matrix.component, 'kubernetes')
-      run: |
-        kubectl apply -f tests/config/kind-data.yaml
-        echo "NAMESPACE=default" >> $GITHUB_ENV
-
-    - name: Set up Go
-      uses: actions/setup-go@v3
-      with:
-        go-version: '^1.19'
+      uses: helm/kind-action@v1.5.0
+      if: matrix.require-kind == 'true'
 
     - name: Download Go dependencies
       run: |
         go mod download
         go install gotest.tools/gotestsum@latest
 
-    - name: Generate Azure SQL DB name
-      run: |
-        # Use UUID with `-` stripped out for DB names to prevent collisions between workflows
-        export AzureSqlServerDbName=$(cat /proc/sys/kernel/random/uuid | sed -E 's/-//g')
-        echo "AzureSqlServerDbName=$AzureSqlServerDbName" >> $GITHUB_ENV
-      if: contains(matrix.component, 'azure.sql')
+    - name: Run setup script
+      if: matrix.setup-script != ''
+      run: .github/scripts/${{ matrix.setup-script }}
 
     - name: Catch setup failures
       if: failure()
@@ -262,9 +237,6 @@ jobs:
 
     - name: Run tests
       continue-on-error: true
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}  
       run: |
         set -e 
         KIND=$(echo ${{ matrix.component }} | cut -d. -f1)
@@ -296,47 +268,15 @@ jobs:
           exit -1
         fi
 
-    - name: Cleanup Azure SQL test DB instance
-      if: contains(matrix.component, 'azure.sql')
-      continue-on-error: true
-      run: |
-        # Wait for the creation of the DB by the test to propagate to ARM, otherwise deletion succeeds as no-op.
-        # The wait should be under 30s, but is capped at 1m as flakiness here results in an accumulation of expensive DB instances over time.
-        # Also note that the deletion call only blocks until the request is process, do not rely on it for mutex on the same DB,
-        # deletion may be ongoing in sequential runs.
-        sleep 1m
-        az sql db delete --resource-group ${{ env.AzureResourceGroupName }} --server ${{ env.AzureSqlServerName }} -n ${{ env.AzureSqlServerDbName }} --yes
-
-    - name: Cleanup Cloudflare KV
-      if: always() && matrix.component == 'state.cloudflare.workerskv'
-      continue-on-error: true
-      env:
-        CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      run: |
-        # Delete the Worker
-        curl -X DELETE "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${{ env.CloudflareWorkerName }}" \
-          -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
-        # Delete the KV namespace
-        curl -X DELETE "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${{ env.CloudflareKVNamespaceID }}" \
-          -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
-
-    # Download the required certificates into files, and set env var pointing to their names
-    - name: Clean up certs
-      if: matrix.required-certs != ''
+    - name: Delete downloaded up certs
+      if: always() && matrix.required-certs != ''
       run: |
         for CERT_NAME in $(echo "${{ matrix.required-certs }}" | sed 's/,/ /g'); do
           CERT_FILE=$(printenv $CERT_NAME)
 
           echo "Cleaning up the certificate file $CERT_FILE..."
-          rm $CERT_FILE
+          rm $CERT_FILE || true
         done
-
-    - name: Terraform Destroy
-      continue-on-error: true    
-      run: terraform destroy -auto-approve -var="UNIQUE_ID=${{env.UNIQUE_ID}}" -var="TIMESTAMP=${{env.CURRENT_TIME}}"
-      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
-      if: matrix.terraform-dir != ''
 
     - name: Check conformance test passed
       continue-on-error: false
@@ -379,7 +319,7 @@ jobs:
 
   post_job:
     name: Post-completion
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     if: always()
     needs:
       - conformance
@@ -409,9 +349,7 @@ jobs:
         uses: actions/github-script@v6
         with:
           script: |
-            const prComponents = ('${{ needs.generate-matrix.outputs.pr-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.pr-components }}')) || []
-            const cronComponents = ('${{ needs.generate-matrix.outputs.cron-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.cron-components }}')) || []
-            const allComponents = [...prComponents, ...cronComponents]
+            const allComponents = JSON.parse('${{ needs.generate-matrix.outputs.test-matrix }}')
             const basePath = '${{ steps.testresults.outputs.download-path }}'
             const testType = 'conformance'
 

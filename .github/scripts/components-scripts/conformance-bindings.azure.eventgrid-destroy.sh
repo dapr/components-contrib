@@ -1,7 +1,8 @@
 #!/bin/sh
 
-# Stop ngrok
 set +e
+
+# Stop ngrok
 echo "GET ngrok tunnels:"
 curl http://localhost:4040/api/tunnels
 echo "GET ngrok http requests:"

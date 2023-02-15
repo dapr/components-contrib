@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 # Set variables for GitHub Actions
 echo "PUBSUB_AWS_SNSSQS_QUEUE=testQueue-$UNIQUE_ID" >> $GITHUB_ENV
 echo "PUBSUB_AWS_SNSSQS_TOPIC=testTopic-$UNIQUE_ID" >> $GITHUB_ENV

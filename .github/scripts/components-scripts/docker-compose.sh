@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 FILE="$1"
 PROJECT="${2:-$FILE}"
 

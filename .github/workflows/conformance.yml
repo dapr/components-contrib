@@ -76,9 +76,6 @@ jobs:
     name: ${{ matrix.component }} conformance
     runs-on: ubuntu-22.04
     env:
-      # Version of Node.js to use
-      # Currently used by the Cloudflare components
-      NODE_VERSION: 18.x
       UNIQUE_ID: ${{github.run_id}}-${{github.run_attempt}}
     defaults:
       run:
@@ -118,9 +115,9 @@ jobs:
         echo "TEST_OUTPUT_FILE_PREFIX=$TEST_OUTPUT_FILE_PREFIX" >> $GITHUB_ENV
 
     - uses: Azure/login@v1
+      if: matrix.required-secrets != ''
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
-      if: matrix.required-secrets != ''
 
     # Set this GitHub secret to your KeyVault, and grant the KeyVault policy to your Service Principal:
     #    az keyvault set-policy -n $AZURE_KEYVAULT --secret-permissions get list --spn $SPN_CLIENT_ID
@@ -142,21 +139,6 @@ jobs:
           echo "$secretName=$value" >> $GITHUB_ENV
         done
 
-    - name: Start ngrok
-      if: contains(matrix.component, 'azure.eventgrid')
-      run: |
-        wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
-        unzip -qq ngrok-stable-linux-amd64.zip
-        ./ngrok authtoken ${{ env.AzureEventGridNgrokToken }}
-        ./ngrok http -log=stdout --log-level debug -host-header=localhost 9000 > /tmp/ngrok.log &
-        sleep 10
-        export NGROK_ENDPOINT=`cat /tmp/ngrok.log |  grep -Eom1 'https://.*' | sed 's/\s.*//'`
-        echo "Ngrok's endpoint: ${NGROK_ENDPOINT}"
-        echo "AzureEventGridSubscriberEndpoint=${NGROK_ENDPOINT}/api/events" >> $GITHUB_ENV
-        cat /tmp/ngrok.log
-        # Schedule trigger to kill ngrok
-        bash -c "sleep 500 && pkill ngrok" &
-
     # Download the required certificates into files, and set env var pointing to their names
     - name: Setup certs
       if: matrix.required-certs != ''
@@ -175,7 +157,7 @@ jobs:
         echo "CURRENT_TIME=$(date --rfc-3339=date)" >> ${GITHUB_ENV}
 
     - name: Setup Terraform
-      if: matrix.terraform-dir != ''
+      if: matrix.require-terraform == 'true'
       uses: hashicorp/setup-terraform@v2
 
     - name: Set Cloudflare env vars
@@ -200,15 +182,7 @@ jobs:
 
     - name: Run setup script
       if: matrix.setup-script != ''
-      run: ${{ matrix.setup-script }}
-
-    - name: Create aws.dynamodb variables
-      run: |
-        STATE_AWS_DYNAMODB_TABLE_1="conformance-test-terraform-basic-${{ env.UNIQUE_ID }}"
-        echo "STATE_AWS_DYNAMODB_TABLE_1=$STATE_AWS_DYNAMODB_TABLE_1" >> $GITHUB_ENV
-        STATE_AWS_DYNAMODB_TABLE_2="conformance-test-terraform-partition-key-${{ env.UNIQUE_ID }}"
-        echo "STATE_AWS_DYNAMODB_TABLE_2=$STATE_AWS_DYNAMODB_TABLE_2" >> $GITHUB_ENV
-      if: contains(matrix.component, 'dynamodb')
+      run: .github/scripts/${{ matrix.setup-script }}
 
     - name: Start MongoDB
       uses: supercharge/mongodb-github-action@1.3.0
@@ -217,22 +191,11 @@ jobs:
         mongodb-replica-set: test-rs
       if: contains(matrix.component, 'mongodb')
 
-    - name: Start sqlserver
-      run: docker-compose -f .github/infrastructure/docker-compose-sqlserver.yml -p sqlserver up -d
-      if: contains(matrix.component, 'sqlserver')
-
-    - name: Start kafka
-      run: docker-compose -f .github/infrastructure/docker-compose-kafka.yml -p kafka up -d
-      if: contains(matrix.component, 'wurstmeister')
-
-    - name: Start kafka Confluent
-      run: docker-compose -f .github/infrastructure/docker-compose-confluent.yml -p confluent up -d
-      if: contains(matrix.component, 'confluent')
-
-    - name: Install Node.js ${{ env.NODE_VERSION }}
+    - name: Install Node.js ${{ matrix.nodejs-version }}
+      if: ${{ matrix.nodejs-version != '' }}
       uses: actions/setup-node@v3
       with:
-        node-version: ${{ env.NODE_VERSION }}
+        node-version: ${{ matrix.nodejs-version }}
 
     - name: Check Cloudflare Workers code
       if: contains(matrix.component, 'cloudflare')
@@ -265,59 +228,9 @@ jobs:
         echo "CloudflareAccountID=${CLOUDFLARE_ACCOUNT_ID}" >> $GITHUB_ENV
         echo "CloudflareKVNamespaceID=${CloudflareKVNamespaceID}" >> $GITHUB_ENV
 
-    - name: Start aws snssqs
-      run: docker-compose -f .github/infrastructure/docker-compose-snssqs.yml -p snssqs up -d
-      if: contains(matrix.component, 'aws.snssqs.docker')
-
-    - name: Start influxdb
-      run: |
-        export INFLUX_TOKEN=$(openssl rand -base64 32)
-        echo "INFLUX_TOKEN=$INFLUX_TOKEN" >> $GITHUB_ENV
-        docker-compose -f .github/infrastructure/docker-compose-influxdb.yml -p influxdb up -d
-      if: contains(matrix.component, 'influx')
-
-    - name: Start mysql
-      run: |
-        docker-compose -f .github/infrastructure/docker-compose-mysql.yml -p mysql up -d
-      if: contains(matrix.component, 'mysql.mysql')
-
-    - name: Start mariadb
-      run: |
-        docker-compose -f .github/infrastructure/docker-compose-mariadb.yml -p mariadb up -d
-      if: contains(matrix.component, 'mysql.mariadb')
-
     - name: Start KinD
       uses: helm/kind-action@v1.4.0
       if: contains(matrix.component, 'kubernetes')
-
-    - name: Start postgresql
-      run: |
-        docker-compose -f .github/infrastructure/docker-compose-postgresql.yml -p postgresql up -d
-      if: contains(matrix.component, 'postgres')
-
-    - name: Start cassandra
-      run: |
-        docker-compose -f .github/infrastructure/docker-compose-cassandra.yml -p cassandra up -d
-      if: contains(matrix.component, 'cassandra')
-
-    - name: Start cockroachdb
-      run: |
-        docker-compose -f .github/infrastructure/docker-compose-cockroachdb.yml -p cockroachdb up -d
-      if: contains(matrix.component, 'cockroachdb')
-
-    - name: Start rethinkdb
-      run: |
-        docker-compose -f .github/infrastructure/docker-compose-rethinkdb.yml -p rethinkdb up -d
-      if: contains(matrix.component, 'rethinkdb')
-
-    - name: Start solace
-      run: docker-compose -f .github/infrastructure/docker-compose-solace.yml -p solace up -d
-      if: contains(matrix.component, 'solace')
-
-    - name: Start nats with JetStream
-      run: |
-        docker-compose -f .github/infrastructure/docker-compose-jetstream.yml up -p jetstream -d
-      if: contains(matrix.component, 'jetstream')
 
     - name: Setup KinD test data
       if: contains(matrix.component, 'kubernetes')
@@ -382,18 +295,6 @@ jobs:
           echo "::error:: No test was found for component ${{ matrix.component }}"
           exit -1
         fi
-
-    - name: Stop ngrok
-      if: contains(matrix.component, 'azure.eventgrid')
-      continue-on-error: true
-      run: |
-        set +e
-        echo "GET ngrok tunnels:"
-        curl http://localhost:4040/api/tunnels
-        echo "GET ngrok http requests:"
-        curl http://localhost:4040/api/requests/http
-        pkill ngrok
-        cat /tmp/ngrok.log
 
     - name: Cleanup Azure SQL test DB instance
       if: contains(matrix.component, 'azure.sql')
@@ -471,6 +372,10 @@ jobs:
       with:
         name: ${{ matrix.component }}_conformance_test
         path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.*
+
+    - name: Run destroy script
+      if: always() && matrix.destroy-script != ''
+      run: .github/scripts/${{ matrix.destroy-script }}
 
   post_job:
     name: Post-completion

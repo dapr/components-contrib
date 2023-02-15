@@ -44,6 +44,8 @@ const components = {
             'AzureEventGridTenantId',
             'AzureEventGridSubscriptionId',
         ],
+        conformanceSetup: 'conformance-bindings.azure.eventgrid-setup.sh',
+        conformanceDestroy: 'conformance-bindings.azure.eventgrid-destroy.sh',
     },
     'bindings.azure.eventhubs': {
         conformance: true,
@@ -92,62 +94,66 @@ const components = {
     },
     'bindings.influx': {
         conformance: true,
+        conformanceSetup: 'conformance-bindings.influx-setup.sh',
     },
     'bindings.kafka': {
         certification: true,
     },
     'bindings.kafka-confluent': {
         conformance: true,
+        conformanceSetup: 'docker-compose.sh confluent',
     },
     'bindings.kafka-wurstmeister': {
         conformance: true,
+        conformanceSetup: 'docker-compose.sh kafka',
     },
     'bindings.kubemq': {
         conformance: true,
-        conformanceSetup: 'conformance-kubemq-setup.sh'
+        conformanceSetup: 'docker-compose.sh kubemq',
     },
     'bindings.localstorage': {
         certification: true,
     },
     'bindings.mqtt3-emqx': {
         conformance: true,
-        conformanceSetup: 'conformance-mqtt3-emqx-setup.sh'
+        conformanceSetup: 'docker-compose.sh emqx',
     },
     'bindings.mqtt3-mosquitto': {
         conformance: true,
-        conformanceSetup: 'conformance-mqtt3-mosquitto-setup.sh'
+        conformanceSetup: 'docker-compose.sh mosquitto',
     },
     'bindings.mqtt3-vernemq': {
         conformance: true,
-        conformanceSetup: 'conformance-mqtt3-vernemq-setup.sh'
+        conformanceSetup: 'docker-compose.sh vernemq',
     },
     'bindings.postgres': {
         conformance: true,
         certification: true,
+        conformanceSetup: 'docker-compose.sh postgresql',
     },
     'bindings.rabbitmq': {
         conformance: true,
         certification: true,
-        conformanceSetup: 'conformance-rabbitmq-setup.sh'
+        conformanceSetup: 'docker-compose.sh rabbitmq',
     },
     'bindings.redis': {
         certification: true,
     },
     'bindings.redis.v6': {
         conformance: true,
-        conformanceSetup: 'conformance-redisv6-setup.sh'
+        conformanceSetup: 'docker-compose.sh redisjson redis',
     },
     'bindings.redis.v7': {
         conformance: true,
-        conformanceSetup: 'conformance-redisv7-setup.sh'
+        conformanceSetup: 'docker-compose.sh redis7 redis',
     },
     'configuration.redis.v6': {
         conformance: true,
-        conformanceSetup: 'conformance-redisv6-setup.sh'
+        conformanceSetup: 'docker-compose.sh redisjson redis',
     },
     'configuration.redis.v7': {
         conformance: true,
-        conformanceSetup: 'conformance-redisv7-setup.sh'
+        conformanceSetup: 'docker-compose.sh redis7 redis',
     },
     'pubsub.aws.snssqs': {
         certification: true,
@@ -158,13 +164,14 @@ const components = {
     },
     'pubsub.aws.snssqs.docker': {
         conformance: true,
+        conformanceSetup: 'docker-compose.sh snssqs',
     },
     'pubsub.aws.snssqs.terraform': {
         conformance: true,
         requireAWSCredentials: true,
         requireTerraform: true,
-        conformanceSetup: 'conformance-state.aws.snssqs-setup.sh',
-        conformanceDestroy: 'conformance-state.aws.snssqs-destroy.sh',
+        conformanceSetup: 'conformance-state.aws.snssqs.terraform-setup.sh',
+        conformanceDestroy: 'conformance-state.aws.snssqs.terraform-destroy.sh',
     },
     'pubsub.azure.eventhubs': {
         conformance: true,
@@ -203,60 +210,66 @@ const components = {
     },
     'pubsub.hazelcast': {
         conformance: true,
-        conformanceSetup: 'conformance-hazelcast-setup.sh'
+        conformanceSetup: 'docker-compose.sh hazelcast',
     },
     'pubsub.in-memory': {
         conformance: true,
+    },
+    'pubsub.jetstream': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh jetstream',
     },
     'pubsub.kafka': {
         certification: true,
     },
     'pubsub.kafka-confluent': {
         conformance: true,
+        conformanceSetup: 'docker-compose.sh confluent',
     },
     'pubsub.kafka-wurstmeister': {
         conformance: true,
+        conformanceSetup: 'docker-compose.sh kafka',
     },
     'pubsub.kubemq': {
         conformance: true,
-        conformanceSetup: 'conformance-kubemq-setup.sh'
+        conformanceSetup: 'docker-compose.sh kubemq',
     },
     'pubsub.mqtt3': {
         certification: true,
     },
     'pubsub.mqtt3-emqx': {
         conformance: true,
-        conformanceSetup: 'conformance-mqtt3-emqx-setup.sh'
+        conformanceSetup: 'docker-compose.sh emqx',
     },
     'pubsub.mqtt3-vernemq': {
         conformance: true,
-        conformanceSetup: 'conformance-mqtt3-vernemq-setup.sh'
+        conformanceSetup: 'docker-compose.sh vernemq',
     },
     'pubsub.natsstreaming': {
         conformance: true,
-        conformanceSetup: 'conformance-natsstreaming-setup.sh'
+        conformanceSetup: 'docker-compose.sh natsstreaming',
     },
     'pubsub.pulsar': {
         conformance: true,
         certification: true,
-        conformanceSetup: 'conformance-pulsar-setup.sh'
+        conformanceSetup: 'docker-compose.sh pulsar',
     },
     'pubsub.rabbitmq': {
         conformance: true,
         certification: true,
-        conformanceSetup: 'conformance-rabbitmq-setup.sh'
+        conformanceSetup: 'docker-compose.sh rabbitmq',
     },
     'pubsub.redis.v6': {
         conformance: true,
-        conformanceSetup: 'conformance-redisv6-setup.sh'
+        conformanceSetup: 'docker-compose.sh redisjson redis',
     },
     'pubsub.redis.v7': {
         conformance: true,
-        conformanceSetup: 'conformance-redisv7-setup.sh'
+        conformanceSetup: 'docker-compose.sh redis7 redis',
     },
     'pubsub.solace': {
         conformance: true,
-        //conformanceSetup: 'conformance-solace-setup.sh'
+        conformanceSetup: 'docker-compose.sh solace',
     },
     'secretstores.azure.keyvault': {
         certification: true,
@@ -292,7 +305,7 @@ const components = {
     'secretstores.hashicorp.vault': {
         conformance: true,
         certification: true,
-        conformanceSetup: 'conformance-hashicorp-vault-setup.sh'
+        conformanceSetup: 'docker-compose.sh hashicorp-vault vault',
     },
     'secretstores.kubernetes': {
         conformance: true,
@@ -379,14 +392,17 @@ const components = {
     'state.cassandra': {
         conformance: true,
         certification: true,
+        conformanceSetup: 'docker-compose.sh cassandra',
     },
     'state.cloudflare.workerskv': {
         conformance: true,
         requireCloudflareCredentials: true,
+        nodeJsVersion: '18.x'
     },
     'state.cockroachdb': {
         conformance: true,
         certification: true,
+        conformanceSetup: 'docker-compose.sh cockroachdb',
     },
     'state.in-memory': {
         conformance: true,
@@ -394,7 +410,7 @@ const components = {
     'state.memcached': {
         conformance: true,
         certification: true,
-        conformanceSetup: 'conformance-memcached-setup.sh',
+        conformanceSetup: 'docker-compose.sh memcached',
     },
     'state.mongodb': {
         conformance: true,
@@ -405,25 +421,31 @@ const components = {
     },
     'state.mysql.mariadb': {
         conformance: true,
+        conformanceSetup: 'docker-compose.sh mariadb',
     },
     'state.mysql.mysql': {
         conformance: true,
+        conformanceSetup: 'docker-compose.sh mysql',
     },
     'state.postgresql': {
         conformance: true,
         certification: true,
+        conformanceSetup: 'docker-compose.sh postgresql',
     },
     'state.redis': {
         certification: true,
     },
     'state.redis.v6': {
         conformance: true,
+        conformanceSetup: 'docker-compose.sh redisjson redis',
     },
     'state.redis.v7': {
         conformance: true,
+        conformanceSetup: 'docker-compose.sh redis7 redis',
     },
     'state.rethinkdb': {
         conformance: true,
+        conformanceSetup: 'docker-compose.sh rethinkdb',
     },
     'state.sqlite': {
         conformance: true,
@@ -432,11 +454,12 @@ const components = {
     'state.sqlserver': {
         conformance: true,
         certification: true,
+        conformanceSetup: 'docker-compose.sh sqlserver',
         requiredSecrets: ['AzureSqlServerConnectionString'],
     },
     'workflows.temporal': {
         conformance: true,
-        conformanceSetup: 'conformance-temporal-setup.sh',
+        conformanceSetup: 'docker-compose.sh temporal',
     },
 }
 
@@ -454,6 +477,7 @@ const components = {
  * @property {string?} conformanceDestroy Destroy script for conformance tests
  * @property {string?} certificationSetup Setup script for certification tests
  * @property {string?} certificationDestroy Destroy script for certification tests
+ * @property {string?} nodeJsVersion If set, installs the specified Node.js version
  */
 
 /**
@@ -467,6 +491,7 @@ const components = {
  * @property {boolean?} require-terraform Requires Terraform
  * @property {string?} setup-script Setup script
  * @property {string?} destroy-script Destroy script
+ * @property {string?} nodejs-version Install the specified Node.js version if set
  */
 
 /**
@@ -486,7 +511,12 @@ function GenerateMatrix(testKind, enableCloudTests) {
 
         // Skip cloud-only tests if enableCloudTests is false
         if (!enableCloudTests) {
-            if (comp.requiredSecrets?.length || comp.requiredCerts?.length || comp.requireAWSCredentials || comp.requireCloudflareCredentials) {
+            if (
+                comp.requiredSecrets?.length ||
+                comp.requiredCerts?.length ||
+                comp.requireAWSCredentials ||
+                comp.requireCloudflareCredentials
+            ) {
                 continue
             }
         }
@@ -494,13 +524,22 @@ function GenerateMatrix(testKind, enableCloudTests) {
         // Add the component to the array
         res.push({
             component: name,
-            "required-secrets": comp.requiredSecrets?.length ? comp.requiredSecrets : undefined,
-            "required-certs": comp.requiredCerts?.length ? comp.requiredCerts : undefined,
-            "require-aws-credentials": comp.requireAWSCredentials ? 'true' : undefined,
-            "require-cloudflare-credentials": comp.requireCloudflareCredentials ? 'true' : undefined,
-            "require-terraform": comp.requireTerraform ? 'true' : undefined,
-            "setup-script": comp[testKind+'Setup'] || undefined,
-            "destroy-script": comp[testKind+'Destroy'] || undefined,
+            'required-secrets': comp.requiredSecrets?.length
+                ? comp.requiredSecrets
+                : undefined,
+            'required-certs': comp.requiredCerts?.length
+                ? comp.requiredCerts
+                : undefined,
+            'require-aws-credentials': comp.requireAWSCredentials
+                ? 'true'
+                : undefined,
+            'require-cloudflare-credentials': comp.requireCloudflareCredentials
+                ? 'true'
+                : undefined,
+            'require-terraform': comp.requireTerraform ? 'true' : undefined,
+            'setup-script': comp[testKind + 'Setup'] || undefined,
+            'destroy-script': comp[testKind + 'Destroy'] || undefined,
+            'nodejs-version': comp.nodeJsVersion || undefined,
         })
     }
 
@@ -522,6 +561,6 @@ if (argv.length < 4 || !['true', 'false'].includes(argv[3])) {
 }
 
 const matrixObj = GenerateMatrix(argv[2], argv[3] == 'true')
-console.log('Generated matrix:\n\n'+JSON.stringify(matrixObj, null, '  '))
+console.log('Generated matrix:\n\n' + JSON.stringify(matrixObj, null, '  '))
 
 writeFileSync(env.GITHUB_OUTPUT, JSON.stringify(matrixObj))

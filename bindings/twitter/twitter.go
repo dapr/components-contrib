@@ -17,13 +17,13 @@ package twitter
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
 
 	"github.com/dghubble/go-twitter/twitter"
 	"github.com/dghubble/oauth1"
-	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -120,7 +120,7 @@ func (t *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 	t.logger.Debug("starting stream for query: %s", t.query)
 	stream, err := t.client.Streams.Filter(filterParams)
 	if err != nil {
-		return errors.Wrapf(err, "error executing stream filter: %+v", filterParams)
+		return fmt.Errorf("error executing stream filter '%+v': %w", filterParams, err)
 	}
 
 	t.logger.Debug("starting handler...")
@@ -182,18 +182,17 @@ func (t *Binding) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bin
 	t.logger.Debug("starting stream for: %+v", sq)
 	search, _, err := t.client.Search.Tweets(sq)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error executing search filter: %+v", sq)
+		return nil, fmt.Errorf("error executing search filter '%+v': %w", sq, err)
 	}
 	if search == nil || search.Statuses == nil {
-		return nil, errors.Wrapf(err, "nil search result from: %+v", sq)
+		return nil, fmt.Errorf("nil search result from '%+v'", sq)
 	}
 
 	t.logger.Debugf("raw response: %+v", search.Statuses)
 	data, marshalErr := json.Marshal(search.Statuses)
 	if marshalErr != nil {
 		t.logger.Errorf("error marshaling tweet: %v", marshalErr)
-
-		return nil, errors.Wrapf(err, "error parsing response from: %+v", sq)
+		return nil, fmt.Errorf("error parsing response from '%+v': %w", sq, marshalErr)
 	}
 
 	req.Metadata["max_tweet_id"] = search.Metadata.MaxIDStr

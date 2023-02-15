@@ -15,6 +15,7 @@ package pubsub
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"sort"
@@ -25,7 +26,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
@@ -196,8 +196,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 					// Sleep to allow messages to pile up and be delivered as a batch.
 					time.Sleep(1 * time.Second)
 					t.Logf("Simulating subscriber error")
-
-					return errors.Errorf("conf test simulated error")
+					return errors.New("conf test simulated error")
 				}
 
 				t.Logf("Simulating subscriber success")
@@ -287,7 +286,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 						t.Logf("Simulating subscriber error")
 
 						bulkResponses[i].EntryId = msg.EntryId
-						bulkResponses[i].Error = errors.Errorf("conf test simulated error")
+						bulkResponses[i].Error = errors.New("conf test simulated error")
 						hasAnyError = true
 						continue
 					}
@@ -305,7 +304,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 					bulkResponses[i].Error = nil
 				}
 				if hasAnyError {
-					return bulkResponses, errors.Errorf("Few messages errorred out")
+					return bulkResponses, errors.New("at least one message errorred out")
 				}
 				return bulkResponses, nil
 			})

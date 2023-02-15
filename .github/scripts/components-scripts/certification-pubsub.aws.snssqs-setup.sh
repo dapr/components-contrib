@@ -1,14 +1,5 @@
 #!/bin/sh
 
-# Navigate to the Terraform directory
-cd ".github/infrastructure/terraform/certification/pubsub/aws/snssqs"
-
-# Run Terraform
-terraform init
-terraform validate -no-color
-terraform plan -no-color -var="UNIQUE_ID=$UNIQUE_ID" -var="TIMESTAMP=$CURRENT_TIME"
-terraform apply -auto-approve -var="UNIQUE_ID=$UNIQUE_ID" -var="TIMESTAMP=$CURRENT_TIME"
-
 # Set variables for GitHub Actions
 echo "AWS_REGION=us-east-1" >> $GITHUB_ENV
 echo "PUBSUB_AWS_SNSSQS_QUEUE_1=sqssnscerttest-q1-$UNIQUE_ID" >> $GITHUB_ENV
@@ -25,3 +16,12 @@ echo "PUBSUB_AWS_SNSSQS_TOPIC_FIFO=sqssnscerttest-t-fifo-$UNIQUE_ID.fifo" >> $GI
 echo "PUBSUB_AWS_SNSSQS_FIFO_GROUP_ID=sqssnscerttest-q-fifo-$UNIQUE_ID" >> $GITHUB_ENV
 echo "PUBSUB_AWS_SNSSQS_QUEUE_NODRT=sqssnscerttest-q-nodrt-$UNIQUE_ID" >> $GITHUB_ENV
 echo "PUBSUB_AWS_SNSSQS_TOPIC_NODRT=sqssnscerttest-t-nodrt-$UNIQUE_ID" >> $GITHUB_ENV
+
+# Navigate to the Terraform directory
+cd ".github/infrastructure/terraform/certification/pubsub/aws/snssqs"
+
+# Run Terraform
+terraform init
+terraform validate -no-color
+terraform plan -no-color -var="UNIQUE_ID=$UNIQUE_ID" -var="TIMESTAMP=$CURRENT_TIME"
+terraform apply -auto-approve -var="UNIQUE_ID=$UNIQUE_ID" -var="TIMESTAMP=$CURRENT_TIME"

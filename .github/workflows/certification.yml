@@ -189,7 +189,7 @@ jobs:
 
     - name: Run setup script
       if: matrix.setup-script != ''
-      run: ${{ matrix.setup-script }}
+      run: .github/scripts/${{ matrix.setup-script }}
 
     - name: Set up Go
       uses: actions/setup-go@v3
@@ -313,7 +313,9 @@ jobs:
         name: ${{ matrix.component }}_certification_test
         path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.*
 
-    # HERE: RUN TEARDOWN SCRIPTS
+    - name: Run destroy script
+      if: always() && matrix.destroy-script != ''
+      run: .github/scripts/${{ matrix.destroy-script }}
 
   post_job:
     name: Post-completion

@@ -1,0 +1,120 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: orderpubsub
+spec:
+  type: pubsub.rabbitmq
+  version: v1
+  metadata:
+    - name: connectionString
+      value: "amqps://localhost:5671"
+    - name: consumerID
+      value: myapp
+    - name: durable
+      value: false
+    - name: deletedWhenUnused
+      value: false
+    - name: autoAck
+      value: false
+    - name: deliveryMode
+      value: 0
+    - name: requeueInFailure
+      value: false
+    - name: prefetchCount
+      value: 0
+    - name: reconnectWait
+      value: 0
+    - name: concurrencyMode
+      value: parallel
+    - name: publisherConfirm
+      value: false
+    - name: backOffPolicy
+      value: exponential
+    - name: backOffInitialInterval
+      value: 100
+    - name: backOffMaxRetries
+      value: 16
+    - name: enableDeadLetter # Optional enable dead Letter or not
+      value: true
+    - name: maxLen # Optional max message count in a queue
+      value: 3000
+    - name: maxLenBytes # Optional maximum length in bytes of a queue.
+      value: 10485760
+    - name: exchangeKind
+      value: fanout
+    - name: saslExternal
+      value: true
+    - name: caCert
+      value: |
+        -----BEGIN CERTIFICATE-----
+        MIIC8DCCAdigAwIBAgIUXIbafzX6lYtuuGQhKrCpBPlBAWgwDQYJKoZIhvcNAQEL
+        BQAwEzERMA8GA1UEAwwITXlUZXN0Q0EwHhcNMjMwMjA3MDg1OTAxWhcNMjQwMjA3
+        MDg1OTAxWjATMREwDwYDVQQDDAhNeVRlc3RDQTCCASIwDQYJKoZIhvcNAQEBBQAD
+        ggEPADCCAQoCggEBAKDJ/Vmx4KH0WxMiiAyJdV04wF70gXDDGfr553VkGMVg+vId
+        L95czDqEEcgvYLyAnmOYFarxVLmEKNgE7IjvO3fUk5skVWa9Cn5QAwAumy2WnBxv
+        Cn85Ozdqqw+GyctPBXa93fCNSuqx7HSvHkLJF9piqPSq7F+DpOcE/F+vLNg0A3an
+        T32HpwgVGeyAqlbu/MyN+y18oFVwzKALENV9Q+puG5tyhTAT7/Ocp/D9OrwkaB99
+        Fyz2B4lO/T9zWDDvcSL0uVoW/tFaJEInU3y5DfRtj5+o/+movdfjew0CVLYhSzvA
+        zX/ABuCo5SuMH6TOhGettZddIMz9z+YAWJdyYxUCAwEAAaM8MDowDAYDVR0TBAUw
+        AwEB/zALBgNVHQ8EBAMCAQYwHQYDVR0OBBYEFDGLD+zM0CUcYQNvXSQkvBETP5JJ
+        MA0GCSqGSIb3DQEBCwUAA4IBAQCNQpDIGJq9bLKPHE7xwZLu9hvXBziVKlH5OHCF
+        luylLJsa0lJjHqTBXlUqyM0gRLtWHG1FD1skNfB22MTBW+UZz3fVW2hwyBacjCcB
+        71/aKgB6VzWQOqy16UbCAX7RqHyiI7GXojfJ7KakmtXduzE89CMTq0d+23QHr75N
+        C+MXYtRCIEmXbeJeDhi8ub9GwDt+hQ/9G6tLSFZ4h/dus7qkDCpEToVtcbbCcsES
+        Sw58rDjoM++IzbOuIP4fJq4EnVvAhgomxr0snV3Emz37/UyQVCi2jHclSJ1g6/pL
+        UoJQtHOjA2oC/lQrIUqau+2quIml9QAzlC4vaXkqIVA/D6qN
+        -----END CERTIFICATE-----
+
+    - name: clientCert
+      value: |
+        -----BEGIN CERTIFICATE-----
+        MIIDKDCCAhCgAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+        c3RDQTAeFw0yMzAyMDcwODU5MDFaFw0yNDAyMDcwODU5MDFaMCsxGDAWBgNVBAMM
+        D2J1aWxka2l0c2FuZGJveDEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkqhkiG9w0B
+        AQEFAAOCAQ8AMIIBCgKCAQEAyVmjsoC+KxF4luH9hZtu26bQALvuuoCpnVSjNyCZ
+        ril7M/EWLS8Mlnr479cGc63EUh+yrX31mwESEuR2/GEuszWhRGT/4He2UdGzKckC
+        lWsQySc3Xk6pfdVZUWBGOOgVXY4PPJaZ86+96vU8zOh0UUaMSW5icF8u4MkmqRqH
+        iqPywkAqUYLuF9n0f4j8UttF8zIqkCqU4Q3/A0rp1+fkb81A1e2JtOP0HXmisXlK
+        D8YO7Ucv26uuUjs25Qy6bi4XLn+cZqPDBfXV4ILWd2ScpCTnnnI3xix2ZVVubMRe
+        SPn1t42yqhOr6J8derI/fXwOVYeyOji0H3YSqlKZ6aoprwIDAQABo28wbTAJBgNV
+        HRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAdBgNVHQ4E
+        FgQUkYN3AXGx/Q7J08JYk5tGbvi5MkQwHwYDVR0jBBgwFoAUMYsP7MzQJRxhA29d
+        JCS8ERM/kkkwDQYJKoZIhvcNAQELBQADggEBAJ80qe/b8GgCEGUsGGEN44L/bmQd
+        UMM73FyAsxjOuUowZn4c0WqRAqCFWRaxH4dye5juL2ZHi/mnQ1PbE3IuPWHN+hDK
+        D/NyjepMyMUKrs1DVpry3t8QxdyVB6Y19MNevLYQznpRNlhgUbxVSA7hyWiuZt64
+        g3ueY9dQJagFuGo3Ez/gwS+m6HLJfAtDEaWpJpmhTjCPXp2jKctKxVITxWWj82la
+        PD12HBivvsA1K69klzR0Yz2KF1rLOMNDxaY/4TkMkbj7ipWZTttvZ8rp76Tuuoyy
+        GZPBtmLFBDzBWlJcSFv/ODeyB6nR89UeRo9lDwF3msFMT2zVllRqPdU2ytk=
+        -----END CERTIFICATE-----
+
+    - name: clientKey
+      value: |
+        -----BEGIN PRIVATE KEY-----
+        MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDJWaOygL4rEXiW
+        4f2Fm27bptAAu+66gKmdVKM3IJmuKXsz8RYtLwyWevjv1wZzrcRSH7KtffWbARIS
+        5Hb8YS6zNaFEZP/gd7ZR0bMpyQKVaxDJJzdeTql91VlRYEY46BVdjg88lpnzr73q
+        9TzM6HRRRoxJbmJwXy7gySapGoeKo/LCQCpRgu4X2fR/iPxS20XzMiqQKpThDf8D
+        SunX5+RvzUDV7Ym04/QdeaKxeUoPxg7tRy/bq65SOzblDLpuLhcuf5xmo8MF9dXg
+        gtZ3ZJykJOeecjfGLHZlVW5sxF5I+fW3jbKqE6vonx16sj99fA5Vh7I6OLQfdhKq
+        UpnpqimvAgMBAAECggEAFNQoinEl+veSNW2IV9dl5uQBNWo7fmCL60ITpkLBkxIo
+        dA2XATKSR0jOUqU4PiQ2IFa2GZtjmlbIg1rN8jqtZY2BMr2N+K75lcovEf4Aves2
+        79AWOrPBdcpptHDUotNjTmvBKL/diideap1W3k2Xpsa5AWmhVkWKaGd2j9y2M8Gl
+        5x7HDS+MSBEeh/1U8iuWmEMDsstA6ZIwIFa3oC7Ns66kiIdYYLrZEaQ/OIpqkElP
+        8ulF2rloVF1k/UxD8fmmqTZ7v8B8RbTnw6Hsjg2CvXuzJqm+KL1ZidNGnId0hJ0N
+        8UI6WpxFBfZXOMdocWZp6KyTzJe6sG83VQowI5iIjQKBgQDTpxteQwxOIFM29wMX
+        Azu9+cYEUg5O0ro1l23NfW1iVfdL5NFU7ql4mHjlM+huqPPuavAtdnPcLYfqKYSi
+        q5o5WGaSLlnBXE0Jfue5IJDQ3+zKwUb3bMpmkY+H5a8ssrRxp4Svsm9OF4pmvB/p
+        wj7vJHLB0gPRflqEVvPrnVjutQKBgQDzieiUs04IfBb241MD716Ns2QIRIgXlDRr
+        PqHPAQaRVoX9bnsfJ0Py/tOVVvzn6WcVuE+KowXSyzyCa9i0AW1OukgNvdwCEiMW
+        j6Xx5Wj1lj9gbGGTvqhOM54CLQ7scbdc5IwOeL3s8M4hvENn/vy6VDzadih9ModH
+        GVShNAfRUwKBgQCU5MIEFfbaHzNrP2oVDllA1C3RbEhUezoz6Ut9e/cvbnqCEX6R
+        2TOvetPRqiqhbonr957u3J21DvLGcF62cTIVlXLS83iA5oXrYDNzsM0vo9fY6w8Z
+        kJbygQQP/iy1rSHzsn1NfKGAtl7O1xk8QUI0yddRMoUtI05aOzFtV0vw4QKBgGSt
+        zXWzzn2ZdxDnl0kYKtmfoKn+UtiUjzsKsG/YN7Pbtha4FrQhUmjhSe0CAhmJlvEW
+        ueNRU7X6CPDNzs9Ti7GxNtpfc9VzVAgeqHag5Uwpqded1pTyi7eQhTDXGcVLmYcQ
+        gIn3BmUug7jUkHUsp6QL8QBLOp/PRLdy1Fa0IMs7AoGBAKS6oa/nN+Q6g1dv5szZ
+        2Lq5sXOuhBio2KOm2LKj+m1nCQfHuvdCIpoeyaCqSjfEqW2dsQDcbM4ZRnlICV7c
+        0ktWwIWlN4mtiAf+cUgj6ormEXIxcDt6/w8k/e/ME8vDb7URCs/4z1rcFbwM8uZ0
+        PY3PxxuKXsQvfO05TX4rc/7p
+        -----END PRIVATE KEY-----
+

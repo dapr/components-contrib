@@ -130,6 +130,8 @@ jobs:
           terraform-dir: pubsub/aws/snssqs
         - component: state.aws.dynamodb
           terraform-dir: state/aws/dynamodb
+        - component: bindings.aws.s3
+          terraform-dir: bindings/aws/s3
         
         EOF
         )
@@ -344,6 +346,17 @@ jobs:
         echo "STATE_AWS_DYNAMODB_TABLE_2=$STATE_AWS_DYNAMODB_TABLE_2" >> $GITHUB_ENV
         AWS_REGION="us-east-1"
         echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
+
+    - name: Create aws.s3 specific variables
+      if: contains(matrix.component, 's3')
+      working-directory: "./.github/infrastructure/terraform/certification/${{ matrix.terraform-dir }}"
+      run: |
+        AWS_S3_BUCKET="dapr-cert-test-${{env.UNIQUE_ID}}"
+        echo "AWS_S3_BUCKET=$AWS_S3_BUCKET" >> $GITHUB_ENV
+
+        AWS_REGION="us-east-1"
+        echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
+    
 
     - name: Set up Go
       uses: actions/setup-go@v3

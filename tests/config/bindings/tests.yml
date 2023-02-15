@@ -76,3 +76,8 @@ components:
   - component: postgres
     allOperations: false
     operations: [ "exec", "query", "close", "operations" ]
+  - component: aws.s3
+    operations: ["create", "operations", "get", "list"]
+    config:
+      output:
+        key: ${{AWS_S3_BUCKET}}

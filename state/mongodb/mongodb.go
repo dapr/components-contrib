@@ -35,6 +35,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
+	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
 )
@@ -51,6 +52,7 @@ const (
 	id               = "_id"
 	value            = "value"
 	etag             = "_etag"
+	daprttl          = "_dapr_ttl"
 
 	defaultTimeout        = 5 * time.Second
 	defaultDatabaseName   = "daprStore"
@@ -146,9 +148,18 @@ func (m *MongoDB) Init(metadata state.Metadata) error {
 
 	m.metadata = *meta
 	opts := options.Collection().SetWriteConcern(wc).SetReadConcern(rc)
-	collection := m.client.Database(meta.DatabaseName).Collection(meta.CollectionName, opts)
+	m.collection = m.client.Database(meta.DatabaseName).Collection(meta.CollectionName, opts)
 
-	m.collection = collection
+	// Set expireAfterSeconds index on ttl field with a value of 0 to delete
+	// values immediately when the TTL value is reached.
+	// MongoDB TTL Indexes: https://docs.mongodb.com/manual/core/index-ttl/
+	// TTL fields are deleted at most 60 seconds after the TTL value is reached.
+	if _, err := m.collection.Indexes().CreateOne(context.Background(), mongo.IndexModel{
+		Keys:    bson.M{daprttl: 1},
+		Options: options.Index().SetExpireAfterSeconds(0),
+	}); err != nil {
+		return fmt.Errorf("error in creating ttl index: %s", err)
+	}
 
 	return nil
 }
@@ -195,10 +206,28 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 		filter[etag] = uuid.NewString()
 	}
 
-	update := bson.M{"$set": bson.M{id: req.Key, value: v, etag: uuid.NewString()}}
-	_, err := m.collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
+	reqTTL, err := stateutils.ParseTTL(req.Metadata)
+	if err != nil {
+		return fmt.Errorf("failed to parse TTL: %w", err)
+	}
 
-	return err
+	var ttl any
+	if reqTTL != nil {
+		ttl = primitive.NewDateTimeFromTime(time.Now().Add(time.Second * time.Duration(*reqTTL)))
+	}
+
+	update := bson.D{{"$set", bson.D{
+		{id, req.Key},
+		{value, v},
+		{etag, uuid.NewString()},
+		{daprttl, ttl},
+	}}}
+	_, err = m.collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
+	if err != nil {
+		return fmt.Errorf("error in updating document: %s", err)
+	}
+
+	return nil
 }
 
 // Get retrieves state from MongoDB with a key.

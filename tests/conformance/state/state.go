@@ -801,12 +801,13 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			assertEquals(t, "⏱️", res)
 
 			// Wait for the object to expire and request again
-			time.Sleep(3 * time.Second)
-			res, err = statestore.Get(context.Background(), &state.GetRequest{
-				Key: key + "-ttl",
-			})
-			require.NoError(t, err)
-			assert.Nil(t, res.Data)
+			assert.Eventually(t, func() bool {
+				res, err = statestore.Get(context.Background(), &state.GetRequest{
+					Key: key + "-ttl",
+				})
+				require.NoError(t, err)
+				return res.Data == nil
+			}, time.Second*70, 200*time.Millisecond, "expected object to have been deleted in time")
 		})
 	}
 }

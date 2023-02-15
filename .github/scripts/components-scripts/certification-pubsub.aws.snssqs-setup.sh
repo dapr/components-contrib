@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 # Set variables for GitHub Actions
 echo "AWS_REGION=us-east-1" >> $GITHUB_ENV
 echo "PUBSUB_AWS_SNSSQS_QUEUE_1=sqssnscerttest-q1-$UNIQUE_ID" >> $GITHUB_ENV

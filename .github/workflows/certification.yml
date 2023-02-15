@@ -21,10 +21,14 @@ on:
     - cron: '25 */8 * * *'
   push:
     branches:
-      - release-*
+      - 'release-*'
   pull_request:
     branches:
-      - release-*
+      - 'release-*'
+
+env:
+  # Only specify a major version, such as 1.20
+  GO_VERSION: '1.19'
 
 jobs:
   # Based on whether this is a PR or a scheduled run, we will run a different
@@ -42,11 +46,13 @@ jobs:
           echo "PR_NUMBER=${{ github.event.client_payload.issue.number }}" >> $GITHUB_ENV
         fi
 
-    - name: Generate the test matrix
+    - name: Generate test matrix
       id: generate-matrix
+      env:
+        VAULT_NAME: ${{ secrets.AZURE_KEYVAULT }}
       run: |
-        if [ "${{ github.event_name }}" = "pull_request" ]; then
-          # Do not generate include tests on PRs
+        if [ -z "$VAULT_NAME" ]; then
+          # Do not include cloud tests when credentials are not available
           node .github/scripts/test-info.mjs certification false
         else
           # Include cloud tests
@@ -104,20 +110,22 @@ jobs:
         repository: ${{ env.CHECKOUT_REPO }}
         ref: ${{ env.CHECKOUT_REF }}
 
-    - name: Setup test output
+    - name: Configure environment
       run: |
+        # Output file
         echo "TEST_OUTPUT_FILE_PREFIX=$GITHUB_WORKSPACE/test_report" >> $GITHUB_ENV
 
-    - name: Configure certification test and source path
-      run: |
-        TEST_COMPONENT=$(echo ${{ matrix.component }} | sed -E 's/\./\//g')
-        export TEST_PATH="tests/certification/${TEST_COMPONENT}"
-        echo "TEST_PATH=$TEST_PATH" >> $GITHUB_ENV
-        export SOURCE_PATH="github.com/dapr/components-contrib/${TEST_COMPONENT}"
+        # Certification test and source path
+        TEST_COMPONENT=$(echo "${{ matrix.component }}" | sed -E 's/\./\//g')
+        echo "TEST_PATH=tests/certification/${TEST_COMPONENT}" >> $GITHUB_ENV
+        SOURCE_PATH="github.com/dapr/components-contrib/${TEST_COMPONENT}"
         echo "SOURCE_PATH=$SOURCE_PATH" >> $GITHUB_ENV
         # converts slashes to dots in this string, so that it doesn't consider them sub-folders
-        export SOURCE_PATH_LINEAR=$(echo "$SOURCE_PATH" |sed 's#/#\.#g')
+        SOURCE_PATH_LINEAR=$(echo "$SOURCE_PATH" |sed 's#/#\.#g')
         echo "SOURCE_PATH_LINEAR=$SOURCE_PATH_LINEAR" >> $GITHUB_ENV
+
+        # Current time (used by Terraform)
+        echo "CURRENT_TIME=$(date --rfc-3339=date)" >> ${GITHUB_ENV}
 
     - uses: Azure/login@v1
       with:
@@ -158,10 +166,6 @@ jobs:
           echo "$CERT_NAME=$CERT_FILE" >> $GITHUB_ENV
         done
 
-    - name: Set current time
-      run: |
-        echo "CURRENT_TIME=$(date --rfc-3339=date)" >> ${GITHUB_ENV}
-
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v2
       if: matrix.require-terraform == 'true'
@@ -187,14 +191,10 @@ jobs:
         aws-secret-access-key: "${{ secrets.AWS_SECRET_KEY }}"
         aws-region: "${{ env.AWS_REGION }}"
 
-    - name: Run setup script
-      if: matrix.setup-script != ''
-      run: .github/scripts/${{ matrix.setup-script }}
-
     - name: Set up Go
       uses: actions/setup-go@v3
       with:
-        go-version: '^1.19'
+        go-version: '^${{ env.GO_VERSION }}'
 
     - name: Download Go dependencies
       working-directory: ${{ env.TEST_PATH }}
@@ -206,9 +206,13 @@ jobs:
     - name: Check that go mod tidy is up-to-date
       working-directory: ${{ env.TEST_PATH }}
       run: |
-        go mod tidy -compat=1.19
+        go mod tidy -compat=${{ env.GO_VERSION }}
         git diff --exit-code ./go.mod
         git diff --exit-code ./go.sum
+
+    - name: Run setup script
+      if: matrix.setup-script != ''
+      run: .github/scripts/${{ matrix.setup-script }}
 
     - name: Catch setup failures
       if: failure()
@@ -253,7 +257,7 @@ jobs:
           CERT_FILE=$(printenv $CERT_NAME)
 
           echo "Cleaning up the certificate file $CERT_FILE..."
-          rm $CERT_FILE
+          rm $CERT_FILE || true
         done
 
         if [[ -v CERTIFICATION_FAILURE ]]; then
@@ -319,7 +323,7 @@ jobs:
 
   post_job:
     name: Post-completion
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     if: always()
     needs: 
       - certification

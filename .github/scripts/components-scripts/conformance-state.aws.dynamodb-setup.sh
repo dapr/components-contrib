@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 # Set variables for GitHub Actions
 echo "STATE_AWS_DYNAMODB_TABLE_1=conformance-test-terraform-basic-${UNIQUE_ID}" >> $GITHUB_ENV
 echo "STATE_AWS_DYNAMODB_TABLE_2=conformance-test-terraform-partition-key-${UNIQUE_ID}" >> $GITHUB_ENV

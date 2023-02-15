@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 # Set variables for GitHub Actions
 echo "AWS_REGION=us-east-1" >> $GITHUB_ENV
 echo "STATE_AWS_DYNAMODB_TABLE_1=certification-test-terraform-basic-$UNIQUE_ID" >> $GITHUB_ENV

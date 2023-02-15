@@ -309,6 +309,8 @@ const components = {
     },
     'secretstores.kubernetes': {
         conformance: true,
+        requireKind: true,
+        conformanceSetup: 'conformance-secretstores.kubernetes-setup.sh',
     },
     'secretstores.local.env': {
         conformance: true,
@@ -364,6 +366,8 @@ const components = {
             'AzureSqlServerName',
             'AzureSqlServerConnectionString',
         ],
+        conformanceSetup: 'conformance-state.azure.sql-setup.sh',
+        conformanceDestroy: 'conformance-state.azure.sql-destroy.sh',
     },
     'state.azure.tablestorage': {
         certification: true,
@@ -397,7 +401,9 @@ const components = {
     'state.cloudflare.workerskv': {
         conformance: true,
         requireCloudflareCredentials: true,
-        nodeJsVersion: '18.x'
+        nodeJsVersion: '18.x',
+        conformanceSetup: 'conformance-state.cloudflare.workerskv-setup.sh',
+        conformanceDestroy: 'conformance-state.cloudflare.workerskv-destroy.sh',
     },
     'state.cockroachdb': {
         conformance: true,
@@ -415,6 +421,7 @@ const components = {
     'state.mongodb': {
         conformance: true,
         certification: true,
+        mongoDbVersion: '4.2',
     },
     'state.mysql': {
         certification: true,
@@ -473,11 +480,13 @@ const components = {
  * @property {boolean?} requireAWSCredentials If true, requires AWS credentials and makes the test "cloud-only"
  * @property {boolean?} requireCloudflareCredentials If true, requires Cloudflare credentials and makes the test "cloud-only"
  * @property {boolean?} requireTerraform If true, requires Terraform
+ * @property {boolean?} requireKind If true, requires KinD
  * @property {string?} conformanceSetup Setup script for conformance tests
  * @property {string?} conformanceDestroy Destroy script for conformance tests
  * @property {string?} certificationSetup Setup script for certification tests
  * @property {string?} certificationDestroy Destroy script for certification tests
  * @property {string?} nodeJsVersion If set, installs the specified Node.js version
+ * @property {string?} mongoDbVersion If set, installs the specified MongoDB version
  */
 
 /**
@@ -489,9 +498,11 @@ const components = {
  * @property {boolean?} require-aws-credentials Requires AWS credentials
  * @property {boolean?} require-cloudflare-credentials Requires Cloudflare credentials
  * @property {boolean?} require-terraform Requires Terraform
+ * @property {boolean?} require-kind Requires KinD
  * @property {string?} setup-script Setup script
  * @property {string?} destroy-script Destroy script
  * @property {string?} nodejs-version Install the specified Node.js version if set
+ * @property {string?} mongodb-version Install the specified MongoDB version if set
  */
 
 /**
@@ -537,9 +548,11 @@ function GenerateMatrix(testKind, enableCloudTests) {
                 ? 'true'
                 : undefined,
             'require-terraform': comp.requireTerraform ? 'true' : undefined,
+            'require-kind': comp.requireKind ? 'true' : undefined,
             'setup-script': comp[testKind + 'Setup'] || undefined,
             'destroy-script': comp[testKind + 'Destroy'] || undefined,
             'nodejs-version': comp.nodeJsVersion || undefined,
+            'mongodb-version': comp.mongoDbVersion || undefined,
         })
     }
 

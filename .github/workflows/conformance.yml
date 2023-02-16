@@ -669,7 +669,7 @@ jobs:
       if: github.event_name == 'schedule'
       run: |
        mkdir -p tmp/cov_files
-       echo "${{ env.COVERAGE_LINE }}" >> tmp/cov_files/${{ env.KIND }}/${{ env.NAME }}.txt
+       echo "${{ env.COVERAGE_LINE }}" >> tmp/cov_files/${{ matrix.component }}.txt
 
     - name: Upload Conf Coverage Artifact
       uses: actions/upload-artifact@v3

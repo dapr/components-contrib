@@ -15,6 +15,7 @@ package blobstorage
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
@@ -24,18 +25,31 @@ import (
 )
 
 type BlobStorageMetadata struct {
-	AccountName       string
-	AccountKey        string
-	ContainerName     string
-	RetryCount        int32 `json:"retryCount,string"`
-	DecodeBase64      bool  `json:"decodeBase64,string"`
-	PublicAccessLevel azblob.PublicAccessType
+	ContainerClientOpts `json:",inline" mapstructure:",squash"`
+	DecodeBase64        bool `json:"decodeBase64,string"`
+	PublicAccessLevel   azblob.PublicAccessType
+}
+
+type ContainerClientOpts struct {
+	// Use a connection string
+	ConnectionString string
+	ContainerName    string
+
+	// Use a shared account key
+	AccountName string
+	AccountKey  string
+
+	// Misc
+	RetryCount int32 `json:"retryCount,string"`
+
+	// Private properties
+	containerURL   *url.URL `json:"-" mapstructure:"-"`
+	customEndpoint string   `json:"-" mapstructure:"-"`
 }
 
 func parseMetadata(meta map[string]string) (*BlobStorageMetadata, error) {
-	m := BlobStorageMetadata{
-		RetryCount: defaultBlobRetryCount,
-	}
+	m := BlobStorageMetadata{}
+	m.RetryCount = defaultBlobRetryCount
 	mdutils.DecodeMetadata(meta, &m)
 
 	if val, ok := mdutils.GetMetadataProperty(meta, azauth.StorageAccountNameKeys...); ok && val != "" {

@@ -14,11 +14,15 @@ limitations under the License.
 package sqlite
 
 import (
+	"bytes"
 	"context"
+	"net/url"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -29,48 +33,226 @@ const (
 	fakeConnectionString = "not a real connection"
 )
 
-// Fake implementation of interface oracledatabase.dbaccess.
-type fakeDBaccess struct {
-	logger       logger.Logger
-	pingExecuted bool
-	initExecuted bool
-	setExecuted  bool
-	getExecuted  bool
-}
+func TestGetConnectionString(t *testing.T) {
+	logDest := &bytes.Buffer{}
+	log := logger.NewLogger("test")
+	log.SetOutput(logDest)
+	log.SetOutputLevel(logger.DebugLevel)
 
-func (m *fakeDBaccess) Ping(ctx context.Context) error {
-	m.pingExecuted = true
-	return nil
-}
+	db := &sqliteDBAccess{
+		logger: log,
+	}
 
-func (m *fakeDBaccess) Init(metadata state.Metadata) error {
-	m.initExecuted = true
+	t.Run("append default options", func(t *testing.T) {
+		logDest.Reset()
+		db.metadata.reset()
+		db.metadata.ConnectionString = "file:test.db"
 
-	return nil
-}
+		connString, err := db.getConnectionString()
+		require.NoError(t, err)
 
-func (m *fakeDBaccess) Set(ctx context.Context, req *state.SetRequest) error {
-	m.setExecuted = true
+		values := url.Values{
+			"_txlock": []string{"immediate"},
+			"_pragma": []string{"busy_timeout(2000)", "journal_mode(WAL)"},
+		}
+		assert.Equal(t, "file:test.db?"+values.Encode(), connString)
+	})
 
-	return nil
-}
+	t.Run("add file prefix if missing", func(t *testing.T) {
+		t.Run("database on file", func(t *testing.T) {
+			logDest.Reset()
+			db.metadata.reset()
+			db.metadata.ConnectionString = "test.db"
 
-func (m *fakeDBaccess) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
-	m.getExecuted = true
+			connString, err := db.getConnectionString()
+			require.NoError(t, err)
 
-	return nil, nil
-}
+			values := url.Values{
+				"_txlock": []string{"immediate"},
+				"_pragma": []string{"busy_timeout(2000)", "journal_mode(WAL)"},
+			}
+			assert.Equal(t, "file:test.db?"+values.Encode(), connString)
 
-func (m *fakeDBaccess) Delete(ctx context.Context, req *state.DeleteRequest) error {
-	return nil
-}
+			logs := logDest.String()
+			assert.Contains(t, logs, "prefix 'file:' added to the connection string")
+		})
 
-func (m *fakeDBaccess) ExecuteMulti(ctx context.Context, reqs []state.TransactionalStateOperation) error {
-	return nil
-}
+		t.Run("in-memory database also adds cache=shared", func(t *testing.T) {
+			logDest.Reset()
+			db.metadata.reset()
+			db.metadata.ConnectionString = ":memory:"
 
-func (m *fakeDBaccess) Close() error {
-	return nil
+			connString, err := db.getConnectionString()
+			require.NoError(t, err)
+
+			values := url.Values{
+				"_txlock": []string{"immediate"},
+				"_pragma": []string{"busy_timeout(2000)", "journal_mode(MEMORY)"},
+				"cache":   []string{"shared"},
+			}
+			assert.Equal(t, "file::memory:?"+values.Encode(), connString)
+
+			logs := logDest.String()
+			assert.Contains(t, logs, "prefix 'file:' added to the connection string")
+		})
+	})
+
+	t.Run("warn if _txlock is not immediate", func(t *testing.T) {
+		t.Run("value is immediate", func(t *testing.T) {
+			logDest.Reset()
+			db.metadata.reset()
+			db.metadata.ConnectionString = "file:test.db?_txlock=immediate"
+
+			connString, err := db.getConnectionString()
+			require.NoError(t, err)
+
+			values := url.Values{
+				"_txlock": []string{"immediate"},
+				"_pragma": []string{"busy_timeout(2000)", "journal_mode(WAL)"},
+			}
+			assert.Equal(t, "file:test.db?"+values.Encode(), connString)
+
+			logs := logDest.String()
+			assert.NotContains(t, logs, "_txlock")
+		})
+
+		t.Run("value is not immediate", func(t *testing.T) {
+			logDest.Reset()
+			db.metadata.reset()
+			db.metadata.ConnectionString = "file:test.db?_txlock=deferred"
+
+			connString, err := db.getConnectionString()
+			require.NoError(t, err)
+
+			values := url.Values{
+				"_txlock": []string{"deferred"},
+				"_pragma": []string{"busy_timeout(2000)", "journal_mode(WAL)"},
+			}
+			assert.Equal(t, "file:test.db?"+values.Encode(), connString)
+
+			logs := logDest.String()
+			assert.Contains(t, logs, "Database connection is being created with a _txlock different from the recommended value 'immediate'")
+		})
+	})
+
+	t.Run("forbidden _pragma URI options", func(t *testing.T) {
+		t.Run("busy_timeout", func(t *testing.T) {
+			logDest.Reset()
+			db.metadata.reset()
+			db.metadata.ConnectionString = "file:test.db?_pragma=busy_timeout(50)"
+
+			_, err := db.getConnectionString()
+			require.Error(t, err)
+			assert.ErrorContains(t, err, "found forbidden option '_pragma=busy_timeout' in the connection string")
+		})
+		t.Run("journal_mode", func(t *testing.T) {
+			logDest.Reset()
+			db.metadata.reset()
+			db.metadata.ConnectionString = "file:test.db?_pragma=journal_mode(WAL)"
+
+			_, err := db.getConnectionString()
+			require.Error(t, err)
+			assert.ErrorContains(t, err, "found forbidden option '_pragma=journal_mode' in the connection string")
+		})
+	})
+
+	t.Run("set busyTimeout", func(t *testing.T) {
+		logDest.Reset()
+		db.metadata.reset()
+		db.metadata.ConnectionString = "file:test.db"
+		db.metadata.BusyTimeout = time.Second
+
+		connString, err := db.getConnectionString()
+		require.NoError(t, err)
+
+		values := url.Values{
+			"_txlock": []string{"immediate"},
+			"_pragma": []string{"busy_timeout(1000)", "journal_mode(WAL)"},
+		}
+		assert.Equal(t, "file:test.db?"+values.Encode(), connString)
+	})
+
+	t.Run("set journal mode", func(t *testing.T) {
+		t.Run("default to use WAL", func(t *testing.T) {
+			logDest.Reset()
+			db.metadata.reset()
+			db.metadata.ConnectionString = "file:test.db"
+			db.metadata.DisableWAL = false
+
+			connString, err := db.getConnectionString()
+			require.NoError(t, err)
+
+			values := url.Values{
+				"_txlock": []string{"immediate"},
+				"_pragma": []string{"busy_timeout(2000)", "journal_mode(WAL)"},
+			}
+			assert.Equal(t, "file:test.db?"+values.Encode(), connString)
+		})
+
+		t.Run("disable WAL", func(t *testing.T) {
+			logDest.Reset()
+			db.metadata.reset()
+			db.metadata.ConnectionString = "file:test.db"
+			db.metadata.DisableWAL = true
+
+			connString, err := db.getConnectionString()
+			require.NoError(t, err)
+
+			values := url.Values{
+				"_txlock": []string{"immediate"},
+				"_pragma": []string{"busy_timeout(2000)", "journal_mode(DELETE)"},
+			}
+			assert.Equal(t, "file:test.db?"+values.Encode(), connString)
+		})
+
+		t.Run("default to use MEMORY for in-memory databases", func(t *testing.T) {
+			logDest.Reset()
+			db.metadata.reset()
+			db.metadata.ConnectionString = "file::memory:"
+
+			connString, err := db.getConnectionString()
+			require.NoError(t, err)
+
+			values := url.Values{
+				"_txlock": []string{"immediate"},
+				"_pragma": []string{"busy_timeout(2000)", "journal_mode(MEMORY)"},
+				"cache":   []string{"shared"},
+			}
+			assert.Equal(t, "file::memory:?"+values.Encode(), connString)
+		})
+
+		t.Run("default to use DELETE for read-only databases", func(t *testing.T) {
+			logDest.Reset()
+			db.metadata.reset()
+			db.metadata.ConnectionString = "file:test.db?mode=ro"
+
+			connString, err := db.getConnectionString()
+			require.NoError(t, err)
+
+			values := url.Values{
+				"_txlock": []string{"immediate"},
+				"_pragma": []string{"busy_timeout(2000)", "journal_mode(DELETE)"},
+				"mode":    []string{"ro"},
+			}
+			assert.Equal(t, "file:test.db?"+values.Encode(), connString)
+		})
+
+		t.Run("default to use DELETE for immutable databases", func(t *testing.T) {
+			logDest.Reset()
+			db.metadata.reset()
+			db.metadata.ConnectionString = "file:test.db?immutable=1"
+
+			connString, err := db.getConnectionString()
+			require.NoError(t, err)
+
+			values := url.Values{
+				"_txlock":   []string{"immediate"},
+				"_pragma":   []string{"busy_timeout(2000)", "journal_mode(DELETE)"},
+				"immutable": []string{"1"},
+			}
+			assert.Equal(t, "file:test.db?"+values.Encode(), connString)
+		})
+	})
 }
 
 // Proves that the Init method runs the init method.
@@ -123,31 +305,56 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func createSetRequest() state.SetRequest {
-	return state.SetRequest{
-		Key:   randomKey(),
-		Value: randomJSON(),
-	}
-}
-
-func createDeleteRequest() state.DeleteRequest {
-	return state.DeleteRequest{
-		Key: randomKey(),
-	}
-}
-
-func createSqliteWithFake(t *testing.T) (*SQLiteStore, *fakeDBaccess) {
-	ods := createSqlite(t)
-	fake := ods.dbaccess.(*fakeDBaccess)
-	return ods, fake
-}
-
 // Proves that the Ping method runs the ping method.
 func TestPingRunsDBAccessPing(t *testing.T) {
 	t.Parallel()
 	odb, fake := createSqliteWithFake(t)
 	odb.Ping()
 	assert.True(t, fake.pingExecuted)
+}
+
+// Fake implementation of interface dbaccess.
+type fakeDBaccess struct {
+	logger       logger.Logger
+	pingExecuted bool
+	initExecuted bool
+	setExecuted  bool
+	getExecuted  bool
+}
+
+func (m *fakeDBaccess) Ping(ctx context.Context) error {
+	m.pingExecuted = true
+	return nil
+}
+
+func (m *fakeDBaccess) Init(metadata state.Metadata) error {
+	m.initExecuted = true
+
+	return nil
+}
+
+func (m *fakeDBaccess) Set(ctx context.Context, req *state.SetRequest) error {
+	m.setExecuted = true
+
+	return nil
+}
+
+func (m *fakeDBaccess) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
+	m.getExecuted = true
+
+	return nil, nil
+}
+
+func (m *fakeDBaccess) Delete(ctx context.Context, req *state.DeleteRequest) error {
+	return nil
+}
+
+func (m *fakeDBaccess) ExecuteMulti(ctx context.Context, reqs []state.TransactionalStateOperation) error {
+	return nil
+}
+
+func (m *fakeDBaccess) Close() error {
+	return nil
 }
 
 func createSqlite(t *testing.T) *SQLiteStore {
@@ -174,6 +381,25 @@ func createSqlite(t *testing.T) *SQLiteStore {
 	assert.NotNil(t, odb.dbaccess)
 
 	return odb
+}
+
+func createSetRequest() state.SetRequest {
+	return state.SetRequest{
+		Key:   randomKey(),
+		Value: randomJSON(),
+	}
+}
+
+func createDeleteRequest() state.DeleteRequest {
+	return state.DeleteRequest{
+		Key: randomKey(),
+	}
+}
+
+func createSqliteWithFake(t *testing.T) (*SQLiteStore, *fakeDBaccess) {
+	ods := createSqlite(t)
+	fake := ods.dbaccess.(*fakeDBaccess)
+	return ods, fake
 }
 
 func randomKey() string {

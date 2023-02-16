@@ -30,11 +30,11 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/mitchellh/mapstructure"
-
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/internal/utils"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -60,12 +60,13 @@ type HTTPSource struct {
 }
 
 type httpMetadata struct {
-	URL                 string `mapstructure:"url"`
-	MTLSClientCert      string `mapstructure:"mtlsClientCert"`
-	MTLSClientKey       string `mapstructure:"mtlsClientKey"`
-	MTLSRootCA          string `mapstructure:"mtlsRootCA"`
-	SecurityToken       string `mapstructure:"securityToken"`
-	SecurityTokenHeader string `mapstructure:"securityTokenHeader"`
+	URL                 string         `mapstructure:"url"`
+	MTLSClientCert      string         `mapstructure:"mtlsClientCert"`
+	MTLSClientKey       string         `mapstructure:"mtlsClientKey"`
+	MTLSRootCA          string         `mapstructure:"mtlsRootCA"`
+	SecurityToken       string         `mapstructure:"securityToken"`
+	SecurityTokenHeader string         `mapstructure:"securityTokenHeader"`
+	ResponseTimeout     *time.Duration `mapstructure:"responseTimeout"`
 }
 
 // NewHTTP returns a new HTTPSource.
@@ -74,11 +75,17 @@ func NewHTTP(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init performs metadata parsing.
-func (h *HTTPSource) Init(metadata bindings.Metadata) error {
+func (h *HTTPSource) Init(meta bindings.Metadata) error {
 	var err error
-	if err = mapstructure.Decode(metadata.Properties, &h.metadata); err != nil {
+	if err = metadata.DecodeMetadata(meta.Properties, &h.metadata); err != nil {
 		return err
 	}
+
+	// set default timeout values
+	if h.metadata.ResponseTimeout == nil {
+		h.metadata.ResponseTimeout = ptr.Of(30 * time.Second)
+	}
+
 	var tlsConfig *tls.Config
 	if h.metadata.MTLSClientCert != "" && h.metadata.MTLSClientKey != "" {
 		tlsConfig, err = h.readMTLSCertificates()
@@ -100,11 +107,11 @@ func (h *HTTPSource) Init(metadata bindings.Metadata) error {
 		netTransport.TLSClientConfig = tlsConfig
 	}
 	h.client = &http.Client{
-		Timeout:   time.Second * 30,
+		Timeout:   *h.metadata.ResponseTimeout,
 		Transport: netTransport,
 	}
 
-	if val, ok := metadata.Properties["errorIfNot2XX"]; ok {
+	if val, ok := meta.Properties["errorIfNot2XX"]; ok {
 		h.errorIfNot2XX = utils.IsTruthy(val)
 	} else {
 		// Default behavior

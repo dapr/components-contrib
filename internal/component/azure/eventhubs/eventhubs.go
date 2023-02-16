@@ -26,11 +26,11 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs"
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs/checkpoints"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"golang.org/x/exp/maps"
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
+	"github.com/dapr/components-contrib/internal/component/azure/blobstorage"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
 )
@@ -51,7 +51,7 @@ type AzureEventHubs struct {
 	managementCreds azcore.TokenCredential
 
 	// TODO(@ItalyPaleAle): Remove in Dapr 1.13
-	isFailed *atomic.Bool
+	isFailed atomic.Bool
 }
 
 // NewAzureEventHubs returns a new Azure Event hubs instance.
@@ -62,7 +62,6 @@ func NewAzureEventHubs(logger logger.Logger, isBinding bool) *AzureEventHubs {
 		producersLock:       &sync.RWMutex{},
 		producers:           make(map[string]*azeventhubs.ProducerClient, 1),
 		checkpointStoreLock: &sync.RWMutex{},
-		isFailed:            &atomic.Bool{},
 	}
 }
 
@@ -76,14 +75,9 @@ func (aeh *AzureEventHubs) Init(metadata map[string]string) error {
 
 	if aeh.metadata.ConnectionString == "" {
 		// If connecting via Azure AD, we need to do some more initialization
-		var env azauth.EnvironmentSettings
-		env, err = azauth.NewEnvironmentSettings("eventhubs", metadata)
+		aeh.metadata.azEnvSettings, err = azauth.NewEnvironmentSettings("eventhubs", metadata)
 		if err != nil {
 			return fmt.Errorf("failed to initialize Azure AD credentials: %w", err)
-		}
-		aeh.metadata.aadTokenProvider, err = env.GetTokenCredential()
-		if err != nil {
-			return fmt.Errorf("failed to get Azure AD token credentials provider: %w", err)
 		}
 
 		aeh.logger.Info("connecting to Azure Event Hub using Azure AD; the connection will be established on first publish/subscribe and req.Topic field in incoming requests will be honored")
@@ -390,7 +384,11 @@ func (aeh *AzureEventHubs) getProducerClientForTopic(ctx context.Context, topic 
 		}
 	} else {
 		// Use Azure AD
-		client, err = azeventhubs.NewProducerClient(aeh.metadata.EventHubNamespace, topic, aeh.metadata.aadTokenProvider, clientOpts)
+		cred, tokenErr := aeh.metadata.azEnvSettings.GetTokenCredential()
+		if tokenErr != nil {
+			return nil, fmt.Errorf("failed to get credentials from Azure AD: %w", tokenErr)
+		}
+		client, err = azeventhubs.NewProducerClient(aeh.metadata.EventHubNamespace, topic, cred, clientOpts)
 		if err != nil {
 			return nil, fmt.Errorf("unable to connect to Azure Event Hub using Azure AD: %w", err)
 		}
@@ -448,7 +446,11 @@ func (aeh *AzureEventHubs) getProcessorForTopic(ctx context.Context, topic strin
 		}
 	} else {
 		// Use Azure AD
-		consumerClient, err = azeventhubs.NewConsumerClient(aeh.metadata.EventHubNamespace, topic, aeh.metadata.ConsumerGroup, aeh.metadata.aadTokenProvider, clientOpts)
+		cred, tokenErr := aeh.metadata.azEnvSettings.GetTokenCredential()
+		if tokenErr != nil {
+			return nil, fmt.Errorf("failed to get credentials from Azure AD: %w", tokenErr)
+		}
+		consumerClient, err = azeventhubs.NewConsumerClient(aeh.metadata.EventHubNamespace, topic, aeh.metadata.ConsumerGroup, cred, clientOpts)
 		if err != nil {
 			return nil, fmt.Errorf("unable to connect to Azure Event Hub using Azure AD: %w", err)
 		}
@@ -500,132 +502,47 @@ func (aeh *AzureEventHubs) createCheckpointStore(ctx context.Context) (checkpoin
 		return nil, errors.New("property storageContainerName is required to subscribe to an Event Hub topic")
 	}
 
-	// Ensure the container exists
-	err = aeh.ensureStorageContainer(ctx)
+	// Get the Azure Blob Storage client and ensure the container exists
+	client, err := aeh.createStorageClient(ctx, true)
 	if err != nil {
 		return nil, err
 	}
 
 	// Create the checkpoint store
-	checkpointStoreOpts := &checkpoints.BlobStoreOptions{
+	checkpointStore, err = checkpoints.NewBlobStore(client, &checkpoints.BlobStoreOptions{
 		ClientOptions: policy.ClientOptions{
 			Telemetry: policy.TelemetryOptions{
 				ApplicationID: "dapr-" + logger.DaprVersion,
 			},
 		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error creating checkpointer: %w", err)
 	}
-	if aeh.metadata.StorageConnectionString != "" {
-		// Authenticate with a connection string
-		checkpointStore, err = checkpoints.NewBlobStoreFromConnectionString(aeh.metadata.StorageConnectionString, aeh.metadata.StorageContainerName, checkpointStoreOpts)
-		if err != nil {
-			return nil, fmt.Errorf("error creating checkpointer from connection string: %w", err)
-		}
-	} else if aeh.metadata.StorageAccountKey != "" {
-		// Authenticate with a shared key
-		// TODO: This is a workaround in which we assemble a connection string until https://github.com/Azure/azure-sdk-for-go/issues/19842 is fixed
-		connString := fmt.Sprintf("DefaultEndpointsProtocol=https;AccountName=%s;AccountKey=%s;EndpointSuffix=core.windows.net", aeh.metadata.StorageAccountName, aeh.metadata.StorageAccountKey)
-		checkpointStore, err = checkpoints.NewBlobStoreFromConnectionString(connString, aeh.metadata.StorageContainerName, checkpointStoreOpts)
-		if err != nil {
-			return nil, fmt.Errorf("error creating checkpointer from storage account credentials: %w", err)
-		}
-	} else {
-		// Use Azure AD
-		// If Event Hub is authenticated using a connection string, we can't use Azure AD here
-		if aeh.metadata.ConnectionString != "" {
-			return nil, errors.New("either one of storageConnectionString or storageAccountKey is required when subscribing to an Event Hub topic without using Azure AD")
-		}
-		// Use the global URL for Azure Storage
-		containerURL := fmt.Sprintf("https://%s.blob.%s/%s", aeh.metadata.StorageAccountName, "core.windows.net", aeh.metadata.StorageContainerName)
-		checkpointStore, err = checkpoints.NewBlobStore(containerURL, aeh.metadata.aadTokenProvider, checkpointStoreOpts)
-		if err != nil {
-			return nil, fmt.Errorf("error creating checkpointer from Azure AD credentials: %w", err)
-		}
-	}
-
 	return checkpointStore, nil
 }
 
-// Ensures that the container exists in the Azure Storage Account.
-// This is done to preserve backwards-compatibility with Dapr 1.9, as the old checkpoint SDK created them automatically.
-func (aeh *AzureEventHubs) ensureStorageContainer(parentCtx context.Context) error {
-	// Get a client to Azure Blob Storage
-	client, err := aeh.createStorageClient()
+// Creates a client to access Azure Blob Storage.
+// TODO(@ItalyPaleAle): Remove ensureContainer option (and default to true) for Dapr 1.13
+func (aeh *AzureEventHubs) createStorageClient(ctx context.Context, ensureContainer bool) (*container.Client, error) {
+	m := blobstorage.ContainerClientOpts{
+		ConnectionString: aeh.metadata.StorageConnectionString,
+		ContainerName:    aeh.metadata.StorageContainerName,
+		AccountName:      aeh.metadata.StorageAccountName,
+		AccountKey:       aeh.metadata.StorageAccountKey,
+		RetryCount:       3,
+	}
+	client, err := m.InitContainerClient(aeh.metadata.azEnvSettings)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// Create the container
-	// This will return an error if it already exists
-	ctx, cancel := context.WithTimeout(parentCtx, resourceCreationTimeout)
-	defer cancel()
-	_, err = client.CreateContainer(ctx, aeh.metadata.StorageContainerName, &container.CreateOptions{
-		// Default is private
-		Access: nil,
-	})
-	if err != nil {
-		// Check if it's an Azure Storage error
-		resErr := &azcore.ResponseError{}
-		// If the container already exists, return no error
-		if errors.As(err, &resErr) && (resErr.ErrorCode == "ContainerAlreadyExists" || resErr.ErrorCode == "ResourceAlreadyExists") {
-			return nil
-		}
-
-		return fmt.Errorf("failed to create Azure Storage container %s: %w", aeh.metadata.StorageContainerName, err)
-	}
-
-	return nil
-}
-
-// Creates a client to access Azure Blob Storage
-func (aeh *AzureEventHubs) createStorageClient() (*azblob.Client, error) {
-	options := azblob.ClientOptions{
-		ClientOptions: azcore.ClientOptions{
-			Telemetry: policy.TelemetryOptions{
-				ApplicationID: "dapr-" + logger.DaprVersion,
-			},
-		},
-	}
-
-	var (
-		err    error
-		client *azblob.Client
-	)
-	// Use the global URL for Azure Storage
-	accountURL := fmt.Sprintf("https://%s.blob.%s", aeh.metadata.StorageAccountName, "core.windows.net")
-
-	if aeh.metadata.StorageConnectionString != "" {
-		// Authenticate with a connection string
-		client, err = azblob.NewClientFromConnectionString(aeh.metadata.StorageConnectionString, &options)
+	if ensureContainer {
+		// Ensure the container exists
+		// We're setting "accessLevel" to nil to make sure it's private
+		err = m.EnsureContainer(ctx, client, nil)
 		if err != nil {
-			return nil, fmt.Errorf("error creating Azure Storage client from connection string: %w", err)
-		}
-	} else if aeh.metadata.StorageAccountKey != "" {
-		// Authenticate with a shared key
-		credential, newSharedKeyErr := azblob.NewSharedKeyCredential(aeh.metadata.StorageAccountName, aeh.metadata.StorageAccountKey)
-		if newSharedKeyErr != nil {
-			return nil, fmt.Errorf("invalid Azure Storage shared key credentials with error: %w", newSharedKeyErr)
-		}
-		client, err = azblob.NewClientWithSharedKeyCredential(accountURL, credential, &options)
-		if err != nil {
-			return nil, fmt.Errorf("error creating Azure Storage client from shared key credentials: %w", err)
-		}
-	} else {
-		// Use Azure AD
-		var (
-			settings   azauth.EnvironmentSettings
-			credential azcore.TokenCredential
-		)
-		settings, err = azauth.NewEnvironmentSettings("storage", aeh.metadata.properties)
-		if err != nil {
-			return nil, fmt.Errorf("error getting Azure environment settings: %w", err)
-		}
-		credential, err = settings.GetTokenCredential()
-		if err != nil {
-			return nil, fmt.Errorf("invalid Azure Storage token credentials with error: %w", err)
-		}
-		client, err = azblob.NewClient(accountURL, credential, &options)
-		if err != nil {
-			return nil, fmt.Errorf("error creating Azure Storage client from token credentials: %w", err)
+			return nil, err
 		}
 	}
 

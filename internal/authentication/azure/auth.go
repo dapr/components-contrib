@@ -34,6 +34,7 @@ import (
 )
 
 // NewEnvironmentSettings returns a new EnvironmentSettings configured for a given Azure resource.
+// TODO: Remove resourceName when "track1" SDK support is dropped.
 func NewEnvironmentSettings(resourceName string, values map[string]string) (EnvironmentSettings, error) {
 	es := EnvironmentSettings{
 		Values: values,

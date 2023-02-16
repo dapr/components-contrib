@@ -31,10 +31,11 @@ import (
 // Because the new SDK stores checkpoints in a different way, clients using the new ("track 2") and the old SDK cannot coexist.
 // To ensure this doesn't happen, when we create a new subscription to the same topic and with the same consumer group, we check if there's a file in Azure Storage with the checkpoint created by the old SDK and with a still-active lease. If that's true, we wait (until the context expires) before we crash Dapr with a log message describing what's happening.
 // These conflicts should be transient anyways, as mixed versions of Dapr should only happen during a rollout of a new version of Dapr.
-// TODO(@ItalyPaleAle): Remove this for Dapr 1.13
+// TODO(@ItalyPaleAle): Remove this (entire file) for Dapr 1.13
 func (aeh *AzureEventHubs) ensureNoTrack1Subscribers(parentCtx context.Context, topic string) error {
 	// Get a client to Azure Blob Storage
-	client, err := aeh.createStorageClient()
+	// Because we are not using "ensureContainer=true", we can pass a nil context
+	client, err := aeh.createStorageClient(nil, false)
 	if err != nil {
 		return err
 	}
@@ -52,7 +53,7 @@ func (aeh *AzureEventHubs) ensureNoTrack1Subscribers(parentCtx context.Context, 
 	backOffConfig.MaxRetries = -1
 	b := backOffConfig.NewBackOffWithContext(parentCtx)
 	err = backoff.Retry(func() error {
-		pager := client.NewListBlobsFlatPager(aeh.metadata.StorageContainerName, &container.ListBlobsFlatOptions{
+		pager := client.NewListBlobsFlatPager(&container.ListBlobsFlatOptions{
 			Prefix: &prefix,
 		})
 		for pager.More() {

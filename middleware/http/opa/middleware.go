@@ -106,13 +106,13 @@ func (s *Status) Valid() bool {
 }
 
 // GetHandler returns the HTTP handler provided by the middleware.
-func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
+func (m *Middleware) GetHandler(parentCtx context.Context, metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Minute)
+	ctx, cancel := context.WithTimeout(parentCtx, time.Minute)
 	query, err := rego.New(
 		rego.Query("result = data.http.allow"),
 		rego.Module("inline.rego", meta.Rego),

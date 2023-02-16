@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	r "github.com/dancannon/gorethink"
@@ -34,6 +36,9 @@ type Binding struct {
 	logger  logger.Logger
 	session *r.Session
 	config  StateConfig
+	closed  atomic.Bool
+	closeCh chan struct{}
+	wg      sync.WaitGroup
 }
 
 // StateConfig is the binding config.
@@ -45,12 +50,13 @@ type StateConfig struct {
 // NewRethinkDBStateChangeBinding returns a new RethinkDB actor event input binding.
 func NewRethinkDBStateChangeBinding(logger logger.Logger) bindings.InputBinding {
 	return &Binding{
-		logger: logger,
+		logger:  logger,
+		closeCh: make(chan struct{}),
 	}
 }
 
 // Init initializes the RethinkDB binding.
-func (b *Binding) Init(metadata bindings.Metadata) error {
+func (b *Binding) Init(ctx context.Context, metadata bindings.Metadata) error {
 	cfg, err := metadataToConfig(metadata.Properties, b.logger)
 	if err != nil {
 		return fmt.Errorf("unable to parse metadata properties: %w", err)
@@ -68,6 +74,10 @@ func (b *Binding) Init(metadata bindings.Metadata) error {
 
 // Read triggers the RethinkDB scheduler.
 func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
+	if b.closed.Load() {
+		return errors.New("binding is closed")
+	}
+
 	b.logger.Infof("subscribing to state changes in %s.%s...", b.config.Database, b.config.Table)
 	cursor, err := r.DB(b.config.Database).
 		Table(b.config.Table).
@@ -81,8 +91,21 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 		return fmt.Errorf("error connecting to table '%s': %w", b.config.Table, err)
 	}
 
+	readCtx, cancel := context.WithCancel(ctx)
+	b.wg.Add(2)
+
 	go func() {
-		for ctx.Err() == nil {
+		defer b.wg.Done()
+		defer cancel()
+		select {
+		case <-b.closeCh:
+		case <-readCtx.Done():
+		}
+	}()
+
+	go func() {
+		defer b.wg.Done()
+		for readCtx.Err() == nil {
 			var change interface{}
 			ok := cursor.Next(&change)
 			if !ok {
@@ -105,7 +128,7 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 				},
 			}
 
-			if _, err := handler(ctx, resp); err != nil {
+			if _, err := handler(readCtx, resp); err != nil {
 				b.logger.Errorf("error invoking change handler: %v", err)
 				continue
 			}
@@ -115,6 +138,14 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 	}()
 
 	return nil
+}
+
+func (b *Binding) Close() error {
+	if b.closed.CompareAndSwap(false, true) {
+		close(b.closeCh)
+	}
+	defer b.wg.Wait()
+	return b.session.Close()
 }
 
 func metadataToConfig(cfg map[string]string, logger logger.Logger) (StateConfig, error) {

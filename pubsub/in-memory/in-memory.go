@@ -41,7 +41,7 @@ func (a *bus) Features() []pubsub.Feature {
 	return []pubsub.Feature{pubsub.FeatureSubscribeWildcards}
 }
 
-func (a *bus) Init(metadata pubsub.Metadata) error {
+func (a *bus) Init(_ context.Context, metadata pubsub.Metadata) error {
 	a.bus = eventbus.New(true)
 
 	return nil

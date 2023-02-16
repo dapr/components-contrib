@@ -106,7 +106,7 @@ func Test_kubeMQ_Init(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			kubemq := NewKubeMQ(logger.NewLogger("test"))
-			err := kubemq.Init(tt.meta)
+			err := kubemq.Init(context.Background(), tt.meta)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
@@ -120,7 +120,7 @@ func Test_kubeMQ_Invoke_Read_Single_Message(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	kubemq := NewKubeMQ(logger.NewLogger("test"))
-	err := kubemq.Init(getDefaultMetadata("test.read.single"))
+	err := kubemq.Init(context.Background(), getDefaultMetadata("test.read.single"))
 	require.NoError(t, err)
 	dataReadCh := make(chan []byte)
 	invokeRequest := &bindings.InvokeRequest{
@@ -147,7 +147,7 @@ func Test_kubeMQ_Invoke_Read_Single_MessageWithHandlerError(t *testing.T) {
 	kubemq := NewKubeMQ(logger.NewLogger("test"))
 	md := getDefaultMetadata("test.read.single.error")
 	md.Properties["autoAcknowledged"] = "false"
-	err := kubemq.Init(md)
+	err := kubemq.Init(context.Background(), md)
 	require.NoError(t, err)
 	invokeRequest := &bindings.InvokeRequest{
 		Data:     []byte("test"),
@@ -182,7 +182,7 @@ func Test_kubeMQ_Invoke_Error(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	kubemq := NewKubeMQ(logger.NewLogger("test"))
-	err := kubemq.Init(getDefaultMetadata("***test***"))
+	err := kubemq.Init(context.Background(), getDefaultMetadata("***test***"))
 	require.NoError(t, err)
 
 	invokeRequest := &bindings.InvokeRequest{

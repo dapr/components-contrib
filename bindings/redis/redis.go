@@ -28,9 +28,6 @@ type Redis struct {
 	client         rediscomponent.RedisClient
 	clientSettings *rediscomponent.Settings
 	logger         logger.Logger
-
-	ctx    context.Context
-	cancel context.CancelFunc
 }
 
 // NewRedis returns a new redis bindings instance.
@@ -39,15 +36,13 @@ func NewRedis(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init performs metadata parsing and connection creation.
-func (r *Redis) Init(meta bindings.Metadata) (err error) {
+func (r *Redis) Init(ctx context.Context, meta bindings.Metadata) (err error) {
 	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(meta.Properties, nil)
 	if err != nil {
 		return err
 	}
 
-	r.ctx, r.cancel = context.WithCancel(context.Background())
-
-	_, err = r.client.PingResult(r.ctx)
+	_, err = r.client.PingResult(ctx)
 	if err != nil {
 		return fmt.Errorf("redis binding: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
@@ -55,8 +50,8 @@ func (r *Redis) Init(meta bindings.Metadata) (err error) {
 	return err
 }
 
-func (r *Redis) Ping() error {
-	if _, err := r.client.PingResult(r.ctx); err != nil {
+func (r *Redis) Ping(ctx context.Context) error {
+	if _, err := r.client.PingResult(ctx); err != nil {
 		return fmt.Errorf("redis binding: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
 
@@ -101,7 +96,5 @@ func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 }
 
 func (r *Redis) Close() error {
-	r.cancel()
-
 	return r.client.Close()
 }

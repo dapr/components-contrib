@@ -86,7 +86,7 @@ func NewPostgresConfigurationStore(logger logger.Logger) configuration.Store {
 	}
 }
 
-func (p *ConfigurationStore) Init(metadata configuration.Metadata) error {
+func (p *ConfigurationStore) Init(parentCtx context.Context, metadata configuration.Metadata) error {
 	p.logger.Debug(InfoStartInit)
 	if p.client != nil {
 		return fmt.Errorf(ErrorAlreadyInitialized)
@@ -98,7 +98,7 @@ func (p *ConfigurationStore) Init(metadata configuration.Metadata) error {
 		p.metadata = m
 	}
 	p.ActiveSubscriptions = make(map[string]*subscription)
-	ctx, cancel := context.WithTimeout(context.Background(), p.metadata.maxIdleTimeout)
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.maxIdleTimeout)
 	defer cancel()
 	client, err := Connect(ctx, p.metadata.connectionString, p.metadata.maxIdleTimeout)
 	if err != nil {

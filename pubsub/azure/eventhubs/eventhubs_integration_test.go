@@ -69,7 +69,7 @@ func testReadIotHubEvents(t *testing.T) {
 	logger := kitLogger.NewLogger("pubsub.azure.eventhubs.integration.test")
 	logger.SetOutputLevel(kitLogger.DebugLevel)
 	eh := NewAzureEventHubs(logger).(*AzureEventHubs)
-	err := eh.Init(createIotHubPubsubMetadata())
+	err := eh.Init(context.Background(), createIotHubPubsubMetadata())
 	assert.NoError(t, err)
 
 	// Invoke az CLI via bash script to send test IoT device events

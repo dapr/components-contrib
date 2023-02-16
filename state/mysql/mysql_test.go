@@ -49,7 +49,7 @@ func TestEnsureStateSchemaHandlesShortConnectionString(t *testing.T) {
 	m.mock1.ExpectQuery("SELECT EXISTS").WillReturnRows(rows)
 
 	// Act
-	m.mySQL.ensureStateSchema()
+	m.mySQL.ensureStateSchema(context.Background())
 
 	// Assert
 	assert.Equal(t, "theUser:thePassword@/theSchema", m.mySQL.connectionString)
@@ -64,7 +64,7 @@ func TestFinishInitHandlesSchemaExistsError(t *testing.T) {
 	m.mock1.ExpectQuery("SELECT EXISTS").WillReturnError(expectedErr)
 
 	// Act
-	actualErr := m.mySQL.finishInit(m.mySQL.db)
+	actualErr := m.mySQL.finishInit(context.Background(), m.mySQL.db)
 
 	// Assert
 	assert.NotNil(t, actualErr, "now error returned")
@@ -83,7 +83,7 @@ func TestFinishInitHandlesDatabaseCreateError(t *testing.T) {
 	m.mock1.ExpectExec("CREATE DATABASE").WillReturnError(expectedErr)
 
 	// Act
-	actualErr := m.mySQL.finishInit(m.mySQL.db)
+	actualErr := m.mySQL.finishInit(context.Background(), m.mySQL.db)
 
 	// Assert
 	assert.NotNil(t, actualErr, "now error returned")
@@ -107,7 +107,7 @@ func TestFinishInitHandlesPingError(t *testing.T) {
 	m.mock2.ExpectPing().WillReturnError(expectedErr)
 
 	// Act
-	actualErr := m.mySQL.finishInit(m.mySQL.db)
+	actualErr := m.mySQL.finishInit(context.Background(), m.mySQL.db)
 
 	// Assert
 	assert.NotNil(t, actualErr, "now error returned")
@@ -135,7 +135,7 @@ func TestFinishInitHandlesTableExistsError(t *testing.T) {
 	m.mock2.ExpectQuery("SELECT EXISTS").WillReturnError(fmt.Errorf("tableExistsError"))
 
 	// Act
-	err := m.mySQL.finishInit(m.mySQL.db)
+	err := m.mySQL.finishInit(context.Background(), m.mySQL.db)
 
 	// Assert
 	assert.NotNil(t, err, "no error returned")
@@ -541,7 +541,7 @@ func TestTableExists(t *testing.T) {
 	m.mock1.ExpectQuery("SELECT EXISTS").WillReturnRows(rows)
 
 	// Act
-	actual, err := tableExists(m.mySQL.db, "store", 10*time.Second)
+	actual, err := tableExists(context.Background(), m.mySQL.db, "store", 10*time.Second)
 
 	// Assert
 	assert.Nil(t, err, `error was returned`)
@@ -559,7 +559,7 @@ func TestEnsureStateTableHandlesCreateTableError(t *testing.T) {
 	m.mock1.ExpectExec("CREATE TABLE").WillReturnError(fmt.Errorf("CreateTableError"))
 
 	// Act
-	err := m.mySQL.ensureStateTable("state")
+	err := m.mySQL.ensureStateTable(context.Background(), "state")
 
 	// Assert
 	assert.NotNil(t, err, "no error returned")
@@ -580,7 +580,7 @@ func TestEnsureStateTableCreatesTable(t *testing.T) {
 	m.mock1.ExpectExec("CREATE TABLE").WillReturnResult(sqlmock.NewResult(1, 1))
 
 	// Act
-	err := m.mySQL.ensureStateTable("state")
+	err := m.mySQL.ensureStateTable(context.Background(), "state")
 
 	// Assert
 	assert.Nil(t, err)
@@ -597,7 +597,7 @@ func TestInitReturnsErrorOnNoConnectionString(t *testing.T) {
 	}
 
 	// Act
-	err := m.mySQL.Init(*metadata)
+	err := m.mySQL.Init(context.Background(), *metadata)
 
 	// Assert
 	assert.NotNil(t, err)
@@ -614,7 +614,7 @@ func TestInitReturnsErrorOnFailOpen(t *testing.T) {
 	m.mock1.ExpectQuery("SELECT EXISTS").WillReturnError(sql.ErrConnDone)
 
 	// Act
-	err := m.mySQL.Init(*metadata)
+	err := m.mySQL.Init(context.Background(), *metadata)
 
 	// Assert
 	assert.NotNil(t, err)
@@ -637,7 +637,7 @@ func TestInitHandlesRegisterTLSConfigError(t *testing.T) {
 	}
 
 	// Act
-	err := m.mySQL.Init(*metadata)
+	err := m.mySQL.Init(context.Background(), *metadata)
 
 	// Assert
 	assert.NotNil(t, err)
@@ -653,7 +653,7 @@ func TestInitSetsTableName(t *testing.T) {
 	}
 
 	// Act
-	err := m.mySQL.Init(*metadata)
+	err := m.mySQL.Init(context.Background(), *metadata)
 
 	// Assert
 	assert.NotNil(t, err)
@@ -669,7 +669,7 @@ func TestInitInvalidTableName(t *testing.T) {
 	}
 
 	// Act
-	err := m.mySQL.Init(*metadata)
+	err := m.mySQL.Init(context.Background(), *metadata)
 
 	// Assert
 	assert.ErrorContains(t, err, "table name '🙃' is not valid")
@@ -684,7 +684,7 @@ func TestInitSetsSchemaName(t *testing.T) {
 	}
 
 	// Act
-	err := m.mySQL.Init(*metadata)
+	err := m.mySQL.Init(context.Background(), *metadata)
 
 	// Assert
 	assert.NotNil(t, err)
@@ -700,7 +700,7 @@ func TestInitInvalidSchemaName(t *testing.T) {
 	}
 
 	// Act
-	err := m.mySQL.Init(*metadata)
+	err := m.mySQL.Init(context.Background(), *metadata)
 
 	// Assert
 	assert.ErrorContains(t, err, "schema name '?' is not valid")

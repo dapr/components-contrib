@@ -60,7 +60,7 @@ func TestPostgreSQLIntegration(t *testing.T) {
 		defer pgs.Close()
 	})
 
-	error := pgs.Init(metadata)
+	error := pgs.Init(context.Background(), metadata)
 	if error != nil {
 		t.Fatal(error)
 	}
@@ -472,7 +472,7 @@ func testInitConfiguration(t *testing.T) {
 				Base: metadata.Base{Properties: tt.props},
 			}
 
-			err := p.Init(metadata)
+			err := p.Init(context.Background(), metadata)
 			if tt.expectedErr == nil {
 				assert.NoError(t, err)
 			} else {

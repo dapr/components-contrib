@@ -534,6 +534,7 @@ jobs:
         go mod download
         go install github.com/axw/gocov/gocov@v1.1.0
         go install gotest.tools/gotestsum@latest
+        go install github.com/wadey/gocovmerge@latest
 
     - name: Generate Azure SQL DB name
       run: |
@@ -728,6 +729,17 @@ jobs:
          if_no_artifact_found: warn
          name: certtest_cov
          path: tmp/certtest_files
+
+
+       #upload artifacts 
+      - name: Upload Conf Coverage Artifact
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+         name: certest_cov
+         path: tmp/certtest_files
+         retention-days: 1
+
       
 
       - name: Build message

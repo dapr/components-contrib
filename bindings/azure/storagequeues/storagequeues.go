@@ -16,9 +16,12 @@ package storagequeues
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Azure/azure-storage-queue-go/azqueue"
@@ -40,9 +43,10 @@ type consumer struct {
 
 // QueueHelper enables injection for testnig.
 type QueueHelper interface {
-	Init(metadata bindings.Metadata) (*storageQueuesMetadata, error)
+	Init(ctx context.Context, metadata bindings.Metadata) (*storageQueuesMetadata, error)
 	Write(ctx context.Context, data []byte, ttl *time.Duration) error
 	Read(ctx context.Context, consumer *consumer) error
+	Close() error
 }
 
 // AzureQueueHelper concrete impl of queue helper.
@@ -55,7 +59,7 @@ type AzureQueueHelper struct {
 }
 
 // Init sets up this helper.
-func (d *AzureQueueHelper) Init(metadata bindings.Metadata) (*storageQueuesMetadata, error) {
+func (d *AzureQueueHelper) Init(ctx context.Context, metadata bindings.Metadata) (*storageQueuesMetadata, error) {
 	m, err := parseMetadata(metadata)
 	if err != nil {
 		return nil, err
@@ -89,9 +93,9 @@ func (d *AzureQueueHelper) Init(metadata bindings.Metadata) (*storageQueuesMetad
 		d.queueURL = azqueue.NewQueueURL(*URL, p)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	_, err = d.queueURL.Create(ctx, azqueue.Metadata{})
-	cancel()
+	createCtx, createCancel := context.WithTimeout(ctx, 2*time.Minute)
+	_, err = d.queueURL.Create(createCtx, azqueue.Metadata{})
+	createCancel()
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +132,10 @@ func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 	}
 	if res.NumMessages() == 0 {
 		// Queue was empty so back off by 10 seconds before trying again
-		time.Sleep(10 * time.Second)
+		select {
+		case <-time.After(10 * time.Second):
+		case <-ctx.Done():
+		}
 		return nil
 	}
 	mt := res.Message(0).Text
@@ -162,6 +169,10 @@ func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 	return nil
 }
 
+func (d *AzureQueueHelper) Close() error {
+	return nil
+}
+
 // NewAzureQueueHelper creates new helper.
 func NewAzureQueueHelper(logger logger.Logger) QueueHelper {
 	return &AzureQueueHelper{
@@ -175,6 +186,10 @@ type AzureStorageQueues struct {
 	helper   QueueHelper
 
 	logger logger.Logger
+
+	wg      sync.WaitGroup
+	closeCh chan struct{}
+	closed  atomic.Bool
 }
 
 type storageQueuesMetadata struct {
@@ -189,12 +204,16 @@ type storageQueuesMetadata struct {
 
 // NewAzureStorageQueues returns a new AzureStorageQueues instance.
 func NewAzureStorageQueues(logger logger.Logger) bindings.InputOutputBinding {
-	return &AzureStorageQueues{helper: NewAzureQueueHelper(logger), logger: logger}
+	return &AzureStorageQueues{
+		helper:  NewAzureQueueHelper(logger),
+		logger:  logger,
+		closeCh: make(chan struct{}),
+	}
 }
 
 // Init parses connection properties and creates a new Storage Queue client.
-func (a *AzureStorageQueues) Init(metadata bindings.Metadata) (err error) {
-	a.metadata, err = a.helper.Init(metadata)
+func (a *AzureStorageQueues) Init(ctx context.Context, metadata bindings.Metadata) (err error) {
+	a.metadata, err = a.helper.Init(ctx, metadata)
 	if err != nil {
 		return err
 	}
@@ -261,19 +280,45 @@ func (a *AzureStorageQueues) Invoke(ctx context.Context, req *bindings.InvokeReq
 }
 
 func (a *AzureStorageQueues) Read(ctx context.Context, handler bindings.Handler) error {
+	if a.closed.Load() {
+		return errors.New("input binding is closed")
+	}
+
 	c := consumer{
 		callback: handler,
 	}
+
+	// Close read context when binding is closed.
+	readCtx, cancel := context.WithCancel(ctx)
+	a.wg.Add(2)
 	go func() {
+		defer a.wg.Done()
+		defer cancel()
+
+		select {
+		case <-a.closeCh:
+		case <-ctx.Done():
+		}
+	}()
+	go func() {
+		defer a.wg.Done()
 		// Read until context is canceled
 		var err error
-		for ctx.Err() == nil {
-			err = a.helper.Read(ctx, &c)
+		for readCtx.Err() == nil {
+			err = a.helper.Read(readCtx, &c)
 			if err != nil {
 				a.logger.Errorf("error from c: %s", err)
 			}
 		}
 	}()
 
+	return nil
+}
+
+func (a *AzureStorageQueues) Close() error {
+	if a.closed.CompareAndSwap(false, true) {
+		close(a.closeCh)
+	}
+	a.wg.Wait()
 	return nil
 }

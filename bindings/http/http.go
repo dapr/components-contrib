@@ -75,7 +75,7 @@ func NewHTTP(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init performs metadata parsing.
-func (h *HTTPSource) Init(meta bindings.Metadata) error {
+func (h *HTTPSource) Init(_ context.Context, metadata bindings.Metadata) error {
 	var err error
 	if err = metadata.DecodeMetadata(meta.Properties, &h.metadata); err != nil {
 		return err
@@ -111,7 +111,7 @@ func (h *HTTPSource) Init(meta bindings.Metadata) error {
 		Transport: netTransport,
 	}
 
-	if val, ok := meta.Properties["errorIfNot2XX"]; ok {
+	if val := metadata.Properties["errorIfNot2XX"]; val != "" {
 		h.errorIfNot2XX = utils.IsTruthy(val)
 	} else {
 		// Default behavior

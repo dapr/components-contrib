@@ -36,7 +36,6 @@ type Kafka struct {
 	saslPassword    string
 	initialOffset   int64
 	cg              sarama.ConsumerGroup
-	cancel          context.CancelFunc
 	consumer        consumer
 	config          *sarama.Config
 	subscribeTopics TopicHandlerConfig
@@ -60,7 +59,7 @@ func NewKafka(logger logger.Logger) *Kafka {
 }
 
 // Init does metadata parsing and connection establishment.
-func (k *Kafka) Init(metadata map[string]string) error {
+func (k *Kafka) Init(_ context.Context, metadata map[string]string) error {
 	upgradedMetadata, err := k.upgradeMetadata(metadata)
 	if err != nil {
 		return err

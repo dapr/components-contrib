@@ -47,7 +47,7 @@ func NewDubboOutput(logger logger.Logger) bindings.OutputBinding {
 	return dubboBinding
 }
 
-func (out *DubboOutputBinding) Init(_ bindings.Metadata) error {
+func (out *DubboOutputBinding) Init(_ context.Context, _ bindings.Metadata) error {
 	dubboImpl.SetSerializer(constant.Hessian2Serialization, HessianSerializer{})
 	return nil
 }

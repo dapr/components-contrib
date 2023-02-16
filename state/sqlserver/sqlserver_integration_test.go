@@ -124,7 +124,7 @@ func getTestStoreWithKeyType(t *testing.T, kt KeyType, indexedProperties string)
 	schema := getUniqueDBSchema()
 	metadata := createMetadata(schema, kt, indexedProperties)
 	store := NewSQLServerStateStore(logger.NewLogger("test")).(*SQLServer)
-	err := store.Init(metadata)
+	err := store.Init(context.Background(), metadata)
 	assert.Nil(t, err)
 
 	return store
@@ -800,7 +800,7 @@ func testMultipleInitializations(t *testing.T) {
 			store := getTestStoreWithKeyType(t, test.kt, test.indexedProperties)
 
 			store2 := NewSQLServerStateStore(logger.NewLogger("test")).(*SQLServer)
-			assert.Nil(t, store2.Init(createMetadata(store.schema, test.kt, test.indexedProperties)))
+			assert.Nil(t, store2.Init(context.Background(), createMetadata(store.schema, test.kt, test.indexedProperties)))
 		})
 	}
 }

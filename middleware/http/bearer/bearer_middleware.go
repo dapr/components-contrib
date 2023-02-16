@@ -15,10 +15,14 @@ package bearer
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
-	oidc "github.com/coreos/go-oidc"
+	"github.com/lestrrat-go/httprc"
+	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v2/jwt"
 
 	"github.com/dapr/components-contrib/internal/httputils"
 	mdutils "github.com/dapr/components-contrib/metadata"
@@ -31,18 +35,26 @@ type bearerMiddlewareMetadata struct {
 	ClientID  string `json:"clientID"`
 }
 
-// NewBearerMiddleware returns a new oAuth2 middleware.
-func NewBearerMiddleware(_ logger.Logger) middleware.Middleware {
-	return &Middleware{}
+const (
+	// Prefix for the authorization header (case-insensitive)
+	bearerPrefix = "bearer "
+	// Minimum interval before refreshing the JWKS cache
+	minRefreshInterval = 10 * time.Minute
+	// Allowed clock skew
+	allowedClockSkew = 5 * time.Minute
+)
+
+// NewBearerMiddleware returns a new OAuth2 middleware.
+func NewBearerMiddleware(logger logger.Logger) middleware.Middleware {
+	return &Middleware{
+		logger: logger,
+	}
 }
 
-// Middleware is an oAuth2 authentication middleware.
-type Middleware struct{}
-
-const (
-	bearerPrefix       = "bearer "
-	bearerPrefixLength = len(bearerPrefix)
-)
+// Middleware is an OAuth2 authentication middleware.
+type Middleware struct {
+	logger logger.Logger
+}
 
 // GetHandler retruns the HTTP handler provided by the middleware.
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
@@ -51,24 +63,52 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 		return nil, err
 	}
 
-	provider, err := oidc.NewProvider(context.Background(), meta.IssuerURL)
+	ctx := context.TODO()
+
+	// Create a JWKS cache that is refreshed automatically
+	cache := jwk.NewCache(ctx)
+	err = cache.Register(meta.IssuerURL,
+		jwk.WithMinRefreshInterval(minRefreshInterval),
+		jwk.WithErrSink(httprc.ErrSinkFunc(func(err error) {
+			m.logger.Warnf("Error while refreshing JWKS cache: %v", err)
+		})),
+	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to register JWKS cache: %w", err)
 	}
 
-	verifier := provider.Verifier(&oidc.Config{
-		ClientID: meta.ClientID,
-	})
+	// Fetch the JWKS right away to start, so we can check it's valid and populate the cache
+	_, err = cache.Refresh(ctx, meta.IssuerURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch JWKS: %w", err)
+	}
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("authorization")
-			if !strings.HasPrefix(strings.ToLower(authHeader), bearerPrefix) {
+			if strings.ToLower(authHeader[0:len(bearerPrefix)]) != bearerPrefix {
 				httputils.RespondWithError(w, http.StatusUnauthorized)
 				return
 			}
-			rawToken := authHeader[bearerPrefixLength:]
-			_, err := verifier.Verify(r.Context(), rawToken)
+			rawToken := authHeader[len(bearerPrefix):]
+			if len(rawToken) < 10 {
+				httputils.RespondWithError(w, http.StatusUnauthorized)
+				return
+			}
+
+			keyset, err := cache.Get(r.Context(), meta.IssuerURL)
+			if err != nil {
+				m.logger.Errorf("Failed to retrieve JWKS cache: %v", err)
+				httputils.RespondWithError(w, http.StatusInternalServerError)
+				return
+			}
+
+			_, err = jwt.Parse([]byte(rawToken),
+				jwt.WithContext(r.Context()),
+				jwt.WithAcceptableSkew(allowedClockSkew),
+				jwt.WithKeySet(keyset),
+				jwt.WithAudience(meta.ClientID),
+			)
 			if err != nil {
 				httputils.RespondWithError(w, http.StatusUnauthorized)
 				return

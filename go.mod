@@ -42,7 +42,7 @@ require (
 	github.com/apache/rocketmq-client-go/v2 v2.1.1-rc2
 	github.com/aws/aws-sdk-go v1.44.187
 	github.com/benbjohnson/clock v1.3.0
-	github.com/bradfitz/gomemcache v0.0.0-20221031212613-62deef7fc822
+	github.com/bradfitz/gomemcache v0.0.0-20230124162541-5f7a7d875746
 	github.com/camunda/zeebe/clients/go/v8 v8.1.6
 	github.com/cenkalti/backoff/v4 v4.2.0
 	github.com/cinience/go_rocketmq v0.0.2

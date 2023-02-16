@@ -34,7 +34,6 @@ import (
 	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -75,15 +74,10 @@ func NewHTTP(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init performs metadata parsing.
-func (h *HTTPSource) Init(_ context.Context, metadata bindings.Metadata) error {
+func (h *HTTPSource) Init(_ context.Context, meta bindings.Metadata) error {
 	var err error
 	if err = metadata.DecodeMetadata(meta.Properties, &h.metadata); err != nil {
 		return err
-	}
-
-	// set default timeout values
-	if h.metadata.ResponseTimeout == nil {
-		h.metadata.ResponseTimeout = ptr.Of(30 * time.Second)
 	}
 
 	var tlsConfig *tls.Config
@@ -107,11 +101,11 @@ func (h *HTTPSource) Init(_ context.Context, metadata bindings.Metadata) error {
 		netTransport.TLSClientConfig = tlsConfig
 	}
 	h.client = &http.Client{
-		Timeout:   *h.metadata.ResponseTimeout,
+		Timeout:   0, // no time out here, we use request timeouts instead
 		Transport: netTransport,
 	}
 
-	if val := metadata.Properties["errorIfNot2XX"]; val != "" {
+	if val := meta.Properties["errorIfNot2XX"]; val != "" {
 		h.errorIfNot2XX = utils.IsTruthy(val)
 	} else {
 		// Default behavior
@@ -193,7 +187,7 @@ func (h *HTTPSource) Operations() []bindings.OperationKind {
 }
 
 // Invoke performs an HTTP request to the configured HTTP endpoint.
-func (h *HTTPSource) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (h *HTTPSource) Invoke(parentCtx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	u := h.metadata.URL
 
 	errorIfNot2XX := h.errorIfNot2XX // Default to the component config (default is true)
@@ -227,6 +221,15 @@ func (h *HTTPSource) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 	case "GET", "HEAD", "DELETE", "OPTIONS", "TRACE":
 	default:
 		return nil, fmt.Errorf("invalid operation: %s", req.Operation)
+	}
+
+	var ctx context.Context
+	if h.metadata.ResponseTimeout == nil {
+		ctx = parentCtx
+	} else {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(parentCtx, *h.metadata.ResponseTimeout)
+		defer cancel()
 	}
 
 	request, err := http.NewRequestWithContext(ctx, method, u, body)

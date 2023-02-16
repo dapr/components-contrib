@@ -639,7 +639,7 @@ func verifyTimeoutBehavior(t *testing.T, hs bindings.OutputBinding, handler *HTT
 			operation:  "get",
 			metadata:   map[string]string{"X-Delay-Seconds": "2"},
 			path:       "/",
-			err:        "context deadline exceeded (Client.Timeout exceeded while awaiting headers)",
+			err:        "context deadline exceeded",
 			statusCode: 200,
 		},
 		"meetsResposneTimeout": {

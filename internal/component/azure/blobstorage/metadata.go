@@ -15,7 +15,6 @@ package blobstorage
 
 import (
 	"fmt"
-	"net/url"
 	"strconv"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
@@ -43,8 +42,7 @@ type ContainerClientOpts struct {
 	RetryCount int32 `json:"retryCount,string"`
 
 	// Private properties
-	containerURL   *url.URL `json:"-" mapstructure:"-"`
-	customEndpoint string   `json:"-" mapstructure:"-"`
+	customEndpoint string `json:"-" mapstructure:"-"`
 }
 
 func parseMetadata(meta map[string]string) (*BlobStorageMetadata, error) {

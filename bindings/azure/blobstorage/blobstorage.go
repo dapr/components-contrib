@@ -211,7 +211,15 @@ func (a *AzureBlobStorage) get(ctx context.Context, req *bindings.InvokeRequest)
 			return nil, fmt.Errorf("error reading blob metadata: %w", err)
 		}
 
-		metadata = props.Metadata
+		if len(props.Metadata) > 0 {
+			metadata = make(map[string]string, len(props.Metadata))
+			for k, v := range props.Metadata {
+				if v == nil {
+					continue
+				}
+				metadata[k] = *v
+			}
+		}
 	}
 
 	return &bindings.InvokeResponse{

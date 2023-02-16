@@ -846,6 +846,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.DAPR_BOT_TOKEN }}
           path: message.txt
 
+      - name: Merge conf test and cert test coverage
+        run: | 
+         mkdir -p tmp/total_cov
+         gocovmerge tmp/certtest_files/${{ env.SOURCE_PATH_LINEAR }}.txt tmp/cov_files/${{ env.SOURCE_PATH_LINEAR }}.txt > final.out
+
+         FINAL_COVERAGE_REPORT=$(gocov convert final.out | gocov report)
+         FINAL_COVERAGE_LINE=$(echo $COVERAGE_REPORT  | grep -oP '(?<=Total Coverage:).*') # example: "80.00% (40/50)"
+         FINAL_COVERAGE_PERCENTAGE=$(echo $COVERAGE_LINE | grep -oP '([0-9\.]*)' | head -n 1) # example "80.00"
+         echo "FINAL_COVERAGE_LINE=$COVERAGE_LINE" >> $GITHUB_ENV
+         echo "FINAL_COMPONENT_PERCENTAGE=$COVERAGE_PERCENTAGE" >> $GITHUB_ENV
+
       - name: Download Conf Coverage Artifact
         uses: actions/download-artifact@v3
         continue-on-error: true

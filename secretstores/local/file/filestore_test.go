@@ -42,7 +42,7 @@ func TestInit(t *testing.T) {
 			"secretsFile":     "a",
 			"nestedSeparator": "a",
 		}
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.Nil(t, err)
 	})
 
@@ -50,7 +50,7 @@ func TestInit(t *testing.T) {
 		m.Properties = map[string]string{
 			"dummy": "a",
 		}
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.NotNil(t, err)
 		assert.Equal(t, err, fmt.Errorf("missing local secrets file in metadata"))
 	})
@@ -74,7 +74,7 @@ func TestSeparator(t *testing.T) {
 			"secretsFile":     "a",
 			"nestedSeparator": ".",
 		}
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.Nil(t, err)
 
 		req := secretstores.GetSecretRequest{
@@ -90,7 +90,7 @@ func TestSeparator(t *testing.T) {
 		m.Properties = map[string]string{
 			"secretsFile": "a",
 		}
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.Nil(t, err)
 
 		req := secretstores.GetSecretRequest{
@@ -118,7 +118,7 @@ func TestGetSecret(t *testing.T) {
 			return secrets, nil
 		},
 	}
-	s.Init(m)
+	s.Init(context.Background(), m)
 
 	t.Run("successfully retrieve secrets", func(t *testing.T) {
 		req := secretstores.GetSecretRequest{
@@ -160,7 +160,7 @@ func TestBulkGetSecret(t *testing.T) {
 			return secrets, nil
 		},
 	}
-	s.Init(m)
+	s.Init(context.Background(), m)
 
 	t.Run("successfully retrieve secrets", func(t *testing.T) {
 		req := secretstores.BulkGetSecretRequest{}
@@ -197,7 +197,7 @@ func TestMultiValuedSecrets(t *testing.T) {
 			return secrets, err
 		},
 	}
-	err := s.Init(m)
+	err := s.Init(context.Background(), m)
 	require.NoError(t, err)
 
 	t.Run("MultiValued stores support MULTIPLE_KEY_VALUES_PER_SECRET", func(t *testing.T) {

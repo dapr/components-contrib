@@ -70,13 +70,13 @@ func TestRethinkDBStateStore(t *testing.T) {
 	db := NewRethinkDBStateStore(logger.NewLogger("test")).(*RethinkDB)
 
 	t.Run("With init", func(t *testing.T) {
-		if err := db.Init(m); err != nil {
+		if err := db.Init(context.Background(), m); err != nil {
 			t.Fatalf("error initializing db: %v", err)
 		}
 		assert.Equal(t, stateTableNameDefault, db.config.Table)
 
 		m.Properties["table"] = "test"
-		if err := db.Init(m); err != nil {
+		if err := db.Init(context.Background(), m); err != nil {
 			t.Fatalf("error initializing db: %v", err)
 		}
 		assert.Equal(t, "test", db.config.Table)
@@ -157,7 +157,7 @@ func TestRethinkDBStateStoreRongRun(t *testing.T) {
 
 	m := state.Metadata{Base: metadata.Base{Properties: getTestMetadata()}}
 	db := NewRethinkDBStateStore(logger.NewLogger("test")).(*RethinkDB)
-	if err := db.Init(m); err != nil {
+	if err := db.Init(context.Background(), m); err != nil {
 		t.Fatalf("error initializing db: %v", err)
 	}
 
@@ -212,7 +212,7 @@ func TestRethinkDBStateStoreMulti(t *testing.T) {
 
 	m := state.Metadata{Base: metadata.Base{Properties: getTestMetadata()}}
 	db := NewRethinkDBStateStore(logger.NewLogger("test")).(*RethinkDB)
-	if err := db.Init(m); err != nil {
+	if err := db.Init(context.Background(), m); err != nil {
 		t.Fatalf("error initializing db: %v", err)
 	}
 

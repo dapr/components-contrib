@@ -14,6 +14,7 @@ limitations under the License.
 package jobworker
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -53,10 +54,11 @@ func TestInit(t *testing.T) {
 		metadata := bindings.Metadata{}
 		var mcf mockClientFactory
 
-		jobWorker := ZeebeJobWorker{clientFactory: &mcf, logger: testLogger}
-		err := jobWorker.Init(metadata)
+		jobWorker := ZeebeJobWorker{clientFactory: &mcf, logger: testLogger, closeCh: make(chan struct{})}
+		err := jobWorker.Init(context.Background(), metadata)
 
 		assert.Error(t, err, ErrMissingJobType)
+		assert.NoError(t, jobWorker.Close())
 	})
 
 	t.Run("sets client from client factory", func(t *testing.T) {
@@ -66,8 +68,8 @@ func TestInit(t *testing.T) {
 		mcf := mockClientFactory{
 			metadata: metadata,
 		}
-		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger}
-		err := jobWorker.Init(metadata)
+		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger, closeCh: make(chan struct{})}
+		err := jobWorker.Init(context.Background(), metadata)
 
 		assert.NoError(t, err)
 
@@ -76,6 +78,7 @@ func TestInit(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, mc, jobWorker.client)
 		assert.Equal(t, metadata, mcf.metadata)
+		assert.NoError(t, jobWorker.Close())
 	})
 
 	t.Run("returns error if client could not be instantiated properly", func(t *testing.T) {
@@ -85,9 +88,10 @@ func TestInit(t *testing.T) {
 			error: errParsing,
 		}
 
-		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger}
-		err := jobWorker.Init(metadata)
+		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger, closeCh: make(chan struct{})}
+		err := jobWorker.Init(context.Background(), metadata)
 		assert.Error(t, err, errParsing)
+		assert.NoError(t, jobWorker.Close())
 	})
 
 	t.Run("sets client from client factory", func(t *testing.T) {
@@ -98,8 +102,8 @@ func TestInit(t *testing.T) {
 			metadata: metadata,
 		}
 
-		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger}
-		err := jobWorker.Init(metadata)
+		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger, closeCh: make(chan struct{})}
+		err := jobWorker.Init(context.Background(), metadata)
 
 		assert.NoError(t, err)
 
@@ -108,5 +112,6 @@ func TestInit(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, mc, jobWorker.client)
 		assert.Equal(t, metadata, mcf.metadata)
+		assert.NoError(t, jobWorker.Close())
 	})
 }

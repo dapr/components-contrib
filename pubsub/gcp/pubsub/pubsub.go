@@ -175,13 +175,13 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 }
 
 // Init parses metadata and creates a new Pub Sub client.
-func (g *GCPPubSub) Init(meta pubsub.Metadata) error {
+func (g *GCPPubSub) Init(ctx context.Context, meta pubsub.Metadata) error {
 	metadata, err := createMetadata(meta)
 	if err != nil {
 		return err
 	}
 
-	pubsubClient, err := g.getPubSubClient(context.Background(), metadata)
+	pubsubClient, err := g.getPubSubClient(ctx, metadata)
 	if err != nil {
 		return fmt.Errorf("%s error creating pubsub client: %w", errorMessagePrefix, err)
 	}

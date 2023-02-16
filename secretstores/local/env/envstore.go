@@ -38,26 +38,35 @@ func NewEnvSecretStore(logger logger.Logger) secretstores.SecretStore {
 }
 
 // Init creates a Local secret store.
-func (s *envSecretStore) Init(metadata secretstores.Metadata) error {
+func (s *envSecretStore) Init(_ context.Context, metadata secretstores.Metadata) error {
 	return nil
 }
 
 // GetSecret retrieves a secret from env var using provided key.
 func (s *envSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
+	var value string
+	if s.isKeyAllowed(req.Name) {
+		value = os.Getenv(req.Name)
+	} else {
+		s.logger.Warnf("Access to env var %s is forbidden", req.Name)
+	}
 	return secretstores.GetSecretResponse{
 		Data: map[string]string{
-			req.Name: os.Getenv(req.Name),
+			req.Name: value,
 		},
 	}, nil
 }
 
-// BulkGetSecret retrieves all secrets in the store and returns a map of decrypted string/string values.
+// BulkGetSecret retrieves all secrets in the store and returns a map of string/string values.
 func (s *envSecretStore) BulkGetSecret(ctx context.Context, req secretstores.BulkGetSecretRequest) (secretstores.BulkGetSecretResponse, error) {
-	r := map[string]map[string]string{}
+	env := os.Environ()
+	r := make(map[string]map[string]string, len(env))
 
-	for _, element := range os.Environ() {
+	for _, element := range env {
 		envVariable := strings.SplitN(element, "=", 2)
-		r[envVariable[0]] = map[string]string{envVariable[0]: envVariable[1]}
+		if s.isKeyAllowed(envVariable[0]) {
+			r[envVariable[0]] = map[string]string{envVariable[0]: envVariable[1]}
+		}
 	}
 
 	return secretstores.BulkGetSecretResponse{
@@ -76,4 +85,14 @@ func (s *envSecretStore) GetComponentMetadata() map[string]string {
 	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
 	return metadataInfo
+}
+
+func (s *envSecretStore) isKeyAllowed(key string) bool {
+	switch key {
+	case "APP_API_TOKEN", "DAPR_API_TOKEN",
+		"DAPR_TRUST_ANCHORS", "DAPR_CERT_CHAIN", "DAPR_CERT_KEY":
+		return false
+	default:
+		return true
+	}
 }

@@ -17,6 +17,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
@@ -37,17 +39,21 @@ type AzureServiceBusQueues struct {
 	metadata *impl.Metadata
 	client   *impl.Client
 	logger   logger.Logger
+	closed   atomic.Bool
+	wg       sync.WaitGroup
+	closeCh  chan struct{}
 }
 
 // NewAzureServiceBusQueues returns a new AzureServiceBusQueues instance.
 func NewAzureServiceBusQueues(logger logger.Logger) bindings.InputOutputBinding {
 	return &AzureServiceBusQueues{
-		logger: logger,
+		logger:  logger,
+		closeCh: make(chan struct{}),
 	}
 }
 
 // Init parses connection properties and creates a new Service Bus Queue client.
-func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) (err error) {
+func (a *AzureServiceBusQueues) Init(ctx context.Context, metadata bindings.Metadata) (err error) {
 	a.metadata, err = impl.ParseMetadata(metadata.Properties, a.logger, (impl.MetadataModeBinding | impl.MetadataModeQueues))
 	if err != nil {
 		return err
@@ -59,7 +65,7 @@ func (a *AzureServiceBusQueues) Init(metadata bindings.Metadata) (err error) {
 	}
 
 	// Will do nothing if DisableEntityManagement is false
-	err = a.client.EnsureQueue(context.Background(), a.metadata.QueueName)
+	err = a.client.EnsureQueue(ctx, a.metadata.QueueName)
 	if err != nil {
 		return err
 	}
@@ -78,10 +84,16 @@ func (a *AzureServiceBusQueues) Invoke(ctx context.Context, req *bindings.Invoke
 }
 
 func (a *AzureServiceBusQueues) Read(ctx context.Context, handler bindings.Handler) error {
+	if a.closed.Load() {
+		return errors.New("binding is closed")
+	}
+
 	// Reconnection backoff policy
 	bo := a.client.ReconnectionBackoff()
 
+	a.wg.Add(1)
 	go func() {
+		defer a.wg.Done()
 		logMsg := "queue " + a.metadata.QueueName
 
 		// Reconnect loop.
@@ -127,19 +139,16 @@ func (a *AzureServiceBusQueues) Read(ctx context.Context, handler bindings.Handl
 				a.logger.Errorf("Error from receiver: %v", err)
 			}
 
-			// If context was canceled, do not attempt to reconnect
-			if ctx.Err() != nil {
-				a.logger.Debug("Context canceled; will not reconnect")
-				return
-			}
-
 			wait := bo.NextBackOff()
 			a.logger.Warnf("Subscription to queue %s lost connection, attempting to reconnect in %s...", a.metadata.QueueName, wait)
-			time.Sleep(wait)
-
-			// Check for context canceled again, after sleeping
-			if ctx.Err() != nil {
+			select {
+			case <-time.After(wait):
+				// nop
+			case <-ctx.Done():
 				a.logger.Debug("Context canceled; will not reconnect")
+				return
+			case <-a.closeCh:
+				a.logger.Debug("Component is closing; will not reconnect")
 				return
 			}
 		}
@@ -180,7 +189,11 @@ func (a *AzureServiceBusQueues) getHandlerFn(handler bindings.Handler) impl.Hand
 }
 
 func (a *AzureServiceBusQueues) Close() (err error) {
+	if a.closed.CompareAndSwap(false, true) {
+		close(a.closeCh)
+	}
 	a.logger.Debug("Closing component")
 	a.client.Close(a.logger)
+	a.wg.Wait()
 	return nil
 }

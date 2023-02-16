@@ -132,7 +132,7 @@ func InitBinding(s *httptest.Server, extraProps map[string]string) (bindings.Out
 	}
 
 	hs := NewHTTP(logger.NewLogger("test"))
-	err := hs.Init(m)
+	err := hs.Init(context.Background(), m)
 	return hs, err
 }
 
@@ -269,7 +269,7 @@ func InitBindingForHTTPS(s *httptest.Server, extraProps map[string]string) (bind
 		m.Properties[k] = v
 	}
 	hs := NewHTTP(logger.NewLogger("test"))
-	err := hs.Init(m)
+	err := hs.Init(context.Background(), m)
 	return hs, err
 }
 

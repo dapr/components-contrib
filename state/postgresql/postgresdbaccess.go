@@ -20,6 +20,8 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -52,8 +54,10 @@ type PostgresDBAccess struct {
 	logger   logger.Logger
 	metadata postgresMetadataStruct
 	db       pgxPoolConn
-	ctx      context.Context
-	cancel   context.CancelFunc
+
+	closeCh chan struct{}
+	closed  atomic.Bool
+	wg      sync.WaitGroup
 }
 
 // newPostgresDBAccess creates a new instance of postgresAccess.
@@ -61,15 +65,14 @@ func newPostgresDBAccess(logger logger.Logger) *PostgresDBAccess {
 	logger.Debug("Instantiating new Postgres state store")
 
 	return &PostgresDBAccess{
-		logger: logger,
+		logger:  logger,
+		closeCh: make(chan struct{}),
 	}
 }
 
 // Init sets up Postgres connection and ensures that the state table exists.
-func (p *PostgresDBAccess) Init(meta state.Metadata) error {
+func (p *PostgresDBAccess) Init(ctx context.Context, meta state.Metadata) error {
 	p.logger.Debug("Initializing Postgres state store")
-
-	p.ctx, p.cancel = context.WithCancel(context.Background())
 
 	err := p.metadata.InitWithMetadata(meta)
 	if err != nil {
@@ -87,7 +90,7 @@ func (p *PostgresDBAccess) Init(meta state.Metadata) error {
 		config.MaxConnIdleTime = p.metadata.ConnectionMaxIdleTime
 	}
 
-	connCtx, connCancel := context.WithTimeout(p.ctx, p.metadata.timeout)
+	connCtx, connCancel := context.WithTimeout(ctx, p.metadata.timeout)
 	p.db, err = pgxpool.NewWithConfig(connCtx, config)
 	connCancel()
 	if err != nil {
@@ -96,7 +99,7 @@ func (p *PostgresDBAccess) Init(meta state.Metadata) error {
 		return err
 	}
 
-	pingCtx, pingCancel := context.WithTimeout(p.ctx, p.metadata.timeout)
+	pingCtx, pingCancel := context.WithTimeout(ctx, p.metadata.timeout)
 	err = p.db.Ping(pingCtx)
 	pingCancel()
 	if err != nil {
@@ -111,12 +114,12 @@ func (p *PostgresDBAccess) Init(meta state.Metadata) error {
 		MetadataTableName: p.metadata.MetadataTableName,
 		StateTableName:    p.metadata.TableName,
 	}
-	err = migrate.Perform(p.ctx)
+	err = migrate.Perform(ctx)
 	if err != nil {
 		return err
 	}
 
-	p.ScheduleCleanupExpiredData(p.ctx)
+	p.ScheduleCleanupExpiredData(ctx)
 
 	return nil
 }
@@ -444,23 +447,31 @@ func (p *PostgresDBAccess) Query(parentCtx context.Context, req *state.QueryRequ
 }
 
 func (p *PostgresDBAccess) ScheduleCleanupExpiredData(ctx context.Context) {
-	if p.metadata.cleanupInterval == nil {
+	if p.metadata.cleanupInterval == nil || *p.metadata.cleanupInterval <= 0 || p.closed.Load() {
 		return
 	}
 
 	p.logger.Infof("Schedule expired data clean up every %d seconds", int(p.metadata.cleanupInterval.Seconds()))
 
+	p.wg.Add(1)
 	go func() {
+		defer p.wg.Done()
 		ticker := time.NewTicker(*p.metadata.cleanupInterval)
+		defer ticker.Stop()
+
+		var err error
 		for {
 			select {
 			case <-ticker.C:
-				err := p.CleanupExpired(ctx)
+				err = p.CleanupExpired(ctx)
 				if err != nil {
 					p.logger.Errorf("Error removing expired data: %v", err)
 				}
 			case <-ctx.Done():
 				p.logger.Debug("Stopped background cleanup of expired data")
+				return
+			case <-p.closeCh:
+				p.logger.Debug("Stopping background because PostgresDBAccess is closing")
 				return
 			}
 		}
@@ -508,7 +519,7 @@ func (p *PostgresDBAccess) UpdateLastCleanup(ctx context.Context, db dbquerier, 
 	)
 	cancel()
 	if err != nil {
-		return true, fmt.Errorf("failed to execute query: %w", err)
+		return false, fmt.Errorf("failed to execute query: %w", err)
 	}
 
 	n := res.RowsAffected()
@@ -517,14 +528,16 @@ func (p *PostgresDBAccess) UpdateLastCleanup(ctx context.Context, db dbquerier, 
 
 // Close implements io.Close.
 func (p *PostgresDBAccess) Close() error {
-	if p.cancel != nil {
-		p.cancel()
-		p.cancel = nil
+	if p.closed.CompareAndSwap(false, true) {
+		close(p.closeCh)
 	}
+
 	if p.db != nil {
 		p.db.Close()
 		p.db = nil
 	}
+
+	p.wg.Wait()
 
 	return nil
 }

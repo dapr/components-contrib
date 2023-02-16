@@ -85,7 +85,7 @@ func TestQueuesWithTTL(t *testing.T) {
 	logger := logger.NewLogger("test")
 
 	r := NewRabbitMQ(logger).(*RabbitMQ)
-	err := r.Init(metadata)
+	err := r.Init(context.Background(), metadata)
 	assert.Nil(t, err)
 
 	// Assert that if waited too long, we won't see any message
@@ -117,6 +117,7 @@ func TestQueuesWithTTL(t *testing.T) {
 	assert.True(t, ok)
 	msgBody := string(msg.Body)
 	assert.Equal(t, testMsgContent, msgBody)
+	assert.NoError(t, r.Close())
 }
 
 func TestPublishingWithTTL(t *testing.T) {
@@ -144,7 +145,7 @@ func TestPublishingWithTTL(t *testing.T) {
 	logger := logger.NewLogger("test")
 
 	rabbitMQBinding1 := NewRabbitMQ(logger).(*RabbitMQ)
-	err := rabbitMQBinding1.Init(metadata)
+	err := rabbitMQBinding1.Init(context.Background(), metadata)
 	assert.Nil(t, err)
 
 	// Assert that if waited too long, we won't see any message
@@ -175,7 +176,7 @@ func TestPublishingWithTTL(t *testing.T) {
 
 	// Getting before it is expired, should return it
 	rabbitMQBinding2 := NewRabbitMQ(logger).(*RabbitMQ)
-	err = rabbitMQBinding2.Init(metadata)
+	err = rabbitMQBinding2.Init(context.Background(), metadata)
 	assert.Nil(t, err)
 
 	const testMsgContent = "test_msg"
@@ -193,6 +194,9 @@ func TestPublishingWithTTL(t *testing.T) {
 	assert.True(t, ok)
 	msgBody := string(msg.Body)
 	assert.Equal(t, testMsgContent, msgBody)
+
+	assert.NoError(t, rabbitMQBinding1.Close())
+	assert.NoError(t, rabbitMQBinding1.Close())
 }
 
 func TestExclusiveQueue(t *testing.T) {
@@ -222,7 +226,7 @@ func TestExclusiveQueue(t *testing.T) {
 	logger := logger.NewLogger("test")
 
 	r := NewRabbitMQ(logger).(*RabbitMQ)
-	err := r.Init(metadata)
+	err := r.Init(context.Background(), metadata)
 	assert.Nil(t, err)
 
 	// Assert that if waited too long, we won't see any message
@@ -276,7 +280,7 @@ func TestPublishWithPriority(t *testing.T) {
 	logger := logger.NewLogger("test")
 
 	r := NewRabbitMQ(logger).(*RabbitMQ)
-	err := r.Init(metadata)
+	err := r.Init(context.Background(), metadata)
 	assert.Nil(t, err)
 
 	// Assert that if waited too long, we won't see any message

@@ -78,7 +78,7 @@ func NewAPNS(logger logger.Logger) bindings.OutputBinding {
 
 // Init will configure the APNS output binding using the metadata specified
 // in the binding's configuration.
-func (a *APNS) Init(metadata bindings.Metadata) error {
+func (a *APNS) Init(ctx context.Context, metadata bindings.Metadata) error {
 	if err := a.makeURLPrefix(metadata); err != nil {
 		return err
 	}

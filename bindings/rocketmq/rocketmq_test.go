@@ -34,8 +34,8 @@ func TestInputBindingRead(t *testing.T) { //nolint:paralleltest
 	}
 	m := bindings.Metadata{} //nolint:exhaustivestruct
 	m.Properties = getTestMetadata()
-	r := NewAliCloudRocketMQ(logger.NewLogger("test"))
-	err := r.Init(m)
+	r := NewRocketMQ(logger.NewLogger("test"))
+	err := r.Init(context.Background(), m)
 	require.NoError(t, err)
 
 	var count int32
@@ -51,7 +51,7 @@ func TestInputBindingRead(t *testing.T) { //nolint:paralleltest
 	time.Sleep(5 * time.Second)
 	atomic.StoreInt32(&count, 0)
 	req := &bindings.InvokeRequest{Data: []byte("hello"), Operation: bindings.CreateOperation, Metadata: map[string]string{}}
-	_, err = r.Invoke(req)
+	_, err = r.Invoke(context.Background(), req)
 	require.NoError(t, err)
 
 	time.Sleep(10 * time.Second)

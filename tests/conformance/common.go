@@ -610,7 +610,9 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_kubemq.NewKubeMQ(testLogger)
 	case "postgres":
 		binding = b_postgres.NewPostgres(testLogger)
-	case "aws.s3":
+	case "aws.s3.docker":
+		binding = b_aws_s3.NewAWSS3(testLogger)
+	case "aws.s3.terraform":
 		binding = b_aws_s3.NewAWSS3(testLogger)
 	default:
 		return nil

@@ -14,7 +14,7 @@ spec:
     - name: secretKey
       value: ${{AWS_SECRET_ACCESS_KEY}}
     - name: region
-      value: "us-east-1"
+      value: ${{AWS_REGION}}
     - name: decodeBase64
       value: false
     - name: encodeBase64

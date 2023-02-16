@@ -8,7 +8,7 @@ spec:
   version: v1
   metadata:
     - name: bucket
-      value: mybucket
+      value: "dapr-conformance-test-1234"
     - name: endpoint
       value: "http://localhost:4566"
     - name: accessKey

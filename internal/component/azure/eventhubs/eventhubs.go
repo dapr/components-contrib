@@ -73,13 +73,12 @@ func (aeh *AzureEventHubs) Init(metadata map[string]string) error {
 	}
 	aeh.metadata = m
 
-	if aeh.metadata.ConnectionString == "" {
-		// If connecting via Azure AD, we need to do some more initialization
-		aeh.metadata.azEnvSettings, err = azauth.NewEnvironmentSettings("eventhubs", metadata)
-		if err != nil {
-			return fmt.Errorf("failed to initialize Azure AD credentials: %w", err)
-		}
+	aeh.metadata.azEnvSettings, err = azauth.NewEnvironmentSettings("eventhubs", metadata)
+	if err != nil {
+		return fmt.Errorf("failed to initialize Azure environment: %w", err)
+	}
 
+	if aeh.metadata.ConnectionString == "" {
 		aeh.logger.Info("connecting to Azure Event Hub using Azure AD; the connection will be established on first publish/subscribe and req.Topic field in incoming requests will be honored")
 
 		if aeh.metadata.EnableEntityManagement {

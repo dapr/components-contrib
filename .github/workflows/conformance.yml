@@ -532,6 +532,7 @@ jobs:
     - name: Download Go dependencies
       run: |
         go mod download
+        go install github.com/axw/gocov/gocov@v1.1.0
         go install gotest.tools/gotestsum@latest
 
     - name: Generate Azure SQL DB name
@@ -668,7 +669,7 @@ jobs:
       if: github.event_name == 'schedule'
       run: |
        mkdir -p tmp/cov_files
-       echo "${{ env.COVERAGE_LINE }}" >> tmp/cov_files/${{ env.SOURCE_PATH_LINEAR }}.txt
+       echo "${{ env.COVERAGE_LINE }}" >> tmp/cov_files/${{ env.KIND }}/${{ env.NAME }}.txt
 
     - name: Upload Conf Coverage Artifact
       uses: actions/upload-artifact@v3

@@ -53,6 +53,7 @@ const (
 	value            = "value"
 	etag             = "_etag"
 	daprttl          = "_dapr_ttl"
+	daprttlDollar    = "$" + daprttl
 
 	defaultTimeout        = 5 * time.Second
 	defaultDatabaseName   = "daprStore"
@@ -154,10 +155,11 @@ func (m *MongoDB) Init(metadata state.Metadata) error {
 	// values immediately when the TTL value is reached.
 	// MongoDB TTL Indexes: https://docs.mongodb.com/manual/core/index-ttl/
 	// TTL fields are deleted at most 60 seconds after the TTL value is reached.
-	if _, err := m.collection.Indexes().CreateOne(context.Background(), mongo.IndexModel{
+	_, err = m.collection.Indexes().CreateOne(context.TODO(), mongo.IndexModel{
 		Keys:    bson.M{daprttl: 1},
 		Options: options.Index().SetExpireAfterSeconds(0),
-	}); err != nil {
+	})
+	if err != nil {
 		return fmt.Errorf("error in creating ttl index: %s", err)
 	}
 
@@ -203,7 +205,11 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 	if req.ETag != nil {
 		filter[etag] = *req.ETag
 	} else if req.Options.Concurrency == state.FirstWrite {
-		filter[etag] = uuid.NewString()
+		uuid, err := uuid.NewRandom()
+		if err != nil {
+			return err
+		}
+		filter[etag] = uuid.String()
 	}
 
 	reqTTL, err := stateutils.ParseTTL(req.Metadata)
@@ -211,17 +217,33 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 		return fmt.Errorf("failed to parse TTL: %w", err)
 	}
 
-	var ttl any
-	if reqTTL != nil {
-		ttl = primitive.NewDateTimeFromTime(time.Now().Add(time.Second * time.Duration(*reqTTL)))
+	etagV, err := uuid.NewRandom()
+	if err != nil {
+		return err
 	}
 
-	update := bson.D{{"$set", bson.D{
-		{id, req.Key},
-		{value, v},
-		{etag, uuid.NewString()},
-		{daprttl, ttl},
-	}}}
+	update := mongo.Pipeline{
+		{{"$set", bson.D{
+			{id, req.Key},
+			{value, v},
+			{etag, etagV.String()},
+		}}},
+	}
+
+	if reqTTL != nil {
+		update = append(update, primitive.D{{"$addFields", bson.D{
+			{daprttl, bson.D{
+				{"$dateAdd",
+					bson.D{{"startDate", "$$NOW"}, {"unit", "second"}, {"amount", *reqTTL}},
+				},
+			}},
+		}}})
+	} else {
+		update = append(update, primitive.D{{"$addFields", bson.D{
+			{daprttl, nil},
+		}}})
+	}
+
 	_, err = m.collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
 	if err != nil {
 		return fmt.Errorf("error in updating document: %s", err)
@@ -232,9 +254,21 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 
 // Get retrieves state from MongoDB with a key.
 func (m *MongoDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
+	// Since MongoDB doesn't delete the document immediately when the TTL value
+	// is reached, we need to filter out the documents with TTL value less than
+	// the current time.
+	filter := bson.D{
+		{"$and", bson.A{
+			bson.D{{id, bson.M{"$eq": req.Key}}},
+			bson.D{{"$expr", bson.D{
+				bson.E{"$or", bson.A{
+					bson.D{{"$eq", bson.A{daprttlDollar, primitive.Null{}}}},
+					bson.D{{"$gte", bson.A{daprttlDollar, "$$NOW"}}},
+				}},
+			}}},
+		}},
+	}
 	var result Item
-
-	filter := bson.M{id: req.Key}
 	err := m.collection.FindOne(ctx, filter).Decode(&result)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {

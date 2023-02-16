@@ -35,3 +35,5 @@ This project aims to test the RabbitMQ Pub/Sub component under various condition
     * Run dapr application with component.
     * Send a message, wait TTL seconds, and verify the message is deleted/expired.
   * Setting a TTL at the component level and message level ignores the default component level TTL and always uses the message level TTL specified
+* Test mTLS External Authentication
+  * Being able to connect to the RabbitMQ

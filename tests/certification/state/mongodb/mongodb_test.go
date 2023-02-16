@@ -1,11 +1,15 @@
 package mongodb_test
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/dapr/go-sdk/client"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/dapr/components-contrib/state"
 	stateMongoDB "github.com/dapr/components-contrib/state/mongodb"
@@ -92,32 +96,50 @@ func TestMongoDB(t *testing.T) {
 	}
 
 	// Time-To-Live Test
-	timeToLiveTest := func(ctx flow.Context) error {
-		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
-		require.NoError(t, err)
-		defer client.Close()
+	timeToLiveTest := func(sidecarname string) func(ctx flow.Context) error {
+		return func(ctx flow.Context) error {
+			client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+			require.NoError(t, err)
+			defer client.Close()
 
-		assert.Error(t, client.SaveState(ctx, stateStoreName, certificationTestPrefix+"ttl1", []byte("mongodbCert"), map[string]string{
-			"ttlInSeconds": "mock value",
-		}))
-		assert.NoError(t, client.SaveState(ctx, stateStoreName, certificationTestPrefix+"ttl2", []byte("mongodbCert2"), map[string]string{
-			"ttlInSeconds": "-1",
-		}))
-		assert.NoError(t, client.SaveState(ctx, stateStoreName, certificationTestPrefix+"ttl3", []byte("mongodbCert3"), map[string]string{
-			"ttlInSeconds": "1",
-		}))
+			assert.Error(t, client.SaveState(ctx, stateStoreName, certificationTestPrefix+"ttl1", []byte("mongodbCert"), map[string]string{
+				"ttlInSeconds": "mock value",
+			}))
+			assert.NoError(t, client.SaveState(ctx, stateStoreName, certificationTestPrefix+"ttl2", []byte("mongodbCert2"), map[string]string{
+				"ttlInSeconds": "-1",
+			}))
+			assert.NoError(t, client.SaveState(ctx, stateStoreName, certificationTestPrefix+"ttl3", []byte("mongodbCert3"), map[string]string{
+				"ttlInSeconds": "3",
+			}))
 
-		// get state
-		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl3", nil)
-		assert.NoError(t, err)
-		assert.Equal(t, "mongodbCert3", string(item.Value))
-		assert.Eventually(t, func() bool {
-			item, err = client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl3", nil)
+			// Check we have the correct database ID for the TTL test.
+			cl, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017/?directConnection=true"))
+			require.NoError(t, err)
+			resp := cl.Database("admin").
+				Collection("daprCollection").
+				FindOne(ctx, bson.M{"_id": sidecarname + "||stable-certification-ttl3"})
+			require.NoError(t, resp.Err())
+
+			// get state
+			item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl3", nil)
 			assert.NoError(t, err)
-			return len(item.Value) == 0
-		}, time.Second*70, time.Second, "%s", item)
+			assert.Equal(t, "mongodbCert3", string(item.Value))
+			assert.Eventually(t, func() bool {
+				item, err = client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl3", nil)
+				require.NoError(t, err)
+				return len(item.Value) == 0
+			}, time.Second*7, time.Millisecond*500)
 
-		return nil
+			// MongoDB will delete a document after a maximum of 60 seconds.
+			assert.Eventually(t, func() bool {
+				resp := cl.Database("admin").
+					Collection("daprCollection").
+					FindOne(ctx, bson.M{"_id": sidecarname + "||stable-certification-ttl3"})
+				return resp.Err() != nil && errors.Is(resp.Err(), mongo.ErrNoDocuments)
+			}, time.Second*60, time.Millisecond*500)
+
+			return nil
+		}
 	}
 
 	flow.New(t, "Connecting MongoDB And Verifying majority of the tests for a replica set here").
@@ -131,7 +153,7 @@ func TestMongoDB(t *testing.T) {
 			runtime.WithStates(stateRegistry))).
 		Step("Waiting for component to load...", flow.Sleep(10*time.Second)).
 		Step("Run basic test", basicTest).
-		Step("Run time to live test", timeToLiveTest).
+		Step("Run time to live test", timeToLiveTest(sidecarNamePrefix+"dockerClusterDefault")).
 		Step("Interrupt network",
 			network.InterruptNetwork(5*time.Second, nil, nil, "27017:27017")).
 		// Component should recover at this point.
@@ -155,7 +177,7 @@ func TestMongoDB(t *testing.T) {
 			runtime.WithStates(stateRegistry))).
 		Step("Waiting for component to load...", flow.Sleep(10*time.Second)).
 		Step("Run basic test", basicTest).
-		Step("Run time to live test", timeToLiveTest).
+		Step("Run time to live test", timeToLiveTest(sidecarNamePrefix+"dockerClusterValidReadWriteConcernAndTimeout")).
 		Step("Interrupt network",
 			network.InterruptNetwork(5*time.Second, nil, nil, "27017:27017")).
 		// Component should recover at this point.
@@ -179,7 +201,7 @@ func TestMongoDB(t *testing.T) {
 			runtime.WithStates(stateRegistry))).
 		Step("Waiting for component to load...", flow.Sleep(10*time.Second)).
 		Step("Run basic test", basicTest).
-		Step("Run time to live test", timeToLiveTest).
+		Step("Run time to live test", timeToLiveTest(sidecarNamePrefix+"dockerSingleNode")).
 		Step("Interrupt network",
 			network.InterruptNetwork(5*time.Second, nil, nil, "27017:27017")).
 		// Component should recover at this point.

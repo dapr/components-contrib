@@ -16,17 +16,18 @@ package etcd
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
 )
@@ -48,11 +49,10 @@ type etcdConfig struct {
 	Endpoints     string `json:"endpoints"`
 	KeyPrefixPath string `json:"keyPrefixPath"`
 	// TLS
-	TlsEnable   string `json:"tlsEnable"`
-	Ca          string `json:"ca"`
-	Cert        string `json:"cert"`
-	Key         string `json:"key"`
-	KeyPassword string `json:"keyPassword"`
+	TlsEnable string `json:"tlsEnable"`
+	Ca        string `json:"ca"`
+	Cert      string `json:"cert"`
+	Key       string `json:"key"`
 }
 
 // NewEtcdStateStore returns a new etcd state store.
@@ -71,12 +71,12 @@ func NewEtcdStateStore(logger logger.Logger) state.Store {
 func (e *Etcd) Init(metadata state.Metadata) error {
 	etcdConfig, err := metadataToConfig(metadata.Properties)
 	if err != nil {
-		return fmt.Errorf("couldn't convert metadata properties: %s", err)
+		return fmt.Errorf("couldn't convert metadata properties: %w", err)
 	}
 
 	e.client, err = e.ParseClientFromConfig(etcdConfig)
 	if err != nil {
-		return fmt.Errorf("initializing etcd client: %s", err)
+		return fmt.Errorf("initializing etcd client: %w", err)
 	}
 
 	e.keyPrefixPath = etcdConfig.KeyPrefixPath
@@ -94,9 +94,9 @@ func (e *Etcd) ParseClientFromConfig(etcdConfig *etcdConfig) (*clientv3.Client, 
 	if etcdConfig.TlsEnable == tlsEnable {
 		if etcdConfig.Cert != "" && etcdConfig.Key != "" && etcdConfig.Ca != "" {
 			var err error
-			tlsConfig, err = utils.NewTLSConfigWithPassword(etcdConfig.Cert, etcdConfig.Key, etcdConfig.KeyPassword, etcdConfig.Ca)
+			tlsConfig, err = NewTLSConfig(etcdConfig.Cert, etcdConfig.Key, etcdConfig.Ca)
 			if err != nil {
-				return nil, fmt.Errorf("tls authentication error: %s", err)
+				return nil, fmt.Errorf("tls authentication error: %w", err)
 			}
 		} else {
 			return nil, fmt.Errorf("tls authentication information is incomplete")
@@ -135,10 +135,10 @@ func (e *Etcd) Get(ctx context.Context, req *state.GetRequest) (*state.GetRespon
 
 	resp, err := e.client.Get(ctx, keyWithPath)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get key %s: %s", keyWithPath, err)
+		return nil, fmt.Errorf("couldn't get key %s: %w", keyWithPath, err)
 	}
 
-	if resp == nil || resp.Kvs == nil {
+	if resp == nil || len(resp.Kvs) == 0 {
 		return &state.GetResponse{}, nil
 	}
 
@@ -174,33 +174,24 @@ func (e *Etcd) BulkSet(ctx context.Context, req []state.SetRequest) error {
 		return nil
 	}
 
-	ttls := make([]int, 0)
-	for i := 0; i < len(req); i++ {
-		ttlInSeconds, err := e.doSetValidateParameters(&req[i])
-		if err != nil {
-			return err
-		}
-		ttls = append(ttls, ttlInSeconds)
-	}
-
-	etags := make([]*string, 0)
 	for _, dr := range req {
-		keyWithPath := e.keyPrefixPath + "/" + dr.Key
-		err := e.doValidateEtag(keyWithPath, dr.ETag, dr.Options.Concurrency)
+		ttlInSeconds, err := e.doSetValidateParameters(&dr)
 		if err != nil {
 			return err
 		}
-		etags = append(etags, dr.ETag)
-	}
 
-	for i, dr := range req {
+		keyWithPath := e.keyPrefixPath + "/" + dr.Key
+		err = e.doValidateEtag(keyWithPath, dr.ETag, dr.Options.Concurrency)
+		if err != nil {
+			return err
+		}
+
 		reqVal, err := e.marshal(dr.Value)
 		if err != nil {
 			return err
 		}
 
-		keyWithPath := e.keyPrefixPath + "/" + dr.Key
-		err = e.doSet(ctx, keyWithPath, reqVal, etags[i], ttls[i])
+		err = e.doSet(ctx, keyWithPath, reqVal, dr.ETag, ttlInSeconds)
 		if err != nil {
 			return err
 		}
@@ -221,14 +212,14 @@ func (e *Etcd) marshal(v interface{}) (string, error) {
 	return reqVal, nil
 }
 
-func (e *Etcd) doSet(ctx context.Context, key, reqVal string, etag *string, ttlInSeconds int) error {
+func (e *Etcd) doSet(ctx context.Context, key, reqVal string, etag *string, ttlInSeconds int64) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	if ttlInSeconds > 0 {
-		resp, err := e.client.Grant(ctx, int64(ttlInSeconds))
+		resp, err := e.client.Grant(ctx, ttlInSeconds)
 		if err != nil {
-			return fmt.Errorf("couldn't grant lease %s: %s", key, err)
+			return fmt.Errorf("couldn't grant lease %s: %w", key, err)
 		}
 		if etag != nil {
 			etag, _ := strconv.ParseInt(*etag, 10, 64)
@@ -240,7 +231,7 @@ func (e *Etcd) doSet(ctx context.Context, key, reqVal string, etag *string, ttlI
 			_, err = e.client.Put(ctx, key, reqVal, clientv3.WithLease(resp.ID))
 		}
 		if err != nil {
-			return fmt.Errorf("couldn't set key %s: %s", key, err)
+			return fmt.Errorf("couldn't set key %s: %w", key, err)
 		}
 	} else {
 		var err error
@@ -254,13 +245,13 @@ func (e *Etcd) doSet(ctx context.Context, key, reqVal string, etag *string, ttlI
 			_, err = e.client.Put(ctx, key, reqVal)
 		}
 		if err != nil {
-			return fmt.Errorf("couldn't set key %s: %s", key, err)
+			return fmt.Errorf("couldn't set key %s: %w", key, err)
 		}
 	}
 	return nil
 }
 
-func (e *Etcd) doSetValidateParameters(req *state.SetRequest) (int, error) {
+func (e *Etcd) doSetValidateParameters(req *state.SetRequest) (int64, error) {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return 0, err
@@ -274,13 +265,13 @@ func (e *Etcd) doSetValidateParameters(req *state.SetRequest) (int, error) {
 	return ttlInSeconds, nil
 }
 
-func doParseTTLInSeconds(metadata map[string]string) (int, error) {
+func doParseTTLInSeconds(metadata map[string]string) (int64, error) {
 	s := metadata["ttlInSeconds"]
 	if s == "" {
 		return 0, nil
 	}
 
-	i, err := strconv.Atoi(s)
+	i, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
 		return 0, err
 	}
@@ -312,25 +303,18 @@ func (e *Etcd) BulkDelete(ctx context.Context, req []state.DeleteRequest) error 
 		return nil
 	}
 
-	for i := 0; i < len(req); i++ {
-		if err := state.CheckRequestOptions(&req[i].Options); err != nil {
+	for _, dr := range req {
+		if err := state.CheckRequestOptions(&dr.Options); err != nil {
 			return err
 		}
-	}
 
-	etags := make([]*string, 0)
-	for _, dr := range req {
 		keyWithPath := e.keyPrefixPath + "/" + dr.Key
 		err := e.doValidateEtag(keyWithPath, dr.ETag, dr.Options.Concurrency)
 		if err != nil {
 			return err
 		}
-		etags = append(etags, dr.ETag)
-	}
 
-	for i, dr := range req {
-		keyWithPath := e.keyPrefixPath + "/" + dr.Key
-		err := e.doDelete(ctx, keyWithPath, etags[i])
+		err = e.doDelete(ctx, keyWithPath, dr.ETag)
 		if err != nil {
 			return err
 		}
@@ -353,7 +337,7 @@ func (e *Etcd) doDelete(ctx context.Context, key string, etag *string) error {
 		_, err = e.client.Delete(ctx, key)
 	}
 	if err != nil {
-		return fmt.Errorf("couldn't delete key %s: %s", key, err)
+		return fmt.Errorf("couldn't delete key %s: %w", key, err)
 	}
 	return nil
 }
@@ -366,18 +350,18 @@ func (e *Etcd) doValidateEtag(key string, etag *string, concurrency string) erro
 	if concurrency == state.FirstWrite && !hasEtag {
 		item, err := e.client.Get(ctx, key)
 		if err != nil {
-			return fmt.Errorf("couldn't get key %s: %s", key, err)
+			return fmt.Errorf("couldn't get key %s: %w", key, err)
 		} else if item != nil {
-			return state.NewETagError(state.ETagMismatch, fmt.Errorf("item already exists and no etag was passed"))
+			return state.NewETagError(state.ETagMismatch, errors.New("item already exists and no etag was passed"))
 		} else {
 			return nil
 		}
 	} else if hasEtag {
 		item, err := e.client.Get(ctx, key)
 		if err != nil {
-			return fmt.Errorf("couldn't get key %s: %s", key, err)
+			return fmt.Errorf("couldn't get key %s: %w", key, err)
 		}
-		if item == nil || item.Kvs == nil {
+		if item == nil || len(item.Kvs) == 0 {
 			return state.NewETagError(state.ETagMismatch, fmt.Errorf("state not exist or expired for key=%s", key))
 		}
 		currentEtag := strconv.Itoa(int(item.Kvs[0].ModRevision))
@@ -409,7 +393,7 @@ func (e *Etcd) Ping() error {
 	defer cancel()
 
 	if _, err := e.client.Get(ctx, "health"); err != nil {
-		return fmt.Errorf("etcd store: error connecting to etcd at %s: %s", e.client.Endpoints(), err)
+		return fmt.Errorf("etcd store: error connecting to etcd at %s: %w", e.client.Endpoints(), err)
 	}
 
 	return nil
@@ -421,8 +405,8 @@ func (e *Etcd) Multi(ctx context.Context, request *state.TransactionalStateReque
 		return nil
 	}
 
-	ops := make([]clientv3.Op, 0)
-	ttls := make([]int, 0)
+	ops := make([]clientv3.Op, 0, len(request.Operations))
+
 	for _, o := range request.Operations {
 		if o.Operation == state.Upsert {
 			req := o.Request.(state.SetRequest)
@@ -430,45 +414,61 @@ func (e *Etcd) Multi(ctx context.Context, request *state.TransactionalStateReque
 			if err != nil {
 				return err
 			}
-			ttls = append(ttls, ttlInSeconds)
+
+			keyWithPath := e.keyPrefixPath + "/" + req.Key
+			err = e.doValidateEtag(keyWithPath, req.ETag, req.Options.Concurrency)
+			if err != nil {
+				return err
+			}
+
+			reqVal, err := e.marshal(req.Value)
+			if err != nil {
+				return err
+			}
+			var cmp clientv3.Cmp
+			if req.ETag != nil {
+				etag, _ := strconv.ParseInt(*req.ETag, 10, 64)
+				cmp = clientv3.Compare(clientv3.ModRevision(keyWithPath), "=", etag)
+			}
+			if ttlInSeconds > 0 {
+				resp, err := e.client.Grant(ctx, ttlInSeconds)
+				if err != nil {
+					return fmt.Errorf("couldn't grant lease %s: %w", keyWithPath, err)
+				}
+				put := clientv3.OpPut(keyWithPath, reqVal, clientv3.WithLease(resp.ID))
+				if req.ETag != nil {
+					ops = append(ops, clientv3.OpTxn([]clientv3.Cmp{cmp}, []clientv3.Op{put}, nil))
+				} else {
+					ops = append(ops, clientv3.OpTxn(nil, []clientv3.Op{put}, nil))
+				}
+			} else {
+				put := clientv3.OpPut(keyWithPath, reqVal)
+				if req.ETag != nil {
+					ops = append(ops, clientv3.OpTxn([]clientv3.Cmp{cmp}, []clientv3.Op{put}, nil))
+				} else {
+					ops = append(ops, clientv3.OpTxn(nil, []clientv3.Op{put}, nil))
+				}
+			}
 		} else if o.Operation == state.Delete {
 			req := o.Request.(state.DeleteRequest)
 			if err := state.CheckRequestOptions(req.Options); err != nil {
 				return err
 			}
-			ttls = append(ttls, 0)
-		}
-	}
 
-	for _, o := range request.Operations {
-		if o.Operation == state.Upsert {
-			req := o.Request.(state.SetRequest)
-			err := e.doValidateEtag(req.Key, req.ETag, req.Options.Concurrency)
+			keyWithPath := e.keyPrefixPath + "/" + req.Key
+			err := e.doValidateEtag(keyWithPath, req.ETag, req.Options.Concurrency)
 			if err != nil {
 				return err
 			}
-		} else if o.Operation == state.Delete {
-			req := o.Request.(state.DeleteRequest)
-			err := e.doValidateEtag(req.Key, req.ETag, req.Options.Concurrency)
-			if err != nil {
-				return err
-			}
-		}
-	}
 
-	for _, o := range request.Operations {
-		if o.Operation == state.Upsert {
-			req := o.Request.(state.SetRequest)
-			keyWithPath := e.keyPrefixPath + "/" + req.Key
-			reqVal, err := e.marshal(req.Value)
-			if err != nil {
-				return err
+			del := clientv3.OpDelete(keyWithPath)
+			if req.ETag != nil {
+				etag, _ := strconv.ParseInt(*req.ETag, 10, 64)
+				cmp := clientv3.Compare(clientv3.ModRevision(keyWithPath), "=", etag)
+				ops = append(ops, clientv3.OpTxn([]clientv3.Cmp{cmp}, []clientv3.Op{del}, nil))
+			} else {
+				ops = append(ops, clientv3.OpTxn(nil, []clientv3.Op{del}, nil))
 			}
-			ops = append(ops, clientv3.OpPut(keyWithPath, reqVal))
-		} else if o.Operation == state.Delete {
-			req := o.Request.(state.DeleteRequest)
-			keyWithPath := e.keyPrefixPath + "/" + req.Key
-			ops = append(ops, clientv3.OpDelete(keyWithPath))
 		}
 	}
 
@@ -478,4 +478,33 @@ func (e *Etcd) Multi(ctx context.Context, request *state.TransactionalStateReque
 	}
 
 	return nil
+}
+
+func NewTLSConfig(clientCert, clientKey, caCert string) (*tls.Config, error) {
+	valid := false
+
+	config := &tls.Config{}
+
+	if clientCert != "" && clientKey != "" {
+		key := []byte(clientKey)
+		cert, err := tls.X509KeyPair([]byte(clientCert), key)
+		if err != nil {
+			return nil, fmt.Errorf("error parse X509KeyPair: %w", err)
+		}
+		config.Certificates = []tls.Certificate{cert}
+		valid = true
+	}
+
+	if caCert != "" {
+		caCertPool := x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM([]byte(caCert))
+		config.RootCAs = caCertPool
+		valid = true
+	}
+
+	if !valid {
+		config = nil
+	}
+
+	return config, nil
 }

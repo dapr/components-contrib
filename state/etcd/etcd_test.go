@@ -32,7 +32,7 @@ func TestGetEtcdMetadata(t *testing.T) {
 		}
 
 		metadata, err := metadataToConfig(m.Properties)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, properties["endpoints"], metadata.Endpoints)
 	})
 
@@ -47,7 +47,7 @@ func TestGetEtcdMetadata(t *testing.T) {
 		}
 
 		metadata, err := metadataToConfig(m.Properties)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, properties["endpoints"], metadata.Endpoints)
 		assert.Equal(t, properties["keyPrefixPath"], metadata.KeyPrefixPath)
 		assert.Equal(t, properties["tlsEnable"], metadata.TlsEnable)

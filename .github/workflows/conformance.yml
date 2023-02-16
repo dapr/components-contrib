@@ -666,14 +666,14 @@ jobs:
         retention-days: 1
 
     - name: Prepare Conf Coverage Info
-      if: github.event_name == 'schedule'
+      if: always()
       run: |
        mkdir -p tmp/cov_files
-       echo "${{ env.COVERAGE_LINE }}" >> tmp/cov_files/${{ matrix.component }}.txt
+       echo "${{ env.COVERAGE_LINE }}" >> tmp/cov_files/${{ env.SOURCE_PATH_LINEAR }}.txt
 
     - name: Upload Conf Coverage Artifact
       uses: actions/upload-artifact@v3
-      if: github.event_name == 'schedule'
+      if: always()
       with:
         name: conftest_cov
         path: tmp/cov_files

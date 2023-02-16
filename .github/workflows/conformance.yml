@@ -17,8 +17,12 @@ on:
   repository_dispatch:
     types: [conformance-test]
   workflow_dispatch:
+  merge_group:
   schedule:
     - cron: '0 */8 * * *'
+  push:
+    branches:
+    - 'release-*'
   pull_request:
     branches:
       - master

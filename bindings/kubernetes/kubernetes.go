@@ -18,6 +18,8 @@ import (
 	"encoding/json"
 	"errors"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -35,6 +37,9 @@ type kubernetesInput struct {
 	namespace    string
 	resyncPeriod time.Duration
 	logger       logger.Logger
+	closed       atomic.Bool
+	closeCh      chan struct{}
+	wg           sync.WaitGroup
 }
 
 type EventResponse struct {
@@ -45,10 +50,13 @@ type EventResponse struct {
 
 // NewKubernetes returns a new Kubernetes event input binding.
 func NewKubernetes(logger logger.Logger) bindings.InputBinding {
-	return &kubernetesInput{logger: logger}
+	return &kubernetesInput{
+		logger:  logger,
+		closeCh: make(chan struct{}),
+	}
 }
 
-func (k *kubernetesInput) Init(metadata bindings.Metadata) error {
+func (k *kubernetesInput) Init(ctx context.Context, metadata bindings.Metadata) error {
 	client, err := kubeclient.GetKubeClient()
 	if err != nil {
 		return err
@@ -78,6 +86,9 @@ func (k *kubernetesInput) parseMetadata(metadata bindings.Metadata) error {
 }
 
 func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) error {
+	if k.closed.Load() {
+		return errors.New("binding is closed")
+	}
 	watchlist := cache.NewListWatchFromClient(
 		k.kubeClient.CoreV1().RESTClient(),
 		"events",
@@ -126,12 +137,28 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 		},
 	)
 
+	k.wg.Add(3)
+	readCtx, cancel := context.WithCancel(ctx)
+
+	// catch when binding is closed.
+	go func() {
+		defer k.wg.Done()
+		defer cancel()
+		select {
+		case <-readCtx.Done():
+		case <-k.closeCh:
+		}
+	}()
+
 	// Start the controller in backgound
-	stopCh := make(chan struct{})
-	go controller.Run(stopCh)
+	go func() {
+		defer k.wg.Done()
+		controller.Run(readCtx.Done())
+	}()
 
 	// Watch for new messages and for context cancellation
 	go func() {
+		defer k.wg.Done()
 		var (
 			obj  EventResponse
 			data []byte
@@ -148,12 +175,19 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 						Data: data,
 					})
 				}
-			case <-ctx.Done():
-				close(stopCh)
+			case <-readCtx.Done():
 				return
 			}
 		}
 	}()
 
+	return nil
+}
+
+func (k *kubernetesInput) Close() error {
+	if k.closed.CompareAndSwap(false, true) {
+		close(k.closeCh)
+	}
+	k.wg.Wait()
 	return nil
 }

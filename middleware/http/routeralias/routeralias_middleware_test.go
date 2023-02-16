@@ -14,6 +14,7 @@ limitations under the License.
 package routeralias
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -46,7 +47,7 @@ func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {
 	}
 	log := logger.NewLogger("routeralias.test")
 	ralias := NewMiddleware(log)
-	handler, err := ralias.GetHandler(meta)
+	handler, err := ralias.GetHandler(context.Background(), meta)
 	assert.Nil(t, err)
 
 	t.Run("hit: change router with common request", func(t *testing.T) {

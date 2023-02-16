@@ -31,10 +31,10 @@ type PubSub struct {
 	subscribeCancel context.CancelFunc
 }
 
-func (p *PubSub) Init(metadata pubsub.Metadata) error {
+func (p *PubSub) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	p.subscribeCtx, p.subscribeCancel = context.WithCancel(context.Background())
 
-	return p.kafka.Init(metadata.Properties)
+	return p.kafka.Init(ctx, metadata.Properties)
 }
 
 func (p *PubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {

@@ -42,7 +42,7 @@ func TestStandaloneRedisLock_InitError(t *testing.T) {
 		cfg.Properties["redisPassword"] = ""
 
 		// init
-		err := comp.InitLockStore(cfg)
+		err := comp.InitLockStore(context.Background(), cfg)
 		assert.Error(t, err)
 	})
 
@@ -58,7 +58,7 @@ func TestStandaloneRedisLock_InitError(t *testing.T) {
 		cfg.Properties["redisPassword"] = ""
 
 		// init
-		err := comp.InitLockStore(cfg)
+		err := comp.InitLockStore(context.Background(), cfg)
 		assert.Error(t, err)
 	})
 
@@ -75,7 +75,7 @@ func TestStandaloneRedisLock_InitError(t *testing.T) {
 		cfg.Properties["maxRetries"] = "1 "
 
 		// init
-		err := comp.InitLockStore(cfg)
+		err := comp.InitLockStore(context.Background(), cfg)
 		assert.Error(t, err)
 	})
 }
@@ -96,7 +96,7 @@ func TestStandaloneRedisLock_TryLock(t *testing.T) {
 	cfg.Properties["redisHost"] = s.Addr()
 	cfg.Properties["redisPassword"] = ""
 	// init
-	err = comp.InitLockStore(cfg)
+	err = comp.InitLockStore(context.Background(), cfg)
 	assert.NoError(t, err)
 	// 1. client1 trylock
 	ownerID1 := uuid.New().String()

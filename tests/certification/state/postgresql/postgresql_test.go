@@ -54,7 +54,10 @@ const (
 	keyConnectionString     = "connectionString"
 	keyCleanupInterval      = "cleanupIntervalInSeconds"
 	keyTableName            = "tableName"
-	keyMetadatTableName     = "metadataTableName"
+	keyMetadataTableName    = "metadataTableName"
+
+	// Update this constant if you add more migrations
+	migrationLevel = "2"
 )
 
 func TestPostgreSQL(t *testing.T) {
@@ -71,9 +74,6 @@ func TestPostgreSQL(t *testing.T) {
 	}, "postgresql")
 
 	currentGrpcPort := ports[0]
-
-	// Update this constant if you add more migrations
-	const migrationLevel = "2"
 
 	// Holds a DB client as the "postgres" (ie. "root") user which we'll use to validate migrations and other changes in state
 	var dbClient *pgx.Conn
@@ -108,10 +108,10 @@ func TestPostgreSQL(t *testing.T) {
 		t.Run("initial state clean", func(t *testing.T) {
 			storeObj := state_postgres.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
 			md.Properties[keyTableName] = "clean_state"
-			md.Properties[keyMetadatTableName] = "clean_metadata"
+			md.Properties[keyMetadataTableName] = "clean_metadata"
 
 			// Init and perform the migrations
-			err := storeObj.Init(md)
+			err := storeObj.Init(context.Background(), md)
 			require.NoError(t, err, "failed to init")
 
 			// We should have the tables correctly created
@@ -132,10 +132,10 @@ func TestPostgreSQL(t *testing.T) {
 		t.Run("initial state clean, with explicit schema name", func(t *testing.T) {
 			storeObj := state_postgres.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
 			md.Properties[keyTableName] = "public.clean2_state"
-			md.Properties[keyMetadatTableName] = "public.clean2_metadata"
+			md.Properties[keyMetadataTableName] = "public.clean2_metadata"
 
 			// Init and perform the migrations
-			err := storeObj.Init(md)
+			err := storeObj.Init(context.Background(), md)
 			require.NoError(t, err, "failed to init")
 
 			// We should have the tables correctly created
@@ -157,7 +157,7 @@ func TestPostgreSQL(t *testing.T) {
 			// Re-use "clean_state" and "clean_metadata"
 			storeObj := state_postgres.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
 			md.Properties[keyTableName] = "clean_state"
-			md.Properties[keyMetadatTableName] = "clean_metadata"
+			md.Properties[keyMetadataTableName] = "clean_metadata"
 
 			// Should already have migration level 2
 			level, err := getMigrationLevel(dbClient, "clean_metadata")
@@ -165,7 +165,7 @@ func TestPostgreSQL(t *testing.T) {
 			assert.Equal(t, migrationLevel, level, "migration level mismatch: found '%s' but expected '%s'", level, migrationLevel)
 
 			// Init and perform the migrations
-			err = storeObj.Init(md)
+			err = storeObj.Init(context.Background(), md)
 			require.NoError(t, err, "failed to init")
 
 			// Ensure migration level is correct
@@ -196,10 +196,10 @@ func TestPostgreSQL(t *testing.T) {
 
 			storeObj := state_postgres.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
 			md.Properties[keyTableName] = "pre_state"
-			md.Properties[keyMetadatTableName] = "pre_metadata"
+			md.Properties[keyMetadataTableName] = "pre_metadata"
 
 			// Init and perform the migrations
-			err = storeObj.Init(md)
+			err = storeObj.Init(context.Background(), md)
 			require.NoError(t, err, "failed to init")
 
 			// We should have the metadata table created
@@ -236,7 +236,7 @@ func TestPostgreSQL(t *testing.T) {
 		t.Run("initialize components concurrently", func(t *testing.T) {
 			// Initializes 3 components concurrently using the same table names, and ensure that they perform migrations without conflicts and race conditions
 			md.Properties[keyTableName] = "mystate"
-			md.Properties[keyMetadatTableName] = "mymetadata"
+			md.Properties[keyMetadataTableName] = "mymetadata"
 
 			errs := make(chan error, 3)
 			hasLogs := atomic.Int32{}
@@ -248,7 +248,7 @@ func TestPostgreSQL(t *testing.T) {
 
 					// Init and perform the migrations
 					storeObj := state_postgres.NewPostgreSQLStateStore(l).(*state_postgres.PostgreSQL)
-					err := storeObj.Init(md)
+					err := storeObj.Init(context.Background(), md)
 					if err != nil {
 						errs <- fmt.Errorf("%d failed to init: %w", i, err)
 						return
@@ -493,9 +493,9 @@ func TestPostgreSQL(t *testing.T) {
 			Base: metadata.Base{
 				Name: "ttltest",
 				Properties: map[string]string{
-					keyConnectionString: connStringValue,
-					keyTableName:        "ttl_state",
-					keyMetadatTableName: "ttl_metadata",
+					keyConnectionString:  connStringValue,
+					keyTableName:         "ttl_state",
+					keyMetadataTableName: "ttl_metadata",
 				},
 			},
 		}
@@ -506,7 +506,7 @@ func TestPostgreSQL(t *testing.T) {
 				md.Properties[keyCleanupInterval] = ""
 				storeObj := state_postgres.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
 
-				err := storeObj.Init(md)
+				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -523,7 +523,7 @@ func TestPostgreSQL(t *testing.T) {
 				md.Properties[keyCleanupInterval] = "10"
 				storeObj := state_postgres.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
 
-				err := storeObj.Init(md)
+				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -540,7 +540,7 @@ func TestPostgreSQL(t *testing.T) {
 				md.Properties[keyCleanupInterval] = "0"
 				storeObj := state_postgres.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
 
-				err := storeObj.Init(md)
+				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -558,9 +558,9 @@ func TestPostgreSQL(t *testing.T) {
 				Base: metadata.Base{
 					Name: "ttltest",
 					Properties: map[string]string{
-						keyConnectionString: connStringValue,
-						keyTableName:        "ttl_state",
-						keyMetadatTableName: "ttl_metadata",
+						keyConnectionString:  connStringValue,
+						keyTableName:         "ttl_state",
+						keyMetadataTableName: "ttl_metadata",
 					},
 				},
 			}
@@ -570,7 +570,7 @@ func TestPostgreSQL(t *testing.T) {
 				md.Properties[keyCleanupInterval] = "1"
 
 				storeObj := state_postgres.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
-				err := storeObj.Init(md)
+				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -607,7 +607,7 @@ func TestPostgreSQL(t *testing.T) {
 				md.Properties[keyCleanupInterval] = "3600"
 
 				storeObj := state_postgres.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
-				err := storeObj.Init(md)
+				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -713,7 +713,7 @@ func getMigrationLevel(dbClient *pgx.Conn, metadataTable string) (level string, 
 }
 
 func populateTTLRecords(ctx context.Context, dbClient *pgx.Conn) error {
-	// Insert 10 records that have expired, and 10 that will expire in 6 seconds
+	// Insert 10 records that have expired, and 10 that will expire in 4 seconds
 	exp := time.Now().Add(-1 * time.Minute)
 	rows := make([][]any, 20)
 	for i := 0; i < 10; i++ {

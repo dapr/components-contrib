@@ -18,6 +18,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	mqc "github.com/apache/rocketmq-client-go/v2/consumer"
@@ -30,31 +32,31 @@ import (
 	"github.com/dapr/kit/retry"
 )
 
-type AliCloudRocketMQ struct {
+type RocketMQ struct {
 	logger   logger.Logger
 	settings Settings
 	producer mqw.Producer
 
-	ctx           context.Context
-	cancel        context.CancelFunc
 	backOffConfig retry.Config
+	closeCh       chan struct{}
+	closed        atomic.Bool
+	wg            sync.WaitGroup
 }
 
-func NewAliCloudRocketMQ(l logger.Logger) *AliCloudRocketMQ {
-	return &AliCloudRocketMQ{ //nolint:exhaustivestruct
+func NewRocketMQ(l logger.Logger) *RocketMQ {
+	return &RocketMQ{ //nolint:exhaustivestruct
 		logger:   l,
 		producer: nil,
+		closeCh:  make(chan struct{}),
 	}
 }
 
 // Init performs metadata parsing.
-func (a *AliCloudRocketMQ) Init(metadata bindings.Metadata) error {
+func (a *RocketMQ) Init(ctx context.Context, metadata bindings.Metadata) error {
 	var err error
 	if err = a.settings.Decode(metadata.Properties); err != nil {
 		return err
 	}
-
-	a.ctx, a.cancel = context.WithCancel(context.Background())
 
 	// Default retry configuration is used if no
 	// backOff properties are set.
@@ -74,7 +76,11 @@ func (a *AliCloudRocketMQ) Init(metadata bindings.Metadata) error {
 }
 
 // Read triggers the rocketmq subscription.
-func (a *AliCloudRocketMQ) Read(ctx context.Context, handler bindings.Handler) error {
+func (a *RocketMQ) Read(ctx context.Context, handler bindings.Handler) error {
+	if a.closed.Load() {
+		return errors.New("error: binding is closed")
+	}
+
 	a.logger.Debugf("binding rocketmq: start read input binding")
 
 	consumer, err := a.setupConsumer()
@@ -114,10 +120,12 @@ func (a *AliCloudRocketMQ) Read(ctx context.Context, handler bindings.Handler) e
 	a.logger.Debugf("binding-rocketmq: consumer started")
 
 	// Listen for context cancelation to stop the subscription
+	a.wg.Add(1)
 	go func() {
+		defer a.wg.Done()
 		select {
 		case <-ctx.Done():
-		case <-a.ctx.Done():
+		case <-a.closeCh:
 		}
 
 		innerErr := consumer.Shutdown()
@@ -130,9 +138,11 @@ func (a *AliCloudRocketMQ) Read(ctx context.Context, handler bindings.Handler) e
 }
 
 // Close implements cancel all listeners, see https://github.com/dapr/components-contrib/issues/779
-func (a *AliCloudRocketMQ) Close() error {
-	a.cancel()
-
+func (a *RocketMQ) Close() error {
+	defer a.wg.Wait()
+	if a.closed.CompareAndSwap(false, true) {
+		close(a.closeCh)
+	}
 	return nil
 }
 
@@ -155,7 +165,7 @@ func parseTopic(key string) (mqType, mqExpression, topic string, err error) {
 	return
 }
 
-func (a *AliCloudRocketMQ) setupConsumer() (mqw.PushConsumer, error) {
+func (a *RocketMQ) setupConsumer() (mqw.PushConsumer, error) {
 	if consumer, ok := mqw.Consumers[a.settings.AccessProto]; ok {
 		md := a.settings.ToRocketMQMetadata()
 		if err := consumer.Init(md); err != nil {
@@ -172,7 +182,7 @@ func (a *AliCloudRocketMQ) setupConsumer() (mqw.PushConsumer, error) {
 	return nil, errors.New("binding-rocketmq error: cannot found rocketmq consumer")
 }
 
-func (a *AliCloudRocketMQ) setupPublisher() (mqw.Producer, error) {
+func (a *RocketMQ) setupPublisher() (mqw.Producer, error) {
 	if producer, ok := mqw.Producers[a.settings.AccessProto]; ok {
 		md := a.settings.ToRocketMQMetadata()
 		if err := producer.Init(md); err != nil {
@@ -195,25 +205,25 @@ func (a *AliCloudRocketMQ) setupPublisher() (mqw.Producer, error) {
 }
 
 // Operations returns list of operations supported by rocketmq binding.
-func (a *AliCloudRocketMQ) Operations() []bindings.OperationKind {
+func (a *RocketMQ) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
 }
 
-func (a *AliCloudRocketMQ) Invoke(req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (a *RocketMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	rst := &bindings.InvokeResponse{Data: nil, Metadata: nil}
 
 	if req.Operation != bindings.CreateOperation {
 		return rst, fmt.Errorf("binding-rocketmq error: unsupported operation %s", req.Operation)
 	}
 
-	return rst, a.sendMessage(req)
+	return rst, a.sendMessage(ctx, req)
 }
 
-func (a *AliCloudRocketMQ) sendMessage(req *bindings.InvokeRequest) error {
+func (a *RocketMQ) sendMessage(ctx context.Context, req *bindings.InvokeRequest) error {
 	topic := req.Metadata[metadataRocketmqTopic]
 
 	if topic != "" {
-		_, err := a.send(topic, req.Metadata[metadataRocketmqTag], req.Metadata[metadataRocketmqKey], req.Data)
+		_, err := a.send(ctx, topic, req.Metadata[metadataRocketmqTag], req.Metadata[metadataRocketmqKey], req.Data)
 		if err != nil {
 			return err
 		}
@@ -229,7 +239,7 @@ func (a *AliCloudRocketMQ) sendMessage(req *bindings.InvokeRequest) error {
 		if err != nil {
 			return err
 		}
-		_, err = a.send(topic, mqExpression, req.Metadata[metadataRocketmqKey], req.Data)
+		_, err = a.send(ctx, topic, mqExpression, req.Metadata[metadataRocketmqKey], req.Data)
 		if err != nil {
 			return err
 		}
@@ -239,9 +249,9 @@ func (a *AliCloudRocketMQ) sendMessage(req *bindings.InvokeRequest) error {
 	return nil
 }
 
-func (a *AliCloudRocketMQ) send(topic, mqExpr, key string, data []byte) (bool, error) {
+func (a *RocketMQ) send(ctx context.Context, topic, mqExpr, key string, data []byte) (bool, error) {
 	msg := primitive.NewMessage(topic, data).WithTag(mqExpr).WithKeys([]string{key})
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	rst, err := a.producer.SendSync(ctx, msg)
 	if err != nil {
@@ -256,7 +266,7 @@ func (a *AliCloudRocketMQ) send(topic, mqExpr, key string, data []byte) (bool, e
 
 type mqCallback func(ctx context.Context, msgs ...*primitive.MessageExt) (mqc.ConsumeResult, error)
 
-func (a *AliCloudRocketMQ) adaptCallback(_, consumerGroup, mqType, mqExpr string, handler bindings.Handler) mqCallback {
+func (a *RocketMQ) adaptCallback(_, consumerGroup, mqType, mqExpr string, handler bindings.Handler) mqCallback {
 	return func(ctx context.Context, msgs ...*primitive.MessageExt) (mqc.ConsumeResult, error) {
 		success := true
 		for _, v := range msgs {

@@ -52,6 +52,8 @@ github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/zstd v1.5.0 h1:+K/VEwIAaPcHiMtQvpLD4lqW7f0Gk3xdYZmI1hD+CXo=
 github.com/DataDog/zstd v1.5.0/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
+github.com/JoshVanL/dapr v0.0.0-20230206115221-708ff00f7181 h1:bNMar/yM9t63YDipWoMwD3Juv0dWSs4QvPAkb4yVY/0=
+github.com/JoshVanL/dapr v0.0.0-20230206115221-708ff00f7181/go.mod h1:u4qgGgAhx1bH0NJamDVnWEgffpHDiLj/CiaRjCheBA0=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/PuerkitoBio/purell v1.2.0 h1:/Jdm5QfyM8zdlqT6WVZU4cfP23sot6CEHA4CS49Ezig=
 github.com/PuerkitoBio/purell v1.2.0/go.mod h1:OhLRTaaIzhvIyofkJfB24gokC7tM42Px5UhoT32THBk=
@@ -116,8 +118,6 @@ github.com/cpuguy83/go-md2man/v2 v2.0.0/go.mod h1:maD7wRr/U5Z6m/iR4s+kqSMx2CaBsr
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/danieljoos/wincred v1.1.2 h1:QLdCxFs1/Yl4zduvBdcHB8goaYk9RARS2SgLLRuAyr0=
 github.com/danieljoos/wincred v1.1.2/go.mod h1:GijpziifJoIBfYh+S7BbkdUTU4LfM+QnGqR5Vl2tAx0=
-github.com/dapr/dapr v1.10.0-rc.2 h1:lTtoinTVdYnOcr+S5NqWv+E3tvnov1erRtRfcOJ+4ls=
-github.com/dapr/dapr v1.10.0-rc.2/go.mod h1:nO5hqRcuUlRWsQddX1haHCCJ0t+c4V03lxMCqToWwPA=
 github.com/dapr/go-sdk v1.7.0 h1:SJC8layk2eKuJ8N+S84DtYpP4fgVugu8sUAliGu6/nM=
 github.com/dapr/go-sdk v1.7.0/go.mod h1:kWMKJ39k2smLVnB6v5Y6dMbwfj1Z3XBxa4Q2dCFzf2U=
 github.com/dapr/kit v0.0.4 h1:i+7TIN4crC1Mo0JFyWpIkwAE8orlliA0O6/ibvs2AaE=

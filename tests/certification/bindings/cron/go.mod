@@ -13,7 +13,6 @@ require (
 )
 
 require (
-	github.com/hashicorp/golang-lru/v2 v2.0.1 // indirect
 	github.com/marusama/semaphore/v2 v2.5.0 // indirect
 	github.com/microsoft/durabletask-go v0.1.3 // indirect
 )
@@ -150,3 +149,5 @@ replace github.com/dapr/components-contrib => ../../../../
 // in the Dapr runtime. Don't commit with this uncommented!
 //
 // replace github.com/dapr/dapr => ../../../../../dapr
+
+replace github.com/dapr/dapr => github.com/JoshVanL/dapr v0.0.0-20230206115221-708ff00f7181

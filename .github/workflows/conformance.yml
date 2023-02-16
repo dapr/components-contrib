@@ -679,6 +679,18 @@ jobs:
         path: tmp/cov_files
         retention-days: 1
 
+    #download artifacts from certification test
+    - name: Download workflow artifact
+      if: always()
+      uses: dawidd6/action-download-artifact@v2.24.3
+      with:
+        workflow: certification.yml
+        workflow_conclusion: ""
+        branch: master
+        if_no_artifact_found: warn
+        name: certtest_cov
+        path: tmp/certtest_files
+
     # Upload logs for test analytics to consume
     - name: Upload test results
       if: always()

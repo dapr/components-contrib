@@ -40,30 +40,29 @@ type MQTT struct {
 	logger       logger.Logger
 	isSubscribed atomic.Bool
 	readHandler  bindings.Handler
-	ctx          context.Context
-	cancel       context.CancelFunc
 	backOff      backoff.BackOff
+	closeCh      chan struct{}
+	closed       atomic.Bool
+	wg           sync.WaitGroup
 }
 
 // NewMQTT returns a new MQTT instance.
 func NewMQTT(logger logger.Logger) bindings.InputOutputBinding {
 	return &MQTT{
-		logger: logger,
+		logger:  logger,
+		closeCh: make(chan struct{}),
 	}
 }
 
 // Init does MQTT connection parsing.
-func (m *MQTT) Init(metadata bindings.Metadata) (err error) {
+func (m *MQTT) Init(ctx context.Context, metadata bindings.Metadata) (err error) {
 	m.metadata, err = parseMQTTMetaData(metadata, m.logger)
 	if err != nil {
 		return err
 	}
 
-	m.ctx, m.cancel = context.WithCancel(context.Background())
-
 	// TODO: Make the backoff configurable for constant or exponential
-	b := backoff.NewConstantBackOff(5 * time.Second)
-	m.backOff = backoff.WithContext(b, m.ctx)
+	m.backOff = backoff.NewConstantBackOff(5 * time.Second)
 
 	return nil
 }
@@ -104,7 +103,7 @@ func (m *MQTT) getProducer() (mqtt.Client, error) {
 	return p, nil
 }
 
-func (m *MQTT) Invoke(parentCtx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (m *MQTT) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	producer, err := m.getProducer()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create producer connection: %w", err)
@@ -118,7 +117,7 @@ func (m *MQTT) Invoke(parentCtx context.Context, req *bindings.InvokeRequest) (*
 	bo := backoff.WithMaxRetries(
 		backoff.NewConstantBackOff(200*time.Millisecond), 3,
 	)
-	bo = backoff.WithContext(bo, parentCtx)
+	bo = backoff.WithContext(bo, ctx)
 
 	topic, ok := req.Metadata[mqttTopic]
 	if !ok || topic == "" {
@@ -127,14 +126,13 @@ func (m *MQTT) Invoke(parentCtx context.Context, req *bindings.InvokeRequest) (*
 	}
 	return nil, retry.NotifyRecover(func() (err error) {
 		token := producer.Publish(topic, m.metadata.qos, m.metadata.retain, req.Data)
-		ctx, cancel := context.WithTimeout(parentCtx, defaultWait)
-		defer cancel()
 		select {
 		case <-token.Done():
 			err = token.Error()
-		case <-m.ctx.Done():
-			// Context canceled
-			err = m.ctx.Err()
+		case <-m.closeCh:
+			err = errors.New("mqtt client closed")
+		case <-time.After(defaultWait):
+			err = errors.New("mqtt client timeout")
 		case <-ctx.Done():
 			// Context canceled
 			err = ctx.Err()
@@ -151,6 +149,10 @@ func (m *MQTT) Invoke(parentCtx context.Context, req *bindings.InvokeRequest) (*
 }
 
 func (m *MQTT) Read(ctx context.Context, handler bindings.Handler) error {
+	if m.closed.Load() {
+		return errors.New("error: binding is closed")
+	}
+
 	// If the subscription is already active, wait 2s before retrying (in case we're still disconnecting), otherwise return an error
 	if !m.isSubscribed.CompareAndSwap(false, true) {
 		m.logger.Debug("Subscription is already active; waiting 2s before retrying…")
@@ -177,11 +179,14 @@ func (m *MQTT) Read(ctx context.Context, handler bindings.Handler) error {
 
 	// In background, watch for contexts cancelation and stop the connection
 	// However, do not call "unsubscribe" which would cause the broker to stop tracking the last message received by this consumer group
+	m.wg.Add(1)
 	go func() {
+		defer m.wg.Done()
+
 		select {
 		case <-ctx.Done():
 			// nop
-		case <-m.ctx.Done():
+		case <-m.closeCh:
 			// nop
 		}
 
@@ -208,14 +213,12 @@ func (m *MQTT) connect(clientID string, isSubscriber bool) (mqtt.Client, error) 
 	}
 	client := mqtt.NewClient(opts)
 
-	ctx, cancel := context.WithTimeout(m.ctx, defaultWait)
-	defer cancel()
 	token := client.Connect()
 	select {
 	case <-token.Done():
 		err = token.Error()
-	case <-ctx.Done():
-		err = ctx.Err()
+	case <-time.After(defaultWait):
+		err = errors.New("mqtt client timed out connecting")
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect: %w", err)
@@ -290,43 +293,46 @@ func (m *MQTT) createClientOptions(uri *url.URL, clientID string) *mqtt.ClientOp
 	return opts
 }
 
-func (m *MQTT) handleMessage(client mqtt.Client, mqttMsg mqtt.Message) {
-	// We're using m.ctx as context in this method because we don't have access to the Read context
-	// Canceling the Read context makes Read invoke "Disconnect" anyways
-	ctx := m.ctx
+func (m *MQTT) handleMessage() func(client mqtt.Client, mqttMsg mqtt.Message) {
+	return func(client mqtt.Client, mqttMsg mqtt.Message) {
+		bo := m.backOff
+		if m.metadata.backOffMaxRetries >= 0 {
+			bo = backoff.WithMaxRetries(bo, uint64(m.metadata.backOffMaxRetries))
+		}
 
-	var bo backoff.BackOff = backoff.WithContext(m.backOff, ctx)
-	if m.metadata.backOffMaxRetries >= 0 {
-		bo = backoff.WithMaxRetries(bo, uint64(m.metadata.backOffMaxRetries))
-	}
+		err := retry.NotifyRecover(
+			func() error {
+				m.logger.Debugf("Processing MQTT message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
+				// Use a background context here so that the context is not tied to the
+				// first Invoke first created the producer.
+				// TODO: add context to mqtt library, and add a OnConnectWithContext option
+				// to change this func signature to
+				// func(c mqtt.Client, ctx context.Context)
+				_, err := m.readHandler(context.Background(), &bindings.ReadResponse{
+					Data: mqttMsg.Payload(),
+					Metadata: map[string]string{
+						mqttTopic: mqttMsg.Topic(),
+					},
+				})
+				if err != nil {
+					return err
+				}
 
-	err := retry.NotifyRecover(
-		func() error {
-			m.logger.Debugf("Processing MQTT message %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
-			_, err := m.readHandler(ctx, &bindings.ReadResponse{
-				Data: mqttMsg.Payload(),
-				Metadata: map[string]string{
-					mqttTopic: mqttMsg.Topic(),
-				},
-			})
-			if err != nil {
-				return err
-			}
-
-			// Ack the message on success
-			mqttMsg.Ack()
-			return nil
-		},
-		bo,
-		func(err error, d time.Duration) {
-			m.logger.Errorf("Error processing MQTT message: %s/%d. Retrying…", mqttMsg.Topic(), mqttMsg.MessageID())
-		},
-		func() {
-			m.logger.Infof("Successfully processed MQTT message after it previously failed: %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
-		},
-	)
-	if err != nil {
-		m.logger.Errorf("Failed processing MQTT message: %s/%d: %v", mqttMsg.Topic(), mqttMsg.MessageID(), err)
+				// Ack the message on success
+				mqttMsg.Ack()
+				return nil
+			},
+			bo,
+			func(err error, d time.Duration) {
+				m.logger.Errorf("Error processing MQTT message: %s/%d. Retrying…", mqttMsg.Topic(), mqttMsg.MessageID())
+			},
+			func() {
+				m.logger.Infof("Successfully processed MQTT message after it previously failed: %s/%d", mqttMsg.Topic(), mqttMsg.MessageID())
+			},
+		)
+		if err != nil {
+			m.logger.Errorf("Failed processing MQTT message: %s/%d: %v", mqttMsg.Topic(), mqttMsg.MessageID(), err)
+		}
 	}
 }
 
@@ -336,17 +342,15 @@ func (m *MQTT) createSubscriberClientOptions(uri *url.URL, clientID string) *mqt
 
 	// On (re-)connection, add the topic subscription
 	opts.OnConnect = func(c mqtt.Client) {
-		token := c.Subscribe(m.metadata.topic, m.metadata.qos, m.handleMessage)
+		token := c.Subscribe(m.metadata.topic, m.metadata.qos, m.handleMessage())
 
 		var err error
-		subscribeCtx, subscribeCancel := context.WithTimeout(m.ctx, defaultWait)
-		defer subscribeCancel()
 		select {
 		case <-token.Done():
 			// Subscription went through (sucecessfully or not)
 			err = token.Error()
-		case <-subscribeCtx.Done():
-			err = fmt.Errorf("error while waiting for subscription token: %w", subscribeCtx.Err())
+		case <-time.After(defaultWait):
+			err = errors.New("timed out waiting for subscription to complete")
 		}
 
 		// Nothing we can do in case of errors besides logging them
@@ -363,13 +367,16 @@ func (m *MQTT) Close() error {
 	m.producerLock.Lock()
 	defer m.producerLock.Unlock()
 
-	// Canceling the context also causes Read to stop receiving messages
-	m.cancel()
+	if m.closed.CompareAndSwap(false, true) {
+		close(m.closeCh)
+	}
 
 	if m.producer != nil {
 		m.producer.Disconnect(200)
 		m.producer = nil
 	}
+
+	m.wg.Wait()
 
 	return nil
 }

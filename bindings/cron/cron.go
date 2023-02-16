@@ -16,6 +16,8 @@ package cron
 import (
 	"context"
 	"fmt"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -32,6 +34,9 @@ type Binding struct {
 	schedule string
 	parser   cron.Parser
 	clk      clock.Clock
+	closed   atomic.Bool
+	closeCh  chan struct{}
+	wg       sync.WaitGroup
 }
 
 // NewCron returns a new Cron event input binding.
@@ -46,6 +51,7 @@ func NewCronWithClock(logger logger.Logger, clk clock.Clock) bindings.InputBindi
 		parser: cron.NewParser(
 			cron.SecondOptional | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
 		),
+		closeCh: make(chan struct{}),
 	}
 }
 
@@ -54,7 +60,7 @@ func NewCronWithClock(logger logger.Logger, clk clock.Clock) bindings.InputBindi
 //
 //	"15 * * * * *" - Every 15 sec
 //	"0 30 * * * *" - Every 30 min
-func (b *Binding) Init(metadata bindings.Metadata) error {
+func (b *Binding) Init(ctx context.Context, metadata bindings.Metadata) error {
 	b.name = metadata.Name
 	s, f := metadata.Properties["schedule"]
 	if !f || s == "" {
@@ -71,6 +77,10 @@ func (b *Binding) Init(metadata bindings.Metadata) error {
 
 // Read triggers the Cron scheduler.
 func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
+	if b.closed.Load() {
+		return errors.New("binding is closed")
+	}
+
 	c := cron.New(cron.WithParser(b.parser), cron.WithClock(b.clk))
 	id, err := c.AddFunc(b.schedule, func() {
 		b.logger.Debugf("name: %s, schedule fired: %v", b.name, time.Now())
@@ -87,12 +97,25 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 	c.Start()
 	b.logger.Debugf("name: %s, next run: %v", b.name, time.Until(c.Entry(id).Next))
 
+	b.wg.Add(1)
 	go func() {
-		// Wait for context to be canceled
-		<-ctx.Done()
+		defer b.wg.Done()
+		// Wait for context to be canceled or component to be closed.
+		select {
+		case <-ctx.Done():
+		case <-b.closeCh:
+		}
 		b.logger.Debugf("name: %s, stopping schedule: %s", b.name, b.schedule)
 		c.Stop()
 	}()
 
+	return nil
+}
+
+func (b *Binding) Close() error {
+	if b.closed.CompareAndSwap(false, true) {
+		close(b.closeCh)
+	}
+	b.wg.Wait()
 	return nil
 }

@@ -21,7 +21,7 @@ import (
 
 // dbAccess is a private interface which enables unit testing of CockroachDB.
 type dbAccess interface {
-	Init(metadata state.Metadata) error
+	Init(ctx context.Context, metadata state.Metadata) error
 	Set(ctx context.Context, req *state.SetRequest) error
 	BulkSet(ctx context.Context, req []state.SetRequest) error
 	Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error)
@@ -29,6 +29,6 @@ type dbAccess interface {
 	BulkDelete(ctx context.Context, req []state.DeleteRequest) error
 	ExecuteMulti(ctx context.Context, req *state.TransactionalStateRequest) error
 	Query(ctx context.Context, req *state.QueryRequest) (*state.QueryResponse, error)
-	Ping() error
+	Ping(context.Context) error
 	Close() error
 }

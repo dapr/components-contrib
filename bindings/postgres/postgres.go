@@ -49,7 +49,7 @@ func NewPostgres(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init initializes the PostgreSql binding.
-func (p *Postgres) Init(metadata bindings.Metadata) error {
+func (p *Postgres) Init(ctx context.Context, metadata bindings.Metadata) error {
 	url, ok := metadata.Properties[connectionURLKey]
 	if !ok || url == "" {
 		return fmt.Errorf("required metadata not set: %s", connectionURLKey)
@@ -60,7 +60,9 @@ func (p *Postgres) Init(metadata bindings.Metadata) error {
 		return fmt.Errorf("error opening DB connection: %w", err)
 	}
 
-	p.db, err = pgxpool.NewWithConfig(context.Background(), poolConfig)
+	// This context doesn't control the lifetime of the connection pool, and is
+	// only scoped to postgres creating resources at init.
+	p.db, err = pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
 		return fmt.Errorf("unable to ping the DB: %w", err)
 	}

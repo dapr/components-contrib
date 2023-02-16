@@ -64,7 +64,7 @@ func NewLocalStorage(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init performs metadata parsing.
-func (ls *LocalStorage) Init(metadata bindings.Metadata) error {
+func (ls *LocalStorage) Init(_ context.Context, metadata bindings.Metadata) error {
 	m, err := ls.parseMetadata(metadata)
 	if err != nil {
 		return fmt.Errorf("failed to parse metadata: %w", err)

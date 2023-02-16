@@ -14,6 +14,7 @@ limitations under the License.
 package blobstorage
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -31,7 +32,7 @@ func TestInit(t *testing.T) {
 		m.Properties = map[string]string{
 			"invalidValue": "a",
 		}
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.Error(t, err)
 		assert.Equal(t, err, fmt.Errorf("missing or empty accountName field from metadata"))
 	})

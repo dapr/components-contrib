@@ -70,7 +70,7 @@ func TestCockroach(t *testing.T) {
 		}
 		defer client.Close()
 
-		err = stateStore.Ping()
+		err = stateStore.Ping(context.Background())
 		assert.Equal(t, nil, err)
 
 		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("certificationdata"), nil)
@@ -106,7 +106,7 @@ func TestCockroach(t *testing.T) {
 		}
 		defer client.Close()
 
-		err = stateStore.Ping()
+		err = stateStore.Ping(context.Background())
 		assert.Equal(t, nil, err)
 
 		resp, err := stateStore.Get(context.Background(), &state.GetRequest{

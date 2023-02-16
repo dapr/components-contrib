@@ -53,7 +53,7 @@ func NewCosmosDB(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init performs CosmosDB connection parsing and connecting.
-func (c *CosmosDB) Init(metadata bindings.Metadata) error {
+func (c *CosmosDB) Init(ctx context.Context, metadata bindings.Metadata) error {
 	m, err := c.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -103,9 +103,9 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 	}
 
 	c.client = dbContainer
-	ctx, cancel := context.WithTimeout(context.Background(), timeoutValue*time.Second)
-	_, err = c.client.Read(ctx, nil)
-	cancel()
+	readCtx, readCancel := context.WithTimeout(ctx, timeoutValue*time.Second)
+	defer readCancel()
+	_, err = c.client.Read(readCtx, nil)
 	return err
 }
 

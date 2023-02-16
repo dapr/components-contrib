@@ -81,7 +81,7 @@ func NewMysql(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init initializes the MySQL binding.
-func (m *Mysql) Init(metadata bindings.Metadata) error {
+func (m *Mysql) Init(ctx context.Context, metadata bindings.Metadata) error {
 	m.logger.Debug("Initializing MySql binding")
 
 	p := metadata.Properties
@@ -115,7 +115,7 @@ func (m *Mysql) Init(metadata bindings.Metadata) error {
 		return err
 	}
 
-	err = db.Ping()
+	err = db.PingContext(ctx)
 	if err != nil {
 		return fmt.Errorf("unable to ping the DB: %w", err)
 	}

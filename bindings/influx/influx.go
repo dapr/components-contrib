@@ -64,7 +64,7 @@ func NewInflux(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init does metadata parsing and connection establishment.
-func (i *Influx) Init(metadata bindings.Metadata) error {
+func (i *Influx) Init(_ context.Context, metadata bindings.Metadata) error {
 	influxMeta, err := i.getInfluxMetadata(metadata)
 	if err != nil {
 		return err

@@ -47,7 +47,7 @@ func TestParseRocketMQMetadata(t *testing.T) {
 func TestRocketMQ_Init(t *testing.T) {
 	meta := getTestMetadata()
 	r := NewRocketMQ(logger.NewLogger("test"))
-	err := r.Init(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
+	err := r.Init(context.Background(), pubsub.Metadata{Base: mdata.Base{Properties: meta}})
 	assert.Nil(t, err)
 }
 
@@ -217,6 +217,6 @@ func BuildRocketMQ() (logger.Logger, pubsub.PubSub, error) {
 	meta := getTestMetadata()
 	l := logger.NewLogger("test")
 	r := NewRocketMQ(l)
-	err := r.Init(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
+	err := r.Init(context.Background(), pubsub.Metadata{Base: mdata.Base{Properties: meta}})
 	return l, r, err
 }

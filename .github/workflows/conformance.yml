@@ -669,6 +669,7 @@ jobs:
       if: always()
       run: |
        mkdir -p tmp/cov_files
+       mkdir -p tmp/certtest_files
        echo "${{ env.COVERAGE_LINE }}" >> tmp/cov_files/${{ env.SOURCE_PATH_LINEAR }}.txt
 
     - name: Upload Conf Coverage Artifact
@@ -690,6 +691,14 @@ jobs:
         if_no_artifact_found: warn
         name: certtest_cov
         path: tmp/certtest_files
+
+      #unzip the downloaded artifact
+    - name: Unzip the downloaded artifact
+      if: always()
+      run: unzip certtest_cov.zip
+
+  
+
 
     # Upload logs for test analytics to consume
     - name: Upload test results

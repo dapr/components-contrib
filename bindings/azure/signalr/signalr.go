@@ -274,7 +274,7 @@ func (s *SignalR) getToken(ctx context.Context, url string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to build token: %w", err)
 	}
-	signed, err := jwt.Sign(token, jwt.WithKey(jwa.HS256, s.accessKey))
+	signed, err := jwt.Sign(token, jwt.WithKey(jwa.HS256, []byte(s.accessKey)))
 	if err != nil {
 		return "", fmt.Errorf("failed to sign token: %w", err)
 	}

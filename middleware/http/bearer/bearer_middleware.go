@@ -66,12 +66,13 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 	ctx := context.TODO()
 
 	// Create a JWKS cache that is refreshed automatically
-	cache := jwk.NewCache(ctx)
-	err = cache.Register(meta.IssuerURL,
-		jwk.WithMinRefreshInterval(minRefreshInterval),
+	cache := jwk.NewCache(ctx,
 		jwk.WithErrSink(httprc.ErrSinkFunc(func(err error) {
 			m.logger.Warnf("Error while refreshing JWKS cache: %v", err)
 		})),
+	)
+	err = cache.Register(meta.IssuerURL,
+		jwk.WithMinRefreshInterval(minRefreshInterval),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to register JWKS cache: %w", err)

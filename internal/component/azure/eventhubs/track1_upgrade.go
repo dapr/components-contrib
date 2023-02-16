@@ -35,7 +35,7 @@ import (
 func (aeh *AzureEventHubs) ensureNoTrack1Subscribers(parentCtx context.Context, topic string) error {
 	// Get a client to Azure Blob Storage
 	// Because we are not using "ensureContainer=true", we can pass a nil context
-	client, err := aeh.createStorageClient(nil, false)
+	client, err := aeh.createStorageClient(nil, false) //nolint:staticcheck
 	if err != nil {
 		return err
 	}

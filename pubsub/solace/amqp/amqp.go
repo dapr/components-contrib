@@ -43,8 +43,6 @@ type amqpPubSub struct {
 	logger            logger.Logger
 	publishLock       sync.RWMutex
 	publishRetryCount int
-	ctx               context.Context
-	cancel            context.CancelFunc
 }
 
 // NewAMQPPubsub returns a new AMQPPubSub instance
@@ -56,7 +54,7 @@ func NewAMQPPubsub(logger logger.Logger) pubsub.PubSub {
 }
 
 // Init parses the metadata and creates a new Pub Sub Client.
-func (a *amqpPubSub) Init(metadata pubsub.Metadata) error {
+func (a *amqpPubSub) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	amqpMeta, err := parseAMQPMetaData(metadata, a.logger)
 	if err != nil {
 		return err
@@ -64,9 +62,7 @@ func (a *amqpPubSub) Init(metadata pubsub.Metadata) error {
 
 	a.metadata = amqpMeta
 
-	a.ctx, a.cancel = context.WithCancel(context.Background())
-
-	s, err := a.connect()
+	s, err := a.connect(ctx)
 	if err != nil {
 		return err
 	}
@@ -148,7 +144,7 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	prefixedTopic := AddPrefixToAddress(req.Topic)
 
-	receiver, err := a.session.NewReceiver(a.ctx,
+	receiver, err := a.session.NewReceiver(ctx,
 		prefixedTopic,
 		nil,
 	)
@@ -207,7 +203,7 @@ func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiv
 }
 
 // Connect to the AMQP broker
-func (a *amqpPubSub) connect() (*amqp.Session, error) {
+func (a *amqpPubSub) connect(ctx context.Context) (*amqp.Session, error) {
 	uri, err := url.Parse(a.metadata.url)
 	if err != nil {
 		return nil, err
@@ -222,7 +218,7 @@ func (a *amqpPubSub) connect() (*amqp.Session, error) {
 	}
 
 	// Open a session
-	session, err := client.NewSession(a.ctx, nil)
+	session, err := client.NewSession(ctx, nil)
 	if err != nil {
 		a.logger.Fatal("Creating AMQP session:", err)
 	}
@@ -279,7 +275,9 @@ func (a *amqpPubSub) Close() error {
 
 	defer a.publishLock.Unlock()
 
-	err := a.session.Close(a.ctx)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := a.session.Close(ctx)
 	if err != nil {
 		a.logger.Warnf("failed to close the connection.", err)
 	}

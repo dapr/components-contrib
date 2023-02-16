@@ -119,7 +119,7 @@ func parseAndValidateMetadata(meta state.Metadata) (*couchbaseMetadata, error) {
 }
 
 // Init does metadata and connection parsing.
-func (cbs *Couchbase) Init(metadata state.Metadata) error {
+func (cbs *Couchbase) Init(_ context.Context, metadata state.Metadata) error {
 	meta, err := parseAndValidateMetadata(metadata)
 	if err != nil {
 		return err

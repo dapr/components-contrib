@@ -54,7 +54,7 @@ func NewConsulStateStore(logger logger.Logger) state.Store {
 
 // Init does metadata and config parsing and initializes the
 // Consul client.
-func (c *Consul) Init(metadata state.Metadata) error {
+func (c *Consul) Init(_ context.Context, metadata state.Metadata) error {
 	consulConfig, err := metadataToConfig(metadata.Properties)
 	if err != nil {
 		return fmt.Errorf("couldn't convert metadata properties: %s", err)

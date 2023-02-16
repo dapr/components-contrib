@@ -115,7 +115,7 @@ func TestMySQLIntegration(t *testing.T) {
 					Base: metadata.Base{Properties: tt.props},
 				}
 
-				err := p.Init(metadata)
+				err := p.Init(context.Background(), metadata)
 
 				if tt.expectedErr == "" {
 					assert.Nil(t, err)
@@ -138,7 +138,7 @@ func TestMySQLIntegration(t *testing.T) {
 		defer mys.Close()
 	})
 
-	error := mys.Init(metadata)
+	error := mys.Init(context.Background(), metadata)
 	if error != nil {
 		t.Fatal(error)
 	}
@@ -149,7 +149,7 @@ func TestMySQLIntegration(t *testing.T) {
 		tableName := "test_state"
 
 		// Drop the table if it already exists
-		exists, err := tableExists(mys.db, tableName, 10*time.Second)
+		exists, err := tableExists(context.Background(), mys.db, tableName, 10*time.Second)
 		assert.Nil(t, err)
 		if exists {
 			dropTable(t, mys.db, tableName)
@@ -157,11 +157,11 @@ func TestMySQLIntegration(t *testing.T) {
 
 		// Create the state table and test for its existence
 		// There should be no error
-		err = mys.ensureStateTable(tableName)
+		err = mys.ensureStateTable(context.Background(), tableName)
 		assert.Nil(t, err)
 
 		// Now create it and make sure there are no errors
-		exists, err = tableExists(mys.db, tableName, 10*time.Second)
+		exists, err = tableExists(context.Background(), mys.db, tableName, 10*time.Second)
 		assert.Nil(t, err)
 		assert.True(t, exists)
 

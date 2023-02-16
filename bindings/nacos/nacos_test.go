@@ -35,7 +35,7 @@ func TestInputBindingRead(t *testing.T) { //nolint:paralleltest
 	m.Properties, err = getNacosLocalCacheMetadata()
 	require.NoError(t, err)
 	n := NewNacos(logger.NewLogger("test")).(*Nacos)
-	err = n.Init(m)
+	err = n.Init(context.Background(), m)
 	require.NoError(t, err)
 	var count int32
 	ch := make(chan bool, 1)

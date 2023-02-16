@@ -134,7 +134,7 @@ func NewZookeeperStateStore(logger logger.Logger) state.Store {
 	}
 }
 
-func (s *StateStore) Init(metadata state.Metadata) (err error) {
+func (s *StateStore) Init(_ context.Context, metadata state.Metadata) (err error) {
 	var c *config
 
 	if c, err = newConfig(metadata.Properties); err != nil {

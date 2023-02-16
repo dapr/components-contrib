@@ -71,7 +71,7 @@ type StateStore struct {
 }
 
 // Init the connection to blob storage, optionally creates a blob container if it doesn't exist.
-func (r *StateStore) Init(metadata state.Metadata) error {
+func (r *StateStore) Init(_ context.Context, metadata state.Metadata) error {
 	var err error
 	r.containerClient, _, err = storageinternal.CreateContainerStorageClient(r.logger, metadata.Properties)
 	if err != nil {
@@ -100,8 +100,8 @@ func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	return r.writeFile(ctx, req)
 }
 
-func (r *StateStore) Ping() error {
-	if _, err := r.containerClient.GetProperties(context.Background(), nil); err != nil {
+func (r *StateStore) Ping(ctx context.Context) error {
+	if _, err := r.containerClient.GetProperties(ctx, nil); err != nil {
 		return fmt.Errorf("blob storage: error connecting to Blob storage at %s: %s", r.containerClient.URL(), err)
 	}
 

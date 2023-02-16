@@ -65,7 +65,7 @@ func parseHazelcastMetadata(meta pubsub.Metadata) (metadata, error) {
 	return m, nil
 }
 
-func (p *Hazelcast) Init(metadata pubsub.Metadata) error {
+func (p *Hazelcast) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	p.logger.Warnf("DEPRECATION NOTICE: Component pubsub.hazelcast has been deprecated and will be removed in a future Dapr release.")
 
 	m, err := parseHazelcastMetadata(metadata)

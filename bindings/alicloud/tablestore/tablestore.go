@@ -58,7 +58,7 @@ func NewAliCloudTableStore(log logger.Logger) bindings.OutputBinding {
 	}
 }
 
-func (s *AliCloudTableStore) Init(metadata bindings.Metadata) error {
+func (s *AliCloudTableStore) Init(_ context.Context, metadata bindings.Metadata) error {
 	m, err := s.parseMetadata(metadata)
 	if err != nil {
 		return err

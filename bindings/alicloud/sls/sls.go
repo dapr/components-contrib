@@ -31,7 +31,7 @@ type Callback struct {
 }
 
 // parse metadata field
-func (s *AliCloudSlsLogstorage) Init(metadata bindings.Metadata) error {
+func (s *AliCloudSlsLogstorage) Init(_ context.Context, metadata bindings.Metadata) error {
 	m, err := s.parseMeta(metadata)
 	if err != nil {
 		return err

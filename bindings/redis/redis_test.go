@@ -40,7 +40,6 @@ func TestInvokeCreate(t *testing.T) {
 		client: c,
 		logger: logger.NewLogger("test"),
 	}
-	bind.ctx, bind.cancel = context.WithCancel(context.Background())
 
 	_, err := c.DoRead(context.Background(), "GET", testKey)
 	assert.Equal(t, redis.Nil, err)
@@ -66,7 +65,6 @@ func TestInvokeGet(t *testing.T) {
 		client: c,
 		logger: logger.NewLogger("test"),
 	}
-	bind.ctx, bind.cancel = context.WithCancel(context.Background())
 
 	err := c.DoWrite(context.Background(), "SET", testKey, testData)
 	assert.Equal(t, nil, err)
@@ -87,7 +85,6 @@ func TestInvokeDelete(t *testing.T) {
 		client: c,
 		logger: logger.NewLogger("test"),
 	}
-	bind.ctx, bind.cancel = context.WithCancel(context.Background())
 
 	err := c.DoWrite(context.Background(), "SET", testKey, testData)
 	assert.Equal(t, nil, err)

@@ -692,14 +692,6 @@ jobs:
         name: certtest_cov
         path: tmp/certtest_files
 
-      #unzip the downloaded artifact
-    - name: Unzip the downloaded artifact
-      if: always()
-      run: unzip certtest_cov.zip
-
-  
-
-
     # Upload logs for test analytics to consume
     - name: Upload test results
       if: always()

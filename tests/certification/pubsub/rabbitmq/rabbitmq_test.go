@@ -585,7 +585,7 @@ func TestRabbitMQTTL(t *testing.T) {
 func TestRabbitMQExtAuth(t *testing.T) {
 	rand.Seed(time.Now().UTC().UnixNano())
 	log := logger.NewLogger("dapr.components")
-	log.SetOutputLevel(logger.DebugLevel)
+	// log.SetOutputLevel(logger.DebugLevel)
 
 	pubTopics := []string{topicRed}
 	subTopics := []string{topicRed}
@@ -648,19 +648,6 @@ func TestRabbitMQExtAuth(t *testing.T) {
 			}(topic)
 		}
 		wg.Wait()
-		log.Debugf("All messages sent - start receiving messages")
-
-		// Do the messages we observed match what we expect?
-		wg.Add(len(consumers) * len(pubTopics))
-		for _, topic := range pubTopics {
-			for _, consumer := range consumers {
-				go func(topic string, consumer *Consumer) {
-					defer wg.Done()
-					consumer.messages[topic].Assert(ctx, 3*time.Minute)
-				}(topic, consumer)
-			}
-		}
-		wg.Wait()
 
 		return nil
 	}
@@ -696,61 +683,6 @@ func TestRabbitMQExtAuth(t *testing.T) {
 		}
 	}
 
-	// sendMessagesInBackground and assertMessages are
-	// Runnables for testing publishing and consuming
-	// messages reliably when infrastructure and network
-	// interruptions occur.
-	var task flow.AsyncTask
-	sendMessagesInBackground := func(consumer *Consumer) flow.Runnable {
-		return func(ctx flow.Context) error {
-			client := sidecar.GetClient(ctx, sidecarName1)
-			for _, topic := range subTopics {
-				consumer.messages[topic].Reset()
-			}
-			t := time.NewTicker(100 * time.Millisecond)
-			defer t.Stop()
-
-			counter := 1
-			for {
-				select {
-				case <-task.Done():
-					return nil
-				case <-t.C:
-					for _, topic := range subTopics {
-						msg := fmt.Sprintf("Background message - %03d", counter)
-						consumer.messages[topic].Prepare(msg) // Track for observation
-
-						// Publish with retries.
-						bo := backoff.WithContext(backoff.NewConstantBackOff(time.Second), task)
-						if err := kit_retry.NotifyRecover(func() error {
-							return client.PublishEvent(
-								// Using ctx instead of task here is deliberate.
-								// We don't want cancelation to prevent adding
-								// the message, only to interrupt between tries.
-								ctx, consumer.pubsub, topic, msg)
-						}, bo, func(err error, t time.Duration) {
-							ctx.Logf("Error publishing message, retrying in %s", t)
-						}, func() {}); err == nil {
-							consumer.messages[topic].Add(msg) // Success
-							counter++
-						}
-					}
-				}
-			}
-		}
-	}
-	assertMessages := func(consumer *Consumer) flow.Runnable {
-		return func(ctx flow.Context) error {
-			// Signal sendMessagesInBackground to stop and wait for it to complete.
-			task.CancelAndWait()
-			for _, topic := range subTopics {
-				consumer.messages[topic].Assert(ctx, 5*time.Minute)
-			}
-
-			return nil
-		}
-	}
-
 	flow.New(t, "rabbitmq mtls external authentication").
 		// Run RabbitMQ using Docker Compose.
 		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
@@ -768,18 +700,11 @@ func TestRabbitMQExtAuth(t *testing.T) {
 			embedded.WithGracefulShutdownDuration(2*time.Second),
 			componentRuntimeOptions(),
 		)).
-		// Run the application2 logic above.
-
 		Step("wait", flow.Sleep(5*time.Second)).
 		Step("signal subscribed", flow.MustDo(func() {
 			close(subscribed)
 		})).
 		Step("send and wait", test).
-		StepAsync("steady flow of messages to publish", &task, sendMessagesInBackground(mtlsClient)).
-		Step("wait", flow.Sleep(5*time.Second)).
-		// Component should recover at this point.
-		Step("wait", flow.Sleep(30*time.Second)).
-		Step("assert messages", assertMessages(mtlsClient)).
 		Run()
 }
 

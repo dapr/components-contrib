@@ -18,16 +18,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"github.com/cenkalti/backoff/v4"
-	"github.com/dapr/components-contrib/tests/certification/embedded"
-	"github.com/dapr/components-contrib/tests/certification/flow/app"
-	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
-	"github.com/dapr/components-contrib/tests/certification/flow/simulate"
-	daprClient "github.com/dapr/go-sdk/client"
-	"github.com/dapr/go-sdk/service/common"
-	kit_retry "github.com/dapr/kit/retry"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/multierr"
 	"log"
 	"math/rand"
 	"os"
@@ -36,18 +26,26 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
+	"github.com/dapr/go-sdk/service/common"
 	amqp "github.com/rabbitmq/amqp091-go"
-	// Pub/Sub.
+	"github.com/stretchr/testify/require"
+	"go.uber.org/multierr"
 
 	pubsub_rabbitmq "github.com/dapr/components-contrib/pubsub/rabbitmq"
-	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
-	"github.com/dapr/dapr/pkg/runtime"
-	"github.com/dapr/kit/logger"
-
+	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
+	"github.com/dapr/components-contrib/tests/certification/flow/app"
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
 	"github.com/dapr/components-contrib/tests/certification/flow/retry"
+	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
+	"github.com/dapr/components-contrib/tests/certification/flow/simulate"
 	"github.com/dapr/components-contrib/tests/certification/flow/watcher"
+	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
+	"github.com/dapr/dapr/pkg/runtime"
+	daprClient "github.com/dapr/go-sdk/client"
+	"github.com/dapr/kit/logger"
+	kit_retry "github.com/dapr/kit/retry"
 )
 
 const (

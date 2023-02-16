@@ -669,7 +669,6 @@ jobs:
       if: always()
       run: |
        mkdir -p tmp/cov_files
-       mkdir -p tmp/certtest_files
        echo "${{ env.COVERAGE_LINE }}" >> tmp/cov_files/${{ env.SOURCE_PATH_LINEAR }}.txt
 
     - name: Upload Conf Coverage Artifact
@@ -679,18 +678,6 @@ jobs:
         name: conftest_cov
         path: tmp/cov_files
         retention-days: 1
-
-    #download artifacts from certification test
-    - name: Download workflow artifact
-      if: always()
-      uses: dawidd6/action-download-artifact@v2.24.3
-      with:
-        workflow: certification.yml
-        workflow_conclusion: ""
-        branch: master
-        if_no_artifact_found: warn
-        name: certtest_cov
-        path: tmp/certtest_files
 
     # Upload logs for test analytics to consume
     - name: Upload test results
@@ -725,6 +712,23 @@ jobs:
         with:
           name: result_files
           path: tmp/result_files
+
+      - name: Create folder for downloaded cert test artifacts
+        run: |
+          mkdir -p temp/certtest_files
+
+       #download artifacts from certification test
+      - name: Download workflow artifact
+        if: always()
+        uses: dawidd6/action-download-artifact@v2.24.3
+        with:
+         workflow: certification.yml
+         workflow_conclusion: ""
+         branch: master
+         if_no_artifact_found: warn
+         name: certtest_cov
+         path: tmp/certtest_files
+      
 
       - name: Build message
         if: always() && env.PR_NUMBER != ''

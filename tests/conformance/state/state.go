@@ -807,7 +807,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				})
 				require.NoError(t, err)
 				return res.Data == nil
-			}, time.Second*70, 200*time.Millisecond, "expected object to have been deleted in time")
+			}, time.Second*3, 200*time.Millisecond, "expected object to have been deleted in time")
 		})
 	}
 }

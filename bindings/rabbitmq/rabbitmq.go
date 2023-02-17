@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -50,6 +52,9 @@ type RabbitMQ struct {
 	metadata   rabbitMQMetadata
 	logger     logger.Logger
 	queue      amqp.Queue
+	closed     atomic.Bool
+	closeCh    chan struct{}
+	wg         sync.WaitGroup
 }
 
 // Metadata is the rabbitmq config.
@@ -66,11 +71,14 @@ type rabbitMQMetadata struct {
 
 // NewRabbitMQ returns a new rabbitmq instance.
 func NewRabbitMQ(logger logger.Logger) bindings.InputOutputBinding {
-	return &RabbitMQ{logger: logger}
+	return &RabbitMQ{
+		logger:  logger,
+		closeCh: make(chan struct{}),
+	}
 }
 
 // Init does metadata parsing and connection creation.
-func (r *RabbitMQ) Init(metadata bindings.Metadata) error {
+func (r *RabbitMQ) Init(_ context.Context, metadata bindings.Metadata) error {
 	err := r.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -226,6 +234,10 @@ func (r *RabbitMQ) declareQueue() (amqp.Queue, error) {
 }
 
 func (r *RabbitMQ) Read(ctx context.Context, handler bindings.Handler) error {
+	if r.closed.Load() {
+		return errors.New("binding already closed")
+	}
+
 	msgs, err := r.channel.Consume(
 		r.queue.Name,
 		"",
@@ -239,14 +251,27 @@ func (r *RabbitMQ) Read(ctx context.Context, handler bindings.Handler) error {
 		return err
 	}
 
+	readCtx, cancel := context.WithCancel(ctx)
+
+	r.wg.Add(2)
 	go func() {
+		defer r.wg.Done()
+		defer cancel()
+		select {
+		case <-r.closeCh:
+		case <-readCtx.Done():
+		}
+	}()
+
+	go func() {
+		defer r.wg.Done()
 		var err error
 		for {
 			select {
-			case <-ctx.Done():
+			case <-readCtx.Done():
 				return
 			case d := <-msgs:
-				_, err = handler(ctx, &bindings.ReadResponse{
+				_, err = handler(readCtx, &bindings.ReadResponse{
 					Data: d.Body,
 				})
 				if err != nil {
@@ -259,4 +284,12 @@ func (r *RabbitMQ) Read(ctx context.Context, handler bindings.Handler) error {
 	}()
 
 	return nil
+}
+
+func (r *RabbitMQ) Close() error {
+	if r.closed.CompareAndSwap(false, true) {
+		close(r.closeCh)
+	}
+	defer r.wg.Wait()
+	return r.channel.Close()
 }

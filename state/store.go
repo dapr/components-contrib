@@ -23,7 +23,7 @@ import (
 // Store is an interface to perform operations on store.
 type Store interface {
 	BulkStore
-	Init(metadata Metadata) error
+	Init(ctx context.Context, metadata Metadata) error
 	Features() []Feature
 	Delete(ctx context.Context, req *DeleteRequest) error
 	Get(ctx context.Context, req *GetRequest) (*GetResponse, error)
@@ -31,10 +31,10 @@ type Store interface {
 	GetComponentMetadata() map[string]string
 }
 
-func Ping(store Store) error {
+func Ping(ctx context.Context, store Store) error {
 	// checks if this store has the ping option then executes
 	if storeWithPing, ok := store.(health.Pinger); ok {
-		return storeWithPing.Ping()
+		return storeWithPing.Ping(ctx)
 	} else {
 		return fmt.Errorf("ping is not implemented by this state store")
 	}

@@ -81,7 +81,7 @@ func TestInit(t *testing.T) {
 			"accessKeyId":     "a",
 			"accessKeySecret": "a",
 		}
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.Nil(t, err)
 	})
 
@@ -90,7 +90,7 @@ func TestInit(t *testing.T) {
 			"accessKeyId":     "a",
 			"accessKeySecret": "a",
 		}
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.NotNil(t, err)
 	})
 }
@@ -208,7 +208,7 @@ func TestBulkGetSecret(t *testing.T) {
 func TestGetFeatures(t *testing.T) {
 	m := secretstores.Metadata{}
 	s := NewParameterStore(logger.NewLogger("test"))
-	s.Init(m)
+	s.Init(context.Background(), m)
 	t.Run("no features are advertised", func(t *testing.T) {
 		f := s.Features()
 		assert.Empty(t, f)

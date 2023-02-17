@@ -187,7 +187,7 @@ func parseNATSStreamingMetadata(meta pubsub.Metadata) (metadata, error) {
 	return m, nil
 }
 
-func (n *natsStreamingPubSub) Init(metadata pubsub.Metadata) error {
+func (n *natsStreamingPubSub) Init(_ context.Context, metadata pubsub.Metadata) error {
 	m, err := parseNATSStreamingMetadata(metadata)
 	if err != nil {
 		return err

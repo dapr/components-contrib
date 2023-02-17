@@ -47,7 +47,7 @@ type Metadata struct {
 	AutoDeleteOnIdleInSec           *int   `json:"autoDeleteOnIdleInSec"`         // Only used during subscription creation - default is set by the server (disabled)
 	MaxConcurrentHandlers           int    `json:"maxConcurrentHandlers"`
 	PublishMaxRetries               int    `json:"publishMaxRetries"`
-	PublishInitialRetryIntervalInMs int    `json:"publishInitialRetryInternalInMs"`
+	PublishInitialRetryIntervalInMs int    `json:"publishInitialRetryIntervalInMs"`
 	NamespaceName                   string `json:"namespaceName"` // Only for Azure AD
 
 	/** For bindings only **/
@@ -72,7 +72,7 @@ const (
 	keyAutoDeleteOnIdleInSec           = "autoDeleteOnIdleInSec"
 	keyMaxConcurrentHandlers           = "maxConcurrentHandlers"
 	keyPublishMaxRetries               = "publishMaxRetries"
-	keyPublishInitialRetryInternalInMs = "publishInitialRetryInternalInMs"
+	keyPublishInitialRetryIntervalInMs = "publishInitialRetryIntervalInMs" // Alias: "publishInitialRetryInternalInMs" (backwards compatibility due to typo)
 	keyNamespaceName                   = "namespaceName"
 	keyQueueName                       = "queueName"
 )
@@ -107,7 +107,7 @@ const (
 	defaultMaxConcurrentHandlersBinding = 1 // Limited to 1 for backwards-compatibility.
 
 	defaultPublishMaxRetries               = 5
-	defaultPublishInitialRetryInternalInMs = 500
+	defaultPublishInitialRetryIntervalInMs = 500
 )
 
 // Modes for ParseMetadata.
@@ -248,11 +248,19 @@ func ParseMetadata(md map[string]string, logger logger.Logger, mode byte) (m *Me
 		}
 	}
 
-	m.PublishInitialRetryIntervalInMs = defaultPublishInitialRetryInternalInMs
-	if val, ok := md[keyPublishInitialRetryInternalInMs]; ok && val != "" {
+	// This metadata property has an alias "publishInitialRetryInternalInMs" because of a typo in a previous version of Dapr
+	m.PublishInitialRetryIntervalInMs = defaultPublishInitialRetryIntervalInMs
+	if val, ok := md[keyPublishInitialRetryIntervalInMs]; ok && val != "" {
 		m.PublishInitialRetryIntervalInMs, err = strconv.Atoi(val)
 		if err != nil {
 			return m, fmt.Errorf("invalid publishInitialRetryIntervalInMs %s: %s", val, err)
+		}
+	} else if val, ok := md["publishInitialRetryInternalInMs"]; ok && val != "" {
+		// TODO: Remove in a future Dapr release
+		logger.Warn("Found deprecated metadata property 'publishInitialRetryInternalInMs'; please use 'publishInitialRetryIntervalInMs'")
+		m.PublishInitialRetryIntervalInMs, err = strconv.Atoi(val)
+		if err != nil {
+			return m, fmt.Errorf("invalid publishInitialRetryInternalInMs %s: %s", val, err)
 		}
 	}
 

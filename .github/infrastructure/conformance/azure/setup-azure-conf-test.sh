@@ -36,6 +36,10 @@ do
         NGROK_TOKEN="${opt#*=}"
         ;;
 
+    --admin-id=*)
+        ADMIN_ID="${opt#*=}"
+        ;;
+
     --outpath=*)
         OUTPUT_PATH="${opt#*=}"
         ;;
@@ -116,6 +120,9 @@ OPTIONS:
                     needed for setting AzureEventGridNgrokToken in the KeyVault,
                     which is used by the GitHub workflow for the EventGrid
                     bindings conformance test.
+    --admin-id      Optional. Sets the Object ID of the admin user to the given
+                    value. Useful if querying the directory using the UPN is
+                    failing.
 EOF
     exit $ERR
 fi
@@ -153,6 +160,7 @@ echo "DEPLOY_LOCATION=${DEPLOY_LOCATION}"
 echo "OUTPUT_PATH=${OUTPUT_PATH}"
 echo "NGROK_TOKEN=${NGROK_TOKEN}"
 echo "CREDENTIALS_PATH=${CREDENTIALS_PATH}"
+echo "ADMIN_ID=${ADMIN_ID}"
 
 ##==============================================================================
 ##
@@ -200,7 +208,6 @@ CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICACTIVE_CONNECTION_STRING_VAR_NAME="AzureEve
 CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICMULTI1_VAR_NAME="AzureEventHubsPubsubTopicMulti1Name"
 CERTIFICATION_EVENT_HUBS_PUBSUB_TOPICMULTI2_VAR_NAME="AzureEventHubsPubsubTopicMulti2Name"
 
-
 IOT_HUB_NAME_VAR_NAME="AzureIotHubName"
 IOT_HUB_EVENT_HUB_CONNECTION_STRING_VAR_NAME="AzureIotHubEventHubConnectionString"
 IOT_HUB_BINDINGS_CONSUMER_GROUP_VAR_NAME="AzureIotHubBindingsConsumerGroup"
@@ -228,10 +235,13 @@ STORAGE_CONTAINER_VAR_NAME="AzureBlobStorageContainer"
 STORAGE_QUEUE_VAR_NAME="AzureBlobStorageQueue"
 
 # Derived variables
-ADMIN_ID="$(az ad user list --filter "userPrincipalName eq '${ADMIN_UPN}'" --query "[].id" --output tsv)"
 if [[ -z "${ADMIN_ID}" ]]; then
-    echo "Could not find user with upn ${ADMIN_UPN}"
-    exit 1
+    # If the user did not pass an admin ID, look it up in the directory
+    ADMIN_ID="$(az ad user list --filter "userPrincipalName eq '${ADMIN_UPN}'" --query "[].id" --output tsv)"
+    if [[ -z "${ADMIN_ID}" ]]; then
+        echo "Could not find user with upn ${ADMIN_UPN}"
+        exit 1
+    fi
 fi
 SUB_ID="$(az account show --query "id" --output tsv)"
 TENANT_ID="$(az account show --query "tenantId" --output tsv)"
@@ -263,6 +273,7 @@ if [[ -n ${CREDENTIALS_PATH} ]]; then
 else
     SDK_AUTH_SP_NAME="${PREFIX}-conf-test-runner-sp"
     SDK_AUTH_SP_INFO="$(az ad sp create-for-rbac --name "${SDK_AUTH_SP_NAME}" --sdk-auth --years 1)"
+    SDK_AUTH_SP_APPID="$(echo "${SDK_AUTH_SP_INFO}" | jq -r '.clientId')"
     SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | jq -r '.clientSecret')"
     SDK_AUTH_SP_ID="$(az ad sp list --display-name "${SDK_AUTH_SP_NAME}" --query "[].id" --output tsv)"
     echo "${SDK_AUTH_SP_INFO}"
@@ -393,6 +404,27 @@ EVENT_GRID_SCOPE="/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}
 # MSYS_NO_PATHCONV is needed to prevent MSYS in Git Bash from converting the scope string to a local filesystem path and is benign on Linux
 echo "Assigning \"EventGrid EventSubscription Contributor\" role to ${SDK_AUTH_SP_NAME} in scope \"${EVENT_GRID_SCOPE}\"..."
 MSYS_NO_PATHCONV=1 az role assignment create --assignee "${SDK_AUTH_SP_ID}" --role "EventGrid EventSubscription Contributor" --scope "${EVENT_GRID_SCOPE}"
+
+# The following lines have been commented out because not all steps can be performed with the Azure CLI yet, so we need to use PowerShell instead
+# However, saving the code here to get a headstart for the future
+# Creates Azure Event Grid service principal if not exists
+# echo "Creating service principal for Microsoft.EventGrid"
+# # Note this appId is a "constant"
+# EVENTGRID_SP_ID=$(az ad sp list --filter "appId eq '4962773b-9cdb-44cf-a8bf-237846a00ab7'" --query "[].id" --output tsv)
+# if [[ -z "${EVENTGRID_SP_ID}" ]]; then
+#     az ad sp create --id "4962773b-9cdb-44cf-a8bf-237846a00ab7"
+#     EVENTGRID_SP_ID=$(az ad sp list --filter "appId eq '4962773b-9cdb-44cf-a8bf-237846a00ab7'" --query "[].id" --output tsv)
+#     echo "Service Principal Microsoft.EventGrid created with ID ${EVENTGRID_SP_ID}"
+# else
+#     echo "Service Principal Microsoft.EventGrid already exists with ID ${EVENTGRID_SP_ID}"
+# fi
+#
+# # Assign the required app role to the SDK auth Service Principal so it can be used with EventGrid binding conformance tests.
+# echo "Assigning \"AzureEventGridSecureWebhookSubscriber\" app role to app ${SDK_AUTH_SP_NAME} (${SDK_AUTH_SP_APPID}) if it doesn't already exist"
+# az ad app show --id "${SDK_AUTH_SP_APPID}" | \
+#     jq -er '.appRoles | map(select(.value == "AzureEventGridSecureWebhookSubscriber"))[0] | .id' && \
+#     echo "App role already exists" || \
+#     az ad app update --id "${SDK_AUTH_SP_APPID}" --app-roles '[{"allowedMemberTypes":["User","Application"],"description":"Azure Event Grid Role","displayName":"AzureEventGridSecureWebhookSubscriber","isEnabled":true,"value":"AzureEventGridSecureWebhookSubscriber"}]'
 
 # Add Contributor role to the SDK auth Service Principal so it can add devices to the Azure IoT Hub for tests.
 IOT_HUB_SCOPE="/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.Devices/IotHubs/${IOT_HUB_NAME}"

@@ -7,7 +7,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.2.0
 	github.com/dapr/components-contrib v1.10.0-rc.2
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20220519061249-c2cb1dad5bb0
-	github.com/dapr/dapr v1.10.0-rc.2
+	github.com/dapr/dapr v1.10.0-rc.1.0.20230217011342-3a5aac4414bd
 	github.com/dapr/go-sdk v1.7.0
 	github.com/dapr/kit v0.0.4
 	github.com/google/uuid v1.3.0
@@ -65,6 +65,7 @@ require (
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.1 // indirect
 	github.com/hashicorp/serf v0.10.1 // indirect
 	github.com/imdario/mergo v0.3.13 // indirect
 	github.com/jcmturner/aescts/v2 v2.0.0 // indirect
@@ -161,5 +162,3 @@ require (
 replace github.com/dapr/components-contrib/tests/certification => ../../
 
 replace github.com/dapr/components-contrib => ../../../../
-
-replace github.com/dapr/dapr => github.com/JoshVanL/dapr v0.0.0-20230206115221-708ff00f7181

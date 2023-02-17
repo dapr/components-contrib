@@ -576,4 +576,4 @@ if (argv.length < 4 || !['true', 'false'].includes(argv[3])) {
 const matrixObj = GenerateMatrix(argv[2], argv[3] == 'true')
 console.log('Generated matrix:\n\n' + JSON.stringify(matrixObj, null, '  '))
 
-writeFileSync(env.GITHUB_OUTPUT, JSON.stringify(matrixObj))
+writeFileSync(env.GITHUB_OUTPUT, 'test-matrix='+JSON.stringify(matrixObj))

@@ -263,10 +263,11 @@ const components = {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redisjson redis',
     },
-    'pubsub.redis.v7': {
+    // This test is currently disabled due to issues with Redis v7
+    /*'pubsub.redis.v7': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redis7 redis',
-    },
+    },*/
     'pubsub.solace': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh solace',

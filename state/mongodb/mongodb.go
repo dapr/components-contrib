@@ -223,25 +223,28 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 	}
 
 	update := mongo.Pipeline{
-		{{"$set", bson.D{
-			{id, req.Key},
-			{value, v},
-			{etag, etagV.String()},
+		bson.D{{Key: "$set", Value: bson.D{
+			{Key: id, Value: req.Key},
+			{Key: value, Value: v},
+			{Key: etag, Value: etagV.String()},
 		}}},
 	}
 
 	if reqTTL != nil {
-		update = append(update, primitive.D{{"$addFields", bson.D{
-			{daprttl, bson.D{
-				{"$dateAdd",
-					bson.D{{"startDate", "$$NOW"}, {"unit", "second"}, {"amount", *reqTTL}},
+		update = append(update, primitive.D{{Key: "$addFields", Value: bson.D{
+			{Key: daprttl, Value: bson.D{
+				{Key: "$dateAdd", Value: bson.D{
+					{Key: "startDate", Value: "$$NOW"},
+					{Key: "unit", Value: "second"},
+					{Key: "amount", Value: *reqTTL}},
 				},
 			}},
 		}}})
 	} else {
-		update = append(update, primitive.D{{"$addFields", bson.D{
-			{daprttl, nil},
-		}}})
+		update = append(update, primitive.D{
+			{Key: "$addFields", Value: bson.D{
+				{Key: daprttl, Value: nil},
+			}}})
 	}
 
 	_, err = m.collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
@@ -258,12 +261,12 @@ func (m *MongoDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetRes
 	// is reached, we need to filter out the documents with TTL value less than
 	// the current time.
 	filter := bson.D{
-		{"$and", bson.A{
-			bson.D{{id, bson.M{"$eq": req.Key}}},
-			bson.D{{"$expr", bson.D{
-				bson.E{"$or", bson.A{
-					bson.D{{"$eq", bson.A{daprttlDollar, primitive.Null{}}}},
-					bson.D{{"$gte", bson.A{daprttlDollar, "$$NOW"}}},
+		{Key: "$and", Value: bson.A{
+			bson.D{{Key: id, Value: bson.M{"$eq": req.Key}}},
+			bson.D{{Key: "$expr", Value: bson.D{
+				{Key: "$or", Value: bson.A{
+					bson.D{{Key: "$eq", Value: bson.A{daprttlDollar, primitive.Null{}}}},
+					bson.D{{Key: "$gte", Value: bson.A{daprttlDollar, "$$NOW"}}},
 				}},
 			}}},
 		}},

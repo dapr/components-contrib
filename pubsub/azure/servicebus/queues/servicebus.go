@@ -208,13 +208,12 @@ func (a *azureServiceBus) doSubscribe(
 func (a *azureServiceBus) Close() (err error) {
 	defer a.wg.Done()
 
-	if !a.closed.CompareAndSwap(false, true) {
-		return nil
+	if a.closed.CompareAndSwap(false, true) {
+		close(a.closeCh)
 	}
 
-	close(a.closeCh)
+	a.client.CloseAllSenders(a.logger)
 
-	a.client.Close(a.logger)
 	return nil
 }
 

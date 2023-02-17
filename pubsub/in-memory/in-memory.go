@@ -59,7 +59,7 @@ func (a *bus) Init(_ context.Context, metadata pubsub.Metadata) error {
 
 func (a *bus) Publish(_ context.Context, req *pubsub.PublishRequest) error {
 	if a.closed.Load() {
-		return errors.New("pubsub is closed")
+		return errors.New("component is closed")
 	}
 
 	a.bus.Publish(req.Topic, req.Data)
@@ -69,7 +69,7 @@ func (a *bus) Publish(_ context.Context, req *pubsub.PublishRequest) error {
 
 func (a *bus) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if a.closed.Load() {
-		return errors.New("pubsub is closed")
+		return errors.New("component is closed")
 	}
 
 	// For this component we allow built-in retries because it is backed by memory

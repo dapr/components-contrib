@@ -238,7 +238,7 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 // Publish the topic to GCP Pubsub.
 func (g *GCPPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if g.closed.Load() {
-		return errors.New("pubsub is closed")
+		return errors.New("component is closed")
 	}
 
 	if !g.metadata.DisableEntityManagement {
@@ -260,7 +260,7 @@ func (g *GCPPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) err
 // Subscribe to the GCP Pubsub topic.
 func (g *GCPPubSub) Subscribe(parentCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if g.closed.Load() {
-		return errors.New("pubsub is closed")
+		return errors.New("component is closed")
 	}
 
 	if !g.metadata.DisableEntityManagement {

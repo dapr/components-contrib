@@ -249,7 +249,7 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 
 func (r *rabbitMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if r.closed.Load() {
-		return errors.New("pubsub is closed")
+		return errors.New("component is closed")
 	}
 
 	r.logger.Debugf("%s publishing message to %s", logMessagePrefix, req.Topic)
@@ -287,7 +287,7 @@ func (r *rabbitMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) erro
 
 func (r *rabbitMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if r.closed.Load() {
-		return errors.New("pubsub is closed")
+		return errors.New("component is closed")
 	}
 
 	if r.metadata.consumerID == "" {

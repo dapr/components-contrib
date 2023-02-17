@@ -163,7 +163,7 @@ func (r *redisStreams) Init(ctx context.Context, metadata pubsub.Metadata) error
 
 func (r *redisStreams) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if r.closed.Load() {
-		return errors.New("pubsub is closed")
+		return errors.New("component is closed")
 	}
 
 	_, err := r.client.XAdd(ctx, req.Topic, r.metadata.maxLenApprox, map[string]interface{}{"data": req.Data})
@@ -176,7 +176,7 @@ func (r *redisStreams) Publish(ctx context.Context, req *pubsub.PublishRequest) 
 
 func (r *redisStreams) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if r.closed.Load() {
-		return errors.New("pubsub is closed")
+		return errors.New("component is closed")
 	}
 
 	err := r.client.XGroupCreateMkStream(ctx, req.Topic, r.metadata.consumerID, "0")

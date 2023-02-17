@@ -602,7 +602,9 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 			if err == context.Canceled || err == context.DeadlineExceeded {
 				s.logger.Warn("context canceled; stopping consuming from queue arn: %v", queueInfo.arn)
 				continue
-			} else if awsErr, ok := err.(awserr.Error); ok {
+			}
+			
+			if awsErr, ok := err.(awserr.Error); ok {
 				s.logger.Errorf("AWS operation error while consuming from queue arn: %v with error: %w. retrying...", queueInfo.arn, awsErr.Error())
 			} else {
 				s.logger.Errorf("error consuming from queue arn: %v with error: %w. retrying...", queueInfo.arn, err)
@@ -756,7 +758,7 @@ func (s *snsSqs) restrictQueuePublishPolicyToOnlySNS(parentCtx context.Context, 
 
 func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if s.closed.Load() {
-		return errors.New("pubsub is closed")
+		return errors.New("component is closed")
 	}
 
 	// subscribers declare a topic ARN and declare a SQS queue to use
@@ -883,7 +885,7 @@ func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 
 func (s *snsSqs) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if s.closed.Load() {
-		return errors.New("pubsub is closed")
+		return errors.New("component is closed")
 	}
 
 	topicArn, _, err := s.getOrCreateTopic(ctx, req.Topic)

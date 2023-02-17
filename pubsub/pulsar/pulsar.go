@@ -225,7 +225,7 @@ func (p *Pulsar) Init(_ context.Context, metadata pubsub.Metadata) error {
 
 func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if p.closed.Load() {
-		return errors.New("pubsub is closed")
+		return errors.New("component is closed")
 	}
 
 	var (
@@ -333,7 +333,7 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 
 func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if p.closed.Load() {
-		return errors.New("pubsub is closed")
+		return errors.New("component is closed")
 	}
 
 	channel := make(chan pulsar.ConsumerMessage, 100)

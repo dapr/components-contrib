@@ -227,7 +227,7 @@ func (n *natsStreamingPubSub) Init(_ context.Context, metadata pubsub.Metadata) 
 
 func (n *natsStreamingPubSub) Publish(_ context.Context, req *pubsub.PublishRequest) error {
 	if n.closed.Load() {
-		return errors.New("pubsub is closed")
+		return errors.New("component is closed")
 	}
 
 	err := n.natStreamingConn.Publish(req.Topic, req.Data)
@@ -240,7 +240,7 @@ func (n *natsStreamingPubSub) Publish(_ context.Context, req *pubsub.PublishRequ
 
 func (n *natsStreamingPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if n.closed.Load() {
-		return errors.New("pubsub is closed")
+		return errors.New("component is closed")
 	}
 
 	natStreamingsubscriptionOptions, err := n.subscriptionOptions()

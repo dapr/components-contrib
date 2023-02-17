@@ -316,7 +316,7 @@ func (r *rocketMQ) resetProducer() {
 
 func (r *rocketMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if r.closed.Load() {
-		return errors.New("pubsub is closed")
+		return errors.New("component is closed")
 	}
 
 	r.logger.Debugf("rocketmq publish topic:%s with data:%v", req.Topic, req.Data)
@@ -350,7 +350,7 @@ func (r *rocketMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) erro
 
 func (r *rocketMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if r.closed.Load() {
-		return errors.New("pubsub is closed")
+		return errors.New("component is closed")
 	}
 
 	selector, e := buildMessageSelector(req)

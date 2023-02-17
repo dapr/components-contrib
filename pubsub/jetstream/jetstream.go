@@ -109,7 +109,7 @@ func (js *jetstreamPubSub) Features() []pubsub.Feature {
 
 func (js *jetstreamPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if js.closed.Load() {
-		return errors.New("pubsub is closed")
+		return errors.New("component is closed")
 	}
 
 	var opts []nats.PubOpt
@@ -138,7 +138,7 @@ func (js *jetstreamPubSub) Publish(ctx context.Context, req *pubsub.PublishReque
 
 func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if js.closed.Load() {
-		return errors.New("pubsub is closed")
+		return errors.New("component is closed")
 	}
 
 	var consumerConfig nats.ConsumerConfig

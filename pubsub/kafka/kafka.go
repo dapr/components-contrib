@@ -42,7 +42,7 @@ func (p *PubSub) Init(ctx context.Context, metadata pubsub.Metadata) error {
 
 func (p *PubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if p.closed.Load() {
-		return errors.New("pubsub is closed")
+		return errors.New("component is closed")
 	}
 
 	handlerConfig := kafka.SubscriptionHandlerConfig{
@@ -56,7 +56,7 @@ func (p *PubSub) BulkSubscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	handler pubsub.BulkHandler,
 ) error {
 	if p.closed.Load() {
-		return errors.New("pubsub is closed")
+		return errors.New("component is closed")
 	}
 
 	subConfig := pubsub.BulkSubscribeConfig{
@@ -115,7 +115,7 @@ func NewKafka(logger logger.Logger) pubsub.PubSub {
 // Publish message to Kafka cluster.
 func (p *PubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if p.closed.Load() {
-		return errors.New("pubsub is closed")
+		return errors.New("component is closed")
 	}
 
 	return p.kafka.Publish(ctx, req.Topic, req.Data, req.Metadata)
@@ -124,7 +124,7 @@ func (p *PubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 // BatchPublish messages to Kafka cluster.
 func (p *PubSub) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
 	if p.closed.Load() {
-		return pubsub.BulkPublishResponse{}, errors.New("pubsub is closed")
+		return pubsub.BulkPublishResponse{}, errors.New("component is closed")
 	}
 
 	return p.kafka.BulkPublish(ctx, req.Topic, req.Entries, req.Metadata)

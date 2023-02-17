@@ -169,7 +169,7 @@ func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiv
 			data := msg.GetData()
 
 			// if data is empty, then check the value field for data
-			if data == nil || len(data) == 0 {
+			if len(data) == 0 {
 				data = []byte(fmt.Sprint(msg.Value))
 			}
 
@@ -256,7 +256,7 @@ func (a *amqpPubSub) createClientOptions(uri *url.URL) amqp.ConnOptions {
 
 	switch scheme {
 	case "amqp":
-		if a.metadata.anonymous == true {
+		if a.metadata.anonymous {
 			opts.SASLType = amqp.SASLTypeAnonymous()
 		} else {
 			opts.SASLType = amqp.SASLTypePlain(a.metadata.username, a.metadata.password)

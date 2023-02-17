@@ -159,8 +159,8 @@ const components = {
         certification: true,
         requireAWSCredentials: true,
         requireTerraform: true,
-        certificationSetup: 'certification-state.aws.snssqs-setup.sh',
-        certificationDestroy: 'certification-state.aws.snssqs-destroy.sh',
+        certificationSetup: 'certification-pubsub.aws.snssqs-setup.sh',
+        certificationDestroy: 'certification-pubsub.aws.snssqs-destroy.sh',
     },
     'pubsub.aws.snssqs.docker': {
         conformance: true,
@@ -170,8 +170,8 @@ const components = {
         conformance: true,
         requireAWSCredentials: true,
         requireTerraform: true,
-        conformanceSetup: 'conformance-state.aws.snssqs.terraform-setup.sh',
-        conformanceDestroy: 'conformance-state.aws.snssqs.terraform-destroy.sh',
+        conformanceSetup: 'conformance-pubsub.aws.snssqs.terraform-setup.sh',
+        conformanceDestroy: 'conformance-pubsub.aws.snssqs.terraform-destroy.sh',
     },
     'pubsub.azure.eventhubs': {
         conformance: true,
@@ -201,9 +201,9 @@ const components = {
         conformance: true,
         certification: true,
         requiredSecrets: [
-            'zureServiceBusConnectionString',
+            'AzureServiceBusConnectionString',
             'AzureServiceBusNamespace',
-            ' AzureCertificationTenantId',
+            'AzureCertificationTenantId',
             'AzureCertificationServicePrincipalClientId',
             'AzureCertificationServicePrincipalClientSecret',
         ],

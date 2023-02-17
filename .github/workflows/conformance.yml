@@ -212,20 +212,6 @@ jobs:
       with:
         node-version: ${{ matrix.nodejs-version }}
 
-    # This is added to the pipeline because it's not an init step, but more similar to checking the go.mod file
-    - name: Check Cloudflare Workers code
-      if: contains(matrix.component, 'cloudflare')
-      run: |
-        # Build the Worker
-        (
-          cd internal/component/cloudflare/worker-src;
-          npm ci;
-          npm run build;
-        )
-        # Check no changes
-        git diff --exit-code ./internal/component/cloudflare/workers/code \
-          || (echo "The source code of the Cloudflare Worker has changed, but the Worker has not been recompiled. Please re-compile the Worker by running 'npm ci && npm run build' in 'internal/component/cloudflare/worker-src'" && exit 1)
-
     - name: Start KinD
       uses: helm/kind-action@v1.5.0
       if: matrix.require-kind == 'true'

@@ -30,10 +30,9 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/mitchellh/mapstructure"
-
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/internal/utils"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -60,12 +59,13 @@ type HTTPSource struct {
 }
 
 type httpMetadata struct {
-	URL                 string `mapstructure:"url"`
-	MTLSClientCert      string `mapstructure:"mtlsClientCert"`
-	MTLSClientKey       string `mapstructure:"mtlsClientKey"`
-	MTLSRootCA          string `mapstructure:"mtlsRootCA"`
-	SecurityToken       string `mapstructure:"securityToken"`
-	SecurityTokenHeader string `mapstructure:"securityTokenHeader"`
+	URL                 string         `mapstructure:"url"`
+	MTLSClientCert      string         `mapstructure:"mtlsClientCert"`
+	MTLSClientKey       string         `mapstructure:"mtlsClientKey"`
+	MTLSRootCA          string         `mapstructure:"mtlsRootCA"`
+	SecurityToken       string         `mapstructure:"securityToken"`
+	SecurityTokenHeader string         `mapstructure:"securityTokenHeader"`
+	ResponseTimeout     *time.Duration `mapstructure:"responseTimeout"`
 }
 
 // NewHTTP returns a new HTTPSource.
@@ -74,11 +74,12 @@ func NewHTTP(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init performs metadata parsing.
-func (h *HTTPSource) Init(_ context.Context, metadata bindings.Metadata) error {
+func (h *HTTPSource) Init(_ context.Context, meta bindings.Metadata) error {
 	var err error
-	if err = mapstructure.Decode(metadata.Properties, &h.metadata); err != nil {
+	if err = metadata.DecodeMetadata(meta.Properties, &h.metadata); err != nil {
 		return err
 	}
+
 	var tlsConfig *tls.Config
 	if h.metadata.MTLSClientCert != "" && h.metadata.MTLSClientKey != "" {
 		tlsConfig, err = h.readMTLSCertificates()
@@ -100,11 +101,11 @@ func (h *HTTPSource) Init(_ context.Context, metadata bindings.Metadata) error {
 		netTransport.TLSClientConfig = tlsConfig
 	}
 	h.client = &http.Client{
-		Timeout:   time.Second * 30,
+		Timeout:   0, // no time out here, we use request timeouts instead
 		Transport: netTransport,
 	}
 
-	if val := metadata.Properties["errorIfNot2XX"]; val != "" {
+	if val := meta.Properties["errorIfNot2XX"]; val != "" {
 		h.errorIfNot2XX = utils.IsTruthy(val)
 	} else {
 		// Default behavior
@@ -186,7 +187,7 @@ func (h *HTTPSource) Operations() []bindings.OperationKind {
 }
 
 // Invoke performs an HTTP request to the configured HTTP endpoint.
-func (h *HTTPSource) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (h *HTTPSource) Invoke(parentCtx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	u := h.metadata.URL
 
 	errorIfNot2XX := h.errorIfNot2XX // Default to the component config (default is true)
@@ -220,6 +221,15 @@ func (h *HTTPSource) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 	case "GET", "HEAD", "DELETE", "OPTIONS", "TRACE":
 	default:
 		return nil, fmt.Errorf("invalid operation: %s", req.Operation)
+	}
+
+	var ctx context.Context
+	if h.metadata.ResponseTimeout == nil {
+		ctx = parentCtx
+	} else {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(parentCtx, *h.metadata.ResponseTimeout)
+		defer cancel()
 	}
 
 	request, err := http.NewRequestWithContext(ctx, method, u, body)

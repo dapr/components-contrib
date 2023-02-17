@@ -1355,6 +1355,7 @@ func TestServicebusWithSessionsRoundRobin(t *testing.T) {
 
 func componentRuntimeOptions() []runtime.Option {
 	log := logger.NewLogger("dapr.components")
+	log.SetOutputLevel(logger.DebugLevel)
 
 	pubsubRegistry := pubsub_loader.NewRegistry()
 	pubsubRegistry.Logger = log

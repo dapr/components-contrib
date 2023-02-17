@@ -12,14 +12,15 @@ limitations under the License.
 */
 
 import { importSPKI, jwtVerify } from 'jose'
+import { IRequest } from 'itty-router'
 
-import type { Environment } from '$lib/environment'
+import { Environment } from '$lib/environment'
 
 const tokenHeaderMatch =
     /^(?:Bearer )?([A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+)/i
 
 export async function AuthorizeRequest(
-    req: Request,
+    req: IRequest,
     env: Environment
 ): Promise<boolean> {
     // If "SKIP_AUTH" is set, we can allow skipping authorization

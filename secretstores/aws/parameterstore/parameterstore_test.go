@@ -57,7 +57,7 @@ func TestInit(t *testing.T) {
 			"SecretKey":    "a",
 			"SessionToken": "a",
 		}
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.Nil(t, err)
 	})
 }

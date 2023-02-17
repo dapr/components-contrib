@@ -14,6 +14,7 @@ limitations under the License.
 package blobstorage
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -32,7 +33,7 @@ func TestInit(t *testing.T) {
 			"accountKey":    "e+Dnvl8EOxYxV94nurVaRQ==",
 			"containerName": "dapr",
 		}
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.Nil(t, err)
 		assert.Equal(t, "https://acc.blob.core.windows.net/dapr", s.containerClient.URL())
 	})
@@ -41,7 +42,7 @@ func TestInit(t *testing.T) {
 		m.Properties = map[string]string{
 			"invalidValue": "a",
 		}
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.NotNil(t, err)
 		assert.Equal(t, err, fmt.Errorf("missing or empty accountName field from metadata"))
 	})
@@ -52,8 +53,8 @@ func TestInit(t *testing.T) {
 			"accountKey":    "e+Dnvl8EOxYxV94nurVaRQ==",
 			"containerName": "dapr",
 		}
-		s.Init(m)
-		err := s.Ping()
+		s.Init(context.Background(), m)
+		err := s.Ping(context.Background())
 		assert.NotNil(t, err)
 	})
 }

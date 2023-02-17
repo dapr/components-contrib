@@ -204,7 +204,7 @@ func TestInit(t *testing.T) {
 			Properties: testProperties,
 		}}
 
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.Nil(t, err)
 		cs, ok := s.(*ConfigurationStore)
 		assert.True(t, ok)
@@ -229,7 +229,7 @@ func TestInit(t *testing.T) {
 			Properties: testProperties,
 		}}
 
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.Nil(t, err)
 		cs, ok := s.(*ConfigurationStore)
 		assert.True(t, ok)

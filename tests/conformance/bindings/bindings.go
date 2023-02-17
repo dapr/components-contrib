@@ -127,7 +127,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		// Check for an output binding specific operation before init
 		if config.HasOperation("operations") {
 			testLogger.Info("Init output binding ...")
-			err := outputBinding.Init(bindings.Metadata{
+			err := outputBinding.Init(context.Background(), bindings.Metadata{
 				Base: metadata.Base{Properties: props},
 			})
 			assert.NoError(t, err, "expected no error setting up output binding")
@@ -135,7 +135,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		// Check for an input binding specific operation before init
 		if config.HasOperation("read") {
 			testLogger.Info("Init input binding ...")
-			err := inputBinding.Init(bindings.Metadata{
+			err := inputBinding.Init(context.Background(), bindings.Metadata{
 				Base: metadata.Base{Properties: props},
 			})
 			assert.NoError(t, err, "expected no error setting up input binding")
@@ -145,7 +145,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 
 	t.Run("ping", func(t *testing.T) {
 		if config.HasOperation("read") {
-			errInp := bindings.PingInpBinding(inputBinding)
+			errInp := bindings.PingInpBinding(context.Background(), inputBinding)
 			// TODO: Ideally, all stable components should implenment ping function,
 			// so will only assert assert.NoError(t, err) finally, i.e. when current implementation
 			// implements ping in existing stable components
@@ -156,7 +156,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			}
 		}
 		if config.HasOperation("operations") {
-			errOut := bindings.PingOutBinding(outputBinding)
+			errOut := bindings.PingOutBinding(context.Background(), outputBinding)
 			// TODO: Ideally, all stable components should implenment ping function,
 			// so will only assert assert.NoError(t, err) finally, i.e. when current implementation
 			// implements ping in existing stable components
@@ -297,10 +297,8 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		// Check for an input-binding specific operation before close
 		if config.HasOperation("read") {
 			testLogger.Info("Closing read connection ...")
-			if closer, ok := inputBinding.(io.Closer); ok {
-				err := closer.Close()
-				assert.NoError(t, err, "expected no error closing input binding")
-			}
+			err := inputBinding.Close()
+			assert.NoError(t, err, "expected no error closing input binding")
 		}
 		// Check for an output-binding specific operation before close
 		if config.HasOperation("operations") {

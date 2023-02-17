@@ -14,6 +14,7 @@ limitations under the License.
 package oauth2
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"strings"
@@ -59,7 +60,7 @@ const (
 )
 
 // GetHandler retruns the HTTP handler provided by the middleware.
-func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
+func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {
 		return nil, err

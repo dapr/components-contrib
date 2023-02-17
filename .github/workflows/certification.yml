@@ -18,10 +18,12 @@ on:
     types: [certification-test]
   workflow_dispatch:
   schedule:
-    - cron: '5 */12 * * *'
+    - cron: '25 */8 * * *'
+  push:
+    branches:
+      - release-*
   pull_request:
     branches:
-      - master
       - release-*
 
 jobs:
@@ -59,7 +61,8 @@ jobs:
         - state.cassandra
         - state.memcached
         - state.mysql
-        - bindings.alicloud.dubbo
+        - state.sqlite
+        - bindings.dubbo
         - bindings.kafka
         - bindings.redis
         - bindings.cron

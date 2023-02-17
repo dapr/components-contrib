@@ -49,6 +49,7 @@ func getConnectionString() string {
 
 func TestInvokeWithTopic(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	url := getConnectionString()
 	if url == "" {
@@ -79,7 +80,7 @@ func TestInvokeWithTopic(t *testing.T) {
 	logger := logger.NewLogger("test")
 
 	r := NewMQTT(logger).(*MQTT)
-	err := r.Init(metadata)
+	err := r.Init(ctx, metadata)
 	assert.Nil(t, err)
 
 	conn, err := r.connect(uuid.NewString(), false)
@@ -127,4 +128,5 @@ func TestInvokeWithTopic(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, dataCustomized, mqttMessage.Payload())
 	assert.Equal(t, topicCustomized, mqttMessage.Topic())
+	assert.NoError(t, r.Close())
 }

@@ -121,7 +121,7 @@ func newMySQLStateStore(logger logger.Logger, factory iMySQLFactory) *MySQL {
 // TransactionalStore
 // Populate the rest of the MySQL object by reading the metadata and opening
 // a connection to the server.
-func (m *MySQL) Init(metadata state.Metadata) error {
+func (m *MySQL) Init(ctx context.Context, metadata state.Metadata) error {
 	m.logger.Debug("Initializing MySql state store")
 
 	err := m.parseMetadata(metadata.Properties)
@@ -136,7 +136,7 @@ func (m *MySQL) Init(metadata state.Metadata) error {
 	}
 
 	// will be nil if everything is good or an err that needs to be returned
-	return m.finishInit(db)
+	return m.finishInit(ctx, db)
 }
 
 func (m *MySQL) parseMetadata(md map[string]string) error {
@@ -199,12 +199,12 @@ func (m *MySQL) Features() []state.Feature {
 }
 
 // Ping the database.
-func (m *MySQL) Ping() error {
+func (m *MySQL) Ping(ctx context.Context) error {
 	if m.db == nil {
 		return sql.ErrConnDone
 	}
 
-	return m.PingWithContext(context.Background())
+	return m.PingWithContext(ctx)
 }
 
 // PingWithContext is like Ping but accepts a context.
@@ -215,36 +215,36 @@ func (m *MySQL) PingWithContext(parentCtx context.Context) error {
 }
 
 // Separated out to make this portion of code testable.
-func (m *MySQL) finishInit(db *sql.DB) error {
+func (m *MySQL) finishInit(ctx context.Context, db *sql.DB) error {
 	m.db = db
 
-	err := m.ensureStateSchema()
+	err := m.ensureStateSchema(ctx)
 	if err != nil {
 		m.logger.Error(err)
 		return err
 	}
 
-	err = m.Ping()
+	err = m.Ping(ctx)
 	if err != nil {
 		m.logger.Error(err)
 		return err
 	}
 
 	// will be nil if everything is good or an err that needs to be returned
-	return m.ensureStateTable(m.tableName)
+	return m.ensureStateTable(ctx, m.tableName)
 }
 
-func (m *MySQL) ensureStateSchema() error {
-	exists, err := schemaExists(m.db, m.schemaName, m.timeout)
+func (m *MySQL) ensureStateSchema(ctx context.Context) error {
+	exists, err := schemaExists(ctx, m.db, m.schemaName, m.timeout)
 	if err != nil {
 		return err
 	}
 
 	if !exists {
 		m.logger.Infof("Creating MySql schema '%s'", m.schemaName)
-		ctx, cancel := context.WithTimeout(context.Background(), m.timeout)
+		cctx, cancel := context.WithTimeout(ctx, m.timeout)
 		defer cancel()
-		_, err = m.db.ExecContext(ctx,
+		_, err = m.db.ExecContext(cctx,
 			fmt.Sprintf("CREATE DATABASE %s;", m.schemaName),
 		)
 		if err != nil {
@@ -273,8 +273,8 @@ func (m *MySQL) ensureStateSchema() error {
 	return err
 }
 
-func (m *MySQL) ensureStateTable(stateTableName string) error {
-	exists, err := tableExists(m.db, stateTableName, m.timeout)
+func (m *MySQL) ensureStateTable(ctx context.Context, stateTableName string) error {
+	exists, err := tableExists(ctx, m.db, stateTableName, m.timeout)
 	if err != nil {
 		return err
 	}
@@ -297,10 +297,9 @@ func (m *MySQL) ensureStateTable(stateTableName string) error {
 			eTag VARCHAR(36) NOT NULL
 			);`, stateTableName)
 
-		ctx, cancel := context.WithTimeout(context.Background(), m.timeout)
-		defer cancel()
-		_, err = m.db.ExecContext(ctx, createTable)
-
+		execCtx, execCancel := context.WithTimeout(ctx, m.timeout)
+		defer execCancel()
+		_, err = m.db.ExecContext(execCtx, createTable)
 		if err != nil {
 			return err
 		}
@@ -309,8 +308,8 @@ func (m *MySQL) ensureStateTable(stateTableName string) error {
 	return nil
 }
 
-func schemaExists(db *sql.DB, schemaName string, timeout time.Duration) (bool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+func schemaExists(ctx context.Context, db *sql.DB, schemaName string, timeout time.Duration) (bool, error) {
+	schemeCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	// Returns 1 or 0 if the table exists or not
@@ -318,12 +317,12 @@ func schemaExists(db *sql.DB, schemaName string, timeout time.Duration) (bool, e
 	query := `SELECT EXISTS (
 		SELECT SCHEMA_NAME FROM information_schema.schemata WHERE SCHEMA_NAME = ?
 	) AS 'exists'`
-	err := db.QueryRowContext(ctx, query, schemaName).Scan(&exists)
+	err := db.QueryRowContext(schemeCtx, query, schemaName).Scan(&exists)
 	return exists == 1, err
 }
 
-func tableExists(db *sql.DB, tableName string, timeout time.Duration) (bool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+func tableExists(ctx context.Context, db *sql.DB, tableName string, timeout time.Duration) (bool, error) {
+	tableCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	// Returns 1 or 0 if the table exists or not
@@ -331,7 +330,7 @@ func tableExists(db *sql.DB, tableName string, timeout time.Duration) (bool, err
 	query := `SELECT EXISTS (
 		SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_NAME = ?
 	) AS 'exists'`
-	err := db.QueryRowContext(ctx, query, tableName).Scan(&exists)
+	err := db.QueryRowContext(tableCtx, query, tableName).Scan(&exists)
 	return exists == 1, err
 }
 
@@ -355,15 +354,15 @@ func (m *MySQL) deleteValue(parentCtx context.Context, querier querier, req *sta
 		result sql.Result
 	)
 
-	ctx, cancel := context.WithTimeout(parentCtx, m.timeout)
+	execCtx, cancel := context.WithTimeout(parentCtx, m.timeout)
 	defer cancel()
 
 	if req.ETag == nil || *req.ETag == "" {
-		result, err = querier.ExecContext(ctx, fmt.Sprintf(
+		result, err = querier.ExecContext(execCtx, fmt.Sprintf(
 			`DELETE FROM %s WHERE id = ?`,
 			m.tableName), req.Key)
 	} else {
-		result, err = querier.ExecContext(ctx, fmt.Sprintf(
+		result, err = querier.ExecContext(execCtx, fmt.Sprintf(
 			`DELETE FROM %s WHERE id = ? and eTag = ?`,
 			m.tableName), req.Key, *req.ETag)
 	}

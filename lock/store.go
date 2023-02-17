@@ -17,7 +17,7 @@ import "context"
 
 type Store interface {
 	// Init this component.
-	InitLockStore(metadata Metadata) error
+	InitLockStore(ctx context.Context, metadata Metadata) error
 
 	// TryLock tries to acquire a lock.
 	TryLock(ctx context.Context, req *TryLockRequest) (*TryLockResponse, error)

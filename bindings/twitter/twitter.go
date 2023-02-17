@@ -19,6 +19,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/dghubble/go-twitter/twitter"
@@ -31,18 +33,21 @@ import (
 
 // Binding represents Twitter input/output binding.
 type Binding struct {
-	client *twitter.Client
-	query  string
-	logger logger.Logger
+	client  *twitter.Client
+	query   string
+	logger  logger.Logger
+	closed  atomic.Bool
+	closeCh chan struct{}
+	wg      sync.WaitGroup
 }
 
 // NewTwitter returns a new Twitter event input binding.
 func NewTwitter(logger logger.Logger) bindings.InputOutputBinding {
-	return &Binding{logger: logger}
+	return &Binding{logger: logger, closeCh: make(chan struct{})}
 }
 
 // Init initializes the Twitter binding.
-func (t *Binding) Init(metadata bindings.Metadata) error {
+func (t *Binding) Init(ctx context.Context, metadata bindings.Metadata) error {
 	ck, f := metadata.Properties["consumerKey"]
 	if !f || ck == "" {
 		return fmt.Errorf("consumerKey not set")
@@ -124,14 +129,29 @@ func (t *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 	}
 
 	t.logger.Debug("starting handler...")
-	go demux.HandleChan(stream.Messages)
-
+	t.wg.Add(2)
 	go func() {
-		<-ctx.Done()
+		defer t.wg.Done()
+		demux.HandleChan(stream.Messages)
+	}()
+	go func() {
+		defer t.wg.Done()
+		select {
+		case <-t.closeCh:
+		case <-ctx.Done():
+		}
 		t.logger.Debug("stopping handler...")
 		stream.Stop()
 	}()
 
+	return nil
+}
+
+func (t *Binding) Close() error {
+	if t.closed.CompareAndSwap(false, true) {
+		close(t.closeCh)
+	}
+	t.wg.Wait()
 	return nil
 }
 

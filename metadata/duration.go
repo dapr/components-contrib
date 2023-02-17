@@ -78,9 +78,13 @@ func toTimeDurationHookFunc() mapstructure.DecodeHookFunc {
 
 		switch f.Kind() {
 		case reflect.String:
-			val, err := time.ParseDuration(data.(string))
-			if err != nil {
-				return nil, err
+			var val time.Duration
+			if data.(string) != "" {
+				var err error
+				val, err = time.ParseDuration(data.(string))
+				if err != nil {
+					return nil, err
+				}
 			}
 			if t != reflect.TypeOf(Duration{}) {
 				return val, nil

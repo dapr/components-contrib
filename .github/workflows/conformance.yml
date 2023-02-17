@@ -92,11 +92,14 @@ jobs:
     defaults:
       run:
         shell: bash
-    needs: generate-matrix
+
+    needs: 
+      - generate-matrix
 
     strategy:
       fail-fast: false # Keep running even if one component fails
-      matrix: ${{ fromJson(needs.generate-matrix.outputs.test-matrix) }}
+      matrix: 
+        include: ${{ fromJson(needs.generate-matrix.outputs.test-matrix) }}
 
     steps:
     - name: Set default payload repo and ref

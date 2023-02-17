@@ -172,7 +172,7 @@ jobs:
 
     - name: Setup Terraform
       if: matrix.require-terraform == 'true'
-      uses: hashicorp/setup-terraform@v2
+      uses: hashicorp/setup-terraform@v2.0.3
 
     - name: Set Cloudflare env vars
       if: matrix.require-cloudflare-credentials == 'true'
@@ -188,7 +188,9 @@ jobs:
 
     - name: Configure AWS Credentials
       if: matrix.require-aws-credentials == 'true'
-      uses: aws-actions/configure-aws-credentials@v1
+      # TODO: Remove "v1-node16" when v2 is released
+      # See: https://github.com/aws-actions/configure-aws-credentials/issues/489
+      uses: aws-actions/configure-aws-credentials@v1-node16
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}

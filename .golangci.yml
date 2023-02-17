@@ -234,6 +234,7 @@ linters:
   disable:
     # TODO Enforce the below linters later
     - dupl
+    - musttag
     - errcheck
     - funlen
     - gochecknoglobals

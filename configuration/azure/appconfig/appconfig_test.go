@@ -30,9 +30,7 @@ import (
 	"github.com/dapr/kit/ptr"
 )
 
-type MockConfigurationStore struct {
-	azAppConfigClient
-}
+type MockConfigurationStore struct{}
 
 func (m *MockConfigurationStore) GetSetting(ctx context.Context, key string, options *azappconfig.GetSettingOptions) (azappconfig.GetSettingResponse, error) {
 	if key == "testKey" || key == "test_sentinel_key" {

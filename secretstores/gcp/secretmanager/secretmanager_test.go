@@ -28,9 +28,7 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-type MockStore struct {
-	gcpSecretemanagerClient
-}
+type MockStore struct{}
 
 func (s *MockStore) ListSecrets(ctx context.Context, req *secretmanagerpb.ListSecretsRequest, opts ...gax.CallOption) *secretmanager.SecretIterator {
 	it := &secretmanager.SecretIterator{}

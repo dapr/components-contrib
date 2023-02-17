@@ -15,6 +15,7 @@ package cron
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"

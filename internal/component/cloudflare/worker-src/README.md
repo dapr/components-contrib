@@ -100,3 +100,7 @@ Publish a message:
 curl -X POST -d 'orders.42' "http://localhost:8787/queues/daprdemo"
 # Success: 201 (Accepted), empty body
 ```
+
+## Disabling authentication for testing
+
+By default, all requests to the Worker need to be authenticated using a JWT. For testing purposes, you can disable that by setting an environmental variable `SKIP_AUTH` with value `true` in your Worker. This is not recommended for production.

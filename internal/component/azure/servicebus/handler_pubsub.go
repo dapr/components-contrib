@@ -13,7 +13,6 @@ import (
 
 // GetPubSubHandlerFunc returns the handler function for pubsub messages.
 func GetPubSubHandlerFunc(topic string, handler pubsub.Handler, log logger.Logger, timeout time.Duration) HandlerFn {
-	emptyResponseItems := []HandlerResponseItem{}
 	// Only the first ASB message is used in the actual handler invocation.
 	return func(ctx context.Context, asbMsgs []*servicebus.ReceivedMessage) ([]HandlerResponseItem, error) {
 		if len(asbMsgs) != 1 {
@@ -22,13 +21,13 @@ func GetPubSubHandlerFunc(topic string, handler pubsub.Handler, log logger.Logge
 
 		pubsubMsg, err := NewPubsubMessageFromASBMessage(asbMsgs[0], topic)
 		if err != nil {
-			return emptyResponseItems, fmt.Errorf("failed to get pubsub message from azure service bus message: %+v", err)
+			return nil, fmt.Errorf("failed to get pubsub message from azure service bus message: %+v", err)
 		}
 
 		handleCtx, handleCancel := context.WithTimeout(ctx, timeout)
 		defer handleCancel()
 		log.Debugf("Calling app's handler for message %s on topic %s", asbMsgs[0].MessageID, topic)
-		return emptyResponseItems, handler(handleCtx, pubsubMsg)
+		return nil, handler(handleCtx, pubsubMsg)
 	}
 }
 

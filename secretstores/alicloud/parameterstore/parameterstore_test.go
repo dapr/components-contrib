@@ -32,9 +32,7 @@ const (
 	secretValue = "oos-secret-value"
 )
 
-type mockedParameterStore struct {
-	parameterStoreClient
-}
+type mockedParameterStore struct{}
 
 func (m *mockedParameterStore) GetSecretParameterWithOptions(request *oos.GetSecretParameterRequest, runtime *util.RuntimeOptions) (*oos.GetSecretParameterResponse, error) {
 	return &oos.GetSecretParameterResponse{
@@ -60,9 +58,7 @@ func (m *mockedParameterStore) GetSecretParametersByPathWithOptions(request *oos
 	}, nil
 }
 
-type mockedParameterStoreReturnError struct {
-	parameterStoreClient
-}
+type mockedParameterStoreReturnError struct{}
 
 func (m *mockedParameterStoreReturnError) GetSecretParameterWithOptions(request *oos.GetSecretParameterRequest, runtime *util.RuntimeOptions) (*oos.GetSecretParameterResponse, error) {
 	return nil, fmt.Errorf("mocked error")

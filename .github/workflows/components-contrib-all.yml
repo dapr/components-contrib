@@ -11,32 +11,91 @@
 # limitations under the License.
 # ------------------------------------------------------------
 
-name: components-contrib
+name: "Build, Lint, Unit Test - complete matrix"
 
 on:
+  repository_dispatch:
+    types: [build-all]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */6 * * *'
   push:
     branches:
-      - master
       - release-*
-      - feature/*
     tags:
       - v*
   pull_request:
     branches:
-      - master
       - release-*
-      - feature/*
 jobs:
+  post-comment:
+    name: Post comment on Repository Dispatch
+    runs-on: ubuntu-latest
+    steps:
+    - name: Parse repository_dispatch payload
+      if: github.event_name == 'repository_dispatch'
+      working-directory: ${{ github.workspace }}
+      shell: bash
+      run: |
+        if [ ${{ github.event.client_payload.command }} = "ok-to-test" ]; then
+          echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV
+          echo "PR_NUMBER=${{ github.event.client_payload.issue.number }}" >> $GITHUB_ENV
+        fi
+    - name: Create PR comment
+      if: env.PR_NUMBER != ''
+      uses: artursouza/sticky-pull-request-comment@da9e86aa2a80e4ae3b854d251add33bd6baabcba
+      with:
+        header: ${{ github.run_id }}
+        number: ${{ env.PR_NUMBER }}
+        GITHUB_TOKEN: ${{ secrets.DAPR_BOT_TOKEN }}
+        message: |
+          # Complete Build Matrix
+
+          The build status is currently not updated here. Please visit the action run below directly.
+
+          🔗 **[Link to Action run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})**
+
+          Commit ref: ${{ env.CHECKOUT_REF }}
+
   build:
     name: Build ${{ matrix.target_os }}_${{ matrix.target_arch }} binaries
     runs-on: ${{ matrix.os }}
+    needs: post-comment
     env:
       GOVER: "1.19"
       GOOS: ${{ matrix.target_os }}
       GOARCH: ${{ matrix.target_arch }}
       GOPROXY: https://proxy.golang.org
       GOLANGCI_LINT_VER: "v1.51.1"
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+        target_arch: [arm, amd64]
+        include:
+          - os: ubuntu-latest
+            target_os: linux
+          - os: windows-latest
+            target_os: windows
+          - os: macOS-latest
+            target_os: darwin
+        exclude:
+          - os: windows-latest
+            target_arch: arm
+          - os: macOS-latest
+            target_arch: arm
     steps:
+      - name: Set default payload repo and ref
+        run: |
+          echo "CHECKOUT_REPO=${{ github.repository }}" >> $GITHUB_ENV
+          echo "CHECKOUT_REF=${{ github.ref }}" >> $GITHUB_ENV
+      - name: Parse repository_dispatch payload
+        if: github.event_name == 'repository_dispatch'
+        working-directory: ${{ github.workspace }}
+        shell: bash
+        run: |
+          if [ ${{ github.event.client_payload.command }} = "ok-to-test" ]; then
+            echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV
+          fi
       - name: Set up Go ${{ env.GOVER }}
         if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
         uses: actions/setup-go@v3
@@ -45,6 +104,9 @@ jobs:
       - name: Check out code into the Go module directory
         if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
         uses: actions/checkout@v3
+        with:
+          repository: ${{ env.CHECKOUT_REPO }}
+          ref: ${{ env.CHECKOUT_REF }}
       - name: Cache Go modules (Linux)
         if: matrix.target_os == 'linux'
         uses: actions/cache@v3

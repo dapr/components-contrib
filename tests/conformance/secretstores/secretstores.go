@@ -15,7 +15,6 @@ package secretstores
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -46,8 +45,8 @@ func NewTestConfig(name string, allOperations bool, operations []string) TestCon
 func ConformanceTests(t *testing.T, props map[string]string, store secretstores.SecretStore, config TestConfig) {
 	// TODO add support for metadata
 	// For local env var based component test
-	os.Setenv("conftestsecret", "abcd")
-	defer os.Unsetenv("conftestsecret")
+	t.Setenv("conftestsecret", "abcd")
+	t.Setenv("secondsecret", "efgh")
 
 	// Init
 	t.Run("init", func(t *testing.T) {

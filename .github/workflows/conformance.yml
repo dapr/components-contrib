@@ -718,7 +718,7 @@ jobs:
     - name: Merge conf test and cert test coverage
       run: | 
         mkdir -p tmp/total_cov
-        gocovmerge tmp/certtest_files/${{ env.SOURCE_PATH_LINEAR }}.txt tmp/cov_files/${{ env.SOURCE_PATH_LINEAR }}.txt > final.out
+        gocovmerge tmp/certtest_files/${{ env.SOURCE_PATH_LINEAR }}.out cover.out > final.out
 
         FINAL_COVERAGE_REPORT=$(gocov convert final.out | gocov report)
         FINAL_COVERAGE_LINE=$(echo $COVERAGE_REPORT  | grep -oP '(?<=Total Coverage:).*') # example: "80.00% (40/50)"

@@ -449,7 +449,7 @@ jobs:
       if: github.event_name == 'schedule'
       run: |
        mkdir -p tmp/cert_code_cov_files
-       echo "$(<cover.out )" >> tmp/actual_cov_files/${{ env.SOURCE_PATH_LINEAR }}.txt
+       echo "$(<cover.out )" >> tmp/actual_cov_files/${{ env.SOURCE_PATH_LINEAR }}.out
 
     - name: Upload Cert Coverage Entire File Artifact
       uses: actions/upload-artifact@v3

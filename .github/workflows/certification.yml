@@ -392,7 +392,8 @@ jobs:
         COVERAGE_PERCENTAGE=$(echo $COVERAGE_LINE | grep -oP '([0-9\.]*)' | head -n 1) # example "80.00"
         echo "COVERAGE_LINE=$COVERAGE_LINE" >> $GITHUB_ENV
         echo "COMPONENT_PERCENTAGE=$COVERAGE_PERCENTAGE" >> $GITHUB_ENV
-        echo "$(<cover.out )" >> tmp/cert_code_cov_files/${{ env.SOURCE_PATH_LINEAR }}.out
+        # echo "$(<cover.out )" >> tmp/cert_code_cov_files/${{ env.SOURCE_PATH_LINEAR }}.out
+        cat cover.out >> tmp/cert_code_cov_files/${{ env.SOURCE_PATH_LINEAR }}.out
 
 
         # Fail the step if we found no test to run

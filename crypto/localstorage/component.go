@@ -49,7 +49,7 @@ func NewLocalStorageCrypto(logger logger.Logger) daprcrypto.SubtleCrypto {
 }
 
 // Init the crypto provider.
-func (k *localStorageCrypto) Init(metadata daprcrypto.Metadata) error {
+func (k *localStorageCrypto) Init(_ context.Context, metadata daprcrypto.Metadata) error {
 	err := k.parseMetadata(metadata.Properties)
 	if err != nil {
 		return err

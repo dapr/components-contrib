@@ -22,7 +22,7 @@ import (
 // SubtleCrypto offers an interface to perform low-level ("subtle") cryptographic operations with keys stored in a vault.
 type SubtleCrypto interface {
 	// Init the component.
-	Init(metadata Metadata) error
+	Init(ctx context.Context, metadata Metadata) error
 
 	// GetKey returns the public part of a key stored in the vault.
 	// This method returns an error if the key is symmetric.

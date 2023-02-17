@@ -52,7 +52,7 @@ func NewKubeSecretsCrypto(_ logger.Logger) daprcrypto.SubtleCrypto {
 }
 
 // Init the crypto provider.
-func (k *kubeSecretsCrypto) Init(metadata daprcrypto.Metadata) error {
+func (k *kubeSecretsCrypto) Init(_ context.Context, metadata daprcrypto.Metadata) error {
 	if len(metadata.Properties) > 0 {
 		if metadata.Properties[metadataKeyDefaultNamespace] != "" {
 			k.defaultNamespace = metadata.Properties[metadataKeyDefaultNamespace]

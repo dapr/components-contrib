@@ -56,7 +56,7 @@ func NewAzureKeyvaultCrypto(logger logger.Logger) daprcrypto.SubtleCrypto {
 }
 
 // Init creates a Azure Key Vault client.
-func (k *keyvaultCrypto) Init(metadata daprcrypto.Metadata) error {
+func (k *keyvaultCrypto) Init(_ context.Context, metadata daprcrypto.Metadata) error {
 	k.keyCache = daprcrypto.NewPubKeyCache(k.getKeyCacheFn)
 
 	settings, err := azauth.NewEnvironmentSettings("keyvault", metadata.Properties)

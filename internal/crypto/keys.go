@@ -60,8 +60,9 @@ func ParseKey(raw []byte, contentType string) (jwk.Key, error) {
 	}
 
 	// Heuristically determine the type of key
+	l := len(raw)
 	switch {
-	case raw[0] == '{': // Assume it's a JWK
+	case raw[0] == '{' && l != 16 && l != 24 && l != 32: // Assume it's a JWK unless the length is 16, 24, or 32 bytes
 		return jwk.ParseKey(raw)
 	case len(raw) > 10 && string(raw[0:5]) == ("-----"): // Assume it's something PEM-encoded
 		return jwk.ParseKey(raw, jwk.WithPEM(true))
@@ -71,18 +72,11 @@ func ParseKey(raw []byte, contentType string) (jwk.Key, error) {
 }
 
 func parseSymmetricKey(raw []byte) (jwk.Key, error) {
-	l := len(raw)
-
-	// Fast path: if the slice is 16, 24, or 32 bytes, assume it's the actual key
-	if l == 16 || l == 24 || l == 32 {
-		return jwk.FromRaw(raw)
-	}
-
 	// Try parsing as base64; first: remove any padding if present
 	trimmedRaw := bytes.TrimRight(raw, "=")
 
 	// Try parsing as base64-standard
-	dst := make([]byte, base64.RawStdEncoding.DecodedLen(l))
+	dst := make([]byte, base64.RawStdEncoding.DecodedLen(len(raw)))
 	n, err := base64.RawStdEncoding.Decode(dst, trimmedRaw)
 	if err == nil {
 		return jwk.FromRaw(dst[:n])

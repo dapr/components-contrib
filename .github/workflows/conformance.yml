@@ -537,359 +537,359 @@ jobs:
         go install github.com/wadey/gocovmerge@latest
         which gocovmerge
 
-  #   - name: Generate Azure SQL DB name
-  #     run: |
-  #       # Use UUID with `-` stripped out for DB names to prevent collisions between workflows
-  #       export AzureSqlServerDbName=$(cat /proc/sys/kernel/random/uuid | sed -E 's/-//g')
-  #       echo "AzureSqlServerDbName=$AzureSqlServerDbName" >> $GITHUB_ENV
-  #     if: contains(matrix.component, 'azure.sql')
+    - name: Generate Azure SQL DB name
+      run: |
+        # Use UUID with `-` stripped out for DB names to prevent collisions between workflows
+        export AzureSqlServerDbName=$(cat /proc/sys/kernel/random/uuid | sed -E 's/-//g')
+        echo "AzureSqlServerDbName=$AzureSqlServerDbName" >> $GITHUB_ENV
+      if: contains(matrix.component, 'azure.sql')
 
-  #   - name: Run tests
-  #     continue-on-error: true
-  #     env:
-  #       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
-  #       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}  
-  #     run: |
-  #       set -e 
-  #       KIND=$(echo ${{ matrix.component }} | cut -d. -f1)
-  #       NAME=$(echo ${{ matrix.component }} | cut -d. -f2-)
-  #       KIND_UPPER="$(tr '[:lower:]' '[:upper:]' <<< ${KIND:0:1})${KIND:1}"
+    - name: Run tests
+      continue-on-error: true
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}  
+      run: |
+        set -e 
+        KIND=$(echo ${{ matrix.component }} | cut -d. -f1)
+        NAME=$(echo ${{ matrix.component }} | cut -d. -f2-)
+        KIND_UPPER="$(tr '[:lower:]' '[:upper:]' <<< ${KIND:0:1})${KIND:1}"
 
-  #       if [ "${KIND}" = "secretstores" ]; then
-  #         KIND_UPPER=SecretStore
-  #       fi
+        if [ "${KIND}" = "secretstores" ]; then
+          KIND_UPPER=SecretStore
+        fi
 
-  #       echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
+        echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
 
-  #       set +e
-  #       gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json \
-  #         --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.xml --format standard-verbose -- \
-  #         -p 2 -count=1 -timeout=15m -tags=conftests ./tests/conformance --run="Test${KIND_UPPER}Conformance/${NAME}" -coverprofile=cover.out -coverpkg=github.com/dapr/components-contrib/${KIND}/${NAME}/...
+        set +e
+        gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json \
+          --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.xml --format standard-verbose -- \
+          -p 2 -count=1 -timeout=15m -tags=conftests ./tests/conformance --run="Test${KIND_UPPER}Conformance/${NAME}" -coverprofile=cover.out -coverpkg=github.com/dapr/components-contrib/${KIND}/${NAME}/...
 
-  #       status=$?
-  #       echo "Completed tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
-  #       if test $status -ne 0; then
-  #         echo "Setting CONFORMANCE_FAILURE"
-  #         echo "CONFORMANCE_FAILURE=true" >> $GITHUB_ENV
-  #       fi
-  #       set -e
+        status=$?
+        echo "Completed tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
+        if test $status -ne 0; then
+          echo "Setting CONFORMANCE_FAILURE"
+          echo "CONFORMANCE_FAILURE=true" >> $GITHUB_ENV
+        fi
+        set -e
 
-  #       COVERAGE_REPORT=$(gocov convert cover.out | gocov report)
-  #       COVERAGE_LINE=$(echo $COVERAGE_REPORT  | grep -oP '(?<=Total Coverage:).*') # example: "80.00% (40/50)"
-  #       COVERAGE_PERCENTAGE=$(echo $COVERAGE_LINE | grep -oP '([0-9\.]*)' | head -n 1) # example "80.00"
-  #       echo "COVERAGE_LINE=$COVERAGE_LINE" >> $GITHUB_ENV
-  #       echo "COMPONENT_PERCENTAGE=$COVERAGE_PERCENTAGE" >> $GITHUB_ENV
+        COVERAGE_REPORT=$(gocov convert cover.out | gocov report)
+        COVERAGE_LINE=$(echo $COVERAGE_REPORT  | grep -oP '(?<=Total Coverage:).*') # example: "80.00% (40/50)"
+        COVERAGE_PERCENTAGE=$(echo $COVERAGE_LINE | grep -oP '([0-9\.]*)' | head -n 1) # example "80.00"
+        echo "COVERAGE_LINE=$COVERAGE_LINE" >> $GITHUB_ENV
+        echo "COMPONENT_PERCENTAGE=$COVERAGE_PERCENTAGE" >> $GITHUB_ENV
 
-  #       # Fail the step if we found no test to run
-  #       if grep -q "warning: no tests to run" ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json ; then
-  #         echo "::error:: No test was found for component ${{ matrix.component }}"
-  #         exit -1
-  #       fi
+        # Fail the step if we found no test to run
+        if grep -q "warning: no tests to run" ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json ; then
+          echo "::error:: No test was found for component ${{ matrix.component }}"
+          exit -1
+        fi
 
-  #   - name: Stop ngrok
-  #     if: contains(matrix.component, 'azure.eventgrid')
-  #     continue-on-error: true
-  #     run: |
-  #       set +e
-  #       echo "GET ngrok tunnels:"
-  #       curl http://localhost:4040/api/tunnels
-  #       echo "GET ngrok http requests:"
-  #       curl http://localhost:4040/api/requests/http
-  #       pkill ngrok
-  #       cat /tmp/ngrok.log
+    - name: Stop ngrok
+      if: contains(matrix.component, 'azure.eventgrid')
+      continue-on-error: true
+      run: |
+        set +e
+        echo "GET ngrok tunnels:"
+        curl http://localhost:4040/api/tunnels
+        echo "GET ngrok http requests:"
+        curl http://localhost:4040/api/requests/http
+        pkill ngrok
+        cat /tmp/ngrok.log
 
-  #   - name: Cleanup Azure SQL test DB instance
-  #     if: contains(matrix.component, 'azure.sql')
-  #     continue-on-error: true
-  #     run: |
-  #       # Wait for the creation of the DB by the test to propagate to ARM, otherwise deletion succeeds as no-op.
-  #       # The wait should be under 30s, but is capped at 1m as flakiness here results in an accumulation of expensive DB instances over time.
-  #       # Also note that the deletion call only blocks until the request is process, do not rely on it for mutex on the same DB,
-  #       # deletion may be ongoing in sequential runs.
-  #       sleep 1m
-  #       az sql db delete --resource-group ${{ env.AzureResourceGroupName }} --server ${{ env.AzureSqlServerName }} -n ${{ env.AzureSqlServerDbName }} --yes
+    - name: Cleanup Azure SQL test DB instance
+      if: contains(matrix.component, 'azure.sql')
+      continue-on-error: true
+      run: |
+        # Wait for the creation of the DB by the test to propagate to ARM, otherwise deletion succeeds as no-op.
+        # The wait should be under 30s, but is capped at 1m as flakiness here results in an accumulation of expensive DB instances over time.
+        # Also note that the deletion call only blocks until the request is process, do not rely on it for mutex on the same DB,
+        # deletion may be ongoing in sequential runs.
+        sleep 1m
+        az sql db delete --resource-group ${{ env.AzureResourceGroupName }} --server ${{ env.AzureSqlServerName }} -n ${{ env.AzureSqlServerDbName }} --yes
 
-  #   - name: Cleanup Cloudflare KV
-  #     if: always() && matrix.component == 'state.cloudflare.workerskv'
-  #     continue-on-error: true
-  #     env:
-  #       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-  #       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-  #     run: |
-  #       # Delete the Worker
-  #       curl -X DELETE "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${{ env.CloudflareWorkerName }}" \
-  #         -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
-  #       # Delete the KV namespace
-  #       curl -X DELETE "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${{ env.CloudflareKVNamespaceID }}" \
-  #         -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
+    - name: Cleanup Cloudflare KV
+      if: always() && matrix.component == 'state.cloudflare.workerskv'
+      continue-on-error: true
+      env:
+        CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      run: |
+        # Delete the Worker
+        curl -X DELETE "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${{ env.CloudflareWorkerName }}" \
+          -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
+        # Delete the KV namespace
+        curl -X DELETE "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${{ env.CloudflareKVNamespaceID }}" \
+          -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
 
-  #   # Download the required certificates into files, and set env var pointing to their names
-  #   - name: Clean up certs
-  #     if: matrix.required-certs != ''
-  #     run: |
-  #       for CERT_NAME in $(echo "${{ matrix.required-certs }}" | sed 's/,/ /g'); do
-  #         CERT_FILE=$(printenv $CERT_NAME)
+    # Download the required certificates into files, and set env var pointing to their names
+    - name: Clean up certs
+      if: matrix.required-certs != ''
+      run: |
+        for CERT_NAME in $(echo "${{ matrix.required-certs }}" | sed 's/,/ /g'); do
+          CERT_FILE=$(printenv $CERT_NAME)
 
-  #         echo "Cleaning up the certificate file $CERT_FILE..."
-  #         rm $CERT_FILE
-  #       done
+          echo "Cleaning up the certificate file $CERT_FILE..."
+          rm $CERT_FILE
+        done
 
-  #   - name: Terraform Destroy
-  #     continue-on-error: true    
-  #     run: terraform destroy -auto-approve -var="UNIQUE_ID=${{env.UNIQUE_ID}}" -var="TIMESTAMP=${{env.CURRENT_TIME}}"
-  #     working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
-  #     if: matrix.terraform-dir != ''
+    - name: Terraform Destroy
+      continue-on-error: true    
+      run: terraform destroy -auto-approve -var="UNIQUE_ID=${{env.UNIQUE_ID}}" -var="TIMESTAMP=${{env.CURRENT_TIME}}"
+      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
+      if: matrix.terraform-dir != ''
 
-  #   - name: Check conformance test passed
-  #     continue-on-error: false
-  #     run: |
-  #       echo "CONFORMANCE_FAILURE=$CONFORMANCE_FAILURE"
-  #       if [[ -v CONFORMANCE_FAILURE ]]; then
-  #         exit 1
-  #       fi
+    - name: Check conformance test passed
+      continue-on-error: false
+      run: |
+        echo "CONFORMANCE_FAILURE=$CONFORMANCE_FAILURE"
+        if [[ -v CONFORMANCE_FAILURE ]]; then
+          exit 1
+        fi
 
-  #   - name: Prepare test result info
-  #     if: always()
-  #     run: |
-  #       mkdir -p tmp/result_files
-  #       echo "Writing to tmp/result_files/${{ matrix.component }}.txt"
-  #       if [[ "${{ env.CONFORMANCE_FAILURE }}" == "true" ]]; then
-  #         echo "0" >> "tmp/result_files/${{ matrix.component }}.txt"
-  #       else
-  #         echo "1" >> "tmp/result_files/${{ matrix.component }}.txt"
-  #       fi
+    - name: Prepare test result info
+      if: always()
+      run: |
+        mkdir -p tmp/result_files
+        echo "Writing to tmp/result_files/${{ matrix.component }}.txt"
+        if [[ "${{ env.CONFORMANCE_FAILURE }}" == "true" ]]; then
+          echo "0" >> "tmp/result_files/${{ matrix.component }}.txt"
+        else
+          echo "1" >> "tmp/result_files/${{ matrix.component }}.txt"
+        fi
 
-  #   - name: Upload result files
-  #     uses: actions/upload-artifact@v3
-  #     if: always()
-  #     with:
-  #       name: result_files
-  #       path: tmp/result_files
-  #       retention-days: 1
+    - name: Upload result files
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: result_files
+        path: tmp/result_files
+        retention-days: 1
 
-  #   - name: Prepare Conf Coverage Info
-  #     if: always()
-  #     run: |
-  #      mkdir -p tmp/cov_files
-  #      echo "${{ env.COVERAGE_LINE }}" >> tmp/cov_files/${{ env.SOURCE_PATH_LINEAR }}.txt
+    - name: Prepare Conf Coverage Info
+      if: always()
+      run: |
+       mkdir -p tmp/cov_files
+       echo "${{ env.COVERAGE_LINE }}" >> tmp/cov_files/${{ env.SOURCE_PATH_LINEAR }}.txt
 
-  #   - name: Upload Conf Coverage Artifact
-  #     uses: actions/upload-artifact@v3
-  #     if: always()
-  #     with:
-  #       name: conftest_cov
-  #       path: tmp/cov_files
-  #       retention-days: 1
+    - name: Upload Conf Coverage Artifact
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: conftest_cov
+        path: tmp/cov_files
+        retention-days: 1
 
-  #   # Upload logs for test analytics to consume
-  #   - name: Upload test results
-  #     if: always()
-  #     uses: actions/upload-artifact@master
-  #     with:
-  #       name: ${{ matrix.component }}_conformance_test
-  #       path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.*
+    # Upload logs for test analytics to consume
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@master
+      with:
+        name: ${{ matrix.component }}_conformance_test
+        path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.*
 
-  # post_job:
-  #   name: Post-completion
-  #   runs-on: ubuntu-latest
-  #   if: always()
-  #   needs:
-  #     - conformance
-  #     - generate-matrix
-  #   steps:
-  #     - name: Parse repository_dispatch payload
-  #       if: github.event_name == 'repository_dispatch'
-  #       working-directory: ${{ github.workspace }}
-  #       run: |
-  #         if [ ${{ github.event.client_payload.command }} = "ok-to-test" ]; then
-  #           echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV
-  #           echo "PR_NUMBER=${{ github.event.client_payload.issue.number }}" >> $GITHUB_ENV
-  #         fi
+  post_job:
+    name: Post-completion
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - conformance
+      - generate-matrix
+    steps:
+      - name: Parse repository_dispatch payload
+        if: github.event_name == 'repository_dispatch'
+        working-directory: ${{ github.workspace }}
+        run: |
+          if [ ${{ github.event.client_payload.command }} = "ok-to-test" ]; then
+            echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV
+            echo "PR_NUMBER=${{ github.event.client_payload.issue.number }}" >> $GITHUB_ENV
+          fi
 
-  #     - name: Download test result artifact
-  #       if: always() && env.PR_NUMBER != ''
-  #       uses: actions/download-artifact@v3
-  #       continue-on-error: true
-  #       id: testresults
-  #       with:
-  #         name: result_files
-  #         path: tmp/result_files
+      - name: Download test result artifact
+        if: always() && env.PR_NUMBER != ''
+        uses: actions/download-artifact@v3
+        continue-on-error: true
+        id: testresults
+        with:
+          name: result_files
+          path: tmp/result_files
 
-  #     - name: Create folder for downloaded cert test artifacts
-  #       run: |
-  #         mkdir -p temp/certtest_files
+      - name: Create folder for downloaded cert test artifacts
+        run: |
+          mkdir -p temp/certtest_files
 
-  #      #download artifacts from certification test
-  #     - name: Download workflow artifact
-  #       if: always()
-  #       uses: dawidd6/action-download-artifact@v2.24.3
-  #       with:
-  #        workflow: certification.yml
-  #        workflow_conclusion: ""
-  #        branch: master
-  #        if_no_artifact_found: warn
-  #        name: certtest_cov
-  #        path: tmp/certtest_files
+       #download artifacts from certification test
+      - name: Download workflow artifact
+        if: always()
+        uses: dawidd6/action-download-artifact@v2.24.3
+        with:
+         workflow: certification.yml
+         workflow_conclusion: ""
+         branch: master
+         if_no_artifact_found: warn
+         name: certtest_cov
+         path: tmp/certtest_files
 
 
-  #      #upload artifacts 
-  #     - name: Upload Conf Coverage Artifact
-  #       uses: actions/upload-artifact@v3
-  #       if: always()
-  #       with:
-  #        name: certest_cov
-  #        path: tmp/certtest_files
-  #        retention-days: 1
+       #upload artifacts 
+      - name: Upload Conf Coverage Artifact
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+         name: certest_cov
+         path: tmp/certtest_files
+         retention-days: 1
 
       
 
-  #     - name: Build message
-  #       if: always() && env.PR_NUMBER != ''
-  #       # Abusing of the github-script action to be able to write this in JS
-  #       uses: actions/github-script@v6
-  #       with:
-  #         script: |
-  #           const prComponents = ('${{ needs.generate-matrix.outputs.pr-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.pr-components }}')) || []
-  #           const cronComponents = ('${{ needs.generate-matrix.outputs.cron-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.cron-components }}')) || []
-  #           const allComponents = [...prComponents, ...cronComponents]
-  #           const basePath = '${{ steps.testresults.outputs.download-path }}'
-  #           const testType = 'conformance'
+      - name: Build message
+        if: always() && env.PR_NUMBER != ''
+        # Abusing of the github-script action to be able to write this in JS
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const prComponents = ('${{ needs.generate-matrix.outputs.pr-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.pr-components }}')) || []
+            const cronComponents = ('${{ needs.generate-matrix.outputs.cron-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.cron-components }}')) || []
+            const allComponents = [...prComponents, ...cronComponents]
+            const basePath = '${{ steps.testresults.outputs.download-path }}'
+            const testType = 'conformance'
 
-  #           const fs = require('fs')
-  #           const path = require('path')
+            const fs = require('fs')
+            const path = require('path')
 
-  #           let message = `# Components ${testType} test
+            let message = `# Components ${testType} test
 
-  #           🔗 **[Link to Action run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})**
+            🔗 **[Link to Action run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})**
 
-  #           Commit ref: ${{ env.CHECKOUT_REF }}`
+            Commit ref: ${{ env.CHECKOUT_REF }}`
 
-  #           let allSuccess = true
-  #           let allFound = true
-  #           let notSuccess = []
-  #           let notFound = []
-  #           for (let i = 0; i < allComponents.length; i++) {
-  #               let component = allComponents[i]
-  #               if (!component) {
-  #                   continue
-  #               }
-  #               if (typeof component == 'object') {
-  #                   component = component.component
-  #               }
-  #               let found = false
-  #               let success = false
-  #               try {
-  #                   let read =fs.readFileSync(path.join(basePath, component + '.txt'), 'utf8')
-  #                   read = read.split('\n')[0]
-  #                   switch (read) {
-  #                       case '1':
-  #                           found = true
-  #                           success = true
-  #                           break
-  #                       case '0':
-  #                           found = true
-  #                           success = false
-  #                   }
-  #               } catch (e) {
-  #                   // ignore errors, leave found = false
-  #               }
+            let allSuccess = true
+            let allFound = true
+            let notSuccess = []
+            let notFound = []
+            for (let i = 0; i < allComponents.length; i++) {
+                let component = allComponents[i]
+                if (!component) {
+                    continue
+                }
+                if (typeof component == 'object') {
+                    component = component.component
+                }
+                let found = false
+                let success = false
+                try {
+                    let read =fs.readFileSync(path.join(basePath, component + '.txt'), 'utf8')
+                    read = read.split('\n')[0]
+                    switch (read) {
+                        case '1':
+                            found = true
+                            success = true
+                            break
+                        case '0':
+                            found = true
+                            success = false
+                    }
+                } catch (e) {
+                    // ignore errors, leave found = false
+                }
 
-  #               if (!found) {
-  #                   allFound = false
-  #                   notFound.push(component)
-  #               }
-  #               if (!success) {
-  #                   allSuccess = false
-  #                   notSuccess.push(component)
-  #               }
-  #           }
+                if (!found) {
+                    allFound = false
+                    notFound.push(component)
+                }
+                if (!success) {
+                    allSuccess = false
+                    notSuccess.push(component)
+                }
+            }
 
-  #           if (allSuccess) {
-  #               if (allFound) {
-  #                   message += '\n\n' + `# ✅ All ${testType} tests passed
+            if (allSuccess) {
+                if (allFound) {
+                    message += '\n\n' + `# ✅ All ${testType} tests passed
 
-  #           All tests have reported a successful status` + '\n\n'
-  #               } else {
-  #                   message += '\n\n' + `# ⚠️ Some ${testType} tests did not report status
+            All tests have reported a successful status` + '\n\n'
+                } else {
+                    message += '\n\n' + `# ⚠️ Some ${testType} tests did not report status
 
-  #           Although there were no failures reported, some tests did not report a status:` + '\n\n'
-  #                   for (let i = 0; i < notFound.length; i++) {
-  #                       message += '- ' + notFound[i] + '\n'
-  #                   }
-  #                   message += '\n'
-  #               }
-  #           } else {
-  #               message += '\n\n' + `# ❌ Some ${testType} tests failed
+            Although there were no failures reported, some tests did not report a status:` + '\n\n'
+                    for (let i = 0; i < notFound.length; i++) {
+                        message += '- ' + notFound[i] + '\n'
+                    }
+                    message += '\n'
+                }
+            } else {
+                message += '\n\n' + `# ❌ Some ${testType} tests failed
 
-  #           These tests failed:` + '\n\n'
-  #               for (let i = 0; i < notSuccess.length; i++) {
-  #                   message += '- ' + notSuccess[i] + '\n'
-  #               }
-  #               message += '\n'
+            These tests failed:` + '\n\n'
+                for (let i = 0; i < notSuccess.length; i++) {
+                    message += '- ' + notSuccess[i] + '\n'
+                }
+                message += '\n'
 
-  #               if (!allFound) {
-  #                   message += 'Additionally, some tests did not report a status:\n\n'
-  #                   for (let i = 0; i < notFound.length; i++) {
-  #                       message += '- ' + notFound[i] + '\n'
-  #                   }
-  #                   message += '\n'
-  #               }
-  #           }
+                if (!allFound) {
+                    message += 'Additionally, some tests did not report a status:\n\n'
+                    for (let i = 0; i < notFound.length; i++) {
+                        message += '- ' + notFound[i] + '\n'
+                    }
+                    message += '\n'
+                }
+            }
 
-  #           fs.writeFileSync('message.txt', message)
+            fs.writeFileSync('message.txt', message)
 
-  #     - name: Replace PR comment
-  #       if: env.PR_NUMBER != ''
-  #       uses: artursouza/sticky-pull-request-comment@da9e86aa2a80e4ae3b854d251add33bd6baabcba
-  #       with:
-  #         header: ${{ github.run_id }}
-  #         number: ${{ env.PR_NUMBER }}
-  #         GITHUB_TOKEN: ${{ secrets.DAPR_BOT_TOKEN }}
-  #         path: message.txt
+      - name: Replace PR comment
+        if: env.PR_NUMBER != ''
+        uses: artursouza/sticky-pull-request-comment@da9e86aa2a80e4ae3b854d251add33bd6baabcba
+        with:
+          header: ${{ github.run_id }}
+          number: ${{ env.PR_NUMBER }}
+          GITHUB_TOKEN: ${{ secrets.DAPR_BOT_TOKEN }}
+          path: message.txt
 
-  #     - name: Merge conf test and cert test coverage
-  #       run: | 
-  #        mkdir -p tmp/total_cov
-  #        gocovmerge tmp/certtest_files/${{ env.SOURCE_PATH_LINEAR }}.txt tmp/cov_files/${{ env.SOURCE_PATH_LINEAR }}.txt > final.out
+      - name: Merge conf test and cert test coverage
+        run: | 
+         mkdir -p tmp/total_cov
+         gocovmerge tmp/certtest_files/${{ env.SOURCE_PATH_LINEAR }}.txt tmp/cov_files/${{ env.SOURCE_PATH_LINEAR }}.txt > final.out
 
-  #        FINAL_COVERAGE_REPORT=$(gocov convert final.out | gocov report)
-  #        FINAL_COVERAGE_LINE=$(echo $COVERAGE_REPORT  | grep -oP '(?<=Total Coverage:).*') # example: "80.00% (40/50)"
-  #        FINAL_COVERAGE_PERCENTAGE=$(echo $COVERAGE_LINE | grep -oP '([0-9\.]*)' | head -n 1) # example "80.00"
-  #        echo "FINAL_COVERAGE_LINE=$COVERAGE_LINE" >> $GITHUB_ENV
-  #        echo "FINAL_COMPONENT_PERCENTAGE=$COVERAGE_PERCENTAGE" >> $GITHUB_ENV
+         FINAL_COVERAGE_REPORT=$(gocov convert final.out | gocov report)
+         FINAL_COVERAGE_LINE=$(echo $COVERAGE_REPORT  | grep -oP '(?<=Total Coverage:).*') # example: "80.00% (40/50)"
+         FINAL_COVERAGE_PERCENTAGE=$(echo $COVERAGE_LINE | grep -oP '([0-9\.]*)' | head -n 1) # example "80.00"
+         echo "FINAL_COVERAGE_LINE=$COVERAGE_LINE" >> $GITHUB_ENV
+         echo "FINAL_COMPONENT_PERCENTAGE=$COVERAGE_PERCENTAGE" >> $GITHUB_ENV
 
-  #     - name: Download Conf Coverage Artifact
-  #       uses: actions/download-artifact@v3
-  #       continue-on-error: true
-  #       if: success() && github.event_name == 'schedule'
-  #       id: download
-  #       with:
-  #         name: conftest_cov
-  #         path: tmp/cov_files
+      - name: Download Conf Coverage Artifact
+        uses: actions/download-artifact@v3
+        continue-on-error: true
+        if: success() && github.event_name == 'schedule'
+        id: download
+        with:
+          name: conftest_cov
+          path: tmp/cov_files
 
-  #     - name: Calculate total coverage
-  #       if: success() && github.event_name == 'schedule'
-  #       run: |
-  #         threshold=60.0
-  #         echo "threshold=$threshold" >> $GITHUB_ENV
-  #         aboveThreshold=0
-  #         totalFiles=0
-  #         ls "${{steps.download.outputs.download-path}}" | while read f; do
-  #         while read LINE;
-  #             do
-  #             ratio=$(echo $LINE | cut -d "(" -f2 | cut -d ")" -f1)
-  #             prcnt=$(echo $LINE | cut -d "(" -f1 | cut -d ")" -f1)
-  #             tempPrcnt=$(echo $prcnt | cut -d'%' -f1)
-  #             if [ $tempPrcnt \> $threshold ]; then aboveThreshold=$(($aboveThreshold+1)); fi
-  #             totalFiles=$(($totalFiles+1))
-  #             tempNumerator=$(echo $ratio | cut -d'/' -f1)
-  #             tempDenominator=$(echo $ratio | cut -d'/' -f2)
-  #             export numerator=$(($numerator+$tempNumerator))
-  #             export denominator=$(($denominator+$tempDenominator))
-  #             totalPer=$(awk "BEGIN { print (($numerator / $denominator) * 100) }")
-  #             echo "totalPer=$totalPer" >> $GITHUB_ENV
-  #             echo "aboveThreshold=$aboveThreshold" >> $GITHUB_ENV
-  #             echo "totalFiles=$totalFiles" >> $GITHUB_ENV
-  #           done < "${{steps.download.outputs.download-path}}/$f"
-  #         done
-  #       continue-on-error: true
+      - name: Calculate total coverage
+        if: success() && github.event_name == 'schedule'
+        run: |
+          threshold=60.0
+          echo "threshold=$threshold" >> $GITHUB_ENV
+          aboveThreshold=0
+          totalFiles=0
+          ls "${{steps.download.outputs.download-path}}" | while read f; do
+          while read LINE;
+              do
+              ratio=$(echo $LINE | cut -d "(" -f2 | cut -d ")" -f1)
+              prcnt=$(echo $LINE | cut -d "(" -f1 | cut -d ")" -f1)
+              tempPrcnt=$(echo $prcnt | cut -d'%' -f1)
+              if [ $tempPrcnt \> $threshold ]; then aboveThreshold=$(($aboveThreshold+1)); fi
+              totalFiles=$(($totalFiles+1))
+              tempNumerator=$(echo $ratio | cut -d'/' -f1)
+              tempDenominator=$(echo $ratio | cut -d'/' -f2)
+              export numerator=$(($numerator+$tempNumerator))
+              export denominator=$(($denominator+$tempDenominator))
+              totalPer=$(awk "BEGIN { print (($numerator / $denominator) * 100) }")
+              echo "totalPer=$totalPer" >> $GITHUB_ENV
+              echo "aboveThreshold=$aboveThreshold" >> $GITHUB_ENV
+              echo "totalFiles=$totalFiles" >> $GITHUB_ENV
+            done < "${{steps.download.outputs.download-path}}/$f"
+          done
+        continue-on-error: true

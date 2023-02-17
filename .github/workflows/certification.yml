@@ -24,6 +24,8 @@ on:
       - 'release-*'
   pull_request:
     branches:
+      # TODO: REMOVE "master" BEFORE MERGING
+      - 'master'
       - 'release-*'
 
 env:
@@ -45,6 +47,12 @@ jobs:
           echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV
           echo "PR_NUMBER=${{ github.event.client_payload.issue.number }}" >> $GITHUB_ENV
         fi
+
+    - name: Check out code
+      uses: actions/checkout@v3
+      with:
+        repository: ${{ env.CHECKOUT_REPO }}
+        ref: ${{ env.CHECKOUT_REF }}
 
     - name: Generate test matrix
       id: generate-matrix

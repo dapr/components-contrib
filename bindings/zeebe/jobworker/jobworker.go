@@ -19,6 +19,8 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
@@ -39,6 +41,9 @@ type ZeebeJobWorker struct {
 	client        zbc.Client
 	metadata      *jobWorkerMetadata
 	logger        logger.Logger
+	closed        atomic.Bool
+	closeCh       chan struct{}
+	wg            sync.WaitGroup
 }
 
 // https://docs.zeebe.io/basics/job-workers.html
@@ -64,11 +69,15 @@ type jobHandler struct {
 
 // NewZeebeJobWorker returns a new ZeebeJobWorker instance.
 func NewZeebeJobWorker(logger logger.Logger) bindings.InputBinding {
-	return &ZeebeJobWorker{clientFactory: zeebe.NewClientFactoryImpl(logger), logger: logger}
+	return &ZeebeJobWorker{
+		clientFactory: zeebe.NewClientFactoryImpl(logger),
+		logger:        logger,
+		closeCh:       make(chan struct{}),
+	}
 }
 
 // Init does metadata parsing and connection creation.
-func (z *ZeebeJobWorker) Init(metadata bindings.Metadata) error {
+func (z *ZeebeJobWorker) Init(ctx context.Context, metadata bindings.Metadata) error {
 	meta, err := z.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -90,6 +99,10 @@ func (z *ZeebeJobWorker) Init(metadata bindings.Metadata) error {
 }
 
 func (z *ZeebeJobWorker) Read(ctx context.Context, handler bindings.Handler) error {
+	if z.closed.Load() {
+		return fmt.Errorf("binding is closed")
+	}
+
 	h := jobHandler{
 		callback:     handler,
 		logger:       z.logger,
@@ -99,14 +112,28 @@ func (z *ZeebeJobWorker) Read(ctx context.Context, handler bindings.Handler) err
 
 	jobWorker := z.getJobWorker(h)
 
+	z.wg.Add(1)
 	go func() {
-		<-ctx.Done()
+		defer z.wg.Done()
+
+		select {
+		case <-z.closeCh:
+		case <-ctx.Done():
+		}
 
 		jobWorker.Close()
 		jobWorker.AwaitClose()
 		z.client.Close()
 	}()
 
+	return nil
+}
+
+func (z *ZeebeJobWorker) Close() error {
+	if z.closed.CompareAndSwap(false, true) {
+		close(z.closeCh)
+	}
+	z.wg.Wait()
 	return nil
 }
 

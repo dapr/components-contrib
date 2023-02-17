@@ -47,8 +47,8 @@ func internalNew(logger logger.Logger, dba dbAccess) *CockroachDB {
 }
 
 // Init initializes the CockroachDB state store.
-func (c *CockroachDB) Init(metadata state.Metadata) error {
-	return c.dbaccess.Init(metadata)
+func (c *CockroachDB) Init(ctx context.Context, metadata state.Metadata) error {
+	return c.dbaccess.Init(ctx, metadata)
 }
 
 // Features returns the features available in this state store.
@@ -72,8 +72,8 @@ func (c *CockroachDB) Set(ctx context.Context, req *state.SetRequest) error {
 }
 
 // Ping checks if database is available.
-func (c *CockroachDB) Ping() error {
-	return c.dbaccess.Ping()
+func (c *CockroachDB) Ping(ctx context.Context) error {
+	return c.dbaccess.Ping(ctx)
 }
 
 // BulkDelete removes multiple entries from the store.

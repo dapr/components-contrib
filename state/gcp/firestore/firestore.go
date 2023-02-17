@@ -71,7 +71,7 @@ func NewFirestoreStateStore(logger logger.Logger) state.Store {
 }
 
 // Init does metadata and connection parsing.
-func (f *Firestore) Init(metadata state.Metadata) error {
+func (f *Firestore) Init(ctx context.Context, metadata state.Metadata) error {
 	meta, err := getFirestoreMetadata(metadata)
 	if err != nil {
 		return err
@@ -82,7 +82,6 @@ func (f *Firestore) Init(metadata state.Metadata) error {
 	}
 
 	opt := option.WithCredentialsJSON(b)
-	ctx := context.Background()
 	client, err := datastore.NewClient(ctx, meta.ProjectID, opt)
 	if err != nil {
 		return err

@@ -57,7 +57,7 @@ func TestPublishMsg(t *testing.T) { //nolint:paralleltest
 	}}}
 
 	d := NewDingTalkWebhook(logger.NewLogger("test"))
-	err := d.Init(m)
+	err := d.Init(context.Background(), m)
 	require.NoError(t, err)
 
 	req := &bindings.InvokeRequest{Data: []byte(msg), Operation: bindings.CreateOperation, Metadata: map[string]string{}}
@@ -78,7 +78,7 @@ func TestBindingReadAndInvoke(t *testing.T) { //nolint:paralleltest
 	}}
 
 	d := NewDingTalkWebhook(logger.NewLogger("test"))
-	err := d.Init(m)
+	err := d.Init(context.Background(), m)
 	assert.NoError(t, err)
 
 	var count int32
@@ -105,4 +105,19 @@ func TestBindingReadAndInvoke(t *testing.T) { //nolint:paralleltest
 	case <-time.After(time.Second):
 		require.FailNow(t, "read timeout")
 	}
+}
+
+func TestBindingClose(t *testing.T) {
+	d := NewDingTalkWebhook(logger.NewLogger("test"))
+	m := bindings.Metadata{Base: metadata.Base{
+		Name: "test",
+		Properties: map[string]string{
+			"url":    "/test",
+			"secret": "",
+			"id":     "x",
+		},
+	}}
+	assert.NoError(t, d.Init(context.Background(), m))
+	assert.NoError(t, d.Close())
+	assert.NoError(t, d.Close(), "second close should not error")
 }

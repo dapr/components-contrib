@@ -51,7 +51,7 @@ func TestDataEncodeAndDecode(t *testing.T) {
 	metadata := bindings.Metadata{Base: metadata.Base{
 		Properties: getTestProperties(),
 	}}
-	aliCloudTableStore.Init(metadata)
+	aliCloudTableStore.Init(context.Background(), metadata)
 
 	// test create
 	putData := map[string]interface{}{

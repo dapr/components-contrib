@@ -16,6 +16,7 @@ package bindings
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/dapr/components-contrib/health"
 )
@@ -23,18 +24,21 @@ import (
 // InputBinding is the interface to define a binding that triggers on incoming events.
 type InputBinding interface {
 	// Init passes connection and properties metadata to the binding implementation.
-	Init(metadata Metadata) error
+	Init(ctx context.Context, metadata Metadata) error
 	// Read is a method that runs in background and triggers the callback function whenever an event arrives.
 	Read(ctx context.Context, handler Handler) error
+	// Close is a method that closes the connection to the binding. Must be
+	// called when the binding is no longer needed to free up resources.
+	io.Closer
 }
 
 // Handler is the handler used to invoke the app handler.
 type Handler func(context.Context, *ReadResponse) ([]byte, error)
 
-func PingInpBinding(inputBinding InputBinding) error {
+func PingInpBinding(ctx context.Context, inputBinding InputBinding) error {
 	// checks if this input binding has the ping option then executes
 	if inputBindingWithPing, ok := inputBinding.(health.Pinger); ok {
-		return inputBindingWithPing.Ping()
+		return inputBindingWithPing.Ping(ctx)
 	} else {
 		return fmt.Errorf("ping is not implemented by this input binding")
 	}

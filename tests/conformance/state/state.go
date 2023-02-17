@@ -223,7 +223,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	}
 
 	t.Run("init", func(t *testing.T) {
-		err := statestore.Init(state.Metadata{
+		err := statestore.Init(context.Background(), state.Metadata{
 			Base: metadata.Base{Properties: props},
 		})
 		assert.Nil(t, err)
@@ -235,7 +235,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	}
 
 	t.Run("ping", func(t *testing.T) {
-		err := state.Ping(statestore)
+		err := state.Ping(context.Background(), statestore)
 		// TODO: Ideally, all stable components should implenment ping function,
 		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components

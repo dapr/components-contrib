@@ -103,14 +103,14 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 
 	// Init
 	t.Run("init", func(t *testing.T) {
-		err := ps.Init(pubsub.Metadata{
+		err := ps.Init(context.Background(), pubsub.Metadata{
 			Base: metadata.Base{Properties: props},
 		})
 		assert.NoError(t, err, "expected no error on setting up pubsub")
 	})
 
 	t.Run("ping", func(t *testing.T) {
-		err := pubsub.Ping(ps)
+		err := pubsub.Ping(context.Background(), ps)
 		// TODO: Ideally, all stable components should implenment ping function,
 		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components

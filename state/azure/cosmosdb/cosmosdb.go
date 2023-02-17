@@ -113,7 +113,7 @@ func (c *StateStore) GetComponentMetadata() map[string]string {
 }
 
 // Init does metadata and connection parsing.
-func (c *StateStore) Init(meta state.Metadata) error {
+func (c *StateStore) Init(ctx context.Context, meta state.Metadata) error {
 	c.logger.Debugf("CosmosDB init start")
 
 	m := metadata{
@@ -191,9 +191,9 @@ func (c *StateStore) Init(meta state.Metadata) error {
 	c.metadata = m
 	c.contentType = m.ContentType
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	_, err = c.client.Read(ctx, nil)
-	cancel()
+	readCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
+	_, err = c.client.Read(readCtx, nil)
 	return err
 }
 
@@ -217,9 +217,9 @@ func (c *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelEventual.ToPtr()
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
-	readItem, err := c.client.ReadItem(ctx, azcosmos.NewPartitionKeyString(partitionKey), req.Key, &options)
-	cancel()
+	readCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
+	readItem, err := c.client.ReadItem(readCtx, azcosmos.NewPartitionKeyString(partitionKey), req.Key, &options)
 	if err != nil {
 		var responseErr *azcore.ResponseError
 		if errors.As(err, &responseErr) && responseErr.ErrorCode == "NotFound" {
@@ -306,10 +306,10 @@ func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	upsertCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
 	pk := azcosmos.NewPartitionKeyString(partitionKey)
-	_, err = c.client.UpsertItem(ctx, pk, marsh, &options)
-	cancel()
+	_, err = c.client.UpsertItem(upsertCtx, pk, marsh, &options)
 	if err != nil {
 		return err
 	}
@@ -335,10 +335,10 @@ func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelEventual.ToPtr()
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	deleteCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
 	pk := azcosmos.NewPartitionKeyString(partitionKey)
-	_, err = c.client.DeleteItem(ctx, pk, req.Key, &options)
-	cancel()
+	_, err = c.client.DeleteItem(deleteCtx, pk, req.Key, &options)
 	if err != nil && !isNotFoundError(err) {
 		c.logger.Debugf("Error from cosmos.DeleteDocument e=%e, e.Error=%s", err, err.Error())
 		if req.ETag != nil && *req.ETag != "" {
@@ -418,9 +418,9 @@ func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 
 	c.logger.Debugf("#operations=%d,partitionkey=%s", numOperations, partitionKey)
 
-	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
-	batchResponse, err := c.client.ExecuteTransactionalBatch(ctx, batch, nil)
-	cancel()
+	execCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
+	batchResponse, err := c.client.ExecuteTransactionalBatch(execCtx, batch, nil)
 	if err != nil {
 		return err
 	}
@@ -464,10 +464,10 @@ func (c *StateStore) Query(ctx context.Context, req *state.QueryRequest) (*state
 	}, nil
 }
 
-func (c *StateStore) Ping() error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	_, err := c.client.Read(ctx, nil)
-	cancel()
+func (c *StateStore) Ping(ctx context.Context) error {
+	pingCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
+	_, err := c.client.Read(pingCtx, nil)
 	if err != nil {
 		return err
 	}

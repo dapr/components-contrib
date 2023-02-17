@@ -26,7 +26,7 @@ type componentMetadata struct {
 	KVNamespaceID        string `mapstructure:"kvNamespaceID"`
 }
 
-var kvNamespaceValidation = regexp.MustCompile("^([a-zA-Z0-9_\\-\\.]+)$")
+var kvNamespaceValidation = regexp.MustCompile(`^([a-zA-Z0-9_\-\.]+)$`)
 
 // Validate the metadata object.
 func (m *componentMetadata) Validate() error {

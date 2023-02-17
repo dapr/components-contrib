@@ -37,7 +37,7 @@ type mockClient struct {
 	zbc.Client
 }
 
-func (mcf mockClientFactory) Get(metadata bindings.Metadata) (zbc.Client, error) {
+func (mcf *mockClientFactory) Get(metadata bindings.Metadata) (zbc.Client, error) {
 	mcf.metadata = metadata //nolint:staticcheck
 
 	if mcf.error != nil {
@@ -53,7 +53,7 @@ func TestInit(t *testing.T) {
 	t.Run("returns error if client could not be instantiated properly", func(t *testing.T) {
 		errParsing := errors.New("error on parsing metadata")
 		metadata := bindings.Metadata{}
-		mcf := mockClientFactory{
+		mcf := &mockClientFactory{
 			error: errParsing,
 		}
 
@@ -64,7 +64,7 @@ func TestInit(t *testing.T) {
 
 	t.Run("sets client from client factory", func(t *testing.T) {
 		metadata := bindings.Metadata{}
-		mcf := mockClientFactory{}
+		mcf := &mockClientFactory{}
 
 		cmd := ZeebeCommand{clientFactory: mcf, logger: testLogger}
 		err := cmd.Init(context.Background(), metadata)

@@ -48,6 +48,7 @@ const router = Router()
                     case 'KVNamespace':
                         kv.push(all[i])
                         break
+                    case 'WorkerQueue':
                     case 'Queue':
                         queues.push(all[i])
                         break
@@ -200,7 +201,7 @@ async function setupQueueRequest(
         return { errorRes: new Response('Bad request', { status: 400 }) }
     }
     const queue = env[req.params.queue] as Queue<string>
-    if (typeof queue != 'object' || queue?.constructor?.name != 'Queue') {
+    if (typeof queue != 'object' || !['WorkerQueue', 'Queue'].includes(queue?.constructor?.name)) {
         return {
             errorRes: new Response(
                 `Worker is not bound to queue '${req.params.queue}'`,

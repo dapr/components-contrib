@@ -3,7 +3,7 @@ module github.com/dapr/components-contrib/tests/e2e/pubsub/jetstream
 go 1.19
 
 require (
-	github.com/dapr/components-contrib v1.9.1-0.20230124032834-7067334215da
+	github.com/dapr/components-contrib v1.10.0-rc.1.0.20230216221835-d098e38d6a4c
 	github.com/dapr/kit v0.0.4
 )
 
@@ -22,5 +22,3 @@ require (
 )
 
 replace github.com/dapr/components-contrib => ../../../../
-
-replace github.com/dapr/dapr => github.com/JoshVanL/dapr v0.0.0-20230206115221-708ff00f7181

@@ -446,14 +446,14 @@ jobs:
         retention-days: 1
 
     - name: Prepare Cert Coverage Entire File Artifact
-      if: github.event_name == 'schedule'
+      if: always()
       run: |
        mkdir -p tmp/cert_code_cov_files
        echo "$(<cover.out )" >> tmp/actual_cov_files/${{ env.SOURCE_PATH_LINEAR }}.out
 
     - name: Upload Cert Coverage Entire File Artifact
       uses: actions/upload-artifact@v3
-      if: github.event_name == 'schedule'
+      if: always()
       with:
         name: cert_code_cov
         path: tmp/cert_code_cov_files

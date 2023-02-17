@@ -9,8 +9,15 @@ This folder contains helper scripts for maintainers to set up resources needed f
 To use the automation in this folder, you will need:
 
 - A user account with [Owner permissions](https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles#owner) to assign RBAC roles and manage all Azure resources under an [Azure Subscription](https://docs.microsoft.com/en-us/azure/cost-management-billing/manage/create-subscription#:~:text=Create%20a%20subscription%20in%20the%20Azure%20portal%201,the%20form%20for%20each%20type%20of%20billing%20account.).
-
 - The [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) installed.
+
+For running tests for Azure Event Grid, you also need to run a PowerShell script which requires:
+
+- [PowerShell 7](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell) installed
+- [Az module for PowerShell](https://learn.microsoft.com/en-us/powershell/azure/install-az-ps) for PowerShell installed:  
+  `Install-Module Az -Scope CurrentUser -Repository PSGallery -Force`
+- [Microsoft.Graph module for PowerShell](https://learn.microsoft.com/en-us/powershell/microsoftgraph/installation) for PowerShell installed:  
+  `Install-Module Microsoft.Graph -Scope CurrentUser -Repository PSGallery -Force`
 
 ## Setting up Azure resources for conformance tests
 
@@ -37,6 +44,21 @@ By default, the script will prefix all resources it creates with your user alias
 - `myazurealias-conf-test-config.rc` contains all the environment variables needed to run the Azure conformance tests locally. **This file also contains various credentials used to access the resources.**
 - `AzureKeyVaultSecretStoreCert.pfx` is a local copy of the cert for the Service Principal used in the `secretstore.azure.keyvault` conformance test. The path to this is referenced as part of the environment variables in the `*-conf-test-config.rc`.
 - `AZURE_CREDENTIALS` contains the credentials for the Service Principal you can use to run the conformance test GitHub workflow against the created Azure resources.
+
+### Setting up tests for Azure Event Grid
+
+If you plan to run the  `bindings.azure.eventgrid` tests, you will also need to run an additional PowerShell script to set up your Azure AD environment.
+
+> Make sure you have the environmental variables from `myazurealias-conf-test-config.rc` loaded in your environment before running this command. Otherwise, you can pass the 
+
+```powershell
+# Authenticate with the Microsoft Graph
+# You may need to add the -TenantId flag to the next command if needed
+Connect-MgGraph -Scopes "Application.Read.All","Application.ReadWrite.All"
+./setup-eventgrid-sp.ps1 $env:AzureEventGridClientId
+```
+
+> Note: if your directory does not have a Service Principal for the application "Microsoft.EventGrid", you may need to run the command `Connect-MgGraph` and sign in as an admin for the Azure AD tenant (this is related to permissions on the Azure AD directory, and not the Azure subscription). Otherwise, please ask your tenant's admin to sign in and run this PowerShell command: `New-MgServicePrincipal -AppId "4962773b-9cdb-44cf-a8bf-237846a00ab7"` (the UUID is a constant)
 
 ### Deploying for use in GitHub workflows
 

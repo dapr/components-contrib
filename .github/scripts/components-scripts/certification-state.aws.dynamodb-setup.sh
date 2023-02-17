@@ -8,7 +8,7 @@ echo "STATE_AWS_DYNAMODB_TABLE_1=certification-test-terraform-basic-$UNIQUE_ID" 
 echo "STATE_AWS_DYNAMODB_TABLE_2=certification-test-terraform-partition-key-$UNIQUE_ID" >> $GITHUB_ENV
 
 # Navigate to the Terraform directory
-cd ".github/infrastructure/terraform/certification/pubsub/aws/dynamodb"
+cd ".github/infrastructure/terraform/certification/state/aws/dynamodb"
 
 # Run Terraform
 terraform init

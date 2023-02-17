@@ -387,7 +387,7 @@ jobs:
         fi
         set -e
 
-        COVERAGE_REPORT=$(gocov convert {{ env.SOURCE_PATH_LINEAR }}.out | gocov report)
+        COVERAGE_REPORT=$(gocov convert ${{ env.SOURCE_PATH_LINEAR }}.out | gocov report)
         COVERAGE_LINE=$(echo $COVERAGE_REPORT  | grep -oP '(?<=Total Coverage:).*') # example: "80.00% (40/50)"
         COVERAGE_PERCENTAGE=$(echo $COVERAGE_LINE | grep -oP '([0-9\.]*)' | head -n 1) # example "80.00"
         echo "COVERAGE_LINE=$COVERAGE_LINE" >> $GITHUB_ENV

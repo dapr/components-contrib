@@ -8,8 +8,8 @@ spec:
   metadata:
   - name: bucket
     secretKeyRef:
-      name: BINDINGS_AWS_S3_BUCKET
-      key: BINDINGS_AWS_S3_BUCKET
+      name: AWS_S3_BUCKET
+      key: AWS_S3_BUCKET
   - name: accessKey
     secretKeyRef:
       name: AWS_ACCESS_KEY_ID

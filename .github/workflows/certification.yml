@@ -378,7 +378,7 @@ jobs:
         set +e
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.json \
           --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.xml --format standard-quiet -- \
-          -coverprofile={{ env.SOURCE_PATH_LINEAR }}.out -covermode=set -tags=certtests -coverpkg=${{ env.SOURCE_PATH }}
+          -coverprofile=${{ env.SOURCE_PATH_LINEAR }}.out -covermode=set -tags=certtests -coverpkg=${{ env.SOURCE_PATH }}
         status=$?
         echo "Completed certification tests for ${{ matrix.component }} ... "
         if test $status -ne 0; then

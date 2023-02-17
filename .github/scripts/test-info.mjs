@@ -536,10 +536,10 @@ function GenerateMatrix(testKind, enableCloudTests) {
         res.push({
             component: name,
             'required-secrets': comp.requiredSecrets?.length
-                ? comp.requiredSecrets
+                ? comp.requiredSecrets.join(',')
                 : undefined,
             'required-certs': comp.requiredCerts?.length
-                ? comp.requiredCerts
+                ? comp.requiredCerts.join(',')
                 : undefined,
             'require-aws-credentials': comp.requireAWSCredentials
                 ? 'true'

@@ -223,7 +223,7 @@ jobs:
 
     - name: Run setup script
       if: matrix.setup-script != ''
-      run: .github/scripts/${{ matrix.setup-script }}
+      run: .github/scripts/components-scripts/${{ matrix.setup-script }}
 
     - name: Catch setup failures
       if: failure()
@@ -330,7 +330,7 @@ jobs:
 
     - name: Run destroy script
       if: always() && matrix.destroy-script != ''
-      run: .github/scripts/${{ matrix.destroy-script }}
+      run: .github/scripts/components-scripts/${{ matrix.destroy-script }}
 
   post_job:
     name: Post-completion

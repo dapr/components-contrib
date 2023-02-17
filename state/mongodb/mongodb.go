@@ -222,16 +222,15 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 		return err
 	}
 
-	update := mongo.Pipeline{
-		bson.D{{Key: "$set", Value: bson.D{
-			{Key: id, Value: req.Key},
-			{Key: value, Value: v},
-			{Key: etag, Value: etagV.String()},
-		}}},
-	}
+	update := make(mongo.Pipeline, 2)
+	update[0] = bson.D{{Key: "$set", Value: bson.D{
+		{Key: id, Value: req.Key},
+		{Key: value, Value: v},
+		{Key: etag, Value: etagV.String()},
+	}}}
 
 	if reqTTL != nil {
-		update = append(update, primitive.D{{Key: "$addFields", Value: bson.D{
+		update[1] = primitive.D{{Key: "$addFields", Value: bson.D{
 			{Key: daprttl, Value: bson.D{
 				{Key: "$dateAdd", Value: bson.D{
 					{Key: "startDate", Value: "$$NOW"},
@@ -239,12 +238,12 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 					{Key: "amount", Value: *reqTTL}},
 				},
 			}},
-		}}})
+		}}}
 	} else {
-		update = append(update, primitive.D{
+		update[1] = primitive.D{
 			{Key: "$addFields", Value: bson.D{
 				{Key: daprttl, Value: nil},
-			}}})
+			}}}
 	}
 
 	_, err = m.collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))

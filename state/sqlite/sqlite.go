@@ -45,8 +45,8 @@ func newSQLiteStateStore(logger logger.Logger, dba DBAccess) *SQLiteStore {
 }
 
 // Init initializes the Sql server state store.
-func (s *SQLiteStore) Init(metadata state.Metadata) error {
-	return s.dbaccess.Init(metadata)
+func (s *SQLiteStore) Init(ctx context.Context, metadata state.Metadata) error {
+	return s.dbaccess.Init(ctx, metadata)
 }
 
 func (s SQLiteStore) GetComponentMetadata() map[string]string {
@@ -64,8 +64,8 @@ func (s *SQLiteStore) Features() []state.Feature {
 	}
 }
 
-func (s *SQLiteStore) Ping() error {
-	return s.dbaccess.Ping(context.TODO())
+func (s *SQLiteStore) Ping(ctx context.Context) error {
+	return s.dbaccess.Ping(ctx)
 }
 
 // Delete removes an entity from the store.

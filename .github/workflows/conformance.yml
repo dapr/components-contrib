@@ -702,7 +702,7 @@ jobs:
        workflow_conclusion: ""
        branch: master
        if_no_artifact_found: warn
-       name: certtest_cov
+       name: cert_code_cov
        path: tmp/certtest_files
 
 
@@ -711,7 +711,7 @@ jobs:
       uses: actions/upload-artifact@v3
       if: always()
       with:
-        name: certest_cov
+        name: cert_code_cov
         path: tmp/certtest_files
         retention-days: 1
 

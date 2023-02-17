@@ -87,16 +87,19 @@ jobs:
   certification:
     name: ${{ matrix.component }} certification
     runs-on: ubuntu-22.04
+    env:
+      UNIQUE_ID: ${{github.run_id}}-${{github.run_attempt}}
     defaults:
       run:
         shell: bash
-    needs: generate-matrix
-    env:
-      UNIQUE_ID: "${{ github.run_id }}-${{ github.run_attempt }}"
+
+    needs: 
+      - generate-matrix
 
     strategy:
       fail-fast: false # Keep running even if one component fails
-      matrix: ${{ fromJson(needs.generate-matrix.outputs.test-matrix) }}
+      matrix: 
+        include: ${{ fromJson(needs.generate-matrix.outputs.test-matrix) }}
 
     steps:
     - name: Set default payload repo and ref

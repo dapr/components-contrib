@@ -123,8 +123,8 @@ func (k *jwksCrypto) initJWKS(ctx context.Context, md string) error {
 	}
 
 	// Treat the value as the actual JWKS
-	// First, check if it's base64-encoded
-	mdJSON, err := base64.RawStdEncoding.DecodeString(md)
+	// First, check if it's base64-encoded (remove trailing padding chars if present first)
+	mdJSON, err := base64.RawStdEncoding.DecodeString(strings.TrimRight(md, "="))
 	if err != nil {
 		// Assume it's already JSON, not encoded
 		mdJSON = []byte(md)
@@ -215,7 +215,7 @@ func (k *jwksCrypto) parseJWKSFile(file string) error {
 
 	read, err := os.ReadFile(file)
 	if err != nil {
-		return fmt.Errorf("failed to read JWKS file: %v", err)
+		return fmt.Errorf("failed to read JgoWKS file: %v", err)
 	}
 
 	jwks, err := jwk.Parse(read)

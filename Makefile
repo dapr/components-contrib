@@ -217,6 +217,19 @@ bundle-component-metadata:
 	$(RUN_BUILD_TOOLS) bundle-component-metadata > ../component-metadata-bundle.json
 
 ################################################################################
+# Prettier                                                                     #
+################################################################################
+.PHONY: prettier-install prettier-check prettier-format
+prettier-install:
+	npm install --global prettier
+
+prettier-check:
+	npx prettier --check "*/**/*.{ts,js,mjs,json}"
+
+prettier-format:
+	npx prettier --write "*/**/*.{ts,js,mjs,json}"
+
+################################################################################
 # Target: conf-tests                                                           #
 ################################################################################
 .PHONY: conf-tests

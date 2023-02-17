@@ -106,13 +106,13 @@ const router = Router()
                 return errorRes
             }
 
-            let expirationTtl: number|undefined = undefined
+            let expirationTtl: number | undefined = undefined
             const reqUrl = new URL(req.url)
-            const ttlParam = parseInt(reqUrl.searchParams.get('ttl') ||'', 10)
+            const ttlParam = parseInt(reqUrl.searchParams.get('ttl') || '', 10)
             if (ttlParam > 0) {
                 expirationTtl = ttlParam
             }
-            await namespace!.put(key!, req.body!, {expirationTtl})
+            await namespace!.put(key!, req.body!, { expirationTtl })
 
             return new Response('', { status: 201 })
         }
@@ -172,7 +172,10 @@ async function setupKVRequest(
         return { errorRes: new Response('Bad request', { status: 400 }) }
     }
     const namespace = env[req.params.namespace] as KVNamespace<string>
-    if (typeof namespace != 'object' || !['KVNamespace', 'KvNamespace'].includes(namespace?.constructor?.name)) {
+    if (
+        typeof namespace != 'object' ||
+        !['KVNamespace', 'KvNamespace'].includes(namespace?.constructor?.name)
+    ) {
         return {
             errorRes: new Response(
                 `Worker is not bound to KV '${req.params.kv}'`,

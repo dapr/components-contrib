@@ -83,6 +83,7 @@ func TestCreateMetadata(t *testing.T) {
 		assert.Equal(t, "", m.ClientCert)
 		assert.Equal(t, "", m.CACert)
 		assert.Equal(t, fanoutExchangeKind, m.exchangeKind)
+		assert.Equal(t, classicQueueType, m.queueType)
 	})
 
 	invalidDeliveryModes := []string{"3", "10", "-1"}
@@ -391,6 +392,43 @@ func TestCreateMetadata(t *testing.T) {
 			Base: mdata.Base{Properties: fakeProperties},
 		}
 		fakeMetaData.Properties[metadataExchangeKindKey] = "invalid"
+
+		// act
+		_, err := createMetadata(fakeMetaData, log)
+
+		// assert
+		assert.Error(t, err)
+	})
+
+	validQueueType := []string{amqp.QueueTypeClassic, amqp.QueueTypeQuorum, amqp.QueueTypeStream}
+
+	for _, queueType := range validQueueType {
+		t.Run(fmt.Sprintf("queueType value=%s", queueType), func(t *testing.T) {
+			fakeProperties := getFakeProperties()
+
+			fakeMetaData := pubsub.Metadata{
+				Base: mdata.Base{Properties: fakeProperties},
+			}
+			fakeMetaData.Properties[metadataQueueType] = queueType
+
+			// act
+			m, err := createMetadata(fakeMetaData, log)
+
+			// assert
+			assert.NoError(t, err)
+			assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
+			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
+			assert.Equal(t, queueType, m.queueType)
+		})
+	}
+
+	t.Run("queueType is invalid", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Base: mdata.Base{Properties: fakeProperties},
+		}
+		fakeMetaData.Properties[metadataQueueType] = "invalid"
 
 		// act
 		_, err := createMetadata(fakeMetaData, log)

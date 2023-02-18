@@ -46,6 +46,8 @@ type metadata struct {
 	maxLen           int64
 	maxLenBytes      int64
 	exchangeKind     string
+	queueType        string
+
 	publisherConfirm bool
 	concurrency      pubsub.ConcurrencyMode
 	defaultQueueTTL  *time.Duration
@@ -73,6 +75,7 @@ const (
 	metadataMaxLenKey               = "maxLen"
 	metadataMaxLenBytesKey          = "maxLenBytes"
 	metadataExchangeKindKey         = "exchangeKind"
+	metadataQueueType               = "queueType"
 	metadataPublisherConfirmKey     = "publisherConfirm"
 
 	defaultReconnectWaitSeconds = 3
@@ -91,6 +94,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*metadat
 		autoAck:          false,
 		reconnectWait:    time.Duration(defaultReconnectWaitSeconds) * time.Second,
 		exchangeKind:     fanoutExchangeKind,
+		queueType:        classicQueueType,
 		publisherConfirm: false,
 	}
 
@@ -203,6 +207,14 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*metadat
 		}
 	}
 
+	if val, found := pubSubMetadata.Properties[metadataQueueType]; found && val != "" {
+		if queueTypeValid(val) {
+			result.queueType = val
+		} else {
+			return &result, fmt.Errorf("%s invalid RabbitMQ queue type %s", errorMessagePrefix, val)
+		}
+	}
+
 	if val, found := pubSubMetadata.Properties[metadataPublisherConfirmKey]; found && val != "" {
 		if boolVal, err := strconv.ParseBool(val); err == nil {
 			result.publisherConfirm = boolVal
@@ -248,6 +260,10 @@ func (m *metadata) formatQueueDeclareArgs(origin amqp.Table) amqp.Table {
 
 func exchangeKindValid(kind string) bool {
 	return kind == amqp.ExchangeFanout || kind == amqp.ExchangeTopic || kind == amqp.ExchangeDirect || kind == amqp.ExchangeHeaders
+}
+
+func queueTypeValid(kind string) bool {
+	return kind == amqp.QueueTypeClassic || kind == amqp.QueueTypeQuorum || kind == amqp.QueueTypeStream
 }
 
 func (m *metadata) connectionURI() string {

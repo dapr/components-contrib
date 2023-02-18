@@ -33,6 +33,7 @@ import (
 
 const (
 	fanoutExchangeKind              = "fanout"
+	classicQueueType                = "classic"
 	logMessagePrefix                = "rabbitmq pub/sub:"
 	errorMessagePrefix              = "rabbitmq pub/sub error:"
 	errorChannelNotInitialized      = "channel not initialized"
@@ -44,6 +45,7 @@ const (
 	publishRetryWaitSeconds = 2
 
 	argQueueMode          = "x-queue-mode"
+	argQueueType          = "x-queue-type"
 	argMaxLength          = "x-max-length"
 	argMaxLengthBytes     = "x-max-length-bytes"
 	argDeadLetterExchange = "x-dead-letter-exchange"
@@ -338,6 +340,7 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		dlqArgs := r.metadata.formatQueueDeclareArgs(nil)
 		// dead letter queue use lazy mode, keeping as many messages as possible on disk to reduce RAM usage
 		dlqArgs[argQueueMode] = queueModeLazy
+		dlqArgs[argQueueType] = r.metadata.queueType
 		q, err = channel.QueueDeclare(dlqName, true, r.metadata.deleteWhenUnused, false, false, dlqArgs)
 		if err != nil {
 			r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueDeclare: %v", logMessagePrefix, req.Topic, dlqName, err)
@@ -354,6 +357,7 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		args = amqp.Table{argDeadLetterExchange: dlxName}
 	}
 	args = r.metadata.formatQueueDeclareArgs(args)
+	args[argQueueType] = r.metadata.queueType
 	q, err := channel.QueueDeclare(queueName, r.metadata.durable, r.metadata.deleteWhenUnused, false, false, args)
 	if err != nil {
 		r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueDeclare: %v", logMessagePrefix, req.Topic, queueName, err)

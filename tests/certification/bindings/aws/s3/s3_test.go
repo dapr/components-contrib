@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"os"
 
 	"testing"
 
@@ -42,8 +43,12 @@ const (
 	bindingsMetadataName = "s3-cert-tests"
 )
 
-func init() {
+var bucketName = "bucketName"
 
+func init() {
+	if envVal := os.Getenv("AWS_S3_BUCKET"); envVal != "" {
+		bucketName = envVal
+	}
 }
 
 func TestAWSS3CertificationTests(t *testing.T) {
@@ -60,6 +65,18 @@ func TestAWSS3CertificationTests(t *testing.T) {
 	t.Run("S3SBase64", func(t *testing.T) {
 		S3SBase64(t)
 	})
+}
+
+// createObjectRequest is used to make a common binding request for create operation.
+func createObjectRequest(ctx flow.Context, client daprsdk.Client, dataBytes []byte, invokeCreateMetadata map[string]string) (*daprsdk.BindingEvent, error) {
+	invokeCreateRequest := &daprsdk.InvokeBindingRequest{
+		Name:      bindingsMetadataName,
+		Operation: "create",
+		Data:      dataBytes,
+		Metadata:  invokeCreateMetadata,
+	}
+
+	return client.InvokeBinding(ctx, invokeCreateRequest)
 }
 
 // listObejctRequest is used to make a common binding request for the list operation.
@@ -141,15 +158,7 @@ func S3SBasic(t *testing.T) {
 			"key": objectName,
 		}
 
-		invokeCreateRequest := &daprsdk.InvokeBindingRequest{
-			Name:      bindingsMetadataName,
-			Operation: "create",
-			Data:      dataBytes,
-			Metadata:  invokeCreateMetadata,
-		}
-
-		_, invokeCreateErr := client.InvokeBinding(ctx, invokeCreateRequest)
-
+		_, invokeCreateErr := createObjectRequest(ctx, client, dataBytes, invokeCreateMetadata)
 		assert.NoError(t, invokeCreateErr)
 
 		invokeGetMetadata := map[string]string{
@@ -209,7 +218,75 @@ func S3SBasic(t *testing.T) {
 
 // Verify forcePathStyle
 func S3SForcePathStyle(t *testing.T) {
+	ports, err := dapr_testing.GetFreePorts(2)
+	assert.NoError(t, err)
 
+	currentGRPCPort := ports[0]
+	currentHTTPPort := ports[1]
+	objectName := "filename.txt"
+	locationForcePathStyleFalse := fmt.Sprintf("https://%s.s3.amazonaws.com/%s", bucketName, objectName)
+	locationForcePathStyleTrue := fmt.Sprintf("https://s3.amazonaws.com/%s/%s", bucketName, objectName)
+
+	testForcePathStyle := func(forcePathStyle string) func(ctx flow.Context) error {
+		return func(ctx flow.Context) error {
+			client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
+			if clientErr != nil {
+				panic(clientErr)
+			}
+			defer client.Close()
+
+			input := "some example content"
+			dataBytes := []byte(input)
+
+			invokeCreateMetadata := map[string]string{
+				"key": objectName,
+			}
+
+			cout, invokeCreateErr := createObjectRequest(ctx, client, dataBytes, invokeCreateMetadata)
+			assert.NoError(t, invokeCreateErr)
+			var createResponse struct {
+				Location   string  `json:"location"`
+				VersionID  *string `json:"versionID"`
+				PresignURL string  `json:"presignURL,omitempty"`
+			}
+			unmarshalErr := json.Unmarshal(cout.Data, &createResponse)
+			assert.NoError(t, unmarshalErr)
+			assert.Equal(t, createResponse.Location, forcePathStyle)
+
+			out, invokeDeleteErr := deleteObejctRequest(ctx, client, objectName)
+			assert.NoError(t, invokeDeleteErr)
+			assert.Empty(t, out.Data)
+
+			// confirm the deletion.
+			_, invokeSecondGetErr := getObejctRequest(ctx, client, objectName, false)
+			assert.Error(t, invokeSecondGetErr)
+			assert.Contains(t, invokeSecondGetErr.Error(), "error downloading S3 object")
+
+			return nil
+		}
+	}
+
+	flow.New(t, "AWS S3 binding with forcePathStyle True").
+		Step(sidecar.Run(sidecarName,
+			embedded.WithoutApp(),
+			embedded.WithComponentsPath("./components/forcePathStyleTrue"),
+			embedded.WithDaprGRPCPort(currentGRPCPort),
+			embedded.WithDaprHTTPPort(currentHTTPPort),
+			componentRuntimeOptions(),
+		)).
+		Step("Create/Delete S3 Object forcePathStyle True", testForcePathStyle(locationForcePathStyleTrue)).
+		Run()
+
+	flow.New(t, "AWS S3 binding with forcePathStyleFalse").
+		Step(sidecar.Run(sidecarName,
+			embedded.WithoutApp(),
+			embedded.WithComponentsPath("./components/forcePathStyleFalse"),
+			embedded.WithDaprGRPCPort(currentGRPCPort),
+			embedded.WithDaprHTTPPort(currentHTTPPort),
+			componentRuntimeOptions(),
+		)).
+		Step("Create/Delete S3 Object forcePathStyle False", testForcePathStyle(locationForcePathStyleFalse)).
+		Run()
 }
 
 // Verify Base64 (Encode/Decode)

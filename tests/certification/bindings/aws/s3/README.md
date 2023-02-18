@@ -15,9 +15,8 @@ This project aims to test the AWS S3 binding component under various conditions.
   - Item does not exist
 
 - Create request:
-  - No filename specified
   - Filename specified
-  - Existing file name specified (overwrites content)
+  - With ForcePathStyle True/False
   - Verifies automatic base64 decode option
 
 - List request:

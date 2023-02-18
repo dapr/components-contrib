@@ -15,6 +15,8 @@ limitations under the License.
 package crypto
 
 import (
+	"crypto"
+
 	"github.com/lestrrat-go/jwx/v2/jwk"
 )
 
@@ -63,4 +65,16 @@ func Decrypt(ciphertext []byte, algorithm string, key jwk.Key, nonce []byte, tag
 	default:
 		return nil, ErrUnsupportedAlgorithm
 	}
+}
+
+func getSHAHash(alg string) crypto.Hash {
+	switch alg[len(alg)-3:] {
+	case "256":
+		return crypto.SHA256
+	case "384":
+		return crypto.SHA384
+	case "512":
+		return crypto.SHA512
+	}
+	return crypto.Hash(0)
 }

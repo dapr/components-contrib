@@ -524,9 +524,9 @@ func loadSecretStore(tc TestComponent) secretstores.SecretStore {
 		store = ss_azure.NewAzureKeyvaultSecretStore(testLogger)
 	case "kubernetes":
 		store = ss_kubernetes.NewKubernetesSecretStore(testLogger)
-	case "localenv":
+	case "local.env":
 		store = ss_local_env.NewEnvSecretStore(testLogger)
-	case "localfile":
+	case "local.file":
 		store = ss_local_file.NewLocalSecretStore(testLogger)
 	case "hashicorp.vault":
 		store = ss_hashicorp_vault.NewHashiCorpVaultSecretStore(testLogger)

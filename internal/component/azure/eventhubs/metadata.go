@@ -16,11 +16,11 @@ package eventhubs
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs"
 
+	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
@@ -45,10 +45,10 @@ type azureEventHubsMetadata struct {
 	PartitionID   string `json:"partitionID" mapstructure:"partitionID"`     // Deprecated
 
 	// Internal properties
-	namespaceName    string
-	hubName          string
-	aadTokenProvider azcore.TokenCredential
-	properties       map[string]string
+	namespaceName string
+	hubName       string
+	azEnvSettings azauth.EnvironmentSettings
+	properties    map[string]string
 }
 
 func parseEventHubsMetadata(meta map[string]string, isBinding bool, log logger.Logger) (*azureEventHubsMetadata, error) {
@@ -108,7 +108,7 @@ func parseEventHubsMetadata(meta map[string]string, isBinding bool, log logger.L
 			if hubName != "" {
 				log.Infof(`The provided connection string is specific to the Event Hub ("entity path") '%s'; publishing or subscribing to a topic that does not match this Event Hub will fail when attempted`, hubName)
 			} else {
-				log.Infof(`The provided connection string does not contain an Event Hub name ("entity path"); the connection will be established on first publish/subscribe and req.Topic field in incoming requests will be honored`)
+				log.Info(`The provided connection string does not contain an Event Hub name ("entity path"); the connection will be established on first publish/subscribe and req.Topic field in incoming requests will be honored`)
 			}
 
 			m.hubName = hubName
@@ -141,14 +141,11 @@ func parseEventHubsMetadata(meta map[string]string, isBinding bool, log logger.L
 	return &m, nil
 }
 
-var hubNameMatch = regexp.MustCompile(`(?i)(^|;)EntityPath=([^;]+)(;|$)`)
-
 // Returns the hub name (topic) from the connection string.
-// TODO: Temporary until https://github.com/Azure/azure-sdk-for-go/issues/19840 is fixed - then use `conn.ParsedConnectionFromStr(aeh.metadata.ConnectionString)` and look at the `HubName` property.
 func hubNameFromConnString(connString string) string {
-	match := hubNameMatch.FindStringSubmatch(connString)
-	if len(match) < 3 {
+	props, err := azeventhubs.ParseConnectionString(connString)
+	if err != nil || props.EntityPath == nil {
 		return ""
 	}
-	return match[2]
+	return *props.EntityPath
 }

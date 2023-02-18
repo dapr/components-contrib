@@ -32,7 +32,7 @@ jobs:
       GOOS: linux
       GOARCH: amd64
       GOPROXY: https://proxy.golang.org
-      GOLANGCI_LINT_VER: "v1.50.1"
+      GOLANGCI_LINT_VER: "v1.51.0"
     steps:
       - name: Set up Go ${{ env.GOVER }}
         if: ${{ steps.skip_check.outputs.should_skip != 'true' }}

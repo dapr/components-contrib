@@ -107,7 +107,7 @@ func (m *Middleware) GetHandler(_ context.Context, metadata middleware.Metadata)
 					return
 				}
 
-				tokenExpirationDuration := token.Expiry.Sub(time.Now())
+				tokenExpirationDuration := time.Until(token.Expiry)
 				m.log.Debugf("Token expires at %s (%s from now)", token.Expiry, tokenExpirationDuration)
 
 				headerValue = token.Type() + " " + token.AccessToken

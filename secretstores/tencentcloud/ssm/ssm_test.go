@@ -29,9 +29,7 @@ const (
 	secretValue = "secret-value"
 )
 
-type mockedSsmSecretStore struct {
-	ssmClient
-}
+type mockedSsmSecretStore struct{}
 
 func (m *mockedSsmSecretStore) ListSecretsWithContext(ctx context.Context, request *ssm.ListSecretsRequest) (*ssm.ListSecretsResponse, error) {
 	name := secretName
@@ -60,9 +58,7 @@ func (m *mockedSsmSecretStore) GetSecretValueWithContext(ctx context.Context, re
 	}, nil
 }
 
-type mockedSsmSecretStoreReturnError struct {
-	ssmClient
-}
+type mockedSsmSecretStoreReturnError struct{}
 
 func (m *mockedSsmSecretStoreReturnError) ListSecretsWithContext(ctx context.Context, request *ssm.ListSecretsRequest) (*ssm.ListSecretsResponse, error) {
 	name := secretName
@@ -83,9 +79,7 @@ func (m *mockedSsmSecretStoreReturnError) GetSecretValueWithContext(ctx context.
 	return nil, fmt.Errorf("mocked error")
 }
 
-type mockedSsmSecretStoreBothReturnError struct {
-	ssmClient
-}
+type mockedSsmSecretStoreBothReturnError struct{}
 
 func (m *mockedSsmSecretStoreBothReturnError) ListSecretsWithContext(ctx context.Context, request *ssm.ListSecretsRequest) (*ssm.ListSecretsResponse, error) {
 	return nil, fmt.Errorf("mocked error")

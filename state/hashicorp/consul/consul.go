@@ -20,7 +20,6 @@ import (
 	"reflect"
 
 	"github.com/hashicorp/consul/api"
-	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -74,7 +73,7 @@ func (c *Consul) Init(_ context.Context, metadata state.Metadata) error {
 
 	client, err := api.NewClient(config)
 	if err != nil {
-		return errors.Wrap(err, "initializing consul client")
+		return fmt.Errorf("initializing consul client: %w", err)
 	}
 
 	c.client = client

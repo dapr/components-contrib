@@ -66,7 +66,7 @@ func TestOracleDatabaseIntegration(t *testing.T) {
 		defer ods.Close()
 	})
 
-	if initerror := ods.Init(metadata); initerror != nil {
+	if initerror := ods.Init(context.Background(), metadata); initerror != nil {
 		t.Fatal(initerror)
 	}
 
@@ -743,7 +743,7 @@ func testInitConfiguration(t *testing.T) {
 				Base: metadata.Base{Properties: tt.props},
 			}
 
-			err := p.Init(metadata)
+			err := p.Init(context.Background(), metadata)
 			if tt.expectedErr == "" {
 				assert.Nil(t, err)
 			} else {

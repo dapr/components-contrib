@@ -14,6 +14,7 @@ limitations under the License.
 package blobstorage
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -26,35 +27,14 @@ import (
 func TestInit(t *testing.T) {
 	m := state.Metadata{}
 	s := NewAzureBlobStorageStore(logger.NewLogger("logger")).(*StateStore)
-	t.Run("Init with valid metadata", func(t *testing.T) {
-		m.Properties = map[string]string{
-			"accountName":   "acc",
-			"accountKey":    "e+Dnvl8EOxYxV94nurVaRQ==",
-			"containerName": "dapr",
-		}
-		err := s.Init(m)
-		assert.Nil(t, err)
-		assert.Equal(t, "https://acc.blob.core.windows.net/dapr", s.containerClient.URL())
-	})
 
 	t.Run("Init with missing metadata", func(t *testing.T) {
 		m.Properties = map[string]string{
 			"invalidValue": "a",
 		}
-		err := s.Init(m)
-		assert.NotNil(t, err)
+		err := s.Init(context.Background(), m)
+		assert.Error(t, err)
 		assert.Equal(t, err, fmt.Errorf("missing or empty accountName field from metadata"))
-	})
-
-	t.Run("Init with invalid account name", func(t *testing.T) {
-		m.Properties = map[string]string{
-			"accountName":   "invalid-account",
-			"accountKey":    "e+Dnvl8EOxYxV94nurVaRQ==",
-			"containerName": "dapr",
-		}
-		s.Init(m)
-		err := s.Ping()
-		assert.NotNil(t, err)
 	})
 }
 

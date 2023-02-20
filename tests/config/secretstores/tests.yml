@@ -1,9 +1,9 @@
 # Supported operations: get, bulkget
 componentType: secretstores
 components:
-  - component: localenv
-    operations: ["get"]
-  - component: localfile
+  - component: local.env
+    allOperations: true
+  - component: local.file
     allOperations: true
   - component: azure.keyvault.certificate
     allOperations: true

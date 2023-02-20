@@ -19,6 +19,6 @@ import (
 
 // TransactionalStore is an interface for initialization and support multiple transactional requests.
 type TransactionalStore interface {
-	Init(metadata Metadata) error
+	Init(ctx context.Context, metadata Metadata) error
 	Multi(ctx context.Context, request *TransactionalStateRequest) error
 }

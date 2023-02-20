@@ -17,13 +17,15 @@ package twitter
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/dghubble/go-twitter/twitter"
 	"github.com/dghubble/oauth1"
-	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -31,18 +33,22 @@ import (
 
 // Binding represents Twitter input/output binding.
 type Binding struct {
-	client *twitter.Client
-	query  string
-	logger logger.Logger
+	client  *twitter.Client
+	query   string
+	logger  logger.Logger
+	closed  atomic.Bool
+	closeCh chan struct{}
+	wg      sync.WaitGroup
 }
 
 // NewTwitter returns a new Twitter event input binding.
 func NewTwitter(logger logger.Logger) bindings.InputOutputBinding {
-	return &Binding{logger: logger}
+	return &Binding{logger: logger, closeCh: make(chan struct{})}
 }
 
 // Init initializes the Twitter binding.
-func (t *Binding) Init(metadata bindings.Metadata) error {
+func (t *Binding) Init(ctx context.Context, metadata bindings.Metadata) error {
+	t.logger.Warnf("DEPRECATION NOTICE: Component bindings.twitter has been deprecated and will be removed in a future Dapr release.")
 	ck, f := metadata.Properties["consumerKey"]
 	if !f || ck == "" {
 		return fmt.Errorf("consumerKey not set")
@@ -120,18 +126,33 @@ func (t *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 	t.logger.Debug("starting stream for query: %s", t.query)
 	stream, err := t.client.Streams.Filter(filterParams)
 	if err != nil {
-		return errors.Wrapf(err, "error executing stream filter: %+v", filterParams)
+		return fmt.Errorf("error executing stream filter '%+v': %w", filterParams, err)
 	}
 
 	t.logger.Debug("starting handler...")
-	go demux.HandleChan(stream.Messages)
-
+	t.wg.Add(2)
 	go func() {
-		<-ctx.Done()
+		defer t.wg.Done()
+		demux.HandleChan(stream.Messages)
+	}()
+	go func() {
+		defer t.wg.Done()
+		select {
+		case <-t.closeCh:
+		case <-ctx.Done():
+		}
 		t.logger.Debug("stopping handler...")
 		stream.Stop()
 	}()
 
+	return nil
+}
+
+func (t *Binding) Close() error {
+	if t.closed.CompareAndSwap(false, true) {
+		close(t.closeCh)
+	}
+	t.wg.Wait()
 	return nil
 }
 
@@ -182,18 +203,17 @@ func (t *Binding) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bin
 	t.logger.Debug("starting stream for: %+v", sq)
 	search, _, err := t.client.Search.Tweets(sq)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error executing search filter: %+v", sq)
+		return nil, fmt.Errorf("error executing search filter '%+v': %w", sq, err)
 	}
 	if search == nil || search.Statuses == nil {
-		return nil, errors.Wrapf(err, "nil search result from: %+v", sq)
+		return nil, fmt.Errorf("nil search result from '%+v'", sq)
 	}
 
 	t.logger.Debugf("raw response: %+v", search.Statuses)
 	data, marshalErr := json.Marshal(search.Statuses)
 	if marshalErr != nil {
 		t.logger.Errorf("error marshaling tweet: %v", marshalErr)
-
-		return nil, errors.Wrapf(err, "error parsing response from: %+v", sq)
+		return nil, fmt.Errorf("error parsing response from '%+v': %w", sq, marshalErr)
 	}
 
 	req.Metadata["max_tweet_id"] = search.Metadata.MaxIDStr

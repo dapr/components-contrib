@@ -21,6 +21,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -79,7 +80,10 @@ func CreateBlobHTTPHeadersFromRequest(meta map[string]string, contentType *strin
 	return blobHTTPHeaders, nil
 }
 
-func SanitizeMetadata(log logger.Logger, metadata map[string]string) map[string]string {
+// SanitizeMetadata is used by Azure Blob Storage components to sanitize the metadata.
+// Keys can only contain [A-Za-z0-9], and values are only allowed characters in the ASCII table.
+func SanitizeMetadata(log logger.Logger, metadata map[string]string) map[string]*string {
+	res := make(map[string]*string, len(metadata))
 	for key, val := range metadata {
 		// Keep only letters and digits
 		n := 0
@@ -96,8 +100,6 @@ func SanitizeMetadata(log logger.Logger, metadata map[string]string) map[string]
 		if n != len(key) {
 			nks := string(newKey[:n])
 			log.Warnf("metadata key %s contains disallowed characters, sanitized to %s", key, nks)
-			delete(metadata, key)
-			metadata[nks] = val
 			key = nks
 		}
 
@@ -105,14 +107,14 @@ func SanitizeMetadata(log logger.Logger, metadata map[string]string) map[string]
 		n = 0
 		newVal := make([]byte, len(val))
 		for i := 0; i < len(val); i++ {
-			if val[i] > 127 {
+			if val[i] > 127 || val[i] == 0 {
 				continue
 			}
 			newVal[n] = val[i]
 			n++
 		}
-		metadata[key] = string(newVal[:n])
+		res[key] = ptr.Of(string(newVal[:n]))
 	}
 
-	return metadata
+	return res
 }

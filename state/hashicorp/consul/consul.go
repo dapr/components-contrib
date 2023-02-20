@@ -20,7 +20,6 @@ import (
 	"reflect"
 
 	"github.com/hashicorp/consul/api"
-	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -54,7 +53,7 @@ func NewConsulStateStore(logger logger.Logger) state.Store {
 
 // Init does metadata and config parsing and initializes the
 // Consul client.
-func (c *Consul) Init(metadata state.Metadata) error {
+func (c *Consul) Init(_ context.Context, metadata state.Metadata) error {
 	consulConfig, err := metadataToConfig(metadata.Properties)
 	if err != nil {
 		return fmt.Errorf("couldn't convert metadata properties: %s", err)
@@ -74,7 +73,7 @@ func (c *Consul) Init(metadata state.Metadata) error {
 
 	client, err := api.NewClient(config)
 	if err != nil {
-		return errors.Wrap(err, "initializing consul client")
+		return fmt.Errorf("initializing consul client: %w", err)
 	}
 
 	c.client = client

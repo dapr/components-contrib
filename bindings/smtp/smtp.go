@@ -61,7 +61,7 @@ func NewSMTP(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init smtp component (parse metadata).
-func (s *Mailer) Init(metadata bindings.Metadata) error {
+func (s *Mailer) Init(_ context.Context, metadata bindings.Metadata) error {
 	// parse metadata
 	meta, err := s.parseMetadata(metadata)
 	if err != nil {

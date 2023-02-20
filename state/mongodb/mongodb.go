@@ -232,10 +232,12 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 	if reqTTL != nil {
 		update[1] = primitive.D{{Key: "$addFields", Value: bson.D{
 			{Key: daprttl, Value: bson.D{
-				{Key: "$dateAdd", Value: bson.D{
-					{Key: "startDate", Value: "$$NOW"},
-					{Key: "unit", Value: "second"},
-					{Key: "amount", Value: *reqTTL}},
+				{
+					Key: "$dateAdd", Value: bson.D{
+						{Key: "startDate", Value: "$$NOW"},
+						{Key: "unit", Value: "second"},
+						{Key: "amount", Value: *reqTTL},
+					},
 				},
 			}},
 		}}}
@@ -243,7 +245,8 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 		update[1] = primitive.D{
 			{Key: "$addFields", Value: bson.D{
 				{Key: daprttl, Value: nil},
-			}}}
+			}},
+		}
 	}
 
 	_, err = m.collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))

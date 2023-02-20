@@ -82,6 +82,24 @@ const components = {
             'AzureBlobStorageQueue',
         ],
     },
+    'bindings.aws.s3': {
+        certification: true,
+        requireAWSCredentials: true,
+        requireTerraform: true,
+        certificationSetup: 'certification-bindings.aws.s3-setup.sh',
+        certificationDestroy: 'certification-bindings.aws.s3-destroy.sh',
+    },
+    'bindings.aws.s3.docker': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh s3',
+    },
+    'bindings.aws.s3.terraform': {
+        conformance: true,
+        requireAWSCredentials: true,
+        requireTerraform: true,
+        conformanceSetup: 'conformance-bindings.aws.s3.terraform-setup.sh',
+        conformanceDestroy: 'conformance-bindings.aws.s3.terraform-destroy.sh',
+    },
     'bindings.cron': {
         conformance: true,
         certification: true,

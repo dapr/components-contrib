@@ -46,7 +46,7 @@ const (
 var bucketName = "bucketName"
 
 func init() {
-	if envVal := os.Getenv("AWS_S3_BUCKET"); envVal != "" {
+	if envVal := os.Getenv("BINDINGS_AWS_S3_BUCKET"); envVal != "" {
 		bucketName = envVal
 	}
 }

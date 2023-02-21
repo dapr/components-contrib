@@ -37,8 +37,8 @@ type mockClient struct {
 	zbc.Client
 }
 
-func (mcf mockClientFactory) Get(metadata bindings.Metadata) (zbc.Client, error) {
-	mcf.metadata = metadata //nolint:staticcheck
+func (mcf *mockClientFactory) Get(metadata bindings.Metadata) (zbc.Client, error) {
+	mcf.metadata = metadata
 
 	if mcf.error != nil {
 		return nil, mcf.error
@@ -65,7 +65,7 @@ func TestInit(t *testing.T) {
 		metadata := bindings.Metadata{Base: metadata.Base{
 			Properties: map[string]string{"jobType": "a"},
 		}}
-		mcf := mockClientFactory{
+		mcf := &mockClientFactory{
 			metadata: metadata,
 		}
 		jobWorker := ZeebeJobWorker{clientFactory: mcf, logger: testLogger, closeCh: make(chan struct{})}
@@ -84,7 +84,7 @@ func TestInit(t *testing.T) {
 	t.Run("returns error if client could not be instantiated properly", func(t *testing.T) {
 		errParsing := errors.New("error on parsing metadata")
 		metadata := bindings.Metadata{}
-		mcf := mockClientFactory{
+		mcf := &mockClientFactory{
 			error: errParsing,
 		}
 
@@ -98,7 +98,7 @@ func TestInit(t *testing.T) {
 		metadata := bindings.Metadata{Base: metadata.Base{
 			Properties: map[string]string{"jobType": "a"},
 		}}
-		mcf := mockClientFactory{
+		mcf := &mockClientFactory{
 			metadata: metadata,
 		}
 

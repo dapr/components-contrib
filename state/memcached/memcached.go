@@ -197,6 +197,16 @@ func (m *Memcached) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 	}, nil
 }
 
+func (m *Memcached) Close() (err error) {
+	if m.client != nil {
+		err = m.client.Close()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (m *Memcached) GetComponentMetadata() map[string]string {
 	metadataStruct := memcachedMetadata{}
 	metadataInfo := map[string]string{}

@@ -70,7 +70,7 @@ func (m mqttMessage) Payload() []byte {
 }
 
 func (m mqttMessage) Ack() {
-	return
+	// nop
 }
 
 type mockedMQTTToken struct {
@@ -146,7 +146,7 @@ func (m mockedMQTTClient) Connect() mqtt.Token {
 }
 
 func (m mockedMQTTClient) Disconnect(quiesce uint) {
-	return
+	// nop
 }
 
 func (m mockedMQTTClient) Publish(topic string, qos byte, retained bool, payload interface{}) mqtt.Token {
@@ -199,7 +199,7 @@ func (m mockedMQTTClient) Unsubscribe(topics ...string) mqtt.Token {
 }
 
 func (m mockedMQTTClient) AddRoute(topic string, callback mqtt.MessageHandler) {
-	return
+	// nop
 }
 
 func (m mockedMQTTClient) OptionsReader() mqtt.ClientOptionsReader {

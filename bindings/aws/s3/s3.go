@@ -209,6 +209,9 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 
 	return &bindings.InvokeResponse{
 		Data: jsonResponse,
+		Metadata: map[string]string{
+			metadataKey: key,
+		},
 	}, nil
 }
 

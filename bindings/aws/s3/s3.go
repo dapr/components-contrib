@@ -324,7 +324,7 @@ func (s *AWSS3) list(ctx context.Context, req *bindings.InvokeRequest) (*binding
 	payload := listPayload{}
 	if req.Data != nil {
 		if err := json.Unmarshal(req.Data, &payload); err != nil {
-			s.logger.Errorf("s3 binding (List Operation) - unable to parse Data property - %v", err)
+			return nil, fmt.Errorf("s3 binding (List Operation) - unable to parse Data property - %v", err)
 		}
 	}
 

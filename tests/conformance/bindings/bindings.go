@@ -237,7 +237,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			req.Operation = bindings.GetOperation
 			resp, err := outputBinding.Invoke(context.Background(), &req)
 			assert.NoError(t, err, "expected no error invoking output binding")
-			if createPerformed {
+			if createPerformed && resp != nil {
 				assert.Equal(t, req.Data, resp.Data)
 			}
 			testLogger.Info("Get test done.")

@@ -52,8 +52,8 @@ const (
 	id               = "_id"
 	value            = "value"
 	etag             = "_etag"
-	daprttl          = "_dapr_ttl"
-	daprttlDollar    = "$" + daprttl
+	ttl              = "_ttl"
+	ttlDollar        = "$" + ttl
 
 	defaultTimeout        = 5 * time.Second
 	defaultDatabaseName   = "daprStore"
@@ -156,7 +156,7 @@ func (m *MongoDB) Init(ctx context.Context, metadata state.Metadata) error {
 	// MongoDB TTL Indexes: https://docs.mongodb.com/manual/core/index-ttl/
 	// TTL fields are deleted at most 60 seconds after the TTL value is reached.
 	_, err = m.collection.Indexes().CreateOne(context.TODO(), mongo.IndexModel{
-		Keys:    bson.M{daprttl: 1},
+		Keys:    bson.M{ttl: 1},
 		Options: options.Index().SetExpireAfterSeconds(0),
 	})
 	if err != nil {
@@ -231,7 +231,7 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 
 	if reqTTL != nil {
 		update[1] = primitive.D{{Key: "$addFields", Value: bson.D{
-			{Key: daprttl, Value: bson.D{
+			{Key: ttl, Value: bson.D{
 				{
 					Key: "$dateAdd", Value: bson.D{
 						{Key: "startDate", Value: "$$NOW"},
@@ -244,7 +244,7 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 	} else {
 		update[1] = primitive.D{
 			{Key: "$addFields", Value: bson.D{
-				{Key: daprttl, Value: nil},
+				{Key: ttl, Value: nil},
 			}},
 		}
 	}
@@ -267,8 +267,8 @@ func (m *MongoDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetRes
 			bson.D{{Key: id, Value: bson.M{"$eq": req.Key}}},
 			bson.D{{Key: "$expr", Value: bson.D{
 				{Key: "$or", Value: bson.A{
-					bson.D{{Key: "$eq", Value: bson.A{daprttlDollar, primitive.Null{}}}},
-					bson.D{{Key: "$gte", Value: bson.A{daprttlDollar, "$$NOW"}}},
+					bson.D{{Key: "$eq", Value: bson.A{ttlDollar, primitive.Null{}}}},
+					bson.D{{Key: "$gte", Value: bson.A{ttlDollar, "$$NOW"}}},
 				}},
 			}}},
 		}},

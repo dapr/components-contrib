@@ -89,10 +89,6 @@ const components = {
         certificationSetup: 'certification-bindings.aws.s3-setup.sh',
         certificationDestroy: 'certification-bindings.aws.s3-destroy.sh',
     },
-    'bindings.aws.s3.docker': {
-        conformance: true,
-        conformanceSetup: 'docker-compose.sh s3',
-    },
     'bindings.aws.s3.terraform': {
         conformance: true,
         requireAWSCredentials: true,

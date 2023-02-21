@@ -6,22 +6,19 @@ This project aims to test the AWS S3 binding component under various conditions.
 
 ### Functional tests
 
-- Delete request:
-  - Successful deletion
-  - File does not exist
-  
-- Get request:
-  - Successful Get Request
-  - Item does not exist
-
 - Create request:
-  - Filename specified
+  - key/Filename specified and missing
   - With ForcePathStyle True/False
   - Verifies automatic base64 decode option
 
+- Get request:
+  - Successful Get Request
+
+- Delete request:
+  - Successful deletion
+
 - List request:
-  - basic
-  - filter results by specifying a prefix
+  - Successful List Request
 
 ### Running the tests
 

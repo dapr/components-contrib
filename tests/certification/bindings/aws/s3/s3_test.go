@@ -14,6 +14,7 @@ limitations under the License.
 package awss3binding_test
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/assert"
@@ -96,9 +97,10 @@ func listObejctRequest(ctx flow.Context, client daprsdk.Client) (out *daprsdk.Bi
 }
 
 // getObejctRequest is used to make a common binding request for the get operation.
-func getObejctRequest(ctx flow.Context, client daprsdk.Client, name string, includeMetadata bool) (out *daprsdk.BindingEvent, err error) {
+func getObejctRequest(ctx flow.Context, client daprsdk.Client, name string, isBase64 bool) (out *daprsdk.BindingEvent, err error) {
 	invokeGetMetadata := map[string]string{
-		"key": name,
+		"key":          name,
+		"encodeBase64": fmt.Sprintf("%t", isBase64),
 	}
 
 	invokeGetRequest := &daprsdk.InvokeBindingRequest{
@@ -291,6 +293,57 @@ func S3SForcePathStyle(t *testing.T) {
 
 // Verify Base64 (Encode/Decode)
 func S3SBase64(t *testing.T) {
+	ports, err := dapr_testing.GetFreePorts(2)
+	assert.NoError(t, err)
+
+	currentGRPCPort := ports[0]
+	currentHTTPPort := ports[1]
+
+	testCreateBase64FromFile := func() func(ctx flow.Context) error {
+		return func(ctx flow.Context) error {
+			client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
+			if clientErr != nil {
+				panic(clientErr)
+			}
+			defer client.Close()
+
+			dataBytes := []byte(base64.StdEncoding.EncodeToString([]byte("somecontent")))
+			invokeCreateMetadata := map[string]string{
+				"decodeBase64": "true",
+			}
+
+			out, invokeCreateErr := createObjectRequest(ctx, client, dataBytes, invokeCreateMetadata)
+			assert.NoError(t, invokeCreateErr)
+
+			genKey := out.Metadata["key"]
+			isBase64 := true
+			out, invokeGetErr := getObejctRequest(ctx, client, genKey, isBase64)
+			assert.NoError(t, invokeGetErr)
+			assert.Equal(t, out.Data, dataBytes)
+			assert.Empty(t, out.Metadata)
+
+			out, invokeDeleteErr := deleteObejctRequest(ctx, client, genKey)
+			assert.NoError(t, invokeDeleteErr)
+			assert.Empty(t, out.Data)
+
+			// confirm the deletion.
+			_, invokeSecondGetErr := getObejctRequest(ctx, client, genKey, false)
+			assert.Error(t, invokeSecondGetErr)
+
+			return nil
+		}
+	}
+
+	flow.New(t, "decode base64 option for binary").
+		Step(sidecar.Run(sidecarName,
+			embedded.WithoutApp(),
+			embedded.WithComponentsPath("./components/decodeBase64"),
+			embedded.WithDaprGRPCPort(currentGRPCPort),
+			embedded.WithDaprHTTPPort(currentHTTPPort),
+			componentRuntimeOptions(),
+		)).
+		Step("Create blob from file", testCreateBase64FromFile()).
+		Run()
 
 }
 

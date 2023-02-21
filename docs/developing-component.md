@@ -76,8 +76,8 @@ make lint
    > Windows debuggable binary: `.\dist\windows_amd64\debug\daprd`
    > macOS (Intel) debuggable binary: `./dist/darwin_amd64/debug/daprd`
    > macOS (Apple Silicon) debuggable binary: `./dist/darwin_arm64/debug/daprd`
-1. Prepare your test app (e.g. kafka sample app: https://github.com/dapr/quickstarts/tree/master/bindings/nodeapp/)
-1. Create a YAML for the component in './components' under app's directory (e.g. kafka example: https://github.com/dapr/quickstarts/blob/master/bindings/components/kafka_bindings.yaml)
+1. Prepare your test app (e.g. kafka sample app: https://github.com/dapr/quickstarts/tree/master/tutorials/bindings/nodeapp/)
+1. Create a YAML for the component in './components' under app's directory (e.g. kafka example: https://github.com/dapr/quickstarts/blob/master/tutorials/bindings/components/kafka_bindings.yaml)
 1. Run your test app using Dapr CLI.
 1. Make sure your component is loaded successfully in the daprd log.
 

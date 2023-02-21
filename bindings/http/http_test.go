@@ -132,10 +132,8 @@ func InitBinding(s *httptest.Server, extraProps map[string]string) (bindings.Out
 		},
 	}}
 
-	if extraProps != nil {
-		for k, v := range extraProps {
-			m.Properties[k] = v
-		}
+	for k, v := range extraProps {
+		m.Properties[k] = v
 	}
 
 	hs := NewHTTP(logger.NewLogger("test"))

@@ -11,10 +11,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Router, type Request as RequestI } from 'itty-router'
+import { Router, IRequest } from 'itty-router'
 
-import type { Environment } from '$lib/environment'
+import { Environment } from '$lib/environment'
 import { AuthorizeRequest } from '$lib/jwt-auth'
+
 import { version } from './package.json'
 
 const router = Router()
@@ -22,7 +23,7 @@ const router = Router()
     .get(
         '/.well-known/dapr/info',
         async (
-            req: Request & RequestI,
+            req: IRequest,
             env: Environment
         ): Promise<Response> => {
             const auth = await AuthorizeRequest(req, env)
@@ -77,7 +78,7 @@ const router = Router()
     .get(
         '/kv/:namespace/:key',
         async (
-            req: Request & RequestI,
+            req: IRequest,
             env: Environment
         ): Promise<Response> => {
             const { namespace, key, errorRes } = await setupKVRequest(req, env)
@@ -98,7 +99,7 @@ const router = Router()
     .post(
         '/kv/:namespace/:key',
         async (
-            req: Request & RequestI,
+            req: IRequest,
             env: Environment
         ): Promise<Response> => {
             const { namespace, key, errorRes } = await setupKVRequest(req, env)
@@ -122,7 +123,7 @@ const router = Router()
     .delete(
         '/kv/:namespace/:key',
         async (
-            req: Request & RequestI,
+            req: IRequest,
             env: Environment
         ): Promise<Response> => {
             const { namespace, key, errorRes } = await setupKVRequest(req, env)
@@ -140,7 +141,7 @@ const router = Router()
     .post(
         '/queues/:queue',
         async (
-            req: Request & RequestI,
+            req: IRequest,
             env: Environment
         ): Promise<Response> => {
             const { queue, errorRes } = await setupQueueRequest(req, env)
@@ -161,7 +162,7 @@ const router = Router()
 
 // Performs the init setps for a KV request. Returns a Response object in case of error.
 async function setupKVRequest(
-    req: Request & RequestI,
+    req: IRequest,
     env: Environment
 ): Promise<{
     namespace?: KVNamespace<string>
@@ -194,7 +195,7 @@ async function setupKVRequest(
 
 // Performs the init setps for a Queue request. Returns a Response object in case of error.
 async function setupQueueRequest(
-    req: Request & RequestI,
+    req: IRequest,
     env: Environment
 ): Promise<{ queue?: Queue<string>; errorRes?: Response }> {
     if (!req?.text || !req.params?.queue) {

@@ -2,7 +2,6 @@ package kubemq
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -148,7 +147,7 @@ func Test_kubeMQ_Close(t *testing.T) {
 				eventsClient:     tt.fields.eventsClient,
 				eventStoreClient: tt.fields.eventStoreClient,
 			}
-			tt.wantErr(t, k.Close(), fmt.Sprintf("Close()"))
+			tt.wantErr(t, k.Close(), "Close()")
 		})
 	}
 }

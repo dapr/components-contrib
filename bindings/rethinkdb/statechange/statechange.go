@@ -16,6 +16,8 @@ package statechange
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,7 +25,6 @@ import (
 	"time"
 
 	r "github.com/dancannon/gorethink"
-	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/internal/utils"
@@ -59,13 +60,13 @@ func NewRethinkDBStateChangeBinding(logger logger.Logger) bindings.InputBinding 
 func (b *Binding) Init(ctx context.Context, metadata bindings.Metadata) error {
 	cfg, err := metadataToConfig(metadata.Properties, b.logger)
 	if err != nil {
-		return errors.Wrap(err, "unable to parse metadata properties")
+		return fmt.Errorf("unable to parse metadata properties: %w", err)
 	}
 	b.config = cfg
 
 	ses, err := r.Connect(b.config.ConnectOpts)
 	if err != nil {
-		return errors.Wrap(err, "error connecting to the database")
+		return fmt.Errorf("error connecting to the database: %w", err)
 	}
 	b.session = ses
 
@@ -88,7 +89,7 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 			Context: ctx,
 		})
 	if err != nil {
-		errors.Wrapf(err, "error connecting to table %s", b.config.Table)
+		return fmt.Errorf("error connecting to table '%s': %w", b.config.Table, err)
 	}
 
 	readCtx, cancel := context.WithCancel(ctx)
@@ -169,37 +170,37 @@ func metadataToConfig(cfg map[string]string, logger logger.Logger) (StateConfig,
 		case "timeout": // time.Duration
 			d, err := time.ParseDuration(v)
 			if err != nil {
-				return c, errors.Wrapf(err, "invalid timeout format: %v", v)
+				return c, fmt.Errorf("invalid timeout format: %v", v)
 			}
 			c.Timeout = d
 		case "write_timeout": // time.Duration
 			d, err := time.ParseDuration(v)
 			if err != nil {
-				return c, errors.Wrapf(err, "invalid write timeout format: %v", v)
+				return c, fmt.Errorf("invalid write timeout format: %v", v)
 			}
 			c.WriteTimeout = d
 		case "read_timeout": // time.Duration
 			d, err := time.ParseDuration(v)
 			if err != nil {
-				return c, errors.Wrapf(err, "invalid read timeout format: %v", v)
+				return c, fmt.Errorf("invalid read timeout format: %v", v)
 			}
 			c.ReadTimeout = d
 		case "keep_alive_timeout": // time.Duration
 			d, err := time.ParseDuration(v)
 			if err != nil {
-				return c, errors.Wrapf(err, "invalid keep alive timeout format: %v", v)
+				return c, fmt.Errorf("invalid keep alive timeout format: %v", v)
 			}
 			c.KeepAlivePeriod = d
 		case "initial_cap": // int
 			i, err := strconv.Atoi(v)
 			if err != nil {
-				return c, errors.Wrapf(err, "invalid keep initial cap format: %v", v)
+				return c, fmt.Errorf("invalid keep initial cap format: %v", v)
 			}
 			c.InitialCap = i
 		case "max_open": // int
 			i, err := strconv.Atoi(v)
 			if err != nil {
-				return c, errors.Wrapf(err, "invalid keep max open format: %v", v)
+				return c, fmt.Errorf("invalid keep max open format: %v", v)
 			}
 			c.MaxOpen = i
 		case "discover_hosts": // bool
@@ -209,7 +210,7 @@ func metadataToConfig(cfg map[string]string, logger logger.Logger) (StateConfig,
 		case "max_idle": // int
 			i, err := strconv.Atoi(v)
 			if err != nil {
-				return c, errors.Wrapf(err, "invalid keep max idle format: %v", v)
+				return c, fmt.Errorf("invalid keep max idle format: %v", v)
 			}
 			c.InitialCap = i
 		default:

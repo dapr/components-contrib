@@ -29,10 +29,9 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dapr/kit/logger"
-
 	"github.com/dapr/components-contrib/bindings"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/logger"
 )
 
 const (

@@ -25,11 +25,10 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
-	"github.com/dapr/kit/logger"
-
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/internal/utils"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -303,12 +302,14 @@ func (r *RabbitMQ) Read(ctx context.Context, handler bindings.Handler) error {
 	readCtx, cancel := context.WithCancel(ctx)
 	r.wg.Add(2)
 	go func() {
-		defer r.wg.Done()
-		defer cancel()
 		select {
 		case <-r.closeCh:
+			// nop
 		case <-readCtx.Done():
+			// nop
 		}
+		r.wg.Done()
+		cancel()
 	}()
 	go func() {
 		// unless closed, keep trying to read and handle messages forever

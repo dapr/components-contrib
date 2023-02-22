@@ -33,15 +33,15 @@ jobs:
       GOPROXY: https://proxy.golang.org
       GOLANGCI_LINT_VER: "v1.51.2"
     steps:
+      - name: Check out code into the Go module directory
+        if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
+        uses: actions/checkout@v3
       - name: Set up Go
         id: setup-go
         if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
         uses: actions/setup-go@v3
         with:
           go-version-file: 'go.mod'
-      - name: Check out code into the Go module directory
-        if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
-        uses: actions/checkout@v3
       - name: Cache Go modules (Linux)
         uses: actions/cache@v3
         with:

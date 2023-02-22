@@ -216,7 +216,9 @@ jobs:
     - name: Check that go mod tidy is up-to-date
       working-directory: ${{ env.TEST_PATH }}
       run: |
-        go mod tidy -compat=${{ steps.setup-go.outputs.go-version }}
+        # Get just the major version and major update (e.g. "1.20") from the installed Go version
+        GOVER=$(echo "${{ steps.setup-go.outputs.go-version }}" | cut -d '.' -f 1,2)
+        go mod tidy -compat=$GOVER
         git diff --exit-code ./go.mod
         git diff --exit-code ./go.sum
 

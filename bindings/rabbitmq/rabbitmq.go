@@ -40,6 +40,7 @@ const (
 	deleteWhenUnused           = "deleteWhenUnused"
 	prefetchCount              = "prefetchCount"
 	maxPriority                = "maxPriority"
+	reconnectWaitSecondsKey    = "reconnectWaitSeconds"
 	rabbitMQQueueMessageTTLKey = "x-message-ttl"
 	rabbitMQMaxPriorityKey     = "x-max-priority"
 	defaultBase                = 10
@@ -69,13 +70,14 @@ type RabbitMQ struct {
 
 // Metadata is the rabbitmq config.
 type rabbitMQMetadata struct {
-	Host             string `json:"host"`
-	QueueName        string `json:"queueName"`
-	Exclusive        bool   `json:"exclusive,string"`
-	Durable          bool   `json:"durable,string"`
-	DeleteWhenUnused bool   `json:"deleteWhenUnused,string"`
-	PrefetchCount    int    `json:"prefetchCount"`
-	MaxPriority      *uint8 `json:"maxPriority"` // Priority Queue deactivated if nil
+	Host             string        `json:"host"`
+	QueueName        string        `json:"queueName"`
+	Exclusive        bool          `json:"exclusive,string"`
+	Durable          bool          `json:"durable,string"`
+	DeleteWhenUnused bool          `json:"deleteWhenUnused,string"`
+	PrefetchCount    int           `json:"prefetchCount"`
+	MaxPriority      *uint8        `json:"maxPriority"` // Priority Queue deactivated if nil
+	ReconnectWait    time.Duration `json:"reconnectWait"`
 	defaultQueueTTL  *time.Duration
 }
 
@@ -132,7 +134,7 @@ func (r *RabbitMQ) reconnectWhenNecessary() {
 				}
 				r.logger.Warnf("reconnect failed: %s", err.Error())
 
-				time.Sleep(defaultReconnectWait)
+				time.Sleep(r.metadata.ReconnectWait)
 			}
 
 			r.notifyRabbitChannelClose = make(chan *amqp.Error, 1)
@@ -209,7 +211,7 @@ func (r *RabbitMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 }
 
 func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
-	m := rabbitMQMetadata{}
+	m := rabbitMQMetadata{ReconnectWait: defaultReconnectWait}
 
 	if val, ok := metadata.Properties[host]; ok && val != "" {
 		m.Host = val
@@ -256,6 +258,12 @@ func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
 		}
 
 		m.MaxPriority = &maxPriority
+	}
+
+	if val, found := metadata.Properties[reconnectWaitSecondsKey]; found && val != "" {
+		if intVal, err := strconv.Atoi(val); err == nil {
+			m.ReconnectWait = time.Duration(intVal) * time.Second
+		}
 	}
 
 	ttl, ok, err := contribMetadata.TryGetTTL(metadata.Properties)
@@ -334,7 +342,7 @@ func (r *RabbitMQ) Read(ctx context.Context, handler bindings.Handler) error {
 				return
 			}
 
-			time.Sleep(defaultReconnectWait)
+			time.Sleep(r.metadata.ReconnectWait)
 		}
 	}()
 	return nil

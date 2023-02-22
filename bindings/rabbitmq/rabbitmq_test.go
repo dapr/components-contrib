@@ -19,9 +19,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/kit/logger"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
-	"github.com/dapr/kit/logger"
 )
 
 func TestParseMetadata(t *testing.T) {
@@ -30,20 +31,24 @@ func TestParseMetadata(t *testing.T) {
 	oneSecondTTL := time.Second
 
 	testCases := []struct {
-		name                     string
-		properties               map[string]string
-		expectedDeleteWhenUnused bool
-		expectedDurable          bool
-		expectedExclusive        bool
-		expectedTTL              *time.Duration
-		expectedPrefetchCount    int
-		expectedMaxPriority      *uint8
+		name                       string
+		properties                 map[string]string
+		expectedDeleteWhenUnused   bool
+		expectedDurable            bool
+		expectedExclusive          bool
+		expectedTTL                *time.Duration
+		expectedPrefetchCount      int
+		expectedMaxPriority        *uint8
+		expectedReconnectWaitCheck func(expect time.Duration) bool
 	}{
 		{
 			name:                     "Delete / Durable",
 			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "true", "durable": "true"},
 			expectedDeleteWhenUnused: true,
 			expectedDurable:          true,
+			expectedReconnectWaitCheck: func(expect time.Duration) bool {
+				return expect == defaultReconnectWait
+			},
 		},
 		{
 			name:                     "Not Delete / Not durable",
@@ -100,6 +105,15 @@ func TestParseMetadata(t *testing.T) {
 				return &v
 			}(),
 		},
+		{
+			name:                     "With reconnectWait 10 second",
+			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "reconnectWaitSeconds": "10"},
+			expectedDeleteWhenUnused: false,
+			expectedDurable:          false,
+			expectedReconnectWaitCheck: func(expect time.Duration) bool {
+				return expect == 10*time.Second
+			},
+		},
 	}
 
 	for _, tt := range testCases {
@@ -117,6 +131,9 @@ func TestParseMetadata(t *testing.T) {
 			assert.Equal(t, tt.expectedPrefetchCount, r.metadata.PrefetchCount)
 			assert.Equal(t, tt.expectedExclusive, r.metadata.Exclusive)
 			assert.Equal(t, tt.expectedMaxPriority, r.metadata.MaxPriority)
+			if tt.expectedReconnectWaitCheck != nil {
+				assert.True(t, tt.expectedReconnectWaitCheck(r.metadata.ReconnectWait))
+			}
 		})
 	}
 }

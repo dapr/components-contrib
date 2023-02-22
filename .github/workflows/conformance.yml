@@ -28,10 +28,6 @@ on:
       - 'master'
       - 'release-*'
 
-env:
-  # Only specify a major version, such as 1.20
-  GO_VERSION: '1.19'
-
 jobs:
   # Based on whether this is a PR or a scheduled run, we will run a different
   # subset of the conformance tests. This allows all the tests not requiring
@@ -206,7 +202,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v3
       with:
-        go-version: '^${{ env.GO_VERSION }}'
+        go-version-file: 'go.mod'
 
     - name: Install Node.js ${{ matrix.nodejs-version }}
       if: matrix.nodejs-version != ''

@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib/tests/certification/bindings/dubbo
 
-go 1.19
+go 1.20
 
 require (
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3

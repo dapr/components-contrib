@@ -30,7 +30,7 @@ on:
 
 env:
   # Only specify a major version, such as 1.20
-  GO_VERSION: '1.19'
+  GO_VERSION: '1.20'
 
 jobs:
   # Based on whether this is a PR or a scheduled run, we will run a different

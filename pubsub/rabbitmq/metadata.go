@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -208,6 +209,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*metadat
 	}
 
 	if val, found := pubSubMetadata.Properties[metadataQueueType]; found && val != "" {
+		val = strings.ToLower(val)
 		if queueTypeValid(val) {
 			result.queueType = val
 		} else {

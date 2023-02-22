@@ -28,10 +28,6 @@ on:
       - 'master'
       - 'release-*'
 
-env:
-  # Only specify a major version, such as 1.20
-  GO_VERSION: '1.20'
-
 jobs:
   # Based on whether this is a PR or a scheduled run, we will run a different
   # subset of the certification tests. This allows all the tests not requiring
@@ -205,9 +201,10 @@ jobs:
         aws-region: "${{ env.AWS_REGION }}"
 
     - name: Set up Go
+      id: setup-go
       uses: actions/setup-go@v3
       with:
-        go-version: '^${{ env.GO_VERSION }}'
+        go-version-file: 'go.mod'
 
     - name: Download Go dependencies
       working-directory: ${{ env.TEST_PATH }}
@@ -219,7 +216,7 @@ jobs:
     - name: Check that go mod tidy is up-to-date
       working-directory: ${{ env.TEST_PATH }}
       run: |
-        go mod tidy -compat=${{ env.GO_VERSION }}
+        go mod tidy -compat=${{ steps.setup-go.outputs.go-version }}
         git diff --exit-code ./go.mod
         git diff --exit-code ./go.sum
 

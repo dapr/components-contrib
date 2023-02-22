@@ -230,17 +230,20 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 	}}}
 
 	if reqTTL != nil {
-		update[1] = primitive.D{{Key: "$addFields", Value: bson.D{
-			{Key: ttl, Value: bson.D{
+		update[1] = primitive.D{{
+			Key: "$addFields", Value: bson.D{
 				{
-					Key: "$dateAdd", Value: bson.D{
-						{Key: "startDate", Value: "$$NOW"},
-						{Key: "unit", Value: "second"},
-						{Key: "amount", Value: *reqTTL},
+					Key: ttl, Value: bson.D{
+						{
+							Key: "$add", Value: bson.A{
+								// MongoDB stores time in milliseconds so multiply seconds by 1000.
+								"$$NOW", *reqTTL * 1000,
+							},
+						},
 					},
 				},
-			}},
-		}}}
+			},
+		}}
 	} else {
 		update[1] = primitive.D{
 			{Key: "$addFields", Value: bson.D{

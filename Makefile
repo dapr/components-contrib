@@ -128,7 +128,7 @@ define modtidy-target
 .PHONY: modtidy-$(1)
 modtidy-$(1):
 	@echo $(shell dirname $(1))
-	@cd $(shell dirname $(1)); go mod tidy -compat=1.19 || { echo "There was an error in running go mod tidy for this file,"; exit 1;}; cd -
+	@cd $(shell dirname $(1)); CGO_ENABLED=$(CGO) go mod tidy -compat=1.20 || { echo "There was an error in running go mod tidy for this file,"; exit 1;}; cd -
 endef
 
 define replaceruntime-dapr

@@ -60,6 +60,8 @@ type clientInterface interface {
 type agentInterface interface {
 	Self() (map[string]map[string]interface{}, error)
 	ServiceRegister(service *consul.AgentServiceRegistration) error
+	ServiceDeregister(serviceID string) error
+	ServiceDeregisterOpts(serviceID string, q *consul.QueryOptions) error
 }
 
 type healthInterface interface {
@@ -93,9 +95,7 @@ func newResolver(logger logger.Logger, resolverConfig resolverConfig, client cli
 }
 
 // Init will configure component. It will also register service or validate client connection based on config.
-func (r *resolver) Init(metadata nr.Metadata) error {
-	var err error
-
+func (r *resolver) Init(metadata nr.Metadata) (err error) {
 	r.config, err = getConfig(metadata)
 	if err != nil {
 		return err
@@ -120,7 +120,7 @@ func (r *resolver) Init(metadata nr.Metadata) error {
 }
 
 // ResolveID resolves name to address via consul.
-func (r *resolver) ResolveID(req nr.ResolveRequest) (string, error) {
+func (r *resolver) ResolveID(req nr.ResolveRequest) (addr string, err error) {
 	cfg := r.config
 	services, _, err := r.client.Health().Service(req.ID, "", true, cfg.QueryOptions)
 	if err != nil {
@@ -142,35 +142,28 @@ func (r *resolver) ResolveID(req nr.ResolveRequest) (string, error) {
 		return services
 	}
 
+	// Pick a random service
 	svc := shuffle(services)[0]
 
-	addr := ""
+	port := svc.Service.Meta[cfg.DaprPortMetaKey]
+	if port == "" {
+		return "", fmt.Errorf("target service AppID '%s' found but DAPR_PORT missing from meta", req.ID)
+	}
 
-	if port, ok := svc.Service.Meta[cfg.DaprPortMetaKey]; ok {
-		if svc.Service.Address != "" {
-			addr = fmt.Sprintf("%s:%s", svc.Service.Address, port)
-		} else if svc.Node.Address != "" {
-			addr = fmt.Sprintf("%s:%s", svc.Node.Address, port)
-		} else {
-			return "", fmt.Errorf("no healthy services found with AppID:%s", req.ID)
-		}
+	if svc.Service.Address != "" {
+		addr = svc.Service.Address + ":" + port
+	} else if svc.Node.Address != "" {
+		addr = svc.Node.Address + ":" + port
 	} else {
-		return "", fmt.Errorf("target service AppID:%s found but DAPR_PORT missing from meta", req.ID)
+		return "", fmt.Errorf("no healthy services found with AppID '%s'", req.ID)
 	}
 
 	return addr, nil
 }
 
 // getConfig configuration from metadata, defaults are best suited for self-hosted mode.
-func getConfig(metadata nr.Metadata) (resolverConfig, error) {
-	var daprPort string
-	var ok bool
-	var err error
-	resolverCfg := resolverConfig{}
-
-	props := metadata.Properties
-
-	if daprPort, ok = props[nr.DaprPort]; !ok {
+func getConfig(metadata nr.Metadata) (resolverCfg resolverConfig, err error) {
+	if metadata.Properties[nr.DaprPort] == "" {
 		return resolverCfg, fmt.Errorf("metadata property missing: %s", nr.DaprPort)
 	}
 
@@ -187,7 +180,8 @@ func getConfig(metadata nr.Metadata) (resolverConfig, error) {
 	}
 
 	resolverCfg.Client = getClientConfig(cfg)
-	if resolverCfg.Registration, err = getRegistrationConfig(cfg, props); err != nil {
+	resolverCfg.Registration, err = getRegistrationConfig(cfg, metadata.Properties)
+	if err != nil {
 		return resolverCfg, err
 	}
 	resolverCfg.QueryOptions = getQueryOptionsConfig(cfg)
@@ -198,7 +192,7 @@ func getConfig(metadata nr.Metadata) (resolverConfig, error) {
 			resolverCfg.Registration.Meta = map[string]string{}
 		}
 
-		resolverCfg.Registration.Meta[resolverCfg.DaprPortMetaKey] = daprPort
+		resolverCfg.Registration.Meta[resolverCfg.DaprPortMetaKey] = metadata.Properties[nr.DaprPort]
 	}
 
 	return resolverCfg, nil
@@ -217,15 +211,18 @@ func getRegistrationConfig(cfg configSpec, props map[string]string) (*consul.Age
 	// if advanced registration configured ignore other registration related configs
 	if cfg.AdvancedRegistration != nil {
 		return cfg.AdvancedRegistration, nil
-	} else if !cfg.SelfRegister {
+	}
+	if !cfg.SelfRegister {
 		return nil, nil
 	}
 
-	var appID string
-	var appPort string
-	var host string
-	var httpPort string
-	var ok bool
+	var (
+		appID    string
+		appPort  string
+		host     string
+		httpPort string
+		ok       bool
+	)
 
 	if appID, ok = props[nr.AppID]; !ok {
 		return nil, fmt.Errorf("metadata property missing: %s", nr.AppID)

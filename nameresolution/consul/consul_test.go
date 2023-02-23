@@ -82,6 +82,14 @@ func (m *mockAgent) ServiceRegister(service *consul.AgentServiceRegistration) er
 	return m.serviceRegisterErr
 }
 
+func (m *mockAgent) ServiceDeregister(serviceID string) error {
+	return nil
+}
+
+func (m *mockAgent) ServiceDeregisterOpts(serviceID string, q *consul.QueryOptions) error {
+	return nil
+}
+
 func TestInit(t *testing.T) {
 	t.Parallel()
 
@@ -221,6 +229,59 @@ func TestResolveID(t *testing.T) {
 				addr, _ := resolver.ResolveID(req)
 
 				assert.Equal(t, "123.234.345.456:50005", addr)
+			},
+		},
+		{
+			"should get random address from service",
+			nr.ResolveRequest{
+				ID: "test-app",
+			},
+			func(t *testing.T, req nr.ResolveRequest) {
+				t.Helper()
+				mock := mockClient{
+					mockHealth: mockHealth{
+						serviceResult: []*consul.ServiceEntry{
+							{
+								Service: &consul.AgentService{
+									Address: "123.234.345.456",
+									Port:    8600,
+									Meta: map[string]string{
+										"DAPR_PORT": "50005",
+									},
+								},
+							},
+							{
+								Service: &consul.AgentService{
+									Address: "234.345.456.678",
+									Port:    8600,
+									Meta: map[string]string{
+										"DAPR_PORT": "50005",
+									},
+								},
+							},
+						},
+					},
+				}
+				resolver := newResolver(logger.NewLogger("test"), *testConfig, &mock)
+
+				total1 := 0
+				total2 := 0
+				for i := 0; i < 100; i++ {
+					addr, _ := resolver.ResolveID(req)
+
+					if addr == "123.234.345.456:50005" {
+						total1++
+					} else if addr == "234.345.456.678:50005" {
+						total2++
+					} else {
+						t.Fatalf("Received unexpected address: %s", addr)
+					}
+				}
+
+				// Because of the random nature of the address being returned, we just check to make sure we get at least 20 of each (and a total of 100)
+				assert.Equal(t, 100, total1+total2)
+				assert.Greater(t, total1, 20)
+				assert.Greater(t, total2, 20)
 			},
 		},
 		{

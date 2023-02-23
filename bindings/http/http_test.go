@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,6 +101,12 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		input = inputFromHeader
 	}
 
+	sleepSeconds := req.Header.Get("X-Delay-Seconds")
+	if sleepSeconds != "" {
+		seconds, _ := strconv.Atoi(sleepSeconds)
+		time.Sleep(time.Duration(seconds) * time.Second)
+	}
+
 	w.Header().Set("Content-Type", "text/plain")
 
 	statusCode := req.Header.Get("X-Status-Code")
@@ -125,14 +132,12 @@ func InitBinding(s *httptest.Server, extraProps map[string]string) (bindings.Out
 		},
 	}}
 
-	if extraProps != nil {
-		for k, v := range extraProps {
-			m.Properties[k] = v
-		}
+	for k, v := range extraProps {
+		m.Properties[k] = v
 	}
 
 	hs := NewHTTP(logger.NewLogger("test"))
-	err := hs.Init(m)
+	err := hs.Init(context.Background(), m)
 	return hs, err
 }
 
@@ -269,7 +274,7 @@ func InitBindingForHTTPS(s *httptest.Server, extraProps map[string]string) (bind
 		m.Properties[k] = v
 	}
 	hs := NewHTTP(logger.NewLogger("test"))
-	err := hs.Init(m)
+	err := hs.Init(context.Background(), m)
 	return hs, err
 }
 
@@ -610,6 +615,56 @@ func verifyNon2XXErrorsSuppressed(t *testing.T, hs bindings.OutputBinding, handl
 			} else {
 				require.Error(t, err)
 				assert.Equal(t, tc.err, err.Error())
+			}
+		})
+	}
+}
+
+func TestTimeoutHonored(t *testing.T) {
+	handler := NewHTTPHandler()
+	s := httptest.NewServer(handler)
+	defer s.Close()
+
+	hs, err := InitBinding(s, map[string]string{"responseTimeout": "1s"})
+	require.NoError(t, err)
+	verifyTimeoutBehavior(t, hs, handler)
+}
+
+func verifyTimeoutBehavior(t *testing.T, hs bindings.OutputBinding, handler *HTTPHandler) {
+	tests := map[string]TestCase{
+		"exceedsResponseTimeout": {
+			input:      "GET",
+			operation:  "get",
+			metadata:   map[string]string{"X-Delay-Seconds": "2"},
+			path:       "/",
+			err:        "context deadline exceeded",
+			statusCode: 200,
+		},
+		"meetsResposneTimeout": {
+			input:      "GET",
+			operation:  "get",
+			metadata:   map[string]string{},
+			path:       "/",
+			err:        "",
+			statusCode: 200,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			req := tc.ToInvokeRequest()
+			response, err := hs.Invoke(context.Background(), &req)
+			if tc.err == "" {
+				require.NoError(t, err)
+				assert.Equal(t, tc.path, handler.Path)
+				if tc.statusCode != 204 {
+					// 204 will return no content, so we should skip checking
+					assert.Equal(t, strings.ToUpper(tc.input), string(response.Data))
+				}
+				assert.Equal(t, "text/plain", response.Metadata["Content-Type"])
+			} else {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.err)
 			}
 		})
 	}

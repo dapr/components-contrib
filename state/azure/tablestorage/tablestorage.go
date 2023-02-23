@@ -39,6 +39,7 @@ package tablestorage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -48,7 +49,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/aztables"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/pkg/errors"
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	mdutils "github.com/dapr/components-contrib/metadata"
@@ -84,7 +84,7 @@ type tablesMetadata struct {
 }
 
 // Init Initialises connection to table storage, optionally creates a table if it doesn't exist.
-func (r *StateStore) Init(metadata state.Metadata) error {
+func (r *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	meta, err := getTablesMetadata(metadata.Properties)
 	if err != nil {
 		return err
@@ -146,7 +146,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 	}
 
 	if !meta.SkipCreateTable {
-		createContext, cancel := context.WithTimeout(context.Background(), timeout)
+		createContext, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 		_, innerErr := client.CreateTable(createContext, meta.TableName, nil)
 		if innerErr != nil {
@@ -171,8 +171,6 @@ func (r *StateStore) Features() []state.Feature {
 }
 
 func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
-	r.logger.Debugf("delete %s", req.Key)
-
 	err := r.deleteRow(ctx, req)
 	if err != nil {
 		if req.ETag != nil {
@@ -187,7 +185,6 @@ func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 }
 
 func (r *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
-	r.logger.Debugf("fetching %s", req.Key)
 	pk, rk := getPartitionAndRowKey(req.Key, r.cosmosDBMode)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -208,11 +205,7 @@ func (r *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 }
 
 func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
-	r.logger.Debugf("saving %s", req.Key)
-
-	err := r.writeRow(ctx, req)
-
-	return err
+	return r.writeRow(ctx, req)
 }
 
 func (r *StateStore) GetComponentMetadata() map[string]string {
@@ -240,7 +233,7 @@ func getTablesMetadata(meta map[string]string) (*tablesMetadata, error) {
 	if val, ok := mdutils.GetMetadataProperty(meta, azauth.StorageAccountNameKeys...); ok && val != "" {
 		m.AccountName = val
 	} else {
-		return nil, errors.New(fmt.Sprintf("missing or empty %s field from metadata", azauth.StorageAccountNameKeys[0]))
+		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageAccountNameKeys[0])
 	}
 
 	// Can be empty (such as when using Azure AD for auth)
@@ -249,7 +242,7 @@ func getTablesMetadata(meta map[string]string) (*tablesMetadata, error) {
 	if val, ok := mdutils.GetMetadataProperty(meta, azauth.StorageTableNameKeys...); ok && val != "" {
 		m.TableName = val
 	} else {
-		return nil, errors.New(fmt.Sprintf("missing or empty %s field from metadata", azauth.StorageTableNameKeys[0]))
+		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageTableNameKeys[0])
 	}
 
 	return &m, err
@@ -411,7 +404,7 @@ func (r *StateStore) unmarshal(row *aztables.GetEntityResponse) ([]byte, *string
 	// must be a string
 	sv, ok := raw.(string)
 	if !ok {
-		return nil, nil, errors.New(fmt.Sprintf("expected string in column '%s'", valueEntityProperty))
+		return nil, nil, fmt.Errorf("expected string in column '%s'", valueEntityProperty)
 	}
 
 	// use native ETag

@@ -14,13 +14,13 @@ limitations under the License.
 package sentinel
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
 	sentinel "github.com/alibaba/sentinel-golang/api"
 	"github.com/alibaba/sentinel-golang/core/base"
 	"github.com/alibaba/sentinel-golang/core/config"
-	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/internal/httputils"
 	mdutils "github.com/dapr/components-contrib/metadata"
@@ -51,7 +51,7 @@ type Middleware struct {
 }
 
 // GetHandler returns the HTTP handler provided by sentinel middleware.
-func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
+func (m *Middleware) GetHandler(_ context.Context, metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
 	var (
 		meta *middlewareMetadata
 		err  error
@@ -59,13 +59,13 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 
 	meta, err = getNativeMetadata(metadata)
 	if err != nil {
-		return nil, errors.Wrap(err, "error to parse sentinel metadata")
+		return nil, fmt.Errorf("error to parse sentinel metadata: %w", err)
 	}
 
 	conf := m.newSentinelConfig(meta)
 	err = sentinel.InitWithConfig(conf)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error to init sentinel with config: %s", conf)
+		return nil, fmt.Errorf("error to init sentinel with config '%s': %w", conf, err)
 	}
 
 	err = m.loadSentinelRules(meta)
@@ -96,40 +96,35 @@ func (m *Middleware) loadSentinelRules(meta *middlewareMetadata) error {
 	if meta.FlowRules != "" {
 		err := loadRules(meta.FlowRules, newFlowRuleDataSource)
 		if err != nil {
-			msg := fmt.Sprintf("fail to load sentinel flow rules: %s", meta.FlowRules)
-			return errors.Wrap(err, msg)
+			return fmt.Errorf("fail to load sentinel flow rules '%s': %w", meta.FlowRules, err)
 		}
 	}
 
 	if meta.IsolationRules != "" {
 		err := loadRules(meta.IsolationRules, newIsolationRuleDataSource)
 		if err != nil {
-			msg := fmt.Sprintf("fail to load sentinel isolation rules: %s", meta.IsolationRules)
-			return errors.Wrap(err, msg)
+			return fmt.Errorf("fail to load sentinel isolation rules '%s': %w", meta.IsolationRules, err)
 		}
 	}
 
 	if meta.CircuitBreakerRules != "" {
 		err := loadRules(meta.CircuitBreakerRules, newCircuitBreakerRuleDataSource)
 		if err != nil {
-			msg := fmt.Sprintf("fail to load sentinel circuit breaker rules: %s", meta.CircuitBreakerRules)
-			return errors.Wrap(err, msg)
+			return fmt.Errorf("fail to load sentinel circuit breaker rules '%s': %w", meta.CircuitBreakerRules, err)
 		}
 	}
 
 	if meta.HotSpotParamRules != "" {
 		err := loadRules(meta.HotSpotParamRules, newHotSpotParamRuleDataSource)
 		if err != nil {
-			msg := fmt.Sprintf("fail to load sentinel hotspot param rules: %s", meta.HotSpotParamRules)
-			return errors.Wrap(err, msg)
+			return fmt.Errorf("fail to load sentinel hotspot param rules '%s': %w", meta.HotSpotParamRules, err)
 		}
 	}
 
 	if meta.SystemRules != "" {
 		err := loadRules(meta.SystemRules, newSystemRuleDataSource)
 		if err != nil {
-			msg := fmt.Sprintf("fail to load sentinel system rules: %s", meta.SystemRules)
-			return errors.Wrap(err, msg)
+			return fmt.Errorf("fail to load sentinel system rules '%s': %w", meta.SystemRules, err)
 		}
 	}
 

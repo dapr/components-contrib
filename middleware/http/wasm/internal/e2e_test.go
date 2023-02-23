@@ -2,6 +2,7 @@ package internal_test
 
 import (
 	"bytes"
+	"context"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -139,7 +140,7 @@ func Test_EndToEnd(t *testing.T) {
 			require.NoError(t, os.WriteFile(wasmPath, tc.guest, 0o600))
 
 			meta := metadata.Base{Properties: map[string]string{"path": wasmPath}}
-			handlerFn, err := wasm.NewMiddleware(l).GetHandler(middleware.Metadata{Base: meta})
+			handlerFn, err := wasm.NewMiddleware(l).GetHandler(context.Background(), middleware.Metadata{Base: meta})
 			require.NoError(t, err)
 			handler := handlerFn(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 			tc.test(t, handler, &buf)

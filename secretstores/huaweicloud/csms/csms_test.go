@@ -29,9 +29,7 @@ const (
 	secretValue = "secret-value"
 )
 
-type mockedCsmsSecretStore struct {
-	csmsClient
-}
+type mockedCsmsSecretStore struct{}
 
 func (m *mockedCsmsSecretStore) ListSecrets(request *model.ListSecretsRequest) (*model.ListSecretsResponse, error) {
 	name := secretName
@@ -56,9 +54,7 @@ func (m *mockedCsmsSecretStore) ShowSecretVersion(request *model.ShowSecretVersi
 	}, nil
 }
 
-type mockedCsmsSecretStoreReturnError struct {
-	csmsClient
-}
+type mockedCsmsSecretStoreReturnError struct{}
 
 func (m *mockedCsmsSecretStoreReturnError) ListSecrets(request *model.ListSecretsRequest) (*model.ListSecretsResponse, error) {
 	name := secretName
@@ -78,9 +74,7 @@ func (m *mockedCsmsSecretStoreReturnError) ShowSecretVersion(request *model.Show
 	return nil, fmt.Errorf("mocked error")
 }
 
-type mockedCsmsSecretStoreBothReturnError struct {
-	csmsClient
-}
+type mockedCsmsSecretStoreBothReturnError struct{}
 
 func (m *mockedCsmsSecretStoreBothReturnError) ListSecrets(request *model.ListSecretsRequest) (*model.ListSecretsResponse, error) {
 	return nil, fmt.Errorf("mocked error")

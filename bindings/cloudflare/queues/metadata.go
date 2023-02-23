@@ -26,7 +26,7 @@ type componentMetadata struct {
 	QueueName            string `mapstructure:"queueName"`
 }
 
-var queueNameValidation = regexp.MustCompile("^([a-zA-Z0-9_\\-\\.]+)$")
+var queueNameValidation = regexp.MustCompile(`^([a-zA-Z0-9_\-\.]+)$`)
 
 // Validate the metadata object.
 func (m *componentMetadata) Validate() error {

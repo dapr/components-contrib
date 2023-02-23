@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Shopify/sarama"
@@ -31,6 +32,7 @@ type consumer struct {
 	k       *Kafka
 	ready   chan bool
 	running chan struct{}
+	stopped atomic.Bool
 	once    sync.Once
 	mutex   sync.Mutex
 }
@@ -275,9 +277,6 @@ func (k *Kafka) Subscribe(ctx context.Context) error {
 
 	k.cg = cg
 
-	ctx, cancel := context.WithCancel(ctx)
-	k.cancel = cancel
-
 	ready := make(chan bool)
 	k.consumer = consumer{
 		k:       k,
@@ -320,7 +319,10 @@ func (k *Kafka) Subscribe(ctx context.Context) error {
 			k.logger.Errorf("Error closing consumer group: %v", err)
 		}
 
-		close(k.consumer.running)
+		// Ensure running channel is only closed once.
+		if k.consumer.stopped.CompareAndSwap(false, true) {
+			close(k.consumer.running)
+		}
 	}()
 
 	<-ready
@@ -331,7 +333,6 @@ func (k *Kafka) Subscribe(ctx context.Context) error {
 // Close down consumer group resources, refresh once.
 func (k *Kafka) closeSubscriptionResources() {
 	if k.cg != nil {
-		k.cancel()
 		err := k.cg.Close()
 		if err != nil {
 			k.logger.Errorf("Error closing consumer group: %v", err)

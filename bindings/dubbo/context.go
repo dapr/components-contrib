@@ -15,13 +15,13 @@ package dubbo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"dubbo.apache.org/dubbo-go/v3/common/constant"
 	"dubbo.apache.org/dubbo-go/v3/config"
 	"dubbo.apache.org/dubbo-go/v3/config/generic"
 	hessian "github.com/apache/dubbo-go-hessian2"
-	perrors "github.com/pkg/errors"
 )
 
 const (
@@ -81,7 +81,7 @@ func (d *dubboContext) Init() error {
 	referenceConfig.GenericLoad(d.interfaceName)
 	genericService, ok := referenceConfig.GetRPCService().(*generic.GenericService)
 	if !ok {
-		return perrors.Errorf("Get gerneric service of dubbo failed")
+		return errors.New("get gerneric service of dubbo failed")
 	}
 	d.client = genericService
 	d.inited = true

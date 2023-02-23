@@ -92,7 +92,7 @@ func TestInit(t *testing.T) {
 			"accessKey": "dummy-ak",
 			"secretKey": "dummy-sk",
 		}
-		err := obs.Init(m)
+		err := obs.Init(context.Background(), m)
 		assert.Nil(t, err)
 	})
 	t.Run("Init with missing bucket name", func(t *testing.T) {
@@ -102,7 +102,7 @@ func TestInit(t *testing.T) {
 			"accessKey": "dummy-ak",
 			"secretKey": "dummy-sk",
 		}
-		err := obs.Init(m)
+		err := obs.Init(context.Background(), m)
 		assert.NotNil(t, err)
 		assert.Equal(t, err, fmt.Errorf("missing obs bucket name"))
 	})
@@ -113,7 +113,7 @@ func TestInit(t *testing.T) {
 			"endpoint":  "dummy-endpoint",
 			"secretKey": "dummy-sk",
 		}
-		err := obs.Init(m)
+		err := obs.Init(context.Background(), m)
 		assert.NotNil(t, err)
 		assert.Equal(t, err, fmt.Errorf("missing the huawei access key"))
 	})
@@ -124,7 +124,7 @@ func TestInit(t *testing.T) {
 			"endpoint":  "dummy-endpoint",
 			"accessKey": "dummy-ak",
 		}
-		err := obs.Init(m)
+		err := obs.Init(context.Background(), m)
 		assert.NotNil(t, err)
 		assert.Equal(t, err, fmt.Errorf("missing the huawei secret key"))
 	})
@@ -135,7 +135,7 @@ func TestInit(t *testing.T) {
 			"accessKey": "dummy-ak",
 			"secretKey": "dummy-sk",
 		}
-		err := obs.Init(m)
+		err := obs.Init(context.Background(), m)
 		assert.NotNil(t, err)
 		assert.Equal(t, err, fmt.Errorf("missing obs endpoint"))
 	})

@@ -15,13 +15,13 @@ limitations under the License.
 package dubbo
 
 import (
+	"errors"
 	"strconv"
 	"time"
 
 	"dubbo.apache.org/dubbo-go/v3/common/logger"
 	dubboImpl "dubbo.apache.org/dubbo-go/v3/protocol/dubbo/impl"
 	hessian "github.com/apache/dubbo-go-hessian2"
-	perrors "github.com/pkg/errors"
 )
 
 type HessianSerializer struct{}
@@ -55,7 +55,7 @@ func marshalRequest(encoder *hessian.Encoder, p dubboImpl.DubboPackage) ([]byte,
 	args, ok := request.Params.([]interface{})
 	if !ok {
 		logger.Infof("request args are: %+v", request.Params)
-		return nil, perrors.Errorf("@params is not of type: []interface{}")
+		return nil, errors.New("@params is not of type: []interface{}")
 	}
 	_ = encoder.Encode(args[0].(string))
 
@@ -82,5 +82,5 @@ func unmarshalResponseBody(body []byte, p *dubboImpl.DubboPackage) error {
 		p.SetBody(&dubboImpl.ResponsePayload{})
 	}
 	response := dubboImpl.EnsureResponsePayload(p.Body)
-	return perrors.WithStack(hessian.ReflectResponse(body, response.RspObj))
+	return hessian.ReflectResponse(body, response.RspObj)
 }

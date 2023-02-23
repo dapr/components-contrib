@@ -14,9 +14,8 @@ limitations under the License.
 package consul
 
 import (
-	"crypto/rand"
 	"fmt"
-	"math/big"
+	"math/rand"
 	"net"
 	"strconv"
 
@@ -131,19 +130,8 @@ func (r *resolver) ResolveID(req nr.ResolveRequest) (addr string, err error) {
 		return "", fmt.Errorf("no healthy services found with AppID:%s", req.ID)
 	}
 
-	shuffle := func(services []*consul.ServiceEntry) []*consul.ServiceEntry {
-		for i := len(services) - 1; i > 0; i-- {
-			rndbig, _ := rand.Int(rand.Reader, big.NewInt(int64(i+1)))
-			j := rndbig.Int64()
-
-			services[i], services[j] = services[j], services[i]
-		}
-
-		return services
-	}
-
-	// Pick a random service
-	svc := shuffle(services)[0]
+	// Pick a random service from the result
+	svc := services[rand.Int()%len(services)]
 
 	port := svc.Service.Meta[cfg.DaprPortMetaKey]
 	if port == "" {

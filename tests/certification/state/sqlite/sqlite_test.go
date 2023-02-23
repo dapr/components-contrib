@@ -211,7 +211,7 @@ func TestSQLite(t *testing.T) {
 				delete(md.Properties, keyCleanupInterval)
 				storeObj := state_sqlite.NewSQLiteStateStore(log).(*state_sqlite.SQLiteStore)
 
-				err := storeObj.Init(md)
+				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -226,7 +226,7 @@ func TestSQLite(t *testing.T) {
 				md.Properties[keyCleanupInterval] = "10s"
 				storeObj := state_sqlite.NewSQLiteStateStore(log).(*state_sqlite.SQLiteStore)
 
-				err := storeObj.Init(md)
+				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -242,7 +242,7 @@ func TestSQLite(t *testing.T) {
 				md.Properties[keyCleanupInterval] = "0"
 				storeObj := state_sqlite.NewSQLiteStateStore(log).(*state_sqlite.SQLiteStore)
 
-				err := storeObj.Init(md)
+				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -272,7 +272,7 @@ func TestSQLite(t *testing.T) {
 				md.Properties[keyCleanupInterval] = "1s"
 
 				storeObj := state_sqlite.NewSQLiteStateStore(log).(*state_sqlite.SQLiteStore)
-				err := storeObj.Init(md)
+				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -312,7 +312,7 @@ func TestSQLite(t *testing.T) {
 				md.Properties[keyCleanupInterval] = "1h"
 
 				storeObj := state_sqlite.NewSQLiteStateStore(log).(*state_sqlite.SQLiteStore)
-				err := storeObj.Init(md)
+				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -386,7 +386,7 @@ func TestSQLite(t *testing.T) {
 				md.Properties[keyMetadataTableName] = "clean_metadata"
 
 				// Init and perform the migrations
-				err := storeObj.Init(md)
+				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -414,7 +414,7 @@ func TestSQLite(t *testing.T) {
 				assert.Equal(t, migrationLevel, level, "migration level mismatch: found '%s' but expected '%s'", level, migrationLevel)
 
 				// Init and perform the migrations
-				err = storeObj.Init(md)
+				err = storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -447,7 +447,7 @@ func TestSQLite(t *testing.T) {
 				md.Properties[keyMetadataTableName] = "pre_metadata"
 
 				// Init and perform the migrations
-				err = storeObj.Init(md)
+				err = storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
@@ -476,7 +476,7 @@ func TestSQLite(t *testing.T) {
 
 						// Init and perform the migrations
 						storeObj := state_sqlite.NewSQLiteStateStore(l).(*state_sqlite.SQLiteStore)
-						err := storeObj.Init(md)
+						err := storeObj.Init(context.Background(), md)
 						if err != nil {
 							errs <- fmt.Errorf("%d failed to init: %w", i, err)
 							return
@@ -553,7 +553,7 @@ func TestSQLite(t *testing.T) {
 			var storeObjs []*state_sqlite.SQLiteStore
 			newStoreObj := func() error {
 				storeObj := state_sqlite.NewSQLiteStateStore(log).(*state_sqlite.SQLiteStore)
-				err := storeObj.Init(md)
+				err := storeObj.Init(context.Background(), md)
 				if err != nil {
 					return err
 				}

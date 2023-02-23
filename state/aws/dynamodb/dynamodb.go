@@ -66,7 +66,7 @@ func NewDynamoDBStateStore(_ logger.Logger) state.Store {
 }
 
 // Init does metadata and connection parsing.
-func (d *StateStore) Init(metadata state.Metadata) error {
+func (d *StateStore) Init(_ context.Context, metadata state.Metadata) error {
 	meta, err := d.getDynamoDBMetadata(metadata)
 	if err != nil {
 		return err

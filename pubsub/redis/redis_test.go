@@ -96,7 +96,6 @@ func TestProcessStreams(t *testing.T) {
 
 	// act
 	testRedisStream := &redisStreams{logger: logger.NewLogger("test")}
-	testRedisStream.ctx, testRedisStream.cancel = context.WithCancel(context.Background())
 	testRedisStream.queue = make(chan redisMessageWrapper, 10)
 	go testRedisStream.worker()
 	testRedisStream.enqueueMessages(context.Background(), fakeConsumerID, fakeHandler, generateRedisStreamTestData(2, 3, expectedData))

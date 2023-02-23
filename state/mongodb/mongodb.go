@@ -35,6 +35,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
+	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
 )
@@ -51,6 +52,8 @@ const (
 	id               = "_id"
 	value            = "value"
 	etag             = "_etag"
+	ttl              = "_ttl"
+	ttlDollar        = "$" + ttl
 
 	defaultTimeout        = 5 * time.Second
 	defaultDatabaseName   = "daprStore"
@@ -113,7 +116,7 @@ func NewMongoDB(logger logger.Logger) state.Store {
 }
 
 // Init establishes connection to the store based on the metadata.
-func (m *MongoDB) Init(metadata state.Metadata) error {
+func (m *MongoDB) Init(ctx context.Context, metadata state.Metadata) error {
 	meta, err := getMongoDBMetaData(metadata)
 	if err != nil {
 		return err
@@ -121,12 +124,12 @@ func (m *MongoDB) Init(metadata state.Metadata) error {
 
 	m.operationTimeout = meta.OperationTimeout
 
-	client, err := getMongoDBClient(meta)
+	client, err := getMongoDBClient(ctx, meta)
 	if err != nil {
 		return fmt.Errorf("error in creating mongodb client: %s", err)
 	}
 
-	if err = client.Ping(context.Background(), nil); err != nil {
+	if err = client.Ping(ctx, nil); err != nil {
 		return fmt.Errorf("error in connecting to mongodb, host: %s error: %s", meta.Host, err)
 	}
 
@@ -146,9 +149,19 @@ func (m *MongoDB) Init(metadata state.Metadata) error {
 
 	m.metadata = *meta
 	opts := options.Collection().SetWriteConcern(wc).SetReadConcern(rc)
-	collection := m.client.Database(meta.DatabaseName).Collection(meta.CollectionName, opts)
+	m.collection = m.client.Database(meta.DatabaseName).Collection(meta.CollectionName, opts)
 
-	m.collection = collection
+	// Set expireAfterSeconds index on ttl field with a value of 0 to delete
+	// values immediately when the TTL value is reached.
+	// MongoDB TTL Indexes: https://docs.mongodb.com/manual/core/index-ttl/
+	// TTL fields are deleted at most 60 seconds after the TTL value is reached.
+	_, err = m.collection.Indexes().CreateOne(context.TODO(), mongo.IndexModel{
+		Keys:    bson.M{ttl: 1},
+		Options: options.Index().SetExpireAfterSeconds(0),
+	})
+	if err != nil {
+		return fmt.Errorf("error in creating ttl index: %s", err)
+	}
 
 	return nil
 }
@@ -168,8 +181,8 @@ func (m *MongoDB) Set(ctx context.Context, req *state.SetRequest) error {
 	return nil
 }
 
-func (m *MongoDB) Ping() error {
-	if err := m.client.Ping(context.Background(), nil); err != nil {
+func (m *MongoDB) Ping(ctx context.Context) error {
+	if err := m.client.Ping(ctx, nil); err != nil {
 		return fmt.Errorf("mongoDB store: error connecting to mongoDB at %s: %s", m.metadata.Host, err)
 	}
 
@@ -192,20 +205,78 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 	if req.ETag != nil {
 		filter[etag] = *req.ETag
 	} else if req.Options.Concurrency == state.FirstWrite {
-		filter[etag] = uuid.NewString()
+		uuid, err := uuid.NewRandom()
+		if err != nil {
+			return err
+		}
+		filter[etag] = uuid.String()
 	}
 
-	update := bson.M{"$set": bson.M{id: req.Key, value: v, etag: uuid.NewString()}}
-	_, err := m.collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
+	reqTTL, err := stateutils.ParseTTL(req.Metadata)
+	if err != nil {
+		return fmt.Errorf("failed to parse TTL: %w", err)
+	}
 
-	return err
+	etagV, err := uuid.NewRandom()
+	if err != nil {
+		return err
+	}
+
+	update := make(mongo.Pipeline, 2)
+	update[0] = bson.D{{Key: "$set", Value: bson.D{
+		{Key: id, Value: req.Key},
+		{Key: value, Value: v},
+		{Key: etag, Value: etagV.String()},
+	}}}
+
+	if reqTTL != nil {
+		update[1] = primitive.D{{
+			Key: "$addFields", Value: bson.D{
+				{
+					Key: ttl, Value: bson.D{
+						{
+							Key: "$add", Value: bson.A{
+								// MongoDB stores time in milliseconds so multiply seconds by 1000.
+								"$$NOW", *reqTTL * 1000,
+							},
+						},
+					},
+				},
+			},
+		}}
+	} else {
+		update[1] = primitive.D{
+			{Key: "$addFields", Value: bson.D{
+				{Key: ttl, Value: nil},
+			}},
+		}
+	}
+
+	_, err = m.collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
+	if err != nil {
+		return fmt.Errorf("error in updating document: %s", err)
+	}
+
+	return nil
 }
 
 // Get retrieves state from MongoDB with a key.
 func (m *MongoDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
+	// Since MongoDB doesn't delete the document immediately when the TTL value
+	// is reached, we need to filter out the documents with TTL value less than
+	// the current time.
+	filter := bson.D{
+		{Key: "$and", Value: bson.A{
+			bson.D{{Key: id, Value: bson.M{"$eq": req.Key}}},
+			bson.D{{Key: "$expr", Value: bson.D{
+				{Key: "$or", Value: bson.A{
+					bson.D{{Key: "$eq", Value: bson.A{ttlDollar, primitive.Null{}}}},
+					bson.D{{Key: "$gte", Value: bson.A{ttlDollar, "$$NOW"}}},
+				}},
+			}}},
+		}},
+	}
 	var result Item
-
-	filter := bson.M{id: req.Key}
 	err := m.collection.FindOne(ctx, filter).Decode(&result)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -360,14 +431,14 @@ func getMongoURI(metadata *mongoDBMetadata) string {
 	return fmt.Sprintf(connectionURIFormat, metadata.Host, metadata.DatabaseName, metadata.Params)
 }
 
-func getMongoDBClient(metadata *mongoDBMetadata) (*mongo.Client, error) {
+func getMongoDBClient(ctx context.Context, metadata *mongoDBMetadata) (*mongo.Client, error) {
 	uri := getMongoURI(metadata)
 
 	// Set client options
 	clientOptions := options.Client().ApplyURI(uri)
 
 	// Connect to MongoDB
-	ctx, cancel := context.WithTimeout(context.Background(), metadata.OperationTimeout)
+	ctx, cancel := context.WithTimeout(ctx, metadata.OperationTimeout)
 	defer cancel()
 
 	daprUserAgent := "dapr-" + logger.DaprVersion

@@ -59,7 +59,7 @@ func NewJetstreamStateStore(logger logger.Logger) state.Store {
 }
 
 // Init does parse metadata and establishes connection to nats broker.
-func (js *StateStore) Init(metadata state.Metadata) error {
+func (js *StateStore) Init(_ context.Context, metadata state.Metadata) error {
 	meta, err := js.getMetadata(metadata)
 	if err != nil {
 		return err

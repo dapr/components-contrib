@@ -112,8 +112,11 @@ func (r *RabbitMQ) reconnectWhenNecessary() {
 		select {
 		case <-r.closeCh:
 			return
-		case _ = <-r.notifyRabbitChannelClose:
-			// this is called when the server restart or the channel is closed by server.
+		case e := <-r.notifyRabbitChannelClose:
+			// If this error can not be recovered, firstly wait and then retry.
+			if e != nil && !e.Recover {
+				time.Sleep(r.metadata.reconnectWait)
+			}
 			r.channelMutex.Lock()
 			if r.connection != nil && !r.connection.IsClosed() {
 				ch, err := r.connection.Channel()

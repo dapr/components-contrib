@@ -1,6 +1,6 @@
 module github/dapr/workflow/worker
 
-go 1.18
+go 1.20
 
 require (
 	github.com/zouyx/agollo/v3 v3.4.5

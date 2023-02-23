@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib/tests/certification/state/aws/dynamodb
 
-go 1.19
+go 1.20
 
 replace github.com/dapr/components-contrib => ../../../../..
 

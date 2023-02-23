@@ -100,19 +100,36 @@ func (r *resolver) Init(metadata nr.Metadata) (err error) {
 		return err
 	}
 
-	if err = r.client.InitClient(r.config.Client); err != nil {
+	err = r.client.InitClient(r.config.Client)
+	if err != nil {
 		return fmt.Errorf("failed to init consul client: %w", err)
 	}
 
-	// register service to consul
+	// Register service to consul
 	if r.config.Registration != nil {
-		if err := r.client.Agent().ServiceRegister(r.config.Registration); err != nil {
+		agent := r.client.Agent()
+
+		// First, try to de-register the service if it already exists, to remove any previous value that may be there
+		err = agent.ServiceDeregisterOpts(r.config.Registration.ID, &consul.QueryOptions{
+			Namespace:         r.config.Registration.Namespace,
+			Partition:         r.config.Registration.Partition,
+			RequireConsistent: true,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to de-register previous consul service: %w", err)
+		}
+
+		err = agent.ServiceRegister(r.config.Registration)
+		if err != nil {
 			return fmt.Errorf("failed to register consul service: %w", err)
 		}
 
 		r.logger.Infof("service:%s registered on consul agent", r.config.Registration.Name)
-	} else if _, err := r.client.Agent().Self(); err != nil {
-		return fmt.Errorf("failed check on consul agent: %w", err)
+	} else {
+		_, err = r.client.Agent().Self()
+		if err != nil {
+			return fmt.Errorf("failed check on consul agent: %w", err)
+		}
 	}
 
 	return nil
@@ -131,6 +148,8 @@ func (r *resolver) ResolveID(req nr.ResolveRequest) (addr string, err error) {
 	}
 
 	// Pick a random service from the result
+	// Note: we're using math/random here as PRNG and that's ok since we're just using this for selecting a random address from a list for load-balancing, so we don't need a CSPRNG
+	//nolint:gosec
 	svc := services[rand.Int()%len(services)]
 
 	port := svc.Service.Meta[cfg.DaprPortMetaKey]

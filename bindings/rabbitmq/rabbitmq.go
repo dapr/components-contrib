@@ -25,10 +25,11 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
+	"github.com/dapr/kit/logger"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/internal/utils"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
-	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -64,19 +65,20 @@ type RabbitMQ struct {
 	wg         sync.WaitGroup
 
 	// used for reconnect
+	channelMutex             sync.RWMutex
 	notifyRabbitChannelClose chan *amqp.Error
 }
 
 // Metadata is the rabbitmq config.
 type rabbitMQMetadata struct {
-	Host             string        `json:"host"`
-	QueueName        string        `json:"queueName"`
-	Exclusive        bool          `json:"exclusive,string"`
-	Durable          bool          `json:"durable,string"`
-	DeleteWhenUnused bool          `json:"deleteWhenUnused,string"`
-	PrefetchCount    int           `json:"prefetchCount"`
-	MaxPriority      *uint8        `json:"maxPriority"` // Priority Queue deactivated if nil
-	ReconnectWait    time.Duration `json:"reconnectWait"`
+	Host             string `json:"host"`
+	QueueName        string `json:"queueName"`
+	Exclusive        bool   `json:"exclusive,string"`
+	Durable          bool   `json:"durable,string"`
+	DeleteWhenUnused bool   `json:"deleteWhenUnused,string"`
+	PrefetchCount    int    `json:"prefetchCount"`
+	MaxPriority      *uint8 `json:"maxPriority"` // Priority Queue deactivated if nil
+	reconnectWait    time.Duration
 	defaultQueueTTL  *time.Duration
 }
 
@@ -112,16 +114,19 @@ func (r *RabbitMQ) reconnectWhenNecessary() {
 			return
 		case _ = <-r.notifyRabbitChannelClose:
 			// this is called when the server restart or the channel is closed by server.
+			r.channelMutex.Lock()
 			if r.connection != nil && !r.connection.IsClosed() {
 				ch, err := r.connection.Channel()
 				if err == nil {
-					r.channel = ch
 					r.notifyRabbitChannelClose = make(chan *amqp.Error, 1)
-					r.channel.NotifyClose(r.notifyRabbitChannelClose)
+					ch.NotifyClose(r.notifyRabbitChannelClose)
+					r.channel = ch
+					r.channelMutex.Unlock()
 					continue
 				}
 				// if encounter err fallback to reconnect connection
 			}
+			r.channelMutex.Unlock()
 			// keep trying to reconnect
 			for {
 				err := r.connect()
@@ -133,11 +138,8 @@ func (r *RabbitMQ) reconnectWhenNecessary() {
 				}
 				r.logger.Warnf("reconnect failed: %s", err.Error())
 
-				time.Sleep(r.metadata.ReconnectWait)
+				time.Sleep(r.metadata.reconnectWait)
 			}
-
-			r.notifyRabbitChannelClose = make(chan *amqp.Error, 1)
-			r.channel.NotifyClose(r.notifyRabbitChannelClose)
 		}
 	}
 }
@@ -164,7 +166,10 @@ func (r *RabbitMQ) Operations() []bindings.OperationKind {
 
 func (r *RabbitMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	// check if connection channel to rabbitmq is open
-	if r.channel == nil {
+	r.channelMutex.RLock()
+	ch := r.channel
+	r.channelMutex.RUnlock()
+	if ch == nil {
 		return nil, errors.New(errorChannelConnection)
 	}
 	pub := amqp.Publishing{
@@ -200,7 +205,7 @@ func (r *RabbitMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		pub.Priority = priority
 	}
 
-	err = r.channel.PublishWithContext(ctx, "", r.metadata.QueueName, false, false, pub)
+	err = ch.PublishWithContext(ctx, "", r.metadata.QueueName, false, false, pub)
 
 	if err != nil {
 		return nil, err
@@ -210,7 +215,7 @@ func (r *RabbitMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 }
 
 func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
-	m := rabbitMQMetadata{ReconnectWait: defaultReconnectWait}
+	m := rabbitMQMetadata{reconnectWait: defaultReconnectWait}
 
 	if val, ok := metadata.Properties[host]; ok && val != "" {
 		m.Host = val
@@ -261,7 +266,7 @@ func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
 
 	if val, found := metadata.Properties[reconnectWaitSecondsKey]; found && val != "" {
 		if intVal, err := strconv.Atoi(val); err == nil {
-			m.ReconnectWait = time.Duration(intVal) * time.Second
+			m.reconnectWait = time.Duration(intVal) * time.Second
 		}
 	}
 
@@ -279,7 +284,7 @@ func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (r *RabbitMQ) declareQueue() (amqp.Queue, error) {
+func (r *RabbitMQ) declareQueue(channel *amqp.Channel) (amqp.Queue, error) {
 	args := amqp.Table{}
 	if r.metadata.defaultQueueTTL != nil {
 		// Value in ms
@@ -291,7 +296,7 @@ func (r *RabbitMQ) declareQueue() (amqp.Queue, error) {
 		args[rabbitMQMaxPriorityKey] = *r.metadata.MaxPriority
 	}
 
-	return r.channel.QueueDeclare(r.metadata.QueueName, r.metadata.Durable, r.metadata.DeleteWhenUnused, r.metadata.Exclusive, false, args)
+	return channel.QueueDeclare(r.metadata.QueueName, r.metadata.Durable, r.metadata.DeleteWhenUnused, r.metadata.Exclusive, false, args)
 }
 
 func (r *RabbitMQ) Read(ctx context.Context, handler bindings.Handler) error {
@@ -316,14 +321,20 @@ func (r *RabbitMQ) Read(ctx context.Context, handler bindings.Handler) error {
 		defer r.wg.Done()
 		for {
 			var (
-				msgs <-chan amqp.Delivery
-				err  error
+				msgs              <-chan amqp.Delivery
+				err               error
+				declaredQueueName string
+				ch                *amqp.Channel
 			)
-			if r.channel == nil {
+			r.channelMutex.RLock()
+			declaredQueueName = r.queue.Name
+			ch = r.channel
+			r.channelMutex.RUnlock()
+			if ch == nil {
 				goto Retry
 			}
-			msgs, err = r.channel.Consume(
-				r.queue.Name,
+			msgs, err = ch.Consume(
+				declaredQueueName,
 				"",
 				false,
 				false,
@@ -335,7 +346,7 @@ func (r *RabbitMQ) Read(ctx context.Context, handler bindings.Handler) error {
 				r.logger.Errorf("%s consuming messages from queue [%s] error: %s", logMessagePrefix, r.queue.Name, err)
 				goto Retry
 			}
-			r.handleMessage(readCtx, handler, msgs)
+			r.handleMessage(readCtx, handler, msgs, ch)
 
 		Retry:
 			if r.closed.Load() || readCtx.Err() != nil {
@@ -343,30 +354,30 @@ func (r *RabbitMQ) Read(ctx context.Context, handler bindings.Handler) error {
 				return
 			}
 
-			time.Sleep(r.metadata.ReconnectWait)
+			time.Sleep(r.metadata.reconnectWait)
 		}
 	}()
 	return nil
 }
 
 // handleMessage handles incoming messages from RabbitMQ
-func (r *RabbitMQ) handleMessage(ctx context.Context, handler bindings.Handler, msgCh <-chan amqp.Delivery) {
+func (r *RabbitMQ) handleMessage(ctx context.Context, handler bindings.Handler, msgCh <-chan amqp.Delivery, ch *amqp.Channel) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case d, ok := <-msgCh:
 			if !ok {
-				r.logger.Debugf("%s input binding channel closed", logMessagePrefix)
+				r.logger.Infof("%s input binding channel closed", logMessagePrefix)
 				return
 			}
 			_, err := handler(ctx, &bindings.ReadResponse{
 				Data: d.Body,
 			})
 			if err != nil {
-				r.channel.Nack(d.DeliveryTag, false, true)
+				ch.Nack(d.DeliveryTag, false, true)
 			} else {
-				r.channel.Ack(d.DeliveryTag, false)
+				ch.Ack(d.DeliveryTag, false)
 			}
 		}
 	}
@@ -377,7 +388,9 @@ func (r *RabbitMQ) Close() error {
 		close(r.closeCh)
 	}
 	defer r.wg.Wait()
-	return r.channel.Close()
+	r.channelMutex.Lock()
+	defer r.channelMutex.Unlock()
+	return r.reset()
 }
 
 func (r *RabbitMQ) connect() error {
@@ -386,23 +399,25 @@ func (r *RabbitMQ) connect() error {
 		return errClosed
 	}
 
-	err := r.reset()
+	conn, ch, err := dial(r.metadata.Host)
 	if err != nil {
 		return err
 	}
 
-	r.connection, r.channel, err = dial(r.metadata.Host)
+	ch.Qos(r.metadata.PrefetchCount, 0, true)
+	q, err := r.declareQueue(ch)
 	if err != nil {
 		return err
 	}
 
-	r.channel.Qos(r.metadata.PrefetchCount, 0, true)
-	q, err := r.declareQueue()
-	if err != nil {
-		return err
-	}
+	r.notifyRabbitChannelClose = make(chan *amqp.Error, 1)
+	ch.NotifyClose(r.notifyRabbitChannelClose)
 
-	r.queue = q
+	r.channelMutex.Lock()
+	// try to close the old channel and connection, ignore the error
+	_ = r.reset() //nolint:errcheck
+	r.connection, r.channel, r.queue = conn, ch, q
+	r.channelMutex.Unlock()
 
 	r.logger.Infof("%s connected", logMessagePrefix)
 
@@ -410,16 +425,17 @@ func (r *RabbitMQ) connect() error {
 }
 
 // reset the channel and the connection when encountered a connection error.
+// this function call should be wrapped by channelMutex.
 func (r *RabbitMQ) reset() (err error) {
 	if r.channel != nil {
 		if err = r.channel.Close(); err != nil {
-			r.logger.Errorf("%s reset: channel.Close() failed: %v", logMessagePrefix, err)
+			r.logger.Warnf("%s reset: channel.Close() failed: %v", logMessagePrefix, err)
 		}
 		r.channel = nil
 	}
 	if r.connection != nil {
 		if err2 := r.connection.Close(); err2 != nil {
-			r.logger.Errorf("%s reset: connection.Close() failed: %v", logMessagePrefix, err2)
+			r.logger.Warnf("%s reset: connection.Close() failed: %v", logMessagePrefix, err2)
 			if err == nil {
 				err = err2
 			}

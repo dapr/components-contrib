@@ -19,9 +19,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/kit/logger"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
-	"github.com/dapr/kit/logger"
 )
 
 func TestParseMetadata(t *testing.T) {
@@ -131,7 +132,7 @@ func TestParseMetadata(t *testing.T) {
 			assert.Equal(t, tt.expectedExclusive, r.metadata.Exclusive)
 			assert.Equal(t, tt.expectedMaxPriority, r.metadata.MaxPriority)
 			if tt.expectedReconnectWaitCheck != nil {
-				assert.True(t, tt.expectedReconnectWaitCheck(r.metadata.ReconnectWait))
+				assert.True(t, tt.expectedReconnectWaitCheck(r.metadata.reconnectWait))
 			}
 		})
 	}

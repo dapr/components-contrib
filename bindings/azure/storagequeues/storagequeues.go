@@ -18,13 +18,13 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"net/url"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/Azure/azure-storage-queue-go/azqueue"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue"
 
 	"github.com/dapr/components-contrib/bindings"
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
@@ -51,7 +51,7 @@ type QueueHelper interface {
 
 // AzureQueueHelper concrete impl of queue helper.
 type AzureQueueHelper struct {
-	queueURL          azqueue.QueueURL
+	queueClient       *azqueue.QueueClient
 	logger            logger.Logger
 	decodeBase64      bool
 	encodeBase64      bool
@@ -59,42 +59,56 @@ type AzureQueueHelper struct {
 }
 
 // Init sets up this helper.
-func (d *AzureQueueHelper) Init(ctx context.Context, metadata bindings.Metadata) (*storageQueuesMetadata, error) {
-	m, err := parseMetadata(metadata)
+func (d *AzureQueueHelper) Init(ctx context.Context, meta bindings.Metadata) (*storageQueuesMetadata, error) {
+	m, err := parseMetadata(meta)
 	if err != nil {
 		return nil, err
 	}
 
-	credential, env, err := azauth.GetAzureStorageQueueCredentials(d.logger, m.AccountName, metadata.Properties)
+	azEnvSettings, err := azauth.NewEnvironmentSettings("storage", meta.Properties)
 	if err != nil {
-		return nil, fmt.Errorf("invalid credentials with error: %s", err.Error())
+		return nil, err
 	}
 
 	userAgent := "dapr-" + logger.DaprVersion
-	pipelineOptions := azqueue.PipelineOptions{
-		Telemetry: azqueue.TelemetryOptions{
-			Value: userAgent,
+	options := azqueue.ClientOptions{
+		ClientOptions: policy.ClientOptions{
+			Telemetry: policy.TelemetryOptions{
+				ApplicationID: userAgent,
+			},
 		},
 	}
-	p := azqueue.NewPipeline(credential, pipelineOptions)
+
+	var queueServiceClient *azqueue.ServiceClient
+	if m.AccountKey != "" && m.AccountName != "" {
+		var credential *azqueue.SharedKeyCredential
+		credential, err = azqueue.NewSharedKeyCredential(m.AccountName, m.AccountKey)
+		if err != nil {
+			return nil, fmt.Errorf("invalid shared key credentials with error: %w", err)
+		}
+		queueServiceClient, err = azqueue.NewServiceClientWithSharedKeyCredential(m.GetQueueURL(azEnvSettings), credential, &options)
+		if err != nil {
+			return nil, fmt.Errorf("cannot init storage queue client with shared key: %w", err)
+		}
+	} else {
+		credential, tokenErr := azEnvSettings.GetTokenCredential()
+		if tokenErr != nil {
+			return nil, fmt.Errorf("invalid token credentials with error: %w", tokenErr)
+		}
+		var clientErr error
+		queueServiceClient, clientErr = azqueue.NewServiceClient(m.GetQueueURL(azEnvSettings), credential, &options)
+		if clientErr != nil {
+			return nil, fmt.Errorf("cannot init storage queue client with Azure AD token: %w", err)
+		}
+	}
 
 	d.decodeBase64 = m.DecodeBase64
 	d.encodeBase64 = m.EncodeBase64
 	d.visibilityTimeout = *m.VisibilityTimeout
-
-	if m.QueueEndpoint != "" {
-		URL, parseErr := url.Parse(fmt.Sprintf("%s/%s/%s", m.QueueEndpoint, m.AccountName, m.QueueName))
-		if parseErr != nil {
-			return nil, parseErr
-		}
-		d.queueURL = azqueue.NewQueueURL(*URL, p)
-	} else {
-		URL, _ := url.Parse(fmt.Sprintf("https://%s.queue.%s/%s", m.AccountName, env.StorageEndpointSuffix, m.QueueName))
-		d.queueURL = azqueue.NewQueueURL(*URL, p)
-	}
+	d.queueClient = queueServiceClient.NewQueueClient(m.QueueName)
 
 	createCtx, createCancel := context.WithTimeout(ctx, 2*time.Minute)
-	_, err = d.queueURL.Create(createCtx, azqueue.Metadata{})
+	_, err = d.queueClient.Create(createCtx, &azqueue.CreateOptions{})
 	createCancel()
 	if err != nil {
 		return nil, err
@@ -104,7 +118,10 @@ func (d *AzureQueueHelper) Init(ctx context.Context, metadata bindings.Metadata)
 }
 
 func (d *AzureQueueHelper) Write(ctx context.Context, data []byte, ttl *time.Duration) error {
-	messagesURL := d.queueURL.NewMessagesURL()
+	var ttlSeconds *int32
+	if ttl != nil {
+		ttlSeconds = ptr.Of(int32(ttl.Seconds()))
+	}
 
 	s, err := strconv.Unquote(string(data))
 	if err != nil {
@@ -119,18 +136,22 @@ func (d *AzureQueueHelper) Write(ctx context.Context, data []byte, ttl *time.Dur
 		ttlToUse := defaultTTL
 		ttl = &ttlToUse
 	}
-	_, err = messagesURL.Enqueue(ctx, s, time.Second*0, *ttl)
+	_, err = d.queueClient.EnqueueMessage(ctx, s, &azqueue.EnqueueMessageOptions{
+		TimeToLive: ttlSeconds,
+	})
 
 	return err
 }
 
 func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
-	messagesURL := d.queueURL.NewMessagesURL()
-	res, err := messagesURL.Dequeue(ctx, 1, d.visibilityTimeout)
+	res, err := d.queueClient.DequeueMessages(ctx, &azqueue.DequeueMessagesOptions{
+		NumberOfMessages:  ptr.Of(int32(1)),
+		VisibilityTimeout: ptr.Of(int32(d.visibilityTimeout.Seconds())),
+	})
 	if err != nil {
 		return err
 	}
-	if res.NumMessages() == 0 {
+	if len(res.Messages) == 0 {
 		// Queue was empty so back off by 10 seconds before trying again
 		select {
 		case <-time.After(10 * time.Second):
@@ -138,18 +159,18 @@ func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 		}
 		return nil
 	}
-	mt := res.Message(0).Text
+	mt := res.Messages[0].MessageText
 
 	var data []byte
 
 	if d.decodeBase64 {
-		decoded, decodeError := base64.StdEncoding.DecodeString(mt)
+		decoded, decodeError := base64.StdEncoding.DecodeString(*mt)
 		if decodeError != nil {
 			return decodeError
 		}
 		data = decoded
 	} else {
-		data = []byte(mt)
+		data = []byte(*mt)
 	}
 
 	_, err = consumer.callback(ctx, &bindings.ReadResponse{
@@ -159,9 +180,8 @@ func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 	if err != nil {
 		return err
 	}
-	messageIDURL := messagesURL.NewMessageIDURL(res.Message(0).ID)
-	pr := res.Message(0).PopReceipt
-	_, err = messageIDURL.Delete(ctx, pr)
+
+	_, err = d.queueClient.DeleteMessage(ctx, *res.Messages[0].MessageID, *res.Messages[0].PopReceipt, &azqueue.DeleteMessageOptions{})
 	if err != nil {
 		return err
 	}
@@ -196,10 +216,21 @@ type storageQueuesMetadata struct {
 	QueueName         string
 	QueueEndpoint     string
 	AccountName       string
+	AccountKey        string
 	DecodeBase64      bool
 	EncodeBase64      bool
 	ttl               *time.Duration
 	VisibilityTimeout *time.Duration
+}
+
+func (m *storageQueuesMetadata) GetQueueURL(azEnvSettings azauth.EnvironmentSettings) string {
+	var URL string
+	if m.QueueEndpoint != "" {
+		URL = fmt.Sprintf("%s/%s/", m.QueueEndpoint, m.AccountName)
+	} else {
+		URL = fmt.Sprintf("https://%s.queue.%s/", m.AccountName, azEnvSettings.AzureEnvironment.StorageEndpointSuffix)
+	}
+	return URL
 }
 
 // NewAzureStorageQueues returns a new AzureStorageQueues instance.
@@ -225,8 +256,6 @@ func parseMetadata(meta bindings.Metadata) (*storageQueuesMetadata, error) {
 	m := storageQueuesMetadata{
 		VisibilityTimeout: ptr.Of(time.Second * 30),
 	}
-	// AccountKey is parsed in azauth
-
 	contribMetadata.DecodeMetadata(meta.Properties, &m)
 
 	if val, ok := contribMetadata.GetMetadataProperty(meta.Properties, azauth.StorageAccountNameKeys...); ok && val != "" {
@@ -243,6 +272,10 @@ func parseMetadata(meta bindings.Metadata) (*storageQueuesMetadata, error) {
 
 	if val, ok := contribMetadata.GetMetadataProperty(meta.Properties, azauth.StorageEndpointKeys...); ok && val != "" {
 		m.QueueEndpoint = val
+	}
+
+	if val, ok := contribMetadata.GetMetadataProperty(meta.Properties, azauth.StorageAccountKeyKeys...); ok && val != "" {
+		m.AccountKey = val
 	}
 
 	ttl, ok, err := contribMetadata.TryGetTTL(meta.Properties)

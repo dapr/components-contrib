@@ -1,29 +1,24 @@
 # yaml-language-server: $schema=../../../component-metadata-schema.json
 schemaVersion: v1
 type: state
-name: azure.cosmosdb
+name: azure.tablestorage
 version: v1
 status: stable
-title: "Azure Cosmos DB (SQL API)"
+title: "Azure Table Storage"
 urls:
   - title: Reference
-    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-azure-cosmosdb/
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-azure-tablestorage/
 capabilities:
-  # If actorStateStore is present, the metadata key actorStateStore can be used
-  - actorStateStore
   - crud
-  - transactional
   - etag
-  - ttl
-  - query
 authenticationProfiles:
-  - title: "Master key"
-    description: "Authenticate using a pre-shared \"master key\"."
+  - title: "Account Key"
+    description: "Authenticate using a pre-shared \"account key\"."
     metadata:
-      - name: masterKey
+      - name: accountKey
         required: true
         sensitive: true
-        description: "The key to authenticate to the Cosmos DB account."
+        description: "The key to authenticate to the Storage Account or Cosmos DB Table API."
         example: '"my-secret-key"'
   - title: "Azure AD: Managed identity"
     description: "Authenticate using Azure AD and a managed identity."
@@ -76,18 +71,27 @@ authenticationProfiles:
         description: "Password for the certificate if encrypted."
         example: "password"
 metadata:
-  - name: url
+  - name: accountName
+    description: "The storage account name."
     required: true
-    description: "The Cosmos DB url."
-    example: '"https://******.documents.azure.com:443/"'
     type: string
-  - name: database
+    example: '"mystorageaccount"'
+  - name: tableName
+    description: "The name of the table to be used for Dapr state. The table will be created for you if it doesn't exist."
     required: true
-    description: "The name of the database."
-    example: '"db"'
     type: string
-  - name: collection
-    required: true
-    description: "The name of the collection (container)."
-    example: '"collection"'
+    example: '"table"'
+  - name: cosmosDbMode
+    description: "If enabled, connects to Cosmos DB Table API instead of Azure Tables (Storage Accounts). Defaults to `false`."
+    example: '"false"'
+    type: bool
+    default: 'false'
+  - name: serviceURL
+    description: "The full storage service endpoint URL. Useful for Azure environments other than public cloud."
+    example: '"https://mystorageaccount.table.core.windows.net/"'
     type: string
+  - name: skipCreateTable
+    description: "Skips the check for and, if necessary, creation of the specified storage table. This is useful when using active directory authentication with minimal privileges. Defaults to `false`."
+    example: '"true"'
+    type: bool
+    default: 'false'

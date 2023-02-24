@@ -28,29 +28,29 @@ jobs:
     name: Build linux_amd64 binaries
     runs-on: ubuntu-latest
     env:
-      GOVER: "1.19"
       GOOS: linux
       GOARCH: amd64
       GOPROXY: https://proxy.golang.org
-      GOLANGCI_LINT_VER: "v1.51.0"
+      GOLANGCI_LINT_VER: "v1.51.2"
     steps:
-      - name: Set up Go ${{ env.GOVER }}
-        if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
-        uses: actions/setup-go@v3
-        with:
-          go-version: ${{ env.GOVER }}
       - name: Check out code into the Go module directory
         if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
         uses: actions/checkout@v3
+      - name: Set up Go
+        id: setup-go
+        if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
+        uses: actions/setup-go@v3
+        with:
+          go-version-file: 'go.mod'
       - name: Cache Go modules (Linux)
         uses: actions/cache@v3
         with:
           path: |
             ~/.cache/go-build
             ~/go/pkg/mod
-          key: linux-amd64-go-${{ env.GOVER }}-${{ hashFiles('**/go.sum') }}
+          key: linux-amd64-go-${{ steps.setup-go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            linux-amd64-go-${{ env.GOVER }}-
+            linux-amd64-go-${{ steps.setup-go.outputs.go-version }}-
       - name: Check components-schema
         if: steps.skip_check.outputs.should_skip != 'true'
         run: make check-component-metadata-schema-diff

@@ -82,14 +82,6 @@ func (m *mockAgent) ServiceRegister(service *consul.AgentServiceRegistration) er
 	return m.serviceRegisterErr
 }
 
-func (m *mockAgent) ServiceDeregister(serviceID string) error {
-	return nil
-}
-
-func (m *mockAgent) ServiceDeregisterOpts(serviceID string, q *consul.QueryOptions) error {
-	return nil
-}
-
 func TestInit(t *testing.T) {
 	t.Parallel()
 
@@ -107,7 +99,7 @@ func TestInit(t *testing.T) {
 				t.Helper()
 
 				var mock mockClient
-				resolver := newResolver(logger.NewLogger("test"), resolverConfig{}, &mock)
+				resolver := newResolver(logger.NewLogger("test"), &mock)
 
 				_ = resolver.Init(metadata)
 
@@ -130,7 +122,7 @@ func TestInit(t *testing.T) {
 				t.Helper()
 
 				var mock mockClient
-				resolver := newResolver(logger.NewLogger("test"), resolverConfig{}, &mock)
+				resolver := newResolver(logger.NewLogger("test"), &mock)
 
 				_ = resolver.Init(metadata)
 
@@ -152,7 +144,7 @@ func TestInit(t *testing.T) {
 				t.Helper()
 
 				var mock mockClient
-				resolver := newResolver(logger.NewLogger("test"), resolverConfig{}, &mock)
+				resolver := newResolver(logger.NewLogger("test"), &mock)
 
 				_ = resolver.Init(metadata)
 
@@ -174,7 +166,7 @@ func TestInit(t *testing.T) {
 
 func TestResolveID(t *testing.T) {
 	t.Parallel()
-	testConfig := &resolverConfig{
+	testConfig := resolverConfig{
 		DaprPortMetaKey: "DAPR_PORT",
 	}
 
@@ -195,7 +187,8 @@ func TestResolveID(t *testing.T) {
 						serviceResult: []*consul.ServiceEntry{},
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), *testConfig, &mock)
+				resolver := newResolver(logger.NewLogger("test"), &mock)
+				resolver.config = testConfig
 
 				_, err := resolver.ResolveID(req)
 				assert.Equal(t, 1, mock.mockHealth.serviceCalled)
@@ -224,7 +217,8 @@ func TestResolveID(t *testing.T) {
 						},
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), *testConfig, &mock)
+				resolver := newResolver(logger.NewLogger("test"), &mock)
+				resolver.config = testConfig
 
 				addr, _ := resolver.ResolveID(req)
 
@@ -262,7 +256,8 @@ func TestResolveID(t *testing.T) {
 						},
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), *testConfig, &mock)
+				resolver := newResolver(logger.NewLogger("test"), &mock)
+				resolver.config = testConfig
 
 				total1 := 0
 				total2 := 0
@@ -321,7 +316,8 @@ func TestResolveID(t *testing.T) {
 						},
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), *testConfig, &mock)
+				resolver := newResolver(logger.NewLogger("test"), &mock)
+				resolver.config = testConfig
 
 				addr, _ := resolver.ResolveID(req)
 
@@ -350,7 +346,8 @@ func TestResolveID(t *testing.T) {
 						},
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), *testConfig, &mock)
+				resolver := newResolver(logger.NewLogger("test"), &mock)
+				resolver.config = testConfig
 
 				_, err := resolver.ResolveID(req)
 
@@ -376,7 +373,8 @@ func TestResolveID(t *testing.T) {
 						},
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), *testConfig, &mock)
+				resolver := newResolver(logger.NewLogger("test"), &mock)
+				resolver.config = testConfig
 
 				_, err := resolver.ResolveID(req)
 

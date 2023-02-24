@@ -14,10 +14,8 @@ limitations under the License.
 package consul
 
 import (
-	"errors"
 	"fmt"
 	"math/rand"
-	"net/http"
 	"strconv"
 
 	consul "github.com/hashicorp/consul/api"
@@ -60,8 +58,6 @@ type clientInterface interface {
 type agentInterface interface {
 	Self() (map[string]map[string]interface{}, error)
 	ServiceRegister(service *consul.AgentServiceRegistration) error
-	ServiceDeregister(serviceID string) error
-	ServiceDeregisterOpts(serviceID string, q *consul.QueryOptions) error
 }
 
 type healthInterface interface {
@@ -86,7 +82,7 @@ func NewResolver(logger logger.Logger) nr.Resolver {
 	return newResolver(logger, &client{})
 }
 
-func newResolver(logger logger.Logger, client clientInterface) nr.Resolver {
+func newResolver(logger logger.Logger, client clientInterface) *resolver {
 	return &resolver{
 		logger: logger,
 		client: client,
@@ -108,20 +104,6 @@ func (r *resolver) Init(metadata nr.Metadata) (err error) {
 	// Register service to consul
 	if r.config.Registration != nil {
 		agent := r.client.Agent()
-
-		// First, try to de-register the service if it already exists, to remove any previous value that may be there
-		err = agent.ServiceDeregisterOpts(r.config.Registration.ID, &consul.QueryOptions{
-			Namespace:         r.config.Registration.Namespace,
-			Partition:         r.config.Registration.Partition,
-			RequireConsistent: true,
-		})
-		if err != nil {
-			// If the error is 404, that means there was no service registered, so we can ignore that
-			statusErr := consul.StatusError{}
-			if !errors.As(err, &statusErr) || statusErr.Code != http.StatusNotFound {
-				return fmt.Errorf("failed to de-register previous consul service: %w", err)
-			}
-		}
 
 		err = agent.ServiceRegister(r.config.Registration)
 		if err != nil {
@@ -262,8 +244,6 @@ func getRegistrationConfig(cfg configSpec, props map[string]string) (*consul.Age
 				CheckID:  fmt.Sprintf("daprHealth:%s", id),
 				Interval: "15s",
 				HTTP:     fmt.Sprintf("http://%s:%s/v1.0/healthz", host, httpPort),
-				// After 1 min of downtime, deregister the service automatically
-				DeregisterCriticalServiceAfter: "1m",
 			},
 		}
 	}

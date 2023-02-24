@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib
 
-go 1.19
+go 1.20
 
 require (
 	cloud.google.com/go/datastore v1.10.0
@@ -70,9 +70,9 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.1
 	github.com/hazelcast/hazelcast-go-client v0.0.0-20190530123621-6cf767c2f31a
-	github.com/http-wasm/http-wasm-host-go v0.3.1
+	github.com/http-wasm/http-wasm-host-go v0.3.3
 	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.22.11+incompatible
-	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.23
+	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.26
 	github.com/influxdata/influxdb-client-go v1.4.0
 	github.com/jackc/pgx/v5 v5.3.0
 	github.com/json-iterator/go v1.1.12
@@ -101,7 +101,7 @@ require (
 	github.com/supplyon/gremcos v0.1.39
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.582
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.0.582
-	github.com/tetratelabs/wazero v1.0.0-pre.7
+	github.com/tetratelabs/wazero v1.0.0-pre.9
 	github.com/valyala/fasthttp v1.44.0
 	github.com/vmware/vmware-go-kcl v1.5.0
 	github.com/xdg-go/scram v1.1.2

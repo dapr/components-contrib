@@ -238,9 +238,10 @@ func (m *Resolver) startRefreshers() {
 
 	// refresh app addresses periodically and on demand
 	go func() {
-		defer func() {
-			m.refreshRunning.Store(false)
-		}()
+		defer m.refreshRunning.Store(false)
+
+		t := time.NewTicker(refreshInterval)
+		defer t.Stop()
 
 		for {
 			select {
@@ -252,7 +253,7 @@ func (m *Resolver) startRefreshers() {
 					}
 				}()
 			// Refresh periodically
-			case <-time.After(refreshInterval):
+			case <-t.C:
 				go func() {
 					if err := m.refreshAllApps(m.runCtx); err != nil {
 						m.logger.Warnf(err.Error())
@@ -269,37 +270,28 @@ func (m *Resolver) startRefreshers() {
 
 // Init registers service for mDNS.
 func (m *Resolver) Init(metadata nameresolution.Metadata) error {
-	var (
-		appID       string
-		hostAddress string
-		ok          bool
-		instanceID  string
-	)
-
 	props := metadata.Properties
 
-	if appID, ok = props[nameresolution.MDNSInstanceName]; !ok {
+	appID := props[nameresolution.AppID]
+	if appID == "" {
 		return errors.New("name is missing")
 	}
-	if hostAddress, ok = props[nameresolution.MDNSInstanceAddress]; !ok {
+
+	hostAddress := props[nameresolution.HostAddress]
+	if hostAddress == "" {
 		return errors.New("address is missing")
 	}
 
-	p, ok := props[nameresolution.MDNSInstancePort]
-	if !ok {
+	if props[nameresolution.DaprPort] == "" {
 		return errors.New("port is missing")
 	}
 
-	port, err := strconv.ParseInt(p, 10, 32)
+	port, err := strconv.Atoi(props[nameresolution.DaprPort])
 	if err != nil {
 		return errors.New("port is invalid")
 	}
 
-	if instanceID, ok = props[nameresolution.MDNSInstanceID]; !ok {
-		instanceID = ""
-	}
-
-	err = m.registerMDNS(instanceID, appID, []string{hostAddress}, int(port))
+	err = m.registerMDNS("", appID, []string{hostAddress}, port)
 	if err != nil {
 		return err
 	}

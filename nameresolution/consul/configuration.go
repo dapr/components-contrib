@@ -141,11 +141,6 @@ func mapCheck(config *AgentServiceCheck) *consul.AgentServiceCheck {
 		return nil
 	}
 
-	// After 1 min of downtime, deregister the service automatically
-	deregisterCriticalServiceAfter := "1m"
-	if config.DeregisterCriticalServiceAfter != nil {
-		deregisterCriticalServiceAfter = *config.DeregisterCriticalServiceAfter
-	}
 	return &consul.AgentServiceCheck{
 		CheckID:                        config.CheckID,
 		Name:                           config.Name,
@@ -166,7 +161,7 @@ func mapCheck(config *AgentServiceCheck) *consul.AgentServiceCheck {
 		GRPCUseTLS:                     config.GRPCUseTLS,
 		AliasNode:                      config.AliasNode,
 		AliasService:                   config.AliasService,
-		DeregisterCriticalServiceAfter: deregisterCriticalServiceAfter,
+		DeregisterCriticalServiceAfter: config.DeregisterCriticalServiceAfter,
 	}
 }
 
@@ -374,7 +369,7 @@ type AgentServiceCheck struct {
 	GRPC                           string
 	AliasNode                      string
 	AliasService                   string
-	DeregisterCriticalServiceAfter *string
+	DeregisterCriticalServiceAfter string
 	Header                         map[string][]string
 	TLSSkipVerify                  bool
 	GRPCUseTLS                     bool

@@ -14,9 +14,11 @@ limitations under the License.
 package consul
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"net"
+	"net/http"
 	"strconv"
 
 	consul "github.com/hashicorp/consul/api"
@@ -82,13 +84,12 @@ type resolverConfig struct {
 
 // NewResolver creates Consul name resolver.
 func NewResolver(logger logger.Logger) nr.Resolver {
-	return newResolver(logger, resolverConfig{}, &client{})
+	return newResolver(logger, &client{})
 }
 
-func newResolver(logger logger.Logger, resolverConfig resolverConfig, client clientInterface) nr.Resolver {
+func newResolver(logger logger.Logger, client clientInterface) nr.Resolver {
 	return &resolver{
 		logger: logger,
-		config: resolverConfig,
 		client: client,
 	}
 }
@@ -116,7 +117,11 @@ func (r *resolver) Init(metadata nr.Metadata) (err error) {
 			RequireConsistent: true,
 		})
 		if err != nil {
-			return fmt.Errorf("failed to de-register previous consul service: %w", err)
+			// If the error is 404, that means there was no service registered, so we can ignore that
+			statusErr := consul.StatusError{}
+			if !errors.As(err, &statusErr) || statusErr.Code != http.StatusNotFound {
+				return fmt.Errorf("failed to de-register previous consul service: %w", err)
+			}
 		}
 
 		err = agent.ServiceRegister(r.config.Registration)
@@ -144,7 +149,7 @@ func (r *resolver) ResolveID(req nr.ResolveRequest) (addr string, err error) {
 	}
 
 	if len(services) == 0 {
-		return "", fmt.Errorf("no healthy services found with AppID:%s", req.ID)
+		return "", fmt.Errorf("no healthy services found with AppID '%s'", req.ID)
 	}
 
 	// Pick a random service from the result

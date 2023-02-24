@@ -17,7 +17,6 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"net"
 	"net/http"
 	"strconv"
 
@@ -262,7 +261,9 @@ func getRegistrationConfig(cfg configSpec, props map[string]string) (*consul.Age
 				Name:     "Dapr Health Status",
 				CheckID:  fmt.Sprintf("daprHealth:%s", id),
 				Interval: "15s",
-				HTTP:     fmt.Sprintf("http://%s/v1.0/healthz", net.JoinHostPort(host, httpPort)),
+				HTTP:     fmt.Sprintf("http://%s:%s/v1.0/healthz", host, httpPort),
+				// After 1 min of downtime, deregister the service automatically
+				DeregisterCriticalServiceAfter: "1m",
 			},
 		}
 	}

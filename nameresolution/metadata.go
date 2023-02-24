@@ -16,6 +16,8 @@ package nameresolution
 import "github.com/dapr/components-contrib/metadata"
 
 const (
+	// TODO: REMOVE THESE AFTER RUNTIME IS CHANGED
+
 	// MDNSInstanceName is the instance name which is broadcasted.
 	MDNSInstanceName string = "name"
 	// MDNSInstanceAddress is the address of the instance.

@@ -42,30 +42,30 @@ func TestInitMetadata(t *testing.T) {
 		{
 			"name",
 			map[string]string{
-				nr.MDNSInstanceAddress: localhost,
-				nr.MDNSInstancePort:    "30003",
+				nr.HostAddress: localhost,
+				nr.DaprPort:    "30003",
 			},
 		},
 		{
 			"address",
 			map[string]string{
-				nr.MDNSInstanceName: "testAppID",
-				nr.MDNSInstancePort: "30003",
+				nr.AppID:    "testAppID",
+				nr.DaprPort: "30003",
 			},
 		},
 		{
 			"port",
 			map[string]string{
-				nr.MDNSInstanceName:    "testAppID",
-				nr.MDNSInstanceAddress: localhost,
+				nr.AppID:       "testAppID",
+				nr.HostAddress: localhost,
 			},
 		},
 		{
 			"port",
 			map[string]string{
-				nr.MDNSInstanceName:    "testAppID",
-				nr.MDNSInstanceAddress: localhost,
-				nr.MDNSInstancePort:    "abcd",
+				nr.AppID:       "testAppID",
+				nr.HostAddress: localhost,
+				nr.DaprPort:    "abcd",
 			},
 		},
 	}
@@ -90,9 +90,9 @@ func TestInitRegister(t *testing.T) {
 	resolver := NewResolver(logger.NewLogger("test")).(*Resolver)
 	defer resolver.Close()
 	md := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
-		nr.MDNSInstanceName:    "testAppID",
-		nr.MDNSInstanceAddress: localhost,
-		nr.MDNSInstancePort:    "1234",
+		nr.AppID:       "testAppID",
+		nr.HostAddress: localhost,
+		nr.DaprPort:    "1234",
 	}}}
 
 	// act
@@ -105,14 +105,14 @@ func TestInitRegisterDuplicate(t *testing.T) {
 	resolver := NewResolver(logger.NewLogger("test")).(*Resolver)
 	defer resolver.Close()
 	md := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
-		nr.MDNSInstanceName:    "testAppID",
-		nr.MDNSInstanceAddress: localhost,
-		nr.MDNSInstancePort:    "1234",
+		nr.AppID:       "testAppID",
+		nr.HostAddress: localhost,
+		nr.DaprPort:    "1234",
 	}}}
 	md2 := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
-		nr.MDNSInstanceName:    "testAppID",
-		nr.MDNSInstanceAddress: localhost,
-		nr.MDNSInstancePort:    "1234",
+		nr.AppID:       "testAppID",
+		nr.HostAddress: localhost,
+		nr.DaprPort:    "1234",
 	}}}
 
 	// act
@@ -128,9 +128,9 @@ func TestResolver(t *testing.T) {
 	resolver := NewResolver(logger.NewLogger("test")).(*Resolver)
 	defer resolver.Close()
 	md := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
-		nr.MDNSInstanceName:    "testAppID",
-		nr.MDNSInstanceAddress: localhost,
-		nr.MDNSInstancePort:    "1234",
+		nr.AppID:       "testAppID",
+		nr.HostAddress: localhost,
+		nr.DaprPort:    "1234",
 	}}}
 
 	// act
@@ -149,9 +149,9 @@ func TestResolverClose(t *testing.T) {
 	// arrange
 	resolver := NewResolver(logger.NewLogger("test")).(*Resolver)
 	md := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
-		nr.MDNSInstanceName:    "testAppID",
-		nr.MDNSInstanceAddress: localhost,
-		nr.MDNSInstancePort:    "1234",
+		nr.AppID:       "testAppID",
+		nr.HostAddress: localhost,
+		nr.DaprPort:    "1234",
 	}}}
 
 	// act
@@ -181,33 +181,23 @@ func TestResolverMultipleInstances(t *testing.T) {
 	instanceAID := "A"
 	instanceAName := "testAppID"
 	instanceAAddress := localhost
-	instanceAPort := "1234"
-	instanceAPQDN := fmt.Sprintf("%s:%s", instanceAAddress, instanceAPort)
+	instanceAPort := 1234
+	instanceAPQDN := fmt.Sprintf("%s:%d", instanceAAddress, instanceAPort)
 
-	instanceA := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
-		nr.MDNSInstanceName:    instanceAName,
-		nr.MDNSInstanceAddress: instanceAAddress,
-		nr.MDNSInstancePort:    instanceAPort,
-		nr.MDNSInstanceID:      instanceAID,
-	}}}
-	err1 := resolver.Init(instanceA)
+	err1 := resolver.registerMDNS(instanceAID, instanceAName, []string{instanceAAddress}, instanceAPort)
 	require.NoError(t, err1)
 
 	// register instance B
 	instanceBID := "B"
 	instanceBName := "testAppID"
 	instanceBAddress := localhost
-	instanceBPort := "5678"
-	instanceBPQDN := fmt.Sprintf("%s:%s", instanceBAddress, instanceBPort)
+	instanceBPort := 5678
+	instanceBPQDN := fmt.Sprintf("%s:%d", instanceBAddress, instanceBPort)
 
-	instanceB := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
-		nr.MDNSInstanceName:    instanceBName,
-		nr.MDNSInstanceAddress: instanceBAddress,
-		nr.MDNSInstancePort:    instanceBPort,
-		nr.MDNSInstanceID:      instanceBID,
-	}}}
-	err2 := resolver.Init(instanceB)
+	err2 := resolver.registerMDNS(instanceBID, instanceBName, []string{instanceBAddress}, instanceBPort)
 	require.NoError(t, err2)
+
+	go resolver.startRefreshers()
 
 	// act...
 	request := nr.ResolveRequest{ID: "testAppID"}
@@ -292,9 +282,9 @@ func ResolverConcurrencySubsriberClear(t *testing.T) {
 	resolver := NewResolver(logger.NewLogger("test")).(*Resolver)
 	defer resolver.Close()
 	md := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
-		nr.MDNSInstanceName:    "testAppID",
-		nr.MDNSInstanceAddress: localhost,
-		nr.MDNSInstancePort:    "1234",
+		nr.AppID:       "testAppID",
+		nr.HostAddress: localhost,
+		nr.DaprPort:    "1234",
 	}}}
 
 	// act
@@ -334,49 +324,33 @@ func ResolverConcurrencyFound(t *testing.T) {
 	appAID := "A"
 	appAName := "testAppA"
 	appAAddress := localhost
-	appAPort := "1234"
-	appAPQDN := fmt.Sprintf("%s:%s", appAAddress, appAPort)
+	appAPort := 1234
+	appABPQDN := fmt.Sprintf("%s:%d", appAAddress, appAPort)
 
-	appA := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
-		nr.MDNSInstanceName:    appAName,
-		nr.MDNSInstanceAddress: appAAddress,
-		nr.MDNSInstancePort:    appAPort,
-		nr.MDNSInstanceID:      appAID,
-	}}}
-	err1 := resolver.Init(appA)
+	err1 := resolver.registerMDNS(appAID, appAName, []string{appAAddress}, appAPort)
 	require.NoError(t, err1)
 
 	// register instance B
 	appBID := "B"
 	appBName := "testAppB"
 	appBAddress := localhost
-	appBPort := "5678"
-	appBBPQDN := fmt.Sprintf("%s:%s", appBAddress, appBPort)
+	appBPort := 5678
+	appBBPQDN := fmt.Sprintf("%s:%d", appBAddress, appBPort)
 
-	appB := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
-		nr.MDNSInstanceName:    appBName,
-		nr.MDNSInstanceAddress: appBAddress,
-		nr.MDNSInstancePort:    appBPort,
-		nr.MDNSInstanceID:      appBID,
-	}}}
-	err2 := resolver.Init(appB)
+	err2 := resolver.registerMDNS(appBID, appBName, []string{appBAddress}, appBPort)
 	require.NoError(t, err2)
 
 	// register instance C
 	appCID := "C"
 	appCName := "testAppC"
 	appCAddress := localhost
-	appCPort := "3456"
-	appCBPQDN := fmt.Sprintf("%s:%s", appCAddress, appCPort)
+	appCPort := 3456
+	appCBPQDN := fmt.Sprintf("%s:%d", appCAddress, appCPort)
 
-	appC := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
-		nr.MDNSInstanceName:    appCName,
-		nr.MDNSInstanceAddress: appCAddress,
-		nr.MDNSInstancePort:    appCPort,
-		nr.MDNSInstanceID:      appCID,
-	}}}
-	err3 := resolver.Init(appC)
+	err3 := resolver.registerMDNS(appCID, appCName, []string{appCAddress}, appCPort)
 	require.NoError(t, err3)
+
+	go resolver.startRefreshers()
 
 	// act...
 	wg := sync.WaitGroup{}
@@ -402,7 +376,7 @@ func ResolverConcurrencyFound(t *testing.T) {
 			// assert
 			require.NoError(t, err)
 			if r == 0 {
-				assert.Equal(t, appAPQDN, pt)
+				assert.Equal(t, appABPQDN, pt)
 			} else if r == 1 {
 				assert.Equal(t, appBBPQDN, pt)
 			} else if r == 2 {

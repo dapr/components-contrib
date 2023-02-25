@@ -13,17 +13,6 @@ limitations under the License.
 
 package azure
 
-import (
-	"fmt"
-	"time"
-
-	"github.com/Azure/azure-storage-queue-go/azqueue"
-	"github.com/Azure/go-autorest/autorest/azure"
-
-	mdutils "github.com/dapr/components-contrib/metadata"
-	"github.com/dapr/kit/logger"
-)
-
 var (
 	StorageAccountNameKeys   = []string{"accountName", "storageAccount", "storageAccountName"}
 	StorageAccountKeyKeys    = []string{"accountKey", "accessKey", "storageAccessKey", "storageAccountKey"}
@@ -32,47 +21,3 @@ var (
 	StorageTableNameKeys     = []string{"tableName", "table", "storageAccountTable"}
 	StorageEndpointKeys      = []string{"endpoint", "storageEndpoint", "storageAccountEndpoint", "queueEndpointUrl"}
 )
-
-// GetAzureStorageQueueCredentials returns a azqueues.Credential object that can be used to authenticate an Azure Queue Storage SDK pipeline ("track 1").
-// First it tries to authenticate using shared key credentials (using an account key) if present. It falls back to attempting to use Azure AD (via a service principal or MSI).
-func GetAzureStorageQueueCredentials(log logger.Logger, accountName string, metadata map[string]string) (azqueue.Credential, *azure.Environment, error) {
-	settings, err := NewEnvironmentSettings("storage", metadata)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Try using shared key credentials first
-	accountKey, ok := mdutils.GetMetadataProperty(metadata, StorageAccountKeyKeys...)
-	if ok && accountKey != "" {
-		credential, newSharedKeyErr := azqueue.NewSharedKeyCredential(accountName, accountKey)
-		if err != nil {
-			return nil, nil, fmt.Errorf("invalid credentials with error: %s", newSharedKeyErr.Error())
-		}
-
-		return credential, settings.AzureEnvironment, nil
-	}
-
-	// Fallback to using Azure AD
-	spt, err := settings.GetServicePrincipalToken()
-	if err != nil {
-		return nil, nil, err
-	}
-	var tokenRefresher azqueue.TokenRefresher = func(credential azqueue.TokenCredential) time.Duration {
-		log.Debug("Refreshing Azure Storage auth token")
-		err := spt.Refresh()
-		if err != nil {
-			panic(err)
-		}
-		token := spt.Token()
-		credential.SetToken(token.AccessToken)
-
-		// Make the token expire 2 minutes earlier to get some extra buffer
-		exp := token.Expires().Sub(time.Now().Add(2 * time.Minute))
-		log.Debug("Received new token, valid for", exp)
-
-		return exp
-	}
-	credential := azqueue.NewTokenCredential("", tokenRefresher)
-
-	return credential, settings.AzureEnvironment, nil
-}

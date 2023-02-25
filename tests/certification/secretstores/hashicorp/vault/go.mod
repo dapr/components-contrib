@@ -3,9 +3,9 @@ module github.com/dapr/components-contrib/tests/certification/secretstores/hashi
 go 1.18
 
 require (
-	github.com/dapr/components-contrib v1.10.0-rc.2
+	github.com/dapr/components-contrib v1.10.0-rc.9
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20220526162429-d03aeba3e0d6
-	github.com/dapr/dapr v1.10.0-rc.2
+	github.com/dapr/dapr v1.10.0
 	github.com/dapr/go-sdk v1.7.0
 	github.com/dapr/kit v0.0.4
 	github.com/golang/protobuf v1.5.2

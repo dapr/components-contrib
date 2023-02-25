@@ -3,9 +3,9 @@ module github.com/dapr/components-contrib/tests/certification/state/sqlserver
 go 1.19
 
 require (
-	github.com/dapr/components-contrib v1.10.0-rc.2
+	github.com/dapr/components-contrib v1.10.0-rc.9
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
-	github.com/dapr/dapr v1.10.0-rc.2
+	github.com/dapr/dapr v1.10.0
 	github.com/dapr/go-sdk v1.7.0
 	github.com/dapr/kit v0.0.4
 	github.com/stretchr/testify v1.8.1

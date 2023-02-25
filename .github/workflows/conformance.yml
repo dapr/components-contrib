@@ -184,9 +184,7 @@ jobs:
 
     - name: Configure AWS Credentials
       if: matrix.require-aws-credentials == 'true'
-      # TODO: Remove "v1-node16" when v2 is released
-      # See: https://github.com/aws-actions/configure-aws-credentials/issues/489
-      uses: aws-actions/configure-aws-credentials@v1-node16
+      uses: aws-actions/configure-aws-credentials@v1
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}

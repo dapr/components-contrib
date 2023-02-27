@@ -13,7 +13,7 @@ limitations under the License.
 
 package azure
 
-// MetadataKeys: Keys for all metadata properties.
+// MetadataKeys contains keys for all metadata properties.
 var MetadataKeys = map[string][]string{ //nolint:gochecknoglobals
 	// clientId, clientSecret, tenantId are supported for backwards-compatibility as they're used by some components, but should be considered deprecated
 
@@ -33,8 +33,8 @@ var MetadataKeys = map[string][]string{ //nolint:gochecknoglobals
 	// The "tenantId" alias is supported for backwards-compatibility as it's used by some components, but should be considered deprecated
 	"TenantID": {"azureTenantId", "spnTenantId", "tenantId"},
 	// Identifier for the Azure environment
-	// Allowed values (case-insensitive): AZUREPUBLICCLOUD, AZURECHINACLOUD, AZUREGERMANCLOUD, AZUREUSGOVERNMENTCLOUD
-	"AzureEnvironment": {"azureEnvironment"},
+	// Allowed values (case-insensitive): AzurePublicCloud/AzurePublic, AzureChinaCloud/AzureChina, AzureUSGovernmentCloud/AzureUSGovernment
+	"AzureEnvironment": {"azureEnvironment", "azureCloud"},
 
 	// Metadata keys for storage components
 
@@ -53,4 +53,4 @@ var MetadataKeys = map[string][]string{ //nolint:gochecknoglobals
 }
 
 // Default Azure environment.
-const DefaultAzureEnvironment = "AZUREPUBLICCLOUD"
+const DefaultAzureEnvironment = "AzurePublic"

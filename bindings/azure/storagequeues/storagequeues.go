@@ -230,7 +230,7 @@ func (m *storageQueuesMetadata) GetQueueURL(azEnvSettings azauth.EnvironmentSett
 	if m.QueueEndpoint != "" {
 		URL = fmt.Sprintf("%s/%s/", m.QueueEndpoint, m.AccountName)
 	} else {
-		URL = fmt.Sprintf("https://%s.queue.%s/", m.AccountName, azEnvSettings.AzureEnvironment.StorageEndpointSuffix)
+		URL = fmt.Sprintf("https://%s.queue.%s/", m.AccountName, azEnvSettings.EndpointSuffix(azauth.ServiceAzureStorage))
 	}
 	return URL
 }

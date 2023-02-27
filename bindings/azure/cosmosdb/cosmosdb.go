@@ -82,7 +82,7 @@ func (c *CosmosDB) Init(metadata bindings.Metadata) error {
 		}
 	} else {
 		// Fallback to using Azure AD
-		env, errEnv := azure.NewEnvironmentSettings("cosmosdb", metadata.Properties)
+		env, errEnv := azure.NewEnvironmentSettings(metadata.Properties)
 		if errEnv != nil {
 			return errEnv
 		}

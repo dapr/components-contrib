@@ -88,7 +88,7 @@ func (k *keyvaultSecretStore) Init(meta secretstores.Metadata) error {
 	}
 
 	// Initialization code
-	settings, err := azauth.NewEnvironmentSettings("keyvault", meta.Properties)
+	settings, err := azauth.NewEnvironmentSettings(meta.Properties)
 	if err != nil {
 		return err
 	}

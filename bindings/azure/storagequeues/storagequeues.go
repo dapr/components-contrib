@@ -55,13 +55,13 @@ type AzureQueueHelper struct {
 }
 
 // Init sets up this helper.
-func (d *AzureQueueHelper) Init(ctx context.Context, meta bindings.Metadata) (*storageQueuesMetadata, error) {
+func (d *AzureQueueHelper) Init(meta bindings.Metadata) (*storageQueuesMetadata, error) {
 	m, err := parseMetadata(meta)
 	if err != nil {
 		return nil, err
 	}
 
-	azEnvSettings, err := azauth.NewEnvironmentSettings("storage", meta.Properties)
+	azEnvSettings, err := azauth.NewEnvironmentSettings(meta.Properties)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func (d *AzureQueueHelper) Init(ctx context.Context, meta bindings.Metadata) (*s
 	d.visibilityTimeout = *m.VisibilityTimeout
 	d.queueClient = queueServiceClient.NewQueueClient(m.QueueName)
 
-	createCtx, createCancel := context.WithTimeout(ctx, 2*time.Minute)
+	createCtx, createCancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	_, err = d.queueClient.Create(createCtx, nil)
 	createCancel()
 	if err != nil {

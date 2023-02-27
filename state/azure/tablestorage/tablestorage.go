@@ -126,11 +126,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 		// fallback to azure AD authentication
 		var settings azauth.EnvironmentSettings
 		var innerErr error
-		if r.cosmosDBMode {
-			settings, innerErr = azauth.NewEnvironmentSettings("cosmosdb", metadata.Properties)
-		} else {
-			settings, innerErr = azauth.NewEnvironmentSettings("storage", metadata.Properties)
-		}
+		settings, innerErr = azauth.NewEnvironmentSettings(metadata.Properties)
 		if innerErr != nil {
 			return innerErr
 		}

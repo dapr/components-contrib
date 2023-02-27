@@ -163,7 +163,7 @@ func (c *StateStore) Init(meta state.Metadata) error {
 	} else {
 		// Fallback to using Azure AD
 		var env azure.EnvironmentSettings
-		env, err := azure.NewEnvironmentSettings("cosmosdb", meta.Properties)
+		env, err := azure.NewEnvironmentSettings(meta.Properties)
 		if err != nil {
 			return err
 		}

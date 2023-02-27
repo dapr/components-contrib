@@ -82,7 +82,7 @@ func (opts ContainerClientOpts) GetContainerURL(azEnvSettings azauth.Environment
 			return nil, fmt.Errorf("failed to get container's URL with custom endpoint")
 		}
 	} else {
-		u, _ = url.Parse(fmt.Sprintf("https://%s.blob.%s/%s", opts.AccountName, azEnvSettings.AzureEnvironment.StorageEndpointSuffix, opts.ContainerName))
+		u, _ = url.Parse(fmt.Sprintf("https://%s.blob.%s/%s", opts.AccountName, azEnvSettings.EndpointSuffix(azauth.ServiceAzureStorage), opts.ContainerName))
 	}
 	return u, nil
 }

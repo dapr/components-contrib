@@ -50,8 +50,7 @@ type amqpPubSub struct {
 // NewAMQPPubsub returns a new AMQPPubSub instance
 func NewAMQPPubsub(logger logger.Logger) pubsub.PubSub {
 	return &amqpPubSub{
-		logger:      logger,
-		publishLock: sync.RWMutex{},
+		logger: logger,
 	}
 }
 

@@ -14,101 +14,102 @@ limitations under the License.
 package azure
 
 import (
+	"context"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/go-autorest/autorest"
-	"github.com/Azure/go-autorest/autorest/adal"
-	"github.com/Azure/go-autorest/autorest/azure"
-	"github.com/Azure/go-autorest/autorest/azure/auth"
 	"golang.org/x/crypto/pkcs12"
 
 	"github.com/dapr/components-contrib/metadata"
 )
 
-// NewEnvironmentSettings returns a new EnvironmentSettings configured for a given Azure resource.
-func NewEnvironmentSettings(resourceName string, values map[string]string) (EnvironmentSettings, error) {
-	es := EnvironmentSettings{
-		Values: values,
+// EnvironmentSettings hold settings to authenticate with Azure.
+type EnvironmentSettings struct {
+	Metadata map[string]string
+	Cloud    *cloud.Configuration
+}
+
+// timeoutWrapper prevents a potentially very long timeout when managed identity or CLI credential aren't available
+type timeoutWrapper struct {
+	cred azcore.TokenCredential
+	// timeout applies to all auth attempts until one doesn't time out
+	timeout    time.Duration
+	authmethod string
+}
+
+// GetToken wraps Token acquisition attempts with a short timeout because managed identity or CLI credential
+// may not be available and connecting to IMDS can take several minutes to time out.
+func (w *timeoutWrapper) GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	var tk azcore.AccessToken
+	var err error
+	// no need to synchronize around this value because it's written only within ChainedTokenCredential's critical section
+	if w.timeout > 0 {
+		c, cancel := context.WithTimeout(ctx, w.timeout)
+		defer cancel()
+		tk, err = w.cred.GetToken(c, opts)
+		if ce := c.Err(); errors.Is(ce, context.DeadlineExceeded) {
+			err = azidentity.NewCredentialUnavailableError(w.authmethod)
+		} else {
+			// some managed identity implementation is available, so don't apply the timeout to future calls
+			w.timeout = 0
+		}
+	} else {
+		tk, err = w.cred.GetToken(ctx, opts)
 	}
-	azureEnv, err := es.GetAzureEnvironment()
+	return tk, err
+}
+
+// NewEnvironmentSettings returns a new EnvironmentSettings configured for a given Azure resource.
+func NewEnvironmentSettings(md map[string]string) (EnvironmentSettings, error) {
+	es := EnvironmentSettings{
+		Metadata: md,
+	}
+	azureCloud, err := es.GetAzureEnvironment()
 	if err != nil {
 		return es, err
 	}
-	es.AzureEnvironment = azureEnv
-	switch resourceName {
-	case "azure":
-		// Azure Resource Manager (management plane)
-		es.Resource = azureEnv.TokenAudience
-	case "keyvault":
-		// Azure Key Vault (data plane)
-		es.Resource = azureEnv.ResourceIdentifiers.KeyVault
-	case "storage":
-		// Azure Storage (data plane)
-		es.Resource = azureEnv.ResourceIdentifiers.Storage
-	case "cosmosdb":
-		// Azure Cosmos DB (data plane)
-		es.Resource = azureEnv.ResourceIdentifiers.CosmosDB
-	case "servicebus":
-		es.Resource = azureEnv.ResourceIdentifiers.ServiceBus
-	case "eventhubs":
-		// Azure EventHubs (data plane)
-		// For documentation https://docs.microsoft.com/en-us/azure/event-hubs/authorize-access-azure-active-directory#overview
-		// The resource name to request a token is https://eventhubs.azure.net/, and it's the same for all clouds/tenants.
-		// Kafka connection does not factor in here.
-		es.Resource = "https://eventhubs.azure.net"
-	case "signalr":
-		// Azure SignalR (data plane)
-		es.Resource = "https://signalr.azure.com"
-	case "appconfig":
-		// Azure App Configuration (data plane)
-		// For documentation https://docs.microsoft.com/en-us/azure/azure-app-configuration/rest-api-authentication-azure-ad#audience
-		// The resource name to request a token is https://azconfig.io
-		es.Resource = "https://azconfig.io"
-	default:
-		return es, errors.New("invalid resource name: " + resourceName)
-	}
-
+	es.Cloud = azureCloud
 	return es, nil
 }
 
-// EnvironmentSettings hold settings to authenticate with Azure.
-type EnvironmentSettings struct {
-	Values           map[string]string
-	Resource         string
-	AzureEnvironment *azure.Environment
-}
-
 // GetAzureEnvironment returns the Azure environment for a given name.
-func (s EnvironmentSettings) GetAzureEnvironment() (*azure.Environment, error) {
-	envName, ok := s.GetEnvironment("AzureEnvironment")
-	if !ok || envName == "" {
-		envName = DefaultAzureEnvironment
+func (s EnvironmentSettings) GetAzureEnvironment() (*cloud.Configuration, error) {
+	envName, _ := s.GetEnvironment("AzureEnvironment")
+	switch strings.ToLower(envName) {
+	case "", "azurepubliccloud", "azurepublic": // Default value if envName is empty
+		return &cloud.AzurePublic, nil
+	case "azurechinacloud", "azurechina":
+		return &cloud.AzureChina, nil
+	case "azureusgovernmentcloud", "azureusgovernment":
+		return &cloud.AzureGovernment, nil
+	default:
+		return nil, fmt.Errorf("invalid Azure cloud: %v", envName)
 	}
-	env, err := azure.EnvironmentFromName(envName)
-	if err != nil {
-		return nil, err
-	}
-
-	return &env, err
 }
 
 // GetTokenCredential returns an azcore.TokenCredential retrieved from, in order:
 // 1. Client credentials
 // 2. Client certificate
-// 3. MSI
-// This is used by the newer ("track 2") Azure SDKs.
+// 3. Workload identity
+// 4. MSI with a timeout of 1 second
+// 5. Azure CLI
+// 6. Retry MSI without timeout
+//
+// This order and timeout (with the exception of the additional step 5) matches the DefaultAzureCredential.
 func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error) {
 	// Create a chain
 	var creds []azcore.TokenCredential
-	errMsg := ""
+	errs := make([]error, 0, 3)
 
 	// 1. Client credentials
 	if c, e := s.GetClientCredentials(); e == nil {
@@ -116,7 +117,7 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 		if err == nil {
 			creds = append(creds, cred)
 		} else {
-			errMsg += err.Error() + "\n"
+			errs = append(errs, err)
 		}
 	}
 
@@ -126,108 +127,105 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 		if err == nil {
 			creds = append(creds, cred)
 		} else {
-			errMsg += err.Error() + "\n"
+			errs = append(errs, err)
 		}
 	}
 
-	// 3. MSI
+	// 3. Workload identity
+	// workload identity requires values for AZURE_AUTHORITY_HOST, AZURE_CLIENT_ID, AZURE_FEDERATED_TOKEN_FILE, AZURE_TENANT_ID
+	// The workload identity mutating admissions webhook in Kubernetes injects these values into the pod.
+	// These environment variables are read using the default WorkloadIdentityCredentialOptions
+
+	workloadCred, err := azidentity.NewWorkloadIdentityCredential(nil)
+	if err == nil {
+		creds = append(creds, workloadCred)
+	} else {
+		errs = append(errs, err)
+	}
+
+	// 4. MSI with timeout of 1 second (same as DefaultAzureCredential)
+	var msiCred *azcore.TokenCredential
 	{
 		c := s.GetMSI()
-		cred, err := c.GetTokenCredential()
+		msiCred, err := c.GetTokenCredential()
 		if err == nil {
-			creds = append(creds, cred)
+			creds = append(creds, &timeoutWrapper{cred: msiCred, authmethod: "managed identity", timeout: 1 * time.Second})
 		} else {
-			errMsg += err.Error() + "\n"
+			errs = append(errs, err)
 		}
+	}
+
+	// 5. AzureCLICredential
+	{
+		cred, credErr := azidentity.NewAzureCLICredential(nil)
+		if credErr == nil {
+			creds = append(creds, &timeoutWrapper{cred: cred, authmethod: "Azure CLI", timeout: 5 * time.Second})
+		} else {
+			errs = append(errs, credErr)
+		}
+	}
+
+	// 6. Retry MSI without timeout
+	if msiCred != nil {
+		creds = append(creds, *msiCred)
 	}
 
 	if len(creds) == 0 {
-		return nil, fmt.Errorf("no suitable token provider for Azure AD; errors: %v", errMsg)
+		return nil, fmt.Errorf("no suitable token provider for Azure AD; errors: %w", errors.Join(errs...))
 	}
+	// The ChainedTokenCredential executes the auth methods (with their given timeouts) in order. No execution occurs before this method.
+	// As such there is no option to run the auth methods in parallel.
+	// It would be ideal if the Azure SDK for Go team could support a parallel execution option.
 	return azidentity.NewChainedTokenCredential(creds, nil)
-}
-
-// GetAuthorizer creates an Authorizer retrieved from, in order:
-// 1. Client credentials
-// 2. Client certificate
-// 3. MSI
-// This is used by the older Azure SDKs.
-func (s EnvironmentSettings) GetAuthorizer() (autorest.Authorizer, error) {
-	spt, err := s.GetServicePrincipalToken()
-	if err != nil {
-		return nil, err
-	}
-
-	return autorest.NewBearerAuthorizer(spt), nil
-}
-
-// GetServicePrincipalToken returns a Service Principal Token retrieved from, in order:
-// 1. Client credentials
-// 2. Client certificate
-// 3. MSI
-// This is used by the older Azure SDKs.
-func (s EnvironmentSettings) GetServicePrincipalToken() (*adal.ServicePrincipalToken, error) {
-	// 1. Client credentials
-	if c, e := s.GetClientCredentials(); e == nil {
-		return c.ServicePrincipalToken()
-	}
-
-	// 2. Client Certificate
-	if c, e := s.GetClientCert(); e == nil {
-		return c.ServicePrincipalToken()
-	}
-
-	// 3. MSI
-	return s.GetMSI().ServicePrincipalToken()
 }
 
 // GetClientCredentials creates a config object from the available client credentials.
 // An error is returned if no certificate credentials are available.
-func (s EnvironmentSettings) GetClientCredentials() (CredentialsConfig, error) {
-	azureEnv, err := s.GetAzureEnvironment()
+func (s EnvironmentSettings) GetClientCredentials() (config CredentialsConfig, err error) {
+	azureCloud, err := s.GetAzureEnvironment()
 	if err != nil {
-		return CredentialsConfig{}, err
+		return config, err
 	}
 
-	clientID, _ := s.GetEnvironment("ClientID")
-	clientSecret, _ := s.GetEnvironment("ClientSecret")
-	tenantID, _ := s.GetEnvironment("TenantID")
+	config.ClientID, _ = s.GetEnvironment("ClientID")
+	config.ClientSecret, _ = s.GetEnvironment("ClientSecret")
+	config.TenantID, _ = s.GetEnvironment("TenantID")
 
-	if clientID == "" || clientSecret == "" || tenantID == "" {
-		return CredentialsConfig{}, errors.New("parameters clientId, clientSecret, and tenantId must all be present")
+	if config.ClientID == "" || config.ClientSecret == "" || config.TenantID == "" {
+		return config, errors.New("parameters clientId, clientSecret, and tenantId must all be present")
 	}
 
-	authorizer := NewCredentialsConfig(clientID, tenantID, clientSecret, s.Resource, azureEnv)
+	config.AzureCloud = azureCloud
 
-	return authorizer, nil
+	return config, nil
 }
 
 // GetClientCert creates a config object from the available certificate credentials.
 // An error is returned if no certificate credentials are available.
-func (s EnvironmentSettings) GetClientCert() (CertConfig, error) {
-	azureEnv, err := s.GetAzureEnvironment()
+func (s EnvironmentSettings) GetClientCert() (config CertConfig, err error) {
+	azureCloud, err := s.GetAzureEnvironment()
 	if err != nil {
-		return CertConfig{}, err
+		return config, err
 	}
 
-	certFilePath, certFilePathPresent := s.GetEnvironment("CertificateFile")
-	certBytes, certBytesPresent := s.GetEnvironment("Certificate")
-	certPassword, _ := s.GetEnvironment("CertificatePassword")
-	clientID, _ := s.GetEnvironment("ClientID")
-	tenantID, _ := s.GetEnvironment("TenantID")
+	config.CertificatePath, _ = s.GetEnvironment("CertificateFile")
+	config.CertificatePassword, _ = s.GetEnvironment("CertificatePassword")
+	certBytes, _ := s.GetEnvironment("Certificate")
+	config.ClientID, _ = s.GetEnvironment("ClientID")
+	config.TenantID, _ = s.GetEnvironment("TenantID")
 
-	if !certFilePathPresent && !certBytesPresent {
-		return CertConfig{}, fmt.Errorf("missing client certificate")
+	if config.CertificatePath == "" && certBytes == "" {
+		return config, errors.New("missing client certificate")
 	}
 
-	authorizer := NewCertConfig(clientID, tenantID, certFilePath, []byte(certBytes), certPassword, s.Resource, azureEnv)
+	config.CertificateData = []byte(certBytes)
+	config.AzureCloud = azureCloud
 
-	return authorizer, nil
+	return config, nil
 }
 
 // GetMSI creates a MSI config object from the available client ID.
-func (s EnvironmentSettings) GetMSI() MSIConfig {
-	config := NewMSIConfig(s.Resource)
+func (s EnvironmentSettings) GetMSI() (config MSIConfig) {
 	// This is optional and it's ok if value is empty
 	config.ClientID, _ = s.GetEnvironment("ClientID")
 
@@ -236,109 +234,50 @@ func (s EnvironmentSettings) GetMSI() MSIConfig {
 
 // CredentialsConfig provides the options to get a bearer authorizer from client credentials.
 type CredentialsConfig struct {
-	*auth.ClientCredentialsConfig
-}
-
-// NewCredentialsConfig creates an CredentialsConfig object configured to obtain an Authorizer through Client Credentials.
-func NewCredentialsConfig(clientID string, tenantID string, clientSecret string, resource string, env *azure.Environment) CredentialsConfig {
-	return CredentialsConfig{
-		&auth.ClientCredentialsConfig{
-			ClientSecret: clientSecret,
-			ClientID:     clientID,
-			TenantID:     tenantID,
-			Resource:     resource,
-			AADEndpoint:  env.ActiveDirectoryEndpoint,
-		},
-	}
-}
-
-// ServicePrincipalToken gets a ServicePrincipalToken object from the credentials.
-func (c CredentialsConfig) ServicePrincipalToken() (*adal.ServicePrincipalToken, error) {
-	oauthConfig, err := adal.NewOAuthConfig(c.AADEndpoint, c.TenantID)
-	if err != nil {
-		return nil, err
-	}
-
-	return adal.NewServicePrincipalToken(*oauthConfig, c.ClientID, c.ClientSecret, c.Resource)
+	ClientID     string
+	ClientSecret string
+	TenantID     string
+	AzureCloud   *cloud.Configuration
 }
 
 // GetTokenCredential returns the azcore.TokenCredential object from the credentials.
 func (c CredentialsConfig) GetTokenCredential() (token azcore.TokenCredential, err error) {
-	return azidentity.NewClientSecretCredential(c.TenantID, c.ClientID, c.ClientSecret, &azidentity.ClientSecretCredentialOptions{
-		ClientOptions: azcore.ClientOptions{
-			Cloud: cloud.Configuration{
-				ActiveDirectoryAuthorityHost: c.AADEndpoint,
+	var opts *azidentity.ClientSecretCredentialOptions
+	if c.AzureCloud != nil {
+		opts = &azidentity.ClientSecretCredentialOptions{
+			ClientOptions: azcore.ClientOptions{
+				Cloud: *c.AzureCloud,
 			},
-		},
-	})
+		}
+	}
+	return azidentity.NewClientSecretCredential(c.TenantID, c.ClientID, c.ClientSecret, opts)
 }
 
 // CertConfig provides the options to get a bearer authorizer from a client certificate.
 type CertConfig struct {
-	*auth.ClientCertificateConfig
-	CertificateData []byte
-}
-
-// NewCertConfig creates an CertConfig object configured to obtain an Authorizer through Client Credentials, using a certificate.
-func NewCertConfig(clientID string, tenantID string, certificatePath string, certificateBytes []byte, certificatePassword string, resource string, env *azure.Environment) CertConfig {
-	return CertConfig{
-		&auth.ClientCertificateConfig{
-			CertificatePath:     certificatePath,
-			CertificatePassword: certificatePassword,
-			ClientID:            clientID,
-			TenantID:            tenantID,
-			Resource:            resource,
-			AADEndpoint:         env.ActiveDirectoryEndpoint,
-		},
-		certificateBytes,
-	}
-}
-
-// ServicePrincipalToken gets a ServicePrincipalToken object from client certificate.
-func (c CertConfig) ServicePrincipalToken() (*adal.ServicePrincipalToken, error) {
-	if c.ClientCertificateConfig.CertificatePath != "" {
-		// in standalone mode, component yaml will pass cert path
-		return c.ClientCertificateConfig.ServicePrincipalToken()
-	} else if len(c.CertificateData) > 0 {
-		// in kubernetes mode, runtime will get the secret from K8S secret store and pass byte array
-		return c.ServicePrincipalTokenByCertBytes()
-	}
-
-	return nil, fmt.Errorf("certificate is not given")
-}
-
-// ServicePrincipalTokenByCertBytes gets the service principal token by CertificateBytes.
-func (c CertConfig) ServicePrincipalTokenByCertBytes() (*adal.ServicePrincipalToken, error) {
-	oauthConfig, err := adal.NewOAuthConfig(c.AADEndpoint, c.TenantID)
-	if err != nil {
-		return nil, err
-	}
-
-	certificate, rsaPrivateKey, err := c.decodeCertificate(c.CertificateData, c.CertificatePassword)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode pkcs12 certificate while creating spt: %v", err)
-	}
-
-	return adal.NewServicePrincipalTokenFromCertificate(*oauthConfig, c.ClientID, certificate, rsaPrivateKey, c.Resource)
+	ClientID            string
+	CertificatePath     string
+	CertificatePassword string
+	TenantID            string
+	CertificateData     []byte
+	AzureCloud          *cloud.Configuration
 }
 
 // GetTokenCredential returns the azcore.TokenCredential object from client certificate.
 func (c CertConfig) GetTokenCredential() (token azcore.TokenCredential, err error) {
-	ccc := c.ClientCertificateConfig
-
 	// Certificate data - may be empty here
 	data := c.CertificateData
 
 	// If we have a certificate path, load it
-	if c.ClientCertificateConfig.CertificatePath != "" {
+	if c.CertificatePath != "" {
 		var errB error
-		data, errB = os.ReadFile(ccc.CertificatePath)
+		data, errB = os.ReadFile(c.CertificatePath)
 		if errB != nil {
-			return nil, fmt.Errorf("failed to read the certificate file (%s): %v", ccc.CertificatePath, errB)
+			return nil, fmt.Errorf("failed to read the certificate file (%s): %v", c.CertificatePath, errB)
 		}
 	}
 	if len(data) == 0 {
-		return nil, fmt.Errorf("certificate is not given")
+		return nil, errors.New("certificate is not given")
 	}
 
 	// Decode the certificate
@@ -349,12 +288,13 @@ func (c CertConfig) GetTokenCredential() (token azcore.TokenCredential, err erro
 
 	// Create the azcore.TokenCredential object
 	certs := []*x509.Certificate{cert}
-	opts := &azidentity.ClientCertificateCredentialOptions{
-		ClientOptions: azcore.ClientOptions{
-			Cloud: cloud.Configuration{
-				ActiveDirectoryAuthorityHost: c.AADEndpoint,
+	var opts *azidentity.ClientCertificateCredentialOptions
+	if c.AzureCloud != nil {
+		opts = &azidentity.ClientCertificateCredentialOptions{
+			ClientOptions: azcore.ClientOptions{
+				Cloud: *c.AzureCloud,
 			},
-		},
+		}
 	}
 	return azidentity.NewClientCertificateCredential(c.TenantID, c.ClientID, certs, key, opts)
 }
@@ -385,7 +325,7 @@ func (c CertConfig) decodePkcs12(pkcs []byte, password string) (*x509.Certificat
 
 	rsaPrivateKey, isRsaKey := privateKey.(*rsa.PrivateKey)
 	if !isRsaKey {
-		return nil, nil, fmt.Errorf("PKCS#12 certificate must contain an RSA private key")
+		return nil, nil, errors.New("PKCS#12 certificate must contain an RSA private key")
 	}
 
 	return certificate, rsaPrivateKey, nil
@@ -425,7 +365,7 @@ func (c CertConfig) decodePEM(data []byte) (certificate *x509.Certificate, priva
 			}
 			privateKey, ok = parsedKey.(*rsa.PrivateKey)
 			if !ok || privateKey == nil {
-				return nil, nil, fmt.Errorf("certificate must contain an RSA private key")
+				return nil, nil, errors.New("certificate must contain an RSA private key")
 			}
 		case "RSA PRIVATE KEY": // PKCS#1
 			// If we already have a key decoded, return an error
@@ -438,7 +378,7 @@ func (c CertConfig) decodePEM(data []byte) (certificate *x509.Certificate, priva
 			}
 			privateKey, ok = parsedKey.(*rsa.PrivateKey)
 			if !ok || privateKey == nil {
-				return nil, nil, fmt.Errorf("certificate must contain an RSA private key")
+				return nil, nil, errors.New("certificate must contain an RSA private key")
 			}
 		}
 	}
@@ -452,38 +392,7 @@ func (c CertConfig) decodePEM(data []byte) (certificate *x509.Certificate, priva
 
 // MSIConfig provides the options to get a bearer authorizer through MSI.
 type MSIConfig struct {
-	Resource string
 	ClientID string
-}
-
-// NewMSIConfig creates an MSIConfig object configured to obtain an Authorizer through MSI.
-func NewMSIConfig(resource string) MSIConfig {
-	return MSIConfig{
-		Resource: resource,
-	}
-}
-
-// ServicePrincipalToken gets the ServicePrincipalToken object from MSI.
-func (c MSIConfig) ServicePrincipalToken() (*adal.ServicePrincipalToken, error) {
-	msiEndpoint, err := adal.GetMSIEndpoint()
-	if err != nil {
-		return nil, err
-	}
-
-	var spToken *adal.ServicePrincipalToken
-	if c.ClientID == "" {
-		spToken, err = adal.NewServicePrincipalTokenFromMSI(msiEndpoint, c.Resource)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get oauth token from MSI: %v", err)
-		}
-	} else {
-		spToken, err = adal.NewServicePrincipalTokenFromMSIWithUserAssignedID(msiEndpoint, c.Resource, c.ClientID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get oauth token from MSI for user assigned identity: %v", err)
-		}
-	}
-
-	return spToken, nil
 }
 
 // GetTokenCredential returns the azcore.TokenCredential object from MSI.
@@ -497,5 +406,5 @@ func (c MSIConfig) GetTokenCredential() (token azcore.TokenCredential, err error
 
 // GetAzureEnvironment returns the Azure environment for a given name, supporting aliases too.
 func (s EnvironmentSettings) GetEnvironment(key string) (val string, ok bool) {
-	return metadata.GetMetadataProperty(s.Values, MetadataKeys[key]...)
+	return metadata.GetMetadataProperty(s.Metadata, MetadataKeys[key]...)
 }

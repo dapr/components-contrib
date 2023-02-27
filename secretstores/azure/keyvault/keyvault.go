@@ -70,10 +70,9 @@ func (k *keyvaultSecretStore) Init(meta secretstores.Metadata) error {
 	// This should be considered deprecated and users should rely the "azureEnvironment" metadata instead, but it's maintained here for backwards-compatibility
 	if m.VaultName != "" {
 		keyVaultSuffixToEnvironment := map[string]string{
-			".vault.azure.net":         "AZUREPUBLICCLOUD",
-			".vault.azure.cn":          "AZURECHINACLOUD",
-			".vault.usgovcloudapi.net": "AZUREUSGOVERNMENTCLOUD",
-			".vault.microsoftazure.de": "AZUREGERMANCLOUD",
+			".vault.azure.net":         "AzurePublicCloud",
+			".vault.azure.cn":          "AzureChinaCloud",
+			".vault.usgovcloudapi.net": "AzureUSGovernmentCloud",
 		}
 		for suffix, environment := range keyVaultSuffixToEnvironment {
 			if strings.HasSuffix(m.VaultName, suffix) {
@@ -95,7 +94,7 @@ func (k *keyvaultSecretStore) Init(meta secretstores.Metadata) error {
 	}
 
 	k.vaultName = m.VaultName
-	k.vaultDNSSuffix = settings.AzureEnvironment.KeyVaultDNSSuffix
+	k.vaultDNSSuffix = settings.EndpointSuffix(azauth.ServiceAzureKeyVault)
 
 	cred, err := settings.GetTokenCredential()
 	if err != nil {

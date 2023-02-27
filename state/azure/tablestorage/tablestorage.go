@@ -124,9 +124,7 @@ func (r *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 		}
 	} else {
 		// fallback to azure AD authentication
-		var settings azauth.EnvironmentSettings
-		var innerErr error
-		settings, innerErr = azauth.NewEnvironmentSettings(metadata.Properties)
+		settings, innerErr := azauth.NewEnvironmentSettings(metadata.Properties)
 		if innerErr != nil {
 			return innerErr
 		}
@@ -226,19 +224,19 @@ func getTablesMetadata(meta map[string]string) (*tablesMetadata, error) {
 	m := tablesMetadata{}
 	err := mdutils.DecodeMetadata(meta, &m)
 
-	if val, ok := mdutils.GetMetadataProperty(meta, azauth.StorageAccountNameKeys...); ok && val != "" {
+	if val, ok := mdutils.GetMetadataProperty(meta, azauth.MetadataKeys["StorageAccountName"]...); ok && val != "" {
 		m.AccountName = val
 	} else {
-		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageAccountNameKeys[0])
+		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.MetadataKeys["StorageAccountName"][0])
 	}
 
 	// Can be empty (such as when using Azure AD for auth)
-	m.AccountKey, _ = mdutils.GetMetadataProperty(meta, azauth.StorageAccountKeyKeys...)
+	m.AccountKey, _ = mdutils.GetMetadataProperty(meta, azauth.MetadataKeys["StorageAccountKey"]...)
 
-	if val, ok := mdutils.GetMetadataProperty(meta, azauth.StorageTableNameKeys...); ok && val != "" {
+	if val, ok := mdutils.GetMetadataProperty(meta, azauth.MetadataKeys["StorageTableName"]...); ok && val != "" {
 		m.TableName = val
 	} else {
-		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageTableNameKeys[0])
+		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.MetadataKeys["StorageTableName"][0])
 	}
 
 	return &m, err

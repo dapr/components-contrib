@@ -50,19 +50,19 @@ func parseMetadata(meta map[string]string) (*BlobStorageMetadata, error) {
 	m.RetryCount = defaultBlobRetryCount
 	mdutils.DecodeMetadata(meta, &m)
 
-	if val, ok := mdutils.GetMetadataProperty(meta, azauth.StorageAccountNameKeys...); ok && val != "" {
+	if val, ok := mdutils.GetMetadataProperty(meta, azauth.MetadataKeys["StorageAccountName"]...); ok && val != "" {
 		m.AccountName = val
 	} else {
-		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageAccountNameKeys[0])
+		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.MetadataKeys["StorageAccountName"][0])
 	}
 
-	if val, ok := mdutils.GetMetadataProperty(meta, azauth.StorageContainerNameKeys...); ok && val != "" {
+	if val, ok := mdutils.GetMetadataProperty(meta, azauth.MetadataKeys["StorageContainerName"]...); ok && val != "" {
 		m.ContainerName = val
 	} else {
-		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageContainerNameKeys[0])
+		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.MetadataKeys["StorageContainerName"][0])
 	}
 
-	if val, ok := mdutils.GetMetadataProperty(meta, azauth.StorageAccountKeyKeys...); ok && val != "" {
+	if val, ok := mdutils.GetMetadataProperty(meta, azauth.MetadataKeys["StorageAccountKey"]...); ok && val != "" {
 		m.AccountKey = val
 	}
 

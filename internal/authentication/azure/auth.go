@@ -32,9 +32,9 @@ import (
 )
 
 // NewEnvironmentSettings returns a new EnvironmentSettings configured for a given Azure resource.
-func NewEnvironmentSettings(values map[string]string) (EnvironmentSettings, error) {
+func NewEnvironmentSettings(md map[string]string) (EnvironmentSettings, error) {
 	es := EnvironmentSettings{
-		Values: values,
+		Metadata: md,
 	}
 	azureEnv, err := es.GetAzureEnvironment()
 	if err != nil {
@@ -46,7 +46,7 @@ func NewEnvironmentSettings(values map[string]string) (EnvironmentSettings, erro
 
 // EnvironmentSettings hold settings to authenticate with Azure.
 type EnvironmentSettings struct {
-	Values           map[string]string
+	Metadata         map[string]string
 	AzureEnvironment *azure.Environment
 }
 
@@ -68,7 +68,6 @@ func (s EnvironmentSettings) GetAzureEnvironment() (*azure.Environment, error) {
 // 1. Client credentials
 // 2. Client certificate
 // 3. MSI
-// This is used by the newer ("track 2") Azure SDKs.
 func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error) {
 	// Create a chain
 	var creds []azcore.TokenCredential
@@ -361,5 +360,5 @@ func (c MSIConfig) GetTokenCredential() (token azcore.TokenCredential, err error
 
 // GetAzureEnvironment returns the Azure environment for a given name, supporting aliases too.
 func (s EnvironmentSettings) GetEnvironment(key string) (val string, ok bool) {
-	return metadata.GetMetadataProperty(s.Values, MetadataKeys[key]...)
+	return metadata.GetMetadataProperty(s.Metadata, MetadataKeys[key]...)
 }

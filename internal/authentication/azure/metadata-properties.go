@@ -13,7 +13,7 @@ limitations under the License.
 
 package azure
 
-// MetadataKeys : Keys for all metadata properties.
+// MetadataKeys: Keys for all metadata properties.
 var MetadataKeys = map[string][]string{ //nolint:gochecknoglobals
 	// clientId, clientSecret, tenantId are supported for backwards-compatibility as they're used by some components, but should be considered deprecated
 
@@ -35,6 +35,21 @@ var MetadataKeys = map[string][]string{ //nolint:gochecknoglobals
 	// Identifier for the Azure environment
 	// Allowed values (case-insensitive): AZUREPUBLICCLOUD, AZURECHINACLOUD, AZUREGERMANCLOUD, AZUREUSGOVERNMENTCLOUD
 	"AzureEnvironment": {"azureEnvironment"},
+
+	// Metadata keys for storage components
+
+	// Storage account name.
+	"StorageAccountName": {"accountName", "storageAccount", "storageAccountName"},
+	// Account key for storage.
+	"StorageAccountKey": {"accountKey", "accessKey", "storageAccessKey", "storageAccountKey"},
+	// Blob storage container name
+	"StorageContainerName": {"containerName", "container", "storageAccountContainer"},
+	// Queue storage queue name
+	"StorageQueueName": {"queueName", "queue", "storageAccountQueue"},
+	// Table storage table name
+	"StorageTableName": {"tableName", "table", "storageAccountTable"},
+	// Endpoint for storage
+	"StorageEndpoint": {"endpoint", "storageEndpoint", "storageAccountEndpoint", "queueEndpointUrl"},
 }
 
 // Default Azure environment.

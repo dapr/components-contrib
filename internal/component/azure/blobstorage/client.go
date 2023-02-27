@@ -49,7 +49,7 @@ func CreateContainerStorageClient(parentCtx context.Context, log logger.Logger, 
 		return nil, nil, err
 	}
 
-	if val, _ := mdutils.GetMetadataProperty(meta, azauth.StorageEndpointKeys...); val != "" {
+	if val, _ := mdutils.GetMetadataProperty(meta, azauth.MetadataKeys["StorageEndpoint"]...); val != "" {
 		m.customEndpoint = val
 	}
 

@@ -260,23 +260,23 @@ func parseMetadata(meta bindings.Metadata) (*storageQueuesMetadata, error) {
 	}
 	contribMetadata.DecodeMetadata(meta.Properties, &m)
 
-	if val, ok := contribMetadata.GetMetadataProperty(meta.Properties, azauth.StorageAccountNameKeys...); ok && val != "" {
+	if val, ok := contribMetadata.GetMetadataProperty(meta.Properties, azauth.MetadataKeys["StorageAccountName"]...); ok && val != "" {
 		m.AccountName = val
 	} else {
-		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageAccountNameKeys[0])
+		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.MetadataKeys["StorageAccountName"][0])
 	}
 
-	if val, ok := contribMetadata.GetMetadataProperty(meta.Properties, azauth.StorageQueueNameKeys...); ok && val != "" {
+	if val, ok := contribMetadata.GetMetadataProperty(meta.Properties, azauth.MetadataKeys["StorageQueueName"]...); ok && val != "" {
 		m.QueueName = val
 	} else {
-		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.StorageQueueNameKeys[0])
+		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.MetadataKeys["StorageQueueName"][0])
 	}
 
-	if val, ok := contribMetadata.GetMetadataProperty(meta.Properties, azauth.StorageEndpointKeys...); ok && val != "" {
+	if val, ok := contribMetadata.GetMetadataProperty(meta.Properties, azauth.MetadataKeys["StorageEndpoint"]...); ok && val != "" {
 		m.QueueEndpoint = val
 	}
 
-	if val, ok := contribMetadata.GetMetadataProperty(meta.Properties, azauth.StorageAccountKeyKeys...); ok && val != "" {
+	if val, ok := contribMetadata.GetMetadataProperty(meta.Properties, azauth.MetadataKeys["StorageAccountKey"]...); ok && val != "" {
 		m.AccountKey = val
 	}
 

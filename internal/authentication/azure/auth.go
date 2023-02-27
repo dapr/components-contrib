@@ -20,59 +20,58 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/go-autorest/autorest/azure"
-	"github.com/Azure/go-autorest/autorest/azure/auth"
 	"golang.org/x/crypto/pkcs12"
 
 	"github.com/dapr/components-contrib/metadata"
 )
 
+// EnvironmentSettings hold settings to authenticate with Azure.
+type EnvironmentSettings struct {
+	Metadata map[string]string
+	Cloud    *cloud.Configuration
+}
+
 // NewEnvironmentSettings returns a new EnvironmentSettings configured for a given Azure resource.
-func NewEnvironmentSettings(values map[string]string) (EnvironmentSettings, error) {
+func NewEnvironmentSettings(md map[string]string) (EnvironmentSettings, error) {
 	es := EnvironmentSettings{
-		Values: values,
+		Metadata: md,
 	}
-	azureEnv, err := es.GetAzureEnvironment()
+	azureCloud, err := es.GetAzureEnvironment()
 	if err != nil {
 		return es, err
 	}
-	es.AzureEnvironment = azureEnv
+	es.Cloud = azureCloud
 	return es, nil
 }
 
-// EnvironmentSettings hold settings to authenticate with Azure.
-type EnvironmentSettings struct {
-	Values           map[string]string
-	AzureEnvironment *azure.Environment
-}
-
 // GetAzureEnvironment returns the Azure environment for a given name.
-func (s EnvironmentSettings) GetAzureEnvironment() (*azure.Environment, error) {
-	envName, ok := s.GetEnvironment("AzureEnvironment")
-	if !ok || envName == "" {
-		envName = DefaultAzureEnvironment
+func (s EnvironmentSettings) GetAzureEnvironment() (*cloud.Configuration, error) {
+	envName, _ := s.GetEnvironment("AzureEnvironment")
+	switch strings.ToLower(envName) {
+	case "", "azurepubliccloud", "azurepublic": // Default value if envName is empty
+		return &cloud.AzurePublic, nil
+	case "azurechinacloud", "azurechina":
+		return &cloud.AzureChina, nil
+	case "azureusgovernmentcloud", "azureusgovernment":
+		return &cloud.AzureGovernment, nil
+	default:
+		return nil, fmt.Errorf("invalid Azure cloud: %v", envName)
 	}
-	env, err := azure.EnvironmentFromName(envName)
-	if err != nil {
-		return nil, err
-	}
-
-	return &env, err
 }
 
 // GetTokenCredential returns an azcore.TokenCredential retrieved from, in order:
 // 1. Client credentials
 // 2. Client certificate
 // 3. MSI
-// This is used by the newer ("track 2") Azure SDKs.
 func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error) {
 	// Create a chain
 	var creds []azcore.TokenCredential
-	errMsg := ""
+	errs := make([]error, 0, 3)
 
 	// 1. Client credentials
 	if c, e := s.GetClientCredentials(); e == nil {
@@ -80,7 +79,7 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 		if err == nil {
 			creds = append(creds, cred)
 		} else {
-			errMsg += err.Error() + "\n"
+			errs = append(errs, err)
 		}
 	}
 
@@ -90,7 +89,7 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 		if err == nil {
 			creds = append(creds, cred)
 		} else {
-			errMsg += err.Error() + "\n"
+			errs = append(errs, err)
 		}
 	}
 
@@ -101,63 +100,63 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 		if err == nil {
 			creds = append(creds, cred)
 		} else {
-			errMsg += err.Error() + "\n"
+			errs = append(errs, err)
 		}
 	}
 
 	if len(creds) == 0 {
-		return nil, fmt.Errorf("no suitable token provider for Azure AD; errors: %v", errMsg)
+		return nil, fmt.Errorf("no suitable token provider for Azure AD; errors: %w", errors.Join(errs...))
 	}
 	return azidentity.NewChainedTokenCredential(creds, nil)
 }
 
 // GetClientCredentials creates a config object from the available client credentials.
 // An error is returned if no certificate credentials are available.
-func (s EnvironmentSettings) GetClientCredentials() (CredentialsConfig, error) {
-	azureEnv, err := s.GetAzureEnvironment()
+func (s EnvironmentSettings) GetClientCredentials() (config CredentialsConfig, err error) {
+	azureCloud, err := s.GetAzureEnvironment()
 	if err != nil {
-		return CredentialsConfig{}, err
+		return config, err
 	}
 
-	clientID, _ := s.GetEnvironment("ClientID")
-	clientSecret, _ := s.GetEnvironment("ClientSecret")
-	tenantID, _ := s.GetEnvironment("TenantID")
+	config.ClientID, _ = s.GetEnvironment("ClientID")
+	config.ClientSecret, _ = s.GetEnvironment("ClientSecret")
+	config.TenantID, _ = s.GetEnvironment("TenantID")
 
-	if clientID == "" || clientSecret == "" || tenantID == "" {
-		return CredentialsConfig{}, errors.New("parameters clientId, clientSecret, and tenantId must all be present")
+	if config.ClientID == "" || config.ClientSecret == "" || config.TenantID == "" {
+		return config, errors.New("parameters clientId, clientSecret, and tenantId must all be present")
 	}
 
-	authorizer := NewCredentialsConfig(clientID, tenantID, clientSecret, azureEnv)
+	config.AzureCloud = azureCloud
 
-	return authorizer, nil
+	return config, nil
 }
 
 // GetClientCert creates a config object from the available certificate credentials.
 // An error is returned if no certificate credentials are available.
-func (s EnvironmentSettings) GetClientCert() (CertConfig, error) {
-	azureEnv, err := s.GetAzureEnvironment()
+func (s EnvironmentSettings) GetClientCert() (config CertConfig, err error) {
+	azureCloud, err := s.GetAzureEnvironment()
 	if err != nil {
-		return CertConfig{}, err
+		return config, err
 	}
 
-	certFilePath, certFilePathPresent := s.GetEnvironment("CertificateFile")
-	certBytes, certBytesPresent := s.GetEnvironment("Certificate")
-	certPassword, _ := s.GetEnvironment("CertificatePassword")
-	clientID, _ := s.GetEnvironment("ClientID")
-	tenantID, _ := s.GetEnvironment("TenantID")
+	config.CertificatePath, _ = s.GetEnvironment("CertificateFile")
+	config.CertificatePassword, _ = s.GetEnvironment("CertificatePassword")
+	certBytes, _ := s.GetEnvironment("Certificate")
+	config.ClientID, _ = s.GetEnvironment("ClientID")
+	config.TenantID, _ = s.GetEnvironment("TenantID")
 
-	if !certFilePathPresent && !certBytesPresent {
-		return CertConfig{}, fmt.Errorf("missing client certificate")
+	if config.CertificatePath == "" && certBytes == "" {
+		return config, errors.New("missing client certificate")
 	}
 
-	authorizer := NewCertConfig(clientID, tenantID, certFilePath, []byte(certBytes), certPassword, azureEnv)
+	config.CertificateData = []byte(certBytes)
+	config.AzureCloud = azureCloud
 
-	return authorizer, nil
+	return config, nil
 }
 
 // GetMSI creates a MSI config object from the available client ID.
-func (s EnvironmentSettings) GetMSI() MSIConfig {
-	config := NewMSIConfig()
+func (s EnvironmentSettings) GetMSI() (config MSIConfig) {
 	// This is optional and it's ok if value is empty
 	config.ClientID, _ = s.GetEnvironment("ClientID")
 
@@ -166,69 +165,50 @@ func (s EnvironmentSettings) GetMSI() MSIConfig {
 
 // CredentialsConfig provides the options to get a bearer authorizer from client credentials.
 type CredentialsConfig struct {
-	*auth.ClientCredentialsConfig
-}
-
-// NewCredentialsConfig creates an CredentialsConfig object configured to obtain an Authorizer through Client Credentials.
-func NewCredentialsConfig(clientID string, tenantID string, clientSecret string, env *azure.Environment) CredentialsConfig {
-	return CredentialsConfig{
-		&auth.ClientCredentialsConfig{
-			ClientSecret: clientSecret,
-			ClientID:     clientID,
-			TenantID:     tenantID,
-			AADEndpoint:  env.ActiveDirectoryEndpoint,
-		},
-	}
+	ClientID     string
+	ClientSecret string
+	TenantID     string
+	AzureCloud   *cloud.Configuration
 }
 
 // GetTokenCredential returns the azcore.TokenCredential object from the credentials.
 func (c CredentialsConfig) GetTokenCredential() (token azcore.TokenCredential, err error) {
-	return azidentity.NewClientSecretCredential(c.TenantID, c.ClientID, c.ClientSecret, &azidentity.ClientSecretCredentialOptions{
-		ClientOptions: azcore.ClientOptions{
-			Cloud: cloud.Configuration{
-				ActiveDirectoryAuthorityHost: c.AADEndpoint,
+	var opts *azidentity.ClientSecretCredentialOptions
+	if c.AzureCloud != nil {
+		opts = &azidentity.ClientSecretCredentialOptions{
+			ClientOptions: azcore.ClientOptions{
+				Cloud: *c.AzureCloud,
 			},
-		},
-	})
+		}
+	}
+	return azidentity.NewClientSecretCredential(c.TenantID, c.ClientID, c.ClientSecret, opts)
 }
 
 // CertConfig provides the options to get a bearer authorizer from a client certificate.
 type CertConfig struct {
-	*auth.ClientCertificateConfig
-	CertificateData []byte
-}
-
-// NewCertConfig creates an CertConfig object configured to obtain an Authorizer through Client Credentials, using a certificate.
-func NewCertConfig(clientID string, tenantID string, certificatePath string, certificateBytes []byte, certificatePassword string, env *azure.Environment) CertConfig {
-	return CertConfig{
-		&auth.ClientCertificateConfig{
-			CertificatePath:     certificatePath,
-			CertificatePassword: certificatePassword,
-			ClientID:            clientID,
-			TenantID:            tenantID,
-			AADEndpoint:         env.ActiveDirectoryEndpoint,
-		},
-		certificateBytes,
-	}
+	ClientID            string
+	CertificatePath     string
+	CertificatePassword string
+	TenantID            string
+	CertificateData     []byte
+	AzureCloud          *cloud.Configuration
 }
 
 // GetTokenCredential returns the azcore.TokenCredential object from client certificate.
 func (c CertConfig) GetTokenCredential() (token azcore.TokenCredential, err error) {
-	ccc := c.ClientCertificateConfig
-
 	// Certificate data - may be empty here
 	data := c.CertificateData
 
 	// If we have a certificate path, load it
-	if c.ClientCertificateConfig.CertificatePath != "" {
+	if c.CertificatePath != "" {
 		var errB error
-		data, errB = os.ReadFile(ccc.CertificatePath)
+		data, errB = os.ReadFile(c.CertificatePath)
 		if errB != nil {
-			return nil, fmt.Errorf("failed to read the certificate file (%s): %v", ccc.CertificatePath, errB)
+			return nil, fmt.Errorf("failed to read the certificate file (%s): %v", c.CertificatePath, errB)
 		}
 	}
 	if len(data) == 0 {
-		return nil, fmt.Errorf("certificate is not given")
+		return nil, errors.New("certificate is not given")
 	}
 
 	// Decode the certificate
@@ -239,12 +219,13 @@ func (c CertConfig) GetTokenCredential() (token azcore.TokenCredential, err erro
 
 	// Create the azcore.TokenCredential object
 	certs := []*x509.Certificate{cert}
-	opts := &azidentity.ClientCertificateCredentialOptions{
-		ClientOptions: azcore.ClientOptions{
-			Cloud: cloud.Configuration{
-				ActiveDirectoryAuthorityHost: c.AADEndpoint,
+	var opts *azidentity.ClientCertificateCredentialOptions
+	if c.AzureCloud != nil {
+		opts = &azidentity.ClientCertificateCredentialOptions{
+			ClientOptions: azcore.ClientOptions{
+				Cloud: *c.AzureCloud,
 			},
-		},
+		}
 	}
 	return azidentity.NewClientCertificateCredential(c.TenantID, c.ClientID, certs, key, opts)
 }
@@ -275,7 +256,7 @@ func (c CertConfig) decodePkcs12(pkcs []byte, password string) (*x509.Certificat
 
 	rsaPrivateKey, isRsaKey := privateKey.(*rsa.PrivateKey)
 	if !isRsaKey {
-		return nil, nil, fmt.Errorf("PKCS#12 certificate must contain an RSA private key")
+		return nil, nil, errors.New("PKCS#12 certificate must contain an RSA private key")
 	}
 
 	return certificate, rsaPrivateKey, nil
@@ -315,7 +296,7 @@ func (c CertConfig) decodePEM(data []byte) (certificate *x509.Certificate, priva
 			}
 			privateKey, ok = parsedKey.(*rsa.PrivateKey)
 			if !ok || privateKey == nil {
-				return nil, nil, fmt.Errorf("certificate must contain an RSA private key")
+				return nil, nil, errors.New("certificate must contain an RSA private key")
 			}
 		case "RSA PRIVATE KEY": // PKCS#1
 			// If we already have a key decoded, return an error
@@ -328,7 +309,7 @@ func (c CertConfig) decodePEM(data []byte) (certificate *x509.Certificate, priva
 			}
 			privateKey, ok = parsedKey.(*rsa.PrivateKey)
 			if !ok || privateKey == nil {
-				return nil, nil, fmt.Errorf("certificate must contain an RSA private key")
+				return nil, nil, errors.New("certificate must contain an RSA private key")
 			}
 		}
 	}
@@ -345,11 +326,6 @@ type MSIConfig struct {
 	ClientID string
 }
 
-// NewMSIConfig creates an MSIConfig object configured to obtain an Authorizer through MSI.
-func NewMSIConfig() MSIConfig {
-	return MSIConfig{}
-}
-
 // GetTokenCredential returns the azcore.TokenCredential object from MSI.
 func (c MSIConfig) GetTokenCredential() (token azcore.TokenCredential, err error) {
 	opts := &azidentity.ManagedIdentityCredentialOptions{}
@@ -361,5 +337,5 @@ func (c MSIConfig) GetTokenCredential() (token azcore.TokenCredential, err error
 
 // GetAzureEnvironment returns the Azure environment for a given name, supporting aliases too.
 func (s EnvironmentSettings) GetEnvironment(key string) (val string, ok bool) {
-	return metadata.GetMetadataProperty(s.Values, MetadataKeys[key]...)
+	return metadata.GetMetadataProperty(s.Metadata, MetadataKeys[key]...)
 }

@@ -71,7 +71,7 @@ func (s EnvironmentSettings) GetAzureEnvironment() (*azure.Environment, error) {
 func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error) {
 	// Create a chain
 	var creds []azcore.TokenCredential
-	errMsg := ""
+	errs := make([]error, 0, 3)
 
 	// 1. Client credentials
 	if c, e := s.GetClientCredentials(); e == nil {
@@ -79,7 +79,7 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 		if err == nil {
 			creds = append(creds, cred)
 		} else {
-			errMsg += err.Error() + "\n"
+			errs = append(errs, err)
 		}
 	}
 
@@ -89,7 +89,7 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 		if err == nil {
 			creds = append(creds, cred)
 		} else {
-			errMsg += err.Error() + "\n"
+			errs = append(errs, err)
 		}
 	}
 
@@ -100,12 +100,12 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 		if err == nil {
 			creds = append(creds, cred)
 		} else {
-			errMsg += err.Error() + "\n"
+			errs = append(errs, err)
 		}
 	}
 
 	if len(creds) == 0 {
-		return nil, fmt.Errorf("no suitable token provider for Azure AD; errors: %v", errMsg)
+		return nil, fmt.Errorf("no suitable token provider for Azure AD; errors: %w", errors.Join(errs...))
 	}
 	return azidentity.NewChainedTokenCredential(creds, nil)
 }

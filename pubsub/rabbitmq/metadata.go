@@ -15,10 +15,11 @@ package rabbitmq
 
 import (
 	"fmt"
-	"github.com/dapr/components-contrib/internal/utils"
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/dapr/components-contrib/internal/utils"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 

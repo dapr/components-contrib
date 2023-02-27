@@ -31,7 +31,6 @@ const (
 
 func TestGetClientCert(t *testing.T) {
 	settings, err := NewEnvironmentSettings(
-		"keyvault",
 		map[string]string{
 			"azureCertificateFile":     "testfile",
 			"azureCertificate":         "testcert",
@@ -51,7 +50,6 @@ func TestGetClientCert(t *testing.T) {
 	assert.Equal(t, "1234", testCertConfig.ClientCertificateConfig.CertificatePassword)
 	assert.Equal(t, fakeClientID, testCertConfig.ClientCertificateConfig.ClientID)
 	assert.Equal(t, fakeTenantID, testCertConfig.ClientCertificateConfig.TenantID)
-	assert.Equal(t, "https://vault.azure.net", testCertConfig.ClientCertificateConfig.Resource)
 	assert.Equal(t, "https://login.microsoftonline.com/", testCertConfig.ClientCertificateConfig.AADEndpoint)
 }
 
@@ -63,7 +61,6 @@ func TestAuthorizorWithCertFile(t *testing.T) {
 	assert.NoError(t, err)
 
 	settings, err := NewEnvironmentSettings(
-		"keyvault",
 		map[string]string{
 			"azureCertificateFile":     testCertFileName,
 			"azureCertificatePassword": "",
@@ -78,9 +75,9 @@ func TestAuthorizorWithCertFile(t *testing.T) {
 	assert.NotNil(t, testCertConfig)
 	assert.NotNil(t, testCertConfig.ClientCertificateConfig)
 
-	authorizer, err := testCertConfig.Authorizer()
+	spt, err := testCertConfig.GetTokenCredential()
 	assert.NoError(t, err)
-	assert.NotNil(t, authorizer)
+	assert.NotNil(t, spt)
 
 	err = os.Remove(testCertFileName)
 	assert.NoError(t, err)
@@ -91,7 +88,6 @@ func TestAuthorizorWithCertBytes(t *testing.T) {
 		certBytes := getTestCert()
 
 		settings, err := NewEnvironmentSettings(
-			"keyvault",
 			map[string]string{
 				"azureCertificate":         string(certBytes),
 				"azureCertificatePassword": "",
@@ -106,8 +102,7 @@ func TestAuthorizorWithCertBytes(t *testing.T) {
 		assert.NotNil(t, testCertConfig)
 		assert.NotNil(t, testCertConfig.ClientCertificateConfig)
 
-		spt, err := testCertConfig.ServicePrincipalToken()
-
+		spt, err := testCertConfig.GetTokenCredential()
 		assert.NoError(t, err)
 		assert.NotNil(t, spt)
 	})
@@ -116,7 +111,6 @@ func TestAuthorizorWithCertBytes(t *testing.T) {
 		certBytes := getTestCert()
 
 		settings, err := NewEnvironmentSettings(
-			"keyvault",
 			map[string]string{
 				"azureCertificate":         string(certBytes[0:20]),
 				"azureCertificatePassword": "",
@@ -131,14 +125,13 @@ func TestAuthorizorWithCertBytes(t *testing.T) {
 		assert.NotNil(t, testCertConfig)
 		assert.NotNil(t, testCertConfig.ClientCertificateConfig)
 
-		_, err = testCertConfig.ServicePrincipalToken()
+		_, err = testCertConfig.GetTokenCredential()
 		assert.Error(t, err)
 	})
 }
 
 func TestGetMSI(t *testing.T) {
 	settings, err := NewEnvironmentSettings(
-		"keyvault",
 		map[string]string{
 			"azureClientId": fakeClientID,
 			"vaultName":     "vaultName",
@@ -149,14 +142,12 @@ func TestGetMSI(t *testing.T) {
 	testCertConfig := settings.GetMSI()
 
 	assert.Equal(t, fakeClientID, testCertConfig.ClientID)
-	assert.Equal(t, "https://vault.azure.net", testCertConfig.Resource)
 }
 
 func TestFallbackToMSI(t *testing.T) {
 	os.Setenv("MSI_ENDPOINT", "test")
 	defer os.Unsetenv("MSI_ENDPOINT")
 	settings, err := NewEnvironmentSettings(
-		"keyvault",
 		map[string]string{
 			"azureClientId": fakeClientID,
 			"vaultName":     "vaultName",
@@ -164,17 +155,15 @@ func TestFallbackToMSI(t *testing.T) {
 	)
 	assert.NoError(t, err)
 
-	spt, err := settings.GetServicePrincipalToken()
-
-	assert.NotNil(t, spt)
+	spt, err := settings.GetTokenCredential()
 	assert.NoError(t, err)
+	assert.NotNil(t, spt)
 }
 
 func TestAuthorizorWithMSI(t *testing.T) {
 	os.Setenv("MSI_ENDPOINT", "test")
 	defer os.Unsetenv("MSI_ENDPOINT")
 	settings, err := NewEnvironmentSettings(
-		"keyvault",
 		map[string]string{
 			"azureClientId": fakeClientID,
 			"vaultName":     "vaultName",
@@ -185,7 +174,7 @@ func TestAuthorizorWithMSI(t *testing.T) {
 	testCertConfig := settings.GetMSI()
 	assert.NotNil(t, testCertConfig)
 
-	spt, err := testCertConfig.ServicePrincipalToken()
+	spt, err := settings.GetTokenCredential()
 	assert.NoError(t, err)
 	assert.NotNil(t, spt)
 }
@@ -194,7 +183,6 @@ func TestAuthorizorWithMSIAndUserAssignedID(t *testing.T) {
 	os.Setenv("MSI_ENDPOINT", "test")
 	defer os.Unsetenv("MSI_ENDPOINT")
 	settings, err := NewEnvironmentSettings(
-		"keyvault",
 		map[string]string{
 			"azureClientId": fakeClientID,
 			"vaultName":     "vaultName",
@@ -205,7 +193,7 @@ func TestAuthorizorWithMSIAndUserAssignedID(t *testing.T) {
 	testCertConfig := settings.GetMSI()
 	assert.NotNil(t, testCertConfig)
 
-	spt, err := testCertConfig.ServicePrincipalToken()
+	spt, err := settings.GetTokenCredential()
 	assert.NoError(t, err)
 	assert.NotNil(t, spt)
 }

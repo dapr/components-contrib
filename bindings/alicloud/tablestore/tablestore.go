@@ -16,6 +16,8 @@ package tablestore
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -23,8 +25,6 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-
-	"github.com/pkg/errors"
 )
 
 const (
@@ -58,7 +58,7 @@ func NewAliCloudTableStore(log logger.Logger) bindings.OutputBinding {
 	}
 }
 
-func (s *AliCloudTableStore) Init(metadata bindings.Metadata) error {
+func (s *AliCloudTableStore) Init(_ context.Context, metadata bindings.Metadata) error {
 	m, err := s.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -72,7 +72,7 @@ func (s *AliCloudTableStore) Init(metadata bindings.Metadata) error {
 
 func (s *AliCloudTableStore) Invoke(_ context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	if req == nil {
-		return nil, errors.Errorf("invoke request required")
+		return nil, errors.New("invoke request required")
 	}
 
 	startTime := time.Now()
@@ -104,7 +104,7 @@ func (s *AliCloudTableStore) Invoke(_ context.Context, req *bindings.InvokeReque
 			return nil, err
 		}
 	default:
-		return nil, errors.Errorf("invalid operation type: %s. Expected %s, %s, %s, or %s",
+		return nil, fmt.Errorf("invalid operation type: %s. Expected %s, %s, %s, or %s",
 			req.Operation, bindings.GetOperation, bindings.ListOperation, bindings.CreateOperation, bindings.DeleteOperation)
 	}
 

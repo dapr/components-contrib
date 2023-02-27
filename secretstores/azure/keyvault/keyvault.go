@@ -61,7 +61,7 @@ func NewAzureKeyvaultSecretStore(logger logger.Logger) secretstores.SecretStore 
 }
 
 // Init creates a Azure Key Vault client.
-func (k *keyvaultSecretStore) Init(meta secretstores.Metadata) error {
+func (k *keyvaultSecretStore) Init(_ context.Context, meta secretstores.Metadata) error {
 	m := KeyvaultMetadata{}
 	if err := metadata.DecodeMetadata(meta.Properties, &m); err != nil {
 		return err
@@ -78,10 +78,7 @@ func (k *keyvaultSecretStore) Init(meta secretstores.Metadata) error {
 		for suffix, environment := range keyVaultSuffixToEnvironment {
 			if strings.HasSuffix(m.VaultName, suffix) {
 				meta.Properties["azureEnvironment"] = environment
-				m.VaultName = strings.TrimSuffix(m.VaultName, suffix)
-				if strings.HasPrefix(m.VaultName, "https://") {
-					m.VaultName = strings.TrimPrefix(m.VaultName, "https://")
-				}
+				m.VaultName = strings.TrimPrefix(strings.TrimSuffix(m.VaultName, suffix), "https://")
 				k.vaultName = m.VaultName
 				break
 			}

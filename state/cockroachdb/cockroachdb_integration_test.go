@@ -59,7 +59,7 @@ func TestCockroachDBIntegration(t *testing.T) {
 		defer pgs.Close()
 	})
 
-	if err := pgs.Init(metadata); err != nil {
+	if err := pgs.Init(context.Background(), metadata); err != nil {
 		t.Fatal(err)
 	}
 
@@ -615,7 +615,7 @@ func testInitConfiguration(t *testing.T) {
 				Base: metadata.Base{Properties: rowTest.props},
 			}
 
-			err := cockroackDB.Init(metadata)
+			err := cockroackDB.Init(context.Background(), metadata)
 			if rowTest.expectedErr == "" {
 				assert.Nil(t, err)
 			} else {

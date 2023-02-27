@@ -61,8 +61,11 @@ func TestSanitizeRequestMetadata(t *testing.T) {
 			"not-allowed:":    "not-allowed",
 		}
 		meta := SanitizeMetadata(log, m)
-		assert.Equal(t, meta["somecustomfield"], "some-custom-value")
-		assert.Equal(t, meta["specialfield"], "special:value")
-		assert.Equal(t, meta["notallowed"], "not-allowed")
+		_ = assert.NotNil(t, meta["somecustomfield"]) &&
+			assert.Equal(t, *meta["somecustomfield"], "some-custom-value")
+		_ = assert.NotNil(t, meta["specialfield"]) &&
+			assert.Equal(t, *meta["specialfield"], "special:value")
+		_ = assert.NotNil(t, meta["notallowed"]) &&
+			assert.Equal(t, *meta["notallowed"], "not-allowed")
 	})
 }

@@ -15,7 +15,6 @@ package secretstores
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -46,19 +45,19 @@ func NewTestConfig(name string, allOperations bool, operations []string) TestCon
 func ConformanceTests(t *testing.T, props map[string]string, store secretstores.SecretStore, config TestConfig) {
 	// TODO add support for metadata
 	// For local env var based component test
-	os.Setenv("conftestsecret", "abcd")
-	defer os.Unsetenv("conftestsecret")
+	t.Setenv("conftestsecret", "abcd")
+	t.Setenv("secondsecret", "efgh")
 
 	// Init
 	t.Run("init", func(t *testing.T) {
-		err := store.Init(secretstores.Metadata{
+		err := store.Init(context.Background(), secretstores.Metadata{
 			Base: metadata.Base{Properties: props},
 		})
 		assert.NoError(t, err, "expected no error on initializing store")
 	})
 
 	t.Run("ping", func(t *testing.T) {
-		err := secretstores.Ping(store)
+		err := secretstores.Ping(context.Background(), store)
 		// TODO: Ideally, all stable components should implenment ping function,
 		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components

@@ -16,17 +16,13 @@ package topics
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
-
-	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
-	"github.com/cenkalti/backoff/v4"
 
 	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
 	"github.com/dapr/components-contrib/internal/utils"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/retry"
 )
 
 const (
@@ -38,18 +34,16 @@ type azureServiceBus struct {
 	metadata *impl.Metadata
 	client   *impl.Client
 	logger   logger.Logger
-	features []pubsub.Feature
 }
 
 // NewAzureServiceBusTopics returns a new pub-sub implementation.
 func NewAzureServiceBusTopics(logger logger.Logger) pubsub.PubSub {
 	return &azureServiceBus{
-		logger:   logger,
-		features: []pubsub.Feature{pubsub.FeatureMessageTTL},
+		logger: logger,
 	}
 }
 
-func (a *azureServiceBus) Init(metadata pubsub.Metadata) (err error) {
+func (a *azureServiceBus) Init(_ context.Context, metadata pubsub.Metadata) (err error) {
 	a.metadata, err = impl.ParseMetadata(metadata.Properties, a.logger, impl.MetadataModeTopics)
 	if err != nil {
 		return err
@@ -64,111 +58,11 @@ func (a *azureServiceBus) Init(metadata pubsub.Metadata) (err error) {
 }
 
 func (a *azureServiceBus) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
-	msg, err := impl.NewASBMessageFromPubsubRequest(req)
-	if err != nil {
-		return err
-	}
-
-	ebo := backoff.NewExponentialBackOff()
-	ebo.InitialInterval = time.Duration(a.metadata.PublishInitialRetryIntervalInMs) * time.Millisecond
-	bo := backoff.WithMaxRetries(ebo, uint64(a.metadata.PublishMaxRetries))
-	bo = backoff.WithContext(bo, ctx)
-
-	msgID := "nil"
-	if msg.MessageID != nil {
-		msgID = *msg.MessageID
-	}
-	return retry.NotifyRecover(
-		func() (err error) {
-			// Ensure the queue or topic exists the first time it is referenced
-			// This does nothing if DisableEntityManagement is true
-			err = a.client.EnsureTopic(ctx, req.Topic)
-			if err != nil {
-				return err
-			}
-
-			// Get the sender
-			var sender *servicebus.Sender
-			sender, err = a.client.GetSender(ctx, req.Topic)
-			if err != nil {
-				return err
-			}
-
-			// Try sending the message
-			publishCtx, publishCancel := context.WithTimeout(ctx, time.Second*time.Duration(a.metadata.TimeoutInSec))
-			err = sender.SendMessage(publishCtx, msg, nil)
-			publishCancel()
-			if err != nil {
-				if impl.IsNetworkError(err) {
-					// Retry after reconnecting
-					a.client.CloseSender(req.Topic)
-					return err
-				}
-
-				if impl.IsRetriableAMQPError(err) {
-					// Retry (no need to reconnect)
-					return err
-				}
-
-				// Do not retry on other errors
-				return backoff.Permanent(err)
-			}
-			return nil
-		},
-		bo,
-		func(err error, _ time.Duration) {
-			a.logger.Warnf("Could not publish service bus message (%s). Retrying...: %v", msgID, err)
-		},
-		func() {
-			a.logger.Infof("Successfully published service bus message (%s) after it previously failed", msgID)
-		},
-	)
+	return a.client.PublishPubSub(ctx, req, a.client.EnsureTopic, a.logger)
 }
 
 func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
-	// If the request is empty, sender.SendMessageBatch will panic later.
-	// Return an empty response to avoid this.
-	if len(req.Entries) == 0 {
-		a.logger.Warnf("Empty bulk publish request, skipping")
-		return pubsub.BulkPublishResponse{}, nil
-	}
-
-	// Ensure the queue or topic exists the first time it is referenced
-	// This does nothing if DisableEntityManagement is true
-	err := a.client.EnsureTopic(ctx, req.Topic)
-	if err != nil {
-		return pubsub.NewBulkPublishResponse(req.Entries, err), err
-	}
-
-	// Get the sender
-	sender, err := a.client.GetSender(ctx, req.Topic)
-	if err != nil {
-		return pubsub.NewBulkPublishResponse(req.Entries, err), err
-	}
-
-	// Create a new batch of messages with batch options.
-	batchOpts := &servicebus.MessageBatchOptions{
-		MaxBytes: utils.GetElemOrDefaultFromMap(req.Metadata, contribMetadata.MaxBulkPubBytesKey, defaultMaxBulkPubBytes),
-	}
-
-	batchMsg, err := sender.NewMessageBatch(ctx, batchOpts)
-	if err != nil {
-		return pubsub.NewBulkPublishResponse(req.Entries, err), err
-	}
-
-	// Add messages from the bulk publish request to the batch.
-	err = impl.UpdateASBBatchMessageWithBulkPublishRequest(batchMsg, req)
-	if err != nil {
-		return pubsub.NewBulkPublishResponse(req.Entries, err), err
-	}
-
-	// Azure Service Bus does not return individual status for each message in the request.
-	err = sender.SendMessageBatch(ctx, batchMsg, nil)
-	if err != nil {
-		return pubsub.NewBulkPublishResponse(req.Entries, err), err
-	}
-
-	return pubsub.BulkPublishResponse{}, nil
+	return a.client.PublishPubSubBulk(ctx, req, a.client.EnsureTopic, a.logger)
 }
 
 func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
@@ -177,7 +71,7 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 	maxConcurrentSessions := utils.GetElemOrDefaultFromMap(req.Metadata, impl.MaxConcurrentSessionsMetadataKey, impl.DefaultMaxConcurrentSessions)
 
 	sub := impl.NewSubscription(
-		subscribeCtx, impl.SubsriptionOptions{
+		impl.SubscriptionOptions{
 			MaxActiveMessages:     a.metadata.MaxActiveMessages,
 			TimeoutInSec:          a.metadata.TimeoutInSec,
 			MaxBulkSubCount:       nil,
@@ -186,23 +80,13 @@ func (a *azureServiceBus) Subscribe(subscribeCtx context.Context, req pubsub.Sub
 			Entity:                "topic " + req.Topic,
 			LockRenewalInSec:      a.metadata.LockRenewalInSec,
 			RequireSessions:       requireSessions,
+			SessionIdleTimeout:    sessionIdleTimeout,
 		},
 		a.logger,
 	)
 
-	receiveAndBlockFn := func(receiver impl.Receiver, onFirstSuccess func()) error {
-		return sub.ReceiveBlocking(
-			impl.GetPubSubHandlerFunc(req.Topic, handler, a.logger, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second),
-			receiver,
-			onFirstSuccess,
-			impl.ReceiveOptions{
-				BulkEnabled:        false, // Bulk is not supported in regular Subscribe.
-				SessionIdleTimeout: sessionIdleTimeout,
-			},
-		)
-	}
-
-	return a.doSubscribe(subscribeCtx, req, sub, receiveAndBlockFn, impl.SubscribeOptions{
+	handlerFn := impl.GetPubSubHandlerFunc(req.Topic, handler, a.logger, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second)
+	return a.doSubscribe(subscribeCtx, req, sub, handlerFn, impl.SubscribeOptions{
 		RequireSessions:      requireSessions,
 		MaxConcurrentSesions: maxConcurrentSessions,
 	})
@@ -215,7 +99,7 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 
 	maxBulkSubCount := utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxMessagesCount, defaultMaxBulkSubCount)
 	sub := impl.NewSubscription(
-		subscribeCtx, impl.SubsriptionOptions{
+		impl.SubscriptionOptions{
 			MaxActiveMessages:     a.metadata.MaxActiveMessages,
 			TimeoutInSec:          a.metadata.TimeoutInSec,
 			MaxBulkSubCount:       &maxBulkSubCount,
@@ -224,23 +108,13 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 			Entity:                "topic " + req.Topic,
 			LockRenewalInSec:      a.metadata.LockRenewalInSec,
 			RequireSessions:       requireSessions,
+			SessionIdleTimeout:    sessionIdleTimeout,
 		},
 		a.logger,
 	)
 
-	receiveAndBlockFn := func(receiver impl.Receiver, onFirstSuccess func()) error {
-		return sub.ReceiveBlocking(
-			impl.GetBulkPubSubHandlerFunc(req.Topic, handler, a.logger, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second),
-			receiver,
-			onFirstSuccess,
-			impl.ReceiveOptions{
-				BulkEnabled:        true, // Bulk is supported in BulkSubscribe.
-				SessionIdleTimeout: sessionIdleTimeout,
-			},
-		)
-	}
-
-	return a.doSubscribe(subscribeCtx, req, sub, receiveAndBlockFn, impl.SubscribeOptions{
+	handlerFn := impl.GetBulkPubSubHandlerFunc(req.Topic, handler, a.logger, time.Duration(a.metadata.HandlerTimeoutInSec)*time.Second)
+	return a.doSubscribe(subscribeCtx, req, sub, handlerFn, impl.SubscribeOptions{
 		RequireSessions:      requireSessions,
 		MaxConcurrentSesions: maxConcurrentSessions,
 	})
@@ -248,8 +122,12 @@ func (a *azureServiceBus) BulkSubscribe(subscribeCtx context.Context, req pubsub
 
 // doSubscribe is a helper function that handles the common logic for both Subscribe and BulkSubscribe.
 // The receiveAndBlockFn is a function should invoke a blocking call to receive messages from the topic.
-func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
-	req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(impl.Receiver, func()) error, opts impl.SubscribeOptions,
+func (a *azureServiceBus) doSubscribe(
+	subscribeCtx context.Context,
+	req pubsub.SubscribeRequest,
+	sub *impl.Subscription,
+	handlerFn impl.HandlerFn,
+	opts impl.SubscribeOptions,
 ) error {
 	// Does nothing if DisableEntityManagement is true
 	err := a.client.EnsureSubscription(subscribeCtx, a.metadata.ConsumerID, req.Topic, opts)
@@ -258,23 +136,16 @@ func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
 	}
 
 	// Reconnection backoff policy
-	bo := backoff.NewExponentialBackOff()
-	bo.MaxElapsedTime = 0
-	bo.InitialInterval = time.Duration(a.metadata.MinConnectionRecoveryInSec) * time.Second
-	bo.MaxInterval = time.Duration(a.metadata.MaxConnectionRecoveryInSec) * time.Second
-
-	onFirstSuccess := func() {
-		// Reset the backoff when the subscription is successful and we have received the first message
-		bo.Reset()
-	}
+	bo := a.client.ReconnectionBackoff()
 
 	go func() {
 		// Reconnect loop.
 		for {
+			// Reset the backoff when the subscription is successful and we have received the first message
 			if opts.RequireSessions {
-				a.ConnectAndReceiveWithSessions(subscribeCtx, req, sub, receiveAndBlockFn, onFirstSuccess, opts.MaxConcurrentSesions)
+				a.connectAndReceiveWithSessions(subscribeCtx, req, sub, handlerFn, bo.Reset, opts.MaxConcurrentSesions)
 			} else {
-				a.ConnectAndReceive(subscribeCtx, req, sub, receiveAndBlockFn, onFirstSuccess)
+				a.connectAndReceive(subscribeCtx, req, sub, handlerFn, bo.Reset)
 			}
 
 			// If context was canceled, do not attempt to reconnect
@@ -286,6 +157,12 @@ func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
 			wait := bo.NextBackOff()
 			a.logger.Warnf("Subscription to topic %s lost connection, attempting to reconnect in %s...", req.Topic, wait)
 			time.Sleep(wait)
+
+			// Check for context canceled again, after sleeping
+			if subscribeCtx.Err() != nil {
+				a.logger.Debug("Context canceled; will not reconnect")
+				return
+			}
 		}
 	}()
 
@@ -293,162 +170,102 @@ func (a *azureServiceBus) doSubscribe(subscribeCtx context.Context,
 }
 
 func (a *azureServiceBus) Close() (err error) {
-	a.client.CloseAllSenders(a.logger)
+	a.client.Close(a.logger)
 	return nil
 }
 
 func (a *azureServiceBus) Features() []pubsub.Feature {
-	return a.features
+	return []pubsub.Feature{
+		pubsub.FeatureMessageTTL,
+	}
 }
 
-func (a *azureServiceBus) ConnectAndReceive(subscribeCtx context.Context, req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(impl.Receiver, func()) error, onFirstSuccess func()) error {
-	defer func() {
-		// Gracefully close the connection (in case it's not closed already)
-		// Use a background context here (with timeout) because ctx may be closed already.
-		closeSubCtx, closeSubCancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
-		sub.Close(closeSubCtx)
-		closeSubCancel()
-	}()
+func (a *azureServiceBus) connectAndReceive(ctx context.Context, req pubsub.SubscribeRequest, sub *impl.Subscription, handlerFn impl.HandlerFn, onFirstSuccess func()) {
+	logMsg := fmt.Sprintf("subscription %s to topic %s", a.metadata.ConsumerID, req.Topic)
 
 	// Blocks until a successful connection (or until context is canceled)
-	receiver, err := sub.Connect(func() (impl.Receiver, error) {
-		a.logger.Debugf("Connecting to subscription %s for topic %s", a.metadata.ConsumerID, req.Topic)
-		r, err := a.client.GetClient().NewReceiverForSubscription(req.Topic, a.metadata.ConsumerID, nil)
-		return impl.NewMessageReceiver(r), err
+	receiver, err := sub.Connect(ctx, func() (impl.Receiver, error) {
+		a.logger.Debug("Connecting to " + logMsg)
+		r, rErr := a.client.GetClient().NewReceiverForSubscription(req.Topic, a.metadata.ConsumerID, nil)
+		if rErr != nil {
+			return nil, rErr
+		}
+		return impl.NewMessageReceiver(r), nil
 	})
 	if err != nil {
 		// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
 		if !errors.Is(err, context.Canceled) {
-			a.logger.Errorf("Could not instantiate session subscription %s to topic %s", a.metadata.ConsumerID, req.Topic)
+			a.logger.Error("Could not instantiate " + logMsg)
 		}
-		return nil
+		return
 	}
 
-	lockCtx, lockCancel := context.WithCancel(subscribeCtx)
-	defer func() {
-		// Cancel the lock renewal loop
-		lockCancel()
+	a.logger.Debug("Receiving messages for " + logMsg)
 
-		// Close the receiver
-		a.logger.Debugf("Closing message receiver for subscription %s to topic %s", a.metadata.ConsumerID, req.Topic)
-		closeReceiverCtx, closeReceiverCancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
-		receiver.Close(closeReceiverCtx)
-		closeReceiverCancel()
-	}()
-
-	// lock renewal loop
-	go func() {
-		a.logger.Debugf("Renewing locks for subscription %s for topic %s", a.metadata.ConsumerID, req.Topic)
-		lockErr := sub.RenewLocksBlocking(lockCtx, receiver, impl.LockRenewalOptions{
-			RenewalInSec: a.metadata.LockRenewalInSec,
-			TimeoutInSec: a.metadata.TimeoutInSec,
-		})
-		if lockErr != nil {
-			if !errors.Is(lockErr, context.Canceled) {
-				a.logger.Error(lockErr)
-			}
-		}
-	}()
-
-	a.logger.Debugf("Receiving messages for subscription %s to topic %s", a.metadata.ConsumerID, req.Topic)
-
-	// receiveAndBlockFn will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
+	// ReceiveBlocking will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
 	// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
-	if err := receiveAndBlockFn(receiver, onFirstSuccess); err != nil {
-		return err
+	err = sub.ReceiveBlocking(ctx, handlerFn, receiver, onFirstSuccess, logMsg)
+	if err != nil && !errors.Is(err, context.Canceled) {
+		a.logger.Error(err)
 	}
-
-	return nil
 }
 
-func (a *azureServiceBus) ConnectAndReceiveWithSessions(subscribeCtx context.Context, req pubsub.SubscribeRequest, sub *impl.Subscription, receiveAndBlockFn func(impl.Receiver, func()) error, onFirstSuccess func(), maxConcurrentSessions int) {
+func (a *azureServiceBus) connectAndReceiveWithSessions(ctx context.Context, req pubsub.SubscribeRequest, sub *impl.Subscription, handlerFn impl.HandlerFn, onFirstSuccess func(), maxConcurrentSessions int) {
 	sessionsChan := make(chan struct{}, maxConcurrentSessions)
 	for i := 0; i < maxConcurrentSessions; i++ {
 		sessionsChan <- struct{}{}
 	}
 
-	defer func() {
-		// Gracefully close the connection (in case it's not closed already)
-		// Use a background context here (with timeout) because ctx may be closed already
-		closeSubCtx, closeSubCancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
-		sub.Close(closeSubCtx)
-		closeSubCancel()
-	}()
-
 	for {
 		select {
-		case <-subscribeCtx.Done():
+		case <-ctx.Done():
 			return
 		case <-sessionsChan:
-			select {
-			case <-subscribeCtx.Done():
-				return
-			default:
-				func() { // IIFE to scope context cancellation
-					acceptCtx, acceptCancel := context.WithCancel(subscribeCtx)
-					defer acceptCancel()
-
-					var sessionID string
-
-					// Blocks until a successful connection (or until context is canceled)
-					receiver, err := sub.Connect(func() (impl.Receiver, error) {
-						a.logger.Debugf("Accepting next available session subscription %s to topic %s", a.metadata.ConsumerID, req.Topic)
-						r, err := a.client.GetClient().AcceptNextSessionForSubscription(acceptCtx, req.Topic, a.metadata.ConsumerID, nil)
-						if err == nil && r != nil {
-							sessionID = r.SessionID()
-						}
-						return impl.NewSessionReceiver(r), err
-					})
-					if err != nil {
-						// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
-						if !errors.Is(err, context.Canceled) {
-							a.logger.Errorf("Could not instantiate session subscription %s to topic %s", a.metadata.ConsumerID, req.Topic)
-						}
-						return
-					}
-
-					go func() {
-						lockCtx, lockCancel := context.WithCancel(subscribeCtx)
-						defer func() {
-							// cancel the lock renewal loop
-							lockCancel()
-
-							// close the receiver
-							a.logger.Debugf("Closing session %s receiver for subscription %s to topic %s", sessionID, a.metadata.ConsumerID, req.Topic)
-							closeReceiverCtx, closeReceiverCancel := context.WithTimeout(context.Background(), time.Second*time.Duration(a.metadata.TimeoutInSec))
-							receiver.Close(closeReceiverCtx)
-							closeReceiverCancel()
-
-							// return the session to the pool
-							a.logger.Debugf("Returning session to pool")
-							sessionsChan <- struct{}{}
-						}()
-
-						// lock renewal loop
-						go func() {
-							a.logger.Debugf("Renewing locks for session %s receiver for subscription %s to topic %s", sessionID, a.metadata.ConsumerID, req.Topic)
-							lockErr := sub.RenewLocksBlocking(lockCtx, receiver, impl.LockRenewalOptions{
-								RenewalInSec: a.metadata.LockRenewalInSec,
-								TimeoutInSec: a.metadata.TimeoutInSec,
-							})
-							if lockErr != nil {
-								if !errors.Is(lockErr, context.Canceled) {
-									a.logger.Error(lockErr)
-								}
-							}
-						}()
-
-						a.logger.Debugf("Receiving messages for session %s receiver for subscription %s to topic %s", sessionID, a.metadata.ConsumerID, req.Topic)
-
-						// receiveAndBlockFn will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
-						// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
-						err = receiveAndBlockFn(receiver, onFirstSuccess)
-						if err != nil && !errors.Is(err, context.Canceled) {
-							a.logger.Error(err)
-						}
-					}() // end session receive goroutine
-				}()
-			}
+			// nop - continue
 		}
+
+		// Check again if the context was canceled
+		if ctx.Err() != nil {
+			return
+		}
+
+		acceptCtx, acceptCancel := context.WithCancel(ctx)
+
+		// Blocks until a successful connection (or until context is canceled)
+		receiver, err := sub.Connect(ctx, func() (impl.Receiver, error) {
+			a.logger.Debugf("Accepting next available session subscription %s to topic %s", a.metadata.ConsumerID, req.Topic)
+			r, rErr := a.client.GetClient().AcceptNextSessionForSubscription(acceptCtx, req.Topic, a.metadata.ConsumerID, nil)
+			if rErr != nil {
+				return nil, rErr
+			}
+			return impl.NewSessionReceiver(r), nil
+		})
+		acceptCancel()
+		if err != nil {
+			// Realistically, the only time we should get to this point is if the context was canceled, but let's log any other error we may get.
+			if !errors.Is(err, context.Canceled) {
+				a.logger.Errorf("Could not instantiate session subscription %s to topic %s", a.metadata.ConsumerID, req.Topic)
+			}
+			return
+		}
+
+		// Receive messages for the session in a goroutine
+		go func() {
+			logMsg := fmt.Sprintf("session %s for subscription %s to topic %s", receiver.(*impl.SessionReceiver).SessionID(), a.metadata.ConsumerID, req.Topic)
+
+			defer func() {
+				// Return the session to the pool
+				sessionsChan <- struct{}{}
+			}()
+
+			a.logger.Debug("Receiving messages for " + logMsg)
+
+			// ReceiveBlocking will only return with an error that it cannot handle internally. The subscription connection is closed when this method returns.
+			// If that occurs, we will log the error and attempt to re-establish the subscription connection until we exhaust the number of reconnect attempts.
+			err = sub.ReceiveBlocking(ctx, handlerFn, receiver, onFirstSuccess, logMsg)
+			if err != nil && !errors.Is(err, context.Canceled) {
+				a.logger.Error(err)
+			}
+		}()
 	}
 }

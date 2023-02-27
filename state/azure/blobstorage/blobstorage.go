@@ -64,16 +64,13 @@ const (
 type StateStore struct {
 	state.DefaultBulkStore
 	containerClient *container.Client
-	json            jsoniter.API
-
-	features []state.Feature
-	logger   logger.Logger
+	logger          logger.Logger
 }
 
 // Init the connection to blob storage, optionally creates a blob container if it doesn't exist.
-func (r *StateStore) Init(metadata state.Metadata) error {
+func (r *StateStore) Init(_ context.Context, metadata state.Metadata) error {
 	var err error
-	r.containerClient, _, err = storageinternal.CreateContainerStorageClient(r.logger, metadata.Properties)
+	r.containerClient, _, err = storageinternal.CreateContainerStorageClient(context.TODO(), r.logger, metadata.Properties)
 	if err != nil {
 		return err
 	}
@@ -82,7 +79,7 @@ func (r *StateStore) Init(metadata state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (r *StateStore) Features() []state.Feature {
-	return r.features
+	return []state.Feature{state.FeatureETag}
 }
 
 // Delete the state.
@@ -100,8 +97,8 @@ func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	return r.writeFile(ctx, req)
 }
 
-func (r *StateStore) Ping() error {
-	if _, err := r.containerClient.GetProperties(context.Background(), nil); err != nil {
+func (r *StateStore) Ping(ctx context.Context) error {
+	if _, err := r.containerClient.GetProperties(ctx, nil); err != nil {
 		return fmt.Errorf("blob storage: error connecting to Blob storage at %s: %s", r.containerClient.URL(), err)
 	}
 
@@ -118,9 +115,7 @@ func (r *StateStore) GetComponentMetadata() map[string]string {
 // NewAzureBlobStorageStore instance.
 func NewAzureBlobStorageStore(logger logger.Logger) state.Store {
 	s := &StateStore{
-		json:     jsoniter.ConfigFastest,
-		features: []state.Feature{state.FeatureETag},
-		logger:   logger,
+		logger: logger,
 	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 

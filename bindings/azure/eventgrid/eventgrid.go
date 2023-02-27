@@ -19,6 +19,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -26,6 +30,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	armeventgrid "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventgrid/armeventgrid/v2"
+	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/valyala/fasthttp"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -36,12 +43,25 @@ import (
 	"github.com/dapr/kit/ptr"
 )
 
-const armOperationTimeout = 30 * time.Second
+const (
+	// Timeout for operations to Azure Resource Manager
+	armOperationTimeout = 30 * time.Second
+	// Format for the "jwks_uri" endpoint
+	// The %s refers to the tenant ID
+	jwksURIFormat = "https://login.microsoftonline.com/%s/discovery/v2.0/keys"
+	// Format for the "iss" claim in the JWT
+	// The %s refers to the tenant ID
+	jwtIssuerFormat = "https://login.microsoftonline.com/%s/v2.0"
+)
 
 // AzureEventGrid allows sending/receiving Azure Event Grid events.
 type AzureEventGrid struct {
 	metadata *azureEventGridMetadata
 	logger   logger.Logger
+	jwks     jwk.Set
+	closeCh  chan struct{}
+	closed   atomic.Bool
+	wg       sync.WaitGroup
 }
 
 type azureEventGridMetadata struct {
@@ -49,10 +69,6 @@ type azureEventGridMetadata struct {
 	Name string `json:"-" mapstructure:"-"`
 
 	// Required Input Binding Metadata
-	TenantID           string `json:"tenantId" mapstructure:"tenantId"`
-	SubscriptionID     string `json:"subscriptionId" mapstructure:"subscriptionId"`
-	ClientID           string `json:"clientId" mapstructure:"clientId"`
-	ClientSecret       string `json:"clientSecret" mapstructure:"clientSecret"`
 	SubscriberEndpoint string `json:"subscriberEndpoint" mapstructure:"subscriberEndpoint"`
 	HandshakePort      string `json:"handshakePort" mapstructure:"handshakePort"`
 	Scope              string `json:"scope" mapstructure:"scope"`
@@ -65,16 +81,23 @@ type azureEventGridMetadata struct {
 	TopicEndpoint string `json:"topicEndpoint" mapstructure:"topicEndpoint"`
 
 	// Internal
-	properties map[string]string
+	azureTenantID       string // Accepted values include: azureTenantID or tenantID
+	azureClientID       string // Accepted values include: azureClientID or clientID
+	azureSubscriptionID string // Accepted values: azureSubscriptionID or subscriptionID
+	subscriberPath      string
+	properties          map[string]string
 }
 
 // NewAzureEventGrid returns a new Azure Event Grid instance.
 func NewAzureEventGrid(logger logger.Logger) bindings.InputOutputBinding {
-	return &AzureEventGrid{logger: logger}
+	return &AzureEventGrid{
+		logger:  logger,
+		closeCh: make(chan struct{}),
+	}
 }
 
 // Init performs metadata init.
-func (a *AzureEventGrid) Init(metadata bindings.Metadata) error {
+func (a *AzureEventGrid) Init(_ context.Context, metadata bindings.Metadata) error {
 	m, err := a.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -84,53 +107,92 @@ func (a *AzureEventGrid) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
+var matchAuthHeader = regexp.MustCompile(`(?i)^(Bearer )?(([A-Za-z0-9_-]+\.){2}[A-Za-z0-9_-]+)$`)
+
+func (a *AzureEventGrid) validateAuthHeader(ctx context.Context, authorizationHeader string) bool {
+	// Extract the bearer token from the header
+	if authorizationHeader == "" {
+		a.logger.Error("Incoming webhook request does not contain an Authorization header")
+		return false
+	}
+	match := matchAuthHeader.FindStringSubmatch(authorizationHeader)
+	if len(match) < 3 {
+		a.logger.Error("Incoming webhook request does not contain a valid bearer token in the Authorization header")
+		return false
+	}
+	token := match[2]
+
+	// Validate the JWT
+	_, err := jwt.ParseString(
+		token,
+		jwt.WithKeySet(a.jwks, jws.WithInferAlgorithmFromKey(true)),
+		jwt.WithAudience(a.metadata.azureClientID),
+		jwt.WithIssuer(fmt.Sprintf(jwtIssuerFormat, a.metadata.azureTenantID)),
+		jwt.WithAcceptableSkew(5*time.Minute),
+		jwt.WithContext(ctx),
+	)
+	if err != nil {
+		a.logger.Errorf("Failed to validate JWT in the incoming webhook request: %v", err)
+		return false
+	}
+
+	return true
+}
+
+// Initializes the JWKS cache
+func (a *AzureEventGrid) initJWKSCache(ctx context.Context) error {
+	// Init the cache with the given URL
+	jwkURL := fmt.Sprintf(jwksURIFormat, a.metadata.azureTenantID)
+
+	c := jwk.NewCache(ctx)
+	c.Register(jwkURL, jwk.WithMinRefreshInterval(15*time.Minute))
+
+	// Do a first refresh to validate the JWKS keybag
+	_, err := c.Refresh(ctx, jwkURL)
+	if err != nil {
+		return fmt.Errorf("failed to perform initial refresh of JWKS: %w", err)
+	}
+
+	a.jwks = jwk.NewCachedSet(c, jwkURL)
+	return nil
+}
+
 func (a *AzureEventGrid) Read(ctx context.Context, handler bindings.Handler) error {
+	if a.closed.Load() {
+		return errors.New("binding is closed")
+	}
+
 	err := a.ensureInputBindingMetadata()
 	if err != nil {
 		return err
 	}
 
-	m := func(ctx *fasthttp.RequestCtx) {
-		if string(ctx.Path()) == "/api/events" {
-			switch string(ctx.Method()) {
-			case "OPTIONS":
-				ctx.Response.Header.Add("WebHook-Allowed-Origin", string(ctx.Request.Header.Peek("WebHook-Request-Origin")))
-				ctx.Response.Header.Add("WebHook-Allowed-Rate", "*")
-				ctx.Response.Header.SetStatusCode(http.StatusOK)
-				_, err = ctx.Response.BodyWriter().Write([]byte(""))
-				if err != nil {
-					a.logger.Error(err.Error())
-				}
-			case "POST":
-				bodyBytes := ctx.PostBody()
-
-				_, err = handler(ctx, &bindings.ReadResponse{
-					Data: bodyBytes,
-				})
-				if err != nil {
-					a.logger.Error(err.Error())
-					ctx.Error(err.Error(), http.StatusInternalServerError)
-				}
-			}
-		}
+	err = a.initJWKSCache(ctx)
+	if err != nil {
+		return err
 	}
 
 	srv := &fasthttp.Server{
-		Handler: m,
+		Handler: a.requestHandler(handler),
 	}
 
 	// Run the server in background
+	a.wg.Add(2)
 	go func() {
-		a.logger.Debugf("About to start listening for Event Grid events at http://localhost:%s/api/events", a.metadata.HandshakePort)
+		defer a.wg.Done()
+		a.logger.Infof("Listening for Event Grid events at http://localhost:%s%s", a.metadata.HandshakePort, a.metadata.subscriberPath)
 		srvErr := srv.ListenAndServe(":" + a.metadata.HandshakePort)
 		if err != nil {
 			a.logger.Errorf("Error starting server: %v", srvErr)
 		}
 	}()
-
-	// Close the server when context is canceled
+	// Close the server when context is canceled or binding closed.
 	go func() {
-		<-ctx.Done()
+		defer a.wg.Done()
+		select {
+		case <-ctx.Done():
+		case <-a.closeCh:
+		}
 		srvErr := srv.Shutdown()
 		if err != nil {
 			a.logger.Errorf("Error shutting down server: %v", srvErr)
@@ -147,6 +209,14 @@ func (a *AzureEventGrid) Read(ctx context.Context, handler bindings.Handler) err
 
 func (a *AzureEventGrid) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.CreateOperation}
+}
+
+func (a *AzureEventGrid) Close() error {
+	if a.closed.CompareAndSwap(false, true) {
+		close(a.closeCh)
+	}
+	a.wg.Wait()
+	return nil
 }
 
 func (a *AzureEventGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -172,14 +242,14 @@ func (a *AzureEventGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest
 	err = client.Do(request, response)
 	if err != nil {
 		err = fmt.Errorf("request error: %w", err)
-		a.logger.Error(err.Error())
+		a.logger.Errorf("Error sending message: %v", err)
 		return nil, err
 	}
 
 	if response.StatusCode() != http.StatusOK {
 		body := response.Body()
 		err = fmt.Errorf("invalid status code (%d) - response: %s", response.StatusCode(), string(body))
-		a.logger.Error(err.Error())
+		a.logger.Errorf("Error sending message: %v", err)
 		return nil, err
 	}
 
@@ -188,21 +258,84 @@ func (a *AzureEventGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest
 	return nil, nil
 }
 
-func (a *AzureEventGrid) ensureInputBindingMetadata() error {
-	if a.metadata.TenantID == "" {
-		return errors.New("metadata field 'TenantID' is empty in EventGrid binding")
+// Returns the fasthttp handler for the server
+func (a *AzureEventGrid) requestHandler(handler bindings.Handler) fasthttp.RequestHandler {
+	return func(ctx *fasthttp.RequestCtx) {
+		var err error
+		method := string(ctx.Method())
+
+		// Only respond to requests on subscriberPath for methods POST and OPTIONS
+		if method != http.MethodPost && method != http.MethodOptions {
+			ctx.Response.Header.SetStatusCode(http.StatusMethodNotAllowed)
+			_, err = ctx.Response.BodyWriter().Write([]byte("405 Method Not Allowed"))
+			if err != nil {
+				a.logger.Errorf("Error writing response: %v", err)
+			}
+			return
+		}
+		if string(ctx.Path()) != a.metadata.subscriberPath {
+			ctx.Response.Header.SetStatusCode(http.StatusNotFound)
+			_, err = ctx.Response.BodyWriter().Write([]byte("404 Not found"))
+			if err != nil {
+				a.logger.Errorf("Error writing response: %v", err)
+			}
+			return
+		}
+
+		// Validate the Authorization header
+		authorizationHeader := string(ctx.Request.Header.Peek("authorization"))
+		// Note that ctx is a fasthttp context so it's actually tied to the server's lifecycle and not the request's
+		if !a.validateAuthHeader(ctx, authorizationHeader) {
+			ctx.Response.Header.SetStatusCode(http.StatusUnauthorized)
+			_, err = ctx.Response.BodyWriter().Write([]byte("401 Unauthorized"))
+			if err != nil {
+				a.logger.Errorf("Error writing response: %v", err)
+			}
+			return
+		}
+
+		switch method {
+		case http.MethodOptions:
+			ctx.Response.Header.Add("WebHook-Allowed-Origin", string(ctx.Request.Header.Peek("WebHook-Request-Origin")))
+			ctx.Response.Header.Add("WebHook-Allowed-Rate", "*")
+			ctx.Response.Header.SetStatusCode(http.StatusOK)
+			_, err = ctx.Response.BodyWriter().Write([]byte(""))
+			if err != nil {
+				a.logger.Errorf("Error writing response: %v", err)
+			}
+		case http.MethodPost:
+			_, err = handler(ctx, &bindings.ReadResponse{
+				Data: ctx.PostBody(),
+			})
+			if err != nil {
+				a.logger.Errorf("Error writing response: %v", err)
+				ctx.Error(err.Error(), http.StatusInternalServerError)
+			}
+		}
 	}
-	if a.metadata.SubscriptionID == "" {
-		return errors.New("metadata field 'SubscriptionID' is empty in EventGrid binding")
+}
+
+func (a *AzureEventGrid) ensureInputBindingMetadata() error {
+	a.metadata.azureTenantID, _ = metadata.GetMetadataProperty(a.metadata.properties, azauth.MetadataKeys["TenantID"]...)
+	if a.metadata.azureTenantID == "" {
+		return errors.New("metadata field 'azureTenantID' is empty in EventGrid binding")
+	}
+	a.metadata.azureClientID, _ = metadata.GetMetadataProperty(a.metadata.properties, azauth.MetadataKeys["ClientID"]...)
+	if a.metadata.azureClientID == "" {
+		return errors.New("metadata field 'azureClientID' is empty in EventGrid binding")
+	}
+	a.metadata.azureSubscriptionID, _ = metadata.GetMetadataProperty(a.metadata.properties, "subscriptionID", "azureSubscriptionID")
+	if a.metadata.azureSubscriptionID == "" {
+		return errors.New("metadata field 'azureSubscriptionID' is empty in EventGrid binding")
 	}
 	if a.metadata.SubscriberEndpoint == "" {
-		return errors.New("metadata field 'SubscriberEndpoint' is empty in EventGrid binding")
+		return errors.New("metadata field 'subscriberEndpoint' is empty in EventGrid binding")
 	}
 	if a.metadata.HandshakePort == "" {
-		return errors.New("metadata field 'HandshakePort' is empty in EventGrid binding")
+		return errors.New("metadata field 'handshakePort' is empty in EventGrid binding")
 	}
 	if a.metadata.Scope == "" {
-		return errors.New("metadata field 'Scope' is empty in EventGrid binding")
+		return errors.New("metadata field 'scope' is empty in EventGrid binding")
 	}
 
 	return nil
@@ -238,11 +371,13 @@ func (a *AzureEventGrid) parseMetadata(md bindings.Metadata) (*azureEventGridMet
 	if u.Path == "" || u.Path == "/" {
 		a.logger.Info("property 'subscriberEndpoint' does not include a path; adding '/api/events' automatically")
 		u.Path = "/api/events"
-	} else if u.Path != "/api/events" && u.Path != "api/events" {
-		// Show a warning but still continue
-		a.logger.Warn("property 'subscriberEndpoint' includes a path different from '/api/events': this is probably a mistake")
 	}
+
 	eventGridMetadata.SubscriberEndpoint = u.String()
+	eventGridMetadata.subscriberPath = u.Path
+	if !strings.HasPrefix(eventGridMetadata.subscriberPath, "/") {
+		eventGridMetadata.subscriberPath = "/" + eventGridMetadata.subscriberPath
+	}
 
 	eventGridMetadata.Name = md.Name
 
@@ -269,7 +404,7 @@ func (a *AzureEventGrid) createSubscription(parentCtx context.Context) error {
 	}
 
 	// Create a client
-	client, err := armeventgrid.NewEventSubscriptionsClient(a.metadata.SubscriptionID, creds, &arm.ClientOptions{
+	client, err := armeventgrid.NewEventSubscriptionsClient(a.metadata.azureSubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: policy.ClientOptions{
 			Telemetry: policy.TelemetryOptions{
 				ApplicationID: "dapr-" + logger.DaprVersion,
@@ -285,20 +420,10 @@ func (a *AzureEventGrid) createSubscription(parentCtx context.Context) error {
 	defer cancel()
 	res, err := client.Get(ctx, a.metadata.Scope, a.metadata.EventSubscriptionName, nil)
 	if err == nil {
-		// If there's no error, the subscription already exists, but check if the endpoint URL matches
-		if res.Properties != nil && res.Properties.Destination != nil &&
-			res.Properties.EventDeliverySchema != nil && *res.Properties.EventDeliverySchema == armeventgrid.EventDeliverySchemaCloudEventSchemaV10 &&
-			*res.Properties.Destination.GetEventSubscriptionDestination().EndpointType == armeventgrid.EndpointTypeWebHook {
-			webhookDestination, ok := res.Properties.Destination.(*armeventgrid.WebHookEventSubscriptionDestination)
-			if ok && webhookDestination != nil && webhookDestination.Properties != nil {
-				props := webhookDestination.Properties
-				// Could either be endpointURL or EndpointBaseURL
-				if (props.EndpointURL != nil && *props.EndpointURL == a.metadata.SubscriberEndpoint) ||
-					(props.EndpointBaseURL != nil && *props.EndpointBaseURL == a.metadata.SubscriberEndpoint) {
-					a.logger.Debug("Event subscription already exists with the correct endpoint")
-					return nil
-				}
-			}
+		// If there's no error, the subscription already exists, but check if it is up-to-date
+		if !a.subscriptionNeedsUpdating(res) {
+			a.logger.Debug("Event subscription already exists with the correct endpoint")
+			return nil
 		}
 	} else {
 		// Check if the error is a "not found" (just means we have to create the subscription) or something else
@@ -317,16 +442,40 @@ func (a *AzureEventGrid) createSubscription(parentCtx context.Context) error {
 	var properties *armeventgrid.EventSubscriptionProperties
 	if res.Properties != nil {
 		properties = res.Properties
+		// If the destination is not a webhook, override the entire destination
+		if properties.Destination == nil || properties.Destination.GetEventSubscriptionDestination() == nil || *properties.Destination.GetEventSubscriptionDestination().EndpointType != armeventgrid.EndpointTypeWebHook {
+			// Will be overridden later
+			properties.Destination = nil
+		} else {
+			// Surgically override only the properties we care about
+			destination, ok := properties.Destination.(*armeventgrid.WebHookEventSubscriptionDestination)
+			if ok && destination != nil {
+				destination.EndpointType = ptr.Of(armeventgrid.EndpointTypeWebHook)
+				if destination.Properties == nil {
+					destination.Properties = &armeventgrid.WebHookEventSubscriptionDestinationProperties{}
+				}
+				destination.Properties.AzureActiveDirectoryTenantID = &a.metadata.azureTenantID
+				destination.Properties.AzureActiveDirectoryApplicationIDOrURI = &a.metadata.azureClientID
+				destination.Properties.EndpointURL = &a.metadata.SubscriberEndpoint
+			}
+		}
 	} else {
 		properties = &armeventgrid.EventSubscriptionProperties{}
 	}
+	// Override EventDeliverySchema regardless
 	properties.EventDeliverySchema = ptr.Of(armeventgrid.EventDeliverySchemaCloudEventSchemaV10)
-	properties.Destination = &armeventgrid.WebHookEventSubscriptionDestination{
-		EndpointType: ptr.Of(armeventgrid.EndpointTypeWebHook),
-		Properties: &armeventgrid.WebHookEventSubscriptionDestinationProperties{
-			EndpointURL: &a.metadata.SubscriberEndpoint,
-		},
+	// Set Destination if not yet set
+	if properties.Destination == nil {
+		properties.Destination = &armeventgrid.WebHookEventSubscriptionDestination{
+			EndpointType: ptr.Of(armeventgrid.EndpointTypeWebHook),
+			Properties: &armeventgrid.WebHookEventSubscriptionDestinationProperties{
+				AzureActiveDirectoryTenantID:           &a.metadata.azureTenantID,
+				AzureActiveDirectoryApplicationIDOrURI: &a.metadata.azureClientID,
+				EndpointURL:                            &a.metadata.SubscriberEndpoint,
+			},
+		}
 	}
+
 	ctx, cancel = context.WithTimeout(parentCtx, armOperationTimeout)
 	defer cancel()
 	poller, err := client.BeginCreateOrUpdate(ctx, a.metadata.Scope, a.metadata.EventSubscriptionName, armeventgrid.EventSubscription{Properties: properties}, nil)
@@ -341,4 +490,45 @@ func (a *AzureEventGrid) createSubscription(parentCtx context.Context) error {
 	a.logger.Info("Event subscription has been updated")
 
 	return nil
+}
+
+// Checks an existing Event Subscription to see if it needs to be updated.
+func (a *AzureEventGrid) subscriptionNeedsUpdating(res armeventgrid.EventSubscriptionsClientGetResponse) bool {
+	// Quick sanity check
+	if res.Properties == nil {
+		return true
+	}
+
+	// Schema must use Cloud Event 1.0
+	if res.Properties.EventDeliverySchema == nil || *res.Properties.EventDeliverySchema != armeventgrid.EventDeliverySchemaCloudEventSchemaV10 {
+		return true
+	}
+
+	// Destination must be a webhook
+	if res.Properties.Destination == nil || res.Properties.Destination.GetEventSubscriptionDestination() == nil || *res.Properties.Destination.GetEventSubscriptionDestination().EndpointType != armeventgrid.EndpointTypeWebHook {
+		return true
+	}
+	webhookDestination, ok := res.Properties.Destination.(*armeventgrid.WebHookEventSubscriptionDestination)
+	if !ok || webhookDestination == nil || webhookDestination.Properties == nil {
+		return true
+	}
+	props := webhookDestination.Properties
+
+	// Check endpoint
+	// Could either be endpointURL or EndpointBaseURL
+	if (props.EndpointURL == nil || *props.EndpointURL != a.metadata.SubscriberEndpoint) &&
+		(props.EndpointBaseURL == nil || *props.EndpointBaseURL != a.metadata.SubscriberEndpoint) {
+		return true
+	}
+
+	// Azure AD credentials
+	if props.AzureActiveDirectoryApplicationIDOrURI == nil || *props.AzureActiveDirectoryApplicationIDOrURI != a.metadata.azureClientID {
+		return true
+	}
+	if props.AzureActiveDirectoryTenantID == nil || *props.AzureActiveDirectoryTenantID != a.metadata.azureTenantID {
+		return true
+	}
+
+	// All good
+	return false
 }

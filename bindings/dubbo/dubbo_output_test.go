@@ -54,12 +54,13 @@ func TestInvoke(t *testing.T) {
 	// 0. init dapr provided and dubbo server
 	stopCh := make(chan struct{})
 	defer close(stopCh)
+	// Create output and set serializer before go routine to prevent data race.
+	output := NewDubboOutput(logger.NewLogger("test"))
+	dubboImpl.SetSerializer(constant.Hessian2Serialization, HessianSerializer{})
 	go func() {
 		assert.Nil(t, runDubboServer(stopCh))
 	}()
 	time.Sleep(time.Second * 3)
-	dubboImpl.SetSerializer(constant.Hessian2Serialization, HessianSerializer{})
-	output := NewDubboOutput(logger.NewLogger("test"))
 
 	// 1. create req/rsp value
 	reqUser := &User{Name: testName}

@@ -73,7 +73,7 @@ func (aeh *AzureEventHubs) Init(metadata map[string]string) error {
 	}
 	aeh.metadata = m
 
-	aeh.metadata.azEnvSettings, err = azauth.NewEnvironmentSettings("eventhubs", metadata)
+	aeh.metadata.azEnvSettings, err = azauth.NewEnvironmentSettings(metadata)
 	if err != nil {
 		return fmt.Errorf("failed to initialize Azure environment: %w", err)
 	}

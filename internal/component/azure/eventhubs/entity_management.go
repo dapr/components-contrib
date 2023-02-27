@@ -54,7 +54,7 @@ func (aeh *AzureEventHubs) initEntityManagement() error {
 	}
 
 	// Get Azure Management plane credentials object
-	settings, err := azauth.NewEnvironmentSettings("azure", aeh.metadata.properties)
+	settings, err := azauth.NewEnvironmentSettings(aeh.metadata.properties)
 	if err != nil {
 		return err
 	}

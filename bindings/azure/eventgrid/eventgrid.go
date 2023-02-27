@@ -394,7 +394,7 @@ func (a *AzureEventGrid) parseMetadata(md bindings.Metadata) (*azureEventGridMet
 
 func (a *AzureEventGrid) createSubscription(parentCtx context.Context) error {
 	// Get Azure Management plane credentials object
-	settings, err := azauth.NewEnvironmentSettings("azure", a.metadata.properties)
+	settings, err := azauth.NewEnvironmentSettings(a.metadata.properties)
 	if err != nil {
 		return err
 	}

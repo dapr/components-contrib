@@ -102,7 +102,7 @@ func (r *ConfigurationStore) Init(_ context.Context, metadata configuration.Meta
 		}
 	} else {
 		var settings azauth.EnvironmentSettings
-		settings, err = azauth.NewEnvironmentSettings("appconfig", metadata.Properties)
+		settings, err = azauth.NewEnvironmentSettings(metadata.Properties)
 		if err != nil {
 			return err
 		}

@@ -71,7 +71,7 @@ func NewClient(metadata *Metadata, rawMetadata map[string]string) (*Client, erro
 			}
 		}
 	} else {
-		settings, err := azauth.NewEnvironmentSettings("servicebus", rawMetadata)
+		settings, err := azauth.NewEnvironmentSettings(rawMetadata)
 		if err != nil {
 			return nil, err
 		}

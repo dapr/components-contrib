@@ -65,7 +65,7 @@ func (d *AzureQueueHelper) Init(ctx context.Context, meta bindings.Metadata) (*s
 		return nil, err
 	}
 
-	azEnvSettings, err := azauth.NewEnvironmentSettings("storage", meta.Properties)
+	azEnvSettings, err := azauth.NewEnvironmentSettings(meta.Properties)
 	if err != nil {
 		return nil, err
 	}

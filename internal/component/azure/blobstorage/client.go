@@ -44,7 +44,7 @@ func CreateContainerStorageClient(parentCtx context.Context, log logger.Logger, 
 		return nil, nil, err
 	}
 
-	azEnvSettings, err := azauth.NewEnvironmentSettings("storage", meta)
+	azEnvSettings, err := azauth.NewEnvironmentSettings(meta)
 	if err != nil {
 		return nil, nil, err
 	}

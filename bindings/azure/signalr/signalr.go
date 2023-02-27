@@ -89,7 +89,7 @@ func (s *SignalR) Init(_ context.Context, metadata bindings.Metadata) (err error
 	// If using AAD for authentication, init the token provider
 	if s.accessKey == "" {
 		var settings azauth.EnvironmentSettings
-		settings, err = azauth.NewEnvironmentSettings("signalr", metadata.Properties)
+		settings, err = azauth.NewEnvironmentSettings(metadata.Properties)
 		if err != nil {
 			return err
 		}

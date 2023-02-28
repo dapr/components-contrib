@@ -393,6 +393,7 @@ jobs:
         echo "COVERAGE_LINE=$COVERAGE_LINE" >> $GITHUB_ENV
         echo "COMPONENT_PERCENTAGE=$COVERAGE_PERCENTAGE" >> $GITHUB_ENV
         # echo "$(<cover.out )" >> tmp/cert_code_cov_files/${{ env.SOURCE_PATH_LINEAR }}.out
+        cat > tmp/cert_code_cov_files/${{ env.SOURCE_PATH_LINEAR }}.out
         cat cover.out >> tmp/cert_code_cov_files/${{ env.SOURCE_PATH_LINEAR }}.out
 
 

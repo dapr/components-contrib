@@ -224,10 +224,6 @@ const components = {
             'AzureCertificationServicePrincipalClientSecret',
         ],
     },
-    'pubsub.hazelcast': {
-        conformance: true,
-        conformanceSetup: 'docker-compose.sh hazelcast',
-    },
     'pubsub.in-memory': {
         conformance: true,
     },

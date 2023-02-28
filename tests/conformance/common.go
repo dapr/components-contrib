@@ -66,7 +66,6 @@ import (
 	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
 	p_servicebusqueues "github.com/dapr/components-contrib/pubsub/azure/servicebus/queues"
 	p_servicebustopics "github.com/dapr/components-contrib/pubsub/azure/servicebus/topics"
-	p_hazelcast "github.com/dapr/components-contrib/pubsub/hazelcast"
 	p_inmemory "github.com/dapr/components-contrib/pubsub/in-memory"
 	p_jetstream "github.com/dapr/components-contrib/pubsub/jetstream"
 	p_kafka "github.com/dapr/components-contrib/pubsub/kafka"
@@ -494,8 +493,6 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_pulsar.NewPulsar(testLogger)
 	case "mqtt3":
 		pubsub = p_mqtt3.NewMQTTPubSub(testLogger)
-	case "hazelcast":
-		pubsub = p_hazelcast.NewHazelcastPubSub(testLogger)
 	case "rabbitmq":
 		pubsub = p_rabbitmq.NewRabbitMQ(testLogger)
 	case "in-memory":

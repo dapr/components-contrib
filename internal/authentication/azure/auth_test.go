@@ -18,7 +18,9 @@ import (
 	"os"
 	"testing"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -31,7 +33,6 @@ const (
 
 func TestGetClientCert(t *testing.T) {
 	settings, err := NewEnvironmentSettings(
-		"keyvault",
 		map[string]string{
 			"azureCertificateFile":     "testfile",
 			"azureCertificate":         "testcert",
@@ -45,14 +46,53 @@ func TestGetClientCert(t *testing.T) {
 
 	testCertConfig, _ := settings.GetClientCert()
 
-	assert.NotNil(t, testCertConfig.ClientCertificateConfig)
-	assert.Equal(t, "testfile", testCertConfig.ClientCertificateConfig.CertificatePath)
+	assert.Equal(t, "testfile", testCertConfig.CertificatePath)
 	assert.Equal(t, []byte("testcert"), testCertConfig.CertificateData)
-	assert.Equal(t, "1234", testCertConfig.ClientCertificateConfig.CertificatePassword)
-	assert.Equal(t, fakeClientID, testCertConfig.ClientCertificateConfig.ClientID)
-	assert.Equal(t, fakeTenantID, testCertConfig.ClientCertificateConfig.TenantID)
-	assert.Equal(t, "https://vault.azure.net", testCertConfig.ClientCertificateConfig.Resource)
-	assert.Equal(t, "https://login.microsoftonline.com/", testCertConfig.ClientCertificateConfig.AADEndpoint)
+	assert.Equal(t, "1234", testCertConfig.CertificatePassword)
+	assert.Equal(t, fakeClientID, testCertConfig.ClientID)
+	assert.Equal(t, fakeTenantID, testCertConfig.TenantID)
+	require.NotNil(t, testCertConfig.AzureCloud)
+	assert.Equal(t, "https://login.microsoftonline.com/", testCertConfig.AzureCloud.ActiveDirectoryAuthorityHost)
+	assert.Equal(t, "core.windows.net", settings.EndpointSuffix(ServiceAzureStorage))
+}
+
+func TestAzureCloud(t *testing.T) {
+	settings, err := NewEnvironmentSettings(
+		map[string]string{
+			"azureCertificateFile":     "testfile",
+			"azureCertificate":         "testcert",
+			"azureCertificatePassword": "1234",
+			"azureClientId":            fakeClientID,
+			"azureTenantId":            fakeTenantID,
+			"vaultName":                "vaultName",
+			"azureEnvironment":         "AzureChina",
+		},
+	)
+	require.NoError(t, err)
+
+	testCertConfig, _ := settings.GetClientCert()
+
+	assert.Equal(t, "testfile", testCertConfig.CertificatePath)
+	assert.Equal(t, []byte("testcert"), testCertConfig.CertificateData)
+	assert.Equal(t, "1234", testCertConfig.CertificatePassword)
+	assert.Equal(t, fakeClientID, testCertConfig.ClientID)
+	assert.Equal(t, fakeTenantID, testCertConfig.TenantID)
+	require.NotNil(t, testCertConfig.AzureCloud)
+	assert.Equal(t, "https://login.chinacloudapi.cn/", testCertConfig.AzureCloud.ActiveDirectoryAuthorityHost)
+	assert.Equal(t, "core.chinacloudapi.cn", settings.EndpointSuffix(ServiceAzureStorage))
+}
+
+func TestEndpointSuffix(t *testing.T) {
+	es := EnvironmentSettings{}
+
+	es.Cloud = nil
+	assert.Equal(t, "vault.azure.net", es.EndpointSuffix(ServiceAzureKeyVault))
+
+	es.Cloud = &cloud.AzurePublic
+	assert.Equal(t, "vault.azure.net", es.EndpointSuffix(ServiceAzureKeyVault))
+
+	es.Cloud = &cloud.AzureGovernment
+	assert.Equal(t, "vault.usgovcloudapi.net", es.EndpointSuffix(ServiceAzureKeyVault))
 }
 
 //nolint:gosec
@@ -60,10 +100,9 @@ func TestAuthorizorWithCertFile(t *testing.T) {
 	testCertFileName := "./.cert.pfx"
 	certBytes := getTestCert()
 	err := os.WriteFile(testCertFileName, certBytes, 0o644)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	settings, err := NewEnvironmentSettings(
-		"keyvault",
 		map[string]string{
 			"azureCertificateFile":     testCertFileName,
 			"azureCertificatePassword": "",
@@ -72,15 +111,13 @@ func TestAuthorizorWithCertFile(t *testing.T) {
 			"vaultName":                "vaultName",
 		},
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	testCertConfig, _ := settings.GetClientCert()
-	assert.NotNil(t, testCertConfig)
-	assert.NotNil(t, testCertConfig.ClientCertificateConfig)
 
-	authorizer, err := testCertConfig.Authorizer()
+	spt, err := testCertConfig.GetTokenCredential()
 	assert.NoError(t, err)
-	assert.NotNil(t, authorizer)
+	assert.NotNil(t, spt)
 
 	err = os.Remove(testCertFileName)
 	assert.NoError(t, err)
@@ -91,7 +128,6 @@ func TestAuthorizorWithCertBytes(t *testing.T) {
 		certBytes := getTestCert()
 
 		settings, err := NewEnvironmentSettings(
-			"keyvault",
 			map[string]string{
 				"azureCertificate":         string(certBytes),
 				"azureCertificatePassword": "",
@@ -104,10 +140,8 @@ func TestAuthorizorWithCertBytes(t *testing.T) {
 
 		testCertConfig, _ := settings.GetClientCert()
 		assert.NotNil(t, testCertConfig)
-		assert.NotNil(t, testCertConfig.ClientCertificateConfig)
 
-		spt, err := testCertConfig.ServicePrincipalToken()
-
+		spt, err := testCertConfig.GetTokenCredential()
 		assert.NoError(t, err)
 		assert.NotNil(t, spt)
 	})
@@ -116,7 +150,6 @@ func TestAuthorizorWithCertBytes(t *testing.T) {
 		certBytes := getTestCert()
 
 		settings, err := NewEnvironmentSettings(
-			"keyvault",
 			map[string]string{
 				"azureCertificate":         string(certBytes[0:20]),
 				"azureCertificatePassword": "",
@@ -129,16 +162,14 @@ func TestAuthorizorWithCertBytes(t *testing.T) {
 
 		testCertConfig, _ := settings.GetClientCert()
 		assert.NotNil(t, testCertConfig)
-		assert.NotNil(t, testCertConfig.ClientCertificateConfig)
 
-		_, err = testCertConfig.ServicePrincipalToken()
+		_, err = testCertConfig.GetTokenCredential()
 		assert.Error(t, err)
 	})
 }
 
 func TestGetMSI(t *testing.T) {
 	settings, err := NewEnvironmentSettings(
-		"keyvault",
 		map[string]string{
 			"azureClientId": fakeClientID,
 			"vaultName":     "vaultName",
@@ -149,14 +180,12 @@ func TestGetMSI(t *testing.T) {
 	testCertConfig := settings.GetMSI()
 
 	assert.Equal(t, fakeClientID, testCertConfig.ClientID)
-	assert.Equal(t, "https://vault.azure.net", testCertConfig.Resource)
 }
 
 func TestFallbackToMSI(t *testing.T) {
 	os.Setenv("MSI_ENDPOINT", "test")
 	defer os.Unsetenv("MSI_ENDPOINT")
 	settings, err := NewEnvironmentSettings(
-		"keyvault",
 		map[string]string{
 			"azureClientId": fakeClientID,
 			"vaultName":     "vaultName",
@@ -164,17 +193,15 @@ func TestFallbackToMSI(t *testing.T) {
 	)
 	assert.NoError(t, err)
 
-	spt, err := settings.GetServicePrincipalToken()
-
-	assert.NotNil(t, spt)
+	spt, err := settings.GetTokenCredential()
 	assert.NoError(t, err)
+	assert.NotNil(t, spt)
 }
 
 func TestAuthorizorWithMSI(t *testing.T) {
 	os.Setenv("MSI_ENDPOINT", "test")
 	defer os.Unsetenv("MSI_ENDPOINT")
 	settings, err := NewEnvironmentSettings(
-		"keyvault",
 		map[string]string{
 			"azureClientId": fakeClientID,
 			"vaultName":     "vaultName",
@@ -185,7 +212,7 @@ func TestAuthorizorWithMSI(t *testing.T) {
 	testCertConfig := settings.GetMSI()
 	assert.NotNil(t, testCertConfig)
 
-	spt, err := testCertConfig.ServicePrincipalToken()
+	spt, err := settings.GetTokenCredential()
 	assert.NoError(t, err)
 	assert.NotNil(t, spt)
 }
@@ -194,7 +221,6 @@ func TestAuthorizorWithMSIAndUserAssignedID(t *testing.T) {
 	os.Setenv("MSI_ENDPOINT", "test")
 	defer os.Unsetenv("MSI_ENDPOINT")
 	settings, err := NewEnvironmentSettings(
-		"keyvault",
 		map[string]string{
 			"azureClientId": fakeClientID,
 			"vaultName":     "vaultName",
@@ -205,7 +231,7 @@ func TestAuthorizorWithMSIAndUserAssignedID(t *testing.T) {
 	testCertConfig := settings.GetMSI()
 	assert.NotNil(t, testCertConfig)
 
-	spt, err := testCertConfig.ServicePrincipalToken()
+	spt, err := settings.GetTokenCredential()
 	assert.NoError(t, err)
 	assert.NotNil(t, spt)
 }

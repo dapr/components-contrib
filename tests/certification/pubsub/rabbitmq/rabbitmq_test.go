@@ -49,18 +49,19 @@ import (
 )
 
 const (
-	sidecarName1         = "dapr-1"
-	sidecarName2         = "dapr-2"
-	sidecarName3         = "dapr-3"
-	sidecarNameTTLClient = "dapr-ttl-client"
-	appID1               = "app-1"
-	appID2               = "app-2"
-	appID3               = "app-3"
-	clusterName          = "rabbitmqcertification"
-	dockerComposeYAML    = "docker-compose.yml"
-	numMessages          = 1000
-	errFrequency         = 100
-	appPort              = 8000
+	sidecarName1             = "dapr-1"
+	sidecarName2             = "dapr-2"
+	sidecarName3             = "dapr-3"
+	sidecarNameTTLClient     = "dapr-ttl-client"
+	appID1                   = "app-1"
+	appID2                   = "app-2"
+	appID3                   = "app-3"
+	clusterName              = "rabbitmqcertification"
+	dockerComposeYAML        = "docker-compose.yml"
+	extSaslDockerComposeYAML = "mtls_sasl_external/docker-compose.yml"
+	numMessages              = 1000
+	errFrequency             = 100
+	appPort                  = 8000
 
 	rabbitMQURL        = "amqp://test:test@localhost:5672"
 	rabbitMQURLExtAuth = "amqps://localhost:5671"
@@ -106,7 +107,7 @@ func amqpReady(url string) flow.Runnable {
 
 func amqpMtlsExternalAuthReady(url string) flow.Runnable {
 	return func(ctx flow.Context) error {
-		cer, err := tls.LoadX509KeyPair("/Users/abossard/Desktop/projects/RabbitmqS/my-home/client/cert.pem", "/Users/abossard/Desktop/projects/RabbitmqS/my-home/client/key.pem")
+		cer, err := tls.LoadX509KeyPair("./mtls_sasl_external/docker_sasl_external/certs/client/cert.pem", "./mtls_sasl_external/docker_sasl_external/certs/client/key.pem")
 		if err != nil {
 			log.Println(err)
 		}
@@ -683,14 +684,14 @@ func TestRabbitMQExtAuth(t *testing.T) {
 
 	flow.New(t, "rabbitmq mtls external authentication").
 		// Run RabbitMQ using Docker Compose.
-		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
+		Step(dockercompose.Run(clusterName, extSaslDockerComposeYAML)).
 		Step("wait for rabbitmq readiness (external auth)",
 			retry.Do(time.Second, 30, amqpMtlsExternalAuthReady(rabbitMQURLExtAuth))).
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			application(mtlsClient, 1))).
 		// Run the Dapr sidecar with the RabbitMQ component.
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/mtls_external"),
+			embedded.WithComponentsPath("./mtls_sasl_external/components/mtls_external"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+10),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),

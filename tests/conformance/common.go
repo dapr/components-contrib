@@ -36,7 +36,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/configuration"
-	daprcrypto "github.com/dapr/components-contrib/crypto"
+	contribCrypto "github.com/dapr/components-contrib/crypto"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/components-contrib/state"
@@ -534,8 +534,8 @@ func loadSecretStore(tc TestComponent) secretstores.SecretStore {
 	return store
 }
 
-func loadCryptoProvider(tc TestComponent) daprcrypto.SubtleCrypto {
-	var component daprcrypto.SubtleCrypto
+func loadCryptoProvider(tc TestComponent) contribCrypto.SubtleCrypto {
+	var component contribCrypto.SubtleCrypto
 	switch tc.Component {
 	case "azure.keyvault":
 		component = cr_azurekeyvault.NewAzureKeyvaultCrypto(testLogger)

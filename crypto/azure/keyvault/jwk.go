@@ -25,11 +25,11 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
-	daprcrypto "github.com/dapr/components-contrib/crypto"
+	contribCrypto "github.com/dapr/components-contrib/crypto"
 )
 
 // KeyBundleToKey converts an azkeys.KeyBundle object to a daprcrypto.Key one containing the public part of the asymmetric key.
-func KeyBundleToKey(bundle *azkeys.KeyBundle) (*daprcrypto.Key, error) {
+func KeyBundleToKey(bundle *azkeys.KeyBundle) (*contribCrypto.Key, error) {
 	if bundle == nil ||
 		bundle.Key == nil || bundle.Key.KID == nil ||
 		bundle.Attributes == nil || bundle.Attributes.Enabled == nil || *bundle.Attributes.Enabled == false {
@@ -53,7 +53,7 @@ func KeyBundleToKey(bundle *azkeys.KeyBundle) (*daprcrypto.Key, error) {
 	}
 
 	// Convert to daprcrypto.Key
-	return daprcrypto.NewKey(jwkObj, kid, bundle.Attributes.Expires, bundle.Attributes.NotBefore), nil
+	return contribCrypto.NewKey(jwkObj, kid, bundle.Attributes.Expires, bundle.Attributes.NotBefore), nil
 }
 
 // JSONWebKey extends azkeys.JSONWebKey to add methods to export the key.

@@ -21,7 +21,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
-	internals "github.com/dapr/components-contrib/internal/crypto"
+	internals "github.com/dapr/kit/crypto"
 )
 
 // ErrKeyNotFound is returned when the key could not be found.

@@ -16,7 +16,7 @@ package crypto
 import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
-	internals "github.com/dapr/components-contrib/internal/crypto"
+	internals "github.com/dapr/kit/crypto"
 )
 
 // SerializeKey serializes a jwk.Key in the appropriate format so they can be wrapped.

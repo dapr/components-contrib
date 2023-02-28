@@ -28,7 +28,7 @@ import (
 	"github.com/lestrrat-go/httprc"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
-	daprcrypto "github.com/dapr/components-contrib/crypto"
+	contribCrypto "github.com/dapr/components-contrib/crypto"
 	"github.com/dapr/kit/fswatcher"
 	"github.com/dapr/kit/logger"
 )
@@ -43,7 +43,7 @@ const (
 )
 
 type jwksCrypto struct {
-	daprcrypto.LocalCryptoBaseComponent
+	contribCrypto.LocalCryptoBaseComponent
 
 	requestTimeout time.Duration
 
@@ -57,7 +57,7 @@ type jwksCrypto struct {
 
 // NewJWKSCrypto returns a new crypto provider based a JWKS, either passed as metadata, or read from a file or HTTP(S) URL.
 // The key argument in methods is the ID of the key in the JWKS ("kid" property).
-func NewJWKSCrypto(logger logger.Logger) daprcrypto.SubtleCrypto {
+func NewJWKSCrypto(logger logger.Logger) contribCrypto.SubtleCrypto {
 	ctx, cancel := context.WithCancel(context.Background())
 	k := &jwksCrypto{
 		logger: logger,
@@ -69,7 +69,7 @@ func NewJWKSCrypto(logger logger.Logger) daprcrypto.SubtleCrypto {
 }
 
 // Init the crypto provider.
-func (k *jwksCrypto) Init(ctx context.Context, metadata daprcrypto.Metadata) error {
+func (k *jwksCrypto) Init(ctx context.Context, metadata contribCrypto.Metadata) error {
 	if len(metadata.Properties) == 0 {
 		return errors.New("empty metadata properties")
 	}
@@ -101,8 +101,8 @@ func (k *jwksCrypto) Close() error {
 }
 
 // Features returns the features available in this crypto provider.
-func (k *jwksCrypto) Features() []daprcrypto.Feature {
-	return []daprcrypto.Feature{} // No Feature supported.
+func (k *jwksCrypto) Features() []contribCrypto.Feature {
+	return []contribCrypto.Feature{} // No Feature supported.
 }
 
 // Init the JWKS object from the metadata property
@@ -242,7 +242,7 @@ func (k *jwksCrypto) retrieveKeyFromSecretFn(parentCtx context.Context, kid stri
 
 	key, found := jwks.LookupKeyID(kid)
 	if !found {
-		return nil, daprcrypto.ErrKeyNotFound
+		return nil, contribCrypto.ErrKeyNotFound
 	}
 	return key, nil
 }

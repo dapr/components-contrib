@@ -24,15 +24,15 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
-	daprcrypto "github.com/dapr/components-contrib/crypto"
-	internals "github.com/dapr/components-contrib/internal/crypto"
+	contribCrypto "github.com/dapr/components-contrib/crypto"
+	internals "github.com/dapr/kit/crypto"
 	"github.com/dapr/kit/logger"
 )
 
 const metadataKeyPath = "path"
 
 type localStorageCrypto struct {
-	daprcrypto.LocalCryptoBaseComponent
+	contribCrypto.LocalCryptoBaseComponent
 
 	path   string
 	logger logger.Logger
@@ -40,7 +40,7 @@ type localStorageCrypto struct {
 
 // NewLocalStorageCrypto returns a new local storage crypto provider.
 // Keys are loaded from PEM or JSON (each containing an individual JWK) files from a local folder on disk.
-func NewLocalStorageCrypto(logger logger.Logger) daprcrypto.SubtleCrypto {
+func NewLocalStorageCrypto(logger logger.Logger) contribCrypto.SubtleCrypto {
 	k := &localStorageCrypto{
 		logger: logger,
 	}
@@ -49,7 +49,7 @@ func NewLocalStorageCrypto(logger logger.Logger) daprcrypto.SubtleCrypto {
 }
 
 // Init the crypto provider.
-func (k *localStorageCrypto) Init(_ context.Context, metadata daprcrypto.Metadata) error {
+func (k *localStorageCrypto) Init(_ context.Context, metadata contribCrypto.Metadata) error {
 	err := k.parseMetadata(metadata.Properties)
 	if err != nil {
 		return err
@@ -81,8 +81,8 @@ func (k *localStorageCrypto) parseMetadata(md map[string]string) error {
 }
 
 // Features returns the features available in this crypto provider.
-func (k *localStorageCrypto) Features() []daprcrypto.Feature {
-	return []daprcrypto.Feature{} // No Feature supported.
+func (k *localStorageCrypto) Features() []contribCrypto.Feature {
+	return []contribCrypto.Feature{} // No Feature supported.
 }
 
 // Retrieves a key (public or private or symmetric) from a local file.

@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	daprcrypto "github.com/dapr/components-contrib/crypto"
+	contribCrypto "github.com/dapr/components-contrib/crypto"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 	"github.com/dapr/kit/config"
@@ -88,7 +88,7 @@ func NewTestConfig(name string, allOperations bool, operations []string, configM
 	return testConfig, nil
 }
 
-func ConformanceTests(t *testing.T, props map[string]string, component daprcrypto.SubtleCrypto, config TestConfig) {
+func ConformanceTests(t *testing.T, props map[string]string, component contribCrypto.SubtleCrypto, config TestConfig) {
 	// Parse all keys and algorithms, then ensure the required ones are present
 	keys := newKeybagFromConfig(config)
 	for _, alg := range strings.Split(algsPrivateRequired, " ") {
@@ -113,7 +113,7 @@ func ConformanceTests(t *testing.T, props map[string]string, component daprcrypt
 
 	// Init
 	t.Run("Init", func(t *testing.T) {
-		err := component.Init(context.Background(), daprcrypto.Metadata{
+		err := component.Init(context.Background(), contribCrypto.Metadata{
 			Base: metadata.Base{Properties: props},
 		})
 		require.NoError(t, err, "expected no error on initializing store")

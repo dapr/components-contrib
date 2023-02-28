@@ -26,9 +26,9 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
-	daprcrypto "github.com/dapr/components-contrib/crypto"
+	contribCrypto "github.com/dapr/components-contrib/crypto"
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
-	internals "github.com/dapr/components-contrib/internal/crypto"
+	internals "github.com/dapr/kit/crypto"
 	"github.com/dapr/kit/logger"
 )
 
@@ -39,7 +39,7 @@ const (
 var errKeyNotFound = errors.New("key not found in the vault")
 
 type keyvaultCrypto struct {
-	keyCache       *daprcrypto.PubKeyCache
+	keyCache       *contribCrypto.PubKeyCache
 	vaultName      string
 	vaultClient    *azkeys.Client
 	vaultDNSSuffix string
@@ -47,7 +47,7 @@ type keyvaultCrypto struct {
 }
 
 // NewAzureKeyvaultCrypto returns a new Azure Key Vault crypto provider.
-func NewAzureKeyvaultCrypto(logger logger.Logger) daprcrypto.SubtleCrypto {
+func NewAzureKeyvaultCrypto(logger logger.Logger) contribCrypto.SubtleCrypto {
 	return &keyvaultCrypto{
 		vaultName:   "",
 		vaultClient: nil,
@@ -56,16 +56,16 @@ func NewAzureKeyvaultCrypto(logger logger.Logger) daprcrypto.SubtleCrypto {
 }
 
 // Init creates a Azure Key Vault client.
-func (k *keyvaultCrypto) Init(_ context.Context, metadata daprcrypto.Metadata) error {
-	k.keyCache = daprcrypto.NewPubKeyCache(k.getKeyCacheFn)
+func (k *keyvaultCrypto) Init(_ context.Context, metadata contribCrypto.Metadata) error {
+	k.keyCache = contribCrypto.NewPubKeyCache(k.getKeyCacheFn)
 
-	settings, err := azauth.NewEnvironmentSettings("keyvault", metadata.Properties)
+	settings, err := azauth.NewEnvironmentSettings(metadata.Properties)
 	if err != nil {
 		return err
 	}
 
-	k.vaultName = settings.Values["vaultName"]
-	k.vaultDNSSuffix = settings.AzureEnvironment.KeyVaultDNSSuffix
+	k.vaultName = metadata.Properties["vaultName"]
+	k.vaultDNSSuffix = settings.EndpointSuffix(azauth.ServiceAzureKeyVault)
 
 	cred, err := settings.GetTokenCredential()
 	if err != nil {
@@ -86,8 +86,8 @@ func (k *keyvaultCrypto) Init(_ context.Context, metadata daprcrypto.Metadata) e
 }
 
 // Features returns the features available in this crypto provider.
-func (k *keyvaultCrypto) Features() []daprcrypto.Feature {
-	return []daprcrypto.Feature{} // No Feature supported.
+func (k *keyvaultCrypto) Features() []contribCrypto.Feature {
+	return []contribCrypto.Feature{} // No Feature supported.
 }
 
 // GetKey returns the public part of a key stored in the vault.
@@ -151,7 +151,7 @@ func (k *keyvaultCrypto) Encrypt(parentCtx context.Context, plaintext []byte, al
 	}
 
 	// If the key has expired, we cannot use that to encrypt data
-	if dpk, ok := pk.(*daprcrypto.Key); ok && !dpk.IsValid() {
+	if dpk, ok := pk.(*contribCrypto.Key); ok && !dpk.IsValid() {
 		return nil, nil, errors.New("the key is outside of its time validity bounds")
 	}
 
@@ -243,7 +243,7 @@ func (k *keyvaultCrypto) WrapKey(parentCtx context.Context, plaintextKey jwk.Key
 	}
 
 	// If the key has expired, we cannot use that to encrypt data
-	if dpk, ok := pk.(*daprcrypto.Key); ok && !dpk.IsValid() {
+	if dpk, ok := pk.(*contribCrypto.Key); ok && !dpk.IsValid() {
 		return nil, nil, errors.New("the key is outside of its time validity bounds")
 	}
 

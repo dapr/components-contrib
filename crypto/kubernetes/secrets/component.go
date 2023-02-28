@@ -25,9 +25,9 @@ import (
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	daprcrypto "github.com/dapr/components-contrib/crypto"
+	contribCrypto "github.com/dapr/components-contrib/crypto"
 	kubeclient "github.com/dapr/components-contrib/internal/authentication/kubernetes"
-	internals "github.com/dapr/components-contrib/internal/crypto"
+	internals "github.com/dapr/kit/crypto"
 	"github.com/dapr/kit/logger"
 )
 
@@ -37,7 +37,7 @@ const (
 )
 
 type kubeSecretsCrypto struct {
-	daprcrypto.LocalCryptoBaseComponent
+	contribCrypto.LocalCryptoBaseComponent
 
 	defaultNamespace string
 	kubeClient       kubernetes.Interface
@@ -45,14 +45,14 @@ type kubeSecretsCrypto struct {
 
 // NewKubeSecretsCrypto returns a new Kubernetes secrets crypto provider.
 // The key arguments in methods can be in the format "namespace/secretName/key" or "secretName/key" if using the default namespace passed as component metadata.
-func NewKubeSecretsCrypto(_ logger.Logger) daprcrypto.SubtleCrypto {
+func NewKubeSecretsCrypto(_ logger.Logger) contribCrypto.SubtleCrypto {
 	k := &kubeSecretsCrypto{}
 	k.RetrieveKeyFn = k.retrieveKeyFromSecret
 	return k
 }
 
 // Init the crypto provider.
-func (k *kubeSecretsCrypto) Init(_ context.Context, metadata daprcrypto.Metadata) error {
+func (k *kubeSecretsCrypto) Init(_ context.Context, metadata contribCrypto.Metadata) error {
 	if len(metadata.Properties) > 0 {
 		if metadata.Properties[metadataKeyDefaultNamespace] != "" {
 			k.defaultNamespace = metadata.Properties[metadataKeyDefaultNamespace]
@@ -69,8 +69,8 @@ func (k *kubeSecretsCrypto) Init(_ context.Context, metadata daprcrypto.Metadata
 }
 
 // Features returns the features available in this crypto provider.
-func (k *kubeSecretsCrypto) Features() []daprcrypto.Feature {
-	return []daprcrypto.Feature{} // No Feature supported.
+func (k *kubeSecretsCrypto) Features() []contribCrypto.Feature {
+	return []contribCrypto.Feature{} // No Feature supported.
 }
 
 // Retrieves a key (public or private or symmetric) from a Kubernetes secret.
@@ -90,7 +90,7 @@ func (k *kubeSecretsCrypto) retrieveKeyFromSecret(parentCtx context.Context, key
 		return nil, err
 	}
 	if res == nil || len(res.Data) == 0 || len(res.Data[keyName]) == 0 {
-		return nil, daprcrypto.ErrKeyNotFound
+		return nil, contribCrypto.ErrKeyNotFound
 	}
 
 	// Parse the key

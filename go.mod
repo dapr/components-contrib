@@ -93,7 +93,7 @@ require (
 	github.com/sendgrid/sendgrid-go v3.12.0+incompatible
 	github.com/sijms/go-ora/v2 v2.5.24
 	github.com/spf13/cast v1.5.0
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.8.2
 	github.com/supplyon/gremcos v0.1.39
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.582
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.0.582
@@ -107,7 +107,7 @@ require (
 	go.uber.org/multierr v1.9.0
 	go.uber.org/ratelimit v0.2.0
 	golang.org/x/crypto v0.6.0
-	golang.org/x/exp v0.0.0-20230213192124-5e25df0256eb
+	golang.org/x/exp v0.0.0-20230224173230-c95f2b4c22f2
 	golang.org/x/mod v0.8.0
 	golang.org/x/net v0.7.0
 	golang.org/x/oauth2 v0.5.0
@@ -385,3 +385,6 @@ replace github.com/toolkits/concurrent => github.com/niean/gotools v0.0.0-201512
 
 // this is a fork which addresses a performance issues due to go routines
 replace dubbo.apache.org/dubbo-go/v3 => dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
+
+// TODO: REMOVE WHEN https://github.com/dapr/kit/pull/38 IS MERGED
+replace github.com/dapr/kit => github.com/italypaleale/dapr-kit v0.0.2-0.20230228215305-152952c54fed

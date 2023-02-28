@@ -17,7 +17,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys"
 
-	internals "github.com/dapr/components-contrib/internal/crypto"
+	internals "github.com/dapr/kit/crypto"
 )
 
 var (

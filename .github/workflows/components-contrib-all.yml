@@ -95,18 +95,18 @@ jobs:
           if [ ${{ github.event.client_payload.command }} = "ok-to-test" ]; then
             echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV
           fi
-      - name: Set up Go
-        id: setup-go
-        if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
-        uses: actions/setup-go@v3
-        with:
-          go-version-file: 'go.mod'
       - name: Check out code into the Go module directory
         if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
         uses: actions/checkout@v3
         with:
           repository: ${{ env.CHECKOUT_REPO }}
           ref: ${{ env.CHECKOUT_REF }}
+      - name: Set up Go
+        id: setup-go
+        if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
+        uses: actions/setup-go@v3
+        with:
+          go-version-file: 'go.mod'
       - name: Cache Go modules (Linux)
         if: matrix.target_os == 'linux'
         uses: actions/cache@v3

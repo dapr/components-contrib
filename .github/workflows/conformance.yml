@@ -17,16 +17,18 @@ on:
   repository_dispatch:
     types: [conformance-test]
   workflow_dispatch:
-  merge_group:
   schedule:
     - cron: '0 */8 * * *'
   push:
     branches:
       - 'release-*'
+      - 'gh-readonly-queue/master/*'
   pull_request:
     branches:
       - 'master'
       - 'release-*'
+      - 'gh-readonly-queue/master/*'
+  merge_group:
 
 jobs:
   # Based on whether this is a PR or a scheduled run, we will run a different

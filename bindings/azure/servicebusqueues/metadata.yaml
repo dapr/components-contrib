@@ -55,7 +55,7 @@ authenticationProfiles:
       - name: azureTenantId
         required: true
         description: "ID of the Azure AD tenant"
-        example: '"cd4b2887-304c-47e1-b4d5-65447fdd542b"'
+        example: '"cd4b2887-304c-47e1-b4d5-65447fdd542a"'
       - name: azureClientId
         required: true
         description: "Client ID (application ID)"

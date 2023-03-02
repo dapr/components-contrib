@@ -122,6 +122,8 @@ require (
 	modernc.org/sqlite v1.20.4
 )
 
+require github.com/cloudevents/sdk-go/v2 v2.13.0
+
 require (
 	cloud.google.com/go v0.107.0 // indirect
 	cloud.google.com/go/compute v1.15.1 // indirect
@@ -165,6 +167,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/clbanning/mxj/v2 v2.5.6 // indirect
+	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.13.0
 	github.com/creasty/defaults v1.5.2 // indirect
 	github.com/danieljoos/wincred v1.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

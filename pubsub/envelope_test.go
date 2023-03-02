@@ -22,7 +22,11 @@ import (
 	"testing"
 	"time"
 
+	format "github.com/cloudevents/sdk-go/binding/format/protobuf/v2"
+	"github.com/cloudevents/sdk-go/v2/event"
 	"github.com/stretchr/testify/assert"
+
+	contribContenttype "github.com/dapr/components-contrib/contenttype"
 )
 
 func TestCreateCloudEventsEnvelope(t *testing.T) {
@@ -321,6 +325,42 @@ func TestCreateFromBinaryPayload(t *testing.T) {
 	assert.Equal(t, base64Encoding, envelope[DataBase64Field])
 	assert.NotNil(t, envelope[TimeField])
 	assert.Nil(t, envelope[DataField])
+}
+
+func TestCreateFromCloudEventsProtobufPayload(t *testing.T) {
+	jsondata := make(map[string]interface{})
+	jsondata["string"] = "hello world"
+	jsondata["number"] = 3.1415
+	jsonbytes, _ := json.Marshal(jsondata)
+
+	myevent := event.New()
+	myevent.SetData("application/json", jsonbytes)
+	myevent.SetID("1234")
+
+	ceProtoBytes, _ := format.Protobuf.Marshal(&myevent)
+	ceProtoBytesBase64Encoding := base64.StdEncoding.EncodeToString(ceProtoBytes)
+
+	contenttypes := []string{contribContenttype.CloudEventProtobufContentType, contribContenttype.ProtobufContentType}
+
+	for i := 0; i < len(contenttypes); i++ {
+		envelope := NewCloudEventsEnvelope("", "", "", "", "", "",
+			contenttypes[i], ceProtoBytes, "trace", "")
+
+		assert.Equal(t, ceProtoBytesBase64Encoding, envelope[DataBase64Field])
+		assert.Nil(t, envelope[DataField])
+		assert.NotNil(t, envelope[TimeField])
+
+		receivedProtoBytes, _ := base64.StdEncoding.DecodeString(envelope[DataBase64Field].(string))
+
+		var e event.Event
+		format.Protobuf.Unmarshal(receivedProtoBytes, &e)
+
+		assert.Equal(t, "1234", e.Context.GetID())
+		var receivedjsondata map[string]interface{}
+		_ = json.Unmarshal(e.Data(), &receivedjsondata)
+		assert.Equal(t, "hello world", receivedjsondata["string"])
+		assert.Equal(t, 3.1415, receivedjsondata["number"])
+	}
 }
 
 func TestNewFromRawPayload(t *testing.T) {

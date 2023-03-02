@@ -13,6 +13,8 @@ require (
 )
 
 require (
+	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.13.0 // indirect
+	github.com/cloudevents/sdk-go/v2 v2.13.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.1 // indirect
 	github.com/marusama/semaphore/v2 v2.5.0 // indirect
 	github.com/microsoft/durabletask-go v0.1.3 // indirect

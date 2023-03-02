@@ -42,6 +42,7 @@ require (
 	github.com/camunda/zeebe/clients/go/v8 v8.1.8
 	github.com/cenkalti/backoff/v4 v4.2.0
 	github.com/cinience/go_rocketmq v0.0.2
+	github.com/cloudevents/sdk-go/v2 v2.13.0
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/dancannon/gorethink v4.0.0+incompatible
 	github.com/dapr/kit v0.0.4
@@ -121,8 +122,6 @@ require (
 	k8s.io/utils v0.0.0-20230115233650-391b47cb4029
 	modernc.org/sqlite v1.20.4
 )
-
-require github.com/cloudevents/sdk-go/v2 v2.13.0
 
 require (
 	cloud.google.com/go v0.107.0 // indirect

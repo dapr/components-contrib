@@ -603,7 +603,7 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 				s.logger.Warn("context canceled; stopping consuming from queue arn: %v", queueInfo.arn)
 				continue
 			}
-			
+
 			if awsErr, ok := err.(awserr.Error); ok {
 				s.logger.Errorf("AWS operation error while consuming from queue arn: %v with error: %w. retrying...", queueInfo.arn, awsErr.Error())
 			} else {

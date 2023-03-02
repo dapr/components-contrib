@@ -149,7 +149,6 @@ func (a *azureServiceBus) doSubscribe(
 	handlerFn impl.HandlerFn,
 	opts impl.SubscribeOptions,
 ) error {
-
 	subscribeCtx, cancel := context.WithCancel(parentCtx)
 	a.wg.Add(1)
 	go func() {

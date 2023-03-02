@@ -35,15 +35,16 @@ type bus struct {
 
 func New(logger logger.Logger) pubsub.PubSub {
 	return &bus{
-		log: logger,
+		log:     logger,
+		closeCh: make(chan struct{}),
 	}
 }
 
 func (a *bus) Close() error {
-	defer a.wg.Wait()
 	if a.closed.CompareAndSwap(false, true) {
 		close(a.closeCh)
 	}
+	a.wg.Wait()
 	return nil
 }
 
@@ -82,6 +83,7 @@ func (a *bus) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handle
 			a.log.Error(handleErr)
 			select {
 			case <-time.After(100 * time.Millisecond):
+				// Nop
 			case <-ctx.Done():
 				return
 			}

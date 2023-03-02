@@ -41,7 +41,10 @@ type jetstreamPubSub struct {
 }
 
 func NewJetStream(logger logger.Logger) pubsub.PubSub {
-	return &jetstreamPubSub{l: logger}
+	return &jetstreamPubSub{
+		l:       logger,
+		closeCh: make(chan struct{}),
+	}
 }
 
 func (js *jetstreamPubSub) Init(_ context.Context, metadata pubsub.Metadata) error {

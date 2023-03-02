@@ -83,7 +83,7 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 			session := sessions.Start(w, r)
 
 			if session.GetString(meta.AuthHeaderName) != "" {
-				w.Header().Add(meta.AuthHeaderName, session.GetString(meta.AuthHeaderName))
+				r.Header.Add(meta.AuthHeaderName, session.GetString(meta.AuthHeaderName))
 				next.ServeHTTP(w, r)
 				return
 			}

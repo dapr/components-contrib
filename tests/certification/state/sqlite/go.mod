@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib/tests/certification/state/sqlite
 
-go 1.19
+go 1.20
 
 require (
 	github.com/dapr/components-contrib v1.10.0-rc.2

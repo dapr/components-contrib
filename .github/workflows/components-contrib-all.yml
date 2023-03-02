@@ -62,11 +62,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     needs: post-comment
     env:
-      GOVER: "1.19"
       GOOS: ${{ matrix.target_os }}
       GOARCH: ${{ matrix.target_arch }}
       GOPROXY: https://proxy.golang.org
-      GOLANGCI_LINT_VER: "v1.51.0"
+      GOLANGCI_LINT_VER: "v1.51.2"
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macOS-latest]
@@ -96,17 +95,18 @@ jobs:
           if [ ${{ github.event.client_payload.command }} = "ok-to-test" ]; then
             echo "CHECKOUT_REF=${{ github.event.client_payload.pull_head_ref }}" >> $GITHUB_ENV
           fi
-      - name: Set up Go ${{ env.GOVER }}
-        if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
-        uses: actions/setup-go@v3
-        with:
-          go-version: ${{ env.GOVER }}
       - name: Check out code into the Go module directory
         if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
         uses: actions/checkout@v3
         with:
           repository: ${{ env.CHECKOUT_REPO }}
           ref: ${{ env.CHECKOUT_REF }}
+      - name: Set up Go
+        id: setup-go
+        if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
+        uses: actions/setup-go@v3
+        with:
+          go-version-file: 'go.mod'
       - name: Cache Go modules (Linux)
         if: matrix.target_os == 'linux'
         uses: actions/cache@v3
@@ -114,9 +114,9 @@ jobs:
           path: |
             ~/.cache/go-build
             ~/go/pkg/mod
-          key: ${{ matrix.target_os }}-${{ matrix.target_arch }}-go-${{ env.GOVER }}-${{ hashFiles('**/go.sum') }}
+          key: ${{ matrix.target_os }}-${{ matrix.target_arch }}-go-${{ steps.setup-go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ matrix.target_os }}-${{ matrix.target_arch }}-go-${{ env.GOVER }}-
+            ${{ matrix.target_os }}-${{ matrix.target_arch }}-go-${{ steps.setup-go.outputs.go-version }}-
       - name: Cache Go modules (Windows)
         if: matrix.target_os == 'windows'
         uses: actions/cache@v3
@@ -124,9 +124,9 @@ jobs:
           path: |
             ~\AppData\Local\go-build
             ~\go\pkg\mod
-          key: ${{ matrix.target_os }}-${{ matrix.target_arch }}-go-${{ env.GOVER }}-${{ hashFiles('**/go.sum') }}
+          key: ${{ matrix.target_os }}-${{ matrix.target_arch }}-go-${{ steps.setup-go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ matrix.target_os }}-${{ matrix.target_arch }}-go-${{ env.GOVER }}-
+            ${{ matrix.target_os }}-${{ matrix.target_arch }}-go-${{ steps.setup-go.outputs.go-version }}-
       - name: Cache Go modules (macOS)
         if: matrix.target_os == 'darwin'
         uses: actions/cache@v3
@@ -134,9 +134,9 @@ jobs:
           path: |
             ~/Library/Caches/go-build
             ~/go/pkg/mod
-          key: ${{ matrix.target_os }}-${{ matrix.target_arch }}-go-${{ env.GOVER }}-${{ hashFiles('**/go.sum') }}
+          key: ${{ matrix.target_os }}-${{ matrix.target_arch }}-go-${{ steps.setup-go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ matrix.target_os }}-${{ matrix.target_arch }}-go-${{ env.GOVER }}-
+            ${{ matrix.target_os }}-${{ matrix.target_arch }}-go-${{ steps.setup-go.outputs.go-version }}-
       - name: Check components-schema
         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux' && steps.skip_check.outputs.should_skip != 'true'
         run: make check-component-metadata-schema-diff

@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib/tests/certification/secretstores/hashicorp/vault
 
-go 1.18
+go 1.20
 
 require (
 	github.com/dapr/components-contrib v1.10.0-rc.2

@@ -71,8 +71,6 @@ components:
   - component: mqtt3
     profile: vernemq
     operations: ['publish', 'subscribe', 'multiplehandlers']
-  - component: hazelcast
-    operations: ['publish', 'subscribe', 'multiplehandlers']
   - component: rabbitmq
     operations: ['publish', 'subscribe', 'multiplehandlers']
     config:

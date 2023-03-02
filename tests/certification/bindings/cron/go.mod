@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib/tests/certification/bindings/cron
 
-go 1.19
+go 1.20
 
 require (
 	github.com/benbjohnson/clock v1.3.0

@@ -28,7 +28,7 @@ import (
 type mocks struct {
 	db       *sql.DB
 	mock     sqlmock.Sqlmock
-	roachDba *cockroachDBAccess
+	roachDba *CockroachDBAccess
 }
 
 func TestGetSetWithWrongType(t *testing.T) {
@@ -450,7 +450,7 @@ func mockDatabase(t *testing.T) (*mocks, error) {
 		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
 	}
 
-	dba := &cockroachDBAccess{
+	dba := &CockroachDBAccess{
 		logger: logger,
 		db:     db,
 	}

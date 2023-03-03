@@ -206,7 +206,7 @@ func (a *azureServiceBus) doSubscribe(
 }
 
 func (a *azureServiceBus) Close() (err error) {
-	defer a.wg.Done()
+	defer a.wg.Wait()
 
 	if a.closed.CompareAndSwap(false, true) {
 		close(a.closeCh)

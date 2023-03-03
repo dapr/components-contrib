@@ -117,3 +117,9 @@ func (c *CockroachDB) GetComponentMetadata() map[string]string {
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
 	return metadataInfo
 }
+
+// Returns the dbaccess property.
+// This method is used in tests.
+func (c *CockroachDB) GetDBAccess() dbAccess {
+	return c.dbaccess
+}

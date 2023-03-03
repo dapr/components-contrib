@@ -479,9 +479,9 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 			r.logger.Warnf("%s subscriber is reconnecting in %s ...", logMessagePrefix, r.metadata.reconnectWait.String())
 			select {
 			case <-time.After(r.metadata.reconnectWait):
-				return
 			case <-ctx.Done():
 				r.logger.Infof("%s subscription for %s has context canceled", logMessagePrefix, queueName)
+				return
 			}
 			r.reconnect(connectionCount)
 		}

@@ -23,6 +23,7 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
@@ -311,13 +312,21 @@ func TestSubscribeReconnect(t *testing.T) {
 
 	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
 	assert.Nil(t, err)
-	<-processed
+	select {
+	case <-processed:
+	case <-time.After(5 * time.Second):
+		require.Fail(t, "timeout waiting for message")
+	}
 	assert.Equal(t, 1, messageCount)
 	assert.Equal(t, "hello world", lastMessage)
 
 	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
 	assert.Nil(t, err)
-	<-processed
+	select {
+	case <-processed:
+	case <-time.After(5 * time.Second):
+		require.Fail(t, "timeout waiting for message")
+	}
 	assert.Equal(t, 2, messageCount)
 	assert.Equal(t, "foo bar", lastMessage)
 

@@ -106,7 +106,7 @@ func TestParseMetadata(t *testing.T) {
 		},
 		{
 			name:                     "With reconnectWait 10 second",
-			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "reconnectWaitSeconds": "10"},
+			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "reconnectWaitInSeconds": "10"},
 			expectedDeleteWhenUnused: false,
 			expectedDurable:          false,
 			expectedReconnectWaitCheck: func(expect time.Duration) bool {
@@ -121,7 +121,7 @@ func TestParseMetadata(t *testing.T) {
 			m.Properties = tt.properties
 			r := RabbitMQ{logger: logger.NewLogger("test")}
 			err := r.parseMetadata(m)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			assert.Equal(t, queueName, r.metadata.QueueName)
 			assert.Equal(t, host, r.metadata.Host)
 			assert.Equal(t, tt.expectedDeleteWhenUnused, r.metadata.DeleteWhenUnused)

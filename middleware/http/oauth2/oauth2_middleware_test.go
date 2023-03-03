@@ -27,15 +27,8 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-func mockedRequestHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("from mock"))
-}
-
 func TestOAuth2CreatesAuthorizationHeaderWhenInSessionState(t *testing.T) {
 	var metadata middleware.Metadata
-	metadata.Properties = map[string]string{}
-
 	metadata.Properties = map[string]string{
 		"clientID":       "testId",
 		"clientSecret":   "testSecret",
@@ -60,7 +53,12 @@ func TestOAuth2CreatesAuthorizationHeaderWhenInSessionState(t *testing.T) {
 	cookie := w.Header().Get("Set-Cookie")
 	r.Header.Add("Cookie", cookie)
 
-	handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
+	handler(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("from mock"))
+		}),
+	).ServeHTTP(w, r)
 
 	assert.Equal(t, "Bearer abcd", r.Header.Get("someHeader"))
 }

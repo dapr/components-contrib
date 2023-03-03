@@ -249,7 +249,7 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 
 func (r *rabbitMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if r.closed.Load() {
-		return errors.New("error: rabbitMQ is closed")
+		return errors.New("component is closed")
 	}
 
 	r.logger.Debugf("%s publishing message to %s", logMessagePrefix, req.Topic)
@@ -267,18 +267,27 @@ func (r *rabbitMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) erro
 		}
 		if mustReconnect(channel, err) {
 			r.logger.Warnf("%s publisher is reconnecting in %s ...", logMessagePrefix, r.metadata.reconnectWait.String())
-			time.Sleep(r.metadata.reconnectWait)
+			select {
+			case <-time.After(r.metadata.reconnectWait):
+			case <-ctx.Done():
+				return nil
+			}
+
 			r.reconnect(connectionCount)
 		} else {
 			r.logger.Warnf("%s publishing attempt (%d/%d) failed: %v", logMessagePrefix, attempt, publishMaxRetries, err)
-			time.Sleep(publishRetryWaitSeconds * time.Second)
+			select {
+			case <-time.After(publishRetryWaitSeconds * time.Second):
+			case <-ctx.Done():
+				return nil
+			}
 		}
 	}
 }
 
 func (r *rabbitMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if r.closed.Load() {
-		return errors.New("error: rabbitMQ is closed")
+		return errors.New("component is closed")
 	}
 
 	if r.metadata.consumerID == "" {
@@ -301,7 +310,10 @@ func (r *rabbitMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, h
 	go func() {
 		defer r.wg.Done()
 		defer cancel()
-		<-r.closeCh
+		select {
+		case <-subctx.Done():
+		case <-r.closeCh:
+		}
 	}()
 
 	// Wait for the ack for 1 minute or return an error
@@ -465,7 +477,12 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 
 		if mustReconnect(channel, err) {
 			r.logger.Warnf("%s subscriber is reconnecting in %s ...", logMessagePrefix, r.metadata.reconnectWait.String())
-			time.Sleep(r.metadata.reconnectWait)
+			select {
+			case <-time.After(r.metadata.reconnectWait):
+			case <-ctx.Done():
+				r.logger.Infof("%s subscription for %s has context canceled", logMessagePrefix, queueName)
+				return
+			}
 			r.reconnect(connectionCount)
 		}
 	}

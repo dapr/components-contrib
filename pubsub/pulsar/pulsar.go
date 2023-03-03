@@ -372,6 +372,7 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	}()
 	go func() {
 		defer p.wg.Done()
+		defer cancel()
 		p.listenMessage(ctx, req.Topic, consumer, handler)
 	}()
 

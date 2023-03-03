@@ -14,6 +14,7 @@ limitations under the License.
 package azure
 
 import (
+	"context"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
@@ -21,9 +22,11 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"golang.org/x/crypto/pkcs12"
 
@@ -34,6 +37,36 @@ import (
 type EnvironmentSettings struct {
 	Metadata map[string]string
 	Cloud    *cloud.Configuration
+}
+
+// timeoutWrapper prevents a potentially very long timeout when managed identity or CLI credential aren't available
+type timeoutWrapper struct {
+	cred azcore.TokenCredential
+	// timeout applies to all auth attempts until one doesn't time out
+	timeout    time.Duration
+	authmethod string
+}
+
+// GetToken wraps Token acquisition attempts with a short timeout because managed identity or CLI credential
+// may not be available and connecting to IMDS can take several minutes to time out.
+func (w *timeoutWrapper) GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	var tk azcore.AccessToken
+	var err error
+	// no need to synchronize around this value because it's written only within ChainedTokenCredential's critical section
+	if w.timeout > 0 {
+		c, cancel := context.WithTimeout(ctx, w.timeout)
+		defer cancel()
+		tk, err = w.cred.GetToken(c, opts)
+		if ce := c.Err(); errors.Is(ce, context.DeadlineExceeded) {
+			err = azidentity.NewCredentialUnavailableError(w.authmethod)
+		} else {
+			// some managed identity implementation is available, so don't apply the timeout to future calls
+			w.timeout = 0
+		}
+	} else {
+		tk, err = w.cred.GetToken(ctx, opts)
+	}
+	return tk, err
 }
 
 // NewEnvironmentSettings returns a new EnvironmentSettings configured for a given Azure resource.
@@ -67,7 +100,11 @@ func (s EnvironmentSettings) GetAzureEnvironment() (*cloud.Configuration, error)
 // GetTokenCredential returns an azcore.TokenCredential retrieved from, in order:
 // 1. Client credentials
 // 2. Client certificate
-// 3. MSI
+// 3. MSI with a timeout of 1 second
+// 4. Azure CLI
+// 5. Retry MSI without timeout
+//
+// This order and timeout (with the exception of the additional step 5) matches the DefaultAzureCredential.
 func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error) {
 	// Create a chain
 	var creds []azcore.TokenCredential
@@ -93,20 +130,39 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 		}
 	}
 
-	// 3. MSI
+	// 3. MSI with timeout of 1 second (same as DefaultAzureCredential)
+	var msiCred *azcore.TokenCredential
 	{
 		c := s.GetMSI()
-		cred, err := c.GetTokenCredential()
+		msiCred, err := c.GetTokenCredential()
 		if err == nil {
-			creds = append(creds, cred)
+			creds = append(creds, &timeoutWrapper{cred: msiCred, authmethod: "managed identity", timeout: 1 * time.Second})
 		} else {
 			errs = append(errs, err)
 		}
 	}
 
+	// 4. AzureCLICredential
+	{
+		cred, credErr := azidentity.NewAzureCLICredential(nil)
+		if credErr == nil {
+			creds = append(creds, &timeoutWrapper{cred: cred, authmethod: "Azure CLI", timeout: 5 * time.Second})
+		} else {
+			errs = append(errs, credErr)
+		}
+	}
+
+	// 5. Retry MSI without timeout
+	if msiCred != nil {
+		creds = append(creds, *msiCred)
+	}
+
 	if len(creds) == 0 {
 		return nil, fmt.Errorf("no suitable token provider for Azure AD; errors: %w", errors.Join(errs...))
 	}
+	// The ChainedTokenCredential executes the auth methods (with their given timeouts) in order. No execution occurs before this method.
+	// As such there is no option to run the auth methods in parallel.
+	// It would be ideal if the Azure SDK for Go team could support a parallel execution option.
 	return azidentity.NewChainedTokenCredential(creds, nil)
 }
 

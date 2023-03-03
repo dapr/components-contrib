@@ -136,7 +136,7 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 
 				authHeader := token.Type() + " " + token.AccessToken
 				session.Set(meta.AuthHeaderName, authHeader)
-				w.Header().Add(meta.AuthHeaderName, authHeader)
+				r.Header.Add(meta.AuthHeaderName, authHeader)
 				httputils.RespondWithRedirect(w, http.StatusFound, redirectURL.String())
 			}
 		})

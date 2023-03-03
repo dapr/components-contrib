@@ -19,7 +19,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -66,7 +68,7 @@ func TestCockroachDBIntegration(t *testing.T) {
 	t.Run("Create table succeeds", func(t *testing.T) {
 		t.Parallel()
 
-		dbAccess, ok := pgs.dbaccess.(*cockroachDBAccess)
+		dbAccess, ok := pgs.dbaccess.(*CockroachDBAccess)
 		assert.True(t, ok)
 
 		testCreateTable(t, dbAccess)
@@ -146,6 +148,11 @@ func TestCockroachDBIntegration(t *testing.T) {
 		t.Parallel()
 		multiWithSetOnly(t, pgs)
 	})
+
+	t.Run("Set with TTL should not return after ttl", func(t *testing.T) {
+		t.Parallel()
+		setWithTTLShouldNotReturnAfterTTL(t, pgs)
+	})
 }
 
 // setGetUpdateDeleteOneItem validates setting one item, getting it, and deleting it.
@@ -169,22 +176,22 @@ func setGetUpdateDeleteOneItem(t *testing.T, pgs *CockroachDB) {
 }
 
 // testCreateTable tests the ability to create the state table.
-func testCreateTable(t *testing.T, dba *cockroachDBAccess) {
+func testCreateTable(t *testing.T, dba *CockroachDBAccess) {
 	t.Helper()
 
 	tableName := "test_state"
 
 	// Drop the table if it already exists.
-	exists, err := tableExists(dba.db, tableName)
+	exists, err := tableExists(context.Background(), dba.db, tableName)
 	assert.Nil(t, err)
 	if exists {
 		dropTable(t, dba.db, tableName)
 	}
 
 	// Create the state table and test for its existence.
-	err = dba.ensureStateTable(tableName)
+	err = dba.ensureStateTable(context.Background(), tableName)
 	assert.Nil(t, err)
-	exists, err = tableExists(dba.db, tableName)
+	exists, err = tableExists(context.Background(), dba.db, tableName)
 	assert.Nil(t, err)
 	assert.True(t, exists)
 
@@ -617,7 +624,7 @@ func testInitConfiguration(t *testing.T) {
 
 			err := cockroackDB.Init(context.Background(), metadata)
 			if rowTest.expectedErr == "" {
-				assert.Nil(t, err)
+				assert.NoError(t, err)
 			} else {
 				assert.NotNil(t, err)
 				assert.Equal(t, err.Error(), rowTest.expectedErr)
@@ -651,6 +658,37 @@ func setItem(t *testing.T, pgs *CockroachDB, key string, value interface{}, etag
 	assert.True(t, itemExists)
 }
 
+func setWithTTLShouldNotReturnAfterTTL(t *testing.T, pgs *CockroachDB) {
+	t.Helper()
+
+	key := randomKey()
+	value := &fakeItem{Color: "indigo"}
+
+	setItemWithTTL(t, pgs, key, value, nil, time.Second)
+
+	_, outputObject := getItem(t, pgs, key)
+	assert.Equal(t, value, outputObject)
+
+	<-time.After(time.Second * 2)
+
+	getResponse, outputObject := getItem(t, pgs, key)
+	assert.Equal(t, new(fakeItem), outputObject)
+
+	newValue := &fakeItem{Color: "green"}
+	setItemWithTTL(t, pgs, key, newValue, getResponse.ETag, time.Second)
+
+	getResponse, outputObject = getItem(t, pgs, key)
+	assert.Equal(t, newValue, outputObject)
+
+	setItemWithTTL(t, pgs, key, newValue, getResponse.ETag, time.Second*5)
+	<-time.After(time.Second * 2)
+
+	getResponse, outputObject = getItem(t, pgs, key)
+	assert.Equal(t, newValue, outputObject)
+
+	deleteItem(t, pgs, key, getResponse.ETag)
+}
+
 func getItem(t *testing.T, pgs *CockroachDB, key string) (*state.GetResponse, *fakeItem) {
 	t.Helper()
 
@@ -663,7 +701,7 @@ func getItem(t *testing.T, pgs *CockroachDB, key string) (*state.GetResponse, *f
 	}
 
 	response, getErr := pgs.Get(context.Background(), getReq)
-	assert.Nil(t, getErr)
+	assert.NoError(t, getErr)
 	assert.NotNil(t, response)
 	outputObject := &fakeItem{
 		Color: "",
@@ -699,7 +737,7 @@ func storeItemExists(t *testing.T, key string) bool {
 	defer databaseConnection.Close()
 
 	exists := false
-	statement := fmt.Sprintf(`SELECT EXISTS (SELECT * FROM %s WHERE key = $1)`, tableName)
+	statement := fmt.Sprintf(`SELECT EXISTS (SELECT * FROM %s WHERE key = $1)`, defaultTableName)
 	err = databaseConnection.QueryRow(statement, key).Scan(&exists)
 	assert.Nil(t, err)
 
@@ -713,10 +751,33 @@ func getRowData(t *testing.T, key string) (returnValue string, insertdate sql.Nu
 	assert.Nil(t, err)
 	defer databaseConnection.Close()
 
-	err = databaseConnection.QueryRow(fmt.Sprintf("SELECT value, insertdate, updatedate FROM %s WHERE key = $1", tableName), key).Scan(&returnValue, &insertdate, &updatedate)
+	err = databaseConnection.QueryRow(fmt.Sprintf("SELECT value, insertdate, updatedate FROM %s WHERE key = $1", defaultTableName), key).Scan(&returnValue, &insertdate, &updatedate)
 	assert.Nil(t, err)
 
 	return returnValue, insertdate, updatedate
+}
+
+func setItemWithTTL(t *testing.T, pgs *CockroachDB, key string, value interface{}, etag *string, ttl time.Duration) {
+	t.Helper()
+
+	setReq := &state.SetRequest{
+		Key:   key,
+		ETag:  etag,
+		Value: value,
+		Metadata: map[string]string{
+			"ttlInSeconds": strconv.FormatInt(int64(ttl.Seconds()), 10),
+		},
+		Options: state.SetStateOption{
+			Concurrency: "",
+			Consistency: "",
+		},
+		ContentType: nil,
+	}
+
+	err := pgs.Set(context.Background(), setReq)
+	assert.Nil(t, err)
+	itemExists := storeItemExists(t, key)
+	assert.True(t, itemExists)
 }
 
 func randomKey() string {

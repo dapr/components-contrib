@@ -64,10 +64,11 @@ func TestPostgresqlQueryBuildQuery(t *testing.T) {
 		assert.NoError(t, err)
 
 		stateQuery := &Query{
-			query:  "",
-			params: nil,
-			limit:  0,
-			skip:   ptr.Of[int64](0),
+			tableName: defaultTableName,
+			query:     "",
+			params:    nil,
+			limit:     0,
+			skip:      ptr.Of[int64](0),
 		}
 		qbuilder := query.NewQueryBuilder(stateQuery)
 		err = qbuilder.BuildQuery(&storeQuery)

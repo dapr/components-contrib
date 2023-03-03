@@ -373,7 +373,7 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	go func() {
 		defer p.wg.Done()
 		defer cancel()
-		p.listenMessage(ctx, req.Topic, consumer, handler)
+		p.listenMessage(listenCtx, req.Topic, consumer, handler)
 	}()
 
 	return nil
@@ -386,10 +386,15 @@ func (p *Pulsar) listenMessage(ctx context.Context, originTopic string, consumer
 	for {
 		select {
 		case msg := <-consumer.Chan():
-			err = p.handleMessage(ctx, originTopic, msg, handler)
-			if err != nil && !errors.Is(err, context.Canceled) {
-				p.logger.Errorf("Error processing message: %s/%#v [key=%s]: %v", msg.Topic(), msg.ID(), msg.Key(), err)
-			}
+			// Go routine to handle multiple messages at once.
+			p.wg.Add(1)
+			go func(msg pulsar.ConsumerMessage) {
+				defer p.wg.Done()
+				err = p.handleMessage(ctx, originTopic, msg, handler)
+				if err != nil && !errors.Is(err, context.Canceled) {
+					p.logger.Errorf("Error processing message: %s/%#v [key=%s]: %v", msg.Topic(), msg.ID(), msg.Key(), err)
+				}
+			}(msg)
 
 		case <-ctx.Done():
 			p.logger.Errorf("Subscription context done. Closing consumer. Err: %s", ctx.Err())

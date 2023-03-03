@@ -89,6 +89,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 				return
 			}
 
+			// Redirect to the auth server
 			state := r.URL.Query().Get(stateParam)
 			if state == "" {
 				id, err := uuid.NewRandom()

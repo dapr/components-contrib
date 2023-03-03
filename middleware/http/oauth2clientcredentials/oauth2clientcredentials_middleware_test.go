@@ -119,7 +119,7 @@ func TestOAuth2ClientCredentialsToken(t *testing.T) {
 	handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 
 	// Assertion
-	assert.Equal(t, "Bearer abcd", w.Header().Get("someHeader"))
+	assert.Equal(t, "Bearer abcd", r.Header.Get("someHeader"))
 }
 
 // TestOAuth2ClientCredentialsCache will check
@@ -179,7 +179,7 @@ func TestOAuth2ClientCredentialsCache(t *testing.T) {
 	handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 
 	// Assertion
-	assert.Equal(t, "Bearer abc", w.Header().Get("someHeader"))
+	assert.Equal(t, "Bearer abc", r.Header.Get("someHeader"))
 
 	// Second handler call should still return 'cached' abc Token
 	r = httptest.NewRequest(http.MethodGet, "http://dapr.io", nil)
@@ -187,7 +187,7 @@ func TestOAuth2ClientCredentialsCache(t *testing.T) {
 	handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 
 	// Assertion
-	assert.Equal(t, "Bearer abc", w.Header().Get("someHeader"))
+	assert.Equal(t, "Bearer abc", r.Header.Get("someHeader"))
 
 	// Wait at a second to invalidate cache entry for abc
 	time.Sleep(1 * time.Second)
@@ -198,5 +198,5 @@ func TestOAuth2ClientCredentialsCache(t *testing.T) {
 	handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 
 	// Assertion
-	assert.Equal(t, "MAC def", w.Header().Get("someHeader"))
+	assert.Equal(t, "MAC def", r.Header.Get("someHeader"))
 }

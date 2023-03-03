@@ -43,7 +43,9 @@ type oAuth2MiddlewareMetadata struct {
 
 // NewOAuth2Middleware returns a new oAuth2 middleware.
 func NewOAuth2Middleware(log logger.Logger) middleware.Middleware {
-	return &Middleware{logger: log}
+	m := &Middleware{logger: log}
+
+	return m
 }
 
 // Middleware is an oAuth2 authentication middleware.
@@ -82,7 +84,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 			session := sessions.Start(w, r)
 
 			if session.GetString(meta.AuthHeaderName) != "" {
-				w.Header().Add(meta.AuthHeaderName, session.GetString(meta.AuthHeaderName))
+				r.Header.Add(meta.AuthHeaderName, session.GetString(meta.AuthHeaderName))
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -135,7 +137,6 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 
 				authHeader := token.Type() + " " + token.AccessToken
 				session.Set(meta.AuthHeaderName, authHeader)
-				w.Header().Add(meta.AuthHeaderName, authHeader)
 				httputils.RespondWithRedirect(w, http.StatusFound, redirectURL.String())
 			}
 		})

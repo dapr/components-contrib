@@ -25,11 +25,10 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
-	"github.com/dapr/kit/logger"
-
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/internal/utils"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -47,7 +46,6 @@ const (
 	defaultBitSize             = 0
 
 	errorChannelConnection = "channel/connection is not open"
-	logMessagePrefix       = "rabbitmq binding "
 	defaultReconnectWait   = 5 * time.Second
 )
 
@@ -346,14 +344,14 @@ func (r *RabbitMQ) Read(ctx context.Context, handler bindings.Handler) error {
 				nil,
 			)
 			if err != nil {
-				r.logger.Errorf("%s consuming messages from queue [%s] error: %s", logMessagePrefix, r.queue.Name, err)
+				r.logger.Errorf("Consuming messages from queue [%s] error: %v", r.queue.Name, err)
 				goto Retry
 			}
 			r.handleMessage(readCtx, handler, msgs, ch)
 
 		Retry:
 			if r.closed.Load() || readCtx.Err() != nil {
-				r.logger.Infof("%s input binding closed, stop fetching message", logMessagePrefix)
+				r.logger.Info("Input binding closed, stop fetching message")
 				return
 			}
 
@@ -371,7 +369,7 @@ func (r *RabbitMQ) handleMessage(ctx context.Context, handler bindings.Handler, 
 			return
 		case d, ok := <-msgCh:
 			if !ok {
-				r.logger.Infof("%s input binding channel closed", logMessagePrefix)
+				r.logger.Info("Input binding channel closed")
 				return
 			}
 			_, err := handler(ctx, &bindings.ReadResponse{
@@ -422,7 +420,7 @@ func (r *RabbitMQ) connect() error {
 	r.connection, r.channel, r.queue = conn, ch, q
 	r.channelMutex.Unlock()
 
-	r.logger.Infof("%s connected", logMessagePrefix)
+	r.logger.Infof("Connected to RabbitMQ")
 
 	return nil
 }
@@ -432,13 +430,13 @@ func (r *RabbitMQ) connect() error {
 func (r *RabbitMQ) reset() (err error) {
 	if r.channel != nil {
 		if err = r.channel.Close(); err != nil {
-			r.logger.Warnf("%s reset: channel.Close() failed: %v", logMessagePrefix, err)
+			r.logger.Warnf("Reset: channel.Close() failed: %v", err)
 		}
 		r.channel = nil
 	}
 	if r.connection != nil {
 		if err2 := r.connection.Close(); err2 != nil {
-			r.logger.Warnf("%s reset: connection.Close() failed: %v", logMessagePrefix, err2)
+			r.logger.Warnf("Reset: connection.Close() failed: %v", err2)
 			if err == nil {
 				err = err2
 			}

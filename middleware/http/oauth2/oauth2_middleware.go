@@ -45,14 +45,13 @@ type oAuth2MiddlewareMetadata struct {
 // NewOAuth2Middleware returns a new oAuth2 middleware.
 func NewOAuth2Middleware(log logger.Logger) middleware.Middleware {
 	m := &Middleware{logger: log}
-	m.SetTokenProvider(m)
+
 	return m
 }
 
 // Middleware is an oAuth2 authentication middleware.
 type Middleware struct {
-	logger        logger.Logger
-	tokenProvider TokenProviderInterface
+	logger logger.Logger
 }
 
 const (
@@ -61,12 +60,6 @@ const (
 	redirectPath = "redirect-url"
 	codeParam    = "code"
 )
-
-// TokenProviderInterface provides a common interface to Mock the Token retrieval in unit tests.
-type TokenProviderInterface interface {
-	AuthCodeURL(conf *oauth2.Config, state string, opts ...oauth2.AuthCodeOption) string
-	Exchange(conf *oauth2.Config, ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error)
-}
 
 // GetHandler retruns the HTTP handler provided by the middleware.
 func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
@@ -110,7 +103,7 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 				session.Set(savedState, idStr)
 				session.Set(redirectPath, r.URL)
 
-				url := m.tokenProvider.AuthCodeURL(conf, idStr, oauth2.AccessTypeOffline)
+				url := conf.AuthCodeURL(idStr, oauth2.AccessTypeOffline)
 				httputils.RespondWithRedirect(w, http.StatusFound, url)
 			} else {
 				authState := session.GetString(savedState)
@@ -136,7 +129,7 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 					return
 				}
 
-				token, err := m.tokenProvider.Exchange(conf, r.Context(), code)
+				token, err := conf.Exchange(r.Context(), code)
 				if err != nil {
 					httputils.RespondWithError(w, http.StatusInternalServerError)
 					m.logger.Error("Failed to exchange token")
@@ -145,7 +138,6 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 
 				authHeader := token.Type() + " " + token.AccessToken
 				session.Set(meta.AuthHeaderName, authHeader)
-				r.Header.Add(meta.AuthHeaderName, authHeader)
 				httputils.RespondWithRedirect(w, http.StatusFound, redirectURL.String())
 			}
 		})
@@ -159,19 +151,4 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*oAuth2Mid
 		return nil, err
 	}
 	return &middlewareMetadata, nil
-}
-
-// SetTokenProvider will enable to change the tokenProvider used after instanciation (needed for mocking).
-func (m *Middleware) SetTokenProvider(tokenProvider TokenProviderInterface) {
-	m.tokenProvider = tokenProvider
-}
-
-// AuthCodeURL returns a URL to OAuth 2.0 provider's consent page that asks for permissions
-func (m *Middleware) AuthCodeURL(conf *oauth2.Config, state string, opts ...oauth2.AuthCodeOption) string {
-	return conf.AuthCodeURL(state, opts...)
-}
-
-// Exchange returns a token from the current OAuth2 ClientCredentials Configuration.
-func (m *Middleware) Exchange(conf *oauth2.Config, ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
-	return conf.Exchange(ctx, code, opts...)
 }

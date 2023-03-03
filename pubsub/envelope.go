@@ -91,7 +91,7 @@ func NewCloudEventsEnvelope(id, source, eventType, subject string, topic string,
 	var err error
 	if contribContenttype.IsJSONContentType(dataContentType) {
 		err = unmarshalPrecise(data, &ceData)
-	} else if contribContenttype.IsBinaryContentType(dataContentType) {
+	} else if contribContenttype.IsBinaryContentType(dataContentType) || contribContenttype.IsCloudEventProtobuf(dataContentType, data) {
 		ceData = base64.StdEncoding.EncodeToString(data)
 		ceDataField = DataBase64Field
 	} else {

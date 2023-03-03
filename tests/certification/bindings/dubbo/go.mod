@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib/tests/certification/bindings/dubbo
 
-go 1.19
+go 1.20
 
 require (
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
@@ -31,6 +31,8 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cenkalti/backoff/v4 v4.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
+	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.13.0 // indirect
+	github.com/cloudevents/sdk-go/v2 v2.13.0 // indirect
 	github.com/creasty/defaults v1.5.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dubbogo/gost v1.13.1 // indirect

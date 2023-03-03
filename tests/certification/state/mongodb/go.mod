@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib/tests/certification/state/mongodb
 
-go 1.19
+go 1.20
 
 require (
 	github.com/dapr/components-contrib v1.10.0-rc.2
@@ -9,6 +9,7 @@ require (
 	github.com/dapr/go-sdk v1.7.0
 	github.com/dapr/kit v0.0.4
 	github.com/stretchr/testify v1.8.1
+	go.mongodb.org/mongo-driver v1.11.1
 )
 
 require (
@@ -23,6 +24,8 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cenkalti/backoff/v4 v4.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
+	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.13.0 // indirect
+	github.com/cloudevents/sdk-go/v2 v2.13.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.9.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
@@ -103,7 +106,6 @@ require (
 	github.com/xdg-go/scram v1.1.2 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
-	go.mongodb.org/mongo-driver v1.11.1 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/otel v1.11.2 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.11.2 // indirect

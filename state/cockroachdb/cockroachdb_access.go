@@ -68,6 +68,13 @@ type cockroachDBMetadata struct {
 	MaxConnectionAttempts *int
 }
 
+// Interface that contains methods for querying.
+type dbquerier interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
 // newCockroachDBAccess creates a new instance of CockroachDBAccess.
 func newCockroachDBAccess(logger logger.Logger) *CockroachDBAccess {
 	logger.Debug("Instantiating new CockroachDB state store")
@@ -175,6 +182,10 @@ func (c *CockroachDBAccess) Init(ctx context.Context, metadata state.Metadata) e
 
 // Set makes an insert or update to the database.
 func (c *CockroachDBAccess) Set(ctx context.Context, req *state.SetRequest) error {
+	return c.set(ctx, c.db, req)
+}
+
+func (c *CockroachDBAccess) set(ctx context.Context, d dbquerier, req *state.SetRequest) error {
 	c.logger.Debug("Setting state value in CockroachDB")
 
 	value, isBinary, err := validateAndReturnValue(req)
@@ -203,7 +214,7 @@ func (c *CockroachDBAccess) Set(ctx context.Context, req *state.SetRequest) erro
 	if req.ETag == nil {
 		query = `
 INSERT INTO %[1]s
-  (key, value, isbinary, etag, expire_at)
+  (key, value, isbinary, etag, expiredate)
 VALUES
   ($1, $2, $3, 1, %[2]s)
 ON CONFLICT (key) DO UPDATE SET
@@ -211,7 +222,7 @@ ON CONFLICT (key) DO UPDATE SET
   isbinary = $3,
   updatedate = NOW(),
   etag = EXCLUDED.etag + 1,
-  expire_at = %[2]s
+  expiredate = %[2]s
 ;`
 		params = []any{req.Key, value, isBinary}
 	} else {
@@ -230,7 +241,7 @@ SET
   isbinary = $2,
   updatedate = NOW(),
   etag = etag + 1,
-  expire_at = %[2]s
+  expiredate = %[2]s
 WHERE
   key = $3 AND etag = $4
 ;`
@@ -243,7 +254,7 @@ WHERE
 		ttlQuery = "NULL"
 	}
 
-	result, err := c.db.ExecContext(ctx, fmt.Sprintf(query, c.metadata.TableName, ttlQuery), params...)
+	result, err := d.ExecContext(ctx, fmt.Sprintf(query, c.metadata.TableName, ttlQuery), params...)
 	if err != nil {
 		return err
 	}
@@ -270,7 +281,7 @@ func (c *CockroachDBAccess) BulkSet(ctx context.Context, req []state.SetRequest)
 	if len(req) > 0 {
 		for _, s := range req {
 			sa := s // Fix for gosec  G601: Implicit memory aliasing in for loop.
-			err = c.Set(ctx, &sa)
+			err = c.set(ctx, tx, &sa)
 			if err != nil {
 				tx.Rollback()
 
@@ -286,6 +297,10 @@ func (c *CockroachDBAccess) BulkSet(ctx context.Context, req []state.SetRequest)
 
 // Get returns data from the database. If data does not exist for the key an empty state.GetResponse will be returned.
 func (c *CockroachDBAccess) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
+	return c.get(ctx, c.db, req)
+}
+
+func (c *CockroachDBAccess) get(ctx context.Context, d dbquerier, req *state.GetRequest) (*state.GetResponse, error) {
 	c.logger.Debug("Getting state value from CockroachDB")
 
 	if req.Key == "" {
@@ -301,9 +316,9 @@ SELECT
 FROM %s
 WHERE
   key = $1
-	AND (expire_at IS NULL OR expire_at > CURRENT_TIMESTAMP)
+	AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)
 ;`
-	err := c.db.QueryRowContext(ctx, fmt.Sprintf(query, c.metadata.TableName), req.Key).Scan(&value, &isBinary, &etag)
+	err := d.QueryRowContext(ctx, fmt.Sprintf(query, c.metadata.TableName), req.Key).Scan(&value, &isBinary, &etag)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
 		if errors.Is(err, sql.ErrNoRows) {
@@ -343,6 +358,10 @@ WHERE
 
 // Delete removes an item from the state store.
 func (c *CockroachDBAccess) Delete(ctx context.Context, req *state.DeleteRequest) error {
+	return c.delete(ctx, c.db, req)
+}
+
+func (c *CockroachDBAccess) delete(ctx context.Context, d dbquerier, req *state.DeleteRequest) error {
 	c.logger.Debug("Deleting state value from CockroachDB")
 
 	if req.Key == "" {
@@ -353,7 +372,7 @@ func (c *CockroachDBAccess) Delete(ctx context.Context, req *state.DeleteRequest
 	var err error
 
 	if req.ETag == nil {
-		result, err = c.db.ExecContext(ctx, "DELETE FROM state WHERE key = $1", req.Key)
+		result, err = d.ExecContext(ctx, "DELETE FROM state WHERE key = $1", req.Key)
 	} else {
 		var etag64 uint64
 		etag64, err = strconv.ParseUint(*req.ETag, 10, 32)
@@ -362,7 +381,7 @@ func (c *CockroachDBAccess) Delete(ctx context.Context, req *state.DeleteRequest
 		}
 		etag := uint32(etag64)
 
-		result, err = c.db.ExecContext(ctx, "DELETE FROM state WHERE key = $1 and etag = $2", req.Key, etag)
+		result, err = d.ExecContext(ctx, "DELETE FROM state WHERE key = $1 and etag = $2", req.Key, etag)
 	}
 
 	if err != nil {
@@ -391,7 +410,7 @@ func (c *CockroachDBAccess) BulkDelete(ctx context.Context, req []state.DeleteRe
 	if len(req) > 0 {
 		for _, d := range req {
 			da := d // Fix for gosec  G601: Implicit memory aliasing in for loop.
-			err = c.Delete(ctx, &da)
+			err = c.delete(ctx, tx, &da)
 			if err != nil {
 				tx.Rollback()
 
@@ -413,45 +432,41 @@ func (c *CockroachDBAccess) ExecuteMulti(ctx context.Context, request *state.Tra
 		return err
 	}
 
-	performTx := func() error {
-		for _, o := range request.Operations {
-			switch o.Operation {
-			case state.Upsert:
-				var setReq state.SetRequest
+	for _, o := range request.Operations {
+		switch o.Operation {
+		case state.Upsert:
+			var setReq state.SetRequest
 
-				setReq, err = getSet(o)
-				if err != nil {
-					return err
-				}
-
-				err = c.Set(ctx, &setReq)
-				if err != nil {
-					return err
-				}
-
-			case state.Delete:
-				var delReq state.DeleteRequest
-				delReq, err = getDelete(o)
-				if err != nil {
-					return err
-				}
-
-				err = c.Delete(ctx, &delReq)
-				if err != nil {
-					return err
-				}
-
-			default:
-				return fmt.Errorf("unsupported operation: %s", o.Operation)
+			setReq, err = getSet(o)
+			if err != nil {
+				tx.Rollback()
+				return err
 			}
+
+			err = c.set(ctx, tx, &setReq)
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
+
+		case state.Delete:
+			var delReq state.DeleteRequest
+			delReq, err = getDelete(o)
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
+
+			err = c.delete(ctx, tx, &delReq)
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
+
+		default:
+			tx.Rollback()
+			return fmt.Errorf("unsupported operation: %s", o.Operation)
 		}
-
-		return nil
-	}
-
-	if err := performTx(); err != nil {
-		tx.Rollback()
-		return err
 	}
 
 	return tx.Commit()
@@ -549,8 +564,8 @@ func (c *CockroachDBAccess) ensureStateTable(ctx context.Context, stateTableName
   etag INT,
   insertdate TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
   updatedate TIMESTAMP WITH TIME ZONE NULL,
-  expire_at TIMESTAMP WITH TIME ZONE NULL,
-	INDEX expire_at_idx (expire_at)
+  expiredate TIMESTAMP WITH TIME ZONE NULL,
+	INDEX expiredate_idx (expiredate)
 );`, stateTableName))
 		if err != nil {
 			return err
@@ -559,12 +574,12 @@ func (c *CockroachDBAccess) ensureStateTable(ctx context.Context, stateTableName
 
 	// If table was created before v1.11.
 	_, err = c.db.ExecContext(ctx, fmt.Sprintf(
-		`ALTER TABLE %s ADD COLUMN IF NOT EXISTS expire_at TIMESTAMP WITH TIME ZONE NULL;`, stateTableName))
+		`ALTER TABLE %s ADD COLUMN IF NOT EXISTS expiredate TIMESTAMP WITH TIME ZONE NULL;`, stateTableName))
 	if err != nil {
 		return err
 	}
 	_, err = c.db.ExecContext(ctx, fmt.Sprintf(
-		`CREATE INDEX IF NOT EXISTS expire_at_idx ON %s (expire_at);`, stateTableName))
+		`CREATE INDEX IF NOT EXISTS expiredate_idx ON %s (expiredate);`, stateTableName))
 	if err != nil {
 		return err
 	}
@@ -698,8 +713,8 @@ func (c *CockroachDBAccess) CleanupExpired(ctx context.Context) error {
 	// rolled back half-way or to lock the table unnecessarily.
 	// Need to use fmt.Sprintf because we can't parametrize a table name.
 	// Note we are not setting a timeout here as this query can take a "long"
-	// time, especially if there's no index on expire_at .
-	stmt := fmt.Sprintf(`DELETE FROM %s WHERE expire_at IS NOT NULL AND expire_at  < CURRENT_TIMESTAMP`, c.metadata.TableName)
+	// time, especially if there's no index on expiredate .
+	stmt := fmt.Sprintf(`DELETE FROM %s WHERE expiredate IS NOT NULL AND expiredate  < CURRENT_TIMESTAMP`, c.metadata.TableName)
 	res, err := c.db.ExecContext(ctx, stmt)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)

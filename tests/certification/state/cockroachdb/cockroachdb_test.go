@@ -347,7 +347,7 @@ func TestCockroach(t *testing.T) {
 				},
 			}
 
-			t.Run("automatically delete expire_at records", func(t *testing.T) {
+			t.Run("automatically delete expiredate records", func(t *testing.T) {
 				// Run every second
 				md.Properties["cleanupIntervalInSeconds"] = "1"
 
@@ -501,7 +501,7 @@ func populateTTLRecords(ctx context.Context, dbClient *sql.DB) error {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	for _, row := range rows {
-		query := fmt.Sprintf("INSERT INTO ttl_state (key, value, isbinary, expire_at) VALUES ($1, $2, $3, %s)", row[3])
+		query := fmt.Sprintf("INSERT INTO ttl_state (key, value, isbinary, expiredate) VALUES ($1, $2, $3, %s)", row[3])
 		_, err := dbClient.ExecContext(ctx, query, row[0], row[1], row[2])
 		if err != nil {
 			return err

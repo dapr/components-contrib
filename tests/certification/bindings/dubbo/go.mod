@@ -7,7 +7,7 @@ require (
 	github.com/apache/dubbo-go-hessian2 v1.11.5
 	github.com/dapr/components-contrib v1.10.0-rc.2
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211026011813-36b75e9ae272
-	github.com/dapr/dapr v1.10.1-0.20230217170206-da1d01fb50c9
+	github.com/dapr/dapr v1.10.1-0.20230303202925-74458da97d83
 	github.com/dapr/go-sdk v1.7.0
 	github.com/dapr/kit v0.0.4
 	github.com/stretchr/testify v1.8.1
@@ -94,7 +94,7 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
-	github.com/microsoft/durabletask-go v0.1.3 // indirect
+	github.com/microsoft/durabletask-go v0.1.4 // indirect
 	github.com/miekg/dns v1.1.50 // indirect
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect

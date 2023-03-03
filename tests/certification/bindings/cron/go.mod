@@ -6,7 +6,7 @@ require (
 	github.com/benbjohnson/clock v1.3.0
 	github.com/dapr/components-contrib v1.10.0-rc.2
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20220519061249-c2cb1dad5bb0
-	github.com/dapr/dapr v1.10.1-0.20230217170206-da1d01fb50c9
+	github.com/dapr/dapr v1.10.1-0.20230303202925-74458da97d83
 	github.com/dapr/go-sdk v1.7.0
 	github.com/dapr/kit v0.0.4
 	github.com/stretchr/testify v1.8.1
@@ -17,7 +17,7 @@ require (
 	github.com/cloudevents/sdk-go/v2 v2.13.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.1 // indirect
 	github.com/marusama/semaphore/v2 v2.5.0 // indirect
-	github.com/microsoft/durabletask-go v0.1.3 // indirect
+	github.com/microsoft/durabletask-go v0.1.4 // indirect
 )
 
 require (
@@ -151,4 +151,4 @@ replace github.com/dapr/components-contrib => ../../../../
 // Uncomment for local development for testing with changes
 // in the Dapr runtime. Don't commit with this uncommented!
 //
-// replace github.com/dapr/dapr => ../../../../../dapr
+// replace github.com/dapr/dapr v1.10.1-0.20230303202925-74458da97d83

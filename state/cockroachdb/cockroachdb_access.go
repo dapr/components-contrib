@@ -714,7 +714,8 @@ func (c *CockroachDBAccess) CleanupExpired(ctx context.Context) error {
 	// Need to use fmt.Sprintf because we can't parametrize a table name.
 	// Note we are not setting a timeout here as this query can take a "long"
 	// time, especially if there's no index on expiredate .
-	stmt := fmt.Sprintf(`DELETE FROM %[1]s WHERE expiredate IS NOT NULL AND expiredate < CURRENT_TIMESTAMP`, c.metadata.TableName)
+	//nolint:gosec
+	stmt := fmt.Sprintf(`DELETE FROM %s WHERE expiredate IS NOT NULL AND expiredate < CURRENT_TIMESTAMP`, c.metadata.TableName)
 	res, err := c.db.ExecContext(ctx, stmt)
 	if err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)

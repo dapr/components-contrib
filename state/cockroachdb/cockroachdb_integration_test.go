@@ -666,12 +666,12 @@ func setWithTTLShouldNotReturnAfterTTL(t *testing.T, pgs *CockroachDB) {
 
 	setItemWithTTL(t, pgs, key, value, nil, time.Second)
 
-	getResponse, outputObject := getItem(t, pgs, key)
+	_, outputObject := getItem(t, pgs, key)
 	assert.Equal(t, value, outputObject)
 
 	<-time.After(time.Second * 2)
 
-	getResponse, outputObject = getItem(t, pgs, key)
+	getResponse, outputObject := getItem(t, pgs, key)
 	assert.Equal(t, new(fakeItem), outputObject)
 
 	newValue := &fakeItem{Color: "green"}

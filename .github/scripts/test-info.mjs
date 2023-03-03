@@ -176,10 +176,6 @@ const components = {
         certificationSetup: 'certification-pubsub.aws.snssqs-setup.sh',
         certificationDestroy: 'certification-pubsub.aws.snssqs-destroy.sh',
     },
-    'pubsub.aws.snssqs.docker': {
-        conformance: true,
-        conformanceSetup: 'docker-compose.sh snssqs',
-    },
     'pubsub.aws.snssqs.terraform': {
         conformance: true,
         requireAWSCredentials: true,

@@ -19,6 +19,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	pgxmock "github.com/pashagolub/pgxmock/v2"
 	"github.com/stretchr/testify/assert"
 
@@ -29,6 +31,10 @@ import (
 type mocks struct {
 	db    pgxmock.PgxPoolIface
 	pgDba *PostgresDBAccess
+}
+
+type fakeItem struct {
+	Color string
 }
 
 func TestGetSetWithWrongType(t *testing.T) {
@@ -467,10 +473,27 @@ func mockDatabase(t *testing.T) (*mocks, error) {
 	dba := &PostgresDBAccess{
 		logger: logger,
 		db:     db,
+		ensureTableFn: func(context.Context, pgx.Tx, EnsureTableOptions) error {
+			return nil
+		},
+		setQueryFn: func(*state.SetRequest, SetQueryOptions) string {
+			return `INSERT INTO state
+					(key, value, isbinary, expiredate)
+				VALUES
+					($1, $2, $3, NULL)`
+		},
 	}
 
 	return &mocks{
 		db:    db,
 		pgDba: dba,
 	}, err
+}
+
+func randomKey() string {
+	return uuid.New().String()
+}
+
+func randomJSON() *fakeItem {
+	return &fakeItem{Color: randomKey()}
 }

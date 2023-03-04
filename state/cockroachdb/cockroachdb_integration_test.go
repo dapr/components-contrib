@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -23,12 +23,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dapr/kit/logger"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/dapr/components-contrib/internal/component/postgresql"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -53,10 +56,10 @@ func TestCockroachDBIntegration(t *testing.T) {
 	})
 
 	metadata := state.Metadata{
-		Base: metadata.Base{Properties: map[string]string{connectionStringKey: connectionString}},
+		Base: metadata.Base{Properties: map[string]string{"connectionString": connectionString}},
 	}
 
-	pgs := New(logger.NewLogger("test")).(*CockroachDB)
+	pgs := New(logger.NewLogger("test")).(*postgresql.PostgreSQL)
 	t.Cleanup(func() {
 		defer pgs.Close()
 	})
@@ -68,7 +71,7 @@ func TestCockroachDBIntegration(t *testing.T) {
 	t.Run("Create table succeeds", func(t *testing.T) {
 		t.Parallel()
 
-		dbAccess, ok := pgs.dbaccess.(*CockroachDBAccess)
+		dbAccess, ok := pgs.GetDBAccess().(*postgresql.PostgresDBAccess)
 		assert.True(t, ok)
 
 		testCreateTable(t, dbAccess)
@@ -156,7 +159,7 @@ func TestCockroachDBIntegration(t *testing.T) {
 }
 
 // setGetUpdateDeleteOneItem validates setting one item, getting it, and deleting it.
-func setGetUpdateDeleteOneItem(t *testing.T, pgs *CockroachDB) {
+func setGetUpdateDeleteOneItem(t *testing.T, pgs *postgresql.PostgreSQL) {
 	t.Helper()
 
 	key := randomKey()
@@ -176,37 +179,62 @@ func setGetUpdateDeleteOneItem(t *testing.T, pgs *CockroachDB) {
 }
 
 // testCreateTable tests the ability to create the state table.
-func testCreateTable(t *testing.T, dba *CockroachDBAccess) {
+func testCreateTable(t *testing.T, dba *postgresql.PostgresDBAccess) {
 	t.Helper()
+	ctx := context.Background()
 
 	tableName := "test_state"
 
+	db := dba.GetDB()
+
 	// Drop the table if it already exists.
-	exists, err := tableExists(context.Background(), dba.db, tableName)
-	assert.Nil(t, err)
+	tx, err := db.Begin(ctx)
+	require.NoError(t, err)
+	exists, err := tableExists(ctx, tx, tableName)
+	assert.NoError(t, err)
+	require.NoError(t, tx.Commit(ctx))
+
 	if exists {
-		dropTable(t, dba.db, tableName)
+		dropTable(t, dba.GetDB(), tableName)
 	}
 
 	// Create the state table and test for its existence.
-	err = dba.ensureStateTable(context.Background(), tableName)
-	assert.Nil(t, err)
-	exists, err = tableExists(context.Background(), dba.db, tableName)
-	assert.Nil(t, err)
-	assert.True(t, exists)
+	tx, err = db.Begin(ctx)
+	require.NoError(t, err)
+	err = ensureTables(ctx, tx, postgresql.EnsureTableOptions{
+		Logger:            logger.NewLogger("test"),
+		StateTableName:    "test_state",
+		MetadataTableName: "test_metadata",
+	})
+	assert.NoError(t, err)
+	require.NoError(t, tx.Commit(ctx))
 
-	// Drop the state table.
-	dropTable(t, dba.db, tableName)
+	tx, err = db.Begin(ctx)
+	require.NoError(t, err)
+	exists, err = tableExists(ctx, tx, "test_state")
+	assert.NoError(t, err)
+	assert.True(t, exists)
+	require.NoError(t, tx.Commit(ctx))
+
+	tx, err = db.Begin(ctx)
+	require.NoError(t, err)
+	exists, err = tableExists(ctx, tx, "test_metadata")
+	assert.NoError(t, err)
+	assert.True(t, exists)
+	require.NoError(t, tx.Commit(ctx))
+
+	dropTable(t, db, "test_state")
+	dropTable(t, db, "test_metadata")
 }
 
-func dropTable(t *testing.T, db *sql.DB, tableName string) {
+func dropTable(t *testing.T, db *pgxpool.Pool, tableName string) {
 	t.Helper()
 
-	_, err := db.Exec(fmt.Sprintf("DROP TABLE %s", tableName))
+	_, err := db.Exec(context.Background(), fmt.Sprintf("DROP TABLE %s", tableName))
 	assert.Nil(t, err)
 }
 
-func deleteItemThatDoesNotExist(t *testing.T, pgs *CockroachDB) {
+func deleteItemThatDoesNotExist(t *testing.T, pgs *postgresql.PostgreSQL) {
 	t.Helper()
 
 	// Delete the item with a key not in the store.
@@ -223,7 +251,7 @@ func deleteItemThatDoesNotExist(t *testing.T, pgs *CockroachDB) {
 	assert.Nil(t, err)
 }
 
-func multiWithSetOnly(t *testing.T, pgs *CockroachDB) {
+func multiWithSetOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
 	t.Helper()
 
 	var operations []state.TransactionalStateOperation
@@ -259,7 +287,7 @@ func multiWithSetOnly(t *testing.T, pgs *CockroachDB) {
 	}
 }
 
-func multiWithDeleteOnly(t *testing.T, pgs *CockroachDB) {
+func multiWithDeleteOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
 	t.Helper()
 
 	var operations []state.TransactionalStateOperation
@@ -299,7 +327,7 @@ func multiWithDeleteOnly(t *testing.T, pgs *CockroachDB) {
 	}
 }
 
-func multiWithDeleteAndSet(t *testing.T, pgs *CockroachDB) {
+func multiWithDeleteAndSet(t *testing.T, pgs *postgresql.PostgreSQL) {
 	t.Helper()
 
 	var operations []state.TransactionalStateOperation
@@ -365,7 +393,7 @@ func multiWithDeleteAndSet(t *testing.T, pgs *CockroachDB) {
 	}
 }
 
-func deleteWithInvalidEtagFails(t *testing.T, pgs *CockroachDB) {
+func deleteWithInvalidEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 	t.Helper()
 
 	// Create new item.
@@ -388,7 +416,7 @@ func deleteWithInvalidEtagFails(t *testing.T, pgs *CockroachDB) {
 	assert.NotNil(t, err)
 }
 
-func deleteWithNoKeyFails(t *testing.T, pgs *CockroachDB) {
+func deleteWithNoKeyFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 	t.Helper()
 
 	deleteReq := &state.DeleteRequest{
@@ -405,7 +433,7 @@ func deleteWithNoKeyFails(t *testing.T, pgs *CockroachDB) {
 }
 
 // newItemWithEtagFails creates a new item and also supplies an ETag, which is invalid - expect failure.
-func newItemWithEtagFails(t *testing.T, pgs *CockroachDB) {
+func newItemWithEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 	t.Helper()
 
 	value := &fakeItem{Color: "teal"}
@@ -427,7 +455,7 @@ func newItemWithEtagFails(t *testing.T, pgs *CockroachDB) {
 	assert.NotNil(t, err)
 }
 
-func updateWithOldEtagFails(t *testing.T, pgs *CockroachDB) {
+func updateWithOldEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 	t.Helper()
 
 	// Create and retrieve new item.
@@ -461,7 +489,7 @@ func updateWithOldEtagFails(t *testing.T, pgs *CockroachDB) {
 	assert.NotNil(t, err)
 }
 
-func updateAndDeleteWithEtagSucceeds(t *testing.T, pgs *CockroachDB) {
+func updateAndDeleteWithEtagSucceeds(t *testing.T, pgs *postgresql.PostgreSQL) {
 	t.Helper()
 
 	// Create and retrieve new item.
@@ -488,7 +516,7 @@ func updateAndDeleteWithEtagSucceeds(t *testing.T, pgs *CockroachDB) {
 }
 
 // getItemThatDoesNotExist validates the behavior of retrieving an item that does not exist.
-func getItemThatDoesNotExist(t *testing.T, pgs *CockroachDB) {
+func getItemThatDoesNotExist(t *testing.T, pgs *postgresql.PostgreSQL) {
 	t.Helper()
 
 	key := randomKey()
@@ -498,7 +526,7 @@ func getItemThatDoesNotExist(t *testing.T, pgs *CockroachDB) {
 }
 
 // getItemWithNoKey validates that attempting a Get operation without providing a key will return an error.
-func getItemWithNoKey(t *testing.T, pgs *CockroachDB) {
+func getItemWithNoKey(t *testing.T, pgs *postgresql.PostgreSQL) {
 	t.Helper()
 
 	getReq := &state.GetRequest{
@@ -515,7 +543,7 @@ func getItemWithNoKey(t *testing.T, pgs *CockroachDB) {
 }
 
 // setUpdatesTheUpdatedateField proves that the updateddate is set for an update, and not set upon insert.
-func setUpdatesTheUpdatedateField(t *testing.T, pgs *CockroachDB) {
+func setUpdatesTheUpdatedateField(t *testing.T, pgs *postgresql.PostgreSQL) {
 	t.Helper()
 
 	key := randomKey()
@@ -537,7 +565,7 @@ func setUpdatesTheUpdatedateField(t *testing.T, pgs *CockroachDB) {
 	deleteItem(t, pgs, key, nil)
 }
 
-func setItemWithNoKey(t *testing.T, pgs *CockroachDB) {
+func setItemWithNoKey(t *testing.T, pgs *postgresql.PostgreSQL) {
 	t.Helper()
 
 	setReq := &state.SetRequest{
@@ -557,7 +585,7 @@ func setItemWithNoKey(t *testing.T, pgs *CockroachDB) {
 }
 
 // Tests valid bulk sets and deletes.
-func testBulkSetAndBulkDelete(t *testing.T, pgs *CockroachDB) {
+func testBulkSetAndBulkDelete(t *testing.T, pgs *postgresql.PostgreSQL) {
 	t.Helper()
 
 	setReq := []state.SetRequest{
@@ -604,18 +632,18 @@ func testInitConfiguration(t *testing.T) {
 		{
 			name:        "Empty",
 			props:       map[string]string{},
-			expectedErr: errMissingConnectionString,
+			expectedErr: "missing connection string",
 		},
 		{
 			name:        "Valid connection string",
-			props:       map[string]string{connectionStringKey: getConnectionString()},
+			props:       map[string]string{"connectionString": getConnectionString()},
 			expectedErr: "",
 		},
 	}
 
 	for _, rowTest := range tests {
 		t.Run(rowTest.name, func(t *testing.T) {
-			cockroackDB := New(logger).(*CockroachDB)
+			cockroackDB := New(logger).(*postgresql.PostgreSQL)
 			defer cockroackDB.Close()
 
 			metadata := state.Metadata{
@@ -637,7 +665,7 @@ func getConnectionString() string {
 	return os.Getenv(connectionStringEnvKey)
 }
 
-func setItem(t *testing.T, pgs *CockroachDB, key string, value interface{}, etag *string) {
+func setItem(t *testing.T, pgs *postgresql.PostgreSQL, key string, value interface{}, etag *string) {
 	t.Helper()
 
 	setReq := &state.SetRequest{
@@ -658,7 +686,7 @@ func setItem(t *testing.T, pgs *CockroachDB, key string, value interface{}, etag
 	assert.True(t, itemExists)
 }
 
-func setWithTTLShouldNotReturnAfterTTL(t *testing.T, pgs *CockroachDB) {
+func setWithTTLShouldNotReturnAfterTTL(t *testing.T, pgs *postgresql.PostgreSQL) {
 	t.Helper()
 
 	key := randomKey()
@@ -689,7 +717,7 @@ func setWithTTLShouldNotReturnAfterTTL(t *testing.T, pgs *CockroachDB) {
 	deleteItem(t, pgs, key, getResponse.ETag)
 }
 
-func getItem(t *testing.T, pgs *CockroachDB, key string) (*state.GetResponse, *fakeItem) {
+func getItem(t *testing.T, pgs *postgresql.PostgreSQL, key string) (*state.GetResponse, *fakeItem) {
 	t.Helper()
 
 	getReq := &state.GetRequest{
@@ -711,7 +739,7 @@ func getItem(t *testing.T, pgs *CockroachDB, key string) (*state.GetResponse, *f
 	return response, outputObject
 }
 
-func deleteItem(t *testing.T, pgs *CockroachDB, key string, etag *string) {
+func deleteItem(t *testing.T, pgs *postgresql.PostgreSQL, key string, etag *string) {
 	t.Helper()
 
 	deleteReq := &state.DeleteRequest{
@@ -737,7 +765,7 @@ func storeItemExists(t *testing.T, key string) bool {
 	defer databaseConnection.Close()
 
 	exists := false
-	statement := fmt.Sprintf(`SELECT EXISTS (SELECT * FROM %s WHERE key = $1)`, defaultTableName)
+	statement := `SELECT EXISTS (SELECT * FROM state WHERE key = $1)`
 	err = databaseConnection.QueryRow(statement, key).Scan(&exists)
 	assert.Nil(t, err)
 
@@ -751,13 +779,13 @@ func getRowData(t *testing.T, key string) (returnValue string, insertdate sql.Nu
 	assert.Nil(t, err)
 	defer databaseConnection.Close()
 
-	err = databaseConnection.QueryRow(fmt.Sprintf("SELECT value, insertdate, updatedate FROM %s WHERE key = $1", defaultTableName), key).Scan(&returnValue, &insertdate, &updatedate)
+	err = databaseConnection.QueryRow("SELECT value, insertdate, updatedate FROM state WHERE key = $1", key).Scan(&returnValue, &insertdate, &updatedate)
 	assert.Nil(t, err)
 
 	return returnValue, insertdate, updatedate
 }
 
-func setItemWithTTL(t *testing.T, pgs *CockroachDB, key string, value interface{}, etag *string, ttl time.Duration) {
+func setItemWithTTL(t *testing.T, pgs *postgresql.PostgreSQL, key string, value interface{}, etag *string, ttl time.Duration) {
 	t.Helper()
 
 	setReq := &state.SetRequest{

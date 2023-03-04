@@ -3,8 +3,8 @@ module github.com/dapr/components-contrib/tests/certification/state/azure/blobst
 go 1.20
 
 require (
-	github.com/dapr/components-contrib v1.10.0-rc.2
-	github.com/dapr/components-contrib/tests/certification v0.0.0-20211026011813-36b75e9ae272
+	github.com/dapr/components-contrib v1.10.0-rc.9.0.20230303235857-236104d7f560
+	github.com/dapr/components-contrib/tests/certification v0.0.0-20230303235857-236104d7f560
 	github.com/dapr/dapr v1.10.1-0.20230303202925-74458da97d83
 	github.com/dapr/go-sdk v1.7.0
 	github.com/dapr/kit v0.0.4
@@ -14,7 +14,7 @@ require (
 require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	github.com/AdhityaRamadhanus/fasthttpcors v0.0.0-20170121111917-d4c07198763a // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.4.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.4.0-beta.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0-beta.3 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.1.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.0.0 // indirect

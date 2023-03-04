@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dapr/kit/logger"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
@@ -31,7 +32,6 @@ import (
 	"github.com/dapr/components-contrib/internal/component/postgresql"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/kit/logger"
 )
 
 const (

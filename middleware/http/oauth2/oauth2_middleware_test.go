@@ -14,7 +14,6 @@ limitations under the License.
 package oauth2
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -40,7 +39,7 @@ func TestOAuth2CreatesAuthorizationHeaderWhenInSessionState(t *testing.T) {
 	}
 
 	log := logger.NewLogger("oauth2.test")
-	handler, err := NewOAuth2Middleware(log).GetHandler(context.Background(), metadata)
+	handler, err := NewOAuth2Middleware(log).GetHandler(metadata)
 	require.NoError(t, err)
 
 	// Create request and recorder

@@ -117,7 +117,7 @@ func (m *Middleware) GetHandler(_ context.Context, metadata middleware.Metadata)
 				headerValue = cachedToken.(string)
 			}
 
-			w.Header().Add(meta.HeaderName, headerValue)
+			r.Header.Add(meta.HeaderName, headerValue)
 			next.ServeHTTP(w, r)
 		})
 	}, nil

@@ -90,6 +90,7 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 				return
 			}
 
+			// Redirect to the auth server
 			state := r.URL.Query().Get(stateParam)
 			if state == "" {
 				id, err := uuid.NewRandom()

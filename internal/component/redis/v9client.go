@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	v9 "github.com/go-redis/redis/v9"
+	v9 "github.com/redis/go-redis/v9"
 )
 
 type v9Pipeliner struct {

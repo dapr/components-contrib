@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/dapr/kit/logger"
 )
@@ -119,7 +120,6 @@ func (g *gc) CleanupExpired() error {
 	var (
 		tx   pgx.Tx
 		txwc *sql.Tx
-		err  error
 	)
 
 	// Deletion can take a long time to complete so we have a long background
@@ -137,6 +137,7 @@ func (g *gc) CleanupExpired() error {
 		}
 	}()
 
+	var err error
 	if g.db != nil {
 		tx, err = g.db.Begin(ctx)
 		if err != nil {
@@ -165,13 +166,15 @@ func (g *gc) CleanupExpired() error {
 
 	var rowsAffected int64
 	if tx != nil {
-		res, err := tx.Exec(ctx, g.deleteExpiredValuesQuery)
+		var res pgconn.CommandTag
+		res, err = tx.Exec(ctx, g.deleteExpiredValuesQuery)
 		if err != nil {
 			return fmt.Errorf("failed to execute query: %w", err)
 		}
 		rowsAffected = res.RowsAffected()
 	} else {
-		res, err := txwc.ExecContext(ctx, g.deleteExpiredValuesQuery)
+		var res sql.Result
+		res, err = txwc.ExecContext(ctx, g.deleteExpiredValuesQuery)
 		if err != nil {
 			return fmt.Errorf("failed to execute query: %w", err)
 		}
@@ -207,7 +210,6 @@ func (g *gc) updateLastCleanup(ctx context.Context, tx pgx.Tx, txwc *sql.Tx) (bo
 			return false, fmt.Errorf("error updating last cleanup time: %w", err)
 		}
 		n = res.RowsAffected()
-
 	} else {
 		res, err := txwc.ExecContext(ctx, g.updateLastCleanupQuery, g.cleanupInterval.Milliseconds()-100)
 		if err != nil {

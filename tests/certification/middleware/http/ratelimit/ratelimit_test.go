@@ -27,7 +27,7 @@ import (
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
-	state_loader "github.com/dapr/dapr/pkg/components/state"
+	mw_loader "github.com/dapr/dapr/pkg/components/middleware/http"
 	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/stretchr/testify/assert"
@@ -98,16 +98,16 @@ func TestHTTPMiddlewareRatelimit(t *testing.T) {
 func componentRuntimeOptions() []runtime.Option {
 	log := logger.NewLogger("dapr.components")
 
-	stateRegistry := state_loader.NewRegistry()
-	stateRegistry.Logger = log
-	stateRegistry.RegisterComponent(blob.NewAzureBlobStorageStore, "azure.blobstorage")
+	middlewareRegistry := mw_loader.NewRegistry()
+	middlewareRegistry.Logger = log
+	middlewareRegistry.RegisterComponent(blob.NewAzureBlobStorageStore, "http.ratelimit")
 
 	secretstoreRegistry := secretstores_loader.NewRegistry()
 	secretstoreRegistry.Logger = log
 	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
 
 	return []runtime.Option{
-		runtime.WithStates(stateRegistry),
+		runtime.WithHTTPMiddlewares(middlewareRegistry),
 		runtime.WithSecretStores(secretstoreRegistry),
 	}
 }

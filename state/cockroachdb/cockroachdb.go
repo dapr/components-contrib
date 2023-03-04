@@ -17,11 +17,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/dapr/kit/logger"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/dapr/components-contrib/internal/component/postgresql"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/logger"
 )
 
 // New creates a new instance of CockroachDB state store.

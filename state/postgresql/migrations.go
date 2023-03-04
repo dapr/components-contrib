@@ -21,10 +21,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dapr/kit/logger"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/dapr/components-contrib/internal/component/postgresql"
+	"github.com/dapr/kit/logger"
 )
 
 // Performs migrations for the database schema

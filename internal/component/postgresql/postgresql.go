@@ -20,11 +20,11 @@ import (
 	// Blank import for the underlying PostgreSQL driver.
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/dapr/kit/logger"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/logger"
 )
 
 // PostgreSQL state store.

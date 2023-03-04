@@ -36,7 +36,6 @@ func NewPostgreSQLStateStore(logger logger.Logger) state.Store {
 					(key, value, isbinary, expiredate)
 				VALUES
 					($1, $2, $3, %[2]s)`, opts.TableName, opts.ExpireDateValue)
-
 				}
 
 				return fmt.Sprintf(`INSERT INTO %[1]s

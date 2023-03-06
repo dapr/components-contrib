@@ -472,7 +472,7 @@ func mockDatabase(t *testing.T) (*mocks, error) {
 	dba := &PostgresDBAccess{
 		logger: logger,
 		db:     db,
-		ensureTableFn: func(context.Context, PGXPoolConn, EnsureTableOptions) error {
+		migrateFn: func(context.Context, PGXPoolConn, MigrateOptions) error {
 			return nil
 		},
 		setQueryFn: func(*state.SetRequest, SetQueryOptions) string {

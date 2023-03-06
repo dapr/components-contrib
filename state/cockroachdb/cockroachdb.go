@@ -25,8 +25,8 @@ import (
 // New creates a new instance of CockroachDB state store.
 func New(logger logger.Logger) state.Store {
 	return postgresql.NewPostgreSQLStateStore(logger, postgresql.Options{
-		ETagColumn:    "etag",
-		EnsureTableFn: ensureTables,
+		ETagColumn: "etag",
+		MigrateFn:  ensureTables,
 		SetQueryFn: func(req *state.SetRequest, opts postgresql.SetQueryOptions) string {
 			// Sprintf is required for table name because sql.DB does not substitute
 			// parameters for table names.
@@ -62,7 +62,7 @@ WHERE
 	})
 }
 
-func ensureTables(ctx context.Context, db postgresql.PGXPoolConn, opts postgresql.EnsureTableOptions) error {
+func ensureTables(ctx context.Context, db postgresql.PGXPoolConn, opts postgresql.MigrateOptions) error {
 	exists, err := tableExists(ctx, db, opts.StateTableName)
 	if err != nil {
 		return err

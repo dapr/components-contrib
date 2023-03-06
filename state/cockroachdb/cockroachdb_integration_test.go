@@ -194,7 +194,7 @@ func testCreateTable(t *testing.T, dba *postgresql.PostgresDBAccess) {
 	}
 
 	// Create the state table and test for its existence.
-	err = ensureTables(ctx, db, postgresql.EnsureTableOptions{
+	err = ensureTables(ctx, db, postgresql.MigrateOptions{
 		Logger:            logger.NewLogger("test"),
 		StateTableName:    "test_state",
 		MetadataTableName: "test_metadata",

@@ -32,12 +32,12 @@ type PostgreSQL struct {
 }
 
 type Options struct {
-	EnsureTableFn func(context.Context, PGXPoolConn, EnsureTableOptions) error
-	SetQueryFn    func(*state.SetRequest, SetQueryOptions) string
-	ETagColumn    string
+	MigrateFn  func(context.Context, PGXPoolConn, MigrateOptions) error
+	SetQueryFn func(*state.SetRequest, SetQueryOptions) string
+	ETagColumn string
 }
 
-type EnsureTableOptions struct {
+type MigrateOptions struct {
 	Logger            logger.Logger
 	StateTableName    string
 	MetadataTableName string

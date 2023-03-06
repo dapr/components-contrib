@@ -35,7 +35,7 @@ type migrations struct {
 }
 
 // performMigration the required migrations
-func performMigration(ctx context.Context, db postgresql.PGXPoolConn, opts postgresql.EnsureTableOptions) error {
+func performMigration(ctx context.Context, db postgresql.PGXPoolConn, opts postgresql.MigrateOptions) error {
 	m := &migrations{
 		logger:            opts.Logger,
 		stateTableName:    opts.StateTableName,

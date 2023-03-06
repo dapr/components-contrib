@@ -15,7 +15,6 @@ package postgresql
 
 import (
 	"context"
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -27,6 +26,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/dapr/components-contrib/state"
@@ -56,9 +56,9 @@ type PostgresDBAccess struct {
 	metadata postgresMetadataStruct
 	db       PGXPoolConn
 
-	ensureTableFn func(context.Context, PGXPoolConn, EnsureTableOptions) error
-	setQueryFn    func(*state.SetRequest, SetQueryOptions) string
-	etagColumn    string
+	migrateFn  func(context.Context, PGXPoolConn, MigrateOptions) error
+	setQueryFn func(*state.SetRequest, SetQueryOptions) string
+	etagColumn string
 
 	closeCh chan struct{}
 	closed  atomic.Bool
@@ -70,11 +70,11 @@ func newPostgresDBAccess(logger logger.Logger, opts Options) *PostgresDBAccess {
 	logger.Debug("Instantiating new Postgres state store")
 
 	return &PostgresDBAccess{
-		logger:        logger,
-		closeCh:       make(chan struct{}),
-		ensureTableFn: opts.EnsureTableFn,
-		setQueryFn:    opts.SetQueryFn,
-		etagColumn:    opts.ETagColumn,
+		logger:     logger,
+		closeCh:    make(chan struct{}),
+		migrateFn:  opts.MigrateFn,
+		setQueryFn: opts.SetQueryFn,
+		etagColumn: opts.ETagColumn,
 	}
 }
 
@@ -116,7 +116,7 @@ func (p *PostgresDBAccess) Init(ctx context.Context, meta state.Metadata) error 
 		return err
 	}
 
-	if err = p.ensureTableFn(ctx, p.db, EnsureTableOptions{
+	if err = p.migrateFn(ctx, p.db, MigrateOptions{
 		Logger:            p.logger,
 		StateTableName:    p.metadata.TableName,
 		MetadataTableName: p.metadata.MetadataTableName,
@@ -250,7 +250,7 @@ func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest)
 	var (
 		value    []byte
 		isBinary bool
-		etag     sql.NullInt64
+		etag     pgtype.Int8
 	)
 	query := `SELECT
 			value, isbinary, %[1]s AS etag

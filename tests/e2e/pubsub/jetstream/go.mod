@@ -3,7 +3,7 @@ module github.com/dapr/components-contrib/tests/e2e/pubsub/jetstream
 go 1.20
 
 require (
-	github.com/dapr/components-contrib v1.10.0-rc.1.0.20230217001905-83ebec68c13e
+	github.com/dapr/components-contrib v1.10.0-rc.9.0.20230303212325-d6f35401af8a
 	github.com/dapr/kit v0.0.4
 )
 

@@ -3,9 +3,9 @@ module github.com/dapr/components-contrib/tests/certification/state/cockroachdb
 go 1.20
 
 require (
-	github.com/dapr/components-contrib v1.10.0-rc.2
+	github.com/dapr/components-contrib v1.10.0-rc.9.0.20230303212325-d6f35401af8a
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20221111215803-c92827c3defc
-	github.com/dapr/dapr v1.10.1-0.20230303202925-74458da97d83
+	github.com/dapr/dapr v1.10.1-0.20230306165150-8609d5aeedb7
 	github.com/dapr/go-sdk v1.7.0
 	github.com/dapr/kit v0.0.4
 	github.com/google/uuid v1.3.0
@@ -65,6 +65,7 @@ require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
 	github.com/jackc/pgx/v5 v5.3.1 // indirect
+	github.com/jackc/puddle/v2 v2.2.0 // indirect
 	github.com/jhump/protoreflect v1.14.1 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect

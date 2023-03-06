@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/internal/component/postgresql"
 	"github.com/dapr/components-contrib/metadata"
@@ -188,6 +189,7 @@ func testCreateTable(t *testing.T, dba *postgresql.PostgresDBAccess) {
 
 	// Drop the table if it already exists.
 	exists, err := tableExists(ctx, db, tableName)
+	require.NoError(t, err)
 
 	if exists {
 		dropTable(t, dba.GetDB(), tableName)
@@ -199,6 +201,7 @@ func testCreateTable(t *testing.T, dba *postgresql.PostgresDBAccess) {
 		StateTableName:    "test_state",
 		MetadataTableName: "test_metadata",
 	})
+	require.NoError(t, err)
 
 	exists, err = tableExists(ctx, db, "test_state")
 	assert.NoError(t, err)
@@ -206,6 +209,7 @@ func testCreateTable(t *testing.T, dba *postgresql.PostgresDBAccess) {
 
 	exists, err = tableExists(ctx, db, "test_metadata")
 	assert.NoError(t, err)
+	assert.True(t, exists)
 
 	dropTable(t, db, "test_state")
 	dropTable(t, db, "test_metadata")

@@ -92,55 +92,8 @@ func TestHTTPMiddlewareRatelimit(t *testing.T) {
 		return res.StatusCode == http.StatusOK, nil
 	}
 
-	// Test against a single sidecar below the rate-limit
-	singleSidecarNoRateLimitTest := func() flow.Runnable {
-		// Test with 5 rps, should never be rate-limited
-		const (
-			rps           = 5
-			reqsPerThread = 20
-			threads       = 5
-		)
-		return func(ctx flow.Context) error {
-			limiter := ratelimit.New(rps)
-
-			wg := sync.WaitGroup{}
-			failed := atomic.Uint32{}
-			start := time.Now()
-
-			// Run multiple goroutines in parallel
-			for i := 0; i < threads; i++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-
-					for j := 0; j < reqsPerThread; j++ {
-						limiter.Take()
-						ok, err := sendRequest(ctx.Context, httpPorts[0], nil)
-						require.NoError(ctx.T, err)
-						if !ok {
-							failed.Add(1)
-						}
-					}
-				}()
-			}
-			wg.Wait()
-
-			// No request should have been rate-limited
-			ctx.T.Logf("Test duration: %v. Failed requests: %d", time.Since(start), failed.Load())
-			assert.Equal(ctx.T, uint32(0), failed.Load())
-
-			return nil
-		}
-	}
-
-	// Test against a single sidecar above the rate-limit
-	singleSidecarRateLimitTest := func() flow.Runnable {
-		// Test with 20 rps, should be rate-limited
-		const (
-			reqsPerThread = 20
-			threads       = 10
-			rps           = 20
-		)
+	// Run tests to check if rate-limiting is applied
+	rateLimitTest := func(rps, reqsPerThread, threads, sidecars int) flow.Runnable {
 		return func(ctx flow.Context) error {
 			limiter := ratelimit.New(rps)
 
@@ -157,7 +110,7 @@ func TestHTTPMiddlewareRatelimit(t *testing.T) {
 
 					for j := 0; j < reqsPerThread; j++ {
 						limiter.Take()
-						ok, err := sendRequest(ctx.Context, httpPorts[0], nil)
+						ok, err := sendRequest(ctx.Context, httpPorts[j%sidecars], nil)
 						require.NoError(ctx.T, err)
 						if ok {
 							passed.Add(1)
@@ -169,14 +122,22 @@ func TestHTTPMiddlewareRatelimit(t *testing.T) {
 			}
 			wg.Wait()
 
-			// Depending on the duration of the test, we should have approximately 10 rps
-			// We also add a 50% buffer to account for the allowed bursting and for variations during tests
 			duration := time.Since(start)
-			expected := uint32(duration.Seconds() * limitRps * 1.5)
 
-			ctx.T.Logf("Test duration: %v. Passed requess: %d (expected less than: %d). Failed requests: %d", duration, passed.Load(), expected, failed.Load())
-			assert.Less(ctx.T, passed.Load(), expected)
-			assert.Equal(ctx.T, uint32(threads*reqsPerThread), passed.Load()+failed.Load())
+			// If the rps is less than limitRps per sidecar, we expect no failure
+			if rps < (limitRps * sidecars) {
+				ctx.T.Logf("Test duration: %v. Passed requests: %d. Failed requests: %d", duration, passed.Load(), failed.Load())
+				require.Equal(ctx.T, uint32(threads*reqsPerThread), passed.Load()+failed.Load())
+				assert.Equal(ctx.T, uint32(0), failed.Load())
+			} else {
+				// Depending on the duration of the test, we should have approximately limitRps rps (per sidecar)
+				// We also add a 50% buffer to account for allowed bursting and for variations during tests
+				expected := uint32(duration.Seconds()*limitRps*1.5) * uint32(sidecars)
+
+				ctx.T.Logf("Test duration: %v. Passed requests: %d (expected less than: %d). Failed requests: %d", duration, passed.Load(), expected, failed.Load())
+				require.Equal(ctx.T, uint32(threads*reqsPerThread), passed.Load()+failed.Load())
+				assert.Less(ctx.T, passed.Load(), expected)
+			}
 
 			return nil
 		}
@@ -244,8 +205,7 @@ func TestHTTPMiddlewareRatelimit(t *testing.T) {
 	}
 
 	// The next lines allow commenting-out individual tests during development
-	_ = singleSidecarNoRateLimitTest
-	_ = singleSidecarRateLimitTest
+	_ = rateLimitTest
 	_ = perIPRateLimitTest
 
 	// Run tests
@@ -273,9 +233,11 @@ func TestHTTPMiddlewareRatelimit(t *testing.T) {
 			componentRuntimeOptions(),
 		)).
 		// Tests
-		Step("Single sidecar, requests below rate-limit", singleSidecarNoRateLimitTest()).
-		Step("Single sidecar, requests above rate-limit", singleSidecarRateLimitTest()).
+		Step("Single sidecar, requests below rate-limit", rateLimitTest(5, 20, 5, 1)).
+		Step("Single sidecar, requests above rate-limit", rateLimitTest(20, 20, 10, 1)).
 		Step("Rate-limiting is applied per-IP", perIPRateLimitTest()).
+		Step("Multiple sidecars, requests below rate-limit", rateLimitTest(10, 20, 5, 2)).
+		Step("Multiple sidecars, requests above rate-limit", rateLimitTest(50, 20, 10, 2)).
 		// Run
 		Run()
 

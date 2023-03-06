@@ -14,8 +14,6 @@ limitations under the License.
 package postgresql
 
 import (
-	"fmt"
-
 	"github.com/dapr/components-contrib/internal/component/postgresql"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
@@ -32,33 +30,33 @@ func NewPostgreSQLStateStore(logger logger.Logger) state.Store {
 			// Other parameters use sql.DB parameter substitution.
 			if req.ETag == nil || *req.ETag == "" {
 				if req.Options.Concurrency == state.FirstWrite {
-					return fmt.Sprintf(`INSERT INTO %[1]s
+					return `INSERT INTO ` + opts.TableName + `
 					(key, value, isbinary, expiredate)
 				VALUES
-					($1, $2, $3, %[2]s)`, opts.TableName, opts.ExpireDateValue)
+					($1, $2, $3, ` + opts.ExpireDateValue + `);`
 				}
 
-				return fmt.Sprintf(`INSERT INTO %[1]s
+				return `INSERT INTO ` + opts.TableName + `
 					(key, value, isbinary, expiredate)
 				VALUES
-					($1, $2, $3, %[2]s)
+					($1, $2, $3, ` + opts.ExpireDateValue + `)
 				ON CONFLICT (key)
 				DO UPDATE SET
 					value = $2,
 					isbinary = $3,
 					updatedate = CURRENT_TIMESTAMP,
-					expiredate = %[2]s`, opts.TableName, opts.ExpireDateValue)
+					expiredate = ` + opts.ExpireDateValue + `;`
 			}
 
-			return fmt.Sprintf(`UPDATE %[1]s
+			return `UPDATE ` + opts.TableName + `
 			SET
 				value = $2,
 				isbinary = $3,
 				updatedate = CURRENT_TIMESTAMP,
-				expiredate = %[2]s
+				expiredate = ` + opts.ExpireDateValue + `
 			WHERE
 				key = $1
-				AND xmin = $4`, opts.TableName, opts.ExpireDateValue)
+				AND xmin = $4;`
 		},
 	})
 }

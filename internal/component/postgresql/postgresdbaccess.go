@@ -268,9 +268,9 @@ func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest)
 		return nil, err
 	}
 
-	var etagS string
+	var etagS *string
 	if etag.Valid {
-		etagS = strconv.FormatInt(etag.Int64, 10)
+		etagS = ptr.Of(strconv.FormatInt(etag.Int64, 10))
 	}
 
 	if isBinary {
@@ -289,13 +289,13 @@ func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest)
 
 		return &state.GetResponse{
 			Data: data,
-			ETag: ptr.Of(etagS),
+			ETag: etagS,
 		}, nil
 	}
 
 	return &state.GetResponse{
 		Data: value,
-		ETag: ptr.Of(etagS),
+		ETag: etagS,
 	}, nil
 }
 
@@ -320,7 +320,7 @@ func (p *PostgresDBAccess) doDelete(parentCtx context.Context, db dbquerier, req
 			return state.NewETagError(state.ETagInvalid, err)
 		}
 
-		result, err = db.Exec(parentCtx, fmt.Sprintf("DELETE FROM state WHERE key = $1 AND %s = $2", p.etagColumn), req.Key, uint32(etag64))
+		result, err = db.Exec(parentCtx, "DELETE FROM state WHERE key = $1 AND $2 = "+p.etagColumn, req.Key, uint32(etag64))
 	}
 
 	if err != nil {

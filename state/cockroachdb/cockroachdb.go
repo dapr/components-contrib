@@ -28,36 +28,34 @@ func New(logger logger.Logger) state.Store {
 		ETagColumn: "etag",
 		MigrateFn:  ensureTables,
 		SetQueryFn: func(req *state.SetRequest, opts postgresql.SetQueryOptions) string {
-			// Sprintf is required for table name because sql.DB does not substitute
-			// parameters for table names.
+			// String concat is required for table name because sql.DB does not
+			// substitute parameters for table names.
 			// Other parameters use sql.DB parameter substitution.
 			if req.ETag == nil || *req.ETag == "" {
-				return fmt.Sprintf(`
-INSERT INTO %[1]s
+				return `
+INSERT INTO ` + opts.TableName + `
   (key, value, isbinary, etag, expiredate)
 VALUES
-  ($1, $2, $3, 1, %[2]s)
+  ($1, $2, $3, 1, ` + opts.ExpireDateValue + `)
 ON CONFLICT (key) DO UPDATE SET
   value = $2,
   isbinary = $3,
   updatedate = NOW(),
   etag = EXCLUDED.etag + 1,
-  expiredate = %[2]s
-;`, opts.TableName, opts.ExpireDateValue)
+  expiredate = ` + opts.ExpireDateValue + `;`
 			}
 
 			// When an etag is provided do an update - no insert.
-			return fmt.Sprintf(`
-UPDATE %[1]s
+			return `
+UPDATE ` + opts.TableName + `
 SET
   value = $2,
   isbinary = $3,
   updatedate = NOW(),
   etag = etag + 1,
-  expiredate = %[2]s
+  expiredate = ` + opts.ExpireDateValue + `
 WHERE
-  key = $1 AND etag = $4
-;`, opts.TableName, opts.ExpireDateValue)
+  key = $1 AND etag = $4;`
 		},
 	})
 }

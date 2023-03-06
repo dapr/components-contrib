@@ -40,7 +40,7 @@ var errMissingConnectionString = errors.New("missing connection string")
 
 // Interface that applies to *pgxpool.Pool.
 // We need this to be able to mock the connection in tests.
-type pgxPoolConn interface {
+type PGXPoolConn interface {
 	Begin(context.Context) (pgx.Tx, error)
 	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
 	Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error)
@@ -54,9 +54,9 @@ type pgxPoolConn interface {
 type PostgresDBAccess struct {
 	logger   logger.Logger
 	metadata postgresMetadataStruct
-	db       pgxPoolConn
+	db       PGXPoolConn
 
-	ensureTableFn func(context.Context, pgx.Tx, EnsureTableOptions) error
+	ensureTableFn func(context.Context, PGXPoolConn, EnsureTableOptions) error
 	setQueryFn    func(*state.SetRequest, SetQueryOptions) string
 	etagColumn    string
 
@@ -116,21 +116,11 @@ func (p *PostgresDBAccess) Init(ctx context.Context, meta state.Metadata) error 
 		return err
 	}
 
-	tx, err := p.db.Begin(ctx)
-	if err != nil {
-		return err
-	}
-
-	if err = p.ensureTableFn(ctx, tx, EnsureTableOptions{
+	if err = p.ensureTableFn(ctx, p.db, EnsureTableOptions{
 		Logger:            p.logger,
 		StateTableName:    p.metadata.TableName,
 		MetadataTableName: p.metadata.MetadataTableName,
 	}); err != nil {
-		tx.Rollback(ctx)
-		return err
-	}
-
-	if err = tx.Commit(ctx); err != nil {
 		return err
 	}
 

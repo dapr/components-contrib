@@ -20,8 +20,6 @@ import (
 	// Blank import for the underlying PostgreSQL driver.
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/jackc/pgx/v5"
-
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
@@ -34,7 +32,7 @@ type PostgreSQL struct {
 }
 
 type Options struct {
-	EnsureTableFn func(context.Context, pgx.Tx, EnsureTableOptions) error
+	EnsureTableFn func(context.Context, PGXPoolConn, EnsureTableOptions) error
 	SetQueryFn    func(*state.SetRequest, SetQueryOptions) string
 	ETagColumn    string
 }

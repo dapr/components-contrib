@@ -35,7 +35,7 @@ type migrations struct {
 }
 
 // performMigration the required migrations
-func performMigration(ctx context.Context, tx pgx.Tx, opts postgresql.EnsureTableOptions) error {
+func performMigration(ctx context.Context, db postgresql.PGXPoolConn, opts postgresql.EnsureTableOptions) error {
 	m := &migrations{
 		logger:            opts.Logger,
 		stateTableName:    opts.StateTableName,
@@ -49,7 +49,7 @@ func performMigration(ctx context.Context, tx pgx.Tx, opts postgresql.EnsureTabl
 
 	// Long timeout here as this query may block
 	queryCtx, cancel := context.WithTimeout(ctx, time.Minute)
-	_, err := tx.Exec(queryCtx, "SELECT pg_advisory_lock($1)", lockID)
+	_, err := db.Exec(queryCtx, "SELECT pg_advisory_lock($1)", lockID)
 	cancel()
 	if err != nil {
 		return fmt.Errorf("faild to acquire advisory lock: %w", err)
@@ -58,7 +58,7 @@ func performMigration(ctx context.Context, tx pgx.Tx, opts postgresql.EnsureTabl
 	// Release the lock
 	defer func() {
 		queryCtx, cancel = context.WithTimeout(ctx, time.Minute)
-		_, err = tx.Exec(queryCtx, "SELECT pg_advisory_unlock($1)", lockID)
+		_, err = db.Exec(queryCtx, "SELECT pg_advisory_unlock($1)", lockID)
 		cancel()
 		if err != nil {
 			// Panicking here, as this forcibly closes the session and thus ensures we are not leaving locks hanging around
@@ -68,7 +68,7 @@ func performMigration(ctx context.Context, tx pgx.Tx, opts postgresql.EnsureTabl
 
 	// Check if the metadata table exists, which we also use to store the migration level
 	queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
-	exists, _, _, err := m.tableExists(queryCtx, tx, m.metadataTableName)
+	exists, _, _, err := m.tableExists(queryCtx, db, m.metadataTableName)
 	cancel()
 	if err != nil {
 		return err
@@ -77,7 +77,7 @@ func performMigration(ctx context.Context, tx pgx.Tx, opts postgresql.EnsureTabl
 	// If the table doesn't exist, create it
 	if !exists {
 		queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
-		err = m.createMetadataTable(queryCtx, tx)
+		err = m.createMetadataTable(queryCtx, db)
 		cancel()
 		if err != nil {
 			return err
@@ -90,7 +90,7 @@ func performMigration(ctx context.Context, tx pgx.Tx, opts postgresql.EnsureTabl
 		migrationLevel    int
 	)
 	queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
-	err = tx.QueryRow(queryCtx,
+	err = db.QueryRow(queryCtx,
 		fmt.Sprintf(`SELECT value FROM %s WHERE key = 'migrations'`, m.metadataTableName),
 	).Scan(&migrationLevelStr)
 	cancel()
@@ -109,13 +109,13 @@ func performMigration(ctx context.Context, tx pgx.Tx, opts postgresql.EnsureTabl
 	// Perform the migrations
 	for i := migrationLevel; i < len(allMigrations); i++ {
 		m.logger.Infof("Performing migration %d", i)
-		err = allMigrations[i](ctx, tx, m)
+		err = allMigrations[i](ctx, db, m)
 		if err != nil {
 			return fmt.Errorf("failed to perform migration %d: %w", i, err)
 		}
 
 		queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
-		_, err = tx.Exec(queryCtx,
+		_, err = db.Exec(queryCtx,
 			fmt.Sprintf(`INSERT INTO %s (key, value) VALUES ('migrations', $1) ON CONFLICT (key) DO UPDATE SET value = $1`, m.metadataTableName),
 			strconv.Itoa(i+1),
 		)
@@ -128,11 +128,11 @@ func performMigration(ctx context.Context, tx pgx.Tx, opts postgresql.EnsureTabl
 	return nil
 }
 
-func (m migrations) createMetadataTable(ctx context.Context, tx pgx.Tx) error {
+func (m migrations) createMetadataTable(ctx context.Context, db postgresql.PGXPoolConn) error {
 	m.logger.Infof("Creating metadata table '%s'", m.metadataTableName)
 	// Add an "IF NOT EXISTS" in case another Dapr sidecar is creating the same table at the same time
 	// In the next step we'll acquire a lock so there won't be issues with concurrency
-	_, err := tx.Exec(ctx, fmt.Sprintf(
+	_, err := db.Exec(ctx, fmt.Sprintf(
 		`CREATE TABLE IF NOT EXISTS %s (
 			key text NOT NULL PRIMARY KEY,
 			value text NOT NULL
@@ -146,14 +146,14 @@ func (m migrations) createMetadataTable(ctx context.Context, tx pgx.Tx) error {
 }
 
 // If the table exists, returns true and the name of the table and schema
-func (m migrations) tableExists(ctx context.Context, tx pgx.Tx, tableName string) (exists bool, schema string, table string, err error) {
+func (m migrations) tableExists(ctx context.Context, db postgresql.PGXPoolConn, tableName string) (exists bool, schema string, table string, err error) {
 	table, schema, err = m.tableSchemaName(tableName)
 	if err != nil {
 		return false, "", "", err
 	}
 
 	if schema == "" {
-		err = tx.QueryRow(
+		err = db.QueryRow(
 			ctx,
 			`SELECT table_name, table_schema
 				FROM information_schema.tables 
@@ -162,7 +162,7 @@ func (m migrations) tableExists(ctx context.Context, tx pgx.Tx, tableName string
 		).
 			Scan(&table, &schema)
 	} else {
-		err = tx.QueryRow(
+		err = db.QueryRow(
 			ctx,
 			`SELECT table_name, table_schema
 				FROM information_schema.tables 
@@ -193,12 +193,12 @@ func (m migrations) tableSchemaName(tableName string) (table string, schema stri
 	}
 }
 
-var allMigrations = [2]func(ctx context.Context, tx pgx.Tx, m *migrations) error{
+var allMigrations = [2]func(ctx context.Context, db postgresql.PGXPoolConn, m *migrations) error{
 	// Migration 0: create the state table
-	func(ctx context.Context, tx pgx.Tx, m *migrations) error {
+	func(ctx context.Context, db postgresql.PGXPoolConn, m *migrations) error {
 		// We need to add an "IF NOT EXISTS" because we may be migrating from when we did not use a metadata table
 		m.logger.Infof("Creating state table '%s'", m.stateTableName)
-		_, err := tx.Exec(
+		_, err := db.Exec(
 			ctx,
 			fmt.Sprintf(
 				`CREATE TABLE IF NOT EXISTS %s (
@@ -218,9 +218,9 @@ var allMigrations = [2]func(ctx context.Context, tx pgx.Tx, m *migrations) error
 	},
 
 	// Migration 1: add the "expiredate" column
-	func(ctx context.Context, tx pgx.Tx, m *migrations) error {
+	func(ctx context.Context, db postgresql.PGXPoolConn, m *migrations) error {
 		m.logger.Infof("Adding expiredate column to state table '%s'", m.stateTableName)
-		_, err := tx.Exec(ctx, fmt.Sprintf(
+		_, err := db.Exec(ctx, fmt.Sprintf(
 			`ALTER TABLE %s ADD expiredate TIMESTAMP WITH TIME ZONE`,
 			m.stateTableName,
 		))

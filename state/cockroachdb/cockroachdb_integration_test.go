@@ -26,7 +26,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/internal/component/postgresql"
 	"github.com/dapr/components-contrib/metadata"
@@ -188,40 +187,25 @@ func testCreateTable(t *testing.T, dba *postgresql.PostgresDBAccess) {
 	db := dba.GetDB()
 
 	// Drop the table if it already exists.
-	tx, err := db.Begin(ctx)
-	require.NoError(t, err)
-	exists, err := tableExists(ctx, tx, tableName)
-	assert.NoError(t, err)
-	require.NoError(t, tx.Commit(ctx))
+	exists, err := tableExists(ctx, db, tableName)
 
 	if exists {
 		dropTable(t, dba.GetDB(), tableName)
 	}
 
 	// Create the state table and test for its existence.
-	tx, err = db.Begin(ctx)
-	require.NoError(t, err)
-	err = ensureTables(ctx, tx, postgresql.EnsureTableOptions{
+	err = ensureTables(ctx, db, postgresql.EnsureTableOptions{
 		Logger:            logger.NewLogger("test"),
 		StateTableName:    "test_state",
 		MetadataTableName: "test_metadata",
 	})
-	assert.NoError(t, err)
-	require.NoError(t, tx.Commit(ctx))
 
-	tx, err = db.Begin(ctx)
-	require.NoError(t, err)
-	exists, err = tableExists(ctx, tx, "test_state")
+	exists, err = tableExists(ctx, db, "test_state")
 	assert.NoError(t, err)
 	assert.True(t, exists)
-	require.NoError(t, tx.Commit(ctx))
 
-	tx, err = db.Begin(ctx)
-	require.NoError(t, err)
-	exists, err = tableExists(ctx, tx, "test_metadata")
+	exists, err = tableExists(ctx, db, "test_metadata")
 	assert.NoError(t, err)
-	assert.True(t, exists)
-	require.NoError(t, tx.Commit(ctx))
 
 	dropTable(t, db, "test_state")
 	dropTable(t, db, "test_metadata")

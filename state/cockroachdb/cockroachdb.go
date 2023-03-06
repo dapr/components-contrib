@@ -17,8 +17,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jackc/pgx/v5"
-
 	"github.com/dapr/components-contrib/internal/component/postgresql"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
@@ -64,15 +62,15 @@ WHERE
 	})
 }
 
-func ensureTables(ctx context.Context, tx pgx.Tx, opts postgresql.EnsureTableOptions) error {
-	exists, err := tableExists(ctx, tx, opts.StateTableName)
+func ensureTables(ctx context.Context, db postgresql.PGXPoolConn, opts postgresql.EnsureTableOptions) error {
+	exists, err := tableExists(ctx, db, opts.StateTableName)
 	if err != nil {
 		return err
 	}
 
 	if !exists {
 		opts.Logger.Info("Creating CockroachDB state table")
-		_, err = tx.Exec(ctx, fmt.Sprintf(`CREATE TABLE %s (
+		_, err = db.Exec(ctx, fmt.Sprintf(`CREATE TABLE %s (
   key text NOT NULL PRIMARY KEY,
   value jsonb NOT NULL,
   isbinary boolean NOT NULL,
@@ -88,25 +86,25 @@ func ensureTables(ctx context.Context, tx pgx.Tx, opts postgresql.EnsureTableOpt
 	}
 
 	// If table was created before v1.11.
-	_, err = tx.Exec(ctx, fmt.Sprintf(
+	_, err = db.Exec(ctx, fmt.Sprintf(
 		`ALTER TABLE %s ADD COLUMN IF NOT EXISTS expiredate TIMESTAMP WITH TIME ZONE NULL;`, opts.StateTableName))
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, fmt.Sprintf(
+	_, err = db.Exec(ctx, fmt.Sprintf(
 		`CREATE INDEX IF NOT EXISTS expiredate_idx ON %s (expiredate);`, opts.StateTableName))
 	if err != nil {
 		return err
 	}
 
-	exists, err = tableExists(ctx, tx, opts.MetadataTableName)
+	exists, err = tableExists(ctx, db, opts.MetadataTableName)
 	if err != nil {
 		return err
 	}
 
 	if !exists {
 		opts.Logger.Info("Creating CockroachDB metadata table")
-		_, err = tx.Exec(ctx, fmt.Sprintf(`CREATE TABLE %s (
+		_, err = db.Exec(ctx, fmt.Sprintf(`CREATE TABLE %s (
 			key text NOT NULL PRIMARY KEY,
 			value text NOT NULL
 );`, opts.MetadataTableName))
@@ -118,8 +116,8 @@ func ensureTables(ctx context.Context, tx pgx.Tx, opts postgresql.EnsureTableOpt
 	return nil
 }
 
-func tableExists(ctx context.Context, tx pgx.Tx, tableName string) (bool, error) {
+func tableExists(ctx context.Context, db postgresql.PGXPoolConn, tableName string) (bool, error) {
 	exists := false
-	err := tx.QueryRow(ctx, "SELECT EXISTS (SELECT * FROM pg_tables where tablename = $1)", tableName).Scan(&exists)
+	err := db.QueryRow(ctx, "SELECT EXISTS (SELECT * FROM pg_tables where tablename = $1)", tableName).Scan(&exists)
 	return exists, err
 }

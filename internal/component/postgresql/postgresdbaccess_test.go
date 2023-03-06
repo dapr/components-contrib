@@ -20,7 +20,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	pgxmock "github.com/pashagolub/pgxmock/v2"
 	"github.com/stretchr/testify/assert"
 
@@ -473,7 +472,7 @@ func mockDatabase(t *testing.T) (*mocks, error) {
 	dba := &PostgresDBAccess{
 		logger: logger,
 		db:     db,
-		ensureTableFn: func(context.Context, pgx.Tx, EnsureTableOptions) error {
+		ensureTableFn: func(context.Context, PGXPoolConn, EnsureTableOptions) error {
 			return nil
 		},
 		setQueryFn: func(*state.SetRequest, SetQueryOptions) string {

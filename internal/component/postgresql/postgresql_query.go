@@ -27,11 +27,12 @@ import (
 )
 
 type Query struct {
-	query     string
-	params    []interface{}
-	limit     int
-	skip      *int64
-	tableName string
+	query      string
+	params     []interface{}
+	limit      int
+	skip       *int64
+	tableName  string
+	etagColumn string
 }
 
 func (q *Query) VisitEQ(f *query.EQ) (string, error) {
@@ -102,7 +103,7 @@ func (q *Query) VisitOR(f *query.OR) (string, error) {
 }
 
 func (q *Query) Finalize(filters string, qq *query.Query) error {
-	q.query = "SELECT key, value, xmin as etag FROM " + q.tableName
+	q.query = fmt.Sprintf("SELECT key, value, %s as etag FROM "+q.tableName, q.etagColumn)
 
 	if filters != "" {
 		q.query += " WHERE " + filters

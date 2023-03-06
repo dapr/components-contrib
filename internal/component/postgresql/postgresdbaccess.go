@@ -26,6 +26,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/dapr/components-contrib/state"
@@ -39,7 +40,7 @@ var errMissingConnectionString = errors.New("missing connection string")
 
 // Interface that applies to *pgxpool.Pool.
 // We need this to be able to mock the connection in tests.
-type pgxPoolConn interface {
+type PGXPoolConn interface {
 	Begin(context.Context) (pgx.Tx, error)
 	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
 	Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error)
@@ -53,7 +54,11 @@ type pgxPoolConn interface {
 type PostgresDBAccess struct {
 	logger   logger.Logger
 	metadata postgresMetadataStruct
-	db       pgxPoolConn
+	db       PGXPoolConn
+
+	migrateFn  func(context.Context, PGXPoolConn, MigrateOptions) error
+	setQueryFn func(*state.SetRequest, SetQueryOptions) string
+	etagColumn string
 
 	closeCh chan struct{}
 	closed  atomic.Bool
@@ -61,12 +66,15 @@ type PostgresDBAccess struct {
 }
 
 // newPostgresDBAccess creates a new instance of postgresAccess.
-func newPostgresDBAccess(logger logger.Logger) *PostgresDBAccess {
+func newPostgresDBAccess(logger logger.Logger, opts Options) *PostgresDBAccess {
 	logger.Debug("Instantiating new Postgres state store")
 
 	return &PostgresDBAccess{
-		logger:  logger,
-		closeCh: make(chan struct{}),
+		logger:     logger,
+		closeCh:    make(chan struct{}),
+		migrateFn:  opts.MigrateFn,
+		setQueryFn: opts.SetQueryFn,
+		etagColumn: opts.ETagColumn,
 	}
 }
 
@@ -108,14 +116,11 @@ func (p *PostgresDBAccess) Init(ctx context.Context, meta state.Metadata) error 
 		return err
 	}
 
-	migrate := &migrations{
+	if err = p.migrateFn(ctx, p.db, MigrateOptions{
 		Logger:            p.logger,
-		Conn:              p.db,
-		MetadataTableName: p.metadata.MetadataTableName,
 		StateTableName:    p.metadata.TableName,
-	}
-	err = migrate.Perform(ctx)
-	if err != nil {
+		MetadataTableName: p.metadata.MetadataTableName,
+	}); err != nil {
 		return err
 	}
 
@@ -168,50 +173,20 @@ func (p *PostgresDBAccess) doSet(parentCtx context.Context, db dbquerier, req *s
 		ttlSeconds = *ttl
 	}
 
-	// Sprintf is required for table name because query.DB does not substitute parameters for table names.
-	// Other parameters use query.DB parameter substitution.
 	var (
-		query           string
 		queryExpiredate string
 		params          []any
 	)
+
 	if req.ETag == nil || *req.ETag == "" {
-		if req.Options.Concurrency == state.FirstWrite {
-			query = `INSERT INTO %[1]s
-					(key, value, isbinary, expiredate)
-				VALUES
-					($1, $2, $3, %[2]s)`
-		} else {
-			query = `INSERT INTO %[1]s
-					(key, value, isbinary, expiredate)
-				VALUES
-					($1, $2, $3, %[2]s)
-				ON CONFLICT (key)
-				DO UPDATE SET
-					value = $2,
-					isbinary = $3,
-					updatedate = CURRENT_TIMESTAMP,
-					expiredate = %[2]s`
-		}
 		params = []any{req.Key, value, isBinary}
 	} else {
-		// Convert req.ETag to uint32 for postgres XID compatibility
 		var etag64 uint64
 		etag64, err = strconv.ParseUint(*req.ETag, 10, 32)
 		if err != nil {
 			return state.NewETagError(state.ETagInvalid, err)
 		}
-
-		query = `UPDATE %[1]s
-			SET
-				value = $1,
-				isbinary = $2,
-				updatedate = CURRENT_TIMESTAMP,
-				expiredate = %[2]s
-			WHERE
-				key = $3
-				AND xmin = $4`
-		params = []any{value, isBinary, req.Key, uint32(etag64)}
+		params = []any{req.Key, value, isBinary, uint32(etag64)}
 	}
 
 	if ttlSeconds > 0 {
@@ -220,7 +195,12 @@ func (p *PostgresDBAccess) doSet(parentCtx context.Context, db dbquerier, req *s
 		queryExpiredate = "NULL"
 	}
 
-	result, err := db.Exec(parentCtx, fmt.Sprintf(query, p.metadata.TableName, queryExpiredate), params...)
+	query := p.setQueryFn(req, SetQueryOptions{
+		TableName:       p.metadata.TableName,
+		ExpireDateValue: queryExpiredate,
+	})
+
+	result, err := db.Exec(parentCtx, query, params...)
 	if err != nil {
 		if req.ETag != nil && *req.ETag != "" {
 			return state.NewETagError(state.ETagMismatch, err)
@@ -270,15 +250,15 @@ func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest)
 	var (
 		value    []byte
 		isBinary bool
-		etag     uint32
+		etag     pgtype.Int8
 	)
 	query := `SELECT
-			value, isbinary, xmin AS etag
-		FROM %s
+			value, isbinary, %[1]s AS etag
+		FROM %[2]s
 			WHERE
 				key = $1
 				AND (expiredate IS NULL OR expiredate >= CURRENT_TIMESTAMP)`
-	err := p.db.QueryRow(parentCtx, fmt.Sprintf(query, p.metadata.TableName), req.Key).
+	err := p.db.QueryRow(parentCtx, fmt.Sprintf(query, p.etagColumn, p.metadata.TableName), req.Key).
 		Scan(&value, &isBinary, &etag)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
@@ -286,6 +266,11 @@ func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest)
 			return &state.GetResponse{}, nil
 		}
 		return nil, err
+	}
+
+	var etagS *string
+	if etag.Valid {
+		etagS = ptr.Of(strconv.FormatInt(etag.Int64, 10))
 	}
 
 	if isBinary {
@@ -304,13 +289,13 @@ func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest)
 
 		return &state.GetResponse{
 			Data: data,
-			ETag: ptr.Of(strconv.FormatUint(uint64(etag), 10)),
+			ETag: etagS,
 		}, nil
 	}
 
 	return &state.GetResponse{
 		Data: value,
-		ETag: ptr.Of(strconv.FormatUint(uint64(etag), 10)),
+		ETag: etagS,
 	}, nil
 }
 
@@ -335,7 +320,7 @@ func (p *PostgresDBAccess) doDelete(parentCtx context.Context, db dbquerier, req
 			return state.NewETagError(state.ETagInvalid, err)
 		}
 
-		result, err = db.Exec(parentCtx, "DELETE FROM state WHERE key = $1 AND xmin = $2", req.Key, uint32(etag64))
+		result, err = db.Exec(parentCtx, "DELETE FROM state WHERE key = $1 AND $2 = "+p.etagColumn, req.Key, uint32(etag64))
 	}
 
 	if err != nil {
@@ -427,9 +412,10 @@ func (p *PostgresDBAccess) ExecuteMulti(parentCtx context.Context, request *stat
 // Query executes a query against store.
 func (p *PostgresDBAccess) Query(parentCtx context.Context, req *state.QueryRequest) (*state.QueryResponse, error) {
 	q := &Query{
-		query:     "",
-		params:    []any{},
-		tableName: p.metadata.TableName,
+		query:      "",
+		params:     []any{},
+		tableName:  p.metadata.TableName,
+		etagColumn: p.etagColumn,
 	}
 	qbuilder := query.NewQueryBuilder(q)
 	if err := qbuilder.BuildQuery(&req.Query); err != nil {
@@ -510,9 +496,9 @@ func (p *PostgresDBAccess) UpdateLastCleanup(ctx context.Context, db dbquerier, 
 	queryCtx, cancel := context.WithTimeout(ctx, p.metadata.timeout)
 	res, err := db.Exec(queryCtx,
 		fmt.Sprintf(`INSERT INTO %[1]s (key, value)
-			VALUES ('last-cleanup', CURRENT_TIMESTAMP)
+			VALUES ('last-cleanup', CURRENT_TIMESTAMP::text)
 			ON CONFLICT (key)
-			DO UPDATE SET value = CURRENT_TIMESTAMP
+			DO UPDATE SET value = CURRENT_TIMESTAMP::text
 				WHERE (EXTRACT('epoch' FROM CURRENT_TIMESTAMP - %[1]s.value::timestamp with time zone) * 1000)::bigint > $1`,
 			p.metadata.MetadataTableName),
 		cleanupInterval.Milliseconds()-100, // Subtract 100ms for some buffer

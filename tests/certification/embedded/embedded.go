@@ -93,10 +93,15 @@ func WithListenAddresses(addresses []string) Option {
 	}
 }
 
-func WithComponentsPath(path string) Option {
+func WithResourcesPath(path string) Option {
 	return func(config *runtime.Config) {
 		config.Standalone.ComponentsPath = path
 	}
+}
+
+// Deprecated: use WithResourcesPath.
+func WithComponentsPath(path string) Option {
+	return WithResourcesPath(path)
 }
 
 func WithProfilePort(port int) Option {
@@ -108,6 +113,18 @@ func WithProfilePort(port int) Option {
 func WithGracefulShutdownDuration(d time.Duration) Option {
 	return func(config *runtime.Config) {
 		config.GracefulShutdownDuration = d
+	}
+}
+
+func WithAPILoggingEnabled(enabled bool) Option {
+	return func(config *runtime.Config) {
+		config.EnableAPILogging = enabled
+	}
+}
+
+func WithProfilingEnabled(enabled bool) Option {
+	return func(config *runtime.Config) {
+		config.EnableProfiling = enabled
 	}
 }
 

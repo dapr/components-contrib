@@ -23,13 +23,17 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 // Optimistic Concurrency is implemented using a string column that stores a UUID.
@@ -69,14 +73,20 @@ const (
 
 	// Standard error message if not connection string is provided.
 	errMissingConnectionString = "missing connection string"
+
+	cleanupIntervalKey       = "cleanupIntervalInSeconds"
+	defaultMetadataTableName = "dapr_metadata"
+	defaultCleanupInterval   = time.Hour
 )
 
 // MySQL state store.
 type MySQL struct {
-	tableName        string
-	schemaName       string
-	connectionString string
-	timeout          time.Duration
+	tableName         string
+	metadataTableName string
+	cleanupInterval   *time.Duration
+	schemaName        string
+	connectionString  string
+	timeout           time.Duration
 
 	// Instance of the database to issue commands to
 	db *sql.DB
@@ -85,14 +95,19 @@ type MySQL struct {
 	logger logger.Logger
 
 	factory iMySQLFactory
+	closeCh chan struct{}
+	closed  atomic.Bool
+	wg      sync.WaitGroup
 }
 
 type mySQLMetadata struct {
-	TableName        string
-	SchemaName       string
-	ConnectionString string
-	Timeout          int
-	PemPath          string
+	TableName         string
+	SchemaName        string
+	ConnectionString  string
+	Timeout           int
+	PemPath           string
+	MetadataTableName string
+	CleanupInterval   *time.Duration
 }
 
 // NewMySQLStateStore creates a new instance of MySQL state store.
@@ -112,6 +127,7 @@ func newMySQLStateStore(logger logger.Logger, factory iMySQLFactory) *MySQL {
 		logger:  logger,
 		factory: factory,
 		timeout: 5 * time.Second,
+		closeCh: make(chan struct{}),
 	}
 }
 
@@ -141,9 +157,12 @@ func (m *MySQL) Init(ctx context.Context, metadata state.Metadata) error {
 
 func (m *MySQL) parseMetadata(md map[string]string) error {
 	meta := mySQLMetadata{
-		TableName:  defaultTableName,
-		SchemaName: defaultSchemaName,
+		TableName:         defaultTableName,
+		SchemaName:        defaultSchemaName,
+		MetadataTableName: defaultMetadataTableName,
+		CleanupInterval:   ptr.Of(defaultCleanupInterval),
 	}
+
 	err := metadata.DecodeMetadata(md, &meta)
 	if err != nil {
 		return err
@@ -156,6 +175,14 @@ func (m *MySQL) parseMetadata(md map[string]string) error {
 		}
 	}
 	m.tableName = meta.TableName
+
+	if meta.MetadataTableName != "" {
+		// Sanitize the metadata table name
+		if !validIdentifier(meta.MetadataTableName) {
+			return fmt.Errorf("metadata table name '%s' is not valid", meta.MetadataTableName)
+		}
+	}
+	m.metadataTableName = meta.MetadataTableName
 
 	if meta.SchemaName != "" {
 		// Sanitize the schema name
@@ -170,6 +197,22 @@ func (m *MySQL) parseMetadata(md map[string]string) error {
 		return fmt.Errorf(errMissingConnectionString)
 	}
 	m.connectionString = meta.ConnectionString
+
+	// Cleanup interval
+	s, ok := md[cleanupIntervalKey]
+	if ok && s != "" {
+		cleanupIntervalInSec, err := strconv.ParseInt(s, 10, 0)
+		if err != nil {
+			return fmt.Errorf("invalid value for '%s': %s", cleanupIntervalKey, s)
+		}
+
+		// Non-positive value from meta means disable auto cleanup.
+		if cleanupIntervalInSec > 0 {
+			m.cleanupInterval = ptr.Of(time.Duration(cleanupIntervalInSec) * time.Second)
+		} else {
+			m.cleanupInterval = nil
+		}
+	}
 
 	if meta.PemPath != "" {
 		err := m.factory.RegisterTLSConfig(meta.PemPath)
@@ -231,7 +274,21 @@ func (m *MySQL) finishInit(ctx context.Context, db *sql.DB) error {
 	}
 
 	// will be nil if everything is good or an err that needs to be returned
-	return m.ensureStateTable(ctx, m.tableName)
+	if err = m.ensureStateTable(ctx, m.tableName); err != nil {
+		return err
+	}
+
+	if err = m.ensureMetadataTable(ctx, m.metadataTableName); err != nil {
+		return err
+	}
+
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		m.scheduleCleanup(ctx)
+	}()
+
+	return nil
 }
 
 func (m *MySQL) ensureStateSchema(ctx context.Context) error {
@@ -288,18 +345,52 @@ func (m *MySQL) ensureStateTable(ctx context.Context, stateTableName string) err
 		// in on inserts and updates and is used for Optimistic Concurrency
 		// Note that stateTableName is sanitized
 		//nolint:gosec
-		createTable := fmt.Sprintf(`CREATE TABLE %s (
+		createTable := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			id VARCHAR(255) NOT NULL PRIMARY KEY,
 			value JSON NOT NULL,
 			isbinary BOOLEAN NOT NULL,
 			insertDate TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updateDate TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-			eTag VARCHAR(36) NOT NULL
+			eTag VARCHAR(36) NOT NULL,
+			expiredate TIMESTAMP NULL,
+			INDEX expiredate_idx(expiredate)
 			);`, stateTableName)
 
 		execCtx, execCancel := context.WithTimeout(ctx, m.timeout)
 		defer execCancel()
 		_, err = m.db.ExecContext(execCtx, createTable)
+		if err != nil {
+			return err
+		}
+	} else {
+		// If table was created before v1.11.
+		_, err = m.db.ExecContext(ctx, fmt.Sprintf(
+			`ALTER TABLE %s ADD COLUMN expiredate TIMESTAMP NULL;`, stateTableName))
+		if err != nil {
+			return err
+		}
+		_, err = m.db.ExecContext(ctx, fmt.Sprintf(
+			`CREATE INDEX expiredate_idx ON %s (expiredate);`, stateTableName))
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (m *MySQL) ensureMetadataTable(ctx context.Context, metaTableName string) error {
+	exists, err := tableExists(ctx, m.db, metaTableName, m.timeout)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		m.logger.Info("Creating MySQL metadata table")
+		_, err = m.db.ExecContext(ctx, fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			key VARCHAR(255) NOT NULL PRIMARY KEY,
+			value VARCHAR(255) NOT NULL
+		);`, metaTableName))
 		if err != nil {
 			return err
 		}
@@ -431,7 +522,8 @@ func (m *MySQL) Get(parentCtx context.Context, req *state.GetRequest) (*state.Ge
 	defer cancel()
 	//nolint:gosec
 	query := fmt.Sprintf(
-		`SELECT value, eTag, isbinary FROM %s WHERE id = ?`,
+		`SELECT value, eTag, isbinary FROM %s WHERE id = ?
+			AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)`,
 		m.tableName, // m.tableName is sanitized
 	)
 	err := m.db.QueryRowContext(ctx, query, req.Key).Scan(&value, &eTag, &isBinary)
@@ -494,6 +586,22 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 		return errors.New("missing key in set operation")
 	}
 
+	// TTL
+	var ttlSeconds int
+	ttl, ttlerr := utils.ParseTTL(req.Metadata)
+	if ttlerr != nil {
+		return fmt.Errorf("error parsing TTL: %w", ttlerr)
+	}
+	if ttl != nil {
+		ttlSeconds = *ttl
+	}
+
+	var (
+		query    string
+		ttlQuery string
+		params   []any
+	)
+
 	var v any
 	isBinary := false
 	switch x := req.Value.(type) {
@@ -528,27 +636,28 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 
 	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
 		// With first-write-wins and no etag, we can insert the row only if it doesn't exist
-		query := fmt.Sprintf(
-			`INSERT INTO %s (value, id, eTag, isbinary) VALUES (?, ?, ?, ?);`,
-			m.tableName, // m.tableName is sanitized
-		)
-		result, err = querier.ExecContext(ctx, query, enc, req.Key, eTag, isBinary)
+		query = `INSERT INTO %[1]s (value, id, eTag, isbinary, expiredate) VALUES (?, ?, ?, ?, %[2]s);`
+		params = []any{enc, req.Key, eTag, isBinary}
 	} else if req.ETag != nil && *req.ETag != "" {
 		// When an eTag is provided do an update - not insert
-		query := fmt.Sprintf(
-			`UPDATE %s SET value = ?, eTag = ?, isbinary = ? WHERE id = ? AND eTag = ?;`,
-			m.tableName, // m.tableName is sanitized
-		)
-		result, err = querier.ExecContext(ctx, query, enc, eTag, isBinary, req.Key, *req.ETag)
+		query = `UPDATE %[1]s SET value = ?, eTag = ?, isbinary = ?, expiredate = %[2]s
+			WHERE id = ? AND eTag = ?;`
+		params = []any{enc, eTag, isBinary, req.Key, *req.ETag}
 	} else {
 		// If this is a duplicate MySQL returns that two rows affected
 		maxRows = 2
-		query := fmt.Sprintf(
-			`INSERT INTO %s (value, id, eTag, isbinary) VALUES (?, ?, ?, ?) on duplicate key update value=?, eTag=?, isbinary=?;`,
-			m.tableName, // m.tableName is sanitized
-		)
-		result, err = querier.ExecContext(ctx, query, enc, req.Key, eTag, isBinary, enc, eTag, isBinary)
+		query = `INSERT INTO %s (value, id, eTag, isbinary, expiredate) VALUES (?, ?, ?, ?, %[2]s) 
+			on duplicate key update value=?, eTag=?, isbinary=?, expiredate=%[2]s;`
+		params = []any{enc, req.Key, eTag, isBinary, enc, eTag, isBinary}
 	}
+
+	if ttlSeconds > 0 {
+		ttlQuery = "CURRENT_TIMESTAMP + INTERVAL " + strconv.Itoa(ttlSeconds) + " SECOND"
+	} else {
+		ttlQuery = "NULL"
+	}
+
+	result, err = querier.ExecContext(ctx, fmt.Sprintf(query, m.tableName, ttlQuery), params...)
 
 	if err != nil {
 		if req.ETag != nil && *req.ETag != "" {
@@ -700,13 +809,16 @@ func (m *MySQL) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []st
 
 // Close implements io.Closer.
 func (m *MySQL) Close() error {
-	if m.db == nil {
-		return nil
+	if m.closed.CompareAndSwap(false, true) {
+		close(m.closeCh)
+	}
+	defer m.wg.Wait()
+
+	if m.db != nil {
+		return m.db.Close()
 	}
 
-	err := m.db.Close()
-	m.db = nil
-	return err
+	return nil
 }
 
 // Validates an identifier, such as table or DB name.
@@ -742,4 +854,97 @@ func (m *MySQL) GetComponentMetadata() map[string]string {
 	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
 	return metadataInfo
+}
+
+func (m *MySQL) scheduleCleanup(ctx context.Context) {
+	if m.cleanupInterval == nil || *m.cleanupInterval <= 0 || m.closed.Load() {
+		return
+	}
+
+	m.logger.Infof("Schedule expired data clean up every %d seconds", int(m.cleanupInterval.Seconds()))
+	ticker := time.NewTicker(*m.cleanupInterval)
+	defer ticker.Stop()
+
+	var err error
+	for {
+		select {
+		case <-ticker.C:
+			err = m.CleanupExpired(ctx)
+			if err != nil {
+				m.logger.Errorf("Error removing expired data: %v", err)
+			}
+		case <-ctx.Done():
+			m.logger.Debug("Stopped background cleanup of expired data")
+			return
+		case <-m.closeCh:
+			m.logger.Debug("Stopping background because MySQL db is closing")
+			return
+		}
+	}
+}
+
+func (m *MySQL) CleanupExpired(ctx context.Context) error {
+	// Check if the last iteration was too recent
+	// This performs an atomic operation, so allows coordination with other daprd
+	// processes too
+	canContinue, err := m.updateLastCleanup(ctx, *m.cleanupInterval)
+	if err != nil {
+		// Log errors only
+		m.logger.Warnf("Failed to read last cleanup time from database: %v", err)
+	}
+	if !canContinue {
+		m.logger.Debug("Last cleanup was performed too recently")
+		return nil
+	}
+
+	// Note we're not using the transaction here as we don't want this to be
+	// rolled back half-way or to lock the table unnecessarily.
+	// Need to use fmt.Sprintf because we can't parametrize a table name.
+	// Note we are not setting a timeout here as this query can take a "long"
+	// time, especially if there's no index on expiredate .
+	//nolint:gosec
+	stmt := fmt.Sprintf(`DELETE FROM %s WHERE expiredate IS NOT NULL AND expiredate < CURRENT_TIMESTAMP`, m.tableName)
+	res, err := m.db.ExecContext(ctx, stmt)
+	if err != nil {
+		return fmt.Errorf("failed to execute query: %w", err)
+	}
+
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	m.logger.Infof("Removed %d expired rows", rows)
+
+	return nil
+}
+
+// updateLastCleanup sets the 'last-cleanup' value only if it's less than
+// cleanupInterval.
+// Returns true if the row was updated, which means that the cleanup can
+// proceed.
+func (m *MySQL) updateLastCleanup(ctx context.Context, cleanupInterval time.Duration) (bool, error) {
+	res, err := m.db.ExecContext(ctx,
+		fmt.Sprintf(`INSERT INTO %[1]s (key, value)
+  					VALUES ('last-cleanup', CURRENT_TIMESTAMP)
+					ON DUPLICATE KEY UPDATE
+  					value = IF((UNIX_TIMESTAMP(CURRENT_TIMESTAMP) - UNIX_TIMESTAMP(value)) * 1000 >= $1, 
+								CURRENT_TIMESTAMP, value)`,
+			m.metadataTableName),
+		cleanupInterval.Milliseconds()-100, // Subtract 100ms for some buffer
+	)
+	if err != nil {
+		return false, fmt.Errorf("failed to execute query: %w", err)
+	}
+
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	return n > 0, nil
+}
+
+// GetCleanupInterval returns the cleanupInterval property.
+// This is primarily used for tests.
+func (m *MySQL) GetCleanupInterval() *time.Duration {
+	return m.cleanupInterval
 }

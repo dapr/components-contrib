@@ -86,7 +86,7 @@ const components = {
         conformance: true,
         certification: true,
     },
-    'bindings.dubbo': {
+    'bindings.alicloud.dubbo': {
         certification: true,
     },
     'bindings.http': {

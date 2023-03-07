@@ -14,11 +14,15 @@ limitations under the License.
 package azure
 
 import (
+	"context"
 	"encoding/base64"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -240,4 +244,37 @@ func getTestCert() []byte {
 	certBytes, _ := base64.StdEncoding.DecodeString(testCert)
 
 	return certBytes
+}
+
+func TestFallbackToCLI(t *testing.T) {
+	settings, err := NewEnvironmentSettings(
+		map[string]string{
+			"vaultName": "vaultName",
+		},
+	)
+	assert.NoError(t, err)
+
+	// check whether this test can be run (i.e. Azure CLI is installed and logged in)
+
+	runTest := false
+	cred, credErr := azidentity.NewAzureCLICredential(nil)
+	if credErr == nil {
+		ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelFunc()
+		token, err := cred.GetToken(ctx, policy.TokenRequestOptions{})
+		if err == nil && token.Token != "" {
+			runTest = true
+		}
+	}
+
+	if runTest {
+		spt, err := settings.GetTokenCredential()
+		assert.Nil(t, err)
+
+		token, _ := spt.GetToken(context.Background(), policy.TokenRequestOptions{})
+		assert.NotNil(t, token)
+		assert.NotEmpty(t, token.Token)
+	} else {
+		t.Skip("Skipping test as Azure CLI is not installed or logged in. This test would fall through to MSI which is not available in the test environment.")
+	}
 }

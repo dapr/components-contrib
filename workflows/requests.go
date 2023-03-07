@@ -11,3 +11,10 @@ type StartRequest struct {
 	WorkflowName      string            `json:"function_name"`
 	Input             interface{}       `json:"input"`
 }
+
+// RaiseEventRequest is the object describing a Raise Event request.
+type RaiseEventRequest struct {
+	InstanceID string      `json:"instance_id"`
+	EventName  string      `json:"event_name"`
+	Input      interface{} `json:"input"`
+}

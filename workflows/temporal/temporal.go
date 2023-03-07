@@ -124,6 +124,11 @@ func (c *TemporalWF) Get(ctx context.Context, req *workflows.WorkflowReference) 
 	return &outputStruct, nil
 }
 
+func (c *TemporalWF) RaiseEvent(ctx context.Context, req *workflows.RaiseEventRequest) error {
+	// Unimplemented
+	return nil
+}
+
 func (c *TemporalWF) Close() {
 	c.client.Close()
 }

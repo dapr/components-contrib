@@ -14,7 +14,7 @@ type StartRequest struct {
 
 // RaiseEventRequest is the object describing a Raise Event request.
 type RaiseEventRequest struct {
-	InstanceID string      `json:"instance_id"`
-	EventName  string      `json:"event_name"`
-	Input      interface{} `json:"input"`
+	InstanceID string `json:"instance_id"`
+	EventName  string `json:"event_name"`
+	Input      []byte `json:"input"`
 }

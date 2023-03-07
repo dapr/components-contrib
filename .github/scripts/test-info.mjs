@@ -89,6 +89,11 @@ const components = {
         certificationSetup: 'certification-bindings.aws.s3-setup.sh',
         certificationDestroy: 'certification-bindings.aws.s3-destroy.sh',
     },
+    'bindings.aws.s3.docker': {
+        conformance: true,
+        requireDocker: true,
+        conformanceSetup: 'docker-compose.sh s3',
+    },
     'bindings.aws.s3.terraform': {
         conformance: true,
         requireAWSCredentials: true,
@@ -175,6 +180,11 @@ const components = {
         requireTerraform: true,
         certificationSetup: 'certification-pubsub.aws.snssqs-setup.sh',
         certificationDestroy: 'certification-pubsub.aws.snssqs-destroy.sh',
+    },
+    'pubsub.aws.snssqs.docker': {
+        conformance: true,
+        requireDocker: true,
+        conformanceSetup: 'docker-compose.sh snssqs',
     },
     'pubsub.aws.snssqs.terraform': {
         conformance: true,
@@ -333,6 +343,11 @@ const components = {
         requireTerraform: true,
         certificationSetup: 'certification-state.aws.dynamodb-setup.sh',
         certificationDestroy: 'certification-state.aws.dynamodb-destroy.sh',
+    },
+    'state.aws.dynamodb.docker': {
+        conformance: true,
+        requireDocker: true,
+        conformanceSetup: 'docker-compose.sh dynamodb',
     },
     'state.aws.dynamodb.terraform': {
         conformance: true,
@@ -537,6 +552,11 @@ function GenerateMatrix(testKind, enableCloudTests) {
             ) {
                 continue
             }
+        } else {
+            // For conformance tests, avoid running Docker and Cloud Tests together.
+            if (comp.conformance && comp.requireDocker) {
+                continue
+            }
         }
 
         // Add the component to the array
@@ -580,7 +600,9 @@ if (argv.length < 4 || !['true', 'false'].includes(argv[3])) {
     exit(1)
 }
 
-const matrixObj = GenerateMatrix(argv[2], argv[3] == 'true')
+const testKind = argv[2]
+const enableCloudTests = argv[3] == 'true'
+const matrixObj = GenerateMatrix(testKind, enableCloudTests)
 console.log('Generated matrix:\n\n' + JSON.stringify(matrixObj, null, '  '))
 
 writeFileSync(env.GITHUB_OUTPUT, 'test-matrix=' + JSON.stringify(matrixObj))

@@ -21,7 +21,6 @@ import (
 	"net/http"
 
 	"github.com/dapr/go-sdk/service/common"
-
 	daprd "github.com/dapr/go-sdk/service/http"
 
 	"github.com/dapr/components-contrib/tests/certification/flow"

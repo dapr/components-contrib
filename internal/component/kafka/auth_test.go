@@ -75,10 +75,10 @@ func TestAuth(t *testing.T) {
 	k := getKafka()
 	publicCert, _, _ := createTestCert()
 
-	t.Run("certificate with auth type 'none'", func(t *testing.T) {
+	t.Run("certificate with auth type 'cert'", func(t *testing.T) {
 		m := getAuthBaseMetadata()
 		m[caCert] = string(publicCert)
-		m[authType] = "none"
+		m[authType] = "certificate"
 
 		meta, err := k.getKafkaMetadata(m)
 		require.NoError(t, err)
@@ -98,5 +98,28 @@ func TestAuth(t *testing.T) {
 		//nolint:staticcheck
 		certs := mockConfig.Net.TLS.Config.RootCAs.Subjects()
 		require.Equal(t, 1, len(certs))
+	})
+
+	t.Run("certificate with auth type 'none'", func(t *testing.T) {
+		m := getAuthBaseMetadata()
+		m[caCert] = string(publicCert)
+		m[authType] = "none"
+
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.NotEmpty(t, meta)
+
+		require.False(t, meta.TLSDisable)
+
+		mockConfig := &sarama.Config{}
+
+		tlsconfig := mockConfig.Net.TLS.Config
+		require.Nil(t, tlsconfig)
+
+		err = updateTLSConfig(mockConfig, meta)
+
+		require.NoError(t, err)
+		require.False(t, mockConfig.Net.TLS.Enable)
+		require.Nil(t, mockConfig.Net.TLS.Config)
 	})
 }

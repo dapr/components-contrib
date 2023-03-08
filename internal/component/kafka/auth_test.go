@@ -87,10 +87,15 @@ func TestAuth(t *testing.T) {
 		require.False(t, meta.TLSDisable)
 
 		mockConfig := &sarama.Config{}
+
+		tlsconfig := mockConfig.Net.TLS.Config
+		require.Nil(t, tlsconfig)
+
 		err = updateTLSConfig(mockConfig, meta)
 		require.NoError(t, err)
 
-		require.True(t, (*mockConfig).Net.TLS.Enable)
+		require.True(t, mockConfig.Net.TLS.Enable)
+		//nolint:staticcheck This is a test and we need the deprecated function
 		certs := mockConfig.Net.TLS.Config.RootCAs.Subjects()
 		require.Equal(t, 1, len(certs))
 	})

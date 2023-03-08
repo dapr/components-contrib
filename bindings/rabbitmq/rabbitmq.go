@@ -103,9 +103,9 @@ func (r *RabbitMQ) Init(_ context.Context, metadata bindings.Metadata) error {
 	r.channel.NotifyClose(r.notifyRabbitChannelClose)
 	r.wg.Add(1)
 	go func() {
-	  defer r.wg.Done()
-	  r.reconnectWhenNecessary()
-	 }()
+		defer r.wg.Done()
+		r.reconnectWhenNecessary()
+	}()
 	return nil
 }
 

@@ -155,6 +155,9 @@ const components = {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redis7 redis',
     },
+    'middleware.http.ratelimit': {
+        certification: true,
+    },
     'pubsub.aws.snssqs': {
         certification: true,
         requireAWSCredentials: true,

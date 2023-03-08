@@ -10,6 +10,7 @@ const owners = [
     'halspang',
     'ItalyPaleAle',
     'jjcollinge',
+    'joshvanl',
     'msfussell',
     'mukundansundar',
     'pkedy',

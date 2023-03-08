@@ -50,7 +50,7 @@ func updateMTLSAuthInfo(config *sarama.Config, metadata *kafkaMetadata) error {
 }
 
 func updateTLSConfig(config *sarama.Config, metadata *kafkaMetadata) error {
-	if metadata.TLSDisable || metadata.AuthType == noAuthType {
+	if metadata.TLSDisable {
 		config.Net.TLS.Enable = false
 		return nil
 	}

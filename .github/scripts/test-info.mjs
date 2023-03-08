@@ -158,6 +158,9 @@ const components = {
     'configuration.redis': {
         certification: true,
     },
+    'middleware.http.ratelimit': {
+        certification: true,
+    },
     'pubsub.aws.snssqs': {
         certification: true,
         requireAWSCredentials: true,

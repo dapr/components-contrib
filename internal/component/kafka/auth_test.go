@@ -95,7 +95,7 @@ func TestAuth(t *testing.T) {
 		require.NoError(t, err)
 
 		require.True(t, mockConfig.Net.TLS.Enable)
-		//nolint:staticcheck This is a test and we need the deprecated function
+		//nolint:staticcheck
 		certs := mockConfig.Net.TLS.Config.RootCAs.Subjects()
 		require.Equal(t, 1, len(certs))
 	})

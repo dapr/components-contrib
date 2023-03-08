@@ -92,11 +92,7 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 	}
 
 	m.durableName = psm.Properties["durableName"]
-	if val, ok := psm.Properties["queueGroupName"]; ok && val != "" {
-		m.queueGroupName = val
-	} else {
-		m.queueGroupName = psm.Properties[pubsub.RuntimeConsumerIDKey]
-	}
+	m.queueGroupName =  psm.Properties["queueGroupName"]
 
 	if v, err := strconv.ParseUint(psm.Properties["startSequence"], 10, 64); err == nil {
 		m.startSequence = v

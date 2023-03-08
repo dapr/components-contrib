@@ -49,6 +49,7 @@ const (
 	redeliveryDelay         = "redeliveryDelay"
 	avroProtocol            = "avro"
 	jsonProtocol            = "json"
+	partitionKey            = "partitionKey"
 
 	defaultTenant     = "public"
 	defaultNamespace  = "default"
@@ -329,6 +330,10 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	if val, ok := req.Metadata[partitionKey]; ok {
+		msg.Key = val
 	}
 
 	return msg, nil

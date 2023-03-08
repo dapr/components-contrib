@@ -101,7 +101,11 @@ func (r *RabbitMQ) Init(_ context.Context, metadata bindings.Metadata) error {
 	}
 	r.notifyRabbitChannelClose = make(chan *amqp.Error, 1)
 	r.channel.NotifyClose(r.notifyRabbitChannelClose)
-	go r.reconnectWhenNecessary()
+	r.wg.Add(1)
+	go func() {
+	  defer r.wg.Done()
+	  r.reconnectWhenNecessary()
+	 }()
 	return nil
 }
 

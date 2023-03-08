@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dapr/components-contrib/internal/component/postgresql"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	state_cockroach "github.com/dapr/components-contrib/state/cockroachdb"
@@ -51,7 +52,7 @@ const (
 func TestCockroach(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
 
-	stateStore := state_cockroach.New(log).(*state_cockroach.CockroachDB)
+	stateStore := state_cockroach.New(log).(*postgresql.PostgreSQL)
 	ports, err := dapr_testing.GetFreePorts(3)
 	assert.NoError(t, err)
 
@@ -91,9 +92,6 @@ func TestCockroach(t *testing.T) {
 		}
 		defer client.Close()
 
-		err = stateStore.Ping(context.Background())
-		assert.Equal(t, nil, err)
-
 		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("certificationdata"), nil)
 		assert.NoError(t, err)
 
@@ -126,9 +124,6 @@ func TestCockroach(t *testing.T) {
 			panic(err)
 		}
 		defer client.Close()
-
-		err = stateStore.Ping(context.Background())
-		assert.Equal(t, nil, err)
 
 		resp, err := stateStore.Get(context.Background(), &state.GetRequest{
 			Key: keyOneString,
@@ -287,13 +282,13 @@ func TestCockroach(t *testing.T) {
 			t.Run("default value", func(t *testing.T) {
 				// Default value is 1 hr
 				md.Properties["cleanupIntervalInSeconds"] = ""
-				storeObj := state_cockroach.New(log).(*state_cockroach.CockroachDB)
+				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQL)
 
 				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
-				dbAccess := storeObj.GetDBAccess().(*state_cockroach.CockroachDBAccess)
+				dbAccess := storeObj.GetDBAccess().(*postgresql.PostgresDBAccess)
 				require.NotNil(t, dbAccess)
 
 				cleanupInterval := dbAccess.GetCleanupInterval()
@@ -304,13 +299,13 @@ func TestCockroach(t *testing.T) {
 			t.Run("positive value", func(t *testing.T) {
 				// A positive value is interpreted in seconds
 				md.Properties["cleanupIntervalInSeconds"] = "10"
-				storeObj := state_cockroach.New(log).(*state_cockroach.CockroachDB)
+				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQL)
 
 				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
-				dbAccess := storeObj.GetDBAccess().(*state_cockroach.CockroachDBAccess)
+				dbAccess := storeObj.GetDBAccess().(*postgresql.PostgresDBAccess)
 				require.NotNil(t, dbAccess)
 
 				cleanupInterval := dbAccess.GetCleanupInterval()
@@ -321,13 +316,13 @@ func TestCockroach(t *testing.T) {
 			t.Run("disabled", func(t *testing.T) {
 				// A value of <=0 means that the cleanup is disabled
 				md.Properties["cleanupIntervalInSeconds"] = "0"
-				storeObj := state_cockroach.New(log).(*state_cockroach.CockroachDB)
+				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQL)
 
 				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
-				dbAccess := storeObj.GetDBAccess().(*state_cockroach.CockroachDBAccess)
+				dbAccess := storeObj.GetDBAccess().(*postgresql.PostgresDBAccess)
 				require.NotNil(t, dbAccess)
 
 				cleanupInterval := dbAccess.GetCleanupInterval()
@@ -351,7 +346,7 @@ func TestCockroach(t *testing.T) {
 				// Run every second
 				md.Properties["cleanupIntervalInSeconds"] = "1"
 
-				storeObj := state_cockroach.New(log).(*state_cockroach.CockroachDB)
+				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQL)
 				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
@@ -388,7 +383,7 @@ func TestCockroach(t *testing.T) {
 				// (we'll manually trigger more frequent iterations)
 				md.Properties["cleanupIntervalInSeconds"] = "3600"
 
-				storeObj := state_cockroach.New(log).(*state_cockroach.CockroachDB)
+				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQL)
 				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
@@ -417,7 +412,7 @@ func TestCockroach(t *testing.T) {
 				require.NotEmpty(t, lastCleanupValueOrig)
 
 				// Trigger the background cleanup, which should do nothing because the last cleanup was < 3600s
-				dbAccess := storeObj.GetDBAccess().(*state_cockroach.CockroachDBAccess)
+				dbAccess := storeObj.GetDBAccess().(*postgresql.PostgresDBAccess)
 				require.NotNil(t, dbAccess)
 				err = dbAccess.CleanupExpired(ctx)
 				require.NoError(t, err, "CleanupExpired returned an error")

@@ -39,7 +39,7 @@ type GCOptions struct {
 
 	// Query that must atomically update the "last cleanup time" in the metadata table, but only if the garbage collector hasn't run already.
 	// The caller will check the nuber of affected rows. If zero, it assumes that the GC has ran too recently, and will not proceed to delete expired records.
-	// The query receives one paramter that is the last cleanup interval, in milliseconds.
+	// The query receives one parameter that is the last cleanup interval, in milliseconds.
 	UpdateLastCleanupQuery string
 	// Query that performs the cleanup of all expired rows.
 	DeleteExpiredValuesQuery string

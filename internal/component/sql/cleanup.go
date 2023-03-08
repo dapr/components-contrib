@@ -16,6 +16,7 @@ package sql
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -34,20 +35,34 @@ type GarbageCollector interface {
 }
 
 type GCOptions struct {
-	Logger                   logger.Logger
-	UpdateLastCleanupQuery   string
+	Logger logger.Logger
+
+	// Query that must atomically update the "last cleanup time" in the metadata table, but only if the garbage collector hasn't run already.
+	// The caller will check the nuber of affected rows. If zero, it assumes that the GC has ran too recently, and will not proceed to delete expired records.
+	// The query receives one paramter that is the last cleanup interval, in milliseconds.
+	UpdateLastCleanupQuery string
+	// Query that performs the cleanup of all expired rows.
 	DeleteExpiredValuesQuery string
-	CleanupInterval          time.Duration
-	SQLDB                    SQLDB
-	SQLDBWithContext         SQLDBWithContext
+
+	// Interval to perfm the cleanup.
+	CleanupInterval time.Duration
+
+	// Database connection when using pgx.
+	DBPgx pgxConn
+	// Database connection when using database/sql.
+	DBSql sqlConn
 }
 
-type SQLDB interface {
+// Interface for connections that use pgx.
+type pgxConn interface {
 	Begin(context.Context) (pgx.Tx, error)
+	Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error)
 }
 
-type SQLDBWithContext interface {
+// Interface for connections that use database/sql.
+type sqlConn interface {
 	BeginTx(context.Context, *sql.TxOptions) (*sql.Tx, error)
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
 type gc struct {
@@ -55,8 +70,8 @@ type gc struct {
 	updateLastCleanupQuery   string
 	deleteExpiredValuesQuery string
 	cleanupInterval          time.Duration
-	db                       SQLDB
-	dbWC                     SQLDBWithContext
+	dbPgx                    pgxConn
+	dbSQL                    sqlConn
 
 	closed   atomic.Bool
 	closedCh chan struct{}
@@ -68,11 +83,11 @@ func ScheduleGarbageCollector(opts GCOptions) (GarbageCollector, error) {
 		return new(gcNoOp), nil
 	}
 
-	if opts.SQLDB == nil && opts.SQLDBWithContext == nil {
-		return nil, fmt.Errorf("either SQLDB or SQLDBWithContext must be provided")
+	if opts.DBPgx == nil && opts.DBSql == nil {
+		return nil, errors.New("either DBPgx or DBSql must be provided")
 	}
-	if opts.SQLDB != nil && opts.SQLDBWithContext != nil {
-		return nil, fmt.Errorf("only one of SQLDB or SQLDBWithContext must be provided")
+	if opts.DBPgx != nil && opts.DBSql != nil {
+		return nil, errors.New("only one of DBPgx or DBSql must be provided")
 	}
 
 	gc := &gc{
@@ -80,8 +95,8 @@ func ScheduleGarbageCollector(opts GCOptions) (GarbageCollector, error) {
 		updateLastCleanupQuery:   opts.UpdateLastCleanupQuery,
 		deleteExpiredValuesQuery: opts.DeleteExpiredValuesQuery,
 		cleanupInterval:          opts.CleanupInterval,
-		db:                       opts.SQLDB,
-		dbWC:                     opts.SQLDBWithContext,
+		dbPgx:                    opts.DBPgx,
+		dbSQL:                    opts.DBSql,
 		closedCh:                 make(chan struct{}),
 	}
 
@@ -117,51 +132,50 @@ func (g *gc) scheduleCleanup() {
 
 // Exposed for testing.
 func (g *gc) CleanupExpired() error {
-	var (
-		tx   pgx.Tx
-		txwc *sql.Tx
-	)
-
-	// Deletion can take a long time to complete so we have a long background
-	// context. Still catch closing of the GC.
+	// Deletion can take a long time to complete so we have a long background context. Still catch closing of the GC.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*10)
 	defer cancel()
 
 	g.wg.Add(1)
 	go func() {
-		defer g.wg.Done()
-		defer cancel()
+		// Wait for context cancellation or closing
 		select {
 		case <-ctx.Done():
 		case <-g.closedCh:
 		}
+		g.wg.Done()
+		cancel()
 	}()
-
-	var err error
-	if g.db != nil {
-		tx, err = g.db.Begin(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to start transaction: %w", err)
-		}
-		defer tx.Rollback(ctx)
-	} else {
-		txwc, err = g.dbWC.BeginTx(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("failed to start transaction: %w", err)
-		}
-		defer txwc.Rollback()
-	}
 
 	// Check if the last iteration was too recent
 	// This performs an atomic operation, so allows coordination with other daprd processes too
 	// We do this before beginning the transaction
-	canContinue, err := g.updateLastCleanup(ctx, tx, txwc)
+	canContinue, err := g.updateLastCleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to read last cleanup time from database: %w", err)
 	}
 	if !canContinue {
 		g.log.Debug("Last cleanup was performed too recently")
 		return nil
+	}
+
+	var (
+		tx   pgx.Tx
+		txwc *sql.Tx
+	)
+
+	if g.dbPgx != nil {
+		tx, err = g.dbPgx.Begin(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to start transaction: %w", err)
+		}
+		defer tx.Rollback(ctx)
+	} else {
+		txwc, err = g.dbSQL.BeginTx(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("failed to start transaction: %w", err)
+		}
+		defer txwc.Rollback()
 	}
 
 	var rowsAffected int64
@@ -198,20 +212,19 @@ func (g *gc) CleanupExpired() error {
 	return nil
 }
 
-// updateLastCleanup sets the 'last-cleanup' value only if it's less than
-// cleanupInterval.
+// updateLastCleanup sets the 'last-cleanup' value only if it's less than cleanupInterval.
 // Returns true if the row was updated, which means that the cleanup can proceed.
-func (g *gc) updateLastCleanup(ctx context.Context, tx pgx.Tx, txwc *sql.Tx) (bool, error) {
+func (g *gc) updateLastCleanup(ctx context.Context) (bool, error) {
 	var n int64
 	// Subtract 100ms for some buffer
-	if tx != nil {
-		res, err := tx.Exec(ctx, g.updateLastCleanupQuery, g.cleanupInterval.Milliseconds()-100)
+	if g.dbPgx != nil {
+		res, err := g.dbPgx.Exec(ctx, g.updateLastCleanupQuery, g.cleanupInterval.Milliseconds()-100)
 		if err != nil {
 			return false, fmt.Errorf("error updating last cleanup time: %w", err)
 		}
 		n = res.RowsAffected()
 	} else {
-		res, err := txwc.ExecContext(ctx, g.updateLastCleanupQuery, g.cleanupInterval.Milliseconds()-100)
+		res, err := g.dbSQL.ExecContext(ctx, g.updateLastCleanupQuery, g.cleanupInterval.Milliseconds()-100)
 		if err != nil {
 			return false, fmt.Errorf("error updating last cleanup time: %w", err)
 		}

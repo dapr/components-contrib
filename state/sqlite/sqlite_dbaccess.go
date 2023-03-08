@@ -112,7 +112,7 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 		VALUES ('last-cleanup', CURRENT_TIMESTAMP)
 		ON CONFLICT (key)
 		DO UPDATE SET value = CURRENT_TIMESTAMP
-			WHERE (unixepoch(CURRENT_TIMESTAMP) - unixepoch(value)) > 1;`,
+			WHERE (unixepoch(CURRENT_TIMESTAMP) - unixepoch(value)) * 1000 > ?;`,
 			a.metadata.MetadataTableName,
 		),
 		DeleteExpiredValuesQuery: fmt.Sprintf(`DELETE FROM %s
@@ -121,8 +121,8 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 			AND expiration_time < CURRENT_TIMESTAMP`,
 			a.metadata.TableName,
 		),
-		CleanupInterval:  a.metadata.CleanupInterval,
-		SQLDBWithContext: a.db,
+		CleanupInterval: a.metadata.CleanupInterval,
+		DBSql:           a.db,
 	})
 	if err != nil {
 		return err

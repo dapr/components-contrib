@@ -136,7 +136,7 @@ func (p *PostgresDBAccess) Init(ctx context.Context, meta state.Metadata) error 
 				p.metadata.TableName,
 			),
 			CleanupInterval: *p.metadata.cleanupInterval,
-			SQLDB:           p.db,
+			DBPgx:           p.db,
 		})
 		if err != nil {
 			return err

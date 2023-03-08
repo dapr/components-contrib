@@ -113,7 +113,11 @@ func (r *RabbitMQ) reconnectWhenNecessary() {
 		case e := <-r.notifyRabbitChannelClose:
 			// If this error can not be recovered, first wait and then retry.
 			if e != nil && !e.Recover {
-				time.Sleep(r.metadata.reconnectWait)
+				select {
+				case <-time.After(r.metadata.reconnectWait):
+				case <-r.closeCh:
+					return
+				}
 			}
 			r.channelMutex.Lock()
 			if r.connection != nil && !r.connection.IsClosed() {
@@ -139,7 +143,11 @@ func (r *RabbitMQ) reconnectWhenNecessary() {
 				}
 				r.logger.Warnf("Reconnect failed: %v", err)
 
-				time.Sleep(r.metadata.reconnectWait)
+				select {
+				case <-time.After(r.metadata.reconnectWait):
+				case <-r.closeCh:
+					return
+				}
 			}
 		}
 	}
@@ -325,31 +333,33 @@ func (r *RabbitMQ) Read(ctx context.Context, handler bindings.Handler) error {
 			declaredQueueName = r.queue.Name
 			ch = r.channel
 			r.channelMutex.RUnlock()
-			if ch == nil {
-				goto Retry
-			}
-			msgs, err = ch.Consume(
-				declaredQueueName,
-				"",
-				false,
-				false,
-				false,
-				false,
-				nil,
-			)
-			if err != nil {
-				r.logger.Errorf("Error consuming messages from queue [%s]: %v", r.queue.Name, err)
-				goto Retry
-			}
-			r.handleMessage(readCtx, handler, msgs, ch)
 
-		Retry:
-			if r.closed.Load() || readCtx.Err() != nil {
+			if ch != nil {
+				msgs, err = ch.Consume(
+					declaredQueueName,
+					"",
+					false,
+					false,
+					false,
+					false,
+					nil,
+				)
+				if err == nil {
+					// all good, handle messages
+					r.handleMessage(readCtx, handler, msgs, ch)
+				} else {
+					r.logger.Errorf("Error consuming messages from queue [%s]: %v", r.queue.Name, err)
+				}
+			}
+
+			// something went wrong, wait for reconnect
+			select {
+			case <-time.After(r.metadata.reconnectWait):
+				continue
+			case <-readCtx.Done():
 				r.logger.Info("Input binding closed, stop fetching message")
 				return
 			}
-
-			time.Sleep(r.metadata.reconnectWait)
 		}
 	}()
 	return nil

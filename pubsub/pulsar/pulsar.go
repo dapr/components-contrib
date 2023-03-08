@@ -320,7 +320,6 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 	}
 
 	for name, value := range req.Metadata {
-
 		switch name {
 		case partitionKey:
 			msg.Key = value
@@ -340,23 +339,6 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 			}
 			msg.Properties[name] = value
 		}
-	}
-
-	if val, ok := req.Metadata[deliverAt]; ok {
-		msg.DeliverAt, err = time.Parse(time.RFC3339, val)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if val, ok := req.Metadata[deliverAfter]; ok {
-		msg.DeliverAfter, err = time.ParseDuration(val)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if val, ok := req.Metadata[partitionKey]; ok {
-		msg.Key = val
 	}
 
 	return msg, nil

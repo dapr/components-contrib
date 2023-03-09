@@ -48,19 +48,19 @@ type GCOptions struct {
 	CleanupInterval time.Duration
 
 	// Database connection when using pgx.
-	DBPgx pgxConn
+	DBPgx PgxConn
 	// Database connection when using database/sql.
-	DBSql sqlConn
+	DBSql DatabaseSQLConn
 }
 
 // Interface for connections that use pgx.
-type pgxConn interface {
+type PgxConn interface {
 	Begin(context.Context) (pgx.Tx, error)
-	Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error)
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
 }
 
 // Interface for connections that use database/sql.
-type sqlConn interface {
+type DatabaseSQLConn interface {
 	BeginTx(context.Context, *sql.TxOptions) (*sql.Tx, error)
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
@@ -70,8 +70,8 @@ type gc struct {
 	updateLastCleanupQuery   string
 	deleteExpiredValuesQuery string
 	cleanupInterval          time.Duration
-	dbPgx                    pgxConn
-	dbSQL                    sqlConn
+	dbPgx                    PgxConn
+	dbSQL                    DatabaseSQLConn
 
 	closed   atomic.Bool
 	closedCh chan struct{}

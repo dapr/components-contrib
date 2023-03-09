@@ -100,9 +100,10 @@ func (s EnvironmentSettings) GetAzureEnvironment() (*cloud.Configuration, error)
 // GetTokenCredential returns an azcore.TokenCredential retrieved from, in order:
 // 1. Client credentials
 // 2. Client certificate
-// 3. MSI with a timeout of 1 second
-// 4. Azure CLI
-// 5. Retry MSI without timeout
+// 3. Workload identity
+// 4. MSI with a timeout of 1 second
+// 5. Azure CLI
+// 6. Retry MSI without timeout
 //
 // This order and timeout (with the exception of the additional step 5) matches the DefaultAzureCredential.
 func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error) {
@@ -130,7 +131,38 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 		}
 	}
 
-	// 3. MSI with timeout of 1 second (same as DefaultAzureCredential)
+	// 3. Workload identity
+	// workload identity requires values for AZURE_AUTHORITY_HOST, AZURE_CLIENT_ID, AZURE_FEDERATED_TOKEN_FILE, AZURE_TENANT_ID
+
+	const (
+		azureAuthorityHost      = "AZURE_AUTHORITY_HOST"
+		azureClientID           = "AZURE_CLIENT_ID"
+		azureFederatedTokenFile = "AZURE_FEDERATED_TOKEN_FILE"
+		azureTenantID           = "AZURE_TENANT_ID"
+	)
+
+	// TODO, instead of reading env vars, we should read from the metadata
+
+	clientID, haveClientID := os.LookupEnv(azureClientID)
+	if haveClientID {
+		if file, ok := os.LookupEnv(azureFederatedTokenFile); ok {
+			if _, ok := os.LookupEnv(azureAuthorityHost); ok {
+				if tenantID, ok := os.LookupEnv(azureTenantID); ok {
+					workloadCred, err := azidentity.NewWorkloadIdentityCredential(tenantID, clientID, file, &azidentity.WorkloadIdentityCredentialOptions{
+						ClientOptions: policy.ClientOptions{},
+					},
+					)
+					if err == nil {
+						creds = append(creds, workloadCred)
+					} else {
+						errs = append(errs, err)
+					}
+				}
+			}
+		}
+	}
+
+	// 4. MSI with timeout of 1 second (same as DefaultAzureCredential)
 	var msiCred *azcore.TokenCredential
 	{
 		c := s.GetMSI()
@@ -142,7 +174,7 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 		}
 	}
 
-	// 4. AzureCLICredential
+	// 5. AzureCLICredential
 	{
 		cred, credErr := azidentity.NewAzureCLICredential(nil)
 		if credErr == nil {
@@ -152,7 +184,7 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 		}
 	}
 
-	// 5. Retry MSI without timeout
+	// 6. Retry MSI without timeout
 	if msiCred != nil {
 		creds = append(creds, *msiCred)
 	}

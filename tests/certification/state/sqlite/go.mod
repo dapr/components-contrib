@@ -64,6 +64,9 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.1 // indirect
 	github.com/hashicorp/serf v0.10.1 // indirect
 	github.com/imdario/mergo v0.3.13 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
+	github.com/jackc/pgx/v5 v5.3.1 // indirect
 	github.com/jhump/protoreflect v1.14.1 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -112,6 +115,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.11.2 // indirect
 	go.opentelemetry.io/otel/trace v1.11.2 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
+	golang.org/x/crypto v0.6.0 // indirect
 	golang.org/x/exp v0.0.0-20230303215020-44a13b063f3e // indirect
 	golang.org/x/mod v0.8.0 // indirect
 	golang.org/x/net v0.7.0 // indirect

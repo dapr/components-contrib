@@ -35,6 +35,9 @@ import (
 
 const (
 	fakeConnectionString = "not a real connection"
+	keyTableName         = "keyTable"
+	keyConnectionString  = "connectionString"
+	keySchemaName        = "schemaName"
 )
 
 func TestEnsureStateSchemaHandlesShortConnectionString(t *testing.T) {

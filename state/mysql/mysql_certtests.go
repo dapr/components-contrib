@@ -19,6 +19,7 @@ package mysql
 
 import (
 	"database/sql"
+	"time"
 )
 
 // GetConnection returns the database connection.

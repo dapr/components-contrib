@@ -358,7 +358,7 @@ func (m *MySQL) ensureStateTable(ctx context.Context, stateTableName string) err
 			isbinary BOOLEAN NOT NULL,
 			insertDate TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updateDate TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-			eTag VARCHAR(36) NOT NULL,s
+			eTag VARCHAR(36) NOT NULL,
 			expiredate TIMESTAMP NULL,
 			INDEX expiredate_idx(expiredate)
 			);`, stateTableName)

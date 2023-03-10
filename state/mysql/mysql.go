@@ -358,7 +358,7 @@ func (m *MySQL) ensureStateTable(ctx context.Context, stateTableName string) err
 			isbinary BOOLEAN NOT NULL,
 			insertDate TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updateDate TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-			eTag VARCHAR(36) NOT NULL,
+			eTag VARCHAR(36) NOT NULL,s
 			expiredate TIMESTAMP NULL,
 			INDEX expiredate_idx(expiredate)
 			);`, stateTableName)
@@ -403,9 +403,7 @@ func (m *MySQL) ensureMetadataTable(ctx context.Context, metaTableName string) e
 	if !exists {
 		m.logger.Info("Creating MySQL metadata table")
 		_, err = m.db.ExecContext(ctx, fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			key VARCHAR(255) NOT NULL PRIMARY KEY,
-			value VARCHAR(255) NOT NULL
-		)`, metaTableName))
+			key VARCHAR(255) NOT NULL PRIMARY KEY, value VARCHAR(255) NOT NULL)`, metaTableName))
 		if err != nil {
 			return err
 		}
@@ -677,7 +675,7 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 		// If this is a duplicate MySQL returns that two rows affected
 		maxRows = 2
 		query = `INSERT INTO %s (value, id, eTag, isbinary, expiredate) VALUES (?, ?, ?, ?, %[2]s) 
-			on duplicate key update value=?, eTag=?, isbinary=?, expiredate=%[2]s;`
+			on duplicate key update value=?, eTag=?, isbinary=?, expiredate=%[2]s`
 		params = []any{enc, req.Key, eTag, isBinary, enc, eTag, isBinary}
 	}
 

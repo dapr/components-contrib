@@ -133,6 +133,7 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 
 	// 3. Workload identity
 	// workload identity requires values for AZURE_AUTHORITY_HOST, AZURE_CLIENT_ID, AZURE_FEDERATED_TOKEN_FILE, AZURE_TENANT_ID
+	// The workload identity mutating admissions webhook in Kubernetes injects these values into the pod.
 
 	const (
 		azureAuthorityHost      = "AZURE_AUTHORITY_HOST"
@@ -140,8 +141,6 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 		azureFederatedTokenFile = "AZURE_FEDERATED_TOKEN_FILE"
 		azureTenantID           = "AZURE_TENANT_ID"
 	)
-
-	// TODO, instead of reading env vars, we should read from the metadata
 
 	clientID, haveClientID := os.LookupEnv(azureClientID)
 	if haveClientID {

@@ -42,7 +42,6 @@ func NewKitexOutput(logger logger.Logger) bindings.OutputBinding {
 }
 
 func (out *kitexOutputBinding) Init(_ context.Context, _ bindings.Metadata) error {
-
 	return nil
 }
 

@@ -104,7 +104,6 @@ func startHTTPServer(url string) {
 }
 
 func (tc *TestConfig) createInvokeRequest() bindings.InvokeRequest {
-
 	if tc.ComponentType == "bindings" && tc.ComponentName == "kitex" {
 		reqData, _ := kitex_e2e.GenerateEchoReq(tc.OutputData)
 		return bindings.InvokeRequest{

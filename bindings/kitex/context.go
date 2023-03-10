@@ -38,7 +38,6 @@ type kitexContext struct {
 }
 
 func newKitexContext(metadata map[string]string) *kitexContext {
-
 	kitexMetadata := &kitexContext{}
 	kitexMetadata.version = metadata[metadataRPCVersion]
 	kitexMetadata.destService = metadata[metadataRPCDestService]
@@ -49,7 +48,6 @@ func newKitexContext(metadata map[string]string) *kitexContext {
 }
 
 func (d *kitexContext) Init(metadata map[string]string) error {
-
 	var destService, hostPorts string
 	destService, ok := metadata[metadataRPCDestService]
 	if !ok {

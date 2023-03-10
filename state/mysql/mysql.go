@@ -71,7 +71,7 @@ const (
 	defaultMetadataTableName = "dapr_metadata"
 
 	// Used if the user does not configure a cleanup interval in the metadata.
-	defaultCleanupInterval = time.Hour
+	defaultCleanupInterval = 3600
 )
 
 // MySQL state store.
@@ -94,13 +94,13 @@ type MySQL struct {
 }
 
 type mySQLMetadata struct {
-	TableName         string
-	SchemaName        string
-	ConnectionString  string
-	Timeout           int
-	PemPath           string
-	MetadataTableName string
-	CleanupInterval   *time.Duration
+	TableName                string
+	SchemaName               string
+	ConnectionString         string
+	Timeout                  int
+	PemPath                  string
+	MetadataTableName        string
+	CleanupIntervalInSeconds *time.Duration
 }
 
 // NewMySQLStateStore creates a new instance of MySQL state store.
@@ -149,10 +149,10 @@ func (m *MySQL) Init(ctx context.Context, metadata state.Metadata) error {
 
 func (m *MySQL) parseMetadata(md map[string]string) error {
 	meta := mySQLMetadata{
-		TableName:         defaultTableName,
-		SchemaName:        defaultSchemaName,
-		MetadataTableName: defaultMetadataTableName,
-		CleanupInterval:   ptr.Of(defaultCleanupInterval),
+		TableName:                defaultTableName,
+		SchemaName:               defaultSchemaName,
+		MetadataTableName:        defaultMetadataTableName,
+		CleanupIntervalInSeconds: ptr.Of(defaultCleanupInterval * time.Second),
 	}
 
 	err := metadata.DecodeMetadata(md, &meta)

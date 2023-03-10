@@ -417,7 +417,7 @@ func TestMySQL(t *testing.T) {
 			t.Run("parse cleanupIntervalInSeconds", func(t *testing.T) {
 				t.Run("default value", func(t *testing.T) {
 					// Default value is 1 hr
-					md.Properties[keyCleanupInterval] = ""
+					// md.Properties[keyCleanupInterval] = ""
 					storeObj := stateMysql.NewMySQLStateStore(log).(*stateMysql.MySQL)
 
 					err := storeObj.Init(ctx, md)

@@ -9,6 +9,8 @@ spec:
   metadata:
     - name: connectionString
       value: "mongodb://localhost:27017/admin"
+    - name: databaseName
+      value: "admin"
     - name: writeConcern
       value: "majority"
     - name: readConcern

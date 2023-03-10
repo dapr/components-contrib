@@ -72,7 +72,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		assert.NotNil(t, err)
 	})
 
-	t.Run("Valid connectionstring without params", func(t *testing.T) {
+	t.Run("Valid connection details without params", func(t *testing.T) {
 		properties := map[string]string{
 			host:           "127.0.0.2",
 			databaseName:   "TestDB",
@@ -93,7 +93,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		assert.Equal(t, expected, uri)
 	})
 
-	t.Run("Valid connectionstring without username", func(t *testing.T) {
+	t.Run("Valid connection details without username", func(t *testing.T) {
 		properties := map[string]string{
 			host:           "localhost:27017",
 			databaseName:   "TestDB",
@@ -112,7 +112,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		assert.Equal(t, expected, uri)
 	})
 
-	t.Run("Valid connectionstring with params", func(t *testing.T) {
+	t.Run("Valid connection details with params", func(t *testing.T) {
 		properties := map[string]string{
 			host:           "127.0.0.2",
 			databaseName:   "TestDB",
@@ -134,7 +134,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		assert.Equal(t, expected, uri)
 	})
 
-	t.Run("Valid connectionstring with DNS SRV", func(t *testing.T) {
+	t.Run("Valid connection details with DNS SRV", func(t *testing.T) {
 		properties := map[string]string{
 			server:         "server.example.com",
 			databaseName:   "TestDB",
@@ -186,5 +186,25 @@ func TestGetMongoDBMetadata(t *testing.T) {
 
 		expected := "'host' or 'server' fields are mutually exclusive"
 		assert.Equal(t, expected, err.Error())
+	})
+
+	t.Run("Connectionstring ignores all other connection details", func(t *testing.T) {
+		properties := map[string]string{
+			host:               "localhost:27017",
+			databaseName:       "TestDB",
+			collectionName:     "TestCollection",
+			"connectionString": "mongodb://localhost:99999/UnchanedDB",
+		}
+		m := state.Metadata{
+			Base: metadata.Base{Properties: properties},
+		}
+
+		metadata, err := getMongoDBMetaData(m)
+		assert.Nil(t, err)
+
+		uri := getMongoURI(metadata)
+		expected := "mongodb://localhost:99999/UnchanedDB"
+
+		assert.Equal(t, expected, uri)
 	})
 }

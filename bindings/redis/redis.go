@@ -20,6 +20,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -29,6 +30,11 @@ type Redis struct {
 	clientSettings *rediscomponent.Settings
 	logger         logger.Logger
 }
+
+const (
+	// IncrementOperation is the operation to increment a key.
+	IncrementOperation bindings.OperationKind = "increment"
+)
 
 // NewRedis returns a new redis bindings instance.
 func NewRedis(logger logger.Logger) bindings.OutputBinding {
@@ -63,7 +69,23 @@ func (r *Redis) Operations() []bindings.OperationKind {
 		bindings.CreateOperation,
 		bindings.DeleteOperation,
 		bindings.GetOperation,
+		IncrementOperation,
 	}
+}
+
+func (r *Redis) expireKeyIfRequested(ctx context.Context, requestMetadata map[string]string, key string) error {
+	// get ttl from request metadata
+	ttl, ok, err := contribMetadata.TryGetTTL(requestMetadata)
+	if err != nil {
+		return err
+	}
+	if ok {
+		errExpire := r.client.DoWrite(ctx, "EXPIRE", key, int(ttl.Seconds()))
+		if errExpire != nil {
+			return errExpire
+		}
+	}
+	return nil
 }
 
 func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -77,6 +99,9 @@ func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		case bindings.GetOperation:
 			data, err := r.client.Get(ctx, key)
 			if err != nil {
+				if err.Error() == "redis: nil" {
+					return &bindings.InvokeResponse{}, nil
+				}
 				return nil, err
 			}
 			rep := &bindings.InvokeResponse{}
@@ -84,6 +109,19 @@ func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 			return rep, nil
 		case bindings.CreateOperation:
 			err := r.client.DoWrite(ctx, "SET", key, req.Data)
+			if err != nil {
+				return nil, err
+			}
+			err = r.expireKeyIfRequested(ctx, req.Metadata, key)
+			if err != nil {
+				return nil, err
+			}
+		case IncrementOperation:
+			err := r.client.DoWrite(ctx, "INCR", key)
+			if err != nil {
+				return nil, err
+			}
+			err = r.expireKeyIfRequested(ctx, req.Metadata, key)
 			if err != nil {
 				return nil, err
 			}

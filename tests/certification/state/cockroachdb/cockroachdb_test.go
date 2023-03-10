@@ -414,7 +414,7 @@ func TestCockroach(t *testing.T) {
 				// Trigger the background cleanup, which should do nothing because the last cleanup was < 3600s
 				dbAccess := storeObj.GetDBAccess().(*postgresql.PostgresDBAccess)
 				require.NotNil(t, dbAccess)
-				err = dbAccess.CleanupExpired(ctx)
+				err = dbAccess.CleanupExpired()
 				require.NoError(t, err, "CleanupExpired returned an error")
 
 				// Validate that 20 records are still present

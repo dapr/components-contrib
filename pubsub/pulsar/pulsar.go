@@ -72,7 +72,21 @@ const (
 	defaultMaxBatchSize = 128 * 1024
 	// defaultRedeliveryDelay init default for redelivery delay.
 	defaultRedeliveryDelay = 30 * time.Second
+
+	subscribeTypeKey = "subscribeType"
+
+	subscribeTypeExclusive = "exclusive"
+	subscribeTypeShared    = "shared"
+	subscribeTypeFailover  = "failover"
+	subscribeTypeKeyShared = "key_shared"
+
+	processModeKey = "processMode"
+
+	processModeAsync = "async"
+	processModeSync  = "sync"
 )
+
+type EnableAsyncProcess bool
 
 type Pulsar struct {
 	logger   logger.Logger
@@ -267,6 +281,7 @@ func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 	if err != nil {
 		return err
 	}
+
 	if _, err = producer.Send(ctx, msg); err != nil {
 		return err
 	}
@@ -344,6 +359,48 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 	return msg, nil
 }
 
+// default: shared
+func getSubscribeType(req pubsub.SubscribeRequest) pulsar.SubscriptionType {
+	metadata := req.Metadata
+
+	var subsType pulsar.SubscriptionType
+
+	subsTypeStr, _ := metadata[subscribeTypeKey]
+	switch subsTypeStr {
+	case subscribeTypeExclusive:
+		subsType = pulsar.Exclusive
+	case subscribeTypeFailover:
+		subsType = pulsar.Failover
+	case subscribeTypeShared:
+		subsType = pulsar.Shared
+	case subscribeTypeKeyShared:
+		subsType = pulsar.KeyShared
+	default:
+		subsType = pulsar.Shared
+	}
+
+	return subsType
+}
+
+// true: async,default  false: sync
+func getProcessMode(req pubsub.SubscribeRequest) EnableAsyncProcess {
+	metadata := req.Metadata
+
+	var processMode EnableAsyncProcess
+
+	processModeStr, _ := metadata[processModeKey]
+	switch processModeStr {
+	case processModeSync:
+		processMode = EnableAsyncProcess(false)
+	case processModeAsync:
+		processMode = EnableAsyncProcess(true)
+	default:
+		processMode = EnableAsyncProcess(true)
+	}
+
+	return processMode
+}
+
 func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if p.closed.Load() {
 		return errors.New("component is closed")
@@ -356,7 +413,7 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	options := pulsar.ConsumerOptions{
 		Topic:               topic,
 		SubscriptionName:    p.metadata.ConsumerID,
-		Type:                pulsar.Shared,
+		Type:                getSubscribeType(req),
 		MessageChannel:      channel,
 		NackRedeliveryDelay: p.metadata.RedeliveryDelay,
 	}
@@ -383,28 +440,36 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	go func() {
 		defer p.wg.Done()
 		defer cancel()
-		p.listenMessage(listenCtx, req.Topic, consumer, handler)
+		p.listenMessage(listenCtx, req, consumer, handler)
 	}()
 
 	return nil
 }
 
-func (p *Pulsar) listenMessage(ctx context.Context, originTopic string, consumer pulsar.Consumer, handler pubsub.Handler) {
+func (p *Pulsar) listenMessage(ctx context.Context, req pubsub.SubscribeRequest, consumer pulsar.Consumer, handler pubsub.Handler) {
 	defer consumer.Close()
 
+	originTopic := req.Topic
 	var err error
 	for {
 		select {
 		case msg := <-consumer.Chan():
-			// Go routine to handle multiple messages at once.
-			p.wg.Add(1)
-			go func(msg pulsar.ConsumerMessage) {
-				defer p.wg.Done()
+			if getProcessMode(req) {
+				// Go routine to handle multiple messages at once.
+				p.wg.Add(1)
+				go func(msg pulsar.ConsumerMessage) {
+					defer p.wg.Done()
+					err = p.handleMessage(ctx, originTopic, msg, handler)
+					if err != nil && !errors.Is(err, context.Canceled) {
+						p.logger.Errorf("Error async processing message: %s/%#v [key=%s]: %v", msg.Topic(), msg.ID(), msg.Key(), err)
+					}
+				}(msg)
+			} else {
 				err = p.handleMessage(ctx, originTopic, msg, handler)
 				if err != nil && !errors.Is(err, context.Canceled) {
-					p.logger.Errorf("Error processing message: %s/%#v [key=%s]: %v", msg.Topic(), msg.ID(), msg.Key(), err)
+					p.logger.Errorf("Error sync processing message: %s/%#v [key=%s]: %v", msg.Topic(), msg.ID(), msg.Key(), err)
 				}
-			}(msg)
+			}
 
 		case <-ctx.Done():
 			p.logger.Errorf("Subscription context done. Closing consumer. Err: %s", ctx.Err())

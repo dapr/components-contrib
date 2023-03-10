@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -542,7 +541,7 @@ func TestMySQL(t *testing.T) {
 					require.NotEmpty(t, lastCleanupValueOrig)
 
 					// Trigger the background cleanup, which should do nothing because the last cleanup was < 3600s
-					err = storeObj.CleanupExpired(ctx)
+					err = storeObj.CleanupExpired()
 					require.NoError(t, err, "CleanupExpired returned an error")
 
 					// Validate that 20 records are still present

@@ -34,6 +34,7 @@ type Redis struct {
 const (
 	// IncrementOperation is the operation to increment a key.
 	IncrementOperation bindings.OperationKind = "increment"
+	GetDelOperation    bindings.OperationKind = "getdel"
 )
 
 // NewRedis returns a new redis bindings instance.
@@ -125,6 +126,17 @@ func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 			if err != nil {
 				return nil, err
 			}
+		case GetDelOperation:
+			data, err := r.client.GetDel(ctx, key)
+			if err != nil {
+				if err.Error() == "redis: nil" {
+					return &bindings.InvokeResponse{}, nil
+				}
+				return nil, err
+			}
+			rep := &bindings.InvokeResponse{}
+			rep.Data = []byte(data)
+			return rep, nil
 		default:
 			return nil, fmt.Errorf("invalid operation type: %s", req.Operation)
 		}

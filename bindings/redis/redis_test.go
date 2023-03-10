@@ -79,6 +79,35 @@ func TestInvokeGet(t *testing.T) {
 	assert.Equal(t, true, string(bindingRes.Data) == testData)
 }
 
+func TestInvokeGetDel(t *testing.T) {
+	s, c := setupMiniredis()
+	defer s.Close()
+
+	bind := &Redis{
+		client: c,
+		logger: logger.NewLogger("test"),
+	}
+
+	err := c.DoWrite(context.Background(), "SET", testKey, testData)
+	assert.Equal(t, nil, err)
+
+	bindingRes, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+		Metadata:  map[string]string{"key": testKey},
+		Operation: GetDelOperation,
+	})
+	assert.Equal(t, nil, err)
+	assert.Equal(t, true, string(bindingRes.Data) == testData)
+
+	bindingResGet, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+		Metadata:  map[string]string{"key": testKey},
+		Operation: bindings.GetOperation,
+	})
+
+	assert.Equal(t, nil, err)
+
+	assert.Equal(t, true, string(bindingResGet.Data) == "")
+}
+
 func TestInvokeDelete(t *testing.T) {
 	s, c := setupMiniredis()
 	defer s.Close()

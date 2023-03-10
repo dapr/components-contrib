@@ -28,6 +28,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
+	kitex_e2e "github.com/dapr/components-contrib/tests/e2e/bindings/kitex"
 	"github.com/dapr/kit/config"
 	"github.com/dapr/kit/logger"
 )
@@ -103,6 +104,14 @@ func startHTTPServer(url string) {
 }
 
 func (tc *TestConfig) createInvokeRequest() bindings.InvokeRequest {
+
+	if tc.ComponentType == "bindings" && tc.ComponentName == "kitex" {
+		reqData, _ := kitex_e2e.GenerateEchoReq(tc.OutputData)
+		return bindings.InvokeRequest{
+			Data:     reqData,
+			Metadata: tc.CopyMap(tc.OutputMetadata),
+		}
+	}
 	// There is a possibility that the metadata map might be modified by the Invoke function(eg: azure blobstorage).
 	// So we are making a copy of the config metadata map and setting the Metadata field before each request
 	return bindings.InvokeRequest{

@@ -52,6 +52,7 @@ import (
 	b_http "github.com/dapr/components-contrib/bindings/http"
 	b_influx "github.com/dapr/components-contrib/bindings/influx"
 	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
+	b_kitex "github.com/dapr/components-contrib/bindings/kitex"
 	b_kubemq "github.com/dapr/components-contrib/bindings/kubemq"
 	b_mqtt3 "github.com/dapr/components-contrib/bindings/mqtt3"
 	b_postgres "github.com/dapr/components-contrib/bindings/postgres"
@@ -99,6 +100,7 @@ import (
 	conf_secret "github.com/dapr/components-contrib/tests/conformance/secretstores"
 	conf_state "github.com/dapr/components-contrib/tests/conformance/state"
 	conf_workflows "github.com/dapr/components-contrib/tests/conformance/workflows"
+	kitex_e2e "github.com/dapr/components-contrib/tests/e2e/bindings/kitex"
 	"github.com/dapr/components-contrib/tests/utils/configupdater"
 	cu_redis "github.com/dapr/components-contrib/tests/utils/configupdater/redis"
 	wf_temporal "github.com/dapr/components-contrib/workflows/temporal"
@@ -596,6 +598,11 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_kafka.NewKafka(testLogger)
 	case "http":
 		binding = b_http.NewHTTP(testLogger)
+	case "kitex":
+		binding = b_kitex.NewKitexOutput(testLogger)
+		go func() {
+			kitex_e2e.EchoKitexServer()
+		}()
 	case "influx":
 		binding = b_influx.NewInflux(testLogger)
 	case "mqtt3":

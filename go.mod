@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib
 
-go 1.20
+go 1.19
 
 require (
 	cloud.google.com/go/datastore v1.10.0
@@ -36,6 +36,7 @@ require (
 	github.com/apache/dubbo-go-hessian2 v1.11.5
 	github.com/apache/pulsar-client-go v0.9.0
 	github.com/apache/rocketmq-client-go/v2 v2.1.1-rc2
+	github.com/apache/thrift v0.13.0
 	github.com/aws/aws-sdk-go v1.44.214
 	github.com/benbjohnson/clock v1.3.0
 	github.com/bradfitz/gomemcache v0.0.0-20230124162541-5f7a7d875746
@@ -44,6 +45,8 @@ require (
 	github.com/cinience/go_rocketmq v0.0.2
 	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.13.0
 	github.com/cloudevents/sdk-go/v2 v2.13.0
+	github.com/cloudwego/kitex v0.5.0
+	github.com/cloudwego/kitex-examples v0.1.1
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/dancannon/gorethink v4.0.0+incompatible
 	github.com/dapr/kit v0.0.4
@@ -122,6 +125,20 @@ require (
 	k8s.io/client-go v0.26.2
 	k8s.io/utils v0.0.0-20230220204549-a5ecb0141aa5
 	modernc.org/sqlite v1.21.0
+)
+
+require (
+	github.com/bytedance/gopkg v0.0.0-20220817015305-b879a72dc90f // indirect
+	github.com/chenzhuoyu/iasm v0.0.0-20230222070914-0b1b64b0e762 // indirect
+	github.com/choleraehyq/pid v0.0.16 // indirect
+	github.com/cloudwego/fastpb v0.0.4-0.20230131074846-6fc453d58b96 // indirect
+	github.com/cloudwego/frugal v0.1.6 // indirect
+	github.com/cloudwego/netpoll v0.3.2 // indirect
+	github.com/cloudwego/thriftgo v0.2.8 // indirect
+	github.com/google/pprof v0.0.0-20221118152302-e6195bd50e26 // indirect
+	github.com/jhump/protoreflect v1.8.2 // indirect
+	github.com/oleiade/lane v1.0.1 // indirect
+	golang.org/x/arch v0.2.0 // indirect
 )
 
 require (

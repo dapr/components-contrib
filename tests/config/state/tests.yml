@@ -28,10 +28,10 @@ components:
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]
   - component: mysql.mysql
     allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write" ]
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]
   - component: mysql.mariadb
     allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write" ]
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]
   - component: azure.tablestorage.storage
     allOperations: false
     operations: ["set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write"]

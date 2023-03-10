@@ -35,7 +35,7 @@ import (
 
 const (
 	fakeConnectionString = "not a real connection"
-	keyTableName         = "keyTable"
+	keyTableName         = "tableName"
 	keyConnectionString  = "connectionString"
 	keySchemaName        = "schemaName"
 )

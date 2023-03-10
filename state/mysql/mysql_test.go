@@ -544,7 +544,7 @@ func TestTableExists(t *testing.T) {
 	m.mock1.ExpectQuery("SELECT EXISTS").WillReturnRows(rows)
 
 	// Act
-	actual, err := tableExists(context.Background(), m.mySQL.db, "store", 10*time.Second)
+	actual, err := tableExists(context.Background(), m.mySQL.db, "dapr_state_store", "store", 10*time.Second)
 
 	// Assert
 	assert.Nil(t, err, `error was returned`)
@@ -562,7 +562,7 @@ func TestEnsureStateTableHandlesCreateTableError(t *testing.T) {
 	m.mock1.ExpectExec("CREATE TABLE").WillReturnError(fmt.Errorf("CreateTableError"))
 
 	// Act
-	err := m.mySQL.ensureStateTable(context.Background(), "state")
+	err := m.mySQL.ensureStateTable(context.Background(), "dapr_state_store", "state")
 
 	// Assert
 	assert.NotNil(t, err, "no error returned")
@@ -581,9 +581,11 @@ func TestEnsureStateTableCreatesTable(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"exists"}).AddRow(0)
 	m.mock1.ExpectQuery("SELECT EXISTS").WillReturnRows(rows)
 	m.mock1.ExpectExec("CREATE TABLE").WillReturnResult(sqlmock.NewResult(1, 1))
+	rows = sqlmock.NewRows([]string{"exists"}).AddRow(1)
+	m.mock1.ExpectQuery("SELECT count(/*)").WillReturnRows(rows)
 
 	// Act
-	err := m.mySQL.ensureStateTable(context.Background(), "state")
+	err := m.mySQL.ensureStateTable(context.Background(), "dapr_state_store", "state")
 
 	// Assert
 	assert.Nil(t, err)

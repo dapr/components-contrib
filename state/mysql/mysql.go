@@ -266,11 +266,11 @@ func (m *MySQL) finishInit(ctx context.Context, db *sql.DB) error {
 	}
 
 	// will be nil if everything is good or an err that needs to be returned
-	if err = m.ensureStateTable(ctx, m.tableName); err != nil {
+	if err = m.ensureStateTable(ctx, m.schemaName, m.tableName); err != nil {
 		return err
 	}
 
-	if err = m.ensureMetadataTable(ctx, m.metadataTableName); err != nil {
+	if err = m.ensureMetadataTable(ctx, m.schemaName, m.metadataTableName); err != nil {
 		return err
 	}
 
@@ -337,8 +337,8 @@ func (m *MySQL) ensureStateSchema(ctx context.Context) error {
 	return err
 }
 
-func (m *MySQL) ensureStateTable(ctx context.Context, stateTableName string) error {
-	tableExists, err := tableExists(ctx, m.db, stateTableName, m.timeout)
+func (m *MySQL) ensureStateTable(ctx context.Context, schemaName, stateTableName string) error {
+	tableExists, err := tableExists(ctx, m.db, schemaName, stateTableName, m.timeout)
 	if err != nil {
 		return err
 	}
@@ -372,7 +372,7 @@ func (m *MySQL) ensureStateTable(ctx context.Context, stateTableName string) err
 	}
 
 	// Check if expiredate column exists - to cater cases when table was created before v1.11.
-	columnExists, err := columnExists(ctx, m.db, m.schemaName, stateTableName, "expiredate", m.timeout)
+	columnExists, err := columnExists(ctx, m.db, schemaName, stateTableName, "expiredate", m.timeout)
 	if err != nil {
 		return err
 	}
@@ -394,8 +394,8 @@ func (m *MySQL) ensureStateTable(ctx context.Context, stateTableName string) err
 	return nil
 }
 
-func (m *MySQL) ensureMetadataTable(ctx context.Context, metaTableName string) error {
-	exists, err := tableExists(ctx, m.db, metaTableName, m.timeout)
+func (m *MySQL) ensureMetadataTable(ctx context.Context, schemaName, metaTableName string) error {
+	exists, err := tableExists(ctx, m.db, schemaName, metaTableName, m.timeout)
 	if err != nil {
 		return err
 	}
@@ -425,16 +425,16 @@ func schemaExists(ctx context.Context, db *sql.DB, schemaName string, timeout ti
 	return exists == 1, err
 }
 
-func tableExists(ctx context.Context, db *sql.DB, tableName string, timeout time.Duration) (bool, error) {
+func tableExists(ctx context.Context, db *sql.DB, schemaName, tableName string, timeout time.Duration) (bool, error) {
 	tableCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	// Returns 1 or 0 if the table exists or not
 	var exists int
 	query := `SELECT EXISTS (
-		SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_NAME = ?
+		SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
 	) AS 'exists'`
-	err := db.QueryRowContext(tableCtx, query, tableName).Scan(&exists)
+	err := db.QueryRowContext(tableCtx, query, schemaName, tableName).Scan(&exists)
 	return exists == 1, err
 }
 

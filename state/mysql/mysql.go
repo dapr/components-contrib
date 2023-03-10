@@ -67,7 +67,7 @@ const (
 	cleanupIntervalKey = "cleanupIntervalInSeconds"
 
 	// Used if the user does not configure a metadata table name in the metadata.
-	// In terms of TTL, it is required to store value for 'last-cleanup' key.
+	// In terms of TTL, it is required to store value for 'last-cleanup' id.
 	defaultMetadataTableName = "dapr_metadata"
 
 	// Used if the user does not configure a cleanup interval in the metadata.
@@ -277,7 +277,7 @@ func (m *MySQL) finishInit(ctx context.Context, db *sql.DB) error {
 	if m.cleanupInterval != nil {
 		gc, err := sqlCleanup.ScheduleGarbageCollector(sqlCleanup.GCOptions{
 			Logger: m.logger,
-			UpdateLastCleanupQuery: fmt.Sprintf(`INSERT INTO %[1]s (key, value)
+			UpdateLastCleanupQuery: fmt.Sprintf(`INSERT INTO %[1]s (id, value)
 			VALUES ('last-cleanup', CURRENT_TIMESTAMP)
 		  ON DUPLICATE KEY UPDATE
 			value = IF((UNIX_TIMESTAMP(CURRENT_TIMESTAMP) - UNIX_TIMESTAMP(value)) * 1000 >= $1, 
@@ -403,7 +403,7 @@ func (m *MySQL) ensureMetadataTable(ctx context.Context, metaTableName string) e
 	if !exists {
 		m.logger.Info("Creating MySQL metadata table")
 		_, err = m.db.ExecContext(ctx, fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			key VARCHAR(255) NOT NULL PRIMARY KEY, value VARCHAR(255) NOT NULL)`, metaTableName))
+			id VARCHAR(255) NOT NULL PRIMARY KEY, value VARCHAR(255) NOT NULL);`, metaTableName))
 		if err != nil {
 			return err
 		}

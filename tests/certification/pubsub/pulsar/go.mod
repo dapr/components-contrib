@@ -21,9 +21,6 @@ require (
 
 require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
-	git.code.oa.com/cpcdp_dist/mario-dsl v0.0.0-20230111045148-1c3a6805f345 // indirect
-	git.code.oa.com/jce/jce v1.0.2 // indirect
-	git.code.oa.com/trpc-go/trpc-go v0.7.2 // indirect
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/99designs/keyring v1.2.1 // indirect
 	github.com/AdhityaRamadhanus/fasthttpcors v0.0.0-20170121111917-d4c07198763a // indirect
@@ -64,7 +61,6 @@ require (
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/cel-go v0.13.0 // indirect
-	github.com/google/flatbuffers v2.0.0+incompatible // indirect
 	github.com/google/gnostic v0.5.7-v3refs // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
@@ -89,7 +85,6 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.16.0 // indirect
-	github.com/lestrrat-go/strftime v1.0.4 // indirect
 	github.com/linkedin/goavro/v2 v2.9.8 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/marusama/semaphore/v2 v2.5.0 // indirect
@@ -138,7 +133,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.11.2 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
-	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/exp v0.0.0-20230303215020-44a13b063f3e // indirect
 	golang.org/x/mod v0.8.0 // indirect
 	golang.org/x/net v0.7.0 // indirect

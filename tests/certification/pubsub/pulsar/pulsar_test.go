@@ -858,7 +858,7 @@ func createMultiPartitionTopic(tenant, namespace, topic string, partition int) f
 	}
 }
 
-func TestPulsarPartitionedOrderingMessageProcess(t *testing.T) {
+func TestPulsarPartitionedOrderingProcess(t *testing.T) {
 	consumerGroup1 := watcher.NewOrdered()
 
 	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
@@ -866,7 +866,7 @@ func TestPulsarPartitionedOrderingMessageProcess(t *testing.T) {
 		messageKey: partition0,
 	}
 
-	flow.New(t, "pulsar certification - non-existing topic").
+	flow.New(t, "pulsar certification -  process message in order with partitioned-topic").
 		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
 
 		// Run subscriberApplication app1

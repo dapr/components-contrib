@@ -114,7 +114,7 @@ func TestInvokeGetWithDeleteFlag(t *testing.T) {
 
 	assert.Equal(t, nil, err)
 
-	assert.Equal(t, true, string(bindingResGet.Data) == "")
+	assert.Equal(t, []byte(nil), bindingResGet.Data)
 }
 
 func TestInvokeDelete(t *testing.T) {

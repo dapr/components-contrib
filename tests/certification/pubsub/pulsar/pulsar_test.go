@@ -375,7 +375,7 @@ func TestPulsarMultipleSubsDifferentConsumerIDs(t *testing.T) {
 
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
-			subscriberApplication(appID1, topicDefaultName, consumerGroup1))).
+			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
 		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
 		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
@@ -421,7 +421,7 @@ func TestPulsarMultipleSubsDifferentConsumerIDs(t *testing.T) {
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
 			componentRuntimeOptions(),
 		)).
-		Step("publish messages to topic1", publishMessages(metadata, sidecarName2, topicActiveName, consumerGroup1)).
+		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
 		Step("verify if app1, app2 together have received messages published to topic1", assertMessages(10*time.Second, consumerGroup1)).
 		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).
 		Run()
@@ -490,8 +490,8 @@ func TestPulsarMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
 			componentRuntimeOptions(),
 		)).
-		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1, consumerGroup2)).
-		Step("publish messages to topic1", publishMessages(metadata1, sidecarName1, topicActiveName, consumerGroup1)).
+		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
+		Step("publish messages to topic1", publishMessages(metadata1, sidecarName2, topicActiveName, consumerGroup2)).
 		Step("verify if app1, app2 together have received messages published to topic1", assertMessages(10*time.Second, consumerGroup1)).
 		Step("verify if app1, app2 together have received messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
 		Step("reset", flow.Reset(consumerGroup1, consumerGroup2)).

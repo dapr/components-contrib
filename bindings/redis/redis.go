@@ -17,7 +17,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"github.com/dapr/components-contrib/bindings"
 	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
@@ -34,7 +33,6 @@ type Redis struct {
 const (
 	// IncrementOperation is the operation to increment a key.
 	IncrementOperation bindings.OperationKind = "increment"
-	GetDelOperation    bindings.OperationKind = "getdel"
 )
 
 // NewRedis returns a new redis bindings instance.
@@ -98,7 +96,13 @@ func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 				return nil, err
 			}
 		case bindings.GetOperation:
-			data, err := r.client.Get(ctx, key)
+			var data string
+			var err error
+			if req.Metadata["delete"] == "true" {
+				data, err = r.client.GetDel(ctx, key)
+			} else {
+				data, err = r.client.Get(ctx, key)
+			}
 			if err != nil {
 				if err.Error() == "redis: nil" {
 					return &bindings.InvokeResponse{}, nil
@@ -126,17 +130,6 @@ func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 			if err != nil {
 				return nil, err
 			}
-		case GetDelOperation:
-			data, err := r.client.GetDel(ctx, key)
-			if err != nil {
-				if err.Error() == "redis: nil" {
-					return &bindings.InvokeResponse{}, nil
-				}
-				return nil, err
-			}
-			rep := &bindings.InvokeResponse{}
-			rep.Data = []byte(data)
-			return rep, nil
 		default:
 			return nil, fmt.Errorf("invalid operation type: %s", req.Operation)
 		}

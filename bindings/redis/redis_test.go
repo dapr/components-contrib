@@ -59,7 +59,7 @@ func TestInvokeCreate(t *testing.T) {
 	assert.Equal(t, true, getRes == testData)
 }
 
-func TestInvokeGet(t *testing.T) {
+func TestInvokeGetWithoutDeleteFlag(t *testing.T) {
 	s, c := setupMiniredis()
 	defer s.Close()
 
@@ -77,9 +77,18 @@ func TestInvokeGet(t *testing.T) {
 	})
 	assert.Equal(t, nil, err)
 	assert.Equal(t, true, string(bindingRes.Data) == testData)
+
+	bindingResGet, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+		Metadata:  map[string]string{"key": testKey},
+		Operation: bindings.GetOperation,
+	})
+
+	assert.Equal(t, nil, err)
+
+	assert.Equal(t, true, string(bindingResGet.Data) == testData)
 }
 
-func TestInvokeGetDel(t *testing.T) {
+func TestInvokeGetWithDeleteFlag(t *testing.T) {
 	s, c := setupMiniredis()
 	defer s.Close()
 
@@ -92,8 +101,8 @@ func TestInvokeGetDel(t *testing.T) {
 	assert.Equal(t, nil, err)
 
 	bindingRes, err := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
-		Metadata:  map[string]string{"key": testKey},
-		Operation: GetDelOperation,
+		Metadata:  map[string]string{"key": testKey, "delete": "true"},
+		Operation: bindings.GetOperation,
 	})
 	assert.Equal(t, nil, err)
 	assert.Equal(t, true, string(bindingRes.Data) == testData)

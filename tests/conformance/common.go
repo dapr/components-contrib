@@ -85,6 +85,7 @@ import (
 	s_cassandra "github.com/dapr/components-contrib/state/cassandra"
 	s_cloudflareworkerskv "github.com/dapr/components-contrib/state/cloudflare/workerskv"
 	s_cockroachdb "github.com/dapr/components-contrib/state/cockroachdb"
+	s_etcd "github.com/dapr/components-contrib/state/etcd"
 	s_inmemory "github.com/dapr/components-contrib/state/in-memory"
 	s_memcached "github.com/dapr/components-contrib/state/memcached"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
@@ -568,6 +569,8 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_awsdynamodb.NewDynamoDBStateStore(testLogger)
 	case "aws.dynamodb.terraform":
 		store = s_awsdynamodb.NewDynamoDBStateStore(testLogger)
+	case "etcd":
+		store = s_etcd.NewEtcdStateStore(testLogger)
 	default:
 		return nil
 	}

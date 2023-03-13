@@ -17,6 +17,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
 )
@@ -155,18 +157,18 @@ func (e *Etcd) Set(ctx context.Context, req *state.SetRequest) error {
 		return err
 	}
 
-	err = e.doValidateEtag(req.Key, req.ETag, req.Options.Concurrency)
-	if err != nil {
-		return err
-	}
-
-	reqVal, err := e.marshal(req.Value)
-	if err != nil {
-		return err
-	}
-
 	keyWithPath := e.keyPrefixPath + "/" + req.Key
-	return e.doSet(ctx, keyWithPath, reqVal, req.ETag, ttlInSeconds)
+	err = e.doValidateEtag(keyWithPath, req.ETag, req.Options.Concurrency)
+	if err != nil {
+		return err
+	}
+
+	reqVal, err := utils.Marshal(req.Value, json.Marshal)
+	if err != nil {
+		return err
+	}
+
+	return e.doSet(ctx, keyWithPath, string(reqVal), req.ETag, ttlInSeconds)
 }
 
 func (e *Etcd) BulkSet(ctx context.Context, req []state.SetRequest) error {
@@ -186,30 +188,17 @@ func (e *Etcd) BulkSet(ctx context.Context, req []state.SetRequest) error {
 			return err
 		}
 
-		reqVal, err := e.marshal(dr.Value)
+		reqVal, err := utils.Marshal(dr.Value, json.Marshal)
 		if err != nil {
 			return err
 		}
 
-		err = e.doSet(ctx, keyWithPath, reqVal, dr.ETag, ttlInSeconds)
+		err = e.doSet(ctx, keyWithPath, string(reqVal), dr.ETag, ttlInSeconds)
 		if err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-func (e *Etcd) marshal(v interface{}) (string, error) {
-	var reqVal string
-	switch obj := v.(type) {
-	case []byte:
-		reqVal = string(obj)
-	case string:
-		reqVal = fmt.Sprintf("%s", obj)
-	default:
-		return "", fmt.Errorf("request value %v is not valid", reqVal)
-	}
-	return reqVal, nil
 }
 
 func (e *Etcd) doSet(ctx context.Context, key, reqVal string, etag *string, ttlInSeconds int64) error {
@@ -351,7 +340,7 @@ func (e *Etcd) doValidateEtag(key string, etag *string, concurrency string) erro
 		item, err := e.client.Get(ctx, key)
 		if err != nil {
 			return fmt.Errorf("couldn't get key %s: %w", key, err)
-		} else if item != nil {
+		} else if item != nil && len(item.Kvs) != 0 {
 			return state.NewETagError(state.ETagMismatch, errors.New("item already exists and no etag was passed"))
 		} else {
 			return nil
@@ -421,7 +410,7 @@ func (e *Etcd) Multi(ctx context.Context, request *state.TransactionalStateReque
 				return err
 			}
 
-			reqVal, err := e.marshal(req.Value)
+			reqVal, err := utils.Marshal(req.Value, json.Marshal)
 			if err != nil {
 				return err
 			}
@@ -435,14 +424,14 @@ func (e *Etcd) Multi(ctx context.Context, request *state.TransactionalStateReque
 				if err != nil {
 					return fmt.Errorf("couldn't grant lease %s: %w", keyWithPath, err)
 				}
-				put := clientv3.OpPut(keyWithPath, reqVal, clientv3.WithLease(resp.ID))
+				put := clientv3.OpPut(keyWithPath, string(reqVal), clientv3.WithLease(resp.ID))
 				if req.ETag != nil {
 					ops = append(ops, clientv3.OpTxn([]clientv3.Cmp{cmp}, []clientv3.Op{put}, nil))
 				} else {
 					ops = append(ops, clientv3.OpTxn(nil, []clientv3.Op{put}, nil))
 				}
 			} else {
-				put := clientv3.OpPut(keyWithPath, reqVal)
+				put := clientv3.OpPut(keyWithPath, string(reqVal))
 				if req.ETag != nil {
 					ops = append(ops, clientv3.OpTxn([]clientv3.Cmp{cmp}, []clientv3.Op{put}, nil))
 				} else {

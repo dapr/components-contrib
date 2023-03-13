@@ -107,7 +107,6 @@ require (
 	github.com/valyala/fasthttp v1.44.0
 	github.com/vmware/vmware-go-kcl v1.5.0
 	github.com/xdg-go/scram v1.1.2
-	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d
 	go.etcd.io/etcd/client/v3 v3.5.5
 	go.mongodb.org/mongo-driver v1.11.1
 	go.temporal.io/api v1.15.0
@@ -352,6 +351,7 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/yalp/jsonpath v0.0.0-20180802001716-5cc68e5049a0 // indirect
 	github.com/yashtewari/glob-intersection v0.1.0 // indirect
+	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
 	github.com/yudai/gojsondiff v1.0.0 // indirect
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect
 	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64 // indirect

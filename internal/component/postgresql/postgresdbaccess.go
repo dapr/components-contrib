@@ -20,8 +20,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -29,6 +27,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	internalsql "github.com/dapr/components-contrib/internal/component/sql"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 	stateutils "github.com/dapr/components-contrib/state/utils"
@@ -56,13 +55,11 @@ type PostgresDBAccess struct {
 	metadata postgresMetadataStruct
 	db       PGXPoolConn
 
+	gc internalsql.GarbageCollector
+
 	migrateFn  func(context.Context, PGXPoolConn, MigrateOptions) error
 	setQueryFn func(*state.SetRequest, SetQueryOptions) string
 	etagColumn string
-
-	closeCh chan struct{}
-	closed  atomic.Bool
-	wg      sync.WaitGroup
 }
 
 // newPostgresDBAccess creates a new instance of postgresAccess.
@@ -71,7 +68,6 @@ func newPostgresDBAccess(logger logger.Logger, opts Options) *PostgresDBAccess {
 
 	return &PostgresDBAccess{
 		logger:     logger,
-		closeCh:    make(chan struct{}),
 		migrateFn:  opts.MigrateFn,
 		setQueryFn: opts.SetQueryFn,
 		etagColumn: opts.ETagColumn,
@@ -124,7 +120,29 @@ func (p *PostgresDBAccess) Init(ctx context.Context, meta state.Metadata) error 
 		return err
 	}
 
-	p.ScheduleCleanupExpiredData(ctx)
+	if p.metadata.cleanupInterval != nil {
+		gc, err := internalsql.ScheduleGarbageCollector(internalsql.GCOptions{
+			Logger: p.logger,
+			UpdateLastCleanupQuery: fmt.Sprintf(
+				`INSERT INTO %[1]s (key, value)
+			VALUES ('last-cleanup', CURRENT_TIMESTAMP::text)
+			ON CONFLICT (key)
+			DO UPDATE SET value = CURRENT_TIMESTAMP::text
+				WHERE (EXTRACT('epoch' FROM CURRENT_TIMESTAMP - %[1]s.value::timestamp with time zone) * 1000)::bigint > $1`,
+				p.metadata.MetadataTableName,
+			),
+			DeleteExpiredValuesQuery: fmt.Sprintf(
+				`DELETE FROM %s WHERE expiredate IS NOT NULL AND expiredate < CURRENT_TIMESTAMP`,
+				p.metadata.TableName,
+			),
+			CleanupInterval: *p.metadata.cleanupInterval,
+			DBPgx:           p.db,
+		})
+		if err != nil {
+			return err
+		}
+		p.gc = gc
+	}
 
 	return nil
 }
@@ -432,98 +450,23 @@ func (p *PostgresDBAccess) Query(parentCtx context.Context, req *state.QueryRequ
 	}, nil
 }
 
-func (p *PostgresDBAccess) ScheduleCleanupExpiredData(ctx context.Context) {
-	if p.metadata.cleanupInterval == nil || *p.metadata.cleanupInterval <= 0 || p.closed.Load() {
-		return
+func (p *PostgresDBAccess) CleanupExpired() error {
+	if p.gc != nil {
+		return p.gc.CleanupExpired()
 	}
-
-	p.logger.Infof("Schedule expired data clean up every %d seconds", int(p.metadata.cleanupInterval.Seconds()))
-
-	p.wg.Add(1)
-	go func() {
-		defer p.wg.Done()
-		ticker := time.NewTicker(*p.metadata.cleanupInterval)
-		defer ticker.Stop()
-
-		var err error
-		for {
-			select {
-			case <-ticker.C:
-				err = p.CleanupExpired(ctx)
-				if err != nil {
-					p.logger.Errorf("Error removing expired data: %v", err)
-				}
-			case <-ctx.Done():
-				p.logger.Debug("Stopped background cleanup of expired data")
-				return
-			case <-p.closeCh:
-				p.logger.Debug("Stopping background because PostgresDBAccess is closing")
-				return
-			}
-		}
-	}()
-}
-
-func (p *PostgresDBAccess) CleanupExpired(ctx context.Context) error {
-	// Check if the last iteration was too recent
-	// This performs an atomic operation, so allows coordination with other daprd processes too
-	canContinue, err := p.UpdateLastCleanup(ctx, p.db, *p.metadata.cleanupInterval)
-	if err != nil {
-		// Log errors only
-		p.logger.Warnf("Failed to read last cleanup time from database: %v", err)
-	}
-	if !canContinue {
-		p.logger.Debug("Last cleanup was performed too recently")
-		return nil
-	}
-
-	// Note we're not using the transaction here as we don't want this to be rolled back half-way or to lock the table unnecessarily
-	// Need to use fmt.Sprintf because we can't parametrize a table name
-	// Note we are not setting a timeout here as this query can take a "long" time, especially if there's no index on expiredate
-	stmt := fmt.Sprintf(`DELETE FROM %s WHERE expiredate IS NOT NULL AND expiredate < CURRENT_TIMESTAMP`, p.metadata.TableName)
-	res, err := p.db.Exec(ctx, stmt)
-	if err != nil {
-		return fmt.Errorf("failed to execute query: %w", err)
-	}
-
-	p.logger.Infof("Removed %d expired rows", res.RowsAffected())
 	return nil
-}
-
-// UpdateLastCleanup sets the 'last-cleanup' value only if it's less than cleanupInterval.
-// Returns true if the row was updated, which means that the cleanup can proceed.
-func (p *PostgresDBAccess) UpdateLastCleanup(ctx context.Context, db dbquerier, cleanupInterval time.Duration) (bool, error) {
-	queryCtx, cancel := context.WithTimeout(ctx, p.metadata.timeout)
-	res, err := db.Exec(queryCtx,
-		fmt.Sprintf(`INSERT INTO %[1]s (key, value)
-			VALUES ('last-cleanup', CURRENT_TIMESTAMP::text)
-			ON CONFLICT (key)
-			DO UPDATE SET value = CURRENT_TIMESTAMP::text
-				WHERE (EXTRACT('epoch' FROM CURRENT_TIMESTAMP - %[1]s.value::timestamp with time zone) * 1000)::bigint > $1`,
-			p.metadata.MetadataTableName),
-		cleanupInterval.Milliseconds()-100, // Subtract 100ms for some buffer
-	)
-	cancel()
-	if err != nil {
-		return false, fmt.Errorf("failed to execute query: %w", err)
-	}
-
-	n := res.RowsAffected()
-	return n > 0, nil
 }
 
 // Close implements io.Close.
 func (p *PostgresDBAccess) Close() error {
-	if p.closed.CompareAndSwap(false, true) {
-		close(p.closeCh)
-	}
-
 	if p.db != nil {
 		p.db.Close()
 		p.db = nil
 	}
 
-	p.wg.Wait()
+	if p.gc != nil {
+		return p.gc.Close()
+	}
 
 	return nil
 }

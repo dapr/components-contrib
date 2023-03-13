@@ -155,7 +155,7 @@ func (m *MongoDB) Init(ctx context.Context, metadata state.Metadata) error {
 	// values immediately when the TTL value is reached.
 	// MongoDB TTL Indexes: https://docs.mongodb.com/manual/core/index-ttl/
 	// TTL fields are deleted at most 60 seconds after the TTL value is reached.
-	_, err = m.collection.Indexes().CreateOne(context.TODO(), mongo.IndexModel{
+	_, err = m.collection.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys:    bson.M{ttl: 1},
 		Options: options.Index().SetExpireAfterSeconds(0),
 	})

@@ -86,7 +86,7 @@ func (c *TemporalWF) Start(ctx context.Context, req *workflows.StartRequest) (*w
 	}
 	taskQ := req.Options["task_queue"]
 
-	opt := client.StartWorkflowOptions{ID: req.WorkflowReference.InstanceID, TaskQueue: taskQ}
+	opt := client.StartWorkflowOptions{ID: req.InstanceID, TaskQueue: taskQ}
 	run, err := c.client.ExecuteWorkflow(ctx, opt, req.WorkflowName, req.Input)
 	if err != nil {
 		return &workflows.WorkflowReference{}, fmt.Errorf("error executing workflow: %w", err)

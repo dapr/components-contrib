@@ -36,12 +36,12 @@ func TestEnvStore(t *testing.T) {
 	require.Equal(t, secret, os.Getenv(key))
 
 	t.Run("Init", func(t *testing.T) {
-		err := s.Init(secretstores.Metadata{})
+		err := s.Init(context.Background(), secretstores.Metadata{})
 		require.NoError(t, err)
 	})
 
 	t.Run("Get", func(t *testing.T) {
-		err := s.Init(secretstores.Metadata{})
+		err := s.Init(context.Background(), secretstores.Metadata{})
 		require.NoError(t, err)
 		resp, err := s.GetSecret(context.Background(), secretstores.GetSecretRequest{Name: key})
 		require.NoError(t, err)
@@ -50,7 +50,7 @@ func TestEnvStore(t *testing.T) {
 	})
 
 	t.Run("Bulk get", func(t *testing.T) {
-		err := s.Init(secretstores.Metadata{})
+		err := s.Init(context.Background(), secretstores.Metadata{})
 		require.NoError(t, err)
 		resp, err := s.BulkGetSecret(context.Background(), secretstores.BulkGetSecretRequest{})
 		require.NoError(t, err)
@@ -63,7 +63,7 @@ func TestEnvStore(t *testing.T) {
 		t.Setenv("DAPR_API_TOKEN", "mondo")
 		t.Setenv("FOO", "bar")
 
-		err := s.Init(secretstores.Metadata{})
+		err := s.Init(context.Background(), secretstores.Metadata{})
 		require.NoError(t, err)
 
 		t.Run("Get", func(t *testing.T) {

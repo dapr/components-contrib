@@ -1,49 +1,59 @@
 // list of owner who can control dapr-bot workflow
 // TODO: Read owners from OWNERS file.
 const owners = [
-    "yaron2",
-    "berndverst",
-    "artursouza",
-    "mukundansundar",
-    "halspang",
-    "tanvigour",
-    "pkedy",
-    "amuluyavarote",
-    "daixiang0",
-    "ItalyPaleAle",
-    "jjcollinge",
-    "pravinpushkar",
-    "shivamkm07",
-    "shubham1172",
-    "skyao",
-    "msfussell",
-    "Taction",
-    "RyanLettieri",
-    "DeepanshuA",
-    "yash-nisar",
-    "addjuarez",
-    "tmacam",
-];
+    'addjuarez',
+    'amuluyavarote',
+    'artursouza',
+    'berndverst',
+    'daixiang0',
+    'DeepanshuA',
+    'halspang',
+    'ItalyPaleAle',
+    'jjcollinge',
+    'joshvanl',
+    'msfussell',
+    'mukundansundar',
+    'pkedy',
+    'pravinpushkar',
+    'RyanLettieri',
+    'shivamkm07',
+    'shubham1172',
+    'skyao',
+    'Taction',
+    'tmacam',
+    'yaron2',
+    'yash-nisar',
+]
 
-const docsIssueBodyTpl = (issueNumber) => `This issue was automatically created by \
+const docsIssueBodyTpl = (
+    issueNumber
+) => `This issue was automatically created by \
 [Dapr Bot](https://github.com/dapr/dapr/blob/master/.github/workflows/dapr-bot.yml) because a \"documentation required\" label \
 was added to dapr/components-contrib#${issueNumber}. \n\n\
-TODO: Add more details as per [this template](.github/ISSUE_TEMPLATE/new-content-needed.md).`;
+TODO: Add more details as per [this template](.github/ISSUE_TEMPLATE/new-content-needed.md).`
 
-const newComponentBodyTpl = (issueNumber) => `This issue was automatically created by \
+const newComponentBodyTpl = (
+    issueNumber
+) => `This issue was automatically created by \
 [Dapr Bot](https://github.com/dapr/dapr/blob/master/.github/workflows/dapr-bot.yml) because a \"new component\" label \
 was added to dapr/components-contrib#${issueNumber}. \n\n\
 
 Please register the component in [cmd/daprd/components](https://github.com/dapr/dapr/tree/master/cmd/daprd/components), \
-similar to the ones in the folder (one file per component).`;
+similar to the ones in the folder (one file per component).`
 
 module.exports = async ({ github, context }) => {
-    if (context.eventName == "issue_comment" && context.payload.action == "created") {
-        await handleIssueCommentCreate({ github, context });
-    } else if ((context.eventName == "issues" || context.eventName == "pull_request") && context.payload.action == "labeled") {
-        await handleIssueOrPrLabeled({ github, context });
+    if (
+        context.eventName == 'issue_comment' &&
+        context.payload.action == 'created'
+    ) {
+        await handleIssueCommentCreate({ github, context })
+    } else if (
+        context.eventName == 'issues' &&
+        context.payload.action == 'labeled'
+    ) {
+        await handleIssueOrPrLabeled({ github, context })
     } else {
-        console.log(`[main] event ${context.eventName} not supported, exiting.`);
+        console.log(`[main] event ${context.eventName} not supported, exiting.`)
     }
 }
 
@@ -51,78 +61,86 @@ module.exports = async ({ github, context }) => {
  * Handle issue comment create event.
  */
 async function handleIssueCommentCreate({ github, context }) {
-    const payload = context.payload;
-    const issue = context.issue;
-    const username = (context.actor || "").toLowerCase();
-    const isFromPulls = !!payload.issue.pull_request;
-    const commentBody = payload.comment.body;
+    const payload = context.payload
+    const issue = context.issue
+    const username = (context.actor || '').toLowerCase()
+    const isFromPulls = !!payload.issue.pull_request
+    const commentBody = payload.comment.body
 
     if (!commentBody) {
-        console.log("[handleIssueCommentCreate] comment body not found, exiting.");
-        return;
+        console.log(
+            '[handleIssueCommentCreate] comment body not found, exiting.'
+        )
+        return
     }
-    const command = commentBody.split(" ")[0];
+    const command = commentBody.split(' ')[0]
 
     // Commands that can be executed by anyone.
-    if (command === "/assign") {
-        await cmdAssign(github, issue, username, isFromPulls);
-        return;
+    if (command === '/assign') {
+        await cmdAssign(github, issue, username, isFromPulls)
+        return
     }
 
     // Commands that can only be executed by owners.
     if (owners.map((v) => v.toLowerCase()).indexOf(username) < 0) {
-        console.log(`[handleIssueCommentCreate] user ${username} is not an owner, exiting.`);
-        return;
+        console.log(
+            `[handleIssueCommentCreate] user ${username} is not an owner, exiting.`
+        )
+        return
     }
 
     switch (command) {
-        case "/ok-to-test":
-            await cmdOkToTest(github, issue, isFromPulls);
-            break;
+        case '/ok-to-test':
+            await cmdOkToTest(github, issue, isFromPulls)
+            break
         default:
-            console.log(`[handleIssueCommentCreate] command ${command} not found, exiting.`);
-            break;
+            console.log(
+                `[handleIssueCommentCreate] command ${command} not found, exiting.`
+            )
+            break
     }
 }
-
-
 
 /**
  * Handle issue or PR labeled event.
  */
 async function handleIssueOrPrLabeled({ github, context }) {
-    const payload = context.payload;
-    const label = payload.label.name;
-    const issueNumber = payload.issue.number;
+    const payload = context.payload
+    const label = payload.label.name
+    const issueNumber = payload.issue.number
 
     // This should not run in forks.
-    if (context.repo.owner !== "dapr") {
-        console.log("[handleIssueOrPrLabeled] not running in dapr repo, exiting.");
-        return;
+    if (context.repo.owner !== 'dapr') {
+        console.log(
+            '[handleIssueOrPrLabeled] not running in dapr repo, exiting.'
+        )
+        return
     }
 
     // Authorization is not required here because it's triggered by an issue label event.
     // Only authorized users can add labels to issues.
-    if (label == "documentation required") {
+    if (label == 'documentation required') {
         // Open a new docs issue
         await github.rest.issues.create({
-            owner: "dapr",
-            repo: "docs",
+            owner: 'dapr',
+            repo: 'docs',
             title: `New content needed for dapr/components-contrib#${issueNumber}`,
-            labels: ["content/missing-information", "created-by/dapr-bot"],
+            labels: ['content/missing-information', 'created-by/dapr-bot'],
             body: docsIssueBodyTpl(issueNumber),
-        });
-    } else if (label == "new component") {
+        })
+    } else if (label == 'new component') {
         // Open a new dapr issue
         await github.rest.issues.create({
-            owner: "dapr",
-            repo: "dapr",
+            owner: 'dapr',
+            repo: 'dapr',
             title: `Component registration for dapr/components-contrib#${issueNumber}`,
-            labels: ["area/components", "created-by/dapr-bot"],
+            labels: ['area/components', 'created-by/dapr-bot'],
             body: newComponentBodyTpl(issueNumber),
-        });
+        })
     } else {
-        console.log(`[handleIssueOrPrLabeled] label ${label} not supported, exiting.`);
+        console.log(
+            `[handleIssueOrPrLabeled] label ${label} not supported, exiting.`
+        )
     }
 }
 
@@ -135,11 +153,15 @@ async function handleIssueOrPrLabeled({ github, context }) {
  */
 async function cmdAssign(github, issue, username, isFromPulls) {
     if (isFromPulls) {
-        console.log("[cmdAssign] pull requests unsupported, skipping command execution.");
-        return;
+        console.log(
+            '[cmdAssign] pull requests unsupported, skipping command execution.'
+        )
+        return
     } else if (issue.assignees && issue.assignees.length !== 0) {
-        console.log("[cmdAssign] issue already has assignees, skipping command execution.");
-        return;
+        console.log(
+            '[cmdAssign] issue already has assignees, skipping command execution.'
+        )
+        return
     }
 
     await github.rest.issues.addAssignees({
@@ -147,9 +169,8 @@ async function cmdAssign(github, issue, username, isFromPulls) {
         repo: issue.repo,
         issue_number: issue.number,
         assignees: [username],
-    });
+    })
 }
-
 
 /**
  * Trigger e2e test for the pull request.
@@ -159,50 +180,56 @@ async function cmdAssign(github, issue, username, isFromPulls) {
  */
 async function cmdOkToTest(github, issue, isFromPulls) {
     if (!isFromPulls) {
-        console.log("[cmdOkToTest] only pull requests supported, skipping command execution.");
-        return;
+        console.log(
+            '[cmdOkToTest] only pull requests supported, skipping command execution.'
+        )
+        return
     }
 
     // Get pull request
     const pull = await github.rest.pulls.get({
         owner: issue.owner,
         repo: issue.repo,
-        pull_number: issue.number
-    });
+        pull_number: issue.number,
+    })
 
     if (pull && pull.data) {
         // Get commit id and repo from pull head
         const testPayload = {
             pull_head_ref: pull.data.head.sha,
             pull_head_repo: pull.data.head.repo.full_name,
-            command: "ok-to-test",
+            command: 'ok-to-test',
             issue: issue,
-        };
+        }
 
         // Fire repository_dispatch event to trigger certification test
         await github.rest.repos.createDispatchEvent({
             owner: issue.owner,
             repo: issue.repo,
-            event_type: "certification-test",
+            event_type: 'certification-test',
             client_payload: testPayload,
-        });
+        })
 
         // Fire repository_dispatch event to trigger conformance test
         await github.rest.repos.createDispatchEvent({
             owner: issue.owner,
             repo: issue.repo,
-            event_type: "conformance-test",
+            event_type: 'conformance-test',
             client_payload: testPayload,
-        });
+        })
 
         // Fire repository_dispatch event to trigger unit tests for other architectures and OS
         await github.rest.repos.createDispatchEvent({
             owner: issue.owner,
             repo: issue.repo,
-            event_type: "build-all",
+            event_type: 'build-all',
             client_payload: testPayload,
-        });
+        })
 
-        console.log(`[cmdOkToTest] triggered certification and conformance tests for ${JSON.stringify(testPayload)}`);
+        console.log(
+            `[cmdOkToTest] triggered certification and conformance tests for ${JSON.stringify(
+                testPayload
+            )}`
+        )
     }
 }

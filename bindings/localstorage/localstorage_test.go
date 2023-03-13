@@ -40,6 +40,10 @@ func TestParseMetadata(t *testing.T) {
 }
 
 func TestValidateRootPath(t *testing.T) {
+	// Get the current working directory
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+
 	// Set up some things in the FS
 	tmpDir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "aaa/bbb"), 0o755))
@@ -79,8 +83,8 @@ func TestValidateRootPath(t *testing.T) {
 		wantErr string
 	}{
 		{name: "empty", rootPath: "", wantErr: "must not be empty"},
-		{name: "relative path 1", rootPath: "path", wantErr: "must be an absolute path"},
-		{name: "relative path 2", rootPath: filepath.Clean("../path"), wantErr: "must be an absolute path"},
+		{name: "relative path 1", rootPath: "path", wantRes: filepath.Join(cwd, "path")},
+		{name: "relative path 2", rootPath: filepath.Clean("../path"), wantRes: filepath.Join(cwd, "..", "path")},
 		{name: "existing path 1", rootPath: filepath.Join(tmpDir, "aaa/bbb"), wantRes: joinWithMustEvalSymlinks(tmpDir, "aaa/bbb")},
 		{name: "existing path 2", rootPath: filepath.Join(tmpDir, "zzz/aaa"), wantRes: joinWithMustEvalSymlinks(tmpDir, "zzz/aaa")},
 		{name: "path does not exist 1", rootPath: filepath.Join(tmpDir, "zzz/foo"), wantRes: filepath.Join(joinWithMustEvalSymlinks(tmpDir, "zzz"), "foo")},

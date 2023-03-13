@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	time "time"
 
 	amqp "github.com/Azure/go-amqp"
@@ -43,20 +44,21 @@ type amqpPubSub struct {
 	logger            logger.Logger
 	publishLock       sync.RWMutex
 	publishRetryCount int
-	ctx               context.Context
-	cancel            context.CancelFunc
+	wg                sync.WaitGroup
+	closed            atomic.Bool
+	closeCh           chan struct{}
 }
 
 // NewAMQPPubsub returns a new AMQPPubSub instance
 func NewAMQPPubsub(logger logger.Logger) pubsub.PubSub {
 	return &amqpPubSub{
-		logger:      logger,
-		publishLock: sync.RWMutex{},
+		logger:  logger,
+		closeCh: make(chan struct{}),
 	}
 }
 
 // Init parses the metadata and creates a new Pub Sub Client.
-func (a *amqpPubSub) Init(metadata pubsub.Metadata) error {
+func (a *amqpPubSub) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	amqpMeta, err := parseAMQPMetaData(metadata, a.logger)
 	if err != nil {
 		return err
@@ -64,9 +66,7 @@ func (a *amqpPubSub) Init(metadata pubsub.Metadata) error {
 
 	a.metadata = amqpMeta
 
-	a.ctx, a.cancel = context.WithCancel(context.Background())
-
-	s, err := a.connect()
+	s, err := a.connect(ctx)
 	if err != nil {
 		return err
 	}
@@ -95,6 +95,10 @@ func AddPrefixToAddress(t string) string {
 func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	a.publishLock.Lock()
 	defer a.publishLock.Unlock()
+
+	if a.closed.Load() {
+		return errors.New("component is closed")
+	}
 
 	a.publishRetryCount = 0
 
@@ -137,7 +141,12 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 				if err != nil {
 					a.logger.Warnf("Failed to publish a message to the broker", err)
 				}
-				time.Sleep(publishRetryWaitSeconds * time.Second)
+
+				select {
+				case <-time.After(publishRetryWaitSeconds * time.Second):
+				case <-ctx.Done():
+					break
+				}
 			}
 		}
 	}
@@ -146,16 +155,33 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 }
 
 func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	if a.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	prefixedTopic := AddPrefixToAddress(req.Topic)
 
-	receiver, err := a.session.NewReceiver(a.ctx,
+	receiver, err := a.session.NewReceiver(ctx,
 		prefixedTopic,
 		nil,
 	)
 
 	if err == nil {
 		a.logger.Infof("Attempting to subscribe to %s", prefixedTopic)
-		go a.subscribeForever(ctx, receiver, handler, prefixedTopic)
+		a.wg.Add(2)
+		subCtx, cancel := context.WithCancel(ctx)
+		go func() {
+			defer a.wg.Done()
+			defer cancel()
+			select {
+			case <-a.closeCh:
+			case <-subCtx.Done():
+			}
+		}()
+		go func() {
+			defer a.wg.Done()
+			a.subscribeForever(subCtx, receiver, handler, prefixedTopic)
+		}()
 	} else {
 		a.logger.Error("Unable to create a receiver:", err)
 	}
@@ -165,7 +191,8 @@ func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 
 // function that subscribes to a queue in a tight loop
 func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiver, handler pubsub.Handler, t string) {
-	for {
+	defer a.logger.Infof("closing receiver for %s", t)
+	for ctx.Err() == nil {
 		// Receive next message
 		msg, err := receiver.Receive(ctx)
 
@@ -173,7 +200,7 @@ func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiv
 			data := msg.GetData()
 
 			// if data is empty, then check the value field for data
-			if data == nil || len(data) == 0 {
+			if len(data) == 0 {
 				data = []byte(fmt.Sprint(msg.Value))
 			}
 
@@ -207,7 +234,7 @@ func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiv
 }
 
 // Connect to the AMQP broker
-func (a *amqpPubSub) connect() (*amqp.Session, error) {
+func (a *amqpPubSub) connect(ctx context.Context) (*amqp.Session, error) {
 	uri, err := url.Parse(a.metadata.url)
 	if err != nil {
 		return nil, err
@@ -222,7 +249,7 @@ func (a *amqpPubSub) connect() (*amqp.Session, error) {
 	}
 
 	// Open a session
-	session, err := client.NewSession(a.ctx, nil)
+	session, err := client.NewSession(ctx, nil)
 	if err != nil {
 		a.logger.Fatal("Creating AMQP session:", err)
 	}
@@ -260,7 +287,7 @@ func (a *amqpPubSub) createClientOptions(uri *url.URL) amqp.ConnOptions {
 
 	switch scheme {
 	case "amqp":
-		if a.metadata.anonymous == true {
+		if a.metadata.anonymous {
 			opts.SASLType = amqp.SASLTypeAnonymous()
 		} else {
 			opts.SASLType = amqp.SASLTypePlain(a.metadata.username, a.metadata.password)
@@ -275,11 +302,17 @@ func (a *amqpPubSub) createClientOptions(uri *url.URL) amqp.ConnOptions {
 
 // Close the session
 func (a *amqpPubSub) Close() error {
+	defer a.wg.Wait()
 	a.publishLock.Lock()
-
 	defer a.publishLock.Unlock()
 
-	err := a.session.Close(a.ctx)
+	if a.closed.CompareAndSwap(false, true) {
+		close(a.closeCh)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := a.session.Close(ctx)
 	if err != nil {
 		a.logger.Warnf("failed to close the connection.", err)
 	}

@@ -14,104 +14,49 @@ limitations under the License.
 package postgresql
 
 import (
-	"context"
-	"reflect"
-
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/internal/component/postgresql"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
 
-// PostgreSQL state store.
-type PostgreSQL struct {
-	logger   logger.Logger
-	dbaccess dbAccess
-}
-
 // NewPostgreSQLStateStore creates a new instance of PostgreSQL state store.
 func NewPostgreSQLStateStore(logger logger.Logger) state.Store {
-	dba := newPostgresDBAccess(logger)
+	return postgresql.NewPostgreSQLStateStore(logger, postgresql.Options{
+		ETagColumn: "xmin",
+		MigrateFn:  performMigration,
+		SetQueryFn: func(req *state.SetRequest, opts postgresql.SetQueryOptions) string {
+			// Sprintf is required for table name because sql.DB does not
+			// substitute parameters for table names.
+			// Other parameters use sql.DB parameter substitution.
+			if req.ETag == nil || *req.ETag == "" {
+				if req.Options.Concurrency == state.FirstWrite {
+					return `INSERT INTO ` + opts.TableName + `
+					(key, value, isbinary, expiredate)
+				VALUES
+					($1, $2, $3, ` + opts.ExpireDateValue + `);`
+				}
 
-	return newPostgreSQLStateStore(logger, dba)
-}
+				return `INSERT INTO ` + opts.TableName + `
+					(key, value, isbinary, expiredate)
+				VALUES
+					($1, $2, $3, ` + opts.ExpireDateValue + `)
+				ON CONFLICT (key)
+				DO UPDATE SET
+					value = $2,
+					isbinary = $3,
+					updatedate = CURRENT_TIMESTAMP,
+					expiredate = ` + opts.ExpireDateValue + `;`
+			}
 
-// newPostgreSQLStateStore creates a newPostgreSQLStateStore instance of a PostgreSQL state store.
-// This unexported constructor allows injecting a dbAccess instance for unit testing.
-func newPostgreSQLStateStore(logger logger.Logger, dba dbAccess) *PostgreSQL {
-	return &PostgreSQL{
-		logger:   logger,
-		dbaccess: dba,
-	}
-}
-
-// Init initializes the SQL server state store.
-func (p *PostgreSQL) Init(metadata state.Metadata) error {
-	return p.dbaccess.Init(metadata)
-}
-
-// Features returns the features available in this state store.
-func (p *PostgreSQL) Features() []state.Feature {
-	return []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI}
-}
-
-// Delete removes an entity from the store.
-func (p *PostgreSQL) Delete(ctx context.Context, req *state.DeleteRequest) error {
-	return p.dbaccess.Delete(ctx, req)
-}
-
-// BulkDelete removes multiple entries from the store.
-func (p *PostgreSQL) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	return p.dbaccess.BulkDelete(ctx, req)
-}
-
-// Get returns an entity from store.
-func (p *PostgreSQL) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
-	return p.dbaccess.Get(ctx, req)
-}
-
-// BulkGet performs a bulks get operations.
-func (p *PostgreSQL) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
-	// TODO: replace with ExecuteMulti for performance
-	return false, nil, nil
-}
-
-// Set adds/updates an entity on store.
-func (p *PostgreSQL) Set(ctx context.Context, req *state.SetRequest) error {
-	return p.dbaccess.Set(ctx, req)
-}
-
-// BulkSet adds/updates multiple entities on store.
-func (p *PostgreSQL) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	return p.dbaccess.BulkSet(ctx, req)
-}
-
-// Multi handles multiple transactions. Implements TransactionalStore.
-func (p *PostgreSQL) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
-	return p.dbaccess.ExecuteMulti(ctx, request)
-}
-
-// Query executes a query against store.
-func (p *PostgreSQL) Query(ctx context.Context, req *state.QueryRequest) (*state.QueryResponse, error) {
-	return p.dbaccess.Query(ctx, req)
-}
-
-// Close implements io.Closer.
-func (p *PostgreSQL) Close() error {
-	if p.dbaccess != nil {
-		return p.dbaccess.Close()
-	}
-	return nil
-}
-
-// Returns the dbaccess property.
-// This method is used in tests.
-func (p *PostgreSQL) GetDBAccess() dbAccess {
-	return p.dbaccess
-}
-
-func (p *PostgreSQL) GetComponentMetadata() map[string]string {
-	metadataStruct := postgresMetadataStruct{}
-	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
-	return metadataInfo
+			return `UPDATE ` + opts.TableName + `
+			SET
+				value = $2,
+				isbinary = $3,
+				updatedate = CURRENT_TIMESTAMP,
+				expiredate = ` + opts.ExpireDateValue + `
+			WHERE
+				key = $1
+				AND xmin = $4;`
+		},
+	})
 }

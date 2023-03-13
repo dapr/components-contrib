@@ -73,7 +73,7 @@ func NewAzureAppConfigurationStore(logger logger.Logger) configuration.Store {
 }
 
 // Init does metadata and connection parsing.
-func (r *ConfigurationStore) Init(metadata configuration.Metadata) error {
+func (r *ConfigurationStore) Init(_ context.Context, metadata configuration.Metadata) error {
 	m, err := parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -102,7 +102,7 @@ func (r *ConfigurationStore) Init(metadata configuration.Metadata) error {
 		}
 	} else {
 		var settings azauth.EnvironmentSettings
-		settings, err = azauth.NewEnvironmentSettings("appconfig", metadata.Properties)
+		settings, err = azauth.NewEnvironmentSettings(metadata.Properties)
 		if err != nil {
 			return err
 		}

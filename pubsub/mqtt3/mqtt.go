@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -45,8 +46,9 @@ type mqttPubSub struct {
 	topics          map[string]mqttPubSubSubscription
 	subscribingLock sync.RWMutex
 	reconnectCh     chan struct{}
-	ctx             context.Context
-	cancel          context.CancelFunc
+	closeCh         chan struct{}
+	closed          atomic.Bool
+	wg              sync.WaitGroup
 }
 
 type mqttPubSubSubscription struct {
@@ -59,21 +61,20 @@ type mqttPubSubSubscription struct {
 func NewMQTTPubSub(logger logger.Logger) pubsub.PubSub {
 	return &mqttPubSub{
 		logger:      logger,
-		reconnectCh: make(chan struct{}, 1),
+		reconnectCh: make(chan struct{}),
+		closeCh:     make(chan struct{}),
 	}
 }
 
 // Init parses metadata and creates a new Pub Sub client.
-func (m *mqttPubSub) Init(metadata pubsub.Metadata) error {
+func (m *mqttPubSub) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	mqttMeta, err := parseMQTTMetaData(metadata, m.logger)
 	if err != nil {
 		return err
 	}
 	m.metadata = mqttMeta
 
-	m.ctx, m.cancel = context.WithCancel(context.Background())
-
-	err = m.connect()
+	err = m.connect(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to establish connection to broker: %w", err)
 	}
@@ -85,7 +86,11 @@ func (m *mqttPubSub) Init(metadata pubsub.Metadata) error {
 }
 
 // Publish the topic to mqtt pub sub.
-func (m *mqttPubSub) Publish(parentCtx context.Context, req *pubsub.PublishRequest) (err error) {
+func (m *mqttPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) (err error) {
+	if m.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	if req.Topic == "" {
 		return errors.New("topic name is empty")
 	}
@@ -103,14 +108,13 @@ func (m *mqttPubSub) Publish(parentCtx context.Context, req *pubsub.PublishReque
 	}
 
 	token := m.conn.Publish(req.Topic, m.metadata.qos, retain, req.Data)
-	ctx, cancel := context.WithTimeout(parentCtx, defaultWait)
+	ctx, cancel := context.WithTimeout(ctx, defaultWait)
 	defer cancel()
 	select {
 	case <-token.Done():
 		err = token.Error()
-	case <-m.ctx.Done():
-		// Context canceled
-		err = m.ctx.Err()
+	case <-m.closeCh:
+		err = errors.New("mqtt client closed")
 	case <-ctx.Done():
 		// Context canceled
 		err = ctx.Err()
@@ -126,9 +130,8 @@ func (m *mqttPubSub) Publish(parentCtx context.Context, req *pubsub.PublishReque
 // Request metadata includes:
 // - "unsubscribeOnClose": if true, when the subscription is stopped (context canceled), then an Unsubscribe message is sent to the MQTT broker, which will stop delivering messages to this consumer ID until the subscription is explicitly re-started with a new Subscribe call. Otherwise, messages continue to be delivered but are not handled and are NACK'd automatically. "unsubscribeOnClose" should be used with dynamic subscriptions.
 func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-	if ctxErr := m.ctx.Err(); ctxErr != nil {
-		// If the global context has been canceled, we do not allow more subscriptions
-		return ctxErr
+	if m.closed.Load() {
+		return errors.New("component is closed")
 	}
 
 	topic := req.Topic
@@ -143,17 +146,16 @@ func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	// Add the topic then start the subscription
 	m.addTopic(topic, handler)
 
-	// Use the global context here to maintain the handler
-	token := m.conn.Subscribe(topic, m.metadata.qos, m.onMessage(m.ctx))
-	subscribeCtx, subscribeCancel := context.WithTimeout(m.ctx, defaultWait)
-	defer subscribeCancel()
+	token := m.conn.Subscribe(topic, m.metadata.qos, m.onMessage(ctx))
 	var err error
 	select {
 	case <-token.Done():
 		// Subscription went through (sucecessfully or not)
 		err = token.Error()
-	case <-subscribeCtx.Done():
-		err = fmt.Errorf("error while waiting for subscription token: %w", subscribeCtx.Err())
+	case <-ctx.Done():
+		err = fmt.Errorf("error while waiting for subscription token: %w", ctx.Err())
+	case <-time.After(defaultWait):
+		err = errors.New("timeout waiting for subscription")
 	}
 	if err != nil {
 		// Return an error
@@ -164,14 +166,15 @@ func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	m.logger.Infof("MQTT is subscribed to topic %s (qos: %d)", topic, m.metadata.qos)
 
 	// Listen for context cancelation to remove the subscription
+	m.wg.Add(1)
 	go func() {
+		defer m.wg.Done()
+
 		select {
 		case <-ctx.Done():
-		case <-m.ctx.Done():
-		}
-
-		// If m.ctx has been canceled, nothing to do here as the entire connection will be closed
-		if m.ctx.Err() != nil {
+		case <-m.closeCh:
+			// If Close has been called, nothing to do here as the entire connection
+			// will be closed.
 			return
 		}
 
@@ -187,18 +190,16 @@ func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 		}
 
 		unsubscribeToken := m.conn.Unsubscribe(topic)
-		unsubscribeCtx, unsubscribeCancel := context.WithTimeout(m.ctx, defaultWait)
-		defer unsubscribeCancel()
 		var unsubscribeErr error
 		select {
 		case <-unsubscribeToken.Done():
 			// Subscription went through (sucecessfully or not)
 			unsubscribeErr = token.Error()
-		case <-unsubscribeCtx.Done():
-			unsubscribeErr = fmt.Errorf("error while waiting for subscription token: %w", unsubscribeCtx.Err())
+		case <-time.After(defaultWait):
+			unsubscribeErr = fmt.Errorf("timeout while unsubscribing from topic %s", topic)
 		}
 		if unsubscribeErr != nil {
-			m.logger.Warnf("Failed to ubsubscribe from topic %s: %v", topic, err)
+			m.logger.Warnf("Failed to ubsubscribe from topic %s: %v", topic, unsubscribeErr)
 		}
 	}()
 
@@ -280,58 +281,19 @@ func (m *mqttPubSub) doConnect(ctx context.Context, clientID string) (mqtt.Clien
 }
 
 // Create a connection
-func (m *mqttPubSub) connect() error {
+func (m *mqttPubSub) connect(ctx context.Context) error {
 	m.subscribingLock.Lock()
 	defer m.subscribingLock.Unlock()
 
-	connCtx, connCancel := context.WithTimeout(m.ctx, defaultWait)
-	conn, err := m.doConnect(connCtx, m.metadata.consumerID)
-	connCancel()
+	ctx, cancel := context.WithTimeout(ctx, defaultWait)
+	defer cancel()
+	conn, err := m.doConnect(ctx, m.metadata.consumerID)
 	if err != nil {
 		return err
 	}
 	m.conn = conn
 
 	return nil
-}
-
-// Forcefully closes the connection and, after a delay, reconnects
-func (m *mqttPubSub) ResetConection() {
-	const reconnectDelay = 30 * time.Second
-
-	// Do not reconnect if there's already one attempt in progress
-	select {
-	case m.reconnectCh <- struct{}{}:
-		// nop
-	default:
-		// Already a reconnection attempt in progress, so abort
-		return
-	}
-
-	// Disconnect
-	m.logger.Info("Closing connection with broker… will reconnect in " + reconnectDelay.String())
-	m.conn.Disconnect(100)
-
-	for m.ctx.Err() == nil {
-		time.Sleep(reconnectDelay)
-
-		// Check for context cancelation before reconnecting, since we slept
-		if m.ctx.Err() != nil {
-			return
-		}
-
-		m.logger.Debug("Reconnecting…")
-		err := m.connect()
-		if err != nil {
-			m.logger.Errorf("Failed to reconnect, will retry in " + reconnectDelay.String())
-		} else {
-			m.logger.Info("Connection with broker re-established")
-			break
-		}
-	}
-
-	// Release the reconnection token
-	<-m.reconnectCh
 }
 
 func (m *mqttPubSub) createClientOptions(uri *url.URL, clientID string) *mqtt.ClientOptions {
@@ -372,15 +334,22 @@ func (m *mqttPubSub) createClientOptions(uri *url.URL, clientID string) *mqtt.Cl
 			subscribeTopics[k] = m.metadata.qos
 		}
 
-		// Note that this is a bit unusual for a pubsub component as we're using m.ctx on the handler, which is tied to the component rather than the individual subscription
+		// Note that this is a bit unusual for a pubsub component as we're using a background context for the handler.
 		// This is because we can't really use a different context for each handler in a single SubscribeMultiple call, and the alternative (multiple individual Subscribe calls) is not ideal
+		ctx, cancel := context.WithCancel(context.Background())
+		m.wg.Add(1)
+		go func() {
+			defer m.wg.Done()
+			defer cancel()
+			<-m.closeCh
+		}()
 		token := c.SubscribeMultiple(
 			subscribeTopics,
-			m.onMessage(m.ctx),
+			m.onMessage(ctx),
 		)
 
 		var err error
-		subscribeCtx, subscribeCancel := context.WithTimeout(m.ctx, defaultWait)
+		subscribeCtx, subscribeCancel := context.WithTimeout(ctx, defaultWait)
 		defer subscribeCancel()
 		select {
 		case <-token.Done():
@@ -423,6 +392,7 @@ func (m *mqttPubSub) createClientOptions(uri *url.URL, clientID string) *mqtt.Cl
 	return opts
 }
 
+// Close the connection. Blocks until all subscriptions are closed.
 func (m *mqttPubSub) Close() error {
 	m.subscribingLock.Lock()
 	defer m.subscribingLock.Unlock()
@@ -432,11 +402,14 @@ func (m *mqttPubSub) Close() error {
 	// Clear all topics from the map as a first thing, before stopping all subscriptions (we have the lock anyways)
 	maps.Clear(m.topics)
 
-	// Cancel the context
-	m.cancel()
+	if m.closed.CompareAndSwap(false, true) {
+		close(m.closeCh)
+	}
 
 	// Disconnect
 	m.conn.Disconnect(100)
+
+	m.wg.Wait()
 
 	return nil
 }

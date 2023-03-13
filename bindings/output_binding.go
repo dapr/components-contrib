@@ -22,15 +22,15 @@ import (
 
 // OutputBinding is the interface for an output binding, allowing users to invoke remote systems with optional payloads.
 type OutputBinding interface {
-	Init(metadata Metadata) error
+	Init(ctx context.Context, metadata Metadata) error
 	Invoke(ctx context.Context, req *InvokeRequest) (*InvokeResponse, error)
 	Operations() []OperationKind
 }
 
-func PingOutBinding(outputBinding OutputBinding) error {
+func PingOutBinding(ctx context.Context, outputBinding OutputBinding) error {
 	// checks if this output binding has the ping option then executes
 	if outputBindingWithPing, ok := outputBinding.(health.Pinger); ok {
-		return outputBindingWithPing.Ping()
+		return outputBindingWithPing.Ping(ctx)
 	} else {
 		return fmt.Errorf("ping is not implemented by this output binding")
 	}

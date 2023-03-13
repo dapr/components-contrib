@@ -15,6 +15,9 @@ package jetstream
 
 import (
 	"context"
+	"errors"
+	"sync"
+	"sync/atomic"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nkeys"
@@ -31,13 +34,20 @@ type jetstreamPubSub struct {
 	meta metadata
 
 	backOffConfig retry.Config
+
+	closed  atomic.Bool
+	closeCh chan struct{}
+	wg      sync.WaitGroup
 }
 
 func NewJetStream(logger logger.Logger) pubsub.PubSub {
-	return &jetstreamPubSub{l: logger}
+	return &jetstreamPubSub{
+		l:       logger,
+		closeCh: make(chan struct{}),
+	}
 }
 
-func (js *jetstreamPubSub) Init(metadata pubsub.Metadata) error {
+func (js *jetstreamPubSub) Init(_ context.Context, metadata pubsub.Metadata) error {
 	var err error
 	js.meta, err = parseMetadata(metadata)
 	if err != nil {
@@ -101,6 +111,10 @@ func (js *jetstreamPubSub) Features() []pubsub.Feature {
 }
 
 func (js *jetstreamPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
+	if js.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	var opts []nats.PubOpt
 	var msgID string
 
@@ -126,6 +140,10 @@ func (js *jetstreamPubSub) Publish(ctx context.Context, req *pubsub.PublishReque
 }
 
 func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	if js.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	var consumerConfig nats.ConsumerConfig
 
 	consumerConfig.DeliverSubject = nats.NewInbox()
@@ -238,8 +256,13 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 		return err
 	}
 
+	js.wg.Add(1)
 	go func() {
-		<-ctx.Done()
+		defer js.wg.Done()
+		select {
+		case <-ctx.Done():
+		case <-js.closeCh:
+		}
 		err := subscription.Unsubscribe()
 		if err != nil {
 			js.l.Warnf("nats: error while unsubscribing from topic %s: %v", req.Topic, err)
@@ -250,6 +273,10 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 }
 
 func (js *jetstreamPubSub) Close() error {
+	defer js.wg.Wait()
+	if js.closed.CompareAndSwap(false, true) {
+		close(js.closeCh)
+	}
 	return js.nc.Drain()
 }
 

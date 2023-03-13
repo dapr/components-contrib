@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib/build-tools
 
-go 1.19
+go 1.20
 
 require (
 	github.com/invopop/jsonschema v0.6.0

@@ -38,9 +38,6 @@ type StandaloneRedisLock struct {
 	metadata       rediscomponent.Metadata
 
 	logger logger.Logger
-
-	ctx    context.Context
-	cancel context.CancelFunc
 }
 
 // NewStandaloneRedisLock returns a new standalone redis lock.
@@ -54,7 +51,7 @@ func NewStandaloneRedisLock(logger logger.Logger) lock.Store {
 }
 
 // Init StandaloneRedisLock.
-func (r *StandaloneRedisLock) InitLockStore(metadata lock.Metadata) error {
+func (r *StandaloneRedisLock) InitLockStore(ctx context.Context, metadata lock.Metadata) error {
 	// 1. parse config
 	m, err := rediscomponent.ParseRedisMetadata(metadata.Properties)
 	if err != nil {
@@ -75,13 +72,12 @@ func (r *StandaloneRedisLock) InitLockStore(metadata lock.Metadata) error {
 	if err != nil {
 		return err
 	}
-	r.ctx, r.cancel = context.WithCancel(context.Background())
 	// 3. connect to redis
-	if _, err = r.client.PingResult(r.ctx); err != nil {
+	if _, err = r.client.PingResult(ctx); err != nil {
 		return fmt.Errorf("[standaloneRedisLock]: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
 	// no replica
-	replicas, err := r.getConnectedSlaves()
+	replicas, err := r.getConnectedSlaves(ctx)
 	// pass the validation if error occurs,
 	// since some redis versions such as miniredis do not recognize the `INFO` command.
 	if err == nil && replicas > 0 {
@@ -101,8 +97,8 @@ func needFailover(properties map[string]string) bool {
 	return false
 }
 
-func (r *StandaloneRedisLock) getConnectedSlaves() (int, error) {
-	res, err := r.client.DoRead(r.ctx, "INFO", "replication")
+func (r *StandaloneRedisLock) getConnectedSlaves(ctx context.Context) (int, error) {
+	res, err := r.client.DoRead(ctx, "INFO", "replication")
 	if err != nil {
 		return 0, err
 	}
@@ -183,9 +179,6 @@ func newInternalErrorUnlockResponse() *lock.UnlockResponse {
 
 // Close shuts down the client's redis connections.
 func (r *StandaloneRedisLock) Close() error {
-	if r.cancel != nil {
-		r.cancel()
-	}
 	if r.client != nil {
 		closeErr := r.client.Close()
 		r.client = nil

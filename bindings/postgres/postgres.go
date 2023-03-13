@@ -16,11 +16,12 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -48,20 +49,22 @@ func NewPostgres(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init initializes the PostgreSql binding.
-func (p *Postgres) Init(metadata bindings.Metadata) error {
+func (p *Postgres) Init(ctx context.Context, metadata bindings.Metadata) error {
 	url, ok := metadata.Properties[connectionURLKey]
 	if !ok || url == "" {
-		return errors.Errorf("required metadata not set: %s", connectionURLKey)
+		return fmt.Errorf("required metadata not set: %s", connectionURLKey)
 	}
 
 	poolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
-		return errors.Wrap(err, "error opening DB connection")
+		return fmt.Errorf("error opening DB connection: %w", err)
 	}
 
-	p.db, err = pgxpool.NewWithConfig(context.Background(), poolConfig)
+	// This context doesn't control the lifetime of the connection pool, and is
+	// only scoped to postgres creating resources at init.
+	p.db, err = pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
-		return errors.Wrap(err, "unable to ping the DB")
+		return fmt.Errorf("unable to ping the DB: %w", err)
 	}
 
 	return nil
@@ -79,7 +82,7 @@ func (p *Postgres) Operations() []bindings.OperationKind {
 // Invoke handles all invoke operations.
 func (p *Postgres) Invoke(ctx context.Context, req *bindings.InvokeRequest) (resp *bindings.InvokeResponse, err error) {
 	if req == nil {
-		return nil, errors.Errorf("invoke request required")
+		return nil, errors.New("invoke request required")
 	}
 
 	if req.Operation == closeOperation {
@@ -89,13 +92,13 @@ func (p *Postgres) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 	}
 
 	if req.Metadata == nil {
-		return nil, errors.Errorf("metadata required")
+		return nil, errors.New("metadata required")
 	}
 	p.logger.Debugf("operation: %v", req.Operation)
 
 	sql, ok := req.Metadata[commandSQLKey]
 	if !ok || sql == "" {
-		return nil, errors.Errorf("required metadata not set: %s", commandSQLKey)
+		return nil, fmt.Errorf("required metadata not set: %s", commandSQLKey)
 	}
 
 	startTime := time.Now().UTC()
@@ -111,19 +114,19 @@ func (p *Postgres) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 	case execOperation:
 		r, err := p.exec(ctx, sql)
 		if err != nil {
-			return nil, errors.Wrapf(err, "error executing %s with %v", sql, err)
+			return nil, fmt.Errorf("error executing %s: %w", sql, err)
 		}
 		resp.Metadata["rows-affected"] = strconv.FormatInt(r, 10) // 0 if error
 
 	case queryOperation:
 		d, err := p.query(ctx, sql)
 		if err != nil {
-			return nil, errors.Wrapf(err, "error executing %s with %v", sql, err)
+			return nil, fmt.Errorf("error executing %s: %w", sql, err)
 		}
 		resp.Data = d
 
 	default:
-		return nil, errors.Errorf(
+		return nil, fmt.Errorf(
 			"invalid operation type: %s. Expected %s, %s, or %s",
 			req.Operation, execOperation, queryOperation, closeOperation,
 		)
@@ -151,20 +154,20 @@ func (p *Postgres) query(ctx context.Context, sql string) (result []byte, err er
 
 	rows, err := p.db.Query(ctx, sql)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error executing %s", sql)
+		return nil, fmt.Errorf("error executing query: %w", err)
 	}
 
 	rs := make([]any, 0)
 	for rows.Next() {
 		val, rowErr := rows.Values()
 		if rowErr != nil {
-			return nil, errors.Wrapf(rowErr, "error parsing result: %v", rows.Err())
+			return nil, fmt.Errorf("error parsing result '%v': %w", rows.Err(), rowErr)
 		}
 		rs = append(rs, val) //nolint:asasalint
 	}
 
 	if result, err = json.Marshal(rs); err != nil {
-		err = errors.Wrap(err, "error serializing results")
+		err = fmt.Errorf("error serializing results: %w", err)
 	}
 
 	return
@@ -175,7 +178,7 @@ func (p *Postgres) exec(ctx context.Context, sql string) (result int64, err erro
 
 	res, err := p.db.Exec(ctx, sql)
 	if err != nil {
-		return 0, errors.Wrapf(err, "error executing %s", sql)
+		return 0, fmt.Errorf("error executing query: %w", err)
 	}
 
 	result = res.RowsAffected()

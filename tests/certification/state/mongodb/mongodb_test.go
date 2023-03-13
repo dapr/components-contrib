@@ -1,23 +1,29 @@
 package mongodb_test
 
 import (
+	"errors"
 	"fmt"
-	"github.com/dapr/components-contrib/tests/certification/flow/network"
-	"github.com/dapr/go-sdk/client"
 	"testing"
 	"time"
+
+	"github.com/dapr/go-sdk/client"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/dapr/components-contrib/state"
 	stateMongoDB "github.com/dapr/components-contrib/state/mongodb"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
+	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	stateLoader "github.com/dapr/dapr/pkg/components/state"
 	"github.com/dapr/dapr/pkg/runtime"
 	daprTesting "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -40,7 +46,6 @@ func TestMongoDB(t *testing.T) {
 		return stateStore
 	}, "mongodb")
 
-	// var rdb redis.Client
 	currentGrpcPort := ports[0]
 	currentHTTPPort := ports[1]
 
@@ -65,7 +70,7 @@ func TestMongoDB(t *testing.T) {
 		errUpdate := client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("mongodbCertUpdate"), nil)
 		assert.NoError(t, errUpdate)
 		item, errUpdatedGet := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, errUpdatedGet)
+		require.NoError(t, errUpdatedGet)
 		assert.Equal(t, "mongodbCertUpdate", string(item.Value))
 
 		// delete state
@@ -90,9 +95,56 @@ func TestMongoDB(t *testing.T) {
 		return nil
 	}
 
+	// Time-To-Live Test
+	timeToLiveTest := func(sidecarname string) func(ctx flow.Context) error {
+		return func(ctx flow.Context) error {
+			client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+			require.NoError(t, err)
+			defer client.Close()
+
+			assert.Error(t, client.SaveState(ctx, stateStoreName, certificationTestPrefix+"ttl1", []byte("mongodbCert"), map[string]string{
+				"ttlInSeconds": "mock value",
+			}))
+			assert.NoError(t, client.SaveState(ctx, stateStoreName, certificationTestPrefix+"ttl2", []byte("mongodbCert2"), map[string]string{
+				"ttlInSeconds": "-1",
+			}))
+			assert.NoError(t, client.SaveState(ctx, stateStoreName, certificationTestPrefix+"ttl3", []byte("mongodbCert3"), map[string]string{
+				"ttlInSeconds": "3",
+			}))
+
+			// Check we have the correct database ID for the TTL test.
+			cl, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017/?directConnection=true"))
+			require.NoError(t, err)
+			resp := cl.Database("admin").
+				Collection("daprCollection").
+				FindOne(ctx, bson.M{"_id": sidecarname + "||stable-certification-ttl3"})
+			require.NoError(t, resp.Err())
+
+			// get state
+			item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl3", nil)
+			assert.NoError(t, err)
+			assert.Equal(t, "mongodbCert3", string(item.Value))
+			assert.Eventually(t, func() bool {
+				item, err = client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl3", nil)
+				require.NoError(t, err)
+				return len(item.Value) == 0
+			}, time.Second*7, time.Millisecond*500)
+
+			// MongoDB will delete a document after a maximum of 60 seconds.
+			assert.Eventually(t, func() bool {
+				resp := cl.Database("admin").
+					Collection("daprCollection").
+					FindOne(ctx, bson.M{"_id": sidecarname + "||stable-certification-ttl3"})
+				return resp.Err() != nil && errors.Is(resp.Err(), mongo.ErrNoDocuments)
+			}, time.Second*60, time.Millisecond*500)
+
+			return nil
+		}
+	}
+
 	flow.New(t, "Connecting MongoDB And Verifying majority of the tests for a replica set here").
 		Step(dockercompose.Run("mongodb", dockerComposeClusterYAML)).
-		Step("Waiting for component to start...", flow.Sleep(10*time.Second)).
+		Step("Waiting for component to start...", flow.Sleep(20*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerClusterDefault",
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
@@ -101,6 +153,7 @@ func TestMongoDB(t *testing.T) {
 			runtime.WithStates(stateRegistry))).
 		Step("Waiting for component to load...", flow.Sleep(10*time.Second)).
 		Step("Run basic test", basicTest).
+		Step("Run time to live test", timeToLiveTest(sidecarNamePrefix+"dockerClusterDefault")).
 		Step("Interrupt network",
 			network.InterruptNetwork(5*time.Second, nil, nil, "27017:27017")).
 		// Component should recover at this point.
@@ -115,7 +168,7 @@ func TestMongoDB(t *testing.T) {
 	flow.New(t, "Connecting MongoDB And Verifying majority of the tests for a replica set "+
 		"here with valid read, write concerns and operation timeout").
 		Step(dockercompose.Run("mongodb", dockerComposeClusterYAML)).
-		Step("Waiting for component to start...", flow.Sleep(10*time.Second)).
+		Step("Waiting for component to start...", flow.Sleep(20*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerClusterValidReadWriteConcernAndTimeout",
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
@@ -124,6 +177,7 @@ func TestMongoDB(t *testing.T) {
 			runtime.WithStates(stateRegistry))).
 		Step("Waiting for component to load...", flow.Sleep(10*time.Second)).
 		Step("Run basic test", basicTest).
+		Step("Run time to live test", timeToLiveTest(sidecarNamePrefix+"dockerClusterValidReadWriteConcernAndTimeout")).
 		Step("Interrupt network",
 			network.InterruptNetwork(5*time.Second, nil, nil, "27017:27017")).
 		// Component should recover at this point.
@@ -138,7 +192,7 @@ func TestMongoDB(t *testing.T) {
 	flow.New(t, "Connecting MongoDB And Verifying majority of the tests here for a single node with valid read, "+
 		"write concerns and operation timeout").
 		Step(dockercompose.Run("mongodb", dockerComposeSingleYAML)).
-		Step("Waiting for component to start...", flow.Sleep(10*time.Second)).
+		Step("Waiting for component to start...", flow.Sleep(20*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerSingleNode",
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
@@ -147,6 +201,7 @@ func TestMongoDB(t *testing.T) {
 			runtime.WithStates(stateRegistry))).
 		Step("Waiting for component to load...", flow.Sleep(10*time.Second)).
 		Step("Run basic test", basicTest).
+		Step("Run time to live test", timeToLiveTest(sidecarNamePrefix+"dockerSingleNode")).
 		Step("Interrupt network",
 			network.InterruptNetwork(5*time.Second, nil, nil, "27017:27017")).
 		// Component should recover at this point.

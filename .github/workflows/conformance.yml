@@ -17,23 +17,25 @@ on:
   repository_dispatch:
     types: [conformance-test]
   workflow_dispatch:
-  merge_group:
   schedule:
     - cron: '0 */8 * * *'
   push:
     branches:
-    - 'release-*'
+      - 'release-*'
+      - 'gh-readonly-queue/master/*'
   pull_request:
     branches:
-      - master
+      - 'master'
       - 'release-*'
+      - 'gh-readonly-queue/master/*'
+  merge_group:
 
 jobs:
   # Based on whether this is a PR or a scheduled run, we will run a different
   # subset of the conformance tests. This allows all the tests not requiring
   # secrets to be executed on pull requests.
   generate-matrix:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - name: Parse repository_dispatch payload
       if: github.event_name == 'repository_dispatch'
@@ -44,127 +46,24 @@ jobs:
           echo "PR_NUMBER=${{ github.event.client_payload.issue.number }}" >> $GITHUB_ENV
         fi
 
-    - name: Install yq
-      run: |
-        sudo snap install yq
+    - name: Check out code
+      uses: actions/checkout@v3
+      with:
+        repository: ${{ env.CHECKOUT_REPO }}
+        ref: ${{ env.CHECKOUT_REF }}
 
-    - name: Specify components not requiring secrets nor certs
-      id: pr-components
+    - name: Generate test matrix
+      id: generate-matrix
+      env:
+        VAULT_NAME: ${{ secrets.AZURE_KEYVAULT }}
       run: |
-        PR_COMPONENTS=$(yq -I0 --tojson eval - << EOF
-        - bindings.cron
-        - bindings.http
-        - bindings.influx
-        - bindings.kafka-wurstmeister
-        - bindings.kafka-confluent
-        - bindings.mqtt3-emqx
-        - bindings.mqtt3-mosquitto
-        - bindings.mqtt3-vernemq
-        - bindings.postgres
-        - bindings.redis.v6
-        - bindings.redis.v7
-        - bindings.kubemq
-        - bindings.rabbitmq
-        - pubsub.aws.snssqs.docker
-        - configuration.redis.v6
-        - configuration.redis.v7
-        - pubsub.hazelcast
-        - pubsub.in-memory
-        - pubsub.mqtt3-emqx
-        - pubsub.mqtt3-vernemq
-        - pubsub.natsstreaming
-        - pubsub.pulsar
-        - pubsub.rabbitmq
-        - pubsub.redis.v6
-        - pubsub.kafka-wurstmeister
-        - pubsub.kafka-confluent
-        - pubsub.kubemq
-        - pubsub.solace
-        - secretstores.kubernetes
-        - secretstores.localenv
-        - secretstores.localfile
-        - secretstores.hashicorp.vault
-        - state.cassandra
-        - state.memcached
-        - state.mongodb
-        - state.mysql.mysql
-        - state.mysql.mariadb
-        - state.postgresql
-        - state.redis.v6
-        - state.redis.v7
-        - state.sqlite
-        - state.sqlserver
-        - state.in-memory
-        - state.cockroachdb
-        - workflows.temporal
-        - state.rethinkdb
-        - state.etcd
-        EOF
-        )
-        echo "pr-components=$PR_COMPONENTS" >> $GITHUB_OUTPUT
-
-    - name: Specify components requiring secrets or certs
-      id: cron-components
-      run: |
-        if [ "${{ github.event_name }}" = "pull_request" ]; then
-          echo "cron-components=[]" >> $GITHUB_OUTPUT
-          exit
+        if [ -z "$VAULT_NAME" ]; then
+          # Do not include cloud tests when credentials are not available
+          node .github/scripts/test-info.mjs conformance false
+        else
+          # Include cloud tests
+          node .github/scripts/test-info.mjs conformance true
         fi
-        # Unfortunately, Azure secrets can't have underscores in
-        # names, while environment variables with hyphens ('-') are
-        # troublesome.
-        #
-        # We work around here by leveraging the fact that
-        # environment variable names are case sensitive, so
-        # CamelCase would still work.
-        #
-        # That is slightly better than something like
-        # AZURECOSMOSDBMASTERKEY, which is extremely hard to read
-        # and errorprone.
-        #
-        # Only list the secrets you need for the component.
-        CRON_COMPONENTS=$(yq -I0 --tojson eval - << EOF
-        - component: state.azure.blobstorage
-          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount
-        - component: state.azure.cosmosdb
-          required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
-        - component: state.azure.sql
-          required-secrets: AzureResourceGroupName, AzureSqlServerName, AzureSqlServerConnectionString
-        - component: state.azure.tablestorage.storage
-          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount
-        - component: state.azure.tablestorage.cosmosdb
-          required-secrets: AzureCosmosDBTableAPI,AzureCosmosDBTableAPIMasterKey
-        - component: pubsub.azure.eventhubs
-          required-secrets: AzureEventHubsPubsubNamespaceConnectionString,AzureEventHubsPubsubConsumerGroup,AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureEventHubsPubsubContainer
-        - component: pubsub.azure.servicebus.topics
-          required-secrets: AzureServiceBusConnectionString
-        - component: pubsub.azure.servicebus.queues
-          required-secrets: AzureServiceBusConnectionString
-        - component: bindings.azure.blobstorage
-          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount
-        - component: bindings.azure.eventgrid
-          required-secrets: AzureEventGridNgrokToken,AzureEventGridAccessKey,AzureEventGridTopicEndpoint,AzureEventGridScope,AzureEventGridClientSecret,AzureEventGridClientId,AzureEventGridTenantId,AzureEventGridSubscriptionId
-        - component: bindings.azure.eventhubs
-          required-secrets: AzureEventHubsBindingsConnectionString,AzureEventHubsBindingsConsumerGroup,AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureEventHubsBindingsContainer
-        - component: bindings.azure.servicebusqueues
-          required-secrets: AzureServiceBusConnectionString
-        - component: bindings.azure.storagequeues
-          required-secrets: AzureBlobStorageAccessKey,AzureBlobStorageAccount,AzureBlobStorageQueue
-        - component: secretstores.azure.keyvault.certificate
-          required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreClientId
-          required-certs: AzureKeyVaultSecretStoreCert
-        - component: secretstores.azure.keyvault.serviceprincipal
-          required-secrets: AzureKeyVaultName,AzureKeyVaultSecretStoreTenantId,AzureKeyVaultSecretStoreServicePrincipalClientId,AzureKeyVaultSecretStoreServicePrincipalClientSecret
-        - component: bindings.azure.cosmosdb
-          required-secrets: AzureCosmosDBMasterKey,AzureCosmosDBUrl,AzureCosmosDB,AzureCosmosDBCollection
-        - component: pubsub.aws.snssqs.terraform
-          terraform-dir: pubsub/aws/snssqs
-        - component: state.aws.dynamodb.terraform
-          terraform-dir: state/aws/dynamodb
-        - component: state.cloudflare.workerskv
-        EOF
-        )
-        echo "cron-components=$CRON_COMPONENTS" >> $GITHUB_OUTPUT
 
     - name: Create PR comment
       if: env.PR_NUMBER != ''
@@ -181,27 +80,24 @@ jobs:
           Commit ref: ${{ env.CHECKOUT_REF }}
 
     outputs:
-      pr-components: ${{ steps.pr-components.outputs.pr-components }}
-      cron-components: ${{ steps.cron-components.outputs.cron-components }}
+      test-matrix: ${{ steps.generate-matrix.outputs.test-matrix }}
 
   conformance:
     name: ${{ matrix.component }} conformance
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     env:
-      # Version of Node.js to use
-      # Currently used by the Cloudflare components
-      NODE_VERSION: 18.x
       UNIQUE_ID: ${{github.run_id}}-${{github.run_attempt}}
     defaults:
       run:
         shell: bash
-    needs: generate-matrix
+
+    needs: 
+      - generate-matrix
 
     strategy:
       fail-fast: false # Keep running even if one component fails
-      matrix:
-        component: ${{ fromJson(needs.generate-matrix.outputs.pr-components) }}
-        include: ${{ fromJson(needs.generate-matrix.outputs.cron-components) }}
+      matrix: 
+        include: ${{ fromJson(needs.generate-matrix.outputs.test-matrix) }}
 
     steps:
     - name: Set default payload repo and ref
@@ -220,27 +116,29 @@ jobs:
           echo "PR_NUMBER=${{ github.event.client_payload.issue.number }}" >> $GITHUB_ENV
         fi
 
-    - name: Check out code onto GOPATH
+    - name: Check out code
       uses: actions/checkout@v3
       with:
         repository: ${{ env.CHECKOUT_REPO }}
         ref: ${{ env.CHECKOUT_REF }}
 
-    - name: Setup test output
+    - name: Setup test environment
       run: |
-        export TEST_OUTPUT_FILE_PREFIX=$GITHUB_WORKSPACE/test_report
-        echo "TEST_OUTPUT_FILE_PREFIX=$TEST_OUTPUT_FILE_PREFIX" >> $GITHUB_ENV
+        # Output file
+        echo "TEST_OUTPUT_FILE_PREFIX=$GITHUB_WORKSPACE/test_report" >> $GITHUB_ENV
+
+        # Current time (used by Terraform)
+        echo "CURRENT_TIME=$(date --rfc-3339=date)" >> ${GITHUB_ENV}
 
     - uses: Azure/login@v1
+      if: matrix.required-secrets != ''
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
-      if: matrix.required-secrets != ''
 
     # Set this GitHub secret to your KeyVault, and grant the KeyVault policy to your Service Principal:
     #    az keyvault set-policy -n $AZURE_KEYVAULT --secret-permissions get list --spn $SPN_CLIENT_ID
     # Using az cli to query keyvault as Azure/get-keyvault-secrets@v1 is deprecated
     - name: Setup secrets
-      id: get-azure-secrets
       if: matrix.required-secrets != ''
       env:
         VAULT_NAME: ${{ secrets.AZURE_KEYVAULT }}
@@ -257,21 +155,6 @@ jobs:
           echo "$secretName=$value" >> $GITHUB_ENV
         done
 
-    - name: Start ngrok
-      if: contains(matrix.component, 'azure.eventgrid')
-      run: |
-        wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
-        unzip -qq ngrok-stable-linux-amd64.zip
-        ./ngrok authtoken ${{ env.AzureEventGridNgrokToken }}
-        ./ngrok http -log=stdout --log-level debug -host-header=localhost 9000 > /tmp/ngrok.log &
-        sleep 10
-        export NGROK_ENDPOINT=`cat /tmp/ngrok.log |  grep -Eom1 'https://.*' | sed 's/\s.*//'`
-        echo "Ngrok's endpoint: ${NGROK_ENDPOINT}"
-        echo "AzureEventGridSubscriberEndpoint=${NGROK_ENDPOINT}/api/events" >> $GITHUB_ENV
-        cat /tmp/ngrok.log
-        # Schedule trigger to kill ngrok
-        bash -c "sleep 500 && pkill ngrok" &
-
     # Download the required certificates into files, and set env var pointing to their names
     - name: Setup certs
       if: matrix.required-certs != ''
@@ -285,257 +168,68 @@ jobs:
           echo "$CERT_NAME=$CERT_FILE" >> $GITHUB_ENV
         done
 
-    - name: Get current time
-      run: |
-        echo "CURRENT_TIME=$(date --rfc-3339=date)" >> ${GITHUB_ENV}
-
     - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
-      if: matrix.terraform-dir != ''
+      if: matrix.require-terraform == 'true'
+      uses: hashicorp/setup-terraform@v2.0.3
+
+    - name: Set Cloudflare env vars
+      if: matrix.require-cloudflare-credentials == 'true'
+      run: |
+        echo "CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" >> $GITHUB_ENV
+        echo "CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }}" >> $GITHUB_ENV
+
+    - name: Set AWS env vars
+      if: matrix.require-aws-credentials == 'true'
+      run: |
+        echo "AWS_ACCESS_KEY=${{ secrets.AWS_ACCESS_KEY }}" >> $GITHUB_ENV
+        echo "AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }}" >> $GITHUB_ENV
 
     - name: Configure AWS Credentials
+      if: matrix.require-aws-credentials == 'true'
       uses: aws-actions/configure-aws-credentials@v1
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
         aws-region: us-west-1
-      if: matrix.terraform-dir != ''
-
-    - name: Terraform Init
-      id: init
-      run: terraform init
-      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
-      if: matrix.terraform-dir != ''
-      
-    - name: Terraform Validate
-      id: validate
-      run: terraform validate -no-color
-      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
-      if: matrix.terraform-dir != ''
-
-    - name: Terraform Plan
-      id: plan
-      run: terraform plan -no-color -var="UNIQUE_ID=${{env.UNIQUE_ID}}" -var="TIMESTAMP=${{env.CURRENT_TIME}}"
-      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
-      if: matrix.terraform-dir != ''
-
-    - name: Terraform Apply
-      run: terraform apply -auto-approve -var="UNIQUE_ID=${{env.UNIQUE_ID}}" -var="TIMESTAMP=${{env.CURRENT_TIME}}"
-      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
-      if: matrix.terraform-dir != ''
-      continue-on-error: true
-
-    - name: Create aws.snssqs variables
-      run: |
-        PUBSUB_AWS_SNSSQS_QUEUE="testQueue-${{ env.UNIQUE_ID }}"
-        echo "PUBSUB_AWS_SNSSQS_QUEUE=$PUBSUB_AWS_SNSSQS_QUEUE" >> $GITHUB_ENV
-        PUBSUB_AWS_SNSSQS_TOPIC="testTopic-${{ env.UNIQUE_ID }}"
-        echo "PUBSUB_AWS_SNSSQS_TOPIC=$PUBSUB_AWS_SNSSQS_TOPIC" >> $GITHUB_ENV
-        PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1="multiTopic1-${{ env.UNIQUE_ID }}"
-        echo "PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1=$PUBSUB_AWS_SNSSQS_TOPIC_MULTI_1" >> $GITHUB_ENV
-        PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2="multiTopic2-${{ env.UNIQUE_ID }}"
-        echo "PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2=$PUBSUB_AWS_SNSSQS_TOPIC_MULTI_2" >> $GITHUB_ENV
-      if: contains(matrix.component, 'snssqs')
-    
-    - name: Create aws.dynamodb variables
-      run: |
-        STATE_AWS_DYNAMODB_TABLE_1="conformance-test-terraform-basic-${{ env.UNIQUE_ID }}"
-        echo "STATE_AWS_DYNAMODB_TABLE_1=$STATE_AWS_DYNAMODB_TABLE_1" >> $GITHUB_ENV
-        STATE_AWS_DYNAMODB_TABLE_2="conformance-test-terraform-partition-key-${{ env.UNIQUE_ID }}"
-        echo "STATE_AWS_DYNAMODB_TABLE_2=$STATE_AWS_DYNAMODB_TABLE_2" >> $GITHUB_ENV
-      if: contains(matrix.component, 'dynamodb')
-
-    - name: Start Redis 6 with Redis JSON
-      run: docker-compose -f ./.github/infrastructure/docker-compose-redisjson.yml -p redis up -d
-      if: contains(matrix.component, 'redis.v6')
-  
-    - name: Start Redis 7
-      run: docker-compose -f ./.github/infrastructure/docker-compose-redis7.yml -p redis up -d
-      if: contains(matrix.component, 'redis.v7')
-
-    - name: Start Temporal
-      run: docker-compose -f ./.github/infrastructure/docker-compose-temporal.yml -p temporal up -d
-      if: contains(matrix.component, 'temporal')
 
     - name: Start MongoDB
-      uses: supercharge/mongodb-github-action@1.3.0
+      if: matrix.mongodb-version != ''
+      uses: supercharge/mongodb-github-action@1.8.0
       with:
-        mongodb-version: 4.2
+        mongodb-version: ${{ matrix.mongodb-version }}
         mongodb-replica-set: test-rs
-      if: contains(matrix.component, 'mongodb')
-
-    - name: Start sqlserver
-      run: docker-compose -f ./.github/infrastructure/docker-compose-sqlserver.yml -p sqlserver up -d
-      if: contains(matrix.component, 'sqlserver')
-
-    - name: Start kafka
-      run: docker-compose -f ./.github/infrastructure/docker-compose-kafka.yml -p kafka up -d
-      if: contains(matrix.component, 'wurstmeister')
-
-    - name: Start kafka Confluent
-      run: docker-compose -f ./.github/infrastructure/docker-compose-confluent.yml -p confluent up -d
-      if: contains(matrix.component, 'confluent')
-
-    - name: Start memcached
-      run: docker-compose -f ./.github/infrastructure/docker-compose-memcached.yml -p memcached up -d
-      if: contains(matrix.component, 'memcached')
-
-    - name: Start natsstreaming
-      run: docker-compose -f ./.github/infrastructure/docker-compose-natsstreaming.yml -p natsstreaming up -d
-      if: contains(matrix.component, 'natsstreaming')
-
-    - name: Start pulsar
-      run: docker-compose -f ./.github/infrastructure/docker-compose-pulsar.yml -p pulsar up -d
-      if: contains(matrix.component, 'pulsar')
-
-    - name: Start Eclipse Mosquitto (MQTT3)
-      run: docker-compose -f ./.github/infrastructure/docker-compose-mosquitto.yml -p mosquitto up -d
-      if: contains(matrix.component, 'mqtt3-mosquitto')
-
-    - name: Start EMQ X (MQTT3)
-      run: docker-compose -f ./.github/infrastructure/docker-compose-emqx.yml -p emqx up -d
-      if: contains(matrix.component, 'mqtt3-emqx')
-
-    - name: Start VerneMQ (MQTT3)
-      run: docker-compose -f ./.github/infrastructure/docker-compose-vernemq.yml -p vernemq up -d
-      if: contains(matrix.component, 'mqtt3-vernemq')
-
-    - name: Start hazelcast
-      run: docker-compose -f ./.github/infrastructure/docker-compose-hazelcast.yml -p hazelcast up -d
-      if: contains(matrix.component, 'hazelcast')
-
-    - name: Start rabbitmq
-      run: docker-compose -f ./.github/infrastructure/docker-compose-rabbitmq.yml -p rabbitmq up -d
-      if: contains(matrix.component, 'rabbitmq')
-
-    - name: Install Node.js ${{ env.NODE_VERSION }}
-      if: contains(matrix.component, 'cloudflare')
-      uses: actions/setup-node@v3
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-
-    - name: Check Cloudflare Workers code
-      if: contains(matrix.component, 'cloudflare')
-      run: |
-        # Build the Worker
-        (
-          cd internal/component/cloudflare/worker-src;
-          npm ci;
-          npm run build;
-        )
-        # Check no changes
-        git diff --exit-code ./internal/component/cloudflare/workers/code \
-          || (echo "The source code of the Cloudflare Worker has changed, but the Worker has not been recompiled. Please re-compile the Worker by running 'npm ci && npm run build' in 'internal/component/cloudflare/worker-src'" && exit 1)
-
-    - name: Setup Cloudflare KV
-      if: matrix.component == 'state.cloudflare.workerskv'
-      env:
-        CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      run: |
-        CloudflareWorkerName="daprconfkv${{ github.run_id }}${{ github.run_attempt }}"
-        CloudflareKVNamespaceID=$( curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces" \
-          -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-          -H "Content-Type: application/json" \
-          --data "{\"title\":\"${CloudflareWorkerName}\"}" \
-            | jq -r ".result.id" )
-
-        echo "CloudflareWorkerName=${CloudflareWorkerName}" >> $GITHUB_ENV
-        echo "CloudflareAPIToken=${CLOUDFLARE_API_TOKEN}" >> $GITHUB_ENV
-        echo "CloudflareAccountID=${CLOUDFLARE_ACCOUNT_ID}" >> $GITHUB_ENV
-        echo "CloudflareKVNamespaceID=${CloudflareKVNamespaceID}" >> $GITHUB_ENV
-
-    - name: Start aws snssqs
-      run: docker-compose -f ./.github/infrastructure/docker-compose-snssqs.yml -p snssqs up -d
-      if: contains(matrix.component, 'aws.snssqs.docker')
-
-    - name: Start influxdb
-      run: |
-        export INFLUX_TOKEN=$(openssl rand -base64 32)
-        echo "INFLUX_TOKEN=$INFLUX_TOKEN" >> $GITHUB_ENV
-        docker-compose -f ./.github/infrastructure/docker-compose-influxdb.yml -p influxdb up -d
-      if: contains(matrix.component, 'influx')
-
-    - name: Start mysql
-      run: |
-        docker-compose -f ./.github/infrastructure/docker-compose-mysql.yml -p mysql up -d
-      if: contains(matrix.component, 'mysql.mysql')
-
-    - name: Start mariadb
-      run: |
-        docker-compose -f ./.github/infrastructure/docker-compose-mariadb.yml -p mariadb up -d
-      if: contains(matrix.component, 'mysql.mariadb')
-
-    - name: Start KinD
-      uses: helm/kind-action@v1.4.0
-      if: contains(matrix.component, 'kubernetes')
-
-    - name: Start postgresql
-      run: |
-        docker-compose -f ./.github/infrastructure/docker-compose-postgresql.yml -p postgresql up -d
-      if: contains(matrix.component, 'postgres')
-
-    - name: Start cassandra
-      run: |
-        docker-compose -f ./.github/infrastructure/docker-compose-cassandra.yml -p cassandra up -d
-      if: contains(matrix.component, 'cassandra')
-
-    - name: Start cockroachdb
-      run: |
-        docker-compose -f ./.github/infrastructure/docker-compose-cockroachdb.yml -p cockroachdb up -d
-      if: contains(matrix.component, 'cockroachdb')
-
-    - name: Start vault
-      run: |
-        docker-compose -f ./.github/infrastructure/docker-compose-hashicorp-vault.yml -p vault up -d
-      if: contains(matrix.component, 'hashicorp.vault')
-
-    - name: Start rethinkdb
-      run: |
-        docker-compose -f ./.github/infrastructure/docker-compose-rethinkdb.yml -p rethinkdb up -d
-      if: contains(matrix.component, 'rethinkdb')
-
-    - name: Start kubemq
-      run: docker-compose -f ./.github/infrastructure/docker-compose-kubemq.yml -p kubemq up -d
-      if: contains(matrix.component, 'kubemq')
-    
-    - name: Start solace
-      run: docker-compose -f ./.github/infrastructure/docker-compose-solace.yml -p solace up -d
-      if: contains(matrix.component, 'solace')
-
-    - name: Start nats with JetStream
-      run: |
-        docker-compose -f ./.github/infrastructure/docker-compose-jetstream.yml up -p jetstream -d
-      if: contains(matrix.component, 'jetstream')
-
-    - name: Setup KinD test data
-      if: contains(matrix.component, 'kubernetes')
-      run: |
-        kubectl apply -f tests/config/kind-data.yaml
-        echo "NAMESPACE=default" >> $GITHUB_ENV
 
     - name: Set up Go
       uses: actions/setup-go@v3
       with:
-        go-version: '^1.19'
+        go-version-file: 'go.mod'
+
+    - name: Install Node.js ${{ matrix.nodejs-version }}
+      if: matrix.nodejs-version != ''
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.nodejs-version }}
+
+    - name: Start KinD
+      uses: helm/kind-action@v1.5.0
+      if: matrix.require-kind == 'true'
 
     - name: Download Go dependencies
       run: |
         go mod download
         go install gotest.tools/gotestsum@latest
 
-    - name: Generate Azure SQL DB name
+    - name: Run setup script
+      if: matrix.setup-script != ''
+      run: .github/scripts/components-scripts/${{ matrix.setup-script }}
+
+    - name: Catch setup failures
+      if: failure()
       run: |
-        # Use UUID with `-` stripped out for DB names to prevent collisions between workflows
-        export AzureSqlServerDbName=$(cat /proc/sys/kernel/random/uuid | sed -E 's/-//g')
-        echo "AzureSqlServerDbName=$AzureSqlServerDbName" >> $GITHUB_ENV
-      if: contains(matrix.component, 'azure.sql')
+        echo "CONFORMANCE_FAILURE=true" >> $GITHUB_ENV
 
     - name: Run tests
       continue-on-error: true
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}  
       run: |
         set -e 
         KIND=$(echo ${{ matrix.component }} | cut -d. -f1)
@@ -567,59 +261,15 @@ jobs:
           exit -1
         fi
 
-    - name: Stop ngrok
-      if: contains(matrix.component, 'azure.eventgrid')
-      continue-on-error: true
-      run: |
-        set +e
-        echo "GET ngrok tunnels:"
-        curl http://localhost:4040/api/tunnels
-        echo "GET ngrok http requests:"
-        curl http://localhost:4040/api/requests/http
-        pkill ngrok
-        cat /tmp/ngrok.log
-
-    - name: Cleanup Azure SQL test DB instance
-      if: contains(matrix.component, 'azure.sql')
-      continue-on-error: true
-      run: |
-        # Wait for the creation of the DB by the test to propagate to ARM, otherwise deletion succeeds as no-op.
-        # The wait should be under 30s, but is capped at 1m as flakiness here results in an accumulation of expensive DB instances over time.
-        # Also note that the deletion call only blocks until the request is process, do not rely on it for mutex on the same DB,
-        # deletion may be ongoing in sequential runs.
-        sleep 1m
-        az sql db delete --resource-group ${{ env.AzureResourceGroupName }} --server ${{ env.AzureSqlServerName }} -n ${{ env.AzureSqlServerDbName }} --yes
-
-    - name: Cleanup Cloudflare KV
-      if: always() && matrix.component == 'state.cloudflare.workerskv'
-      continue-on-error: true
-      env:
-        CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      run: |
-        # Delete the Worker
-        curl -X DELETE "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${{ env.CloudflareWorkerName }}" \
-          -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
-        # Delete the KV namespace
-        curl -X DELETE "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${{ env.CloudflareKVNamespaceID }}" \
-          -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
-
-    # Download the required certificates into files, and set env var pointing to their names
-    - name: Clean up certs
-      if: matrix.required-certs != ''
+    - name: Delete downloaded up certs
+      if: always() && matrix.required-certs != ''
       run: |
         for CERT_NAME in $(echo "${{ matrix.required-certs }}" | sed 's/,/ /g'); do
           CERT_FILE=$(printenv $CERT_NAME)
 
           echo "Cleaning up the certificate file $CERT_FILE..."
-          rm $CERT_FILE
+          rm $CERT_FILE || true
         done
-
-    - name: Terraform Destroy
-      continue-on-error: true    
-      run: terraform destroy -auto-approve -var="UNIQUE_ID=${{env.UNIQUE_ID}}" -var="TIMESTAMP=${{env.CURRENT_TIME}}"
-      working-directory: "./.github/infrastructure/terraform/conformance/${{ matrix.terraform-dir }}"
-      if: matrix.terraform-dir != ''
 
     - name: Check conformance test passed
       continue-on-error: false
@@ -656,9 +306,13 @@ jobs:
         name: ${{ matrix.component }}_conformance_test
         path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.*
 
+    - name: Run destroy script
+      if: always() && matrix.destroy-script != ''
+      run: .github/scripts/components-scripts/${{ matrix.destroy-script }}
+
   post_job:
     name: Post-completion
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     if: always()
     needs:
       - conformance
@@ -688,9 +342,7 @@ jobs:
         uses: actions/github-script@v6
         with:
           script: |
-            const prComponents = ('${{ needs.generate-matrix.outputs.pr-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.pr-components }}')) || []
-            const cronComponents = ('${{ needs.generate-matrix.outputs.cron-components }}' && JSON.parse('${{ needs.generate-matrix.outputs.cron-components }}')) || []
-            const allComponents = [...prComponents, ...cronComponents]
+            const allComponents = JSON.parse('${{ needs.generate-matrix.outputs.test-matrix }}')
             const basePath = '${{ steps.testresults.outputs.download-path }}'
             const testType = 'conformance'
 
@@ -718,7 +370,7 @@ jobs:
                 let found = false
                 let success = false
                 try {
-                    let read =fs.readFileSync(path.join(basePath, component + '.txt'), 'utf8')
+                    let read = fs.readFileSync(path.join(basePath, component + '.txt'), 'utf8')
                     read = read.split('\n')[0]
                     switch (read) {
                         case '1':

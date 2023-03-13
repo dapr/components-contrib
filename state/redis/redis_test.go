@@ -204,7 +204,6 @@ func TestTransactionalUpsert(t *testing.T) {
 		json:   jsoniter.ConfigFastest,
 		logger: logger.NewLogger("test"),
 	}
-	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
 	err := ss.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: []state.TransactionalStateOperation{
@@ -270,7 +269,6 @@ func TestTransactionalDelete(t *testing.T) {
 		json:   jsoniter.ConfigFastest,
 		logger: logger.NewLogger("test"),
 	}
-	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
 	// Insert a record first.
 	ss.Set(context.Background(), &state.SetRequest{
@@ -307,12 +305,12 @@ func TestPing(t *testing.T) {
 		clientSettings: &rediscomponent.Settings{},
 	}
 
-	err := state.Ping(ss)
+	err := state.Ping(context.Background(), ss)
 	assert.NoError(t, err)
 
 	s.Close()
 
-	err = state.Ping(ss)
+	err = state.Ping(context.Background(), ss)
 	assert.Error(t, err)
 }
 
@@ -328,14 +326,13 @@ func TestRequestsWithGlobalTTL(t *testing.T) {
 		logger:   logger.NewLogger("test"),
 		metadata: rediscomponent.Metadata{TTLInSeconds: &globalTTLInSeconds},
 	}
-	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
 	t.Run("TTL: Only global specified", func(t *testing.T) {
 		ss.Set(context.Background(), &state.SetRequest{
 			Key:   "weapon100",
 			Value: "deathstar100",
 		})
-		ttl, _ := ss.client.TTLResult(ss.ctx, "weapon100")
+		ttl, _ := ss.client.TTLResult(context.Background(), "weapon100")
 
 		assert.Equal(t, time.Duration(globalTTLInSeconds)*time.Second, ttl)
 	})
@@ -349,7 +346,7 @@ func TestRequestsWithGlobalTTL(t *testing.T) {
 				"ttlInSeconds": strconv.Itoa(requestTTL),
 			},
 		})
-		ttl, _ := ss.client.TTLResult(ss.ctx, "weapon100")
+		ttl, _ := ss.client.TTLResult(context.Background(), "weapon100")
 
 		assert.Equal(t, time.Duration(requestTTL)*time.Second, ttl)
 	})
@@ -420,7 +417,6 @@ func TestSetRequestWithTTL(t *testing.T) {
 		json:   jsoniter.ConfigFastest,
 		logger: logger.NewLogger("test"),
 	}
-	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
 	t.Run("TTL specified", func(t *testing.T) {
 		ttlInSeconds := 100
@@ -432,7 +428,7 @@ func TestSetRequestWithTTL(t *testing.T) {
 			},
 		})
 
-		ttl, _ := ss.client.TTLResult(ss.ctx, "weapon100")
+		ttl, _ := ss.client.TTLResult(context.Background(), "weapon100")
 
 		assert.Equal(t, time.Duration(ttlInSeconds)*time.Second, ttl)
 	})
@@ -443,7 +439,7 @@ func TestSetRequestWithTTL(t *testing.T) {
 			Value: "deathstar200",
 		})
 
-		ttl, _ := ss.client.TTLResult(ss.ctx, "weapon200")
+		ttl, _ := ss.client.TTLResult(context.Background(), "weapon200")
 
 		assert.Equal(t, time.Duration(-1), ttl)
 	})
@@ -453,7 +449,7 @@ func TestSetRequestWithTTL(t *testing.T) {
 			Key:   "weapon300",
 			Value: "deathstar300",
 		})
-		ttl, _ := ss.client.TTLResult(ss.ctx, "weapon300")
+		ttl, _ := ss.client.TTLResult(context.Background(), "weapon300")
 		assert.Equal(t, time.Duration(-1), ttl)
 
 		// make the key no longer persistent
@@ -465,7 +461,7 @@ func TestSetRequestWithTTL(t *testing.T) {
 				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
 			},
 		})
-		ttl, _ = ss.client.TTLResult(ss.ctx, "weapon300")
+		ttl, _ = ss.client.TTLResult(context.Background(), "weapon300")
 		assert.Equal(t, time.Duration(ttlInSeconds)*time.Second, ttl)
 
 		// make the key persistent again
@@ -476,7 +472,7 @@ func TestSetRequestWithTTL(t *testing.T) {
 				"ttlInSeconds": strconv.Itoa(-1),
 			},
 		})
-		ttl, _ = ss.client.TTLResult(ss.ctx, "weapon300")
+		ttl, _ = ss.client.TTLResult(context.Background(), "weapon300")
 		assert.Equal(t, time.Duration(-1), ttl)
 	})
 }
@@ -490,7 +486,6 @@ func TestTransactionalDeleteNoEtag(t *testing.T) {
 		json:   jsoniter.ConfigFastest,
 		logger: logger.NewLogger("test"),
 	}
-	ss.ctx, ss.cancel = context.WithCancel(context.Background())
 
 	// Insert a record first.
 	ss.Set(context.Background(), &state.SetRequest{

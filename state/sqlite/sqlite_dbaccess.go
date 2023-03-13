@@ -29,6 +29,7 @@ import (
 	// Blank import for the underlying SQLite Driver.
 	_ "modernc.org/sqlite"
 
+	internalsql "github.com/dapr/components-contrib/internal/component/sql"
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
@@ -36,7 +37,7 @@ import (
 
 // DBAccess is a private interface which enables unit testing of SQLite.
 type DBAccess interface {
-	Init(metadata state.Metadata) error
+	Init(ctx context.Context, metadata state.Metadata) error
 	Ping(ctx context.Context) error
 	Set(ctx context.Context, req *state.SetRequest) error
 	Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error)
@@ -57,8 +58,7 @@ type sqliteDBAccess struct {
 	logger   logger.Logger
 	metadata sqliteMetadataStruct
 	db       *sql.DB
-	ctx      context.Context
-	cancel   context.CancelFunc
+	gc       internalsql.GarbageCollector
 }
 
 // newSqliteDBAccess creates a new instance of sqliteDbAccess.
@@ -70,7 +70,7 @@ func newSqliteDBAccess(logger logger.Logger) *sqliteDBAccess {
 
 // Init sets up SQLite Database connection and ensures that the state table
 // exists.
-func (a *sqliteDBAccess) Init(md state.Metadata) error {
+func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 	err := a.metadata.InitWithMetadata(md)
 	if err != nil {
 		return err
@@ -88,9 +88,8 @@ func (a *sqliteDBAccess) Init(md state.Metadata) error {
 	}
 
 	a.db = db
-	a.ctx, a.cancel = context.WithCancel(context.Background())
 
-	err = a.Ping(a.ctx)
+	err = a.Ping(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to ping: %w", err)
 	}
@@ -102,14 +101,39 @@ func (a *sqliteDBAccess) Init(md state.Metadata) error {
 		MetadataTableName: a.metadata.MetadataTableName,
 		StateTableName:    a.metadata.TableName,
 	}
-	err = migrate.Perform(a.ctx)
+	err = migrate.Perform(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to perform migrations: %w", err)
 	}
 
-	a.scheduleCleanupExpiredData()
+	gc, err := internalsql.ScheduleGarbageCollector(internalsql.GCOptions{
+		Logger: a.logger,
+		UpdateLastCleanupQuery: fmt.Sprintf(`INSERT INTO %s (key, value)
+		VALUES ('last-cleanup', CURRENT_TIMESTAMP)
+		ON CONFLICT (key)
+		DO UPDATE SET value = CURRENT_TIMESTAMP
+			WHERE (unixepoch(CURRENT_TIMESTAMP) - unixepoch(value)) * 1000 > ?;`,
+			a.metadata.MetadataTableName,
+		),
+		DeleteExpiredValuesQuery: fmt.Sprintf(`DELETE FROM %s
+		WHERE
+			expiration_time IS NOT NULL
+			AND expiration_time < CURRENT_TIMESTAMP`,
+			a.metadata.TableName,
+		),
+		CleanupInterval: a.metadata.CleanupInterval,
+		DBSql:           a.db,
+	})
+	if err != nil {
+		return err
+	}
+	a.gc = gc
 
 	return nil
+}
+
+func (a *sqliteDBAccess) CleanupExpired() error {
+	return a.gc.CleanupExpired()
 }
 
 func (a *sqliteDBAccess) getConnectionString() (string, error) {
@@ -420,12 +444,14 @@ func (a *sqliteDBAccess) ExecuteMulti(parentCtx context.Context, reqs []state.Tr
 
 // Close implements io.Close.
 func (a *sqliteDBAccess) Close() error {
-	if a.cancel != nil {
-		a.cancel()
-	}
 	if a.db != nil {
 		_ = a.db.Close()
 	}
+
+	if a.gc != nil {
+		return a.gc.Close()
+	}
+
 	return nil
 }
 
@@ -468,107 +494,6 @@ func (a *sqliteDBAccess) doDelete(parentCtx context.Context, db querier, req *st
 	}
 
 	return nil
-}
-
-func (a *sqliteDBAccess) scheduleCleanupExpiredData() {
-	if a.metadata.CleanupInterval <= 0 {
-		return
-	}
-
-	a.logger.Infof("Schedule expired data clean up every %v", a.metadata.CleanupInterval)
-
-	go func() {
-		ticker := time.NewTicker(a.metadata.CleanupInterval)
-		defer ticker.Stop()
-
-		var err error
-		for {
-			select {
-			case <-ticker.C:
-				err = a.CleanupExpired()
-				if err != nil {
-					a.logger.Errorf("Error removing expired data: %v", err)
-				}
-			case <-a.ctx.Done():
-				a.logger.Debug("Stopped background cleanup of expired data")
-				return
-			}
-		}
-	}()
-}
-
-func (a *sqliteDBAccess) CleanupExpired() error {
-	tx, err := a.db.Begin()
-	if err != nil {
-		return fmt.Errorf("failed to start transaction: %w", err)
-	}
-	defer tx.Rollback()
-
-	// Check if the last iteration was too recent
-	// This performs an atomic operation, so allows coordination with other daprd processes too
-	// We do this before beginning the transaction
-	canContinue, err := a.UpdateLastCleanup(tx, a.metadata.CleanupInterval)
-	if err != nil {
-		return fmt.Errorf("failed to read last cleanup time from database: %w", err)
-	}
-	if !canContinue {
-		a.logger.Debug("Last cleanup was performed too recently")
-		return nil
-	}
-
-	// Sprintf is required for table name because sql.DB does not substitute parameters for table names
-	//nolint:gosec
-	stmt := fmt.Sprintf(
-		`DELETE FROM %s
-		WHERE
-			expiration_time IS NOT NULL
-			AND expiration_time < CURRENT_TIMESTAMP`,
-		a.metadata.TableName,
-	)
-	// Not we're not using a context here because this query can take a bit of time, especially if there's no index on expiration_time
-	res, err := tx.Exec(stmt)
-	if err != nil {
-		return fmt.Errorf("failed to execute query: %w", err)
-	}
-
-	cleaned, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to count affected rows: %w", err)
-	}
-
-	// Commit
-	err = tx.Commit()
-	if err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	a.logger.Infof("Removed %d expired rows", cleaned)
-	return nil
-}
-
-// UpdateLastCleanup sets the 'last-cleanup' value only if it's less than cleanupInterval.
-// Returns true if the row was updated, which means that the cleanup can proceed.
-func (a *sqliteDBAccess) UpdateLastCleanup(db querier, cleanupInterval time.Duration) (bool, error) {
-	queryCtx, cancel := context.WithTimeout(a.ctx, a.metadata.timeout)
-	defer cancel()
-	res, err := db.ExecContext(queryCtx,
-		fmt.Sprintf(`INSERT INTO %s (key, value)
-		VALUES ('last-cleanup', CURRENT_TIMESTAMP)
-		ON CONFLICT (key)
-		DO UPDATE SET value = CURRENT_TIMESTAMP
-			WHERE (unixepoch(CURRENT_TIMESTAMP) - unixepoch(value)) > 1;`,
-			a.metadata.MetadataTableName),
-		cleanupInterval.Milliseconds()-100, // Subtract 100ms for some buffer
-	)
-	if err != nil {
-		return false, fmt.Errorf("failed to execute query: %w", err)
-	}
-
-	n, err := res.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("failed to retrieve affected row count: %w", err)
-	}
-	return n > 0, nil
 }
 
 // GetConnection returns the database connection object.

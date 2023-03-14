@@ -18,24 +18,21 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
 	clientv3 "go.etcd.io/etcd/client/v3"
 
+	utils2 "github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
-)
-
-const (
-	tlsEnable = "enable"
 )
 
 // Etcd is a state store implementation for Etcd.
@@ -93,7 +90,7 @@ func (e *Etcd) ParseClientFromConfig(etcdConfig *etcdConfig) (*clientv3.Client, 
 	}
 
 	var tlsConfig *tls.Config
-	if etcdConfig.TlsEnable == tlsEnable {
+	if utils2.IsTruthy(etcdConfig.TlsEnable) {
 		if etcdConfig.Cert != "" && etcdConfig.Key != "" && etcdConfig.Ca != "" {
 			var err error
 			tlsConfig, err = NewTLSConfig(etcdConfig.Cert, etcdConfig.Key, etcdConfig.Ca)
@@ -246,30 +243,12 @@ func (e *Etcd) doSetValidateParameters(req *state.SetRequest) (int64, error) {
 		return 0, err
 	}
 
-	ttlInSeconds, err := doParseTTLInSeconds(req.Metadata)
+	ttlInSeconds, err := utils.ParseTTL(req.Metadata)
 	if err != nil {
 		return 0, err
 	}
 
-	return ttlInSeconds, nil
-}
-
-func doParseTTLInSeconds(metadata map[string]string) (int64, error) {
-	s := metadata["ttlInSeconds"]
-	if s == "" {
-		return 0, nil
-	}
-
-	i, err := strconv.ParseInt(s, 10, 64)
-	if err != nil {
-		return 0, err
-	}
-
-	if i < 0 {
-		i = 0
-	}
-
-	return i, nil
+	return int64(*ttlInSeconds), nil
 }
 
 // Delete performes a Etcd KV delete operation.

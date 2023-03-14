@@ -11,4 +11,4 @@ spec:
     - name: keyPrefixPath
       value: "dapr"
     - name: tlsEnable
-      value: "disable"
+      value: "false"

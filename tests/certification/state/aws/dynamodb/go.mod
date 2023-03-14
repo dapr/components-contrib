@@ -23,7 +23,6 @@ require (
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/aws/aws-sdk-go v1.44.214 // indirect
-	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cenkalti/backoff/v4 v4.2.0 // indirect
@@ -145,3 +144,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
+
+replace github.com/dapr/dapr => github.com/ryanlettieri/dapr v1.10.1-0.20230314105031-02107f9d1881

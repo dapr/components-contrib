@@ -152,3 +152,5 @@ replace github.com/dapr/components-contrib => ../../../../
 // in the Dapr runtime. Don't commit with this uncommented!
 //
 // replace github.com/dapr/dapr v1.10.1-0.20230303202925-74458da97d83
+
+replace github.com/dapr/dapr => github.com/ryanlettieri/dapr v1.10.1-0.20230314105031-02107f9d1881

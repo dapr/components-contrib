@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	time "time"
 
 	amqp "github.com/Azure/go-amqp"
@@ -43,12 +44,16 @@ type amqpPubSub struct {
 	logger            logger.Logger
 	publishLock       sync.RWMutex
 	publishRetryCount int
+	wg                sync.WaitGroup
+	closed            atomic.Bool
+	closeCh           chan struct{}
 }
 
 // NewAMQPPubsub returns a new AMQPPubSub instance
 func NewAMQPPubsub(logger logger.Logger) pubsub.PubSub {
 	return &amqpPubSub{
-		logger: logger,
+		logger:  logger,
+		closeCh: make(chan struct{}),
 	}
 }
 
@@ -91,6 +96,10 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 	a.publishLock.Lock()
 	defer a.publishLock.Unlock()
 
+	if a.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	a.publishRetryCount = 0
 
 	if req.Topic == "" {
@@ -132,7 +141,12 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 				if err != nil {
 					a.logger.Warnf("Failed to publish a message to the broker", err)
 				}
-				time.Sleep(publishRetryWaitSeconds * time.Second)
+
+				select {
+				case <-time.After(publishRetryWaitSeconds * time.Second):
+				case <-ctx.Done():
+					break
+				}
 			}
 		}
 	}
@@ -141,6 +155,10 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 }
 
 func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	if a.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	prefixedTopic := AddPrefixToAddress(req.Topic)
 
 	receiver, err := a.session.NewReceiver(ctx,
@@ -150,7 +168,20 @@ func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 
 	if err == nil {
 		a.logger.Infof("Attempting to subscribe to %s", prefixedTopic)
-		go a.subscribeForever(ctx, receiver, handler, prefixedTopic)
+		a.wg.Add(2)
+		subCtx, cancel := context.WithCancel(ctx)
+		go func() {
+			defer a.wg.Done()
+			defer cancel()
+			select {
+			case <-a.closeCh:
+			case <-subCtx.Done():
+			}
+		}()
+		go func() {
+			defer a.wg.Done()
+			a.subscribeForever(subCtx, receiver, handler, prefixedTopic)
+		}()
 	} else {
 		a.logger.Error("Unable to create a receiver:", err)
 	}
@@ -160,7 +191,8 @@ func (a *amqpPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 
 // function that subscribes to a queue in a tight loop
 func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiver, handler pubsub.Handler, t string) {
-	for {
+	defer a.logger.Infof("closing receiver for %s", t)
+	for ctx.Err() == nil {
 		// Receive next message
 		msg, err := receiver.Receive(ctx)
 
@@ -270,9 +302,13 @@ func (a *amqpPubSub) createClientOptions(uri *url.URL) amqp.ConnOptions {
 
 // Close the session
 func (a *amqpPubSub) Close() error {
+	defer a.wg.Wait()
 	a.publishLock.Lock()
-
 	defer a.publishLock.Unlock()
+
+	if a.closed.CompareAndSwap(false, true) {
+		close(a.closeCh)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

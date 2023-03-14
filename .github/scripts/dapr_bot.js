@@ -10,6 +10,7 @@ const owners = [
     'halspang',
     'ItalyPaleAle',
     'jjcollinge',
+    'joshvanl',
     'msfussell',
     'mukundansundar',
     'pkedy',
@@ -47,8 +48,7 @@ module.exports = async ({ github, context }) => {
     ) {
         await handleIssueCommentCreate({ github, context })
     } else if (
-        (context.eventName == 'issues' ||
-            context.eventName == 'pull_request') &&
+        context.eventName == 'issues' &&
         context.payload.action == 'labeled'
     ) {
         await handleIssueOrPrLabeled({ github, context })

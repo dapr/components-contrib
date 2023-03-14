@@ -29,27 +29,27 @@ func TestPostgresqlQueryBuildQuery(t *testing.T) {
 		query string
 	}{
 		{
-			input: "../../tests/state/query/q1.json",
+			input: "../../../tests/state/query/q1.json",
 			query: "SELECT key, value, xmin as etag FROM state LIMIT 2",
 		},
 		{
-			input: "../../tests/state/query/q2.json",
+			input: "../../../tests/state/query/q2.json",
 			query: "SELECT key, value, xmin as etag FROM state WHERE value->>'state'=$1 LIMIT 2",
 		},
 		{
-			input: "../../tests/state/query/q2-token.json",
+			input: "../../../tests/state/query/q2-token.json",
 			query: "SELECT key, value, xmin as etag FROM state WHERE value->>'state'=$1 LIMIT 2 OFFSET 2",
 		},
 		{
-			input: "../../tests/state/query/q3.json",
+			input: "../../../tests/state/query/q3.json",
 			query: "SELECT key, value, xmin as etag FROM state WHERE (value->'person'->>'org'=$1 AND (value->>'state'=$2 OR value->>'state'=$3)) ORDER BY value->>'state' DESC, value->'person'->>'name'",
 		},
 		{
-			input: "../../tests/state/query/q4.json",
+			input: "../../../tests/state/query/q4.json",
 			query: "SELECT key, value, xmin as etag FROM state WHERE (value->'person'->>'org'=$1 OR (value->'person'->>'org'=$2 AND (value->>'state'=$3 OR value->>'state'=$4))) ORDER BY value->>'state' DESC, value->'person'->>'name' LIMIT 2",
 		},
 		{
-			input: "../../tests/state/query/q5.json",
+			input: "../../../tests/state/query/q5.json",
 			query: "SELECT key, value, xmin as etag FROM state WHERE (value->'person'->>'org'=$1 AND (value->'person'->>'name'=$2 OR (value->>'state'=$3 OR value->>'state'=$4))) ORDER BY value->>'state' DESC, value->'person'->>'name' LIMIT 2",
 		},
 	}
@@ -61,7 +61,8 @@ func TestPostgresqlQueryBuildQuery(t *testing.T) {
 		assert.NoError(t, err)
 
 		q := &Query{
-			tableName: defaultTableName,
+			tableName:  defaultTableName,
+			etagColumn: "xmin",
 		}
 		qbuilder := query.NewQueryBuilder(q)
 		err = qbuilder.BuildQuery(&qq)

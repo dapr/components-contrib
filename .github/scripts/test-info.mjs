@@ -155,6 +155,9 @@ const components = {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redis7 redis',
     },
+    'configuration.redis': {
+        certification: true,
+    },
     'crypto.azure.keyvault': {
         conformance: true,
         requiredSecrets: [
@@ -169,6 +172,9 @@ const components = {
     },
     'crypto.jwks': {
         conformance: true,
+    },
+    'middleware.http.ratelimit': {
+        certification: true,
     },
     'pubsub.aws.snssqs': {
         certification: true,

@@ -103,7 +103,7 @@ func Test_middleware_getHandler(t *testing.T) {
 			metadata: metadata.Base{Properties: map[string]string{
 				"path": "./example/router.go",
 			}},
-			expectedErr: "wasm: error compiling guest: invalid binary",
+			expectedErr: "wasm: error compiling guest: invalid magic number",
 		},
 		{
 			name: "ok",

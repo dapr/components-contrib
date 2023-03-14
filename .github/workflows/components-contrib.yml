@@ -14,15 +14,17 @@
 name: "Build, Lint, Unit Test - Linux AMD64 Only"
 
 on:
-  merge_group:
   push:
     branches:
-      - master
       - feature/*
+      - gh-readonly-queue/master/*
   pull_request:
     branches:
       - master
       - feature/*
+      - gh-readonly-queue/master/*
+  merge_group:
+
 jobs:
   build:
     name: Build linux_amd64 binaries

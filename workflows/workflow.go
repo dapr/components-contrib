@@ -21,5 +21,4 @@ type Workflow interface {
 	Start(ctx context.Context, req *StartRequest) (*WorkflowReference, error)
 	Terminate(ctx context.Context, req *WorkflowReference) error
 	Get(ctx context.Context, req *WorkflowReference) (*StateResponse, error)
-	RaiseEvent(ctx context.Context, req *RaiseEventRequest) error
 }

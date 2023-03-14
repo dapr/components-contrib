@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -25,15 +25,9 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwt"
 
 	"github.com/dapr/components-contrib/internal/httputils"
-	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 )
-
-type bearerMiddlewareMetadata struct {
-	IssuerURL string `json:"issuerURL"`
-	ClientID  string `json:"clientID"`
-}
 
 const (
 	// Prefix for the authorization header (case-insensitive)
@@ -58,9 +52,20 @@ type Middleware struct {
 
 // GetHandler retruns the HTTP handler provided by the middleware.
 func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
-	meta, err := m.getNativeMetadata(metadata)
+	meta := &bearerMiddlewareMetadata{
+		logger: m.logger,
+	}
+	err := meta.fromMetadata(metadata)
 	if err != nil {
 		return nil, err
+	}
+
+	// Retrieve the OpenID Configuration document if needed
+	getCtx, getCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer getCancel()
+	err = meta.retrieveOpenIDConfigurationDocument(getCtx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve OpenID Configuration document: %w", err)
 	}
 
 	// Create a JWKS cache that is refreshed automatically
@@ -69,7 +74,7 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 			m.logger.Warnf("Error while refreshing JWKS cache: %v", err)
 		})),
 	)
-	err = cache.Register(meta.IssuerURL,
+	err = cache.Register(meta.JWKSURL,
 		jwk.WithMinRefreshInterval(minRefreshInterval),
 	)
 	if err != nil {
@@ -77,7 +82,7 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 	}
 
 	// Fetch the JWKS right away to start, so we can check it's valid and populate the cache
-	_, err = cache.Refresh(ctx, meta.IssuerURL)
+	_, err = cache.Refresh(ctx, meta.JWKSURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch JWKS: %w", err)
 	}
@@ -85,7 +90,7 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("authorization")
-			if strings.ToLower(authHeader[0:len(bearerPrefix)]) != bearerPrefix {
+			if (len(authHeader) < len(bearerPrefix)+1) || strings.ToLower(authHeader[0:len(bearerPrefix)]) != bearerPrefix {
 				httputils.RespondWithError(w, http.StatusUnauthorized)
 				return
 			}
@@ -95,7 +100,7 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 				return
 			}
 
-			keyset, err := cache.Get(r.Context(), meta.IssuerURL)
+			keyset, err := cache.Get(r.Context(), meta.JWKSURL)
 			if err != nil {
 				m.logger.Errorf("Failed to retrieve JWKS cache: %v", err)
 				httputils.RespondWithError(w, http.StatusInternalServerError)
@@ -106,7 +111,7 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 				jwt.WithContext(r.Context()),
 				jwt.WithAcceptableSkew(allowedClockSkew),
 				jwt.WithKeySet(keyset),
-				jwt.WithAudience(meta.ClientID),
+				jwt.WithAudience(meta.Audience),
 			)
 			if err != nil {
 				httputils.RespondWithError(w, http.StatusUnauthorized)
@@ -116,13 +121,4 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 			next.ServeHTTP(w, r)
 		})
 	}, nil
-}
-
-func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*bearerMiddlewareMetadata, error) {
-	var middlewareMetadata bearerMiddlewareMetadata
-	err := mdutils.DecodeMetadata(metadata.Properties, &middlewareMetadata)
-	if err != nil {
-		return nil, err
-	}
-	return &middlewareMetadata, nil
 }

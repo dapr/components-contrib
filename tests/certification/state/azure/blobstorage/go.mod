@@ -3,7 +3,7 @@ module github.com/dapr/components-contrib/tests/certification/state/azure/blobst
 go 1.20
 
 require (
-	github.com/dapr/components-contrib v1.10.0-rc.9.0.20230303235857-236104d7f560
+	github.com/dapr/components-contrib v1.10.0-rc.9.0.20230314182450-1d40321ac0be
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20230303235857-236104d7f560
 	github.com/dapr/dapr v1.10.1-0.20230306165150-8609d5aeedb7
 	github.com/dapr/go-sdk v1.7.0

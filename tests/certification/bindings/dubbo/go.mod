@@ -5,7 +5,7 @@ go 1.20
 require (
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
 	github.com/apache/dubbo-go-hessian2 v1.11.5
-	github.com/dapr/components-contrib v1.10.0-rc.9.0.20230303212325-d6f35401af8a
+	github.com/dapr/components-contrib v1.10.0-rc.9.0.20230314182450-1d40321ac0be
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211026011813-36b75e9ae272
 	github.com/dapr/dapr v1.10.1-0.20230306165150-8609d5aeedb7
 	github.com/dapr/go-sdk v1.7.0

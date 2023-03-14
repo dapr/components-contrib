@@ -3,7 +3,7 @@ module github.com/dapr/components-contrib/tests/certification/configuration/redi
 go 1.20
 
 require (
-	github.com/dapr/components-contrib v1.10.0-rc.9.0.20230303212325-d6f35401af8a
+	github.com/dapr/components-contrib v1.10.0-rc.9.0.20230314182450-1d40321ac0be
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20220526162429-d03aeba3e0d6
 	github.com/dapr/dapr v1.10.1-0.20230306165150-8609d5aeedb7
 	github.com/dapr/go-sdk v1.7.0
@@ -53,7 +53,7 @@ require (
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/grandcat/zeroconf v1.0.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.0 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.11.3 // indirect
 	github.com/hashicorp/consul/api v1.19.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect

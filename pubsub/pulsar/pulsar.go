@@ -49,6 +49,7 @@ const (
 	redeliveryDelay         = "redeliveryDelay"
 	avroProtocol            = "avro"
 	jsonProtocol            = "json"
+	partitionKey            = "partitionKey"
 
 	defaultTenant     = "public"
 	defaultNamespace  = "default"
@@ -71,7 +72,21 @@ const (
 	defaultMaxBatchSize = 128 * 1024
 	// defaultRedeliveryDelay init default for redelivery delay.
 	defaultRedeliveryDelay = 30 * time.Second
+
+	subscribeTypeKey = "subscribeType"
+
+	subscribeTypeExclusive = "exclusive"
+	subscribeTypeShared    = "shared"
+	subscribeTypeFailover  = "failover"
+	subscribeTypeKeyShared = "key_shared"
+
+	processModeKey = "processMode"
+
+	processModeAsync = "async"
+	processModeSync  = "sync"
 )
+
+type ProcessMode string
 
 type Pulsar struct {
 	logger   logger.Logger
@@ -266,6 +281,7 @@ func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 	if err != nil {
 		return err
 	}
+
 	if _, err = producer.Send(ctx, msg); err != nil {
 		return err
 	}
@@ -318,20 +334,54 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 		msg.Value = obj
 	}
 
-	if val, ok := req.Metadata[deliverAt]; ok {
-		msg.DeliverAt, err = time.Parse(time.RFC3339, val)
-		if err != nil {
-			return nil, err
+	for name, value := range req.Metadata {
+		if value == "" {
+			continue
 		}
-	}
-	if val, ok := req.Metadata[deliverAfter]; ok {
-		msg.DeliverAfter, err = time.ParseDuration(val)
-		if err != nil {
-			return nil, err
+
+		switch name {
+		case partitionKey:
+			msg.Key = value
+		case deliverAt:
+			msg.DeliverAt, err = time.Parse(time.RFC3339, value)
+			if err != nil {
+				return nil, err
+			}
+		case deliverAfter:
+			msg.DeliverAfter, err = time.ParseDuration(value)
+			if err != nil {
+				return nil, err
+			}
+		default:
+			if msg.Properties == nil {
+				msg.Properties = make(map[string]string)
+			}
+			msg.Properties[name] = value
 		}
 	}
 
 	return msg, nil
+}
+
+// default: shared
+func getSubscribeType(metadata map[string]string) pulsar.SubscriptionType {
+	var subsType pulsar.SubscriptionType
+
+	subsTypeStr := strings.ToLower(metadata[subscribeTypeKey])
+	switch subsTypeStr {
+	case subscribeTypeExclusive:
+		subsType = pulsar.Exclusive
+	case subscribeTypeFailover:
+		subsType = pulsar.Failover
+	case subscribeTypeShared:
+		subsType = pulsar.Shared
+	case subscribeTypeKeyShared:
+		subsType = pulsar.KeyShared
+	default:
+		subsType = pulsar.Shared
+	}
+
+	return subsType
 }
 
 func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
@@ -346,7 +396,7 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	options := pulsar.ConsumerOptions{
 		Topic:               topic,
 		SubscriptionName:    p.metadata.ConsumerID,
-		Type:                pulsar.Shared,
+		Type:                getSubscribeType(req.Metadata),
 		MessageChannel:      channel,
 		NackRedeliveryDelay: p.metadata.RedeliveryDelay,
 	}
@@ -373,28 +423,36 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	go func() {
 		defer p.wg.Done()
 		defer cancel()
-		p.listenMessage(listenCtx, req.Topic, consumer, handler)
+		p.listenMessage(listenCtx, req, consumer, handler)
 	}()
 
 	return nil
 }
 
-func (p *Pulsar) listenMessage(ctx context.Context, originTopic string, consumer pulsar.Consumer, handler pubsub.Handler) {
+func (p *Pulsar) listenMessage(ctx context.Context, req pubsub.SubscribeRequest, consumer pulsar.Consumer, handler pubsub.Handler) {
 	defer consumer.Close()
 
+	originTopic := req.Topic
 	var err error
 	for {
 		select {
 		case msg := <-consumer.Chan():
-			// Go routine to handle multiple messages at once.
-			p.wg.Add(1)
-			go func(msg pulsar.ConsumerMessage) {
-				defer p.wg.Done()
+			if strings.ToLower(req.Metadata[processModeKey]) == processModeSync { //nolint:gocritic
 				err = p.handleMessage(ctx, originTopic, msg, handler)
 				if err != nil && !errors.Is(err, context.Canceled) {
-					p.logger.Errorf("Error processing message: %s/%#v [key=%s]: %v", msg.Topic(), msg.ID(), msg.Key(), err)
+					p.logger.Errorf("Error sync processing message: %s/%#v [key=%s]: %v", msg.Topic(), msg.ID(), msg.Key(), err)
 				}
-			}(msg)
+			} else { // async process mode by default
+				// Go routine to handle multiple messages at once.
+				p.wg.Add(1)
+				go func(msg pulsar.ConsumerMessage) {
+					defer p.wg.Done()
+					err = p.handleMessage(ctx, originTopic, msg, handler)
+					if err != nil && !errors.Is(err, context.Canceled) {
+						p.logger.Errorf("Error async processing message: %s/%#v [key=%s]: %v", msg.Topic(), msg.ID(), msg.Key(), err)
+					}
+				}(msg)
+			}
 
 		case <-ctx.Done():
 			p.logger.Errorf("Subscription context done. Closing consumer. Err: %s", ctx.Err())

@@ -416,7 +416,7 @@ func (m *MongoDB) Query(ctx context.Context, req *state.QueryRequest) (*state.Qu
 	}, nil
 }
 
-func getMongoURI(metadata *mongoDBMetadata) string {
+func getMongoConnectionString(metadata *mongoDBMetadata) string {
 	if metadata.ConnectionString != "" {
 		return metadata.ConnectionString
 	}
@@ -437,7 +437,7 @@ func getMongoURI(metadata *mongoDBMetadata) string {
 }
 
 func getMongoDBClient(ctx context.Context, metadata *mongoDBMetadata) (*mongo.Client, error) {
-	uri := getMongoURI(metadata)
+	uri := getMongoConnectionString(metadata)
 
 	// Set client options
 	clientOptions := options.Client().ApplyURI(uri)

@@ -1,6 +1,6 @@
 module github.com/dapr/components-contrib/tests/certification/configuration/redis
 
-go 1.19
+go 1.20
 
 require (
 	github.com/dapr/components-contrib v1.10.0-rc.9.0.20230303212325-d6f35401af8a

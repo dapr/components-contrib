@@ -16,12 +16,12 @@ require (
 require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	github.com/AdhityaRamadhanus/fasthttpcors v0.0.0-20170121111917-d4c07198763a // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.4.0-beta.1 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0-beta.3 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.5.0-beta.1 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0-beta.4 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.1.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.2.0 // indirect
 	github.com/Azure/go-amqp v0.18.1 // indirect
-	github.com/AzureAD/microsoft-authentication-library-for-go v0.8.1 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v0.9.0 // indirect
 	github.com/PuerkitoBio/purell v1.2.0 // indirect
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129 // indirect
 	github.com/andybalholm/brotli v1.0.4 // indirect

@@ -437,7 +437,7 @@ func (p *Pulsar) listenMessage(ctx context.Context, req pubsub.SubscribeRequest,
 	for {
 		select {
 		case msg := <-consumer.Chan():
-			if strings.ToLower(req.Metadata[processModeKey]) == processModeSync {
+			if strings.ToLower(req.Metadata[processModeKey]) == processModeSync { //nolint:gocritic
 				err = p.handleMessage(ctx, originTopic, msg, handler)
 				if err != nil && !errors.Is(err, context.Canceled) {
 					p.logger.Errorf("Error sync processing message: %s/%#v [key=%s]: %v", msg.Topic(), msg.ID(), msg.Key(), err)

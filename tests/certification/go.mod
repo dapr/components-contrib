@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/cenkalti/backoff/v4 v4.2.0
-	github.com/dapr/components-contrib v1.10.0-rc.9.0.20230303212325-d6f35401af8a
+	github.com/dapr/components-contrib v1.10.0-rc.9.0.20230314182450-1d40321ac0be
 	github.com/dapr/dapr v1.10.1-0.20230306165150-8609d5aeedb7
 	github.com/dapr/go-sdk v1.7.0
 	github.com/dapr/kit v0.0.4
@@ -21,7 +21,6 @@ require (
 	github.com/andybalholm/brotli v1.0.4 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
-	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
@@ -52,7 +51,7 @@ require (
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/grandcat/zeroconf v1.0.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.0 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.11.3 // indirect
 	github.com/hashicorp/consul/api v1.19.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
@@ -142,3 +141,5 @@ require (
 )
 
 replace github.com/dapr/components-contrib => ../../
+
+replace github.com/dapr/dapr => github.com/ryanlettieri/dapr v1.10.1-0.20230314105031-02107f9d1881

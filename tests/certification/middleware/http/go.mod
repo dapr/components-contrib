@@ -1,4 +1,4 @@
-module ratelimit_test
+module http_mw_test
 
 go 1.20
 
@@ -8,6 +8,7 @@ require (
 	github.com/dapr/dapr v1.10.1-0.20230306165150-8609d5aeedb7
 	github.com/dapr/go-sdk v1.7.0
 	github.com/dapr/kit v0.0.4
+	github.com/go-chi/chi/v5 v5.0.8
 	github.com/stretchr/testify v1.8.2
 	go.uber.org/ratelimit v0.2.0
 )
@@ -28,6 +29,7 @@ require (
 	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.13.0 // indirect
 	github.com/cloudevents/sdk-go/v2 v2.13.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0 // indirect
 	github.com/didip/tollbooth/v7 v7.0.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.9.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
@@ -43,6 +45,7 @@ require (
 	github.com/go-openapi/jsonreference v0.20.0 // indirect
 	github.com/go-openapi/swag v0.19.14 // indirect
 	github.com/go-pkgz/expirable-cache v0.1.0 // indirect
+	github.com/goccy/go-json v0.9.11 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/mock v1.6.0 // indirect
@@ -71,6 +74,12 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.16.0 // indirect
+	github.com/lestrrat-go/blackmagic v1.0.1 // indirect
+	github.com/lestrrat-go/httpcc v1.0.1 // indirect
+	github.com/lestrrat-go/httprc v1.0.4 // indirect
+	github.com/lestrrat-go/iter v1.0.2 // indirect
+	github.com/lestrrat-go/jwx/v2 v2.0.8 // indirect
+	github.com/lestrrat-go/option v1.0.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/marusama/semaphore/v2 v2.5.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
@@ -113,16 +122,17 @@ require (
 	go.opentelemetry.io/otel/sdk v1.11.2 // indirect
 	go.opentelemetry.io/otel/trace v1.11.2 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
-	golang.org/x/exp v0.0.0-20230303215020-44a13b063f3e // indirect
-	golang.org/x/mod v0.8.0 // indirect
-	golang.org/x/net v0.7.0 // indirect
+	golang.org/x/crypto v0.6.0 // indirect
+	golang.org/x/exp v0.0.0-20230310171629-522b1b587ee0 // indirect
+	golang.org/x/mod v0.9.0 // indirect
+	golang.org/x/net v0.8.0 // indirect
 	golang.org/x/oauth2 v0.5.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
-	golang.org/x/sys v0.5.0 // indirect
-	golang.org/x/term v0.5.0 // indirect
-	golang.org/x/text v0.7.0 // indirect
+	golang.org/x/sys v0.6.0 // indirect
+	golang.org/x/term v0.6.0 // indirect
+	golang.org/x/text v0.8.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
-	golang.org/x/tools v0.3.1-0.20221213193459-ca17b2c27ca8 // indirect
+	golang.org/x/tools v0.6.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20230223222841-637eb2293923 // indirect
@@ -145,6 +155,6 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-replace github.com/dapr/components-contrib => ../../../../..
+replace github.com/dapr/components-contrib => ../../../..
 
-replace github.com/dapr/components-contrib/tests/certification => ../../..
+replace github.com/dapr/components-contrib/tests/certification => ../..

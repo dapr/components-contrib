@@ -86,7 +86,7 @@ const (
 	processModeSync  = "sync"
 )
 
-type EnableAsyncProcess bool
+type ProcessMode string
 
 type Pulsar struct {
 	logger   logger.Logger
@@ -335,6 +335,10 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 	}
 
 	for name, value := range req.Metadata {
+		if value == "" {
+			continue
+		}
+
 		switch name {
 		case partitionKey:
 			msg.Key = value
@@ -360,12 +364,10 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 }
 
 // default: shared
-func getSubscribeType(req pubsub.SubscribeRequest) pulsar.SubscriptionType {
-	metadata := req.Metadata
-
+func getSubscribeType(metadata map[string]string) pulsar.SubscriptionType {
 	var subsType pulsar.SubscriptionType
 
-	subsTypeStr, _ := metadata[subscribeTypeKey]
+	subsTypeStr := strings.ToLower(metadata[subscribeTypeKey])
 	switch subsTypeStr {
 	case subscribeTypeExclusive:
 		subsType = pulsar.Exclusive
@@ -382,25 +384,6 @@ func getSubscribeType(req pubsub.SubscribeRequest) pulsar.SubscriptionType {
 	return subsType
 }
 
-// true: async,default  false: sync
-func getProcessMode(req pubsub.SubscribeRequest) EnableAsyncProcess {
-	metadata := req.Metadata
-
-	var processMode EnableAsyncProcess
-
-	processModeStr, _ := metadata[processModeKey]
-	switch processModeStr {
-	case processModeSync:
-		processMode = EnableAsyncProcess(false)
-	case processModeAsync:
-		processMode = EnableAsyncProcess(true)
-	default:
-		processMode = EnableAsyncProcess(true)
-	}
-
-	return processMode
-}
-
 func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if p.closed.Load() {
 		return errors.New("component is closed")
@@ -413,7 +396,7 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	options := pulsar.ConsumerOptions{
 		Topic:               topic,
 		SubscriptionName:    p.metadata.ConsumerID,
-		Type:                getSubscribeType(req),
+		Type:                getSubscribeType(req.Metadata),
 		MessageChannel:      channel,
 		NackRedeliveryDelay: p.metadata.RedeliveryDelay,
 	}
@@ -454,7 +437,12 @@ func (p *Pulsar) listenMessage(ctx context.Context, req pubsub.SubscribeRequest,
 	for {
 		select {
 		case msg := <-consumer.Chan():
-			if getProcessMode(req) {
+			if strings.ToLower(req.Metadata[processModeKey]) == processModeSync {
+				err = p.handleMessage(ctx, originTopic, msg, handler)
+				if err != nil && !errors.Is(err, context.Canceled) {
+					p.logger.Errorf("Error sync processing message: %s/%#v [key=%s]: %v", msg.Topic(), msg.ID(), msg.Key(), err)
+				}
+			} else { // async process mode by default
 				// Go routine to handle multiple messages at once.
 				p.wg.Add(1)
 				go func(msg pulsar.ConsumerMessage) {
@@ -464,11 +452,6 @@ func (p *Pulsar) listenMessage(ctx context.Context, req pubsub.SubscribeRequest,
 						p.logger.Errorf("Error async processing message: %s/%#v [key=%s]: %v", msg.Topic(), msg.ID(), msg.Key(), err)
 					}
 				}(msg)
-			} else {
-				err = p.handleMessage(ctx, originTopic, msg, handler)
-				if err != nil && !errors.Is(err, context.Canceled) {
-					p.logger.Errorf("Error sync processing message: %s/%#v [key=%s]: %v", msg.Topic(), msg.ID(), msg.Key(), err)
-				}
 			}
 
 		case <-ctx.Done():

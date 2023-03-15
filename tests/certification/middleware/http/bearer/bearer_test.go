@@ -61,8 +61,8 @@ const (
 var (
 	//go:embed jwks.json
 	jwksData string
-	//go:embed private-key.pem
-	privateKeyPEM string
+	//go:embed private-key.json
+	privateKeyData string
 )
 
 func TestHTTPMiddlewareBearer(t *testing.T) {
@@ -85,7 +85,7 @@ func TestHTTPMiddlewareBearer(t *testing.T) {
 	}
 
 	// Load the private key
-	privateKey, err := jwk.ParseKey([]byte(privateKeyPEM), jwk.WithPEM(true))
+	privateKey, err := jwk.ParseKey([]byte(privateKeyData))
 	require.NoError(t, err)
 
 	requestsOpenIDConfiguration := atomic.Int32{}
@@ -180,48 +180,160 @@ func TestHTTPMiddlewareBearer(t *testing.T) {
 	}
 
 	// Run tests to check if rate-limiting is applied
-	runBearerTest := func(opts runTestOpts) flow.Runnable {
-		return func(ctx flow.Context) error {
-			// Generate a new JWT
-			now := time.Now()
-			token, err := jwt.NewBuilder().
-				Audience([]string{tokenAudience}).
-				Issuer(tokenIssuer).
-				IssuedAt(now).
-				Expiration(now.Add(30 * time.Second)).
-				Build()
-			require.NoError(ctx.T, err)
-			signedToken, err := jwt.Sign(token, jwt.WithKey(jwa.PS256, privateKey))
-			require.NoError(ctx.T, err)
+	bearerTests := func(ctx flow.Context) error {
+		now := time.Now()
 
-			var authHeader string
-			switch opts.AuthFailure {
-			case "empty":
-				// Include nothing in the authorization header
-				authHeader = ""
-			case "lowercase":
-				//  Include the generated token, but use "bearer" lowercase
-				authHeader = "bearer " + string(signedToken)
-			default:
-				// Inlcude the generated token
-				authHeader = "Bearer " + string(signedToken)
-			}
-
-			// Invoke both sidecars
-			resStatus, err := sendRequest(ctx.Context, httpPorts[0], &sendRequestOpts{
-				AuthorizationHeader: authHeader,
-			})
-			require.NoError(ctx.T, err)
-			assert.Equal(t, http.StatusUnauthorized, resStatus)
-
-			resStatus, err = sendRequest(ctx.Context, httpPorts[1], &sendRequestOpts{
-				AuthorizationHeader: authHeader,
-			})
-			require.NoError(ctx.T, err)
-			assert.Equal(t, http.StatusUnauthorized, resStatus)
-
-			return nil
+		tests := []struct {
+			name         string
+			tokenFn      func(builder *jwt.Builder)
+			authHeaderFn func(token string) string
+			statusCode   int
+		}{
+			{
+				name:       "valid auth header",
+				statusCode: http.StatusOK,
+			},
+			{
+				name:       "lowercase bearer in token",
+				statusCode: http.StatusOK,
+				authHeaderFn: func(token string) string {
+					return "bearer " + token
+				},
+			},
+			{
+				name:       "empty authorization header",
+				statusCode: http.StatusUnauthorized,
+				authHeaderFn: func(token string) string {
+					return ""
+				},
+			},
+			{
+				name:       "empty bearer token 1",
+				statusCode: http.StatusUnauthorized,
+				authHeaderFn: func(token string) string {
+					return "Bearer"
+				},
+			},
+			{
+				name:       "empty bearer token 2",
+				statusCode: http.StatusUnauthorized,
+				authHeaderFn: func(token string) string {
+					return "Bearer "
+				},
+			},
+			{
+				name:       "malformed JWT",
+				statusCode: http.StatusUnauthorized,
+				authHeaderFn: func(token string) string {
+					return "Bearer iMjZiOTUwMmYtMTMzN"
+				},
+			},
+			{
+				name:       "expired token",
+				statusCode: http.StatusUnauthorized,
+				tokenFn: func(builder *jwt.Builder) {
+					builder.IssuedAt(now.Add(-20 * time.Minute))
+					builder.Expiration(now.Add(-10 * time.Minute))
+				},
+			},
+			{
+				name:       "token but within allowed clock skew",
+				statusCode: http.StatusOK,
+				tokenFn: func(builder *jwt.Builder) {
+					builder.IssuedAt(now.Add(-20 * time.Minute))
+					builder.Expiration(now.Add(-1 * time.Minute))
+				},
+			},
+			{
+				name:       "token not yet valid",
+				statusCode: http.StatusUnauthorized,
+				tokenFn: func(builder *jwt.Builder) {
+					builder.NotBefore(now.Add(20 * time.Minute))
+					builder.IssuedAt(now.Add(20 * time.Minute))
+				},
+			},
+			{
+				name:       "token not yet valid but within allowed clock skew",
+				statusCode: http.StatusOK,
+				tokenFn: func(builder *jwt.Builder) {
+					builder.NotBefore(now.Add(1 * time.Minute))
+					builder.IssuedAt(now.Add(1 * time.Minute))
+				},
+			},
+			{
+				name:       "invalid token audience",
+				statusCode: http.StatusUnauthorized,
+				tokenFn: func(builder *jwt.Builder) {
+					builder.Audience([]string{"foo"})
+				},
+			},
+			{
+				name:       "empty token audience",
+				statusCode: http.StatusUnauthorized,
+				tokenFn: func(builder *jwt.Builder) {
+					builder.Audience([]string{})
+				},
+			},
+			{
+				name:       "invalid token issuer",
+				statusCode: http.StatusUnauthorized,
+				tokenFn: func(builder *jwt.Builder) {
+					builder.Issuer("foo")
+				},
+			},
+			{
+				name:       "empty token issuer",
+				statusCode: http.StatusUnauthorized,
+				tokenFn: func(builder *jwt.Builder) {
+					builder.Issuer("")
+				},
+			},
 		}
+
+		for _, tt := range tests {
+			ctx.T.Run(tt.name, func(t *testing.T) {
+				// Generate a new JWT
+				builder := jwt.NewBuilder().
+					Audience([]string{tokenAudience}).
+					Issuer(tokenIssuer).
+					IssuedAt(now).
+					Expiration(now.Add(2 * time.Minute))
+
+				// If we have a TokenFn, invoke that
+				if tt.tokenFn != nil {
+					tt.tokenFn(builder)
+				}
+
+				// Build the token
+				token, err := builder.Build()
+				require.NoError(ctx.T, err)
+				signedToken, err := jwt.Sign(token, jwt.WithKey(jwa.PS256, privateKey))
+				require.NoError(ctx.T, err)
+
+				// Set the auth header
+				var authHeader string
+				if tt.authHeaderFn != nil {
+					authHeader = tt.authHeaderFn(string(signedToken))
+				} else {
+					authHeader = "Bearer " + string(signedToken)
+				}
+
+				// Invoke both sidecars
+				resStatus, err := sendRequest(ctx.Context, httpPorts[0], &sendRequestOpts{
+					AuthorizationHeader: authHeader,
+				})
+				require.NoError(t, err)
+				assert.Equal(t, tt.statusCode, resStatus)
+
+				resStatus, err = sendRequest(ctx.Context, httpPorts[1], &sendRequestOpts{
+					AuthorizationHeader: authHeader,
+				})
+				require.NoError(t, err)
+				assert.Equal(t, tt.statusCode, resStatus)
+			})
+		}
+
+		return nil
 	}
 
 	// Application setup code
@@ -259,9 +371,7 @@ func TestHTTPMiddlewareBearer(t *testing.T) {
 			componentRuntimeOptions(),
 		)).
 		// Tests
-		Step("authorization header is empty", runBearerTest(runTestOpts{
-			AuthFailure: "empty",
-		})).
+		Step("run tests", bearerTests).
 		// Run
 		Run()
 }

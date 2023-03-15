@@ -87,7 +87,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		metadata, err := getMongoDBMetaData(m)
 		assert.Nil(t, err)
 
-		uri := getMongoURI(metadata)
+		uri := getMongoConnectionString(metadata)
 		expected := "mongodb://username:password@127.0.0.2/TestDB"
 
 		assert.Equal(t, expected, uri)
@@ -106,7 +106,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		metadata, err := getMongoDBMetaData(m)
 		assert.Nil(t, err)
 
-		uri := getMongoURI(metadata)
+		uri := getMongoConnectionString(metadata)
 		expected := "mongodb://localhost:27017/TestDB"
 
 		assert.Equal(t, expected, uri)
@@ -128,7 +128,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		metadata, err := getMongoDBMetaData(m)
 		assert.Nil(t, err)
 
-		uri := getMongoURI(metadata)
+		uri := getMongoConnectionString(metadata)
 		expected := "mongodb://username:password@127.0.0.2/TestDB?ssl=true"
 
 		assert.Equal(t, expected, uri)
@@ -148,7 +148,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		metadata, err := getMongoDBMetaData(m)
 		assert.Nil(t, err)
 
-		uri := getMongoURI(metadata)
+		uri := getMongoConnectionString(metadata)
 		expected := "mongodb+srv://server.example.com/?ssl=true"
 
 		assert.Equal(t, expected, uri)
@@ -186,5 +186,25 @@ func TestGetMongoDBMetadata(t *testing.T) {
 
 		expected := "'host' or 'server' fields are mutually exclusive"
 		assert.Equal(t, expected, err.Error())
+	})
+
+	t.Run("Connectionstring ignores all other connection details", func(t *testing.T) {
+		properties := map[string]string{
+			host:               "localhost:27017",
+			databaseName:       "TestDB",
+			collectionName:     "TestCollection",
+			"connectionString": "mongodb://localhost:99999/UnchanedDB",
+		}
+		m := state.Metadata{
+			Base: metadata.Base{Properties: properties},
+		}
+
+		metadata, err := getMongoDBMetaData(m)
+		assert.Nil(t, err)
+
+		uri := getMongoConnectionString(metadata)
+		expected := "mongodb://localhost:99999/UnchanedDB"
+
+		assert.Equal(t, expected, uri)
 	})
 }

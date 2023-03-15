@@ -91,6 +91,7 @@ type mongoDBMetadata struct {
 	Writeconcern     string
 	Readconcern      string
 	Params           string
+	ConnectionString string
 	OperationTimeout time.Duration
 }
 
@@ -344,7 +345,11 @@ func (m *MongoDB) Query(ctx context.Context, req *state.QueryRequest) (*state.Qu
 	}, nil
 }
 
-func getMongoURI(metadata *mongoDBMetadata) string {
+func getMongoConnectionString(metadata *mongoDBMetadata) string {
+	if metadata.ConnectionString != "" {
+		return metadata.ConnectionString
+	}
+
 	if len(metadata.Server) != 0 {
 		if metadata.Username != "" && metadata.Password != "" {
 			return fmt.Sprintf(connectionURIFormatWithSrvAndCredentials, metadata.Username, metadata.Password, metadata.Server, metadata.DatabaseName, metadata.Params)
@@ -361,7 +366,7 @@ func getMongoURI(metadata *mongoDBMetadata) string {
 }
 
 func getMongoDBClient(metadata *mongoDBMetadata) (*mongo.Client, error) {
-	uri := getMongoURI(metadata)
+	uri := getMongoConnectionString(metadata)
 
 	// Set client options
 	clientOptions := options.Client().ApplyURI(uri)
@@ -397,12 +402,14 @@ func getMongoDBMetaData(meta state.Metadata) (*mongoDBMetadata, error) {
 		return nil, decodeErr
 	}
 
-	if len(m.Host) == 0 && len(m.Server) == 0 {
-		return nil, errors.New("must set 'host' or 'server' fields in metadata")
-	}
+	if m.ConnectionString == "" {
+		if len(m.Host) == 0 && len(m.Server) == 0 {
+			return nil, errors.New("must set 'host' or 'server' fields in metadata")
+		}
 
-	if len(m.Host) != 0 && len(m.Server) != 0 {
-		return nil, errors.New("'host' or 'server' fields are mutually exclusive")
+		if len(m.Host) != 0 && len(m.Server) != 0 {
+			return nil, errors.New("'host' or 'server' fields are mutually exclusive")
+		}
 	}
 
 	var err error

@@ -2,10 +2,11 @@ package mongodb_test
 
 import (
 	"fmt"
-	"github.com/dapr/components-contrib/tests/certification/flow/network"
-	"github.com/dapr/go-sdk/client"
 	"testing"
 	"time"
+
+	"github.com/dapr/components-contrib/tests/certification/flow/network"
+	"github.com/dapr/go-sdk/client"
 
 	"github.com/dapr/components-contrib/state"
 	stateMongoDB "github.com/dapr/components-contrib/state/mongodb"
@@ -135,7 +136,7 @@ func TestMongoDB(t *testing.T) {
 		Step("Get Values Saved Earlier And Not Expired, after MongoDB restart", testGetAfterMongoDBRestart).
 		Run()
 
-	flow.New(t, "Connecting MongoDB And Verifying majority of the tests here for a single node with valid read, "+
+	flow.New(t, "Connecting MongoDB using connectionString And Verifying majority of the tests here for a single node with valid read, "+
 		"write concerns and operation timeout").
 		Step(dockercompose.Run("mongodb", dockerComposeSingleYAML)).
 		Step("Waiting for component to start...", flow.Sleep(10*time.Second)).

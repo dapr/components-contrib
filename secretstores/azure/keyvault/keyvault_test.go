@@ -15,6 +15,7 @@ limitations under the License.
 package keyvault
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,7 +34,7 @@ func TestInit(t *testing.T) {
 			"azureClientId":     "00000000-0000-0000-0000-000000000000",
 			"azureClientSecret": "passw0rd",
 		}
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.Nil(t, err)
 		kv, ok := s.(*keyvaultSecretStore)
 		assert.True(t, ok)
@@ -49,7 +50,7 @@ func TestInit(t *testing.T) {
 			"azureClientSecret": "passw0rd",
 			"azureEnvironment":  "AZURECHINACLOUD",
 		}
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.Nil(t, err)
 		kv, ok := s.(*keyvaultSecretStore)
 		assert.True(t, ok)
@@ -64,7 +65,7 @@ func TestInit(t *testing.T) {
 			"azureClientId":     "00000000-0000-0000-0000-000000000000",
 			"azureClientSecret": "passw0rd",
 		}
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.Nil(t, err)
 		kv, ok := s.(*keyvaultSecretStore)
 		assert.True(t, ok)
@@ -79,7 +80,7 @@ func TestInit(t *testing.T) {
 			"azureClientId":     "00000000-0000-0000-0000-000000000000",
 			"azureClientSecret": "passw0rd",
 		}
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.Nil(t, err)
 		kv, ok := s.(*keyvaultSecretStore)
 		assert.True(t, ok)

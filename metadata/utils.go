@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/mitchellh/mapstructure"
-	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/kit/ptr"
@@ -53,7 +52,7 @@ func TryGetTTL(props map[string]string) (time.Duration, bool, error) {
 	if val, ok := props[TTLMetadataKey]; ok && val != "" {
 		valInt64, err := strconv.ParseInt(val, 10, 64)
 		if err != nil {
-			return 0, false, errors.Wrapf(err, "%s value must be a valid integer: actual is '%s'", TTLMetadataKey, val)
+			return 0, false, fmt.Errorf("%s value must be a valid integer: actual is '%s'", TTLMetadataKey, val)
 		}
 
 		if valInt64 <= 0 {
@@ -77,7 +76,7 @@ func TryGetPriority(props map[string]string) (uint8, bool, error) {
 	if val, ok := props[PriorityMetadataKey]; ok && val != "" {
 		intVal, err := strconv.Atoi(val)
 		if err != nil {
-			return 0, false, errors.Wrapf(err, "%s value must be a valid integer: actual is '%s'", PriorityMetadataKey, val)
+			return 0, false, fmt.Errorf("%s value must be a valid integer: actual is '%s'", PriorityMetadataKey, val)
 		}
 
 		priority := uint8(intVal)
@@ -98,7 +97,7 @@ func IsRawPayload(props map[string]string) (bool, error) {
 	if val, ok := props[RawPayloadKey]; ok && val != "" {
 		boolVal, err := strconv.ParseBool(val)
 		if err != nil {
-			return false, errors.Wrapf(err, "%s value must be a valid boolean: actual is '%s'", RawPayloadKey, val)
+			return false, fmt.Errorf("%s value must be a valid boolean: actual is '%s'", RawPayloadKey, val)
 		}
 
 		return boolVal, nil

@@ -86,7 +86,7 @@ const components = {
         conformance: true,
         certification: true,
     },
-    'bindings.alicloud.dubbo': {
+    'bindings.dubbo': {
         certification: true,
     },
     'bindings.http': {
@@ -155,6 +155,12 @@ const components = {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redis7 redis',
     },
+    'configuration.redis': {
+        certification: true,
+    },
+    'middleware.http.ratelimit': {
+        certification: true,
+    },
     'pubsub.aws.snssqs': {
         certification: true,
         requireAWSCredentials: true,
@@ -207,10 +213,6 @@ const components = {
             'AzureCertificationServicePrincipalClientId',
             'AzureCertificationServicePrincipalClientSecret',
         ],
-    },
-    'pubsub.hazelcast': {
-        conformance: true,
-        conformanceSetup: 'docker-compose.sh hazelcast',
     },
     'pubsub.in-memory': {
         conformance: true,
@@ -454,6 +456,10 @@ const components = {
     'state.rethinkdb': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh rethinkdb',
+    },
+    'state.sqlite': {
+        conformance: true,
+        certification: true,
     },
     'state.sqlserver': {
         conformance: true,

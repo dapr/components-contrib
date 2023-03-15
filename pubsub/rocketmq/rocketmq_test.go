@@ -47,7 +47,7 @@ func TestParseRocketMQMetadata(t *testing.T) {
 func TestRocketMQ_Init(t *testing.T) {
 	meta := getTestMetadata()
 	r := NewRocketMQ(logger.NewLogger("test"))
-	err := r.Init(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
+	err := r.Init(context.Background(), pubsub.Metadata{Base: mdata.Base{Properties: meta}})
 	assert.Nil(t, err)
 }
 
@@ -107,6 +107,9 @@ func TestRocketMQ_Publish_Currently(t *testing.T) {
 	}
 	e = r.Publish(context.Background(), req)
 	assert.Nil(t, e)
+
+	time.Sleep(time.Second)
+	assert.NoError(t, r.Close())
 }
 
 func TestRocketMQ_Publish_Orderly(t *testing.T) {
@@ -157,6 +160,8 @@ func TestRocketMQ_Publish_Orderly(t *testing.T) {
 	}
 	e = r.Publish(context.Background(), req)
 	assert.Nil(t, e)
+	time.Sleep(2 * time.Second)
+	assert.NoError(t, r.Close())
 }
 
 func TestRocketMQ_Subscribe_Currently(t *testing.T) {
@@ -176,7 +181,8 @@ func TestRocketMQ_Subscribe_Currently(t *testing.T) {
 		return
 	}
 	assert.Nil(t, e)
-	time.Sleep(20 * time.Second)
+	time.Sleep(2 * time.Second)
+	assert.NoError(t, r.Close())
 }
 
 func TestRocketMQ_Subscribe_Orderly(t *testing.T) {
@@ -210,13 +216,14 @@ func TestRocketMQ_Subscribe_Orderly(t *testing.T) {
 	}
 	e = r.Subscribe(context.Background(), req, handler)
 	assert.Nil(t, e)
-	time.Sleep(20 * time.Second)
+	time.Sleep(2 * time.Second)
+	assert.NoError(t, r.Close())
 }
 
 func BuildRocketMQ() (logger.Logger, pubsub.PubSub, error) {
 	meta := getTestMetadata()
 	l := logger.NewLogger("test")
 	r := NewRocketMQ(l)
-	err := r.Init(pubsub.Metadata{Base: mdata.Base{Properties: meta}})
+	err := r.Init(context.Background(), pubsub.Metadata{Base: mdata.Base{Properties: meta}})
 	return l, r, err
 }

@@ -143,7 +143,7 @@ func parseRedisMetadata(meta configuration.Metadata) (metadata, error) {
 }
 
 // Init does metadata and connection parsing.
-func (r *ConfigurationStore) Init(metadata configuration.Metadata) error {
+func (r *ConfigurationStore) Init(ctx context.Context, metadata configuration.Metadata) error {
 	m, err := parseRedisMetadata(metadata)
 	if err != nil {
 		return err
@@ -156,11 +156,11 @@ func (r *ConfigurationStore) Init(metadata configuration.Metadata) error {
 		r.client = r.newClient(m)
 	}
 
-	if _, err = r.client.Ping(context.TODO()).Result(); err != nil {
+	if _, err = r.client.Ping(ctx).Result(); err != nil {
 		return fmt.Errorf("redis store: error connecting to redis at %s: %s", m.Host, err)
 	}
 
-	r.replicas, err = r.getConnectedSlaves()
+	r.replicas, err = r.getConnectedSlaves(ctx)
 
 	return err
 }
@@ -204,8 +204,8 @@ func (r *ConfigurationStore) newFailoverClient(m metadata) *redis.Client {
 	return redis.NewFailoverClient(opts)
 }
 
-func (r *ConfigurationStore) getConnectedSlaves() (int, error) {
-	res, err := r.client.Do(context.Background(), "INFO", "replication").Result()
+func (r *ConfigurationStore) getConnectedSlaves(ctx context.Context) (int, error) {
+	res, err := r.client.Do(ctx, "INFO", "replication").Result()
 	if err != nil {
 		return 0, err
 	}
@@ -313,7 +313,8 @@ func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration
 
 func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, redisChannel4revision string, id string, stop chan struct{}) {
 	// enable notify-keyspace-events by redis Set command
-	r.client.ConfigSet(ctx, "notify-keyspace-events", "KA")
+	// only subscribe to generic and string keyspace events
+	r.client.ConfigSet(ctx, "notify-keyspace-events", "Kg$xe")
 	var p *redis.PubSub
 	allKeysChannel := internal.GetRedisChannelFromKey("*", r.metadata.DB)
 	if redisChannel4revision == allKeysChannel {
@@ -355,7 +356,7 @@ func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *co
 	items = getResponse.Items
 	if len(items) == 0 {
 		items = map[string]*configuration.Item{
-			targetKey: nil,
+			targetKey: {},
 		}
 	}
 

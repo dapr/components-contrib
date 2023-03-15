@@ -2,7 +2,6 @@ package kubemq
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,8 +19,6 @@ func getMockEventsClient() *kubeMQEvents {
 		publishFunc:          nil,
 		resultChan:           nil,
 		waitForResultTimeout: 0,
-		ctx:                  nil,
-		ctxCancel:            nil,
 		isInitialized:        true,
 	}
 }
@@ -34,8 +31,6 @@ func getMockEventsStoreClient() *kubeMQEventStore {
 		publishFunc:          nil,
 		resultChan:           nil,
 		waitForResultTimeout: 0,
-		ctx:                  nil,
-		ctxCancel:            nil,
 		isInitialized:        true,
 	}
 }
@@ -103,7 +98,7 @@ func Test_kubeMQ_Init(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			k := NewKubeMQ(logger.NewLogger("test"))
-			err := k.Init(tt.meta)
+			err := k.Init(context.Background(), tt.meta)
 			assert.Equal(t, tt.wantErr, err != nil)
 		})
 	}
@@ -113,8 +108,6 @@ func Test_kubeMQ_Close(t *testing.T) {
 	type fields struct {
 		metadata         *metadata
 		logger           logger.Logger
-		ctx              context.Context
-		ctxCancel        context.CancelFunc
 		eventsClient     *kubeMQEvents
 		eventStoreClient *kubeMQEventStore
 	}
@@ -151,12 +144,10 @@ func Test_kubeMQ_Close(t *testing.T) {
 			k := &kubeMQ{
 				metadata:         tt.fields.metadata,
 				logger:           tt.fields.logger,
-				ctx:              tt.fields.ctx,
-				ctxCancel:        tt.fields.ctxCancel,
 				eventsClient:     tt.fields.eventsClient,
 				eventStoreClient: tt.fields.eventStoreClient,
 			}
-			tt.wantErr(t, k.Close(), fmt.Sprintf("Close()"))
+			tt.wantErr(t, k.Close(), "Close()")
 		})
 	}
 }

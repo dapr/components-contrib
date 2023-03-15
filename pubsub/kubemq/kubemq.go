@@ -14,8 +14,6 @@ import (
 type kubeMQ struct {
 	metadata         *metadata
 	logger           logger.Logger
-	ctx              context.Context
-	ctxCancel        context.CancelFunc
 	eventsClient     *kubeMQEvents
 	eventStoreClient *kubeMQEventStore
 }
@@ -26,14 +24,13 @@ func NewKubeMQ(logger logger.Logger) pubsub.PubSub {
 	}
 }
 
-func (k *kubeMQ) Init(metadata pubsub.Metadata) error {
+func (k *kubeMQ) Init(_ context.Context, metadata pubsub.Metadata) error {
 	meta, err := createMetadata(metadata)
 	if err != nil {
 		k.logger.Errorf("error init kubemq client error: %s", err.Error())
 		return err
 	}
 	k.metadata = meta
-	k.ctx, k.ctxCancel = context.WithCancel(context.Background())
 	if meta.isStore {
 		k.eventStoreClient = newKubeMQEventsStore(k.logger)
 		_ = k.eventStoreClient.Init(meta)

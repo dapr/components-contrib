@@ -119,11 +119,19 @@ linters-settings:
     list-type: denylist
     include-go-root: false
     packages-with-error-message:
+      - "go.uber.org/atomic": "must use sync/atomic"
+      - "golang.org/x/net/context": "must use context"
+      - "github.com/pkg/errors": "must use standard library (errors package and/or fmt.Errorf)"
       - "github.com/Sirupsen/logrus": "must use github.com/dapr/kit/logger"
       - "github.com/agrea/ptr": "must use github.com/dapr/kit/ptr"
-      - "github.com/cenkalti/backoff": "must use github.com/cenkalti/backoff/v4"
+      - "github.com/cenkalti/backoff$": "must use github.com/cenkalti/backoff/v4"
       - "github.com/cenkalti/backoff/v2": "must use github.com/cenkalti/backoff/v4"
       - "github.com/cenkalti/backoff/v3": "must use github.com/cenkalti/backoff/v4"
+      - "github.com/dgrijalva/jwt-go": "must use github.com/lestrrat-go/jwx/v2"
+      - "github.com/golang-jwt/jwt$": "must use github.com/lestrrat-go/jwx/v2"
+      - "github.com/golang-jwt/jwt/v4": "must use github.com/lestrrat-go/jwx/v2"
+      - "github.com/lestrrat-go/jwx/jwa": "must use github.com/lestrrat-go/jwx/v2"
+      - "github.com/lestrrat-go/jwx/jwt": "must use github.com/lestrrat-go/jwx/v2"
   misspell:
     # Correct spellings using locale preferences for US or UK.
     # Default is to use a neutral variety of English.
@@ -226,6 +234,7 @@ linters:
   disable:
     # TODO Enforce the below linters later
     - dupl
+    - musttag
     - errcheck
     - funlen
     - gochecknoglobals

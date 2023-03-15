@@ -32,7 +32,7 @@ func TestReadAndWrite(t *testing.T) {
 	defer ctl.Finish()
 
 	store := NewInMemoryStateStore(logger.NewLogger("test"))
-	store.Init(state.Metadata{})
+	store.Init(context.Background(), state.Metadata{})
 
 	keyA := "theFirstKey"
 	valueA := "value of key"

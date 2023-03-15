@@ -53,7 +53,7 @@ func NewAWSSNS(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init does metadata parsing.
-func (a *AWSSNS) Init(metadata bindings.Metadata) error {
+func (a *AWSSNS) Init(_ context.Context, metadata bindings.Metadata) error {
 	m, err := a.parseMetadata(metadata)
 	if err != nil {
 		return err

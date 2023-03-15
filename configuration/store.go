@@ -18,7 +18,7 @@ import "context"
 // Store is an interface to perform operations on store.
 type Store interface {
 	// Init configuration store.
-	Init(metadata Metadata) error
+	Init(ctx context.Context, metadata Metadata) error
 
 	// Get configuration.
 	Get(ctx context.Context, req *GetRequest) (*GetResponse, error)

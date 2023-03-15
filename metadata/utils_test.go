@@ -97,23 +97,33 @@ func TestTryGetContentType(t *testing.T) {
 func TestMetadataDecode(t *testing.T) {
 	t.Run("Test metadata decoding", func(t *testing.T) {
 		type testMetadata struct {
-			Mystring          string        `json:"mystring"`
-			Myduration        Duration      `json:"myduration"`
-			Myinteger         int           `json:"myinteger,string"`
-			Myfloat64         float64       `json:"myfloat64,string"`
-			Mybool            *bool         `json:"mybool,omitempty"`
-			MyRegularDuration time.Duration `json:"myregularduration"`
+			Mystring               string        `json:"mystring"`
+			Myduration             Duration      `json:"myduration"`
+			Myinteger              int           `json:"myinteger,string"`
+			Myfloat64              float64       `json:"myfloat64,string"`
+			Mybool                 *bool         `json:"mybool,omitempty"`
+			MyRegularDuration      time.Duration `json:"myregularduration"`
+			MyRegularDurationEmpty time.Duration `json:"myregulardurationempty"`
+
+			MyRegularDurationDefaultValueUnset time.Duration `json:"myregulardurationdefaultvalueunset"`
+			MyRegularDurationDefaultValueEmpty time.Duration `json:"myregulardurationdefaultvalueempty"`
 		}
 
 		var m testMetadata
+		m.MyRegularDurationDefaultValueUnset = time.Hour
+		m.MyRegularDurationDefaultValueEmpty = time.Hour
 
-		testData := make(map[string]string)
-		testData["mystring"] = "test"
-		testData["myduration"] = "3s"
-		testData["myinteger"] = "1"
-		testData["myfloat64"] = "1.1"
-		testData["mybool"] = "true"
-		testData["myregularduration"] = "6m"
+		testData := map[string]string{
+			"mystring":               "test",
+			"myduration":             "3s",
+			"myinteger":              "1",
+			"myfloat64":              "1.1",
+			"mybool":                 "true",
+			"myregularduration":      "6m",
+			"myregulardurationempty": "",
+			// Not setting myregulardurationdefaultvalueunset on purpose
+			"myregulardurationdefaultvalueempty": "",
+		}
 
 		err := DecodeMetadata(testData, &m)
 
@@ -122,8 +132,11 @@ func TestMetadataDecode(t *testing.T) {
 		assert.Equal(t, "test", m.Mystring)
 		assert.Equal(t, 1, m.Myinteger)
 		assert.Equal(t, 1.1, m.Myfloat64)
-		assert.Equal(t, 6*time.Minute, m.MyRegularDuration)
 		assert.Equal(t, Duration{Duration: 3 * time.Second}, m.Myduration)
+		assert.Equal(t, 6*time.Minute, m.MyRegularDuration)
+		assert.Equal(t, time.Duration(0), m.MyRegularDurationEmpty)
+		assert.Equal(t, time.Hour, m.MyRegularDurationDefaultValueUnset)
+		assert.Equal(t, time.Duration(0), m.MyRegularDurationDefaultValueEmpty)
 	})
 
 	t.Run("Test metadata decode hook for truthy values", func(t *testing.T) {

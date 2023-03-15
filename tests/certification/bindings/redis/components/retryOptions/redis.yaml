@@ -9,7 +9,7 @@ spec:
   ignoreErrors: true
   metadata:
     - name: redisHost
-      value: "localhost:6379"
+      value: "localhost:6399"
     - name: redisPassword
       value: ""
     - name: dialTimeout

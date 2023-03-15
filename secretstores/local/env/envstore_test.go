@@ -20,41 +20,69 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 )
 
-func TestInit(t *testing.T) {
+func TestEnvStore(t *testing.T) {
 	secret := "secret1"
 	key := "TEST_SECRET"
 
 	s := envSecretStore{logger: logger.NewLogger("test")}
 
-	os.Setenv(key, secret)
-	assert.Equal(t, secret, os.Getenv(key))
+	t.Setenv(key, secret)
+	require.Equal(t, secret, os.Getenv(key))
 
-	t.Run("Test init", func(t *testing.T) {
-		err := s.Init(secretstores.Metadata{})
-		assert.Nil(t, err)
+	t.Run("Init", func(t *testing.T) {
+		err := s.Init(context.Background(), secretstores.Metadata{})
+		require.NoError(t, err)
 	})
 
-	t.Run("Test set and get", func(t *testing.T) {
-		err := s.Init(secretstores.Metadata{})
-		assert.Nil(t, err)
+	t.Run("Get", func(t *testing.T) {
+		err := s.Init(context.Background(), secretstores.Metadata{})
+		require.NoError(t, err)
 		resp, err := s.GetSecret(context.Background(), secretstores.GetSecretRequest{Name: key})
-		assert.Nil(t, err)
-		assert.NotNil(t, resp)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
 		assert.Equal(t, secret, resp.Data[key])
 	})
 
-	t.Run("Test bulk get", func(t *testing.T) {
-		err := s.Init(secretstores.Metadata{})
-		assert.Nil(t, err)
+	t.Run("Bulk get", func(t *testing.T) {
+		err := s.Init(context.Background(), secretstores.Metadata{})
+		require.NoError(t, err)
 		resp, err := s.BulkGetSecret(context.Background(), secretstores.BulkGetSecretRequest{})
-		assert.Nil(t, err)
-		assert.NotNil(t, resp)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
 		assert.Equal(t, secret, resp.Data[key][key])
+	})
+
+	t.Run("Disallowed keys", func(t *testing.T) {
+		t.Setenv("APP_API_TOKEN", "ciao")
+		t.Setenv("DAPR_API_TOKEN", "mondo")
+		t.Setenv("FOO", "bar")
+
+		err := s.Init(context.Background(), secretstores.Metadata{})
+		require.NoError(t, err)
+
+		t.Run("Get", func(t *testing.T) {
+			resp, err := s.GetSecret(context.Background(), secretstores.GetSecretRequest{
+				Name: "APP_API_TOKEN",
+			})
+			require.NoError(t, err)
+			require.NotNil(t, resp.Data)
+			assert.Empty(t, resp.Data["APP_API_TOKEN"])
+		})
+
+		t.Run("Bulk get", func(t *testing.T) {
+			resp, err := s.BulkGetSecret(context.Background(), secretstores.BulkGetSecretRequest{})
+			require.NoError(t, err)
+			require.NotNil(t, resp.Data)
+			assert.Empty(t, resp.Data["APP_API_TOKEN"])
+			assert.Empty(t, resp.Data["DAPR_API_TOKEN"])
+			assert.Equal(t, "bar", resp.Data["FOO"]["FOO"])
+		})
 	})
 }
 

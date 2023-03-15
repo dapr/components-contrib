@@ -32,9 +32,7 @@ const (
 	secretValue = "oos-secret-value"
 )
 
-type mockedParameterStore struct {
-	parameterStoreClient
-}
+type mockedParameterStore struct{}
 
 func (m *mockedParameterStore) GetSecretParameterWithOptions(request *oos.GetSecretParameterRequest, runtime *util.RuntimeOptions) (*oos.GetSecretParameterResponse, error) {
 	return &oos.GetSecretParameterResponse{
@@ -60,9 +58,7 @@ func (m *mockedParameterStore) GetSecretParametersByPathWithOptions(request *oos
 	}, nil
 }
 
-type mockedParameterStoreReturnError struct {
-	parameterStoreClient
-}
+type mockedParameterStoreReturnError struct{}
 
 func (m *mockedParameterStoreReturnError) GetSecretParameterWithOptions(request *oos.GetSecretParameterRequest, runtime *util.RuntimeOptions) (*oos.GetSecretParameterResponse, error) {
 	return nil, fmt.Errorf("mocked error")
@@ -81,7 +77,7 @@ func TestInit(t *testing.T) {
 			"accessKeyId":     "a",
 			"accessKeySecret": "a",
 		}
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.Nil(t, err)
 	})
 
@@ -90,7 +86,7 @@ func TestInit(t *testing.T) {
 			"accessKeyId":     "a",
 			"accessKeySecret": "a",
 		}
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.NotNil(t, err)
 	})
 }
@@ -208,7 +204,7 @@ func TestBulkGetSecret(t *testing.T) {
 func TestGetFeatures(t *testing.T) {
 	m := secretstores.Metadata{}
 	s := NewParameterStore(logger.NewLogger("test"))
-	s.Init(m)
+	s.Init(context.Background(), m)
 	t.Run("no features are advertised", func(t *testing.T) {
 		f := s.Features()
 		assert.Empty(t, f)

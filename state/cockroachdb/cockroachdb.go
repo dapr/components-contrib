@@ -1,5 +1,5 @@
 /*
-Copyright 2022 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -15,105 +15,107 @@ package cockroachdb
 
 import (
 	"context"
-	"reflect"
+	"fmt"
 
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/internal/component/postgresql"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
 
-// CockroachDB state store.
-type CockroachDB struct {
-	features []state.Feature
-	logger   logger.Logger
-	dbaccess dbAccess
-}
-
 // New creates a new instance of CockroachDB state store.
 func New(logger logger.Logger) state.Store {
-	dba := newCockroachDBAccess(logger)
+	return postgresql.NewPostgreSQLStateStore(logger, postgresql.Options{
+		ETagColumn: "etag",
+		MigrateFn:  ensureTables,
+		SetQueryFn: func(req *state.SetRequest, opts postgresql.SetQueryOptions) string {
+			// String concat is required for table name because sql.DB does not
+			// substitute parameters for table names.
+			// Other parameters use sql.DB parameter substitution.
+			if req.ETag == nil || *req.ETag == "" {
+				return `
+INSERT INTO ` + opts.TableName + `
+  (key, value, isbinary, etag, expiredate)
+VALUES
+  ($1, $2, $3, 1, ` + opts.ExpireDateValue + `)
+ON CONFLICT (key) DO UPDATE SET
+  value = $2,
+  isbinary = $3,
+  updatedate = NOW(),
+  etag = EXCLUDED.etag + 1,
+  expiredate = ` + opts.ExpireDateValue + `;`
+			}
 
-	return internalNew(logger, dba)
+			// When an etag is provided do an update - no insert.
+			return `
+UPDATE ` + opts.TableName + `
+SET
+  value = $2,
+  isbinary = $3,
+  updatedate = NOW(),
+  etag = etag + 1,
+  expiredate = ` + opts.ExpireDateValue + `
+WHERE
+  key = $1 AND etag = $4;`
+		},
+	})
 }
 
-// internalNew creates a new instance of a CockroachDB state store.
-// This unexported constructor allows injecting a dbAccess instance for unit testing.
-func internalNew(logger logger.Logger, dba dbAccess) *CockroachDB {
-	return &CockroachDB{
-		features: []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI},
-		logger:   logger,
-		dbaccess: dba,
+func ensureTables(ctx context.Context, db postgresql.PGXPoolConn, opts postgresql.MigrateOptions) error {
+	exists, err := tableExists(ctx, db, opts.StateTableName)
+	if err != nil {
+		return err
 	}
-}
 
-// Init initializes the CockroachDB state store.
-func (c *CockroachDB) Init(metadata state.Metadata) error {
-	return c.dbaccess.Init(metadata)
-}
+	if !exists {
+		opts.Logger.Info("Creating CockroachDB state table")
+		_, err = db.Exec(ctx, fmt.Sprintf(`CREATE TABLE %s (
+  key text NOT NULL PRIMARY KEY,
+  value jsonb NOT NULL,
+  isbinary boolean NOT NULL,
+  etag INT,
+  insertdate TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  updatedate TIMESTAMP WITH TIME ZONE NULL,
+  expiredate TIMESTAMP WITH TIME ZONE NULL,
+	INDEX expiredate_idx (expiredate)
+);`, opts.StateTableName))
+		if err != nil {
+			return err
+		}
+	}
 
-// Features returns the features available in this state store.
-func (c *CockroachDB) Features() []state.Feature {
-	return c.features
-}
+	// If table was created before v1.11.
+	_, err = db.Exec(ctx, fmt.Sprintf(
+		`ALTER TABLE %s ADD COLUMN IF NOT EXISTS expiredate TIMESTAMP WITH TIME ZONE NULL;`, opts.StateTableName))
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(ctx, fmt.Sprintf(
+		`CREATE INDEX IF NOT EXISTS expiredate_idx ON %s (expiredate);`, opts.StateTableName))
+	if err != nil {
+		return err
+	}
 
-// Delete removes an entity from the store.
-func (c *CockroachDB) Delete(ctx context.Context, req *state.DeleteRequest) error {
-	return c.dbaccess.Delete(ctx, req)
-}
+	exists, err = tableExists(ctx, db, opts.MetadataTableName)
+	if err != nil {
+		return err
+	}
 
-// Get returns an entity from store.
-func (c *CockroachDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
-	return c.dbaccess.Get(ctx, req)
-}
-
-// Set adds/updates an entity on store.
-func (c *CockroachDB) Set(ctx context.Context, req *state.SetRequest) error {
-	return c.dbaccess.Set(ctx, req)
-}
-
-// Ping checks if database is available.
-func (c *CockroachDB) Ping() error {
-	return c.dbaccess.Ping()
-}
-
-// BulkDelete removes multiple entries from the store.
-func (c *CockroachDB) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	return c.dbaccess.BulkDelete(ctx, req)
-}
-
-// BulkGet performs a bulks get operations.
-func (c *CockroachDB) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
-	// TODO: replace with ExecuteMulti for performance.
-	return false, nil, nil
-}
-
-// BulkSet adds/updates multiple entities on store.
-func (c *CockroachDB) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	return c.dbaccess.BulkSet(ctx, req)
-}
-
-// Multi handles multiple transactions. Implements TransactionalStore.
-func (c *CockroachDB) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
-	return c.dbaccess.ExecuteMulti(ctx, request)
-}
-
-// Query executes a query against store.
-func (c *CockroachDB) Query(ctx context.Context, req *state.QueryRequest) (*state.QueryResponse, error) {
-	return c.dbaccess.Query(ctx, req)
-}
-
-// Close implements io.Closer.
-func (c *CockroachDB) Close() error {
-	if c.dbaccess != nil {
-		return c.dbaccess.Close()
+	if !exists {
+		opts.Logger.Info("Creating CockroachDB metadata table")
+		_, err = db.Exec(ctx, fmt.Sprintf(`CREATE TABLE %s (
+			key text NOT NULL PRIMARY KEY,
+			value text NOT NULL
+);`, opts.MetadataTableName))
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func (c *CockroachDB) GetComponentMetadata() map[string]string {
-	metadataStruct := cockroachDBMetadata{}
-	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
-	return metadataInfo
+func tableExists(ctx context.Context, db postgresql.PGXPoolConn, tableName string) (bool, error) {
+	exists := false
+	err := db.QueryRow(ctx, "SELECT EXISTS (SELECT * FROM pg_tables where tablename = $1)", tableName).Scan(&exists)
+	return exists, err
 }

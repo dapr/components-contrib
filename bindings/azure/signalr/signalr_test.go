@@ -16,7 +16,6 @@ package signalr
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -188,7 +187,7 @@ func TestConfigurationValid(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewSignalR(logger.NewLogger("test")).(*SignalR)
 			err := s.parseMetadata(tt.properties)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			assert.Equal(t, tt.expectedEndpoint, s.endpoint)
 			assert.Equal(t, tt.expectedAccessKey, s.accessKey)
 			assert.Equal(t, tt.expectedHub, s.hub)
@@ -258,7 +257,7 @@ func TestInvalidConfigurations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewSignalR(logger.NewLogger("test")).(*SignalR)
 			err := s.parseMetadata(tt.properties)
-			assert.NotNil(t, err)
+			assert.Error(t, err)
 		})
 	}
 }
@@ -301,7 +300,7 @@ func TestWriteShouldFail(t *testing.T) {
 			Metadata: map[string]string{},
 		})
 
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 	})
 
 	t.Run("SignalR call failed should be returned", func(t *testing.T) {
@@ -315,7 +314,7 @@ func TestWriteShouldFail(t *testing.T) {
 			},
 		})
 
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 		assert.Contains(t, err.Error(), httpErr.Error())
 	})
 
@@ -329,7 +328,7 @@ func TestWriteShouldFail(t *testing.T) {
 			},
 		})
 
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 	})
 }
 
@@ -340,7 +339,7 @@ func TestWriteShouldSucceed(t *testing.T) {
 
 	s := NewSignalR(logger.NewLogger("test")).(*SignalR)
 	s.endpoint = "https://fake.service.signalr.net"
-	s.accessKey = "fakekey"
+	s.accessKey = "AAbbcCsGEQKoLEH6oodDR0jK104Fu1c39Qgk+AA8D+M="
 	s.httpClient = &http.Client{
 		Transport: httpTransport,
 	}
@@ -354,10 +353,10 @@ func TestWriteShouldSucceed(t *testing.T) {
 			},
 		})
 
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		actualAuthorization := httpTransport.request.Header.Get("Authorization")
 		assert.NotEmpty(t, actualAuthorization)
-		assert.True(t, strings.HasPrefix(actualAuthorization, "Bearer "), fmt.Sprintf("expecting to start with 'Bearer ', but was '%s'", actualAuthorization))
+		assert.Truef(t, strings.HasPrefix(actualAuthorization, "Bearer "), "expecting to start with 'Bearer ', but was '%s'", actualAuthorization)
 	})
 
 	tests := []struct {
@@ -390,7 +389,7 @@ func TestWriteShouldSucceed(t *testing.T) {
 				},
 			})
 
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			assert.Equal(t, int32(1), httpTransport.requestCount)
 			assert.Equal(t, tt.expectedURL, httpTransport.request.URL.String())
 			assert.NotNil(t, httpTransport.request)

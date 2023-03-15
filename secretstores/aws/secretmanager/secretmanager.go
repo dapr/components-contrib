@@ -53,7 +53,7 @@ type smSecretStore struct {
 }
 
 // Init creates a AWS secret manager client.
-func (s *smSecretStore) Init(metadata secretstores.Metadata) error {
+func (s *smSecretStore) Init(_ context.Context, metadata secretstores.Metadata) error {
 	meta, err := s.getSecretManagerMetadata(metadata)
 	if err != nil {
 		return err

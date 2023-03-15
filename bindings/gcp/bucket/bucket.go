@@ -83,14 +83,13 @@ func NewGCPStorage(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init performs connection parsing.
-func (g *GCPStorage) Init(metadata bindings.Metadata) error {
+func (g *GCPStorage) Init(ctx context.Context, metadata bindings.Metadata) error {
 	m, b, err := g.parseMetadata(metadata)
 	if err != nil {
 		return err
 	}
 
 	clientOptions := option.WithCredentialsJSON(b)
-	ctx := context.Background()
 	client, err := storage.NewClient(ctx, clientOptions)
 	if err != nil {
 		return err

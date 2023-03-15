@@ -15,6 +15,7 @@ package blobstorage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"time"
@@ -35,77 +36,134 @@ const (
 	defaultBlobRetryCount = 3
 )
 
-func CreateContainerStorageClient(log logger.Logger, meta map[string]string) (*container.Client, *BlobStorageMetadata, error) {
+// CreateContainerStorageClient returns a container.Client and the parsed metadata from the metadata dictionary.
+func CreateContainerStorageClient(parentCtx context.Context, log logger.Logger, meta map[string]string) (*container.Client, *BlobStorageMetadata, error) {
+	// Parse the metadata and set the properties in the object
 	m, err := parseMetadata(meta)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	userAgent := "dapr-" + logger.DaprVersion
-	options := container.ClientOptions{
+	azEnvSettings, err := azauth.NewEnvironmentSettings(meta)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if val, _ := mdutils.GetMetadataProperty(meta, azauth.MetadataKeys["StorageEndpoint"]...); val != "" {
+		m.customEndpoint = val
+	}
+
+	// Get the container client
+	client, err := m.InitContainerClient(azEnvSettings)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Create the container if it doesn't already exist
+	var accessLevel *azblob.PublicAccessType
+	if m.PublicAccessLevel != "" && m.PublicAccessLevel != "none" {
+		accessLevel = &m.PublicAccessLevel
+	}
+	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
+	defer cancel()
+	err = m.EnsureContainer(ctx, client, accessLevel)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create Azure Storage container %s: %w", m.ContainerName, err)
+	}
+
+	return client, m, nil
+}
+
+// GetContainerURL returns the URL of the container, needed by some auth methods.
+func (opts ContainerClientOpts) GetContainerURL(azEnvSettings azauth.EnvironmentSettings) (u *url.URL, err error) {
+	if opts.customEndpoint != "" {
+		u, err = url.Parse(fmt.Sprintf("%s/%s/%s", opts.customEndpoint, opts.AccountName, opts.ContainerName))
+		if err != nil {
+			return nil, fmt.Errorf("failed to get container's URL with custom endpoint")
+		}
+	} else {
+		u, _ = url.Parse(fmt.Sprintf("https://%s.blob.%s/%s", opts.AccountName, azEnvSettings.EndpointSuffix(azauth.ServiceAzureStorage), opts.ContainerName))
+	}
+	return u, nil
+}
+
+// InitContainerClient returns a new container.Client object from the given options.
+func (opts ContainerClientOpts) InitContainerClient(azEnvSettings azauth.EnvironmentSettings) (client *container.Client, err error) {
+	clientOpts := &container.ClientOptions{
 		ClientOptions: azcore.ClientOptions{
 			Retry: policy.RetryOptions{
-				MaxRetries: m.RetryCount,
+				MaxRetries: opts.RetryCount,
 			},
 			Telemetry: policy.TelemetryOptions{
-				ApplicationID: userAgent,
+				ApplicationID: "dapr-" + logger.DaprVersion,
 			},
 		},
 	}
 
-	settings, err := azauth.NewEnvironmentSettings("storage", meta)
-	if err != nil {
-		return nil, nil, err
-	}
-	var customEndpoint string
-	if val, ok := mdutils.GetMetadataProperty(meta, azauth.StorageEndpointKeys...); ok && val != "" {
-		customEndpoint = val
-	}
-	var URL *url.URL
-	if customEndpoint != "" {
-		var parseErr error
-		URL, parseErr = url.Parse(fmt.Sprintf("%s/%s/%s", customEndpoint, m.AccountName, m.ContainerName))
-		if parseErr != nil {
-			return nil, nil, parseErr
+	switch {
+	// Use a connection string
+	case opts.ConnectionString != "":
+		client, err = container.NewClientFromConnectionString(opts.ConnectionString, opts.ContainerName, clientOpts)
+		if err != nil {
+			return nil, fmt.Errorf("cannot init blob storage container client with connection string: %w", err)
 		}
-	} else {
-		env := settings.AzureEnvironment
-		URL, _ = url.Parse(fmt.Sprintf("https://%s.blob.%s/%s", m.AccountName, env.StorageEndpointSuffix, m.ContainerName))
-	}
 
-	var clientErr error
-	var client *container.Client
-	// Try using shared key credentials first
-	if m.AccountKey != "" {
-		credential, newSharedKeyErr := azblob.NewSharedKeyCredential(m.AccountName, m.AccountKey)
-		if newSharedKeyErr != nil {
-			return nil, nil, fmt.Errorf("invalid shared key credentials with error: %w", newSharedKeyErr)
+	// Use a shared account key
+	case opts.AccountKey != "" && opts.AccountName != "":
+		var (
+			credential *azblob.SharedKeyCredential
+			u          *url.URL
+		)
+		credential, err = azblob.NewSharedKeyCredential(opts.AccountName, opts.AccountKey)
+		if err != nil {
+			return nil, fmt.Errorf("invalid shared key credentials with error: %w", err)
 		}
-		client, clientErr = container.NewClientWithSharedKeyCredential(URL.String(), credential, &options)
-		if clientErr != nil {
-			return nil, nil, fmt.Errorf("cannot init Blobstorage container client: %w", clientErr)
+		u, err = opts.GetContainerURL(azEnvSettings)
+		if err != nil {
+			return nil, err
 		}
-	} else {
-		// fallback to AAD
-		credential, tokenErr := settings.GetTokenCredential()
+		client, err = container.NewClientWithSharedKeyCredential(u.String(), credential, clientOpts)
+		if err != nil {
+			return nil, fmt.Errorf("cannot init blob storage container client with shared key: %w", err)
+		}
+
+	// Use Azure AD as fallback
+	default:
+		credential, tokenErr := azEnvSettings.GetTokenCredential()
 		if tokenErr != nil {
-			return nil, nil, fmt.Errorf("invalid token credentials with error: %w", tokenErr)
+			return nil, fmt.Errorf("invalid token credentials with error: %w", tokenErr)
 		}
-		client, clientErr = container.NewClient(URL.String(), credential, &options)
-	}
-	if clientErr != nil {
-		return nil, nil, fmt.Errorf("cannot init Blobstorage client: %w", clientErr)
+		var u *url.URL
+		u, err = opts.GetContainerURL(azEnvSettings)
+		if err != nil {
+			return nil, err
+		}
+		client, err = container.NewClient(u.String(), credential, clientOpts)
+		if err != nil {
+			return nil, fmt.Errorf("cannot init blob storage container client with Azure AD token: %w", err)
+		}
 	}
 
-	createContainerOptions := container.CreateOptions{
-		Access:   &m.PublicAccessLevel,
-		Metadata: map[string]string{},
-	}
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	_, err = client.Create(timeoutCtx, &createContainerOptions)
-	cancel()
-	// Don't return error, container might already exist
-	log.Debugf("error creating container: %v", err)
+	return client, nil
+}
 
-	return client, m, nil
+// EnsureContainer creates the container if it doesn't already exist.
+// Property "accessLevel" indicates the public access level; nil-value means the container is private
+func (opts ContainerClientOpts) EnsureContainer(ctx context.Context, client *container.Client, accessLevel *azblob.PublicAccessType) error {
+	// Create the container
+	// This will return an error if it already exists
+	_, err := client.Create(ctx, &container.CreateOptions{
+		Access: accessLevel,
+	})
+	if err != nil {
+		// Check if it's an Azure Storage error
+		resErr := &azcore.ResponseError{}
+		// If the container already exists, return no error
+		if errors.As(err, &resErr) && (resErr.ErrorCode == "ContainerAlreadyExists" || resErr.ErrorCode == "ResourceAlreadyExists") {
+			return nil
+		}
+		return err
+	}
+
+	return nil
 }

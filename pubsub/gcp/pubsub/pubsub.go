@@ -16,8 +16,11 @@ package pubsub
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	gcppubsub "cloud.google.com/go/pubsub"
@@ -60,6 +63,10 @@ type GCPPubSub struct {
 	client   *gcppubsub.Client
 	metadata *metadata
 	logger   logger.Logger
+
+	closed  atomic.Bool
+	closeCh chan struct{}
+	wg      sync.WaitGroup
 }
 
 type GCPAuthJSON struct {
@@ -81,7 +88,7 @@ type WhatNow struct {
 
 // NewGCPPubSub returns a new GCPPubSub instance.
 func NewGCPPubSub(logger logger.Logger) pubsub.PubSub {
-	return &GCPPubSub{logger: logger}
+	return &GCPPubSub{logger: logger, closeCh: make(chan struct{})}
 }
 
 func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
@@ -175,13 +182,13 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 }
 
 // Init parses metadata and creates a new Pub Sub client.
-func (g *GCPPubSub) Init(meta pubsub.Metadata) error {
+func (g *GCPPubSub) Init(ctx context.Context, meta pubsub.Metadata) error {
 	metadata, err := createMetadata(meta)
 	if err != nil {
 		return err
 	}
 
-	pubsubClient, err := g.getPubSubClient(context.Background(), metadata)
+	pubsubClient, err := g.getPubSubClient(ctx, metadata)
 	if err != nil {
 		return fmt.Errorf("%s error creating pubsub client: %w", errorMessagePrefix, err)
 	}
@@ -230,6 +237,10 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 
 // Publish the topic to GCP Pubsub.
 func (g *GCPPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
+	if g.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	if !g.metadata.DisableEntityManagement {
 		err := g.ensureTopic(ctx, req.Topic)
 		if err != nil {
@@ -247,14 +258,18 @@ func (g *GCPPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) err
 }
 
 // Subscribe to the GCP Pubsub topic.
-func (g *GCPPubSub) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+func (g *GCPPubSub) Subscribe(parentCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	if g.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	if !g.metadata.DisableEntityManagement {
-		topicErr := g.ensureTopic(subscribeCtx, req.Topic)
+		topicErr := g.ensureTopic(parentCtx, req.Topic)
 		if topicErr != nil {
 			return fmt.Errorf("%s could not get valid topic %s, %s", errorMessagePrefix, req.Topic, topicErr)
 		}
 
-		subError := g.ensureSubscription(subscribeCtx, g.metadata.consumerID, req.Topic)
+		subError := g.ensureSubscription(parentCtx, g.metadata.consumerID, req.Topic)
 		if subError != nil {
 			return fmt.Errorf("%s could not get valid subscription %s, %s", errorMessagePrefix, g.metadata.consumerID, subError)
 		}
@@ -263,7 +278,20 @@ func (g *GCPPubSub) Subscribe(subscribeCtx context.Context, req pubsub.Subscribe
 	topic := g.getTopic(req.Topic)
 	sub := g.getSubscription(g.metadata.consumerID + "-" + req.Topic)
 
-	go g.handleSubscriptionMessages(subscribeCtx, topic, sub, handler)
+	subscribeCtx, cancel := context.WithCancel(parentCtx)
+	g.wg.Add(2)
+	go func() {
+		defer g.wg.Done()
+		defer cancel()
+		select {
+		case <-subscribeCtx.Done():
+		case <-g.closeCh:
+		}
+	}()
+	go func() {
+		defer g.wg.Done()
+		g.handleSubscriptionMessages(subscribeCtx, topic, sub, handler)
+	}()
 
 	return nil
 }
@@ -280,7 +308,9 @@ func (g *GCPPubSub) handleSubscriptionMessages(parentCtx context.Context, topic 
 	// Periodically refill the reconnect attempts channel to avoid
 	// exhausting all the refill attempts due to intermittent issues
 	// occurring over a longer period of time.
+	g.wg.Add(1)
 	go func() {
+		defer g.wg.Done()
 		reconnCtx, reconnCancel := context.WithCancel(parentCtx)
 		defer reconnCancel()
 
@@ -336,7 +366,12 @@ func (g *GCPPubSub) handleSubscriptionMessages(parentCtx context.Context, topic 
 		}
 
 		g.logger.Infof("Sleeping for %d seconds before attempting to reconnect to subscription %s ... [%d/%d]", g.metadata.ConnectionRecoveryInSec, sub.ID(), g.metadata.MaxReconnectionAttempts-reconnectionAttemptsRemaining, g.metadata.MaxReconnectionAttempts)
-		time.Sleep(time.Second * time.Duration(g.metadata.ConnectionRecoveryInSec))
+		select {
+		case <-time.After(time.Second * time.Duration(g.metadata.ConnectionRecoveryInSec)):
+		case <-parentCtx.Done():
+			break
+		}
+
 		<-reconnAttempts
 	}
 
@@ -390,6 +425,10 @@ func (g *GCPPubSub) getSubscription(subscription string) *gcppubsub.Subscription
 }
 
 func (g *GCPPubSub) Close() error {
+	defer g.wg.Wait()
+	if g.closed.CompareAndSwap(false, true) {
+		close(g.closeCh)
+	}
 	return g.client.Close()
 }
 

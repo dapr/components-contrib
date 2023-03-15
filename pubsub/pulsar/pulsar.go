@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hamba/avro/v2"
@@ -47,6 +49,7 @@ const (
 	redeliveryDelay         = "redeliveryDelay"
 	avroProtocol            = "avro"
 	jsonProtocol            = "json"
+	partitionKey            = "partitionKey"
 
 	defaultTenant     = "public"
 	defaultNamespace  = "default"
@@ -69,17 +72,37 @@ const (
 	defaultMaxBatchSize = 128 * 1024
 	// defaultRedeliveryDelay init default for redelivery delay.
 	defaultRedeliveryDelay = 30 * time.Second
+
+	subscribeTypeKey = "subscribeType"
+
+	subscribeTypeExclusive = "exclusive"
+	subscribeTypeShared    = "shared"
+	subscribeTypeFailover  = "failover"
+	subscribeTypeKeyShared = "key_shared"
+
+	processModeKey = "processMode"
+
+	processModeAsync = "async"
+	processModeSync  = "sync"
 )
+
+type ProcessMode string
 
 type Pulsar struct {
 	logger   logger.Logger
 	client   pulsar.Client
 	metadata pulsarMetadata
 	cache    *lru.Cache[string, pulsar.Producer]
+	closed   atomic.Bool
+	closeCh  chan struct{}
+	wg       sync.WaitGroup
 }
 
 func NewPulsar(l logger.Logger) pubsub.PubSub {
-	return &Pulsar{logger: l}
+	return &Pulsar{
+		logger:  l,
+		closeCh: make(chan struct{}),
+	}
 }
 
 func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
@@ -175,7 +198,7 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 	return &m, nil
 }
 
-func (p *Pulsar) Init(metadata pubsub.Metadata) error {
+func (p *Pulsar) Init(_ context.Context, metadata pubsub.Metadata) error {
 	m, err := parsePulsarMetadata(metadata)
 	if err != nil {
 		return err
@@ -219,6 +242,10 @@ func (p *Pulsar) Init(metadata pubsub.Metadata) error {
 }
 
 func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
+	if p.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	var (
 		msg *pulsar.ProducerMessage
 		err error
@@ -254,6 +281,7 @@ func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 	if err != nil {
 		return err
 	}
+
 	if _, err = producer.Send(ctx, msg); err != nil {
 		return err
 	}
@@ -306,23 +334,61 @@ func parsePublishMetadata(req *pubsub.PublishRequest, schema schemaMetadata) (
 		msg.Value = obj
 	}
 
-	if val, ok := req.Metadata[deliverAt]; ok {
-		msg.DeliverAt, err = time.Parse(time.RFC3339, val)
-		if err != nil {
-			return nil, err
+	for name, value := range req.Metadata {
+		if value == "" {
+			continue
 		}
-	}
-	if val, ok := req.Metadata[deliverAfter]; ok {
-		msg.DeliverAfter, err = time.ParseDuration(val)
-		if err != nil {
-			return nil, err
+
+		switch name {
+		case partitionKey:
+			msg.Key = value
+		case deliverAt:
+			msg.DeliverAt, err = time.Parse(time.RFC3339, value)
+			if err != nil {
+				return nil, err
+			}
+		case deliverAfter:
+			msg.DeliverAfter, err = time.ParseDuration(value)
+			if err != nil {
+				return nil, err
+			}
+		default:
+			if msg.Properties == nil {
+				msg.Properties = make(map[string]string)
+			}
+			msg.Properties[name] = value
 		}
 	}
 
 	return msg, nil
 }
 
+// default: shared
+func getSubscribeType(metadata map[string]string) pulsar.SubscriptionType {
+	var subsType pulsar.SubscriptionType
+
+	subsTypeStr := strings.ToLower(metadata[subscribeTypeKey])
+	switch subsTypeStr {
+	case subscribeTypeExclusive:
+		subsType = pulsar.Exclusive
+	case subscribeTypeFailover:
+		subsType = pulsar.Failover
+	case subscribeTypeShared:
+		subsType = pulsar.Shared
+	case subscribeTypeKeyShared:
+		subsType = pulsar.KeyShared
+	default:
+		subsType = pulsar.Shared
+	}
+
+	return subsType
+}
+
 func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	if p.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	channel := make(chan pulsar.ConsumerMessage, 100)
 
 	topic := p.formatTopic(req.Topic)
@@ -330,7 +396,7 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	options := pulsar.ConsumerOptions{
 		Topic:               topic,
 		SubscriptionName:    p.metadata.ConsumerID,
-		Type:                pulsar.Shared,
+		Type:                getSubscribeType(req.Metadata),
 		MessageChannel:      channel,
 		NackRedeliveryDelay: p.metadata.RedeliveryDelay,
 	}
@@ -344,21 +410,48 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 		return err
 	}
 
-	go p.listenMessage(ctx, req.Topic, consumer, handler)
+	p.wg.Add(2)
+	listenCtx, cancel := context.WithCancel(ctx)
+	go func() {
+		defer p.wg.Done()
+		defer cancel()
+		select {
+		case <-listenCtx.Done():
+		case <-p.closeCh:
+		}
+	}()
+	go func() {
+		defer p.wg.Done()
+		defer cancel()
+		p.listenMessage(listenCtx, req, consumer, handler)
+	}()
 
 	return nil
 }
 
-func (p *Pulsar) listenMessage(ctx context.Context, originTopic string, consumer pulsar.Consumer, handler pubsub.Handler) {
+func (p *Pulsar) listenMessage(ctx context.Context, req pubsub.SubscribeRequest, consumer pulsar.Consumer, handler pubsub.Handler) {
 	defer consumer.Close()
 
+	originTopic := req.Topic
 	var err error
 	for {
 		select {
 		case msg := <-consumer.Chan():
-			err = p.handleMessage(ctx, originTopic, msg, handler)
-			if err != nil && !errors.Is(err, context.Canceled) {
-				p.logger.Errorf("Error processing message: %s/%#v [key=%s]: %v", msg.Topic(), msg.ID(), msg.Key(), err)
+			if strings.ToLower(req.Metadata[processModeKey]) == processModeSync { //nolint:gocritic
+				err = p.handleMessage(ctx, originTopic, msg, handler)
+				if err != nil && !errors.Is(err, context.Canceled) {
+					p.logger.Errorf("Error sync processing message: %s/%#v [key=%s]: %v", msg.Topic(), msg.ID(), msg.Key(), err)
+				}
+			} else { // async process mode by default
+				// Go routine to handle multiple messages at once.
+				p.wg.Add(1)
+				go func(msg pulsar.ConsumerMessage) {
+					defer p.wg.Done()
+					err = p.handleMessage(ctx, originTopic, msg, handler)
+					if err != nil && !errors.Is(err, context.Canceled) {
+						p.logger.Errorf("Error async processing message: %s/%#v [key=%s]: %v", msg.Topic(), msg.ID(), msg.Key(), err)
+					}
+				}(msg)
 			}
 
 		case <-ctx.Done():
@@ -387,6 +480,11 @@ func (p *Pulsar) handleMessage(ctx context.Context, originTopic string, msg puls
 }
 
 func (p *Pulsar) Close() error {
+	defer p.wg.Wait()
+	if p.closed.CompareAndSwap(false, true) {
+		close(p.closeCh)
+	}
+
 	for _, k := range p.cache.Keys() {
 		producer, _ := p.cache.Peek(k)
 		if producer != nil {

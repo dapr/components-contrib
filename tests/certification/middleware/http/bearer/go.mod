@@ -1,4 +1,4 @@
-module http_mw_test
+module bearer_http_mw_test
 
 go 1.20
 
@@ -11,7 +11,6 @@ require (
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/lestrrat-go/jwx/v2 v2.0.8
 	github.com/stretchr/testify v1.8.2
-	go.uber.org/ratelimit v0.2.0
 	golang.org/x/exp v0.0.0-20230310171629-522b1b587ee0
 )
 
@@ -19,7 +18,6 @@ require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	github.com/AdhityaRamadhanus/fasthttpcors v0.0.0-20170121111917-d4c07198763a // indirect
 	github.com/PuerkitoBio/purell v1.2.0 // indirect
-	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129 // indirect
 	github.com/andybalholm/brotli v1.0.4 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
@@ -32,7 +30,6 @@ require (
 	github.com/cloudevents/sdk-go/v2 v2.13.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0 // indirect
-	github.com/didip/tollbooth/v7 v7.0.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.9.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/fasthttp/router v1.4.15 // indirect
@@ -46,7 +43,6 @@ require (
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.20.0 // indirect
 	github.com/go-openapi/swag v0.19.14 // indirect
-	github.com/go-pkgz/expirable-cache v0.1.0 // indirect
 	github.com/goccy/go-json v0.9.11 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
@@ -155,6 +151,6 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-replace github.com/dapr/components-contrib => ../../../..
+replace github.com/dapr/components-contrib => ../../../../..
 
-replace github.com/dapr/components-contrib/tests/certification => ../..
+replace github.com/dapr/components-contrib/tests/certification => ../../..

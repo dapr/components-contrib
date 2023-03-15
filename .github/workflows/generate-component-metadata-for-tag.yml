@@ -11,10 +11,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-      - name: Build bundle.json
+      - name: Build component-metadata-bundle.json
         run: make bundle-component-metadata
       - name: Upload component-metadata-bundle.json
-        uses: actions/upload-artifact@v3
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          name: component-metadata-bundle.json
-          path: ./component-metadata-bundle.json
+          files: component-metadata-bundle.json

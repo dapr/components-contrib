@@ -92,9 +92,9 @@ func NewAzureBlobStorage(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init performs metadata parsing.
-func (a *AzureBlobStorage) Init(_ context.Context, metadata bindings.Metadata) error {
+func (a *AzureBlobStorage) Init(ctx context.Context, metadata bindings.Metadata) error {
 	var err error
-	a.containerClient, a.metadata, err = storageinternal.CreateContainerStorageClient(context.TODO(), a.logger, metadata.Properties)
+	a.containerClient, a.metadata, err = storageinternal.CreateContainerStorageClient(ctx, a.logger, metadata.Properties)
 	if err != nil {
 		return err
 	}

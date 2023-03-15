@@ -14,7 +14,7 @@ jobs:
       - name: Build bundle.json
         run: make bundle-component-metadata
       - name: Upload component-metadata-bundle.json
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: component-metadata-bundle.json
           path: ./component-metadata-bundle.json

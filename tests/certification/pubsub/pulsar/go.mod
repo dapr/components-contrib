@@ -2,10 +2,6 @@ module github.com/dapr/components-contrib/tests/certification/pubsub/pulsar
 
 go 1.20
 
-replace github.com/dapr/components-contrib/tests/certification => ../../
-
-replace github.com/dapr/components-contrib => ../../../../
-
 require (
 	github.com/apache/pulsar-client-go v0.9.0
 	github.com/cenkalti/backoff/v4 v4.2.0 // indirect

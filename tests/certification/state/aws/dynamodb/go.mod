@@ -2,10 +2,6 @@ module github.com/dapr/components-contrib/tests/certification/state/aws/dynamodb
 
 go 1.20
 
-replace github.com/dapr/components-contrib => ../../../../..
-
-replace github.com/dapr/components-contrib/tests/certification => ../../..
-
 require (
 	github.com/dapr/components-contrib v1.10.0-rc.9.0.20230314182450-1d40321ac0be
 	github.com/dapr/components-contrib/tests/certification v0.0.0-00010101000000-000000000000

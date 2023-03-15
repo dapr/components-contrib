@@ -112,6 +112,7 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 				jwt.WithAcceptableSkew(allowedClockSkew),
 				jwt.WithKeySet(keyset),
 				jwt.WithAudience(meta.Audience),
+				jwt.WithIssuer(meta.Issuer),
 			)
 			if err != nil {
 				httputils.RespondWithError(w, http.StatusUnauthorized)

@@ -32,7 +32,8 @@ type bearerMiddlewareMetadata struct {
 	Issuer string `json:"issuer"`
 	// Audience to expect in the token (usually, a client ID).
 	Audience string `json:"audience"`
-	// Optional address of the JKWS file. If missing, will try to fetch `<issuer>/.well-known/openid-configuration`.
+	// Optional address of the JKWS file.
+	// If missing, will try to fetch the URL set in the OpenID Configuration document `<issuer>/.well-known/openid-configuration`.
 	JWKSURL string `json:"jwksURL"`
 	// Deprecated - use "issuer" instead.
 	IssuerURL string `json:"issuerURL"`

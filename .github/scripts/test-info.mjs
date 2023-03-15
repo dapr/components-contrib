@@ -158,6 +158,9 @@ const components = {
     'configuration.redis': {
         certification: true,
     },
+    'middleware.http.bearer': {
+        certification: true,
+    },
     'middleware.http.ratelimit': {
         certification: true,
     },

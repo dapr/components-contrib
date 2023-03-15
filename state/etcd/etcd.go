@@ -244,12 +244,16 @@ func (e *Etcd) doSetValidateParameters(req *state.SetRequest) (int64, error) {
 		return 0, err
 	}
 
+	var ttlVal int64
 	ttlInSeconds, err := stateutils.ParseTTL(req.Metadata)
 	if err != nil {
 		return 0, err
 	}
+	if ttlInSeconds != nil {
+		ttlVal = int64(*ttlInSeconds)
+	}
 
-	return int64(*ttlInSeconds), nil
+	return ttlVal, nil
 }
 
 // Delete performes a Etcd KV delete operation.

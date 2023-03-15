@@ -50,6 +50,6 @@ func TestGetEtcdMetadata(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, properties["endpoints"], metadata.Endpoints)
 		assert.Equal(t, properties["keyPrefixPath"], metadata.KeyPrefixPath)
-		assert.Equal(t, properties["tlsEnable"], metadata.TlsEnable)
+		assert.Equal(t, properties["tlsEnable"], metadata.TLSEnable)
 	})
 }

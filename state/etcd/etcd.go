@@ -27,10 +27,10 @@ import (
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 
-	utils2 "github.com/dapr/components-contrib/internal/utils"
+	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/components-contrib/state/utils"
+	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
 )
@@ -48,8 +48,8 @@ type etcdConfig struct {
 	Endpoints     string `json:"endpoints"`
 	KeyPrefixPath string `json:"keyPrefixPath"`
 	// TLS
-	TlsEnable string `json:"tlsEnable"`
-	Ca        string `json:"ca"`
+	TLSEnable string `json:"tlsEnable"`
+	CA        string `json:"ca"`
 	Cert      string `json:"cert"`
 	Key       string `json:"key"`
 }
@@ -86,19 +86,19 @@ func (e *Etcd) Init(_ context.Context, metadata state.Metadata) error {
 func (e *Etcd) ParseClientFromConfig(etcdConfig *etcdConfig) (*clientv3.Client, error) {
 	endpoints := strings.Split(etcdConfig.Endpoints, ",")
 	if len(endpoints) == 0 || endpoints[0] == "" {
-		return nil, fmt.Errorf("endpoints required")
+		return nil, errors.New("endpoints required")
 	}
 
 	var tlsConfig *tls.Config
-	if utils2.IsTruthy(etcdConfig.TlsEnable) {
-		if etcdConfig.Cert != "" && etcdConfig.Key != "" && etcdConfig.Ca != "" {
+	if utils.IsTruthy(etcdConfig.TLSEnable) {
+		if etcdConfig.Cert != "" && etcdConfig.Key != "" && etcdConfig.CA != "" {
 			var err error
-			tlsConfig, err = NewTLSConfig(etcdConfig.Cert, etcdConfig.Key, etcdConfig.Ca)
+			tlsConfig, err = NewTLSConfig(etcdConfig.Cert, etcdConfig.Key, etcdConfig.CA)
 			if err != nil {
 				return nil, fmt.Errorf("tls authentication error: %w", err)
 			}
 		} else {
-			return nil, fmt.Errorf("tls authentication information is incomplete")
+			return nil, errors.New("tls authentication information is incomplete")
 		}
 	}
 
@@ -160,7 +160,7 @@ func (e *Etcd) Set(ctx context.Context, req *state.SetRequest) error {
 		return err
 	}
 
-	reqVal, err := utils.Marshal(req.Value, json.Marshal)
+	reqVal, err := stateutils.Marshal(req.Value, json.Marshal)
 	if err != nil {
 		return err
 	}
@@ -173,7 +173,8 @@ func (e *Etcd) BulkSet(ctx context.Context, req []state.SetRequest) error {
 		return nil
 	}
 
-	for _, dr := range req {
+	for i := range req {
+		dr := req[i]
 		ttlInSeconds, err := e.doSetValidateParameters(&dr)
 		if err != nil {
 			return err
@@ -185,7 +186,7 @@ func (e *Etcd) BulkSet(ctx context.Context, req []state.SetRequest) error {
 			return err
 		}
 
-		reqVal, err := utils.Marshal(dr.Value, json.Marshal)
+		reqVal, err := stateutils.Marshal(dr.Value, json.Marshal)
 		if err != nil {
 			return err
 		}
@@ -243,7 +244,7 @@ func (e *Etcd) doSetValidateParameters(req *state.SetRequest) (int64, error) {
 		return 0, err
 	}
 
-	ttlInSeconds, err := utils.ParseTTL(req.Metadata)
+	ttlInSeconds, err := stateutils.ParseTTL(req.Metadata)
 	if err != nil {
 		return 0, err
 	}
@@ -389,7 +390,7 @@ func (e *Etcd) Multi(ctx context.Context, request *state.TransactionalStateReque
 				return err
 			}
 
-			reqVal, err := utils.Marshal(req.Value, json.Marshal)
+			reqVal, err := stateutils.Marshal(req.Value, json.Marshal)
 			if err != nil {
 				return err
 			}
@@ -451,7 +452,9 @@ func (e *Etcd) Multi(ctx context.Context, request *state.TransactionalStateReque
 func NewTLSConfig(clientCert, clientKey, caCert string) (*tls.Config, error) {
 	valid := false
 
-	config := &tls.Config{}
+	config := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+	}
 
 	if clientCert != "" && clientKey != "" {
 		key := []byte(clientKey)

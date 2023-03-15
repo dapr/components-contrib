@@ -94,7 +94,7 @@ func (md *bearerMiddlewareMetadata) retrieveOpenIDConfigurationDocument(ctx cont
 	oidcConfigURL := strings.TrimSuffix(md.Issuer, "/") + "/.well-known/openid-configuration"
 	md.logger.Debug("Fetching OpenID Configuration: " + oidcConfigURL)
 
-	req, err := http.NewRequestWithContext(ctx, "GET", oidcConfigURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, oidcConfigURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}

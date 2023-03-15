@@ -163,7 +163,7 @@ func TestHTTPMiddlewareBearer(t *testing.T) {
 		reqCtx, reqCancel := context.WithTimeout(parentCtx, 5*time.Second)
 		defer reqCancel()
 
-		req, err := http.NewRequestWithContext(reqCtx, "GET", invokeUrl, nil)
+		req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, invokeUrl, nil)
 		if err != nil {
 			return 0, fmt.Errorf("failed to create request: %w", err)
 		}

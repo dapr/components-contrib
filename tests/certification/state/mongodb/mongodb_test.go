@@ -189,7 +189,7 @@ func TestMongoDB(t *testing.T) {
 		Step("Get Values Saved Earlier And Not Expired, after MongoDB restart", testGetAfterMongoDBRestart).
 		Run()
 
-	flow.New(t, "Connecting MongoDB And Verifying majority of the tests here for a single node with valid read, "+
+	flow.New(t, "Connecting MongoDB using connectionString And Verifying majority of the tests here for a single node with valid read, "+
 		"write concerns and operation timeout").
 		Step(dockercompose.Run("mongodb", dockerComposeSingleYAML)).
 		Step("Waiting for component to start...", flow.Sleep(20*time.Second)).

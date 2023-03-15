@@ -22,6 +22,9 @@ import (
 	"github.com/cloudwego/kitex"
 	"github.com/cloudwego/kitex-examples/kitex_gen/api"
 	"github.com/cloudwego/kitex/pkg/utils"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/dapr/components-contrib/bindings"
 	bindings_kitex "github.com/dapr/components-contrib/bindings/kitex"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
@@ -32,7 +35,6 @@ import (
 	"github.com/dapr/dapr/pkg/runtime"
 	daprsdk "github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -63,7 +65,7 @@ func TestKitexBinding(t *testing.T) {
 		req := &api.EchoEchoArgs{Req: &api.Request{Message: "hello dapr"}}
 
 		reqData, err := codec.Encode(MethodName, thrift.CALL, 0, req)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		metadata := map[string]string{
 			metadataRPCVersion:     kitex.Version,
 			metadataRPCHostports:   hostports,
@@ -79,19 +81,20 @@ func TestKitexBinding(t *testing.T) {
 		}
 
 		resp, err := client.InvokeBinding(ctx, invokeRequest)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		result := &api.EchoEchoResult{}
 
 		_, _, err = codec.Decode(resp.Data, result)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "hello dapr,hi Kitex", result.Success.Message)
-		time.Sleep(time.Second)
 		return nil
 	}
 
 	go func() {
-		assert.Nil(t, kitex_e2e.EchoKitexServer())
+		err := kitex_e2e.EchoKitexServer()
+		require.NoError(t, err)
 	}()
+
 	time.Sleep(time.Second * 3)
 
 	flow.New(t, "test kitex binding config").

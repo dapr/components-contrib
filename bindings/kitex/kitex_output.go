@@ -30,15 +30,10 @@ type kitexOutputBinding struct {
 var kitexBinding *kitexOutputBinding
 
 func NewKitexOutput(logger logger.Logger) bindings.OutputBinding {
-	if kitexBinding == nil {
-		kitexBinding = &kitexOutputBinding{
-			ctxCache:  make(map[string]*kitexContext),
-			logger:    logger,
-			cacheLock: sync.RWMutex{},
-		}
+	return &kitexOutputBinding{
+		ctxCache: make(map[string]*kitexContext),
+		logger:   logger,
 	}
-
-	return kitexBinding
 }
 
 func (out *kitexOutputBinding) Init(_ context.Context, _ bindings.Metadata) error {
@@ -72,10 +67,12 @@ func (out *kitexOutputBinding) Invoke(ctx context.Context, req *bindings.InvokeR
 	} else {
 		out.cacheLock.RUnlock()
 	}
+
 	rsp, err := kitexContextCache.Invoke(ctx, req.Data)
 	if data, ok := rsp.([]byte); ok {
 		finalResult.Data = data
 	}
+
 	return finalResult, err
 }
 

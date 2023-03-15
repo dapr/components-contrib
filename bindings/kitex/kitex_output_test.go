@@ -23,6 +23,7 @@ import (
 	"github.com/cloudwego/kitex-examples/kitex_gen/api"
 	"github.com/cloudwego/kitex/pkg/utils"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	kitex_tests "github.com/dapr/components-contrib/tests/e2e/bindings/kitex"
@@ -38,19 +39,19 @@ const (
 func TestInvoke(t *testing.T) {
 	// 0. init  Kitex server
 	go func() {
-		assert.Nil(t, kitex_tests.EchoKitexServer())
+		err := kitex_tests.EchoKitexServer()
+		require.NoError(t, err)
 	}()
 	time.Sleep(time.Second * 3)
 
 	// 1 create KitexOutput
-	output := NewKitexOutput(logger.NewLogger("hello dapr && kitex"))
+	output := NewKitexOutput(logger.NewLogger("test"))
 
 	// 2 create req bytes
 	codec := utils.NewThriftMessageCodec()
 	req := &api.EchoEchoArgs{Req: &api.Request{Message: "hello dapr"}}
-	ctx := context.Background()
 	reqData, err := codec.Encode(MethodName, thrift.CALL, 0, req)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	// 3. Invoke dapr kitex output binding, get rsp bytes
 	metadata := map[string]string{
@@ -60,16 +61,16 @@ func TestInvoke(t *testing.T) {
 		metadataRPCMethodName:  MethodName,
 	}
 
-	resp, err := output.Invoke(ctx, &bindings.InvokeRequest{
+	resp, err := output.Invoke(context.Background(), &bindings.InvokeRequest{
 		Metadata:  metadata,
 		Data:      reqData,
 		Operation: bindings.GetOperation,
 	})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	// 4. get resp value
 	result := &api.EchoEchoResult{}
 	_, _, err = codec.Decode(resp.Data, result)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "hello dapr,hi Kitex", result.Success.Message)
 }

@@ -51,20 +51,20 @@ func (d *kitexContext) Init(metadata map[string]string) error {
 	var destService, hostPorts string
 	destService, ok := metadata[metadataRPCDestService]
 	if !ok {
-		return fmt.Errorf("dapr binding kitex: missing metadata field %s", metadataRPCDestService)
+		return fmt.Errorf("missing metadata field %s", metadataRPCDestService)
 	}
 	hostPorts, ok = metadata[metadataRPCHostports]
 	if !ok {
-		return fmt.Errorf("dapr binding kitex: missing metadata field %s", metadataRPCHostports)
+		return fmt.Errorf("missing metadata field %s", metadataRPCHostports)
 	}
 	_, ok = metadata[metadataRPCMethodName]
 	if !ok {
-		return fmt.Errorf("dapr binding kitex: missing metadata field %s", metadataRPCMethodName)
+		return fmt.Errorf("missing metadata field %s", metadataRPCMethodName)
 	}
 
 	genericCli, err := genericclient.NewClient(destService, generic.BinaryThriftGeneric(), client.WithHostPorts(hostPorts))
 	if err != nil {
-		return fmt.Errorf("dapr binding kitex: create a kitex generic client err %w", err)
+		return fmt.Errorf("create a kitex generic client err %w", err)
 	}
 	d.client = genericCli
 
@@ -81,5 +81,5 @@ func (d *kitexContext) Invoke(ctx context.Context, body []byte) (interface{}, er
 }
 
 func (d *kitexContext) String() string {
-	return fmt.Sprintf("%s.%s.%s.%s", d.version, d.destService, d.method, d.hostPorts)
+	return d.version + "." + d.destService + "." + d.method + "." + d.hostPorts
 }

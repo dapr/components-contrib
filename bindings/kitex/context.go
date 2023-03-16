@@ -38,11 +38,12 @@ type kitexContext struct {
 }
 
 func newKitexContext(metadata map[string]string) *kitexContext {
-	kitexMetadata := &kitexContext{}
-	kitexMetadata.version = metadata[metadataRPCVersion]
-	kitexMetadata.destService = metadata[metadataRPCDestService]
-	kitexMetadata.hostPorts = metadata[metadataRPCHostports]
-	kitexMetadata.method = metadata[metadataRPCMethodName]
+	kitexMetadata := &kitexContext{
+		version:     metadata[metadataRPCVersion],
+		destService: metadata[metadataRPCDestService],
+		hostPorts:   metadata[metadataRPCHostports],
+		method:      metadata[metadataRPCMethodName],
+	}
 
 	return kitexMetadata
 }

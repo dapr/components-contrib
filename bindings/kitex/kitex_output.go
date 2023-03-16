@@ -27,8 +27,6 @@ type kitexOutputBinding struct {
 	logger    logger.Logger
 }
 
-var kitexBinding *kitexOutputBinding
-
 func NewKitexOutput(logger logger.Logger) bindings.OutputBinding {
 	return &kitexOutputBinding{
 		ctxCache: make(map[string]*kitexContext),

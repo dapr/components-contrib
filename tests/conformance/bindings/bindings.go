@@ -19,6 +19,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -126,7 +127,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		// Check for an output binding specific operation before init
 		if config.HasOperation("operations") {
 			testLogger.Info("Init output binding ...")
-			err := outputBinding.Init(bindings.Metadata{
+			err := outputBinding.Init(context.Background(), bindings.Metadata{
 				Base: metadata.Base{Properties: props},
 			})
 			assert.NoError(t, err, "expected no error setting up output binding")
@@ -134,7 +135,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		// Check for an input binding specific operation before init
 		if config.HasOperation("read") {
 			testLogger.Info("Init input binding ...")
-			err := inputBinding.Init(bindings.Metadata{
+			err := inputBinding.Init(context.Background(), bindings.Metadata{
 				Base: metadata.Base{Properties: props},
 			})
 			assert.NoError(t, err, "expected no error setting up input binding")
@@ -144,25 +145,25 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 
 	t.Run("ping", func(t *testing.T) {
 		if config.HasOperation("read") {
-			errInp := bindings.PingInpBinding(inputBinding)
+			errInp := bindings.PingInpBinding(context.Background(), inputBinding)
 			// TODO: Ideally, all stable components should implenment ping function,
-			// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
+			// so will only assert assert.NoError(t, err) finally, i.e. when current implementation
 			// implements ping in existing stable components
 			if errInp != nil {
 				assert.EqualError(t, errInp, "ping is not implemented by this input binding")
 			} else {
-				assert.Nil(t, errInp)
+				assert.NoError(t, errInp)
 			}
 		}
 		if config.HasOperation("operations") {
-			errOut := bindings.PingOutBinding(outputBinding)
+			errOut := bindings.PingOutBinding(context.Background(), outputBinding)
 			// TODO: Ideally, all stable components should implenment ping function,
-			// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
+			// so will only assert assert.NoError(t, err) finally, i.e. when current implementation
 			// implements ping in existing stable components
 			if errOut != nil {
 				assert.EqualError(t, errOut, "ping is not implemented by this output binding")
 			} else {
-				assert.Nil(t, errOut)
+				assert.NoError(t, errOut)
 			}
 		}
 	})
@@ -189,25 +190,27 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		})
 	}
 
-	inputBindingCall := 0
-	readChan := make(chan int)
+	inputBindingCall := atomic.Int32{}
+	readChan := make(chan int, 1)
 	readCtx, readCancel := context.WithCancel(context.Background())
 	defer readCancel()
 	if config.HasOperation("read") {
 		t.Run("read", func(t *testing.T) {
 			testLogger.Info("Read test running ...")
 			err := inputBinding.Read(readCtx, func(ctx context.Context, r *bindings.ReadResponse) ([]byte, error) {
-				inputBindingCall++
-				readChan <- inputBindingCall
+				t.Logf("Read message: %s", string(r.Data))
+				v := inputBindingCall.Add(1)
+				readChan <- int(v)
 
 				return nil, nil
 			})
-			assert.True(t, err == nil || errors.Is(err, context.Canceled), "expected Read canceled on Close")
+			assert.Truef(t, err == nil || errors.Is(err, context.Canceled), "expected Read canceled on Close, got: %v", err)
 		})
 		// Special case for message brokers that are also bindings
 		// Need a small wait here because with brokers like MQTT
 		// if you publish before there is a consumer, the message is thrown out
 		// Currently, there is no way to know when Read is successfully subscribed.
+		t.Logf("Sleeping for %v", config.ReadBindingWait)
 		time.Sleep(config.ReadBindingWait)
 	}
 
@@ -233,7 +236,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			req := config.createInvokeRequest()
 			req.Operation = bindings.GetOperation
 			resp, err := outputBinding.Invoke(context.Background(), &req)
-			assert.Nil(t, err, "expected no error invoking output binding")
+			assert.NoError(t, err, "expected no error invoking output binding")
 			if createPerformed {
 				assert.Equal(t, req.Data, resp.Data)
 			}
@@ -259,10 +262,10 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			// To stop the test from hanging if there's no response, we can setup a simple timeout.
 			select {
 			case <-readChan:
-				assert.Greater(t, inputBindingCall, 0)
+				assert.Greater(t, inputBindingCall.Load(), int32(0))
 				testLogger.Info("Read channel signalled.")
 			case <-time.After(config.ReadBindingTimeout):
-				assert.Greater(t, inputBindingCall, 0)
+				assert.Greaterf(t, inputBindingCall.Load(), int32(0), "Timed out after %v while reading", config.ReadBindingTimeout)
 				testLogger.Info("Read timeout.")
 			}
 			testLogger.Info("Verify Read test done.")
@@ -276,7 +279,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			req := config.createInvokeRequest()
 			req.Operation = bindings.DeleteOperation
 			_, err := outputBinding.Invoke(context.Background(), &req)
-			assert.Nil(t, err, "expected no error invoking output binding")
+			assert.NoError(t, err, "expected no error invoking output binding")
 
 			if createPerformed && config.HasOperation(string(bindings.GetOperation)) {
 				req.Operation = bindings.GetOperation
@@ -294,10 +297,8 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		// Check for an input-binding specific operation before close
 		if config.HasOperation("read") {
 			testLogger.Info("Closing read connection ...")
-			if closer, ok := inputBinding.(io.Closer); ok {
-				err := closer.Close()
-				assert.NoError(t, err, "expected no error closing input binding")
-			}
+			err := inputBinding.Close()
+			assert.NoError(t, err, "expected no error closing input binding")
 		}
 		// Check for an output-binding specific operation before close
 		if config.HasOperation("operations") {

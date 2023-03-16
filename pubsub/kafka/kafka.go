@@ -15,29 +15,36 @@ package kafka
 
 import (
 	"context"
+	"errors"
+	"sync"
+	"sync/atomic"
 
 	"github.com/dapr/kit/logger"
 
 	"github.com/dapr/components-contrib/internal/component/kafka"
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/internal/utils"
 
 	"github.com/dapr/components-contrib/pubsub"
 )
 
 type PubSub struct {
-	kafka           *kafka.Kafka
-	logger          logger.Logger
-	subscribeCtx    context.Context
-	subscribeCancel context.CancelFunc
+	kafka  *kafka.Kafka
+	logger logger.Logger
+
+	closed  atomic.Bool
+	closeCh chan struct{}
+	wg      sync.WaitGroup
 }
 
-func (p *PubSub) Init(metadata pubsub.Metadata) error {
-	p.subscribeCtx, p.subscribeCancel = context.WithCancel(context.Background())
-
-	return p.kafka.Init(metadata.Properties)
+func (p *PubSub) Init(ctx context.Context, metadata pubsub.Metadata) error {
+	return p.kafka.Init(ctx, metadata.Properties)
 }
 
 func (p *PubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	if p.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	handlerConfig := kafka.SubscriptionHandlerConfig{
 		IsBulkSubscribe: false,
 		Handler:         adaptHandler(handler),
@@ -48,11 +55,13 @@ func (p *PubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 func (p *PubSub) BulkSubscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	handler pubsub.BulkHandler,
 ) error {
+	if p.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	subConfig := pubsub.BulkSubscribeConfig{
-		MaxBulkSubCount: kafka.GetIntFromMetadata(req.Metadata, metadata.MaxBulkSubCountKey,
-			kafka.DefaultMaxBulkSubCount),
-		MaxBulkSubAwaitDurationMs: kafka.GetIntFromMetadata(req.Metadata,
-			metadata.MaxBulkSubAwaitDurationMsKey, kafka.DefaultMaxBulkSubAwaitDurationMs),
+		MaxMessagesCount:   utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxMessagesCount, kafka.DefaultMaxBulkSubCount),
+		MaxAwaitDurationMs: utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxAwaitDurationMs, kafka.DefaultMaxBulkSubAwaitDurationMs),
 	}
 	handlerConfig := kafka.SubscriptionHandlerConfig{
 		IsBulkSubscribe: true,
@@ -65,28 +74,30 @@ func (p *PubSub) BulkSubscribe(ctx context.Context, req pubsub.SubscribeRequest,
 func (p *PubSub) subscribeUtil(ctx context.Context, req pubsub.SubscribeRequest, handlerConfig kafka.SubscriptionHandlerConfig) error {
 	p.kafka.AddTopicHandler(req.Topic, handlerConfig)
 
+	p.wg.Add(1)
 	go func() {
+		defer p.wg.Done()
 		// Wait for context cancelation
 		select {
 		case <-ctx.Done():
-		case <-p.subscribeCtx.Done():
+		case <-p.closeCh:
 		}
 
 		// Remove the topic handler before restarting the subscriber
 		p.kafka.RemoveTopicHandler(req.Topic)
 
 		// If the component's context has been canceled, do not re-subscribe
-		if p.subscribeCtx.Err() != nil {
+		if ctx.Err() != nil {
 			return
 		}
 
-		err := p.kafka.Subscribe(p.subscribeCtx)
+		err := p.kafka.Subscribe(ctx)
 		if err != nil {
 			p.logger.Errorf("kafka pubsub: error re-subscribing: %v", err)
 		}
 	}()
 
-	return p.kafka.Subscribe(p.subscribeCtx)
+	return p.kafka.Subscribe(ctx)
 }
 
 // NewKafka returns a new kafka pubsub instance.
@@ -95,23 +106,35 @@ func NewKafka(logger logger.Logger) pubsub.PubSub {
 	// in kafka pubsub component, enable consumer retry by default
 	k.DefaultConsumeRetryEnabled = true
 	return &PubSub{
-		kafka:  k,
-		logger: logger,
+		kafka:   k,
+		logger:  logger,
+		closeCh: make(chan struct{}),
 	}
 }
 
 // Publish message to Kafka cluster.
 func (p *PubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
+	if p.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	return p.kafka.Publish(ctx, req.Topic, req.Data, req.Metadata)
 }
 
 // BatchPublish messages to Kafka cluster.
 func (p *PubSub) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
+	if p.closed.Load() {
+		return pubsub.BulkPublishResponse{}, errors.New("component is closed")
+	}
+
 	return p.kafka.BulkPublish(ctx, req.Topic, req.Entries, req.Metadata)
 }
 
 func (p *PubSub) Close() (err error) {
-	p.subscribeCancel()
+	defer p.wg.Wait()
+	if p.closed.CompareAndSwap(false, true) {
+		close(p.closeCh)
+	}
 	return p.kafka.Close()
 }
 

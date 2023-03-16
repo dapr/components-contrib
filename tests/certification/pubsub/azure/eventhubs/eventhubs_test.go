@@ -27,8 +27,8 @@ import (
 	"go.uber.org/multierr"
 
 	// Pub-Sub.
-
-	pubsub_evethubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
+	"github.com/dapr/components-contrib/pubsub"
+	pubsub_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
@@ -75,6 +75,7 @@ const (
 )
 
 func TestEventhubs(t *testing.T) {
+	// Tests that simulate failures are un-ordered
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 	consumerGroup4 := watcher.NewOrdered()
@@ -90,7 +91,7 @@ func TestEventhubs(t *testing.T) {
 	}
 
 	// subscriber of the given topic
-	subscriberApplication := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+	subscriberApplication := func(appID string, topicName string, messagesWatcher *watcher.Watcher, withFailures bool) app.SetupFn {
 		return func(ctx flow.Context, s common.Service) error {
 			// Simulate periodic errors.
 			sim := simulate.PeriodicError(ctx, 100)
@@ -101,8 +102,10 @@ func TestEventhubs(t *testing.T) {
 					Topic:      topicName,
 					Route:      "/orders",
 				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
-					if err := sim(); err != nil {
-						return true, err
+					if withFailures {
+						if err := sim(); err != nil {
+							return true, err
+						}
 					}
 
 					// Track/Observe the data of the event.
@@ -131,7 +134,7 @@ func TestEventhubs(t *testing.T) {
 			client := sidecar.GetClient(ctx, sidecarName)
 
 			// publish messages
-			ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+			logs := fmt.Sprintf("Published messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
 
 			var publishOptions dapr.PublishEventOption
 
@@ -139,8 +142,8 @@ func TestEventhubs(t *testing.T) {
 				publishOptions = dapr.PublishEventWithMetadata(metadata)
 			}
 
-			for _, message := range messages {
-				ctx.Logf("Publishing: %q", message)
+			for i, message := range messages {
+				logs += fmt.Sprintf("\nMessage %d: %s", i, message)
 				var err error
 
 				if publishOptions != nil {
@@ -149,8 +152,11 @@ func TestEventhubs(t *testing.T) {
 					err = client.PublishEvent(ctx, pubsubName, topicName, message)
 				}
 
-				require.NoError(ctx, err, "error publishing message")
+				require.NoErrorf(ctx, err, "error publishing message %s", message)
 			}
+
+			ctx.Log(logs)
+
 			return nil
 		}
 	}
@@ -159,16 +165,22 @@ func TestEventhubs(t *testing.T) {
 		return func(ctx flow.Context) error {
 			// assert for messages
 			for _, m := range messageWatchers {
-				m.Assert(ctx, 25*timeout)
+				m.Assert(ctx, 15*timeout)
 			}
 
 			return nil
 		}
 	}
 
-	deleteEventhub := func(ctx flow.Context) error {
+	flowDoneCh := make(chan struct{}, 1)
+	flowDone := func(ctx flow.Context) error {
+		close(flowDoneCh)
+		return nil
+	}
+
+	deleteEventhub := func() error {
 		output, err := exec.Command("/bin/sh", "delete-eventhub.sh", topicToBeCreated).Output()
-		assert.Nil(t, err, "Error in delete-eventhub.sh.:\n%s", string(output))
+		assert.NoErrorf(t, err, "Error in delete-eventhub.sh.:\n%s", string(output))
 		return nil
 	}
 
@@ -181,19 +193,30 @@ func TestEventhubs(t *testing.T) {
 			messageWatchers.ExpectStrings(messages...)
 
 			output, err := exec.Command("/bin/sh", "send-iot-device-events.sh", topicToBeCreated).Output()
-			assert.Nil(t, err, "Error in send-iot-device-events.sh.:\n%s", string(output))
+			assert.NoErrorf(t, err, "Error in send-iot-device-events.sh.:\n%s", string(output))
 			return nil
 		}
 	}
 	// Topic name for a IOT device is same as IOTHubName
 	iotHubName := os.Getenv(iotHubNameEnvKey)
 
+	// Here so we can comment out tests as needed
+	_ = consumerGroup1
+	_ = consumerGroup2
+	_ = consumerGroup4
+	_ = consumerGroup5
+	_ = publishMessageAsDevice
+	_ = iotHubName
+	_ = metadata
+	_ = metadata1
+	_ = publishMessages
+
 	flow.New(t, "eventhubs certification").
 
 		// Test : single publisher, multiple subscriber with their own consumerID
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
-			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
+			subscriberApplication(appID1, topicActiveName, consumerGroup1, true))).
 
 		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
 		Step(sidecar.Run(sidecarName1,
@@ -201,12 +224,13 @@ func TestEventhubs(t *testing.T) {
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			componentRuntimeOptions(),
+			embedded.WithProfilePort(runtime.DefaultProfilePort),
+			componentRuntimeOptions(1),
 		)).
 
 		// Run subscriberApplication app2
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset),
-			subscriberApplication(appID2, topicActiveName, consumerGroup2))).
+			subscriberApplication(appID2, topicActiveName, consumerGroup2, true))).
 
 		// Run the Dapr sidecar with the component 2.
 		Step(sidecar.Run(sidecarName2,
@@ -215,8 +239,9 @@ func TestEventhubs(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
+			componentRuntimeOptions(2),
 		)).
+		Step("wait", flow.Sleep(15*time.Second)).
 		Step("publish messages to topic1", publishMessages(nil, sidecarName1, topicActiveName, consumerGroup1, consumerGroup2)).
 		Step("publish messages to unUsedTopic", publishMessages(nil, sidecarName1, topicPassiveName)).
 		Step("verify if app1 has recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup1)).
@@ -226,7 +251,7 @@ func TestEventhubs(t *testing.T) {
 		// Test : multiple publisher with different partitionkey, multiple subscriber with same consumer ID
 		// Run subscriberApplication app3
 		Step(app.Run(appID3, fmt.Sprintf(":%d", appPort+portOffset*2),
-			subscriberApplication(appID3, topicActiveName, consumerGroup2))).
+			subscriberApplication(appID3, topicActiveName, consumerGroup2, true))).
 
 		// Run the Dapr sidecar with the component 3.
 		Step(sidecar.Run(sidecarName3,
@@ -235,17 +260,19 @@ func TestEventhubs(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*2),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*2),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*2),
-			componentRuntimeOptions(),
+			componentRuntimeOptions(3),
 		)).
+		Step("wait", flow.Sleep(15*time.Second)).
 
 		// publish message in topic1 from two publisher apps, however there are two subscriber apps (app2,app3) with same consumerID
-		Step("publish messages to topic1", publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup2)).
-		Step("publish messages to topic1", publishMessages(metadata1, sidecarName2, topicActiveName, consumerGroup2)).
+		Step("publish messages to topic1 from app1", publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup2)).
+		Step("publish messages to topic1 from app2", publishMessages(metadata1, sidecarName2, topicActiveName, consumerGroup2)).
 		Step("verify if app2, app3 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup2)).
+
 		// Test : Entitymanagement , Test partition key, in order processing with single publisher/subscriber
 		// Run subscriberApplication app4
 		Step(app.Run(appID4, fmt.Sprintf(":%d", appPort+portOffset*3),
-			subscriberApplication(appID4, topicToBeCreated, consumerGroup4))).
+			subscriberApplication(appID4, topicToBeCreated, consumerGroup4, false))).
 
 		// Run the Dapr sidecar with the component entitymanagement
 		Step(sidecar.Run(sidecarName4,
@@ -254,15 +281,16 @@ func TestEventhubs(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*3),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*3),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*3),
-			componentRuntimeOptions(),
+			componentRuntimeOptions(4),
 		)).
+		Step("wait", flow.Sleep(15*time.Second)).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicToBeCreated), publishMessages(metadata, sidecarName4, topicToBeCreated, consumerGroup4)).
 		Step("verify if app4 has recevied messages published to newly created topic", assertMessages(10*time.Second, consumerGroup4)).
 
 		// Test : IOT hub
 		// Run subscriberApplication app5
 		Step(app.Run(appID5, fmt.Sprintf(":%d", appPort+portOffset*4),
-			subscriberApplication(appID5, iotHubName, consumerGroup5))).
+			subscriberApplication(appID5, iotHubName, consumerGroup5, true))).
 		// Run the Dapr sidecar with the iot component
 		Step(sidecar.Run(sidecarName5,
 			embedded.WithComponentsPath("./components/iotconsumer"),
@@ -270,22 +298,37 @@ func TestEventhubs(t *testing.T) {
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*4),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*4),
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*4),
-			componentRuntimeOptions(),
+			componentRuntimeOptions(5),
 		)).
-		Step("add expected IOT messages (simulate add message to iot)", publishMessageAsDevice(consumerGroup5)).
-		Step("verify if app5 has recevied messages published to iot topic", assertMessages(40*time.Second, consumerGroup5)).
-		Step("wait", flow.Sleep(5*time.Second)).
-		// cleanup azure assets created as part of tests
-		Step("delete eventhub created as part of the eventhub management test", deleteEventhub).
+		Step("wait", flow.Sleep(20*time.Second)).
+		Step("add expected IoT messages (simulate add message to IoT Hub)", publishMessageAsDevice(consumerGroup5)).
+		Step("verify if app5 has recevied messages published to IoT topic", assertMessages(10*time.Second, consumerGroup5)).
+
+		// Run the flow
+		Step("mark as complete", flowDone).
 		Run()
+
+	// Cleanup Azure assets created as part of tests
+	<-flowDoneCh
+	time.Sleep(5 * time.Second)
+	fmt.Println("Deleting EventHub resources created as part of the management test…")
+	deleteEventhub()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions(instance int) []runtime.Option {
 	log := logger.NewLogger("dapr.components")
+	log.SetOutputLevel(logger.DebugLevel)
 
 	pubsubRegistry := pubsub_loader.NewRegistry()
 	pubsubRegistry.Logger = log
-	pubsubRegistry.RegisterComponent(pubsub_evethubs.NewAzureEventHubs, "azure.eventhubs")
+	pubsubRegistry.RegisterComponent(func(l logger.Logger) pubsub.PubSub {
+		l = l.WithFields(map[string]any{
+			"component": "pubsub.azure.eventhubs",
+			"instance":  instance,
+		})
+		l.Infof("Instantiated log for instance %d", instance)
+		return pubsub_eventhubs.NewAzureEventHubs(l)
+	}, "azure.eventhubs")
 
 	secretstoreRegistry := secretstores_loader.NewRegistry()
 	secretstoreRegistry.Logger = log

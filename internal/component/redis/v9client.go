@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	v9 "github.com/go-redis/redis/v9"
+	v9 "github.com/redis/go-redis/v9"
 )
 
 type v9Pipeliner struct {
@@ -48,6 +48,10 @@ type v9Client struct {
 	readTimeout  Duration
 	writeTimeout Duration
 	dialTimeout  Duration
+}
+
+func (c v9Client) GetDel(ctx context.Context, key string) (string, error) {
+	return c.client.GetDel(ctx, key).Result()
 }
 
 func (c v9Client) DoWrite(ctx context.Context, args ...interface{}) error {

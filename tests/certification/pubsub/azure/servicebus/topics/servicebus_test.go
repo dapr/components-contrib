@@ -16,10 +16,12 @@ package servicebus_test
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 
@@ -63,6 +65,10 @@ const (
 	topicDefaultName = "certification-topic-default"
 	partition0       = "partition-0"
 	partition1       = "partition-1"
+)
+
+var (
+	sessionIDRegex = regexp.MustCompile("sessionId: (.*)")
 )
 
 func TestServicebus(t *testing.T) {
@@ -1052,8 +1058,304 @@ func TestServicebusAuthentication(t *testing.T) {
 		Run()
 }
 
+// TestServicebusWithSessionsFIFO tests that if we publish messages to the same
+// topic but with 2 different session ids (session1 and session2), then the
+// receiver only receives messages from a single session and in FIFO order.
+func TestServicebusWithSessionsFIFO(t *testing.T) {
+	topic := "sessions-fifo"
+	session1 := "session1"
+	session2 := "session2"
+
+	sessionWatcher := watcher.NewOrdered()
+
+	// subscriber of the given topic
+	subscriberApplicationWithSessions := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			// Setup the /orders event handler.
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      topicName,
+					Route:      "/orders",
+					Metadata: map[string]string{
+						"requireSessions":       "true",
+						"maxConcurrentSessions": "1",
+					},
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					// Track/Observe the data of the event.
+					messagesWatcher.Observe(e.Data)
+					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					return false, nil
+				}),
+			)
+		}
+	}
+
+	publishMessages := func(metadata map[string]string, sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			// prepare the messages
+			messages := make([]string, numMessages)
+			for i := range messages {
+				var msgSuffix string
+				if metadata["SessionId"] != "" {
+					msgSuffix = fmt.Sprintf(", sessionId: %s", metadata["SessionId"])
+				}
+				messages[i] = fmt.Sprintf("partitionKey: %s, message for topic: %s, index: %03d, uniqueId: %s%s", metadata[messageKey], topicName, i, uuid.New().String(), msgSuffix)
+			}
+
+			// add the messages as expectations to the watchers
+			for _, messageWatcher := range messageWatchers {
+				messageWatcher.ExpectStrings(messages...)
+			}
+
+			// get the sidecar (dapr) client
+			client := sidecar.GetClient(ctx, sidecarName)
+
+			// publish messages
+			ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+
+			var publishOptions dapr.PublishEventOption
+
+			if metadata != nil {
+				publishOptions = dapr.PublishEventWithMetadata(metadata)
+			}
+
+			for _, message := range messages {
+				ctx.Logf("Publishing: %q", message)
+				var err error
+
+				if publishOptions != nil {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message, publishOptions)
+				} else {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message)
+				}
+				require.NoError(ctx, err, "error publishing message")
+			}
+			return nil
+		}
+	}
+
+	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+
+			// assert for messages
+			for _, m := range messageWatchers {
+				t, exp, obs := m.Partial(ctx, timeout)
+
+				var observed []string
+				if obs != nil {
+					for _, v := range obs.([]interface{}) {
+						observed = append(observed, v.(string))
+					}
+				}
+				var expected []string
+				if exp != nil {
+					for _, v := range exp.([]interface{}) {
+						expected = append(expected, v.(string))
+					}
+				}
+
+				// ensure all the observed messages
+				// are present in the expected messages.
+				for _, msg := range observed {
+					found := false
+					for _, expMsg := range expected {
+						if msg == expMsg {
+							found = true
+							break
+						}
+					}
+					if !found {
+						t.Errorf("message not found in expected messages: %s", msg)
+					}
+				}
+
+				// we don't know which session id will
+				// be accepted first but we should only
+				// receive messages from one session id
+				// as the max concurrent sessions is
+				// set to 1.
+				var sessionID string
+				for _, msg := range observed {
+					match := sessionIDRegex.FindStringSubmatch(msg)
+					if len(match) > 0 {
+						if sessionID == "" {
+							sessionID = match[1]
+						} else if sessionID != match[1] {
+							t.Errorf("session id is %s, expected %s", match[1], sessionID)
+						}
+					} else {
+						t.Error("session id not found in message")
+					}
+				}
+
+				// ensure the messages are ordered.
+				var ordered []string
+				for _, msg := range expected {
+					match := sessionIDRegex.FindStringSubmatch(msg)
+					if len(match) > 0 {
+						if sessionID == match[1] {
+							ordered = append(ordered, msg)
+						}
+					} else {
+						t.Error("session id not found in message")
+					}
+				}
+
+				if !assert.Equal(t, ordered, observed) {
+					t.Errorf("expected: %v, observed: %v", ordered, observed)
+				}
+			}
+
+			return nil
+		}
+	}
+
+	flow.New(t, "servicebus certification sessions test").
+
+		// Run subscriberApplicationWithSessions app1
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
+			subscriberApplicationWithSessions(appID1, topic, sessionWatcher))).
+
+		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
+		Step(sidecar.Run(sidecarName1,
+			embedded.WithComponentsPath("./components/consumer_one"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
+			componentRuntimeOptions(),
+		)).
+		Step("publish messages to topic1 on session 2", publishMessages(map[string]string{
+			"SessionId": session2,
+		}, sidecarName1, topic, sessionWatcher)).
+		Step("publish messages to topic1 on session 1", publishMessages(map[string]string{
+			"SessionId": session1,
+		}, sidecarName1, topic, sessionWatcher)).
+		Step("publish messages to topic1 on session 2", publishMessages(map[string]string{
+			"SessionId": session2,
+		}, sidecarName1, topic, sessionWatcher)).
+		Step("verify if app1 has recevied messages published to only a single session", assertMessages(10*time.Second, sessionWatcher)).
+		Step("reset", flow.Reset(sessionWatcher)).
+		Run()
+}
+
+// TestServicebusWithSessionsRoundRobin tests that if we publish messages to the same
+// topic but with 2 different session ids (session1 and session2), then eventually
+// the receiver will receive messages from both the sessions.
+func TestServicebusWithSessionsRoundRobin(t *testing.T) {
+	topic := "sessions-rr"
+	session1 := "session1"
+	session2 := "session2"
+
+	sessionWatcher := watcher.NewUnordered()
+
+	// subscriber of the given topic
+	subscriberApplicationWithSessions := func(appID string, topicName string, messageWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			// Setup the /orders event handler.
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      topicName,
+					Route:      "/orders",
+					Metadata: map[string]string{
+						"requireSessions":         "true",
+						"maxConcurrentSessions":   "1",
+						"sessionIdleTimeoutInSec": "2", // timeout and try another session
+					},
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					// Track/Observe the data of the event.
+					messageWatcher.Observe(e.Data)
+					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					return false, nil
+				}),
+			)
+		}
+	}
+
+	publishMessages := func(metadata map[string]string, sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			// prepare the messages
+			messages := make([]string, numMessages)
+			for i := range messages {
+				var msgSuffix string
+				if metadata["SessionId"] != "" {
+					msgSuffix = fmt.Sprintf(", sessionId: %s", metadata["SessionId"])
+				}
+				messages[i] = fmt.Sprintf("partitionKey: %s, message for topic: %s, index: %03d, uniqueId: %s%s", metadata[messageKey], topicName, i, uuid.New().String(), msgSuffix)
+			}
+
+			// add the messages as expectations to the watchers
+			for _, messageWatcher := range messageWatchers {
+				messageWatcher.ExpectStrings(messages...)
+			}
+
+			// get the sidecar (dapr) client
+			client := sidecar.GetClient(ctx, sidecarName)
+
+			// publish messages
+			ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+
+			var publishOptions dapr.PublishEventOption
+
+			if metadata != nil {
+				publishOptions = dapr.PublishEventWithMetadata(metadata)
+			}
+
+			for _, message := range messages {
+				ctx.Logf("Publishing: %q", message)
+				var err error
+
+				if publishOptions != nil {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message, publishOptions)
+				} else {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message)
+				}
+				require.NoError(ctx, err, "error publishing message")
+			}
+			return nil
+		}
+	}
+
+	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			// assert for messages
+			for _, m := range messageWatchers {
+				m.Assert(ctx, 25*timeout)
+			}
+
+			return nil
+		}
+	}
+
+	flow.New(t, "servicebus certification sessions test").
+
+		// Run subscriberApplicationWithSessions app1
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
+			subscriberApplicationWithSessions(appID1, topic, sessionWatcher))).
+
+		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
+		Step(sidecar.Run(sidecarName1,
+			embedded.WithComponentsPath("./components/consumer_one"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
+			componentRuntimeOptions(),
+		)).
+		Step("publish messages to topic1 on session 2", publishMessages(map[string]string{
+			"SessionId": session2,
+		}, sidecarName1, topic, sessionWatcher)).
+		Step("publish messages to topic1 on session 1", publishMessages(map[string]string{
+			"SessionId": session1,
+		}, sidecarName1, topic, sessionWatcher)).
+		Step("verify if app1 has recevied messages published to both sessions", assertMessages(1*time.Second, sessionWatcher)).
+		Step("reset", flow.Reset(sessionWatcher)).
+		Run()
+}
+
 func componentRuntimeOptions() []runtime.Option {
 	log := logger.NewLogger("dapr.components")
+	log.SetOutputLevel(logger.DebugLevel)
 
 	pubsubRegistry := pubsub_loader.NewRegistry()
 	pubsubRegistry.Logger = log

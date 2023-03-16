@@ -62,7 +62,7 @@ func NewMemCacheStateStore(logger logger.Logger) state.Store {
 	return s
 }
 
-func (m *Memcached) Init(metadata state.Metadata) error {
+func (m *Memcached) Init(_ context.Context, metadata state.Metadata) error {
 	meta, err := getMemcachedMetadata(metadata)
 	if err != nil {
 		return err
@@ -78,6 +78,8 @@ func (m *Memcached) Init(metadata state.Metadata) error {
 
 	m.client = client
 
+	// TODO: pass context when PR is merged.
+	// https://github.com/bradfitz/gomemcache/pull/126
 	err = client.Ping()
 	if err != nil {
 		return err
@@ -193,6 +195,16 @@ func (m *Memcached) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 	return &state.GetResponse{
 		Data: item.Value,
 	}, nil
+}
+
+func (m *Memcached) Close() (err error) {
+	if m.client != nil {
+		err = m.client.Close()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (m *Memcached) GetComponentMetadata() map[string]string {

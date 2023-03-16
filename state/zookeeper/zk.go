@@ -22,9 +22,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-zookeeper/zk"
 	"github.com/hashicorp/go-multierror"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/samuel/go-zookeeper/zk"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -134,7 +134,7 @@ func NewZookeeperStateStore(logger logger.Logger) state.Store {
 	}
 }
 
-func (s *StateStore) Init(metadata state.Metadata) (err error) {
+func (s *StateStore) Init(_ context.Context, metadata state.Metadata) (err error) {
 	var c *config
 
 	if c, err = newConfig(metadata.Properties); err != nil {

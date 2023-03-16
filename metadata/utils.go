@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/mitchellh/mapstructure"
-	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/kit/ptr"
@@ -44,12 +43,6 @@ const (
 	// QueryIndexName defines the metadata key for the name of query indexing schema (for redis).
 	QueryIndexName = "queryIndexName"
 
-	// MaxBulkCountSubKey defines the maximum number of messages to be sent in a single bulk subscribe request.
-	MaxBulkSubCountKey string = "maxBulkSubCount"
-
-	// MaxBulkAwaitDurationKey is the key for the max bulk await duration in the metadata.
-	MaxBulkSubAwaitDurationMsKey string = "maxBulkSubAwaitDurationMs"
-
 	// MaxBulkPubBytesKey defines the maximum bytes to publish in a bulk publish request metadata.
 	MaxBulkPubBytesKey string = "maxBulkPubBytes"
 )
@@ -59,7 +52,7 @@ func TryGetTTL(props map[string]string) (time.Duration, bool, error) {
 	if val, ok := props[TTLMetadataKey]; ok && val != "" {
 		valInt64, err := strconv.ParseInt(val, 10, 64)
 		if err != nil {
-			return 0, false, errors.Wrapf(err, "%s value must be a valid integer: actual is '%s'", TTLMetadataKey, val)
+			return 0, false, fmt.Errorf("%s value must be a valid integer: actual is '%s'", TTLMetadataKey, val)
 		}
 
 		if valInt64 <= 0 {
@@ -83,7 +76,7 @@ func TryGetPriority(props map[string]string) (uint8, bool, error) {
 	if val, ok := props[PriorityMetadataKey]; ok && val != "" {
 		intVal, err := strconv.Atoi(val)
 		if err != nil {
-			return 0, false, errors.Wrapf(err, "%s value must be a valid integer: actual is '%s'", PriorityMetadataKey, val)
+			return 0, false, fmt.Errorf("%s value must be a valid integer: actual is '%s'", PriorityMetadataKey, val)
 		}
 
 		priority := uint8(intVal)
@@ -104,7 +97,7 @@ func IsRawPayload(props map[string]string) (bool, error) {
 	if val, ok := props[RawPayloadKey]; ok && val != "" {
 		boolVal, err := strconv.ParseBool(val)
 		if err != nil {
-			return false, errors.Wrapf(err, "%s value must be a valid boolean: actual is '%s'", RawPayloadKey, val)
+			return false, fmt.Errorf("%s value must be a valid boolean: actual is '%s'", RawPayloadKey, val)
 		}
 
 		return boolVal, nil
@@ -131,8 +124,12 @@ func TryGetQueryIndexName(props map[string]string) (string, bool) {
 
 // GetMetadataProperty returns a property from the metadata map, with support for aliases
 func GetMetadataProperty(props map[string]string, keys ...string) (val string, ok bool) {
+	lcProps := make(map[string]string, len(props))
+	for k, v := range props {
+		lcProps[strings.ToLower(k)] = v
+	}
 	for _, k := range keys {
-		val, ok = props[k]
+		val, ok = lcProps[strings.ToLower(k)]
 		if ok {
 			return val, true
 		}

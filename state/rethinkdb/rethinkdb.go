@@ -16,12 +16,13 @@ package rethinkdb
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"reflect"
 	"time"
 
 	r "github.com/dancannon/gorethink"
-	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -66,12 +67,12 @@ func NewRethinkDBStateStore(logger logger.Logger) state.Store {
 }
 
 // Init parses metadata, initializes the RethinkDB client, and ensures the state table exists.
-func (s *RethinkDB) Init(metadata state.Metadata) error {
+func (s *RethinkDB) Init(ctx context.Context, metadata state.Metadata) error {
 	r.Log.Out = io.Discard
 	r.SetTags("rethinkdb", "json")
 	cfg, err := metadataToConfig(metadata.Properties, s.logger)
 	if err != nil {
-		return errors.Wrap(err, "unable to parse metadata properties")
+		return fmt.Errorf("unable to parse metadata properties: %w", err)
 	}
 
 	// in case someone runs Init multiple times
@@ -80,61 +81,61 @@ func (s *RethinkDB) Init(metadata state.Metadata) error {
 	}
 	ses, err := r.Connect(cfg.ConnectOpts)
 	if err != nil {
-		return errors.Wrap(err, "error connecting to the database")
+		return fmt.Errorf("error connecting to the database: %w", err)
 	}
 
 	s.session = ses
 	s.config = cfg
 
 	// check if table already exists
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	c, err := r.DB(s.config.Database).TableList().Run(s.session, r.RunOpts{Context: ctx})
-	cancel()
+	listContext, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	c, err := r.DB(s.config.Database).TableList().Run(s.session, r.RunOpts{Context: listContext})
 	if err != nil {
-		return errors.Wrap(err, "error checking for state table existence in DB")
+		return fmt.Errorf("error checking for state table existence in DB: %w", err)
 	}
 
 	if c == nil {
-		return errors.Wrap(err, "invalid database response, cursor required")
+		return fmt.Errorf("invalid database response, cursor required: %w", err)
 	}
 	defer c.Close()
 
 	var list []string
 	err = c.All(&list)
 	if err != nil {
-		return errors.Wrap(err, "invalid database responsewhile listing tables")
+		return fmt.Errorf("invalid database responsewhile listing tables: %w", err)
 	}
 
 	if !tableExists(list, s.config.Table) {
-		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
 		_, err = r.DB(s.config.Database).TableCreate(s.config.Table, r.TableCreateOpts{
 			PrimaryKey: stateTablePKName,
-		}).RunWrite(s.session, r.RunOpts{Context: ctx})
-		cancel()
+		}).RunWrite(s.session, r.RunOpts{Context: cctx})
 		if err != nil {
-			return errors.Wrap(err, "error creating state table in DB")
+			return fmt.Errorf("error creating state table in DB: %w", err)
 		}
 	}
 
 	if s.config.Archive && !tableExists(list, stateArchiveTableName) {
 		// create archive table with autokey to preserve state id
-		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		ctblCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
 		_, err = r.DB(s.config.Database).TableCreate(stateArchiveTableName,
-			r.TableCreateOpts{PrimaryKey: stateArchiveTablePKName}).RunWrite(s.session, r.RunOpts{Context: ctx})
-		cancel()
+			r.TableCreateOpts{PrimaryKey: stateArchiveTablePKName}).RunWrite(s.session, r.RunOpts{Context: ctblCtx})
 		if err != nil {
-			return errors.Wrap(err, "error creating state archive table in DB")
+			return fmt.Errorf("error creating state archive table in DB: %w", err)
 		}
 
 		// index archive table for id and timestamp
-		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		cindCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
 		_, err = r.DB(s.config.Database).Table(stateArchiveTableName).
 			IndexCreateFunc("state_index", func(row r.Term) interface{} {
 				return []interface{}{row.Field("id"), row.Field("timestamp")}
-			}).RunWrite(s.session, r.RunOpts{Context: ctx})
-		cancel()
+			}).RunWrite(s.session, r.RunOpts{Context: cindCtx})
 		if err != nil {
-			return errors.Wrap(err, "error creating state archive index in DB")
+			return fmt.Errorf("error creating state archive index in DB: %w", err)
 		}
 	}
 
@@ -164,7 +165,7 @@ func (s *RethinkDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 
 	c, err := r.Table(s.config.Table).Get(req.Key).Run(s.session, r.RunOpts{Context: ctx})
 	if err != nil {
-		return nil, errors.Wrap(err, "error getting record from the database")
+		return nil, fmt.Errorf("error getting record from the database: %w", err)
 	}
 
 	if c == nil || c.IsNil() {
@@ -178,7 +179,7 @@ func (s *RethinkDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 	var doc stateRecord
 	err = c.One(&doc)
 	if err != nil {
-		return nil, errors.Wrap(err, "error parsing database content")
+		return nil, fmt.Errorf("error parsing database content: %w", err)
 	}
 
 	resp := &state.GetResponse{ETag: ptr.Of(doc.Hash)}
@@ -233,7 +234,7 @@ func (s *RethinkDB) BulkSet(ctx context.Context, req []state.SetRequest) error {
 		ReturnChanges: true,
 	}).RunWrite(s.session, r.RunOpts{Context: ctx})
 	if err != nil {
-		return errors.Wrap(err, "error saving records to the database")
+		return fmt.Errorf("error saving records to the database: %w", err)
 	}
 
 	if s.config.Archive && len(resp.Changes) > 0 {
@@ -259,7 +260,7 @@ func (s *RethinkDB) archive(ctx context.Context, changes []r.ChangeResponse) err
 	if len(list) > 0 {
 		_, err := r.Table(stateArchiveTableName).Insert(list).RunWrite(s.session, r.RunOpts{Context: ctx})
 		if err != nil {
-			return errors.Wrap(err, "error archiving records to the database")
+			return fmt.Errorf("error archiving records to the database: %w", err)
 		}
 	}
 
@@ -284,7 +285,7 @@ func (s *RethinkDB) BulkDelete(ctx context.Context, req []state.DeleteRequest) e
 
 	c, err := r.Table(s.config.Table).GetAll(r.Args(list)).Delete().Run(s.session, r.RunOpts{Context: ctx})
 	if err != nil {
-		return errors.Wrap(err, "error deleting record from the database")
+		return fmt.Errorf("error deleting record from the database: %w", err)
 	}
 	defer c.Close()
 
@@ -301,27 +302,27 @@ func (s *RethinkDB) Multi(ctx context.Context, req *state.TransactionalStateRequ
 		case state.Upsert:
 			r, ok := v.Request.(state.SetRequest)
 			if !ok {
-				return errors.Errorf("invalid request type (expected SetRequest, got %t)", v.Request)
+				return fmt.Errorf("invalid request type (expected SetRequest, got %t)", v.Request)
 			}
 			upserts = append(upserts, r)
 		case state.Delete:
 			r, ok := v.Request.(state.DeleteRequest)
 			if !ok {
-				return errors.Errorf("invalid request type (expected DeleteRequest, got %t)", v.Request)
+				return fmt.Errorf("invalid request type (expected DeleteRequest, got %t)", v.Request)
 			}
 			deletes = append(deletes, r)
 		default:
-			return errors.Errorf("invalid operation type: %s", v.Operation)
+			return fmt.Errorf("invalid operation type: %s", v.Operation)
 		}
 	}
 
 	// best effort, no transacts supported
 	if err := s.BulkSet(ctx, upserts); err != nil {
-		return errors.Wrap(err, "error saving records to the database")
+		return fmt.Errorf("error saving records to the database: %w", err)
 	}
 
 	if err := s.BulkDelete(ctx, deletes); err != nil {
-		return errors.Wrap(err, "error deleting records to the database")
+		return fmt.Errorf("error deleting records to the database: %w", err)
 	}
 
 	return nil

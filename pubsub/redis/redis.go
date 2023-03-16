@@ -18,6 +18,8 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
@@ -46,11 +48,11 @@ type redisStreams struct {
 	client         rediscomponent.RedisClient
 	clientSettings *rediscomponent.Settings
 	logger         logger.Logger
+	wg             sync.WaitGroup
+	closed         atomic.Bool
+	closeCh        chan struct{}
 
 	queue chan redisMessageWrapper
-
-	ctx    context.Context
-	cancel context.CancelFunc
 }
 
 // redisMessageWrapper encapsulates the message identifier,
@@ -64,7 +66,10 @@ type redisMessageWrapper struct {
 
 // NewRedisStreams returns a new redis streams pub-sub implementation.
 func NewRedisStreams(logger logger.Logger) pubsub.PubSub {
-	return &redisStreams{logger: logger}
+	return &redisStreams{
+		logger:  logger,
+		closeCh: make(chan struct{}),
+	}
 }
 
 func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {
@@ -129,7 +134,7 @@ func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {
 	return m, nil
 }
 
-func (r *redisStreams) Init(metadata pubsub.Metadata) error {
+func (r *redisStreams) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	m, err := parseRedisMetadata(metadata)
 	if err != nil {
 		return err
@@ -140,21 +145,27 @@ func (r *redisStreams) Init(metadata pubsub.Metadata) error {
 		return err
 	}
 
-	r.ctx, r.cancel = context.WithCancel(context.Background())
-
-	if _, err = r.client.PingResult(r.ctx); err != nil {
+	if _, err = r.client.PingResult(ctx); err != nil {
 		return fmt.Errorf("redis streams: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
 	r.queue = make(chan redisMessageWrapper, int(r.metadata.queueDepth))
 
 	for i := uint(0); i < r.metadata.concurrency; i++ {
-		go r.worker()
+		r.wg.Add(1)
+		go func() {
+			defer r.wg.Done()
+			r.worker()
+		}()
 	}
 
 	return nil
 }
 
 func (r *redisStreams) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
+	if r.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	_, err := r.client.XAdd(ctx, req.Topic, r.metadata.maxLenApprox, map[string]interface{}{"data": req.Data})
 	if err != nil {
 		return fmt.Errorf("redis streams: error from publish: %s", err)
@@ -164,6 +175,10 @@ func (r *redisStreams) Publish(ctx context.Context, req *pubsub.PublishRequest) 
 }
 
 func (r *redisStreams) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	if r.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	err := r.client.XGroupCreateMkStream(ctx, req.Topic, r.metadata.consumerID, "0")
 	// Ignore BUSYGROUP errors
 	if err != nil && err.Error() != "BUSYGROUP Consumer Group name already exists" {
@@ -171,8 +186,26 @@ func (r *redisStreams) Subscribe(ctx context.Context, req pubsub.SubscribeReques
 		return err
 	}
 
-	go r.pollNewMessagesLoop(ctx, req.Topic, handler)
-	go r.reclaimPendingMessagesLoop(ctx, req.Topic, handler)
+	loopCtx, cancel := context.WithCancel(ctx)
+	r.wg.Add(3)
+	go func() {
+		// Add a context which catches the close signal to account for situations
+		// where Close is called, but the context is not cancelled.
+		defer r.wg.Done()
+		defer cancel()
+		select {
+		case <-loopCtx.Done():
+		case <-r.closeCh:
+		}
+	}()
+	go func() {
+		defer r.wg.Done()
+		r.pollNewMessagesLoop(loopCtx, req.Topic, handler)
+	}()
+	go func() {
+		defer r.wg.Done()
+		r.reclaimPendingMessagesLoop(loopCtx, req.Topic, handler)
+	}()
 
 	return nil
 }
@@ -224,8 +257,8 @@ func createRedisMessageWrapper(ctx context.Context, stream string, handler pubsu
 func (r *redisStreams) worker() {
 	for {
 		select {
-		// Handle cancelation
-		case <-r.ctx.Done():
+		// Handle closing
+		case <-r.closeCh:
 			return
 
 		case msg := <-r.queue:
@@ -252,7 +285,7 @@ func (r *redisStreams) processMessage(msg redisMessageWrapper) error {
 		return err
 	}
 
-	// Use the background context in case subscriptionCtx is already closed
+	// Use the background context in case subscriptionCtx is already closed.
 	if err := r.client.XAck(context.Background(), msg.message.Topic, r.metadata.consumerID, msg.messageID); err != nil {
 		r.logger.Errorf("Error acknowledging Redis message %s: %v", msg.messageID, err)
 
@@ -399,7 +432,7 @@ func (r *redisStreams) removeMessagesThatNoLongerExistFromPending(ctx context.Co
 
 		// Ack the message to remove it from the pending list.
 		if errors.Is(err, r.client.GetNilValueError()) {
-			// Use the background context in case subscriptionCtx is already closed
+			// Use the background context in case subscriptionCtx is already closed.
 			if err = r.client.XAck(context.Background(), stream, r.metadata.consumerID, pendingID); err != nil {
 				r.logger.Errorf("error acknowledging Redis message %s after failed claim for %s: %v", pendingID, stream, err)
 			}
@@ -411,8 +444,9 @@ func (r *redisStreams) removeMessagesThatNoLongerExistFromPending(ctx context.Co
 }
 
 func (r *redisStreams) Close() error {
-	if r.cancel != nil {
-		r.cancel()
+	defer r.wg.Wait()
+	if r.closed.CompareAndSwap(false, true) {
+		close(r.closeCh)
 	}
 
 	if r.client == nil {
@@ -425,8 +459,8 @@ func (r *redisStreams) Features() []pubsub.Feature {
 	return nil
 }
 
-func (r *redisStreams) Ping() error {
-	if _, err := r.client.PingResult(context.Background()); err != nil {
+func (r *redisStreams) Ping(ctx context.Context) error {
+	if _, err := r.client.PingResult(ctx); err != nil {
 		return fmt.Errorf("redis pubsub: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
 

@@ -117,7 +117,6 @@ func TestConfigurationStore_Get(t *testing.T) {
 			want: &configuration.GetResponse{
 				Items: map[string]*configuration.Item{},
 			},
-			wantErr: true,
 		},
 		{
 			name: "test does not throw error for wrong type during get all",
@@ -251,6 +250,31 @@ func Test_parseRedisMetadata(t *testing.T) {
 	testProperties[maxRetryBackoff] = "1000000000"
 	testProperties[failover] = "true"
 	testProperties[sentinelMasterName] = "tesSentinelMasterName"
+	testProperties[redisDB] = "1"
+	testMetadata := metadata{
+		Host:               "testHost",
+		Password:           "testPassword",
+		EnableTLS:          true,
+		MaxRetries:         10,
+		MaxRetryBackoff:    time.Second,
+		Failover:           true,
+		SentinelMasterName: "tesSentinelMasterName",
+		DB:                 1,
+	}
+
+	testDefaultProperties := make(map[string]string)
+	testDefaultProperties[host] = "testHost"
+	defaultMetadata := metadata{
+		Host:               "testHost",
+		Password:           "",
+		EnableTLS:          defaultEnableTLS,
+		MaxRetries:         defaultMaxRetries,
+		MaxRetryBackoff:    defaultMaxRetryBackoff,
+		Failover:           false,
+		SentinelMasterName: "",
+		DB:                 defaultDB,
+	}
+
 	tests := []struct {
 		name    string
 		args    args
@@ -263,15 +287,15 @@ func Test_parseRedisMetadata(t *testing.T) {
 					Properties: testProperties,
 				}},
 			},
-			want: metadata{
-				Host:               "testHost",
-				Password:           "testPassword",
-				EnableTLS:          true,
-				MaxRetries:         10,
-				MaxRetryBackoff:    time.Second,
-				Failover:           true,
-				SentinelMasterName: "tesSentinelMasterName",
+			want: testMetadata,
+		},
+		{
+			args: args{
+				meta: configuration.Metadata{Base: mdata.Base{
+					Properties: testDefaultProperties,
+				}},
 			},
+			want: defaultMetadata,
 		},
 	}
 	for _, tt := range tests {

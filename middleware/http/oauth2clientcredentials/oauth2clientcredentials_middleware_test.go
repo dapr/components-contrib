@@ -14,6 +14,7 @@ limitations under the License.
 package oauth2clientcredentials
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -45,7 +46,7 @@ func TestOAuth2ClientCredentialsMetadata(t *testing.T) {
 	metadata.Properties = map[string]string{}
 
 	log := logger.NewLogger("oauth2clientcredentials.test")
-	_, err := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(metadata)
+	_, err := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(context.Background(), metadata)
 	assert.EqualError(t, err, "metadata errors: Parameter 'headerName' needs to be set. Parameter 'clientID' needs to be set. Parameter 'clientSecret' needs to be set. Parameter 'scopes' needs to be set. Parameter 'tokenURL' needs to be set. ")
 
 	// Invalid authStyle (non int)
@@ -57,17 +58,17 @@ func TestOAuth2ClientCredentialsMetadata(t *testing.T) {
 		"headerName":   "someHeader",
 		"authStyle":    "asdf", // This is the value to test
 	}
-	_, err2 := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(metadata)
+	_, err2 := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(context.Background(), metadata)
 	assert.EqualError(t, err2, "metadata errors: 1 error(s) decoding:\n\n* cannot parse 'AuthStyle' as int: strconv.ParseInt: parsing \"asdf\": invalid syntax")
 
 	// Invalid authStyle (int > 2)
 	metadata.Properties["authStyle"] = "3"
-	_, err3 := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(metadata)
+	_, err3 := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(context.Background(), metadata)
 	assert.EqualError(t, err3, "metadata errors: Parameter 'authStyle' can only have the values 0,1,2. Received: '3'. ")
 
 	// Invalid authStyle (int < 0)
 	metadata.Properties["authStyle"] = "-1"
-	_, err4 := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(metadata)
+	_, err4 := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(context.Background(), metadata)
 	assert.EqualError(t, err4, "metadata errors: Parameter 'authStyle' can only have the values 0,1,2. Received: '-1'. ")
 }
 
@@ -109,7 +110,7 @@ func TestOAuth2ClientCredentialsToken(t *testing.T) {
 	log := logger.NewLogger("oauth2clientcredentials.test")
 	oauth2clientcredentialsMiddleware, _ := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
 	oauth2clientcredentialsMiddleware.SetTokenProvider(mockTokenProvider)
-	handler, err := oauth2clientcredentialsMiddleware.GetHandler(metadata)
+	handler, err := oauth2clientcredentialsMiddleware.GetHandler(context.Background(), metadata)
 	require.NoError(t, err)
 
 	// First handler call should return abc Token
@@ -118,7 +119,7 @@ func TestOAuth2ClientCredentialsToken(t *testing.T) {
 	handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 
 	// Assertion
-	assert.Equal(t, "Bearer abcd", w.Header().Get("someHeader"))
+	assert.Equal(t, "Bearer abcd", r.Header.Get("someHeader"))
 }
 
 // TestOAuth2ClientCredentialsCache will check
@@ -169,7 +170,7 @@ func TestOAuth2ClientCredentialsCache(t *testing.T) {
 	log := logger.NewLogger("oauth2clientcredentials.test")
 	oauth2clientcredentialsMiddleware, _ := NewOAuth2ClientCredentialsMiddleware(log).(*Middleware)
 	oauth2clientcredentialsMiddleware.SetTokenProvider(mockTokenProvider)
-	handler, err := oauth2clientcredentialsMiddleware.GetHandler(metadata)
+	handler, err := oauth2clientcredentialsMiddleware.GetHandler(context.Background(), metadata)
 	require.NoError(t, err)
 
 	// First handler call should return abc Token
@@ -178,7 +179,7 @@ func TestOAuth2ClientCredentialsCache(t *testing.T) {
 	handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 
 	// Assertion
-	assert.Equal(t, "Bearer abc", w.Header().Get("someHeader"))
+	assert.Equal(t, "Bearer abc", r.Header.Get("someHeader"))
 
 	// Second handler call should still return 'cached' abc Token
 	r = httptest.NewRequest(http.MethodGet, "http://dapr.io", nil)
@@ -186,7 +187,7 @@ func TestOAuth2ClientCredentialsCache(t *testing.T) {
 	handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 
 	// Assertion
-	assert.Equal(t, "Bearer abc", w.Header().Get("someHeader"))
+	assert.Equal(t, "Bearer abc", r.Header.Get("someHeader"))
 
 	// Wait at a second to invalidate cache entry for abc
 	time.Sleep(1 * time.Second)
@@ -197,5 +198,5 @@ func TestOAuth2ClientCredentialsCache(t *testing.T) {
 	handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 
 	// Assertion
-	assert.Equal(t, "MAC def", w.Header().Get("someHeader"))
+	assert.Equal(t, "MAC def", r.Header.Get("someHeader"))
 }

@@ -48,9 +48,11 @@ type metadata struct {
 	replicas       int
 	memoryStorage  bool
 	rateLimit      uint64
-	hearbeat       time.Duration
+	heartbeat      time.Duration
 	deliverPolicy  nats.DeliverPolicy
 	ackPolicy      nats.AckPolicy
+	domain         string
+	apiPrefix      string
 }
 
 func parseMetadata(psm pubsub.Metadata) (metadata, error) {
@@ -90,11 +92,7 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 	}
 
 	m.durableName = psm.Properties["durableName"]
-	if val, ok := psm.Properties["queueGroupName"]; ok && val != "" {
-		m.queueGroupName = val
-	} else {
-		m.queueGroupName = psm.Properties[pubsub.RuntimeConsumerIDKey]
-	}
+	m.queueGroupName = psm.Properties["queueGroupName"]
 
 	if v, err := strconv.ParseUint(psm.Properties["startSequence"], 10, 64); err == nil {
 		m.startSequence = v
@@ -139,8 +137,15 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 		m.rateLimit = v
 	}
 
-	if v, err := time.ParseDuration(psm.Properties["hearbeat"]); err == nil {
-		m.hearbeat = v
+	if v, err := time.ParseDuration(psm.Properties["heartbeat"]); err == nil {
+		m.heartbeat = v
+	}
+
+	if domain := psm.Properties["domain"]; domain != "" {
+		m.domain = domain
+	}
+	if apiPrefix := psm.Properties["apiPrefix"]; apiPrefix != "" {
+		m.apiPrefix = apiPrefix
 	}
 
 	deliverPolicy := psm.Properties["deliverPolicy"]

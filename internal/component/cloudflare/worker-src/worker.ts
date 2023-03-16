@@ -11,10 +11,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Router, type Request as RequestI } from 'itty-router'
+import { Router, IRequest } from 'itty-router'
 
-import type { Environment } from '$lib/environment'
+import { Environment } from '$lib/environment'
 import { AuthorizeRequest } from '$lib/jwt-auth'
+
 import { version } from './package.json'
 
 const router = Router()
@@ -22,7 +23,7 @@ const router = Router()
     .get(
         '/.well-known/dapr/info',
         async (
-            req: Request & RequestI,
+            req: IRequest,
             env: Environment
         ): Promise<Response> => {
             const auth = await AuthorizeRequest(req, env)
@@ -48,6 +49,7 @@ const router = Router()
                     case 'KVNamespace':
                         kv.push(all[i])
                         break
+                    case 'WorkerQueue':
                     case 'Queue':
                         queues.push(all[i])
                         break
@@ -76,7 +78,7 @@ const router = Router()
     .get(
         '/kv/:namespace/:key',
         async (
-            req: Request & RequestI,
+            req: IRequest,
             env: Environment
         ): Promise<Response> => {
             const { namespace, key, errorRes } = await setupKVRequest(req, env)
@@ -97,7 +99,7 @@ const router = Router()
     .post(
         '/kv/:namespace/:key',
         async (
-            req: Request & RequestI,
+            req: IRequest,
             env: Environment
         ): Promise<Response> => {
             const { namespace, key, errorRes } = await setupKVRequest(req, env)
@@ -105,13 +107,13 @@ const router = Router()
                 return errorRes
             }
 
-            let expirationTtl: number|undefined = undefined
+            let expirationTtl: number | undefined = undefined
             const reqUrl = new URL(req.url)
-            const ttlParam = parseInt(reqUrl.searchParams.get('ttl') ||'', 10)
+            const ttlParam = parseInt(reqUrl.searchParams.get('ttl') || '', 10)
             if (ttlParam > 0) {
                 expirationTtl = ttlParam
             }
-            await namespace!.put(key!, req.body!, {expirationTtl})
+            await namespace!.put(key!, req.body!, { expirationTtl })
 
             return new Response('', { status: 201 })
         }
@@ -121,7 +123,7 @@ const router = Router()
     .delete(
         '/kv/:namespace/:key',
         async (
-            req: Request & RequestI,
+            req: IRequest,
             env: Environment
         ): Promise<Response> => {
             const { namespace, key, errorRes } = await setupKVRequest(req, env)
@@ -139,7 +141,7 @@ const router = Router()
     .post(
         '/queues/:queue',
         async (
-            req: Request & RequestI,
+            req: IRequest,
             env: Environment
         ): Promise<Response> => {
             const { queue, errorRes } = await setupQueueRequest(req, env)
@@ -160,7 +162,7 @@ const router = Router()
 
 // Performs the init setps for a KV request. Returns a Response object in case of error.
 async function setupKVRequest(
-    req: Request & RequestI,
+    req: IRequest,
     env: Environment
 ): Promise<{
     namespace?: KVNamespace<string>
@@ -171,7 +173,10 @@ async function setupKVRequest(
         return { errorRes: new Response('Bad request', { status: 400 }) }
     }
     const namespace = env[req.params.namespace] as KVNamespace<string>
-    if (typeof namespace != 'object' || !['KVNamespace', 'KvNamespace'].includes(namespace?.constructor?.name)) {
+    if (
+        typeof namespace != 'object' ||
+        !['KVNamespace', 'KvNamespace'].includes(namespace?.constructor?.name)
+    ) {
         return {
             errorRes: new Response(
                 `Worker is not bound to KV '${req.params.kv}'`,
@@ -190,14 +195,14 @@ async function setupKVRequest(
 
 // Performs the init setps for a Queue request. Returns a Response object in case of error.
 async function setupQueueRequest(
-    req: Request & RequestI,
+    req: IRequest,
     env: Environment
 ): Promise<{ queue?: Queue<string>; errorRes?: Response }> {
     if (!req?.text || !req.params?.queue) {
         return { errorRes: new Response('Bad request', { status: 400 }) }
     }
     const queue = env[req.params.queue] as Queue<string>
-    if (typeof queue != 'object' || queue?.constructor?.name != 'Queue') {
+    if (typeof queue != 'object' || !['WorkerQueue', 'Queue'].includes(queue?.constructor?.name)) {
         return {
             errorRes: new Response(
                 `Worker is not bound to queue '${req.params.queue}'`,

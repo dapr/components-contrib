@@ -80,11 +80,14 @@ metadata:
     required: true
     description: "The Cosmos DB url."
     example: '"https://******.documents.azure.com:443/"'
+    type: string
   - name: database
     required: true
     description: "The name of the database."
     example: '"db"'
+    type: string
   - name: collection
     required: true
     description: "The name of the collection (container)."
     example: '"collection"'
+    type: string

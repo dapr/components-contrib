@@ -45,7 +45,7 @@ type oAuth2ClientCredentialsMiddlewareMetadata struct {
 
 // TokenProviderInterface provides a common interface to Mock the Token retrieval in unit tests.
 type TokenProviderInterface interface {
-	GetToken(conf *clientcredentials.Config) (*oauth2.Token, error)
+	GetToken(ctx context.Context, conf *clientcredentials.Config) (*oauth2.Token, error)
 }
 
 // NewOAuth2ClientCredentialsMiddleware returns a new oAuth2 middleware.
@@ -68,7 +68,7 @@ type Middleware struct {
 }
 
 // GetHandler retruns the HTTP handler provided by the middleware.
-func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
+func (m *Middleware) GetHandler(_ context.Context, metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {
 		m.log.Errorf("getNativeMetadata error: %s", err)
@@ -101,13 +101,13 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 			if !found {
 				m.log.Debugf("Cached token not found, try get one")
 
-				token, err := m.tokenProvider.GetToken(conf)
+				token, err := m.tokenProvider.GetToken(r.Context(), conf)
 				if err != nil {
 					m.log.Errorf("Error acquiring token: %s", err)
 					return
 				}
 
-				tokenExpirationDuration := token.Expiry.Sub(time.Now())
+				tokenExpirationDuration := time.Until(token.Expiry)
 				m.log.Debugf("Token expires at %s (%s from now)", token.Expiry, tokenExpirationDuration)
 
 				headerValue = token.Type() + " " + token.AccessToken
@@ -117,7 +117,7 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 				headerValue = cachedToken.(string)
 			}
 
-			w.Header().Add(meta.HeaderName, headerValue)
+			r.Header.Add(meta.HeaderName, headerValue)
 			next.ServeHTTP(w, r)
 		})
 	}, nil
@@ -171,8 +171,8 @@ func (m *Middleware) SetTokenProvider(tokenProvider TokenProviderInterface) {
 }
 
 // GetToken returns a token from the current OAuth2 ClientCredentials Configuration.
-func (m *Middleware) GetToken(conf *clientcredentials.Config) (*oauth2.Token, error) {
-	tokenSource := conf.TokenSource(context.Background())
+func (m *Middleware) GetToken(ctx context.Context, conf *clientcredentials.Config) (*oauth2.Token, error) {
+	tokenSource := conf.TokenSource(ctx)
 
 	return tokenSource.Token()
 }

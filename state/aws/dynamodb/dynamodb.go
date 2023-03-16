@@ -39,6 +39,7 @@ type StateStore struct {
 	client           dynamodbiface.DynamoDBAPI
 	table            string
 	ttlAttributeName string
+	partitionKey     string
 }
 
 type dynamoDBMetadata struct {
@@ -49,15 +50,23 @@ type dynamoDBMetadata struct {
 	SessionToken     string `json:"sessionToken"`
 	Table            string `json:"table"`
 	TTLAttributeName string `json:"ttlAttributeName"`
+	PartitionKey     string `json:"partitionKey"`
 }
+
+const (
+	defaultPartitionKeyName = "key"
+	metadataPartitionKey    = "partitionKey"
+)
 
 // NewDynamoDBStateStore returns a new dynamoDB state store.
 func NewDynamoDBStateStore(_ logger.Logger) state.Store {
-	return &StateStore{}
+	return &StateStore{
+		partitionKey: defaultPartitionKeyName,
+	}
 }
 
 // Init does metadata and connection parsing.
-func (d *StateStore) Init(metadata state.Metadata) error {
+func (d *StateStore) Init(_ context.Context, metadata state.Metadata) error {
 	meta, err := d.getDynamoDBMetadata(metadata)
 	if err != nil {
 		return err
@@ -71,6 +80,7 @@ func (d *StateStore) Init(metadata state.Metadata) error {
 	d.client = client
 	d.table = meta.Table
 	d.ttlAttributeName = meta.TTLAttributeName
+	d.partitionKey = meta.PartitionKey
 
 	return nil
 }
@@ -86,7 +96,7 @@ func (d *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 		ConsistentRead: aws.Bool(req.Options.Consistency == state.Strong),
 		TableName:      aws.String(d.table),
 		Key: map[string]*dynamodb.AttributeValue{
-			"key": {
+			d.partitionKey: {
 				S: aws.String(req.Key),
 			},
 		},
@@ -223,7 +233,7 @@ func (d *StateStore) BulkSet(ctx context.Context, req []state.SetRequest) error 
 func (d *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	input := &dynamodb.DeleteItemInput{
 		Key: map[string]*dynamodb.AttributeValue{
-			"key": {
+			d.partitionKey: {
 				S: aws.String(req.Key),
 			},
 		},
@@ -267,7 +277,7 @@ func (d *StateStore) BulkDelete(ctx context.Context, req []state.DeleteRequest) 
 		writeRequest := &dynamodb.WriteRequest{
 			DeleteRequest: &dynamodb.DeleteRequest{
 				Key: map[string]*dynamodb.AttributeValue{
-					"key": {
+					d.partitionKey: {
 						S: aws.String(r.Key),
 					},
 				},
@@ -299,6 +309,7 @@ func (d *StateStore) getDynamoDBMetadata(meta state.Metadata) (*dynamoDBMetadata
 	if m.Table == "" {
 		return nil, fmt.Errorf("missing dynamodb table name")
 	}
+	m.PartitionKey = populatePartitionMetadata(meta.Properties, defaultPartitionKeyName)
 	return &m, err
 }
 
@@ -316,7 +327,7 @@ func (d *StateStore) getClient(metadata *dynamoDBMetadata) (*dynamodb.DynamoDB, 
 func (d *StateStore) getItemFromReq(req *state.SetRequest) (map[string]*dynamodb.AttributeValue, error) {
 	value, err := d.marshalToString(req.Value)
 	if err != nil {
-		return nil, fmt.Errorf("dynamodb error: failed to set key %s: %s", req.Key, err)
+		return nil, fmt.Errorf("dynamodb error: failed to marshal value for key %s: %s", req.Key, err)
 	}
 
 	ttl, err := d.parseTTL(req)
@@ -328,8 +339,9 @@ func (d *StateStore) getItemFromReq(req *state.SetRequest) (map[string]*dynamodb
 	if err != nil {
 		return nil, fmt.Errorf("dynamodb error: failed to generate etag: %w", err)
 	}
+
 	item := map[string]*dynamodb.AttributeValue{
-		"key": {
+		d.partitionKey: {
 			S: aws.String(req.Key),
 		},
 		"value": {
@@ -384,4 +396,14 @@ func (d *StateStore) parseTTL(req *state.SetRequest) (*int64, error) {
 	}
 
 	return nil, nil
+}
+
+// This is a helper to return the partition key to use.  If if metadata["partitionkey"] is present,
+// use that, otherwise use default primay key "key".
+func populatePartitionMetadata(requestMetadata map[string]string, defaultPartitionKeyName string) string {
+	if val, found := requestMetadata[metadataPartitionKey]; found {
+		return val
+	}
+
+	return defaultPartitionKeyName
 }

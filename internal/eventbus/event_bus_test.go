@@ -20,10 +20,9 @@ Copyright (c) 2014 Alex Saskevich
 package eventbus
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
-
-	"go.uber.org/atomic"
 )
 
 func TestNew(t *testing.T) {
@@ -169,11 +168,11 @@ func TestSubscribeAsync(t *testing.T) {
 		out <- a
 	}, false)
 
-	numResults := atomic.NewInt32(0)
+	numResults := atomic.Int32{}
 
 	go func() {
 		for range results {
-			numResults.Inc()
+			numResults.Add(1)
 		}
 	}()
 
@@ -197,10 +196,10 @@ func TestWildcards(t *testing.T) {
 		out <- a
 	}, false)
 
-	numResults := atomic.NewInt32(0)
+	numResults := atomic.Int32{}
 	go func() {
 		for range results {
-			numResults.Inc()
+			numResults.Add(1)
 		}
 	}()
 

@@ -14,6 +14,7 @@ limitations under the License.
 package oauth2
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"strings"
@@ -43,7 +44,9 @@ type oAuth2MiddlewareMetadata struct {
 
 // NewOAuth2Middleware returns a new oAuth2 middleware.
 func NewOAuth2Middleware(log logger.Logger) middleware.Middleware {
-	return &Middleware{logger: log}
+	m := &Middleware{logger: log}
+
+	return m
 }
 
 // Middleware is an oAuth2 authentication middleware.
@@ -59,7 +62,7 @@ const (
 )
 
 // GetHandler retruns the HTTP handler provided by the middleware.
-func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
+func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {
 		return nil, err
@@ -82,11 +85,12 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 			session := sessions.Start(w, r)
 
 			if session.GetString(meta.AuthHeaderName) != "" {
-				w.Header().Add(meta.AuthHeaderName, session.GetString(meta.AuthHeaderName))
+				r.Header.Add(meta.AuthHeaderName, session.GetString(meta.AuthHeaderName))
 				next.ServeHTTP(w, r)
 				return
 			}
 
+			// Redirect to the auth server
 			state := r.URL.Query().Get(stateParam)
 			if state == "" {
 				id, err := uuid.NewRandom()
@@ -135,7 +139,6 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 
 				authHeader := token.Type() + " " + token.AccessToken
 				session.Set(meta.AuthHeaderName, authHeader)
-				w.Header().Add(meta.AuthHeaderName, authHeader)
 				httputils.RespondWithRedirect(w, http.StatusFound, redirectURL.String())
 			}
 		})

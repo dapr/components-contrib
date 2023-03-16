@@ -416,6 +416,10 @@ const components = {
         certification: true,
         conformanceSetup: 'docker-compose.sh cockroachdb',
     },
+    'state.etcd': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh etcd',
+    },
     'state.in-memory': {
         conformance: true,
     },

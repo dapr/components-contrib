@@ -45,7 +45,7 @@ metadata:
       type: string
     - name: saslPassword
       required: false
-      description: "The SASL password used for authentication. Can be secretKeyRef to use a secret reference. Only required if authType is set to “password”`.	"", "KeFg23!""
+      description: "The SASL password used for authentication. Can be secretKeyRef to use a secret reference. Only required if authType is set to \"password\""
       example: "mypassword"
       type: string
     - name: saslMechanism

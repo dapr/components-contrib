@@ -107,6 +107,9 @@ const components = {
         conformance: true,
         conformanceSetup: 'docker-compose.sh kafka',
     },
+    'bindings.kitex': {
+        certification: true,
+    },
     'bindings.kubemq': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh kubemq',
@@ -415,6 +418,10 @@ const components = {
         conformance: true,
         certification: true,
         conformanceSetup: 'docker-compose.sh cockroachdb',
+    },
+    'state.etcd': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh etcd',
     },
     'state.in-memory': {
         conformance: true,

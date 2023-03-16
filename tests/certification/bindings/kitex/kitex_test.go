@@ -53,7 +53,6 @@ const (
 )
 
 func TestKitexBinding(t *testing.T) {
-
 	testKitexInvocation := func(ctx flow.Context) error {
 		client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(runtime.DefaultDaprAPIGRPCPort))
 		if clientErr != nil {

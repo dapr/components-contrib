@@ -108,7 +108,6 @@ const components = {
         conformanceSetup: 'docker-compose.sh kafka',
     },
     'bindings.kitex': {
-        conformance: true,
         certification: true,
     },
     'bindings.kubemq': {

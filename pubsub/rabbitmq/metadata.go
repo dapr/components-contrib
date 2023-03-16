@@ -19,6 +19,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/dapr/components-contrib/internal/utils"
+
 	amqp "github.com/rabbitmq/amqp091-go"
 
 	"github.com/dapr/kit/logger"
@@ -47,6 +49,7 @@ type metadata struct {
 	maxLenBytes      int64
 	exchangeKind     string
 	publisherConfirm bool
+	saslExternal     bool
 	concurrency      pubsub.ConcurrencyMode
 	defaultQueueTTL  *time.Duration
 }
@@ -74,6 +77,7 @@ const (
 	metadataMaxLenBytesKey          = "maxLenBytes"
 	metadataExchangeKindKey         = "exchangeKind"
 	metadataPublisherConfirmKey     = "publisherConfirm"
+	metadataSaslExternal            = "saslExternal"
 
 	defaultReconnectWaitSeconds = 3
 
@@ -84,7 +88,7 @@ const (
 // createMetadata creates a new instance from the pubsub metadata.
 func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*metadata, error) {
 	result := metadata{
-		protocol:         "amqp",
+		protocol:         protocolAMQP,
 		hostname:         "localhost",
 		durable:          true,
 		deleteWhenUnused: true,
@@ -92,6 +96,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*metadat
 		reconnectWait:    time.Duration(defaultReconnectWaitSeconds) * time.Second,
 		exchangeKind:     fanoutExchangeKind,
 		publisherConfirm: false,
+		saslExternal:     false,
 	}
 
 	if val, found := pubSubMetadata.Properties[metadataConnectionStringKey]; found && val != "" {
@@ -221,6 +226,14 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*metadat
 	result.TLSProperties, err = pubsub.TLS(pubSubMetadata.Properties)
 	if err != nil {
 		return &result, fmt.Errorf("%s invalid TLS configuration: %w", errorMessagePrefix, err)
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataSaslExternal]; found && val != "" {
+		boolVal := utils.IsTruthy(val)
+		if boolVal && (result.TLSProperties.CACert == "" || result.TLSProperties.ClientCert == "" || result.TLSProperties.ClientKey == "") {
+			return &result, fmt.Errorf("%s can only be set to true, when all these properties are set: %s, %s, %s", metadataSaslExternal, pubsub.CACert, pubsub.ClientCert, pubsub.ClientKey)
+		}
+		result.saslExternal = boolVal
 	}
 
 	c, err := pubsub.Concurrency(pubSubMetadata.Properties)

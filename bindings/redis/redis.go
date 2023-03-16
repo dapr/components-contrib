@@ -97,7 +97,13 @@ func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 				return nil, err
 			}
 		case bindings.GetOperation:
-			data, err := r.client.Get(ctx, key)
+			var data string
+			var err error
+			if req.Metadata["delete"] == "true" {
+				data, err = r.client.GetDel(ctx, key)
+			} else {
+				data, err = r.client.Get(ctx, key)
+			}
 			if err != nil {
 				if err.Error() == "redis: nil" {
 					return &bindings.InvokeResponse{}, nil

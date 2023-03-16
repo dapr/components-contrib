@@ -1,6 +1,6 @@
 # Components Contrib
 
-[![Build Status](https://github.com/dapr/components-contrib/workflows/components-contrib/badge.svg?event=push&branch=master)](https://github.com/dapr/components-contrib/actions?workflow=components-contrib)
+[![Build, Lint, Unit Test - complete matrix](https://github.com/dapr/components-contrib/actions/workflows/components-contrib-all.yml/badge.svg?branch=master&event=schedule)](https://github.com/dapr/components-contrib/actions/workflows/components-contrib-all.yml)
 [![Discord](https://img.shields.io/discord/778680217417809931)](https://discord.com/channels/778680217417809931/781589820128493598)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/dapr/components-contrib/blob/master/LICENSE)
 [![FOSSA Status](https://app.fossa.com/api/projects/custom%2B162%2Fgithub.com%2Fdapr%2Fcomponents-contrib.svg?type=shield)](https://app.fossa.com/projects/custom%2B162%2Fgithub.com%2Fdapr%2Fcomponents-contrib?ref=badge_shield)

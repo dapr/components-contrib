@@ -37,3 +37,5 @@ This project aims to test the RabbitMQ Pub/Sub component under various condition
   * Setting a TTL at the component level and message level ignores the default component level TTL and always uses the message level TTL specified
 * Test mTLS External Authentication
   * Being able to connect to the RabbitMQ
+* Test priority queues
+  * Being able to publish and subscribe to priority messages/topics

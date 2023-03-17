@@ -49,22 +49,21 @@ import (
 )
 
 const (
-	sidecarName1              = "dapr-1"
-	sidecarName2              = "dapr-2"
-	sidecarName3              = "dapr-3"
-	sidecarName4              = "dapr-4"
-	sidecarNameTTLClient      = "dapr-ttl-client"
-	sidecarNamePriorityClient = "dapr-priority-client"
-	appID1                    = "app-1"
-	appID2                    = "app-2"
-	appID3                    = "app-3"
-	appID4                    = "app-4"
-	clusterName               = "rabbitmqcertification"
-	dockerComposeYAML         = "docker-compose.yml"
-	extSaslDockerComposeYAML  = "mtls_sasl_external/docker-compose.yml"
-	numMessages               = 1000
-	errFrequency              = 100
-	appPort                   = 8000
+	sidecarName1             = "dapr-1"
+	sidecarName2             = "dapr-2"
+	sidecarName3             = "dapr-3"
+	sidecarName4             = "dapr-4"
+	sidecarNameTTLClient     = "dapr-ttl-client"
+	appID1                   = "app-1"
+	appID2                   = "app-2"
+	appID3                   = "app-3"
+	appID4                   = "app-4"
+	clusterName              = "rabbitmqcertification"
+	dockerComposeYAML        = "docker-compose.yml"
+	extSaslDockerComposeYAML = "mtls_sasl_external/docker-compose.yml"
+	numMessages              = 1000
+	errFrequency             = 100
+	appPort                  = 8000
 
 	rabbitMQURL        = "amqp://test:test@localhost:5672"
 	rabbitMQURLExtAuth = "amqps://localhost:5671"
@@ -84,8 +83,6 @@ const (
 	topicTTL1 = "ttl1"
 	topicTTL2 = "ttl2"
 	topicTTL3 = "ttl3"
-
-	topicPriority = "priority"
 )
 
 type Consumer struct {
@@ -718,56 +715,100 @@ func TestRabbitMQPriority(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
 	// log.SetOutputLevel(logger.DebugLevel)
 
-	fullMessages := watcher.NewUnordered()
-	// Application logic that tracks messages from a topic.
-	application := func(pubsubName, topic string, w *watcher.Watcher) app.SetupFn {
-		return func(ctx flow.Context, s common.Service) (err error) {
-			// Simulate periodic errors.
-			sim := simulate.PeriodicError(ctx, errFrequency)
-			return s.AddTopicEventHandler(&common.Subscription{
-				PubsubName: pubsubName,
-				Topic:      topic,
-				Route:      "/" + topic,
-				Metadata:   map[string]string{"maxPriority": "5"},
-			}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
-				if err := sim(); err != nil {
-					log.Debugf("Simulated error - pubsub: %s, topic: %s, id: %s, data: %s", e.PubsubName, e.Topic, e.ID, e.Data)
-					return true, err
-				}
+	pubTopics := []string{topicRed}
+	subTopics := []string{topicRed}
 
-				// Track/Observe the data of the event.
-				w.Observe(e.Data)
-				log.Debugf("Event - pubsub: %s, topic: %s, id: %s, data: %s", e.PubsubName, e.Topic, e.ID, e.Data)
-				return false, nil
-			})
+	priorityClient := &Consumer{pubsub: pubsubPriority, messages: make(map[string]*watcher.Watcher)}
+	consumers := []*Consumer{priorityClient}
+
+	for _, consumer := range consumers {
+		for _, topic := range pubTopics {
+			// In RabbitMQ, messages might not come in order.
+			consumer.messages[topic] = watcher.NewUnordered()
 		}
 	}
 
-	sendMessage := func(sidecarName, pubsubName, topic string) func(ctx flow.Context) error {
-		fullMessages.Reset()
-		return func(ctx flow.Context) error {
-			// Declare what is expected BEFORE performing any steps
-			// that will satisfy the test.
-			msgs := make([]string, numMessages)
-			for i := range msgs {
-				msgs[i] = fmt.Sprintf("Hello, Messages %03d", i)
+	// subscribed is used to synchronize between publisher and subscriber
+	subscribed := make(chan struct{}, 1)
+
+	// Test logic that sends messages to topics and
+	// verifies the two consumers with different IDs have received them.
+	test := func(ctx flow.Context) error {
+		// Declare what is expected BEFORE performing any steps
+		// that will satisfy the test.
+		msgs := make([]string, numMessages)
+		for i := range msgs {
+			msgs[i] = fmt.Sprintf("Hello, Messages %03d", i)
+		}
+
+		for _, consumer := range consumers {
+			for _, topic := range subTopics {
+				consumer.messages[topic].ExpectStrings(msgs...)
 			}
+		}
 
-			sc := sidecar.GetClient(ctx, sidecarName)
+		<-subscribed
 
-			// Send events that the application above will observe.
-			log.Infof("Sending messages on topic '%s'", topic)
+		// sidecar client array []{sidecar client, pubsub component name}
+		sidecars := []struct {
+			client *sidecar.Client
+			pubsub string
+		}{
+			{sidecar.GetClient(ctx, sidecarName4), pubsubPriority},
+		}
 
-			var err error
-			for _, msg := range msgs {
-				log.Debugf("Sending: '%s' on topic '%s'", msg, topic)
-				err = sc.PublishEvent(ctx, pubsubName, topic, msg, daprClient.PublishEventWithMetadata(map[string]string{"priority": "1"}))
-				require.NoError(ctx, err, "error publishing message")
-				fullMessages.Add(msg)
-				fullMessages.Prepare(msg)
+		var wg sync.WaitGroup
+		wg.Add(len(pubTopics))
+		for _, topic := range pubTopics {
+			go func(topic string) {
+				defer wg.Done()
+
+				// Send events that the application above will observe.
+				log.Infof("Sending messages on topic '%s'", topic)
+
+				for _, msg := range msgs {
+					// randomize publishers
+					indx := rand.Intn(len(sidecars))
+					log.Debugf("Sending: '%s' on topic '%s'", msg, topic)
+					err := sidecars[indx].client.PublishEvent(ctx, sidecars[indx].pubsub, topic, msg, daprClient.PublishEventWithMetadata(map[string]string{"priority": "1"}))
+					require.NoError(ctx, err, "error publishing message")
+				}
+			}(topic)
+		}
+		wg.Wait()
+
+		return nil
+	}
+
+	// Application logic that tracks messages from a topic.
+	application := func(consumer *Consumer, routeIndex int) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) (err error) {
+			// Simulate periodic errors.
+			sim := simulate.PeriodicError(ctx, errFrequency)
+
+			for _, topic := range subTopics {
+				// Setup the /orders event handler.
+				err = multierr.Combine(
+					err,
+					s.AddTopicEventHandler(&common.Subscription{
+						PubsubName: consumer.pubsub,
+						Topic:      topic,
+						Route:      fmt.Sprintf("/%s-%d", topic, routeIndex),
+						Metadata:   map[string]string{"maxPriority": "1"},
+					}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+						if err := sim(); err != nil {
+							log.Debugf("Simulated error - consumer: %s, pubsub: %s, topic: %s, id: %s, data: %s", consumer.pubsub, e.PubsubName, e.Topic, e.ID, e.Data)
+							return true, err
+						}
+
+						// Track/Observe the data of the event.
+						consumer.messages[e.Topic].Observe(e.Data)
+						log.Debugf("Event - consumer: %s, pubsub: %s, topic: %s, id: %s, data: %s", consumer.pubsub, e.PubsubName, e.Topic, e.ID, e.Data)
+						return false, nil
+					}),
+				)
 			}
-
-			return nil
+			return err
 		}
 	}
 
@@ -780,7 +821,7 @@ func TestRabbitMQPriority(t *testing.T) {
 		// if topic is not subscribed, then the message will be lost.
 		// Sidecar will block to wait app, so we need to start app first.
 		Step(app.Run(appID4, fmt.Sprintf(":%d", appPort+1),
-			application(pubsubPriority, topicPriority, fullMessages))).
+			application(priorityClient, 1))).
 		Step(sidecar.Run(sidecarName4,
 			embedded.WithComponentsPath("./components/priority"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+1),
@@ -790,26 +831,10 @@ func TestRabbitMQPriority(t *testing.T) {
 			embedded.WithGracefulShutdownDuration(2*time.Second),
 			componentRuntimeOptions(),
 		)).
-		// Wait for queue to be created.
-		Step("wait", flow.Sleep(10*time.Second)).
-		// Run publishing sidecars and send to RabbitMQ.
-		Step(sidecar.Run(sidecarNamePriorityClient,
-			embedded.WithComponentsPath("./components/priority"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, 0),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+14),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			embedded.WithProfilePort(runtime.DefaultProfilePort),
-			embedded.WithGracefulShutdownDuration(2*time.Second),
-			componentRuntimeOptions(),
-		)).
-		Step("wait", flow.Sleep(5*time.Second)).
-		Step("send message with priority", sendMessage(sidecarNamePriorityClient, pubsubPriority, topicPriority)).
-		Step("wait", flow.Sleep(5*time.Second)).
-		Step("verify full messages", func(ctx flow.Context) error {
-			// Assertion on the data.
-			fullMessages.Assert(t, 3*time.Minute)
-			return nil
-		}).
+		Step("signal subscribed", flow.MustDo(func() {
+			close(subscribed)
+		})).
+		Step("send and wait", test).
 		Run()
 }
 

@@ -6,7 +6,7 @@ require (
 	github.com/benbjohnson/clock v1.3.0
 	github.com/dapr/components-contrib v1.10.0-rc.9.0.20230314182450-1d40321ac0be
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20220519061249-c2cb1dad5bb0
-	github.com/dapr/dapr v1.10.1-0.20230306165150-8609d5aeedb7
+	github.com/dapr/dapr v1.10.4-0.20230317204345-585da2feb90d
 	github.com/dapr/go-sdk v1.7.0
 	github.com/dapr/kit v0.0.4
 	github.com/stretchr/testify v1.8.2

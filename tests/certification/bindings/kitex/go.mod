@@ -8,7 +8,7 @@ require (
 	github.com/cloudwego/kitex-examples v0.1.1
 	github.com/dapr/components-contrib v1.10.0-rc.9.0.20230314182450-1d40321ac0be
 	github.com/dapr/components-contrib/tests/certification v0.0.0-00010101000000-000000000000
-	github.com/dapr/dapr v1.10.1-0.20230306165150-8609d5aeedb7
+	github.com/dapr/dapr v1.10.4-0.20230317204345-585da2feb90d
 	github.com/dapr/go-sdk v1.7.0
 	github.com/dapr/kit v0.0.4
 	github.com/stretchr/testify v1.8.2
@@ -21,7 +21,6 @@ require (
 	github.com/andybalholm/brotli v1.0.4 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
-	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/gopkg v0.0.0-20220817015305-b879a72dc90f // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect

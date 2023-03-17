@@ -1,0 +1,12 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: bearer
+spec:
+  type: middleware.http.bearer
+  version: v1
+  metadata:
+    - name: issuer
+      value: "http://localhost:7470"
+    - name: audience
+      value: "26b9502f-1336-4479-ad5b-c8366edb7206"

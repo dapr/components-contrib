@@ -18,7 +18,7 @@ on:
     types: [coverage-report]
   workflow_dispatch:
   schedule:
-    - cron: '0 */12 * * *'
+    - cron: '0 */24 * * *'
 
 jobs:
   coverage:
@@ -109,10 +109,10 @@ jobs:
               denominator=$(($denominator+$tempDenominator))
             done
             totalPer=$(awk "BEGIN { print (($numerator / $denominator) * 100) }")
-            DISCORD_NOTIFICATION="Total Coverage for Certification Tests is ${totalPer}%. ${aboveThreshold} out of ${totalComps} components have certification tests with code coverage > ${threshold}%"
+            DISCORD_NOTIFICATION="Total Test Coverage is ${totalPer}%. ${aboveThreshold} out of ${totalComps} components have tests with code coverage > ${threshold}%"
             echo ${DISCORD_NOTIFICATION}
             curl -H "Content-Type: application/json" -X POST -d '{"content":"'"${DISCORD_NOTIFICATION}"'"}'  "${SERVER_URL}"
           env:
-            SERVER_URL: ${{ secrets.MY_DISCORD_WEBHOOK }}
+            SERVER_URL: ${{ secrets.DISCORD_MONITORING_WEBHOOK_URL }}
 
         

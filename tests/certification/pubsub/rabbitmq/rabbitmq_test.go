@@ -52,11 +52,13 @@ const (
 	sidecarName1              = "dapr-1"
 	sidecarName2              = "dapr-2"
 	sidecarName3              = "dapr-3"
+	sidecarName4              = "dapr-4"
 	sidecarNameTTLClient      = "dapr-ttl-client"
 	sidecarNamePriorityClient = "dapr-priority-client"
 	appID1                    = "app-1"
 	appID2                    = "app-2"
 	appID3                    = "app-3"
+	appID4                    = "app-4"
 	clusterName               = "rabbitmqcertification"
 	dockerComposeYAML         = "docker-compose.yml"
 	extSaslDockerComposeYAML  = "mtls_sasl_external/docker-compose.yml"
@@ -777,9 +779,9 @@ func TestRabbitMQPriority(t *testing.T) {
 		// Start dapr and app to precreate all queues in rabbitmq,
 		// if topic is not subscribed, then the message will be lost.
 		// Sidecar will block to wait app, so we need to start app first.
-		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+1),
+		Step(app.Run(appID4, fmt.Sprintf(":%d", appPort+1),
 			application(pubsubPriority, topicPriority, fullMessages))).
-		Step(sidecar.Run(sidecarName1,
+		Step(sidecar.Run(sidecarName4,
 			embedded.WithComponentsPath("./components/priority"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+1),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+10),
@@ -808,9 +810,6 @@ func TestRabbitMQPriority(t *testing.T) {
 			fullMessages.Assert(t, 3*time.Minute)
 			return nil
 		}).
-		Step("stop sidecar", sidecar.Stop(sidecarName1)).
-		Step("stop sidecar", sidecar.Stop(sidecarNamePriorityClient)).
-		Step("stop app", app.Stop(appID1)).
 		Run()
 }
 

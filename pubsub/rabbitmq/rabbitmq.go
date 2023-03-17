@@ -386,10 +386,10 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 
 	// use priority queue if configured on subscription
 	if val, ok := req.Metadata[metadataMaxPriority]; ok && val != "" {
-		parsedVal, err := strconv.ParseUint(val, 10, 0)
-		if err != nil {
-			r.logger.Errorf("%s prepareSubscription error: can't parse maxPriority %s value on subscription metadata for topic/queue `%s/%s`: %s", logMessagePrefix, val, req.Topic, queueName, err)
-			return nil, err
+		parsedVal, pErr := strconv.ParseUint(val, 10, 0)
+		if pErr != nil {
+			r.logger.Errorf("%s prepareSubscription error: can't parse maxPriority %s value on subscription metadata for topic/queue `%s/%s`: %s", logMessagePrefix, val, req.Topic, queueName, pErr)
+			return nil, pErr
 		}
 
 		mp := uint8(parsedVal)

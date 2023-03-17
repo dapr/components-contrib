@@ -74,6 +74,7 @@ const (
 	metadataMaxLenBytesKey          = "maxLenBytes"
 	metadataExchangeKindKey         = "exchangeKind"
 	metadataPublisherConfirmKey     = "publisherConfirm"
+	metadataMaxPriority             = "maxPriority"
 
 	defaultReconnectWaitSeconds = 3
 

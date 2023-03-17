@@ -50,18 +50,19 @@ import (
 )
 
 const (
-	sidecarName1         = "dapr-1"
-	sidecarName2         = "dapr-2"
-	sidecarName3         = "dapr-3"
-	sidecarNameTTLClient = "dapr-ttl-client"
-	appID1               = "app-1"
-	appID2               = "app-2"
-	appID3               = "app-3"
-	clusterName          = "rabbitmqcertification"
-	dockerComposeYAML    = "docker-compose.yml"
-	numMessages          = 1000
-	errFrequency         = 100
-	appPort              = 8000
+	sidecarName1              = "dapr-1"
+	sidecarName2              = "dapr-2"
+	sidecarName3              = "dapr-3"
+	sidecarNameTTLClient      = "dapr-ttl-client"
+	sidecarNamePriorityClient = "dapr-priority-client"
+	appID1                    = "app-1"
+	appID2                    = "app-2"
+	appID3                    = "app-3"
+	clusterName               = "rabbitmqcertification"
+	dockerComposeYAML         = "docker-compose.yml"
+	numMessages               = 1000
+	errFrequency              = 100
+	appPort                   = 8000
 
 	rabbitMQURL = "amqp://test:test@localhost:5672"
 
@@ -70,6 +71,7 @@ const (
 	pubsubMessageOnlyTTL = "msg-ttl-pubsub"
 	pubsubQueueOnlyTTL   = "overwrite-ttl-pubsub"
 	pubsubOverwriteTTL   = "queue-ttl-pubsub"
+	pubsubPriority       = "mq-priority"
 
 	topicRed   = "red"
 	topicBlue  = "blue"
@@ -78,6 +80,8 @@ const (
 	topicTTL1 = "ttl1"
 	topicTTL2 = "ttl2"
 	topicTTL3 = "ttl3"
+
+	topicPriority = "priority"
 )
 
 type Consumer struct {
@@ -545,6 +549,109 @@ func TestRabbitMQTTL(t *testing.T) {
 			OverwriteMessages.Assert(t, 3*time.Minute)
 			return nil
 		}).
+		Run()
+}
+
+func TestRabbitMQPriority(t *testing.T) {
+	rand.Seed(time.Now().UTC().UnixNano())
+	log := logger.NewLogger("dapr.components")
+	// log.SetOutputLevel(logger.DebugLevel)
+
+	fullMessages := watcher.NewUnordered()
+	// Application logic that tracks messages from a topic.
+	application := func(pubsubName, topic string, w *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) (err error) {
+			// Simulate periodic errors.
+			sim := simulate.PeriodicError(ctx, errFrequency)
+			return s.AddTopicEventHandler(&common.Subscription{
+				PubsubName: pubsubName,
+				Topic:      topic,
+				Route:      "/" + topic,
+				Metadata:   map[string]string{"maxPriority": "5"},
+			}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+				if err := sim(); err != nil {
+					log.Debugf("Simulated error - pubsub: %s, topic: %s, id: %s, data: %s", e.PubsubName, e.Topic, e.ID, e.Data)
+					return true, err
+				}
+
+				// Track/Observe the data of the event.
+				w.Observe(e.Data)
+				log.Debugf("Event - pubsub: %s, topic: %s, id: %s, data: %s", e.PubsubName, e.Topic, e.ID, e.Data)
+				return false, nil
+			})
+		}
+	}
+
+	sendMessage := func(sidecarName, pubsubName, topic string) func(ctx flow.Context) error {
+		fullMessages.Reset()
+		return func(ctx flow.Context) error {
+			// Declare what is expected BEFORE performing any steps
+			// that will satisfy the test.
+			msgs := make([]string, numMessages)
+			for i := range msgs {
+				msgs[i] = fmt.Sprintf("Hello, Messages %03d", i)
+			}
+
+			sc := sidecar.GetClient(ctx, sidecarName)
+
+			// Send events that the application above will observe.
+			log.Infof("Sending messages on topic '%s'", topic)
+
+			var err error
+			for _, msg := range msgs {
+				log.Debugf("Sending: '%s' on topic '%s'", msg, topic)
+				err = sc.PublishEvent(ctx, pubsubName, topic, msg, daprClient.PublishEventWithMetadata(map[string]string{"priority": "1"}))
+				require.NoError(ctx, err, "error publishing message")
+				fullMessages.Add(msg)
+				fullMessages.Prepare(msg)
+			}
+
+			return nil
+		}
+	}
+
+	flow.New(t, "rabbitmq priority certification").
+		// Run RabbitMQ using Docker Compose.
+		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
+		Step("wait for rabbitmq readiness",
+			retry.Do(time.Second, 30, amqpReady(rabbitMQURL))).
+		// Start dapr and app to precreate all queues in rabbitmq,
+		// if topic is not subscribed, then the message will be lost.
+		// Sidecar will block to wait app, so we need to start app first.
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+1),
+			application(pubsubPriority, topicPriority, fullMessages))).
+		Step(sidecar.Run(sidecarName1,
+			embedded.WithComponentsPath("./components/priority"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+1),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+10),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+1),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+1),
+			embedded.WithGracefulShutdownDuration(2*time.Second),
+			componentRuntimeOptions(),
+		)).
+		// Wait for queue to be created.
+		Step("wait", flow.Sleep(10*time.Second)).
+		// Run publishing sidecars and send to RabbitMQ.
+		Step(sidecar.Run(sidecarNamePriorityClient,
+			embedded.WithComponentsPath("./components/priority"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, 0),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+14),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
+			embedded.WithProfilePort(runtime.DefaultProfilePort),
+			embedded.WithGracefulShutdownDuration(2*time.Second),
+			componentRuntimeOptions(),
+		)).
+		Step("wait", flow.Sleep(5*time.Second)).
+		Step("send message with priority", sendMessage(sidecarNamePriorityClient, pubsubPriority, topicPriority)).
+		Step("wait", flow.Sleep(5*time.Second)).
+		Step("verify full messages", func(ctx flow.Context) error {
+			// Assertion on the data.
+			fullMessages.Assert(t, 3*time.Minute)
+			return nil
+		}).
+		Step("stop sidecar", sidecar.Stop(sidecarName1)).
+		Step("stop sidecar", sidecar.Stop(sidecarNamePriorityClient)).
+		Step("stop app", app.Stop(appID1)).
 		Run()
 }
 

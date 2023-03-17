@@ -152,6 +152,49 @@ func TestPublishAndSubscribe(t *testing.T) {
 	assert.Equal(t, "foo bar", lastMessage)
 }
 
+func TestPublishAndSubscribeWithPriorityQueue(t *testing.T) {
+	broker := newBroker()
+	pubsubRabbitMQ := newRabbitMQTest(broker)
+	metadata := pubsub.Metadata{Base: mdata.Base{
+		Properties: map[string]string{
+			metadataHostnameKey:   "anyhost",
+			metadataConsumerIDKey: "consumer",
+		},
+	}}
+	err := pubsubRabbitMQ.Init(context.Background(), metadata)
+	assert.Nil(t, err)
+	assert.Equal(t, int32(1), broker.connectCount.Load())
+	assert.Equal(t, int32(0), broker.closeCount.Load())
+
+	topic := "mytopic"
+
+	messageCount := 0
+	lastMessage := ""
+	processed := make(chan bool)
+	handler := func(ctx context.Context, msg *pubsub.NewMessage) error {
+		messageCount++
+		lastMessage = string(msg.Data)
+		processed <- true
+
+		return nil
+	}
+
+	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic, Metadata: map[string]string{metadataMaxPriority: "5"}}, handler)
+	assert.Nil(t, err)
+
+	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hello world"), Metadata: map[string]string{metadataMaxPriority: "5"}})
+	assert.Nil(t, err)
+	<-processed
+	assert.Equal(t, 1, messageCount)
+	assert.Equal(t, "hello world", lastMessage)
+
+	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
+	assert.Nil(t, err)
+	<-processed
+	assert.Equal(t, 2, messageCount)
+	assert.Equal(t, "foo bar", lastMessage)
+}
+
 func TestPublishReconnect(t *testing.T) {
 	broker := newBroker()
 	pubsubRabbitMQ := newRabbitMQTest(broker)

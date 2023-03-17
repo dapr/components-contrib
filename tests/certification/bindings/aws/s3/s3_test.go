@@ -96,13 +96,19 @@ func listObejctRequest(ctx flow.Context, client daprsdk.Client) (out *daprsdk.Bi
 	return out, nil
 }
 
-// getObejctRequest is used to make a common binding request for the get operation.
-func getObejctRequest(ctx flow.Context, client daprsdk.Client, name string, isBase64 bool) (out *daprsdk.BindingEvent, err error) {
+// getObjectRequest is used to make a common binding request for the get operation.
+func getObjectRequest(ctx flow.Context, client daprsdk.Client, name string, isBase64 bool) (out *daprsdk.BindingEvent, err error) {
 	invokeGetMetadata := map[string]string{
 		"key":          name,
 		"encodeBase64": fmt.Sprintf("%t", isBase64),
 	}
 
+	return getObjectRequestWithMetadata(ctx, client, invokeGetMetadata)
+
+}
+
+// getObjectRequest is used to make a common binding request for the get operation passing metadata.
+func getObjectRequestWithMetadata(ctx flow.Context, client daprsdk.Client, invokeGetMetadata map[string]string) (out *daprsdk.BindingEvent, err error) {
 	invokeGetRequest := &daprsdk.InvokeBindingRequest{
 		Name:      bindingsMetadataName,
 		Operation: "get",
@@ -198,7 +204,7 @@ func S3SBasic(t *testing.T) {
 		assert.Empty(t, out.Data)
 
 		// confirm the deletion.
-		_, invokeSecondGetErr := getObejctRequest(ctx, client, objectName, false)
+		_, invokeSecondGetErr := getObjectRequest(ctx, client, objectName, false)
 		assert.Error(t, invokeSecondGetErr)
 		assert.Contains(t, invokeSecondGetErr.Error(), "error downloading S3 object")
 
@@ -260,7 +266,7 @@ func S3SForcePathStyle(t *testing.T) {
 			assert.Empty(t, out.Data)
 
 			// confirm the deletion.
-			_, invokeSecondGetErr := getObejctRequest(ctx, client, objectName, false)
+			_, invokeSecondGetErr := getObjectRequest(ctx, client, objectName, false)
 			assert.Error(t, invokeSecondGetErr)
 			assert.Contains(t, invokeSecondGetErr.Error(), "error downloading S3 object")
 
@@ -317,7 +323,7 @@ func S3SBase64(t *testing.T) {
 
 			genKey := out.Metadata["key"]
 			isBase64 := true
-			out, invokeGetErr := getObejctRequest(ctx, client, genKey, isBase64)
+			out, invokeGetErr := getObjectRequest(ctx, client, genKey, isBase64)
 			assert.NoError(t, invokeGetErr)
 			assert.Equal(t, out.Data, dataBytes)
 			assert.Empty(t, out.Metadata)
@@ -327,7 +333,43 @@ func S3SBase64(t *testing.T) {
 			assert.Empty(t, out.Data)
 
 			// confirm the deletion.
-			_, invokeSecondGetErr := getObejctRequest(ctx, client, genKey, false)
+			_, invokeSecondGetErr := getObjectRequest(ctx, client, genKey, false)
+			assert.Error(t, invokeSecondGetErr)
+
+			return nil
+		}
+	}
+
+	testCreateFromFileGetEncodeBase64 := func() func(ctx flow.Context) error {
+		return func(ctx flow.Context) error {
+			client, clientErr := daprsdk.NewClientWithPort(fmt.Sprint(currentGRPCPort))
+			if clientErr != nil {
+				panic(clientErr)
+			}
+			defer client.Close()
+
+			dataBytes := []byte("somecontent not base64 encoded")
+			b64EncodedDataBytes := []byte(base64.StdEncoding.EncodeToString(dataBytes))
+			invokeCreateMetadata := map[string]string{}
+
+			out, invokeCreateErr := createObjectRequest(ctx, client, dataBytes, invokeCreateMetadata)
+			assert.NoError(t, invokeCreateErr)
+
+			genKey := out.Metadata["key"]
+			invokeGetMetadata := map[string]string{
+				"key": genKey,
+			}
+			out, invokeGetErr := getObjectRequestWithMetadata(ctx, client, invokeGetMetadata)
+			assert.NoError(t, invokeGetErr)
+			assert.Equal(t, out.Data, b64EncodedDataBytes)
+			assert.Empty(t, out.Metadata)
+
+			out, invokeDeleteErr := deleteObejctRequest(ctx, client, genKey)
+			assert.NoError(t, invokeDeleteErr)
+			assert.Empty(t, out.Data)
+
+			// confirm the deletion.
+			_, invokeSecondGetErr := getObjectRequest(ctx, client, genKey, false)
 			assert.Error(t, invokeSecondGetErr)
 
 			return nil
@@ -343,6 +385,17 @@ func S3SBase64(t *testing.T) {
 			componentRuntimeOptions(),
 		)).
 		Step("Create blob from file", testCreateBase64FromFile()).
+		Run()
+
+	flow.New(t, "upload regular file get as encode base64").
+		Step(sidecar.Run(sidecarName,
+			embedded.WithoutApp(),
+			embedded.WithComponentsPath("./components/encodeBase64"),
+			embedded.WithDaprGRPCPort(currentGRPCPort),
+			embedded.WithDaprHTTPPort(currentHTTPPort),
+			componentRuntimeOptions(),
+		)).
+		Step("Create blob from file get  encode base64", testCreateFromFileGetEncodeBase64()).
 		Run()
 
 }

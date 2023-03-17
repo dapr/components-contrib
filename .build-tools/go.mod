@@ -19,4 +19,4 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
-replace github.com/dapr/dapr => github.com/ryanlettieri/dapr v1.10.1-0.20230314105031-02107f9d1881
+replace github.com/dapr/dapr => github.com/dapr/dapr v1.10.4-0.20230317204345-585da2feb90d

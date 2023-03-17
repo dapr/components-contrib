@@ -1,4 +1,4 @@
-module ratelimit_test
+module ratelimit_http_mw_test
 
 go 1.20
 

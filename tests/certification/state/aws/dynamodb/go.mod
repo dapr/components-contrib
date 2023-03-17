@@ -2,10 +2,6 @@ module github.com/dapr/components-contrib/tests/certification/state/aws/dynamodb
 
 go 1.20
 
-replace github.com/dapr/components-contrib => ../../../../..
-
-replace github.com/dapr/components-contrib/tests/certification => ../../..
-
 require (
 	github.com/dapr/components-contrib v1.10.0-rc.9.0.20230303212325-d6f35401af8a
 	github.com/dapr/components-contrib/tests/certification v0.0.0-00010101000000-000000000000
@@ -145,3 +141,7 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
+
+replace github.com/dapr/components-contrib => ../../../../..
+
+replace github.com/dapr/components-contrib/tests/certification => ../../..

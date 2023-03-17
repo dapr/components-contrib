@@ -50,6 +50,10 @@ type v8Client struct {
 	dialTimeout  Duration
 }
 
+func (c v8Client) GetDel(ctx context.Context, key string) (string, error) {
+	return c.client.GetDel(ctx, key).Result()
+}
+
 func (c v8Client) DoWrite(ctx context.Context, args ...interface{}) error {
 	if c.writeTimeout > 0 {
 		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(c.writeTimeout))

@@ -1,0 +1,14 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.etcd
+  version: v1
+  metadata:
+    - name: endpoints
+      value: "localhost:12379"
+    - name: keyPrefixPath
+      value: "dapr"
+    - name: tlsEnable
+      value: "false"

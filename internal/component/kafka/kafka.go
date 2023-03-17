@@ -106,6 +106,8 @@ func (k *Kafka) Init(_ context.Context, metadata map[string]string) error {
 		if err != nil {
 			return err
 		}
+	case certificateAuthType:
+		// already handled in updateTLSConfig
 	}
 
 	k.config = config

@@ -52,3 +52,8 @@ The purpose of this module is to provide tests that certify the Pulsar Pubsub as
    - Restart pulsar service
    - Subscriber is subscribed to 1 topic
    - Verify that all expected messages were received
+- Verify ordering process with partitioned topic 
+   - Run dapr application with 1 publisher and 2 subscriber
+   - Publisher publishes to 1 4-partitioned topic 
+   - Subscriber is subscribed to 1 topic
+   - Verify that all expected messages were received in order

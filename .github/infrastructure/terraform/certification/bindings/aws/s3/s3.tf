@@ -40,10 +40,3 @@ resource "aws_s3_bucket_acl" "dapr_bucket_acl" {
   bucket = aws_s3_bucket.dapr_bucket.id
   acl    = "private"
 }
-
-resource "aws_s3_bucket_versioning" "versioning_dapr_bucket" {
-  bucket = aws_s3_bucket.dapr_bucket.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}

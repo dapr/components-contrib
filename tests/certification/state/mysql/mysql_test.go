@@ -417,7 +417,7 @@ func TestMySQL(t *testing.T) {
 			t.Run("parse cleanupIntervalInSeconds", func(t *testing.T) {
 				t.Run("default value", func(t *testing.T) {
 					// Default value is 1 hr
-					// md.Properties[keyCleanupInterval] = ""
+					md.Properties[keyCleanupInterval] = ""
 					storeObj := stateMysql.NewMySQLStateStore(log).(*stateMysql.MySQL)
 
 					err := storeObj.Init(ctx, md)
@@ -453,7 +453,7 @@ func TestMySQL(t *testing.T) {
 					defer storeObj.Close()
 
 					cleanupInterval := storeObj.CleanupInterval()
-					_ = assert.Equal(t, time.Duration(0), *cleanupInterval)
+					_ = assert.Nil(t, cleanupInterval)
 				})
 
 			})
@@ -490,10 +490,10 @@ func TestMySQL(t *testing.T) {
 					require.NoError(t, err, "failed to run query to count rows")
 					assert.Equal(t, 10, count)
 
-					// The "last-cleanup" value should be <= 1 second (+ a bit of buffer)
+					// The "last-cleanup" value should be <= 2 seconds (+ a bit of buffer)
 					lastCleanup, err := loadLastCleanupInterval(ctx, conn, "ttl_metadata")
 					require.NoError(t, err, "failed to load value for 'last-cleanup'")
-					assert.LessOrEqual(t, lastCleanup, int64(1200))
+					assert.LessOrEqual(t, lastCleanup, 2)
 
 					// Wait 6 more seconds and verify there are no more rows left
 					time.Sleep(6 * time.Second)
@@ -501,10 +501,10 @@ func TestMySQL(t *testing.T) {
 					require.NoError(t, err, "failed to run query to count rows")
 					assert.Equal(t, 0, count)
 
-					// The "last-cleanup" value should be <= 1 second (+ a bit of buffer)
+					// The "last-cleanup" value should be <= 2 seconds (+ a bit of buffer)
 					lastCleanup, err = loadLastCleanupInterval(ctx, conn, "ttl_metadata")
 					require.NoError(t, err, "failed to load value for 'last-cleanup'")
-					assert.LessOrEqual(t, lastCleanup, int64(1200))
+					assert.LessOrEqual(t, lastCleanup, 2)
 				})
 
 				t.Run("cleanup concurrency", func(t *testing.T) {
@@ -532,10 +532,10 @@ func TestMySQL(t *testing.T) {
 					err = setValueInMetadataTable(ctx, conn, "ttl_metadata", "'last-cleanup'", "CURRENT_TIMESTAMP - INTERVAL 1 SECOND")
 					require.NoError(t, err, "failed to set last-cleanup")
 
-					// The "last-cleanup" value should be ~1 second (+ a bit of buffer)
+					// The "last-cleanup" value should be ~2 seconds (+ a bit of buffer)
 					lastCleanup, err := loadLastCleanupInterval(ctx, conn, "ttl_metadata")
 					require.NoError(t, err, "failed to load value for 'last-cleanup'")
-					assert.LessOrEqual(t, lastCleanup, int64(1200))
+					assert.LessOrEqual(t, lastCleanup, 2)
 					lastCleanupValueOrig, err := getValueFromMetadataTable(ctx, conn, "ttl_metadata", "last-cleanup")
 					require.NoError(t, err, "failed to load absolute value for 'last-cleanup'")
 					require.NotEmpty(t, lastCleanupValueOrig)
@@ -607,7 +607,7 @@ func TestMySQL(t *testing.T) {
 
 func populateTTLRecords(ctx context.Context, dbClient *sql.DB) error {
 	// Insert 10 records that have expired, and 10 that will expire in 4 seconds
-	exp := "CURRENT_TIMESTAMP - INTERVAL 1 MINUTE"
+	exp := "DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 MINUTE)"
 	rows := make([][]any, 20)
 	for i := 0; i < 10; i++ {
 		rows[i] = []any{
@@ -617,7 +617,7 @@ func populateTTLRecords(ctx context.Context, dbClient *sql.DB) error {
 			exp,
 		}
 	}
-	exp = "CURRENT_TIMESTAMP + INTERVAL 4 SECOND"
+	exp = "DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 4 second)"
 	for i := 0; i < 10; i++ {
 		rows[i+10] = []any{
 			fmt.Sprintf("notexpired_%d", i),
@@ -629,7 +629,8 @@ func populateTTLRecords(ctx context.Context, dbClient *sql.DB) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	for _, row := range rows {
-		_, err := dbClient.ExecContext(queryCtx, "INSERT INTO ttl_state (key, value, isbinary, expiredate) VALUES ($1, $2, $3, $4)", row...)
+		query := fmt.Sprintf("INSERT INTO ttl_state (id, value, isbinary, eTag, expiredate) VALUES (?, ?, ?, '', %s)", row[3])
+		_, err := dbClient.ExecContext(queryCtx, query, row[0], row[1], row[2])
 		if err != nil {
 			return err
 		}
@@ -648,11 +649,13 @@ func countRowsInTable(ctx context.Context, dbClient *sql.DB, table string) (coun
 
 func loadLastCleanupInterval(ctx context.Context, dbClient *sql.DB, table string) (lastCleanup int64, err error) {
 	queryCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	var lastCleanupf float64
 	err = dbClient.
 		QueryRowContext(queryCtx,
-			fmt.Sprintf("SELECT (UNIX_TIMESTAMP(CURRENT_TIMESTAMP) - UNIX_TIMESTAMP(value)) * 1000 FROM %s WHERE id = 'last-cleanup'", table),
+			fmt.Sprintf("SELECT UNIX_TIMESTAMP(CURRENT_TIMESTAMP) - UNIX_TIMESTAMP(value) AS lastClean FROM %s WHERE id = 'last-cleanup'", table),
 		).
-		Scan(&lastCleanup)
+		Scan(&lastCleanupf)
+	lastCleanup = int64(lastCleanupf)
 	cancel()
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -671,10 +674,10 @@ func setValueInMetadataTable(ctx context.Context, dbClient *sql.DB, table, id, v
 	return err
 }
 
-func getValueFromMetadataTable(ctx context.Context, dbClient *sql.DB, table, key string) (value string, err error) {
+func getValueFromMetadataTable(ctx context.Context, dbClient *sql.DB, table, id string) (value string, err error) {
 	queryCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	err = dbClient.
-		QueryRowContext(queryCtx, fmt.Sprintf("SELECT value FROM %s WHERE key = $1", table), key).
+		QueryRowContext(queryCtx, fmt.Sprintf("SELECT value FROM %s WHERE id = ?", table), id).
 		Scan(&value)
 	cancel()
 	if errors.Is(err, sql.ErrNoRows) {

@@ -94,13 +94,13 @@ type MySQL struct {
 }
 
 type mySQLMetadata struct {
-	TableName                string
-	SchemaName               string
-	ConnectionString         string
-	Timeout                  int
-	PemPath                  string
-	MetadataTableName        string
-	CleanupIntervalInSeconds *time.Duration
+	TableName         string
+	SchemaName        string
+	ConnectionString  string
+	Timeout           int
+	PemPath           string
+	MetadataTableName string
+	CleanupInterval   *time.Duration
 }
 
 // NewMySQLStateStore creates a new instance of MySQL state store.
@@ -149,10 +149,10 @@ func (m *MySQL) Init(ctx context.Context, metadata state.Metadata) error {
 
 func (m *MySQL) parseMetadata(md map[string]string) error {
 	meta := mySQLMetadata{
-		TableName:                defaultTableName,
-		SchemaName:               defaultSchemaName,
-		MetadataTableName:        defaultMetadataTableName,
-		CleanupIntervalInSeconds: ptr.Of(defaultCleanupInterval * time.Second),
+		TableName:         defaultTableName,
+		SchemaName:        defaultSchemaName,
+		MetadataTableName: defaultMetadataTableName,
+		CleanupInterval:   ptr.Of(defaultCleanupInterval * time.Second),
 	}
 
 	err := metadata.DecodeMetadata(md, &meta)
@@ -191,6 +191,7 @@ func (m *MySQL) parseMetadata(md map[string]string) error {
 	m.connectionString = meta.ConnectionString
 
 	// Cleanup interval
+	m.cleanupInterval = meta.CleanupInterval
 	s, ok := md[cleanupIntervalKey]
 	if ok && s != "" {
 		cleanupIntervalInSec, err := strconv.ParseInt(s, 10, 0)
@@ -280,8 +281,7 @@ func (m *MySQL) finishInit(ctx context.Context, db *sql.DB) error {
 			UpdateLastCleanupQuery: fmt.Sprintf(`INSERT INTO %[1]s (id, value)
 			VALUES ('last-cleanup', CURRENT_TIMESTAMP)
 		  ON DUPLICATE KEY UPDATE
-			value = IF((UNIX_TIMESTAMP(CURRENT_TIMESTAMP) - UNIX_TIMESTAMP(value)) * 1000 >= $1, 
-					  CURRENT_TIMESTAMP, value)`,
+		  value = IF(CURRENT_TIMESTAMP > DATE_ADD(value, INTERVAL ?*1000 MICROSECOND), CURRENT_TIMESTAMP, value)`,
 				m.metadataTableName),
 			DeleteExpiredValuesQuery: fmt.Sprintf(
 				`DELETE FROM %s WHERE expiredate IS NOT NULL AND expiredate < CURRENT_TIMESTAMP`,
@@ -439,7 +439,7 @@ func tableExists(ctx context.Context, db *sql.DB, schemaName, tableName string, 
 }
 
 // columnExists returns true if the column exists in the table
-func columnExists(ctx context.Context, db *sql.DB, schemaName string, tableName string, columnName string, timeout time.Duration) (bool, error) {
+func columnExists(ctx context.Context, db *sql.DB, schemaName, tableName, columnName string, timeout time.Duration) (bool, error) {
 	columnCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 

@@ -652,7 +652,7 @@ func loadLastCleanupInterval(ctx context.Context, dbClient *sql.DB, table string
 	var lastCleanupf float64
 	err = dbClient.
 		QueryRowContext(queryCtx,
-			fmt.Sprintf("SELECT UNIX_TIMESTAMP(CURRENT_TIMESTAMP) - UNIX_TIMESTAMP(value) AS lastClean FROM %s WHERE id = 'last-cleanup'", table),
+			fmt.Sprintf("SELECT UNIX_TIMESTAMP(CURRENT_TIMESTAMP) - UNIX_TIMESTAMP(value) AS lastCleanupf FROM %s WHERE id = 'last-cleanup'", table),
 		).
 		Scan(&lastCleanupf)
 	lastCleanup = int(lastCleanupf)

@@ -64,3 +64,6 @@ components:
   - component: aws.dynamodb.terraform
     allOperations: false
     operations: [ "set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write" ]
+  - component: etcd
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]

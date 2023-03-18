@@ -19,6 +19,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	jsoniter "github.com/json-iterator/go"
 
@@ -91,12 +92,13 @@ const (
 // StateStore is a Redis state store.
 type StateStore struct {
 	state.DefaultBulkStore
-	client         rediscomponent.RedisClient
-	clientSettings *rediscomponent.Settings
-	json           jsoniter.API
-	metadata       rediscomponent.Metadata
-	replicas       int
-	querySchemas   querySchemas
+	client                         rediscomponent.RedisClient
+	clientSettings                 *rediscomponent.Settings
+	json                           jsoniter.API
+	metadata                       rediscomponent.Metadata
+	replicas                       int
+	querySchemas                   querySchemas
+	suppressActorStateStoreWarning atomic.Bool
 
 	features []state.Feature
 	logger   logger.Logger
@@ -105,9 +107,10 @@ type StateStore struct {
 // NewRedisStateStore returns a new redis state store.
 func NewRedisStateStore(logger logger.Logger) state.Store {
 	s := &StateStore{
-		json:     jsoniter.ConfigFastest,
-		features: []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI},
-		logger:   logger,
+		json:                           jsoniter.ConfigFastest,
+		features:                       []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI},
+		logger:                         logger,
+		suppressActorStateStoreWarning: atomic.Bool{},
 	}
 	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
 
@@ -386,6 +389,9 @@ func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
 func (r *StateStore) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
+	if r.suppressActorStateStoreWarning.CompareAndSwap(false, true) {
+		r.logger.Warn("Redis does not support transaction rollbacks and should not be used in production as an actor state store.")
+	}
 	var setQuery, delQuery string
 	var isJSON bool
 	if contentType, ok := request.Metadata[daprmetadata.ContentType]; ok && contentType == contenttype.JSONContentType && rediscomponent.ClientHasJSONSupport(r.client) {

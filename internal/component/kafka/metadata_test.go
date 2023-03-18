@@ -318,4 +318,14 @@ func TestTls(t *testing.T) {
 
 		require.Equal(t, "kafka error: invalid ca certificate", err.Error())
 	})
+
+	t.Run("missing certificate for certificate auth", func(t *testing.T) {
+		m := getBaseMetadata()
+		m[authType] = certificateAuthType
+		meta, err := k.getKafkaMetadata(m)
+		require.Error(t, err)
+		require.Nil(t, meta)
+
+		require.Equal(t, "missing CA certificate property 'caCert' for authType 'certificate'", err.Error())
+	})
 }

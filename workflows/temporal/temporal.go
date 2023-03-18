@@ -133,6 +133,16 @@ func (c *TemporalWF) Close() {
 	c.client.Close()
 }
 
+func (c *TemporalWF) Pause(ctx context.Context, req *workflows.WorkflowReference) error {
+	// Unimplemented
+	return nil
+}
+
+func (c *TemporalWF) Resume(ctx context.Context, req *workflows.WorkflowReference) error {
+	// Unimplemented
+	return nil
+}
+
 func (c *TemporalWF) parseMetadata(meta workflows.Metadata) (*temporalMetadata, error) {
 	var m temporalMetadata
 	err := metadata.DecodeMetadata(meta.Properties, &m)

@@ -304,7 +304,6 @@ func (m *migration) createStoredProcedureIfNotExists(ctx context.Context, db *sq
 
 /* #nosec. */
 //nolint:dupword
-//SET @expireDate = CASE @TTL WHEN NULL THEN DATEADD(SECOND, @TTL, CURRENT_TIMESTAMP) ELSE NULL END;
 func (m *migration) ensureUpsertStoredProcedureExists(ctx context.Context, db *sql.DB, mr migrationResult) error {
 	tsql := fmt.Sprintf(`
 			CREATE PROCEDURE %[1]s (

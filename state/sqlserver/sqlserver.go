@@ -30,7 +30,6 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
-	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
 )
@@ -653,8 +652,7 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 		etag = sql.Named(rowVersionColumnName, b)
 	}
 
-	// TTL
-	ttl, ttlerr := stateutils.ParseTTL(req.Metadata)
+	ttl, ttlerr := utils.ParseTTL(req.Metadata)
 	if ttlerr != nil {
 		return fmt.Errorf("error parsing TTL: %w", ttlerr)
 	}

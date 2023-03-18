@@ -20,13 +20,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+	"time"
 	"unicode"
 
 	mssql "github.com/denisenkom/go-mssqldb"
 
+	internalsql "github.com/dapr/components-contrib/internal/component/sql"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
+	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
 )
@@ -65,6 +69,7 @@ const (
 const (
 	connectionStringKey  = "connectionString"
 	tableNameKey         = "tableName"
+	metadataTableNameKey = "metadataTableName"
 	schemaKey            = "schema"
 	keyTypeKey           = "keyType"
 	keyLengthKey         = "keyLength"
@@ -72,15 +77,18 @@ const (
 	keyColumnName        = "Key"
 	rowVersionColumnName = "RowVersion"
 	databaseNameKey      = "databaseName"
+	cleanupIntervalKey   = "cleanupIntervalInSeconds"
 
-	defaultKeyLength = 200
-	defaultSchema    = "dbo"
-	defaultDatabase  = "dapr"
-	defaultTable     = "state"
+	defaultKeyLength       = 200
+	defaultSchema          = "dbo"
+	defaultDatabase        = "dapr"
+	defaultTable           = "state"
+	defaultMetaTable       = "dapr_metadata"
+	defaultCleanupInterval = time.Hour
 )
 
-// NewSQLServerStateStore creates a new instance of a Sql Server transaction store.
-func NewSQLServerStateStore(logger logger.Logger) state.Store {
+// New creates a new instance of a Sql Server transaction store.
+func New(logger logger.Logger) state.Store {
 	store := SQLServer{
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
 		logger:   logger,
@@ -102,11 +110,14 @@ type SQLServer struct {
 	connectionString  string
 	databaseName      string
 	tableName         string
+	metaTableName     string
 	schema            string
 	keyType           KeyType
 	keyLength         int
 	indexedProperties []IndexedProperty
 	migratorFactory   func(*SQLServer) migrator
+
+	cleanupInterval *time.Duration
 
 	bulkDeleteCommand        string
 	itemRefTableTypeName     string
@@ -118,12 +129,14 @@ type SQLServer struct {
 	features []state.Feature
 	logger   logger.Logger
 	db       *sql.DB
+	gc       internalsql.GarbageCollector
 }
 
 type sqlServerMetadata struct {
 	ConnectionString  string
 	DatabaseName      string
 	TableName         string
+	MetadataTableName string
 	Schema            string
 	KeyType           string
 	KeyLength         int
@@ -165,14 +178,14 @@ func isValidIndexedPropertyType(s string) bool {
 }
 
 // Init initializes the SQL server state store.
-func (s *SQLServer) Init(_ context.Context, metadata state.Metadata) error {
+func (s *SQLServer) Init(ctx context.Context, metadata state.Metadata) error {
 	err := s.parseMetadata(metadata.Properties)
 	if err != nil {
 		return err
 	}
 
 	migration := s.migratorFactory(s)
-	mr, err := migration.executeMigrations()
+	mr, err := migration.executeMigrations(ctx)
 	if err != nil {
 		return err
 	}
@@ -189,15 +202,40 @@ func (s *SQLServer) Init(_ context.Context, metadata state.Metadata) error {
 		return err
 	}
 
+	if s.cleanupInterval != nil {
+		gc, err := internalsql.ScheduleGarbageCollector(internalsql.GCOptions{
+			Logger: s.logger,
+			UpdateLastCleanupQuery: fmt.Sprintf(`BEGIN TRANSACTION;
+BEGIN TRY
+  INSERT INTO [%[1]s].[%[2]s] ([Key], [Value]) VALUES ('last-cleanup', CONVERT(nvarchar(MAX), CURRENT_TIMESTAMP, 21));
+END TRY
+BEGIN CATCH
+UPDATE [%[1]s].[%[2]s] SET [Value] = CONVERT(nvarchar(MAX), CURRENT_TIMESTAMP, 21) WHERE [Key] = 'last-cleanup' AND Datediff_big(MS, [Value], GETUTCDATE()) > @Interval
+END CATCH
+COMMIT TRANSACTION;`, s.schema, s.metaTableName),
+			DeleteExpiredValuesQuery: fmt.Sprintf(
+				`DELETE FROM [%s].[%s] WHERE [ExpireDate] IS NOT NULL AND [ExpireDate] < CURRENT_TIMESTAMP`,
+				s.schema, s.tableName,
+			),
+			CleanupInterval: *s.cleanupInterval,
+			DBSql:           s.db,
+		})
+		if err != nil {
+			return err
+		}
+		s.gc = gc
+	}
+
 	return nil
 }
 
 func (s *SQLServer) parseMetadata(meta map[string]string) error {
 	m := sqlServerMetadata{
-		TableName:    defaultTable,
-		Schema:       defaultSchema,
-		DatabaseName: defaultDatabase,
-		KeyLength:    defaultKeyLength,
+		TableName:         defaultTable,
+		Schema:            defaultSchema,
+		DatabaseName:      defaultDatabase,
+		KeyLength:         defaultKeyLength,
+		MetadataTableName: defaultMetaTable,
 	}
 	err := metadata.DecodeMetadata(meta, &m)
 	if err != nil {
@@ -209,6 +247,10 @@ func (s *SQLServer) parseMetadata(meta map[string]string) error {
 	s.connectionString = m.ConnectionString
 
 	if err := s.setTable(m.TableName); err != nil {
+		return err
+	}
+
+	if err := s.setMetadataTable(m.MetadataTableName); err != nil {
 		return err
 	}
 
@@ -226,6 +268,24 @@ func (s *SQLServer) parseMetadata(meta map[string]string) error {
 
 	if err := s.setIndexedProperties(m.IndexedProperties); err != nil {
 		return err
+	}
+
+	// Cleanup interval
+	v, ok := meta[cleanupIntervalKey]
+	if ok && v != "" {
+		cleanupIntervalInSec, err := strconv.ParseInt(v, 10, 0)
+		if err != nil {
+			return fmt.Errorf("invalid value for '%s': %s", cleanupIntervalKey, v)
+		}
+
+		// Non-positive value from meta means disable auto cleanup.
+		if cleanupIntervalInSec > 0 {
+			s.cleanupInterval = ptr.Of(time.Duration(cleanupIntervalInSec) * time.Second)
+		} else {
+			s.cleanupInterval = nil
+		}
+	} else {
+		s.cleanupInterval = ptr.Of(defaultCleanupInterval)
 	}
 
 	return nil
@@ -341,6 +401,16 @@ func (s *SQLServer) setTable(tableName string) error {
 	return nil
 }
 
+func (s *SQLServer) setMetadataTable(tableName string) error {
+	if !isValidSQLName(tableName) {
+		return fmt.Errorf("invalid metadata table name, accepted characters are (A-Z, a-z, 0-9, _)")
+	}
+
+	s.metaTableName = tableName
+
+	return nil
+}
+
 // Features returns the features available in this state store.
 func (s *SQLServer) Features() []state.Feature {
 	return s.features
@@ -348,7 +418,7 @@ func (s *SQLServer) Features() []state.Feature {
 
 // Multi performs multiple updates on a Sql server store.
 func (s *SQLServer) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
-	tx, err := s.db.Begin()
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -466,7 +536,7 @@ type TvpDeleteTableStringKey struct {
 
 // BulkDelete removes multiple entries from the store.
 func (s *SQLServer) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	tx, err := s.db.Begin()
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -478,9 +548,7 @@ func (s *SQLServer) BulkDelete(ctx context.Context, req []state.DeleteRequest) e
 		return err
 	}
 
-	tx.Commit()
-
-	return nil
+	return tx.Commit()
 }
 
 func (s *SQLServer) executeBulkDelete(ctx context.Context, db dbExecutor, req []state.DeleteRequest) error {
@@ -523,7 +591,7 @@ func (s *SQLServer) executeBulkDelete(ctx context.Context, db dbExecutor, req []
 
 // Get returns an entity from store.
 func (s *SQLServer) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
-	rows, err := s.db.Query(s.getCommand, sql.Named(keyColumnName, req.Key))
+	rows, err := s.db.QueryContext(ctx, s.getCommand, sql.Named(keyColumnName, req.Key))
 	if err != nil {
 		return nil, err
 	}
@@ -585,11 +653,21 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 		etag = sql.Named(rowVersionColumnName, b)
 	}
 
+	// TTL
+	ttl, ttlerr := stateutils.ParseTTL(req.Metadata)
+	if ttlerr != nil {
+		return fmt.Errorf("error parsing TTL: %w", ttlerr)
+	}
+
 	var res sql.Result
 	if req.Options.Concurrency == state.FirstWrite {
-		res, err = db.ExecContext(ctx, s.upsertCommand, sql.Named(keyColumnName, req.Key), sql.Named("Data", string(bytes)), etag, sql.Named("FirstWrite", 1))
+		res, err = db.ExecContext(ctx, s.upsertCommand, sql.Named(keyColumnName, req.Key),
+			sql.Named("Data", string(bytes)), etag,
+			sql.Named("FirstWrite", 1), sql.Named("TTL", ttl))
 	} else {
-		res, err = db.ExecContext(ctx, s.upsertCommand, sql.Named(keyColumnName, req.Key), sql.Named("Data", string(bytes)), etag, sql.Named("FirstWrite", 0))
+		res, err = db.ExecContext(ctx, s.upsertCommand, sql.Named(keyColumnName, req.Key),
+			sql.Named("Data", string(bytes)), etag,
+			sql.Named("FirstWrite", 0), sql.Named("TTL", ttl))
 	}
 
 	if err != nil {
@@ -606,7 +684,7 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 	}
 
 	if rows != 1 {
-		return fmt.Errorf("no item was updated")
+		return errors.New("no item was updated")
 	}
 
 	return nil
@@ -614,7 +692,7 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 
 // BulkSet adds/updates multiple entities on store.
 func (s *SQLServer) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	tx, err := s.db.Begin()
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -635,4 +713,31 @@ func (s *SQLServer) BulkSet(ctx context.Context, req []state.SetRequest) error {
 
 func (s *SQLServer) GetComponentMetadata() map[string]string {
 	return map[string]string{}
+}
+
+// Close implements io.Close.
+func (s *SQLServer) Close() error {
+	if s.db != nil {
+		s.db.Close()
+		s.db = nil
+	}
+
+	if s.gc != nil {
+		return s.gc.Close()
+	}
+
+	return nil
+}
+
+// GetCleanupInterval returns the cleanupInterval property.
+// This is primarily used for tests.
+func (s *SQLServer) GetCleanupInterval() *time.Duration {
+	return s.cleanupInterval
+}
+
+func (s *SQLServer) CleanupExpired() error {
+	if s.gc != nil {
+		return s.gc.CleanupExpired()
+	}
+	return nil
 }

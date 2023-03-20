@@ -326,7 +326,7 @@ func (m *migration) ensureUpsertStoredProcedureExists(ctx context.Context, db *s
 								BEGIN
 									UPDATE [%[3]s]
 									SET [Data]=@Data, UpdateDate=GETDATE(), ExpireDate=CASE WHEN @TTL IS NULL THEN NULL ELSE DATEADD(SECOND, @TTL, GETDATE()) END
-									WHERE [Key]=@Key AND RowVersion = @RowVersion
+									WHERE [Key]=@Key AND RowVersion = @RowVersion AND (([RowVersion] IS NULL) OR ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE()))
 								END
 								COMMIT;
 							END
@@ -346,7 +346,7 @@ func (m *migration) ensureUpsertStoredProcedureExists(ctx context.Context, db *s
 										IF ERROR_NUMBER() IN (2601, 2627)
 											UPDATE [%[3]s]
 											SET [Data]=@Data, UpdateDate=GETDATE(), ExpireDate=CASE WHEN @TTL IS NULL THEN NULL ELSE DATEADD(SECOND, @TTL, GETDATE()) END
-											WHERE [Key]=@Key AND RowVersion = ISNULL(@RowVersion, RowVersion)
+											WHERE [Key]=@Key AND RowVersion = ISNULL(@RowVersion, RowVersion) AND (([RowVersion] IS NULL) OR ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE()))
 									END CATCH
 								END
 								COMMIT;
@@ -358,7 +358,7 @@ func (m *migration) ensureUpsertStoredProcedureExists(ctx context.Context, db *s
 							BEGIN
 								UPDATE [%[3]s]
 								SET [Data]=@Data, UpdateDate=GETDATE(), ExpireDate=CASE WHEN @TTL IS NULL THEN NULL ELSE DATEADD(SECOND, @TTL, GETDATE()) END
-								WHERE [Key]=@Key AND RowVersion = @RowVersion
+								WHERE [Key]=@Key AND RowVersion = @RowVersion AND (([RowVersion] IS NULL) OR ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE()))
 								RETURN
 							END
 						ELSE
@@ -371,7 +371,7 @@ func (m *migration) ensureUpsertStoredProcedureExists(ctx context.Context, db *s
 									IF ERROR_NUMBER() IN (2601, 2627)
 										UPDATE [%[3]s]
 										SET [Data]=@Data, UpdateDate=GETDATE(), ExpireDate=CASE WHEN @TTL IS NULL THEN NULL ELSE DATEADD(SECOND, @TTL, GETDATE()) END
-										WHERE [Key]=@Key AND RowVersion = ISNULL(@RowVersion, RowVersion)
+										WHERE [Key]=@Key AND RowVersion = ISNULL(@RowVersion, RowVersion) AND (([RowVersion] IS NULL) OR ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE()))
 								END CATCH
 							END
 					END

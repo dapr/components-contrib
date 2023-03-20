@@ -18,12 +18,11 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/lestrrat-go/httprc"
 	"github.com/lestrrat-go/jwx/v2/jwk"
@@ -33,20 +32,10 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-const (
-	defaultRequestTimeout              = 30 * time.Second
-	metadataKeyJWKS                    = "jwks"
-	metadataKeyRequestTimeoutInSeconds = "requestTimeoutInSeconds"
-
-	// Minimum interval before refreshing the JWKS cache
-	minRefreshInterval = 10 * time.Minute
-)
-
 type jwksCrypto struct {
 	contribCrypto.LocalCryptoBaseComponent
 
-	requestTimeout time.Duration
-
+	md       jwksMetadata
 	jwks     jwk.Set
 	jwksLock sync.Mutex
 
@@ -74,17 +63,14 @@ func (k *jwksCrypto) Init(ctx context.Context, metadata contribCrypto.Metadata) 
 		return errors.New("empty metadata properties")
 	}
 
-	if metadata.Properties[metadataKeyRequestTimeoutInSeconds] != "" {
-		timeoutSec, _ := strconv.Atoi(metadata.Properties[metadataKeyRequestTimeoutInSeconds])
-		if timeoutSec > 0 {
-			k.requestTimeout = time.Duration(timeoutSec) * time.Second
-		}
-	}
-	if k.requestTimeout == 0 {
-		k.requestTimeout = defaultRequestTimeout
+	// Parse the metadata
+	err := k.md.InitWithMetadata(metadata)
+	if err != nil {
+		return err
 	}
 
-	err := k.initJWKS(ctx, metadata.Properties[metadataKeyJWKS])
+	// Load the JWKS
+	err = k.initJWKS(ctx)
 	if err != nil {
 		return err
 	}
@@ -106,28 +92,28 @@ func (k *jwksCrypto) Features() []contribCrypto.Feature {
 }
 
 // Init the JWKS object from the metadata property
-func (k *jwksCrypto) initJWKS(ctx context.Context, md string) error {
-	if len(md) == 0 {
+func (k *jwksCrypto) initJWKS(ctx context.Context) error {
+	if len(k.md.JWKS) == 0 {
 		return errors.New("metadata property 'jwks' is required")
 	}
 
 	// If the value starts with "http://" or "https://", treat it as URL
-	if strings.HasPrefix(md, "http://") || strings.HasPrefix(md, "https://") {
-		return k.initJWKSFromURL(ctx, md)
+	if strings.HasPrefix(k.md.JWKS, "http://") || strings.HasPrefix(k.md.JWKS, "https://") {
+		return k.initJWKSFromURL(ctx, k.md.JWKS)
 	}
 
 	// Check if the value is a valid path to a local file
-	stat, err := os.Stat(md)
+	stat, err := os.Stat(k.md.JWKS)
 	if err == nil && stat != nil && !stat.IsDir() {
-		return k.initJWKSFromFile(ctx, md)
+		return k.initJWKSFromFile(ctx, k.md.JWKS)
 	}
 
 	// Treat the value as the actual JWKS
 	// First, check if it's base64-encoded (remove trailing padding chars if present first)
-	mdJSON, err := base64.RawStdEncoding.DecodeString(strings.TrimRight(md, "="))
+	mdJSON, err := base64.RawStdEncoding.DecodeString(strings.TrimRight(k.md.JWKS, "="))
 	if err != nil {
 		// Assume it's already JSON, not encoded
-		mdJSON = []byte(md)
+		mdJSON = []byte(k.md.JWKS)
 	}
 
 	// Try decoding from JSON
@@ -142,18 +128,25 @@ func (k *jwksCrypto) initJWKS(ctx context.Context, md string) error {
 func (k *jwksCrypto) initJWKSFromURL(ctx context.Context, url string) error {
 	// Create the JWKS cache
 	// We are using k.ctx here because we want this to be tied to the component's lifecycle
+	// We also need to create a custom HTTP client because otherwise there's no timeout.
+	client := &http.Client{
+		Timeout: k.md.RequestTimeout,
+	}
 	cache := jwk.NewCache(k.ctx,
+		jwk.WithHTTPClient(client),
 		jwk.WithErrSink(httprc.ErrSinkFunc(func(err error) {
 			k.logger.Warnf("Error while refreshing JWKS cache: %v", err)
 		})),
 	)
-	err := cache.Register(url, jwk.WithMinRefreshInterval(minRefreshInterval))
+	err := cache.Register(url, jwk.WithMinRefreshInterval(k.md.MinRefreshInterval))
 	if err != nil {
 		return fmt.Errorf("failed to register JWKS cache: %w", err)
 	}
 
 	// Fetch the JWKS right away to start, so we can check it's valid and populate the cache
-	_, err = cache.Refresh(ctx, url)
+	refreshCtx, refreshCancel := context.WithTimeout(ctx, k.md.RequestTimeout)
+	_, err = cache.Refresh(refreshCtx, url)
+	refreshCancel()
 	if err != nil {
 		return fmt.Errorf("failed to fetch JWKS: %w", err)
 	}

@@ -95,7 +95,7 @@ func WithListenAddresses(addresses []string) Option {
 
 func WithResourcesPath(path string) Option {
 	return func(config *runtime.Config) {
-		config.Standalone.ComponentsPath = path
+		config.Standalone.ResourcesPath[0] = path
 	}
 }
 
@@ -141,9 +141,8 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, *runtime.Co
 		AppProtocol:                  string(runtime.HTTPProtocol),
 		Mode:                         string(mode),
 		PlacementAddresses:           []string{},
-		GlobalConfig:                 config,
 		AllowedOrigins:               allowedOrigins,
-		ComponentsPath:               componentsPath,
+		ResourcesPath:                []string{componentsPath},
 		EnableProfiling:              enableProfiling,
 		MaxConcurrency:               maxConcurrency,
 		MTLSEnabled:                  enableMTLS,

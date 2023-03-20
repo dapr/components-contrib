@@ -140,6 +140,35 @@ func TestRedisBinding(t *testing.T) {
 		assert.NoError(t, err2)
 		assert.Equal(t, []byte(nil), out.Data)
 
+		invokeRequest = &daprClient.InvokeBindingRequest{
+			Name:      bindingName,
+			Operation: string(bindings.CreateOperation),
+			Data:      []byte("43"),
+			Metadata:  map[string]string{"key": "getDelKey"},
+		}
+
+		err = client.InvokeOutputBinding(ctx, invokeRequest)
+		assert.NoError(t, err)
+
+		invokeRequest = &daprClient.InvokeBindingRequest{
+			Name:      bindingName,
+			Operation: string(bindings.GetOperation),
+			Metadata:  map[string]string{"key": "getDelKey", "delete": "true"},
+		}
+		out, err2 = client.InvokeBinding(ctx, invokeRequest)
+		assert.NoError(t, err2)
+		assert.Equal(t, "43", string(out.Data))
+
+		invokeRequest = &daprClient.InvokeBindingRequest{
+			Name:      bindingName,
+			Operation: string(bindings.GetOperation),
+			Metadata:  map[string]string{"key": "getDelKey"},
+		}
+
+		out, err2 = client.InvokeBinding(ctx, invokeRequest)
+		assert.NoError(t, err2)
+		assert.Equal(t, []byte(nil), out.Data)
+
 		return nil
 	}
 

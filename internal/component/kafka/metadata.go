@@ -27,6 +27,7 @@ const (
 	key                  = "partitionKey"
 	skipVerify           = "skipVerify"
 	caCert               = "caCert"
+	certificateAuthType  = "certificate"
 	clientCert           = "clientCert"
 	clientKey            = "clientKey"
 	consumeRetryEnabled  = "consumeRetryEnabled"
@@ -138,6 +139,13 @@ func (k *Kafka) getKafkaMetadata(metadata map[string]string) (*kafkaMetadata, er
 
 	k.logger.Debugf("Found brokers: %v", meta.Brokers)
 
+	if val, ok := metadata[caCert]; ok && val != "" {
+		if !isValidPEM(val) {
+			return nil, errors.New("kafka error: invalid ca certificate")
+		}
+		meta.TLSCaCert = val
+	}
+
 	val, ok := metadata["authType"]
 	if !ok {
 		return nil, errors.New("kafka error: missing 'authType' attribute")
@@ -207,6 +215,12 @@ func (k *Kafka) getKafkaMetadata(metadata map[string]string) (*kafkaMetadata, er
 	case noAuthType:
 		meta.AuthType = val
 		k.logger.Debug("No authentication configured.")
+	case certificateAuthType:
+		if meta.TLSCaCert == "" {
+			return nil, errors.New("missing CA certificate property 'caCert' for authType 'certificate'")
+		}
+		meta.AuthType = val
+		k.logger.Debug("Configuring root certificate authentication.")
 	default:
 		return nil, errors.New("kafka error: invalid value for 'authType' attribute")
 	}
@@ -218,13 +232,6 @@ func (k *Kafka) getKafkaMetadata(metadata map[string]string) (*kafkaMetadata, er
 		}
 
 		meta.MaxMessageBytes = maxBytes
-	}
-
-	if val, ok := metadata[caCert]; ok && val != "" {
-		if !isValidPEM(val) {
-			return nil, errors.New("kafka error: invalid ca certificate")
-		}
-		meta.TLSCaCert = val
 	}
 
 	if val, ok := metadata["disableTls"]; ok && val != "" {

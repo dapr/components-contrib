@@ -1,0 +1,8 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: kitex-binding
+  namespace: default
+spec:
+  type: bindings.kitex
+  version: v1

@@ -12,7 +12,7 @@
         // "BIND_LOCALHOST_DOCKER": "true",
 
         // Necessary for components-contrib's certification tests
-        "GOLANG_PROTOBUF_REGISTRATION_CONFLICT": "true"
+        "GOLANG_PROTOBUF_REGISTRATION_CONFLICT": "ignore"
     },
     "features": {
         "ghcr.io/devcontainers/features/sshd:1": {},

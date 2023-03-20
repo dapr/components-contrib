@@ -51,7 +51,7 @@ func (m *migration) newMigrationResult() migrationResult {
 		bulkDeleteProcName:       fmt.Sprintf("sp_BulkDelete_%s", m.store.tableName),
 		itemRefTableTypeName:     fmt.Sprintf("[%s].%s_Table", m.store.schema, m.store.tableName),
 		upsertProcName:           fmt.Sprintf("sp_Upsert_v3_%s", m.store.tableName),
-		getCommand:               fmt.Sprintf("SELECT [Data], [RowVersion] FROM [%s].[%s] WHERE [Key] = @Key AND ([ExpireDate] IS NULL OR [ExpireDate] > CURRENT_TIMESTAMP)", m.store.schema, m.store.tableName),
+		getCommand:               fmt.Sprintf("SELECT [Data], [RowVersion] FROM [%s].[%s] WHERE [Key] = @Key AND ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE())", m.store.schema, m.store.tableName),
 		deleteWithETagCommand:    fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key AND [RowVersion]=@RowVersion`, m.store.schema, m.store.tableName),
 		deleteWithoutETagCommand: fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key`, m.store.schema, m.store.tableName),
 	}
@@ -190,7 +190,7 @@ func (m *migration) ensureTableExists(ctx context.Context, db *sql.DB, r migrati
     	CREATE TABLE [%s].[%s] (
 			[Key] 			%s CONSTRAINT PK_%s PRIMARY KEY,
 			[Data]			NVARCHAR(MAX) NOT NULL,
-			[InsertDate] 	DateTime2 NOT NULL DEFAULT(CURRENT_TIMESTAMP),
+			[InsertDate] 	DateTime2 NOT NULL DEFAULT(GETDATE()),
 			[UpdateDate] 	DateTime2 NULL,
 			[ExpireDate] 	DateTime2 NULL,`,
 		m.store.schema, m.store.tableName, m.store.schema, m.store.tableName, r.pkColumnType, m.store.tableName)
@@ -325,7 +325,7 @@ func (m *migration) ensureUpsertStoredProcedureExists(ctx context.Context, db *s
 									END
 								BEGIN
 									UPDATE [%[3]s]
-									SET [Data]=@Data, UpdateDate=CURRENT_TIMESTAMP, ExpireDate=CASE WHEN @TTL IS NULL THEN NULL ELSE DATEADD(SECOND, @TTL, CURRENT_TIMESTAMP) END
+									SET [Data]=@Data, UpdateDate=GETDATE(), ExpireDate=CASE WHEN @TTL IS NULL THEN NULL ELSE DATEADD(SECOND, @TTL, GETDATE()) END
 									WHERE [Key]=@Key AND RowVersion = @RowVersion
 								END
 								COMMIT;
@@ -339,13 +339,13 @@ func (m *migration) ensureUpsertStoredProcedureExists(ctx context.Context, db *s
 									END
 								BEGIN
 									BEGIN TRY
-										INSERT INTO [%[3]s] ([Key], [Data], ExpireDate) VALUES (@Key, @Data, CASE WHEN @TTL IS NULL THEN NULL ELSE DATEADD(SECOND, @TTL, CURRENT_TIMESTAMP) END)
+										INSERT INTO [%[3]s] ([Key], [Data], ExpireDate) VALUES (@Key, @Data, CASE WHEN @TTL IS NULL THEN NULL ELSE DATEADD(SECOND, @TTL, GETDATE()) END)
 									END TRY
 
 									BEGIN CATCH
 										IF ERROR_NUMBER() IN (2601, 2627)
 											UPDATE [%[3]s]
-											SET [Data]=@Data, UpdateDate=CURRENT_TIMESTAMP, ExpireDate=CASE WHEN @TTL IS NULL THEN NULL ELSE DATEADD(SECOND, @TTL, CURRENT_TIMESTAMP) END
+											SET [Data]=@Data, UpdateDate=GETDATE(), ExpireDate=CASE WHEN @TTL IS NULL THEN NULL ELSE DATEADD(SECOND, @TTL, GETDATE()) END
 											WHERE [Key]=@Key AND RowVersion = ISNULL(@RowVersion, RowVersion)
 									END CATCH
 								END
@@ -357,20 +357,20 @@ func (m *migration) ensureUpsertStoredProcedureExists(ctx context.Context, db *s
 						IF (@RowVersion IS NOT NULL)
 							BEGIN
 								UPDATE [%[3]s]
-								SET [Data]=@Data, UpdateDate=CURRENT_TIMESTAMP, ExpireDate=CASE WHEN @TTL IS NULL THEN NULL ELSE DATEADD(SECOND, @TTL, CURRENT_TIMESTAMP) END
+								SET [Data]=@Data, UpdateDate=GETDATE(), ExpireDate=CASE WHEN @TTL IS NULL THEN NULL ELSE DATEADD(SECOND, @TTL, GETDATE()) END
 								WHERE [Key]=@Key AND RowVersion = @RowVersion
 								RETURN
 							END
 						ELSE
 							BEGIN
 								BEGIN TRY
-									INSERT INTO [%[3]s] ([Key], [Data], ExpireDate) VALUES (@Key, @Data, CASE WHEN @TTL IS NULL THEN NULL ELSE DATEADD(SECOND, @TTL, CURRENT_TIMESTAMP) END)
+									INSERT INTO [%[3]s] ([Key], [Data], ExpireDate) VALUES (@Key, @Data, CASE WHEN @TTL IS NULL THEN NULL ELSE DATEADD(SECOND, @TTL, GETDATE()) END)
 								END TRY
 
 								BEGIN CATCH
 									IF ERROR_NUMBER() IN (2601, 2627)
 										UPDATE [%[3]s]
-										SET [Data]=@Data, UpdateDate=CURRENT_TIMESTAMP, ExpireDate=CASE WHEN @TTL IS NULL THEN NULL ELSE DATEADD(SECOND, @TTL, CURRENT_TIMESTAMP) END
+										SET [Data]=@Data, UpdateDate=GETDATE(), ExpireDate=CASE WHEN @TTL IS NULL THEN NULL ELSE DATEADD(SECOND, @TTL, GETDATE()) END
 										WHERE [Key]=@Key AND RowVersion = ISNULL(@RowVersion, RowVersion)
 								END CATCH
 							END

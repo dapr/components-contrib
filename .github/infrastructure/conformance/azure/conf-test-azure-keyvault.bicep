@@ -84,8 +84,19 @@ resource keyVault 'Microsoft.KeyVault/vaults@2019-09-01' = {
         tenantId: tenantId
         objectId: sdkAuthSpId
         permissions: {
+          keys: [
+            'get'
+            'list'
+            'encrypt'
+            'decrypt'
+            'wrapKey'
+            'unwrapKey'
+            'sign'
+            'verify'
+          ]
           secrets: [
             'get'
+            'list'
           ]
         }
       }

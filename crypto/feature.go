@@ -13,16 +13,14 @@ limitations under the License.
 
 package crypto
 
+import (
+	"golang.org/x/exp/slices"
+)
+
 // Feature names a feature that can be implemented by the crypto provider components.
 type Feature string
 
 // IsPresent checks if a given feature is present in the list.
 func (f Feature) IsPresent(features []Feature) bool {
-	for _, feature := range features {
-		if feature == f {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(features, f)
 }

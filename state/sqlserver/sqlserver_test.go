@@ -33,7 +33,7 @@ const (
 
 type mockMigrator struct{}
 
-func (m *mockMigrator) executeMigrations() (migrationResult, error) {
+func (m *mockMigrator) executeMigrations(context.Context) (migrationResult, error) {
 	r := migrationResult{}
 
 	return r, nil
@@ -41,20 +41,18 @@ func (m *mockMigrator) executeMigrations() (migrationResult, error) {
 
 type mockFailingMigrator struct{}
 
-func (m *mockFailingMigrator) executeMigrations() (migrationResult, error) {
+func (m *mockFailingMigrator) executeMigrations(context.Context) (migrationResult, error) {
 	r := migrationResult{}
 
 	return r, errors.New("migration failed")
 }
 
 func TestValidConfiguration(t *testing.T) {
-	tests := []struct {
-		name     string
+	tests := map[string]struct {
 		props    map[string]string
 		expected SQLServer
 	}{
-		{
-			name:  "No schema",
+		"No schema": {
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName},
 			expected: SQLServer{
 				connectionString: sampleConnectionString,
@@ -63,10 +61,10 @@ func TestValidConfiguration(t *testing.T) {
 				keyType:          StringKeyType,
 				keyLength:        defaultKeyLength,
 				databaseName:     defaultDatabase,
+				metaTableName:    defaultMetaTable,
 			},
 		},
-		{
-			name:  "Custom schema",
+		"Custom schema": {
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, schemaKey: "mytest"},
 			expected: SQLServer{
 				connectionString: sampleConnectionString,
@@ -75,10 +73,10 @@ func TestValidConfiguration(t *testing.T) {
 				keyType:          StringKeyType,
 				keyLength:        defaultKeyLength,
 				databaseName:     defaultDatabase,
+				metaTableName:    defaultMetaTable,
 			},
 		},
-		{
-			name:  "String key type",
+		"String key type": {
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, keyTypeKey: "string"},
 			expected: SQLServer{
 				connectionString: sampleConnectionString,
@@ -87,10 +85,10 @@ func TestValidConfiguration(t *testing.T) {
 				keyType:          StringKeyType,
 				keyLength:        defaultKeyLength,
 				databaseName:     defaultDatabase,
+				metaTableName:    defaultMetaTable,
 			},
 		},
-		{
-			name:  "Unique identifier key type",
+		"Unique identifier key type": {
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, keyTypeKey: "uuid"},
 			expected: SQLServer{
 				connectionString: sampleConnectionString,
@@ -99,10 +97,10 @@ func TestValidConfiguration(t *testing.T) {
 				keyType:          UUIDKeyType,
 				keyLength:        0,
 				databaseName:     defaultDatabase,
+				metaTableName:    defaultMetaTable,
 			},
 		},
-		{
-			name:  "Integer identifier key type",
+		"Integer identifier key type": {
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, keyTypeKey: "integer"},
 			expected: SQLServer{
 				connectionString: sampleConnectionString,
@@ -111,10 +109,10 @@ func TestValidConfiguration(t *testing.T) {
 				keyType:          IntegerKeyType,
 				keyLength:        0,
 				databaseName:     defaultDatabase,
+				metaTableName:    defaultMetaTable,
 			},
 		},
-		{
-			name:  "Custom key length",
+		"Custom key length": {
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, keyLengthKey: "100"},
 			expected: SQLServer{
 				connectionString: sampleConnectionString,
@@ -123,10 +121,10 @@ func TestValidConfiguration(t *testing.T) {
 				keyType:          StringKeyType,
 				keyLength:        100,
 				databaseName:     defaultDatabase,
+				metaTableName:    defaultMetaTable,
 			},
 		},
-		{
-			name:  "Single indexed property",
+		"Single indexed property": {
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, indexedPropertiesKey: `[{"column": "Age","property":"age", "type":"int"}]`},
 			expected: SQLServer{
 				connectionString: sampleConnectionString,
@@ -137,11 +135,11 @@ func TestValidConfiguration(t *testing.T) {
 				indexedProperties: []IndexedProperty{
 					{ColumnName: "Age", Property: "age", Type: "int"},
 				},
-				databaseName: defaultDatabase,
+				databaseName:  defaultDatabase,
+				metaTableName: defaultMetaTable,
 			},
 		},
-		{
-			name:  "Multiple indexed properties",
+		"Multiple indexed properties": {
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, indexedPropertiesKey: `[{"column": "Age","property":"age", "type":"int"}, {"column": "Name","property":"name", "type":"nvarchar(100)"}]`},
 			expected: SQLServer{
 				connectionString: sampleConnectionString,
@@ -153,11 +151,11 @@ func TestValidConfiguration(t *testing.T) {
 					{ColumnName: "Age", Property: "age", Type: "int"},
 					{ColumnName: "Name", Property: "name", Type: "nvarchar(100)"},
 				},
-				databaseName: defaultDatabase,
+				databaseName:  defaultDatabase,
+				metaTableName: defaultMetaTable,
 			},
 		},
-		{
-			name:  "Custom database",
+		"Custom database": {
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, databaseNameKey: "dapr_test_table"},
 			expected: SQLServer{
 				connectionString: sampleConnectionString,
@@ -166,10 +164,10 @@ func TestValidConfiguration(t *testing.T) {
 				keyType:          StringKeyType,
 				keyLength:        defaultKeyLength,
 				databaseName:     "dapr_test_table",
+				metaTableName:    defaultMetaTable,
 			},
 		},
-		{
-			name:  "No table",
+		"No table": {
 			props: map[string]string{connectionStringKey: sampleConnectionString},
 			expected: SQLServer{
 				connectionString: sampleConnectionString,
@@ -178,13 +176,26 @@ func TestValidConfiguration(t *testing.T) {
 				keyType:          StringKeyType,
 				keyLength:        defaultKeyLength,
 				databaseName:     defaultDatabase,
+				metaTableName:    defaultMetaTable,
+			},
+		},
+		"Custom meta table": {
+			props: map[string]string{connectionStringKey: sampleConnectionString, "metadataTableName": "dapr_test_meta_table"},
+			expected: SQLServer{
+				connectionString: sampleConnectionString,
+				tableName:        defaultTable,
+				schema:           defaultSchema,
+				keyType:          StringKeyType,
+				keyLength:        defaultKeyLength,
+				databaseName:     defaultDatabase,
+				metaTableName:    "dapr_test_meta_table",
 			},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			sqlStore := NewSQLServerStateStore(logger.NewLogger("test")).(*SQLServer)
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			sqlStore := New(logger.NewLogger("test")).(*SQLServer)
 			sqlStore.migratorFactory = func(s *SQLServer) migrator {
 				return &mockMigrator{}
 			}
@@ -201,6 +212,7 @@ func TestValidConfiguration(t *testing.T) {
 			assert.Equal(t, tt.expected.keyType, sqlStore.keyType)
 			assert.Equal(t, tt.expected.keyLength, sqlStore.keyLength)
 			assert.Equal(t, tt.expected.databaseName, sqlStore.databaseName)
+			assert.Equal(t, tt.expected.metaTableName, sqlStore.metaTableName)
 
 			assert.Equal(t, len(tt.expected.indexedProperties), len(sqlStore.indexedProperties))
 			if len(tt.expected.indexedProperties) > 0 && len(tt.expected.indexedProperties) == len(sqlStore.indexedProperties) {
@@ -215,116 +227,103 @@ func TestValidConfiguration(t *testing.T) {
 }
 
 func TestInvalidConfiguration(t *testing.T) {
-	tests := []struct {
-		name        string
+	tests := map[string]struct {
 		props       map[string]string
 		expectedErr string
 	}{
-		{
-			name:        "Empty",
+		"Empty": {
 			props:       map[string]string{},
 			expectedErr: "missing connection string",
 		},
-		{
-			name:        "Empty connection string",
+		"Empty connection string": {
 			props:       map[string]string{connectionStringKey: ""},
 			expectedErr: "missing connection string",
 		},
-		{
-			name:        "Negative maxKeyLength value",
+		"Negative maxKeyLength value": {
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", keyLengthKey: "-1"},
 			expectedErr: "invalid key length value of -1",
 		},
-		{
-			name:        "Indexes properties are not valid json",
+		"Indexes properties are not valid json": {
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", indexedPropertiesKey: "no_json"},
 			expectedErr: "invalid character",
 		},
-		{
-			name:        "Invalid table name with ;",
+		"Invalid table name with ;": {
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test;"},
 			expectedErr: "invalid table name",
 		},
-		{
-			name:        "Invalid table name with space",
+		"Invalid table name with space": {
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test GO DROP DATABASE dapr_test"},
 			expectedErr: "invalid table name",
 		},
-		{
-			name:        "Invalid schema name with ;",
+		"Invalid metadata table name with ;": {
+			props:       map[string]string{connectionStringKey: sampleConnectionString, "tableName": "test", "metadataTableName": "test;"},
+			expectedErr: "invalid metadata table name",
+		},
+		"Invalid metadata table name with space": {
+			props:       map[string]string{connectionStringKey: sampleConnectionString, "tableName": "test", "metadataTableName": "test GO DROP DATABASE dapr_test"},
+			expectedErr: "invalid metadata table name",
+		},
+		"Invalid schema name with ;": {
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", schemaKey: "test;"},
 			expectedErr: "invalid schema name",
 		},
-		{
-			name:        "Invalid schema name with space",
+		"Invalid schema name with space": {
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", schemaKey: "test GO DROP DATABASE dapr_test"},
 			expectedErr: "invalid schema name",
 		},
-		{
-			name:        "Invalid index property column name with ;",
+		"Invalid index property column name with ;": {
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", indexedPropertiesKey: `[{"column":"test;", "property": "age", "type": "INT"}]`},
 			expectedErr: "invalid indexed property column name",
 		},
-		{
-			name:        "Invalid index property column name with space",
+		"Invalid index property column name with space": {
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", indexedPropertiesKey: `[{"column":"test GO DROP DATABASE dapr_test", "property": "age", "type": "INT"}]`},
 			expectedErr: "invalid indexed property column name",
 		},
-		{
-			name:        "Invalid index property name with ;",
+		"Invalid index property name with ;": {
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", indexedPropertiesKey: `[{"column":"age", "property": "test;", "type": "INT"}]`},
 			expectedErr: "invalid indexed property name",
 		},
-		{
-			name:        "Invalid index property name with space",
+		"Invalid index property name with space": {
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", indexedPropertiesKey: `[{"column":"age", "property": "test GO DROP DATABASE dapr_test", "type": "INT"}]`},
 			expectedErr: "invalid indexed property name",
 		},
-		{
-			name:        "Invalid index property type with ;",
+		"Invalid index property type with ;": {
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", indexedPropertiesKey: `[{"column":"age", "property": "age", "type": "INT;"}]`},
 			expectedErr: "invalid indexed property type",
 		},
-		{
-			name:        "Invalid index property type with space",
+		"Invalid index property type with space": {
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", indexedPropertiesKey: `[{"column":"age", "property": "age", "type": "INT GO DROP DATABASE dapr_test"}]`},
 			expectedErr: "invalid indexed property type",
 		},
-		{
-			name:        "Index property column cannot be empty",
+		"Index property column cannot be empty": {
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", indexedPropertiesKey: `[{"column":"", "property": "age", "type": "INT"}]`},
 			expectedErr: "indexed property column cannot be empty",
 		},
-		{
-			name:        "Invalid property name cannot be empty",
+		"Invalid property name cannot be empty": {
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", indexedPropertiesKey: `[{"column":"age", "property": "", "type": "INT"}]`},
 			expectedErr: "indexed property name cannot be empty",
 		},
-		{
-			name:        "Invalid property type cannot be empty",
+		"Invalid property type cannot be empty": {
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", indexedPropertiesKey: `[{"column":"age", "property": "age", "type": ""}]`},
 			expectedErr: "indexed property type cannot be empty",
 		},
-		{
-			name:        "Invalid database name with ;",
+		"Invalid database name with ;": {
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", databaseNameKey: "test;"},
 			expectedErr: "invalid database name",
 		},
-		{
-			name:        "Invalid database name with space",
+		"Invalid database name with space": {
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", databaseNameKey: "test GO DROP DATABASE dapr_test"},
 			expectedErr: "invalid database name",
 		},
-		{
-			name:        "Invalid key type invalid",
+		"Invalid key type invalid": {
 			props:       map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: "test", keyTypeKey: "invalid"},
 			expectedErr: "invalid key type",
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			sqlStore := NewSQLServerStateStore(logger.NewLogger("test")).(*SQLServer)
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			sqlStore := New(logger.NewLogger("test")).(*SQLServer)
 
 			metadata := state.Metadata{
 				Base: metadata.Base{Properties: tt.props},
@@ -342,7 +341,7 @@ func TestInvalidConfiguration(t *testing.T) {
 
 // Test that if the migration fails the error is reported.
 func TestExecuteMigrationFails(t *testing.T) {
-	sqlStore := NewSQLServerStateStore(logger.NewLogger("test")).(*SQLServer)
+	sqlStore := New(logger.NewLogger("test")).(*SQLServer)
 	sqlStore.migratorFactory = func(s *SQLServer) migrator {
 		return &mockFailingMigrator{}
 	}
@@ -356,7 +355,7 @@ func TestExecuteMigrationFails(t *testing.T) {
 }
 
 func TestSupportedFeatures(t *testing.T) {
-	sqlStore := NewSQLServerStateStore(logger.NewLogger("test")).(*SQLServer)
+	sqlStore := New(logger.NewLogger("test")).(*SQLServer)
 
 	actual := sqlStore.Features()
 	assert.NotNil(t, actual)

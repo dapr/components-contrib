@@ -29,12 +29,10 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-const metadataKeyPath = "path"
-
 type localStorageCrypto struct {
 	contribCrypto.LocalCryptoBaseComponent
 
-	path   string
+	md     localStorageMetadata
 	logger logger.Logger
 }
 
@@ -49,47 +47,31 @@ func NewLocalStorageCrypto(logger logger.Logger) contribCrypto.SubtleCrypto {
 }
 
 // Init the crypto provider.
-func (k *localStorageCrypto) Init(_ context.Context, metadata contribCrypto.Metadata) error {
-	err := k.parseMetadata(metadata.Properties)
+func (l *localStorageCrypto) Init(_ context.Context, metadata contribCrypto.Metadata) error {
+	// Parse the metadata
+	err := l.md.InitWithMetadata(metadata)
 	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (k *localStorageCrypto) parseMetadata(md map[string]string) error {
-	if md == nil {
-		return errors.New("metadata map is nil")
-	}
-
-	// Ensure that the "path" metadata property is defined and it indicates an actual folder
-	k.path = md[metadataKeyPath]
-	if k.path == "" {
-		return fmt.Errorf("metadata property %s is required", metadataKeyPath)
-	}
-	k.path = filepath.Clean(k.path)
-	info, err := os.Stat(k.path)
-	if err != nil {
-		return fmt.Errorf("could not stat path '%s': %w", k.path, err)
-	}
-	if !info.IsDir() {
-		return fmt.Errorf("path '%s' is not a directory", k.path)
+		return fmt.Errorf("failed to load metadata: %w", err)
 	}
 
 	return nil
 }
 
 // Features returns the features available in this crypto provider.
-func (k *localStorageCrypto) Features() []contribCrypto.Feature {
+func (l *localStorageCrypto) Features() []contribCrypto.Feature {
 	return []contribCrypto.Feature{} // No Feature supported.
 }
 
 // Retrieves a key (public or private or symmetric) from a local file.
 // Parameter "key" must be the name of a file inside the "path"
-func (k *localStorageCrypto) retrieveKey(parentCtx context.Context, key string) (jwk.Key, error) {
+func (l *localStorageCrypto) retrieveKey(parentCtx context.Context, key string) (jwk.Key, error) {
+	// Do not allow escaping the root path by including ".." in the key's name
+	if strings.Contains(key, "..") {
+		return nil, errors.New("invalid key path: cannot contain '..'")
+	}
+
 	// Load the file
-	path := filepath.Join(k.path, key)
+	path := filepath.Join(l.md.Path, key)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load key '%s': %w", key, err)

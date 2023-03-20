@@ -66,7 +66,7 @@ func (k *jwksCrypto) Init(ctx context.Context, metadata contribCrypto.Metadata) 
 	// Parse the metadata
 	err := k.md.InitWithMetadata(metadata)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to load metadata: %w", err)
 	}
 
 	// Load the JWKS

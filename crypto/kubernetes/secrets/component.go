@@ -39,8 +39,8 @@ const (
 type kubeSecretsCrypto struct {
 	contribCrypto.LocalCryptoBaseComponent
 
-	defaultNamespace string
-	kubeClient       kubernetes.Interface
+	md         secretsMetadata
+	kubeClient kubernetes.Interface
 }
 
 // NewKubeSecretsCrypto returns a new Kubernetes secrets crypto provider.
@@ -53,17 +53,17 @@ func NewKubeSecretsCrypto(_ logger.Logger) contribCrypto.SubtleCrypto {
 
 // Init the crypto provider.
 func (k *kubeSecretsCrypto) Init(_ context.Context, metadata contribCrypto.Metadata) error {
-	if len(metadata.Properties) > 0 {
-		if metadata.Properties[metadataKeyDefaultNamespace] != "" {
-			k.defaultNamespace = metadata.Properties[metadataKeyDefaultNamespace]
-		}
+	// Init metadata
+	err := k.md.InitWithMetadata(metadata)
+	if err != nil {
+		return fmt.Errorf("failed to load metadata: %w", err)
 	}
 
-	client, err := kubeclient.GetKubeClient()
+	// Init Kubernetes client
+	k.kubeClient, err = kubeclient.GetKubeClient()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to init Kubernetes client: %w", err)
 	}
-	k.kubeClient = client
 
 	return nil
 }
@@ -120,7 +120,7 @@ func (k *kubeSecretsCrypto) parseKeyString(param string) (namespace string, secr
 		secret = parts[1]
 		key = parts[2]
 	case 2:
-		namespace = k.defaultNamespace
+		namespace = k.md.DefaultNamespace
 		secret = parts[0]
 		key = parts[1]
 	default:

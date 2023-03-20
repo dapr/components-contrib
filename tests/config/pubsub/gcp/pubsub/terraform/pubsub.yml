@@ -1,0 +1,20 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: gcp-pubsub
+spec:
+  type: pubsub.gcp.pubsub
+  version: v1
+  metadata:
+  - name: projectId
+    value: ${{PUBSUB_GCP_PROJECT_ID}}
+  - name: endpoint
+    value: ${{PUBSUB_GCP_ENDPOINT}}
+  - name: disableEntityManagement
+    value: "true"
+  - name: enableMessageOrdering
+    value: "false"
+  - name: maxReconnectionAttempts
+    value: 30
+  - name: connectionRecoveryInSec
+    value: 2

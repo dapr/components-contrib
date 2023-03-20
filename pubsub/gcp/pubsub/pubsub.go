@@ -52,6 +52,7 @@ const (
 	metadataEnableMessageOrderingKey   = "enableMessageOrdering"
 	metadataMaxReconnectionAttemptsKey = "maxReconnectionAttempts"
 	metadataConnectionRecoveryInSecKey = "connectionRecoveryInSec"
+	metadataConnectionEndpoint         = "endpoint"
 
 	// Defaults.
 	defaultMaxReconnectionAttempts = 30
@@ -178,6 +179,10 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		}
 	}
 
+	if val, found := pubSubMetadata.Properties[metadataConnectionEndpoint]; found && val != "" {
+		result.ConnectionEndpoint = val
+	}
+
 	return &result, nil
 }
 
@@ -226,7 +231,11 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 		}
 	} else {
 		g.logger.Debugf("Using implicit credentials for GCP")
-		pubsubClient, err = gcppubsub.NewClient(ctx, metadata.ProjectID)
+		options := []option.ClientOption{}
+		if metadata.ConnectionEndpoint != "" {
+			options = append(options, option.WithEndpoint(metadata.ConnectionEndpoint))
+		}
+		pubsubClient, err = gcppubsub.NewClient(ctx, metadata.ProjectID, options...)
 		if err != nil {
 			return pubsubClient, err
 		}

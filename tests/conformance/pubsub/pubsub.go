@@ -65,6 +65,7 @@ type TestConfig struct {
 	MaxReadDuration        time.Duration     `mapstructure:"maxReadDuration"`
 	WaitDurationToPublish  time.Duration     `mapstructure:"waitDurationToPublish"`
 	CheckInOrderProcessing bool              `mapstructure:"checkInOrderProcessing"`
+	TestProjectID          string            `mapstructure:"testProjectID"`
 }
 
 func NewTestConfig(componentName string, allOperations bool, operations []string, configMap map[string]interface{}) (TestConfig, error) {

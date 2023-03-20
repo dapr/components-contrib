@@ -62,6 +62,7 @@ import (
 	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
 	p_servicebusqueues "github.com/dapr/components-contrib/pubsub/azure/servicebus/queues"
 	p_servicebustopics "github.com/dapr/components-contrib/pubsub/azure/servicebus/topics"
+	p_gcppubsub "github.com/dapr/components-contrib/pubsub/gcp/pubsub"
 	p_inmemory "github.com/dapr/components-contrib/pubsub/in-memory"
 	p_jetstream "github.com/dapr/components-contrib/pubsub/jetstream"
 	p_kafka "github.com/dapr/components-contrib/pubsub/kafka"
@@ -488,6 +489,10 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_snssqs.NewSnsSqs(testLogger)
 	case "aws.snssqs.docker":
 		pubsub = p_snssqs.NewSnsSqs(testLogger)
+	case "gcp.pubsub.terraform":
+		pubsub = p_gcppubsub.NewGCPPubSub(testLogger)
+	case "gcp.pubsub.docker":
+		pubsub = p_gcppubsub.NewGCPPubSub(testLogger)
 	case "kubemq":
 		pubsub = p_kubemq.NewKubeMQ(testLogger)
 	case "solace.amqp":

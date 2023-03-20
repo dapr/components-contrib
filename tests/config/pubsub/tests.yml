@@ -92,3 +92,17 @@ components:
       checkInOrderProcessing: false
   - component: kubemq
     operations: ['publish', 'subscribe', 'multiplehandlers']
+  - component: gcp.pubsub.terraform
+    operations: ["publish", "subscribe", "multiplehandlers"]
+    config:
+      pubsubName: gcp-pubsub
+      testTopicName: ${PUBSUB_GCP_TOPIC}}
+      projectId: ${{GCP_PROJECT_ID}}
+      testMultiTopic1Name: ${{PUBSUB_GCP_TOPIC_MULTI_1}}
+      testMultiTopic2Name: ${{PUBSUB_GCP_TOPIC_MULTI_2}}
+      checkInOrderProcessing: false
+  - component: gcp.pubsub.docker
+    operations: ["publish", "subscribe", "multiplehandlers"]
+    config:
+      pubsubName: gcp-pubsub
+      checkInOrderProcessing: false

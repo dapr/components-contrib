@@ -28,7 +28,7 @@ type SubtleCrypto interface {
 	// This method returns an error if the key is symmetric.
 	GetKey(ctx context.Context,
 		// Name (or name/version) of the key to use in the key vault
-		key string,
+		keyName string,
 	) (
 		// Object containing the public key
 		pubKey jwk.Key,
@@ -42,7 +42,7 @@ type SubtleCrypto interface {
 		// Encryption algorithm to use
 		algorithm string,
 		// Name (or name/version) of the key to use in the key vault
-		key string,
+		keyName string,
 		// Nonce / initialization vector
 		// Ignored with asymmetric ciphers
 		nonce []byte,
@@ -65,7 +65,7 @@ type SubtleCrypto interface {
 		// Encryption algorithm to use
 		algorithm string,
 		// Name (or name/version) of the key to use in the key vault
-		key string,
+		keyName string,
 		// Nonce / initialization vector
 		// Ignored with asymmetric ciphers
 		nonce []byte,
@@ -88,7 +88,7 @@ type SubtleCrypto interface {
 		// Encryption algorithm to use
 		algorithm string,
 		// Name (or name/version) of the key to use in the key vault
-		key string,
+		keyName string,
 		// Nonce / initialization vector
 		// Ignored with asymmetric ciphers
 		nonce []byte,
@@ -112,7 +112,7 @@ type SubtleCrypto interface {
 		// Encryption algorithm to use
 		algorithm string,
 		// Name (or name/version) of the key to use in the key vault
-		key string,
+		keyName string,
 		// Nonce / initialization vector
 		// Ignored with asymmetric ciphers
 		nonce []byte,
@@ -136,7 +136,7 @@ type SubtleCrypto interface {
 		algorithm string,
 		// Name (or name/version) of the key to use in the key vault
 		// The key must be asymmetric
-		key string,
+		keyName string,
 	) (
 		// Signature that was computed
 		signature []byte,
@@ -153,7 +153,7 @@ type SubtleCrypto interface {
 		algorithm string,
 		// Name (or name/version) of the key to use in the key vault
 		// The key must be asymmetric
-		key string,
+		keyName string,
 	) (
 		// True if the signature is valid
 		valid bool,

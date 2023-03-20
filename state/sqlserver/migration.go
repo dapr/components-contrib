@@ -214,12 +214,12 @@ func (m *migration) ensureTableExists(ctx context.Context, db *sql.DB, r migrati
 	}
 
 	// If table was created before v1.11
-	_, err := db.ExecContext(ctx, fmt.Sprintf(`IF NOT EXISTS (SELECT column_name
+	tsql = fmt.Sprintf(`IF NOT EXISTS (SELECT column_name
     FROM INFORMATION_SCHEMA.COLUMNS
 	  WHERE TABLE_SCHEMA = '%[1]s' AND TABLE_NAME = '%[2]s'
 	   AND COLUMN_NAME = 'ExpireDate')
-  ALTER TABLE [%[1]s].[%[2]s] ADD [ExpireDate] DateTime2 NULL`, m.store.schema, m.store.tableName))
-	if err != nil {
+  ALTER TABLE [%[1]s].[%[2]s] ADD [ExpireDate] DateTime2 NULL`, m.store.schema, m.store.tableName)
+	if err := runCommand(ctx, db, tsql); err != nil {
 		return fmt.Errorf("failed to ensure ExpireDate column: %w", err)
 	}
 

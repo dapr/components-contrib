@@ -18,7 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -27,23 +26,17 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
 	contribCrypto "github.com/dapr/components-contrib/crypto"
-	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	internals "github.com/dapr/kit/crypto"
 	"github.com/dapr/kit/logger"
-)
-
-const (
-	requestTimeout = 30 * time.Second
 )
 
 var errKeyNotFound = errors.New("key not found in the vault")
 
 type keyvaultCrypto struct {
-	keyCache       *contribCrypto.PubKeyCache
-	vaultName      string
-	vaultClient    *azkeys.Client
-	vaultDNSSuffix string
-	logger         logger.Logger
+	keyCache    *contribCrypto.PubKeyCache
+	md          keyvaultMetadata
+	vaultClient *azkeys.Client
+	logger      logger.Logger
 }
 
 // NewAzureKeyvaultCrypto returns a new Azure Key Vault crypto provider.
@@ -55,21 +48,17 @@ func NewAzureKeyvaultCrypto(logger logger.Logger) contribCrypto.SubtleCrypto {
 
 // Init creates a Azure Key Vault client.
 func (k *keyvaultCrypto) Init(_ context.Context, metadata contribCrypto.Metadata) error {
+	// Init the metadata
+	err := k.md.InitWithMetadata(metadata)
+	if err != nil {
+		return fmt.Errorf("failed to load metadata: %w", err)
+	}
+
+	// Create a cache for keys
 	k.keyCache = contribCrypto.NewPubKeyCache(k.getKeyCacheFn)
 
-	settings, err := azauth.NewEnvironmentSettings(metadata.Properties)
-	if err != nil {
-		return err
-	}
-
-	k.vaultName = metadata.Properties["vaultName"]
-	k.vaultDNSSuffix = settings.EndpointSuffix(azauth.ServiceAzureKeyVault)
-
-	cred, err := settings.GetTokenCredential()
-	if err != nil {
-		return err
-	}
-	k.vaultClient, err = azkeys.NewClient(k.getVaultURI(), cred, &azkeys.ClientOptions{
+	// Init the Azure SDK client
+	k.vaultClient, err = azkeys.NewClient(k.getVaultURI(), k.md.cred, &azkeys.ClientOptions{
 		ClientOptions: azcore.ClientOptions{
 			Telemetry: policy.TelemetryOptions{
 				ApplicationID: "dapr-" + logger.DaprVersion,
@@ -103,7 +92,7 @@ func (k *keyvaultCrypto) GetKey(parentCtx context.Context, key string) (pubKey j
 }
 
 func (k *keyvaultCrypto) getKeyFromVault(parentCtx context.Context, kid keyID) (pubKey jwk.Key, err error) {
-	ctx, cancel := context.WithTimeout(parentCtx, requestTimeout)
+	ctx, cancel := context.WithTimeout(parentCtx, k.md.RequestTimeout)
 	res, err := k.vaultClient.GetKey(ctx, kid.Name, kid.Version, nil)
 	cancel()
 	if err != nil {
@@ -161,7 +150,7 @@ func (k *keyvaultCrypto) Encrypt(parentCtx context.Context, plaintext []byte, al
 }
 
 func (k *keyvaultCrypto) encryptInVault(parentCtx context.Context, plaintext []byte, algorithm *azkeys.JSONWebKeyEncryptionAlgorithm, kid keyID, nonce []byte, associatedData []byte) (ciphertext []byte, tag []byte, err error) {
-	ctx, cancel := context.WithTimeout(parentCtx, requestTimeout)
+	ctx, cancel := context.WithTimeout(parentCtx, k.md.RequestTimeout)
 	res, err := k.vaultClient.Encrypt(ctx, kid.Name, kid.Version, azkeys.KeyOperationsParameters{
 		Algorithm: algorithm,
 		Value:     plaintext,
@@ -190,7 +179,7 @@ func (k *keyvaultCrypto) Decrypt(parentCtx context.Context, ciphertext []byte, a
 		return nil, fmt.Errorf("invalid algorithm: %s", algorithmStr)
 	}
 
-	ctx, cancel := context.WithTimeout(parentCtx, requestTimeout)
+	ctx, cancel := context.WithTimeout(parentCtx, k.md.RequestTimeout)
 	res, err := k.vaultClient.Decrypt(ctx, kid.Name, kid.Version, azkeys.KeyOperationsParameters{
 		Algorithm: algorithm,
 		Value:     ciphertext,
@@ -253,7 +242,7 @@ func (k *keyvaultCrypto) WrapKey(parentCtx context.Context, plaintextKey jwk.Key
 }
 
 func (k *keyvaultCrypto) wrapKeyInVault(parentCtx context.Context, plaintextKey []byte, algorithm *azkeys.JSONWebKeyEncryptionAlgorithm, kid keyID, nonce []byte, associatedData []byte) (wrappedKey []byte, tag []byte, err error) {
-	ctx, cancel := context.WithTimeout(parentCtx, requestTimeout)
+	ctx, cancel := context.WithTimeout(parentCtx, k.md.RequestTimeout)
 	res, err := k.vaultClient.WrapKey(ctx, kid.Name, kid.Version, azkeys.KeyOperationsParameters{
 		Algorithm: algorithm,
 		Value:     plaintextKey,
@@ -282,7 +271,7 @@ func (k *keyvaultCrypto) UnwrapKey(parentCtx context.Context, wrappedKey []byte,
 		return nil, fmt.Errorf("invalid algorithm: %s", algorithmStr)
 	}
 
-	ctx, cancel := context.WithTimeout(parentCtx, requestTimeout)
+	ctx, cancel := context.WithTimeout(parentCtx, k.md.RequestTimeout)
 	res, err := k.vaultClient.UnwrapKey(ctx, kid.Name, kid.Version, azkeys.KeyOperationsParameters{
 		Algorithm: algorithm,
 		Value:     wrappedKey,
@@ -318,7 +307,7 @@ func (k *keyvaultCrypto) Sign(parentCtx context.Context, digest []byte, algorith
 		return nil, fmt.Errorf("invalid algorithm: %s", algorithmStr)
 	}
 
-	ctx, cancel := context.WithTimeout(parentCtx, requestTimeout)
+	ctx, cancel := context.WithTimeout(parentCtx, k.md.RequestTimeout)
 	res, err := k.vaultClient.Sign(ctx, kid.Name, kid.Version, azkeys.SignParameters{
 		Algorithm: algorithm,
 		Value:     digest,
@@ -364,7 +353,7 @@ func (k *keyvaultCrypto) Verify(parentCtx context.Context, digest []byte, signat
 }
 
 func (k *keyvaultCrypto) verifyInVault(parentCtx context.Context, digest []byte, signature []byte, algorithm *azkeys.JSONWebKeySignatureAlgorithm, kid keyID) (valid bool, err error) {
-	ctx, cancel := context.WithTimeout(parentCtx, requestTimeout)
+	ctx, cancel := context.WithTimeout(parentCtx, k.md.RequestTimeout)
 	res, err := k.vaultClient.Verify(ctx, kid.Name, kid.Version, azkeys.VerifyParameters{
 		Algorithm: algorithm,
 		Digest:    digest,
@@ -384,7 +373,7 @@ func (k *keyvaultCrypto) verifyInVault(parentCtx context.Context, digest []byte,
 
 // getVaultURI returns Azure Key Vault URI.
 func (k *keyvaultCrypto) getVaultURI() string {
-	return fmt.Sprintf("https://%s.%s", k.vaultName, k.vaultDNSSuffix)
+	return fmt.Sprintf("https://%s.%s", k.md.VaultName, k.md.vaultDNSSuffix)
 }
 
 type keyID struct {

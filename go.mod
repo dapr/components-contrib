@@ -51,7 +51,7 @@ require (
 	github.com/cloudwego/kitex-examples v0.1.1
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/dancannon/gorethink v4.0.0+incompatible
-	github.com/dapr/kit v0.0.4
+	github.com/dapr/kit v0.0.5-0.20230307192505-b5bafe889a81
 	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/didip/tollbooth/v7 v7.0.1
 	github.com/eclipse/paho.mqtt.golang v1.4.2
@@ -129,8 +129,6 @@ require (
 	k8s.io/utils v0.0.0-20230220204549-a5ecb0141aa5
 	modernc.org/sqlite v1.21.0
 )
-
-require github.com/google/btree v1.1.2 // indirect
 
 require (
 	cloud.google.com/go v0.107.0 // indirect
@@ -234,6 +232,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
+	github.com/google/btree v1.1.2 // indirect
 	github.com/google/flatbuffers v1.12.1 // indirect
 	github.com/google/gnostic v0.6.9 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
@@ -404,6 +403,3 @@ replace github.com/toolkits/concurrent => github.com/niean/gotools v0.0.0-201512
 
 // this is a fork which addresses a performance issues due to go routines
 replace dubbo.apache.org/dubbo-go/v3 => dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
-
-// TODO: REMOVE WHEN https://github.com/dapr/kit/pull/38 IS MERGED
-replace github.com/dapr/kit => github.com/italypaleale/dapr-kit v0.0.2-0.20230228215305-152952c54fed

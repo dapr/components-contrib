@@ -94,7 +94,7 @@ require (
 	github.com/rabbitmq/amqp091-go v1.7.0
 	github.com/redis/go-redis/v9 v9.0.2
 	github.com/sendgrid/sendgrid-go v3.12.0+incompatible
-	github.com/sijms/go-ora/v2 v2.5.33
+	github.com/sijms/go-ora/v2 v2.6.5
 	github.com/spf13/cast v1.5.0
 	github.com/stretchr/testify v1.8.2
 	github.com/supplyon/gremcos v0.1.40

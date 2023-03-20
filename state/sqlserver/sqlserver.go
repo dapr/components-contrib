@@ -86,7 +86,7 @@ const (
 	defaultCleanupInterval = time.Hour
 )
 
-// New creates a new instance of a Sql Server transaction store.
+// New creates a new instance of a SQL Server transaction store.
 func New(logger logger.Logger) state.Store {
 	store := SQLServer{
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
@@ -270,8 +270,7 @@ func (s *SQLServer) parseMetadata(meta map[string]string) error {
 	}
 
 	// Cleanup interval
-	v, ok := meta[cleanupIntervalKey]
-	if ok && v != "" {
+	if v := meta[cleanupIntervalKey]; v != "" {
 		cleanupIntervalInSec, err := strconv.ParseInt(v, 10, 0)
 		if err != nil {
 			return fmt.Errorf("invalid value for '%s': %s", cleanupIntervalKey, v)
@@ -418,6 +417,7 @@ func (s *SQLServer) Features() []state.Feature {
 // Multi performs multiple updates on a Sql server store.
 func (s *SQLServer) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
 	tx, err := s.db.BeginTx(ctx, nil)
+	defer tx.Rollback()
 	if err != nil {
 		return err
 	}
@@ -427,31 +427,26 @@ func (s *SQLServer) Multi(ctx context.Context, request *state.TransactionalState
 		case state.Upsert:
 			setReq, err := s.getSets(req)
 			if err != nil {
-				tx.Rollback()
 				return err
 			}
 
 			err = s.executeSet(ctx, tx, &setReq)
 			if err != nil {
-				tx.Rollback()
 				return err
 			}
 
 		case state.Delete:
 			delReq, err := s.getDeletes(req)
 			if err != nil {
-				tx.Rollback()
 				return err
 			}
 
 			err = s.executeDelete(ctx, tx, &delReq)
 			if err != nil {
-				tx.Rollback()
 				return err
 			}
 
 		default:
-			tx.Rollback()
 			return fmt.Errorf("unsupported operation: %s", req.Operation)
 		}
 	}
@@ -536,14 +531,13 @@ type TvpDeleteTableStringKey struct {
 // BulkDelete removes multiple entries from the store.
 func (s *SQLServer) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
 	tx, err := s.db.BeginTx(ctx, nil)
+	defer tx.Rollback()
 	if err != nil {
 		return err
 	}
 
 	err = s.executeBulkDelete(ctx, tx, req)
 	if err != nil {
-		tx.Rollback()
-
 		return err
 	}
 
@@ -691,6 +685,7 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 // BulkSet adds/updates multiple entities on store.
 func (s *SQLServer) BulkSet(ctx context.Context, req []state.SetRequest) error {
 	tx, err := s.db.BeginTx(ctx, nil)
+	defer tx.Rollback()
 	if err != nil {
 		return err
 	}
@@ -698,15 +693,11 @@ func (s *SQLServer) BulkSet(ctx context.Context, req []state.SetRequest) error {
 	for i := range req {
 		err = s.executeSet(ctx, tx, &req[i])
 		if err != nil {
-			tx.Rollback()
-
 			return err
 		}
 	}
 
-	err = tx.Commit()
-
-	return err
+	return tx.Commit()
 }
 
 func (s *SQLServer) GetComponentMetadata() map[string]string {

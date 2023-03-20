@@ -128,17 +128,19 @@ func (k *jwksCrypto) initJWKS(ctx context.Context) error {
 func (k *jwksCrypto) initJWKSFromURL(ctx context.Context, url string) error {
 	// Create the JWKS cache
 	// We are using k.ctx here because we want this to be tied to the component's lifecycle
-	// We also need to create a custom HTTP client because otherwise there's no timeout.
-	client := &http.Client{
-		Timeout: k.md.RequestTimeout,
-	}
 	cache := jwk.NewCache(k.ctx,
-		jwk.WithHTTPClient(client),
 		jwk.WithErrSink(httprc.ErrSinkFunc(func(err error) {
 			k.logger.Warnf("Error while refreshing JWKS cache: %v", err)
 		})),
 	)
-	err := cache.Register(url, jwk.WithMinRefreshInterval(k.md.MinRefreshInterval))
+	// We also need to create a custom HTTP client because otherwise there's no timeout.
+	client := &http.Client{
+		Timeout: k.md.RequestTimeout,
+	}
+	err := cache.Register(url,
+		jwk.WithMinRefreshInterval(k.md.MinRefreshInterval),
+		jwk.WithHTTPClient(client),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to register JWKS cache: %w", err)
 	}

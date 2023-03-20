@@ -24,7 +24,7 @@ type jwksMetadata struct {
 	// Defaults to "30s".
 	RequestTimeout time.Duration `json:"requestTimeout" mapstructure:"requestTimeout"`
 	// Minimum interval before the JWKS is refreshed, as a Go duration string.
-	// Only applies when the the JWKS is fetched from a HTTP(S) URL.
+	// Only applies when the JWKS is fetched from a HTTP(S) URL.
 	// Defaults to "10m".
 	MinRefreshInterval time.Duration `json:"minRefreshInterval" mapstructure:"minRefreshInterval"`
 }

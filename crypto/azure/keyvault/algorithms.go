@@ -1,5 +1,5 @@
 /*
-Copyright 2022 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -26,6 +26,8 @@ var (
 )
 
 func init() {
+	// Convert from data from the Azure SDK, which returns a slice, into a map
+	// (These functions do not make network calls)
 	listEncryption := azkeys.PossibleJSONWebKeyEncryptionAlgorithmValues()
 	validEncryptionAlgs = make(map[string]struct{}, len(listEncryption))
 	for _, v := range listEncryption {
@@ -47,7 +49,7 @@ func GetJWKEncryptionAlgorithm(algorithm string) *azkeys.JSONWebKeyEncryptionAlg
 		// Append "PAD", e.g. "A128CBCPAD"
 		algorithm += "PAD"
 	case internals.Algorithm_A128CBC_NOPAD, internals.Algorithm_A192CBC_NOPAD, internals.Algorithm_A256CBC_NOPAD:
-		// Remove the "-NOPAD" prefix, e.g. "A128CBC"
+		// Remove the "-NOPAD" suffix, e.g. "A128CBC"
 		algorithm = algorithm[:len(algorithm)-6]
 	}
 

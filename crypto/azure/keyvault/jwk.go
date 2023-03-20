@@ -1,5 +1,5 @@
 /*
-Copyright 2022 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -28,7 +28,7 @@ import (
 	contribCrypto "github.com/dapr/components-contrib/crypto"
 )
 
-// KeyBundleToKey converts an azkeys.KeyBundle object to a daprcrypto.Key one containing the public part of the asymmetric key.
+// KeyBundleToKey converts an azkeys.KeyBundle object to a contribCrypto.Key object, containing only the public part of the asymmetric key.
 func KeyBundleToKey(bundle *azkeys.KeyBundle) (*contribCrypto.Key, error) {
 	if bundle == nil ||
 		bundle.Key == nil || bundle.Key.KID == nil ||

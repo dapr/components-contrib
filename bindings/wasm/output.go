@@ -114,7 +114,7 @@ func (out *outputBinding) Invoke(ctx context.Context, req *bindings.InvokeReques
 	moduleConfig = moduleConfig.WithStdout(&stdout)
 
 	if args, ok := req.Metadata["args"]; ok {
-		argsSlice := strings.SplitN(args, ",", -1)
+		argsSlice := strings.Split(args, ",")
 		// prepend arg0 (program name) unless we want users to supply it.
 		argsSlice = append([]string{out.module.Name()}, argsSlice...)
 		moduleConfig = moduleConfig.WithArgs(argsSlice...)

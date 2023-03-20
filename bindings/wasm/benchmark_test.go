@@ -6,10 +6,8 @@ import (
 	"testing"
 
 	"github.com/dapr/components-contrib/bindings"
-
-	"github.com/dapr/kit/logger"
-
 	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/logger"
 )
 
 func BenchmarkExample(b *testing.B) {

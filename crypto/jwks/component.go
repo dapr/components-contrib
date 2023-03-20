@@ -34,9 +34,9 @@ import (
 )
 
 const (
-	defaultRequestTimeout            = 30 * time.Second
-	metadataKeyJWKS                  = "jwks"
-	metadataKeyRequestTimeoutSeconds = "requestTimeoutSeconds"
+	defaultRequestTimeout              = 30 * time.Second
+	metadataKeyJWKS                    = "jwks"
+	metadataKeyRequestTimeoutInSeconds = "requestTimeoutInSeconds"
 
 	// Minimum interval before refreshing the JWKS cache
 	minRefreshInterval = 10 * time.Minute
@@ -74,8 +74,8 @@ func (k *jwksCrypto) Init(ctx context.Context, metadata contribCrypto.Metadata) 
 		return errors.New("empty metadata properties")
 	}
 
-	if metadata.Properties[metadataKeyRequestTimeoutSeconds] != "" {
-		timeoutSec, _ := strconv.Atoi(metadata.Properties[metadataKeyRequestTimeoutSeconds])
+	if metadata.Properties[metadataKeyRequestTimeoutInSeconds] != "" {
+		timeoutSec, _ := strconv.Atoi(metadata.Properties[metadataKeyRequestTimeoutInSeconds])
 		if timeoutSec > 0 {
 			k.requestTimeout = time.Duration(timeoutSec) * time.Second
 		}
@@ -168,7 +168,7 @@ func (k *jwksCrypto) initJWKSFromFile(ctx context.Context, file string) error {
 
 	// Start watching for changes in the filesystem
 	eventCh := make(chan struct{})
-	loaded := make(chan error)
+	loaded := make(chan error, 1) // Needs to be buffered to prevent an (unlikely, but possible) goroutine leak
 	go func() {
 		watchErr := fswatcher.Watch(k.ctx, path, eventCh)
 		if watchErr != nil && !errors.Is(watchErr, context.Canceled) {
@@ -177,20 +177,23 @@ func (k *jwksCrypto) initJWKSFromFile(ctx context.Context, file string) error {
 		}
 	}()
 	go func() {
+		var firstDone bool
 		for {
 			select {
 			case <-eventCh:
 				// When there's a change, reload the JWKS file
 				err := k.parseJWKSFile(file)
-				if loaded != nil {
+				if !firstDone {
 					// The first time, signal that the initialization was complete and pass the error
 					loaded <- err
 					close(loaded)
-					loaded = nil
+					firstDone = true
 				} else {
 					// Log errors only
 					k.logger.Errorf("Error reading JWKS from disk: %v", err)
 				}
+			case <-ctx.Done():
+				return
 			case <-k.ctx.Done():
 				return
 			}
@@ -206,6 +209,8 @@ func (k *jwksCrypto) initJWKSFromFile(ctx context.Context, file string) error {
 		return err
 	case <-ctx.Done():
 		return fmt.Errorf("failed to initialize JWKS from file: %w", ctx.Err())
+	case <-k.ctx.Done():
+		return errors.New("component's context is canceled")
 	}
 }
 

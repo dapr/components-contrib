@@ -28,13 +28,13 @@ provider "google" {
 }
 
 resource "google_pubsub_topic" "topic" {
-  name = "testTopic-${var.UNIQUE_ID}"
+  name = "conf-testTopic-${var.UNIQUE_ID}"
 }
 
 resource "google_pubsub_topic" "multiTopic1" {
-  name = "multiTopic1-${var.UNIQUE_ID}"
+  name = "conf-multiTopic1-${var.UNIQUE_ID}"
 }
 
 resource "google_pubsub_topic" "multiTopic2" {
-  name = "multiTopic2-${var.UNIQUE_ID}"
+  name = "conf-multiTopic2-${var.UNIQUE_ID}"
 }

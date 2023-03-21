@@ -7,6 +7,6 @@ spec:
   version: v1
   metadata:
   - name: projectId
-    value: "gcp-conformance-test-prj"
-  - name: endpoint
-    value: "localhost:8085"
+    value: "conformance-test-prj"
+  - name: consumerID
+    value: "conformanceTestConsumer"

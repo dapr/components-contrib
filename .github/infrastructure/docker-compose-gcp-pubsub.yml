@@ -5,4 +5,4 @@ services:
     ports:
       - "8085:8085"
     container_name: gcp-pubsub
-    entrypoint: gcloud beta emulators pubsub start --project gcp-conformance-test-prj --host-port 0.0.0.0:8085
+    entrypoint: gcloud beta emulators pubsub start --project conformance-test-prj --host-port 0.0.0.0:8085

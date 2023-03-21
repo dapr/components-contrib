@@ -52,7 +52,6 @@ const (
 	metadataEnableMessageOrderingKey   = "enableMessageOrdering"
 	metadataMaxReconnectionAttemptsKey = "maxReconnectionAttempts"
 	metadataConnectionRecoveryInSecKey = "connectionRecoveryInSec"
-	metadataConnectionEndpoint         = "endpoint"
 
 	// Defaults.
 	defaultMaxReconnectionAttempts = 30
@@ -179,10 +178,6 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		}
 	}
 
-	if val, found := pubSubMetadata.Properties[metadataConnectionEndpoint]; found && val != "" {
-		result.ConnectionEndpoint = val
-	}
-
 	return &result, nil
 }
 
@@ -231,11 +226,7 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 		}
 	} else {
 		g.logger.Debugf("Using implicit credentials for GCP")
-		options := []option.ClientOption{}
-		if metadata.ConnectionEndpoint != "" {
-			options = append(options, option.WithEndpoint(metadata.ConnectionEndpoint))
-		}
-		pubsubClient, err = gcppubsub.NewClient(ctx, metadata.ProjectID, options...)
+		pubsubClient, err = gcppubsub.NewClient(ctx, metadata.ProjectID)
 		if err != nil {
 			return pubsubClient, err
 		}
@@ -275,12 +266,12 @@ func (g *GCPPubSub) Subscribe(parentCtx context.Context, req pubsub.SubscribeReq
 	if !g.metadata.DisableEntityManagement {
 		topicErr := g.ensureTopic(parentCtx, req.Topic)
 		if topicErr != nil {
-			return fmt.Errorf("%s could not get valid topic %s, %s", errorMessagePrefix, req.Topic, topicErr)
+			return fmt.Errorf("%s could not get valid topic - topic:%q, error: %v", errorMessagePrefix, req.Topic, topicErr)
 		}
 
 		subError := g.ensureSubscription(parentCtx, g.metadata.consumerID, req.Topic)
 		if subError != nil {
-			return fmt.Errorf("%s could not get valid subscription %s, %s", errorMessagePrefix, g.metadata.consumerID, subError)
+			return fmt.Errorf("%s could not get valid subscription - consumerID:%q, error: %v", errorMessagePrefix, g.metadata.consumerID, subError)
 		}
 	}
 

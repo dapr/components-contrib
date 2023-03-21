@@ -10,3 +10,5 @@ spec:
     value: "conformance-test-prj"
   - name: consumerID
     value: "conformanceTestConsumer"
+  - name: endpoint
+    value: "localhost:8085"

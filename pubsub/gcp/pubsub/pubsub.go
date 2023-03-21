@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -52,6 +53,7 @@ const (
 	metadataEnableMessageOrderingKey   = "enableMessageOrdering"
 	metadataMaxReconnectionAttemptsKey = "maxReconnectionAttempts"
 	metadataConnectionRecoveryInSecKey = "connectionRecoveryInSec"
+	metadataConnectionEndpoint         = "endpoint"
 
 	// Defaults.
 	defaultMaxReconnectionAttempts = 30
@@ -178,6 +180,10 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		}
 	}
 
+	if val, found := pubSubMetadata.Properties[metadataConnectionEndpoint]; found && val != "" {
+		result.ConnectionEndpoint = val
+	}
+
 	return &result, nil
 }
 
@@ -226,6 +232,13 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 		}
 	} else {
 		g.logger.Debugf("Using implicit credentials for GCP")
+
+		// The following allows the Google SDK to connect to
+		// the GCP PubSub Emulator
+		if metadata.ConnectionEndpoint != "" {
+			g.logger.Debugf("setting environment variable 'PUBSUB_EMULATOR_HOST=%s'", metadata.ConnectionEndpoint)
+			os.Setenv("PUBSUB_EMULATOR_HOST", metadata.ConnectionEndpoint)
+		}
 		pubsubClient, err = gcppubsub.NewClient(ctx, metadata.ProjectID)
 		if err != nil {
 			return pubsubClient, err

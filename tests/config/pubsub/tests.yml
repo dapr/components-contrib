@@ -96,8 +96,8 @@ components:
     operations: ["publish", "subscribe", "multiplehandlers"]
     config:
       pubsubName: gcp-pubsub
-      testTopicName: ${PUBSUB_GCP_TOPIC}}
-      projectId: ${{GCP_PROJECT_ID}}
+      testTopicName: ${{PUBSUB_GCP_TOPIC}}
+      testProjectID: ${{GCP_PROJECT_ID}}
       testMultiTopic1Name: ${{PUBSUB_GCP_TOPIC_MULTI_1}}
       testMultiTopic2Name: ${{PUBSUB_GCP_TOPIC_MULTI_2}}
       checkInOrderProcessing: false

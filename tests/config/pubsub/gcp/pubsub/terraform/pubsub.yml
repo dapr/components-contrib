@@ -7,11 +7,11 @@ spec:
   version: v1
   metadata:
   - name: projectId
-    value: ${{PUBSUB_GCP_PROJECT_ID}}
-  - name: endpoint
-    value: ${{PUBSUB_GCP_ENDPOINT}}
+    value: ${{GCP_PROJECT_ID}}
+  - name: consumerID
+    value: "conformanceTestConsumer"
   - name: disableEntityManagement
-    value: "true"
+    value: "false"
   - name: enableMessageOrdering
     value: "false"
   - name: maxReconnectionAttempts

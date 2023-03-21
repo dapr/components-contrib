@@ -7,7 +7,7 @@ require (
 	github.com/dapr/components-contrib v1.10.0-rc.9.0.20230314182450-1d40321ac0be
 	github.com/dapr/dapr v1.10.4-0.20230317204345-585da2feb90d
 	github.com/dapr/go-sdk v1.7.0
-	github.com/dapr/kit v0.0.5-0.20230307192505-b5bafe889a81
+	github.com/dapr/kit v0.0.5-0.20230321003608-efcc1af907a7
 	github.com/google/go-cmp v0.5.9
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
 	github.com/stretchr/testify v1.8.2

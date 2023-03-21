@@ -163,7 +163,7 @@ func nonceSizeForAlgorithm(alg string) int {
 // Returns true if the algorithm uses tags
 func hasTag(alg string) bool {
 	switch alg {
-	case "A128GCM", "A192GCM", "A256GCM", "C20P", "XC20P", "C20PKW", "XC20PKW", "A128GCMKW", "A192GCMKW", "A256GCMKW":
+	case "A128GCM", "A192GCM", "A256GCM", "C20P", "XC20P", "C20PKW", "XC20PKW", "A128GCMKW", "A192GCMKW", "A256GCMKW", "A128CBC-HS256", "A192CBC-HS384", "A256CBC-HS512":
 		return true
 	default:
 		return false

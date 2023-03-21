@@ -535,8 +535,6 @@ func loadSecretStore(tc TestComponent) secretstores.SecretStore {
 func loadCryptoProvider(tc TestComponent) contribCrypto.SubtleCrypto {
 	var component contribCrypto.SubtleCrypto
 	switch tc.Component {
-	default:
-		return nil
 	}
 
 	return component

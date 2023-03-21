@@ -25,22 +25,6 @@ var (
 	validSignatureAlgs  map[string]struct{}
 )
 
-func init() {
-	// Convert from data from the Azure SDK, which returns a slice, into a map
-	// (These functions do not make network calls)
-	listEncryption := azkeys.PossibleJSONWebKeyEncryptionAlgorithmValues()
-	validEncryptionAlgs = make(map[string]struct{}, len(listEncryption))
-	for _, v := range listEncryption {
-		validEncryptionAlgs[string(v)] = struct{}{}
-	}
-
-	listSignature := azkeys.PossibleJSONWebKeySignatureAlgorithmValues()
-	validSignatureAlgs = make(map[string]struct{}, len(listSignature))
-	for _, v := range listSignature {
-		validSignatureAlgs[string(v)] = struct{}{}
-	}
-}
-
 // GetJWKEncryptionAlgorithm returns a JSONWebKeyEncryptionAlgorithm constant is the algorithm is a supported one.
 func GetJWKEncryptionAlgorithm(algorithm string) *azkeys.JSONWebKeyEncryptionAlgorithm {
 	// Special case for AES-CBC, since we treat A[NNN]CBC as having PKCS#7 padding, and A[NNN]CBC-NOPAD as not using padding

@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -30,7 +31,12 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-var errKeyNotFound = errors.New("key not found in the vault")
+var (
+	errKeyNotFound = errors.New("key not found in the vault")
+
+	// Used to initialize validEncryptionAlgs and validSignatureAlgs lazily when the first component of this kind is initialized
+	algsParsed sync.Once
+)
 
 type keyvaultCrypto struct {
 	keyCache    *contribCrypto.PubKeyCache
@@ -48,6 +54,23 @@ func NewAzureKeyvaultCrypto(logger logger.Logger) contribCrypto.SubtleCrypto {
 
 // Init creates a Azure Key Vault client.
 func (k *keyvaultCrypto) Init(_ context.Context, metadata contribCrypto.Metadata) error {
+	// Convert from data from the Azure SDK, which returns a slice, into a map
+	// We perform the initialization here, lazily, when the first component of this kind is initialized
+	// (These functions do not make network calls)
+	algsParsed.Do(func() {
+		listEncryption := azkeys.PossibleJSONWebKeyEncryptionAlgorithmValues()
+		validEncryptionAlgs = make(map[string]struct{}, len(listEncryption))
+		for _, v := range listEncryption {
+			validEncryptionAlgs[string(v)] = struct{}{}
+		}
+
+		listSignature := azkeys.PossibleJSONWebKeySignatureAlgorithmValues()
+		validSignatureAlgs = make(map[string]struct{}, len(listSignature))
+		for _, v := range listSignature {
+			validSignatureAlgs[string(v)] = struct{}{}
+		}
+	})
+
 	// Init the metadata
 	err := k.md.InitWithMetadata(metadata)
 	if err != nil {

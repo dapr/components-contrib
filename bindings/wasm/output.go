@@ -26,14 +26,13 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/dapr/components-contrib/metadata"
-
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 	"github.com/tetratelabs/wazero/sys"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -135,7 +134,7 @@ func (out *outputBinding) Invoke(ctx context.Context, req *bindings.InvokeReques
 
 	// Get any remaining args from configuration
 	if args := req.Metadata["args"]; args != "" {
-		argsSlice = append(argsSlice, strings.SplitN(args, ",", -1)...)
+		argsSlice = append(argsSlice, strings.Split(args, ",")...)
 	}
 	moduleConfig = moduleConfig.WithArgs(argsSlice...)
 
@@ -155,7 +154,9 @@ func (out *outputBinding) Invoke(ctx context.Context, req *bindings.InvokeReques
 }
 
 func (out *outputBinding) Operations() []bindings.OperationKind {
-	return []bindings.OperationKind{ExecuteOperation}
+	return []bindings.OperationKind{
+		ExecuteOperation,
+	}
 }
 
 // Close implements io.Closer

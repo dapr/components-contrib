@@ -6,13 +6,15 @@ spec:
   type: pubsub.rabbitmq
   version: v1
   metadata:
-  - name: consumerID
-    value: alpha
-  - name: host
-    value: "amqp://test:test@localhost:5672"
-  - name: durable
-    value: true
-  - name: deletedWhenUnused
-    value: false
-  - name: requeueInFailure
-    value: true
+    - name: consumerID
+      value: alpha
+    - name: host
+      value: "amqp://test:test@localhost:5672"
+    - name: durable
+      value: true
+    - name: deletedWhenUnused
+      value: false
+    - name: requeueInFailure
+      value: true
+    - name: queueType
+      value: "classic"

@@ -85,7 +85,7 @@ func (out *outputBinding) Init(ctx context.Context, metadata bindings.Metadata) 
 	out.runtime = wazero.NewRuntimeWithConfig(ctx, out.runtimeConfig)
 	out.module, err = out.runtime.CompileModule(ctx, meta.guest)
 	if err != nil {
-		_ = out.runtime.Close(ctx)
+		_ = out.runtime.Close(context.Background())
 		return fmt.Errorf("wasm: error compiling binary: %w", err)
 	}
 

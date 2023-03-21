@@ -11,8 +11,7 @@ import (
 )
 
 func BenchmarkExample(b *testing.B) {
-	path := "./testdata/main.wasm"
-	md := metadata.Base{Properties: map[string]string{"path": path}}
+	md := metadata.Base{Properties: map[string]string{"path": pathArgs}}
 
 	l := logger.NewLogger(b.Name())
 	l.SetOutput(io.Discard)
@@ -26,10 +25,7 @@ func BenchmarkExample(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	request := &bindings.InvokeRequest{
-		Metadata:  map[string]string{"args": "salaboy"},
-		Operation: bindings.GetOperation,
-	}
+	request := &bindings.InvokeRequest{Operation: ExecuteOperation}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

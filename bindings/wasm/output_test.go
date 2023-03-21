@@ -14,6 +14,11 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
+const (
+	pathArgs    = "./testdata/args/main.wasm"
+	pathExample = "./testdata/example/main.wasm"
+)
+
 func Test_outputBinding_getMetadata(t *testing.T) {
 	m := &outputBinding{}
 
@@ -29,6 +34,13 @@ func Test_outputBinding_getMetadata(t *testing.T) {
 			name:        "empty path",
 			metadata:    metadata.Base{Properties: map[string]string{}},
 			expectedErr: "missing path",
+		},
+		{
+			name: "path not found",
+			metadata: metadata.Base{Properties: map[string]string{
+				"path": "./testduta",
+			}},
+			expectedErr: "error reading path: open ./testduta: ",
 		},
 		{
 			name: "path dir not file",
@@ -75,14 +87,14 @@ func Test_outputBinding_Init(t *testing.T) {
 		{
 			name: "path not wasm",
 			metadata: metadata.Base{Properties: map[string]string{
-				"path": "./testdata/main.go",
+				"path": "./testdata/args/main.go",
 			}},
 			expectedErr: "wasm: error compiling binary: invalid magic number",
 		},
 		{
 			name: "ok",
 			metadata: metadata.Base{Properties: map[string]string{
-				"path": "./testdata/main.wasm",
+				"path": pathArgs,
 			}},
 		},
 	}
@@ -90,13 +102,14 @@ func Test_outputBinding_Init(t *testing.T) {
 	for _, tt := range tests {
 		tc := tt
 		t.Run(tc.name, func(t *testing.T) {
-			m := NewWasmOutput(logger.NewLogger(t.Name())).(*outputBinding)
-			defer m.Close()
-			err := m.Init(context.Background(), bindings.Metadata{Base: tc.metadata})
+			output := NewWasmOutput(logger.NewLogger(t.Name())).(*outputBinding)
+			defer output.Close()
+
+			err := output.Init(context.Background(), bindings.Metadata{Base: tc.metadata})
 			if tc.expectedErr == "" {
 				require.NoError(t, err)
-				require.NotNil(t, m.runtime)
-				require.NotNil(t, m.module)
+				require.NotNil(t, output.runtime)
+				require.NotNil(t, output.module)
 			} else {
 				require.EqualError(t, err, tc.expectedErr)
 			}
@@ -104,29 +117,77 @@ func Test_outputBinding_Init(t *testing.T) {
 	}
 }
 
-func Test_Example(t *testing.T) {
-	l := logger.NewLogger(t.Name())
-	var buf bytes.Buffer
-	l.SetOutput(&buf)
+func Test_Invoke(t *testing.T) {
+	type testCase struct {
+		name         string
+		path         string
+		request      *bindings.InvokeRequest
+		expectedData string
+		expectedErr  string
+	}
 
-	meta := metadata.Base{Properties: map[string]string{
-		// main.wasm was compiled via the following:
-		//	tinygo build -o main.wasm -scheduler=none --no-debug -target=wasm main.go`
-		"path": "./testdata/main.wasm",
-	}}
+	tests := []testCase{
+		{
+			name: "args none",
+			path: pathArgs,
+			request: &bindings.InvokeRequest{
+				Operation: ExecuteOperation,
+			},
+			expectedData: "main",
+		},
+		{
+			name: "args empty",
+			path: pathArgs,
+			request: &bindings.InvokeRequest{
+				Metadata:  map[string]string{"args": ""},
+				Operation: ExecuteOperation,
+			},
+			expectedData: "main",
+		},
+		{
+			name: "args",
+			path: pathArgs,
+			request: &bindings.InvokeRequest{
+				Metadata:  map[string]string{"args": "1,2"},
+				Operation: ExecuteOperation,
+			},
+			expectedData: "main\n1\n2",
+		},
+		{
+			name: "example",
+			path: pathExample,
+			request: &bindings.InvokeRequest{
+				Metadata:  map[string]string{"args": "salaboy"},
+				Operation: ExecuteOperation,
+			},
+			expectedData: "hello salaboy",
+		},
+	}
 
-	output := NewWasmOutput(l)
-	defer output.(io.Closer).Close()
+	for _, tt := range tests {
+		tc := tt
+		t.Run(tc.name, func(t *testing.T) {
+			l := logger.NewLogger(t.Name())
+			var buf bytes.Buffer
+			l.SetOutput(&buf)
 
-	err := output.Init(context.Background(), bindings.Metadata{Base: meta})
-	require.NoError(t, err)
+			meta := metadata.Base{Properties: map[string]string{"path": tc.path}}
 
-	ctx := context.Background()
+			output := NewWasmOutput(l)
+			defer output.(io.Closer).Close()
 
-	resp, err := output.Invoke(ctx, &bindings.InvokeRequest{
-		Metadata:  map[string]string{"args": "salaboy"},
-		Operation: bindings.GetOperation,
-	})
-	require.NoError(t, err)
-	require.Equal(t, "hello salaboy", string(resp.Data))
+			ctx := context.Background()
+
+			err := output.Init(ctx, bindings.Metadata{Base: meta})
+			require.NoError(t, err)
+
+			resp, err := output.Invoke(ctx, tc.request)
+			if tc.expectedErr == "" {
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedData, string(resp.Data))
+			} else {
+				require.EqualError(t, err, tc.expectedErr)
+			}
+		})
+	}
 }

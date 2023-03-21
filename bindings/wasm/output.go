@@ -17,14 +17,16 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"sync/atomic"
+
+	"github.com/dapr/components-contrib/metadata"
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
@@ -34,6 +36,9 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
 )
+
+// ExecuteOperation is defined here as it isn't in the bindings package.
+const ExecuteOperation bindings.OperationKind = "execute"
 
 type initMetadata struct {
 	// Path is where to load a `%.wasm` file that implements a command,
@@ -49,10 +54,11 @@ type outputBinding struct {
 	runtimeConfig wazero.RuntimeConfig
 	moduleConfig  wazero.ModuleConfig
 
-	runtime wazero.Runtime
-	module  wazero.CompiledModule
+	binaryName string
+	runtime    wazero.Runtime
+	module     wazero.CompiledModule
 
-	instanceCounter uint64
+	instanceCounter atomic.Uint64
 }
 
 var (
@@ -82,7 +88,13 @@ func (out *outputBinding) Init(ctx context.Context, metadata bindings.Metadata) 
 		return fmt.Errorf("wasm: failed to parse metadata: %w", err)
 	}
 
+	// Use the name of the wasm binary as the module name.
+	out.binaryName, _ = strings.CutSuffix(path.Base(meta.Path), ".wasm")
+
+	// Create the runtime, which when closed releases any resources associated with it.
 	out.runtime = wazero.NewRuntimeWithConfig(ctx, out.runtimeConfig)
+
+	// Compile the module, which reduces execution time of Invoke
 	out.module, err = out.runtime.CompileModule(ctx, meta.guest)
 	if err != nil {
 		_ = out.runtime.Close(context.Background())
@@ -95,6 +107,7 @@ func (out *outputBinding) Init(ctx context.Context, metadata bindings.Metadata) 
 	}
 
 	if err != nil {
+		_ = out.runtime.Close(context.Background())
 		return fmt.Errorf("wasm: error instantiating host functions: %w", err)
 	}
 	return
@@ -103,27 +116,32 @@ func (out *outputBinding) Init(ctx context.Context, metadata bindings.Metadata) 
 func (out *outputBinding) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	// Currently, concurrent modules can conflict on name. Make sure we have
 	// a unique one.
-	moduleName := strconv.FormatUint(atomic.AddUint64(&out.instanceCounter, 1), 10)
-	moduleConfig := out.moduleConfig.WithName(moduleName)
+	instanceNum := out.instanceCounter.Add(1)
+	instanceName := out.binaryName + "-" + strconv.FormatUint(instanceNum, 10)
+	moduleConfig := out.moduleConfig.WithName(instanceName)
 
+	// Only assign STDIN if it is present in the request.
 	if len(req.Data) > 0 {
 		moduleConfig = moduleConfig.WithStdin(bytes.NewReader(req.Data))
 	}
 
+	// Any STDOUT is returned as a result: capture it into a buffer.
 	var stdout bytes.Buffer
 	moduleConfig = moduleConfig.WithStdout(&stdout)
 
-	if args, ok := req.Metadata["args"]; ok {
-		argsSlice := strings.Split(args, ",")
-		// prepend arg0 (program name) unless we want users to supply it.
-		argsSlice = append([]string{out.module.Name()}, argsSlice...)
-		moduleConfig = moduleConfig.WithArgs(argsSlice...)
+	// Set the program name to the binary name
+	argsSlice := []string{out.binaryName}
+
+	// Get any remaining args from configuration
+	if args := req.Metadata["args"]; args != "" {
+		argsSlice = append(argsSlice, strings.SplitN(args, ",", -1)...)
 	}
+	moduleConfig = moduleConfig.WithArgs(argsSlice...)
 
 	// Instantiating executes the guest's main function (exported as _start).
 	_, err := out.runtime.InstantiateModule(ctx, out.module, moduleConfig)
 
-	// Return stdout if there was no error.
+	// Return STDOUT if there was no error.
 	if err == nil {
 		return &bindings.InvokeResponse{Data: stdout.Bytes()}, nil
 	}
@@ -136,7 +154,7 @@ func (out *outputBinding) Invoke(ctx context.Context, req *bindings.InvokeReques
 }
 
 func (out *outputBinding) Operations() []bindings.OperationKind {
-	return []bindings.OperationKind{bindings.GetOperation}
+	return []bindings.OperationKind{ExecuteOperation}
 }
 
 // Close implements io.Closer
@@ -148,28 +166,24 @@ func (out *outputBinding) Close() error {
 	return nil
 }
 
-func (out *outputBinding) getInitMetadata(metadata bindings.Metadata) (*initMetadata, error) {
-	b, err := json.Marshal(metadata.Properties)
+func (out *outputBinding) getInitMetadata(meta bindings.Metadata) (*initMetadata, error) {
+	var m initMetadata
+	// Decode the metadata
+	err := metadata.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}
 
-	var data initMetadata
-	err = json.Unmarshal(b, &data)
-	if err != nil {
-		return nil, err
-	}
-
-	if data.Path == "" {
+	if m.Path == "" {
 		return nil, errors.New("missing path")
 	}
 
-	data.guest, err = os.ReadFile(data.Path)
+	m.guest, err = os.ReadFile(m.Path)
 	if err != nil {
-		return nil, fmt.Errorf("wasm: error reading path: %w", err)
+		return nil, fmt.Errorf("error reading path: %w", err)
 	}
 
-	return &data, nil
+	return &m, nil
 }
 
 // In the future

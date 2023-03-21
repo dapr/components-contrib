@@ -7,6 +7,6 @@ spec:
   type: secretstores.local.file
   metadata:
   - name: secretsFile
-    value: secrets.json
+    value: fixtures/secretstores/localfile/secrets.json
   - name: nestedSeparator
     value: ":"

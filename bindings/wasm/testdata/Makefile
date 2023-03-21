@@ -1,4 +1,4 @@
-tinygo_sources := ./example/main.go ./args/main.go
+tinygo_sources := ./args/main.go ./example/main.go ./loop/main.go
 .PHONY: build
 build: $(tinygo_sources)
 	@for f in $^; do \

@@ -17,6 +17,7 @@ import (
 const (
 	pathArgs    = "./testdata/args/main.wasm"
 	pathExample = "./testdata/example/main.wasm"
+	pathLoop    = "./testdata/loop/main.wasm"
 )
 
 func Test_outputBinding_getMetadata(t *testing.T) {
@@ -118,10 +119,14 @@ func Test_outputBinding_Init(t *testing.T) {
 }
 
 func Test_Invoke(t *testing.T) {
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
 	type testCase struct {
 		name         string
 		path         string
 		request      *bindings.InvokeRequest
+		ctx          context.Context
 		expectedData string
 		expectedErr  string
 	}
@@ -154,6 +159,15 @@ func Test_Invoke(t *testing.T) {
 			expectedData: "main\n1\n2",
 		},
 		{
+			name: "canceled",
+			path: pathLoop,
+			ctx:  canceledCtx,
+			request: &bindings.InvokeRequest{
+				Operation: ExecuteOperation,
+			},
+			expectedErr: `module "main-1" closed with context canceled`,
+		},
+		{
 			name: "example",
 			path: pathExample,
 			request: &bindings.InvokeRequest{
@@ -181,7 +195,12 @@ func Test_Invoke(t *testing.T) {
 			err := output.Init(ctx, bindings.Metadata{Base: meta})
 			require.NoError(t, err)
 
-			resp, err := output.Invoke(ctx, tc.request)
+			reqCtx := tc.ctx
+			if reqCtx == nil {
+				reqCtx = ctx
+			}
+
+			resp, err := output.Invoke(reqCtx, tc.request)
 			if tc.expectedErr == "" {
 				require.NoError(t, err)
 				require.Equal(t, tc.expectedData, string(resp.Data))

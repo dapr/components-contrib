@@ -71,7 +71,8 @@ func NewWasmOutput(logger logger.Logger) bindings.OutputBinding {
 		logger: logger,
 
 		// The below ensures context cancels in-flight wasm functions.
-		runtimeConfig: wazero.NewRuntimeConfig(),
+		runtimeConfig: wazero.NewRuntimeConfig().
+			WithCloseOnContextDone(true),
 
 		// The below violate sand-boxing, but allow code to behave as expecteout.
 		moduleConfig: wazero.NewModuleConfig().

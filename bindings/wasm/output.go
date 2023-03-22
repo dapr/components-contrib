@@ -76,7 +76,6 @@ func NewWasmOutput(logger logger.Logger) bindings.OutputBinding {
 		// The below violate sand-boxing, but allow code to behave as expecteout.
 		moduleConfig: wazero.NewModuleConfig().
 			WithRandSource(rand.Reader).
-			WithSysNanosleep().
 			WithSysWalltime().
 			WithSysNanosleep(),
 	}

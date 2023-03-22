@@ -159,4 +159,7 @@ type SubtleCrypto interface {
 		valid bool,
 		err error,
 	)
+
+	// GetComponentMetadata returns information on the component's metadata.
+	GetComponentMetadata() map[string]string
 }

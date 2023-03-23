@@ -15,6 +15,9 @@ package rabbitmq
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"math"
@@ -41,6 +44,10 @@ const (
 	maxPriority                = "maxPriority"
 	rabbitMQQueueMessageTTLKey = "x-message-ttl"
 	rabbitMQMaxPriorityKey     = "x-max-priority"
+	caCert                     = "caCert"
+	clientCert                 = "clientCert"
+	clientKey                  = "clientKey"
+	externalSasl               = "saslExternal"
 	defaultBase                = 10
 	defaultBitSize             = 0
 )
@@ -67,6 +74,10 @@ type rabbitMQMetadata struct {
 	PrefetchCount    int    `json:"prefetchCount"`
 	MaxPriority      *uint8 `json:"maxPriority"` // Priority Queue deactivated if nil
 	defaultQueueTTL  *time.Duration
+	CaCert           string `json:caCert`
+	ClientCert       string `json:clientCert`
+	ClientKey        string `json:clientKey`
+	ExternalSasl     bool   `json:saslExternal`
 }
 
 // NewRabbitMQ returns a new rabbitmq instance.
@@ -83,8 +94,18 @@ func (r *RabbitMQ) Init(_ context.Context, metadata bindings.Metadata) error {
 	if err != nil {
 		return err
 	}
+	var conn *amqp.Connection
+	if r.metadata.ClientCert != "" && r.metadata.ClientKey != "" && r.metadata.CaCert != "" {
+		tlsConfig := r.newTLSConfig()
+		if r.metadata.ExternalSasl {
+			conn, err = amqp.DialTLS_ExternalAuth(r.metadata.Host, tlsConfig)
+		} else {
+			conn, err = amqp.DialTLS(r.metadata.Host, tlsConfig)
+		}
+	} else {
+		conn, err = amqp.Dial(r.metadata.Host)
+	}
 
-	conn, err := amqp.Dial(r.metadata.Host)
 	if err != nil {
 		return err
 	}
@@ -202,6 +223,30 @@ func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
 		}
 
 		m.MaxPriority = &maxPriority
+
+	}
+
+	if val, ok := metadata.Properties[caCert]; ok && val != "" {
+		if !isValidPEM(val) {
+			return errors.New("invalid ca certificate")
+		}
+		m.CaCert = val
+	}
+	if val, ok := metadata.Properties[clientCert]; ok && val != "" {
+		if !isValidPEM(val) {
+			return errors.New("invalid client certificate")
+		}
+		m.ClientCert = val
+	}
+	if val, ok := metadata.Properties[clientKey]; ok && val != "" {
+		if !isValidPEM(val) {
+			return errors.New("invalid client certificate key")
+		}
+		m.ClientKey = val
+	}
+
+	if val, ok := metadata.Properties[externalSasl]; ok && val != "" {
+		m.ExternalSasl = utils.IsTruthy(val)
 	}
 
 	ttl, ok, err := contribMetadata.TryGetTTL(metadata.Properties)
@@ -214,7 +259,6 @@ func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
 	}
 
 	r.metadata = m
-
 	return nil
 }
 
@@ -284,6 +328,34 @@ func (r *RabbitMQ) Read(ctx context.Context, handler bindings.Handler) error {
 	}()
 
 	return nil
+}
+
+func (r *RabbitMQ) newTLSConfig() *tls.Config {
+	tlsConfig := new(tls.Config)
+
+	if r.metadata.ClientCert != "" && r.metadata.ClientKey != "" {
+		cert, err := tls.X509KeyPair([]byte(r.metadata.ClientCert), []byte(r.metadata.ClientKey))
+		if err != nil {
+			r.logger.Warnf("Unable to load client certificate and key pair. Err: %v", err)
+			return tlsConfig
+		}
+		tlsConfig.Certificates = []tls.Certificate{cert}
+	}
+
+	if r.metadata.CaCert != "" {
+		tlsConfig.RootCAs = x509.NewCertPool()
+		if ok := tlsConfig.RootCAs.AppendCertsFromPEM([]byte(r.metadata.CaCert)); !ok {
+			r.logger.Warnf("Unable to load CA certificate.")
+		}
+	}
+	return tlsConfig
+}
+
+// isValidPEM validates the provided input has PEM formatted block.
+func isValidPEM(val string) bool {
+	block, _ := pem.Decode([]byte(val))
+
+	return block != nil
 }
 
 func (r *RabbitMQ) Close() error {

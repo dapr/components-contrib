@@ -39,7 +39,7 @@ var generateMetadataAnalyzerAppCmd = &cobra.Command{
 			fmt.Println(fmt.Errorf("outputfile is required"))
 		}
 
-		metadataanalyzer.GenerateMetadataAnalyzer("./", outputfile)
+		metadataanalyzer.GenerateMetadataAnalyzer("./", ComponentFolders, outputfile)
 	},
 }
 

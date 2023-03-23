@@ -11,9 +11,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 )
 
-func GenerateMetadataAnalyzer(contribRoot string, outputfile string) {
+func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, outputfile string) {
 	fset := token.NewFileSet()
 	pkgs := make(map[string]string)
 
@@ -46,9 +47,12 @@ func GenerateMetadataAnalyzer(contribRoot string, outputfile string) {
 			skip = false
 			dir = filepath.Dir(dir)
 
-			switch filepath.Base(dir) {
-			case "bindings", "pubsub", "state", "secretstores", "middleware", "workflows", "lock", "configuration", "crypto", "nameresolution":
-				componentType = filepath.Base(dir)
+			curFolder := filepath.Base(dir)
+
+			for _, val := range componentFolders {
+				if curFolder == val {
+					componentType = curFolder
+				}
 			}
 		}
 
@@ -86,67 +90,36 @@ func GenerateMetadataAnalyzer(contribRoot string, outputfile string) {
 		log.Fatal(err)
 	}
 
-	// now we have a list of packages that implement the GetComponentMetadata method
-	// now write our go program to check the metadata of each component and compare it againts the yaml metadata
+	data := make(map[string][]string)
 
-	importBlock := ""
-	for pkg := range pkgs {
-		importBlock += fmt.Sprintf(`    %s "github.com/dapr/components-contrib/%s"`+"\n", strings.ReplaceAll(strings.ReplaceAll(pkg, "/", "_"), "-", "_"), pkg)
-	}
-
-	metadataBlock := ""
 	for fullpkg, method := range pkgs {
 		sanitizedPkg := strings.ReplaceAll(strings.ReplaceAll(fullpkg, "/", "_"), "-", "_")
-
-		metadataBlock += "\n" + fmt.Sprintf(`
-    instanceOf_%s := %s.%s(log)
-    metadataFor_%s := instanceOf_%s.GetComponentMetadata()
-    yamlMetadata = getYamlMetadata(basePath, "%s")
-    missing = checkMissingMetadata(yamlMetadata, metadataFor_%s)
-    if len(missing) > 0 {
-      missingByComponent["%s"] = missing
-    }`, sanitizedPkg, sanitizedPkg, method, sanitizedPkg, sanitizedPkg, fullpkg, sanitizedPkg, fullpkg)
+		data[fullpkg] = []string{sanitizedPkg, method}
 	}
 
-	// write go program to file
-	code := `package main
+	templateData := struct {
+		Pkgs map[string][]string
+	}{
+		Pkgs: data,
+	}
 
-import (
-    "fmt"
-    "os"
-    "github.com/dapr/kit/logger"
-    "encoding/json"
-%s
-)
+	// let's try loading the template
+	bytes, fileErr := os.ReadFile(".build-tools/pkg/metadataanalyzer/analyzer.template")
+	tmpl := string(bytes)
+	if fileErr != nil {
+		log.Fatal(fileErr)
+	}
 
-func main() {
-    if len(os.Args) < 2 {
-      fmt.Println("Please provide the path to the components-contrib root as an argument")
-      os.Exit(1)
-    }
-    basePath := os.Args[1]
-    log := logger.NewLogger("metadata")
-
-    var yamlMetadata *map[string]string
-    var missing map[string]string
-    missingByComponent := make(map[string]map[string]string)
-%s
-
-    jsonData, err := json.MarshalIndent(missingByComponent, "", "  ")
-    if err != nil {
-      fmt.Println(err)
-      return
-    }
-		if len(missingByComponent) > 0 {
-			fmt.Println("The following components are missing metadata in their metadata.yaml:\n")
-      fmt.Println(string(jsonData))
-			os.Exit(1)
-		}
-}`
-
-	errOut := os.WriteFile(outputfile, []byte(fmt.Sprintf(code, importBlock, metadataBlock)), 0o644)
+	f, err := os.Create(outputfile)
 	if err != nil {
-		log.Fatal(errOut)
+		panic(err)
+	}
+	defer f.Close()
+
+	t := template.Must(template.New("tmpl").Parse(tmpl))
+	err = t.Execute(f, templateData)
+	if err != nil {
+		panic(err)
 	}
 }
 

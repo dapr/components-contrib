@@ -222,15 +222,15 @@ bundle-component-metadata:
 .PHONE: check-component-metadata
 check-component-metadata:
 	mkdir -p metadataanalyzer
-	$(RUN_BUILD_TOOLS) generate-metadata-analyzer-app --outputfile ./metadataanalyzer/metadataanalyzer.go
+	$(RUN_BUILD_TOOLS) generate-metadata-analyzer-app --outputfile ./metadataanalyzer/main.go
 	cd metadataanalyzer && \
 	go mod init metadataanalyzer && \
 	go get "github.com/dapr/components-contrib@master" && \
 	go mod edit -replace "github.com/dapr/components-contrib"="../" && \
 	go mod tidy && \
 	go build . && \
-        rm ./go.mod && rm ./go.sum && \
-	./metadataanalyzer ../
+	rm ./go.mod && rm ./go.sum && \
+        ./metadataanalyzer ../
 
 ################################################################################
 # Prettier                                                                     #

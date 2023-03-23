@@ -91,3 +91,9 @@ metadata:
     description: "The name of the collection (container)."
     example: '"collection"'
     type: string
+  - name: contenttype
+    required: false
+    description: "The default content type of the data."
+    example: "application/json"
+    default: "application/json"
+    type: string

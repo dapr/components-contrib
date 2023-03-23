@@ -28,6 +28,11 @@ metadata:
     required: false
     description: "The host to connect to. One of \"server\" and \"host\" is required."
     example: '"mongo-mongodb.default.svc.cluster.local:27017"'
+  - name: connectionstring
+    # Required if host and server are not set
+    required: false
+    description: "The connection string to use. One of \"server\" or \"host\" or \"connectionstring\" is required."
+    example: '"mongodb://localhost:27017"'
   - name: username
     description: "The username of the user to connect with (applicable in conjunction with \"host\")"
     example: '"admin"'

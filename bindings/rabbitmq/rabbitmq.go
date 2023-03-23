@@ -20,13 +20,14 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"github.com/dapr/components-contrib/internal/utils"
 	"math"
 	"reflect"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/dapr/components-contrib/internal/utils"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
@@ -281,7 +282,6 @@ func (r *RabbitMQ) parseMetadata(meta bindings.Metadata) error {
 		}
 
 		m.MaxPriority = &maxPriority
-
 	}
 
 	if val, ok := meta.Properties[caCert]; ok && val != "" {

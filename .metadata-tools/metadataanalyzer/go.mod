@@ -2,7 +2,7 @@ module metadataanalyzer
 
 go 1.20
 
-replace github.com/dapr/components-contring => /Users/bverst/src/dapr/components-contrib
+replace github.com/dapr/components-contring => ../../
 
 require (
 	github.com/dapr/components-contrib v1.10.4-0.20230323005127-3cd727a56269

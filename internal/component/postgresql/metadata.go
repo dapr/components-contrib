@@ -15,7 +15,6 @@ package postgresql
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/dapr/components-contrib/metadata"
@@ -39,8 +38,8 @@ type postgresMetadataStruct struct {
 	TableName             string // Could be in the format "schema.table" or just "table"
 	MetadataTableName     string // Could be in the format "schema.table" or just "table"
 
-	timeout         time.Duration
-	cleanupInterval *time.Duration
+	Timeout         time.Duration  `mapstructure:"timeoutInSeconds"`
+	CleanupInterval *time.Duration `mapstructure:"cleanupIntervalInSeconds"`
 }
 
 func (m *postgresMetadataStruct) InitWithMetadata(meta state.Metadata) error {
@@ -48,8 +47,8 @@ func (m *postgresMetadataStruct) InitWithMetadata(meta state.Metadata) error {
 	m.ConnectionString = ""
 	m.TableName = defaultTableName
 	m.MetadataTableName = defaultMetadataTableName
-	m.cleanupInterval = ptr.Of(defaultCleanupInternal * time.Second)
-	m.timeout = defaultTimeout * time.Second
+	m.CleanupInterval = ptr.Of(defaultCleanupInternal * time.Second)
+	m.Timeout = defaultTimeout * time.Second
 
 	// Decode the metadata
 	err := metadata.DecodeMetadata(meta.Properties, &m)
@@ -63,32 +62,16 @@ func (m *postgresMetadataStruct) InitWithMetadata(meta state.Metadata) error {
 	}
 
 	// Timeout
-	s, ok := meta.Properties[timeoutKey]
-	if ok && s != "" {
-		timeoutInSec, err := strconv.ParseInt(s, 10, 0)
-		if err != nil {
-			return fmt.Errorf("invalid value for '%s': %s", timeoutKey, s)
-		}
-		if timeoutInSec < 1 {
-			return fmt.Errorf("invalid value for '%s': must be greater than 0", timeoutKey)
-		}
-
-		m.timeout = time.Duration(timeoutInSec) * time.Second
+	if m.Timeout < 1*time.Second {
+		return fmt.Errorf("invalid value for '%s': must be greater than 0", timeoutKey)
 	}
 
 	// Cleanup interval
-	s, ok = meta.Properties[cleanupIntervalKey]
-	if ok && s != "" {
-		cleanupIntervalInSec, err := strconv.ParseInt(s, 10, 0)
-		if err != nil {
-			return fmt.Errorf("invalid value for '%s': %s", cleanupIntervalKey, s)
-		}
-
+	if m.CleanupInterval != nil {
 		// Non-positive value from meta means disable auto cleanup.
-		if cleanupIntervalInSec > 0 {
-			m.cleanupInterval = ptr.Of(time.Duration(cleanupIntervalInSec) * time.Second)
+		if *m.CleanupInterval > 0 {
 		} else {
-			m.cleanupInterval = nil
+			m.CleanupInterval = nil
 		}
 	}
 

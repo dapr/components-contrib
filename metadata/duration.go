@@ -83,7 +83,12 @@ func toTimeDurationHookFunc() mapstructure.DecodeHookFunc {
 				var err error
 				val, err = time.ParseDuration(data.(string))
 				if err != nil {
-					return nil, err
+					// If we can't parse the duration, try parsing it as int64 seconds
+					seconds, errParse := strconv.ParseInt(data.(string), 10, 0)
+					if errParse != nil {
+						return nil, errors.Join(err, errParse)
+					}
+					val = time.Duration(seconds * int64(time.Second))
 				}
 			}
 			if t != reflect.TypeOf(Duration{}) {
@@ -91,13 +96,13 @@ func toTimeDurationHookFunc() mapstructure.DecodeHookFunc {
 			}
 			return Duration{Duration: val}, nil
 		case reflect.Float64:
-			val := time.Duration(data.(float64))
+			val := time.Duration(data.(float64) * float64(time.Second))
 			if t != reflect.TypeOf(Duration{}) {
 				return val, nil
 			}
 			return Duration{Duration: val}, nil
 		case reflect.Int64:
-			val := time.Duration(data.(int64))
+			val := time.Duration(data.(int64) * int64(time.Second))
 			if t != reflect.TypeOf(Duration{}) {
 				return val, nil
 			}

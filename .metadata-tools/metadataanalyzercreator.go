@@ -174,5 +174,5 @@ func getConstructorMethod(componentType string, file *ast.File) (string, error) 
 			}
 		}
 	}
-	return "", fmt.Errorf("could not find constructor method")
+	return "", errors.New("could not find constructor method")
 }

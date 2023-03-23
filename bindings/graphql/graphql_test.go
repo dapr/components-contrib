@@ -51,7 +51,7 @@ func InitBinding(s *httptest.Server, extraProps map[string]string) (bindings.Out
 	}
 
 	binding := NewGraphQL(logger.NewLogger("test"))
-	err := binding.Init(m)
+	err := binding.Init(context.Background(), m)
 	return binding, err
 }
 

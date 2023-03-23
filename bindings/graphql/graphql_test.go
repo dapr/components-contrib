@@ -57,7 +57,7 @@ func InitBinding(s *httptest.Server, extraProps map[string]string) (bindings.Out
 
 func TestInit(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(204)
+		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer s.Close()
 

@@ -8,5 +8,4 @@ go.work.sum
 .DS_Store
 component-metadata-bundle.json
 *.log
-.metadata-tools/metadataanalyzer.go
-.metadata-tools/metadataanalyzer
+metadataanalyzer

@@ -43,19 +43,19 @@ func TestParseMetadata(t *testing.T) {
 	oneSecondTTL := time.Second
 
 	testCases := []struct {
-		name                     string
-		properties               map[string]string
-		expectedDeleteWhenUnused bool
-		expectedDurable          bool
-		expectedExclusive        bool
-		expectedTTL              *time.Duration
-		expectedPrefetchCount    int
-		expectedMaxPriority      *uint8
-    expectedReconnectWaitCheck func(expect time.Duration) bool
-		expectedClientCert       string
-		expectedClientKey        string
-		expectedCACert           string
-		expectedSaslExternal     bool
+		name                       string
+		properties                 map[string]string
+		expectedDeleteWhenUnused   bool
+		expectedDurable            bool
+		expectedExclusive          bool
+		expectedTTL                *time.Duration
+		expectedPrefetchCount      int
+		expectedMaxPriority        *uint8
+		expectedReconnectWaitCheck func(expect time.Duration) bool
+		expectedClientCert         string
+		expectedClientKey          string
+		expectedCACert             string
+		expectedSaslExternal       bool
 	}{
 		{
 			name:                     "Delete / Durable",
@@ -127,8 +127,8 @@ func TestParseMetadata(t *testing.T) {
 			name:                 "With Certificates and not external SASL",
 			properties:           map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "saslExternal": "true", "ClientCert": getFakeClientCert(), "ClientKey": getFakeClientKey(), "CaCert": getFakeCaCert()},
 			expectedSaslExternal: true,
-    },
-    {
+		},
+		{
 			name:                     "With reconnectWait 10 second",
 			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "reconnectWaitInSeconds": "10"},
 			expectedDeleteWhenUnused: false,
@@ -136,6 +136,14 @@ func TestParseMetadata(t *testing.T) {
 			expectedReconnectWaitCheck: func(expect time.Duration) bool {
 				return expect == 10*time.Second
 			},
+		},
+		{
+			name:                 "With Certificates and not external SASL",
+			properties:           map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "saslExternal": "true", "ClientCert": getFakeClientCert(), "ClientKey": getFakeClientKey(), "CaCert": getFakeCaCert()},
+			expectedSaslExternal: true,
+			expectedCACert:       getFakeCaCert(),
+			expectedClientCert:   getFakeClientCert(),
+			expectedClientKey:    getFakeClientKey(),
 		},
 	}
 
@@ -161,14 +169,15 @@ func TestParseMetadata(t *testing.T) {
 			if tt.expectedReconnectWaitCheck != nil {
 				assert.True(t, tt.expectedReconnectWaitCheck(r.metadata.ReconnectWait))
 			}
-		})  
+
+		})
 	}
 }
 
 func TestParseMetadataWithInvalidTTL(t *testing.T) {
 	const queueName = "test-queue"
 	const host = "test-host"
-
+	
 	testCases := []struct {
 		name       string
 		properties map[string]string

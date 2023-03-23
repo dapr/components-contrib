@@ -20,6 +20,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/dapr/components-contrib/internal/utils"
 	"math"
 	"reflect"
 	"strconv"
@@ -85,10 +86,10 @@ type rabbitMQMetadata struct {
 	MaxPriority      *uint8         `mapstructure:"maxPriority"` // Priority Queue deactivated if nil
 	ReconnectWait    time.Duration  `mapstructure:"reconnectWaitInSeconds"`
 	DefaultQueueTTL  *time.Duration `mapstructure:"ttlInSeconds"`
-	CaCert           string
-	ClientCert       string
-	ClientKey        string
-	ExternalSasl     bool
+	CaCert           string         `json:caCert`
+	ClientCert       string         `json:clientCert`
+	ClientKey        string         `json:clientKey`
+	ExternalSasl     bool           `json:saslExternal`
 }
 
 // NewRabbitMQ returns a new rabbitmq instance.
@@ -104,17 +105,6 @@ func (r *RabbitMQ) Init(_ context.Context, metadata bindings.Metadata) error {
 	err := r.parseMetadata(metadata)
 	if err != nil {
 		return err
-	}
-	var conn *amqp.Connection
-	if r.metadata.ClientCert != "" && r.metadata.ClientKey != "" && r.metadata.CaCert != "" {
-		tlsConfig := r.newTLSConfig()
-		if r.metadata.ExternalSasl {
-			conn, err = amqp.DialTLS_ExternalAuth(r.metadata.Host, tlsConfig)
-		} else {
-			conn, err = amqp.DialTLS(r.metadata.Host, tlsConfig)
-		}
-	} else {
-		conn, err = amqp.Dial(r.metadata.Host)
 	}
 
 	err = r.connect()
@@ -181,6 +171,25 @@ func (r *RabbitMQ) reconnectWhenNecessary() {
 
 func dial(uri string) (conn *amqp.Connection, ch *amqp.Channel, err error) {
 	conn, err = amqp.Dial(uri)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	ch, err = conn.Channel()
+	if err != nil {
+		conn.Close()
+		return nil, nil, err
+	}
+
+	return conn, ch, nil
+}
+
+func dialTls(uri string, tlsConfig *tls.Config, externalAuth bool) (conn *amqp.Connection, ch *amqp.Channel, err error) {
+	if externalAuth {
+		conn, err = amqp.DialTLS_ExternalAuth(uri, tlsConfig)
+	} else {
+		conn, err = amqp.DialTLS(uri, tlsConfig)
+	}
 	if err != nil {
 		return nil, nil, err
 	}
@@ -272,28 +281,52 @@ func (r *RabbitMQ) parseMetadata(meta bindings.Metadata) error {
 		}
 
 		m.MaxPriority = &maxPriority
+
 	}
 
-	if val, ok := metadata.Properties[caCert]; ok && val != "" {
+	if val, ok := meta.Properties[caCert]; ok && val != "" {
 		if !isValidPEM(val) {
 			return errors.New("invalid ca certificate")
 		}
 		m.CaCert = val
 	}
-	if val, ok := metadata.Properties[clientCert]; ok && val != "" {
+	if val, ok := meta.Properties[clientCert]; ok && val != "" {
 		if !isValidPEM(val) {
 			return errors.New("invalid client certificate")
 		}
 		m.ClientCert = val
 	}
-	if val, ok := metadata.Properties[clientKey]; ok && val != "" {
+	if val, ok := meta.Properties[clientKey]; ok && val != "" {
 		if !isValidPEM(val) {
 			return errors.New("invalid client certificate key")
 		}
 		m.ClientKey = val
 	}
 
-	if val, ok := metadata.Properties[externalSasl]; ok && val != "" {
+	if val, ok := meta.Properties[externalSasl]; ok && val != "" {
+		m.ExternalSasl = utils.IsTruthy(val)
+	}
+
+	if val, ok := meta.Properties[caCert]; ok && val != "" {
+		if !isValidPEM(val) {
+			return errors.New("invalid ca certificate")
+		}
+		m.CaCert = val
+	}
+	if val, ok := meta.Properties[clientCert]; ok && val != "" {
+		if !isValidPEM(val) {
+			return errors.New("invalid client certificate")
+		}
+		m.ClientCert = val
+	}
+	if val, ok := meta.Properties[clientKey]; ok && val != "" {
+		if !isValidPEM(val) {
+			return errors.New("invalid client certificate key")
+		}
+		m.ClientKey = val
+	}
+
+	if val, ok := meta.Properties[externalSasl]; ok && val != "" {
 		m.ExternalSasl = utils.IsTruthy(val)
 	}
 
@@ -453,8 +486,16 @@ func (r *RabbitMQ) connect() error {
 		// Do not reconnect on stopped service.
 		return errClosed
 	}
+	var conn *amqp.Connection
+	var ch *amqp.Channel
+	var err error
+	if r.metadata.ClientCert != "" && r.metadata.ClientKey != "" && r.metadata.CaCert != "" {
+		tlsConfig := r.newTLSConfig()
+		conn, ch, err = dialTls(r.metadata.Host, tlsConfig, r.metadata.ExternalSasl)
+	} else {
+		conn, ch, err = dial(r.metadata.Host)
+	}
 
-	conn, ch, err := dial(r.metadata.Host)
 	if err != nil {
 		return err
 	}

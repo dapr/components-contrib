@@ -74,10 +74,10 @@ type rabbitMQMetadata struct {
 	PrefetchCount    int    `json:"prefetchCount"`
 	MaxPriority      *uint8 `json:"maxPriority"` // Priority Queue deactivated if nil
 	defaultQueueTTL  *time.Duration
-	CaCert           string `json:caCert`
-	ClientCert       string `json:clientCert`
-	ClientKey        string `json:clientKey`
-	ExternalSasl     bool   `json:saslExternal`
+	CaCert           string
+	ClientCert       string
+	ClientKey        string
+	ExternalSasl     bool
 }
 
 // NewRabbitMQ returns a new rabbitmq instance.
@@ -223,7 +223,6 @@ func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
 		}
 
 		m.MaxPriority = &maxPriority
-
 	}
 
 	if val, ok := metadata.Properties[caCert]; ok && val != "" {

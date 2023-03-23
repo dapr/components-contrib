@@ -56,7 +56,8 @@ func NewPostgreSQLStateStore(logger logger.Logger) state.Store {
 				expiredate = ` + opts.ExpireDateValue + `
 			WHERE
 				key = $1
-				AND xmin = $4;`
+				AND xmin = $4
+				AND (expiredate IS NULL OR expiredate >= CURRENT_TIMESTAMP);`
 		},
 	})
 }

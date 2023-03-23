@@ -377,7 +377,8 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 				expiration_time = %s
 			WHERE
 				key = ?
-				AND eTag = ?`,
+				AND etag = ?
+				AND (expiration_time IS NULL OR expiration_time >= CURRENT_TIMESTAMP)`,
 			a.metadata.TableName, expiration,
 		)
 		ctx, cancel := context.WithTimeout(context.Background(), a.metadata.timeout)

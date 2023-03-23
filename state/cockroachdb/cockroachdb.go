@@ -55,7 +55,9 @@ SET
   etag = etag + 1,
   expiredate = ` + opts.ExpireDateValue + `
 WHERE
-  key = $1 AND etag = $4;`
+  key = $1
+  AND etag = $4
+  AND (expiredate IS NULL OR expiredate >= CURRENT_TIMESTAMP);`
 		},
 	})
 }

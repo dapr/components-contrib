@@ -1,0 +1,5 @@
+# Supported operations:
+# - public: if the crypto provider has a public key
+# - symmetric: if the crypto provider has a symmetric key
+componentType: crypto
+components:

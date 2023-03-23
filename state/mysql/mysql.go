@@ -192,8 +192,7 @@ func (m *MySQL) parseMetadata(md map[string]string) error {
 
 	// Cleanup interval
 	m.cleanupInterval = meta.CleanupInterval
-	s, ok := md[cleanupIntervalKey]
-	if ok && s != "" {
+	if s := md[cleanupIntervalKey]; s != "" {
 		cleanupIntervalInSec, err := strconv.ParseInt(s, 10, 0)
 		if err != nil {
 			return fmt.Errorf("invalid value for '%s': %s", cleanupIntervalKey, s)
@@ -380,12 +379,12 @@ func (m *MySQL) ensureStateTable(ctx context.Context, schemaName, stateTableName
 	if !columnExists {
 		m.logger.Infof("Adding expiredate column to MySql state table '%s'", stateTableName)
 		_, err = m.db.ExecContext(ctx, fmt.Sprintf(
-			`ALTER TABLE %s ADD COLUMN expiredate TIMESTAMP NULL;`, stateTableName))
+			`ALTER TABLE %s ADD COLUMN IF NOT EXISTS expiredate TIMESTAMP NULL;`, stateTableName))
 		if err != nil {
 			return err
 		}
 		_, err = m.db.ExecContext(ctx, fmt.Sprintf(
-			`CREATE INDEX expiredate_idx ON %s (expiredate);`, stateTableName))
+			`CREATE INDEX IF NOT EXISTS expiredate_idx ON %s (expiredate);`, stateTableName))
 		if err != nil {
 			return err
 		}
@@ -403,7 +402,7 @@ func (m *MySQL) ensureMetadataTable(ctx context.Context, schemaName, metaTableNa
 	if !exists {
 		m.logger.Info("Creating MySQL metadata table")
 		_, err = m.db.ExecContext(ctx, fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			id VARCHAR(255) NOT NULL PRIMARY KEY, value VARCHAR(255) NOT NULL);`, metaTableName))
+			id VARCHAR(255) NOT NULL PRIMARY KEY, value TEXT NOT NULL);`, metaTableName))
 		if err != nil {
 			return err
 		}
@@ -551,7 +550,7 @@ func (m *MySQL) Get(parentCtx context.Context, req *state.GetRequest) (*state.Ge
 	//nolint:gosec
 	query := fmt.Sprintf(
 		`SELECT value, eTag, isbinary FROM %s WHERE id = ?
-			AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)`,
+			AND (expiredate IS NULL OR expiredate >= CURRENT_TIMESTAMP)`,
 		m.tableName, // m.tableName is sanitized
 	)
 	err := m.db.QueryRowContext(ctx, query, req.Key).Scan(&value, &eTag, &isBinary)
@@ -669,12 +668,12 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 	} else if req.ETag != nil && *req.ETag != "" {
 		// When an eTag is provided do an update - not insert
 		query = `UPDATE %[1]s SET value = ?, eTag = ?, isbinary = ?, expiredate = %[2]s
-			WHERE id = ? AND eTag = ?`
+			WHERE id = ? AND eTag = ? AND (expiredate IS NULL OR expiredate >= CURRENT_TIMESTAMP)`
 		params = []any{enc, eTag, isBinary, req.Key, *req.ETag}
 	} else {
 		// If this is a duplicate MySQL returns that two rows affected
 		maxRows = 2
-		query = `INSERT INTO %s (value, id, eTag, isbinary, expiredate) VALUES (?, ?, ?, ?, %[2]s) 
+		query = `INSERT INTO %[1]s (value, id, eTag, isbinary, expiredate) VALUES (?, ?, ?, ?, %[2]s) 
 			on duplicate key update value=?, eTag=?, isbinary=?, expiredate=%[2]s`
 		params = []any{enc, req.Key, eTag, isBinary, enc, eTag, isBinary}
 	}

@@ -183,7 +183,8 @@ const components = {
         requireAWSCredentials: true,
         requireTerraform: true,
         conformanceSetup: 'conformance-pubsub.aws.snssqs.terraform-setup.sh',
-        conformanceDestroy: 'conformance-pubsub.aws.snssqs.terraform-destroy.sh',
+        conformanceDestroy:
+            'conformance-pubsub.aws.snssqs.terraform-destroy.sh',
     },
     'pubsub.azure.eventhubs': {
         conformance: true,
@@ -284,31 +285,31 @@ const components = {
         certification: true,
         requiredSecrets: [
             'AzureKeyVaultName',
-            'AzureKeyVaultSecretStoreTenantId',
-            'AzureKeyVaultSecretStoreClientId',
-            'AzureKeyVaultSecretStoreServicePrincipalClientId',
-            'AzureKeyVaultSecretStoreServicePrincipalClientSecret',
+            'AzureKeyVaultTenantId',
+            'AzureKeyVaultClientId',
+            'AzureKeyVaultServicePrincipalClientId',
+            'AzureKeyVaultServicePrincipalClientSecret',
             'AzureContainerRegistryName',
             'AzureResourceGroupName',
         ],
-        requiredCerts: ['AzureKeyVaultSecretStoreCert'],
+        requiredCerts: ['AzureKeyVaultCert'],
     },
     'secretstores.azure.keyvault.certificate': {
         conformance: true,
         requiredSecrets: [
             'AzureKeyVaultName',
-            'AzureKeyVaultSecretStoreTenantId',
-            'AzureKeyVaultSecretStoreClientId',
+            'AzureKeyVaultTenantId',
+            'AzureKeyVaultClientId',
         ],
-        requiredCerts: ['AzureKeyVaultSecretStoreCert'],
+        requiredCerts: ['AzureKeyVaultCert'],
     },
     'secretstores.azure.keyvault.serviceprincipal': {
         conformance: true,
         requiredSecrets: [
             'AzureKeyVaultName',
-            'AzureKeyVaultSecretStoreTenantId',
-            'AzureKeyVaultSecretStoreServicePrincipalClientId',
-            'AzureKeyVaultSecretStoreServicePrincipalClientSecret',
+            'AzureKeyVaultTenantId',
+            'AzureKeyVaultServicePrincipalClientId',
+            'AzureKeyVaultServicePrincipalClientSecret',
         ],
     },
     'secretstores.hashicorp.vault': {

@@ -161,6 +161,12 @@ const components = {
     'configuration.redis': {
         certification: true,
     },
+    'crypto.localstorage': {
+        conformance: true,
+    },
+    'crypto.jwks': {
+        conformance: true,
+    },
     'middleware.http.bearer': {
         certification: true,
     },

@@ -17,7 +17,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
+	"regexp"
 )
 
 type migrator interface {
@@ -86,7 +86,7 @@ func (m *migration) executeMigrations(ctx context.Context) (migrationResult, err
 	// If the user provides a database in the connection string to not attempt
 	// to create the database. This work as the component did before adding the
 	// support to create the db.
-	if strings.Contains(m.store.connectionString, "database=") {
+	if connStringContainsDatabase(m.store.connectionString) {
 		// Schedule close of connection
 		defer db.Close()
 	} else {
@@ -132,6 +132,12 @@ func (m *migration) executeMigrations(ctx context.Context) (migrationResult, err
 	}
 
 	return r, nil
+}
+
+func connStringContainsDatabase(connStr string) bool {
+	// This method is only going to be called once (or at least once per component), so we are not pre-compiling the regex to avoid keeping that as a global variable
+	return regexp.MustCompile(`(?i)(^|;)database=.+`).
+		MatchString(connStr)
 }
 
 func runCommand(ctx context.Context, db *sql.DB, tsql string) error {

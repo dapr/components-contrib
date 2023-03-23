@@ -138,10 +138,11 @@ func (out *outputBinding) Invoke(ctx context.Context, req *bindings.InvokeReques
 	moduleConfig = moduleConfig.WithArgs(argsSlice...)
 
 	// Instantiating executes the guest's main function (exported as _start).
-	_, err := out.runtime.InstantiateModule(ctx, out.module, moduleConfig)
+	mod, err := out.runtime.InstantiateModule(ctx, out.module, moduleConfig)
 
 	// Return STDOUT if there was no error.
 	if err == nil {
+		_ = mod.Close(ctx)
 		return &bindings.InvokeResponse{Data: stdout.Bytes()}, nil
 	}
 

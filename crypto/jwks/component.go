@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
 	contribCrypto "github.com/dapr/components-contrib/crypto"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/fswatcher"
 	"github.com/dapr/kit/logger"
 )
@@ -245,4 +247,11 @@ func (k *jwksCrypto) retrieveKeyFromSecretFn(parentCtx context.Context, kid stri
 		return nil, contribCrypto.ErrKeyNotFound
 	}
 	return key, nil
+}
+
+func (k *jwksCrypto) GetComponentMetadata() map[string]string {
+	metadataStruct := jwksMetadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

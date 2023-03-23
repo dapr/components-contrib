@@ -19,12 +19,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
 	contribCrypto "github.com/dapr/components-contrib/crypto"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	internals "github.com/dapr/kit/crypto"
 	"github.com/dapr/kit/logger"
 )
@@ -101,4 +103,11 @@ func (l *localStorageCrypto) retrieveKey(parentCtx context.Context, key string) 
 	}
 
 	return jwkObj, nil
+}
+
+func (localStorageCrypto) GetComponentMetadata() map[string]string {
+	metadataStruct := localStorageMetadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

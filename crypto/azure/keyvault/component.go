@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
 	contribCrypto "github.com/dapr/components-contrib/crypto"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	internals "github.com/dapr/kit/crypto"
 	"github.com/dapr/kit/logger"
 )
@@ -397,6 +399,13 @@ func (k *keyvaultCrypto) verifyInVault(parentCtx context.Context, digest []byte,
 // getVaultURI returns Azure Key Vault URI.
 func (k *keyvaultCrypto) getVaultURI() string {
 	return fmt.Sprintf("https://%s.%s", k.md.VaultName, k.md.vaultDNSSuffix)
+}
+
+func (keyvaultCrypto) GetComponentMetadata() map[string]string {
+	metadataStruct := keyvaultMetadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }
 
 type keyID struct {

@@ -1,4 +1,4 @@
-# Supported operations: set, get, delete, bulkset, bulkdelete, transaction, etag, first-write, query, ttl
+# Supported operations: set, get, delete, bulkget, bulkset, bulkdelete, transaction, etag, first-write, query, ttl
 componentType: state
 components:
   - component: redis.v6
@@ -25,7 +25,7 @@ components:
   - component: postgresql
     allOperations: true
   - component: sqlite
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]
+    operations: [ "set", "get", "delete", "bulkget", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]
   - component: mysql.mysql
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write" ]

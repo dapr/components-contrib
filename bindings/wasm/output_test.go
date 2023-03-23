@@ -213,11 +213,15 @@ func Test_Invoke(t *testing.T) {
 				reqCtx = ctx
 			}
 
-			resp, err := output.Invoke(reqCtx, tc.request)
 			if tc.expectedErr == "" {
-				require.NoError(t, err)
-				require.Equal(t, tc.expectedData, string(resp.Data))
+				// execute twice to prove idempotency
+				for i := 0; i < 2; i++ {
+					resp, err := output.Invoke(reqCtx, tc.request)
+					require.NoError(t, err)
+					require.Equal(t, tc.expectedData, string(resp.Data))
+				}
 			} else {
+				_, err = output.Invoke(reqCtx, tc.request)
 				require.EqualError(t, err, tc.expectedErr)
 			}
 		})

@@ -4,7 +4,7 @@ type: state
 name: postgresql
 version: v1
 status: stable
-title: "Postgresql"
+title: "PostgreSQL"
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-postgresql/
@@ -30,12 +30,12 @@ metadata:
     type: number
   - name: tableName
     required: false
-    description: Name of the table where the data is stored. Defaults to \"state\". Can optionally have the schema name as prefix, such as \"public.state\"
+    description: Name of the table where the data is stored. Defaults to `state`. Can optionally have the schema name as prefix, such as `public.state`
     example: "public.state"
     type: string
   - name: metadataTableName
     required: false
-    description: Name of the table Dapr uses to store a few metadata properties. Defaults to \"dapr_metadata\". Can optionally have the schema name as prefix, such as \"public.dapr_metadata\"
+    description: Name of the table Dapr uses to store a few metadata properties. Defaults to `dapr_metadata`. Can optionally have the schema name as prefix, such as `public.dapr_metadata`
     example: "public.dapr_metadata"
     type: string  
   - name: cleanupIntervalInSeconds
@@ -50,6 +50,6 @@ metadata:
     type: duration
   - name: actorStateStore
     required: false
-    description: Consider this state store for actors. Defaults to \"false\"
+    description: Consider this state store for actors. Defaults to `false`
     example: "false"
     type: bool

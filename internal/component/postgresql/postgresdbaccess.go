@@ -112,11 +112,12 @@ func (p *PostgresDBAccess) Init(ctx context.Context, meta state.Metadata) error 
 		return err
 	}
 
-	if err = p.migrateFn(ctx, p.db, MigrateOptions{
+	err = p.migrateFn(ctx, p.db, MigrateOptions{
 		Logger:            p.logger,
 		StateTableName:    p.metadata.TableName,
 		MetadataTableName: p.metadata.MetadataTableName,
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 
@@ -327,9 +328,11 @@ func (p *PostgresDBAccess) doDelete(parentCtx context.Context, db dbquerier, req
 		return errors.New("missing key in delete operation")
 	}
 
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
+	defer cancel()
 	var result pgconn.CommandTag
 	if req.ETag == nil || *req.ETag == "" {
-		result, err = db.Exec(parentCtx, "DELETE FROM state WHERE key = $1", req.Key)
+		result, err = db.Exec(ctx, "DELETE FROM "+p.metadata.TableName+" WHERE key = $1", req.Key)
 	} else {
 		// Convert req.ETag to uint32 for postgres XID compatibility
 		var etag64 uint64
@@ -338,7 +341,7 @@ func (p *PostgresDBAccess) doDelete(parentCtx context.Context, db dbquerier, req
 			return state.NewETagError(state.ETagInvalid, err)
 		}
 
-		result, err = db.Exec(parentCtx, "DELETE FROM state WHERE key = $1 AND $2 = "+p.etagColumn, req.Key, uint32(etag64))
+		result, err = db.Exec(ctx, "DELETE FROM "+p.metadata.TableName+" WHERE key = $1 AND $2 = "+p.etagColumn, req.Key, uint32(etag64))
 	}
 
 	if err != nil {

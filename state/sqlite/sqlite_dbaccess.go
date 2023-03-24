@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -344,7 +345,7 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 	// Also resets expiration time in case of an update
 	expiration := "NULL"
 	if ttlSeconds > 0 {
-		expiration = fmt.Sprintf("DATETIME(CURRENT_TIMESTAMP, '+%d seconds')", ttlSeconds)
+		expiration = "DATETIME(CURRENT_TIMESTAMP, '+" + strconv.Itoa(ttlSeconds) + " seconds')"
 	}
 
 	// Only check for etag if FirstWrite specified (ref oracledatabaseaccess)
@@ -354,33 +355,27 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 	if req.ETag == nil || *req.ETag == "" {
 		var op string
 		if req.Options.Concurrency == state.FirstWrite {
-			op = "INSERT"
+			op = "INSERT INTO "
 		} else {
-			op = "INSERT OR REPLACE"
+			op = "INSERT OR REPLACE INTO "
 		}
-		stmt := fmt.Sprintf(
-			`%s INTO %s
+		stmt := op + a.metadata.TableName + `
 				(key, value, is_binary, etag, update_time, expiration_time)
-			VALUES(?, ?, ?, ?, CURRENT_TIMESTAMP, %s)`,
-			op, a.metadata.TableName, expiration,
-		)
+			VALUES(?, ?, ?, ?, CURRENT_TIMESTAMP, ` + expiration + `)`
 		ctx, cancel := context.WithTimeout(context.Background(), a.metadata.timeout)
 		res, err = db.ExecContext(ctx, stmt, req.Key, requestValue, isBinary, newEtag, req.Key)
 		cancel()
 	} else {
-		stmt := fmt.Sprintf(
-			`UPDATE %s SET
+		stmt := `UPDATE ` + a.metadata.TableName + ` SET
 				value = ?,
 				etag = ?,
 				is_binary = ?,
 				update_time = CURRENT_TIMESTAMP,
-				expiration_time = %s
+				expiration_time = ` + expiration + `
 			WHERE
 				key = ?
 				AND etag = ?
-				AND (expiration_time IS NULL OR expiration_time >= CURRENT_TIMESTAMP)`,
-			a.metadata.TableName, expiration,
-		)
+				AND (expiration_time IS NULL OR expiration_time >= CURRENT_TIMESTAMP)`
 		ctx, cancel := context.WithTimeout(context.Background(), a.metadata.timeout)
 		res, err = db.ExecContext(ctx, stmt, requestValue, newEtag, isBinary, req.Key, *req.ETag)
 		cancel()
@@ -469,13 +464,13 @@ func (a *sqliteDBAccess) doDelete(parentCtx context.Context, db querier, req *st
 	var result sql.Result
 	if req.ETag == nil || *req.ETag == "" {
 		// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
-		stmt := fmt.Sprintf("DELETE FROM %s WHERE key = ?", a.metadata.TableName)
+		stmt := "DELETE FROM " + a.metadata.TableName + " WHERE key = ?"
 		ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
 		result, err = db.ExecContext(ctx, stmt, req.Key)
 		cancel()
 	} else {
 		// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
-		stmt := fmt.Sprintf("DELETE FROM %s WHERE key = ? AND etag = ?", a.metadata.TableName)
+		stmt := "DELETE FROM " + a.metadata.TableName + " WHERE key = ? AND etag = ?"
 		ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
 		result, err = db.ExecContext(ctx, stmt, req.Key, *req.ETag)
 		cancel()

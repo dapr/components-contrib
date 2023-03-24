@@ -63,15 +63,15 @@ const (
 	errMissingConnectionString = "missing connection string"
 
 	// Key name to configure interval at which entries with TTL are cleaned up.
-	// The value is in seconds.
-	cleanupIntervalKey = "cleanupIntervalInSeconds"
+	// This is parsed as a Go duration.
+	cleanupIntervalKey = "cleanupInterval"
 
 	// Used if the user does not configure a metadata table name in the metadata.
 	// In terms of TTL, it is required to store value for 'last-cleanup' id.
 	defaultMetadataTableName = "dapr_metadata"
 
 	// Used if the user does not configure a cleanup interval in the metadata.
-	defaultCleanupInterval = 3600
+	defaultCleanupInterval = time.Hour
 )
 
 // MySQL state store.
@@ -152,7 +152,7 @@ func (m *MySQL) parseMetadata(md map[string]string) error {
 		TableName:         defaultTableName,
 		SchemaName:        defaultSchemaName,
 		MetadataTableName: defaultMetadataTableName,
-		CleanupInterval:   ptr.Of(defaultCleanupInterval * time.Second),
+		CleanupInterval:   ptr.Of(defaultCleanupInterval),
 	}
 
 	err := metadata.DecodeMetadata(md, &meta)
@@ -191,19 +191,18 @@ func (m *MySQL) parseMetadata(md map[string]string) error {
 	m.connectionString = meta.ConnectionString
 
 	// Cleanup interval
-	m.cleanupInterval = meta.CleanupInterval
-	if s := md[cleanupIntervalKey]; s != "" {
-		cleanupIntervalInSec, err := strconv.ParseInt(s, 10, 0)
-		if err != nil {
-			return fmt.Errorf("invalid value for '%s': %s", cleanupIntervalKey, s)
+	if meta.CleanupInterval != nil {
+		// Non-positive value from meta means disable auto cleanup.
+		if *meta.CleanupInterval <= 0 {
+			if md[cleanupIntervalKey] == "" {
+				// unfortunately the mapstructure decoder decodes an empty string to 0, a missing key would be nil however
+				meta.CleanupInterval = ptr.Of(defaultCleanupInterval)
+			} else {
+				meta.CleanupInterval = nil
+			}
 		}
 
-		// Non-positive value from meta means disable auto cleanup.
-		if cleanupIntervalInSec > 0 {
-			m.cleanupInterval = ptr.Of(time.Duration(cleanupIntervalInSec) * time.Second)
-		} else {
-			m.cleanupInterval = nil
-		}
+		m.cleanupInterval = meta.CleanupInterval
 	}
 
 	if meta.PemPath != "" {

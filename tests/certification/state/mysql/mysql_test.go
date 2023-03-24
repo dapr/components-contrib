@@ -55,7 +55,7 @@ const (
 	mariadbConnString = "root:root@tcp(localhost:3307)/"
 
 	keyConnectionString = "connectionString"
-	keyCleanupInterval  = "cleanupIntervalInSeconds"
+	keyCleanupInterval  = "cleanupInterval"
 	keyTableName        = "tableName"
 	keyMetadatTableName = "metadataTableName"
 )
@@ -414,7 +414,7 @@ func TestMySQL(t *testing.T) {
 				},
 			}
 
-			t.Run("parse cleanupIntervalInSeconds", func(t *testing.T) {
+			t.Run("parse cleanupInterval", func(t *testing.T) {
 				t.Run("default value", func(t *testing.T) {
 					// Default value is 1 hr
 					md.Properties[keyCleanupInterval] = ""
@@ -430,8 +430,7 @@ func TestMySQL(t *testing.T) {
 				})
 
 				t.Run("positive value", func(t *testing.T) {
-					// A positive value is interpreted in seconds
-					md.Properties[keyCleanupInterval] = "10"
+					md.Properties[keyCleanupInterval] = "10s"
 					storeObj := stateMysql.NewMySQLStateStore(log).(*stateMysql.MySQL)
 
 					err := storeObj.Init(ctx, md)
@@ -472,7 +471,7 @@ func TestMySQL(t *testing.T) {
 
 				t.Run("automatically delete expired records", func(t *testing.T) {
 					// Run every second
-					md.Properties[keyCleanupInterval] = "1"
+					md.Properties[keyCleanupInterval] = "1s"
 
 					storeObj := stateMysql.NewMySQLStateStore(log).(*stateMysql.MySQL)
 					err := storeObj.Init(ctx, md)
@@ -510,7 +509,7 @@ func TestMySQL(t *testing.T) {
 				t.Run("cleanup concurrency", func(t *testing.T) {
 					// Set to run every hour
 					// (we'll manually trigger more frequent iterations)
-					md.Properties[keyCleanupInterval] = "3600"
+					md.Properties[keyCleanupInterval] = "1h"
 
 					storeObj := stateMysql.NewMySQLStateStore(log).(*stateMysql.MySQL)
 					err := storeObj.Init(ctx, md)

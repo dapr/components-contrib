@@ -352,7 +352,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				}
 			}
 			err := statestore.BulkSet(context.Background(), bulk)
-			assert.Nil(t, err)
+			require.NoError(t, err)
 
 			for _, scenario := range scenarios {
 				if scenario.bulkOnly {
@@ -382,7 +382,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				}
 			}
 			hasBulkGet, res, err := statestore.BulkGet(context.Background(), req)
-			require.Nil(t, err)
+			require.NoError(t, err)
 			require.True(t, hasBulkGet)
 			require.Len(t, res, len(expects))
 

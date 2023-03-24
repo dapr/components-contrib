@@ -2,17 +2,20 @@
 componentType: state
 components:
   - component: redis.v6
-    allOperations: true
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "query", "ttl" ]
   - component: redis.v7
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "first-write" ]
   - component: mongodb
+    allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "query", "ttl" ]
   - component: memcached
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "ttl" ]
   - component: azure.cosmosdb
-    allOperations: true
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "query", "ttl" ]
   - component: azure.blobstorage
     allOperations: false
     operations: [ "set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write" ]
@@ -23,8 +26,10 @@ components:
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "first-write", "ttl" ]
   - component: postgresql
-    allOperations: true
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkget", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "query", "ttl" ]
   - component: sqlite
+    allOperations: false
     operations: [ "set", "get", "delete", "bulkget", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]
   - component: mysql.mysql
     allOperations: false
@@ -51,7 +56,7 @@ components:
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete"]
   - component: cockroachdb
     allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "query", "ttl" ]
+    operations: [ "set", "get", "delete", "bulkget", "bulkset", "bulkdelete", "transaction", "etag", "query", "ttl" ]
   - component: rethinkdb
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete"]

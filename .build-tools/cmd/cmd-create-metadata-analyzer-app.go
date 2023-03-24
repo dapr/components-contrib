@@ -14,8 +14,6 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 
 	"github.com/dapr/components-contrib/build-tools/pkg/metadataanalyzer"
@@ -36,7 +34,7 @@ var generateMetadataAnalyzerAppCmd = &cobra.Command{
 		outputfile, _ := cmd.Flags().GetString("outputfile")
 
 		if outputfile == "" {
-			fmt.Println(fmt.Errorf("outputfile is required"))
+			panic("flag outputfile is required")
 		}
 
 		metadataanalyzer.GenerateMetadataAnalyzer("./", ComponentFolders, outputfile)

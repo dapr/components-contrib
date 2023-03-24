@@ -165,6 +165,8 @@ func (gql *GraphQL) runRequest(ctx context.Context, requestKey string, req *bind
 	for k, v := range req.Metadata {
 		if strings.HasPrefix(k, "header:") {
 			request.Header.Set(strings.TrimPrefix(k, "header:"), v)
+		} else if strings.HasPrefix(k, "variable:") {
+			request.Var(strings.TrimPrefix(k, "variable:"), v)
 		}
 	}
 

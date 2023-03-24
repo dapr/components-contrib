@@ -18,6 +18,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -47,6 +48,7 @@ const (
 	argMaxLength          = "x-max-length"
 	argMaxLengthBytes     = "x-max-length-bytes"
 	argDeadLetterExchange = "x-dead-letter-exchange"
+	argMaxPriority        = "x-max-priority"
 	queueModeLazy         = "lazy"
 	reqMetadataRoutingKey = "routingKey"
 )
@@ -216,7 +218,7 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 
 	ttl, ok, err := contribMetadata.TryGetTTL(req.Metadata)
 	if err != nil {
-		r.logger.Warnf("%s publishing to %s failed parse TryGetTTL: %v, it is ignored.", logMessagePrefix, req.Topic, err)
+		r.logger.Warnf("%s publishing to %s failed to parse TryGetTTL: %v, it is ignored.", logMessagePrefix, req.Topic, err)
 	}
 	var expiration string
 	if ok {
@@ -226,12 +228,23 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 		expiration = strconv.FormatInt(r.metadata.defaultQueueTTL.Milliseconds(), 10)
 	}
 
-	confirm, err := r.channel.PublishWithDeferredConfirmWithContext(ctx, req.Topic, routingKey, false, false, amqp.Publishing{
+	p := amqp.Publishing{
 		ContentType:  "text/plain",
 		Body:         req.Data,
 		DeliveryMode: r.metadata.deliveryMode,
 		Expiration:   expiration,
-	})
+	}
+
+	priority, ok, err := contribMetadata.TryGetPriority(req.Metadata)
+	if err != nil {
+		r.logger.Warnf("%s publishing to %s failed to parse priority: %v, it is ignored.", logMessagePrefix, req.Topic, err)
+	}
+
+	if ok {
+		p.Priority = priority
+	}
+
+	confirm, err := r.channel.PublishWithDeferredConfirmWithContext(ctx, req.Topic, routingKey, false, false, p)
 	if err != nil {
 		r.logger.Errorf("%s publishing to %s failed in channel.Publish: %v", logMessagePrefix, req.Topic, err)
 
@@ -370,6 +383,23 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		args = amqp.Table{argDeadLetterExchange: dlxName}
 	}
 	args = r.metadata.formatQueueDeclareArgs(args)
+
+	// use priority queue if configured on subscription
+	if val, ok := req.Metadata[metadataMaxPriority]; ok && val != "" {
+		parsedVal, pErr := strconv.ParseUint(val, 10, 0)
+		if pErr != nil {
+			r.logger.Errorf("%s prepareSubscription error: can't parse maxPriority %s value on subscription metadata for topic/queue `%s/%s`: %s", logMessagePrefix, val, req.Topic, queueName, pErr)
+			return nil, pErr
+		}
+
+		mp := uint8(parsedVal)
+		if parsedVal > 255 {
+			mp = math.MaxUint8
+		}
+
+		args[argMaxPriority] = mp
+	}
+
 	q, err := channel.QueueDeclare(queueName, r.metadata.durable, r.metadata.deleteWhenUnused, false, false, args)
 	if err != nil {
 		r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueDeclare: %v", logMessagePrefix, req.Topic, queueName, err)

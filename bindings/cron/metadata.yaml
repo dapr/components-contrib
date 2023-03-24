@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: cron
+version: v1
+status: stable
+title: "Cron"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/cron/
+binding:
+  output: false
+  input: true
+  operations: []
+capabilities: []
+metadata:
+  - name: schedule
+    required: true
+    description: "The cron schedule to use"
+    example: "@every 15m"
+    type: string
+
+

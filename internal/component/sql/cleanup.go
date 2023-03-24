@@ -143,8 +143,8 @@ func (g *gc) CleanupExpired() error {
 		case <-ctx.Done():
 		case <-g.closedCh:
 		}
-		g.wg.Done()
 		cancel()
+		g.wg.Done()
 	}()
 
 	// Check if the last iteration was too recent
@@ -224,7 +224,7 @@ func (g *gc) updateLastCleanup(ctx context.Context) (bool, error) {
 		}
 		n = res.RowsAffected()
 	} else {
-		res, err := g.dbSQL.ExecContext(ctx, g.updateLastCleanupQuery, g.cleanupInterval.Milliseconds()-100)
+		res, err := g.dbSQL.ExecContext(ctx, g.updateLastCleanupQuery, sql.Named("Interval", g.cleanupInterval.Milliseconds()-100))
 		if err != nil {
 			return false, fmt.Errorf("error updating last cleanup time: %w", err)
 		}

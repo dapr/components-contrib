@@ -78,6 +78,7 @@ const (
 	metadataExchangeKindKey         = "exchangeKind"
 	metadataPublisherConfirmKey     = "publisherConfirm"
 	metadataSaslExternal            = "saslExternal"
+	metadataMaxPriority             = "maxPriority"
 
 	defaultReconnectWaitSeconds = 3
 

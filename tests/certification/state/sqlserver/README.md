@@ -25,6 +25,15 @@ This project aims to test the SQL Server State Store component under various con
 * Verifies connection handling with Azure SQL Server
 * Verifies connection handling with SQL Server in Docker to represent self hosted SQL Server options
 
+## TTLs and cleanups
+
+1. Correctly parse the `cleanupIntervalInSeconds` metadata property:
+   - No value uses the default value (3600 seconds)
+   - A positive value sets the interval to the given number of seconds
+   - A zero or negative value disables the cleanup
+2. The cleanup method deletes expired records and updates the metadata table with the last time it ran
+3. The cleanup method doesn't run if the last iteration was less than `cleanupIntervalInSeconds` or if another process is doing the cleanup
+
 ### Other tests
 
 * Client reconnects (if applicable) upon network interruption

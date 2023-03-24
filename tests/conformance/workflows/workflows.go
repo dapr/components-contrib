@@ -64,7 +64,7 @@ func ConformanceTests(t *testing.T, props map[string]string, workflowItem workfl
 				Input:        10, // Time that the activity within the workflow runs for
 				WorkflowName: "TestWorkflow",
 			}
-			req.WorkflowReference.InstanceID = "TestID"
+			req.InstanceID = "TestID"
 			req.Options = make(map[string]string)
 			req.Options["task_queue"] = "TestTaskQueue"
 			wf, err := workflowItem.Start(context.Background(), req)

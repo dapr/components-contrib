@@ -282,7 +282,7 @@ func (m *MySQL) finishInit(ctx context.Context, db *sql.DB) error {
 		  value = IF(CURRENT_TIMESTAMP > DATE_ADD(value, INTERVAL ?*1000 MICROSECOND), CURRENT_TIMESTAMP, value)`,
 				m.metadataTableName),
 			DeleteExpiredValuesQuery: fmt.Sprintf(
-				`DELETE FROM %s WHERE expiredate IS NOT NULL AND expiredate < CURRENT_TIMESTAMP`,
+				`DELETE FROM %s WHERE expiredate IS NOT NULL AND expiredate <= CURRENT_TIMESTAMP`,
 				m.tableName,
 			),
 			CleanupInterval: *m.cleanupInterval,
@@ -460,8 +460,6 @@ func (m *MySQL) Delete(ctx context.Context, req *state.DeleteRequest) error {
 // deleteValue is an internal implementation of delete to enable passing the
 // logic to state.DeleteWithRetries as a func.
 func (m *MySQL) deleteValue(parentCtx context.Context, querier querier, req *state.DeleteRequest) error {
-	m.logger.Debug("Deleting state value from MySql")
-
 	if req.Key == "" {
 		return fmt.Errorf("missing key in delete operation")
 	}
@@ -480,7 +478,7 @@ func (m *MySQL) deleteValue(parentCtx context.Context, querier querier, req *sta
 			m.tableName), req.Key)
 	} else {
 		result, err = querier.ExecContext(execCtx, fmt.Sprintf(
-			`DELETE FROM %s WHERE id = ? and eTag = ?`,
+			`DELETE FROM %s WHERE id = ? AND eTag = ?`,
 			m.tableName), req.Key, *req.ETag)
 	}
 
@@ -503,37 +501,33 @@ func (m *MySQL) deleteValue(parentCtx context.Context, querier querier, req *sta
 // BulkDelete removes multiple entries from the store
 // Store Interface.
 func (m *MySQL) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	m.logger.Debug("Executing BulkDelete request")
-
 	tx, err := m.db.Begin()
 	if err != nil {
 		return err
 	}
+	defer func() {
+		rollbackErr := tx.Rollback()
+		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
+		}
+	}()
 
 	if len(req) > 0 {
 		for _, d := range req {
 			da := d // Fix for goSec G601: Implicit memory aliasing in for loop.
 			err = m.deleteValue(ctx, tx, &da)
 			if err != nil {
-				rollbackErr := tx.Rollback()
-				if rollbackErr != nil {
-					m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
-				}
 				return err
 			}
 		}
 	}
 
-	err = tx.Commit()
-
-	return err
+	return tx.Commit()
 }
 
 // Get returns an entity from store
 // Store Interface.
 func (m *MySQL) Get(parentCtx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
-	m.logger.Debug("Getting state value from MySql")
-
 	if req.Key == "" {
 		return nil, fmt.Errorf("missing key in get operation")
 	}
@@ -549,7 +543,7 @@ func (m *MySQL) Get(parentCtx context.Context, req *state.GetRequest) (*state.Ge
 	//nolint:gosec
 	query := fmt.Sprintf(
 		`SELECT value, eTag, isbinary FROM %s WHERE id = ?
-			AND (expiredate IS NULL OR expiredate >= CURRENT_TIMESTAMP)`,
+			AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)`,
 		m.tableName, // m.tableName is sanitized
 	)
 	err := m.db.QueryRowContext(ctx, query, req.Key).Scan(&value, &eTag, &isBinary)
@@ -601,8 +595,6 @@ func (m *MySQL) Set(ctx context.Context, req *state.SetRequest) error {
 // setValue is an internal implementation of set to enable passing the logic
 // to state.SetWithRetries as a func.
 func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.SetRequest) error {
-	m.logger.Debug("Setting state value in MySql")
-
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
@@ -614,9 +606,9 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 
 	// TTL
 	var ttlSeconds int
-	ttl, ttlerr := utils.ParseTTL(req.Metadata)
-	if ttlerr != nil {
-		return fmt.Errorf("error parsing TTL: %w", ttlerr)
+	ttl, err := utils.ParseTTL(req.Metadata)
+	if err != nil {
+		return fmt.Errorf("error parsing TTL: %w", err)
 	}
 	if ttl != nil {
 		ttlSeconds = *ttl
@@ -626,6 +618,8 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 		query    string
 		ttlQuery string
 		params   []any
+		result   sql.Result
+		maxRows  int64 = 1
 	)
 
 	var v any
@@ -652,38 +646,38 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 	}
 	eTag := eTagObj.String()
 
-	var (
-		result  sql.Result
-		maxRows int64 = 1
-	)
-
-	ctx, cancel := context.WithTimeout(parentCtx, m.timeout)
-	defer cancel()
-
-	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
-		// With first-write-wins and no etag, we can insert the row only if it doesn't exist
-		query = `INSERT INTO %[1]s (value, id, eTag, isbinary, expiredate) VALUES (?, ?, ?, ?, %[2]s)`
-		params = []any{enc, req.Key, eTag, isBinary}
-	} else if req.ETag != nil && *req.ETag != "" {
-		// When an eTag is provided do an update - not insert
-		query = `UPDATE %[1]s SET value = ?, eTag = ?, isbinary = ?, expiredate = %[2]s
-			WHERE id = ? AND eTag = ? AND (expiredate IS NULL OR expiredate >= CURRENT_TIMESTAMP)`
-		params = []any{enc, eTag, isBinary, req.Key, *req.ETag}
-	} else {
-		// If this is a duplicate MySQL returns that two rows affected
-		maxRows = 2
-		query = `INSERT INTO %[1]s (value, id, eTag, isbinary, expiredate) VALUES (?, ?, ?, ?, %[2]s) 
-			on duplicate key update value=?, eTag=?, isbinary=?, expiredate=%[2]s`
-		params = []any{enc, req.Key, eTag, isBinary, enc, eTag, isBinary}
-	}
-
 	if ttlSeconds > 0 {
 		ttlQuery = "CURRENT_TIMESTAMP + INTERVAL " + strconv.Itoa(ttlSeconds) + " SECOND"
 	} else {
 		ttlQuery = "NULL"
 	}
 
-	result, err = querier.ExecContext(ctx, fmt.Sprintf(query, m.tableName, ttlQuery), params...)
+	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
+		// With first-write-wins and no etag, we can insert the row only if it doesn't exist
+		query = `INSERT INTO ` + m.tableName + ` (value, id, eTag, isbinary, expiredate)
+			VALUES (?, ?, ?, ?, ` + ttlQuery + `)`
+		params = []any{enc, req.Key, eTag, isBinary}
+	} else if req.ETag != nil && *req.ETag != "" {
+		// When an eTag is provided do an update - not insert
+		query = `UPDATE ` + m.tableName + `
+			SET value = ?, eTag = ?, isbinary = ?, expiredate = ` + ttlQuery + `
+			WHERE id = ?
+				AND eTag = ?
+				AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)`
+		params = []any{enc, eTag, isBinary, req.Key, *req.ETag}
+	} else {
+		// If this is a duplicate MySQL returns that two rows affected
+		maxRows = 2
+		query = `INSERT INTO ` + m.tableName + ` (value, id, eTag, isbinary, expiredate)
+			VALUES (?, ?, ?, ?, ` + ttlQuery + `) 
+			ON DUPLICATE KEY UPDATE
+				value=?, eTag=?, isbinary=?, expiredate=` + ttlQuery
+		params = []any{enc, req.Key, eTag, isBinary, enc, eTag, isBinary}
+	}
+
+	ctx, cancel := context.WithTimeout(parentCtx, m.timeout)
+	defer cancel()
+	result, err = querier.ExecContext(ctx, query, params...)
 
 	if err != nil {
 		if req.ETag != nil && *req.ETag != "" {
@@ -699,14 +693,14 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 	}
 
 	if rows == 0 {
-		err = errors.New(`rows affected error: no rows match given key and eTag`)
+		err = errors.New("rows affected error: no rows match given key and eTag")
 		err = state.NewETagError(state.ETagMismatch, err)
 		m.logger.Error(err)
 		return err
 	}
 
 	if rows > maxRows {
-		err = fmt.Errorf(`rows affected error: more than %d row affected; actual %d`, maxRows, rows)
+		err = fmt.Errorf("rows affected error: more than %d row affected; actual %d", maxRows, rows)
 		m.logger.Error(err)
 		return err
 	}
@@ -717,21 +711,21 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 // BulkSet adds/updates multiple entities on store
 // Store Interface.
 func (m *MySQL) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	m.logger.Debug("Executing BulkSet request")
-
 	tx, err := m.db.Begin()
 	if err != nil {
 		return err
 	}
+	defer func() {
+		rollbackErr := tx.Rollback()
+		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
+		}
+	}()
 
 	if len(req) > 0 {
 		for i := range req {
 			err = m.setValue(ctx, tx, &req[i])
 			if err != nil {
-				rollbackErr := tx.Rollback()
-				if rollbackErr != nil {
-					m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
-				}
 				return err
 			}
 		}
@@ -743,50 +737,38 @@ func (m *MySQL) BulkSet(ctx context.Context, req []state.SetRequest) error {
 // Multi handles multiple transactions.
 // TransactionalStore Interface.
 func (m *MySQL) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
-	m.logger.Debug("Executing Multi request")
-
 	tx, err := m.db.Begin()
 	if err != nil {
 		return err
 	}
+	defer func() {
+		rollbackErr := tx.Rollback()
+		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
+		}
+	}()
 
 	for _, req := range request.Operations {
 		switch req.Operation {
 		case state.Upsert:
 			setReq, err := m.getSets(req)
 			if err != nil {
-				rollbackErr := tx.Rollback()
-				if rollbackErr != nil {
-					m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
-				}
 				return err
 			}
 
 			err = m.setValue(ctx, tx, &setReq)
 			if err != nil {
-				rollbackErr := tx.Rollback()
-				if rollbackErr != nil {
-					m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
-				}
 				return err
 			}
 
 		case state.Delete:
 			delReq, err := m.getDeletes(req)
 			if err != nil {
-				rollbackErr := tx.Rollback()
-				if rollbackErr != nil {
-					m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
-				}
 				return err
 			}
 
 			err = m.deleteValue(ctx, tx, &delReq)
 			if err != nil {
-				rollbackErr := tx.Rollback()
-				if rollbackErr != nil {
-					m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
-				}
 				return err
 			}
 
@@ -802,11 +784,11 @@ func (m *MySQL) Multi(ctx context.Context, request *state.TransactionalStateRequ
 func (m *MySQL) getSets(req state.TransactionalStateOperation) (state.SetRequest, error) {
 	setReq, ok := req.Request.(state.SetRequest)
 	if !ok {
-		return setReq, fmt.Errorf("expecting set request")
+		return setReq, errors.New("expecting set request")
 	}
 
 	if setReq.Key == "" {
-		return setReq, fmt.Errorf("missing key in upsert operation")
+		return setReq, errors.New("missing key in upsert operation")
 	}
 
 	return setReq, nil
@@ -816,11 +798,11 @@ func (m *MySQL) getSets(req state.TransactionalStateOperation) (state.SetRequest
 func (m *MySQL) getDeletes(req state.TransactionalStateOperation) (state.DeleteRequest, error) {
 	delReq, ok := req.Request.(state.DeleteRequest)
 	if !ok {
-		return delReq, fmt.Errorf("expecting delete request")
+		return delReq, errors.New("expecting delete request")
 	}
 
 	if delReq.Key == "" {
-		return delReq, fmt.Errorf("missing key in delete operation")
+		return delReq, errors.New("missing key in delete operation")
 	}
 
 	return delReq, nil
@@ -881,4 +863,10 @@ func (m *MySQL) GetComponentMetadata() map[string]string {
 	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
 	return metadataInfo
+}
+
+// This interface is used to help improve testing.
+type iMySQLFactory interface {
+	Open(connectionString string) (*sql.DB, error)
+	RegisterTLSConfig(pemPath string) error
 }

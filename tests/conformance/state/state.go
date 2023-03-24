@@ -817,19 +817,19 @@ func assertEquals(t *testing.T, value any, res *state.GetResponse) {
 	case intValueType:
 		// Custom type requires case mapping
 		if err := json.Unmarshal(res.Data, &v); err != nil {
-			assert.Failf(t, "unmarshal error", "error: %w, json: %s", err, string(res.Data))
+			assert.Failf(t, "unmarshal error", "error: %v, json: %s", err, string(res.Data))
 		}
 		assert.Equal(t, value, v)
 	case ValueType:
 		// Custom type requires case mapping
 		if err := json.Unmarshal(res.Data, &v); err != nil {
-			assert.Failf(t, "unmarshal error", "error: %w, json: %s", err, string(res.Data))
+			assert.Failf(t, "unmarshal error", "error: %v, json: %s", err, string(res.Data))
 		}
 		assert.Equal(t, value, v)
 	case int:
 		// json.Unmarshal to float64 by default, case mapping to int coerces to int type
 		if err := json.Unmarshal(res.Data, &v); err != nil {
-			assert.Failf(t, "unmarshal error", "error: %w, json: %s", err, string(res.Data))
+			assert.Failf(t, "unmarshal error", "error: %v, json: %s", err, string(res.Data))
 		}
 		assert.Equal(t, value, v)
 	case []byte:
@@ -837,7 +837,7 @@ func assertEquals(t *testing.T, value any, res *state.GetResponse) {
 	default:
 		// Other golang primitive types (string, bool ...)
 		if err := json.Unmarshal(res.Data, &v); err != nil {
-			assert.Failf(t, "unmarshal error", "error: %w, json: %s", err, string(res.Data))
+			assert.Failf(t, "unmarshal error", "error: %v, json: %s", err, string(res.Data))
 		}
 		assert.Equal(t, value, v)
 	}

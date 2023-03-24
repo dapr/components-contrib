@@ -256,16 +256,17 @@ jobs:
         echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
 
         if [ ${{ matrix.source-pkg }} != '' ]; then
-          SRC_PKG=${KIND}/${{ matrix.source-pkg }}
+          SRC_PKG=${{ matrix.source-pkg }}
         else
-          SRC_PKG=${KIND}/${NAME}  
+          SRC_PKG=github.com/dapr/components-contrib/${KIND}/${NAME}
         fi
+        echo "SRC_PKG is": ${SRC_PKG}
 
         set +e
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json \
           --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.xml --format standard-verbose -- \
           -p 2 -count=1 -timeout=15m -tags=conftests ./tests/conformance --run="Test${KIND_UPPER}Conformance/${NAME}" -coverprofile=cover.out \
-          -covermode=set -coverpkg=github.com/dapr/components-contrib/internal/component/${{ matrix.source-pkg }}/...,github.com/dapr/components-contrib/${SRC_PKG}/...
+          -covermode=set -coverpkg=${SRC_PKG}
 
         status=$?
         echo "Completed tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "

@@ -270,7 +270,7 @@ func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest)
 			WHERE
 				key = $1
 				AND (expiredate IS NULL OR expiredate >= CURRENT_TIMESTAMP)`
-	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
 	defer cancel()
 	row := p.db.QueryRow(ctx, query, req.Key)
 	_, value, etag, err := readRow(row)
@@ -306,7 +306,7 @@ func (p *PostgresDBAccess) BulkGet(parentCtx context.Context, req []state.GetReq
 			WHERE
 				key = ANY($1)
 				AND (expiredate IS NULL OR expiredate >= CURRENT_TIMESTAMP)`
-	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
 	defer cancel()
 	rows, err := p.db.Query(ctx, query, keys)
 	if err != nil {

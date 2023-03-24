@@ -103,6 +103,7 @@ func TestMetadataDecode(t *testing.T) {
 			Myfloat64              float64       `json:"myfloat64,string"`
 			Mybool                 *bool         `json:"mybool,omitempty"`
 			MyRegularDuration      time.Duration `json:"myregularduration"`
+			MyDurationWithoutUnit  time.Duration `json:"mydurationwithoutunit"`
 			MyRegularDurationEmpty time.Duration `json:"myregulardurationempty"`
 
 			MyRegularDurationDefaultValueUnset time.Duration `json:"myregulardurationdefaultvalueunset"`
@@ -120,6 +121,7 @@ func TestMetadataDecode(t *testing.T) {
 			"myfloat64":              "1.1",
 			"mybool":                 "true",
 			"myregularduration":      "6m",
+			"mydurationwithoutunit":  "17",
 			"myregulardurationempty": "",
 			// Not setting myregulardurationdefaultvalueunset on purpose
 			"myregulardurationdefaultvalueempty": "",
@@ -134,6 +136,7 @@ func TestMetadataDecode(t *testing.T) {
 		assert.Equal(t, 1.1, m.Myfloat64)
 		assert.Equal(t, Duration{Duration: 3 * time.Second}, m.Myduration)
 		assert.Equal(t, 6*time.Minute, m.MyRegularDuration)
+		assert.Equal(t, time.Second*17, m.MyDurationWithoutUnit)
 		assert.Equal(t, time.Duration(0), m.MyRegularDurationEmpty)
 		assert.Equal(t, time.Hour, m.MyRegularDurationDefaultValueUnset)
 		assert.Equal(t, time.Duration(0), m.MyRegularDurationDefaultValueEmpty)

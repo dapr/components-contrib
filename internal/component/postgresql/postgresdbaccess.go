@@ -341,9 +341,8 @@ func (p *PostgresDBAccess) doDelete(parentCtx context.Context, db dbquerier, req
 			return state.NewETagError(state.ETagInvalid, err)
 		}
 
-		result, err = db.Exec(ctx, "DELETE FROM "+p.metadata.TableName+" WHERE key = $1 AND $2 = "+p.etagColumn, req.Key, uint32(etag64))
+		result, err = db.Exec(ctx, "DELETE FROM "+p.metadata.TableName+" WHERE key = $1 AND "+p.etagColumn+" = $2", req.Key, uint32(etag64))
 	}
-
 	if err != nil {
 		return err
 	}

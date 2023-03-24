@@ -47,7 +47,7 @@ func (m *postgresMetadataStruct) InitWithMetadata(meta state.Metadata) error {
 	m.ConnectionString = ""
 	m.TableName = defaultTableName
 	m.MetadataTableName = defaultMetadataTableName
-	m.CleanupInterval = ptr.Of(time.Duration(defaultCleanupInternal * time.Second))
+	m.CleanupInterval = ptr.Of(defaultCleanupInternal * time.Second)
 	m.Timeout = defaultTimeout * time.Second
 
 	// Decode the metadata
@@ -72,13 +72,12 @@ func (m *postgresMetadataStruct) InitWithMetadata(meta state.Metadata) error {
 		if *m.CleanupInterval <= 0 {
 			if meta.Properties[cleanupIntervalKey] == "" {
 				// unfortunately the mapstructure decoder decodes an empty string to 0, a missing key would be nil however
-				m.CleanupInterval = ptr.Of(time.Duration(defaultCleanupInternal * time.Second))
+				m.CleanupInterval = ptr.Of(defaultCleanupInternal * time.Second)
 			} else {
 				m.CleanupInterval = nil
 			}
 		}
 	}
-	fmt.Println("m.CleanupInterval: ", m.CleanupInterval)
 
 	return nil
 }

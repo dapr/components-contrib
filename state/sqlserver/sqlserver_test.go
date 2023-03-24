@@ -205,7 +205,7 @@ func TestValidConfiguration(t *testing.T) {
 			}
 
 			err := sqlStore.Init(context.Background(), metadata)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			assert.Equal(t, tt.expected.connectionString, sqlStore.connectionString)
 			assert.Equal(t, tt.expected.tableName, sqlStore.tableName)
 			assert.Equal(t, tt.expected.schema, sqlStore.schema)
@@ -330,7 +330,7 @@ func TestInvalidConfiguration(t *testing.T) {
 			}
 
 			err := sqlStore.Init(context.Background(), metadata)
-			assert.NotNil(t, err)
+			assert.Error(t, err)
 
 			if tt.expectedErr != "" {
 				assert.Contains(t, err.Error(), tt.expectedErr)
@@ -351,7 +351,7 @@ func TestExecuteMigrationFails(t *testing.T) {
 	}
 
 	err := sqlStore.Init(context.Background(), metadata)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestSupportedFeatures(t *testing.T) {
@@ -361,4 +361,18 @@ func TestSupportedFeatures(t *testing.T) {
 	assert.NotNil(t, actual)
 	assert.Equal(t, state.FeatureETag, actual[0])
 	assert.Equal(t, state.FeatureTransactional, actual[1])
+}
+
+func TestConnStringContainsDatabase(t *testing.T) {
+	// Regular test - present
+	assert.True(t, connStringContainsDatabase(sampleConnectionString))
+
+	// Regular test - not present
+	assert.False(t, connStringContainsDatabase("server=localhost;user id=sa;password=Pass@Word1;port=1433;"))
+
+	// Case-insensitive test
+	assert.True(t, connStringContainsDatabase("server=localhost;user id=sa;password=Pass@Word1;port=1433;Database=sample;"))
+
+	// Beginning of string
+	assert.True(t, connStringContainsDatabase("Database=sample;server=localhost;user id=sa;password=Pass@Word1;port=1433;"))
 }

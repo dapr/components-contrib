@@ -47,7 +47,7 @@ func (m *postgresMetadataStruct) InitWithMetadata(meta state.Metadata) error {
 	m.ConnectionString = ""
 	m.TableName = defaultTableName
 	m.MetadataTableName = defaultMetadataTableName
-	m.CleanupInterval = ptr.Of(defaultCleanupInternal * time.Second)
+	m.CleanupInterval = ptr.Of(time.Duration(defaultCleanupInternal * time.Second))
 	m.Timeout = defaultTimeout * time.Second
 
 	// Decode the metadata
@@ -69,11 +69,15 @@ func (m *postgresMetadataStruct) InitWithMetadata(meta state.Metadata) error {
 	// Cleanup interval
 	if m.CleanupInterval != nil {
 		// Non-positive value from meta means disable auto cleanup.
-		if *m.CleanupInterval > 0 {
-		} else {
-			m.CleanupInterval = nil
+		if *m.CleanupInterval <= 0 {
+			if meta.Properties[cleanupIntervalKey] == "" {
+				m.CleanupInterval = ptr.Of(time.Duration(defaultCleanupInternal * time.Second))
+			} else {
+				m.CleanupInterval = nil
+			}
 		}
 	}
+	fmt.Println("m.CleanupInterval: ", m.CleanupInterval)
 
 	return nil
 }

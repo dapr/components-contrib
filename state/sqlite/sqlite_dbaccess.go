@@ -301,7 +301,7 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 		etag string
 	)
 	res := make([]state.BulkGetResponse, len(req))
-	for rows.Next() {
+	for ; rows.Next(); n++ {
 		r := state.BulkGetResponse{}
 		r.Key, r.Data, etag, err = readRow(rows)
 		if err != nil {
@@ -309,7 +309,6 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 		}
 		r.ETag = &etag
 		res[n] = r
-		n++
 	}
 
 	return true, res[:n], nil

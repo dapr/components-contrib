@@ -18,7 +18,7 @@ on:
     types: [coverage-report]
   workflow_dispatch:
   schedule:
-    - cron: '0 */24 * * *'
+    - cron: '0 0 * * 0'
 
 jobs:
   coverage:

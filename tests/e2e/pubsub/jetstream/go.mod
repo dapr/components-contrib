@@ -3,8 +3,8 @@ module github.com/dapr/components-contrib/tests/e2e/pubsub/jetstream
 go 1.20
 
 require (
-	github.com/dapr/components-contrib v1.10.0-rc.9.0.20230303212325-d6f35401af8a
-	github.com/dapr/kit v0.0.4
+	github.com/dapr/components-contrib v1.10.0-rc.9.0.20230314182450-1d40321ac0be
+	github.com/dapr/kit v0.0.5-0.20230321003608-efcc1af907a7
 )
 
 require (
@@ -22,8 +22,9 @@ require (
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
-	golang.org/x/crypto v0.6.0 // indirect
-	golang.org/x/sys v0.5.0 // indirect
+	golang.org/x/crypto v0.7.0 // indirect
+	golang.org/x/exp v0.0.0-20230310171629-522b1b587ee0 // indirect
+	golang.org/x/sys v0.6.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 )
 

@@ -56,9 +56,12 @@ jobs:
       - name: Check components-schema
         if: steps.skip_check.outputs.should_skip != 'true'
         run: make check-component-metadata-schema-diff
+      - name: Check components metadata yaml up to date
+        if: steps.skip_check.outputs.should_skip != 'true'
+        run: make check-component-metadata
       - name: Run golangci-lint
         if: steps.skip_check.outputs.should_skip != 'true'
-        uses: golangci/golangci-lint-action@v3.2.0
+        uses: golangci/golangci-lint-action@v3.4.0
         with:
           version: ${{ env.GOLANGCI_LINT_VER }}
           skip-cache: true

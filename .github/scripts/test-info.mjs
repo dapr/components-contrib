@@ -107,6 +107,9 @@ const components = {
         conformance: true,
         conformanceSetup: 'docker-compose.sh kafka',
     },
+    'bindings.kitex': {
+        certification: true,
+    },
     'bindings.kubemq': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh kubemq',
@@ -158,6 +161,9 @@ const components = {
     'configuration.redis': {
         certification: true,
     },
+    'middleware.http.bearer': {
+        certification: true,
+    },
     'middleware.http.ratelimit': {
         certification: true,
     },
@@ -177,7 +183,8 @@ const components = {
         requireAWSCredentials: true,
         requireTerraform: true,
         conformanceSetup: 'conformance-pubsub.aws.snssqs.terraform-setup.sh',
-        conformanceDestroy: 'conformance-pubsub.aws.snssqs.terraform-destroy.sh',
+        conformanceDestroy:
+            'conformance-pubsub.aws.snssqs.terraform-destroy.sh',
     },
     'pubsub.azure.eventhubs': {
         conformance: true,
@@ -278,31 +285,31 @@ const components = {
         certification: true,
         requiredSecrets: [
             'AzureKeyVaultName',
-            'AzureKeyVaultSecretStoreTenantId',
-            'AzureKeyVaultSecretStoreClientId',
-            'AzureKeyVaultSecretStoreServicePrincipalClientId',
-            'AzureKeyVaultSecretStoreServicePrincipalClientSecret',
+            'AzureKeyVaultTenantId',
+            'AzureKeyVaultClientId',
+            'AzureKeyVaultServicePrincipalClientId',
+            'AzureKeyVaultServicePrincipalClientSecret',
             'AzureContainerRegistryName',
             'AzureResourceGroupName',
         ],
-        requiredCerts: ['AzureKeyVaultSecretStoreCert'],
+        requiredCerts: ['AzureKeyVaultCert'],
     },
     'secretstores.azure.keyvault.certificate': {
         conformance: true,
         requiredSecrets: [
             'AzureKeyVaultName',
-            'AzureKeyVaultSecretStoreTenantId',
-            'AzureKeyVaultSecretStoreClientId',
+            'AzureKeyVaultTenantId',
+            'AzureKeyVaultClientId',
         ],
-        requiredCerts: ['AzureKeyVaultSecretStoreCert'],
+        requiredCerts: ['AzureKeyVaultCert'],
     },
     'secretstores.azure.keyvault.serviceprincipal': {
         conformance: true,
         requiredSecrets: [
             'AzureKeyVaultName',
-            'AzureKeyVaultSecretStoreTenantId',
-            'AzureKeyVaultSecretStoreServicePrincipalClientId',
-            'AzureKeyVaultSecretStoreServicePrincipalClientSecret',
+            'AzureKeyVaultTenantId',
+            'AzureKeyVaultServicePrincipalClientId',
+            'AzureKeyVaultServicePrincipalClientSecret',
         ],
     },
     'secretstores.hashicorp.vault': {
@@ -412,6 +419,10 @@ const components = {
         conformance: true,
         certification: true,
         conformanceSetup: 'docker-compose.sh cockroachdb',
+    },
+    'state.etcd': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh etcd',
     },
     'state.in-memory': {
         conformance: true,

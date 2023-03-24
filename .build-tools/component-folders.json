@@ -2,6 +2,7 @@
     "componentFolders": [
         "bindings",
         "configuration",
+        "crypto",
         "lock",
         "middleware/http",
         "nameresolution",
@@ -21,6 +22,8 @@
         "bindings/zeebe",
         "configuration/azure",
         "configuration/redis/internal",
+        "crypto/azure",
+        "crypto/kubernetes",
         "pubsub/aws",
         "pubsub/azure",
         "pubsub/azure/servicebus",

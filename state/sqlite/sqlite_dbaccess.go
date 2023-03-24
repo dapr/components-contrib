@@ -249,7 +249,6 @@ func (a *sqliteDBAccess) Get(parentCtx context.Context, req *state.GetRequest) (
 	}
 
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
-	//nolint:gosec
 	stmt := `SELECT key, value, is_binary, etag FROM ` + a.metadata.TableName + `
 		WHERE
 			key = ?
@@ -286,7 +285,6 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 	}
 
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
-	//nolint:gosec
 	stmt := `SELECT key, value, is_binary, etag FROM ` + a.metadata.TableName + `
 		WHERE
 			key IN (` + inClause + `)

@@ -94,7 +94,7 @@ func (p *PostgresDBAccess) Init(ctx context.Context, meta state.Metadata) error 
 		config.MaxConnIdleTime = p.metadata.ConnectionMaxIdleTime
 	}
 
-	connCtx, connCancel := context.WithTimeout(ctx, p.metadata.timeout)
+	connCtx, connCancel := context.WithTimeout(ctx, p.metadata.Timeout)
 	p.db, err = pgxpool.NewWithConfig(connCtx, config)
 	connCancel()
 	if err != nil {
@@ -103,7 +103,7 @@ func (p *PostgresDBAccess) Init(ctx context.Context, meta state.Metadata) error 
 		return err
 	}
 
-	pingCtx, pingCancel := context.WithTimeout(ctx, p.metadata.timeout)
+	pingCtx, pingCancel := context.WithTimeout(ctx, p.metadata.Timeout)
 	err = p.db.Ping(pingCtx)
 	pingCancel()
 	if err != nil {
@@ -121,7 +121,7 @@ func (p *PostgresDBAccess) Init(ctx context.Context, meta state.Metadata) error 
 		return err
 	}
 
-	if p.metadata.cleanupInterval != nil {
+	if p.metadata.CleanupInterval != nil {
 		gc, err := internalsql.ScheduleGarbageCollector(internalsql.GCOptions{
 			Logger: p.logger,
 			UpdateLastCleanupQuery: fmt.Sprintf(
@@ -136,7 +136,7 @@ func (p *PostgresDBAccess) Init(ctx context.Context, meta state.Metadata) error 
 				`DELETE FROM %s WHERE expiredate IS NOT NULL AND expiredate < CURRENT_TIMESTAMP`,
 				p.metadata.TableName,
 			),
-			CleanupInterval: *p.metadata.cleanupInterval,
+			CleanupInterval: *p.metadata.CleanupInterval,
 			DBPgx:           p.db,
 		})
 		if err != nil {
@@ -250,7 +250,7 @@ func (p *PostgresDBAccess) BulkSet(parentCtx context.Context, req []state.SetReq
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
 	err = tx.Commit(ctx)
 	cancel()
 	if err != nil {
@@ -372,7 +372,7 @@ func (p *PostgresDBAccess) BulkDelete(parentCtx context.Context, req []state.Del
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
 	err = tx.Commit(ctx)
 	cancel()
 	if err != nil {
@@ -420,7 +420,7 @@ func (p *PostgresDBAccess) ExecuteMulti(parentCtx context.Context, request *stat
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
 	err = tx.Commit(ctx)
 	cancel()
 	if err != nil {
@@ -477,7 +477,7 @@ func (p *PostgresDBAccess) Close() error {
 // GetCleanupInterval returns the cleanupInterval property.
 // This is primarily used for tests.
 func (p *PostgresDBAccess) GetCleanupInterval() *time.Duration {
-	return p.metadata.cleanupInterval
+	return p.metadata.CleanupInterval
 }
 
 // Returns the set requests.
@@ -510,7 +510,7 @@ func getDelete(req state.TransactionalStateOperation) (state.DeleteRequest, erro
 
 // Internal function that begins a transaction.
 func (p *PostgresDBAccess) beginTx(parentCtx context.Context) (pgx.Tx, error) {
-	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
 	tx, err := p.db.Begin(ctx)
 	cancel()
 	if err != nil {
@@ -523,7 +523,7 @@ func (p *PostgresDBAccess) beginTx(parentCtx context.Context) (pgx.Tx, error) {
 // Normally called as a deferred function in methods that use transactions.
 // In case of errors, they are logged but not actioned upon.
 func (p *PostgresDBAccess) rollbackTx(parentCtx context.Context, tx pgx.Tx, methodName string) {
-	rollbackCtx, rollbackCancel := context.WithTimeout(parentCtx, p.metadata.timeout)
+	rollbackCtx, rollbackCancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
 	rollbackErr := tx.Rollback(rollbackCtx)
 	rollbackCancel()
 	if rollbackErr != nil && !errors.Is(rollbackErr, pgx.ErrTxClosed) {

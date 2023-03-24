@@ -71,6 +71,7 @@ func (m *postgresMetadataStruct) InitWithMetadata(meta state.Metadata) error {
 		// Non-positive value from meta means disable auto cleanup.
 		if *m.CleanupInterval <= 0 {
 			if meta.Properties[cleanupIntervalKey] == "" {
+				// unfortunately the mapstructure decoder decodes an empty string to 0, a missing key would be nil however
 				m.CleanupInterval = ptr.Of(time.Duration(defaultCleanupInternal * time.Second))
 			} else {
 				m.CleanupInterval = nil

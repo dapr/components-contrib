@@ -80,15 +80,15 @@ func TestPostgresbuildQuery(t *testing.T) {
 
 func TestConnectAndQuery(t *testing.T) {
 	m := metadata{
-		connectionString: "mockConnectionString",
-		configTable:      "mockConfigTable",
+		ConnectionString: "mockConnectionString",
+		ConfigTable:      "mockConfigTable",
 	}
 
 	mock, err := pgxmock.NewPool()
 	assert.Nil(t, err)
 	defer mock.Close()
 
-	query := "SELECT EXISTS (SELECT FROM pg_tables where tablename = '" + m.configTable + "'"
+	query := "SELECT EXISTS (SELECT FROM pg_tables where tablename = '" + m.ConfigTable + "'"
 	mock.ExpectQuery(regexp.QuoteMeta(query)).
 		WillReturnRows(pgxmock.NewRows(
 			[]string{"exists"}).

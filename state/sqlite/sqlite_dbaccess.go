@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -386,42 +387,67 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 	// Also resets expiration time in case of an update
 	expiration := "NULL"
 	if ttlSeconds > 0 {
-		expiration = fmt.Sprintf("DATETIME(CURRENT_TIMESTAMP, '+%d seconds')", ttlSeconds)
+		expiration = "DATETIME(CURRENT_TIMESTAMP, '+" + strconv.Itoa(ttlSeconds) + " seconds')"
 	}
 
 	// Only check for etag if FirstWrite specified (ref oracledatabaseaccess)
-	var res sql.Result
+	var (
+		res        sql.Result
+		mustCommit bool
+		stmt       string
+	)
 	// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
 	// And the same is for DATETIME function's seconds parameter (which is from an integer anyways).
 	if req.ETag == nil || *req.ETag == "" {
-		var op string
+		// If the operation uses first-write concurrency, we need to handle the special case of a row that has expired but hasn't been garbage collected yet
+		// In this case, the row should be considered as if it were deleted
+		// With SQLite, the only way we can handle that is by performing a SELECT query first
 		if req.Options.Concurrency == state.FirstWrite {
-			op = "INSERT"
-		} else {
-			op = "INSERT OR REPLACE"
+			// If we're not in a transaction already, start one as we need to ensure consistency
+			if db == a.db {
+				db, err = a.db.BeginTx(parentCtx, nil)
+				if err != nil {
+					return fmt.Errorf("failed to begin transaction: %w", err)
+				}
+				defer db.(*sql.Tx).Rollback()
+				mustCommit = true
+			}
+
+			// Check if there's already a row with the given key that has not expired yet
+			var count int
+			stmt = `SELECT COUNT(key)
+				FROM ` + a.metadata.TableName + `
+				WHERE key = ?
+					AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
+			err = db.QueryRowContext(parentCtx, stmt, req.Key).Scan(&count)
+			if err != nil {
+				return fmt.Errorf("failed to check for existing row with first-write concurrency: %w", err)
+			}
+
+			// If the row exists, then we just return an etag error
+			// Otherwise, we can fall through and continue with an INSERT OR REPLACE statement
+			if count > 0 {
+				return state.NewETagError(state.ETagMismatch, nil)
+			}
 		}
-		stmt := fmt.Sprintf(
-			`%s INTO %s
+
+		stmt = "INSERT OR REPLACE INTO " + a.metadata.TableName + `
 				(key, value, is_binary, etag, update_time, expiration_time)
-			VALUES(?, ?, ?, ?, CURRENT_TIMESTAMP, %s)`,
-			op, a.metadata.TableName, expiration,
-		)
+			VALUES(?, ?, ?, ?, CURRENT_TIMESTAMP, ` + expiration + `)`
 		ctx, cancel := context.WithTimeout(context.Background(), a.metadata.timeout)
 		res, err = db.ExecContext(ctx, stmt, req.Key, requestValue, isBinary, newEtag, req.Key)
 		cancel()
 	} else {
-		stmt := fmt.Sprintf(
-			`UPDATE %s SET
+		stmt = `UPDATE ` + a.metadata.TableName + ` SET
 				value = ?,
 				etag = ?,
 				is_binary = ?,
 				update_time = CURRENT_TIMESTAMP,
-				expiration_time = %s
+				expiration_time = ` + expiration + `
 			WHERE
 				key = ?
-				AND eTag = ?`,
-			a.metadata.TableName, expiration,
-		)
+				AND etag = ?
+				AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
 		ctx, cancel := context.WithTimeout(context.Background(), a.metadata.timeout)
 		res, err = db.ExecContext(ctx, stmt, requestValue, newEtag, isBinary, req.Key, *req.ETag)
 		cancel()
@@ -430,16 +456,24 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 		return err
 	}
 
+	// Count the number of affected rows
 	rows, err := res.RowsAffected()
 	if err != nil {
 		return err
 	}
-
 	if rows == 0 {
 		if req.ETag != nil && *req.ETag != "" {
 			return state.NewETagError(state.ETagMismatch, nil)
 		}
 		return errors.New("no item was updated")
+	}
+
+	// Commit the transaction if needed
+	if mustCommit {
+		err = db.(*sql.Tx).Commit()
+		if err != nil {
+			return fmt.Errorf("failed to commit transaction: %w", err)
+		}
 	}
 
 	return nil
@@ -509,13 +543,13 @@ func (a *sqliteDBAccess) doDelete(parentCtx context.Context, db querier, req *st
 	var result sql.Result
 	if req.ETag == nil || *req.ETag == "" {
 		// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
-		stmt := fmt.Sprintf("DELETE FROM %s WHERE key = ?", a.metadata.TableName)
+		stmt := "DELETE FROM " + a.metadata.TableName + " WHERE key = ?"
 		ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
 		result, err = db.ExecContext(ctx, stmt, req.Key)
 		cancel()
 	} else {
 		// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
-		stmt := fmt.Sprintf("DELETE FROM %s WHERE key = ? AND etag = ?", a.metadata.TableName)
+		stmt := "DELETE FROM " + a.metadata.TableName + " WHERE key = ? AND etag = ?"
 		ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
 		result, err = db.ExecContext(ctx, stmt, req.Key, *req.ETag)
 		cancel()

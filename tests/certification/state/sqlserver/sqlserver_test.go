@@ -18,6 +18,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -43,7 +44,6 @@ import (
 	// Certification testing runnables
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
-
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
 	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/retry"
@@ -74,16 +74,16 @@ func TestSqlServer(t *testing.T) {
 
 		// save state, default options: strong, last-write
 		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("certificationdata"), nil)
-		assert.NoError(t, err)
+		require.NoError(ctx.T, err)
 
 		// get state
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
-		assert.Equal(t, "certificationdata", string(item.Value))
+		require.NoError(ctx.T, err)
+		assert.Equal(ctx.T, "certificationdata", string(item.Value))
 
 		// delete state
 		err = client.DeleteState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
+		require.NoError(ctx.T, err)
 
 		return nil
 	}
@@ -92,19 +92,19 @@ func TestSqlServer(t *testing.T) {
 	verifyIndexedPopertiesTest := func(ctx flow.Context) error {
 		// verify indices were created by Dapr as specified in the component metadata
 		db, err := sql.Open("sqlserver", fmt.Sprintf("%sdatabase=certificationtest;", dockerConnectionString))
-		assert.NoError(t, err)
+		require.NoError(ctx.T, err)
 		defer db.Close()
 
 		rows, err := db.Query("sp_helpindex '[customschema].[mystates]'")
-		assert.NoError(t, err)
-		assert.NoError(t, rows.Err())
+		require.NoError(ctx.T, err)
+		assert.NoError(ctx.T, rows.Err())
 		defer rows.Close()
 
 		indexFoundCount := 0
 		for rows.Next() {
 			var indexedField, otherdata1, otherdata2 string
 			err = rows.Scan(&indexedField, &otherdata1, &otherdata2)
-			assert.NoError(t, err)
+			assert.NoError(ctx.T, err)
 
 			expectedIndices := []string{"IX_customerid", "IX_transactionid", "PK_mystates"}
 			for _, item := range expectedIndices {
@@ -114,7 +114,7 @@ func TestSqlServer(t *testing.T) {
 				}
 			}
 		}
-		assert.Equal(t, 3, indexFoundCount)
+		assert.Equal(ctx.T, 3, indexFoundCount)
 
 		// write JSON data to the state store (which will automatically be indexed in separate columns)
 		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
@@ -130,36 +130,36 @@ func TestSqlServer(t *testing.T) {
 		}{123456, "John Doe", "something"}
 
 		data, err := json.Marshal(order)
-		assert.NoError(t, err)
+		assert.NoError(ctx.T, err)
 
 		// save state with the key certificationkey1, default options: strong, last-write
 		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", data, nil)
-		require.NoError(t, err)
+		require.NoError(ctx.T, err)
 
 		// get state for key certificationkey1
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
-		assert.Equal(t, string(data), string(item.Value))
+		assert.NoError(ctx.T, err)
+		assert.Equal(ctx.T, string(data), string(item.Value))
 
 		// check that Dapr wrote the indexed properties to separate columns
 		rows, err = db.Query("SELECT TOP 1 transactionid, customerid FROM [customschema].[mystates];")
-		assert.NoError(t, err)
-		assert.NoError(t, rows.Err())
+		assert.NoError(ctx.T, err)
+		assert.NoError(ctx.T, rows.Err())
 		defer rows.Close()
 		if rows.Next() {
 			var transactionID int
 			var customerID string
 			err = rows.Scan(&transactionID, &customerID)
-			assert.NoError(t, err)
-			assert.Equal(t, transactionID, order.ID)
-			assert.Equal(t, customerID, order.Customer)
+			assert.NoError(ctx.T, err)
+			assert.Equal(ctx.T, transactionID, order.ID)
+			assert.Equal(ctx.T, customerID, order.Customer)
 		} else {
-			assert.Fail(t, "no rows returned")
+			assert.Fail(ctx.T, "no rows returned")
 		}
 
 		// delete state for key certificationkey1
 		err = client.DeleteState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
+		assert.NoError(ctx.T, err)
 
 		return nil
 	}
@@ -167,9 +167,9 @@ func TestSqlServer(t *testing.T) {
 	// helper function for testing the use of an existing custom schema
 	createCustomSchema := func(ctx flow.Context) error {
 		db, err := sql.Open("sqlserver", dockerConnectionString)
-		assert.NoError(t, err)
+		assert.NoError(ctx.T, err)
 		_, err = db.Exec("CREATE SCHEMA customschema;")
-		assert.NoError(t, err)
+		assert.NoError(ctx.T, err)
 		db.Close()
 		return nil
 	}
@@ -204,229 +204,215 @@ func TestSqlServer(t *testing.T) {
 		for _, sqlInjectionAttempt := range sqlInjectionAttempts {
 			// save state with sqlInjectionAttempt's value as key, default options: strong, last-write
 			err = client.SaveState(ctx, stateStoreName, sqlInjectionAttempt, []byte(sqlInjectionAttempt), nil)
-			assert.NoError(t, err)
+			assert.NoError(ctx.T, err)
 
 			// get state for key sqlInjectionAttempt's value
 			item, err := client.GetState(ctx, stateStoreName, sqlInjectionAttempt, nil)
-			assert.NoError(t, err)
-			assert.Equal(t, sqlInjectionAttempt, string(item.Value))
+			assert.NoError(ctx.T, err)
+			assert.Equal(ctx.T, sqlInjectionAttempt, string(item.Value))
 
 			// delete state for key sqlInjectionAttempt's value
 			err = client.DeleteState(ctx, stateStoreName, sqlInjectionAttempt, nil)
-			assert.NoError(t, err)
+			assert.NoError(ctx.T, err)
 		}
 
 		return nil
 	}
 
 	// Validates TTLs and garbage collections
-	ttlTest := func(ctx flow.Context) error {
-		log := logger.NewLogger("dapr.components")
-		md := state.Metadata{
-			Base: metadata.Base{
-				Name: "ttltest",
-				Properties: map[string]string{
-					"connectionString":  dockerConnectionString + "database=certificationtest;",
-					"tableName":         "ttltest",
-					"metadataTableName": "ttltest_metadata",
-					"schema":            "ttlschema",
+	ttlTest := func(connString string) func(ctx flow.Context) error {
+		return func(ctx flow.Context) error {
+			log := logger.NewLogger("dapr.components")
+			md := state.Metadata{
+				Base: metadata.Base{
+					Name: "ttltest",
+					Properties: map[string]string{
+						"connectionString":  connString,
+						"databaseName":      "certificationtest",
+						"tableName":         "ttltest",
+						"metadataTableName": "ttltest_metadata",
+						"schema":            "ttlschema",
+					},
 				},
-			},
+			}
+
+			ctx.T.Run("parse cleanupIntervalInSeconds", func(t *testing.T) {
+				t.Run("default value", func(t *testing.T) {
+					// Default value is 1 hr
+					md.Properties["cleanupIntervalInSeconds"] = ""
+					storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
+
+					err := storeObj.Init(context.Background(), md)
+					require.NoError(t, err, "failed to init")
+					defer storeObj.Close()
+
+					cleanupInterval := storeObj.GetCleanupInterval()
+					require.NotNil(t, cleanupInterval)
+					assert.Equal(t, time.Duration(1*time.Hour), *cleanupInterval)
+				})
+
+				t.Run("positive value", func(t *testing.T) {
+					// A positive value is interpreted in seconds
+					md.Properties["cleanupIntervalInSeconds"] = "10"
+					storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
+
+					err := storeObj.Init(context.Background(), md)
+					require.NoError(t, err, "failed to init")
+					defer storeObj.Close()
+
+					cleanupInterval := storeObj.GetCleanupInterval()
+					require.NotNil(t, cleanupInterval)
+					assert.Equal(t, time.Duration(10*time.Second), *cleanupInterval)
+				})
+
+				t.Run("disabled", func(t *testing.T) {
+					// A value of <=0 means that the cleanup is disabled
+					md.Properties["cleanupIntervalInSeconds"] = "0"
+					storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
+
+					err := storeObj.Init(context.Background(), md)
+					require.NoError(t, err, "failed to init")
+					defer storeObj.Close()
+
+					cleanupInterval := storeObj.GetCleanupInterval()
+					assert.Nil(t, cleanupInterval)
+				})
+			})
+
+			ctx.T.Run("cleanup", func(t *testing.T) {
+				dbClient, err := sql.Open("sqlserver", connString)
+				require.NoError(t, err)
+
+				t.Run("automatically delete expiredate records", func(t *testing.T) {
+					// Run every second
+					md.Properties["cleanupIntervalInSeconds"] = "1"
+
+					storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
+					err := storeObj.Init(context.Background(), md)
+					require.NoError(t, err, "failed to init")
+					defer storeObj.Close()
+
+					// Seed the database with some records
+					err = clearTable(ctx, dbClient, "ttlschema", "ttltest")
+					require.NoError(t, err, "failed to clear table")
+					err = populateTTLRecords(ctx, dbClient, "ttlschema", "ttltest")
+					require.NoError(t, err, "failed to seed records")
+
+					cleanupInterval := storeObj.GetCleanupInterval()
+					assert.NotNil(t, cleanupInterval)
+					assert.Equal(t, time.Duration(time.Second), *cleanupInterval)
+
+					// Wait up to 3 seconds then verify we have only 10 rows left
+					var count int
+					assert.Eventually(t, func() bool {
+						count, err = countRowsInTable(ctx, dbClient, "ttlschema", "ttltest")
+						require.NoError(t, err, "failed to run query to count rows")
+						return count == 10
+					}, 3*time.Second, 10*time.Millisecond, "expected 10 rows, got %d", count)
+
+					// The "last-cleanup" value should be <= 1 second (+ a bit of buffer)
+					lastCleanup, err := loadLastCleanupInterval(ctx, dbClient, "ttlschema", "ttltest_metadata")
+					require.NoError(t, err, "failed to load value for 'last-cleanup'")
+					assert.LessOrEqual(t, lastCleanup, int64(1200))
+
+					// Wait 6 more seconds and verify there are no more rows left
+					assert.Eventually(t, func() bool {
+						count, err = countRowsInTable(ctx, dbClient, "ttlschema", "ttltest")
+						require.NoError(t, err, "failed to run query to count rows")
+						return count == 0
+					}, 6*time.Second, 10*time.Millisecond, "expected 0 rows, got %d", count)
+
+					// The "last-cleanup" value should be <= 1 second (+ a bit of buffer)
+					lastCleanup, err = loadLastCleanupInterval(ctx, dbClient, "ttlschema", "ttltest_metadata")
+					require.NoError(t, err, "failed to load value for 'last-cleanup'")
+					assert.LessOrEqual(t, lastCleanup, int64(1200))
+				})
+
+				t.Run("cleanup concurrency", func(t *testing.T) {
+					// Set to run every hour
+					// (we'll manually trigger more frequent iterations)
+					md.Properties["cleanupIntervalInSeconds"] = "3600"
+
+					storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
+					err := storeObj.Init(context.Background(), md)
+					require.NoError(t, err, "failed to init")
+					defer storeObj.Close()
+
+					cleanupInterval := storeObj.GetCleanupInterval()
+					assert.NotNil(t, cleanupInterval)
+					assert.Equal(t, time.Hour, *cleanupInterval)
+
+					// Seed the database with some records
+					err = clearTable(ctx, dbClient, "ttlschema", "ttltest")
+					require.NoError(t, err, "failed to clear table")
+					err = populateTTLRecords(ctx, dbClient, "ttlschema", "ttltest")
+					require.NoError(t, err, "failed to seed records")
+
+					// Validate that 20 records are present
+					count, err := countRowsInTable(ctx, dbClient, "ttlschema", "ttltest")
+					require.NoError(t, err, "failed to run query to count rows")
+					assert.Equal(t, 20, count)
+
+					// Set last-cleanup to 1s ago
+					_, err = dbClient.ExecContext(ctx, `UPDATE [ttlschema].[ttltest_metadata] SET [Value] = CONVERT(nvarchar(MAX), DATEADD(second, -1, GETDATE()), 21) WHERE [Key] = 'last-cleanup'`)
+					require.NoError(t, err, "failed to set last-cleanup")
+
+					// The "last-cleanup" value
+					lastCleanup, err := loadLastCleanupInterval(ctx, dbClient, "ttlschema", "ttltest_metadata")
+					require.NoError(t, err, "failed to load value for 'last-cleanup'")
+					assert.LessOrEqual(t, lastCleanup, int64(1200))
+					lastCleanupValueOrig, err := getValueFromMetadataTable(ctx, dbClient, "ttlschema", "ttltest_metadata", "'last-cleanup'")
+					require.NoError(t, err, "failed to load absolute value for 'last-cleanup'")
+					require.NotEmpty(t, lastCleanupValueOrig)
+
+					// Trigger the background cleanup, which should do nothing because the last cleanup was < 3600s
+					require.NoError(t, storeObj.CleanupExpired(), "CleanupExpired returned an error")
+
+					// Validate that 20 records are still present
+					count, err = countRowsInTable(ctx, dbClient, "ttlschema", "ttltest")
+					require.NoError(t, err, "failed to run query to count rows")
+					assert.Equal(t, 20, count)
+
+					// The "last-cleanup" value should not have been changed
+					lastCleanupValue, err := getValueFromMetadataTable(ctx, dbClient, "ttlschema", "ttltest_metadata", "'last-cleanup'")
+					require.NoError(t, err, "failed to load absolute value for 'last-cleanup'")
+					assert.Equal(t, lastCleanupValueOrig, lastCleanupValue)
+				})
+			})
+
+			return nil
 		}
-
-		t.Run("parse cleanupIntervalInSeconds", func(t *testing.T) {
-			t.Run("default value", func(t *testing.T) {
-				// Default value is 1 hr
-				md.Properties["cleanupIntervalInSeconds"] = ""
-				storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
-
-				err := storeObj.Init(context.Background(), md)
-				require.NoError(t, err, "failed to init")
-				defer storeObj.Close()
-
-				cleanupInterval := storeObj.GetCleanupInterval()
-				require.NotNil(t, cleanupInterval)
-				assert.Equal(t, time.Duration(1*time.Hour), *cleanupInterval)
-			})
-
-			t.Run("positive value", func(t *testing.T) {
-				// A positive value is interpreted in seconds
-				md.Properties["cleanupIntervalInSeconds"] = "10"
-				storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
-
-				err := storeObj.Init(context.Background(), md)
-				require.NoError(t, err, "failed to init")
-				defer storeObj.Close()
-
-				cleanupInterval := storeObj.GetCleanupInterval()
-				require.NotNil(t, cleanupInterval)
-				assert.Equal(t, time.Duration(10*time.Second), *cleanupInterval)
-			})
-
-			t.Run("disabled", func(t *testing.T) {
-				// A value of <=0 means that the cleanup is disabled
-				md.Properties["cleanupIntervalInSeconds"] = "0"
-				storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
-
-				err := storeObj.Init(context.Background(), md)
-				require.NoError(t, err, "failed to init")
-				defer storeObj.Close()
-
-				cleanupInterval := storeObj.GetCleanupInterval()
-				assert.Nil(t, cleanupInterval)
-			})
-		})
-
-		t.Run("cleanup", func(t *testing.T) {
-			dbClient, err := sql.Open("sqlserver", fmt.Sprintf("%sdatabase=certificationtest;", dockerConnectionString))
-			require.NoError(t, err)
-
-			t.Run("automatically delete expiredate records", func(t *testing.T) {
-				// Run every second
-				md.Properties["cleanupIntervalInSeconds"] = "1"
-
-				storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
-				err := storeObj.Init(context.Background(), md)
-				require.NoError(t, err, "failed to init")
-				defer storeObj.Close()
-
-				// Seed the database with some records
-				err = populateTTLRecords(ctx, dbClient, "ttlschema", "ttltest")
-				require.NoError(t, err, "failed to seed records")
-
-				cleanupInterval := storeObj.GetCleanupInterval()
-				assert.NotNil(t, cleanupInterval)
-				assert.Equal(t, time.Duration(time.Second), *cleanupInterval)
-
-				// Wait up to 3 seconds then verify we have only 10 rows left
-				var count int
-				assert.Eventually(t, func() bool {
-					count, err = countRowsInTable(ctx, dbClient, "ttlschema", "ttltest")
-					require.NoError(t, err, "failed to run query to count rows")
-					return count == 10
-				}, 3*time.Second, 10*time.Millisecond, "expected 10 rows, got %d", count)
-
-				// The "last-cleanup" value should be <= 1 second (+ a bit of buffer)
-				lastCleanup, err := loadLastCleanupInterval(ctx, dbClient, "ttlschema", "ttltest_metadata")
-				require.NoError(t, err, "failed to load value for 'last-cleanup'")
-				assert.LessOrEqual(t, lastCleanup, int64(1200))
-
-				// Wait 6 more seconds and verify there are no more rows left
-				assert.Eventually(t, func() bool {
-					count, err = countRowsInTable(ctx, dbClient, "ttlschema", "ttltest")
-					require.NoError(t, err, "failed to run query to count rows")
-					return count == 0
-				}, 6*time.Second, 10*time.Millisecond, "expected 0 rows, got %d", count)
-
-				// The "last-cleanup" value should be <= 1 second (+ a bit of buffer)
-				lastCleanup, err = loadLastCleanupInterval(ctx, dbClient, "ttlschema", "ttltest_metadata")
-				require.NoError(t, err, "failed to load value for 'last-cleanup'")
-				assert.LessOrEqual(t, lastCleanup, int64(1200))
-			})
-
-			t.Run("cleanup concurrency", func(t *testing.T) {
-				// Set to run every hour
-				// (we'll manually trigger more frequent iterations)
-				md.Properties["cleanupIntervalInSeconds"] = "3600"
-
-				storeObj := state_sqlserver.New(log).(*state_sqlserver.SQLServer)
-				err := storeObj.Init(context.Background(), md)
-				require.NoError(t, err, "failed to init")
-				defer storeObj.Close()
-
-				cleanupInterval := storeObj.GetCleanupInterval()
-				assert.NotNil(t, cleanupInterval)
-				assert.Equal(t, time.Hour, *cleanupInterval)
-
-				// Seed the database with some records
-				err = populateTTLRecords(ctx, dbClient, "ttlschema", "ttltest")
-				require.NoError(t, err, "failed to seed records")
-
-				// Validate that 20 records are present
-				count, err := countRowsInTable(ctx, dbClient, "ttlschema", "ttltest")
-				require.NoError(t, err, "failed to run query to count rows")
-				assert.Equal(t, 20, count)
-
-				// Set last-cleanup to 1s ago
-				_, err = dbClient.ExecContext(ctx, `UPDATE [ttlschema].[ttltest_metadata] SET [Value] = CONVERT(nvarchar(MAX), DATEADD(second, -1, GETDATE()), 21) WHERE [Key] = 'last-cleanup'`)
-				require.NoError(t, err, "failed to set last-cleanup")
-
-				// The "last-cleanup" value
-				lastCleanup, err := loadLastCleanupInterval(ctx, dbClient, "ttlschema", "ttltest_metadata")
-				require.NoError(t, err, "failed to load value for 'last-cleanup'")
-				assert.LessOrEqual(t, lastCleanup, int64(1200))
-				lastCleanupValueOrig, err := getValueFromMetadataTable(ctx, dbClient, "ttlschema", "ttltest_metadata", "'last-cleanup'")
-				require.NoError(t, err, "failed to load absolute value for 'last-cleanup'")
-				require.NotEmpty(t, lastCleanupValueOrig)
-
-				// Trigger the background cleanup, which should do nothing because the last cleanup was < 3600s
-				require.NoError(t, storeObj.CleanupExpired(), "CleanupExpired returned an error")
-
-				// Validate that 20 records are still present
-				count, err = countRowsInTable(ctx, dbClient, "ttlschema", "ttltest")
-				require.NoError(t, err, "failed to run query to count rows")
-				assert.Equal(t, 20, count)
-
-				// The "last-cleanup" value should not have been changed
-				lastCleanupValue, err := getValueFromMetadataTable(ctx, dbClient, "ttlschema", "ttltest_metadata", "'last-cleanup'")
-				require.NoError(t, err, "failed to load absolute value for 'last-cleanup'")
-				assert.Equal(t, lastCleanupValueOrig, lastCleanupValue)
-			})
-		})
-
-		return nil
 	}
 
-	flow.New(t, "SQLServer certification using SQL Server Docker").
-		// Run SQL Server using Docker Compose.
-		Step(dockercompose.Run("sqlserver", dockerComposeYAML)).
-		Step("wait for SQL Server readiness", retry.Do(time.Second*3, 10, checkSQLServerAvailability)).
+	t.Run("SQLServer certification using SQL Server Docker", func(t *testing.T) {
+		flow.New(t, "SQLServer certification using SQL Server Docker").
+			// Run SQL Server using Docker Compose.
+			Step(dockercompose.Run("sqlserver", dockerComposeYAML)).
+			Step("wait for SQL Server readiness", retry.Do(time.Second*3, 10, checkSQLServerAvailability)).
 
-		// Run the Dapr sidecar with the SQL Server component.
-		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("components/docker/default"),
-			componentRuntimeOptions(),
-		)).
-		Step("Run basic test", basicTest).
-		// Introduce network interruption of 15 seconds
-		// Note: the connection timeout is set to 5 seconds via the component metadata connection string.
-		Step("interrupt network",
-			network.InterruptNetwork(15*time.Second, nil, nil, "1433", "1434")).
+			// Run the Dapr sidecar with the SQL Server component.
+			Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(currentGrpcPort),
+				embedded.WithDaprHTTPPort(currentHTTPPort),
+				embedded.WithResourcesPath("components/docker/default"),
+				embedded.WithProfilingEnabled(false),
+				componentRuntimeOptions(),
+			)).
+			Step("Run basic test", basicTest).
+			// Introduce network interruption of 15 seconds
+			// Note: the connection timeout is set to 5 seconds via the component metadata connection string.
+			Step("interrupt network",
+				network.InterruptNetwork(10*time.Second, nil, nil, "1433", "1434")).
 
-		// Component should recover at this point.
-		Step("wait", flow.Sleep(5*time.Second)).
-		Step("Run basic test again to verify reconnection occurred", basicTest).
-		Step("Run SQL injection test", verifySQLInjectionTest, sidecar.Stop(sidecarNamePrefix+"dockerDefault")).
-		Step("run TTL test", ttlTest).
-		Step("Stopping SQL Server Docker container", dockercompose.Stop("sqlserver", dockerComposeYAML)).
-		Run()
-
-	ports, err = dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
-
-	currentGrpcPort = ports[0]
-	currentHTTPPort = ports[1]
-
-	flow.New(t, "Using existing custom schema with indexed data").
-		// Run SQL Server using Docker Compose.
-		Step(dockercompose.Run("sqlserver", dockerComposeYAML)).
-		Step("wait for SQL Server readiness", retry.Do(time.Second*3, 10, checkSQLServerAvailability)).
-		Step("Creating schema", createCustomSchema).
-
-		// Run the Dapr sidecar with the SQL Server component.
-		Step(sidecar.Run(sidecarNamePrefix+"dockerCustomSchema",
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("components/docker/customschemawithindex"),
-			componentRuntimeOptions(),
-		)).
-		Step("Run indexed properties verification test", verifyIndexedPopertiesTest, sidecar.Stop(sidecarNamePrefix+"dockerCustomSchema")).
-		Step("Stopping SQL Server Docker container", dockercompose.Stop("sqlserver", dockerComposeYAML)).
-		Run()
+			// Component should recover at this point.
+			Step("wait", flow.Sleep(5*time.Second)).
+			Step("Run basic test again to verify reconnection occurred", basicTest).
+			Step("Run SQL injection test", verifySQLInjectionTest, sidecar.Stop(sidecarNamePrefix+"dockerDefault")).
+			Step("run TTL test", ttlTest(dockerConnectionString+"database=certificationtest;")).
+			Step("Stopping SQL Server Docker container", dockercompose.Stop("sqlserver", dockerComposeYAML)).
+			Run()
+	})
 
 	ports, err = dapr_testing.GetFreePorts(2)
 	assert.NoError(t, err)
@@ -434,25 +420,55 @@ func TestSqlServer(t *testing.T) {
 	currentGrpcPort = ports[0]
 	currentHTTPPort = ports[1]
 
-	flow.New(t, "SQL Server certification using Azure SQL").
-		// Run the Dapr sidecar with the SQL Server component.
-		Step(sidecar.Run(sidecarNamePrefix+"azure",
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("components/azure"),
-			componentRuntimeOptions(),
-		)).
-		Step("Run basic test", basicTest).
-		Step("interrupt network",
-			network.InterruptNetwork(40*time.Second, nil, nil, "1433", "1434")).
+	t.Run("Using existing custom schema with indexed data", func(t *testing.T) {
+		flow.New(t, "Using existing custom schema with indexed data").
+			// Run SQL Server using Docker Compose.
+			Step(dockercompose.Run("sqlserver", dockerComposeYAML)).
+			Step("wait for SQL Server readiness", retry.Do(time.Second*3, 10, checkSQLServerAvailability)).
+			Step("Creating schema", createCustomSchema).
 
-		// Component should recover at this point.
-		Step("wait", flow.Sleep(10*time.Second)).
-		Step("Run basic test again to verify reconnection occurred", basicTest).
-		Step("Run SQL injection test", verifySQLInjectionTest, sidecar.Stop(sidecarNamePrefix+"azure")).
-		Step("run TTL test", ttlTest).
-		Run()
+			// Run the Dapr sidecar with the SQL Server component.
+			Step(sidecar.Run(sidecarNamePrefix+"dockerCustomSchema",
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(currentGrpcPort),
+				embedded.WithDaprHTTPPort(currentHTTPPort),
+				embedded.WithResourcesPath("components/docker/customschemawithindex"),
+				embedded.WithProfilingEnabled(false),
+				componentRuntimeOptions(),
+			)).
+			Step("Run indexed properties verification test", verifyIndexedPopertiesTest, sidecar.Stop(sidecarNamePrefix+"dockerCustomSchema")).
+			Step("Stopping SQL Server Docker container", dockercompose.Stop("sqlserver", dockerComposeYAML)).
+			Run()
+	})
+
+	ports, err = dapr_testing.GetFreePorts(2)
+	assert.NoError(t, err)
+
+	currentGrpcPort = ports[0]
+	currentHTTPPort = ports[1]
+
+	t.Run("SQL Server certification using Azure SQL", func(t *testing.T) {
+		flow.New(t, "SQL Server certification using Azure SQL").
+			// Run the Dapr sidecar with the SQL Server component.
+			Step(sidecar.Run(sidecarNamePrefix+"azure",
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(currentGrpcPort),
+				embedded.WithDaprHTTPPort(currentHTTPPort),
+				embedded.WithResourcesPath("components/azure"),
+				embedded.WithProfilingEnabled(false),
+				componentRuntimeOptions(),
+			)).
+			Step("Run basic test", basicTest).
+			Step("interrupt network",
+				network.InterruptNetwork(15*time.Second, nil, nil, "1433", "1434")).
+
+			// Component should recover at this point.
+			Step("wait", flow.Sleep(10*time.Second)).
+			Step("Run basic test again to verify reconnection occurred", basicTest).
+			Step("Run SQL injection test", verifySQLInjectionTest, sidecar.Stop(sidecarNamePrefix+"azure")).
+			Step("run TTL test", ttlTest(os.Getenv("AzureSqlServerConnectionString")+"database=stablecertification;")).
+			Run()
+	})
 }
 
 func componentRuntimeOptions() []runtime.Option {
@@ -477,6 +493,13 @@ func countRowsInTable(ctx context.Context, dbClient *sql.DB, schema, table strin
 	defer cancel()
 	err = dbClient.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM [%s].[%s]", schema, table)).Scan(&count)
 	return
+}
+
+func clearTable(ctx context.Context, dbClient *sql.DB, schema, table string) error {
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	_, err := dbClient.ExecContext(ctx, fmt.Sprintf("DELETE FROM [%s].[%s]", schema, table))
+	return err
 }
 
 func loadLastCleanupInterval(ctx context.Context, dbClient *sql.DB, schema, table string) (lastCleanup int64, err error) {

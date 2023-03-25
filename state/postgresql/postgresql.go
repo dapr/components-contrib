@@ -29,23 +29,24 @@ func NewPostgreSQLStateStore(logger logger.Logger) state.Store {
 			// substitute parameters for table names.
 			// Other parameters use sql.DB parameter substitution.
 			if req.ETag == nil || *req.ETag == "" {
+				// We do an upsert in both cases, even when concurrency is first-write, because the row may exist but be expired (and not yet garbage collected)
+				// The difference is that with concurrency as first-write, we'll update the row only if it's expired
+				var whereClause string
 				if req.Options.Concurrency == state.FirstWrite {
-					return `INSERT INTO ` + opts.TableName + `
-					(key, value, isbinary, expiredate)
-				VALUES
-					($1, $2, $3, ` + opts.ExpireDateValue + `);`
+					whereClause = " WHERE (t.expiredate IS NOT NULL AND t.expiredate < CURRENT_TIMESTAMP)"
 				}
 
-				return `INSERT INTO ` + opts.TableName + `
+				return `INSERT INTO ` + opts.TableName + ` AS t
 					(key, value, isbinary, expiredate)
 				VALUES
 					($1, $2, $3, ` + opts.ExpireDateValue + `)
 				ON CONFLICT (key)
 				DO UPDATE SET
-					value = $2,
-					isbinary = $3,
+					value = excluded.value,
+					isbinary = excluded.isBinary,
 					updatedate = CURRENT_TIMESTAMP,
-					expiredate = ` + opts.ExpireDateValue + `;`
+					expiredate = ` + opts.ExpireDateValue +
+					whereClause
 			}
 
 			return `UPDATE ` + opts.TableName + `
@@ -56,7 +57,8 @@ func NewPostgreSQLStateStore(logger logger.Logger) state.Store {
 				expiredate = ` + opts.ExpireDateValue + `
 			WHERE
 				key = $1
-				AND xmin = $4;`
+				AND xmin = $4
+				AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)`
 		},
 	})
 }

@@ -701,7 +701,8 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 							Concurrency: state.FirstWrite,
 							Consistency: state.Strong,
 						},
-					}, {
+					},
+					{
 						Key:   testKey,
 						Value: secondValue,
 						Options: state.SetStateOption{
@@ -710,23 +711,26 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						},
 					},
 				},
-				{{
-					Key:   testKey,
-					Value: firstValue,
-					Options: state.SetStateOption{
-						Concurrency: state.FirstWrite,
-						Consistency: state.Strong,
+				{
+					{
+						Key:   testKey,
+						Value: firstValue,
+						Options: state.SetStateOption{
+							Concurrency: state.FirstWrite,
+							Consistency: state.Strong,
+						},
+						ETag: &emptyString,
 					},
-					ETag: &emptyString,
-				}, {
-					Key:   testKey,
-					Value: secondValue,
-					Options: state.SetStateOption{
-						Concurrency: state.FirstWrite,
-						Consistency: state.Strong,
+					{
+						Key:   testKey,
+						Value: secondValue,
+						Options: state.SetStateOption{
+							Concurrency: state.FirstWrite,
+							Consistency: state.Strong,
+						},
+						ETag: &emptyString,
 					},
-					ETag: &emptyString,
-				}},
+				},
 			}
 
 			for i, requestSet := range requestSets {

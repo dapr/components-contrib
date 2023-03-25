@@ -234,9 +234,11 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 		g.logger.Debugf("Using implicit credentials for GCP")
 
 		// The following allows the Google SDK to connect to
-		// the GCP PubSub Emulator
+		// the GCP PubSub Emulator.
+		// example: export PUBSUB_EMULATOR_HOST=localhost:8085
+		// see: https://cloud.google.com/pubsub/docs/emulator#env
 		if metadata.ConnectionEndpoint != "" {
-			g.logger.Debugf("setting environment variable 'PUBSUB_EMULATOR_HOST=%s'", metadata.ConnectionEndpoint)
+			g.logger.Debugf("setting GCP PubSub Emulator environment variable to 'PUBSUB_EMULATOR_HOST=%s'", metadata.ConnectionEndpoint)
 			os.Setenv("PUBSUB_EMULATOR_HOST", metadata.ConnectionEndpoint)
 		}
 		pubsubClient, err = gcppubsub.NewClient(ctx, metadata.ProjectID)

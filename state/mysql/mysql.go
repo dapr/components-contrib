@@ -361,9 +361,7 @@ func (m *MySQL) ensureStateTable(ctx context.Context, schemaName, stateTableName
 			INDEX expiredate_idx(expiredate)
 			);`, stateTableName)
 
-		execCtx, execCancel := context.WithTimeout(ctx, m.timeout)
-		defer execCancel()
-		_, err = m.db.ExecContext(execCtx, createTable)
+		_, err = m.db.ExecContext(ctx, createTable)
 		if err != nil {
 			return err
 		}
@@ -387,6 +385,35 @@ func (m *MySQL) ensureStateTable(ctx context.Context, schemaName, stateTableName
 		if err != nil {
 			return err
 		}
+	}
+
+	// Create the DaprSaveFirstWriteV1 stored procedure
+	_, err = m.db.ExecContext(ctx, `CREATE PROCEDURE IF NOT EXISTS DaprSaveFirstWriteV1(tableName VARCHAR(255), id VARCHAR(255), value JSON, etag VARCHAR(36), isbinary BOOLEAN, expiredateToken TEXT)
+LANGUAGE SQL
+MODIFIES SQL DATA
+  BEGIN
+    SET @id = id;
+    SET @value = value;
+    SET @etag = etag;
+    SET @isbinary = isbinary;
+
+    SET @selectQuery = concat('SELECT COUNT(id) INTO @count FROM ', tableName ,' WHERE id = ? AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)');
+    PREPARE select_stmt FROM @selectQuery;
+    EXECUTE select_stmt USING @id;
+    DEALLOCATE PREPARE select_stmt;
+
+    IF @count < 1 THEN
+      SET @upsertQuery = concat('INSERT INTO ', tableName, ' SET id=?, value=?, eTag=?, isbinary=?, expiredate=', expiredateToken, ' ON DUPLICATE KEY UPDATE value=?, eTag=?, isbinary=?, expiredate=', expiredateToken);
+      PREPARE upsert_stmt FROM @upsertQuery;
+      EXECUTE upsert_stmt USING @id, @value, @etag, @isbinary, @value, @etag, @isbinary;
+      DEALLOCATE PREPARE upsert_stmt;
+	ELSE
+	  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Row already exists';
+    END IF;
+
+  END`)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -652,12 +679,9 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 		ttlQuery = "NULL"
 	}
 
-	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
-		// With first-write-wins and no etag, we can insert the row only if it doesn't exist
-		query = `INSERT INTO ` + m.tableName + ` (value, id, eTag, isbinary, expiredate)
-			VALUES (?, ?, ?, ?, ` + ttlQuery + `)`
-		params = []any{enc, req.Key, eTag, isBinary}
-	} else if req.ETag != nil && *req.ETag != "" {
+	hasEtag := req.ETag != nil && *req.ETag != ""
+
+	if hasEtag {
 		// When an eTag is provided do an update - not insert
 		query = `UPDATE ` + m.tableName + `
 			SET value = ?, eTag = ?, isbinary = ?, expiredate = ` + ttlQuery + `
@@ -665,14 +689,22 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 				AND eTag = ?
 				AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)`
 		params = []any{enc, eTag, isBinary, req.Key, *req.ETag}
+	} else if req.Options.Concurrency == state.FirstWrite {
+		// With first-write-wins and no etag, we can insert the row only if it doesn't exist
+		// Things get a bit tricky when the row exists but it is expired, so it just hasn't been garbage-collected yet
+		// What we can do in that case is to first check if the row doesn't exist or has expired, and then perform an upsert
+		// To do that, we use a stored procedure
+
+		query = "CALL DaprSaveFirstWriteV1(?, ?, ?, ?, ?, ?)"
+		params = []any{m.tableName, req.Key, enc, eTag, isBinary, ttlQuery}
 	} else {
 		// If this is a duplicate MySQL returns that two rows affected
 		maxRows = 2
-		query = `INSERT INTO ` + m.tableName + ` (value, id, eTag, isbinary, expiredate)
+		query = `INSERT INTO ` + m.tableName + ` (id, value, eTag, isbinary, expiredate)
 			VALUES (?, ?, ?, ?, ` + ttlQuery + `) 
 			ON DUPLICATE KEY UPDATE
 				value=?, eTag=?, isbinary=?, expiredate=` + ttlQuery
-		params = []any{enc, req.Key, eTag, isBinary, enc, eTag, isBinary}
+		params = []any{req.Key, enc, eTag, isBinary, enc, eTag, isBinary}
 	}
 
 	ctx, cancel := context.WithTimeout(parentCtx, m.timeout)
@@ -680,29 +712,33 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 	result, err = querier.ExecContext(ctx, query, params...)
 
 	if err != nil {
-		if req.ETag != nil && *req.ETag != "" {
+		if hasEtag {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
 		return err
 	}
 
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
+	// Do not count affected rows when using first-write
+	// Conflicts are handled separately
+	if hasEtag || req.Options.Concurrency != state.FirstWrite {
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
 
-	if rows == 0 {
-		err = errors.New("rows affected error: no rows match given key and eTag")
-		err = state.NewETagError(state.ETagMismatch, err)
-		m.logger.Error(err)
-		return err
-	}
+		if rows == 0 {
+			err = errors.New("rows affected error: no rows match given key and eTag")
+			err = state.NewETagError(state.ETagMismatch, err)
+			m.logger.Error(err)
+			return err
+		}
 
-	if rows > maxRows {
-		err = fmt.Errorf("rows affected error: more than %d row affected; actual %d", maxRows, rows)
-		m.logger.Error(err)
-		return err
+		if rows > maxRows {
+			err = fmt.Errorf("rows affected error: more than %d row affected; actual %d", maxRows, rows)
+			m.logger.Error(err)
+			return err
+		}
 	}
 
 	return nil
@@ -863,10 +899,4 @@ func (m *MySQL) GetComponentMetadata() map[string]string {
 	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
 	return metadataInfo
-}
-
-// This interface is used to help improve testing.
-type iMySQLFactory interface {
-	Open(connectionString string) (*sql.DB, error)
-	RegisterTLSConfig(pemPath string) error
 }

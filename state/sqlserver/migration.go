@@ -92,7 +92,7 @@ func (m *migration) executeMigrations(ctx context.Context) (migrationResult, err
 	} else {
 		err = m.ensureDatabaseExists(ctx, db)
 		if err != nil {
-			return r, fmt.Errorf("failed to create db database: %v", err)
+			return r, fmt.Errorf("failed to create database: %w", err)
 		}
 
 		// Close the existing connection
@@ -111,17 +111,17 @@ func (m *migration) executeMigrations(ctx context.Context) (migrationResult, err
 
 	err = m.ensureSchemaExists(ctx, db)
 	if err != nil {
-		return r, fmt.Errorf("failed to create db schema: %v", err)
+		return r, fmt.Errorf("failed to create db schema: %w", err)
 	}
 
 	err = m.ensureTableExists(ctx, db, r)
 	if err != nil {
-		return r, fmt.Errorf("failed to create db table: %v", err)
+		return r, fmt.Errorf("failed to create db table: %w", err)
 	}
 
 	err = m.ensureStoredProcedureExists(ctx, db, r)
 	if err != nil {
-		return r, fmt.Errorf("failed to create stored procedures: %v", err)
+		return r, fmt.Errorf("failed to create stored procedures: %w", err)
 	}
 
 	for _, ix := range m.store.indexedProperties {

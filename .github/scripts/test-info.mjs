@@ -161,6 +161,21 @@ const components = {
     'configuration.redis': {
         certification: true,
     },
+    'crypto.azure.keyvault': {
+        conformance: true,
+        requiredSecrets: [
+            'AzureKeyVaultName',
+            'AzureKeyVaultTenantId',
+            'AzureKeyVaultServicePrincipalClientId',
+            'AzureKeyVaultServicePrincipalClientSecret',
+        ],
+    },
+    'crypto.localstorage': {
+        conformance: true,
+    },
+    'crypto.jwks': {
+        conformance: true,
+    },
     'middleware.http.bearer': {
         certification: true,
     },
@@ -447,6 +462,10 @@ const components = {
     'state.mysql.mysql': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh mysql',
+    },
+    'state.oracledatabase': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh oracledatabase',
     },
     'state.postgresql': {
         conformance: true,

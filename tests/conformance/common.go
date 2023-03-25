@@ -59,6 +59,8 @@ import (
 	b_rabbitmq "github.com/dapr/components-contrib/bindings/rabbitmq"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
 	c_redis "github.com/dapr/components-contrib/configuration/redis"
+	cr_jwks "github.com/dapr/components-contrib/crypto/jwks"
+	cr_localstorage "github.com/dapr/components-contrib/crypto/localstorage"
 	p_snssqs "github.com/dapr/components-contrib/pubsub/aws/snssqs"
 	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
 	p_servicebusqueues "github.com/dapr/components-contrib/pubsub/azure/servicebus/queues"
@@ -90,6 +92,7 @@ import (
 	s_memcached "github.com/dapr/components-contrib/state/memcached"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
 	s_mysql "github.com/dapr/components-contrib/state/mysql"
+	s_oracledatabase "github.com/dapr/components-contrib/state/oracledatabase"
 	s_postgresql "github.com/dapr/components-contrib/state/postgresql"
 	s_redis "github.com/dapr/components-contrib/state/redis"
 	s_rethinkdb "github.com/dapr/components-contrib/state/rethinkdb"
@@ -535,6 +538,10 @@ func loadSecretStore(tc TestComponent) secretstores.SecretStore {
 func loadCryptoProvider(tc TestComponent) contribCrypto.SubtleCrypto {
 	var component contribCrypto.SubtleCrypto
 	switch tc.Component {
+	case "localstorage":
+		component = cr_localstorage.NewLocalStorageCrypto(testLogger)
+	case "jwks":
+		component = cr_jwks.NewJWKSCrypto(testLogger)
 	}
 
 	return component
@@ -565,6 +572,8 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_mysql.NewMySQLStateStore(testLogger)
 	case "mysql.mariadb":
 		store = s_mysql.NewMySQLStateStore(testLogger)
+	case "oracledatabase":
+		store = s_oracledatabase.NewOracleDatabaseStateStore(testLogger)
 	case "azure.tablestorage.storage":
 		store = s_azuretablestorage.NewAzureTablesStateStore(testLogger)
 	case "azure.tablestorage.cosmosdb":

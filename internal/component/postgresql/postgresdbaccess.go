@@ -332,7 +332,7 @@ func (p *PostgresDBAccess) doDelete(parentCtx context.Context, db dbquerier, req
 	defer cancel()
 	var result pgconn.CommandTag
 	if req.ETag == nil || *req.ETag == "" {
-		result, err = db.Exec(ctx, "DELETE FROM "+p.metadata.TableName+" WHERE key = $1", req.Key)
+		result, err = db.Exec(parentCtx, "DELETE FROM "+p.metadata.TableName+" WHERE key = $1", req.Key)
 	} else {
 		// Convert req.ETag to uint32 for postgres XID compatibility
 		var etag64 uint64
@@ -341,7 +341,7 @@ func (p *PostgresDBAccess) doDelete(parentCtx context.Context, db dbquerier, req
 			return state.NewETagError(state.ETagInvalid, err)
 		}
 
-		result, err = db.Exec(ctx, "DELETE FROM "+p.metadata.TableName+" WHERE key = $1 AND "+p.etagColumn+" = $2", req.Key, uint32(etag64))
+		result, err = db.Exec(parentCtx, "DELETE FROM "+p.metadata.TableName+" WHERE key = $1 AND $2 = "+p.etagColumn, req.Key, uint32(etag64))
 	}
 	if err != nil {
 		return err

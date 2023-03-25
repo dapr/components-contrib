@@ -83,7 +83,10 @@ func parseRedisMetadata(meta configuration.Metadata) (metadata, error) {
 		Failover:                false,
 		DB:                      defaultDB,
 	}
-	contribMetadata.DecodeMetadata(meta.Properties, &m)
+	decodeErr := contribMetadata.DecodeMetadata(meta.Properties, &m)
+	if decodeErr != nil {
+		return m, decodeErr
+	}
 
 	if m.Host == "" {
 		return m, errors.New("redis store error: missing host address")

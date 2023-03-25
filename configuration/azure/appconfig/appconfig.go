@@ -131,7 +131,10 @@ func parseMetadata(meta configuration.Metadata) (metadata, error) {
 		internalSubscribePollInterval: defaultSubscribePollInterval,
 		internalRequestTimeout:        defaultRequestTimeout,
 	}
-	contribMetadata.DecodeMetadata(meta.Properties, &m)
+	decodeErr := contribMetadata.DecodeMetadata(meta.Properties, &m)
+	if decodeErr != nil {
+		return m, decodeErr
+	}
 
 	if m.ConnectionString != "" && m.Host != "" {
 		return m, fmt.Errorf("azure appconfig error: can't set both %s and %s fields in metadata", host, connectionString)

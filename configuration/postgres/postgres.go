@@ -282,7 +282,10 @@ func parseMetadata(cmetadata configuration.Metadata) (metadata, error) {
 	m := metadata{
 		MaxIdleTimeout: defaultMaxConnIdleTime,
 	}
-	contribMetadata.DecodeMetadata(cmetadata.Properties, &m)
+	decodeErr := contribMetadata.DecodeMetadata(cmetadata.Properties, &m)
+	if decodeErr != nil {
+		return m, decodeErr
+	}
 
 	if m.ConnectionString == "" {
 		return m, fmt.Errorf(ErrorMissingConnectionString)

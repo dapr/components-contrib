@@ -92,8 +92,7 @@ func (s *SQLiteStore) Get(ctx context.Context, req *state.GetRequest) (*state.Ge
 
 // BulkGet performs a bulks get operations.
 func (s *SQLiteStore) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
-	// TODO: replace with ExecuteMulti for performance.
-	return false, nil, nil
+	return s.dbaccess.BulkGet(ctx, req)
 }
 
 // Set adds/updates an entity on store.

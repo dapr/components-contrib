@@ -70,7 +70,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.1
 	github.com/hazelcast/hazelcast-go-client v0.0.0-20190530123621-6cf767c2f31a
-	github.com/http-wasm/http-wasm-host-go v0.3.4
+	github.com/http-wasm/http-wasm-host-go v0.4.1
 	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.22.11+incompatible
 	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.28
 	github.com/influxdata/influxdb-client-go v1.4.0
@@ -102,7 +102,7 @@ require (
 	github.com/supplyon/gremcos v0.1.40
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.608
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.0.608
-	github.com/tetratelabs/wazero v1.0.0-rc.1
+	github.com/tetratelabs/wazero v1.0.0
 	github.com/valyala/fasthttp v1.44.0
 	github.com/vmware/vmware-go-kcl v1.5.0
 	github.com/xdg-go/scram v1.1.2

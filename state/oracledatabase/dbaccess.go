@@ -15,6 +15,7 @@ package oracledatabase
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/dapr/components-contrib/state"
 )
@@ -26,6 +27,13 @@ type dbAccess interface {
 	Set(ctx context.Context, req *state.SetRequest) error
 	Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error)
 	Delete(ctx context.Context, req *state.DeleteRequest) error
-	ExecuteMulti(ctx context.Context, sets []state.SetRequest, deletes []state.DeleteRequest) error
+	ExecuteMulti(parentCtx context.Context, reqs []state.TransactionalStateOperation) error
 	Close() error // io.Closer.
+}
+
+// Interface for both sql.DB and sql.Tx
+type querier interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }

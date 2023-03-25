@@ -32,7 +32,6 @@ import (
 	"github.com/dapr/components-contrib/state/query"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/ptr"
 )
 
 var errMissingConnectionString = errors.New("missing connection string")
@@ -265,30 +264,90 @@ func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest)
 		return nil, errors.New("missing key in get operation")
 	}
 
-	var (
-		value    []byte
-		isBinary bool
-		etag     pgtype.Int8
-	)
 	query := `SELECT
-			value, isbinary, %[1]s AS etag
-		FROM %[2]s
+			key, value, isbinary, ` + p.etagColumn + ` AS etag
+		FROM ` + p.metadata.TableName + `
 			WHERE
 				key = $1
 				AND (expiredate IS NULL OR expiredate >= CURRENT_TIMESTAMP)`
-	err := p.db.QueryRow(parentCtx, fmt.Sprintf(query, p.etagColumn, p.metadata.TableName), req.Key).
-		Scan(&value, &isBinary, &etag)
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
+	defer cancel()
+	row := p.db.QueryRow(ctx, query, req.Key)
+	_, value, etag, err := readRow(row)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return &state.GetResponse{}, nil
 		}
 		return nil, err
 	}
 
-	var etagS *string
+	return &state.GetResponse{
+		Data: value,
+		ETag: &etag,
+	}, nil
+}
+
+func (p *PostgresDBAccess) BulkGet(parentCtx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+	if len(req) == 0 {
+		return true, []state.BulkGetResponse{}, nil
+	}
+
+	// Get all keys
+	keys := make([]string, len(req))
+	for i, r := range req {
+		keys[i] = r.Key
+	}
+
+	// Execute the query
+	query := `SELECT
+			key, value, isbinary, ` + p.etagColumn + ` AS etag
+		FROM ` + p.metadata.TableName + `
+			WHERE
+				key = ANY($1)
+				AND (expiredate IS NULL OR expiredate >= CURRENT_TIMESTAMP)`
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
+	defer cancel()
+	rows, err := p.db.Query(ctx, query, keys)
+	if err != nil {
+		// If no rows exist, return an empty response, otherwise return the error.
+		if errors.Is(err, pgx.ErrNoRows) {
+			return true, []state.BulkGetResponse{}, nil
+		}
+		return true, nil, err
+	}
+
+	// Scan all rows
+	var (
+		n    int
+		etag string
+	)
+	res := make([]state.BulkGetResponse, len(req))
+	for ; rows.Next(); n++ {
+		r := state.BulkGetResponse{}
+		r.Key, r.Data, etag, err = readRow(rows)
+		if err != nil {
+			r.Error = err.Error()
+		}
+		r.ETag = &etag
+		res[n] = r
+	}
+
+	return true, res[:n], nil
+}
+
+func readRow(row pgx.Row) (key string, value []byte, etagS string, err error) {
+	var (
+		isBinary bool
+		etag     pgtype.Int8
+	)
+	err = row.Scan(&key, &value, &isBinary, &etag)
+	if err != nil {
+		return key, nil, "", err
+	}
+
 	if etag.Valid {
-		etagS = ptr.Of(strconv.FormatInt(etag.Int64, 10))
+		etagS = strconv.FormatInt(etag.Int64, 10)
 	}
 
 	if isBinary {
@@ -297,24 +356,20 @@ func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest)
 			data []byte
 		)
 
-		if err = json.Unmarshal(value, &s); err != nil {
-			return nil, err
+		err = json.Unmarshal(value, &s)
+		if err != nil {
+			return key, nil, "", fmt.Errorf("failed to unmarshal JSON data: %w", err)
 		}
 
-		if data, err = base64.StdEncoding.DecodeString(s); err != nil {
-			return nil, err
+		data, err = base64.StdEncoding.DecodeString(s)
+		if err != nil {
+			return key, nil, "", fmt.Errorf("failed to decode base64 data: %w", err)
 		}
 
-		return &state.GetResponse{
-			Data: data,
-			ETag: etagS,
-		}, nil
+		return key, data, etagS, nil
 	}
 
-	return &state.GetResponse{
-		Data: value,
-		ETag: etagS,
-	}, nil
+	return key, value, etagS, nil
 }
 
 // Delete removes an item from the state store.

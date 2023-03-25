@@ -679,6 +679,7 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 		ttlQuery = "NULL"
 	}
 
+	mustCommit := false
 	hasEtag := req.ETag != nil && *req.ETag != ""
 
 	if hasEtag {
@@ -690,11 +691,20 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 				AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)`
 		params = []any{enc, eTag, isBinary, req.Key, *req.ETag}
 	} else if req.Options.Concurrency == state.FirstWrite {
+		// If we're not in a transaction already, start one as we need to ensure consistency
+		if querier == m.db {
+			querier, err = m.db.BeginTx(parentCtx, nil)
+			if err != nil {
+				return fmt.Errorf("failed to begin transaction: %w", err)
+			}
+			defer querier.(*sql.Tx).Rollback()
+			mustCommit = true
+		}
+
 		// With first-write-wins and no etag, we can insert the row only if it doesn't exist
 		// Things get a bit tricky when the row exists but it is expired, so it just hasn't been garbage-collected yet
 		// What we can do in that case is to first check if the row doesn't exist or has expired, and then perform an upsert
 		// To do that, we use a stored procedure
-
 		query = "CALL DaprSaveFirstWriteV1(?, ?, ?, ?, ?, ?)"
 		params = []any{m.tableName, req.Key, enc, eTag, isBinary, ttlQuery}
 	} else {
@@ -738,6 +748,14 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 			err = fmt.Errorf("rows affected error: more than %d row affected; actual %d", maxRows, rows)
 			m.logger.Error(err)
 			return err
+		}
+	}
+
+	// Commit the transaction if needed
+	if mustCommit {
+		err = querier.(*sql.Tx).Commit()
+		if err != nil {
+			return fmt.Errorf("failed to commit transaction: %w", err)
 		}
 	}
 

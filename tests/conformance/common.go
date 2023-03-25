@@ -59,6 +59,7 @@ import (
 	b_rabbitmq "github.com/dapr/components-contrib/bindings/rabbitmq"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
 	c_redis "github.com/dapr/components-contrib/configuration/redis"
+	cr_azurekeyvault "github.com/dapr/components-contrib/crypto/azure/keyvault"
 	cr_jwks "github.com/dapr/components-contrib/crypto/jwks"
 	cr_localstorage "github.com/dapr/components-contrib/crypto/localstorage"
 	p_snssqs "github.com/dapr/components-contrib/pubsub/aws/snssqs"
@@ -538,6 +539,8 @@ func loadSecretStore(tc TestComponent) secretstores.SecretStore {
 func loadCryptoProvider(tc TestComponent) contribCrypto.SubtleCrypto {
 	var component contribCrypto.SubtleCrypto
 	switch tc.Component {
+	case "azure.keyvault":
+		component = cr_azurekeyvault.NewAzureKeyvaultCrypto(testLogger)
 	case "localstorage":
 		component = cr_localstorage.NewLocalStorageCrypto(testLogger)
 	case "jwks":

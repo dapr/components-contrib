@@ -161,6 +161,15 @@ const components = {
     'configuration.redis': {
         certification: true,
     },
+    'crypto.azure.keyvault': {
+        conformance: true,
+        requiredSecrets: [
+            'AzureKeyVaultName',
+            'AzureKeyVaultTenantId',
+            'AzureKeyVaultServicePrincipalClientId',
+            'AzureKeyVaultServicePrincipalClientSecret',
+        ],
+    },
     'crypto.localstorage': {
         conformance: true,
     },

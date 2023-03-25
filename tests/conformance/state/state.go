@@ -326,13 +326,13 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
 					}
 					err := statestore.Delete(context.Background(), req)
-					assert.Nil(t, err, "no error expected while deleting %s", scenario.key)
+					assert.NoError(t, err, "no error expected while deleting %s", scenario.key)
 
 					t.Logf("Checking value absence for %s", scenario.key)
 					res, err := statestore.Get(context.Background(), &state.GetRequest{
 						Key: scenario.key,
 					})
-					assert.Nil(t, err, "no error expected while checking for absence for %s", scenario.key)
+					assert.NoError(t, err, "no error expected while checking for absence for %s", scenario.key)
 					assert.Nil(t, res.Data, "no data expected while checking for absence for %s", scenario.key)
 				}
 			}
@@ -589,7 +589,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				Operations: operations,
 				Metadata:   partitionMetadata,
 			})
-			assert.Nil(t, err)
+			require.NoError(t, err)
 
 			// Assert
 			for k, v := range expected {
@@ -597,7 +597,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					Key:      k,
 					Metadata: partitionMetadata,
 				})
-				assert.Nil(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, v, res.Data)
 			}
 		})

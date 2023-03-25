@@ -426,7 +426,6 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 		res, err = db.ExecContext(ctx, stmt, requestValue, newEtag, isBinary, req.Key, *req.ETag)
 		cancel()
 	}
-
 	if err != nil {
 		return err
 	}

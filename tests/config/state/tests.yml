@@ -43,6 +43,9 @@ components:
   - component: azure.tablestorage.cosmosdb
     allOperations: false
     operations: ["set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write"]
+  - component: oracledatabase
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]
   - component: cassandra
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "ttl" ]

@@ -448,6 +448,10 @@ const components = {
         conformance: true,
         conformanceSetup: 'docker-compose.sh mysql',
     },
+    'state.oracledatabase': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh oracledatabase',
+    },
     'state.postgresql': {
         conformance: true,
         certification: true,

@@ -37,7 +37,6 @@ import (
 
 // Etcd is a state store implementation for Etcd.
 type Etcd struct {
-	state.DefaultBulkStore
 	client        *clientv3.Client
 	keyPrefixPath string
 	features      []state.Feature
@@ -56,13 +55,10 @@ type etcdConfig struct {
 
 // NewEtcdStateStore returns a new etcd state store.
 func NewEtcdStateStore(logger logger.Logger) state.Store {
-	s := &Etcd{
+	return state.NewDefaultBulkStore(&Etcd{
 		logger:   logger,
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
-	}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
-	return s
+	})
 }
 
 // Init does metadata and config parsing and initializes the
@@ -168,37 +164,6 @@ func (e *Etcd) Set(ctx context.Context, req *state.SetRequest) error {
 	return e.doSet(ctx, keyWithPath, string(reqVal), req.ETag, ttlInSeconds)
 }
 
-func (e *Etcd) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	if len(req) == 0 {
-		return nil
-	}
-
-	for i := range req {
-		dr := req[i]
-		ttlInSeconds, err := e.doSetValidateParameters(&dr)
-		if err != nil {
-			return err
-		}
-
-		keyWithPath := e.keyPrefixPath + "/" + dr.Key
-		err = e.doValidateEtag(keyWithPath, dr.ETag, dr.Options.Concurrency)
-		if err != nil {
-			return err
-		}
-
-		reqVal, err := stateutils.Marshal(dr.Value, json.Marshal)
-		if err != nil {
-			return err
-		}
-
-		err = e.doSet(ctx, keyWithPath, string(reqVal), dr.ETag, ttlInSeconds)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (e *Etcd) doSet(ctx context.Context, key, reqVal string, etag *string, ttlInSeconds int64) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -269,30 +234,6 @@ func (e *Etcd) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	}
 
 	return e.doDelete(ctx, keyWithPath, req.ETag)
-}
-
-func (e *Etcd) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	if len(req) == 0 {
-		return nil
-	}
-
-	for _, dr := range req {
-		if err := state.CheckRequestOptions(&dr.Options); err != nil {
-			return err
-		}
-
-		keyWithPath := e.keyPrefixPath + "/" + dr.Key
-		err := e.doValidateEtag(keyWithPath, dr.ETag, dr.Options.Concurrency)
-		if err != nil {
-			return err
-		}
-
-		err = e.doDelete(ctx, keyWithPath, dr.ETag)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (e *Etcd) doDelete(ctx context.Context, key string, etag *string) error {

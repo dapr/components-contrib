@@ -27,11 +27,10 @@ import (
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 
-	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/ptr"
-
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
+	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 type inMemStateStoreItem struct {
@@ -50,11 +49,15 @@ type inMemoryStore struct {
 	wg      sync.WaitGroup
 }
 
-func NewInMemoryStateStore(logger logger.Logger) state.Store {
+func NewInMemoryStateStore(log logger.Logger) state.Store {
+	return state.NewDefaultBulkStore(newStateStore(log))
+}
+
+func newStateStore(log logger.Logger) *inMemoryStore {
 	return &inMemoryStore{
 		items:   map[string]*inMemStateStoreItem{},
 		lock:    &sync.RWMutex{},
-		log:     logger,
+		log:     log,
 		closeCh: make(chan struct{}),
 	}
 }
@@ -87,7 +90,10 @@ func (store *inMemoryStore) Close() error {
 }
 
 func (store *inMemoryStore) Features() []state.Feature {
-	return []state.Feature{state.FeatureETag, state.FeatureTransactional}
+	return []state.Feature{
+		state.FeatureETag,
+		state.FeatureTransactional,
+	}
 }
 
 func (store *inMemoryStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
@@ -162,7 +168,7 @@ func (store *inMemoryStore) BulkDelete(ctx context.Context, req []state.DeleteRe
 	for _, dr := range req {
 		err := store.doValidateEtag(dr.Key, dr.ETag, dr.Options.Concurrency)
 		if err != nil {
-			return err
+			return fmt.Errorf("etag mismatch for key %s", dr.Key)
 		}
 	}
 
@@ -230,10 +236,6 @@ func isExpired(item *inMemStateStoreItem) bool {
 		return false
 	}
 	return time.Now().UnixMilli() > *item.expire
-}
-
-func (store *inMemoryStore) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
-	return false, nil, nil
 }
 
 func (store *inMemoryStore) marshal(v any) (bt []byte, isBinary bool, err error) {
@@ -364,7 +366,7 @@ func (store *inMemoryStore) BulkSet(ctx context.Context, req []state.SetRequest)
 	for _, dr := range req {
 		err := store.doValidateEtag(dr.Key, dr.ETag, dr.Options.Concurrency)
 		if err != nil {
-			return err
+			return fmt.Errorf("etag mismatch for key %s", dr.Key)
 		}
 	}
 

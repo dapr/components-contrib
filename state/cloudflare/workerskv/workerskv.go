@@ -41,16 +41,18 @@ const componentDocsURL = "https://docs.dapr.io/reference/components-reference/su
 // CFWorkersKV is a state store backed by Cloudflare Workers KV.
 type CFWorkersKV struct {
 	*workers.Base
-	state.DefaultBulkStore
 	metadata componentMetadata
 }
 
 // NewCFWorkersKV returns a new CFWorkersKV.
 func NewCFWorkersKV(logger logger.Logger) state.Store {
+	return state.NewDefaultBulkStore(newObject(logger))
+}
+
+func newObject(logger logger.Logger) *CFWorkersKV {
 	q := &CFWorkersKV{
 		Base: &workers.Base{},
 	}
-	q.DefaultBulkStore = state.NewDefaultBulkStore(q)
 	q.SetLogger(logger)
 	return q
 }

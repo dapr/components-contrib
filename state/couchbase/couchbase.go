@@ -42,7 +42,6 @@ const (
 
 // Couchbase is a couchbase state store.
 type Couchbase struct {
-	state.DefaultBulkStore
 	bucket                        *gocb.Bucket
 	bucketName                    string // TODO: having bucket name sent as part of request (get,set etc.) metadata would be more flexible
 	numReplicasDurableReplication uint
@@ -63,15 +62,16 @@ type couchbaseMetadata struct {
 }
 
 // NewCouchbaseStateStore returns a new couchbase state store.
-func NewCouchbaseStateStore(logger logger.Logger) state.Store {
-	s := &Couchbase{
+func NewCouchbaseStateStore(log logger.Logger) state.Store {
+	return state.NewDefaultBulkStore(newStateStore(log))
+}
+
+func newStateStore(log logger.Logger) *Couchbase {
+	return &Couchbase{
 		json:     jsoniter.ConfigFastest,
 		features: []state.Feature{state.FeatureETag},
-		logger:   logger,
+		logger:   log,
 	}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
-	return s
 }
 
 func parseAndValidateMetadata(meta state.Metadata) (*couchbaseMetadata, error) {

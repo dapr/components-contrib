@@ -62,7 +62,6 @@ const (
 
 // StateStore Type.
 type StateStore struct {
-	state.DefaultBulkStore
 	containerClient *container.Client
 	logger          logger.Logger
 }
@@ -114,12 +113,9 @@ func (r *StateStore) GetComponentMetadata() map[string]string {
 
 // NewAzureBlobStorageStore instance.
 func NewAzureBlobStorageStore(logger logger.Logger) state.Store {
-	s := &StateStore{
+	return state.NewDefaultBulkStore(&StateStore{
 		logger: logger,
-	}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
-	return s
+	})
 }
 
 func (r *StateStore) readFile(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {

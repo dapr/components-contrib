@@ -42,7 +42,6 @@ import (
 
 // StateStore is a CosmosDB state store.
 type StateStore struct {
-	state.DefaultBulkStore
 	client      *azcosmos.ContainerClient
 	metadata    metadata
 	contentType string
@@ -98,11 +97,9 @@ func (p *crossPartitionQueryPolicy) Do(req *policy.Request) (*http.Response, err
 
 // NewCosmosDBStateStore returns a new CosmosDB state store.
 func NewCosmosDBStateStore(logger logger.Logger) state.Store {
-	s := &StateStore{
+	return state.NewDefaultBulkStore(&StateStore{
 		logger: logger,
-	}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-	return s
+	})
 }
 
 func (c *StateStore) GetComponentMetadata() map[string]string {
@@ -438,8 +435,10 @@ func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 
 	// Transaction succeeded
 	// We can inspect the individual operation results
-	for index, operation := range batchResponse.OperationResults {
-		c.logger.Debugf("Operation %v completed with status code %d", index, operation.StatusCode)
+	if c.logger.IsOutputLevelEnabled(logger.DebugLevel) {
+		for index, operation := range batchResponse.OperationResults {
+			c.logger.Debugf("Operation %v completed with status code %d", index, operation.StatusCode)
+		}
 	}
 
 	return nil

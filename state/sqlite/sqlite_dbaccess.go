@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -42,6 +43,7 @@ type DBAccess interface {
 	Set(ctx context.Context, req *state.SetRequest) error
 	Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error)
 	Delete(ctx context.Context, req *state.DeleteRequest) error
+	BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error)
 	ExecuteMulti(ctx context.Context, reqs []state.TransactionalStateOperation) error
 	Close() error
 }
@@ -246,24 +248,16 @@ func (a *sqliteDBAccess) Get(parentCtx context.Context, req *state.GetRequest) (
 	if req.Key == "" {
 		return nil, errors.New("missing key in get operation")
 	}
-	var (
-		value    []byte
-		isBinary bool
-		etag     string
-	)
 
-	// Sprintf is required for table name because sql.DB does not substitute parameters for table names
-	//nolint:gosec
-	stmt := fmt.Sprintf(
-		`SELECT value, is_binary, etag FROM %s
+	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
+	stmt := `SELECT key, value, is_binary, etag FROM ` + a.metadata.TableName + `
 		WHERE
 			key = ?
-			AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`,
-		a.metadata.TableName)
+			AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
 	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
-	err := a.db.QueryRowContext(ctx, stmt, req.Key).
-		Scan(&value, &isBinary, &etag)
+	row := a.db.QueryRowContext(ctx, stmt, req.Key)
 	cancel()
+	_, value, etag, err := readRow(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return &state.GetResponse{}, nil
@@ -271,25 +265,74 @@ func (a *sqliteDBAccess) Get(parentCtx context.Context, req *state.GetRequest) (
 		return nil, err
 	}
 
-	if isBinary {
-		var n int
-		data := make([]byte, len(value))
-		n, err = base64.StdEncoding.Decode(data, value)
-		if err != nil {
-			return nil, err
-		}
-		return &state.GetResponse{
-			Data:     data[:n],
-			ETag:     &etag,
-			Metadata: req.Metadata,
-		}, nil
-	}
-
 	return &state.GetResponse{
 		Data:     value,
 		ETag:     &etag,
 		Metadata: req.Metadata,
 	}, nil
+}
+
+func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+	if len(req) == 0 {
+		return true, []state.BulkGetResponse{}, nil
+	}
+
+	// SQLite doesn't support passing an array for an IN clause, so we need to build a custom query
+	inClause := strings.Repeat("?,", len(req))
+	inClause = inClause[:(len(inClause) - 1)]
+	params := make([]any, len(req))
+	for i, r := range req {
+		params[i] = r.Key
+	}
+
+	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
+	stmt := `SELECT key, value, is_binary, etag FROM ` + a.metadata.TableName + `
+		WHERE
+			key IN (` + inClause + `)
+			AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
+	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
+	rows, err := a.db.QueryContext(ctx, stmt, params...)
+	cancel()
+	if err != nil {
+		return true, nil, err
+	}
+
+	var (
+		n    int
+		etag string
+	)
+	res := make([]state.BulkGetResponse, len(req))
+	for ; rows.Next(); n++ {
+		r := state.BulkGetResponse{}
+		r.Key, r.Data, etag, err = readRow(rows)
+		if err != nil {
+			r.Error = err.Error()
+		}
+		r.ETag = &etag
+		res[n] = r
+	}
+
+	return true, res[:n], nil
+}
+
+func readRow(row interface{ Scan(dest ...any) error }) (key string, value []byte, etag string, err error) {
+	var isBinary bool
+	err = row.Scan(&key, &value, &isBinary, &etag)
+	if err != nil {
+		return key, nil, "", err
+	}
+
+	if isBinary {
+		var n int
+		data := make([]byte, len(value))
+		n, err = base64.StdEncoding.Decode(data, value)
+		if err != nil {
+			return key, nil, "", fmt.Errorf("failed to decode binary data: %w", err)
+		}
+		return key, data[:n], etag, nil
+	}
+
+	return key, value, etag, nil
 }
 
 func (a *sqliteDBAccess) Set(ctx context.Context, req *state.SetRequest) error {
@@ -344,42 +387,67 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 	// Also resets expiration time in case of an update
 	expiration := "NULL"
 	if ttlSeconds > 0 {
-		expiration = fmt.Sprintf("DATETIME(CURRENT_TIMESTAMP, '+%d seconds')", ttlSeconds)
+		expiration = "DATETIME(CURRENT_TIMESTAMP, '+" + strconv.Itoa(ttlSeconds) + " seconds')"
 	}
 
 	// Only check for etag if FirstWrite specified (ref oracledatabaseaccess)
-	var res sql.Result
+	var (
+		res        sql.Result
+		mustCommit bool
+		stmt       string
+	)
 	// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
 	// And the same is for DATETIME function's seconds parameter (which is from an integer anyways).
 	if req.ETag == nil || *req.ETag == "" {
-		var op string
+		// If the operation uses first-write concurrency, we need to handle the special case of a row that has expired but hasn't been garbage collected yet
+		// In this case, the row should be considered as if it were deleted
+		// With SQLite, the only way we can handle that is by performing a SELECT query first
 		if req.Options.Concurrency == state.FirstWrite {
-			op = "INSERT"
-		} else {
-			op = "INSERT OR REPLACE"
+			// If we're not in a transaction already, start one as we need to ensure consistency
+			if db == a.db {
+				db, err = a.db.BeginTx(parentCtx, nil)
+				if err != nil {
+					return fmt.Errorf("failed to begin transaction: %w", err)
+				}
+				defer db.(*sql.Tx).Rollback()
+				mustCommit = true
+			}
+
+			// Check if there's already a row with the given key that has not expired yet
+			var count int
+			stmt = `SELECT COUNT(key)
+				FROM ` + a.metadata.TableName + `
+				WHERE key = ?
+					AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
+			err = db.QueryRowContext(parentCtx, stmt, req.Key).Scan(&count)
+			if err != nil {
+				return fmt.Errorf("failed to check for existing row with first-write concurrency: %w", err)
+			}
+
+			// If the row exists, then we just return an etag error
+			// Otherwise, we can fall through and continue with an INSERT OR REPLACE statement
+			if count > 0 {
+				return state.NewETagError(state.ETagMismatch, nil)
+			}
 		}
-		stmt := fmt.Sprintf(
-			`%s INTO %s
+
+		stmt = "INSERT OR REPLACE INTO " + a.metadata.TableName + `
 				(key, value, is_binary, etag, update_time, expiration_time)
-			VALUES(?, ?, ?, ?, CURRENT_TIMESTAMP, %s)`,
-			op, a.metadata.TableName, expiration,
-		)
+			VALUES(?, ?, ?, ?, CURRENT_TIMESTAMP, ` + expiration + `)`
 		ctx, cancel := context.WithTimeout(context.Background(), a.metadata.timeout)
 		res, err = db.ExecContext(ctx, stmt, req.Key, requestValue, isBinary, newEtag, req.Key)
 		cancel()
 	} else {
-		stmt := fmt.Sprintf(
-			`UPDATE %s SET
+		stmt = `UPDATE ` + a.metadata.TableName + ` SET
 				value = ?,
 				etag = ?,
 				is_binary = ?,
 				update_time = CURRENT_TIMESTAMP,
-				expiration_time = %s
+				expiration_time = ` + expiration + `
 			WHERE
 				key = ?
-				AND eTag = ?`,
-			a.metadata.TableName, expiration,
-		)
+				AND etag = ?
+				AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
 		ctx, cancel := context.WithTimeout(context.Background(), a.metadata.timeout)
 		res, err = db.ExecContext(ctx, stmt, requestValue, newEtag, isBinary, req.Key, *req.ETag)
 		cancel()
@@ -388,16 +456,24 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 		return err
 	}
 
+	// Count the number of affected rows
 	rows, err := res.RowsAffected()
 	if err != nil {
 		return err
 	}
-
 	if rows == 0 {
 		if req.ETag != nil && *req.ETag != "" {
 			return state.NewETagError(state.ETagMismatch, nil)
 		}
 		return errors.New("no item was updated")
+	}
+
+	// Commit the transaction if needed
+	if mustCommit {
+		err = db.(*sql.Tx).Commit()
+		if err != nil {
+			return fmt.Errorf("failed to commit transaction: %w", err)
+		}
 	}
 
 	return nil
@@ -467,13 +543,13 @@ func (a *sqliteDBAccess) doDelete(parentCtx context.Context, db querier, req *st
 	var result sql.Result
 	if req.ETag == nil || *req.ETag == "" {
 		// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
-		stmt := fmt.Sprintf("DELETE FROM %s WHERE key = ?", a.metadata.TableName)
+		stmt := "DELETE FROM " + a.metadata.TableName + " WHERE key = ?"
 		ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
 		result, err = db.ExecContext(ctx, stmt, req.Key)
 		cancel()
 	} else {
 		// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
-		stmt := fmt.Sprintf("DELETE FROM %s WHERE key = ? AND etag = ?", a.metadata.TableName)
+		stmt := "DELETE FROM " + a.metadata.TableName + " WHERE key = ? AND etag = ?"
 		ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
 		result, err = db.ExecContext(ctx, stmt, req.Key, *req.ETag)
 		cancel()

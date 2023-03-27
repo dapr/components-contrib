@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	pgxmock "github.com/pashagolub/pgxmock/v2"
@@ -470,6 +471,10 @@ func mockDatabase(t *testing.T) (*mocks, error) {
 	}
 
 	dba := &PostgresDBAccess{
+		metadata: postgresMetadataStruct{
+			TableName: "state",
+			Timeout:   30 * time.Second,
+		},
 		logger: logger,
 		db:     db,
 		migrateFn: func(context.Context, PGXPoolConn, MigrateOptions) error {

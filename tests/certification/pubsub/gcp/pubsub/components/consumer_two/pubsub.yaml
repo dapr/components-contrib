@@ -12,7 +12,7 @@ spec:
         key: GCP_PROJECT_ID
     - name: consumerID
       secretKeyRef:
-        name: PUBSUB_GCP_CONSUMER_ID_1
-        key: PUBSUB_GCP_CONSUMER_ID_1
+        name: PUBSUB_GCP_CONSUMER_ID_2
+        key: PUBSUB_GCP_CONSUMER_ID_2
 auth:
   secretstore: envvar-secret-store

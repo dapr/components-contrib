@@ -88,13 +88,11 @@ const (
 
 // New creates a new instance of a SQL Server transaction store.
 func New(logger logger.Logger) state.Store {
-	store := SQLServer{
-		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
-		logger:   logger,
-	}
-	store.migratorFactory = newMigration
-
-	return &store
+	return state.NewDefaultBulkStore(&SQLServer{
+		features:        []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		logger:          logger,
+		migratorFactory: newMigration,
+	})
 }
 
 // IndexedProperty defines a indexed property.
@@ -574,9 +572,7 @@ func (s *SQLServer) executeBulkDelete(ctx context.Context, db dbExecutor, req []
 	}
 
 	if int(rows) != len(req) {
-		err = state.NewBulkDeleteRowMismatchError(uint64(rows), uint64(len(req)))
-
-		return err
+		return state.NewBulkDeleteRowMismatchError(uint64(rows), uint64(len(req)))
 	}
 
 	return nil
@@ -612,11 +608,6 @@ func (s *SQLServer) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 		Data: []byte(data),
 		ETag: ptr.Of(etag),
 	}, nil
-}
-
-// BulkGet performs a bulks get operations.
-func (s *SQLServer) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
-	return false, nil, nil
 }
 
 // Set adds/updates an entity on store.
@@ -704,7 +695,7 @@ func (s *SQLServer) GetComponentMetadata() map[string]string {
 	return map[string]string{}
 }
 
-// Close implements io.Close.
+// Close implements io.Closer.
 func (s *SQLServer) Close() error {
 	if s.db != nil {
 		s.db.Close()

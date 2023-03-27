@@ -17,6 +17,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -60,9 +61,9 @@ const (
 
 // NewDynamoDBStateStore returns a new dynamoDB state store.
 func NewDynamoDBStateStore(_ logger.Logger) state.Store {
-	return &StateStore{
+	return state.NewDefaultBulkStore(&StateStore{
 		partitionKey: defaultPartitionKeyName,
-	}
+	})
 }
 
 // Init does metadata and connection parsing.
@@ -144,12 +145,6 @@ func (d *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 	return resp, nil
 }
 
-// BulkGet performs a bulk get operations.
-func (d *StateStore) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
-	// TODO: replace with dynamodb.BatchGetItem for performance
-	return false, nil, nil
-}
-
 // Set saves a dynamoDB item.
 func (d *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	item, err := d.getItemFromReq(req)
@@ -196,13 +191,13 @@ func (d *StateStore) BulkSet(ctx context.Context, req []state.SetRequest) error 
 		return d.Set(ctx, &req[0])
 	}
 
-	for _, r := range req {
-		r := r // avoid G601.
+	for i := range req {
+		r := req[i]
 
 		if r.ETag != nil && *r.ETag != "" {
-			return fmt.Errorf("dynamodb error: BulkSet() does not support etags; please use Set() instead")
+			return errors.New("dynamodb error: BulkSet() does not support etags; please use Set() instead")
 		} else if r.Options.Concurrency == state.FirstWrite {
-			return fmt.Errorf("dynamodb error: BulkSet() does not support FirstWrite concurrency; please use Set() instead")
+			return errors.New("dynamodb error: BulkSet() does not support FirstWrite concurrency; please use Set() instead")
 		}
 
 		item, err := d.getItemFromReq(&r)
@@ -210,17 +205,16 @@ func (d *StateStore) BulkSet(ctx context.Context, req []state.SetRequest) error 
 			return err
 		}
 
-		writeRequest := &dynamodb.WriteRequest{
+		writeRequests = append(writeRequests, &dynamodb.WriteRequest{
 			PutRequest: &dynamodb.PutRequest{
 				Item: item,
 			},
-		}
-
-		writeRequests = append(writeRequests, writeRequest)
+		})
 	}
 
-	requestItems := map[string][]*dynamodb.WriteRequest{}
-	requestItems[d.table] = writeRequests
+	requestItems := map[string][]*dynamodb.WriteRequest{
+		d.table: writeRequests,
+	}
 
 	_, e := d.client.BatchWriteItemWithContext(ctx, &dynamodb.BatchWriteItemInput{
 		RequestItems: requestItems,
@@ -271,10 +265,10 @@ func (d *StateStore) BulkDelete(ctx context.Context, req []state.DeleteRequest) 
 
 	for _, r := range req {
 		if r.ETag != nil && *r.ETag != "" {
-			return fmt.Errorf("dynamodb error: BulkDelete() does not support etags; please use Delete() instead")
+			return errors.New("dynamodb error: BulkDelete() does not support etags; please use Delete() instead")
 		}
 
-		writeRequest := &dynamodb.WriteRequest{
+		writeRequests = append(writeRequests, &dynamodb.WriteRequest{
 			DeleteRequest: &dynamodb.DeleteRequest{
 				Key: map[string]*dynamodb.AttributeValue{
 					d.partitionKey: {
@@ -282,12 +276,12 @@ func (d *StateStore) BulkDelete(ctx context.Context, req []state.DeleteRequest) 
 					},
 				},
 			},
-		}
-		writeRequests = append(writeRequests, writeRequest)
+		})
 	}
 
-	requestItems := map[string][]*dynamodb.WriteRequest{}
-	requestItems[d.table] = writeRequests
+	requestItems := map[string][]*dynamodb.WriteRequest{
+		d.table: writeRequests,
+	}
 
 	_, e := d.client.BatchWriteItemWithContext(ctx, &dynamodb.BatchWriteItemInput{
 		RequestItems: requestItems,

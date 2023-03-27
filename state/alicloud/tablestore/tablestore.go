@@ -48,10 +48,10 @@ type tablestoreMetadata struct {
 }
 
 func NewAliCloudTableStore(logger logger.Logger) state.Store {
-	return &AliCloudTableStore{
+	return state.NewDefaultBulkStore(&AliCloudTableStore{
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
 		logger:   logger,
-	}
+	})
 }
 
 func (s *AliCloudTableStore) Init(_ context.Context, metadata state.Metadata) error {

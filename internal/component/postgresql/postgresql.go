@@ -51,7 +51,7 @@ type SetQueryOptions struct {
 // NewPostgreSQLStateStore creates a new instance of PostgreSQL state store.
 func NewPostgreSQLStateStore(logger logger.Logger, opts Options) state.Store {
 	dba := newPostgresDBAccess(logger, opts)
-	return newPostgreSQLStateStore(logger, dba)
+	return state.NewDefaultBulkStore(newPostgreSQLStateStore(logger, dba))
 }
 
 // newPostgreSQLStateStore creates a newPostgreSQLStateStore instance of a PostgreSQL state store.

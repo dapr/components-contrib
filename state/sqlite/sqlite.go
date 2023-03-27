@@ -32,7 +32,7 @@ type SQLiteStore struct {
 func NewSQLiteStateStore(logger logger.Logger) state.Store {
 	dba := newSqliteDBAccess(logger)
 
-	return newSQLiteStateStore(logger, dba)
+	return state.NewDefaultBulkStore(newSQLiteStateStore(logger, dba))
 }
 
 // newSQLiteStateStore creates a newSQLiteStateStore instance of an Sqlite state store.
@@ -73,43 +73,19 @@ func (s *SQLiteStore) Delete(ctx context.Context, req *state.DeleteRequest) erro
 	return s.dbaccess.Delete(ctx, req)
 }
 
-// BulkDelete removes multiple entries from the store.
-func (s *SQLiteStore) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	ops := make([]state.TransactionalStateOperation, len(req))
-	for i, r := range req {
-		ops[i] = state.TransactionalStateOperation{
-			Operation: state.Delete,
-			Request:   r,
-		}
-	}
-	return s.dbaccess.ExecuteMulti(ctx, ops)
-}
-
 // Get returns an entity from store.
 func (s *SQLiteStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	return s.dbaccess.Get(ctx, req)
 }
 
 // BulkGet performs a bulks get operations.
-func (s *SQLiteStore) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+func (s *SQLiteStore) BulkGet(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error) {
 	return s.dbaccess.BulkGet(ctx, req)
 }
 
 // Set adds/updates an entity on store.
 func (s *SQLiteStore) Set(ctx context.Context, req *state.SetRequest) error {
 	return s.dbaccess.Set(ctx, req)
-}
-
-// BulkSet adds/updates multiple entities on store.
-func (s *SQLiteStore) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	ops := make([]state.TransactionalStateOperation, len(req))
-	for i, r := range req {
-		ops[i] = state.TransactionalStateOperation{
-			Operation: state.Upsert,
-			Request:   r,
-		}
-	}
-	return s.dbaccess.ExecuteMulti(ctx, ops)
 }
 
 // Multi handles multiple transactions. Implements TransactionalStore.

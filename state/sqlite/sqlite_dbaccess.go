@@ -43,7 +43,7 @@ type DBAccess interface {
 	Set(ctx context.Context, req *state.SetRequest) error
 	Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error)
 	Delete(ctx context.Context, req *state.DeleteRequest) error
-	BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error)
+	BulkGet(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error)
 	ExecuteMulti(ctx context.Context, reqs []state.TransactionalStateOperation) error
 	Close() error
 }
@@ -272,9 +272,9 @@ func (a *sqliteDBAccess) Get(parentCtx context.Context, req *state.GetRequest) (
 	}, nil
 }
 
-func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error) {
 	if len(req) == 0 {
-		return true, []state.BulkGetResponse{}, nil
+		return []state.BulkGetResponse{}, nil
 	}
 
 	// SQLite doesn't support passing an array for an IN clause, so we need to build a custom query
@@ -294,7 +294,7 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 	rows, err := a.db.QueryContext(ctx, stmt, params...)
 	cancel()
 	if err != nil {
-		return true, nil, err
+		return nil, err
 	}
 
 	var (
@@ -312,7 +312,7 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 		res[n] = r
 	}
 
-	return true, res[:n], nil
+	return res[:n], nil
 }
 
 func readRow(row interface{ Scan(dest ...any) error }) (key string, value []byte, etag string, err error) {

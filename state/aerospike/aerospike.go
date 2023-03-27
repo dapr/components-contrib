@@ -39,13 +39,12 @@ type aerospikeMetadata struct {
 }
 
 var (
-	errMissingHosts = errors.New("aerospike: value for 'hosts' missing")
-	errInvalidHosts = errors.New("aerospike: invalid value for hosts")
+	errMissingHosts = errors.New("value for 'hosts' missing")
+	errInvalidHosts = errors.New("invalid value for hosts")
 )
 
 // Aerospike is a state store.
 type Aerospike struct {
-	state.DefaultBulkStore
 	namespace string
 	set       string // optional
 	client    *as.Client
@@ -57,14 +56,11 @@ type Aerospike struct {
 
 // NewAerospikeStateStore returns a new Aerospike state store.
 func NewAerospikeStateStore(logger logger.Logger) state.Store {
-	s := &Aerospike{
+	return state.NewDefaultBulkStore(&Aerospike{
 		json:     jsoniter.ConfigFastest,
 		features: []state.Feature{state.FeatureETag},
 		logger:   logger,
-	}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
-	return s
+	})
 }
 
 func parseAndValidateMetadata(meta state.Metadata) (*aerospikeMetadata, error) {

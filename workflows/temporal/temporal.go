@@ -126,7 +126,7 @@ func (c *TemporalWF) Get(ctx context.Context, req *workflows.WorkflowReference) 
 
 func (c *TemporalWF) RaiseEvent(ctx context.Context, req *workflows.RaiseEventRequest) error {
 	// Unimplemented
-	return nil
+	return errors.New("Raise Event functionality not implemented")
 }
 
 func (c *TemporalWF) Close() {
@@ -135,12 +135,12 @@ func (c *TemporalWF) Close() {
 
 func (c *TemporalWF) Pause(ctx context.Context, req *workflows.WorkflowReference) error {
 	// Unimplemented
-	return nil
+	return errors.New("Pause functionality not implemented")
 }
 
 func (c *TemporalWF) Resume(ctx context.Context, req *workflows.WorkflowReference) error {
 	// Unimplemented
-	return nil
+	return errors.New("Resume functionality not implemented")
 }
 
 func (c *TemporalWF) parseMetadata(meta workflows.Metadata) (*temporalMetadata, error) {

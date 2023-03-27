@@ -14,7 +14,7 @@ limitations under the License.
 package kubernetes
 
 import (
-	"fmt"
+	"strconv"
 
 	"github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/config"
@@ -61,5 +61,5 @@ func (k *resolver) Init(metadata nameresolution.Metadata) error {
 // ResolveID resolves name to address in Kubernetes.
 func (k *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) {
 	// Dapr requires this formatting for Kubernetes services
-	return fmt.Sprintf("%s-dapr.%s.svc.%s:%d", req.ID, req.Namespace, k.clusterDomain, req.Port), nil
+	return req.ID + "-dapr." + req.Namespace + ".svc." + k.clusterDomain + ":" + strconv.Itoa(req.Port), nil
 }

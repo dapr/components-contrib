@@ -1,0 +1,8 @@
+{
+    "kid": "p256-public",
+    "kty": "EC",
+    "alg": "ES256",
+    "crv": "P-256",
+    "x": "UMn1c2ioMNi2DqvC8hdBVUERFZ97eVFsNVcQIgR0Hso",
+    "y": "uT1a0P3UOLiObve2-pOMFx2BVzLz5rFtU-qmQBPWwd0"
+}

@@ -291,7 +291,7 @@ func (g *GCPPubSub) Subscribe(parentCtx context.Context, req pubsub.SubscribeReq
 	}
 
 	topic := g.getTopic(req.Topic)
-	sub := g.getSubscription(g.metadata.consumerID + "-" + req.Topic)
+	sub := g.getSubscription(BuildSubscriptionID(g.metadata.consumerID, req.Topic))
 
 	subscribeCtx, cancel := context.WithCancel(parentCtx)
 	g.wg.Add(2)
@@ -309,6 +309,10 @@ func (g *GCPPubSub) Subscribe(parentCtx context.Context, req pubsub.SubscribeReq
 	}()
 
 	return nil
+}
+
+func BuildSubscriptionID(consumerID, topic string) string {
+	return fmt.Sprintf("%s-%s", consumerID, topic)
 }
 
 func (g *GCPPubSub) handleSubscriptionMessages(parentCtx context.Context, topic *gcppubsub.Topic, sub *gcppubsub.Subscription, handler pubsub.Handler) error {

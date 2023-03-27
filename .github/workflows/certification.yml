@@ -97,6 +97,11 @@ jobs:
       matrix: 
         include: ${{ fromJson(needs.generate-matrix.outputs.test-matrix) }}
 
+    # Add "id-token" with the intended permissions. Needed by GCP WIF
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
     steps:
     - name: Set default payload repo and ref
       run: |
@@ -158,6 +163,15 @@ jobs:
           echo "$secretName=$value" >> $GITHUB_OUTPUT
           echo "$secretName=$value" >> $GITHUB_ENV
         done
+
+    # Authenticate with GCP Workload Identity Pool
+    - id: 'auth'
+      name: 'Authenticate to Google Cloud'
+      uses: 'google-github-actions/auth@v1'
+      with:
+        token_format: 'access_token'
+        workload_identity_provider: 'projects/369878874207/locations/global/workloadIdentityPools/contrib-cert-tests-gh-pool/providers/contrib-cert-tests-gh-provider'
+        service_account: 'comp-contrib-wif@dapr-tests.iam.gserviceaccount.com'
 
     # Download the required certificates into files, and set env var pointing to their names
     - name: Setup certs

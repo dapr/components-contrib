@@ -16,7 +16,6 @@ package ses
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -92,11 +91,6 @@ func (a *AWSSES) parseMetadata(meta bindings.Metadata) (*sesMetadata, error) {
 	err = json.Unmarshal(b, &m)
 	if err != nil {
 		return nil, err
-	}
-
-	if meta.Properties["region"] == "" || meta.Properties["accessKey"] == "" ||
-		meta.Properties["secretKey"] == "" {
-		return &m, errors.New("SES binding error: region, accessKey or secretKey fields are required in metadata")
 	}
 
 	return &m, nil

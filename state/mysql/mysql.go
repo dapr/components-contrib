@@ -732,7 +732,8 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 	// Do not count affected rows when using first-write
 	// Conflicts are handled separately
 	if hasEtag || req.Options.Concurrency != state.FirstWrite {
-		rows, err := result.RowsAffected()
+		var rows int64
+		rows, err = result.RowsAffected()
 		if err != nil {
 			return err
 		}

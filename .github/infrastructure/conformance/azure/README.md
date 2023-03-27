@@ -42,7 +42,7 @@ By default, the script will prefix all resources it creates with your user alias
 - `myazurealias-azure-conf-test.json` is a copy of the Azure Resource Manager (ARM) template compiled from the `.bicep` files in this folder, and used to generate all the resources. It can be modified and re-deployed if desired for your own purposes.
 - `myazurealias-teardown-conf-test.sh` is a script that will teardown all of the Azure resources that were created, including the test service principals and key vault.
 - `myazurealias-conf-test-config.rc` contains all the environment variables needed to run the Azure conformance tests locally. **This file also contains various credentials used to access the resources.**
-- `AzureKeyVaultSecretStoreCert.pfx` is a local copy of the cert for the Service Principal used in the `secretstore.azure.keyvault` conformance test. The path to this is referenced as part of the environment variables in the `*-conf-test-config.rc`.
+- `AzureKeyVaultCert.pfx` is a local copy of the cert for the Service Principal used in the `secretstore.azure.keyvault` conformance test. The path to this is referenced as part of the environment variables in the `*-conf-test-config.rc`.
 - `AZURE_CREDENTIALS` contains the credentials for the Service Principal you can use to run the conformance test GitHub workflow against the created Azure resources.
 
 ### Setting up tests for Azure Event Grid

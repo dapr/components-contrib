@@ -24,4 +24,7 @@ type Store interface {
 
 	// Unlock tries to release a lock.
 	Unlock(ctx context.Context, req *UnlockRequest) (*UnlockResponse, error)
+
+	// GetComponentMetadata returns information on the component's metadata.
+	GetComponentMetadata() map[string]string
 }

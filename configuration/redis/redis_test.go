@@ -15,7 +15,6 @@ package redis
 
 import (
 	"context"
-	"reflect"
 	"testing"
 	"time"
 
@@ -252,27 +251,27 @@ func Test_parseRedisMetadata(t *testing.T) {
 	testProperties[sentinelMasterName] = "tesSentinelMasterName"
 	testProperties[redisDB] = "1"
 	testMetadata := metadata{
-		Host:               "testHost",
-		Password:           "testPassword",
-		EnableTLS:          true,
-		MaxRetries:         10,
-		MaxRetryBackoff:    time.Second,
-		Failover:           true,
-		SentinelMasterName: "tesSentinelMasterName",
-		DB:                 1,
+		Host:                    "testHost",
+		Password:                "testPassword",
+		EnableTLS:               true,
+		MaxRetries:              10,
+		internalMaxRetryBackoff: time.Second,
+		Failover:                true,
+		SentinelMasterName:      "tesSentinelMasterName",
+		DB:                      1,
 	}
 
 	testDefaultProperties := make(map[string]string)
 	testDefaultProperties[host] = "testHost"
 	defaultMetadata := metadata{
-		Host:               "testHost",
-		Password:           "",
-		EnableTLS:          defaultEnableTLS,
-		MaxRetries:         defaultMaxRetries,
-		MaxRetryBackoff:    defaultMaxRetryBackoff,
-		Failover:           false,
-		SentinelMasterName: "",
-		DB:                 defaultDB,
+		Host:                    "testHost",
+		Password:                "",
+		EnableTLS:               defaultEnableTLS,
+		MaxRetries:              defaultMaxRetries,
+		internalMaxRetryBackoff: defaultMaxRetryBackoff,
+		Failover:                false,
+		SentinelMasterName:      "",
+		DB:                      defaultDB,
 	}
 
 	tests := []struct {
@@ -305,9 +304,14 @@ func Test_parseRedisMetadata(t *testing.T) {
 				t.Errorf("parseRedisMetadata() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("parseRedisMetadata() got = %v, want %v", got, tt.want)
-			}
+			assert.Equal(t, tt.want.Host, got.Host)
+			assert.Equal(t, tt.want.Password, got.Password)
+			assert.Equal(t, tt.want.EnableTLS, got.EnableTLS)
+			assert.Equal(t, tt.want.MaxRetries, got.MaxRetries)
+			assert.Equal(t, tt.want.internalMaxRetryBackoff, got.internalMaxRetryBackoff)
+			assert.Equal(t, tt.want.Failover, got.Failover)
+			assert.Equal(t, tt.want.SentinelMasterName, got.SentinelMasterName)
+			assert.Equal(t, tt.want.DB, got.DB)
 		})
 	}
 }

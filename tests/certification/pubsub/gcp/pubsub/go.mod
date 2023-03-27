@@ -7,6 +7,7 @@ replace github.com/dapr/components-contrib => ../../../../..
 replace github.com/dapr/components-contrib/tests/certification => ../../..
 
 require (
+	cloud.google.com/go/pubsub v1.28.0
 	github.com/dapr/components-contrib v1.10.3
 	github.com/dapr/components-contrib/tests/certification v0.0.0-00010101000000-000000000000
 	github.com/dapr/dapr v1.10.4-0.20230317204345-585da2feb90d
@@ -22,7 +23,6 @@ require (
 	cloud.google.com/go/compute v1.18.0 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	cloud.google.com/go/iam v0.11.0 // indirect
-	cloud.google.com/go/pubsub v1.28.0 // indirect
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	github.com/AdhityaRamadhanus/fasthttpcors v0.0.0-20170121111917-d4c07198763a // indirect
 	github.com/PuerkitoBio/purell v1.2.0 // indirect

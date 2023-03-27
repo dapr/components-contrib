@@ -201,6 +201,23 @@ const components = {
         conformanceDestroy:
             'conformance-pubsub.aws.snssqs.terraform-destroy.sh',
     },
+    'pubsub.gcp.pubsub': {
+        certification: true,
+        requireTerraform: true,
+        certificationSetup: 'certification-pubsub.gcp.pubsub-setup.sh',
+        certificationDestroy: 'certification-pubsub.gcp.pubsub-destroy.sh',
+    },
+    'pubsub.gcp.pubsub.docker': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh gcp-pubsub',
+    },
+    'pubsub.gcp.pubsub.terraform': {
+        conformance: true,
+        requireTerraform: true,
+        conformanceSetup: 'conformance-pubsub.gcp.pubsub.terraform-setup.sh',
+        conformanceDestroy:
+            'conformance-pubsub.gcp.pubsub.terraform-destroy.sh',
+    },
     'pubsub.azure.eventhubs': {
         conformance: true,
         certification: true,

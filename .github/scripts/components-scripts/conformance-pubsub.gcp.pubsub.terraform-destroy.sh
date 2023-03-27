@@ -6,4 +6,4 @@ set +e
 cd ".github/infrastructure/terraform/conformance/pubsub/gcp/pubsub"
 
 # Run Terraform
-terraform destroy -auto-approve -var="GCP_PROJECT_ID=$GCP_PROJECT_ID" -var="UNIQUE_ID=$UNIQUE_ID" -var="TIMESTAMP=$CURRENT_TIME"
+terraform destroy -auto-approve -var="GCP_PROJECT_ID=$GCP_PROJECT" -var="UNIQUE_ID=$UNIQUE_ID" -var="TIMESTAMP=$CURRENT_TIME"

@@ -17,7 +17,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
+	"regexp"
 )
 
 type migrator interface {
@@ -86,13 +86,13 @@ func (m *migration) executeMigrations(ctx context.Context) (migrationResult, err
 	// If the user provides a database in the connection string to not attempt
 	// to create the database. This work as the component did before adding the
 	// support to create the db.
-	if strings.Contains(m.store.connectionString, "database=") {
+	if connStringContainsDatabase(m.store.connectionString) {
 		// Schedule close of connection
 		defer db.Close()
 	} else {
 		err = m.ensureDatabaseExists(ctx, db)
 		if err != nil {
-			return r, fmt.Errorf("failed to create db database: %v", err)
+			return r, fmt.Errorf("failed to create database: %w", err)
 		}
 
 		// Close the existing connection
@@ -111,17 +111,17 @@ func (m *migration) executeMigrations(ctx context.Context) (migrationResult, err
 
 	err = m.ensureSchemaExists(ctx, db)
 	if err != nil {
-		return r, fmt.Errorf("failed to create db schema: %v", err)
+		return r, fmt.Errorf("failed to create db schema: %w", err)
 	}
 
 	err = m.ensureTableExists(ctx, db, r)
 	if err != nil {
-		return r, fmt.Errorf("failed to create db table: %v", err)
+		return r, fmt.Errorf("failed to create db table: %w", err)
 	}
 
 	err = m.ensureStoredProcedureExists(ctx, db, r)
 	if err != nil {
-		return r, fmt.Errorf("failed to create stored procedures: %v", err)
+		return r, fmt.Errorf("failed to create stored procedures: %w", err)
 	}
 
 	for _, ix := range m.store.indexedProperties {
@@ -132,6 +132,12 @@ func (m *migration) executeMigrations(ctx context.Context) (migrationResult, err
 	}
 
 	return r, nil
+}
+
+func connStringContainsDatabase(connStr string) bool {
+	// This method is only going to be called once (or at least once per component), so we are not pre-compiling the regex to avoid keeping that as a global variable
+	return regexp.MustCompile(`(?i)(^|;)database=.+`).
+		MatchString(connStr)
 }
 
 func runCommand(ctx context.Context, db *sql.DB, tsql string) error {

@@ -15,7 +15,6 @@ package oracledatabase
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 
 	"github.com/dapr/components-contrib/metadata"
@@ -68,7 +67,14 @@ func (o *OracleDatabase) Delete(ctx context.Context, req *state.DeleteRequest) e
 
 // BulkDelete removes multiple entries from the store.
 func (o *OracleDatabase) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	return o.dbaccess.ExecuteMulti(ctx, nil, req)
+	ops := make([]state.TransactionalStateOperation, len(req))
+	for i, r := range req {
+		ops[i] = state.TransactionalStateOperation{
+			Operation: state.Delete,
+			Request:   r,
+		}
+	}
+	return o.dbaccess.ExecuteMulti(ctx, ops)
 }
 
 // Get returns an entity from store.
@@ -89,39 +95,19 @@ func (o *OracleDatabase) Set(ctx context.Context, req *state.SetRequest) error {
 
 // BulkSet adds/updates multiple entities on store.
 func (o *OracleDatabase) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	return o.dbaccess.ExecuteMulti(ctx, req, nil)
+	ops := make([]state.TransactionalStateOperation, len(req))
+	for i, r := range req {
+		ops[i] = state.TransactionalStateOperation{
+			Operation: state.Upsert,
+			Request:   r,
+		}
+	}
+	return o.dbaccess.ExecuteMulti(ctx, ops)
 }
 
 // Multi handles multiple transactions. Implements TransactionalStore.
 func (o *OracleDatabase) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
-	var deletes []state.DeleteRequest
-	var sets []state.SetRequest
-	for _, req := range request.Operations {
-		switch req.Operation {
-		case state.Upsert:
-			if setReq, ok := req.Request.(state.SetRequest); ok {
-				sets = append(sets, setReq)
-			} else {
-				return fmt.Errorf("expecting set request")
-			}
-
-		case state.Delete:
-			if delReq, ok := req.Request.(state.DeleteRequest); ok {
-				deletes = append(deletes, delReq)
-			} else {
-				return fmt.Errorf("expecting delete request")
-			}
-
-		default:
-			return fmt.Errorf("unsupported operation: %s", req.Operation)
-		}
-	}
-
-	if len(sets) > 0 || len(deletes) > 0 {
-		return o.dbaccess.ExecuteMulti(ctx, sets, deletes)
-	}
-
-	return nil
+	return o.dbaccess.ExecuteMulti(ctx, request.Operations)
 }
 
 // Close implements io.Closer.

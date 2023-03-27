@@ -13,6 +13,10 @@ limitations under the License.
 
 package state
 
+import (
+	"golang.org/x/exp/slices"
+)
+
 const (
 	// FeatureETag is the feature to etag metadata in state store.
 	FeatureETag Feature = "ETAG"
@@ -27,11 +31,5 @@ type Feature string
 
 // IsPresent checks if a given feature is present in the list.
 func (f Feature) IsPresent(features []Feature) bool {
-	for _, feature := range features {
-		if feature == f {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(features, f)
 }

@@ -13,6 +13,10 @@ limitations under the License.
 
 package pubsub
 
+import (
+	"golang.org/x/exp/slices"
+)
+
 const (
 	// FeatureMessageTTL is the feature to handle message TTL.
 	FeatureMessageTTL Feature = "MESSAGE_TTL"
@@ -25,11 +29,5 @@ type Feature string
 
 // IsPresent checks if a given feature is present in the list.
 func (f Feature) IsPresent(features []Feature) bool {
-	for _, feature := range features {
-		if feature == f {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(features, f)
 }

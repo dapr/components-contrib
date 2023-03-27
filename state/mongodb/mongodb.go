@@ -11,9 +11,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package mongodb is an implementation of StateStore interface to perform operations on store
 package mongodb
-
-// mongodb package is an implementation of StateStore interface to perform operations on store
 
 import (
 	"context"
@@ -74,7 +73,6 @@ const (
 
 // MongoDB is a state store implementation for MongoDB.
 type MongoDB struct {
-	state.DefaultBulkStore
 	client           *mongo.Client
 	collection       *mongo.Collection
 	operationTimeout time.Duration
@@ -107,13 +105,10 @@ type Item struct {
 
 // NewMongoDB returns a new MongoDB state store.
 func NewMongoDB(logger logger.Logger) state.Store {
-	s := &MongoDB{
+	return state.NewDefaultBulkStore(&MongoDB{
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI},
 		logger:   logger,
-	}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
-	return s
+	})
 }
 
 // Init establishes connection to the store based on the metadata.
@@ -184,7 +179,7 @@ func (m *MongoDB) Set(ctx context.Context, req *state.SetRequest) error {
 
 func (m *MongoDB) Ping(ctx context.Context) error {
 	if err := m.client.Ping(ctx, nil); err != nil {
-		return fmt.Errorf("mongoDB store: error connecting to mongoDB at %s: %s", m.metadata.Host, err)
+		return fmt.Errorf("error connecting to mongoDB at %s: %s", m.metadata.Host, err)
 	}
 
 	return nil
@@ -359,18 +354,18 @@ func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
 func (m *MongoDB) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
 	sess, err := m.client.StartSession()
-	txnOpts := options.Transaction().SetReadConcern(readconcern.Snapshot()).
+	txnOpts := options.Transaction().
+		SetReadConcern(readconcern.Snapshot()).
 		SetWriteConcern(writeconcern.New(writeconcern.WMajority()))
 
 	defer sess.EndSession(ctx)
 
 	if err != nil {
-		return fmt.Errorf("error in starting the transaction: %s", err)
+		return fmt.Errorf("error starting the transaction: %w", err)
 	}
 
 	sess.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
 		err = m.doTransaction(sessCtx, request.Operations)
-
 		return nil, err
 	}, txnOpts)
 
@@ -381,17 +376,22 @@ func (m *MongoDB) doTransaction(sessCtx mongo.SessionContext, operations []state
 	for _, o := range operations {
 		var err error
 		if o.Operation == state.Upsert {
-			req := o.Request.(state.SetRequest)
+			req, ok := o.Request.(state.SetRequest)
+			if !ok {
+				return errors.New("invalid type for operation")
+			}
 			err = m.setInternal(sessCtx, &req)
 		} else if o.Operation == state.Delete {
-			req := o.Request.(state.DeleteRequest)
+			req, ok := o.Request.(state.DeleteRequest)
+			if !ok {
+				return errors.New("invalid type for operation")
+			}
 			err = m.deleteInternal(sessCtx, &req)
 		}
 
 		if err != nil {
 			sessCtx.AbortTransaction(sessCtx)
-
-			return fmt.Errorf("error during transaction, aborting the transaction: %s", err)
+			return fmt.Errorf("error during transaction, aborting the transaction: %w", err)
 		}
 	}
 

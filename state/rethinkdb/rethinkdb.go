@@ -52,18 +52,18 @@ type stateConfig struct {
 }
 
 type stateRecord struct {
-	ID   string      `json:"id" rethinkdb:"id"`
-	TS   int64       `json:"timestamp" rethinkdb:"timestamp"`
-	Hash string      `json:"hash,omitempty" rethinkdb:"hash,omitempty"`
-	Data interface{} `json:"data,omitempty" rethinkdb:"data,omitempty"`
+	ID   string `json:"id" rethinkdb:"id"`
+	TS   int64  `json:"timestamp" rethinkdb:"timestamp"`
+	Hash string `json:"hash,omitempty" rethinkdb:"hash,omitempty"`
+	Data any    `json:"data,omitempty" rethinkdb:"data,omitempty"`
 }
 
 // NewRethinkDBStateStore returns a new RethinkDB state store.
 func NewRethinkDBStateStore(logger logger.Logger) state.Store {
-	return &RethinkDB{
+	return state.NewDefaultBulkStore(&RethinkDB{
 		features: []state.Feature{},
 		logger:   logger,
-	}
+	})
 }
 
 // Init parses metadata, initializes the RethinkDB client, and ensures the state table exists.
@@ -197,12 +197,6 @@ func (s *RethinkDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 	return resp, nil
 }
 
-// BulkGet performs a bulks get operations.
-func (s *RethinkDB) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
-	// TODO: replace with bulk get for performance
-	return false, nil, nil
-}
-
 // Set saves a state KV item.
 func (s *RethinkDB) Set(ctx context.Context, req *state.SetRequest) error {
 	if req == nil || req.Key == "" || req.Value == nil {
@@ -215,6 +209,7 @@ func (s *RethinkDB) Set(ctx context.Context, req *state.SetRequest) error {
 // BulkSet performs a bulk save operation.
 func (s *RethinkDB) BulkSet(ctx context.Context, req []state.SetRequest) error {
 	docs := make([]*stateRecord, len(req))
+	now := time.Now().UnixNano()
 	for i, v := range req {
 		var etag string
 		if v.ETag != nil {
@@ -223,7 +218,7 @@ func (s *RethinkDB) BulkSet(ctx context.Context, req []state.SetRequest) error {
 
 		docs[i] = &stateRecord{
 			ID:   v.Key,
-			TS:   time.Now().UTC().UnixNano(),
+			TS:   now,
 			Data: v.Value,
 			Hash: etag,
 		}

@@ -91,7 +91,6 @@ const (
 
 // StateStore is a Redis state store.
 type StateStore struct {
-	state.DefaultBulkStore
 	client                         rediscomponent.RedisClient
 	clientSettings                 *rediscomponent.Settings
 	json                           jsoniter.API
@@ -105,21 +104,22 @@ type StateStore struct {
 }
 
 // NewRedisStateStore returns a new redis state store.
-func NewRedisStateStore(logger logger.Logger) state.Store {
-	s := &StateStore{
+func NewRedisStateStore(log logger.Logger) state.Store {
+	return state.NewDefaultBulkStore(newStateStore(log))
+}
+
+func newStateStore(log logger.Logger) *StateStore {
+	return &StateStore{
 		json:                           jsoniter.ConfigFastest,
 		features:                       []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI},
-		logger:                         logger,
+		logger:                         log,
 		suppressActorStateStoreWarning: atomic.Bool{},
 	}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
-	return s
 }
 
 func (r *StateStore) Ping(ctx context.Context) error {
 	if _, err := r.client.PingResult(ctx); err != nil {
-		return fmt.Errorf("redis store: error connecting to redis at %s: %s", r.clientSettings.Host, err)
+		return fmt.Errorf("redis store: error connecting to redis at %s: %w", r.clientSettings.Host, err)
 	}
 
 	return nil
@@ -141,11 +141,11 @@ func (r *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 
 	// check for query schemas
 	if r.querySchemas, err = parseQuerySchemas(m.QueryIndexes); err != nil {
-		return fmt.Errorf("redis store: error parsing query index schema: %v", err)
+		return fmt.Errorf("redis store: error parsing query index schema: %w", err)
 	}
 
 	if _, err = r.client.PingResult(ctx); err != nil {
-		return fmt.Errorf("redis store: error connecting to redis at %s: %v", r.clientSettings.Host, err)
+		return fmt.Errorf("redis store: error connecting to redis at %s: %w", r.clientSettings.Host, err)
 	}
 
 	if r.replicas, err = r.getConnectedSlaves(ctx); err != nil {
@@ -153,7 +153,7 @@ func (r *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	}
 
 	if err = r.registerSchemas(ctx); err != nil {
-		return fmt.Errorf("redis store: error registering query schemas: %v", err)
+		return fmt.Errorf("redis store: error registering query schemas: %w", err)
 	}
 
 	return nil
@@ -244,12 +244,12 @@ func (r *StateStore) getDefault(ctx context.Context, req *state.GetRequest) (*st
 	if res == nil {
 		return &state.GetResponse{}, nil
 	}
-	vals, ok := res.([]interface{})
+	vals, ok := res.([]any)
 	if !ok {
 		// we retrieved a JSON value from a non-JSON store
-		valMap := res.(map[interface{}]interface{})
-		// convert valMap to []interface{}
-		vals = make([]interface{}, 0, len(valMap))
+		valMap := res.(map[any]any)
+		// convert valMap to []any
+		vals = make([]any, 0, len(valMap))
 		for k, v := range valMap {
 			vals = append(vals, k, v)
 		}
@@ -332,7 +332,7 @@ func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	}
 	ttl, err := r.parseTTL(req)
 	if err != nil {
-		return fmt.Errorf("failed to parse ttl from metadata: %s", err)
+		return fmt.Errorf("failed to parse ttl from metadata: %w", err)
 	}
 	// apply global TTL
 	if ttl == nil {
@@ -360,27 +360,27 @@ func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
-		return fmt.Errorf("failed to set key %s: %s", req.Key, err)
+		return fmt.Errorf("failed to set key %s: %w", req.Key, err)
 	}
 
 	if ttl != nil && *ttl > 0 {
 		err = r.client.DoWrite(ctx, "EXPIRE", req.Key, *ttl)
 		if err != nil {
-			return fmt.Errorf("failed to set key %s ttl: %s", req.Key, err)
+			return fmt.Errorf("failed to set key %s ttl: %w", req.Key, err)
 		}
 	}
 
 	if ttl != nil && *ttl <= 0 {
 		err = r.client.DoWrite(ctx, "PERSIST", req.Key)
 		if err != nil {
-			return fmt.Errorf("failed to persist key %s: %s", req.Key, err)
+			return fmt.Errorf("failed to persist key %s: %w", req.Key, err)
 		}
 	}
 
 	if req.Options.Consistency == state.Strong && r.replicas > 0 {
 		err = r.client.DoWrite(ctx, "WAIT", r.replicas, 1000)
 		if err != nil {
-			return fmt.Errorf("redis waiting for %v replicas to acknowledge write, err: %s", r.replicas, err.Error())
+			return fmt.Errorf("redis waiting for %v replicas to acknowledge write, err: %w", r.replicas, err)
 		}
 	}
 
@@ -394,7 +394,8 @@ func (r *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 	}
 	var setQuery, delQuery string
 	var isJSON bool
-	if contentType, ok := request.Metadata[daprmetadata.ContentType]; ok && contentType == contenttype.JSONContentType && rediscomponent.ClientHasJSONSupport(r.client) {
+	contentType := request.Metadata[daprmetadata.ContentType]
+	if contentType == contenttype.JSONContentType && rediscomponent.ClientHasJSONSupport(r.client) {
 		isJSON = true
 		setQuery = setJSONQuery
 		delQuery = delJSONQuery
@@ -413,7 +414,7 @@ func (r *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 			}
 			ttl, err := r.parseTTL(&req)
 			if err != nil {
-				return fmt.Errorf("failed to parse ttl from metadata: %s", err)
+				return fmt.Errorf("failed to parse ttl from metadata: %w", err)
 			}
 			// apply global TTL
 			if ttl == nil {
@@ -449,12 +450,12 @@ func (r *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 
 func (r *StateStore) registerSchemas(ctx context.Context) error {
 	for name, elem := range r.querySchemas {
-		r.logger.Infof("redis: create query index %s", name)
+		r.logger.Infof("create query index %s", name)
 		if err := r.client.DoWrite(ctx, elem.schema...); err != nil {
 			if err.Error() != "Index already exists" {
 				return err
 			}
-			r.logger.Infof("redis: drop stale query index %s", name)
+			r.logger.Infof("drop stale query index %s", name)
 			if err = r.client.DoWrite(ctx, "FT.DROPINDEX", name); err != nil {
 				return err
 			}

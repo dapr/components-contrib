@@ -31,7 +31,7 @@ import (
 )
 
 func TestGetKeyVersion(t *testing.T) {
-	store := NewRedisStateStore(logger.NewLogger("test")).(*StateStore)
+	store := newStateStore(logger.NewLogger("test"))
 	t.Run("With all required fields", func(t *testing.T) {
 		key, ver, err := store.getKeyVersion([]interface{}{"data", "TEST_KEY", "version", "TEST_VER"})
 		assert.Equal(t, nil, err, "failed to read all fields")
@@ -63,7 +63,7 @@ func TestGetKeyVersion(t *testing.T) {
 }
 
 func TestParseEtag(t *testing.T) {
-	store := NewRedisStateStore(logger.NewLogger("test")).(*StateStore)
+	store := newStateStore(logger.NewLogger("test"))
 	t.Run("Empty ETag", func(t *testing.T) {
 		etag := ""
 		ver, err := store.parseETag(&state.SetRequest{
@@ -127,7 +127,7 @@ func TestParseEtag(t *testing.T) {
 }
 
 func TestParseTTL(t *testing.T) {
-	store := NewRedisStateStore(logger.NewLogger("test")).(*StateStore)
+	store := newStateStore(logger.NewLogger("test"))
 	t.Run("TTL Not an integer", func(t *testing.T) {
 		ttlInSeconds := "not an integer"
 		ttl, err := store.parseTTL(&state.SetRequest{
@@ -172,7 +172,7 @@ func TestParseTTL(t *testing.T) {
 }
 
 func TestParseConnectedSlavs(t *testing.T) {
-	store := NewRedisStateStore(logger.NewLogger("test")).(*StateStore)
+	store := newStateStore(logger.NewLogger("test"))
 
 	t.Run("Empty info", func(t *testing.T) {
 		slaves := store.parseConnectedSlaves("")
@@ -236,27 +236,27 @@ func TestTransactionalUpsert(t *testing.T) {
 			},
 		},
 	})
-	assert.Equal(t, nil, err)
+	assert.NoError(t, err)
 
 	res, err := c.DoRead(context.Background(), "HGETALL", "weapon")
-	assert.Equal(t, nil, err)
+	assert.NoError(t, err)
 
 	vals := res.([]interface{})
 	data, version, err := ss.getKeyVersion(vals)
-	assert.Equal(t, nil, err)
+	assert.NoError(t, err)
 	assert.Equal(t, ptr.Of("1"), version)
 	assert.Equal(t, `"deathstar"`, data)
 
 	res, err = c.DoRead(context.Background(), "TTL", "weapon")
-	assert.Equal(t, nil, err)
+	assert.NoError(t, err)
 	assert.Equal(t, int64(-1), res)
 
 	res, err = c.DoRead(context.Background(), "TTL", "weapon2")
-	assert.Equal(t, nil, err)
+	assert.NoError(t, err)
 	assert.Equal(t, int64(123), res)
 
 	res, err = c.DoRead(context.Background(), "TTL", "weapon3")
-	assert.Equal(t, nil, err)
+	assert.NoError(t, err)
 	assert.Equal(t, int64(-1), res)
 }
 
@@ -286,10 +286,10 @@ func TestTransactionalDelete(t *testing.T) {
 			},
 		}},
 	})
-	assert.Equal(t, nil, err)
+	assert.NoError(t, err)
 
 	res, err := c.DoRead(context.Background(), "HGETALL", "weapon")
-	assert.Equal(t, nil, err)
+	assert.NoError(t, err)
 
 	vals := res.([]interface{})
 	assert.Equal(t, 0, len(vals))
@@ -305,12 +305,12 @@ func TestPing(t *testing.T) {
 		clientSettings: &rediscomponent.Settings{},
 	}
 
-	err := state.Ping(context.Background(), ss)
+	err := ss.Ping(context.Background())
 	assert.NoError(t, err)
 
 	s.Close()
 
-	err = state.Ping(context.Background(), ss)
+	err = ss.Ping(context.Background())
 	assert.Error(t, err)
 }
 
@@ -383,27 +383,27 @@ func TestRequestsWithGlobalTTL(t *testing.T) {
 				},
 			},
 		})
-		assert.Equal(t, nil, err)
+		assert.NoError(t, err)
 
 		res, err := c.DoRead(context.Background(), "HGETALL", "weapon")
-		assert.Equal(t, nil, err)
+		assert.NoError(t, err)
 
 		vals := res.([]interface{})
 		data, version, err := ss.getKeyVersion(vals)
-		assert.Equal(t, nil, err)
+		assert.NoError(t, err)
 		assert.Equal(t, ptr.Of("1"), version)
 		assert.Equal(t, `"deathstar"`, data)
 
 		res, err = c.DoRead(context.Background(), "TTL", "weapon")
-		assert.Equal(t, nil, err)
+		assert.NoError(t, err)
 		assert.Equal(t, int64(globalTTLInSeconds), res)
 
 		res, err = c.DoRead(context.Background(), "TTL", "weapon2")
-		assert.Equal(t, nil, err)
+		assert.NoError(t, err)
 		assert.Equal(t, int64(123), res)
 
 		res, err = c.DoRead(context.Background(), "TTL", "weapon3")
-		assert.Equal(t, nil, err)
+		assert.NoError(t, err)
 		assert.Equal(t, int64(-1), res)
 	})
 }
@@ -501,10 +501,10 @@ func TestTransactionalDeleteNoEtag(t *testing.T) {
 			},
 		}},
 	})
-	assert.Equal(t, nil, err)
+	assert.NoError(t, err)
 
 	res, err := c.DoRead(context.Background(), "HGETALL", "weapon100")
-	assert.Equal(t, nil, err)
+	assert.NoError(t, err)
 
 	vals := res.([]interface{})
 	assert.Equal(t, 0, len(vals))

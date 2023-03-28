@@ -54,6 +54,7 @@ const (
 	metadataMaxReconnectionAttemptsKey = "maxReconnectionAttempts"
 	metadataConnectionRecoveryInSecKey = "connectionRecoveryInSec"
 	metadataConnectionEndpoint         = "endpoint"
+	metedataOrderingKeyKey             = "orderingKey"
 
 	// Defaults.
 	defaultMaxReconnectionAttempts = 30
@@ -162,6 +163,10 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		}
 	}
 
+	if val, found := pubSubMetadata.Properties[metedataOrderingKeyKey]; found && val != "" {
+		result.OrderingKey = val
+	}
+
 	result.MaxReconnectionAttempts = defaultMaxReconnectionAttempts
 	if val, ok := pubSubMetadata.Properties[metadataMaxReconnectionAttemptsKey]; ok && val != "" {
 		var err error
@@ -265,9 +270,23 @@ func (g *GCPPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) err
 
 	topic := g.getTopic(req.Topic)
 
-	_, err := topic.Publish(ctx, &gcppubsub.Message{
+	msg := &gcppubsub.Message{
 		Data: req.Data,
-	}).Get(ctx)
+	}
+
+	// If Message Ordering is enabled,
+	// use the provided OrderingKey giving
+	// preference to the OrderingKey at the request level
+	if g.metadata.EnableMessageOrdering {
+		topic.EnableMessageOrdering = g.metadata.EnableMessageOrdering
+		msgOrderingKey := g.metadata.OrderingKey
+		if req.Metadata != nil && req.Metadata[metedataOrderingKeyKey] != "" {
+			msgOrderingKey = req.Metadata[metedataOrderingKeyKey]
+		}
+		msg.OrderingKey = msgOrderingKey
+		g.logger.Infof("Message Ordering Key: %s", msg.OrderingKey)
+	}
+	_, err := topic.Publish(ctx, msg).Get(ctx)
 
 	return err
 }

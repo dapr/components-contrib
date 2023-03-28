@@ -32,4 +32,5 @@ type metadata struct {
 	MaxReconnectionAttempts int
 	ConnectionRecoveryInSec int
 	ConnectionEndpoint      string
+	OrderingKey             string
 }

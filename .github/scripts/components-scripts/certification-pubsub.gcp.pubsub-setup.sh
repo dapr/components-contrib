@@ -6,6 +6,8 @@ set -e
 echo "GCP_PROJECT_ID=$GCP_PROJECT" >> $GITHUB_ENV
 echo "PUBSUB_GCP_CONSUMER_ID_1=gcpps-ct-t1-$UNIQUE_ID" >> $GITHUB_ENV
 echo "PUBSUB_GCP_CONSUMER_ID_2=gcpps-ct-t2-$UNIQUE_ID" >> $GITHUB_ENV
+echo "PUBSUB_GCP_CONSUMER_ID_FIFO=gcpps-ct-fifo-$UNIQUE_ID" >> $GITHUB_ENV
+
 
 
 # Navigate to the Terraform directory

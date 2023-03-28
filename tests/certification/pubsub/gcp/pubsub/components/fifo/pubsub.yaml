@@ -14,5 +14,9 @@ spec:
       secretKeyRef:
         name: PUBSUB_GCP_CONSUMER_ID_FIFO
         key: PUBSUB_GCP_CONSUMER_ID_FIFO
+    - name: enableMessageOrdering
+      value: "true"
+    - name: orderingKey
+      value: "cert-test-key"
 auth:
   secretstore: envvar-secret-store

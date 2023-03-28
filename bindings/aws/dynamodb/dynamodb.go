@@ -16,6 +16,7 @@ package dynamodb
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -35,12 +36,12 @@ type DynamoDB struct {
 }
 
 type dynamoDBMetadata struct {
-	Region       string `json:"region"`
-	Endpoint     string `json:"endpoint"`
-	AccessKey    string `json:"accessKey"`
-	SecretKey    string `json:"secretKey"`
-	SessionToken string `json:"sessionToken"`
-	Table        string `json:"table"`
+	Region       string `json:"region" mapstructure:"region"`
+	Endpoint     string `json:"endpoint" mapstructure:"endpoint"`
+	AccessKey    string `json:"accessKey" mapstructure:"accessKey"`
+	SecretKey    string `json:"secretKey" mapstructure:"secretKey"`
+	SessionToken string `json:"sessionToken" mapstructure:"sessionToken"`
+	Table        string `json:"table" mapstructure:"table"`
 }
 
 // NewDynamoDB returns a new DynamoDB instance.
@@ -111,4 +112,12 @@ func (d *DynamoDB) getClient(metadata *dynamoDBMetadata) (*dynamodb.DynamoDB, er
 	c := dynamodb.New(sess)
 
 	return c, nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (d *DynamoDB) GetComponentMetadata() map[string]string {
+	metadataStruct := dynamoDBMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

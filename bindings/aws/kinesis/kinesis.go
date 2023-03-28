@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -55,13 +56,13 @@ type AWSKinesis struct {
 }
 
 type kinesisMetadata struct {
-	StreamName          string `json:"streamName"`
-	ConsumerName        string `json:"consumerName"`
-	Region              string `json:"region"`
-	Endpoint            string `json:"endpoint"`
-	AccessKey           string `json:"accessKey"`
-	SecretKey           string `json:"secretKey"`
-	SessionToken        string `json:"sessionToken"`
+	StreamName          string `json:"streamName" mapstructure:"streamName"`
+	ConsumerName        string `json:"consumerName" mapstructure:"consumerName"`
+	Region              string `json:"region" mapstructure:"region"`
+	Endpoint            string `json:"endpoint" mapstructure:"endpoint"`
+	AccessKey           string `json:"accessKey" mapstructure:"accessKey"`
+	SecretKey           string `json:"secretKey" mapstructure:"secretKey"`
+	SessionToken        string `json:"sessionToken" mapstructure:"sessionToken"`
 	KinesisConsumerMode string `json:"mode" mapstructure:"mode"`
 }
 
@@ -414,4 +415,12 @@ func (p *recordProcessor) Shutdown(input *interfaces.ShutdownInput) {
 	if input.ShutdownReason == interfaces.TERMINATE {
 		input.Checkpointer.Checkpoint(nil)
 	}
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (a *AWSKinesis) GetComponentMetadata() map[string]string {
+	metadataStruct := &kinesisMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

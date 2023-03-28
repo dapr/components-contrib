@@ -15,8 +15,8 @@ package sqs
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,6 +26,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -165,14 +166,9 @@ func (a *AWSSQS) Close() error {
 	return nil
 }
 
-func (a *AWSSQS) parseSQSMetadata(metadata bindings.Metadata) (*sqsMetadata, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
-
-	var m sqsMetadata
-	err = json.Unmarshal(b, &m)
+func (a *AWSSQS) parseSQSMetadata(meta bindings.Metadata) (*sqsMetadata, error) {
+	m := sqsMetadata{}
+	err := metadata.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}
@@ -188,4 +184,12 @@ func (a *AWSSQS) getClient(metadata *sqsMetadata) (*sqs.SQS, error) {
 	c := sqs.New(sess)
 
 	return c, nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (a *AWSSQS) GetComponentMetadata() map[string]string {
+	metadataStruct := sqsMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

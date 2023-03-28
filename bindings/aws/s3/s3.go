@@ -22,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
@@ -61,19 +62,19 @@ type AWSS3 struct {
 }
 
 type s3Metadata struct {
-	Region         string `json:"region"`
-	Endpoint       string `json:"endpoint"`
-	AccessKey      string `json:"accessKey"`
-	SecretKey      string `json:"secretKey"`
-	SessionToken   string `json:"sessionToken"`
-	Bucket         string `json:"bucket"`
-	DecodeBase64   bool   `json:"decodeBase64,string"`
-	EncodeBase64   bool   `json:"encodeBase64,string"`
-	ForcePathStyle bool   `json:"forcePathStyle,string"`
-	DisableSSL     bool   `json:"disableSSL,string"`
-	InsecureSSL    bool   `json:"insecureSSL,string"`
-	FilePath       string
-	PresignTTL     string
+	Region         string `json:"region" mapstructure:"region"`
+	Endpoint       string `json:"endpoint" mapstructure:"endpoint"`
+	AccessKey      string `json:"accessKey" mapstructure:"accessKey"`
+	SecretKey      string `json:"secretKey" mapstructure:"secretKey"`
+	SessionToken   string `json:"sessionToken" mapstructure:"sessionToken"`
+	Bucket         string `json:"bucket" mapstructure:"bucket"`
+	DecodeBase64   bool   `json:"decodeBase64,string" mapstructure:"decodeBase64"`
+	EncodeBase64   bool   `json:"encodeBase64,string" mapstructure:"encodeBase64"`
+	ForcePathStyle bool   `json:"forcePathStyle,string" mapstructure:"forcePathStyle"`
+	DisableSSL     bool   `json:"disableSSL,string" mapstructure:"disableSSL"`
+	InsecureSSL    bool   `json:"insecureSSL,string" mapstructure:"insecureSSL"`
+	FilePath       string `mapstructure:"filePath"`
+	PresignTTL     string `mapstructure:"presignTTL"`
 }
 
 type createResponse struct {
@@ -408,4 +409,12 @@ func (metadata s3Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest)
 	}
 
 	return merged, nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (s *AWSS3) GetComponentMetadata() map[string]string {
+	metadataStruct := s3Metadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

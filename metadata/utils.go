@@ -140,11 +140,14 @@ func GetMetadataProperty(props map[string]string, keys ...string) (val string, o
 // DecodeMetadata decodes metadata into a struct
 // This is an extension of mitchellh/mapstructure which also supports decoding durations
 func DecodeMetadata(input interface{}, result interface{}) error {
-	// avoids a common mistake of passing the metadata object, instead of the properties map
-	// if input is not of type map[string]string, then cast to metadata.Base and access the Properties
-	if _, ok := input.(map[string]string); !ok {
-		if base, ok := input.(Base); ok {
-			input = base.Properties
+	// avoids a common mistake of passing the metadata struct, instead of the properties map
+	// if input is of type struct, case it to metadata.Base and access the Properties instead
+	v := reflect.ValueOf(input)
+	if v.Kind() == reflect.Struct {
+		f := v.FieldByName("Properties")
+		if f.IsValid() && f.Kind() == reflect.Map {
+			properties := f.Interface().(map[string]string)
+			input = properties
 		}
 	}
 

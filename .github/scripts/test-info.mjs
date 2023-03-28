@@ -230,6 +230,21 @@ const components = {
             'github.com/dapr/components-contrib/configuration/redis/internal',
         ],
     },
+    'crypto.azure.keyvault': {
+        conformance: true,
+        requiredSecrets: [
+            'AzureKeyVaultName',
+            'AzureKeyVaultTenantId',
+            'AzureKeyVaultServicePrincipalClientId',
+            'AzureKeyVaultServicePrincipalClientSecret',
+        ],
+    },
+    'crypto.localstorage': {
+        conformance: true,
+    },
+    'crypto.jwks': {
+        conformance: true,
+    },
     'middleware.http.bearer': {
         certification: true,
         sourcePkg: ['github.com/dapr/components-contrib/middleware/http/bearer'],
@@ -590,6 +605,10 @@ const components = {
         conformance: true,
         conformanceSetup: 'docker-compose.sh mysql',
         sourcePkg: ['github.com/dapr/components-contrib/state/mysql'],
+    },
+    'state.oracledatabase': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh oracledatabase',
     },
     'state.postgresql': {
         conformance: true,

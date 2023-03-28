@@ -204,6 +204,7 @@ const components = {
     'pubsub.gcp.pubsub': {
         certification: true,
         requireTerraform: true,
+        requireGCPCredentials: true,
         certificationSetup: 'certification-pubsub.gcp.pubsub-setup.sh',
         certificationDestroy: 'certification-pubsub.gcp.pubsub-destroy.sh',
     },
@@ -214,6 +215,7 @@ const components = {
     'pubsub.gcp.pubsub.terraform': {
         conformance: true,
         requireTerraform: true,
+        requireGCPCredentials: true,
         conformanceSetup: 'conformance-pubsub.gcp.pubsub.terraform-setup.sh',
         conformanceDestroy:
             'conformance-pubsub.gcp.pubsub.terraform-destroy.sh',

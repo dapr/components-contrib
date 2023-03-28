@@ -511,6 +511,7 @@ const components = {
  * @property {string[]?} requiredSecrets Required secrets (if not empty, test becomes "cloud-only")
  * @property {string[]?} requiredCerts Required certs (if not empty, test becomes "cloud-only")
  * @property {boolean?} requireAWSCredentials If true, requires AWS credentials and makes the test "cloud-only"
+ * @property {boolean?} requireGCPCredentials If true, requires GCP credentials and makes the test "cloud-only"
  * @property {boolean?} requireCloudflareCredentials If true, requires Cloudflare credentials and makes the test "cloud-only"
  * @property {boolean?} requireTerraform If true, requires Terraform
  * @property {boolean?} requireKind If true, requires KinD
@@ -529,6 +530,7 @@ const components = {
  * @property {string?} required-secrets Required secrets
  * @property {string?} required-certs Required certs
  * @property {boolean?} require-aws-credentials Requires AWS credentials
+ * @property {boolean?} require-gcp-credentials Requires GCP credentials
  * @property {boolean?} require-cloudflare-credentials Requires Cloudflare credentials
  * @property {boolean?} require-terraform Requires Terraform
  * @property {boolean?} require-kind Requires KinD
@@ -559,6 +561,7 @@ function GenerateMatrix(testKind, enableCloudTests) {
                 comp.requiredSecrets?.length ||
                 comp.requiredCerts?.length ||
                 comp.requireAWSCredentials ||
+                comp.requireGCPCredentials ||
                 comp.requireCloudflareCredentials
             ) {
                 continue
@@ -575,6 +578,9 @@ function GenerateMatrix(testKind, enableCloudTests) {
                 ? comp.requiredCerts.join(',')
                 : undefined,
             'require-aws-credentials': comp.requireAWSCredentials
+                ? 'true'
+                : undefined,
+                'require-gcp-credentials': comp.requireGCPCredentials
                 ? 'true'
                 : undefined,
             'require-cloudflare-credentials': comp.requireCloudflareCredentials

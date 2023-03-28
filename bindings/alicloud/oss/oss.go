@@ -16,6 +16,7 @@ package oss
 import (
 	"bytes"
 	"context"
+	"reflect"
 
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 	"github.com/google/uuid"
@@ -104,4 +105,12 @@ func (s *AliCloudOSS) getClient(metadata *ossMetadata) (*oss.Client, error) {
 	}
 
 	return client, nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (s *AliCloudOSS) GetComponentMetadata() map[string]string {
+	metadataStruct := ossMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

@@ -30,6 +30,7 @@ type InputBinding interface {
 	// Close is a method that closes the connection to the binding. Must be
 	// called when the binding is no longer needed to free up resources.
 	io.Closer
+	GetComponentMetadata() map[string]string
 }
 
 // Handler is the handler used to invoke the app handler.

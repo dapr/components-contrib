@@ -22,11 +22,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"sync"
 
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/bindings"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -64,6 +66,13 @@ type APNS struct {
 	authorizationBuilder *authorizationBuilder
 }
 
+type APNSmetadata struct {
+	Development bool   `mapstructure:"development"`
+	KeyID       string `mapstructure:"key-id"`
+	TeamID      string `mapstructure:"team-id"`
+	PrivateKey  string `mapstructure:"private-key"`
+}
+
 // NewAPNS will create a new APNS output binding.
 func NewAPNS(logger logger.Logger) bindings.OutputBinding {
 	return &APNS{
@@ -79,19 +88,25 @@ func NewAPNS(logger logger.Logger) bindings.OutputBinding {
 // Init will configure the APNS output binding using the metadata specified
 // in the binding's configuration.
 func (a *APNS) Init(ctx context.Context, metadata bindings.Metadata) error {
-	if err := a.makeURLPrefix(metadata); err != nil {
+	m := APNSmetadata{}
+	err := contribMetadata.DecodeMetadata(metadata.Properties, &m)
+	if err != nil {
 		return err
 	}
 
-	if err := a.extractKeyID(metadata); err != nil {
+	if err := a.makeURLPrefix(m); err != nil {
 		return err
 	}
 
-	if err := a.extractTeamID(metadata); err != nil {
+	if err := a.extractKeyID(m); err != nil {
 		return err
 	}
 
-	return a.extractPrivateKey(metadata)
+	if err := a.extractTeamID(m); err != nil {
+		return err
+	}
+
+	return a.extractPrivateKey(m)
 }
 
 // Operations will return the set of operations supported by the APNS output
@@ -163,23 +178,10 @@ func (a *APNS) sendPushNotificationToAPNS(ctx context.Context, deviceToken strin
 	return a.client.Do(httpRequest)
 }
 
-func (a *APNS) makeURLPrefix(metadata bindings.Metadata) error {
-	if value, ok := metadata.Properties[developmentKey]; ok && value != "" {
-		switch value {
-		case "true":
-			a.logger.Debug("Using the development APNS service")
-			a.urlPrefix = developmentPrefix
-
-		case "false":
-			a.logger.Debug("Using the production APNS service")
-			a.urlPrefix = productionPrefix
-
-		default:
-			return fmt.Errorf(
-				"invalid value for development parameter: %v",
-				value,
-			)
-		}
+func (a *APNS) makeURLPrefix(metadata APNSmetadata) error {
+	if metadata.Development {
+		a.logger.Debug("Using the development APNS service")
+		a.urlPrefix = developmentPrefix
 	} else {
 		a.logger.Debug("Using the production APNS service")
 		a.urlPrefix = productionPrefix
@@ -188,9 +190,9 @@ func (a *APNS) makeURLPrefix(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (a *APNS) extractKeyID(metadata bindings.Metadata) error {
-	if value, ok := metadata.Properties[keyIDKey]; ok && value != "" {
-		a.authorizationBuilder.keyID = value
+func (a *APNS) extractKeyID(metadata APNSmetadata) error {
+	if metadata.KeyID != "" {
+		a.authorizationBuilder.keyID = metadata.KeyID
 
 		return nil
 	}
@@ -198,9 +200,9 @@ func (a *APNS) extractKeyID(metadata bindings.Metadata) error {
 	return errors.New("the key-id parameter is required")
 }
 
-func (a *APNS) extractTeamID(metadata bindings.Metadata) error {
-	if value, ok := metadata.Properties[teamIDKey]; ok && value != "" {
-		a.authorizationBuilder.teamID = value
+func (a *APNS) extractTeamID(metadata APNSmetadata) error {
+	if metadata.TeamID != "" {
+		a.authorizationBuilder.teamID = metadata.TeamID
 
 		return nil
 	}
@@ -208,9 +210,9 @@ func (a *APNS) extractTeamID(metadata bindings.Metadata) error {
 	return errors.New("the team-id parameter is required")
 }
 
-func (a *APNS) extractPrivateKey(metadata bindings.Metadata) error {
-	if value, ok := metadata.Properties[privateKeyKey]; ok && value != "" {
-		block, _ := pem.Decode([]byte(value))
+func (a *APNS) extractPrivateKey(metadata APNSmetadata) error {
+	if metadata.PrivateKey != "" {
+		block, _ := pem.Decode([]byte(metadata.PrivateKey))
 		if block == nil {
 			return errors.New("unable to read the private key")
 		}
@@ -256,4 +258,12 @@ func makeErrorResponse(httpResponse *http.Response) (*bindings.InvokeResponse, e
 	}
 
 	return nil, err
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (a *APNS) GetComponentMetadata() map[string]string {
+	metadataStruct := APNSmetadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

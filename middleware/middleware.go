@@ -21,4 +21,5 @@ import (
 // Middleware is the interface for a middleware.
 type Middleware interface {
 	GetHandler(ctx context.Context, metadata Metadata) (func(next http.Handler) http.Handler, error)
+	GetComponentMetadata() map[string]string
 }

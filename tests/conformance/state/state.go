@@ -472,7 +472,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						"partitionKey": "myPartition",
 					},
 				})
-				assert.Nil(t, err)
+				require.NoError(t, err)
 				for _, scenario := range scenarios {
 					if scenario.transactionOnly {
 						if scenario.transactionGroup == transactionGroup {
@@ -485,7 +485,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 									"partitionKey": "myPartition",
 								},
 							})
-							assert.Nil(t, err)
+							require.NoError(t, err)
 							assertEquals(t, scenario.value, res)
 						}
 
@@ -499,7 +499,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 									"partitionKey": "myPartition",
 								},
 							})
-							assert.Nil(t, err)
+							require.NoError(t, err)
 							assert.Nil(t, res.Data)
 						}
 					}

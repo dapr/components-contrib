@@ -255,8 +255,8 @@ func (a *sqliteDBAccess) Get(parentCtx context.Context, req *state.GetRequest) (
 			key = ?
 			AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
 	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
+	defer cancel()
 	row := a.db.QueryRowContext(ctx, stmt, req.Key)
-	cancel()
 	_, value, etag, err := readRow(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -291,8 +291,8 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 			key IN (` + inClause + `)
 			AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
 	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
+	defer cancel()
 	rows, err := a.db.QueryContext(ctx, stmt, params...)
-	cancel()
 	if err != nil {
 		return true, nil, err
 	}
@@ -435,8 +435,8 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 				(key, value, is_binary, etag, update_time, expiration_time)
 			VALUES(?, ?, ?, ?, CURRENT_TIMESTAMP, ` + expiration + `)`
 		ctx, cancel := context.WithTimeout(context.Background(), a.metadata.timeout)
+		defer cancel()
 		res, err = db.ExecContext(ctx, stmt, req.Key, requestValue, isBinary, newEtag, req.Key)
-		cancel()
 	} else {
 		stmt = `UPDATE ` + a.metadata.TableName + ` SET
 				value = ?,
@@ -449,8 +449,8 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 				AND etag = ?
 				AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
 		ctx, cancel := context.WithTimeout(context.Background(), a.metadata.timeout)
+		defer cancel()
 		res, err = db.ExecContext(ctx, stmt, requestValue, newEtag, isBinary, req.Key, *req.ETag)
-		cancel()
 	}
 	if err != nil {
 		return err
@@ -540,19 +540,17 @@ func (a *sqliteDBAccess) doDelete(parentCtx context.Context, db querier, req *st
 		return fmt.Errorf("missing key in delete operation")
 	}
 
+	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
+	defer cancel()
 	var result sql.Result
 	if req.ETag == nil || *req.ETag == "" {
-		// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
-		stmt := "DELETE FROM " + a.metadata.TableName + " WHERE key = ?"
-		ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
-		result, err = db.ExecContext(ctx, stmt, req.Key)
-		cancel()
+		// Concatenation is required for table name because sql.DB does not substitute parameters for table names.
+		result, err = db.ExecContext(ctx, "DELETE FROM "+a.metadata.TableName+" WHERE key = ?",
+			req.Key)
 	} else {
-		// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
-		stmt := "DELETE FROM " + a.metadata.TableName + " WHERE key = ? AND etag = ?"
-		ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
-		result, err = db.ExecContext(ctx, stmt, req.Key, *req.ETag)
-		cancel()
+		// Concatenation is required for table name because sql.DB does not substitute parameters for table names.
+		result, err = db.ExecContext(ctx, "DELETE FROM "+a.metadata.TableName+" WHERE key = ? AND etag = ?",
+			req.Key, *req.ETag)
 	}
 
 	if err != nil {

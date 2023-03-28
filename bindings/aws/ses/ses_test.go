@@ -51,54 +51,6 @@ func TestParseMetadata(t *testing.T) {
 		assert.Equal(t, "bcc@dapr.io", smtpMeta.EmailBcc)
 		assert.Equal(t, "Test email", smtpMeta.Subject)
 	})
-
-	t.Run("region is required", func(t *testing.T) {
-		m := bindings.Metadata{}
-		m.Properties = map[string]string{
-			"accessKey": "myAccessKeyForSES",
-			"secretKey": "mySecretKeyForSES",
-			"emailFrom": "from@dapr.io",
-			"emailTo":   "to@dapr.io",
-			"emailCc":   "cc@dapr.io",
-			"emailBcc":  "bcc@dapr.io",
-			"subject":   "Test email",
-		}
-		r := AWSSES{logger: logger}
-		_, err := r.parseMetadata(m)
-		assert.Error(t, err)
-	})
-
-	t.Run("accessKey is required", func(t *testing.T) {
-		m := bindings.Metadata{}
-		m.Properties = map[string]string{
-			"region":    "myRegionForSES",
-			"secretKey": "mySecretKeyForSES",
-			"emailFrom": "from@dapr.io",
-			"emailTo":   "to@dapr.io",
-			"emailCc":   "cc@dapr.io",
-			"emailBcc":  "bcc@dapr.io",
-			"subject":   "Test email",
-		}
-		r := AWSSES{logger: logger}
-		_, err := r.parseMetadata(m)
-		assert.Error(t, err)
-	})
-
-	t.Run("secretKey is required", func(t *testing.T) {
-		m := bindings.Metadata{}
-		m.Properties = map[string]string{
-			"region":    "myRegionForSES",
-			"accessKey": "myAccessKeyForSES",
-			"emailFrom": "from@dapr.io",
-			"emailTo":   "to@dapr.io",
-			"emailCc":   "cc@dapr.io",
-			"emailBcc":  "bcc@dapr.io",
-			"subject":   "Test email",
-		}
-		r := AWSSES{logger: logger}
-		_, err := r.parseMetadata(m)
-		assert.Error(t, err)
-	})
 }
 
 func TestMergeWithRequestMetadata(t *testing.T) {

@@ -15,7 +15,6 @@ package ses
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -86,11 +85,6 @@ func (a *AWSSES) Operations() []bindings.OperationKind {
 func (a *AWSSES) parseMetadata(meta bindings.Metadata) (*sesMetadata, error) {
 	m := sesMetadata{}
 	contribMetadata.DecodeMetadata(meta.Properties, &m)
-
-	if meta.Properties["region"] == "" || meta.Properties["accessKey"] == "" ||
-		meta.Properties["secretKey"] == "" {
-		return &m, errors.New("SES binding error: region, accessKey or secretKey fields are required in metadata")
-	}
 
 	return &m, nil
 }

@@ -204,9 +204,35 @@ func toStringArrayHookFunc() mapstructure.DecodeHookFunc {
 	}
 }
 
+type ComponentTypeValue string
+
+var ComponentType = struct {
+	BindingType            ComponentTypeValue
+	StateStoreType         ComponentTypeValue
+	SecretStoreType        ComponentTypeValue
+	PubSubType             ComponentTypeValue
+	LockStoreType          ComponentTypeValue
+	ConfigurationStoreType ComponentTypeValue
+	MiddlewareType         ComponentTypeValue
+	CryptoType             ComponentTypeValue
+	NameResolutionType     ComponentTypeValue
+	WorkflowType           ComponentTypeValue
+}{
+	BindingType:            "binding",
+	StateStoreType:         "statestore",
+	SecretStoreType:        "secretstore",
+	PubSubType:             "pubsub",
+	LockStoreType:          "lockstore",
+	ConfigurationStoreType: "configurationstore",
+	MiddlewareType:         "middleware",
+	CryptoType:             "crypto",
+	NameResolutionType:     "nameresolution",
+	WorkflowType:           "workflow",
+}
+
 // GetMetadataInfoFromStructType converts a struct to a map of field name (or struct tag) to field type.
 // This is used to generate metadata documentation for components.
-func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *map[string]string) error {
+func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *map[string]string, componentType ComponentTypeValue) error {
 	// Return if not struct or pointer to struct.
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
@@ -218,16 +244,30 @@ func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *map[string]strin
 	for i := 0; i < t.NumField(); i++ {
 		currentField := t.Field(i)
 		mapStructureTag := currentField.Tag.Get("mapstructure")
-		tags := strings.Split(mapStructureTag, ",")
-		numTags := len(tags)
-		if numTags > 1 && tags[numTags-1] == "squash" && currentField.Anonymous {
+		onlyTag := currentField.Tag.Get("only")
+		if onlyTag != "" {
+			include := false
+			onlyTags := strings.Split(onlyTag, ",")
+			for _, tag := range onlyTags {
+				if tag == string(componentType) {
+					include = true
+					break
+				}
+			}
+			if !include {
+				continue
+			}
+		}
+		mapStructureTags := strings.Split(mapStructureTag, ",")
+		numTags := len(mapStructureTags)
+		if numTags > 1 && mapStructureTags[numTags-1] == "squash" && currentField.Anonymous {
 			// traverse embedded struct
-			GetMetadataInfoFromStructType(currentField.Type, metadataMap)
+			GetMetadataInfoFromStructType(currentField.Type, metadataMap, componentType)
 			continue
 		}
 		var fieldName string
-		if numTags > 0 && tags[0] != "" {
-			fieldName = tags[0]
+		if numTags > 0 && mapStructureTags[0] != "" {
+			fieldName = mapStructureTags[0]
 		} else {
 			fieldName = currentField.Name
 		}

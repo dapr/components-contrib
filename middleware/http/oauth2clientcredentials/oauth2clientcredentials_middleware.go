@@ -181,6 +181,6 @@ func (m *Middleware) GetToken(ctx context.Context, conf *clientcredentials.Confi
 func (m *Middleware) GetComponentMetadata() map[string]string {
 	metadataStruct := oAuth2ClientCredentialsMiddlewareMetadata{}
 	metadataInfo := map[string]string{}
-	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.ComponentType.MiddlewareType)
 	return metadataInfo
 }

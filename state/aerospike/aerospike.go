@@ -274,6 +274,6 @@ func convertETag(eTag string) (uint32, error) {
 func (aspike *Aerospike) GetComponentMetadata() map[string]string {
 	metadataStruct := aerospikeMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.StateStoreType)
 	return metadataInfo
 }

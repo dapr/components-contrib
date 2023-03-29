@@ -196,6 +196,6 @@ func (s *ssmSecretStore) Features() []secretstores.Feature {
 func (s *ssmSecretStore) GetComponentMetadata() map[string]string {
 	metadataStruct := SsmMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.SecretStoreType)
 	return metadataInfo
 }

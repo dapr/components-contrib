@@ -415,6 +415,6 @@ func (metadata s3Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest)
 func (s *AWSS3) GetComponentMetadata() map[string]string {
 	metadataStruct := s3Metadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
 	return metadataInfo
 }

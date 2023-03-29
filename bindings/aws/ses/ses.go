@@ -174,6 +174,6 @@ func (a *AWSSES) getClient(metadata *sesMetadata) (*ses.SES, error) {
 func (a *AWSSES) GetComponentMetadata() map[string]string {
 	metadataStruct := sesMetadata{}
 	metadataInfo := map[string]string{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ComponentType.BindingType)
 	return metadataInfo
 }

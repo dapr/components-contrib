@@ -143,7 +143,7 @@ func (c *TemporalWF) parseMetadata(meta workflows.Metadata) (*temporalMetadata, 
 func (c *TemporalWF) GetComponentMetadata() map[string]string {
 	metadataStruct := temporalMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.WorkflowType)
 	return metadataInfo
 }
 

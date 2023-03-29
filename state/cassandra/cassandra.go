@@ -306,6 +306,6 @@ func (c *Cassandra) createSession(consistency gocql.Consistency) (*gocql.Session
 func (c *Cassandra) GetComponentMetadata() map[string]string {
 	metadataStruct := cassandraMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.StateStoreType)
 	return metadataInfo
 }

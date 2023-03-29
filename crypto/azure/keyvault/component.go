@@ -404,7 +404,7 @@ func (k *keyvaultCrypto) getVaultURI() string {
 func (keyvaultCrypto) GetComponentMetadata() map[string]string {
 	metadataStruct := keyvaultMetadata{}
 	metadataInfo := map[string]string{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ComponentType.CryptoType)
 	return metadataInfo
 }
 

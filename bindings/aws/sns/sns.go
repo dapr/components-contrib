@@ -120,6 +120,6 @@ func (a *AWSSNS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 func (a *AWSSNS) GetComponentMetadata() map[string]string {
 	metadataStruct := snsMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
 	return metadataInfo
 }

@@ -18,8 +18,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/dapr/components-contrib/bindings"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 
 	"github.com/labd/commercetools-go-sdk/platform"
@@ -38,12 +40,12 @@ type Data struct {
 }
 
 type commercetoolsMetadata struct {
-	region       string
-	provider     string
-	projectKey   string
-	clientID     string
-	clientSecret string
-	scopes       string
+	Region       string
+	Provider     string
+	ProjectKey   string
+	ClientID     string
+	ClientSecret string
+	Scopes       string
 }
 
 func NewCommercetools(logger logger.Logger) bindings.OutputBinding {
@@ -56,12 +58,12 @@ func (ct *Binding) Init(_ context.Context, metadata bindings.Metadata) error {
 	if err != nil {
 		return err
 	}
-	ct.projectKey = commercetoolsM.projectKey
+	ct.projectKey = commercetoolsM.ProjectKey
 
 	// The helper method NewClientEndpoint no longer exists, so URLs need to be manually constructed.
 	// Reference: https://github.com/labd/commercetools-go-sdk/blob/15f4e7e85260cf206301504dced00a8bbf4d8682/commercetools/client.go#L115
 
-	baseURLdomain := fmt.Sprintf("%s.%s.commercetools.com", commercetoolsM.region, commercetoolsM.provider)
+	baseURLdomain := fmt.Sprintf("%s.%s.commercetools.com", commercetoolsM.Region, commercetoolsM.Provider)
 	authURL := fmt.Sprintf("https://auth.%s/oauth/token", baseURLdomain)
 	apiURL := fmt.Sprintf("https://api.%s", baseURLdomain)
 
@@ -72,9 +74,9 @@ func (ct *Binding) Init(_ context.Context, metadata bindings.Metadata) error {
 		URL: apiURL,
 		Credentials: &clientcredentials.Config{
 			TokenURL:     authURL,
-			ClientID:     commercetoolsM.clientID,
-			ClientSecret: commercetoolsM.clientSecret,
-			Scopes:       []string{commercetoolsM.scopes},
+			ClientID:     commercetoolsM.ClientID,
+			ClientSecret: commercetoolsM.ClientSecret,
+			Scopes:       []string{commercetoolsM.Scopes},
 		},
 	})
 	if err != nil {
@@ -153,37 +155,37 @@ func (ct *Binding) getCommercetoolsMetadata(metadata bindings.Metadata) (*commer
 	meta := commercetoolsMetadata{}
 
 	if val, ok := metadata.Properties["region"]; ok && val != "" {
-		meta.region = val
+		meta.Region = val
 	} else {
 		return nil, errors.New("commercetools error: missing `region` configuration")
 	}
 
 	if val, ok := metadata.Properties["provider"]; ok && val != "" {
-		meta.provider = val
+		meta.Provider = val
 	} else {
 		return nil, errors.New("commercetools error: missing `provider` configuration")
 	}
 
 	if val, ok := metadata.Properties["projectKey"]; ok && val != "" {
-		meta.projectKey = val
+		meta.ProjectKey = val
 	} else {
 		return nil, errors.New("commercetools error: missing `projectKey` configuration")
 	}
 
 	if val, ok := metadata.Properties["clientID"]; ok && val != "" {
-		meta.clientID = val
+		meta.ClientID = val
 	} else {
 		return nil, errors.New("commercetools error: missing `clientID` configuration")
 	}
 
 	if val, ok := metadata.Properties["clientSecret"]; ok && val != "" {
-		meta.clientSecret = val
+		meta.ClientSecret = val
 	} else {
 		return nil, errors.New("commercetools error: missing `clientSecret` configuration")
 	}
 
 	if val, ok := metadata.Properties["scopes"]; ok && val != "" {
-		meta.scopes = val
+		meta.Scopes = val
 	} else {
 		return nil, errors.New("commercetools error: missing `scopes` configuration")
 	}
@@ -196,4 +198,12 @@ func (ct *Binding) Close() error {
 	ct.client = nil
 
 	return nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (ct Binding) GetComponentMetadata() map[string]string {
+	metadataStruct := commercetoolsMetadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ComponentType.BindingType)
+	return metadataInfo
 }

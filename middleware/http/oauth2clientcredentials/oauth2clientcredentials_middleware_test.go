@@ -59,7 +59,7 @@ func TestOAuth2ClientCredentialsMetadata(t *testing.T) {
 		"authStyle":    "asdf", // This is the value to test
 	}
 	_, err2 := NewOAuth2ClientCredentialsMiddleware(log).GetHandler(context.Background(), metadata)
-	assert.EqualError(t, err2, "metadata errors: 1 error(s) decoding:\n\n* cannot parse 'AuthStyle' as int: strconv.ParseInt: parsing \"asdf\": invalid syntax")
+	assert.EqualError(t, err2, "metadata errors: 1 error(s) decoding:\n\n* cannot parse 'authStyle' as int: strconv.ParseInt: parsing \"asdf\": invalid syntax")
 
 	// Invalid authStyle (int > 2)
 	metadata.Properties["authStyle"] = "3"

@@ -68,10 +68,12 @@ var subscriptions = []string{}
 var topics = []string{}
 
 var (
-	topicActiveName  = "cert-test-active"
-	topicPassiveName = "cert-test-passive"
-	projectID        = "GCP_PROJECT_ID_NOT_SET"
-	fifoTopic        = "fifoTopic" // replaced with env var PUBSUB_GCP_CONSUMER_ID_FIFO
+	topicActiveName     = "cert-test-active"
+	topicPassiveName    = "cert-test-passive"
+	projectID           = "GCP_PROJECT_ID_NOT_SET"
+	fifoTopic           = "fifoTopic"           // replaced with env var PUBSUB_GCP_CONSUMER_ID_FIFO
+	deadLetterTopicIn   = "deadLetterTopicIn"   // replaced with env var PUBSUB_GCP_PUBSUB_TOPIC_DLIN
+	deadLetterTopicName = "deadLetterTopicName" // replaced with env var PUBSUB_GCP_PUBSUB_TOPIC_DLOUT
 )
 
 func init() {
@@ -103,12 +105,24 @@ func init() {
 		topics = append(topics, fifoTopic)
 		subscriptions = append(subscriptions, pubsub_gcppubsub.BuildSubscriptionID(ev, fifoTopic))
 	})
+
+	getEnv("PUBSUB_GCP_PUBSUB_TOPIC_DLIN", func(ev string) {
+		deadLetterTopicIn = ev
+		topics = append(topics, deadLetterTopicIn)
+		subscriptions = append(subscriptions, pubsub_gcppubsub.BuildSubscriptionID(ev, deadLetterTopicIn))
+	})
+
+	getEnv("PUBSUB_GCP_PUBSUB_TOPIC_DLOUT", func(ev string) {
+		deadLetterTopicName = ev
+		topics = append(topics, deadLetterTopicName)
+		subscriptions = append(subscriptions, pubsub_gcppubsub.BuildSubscriptionID(ev, deadLetterTopicName))
+	})
 }
 
 func getEnv(env string, fn func(ev string), dfns ...func() string) {
 	if value := os.Getenv(env); value != "" {
 		fn(value)
-	} else if len(dfns) == 0 {
+	} else if len(dfns) == 1 {
 		fn(dfns[0]())
 	}
 }
@@ -130,6 +144,12 @@ func TestGCPPubSubCertificationTests(t *testing.T) {
 	t.Run("GCPPubSubFIFOMessages", func(t *testing.T) {
 		GCPPubSubFIFOMessages(t)
 	})
+
+	/*
+		t.Run("GCPPubSubMessageDeadLetter", func(t *testing.T) {
+			GCPPubSubMessageDeadLetter(t)
+		})
+	*/
 }
 
 // Verify with single publisher / single subscriber
@@ -388,7 +408,157 @@ func GCPPubSubFIFOMessages(t *testing.T) {
 		Step("verify if recevied ordered messages published to active topic", assertMessages(1*time.Second, consumerGroup1)).
 		Step("reset", flow.Reset(consumerGroup1)).
 		Run()
+}
 
+// Verify data with an optional parameters `DeadLetterTopic` takes affect
+func GCPPubSubMessageDeadLetter(t *testing.T) {
+	consumerGroup1 := watcher.NewUnordered()
+	deadLetterConsumerGroup := watcher.NewUnordered()
+	failedMessagesNum := 1
+
+	subscriberApplication := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      topicName,
+					Route:      "/orders",
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					ctx.Logf("subscriberApplication - Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s - causing failure on purpose...", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					return true, fmt.Errorf("failure on purpose")
+				}),
+			)
+		}
+	}
+
+	var task flow.AsyncTask
+	deadLetterReceiverApplication := func(deadLetterTopicName string, msgTimeout time.Duration, messagesWatcher *watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			t := time.NewTicker(500 * time.Millisecond)
+			defer t.Stop()
+			counter := 1
+			tm := NewTopicManager()
+
+			for {
+				select {
+				case <-task.Done():
+					ctx.Log("deadLetterReceiverApplication - task done called!")
+					return nil
+				case <-time.After(msgTimeout * time.Second):
+					ctx.Logf("deadLetterReceiverApplication - timeout waiting for messages from (%q)", deadLetterTopicName)
+					return fmt.Errorf("deadLetterReceiverApplication - timeout waiting for messages from (%q)", deadLetterTopicName)
+				case <-t.C:
+					numMsgs, err := tm.GetMessages(deadLetterTopicName, true, func(m *DataMessage) error {
+						ctx.Logf("deadLetterReceiverApplication - received message counter(%d) (%v)\n", counter, m.Data)
+						messagesWatcher.Observe(m.Data)
+						return nil
+					})
+					if err != nil {
+						ctx.Logf("deadLetterReceiverApplication - failed to get messages from (%q) counter(%d) %v  - trying again\n", deadLetterTopicName, counter, err)
+						continue
+					}
+					if numMsgs == 0 {
+						// No messages yet, try again
+						ctx.Logf("deadLetterReceiverApplication -  no messages yet from (%q) counter(%d)  - trying again\n", deadLetterTopicName, counter)
+						continue
+					}
+
+					if counter >= failedMessagesNum {
+						ctx.Logf("deadLetterReceiverApplication - received all expected (%d) failed message!\n", failedMessagesNum)
+						return nil
+					}
+					counter += numMsgs
+				}
+
+			}
+		}
+	}
+
+	publishMessages := func(metadata map[string]string, sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			// prepare the messages
+			messages := make([]string, failedMessagesNum)
+			for i := range messages {
+				messages[i] = fmt.Sprintf("message for topic: %s, index: %03d, uniqueId: %s", topicName, i, uuid.New().String())
+			}
+
+			// add the messages as expectations to the watchers
+			for _, messageWatcher := range messageWatchers {
+				messageWatcher.ExpectStrings(messages...)
+			}
+
+			// get the sidecar (dapr) client
+			client := sidecar.GetClient(ctx, sidecarName)
+
+			// publish messages
+			ctx.Logf("GCPPubSubMessageDeadLetter - Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+
+			var publishOptions dapr.PublishEventOption
+
+			if metadata != nil {
+				publishOptions = dapr.PublishEventWithMetadata(metadata)
+			}
+
+			for _, message := range messages {
+				ctx.Logf("Publishing: %q", message)
+				var err error
+
+				if publishOptions != nil {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message, publishOptions)
+				} else {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message)
+				}
+				require.NoError(ctx, err, "GCPPubSubMessageDeadLetter - error publishing message")
+			}
+			return nil
+		}
+	}
+
+	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			// assert for messages
+			for _, m := range messageWatchers {
+				if !m.Assert(ctx, 3*timeout) {
+					ctx.Errorf("GCPPubSubMessageDeadLetter - message assertion failed for watcher: %#v\n", m)
+				}
+			}
+
+			return nil
+		}
+	}
+
+	prefix := "GCPPubSubMessageDeadLetter-"
+	deadletterApp := prefix + "deadLetterReceiverApp"
+	subApp := prefix + "subscriberApp"
+	subAppSideCar := prefix + sidecarName2
+	msgTimeout := time.Duration(60) //seconds
+
+	flow.New(t, "GCPPubSubMessageDeadLetter Verify with single publisher / single subscriber and DeadLetter").
+
+		// Run deadLetterReceiverApplication - should receive messages from dead letter Topic
+		// "PUBSUB_GCP_PUBSUB_TOPIC_DLOUT"
+		StepAsync(deadletterApp, &task,
+			deadLetterReceiverApplication(deadLetterTopicName, msgTimeout, deadLetterConsumerGroup)).
+
+		// Run subscriberApplication - will fail to process messages
+		Step(app.Run(subApp, fmt.Sprintf(":%d", appPort+portOffset+4),
+			subscriberApplication(subApp, deadLetterTopicIn, consumerGroup1))).
+
+		// Run the Dapr sidecar with ConsumerID "PUBSUB_GCP_PUBSUB_TOPIC_DLOUT"
+		Step(sidecar.Run(subAppSideCar,
+			embedded.WithComponentsPath("./components/deadletter"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset+4),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset+4),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset+4),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset+4),
+			componentRuntimeOptions(),
+		)).
+		Step("publish messages to deadLetterTopicIn ==> "+deadLetterTopicIn, publishMessages(nil, subAppSideCar, deadLetterTopicIn, deadLetterConsumerGroup)).
+		Step("wait", flow.Sleep(30*time.Second)).
+		Step("verify if app1 has 0 recevied messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).
+		Step("verify if app2 has deadletterMessageNum recevied messages send to dead letter Topic", assertMessages(10*time.Second, deadLetterConsumerGroup)).
+		Step("reset", flow.Reset(consumerGroup1, deadLetterConsumerGroup)).
+		Run()
 }
 
 func componentRuntimeOptions() []runtime.Option {

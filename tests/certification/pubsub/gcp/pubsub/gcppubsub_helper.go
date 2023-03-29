@@ -22,6 +22,19 @@ import (
 	"cloud.google.com/go/pubsub"
 )
 
+type topicManager struct{}
+type DataMessage struct {
+	Data interface{}
+}
+
+func NewTopicManager() *topicManager {
+	return &topicManager{}
+}
+
+func (tp *topicManager) GetMessages(dtm string, b bool, fn func(m *DataMessage) error) (int, error) {
+	return 0, nil
+}
+
 func deleteSubscriptions(projectID string, subs []string) error {
 	for _, s := range subs {
 		fmt.Printf("Deleting subscription: %s\n", s)

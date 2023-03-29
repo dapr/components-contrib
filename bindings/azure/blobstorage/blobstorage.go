@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"strconv"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	storageinternal "github.com/dapr/components-contrib/internal/component/azure/blobstorage"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
 )
@@ -353,4 +355,12 @@ func (a *AzureBlobStorage) isValidDeleteSnapshotsOptionType(accessType azblob.De
 	}
 
 	return false
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (a *AzureBlobStorage) GetComponentMetadata() map[string]string {
+	metadataStruct := storageinternal.BlobStorageMetadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ComponentType.BindingType)
+	return metadataInfo
 }

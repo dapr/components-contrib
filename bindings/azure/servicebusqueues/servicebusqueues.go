@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -25,6 +26,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -196,4 +198,12 @@ func (a *AzureServiceBusQueues) Close() (err error) {
 	a.client.Close(a.logger)
 	a.wg.Wait()
 	return nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (a *AzureServiceBusQueues) GetComponentMetadata() map[string]string {
+	metadataStruct := impl.Metadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ComponentType.BindingType)
+	return metadataInfo
 }

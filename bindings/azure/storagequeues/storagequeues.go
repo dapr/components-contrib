@@ -18,6 +18,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -221,7 +222,7 @@ type storageQueuesMetadata struct {
 	AccountKey        string
 	DecodeBase64      bool
 	EncodeBase64      bool
-	ttl               *time.Duration
+	TTL               *time.Duration `mapstructure:"ttlInSeconds"`
 	VisibilityTimeout *time.Duration
 }
 
@@ -285,7 +286,7 @@ func parseMetadata(meta bindings.Metadata) (*storageQueuesMetadata, error) {
 		return nil, err
 	}
 	if ok {
-		m.ttl = &ttl
+		m.TTL = &ttl
 	}
 
 	return &m, nil
@@ -296,7 +297,7 @@ func (a *AzureStorageQueues) Operations() []bindings.OperationKind {
 }
 
 func (a *AzureStorageQueues) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	ttlToUse := a.metadata.ttl
+	ttlToUse := a.metadata.TTL
 	ttl, ok, err := contribMetadata.TryGetTTL(req.Metadata)
 	if err != nil {
 		return nil, err
@@ -356,4 +357,12 @@ func (a *AzureStorageQueues) Close() error {
 	}
 	a.wg.Wait()
 	return nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (a *AzureStorageQueues) GetComponentMetadata() map[string]string {
+	metadataStruct := storageQueuesMetadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ComponentType.BindingType)
+	return metadataInfo
 }

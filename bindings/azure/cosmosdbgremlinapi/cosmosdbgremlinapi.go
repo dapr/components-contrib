@@ -18,11 +18,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	gremcos "github.com/supplyon/gremcos"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -79,14 +81,9 @@ func (c *CosmosDBGremlinAPI) Init(_ context.Context, metadata bindings.Metadata)
 	return nil
 }
 
-func (c *CosmosDBGremlinAPI) parseMetadata(metadata bindings.Metadata) (*cosmosDBGremlinAPICredentials, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
-
-	var creds cosmosDBGremlinAPICredentials
-	err = json.Unmarshal(b, &creds)
+func (c *CosmosDBGremlinAPI) parseMetadata(meta bindings.Metadata) (*cosmosDBGremlinAPICredentials, error) {
+	creds := cosmosDBGremlinAPICredentials{}
+	err := metadata.DecodeMetadata(meta.Properties, &creds)
 	if err != nil {
 		return nil, err
 	}
@@ -130,4 +127,12 @@ func (c *CosmosDBGremlinAPI) Invoke(_ context.Context, req *bindings.InvokeReque
 	resp.Metadata[respDurationKey] = endTime.Sub(startTime).String()
 
 	return resp, nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (c *CosmosDBGremlinAPI) GetComponentMetadata() map[string]string {
+	metadataStruct := cosmosDBGremlinAPICredentials{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	return metadataInfo
 }

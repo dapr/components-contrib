@@ -55,6 +55,7 @@ const (
 	metadataConnectionRecoveryInSecKey = "connectionRecoveryInSec"
 	metadataConnectionEndpoint         = "endpoint"
 	metedataOrderingKeyKey             = "orderingKey"
+	metadataDeadLetterTopic            = "deadLetterTopic"
 
 	// Defaults.
 	defaultMaxReconnectionAttempts = 30
@@ -187,6 +188,10 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 
 	if val, found := pubSubMetadata.Properties[metadataConnectionEndpoint]; found && val != "" {
 		result.ConnectionEndpoint = val
+	}
+
+	if val, found := pubSubMetadata.Properties[metadataDeadLetterTopic]; found && val != "" {
+		result.DeadLetterTopic = val
 	}
 
 	return &result, nil
@@ -449,10 +454,23 @@ func (g *GCPPubSub) ensureSubscription(parentCtx context.Context, subscription s
 	entity := g.getSubscription(managedSubscription)
 	exists, subErr := entity.Exists(parentCtx)
 	if !exists {
-		_, subErr = g.client.CreateSubscription(parentCtx, managedSubscription, gcppubsub.SubscriptionConfig{
+		subConfig := gcppubsub.SubscriptionConfig{
+			AckDeadline:           20 * time.Second,
 			Topic:                 g.getTopic(topic),
 			EnableMessageOrdering: g.metadata.EnableMessageOrdering,
-		})
+		}
+
+		if g.metadata.DeadLetterTopic != "" {
+			subErr = g.ensureTopic(parentCtx, g.metadata.DeadLetterTopic)
+			if subErr != nil {
+				return subErr
+			}
+			subConfig.DeadLetterPolicy = &gcppubsub.DeadLetterPolicy{
+				DeadLetterTopic:     g.metadata.DeadLetterTopic,
+				MaxDeliveryAttempts: 10,
+			}
+		}
+		_, subErr = g.client.CreateSubscription(parentCtx, managedSubscription, subConfig)
 	}
 
 	return subErr

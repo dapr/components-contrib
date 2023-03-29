@@ -33,4 +33,5 @@ type metadata struct {
 	ConnectionRecoveryInSec int
 	ConnectionEndpoint      string
 	OrderingKey             string
+	DeadLetterTopic         string
 }

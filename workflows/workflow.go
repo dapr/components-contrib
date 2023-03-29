@@ -22,4 +22,5 @@ type Workflow interface {
 	Terminate(ctx context.Context, req *WorkflowReference) error
 	Get(ctx context.Context, req *WorkflowReference) (*StateResponse, error)
 	RaiseEvent(ctx context.Context, req *RaiseEventRequest) error
+	Purge(ctx context.Context, req *PurgeRequest) error
 }

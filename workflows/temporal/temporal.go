@@ -129,6 +129,11 @@ func (c *TemporalWF) RaiseEvent(ctx context.Context, req *workflows.RaiseEventRe
 	return nil
 }
 
+func (c *TemporalWF) Purge(ctx context.Context, req *workflows.PurgeRequest) error {
+	// Unimplemented
+	return nil
+}
+
 func (c *TemporalWF) Close() {
 	c.client.Close()
 }

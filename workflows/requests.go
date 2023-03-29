@@ -18,3 +18,8 @@ type RaiseEventRequest struct {
 	EventName  string `json:"event_name"`
 	Input      []byte `json:"input"`
 }
+
+// PurgeRequest is the object describing a Purge request.
+type PurgeRequest struct {
+	InstanceID string `json:"workflow_reference"`
+}

@@ -149,7 +149,7 @@ func TestMySQLIntegration(t *testing.T) {
 		tableName := "test_state"
 
 		// Drop the table if it already exists
-		exists, err := tableExists(context.Background(), mys.db, tableName, 10*time.Second)
+		exists, err := tableExists(context.Background(), mys.db, "dapr_state_store", tableName, 10*time.Second)
 		assert.Nil(t, err)
 		if exists {
 			dropTable(t, mys.db, tableName)
@@ -157,11 +157,11 @@ func TestMySQLIntegration(t *testing.T) {
 
 		// Create the state table and test for its existence
 		// There should be no error
-		err = mys.ensureStateTable(context.Background(), tableName)
+		err = mys.ensureStateTable(context.Background(), "dapr_state_store", tableName)
 		assert.Nil(t, err)
 
 		// Now create it and make sure there are no errors
-		exists, err = tableExists(context.Background(), mys.db, tableName, 10*time.Second)
+		exists, err = tableExists(context.Background(), mys.db, "dapr_state_store", tableName, 10*time.Second)
 		assert.Nil(t, err)
 		assert.True(t, exists)
 

@@ -93,11 +93,15 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		},
 		{
 			key:   fmt.Sprintf("%s-string-with-json", key),
-			value: "{\"a\":\"b\"}",
+			value: `{"a":"b"}`,
 		},
 		{
 			key:   fmt.Sprintf("%s-string", key),
 			value: "hello world",
+		},
+		{
+			key:   fmt.Sprintf("%s-empty-string", key),
+			value: "",
 		},
 		{
 			key:         fmt.Sprintf("%s-struct", key),
@@ -216,7 +220,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			results: []state.QueryItem{
 				{
 					Key:  fmt.Sprintf("%s-struct", key),
-					Data: []byte(fmt.Sprintf("{\"message\":\"test%s\"}", key)),
+					Data: []byte(fmt.Sprintf(`{"message":"test%s"}`, key)),
 				},
 			},
 		},
@@ -472,7 +476,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						"partitionKey": "myPartition",
 					},
 				})
-				assert.Nil(t, err)
+				require.NoError(t, err)
 				for _, scenario := range scenarios {
 					if scenario.transactionOnly {
 						if scenario.transactionGroup == transactionGroup {
@@ -485,7 +489,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 									"partitionKey": "myPartition",
 								},
 							})
-							assert.Nil(t, err)
+							require.NoError(t, err)
 							assertEquals(t, scenario.value, res)
 						}
 
@@ -499,7 +503,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 									"partitionKey": "myPartition",
 								},
 							})
-							assert.Nil(t, err)
+							require.NoError(t, err)
 							assert.Nil(t, res.Data)
 						}
 					}
@@ -855,19 +859,19 @@ func assertDataEquals(t *testing.T, expect any, actual []byte) {
 	case intValueType:
 		// Custom type requires case mapping
 		if err := json.Unmarshal(actual, &v); err != nil {
-			assert.Failf(t, "unmarshal error", "error: %w, json: %s", err, string(actual))
+			assert.Failf(t, "unmarshal error", "error: %v, json: %s", err, string(actual))
 		}
 		assert.Equal(t, expect, v)
 	case ValueType:
 		// Custom type requires case mapping
 		if err := json.Unmarshal(actual, &v); err != nil {
-			assert.Failf(t, "unmarshal error", "error: %w, json: %s", err, string(actual))
+			assert.Failf(t, "unmarshal error", "error: %v, json: %s", err, string(actual))
 		}
 		assert.Equal(t, expect, v)
 	case int:
 		// json.Unmarshal to float64 by default, case mapping to int coerces to int type
 		if err := json.Unmarshal(actual, &v); err != nil {
-			assert.Failf(t, "unmarshal error", "error: %w, json: %s", err, string(actual))
+			assert.Failf(t, "unmarshal error", "error: %v, json: %s", err, string(actual))
 		}
 		assert.Equal(t, expect, v)
 	case []byte:
@@ -875,7 +879,7 @@ func assertDataEquals(t *testing.T, expect any, actual []byte) {
 	default:
 		// Other golang primitive types (string, bool ...)
 		if err := json.Unmarshal(actual, &v); err != nil {
-			assert.Failf(t, "unmarshal error", "error: %w, json: %s", err, string(actual))
+			assert.Failf(t, "unmarshal error", "error: %v, json: %s", err, string(actual))
 		}
 		assert.Equal(t, expect, v)
 	}

@@ -652,11 +652,6 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 	var v any
 	isBinary := false
 	switch x := req.Value.(type) {
-	case string:
-		if x == "" {
-			return errors.New("empty string is not allowed in set operation")
-		}
-		v = x
 	case []uint8:
 		isBinary = true
 		v = base64.StdEncoding.EncodeToString(x)

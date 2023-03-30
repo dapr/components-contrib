@@ -36,7 +36,7 @@ const (
 	connectionStringKey        = "connectionString"
 	oracleWalletLocationKey    = "oracleWalletLocation"
 	errMissingConnectionString = "missing connection string"
-	tableName                  = "state"
+	defaultTableName           = "state"
 )
 
 // oracleDatabaseAccess implements dbaccess.
@@ -69,7 +69,7 @@ func (o *oracleDatabaseAccess) Ping() error {
 
 func parseMetadata(meta map[string]string) (oracleDatabaseMetadata, error) {
 	m := oracleDatabaseMetadata{
-		TableName: "state",
+		TableName: defaultTableName,
 	}
 	err := metadata.DecodeMetadata(meta, &m)
 	return m, err
@@ -105,7 +105,7 @@ func (o *oracleDatabaseAccess) Init(metadata state.Metadata) error {
 	if pingErr := db.Ping(); pingErr != nil {
 		return pingErr
 	}
-	err = o.ensureStateTable(tableName)
+	err = o.ensureStateTable(o.metadata.TableName)
 	if err != nil {
 		return err
 	}
@@ -168,20 +168,22 @@ func (o *oracleDatabaseAccess) Set(ctx context.Context, req *state.SetRequest) e
 		// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
 		// Other parameters use sql.DB parameter substitution.
 		// As per Discord Thread https://discord.com/channels/778680217417809931/901141713089863710/938520959562952735 expiration time is reset in case of an update.
+		//nolint:gosec
 		mergeStatement := fmt.Sprintf(
 			`MERGE INTO %s t using (select :key key, :value value, :binary_yn binary_yn, :etag etag , :ttl_in_seconds ttl_in_seconds from dual) new_state_to_store
 			ON (t.key = new_state_to_store.key )
 			WHEN MATCHED THEN UPDATE SET value = new_state_to_store.value, binary_yn = new_state_to_store.binary_yn, update_time = systimestamp, etag = new_state_to_store.etag, t.expiration_time = case when new_state_to_store.ttl_in_seconds >0 then systimestamp + numtodsinterval(new_state_to_store.ttl_in_seconds, 'SECOND') end
 			WHEN NOT MATCHED THEN INSERT (t.key, t.value, t.binary_yn, t.etag, t.expiration_time) values (new_state_to_store.key, new_state_to_store.value, new_state_to_store.binary_yn, new_state_to_store.etag, case when new_state_to_store.ttl_in_seconds >0 then systimestamp + numtodsinterval(new_state_to_store.ttl_in_seconds, 'SECOND') end ) `,
-			tableName)
+			o.metadata.TableName)
 		result, err = tx.ExecContext(ctx, mergeStatement, req.Key, value, binaryYN, etag, ttlSeconds)
 	} else {
 		// when first write policy is indicated, an existing record has to be updated - one that has the etag provided.
 		// TODO: Needs to update ttl_in_seconds
+		//nolint:gosec
 		updateStatement := fmt.Sprintf(
 			`UPDATE %s SET value = :value, binary_yn = :binary_yn, etag = :new_etag
 			 WHERE key = :key AND etag = :etag`,
-			tableName)
+			o.metadata.TableName)
 		result, err = tx.ExecContext(ctx, updateStatement, value, binaryYN, etag, req.Key, *req.ETag)
 	}
 	if err != nil {
@@ -215,7 +217,7 @@ func (o *oracleDatabaseAccess) Get(ctx context.Context, req *state.GetRequest) (
 	var value string
 	var binaryYN string
 	var etag string
-	err := o.db.QueryRowContext(ctx, fmt.Sprintf("SELECT value, binary_yn, etag  FROM %s WHERE key = :key and (expiration_time is null or expiration_time > systimestamp)", tableName), req.Key).Scan(&value, &binaryYN, &etag)
+	err := o.db.QueryRowContext(ctx, fmt.Sprintf("SELECT value, binary_yn, etag  FROM %s WHERE key = :key and (expiration_time is null or expiration_time > systimestamp)", o.metadata.TableName), req.Key).Scan(&value, &binaryYN, &etag)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
 		if err == sql.ErrNoRows {
@@ -268,9 +270,11 @@ func (o *oracleDatabaseAccess) Delete(ctx context.Context, req *state.DeleteRequ
 	}
 	// QUESTION: only check for etag if FirstWrite specified - or always when etag is supplied??
 	if req.Options.Concurrency != state.FirstWrite {
-		result, err = tx.ExecContext(ctx, "DELETE FROM state WHERE key = :key", req.Key)
+		//nolint:gosec
+		result, err = tx.ExecContext(ctx, "DELETE FROM "+o.metadata.TableName+" WHERE key = :key", req.Key)
 	} else {
-		result, err = tx.ExecContext(ctx, "DELETE FROM state WHERE key = :key and etag = :etag", req.Key, *req.ETag)
+		//nolint:gosec
+		result, err = tx.ExecContext(ctx, "DELETE FROM "+o.metadata.TableName+" WHERE key = :key and etag = :etag", req.Key, *req.ETag)
 	}
 	if err != nil {
 		if o.tx == nil { // not joining a preexisting transaction.

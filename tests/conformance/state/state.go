@@ -93,11 +93,15 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		},
 		{
 			key:   fmt.Sprintf("%s-string-with-json", key),
-			value: "{\"a\":\"b\"}",
+			value: `{"a":"b"}`,
 		},
 		{
 			key:   fmt.Sprintf("%s-string", key),
 			value: "hello world",
+		},
+		{
+			key:   fmt.Sprintf("%s-empty-string", key),
+			value: "",
 		},
 		{
 			key:         fmt.Sprintf("%s-struct", key),
@@ -216,7 +220,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			results: []state.QueryItem{
 				{
 					Key:  fmt.Sprintf("%s-struct", key),
-					Data: []byte(fmt.Sprintf("{\"message\":\"test%s\"}", key)),
+					Data: []byte(fmt.Sprintf(`{"message":"test%s"}`, key)),
 				},
 			},
 		},

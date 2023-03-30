@@ -183,10 +183,6 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 		return errors.New("missing key in set option")
 	}
 
-	if v, ok := req.Value.(string); ok && v == "" {
-		return fmt.Errorf("empty string is not allowed in set operation")
-	}
-
 	// TTL
 	var ttlSeconds int
 	ttl, ttlerr := stateutils.ParseTTL(req.Metadata)

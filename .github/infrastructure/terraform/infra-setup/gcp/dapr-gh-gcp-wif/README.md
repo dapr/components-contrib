@@ -1,4 +1,4 @@
-# Dapr Components Contrib Certification Tests Github Actions Workflow
+# Dapr Components Contrib Certification Tests GitHub Actions Workflow
 
 ## Overview
 
@@ -7,12 +7,12 @@ for the Conformance and Certification Tests.
 
 The Authn/Authz is handled by 2 resources already deployed in the GCP Project:
 
-- Workload Identity Pool & Workload Identity Provider Configured **specifically** for this Github repository -  **(Authn)**
-- A GCP IAM Service Account (SA) used to impersonate this Github Actions workflow within the GCP Project **(Authz)**.  This SA has been assigned the roles **`roles/pubsub.admin`** and **`roles/datastore.owner`** which will be used for the `GCP PusbSub` and `GCP Firestore` Certification Tests.
+- Workload Identity Pool & Workload Identity Provider Configured **specifically** for this GitHub repository -  **(Authentication)**
+- A GCP IAM Service Account (SA) used to impersonate this GitHub Actions workflow within the GCP Project **(Authorization)**. This SA has been assigned the roles **`roles/pubsub.admin`** and **`roles/datastore.owner`** which will be used for the `GCP PusbSub` and `GCP Firestore` Certification Tests.
 
- **Note** Changes to the roles for the SA should be made in the `roles` local variable in the file `service_account.tf`
+ **Note:** Changes to the roles for the SA should be made in the `roles` local variable in the file `service_account.tf`
 
-The Terraform scripts follow steps similar to the suggested in the [Google Github Actions Auth](https://github.com/google-github-actions/auth#setting-up-workload-identity-federation)
+The Terraform scripts follow steps similar to the suggested in the [Google GitHub Actions Auth](https://github.com/google-github-actions/auth#setting-up-workload-identity-federation)
 
 The Terraform state is stored in [dapr-compoments-contrib-cert-tests](https://console.cloud.google.com/storage/browser/dapr-compoments-contrib-cert-tests?project=dapr-tests) Bucket
 of the GCP GCS within the [dapr-tests](https://console.cloud.google.com/home/dashboard?project=dapr-tests) GCP Project.
@@ -22,10 +22,10 @@ of the GCP GCS within the [dapr-tests](https://console.cloud.google.com/home/das
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| project\_id | The project id that hosts the WIF pool and Dapr OSS SA | `string` | n/a | yes |
-| gh\_repo    | The Github Repo (username/repo_name) to associate with the WIF pool and Dapr SA | `string` | n/a | yes |
-| service_account | The Dapr OSS SA used for Github WIF OIDC | `string` | n/a | yes |
-| wif\_pool\_name | The Dapr OSS Workload Identity Pool Name | `string` | n/a | yes |
+| `project_id` | The project id that hosts the WIF pool and Dapr OSS SA | `string` | n/a | yes |
+| `gh_repo`    | The GitHub Repo (username/repo_name) to associate with the WIF pool and Dapr SA | `string` | n/a | yes |
+| `service_account` | The Dapr OSS SA used for GitHub WIF OIDC | `string` | n/a | yes |
+| `wif_pool_name` | The Dapr OSS Workload Identity Pool Name | `string` | n/a | yes |
 
 ## Requirements
 
@@ -68,10 +68,11 @@ $ terraform apply --auto-approve -var="gh_repo=dapr/components-contrib" \
 
 
 ## Outputs
+
 ```
 $ terraform output                                                   
     
-pool_name = "projects/369878874207/locations/global/workloadIdentityPools/contrib-cert-tests-gh-pool"
-provider_name = "projects/369878874207/locations/global/workloadIdentityPools/contrib-cert-tests-gh-pool/providers/contrib-cert-tests-gh-provider"
-sa_email = "comp-contrib-wif@dapr-tests.iam.gserviceaccount.com"
+pool_name = "projects/***/locations/global/workloadIdentityPools/contrib-cert-tests-gh-pool"
+provider_name = "projects/***/locations/global/workloadIdentityPools/contrib-cert-tests-gh-pool/providers/contrib-cert-tests-gh-provider"
+sa_email = "***"
 ```

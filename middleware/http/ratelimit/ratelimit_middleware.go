@@ -17,11 +17,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strconv"
+	"reflect"
 
 	tollbooth "github.com/didip/tollbooth/v7"
 	libstring "github.com/didip/tollbooth/v7/libstring"
 
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 )
@@ -85,21 +86,24 @@ func (m *Middleware) GetHandler(_ context.Context, metadata middleware.Metadata)
 }
 
 func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*rateLimitMiddlewareMetadata, error) {
-	var middlewareMetadata rateLimitMiddlewareMetadata
+	middlewareMetadata := rateLimitMiddlewareMetadata{
+		MaxRequestsPerSecond: defaultMaxRequestsPerSecond,
+	}
+	err := contribMetadata.DecodeMetadata(metadata.Properties, &middlewareMetadata)
+	if err != nil {
+		return nil, err
+	}
 
-	middlewareMetadata.MaxRequestsPerSecond = defaultMaxRequestsPerSecond
-	if val := metadata.Properties[maxRequestsPerSecondKey]; val != "" {
-		f, err := strconv.ParseFloat(val, 64)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing metadata property %s: %w", maxRequestsPerSecondKey, err)
-		}
-		if f <= 0 {
-			return nil, fmt.Errorf("metadata property %s must be a positive value", maxRequestsPerSecondKey)
-		}
-		middlewareMetadata.MaxRequestsPerSecond = f
-	} else {
-		return nil, fmt.Errorf("metadata property %s must not be empty", maxRequestsPerSecondKey)
+	if middlewareMetadata.MaxRequestsPerSecond <= 0 {
+		return nil, fmt.Errorf("metadata property %s must be a positive value", maxRequestsPerSecondKey)
 	}
 
 	return &middlewareMetadata, nil
+}
+
+func (m *Middleware) GetComponentMetadata() map[string]string {
+	metadataStruct := rateLimitMiddlewareMetadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }

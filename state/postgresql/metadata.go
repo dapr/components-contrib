@@ -20,7 +20,6 @@ import (
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/ptr"
 )
 
@@ -56,20 +55,6 @@ func (m *postgresMetadataStruct) InitWithMetadata(meta state.Metadata) error {
 	err := metadata.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return err
-	}
-
-	if m.TableName != "" {
-		// Sanitize the table name
-		if !utils.ValidIdentifier(m.TableName) {
-			return fmt.Errorf("table name '%s' is not valid", m.TableName)
-		}
-	}
-
-	if m.MetadataTableName != "" {
-		// Sanitize the metadata table name
-		if !utils.ValidIdentifier(m.MetadataTableName) {
-			return fmt.Errorf("metadata table name '%s' is not valid", m.MetadataTableName)
-		}
 	}
 
 	// Validate and sanitize input

@@ -29,7 +29,6 @@ import (
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 )
 
@@ -152,7 +151,7 @@ func (m *MySQL) parseMetadata(md map[string]string) error {
 
 	if meta.TableName != "" {
 		// Sanitize the table name
-		if !utils.ValidIdentifier(meta.TableName) {
+		if !validIdentifier(meta.TableName) {
 			return fmt.Errorf("table name '%s' is not valid", meta.TableName)
 		}
 	}
@@ -160,7 +159,7 @@ func (m *MySQL) parseMetadata(md map[string]string) error {
 
 	if meta.SchemaName != "" {
 		// Sanitize the schema name
-		if !utils.ValidIdentifier(meta.SchemaName) {
+		if !validIdentifier(meta.SchemaName) {
 			return fmt.Errorf("schema name '%s' is not valid", meta.SchemaName)
 		}
 	}
@@ -716,6 +715,27 @@ type querier interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+// Validates an identifier, such as table or DB name.
+// This is based on the rules for allowed unquoted identifiers (https://dev.mysql.com/doc/refman/8.0/en/identifiers.html), but more restrictive as it doesn't allow non-ASCII characters or the $ sign
+func validIdentifier(v string) bool {
+	if v == "" {
+		return false
+	}
+
+	// Loop through the string as byte slice as we only care about ASCII characters
+	b := []byte(v)
+	for i := 0; i < len(b); i++ {
+		if (b[i] >= '0' && b[i] <= '9') ||
+			(b[i] >= 'a' && b[i] <= 'z') ||
+			(b[i] >= 'A' && b[i] <= 'Z') ||
+			b[i] == '_' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func (m *MySQL) GetComponentMetadata() map[string]string {

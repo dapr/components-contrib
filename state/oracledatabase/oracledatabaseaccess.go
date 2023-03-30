@@ -90,13 +90,6 @@ func (o *oracleDatabaseAccess) Init(metadata state.Metadata) error {
 
 		return fmt.Errorf(errMissingConnectionString)
 	}
-
-	if o.metadata.TableName != "" {
-		// Sanitize the table name
-		if !stateutils.ValidIdentifier(o.metadata.TableName) {
-			return fmt.Errorf("table name '%s' is not valid", o.metadata.TableName)
-		}
-	}
 	if o.metadata.OracleWalletLocation != "" {
 		o.connectionString += "?TRACE FILE=trace.log&SSL=enable&SSL Verify=false&WALLET=" + url.QueryEscape(o.metadata.OracleWalletLocation)
 	}

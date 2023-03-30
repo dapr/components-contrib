@@ -79,13 +79,6 @@ func parseMetadata(meta state.Metadata) (*cockroachDBMetadata, error) {
 		return nil, errors.New(errMissingConnectionString)
 	}
 
-	if m.TableName != "" {
-		// Sanitize the table name
-		if !utils.ValidIdentifier(m.TableName) {
-			return nil, fmt.Errorf("table name '%s' is not valid", m.TableName)
-		}
-	}
-
 	return &m, nil
 }
 

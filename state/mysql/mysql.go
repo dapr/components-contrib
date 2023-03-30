@@ -710,13 +710,6 @@ func (m *MySQL) Close() error {
 	return err
 }
 
-// Interface for both sql.DB and sql.Tx
-type querier interface {
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
-}
-
 // Validates an identifier, such as table or DB name.
 // This is based on the rules for allowed unquoted identifiers (https://dev.mysql.com/doc/refman/8.0/en/identifiers.html), but more restrictive as it doesn't allow non-ASCII characters or the $ sign
 func validIdentifier(v string) bool {
@@ -736,6 +729,13 @@ func validIdentifier(v string) bool {
 		return false
 	}
 	return true
+}
+
+// Interface for both sql.DB and sql.Tx
+type querier interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
 func (m *MySQL) GetComponentMetadata() map[string]string {

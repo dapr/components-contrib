@@ -699,7 +699,7 @@ func storeItemExists(t *testing.T, key string) bool {
 	defer databaseConnection.Close()
 
 	exists := false
-	statement := fmt.Sprintf(`SELECT EXISTS (SELECT * FROM %s WHERE key = $1)`, tableName)
+	statement := fmt.Sprintf(`SELECT EXISTS (SELECT * FROM %s WHERE key = $1)`, defaultTableName)
 	err = databaseConnection.QueryRow(statement, key).Scan(&exists)
 	assert.Nil(t, err)
 
@@ -713,7 +713,7 @@ func getRowData(t *testing.T, key string) (returnValue string, insertdate sql.Nu
 	assert.Nil(t, err)
 	defer databaseConnection.Close()
 
-	err = databaseConnection.QueryRow(fmt.Sprintf("SELECT value, insertdate, updatedate FROM %s WHERE key = $1", tableName), key).Scan(&returnValue, &insertdate, &updatedate)
+	err = databaseConnection.QueryRow(fmt.Sprintf("SELECT value, insertdate, updatedate FROM %s WHERE key = $1", defaultTableName), key).Scan(&returnValue, &insertdate, &updatedate)
 	assert.Nil(t, err)
 
 	return returnValue, insertdate, updatedate

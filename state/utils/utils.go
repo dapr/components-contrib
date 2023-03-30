@@ -22,3 +22,24 @@ func Marshal(val interface{}, marshaler func(interface{}) ([]byte, error)) ([]by
 
 	return bt, err
 }
+
+// Validates an identifier, such as table or DB name.
+// This is based on the rules for allowed unquoted identifiers (https://dev.mysql.com/doc/refman/8.0/en/identifiers.html), but more restrictive as it doesn't allow non-ASCII characters or the $ sign
+func ValidIdentifier(v string) bool {
+	if v == "" {
+		return false
+	}
+
+	// Loop through the string as byte slice as we only care about ASCII characters
+	b := []byte(v)
+	for i := 0; i < len(b); i++ {
+		if (b[i] >= '0' && b[i] <= '9') ||
+			(b[i] >= 'a' && b[i] <= 'z') ||
+			(b[i] >= 'A' && b[i] <= 'Z') ||
+			b[i] == '_' {
+			continue
+		}
+		return false
+	}
+	return true
+}

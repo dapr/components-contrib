@@ -29,6 +29,7 @@ import (
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 )
 
@@ -151,7 +152,7 @@ func (m *MySQL) parseMetadata(md map[string]string) error {
 
 	if meta.TableName != "" {
 		// Sanitize the table name
-		if !validIdentifier(meta.TableName) {
+		if !utils.ValidIdentifier(meta.TableName) {
 			return fmt.Errorf("table name '%s' is not valid", meta.TableName)
 		}
 	}
@@ -159,7 +160,7 @@ func (m *MySQL) parseMetadata(md map[string]string) error {
 
 	if meta.SchemaName != "" {
 		// Sanitize the schema name
-		if !validIdentifier(meta.SchemaName) {
+		if !utils.ValidIdentifier(meta.SchemaName) {
 			return fmt.Errorf("schema name '%s' is not valid", meta.SchemaName)
 		}
 	}
@@ -708,27 +709,6 @@ func (m *MySQL) Close() error {
 	err := m.db.Close()
 	m.db = nil
 	return err
-}
-
-// Validates an identifier, such as table or DB name.
-// This is based on the rules for allowed unquoted identifiers (https://dev.mysql.com/doc/refman/8.0/en/identifiers.html), but more restrictive as it doesn't allow non-ASCII characters or the $ sign
-func validIdentifier(v string) bool {
-	if v == "" {
-		return false
-	}
-
-	// Loop through the string as byte slice as we only care about ASCII characters
-	b := []byte(v)
-	for i := 0; i < len(b); i++ {
-		if (b[i] >= '0' && b[i] <= '9') ||
-			(b[i] >= 'a' && b[i] <= 'z') ||
-			(b[i] >= 'A' && b[i] <= 'Z') ||
-			b[i] == '_' {
-			continue
-		}
-		return false
-	}
-	return true
 }
 
 // Interface for both sql.DB and sql.Tx

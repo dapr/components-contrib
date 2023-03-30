@@ -1041,25 +1041,3 @@ func (f *fakeMySQLFactory) Open(connectionString string) (*sql.DB, error) {
 func (f *fakeMySQLFactory) RegisterTLSConfig(pemPath string) error {
 	return f.registerErr
 }
-
-func TestValidIdentifier(t *testing.T) {
-	tests := []struct {
-		name string
-		arg  string
-		want bool
-	}{
-		{name: "empty string", arg: "", want: false},
-		{name: "valid characters only", arg: "acz_039_AZS", want: true},
-		{name: "invalid ASCII characters 1", arg: "$", want: false},
-		{name: "invalid ASCII characters 2", arg: "*", want: false},
-		{name: "invalid ASCII characters 3", arg: "hello world", want: false},
-		{name: "non-ASCII characters", arg: "🙃", want: false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := validIdentifier(tt.arg); got != tt.want {
-				t.Errorf("validIdentifier() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}

@@ -817,7 +817,7 @@ func storeItemExists(t *testing.T, key string) bool {
 	assert.Nil(t, err)
 	defer db.Close()
 	var rowCount int32
-	statement := fmt.Sprintf(`SELECT count(key) FROM %s WHERE key = :key`, tableName)
+	statement := fmt.Sprintf(`SELECT count(key) FROM %s WHERE key = :key`, defaultTableName)
 	err = db.QueryRow(statement, key).Scan(&rowCount)
 	assert.Nil(t, err)
 	exists := rowCount > 0
@@ -832,7 +832,7 @@ func getRowData(t *testing.T, key string) (returnValue string, insertdate sql.Nu
 	db, err := sql.Open("oracle", connectionString)
 	assert.Nil(t, err)
 	defer db.Close()
-	err = db.QueryRow(fmt.Sprintf("SELECT value, creation_time, update_time FROM %s WHERE key = :key", tableName), key).Scan(&returnValue, &insertdate, &updatedate)
+	err = db.QueryRow(fmt.Sprintf("SELECT value, creation_time, update_time FROM %s WHERE key = :key", defaultTableName), key).Scan(&returnValue, &insertdate, &updatedate)
 	assert.Nil(t, err)
 
 	return returnValue, insertdate, updatedate
@@ -846,7 +846,7 @@ func getTimesForRow(t *testing.T, key string) (insertdate sql.NullString, update
 	db, err := sql.Open("oracle", connectionString)
 	assert.Nil(t, err)
 	defer db.Close()
-	err = db.QueryRow(fmt.Sprintf("SELECT creation_time, update_time, expiration_time FROM %s WHERE key = :key", tableName), key).Scan(&insertdate, &updatedate, &expirationtime)
+	err = db.QueryRow(fmt.Sprintf("SELECT creation_time, update_time, expiration_time FROM %s WHERE key = :key", defaultTableName), key).Scan(&insertdate, &updatedate, &expirationtime)
 	assert.Nil(t, err)
 
 	return insertdate, updatedate, expirationtime

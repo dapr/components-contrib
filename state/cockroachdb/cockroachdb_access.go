@@ -39,7 +39,7 @@ import (
 const (
 	connectionStringKey          = "connectionString"
 	errMissingConnectionString   = "missing connection string"
-	tableName                    = "state"
+	defaultTableName             = "state"
 	defaultMaxConnectionAttempts = 5 // A bad driver connection error can occur inside the sql code so this essentially allows for more retries since the sql code does not allow that to be changed
 )
 
@@ -70,11 +70,20 @@ func newCockroachDBAccess(logger logger.Logger) *cockroachDBAccess {
 }
 
 func parseMetadata(meta state.Metadata) (*cockroachDBMetadata, error) {
-	m := cockroachDBMetadata{}
+	m := cockroachDBMetadata{
+		TableName: defaultTableName,
+	}
 	metadata.DecodeMetadata(meta.Properties, &m)
 
 	if m.ConnectionString == "" {
 		return nil, errors.New(errMissingConnectionString)
+	}
+
+	if m.TableName != "" {
+		// Sanitize the table name
+		if !utils.ValidIdentifier(m.TableName) {
+			return nil, fmt.Errorf("table name '%s' is not valid", m.TableName)
+		}
 	}
 
 	return &m, nil
@@ -111,7 +120,7 @@ func (p *cockroachDBAccess) Init(metadata state.Metadata) error {
 		return err
 	}
 
-	if err = p.ensureStateTable(tableName); err != nil {
+	if err = p.ensureStateTable(p.metadata.TableName); err != nil {
 		return err
 	}
 
@@ -141,7 +150,7 @@ func (p *cockroachDBAccess) Set(ctx context.Context, req *state.SetRequest) erro
 		result, err = p.db.ExecContext(ctx, fmt.Sprintf(
 			`INSERT INTO %s (key, value, isbinary, etag) VALUES ($1, $2, $3, 1)
 			ON CONFLICT (key) DO UPDATE SET value = $2, isbinary = $3, updatedate = NOW(), etag = EXCLUDED.etag + 1;`,
-			tableName), req.Key, value, isBinary)
+			p.metadata.TableName), req.Key, value, isBinary)
 	} else {
 		var etag64 uint64
 		etag64, err = strconv.ParseUint(*req.ETag, 10, 32)
@@ -154,7 +163,7 @@ func (p *cockroachDBAccess) Set(ctx context.Context, req *state.SetRequest) erro
 		result, err = p.db.ExecContext(ctx, fmt.Sprintf(
 			`UPDATE %s SET value = $1, isbinary = $2, updatedate = NOW(), etag = etag + 1
 			 WHERE key = $3 AND etag = $4;`,
-			tableName), value, isBinary, req.Key, etag)
+			p.metadata.TableName), value, isBinary, req.Key, etag)
 	}
 
 	if err != nil {
@@ -208,7 +217,7 @@ func (p *cockroachDBAccess) Get(ctx context.Context, req *state.GetRequest) (*st
 	var value string
 	var isBinary bool
 	var etag int
-	err := p.db.QueryRowContext(ctx, fmt.Sprintf("SELECT value, isbinary, etag FROM %s WHERE key = $1", tableName), req.Key).Scan(&value, &isBinary, &etag)
+	err := p.db.QueryRowContext(ctx, fmt.Sprintf("SELECT value, isbinary, etag FROM %s WHERE key = $1", p.metadata.TableName), req.Key).Scan(&value, &isBinary, &etag)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
 		if errors.Is(err, sql.ErrNoRows) {
@@ -258,7 +267,7 @@ func (p *cockroachDBAccess) Delete(ctx context.Context, req *state.DeleteRequest
 	var err error
 
 	if req.ETag == nil {
-		result, err = p.db.ExecContext(ctx, "DELETE FROM state WHERE key = $1", req.Key)
+		result, err = p.db.ExecContext(ctx, "DELETE FROM "+p.metadata.TableName+" WHERE key = $1", req.Key)
 	} else {
 		var etag64 uint64
 		etag64, err = strconv.ParseUint(*req.ETag, 10, 32)
@@ -267,7 +276,7 @@ func (p *cockroachDBAccess) Delete(ctx context.Context, req *state.DeleteRequest
 		}
 		etag := uint32(etag64)
 
-		result, err = p.db.ExecContext(ctx, "DELETE FROM state WHERE key = $1 and etag = $2", req.Key, etag)
+		result, err = p.db.ExecContext(ctx, "DELETE FROM "+p.metadata.TableName+" WHERE key = $1 and etag = $2", req.Key, etag)
 	}
 
 	if err != nil {

@@ -22,13 +22,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dapr/dapr/pkg/runtime"
-	dapr_testing "github.com/dapr/dapr/pkg/testing"
-	goclient "github.com/dapr/go-sdk/client"
-	"github.com/dapr/kit/logger"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	// Blank import for the underlying PostgreSQL driver.
+	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/dapr/components-contrib/internal/component/postgresql"
 	"github.com/dapr/components-contrib/metadata"
@@ -39,6 +38,10 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
+	"github.com/dapr/dapr/pkg/runtime"
+	dapr_testing "github.com/dapr/dapr/pkg/testing"
+	goclient "github.com/dapr/go-sdk/client"
+	"github.com/dapr/kit/logger"
 )
 
 const (

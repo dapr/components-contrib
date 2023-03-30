@@ -40,7 +40,7 @@ func TestParseMetadata(t *testing.T) {
 			"type":                        "my_type",
 		}
 		gs := GCPStorage{logger: logger.NewLogger("test")}
-		meta, _, err := gs.parseMetadata(m)
+		meta, err := gs.parseMetadata(m)
 		assert.Nil(t, err)
 
 		assert.Equal(t, "my_auth_provider_x509", meta.AuthProviderCertURL)
@@ -87,7 +87,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 			"decodeBase64":                "false",
 		}
 		gs := GCPStorage{logger: logger.NewLogger("test")}
-		meta, _, err := gs.parseMetadata(m)
+		meta, err := gs.parseMetadata(m)
 		assert.Nil(t, err)
 
 		assert.Equal(t, "my_auth_provider_x509", meta.AuthProviderCertURL)
@@ -143,7 +143,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 			"decodeBase64":                "false",
 		}
 		gs := GCPStorage{logger: logger.NewLogger("test")}
-		meta, _, err := gs.parseMetadata(m)
+		meta, err := gs.parseMetadata(m)
 		assert.Nil(t, err)
 
 		assert.Equal(t, "my_auth_provider_x509", meta.AuthProviderCertURL)
@@ -188,7 +188,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 			"encodeBase64":                "true",
 		}
 		gs := GCPStorage{logger: logger.NewLogger("test")}
-		meta, _, err := gs.parseMetadata(m)
+		meta, err := gs.parseMetadata(m)
 		assert.Nil(t, err)
 
 		assert.Equal(t, "my_auth_provider_x509", meta.AuthProviderCertURL)

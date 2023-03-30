@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strings"
 	"time"
@@ -24,6 +25,8 @@ import (
 	graphql "github.com/machinebox/graphql"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -45,6 +48,10 @@ const (
 	MutationOperation bindings.OperationKind = "mutation"
 )
 
+type graphQLMetadata struct {
+	Endpoint string `mapstructure:"endpoint"`
+}
+
 // GraphQL represents GraphQL output bindings.
 type GraphQL struct {
 	client *graphql.Client
@@ -58,21 +65,25 @@ func NewGraphQL(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init initializes the GraphQL binding.
-func (gql *GraphQL) Init(_ context.Context, metadata bindings.Metadata) error {
+func (gql *GraphQL) Init(_ context.Context, meta bindings.Metadata) error {
 	gql.logger.Debug("GraphQL Error: Initializing GraphQL binding")
 
-	p := metadata.Properties
-	ep, ok := p[connectionEndPointKey]
-	if !ok || ep == "" {
+	m := graphQLMetadata{}
+	err := metadata.DecodeMetadata(meta.Properties, &m)
+	if err != nil {
+		return err
+	}
+
+	if m.Endpoint == "" {
 		return fmt.Errorf("GraphQL Error: Missing GraphQL URL")
 	}
 
 	// Connect to GraphQL Server
-	client := graphql.NewClient(ep)
+	client := graphql.NewClient(m.Endpoint)
 
 	gql.client = client
 	gql.header = make(map[string]string)
-	for k, v := range p {
+	for k, v := range meta.Properties {
 		if strings.HasPrefix(k, "header:") {
 			gql.header[strings.TrimPrefix(k, "header:")] = v
 		}
@@ -175,4 +186,12 @@ func (gql *GraphQL) runRequest(ctx context.Context, requestKey string, req *bind
 	}
 
 	return nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (gql *GraphQL) GetComponentMetadata() map[string]string {
+	metadataStruct := graphQLMetadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ComponentType.BindingType)
+	return metadataInfo
 }

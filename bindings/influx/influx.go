@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go"
 	"github.com/influxdata/influxdb-client-go/api"
@@ -163,4 +164,12 @@ func (i *Influx) Close() error {
 	i.writeAPI = nil
 	i.queryAPI = nil
 	return nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (i *Influx) GetComponentMetadata() map[string]string {
+	metadataStruct := influxMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	return metadataInfo
 }

@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"reflect"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -318,4 +319,12 @@ func (o *HuaweiOBS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 	default:
 		return nil, fmt.Errorf("obs binding error. unsupported operation %s", req.Operation)
 	}
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (o *HuaweiOBS) GetComponentMetadata() map[string]string {
+	metadataStruct := obsMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	return metadataInfo
 }

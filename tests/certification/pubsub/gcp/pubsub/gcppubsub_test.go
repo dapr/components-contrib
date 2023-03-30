@@ -68,16 +68,16 @@ var subscriptions = []string{}
 var topics = []string{}
 
 var (
-	topicActiveName     = "cert-test-active"
-	topicPassiveName    = "cert-test-passive"
-	projectID           = "GCP_PROJECT_ID_NOT_SET"
-	fifoTopic           = "fifoTopic"           // replaced with env var PUBSUB_GCP_CONSUMER_ID_FIFO
-	deadLetterTopicIn   = "deadLetterTopicIn"   // replaced with env var PUBSUB_GCP_PUBSUB_TOPIC_DLIN
-	deadLetterTopicName = "deadLetterTopicName" // replaced with env var PUBSUB_GCP_PUBSUB_TOPIC_DLOUT
+	topicActiveName       = "cert-test-active"
+	topicPassiveName      = "cert-test-passive"
+	projectID             = "GCP_PROJECT_ID_NOT_SET"
+	fifoTopic             = "fifoTopic"           // replaced with env var PUBSUB_GCP_CONSUMER_ID_FIFO
+	deadLetterTopicIn     = "deadLetterTopicIn"   // replaced with env var PUBSUB_GCP_PUBSUB_TOPIC_DLIN
+	deadLetterTopicName   = "deadLetterTopicName" // replaced with env var PUBSUB_GCP_PUBSUB_TOPIC_DLOUT
+	deadLetterSubcription = "deadLetterSubcription"
 )
 
 func init() {
-
 	getEnv("GCP_PROJECT_ID", func(ev string) {
 		projectID = ev
 	})
@@ -115,7 +115,8 @@ func init() {
 	getEnv("PUBSUB_GCP_PUBSUB_TOPIC_DLOUT", func(ev string) {
 		deadLetterTopicName = ev
 		topics = append(topics, deadLetterTopicName)
-		subscriptions = append(subscriptions, pubsub_gcppubsub.BuildSubscriptionID(ev, deadLetterTopicName))
+		deadLetterSubcription = pubsub_gcppubsub.BuildSubscriptionID(ev, deadLetterTopicName)
+		subscriptions = append(subscriptions, deadLetterSubcription)
 	})
 }
 
@@ -145,11 +146,10 @@ func TestGCPPubSubCertificationTests(t *testing.T) {
 		GCPPubSubFIFOMessages(t)
 	})
 
-	/*
-		t.Run("GCPPubSubMessageDeadLetter", func(t *testing.T) {
-			GCPPubSubMessageDeadLetter(t)
-		})
-	*/
+	t.Run("GCPPubSubMessageDeadLetter", func(t *testing.T) {
+		GCPPubSubMessageDeadLetter(t)
+	})
+
 }
 
 // Verify with single publisher / single subscriber
@@ -437,7 +437,13 @@ func GCPPubSubMessageDeadLetter(t *testing.T) {
 			t := time.NewTicker(500 * time.Millisecond)
 			defer t.Stop()
 			counter := 1
-			tm := NewTopicManager()
+			tm, err := NewTopicManager(projectID)
+			if err != nil {
+				return fmt.Errorf("deadLetterReceiverApplication - NewTopicManager: %v", err)
+			}
+			defer func() {
+				ctx.Logf("deadLetterReceiverApplication - defer disconnect: %v ", tm.disconnect())
+			}()
 
 			for {
 				select {
@@ -448,7 +454,7 @@ func GCPPubSubMessageDeadLetter(t *testing.T) {
 					ctx.Logf("deadLetterReceiverApplication - timeout waiting for messages from (%q)", deadLetterTopicName)
 					return fmt.Errorf("deadLetterReceiverApplication - timeout waiting for messages from (%q)", deadLetterTopicName)
 				case <-t.C:
-					numMsgs, err := tm.GetMessages(deadLetterTopicName, true, func(m *DataMessage) error {
+					numMsgs, err := tm.GetMessages(deadLetterTopicName, msgTimeout, deadLetterSubcription, func(m *DataMessage) error {
 						ctx.Logf("deadLetterReceiverApplication - received message counter(%d) (%v)\n", counter, m.Data)
 						messagesWatcher.Observe(m.Data)
 						return nil
@@ -531,7 +537,7 @@ func GCPPubSubMessageDeadLetter(t *testing.T) {
 	deadletterApp := prefix + "deadLetterReceiverApp"
 	subApp := prefix + "subscriberApp"
 	subAppSideCar := prefix + sidecarName2
-	msgTimeout := time.Duration(60) //seconds
+	msgTimeout := time.Duration(30) //seconds
 
 	flow.New(t, "GCPPubSubMessageDeadLetter Verify with single publisher / single subscriber and DeadLetter").
 
@@ -554,7 +560,7 @@ func GCPPubSubMessageDeadLetter(t *testing.T) {
 			componentRuntimeOptions(),
 		)).
 		Step("publish messages to deadLetterTopicIn ==> "+deadLetterTopicIn, publishMessages(nil, subAppSideCar, deadLetterTopicIn, deadLetterConsumerGroup)).
-		Step("wait", flow.Sleep(30*time.Second)).
+		Step("wait", flow.Sleep(10*time.Second)).
 		Step("verify if app1 has 0 recevied messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).
 		Step("verify if app2 has deadletterMessageNum recevied messages send to dead letter Topic", assertMessages(10*time.Second, deadLetterConsumerGroup)).
 		Step("reset", flow.Reset(consumerGroup1, deadLetterConsumerGroup)).

@@ -430,6 +430,7 @@ func (g *GCPPubSub) ensureTopic(parentCtx context.Context, topic string) error {
 
 	if !exists {
 		_, err = g.client.CreateTopic(parentCtx, topic)
+		g.logger.Infof("@@@@ creating topic : %s - %v ", topic, err)
 		if status.Code(err) == codes.AlreadyExists {
 			return nil
 		}
@@ -463,14 +464,20 @@ func (g *GCPPubSub) ensureSubscription(parentCtx context.Context, subscription s
 		if g.metadata.DeadLetterTopic != "" {
 			subErr = g.ensureTopic(parentCtx, g.metadata.DeadLetterTopic)
 			if subErr != nil {
+				g.logger.Errorf("@@@@ unable to deadletter topic : %s - %v ", g.metadata.DeadLetterTopic, subErr)
 				return subErr
 			}
+			dlTopic := fmt.Sprintf("projects/%s/topics/%s", g.metadata.ProjectID, g.metadata.DeadLetterTopic)
 			subConfig.DeadLetterPolicy = &gcppubsub.DeadLetterPolicy{
-				DeadLetterTopic:     g.metadata.DeadLetterTopic,
-				MaxDeliveryAttempts: 10,
+				DeadLetterTopic:     dlTopic,
+				MaxDeliveryAttempts: 5,
 			}
 		}
 		_, subErr = g.client.CreateSubscription(parentCtx, managedSubscription, subConfig)
+		if subErr != nil {
+			g.logger.Errorf("@@@@ unable to create subscription (%s): %#v - %v ", managedSubscription, subConfig, subErr)
+
+		}
 	}
 
 	return subErr

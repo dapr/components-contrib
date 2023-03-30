@@ -12,8 +12,8 @@ spec:
         key: GCP_PROJECT_ID
     - name: consumerID
       secretKeyRef:
-        name: PUBSUB_GCP_CONSUMER_ID_FIFO
-        key: PUBSUB_GCP_CONSUMER_ID_FIFO
+        name: PUBSUB_GCP_PUBSUB_TOPIC_DLIN
+        key: PUBSUB_GCP_PUBSUB_TOPIC_DLIN
     - name: deadLetterTopic
       secretKeyRef:
         name: PUBSUB_GCP_PUBSUB_TOPIC_DLOUT

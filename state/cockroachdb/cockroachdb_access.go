@@ -267,7 +267,7 @@ func (p *cockroachDBAccess) Delete(ctx context.Context, req *state.DeleteRequest
 	var err error
 
 	if req.ETag == nil {
-		result, err = p.db.ExecContext(ctx, "DELETE FROM "+p.metadata.TableName+" WHERE key = $1", req.Key)
+		result, err = p.db.ExecContext(ctx, "DELETE FROM "+p.metadata.TableName+" WHERE key = $1", req.Key) //nolint:gosec
 	} else {
 		var etag64 uint64
 		etag64, err = strconv.ParseUint(*req.ETag, 10, 32)
@@ -276,7 +276,7 @@ func (p *cockroachDBAccess) Delete(ctx context.Context, req *state.DeleteRequest
 		}
 		etag := uint32(etag64)
 
-		result, err = p.db.ExecContext(ctx, "DELETE FROM "+p.metadata.TableName+" WHERE key = $1 and etag = $2", req.Key, etag)
+		result, err = p.db.ExecContext(ctx, "DELETE FROM "+p.metadata.TableName+" WHERE key = $1 and etag = $2", req.Key, etag) //nolint:gosec
 	}
 
 	if err != nil {

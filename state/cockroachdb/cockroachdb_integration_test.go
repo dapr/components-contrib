@@ -34,7 +34,7 @@ const (
 )
 
 type fakeItem struct {
-	Color string
+	Color string `json:"color"`
 }
 
 func TestCockroachDBIntegration(t *testing.T) {

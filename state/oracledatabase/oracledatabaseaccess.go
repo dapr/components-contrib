@@ -25,7 +25,6 @@ import (
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/components-contrib/state/utils"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 
@@ -94,7 +93,7 @@ func (o *oracleDatabaseAccess) Init(metadata state.Metadata) error {
 
 	if o.metadata.TableName != "" {
 		// Sanitize the table name
-		if !utils.ValidIdentifier(o.metadata.TableName) {
+		if !stateutils.ValidIdentifier(o.metadata.TableName) {
 			return fmt.Errorf("table name '%s' is not valid", o.metadata.TableName)
 		}
 	}
@@ -176,6 +175,7 @@ func (o *oracleDatabaseAccess) Set(ctx context.Context, req *state.SetRequest) e
 		// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
 		// Other parameters use sql.DB parameter substitution.
 		// As per Discord Thread https://discord.com/channels/778680217417809931/901141713089863710/938520959562952735 expiration time is reset in case of an update.
+		//nolint:gosec
 		mergeStatement := fmt.Sprintf(
 			`MERGE INTO %s t using (select :key key, :value value, :binary_yn binary_yn, :etag etag , :ttl_in_seconds ttl_in_seconds from dual) new_state_to_store
 			ON (t.key = new_state_to_store.key )
@@ -186,6 +186,7 @@ func (o *oracleDatabaseAccess) Set(ctx context.Context, req *state.SetRequest) e
 	} else {
 		// when first write policy is indicated, an existing record has to be updated - one that has the etag provided.
 		// TODO: Needs to update ttl_in_seconds
+		//nolint:gosec
 		updateStatement := fmt.Sprintf(
 			`UPDATE %s SET value = :value, binary_yn = :binary_yn, etag = :new_etag
 			 WHERE key = :key AND etag = :etag`,
@@ -276,8 +277,10 @@ func (o *oracleDatabaseAccess) Delete(ctx context.Context, req *state.DeleteRequ
 	}
 	// QUESTION: only check for etag if FirstWrite specified - or always when etag is supplied??
 	if req.Options.Concurrency != state.FirstWrite {
+		//nolint:gosec
 		result, err = tx.ExecContext(ctx, "DELETE FROM "+o.metadata.TableName+" WHERE key = :key", req.Key)
 	} else {
+		//nolint:gosec
 		result, err = tx.ExecContext(ctx, "DELETE FROM "+o.metadata.TableName+" WHERE key = :key and etag = :etag", req.Key, *req.ETag)
 	}
 	if err != nil {

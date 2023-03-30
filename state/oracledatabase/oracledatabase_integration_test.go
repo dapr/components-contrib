@@ -38,7 +38,7 @@ const (
 )
 
 type fakeItem struct {
-	Color string
+	Color string `json:"color"`
 }
 
 func TestOracleDatabaseIntegration(t *testing.T) {

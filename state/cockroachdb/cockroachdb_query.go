@@ -96,7 +96,7 @@ func (q *Query) VisitOR(filter *query.OR) (string, error) {
 }
 
 func (q *Query) Finalize(filters string, storeQuery *query.Query) error {
-	q.query = fmt.Sprintf("SELECT key, value, etag FROM %s", tableName)
+	q.query = fmt.Sprintf("SELECT key, value, etag FROM %s", defaultTableName)
 
 	if filters != "" {
 		q.query += fmt.Sprintf(" WHERE %s", filters)

@@ -12,6 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package mysql
 
 import (
@@ -35,6 +36,9 @@ import (
 
 const (
 	fakeConnectionString = "not a real connection"
+	keyTableName         = "tableName"
+	keyConnectionString  = "connectionString"
+	keySchemaName        = "schemaName"
 )
 
 func TestEnsureStateSchemaHandlesShortConnectionString(t *testing.T) {
@@ -67,7 +71,7 @@ func TestFinishInitHandlesSchemaExistsError(t *testing.T) {
 	actualErr := m.mySQL.finishInit(context.Background(), m.mySQL.db)
 
 	// Assert
-	assert.NotNil(t, actualErr, "now error returned")
+	assert.Error(t, actualErr, "now error returned")
 	assert.Equal(t, "existsError", actualErr.Error(), "wrong error")
 }
 
@@ -86,7 +90,7 @@ func TestFinishInitHandlesDatabaseCreateError(t *testing.T) {
 	actualErr := m.mySQL.finishInit(context.Background(), m.mySQL.db)
 
 	// Assert
-	assert.NotNil(t, actualErr, "now error returned")
+	assert.Error(t, actualErr, "now error returned")
 	assert.Equal(t, "createDatabaseError", actualErr.Error(), "wrong error")
 }
 
@@ -541,7 +545,7 @@ func TestTableExists(t *testing.T) {
 	m.mock1.ExpectQuery("SELECT EXISTS").WillReturnRows(rows)
 
 	// Act
-	actual, err := tableExists(context.Background(), m.mySQL.db, "store", 10*time.Second)
+	actual, err := tableExists(context.Background(), m.mySQL.db, "dapr_state_store", "store", 10*time.Second)
 
 	// Assert
 	assert.Nil(t, err, `error was returned`)
@@ -559,7 +563,7 @@ func TestEnsureStateTableHandlesCreateTableError(t *testing.T) {
 	m.mock1.ExpectExec("CREATE TABLE").WillReturnError(fmt.Errorf("CreateTableError"))
 
 	// Act
-	err := m.mySQL.ensureStateTable(context.Background(), "state")
+	err := m.mySQL.ensureStateTable(context.Background(), "dapr_state_store", "state")
 
 	// Assert
 	assert.NotNil(t, err, "no error returned")
@@ -578,12 +582,15 @@ func TestEnsureStateTableCreatesTable(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"exists"}).AddRow(0)
 	m.mock1.ExpectQuery("SELECT EXISTS").WillReturnRows(rows)
 	m.mock1.ExpectExec("CREATE TABLE").WillReturnResult(sqlmock.NewResult(1, 1))
+	rows = sqlmock.NewRows([]string{"exists"}).AddRow(1)
+	m.mock1.ExpectQuery("SELECT count(/*)").WillReturnRows(rows)
+	m.mock1.ExpectExec("CREATE PROCEDURE").WillReturnResult(sqlmock.NewResult(1, 1))
 
 	// Act
-	err := m.mySQL.ensureStateTable(context.Background(), "state")
+	err := m.mySQL.ensureStateTable(context.Background(), "dapr_state_store", "state")
 
 	// Assert
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 // Verify that the call to MySQL init get passed through

@@ -141,10 +141,6 @@ func (p *PostgresDBAccess) doSet(parentCtx context.Context, db dbquerier, req *s
 		return errors.New("missing key in set operation")
 	}
 
-	if v, ok := req.Value.(string); ok && v == "" {
-		return errors.New("empty string is not allowed in set operation")
-	}
-
 	v := req.Value
 	byteArray, isBinary := req.Value.([]uint8)
 	if isBinary {

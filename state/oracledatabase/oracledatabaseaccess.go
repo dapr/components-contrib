@@ -125,9 +125,6 @@ func (o *oracleDatabaseAccess) Set(ctx context.Context, req *state.SetRequest) e
 		return fmt.Errorf("missing key in set operation")
 	}
 
-	if v, ok := req.Value.(string); ok && v == "" {
-		return fmt.Errorf("empty string is not allowed in set operation")
-	}
 	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || len(*req.ETag) == 0) {
 		o.logger.Debugf("when FirstWrite is to be enforced, a value must be provided for the ETag")
 		return fmt.Errorf("when FirstWrite is to be enforced, a value must be provided for the ETag")

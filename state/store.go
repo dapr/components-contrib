@@ -15,7 +15,7 @@ package state
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/dapr/components-contrib/health"
 )
@@ -51,6 +51,6 @@ func Ping(ctx context.Context, store Store) error {
 	if storeWithPing, ok := store.(health.Pinger); ok {
 		return storeWithPing.Ping(ctx)
 	} else {
-		return fmt.Errorf("ping is not implemented by this state store")
+		return errors.New("ping is not implemented by this state store")
 	}
 }

@@ -8,35 +8,27 @@ import (
 // BulkStore is an interface to perform bulk operations on store.
 type BulkStore interface {
 	bulkStoreGet
-	bulkStoreDelete
-	bulkStoreSet
+
+	// BulkGetWithParallelism performs a Get operation in bulk with a maximum numnber of parallel requests.
+	BulkGetWithParallelism(ctx context.Context, req []GetRequest, parallelism int) ([]BulkGetResponse, error)
+	BulkDelete(ctx context.Context, req []DeleteRequest) error
+	BulkSet(ctx context.Context, req []SetRequest) error
 }
 
 type bulkStoreGet interface {
 	// BulkGet performs a Get operation in bulk.
 	BulkGet(ctx context.Context, req []GetRequest) ([]BulkGetResponse, error)
-	// BulkGetWithParallelism performs a Get operation in bulk with a maximum numnber of parallel requests.
-	// If the underlying state store implements a native BulkGet, parallelism is ignored..
-	BulkGetWithParallelism(ctx context.Context, req []GetRequest, parallelism int) ([]BulkGetResponse, error)
-}
-
-type bulkStoreDelete interface {
-	BulkDelete(ctx context.Context, req []DeleteRequest) error
-}
-
-type bulkStoreSet interface {
-	BulkSet(ctx context.Context, req []SetRequest) error
 }
 
 // DefaultBulkStore is a default implementation of BulkStore.
 type DefaultBulkStore struct {
-	BaseStore
+	base BaseStore
 }
 
 // NewDefaultBulkStore build a default bulk store.
-func NewDefaultBulkStore(base BaseStore) *DefaultBulkStore {
+func NewDefaultBulkStore(base BaseStore) BulkStore {
 	return &DefaultBulkStore{
-		BaseStore: base,
+		base: base,
 	}
 }
 
@@ -46,14 +38,15 @@ func (b *DefaultBulkStore) BulkGet(ctx context.Context, req []GetRequest) ([]Bul
 }
 
 // BulkGetWithParallelism performs a Get operation in bulk with a maximum numnber of parallel requests.
-// If the underlying state store implements a native BulkGet, parallelism is ignored..
+// If the base state store implements a native BulkGet, parallelism is ignored.
 func (b *DefaultBulkStore) BulkGetWithParallelism(ctx context.Context, req []GetRequest, parallelism int) ([]BulkGetResponse, error) {
-	// If the underlying implementation offers BulkGet, use that
-	if bs, ok := b.BaseStore.(bulkStoreGet); ok {
+	// If the base implementation offers BulkGet, use that
+	// Although this doesn't allow controlling parallelism, the component generally can perform all Get operations in a single invocation
+	if bs, ok := b.base.(bulkStoreGet); ok {
 		return bs.BulkGet(ctx, req)
 	}
 
-	// Fallback to executing all operations in sequence
+	// If parallelism isn't set, run all operations in parallel
 	if parallelism <= 0 {
 		parallelism = len(req)
 	}
@@ -70,7 +63,7 @@ func (b *DefaultBulkStore) BulkGetWithParallelism(ctx context.Context, req []Get
 
 			r := req[i]
 			res[i].Key = r.Key
-			item, rErr := b.Get(ctx, &r)
+			item, rErr := b.base.Get(ctx, &r)
 			if rErr != nil {
 				res[i].Error = rErr.Error()
 				return
@@ -94,19 +87,14 @@ func (b *DefaultBulkStore) BulkGetWithParallelism(ctx context.Context, req []Get
 
 // BulkSet performs a bulks save operation.
 func (b *DefaultBulkStore) BulkSet(ctx context.Context, req []SetRequest) error {
-	// If the underlying implementation offers BulkSet, use that
-	if bs, ok := b.BaseStore.(bulkStoreSet); ok {
-		return bs.BulkSet(ctx, req)
-	}
-
-	// Check if the underlying implementation supports transactions
-	if ts, ok := b.BaseStore.(TransactionalStore); ok {
+	// Check if the base implementation supports transactions
+	if ts, ok := b.base.(TransactionalStore); ok {
 		return b.bulkSetTransactional(ctx, req, ts)
 	}
 
 	// Fallback to executing all operations in sequence
 	for i := range req {
-		err := b.Set(ctx, &req[i])
+		err := b.base.Set(ctx, &req[i])
 		if err != nil {
 			return err
 		}
@@ -115,7 +103,7 @@ func (b *DefaultBulkStore) BulkSet(ctx context.Context, req []SetRequest) error 
 	return nil
 }
 
-// bulkSetTransactional performs a bulk save operation when the underlying state store is transactional.
+// bulkSetTransactional performs a bulk save operation when the base state store is transactional.
 func (b *DefaultBulkStore) bulkSetTransactional(ctx context.Context, req []SetRequest, ts TransactionalStore) error {
 	ops := make([]TransactionalStateOperation, len(req))
 	for i, r := range req {
@@ -131,19 +119,14 @@ func (b *DefaultBulkStore) bulkSetTransactional(ctx context.Context, req []SetRe
 
 // BulkDelete performs a bulk delete operation.
 func (b *DefaultBulkStore) BulkDelete(ctx context.Context, req []DeleteRequest) error {
-	// If the underlying implementation offers BulkDelete, use that
-	if bs, ok := b.BaseStore.(bulkStoreDelete); ok {
-		return bs.BulkDelete(ctx, req)
-	}
-
-	// Check if the underlying implementation supports transactions
-	if ts, ok := b.BaseStore.(TransactionalStore); ok {
+	// Check if the base implementation supports transactions
+	if ts, ok := b.base.(TransactionalStore); ok {
 		return b.bulkDeleteTransactional(ctx, req, ts)
 	}
 
 	// Fallback to executing all operations in sequence
 	for i := range req {
-		err := b.Delete(ctx, &req[i])
+		err := b.base.Delete(ctx, &req[i])
 		if err != nil {
 			return err
 		}
@@ -152,7 +135,7 @@ func (b *DefaultBulkStore) BulkDelete(ctx context.Context, req []DeleteRequest) 
 	return nil
 }
 
-// bulkDeleteTransactional performs a bulk delete operation when the underlying state store is transactional.
+// bulkDeleteTransactional performs a bulk delete operation when the base state store is transactional.
 func (b *DefaultBulkStore) bulkDeleteTransactional(ctx context.Context, req []DeleteRequest, ts TransactionalStore) error {
 	ops := make([]TransactionalStateOperation, len(req))
 	for i, r := range req {

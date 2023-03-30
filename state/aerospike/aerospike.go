@@ -45,6 +45,8 @@ var (
 
 // Aerospike is a state store.
 type Aerospike struct {
+	state.BulkStore
+
 	namespace string
 	set       string // optional
 	client    *as.Client

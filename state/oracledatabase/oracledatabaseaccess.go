@@ -38,6 +38,7 @@ const (
 	connectionStringKey        = "connectionString"
 	oracleWalletLocationKey    = "oracleWalletLocation"
 	errMissingConnectionString = "missing connection string"
+	defaultTableName           = "state"
 )
 
 // oracleDatabaseAccess implements dbaccess.
@@ -67,7 +68,7 @@ func (o *oracleDatabaseAccess) Ping(ctx context.Context) error {
 
 func parseMetadata(meta map[string]string) (oracleDatabaseMetadata, error) {
 	m := oracleDatabaseMetadata{
-		TableName: "state",
+		TableName: defaultTableName,
 	}
 	err := metadata.DecodeMetadata(meta, &m)
 	return m, err

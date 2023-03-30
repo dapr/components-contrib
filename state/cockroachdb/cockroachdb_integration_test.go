@@ -36,10 +36,11 @@ import (
 
 const (
 	connectionStringEnvKey = "DAPR_TEST_COCKROACHDB_CONNSTRING" // Environment variable containing the connection string.
+	defaultTableName       = "state"
 )
 
 type fakeItem struct {
-	Color string
+	Color string `json:"color"`
 }
 
 func TestCockroachDBIntegration(t *testing.T) {
@@ -219,7 +220,7 @@ func dropTable(t *testing.T, db *pgxpool.Pool, tableName string) {
 	t.Helper()
 
 	_, err := db.Exec(context.Background(), fmt.Sprintf("DROP TABLE %s", tableName))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func deleteItemThatDoesNotExist(t *testing.T, pgs *postgresql.PostgreSQL) {
@@ -236,7 +237,7 @@ func deleteItemThatDoesNotExist(t *testing.T, pgs *postgresql.PostgreSQL) {
 		},
 	}
 	err := pgs.Delete(context.Background(), deleteReq)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func multiWithSetOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
@@ -267,7 +268,7 @@ func multiWithSetOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
 		Operations: operations,
 		Metadata:   nil,
 	})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	for _, set := range setRequests {
 		assert.True(t, storeItemExists(t, set.Key))
@@ -308,7 +309,7 @@ func multiWithDeleteOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
 		Operations: operations,
 		Metadata:   nil,
 	})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	for _, delete := range deleteRequests {
 		assert.False(t, storeItemExists(t, delete.Key))
@@ -369,7 +370,7 @@ func multiWithDeleteAndSet(t *testing.T, pgs *postgresql.PostgreSQL) {
 		Operations: operations,
 		Metadata:   nil,
 	})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	for _, delete := range deleteRequests {
 		assert.False(t, storeItemExists(t, delete.Key))
@@ -588,7 +589,7 @@ func testBulkSetAndBulkDelete(t *testing.T, pgs *postgresql.PostgreSQL) {
 	}
 
 	err := pgs.BulkSet(context.Background(), setReq)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.True(t, storeItemExists(t, setReq[0].Key))
 	assert.True(t, storeItemExists(t, setReq[1].Key))
 
@@ -602,7 +603,7 @@ func testBulkSetAndBulkDelete(t *testing.T, pgs *postgresql.PostgreSQL) {
 	}
 
 	err = pgs.BulkDelete(context.Background(), deleteReq)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.False(t, storeItemExists(t, setReq[0].Key))
 	assert.False(t, storeItemExists(t, setReq[1].Key))
 }
@@ -669,7 +670,7 @@ func setItem(t *testing.T, pgs *postgresql.PostgreSQL, key string, value interfa
 	}
 
 	err := pgs.Set(context.Background(), setReq)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	itemExists := storeItemExists(t, key)
 	assert.True(t, itemExists)
 }
@@ -741,7 +742,7 @@ func deleteItem(t *testing.T, pgs *postgresql.PostgreSQL, key string, etag *stri
 	}
 
 	deleteErr := pgs.Delete(context.Background(), deleteReq)
-	assert.Nil(t, deleteErr)
+	assert.NoError(t, deleteErr)
 	assert.False(t, storeItemExists(t, key))
 }
 
@@ -749,13 +750,13 @@ func storeItemExists(t *testing.T, key string) bool {
 	t.Helper()
 
 	databaseConnection, err := sql.Open("pgx", getConnectionString())
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer databaseConnection.Close()
 
 	exists := false
-	statement := `SELECT EXISTS (SELECT * FROM state WHERE key = $1)`
+	statement := fmt.Sprintf(`SELECT EXISTS (SELECT * FROM %s WHERE key = $1)`, defaultTableName)
 	err = databaseConnection.QueryRow(statement, key).Scan(&exists)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	return exists
 }
@@ -764,11 +765,11 @@ func getRowData(t *testing.T, key string) (returnValue string, insertdate sql.Nu
 	t.Helper()
 
 	databaseConnection, err := sql.Open("pgx", getConnectionString())
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer databaseConnection.Close()
 
-	err = databaseConnection.QueryRow("SELECT value, insertdate, updatedate FROM state WHERE key = $1", key).Scan(&returnValue, &insertdate, &updatedate)
-	assert.Nil(t, err)
+	err = databaseConnection.QueryRow(fmt.Sprintf("SELECT value, insertdate, updatedate FROM %s WHERE key = $1", defaultTableName), key).Scan(&returnValue, &insertdate, &updatedate)
+	assert.NoError(t, err)
 
 	return returnValue, insertdate, updatedate
 }
@@ -791,7 +792,7 @@ func setItemWithTTL(t *testing.T, pgs *postgresql.PostgreSQL, key string, value 
 	}
 
 	err := pgs.Set(context.Background(), setReq)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	itemExists := storeItemExists(t, key)
 	assert.True(t, itemExists)
 }

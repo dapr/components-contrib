@@ -12,6 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package mysql
 
 import (
@@ -70,7 +71,7 @@ func TestFinishInitHandlesSchemaExistsError(t *testing.T) {
 	actualErr := m.mySQL.finishInit(context.Background(), m.mySQL.db)
 
 	// Assert
-	assert.NotNil(t, actualErr, "now error returned")
+	assert.Error(t, actualErr, "now error returned")
 	assert.Equal(t, "existsError", actualErr.Error(), "wrong error")
 }
 
@@ -89,7 +90,7 @@ func TestFinishInitHandlesDatabaseCreateError(t *testing.T) {
 	actualErr := m.mySQL.finishInit(context.Background(), m.mySQL.db)
 
 	// Assert
-	assert.NotNil(t, actualErr, "now error returned")
+	assert.Error(t, actualErr, "now error returned")
 	assert.Equal(t, "createDatabaseError", actualErr.Error(), "wrong error")
 }
 
@@ -583,12 +584,13 @@ func TestEnsureStateTableCreatesTable(t *testing.T) {
 	m.mock1.ExpectExec("CREATE TABLE").WillReturnResult(sqlmock.NewResult(1, 1))
 	rows = sqlmock.NewRows([]string{"exists"}).AddRow(1)
 	m.mock1.ExpectQuery("SELECT count(/*)").WillReturnRows(rows)
+	m.mock1.ExpectExec("CREATE PROCEDURE").WillReturnResult(sqlmock.NewResult(1, 1))
 
 	// Act
 	err := m.mySQL.ensureStateTable(context.Background(), "dapr_state_store", "state")
 
 	// Assert
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 // Verify that the call to MySQL init get passed through

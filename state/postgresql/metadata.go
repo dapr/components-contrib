@@ -66,7 +66,7 @@ func (m *postgresMetadataStruct) InitWithMetadata(meta state.Metadata) error {
 	}
 
 	if m.MetadataTableName != "" {
-		// Sanitize the schema name
+		// Sanitize the metadata table name
 		if !utils.ValidIdentifier(m.MetadataTableName) {
 			return fmt.Errorf("metadata table name '%s' is not valid", m.MetadataTableName)
 		}

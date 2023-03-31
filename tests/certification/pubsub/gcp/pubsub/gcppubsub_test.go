@@ -52,7 +52,7 @@ const (
 	appID1 = "app-1"
 	appID2 = "app-2"
 
-	numMessages      = 10
+	numMessages      = 5
 	appPort          = 8000
 	portOffset       = 2
 	pubsubName       = "gcp-pubsub-cert-tests"
@@ -76,6 +76,7 @@ var (
 	deadLetterTopicIn     = "deadLetterTopicIn"   // replaced with env var PUBSUB_GCP_PUBSUB_TOPIC_DLIN
 	deadLetterTopicName   = "deadLetterTopicName" // replaced with env var PUBSUB_GCP_PUBSUB_TOPIC_DLOUT
 	deadLetterSubcription = "deadLetterSubcription"
+	existingTopic         = "existingTopic" // replaced with env var PUBSUB_GCP_TOPIC_EXISTS
 )
 
 func init() {
@@ -119,6 +120,10 @@ func init() {
 		deadLetterSubcription = pubsub_gcppubsub.BuildSubscriptionID(ev, deadLetterTopicName)
 		subscriptions = append(subscriptions, deadLetterSubcription)
 	})
+
+	getEnv("PUBSUB_GCP_TOPIC_EXISTS", func(ev string) {
+		existingTopic = ev
+	})
 }
 
 func getEnv(env string, fn func(ev string), dfns ...func() string) {
@@ -155,6 +160,9 @@ func TestGCPPubSubCertificationTests(t *testing.T) {
 		GCPPubSubEntityManagement(t)
 	})
 
+	t.Run("GCPPubSubExistingTopic", func(t *testing.T) {
+		GCPPubSubExistingTopic(t)
+	})
 }
 
 // Verify with single publisher / single subscriber
@@ -652,6 +660,109 @@ func GCPPubSubEntityManagement(t *testing.T) {
 			componentRuntimeOptions(),
 		)).
 		Step(fmt.Sprintf("publish messages to topicDefault: %s", topicDefaultName), publishMessages(nil, sidecarName1, topicDefaultName, consumerGroup1)).
+		Run()
+}
+
+// Verify data with an existing Topic
+func GCPPubSubExistingTopic(t *testing.T) {
+	consumerGroup1 := watcher.NewUnordered()
+
+	// subscriber of the given topic
+	subscriberApplication := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
+		return func(ctx flow.Context, s common.Service) error {
+			// Simulate periodic errors.
+			sim := simulate.PeriodicError(ctx, 100)
+			// Setup the /orders event handler.
+			return multierr.Combine(
+				s.AddTopicEventHandler(&common.Subscription{
+					PubsubName: pubsubName,
+					Topic:      topicName,
+					Route:      "/orders",
+				}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
+					if err := sim(); err != nil {
+						return true, err
+					}
+
+					// Track/Observe the data of the event.
+					messagesWatcher.Observe(e.Data)
+					ctx.Logf("Message Received appID: %s,pubsub: %s, topic: %s, id: %s, data: %s", appID, e.PubsubName, e.Topic, e.ID, e.Data)
+					return false, nil
+				}),
+			)
+		}
+	}
+
+	publishMessages := func(metadata map[string]string, sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			// prepare the messages
+			messages := make([]string, numMessages)
+			for i := range messages {
+				messages[i] = fmt.Sprintf("message for topic: %s, index: %03d, uniqueId: %s", topicName, i, uuid.New().String())
+			}
+
+			// add the messages as expectations to the watchers
+			for _, messageWatcher := range messageWatchers {
+				messageWatcher.ExpectStrings(messages...)
+			}
+
+			// get the sidecar (dapr) client
+			client := sidecar.GetClient(ctx, sidecarName)
+
+			// publish messages
+			ctx.Logf("Publishing messages. sidecarName: %s, topicName: %s", sidecarName, topicName)
+
+			var publishOptions dapr.PublishEventOption
+
+			if metadata != nil {
+				publishOptions = dapr.PublishEventWithMetadata(metadata)
+			}
+
+			for _, message := range messages {
+				ctx.Logf("Publishing: %q", message)
+				var err error
+
+				if publishOptions != nil {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message, publishOptions)
+				} else {
+					err = client.PublishEvent(ctx, pubsubName, topicName, message)
+				}
+				require.NoError(ctx, err, "GCPPubSubExistingTopic - error publishing message")
+			}
+			return nil
+		}
+	}
+
+	assertMessages := func(timeout time.Duration, messageWatchers ...*watcher.Watcher) flow.Runnable {
+		return func(ctx flow.Context) error {
+			// assert for messages
+			for _, m := range messageWatchers {
+				if !m.Assert(ctx, 5*timeout) {
+					ctx.Errorf("GCPPubSubExistingTopic - message assertion failed for watcher: %#v\n", m)
+				}
+			}
+
+			return nil
+		}
+	}
+
+	flow.New(t, "GCPPubSub certification - Existing Topic").
+
+		// Run subscriberApplication app1
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset*3),
+			subscriberApplication(appID1, existingTopic, consumerGroup1))).
+
+		// Run the Dapr sidecar with ConsumerID "PUBSUB_GCP_CONSUMER_ID_EXISTS"
+		Step(sidecar.Run(sidecarName1,
+			embedded.WithComponentsPath("./components/existing_topic"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*3),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*3),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*3),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*3),
+			componentRuntimeOptions(),
+		)).
+		Step(fmt.Sprintf("publish messages to existingTopic: %s", existingTopic), publishMessages(nil, sidecarName1, existingTopic, consumerGroup1)).
+		Step("wait", flow.Sleep(20*time.Second)).
+		Step("verify if app1 has recevied messages published to newly created topic", assertMessages(1*time.Second, consumerGroup1)).
 		Run()
 }
 

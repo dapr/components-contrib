@@ -28,14 +28,22 @@ provider "google" {
 }
 
 resource "google_pubsub_topic" "topic" {
-  name = "cert-testTopic-${var.UNIQUE_ID}"
+  name = "gcpps-ct-tp-exists-${var.UNIQUE_ID}"
   labels = {
     purpose  = "certification-testing"
     timestamp = "${var.TIMESTAMP}"
   }
 }
 
+resource "google_pubsub_subscription" "subscription" {
+  name    = "sub-${google_pubsub_topic.topic.name}"
+  topic   = google_pubsub_topic.topic.name
+}
+
 // ###### OUTPUT VARIABLES ########
 output "PUBSUB_GCP_TOPIC" {
   value = google_pubsub_topic.topic.name
+}
+output "PUBSUB_GCP_SUBSCRIPTION" {
+  value = google_pubsub_subscription.subscription.name
 }

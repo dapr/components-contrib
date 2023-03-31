@@ -82,6 +82,13 @@ jobs:
 
   certification:
     name: ${{ matrix.component }} certification
+
+    # Add "id-token" with the intended permissions.
+    # Needed by the 'Authenticate to Google Cloud' step.
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
     runs-on: ubuntu-22.04
     env:
       UNIQUE_ID: ${{github.run_id}}-${{github.run_attempt}}
@@ -160,6 +167,22 @@ jobs:
           echo "$secretName=$value" >> $GITHUB_OUTPUT
           echo "$secretName=$value" >> $GITHUB_ENV
         done
+
+    # Authenticate with GCP Workload Identity Pool
+    # Exports GCP ENV Vars:
+    #    - GCP_PROJECT
+    #    - GOOGLE_APPLICATION_CREDENTIALS
+    - id: 'auth'
+      if: matrix.require-gcp-credentials == 'true'
+      name: 'Authenticate to Google Cloud'
+      uses: 'google-github-actions/auth@v1'
+      with:
+        token_format: 'access_token'
+        workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER_NAME }}
+        service_account: ${{ secrets.GCP_WIF_SA_EMAIL }}
+        create_credentials_file: true
+        export_environment_variables: true
+        cleanup_credentials: true
 
     # Download the required certificates into files, and set env var pointing to their names
     - name: Setup certs

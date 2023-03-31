@@ -18,8 +18,8 @@ const components = {
             'AzureCertificationServicePrincipalClientSecret',
         ],
         sourcePkg: [
-            'github.com/dapr/components-contrib/bindings/azure/blobstorage',
-            'github.com/dapr/components-contrib/internal/component/azure/blobstorage',
+            'bindings/azure/blobstorage',
+            'internal/component/azure/blobstorage',
         ],
     },
     'bindings.azure.cosmosdb': {
@@ -34,9 +34,6 @@ const components = {
             'AzureCertificationTenantId',
             'AzureCertificationServicePrincipalClientId',
             'AzureCertificationServicePrincipalClientSecret',
-        ],
-        sourcePkg: [
-            'github.com/dapr/components-contrib/bindings/azure/cosmosdb',
         ],
     },
     'bindings.azure.eventgrid': {
@@ -53,9 +50,6 @@ const components = {
         ],
         conformanceSetup: 'conformance-bindings.azure.eventgrid-setup.sh',
         conformanceDestroy: 'conformance-bindings.azure.eventgrid-destroy.sh',
-        sourcePkg: [
-            'github.com/dapr/components-contrib/bindings/azure/eventgrid',
-        ],
     },
     'bindings.azure.eventhubs': {
         conformance: true,
@@ -78,8 +72,8 @@ const components = {
             'AzureIotHubBindingsConsumerGroup',
         ],
         sourcePkg: [
-            'github.com/dapr/components-contrib/bindings/azure/eventhubs',
-            'github.com/dapr/components-contrib/internal/component/azure/eventhubs',
+            'bindings/azure/eventhubs',
+            'internal/component/azure/eventhubs',
         ],
     },
     'bindings.azure.servicebusqueues': {
@@ -87,8 +81,8 @@ const components = {
         certification: true,
         requiredSecrets: ['AzureServiceBusConnectionString'],
         sourcePkg: [
-            'github.com/dapr/components-contrib/bindings/azure/servicebusqueues',
-            'github.com/dapr/components-contrib/internal/component/azure/servicebus',
+            'bindings/azure/servicebusqueues',
+            'internal/component/azure/servicebus',
         ],
     },
     'bindings.azure.storagequeues': {
@@ -99,135 +93,123 @@ const components = {
             'AzureBlobStorageAccount',
             'AzureBlobStorageQueue',
         ],
-        sourcePkg: [
-            'github.com/dapr/components-contrib/bindings/azure/storagequeues',
-        ],
     },
     'bindings.cron': {
         conformance: true,
         certification: true,
-        sourcePkg: ['github.com/dapr/components-contrib/bindings/cron'],
     },
     'bindings.dubbo': {
         certification: true,
-        sourcePkg: ['github.com/dapr/components-contrib/bindings/dubbo'],
     },
     'bindings.http': {
         conformance: true,
-        sourcePkg: ['github.com/dapr/components-contrib/bindings/http'],
     },
     'bindings.influx': {
         conformance: true,
         conformanceSetup: 'conformance-bindings.influx-setup.sh',
-        sourcePkg: ['github.com/dapr/components-contrib/bindings/influx'],
     },
     'bindings.kafka': {
         certification: true,
         sourcePkg: [
-            'github.com/dapr/components-contrib/bindings/kafka',
-            'github.com/dapr/components-contrib/internal/component/kafka',
+            'bindings/kafka',
+            'internal/component/kafka',
         ],
     },
     'bindings.kafka-confluent': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh confluent',
         sourcePkg: [
-            'github.com/dapr/components-contrib/bindings/kafka',
-            'github.com/dapr/components-contrib/internal/component/kafka',
+            'bindings/kafka',
+            'internal/component/kafka',
         ],
     },
     'bindings.kafka-wurstmeister': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh kafka',
         sourcePkg: [
-            'github.com/dapr/components-contrib/bindings/kafka',
-            'github.com/dapr/components-contrib/internal/component/kafka',
+            'bindings/kafka',
+            'internal/component/kafka',
         ],
     },
     'bindings.kitex': {
         certification: true,
-        sourcePkg: ['github.com/dapr/components-contrib/bindings/kitex'],
     },
     'bindings.kubemq': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh kubemq',
-        sourcePkg: ['github.com/dapr/components-contrib/bindings/kubemq'],
     },
     'bindings.localstorage': {
         certification: true,
-        sourcePkg: ['github.com/dapr/components-contrib/bindings/localstorage'],
     },
     'bindings.mqtt3-emqx': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh emqx',
-        sourcePkg: ['github.com/dapr/components-contrib/bindings/mqtt3'],
+        sourcePkg: ['bindings/mqtt3'],
     },
     'bindings.mqtt3-mosquitto': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh mosquitto',
-        sourcePkg: ['github.com/dapr/components-contrib/bindings/mqtt3'],
+        sourcePkg: ['bindings/mqtt3'],
     },
     'bindings.mqtt3-vernemq': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh vernemq',
-        sourcePkg: ['github.com/dapr/components-contrib/bindings/mqtt3'],
+        sourcePkg: ['bindings/mqtt3'],
     },
     'bindings.postgres': {
         conformance: true,
         certification: true,
         conformanceSetup: 'docker-compose.sh postgresql',
-        sourcePkg: ['github.com/dapr/components-contrib/bindings/postgres'],
     },
     'bindings.rabbitmq': {
         conformance: true,
         certification: true,
         conformanceSetup: 'docker-compose.sh rabbitmq',
-        sourcePkg: ['github.com/dapr/components-contrib/bindings/rabbitmq'],
     },
     'bindings.redis': {
         certification: true,
         sourcePkg: [
-            'github.com/dapr/components-contrib/bindings/redis',
-            'github.com/dapr/components-contrib/internal/component/redis',
+            'bindings/redis',
+            'internal/component/redis',
         ],
     },
     'bindings.redis.v6': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redisjson redis',
         sourcePkg: [
-            'github.com/dapr/components-contrib/bindings/redis',
-            'github.com/dapr/components-contrib/internal/component/redis',
+            'bindings/redis',
+            'internal/component/redis',
         ],
     },
     'bindings.redis.v7': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redis7 redis',
         sourcePkg: [
-            'github.com/dapr/components-contrib/bindings/redis',
-            'github.com/dapr/components-contrib/internal/component/redis',
+            'bindings/redis',
+            'internal/component/redis',
         ],
     },
     'configuration.redis.v6': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redisjson redis',
         sourcePkg: [
-            'github.com/dapr/components-contrib/configuration/redis',
-            'github.com/dapr/components-contrib/configuration/redis/internal',
+            'configuration/redis',
+            'configuration/redis/internal',
         ],
     },
     'configuration.redis.v7': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redis7 redis',
         sourcePkg: [
-            'github.com/dapr/components-contrib/configuration/redis',
-            'github.com/dapr/components-contrib/configuration/redis/internal',
+            'configuration/redis',
+            'configuration/redis/internal',
         ],
     },
     'configuration.redis': {
         certification: true,
         sourcePkg: [
-            'github.com/dapr/components-contrib/configuration/redis',
-            'github.com/dapr/components-contrib/configuration/redis/internal',
+            'configuration/redis',
+            'configuration/redis/internal',
         ],
     },
     'crypto.azure.keyvault': {
@@ -247,11 +229,9 @@ const components = {
     },
     'middleware.http.bearer': {
         certification: true,
-        sourcePkg: ['github.com/dapr/components-contrib/middleware/http/bearer'],
     },
     'middleware.http.ratelimit': {
         certification: true,
-        sourcePkg: ['github.com/dapr/components-contrib/middleware/http/ratelimit'],
     },
     'pubsub.aws.snssqs': {
         certification: true,
@@ -259,12 +239,12 @@ const components = {
         requireTerraform: true,
         certificationSetup: 'certification-pubsub.aws.snssqs-setup.sh',
         certificationDestroy: 'certification-pubsub.aws.snssqs-destroy.sh',
-        sourcePkg: ['github.com/dapr/components-contrib/pubsub/aws/snssqs']
+        sourcePkg: ['pubsub/aws/snssqs']
     },
     'pubsub.aws.snssqs.docker': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh snssqs',
-        sourcePkg: ['github.com/dapr/components-contrib/pubsub/aws/snssqs'],
+        sourcePkg: ['pubsub/aws/snssqs'],
     },
     'pubsub.aws.snssqs.terraform': {
         conformance: true,
@@ -273,7 +253,7 @@ const components = {
         conformanceSetup: 'conformance-pubsub.aws.snssqs.terraform-setup.sh',
         conformanceDestroy:
             'conformance-pubsub.aws.snssqs.terraform-destroy.sh',
-        sourcePkg: ['github.com/dapr/components-contrib/pubsub/aws/snssqs'],
+        sourcePkg: ['pubsub/aws/snssqs'],
     },
     'pubsub.azure.eventhubs': {
         conformance: true,
@@ -295,16 +275,16 @@ const components = {
             'AzureCertificationSubscriptionId',
         ],
         sourcePkg: [
-            'github.com/dapr/components-contrib/pubsub/azure/eventhubs',
-            'github.com/dapr/components-contrib/internal/component/azure/eventhubs',
+            'pubsub/azure/eventhubs',
+            'internal/component/azure/eventhubs',
         ],
     },
     'pubsub.azure.servicebus.queues': {
         conformance: true,
         requiredSecrets: ['AzureServiceBusConnectionString'],
         sourcePkg: [
-            'github.com/dapr/components-contrib/pubsub/azure/servicebus/queues',
-            'github.com/dapr/components-contrib/internal/component/azure/servicebus',
+            'pubsub/azure/servicebus/queues',
+            'internal/component/azure/servicebus',
         ],
     },
     'pubsub.azure.servicebus.topics': {
@@ -318,84 +298,78 @@ const components = {
             'AzureCertificationServicePrincipalClientSecret',
         ],
         sourcePkg: [
-            'github.com/dapr/components-contrib/pubsub/azure/servicebus/topics',
-            'github.com/dapr/components-contrib/internal/component/azure/servicebus',
+            'pubsub/azure/servicebus/topics',
+            'internal/component/azure/servicebus',
         ],
     },
     'pubsub.in-memory': {
         conformance: true,
-        sourcePkg: ['github.com/dapr/components-contrib/pubsub/inmemory'],
     },
     'pubsub.jetstream': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh jetstream',
-        sourcePkg: ['github.com/dapr/components-contrib/pubsub/jetstream'],
     },
     'pubsub.kafka': {
         certification: true,
         sourcePkg: [
-            'github.com/dapr/components-contrib/pubsub/kafka',
-            'github.com/dapr/components-contrib/internal/component/kafka',
+            'pubsub/kafka',
+            'internal/component/kafka',
         ],
     },
     'pubsub.kafka-confluent': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh confluent',
         sourcePkg: [
-            'github.com/dapr/components-contrib/pubsub/kafka',
-            'github.com/dapr/components-contrib/internal/component/kafka',
+            'pubsub/kafka',
+            'internal/component/kafka',
         ],
     },
     'pubsub.kafka-wurstmeister': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh kafka',
         sourcePkg: [
-            'github.com/dapr/components-contrib/pubsub/kafka',
-            'github.com/dapr/components-contrib/internal/component/kafka',
+            'pubsub/kafka',
+            'internal/component/kafka',
         ],
     },
     'pubsub.kubemq': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh kubemq',
-        sourcePkg: ['github.com/dapr/components-contrib/pubsub/kubemq'],
     },
     'pubsub.mqtt3': {
         certification: true,
-        sourcePkg: ['github.com/dapr/components-contrib/pubsub/mqtt3'],
+        sourcePkg: ['pubsub/mqtt3'],
     },
     'pubsub.mqtt3-emqx': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh emqx',
-        sourcePkg: ['github.com/dapr/components-contrib/pubsub/mqtt3'],
+        sourcePkg: ['pubsub/mqtt3'],
     },
     'pubsub.mqtt3-vernemq': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh vernemq',
-        sourcePkg: ['github.com/dapr/components-contrib/pubsub/mqtt3'],
+        sourcePkg: ['pubsub/mqtt3'],
     },
     'pubsub.natsstreaming': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh natsstreaming',
-        sourcePkg: ['github.com/dapr/components-contrib/pubsub/natsstreaming'],
     },
     'pubsub.pulsar': {
         conformance: true,
         certification: true,
         conformanceSetup: 'docker-compose.sh pulsar',
-        sourcePkg: ['github.com/dapr/components-contrib/pubsub/pulsar'],
     },
     'pubsub.rabbitmq': {
         conformance: true,
         certification: true,
         conformanceSetup: 'docker-compose.sh rabbitmq',
-        sourcePkg: ['github.com/dapr/components-contrib/pubsub/rabbitmq'],
     },
     'pubsub.redis.v6': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redisjson redis',
         sourcePkg: [
-            'github.com/dapr/components-contrib/pubsub/redis',
-            'github.com/dapr/components-contrib/internal/component/redis',
+            'pubsub/redis',
+            'internal/component/redis',
         ],
     },
     // This test is currently disabled due to issues with Redis v7
@@ -406,7 +380,6 @@ const components = {
     'pubsub.solace': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh solace',
-        sourcePkg: ['github.com/dapr/components-contrib/pubsub/solace'],
     },
     'secretstores.azure.keyvault': {
         certification: true,
@@ -420,7 +393,7 @@ const components = {
             'AzureResourceGroupName',
         ],
         requiredCerts: ['AzureKeyVaultCert'],
-        sourcePkg: ['github.com/dapr/components-contrib/secretstores/azure/keyvault'],
+        sourcePkg: ['secretstores/azure/keyvault'],
     },
     'secretstores.azure.keyvault.certificate': {
         conformance: true,
@@ -430,7 +403,7 @@ const components = {
             'AzureKeyVaultClientId',
         ],
         requiredCerts: ['AzureKeyVaultCert'],
-        sourcePkg: ['github.com/dapr/components-contrib/secretstores/azure/keyvault'],
+        sourcePkg: ['secretstores/azure/keyvault'],
     },
     'secretstores.azure.keyvault.serviceprincipal': {
         conformance: true,
@@ -440,29 +413,25 @@ const components = {
             'AzureKeyVaultServicePrincipalClientId',
             'AzureKeyVaultServicePrincipalClientSecret',
         ],
-        sourcePkg: ['github.com/dapr/components-contrib/secretstores/azure/keyvault'],
+        sourcePkg: ['secretstores/azure/keyvault'],
     },
     'secretstores.hashicorp.vault': {
         conformance: true,
         certification: true,
         conformanceSetup: 'docker-compose.sh hashicorp-vault vault',
-        sourcePkg: ['github.com/dapr/components-contrib/secretstores/hashicorp/vault'],
     },
     'secretstores.kubernetes': {
         conformance: true,
         requireKind: true,
         conformanceSetup: 'conformance-secretstores.kubernetes-setup.sh',
-        sourcePkg: ['github.com/dapr/components-contrib/secretstores/kubernetes'],
     },
     'secretstores.local.env': {
         conformance: true,
         certification: true,
-        sourcePkg: ['github.com/dapr/components-contrib/secretstores/local/env'],
     },
     'secretstores.local.file': {
         conformance: true,
         certification: true,
-        sourcePkg: ['github.com/dapr/components-contrib/secretstores/local/file'],
     },
     'state.aws.dynamodb': {
         certification: true,
@@ -470,7 +439,7 @@ const components = {
         requireTerraform: true,
         certificationSetup: 'certification-state.aws.dynamodb-setup.sh',
         certificationDestroy: 'certification-state.aws.dynamodb-destroy.sh',
-        sourcePkg: ['github.com/dapr/components-contrib/state/aws/dynamodb'],
+        sourcePkg: ['state/aws/dynamodb'],
     },
     'state.aws.dynamodb.terraform': {
         conformance: true,
@@ -478,7 +447,7 @@ const components = {
         requireTerraform: true,
         conformanceSetup: 'conformance-state.aws.dynamodb-setup.sh',
         conformanceDestroy: 'conformance-state.aws.dynamodb-destroy.sh',
-        sourcePkg: ['github.com/dapr/components-contrib/state/aws/dynamodb'],
+        sourcePkg: ['state/aws/dynamodb'],
     },
     'state.azure.blobstorage': {
         conformance: true,
@@ -492,8 +461,8 @@ const components = {
             'AzureBlobStorageContainer',
         ],
         sourcePkg: [
-            'github.com/dapr/components-contrib/state/azure/blobstorage',
-            'github.com/dapr/components-contrib/internal/component/azure/blobstorage',
+            'state/azure/blobstorage',
+            'internal/component/azure/blobstorage',
         ],
     },
     'state.azure.cosmosdb': {
@@ -508,7 +477,6 @@ const components = {
             'AzureCertificationServicePrincipalClientId',
             'AzureCertificationServicePrincipalClientSecret',
         ],
-        sourcePkg: ['github.com/dapr/components-contrib/state/azure/cosmosdb'],
     },
     'state.azure.sql': {
         conformance: true,
@@ -519,7 +487,6 @@ const components = {
         ],
         conformanceSetup: 'conformance-state.azure.sql-setup.sh',
         conformanceDestroy: 'conformance-state.azure.sql-destroy.sh',
-        sourcePkg: ['github.com/dapr/components-contrib/state/azure/sql'],
     },
     'state.azure.tablestorage': {
         certification: true,
@@ -530,7 +497,7 @@ const components = {
             'AzureCertificationServicePrincipalClientId',
             'AzureCertificationServicePrincipalClientSecret',
         ],
-        sourcePkg: ['github.com/dapr/components-contrib/state/azure/tablestorage'],
+        sourcePkg: ['state/azure/tablestorage'],
     },
     'state.azure.tablestorage.cosmosdb': {
         conformance: true,
@@ -538,7 +505,7 @@ const components = {
             'AzureCosmosDBTableAPI',
             'AzureCosmosDBTableAPIMasterKey',
         ],
-        sourcePkg: ['github.com/dapr/components-contrib/state/azure/tablestorage'],
+        sourcePkg: ['state/azure/tablestorage'],
     },
     'state.azure.tablestorage.storage': {
         conformance: true,
@@ -546,13 +513,12 @@ const components = {
             'AzureBlobStorageAccessKey',
             'AzureBlobStorageAccount',
         ],
-        sourcePkg: ['github.com/dapr/components-contrib/state/azure/tablestorage'],
+        sourcePkg: ['state/azure/tablestorage'],
     },
     'state.cassandra': {
         conformance: true,
         certification: true,
         conformanceSetup: 'docker-compose.sh cassandra',
-        sourcePkg: ['github.com/dapr/components-contrib/state/cassandra'],
     },
     'state.cloudflare.workerskv': {
         conformance: true,
@@ -560,51 +526,46 @@ const components = {
         nodeJsVersion: '18.x',
         conformanceSetup: 'conformance-state.cloudflare.workerskv-setup.sh',
         conformanceDestroy: 'conformance-state.cloudflare.workerskv-destroy.sh',
-        sourcePkg: ['github.com/dapr/components-contrib/state/cloudflare/workerskv'],
     },
     'state.cockroachdb': {
         conformance: true,
         certification: true,
         conformanceSetup: 'docker-compose.sh cockroachdb',
         sourcePkg: [
-            'github.com/dapr/components-contrib/state/cockroachdb',
-            'github.com/dapr/components-contrib/internal/component/postgresql',
+            'state/cockroachdb',
+            'internal/component/postgresql',
         ]
     },
     'state.etcd': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh etcd',
-        sourcePkg: ['github.com/dapr/components-contrib/state/etcd'],
     },
     'state.in-memory': {
         conformance: true,
-        sourcePkg: ['github.com/dapr/components-contrib/state/inmemory'],
     },
     'state.memcached': {
         conformance: true,
         certification: true,
         conformanceSetup: 'docker-compose.sh memcached',
-        sourcePkg: ['github.com/dapr/components-contrib/state/memcached'],
     },
     'state.mongodb': {
         conformance: true,
         certification: true,
         mongoDbVersion: '4.2',
-        sourcePkg: ['github.com/dapr/components-contrib/state/mongodb'],
     },
     'state.mysql': {
         certification: true,
-        sourcePkg: ['github.com/dapr/components-contrib/state/mysql'],
+        sourcePkg: ['state/mysql'],
     },
     'state.mysql.mariadb': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh mariadb',
-        sourcePkg: ['github.com/dapr/components-contrib/state/mysql'],
+        sourcePkg: ['state/mysql'],
     },
     'state.mysql.mysql': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh mysql',
-        sourcePkg: ['github.com/dapr/components-contrib/state/mysql'],
+        sourcePkg: ['state/mysql'],
     },
     'state.oracledatabase': {
         conformance: true,
@@ -615,44 +576,43 @@ const components = {
         certification: true,
         conformanceSetup: 'docker-compose.sh postgresql',
         sourcePkg: [
-            'github.com/dapr/components-contrib/state/postgresql',
-            'github.com/dapr/components-contrib/internal/component/postgresql',
+            'state/postgresql',
+            'internal/component/postgresql',
         ]
     },
     'state.redis': {
         certification: true,
         sourcePkg: [
-            'github.com/dapr/components-contrib/state/redis',
-            'github.com/dapr/components-contrib/internal/component/redis',
+            'state/redis',
+            'internal/component/redis',
         ],
     },
     'state.redis.v6': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redisjson redis',
         sourcePkg: [
-            'github.com/dapr/components-contrib/state/redis',
-            'github.com/dapr/components-contrib/internal/component/redis',
+            'state/redis',
+            'internal/component/redis',
         ],
     },
     'state.redis.v7': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redis7 redis',
         sourcePkg: [
-            'github.com/dapr/components-contrib/state/redis',
-            'github.com/dapr/components-contrib/internal/component/redis',
+            'state/redis',
+            'internal/component/redis',
         ],
     },
     'state.rethinkdb': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh rethinkdb',
-        sourcePkg: ['github.com/dapr/components-contrib/state/rethinkdb'],
     },
     'state.sqlite': {
         conformance: true,
         certification: true,
         sourcePkg: [
-            'github.com/dapr/components-contrib/state/sqlite',
-            'github.com/dapr/components-contrib/internal/component/sql',
+            'state/sqlite',
+            'internal/component/sql',
         ],
     },
     'state.sqlserver': {
@@ -660,12 +620,10 @@ const components = {
         certification: true,
         conformanceSetup: 'docker-compose.sh sqlserver',
         requiredSecrets: ['AzureSqlServerConnectionString'],
-        sourcePkg: ['github.com/dapr/components-contrib/state/sqlserver'],
     },
     'workflows.temporal': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh temporal',
-        sourcePkg: ['github.com/dapr/components-contrib/workflows/temporal'],
     },
 }
 
@@ -755,8 +713,8 @@ function GenerateMatrix(testKind, enableCloudTests) {
             'nodejs-version': comp.nodeJsVersion || undefined,
             'mongodb-version': comp.mongoDbVersion || undefined,
             'source-pkg': comp.sourcePkg?.length
-                ? comp.sourcePkg.join(',') 
-                : undefined,
+                ? comp.sourcePkg.map((p) => "github.com/dapr/components-contrib/"+p).join(',')
+                : 'github.com/dapr/components-contrib' + name.replace(/./g, '/'),
         })
     }
 

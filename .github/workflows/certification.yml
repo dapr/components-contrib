@@ -237,23 +237,13 @@ jobs:
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
         AWS_REGION: "${{ env.AWS_REGION }}"
       run: |
-        set -e
-        KIND=$(echo ${{ matrix.component }} | cut -d. -f1)
-        NAME=$(echo ${{ matrix.component }} | cut -d. -f2-)
-
-        if [ ${{ matrix.source-pkg }} != '' ]; then
-          SRC_PKG=${{ matrix.source-pkg }}
-        else
-          SRC_PKG=github.com/dapr/components-contrib/${KIND}/${NAME}
-        fi
-        echo "SRC_PKG is": ${SRC_PKG}
-
         echo "Running certification tests for ${{ matrix.component }} ... "
+        echo "Source Pacakge: " ${{ matrix.source-pkg }}
         export GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore
         set +e
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.json \
           --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.xml --format standard-quiet -- \
-          -coverprofile=cover.out -covermode=set -tags=certtests -coverpkg=${SRC_PKG}
+          -coverprofile=cover.out -covermode=set -tags=certtests -coverpkg=${{ matrix.source-pkg }}
         status=$?
         echo "Completed certification tests for ${{ matrix.component }} ... "
         if test $status -ne 0; then

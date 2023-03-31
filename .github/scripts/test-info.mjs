@@ -110,26 +110,17 @@ const components = {
     },
     'bindings.kafka': {
         certification: true,
-        sourcePkg: [
-            'bindings/kafka',
-            'internal/component/kafka',
-        ],
+        sourcePkg: ['bindings/kafka', 'internal/component/kafka'],
     },
     'bindings.kafka-confluent': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh confluent',
-        sourcePkg: [
-            'bindings/kafka',
-            'internal/component/kafka',
-        ],
+        sourcePkg: ['bindings/kafka', 'internal/component/kafka'],
     },
     'bindings.kafka-wurstmeister': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh kafka',
-        sourcePkg: [
-            'bindings/kafka',
-            'internal/component/kafka',
-        ],
+        sourcePkg: ['bindings/kafka', 'internal/component/kafka'],
     },
     'bindings.kitex': {
         certification: true,
@@ -168,49 +159,31 @@ const components = {
     },
     'bindings.redis': {
         certification: true,
-        sourcePkg: [
-            'bindings/redis',
-            'internal/component/redis',
-        ],
+        sourcePkg: ['bindings/redis', 'internal/component/redis'],
     },
     'bindings.redis.v6': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redisjson redis',
-        sourcePkg: [
-            'bindings/redis',
-            'internal/component/redis',
-        ],
+        sourcePkg: ['bindings/redis', 'internal/component/redis'],
     },
     'bindings.redis.v7': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redis7 redis',
-        sourcePkg: [
-            'bindings/redis',
-            'internal/component/redis',
-        ],
+        sourcePkg: ['bindings/redis', 'internal/component/redis'],
     },
     'configuration.redis.v6': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redisjson redis',
-        sourcePkg: [
-            'configuration/redis',
-            'configuration/redis/internal',
-        ],
+        sourcePkg: ['configuration/redis', 'configuration/redis/internal'],
     },
     'configuration.redis.v7': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redis7 redis',
-        sourcePkg: [
-            'configuration/redis',
-            'configuration/redis/internal',
-        ],
+        sourcePkg: ['configuration/redis', 'configuration/redis/internal'],
     },
     'configuration.redis': {
         certification: true,
-        sourcePkg: [
-            'configuration/redis',
-            'configuration/redis/internal',
-        ],
+        sourcePkg: ['configuration/redis', 'configuration/redis/internal'],
     },
     'crypto.azure.keyvault': {
         conformance: true,
@@ -239,7 +212,7 @@ const components = {
         requireTerraform: true,
         certificationSetup: 'certification-pubsub.aws.snssqs-setup.sh',
         certificationDestroy: 'certification-pubsub.aws.snssqs-destroy.sh',
-        sourcePkg: ['pubsub/aws/snssqs']
+        sourcePkg: ['pubsub/aws/snssqs'],
     },
     'pubsub.aws.snssqs.docker': {
         conformance: true,
@@ -311,26 +284,17 @@ const components = {
     },
     'pubsub.kafka': {
         certification: true,
-        sourcePkg: [
-            'pubsub/kafka',
-            'internal/component/kafka',
-        ],
+        sourcePkg: ['pubsub/kafka', 'internal/component/kafka'],
     },
     'pubsub.kafka-confluent': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh confluent',
-        sourcePkg: [
-            'pubsub/kafka',
-            'internal/component/kafka',
-        ],
+        sourcePkg: ['pubsub/kafka', 'internal/component/kafka'],
     },
     'pubsub.kafka-wurstmeister': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh kafka',
-        sourcePkg: [
-            'pubsub/kafka',
-            'internal/component/kafka',
-        ],
+        sourcePkg: ['pubsub/kafka', 'internal/component/kafka'],
     },
     'pubsub.kubemq': {
         conformance: true,
@@ -367,10 +331,7 @@ const components = {
     'pubsub.redis.v6': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redisjson redis',
-        sourcePkg: [
-            'pubsub/redis',
-            'internal/component/redis',
-        ],
+        sourcePkg: ['pubsub/redis', 'internal/component/redis'],
     },
     // This test is currently disabled due to issues with Redis v7
     /*'pubsub.redis.v7': {
@@ -531,10 +492,7 @@ const components = {
         conformance: true,
         certification: true,
         conformanceSetup: 'docker-compose.sh cockroachdb',
-        sourcePkg: [
-            'state/cockroachdb',
-            'internal/component/postgresql',
-        ]
+        sourcePkg: ['state/cockroachdb', 'internal/component/postgresql'],
     },
     'state.etcd': {
         conformance: true,
@@ -575,33 +533,21 @@ const components = {
         conformance: true,
         certification: true,
         conformanceSetup: 'docker-compose.sh postgresql',
-        sourcePkg: [
-            'state/postgresql',
-            'internal/component/postgresql',
-        ]
+        sourcePkg: ['state/postgresql', 'internal/component/postgresql'],
     },
     'state.redis': {
         certification: true,
-        sourcePkg: [
-            'state/redis',
-            'internal/component/redis',
-        ],
+        sourcePkg: ['state/redis', 'internal/component/redis'],
     },
     'state.redis.v6': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redisjson redis',
-        sourcePkg: [
-            'state/redis',
-            'internal/component/redis',
-        ],
+        sourcePkg: ['state/redis', 'internal/component/redis'],
     },
     'state.redis.v7': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redis7 redis',
-        sourcePkg: [
-            'state/redis',
-            'internal/component/redis',
-        ],
+        sourcePkg: ['state/redis', 'internal/component/redis'],
     },
     'state.rethinkdb': {
         conformance: true,
@@ -610,10 +556,7 @@ const components = {
     'state.sqlite': {
         conformance: true,
         certification: true,
-        sourcePkg: [
-            'state/sqlite',
-            'internal/component/sql',
-        ],
+        sourcePkg: ['state/sqlite', 'internal/component/sql'],
     },
     'state.sqlserver': {
         conformance: true,
@@ -713,8 +656,11 @@ function GenerateMatrix(testKind, enableCloudTests) {
             'nodejs-version': comp.nodeJsVersion || undefined,
             'mongodb-version': comp.mongoDbVersion || undefined,
             'source-pkg': comp.sourcePkg?.length
-                ? comp.sourcePkg.map((p) => "github.com/dapr/components-contrib/"+p).join(',')
-                : 'github.com/dapr/components-contrib/' + name.replace(/\./g, '/'),
+                ? comp.sourcePkg
+                      .map((p) => 'github.com/dapr/components-contrib/' + p)
+                      .join(',')
+                : 'github.com/dapr/components-contrib/' +
+                  name.replace(/\./g, '/'),
         })
     }
 

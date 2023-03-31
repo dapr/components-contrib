@@ -38,6 +38,7 @@ const (
 	connectionStringKey        = "connectionString"
 	oracleWalletLocationKey    = "oracleWalletLocation"
 	errMissingConnectionString = "missing connection string"
+	defaultTableName           = "state"
 )
 
 // oracleDatabaseAccess implements dbaccess.
@@ -67,7 +68,7 @@ func (o *oracleDatabaseAccess) Ping(ctx context.Context) error {
 
 func parseMetadata(meta map[string]string) (oracleDatabaseMetadata, error) {
 	m := oracleDatabaseMetadata{
-		TableName: "state",
+		TableName: defaultTableName,
 	}
 	err := metadata.DecodeMetadata(meta, &m)
 	return m, err
@@ -126,9 +127,6 @@ func (o *oracleDatabaseAccess) doSet(ctx context.Context, db querier, req *state
 		return errors.New("missing key in set operation")
 	}
 
-	if v, ok := req.Value.(string); ok && v == "" {
-		return errors.New("empty string is not allowed in set operation")
-	}
 	requestValue := req.Value
 	byteArray, isBinary := req.Value.([]uint8)
 	binaryYN := "N"

@@ -212,12 +212,11 @@ const components = {
         requireTerraform: true,
         certificationSetup: 'certification-pubsub.aws.snssqs-setup.sh',
         certificationDestroy: 'certification-pubsub.aws.snssqs-destroy.sh',
-        sourcePkg: ['pubsub/aws/snssqs'],
     },
     'pubsub.aws.snssqs.docker': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh snssqs',
-        sourcePkg: ['pubsub/aws/snssqs'],
+        sourcePkg: 'pubsub/aws/snssqs',
     },
     'pubsub.aws.snssqs.terraform': {
         conformance: true,
@@ -226,7 +225,7 @@ const components = {
         conformanceSetup: 'conformance-pubsub.aws.snssqs.terraform-setup.sh',
         conformanceDestroy:
             'conformance-pubsub.aws.snssqs.terraform-destroy.sh',
-        sourcePkg: ['pubsub/aws/snssqs'],
+        sourcePkg: 'pubsub/aws/snssqs',
     },
     'pubsub.azure.eventhubs': {
         conformance: true,
@@ -302,7 +301,6 @@ const components = {
     },
     'pubsub.mqtt3': {
         certification: true,
-        sourcePkg: ['pubsub/mqtt3'],
     },
     'pubsub.mqtt3-emqx': {
         conformance: true,
@@ -354,7 +352,6 @@ const components = {
             'AzureResourceGroupName',
         ],
         requiredCerts: ['AzureKeyVaultCert'],
-        sourcePkg: ['secretstores/azure/keyvault'],
     },
     'secretstores.azure.keyvault.certificate': {
         conformance: true,
@@ -364,7 +361,7 @@ const components = {
             'AzureKeyVaultClientId',
         ],
         requiredCerts: ['AzureKeyVaultCert'],
-        sourcePkg: ['secretstores/azure/keyvault'],
+        sourcePkg: 'secretstores/azure/keyvault',
     },
     'secretstores.azure.keyvault.serviceprincipal': {
         conformance: true,
@@ -374,7 +371,7 @@ const components = {
             'AzureKeyVaultServicePrincipalClientId',
             'AzureKeyVaultServicePrincipalClientSecret',
         ],
-        sourcePkg: ['secretstores/azure/keyvault'],
+        sourcePkg: 'secretstores/azure/keyvault',
     },
     'secretstores.hashicorp.vault': {
         conformance: true,
@@ -400,7 +397,6 @@ const components = {
         requireTerraform: true,
         certificationSetup: 'certification-state.aws.dynamodb-setup.sh',
         certificationDestroy: 'certification-state.aws.dynamodb-destroy.sh',
-        sourcePkg: ['state/aws/dynamodb'],
     },
     'state.aws.dynamodb.terraform': {
         conformance: true,
@@ -408,7 +404,7 @@ const components = {
         requireTerraform: true,
         conformanceSetup: 'conformance-state.aws.dynamodb-setup.sh',
         conformanceDestroy: 'conformance-state.aws.dynamodb-destroy.sh',
-        sourcePkg: ['state/aws/dynamodb'],
+        sourcePkg: 'state/aws/dynamodb',
     },
     'state.azure.blobstorage': {
         conformance: true,
@@ -458,7 +454,6 @@ const components = {
             'AzureCertificationServicePrincipalClientId',
             'AzureCertificationServicePrincipalClientSecret',
         ],
-        sourcePkg: ['state/azure/tablestorage'],
     },
     'state.azure.tablestorage.cosmosdb': {
         conformance: true,
@@ -492,7 +487,11 @@ const components = {
         conformance: true,
         certification: true,
         conformanceSetup: 'docker-compose.sh cockroachdb',
-        sourcePkg: ['state/cockroachdb', 'internal/component/postgresql'],
+        sourcePkg: [
+            'state/cockroachdb',
+            'internal/component/postgresql',
+            'internal/component/sql',
+        ],
     },
     'state.etcd': {
         conformance: true,
@@ -513,17 +512,17 @@ const components = {
     },
     'state.mysql': {
         certification: true,
-        sourcePkg: ['state/mysql'],
+        sourcePkg: ['state/mysql', 'internal/component/sql'],
     },
     'state.mysql.mariadb': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh mariadb',
-        sourcePkg: ['state/mysql'],
+        sourcePkg: ['state/mysql', 'internal/component/sql'],
     },
     'state.mysql.mysql': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh mysql',
-        sourcePkg: ['state/mysql'],
+        sourcePkg: ['state/mysql', 'internal/component/sql'],
     },
     'state.oracledatabase': {
         conformance: true,
@@ -533,7 +532,11 @@ const components = {
         conformance: true,
         certification: true,
         conformanceSetup: 'docker-compose.sh postgresql',
-        sourcePkg: ['state/postgresql', 'internal/component/postgresql'],
+        sourcePkg: [
+            'state/postgresql',
+            'internal/component/postgresql',
+            'internal/component/sql',
+        ],
     },
     'state.redis': {
         certification: true,
@@ -563,6 +566,7 @@ const components = {
         certification: true,
         conformanceSetup: 'docker-compose.sh sqlserver',
         requiredSecrets: ['AzureSqlServerConnectionString'],
+        sourcePkg: ['state/sqlserver', 'internal/component/sql'],
     },
     'workflows.temporal': {
         conformance: true,

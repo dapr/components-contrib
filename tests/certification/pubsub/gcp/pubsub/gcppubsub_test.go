@@ -56,7 +56,7 @@ const (
 	appPort          = 8000
 	portOffset       = 2
 	pubsubName       = "gcp-pubsub-cert-tests"
-	topicDefaultName = "cert-test-topic-default"
+	topicDefaultName = "cert-test-topic-DOESNOT-EXIST"
 )
 
 // The following subscriptions IDs will be populated
@@ -149,6 +149,10 @@ func TestGCPPubSubCertificationTests(t *testing.T) {
 
 	t.Run("GCPPubSubMessageDeadLetter", func(t *testing.T) {
 		GCPPubSubMessageDeadLetter(t)
+	})
+
+	t.Run("GCPPubSubEntityManagement", func(t *testing.T) {
+		GCPPubSubEntityManagement(t)
 	})
 
 }
@@ -573,11 +577,6 @@ func GCPPubSubEntityManagement(t *testing.T) {
 	// TODO: Modify it to looks for component init error in the sidecar itself.
 	consumerGroup1 := watcher.NewUnordered()
 
-	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
-	metadata := map[string]string{
-		messageKey: partition0,
-	}
-
 	subscriberApplication := func(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
 		return func(ctx flow.Context, s common.Service) error {
 			// Setup the /orders event handler.
@@ -601,7 +600,7 @@ func GCPPubSubEntityManagement(t *testing.T) {
 			// prepare the messages
 			messages := make([]string, numMessages)
 			for i := range messages {
-				messages[i] = fmt.Sprintf("partitionKey: %s, message for topic: %s, index: %03d, uniqueId: %s", metadata[messageKey], topicName, i, uuid.New().String())
+				messages[i] = fmt.Sprintf("message for topic: %s, index: %03d, uniqueId: %s", topicName, i, uuid.New().String())
 			}
 
 			// add the messages as expectations to the watchers
@@ -652,7 +651,7 @@ func GCPPubSubEntityManagement(t *testing.T) {
 			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
 			componentRuntimeOptions(),
 		)).
-		Step(fmt.Sprintf("publish messages to topicDefault: %s", topicDefaultName), publishMessages(metadata, sidecarName1, topicDefaultName, consumerGroup1)).
+		Step(fmt.Sprintf("publish messages to topicDefault: %s", topicDefaultName), publishMessages(nil, sidecarName1, topicDefaultName, consumerGroup1)).
 		Run()
 }
 

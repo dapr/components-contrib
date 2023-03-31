@@ -1,0 +1,119 @@
+# ------------------------------------------------------------
+# Copyright 2021 The Dapr Authors
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#     http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ------------------------------------------------------------
+
+name: Publishing test coverage reports of components
+
+on:
+  repository_dispatch:
+    types: [coverage-report]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * 0'
+
+jobs:
+  coverage:
+      name: Download and merge gocov reports
+      runs-on: ubuntu-latest
+      env:
+        GOCOV_VER: "v1.1.0"
+        GOTESTSUM_VER: "v1.9.0"
+        GOCOVMERGE_VER: "b5bfa59"
+      steps:
+        - name: Check out code
+          uses: actions/checkout@v3
+          with:
+            repository: ${{ env.CHECKOUT_REPO }}
+            ref: ${{ env.CHECKOUT_REF }}
+
+        - name: Set up Go
+          uses: actions/setup-go@v3
+          with:
+            go-version-file: 'go.mod'
+
+        - name: Setup go dependencies
+          run: |
+            go install github.com/axw/gocov/gocov@${{ env.GOCOV_VER }}
+            go install gotest.tools/gotestsum@${{ env.GOTESTSUM_VER }}
+            go install github.com/wadey/gocovmerge@${{ env.GOCOVMERGE_VER }}
+        
+        - name: Download workflow artifact
+          uses: dawidd6/action-download-artifact@v2.24.3
+          with:
+            workflow: certification.yml
+            workflow_conclusion: "success"
+            branch: master
+            event: schedule
+            if_no_artifact_found: error
+            name: cert_code_cov
+            path: tmp/cert_code_cov
+        
+        - name: Download workflow artifact
+          uses: dawidd6/action-download-artifact@v2.24.3
+          with:
+            workflow: conformance.yml
+            workflow_conclusion: "success"
+            branch: master
+            event: schedule
+            if_no_artifact_found: error
+            name: conf_code_cov
+            path: tmp/conf_code_cov
+        
+        - name: list all downloaded artifacts
+          run: |
+            find tmp/
+        
+        - name: Merge conformance and certification coverage reports
+          run: |
+            set -e
+            bash .github/scripts/gocovmerge.sh tmp/conf_code_cov tmp/cert_code_cov tmp/final_code_cov
+        
+        - name: Generate Coverage reports for each component
+          run: |
+            set -e
+            DISCORD_ARG=""
+            numerator=0
+            denominator=0
+            threshold=60.0
+            aboveThreshold=0
+            totalComps=0
+            for file in tmp/final_code_cov/*
+            do
+              fileName=$(basename ${file})
+              cp ${file} ${fileName}
+              COMPONENT_NAME=${fileName%.out}
+              COVERAGE_REPORT=$(gocov convert ${fileName} | gocov report)
+              COVERAGE_LINE=$(echo $COVERAGE_REPORT | grep "Total Coverage:" | sed 's/.*Total Coverage: //g') # example: "80.00% (40/50)"
+              DISCORD_NOTIFICATION="Test Coverage for ${COMPONENT_NAME} is ${COVERAGE_LINE}\n"
+              echo ${DISCORD_NOTIFICATION}
+              curl -H "Content-Type: application/json" -X POST -d '{"content":"'"${DISCORD_NOTIFICATION}"'"}'  "${SERVER_URL}"
+
+              ratio=$(echo ${COVERAGE_LINE} | cut -d "(" -f2 | cut -d ")" -f1)
+              prcnt=$(echo ${COVERAGE_LINE} | cut -d "(" -f1)
+              tempPrcnt=$(echo $prcnt | cut -d'%' -f1)
+              if [[ $tempPrcnt > $threshold ]]; then 
+                aboveThreshold=$(($aboveThreshold+1))
+              fi
+              totalComps=$(($totalComps+1))
+              tempNumerator=$(echo $ratio | cut -d'/' -f1)
+              tempDenominator=$(echo $ratio | cut -d'/' -f2)
+              numerator=$(($numerator+$tempNumerator))
+              denominator=$(($denominator+$tempDenominator))
+            done
+            totalPer=$(awk "BEGIN { print (($numerator / $denominator) * 100) }")
+            DISCORD_NOTIFICATION="Total Test Coverage is ${totalPer}%. ${aboveThreshold} out of ${totalComps} components have tests with code coverage > ${threshold}%"
+            echo ${DISCORD_NOTIFICATION}
+            curl -H "Content-Type: application/json" -X POST -d '{"content":"'"${DISCORD_NOTIFICATION}"'"}'  "${SERVER_URL}"
+          env:
+            SERVER_URL: ${{ secrets.DISCORD_MONITORING_WEBHOOK_URL }}
+
+        

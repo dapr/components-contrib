@@ -27,6 +27,7 @@ type SQLiteStore struct {
 	state.BulkStore
 
 	logger   logger.Logger
+	features []state.Feature
 	dbaccess DBAccess
 }
 
@@ -43,7 +44,11 @@ func NewSQLiteStateStore(logger logger.Logger) state.Store {
 // This unexported constructor allows injecting a dbAccess instance for unit testing.
 func newSQLiteStateStore(logger logger.Logger, dba DBAccess) *SQLiteStore {
 	return &SQLiteStore{
-		logger:   logger,
+		logger: logger,
+		features: []state.Feature{
+			state.FeatureETag,
+			state.FeatureTransactional,
+		},
 		dbaccess: dba,
 	}
 }
@@ -62,10 +67,7 @@ func (s SQLiteStore) GetComponentMetadata() map[string]string {
 
 // Features returns the features available in this state store.
 func (s *SQLiteStore) Features() []state.Feature {
-	return []state.Feature{
-		state.FeatureETag,
-		state.FeatureTransactional,
-	}
+	return s.features
 }
 
 func (s *SQLiteStore) Ping(ctx context.Context) error {
@@ -83,7 +85,8 @@ func (s *SQLiteStore) Get(ctx context.Context, req *state.GetRequest) (*state.Ge
 }
 
 // BulkGet performs a bulks get operations.
-func (s *SQLiteStore) BulkGet(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error) {
+// Options are ignored because this component requests all values in a single query.
+func (s *SQLiteStore) BulkGet(ctx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
 	return s.dbaccess.BulkGet(ctx, req)
 }
 

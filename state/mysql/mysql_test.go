@@ -722,7 +722,7 @@ func TestBulkGetReturnsNil(t *testing.T) {
 	m, _ := mockDatabase(t)
 
 	// Act
-	response, err := m.mySQL.BulkGet(context.Background(), nil)
+	response, err := m.mySQL.BulkGet(context.Background(), nil, state.BulkGetOpts{})
 
 	// Assert
 	require.NoError(t, err, `returned err`)

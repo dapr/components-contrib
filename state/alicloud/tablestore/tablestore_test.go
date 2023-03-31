@@ -118,7 +118,7 @@ func TestReadAndWrite(t *testing.T) {
 			Key: "theFirstKey",
 		}, {
 			Key: "theSecondKey",
-		}})
+		}}, state.BulkGetOpts{})
 
 		require.NoError(t, err)
 		assert.Equal(t, 2, len(resp))
@@ -139,7 +139,7 @@ func TestReadAndWrite(t *testing.T) {
 			Key: "theFirstKey",
 		}, {
 			Key: "theSecondKey",
-		}})
+		}}, state.BulkGetOpts{})
 
 		require.NoError(t, err)
 		assert.Equal(t, 1, len(resp))

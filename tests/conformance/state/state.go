@@ -385,7 +385,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					expects[scenario.key] = scenario.value
 				}
 			}
-			res, err := statestore.BulkGet(context.Background(), req)
+			res, err := statestore.BulkGet(context.Background(), req, state.BulkGetOpts{})
 			require.NoError(t, err)
 			require.Len(t, res, len(expects))
 

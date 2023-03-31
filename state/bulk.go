@@ -5,19 +5,19 @@ import (
 	"encoding/json"
 )
 
-// BulkStore is an interface to perform bulk operations on store.
-type BulkStore interface {
-	bulkStoreGet
-
-	// BulkGetWithParallelism performs a Get operation in bulk with a maximum numnber of parallel requests.
-	BulkGetWithParallelism(ctx context.Context, req []GetRequest, parallelism int) ([]BulkGetResponse, error)
-	BulkDelete(ctx context.Context, req []DeleteRequest) error
-	BulkSet(ctx context.Context, req []SetRequest) error
+// BulkGetOpts contains options for the BulkGet method
+type BulkGetOpts struct {
+	// Number of requests made in parallel while retrieving values in bulk.
+	// When set to <= 0 (the default value), will fetch all requested values in bulk without limit.
+	// Note that if the component implements a native BulkGet method, this value may be ignored.
+	Parallelism int
 }
 
-type bulkStoreGet interface {
-	// BulkGet performs a Get operation in bulk.
-	BulkGet(ctx context.Context, req []GetRequest) ([]BulkGetResponse, error)
+// BulkStore is an interface to perform bulk operations on store.
+type BulkStore interface {
+	BulkGet(ctx context.Context, req []GetRequest, opts BulkGetOpts) ([]BulkGetResponse, error)
+	BulkDelete(ctx context.Context, req []DeleteRequest) error
+	BulkSet(ctx context.Context, req []SetRequest) error
 }
 
 // DefaultBulkStore is a default implementation of BulkStore.
@@ -33,24 +33,12 @@ func NewDefaultBulkStore(base BaseStore) BulkStore {
 }
 
 // BulkGet performs a Get operation in bulk.
-func (b *DefaultBulkStore) BulkGet(ctx context.Context, req []GetRequest) ([]BulkGetResponse, error) {
-	return b.BulkGetWithParallelism(ctx, req, 0)
-}
-
-// BulkGetWithParallelism performs a Get operation in bulk with a maximum numnber of parallel requests.
-// If the base state store implements a native BulkGet, parallelism is ignored.
-func (b *DefaultBulkStore) BulkGetWithParallelism(ctx context.Context, req []GetRequest, parallelism int) ([]BulkGetResponse, error) {
-	// If the base implementation offers BulkGet, use that
-	// Although this doesn't allow controlling parallelism, the component generally can perform all Get operations in a single invocation
-	if bs, ok := b.base.(bulkStoreGet); ok {
-		return bs.BulkGet(ctx, req)
-	}
-
+func (b *DefaultBulkStore) BulkGet(ctx context.Context, req []GetRequest, opts BulkGetOpts) ([]BulkGetResponse, error) {
 	// If parallelism isn't set, run all operations in parallel
-	if parallelism <= 0 {
-		parallelism = len(req)
+	if opts.Parallelism <= 0 {
+		opts.Parallelism = len(req)
 	}
-	limitCh := make(chan struct{}, parallelism)
+	limitCh := make(chan struct{}, opts.Parallelism)
 	res := make([]BulkGetResponse, len(req))
 	for i := range req {
 		// Limit concurrency
@@ -78,7 +66,7 @@ func (b *DefaultBulkStore) BulkGetWithParallelism(ctx context.Context, req []Get
 	}
 
 	// We can detect that all goroutines are done when limitCh is completely empty
-	for i := 0; i < parallelism; i++ {
+	for i := 0; i < opts.Parallelism; i++ {
 		limitCh <- struct{}{}
 	}
 

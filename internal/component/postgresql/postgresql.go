@@ -90,7 +90,8 @@ func (p *PostgreSQL) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 }
 
 // BulkGet performs a bulks get operations.
-func (p *PostgreSQL) BulkGet(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error) {
+// Options are ignored because this component requests all values in a single query.
+func (p *PostgreSQL) BulkGet(ctx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
 	return p.dbaccess.BulkGet(ctx, req)
 }
 

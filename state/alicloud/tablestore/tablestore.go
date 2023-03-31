@@ -109,7 +109,8 @@ func (s *AliCloudTableStore) getResp(columns []*tablestore.AttributeColumn) *sta
 	return getResp
 }
 
-func (s *AliCloudTableStore) BulkGet(ctx context.Context, reqs []state.GetRequest) ([]state.BulkGetResponse, error) {
+// Options are ignored because this component requests all values in a single operation.
+func (s *AliCloudTableStore) BulkGet(ctx context.Context, reqs []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
 	// "len == 0": empty request, directly return empty response
 	if len(reqs) == 0 {
 		return []state.BulkGetResponse{}, nil

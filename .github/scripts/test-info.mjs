@@ -580,7 +580,7 @@ function GenerateMatrix(testKind, enableCloudTests) {
             'require-aws-credentials': comp.requireAWSCredentials
                 ? 'true'
                 : undefined,
-                'require-gcp-credentials': comp.requireGCPCredentials
+            'require-gcp-credentials': comp.requireGCPCredentials
                 ? 'true'
                 : undefined,
             'require-cloudflare-credentials': comp.requireCloudflareCredentials

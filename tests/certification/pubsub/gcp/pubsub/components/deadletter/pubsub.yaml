@@ -18,5 +18,7 @@ spec:
       secretKeyRef:
         name: PUBSUB_GCP_PUBSUB_TOPIC_DLOUT
         key: PUBSUB_GCP_PUBSUB_TOPIC_DLOUT
+    - name: maxDeliveryAttempts
+      value: 5
 auth:
   secretstore: envvar-secret-store

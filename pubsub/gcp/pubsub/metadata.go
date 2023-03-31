@@ -34,4 +34,5 @@ type metadata struct {
 	ConnectionEndpoint      string
 	OrderingKey             string
 	DeadLetterTopic         string
+	MaxDeliveryAttempts     int
 }

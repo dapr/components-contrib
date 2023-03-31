@@ -56,10 +56,12 @@ const (
 	metadataConnectionEndpoint         = "endpoint"
 	metedataOrderingKeyKey             = "orderingKey"
 	metadataDeadLetterTopic            = "deadLetterTopic"
+	metadataMaxDeliveryAttemptsKey     = "maxDeliveryAttempts"
 
 	// Defaults.
 	defaultMaxReconnectionAttempts = 30
 	defaultConnectionRecoveryInSec = 2
+	defaultMaxDeliveryAttempts     = 5
 )
 
 // GCPPubSub type.
@@ -192,6 +194,15 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 
 	if val, found := pubSubMetadata.Properties[metadataDeadLetterTopic]; found && val != "" {
 		result.DeadLetterTopic = val
+	}
+
+	result.MaxDeliveryAttempts = defaultMaxDeliveryAttempts
+	if val, ok := pubSubMetadata.Properties[metadataMaxDeliveryAttemptsKey]; ok && val != "" {
+		var err error
+		result.MaxDeliveryAttempts, err = strconv.Atoi(val)
+		if err != nil {
+			return &result, fmt.Errorf("%s invalid MaxDeliveryAttempts  %s, %s", errorMessagePrefix, val, err)
+		}
 	}
 
 	return &result, nil
@@ -430,7 +441,6 @@ func (g *GCPPubSub) ensureTopic(parentCtx context.Context, topic string) error {
 
 	if !exists {
 		_, err = g.client.CreateTopic(parentCtx, topic)
-		g.logger.Infof("@@@@ creating topic : %s - %v ", topic, err)
 		if status.Code(err) == codes.AlreadyExists {
 			return nil
 		}
@@ -464,19 +474,17 @@ func (g *GCPPubSub) ensureSubscription(parentCtx context.Context, subscription s
 		if g.metadata.DeadLetterTopic != "" {
 			subErr = g.ensureTopic(parentCtx, g.metadata.DeadLetterTopic)
 			if subErr != nil {
-				g.logger.Errorf("@@@@ unable to deadletter topic : %s - %v ", g.metadata.DeadLetterTopic, subErr)
 				return subErr
 			}
 			dlTopic := fmt.Sprintf("projects/%s/topics/%s", g.metadata.ProjectID, g.metadata.DeadLetterTopic)
 			subConfig.DeadLetterPolicy = &gcppubsub.DeadLetterPolicy{
 				DeadLetterTopic:     dlTopic,
-				MaxDeliveryAttempts: 5,
+				MaxDeliveryAttempts: g.metadata.MaxDeliveryAttempts,
 			}
 		}
 		_, subErr = g.client.CreateSubscription(parentCtx, managedSubscription, subConfig)
 		if subErr != nil {
-			g.logger.Errorf("@@@@ unable to create subscription (%s): %#v - %v ", managedSubscription, subConfig, subErr)
-
+			g.logger.Errorf("unable to create subscription (%s): %#v - %v ", managedSubscription, subConfig, subErr)
 		}
 	}
 

@@ -14,6 +14,7 @@ limitations under the License.
 package rabbitmq
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 func TestParseMetadata(t *testing.T) {
@@ -67,6 +69,7 @@ func TestParseMetadata(t *testing.T) {
 			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", metadata.TTLMetadataKey: ""},
 			expectedDeleteWhenUnused: false,
 			expectedDurable:          false,
+			expectedTTL:              ptr.Of(time.Duration(0)),
 		},
 		{
 			name:                     "With one prefetchCount",
@@ -110,6 +113,7 @@ func TestParseMetadata(t *testing.T) {
 			expectedDeleteWhenUnused: false,
 			expectedDurable:          false,
 			expectedReconnectWaitCheck: func(expect time.Duration) bool {
+				fmt.Println("ACTUAL: ", expect)
 				return expect == 10*time.Second
 			},
 		},
@@ -126,12 +130,12 @@ func TestParseMetadata(t *testing.T) {
 			assert.Equal(t, host, r.metadata.Host)
 			assert.Equal(t, tt.expectedDeleteWhenUnused, r.metadata.DeleteWhenUnused)
 			assert.Equal(t, tt.expectedDurable, r.metadata.Durable)
-			assert.Equal(t, tt.expectedTTL, r.metadata.defaultQueueTTL)
+			assert.Equal(t, tt.expectedTTL, r.metadata.DefaultQueueTTL)
 			assert.Equal(t, tt.expectedPrefetchCount, r.metadata.PrefetchCount)
 			assert.Equal(t, tt.expectedExclusive, r.metadata.Exclusive)
 			assert.Equal(t, tt.expectedMaxPriority, r.metadata.MaxPriority)
 			if tt.expectedReconnectWaitCheck != nil {
-				assert.True(t, tt.expectedReconnectWaitCheck(r.metadata.reconnectWait))
+				assert.True(t, tt.expectedReconnectWaitCheck(r.metadata.ReconnectWait))
 			}
 		})
 	}

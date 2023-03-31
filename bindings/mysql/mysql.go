@@ -30,6 +30,7 @@ import (
 	"github.com/go-sql-driver/mysql"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -75,45 +76,58 @@ type Mysql struct {
 	logger logger.Logger
 }
 
+type mysqlMetadata struct {
+	// URL is the connection string to connect to MySQL.
+	URL string `mapstructure:"url"`
+
+	// PemPath is the path to the pem file to connect to MySQL over SSL.
+	PemPath string `mapstructure:"pemPath"`
+
+	// MaxIdleConns is the maximum number of connections in the idle connection pool.
+	MaxIdleConns int `mapstructure:"maxIdleConns"`
+
+	// MaxOpenConns is the maximum number of open connections to the database.
+	MaxOpenConns int `mapstructure:"maxOpenConns"`
+
+	// ConnMaxLifetime is the maximum amount of time a connection may be reused.
+	ConnMaxLifetime time.Duration `mapstructure:"connMaxLifetime"`
+
+	// ConnMaxIdleTime is the maximum amount of time a connection may be idle.
+	ConnMaxIdleTime time.Duration `mapstructure:"connMaxIdleTime"`
+
+	// MaxRetries is the maximum number of retries for a query.
+	MaxRetries int `mapstructure:"maxRetries"`
+}
+
 // NewMysql returns a new MySQL output binding.
 func NewMysql(logger logger.Logger) bindings.OutputBinding {
 	return &Mysql{logger: logger}
 }
 
 // Init initializes the MySQL binding.
-func (m *Mysql) Init(ctx context.Context, metadata bindings.Metadata) error {
+func (m *Mysql) Init(ctx context.Context, md bindings.Metadata) error {
 	m.logger.Debug("Initializing MySql binding")
 
-	p := metadata.Properties
-	url, ok := p[connectionURLKey]
-	if !ok || url == "" {
+	// parse metadata
+	meta := mysqlMetadata{}
+	err := metadata.DecodeMetadata(md.Properties, &meta)
+	if err != nil {
+		return err
+	}
+
+	if meta.URL == "" {
 		return fmt.Errorf("missing MySql connection string")
 	}
 
-	db, err := initDB(url, metadata.Properties[pemPathKey])
+	db, err := initDB(meta.URL, meta.PemPath)
 	if err != nil {
 		return err
 	}
 
-	err = propertyToInt(p, maxIdleConnsKey, db.SetMaxIdleConns)
-	if err != nil {
-		return err
-	}
-
-	err = propertyToInt(p, maxOpenConnsKey, db.SetMaxOpenConns)
-	if err != nil {
-		return err
-	}
-
-	err = propertyToDuration(p, connMaxIdleTimeKey, db.SetConnMaxIdleTime)
-	if err != nil {
-		return err
-	}
-
-	err = propertyToDuration(p, connMaxLifetimeKey, db.SetConnMaxLifetime)
-	if err != nil {
-		return err
-	}
+	db.SetMaxIdleConns(meta.MaxIdleConns)
+	db.SetMaxOpenConns(meta.MaxOpenConns)
+	db.SetConnMaxIdleTime(meta.ConnMaxIdleTime)
+	db.SetConnMaxLifetime(meta.ConnMaxLifetime)
 
 	err = db.PingContext(ctx)
 	if err != nil {
@@ -242,18 +256,6 @@ func propertyToInt(props map[string]string, key string, setter func(int)) error 
 	return nil
 }
 
-func propertyToDuration(props map[string]string, key string, setter func(time.Duration)) error {
-	if v, ok := props[key]; ok {
-		if d, err := time.ParseDuration(v); err == nil {
-			setter(d)
-		} else {
-			return fmt.Errorf("error converting %s:%s to duration: %w", key, v, err)
-		}
-	}
-
-	return nil
-}
-
 func initDB(url, pemPath string) (*sql.DB, error) {
 	if _, err := mysql.ParseDSN(url); err != nil {
 		return nil, fmt.Errorf("illegal Data Source Name (DSN) specified by %s", connectionURLKey)
@@ -347,4 +349,12 @@ func (m *Mysql) convert(columnTypes []*sql.ColumnType, values []interface{}) map
 	}
 
 	return r
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (m *Mysql) GetComponentMetadata() map[string]string {
+	metadataStruct := mysqlMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	return metadataInfo
 }

@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,6 +31,7 @@ import (
 	"github.com/nacos-group/nacos-sdk-go/v2/vo"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -452,4 +454,12 @@ func parseServerURL(s string) (*constant.ServerConfig, error) {
 		Port:        port,
 		Scheme:      u.Scheme,
 	}, nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (n *Nacos) GetComponentMetadata() map[string]string {
+	metadataStruct := Settings{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	return metadataInfo
 }

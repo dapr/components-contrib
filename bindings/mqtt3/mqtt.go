@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -28,6 +29,7 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
 )
@@ -36,7 +38,7 @@ import (
 type MQTT struct {
 	producer     mqtt.Client
 	producerLock sync.RWMutex
-	metadata     metadata
+	metadata     mqtt3Metadata
 	logger       logger.Logger
 	isSubscribed atomic.Bool
 	readHandler  bindings.Handler
@@ -93,7 +95,7 @@ func (m *MQTT) getProducer() (mqtt.Client, error) {
 	}
 
 	// mqtt broker allows only one connection at a given time from a clientID.
-	producerClientID := fmt.Sprintf("%s-producer", m.metadata.clientID)
+	producerClientID := fmt.Sprintf("%s-producer", m.metadata.ClientID)
 	p, err := m.connect(producerClientID, false)
 	if err != nil {
 		return nil, err
@@ -122,10 +124,10 @@ func (m *MQTT) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindin
 	topic, ok := req.Metadata[mqttTopic]
 	if !ok || topic == "" {
 		// If user does not specify a topic, publish via the component's default topic.
-		topic = m.metadata.topic
+		topic = m.metadata.Topic
 	}
 	return nil, retry.NotifyRecover(func() (err error) {
-		token := producer.Publish(topic, m.metadata.qos, m.metadata.retain, req.Data)
+		token := producer.Publish(topic, m.metadata.Qos, m.metadata.Retain, req.Data)
 		select {
 		case <-token.Done():
 			err = token.Error()
@@ -162,13 +164,13 @@ func (m *MQTT) Read(ctx context.Context, handler bindings.Handler) error {
 		}
 	}
 
-	m.logger.Infof("Subscribing to topic %s (qos: %d)", m.metadata.topic, m.metadata.qos)
+	m.logger.Infof("Subscribing to topic %s (qos: %d)", m.metadata.Topic, m.metadata.Qos)
 
 	// Store the handler in the object
 	m.readHandler = handler
 
 	// mqtt broker allows only one connection at a given time from a clientID
-	consumerClientID := fmt.Sprintf("%s-consumer", m.metadata.clientID)
+	consumerClientID := fmt.Sprintf("%s-consumer", m.metadata.ClientID)
 
 	// Establish the connection
 	// This will also create the subscription in the OnConnect handler
@@ -190,7 +192,7 @@ func (m *MQTT) Read(ctx context.Context, handler bindings.Handler) error {
 			// nop
 		}
 
-		m.logger.Infof("Disconnecting and stopping subscription to topic %s", m.metadata.topic)
+		m.logger.Infof("Disconnecting and stopping subscription to topic %s", m.metadata.Topic)
 
 		// Disconnect and then release the "lock"
 		consumer.Disconnect(200)
@@ -201,7 +203,7 @@ func (m *MQTT) Read(ctx context.Context, handler bindings.Handler) error {
 }
 
 func (m *MQTT) connect(clientID string, isSubscriber bool) (mqtt.Client, error) {
-	uri, err := url.Parse(m.metadata.url)
+	uri, err := url.Parse(m.metadata.Url)
 	if err != nil {
 		return nil, err
 	}
@@ -230,8 +232,8 @@ func (m *MQTT) connect(clientID string, isSubscriber bool) (mqtt.Client, error) 
 func (m *MQTT) newTLSConfig() *tls.Config {
 	tlsConfig := new(tls.Config)
 
-	if m.metadata.clientCert != "" && m.metadata.clientKey != "" {
-		cert, err := tls.X509KeyPair([]byte(m.metadata.clientCert), []byte(m.metadata.clientKey))
+	if m.metadata.ClientCert != "" && m.metadata.ClientKey != "" {
+		cert, err := tls.X509KeyPair([]byte(m.metadata.ClientCert), []byte(m.metadata.ClientKey))
 		if err != nil {
 			m.logger.Warnf("Unable to load client certificate and key pair. Err: %v", err)
 			return tlsConfig
@@ -239,9 +241,9 @@ func (m *MQTT) newTLSConfig() *tls.Config {
 		tlsConfig.Certificates = []tls.Certificate{cert}
 	}
 
-	if m.metadata.caCert != "" {
+	if m.metadata.CaCert != "" {
 		tlsConfig.RootCAs = x509.NewCertPool()
-		if ok := tlsConfig.RootCAs.AppendCertsFromPEM([]byte(m.metadata.caCert)); !ok {
+		if ok := tlsConfig.RootCAs.AppendCertsFromPEM([]byte(m.metadata.CaCert)); !ok {
 			m.logger.Warnf("Unable to load CA certificate.")
 		}
 	}
@@ -253,7 +255,7 @@ func (m *MQTT) newTLSConfig() *tls.Config {
 func (m *MQTT) createClientOptions(uri *url.URL, clientID string) *mqtt.ClientOptions {
 	opts := mqtt.NewClientOptions().
 		SetClientID(clientID).
-		SetCleanSession(m.metadata.cleanSession).
+		SetCleanSession(m.metadata.CleanSession).
 		// If OrderMatters is true (default), handlers must not block, which is not an option for us
 		SetOrderMatters(false).
 		// Disable automatic ACKs as we need to do it manually
@@ -296,8 +298,8 @@ func (m *MQTT) createClientOptions(uri *url.URL, clientID string) *mqtt.ClientOp
 func (m *MQTT) handleMessage() func(client mqtt.Client, mqttMsg mqtt.Message) {
 	return func(client mqtt.Client, mqttMsg mqtt.Message) {
 		bo := m.backOff
-		if m.metadata.backOffMaxRetries >= 0 {
-			bo = backoff.WithMaxRetries(bo, uint64(m.metadata.backOffMaxRetries))
+		if m.metadata.BackOffMaxRetries >= 0 {
+			bo = backoff.WithMaxRetries(bo, uint64(m.metadata.BackOffMaxRetries))
 		}
 
 		err := retry.NotifyRecover(
@@ -342,7 +344,7 @@ func (m *MQTT) createSubscriberClientOptions(uri *url.URL, clientID string) *mqt
 
 	// On (re-)connection, add the topic subscription
 	opts.OnConnect = func(c mqtt.Client) {
-		token := c.Subscribe(m.metadata.topic, m.metadata.qos, m.handleMessage())
+		token := c.Subscribe(m.metadata.Topic, m.metadata.Qos, m.handleMessage())
 
 		var err error
 		select {
@@ -379,4 +381,12 @@ func (m *MQTT) Close() error {
 	m.wg.Wait()
 
 	return nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (m *MQTT) GetComponentMetadata() map[string]string {
+	metadataStruct := mqtt3Metadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	return metadataInfo
 }

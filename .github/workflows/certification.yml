@@ -176,8 +176,8 @@ jobs:
       uses: 'google-github-actions/auth@v1'
       with:
         token_format: 'access_token'
-        workload_identity_provider: 'projects/369878874207/locations/global/workloadIdentityPools/contrib-cert-tests-gh-pool/providers/contrib-cert-tests-gh-provider'
-        service_account: 'comp-contrib-wif@dapr-tests.iam.gserviceaccount.com'
+        workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER_NAME }}
+        service_account: ${{ secrets.GCP_WIF_SA_EMAIL }}
         create_credentials_file: true
         export_environment_variables: true
         cleanup_credentials: true

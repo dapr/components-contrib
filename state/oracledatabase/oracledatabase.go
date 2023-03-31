@@ -24,6 +24,8 @@ import (
 
 // Oracle Database state store.
 type OracleDatabase struct {
+	state.BulkStore
+
 	features []state.Feature
 	logger   logger.Logger
 	dbaccess dbAccess
@@ -32,7 +34,9 @@ type OracleDatabase struct {
 // NewOracleDatabaseStateStore creates a new instance of OracleDatabase state store.
 func NewOracleDatabaseStateStore(logger logger.Logger) state.Store {
 	dba := newOracleDatabaseAccess(logger)
-	return state.NewDefaultBulkStore(newOracleDatabaseStateStore(logger, dba))
+	s := newOracleDatabaseStateStore(logger, dba)
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // newOracleDatabaseStateStore creates a newOracleDatabaseStateStore instance of an OracleDatabase state store.

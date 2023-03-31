@@ -37,6 +37,8 @@ import (
 
 // StateStore is a DynamoDB state store.
 type StateStore struct {
+	state.BulkStore
+
 	client           dynamodbiface.DynamoDBAPI
 	table            string
 	ttlAttributeName string
@@ -61,9 +63,11 @@ const (
 
 // NewDynamoDBStateStore returns a new dynamoDB state store.
 func NewDynamoDBStateStore(_ logger.Logger) state.Store {
-	return state.NewDefaultBulkStore(&StateStore{
+	s := &StateStore{
 		partitionKey: defaultPartitionKeyName,
-	})
+	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // Init does metadata and connection parsing.

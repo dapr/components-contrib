@@ -42,6 +42,8 @@ import (
 
 // StateStore is a CosmosDB state store.
 type StateStore struct {
+	state.BulkStore
+
 	client      *azcosmos.ContainerClient
 	metadata    metadata
 	contentType string
@@ -97,9 +99,11 @@ func (p *crossPartitionQueryPolicy) Do(req *policy.Request) (*http.Response, err
 
 // NewCosmosDBStateStore returns a new CosmosDB state store.
 func NewCosmosDBStateStore(logger logger.Logger) state.Store {
-	return state.NewDefaultBulkStore(&StateStore{
+	s := &StateStore{
 		logger: logger,
-	})
+	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 func (c *StateStore) GetComponentMetadata() map[string]string {

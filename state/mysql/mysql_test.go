@@ -27,6 +27,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -721,12 +722,11 @@ func TestBulkGetReturnsNil(t *testing.T) {
 	m, _ := mockDatabase(t)
 
 	// Act
-	supported, response, err := m.mySQL.BulkGet(context.Background(), nil)
+	response, err := m.mySQL.BulkGet(context.Background(), nil)
 
 	// Assert
-	assert.Nil(t, err, `returned err`)
+	require.NoError(t, err, `returned err`)
 	assert.Nil(t, response, `returned response`)
-	assert.False(t, supported, `returned supported`)
 }
 
 func TestMultiWithNoRequestsDoesNothing(t *testing.T) {

@@ -20,77 +20,52 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStore_withDefaultBulkImpl(t *testing.T) {
+// TODO: Add store for base that supports transactions
+
+func TestStoreWithDefaultBulkImpl(t *testing.T) {
 	s := &Store1{}
-	s.DefaultBulkStore = NewDefaultBulkStore(s)
-	var store Store = s
+	s.BulkStore = NewDefaultBulkStore(s)
 	require.Equal(t, s.count, 0)
 	require.Equal(t, s.bulkCount, 0)
 
-	store.Get(context.Background(), &GetRequest{})
-	store.Set(context.Background(), &SetRequest{})
-	store.Delete(context.Background(), &DeleteRequest{})
+	s.Get(context.Background(), &GetRequest{})
+	s.Set(context.Background(), &SetRequest{})
+	s.Delete(context.Background(), &DeleteRequest{})
 	require.Equal(t, 3, s.count)
 	require.Equal(t, 0, s.bulkCount)
 
-	bulkGet, responses, err := store.BulkGet(context.Background(), []GetRequest{{}, {}, {}})
-	require.Equal(t, false, bulkGet)
-	require.Equal(t, 0, len(responses))
+	_, err := s.BulkGet(context.Background(), []GetRequest{{}, {}, {}})
 	require.NoError(t, err)
 	require.Equal(t, 3, s.count)
 	require.Equal(t, 0, s.bulkCount)
-	store.BulkSet(context.Background(), []SetRequest{{}, {}, {}, {}})
+	s.BulkSet(context.Background(), []SetRequest{{}, {}, {}, {}})
 	require.Equal(t, 3+4, s.count)
 	require.Equal(t, 0, s.bulkCount)
-	store.BulkDelete(context.Background(), []DeleteRequest{{}, {}, {}, {}, {}})
+	s.BulkDelete(context.Background(), []DeleteRequest{{}, {}, {}, {}, {}})
 	require.Equal(t, 3+4+5, s.count)
 	require.Equal(t, 0, s.bulkCount)
 }
 
-func TestStore_withCustomisedBulkImpl_notSupportBulkGet(t *testing.T) {
-	s := &Store2{supportBulkGet: false}
-	var store Store = s
+func TestStoreWithCustomizedBulkImplSupportBulkGet(t *testing.T) {
+	s := &Store2{}
+	s.BulkStore = NewDefaultBulkStore(s)
+
 	require.Equal(t, s.count, 0)
 	require.Equal(t, s.bulkCount, 0)
 
-	store.Get(context.Background(), &GetRequest{})
-	store.Set(context.Background(), &SetRequest{})
-	store.Delete(context.Background(), &DeleteRequest{})
+	s.Get(context.Background(), &GetRequest{})
+	s.Set(context.Background(), &SetRequest{})
+	s.Delete(context.Background(), &DeleteRequest{})
 	require.Equal(t, 3, s.count)
 	require.Equal(t, 0, s.bulkCount)
 
-	bulkGet, _, _ := store.BulkGet(context.Background(), []GetRequest{{}, {}, {}})
-	require.Equal(t, false, bulkGet)
-	require.Equal(t, 6, s.count)
-	require.Equal(t, 0, s.bulkCount)
-	store.BulkSet(context.Background(), []SetRequest{{}, {}, {}, {}})
-	require.Equal(t, 6, s.count)
-	require.Equal(t, 1, s.bulkCount)
-	store.BulkDelete(context.Background(), []DeleteRequest{{}, {}, {}, {}, {}})
-	require.Equal(t, 6, s.count)
-	require.Equal(t, 2, s.bulkCount)
-}
-
-func TestStore_withCustomisedBulkImpl_supportBulkGet(t *testing.T) {
-	s := &Store2{supportBulkGet: true}
-	var store Store = s
-	require.Equal(t, s.count, 0)
-	require.Equal(t, s.bulkCount, 0)
-
-	store.Get(context.Background(), &GetRequest{})
-	store.Set(context.Background(), &SetRequest{})
-	store.Delete(context.Background(), &DeleteRequest{})
-	require.Equal(t, 3, s.count)
-	require.Equal(t, 0, s.bulkCount)
-
-	bulkGet, _, _ := store.BulkGet(context.Background(), []GetRequest{{}, {}, {}})
-	require.Equal(t, true, bulkGet)
+	_, _ = s.BulkGet(context.Background(), []GetRequest{{}, {}, {}})
 	require.Equal(t, 3, s.count)
 	require.Equal(t, 1, s.bulkCount)
-	store.BulkSet(context.Background(), []SetRequest{{}, {}, {}, {}})
+	s.BulkSet(context.Background(), []SetRequest{{}, {}, {}, {}})
 	require.Equal(t, 3, s.count)
 	require.Equal(t, 2, s.bulkCount)
-	store.BulkDelete(context.Background(), []DeleteRequest{{}, {}, {}, {}, {}})
+	s.BulkDelete(context.Background(), []DeleteRequest{{}, {}, {}, {}, {}})
 	require.Equal(t, 3, s.count)
 	require.Equal(t, 3, s.bulkCount)
 }
@@ -102,7 +77,8 @@ var (
 
 // example of store which doesn't support bulk method.
 type Store1 struct {
-	DefaultBulkStore
+	BulkStore
+
 	count     int
 	bulkCount int
 }
@@ -133,13 +109,16 @@ func (s *Store1) GetComponentMetadata() map[string]string {
 	return map[string]string{}
 }
 
+func (s *Store1) Features() []Feature {
+	return nil
+}
+
 // example of store which supports bulk method.
 type Store2 struct {
-	// DefaultBulkStore
+	BulkStore
+
 	count     int
 	bulkCount int
-
-	supportBulkGet bool
 }
 
 func (s *Store2) Init(ctx context.Context, metadata Metadata) error {
@@ -168,16 +147,10 @@ func (s *Store2) Set(ctx context.Context, req *SetRequest) error {
 	return nil
 }
 
-func (s *Store2) BulkGet(ctx context.Context, req []GetRequest) (bool, []BulkGetResponse, error) {
-	if s.supportBulkGet {
-		s.bulkCount++
+func (s *Store2) BulkGet(ctx context.Context, req []GetRequest) ([]BulkGetResponse, error) {
+	s.bulkCount++
 
-		return true, nil, nil
-	}
-
-	s.count += len(req)
-
-	return false, nil, nil
+	return nil, nil
 }
 
 func (s *Store2) BulkSet(ctx context.Context, req []SetRequest) error {

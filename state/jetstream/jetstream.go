@@ -31,6 +31,8 @@ import (
 
 // StateStore is a nats jetstream KV state store.
 type StateStore struct {
+	state.BulkStore
+
 	nc     *nats.Conn
 	json   jsoniter.API
 	bucket nats.KeyValue
@@ -47,10 +49,12 @@ type jetstreamMetadata struct {
 
 // NewJetstreamStateStore returns a new nats jetstream KV state store.
 func NewJetstreamStateStore(logger logger.Logger) state.Store {
-	return state.NewDefaultBulkStore(&StateStore{
+	s := &StateStore{
 		json:   jsoniter.ConfigFastest,
 		logger: logger,
-	})
+	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // Init does parse metadata and establishes connection to nats broker.

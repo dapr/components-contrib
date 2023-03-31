@@ -42,6 +42,8 @@ const (
 
 // Couchbase is a couchbase state store.
 type Couchbase struct {
+	state.BulkStore
+
 	bucket                        *gocb.Bucket
 	bucketName                    string // TODO: having bucket name sent as part of request (get,set etc.) metadata would be more flexible
 	numReplicasDurableReplication uint
@@ -63,7 +65,9 @@ type couchbaseMetadata struct {
 
 // NewCouchbaseStateStore returns a new couchbase state store.
 func NewCouchbaseStateStore(log logger.Logger) state.Store {
-	return state.NewDefaultBulkStore(newStateStore(log))
+	s := newStateStore(log)
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 func newStateStore(log logger.Logger) *Couchbase {

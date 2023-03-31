@@ -49,6 +49,8 @@ const (
 
 // Cassandra is a state store implementation for Apache Cassandra.
 type Cassandra struct {
+	state.BulkStore
+
 	session *gocql.Session
 	cluster *gocql.ClusterConfig
 	table   string
@@ -70,9 +72,11 @@ type cassandraMetadata struct {
 
 // NewCassandraStateStore returns a new cassandra state store.
 func NewCassandraStateStore(logger logger.Logger) state.Store {
-	return state.NewDefaultBulkStore(&Cassandra{
+	s := &Cassandra{
 		logger: logger,
-	})
+	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // Init performs metadata and connection parsing.

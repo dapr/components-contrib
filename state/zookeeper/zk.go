@@ -114,6 +114,8 @@ type Conn interface {
 
 // StateStore is a state store.
 type StateStore struct {
+	state.BulkStore
+
 	*config
 	conn Conn
 
@@ -123,10 +125,12 @@ type StateStore struct {
 
 // NewZookeeperStateStore returns a new Zookeeper state store.
 func NewZookeeperStateStore(logger logger.Logger) state.Store {
-	return state.NewDefaultBulkStore(&StateStore{
+	s := &StateStore{
 		features: []state.Feature{state.FeatureETag},
 		logger:   logger,
-	})
+	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 func (s *StateStore) Init(_ context.Context, metadata state.Metadata) (err error) {

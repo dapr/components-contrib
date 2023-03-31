@@ -65,6 +65,8 @@ const (
 )
 
 type StateStore struct {
+	state.BulkStore
+
 	client       *aztables.Client
 	json         jsoniter.API
 	cosmosDBMode bool
@@ -209,7 +211,9 @@ func (r *StateStore) GetComponentMetadata() map[string]string {
 }
 
 func NewAzureTablesStateStore(logger logger.Logger) state.Store {
-	return state.NewDefaultBulkStore(newStateStore(logger))
+	s := newStateStore(logger)
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 func newStateStore(logger logger.Logger) *StateStore {

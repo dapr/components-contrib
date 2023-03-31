@@ -88,11 +88,13 @@ const (
 
 // New creates a new instance of a SQL Server transaction store.
 func New(logger logger.Logger) state.Store {
-	return state.NewDefaultBulkStore(&SQLServer{
+	s := &SQLServer{
 		features:        []state.Feature{state.FeatureETag, state.FeatureTransactional},
 		logger:          logger,
 		migratorFactory: newMigration,
-	})
+	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // IndexedProperty defines a indexed property.
@@ -104,6 +106,8 @@ type IndexedProperty struct {
 
 // SQLServer defines a Ms SQL Server based state store.
 type SQLServer struct {
+	state.BulkStore
+
 	connectionString  string
 	databaseName      string
 	tableName         string

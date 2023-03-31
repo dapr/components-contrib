@@ -91,6 +91,8 @@ const (
 
 // StateStore is a Redis state store.
 type StateStore struct {
+	state.BulkStore
+
 	client                         rediscomponent.RedisClient
 	clientSettings                 *rediscomponent.Settings
 	json                           jsoniter.API
@@ -105,7 +107,9 @@ type StateStore struct {
 
 // NewRedisStateStore returns a new redis state store.
 func NewRedisStateStore(log logger.Logger) state.Store {
-	return state.NewDefaultBulkStore(newStateStore(log))
+	s := newStateStore(log)
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 func newStateStore(log logger.Logger) *StateStore {

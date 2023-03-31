@@ -58,11 +58,13 @@ type Aerospike struct {
 
 // NewAerospikeStateStore returns a new Aerospike state store.
 func NewAerospikeStateStore(logger logger.Logger) state.Store {
-	return state.NewDefaultBulkStore(&Aerospike{
+	s := &Aerospike{
 		json:     jsoniter.ConfigFastest,
 		features: []state.Feature{state.FeatureETag},
 		logger:   logger,
-	})
+	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 func parseAndValidateMetadata(meta state.Metadata) (*aerospikeMetadata, error) {

@@ -73,6 +73,8 @@ const (
 
 // MongoDB is a state store implementation for MongoDB.
 type MongoDB struct {
+	state.BulkStore
+
 	client           *mongo.Client
 	collection       *mongo.Collection
 	operationTimeout time.Duration
@@ -105,10 +107,12 @@ type Item struct {
 
 // NewMongoDB returns a new MongoDB state store.
 func NewMongoDB(logger logger.Logger) state.Store {
-	return state.NewDefaultBulkStore(&MongoDB{
+	s := &MongoDB{
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI},
 		logger:   logger,
-	})
+	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // Init establishes connection to the store based on the metadata.

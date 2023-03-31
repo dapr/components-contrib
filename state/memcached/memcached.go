@@ -40,6 +40,8 @@ const (
 )
 
 type Memcached struct {
+	state.BulkStore
+
 	client *memcache.Client
 	json   jsoniter.API
 	logger logger.Logger
@@ -52,10 +54,12 @@ type memcachedMetadata struct {
 }
 
 func NewMemCacheStateStore(logger logger.Logger) state.Store {
-	return state.NewDefaultBulkStore(&Memcached{
+	s := &Memcached{
 		json:   jsoniter.ConfigFastest,
 		logger: logger,
-	})
+	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 func (m *Memcached) Init(_ context.Context, metadata state.Metadata) error {

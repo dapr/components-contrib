@@ -41,8 +41,10 @@ type inMemStateStoreItem struct {
 }
 
 type inMemoryStore struct {
+	state.BulkStore
+
 	items   map[string]*inMemStateStoreItem
-	lock    *sync.RWMutex
+	lock    sync.RWMutex
 	log     logger.Logger
 	closeCh chan struct{}
 	closed  atomic.Bool
@@ -50,13 +52,14 @@ type inMemoryStore struct {
 }
 
 func NewInMemoryStateStore(log logger.Logger) state.Store {
-	return state.NewDefaultBulkStore(newStateStore(log))
+	s := newStateStore(log)
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 func newStateStore(log logger.Logger) *inMemoryStore {
 	return &inMemoryStore{
 		items:   map[string]*inMemStateStoreItem{},
-		lock:    &sync.RWMutex{},
 		log:     log,
 		closeCh: make(chan struct{}),
 	}

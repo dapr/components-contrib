@@ -76,6 +76,8 @@ const (
 
 // MySQL state store.
 type MySQL struct {
+	state.BulkStore
+
 	tableName         string
 	metadataTableName string
 	cleanupInterval   *time.Duration
@@ -109,7 +111,9 @@ func NewMySQLStateStore(logger logger.Logger) state.Store {
 
 	// Store the provided logger and return the object. The rest of the
 	// properties will be populated in the Init function
-	return newMySQLStateStore(logger, factory)
+	s := newMySQLStateStore(logger, factory)
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // Hidden implementation for testing.
@@ -540,9 +544,8 @@ func (m *MySQL) BulkDelete(ctx context.Context, req []state.DeleteRequest) error
 	}()
 
 	if len(req) > 0 {
-		for _, d := range req {
-			da := d // Fix for goSec G601: Implicit memory aliasing in for loop.
-			err = m.deleteValue(ctx, tx, &da)
+		for i := range req {
+			err = m.deleteValue(ctx, tx, &req[i])
 			if err != nil {
 				return err
 			}
@@ -856,13 +859,6 @@ func (m *MySQL) getDeletes(req state.TransactionalStateOperation) (state.DeleteR
 	}
 
 	return delReq, nil
-}
-
-// BulkGet performs a bulks get operations.
-func (m *MySQL) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
-	// by default, the store doesn't support bulk get
-	// return false so daprd will fallback to call get() method one by one
-	return false, nil, nil
 }
 
 // Close implements io.Closer.

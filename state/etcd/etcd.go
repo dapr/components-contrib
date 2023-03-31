@@ -37,6 +37,8 @@ import (
 
 // Etcd is a state store implementation for Etcd.
 type Etcd struct {
+	state.BulkStore
+
 	client        *clientv3.Client
 	keyPrefixPath string
 	features      []state.Feature
@@ -55,10 +57,12 @@ type etcdConfig struct {
 
 // NewEtcdStateStore returns a new etcd state store.
 func NewEtcdStateStore(logger logger.Logger) state.Store {
-	return state.NewDefaultBulkStore(&Etcd{
+	s := &Etcd{
 		logger:   logger,
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
-	})
+	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // Init does metadata and config parsing and initializes the

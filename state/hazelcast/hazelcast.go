@@ -31,6 +31,8 @@ import (
 
 // Hazelcast state store.
 type Hazelcast struct {
+	state.BulkStore
+
 	hzMap  core.Map
 	json   jsoniter.API
 	logger logger.Logger
@@ -43,10 +45,12 @@ type hazelcastMetadata struct {
 
 // NewHazelcastStore returns a new hazelcast backed state store.
 func NewHazelcastStore(logger logger.Logger) state.Store {
-	return state.NewDefaultBulkStore(&Hazelcast{
+	s := &Hazelcast{
 		json:   jsoniter.ConfigFastest,
 		logger: logger,
-	})
+	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 func validateAndParseMetadata(meta state.Metadata) (*hazelcastMetadata, error) {

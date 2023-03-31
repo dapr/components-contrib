@@ -24,6 +24,8 @@ import (
 
 // SQLite Database state store.
 type SQLiteStore struct {
+	state.BulkStore
+
 	logger   logger.Logger
 	dbaccess DBAccess
 }
@@ -32,7 +34,9 @@ type SQLiteStore struct {
 func NewSQLiteStateStore(logger logger.Logger) state.Store {
 	dba := newSqliteDBAccess(logger)
 
-	return state.NewDefaultBulkStore(newSQLiteStateStore(logger, dba))
+	s := newSQLiteStateStore(logger, dba)
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // newSQLiteStateStore creates a newSQLiteStateStore instance of an Sqlite state store.

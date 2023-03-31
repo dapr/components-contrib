@@ -211,7 +211,7 @@ jobs:
       run: |
         go mod download
         go install github.com/axw/gocov/gocov@${{ env.GOCOV_VER }}
-        go install gotest.tools/gotestsum@{{ env.GOTESTSUM_VER }}
+        go install gotest.tools/gotestsum@${{ env.GOTESTSUM_VER }}
 
     - name: Check that go mod tidy is up-to-date
       working-directory: ${{ env.TEST_PATH }}

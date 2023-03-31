@@ -31,6 +31,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
+	"github.com/dapr/kit/ptr"
 )
 
 type ValueType struct {
@@ -231,7 +232,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		err := statestore.Init(context.Background(), state.Metadata{
 			Base: metadata.Base{Properties: props},
 		})
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	// Don't run more tests if init failed
@@ -242,12 +243,12 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	t.Run("ping", func(t *testing.T) {
 		err := state.Ping(context.Background(), statestore)
 		// TODO: Ideally, all stable components should implenment ping function,
-		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
+		// so will only assert assert.NoError(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
 		if err != nil {
 			assert.EqualError(t, err, "ping is not implemented by this state store")
 		} else {
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 		}
 	})
 
@@ -264,7 +265,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
 					}
 					err := statestore.Set(context.Background(), req)
-					assert.Nil(t, err)
+					assert.NoError(t, err)
 				}
 			}
 		})
@@ -292,7 +293,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	if config.HasOperation("query") {
 		t.Run("query", func(t *testing.T) {
 			querier, ok := statestore.(state.Querier)
-			assert.Truef(t, ok, "Querier interface is not implemented")
+			assert.True(t, ok, "Querier interface is not implemented")
 			for _, scenario := range queryScenarios {
 				t.Logf("Querying value presence for %s", scenario.query)
 				var req state.QueryRequest
@@ -412,14 +413,14 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				}
 			}
 			err := statestore.BulkDelete(context.Background(), bulk)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 
 			for _, req := range bulk {
 				t.Logf("Checking value absence for %s", req.Key)
 				res, err := statestore.Get(context.Background(), &state.GetRequest{
 					Key: req.Key,
 				})
-				assert.Nil(t, err)
+				assert.NoError(t, err)
 				assert.Nil(t, res.Data)
 			}
 		})
@@ -680,7 +681,6 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			testKey := "first-writeTest"
 			firstValue := []byte("testValue1")
 			secondValue := []byte("testValue2")
-			emptyString := ""
 
 			requestSets := [][2]*state.SetRequest{
 				{
@@ -709,7 +709,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 							Concurrency: state.FirstWrite,
 							Consistency: state.Strong,
 						},
-						ETag: &emptyString,
+						ETag: ptr.Of(""),
 					},
 					{
 						Key:   testKey,
@@ -718,7 +718,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 							Concurrency: state.FirstWrite,
 							Consistency: state.Strong,
 						},
-						ETag: &emptyString,
+						ETag: ptr.Of(""),
 					},
 				},
 			}

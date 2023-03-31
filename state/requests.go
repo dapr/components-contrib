@@ -95,8 +95,8 @@ func (r SetRequest) Operation() OperationType {
 
 // SetStateOption controls how a state store reacts to a set request.
 type SetStateOption struct {
-	Concurrency string `json:"concurrency,omitempty"` // first-write, last-write
-	Consistency string `json:"consistency"`           // "eventual, strong"
+	Concurrency string // first-write, last-write
+	Consistency string // "eventual, strong"
 }
 
 // OperationType describes a CRUD operation performed against a state store.
@@ -112,8 +112,8 @@ const (
 // TransactionalStateRequest describes a transactional operation against a state store that comprises multiple types of operations
 // The Request field is either a DeleteRequest or SetRequest.
 type TransactionalStateRequest struct {
-	Operations []TransactionalStateOperation `json:"operations"`
-	Metadata   map[string]string             `json:"metadata,omitempty"`
+	Operations []TransactionalStateOperation
+	Metadata   map[string]string
 }
 
 // StateRequest is an interface that allows gets of the Key and Metadata inside requests.

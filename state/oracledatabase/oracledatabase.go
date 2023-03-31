@@ -15,6 +15,7 @@ package oracledatabase
 
 import (
 	"context"
+	"database/sql"
 	"reflect"
 
 	"github.com/dapr/components-contrib/metadata"
@@ -90,6 +91,11 @@ func (o *OracleDatabase) Close() error {
 	}
 
 	return nil
+}
+
+// Returns the database connection. Used by tests.
+func (o *OracleDatabase) getDB() *sql.DB {
+	return o.dbaccess.(*oracleDatabaseAccess).db
 }
 
 func (o *OracleDatabase) GetComponentMetadata() map[string]string {

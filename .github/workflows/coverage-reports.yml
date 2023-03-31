@@ -25,25 +25,26 @@ jobs:
       name: Download and merge gocov reports
       runs-on: ubuntu-latest
       env:
-        GOVER: "1.20"
+        GOCOV_VER: "v1.1.0"
+        GOTESTSUM_VER: "v1.9.0"
+        GOCOVMERGE_VER: "b5bfa59"
       steps:
-        - name: Set up Go ${{ env.GOVER }}
-          if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
-          uses: actions/setup-go@v3
-          with:
-            go-version: ${{ env.GOVER }}
-
         - name: Check out code
           uses: actions/checkout@v3
           with:
             repository: ${{ env.CHECKOUT_REPO }}
             ref: ${{ env.CHECKOUT_REF }}
 
+        - name: Set up Go
+          uses: actions/setup-go@v3
+          with:
+            go-version-file: 'go.mod'
+
         - name: Setup go dependencies
           run: |
-            go install github.com/axw/gocov/gocov@v1.1.0
-            go install gotest.tools/gotestsum@latest
-            go install github.com/wadey/gocovmerge@latest
+            go install github.com/axw/gocov/gocov@${{ env.GOCOV_VER }}
+            go install gotest.tools/gotestsum@{{ env.GOTESTSUM_VER }}
+            go install github.com/wadey/gocovmerge@{{ env.GOCOVMERGE_VER }}
         
         - name: Download workflow artifact
           uses: dawidd6/action-download-artifact@v2.24.3

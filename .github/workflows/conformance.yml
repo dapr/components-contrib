@@ -87,6 +87,8 @@ jobs:
     runs-on: ubuntu-22.04
     env:
       UNIQUE_ID: ${{github.run_id}}-${{github.run_attempt}}
+      GOCOV_VER: "v1.1.0"
+      GOTESTSUM_VER: "v1.9.0"
     defaults:
       run:
         shell: bash
@@ -228,9 +230,8 @@ jobs:
     - name: Download Go dependencies
       run: |
         go mod download
-        go install github.com/axw/gocov/gocov@v1.1.0
-        go install gotest.tools/gotestsum@latest
-        go install github.com/wadey/gocovmerge@latest
+        go install github.com/axw/gocov/gocov@${{ env.GOCOV_VER }}
+        go install gotest.tools/gotestsum@{{ env.GOTESTSUM_VER }}
 
     - name: Run setup script
       if: matrix.setup-script != ''
@@ -270,7 +271,6 @@ jobs:
         fi
         set -e
 
-        cat cover.out
         # Fail the step if we found no test to run
         if grep -q "warning: no tests to run" ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json ; then
           echo "::error:: No test was found for component ${{ matrix.component }}"

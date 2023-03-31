@@ -85,6 +85,8 @@ jobs:
     runs-on: ubuntu-22.04
     env:
       UNIQUE_ID: ${{github.run_id}}-${{github.run_attempt}}
+      GOCOV_VER: "v1.1.0"
+      GOTESTSUM_VER: "v1.9.0"
     defaults:
       run:
         shell: bash
@@ -208,8 +210,8 @@ jobs:
       working-directory: ${{ env.TEST_PATH }}
       run: |
         go mod download
-        go install gotest.tools/gotestsum@latest
-        go install github.com/axw/gocov/gocov@v1.1.0
+        go install github.com/axw/gocov/gocov@${{ env.GOCOV_VER }}
+        go install gotest.tools/gotestsum@{{ env.GOTESTSUM_VER }}
 
     - name: Check that go mod tidy is up-to-date
       working-directory: ${{ env.TEST_PATH }}

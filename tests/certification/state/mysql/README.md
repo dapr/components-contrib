@@ -39,5 +39,16 @@ d. Get and validate eTag, which should not have changed.
 
 1. Without `schemaName`, check that the default one is used
 2. Without `tableName`, check that the default one is used
-3. Instantiate a component with a custom `schemaName` and validate it's used
-4. Instantiate a component with a custom `tableName` and validate it's used
+3. Without `metadataTableName`, check that the default one is used
+4. Instantiate a component with a custom `schemaName` and validate it's used
+5. Instantiate a component with a custom `tableName` and validate it's used
+6. Instantiate a component with a custom `metadataTableName` and validate it's used
+
+## TTLs and cleanups
+
+1. Correctly parse the `cleanupIntervalInSeconds` metadata property:
+   - No value uses the default value (3600 seconds)
+   - A positive value sets the interval to the given number of seconds
+   - A zero or negative value disables the cleanup
+2. The cleanup method deletes expired records and updates the metadata table with the last time it ran
+3. The cleanup method doesn't run if the last iteration was less than `cleanupIntervalInSeconds` or if another process is doing the cleanup

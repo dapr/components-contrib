@@ -39,7 +39,7 @@ const (
 )
 
 type fakeItem struct {
-	Color string
+	Color string `json:"color"`
 }
 
 func TestOracleDatabaseIntegration(t *testing.T) {
@@ -818,7 +818,7 @@ func storeItemExists(t *testing.T, key string) bool {
 	require.NoError(t, err)
 	defer db.Close()
 	var rowCount int32
-	statement := `SELECT count(key) FROM state WHERE key = :key`
+	statement := fmt.Sprintf(`SELECT count(key) FROM %s WHERE key = :key`, defaultTableName)
 	err = db.QueryRow(statement, key).Scan(&rowCount)
 	require.NoError(t, err)
 	exists := rowCount > 0
@@ -833,7 +833,7 @@ func getRowData(t *testing.T, key string) (returnValue string, insertdate sql.Nu
 	db, err := sql.Open("oracle", connectionString)
 	require.NoError(t, err)
 	defer db.Close()
-	err = db.QueryRow("SELECT value, creation_time, update_time FROM state WHERE key = :key", key).Scan(&returnValue, &insertdate, &updatedate)
+	err = db.QueryRow(fmt.Sprintf("SELECT value, creation_time, update_time FROM %s WHERE key = :key", defaultTableName), key).Scan(&returnValue, &insertdate, &updatedate)
 	require.NoError(t, err)
 
 	return returnValue, insertdate, updatedate
@@ -847,7 +847,7 @@ func getTimesForRow(t *testing.T, key string) (insertdate sql.NullString, update
 	db, err := sql.Open("oracle", connectionString)
 	require.NoError(t, err)
 	defer db.Close()
-	err = db.QueryRow("SELECT creation_time, update_time, expiration_time FROM state WHERE key = :key", key).Scan(&insertdate, &updatedate, &expirationtime)
+	err = db.QueryRow(fmt.Sprintf("SELECT creation_time, update_time, expiration_time FROM %s WHERE key = :key", defaultTableName), key).Scan(&insertdate, &updatedate, &expirationtime)
 	require.NoError(t, err)
 
 	return insertdate, updatedate, expirationtime

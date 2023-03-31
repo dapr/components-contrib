@@ -88,3 +88,7 @@ func vars(r *http.Request) map[string]string {
 	}
 	return nil
 }
+
+func (m *Middleware) GetComponentMetadata() map[string]string {
+	return map[string]string{}
+}

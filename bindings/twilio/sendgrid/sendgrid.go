@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -36,14 +38,14 @@ type SendGrid struct {
 
 // Our metadata holds standard email properties.
 type sendGridMetadata struct {
-	APIKey        string `json:"apiKey"`
-	EmailFrom     string `json:"emailFrom"`
-	EmailFromName string `json:"emailFromName"`
-	EmailTo       string `json:"emailTo"`
-	EmailToName   string `json:"emailToName"`
-	Subject       string `json:"subject"`
-	EmailCc       string `json:"emailCc"`
-	EmailBcc      string `json:"emailBcc"`
+	APIKey        string `mapstructure:"apiKey"`
+	EmailFrom     string `mapstructure:"emailFrom"`
+	EmailFromName string `mapstructure:"emailFromName"`
+	EmailTo       string `mapstructure:"emailTo"`
+	EmailToName   string `mapstructure:"emailToName"`
+	Subject       string `mapstructure:"subject"`
+	EmailCc       string `mapstructure:"emailCc"`
+	EmailBcc      string `mapstructure:"emailBcc"`
 }
 
 // Wrapper to help decode SendGrid API errors.
@@ -64,21 +66,15 @@ func NewSendGrid(logger logger.Logger) bindings.OutputBinding {
 func (sg *SendGrid) parseMetadata(meta bindings.Metadata) (sendGridMetadata, error) {
 	sgMeta := sendGridMetadata{}
 
-	// Required properties
-	if val, ok := meta.Properties["apiKey"]; ok && val != "" {
-		sgMeta.APIKey = val
-	} else {
-		return sgMeta, errors.New("SendGrid binding error: apiKey field is required in metadata")
+	err := metadata.DecodeMetadata(meta.Properties, &sgMeta)
+	if err != nil {
+		return sgMeta, err
 	}
 
-	// Optional properties, these can be set on a per request basis
-	sgMeta.EmailTo = meta.Properties["emailTo"]
-	sgMeta.EmailToName = meta.Properties["emailToName"]
-	sgMeta.EmailFrom = meta.Properties["emailFrom"]
-	sgMeta.EmailFromName = meta.Properties["emailFromName"]
-	sgMeta.Subject = meta.Properties["subject"]
-	sgMeta.EmailCc = meta.Properties["emailCc"]
-	sgMeta.EmailBcc = meta.Properties["emailBcc"]
+	// Required properties
+	if sgMeta.APIKey == "" {
+		return sgMeta, errors.New("SendGrid binding error: apiKey field is required in metadata")
+	}
 
 	return sgMeta, nil
 }
@@ -227,4 +223,12 @@ func (sg *SendGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 	sg.logger.Info("sent email with SendGrid")
 
 	return nil, nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (sg *SendGrid) GetComponentMetadata() map[string]string {
+	metadataStruct := sendGridMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	return metadataInfo
 }

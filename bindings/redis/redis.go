@@ -17,9 +17,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/dapr/components-contrib/bindings"
 	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
+	"github.com/dapr/components-contrib/metadata"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
@@ -141,4 +143,12 @@ func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 
 func (r *Redis) Close() error {
 	return r.client.Close()
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (r *Redis) GetComponentMetadata() map[string]string {
+	metadataStruct := rediscomponent.Metadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	return metadataInfo
 }

@@ -15,6 +15,7 @@ package redis
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -398,8 +399,8 @@ func (r *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 	}
 	var setQuery, delQuery string
 	var isJSON bool
-	contentType := request.Metadata[daprmetadata.ContentType]
-	if contentType == contenttype.JSONContentType && rediscomponent.ClientHasJSONSupport(r.client) {
+	if request.Metadata[daprmetadata.ContentType] == contenttype.JSONContentType &&
+		rediscomponent.ClientHasJSONSupport(r.client) {
 		isJSON = true
 		setQuery = setJSONQuery
 		delQuery = delJSONQuery
@@ -523,11 +524,11 @@ func (r *StateStore) parseTTL(req *state.SetRequest) (*int, error) {
 // Query executes a query against store.
 func (r *StateStore) Query(ctx context.Context, req *state.QueryRequest) (*state.QueryResponse, error) {
 	if !rediscomponent.ClientHasJSONSupport(r.client) {
-		return nil, fmt.Errorf("redis-json server support is required for query capability")
+		return nil, errors.New("redis-json server support is required for query capability")
 	}
 	indexName, ok := daprmetadata.TryGetQueryIndexName(req.Metadata)
 	if !ok {
-		return nil, fmt.Errorf("query index not found")
+		return nil, errors.New("query index not found")
 	}
 	elem, ok := r.querySchemas[indexName]
 	if !ok {

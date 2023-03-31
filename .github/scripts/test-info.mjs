@@ -185,6 +185,9 @@ const components = {
         certification: true,
         sourcePkg: ['configuration/redis', 'configuration/redis/internal'],
     },
+    'configuration.postgres': {
+        conformance: true,
+    },
     'crypto.azure.keyvault': {
         conformance: true,
         requiredSecrets: [

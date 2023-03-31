@@ -39,6 +39,12 @@ metadata:
     # If omitted, uses the same values as "<root>.binding"
     binding:
       output: true
+  - name: responseTimeout
+    required: false
+    description: "The duration after which HTTP requests should be cancelled."
+    example: '"10s", "5m"'
+    binding:
+      output: true
   - name: MTLSRootCA
     required: false
     description: "Path to root ca certificate or pem encoded string"

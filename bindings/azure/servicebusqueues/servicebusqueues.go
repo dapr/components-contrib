@@ -205,5 +205,6 @@ func (a *AzureServiceBusQueues) GetComponentMetadata() map[string]string {
 	metadataStruct := impl.Metadata{}
 	metadataInfo := map[string]string{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ComponentType.BindingType)
+	delete(metadataInfo, "ConsumerID") // only applies to topics, not queues
 	return metadataInfo
 }

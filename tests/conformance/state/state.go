@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -439,13 +440,12 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						transactionGroups = append(transactionGroups, scenario.transactionGroup)
 					}
 					transactions[scenario.transactionGroup] = append(
-						transactions[scenario.transactionGroup], state.TransactionalStateOperation{
-							Operation: state.Upsert,
-							Request: state.SetRequest{
-								Key:   scenario.key,
-								Value: scenario.value,
-							},
-						})
+						transactions[scenario.transactionGroup],
+						state.SetRequest{
+							Key:   scenario.key,
+							Value: scenario.value,
+						},
+					)
 
 					// Deletion happens in the following transaction.
 					if scenario.toBeDeleted {
@@ -453,12 +453,11 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 							transactionGroups = append(transactionGroups, scenario.transactionGroup+1)
 						}
 						transactions[scenario.transactionGroup+1] = append(
-							transactions[scenario.transactionGroup+1], state.TransactionalStateOperation{
-								Operation: state.Delete,
-								Request: state.DeleteRequest{
-									Key: scenario.key,
-								},
-							})
+							transactions[scenario.transactionGroup+1],
+							state.DeleteRequest{
+								Key: scenario.key,
+							},
+						)
 					}
 				}
 			}
@@ -548,41 +547,29 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 			operations := []state.TransactionalStateOperation{
 				// delete an item that already exists
-				{
-					Operation: state.Delete,
-					Request: state.DeleteRequest{
-						Key: firstKey,
-					},
+				state.DeleteRequest{
+					Key: firstKey,
 				},
 				// upsert a new item
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   secondKey,
-						Value: secondValue,
-					},
+				state.SetRequest{
+					Key:   secondKey,
+					Value: secondValue,
 				},
 				// delete the item that was just upserted
-				{
-					Operation: state.Delete,
-					Request: state.DeleteRequest{
-						Key: secondKey,
-					},
+				state.DeleteRequest{
+					Key: secondKey,
 				},
 				// upsert a new item
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   thirdKey,
-						Value: thirdValue,
-					},
+				state.SetRequest{
+					Key:   thirdKey,
+					Value: thirdValue,
 				},
 			}
 
 			expected := map[string][]byte{
 				firstKey:  []byte(nil),
 				secondKey: []byte(nil),
-				thirdKey:  []byte(fmt.Sprintf("\"%s\"", thirdValue)),
+				thirdKey:  []byte(strconv.Quote(thirdValue)),
 			}
 
 			// Act

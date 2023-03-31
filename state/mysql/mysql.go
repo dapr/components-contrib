@@ -801,64 +801,26 @@ func (m *MySQL) Multi(ctx context.Context, request *state.TransactionalStateRequ
 		}
 	}()
 
-	for _, req := range request.Operations {
-		switch req.Operation {
-		case state.Upsert:
-			setReq, err := m.getSets(req)
+	for _, o := range request.Operations {
+		switch req := o.(type) {
+		case state.SetRequest:
+			err = m.setValue(ctx, tx, &req)
 			if err != nil {
 				return err
 			}
 
-			err = m.setValue(ctx, tx, &setReq)
-			if err != nil {
-				return err
-			}
-
-		case state.Delete:
-			delReq, err := m.getDeletes(req)
-			if err != nil {
-				return err
-			}
-
-			err = m.deleteValue(ctx, tx, &delReq)
+		case state.DeleteRequest:
+			err = m.deleteValue(ctx, tx, &req)
 			if err != nil {
 				return err
 			}
 
 		default:
-			return fmt.Errorf("unsupported operation: %s", req.Operation)
+			return fmt.Errorf("unsupported operation: %s", req.Operation())
 		}
 	}
 
 	return tx.Commit()
-}
-
-// Returns the set requests.
-func (m *MySQL) getSets(req state.TransactionalStateOperation) (state.SetRequest, error) {
-	setReq, ok := req.Request.(state.SetRequest)
-	if !ok {
-		return setReq, errors.New("expecting set request")
-	}
-
-	if setReq.Key == "" {
-		return setReq, errors.New("missing key in upsert operation")
-	}
-
-	return setReq, nil
-}
-
-// Returns the delete requests.
-func (m *MySQL) getDeletes(req state.TransactionalStateOperation) (state.DeleteRequest, error) {
-	delReq, ok := req.Request.(state.DeleteRequest)
-	if !ok {
-		return delReq, errors.New("expecting delete request")
-	}
-
-	if delReq.Key == "" {
-		return delReq, errors.New("missing key in delete operation")
-	}
-
-	return delReq, nil
 }
 
 // Close implements io.Closer.

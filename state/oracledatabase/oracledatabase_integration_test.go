@@ -239,10 +239,7 @@ func multiWithSetOnly(t *testing.T, ods state.Store) {
 			Value: randomJSON(),
 		}
 		setRequests = append(setRequests, req)
-		operations = append(operations, state.TransactionalStateOperation{
-			Operation: state.Upsert,
-			Request:   req,
-		})
+		operations = append(operations, req)
 	}
 
 	err := ods.(state.TransactionalStore).Multi(context.Background(), &state.TransactionalStateRequest{
@@ -269,10 +266,7 @@ func multiWithDeleteOnly(t *testing.T, ods state.Store) {
 		deleteRequests = append(deleteRequests, req)
 
 		// Add the item to the multi transaction request.
-		operations = append(operations, state.TransactionalStateOperation{
-			Operation: state.Delete,
-			Request:   req,
-		})
+		operations = append(operations, req)
 	}
 
 	err := ods.(state.TransactionalStore).Multi(context.Background(), &state.TransactionalStateRequest{
@@ -298,10 +292,7 @@ func multiWithDeleteAndSet(t *testing.T, ods state.Store) {
 		deleteRequests = append(deleteRequests, req)
 
 		// Add the item to the multi transaction request.
-		operations = append(operations, state.TransactionalStateOperation{
-			Operation: state.Delete,
-			Request:   req,
-		})
+		operations = append(operations, req)
 	}
 
 	// Create the set requests.
@@ -312,10 +303,7 @@ func multiWithDeleteAndSet(t *testing.T, ods state.Store) {
 			Value: randomJSON(),
 		}
 		setRequests = append(setRequests, req)
-		operations = append(operations, state.TransactionalStateOperation{
-			Operation: state.Upsert,
-			Request:   req,
-		})
+		operations = append(operations, req)
 	}
 
 	err := ods.(state.TransactionalStore).Multi(context.Background(), &state.TransactionalStateRequest{

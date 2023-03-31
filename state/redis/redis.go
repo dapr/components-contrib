@@ -410,8 +410,8 @@ func (r *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 
 	pipe := r.client.TxPipeline()
 	for _, o := range request.Operations {
-		if o.Operation == state.Upsert {
-			req := o.Request.(state.SetRequest)
+		switch req := o.(type) {
+		case state.SetRequest:
 			ver, err := r.parseETag(&req)
 			if err != nil {
 				return err
@@ -437,8 +437,8 @@ func (r *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 			if ttl != nil && *ttl <= 0 {
 				pipe.Do(ctx, "PERSIST", req.Key)
 			}
-		} else if o.Operation == state.Delete {
-			req := o.Request.(state.DeleteRequest)
+
+		case state.DeleteRequest:
 			if req.ETag == nil {
 				etag := "0"
 				req.ETag = &etag

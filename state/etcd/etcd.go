@@ -326,8 +326,8 @@ func (e *Etcd) Multi(ctx context.Context, request *state.TransactionalStateReque
 	ops := make([]clientv3.Op, 0, len(request.Operations))
 
 	for _, o := range request.Operations {
-		if o.Operation == state.Upsert {
-			req := o.Request.(state.SetRequest)
+		switch req := o.(type) {
+		case state.SetRequest:
 			ttlInSeconds, err := e.doSetValidateParameters(&req)
 			if err != nil {
 				return err
@@ -367,8 +367,7 @@ func (e *Etcd) Multi(ctx context.Context, request *state.TransactionalStateReque
 					ops = append(ops, clientv3.OpTxn(nil, []clientv3.Op{put}, nil))
 				}
 			}
-		} else if o.Operation == state.Delete {
-			req := o.Request.(state.DeleteRequest)
+		case state.DeleteRequest:
 			if err := state.CheckRequestOptions(req.Options); err != nil {
 				return err
 			}

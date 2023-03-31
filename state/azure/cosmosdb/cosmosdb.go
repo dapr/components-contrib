@@ -368,8 +368,8 @@ func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 	for _, o := range request.Operations {
 		options := &azcosmos.TransactionalBatchItemOptions{}
 
-		if o.Operation == state.Upsert {
-			req := o.Request.(state.SetRequest)
+		switch req := o.(type) {
+		case state.SetRequest:
 			var doc CosmosItem
 			doc, err = createUpsertItem(c.contentType, req, partitionKey)
 			if err != nil {
@@ -396,9 +396,7 @@ func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 			}
 			batch.UpsertItem(marsh, nil)
 			numOperations++
-		} else if o.Operation == state.Delete {
-			req := o.Request.(state.DeleteRequest)
-
+		case state.DeleteRequest:
 			if req.ETag != nil && *req.ETag != "" {
 				etag := azcore.ETag(*req.ETag)
 				options.IfMatchETag = &etag

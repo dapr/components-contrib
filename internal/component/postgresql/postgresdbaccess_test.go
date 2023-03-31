@@ -12,6 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package postgresql
 
 import (
@@ -37,74 +38,6 @@ type fakeItem struct {
 	Color string
 }
 
-func TestGetSetWithWrongType(t *testing.T) {
-	t.Parallel()
-	operation := state.TransactionalStateOperation{
-		Operation: state.Delete,
-		Request:   state.DeleteRequest{}, // Delete request is not valid for getSets
-	}
-
-	_, err := getSet(operation)
-	assert.NotNil(t, err)
-}
-
-func TestGetSetWithNoKey(t *testing.T) {
-	t.Parallel()
-	operation := state.TransactionalStateOperation{
-		Operation: state.Upsert,
-		Request:   state.SetRequest{Value: "value1"}, // Set request with no key is invalid
-	}
-
-	_, err := getSet(operation)
-	assert.NotNil(t, err)
-}
-
-func TestGetSetValid(t *testing.T) {
-	t.Parallel()
-	operation := state.TransactionalStateOperation{
-		Operation: state.Upsert,
-		Request:   state.SetRequest{Key: "key1", Value: "value1"},
-	}
-
-	set, err := getSet(operation)
-	assert.NoError(t, err)
-	assert.Equal(t, "key1", set.Key)
-}
-
-func TestGetDeleteWithWrongType(t *testing.T) {
-	t.Parallel()
-	operation := state.TransactionalStateOperation{
-		Operation: state.Upsert,
-		Request:   state.SetRequest{Value: "value1"}, // Set request is not valid for getDeletes
-	}
-
-	_, err := getDelete(operation)
-	assert.NotNil(t, err)
-}
-
-func TestGetDeleteWithNoKey(t *testing.T) {
-	t.Parallel()
-	operation := state.TransactionalStateOperation{
-		Operation: state.Delete,
-		Request:   state.DeleteRequest{}, // Delete request with no key is invalid
-	}
-
-	_, err := getDelete(operation)
-	assert.NotNil(t, err)
-}
-
-func TestGetDeleteValid(t *testing.T) {
-	t.Parallel()
-	operation := state.TransactionalStateOperation{
-		Operation: state.Delete,
-		Request:   state.DeleteRequest{Key: "key1"},
-	}
-
-	delete, err := getDelete(operation)
-	assert.NoError(t, err)
-	assert.Equal(t, "key1", delete.Key)
-}
-
 func TestMultiWithNoRequests(t *testing.T) {
 	// Arrange
 	m, _ := mockDatabase(t)
@@ -126,39 +59,13 @@ func TestMultiWithNoRequests(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestInvalidMultiInvalidAction(t *testing.T) {
-	// Arrange
-	m, _ := mockDatabase(t)
-	defer m.db.Close()
-
-	m.db.ExpectBegin()
-	m.db.ExpectRollback()
-
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: "Something invalid",
-		Request:   createSetRequest(),
-	})
-
-	// Act
-	err := m.pgDba.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
-		Operations: operations,
-	})
-
-	// Assert
-	assert.NotNil(t, err)
-}
-
 func TestValidSetRequest(t *testing.T) {
 	// Arrange
 	m, _ := mockDatabase(t)
 	defer m.db.Close()
 
 	setReq := createSetRequest()
-	operations := []state.TransactionalStateOperation{
-		{Operation: state.Upsert, Request: setReq},
-	}
+	operations := []state.TransactionalStateOperation{setReq}
 	val, _ := json.Marshal(setReq.Value)
 
 	m.db.ExpectBegin()
@@ -178,30 +85,6 @@ func TestValidSetRequest(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestInvalidMultiSetRequest(t *testing.T) {
-	// Arrange
-	m, _ := mockDatabase(t)
-	defer m.db.Close()
-
-	m.db.ExpectBegin()
-	m.db.ExpectRollback()
-
-	operations := []state.TransactionalStateOperation{
-		{
-			Operation: state.Upsert,
-			Request:   createDeleteRequest(), // Delete request is not valid for Upsert operation
-		},
-	}
-
-	// Act
-	err := m.pgDba.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
-		Operations: operations,
-	})
-
-	// Assert
-	assert.NotNil(t, err)
-}
-
 func TestInvalidMultiSetRequestNoKey(t *testing.T) {
 	// Arrange
 	m, _ := mockDatabase(t)
@@ -210,12 +93,9 @@ func TestInvalidMultiSetRequestNoKey(t *testing.T) {
 	m.db.ExpectBegin()
 	m.db.ExpectRollback()
 
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: state.Upsert,
-		Request:   state.SetRequest{Value: "value1"}, // Set request without key is not valid for Upsert operation
-	})
+	operations := []state.TransactionalStateOperation{
+		state.SetRequest{Value: "value1"}, // Set request without key is not valid for Upsert operation
+	}
 
 	// Act
 	err := m.pgDba.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
@@ -223,7 +103,7 @@ func TestInvalidMultiSetRequestNoKey(t *testing.T) {
 	})
 
 	// Assert
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestValidMultiDeleteRequest(t *testing.T) {
@@ -232,9 +112,7 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 	defer m.db.Close()
 
 	deleteReq := createDeleteRequest()
-	operations := []state.TransactionalStateOperation{
-		{Operation: state.Delete, Request: deleteReq},
-	}
+	operations := []state.TransactionalStateOperation{deleteReq}
 
 	m.db.ExpectBegin()
 	m.db.ExpectExec("DELETE FROM").
@@ -253,30 +131,6 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestInvalidMultiDeleteRequest(t *testing.T) {
-	// Arrange
-	m, _ := mockDatabase(t)
-	defer m.db.Close()
-
-	m.db.ExpectBegin()
-	m.db.ExpectRollback()
-
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: state.Delete,
-		Request:   createSetRequest(), // Set request is not valid for Delete operation
-	})
-
-	// Act
-	err := m.pgDba.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
-		Operations: operations,
-	})
-
-	// Assert
-	assert.NotNil(t, err)
-}
-
 func TestInvalidMultiDeleteRequestNoKey(t *testing.T) {
 	// Arrange
 	m, _ := mockDatabase(t)
@@ -285,12 +139,7 @@ func TestInvalidMultiDeleteRequestNoKey(t *testing.T) {
 	m.db.ExpectBegin()
 	m.db.ExpectRollback()
 
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: state.Delete,
-		Request:   state.DeleteRequest{}, // Delete request without key is not valid for Delete operation
-	})
+	operations := []state.TransactionalStateOperation{state.DeleteRequest{}} // Delete request without key is not valid for Delete operation
 
 	// Act
 	err := m.pgDba.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
@@ -298,7 +147,7 @@ func TestInvalidMultiDeleteRequestNoKey(t *testing.T) {
 	})
 
 	// Assert
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestMultiOperationOrder(t *testing.T) {
@@ -307,14 +156,8 @@ func TestMultiOperationOrder(t *testing.T) {
 	defer m.db.Close()
 
 	operations := []state.TransactionalStateOperation{
-		{
-			Operation: state.Upsert,
-			Request:   state.SetRequest{Key: "key1", Value: "value1"},
-		},
-		{
-			Operation: state.Delete,
-			Request:   state.DeleteRequest{Key: "key1"},
-		},
+		state.SetRequest{Key: "key1", Value: "value1"},
+		state.DeleteRequest{Key: "key1"},
 	}
 
 	m.db.ExpectBegin()
@@ -354,7 +197,7 @@ func TestInvalidBulkSetNoKey(t *testing.T) {
 	err := m.pgDba.BulkSet(context.Background(), sets)
 
 	// Assert
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestInvalidBulkSetEmptyValue(t *testing.T) {
@@ -374,7 +217,7 @@ func TestInvalidBulkSetEmptyValue(t *testing.T) {
 	err := m.pgDba.BulkSet(context.Background(), sets)
 
 	// Assert
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestValidBulkSet(t *testing.T) {
@@ -422,7 +265,7 @@ func TestInvalidBulkDeleteNoKey(t *testing.T) {
 	err := m.pgDba.BulkDelete(context.Background(), deletes)
 
 	// Assert
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestValidBulkDelete(t *testing.T) {

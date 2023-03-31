@@ -379,17 +379,10 @@ func (m *MongoDB) Multi(ctx context.Context, request *state.TransactionalStateRe
 func (m *MongoDB) doTransaction(sessCtx mongo.SessionContext, operations []state.TransactionalStateOperation) error {
 	for _, o := range operations {
 		var err error
-		if o.Operation == state.Upsert {
-			req, ok := o.Request.(state.SetRequest)
-			if !ok {
-				return errors.New("invalid type for operation")
-			}
+		switch req := o.(type) {
+		case state.SetRequest:
 			err = m.setInternal(sessCtx, &req)
-		} else if o.Operation == state.Delete {
-			req, ok := o.Request.(state.DeleteRequest)
-			if !ok {
-				return errors.New("invalid type for operation")
-			}
+		case state.DeleteRequest:
 			err = m.deleteInternal(sessCtx, &req)
 		}
 

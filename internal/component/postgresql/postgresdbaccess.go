@@ -440,33 +440,21 @@ func (p *PostgresDBAccess) ExecuteMulti(parentCtx context.Context, request *stat
 	defer p.rollbackTx(parentCtx, tx, "ExecMulti")
 
 	for _, o := range request.Operations {
-		switch o.Operation {
-		case state.Upsert:
-			var setReq state.SetRequest
-			setReq, err = getSet(o)
+		switch x := o.(type) {
+		case state.SetRequest:
+			err = p.doSet(parentCtx, tx, &x)
 			if err != nil {
 				return err
 			}
 
-			err = p.doSet(parentCtx, tx, &setReq)
-			if err != nil {
-				return err
-			}
-
-		case state.Delete:
-			var delReq state.DeleteRequest
-			delReq, err = getDelete(o)
-			if err != nil {
-				return err
-			}
-
-			err = p.doDelete(parentCtx, tx, &delReq)
+		case state.DeleteRequest:
+			err = p.doDelete(parentCtx, tx, &x)
 			if err != nil {
 				return err
 			}
 
 		default:
-			return fmt.Errorf("unsupported operation: %s", o.Operation)
+			return fmt.Errorf("unsupported operation: %s", o.Operation())
 		}
 	}
 
@@ -528,34 +516,6 @@ func (p *PostgresDBAccess) Close() error {
 // This is primarily used for tests.
 func (p *PostgresDBAccess) GetCleanupInterval() *time.Duration {
 	return p.metadata.CleanupInterval
-}
-
-// Returns the set requests.
-func getSet(req state.TransactionalStateOperation) (state.SetRequest, error) {
-	setReq, ok := req.Request.(state.SetRequest)
-	if !ok {
-		return setReq, errors.New("expecting set request")
-	}
-
-	if setReq.Key == "" {
-		return setReq, errors.New("missing key in upsert operation")
-	}
-
-	return setReq, nil
-}
-
-// Returns the delete requests.
-func getDelete(req state.TransactionalStateOperation) (state.DeleteRequest, error) {
-	delReq, ok := req.Request.(state.DeleteRequest)
-	if !ok {
-		return delReq, errors.New("expecting delete request")
-	}
-
-	if delReq.Key == "" {
-		return delReq, errors.New("missing key in upsert operation")
-	}
-
-	return delReq, nil
 }
 
 // Internal function that begins a transaction.

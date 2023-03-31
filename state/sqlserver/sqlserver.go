@@ -424,64 +424,26 @@ func (s *SQLServer) Multi(ctx context.Context, request *state.TransactionalState
 		return err
 	}
 
-	for _, req := range request.Operations {
-		switch req.Operation {
-		case state.Upsert:
-			setReq, err := s.getSets(req)
+	for _, o := range request.Operations {
+		switch req := o.(type) {
+		case state.SetRequest:
+			err = s.executeSet(ctx, tx, &req)
 			if err != nil {
 				return err
 			}
 
-			err = s.executeSet(ctx, tx, &setReq)
-			if err != nil {
-				return err
-			}
-
-		case state.Delete:
-			delReq, err := s.getDeletes(req)
-			if err != nil {
-				return err
-			}
-
-			err = s.executeDelete(ctx, tx, &delReq)
+		case state.DeleteRequest:
+			err = s.executeDelete(ctx, tx, &req)
 			if err != nil {
 				return err
 			}
 
 		default:
-			return fmt.Errorf("unsupported operation: %s", req.Operation)
+			return fmt.Errorf("unsupported operation: %s", o.Operation())
 		}
 	}
 
 	return tx.Commit()
-}
-
-// Returns the set requests.
-func (s *SQLServer) getSets(req state.TransactionalStateOperation) (state.SetRequest, error) {
-	setReq, ok := req.Request.(state.SetRequest)
-	if !ok {
-		return setReq, fmt.Errorf("expecting set request")
-	}
-
-	if setReq.Key == "" {
-		return setReq, fmt.Errorf("missing key in upsert operation")
-	}
-
-	return setReq, nil
-}
-
-// Returns the delete requests.
-func (s *SQLServer) getDeletes(req state.TransactionalStateOperation) (state.DeleteRequest, error) {
-	delReq, ok := req.Request.(state.DeleteRequest)
-	if !ok {
-		return delReq, fmt.Errorf("expecting delete request")
-	}
-
-	if delReq.Key == "" {
-		return delReq, fmt.Errorf("missing key in upsert operation")
-	}
-
-	return delReq, nil
 }
 
 // Delete removes an entity from the store.

@@ -362,7 +362,8 @@ func TestExecuteMigrationFails(t *testing.T) {
 
 func TestSupportedFeatures(t *testing.T) {
 	sqlStore := &SQLServer{
-		logger: logger.NewLogger("test"),
+		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		logger:   logger.NewLogger("test"),
 	}
 
 	actual := sqlStore.Features()

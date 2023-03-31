@@ -486,25 +486,17 @@ func (a *sqliteDBAccess) ExecuteMulti(parentCtx context.Context, reqs []state.Tr
 	}
 	defer tx.Rollback()
 
-	for _, req := range reqs {
-		switch req.Operation {
-		case state.Upsert:
-			if setReq, ok := req.Request.(state.SetRequest); ok {
-				err = a.doSet(parentCtx, tx, &setReq)
-				if err != nil {
-					return err
-				}
-			} else {
-				return fmt.Errorf("expecting set request")
+	for _, o := range reqs {
+		switch req := o.(type) {
+		case state.SetRequest:
+			err = a.doSet(parentCtx, tx, &req)
+			if err != nil {
+				return err
 			}
-		case state.Delete:
-			if delReq, ok := req.Request.(state.DeleteRequest); ok {
-				err = a.doDelete(parentCtx, tx, &delReq)
-				if err != nil {
-					return err
-				}
-			} else {
-				return fmt.Errorf("expecting delete request")
+		case state.DeleteRequest:
+			err = a.doDelete(parentCtx, tx, &req)
+			if err != nil {
+				return err
 			}
 		default:
 			// Do nothing

@@ -95,32 +95,24 @@ func TestMultiWithNoRequestsReturnsNil(t *testing.T) {
 
 func TestValidSetRequest(t *testing.T) {
 	t.Parallel()
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: state.Upsert,
-		Request:   createSetRequest(),
-	})
 
 	ods := createOracleDatabase(t)
 	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
-		Operations: operations,
+		Operations: []state.TransactionalStateOperation{
+			createSetRequest(),
+		},
 	})
 	assert.NoError(t, err)
 }
 
 func TestValidMultiDeleteRequest(t *testing.T) {
 	t.Parallel()
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: state.Delete,
-		Request:   createDeleteRequest(),
-	})
 
 	ods := createOracleDatabase(t)
 	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
-		Operations: operations,
+		Operations: []state.TransactionalStateOperation{
+			createDeleteRequest(),
+		},
 	})
 	assert.NoError(t, err)
 }

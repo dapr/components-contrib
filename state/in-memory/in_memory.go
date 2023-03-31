@@ -335,6 +335,11 @@ type innerSetRequest struct {
 	isBinary bool
 }
 
+// Implements state.TransactionalStateOperation
+func (innerSetRequest) Operation() state.OperationType {
+	return "_internal"
+}
+
 func (store *inMemoryStore) BulkSet(ctx context.Context, req []state.SetRequest) error {
 	if len(req) == 0 {
 		return nil
@@ -388,27 +393,26 @@ func (store *inMemoryStore) Multi(ctx context.Context, request *state.Transactio
 
 	// step1: validate parameters
 	for i, o := range request.Operations {
-		if o.Operation == state.Upsert {
-			s := o.Request.(state.SetRequest)
-			ttlInSeconds, err := store.doSetValidateParameters(&s)
+		switch req := o.(type) {
+		case state.SetRequest:
+			ttlInSeconds, err := store.doSetValidateParameters(&req)
 			if err != nil {
 				return err
 			}
-			bt, isBinary, err := store.marshal(s.Value)
+			bt, isBinary, err := store.marshal(req.Value)
 			if err != nil {
 				return err
 			}
 			innerSetRequest := &innerSetRequest{
-				req:      s,
+				req:      req,
 				ttl:      ttlInSeconds,
 				data:     bt,
 				isBinary: isBinary,
 			}
 			// replace with innerSetRequest
-			request.Operations[i].Request = innerSetRequest
-		} else if o.Operation == state.Delete {
-			d := o.Request.(state.DeleteRequest)
-			err := state.CheckRequestOptions(&d)
+			request.Operations[i] = innerSetRequest
+		case state.DeleteRequest:
+			err := state.CheckRequestOptions(&req)
 			if err != nil {
 				return err
 			}
@@ -421,15 +425,14 @@ func (store *inMemoryStore) Multi(ctx context.Context, request *state.Transactio
 
 	// step2: validate etag if needed
 	for _, o := range request.Operations {
-		if o.Operation == state.Upsert {
-			s := o.Request.(*innerSetRequest)
-			err := store.doValidateEtag(s.req.Key, s.req.ETag, s.req.Options.Concurrency)
+		switch req := o.(type) {
+		case innerSetRequest:
+			err := store.doValidateEtag(req.req.Key, req.req.ETag, req.req.Options.Concurrency)
 			if err != nil {
 				return err
 			}
-		} else if o.Operation == state.Delete {
-			d := o.Request.(state.DeleteRequest)
-			err := store.doValidateEtag(d.Key, d.ETag, d.Options.Concurrency)
+		case state.DeleteRequest:
+			err := store.doValidateEtag(req.Key, req.ETag, req.Options.Concurrency)
 			if err != nil {
 				return err
 			}
@@ -439,12 +442,11 @@ func (store *inMemoryStore) Multi(ctx context.Context, request *state.Transactio
 	// step3: do really set
 	// these operations won't fail
 	for _, o := range request.Operations {
-		if o.Operation == state.Upsert {
-			s := o.Request.(*innerSetRequest)
-			store.doSet(ctx, s.req.Key, s.data, s.ttl, s.isBinary)
-		} else if o.Operation == state.Delete {
-			d := o.Request.(state.DeleteRequest)
-			store.doDelete(ctx, d.Key)
+		switch req := o.(type) {
+		case innerSetRequest:
+			store.doSet(ctx, req.req.Key, req.data, req.ttl, req.isBinary)
+		case state.DeleteRequest:
+			store.doDelete(ctx, req.Key)
 		}
 	}
 	return nil

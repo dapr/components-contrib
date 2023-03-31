@@ -84,9 +84,18 @@ jobs:
 
   conformance:
     name: ${{ matrix.component }} conformance
+
+    # Add "id-token" with the intended permissions.
+    # Needed by the 'Authenticate to Google Cloud' step.
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
     runs-on: ubuntu-22.04
     env:
       UNIQUE_ID: ${{github.run_id}}-${{github.run_attempt}}
+      GOCOV_VER: "v1.1.0"
+      GOTESTSUM_VER: "v1.9.0"
     defaults:
       run:
         shell: bash
@@ -130,6 +139,17 @@ jobs:
         # Current time (used by Terraform)
         echo "CURRENT_TIME=$(date --rfc-3339=date)" >> ${GITHUB_ENV}
 
+    - name: Configure conformance test and source path
+      run: |
+        TEST_COMPONENT=$(echo ${{ matrix.component }} | sed -E 's/\./\//g')
+        export TEST_PATH="tests/certification/${TEST_COMPONENT}"
+        echo "TEST_PATH=$TEST_PATH" >> $GITHUB_ENV
+        export SOURCE_PATH="github.com/dapr/components-contrib/${TEST_COMPONENT}"
+        echo "SOURCE_PATH=$SOURCE_PATH" >> $GITHUB_ENV
+        # converts slashes to dots in this string, so that it doesn't consider them sub-folders
+        export SOURCE_PATH_LINEAR=$(echo "$SOURCE_PATH" |sed 's#/#\.#g')
+        echo "SOURCE_PATH_LINEAR=$SOURCE_PATH_LINEAR" >> $GITHUB_ENV
+
     - uses: Azure/login@v1
       if: matrix.required-secrets != ''
       with:
@@ -154,6 +174,22 @@ jobs:
           echo "$secretName=$value" >> $GITHUB_OUTPUT
           echo "$secretName=$value" >> $GITHUB_ENV
         done
+
+    # Authenticate with GCP Workload Identity Pool
+    # Exports GCP ENV Vars:
+    #    - GCP_PROJECT
+    #    - GOOGLE_APPLICATION_CREDENTIALS
+    - id: 'auth'
+      if: matrix.require-gcp-credentials == 'true'
+      name: 'Authenticate to Google Cloud'
+      uses: 'google-github-actions/auth@v1'
+      with:
+        token_format: 'access_token'
+        workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER_NAME }}
+        service_account: ${{ secrets.GCP_WIF_SA_EMAIL }}
+        create_credentials_file: true
+        export_environment_variables: true
+        cleanup_credentials: true
 
     # Download the required certificates into files, and set env var pointing to their names
     - name: Setup certs
@@ -217,7 +253,8 @@ jobs:
     - name: Download Go dependencies
       run: |
         go mod download
-        go install gotest.tools/gotestsum@latest
+        go install github.com/axw/gocov/gocov@${{ env.GOCOV_VER }}
+        go install gotest.tools/gotestsum@${{ env.GOTESTSUM_VER }}
 
     - name: Run setup script
       if: matrix.setup-script != ''
@@ -241,11 +278,13 @@ jobs:
         fi
 
         echo "Running tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
+        echo "Source Pacakge: " ${{ matrix.source-pkg }}
 
         set +e
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.json \
           --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.xml --format standard-verbose -- \
-          -p 2 -count=1 -timeout=15m -tags=conftests ./tests/conformance --run="Test${KIND_UPPER}Conformance/${NAME}"
+          -p 2 -count=1 -timeout=15m -tags=conftests ./tests/conformance --run="Test${KIND_UPPER}Conformance/${NAME}" -coverprofile=cover.out \
+          -covermode=set -coverpkg=${{ matrix.source-pkg }}
 
         status=$?
         echo "Completed tests for Test${KIND_UPPER}Conformance/${KIND}/${NAME} ... "
@@ -297,6 +336,19 @@ jobs:
         name: result_files
         path: tmp/result_files
         retention-days: 1
+    
+    - name: Prepare coverage report file to upload
+      if: github.event_name == 'schedule'
+      run: |
+        mkdir -p tmp/conf_code_cov
+        cp cover.out tmp/conf_code_cov/${{ env.SOURCE_PATH_LINEAR }}.out
+    
+    - name: Upload coverage report file
+      uses: actions/upload-artifact@v3
+      if: github.event_name == 'schedule'
+      with:
+        name: conf_code_cov
+        path: tmp/conf_code_cov
 
     # Upload logs for test analytics to consume
     - name: Upload test results

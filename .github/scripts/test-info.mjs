@@ -714,7 +714,7 @@ function GenerateMatrix(testKind, enableCloudTests) {
             'mongodb-version': comp.mongoDbVersion || undefined,
             'source-pkg': comp.sourcePkg?.length
                 ? comp.sourcePkg.map((p) => "github.com/dapr/components-contrib/"+p).join(',')
-                : 'github.com/dapr/components-contrib' + name.replace(/./g, '/'),
+                : 'github.com/dapr/components-contrib/' + name.replace(/\./g, '/'),
         })
     }
 

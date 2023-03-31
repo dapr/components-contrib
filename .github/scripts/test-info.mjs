@@ -587,7 +587,7 @@ const components = {
  * @property {string?} certificationDestroy Destroy script for certification tests
  * @property {string?} nodeJsVersion If set, installs the specified Node.js version
  * @property {string?} mongoDbVersion If set, installs the specified MongoDB version
- * @property {string[]?} sourcePkg If set, sets the specified source package
+ * @property {string|string[]?} sourcePkg If set, sets the specified source package
  */
 
 /**
@@ -634,6 +634,16 @@ function GenerateMatrix(testKind, enableCloudTests) {
             }
         }
 
+        if (comp.sourcePkg) {
+            // Ensure it's an array
+            if (!Array.isArray(comp.sourcePkg)) {
+                comp.sourcePkg = [comp.sourcePkg]
+            }
+        } else {
+            // Default is to use the component name, replacing dots with /
+            comp.sourcePkg = [name.replace(/\./g, '/')]
+        }
+
         // Add the component to the array
         res.push({
             component: name,
@@ -655,12 +665,9 @@ function GenerateMatrix(testKind, enableCloudTests) {
             'destroy-script': comp[testKind + 'Destroy'] || undefined,
             'nodejs-version': comp.nodeJsVersion || undefined,
             'mongodb-version': comp.mongoDbVersion || undefined,
-            'source-pkg': comp.sourcePkg?.length
-                ? comp.sourcePkg
-                      .map((p) => 'github.com/dapr/components-contrib/' + p)
-                      .join(',')
-                : 'github.com/dapr/components-contrib/' +
-                  name.replace(/\./g, '/'),
+            'source-pkg': comp.sourcePkg
+                .map((p) => 'github.com/dapr/components-contrib/' + p)
+                .join(','),
         })
     }
 

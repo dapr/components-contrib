@@ -80,8 +80,9 @@ type MongoDB struct {
 	operationTimeout time.Duration
 	metadata         mongoDBMetadata
 
-	features []state.Feature
-	logger   logger.Logger
+	features     []state.Feature
+	logger       logger.Logger
+	isReplicaSet bool
 }
 
 type mongoDBMetadata struct {
@@ -116,40 +117,39 @@ func NewMongoDB(logger logger.Logger) state.Store {
 }
 
 // Init establishes connection to the store based on the metadata.
-func (m *MongoDB) Init(ctx context.Context, metadata state.Metadata) error {
-	meta, err := getMongoDBMetaData(metadata)
+func (m *MongoDB) Init(ctx context.Context, metadata state.Metadata) (err error) {
+	m.metadata, err = getMongoDBMetaData(metadata)
 	if err != nil {
 		return err
 	}
 
-	m.operationTimeout = meta.OperationTimeout
+	m.operationTimeout = m.metadata.OperationTimeout
 
-	client, err := getMongoDBClient(ctx, meta)
+	client, err := m.getMongoDBClient(ctx)
 	if err != nil {
 		return fmt.Errorf("error in creating mongodb client: %s", err)
 	}
 
 	if err = client.Ping(ctx, nil); err != nil {
-		return fmt.Errorf("error in connecting to mongodb, host: %s error: %s", meta.Host, err)
+		return fmt.Errorf("error in connecting to mongodb, host: %s error: %s", m.metadata.Host, err)
 	}
 
 	m.client = client
 
 	// get the write concern
-	wc, err := getWriteConcernObject(meta.Writeconcern)
+	wc, err := getWriteConcernObject(m.metadata.Writeconcern)
 	if err != nil {
 		return fmt.Errorf("error in getting write concern object: %s", err)
 	}
 
 	// get the read concern
-	rc, err := getReadConcernObject(meta.Readconcern)
+	rc, err := getReadConcernObject(m.metadata.Readconcern)
 	if err != nil {
 		return fmt.Errorf("error in getting read concern object: %s", err)
 	}
 
-	m.metadata = *meta
 	opts := options.Collection().SetWriteConcern(wc).SetReadConcern(rc)
-	m.collection = m.client.Database(meta.DatabaseName).Collection(meta.CollectionName, opts)
+	m.collection = m.client.Database(m.metadata.DatabaseName).Collection(m.metadata.CollectionName, opts)
 
 	// Set expireAfterSeconds index on ttl field with a value of 0 to delete
 	// values immediately when the TTL value is reached.
@@ -161,6 +161,10 @@ func (m *MongoDB) Init(ctx context.Context, metadata state.Metadata) error {
 	})
 	if err != nil {
 		return fmt.Errorf("error in creating ttl index: %s", err)
+	}
+
+	if !m.isReplicaSet {
+		m.logger.Info("Connected to MongoDB without a replica set. Transactions are not available, and the component cannot be used as actor state store.")
 	}
 
 	return nil
@@ -355,19 +359,63 @@ func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) 
 	return nil
 }
 
+// BulkSet performs a bulk save operation.
+// We need to implement a custom BulkSet/BulkDelete because with MongoDB transactions are not always available (only when connecting to a replica set), and when they're not, we need to fall back to performing operations in sequence.
+func (m *MongoDB) BulkSet(ctx context.Context, req []state.SetRequest) error {
+	// Use transactions if we can
+	if m.isReplicaSet {
+		return m.Multi(ctx, &state.TransactionalStateRequest{
+			Operations: state.ToTransactionalStateOperationSlice(req),
+		})
+	}
+
+	// Fallback to executing all operations in sequence
+	for i := range req {
+		err := m.Set(ctx, &req[i])
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// BulkDelete performs a bulk delete operation.
+// We need to implement a custom BulkSet/BulkDelete because with MongoDB transactions are not always available (only when connecting to a replica set), and when they're not, we need to fall back to performing operations in sequence.
+func (m *MongoDB) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
+	// Use transactions if we can
+	if m.isReplicaSet {
+		return m.Multi(ctx, &state.TransactionalStateRequest{
+			Operations: state.ToTransactionalStateOperationSlice(req),
+		})
+	}
+
+	// Fallback to executing all operations in sequence
+	for i := range req {
+		err := m.Delete(ctx, &req[i])
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
 func (m *MongoDB) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
+	if !m.isReplicaSet {
+		return errors.New("using transactions with MongoDB requires connecting to a replica set")
+	}
+
 	sess, err := m.client.StartSession()
-	txnOpts := options.Transaction().
-		SetReadConcern(readconcern.Snapshot()).
-		SetWriteConcern(writeconcern.New(writeconcern.WMajority()))
-
-	defer sess.EndSession(ctx)
-
 	if err != nil {
 		return fmt.Errorf("error starting the transaction: %w", err)
 	}
+	defer sess.EndSession(ctx)
 
+	txnOpts := options.Transaction().
+		SetReadConcern(readconcern.Snapshot()).
+		SetWriteConcern(writeconcern.New(writeconcern.WMajority()))
 	sess.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
 		err = m.doTransaction(sessCtx, request.Operations)
 		return nil, err
@@ -413,7 +461,7 @@ func (m *MongoDB) Query(ctx context.Context, req *state.QueryRequest) (*state.Qu
 	}, nil
 }
 
-func getMongoConnectionString(metadata *mongoDBMetadata) string {
+func (metadata *mongoDBMetadata) getMongoConnectionString() string {
 	if metadata.ConnectionString != "" {
 		return metadata.ConnectionString
 	}
@@ -433,14 +481,15 @@ func getMongoConnectionString(metadata *mongoDBMetadata) string {
 	return fmt.Sprintf(connectionURIFormat, metadata.Host, metadata.DatabaseName, metadata.Params)
 }
 
-func getMongoDBClient(ctx context.Context, metadata *mongoDBMetadata) (*mongo.Client, error) {
-	uri := getMongoConnectionString(metadata)
+func (m *MongoDB) getMongoDBClient(ctx context.Context) (*mongo.Client, error) {
+	uri := m.metadata.getMongoConnectionString()
 
 	// Set client options
 	clientOptions := options.Client().ApplyURI(uri)
+	m.isReplicaSet = clientOptions.ReplicaSet != nil
 
 	// Connect to MongoDB
-	ctx, cancel := context.WithTimeout(ctx, metadata.OperationTimeout)
+	ctx, cancel := context.WithTimeout(ctx, m.metadata.OperationTimeout)
 	defer cancel()
 
 	daprUserAgent := "dapr-" + logger.DaprVersion
@@ -458,7 +507,7 @@ func getMongoDBClient(ctx context.Context, metadata *mongoDBMetadata) (*mongo.Cl
 	return client, nil
 }
 
-func getMongoDBMetaData(meta state.Metadata) (*mongoDBMetadata, error) {
+func getMongoDBMetaData(meta state.Metadata) (mongoDBMetadata, error) {
 	m := mongoDBMetadata{
 		DatabaseName:     defaultDatabaseName,
 		CollectionName:   defaultCollectionName,
@@ -467,16 +516,16 @@ func getMongoDBMetaData(meta state.Metadata) (*mongoDBMetadata, error) {
 
 	decodeErr := metadata.DecodeMetadata(meta.Properties, &m)
 	if decodeErr != nil {
-		return nil, decodeErr
+		return m, decodeErr
 	}
 
 	if m.ConnectionString == "" {
 		if len(m.Host) == 0 && len(m.Server) == 0 {
-			return nil, errors.New("must set 'host' or 'server' fields in metadata")
+			return m, errors.New("must set 'host' or 'server' fields in metadata")
 		}
 
 		if len(m.Host) != 0 && len(m.Server) != 0 {
-			return nil, errors.New("'host' or 'server' fields are mutually exclusive")
+			return m, errors.New("'host' or 'server' fields are mutually exclusive")
 		}
 	}
 
@@ -484,11 +533,11 @@ func getMongoDBMetaData(meta state.Metadata) (*mongoDBMetadata, error) {
 	if val, ok := meta.Properties[operationTimeout]; ok && val != "" {
 		m.OperationTimeout, err = time.ParseDuration(val)
 		if err != nil {
-			return nil, errors.New("incorrect operationTimeout field from metadata")
+			return m, errors.New("incorrect operationTimeout field from metadata")
 		}
 	}
 
-	return &m, nil
+	return m, nil
 }
 
 func getWriteConcernObject(cn string) (*writeconcern.WriteConcern, error) {

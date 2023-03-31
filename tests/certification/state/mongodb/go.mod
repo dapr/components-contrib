@@ -153,4 +153,4 @@ replace github.com/dapr/components-contrib/tests/certification => ../../
 
 replace github.com/dapr/components-contrib => ../../../../
 
-replace github.com/dapr/dapr => github.com/italypaleale/dapr v1.6.1-0.20230331170234-b28aec9620eb
+replace github.com/dapr/dapr => ../../../../../dapr

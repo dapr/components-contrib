@@ -86,11 +86,13 @@ func (b *DefaultBulkStore) BulkGet(ctx context.Context, req []GetRequest, opts B
 	return res, nil
 }
 
-// BulkSet performs a bulks save operation.
+// BulkSet performs a bulk save operation.
 func (b *DefaultBulkStore) BulkSet(ctx context.Context, req []SetRequest) error {
 	// Check if the base implementation supports transactions
 	if ts, ok := b.base.(TransactionalStore); ok {
-		return b.bulkSetTransactional(ctx, req, ts)
+		return ts.Multi(ctx, &TransactionalStateRequest{
+			Operations: ToTransactionalStateOperationSlice(req),
+		})
 	}
 
 	// Fallback to executing all operations in sequence
@@ -104,22 +106,13 @@ func (b *DefaultBulkStore) BulkSet(ctx context.Context, req []SetRequest) error 
 	return nil
 }
 
-// bulkSetTransactional performs a bulk save operation when the base state store is transactional.
-func (b *DefaultBulkStore) bulkSetTransactional(ctx context.Context, req []SetRequest, ts TransactionalStore) error {
-	ops := make([]TransactionalStateOperation, len(req))
-	for i, r := range req {
-		ops[i] = r
-	}
-	return ts.Multi(ctx, &TransactionalStateRequest{
-		Operations: ops,
-	})
-}
-
 // BulkDelete performs a bulk delete operation.
 func (b *DefaultBulkStore) BulkDelete(ctx context.Context, req []DeleteRequest) error {
 	// Check if the base implementation supports transactions
 	if ts, ok := b.base.(TransactionalStore); ok {
-		return b.bulkDeleteTransactional(ctx, req, ts)
+		return ts.Multi(ctx, &TransactionalStateRequest{
+			Operations: ToTransactionalStateOperationSlice(req),
+		})
 	}
 
 	// Fallback to executing all operations in sequence
@@ -133,13 +126,11 @@ func (b *DefaultBulkStore) BulkDelete(ctx context.Context, req []DeleteRequest) 
 	return nil
 }
 
-// bulkDeleteTransactional performs a bulk delete operation when the base state store is transactional.
-func (b *DefaultBulkStore) bulkDeleteTransactional(ctx context.Context, req []DeleteRequest, ts TransactionalStore) error {
+// ToTransactionalStateOperationSlice is necessary to convert []SetRequest and []DeleteRequest to []TransactionalStateOperation.
+func ToTransactionalStateOperationSlice[T TransactionalStateOperation](req []T) []TransactionalStateOperation {
 	ops := make([]TransactionalStateOperation, len(req))
 	for i, r := range req {
 		ops[i] = r
 	}
-	return ts.Multi(ctx, &TransactionalStateRequest{
-		Operations: ops,
-	})
+	return ops
 }

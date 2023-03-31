@@ -50,13 +50,6 @@ const (
 	// &tls=custom
 	// The connection string should be in the following format
 	// "%s:%s@tcp(%s:3306)/%s?allowNativePasswords=true&tls=custom",'myadmin@mydemoserver', 'yourpassword', 'mydemoserver.mysql.database.azure.com', 'targetdb'.
-	pemPathKey = "pemPath"
-
-	// other general settings for DB connections.
-	maxIdleConnsKey    = "maxIdleConns"
-	maxOpenConnsKey    = "maxOpenConns"
-	connMaxLifetimeKey = "connMaxLifetime"
-	connMaxIdleTimeKey = "connMaxIdleTime"
 
 	// keys from request's metadata.
 	commandSQLKey = "sql"
@@ -242,18 +235,6 @@ func (m *Mysql) exec(ctx context.Context, sql string) (int64, error) {
 	}
 
 	return res.RowsAffected()
-}
-
-func propertyToInt(props map[string]string, key string, setter func(int)) error {
-	if v, ok := props[key]; ok {
-		if i, err := strconv.Atoi(v); err == nil {
-			setter(i)
-		} else {
-			return fmt.Errorf("error converting %s:%s to int: %w", key, v, err)
-		}
-	}
-
-	return nil
 }
 
 func initDB(url, pemPath string) (*sql.DB, error) {

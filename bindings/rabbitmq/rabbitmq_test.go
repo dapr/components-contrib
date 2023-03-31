@@ -14,7 +14,6 @@ limitations under the License.
 package rabbitmq
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -113,7 +112,6 @@ func TestParseMetadata(t *testing.T) {
 			expectedDeleteWhenUnused: false,
 			expectedDurable:          false,
 			expectedReconnectWaitCheck: func(expect time.Duration) bool {
-				fmt.Println("ACTUAL: ", expect)
 				return expect == 10*time.Second
 			},
 		},

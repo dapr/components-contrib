@@ -26,13 +26,10 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
 const (
-	// configurations to connect to GraphQL.
-	connectionEndPointKey = "endpoint"
 
 	// keys from request's metadata.
 	commandQuery    = "query"
@@ -192,6 +189,6 @@ func (gql *GraphQL) runRequest(ctx context.Context, requestKey string, req *bind
 func (gql *GraphQL) GetComponentMetadata() map[string]string {
 	metadataStruct := graphQLMetadata{}
 	metadataInfo := map[string]string{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ComponentType.BindingType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
 	return metadataInfo
 }

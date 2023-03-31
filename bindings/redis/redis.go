@@ -22,7 +22,6 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"github.com/dapr/components-contrib/metadata"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -77,7 +76,7 @@ func (r *Redis) Operations() []bindings.OperationKind {
 
 func (r *Redis) expireKeyIfRequested(ctx context.Context, requestMetadata map[string]string, key string) error {
 	// get ttl from request metadata
-	ttl, ok, err := contribMetadata.TryGetTTL(requestMetadata)
+	ttl, ok, err := metadata.TryGetTTL(requestMetadata)
 	if err != nil {
 		return err
 	}

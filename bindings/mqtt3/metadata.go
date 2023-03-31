@@ -43,6 +43,7 @@ const (
 	defaultCleanSession = false
 )
 
+//nolint:stylecheck
 type mqtt3Metadata struct {
 	tlsCfg            `mapstructure:",squash"`
 	Url               string `mapstructure:"url"`
@@ -50,7 +51,7 @@ type mqtt3Metadata struct {
 	Qos               byte   `mapstructure:"-"`
 	Retain            bool   `mapstructure:"retain"`
 	CleanSession      bool   `mapstructure:"cleanSession"`
-	BackOffMaxRetries int    `mapstructure:"backOffMaxRetries`
+	BackOffMaxRetries int    `mapstructure:"backOffMaxRetries"`
 	Topic             string `mapstructure:"topic"`
 }
 

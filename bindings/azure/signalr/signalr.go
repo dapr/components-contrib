@@ -51,7 +51,7 @@ const (
 // Metadata keys.
 // Azure AD credentials are parsed separately and not listed here.
 type SignalRMetadata struct {
-	Endpoint         string `mapstructure:"endpoint`
+	Endpoint         string `mapstructure:"endpoint"`
 	AccessKey        string `mapstructure:"accessKey"`
 	Hub              string `mapstructure:"hub"`
 	ConnectionString string `mapstructure:"connectionString"`

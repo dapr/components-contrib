@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+
 	"github.com/dapr/components-contrib/metadata"
 )
 

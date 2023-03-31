@@ -46,8 +46,8 @@ type ConfigurationStore struct {
 }
 
 type subscription struct {
-	uuid string
-	keys []string
+	channel string
+	keys    []string
 }
 
 type pgResponse struct {
@@ -177,27 +177,25 @@ func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnsubscribeRequest) error {
 	p.configLock.Lock()
 	defer p.configLock.Unlock()
-	for k, v := range p.ActiveSubscriptions {
-		if v.uuid == req.ID {
-			if oldStopChan, ok := p.subscribeStopChanMap[req.ID]; ok {
-				delete(p.subscribeStopChanMap, req.ID)
-				close(oldStopChan)
-				pgChannel := fmt.Sprintf(unlistenTemplate, k)
-				conn, err := p.client.Acquire(ctx)
-				if err != nil {
-					p.logger.Errorf("error acquiring connection:", err)
-					return fmt.Errorf("error acquiring connection: %w ", err)
-				}
-				defer conn.Release()
-				_, err = conn.Exec(ctx, pgChannel)
-				if err != nil {
-					p.logger.Errorf("error un-listening to channel:", err)
-					return fmt.Errorf("error un-listening to channel: %w", err)
-				}
-				delete(p.ActiveSubscriptions, k)
-				return nil
-			}
+	if sub, ok := p.ActiveSubscriptions[req.ID]; ok {
+		if oldStopChan, ok := p.subscribeStopChanMap[req.ID]; ok {
+			delete(p.subscribeStopChanMap, req.ID)
+			close(oldStopChan)
 		}
+		pgChannel := fmt.Sprintf(unlistenTemplate, sub.channel)
+		conn, err := p.client.Acquire(ctx)
+		if err != nil {
+			p.logger.Errorf("error acquiring connection:", err)
+			return fmt.Errorf("error acquiring connection: %w ", err)
+		}
+		defer conn.Release()
+		_, err = conn.Exec(ctx, pgChannel)
+		if err != nil {
+			p.logger.Errorf("error un-listening to channel:", err)
+			return fmt.Errorf("error un-listening to channel: %w", err)
+		}
+		delete(p.ActiveSubscriptions, req.ID)
+		return nil
 	}
 
 	return fmt.Errorf("unable to find subscription with ID : %v", req.ID)
@@ -361,19 +359,8 @@ func buildQuery(req *configuration.GetRequest, configTable string) (string, []in
 	return query, params, nil
 }
 
-func (p *ConfigurationStore) isSubscriptionActive(req *configuration.SubscribeRequest) (string, bool) {
-	for _, channel := range req.Metadata {
-		for key2, sub := range p.ActiveSubscriptions {
-			if res := strings.EqualFold(channel, key2); res {
-				return sub.uuid, true
-			}
-		}
-	}
-	return " ", false
-}
-
 func (p *ConfigurationStore) isSubscribed(subscriptionID string, channel string, key string) bool {
-	if val, yes := p.ActiveSubscriptions[channel]; yes && val.uuid == subscriptionID && slices.Contains(val.keys, key) {
+	if val, yes := p.ActiveSubscriptions[subscriptionID]; yes && val.channel == channel && (slices.Contains(val.keys, key) || len(val.keys) == 0) {
 		return true
 	}
 	return false
@@ -394,13 +381,6 @@ func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, pgNotifyCha
 	var subscribeID string
 	for _, channel := range pgNotifyChanList {
 		pgNotifyCmd := fmt.Sprintf(listenTemplate, channel)
-		if sub, isActive := p.isSubscriptionActive(req); isActive {
-			if oldStopChan, ok := p.subscribeStopChanMap[sub]; ok {
-				close(oldStopChan)
-				delete(p.subscribeStopChanMap, sub)
-				delete(p.ActiveSubscriptions, channel)
-			}
-		}
 		stop := make(chan struct{})
 		subscribeUID, err := uuid.NewRandom()
 		if err != nil {
@@ -408,9 +388,9 @@ func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, pgNotifyCha
 		}
 		subscribeID = subscribeUID.String()
 		p.subscribeStopChanMap[subscribeID] = stop
-		p.ActiveSubscriptions[channel] = &subscription{
-			uuid: subscribeID,
-			keys: req.Keys,
+		p.ActiveSubscriptions[subscribeID] = &subscription{
+			channel: channel,
+			keys:    req.Keys,
 		}
 		go p.doSubscribe(ctx, req, handler, pgNotifyCmd, channel, subscribeID, stop)
 	}

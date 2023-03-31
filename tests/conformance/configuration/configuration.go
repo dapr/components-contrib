@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -34,6 +35,9 @@ const (
 	v1                     = "1.0.0"
 	defaultMaxReadDuration = 30 * time.Second
 	defaultWaitDuration    = 5 * time.Second
+	postgres               = "postgres"
+	pgNotifyChannelKey     = "pgNotifyChannel"
+	pgNotifyChannel        = "config"
 )
 
 type TestConfig struct {
@@ -77,8 +81,8 @@ func generateKeyValues(runID string, counter int, keyCount int, version string) 
 	m := make(map[string]*configuration.Item, keyCount)
 	k := counter
 	for ; k < counter+keyCount; k++ {
-		key := runID + "-key-" + strconv.Itoa(k)
-		val := runID + "-val-" + strconv.Itoa(k)
+		key := runID + "_key_" + strconv.Itoa(k)
+		val := runID + "_val_" + strconv.Itoa(k)
 		m[key] = &configuration.Item{
 			Value:    val,
 			Version:  version,
@@ -93,7 +97,7 @@ func updateKeyValues(mymap map[string]*configuration.Item, runID string, counter
 	m := make(map[string]*configuration.Item, len(mymap))
 	k := counter
 	for key := range mymap {
-		updatedVal := runID + "-val-" + strconv.Itoa(k)
+		updatedVal := runID + "_val_" + strconv.Itoa(k)
 		m[key] = &configuration.Item{
 			Value:    updatedVal,
 			Version:  version,
@@ -125,13 +129,13 @@ func getStringItem(item *configuration.Item) string {
 	return string(jsonItem)
 }
 
-func ConformanceTests(t *testing.T, props map[string]string, store configuration.Store, updater configupdater.Updater, config TestConfig) {
+func ConformanceTests(t *testing.T, props map[string]string, store configuration.Store, updater configupdater.Updater, config TestConfig, component string) {
 	var subscribeIDs []string
 	initValues1 := make(map[string]*configuration.Item)
 	initValues2 := make(map[string]*configuration.Item)
 	initValues := make(map[string]*configuration.Item)
 	newValues := make(map[string]*configuration.Item)
-	runID := uuid.Must(uuid.NewRandom()).String()
+	runID := strings.ReplaceAll(uuid.Must(uuid.NewRandom()).String(), "-", "_")
 	counter := 0
 
 	awaitingMessages1 := make(map[string]map[string]struct{}, keyCount*4)
@@ -203,12 +207,16 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 	}
 
 	if config.HasOperation("subscribe") {
+		subscribeMetadata := make(map[string]string)
+		if component == postgres {
+			subscribeMetadata[pgNotifyChannelKey] = pgNotifyChannel
+		}
 		t.Run("subscriber 1 with non-empty key list", func(t *testing.T) {
 			keys := getKeys(initValues1)
 			ID, err := store.Subscribe(context.Background(),
 				&configuration.SubscribeRequest{
 					Keys:     keys,
-					Metadata: make(map[string]string),
+					Metadata: subscribeMetadata,
 				},
 				func(ctx context.Context, e *configuration.UpdateEvent) error {
 					processedC1 <- e
@@ -223,7 +231,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			ID, err := store.Subscribe(context.Background(),
 				&configuration.SubscribeRequest{
 					Keys:     keys,
-					Metadata: make(map[string]string),
+					Metadata: subscribeMetadata,
 				},
 				func(ctx context.Context, e *configuration.UpdateEvent) error {
 					processedC2 <- e
@@ -238,7 +246,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			ID, err := store.Subscribe(context.Background(),
 				&configuration.SubscribeRequest{
 					Keys:     keys,
-					Metadata: make(map[string]string),
+					Metadata: subscribeMetadata,
 				},
 				func(ctx context.Context, e *configuration.UpdateEvent) error {
 					processedC3 <- e
@@ -284,8 +292,10 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			// Delete initValues2
 			errDelete := updater.DeleteKey(getKeys(initValues2))
 			assert.NoError(t, errDelete, "expected no error on updating keys")
-			for k := range initValues2 {
-				initValues2[k] = &configuration.Item{}
+			if component != postgres {
+				for k := range initValues2 {
+					initValues2[k] = &configuration.Item{}
+				}
 			}
 
 			updateAwaitingMessages(awaitingMessages2, initValues2)

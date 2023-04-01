@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -528,6 +529,11 @@ func getMongoDBMetaData(meta state.Metadata) (mongoDBMetadata, error) {
 
 		if len(m.Host) != 0 && len(m.Server) != 0 {
 			return m, errors.New("'host' or 'server' fields are mutually exclusive")
+		}
+
+		// Ensure that params, if set, start with ?
+		if m.Params != "" && !strings.HasPrefix(m.Params, "?") {
+			m.Params = "?" + m.Params
 		}
 	}
 

@@ -20,8 +20,6 @@ import (
 	"time"
 
 	"golang.org/x/mod/semver"
-
-	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -50,8 +48,6 @@ type RedisPipeliner interface {
 	Exec(ctx context.Context) error
 	Do(ctx context.Context, args ...interface{})
 }
-
-var clientHasJSONSupport *bool
 
 //nolint:interfacebloat
 type RedisClient interface {
@@ -118,30 +114,22 @@ func ParseClientFromProperties(properties map[string]string, defaultSettings *Se
 }
 
 func ClientHasJSONSupport(c RedisClient) bool {
-	if clientHasJSONSupport != nil {
-		return *clientHasJSONSupport
-	}
-	bgctx := context.Background()
-	ctx, cancel := context.WithTimeout(bgctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err := c.DoWrite(ctx, "JSON.GET")
 
+	err := c.DoWrite(ctx, "JSON.GET")
 	if err == nil {
-		clientHasJSONSupport = ptr.Of(true)
 		return true
 	}
 
 	if strings.HasPrefix(err.Error(), "ERR unknown command") {
-		clientHasJSONSupport = ptr.Of(false)
 		return false
 	}
-	clientHasJSONSupport = ptr.Of(true)
 	return true
 }
 
 func GetServerVersion(c RedisClient) (string, error) {
-	bgctx := context.Background()
-	ctx, cancel := context.WithTimeout(bgctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	res, err := c.DoRead(ctx, "INFO", "server")
 	if err != nil {

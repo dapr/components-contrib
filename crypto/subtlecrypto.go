@@ -21,6 +21,8 @@ import (
 
 // SubtleCrypto offers an interface to perform low-level ("subtle") cryptographic operations with keys stored in a vault.
 type SubtleCrypto interface {
+	SubtleCryptoMetadata
+
 	// Init the component.
 	Init(ctx context.Context, metadata Metadata) error
 
@@ -162,4 +164,10 @@ type SubtleCrypto interface {
 
 	// GetComponentMetadata returns information on the component's metadata.
 	GetComponentMetadata() map[string]string
+}
+
+// SubtleCryptoMetadata is an extension to SubtleCrypto that includes methods to return information on the supported algorithms.
+type SubtleCryptoMetadata interface {
+	SupportedEncryptionAlgorithms() []string
+	SupportedSignatureAlgorithms() []string
 }

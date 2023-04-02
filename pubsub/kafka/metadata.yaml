@@ -8,10 +8,6 @@ title: "Apache Kafka"
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-apache-kafka/
-capabilities:
-    - publish
-    - subscribe
-    - query
 metadata:
     - name: brokers
       required: true
@@ -35,27 +31,32 @@ metadata:
       type: bool
     - name: authType
       required: true
-      description: "Configure or disable authentication. Supported values: none, password, mtls, or oidc"
+      description: | 
+        Configure or disable authentication. Supported values: "none", "password", "mtls", or "oidc"
       example: "none"
       type: string
     - name: saslUsername
       required: false
-      description: "The SASL username used for authentication. Only required if authType is set to \"password\""
+      description: |
+        The SASL username used for authentication. Only required if authType is set to "password"
       example: "myuser"
       type: string
     - name: saslPassword
       required: false
-      description: "The SASL password used for authentication. Can be secretKeyRef to use a secret reference. Only required if authType is set to \"password\""
+      description: |
+        The SASL password used for authentication. Can be secretKeyRef to use a secret reference. Only required if authType is set to "password"
       example: "mypassword"
       type: string
     - name: saslMechanism
       required: false
-      description: "The SASL Authentication Mechanism you wish to use. Only required if authType is set to \"password\". Defaults to PLAINTEXT"
+      description: |
+        The SASL Authentication Mechanism you wish to use. Only required if authType is set to "password". Defaults to "PLAINTEXT"
       example: "SHA-512"
       type: string
     - name: initialOffset
       required: false
-      description: "The initial offset to use if no offset was previously committed. Should be \"newest\" or \"oldest\". Defaults to \"newest\""
+      description: |
+        The initial offset to use if no offset was previously committed. Should be "newest" or "oldest". Defaults to "newest"
       example: "oldest"
       type: string
     - name: maxMessageBytes
@@ -65,17 +66,20 @@ metadata:
       type: number
     - name: consumeRetryInterval
       required: false
-      description: "The interval between retries when attempting to consume topics. Treats numbers without suffix as milliseconds. Defaults to 100ms"
+      description: |
+        The interval between retries when attempting to consume topics. Treats numbers without suffix as milliseconds. Defaults to "100ms"
       example: "200ms"
       type: string
     - name: consumeRetryEnabled
       required: false
-      description: "Disable consume retry by setting \"false\""
+      description: |
+        Disables consumer retry by setting this to "false"
       example: "true"
       type: bool
     - name: version
       required: false
-      description: "Kafka cluster version. Defaults to 2.0.0.0"
+      description: |
+        Kafka cluster version. Defaults to "2.0.0.0"
       example: "0.10.2.0"
       type: string
     - name: caCert
@@ -95,12 +99,14 @@ metadata:
       type: string
     - name: skipVerify
       required: false
-      description: "Skip TLS verification, this is not recommended for use in production. Defaults to \"false\""
+      description: |
+        Skip TLS verification, this is not recommended for use in production. Defaults to "false"
       example: "true"
       type: bool
     - name: disableTls
       required: false
-      description: "Disable TLS for transport security. To disable, you’re not required to set value to \"true\". This is not recommended for use in production. Defaults to "false""
+      description: |
+        Disable TLS for transport security. This is not recommended for use in production. Defaults to "false", which implies TLS is enabled
       example: "true"
       type: bool
     - name: oidcTokenEndpoint
@@ -120,7 +126,8 @@ metadata:
       type: string
     - name: oidcScopes
       required: false
-      description: "Comma-delimited list of OAuth2/OIDC scopes to request with the access token. Recommended when authType is set to oidc. Defaults to \"openid\""
+      description: |
+        Comma-delimited list of OAuth2/OIDC scopes to request with the access token. Recommended when authType is set to oidc. Defaults to "openid"
       example: "openid,kafka-prod"
       type: string
 

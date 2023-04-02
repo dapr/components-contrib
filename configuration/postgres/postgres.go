@@ -162,16 +162,16 @@ func (p *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 }
 
 func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
-	var pgNotifyChannels []string
+	pgNotifyChannel := ""
 	for k, v := range req.Metadata {
-		if res := strings.EqualFold(pgNotifyChannelKey, k) && !slices.Contains(pgNotifyChannels, v); res {
-			pgNotifyChannels = append(pgNotifyChannels, v) // append unique channel names only
+		if res := strings.EqualFold(pgNotifyChannelKey, k); res {
+			pgNotifyChannel = v
 		}
 	}
-	if len(pgNotifyChannels) == 0 {
+	if pgNotifyChannel == "" {
 		return "", fmt.Errorf("unable to subscribe to '%s'.pgNotifyChannel attribute cannot be empty", p.metadata.ConfigTable)
 	}
-	return p.subscribeToChannel(ctx, pgNotifyChannels, req, handler)
+	return p.subscribeToChannel(ctx, pgNotifyChannel, req, handler)
 }
 
 func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnsubscribeRequest) error {
@@ -375,25 +375,23 @@ func validateInput(keys []string) error {
 	return nil
 }
 
-func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, pgNotifyChanList []string, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
+func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, pgNotifyChannel string, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
 	p.configLock.Lock()
 	defer p.configLock.Unlock()
 	var subscribeID string
-	for _, channel := range pgNotifyChanList {
-		pgNotifyCmd := fmt.Sprintf(listenTemplate, channel)
-		stop := make(chan struct{})
-		subscribeUID, err := uuid.NewRandom()
-		if err != nil {
-			return "", fmt.Errorf("unable to generate subscription id - %w", err)
-		}
-		subscribeID = subscribeUID.String()
-		p.subscribeStopChanMap[subscribeID] = stop
-		p.ActiveSubscriptions[subscribeID] = &subscription{
-			channel: channel,
-			keys:    req.Keys,
-		}
-		go p.doSubscribe(ctx, req, handler, pgNotifyCmd, channel, subscribeID, stop)
+	pgNotifyCmd := fmt.Sprintf(listenTemplate, pgNotifyChannel)
+	stop := make(chan struct{})
+	subscribeUID, err := uuid.NewRandom()
+	if err != nil {
+		return "", fmt.Errorf("unable to generate subscription id - %w", err)
 	}
+	subscribeID = subscribeUID.String()
+	p.subscribeStopChanMap[subscribeID] = stop
+	p.ActiveSubscriptions[subscribeID] = &subscription{
+		channel: pgNotifyChannel,
+		keys:    req.Keys,
+	}
+	go p.doSubscribe(ctx, req, handler, pgNotifyCmd, pgNotifyChannel, subscribeID, stop)
 	return subscribeID, nil
 }
 

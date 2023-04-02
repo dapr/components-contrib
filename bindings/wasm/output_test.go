@@ -178,7 +178,7 @@ func Test_Invoke(t *testing.T) {
 			request: &bindings.InvokeRequest{
 				Operation: ExecuteOperation,
 			},
-			expectedErr: `module "main-1" closed with context canceled`,
+			expectedErr: `module closed with context canceled`,
 		},
 		{
 			name: "example",

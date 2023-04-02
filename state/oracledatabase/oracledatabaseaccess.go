@@ -18,8 +18,10 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 
 	"github.com/google/uuid"
 
@@ -36,7 +38,7 @@ const (
 	connectionStringKey        = "connectionString"
 	oracleWalletLocationKey    = "oracleWalletLocation"
 	errMissingConnectionString = "missing connection string"
-	tableName                  = "state"
+	defaultTableName           = "state"
 )
 
 // oracleDatabaseAccess implements dbaccess.
@@ -45,7 +47,6 @@ type oracleDatabaseAccess struct {
 	metadata         oracleDatabaseMetadata
 	db               *sql.DB
 	connectionString string
-	tx               *sql.Tx
 }
 
 type oracleDatabaseMetadata struct {
@@ -56,8 +57,6 @@ type oracleDatabaseMetadata struct {
 
 // newOracleDatabaseAccess creates a new instance of oracleDatabaseAccess.
 func newOracleDatabaseAccess(logger logger.Logger) *oracleDatabaseAccess {
-	logger.Debug("Instantiating new Oracle Database state store")
-
 	return &oracleDatabaseAccess{
 		logger: logger,
 	}
@@ -69,7 +68,7 @@ func (o *oracleDatabaseAccess) Ping(ctx context.Context) error {
 
 func parseMetadata(meta map[string]string) (oracleDatabaseMetadata, error) {
 	m := oracleDatabaseMetadata{
-		TableName: "state",
+		TableName: defaultTableName,
 	}
 	err := metadata.DecodeMetadata(meta, &m)
 	return m, err
@@ -77,7 +76,6 @@ func parseMetadata(meta map[string]string) (oracleDatabaseMetadata, error) {
 
 // Init sets up OracleDatabase connection and ensures that the state table exists.
 func (o *oracleDatabaseAccess) Init(ctx context.Context, metadata state.Metadata) error {
-	o.logger.Debug("Initializing OracleDatabase state store")
 	meta, err := parseMetadata(metadata.Properties)
 	o.metadata = meta
 	if err != nil {
@@ -87,8 +85,7 @@ func (o *oracleDatabaseAccess) Init(ctx context.Context, metadata state.Metadata
 		o.connectionString = meta.ConnectionString
 	} else {
 		o.logger.Error("Missing Oracle Database connection string")
-
-		return fmt.Errorf(errMissingConnectionString)
+		return errors.New(errMissingConnectionString)
 	}
 	if o.metadata.OracleWalletLocation != "" {
 		o.connectionString += "?TRACE FILE=trace.log&SSL=enable&SSL Verify=false&WALLET=" + url.QueryEscape(o.metadata.OracleWalletLocation)
@@ -102,10 +99,12 @@ func (o *oracleDatabaseAccess) Init(ctx context.Context, metadata state.Metadata
 
 	o.db = db
 
-	if pingErr := db.PingContext(ctx); pingErr != nil {
-		return pingErr
+	err = db.PingContext(ctx)
+	if err != nil {
+		return err
 	}
-	err = o.ensureStateTable(tableName)
+
+	err = o.ensureStateTable(o.metadata.TableName)
 	if err != nil {
 		return err
 	}
@@ -115,31 +114,19 @@ func (o *oracleDatabaseAccess) Init(ctx context.Context, metadata state.Metadata
 
 // Set makes an insert or update to the database.
 func (o *oracleDatabaseAccess) Set(ctx context.Context, req *state.SetRequest) error {
-	o.logger.Debug("Setting state value in OracleDatabase")
+	return o.doSet(ctx, o.db, req)
+}
+
+func (o *oracleDatabaseAccess) doSet(ctx context.Context, db querier, req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
 	}
 
 	if req.Key == "" {
-		return fmt.Errorf("missing key in set operation")
+		return errors.New("missing key in set operation")
 	}
 
-	if v, ok := req.Value.(string); ok && v == "" {
-		return fmt.Errorf("empty string is not allowed in set operation")
-	}
-	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || len(*req.ETag) == 0) {
-		o.logger.Debugf("when FirstWrite is to be enforced, a value must be provided for the ETag")
-		return fmt.Errorf("when FirstWrite is to be enforced, a value must be provided for the ETag")
-	}
-	var ttlSeconds int
-	ttl, ttlerr := stateutils.ParseTTL(req.Metadata)
-	if ttlerr != nil {
-		return fmt.Errorf("error parsing TTL: %w", ttlerr)
-	}
-	if ttl != nil {
-		ttlSeconds = *ttl
-	}
 	requestValue := req.Value
 	byteArray, isBinary := req.Value.([]uint8)
 	binaryYN := "N"
@@ -148,48 +135,67 @@ func (o *oracleDatabaseAccess) Set(ctx context.Context, req *state.SetRequest) e
 		binaryYN = "Y"
 	}
 
-	// Convert to json string.
+	// Convert to json string
 	bt, _ := stateutils.Marshal(requestValue, json.Marshal)
 	value := string(bt)
 
-	var result sql.Result
-	var tx *sql.Tx
-	if o.tx == nil { // not joining a preexisting transaction.
-		tx, err = o.db.Begin()
-		if err != nil {
-			return fmt.Errorf("failed to start database transaction : %w", err)
-		}
-	} else { // join the transaction passed in.
-		tx = o.tx
+	// TTL
+	var ttlSeconds int
+	ttl, err := stateutils.ParseTTL(req.Metadata)
+	if err != nil {
+		return fmt.Errorf("error parsing TTL: %w", err)
 	}
-	etag := uuid.New().String()
-	// Only check for etag if FirstWrite specified - as per Discord message thread https://discord.com/channels/778680217417809931/901141713089863710/938520959562952735.
-	if req.Options.Concurrency != state.FirstWrite {
+	if ttl != nil {
+		ttlSeconds = *ttl
+	}
+	ttlStatement := "NULL"
+	if ttlSeconds > 0 {
+		// We're passing ttlStatements via string concatenation - no risk of SQL injection because we control the value and make sure it's a number
+		ttlStatement = "systimestamp + numtodsinterval(" + strconv.Itoa(ttlSeconds) + ", 'SECOND')"
+	}
+
+	// Generate new etag
+	etagObj, err := uuid.NewRandom()
+	if err != nil {
+		return fmt.Errorf("failed to generate UUID: %w", err)
+	}
+	etag := etagObj.String()
+
+	var result sql.Result
+	if req.ETag == nil || *req.ETag == "" {
 		// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
 		// Other parameters use sql.DB parameter substitution.
-		// As per Discord Thread https://discord.com/channels/778680217417809931/901141713089863710/938520959562952735 expiration time is reset in case of an update.
-		mergeStatement := fmt.Sprintf(
-			`MERGE INTO %s t using (select :key key, :value value, :binary_yn binary_yn, :etag etag , :ttl_in_seconds ttl_in_seconds from dual) new_state_to_store
-			ON (t.key = new_state_to_store.key )
-			WHEN MATCHED THEN UPDATE SET value = new_state_to_store.value, binary_yn = new_state_to_store.binary_yn, update_time = systimestamp, etag = new_state_to_store.etag, t.expiration_time = case when new_state_to_store.ttl_in_seconds >0 then systimestamp + numtodsinterval(new_state_to_store.ttl_in_seconds, 'SECOND') end
-			WHEN NOT MATCHED THEN INSERT (t.key, t.value, t.binary_yn, t.etag, t.expiration_time) values (new_state_to_store.key, new_state_to_store.value, new_state_to_store.binary_yn, new_state_to_store.etag, case when new_state_to_store.ttl_in_seconds >0 then systimestamp + numtodsinterval(new_state_to_store.ttl_in_seconds, 'SECOND') end ) `,
-			tableName)
-		result, err = tx.ExecContext(ctx, mergeStatement, req.Key, value, binaryYN, etag, ttlSeconds)
+		var stmt string
+		if req.Options.Concurrency == state.FirstWrite {
+			stmt = `INSERT INTO ` + o.metadata.TableName + `
+				(key, value, binary_yn, etag, expiration_time)
+			VALUES 
+				(:key, :value, :binary_yn, :etag, ` + ttlStatement + `) `
+		} else {
+			// As per Discord Thread https://discord.com/channels/778680217417809931/901141713089863710/938520959562952735 expiration time is reset in case of an update.
+			stmt = `MERGE INTO ` + o.metadata.TableName + ` t
+				USING (SELECT :key key, :value value, :binary_yn binary_yn, :etag etag FROM dual) new_state_to_store
+				ON (t.key = new_state_to_store.key)
+				WHEN MATCHED THEN UPDATE SET value = new_state_to_store.value, binary_yn = new_state_to_store.binary_yn, update_time = systimestamp, etag = new_state_to_store.etag, t.expiration_time = ` + ttlStatement + `
+				WHEN NOT MATCHED THEN INSERT (t.key, t.value, t.binary_yn, t.etag, t.expiration_time) VALUES (new_state_to_store.key, new_state_to_store.value, new_state_to_store.binary_yn, new_state_to_store.etag, ` + ttlStatement + ` ) `
+		}
+		result, err = db.ExecContext(ctx, stmt, req.Key, value, binaryYN, etag)
 	} else {
-		// when first write policy is indicated, an existing record has to be updated - one that has the etag provided.
-		// TODO: Needs to update ttl_in_seconds
-		updateStatement := fmt.Sprintf(
-			`UPDATE %s SET value = :value, binary_yn = :binary_yn, etag = :new_etag
-			 WHERE key = :key AND etag = :etag`,
-			tableName)
-		result, err = tx.ExecContext(ctx, updateStatement, value, binaryYN, etag, req.Key, *req.ETag)
+		// When first write policy is indicated, an existing record has to be updated - one that has the etag provided.
+		updateStatement := `UPDATE ` + o.metadata.TableName + ` SET
+			  value = :value,
+			  binary_yn = :binary_yn,
+			  etag = :new_etag,
+			  update_time = systimestamp,
+			  expiration_time = ` + ttlStatement + `
+			 WHERE key = :key
+			   AND etag = :etag
+			   AND (expiration_time IS NULL OR expiration_time >= systimestamp)`
+		result, err = db.ExecContext(ctx, updateStatement, value, binaryYN, etag, req.Key, *req.ETag)
 	}
 	if err != nil {
 		if req.ETag != nil && *req.ETag != "" {
 			return state.NewETagError(state.ETagMismatch, err)
-		}
-		if o.tx == nil { // not in a preexisting transaction so rollback the local, failed tx.
-			tx.Rollback()
 		}
 		return err
 	}
@@ -197,25 +203,23 @@ func (o *oracleDatabaseAccess) Set(ctx context.Context, req *state.SetRequest) e
 	if err != nil {
 		return err
 	}
-	if o.tx == nil { // local transaction, take responsibility.
-		tx.Commit()
-	}
 	if rows != 1 {
-		return fmt.Errorf("no item was updated")
+		return errors.New("no item was updated")
 	}
 	return nil
 }
 
 // Get returns data from the database. If data does not exist for the key an empty state.GetResponse will be returned.
 func (o *oracleDatabaseAccess) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
-	o.logger.Debug("Getting state value from OracleDatabase")
 	if req.Key == "" {
-		return nil, fmt.Errorf("missing key in get operation")
+		return nil, errors.New("missing key in get operation")
 	}
-	var value string
-	var binaryYN string
-	var etag string
-	err := o.db.QueryRowContext(ctx, fmt.Sprintf("SELECT value, binary_yn, etag  FROM %s WHERE key = :key and (expiration_time is null or expiration_time > systimestamp)", tableName), req.Key).Scan(&value, &binaryYN, &etag)
+	var (
+		value    string
+		binaryYN string
+		etag     string
+	)
+	err := o.db.QueryRowContext(ctx, "SELECT value, binary_yn, etag FROM "+o.metadata.TableName+" WHERE key = :key AND (expiration_time IS NULL OR expiration_time > systimestamp)", req.Key).Scan(&value, &binaryYN, &etag)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
 		if err == sql.ErrNoRows {
@@ -224,8 +228,10 @@ func (o *oracleDatabaseAccess) Get(ctx context.Context, req *state.GetRequest) (
 		return nil, err
 	}
 	if binaryYN == "Y" {
-		var s string
-		var data []byte
+		var (
+			s    string
+			data []byte
+		)
 		if err = json.Unmarshal([]byte(value), &s); err != nil {
 			return nil, err
 		}
@@ -247,80 +253,65 @@ func (o *oracleDatabaseAccess) Get(ctx context.Context, req *state.GetRequest) (
 
 // Delete removes an item from the state store.
 func (o *oracleDatabaseAccess) Delete(ctx context.Context, req *state.DeleteRequest) error {
-	o.logger.Debug("Deleting state value from OracleDatabase")
+	return o.doDelete(ctx, o.db, req)
+}
+
+func (o *oracleDatabaseAccess) doDelete(ctx context.Context, db querier, req *state.DeleteRequest) (err error) {
 	if req.Key == "" {
-		return fmt.Errorf("missing key in delete operation")
+		return errors.New("missing key in delete operation")
 	}
-	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || len(*req.ETag) == 0) {
-		o.logger.Debugf("when FirstWrite is to be enforced, a value must be provided for the ETag")
-		return fmt.Errorf("when FirstWrite is to be enforced, a value must be provided for the ETag")
-	}
+
 	var result sql.Result
-	var err error
-	var tx *sql.Tx
-	if o.tx == nil { // not joining a preexisting transaction.
-		tx, err = o.db.Begin()
-		if err != nil {
-			return err
-		}
-	} else { // join the transaction passed in.
-		tx = o.tx
-	}
-	// QUESTION: only check for etag if FirstWrite specified - or always when etag is supplied??
-	if req.Options.Concurrency != state.FirstWrite {
-		result, err = tx.ExecContext(ctx, "DELETE FROM state WHERE key = :key", req.Key)
+	if req.ETag == nil || *req.ETag == "" {
+		result, err = db.ExecContext(ctx, "DELETE FROM "+o.metadata.TableName+" WHERE key = :key", req.Key)
 	} else {
-		result, err = tx.ExecContext(ctx, "DELETE FROM state WHERE key = :key and etag = :etag", req.Key, *req.ETag)
+		result, err = db.ExecContext(ctx, "DELETE FROM "+o.metadata.TableName+" WHERE key = :key AND etag = :etag", req.Key, *req.ETag)
 	}
 	if err != nil {
-		if o.tx == nil { // not joining a preexisting transaction.
-			tx.Rollback()
-		}
 		return err
-	}
-	if o.tx == nil { // not joining a preexisting transaction.
-		tx.Commit()
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
 		return err
 	}
-	if rows != 1 && req.ETag != nil && *req.ETag != "" && req.Options.Concurrency == state.FirstWrite {
+	if rows == 0 && req.ETag != nil && *req.ETag != "" {
 		return state.NewETagError(state.ETagMismatch, nil)
 	}
 	return nil
 }
 
-func (o *oracleDatabaseAccess) ExecuteMulti(ctx context.Context, sets []state.SetRequest, deletes []state.DeleteRequest) error {
-	o.logger.Debug("Executing multiple OracleDatabase operations,  within a single transaction")
-	tx, err := o.db.Begin()
+func (o *oracleDatabaseAccess) ExecuteMulti(parentCtx context.Context, reqs []state.TransactionalStateOperation) error {
+	tx, err := o.db.BeginTx(parentCtx, nil)
 	if err != nil {
 		return err
 	}
-	o.tx = tx
-	if len(deletes) > 0 {
-		for _, d := range deletes {
-			da := d // Fix for gosec  G601: Implicit memory aliasing in for looo.
-			err = o.Delete(ctx, &da)
-			if err != nil {
-				tx.Rollback()
-				return err
+	defer tx.Rollback()
+
+	for _, req := range reqs {
+		switch req.Operation {
+		case state.Upsert:
+			if setReq, ok := req.Request.(state.SetRequest); ok {
+				err = o.doSet(parentCtx, tx, &setReq)
+				if err != nil {
+					return err
+				}
+			} else {
+				return fmt.Errorf("expecting set request")
 			}
+		case state.Delete:
+			if delReq, ok := req.Request.(state.DeleteRequest); ok {
+				err = o.doDelete(parentCtx, tx, &delReq)
+				if err != nil {
+					return err
+				}
+			} else {
+				return fmt.Errorf("expecting delete request")
+			}
+		default:
+			// Do nothing
 		}
 	}
-	if len(sets) > 0 {
-		for _, s := range sets {
-			sa := s // Fix for gosec  G601: Implicit memory aliasing in for looo.
-			err = o.Set(ctx, &sa)
-			if err != nil {
-				tx.Rollback()
-				return err
-			}
-		}
-	}
-	err = tx.Commit()
-	o.tx = nil
-	return err
+	return tx.Commit()
 }
 
 // Close implements io.Closer.
@@ -332,20 +323,21 @@ func (o *oracleDatabaseAccess) Close() error {
 }
 
 func (o *oracleDatabaseAccess) ensureStateTable(stateTableName string) error {
+	// TODO: This is not atomic and can lead to race conditions if multiple sidecars are starting up at the same time
 	exists, err := tableExists(o.db, stateTableName)
 	if err != nil {
 		return err
 	}
 	if !exists {
-		o.logger.Info("Creating OracleDatabase state table")
-		createTable := fmt.Sprintf(`CREATE TABLE %s (
-									key varchar2(100) NOT NULL PRIMARY KEY,
-									value clob NOT NULL,
-									binary_yn varchar2(1) NOT NULL,
-									etag varchar2(50)  NOT NULL,
-									creation_time TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL ,
-									expiration_time TIMESTAMP WITH TIME ZONE NULL,
-									update_time TIMESTAMP WITH TIME ZONE NULL)`, stateTableName)
+		o.logger.Info("Creating state table")
+		createTable := `CREATE TABLE ` + stateTableName + ` (
+						key varchar2(100) NOT NULL PRIMARY KEY,
+						value clob NOT NULL,
+						binary_yn varchar2(1) NOT NULL,
+						etag varchar2(50)  NOT NULL,
+						creation_time TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL ,
+						expiration_time TIMESTAMP WITH TIME ZONE NULL,
+						update_time TIMESTAMP WITH TIME ZONE NULL)`
 		_, err = o.db.Exec(createTable)
 		if err != nil {
 			return err
@@ -356,7 +348,7 @@ func (o *oracleDatabaseAccess) ensureStateTable(stateTableName string) error {
 
 func tableExists(db *sql.DB, tableName string) (bool, error) {
 	var tblCount int32
-	err := db.QueryRow("SELECT count(table_name) tbl_count FROM user_tables where table_name = upper(:tablename)", tableName).Scan(&tblCount)
+	err := db.QueryRow("SELECT count(table_name) tbl_count FROM user_tables WHERE table_name = upper(:tablename)", tableName).Scan(&tblCount)
 	exists := tblCount > 0
 	return exists, err
 }

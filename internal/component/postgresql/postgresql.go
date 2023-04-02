@@ -17,9 +17,6 @@ import (
 	"context"
 	"reflect"
 
-	// Blank import for the underlying PostgreSQL driver.
-	_ "github.com/jackc/pgx/v5/stdlib"
-
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
@@ -90,8 +87,7 @@ func (p *PostgreSQL) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 
 // BulkGet performs a bulks get operations.
 func (p *PostgreSQL) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
-	// TODO: replace with ExecuteMulti for performance
-	return false, nil, nil
+	return p.dbaccess.BulkGet(ctx, req)
 }
 
 // Set adds/updates an entity on store.

@@ -31,14 +31,15 @@ import (
 
 // Metadata is the oAuth middleware config.
 type oAuth2MiddlewareMetadata struct {
-	ClientID       string `json:"clientID"`
-	ClientSecret   string `json:"clientSecret"`
-	Scopes         string `json:"scopes"`
-	AuthURL        string `json:"authURL"`
-	TokenURL       string `json:"tokenURL"`
-	AuthHeaderName string `json:"authHeaderName"`
-	RedirectURL    string `json:"redirectURL"`
-	ForceHTTPS     string `json:"forceHTTPS"`
+	ClientID          string `json:"clientID"`
+	ClientSecret      string `json:"clientSecret"`
+	Scopes            string `json:"scopes"`
+	AuthURL           string `json:"authURL"`
+	TokenURL          string `json:"tokenURL"`
+	AuthHeaderName    string `json:"authHeaderName"`
+	RedirectParamName string `json:"redirectParamName"`
+	RedirectURL       string `json:"redirectURL"`
+	ForceHTTPS        string `json:"forceHTTPS"`
 }
 
 // NewOAuth2Middleware returns a new oAuth2 middleware.
@@ -58,7 +59,7 @@ const (
 	codeParam    = "code"
 )
 
-// GetHandler retruns the HTTP handler provided by the middleware.
+// GetHandler returns the HTTP handler provided by the middleware.
 func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {
@@ -97,8 +98,19 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 				}
 				idStr := id.String()
 
+				redirectURLStr := r.URL.Query().Get(meta.RedirectParamName)
+				if redirectURLStr == "" {
+					redirectURLStr = conf.RedirectURL
+				}
+				redirectURL, err := url.Parse(redirectURLStr)
+				if err != nil {
+					httputils.RespondWithError(w, http.StatusInternalServerError)
+					m.logger.Errorf("Failed to parse redirect URL: %v", err)
+					return
+				}
+
 				session.Set(savedState, idStr)
-				session.Set(redirectPath, r.URL)
+				session.Set(redirectPath, redirectURL)
 
 				url := conf.AuthCodeURL(idStr, oauth2.AccessTypeOffline)
 				httputils.RespondWithRedirect(w, http.StatusFound, url)

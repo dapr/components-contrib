@@ -219,7 +219,12 @@ func metadataToTLSConfig(meta *VaultMetadata) *tlsConfig {
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
 func (v *vaultSecretStore) getSecret(ctx context.Context, secret, version string) (*vaultKVResponse, error) {
 	// Create get secret url
-	vaultSecretPathAddr := fmt.Sprintf("%s/v1/%s/data/%s/%s?version=%s", v.vaultAddress, v.vaultEnginePath, v.vaultKVPrefix, secret, version)
+	var vaultSecretPathAddr string
+	if v.vaultKVPrefix == "" {
+		vaultSecretPathAddr = fmt.Sprintf("%s/v1/%s/data/%s?version=%s", v.vaultAddress, v.vaultEnginePath, secret, version)
+	} else {
+		vaultSecretPathAddr = fmt.Sprintf("%s/v1/%s/data/%s/%s?version=%s", v.vaultAddress, v.vaultEnginePath, v.vaultKVPrefix, secret, version)
+	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, vaultSecretPathAddr, nil)
 	if err != nil {

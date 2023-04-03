@@ -187,6 +187,7 @@ const components = {
     },
     'configuration.postgres': {
         conformance: true,
+        conformanceSetup: 'docker-compose.sh postgresql',
     },
     'crypto.azure.keyvault': {
         conformance: true,

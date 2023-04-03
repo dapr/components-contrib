@@ -112,8 +112,6 @@ func newKeybagFromConfig(config TestConfig) keybag {
 }
 
 func randomBytes(t *testing.T, size int) []byte {
-	t.Helper()
-
 	if size == 0 {
 		return nil
 	}
@@ -126,8 +124,6 @@ func randomBytes(t *testing.T, size int) []byte {
 }
 
 func requireKeyPublic(t *testing.T, key jwk.Key) {
-	t.Helper()
-
 	var rawKey any
 	err := key.Raw(&rawKey)
 	require.NoError(t, err)

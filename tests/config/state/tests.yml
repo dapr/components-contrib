@@ -65,7 +65,7 @@ components:
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete"]
   - component: in-memory
     allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]
+    operations: [ "set", "get", "delete", "bulkget", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]
   - component: aws.dynamodb.docker
     allOperations: false
     operations: [ "set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write" ]

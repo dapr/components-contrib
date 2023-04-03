@@ -180,9 +180,13 @@ func (store *inMemoryStore) BulkDelete(ctx context.Context, req []state.DeleteRe
 }
 
 func (store *inMemoryStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
-	item := store.doGetWithReadLock(ctx, req.Key)
+	store.lock.RLock()
+	item := store.items[req.Key]
+	store.lock.RUnlock()
 	if item != nil && isExpired(item) {
-		item = store.doGetWithWriteLock(ctx, req.Key)
+		store.lock.Lock()
+		item = store.getAndExpire(req.Key)
+		store.lock.Unlock()
 	}
 
 	if item == nil {
@@ -192,23 +196,40 @@ func (store *inMemoryStore) Get(ctx context.Context, req *state.GetRequest) (*st
 	return &state.GetResponse{Data: item.data, ETag: item.etag}, nil
 }
 
-func (store *inMemoryStore) doGetWithReadLock(ctx context.Context, key string) *inMemStateStoreItem {
+func (store *inMemoryStore) BulkGet(ctx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
+	res := make([]state.BulkGetResponse, len(req))
+	if len(req) == 0 {
+		return res, nil
+	}
+
+	// While working in bulk, we won't delete expired records we may encounter; we'll just let them stay until GC picks them up
 	store.lock.RLock()
 	defer store.lock.RUnlock()
 
-	return store.items[key]
+	n := 0
+	for i, r := range req {
+		item := store.items[r.Key]
+		if item != nil && !isExpired(item) {
+			res[i] = state.BulkGetResponse{
+				Key:  r.Key,
+				Data: item.data,
+				ETag: item.etag,
+			}
+			n++
+		}
+	}
+
+	return res[:n], nil
 }
 
-func (store *inMemoryStore) doGetWithWriteLock(ctx context.Context, key string) *inMemStateStoreItem {
-	store.lock.Lock()
-	defer store.lock.Unlock()
+func (store *inMemoryStore) getAndExpire(key string) *inMemStateStoreItem {
 	// get item and check expired again to avoid if item changed between we got this write-lock
 	item := store.items[key]
 	if item == nil {
 		return nil
 	}
 	if isExpired(item) {
-		store.doDelete(ctx, key)
+		delete(store.items, key)
 		return nil
 	}
 	return item

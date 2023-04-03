@@ -31,12 +31,6 @@ import (
 	"github.com/dapr/kit/ptr"
 )
 
-type inMemStateStoreItem struct {
-	data   []byte
-	etag   *string
-	expire *int64
-}
-
 type inMemoryStore struct {
 	state.BulkStore
 
@@ -183,7 +177,7 @@ func (store *inMemoryStore) Get(ctx context.Context, req *state.GetRequest) (*st
 	store.lock.RLock()
 	item := store.items[req.Key]
 	store.lock.RUnlock()
-	if item != nil && isExpired(item) {
+	if item != nil && item.isExpired() {
 		store.lock.Lock()
 		item = store.getAndExpire(req.Key)
 		store.lock.Unlock()
@@ -209,7 +203,7 @@ func (store *inMemoryStore) BulkGet(ctx context.Context, req []state.GetRequest,
 	n := 0
 	for i, r := range req {
 		item := store.items[r.Key]
-		if item != nil && !isExpired(item) {
+		if item != nil && !item.isExpired() {
 			res[i] = state.BulkGetResponse{
 				Key:  r.Key,
 				Data: item.data,
@@ -228,18 +222,11 @@ func (store *inMemoryStore) getAndExpire(key string) *inMemStateStoreItem {
 	if item == nil {
 		return nil
 	}
-	if isExpired(item) {
+	if item.isExpired() {
 		delete(store.items, key)
 		return nil
 	}
 	return item
-}
-
-func isExpired(item *inMemStateStoreItem) bool {
-	if item == nil || item.expire == nil {
-		return false
-	}
-	return time.Now().UnixMilli() > *item.expire
 }
 
 func (store *inMemoryStore) marshal(v any) (bt []byte, err error) {
@@ -466,7 +453,7 @@ func (store *inMemoryStore) doCleanExpiredItems() {
 	defer store.lock.Unlock()
 
 	for key, item := range store.items {
-		if item.expire != nil && isExpired(item) {
+		if item.expire != nil && item.isExpired() {
 			store.doDelete(context.Background(), key)
 		}
 	}
@@ -475,4 +462,17 @@ func (store *inMemoryStore) doCleanExpiredItems() {
 func (store *inMemoryStore) GetComponentMetadata() map[string]string {
 	// no metadata, hence no metadata struct to convert here
 	return map[string]string{}
+}
+
+type inMemStateStoreItem struct {
+	data   []byte
+	etag   *string
+	expire *int64
+}
+
+func (item *inMemStateStoreItem) isExpired() bool {
+	if item == nil || item.expire == nil {
+		return false
+	}
+	return time.Now().UnixMilli() > *item.expire
 }

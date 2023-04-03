@@ -149,19 +149,19 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 	t.Run("init", func(t *testing.T) {
 		// Initializing config updater. It has to be initialized before the store to create the table
 		err := updater.Init(props)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		// Creating trigger for postgres config updater
 		if component == postgres {
 			err = updater.(*postgres_updater.ConfigUpdater).CreateTrigger(pgNotifyChannel)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 		}
 
 		// Initializing store
 		err = store.Init(context.Background(), configuration.Metadata{
 			Base: metadata.Base{Properties: props},
 		})
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("insert initial keys", func(t *testing.T) {

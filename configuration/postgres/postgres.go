@@ -164,7 +164,7 @@ func (p *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
 	pgNotifyChannel := ""
 	for k, v := range req.Metadata {
-		if res := strings.EqualFold(pgNotifyChannelKey, k); res {
+		if strings.EqualFold(pgNotifyChannelKey, k) {
 			pgNotifyChannel = v
 		}
 	}

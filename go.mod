@@ -51,7 +51,7 @@ require (
 	github.com/cloudwego/kitex-examples v0.1.1
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/dancannon/gorethink v4.0.0+incompatible
-	github.com/dapr/kit v0.0.5-0.20230321003608-efcc1af907a7
+	github.com/dapr/kit v0.0.5-0.20230401092230-30d122f67bdc
 	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/didip/tollbooth/v7 v7.0.1
 	github.com/eclipse/paho.mqtt.golang v1.4.2
@@ -59,6 +59,7 @@ require (
 	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-sql-driver/mysql v1.7.0
+	github.com/go-zookeeper/zk v1.0.3
 	github.com/gocql/gocql v1.3.1
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.3.0
@@ -79,7 +80,7 @@ require (
 	github.com/kubemq-io/kubemq-go v1.7.8
 	github.com/labd/commercetools-go-sdk v1.2.0
 	github.com/lestrrat-go/httprc v1.0.4
-	github.com/lestrrat-go/jwx/v2 v2.0.8
+	github.com/lestrrat-go/jwx/v2 v2.0.9
 	github.com/machinebox/graphql v0.2.2
 	github.com/matoous/go-nanoid/v2 v2.0.0
 	github.com/mitchellh/mapstructure v1.5.1-0.20220423185008-bf980b35cac4
@@ -113,7 +114,7 @@ require (
 	go.uber.org/multierr v1.9.0
 	go.uber.org/ratelimit v0.2.0
 	golang.org/x/crypto v0.7.0
-	golang.org/x/exp v0.0.0-20230310171629-522b1b587ee0
+	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
 	golang.org/x/mod v0.9.0
 	golang.org/x/net v0.8.0
 	golang.org/x/oauth2 v0.5.0
@@ -215,9 +216,8 @@ require (
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/go-playground/validator/v10 v10.11.0 // indirect
 	github.com/go-resty/resty/v2 v2.7.0 // indirect
-	github.com/go-zookeeper/zk v1.0.3
 	github.com/gobwas/glob v0.2.3 // indirect
-	github.com/goccy/go-json v0.10.0 // indirect
+	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
 	github.com/gofrs/uuid v3.3.0+incompatible // indirect
 	github.com/gogap/errors v0.0.0-20200228125012-531a6449b28c // indirect

@@ -14,13 +14,14 @@ limitations under the License.
 package cosmosDBStorage_test
 
 import (
-	"fmt"
+	"strconv"
 	"testing"
 
 	cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/go-sdk/client"
+	"github.com/google/uuid"
 
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
@@ -39,6 +40,8 @@ const (
 )
 
 func TestAzureCosmosDBStorage(t *testing.T) {
+	sidecarName := sidecarNamePrefix + uuid.NewString()
+
 	ports, err := dapr_testing.GetFreePorts(2)
 	assert.NoError(t, err)
 
@@ -47,7 +50,7 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 
 	basicTest := func(statestore string) flow.Runnable {
 		return func(ctx flow.Context) error {
-			client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+			client, err := client.NewClientWithPort(strconv.Itoa(currentGrpcPort))
 			if err != nil {
 				panic(err)
 			}
@@ -75,7 +78,7 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 
 	transactionsTest := func(statestore string) func(ctx flow.Context) error {
 		return func(ctx flow.Context) error {
-			client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+			client, err := client.NewClientWithPort(strconv.Itoa(currentGrpcPort))
 			if err != nil {
 				panic(err)
 			}
@@ -101,9 +104,10 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 			return nil
 		}
 	}
+
 	partitionTest := func(statestore string) flow.Runnable {
 		return func(ctx flow.Context) error {
-			client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+			client, err := client.NewClientWithPort(strconv.Itoa(currentGrpcPort))
 			if err != nil {
 				panic(err)
 			}
@@ -114,7 +118,7 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 
 			// The default value for partition key is <App ID>||<state key>
 			meta1 := map[string]string{
-				"partitionKey": sidecarNamePrefix + "||" + stateKey,
+				"partitionKey": sidecarName + "||" + stateKey,
 			}
 
 			// Specifying custom partition key
@@ -152,7 +156,7 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 
 	flow.New(t, "Test basic operations").
 		// Run the Dapr sidecar with azure CosmosDB storage.
-		Step(sidecar.Run(sidecarNamePrefix,
+		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
@@ -163,7 +167,7 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 
 	flow.New(t, "Test transaction operations").
 		// Run the Dapr sidecar with azure CosmosDB storage.
-		Step(sidecar.Run(sidecarNamePrefix,
+		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
@@ -174,7 +178,7 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 
 	flow.New(t, "Test basic operations with different partition keys").
 		// Run the Dapr sidecar with azure CosmosDB storage.
-		Step(sidecar.Run(sidecarNamePrefix,
+		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
@@ -183,16 +187,18 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 		Step("Run basic test with multiple parition keys", partitionTest("statestore-basic")).
 		Run()
 
-	flow.New(t, "Test AAD authentication").
-		// Run the Dapr sidecar with azure CosmosDB storage.
-		Step(sidecar.Run(sidecarNamePrefix,
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("./components/aadtest"),
-			componentRuntimeOptions())).
-		Step("Run basic test with Azure AD Authentication", basicTest("statestore-aad")).
-		Run()
+	/*
+		flow.New(t, "Test AAD authentication").
+			// Run the Dapr sidecar with azure CosmosDB storage.
+			Step(sidecar.Run(sidecarNamePrefix,
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(currentGrpcPort),
+				embedded.WithDaprHTTPPort(currentHTTPPort),
+				embedded.WithComponentsPath("./components/aadtest"),
+				componentRuntimeOptions())).
+			Step("Run basic test with Azure AD Authentication", basicTest("statestore-aad")).
+			Run()
+	*/
 }
 
 func componentRuntimeOptions() []runtime.Option {

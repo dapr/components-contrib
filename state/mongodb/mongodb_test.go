@@ -87,7 +87,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		metadata, err := getMongoDBMetaData(m)
 		assert.Nil(t, err)
 
-		uri := getMongoConnectionString(metadata)
+		uri := metadata.getMongoConnectionString()
 		expected := "mongodb://username:password@127.0.0.2/TestDB"
 
 		assert.Equal(t, expected, uri)
@@ -106,7 +106,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		metadata, err := getMongoDBMetaData(m)
 		assert.Nil(t, err)
 
-		uri := getMongoConnectionString(metadata)
+		uri := metadata.getMongoConnectionString()
 		expected := "mongodb://localhost:27017/TestDB"
 
 		assert.Equal(t, expected, uri)
@@ -128,7 +128,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		metadata, err := getMongoDBMetaData(m)
 		assert.Nil(t, err)
 
-		uri := getMongoConnectionString(metadata)
+		uri := metadata.getMongoConnectionString()
 		expected := "mongodb://username:password@127.0.0.2/TestDB?ssl=true"
 
 		assert.Equal(t, expected, uri)
@@ -148,7 +148,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		metadata, err := getMongoDBMetaData(m)
 		assert.Nil(t, err)
 
-		uri := getMongoConnectionString(metadata)
+		uri := metadata.getMongoConnectionString()
 		expected := "mongodb+srv://server.example.com/?ssl=true"
 
 		assert.Equal(t, expected, uri)
@@ -202,7 +202,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		metadata, err := getMongoDBMetaData(m)
 		assert.Nil(t, err)
 
-		uri := getMongoConnectionString(metadata)
+		uri := metadata.getMongoConnectionString()
 		expected := "mongodb://localhost:99999/UnchanedDB"
 
 		assert.Equal(t, expected, uri)

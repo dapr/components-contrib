@@ -49,7 +49,7 @@ type tablestoreMetadata struct {
 
 func NewAliCloudTableStore(logger logger.Logger) state.Store {
 	return &AliCloudTableStore{
-		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		features: []state.Feature{state.FeatureETag},
 		logger:   logger,
 	}
 }

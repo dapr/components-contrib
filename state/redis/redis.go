@@ -348,7 +348,7 @@ func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	}
 
 	if req.Metadata[daprmetadata.ContentType] == contenttype.JSONContentType && r.clientHasJSON {
-		bt, _ := utils.Marshal(jsonEntry{Data: req.Value}, r.json.Marshal)
+		bt, _ := utils.Marshal(&jsonEntry{Data: req.Value}, r.json.Marshal)
 		err = r.client.DoWrite(ctx, "EVAL", setJSONQuery, 1, req.Key, ver, bt, firstWrite)
 	} else {
 		bt, _ := utils.Marshal(req.Value, r.json.Marshal)
@@ -416,7 +416,7 @@ func (r *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 			isReqJSON := isJSON ||
 				(len(req.Metadata) > 0 && req.Metadata[daprmetadata.ContentType] == contenttype.JSONContentType)
 			if isReqJSON {
-				bt, _ = utils.Marshal(jsonEntry{Data: req.Value}, r.json.Marshal)
+				bt, _ = utils.Marshal(&jsonEntry{Data: req.Value}, r.json.Marshal)
 				pipe.Do(ctx, "EVAL", setJSONQuery, 1, req.Key, ver, bt)
 			} else {
 				bt, _ = utils.Marshal(req.Value, r.json.Marshal)

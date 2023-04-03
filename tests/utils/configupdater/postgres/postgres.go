@@ -33,18 +33,25 @@ func NewPostgresConfigUpdater(logger logger.Logger) configupdater.Updater {
 }
 
 func createAndSetTable(ctx context.Context, client *pgxpool.Pool, configTable string) error {
-	// Deleting the existing table if it exists
-	_, err := client.Exec(ctx, "DROP TABLE IF EXISTS "+configTable)
-	if err != nil {
-		return fmt.Errorf("error dropping table : %w", err)
-	}
-
-	_, err = client.Exec(ctx, "CREATE TABLE IF NOT EXISTS "+configTable+" (KEY VARCHAR NOT NULL, VALUE VARCHAR NOT NULL, VERSION VARCHAR NOT NULL, METADATA JSON)")
+	// Creating table if not exists
+	_, err := client.Exec(ctx, "CREATE TABLE IF NOT EXISTS "+configTable+" (KEY VARCHAR NOT NULL, VALUE VARCHAR NOT NULL, VERSION VARCHAR NOT NULL, METADATA JSON)")
 	if err != nil {
 		return fmt.Errorf("error creating table : %w", err)
 	}
 
-	createConfigEventSQL := `CREATE OR REPLACE FUNCTION configuration_event() RETURNS TRIGGER AS $$
+	// Deleting existing data
+	_, err = client.Exec(ctx, "TRUNCATE TABLE "+configTable)
+	if err != nil {
+		return fmt.Errorf("error truncating table : %w", err)
+	}
+
+	return nil
+}
+
+func (r *ConfigUpdater) CreateTrigger(channel string) error {
+	ctx := context.Background()
+	procedureName := "configuration_event_" + channel
+	createConfigEventSQL := `CREATE OR REPLACE FUNCTION ` + procedureName + `() RETURNS TRIGGER AS $$
 		DECLARE
 			data json;
 			notification json;
@@ -62,18 +69,18 @@ func createAndSetTable(ctx context.Context, client *pgxpool.Pool, configTable st
 							'action', TG_OP,
 							'data', data);
 
-			PERFORM pg_notify('config',notification::text);
+			PERFORM pg_notify('` + channel + `' ,notification::text);
 			RETURN NULL;
 		END;
 	$$ LANGUAGE plpgsql;
 	`
-	_, err = client.Exec(ctx, createConfigEventSQL)
+	_, err := r.client.Exec(ctx, createConfigEventSQL)
 	if err != nil {
 		return fmt.Errorf("error creating config event function : %w", err)
 	}
-
-	createTriggerSQL := "CREATE TRIGGER configTrigger AFTER INSERT OR UPDATE OR DELETE ON " + configTable + " FOR EACH ROW EXECUTE PROCEDURE configuration_event();"
-	_, err = client.Exec(ctx, createTriggerSQL)
+	triggerName := "configTrigger_" + channel
+	createTriggerSQL := "CREATE TRIGGER " + triggerName + " AFTER INSERT OR UPDATE OR DELETE ON " + r.configTable + " FOR EACH ROW EXECUTE PROCEDURE " + procedureName + "();"
+	_, err = r.client.Exec(ctx, createTriggerSQL)
 	if err != nil {
 		return fmt.Errorf("error creating config trigger : %w", err)
 	}

@@ -28,6 +28,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 	"github.com/dapr/components-contrib/tests/utils/configupdater"
+	postgres_updater "github.com/dapr/components-contrib/tests/utils/configupdater/postgres"
 )
 
 const (
@@ -149,6 +150,14 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 		// Initializing config updater. It has to be initialized before the store to create the table
 		err := updater.Init(props)
 		assert.Nil(t, err)
+
+		// Creating trigger for postgres config updater
+		if component == postgres {
+			err = updater.(*postgres_updater.ConfigUpdater).CreateTrigger(pgNotifyChannel)
+			assert.Nil(t, err)
+		}
+
+		// Initializing store
 		err = store.Init(context.Background(), configuration.Metadata{
 			Base: metadata.Base{Properties: props},
 		})

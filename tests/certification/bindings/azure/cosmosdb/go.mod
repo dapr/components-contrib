@@ -8,7 +8,7 @@ require (
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211130185200-4918900c09e1
 	github.com/dapr/dapr v1.10.4-0.20230317204345-585da2feb90d
 	github.com/dapr/go-sdk v1.7.0
-	github.com/dapr/kit v0.0.5-0.20230321003608-efcc1af907a7
+	github.com/dapr/kit v0.0.5-0.20230401092230-30d122f67bdc
 	github.com/google/uuid v1.3.0
 	github.com/stretchr/testify v1.8.2
 )
@@ -118,7 +118,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.11.2 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	golang.org/x/crypto v0.7.0 // indirect
-	golang.org/x/exp v0.0.0-20230310171629-522b1b587ee0 // indirect
+	golang.org/x/exp v0.0.0-20230321023759-10a507213a29 // indirect
 	golang.org/x/mod v0.9.0 // indirect
 	golang.org/x/net v0.8.0 // indirect
 	golang.org/x/oauth2 v0.5.0 // indirect

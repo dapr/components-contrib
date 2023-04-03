@@ -69,7 +69,7 @@ const (
 	ErrorMissingConnectionString = "missing postgreSQL connection string"
 	ErrorAlreadyInitialized      = "postgreSQL configuration store already initialized"
 	ErrorMissingMaxTimeout       = "missing PostgreSQL maxTimeout setting in configuration"
-	QueryTableExists             = "SELECT EXISTS (SELECT FROM pg_tables where tablename = $1)"
+	QueryTableExists             = "SELECT EXISTS (SELECT FROM pg_tables where tablename = lower($1))"
 	ErrorTooLongFieldLength      = "field name is too long"
 	maxIdentifierLength          = 64 // https://www.postgresql.org/docs/current/limits.html
 )
@@ -114,10 +114,10 @@ func (p *ConfigurationStore) Init(parentCtx context.Context, metadata configurat
 	exists := false
 	err = p.client.QueryRow(ctx, QueryTableExists, p.metadata.ConfigTable).Scan(&exists)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return fmt.Errorf(ErrorMissingTable, p.metadata.ConfigTable)
-		}
 		return fmt.Errorf("error in checking if configtable '%s' exists - '%w'", p.metadata.ConfigTable, err)
+	}
+	if !exists {
+		return fmt.Errorf(ErrorMissingTable, p.metadata.ConfigTable)
 	}
 	return nil
 }

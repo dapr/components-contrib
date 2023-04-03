@@ -146,12 +146,12 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 	processedC3 := make(chan *configuration.UpdateEvent, keyCount*4)
 
 	t.Run("init", func(t *testing.T) {
-		err := store.Init(context.Background(), configuration.Metadata{
+		// Initializing config updater. It has to be initialized before the store to create the table
+		err := updater.Init(props)
+		assert.Nil(t, err)
+		err = store.Init(context.Background(), configuration.Metadata{
 			Base: metadata.Base{Properties: props},
 		})
-		assert.Nil(t, err)
-		// Initializing config updater
-		err = updater.Init(props)
 		assert.Nil(t, err)
 	})
 

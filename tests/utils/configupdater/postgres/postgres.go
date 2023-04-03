@@ -31,6 +31,54 @@ func NewPostgresConfigUpdater(logger logger.Logger) configupdater.Updater {
 	}
 }
 
+func createAndSetTable(ctx context.Context, client *pgxpool.Pool, configTable string) error {
+	// Deleting the existing table if it exists
+	_, err := client.Exec(ctx, "DROP TABLE IF EXISTS "+configTable)
+	if err != nil {
+		return fmt.Errorf("error dropping table : %w", err)
+	}
+
+	_, err = client.Exec(ctx, "CREATE TABLE IF NOT EXISTS "+configTable+" (KEY VARCHAR NOT NULL, VALUE VARCHAR NOT NULL, VERSION VARCHAR NOT NULL, METADATA JSON)")
+	if err != nil {
+		return fmt.Errorf("error creating table : %w", err)
+	}
+
+	createConfigEventSQL := `CREATE OR REPLACE FUNCTION configuration_event() RETURNS TRIGGER AS $$
+		DECLARE
+			data json;
+			notification json;
+
+		BEGIN
+
+			IF (TG_OP = 'DELETE') THEN
+				data = row_to_json(OLD);
+			ELSE
+				data = row_to_json(NEW);
+			END IF;
+
+			notification = json_build_object(
+							'table',TG_TABLE_NAME,
+							'action', TG_OP,
+							'data', data);
+
+			PERFORM pg_notify('config',notification::text);
+			RETURN NULL;
+		END;
+	$$ LANGUAGE plpgsql;
+	`
+	_, err = client.Exec(ctx, createConfigEventSQL)
+	if err != nil {
+		return fmt.Errorf("error creating config event function : %w", err)
+	}
+
+	createTriggerSQL := "CREATE TRIGGER configTrigger AFTER INSERT OR UPDATE OR DELETE ON " + configTable + " FOR EACH ROW EXECUTE PROCEDURE configuration_event();"
+	_, err = client.Exec(ctx, createTriggerSQL)
+	if err != nil {
+		return fmt.Errorf("error creating config trigger : %w", err)
+	}
+	return nil
+}
+
 func (r *ConfigUpdater) Init(props map[string]string) error {
 	var conn string
 	ctx := context.Background()
@@ -57,6 +105,10 @@ func (r *ConfigUpdater) Init(props map[string]string) error {
 		return fmt.Errorf("postgres configuration store ping error : %w", err)
 	}
 	r.client = pool
+	err = createAndSetTable(ctx, r.client, r.configTable)
+	if err != nil {
+		return fmt.Errorf("postgres configuration store table creation error : %w", err)
+	}
 	return nil
 }
 

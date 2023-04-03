@@ -23,6 +23,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	contribCrypto "github.com/dapr/components-contrib/crypto"
 	"github.com/dapr/components-contrib/metadata"
@@ -123,6 +124,33 @@ func ConformanceTests(t *testing.T, props map[string]string, component contribCr
 	if t.Failed() {
 		t.Fatal("Init test failed, stopping further tests")
 	}
+
+	// Test SupportedEncryptionAlgorithms and SupportedSignatureAlgorithms.
+	// We will just check that the algorithms defined in the tests config are indeed included in the list returned by the component.
+	// This test is not perfect as the list of algorithms defined in the config isn't a complete one, but we'll consider this as "sampling".
+	t.Run("supported algorithms methods", func(t *testing.T) {
+		encAlgs := component.SupportedEncryptionAlgorithms()
+		sigAlgs := component.SupportedSignatureAlgorithms()
+
+		algsInList := func(keys keylist, list string, searchInSlice []string) func(t *testing.T) {
+			return func(t *testing.T) {
+				keys.testForAllAlgorithmsInList(t, list, func(algorithm, _ string) func(t *testing.T) {
+					return func(t *testing.T) {
+						require.True(t, slices.Contains(searchInSlice, algorithm))
+					}
+				})
+			}
+		}
+
+		t.Run("symmetric encryption", algsInList(keys.symmetric, algsEncryptionSymmetric, encAlgs))
+		t.Run("symmetric key wrapping", algsInList(keys.symmetric, algsKeywrapSymmetric, encAlgs))
+		t.Run("asymmetric encryption with public keys", algsInList(keys.public, algsEncryptionAsymmetric, encAlgs))
+		t.Run("asymmetric key wrapping with public keys", algsInList(keys.public, algsKeywrapAsymmetric, encAlgs))
+		t.Run("asymmetric encryption with private keys", algsInList(keys.private, algsEncryptionAsymmetric, encAlgs))
+		t.Run("asymmetric key wrapping with private keys", algsInList(keys.private, algsKeywrapAsymmetric, encAlgs))
+		t.Run("symmetric signature", algsInList(keys.symmetric, algsSignSymmetric, sigAlgs))
+		t.Run("asymmetric signature", algsInList(keys.private, algsSignAsymmetric, sigAlgs))
+	})
 
 	t.Run("GetKey method", func(t *testing.T) {
 		if config.HasOperation(opPublic) {

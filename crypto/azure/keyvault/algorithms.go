@@ -14,6 +14,8 @@ limitations under the License.
 package keyvault
 
 import (
+	"sync"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys"
 
@@ -23,6 +25,11 @@ import (
 var (
 	validEncryptionAlgs map[string]struct{}
 	validSignatureAlgs  map[string]struct{}
+	encryptionAlgsList  []string
+	signatureAlgsList   []string
+
+	// Used to initialize validEncryptionAlgs and validSignatureAlgs lazily when the first component of this kind is initialized
+	algsParsed sync.Once
 )
 
 // GetJWKEncryptionAlgorithm returns a JSONWebKeyEncryptionAlgorithm constant is the algorithm is a supported one.

@@ -229,39 +229,13 @@ func (c *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 		return nil, err
 	}
 
-	item := CosmosItem{}
-	err = jsoniter.ConfigFastest.Unmarshal(readItem.Value, &item)
+	item, err := NewCosmosItemFromResponse(&readItem, c.logger)
 	if err != nil {
 		return nil, err
 	}
 
-	item.Etag = string(readItem.Response.ETag)
-
-	if item.IsBinary {
-		if item.Value == nil {
-			return &state.GetResponse{
-				Data: make([]byte, 0),
-				ETag: ptr.Of(item.Etag),
-			}, nil
-		}
-
-		bytes, decodeErr := base64.StdEncoding.DecodeString(item.Value.(string))
-		if decodeErr != nil {
-			c.logger.Warnf("CosmosDB state store Get request could not decode binary string: %v. Returning raw string instead.", decodeErr)
-			bytes = []byte(item.Value.(string))
-		}
-
-		return &state.GetResponse{
-			Data: bytes,
-			ETag: ptr.Of(item.Etag),
-		}, nil
-	}
-
-	b, err := jsoniter.ConfigFastest.Marshal(&item.Value)
-	if err != nil {
-		return nil, err
-	}
-
+	// We are sure this is a []byte if not nil
+	b, _ := item.Value.([]byte)
 	return &state.GetResponse{
 		Data: b,
 		ETag: ptr.Of(item.Etag),
@@ -351,7 +325,8 @@ func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	return nil
 }
 
-// Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
+// Multi performs a transactional operation. Succeeds only if all operations succeed, and fails if one or more operations fail.
+// Note that all operations must be in the same partition.
 func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStateRequest) (err error) {
 	if len(request.Operations) == 0 {
 		c.logger.Debugf("No Operations Provided")
@@ -546,4 +521,39 @@ func isNotFoundError(err error) bool {
 	}
 
 	return false
+}
+
+func NewCosmosItemFromResponse(readItem *azcosmos.ItemResponse, logger logger.Logger) (item CosmosItem, err error) {
+	err = jsoniter.ConfigFastest.Unmarshal(readItem.Value, &item)
+	if err != nil {
+		return item, err
+	}
+
+	item.Etag = string(readItem.Response.ETag)
+
+	if item.IsBinary {
+		if item.Value == nil {
+			return item, nil
+		}
+
+		strValue, ok := item.Value.(string)
+		if !ok || strValue == "" {
+			return item, nil
+		}
+
+		item.Value, err = base64.StdEncoding.DecodeString(strValue)
+		if err != nil {
+			logger.Warnf("CosmosDB state store Get request could not decode binary string: %v. Returning raw string instead.", err)
+			item.Value = []byte(strValue)
+		}
+
+		return item, nil
+	}
+
+	item.Value, err = jsoniter.ConfigFastest.Marshal(&item.Value)
+	if err != nil {
+		return item, err
+	}
+
+	return item, nil
 }

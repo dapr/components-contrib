@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
@@ -26,6 +27,13 @@ import (
 
 // ErrKeyNotFound is returned when the key could not be found.
 var ErrKeyNotFound = errors.New("key not found")
+
+var (
+	// Token used to populate the list of supported algorithms.
+	supportedAlgsOnce             sync.Once
+	supportedEncryptionAlgorithms []string
+	supportedSignatureAlgorithms  []string
+)
 
 // LocalCryptoBaseComponent is an "abstract" component that performs cryptographic operations locally in the Dapr runtime.
 // Concrete implementations build on top of this component and just need to provide retrieveKeyFromSecret.
@@ -202,4 +210,24 @@ func (k LocalCryptoBaseComponent) Verify(parentCtx context.Context, digest []byt
 		return false, fmt.Errorf("failed to validate the signature: %w", err)
 	}
 	return valid, nil
+}
+
+func (k LocalCryptoBaseComponent) SupportedEncryptionAlgorithms() []string {
+	supportedAlgsOnce.Do(populateSupportedAlgs)
+	return supportedEncryptionAlgorithms
+}
+
+func (k LocalCryptoBaseComponent) SupportedSignatureAlgorithms() []string {
+	supportedAlgsOnce.Do(populateSupportedAlgs)
+	return supportedSignatureAlgorithms
+}
+
+func populateSupportedAlgs() {
+	symmetric := internals.SupportedSymmetricAlgorithms()
+	asymmetric := internals.SupportedAsymmetricAlgorithms()
+	supportedEncryptionAlgorithms = make([]string, len(symmetric)+len(asymmetric))
+	copy(supportedEncryptionAlgorithms[0:len(symmetric)], symmetric)
+	copy(supportedEncryptionAlgorithms[len(symmetric):], asymmetric)
+
+	supportedSignatureAlgorithms = internals.SupportedSignatureAlgorithms()
 }

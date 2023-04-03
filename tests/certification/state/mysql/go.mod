@@ -7,7 +7,7 @@ require (
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20220526162429-d03aeba3e0d6
 	github.com/dapr/dapr v1.10.4-0.20230317204345-585da2feb90d
 	github.com/dapr/go-sdk v1.7.0
-	github.com/dapr/kit v0.0.5-0.20230321003608-efcc1af907a7
+	github.com/dapr/kit v0.0.5-0.20230401092230-30d122f67bdc
 	github.com/stretchr/testify v1.8.2
 )
 
@@ -62,6 +62,9 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.1 // indirect
 	github.com/hashicorp/serf v0.10.1 // indirect
 	github.com/imdario/mergo v0.3.13 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
+	github.com/jackc/pgx/v5 v5.3.1 // indirect
 	github.com/jhump/protoreflect v1.14.1 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -108,7 +111,8 @@ require (
 	go.opentelemetry.io/otel/sdk v1.11.2 // indirect
 	go.opentelemetry.io/otel/trace v1.11.2 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
-	golang.org/x/exp v0.0.0-20230310171629-522b1b587ee0 // indirect
+	golang.org/x/crypto v0.7.0 // indirect
+	golang.org/x/exp v0.0.0-20230321023759-10a507213a29 // indirect
 	golang.org/x/mod v0.9.0 // indirect
 	golang.org/x/net v0.8.0 // indirect
 	golang.org/x/oauth2 v0.5.0 // indirect

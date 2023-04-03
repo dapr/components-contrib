@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"go.temporal.io/api/enums/v1"
@@ -33,9 +34,9 @@ type TemporalWF struct {
 }
 
 type temporalMetadata struct {
-	Identity  string `json:"identity"`
-	HostPort  string `json:"hostport"`
-	Namespace string `json:"namespace"`
+	Identity  string `json:"identity" mapstructure:"identity"`
+	HostPort  string `json:"hostport" mapstructure:"hostport"`
+	Namespace string `json:"namespace" mapstructure:"namespace"`
 }
 
 // NewTemporalWorkflow returns a new workflow.
@@ -147,6 +148,13 @@ func (c *TemporalWF) parseMetadata(meta workflows.Metadata) (*temporalMetadata, 
 	var m temporalMetadata
 	err := metadata.DecodeMetadata(meta.Properties, &m)
 	return &m, err
+}
+
+func (c *TemporalWF) GetComponentMetadata() map[string]string {
+	metadataStruct := temporalMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	return metadataInfo
 }
 
 func lookupStatus(status enums.WorkflowExecutionStatus) string {

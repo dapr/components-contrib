@@ -24,4 +24,5 @@ type Workflow interface {
 	RaiseEvent(ctx context.Context, req *RaiseEventRequest) error
 	Pause(ctx context.Context, req *WorkflowReference) error
 	Resume(ctx context.Context, req *WorkflowReference) error
+	GetComponentMetadata() map[string]string
 }

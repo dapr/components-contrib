@@ -100,3 +100,15 @@ func (b *DefaultBulkStore) BulkDelete(ctx context.Context, req []DeleteRequest) 
 type Querier interface {
 	Query(ctx context.Context, req *QueryRequest) (*QueryResponse, error)
 }
+
+// ToTransactionalStateOperationSlice converts []SetRequest and []DeleteRequest to []TransactionalStateOperation.
+func ToTransactionalStateOperationSlice[T SetRequest | DeleteRequest](operation OperationType, req []T) []TransactionalStateOperation {
+	ops := make([]TransactionalStateOperation, len(req))
+	for i, r := range req {
+		ops[i] = TransactionalStateOperation{
+			Operation: operation,
+			Request:   r,
+		}
+	}
+	return ops
+}

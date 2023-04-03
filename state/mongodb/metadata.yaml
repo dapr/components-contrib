@@ -18,16 +18,16 @@ capabilities:
   - etag
   - query
 authenticationProfiles:
-  - title: "Connection string based authentication"
+  - title: "Connection string"
     description: |
       Authenticate using a connetion string.
     metadata:
       - name: connectionString
         required: true
         description: |
-          The connection string to use. One of `server` or `host` or `connectionstring` is required.
+          The connection string to use. One of `server`, `host` or `connectionstring` is required.
         example: '"mongodb://localhost:27017"'
-  - title: "Username and password based authentication"
+  - title: "Username and password"
     description: |
       Authenticate using username, password and either server or host properties.
     metadata:
@@ -46,13 +46,13 @@ authenticationProfiles:
         # Required if host is not set
         required: false
         description: |
-          The server to connect to, when using DNS SRV record. One of `server` and `host` is required.
+          The server to connect to, when using DNS SRV record. One of `server` or `host` is required.
         example: '"server.example.com"'
       - name: host
         # Required if server is not set
         required: false
         description: |
-          The host to connect to. One of `server` and `host` is required.
+          The host to connect to. One of `server` or `host` is required.
         example: '"mongo-mongodb.default.svc.cluster.local:27017"'
       - name: params
         description: |

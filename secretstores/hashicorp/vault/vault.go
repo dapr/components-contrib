@@ -221,9 +221,9 @@ func (v *vaultSecretStore) getSecret(ctx context.Context, secret, version string
 	// Create get secret url
 	var vaultSecretPathAddr string
 	if v.vaultKVPrefix == "" {
-		vaultSecretPathAddr = fmt.Sprintf("%s/v1/%s/data/%s?version=%s", v.vaultAddress, v.vaultEnginePath, secret, version)
+		vaultSecretPathAddr = v.vaultAddress + "/v1/" + v.vaultEnginePath + "/data/" + secret + "?version=" + version
 	} else {
-		vaultSecretPathAddr = fmt.Sprintf("%s/v1/%s/data/%s/%s?version=%s", v.vaultAddress, v.vaultEnginePath, v.vaultKVPrefix, secret, version)
+		vaultSecretPathAddr = v.vaultAddress + "/v1/" + v.vaultEnginePath + "/data/" + v.vaultKVPrefix + "/" + secret + "?version=" + version
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, vaultSecretPathAddr, nil)

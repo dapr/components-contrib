@@ -53,7 +53,6 @@ const (
 	value            = "value"
 	etag             = "_etag"
 	ttl              = "_ttl"
-	ttlDollar        = "$" + ttl
 
 	defaultTimeout        = 5 * time.Second
 	defaultDatabaseName   = "daprStore"
@@ -267,34 +266,116 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 
 // Get retrieves state from MongoDB with a key.
 func (m *MongoDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
-	// Since MongoDB doesn't delete the document immediately when the TTL value
-	// is reached, we need to filter out the documents with TTL value less than
-	// the current time.
 	filter := bson.D{
 		{Key: "$and", Value: bson.A{
 			bson.D{{Key: id, Value: bson.M{"$eq": req.Key}}},
-			bson.D{{Key: "$expr", Value: bson.D{
-				{Key: "$or", Value: bson.A{
-					bson.D{{Key: "$eq", Value: bson.A{ttlDollar, primitive.Null{}}}},
-					bson.D{{Key: "$gte", Value: bson.A{ttlDollar, "$$NOW"}}},
-				}},
-			}}},
+			getFilterTTL(),
 		}},
 	}
 	var result Item
-	err := m.collection.FindOne(ctx, filter).Decode(&result)
+	err := m.collection.
+		FindOne(ctx, filter).
+		Decode(&result)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			// Key not found, not an error.
 			// To behave the same as other state stores in conf tests.
-			return &state.GetResponse{}, nil
+			err = nil
 		}
-
 		return &state.GetResponse{}, err
 	}
 
-	var data []byte
-	switch obj := result.Value.(type) {
+	data, err := m.decodeData(result.Value)
+	if err != nil {
+		return &state.GetResponse{}, err
+	}
+
+	return &state.GetResponse{
+		Data: data,
+		ETag: ptr.Of(result.Etag),
+	}, nil
+}
+
+func (m *MongoDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
+	// If nothing is being requested, short-circuit
+	if len(req) == 0 {
+		return []state.BulkGetResponse{}, nil
+	}
+
+	// Get all the keys
+	keys := make(bson.A, len(req))
+	for i, r := range req {
+		keys[i] = r.Key
+	}
+
+	// Perform the query
+	filter := bson.D{
+		{Key: "$and", Value: bson.A{
+			bson.D{
+				{Key: id, Value: bson.M{"$in": keys}},
+			},
+			getFilterTTL(),
+		}},
+	}
+	cur, err := m.collection.Find(ctx, filter)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			// No documents found, just return an empty list
+			err = nil
+		}
+		return []state.BulkGetResponse{}, err
+	}
+	defer cur.Close(ctx)
+
+	// Read all results
+	res := make([]state.BulkGetResponse, 0, len(keys))
+	for cur.Next(ctx) {
+		var (
+			doc  Item
+			data []byte
+		)
+		err = cur.Decode(&doc)
+		if err != nil {
+			return res, err
+		}
+
+		bgr := state.BulkGetResponse{
+			Key: doc.Key,
+		}
+		if doc.Etag != "" {
+			bgr.ETag = ptr.Of(doc.Etag)
+		}
+
+		data, err = m.decodeData(doc.Value)
+		if err != nil {
+			bgr.Error = err.Error()
+		} else {
+			bgr.Data = data
+		}
+		res = append(res, bgr)
+	}
+	err = cur.Err()
+	if err != nil {
+		return res, err
+	}
+
+	return res, nil
+}
+
+func getFilterTTL() bson.D {
+	// Since MongoDB doesn't delete the document immediately when the TTL value
+	// is reached, we need to filter out the documents with TTL value less than
+	// the current time.
+	return bson.D{{Key: "$expr", Value: bson.D{
+		{Key: "$or", Value: bson.A{
+			bson.D{{Key: "$eq", Value: bson.A{"$_ttl", primitive.Null{}}}},
+			bson.D{{Key: "$gte", Value: bson.A{"$_ttl", "$$NOW"}}},
+		}},
+	}}}
+}
+
+func (m *MongoDB) decodeData(resValue any) (data []byte, err error) {
+	switch obj := resValue.(type) {
 	case string:
 		data = []byte(obj)
 	case primitive.D:
@@ -306,31 +387,29 @@ func (m *MongoDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetRes
 		// A decimal value stored as BSON will be returned as {"d": 5.5} if canonical is set to false instead of
 		// {"d": {"$numberDouble": 5.5}} when canonical JSON is returned.
 		if data, err = bson.MarshalExtJSON(obj, false, true); err != nil {
-			return &state.GetResponse{}, err
+			return nil, err
 		}
 	case primitive.A:
 		newobj := bson.D{{Key: value, Value: obj}}
 
 		if data, err = bson.MarshalExtJSON(newobj, false, true); err != nil {
-			return &state.GetResponse{}, err
+			return nil, err
 		}
 		var input interface{}
 		json.Unmarshal(data, &input)
 		value := input.(map[string]interface{})[value]
 		if data, err = json.Marshal(value); err != nil {
-			return &state.GetResponse{}, err
+			return nil, err
 		}
 
 	default:
-		if data, err = json.Marshal(result.Value); err != nil {
-			return &state.GetResponse{}, err
+		data, err = json.Marshal(obj)
+		if err != nil {
+			return nil, err
 		}
 	}
 
-	return &state.GetResponse{
-		Data: data,
-		ETag: ptr.Of(result.Etag),
-	}, nil
+	return data, nil
 }
 
 // Delete performs a delete operation.

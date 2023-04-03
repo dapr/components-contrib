@@ -96,8 +96,8 @@ github.com/dapr/dapr v1.10.4-0.20230317204345-585da2feb90d h1:ZoF+yBx9kVdIqfEV1T
 github.com/dapr/dapr v1.10.4-0.20230317204345-585da2feb90d/go.mod h1:BP/KRi9jftCg97fPoWDoxcsSnm338QGGDCoafsGX32w=
 github.com/dapr/go-sdk v1.7.0 h1:SJC8layk2eKuJ8N+S84DtYpP4fgVugu8sUAliGu6/nM=
 github.com/dapr/go-sdk v1.7.0/go.mod h1:kWMKJ39k2smLVnB6v5Y6dMbwfj1Z3XBxa4Q2dCFzf2U=
-github.com/dapr/kit v0.0.5-0.20230321003608-efcc1af907a7 h1:WfkTwXkiAtjcx0Z07OGw5bgD9yVx+SvulLvw1PqG+Dw=
-github.com/dapr/kit v0.0.5-0.20230321003608-efcc1af907a7/go.mod h1:JXPc/7O0s0ieBe+GpOUuYiyxRcgip1MQwSwCmQPYSVE=
+github.com/dapr/kit v0.0.5-0.20230401092230-30d122f67bdc h1:VZ+VUTUc1baDyTkvdTRnW1rOKnPwLe+3K5kLncMLe74=
+github.com/dapr/kit v0.0.5-0.20230401092230-30d122f67bdc/go.mod h1:uKuSJi2Ofj02OixDrpzCFKk+lETrQxQtVIra+wfyzsw=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
@@ -548,8 +548,8 @@ golang.org/x/exp v0.0.0-20191227195350-da58074b4299/go.mod h1:2RIsYlXP63K8oxa1u0
 golang.org/x/exp v0.0.0-20200119233911-0405dc783f0a/go.mod h1:2RIsYlXP63K8oxa1u096TMicItID8zy7Y6sNkU49FU4=
 golang.org/x/exp v0.0.0-20200207192155-f17229e696bd/go.mod h1:J/WKrq2StrnmMY6+EHIKF9dgMWnmCNThgcyBT1FY9mM=
 golang.org/x/exp v0.0.0-20200224162631-6cc2880d07d6/go.mod h1:3jZMyOhIsHpP37uCMkUooju7aAi5cS1Q23tOzKc+0MU=
-golang.org/x/exp v0.0.0-20230310171629-522b1b587ee0 h1:LGJsf5LRplCck6jUCH3dBL2dmycNruWNF5xugkSlfXw=
-golang.org/x/exp v0.0.0-20230310171629-522b1b587ee0/go.mod h1:CxIveKay+FTh1D0yPZemJVgC/95VzuuOLq5Qi4xnoYc=
+golang.org/x/exp v0.0.0-20230321023759-10a507213a29 h1:ooxPy7fPvB4kwsA2h+iBNHkAbp/4JxTSwCmvdjEYmug=
+golang.org/x/exp v0.0.0-20230321023759-10a507213a29/go.mod h1:CxIveKay+FTh1D0yPZemJVgC/95VzuuOLq5Qi4xnoYc=
 golang.org/x/image v0.0.0-20190227222117-0694c2d4d067/go.mod h1:kZ7UVZpmo3dzQBMxlp+ypCbDeSB+sBbTgSJuh5dn5js=
 golang.org/x/image v0.0.0-20190802002840-cff245a6509b/go.mod h1:FeLwcggjj3mMvU+oOTbSwawSJRM1uh48EjtB4UJZlP0=
 golang.org/x/lint v0.0.0-20181026193005-c67002cb31c3/go.mod h1:UVdnD1Gm6xHRNCYTkRU2/jEulfH38KcIWyp/GAMgvoE=

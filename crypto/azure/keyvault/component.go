@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -33,12 +32,7 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-var (
-	errKeyNotFound = errors.New("key not found in the vault")
-
-	// Used to initialize validEncryptionAlgs and validSignatureAlgs lazily when the first component of this kind is initialized
-	algsParsed sync.Once
-)
+var errKeyNotFound = errors.New("key not found in the vault")
 
 type keyvaultCrypto struct {
 	keyCache    *contribCrypto.PubKeyCache
@@ -62,14 +56,18 @@ func (k *keyvaultCrypto) Init(_ context.Context, metadata contribCrypto.Metadata
 	algsParsed.Do(func() {
 		listEncryption := azkeys.PossibleJSONWebKeyEncryptionAlgorithmValues()
 		validEncryptionAlgs = make(map[string]struct{}, len(listEncryption))
-		for _, v := range listEncryption {
+		encryptionAlgsList = make([]string, len(listEncryption))
+		for i, v := range listEncryption {
 			validEncryptionAlgs[string(v)] = struct{}{}
+			encryptionAlgsList[i] = string(v)
 		}
 
 		listSignature := azkeys.PossibleJSONWebKeySignatureAlgorithmValues()
 		validSignatureAlgs = make(map[string]struct{}, len(listSignature))
-		for _, v := range listSignature {
+		signatureAlgsList = make([]string, len(listSignature))
+		for i, v := range listSignature {
 			validSignatureAlgs[string(v)] = struct{}{}
+			signatureAlgsList[i] = string(v)
 		}
 	})
 
@@ -399,6 +397,14 @@ func (k *keyvaultCrypto) verifyInVault(parentCtx context.Context, digest []byte,
 // getVaultURI returns Azure Key Vault URI.
 func (k *keyvaultCrypto) getVaultURI() string {
 	return fmt.Sprintf("https://%s.%s", k.md.VaultName, k.md.vaultDNSSuffix)
+}
+
+func (keyvaultCrypto) SupportedEncryptionAlgorithms() []string {
+	return encryptionAlgsList
+}
+
+func (keyvaultCrypto) SupportedSignatureAlgorithms() []string {
+	return signatureAlgsList
 }
 
 func (keyvaultCrypto) GetComponentMetadata() map[string]string {

@@ -255,8 +255,7 @@ func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	if req.ETag != nil && *req.ETag != "" {
 		etag := azcore.ETag(*req.ETag)
 		options.IfMatchEtag = &etag
-	}
-	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
+	} else if req.Options.Concurrency == state.FirstWrite {
 		var u uuid.UUID
 		u, err = uuid.NewRandom()
 		if err != nil {
@@ -291,6 +290,11 @@ func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	return nil
 }
 
+// BulkSet performs a bulk save operation.
+func (c *StateStore) BulkSet(ctx context.Context, req []state.SetRequest) error {
+	return c.doBulkSetDelete(ctx, state.ToTransactionalStateOperationSlice(req))
+}
+
 // Delete performs a delete operation.
 func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	err := state.CheckRequestOptions(req.Options)
@@ -303,7 +307,15 @@ func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	if req.ETag != nil && *req.ETag != "" {
 		etag := azcore.ETag(*req.ETag)
 		options.IfMatchEtag = &etag
+	} else if req.Options.Concurrency == state.FirstWrite {
+		var u uuid.UUID
+		u, err = uuid.NewRandom()
+		if err != nil {
+			return err
+		}
+		options.IfMatchEtag = ptr.Of(azcore.ETag(u.String()))
 	}
+
 	if req.Options.Consistency == state.Strong {
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelSession.ToPtr()
 	} else if req.Options.Consistency == state.Eventual {
@@ -315,7 +327,6 @@ func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	pk := azcosmos.NewPartitionKeyString(partitionKey)
 	_, err = c.client.DeleteItem(deleteCtx, pk, req.Key, &options)
 	if err != nil && !isNotFoundError(err) {
-		c.logger.Debugf("Error from cosmos.DeleteDocument e=%e, e.Error=%s", err, err.Error())
 		if req.ETag != nil && *req.ETag != "" {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
@@ -325,17 +336,60 @@ func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	return nil
 }
 
+// BulkDelete performs a bulk delete operation.
+func (c *StateStore) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
+	return c.doBulkSetDelete(ctx, state.ToTransactionalStateOperationSlice(req))
+}
+
+// Custom implementation for BulkSet and BulkDelete. We can't use the standard in DefaultBulkStore because we need to be aware of partition keys.
+func (c *StateStore) doBulkSetDelete(ctx context.Context, req []state.TransactionalStateOperation) error {
+	// Group all requests by partition key
+	// This has initial size of len(req) as pessimistic scenario
+	partitions := make(map[string]*state.TransactionalStateRequest, len(req))
+	for _, r := range req {
+		pk := populatePartitionMetadata(r.GetKey(), r.GetMetadata())
+		if partitions[pk] == nil {
+			partitions[pk] = &state.TransactionalStateRequest{
+				Operations: make([]state.TransactionalStateOperation, 0),
+				Metadata: map[string]string{
+					metadataPartitionKey: pk,
+				},
+			}
+		}
+
+		partitions[pk].Operations = append(partitions[pk].Operations, r)
+	}
+
+	// Execute all transactions in parallel
+	errs := make(chan error)
+	for pk := range partitions {
+		go func(pk string) {
+			err := c.Multi(ctx, partitions[pk])
+			if err != nil {
+				err = fmt.Errorf("error while processing bulk set in partition %s: %w", pk, err)
+			}
+			errs <- err
+		}(pk)
+	}
+
+	// Wait for all results
+	var err error
+	for i := 0; i < len(partitions); i++ {
+		err = errors.Join(<-errs)
+	}
+
+	return err
+}
+
 // Multi performs a transactional operation. Succeeds only if all operations succeed, and fails if one or more operations fail.
 // Note that all operations must be in the same partition.
 func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStateRequest) (err error) {
 	if len(request.Operations) == 0 {
-		c.logger.Debugf("No Operations Provided")
+		c.logger.Debugf("No operations provided")
 		return nil
 	}
 
-	var partitionKey string
-	partitionKey = populatePartitionMetadata(partitionKey, request.Metadata)
-
+	partitionKey := request.Metadata[metadataPartitionKey]
 	batch := c.client.NewTransactionalBatch(azcosmos.NewPartitionKeyString(partitionKey))
 
 	numOperations := 0
@@ -354,8 +408,7 @@ func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 			if req.ETag != nil && *req.ETag != "" {
 				etag := azcore.ETag(*req.ETag)
 				options.IfMatchETag = &etag
-			}
-			if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
+			} else if req.Options.Concurrency == state.FirstWrite {
 				var u uuid.UUID
 				u, err = uuid.NewRandom()
 				if err != nil {
@@ -375,8 +428,7 @@ func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 			if req.ETag != nil && *req.ETag != "" {
 				etag := azcore.ETag(*req.ETag)
 				options.IfMatchETag = &etag
-			}
-			if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
+			} else if req.Options.Concurrency == state.FirstWrite {
 				var u uuid.UUID
 				u, err = uuid.NewRandom()
 				if err != nil {

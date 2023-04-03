@@ -327,6 +327,14 @@ func (innerSetRequest) Operation() state.OperationType {
 	return "_internal"
 }
 
+// Implements state.StateRequest
+func (r innerSetRequest) GetKey() string {
+	return r.req.Key
+}
+func (r innerSetRequest) GetMetadata() map[string]string {
+	return r.req.Metadata
+}
+
 func (store *inMemoryStore) BulkSet(ctx context.Context, req []state.SetRequest) error {
 	if len(req) == 0 {
 		return nil

@@ -124,6 +124,8 @@ type StateRequest interface {
 
 // TransactionalStateOperation is an interface for all requests that can be part of a transaction.
 type TransactionalStateOperation interface {
+	StateRequest
+
 	Operation() OperationType
 }
 

@@ -6,10 +6,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/dapr/components-contrib/configuration"
 	"github.com/dapr/components-contrib/tests/utils/configupdater"
 	"github.com/dapr/kit/logger"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
@@ -114,15 +115,15 @@ func (r *ConfigUpdater) Init(props map[string]string) error {
 
 func buildAddQuery(items map[string]*configuration.Item, configTable string) (string, []interface{}, error) {
 	query := ""
-	var params []interface{}
+	paramWildcard := make([]string, 0, len(items))
+	params := make([]interface{}, 0, 4*len(items))
 	if len(items) == 0 {
 		return query, params, fmt.Errorf("empty list of items")
 	}
 	var queryBuilder strings.Builder
 	queryBuilder.WriteString("INSERT INTO " + configTable + " (KEY, VALUE, VERSION, METADATA) VALUES ")
-	var paramWildcard []string
-	paramPosition := 1
 
+	paramPosition := 1
 	for key, item := range items {
 		paramWildcard = append(paramWildcard, "($"+strconv.Itoa(paramPosition)+", $"+strconv.Itoa(paramPosition+1)+", $"+strconv.Itoa(paramPosition+2)+", $"+strconv.Itoa(paramPosition+3)+")")
 		params = append(params, key, item.Value, item.Version, item.Metadata)

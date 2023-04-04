@@ -300,7 +300,7 @@ func (c *StateStore) getMulti(ctx context.Context, pk string, req []*state.GetRe
 			}
 
 			// If the item contains a partition key, ensure it's the correct one
-			// See: https://github.com/Azure/azure-sdk-for-go/issues/20543
+			// This should never happen unless there's some issue
 			if item.PartitionKey != "" && item.PartitionKey != pk {
 				c.logger.Warnf("Query returned an item with the wrong partition key; will be ignored")
 				continue
@@ -368,7 +368,13 @@ func (c *StateStore) BulkGet(ctx context.Context, req []state.GetRequest, opts s
 
 				// Release the token for concurrency and store the response
 				<-limitCh
-				result[int(resN.Add(1)-1)] = res
+				// Prevents a panic if out of bounds
+				n := int(resN.Add(1) - 1)
+				if n >= len(result) {
+					c.logger.Errorf("Received more results than expected")
+					return
+				}
+				result[n] = res
 			}()
 
 			continue
@@ -390,14 +396,26 @@ func (c *StateStore) BulkGet(ctx context.Context, req []state.GetRequest, opts s
 			// Save all results
 			foundKeys := make(map[string]struct{}, len(items))
 			for _, res := range items {
-				result[int(resN.Add(1)-1)] = res
+				// Prevents a panic if out of bounds
+				n := int(resN.Add(1) - 1)
+				if n >= len(result) {
+					c.logger.Errorf("Received more results than expected")
+					return
+				}
+				result[n] = res
 				foundKeys[res.Key] = struct{}{}
 			}
 
 			// For consistency with when using Get, we need to include keys that are missing and set an empty value
 			for _, r := range partitions[pk] {
 				if _, ok := foundKeys[r.Key]; !ok {
-					result[int(resN.Add(1)-1)] = state.BulkGetResponse{
+					// Prevents a panic if out of bounds
+					n := int(resN.Add(1) - 1)
+					if n >= len(result) {
+						c.logger.Errorf("Received more results than expected")
+						return
+					}
+					result[n] = state.BulkGetResponse{
 						Key: r.Key,
 					}
 				}
@@ -410,7 +428,12 @@ func (c *StateStore) BulkGet(ctx context.Context, req []state.GetRequest, opts s
 		limitCh <- struct{}{}
 	}
 
-	return result[:int(resN.Load())], nil
+	// Prevents a panic if out of bounds
+	n := int(resN.Load())
+	if n >= len(result) {
+		n = len(result) - 1
+	}
+	return result[:n], nil
 }
 
 // Set saves a CosmosDB item.

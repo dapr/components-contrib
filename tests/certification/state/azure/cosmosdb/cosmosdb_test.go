@@ -289,7 +289,7 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 		}
 	}
 
-	flow.New(t, "Test basic operations").
+	flow.New(t, "Test master key auth").
 		// Run the Dapr sidecar with azure CosmosDB storage.
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
@@ -303,18 +303,16 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 		Step("Run tests for bulk operations", bulkTest("statestore-basic")).
 		Run()
 
-	/*
-		flow.New(t, "Test AAD authentication").
-			// Run the Dapr sidecar with azure CosmosDB storage.
-			Step(sidecar.Run(sidecarNamePrefix,
-				embedded.WithoutApp(),
-				embedded.WithDaprGRPCPort(currentGrpcPort),
-				embedded.WithDaprHTTPPort(currentHTTPPort),
-				embedded.WithComponentsPath("./components/aadtest"),
-				componentRuntimeOptions())).
-			Step("Run basic test with Azure AD Authentication", basicTest("statestore-aad")).
-			Run()
-	*/
+	flow.New(t, "Test AAD authentication").
+		// Run the Dapr sidecar with azure CosmosDB storage.
+		Step(sidecar.Run(sidecarNamePrefix,
+			embedded.WithoutApp(),
+			embedded.WithDaprGRPCPort(currentGrpcPort),
+			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithComponentsPath("./components/aadtest"),
+			componentRuntimeOptions())).
+		Step("Run basic test with Azure AD Authentication", basicTest("statestore-aad")).
+		Run()
 }
 
 func componentRuntimeOptions() []runtime.Option {

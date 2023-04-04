@@ -48,17 +48,12 @@ type CFWorkersKV struct {
 
 // NewCFWorkersKV returns a new CFWorkersKV.
 func NewCFWorkersKV(logger logger.Logger) state.Store {
-	s := newStore(logger)
-	s.BulkStore = state.NewDefaultBulkStore(s)
-	return s
-}
-
-func newStore(logger logger.Logger) *CFWorkersKV {
-	q := &CFWorkersKV{
+	s := &CFWorkersKV{
 		Base: &workers.Base{},
 	}
-	q.SetLogger(logger)
-	return q
+	s.SetLogger(logger)
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // Init the component.

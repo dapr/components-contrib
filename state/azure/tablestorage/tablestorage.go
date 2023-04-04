@@ -211,17 +211,13 @@ func (r *StateStore) GetComponentMetadata() map[string]string {
 }
 
 func NewAzureTablesStateStore(logger logger.Logger) state.Store {
-	s := newStateStore(logger)
-	s.BulkStore = state.NewDefaultBulkStore(s)
-	return s
-}
-
-func newStateStore(logger logger.Logger) *StateStore {
-	return &StateStore{
+	s := &StateStore{
 		json:     jsoniter.ConfigFastest,
 		features: []state.Feature{state.FeatureETag},
 		logger:   logger,
 	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 func getTablesMetadata(meta map[string]string) (*tablesMetadata, error) {

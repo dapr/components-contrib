@@ -84,9 +84,7 @@ func TestMemcachedMetadata(t *testing.T) {
 }
 
 func TestParseTTL(t *testing.T) {
-	store := &Memcached{
-		logger: logger.NewLogger("test"),
-	}
+	store := NewMemCacheStateStore(logger.NewLogger("test")).(*Memcached)
 	t.Run("TTL Not an integer", func(t *testing.T) {
 		ttlInSeconds := "not an integer"
 		ttl, err := store.parseTTL(&state.SetRequest{

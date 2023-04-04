@@ -64,18 +64,14 @@ type couchbaseMetadata struct {
 }
 
 // NewCouchbaseStateStore returns a new couchbase state store.
-func NewCouchbaseStateStore(log logger.Logger) state.Store {
-	s := newStateStore(log)
-	s.BulkStore = state.NewDefaultBulkStore(s)
-	return s
-}
-
-func newStateStore(log logger.Logger) *Couchbase {
-	return &Couchbase{
+func NewCouchbaseStateStore(logger logger.Logger) state.Store {
+	s := &Couchbase{
 		json:     jsoniter.ConfigFastest,
 		features: []state.Feature{state.FeatureETag},
-		logger:   log,
+		logger:   logger,
 	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 func parseAndValidateMetadata(meta state.Metadata) (*couchbaseMetadata, error) {

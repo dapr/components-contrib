@@ -39,8 +39,8 @@ type aerospikeMetadata struct {
 }
 
 var (
-	errMissingHosts = errors.New("value for 'hosts' missing")
-	errInvalidHosts = errors.New("invalid value for hosts")
+	errMissingHosts = errors.New("aerospike: value for 'hosts' missing")
+	errInvalidHosts = errors.New("aerospike: invalid value for hosts")
 )
 
 // Aerospike is a state store.

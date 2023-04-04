@@ -4,9 +4,9 @@ go 1.20
 
 require (
 	github.com/benbjohnson/clock v1.3.0
-	github.com/dapr/components-contrib v1.10.4-0.20230325223448-2266e7ad440a
+	github.com/dapr/components-contrib v1.10.6-0.20230403162214-9ee9d56cb7ea
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20220519061249-c2cb1dad5bb0
-	github.com/dapr/dapr v1.10.4-0.20230317204345-585da2feb90d
+	github.com/dapr/dapr v1.10.5-rc.1.0.20230404115414-eed80024b415
 	github.com/dapr/go-sdk v1.7.0
 	github.com/dapr/kit v0.0.5-0.20230401092230-30d122f67bdc
 	github.com/stretchr/testify v1.8.2
@@ -14,11 +14,21 @@ require (
 
 require (
 	github.com/bufbuild/protocompile v0.4.0 // indirect
+	github.com/chebyrash/promise v0.0.0-20220530143319-1123826567d6 // indirect
 	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.13.0 // indirect
 	github.com/cloudevents/sdk-go/v2 v2.13.0 // indirect
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0 // indirect
+	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.2 // indirect
+	github.com/lestrrat-go/blackmagic v1.0.1 // indirect
+	github.com/lestrrat-go/httpcc v1.0.1 // indirect
+	github.com/lestrrat-go/httprc v1.0.4 // indirect
+	github.com/lestrrat-go/iter v1.0.2 // indirect
+	github.com/lestrrat-go/jwx/v2 v2.0.9 // indirect
+	github.com/lestrrat-go/option v1.0.1 // indirect
 	github.com/marusama/semaphore/v2 v2.5.0 // indirect
 	github.com/microsoft/durabletask-go v0.1.4 // indirect
+	golang.org/x/crypto v0.7.0 // indirect
 )
 
 require (
@@ -153,5 +163,3 @@ replace github.com/dapr/components-contrib => ../../../../
 // in the Dapr runtime. Don't commit with this uncommented!
 //
 // replace github.com/dapr/dapr v1.10.1-0.20230303202925-74458da97d83
-
-replace github.com/dapr/dapr => github.com/italypaleale/dapr v1.6.1-0.20230331170234-b28aec9620eb

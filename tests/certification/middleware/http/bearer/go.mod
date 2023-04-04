@@ -3,9 +3,9 @@ module bearer_http_mw_test
 go 1.20
 
 require (
-	github.com/dapr/components-contrib v1.10.4-0.20230325223448-2266e7ad440a
+	github.com/dapr/components-contrib v1.10.6-0.20230403162214-9ee9d56cb7ea
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20211026011813-36b75e9ae272
-	github.com/dapr/dapr v1.10.4-0.20230317204345-585da2feb90d
+	github.com/dapr/dapr v1.10.5-rc.1.0.20230404115414-eed80024b415
 	github.com/dapr/go-sdk v1.7.0
 	github.com/dapr/kit v0.0.5-0.20230401092230-30d122f67bdc
 	github.com/go-chi/chi/v5 v5.0.8
@@ -26,6 +26,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cenkalti/backoff/v4 v4.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
+	github.com/chebyrash/promise v0.0.0-20220530143319-1123826567d6 // indirect
 	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.13.0 // indirect
 	github.com/cloudevents/sdk-go/v2 v2.13.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -154,5 +155,3 @@ require (
 replace github.com/dapr/components-contrib => ../../../../..
 
 replace github.com/dapr/components-contrib/tests/certification => ../../..
-
-replace github.com/dapr/dapr => github.com/italypaleale/dapr v1.6.1-0.20230331170234-b28aec9620eb

@@ -22,7 +22,6 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -81,17 +80,16 @@ const (
 	statusNotFound       = "NotFound"
 )
 
-// policy that tracks the number of times it was invoked
+// Policy that makes all queries cross-partition
 type crossPartitionQueryPolicy struct{}
 
-func (p *crossPartitionQueryPolicy) Do(req *policy.Request) (*http.Response, error) {
+func (p crossPartitionQueryPolicy) Do(req *policy.Request) (*http.Response, error) {
 	raw := req.Raw()
-	hdr := raw.Header
-	if strings.ToLower(hdr.Get("x-ms-documentdb-query")) == "true" {
-		// modify req here since we know it is a query
-		hdr.Add("x-ms-documentdb-query-enablecrosspartition", "true")
-		hdr.Del("x-ms-documentdb-partitionkey")
-		raw.Header = hdr
+	// Check if we're performing a query
+	// In that case, remove the partitionkey header and enable cross-partition queries
+	if strings.ToLower(raw.Header.Get("x-ms-documentdb-query")) == "true" {
+		raw.Header.Add("x-ms-documentdb-query-enablecrosspartition", "true")
+		raw.Header.Del("x-ms-documentdb-partitionkey")
 	}
 	return req.Next()
 }
@@ -136,10 +134,11 @@ func (c *StateStore) Init(ctx context.Context, meta state.Metadata) error {
 	}
 
 	// Internal query policy was created due to lack of cross partition query capability in the current Go sdk
-	queryPolicy := &crossPartitionQueryPolicy{}
 	opts := azcosmos.ClientOptions{
 		ClientOptions: policy.ClientOptions{
-			PerCallPolicies: []policy.Policy{queryPolicy},
+			PerCallPolicies: []policy.Policy{
+				crossPartitionQueryPolicy{},
+			},
 			Telemetry: policy.TelemetryOptions{
 				ApplicationID: "dapr-" + logger.DaprVersion,
 			},
@@ -239,11 +238,10 @@ func (c *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 	}, nil
 }
 
-// getMulti retrieves multiple items within a single partition, efficiently with a single query.
-func (c *StateStore) getMulti(ctx context.Context, pk string, req []*state.GetRequest) ([]state.BulkGetResponse, error) {
-	if len(req) == 0 {
-		return []state.BulkGetResponse{}, nil
-	}
+// getMulti retrieves multiple items with a cross-partition query, retrieving multiple records with a single query.
+func (c *StateStore) getMulti(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error) {
+	// The partition key doesn't matter since it will be removed for a cross-partition query
+	pk := azcosmos.NewPartitionKeyBool(true)
 
 	// Build the query
 	var consistency azcosmos.ConsistencyLevel
@@ -272,8 +270,7 @@ func (c *StateStore) getMulti(ctx context.Context, pk string, req []*state.GetRe
 	}
 	pager := c.client.NewQueryItemsPager(
 		"SELECT * FROM r WHERE ARRAY_CONTAINS(@keys, r.id)",
-		azcosmos.NewPartitionKeyString(pk),
-		queryOpts,
+		pk, queryOpts,
 	)
 	result := make([]state.BulkGetResponse, len(req))
 	n := 0
@@ -299,13 +296,6 @@ func (c *StateStore) getMulti(ctx context.Context, pk string, req []*state.GetRe
 				continue
 			}
 
-			// If the item contains a partition key, ensure it's the correct one
-			// This should never happen unless there's some issue
-			if item.PartitionKey != "" && item.PartitionKey != pk {
-				c.logger.Warnf("Query returned an item with the wrong partition key; will be ignored")
-				continue
-			}
-
 			// We are sure this is a []byte if not nil
 			b, _ := item.Value.([]byte)
 
@@ -322,114 +312,59 @@ func (c *StateStore) getMulti(ctx context.Context, pk string, req []*state.GetRe
 }
 
 // BulkGet performs a Get operation in bulk.
-func (c *StateStore) BulkGet(ctx context.Context, req []state.GetRequest, opts state.BulkGetOpts) ([]state.BulkGetResponse, error) {
-	// If parallelism isn't set, run all operations in parallel
-	if opts.Parallelism <= 0 {
-		opts.Parallelism = len(req)
+func (c *StateStore) BulkGet(ctx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
+	if len(req) == 0 {
+		return []state.BulkGetResponse{}, nil
 	}
 
-	// Group all requests by partition key
-	// This has initial size of len(req) as pessimistic scenario
-	partitions := make(map[string][]*state.GetRequest, len(req))
-	for i := range req {
-		r := req[i]
-		pk := populatePartitionMetadata(r.GetKey(), r.GetMetadata())
-		if partitions[pk] == nil {
-			partitions[pk] = make([]*state.GetRequest, 0, 1)
+	// If we have a single request, execute it as a regular Get request which is more efficient
+	if len(req) == 1 {
+		item, err := c.Get(ctx, &req[0])
+		res := state.BulkGetResponse{
+			Key: req[0].Key,
 		}
-
-		partitions[pk] = append(partitions[pk], &r)
+		if err != nil {
+			res.Error = err.Error()
+		} else if item != nil {
+			res.Data = json.RawMessage(item.Data)
+			res.ETag = item.ETag
+			res.Metadata = item.Metadata
+		}
+		return []state.BulkGetResponse{res}, nil
 	}
 
-	// Execute all transactions in parallel, with max parallelism
-	limitCh := make(chan struct{}, opts.Parallelism)
+	// Execute a single query to retrieve all values, as a cross-partition query
+	items, err := c.getMulti(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	// Save all results
+	// For consistency with when using Get, we need to include keys that are missing and set an empty value
+	if len(items) > len(req) {
+		return nil, errors.New("received more results than expected")
+	}
 	result := make([]state.BulkGetResponse, len(req))
-	resN := atomic.Int64{}
-	for pk := range partitions {
-		// Limit concurrency
-		limitCh <- struct{}{}
-
-		// If there's only 1 item in the partition, use Get()
-		// This performs a lookup by key so it's more efficient inside Cosmos DB
-		if len(partitions[pk]) == 1 {
-			r := partitions[pk][0]
-			go func() {
-				item, err := c.Get(ctx, r)
-				res := state.BulkGetResponse{
-					Key: r.Key,
-				}
-				if err != nil {
-					res.Error = err.Error()
-				} else if item != nil {
-					res.Data = json.RawMessage(item.Data)
-					res.ETag = item.ETag
-					res.Metadata = item.Metadata
-				}
-
-				// Release the token for concurrency and store the response
-				<-limitCh
-				// Prevents a panic if out of bounds
-				n := int(resN.Add(1) - 1)
-				if n >= len(result) {
-					c.logger.Errorf("Received more results than expected")
-					return
-				}
-				result[n] = res
-			}()
-
-			continue
+	foundKeys := make(map[string]struct{}, len(items))
+	n := 0
+	for _, res := range items {
+		result[n] = res
+		foundKeys[res.Key] = struct{}{}
+		n++
+	}
+	for _, r := range req {
+		if _, ok := foundKeys[r.Key]; !ok {
+			// Prevents a panic if out of bounds
+			if n >= len(result) {
+				return nil, errors.New("received more results than expected")
+			}
+			result[n] = state.BulkGetResponse{
+				Key: r.Key,
+			}
+			n++
 		}
-
-		// With more than 1 item, use getMulti
-		go func(pk string) {
-			defer func() {
-				// Release the token for concurrency
-				<-limitCh
-			}()
-
-			items, err := c.getMulti(ctx, pk, partitions[pk])
-			if err != nil {
-				c.logger.Errorf("Error while requesting values in partition %s: %v", pk, err)
-				return
-			}
-
-			// Save all results
-			foundKeys := make(map[string]struct{}, len(items))
-			for _, res := range items {
-				// Prevents a panic if out of bounds
-				n := int(resN.Add(1) - 1)
-				if n >= len(result) {
-					c.logger.Errorf("Received more results than expected")
-					return
-				}
-				result[n] = res
-				foundKeys[res.Key] = struct{}{}
-			}
-
-			// For consistency with when using Get, we need to include keys that are missing and set an empty value
-			for _, r := range partitions[pk] {
-				if _, ok := foundKeys[r.Key]; !ok {
-					// Prevents a panic if out of bounds
-					n := int(resN.Add(1) - 1)
-					if n >= len(result) {
-						c.logger.Errorf("Received more results than expected")
-						return
-					}
-					result[n] = state.BulkGetResponse{
-						Key: r.Key,
-					}
-				}
-			}
-		}(pk)
 	}
-
-	// We can detect that all goroutines are done when limitCh is completely empty
-	for i := 0; i < opts.Parallelism; i++ {
-		limitCh <- struct{}{}
-	}
-
 	// Prevents a panic if out of bounds
-	n := int(resN.Load())
 	if n > len(result) {
 		n = len(result)
 	}

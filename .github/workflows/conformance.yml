@@ -349,6 +349,7 @@ jobs:
       with:
         name: conf_code_cov
         path: tmp/conf_code_cov
+        retention-days: 7
 
     # Upload logs for test analytics to consume
     - name: Upload test results

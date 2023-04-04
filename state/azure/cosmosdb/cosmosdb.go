@@ -240,7 +240,7 @@ func (c *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 }
 
 // getMulti retrieves multiple items within a single partition, efficiently with a single query.
-func (c *StateStore) getMulti(ctx context.Context, pk azcosmos.PartitionKey, req []*state.GetRequest) ([]state.BulkGetResponse, error) {
+func (c *StateStore) getMulti(ctx context.Context, pk string, req []*state.GetRequest) ([]state.BulkGetResponse, error) {
 	if len(req) == 0 {
 		return []state.BulkGetResponse{}, nil
 	}
@@ -270,7 +270,11 @@ func (c *StateStore) getMulti(ctx context.Context, pk azcosmos.PartitionKey, req
 	if consistency != "" {
 		queryOpts.ConsistencyLevel = &consistency
 	}
-	pager := c.client.NewQueryItemsPager("SELECT * FROM r WHERE ARRAY_CONTAINS(@keys, r.id)", pk, queryOpts)
+	pager := c.client.NewQueryItemsPager(
+		"SELECT * FROM r WHERE ARRAY_CONTAINS(@keys, r.id)",
+		azcosmos.NewPartitionKeyString(pk),
+		queryOpts,
+	)
 	result := make([]state.BulkGetResponse, len(req))
 	n := 0
 	for pager.More() {
@@ -292,6 +296,13 @@ func (c *StateStore) getMulti(ctx context.Context, pk azcosmos.PartitionKey, req
 					Error: err.Error(),
 				}
 				n++
+				continue
+			}
+
+			// If the item contains a partition key, ensure it's the correct one
+			// See: https://github.com/Azure/azure-sdk-for-go/issues/20543
+			if item.PartitionKey != "" && item.PartitionKey != pk {
+				c.logger.Warnf("Query returned an item with the wrong partition key; will be ignored")
 				continue
 			}
 
@@ -370,7 +381,7 @@ func (c *StateStore) BulkGet(ctx context.Context, req []state.GetRequest, opts s
 				<-limitCh
 			}()
 
-			items, err := c.getMulti(ctx, azcosmos.NewPartitionKeyString(pk), partitions[pk])
+			items, err := c.getMulti(ctx, pk, partitions[pk])
 			if err != nil {
 				c.logger.Errorf("Error while requesting values in partition %s: %v", pk, err)
 				return

@@ -19,15 +19,17 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
+
 	"github.com/dapr/components-contrib/metadata"
+	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	"github.com/dapr/components-contrib/state"
 	cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
-	"github.com/google/uuid"
-	"golang.org/x/exp/slices"
-
-	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
@@ -35,8 +37,6 @@ import (
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	daprClient "github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var log = logger.NewLogger("dapr.components")

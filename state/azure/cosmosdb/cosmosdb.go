@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -42,8 +43,6 @@ import (
 
 // StateStore is a CosmosDB state store.
 type StateStore struct {
-	state.BulkStore
-
 	client      *azcosmos.ContainerClient
 	metadata    metadata
 	contentType string
@@ -73,7 +72,7 @@ type CosmosItem struct {
 	IsBinary     bool        `json:"isBinary"`
 	PartitionKey string      `json:"partitionKey"`
 	TTL          *int        `json:"ttl,omitempty"`
-	Etag         string
+	Etag         string      `json:"_etag"`
 }
 
 const (
@@ -99,11 +98,9 @@ func (p *crossPartitionQueryPolicy) Do(req *policy.Request) (*http.Response, err
 
 // NewCosmosDBStateStore returns a new CosmosDB state store.
 func NewCosmosDBStateStore(logger logger.Logger) state.Store {
-	s := &StateStore{
+	return &StateStore{
 		logger: logger,
 	}
-	s.BulkStore = state.NewDefaultBulkStore(s)
-	return s
 }
 
 func (c *StateStore) GetComponentMetadata() map[string]string {
@@ -229,7 +226,7 @@ func (c *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 		return nil, err
 	}
 
-	item, err := NewCosmosItemFromResponse(&readItem, c.logger)
+	item, err := NewCosmosItemFromResponse(readItem.Value, c.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -240,6 +237,159 @@ func (c *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 		Data: b,
 		ETag: ptr.Of(item.Etag),
 	}, nil
+}
+
+// getMulti retrieves multiple items within a single partition, efficiently with a single query.
+func (c *StateStore) getMulti(ctx context.Context, pk azcosmos.PartitionKey, req []*state.GetRequest) ([]state.BulkGetResponse, error) {
+	if len(req) == 0 {
+		return []state.BulkGetResponse{}, nil
+	}
+
+	// Build the query
+	var consistency azcosmos.ConsistencyLevel
+	keys := make([]string, len(req))
+	for i, r := range req {
+		keys[i] = r.Key
+
+		// Use the specified consistency if empty
+		// If there's a strong consistency, it overrides any eventual
+		if r.Options.Consistency == state.Strong {
+			consistency = azcosmos.ConsistencyLevelStrong
+		} else if r.Options.Consistency == state.Eventual && consistency == "" {
+			consistency = azcosmos.ConsistencyLevelEventual
+		}
+	}
+
+	// Execute the query
+	// Source for "ARRAY_CONTAINS": https://stackoverflow.com/a/44639998/192024
+	queryOpts := &azcosmos.QueryOptions{
+		QueryParameters: []azcosmos.QueryParameter{
+			{Name: "keys", Value: keys},
+		},
+	}
+	if consistency != "" {
+		queryOpts.ConsistencyLevel = &consistency
+	}
+	pager := c.client.NewQueryItemsPager("SELECT * FROM r WHERE ARRAY_CONTAINS(@keys, r.id)", pk, queryOpts)
+	result := make([]state.BulkGetResponse, len(req))
+	n := 0
+	for pager.More() {
+		queryResponse, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, value := range queryResponse.Items {
+			item, err := NewCosmosItemFromResponse(value, c.logger)
+			if err != nil {
+				// If the error was while unserializing JSON, we don't have an ID, so exit right away
+				// This should never happen, hopefully
+				if item.ID == "" {
+					return nil, err
+				}
+				result[n] = state.BulkGetResponse{
+					Key:   item.ID,
+					Error: err.Error(),
+				}
+				n++
+				continue
+			}
+
+			// We are sure this is a []byte if not nil
+			b, _ := item.Value.([]byte)
+
+			result[n] = state.BulkGetResponse{
+				Key:  item.ID,
+				Data: b,
+				ETag: &item.Etag,
+			}
+			n++
+		}
+	}
+
+	return result[:n], nil
+}
+
+// BulkGet performs a Get operation in bulk.
+func (c *StateStore) BulkGet(ctx context.Context, req []state.GetRequest, opts state.BulkGetOpts) ([]state.BulkGetResponse, error) {
+	// If parallelism isn't set, run all operations in parallel
+	if opts.Parallelism <= 0 {
+		opts.Parallelism = len(req)
+	}
+
+	// Group all requests by partition key
+	// This has initial size of len(req) as pessimistic scenario
+	partitions := make(map[string][]*state.GetRequest, len(req))
+	for i := range req {
+		r := req[i]
+		pk := populatePartitionMetadata(r.GetKey(), r.GetMetadata())
+		if partitions[pk] == nil {
+			partitions[pk] = make([]*state.GetRequest, 0, 1)
+		}
+
+		partitions[pk] = append(partitions[pk], &r)
+	}
+
+	// Execute all transactions in parallel, with max parallelism
+	limitCh := make(chan struct{}, opts.Parallelism)
+	result := make([]state.BulkGetResponse, len(req))
+	resN := atomic.Int64{}
+	for pk := range partitions {
+		// Limit concurrency
+		limitCh <- struct{}{}
+
+		// If there's only 1 item in the partition, use Get()
+		// This performs a lookup by key so it's more efficient inside Cosmos DB
+		if len(partitions[pk]) == 1 {
+			r := partitions[pk][0]
+			go func() {
+				item, err := c.Get(ctx, r)
+				res := state.BulkGetResponse{
+					Key: r.Key,
+				}
+				if err != nil {
+					res.Error = err.Error()
+				} else if item != nil {
+					res.Data = json.RawMessage(item.Data)
+					res.ETag = item.ETag
+					res.Metadata = item.Metadata
+				}
+
+				// Release the token for concurrency and store the response
+				<-limitCh
+				result[int(resN.Add(1)-1)] = res
+			}()
+
+			continue
+		}
+
+		// With more than 1 item, use getMulti
+		go func(pk string) {
+			defer func() {
+				// Release the token for concurrency
+				<-limitCh
+			}()
+
+			items, err := c.getMulti(ctx, azcosmos.NewPartitionKeyString(pk), partitions[pk])
+			if err != nil {
+				c.logger.Errorf("Error while requesting values in partition %s: %w", pk, err)
+				return
+			}
+
+			// Save all results
+			// We must do this so we can be safe with other goroutines
+			for _, res := range items {
+				result[int(resN.Add(1)-1)] = res
+			}
+		}(pk)
+	}
+
+	// We can detect that all goroutines are done when limitCh is completely empty
+	for i := 0; i < opts.Parallelism; i++ {
+		limitCh <- struct{}{}
+	}
+
+	return result[:int(resN.Load())], nil
 }
 
 // Set saves a CosmosDB item.
@@ -346,7 +496,8 @@ func (c *StateStore) doBulkSetDelete(ctx context.Context, req []state.Transactio
 	// Group all requests by partition key
 	// This has initial size of len(req) as pessimistic scenario
 	partitions := make(map[string]*state.TransactionalStateRequest, len(req))
-	for _, r := range req {
+	for i := range req {
+		r := req[i]
 		pk := populatePartitionMetadata(r.GetKey(), r.GetMetadata())
 		if partitions[pk] == nil {
 			partitions[pk] = &state.TransactionalStateRequest{
@@ -575,13 +726,11 @@ func isNotFoundError(err error) bool {
 	return false
 }
 
-func NewCosmosItemFromResponse(readItem *azcosmos.ItemResponse, logger logger.Logger) (item CosmosItem, err error) {
-	err = jsoniter.ConfigFastest.Unmarshal(readItem.Value, &item)
+func NewCosmosItemFromResponse(value []byte, logger logger.Logger) (item CosmosItem, err error) {
+	err = jsoniter.ConfigFastest.Unmarshal(value, &item)
 	if err != nil {
 		return item, err
 	}
-
-	item.Etag = string(readItem.Response.ETag)
 
 	if item.IsBinary {
 		if item.Value == nil {

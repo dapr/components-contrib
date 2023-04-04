@@ -11,13 +11,16 @@ urls:
 metadata:
   - name: vaultAddr
     required: false
-    description: The address of the Vault server. Defaults to "https://127.0.0.1:8200"
+    description: |
+      The address of the Vault server. Defaults to "https://127.0.0.1:8200"
     example: "https://127.0.0.1:8200"
     type: string
   - name: caPem
     required: false
-    description: The inlined contents of the CA certificate to use, in PEM format. If defined, takes precedence over 'caPath' and 'caCert'.
-    example: "-----BEGIN PUBLIC KEY-----\n...Base64 encoding of the DER encoded certificate...\n-----END PUBLIC KEY-----"
+    description: |
+      The inlined contents of the CA certificate to use, in PEM format. If defined, takes precedence over "caPath" and "caCert".
+    example: |
+      "-----BEGIN PUBLIC KEY-----\n...Base64 encoding of the DER encoded certificate...\n-----END PUBLIC KEY-----"
     type: string
   - name: caPath
     required: false
@@ -51,7 +54,8 @@ metadata:
     type: string
   - name: vaultKVPrefix
     required: false
-    description: The prefix in vault. Defaults to dapr
+    description: |
+      The prefix in vault. Defaults to "dapr"
     example: "myprefix"
     type: string
   - name: vaultKVUsePrefix
@@ -61,11 +65,13 @@ metadata:
     type: bool
   - name: enginePath
     required: false
-    description: The engine path in vault. Defaults to secret
+    description: |
+      The engine path in vault. Defaults to "secret"
     example: "kv"
     type: string
   - name: vaultValueType
     required: false
-    description: Vault value type. map means to parse the value into map[string]string, text means to use the value as a string. 'map' sets the multipleKeyValuesPerSecret behavior. text makes Vault behave as a secret store with name/value semantics. Defaults to map
+    description: |
+      Vault value type. map means to parse the value into map[string]string, text means to use the value as a string. "map" sets the multipleKeyValuesPerSecret behavior. text makes Vault behave as a secret store with name/value semantics. Defaults to "map"
     example: "map"
     type: string

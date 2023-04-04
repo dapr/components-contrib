@@ -101,7 +101,8 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 							Value: "test",
 						},
 						Metadata: map[string]string{
-							"ttlInSeconds": "-1",
+							"ttlInSeconds": "60",
+							"partitionKey": "txpartition",
 						},
 					},
 				},
@@ -178,99 +179,111 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 				panic(err)
 			}
 
-			// If no partition key is passed, then the component uses the key name as partition key, so they're all unique
-			ctx.T.Run("no partition key specified", func(t *testing.T) {
-				t.Run("save", func(t *testing.T) {
-					reqs := []state.SetRequest{}
-					for i := 1; i <= 5; i++ {
-						key := sidecarName + "||bulk-nopk||" + strconv.Itoa(i)
-						reqs = append(reqs, state.SetRequest{
-							Key:   key,
-							Value: key,
-						})
-					}
-					err := store.BulkSet(ctx, reqs)
-					require.NoError(t, err)
-				})
-
-				t.Run("get", func(t *testing.T) {
-					expectKeys := []string{}
-					reqs := []state.GetRequest{}
-					// Only from 2 to 6 (which doesn't exist so should be empty)
-					for i := 2; i <= 6; i++ {
-						key := sidecarName + "||bulk-nopk||" + strconv.Itoa(i)
-						expectKeys = append(expectKeys, key)
-						reqs = append(reqs, state.GetRequest{
-							Key: key,
-						})
-					}
-					res, err := store.BulkGet(ctx, reqs, state.BulkGetOpts{})
-					require.NoError(t, err)
-					require.Len(t, res, 5)
-
-					foundKeys := []string{}
-					for i := 0; i < len(res); i++ {
-						if strings.HasSuffix(res[i].Key, "6") {
-							assert.Empty(t, res[i].Data)
-						} else {
-							assert.Equalf(t, `"`+res[i].Key+`"`, string(res[i].Data), "value for key %s is not valid", res[i].Key)
-						}
-						foundKeys = append(foundKeys, res[i].Key)
-					}
-
-					// Sort the keys before checking for equality
-					slices.Sort(expectKeys)
-					slices.Sort(foundKeys)
-					assert.Equal(t, expectKeys, foundKeys)
-				})
-
-				t.Run("delete", func(t *testing.T) {
-					// Delete only from 3 to 5
-					// Then retrieve from 1 to 5
-					deleteReqs := []state.DeleteRequest{}
-					getReqs := []state.GetRequest{}
-					expectKeys := []string{}
-					for i := 1; i <= 5; i++ {
-						key := sidecarName + "||bulk-nopk||" + strconv.Itoa(i)
-						if i >= 3 {
-							deleteReqs = append(deleteReqs, state.DeleteRequest{
-								Key: key,
+			runTest := func(testKey string, setMetadata map[string]string) func(t *testing.T) {
+				return func(t *testing.T) {
+					t.Run("save", func(t *testing.T) {
+						reqs := []state.SetRequest{}
+						for i := 1; i <= 5; i++ {
+							key := sidecarName + "||" + testKey + "||" + strconv.Itoa(i)
+							reqs = append(reqs, state.SetRequest{
+								Key:      key,
+								Value:    key,
+								Metadata: setMetadata,
 							})
 						}
-						getReqs = append(getReqs, state.GetRequest{
-							Key: key,
-						})
-						expectKeys = append(expectKeys, key)
-					}
+						err := store.BulkSet(ctx, reqs)
+						require.NoError(t, err)
+					})
 
-					// Delete
-					err := store.BulkDelete(ctx, deleteReqs)
-					require.NoError(t, err)
-
-					// Retrieve
-					res, err := store.BulkGet(ctx, getReqs, state.BulkGetOpts{})
-					require.NoError(t, err)
-					require.Len(t, res, 5)
-
-					foundKeys := []string{}
-					for i := 0; i < len(res); i++ {
-						key := res[i].Key
-						keyNum, err := strconv.Atoi(key[len(key)-1:])
-						require.NoErrorf(t, err, "failed to get number from key %s", key)
-						if keyNum >= 3 {
-							assert.Empty(t, res[i].Data)
-						} else {
-							assert.Equalf(t, `"`+res[i].Key+`"`, string(res[i].Data), "value for key %s is not valid", res[i].Key)
+					t.Run("get", func(t *testing.T) {
+						expectKeys := []string{}
+						reqs := []state.GetRequest{}
+						// Only from 2 to 6 (which doesn't exist so should be empty)
+						for i := 2; i <= 6; i++ {
+							key := sidecarName + "||" + testKey + "||" + strconv.Itoa(i)
+							expectKeys = append(expectKeys, key)
+							reqs = append(reqs, state.GetRequest{
+								Key:      key,
+								Metadata: setMetadata,
+							})
 						}
-						foundKeys = append(foundKeys, res[i].Key)
-					}
+						res, err := store.BulkGet(ctx, reqs, state.BulkGetOpts{})
+						require.NoError(t, err)
+						require.Len(t, res, 5)
 
-					// Sort the keys before checking for equality
-					slices.Sort(expectKeys)
-					slices.Sort(foundKeys)
-					assert.Equal(t, expectKeys, foundKeys)
-				})
-			})
+						foundKeys := []string{}
+						for i := 0; i < len(res); i++ {
+							if strings.HasSuffix(res[i].Key, "6") {
+								assert.Empty(t, res[i].Data)
+							} else {
+								assert.Equalf(t, `"`+res[i].Key+`"`, string(res[i].Data), "value for key %s is not valid", res[i].Key)
+							}
+							foundKeys = append(foundKeys, res[i].Key)
+						}
+
+						// Sort the keys before checking for equality
+						slices.Sort(expectKeys)
+						slices.Sort(foundKeys)
+						assert.Equal(t, expectKeys, foundKeys)
+					})
+
+					t.Run("delete", func(t *testing.T) {
+						// Delete only from 3 to 5
+						// Then retrieve from 1 to 5
+						deleteReqs := []state.DeleteRequest{}
+						getReqs := []state.GetRequest{}
+						expectKeys := []string{}
+						for i := 1; i <= 5; i++ {
+							key := sidecarName + "||" + testKey + "||" + strconv.Itoa(i)
+							if i >= 3 {
+								deleteReqs = append(deleteReqs, state.DeleteRequest{
+									Key:      key,
+									Metadata: setMetadata,
+								})
+							}
+							getReqs = append(getReqs, state.GetRequest{
+								Key:      key,
+								Metadata: setMetadata,
+							})
+							expectKeys = append(expectKeys, key)
+						}
+
+						// Delete
+						err := store.BulkDelete(ctx, deleteReqs)
+						require.NoError(t, err)
+
+						// Retrieve
+						res, err := store.BulkGet(ctx, getReqs, state.BulkGetOpts{})
+						require.NoError(t, err)
+						require.Len(t, res, 5)
+
+						foundKeys := []string{}
+						for i := 0; i < len(res); i++ {
+							key := res[i].Key
+							keyNum, err := strconv.Atoi(key[len(key)-1:])
+							require.NoErrorf(t, err, "failed to get number from key %s", key)
+							if keyNum >= 3 {
+								assert.Empty(t, res[i].Data)
+							} else {
+								assert.Equalf(t, `"`+res[i].Key+`"`, string(res[i].Data), "value for key %s is not valid", res[i].Key)
+							}
+							foundKeys = append(foundKeys, res[i].Key)
+						}
+
+						// Sort the keys before checking for equality
+						slices.Sort(expectKeys)
+						slices.Sort(foundKeys)
+						assert.Equal(t, expectKeys, foundKeys)
+					})
+				}
+			}
+
+			// If no partition key is passed, then the component uses the key name as partition key, so they're all unique
+			ctx.T.Run("no partition key specified", runTest("bulk-nopk", nil))
+
+			ctx.T.Run("same partition key", runTest("bulk-pk", map[string]string{
+				"partitionKey": sidecarName,
+			}))
 
 			return nil
 		}

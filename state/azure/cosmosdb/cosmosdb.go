@@ -264,7 +264,7 @@ func (c *StateStore) getMulti(ctx context.Context, pk azcosmos.PartitionKey, req
 	// Source for "ARRAY_CONTAINS": https://stackoverflow.com/a/44639998/192024
 	queryOpts := &azcosmos.QueryOptions{
 		QueryParameters: []azcosmos.QueryParameter{
-			{Name: "keys", Value: keys},
+			{Name: "@keys", Value: keys},
 		},
 	}
 	if consistency != "" {
@@ -372,14 +372,24 @@ func (c *StateStore) BulkGet(ctx context.Context, req []state.GetRequest, opts s
 
 			items, err := c.getMulti(ctx, azcosmos.NewPartitionKeyString(pk), partitions[pk])
 			if err != nil {
-				c.logger.Errorf("Error while requesting values in partition %s: %w", pk, err)
+				c.logger.Errorf("Error while requesting values in partition %s: %v", pk, err)
 				return
 			}
 
 			// Save all results
-			// We must do this so we can be safe with other goroutines
+			foundKeys := make(map[string]struct{}, len(items))
 			for _, res := range items {
 				result[int(resN.Add(1)-1)] = res
+				foundKeys[res.Key] = struct{}{}
+			}
+
+			// For consistency with when using Get, we need to include keys that are missing and set an empty value
+			for _, r := range partitions[pk] {
+				if _, ok := foundKeys[r.Key]; !ok {
+					result[int(resN.Add(1)-1)] = state.BulkGetResponse{
+						Key: r.Key,
+					}
+				}
 			}
 		}(pk)
 	}
@@ -555,6 +565,7 @@ func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 			if err != nil {
 				return err
 			}
+			doc.PartitionKey = partitionKey
 
 			if req.ETag != nil && *req.ETag != "" {
 				etag := azcore.ETag(*req.ETag)
@@ -573,7 +584,7 @@ func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 			if err != nil {
 				return err
 			}
-			batch.UpsertItem(marsh, nil)
+			batch.UpsertItem(marsh, options)
 			numOperations++
 		case state.DeleteRequest:
 			if req.ETag != nil && *req.ETag != "" {

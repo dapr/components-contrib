@@ -33,5 +33,3 @@ require (
 	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/dapr/dapr => github.com/italypaleale/dapr v1.6.1-0.20230404165709-453bccb6c007

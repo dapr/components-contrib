@@ -3,10 +3,10 @@ module github.com/dapr/components-contrib
 go 1.20
 
 require (
-	cloud.google.com/go/datastore v1.10.0
-	cloud.google.com/go/pubsub v1.28.0
+	cloud.google.com/go/datastore v1.11.0
+	cloud.google.com/go/pubsub v1.30.0
 	cloud.google.com/go/secretmanager v1.10.0
-	cloud.google.com/go/storage v1.29.0
+	cloud.google.com/go/storage v1.30.1
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.5.0-beta.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0-beta.4
@@ -63,7 +63,7 @@ require (
 	github.com/gocql/gocql v1.3.1
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.3.0
-	github.com/googleapis/gax-go/v2 v2.7.0
+	github.com/googleapis/gax-go/v2 v2.8.0
 	github.com/gorilla/mux v1.8.0
 	github.com/grandcat/zeroconf v1.0.0
 	github.com/hamba/avro/v2 v2.5.0
@@ -95,9 +95,9 @@ require (
 	github.com/pashagolub/pgxmock/v2 v2.5.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/rabbitmq/amqp091-go v1.7.0
-	github.com/redis/go-redis/v9 v9.0.2
+	github.com/redis/go-redis/v9 v9.0.3
 	github.com/sendgrid/sendgrid-go v3.12.0+incompatible
-	github.com/sijms/go-ora/v2 v2.6.5
+	github.com/sijms/go-ora/v2 v2.6.11
 	github.com/spf13/cast v1.5.0
 	github.com/stretchr/testify v1.8.2
 	github.com/supplyon/gremcos v0.1.40
@@ -111,14 +111,14 @@ require (
 	go.mongodb.org/mongo-driver v1.11.2
 	go.temporal.io/api v1.18.1
 	go.temporal.io/sdk v1.21.1
-	go.uber.org/multierr v1.9.0
+	go.uber.org/multierr v1.11.0
 	go.uber.org/ratelimit v0.2.0
 	golang.org/x/crypto v0.7.0
 	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
-	golang.org/x/mod v0.9.0
+	golang.org/x/mod v0.10.0
 	golang.org/x/net v0.8.0
-	golang.org/x/oauth2 v0.5.0
-	google.golang.org/api v0.111.0
+	golang.org/x/oauth2 v0.6.0
+	google.golang.org/api v0.115.0
 	google.golang.org/grpc v1.54.0
 	gopkg.in/couchbase/gocb.v1 v1.6.7
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
@@ -127,15 +127,15 @@ require (
 	k8s.io/apiextensions-apiserver v0.26.3
 	k8s.io/apimachinery v0.26.3
 	k8s.io/client-go v0.26.3
-	k8s.io/utils v0.0.0-20230220204549-a5ecb0141aa5
-	modernc.org/sqlite v1.21.0
+	k8s.io/utils v0.0.0-20230313181309-38a27ef9d749
+	modernc.org/sqlite v1.21.1
 )
 
 require (
 	cloud.google.com/go v0.110.0 // indirect
-	cloud.google.com/go/compute v1.18.0 // indirect
+	cloud.google.com/go/compute v1.19.0 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
-	cloud.google.com/go/iam v0.12.0 // indirect
+	cloud.google.com/go/iam v1.0.0 // indirect
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/99designs/keyring v1.2.1 // indirect
@@ -192,7 +192,7 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dubbogo/gost v1.13.1 // indirect
 	github.com/dubbogo/triple v1.1.8 // indirect
-	github.com/dustin/go-humanize v1.0.0 // indirect
+	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/dvsekhvalnov/jose2go v1.5.0 // indirect
 	github.com/eapache/go-resiliency v1.3.0 // indirect
 	github.com/eapache/go-xerial-snappy v0.0.0-20230111030713-bf00bc1b83b6 // indirect
@@ -288,7 +288,7 @@ require (
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/matryer/is v1.4.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.17 // indirect
+	github.com/mattn/go-isatty v0.0.18 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.21 // indirect
 	github.com/miekg/dns v1.1.43 // indirect
@@ -363,14 +363,14 @@ require (
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/arch v0.2.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
-	golang.org/x/sys v0.6.0 // indirect
+	golang.org/x/sys v0.7.0 // indirect
 	golang.org/x/term v0.6.0 // indirect
 	golang.org/x/text v0.8.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
-	golang.org/x/tools v0.6.0 // indirect
+	golang.org/x/tools v0.7.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20230306155012-7f2fa6fef1f4 // indirect
+	google.golang.org/genproto v0.0.0-20230403163135-c38d8f061ccd // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/couchbase/gocbcore.v7 v7.1.18 // indirect
@@ -386,7 +386,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/klog/v2 v2.80.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280 // indirect
-	lukechampine.com/uint128 v1.2.0 // indirect
+	lukechampine.com/uint128 v1.3.0 // indirect
 	modernc.org/cc/v3 v3.40.0 // indirect
 	modernc.org/ccgo/v3 v3.16.13 // indirect
 	modernc.org/libc v1.22.3 // indirect
@@ -394,7 +394,7 @@ require (
 	modernc.org/memory v1.5.0 // indirect
 	modernc.org/opt v0.1.3 // indirect
 	modernc.org/strutil v1.1.3 // indirect
-	modernc.org/token v1.0.1 // indirect
+	modernc.org/token v1.1.0 // indirect
 	sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect

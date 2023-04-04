@@ -119,17 +119,14 @@ func TestOracleDatabaseIntegration(t *testing.T) {
 	})
 
 	t.Run("Bulk set and bulk delete", func(t *testing.T) {
-
 		testBulkSetAndBulkDelete(t, ods)
 	})
 
 	t.Run("Update and delete with etag succeeds", func(t *testing.T) {
-
 		updateAndDeleteWithEtagSucceeds(t, ods)
 	})
 
 	t.Run("Update with old etag fails", func(t *testing.T) {
-
 		updateWithOldEtagFails(t, ods)
 	})
 
@@ -149,7 +146,6 @@ func TestOracleDatabaseIntegration(t *testing.T) {
 		deleteItemThatDoesNotExist(t, ods)
 	})
 	t.Run("Multi with delete and set", func(t *testing.T) {
-
 		multiWithDeleteAndSet(t, ods)
 	})
 

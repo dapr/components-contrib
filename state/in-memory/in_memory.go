@@ -331,6 +331,7 @@ func (innerSetRequest) Operation() state.OperationType {
 func (r innerSetRequest) GetKey() string {
 	return r.req.Key
 }
+
 func (r innerSetRequest) GetMetadata() map[string]string {
 	return r.req.Metadata
 }

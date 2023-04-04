@@ -430,8 +430,8 @@ func (c *StateStore) BulkGet(ctx context.Context, req []state.GetRequest, opts s
 
 	// Prevents a panic if out of bounds
 	n := int(resN.Load())
-	if n >= len(result) {
-		n = len(result) - 1
+	if n > len(result) {
+		n = len(result)
 	}
 	return result[:n], nil
 }

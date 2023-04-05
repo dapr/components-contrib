@@ -211,9 +211,10 @@ BEGIN TRY
   INSERT INTO [%[1]s].[%[2]s] ([Key], [Value]) VALUES ('last-cleanup', CONVERT(nvarchar(MAX), GETDATE(), 21));
 END TRY
 BEGIN CATCH
-UPDATE [%[1]s].[%[2]s] SET [Value] = CONVERT(nvarchar(MAX), GETDATE(), 21) WHERE [Key] = 'last-cleanup' AND Datediff_big(MS, [Value], GETUTCDATE()) > @Interval
+  UPDATE [%[1]s].[%[2]s] SET [Value] = CONVERT(nvarchar(MAX), GETDATE(), 21) WHERE [Key] = 'last-cleanup' AND Datediff_big(MS, [Value], GETUTCDATE()) > @Interval
 END CATCH
 COMMIT TRANSACTION;`, s.schema, s.metaTableName),
+			UpdateLastCleanupQueryParameterName: "Interval",
 			DeleteExpiredValuesQuery: fmt.Sprintf(
 				`DELETE FROM [%s].[%s] WHERE [ExpireDate] IS NOT NULL AND [ExpireDate] < GETDATE()`,
 				s.schema, s.tableName,

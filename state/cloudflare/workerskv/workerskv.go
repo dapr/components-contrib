@@ -84,7 +84,7 @@ func (q *CFWorkersKV) Init(_ context.Context, metadata state.Metadata) error {
 func (q *CFWorkersKV) GetComponentMetadata() map[string]string {
 	metadataStruct := componentMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }
 

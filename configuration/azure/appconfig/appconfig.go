@@ -341,6 +341,6 @@ func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration
 func (r *ConfigurationStore) GetComponentMetadata() map[string]string {
 	metadataStruct := metadata{}
 	metadataInfo := map[string]string{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
 	return metadataInfo
 }

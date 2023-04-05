@@ -193,6 +193,6 @@ func (r *StandaloneRedisLock) Close() error {
 func (r *StandaloneRedisLock) GetComponentMetadata() map[string]string {
 	metadataStruct := rediscomponent.Metadata{}
 	metadataInfo := map[string]string{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.LockStoreType)
 	return metadataInfo
 }

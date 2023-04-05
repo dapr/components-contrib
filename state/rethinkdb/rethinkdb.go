@@ -310,6 +310,6 @@ func metadataToConfig(cfg map[string]string, logger logger.Logger) (*stateConfig
 func (s *RethinkDB) GetComponentMetadata() map[string]string {
 	metadataStruct := stateConfig{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }

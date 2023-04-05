@@ -237,7 +237,7 @@ func (g *gc) updateLastCleanup(ctx context.Context) (bool, error) {
 	} else {
 		// Use named parameters if we need to
 		if g.ulcqParamName != "" {
-			param = sql.Named("Interval", param)
+			param = sql.Named(g.ulcqParamName, param)
 		}
 		res, err := g.dbSQL.ExecContext(ctx, g.updateLastCleanupQuery, param)
 		if err != nil {

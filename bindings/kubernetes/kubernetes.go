@@ -78,7 +78,7 @@ func (k *kubernetesInput) parseMetadata(meta bindings.Metadata) error {
 	m := kubernetesMetadata{}
 	err := metadata.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
-		if strings.Contains(err.Error(), "decoding 'resyncPeriodInSec': time: invalid duration") {
+		if strings.Contains(err.Error(), "resyncPeriodInSec") {
 			k.logger.Warnf("invalid resyncPeriodInSec; %v; defaulting to 10s", err)
 			m.ResyncPeriod = ptr.Of(time.Second * 10)
 		} else {

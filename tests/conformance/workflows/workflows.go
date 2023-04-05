@@ -61,7 +61,7 @@ func ConformanceTests(t *testing.T, props map[string]string, workflowItem workfl
 	if config.HasOperation("start") {
 		testLogger.Info("Start test running...")
 
-		inputBytes, _ := json.Encode(context.Background(), 10) // Time that the activity within the workflow runs for
+		inputBytes, _ := json.Marshal(10) // Time that the activity within the workflow runs for
 
 		testInstanceID := "TestID"
 		t.Run("start", func(t *testing.T) {

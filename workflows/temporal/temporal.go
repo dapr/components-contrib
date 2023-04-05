@@ -92,7 +92,7 @@ func (c *TemporalWF) Start(ctx context.Context, req *workflows.StartRequest) (*w
 
 	// NOTE: We assume all inputs are JSON values
 	var inputArgs interface{}
-	if err := decodeInputData(ctx, req.WorkflowInput, inputArgs); err != nil {
+	if err := decodeInputData(req.WorkflowInput, inputArgs); err != nil {
 		return nil, fmt.Errorf("error decoding workflow input data: %w", err)
 	}
 
@@ -144,7 +144,7 @@ func (c *TemporalWF) Get(ctx context.Context, req *workflows.GetRequest) (*workf
 
 func (c *TemporalWF) RaiseEvent(ctx context.Context, req *workflows.RaiseEventRequest) error {
 	var decodedEventData interface{}
-	if err := decodeInputData(ctx, req.EventData, &decodedEventData); err != nil {
+	if err := decodeInputData(req.EventData, &decodedEventData); err != nil {
 		return fmt.Errorf("error decoding workflow event data: %w", err)
 	}
 	return c.client.SignalWorkflow(ctx, req.InstanceID, "", req.EventName, decodedEventData)
@@ -198,11 +198,11 @@ func lookupStatus(status enums.WorkflowExecutionStatus) string {
 	}
 }
 
-func decodeInputData(ctx context.Context, data []byte, result interface{}) error {
+func decodeInputData(data []byte, result interface{}) error {
 	if len(data) == 0 {
 		return nil
 	}
 
 	// NOTE: We assume all inputs are JSON values
-	return json.Decode(ctx, data, result)
+	return json.Unmarshal(data, result)
 }

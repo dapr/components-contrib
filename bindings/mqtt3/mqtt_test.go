@@ -54,10 +54,10 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		assert.NoError(t, err)
-		assert.Equal(t, fakeProperties[mqttURL], m.url)
-		assert.Equal(t, byte(1), m.qos)
-		assert.Equal(t, true, m.retain)
-		assert.Equal(t, false, m.cleanSession)
+		assert.Equal(t, fakeProperties[mqttURL], m.Url)
+		assert.Equal(t, byte(1), m.Qos)
+		assert.Equal(t, true, m.Retain)
+		assert.Equal(t, false, m.CleanSession)
 	})
 
 	t.Run("missing topic", func(t *testing.T) {
@@ -90,7 +90,7 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		assert.EqualError(t, err, errors.New("missing url").Error())
-		assert.Equal(t, fakeProperties[mqttURL], m.url)
+		assert.Equal(t, fakeProperties[mqttURL], m.Url)
 	})
 
 	t.Run("qos and retain is not given", func(t *testing.T) {
@@ -104,9 +104,9 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		assert.NoError(t, err)
-		assert.Equal(t, fakeProperties[mqttURL], m.url)
-		assert.Equal(t, byte(1), m.qos)
-		assert.Equal(t, false, m.retain)
+		assert.Equal(t, fakeProperties[mqttURL], m.Url)
+		assert.Equal(t, byte(1), m.Qos)
+		assert.Equal(t, false, m.Retain)
 	})
 
 	t.Run("invalid clean session field", func(t *testing.T) {
@@ -119,8 +119,8 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		assert.NoError(t, err)
-		assert.Equal(t, m.cleanSession, false)
-		assert.Equal(t, fakeProperties[mqttURL], m.url)
+		assert.Equal(t, m.CleanSession, false)
+		assert.Equal(t, fakeProperties[mqttURL], m.Url)
 	})
 
 	t.Run("invalid ca certificate", func(t *testing.T) {
@@ -141,7 +141,7 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		assert.NoError(t, err)
-		block, _ := pem.Decode([]byte(m.tlsCfg.caCert))
+		block, _ := pem.Decode([]byte(m.tlsCfg.CaCert))
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
 			t.Errorf("failed to parse ca certificate from metadata. %v", err)
@@ -167,7 +167,7 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		assert.NoError(t, err)
-		block, _ := pem.Decode([]byte(m.tlsCfg.clientCert))
+		block, _ := pem.Decode([]byte(m.tlsCfg.ClientCert))
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
 			t.Errorf("failed to parse client certificate from metadata. %v", err)
@@ -193,7 +193,7 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		assert.NoError(t, err)
-		assert.NotNil(t, m.tlsCfg.clientKey, "failed to parse valid client certificate key")
+		assert.NotNil(t, m.tlsCfg.ClientKey, "failed to parse valid client certificate key")
 	})
 
 	t.Run("Response returns the topic that the subscribed data is from.", func(t *testing.T) {

@@ -209,6 +209,6 @@ func (k *keyvaultSecretStore) Features() []secretstores.Feature {
 func (k *keyvaultSecretStore) GetComponentMetadata() map[string]string {
 	metadataStruct := KeyvaultMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return metadataInfo
 }

@@ -41,7 +41,7 @@ metadata:
       output: true
   - name: responseTimeout
     required: false
-    description: "The duration after which HTTP requests should be cancelled."
+    description: "The duration after which HTTP requests should be canceled."
     example: '"10s", "5m"'
     binding:
       output: true

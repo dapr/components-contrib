@@ -299,7 +299,7 @@ func (d *StateStore) BulkDelete(ctx context.Context, req []state.DeleteRequest) 
 func (d *StateStore) GetComponentMetadata() map[string]string {
 	metadataStruct := dynamoDBMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.StateStoreType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }
 

@@ -325,6 +325,6 @@ func (o *HuaweiOBS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 func (o *HuaweiOBS) GetComponentMetadata() map[string]string {
 	metadataStruct := obsMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return metadataInfo
 }

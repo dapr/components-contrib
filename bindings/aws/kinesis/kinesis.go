@@ -421,6 +421,6 @@ func (p *recordProcessor) Shutdown(input *interfaces.ShutdownInput) {
 func (a *AWSKinesis) GetComponentMetadata() map[string]string {
 	metadataStruct := &kinesisMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return metadataInfo
 }

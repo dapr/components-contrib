@@ -520,6 +520,6 @@ func (c *ociObjectStorageClient) pingBucket(ctx context.Context) error {
 func (r *StateStore) GetComponentMetadata() map[string]string {
 	metadataStruct := objectStoreMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.StateStoreType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }

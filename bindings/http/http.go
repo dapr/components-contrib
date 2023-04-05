@@ -318,6 +318,6 @@ func (h *HTTPSource) Invoke(parentCtx context.Context, req *bindings.InvokeReque
 func (h *HTTPSource) GetComponentMetadata() map[string]string {
 	metadataStruct := httpMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return metadataInfo
 }

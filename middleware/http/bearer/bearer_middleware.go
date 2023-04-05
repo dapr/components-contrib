@@ -129,6 +129,6 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 func (m *Middleware) GetComponentMetadata() map[string]string {
 	metadataStruct := bearerMiddlewareMetadata{}
 	metadataInfo := map[string]string{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ComponentType.MiddlewareType)
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.MiddlewareType)
 	return metadataInfo
 }

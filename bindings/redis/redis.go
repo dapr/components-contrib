@@ -148,6 +148,6 @@ func (r *Redis) Close() error {
 func (r *Redis) GetComponentMetadata() map[string]string {
 	metadataStruct := rediscomponent.Metadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return metadataInfo
 }

@@ -201,6 +201,6 @@ func (p *Postgres) exec(ctx context.Context, sql string) (result int64, err erro
 func (p *Postgres) GetComponentMetadata() map[string]string {
 	metadataStruct := psqlMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return metadataInfo
 }

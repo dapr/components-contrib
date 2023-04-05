@@ -204,7 +204,7 @@ func (a *AzureServiceBusQueues) Close() (err error) {
 func (a *AzureServiceBusQueues) GetComponentMetadata() map[string]string {
 	metadataStruct := impl.Metadata{}
 	metadataInfo := map[string]string{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ComponentType.BindingType)
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	delete(metadataInfo, "ConsumerID") // only applies to topics, not queues
 	return metadataInfo
 }

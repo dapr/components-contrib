@@ -108,6 +108,6 @@ func (l *localStorageCrypto) retrieveKey(parentCtx context.Context, key string) 
 func (localStorageCrypto) GetComponentMetadata() map[string]string {
 	metadataStruct := localStorageMetadata{}
 	metadataInfo := map[string]string{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ComponentType.CryptoType)
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.CryptoType)
 	return metadataInfo
 }

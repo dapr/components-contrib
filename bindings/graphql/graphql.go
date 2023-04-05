@@ -189,6 +189,6 @@ func (gql *GraphQL) runRequest(ctx context.Context, requestKey string, req *bind
 func (gql *GraphQL) GetComponentMetadata() map[string]string {
 	metadataStruct := graphQLMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return metadataInfo
 }

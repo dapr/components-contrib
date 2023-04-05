@@ -433,6 +433,6 @@ func (r *RabbitMQ) reset() (err error) {
 func (r *RabbitMQ) GetComponentMetadata() map[string]string {
 	metadataStruct := rabbitMQMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return metadataInfo
 }

@@ -204,6 +204,6 @@ func (ct *Binding) Close() error {
 func (ct Binding) GetComponentMetadata() map[string]string {
 	metadataStruct := commercetoolsMetadata{}
 	metadataInfo := map[string]string{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ComponentType.BindingType)
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return metadataInfo
 }

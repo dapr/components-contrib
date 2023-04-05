@@ -205,7 +205,7 @@ func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 func (r *StateStore) GetComponentMetadata() map[string]string {
 	metadataStruct := tablesMetadata{}
 	metadataInfo := map[string]string{}
-	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.ComponentType.StateStoreType)
+	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.StateStoreType)
 	return metadataInfo
 }
 

@@ -169,6 +169,6 @@ func metadataToConfig(cfg map[string]string, logger logger.Logger) (StateConfig,
 func (b *Binding) GetComponentMetadata() map[string]string {
 	metadataStruct := StateConfig{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return metadataInfo
 }

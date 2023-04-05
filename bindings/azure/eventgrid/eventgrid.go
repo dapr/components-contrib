@@ -538,6 +538,6 @@ func (a *AzureEventGrid) subscriptionNeedsUpdating(res armeventgrid.EventSubscri
 func (a *AzureEventGrid) GetComponentMetadata() map[string]string {
 	metadataStruct := azureEventGridMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return metadataInfo
 }

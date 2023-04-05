@@ -104,6 +104,6 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*rateLimit
 func (m *Middleware) GetComponentMetadata() map[string]string {
 	metadataStruct := rateLimitMiddlewareMetadata{}
 	metadataInfo := map[string]string{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ComponentType.MiddlewareType)
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.MiddlewareType)
 	return metadataInfo
 }

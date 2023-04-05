@@ -300,6 +300,6 @@ func (s *SignalR) getToken(ctx context.Context, url string) (string, error) {
 func (s *SignalR) GetComponentMetadata() map[string]string {
 	metadataStruct := SignalRMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return metadataInfo
 }

@@ -242,7 +242,7 @@ func TestMetadataStructToStringMap(t *testing.T) {
 		}
 		m := testMetadata{}
 		metadatainfo := map[string]string{}
-		GetMetadataInfoFromStructType(reflect.TypeOf(m), &metadatainfo, ComponentType.BindingType)
+		GetMetadataInfoFromStructType(reflect.TypeOf(m), &metadatainfo, BindingType)
 
 		assert.Equal(t, "string", metadatainfo["Mystring"])
 		assert.Equal(t, "metadata.Duration", metadatainfo["Myduration"])

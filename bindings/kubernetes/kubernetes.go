@@ -205,6 +205,6 @@ func (k *kubernetesInput) Close() error {
 func (k *kubernetesInput) GetComponentMetadata() map[string]string {
 	metadataStruct := kubernetesMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return metadataInfo
 }

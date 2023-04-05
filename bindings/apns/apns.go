@@ -264,6 +264,6 @@ func makeErrorResponse(httpResponse *http.Response) (*bindings.InvokeResponse, e
 func (a *APNS) GetComponentMetadata() map[string]string {
 	metadataStruct := APNSmetadata{}
 	metadataInfo := map[string]string{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ComponentType.BindingType)
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return metadataInfo
 }

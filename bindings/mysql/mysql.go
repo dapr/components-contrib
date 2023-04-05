@@ -336,6 +336,6 @@ func (m *Mysql) convert(columnTypes []*sql.ColumnType, values []interface{}) map
 func (m *Mysql) GetComponentMetadata() map[string]string {
 	metadataStruct := mysqlMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return metadataInfo
 }

@@ -234,6 +234,6 @@ func (metadata Metadata) parseAddresses(addresses string) []string {
 func (s *Mailer) GetComponentMetadata() map[string]string {
 	metadataStruct := Metadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return metadataInfo
 }

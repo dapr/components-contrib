@@ -204,35 +204,24 @@ func toStringArrayHookFunc() mapstructure.DecodeHookFunc {
 	}
 }
 
-type ComponentTypeValue string
+type ComponentType string
 
-var ComponentType = struct {
-	BindingType            ComponentTypeValue
-	StateStoreType         ComponentTypeValue
-	SecretStoreType        ComponentTypeValue
-	PubSubType             ComponentTypeValue
-	LockStoreType          ComponentTypeValue
-	ConfigurationStoreType ComponentTypeValue
-	MiddlewareType         ComponentTypeValue
-	CryptoType             ComponentTypeValue
-	NameResolutionType     ComponentTypeValue
-	WorkflowType           ComponentTypeValue
-}{
-	BindingType:            "binding",
-	StateStoreType:         "statestore",
-	SecretStoreType:        "secretstore",
-	PubSubType:             "pubsub",
-	LockStoreType:          "lockstore",
-	ConfigurationStoreType: "configurationstore",
-	MiddlewareType:         "middleware",
-	CryptoType:             "crypto",
-	NameResolutionType:     "nameresolution",
-	WorkflowType:           "workflow",
-}
+const (
+	BindingType            ComponentType = "binding"
+	StateStoreType         ComponentType = "statestore"
+	SecretStoreType        ComponentType = "secretstore"
+	PubSubType             ComponentType = "pubsub"
+	LockStoreType          ComponentType = "lockstore"
+	ConfigurationStoreType ComponentType = "configurationstore"
+	MiddlewareType         ComponentType = "middleware"
+	CryptoType             ComponentType = "crypto"
+	NameResolutionType     ComponentType = "nameresolution"
+	WorkflowType           ComponentType = "workflow"
+)
 
 // GetMetadataInfoFromStructType converts a struct to a map of field name (or struct tag) to field type.
 // This is used to generate metadata documentation for components.
-func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *map[string]string, componentType ComponentTypeValue) error {
+func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *map[string]string, componentType ComponentType) error {
 	// Return if not struct or pointer to struct.
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()

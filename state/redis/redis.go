@@ -554,6 +554,6 @@ func (r *StateStore) Close() error {
 func (r *StateStore) GetComponentMetadata() map[string]string {
 	metadataStruct := rediscomponent.Settings{}
 	metadataInfo := map[string]string{}
-	daprmetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, daprmetadata.ComponentType.StateStoreType)
+	daprmetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, daprmetadata.StateStoreType)
 	return metadataInfo
 }

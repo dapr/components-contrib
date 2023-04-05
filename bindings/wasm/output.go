@@ -212,6 +212,6 @@ func detectImports(imports []api.FunctionDefinition) importMode {
 func (out *outputBinding) GetComponentMetadata() map[string]string {
 	metadataStruct := initMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return metadataInfo
 }

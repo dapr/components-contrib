@@ -154,6 +154,6 @@ func (g *GCPPubSub) Close() error {
 func (g *GCPPubSub) GetComponentMetadata() map[string]string {
 	metadataStruct := pubSubMetadata{}
 	metadataInfo := map[string]string{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ComponentType.BindingType)
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return metadataInfo
 }

@@ -122,6 +122,6 @@ func (o *OracleDatabase) Close() error {
 func (o *OracleDatabase) GetComponentMetadata() map[string]string {
 	metadataStruct := oracleDatabaseMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.StateStoreType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }

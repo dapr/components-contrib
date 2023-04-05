@@ -161,6 +161,6 @@ func (store *Hazelcast) Delete(ctx context.Context, req *state.DeleteRequest) er
 func (store *Hazelcast) GetComponentMetadata() map[string]string {
 	metadataStruct := hazelcastMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.StateStoreType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }

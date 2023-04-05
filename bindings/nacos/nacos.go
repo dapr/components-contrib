@@ -460,6 +460,6 @@ func parseServerURL(s string) (*constant.ServerConfig, error) {
 func (n *Nacos) GetComponentMetadata() map[string]string {
 	metadataStruct := Settings{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return metadataInfo
 }

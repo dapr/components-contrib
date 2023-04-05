@@ -336,6 +336,6 @@ func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *co
 func (r *ConfigurationStore) GetComponentMetadata() map[string]string {
 	metadataStruct := metadata{}
 	metadataInfo := map[string]string{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ComponentType.ConfigurationStoreType)
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
 	return metadataInfo
 }

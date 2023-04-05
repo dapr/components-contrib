@@ -210,7 +210,7 @@ func (t *DingTalkWebhook) sendMessage(ctx context.Context, req *bindings.InvokeR
 func (t *DingTalkWebhook) GetComponentMetadata() map[string]string {
 	metadataStruct := Settings{}
 	metadataInfo := map[string]string{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ComponentType.BindingType)
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return metadataInfo
 }
 

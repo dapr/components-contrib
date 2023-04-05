@@ -363,6 +363,6 @@ func (a *AzureStorageQueues) Close() error {
 func (a *AzureStorageQueues) GetComponentMetadata() map[string]string {
 	metadataStruct := storageQueuesMetadata{}
 	metadataInfo := map[string]string{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ComponentType.BindingType)
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return metadataInfo
 }

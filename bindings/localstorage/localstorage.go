@@ -336,6 +336,6 @@ func (ls *LocalStorage) Invoke(_ context.Context, req *bindings.InvokeRequest) (
 func (ls *LocalStorage) GetComponentMetadata() map[string]string {
 	metadataStruct := Metadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ComponentType.BindingType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return metadataInfo
 }

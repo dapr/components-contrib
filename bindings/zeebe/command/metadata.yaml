@@ -11,7 +11,31 @@ urls:
 binding:
   output: true
   input: false
-  operations: []
+  operations: 
+    - name: topology
+      description: "Obtains the current topology of the cluster the gateway is part of."
+    - name: deploy-process
+      description: "Deploys a single process to Zeebe."
+    - name: create-instance
+      description: "Creates and starts an instance of the specified process."
+    - name: cancel-instance
+      description: "Cancels a running process instance."
+    - name: set-variables
+      description: "Creates or updates variables for an element instance (e.g. process instance, flow element instance)."
+    - name: resolve-incident
+      description: "This operation resolves an incident."
+    - name: publish-message
+      description: "The publish-message operation publishes a single message"
+    - name: activate-jobs
+      description: "Iterates through all known partitions round-robin and activates up to the requested maximum and streams them back to the client as they are activated."
+    - name: complete-job
+      description: "Completes a job with the given payload, which allows completing the associated service task."
+    - name: fail-job
+      description: "The fail-job operation marks the job as failed."
+    - name: update-job-retries
+      description: "Updates the number of retries a job has left. "
+    - name: throw-error
+      description: "Throw an error to indicate that a business error is occurred while processing the job."
 metadata:
   - name: gatewayAddr
     required: true

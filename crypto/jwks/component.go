@@ -24,6 +24,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/lestrrat-go/httprc"
 	"github.com/lestrrat-go/jwx/v2/jwk"
@@ -42,18 +43,18 @@ type jwksCrypto struct {
 	jwksLock sync.Mutex
 
 	logger logger.Logger
-	ctx    context.Context
-	cancel context.CancelFunc
+
+	closed  atomic.Bool
+	closeCh chan struct{}
+	wg      sync.WaitGroup
 }
 
 // NewJWKSCrypto returns a new crypto provider based a JWKS, either passed as metadata, or read from a file or HTTP(S) URL.
 // The key argument in methods is the ID of the key in the JWKS ("kid" property).
 func NewJWKSCrypto(logger logger.Logger) contribCrypto.SubtleCrypto {
-	ctx, cancel := context.WithCancel(context.Background())
 	k := &jwksCrypto{
-		logger: logger,
-		ctx:    ctx,
-		cancel: cancel,
+		logger:  logger,
+		closeCh: make(chan struct{}),
 	}
 	k.RetrieveKeyFn = k.retrieveKeyFromSecretFn
 	return k
@@ -72,7 +73,7 @@ func (k *jwksCrypto) Init(ctx context.Context, metadata contribCrypto.Metadata) 
 	}
 
 	// Load the JWKS
-	err = k.initJWKS(ctx)
+	err = k.initJWKS()
 	if err != nil {
 		return err
 	}
@@ -82,10 +83,15 @@ func (k *jwksCrypto) Init(ctx context.Context, metadata contribCrypto.Metadata) 
 
 // Close implements the io.Closer interface to close the component
 func (k *jwksCrypto) Close() error {
-	if k.cancel != nil {
-		k.cancel()
+	defer k.wg.Wait()
+
+	if k.closed.CompareAndSwap(false, true) {
+		close(k.closeCh)
 	}
-	return nil
+
+	k.jwksLock.Lock()
+	defer k.jwksLock.Unlock()
+	return k.jwks.Clear()
 }
 
 // Features returns the features available in this crypto provider.
@@ -94,10 +100,19 @@ func (k *jwksCrypto) Features() []contribCrypto.Feature {
 }
 
 // Init the JWKS object from the metadata property
-func (k *jwksCrypto) initJWKS(ctx context.Context) error {
+func (k *jwksCrypto) initJWKS() error {
 	if len(k.md.JWKS) == 0 {
 		return errors.New("metadata property 'jwks' is required")
 	}
+
+	// Use context based on close channel.
+	ctx, cancel := context.WithCancel(context.Background())
+	k.wg.Add(1)
+	go func() {
+		defer k.wg.Done()
+		defer cancel()
+		<-k.closeCh
+	}()
 
 	// If the value starts with "http://" or "https://", treat it as URL
 	if strings.HasPrefix(k.md.JWKS, "http://") || strings.HasPrefix(k.md.JWKS, "https://") {
@@ -129,8 +144,7 @@ func (k *jwksCrypto) initJWKS(ctx context.Context) error {
 
 func (k *jwksCrypto) initJWKSFromURL(ctx context.Context, url string) error {
 	// Create the JWKS cache
-	// We are using k.ctx here because we want this to be tied to the component's lifecycle
-	cache := jwk.NewCache(k.ctx,
+	cache := jwk.NewCache(ctx,
 		jwk.WithErrSink(httprc.ErrSinkFunc(func(err error) {
 			k.logger.Warnf("Error while refreshing JWKS cache: %v", err)
 		})),
@@ -159,21 +173,30 @@ func (k *jwksCrypto) initJWKSFromURL(ctx context.Context, url string) error {
 	return nil
 }
 
-func (k *jwksCrypto) initJWKSFromFile(ctx context.Context, file string) error {
+func (k *jwksCrypto) initJWKSFromFile(parentCtx context.Context, file string) error {
+	ctx, cancel := context.WithCancel(parentCtx)
+
 	// Get the path to the folder containing the file
 	path := filepath.Dir(file)
 
 	// Start watching for changes in the filesystem
 	eventCh := make(chan struct{})
-	loaded := make(chan error, 1) // Needs to be buffered to prevent an (unlikely, but possible) goroutine leak
+	loadedCh := make(chan error, 1) // Needs to be buffered to prevent an (unlikely, but possible) goroutine leak
+
+	k.wg.Add(2)
+
 	go func() {
-		watchErr := fswatcher.Watch(k.ctx, path, eventCh)
+		defer k.wg.Done()
+		watchErr := fswatcher.Watch(ctx, path, eventCh)
 		if watchErr != nil && !errors.Is(watchErr, context.Canceled) {
 			// Log errors only
 			k.logger.Errorf("Error while watching for changes to the local JWKS file: %v", watchErr)
 		}
 	}()
+
 	go func() {
+		defer k.wg.Done()
+		defer cancel()
 		var firstDone bool
 		for {
 			select {
@@ -182,8 +205,7 @@ func (k *jwksCrypto) initJWKSFromFile(ctx context.Context, file string) error {
 				err := k.parseJWKSFile(file)
 				if !firstDone {
 					// The first time, signal that the initialization was complete and pass the error
-					loaded <- err
-					close(loaded)
+					loadedCh <- err
 					firstDone = true
 				} else {
 					// Log errors only
@@ -191,23 +213,18 @@ func (k *jwksCrypto) initJWKSFromFile(ctx context.Context, file string) error {
 				}
 			case <-ctx.Done():
 				return
-			case <-k.ctx.Done():
-				return
 			}
 		}
 	}()
 
 	// Trigger a refresh immediately and wait for the first reload
 	eventCh <- struct{}{}
-
 	select {
-	case err := <-loaded:
+	case err := <-loadedCh:
 		// Error could be nil if everything is fine
 		return err
 	case <-ctx.Done():
 		return fmt.Errorf("failed to initialize JWKS from file: %w", ctx.Err())
-	case <-k.ctx.Done():
-		return errors.New("component's context is canceled")
 	}
 }
 

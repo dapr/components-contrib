@@ -22,6 +22,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -42,10 +43,10 @@ const ExecuteOperation bindings.OperationKind = "execute"
 type initMetadata struct {
 	// Path is where to load a `%.wasm` file that implements a command,
 	// usually compiled to target WASI.
-	Path string `json:"path"`
+	Path string `mapstructure:"path"`
 
 	// guest is WebAssembly binary implementing the waPC guest, loaded from Path.
-	guest []byte
+	guest []byte `mapstructure:"-"`
 }
 
 type outputBinding struct {
@@ -205,4 +206,12 @@ func detectImports(imports []api.FunctionDefinition) importMode {
 		}
 	}
 	return modeDefault
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (out *outputBinding) GetComponentMetadata() map[string]string {
+	metadataStruct := initMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

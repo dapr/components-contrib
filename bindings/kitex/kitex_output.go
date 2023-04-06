@@ -77,3 +77,9 @@ func (out *kitexOutputBinding) Invoke(ctx context.Context, req *bindings.InvokeR
 func (out *kitexOutputBinding) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.GetOperation}
 }
+
+// GetComponentMetadata returns the metadata of the component.
+func (out *kitexOutputBinding) GetComponentMetadata() map[string]string {
+	metadataInfo := map[string]string{}
+	return metadataInfo
+}

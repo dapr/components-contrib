@@ -70,13 +70,13 @@ func (k *Kafka) Init(_ context.Context, metadata map[string]string) error {
 		return err
 	}
 
-	k.brokers = meta.Brokers
+	k.brokers = meta.internalBrokers
 	k.consumerGroup = meta.ConsumerGroup
-	k.initialOffset = meta.InitialOffset
+	k.initialOffset = meta.internalInitialOffset
 	k.authType = meta.AuthType
 
 	config := sarama.NewConfig()
-	config.Version = meta.Version
+	config.Version = meta.internalVersion
 	config.Consumer.Offsets.Initial = k.initialOffset
 
 	if meta.ClientID != "" {

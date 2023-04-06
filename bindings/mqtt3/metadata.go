@@ -16,12 +16,10 @@ package mqtt
 import (
 	"encoding/pem"
 	"errors"
-	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/internal/utils"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -45,85 +43,66 @@ const (
 	defaultCleanSession = false
 )
 
-type metadata struct {
-	tlsCfg
-	url               string
-	clientID          string
-	qos               byte
-	retain            bool
-	cleanSession      bool
-	backOffMaxRetries int
-	topic             string
+//nolint:stylecheck
+type mqtt3Metadata struct {
+	tlsCfg            `mapstructure:",squash"`
+	Url               string `mapstructure:"url"`
+	ClientID          string `mapstructure:"consumerID"`
+	Qos               byte   `mapstructure:"-"`
+	Retain            bool   `mapstructure:"retain"`
+	CleanSession      bool   `mapstructure:"cleanSession"`
+	BackOffMaxRetries int    `mapstructure:"backOffMaxRetries"`
+	Topic             string `mapstructure:"topic"`
 }
 
 type tlsCfg struct {
-	caCert     string
-	clientCert string
-	clientKey  string
+	CaCert     string `mapstructure:"caCert"`
+	ClientCert string `mapstructure:"clientCert"`
+	ClientKey  string `mapstructure:"clientKey"`
 }
 
-func parseMQTTMetaData(md bindings.Metadata, log logger.Logger) (metadata, error) {
-	m := metadata{}
+func parseMQTTMetaData(md bindings.Metadata, log logger.Logger) (mqtt3Metadata, error) {
+	m := mqtt3Metadata{
+		Retain:       defaultRetain,
+		CleanSession: defaultCleanSession,
+	}
+
+	err := metadata.DecodeMetadata(md.Properties, &m)
+	if err != nil {
+		return m, err
+	}
 
 	// required configuration settings
-	if val, ok := md.Properties[mqttURL]; ok && val != "" {
-		m.url = val
-	} else {
+	if m.Url == "" {
 		return m, errors.New("missing url")
 	}
 
-	if val, ok := md.Properties[mqttTopic]; ok && val != "" {
-		m.topic = val
-	} else {
+	if m.Topic == "" {
 		return m, errors.New("missing topic")
 	}
 
-	// optional configuration settings
-	m.retain = defaultRetain
-	if val, ok := md.Properties[mqttRetain]; ok && val != "" {
-		m.retain = utils.IsTruthy(val)
-	}
-
-	if val, ok := md.Properties[mqttClientID]; ok && val != "" {
-		m.clientID = val
-	} else {
+	if m.ClientID == "" {
 		return m, errors.New("missing consumerID")
 	}
 
-	m.cleanSession = defaultCleanSession
-	if val, ok := md.Properties[mqttCleanSession]; ok && val != "" {
-		m.cleanSession = utils.IsTruthy(val)
-	}
-
-	if val, ok := md.Properties[mqttCACert]; ok && val != "" {
-		if !isValidPEM(val) {
+	if m.CaCert != "" {
+		if !isValidPEM(m.CaCert) {
 			return m, errors.New("invalid ca certificate")
 		}
-		m.tlsCfg.caCert = val
 	}
-	if val, ok := md.Properties[mqttClientCert]; ok && val != "" {
-		if !isValidPEM(val) {
+	if m.ClientCert != "" {
+		if !isValidPEM(m.ClientCert) {
 			return m, errors.New("invalid client certificate")
 		}
-		m.tlsCfg.clientCert = val
 	}
-	if val, ok := md.Properties[mqttClientKey]; ok && val != "" {
-		if !isValidPEM(val) {
+	if m.ClientKey != "" {
+		if !isValidPEM(m.ClientKey) {
 			return m, errors.New("invalid client certificate key")
 		}
-		m.tlsCfg.clientKey = val
-	}
-
-	if val, ok := md.Properties[mqttBackOffMaxRetries]; ok && val != "" {
-		backOffMaxRetriesInt, err := strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("invalid backOffMaxRetries %s: %v", val, err)
-		}
-		m.backOffMaxRetries = backOffMaxRetriesInt
 	}
 
 	// Deprecated options
-	m.qos = defaultQOS
+	m.Qos = defaultQOS
 	if val, ok := md.Properties[mqttQOS]; ok && val != "" {
 		log.Warn("Metadata property 'qos' has been deprecated and is ignored; qos is set to 1")
 	}

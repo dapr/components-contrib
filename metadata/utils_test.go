@@ -228,18 +228,21 @@ func TestMetadataStructToStringMap(t *testing.T) {
 		}
 
 		type testMetadata struct {
-			NestedStruct            `mapstructure:",squash"`
-			Mystring                string
-			Myduration              Duration
-			Myinteger               int
-			Myfloat64               float64
-			Mybool                  *bool `json:",omitempty"`
-			MyRegularDuration       time.Duration
-			SomethingWithCustomName string `mapstructure:"something_with_custom_name"`
+			NestedStruct             `mapstructure:",squash"`
+			Mystring                 string
+			Myduration               Duration
+			Myinteger                int
+			Myfloat64                float64
+			Mybool                   *bool `json:",omitempty"`
+			MyRegularDuration        time.Duration
+			SomethingWithCustomName  string `mapstructure:"something_with_custom_name"`
+			PubSubOnlyProperty       string `mapstructure:"pubsub_only_property" only:"pubsub"`
+			BindingOnlyProperty      string `mapstructure:"binding_only_property" only:"binding"`
+			PubSubAndBindingProperty string `mapstructure:"pubsub_and_binding_property" only:"pubsub,binding"`
 		}
 		m := testMetadata{}
 		metadatainfo := map[string]string{}
-		GetMetadataInfoFromStructType(reflect.TypeOf(m), &metadatainfo)
+		GetMetadataInfoFromStructType(reflect.TypeOf(m), &metadatainfo, BindingType)
 
 		assert.Equal(t, "string", metadatainfo["Mystring"])
 		assert.Equal(t, "metadata.Duration", metadatainfo["Myduration"])
@@ -252,5 +255,8 @@ func TestMetadataStructToStringMap(t *testing.T) {
 		assert.NotContains(t, metadatainfo, "SomethingWithCustomName")
 		assert.Equal(t, "string", metadatainfo["nested_string_custom"])
 		assert.Equal(t, "string", metadatainfo["NestedString"])
+		assert.NotContains(t, metadatainfo, "pubsub_only_property")
+		assert.Equal(t, "string", metadatainfo["binding_only_property"])
+		assert.Equal(t, "string", metadatainfo["pubsub_and_binding_property"])
 	})
 }

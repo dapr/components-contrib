@@ -6,16 +6,19 @@ import (
 	"strings"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 )
 
 type options struct {
-	host               string
-	port               int
-	channel            string
-	authToken          string
-	autoAcknowledged   bool
-	pollMaxItems       int
-	pollTimeoutSeconds int
+	Address            string `mapstructure:"address"`
+	Channel            string `mapstructure:"channel"`
+	AuthToken          string `mapstructure:"authToken"`
+	AutoAcknowledged   bool   `mapstructure:"autoAcknowledged"`
+	PollMaxItems       int    `mapstructure:"pollMaxItems"`
+	PollTimeoutSeconds int    `mapstructure:"pollTimeoutSeconds"`
+
+	internalHost string `mapstructure:"-"`
+	internalPort int    `mapstructure:"-"`
 }
 
 func parseAddress(address string) (string, int, error) {
@@ -40,63 +43,42 @@ func parseAddress(address string) (string, int, error) {
 // createOptions creates a new instance from the kubemq options
 func createOptions(md bindings.Metadata) (*options, error) {
 	result := &options{
-		host:               "",
-		port:               0,
-		channel:            "",
-		authToken:          "",
-		autoAcknowledged:   false,
-		pollMaxItems:       1,
-		pollTimeoutSeconds: 3600,
+		internalHost:       "",
+		internalPort:       0,
+		Channel:            "",
+		AuthToken:          "",
+		AutoAcknowledged:   false,
+		PollMaxItems:       1,
+		PollTimeoutSeconds: 3600,
 	}
-	if val, found := md.Properties["address"]; found && val != "" {
+
+	err := metadata.DecodeMetadata(md.Properties, result)
+	if err != nil {
+		return nil, err
+	}
+
+	if result.Address != "" {
 		var err error
-		result.host, result.port, err = parseAddress(val)
+		result.internalHost, result.internalPort, err = parseAddress(result.Address)
 		if err != nil {
 			return nil, err
 		}
 	} else {
 		return nil, fmt.Errorf("invalid kubemq address, address is empty")
 	}
-	if val, ok := md.Properties["channel"]; ok && val != "" {
-		result.channel = val
-	} else {
+
+	if result.Channel == "" {
 		return nil, fmt.Errorf("invalid kubemq channel, channel is empty")
 	}
 
-	if val, found := md.Properties["authToken"]; found && val != "" {
-		if found && val != "" {
-			result.authToken = val
-		}
+	if result.PollMaxItems < 1 {
+		return nil, fmt.Errorf("invalid kubemq pollMaxItems value, value must be greater than 0")
 	}
 
-	if val, found := md.Properties["autoAcknowledged"]; found && val != "" {
-		autoAcknowledged, err := strconv.ParseBool(val)
-		if err != nil {
-			return nil, fmt.Errorf("invalid kubemq autoAcknowledged value, %s", err.Error())
-		}
-		result.autoAcknowledged = autoAcknowledged
+	if result.PollTimeoutSeconds < 1 {
+		return nil, fmt.Errorf("invalid kubemq pollTimeoutSeconds value, value must be greater than 0")
 	}
-	if val, found := md.Properties["pollMaxItems"]; found && val != "" {
-		pollMaxItems, err := strconv.Atoi(val)
-		if err != nil {
-			return nil, fmt.Errorf("invalid kubemq pollMaxItems value, %s", err.Error())
-		}
-		if pollMaxItems < 1 {
-			return nil, fmt.Errorf("invalid kubemq pollMaxItems value, value must be greater than 0")
-		}
-		result.pollMaxItems = pollMaxItems
-	}
-	if val, found := md.Properties["pollTimeoutSeconds"]; found && val != "" {
-		timeoutSecond, err := strconv.Atoi(val)
-		if err != nil {
-			return nil, fmt.Errorf("invalid kubemq pollTimeoutSeconds value, %s", err.Error())
-		} else {
-			if timeoutSecond < 1 {
-				return nil, fmt.Errorf("invalid kubemq pollTimeoutSeconds value, value must be greater than 0")
-			}
-			result.pollTimeoutSeconds = timeoutSecond
-		}
-	}
+
 	return result, nil
 }
 

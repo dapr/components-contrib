@@ -18,12 +18,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/aliyun/aliyun-tablestore-go-sdk/tablestore"
 
 	"github.com/dapr/components-contrib/bindings"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -38,11 +40,11 @@ const (
 )
 
 type tablestoreMetadata struct {
-	Endpoint     string `json:"endpoint"`
-	AccessKeyID  string `json:"accessKeyID"`
-	AccessKey    string `json:"accessKey"`
-	InstanceName string `json:"instanceName"`
-	TableName    string `json:"tableName"`
+	Endpoint     string `json:"endpoint" mapstructure:"endpoint"`
+	AccessKeyID  string `json:"accessKeyID" mapstructure:"accessKeyID"`
+	AccessKey    string `json:"accessKey" mapstructure:"accessKey"`
+	InstanceName string `json:"instanceName" mapstructure:"instanceName"`
+	TableName    string `json:"tableName" mapstructure:"tableName"`
 }
 
 type AliCloudTableStore struct {
@@ -120,13 +122,8 @@ func (s *AliCloudTableStore) Operations() []bindings.OperationKind {
 }
 
 func (s *AliCloudTableStore) parseMetadata(metadata bindings.Metadata) (*tablestoreMetadata, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
-
-	var m tablestoreMetadata
-	err = json.Unmarshal(b, &m)
+	m := tablestoreMetadata{}
+	err := contribMetadata.DecodeMetadata(metadata.Properties, &m)
 	if err != nil {
 		return nil, err
 	}
@@ -347,4 +344,12 @@ func contains(arr []string, str string) bool {
 	}
 
 	return false
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (s *AliCloudTableStore) GetComponentMetadata() map[string]string {
+	metadataStruct := tablestoreMetadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
+	return metadataInfo
 }

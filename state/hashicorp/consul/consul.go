@@ -158,6 +158,6 @@ func (c *Consul) Delete(ctx context.Context, req *state.DeleteRequest) error {
 func (c *Consul) GetComponentMetadata() map[string]string {
 	metadataStruct := consulConfig{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }

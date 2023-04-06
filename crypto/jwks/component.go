@@ -83,15 +83,15 @@ func (k *jwksCrypto) Init(ctx context.Context, metadata contribCrypto.Metadata) 
 
 // Close implements the io.Closer interface to close the component
 func (k *jwksCrypto) Close() error {
-	defer k.wg.Wait()
-
 	if k.closed.CompareAndSwap(false, true) {
 		close(k.closeCh)
 	}
 
 	k.jwksLock.Lock()
 	defer k.jwksLock.Unlock()
-	return k.jwks.Clear()
+	err := k.jwks.Clear()
+	k.wg.Wait()
+	return err
 }
 
 // Features returns the features available in this crypto provider.
@@ -230,6 +230,10 @@ func (k *jwksCrypto) initJWKSFromFile(parentCtx context.Context, file string) er
 
 // Used by initJWKSFromFile to parse a JWKS file every time it's changed
 func (k *jwksCrypto) parseJWKSFile(file string) error {
+	if k.closed.Load() {
+		return nil
+	}
+
 	k.logger.Debugf("Reloading JWKS file from disk")
 
 	read, err := os.ReadFile(file)

@@ -252,6 +252,6 @@ func (k *jwksCrypto) retrieveKeyFromSecretFn(parentCtx context.Context, kid stri
 func (k *jwksCrypto) GetComponentMetadata() map[string]string {
 	metadataStruct := jwksMetadata{}
 	metadataInfo := map[string]string{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.CryptoType)
 	return metadataInfo
 }

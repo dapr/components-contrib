@@ -294,7 +294,7 @@ func (e *Etcd) doValidateEtag(key string, etag *string, concurrency string) erro
 func (e *Etcd) GetComponentMetadata() map[string]string {
 	metadataStruct := etcdConfig{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }
 

@@ -132,6 +132,6 @@ func (p *PostgreSQL) GetDBAccess() dbAccess {
 func (p *PostgreSQL) GetComponentMetadata() map[string]string {
 	metadataStruct := postgresMetadataStruct{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }

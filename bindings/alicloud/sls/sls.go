@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"time"
 
 	sls "github.com/aliyun/aliyun-log-go-sdk"
@@ -21,9 +22,9 @@ type AliCloudSlsLogstorage struct {
 }
 
 type SlsLogstorageMetadata struct {
-	Endpoint        string `json:"endpoint"`
-	AccessKeyID     string `json:"accessKeyID"`
-	AccessKeySecret string `json:"accessKeySecret"`
+	Endpoint        string `json:"endpoint" mapstructure:"endpoint"`
+	AccessKeyID     string `json:"accessKeyID" mapstructure:"accessKeyID"`
+	AccessKeySecret string `json:"accessKeySecret" mapstructure:"accessKeySecret"`
 }
 
 type Callback struct {
@@ -124,4 +125,12 @@ func (callback *Callback) Fail(result *producer.Result) {
 	}
 
 	callback.s.logger.Info("Log storage failed:", msg)
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (s *AliCloudSlsLogstorage) GetComponentMetadata() map[string]string {
+	metadataStruct := SlsLogstorageMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

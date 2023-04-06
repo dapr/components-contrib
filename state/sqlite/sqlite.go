@@ -61,7 +61,7 @@ func (s *SQLiteStore) Init(ctx context.Context, metadata state.Metadata) error {
 func (s SQLiteStore) GetComponentMetadata() map[string]string {
 	metadataStruct := sqliteMetadataStruct{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }
 

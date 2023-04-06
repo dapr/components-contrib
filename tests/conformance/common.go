@@ -36,6 +36,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/configuration"
+	contribCrypto "github.com/dapr/components-contrib/crypto"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/components-contrib/state"
@@ -58,6 +59,9 @@ import (
 	b_rabbitmq "github.com/dapr/components-contrib/bindings/rabbitmq"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
 	c_redis "github.com/dapr/components-contrib/configuration/redis"
+	cr_azurekeyvault "github.com/dapr/components-contrib/crypto/azure/keyvault"
+	cr_jwks "github.com/dapr/components-contrib/crypto/jwks"
+	cr_localstorage "github.com/dapr/components-contrib/crypto/localstorage"
 	p_snssqs "github.com/dapr/components-contrib/pubsub/aws/snssqs"
 	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
 	p_servicebusqueues "github.com/dapr/components-contrib/pubsub/azure/servicebus/queues"
@@ -89,6 +93,7 @@ import (
 	s_memcached "github.com/dapr/components-contrib/state/memcached"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
 	s_mysql "github.com/dapr/components-contrib/state/mysql"
+	s_oracledatabase "github.com/dapr/components-contrib/state/oracledatabase"
 	s_postgresql "github.com/dapr/components-contrib/state/postgresql"
 	s_redis "github.com/dapr/components-contrib/state/redis"
 	s_rethinkdb "github.com/dapr/components-contrib/state/rethinkdb"
@@ -96,6 +101,7 @@ import (
 	s_sqlserver "github.com/dapr/components-contrib/state/sqlserver"
 	conf_bindings "github.com/dapr/components-contrib/tests/conformance/bindings"
 	conf_configuration "github.com/dapr/components-contrib/tests/conformance/configuration"
+	conf_crypto "github.com/dapr/components-contrib/tests/conformance/crypto"
 	conf_pubsub "github.com/dapr/components-contrib/tests/conformance/pubsub"
 	conf_secret "github.com/dapr/components-contrib/tests/conformance/secretstores"
 	conf_state "github.com/dapr/components-contrib/tests/conformance/state"
@@ -356,7 +362,6 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				props, err := tc.loadComponentsAndProperties(t, filepath)
 				if err != nil {
 					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-
 					break
 				}
 				store := loadStateStore(comp)
@@ -368,7 +373,6 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				props, err := tc.loadComponentsAndProperties(t, filepath)
 				if err != nil {
 					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-
 					break
 				}
 				store := loadSecretStore(comp)
@@ -380,7 +384,6 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				props, err := tc.loadComponentsAndProperties(t, filepath)
 				if err != nil {
 					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-
 					break
 				}
 				pubsub := loadPubSub(comp)
@@ -388,7 +391,6 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				pubsubConfig, err := conf_pubsub.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
 				if err != nil {
 					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-
 					break
 				}
 				conf_pubsub.ConformanceTests(t, props, pubsub, pubsubConfig)
@@ -397,7 +399,6 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				props, err := tc.loadComponentsAndProperties(t, filepath)
 				if err != nil {
 					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-
 					break
 				}
 				inputBinding := loadInputBindings(comp)
@@ -408,7 +409,6 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				bindingsConfig, err := conf_bindings.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
 				if err != nil {
 					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-
 					break
 				}
 				conf_bindings.ConformanceTests(t, props, inputBinding, outputBinding, bindingsConfig)
@@ -422,6 +422,21 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				wf := loadWorkflow(comp)
 				wfConfig := conf_workflows.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
 				conf_workflows.ConformanceTests(t, props, wf, wfConfig)
+			case "crypto":
+				filepath := fmt.Sprintf("../config/crypto/%s", componentConfigPath)
+				props, err := tc.loadComponentsAndProperties(t, filepath)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
+					break
+				}
+				component := loadCryptoProvider(comp)
+				require.NotNil(t, component)
+				cryptoConfig, err := conf_crypto.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
+					break
+				}
+				conf_crypto.ConformanceTests(t, props, component, cryptoConfig)
 			case "configuration":
 				filepath := fmt.Sprintf("../config/configuration/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
@@ -430,8 +445,8 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 					break
 				}
 				store, updater := loadConfigurationStore(comp)
-				assert.NotNil(t, store)
-				assert.NotNil(t, updater)
+				require.NotNil(t, store)
+				require.NotNil(t, updater)
 				configurationConfig := conf_configuration.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
 				conf_configuration.ConformanceTests(t, props, store, updater, configurationConfig)
 			default:
@@ -521,6 +536,20 @@ func loadSecretStore(tc TestComponent) secretstores.SecretStore {
 	return store
 }
 
+func loadCryptoProvider(tc TestComponent) contribCrypto.SubtleCrypto {
+	var component contribCrypto.SubtleCrypto
+	switch tc.Component {
+	case "azure.keyvault":
+		component = cr_azurekeyvault.NewAzureKeyvaultCrypto(testLogger)
+	case "localstorage":
+		component = cr_localstorage.NewLocalStorageCrypto(testLogger)
+	case "jwks":
+		component = cr_jwks.NewJWKSCrypto(testLogger)
+	}
+
+	return component
+}
+
 func loadStateStore(tc TestComponent) state.Store {
 	var store state.Store
 	switch tc.Component {
@@ -537,7 +566,7 @@ func loadStateStore(tc TestComponent) state.Store {
 	case "azure.sql":
 		fallthrough
 	case "sqlserver":
-		store = s_sqlserver.NewSQLServerStateStore(testLogger)
+		store = s_sqlserver.New(testLogger)
 	case "postgresql":
 		store = s_postgresql.NewPostgreSQLStateStore(testLogger)
 	case "sqlite":
@@ -546,6 +575,8 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_mysql.NewMySQLStateStore(testLogger)
 	case "mysql.mariadb":
 		store = s_mysql.NewMySQLStateStore(testLogger)
+	case "oracledatabase":
+		store = s_oracledatabase.NewOracleDatabaseStateStore(testLogger)
 	case "azure.tablestorage.storage":
 		store = s_azuretablestorage.NewAzureTablesStateStore(testLogger)
 	case "azure.tablestorage.cosmosdb":

@@ -32,7 +32,6 @@ import (
 	"github.com/dapr/components-contrib/state/query"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/ptr"
 )
 
 var errMissingConnectionString = errors.New("missing connection string")
@@ -94,7 +93,7 @@ func (p *PostgresDBAccess) Init(ctx context.Context, meta state.Metadata) error 
 		config.MaxConnIdleTime = p.metadata.ConnectionMaxIdleTime
 	}
 
-	connCtx, connCancel := context.WithTimeout(ctx, p.metadata.timeout)
+	connCtx, connCancel := context.WithTimeout(ctx, p.metadata.Timeout)
 	p.db, err = pgxpool.NewWithConfig(connCtx, config)
 	connCancel()
 	if err != nil {
@@ -103,7 +102,7 @@ func (p *PostgresDBAccess) Init(ctx context.Context, meta state.Metadata) error 
 		return err
 	}
 
-	pingCtx, pingCancel := context.WithTimeout(ctx, p.metadata.timeout)
+	pingCtx, pingCancel := context.WithTimeout(ctx, p.metadata.Timeout)
 	err = p.db.Ping(pingCtx)
 	pingCancel()
 	if err != nil {
@@ -112,15 +111,16 @@ func (p *PostgresDBAccess) Init(ctx context.Context, meta state.Metadata) error 
 		return err
 	}
 
-	if err = p.migrateFn(ctx, p.db, MigrateOptions{
+	err = p.migrateFn(ctx, p.db, MigrateOptions{
 		Logger:            p.logger,
 		StateTableName:    p.metadata.TableName,
 		MetadataTableName: p.metadata.MetadataTableName,
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 
-	if p.metadata.cleanupInterval != nil {
+	if p.metadata.CleanupInterval != nil {
 		gc, err := internalsql.ScheduleGarbageCollector(internalsql.GCOptions{
 			Logger: p.logger,
 			UpdateLastCleanupQuery: fmt.Sprintf(
@@ -135,7 +135,7 @@ func (p *PostgresDBAccess) Init(ctx context.Context, meta state.Metadata) error 
 				`DELETE FROM %s WHERE expiredate IS NOT NULL AND expiredate < CURRENT_TIMESTAMP`,
 				p.metadata.TableName,
 			),
-			CleanupInterval: *p.metadata.cleanupInterval,
+			CleanupInterval: *p.metadata.CleanupInterval,
 			DBPgx:           p.db,
 		})
 		if err != nil {
@@ -165,10 +165,6 @@ func (p *PostgresDBAccess) doSet(parentCtx context.Context, db dbquerier, req *s
 
 	if req.Key == "" {
 		return errors.New("missing key in set operation")
-	}
-
-	if v, ok := req.Value.(string); ok && v == "" {
-		return errors.New("empty string is not allowed in set operation")
 	}
 
 	v := req.Value
@@ -249,7 +245,7 @@ func (p *PostgresDBAccess) BulkSet(parentCtx context.Context, req []state.SetReq
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
 	err = tx.Commit(ctx)
 	cancel()
 	if err != nil {
@@ -265,30 +261,90 @@ func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest)
 		return nil, errors.New("missing key in get operation")
 	}
 
-	var (
-		value    []byte
-		isBinary bool
-		etag     pgtype.Int8
-	)
 	query := `SELECT
-			value, isbinary, %[1]s AS etag
-		FROM %[2]s
+			key, value, isbinary, ` + p.etagColumn + ` AS etag
+		FROM ` + p.metadata.TableName + `
 			WHERE
 				key = $1
 				AND (expiredate IS NULL OR expiredate >= CURRENT_TIMESTAMP)`
-	err := p.db.QueryRow(parentCtx, fmt.Sprintf(query, p.etagColumn, p.metadata.TableName), req.Key).
-		Scan(&value, &isBinary, &etag)
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
+	defer cancel()
+	row := p.db.QueryRow(ctx, query, req.Key)
+	_, value, etag, err := readRow(row)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return &state.GetResponse{}, nil
 		}
 		return nil, err
 	}
 
-	var etagS *string
+	return &state.GetResponse{
+		Data: value,
+		ETag: &etag,
+	}, nil
+}
+
+func (p *PostgresDBAccess) BulkGet(parentCtx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error) {
+	if len(req) == 0 {
+		return []state.BulkGetResponse{}, nil
+	}
+
+	// Get all keys
+	keys := make([]string, len(req))
+	for i, r := range req {
+		keys[i] = r.Key
+	}
+
+	// Execute the query
+	query := `SELECT
+			key, value, isbinary, ` + p.etagColumn + ` AS etag
+		FROM ` + p.metadata.TableName + `
+			WHERE
+				key = ANY($1)
+				AND (expiredate IS NULL OR expiredate >= CURRENT_TIMESTAMP)`
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
+	defer cancel()
+	rows, err := p.db.Query(ctx, query, keys)
+	if err != nil {
+		// If no rows exist, return an empty response, otherwise return the error.
+		if errors.Is(err, pgx.ErrNoRows) {
+			return []state.BulkGetResponse{}, nil
+		}
+		return nil, err
+	}
+
+	// Scan all rows
+	var (
+		n    int
+		etag string
+	)
+	res := make([]state.BulkGetResponse, len(req))
+	for ; rows.Next(); n++ {
+		r := state.BulkGetResponse{}
+		r.Key, r.Data, etag, err = readRow(rows)
+		if err != nil {
+			r.Error = err.Error()
+		}
+		r.ETag = &etag
+		res[n] = r
+	}
+
+	return res[:n], nil
+}
+
+func readRow(row pgx.Row) (key string, value []byte, etagS string, err error) {
+	var (
+		isBinary bool
+		etag     pgtype.Int8
+	)
+	err = row.Scan(&key, &value, &isBinary, &etag)
+	if err != nil {
+		return key, nil, "", err
+	}
+
 	if etag.Valid {
-		etagS = ptr.Of(strconv.FormatInt(etag.Int64, 10))
+		etagS = strconv.FormatInt(etag.Int64, 10)
 	}
 
 	if isBinary {
@@ -297,24 +353,20 @@ func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest)
 			data []byte
 		)
 
-		if err = json.Unmarshal(value, &s); err != nil {
-			return nil, err
+		err = json.Unmarshal(value, &s)
+		if err != nil {
+			return key, nil, "", fmt.Errorf("failed to unmarshal JSON data: %w", err)
 		}
 
-		if data, err = base64.StdEncoding.DecodeString(s); err != nil {
-			return nil, err
+		data, err = base64.StdEncoding.DecodeString(s)
+		if err != nil {
+			return key, nil, "", fmt.Errorf("failed to decode base64 data: %w", err)
 		}
 
-		return &state.GetResponse{
-			Data: data,
-			ETag: etagS,
-		}, nil
+		return key, data, etagS, nil
 	}
 
-	return &state.GetResponse{
-		Data: value,
-		ETag: etagS,
-	}, nil
+	return key, value, etagS, nil
 }
 
 // Delete removes an item from the state store.
@@ -327,9 +379,11 @@ func (p *PostgresDBAccess) doDelete(parentCtx context.Context, db dbquerier, req
 		return errors.New("missing key in delete operation")
 	}
 
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
+	defer cancel()
 	var result pgconn.CommandTag
 	if req.ETag == nil || *req.ETag == "" {
-		result, err = db.Exec(parentCtx, "DELETE FROM state WHERE key = $1", req.Key)
+		result, err = db.Exec(ctx, "DELETE FROM "+p.metadata.TableName+" WHERE key = $1", req.Key)
 	} else {
 		// Convert req.ETag to uint32 for postgres XID compatibility
 		var etag64 uint64
@@ -338,9 +392,8 @@ func (p *PostgresDBAccess) doDelete(parentCtx context.Context, db dbquerier, req
 			return state.NewETagError(state.ETagInvalid, err)
 		}
 
-		result, err = db.Exec(parentCtx, "DELETE FROM state WHERE key = $1 AND $2 = "+p.etagColumn, req.Key, uint32(etag64))
+		result, err = db.Exec(ctx, "DELETE FROM "+p.metadata.TableName+" WHERE key = $1 AND $2 = "+p.etagColumn, req.Key, uint32(etag64))
 	}
-
 	if err != nil {
 		return err
 	}
@@ -369,7 +422,7 @@ func (p *PostgresDBAccess) BulkDelete(parentCtx context.Context, req []state.Del
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
 	err = tx.Commit(ctx)
 	cancel()
 	if err != nil {
@@ -387,37 +440,25 @@ func (p *PostgresDBAccess) ExecuteMulti(parentCtx context.Context, request *stat
 	defer p.rollbackTx(parentCtx, tx, "ExecMulti")
 
 	for _, o := range request.Operations {
-		switch o.Operation {
-		case state.Upsert:
-			var setReq state.SetRequest
-			setReq, err = getSet(o)
+		switch x := o.(type) {
+		case state.SetRequest:
+			err = p.doSet(parentCtx, tx, &x)
 			if err != nil {
 				return err
 			}
 
-			err = p.doSet(parentCtx, tx, &setReq)
-			if err != nil {
-				return err
-			}
-
-		case state.Delete:
-			var delReq state.DeleteRequest
-			delReq, err = getDelete(o)
-			if err != nil {
-				return err
-			}
-
-			err = p.doDelete(parentCtx, tx, &delReq)
+		case state.DeleteRequest:
+			err = p.doDelete(parentCtx, tx, &x)
 			if err != nil {
 				return err
 			}
 
 		default:
-			return fmt.Errorf("unsupported operation: %s", o.Operation)
+			return fmt.Errorf("unsupported operation: %s", o.Operation())
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
 	err = tx.Commit(ctx)
 	cancel()
 	if err != nil {
@@ -474,40 +515,12 @@ func (p *PostgresDBAccess) Close() error {
 // GetCleanupInterval returns the cleanupInterval property.
 // This is primarily used for tests.
 func (p *PostgresDBAccess) GetCleanupInterval() *time.Duration {
-	return p.metadata.cleanupInterval
-}
-
-// Returns the set requests.
-func getSet(req state.TransactionalStateOperation) (state.SetRequest, error) {
-	setReq, ok := req.Request.(state.SetRequest)
-	if !ok {
-		return setReq, errors.New("expecting set request")
-	}
-
-	if setReq.Key == "" {
-		return setReq, errors.New("missing key in upsert operation")
-	}
-
-	return setReq, nil
-}
-
-// Returns the delete requests.
-func getDelete(req state.TransactionalStateOperation) (state.DeleteRequest, error) {
-	delReq, ok := req.Request.(state.DeleteRequest)
-	if !ok {
-		return delReq, errors.New("expecting delete request")
-	}
-
-	if delReq.Key == "" {
-		return delReq, errors.New("missing key in upsert operation")
-	}
-
-	return delReq, nil
+	return p.metadata.CleanupInterval
 }
 
 // Internal function that begins a transaction.
 func (p *PostgresDBAccess) beginTx(parentCtx context.Context) (pgx.Tx, error) {
-	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
 	tx, err := p.db.Begin(ctx)
 	cancel()
 	if err != nil {
@@ -520,7 +533,7 @@ func (p *PostgresDBAccess) beginTx(parentCtx context.Context) (pgx.Tx, error) {
 // Normally called as a deferred function in methods that use transactions.
 // In case of errors, they are logged but not actioned upon.
 func (p *PostgresDBAccess) rollbackTx(parentCtx context.Context, tx pgx.Tx, methodName string) {
-	rollbackCtx, rollbackCancel := context.WithTimeout(parentCtx, p.metadata.timeout)
+	rollbackCtx, rollbackCancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
 	rollbackErr := tx.Rollback(rollbackCtx)
 	rollbackCancel()
 	if rollbackErr != nil && !errors.Is(rollbackErr, pgx.ErrTxClosed) {

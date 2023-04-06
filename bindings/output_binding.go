@@ -25,6 +25,7 @@ type OutputBinding interface {
 	Init(ctx context.Context, metadata Metadata) error
 	Invoke(ctx context.Context, req *InvokeRequest) (*InvokeResponse, error)
 	Operations() []OperationKind
+	GetComponentMetadata() map[string]string
 }
 
 func PingOutBinding(ctx context.Context, outputBinding OutputBinding) error {

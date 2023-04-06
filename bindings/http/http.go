@@ -25,6 +25,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -311,4 +312,12 @@ func (h *HTTPSource) Invoke(parentCtx context.Context, req *bindings.InvokeReque
 		Data:     b,
 		Metadata: metadata,
 	}, err
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (h *HTTPSource) GetComponentMetadata() map[string]string {
+	metadataStruct := httpMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

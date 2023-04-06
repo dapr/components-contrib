@@ -62,7 +62,8 @@ const (
 
 // StateStore Type.
 type StateStore struct {
-	state.DefaultBulkStore
+	state.BulkStore
+
 	containerClient *container.Client
 	logger          logger.Logger
 }
@@ -108,7 +109,7 @@ func (r *StateStore) Ping(ctx context.Context) error {
 func (r *StateStore) GetComponentMetadata() map[string]string {
 	metadataStruct := storageinternal.BlobStorageMetadata{}
 	metadataInfo := map[string]string{}
-	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.StateStoreType)
 	return metadataInfo
 }
 
@@ -117,8 +118,7 @@ func NewAzureBlobStorageStore(logger logger.Logger) state.Store {
 	s := &StateStore{
 		logger: logger,
 	}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
+	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
 }
 

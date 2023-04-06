@@ -32,6 +32,7 @@ import (
 	"k8s.io/utils/strings/slices"
 
 	"github.com/dapr/components-contrib/configuration"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -98,9 +99,9 @@ func (p *ConfigurationStore) Init(parentCtx context.Context, metadata configurat
 		p.metadata = m
 	}
 	p.ActiveSubscriptions = make(map[string]*subscription)
-	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.maxIdleTimeout)
+	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.MaxIdleTimeout)
 	defer cancel()
-	client, err := Connect(ctx, p.metadata.connectionString, p.metadata.maxIdleTimeout)
+	client, err := Connect(ctx, p.metadata.ConnectionString, p.metadata.MaxIdleTimeout)
 	if err != nil {
 		return fmt.Errorf("error connecting to configuration store: '%w'", err)
 	}
@@ -111,12 +112,12 @@ func (p *ConfigurationStore) Init(parentCtx context.Context, metadata configurat
 	}
 	// check if table exists
 	exists := false
-	err = p.client.QueryRow(ctx, QueryTableExists, p.metadata.configTable).Scan(&exists)
+	err = p.client.QueryRow(ctx, QueryTableExists, p.metadata.ConfigTable).Scan(&exists)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return fmt.Errorf(ErrorMissingTable, p.metadata.configTable)
+			return fmt.Errorf(ErrorMissingTable, p.metadata.ConfigTable)
 		}
-		return fmt.Errorf("error in checking if configtable '%s' exists - '%w'", p.metadata.configTable, err)
+		return fmt.Errorf("error in checking if configtable '%s' exists - '%w'", p.metadata.ConfigTable, err)
 	}
 	return nil
 }
@@ -126,7 +127,7 @@ func (p *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 		p.logger.Error(err)
 		return nil, err
 	}
-	query, params, err := buildQuery(req, p.metadata.configTable)
+	query, params, err := buildQuery(req, p.metadata.ConfigTable)
 	if err != nil {
 		p.logger.Error(err)
 		return nil, fmt.Errorf("error in configuration store query: '%w' ", err)
@@ -168,7 +169,7 @@ func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 		}
 	}
 	if len(pgNotifyChannels) == 0 {
-		return "", fmt.Errorf("unable to subscribe to '%s'.pgNotifyChannel attribute cannot be empty", p.metadata.configTable)
+		return "", fmt.Errorf("unable to subscribe to '%s'.pgNotifyChannel attribute cannot be empty", p.metadata.ConfigTable)
 	}
 	return p.subscribeToChannel(ctx, pgNotifyChannels, req, handler)
 }
@@ -278,31 +279,30 @@ func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 }
 
 func parseMetadata(cmetadata configuration.Metadata) (metadata, error) {
-	m := metadata{}
-	if val, ok := cmetadata.Properties[connectionStringKey]; ok && val != "" {
-		m.connectionString = val
-	} else {
+	m := metadata{
+		MaxIdleTimeout: defaultMaxConnIdleTime,
+	}
+	decodeErr := contribMetadata.DecodeMetadata(cmetadata.Properties, &m)
+	if decodeErr != nil {
+		return m, decodeErr
+	}
+
+	if m.ConnectionString == "" {
 		return m, fmt.Errorf(ErrorMissingConnectionString)
 	}
-	if tbl, ok := cmetadata.Properties[configtablekey]; ok && tbl != "" {
-		if !allowedChars.MatchString(tbl) {
-			return m, fmt.Errorf("invalid table name : '%v'. non-alphanumerics are not supported", tbl)
+
+	if m.ConfigTable != "" {
+		if !allowedChars.MatchString(m.ConfigTable) {
+			return m, fmt.Errorf("invalid table name : '%v'. non-alphanumerics are not supported", m.ConfigTable)
 		}
-		if len(tbl) > maxIdentifierLength {
-			return m, fmt.Errorf(ErrorTooLongFieldLength+" - tableName : '%v'. max allowed field length is %v ", tbl, maxIdentifierLength)
+		if len(m.ConfigTable) > maxIdentifierLength {
+			return m, fmt.Errorf(ErrorTooLongFieldLength+" - tableName : '%v'. max allowed field length is %v ", m.ConfigTable, maxIdentifierLength)
 		}
-		m.configTable = tbl
 	} else {
 		return m, fmt.Errorf(ErrorMissingTableName)
 	}
-	// configure maxTimeout if provided
-	if mxTimeout, ok := cmetadata.Properties[connMaxIdleTimeKey]; ok && mxTimeout != "" {
-		if t, err := time.ParseDuration(mxTimeout); err == nil && t > 0 {
-			m.maxIdleTimeout = t
-		}
-	}
-	if m.maxIdleTimeout <= 0 {
-		m.maxIdleTimeout = defaultMaxConnIdleTime
+	if m.MaxIdleTimeout <= 0 {
+		m.MaxIdleTimeout = defaultMaxConnIdleTime
 	}
 	return m, nil
 }
@@ -415,4 +415,12 @@ func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, pgNotifyCha
 		go p.doSubscribe(ctx, req, handler, pgNotifyCmd, channel, subscribeID, stop)
 	}
 	return subscribeID, nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (p *ConfigurationStore) GetComponentMetadata() map[string]string {
+	metadataStruct := metadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
+	return metadataInfo
 }

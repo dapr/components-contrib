@@ -22,13 +22,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dapr/dapr/pkg/runtime"
-	dapr_testing "github.com/dapr/dapr/pkg/testing"
-	goclient "github.com/dapr/go-sdk/client"
-	"github.com/dapr/kit/logger"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	// Blank import for the underlying PostgreSQL driver.
+	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/dapr/components-contrib/internal/component/postgresql"
 	"github.com/dapr/components-contrib/metadata"
@@ -39,6 +38,10 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
+	"github.com/dapr/dapr/pkg/runtime"
+	dapr_testing "github.com/dapr/dapr/pkg/testing"
+	goclient "github.com/dapr/go-sdk/client"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -194,51 +197,33 @@ func TestCockroach(t *testing.T) {
 
 		err = stateStore.Multi(context.Background(), &state.TransactionalStateRequest{
 			Operations: []state.TransactionalStateOperation{
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:      "reqKey1",
-						Value:    "reqVal1",
-						Metadata: map[string]string{},
-					},
+				state.SetRequest{
+					Key:      "reqKey1",
+					Value:    "reqVal1",
+					Metadata: map[string]string{},
 				},
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:      "reqKey2",
-						Value:    "reqVal2",
-						Metadata: map[string]string{},
-					},
+				state.SetRequest{
+					Key:      "reqKey2",
+					Value:    "reqVal2",
+					Metadata: map[string]string{},
 				},
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   "reqKey3",
-						Value: "reqVal3",
-					},
+				state.SetRequest{
+					Key:   "reqKey3",
+					Value: "reqVal3",
 				},
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:      "reqKey1",
-						Value:    "reqVal101",
-						Metadata: map[string]string{},
-					},
+				state.SetRequest{
+					Key:      "reqKey1",
+					Value:    "reqVal101",
+					Metadata: map[string]string{},
 				},
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:      "reqKey3",
-						Value:    "reqVal103",
-						Metadata: map[string]string{},
-					},
+				state.SetRequest{
+					Key:      "reqKey3",
+					Value:    "reqVal103",
+					Metadata: map[string]string{},
 				},
-				{
-					Operation: state.Delete,
-					Request: state.DeleteRequest{
-						Key:      certificationTestPrefix + "key1",
-						Metadata: map[string]string{},
-					},
+				state.DeleteRequest{
+					Key:      certificationTestPrefix + "key1",
+					Metadata: map[string]string{},
 				},
 			},
 		})

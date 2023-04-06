@@ -15,7 +15,7 @@ package oracledatabase
 
 import (
 	"context"
-	"fmt"
+	"database/sql"
 	"reflect"
 
 	"github.com/dapr/components-contrib/metadata"
@@ -25,6 +25,8 @@ import (
 
 // Oracle Database state store.
 type OracleDatabase struct {
+	state.BulkStore
+
 	features []state.Feature
 	logger   logger.Logger
 	dbaccess dbAccess
@@ -33,8 +35,9 @@ type OracleDatabase struct {
 // NewOracleDatabaseStateStore creates a new instance of OracleDatabase state store.
 func NewOracleDatabaseStateStore(logger logger.Logger) state.Store {
 	dba := newOracleDatabaseAccess(logger)
-
-	return newOracleDatabaseStateStore(logger, dba)
+	s := newOracleDatabaseStateStore(logger, dba)
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // newOracleDatabaseStateStore creates a newOracleDatabaseStateStore instance of an OracleDatabase state store.
@@ -66,20 +69,9 @@ func (o *OracleDatabase) Delete(ctx context.Context, req *state.DeleteRequest) e
 	return o.dbaccess.Delete(ctx, req)
 }
 
-// BulkDelete removes multiple entries from the store.
-func (o *OracleDatabase) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	return o.dbaccess.ExecuteMulti(ctx, nil, req)
-}
-
 // Get returns an entity from store.
 func (o *OracleDatabase) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	return o.dbaccess.Get(ctx, req)
-}
-
-// BulkGet performs a bulks get operations.
-func (o *OracleDatabase) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
-	// TODO: replace with ExecuteMulti for performance.
-	return false, nil, nil
 }
 
 // Set adds/updates an entity on store.
@@ -87,41 +79,9 @@ func (o *OracleDatabase) Set(ctx context.Context, req *state.SetRequest) error {
 	return o.dbaccess.Set(ctx, req)
 }
 
-// BulkSet adds/updates multiple entities on store.
-func (o *OracleDatabase) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	return o.dbaccess.ExecuteMulti(ctx, req, nil)
-}
-
 // Multi handles multiple transactions. Implements TransactionalStore.
 func (o *OracleDatabase) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
-	var deletes []state.DeleteRequest
-	var sets []state.SetRequest
-	for _, req := range request.Operations {
-		switch req.Operation {
-		case state.Upsert:
-			if setReq, ok := req.Request.(state.SetRequest); ok {
-				sets = append(sets, setReq)
-			} else {
-				return fmt.Errorf("expecting set request")
-			}
-
-		case state.Delete:
-			if delReq, ok := req.Request.(state.DeleteRequest); ok {
-				deletes = append(deletes, delReq)
-			} else {
-				return fmt.Errorf("expecting delete request")
-			}
-
-		default:
-			return fmt.Errorf("unsupported operation: %s", req.Operation)
-		}
-	}
-
-	if len(sets) > 0 || len(deletes) > 0 {
-		return o.dbaccess.ExecuteMulti(ctx, sets, deletes)
-	}
-
-	return nil
+	return o.dbaccess.ExecuteMulti(ctx, request.Operations)
 }
 
 // Close implements io.Closer.
@@ -133,9 +93,14 @@ func (o *OracleDatabase) Close() error {
 	return nil
 }
 
+// Returns the database connection. Used by tests.
+func (o *OracleDatabase) getDB() *sql.DB {
+	return o.dbaccess.(*oracleDatabaseAccess).db
+}
+
 func (o *OracleDatabase) GetComponentMetadata() map[string]string {
 	metadataStruct := oracleDatabaseMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }

@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"sync/atomic"
 
@@ -25,6 +26,7 @@ import (
 	"google.golang.org/api/option"
 
 	"github.com/dapr/components-contrib/bindings"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -146,4 +148,12 @@ func (g *GCPPubSub) Close() error {
 	}
 	defer g.wg.Wait()
 	return g.client.Close()
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (g *GCPPubSub) GetComponentMetadata() map[string]string {
+	metadataStruct := pubSubMetadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
+	return metadataInfo
 }

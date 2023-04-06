@@ -22,10 +22,7 @@ const router = Router()
     // Handle the info endpoint
     .get(
         '/.well-known/dapr/info',
-        async (
-            req: IRequest,
-            env: Environment
-        ): Promise<Response> => {
+        async (req: IRequest, env: Environment): Promise<Response> => {
             const auth = await AuthorizeRequest(req, env)
             if (!auth) {
                 return new Response('Unauthorized', { status: 401 })
@@ -77,10 +74,7 @@ const router = Router()
     // Retrieve a value from KV
     .get(
         '/kv/:namespace/:key',
-        async (
-            req: IRequest,
-            env: Environment
-        ): Promise<Response> => {
+        async (req: IRequest, env: Environment): Promise<Response> => {
             const { namespace, key, errorRes } = await setupKVRequest(req, env)
             if (errorRes) {
                 return errorRes
@@ -98,10 +92,7 @@ const router = Router()
     // Store a value in KV
     .post(
         '/kv/:namespace/:key',
-        async (
-            req: IRequest,
-            env: Environment
-        ): Promise<Response> => {
+        async (req: IRequest, env: Environment): Promise<Response> => {
             const { namespace, key, errorRes } = await setupKVRequest(req, env)
             if (errorRes) {
                 return errorRes
@@ -122,10 +113,7 @@ const router = Router()
     // Delete a value from KV
     .delete(
         '/kv/:namespace/:key',
-        async (
-            req: IRequest,
-            env: Environment
-        ): Promise<Response> => {
+        async (req: IRequest, env: Environment): Promise<Response> => {
             const { namespace, key, errorRes } = await setupKVRequest(req, env)
             if (errorRes) {
                 return errorRes
@@ -140,10 +128,7 @@ const router = Router()
     // Publish a message in a queue
     .post(
         '/queues/:queue',
-        async (
-            req: IRequest,
-            env: Environment
-        ): Promise<Response> => {
+        async (req: IRequest, env: Environment): Promise<Response> => {
             const { queue, errorRes } = await setupQueueRequest(req, env)
             if (errorRes) {
                 return errorRes
@@ -202,7 +187,10 @@ async function setupQueueRequest(
         return { errorRes: new Response('Bad request', { status: 400 }) }
     }
     const queue = env[req.params.queue] as Queue<string>
-    if (typeof queue != 'object' || !['WorkerQueue', 'Queue'].includes(queue?.constructor?.name)) {
+    if (
+        typeof queue != 'object' ||
+        !['WorkerQueue', 'Queue'].includes(queue?.constructor?.name)
+    ) {
         return {
             errorRes: new Response(
                 `Worker is not bound to queue '${req.params.queue}'`,

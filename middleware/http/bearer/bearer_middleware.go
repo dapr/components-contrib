@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwt"
 
 	"github.com/dapr/components-contrib/internal/httputils"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 )
@@ -122,4 +124,11 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 			next.ServeHTTP(w, r)
 		})
 	}, nil
+}
+
+func (m *Middleware) GetComponentMetadata() map[string]string {
+	metadataStruct := bearerMiddlewareMetadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.MiddlewareType)
+	return metadataInfo
 }

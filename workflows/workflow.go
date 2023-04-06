@@ -23,4 +23,7 @@ type Workflow interface {
 	Get(ctx context.Context, req *WorkflowReference) (*StateResponse, error)
 	RaiseEvent(ctx context.Context, req *RaiseEventRequest) error
 	Purge(ctx context.Context, req *PurgeRequest) error
+	Pause(ctx context.Context, req *WorkflowReference) error
+	Resume(ctx context.Context, req *WorkflowReference) error
+	GetComponentMetadata() map[string]string
 }

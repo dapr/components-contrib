@@ -17,6 +17,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"strings"
 	"testing"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -76,25 +77,25 @@ func TestCreateMetadata(t *testing.T) {
 
 		// assert
 		assert.NoError(t, err)
-		assert.Equal(t, fakeProperties[metadataConnectionStringKey], m.connectionString)
-		assert.Equal(t, fakeProperties[metadataProtocolKey], m.protocol)
-		assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
-		assert.Equal(t, fakeProperties[metadataUsernameKey], m.username)
-		assert.Equal(t, fakeProperties[metadataPasswordKey], m.password)
-		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
-		assert.Equal(t, false, m.autoAck)
-		assert.Equal(t, false, m.requeueInFailure)
-		assert.Equal(t, true, m.deleteWhenUnused)
-		assert.Equal(t, false, m.enableDeadLetter)
-		assert.Equal(t, false, m.publisherConfirm)
-		assert.Equal(t, uint8(0), m.deliveryMode)
-		assert.Equal(t, uint8(0), m.prefetchCount)
-		assert.Equal(t, int64(0), m.maxLen)
-		assert.Equal(t, int64(0), m.maxLenBytes)
+		assert.Equal(t, fakeProperties[metadataConnectionStringKey], m.ConnectionString)
+		assert.Equal(t, fakeProperties[metadataProtocolKey], m.internalProtocol)
+		assert.Equal(t, fakeProperties[metadataHostnameKey], m.Hostname)
+		assert.Equal(t, fakeProperties[metadataUsernameKey], m.Username)
+		assert.Equal(t, fakeProperties[metadataPasswordKey], m.Password)
+		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.ConsumerID)
+		assert.Equal(t, false, m.AutoAck)
+		assert.Equal(t, false, m.RequeueInFailure)
+		assert.Equal(t, true, m.DeleteWhenUnused)
+		assert.Equal(t, false, m.EnableDeadLetter)
+		assert.Equal(t, false, m.PublisherConfirm)
+		assert.Equal(t, uint8(0), m.DeliveryMode)
+		assert.Equal(t, uint8(0), m.PrefetchCount)
+		assert.Equal(t, int64(0), m.MaxLen)
+		assert.Equal(t, int64(0), m.MaxLenBytes)
 		assert.Equal(t, "", m.ClientKey)
 		assert.Equal(t, "", m.ClientCert)
 		assert.Equal(t, "", m.CACert)
-		assert.Equal(t, fanoutExchangeKind, m.exchangeKind)
+		assert.Equal(t, fanoutExchangeKind, m.ExchangeKind)
 	})
 
 	invalidDeliveryModes := []string{"3", "10", "-1"}
@@ -112,10 +113,12 @@ func TestCreateMetadata(t *testing.T) {
 			m, err := createMetadata(fakeMetaData, log)
 
 			// assert
-			assert.EqualError(t, err, "rabbitmq pub/sub error: invalid RabbitMQ delivery mode, accepted values are between 0 and 2")
-			assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
-			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
-			assert.Equal(t, uint8(0), m.deliveryMode)
+			assert.True(t, strings.Contains(err.Error(), "rabbitmq pub/sub error: invalid RabbitMQ delivery mode, accepted values are between 0 and 2") ||
+				strings.Contains(err.Error(), "'deliveryMode'"))
+			if deliveryMode != "-1" {
+				assert.Equal(t, fakeProperties[metadataHostnameKey], m.Hostname)
+				assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.ConsumerID)
+			}
 		})
 	}
 
@@ -132,9 +135,9 @@ func TestCreateMetadata(t *testing.T) {
 
 		// assert
 		assert.NoError(t, err)
-		assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
-		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
-		assert.Equal(t, uint8(2), m.deliveryMode)
+		assert.Equal(t, fakeProperties[metadataHostnameKey], m.Hostname)
+		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.ConsumerID)
+		assert.Equal(t, uint8(2), m.DeliveryMode)
 	})
 
 	t.Run("protocol does not match connection string", func(t *testing.T) {
@@ -168,7 +171,7 @@ func TestCreateMetadata(t *testing.T) {
 
 		// assert
 		assert.Nil(t, err)
-		assert.Equal(t, fakeProperties[metadataProtocolKey], m.protocol)
+		assert.Equal(t, fakeProperties[metadataProtocolKey], m.internalProtocol)
 	})
 
 	t.Run("invalid concurrency", func(t *testing.T) {
@@ -199,9 +202,9 @@ func TestCreateMetadata(t *testing.T) {
 
 		// assert
 		assert.NoError(t, err)
-		assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
-		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
-		assert.Equal(t, uint8(1), m.prefetchCount)
+		assert.Equal(t, fakeProperties[metadataHostnameKey], m.Hostname)
+		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.ConsumerID)
+		assert.Equal(t, uint8(1), m.PrefetchCount)
 	})
 
 	t.Run("tls related properties are set", func(t *testing.T) {
@@ -249,10 +252,10 @@ func TestCreateMetadata(t *testing.T) {
 
 		// assert
 		assert.NoError(t, err)
-		assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
-		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
-		assert.Equal(t, int64(1), m.maxLen)
-		assert.Equal(t, int64(2000000), m.maxLenBytes)
+		assert.Equal(t, fakeProperties[metadataHostnameKey], m.Hostname)
+		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.ConsumerID)
+		assert.Equal(t, int64(1), m.MaxLen)
+		assert.Equal(t, int64(2000000), m.MaxLenBytes)
 	})
 
 	for _, tt := range booleanFlagTests {
@@ -269,9 +272,9 @@ func TestCreateMetadata(t *testing.T) {
 
 			// assert
 			assert.NoError(t, err)
-			assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
-			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
-			assert.Equal(t, tt.expected, m.autoAck)
+			assert.Equal(t, fakeProperties[metadataHostnameKey], m.Hostname)
+			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.ConsumerID)
+			assert.Equal(t, tt.expected, m.AutoAck)
 		})
 	}
 
@@ -289,9 +292,9 @@ func TestCreateMetadata(t *testing.T) {
 
 			// assert
 			assert.NoError(t, err)
-			assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
-			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
-			assert.Equal(t, tt.expected, m.requeueInFailure)
+			assert.Equal(t, fakeProperties[metadataHostnameKey], m.Hostname)
+			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.ConsumerID)
+			assert.Equal(t, tt.expected, m.RequeueInFailure)
 		})
 	}
 
@@ -309,9 +312,9 @@ func TestCreateMetadata(t *testing.T) {
 
 			// assert
 			assert.NoError(t, err)
-			assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
-			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
-			assert.Equal(t, tt.expected, m.deleteWhenUnused)
+			assert.Equal(t, fakeProperties[metadataHostnameKey], m.Hostname)
+			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.ConsumerID)
+			assert.Equal(t, tt.expected, m.DeleteWhenUnused)
 		})
 	}
 
@@ -329,9 +332,9 @@ func TestCreateMetadata(t *testing.T) {
 
 			// assert
 			assert.NoError(t, err)
-			assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
-			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
-			assert.Equal(t, tt.expected, m.durable)
+			assert.Equal(t, fakeProperties[metadataHostnameKey], m.Hostname)
+			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.ConsumerID)
+			assert.Equal(t, tt.expected, m.Durable)
 		})
 	}
 
@@ -349,9 +352,9 @@ func TestCreateMetadata(t *testing.T) {
 
 			// assert
 			assert.NoError(t, err)
-			assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
-			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
-			assert.Equal(t, tt.expected, m.publisherConfirm)
+			assert.Equal(t, fakeProperties[metadataHostnameKey], m.Hostname)
+			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.ConsumerID)
+			assert.Equal(t, tt.expected, m.PublisherConfirm)
 		})
 	}
 
@@ -369,9 +372,9 @@ func TestCreateMetadata(t *testing.T) {
 
 			// assert
 			assert.NoError(t, err)
-			assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
-			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
-			assert.Equal(t, tt.expected, m.enableDeadLetter)
+			assert.Equal(t, fakeProperties[metadataHostnameKey], m.Hostname)
+			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.ConsumerID)
+			assert.Equal(t, tt.expected, m.EnableDeadLetter)
 		})
 	}
 	validExchangeKind := []string{amqp.ExchangeDirect, amqp.ExchangeTopic, amqp.ExchangeFanout, amqp.ExchangeHeaders}
@@ -390,9 +393,9 @@ func TestCreateMetadata(t *testing.T) {
 
 			// assert
 			assert.NoError(t, err)
-			assert.Equal(t, fakeProperties[metadataHostnameKey], m.hostname)
-			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.consumerID)
-			assert.Equal(t, exchangeKind, m.exchangeKind)
+			assert.Equal(t, fakeProperties[metadataHostnameKey], m.Hostname)
+			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.ConsumerID)
+			assert.Equal(t, exchangeKind, m.ExchangeKind)
 		})
 	}
 

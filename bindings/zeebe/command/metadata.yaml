@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: zeebe.command
+version: v1
+status: stable
+title: "Zeebe Command"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/zeebe-command/
+binding:
+  output: true
+  input: false
+  operations: []
+metadata:
+  - name: gatewayAddr
+    required: true
+    description: Zeebe gateway address
+    example: "localhost:26500"
+    type: string
+  - name: gatewayKeepAlive
+    required: false
+    description: Sets how often keep alive messages should be sent to the gateway. Defaults to 45 seconds
+    example: "45s"
+    type: duration
+  - name: usePlainTextConnection	
+    required: false
+    description: Whether to use a plain text connection or not
+    example: "true"
+    type: bool
+  - name: caCertificatePath
+    required: false
+    description: The path to the CA cert
+    example: "/path/to/ca-cert"
+    type: string

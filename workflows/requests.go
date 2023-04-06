@@ -25,8 +25,8 @@ type RaiseEventRequest struct {
 	EventData  []byte `json:"data"`
 }
 
-// SuspendRequest is the struct describing a suspend workflow request.
-type SuspendRequest struct {
+// PauseRequest is the struct describing a pause workflow request.
+type PauseRequest struct {
 	InstanceID string `json:"instanceID"`
 }
 

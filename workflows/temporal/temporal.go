@@ -154,7 +154,7 @@ func (c *TemporalWF) Close() {
 	c.client.Close()
 }
 
-func (c *TemporalWF) Suspend(ctx context.Context, req *workflows.SuspendRequest) error {
+func (c *TemporalWF) Pause(ctx context.Context, req *workflows.PauseRequest) error {
 	return workflows.ErrNotImplemented
 }
 

@@ -27,7 +27,7 @@ type Workflow interface {
 	Terminate(ctx context.Context, req *TerminateRequest) error
 	Get(ctx context.Context, req *GetRequest) (*StateResponse, error)
 	RaiseEvent(ctx context.Context, req *RaiseEventRequest) error
-	Suspend(ctx context.Context, req *SuspendRequest) error
+	Pause(ctx context.Context, req *PauseRequest) error
 	Resume(ctx context.Context, req *ResumeRequest) error
 	GetComponentMetadata() map[string]string
 }

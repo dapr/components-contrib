@@ -16,21 +16,20 @@ package mqtt
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"time"
 
-	"github.com/dapr/components-contrib/internal/utils"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
 
-type metadata struct {
-	pubsub.TLSProperties
-	url          string
-	consumerID   string
-	qos          byte
-	retain       bool
-	cleanSession bool
+type mqttMetadata struct {
+	pubsub.TLSProperties `mapstructure:",squash"`
+	Url                  string `mapstructure:"url"`
+	ConsumerID           string `mapstructure:"consumerID"`
+	Qos                  byte   `mapstructure:"qos"`
+	Retain               bool   `mapstructure:"retain"`
+	CleanSession         bool   `mapstructure:"cleanSession"`
 }
 
 const (
@@ -48,44 +47,32 @@ const (
 	defaultCleanSession = false
 )
 
-func parseMQTTMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error) {
-	m := metadata{}
+func parseMQTTMetaData(md pubsub.Metadata, log logger.Logger) (*mqttMetadata, error) {
+	m := mqttMetadata{
+		Qos:          defaultQOS,
+		CleanSession: defaultCleanSession,
+	}
+
+	err := metadata.DecodeMetadata(md.Properties, &m)
+	if err != nil {
+		return &m, fmt.Errorf("mqtt pubsub error: %w", err)
+	}
 
 	// required configuration settings
-	if val, ok := md.Properties[mqttURL]; ok && val != "" {
-		m.url = val
-	} else {
+	if m.Url == "" {
 		return &m, errors.New("missing url")
 	}
 
 	// optional configuration settings
-	m.qos = defaultQOS
-	if val, ok := md.Properties[mqttQOS]; ok && val != "" {
-		qosInt, err := strconv.Atoi(val)
-		if err != nil || qosInt < 0 || qosInt > 7 {
-			return &m, fmt.Errorf("invalid qos %s: %w", val, err)
-		}
-		m.qos = byte(qosInt)
-	}
-
-	m.retain = defaultRetain
-	if val, ok := md.Properties[mqttRetain]; ok && val != "" {
-		m.retain = utils.IsTruthy(val)
+	if m.Qos < 0 || m.Qos > 7 {
+		return &m, fmt.Errorf("invalid qos %d: %w", m.Qos, err)
 	}
 
 	// Note: the runtime sets the default value to the Dapr app ID if empty
-	if val, ok := md.Properties[mqttConsumerID]; ok && val != "" {
-		m.consumerID = val
-	} else {
+	if m.ConsumerID == "" {
 		return &m, errors.New("missing consumerID")
 	}
 
-	m.cleanSession = defaultCleanSession
-	if val, ok := md.Properties[mqttCleanSession]; ok && val != "" {
-		m.cleanSession = utils.IsTruthy(val)
-	}
-
-	var err error
 	m.TLSProperties, err = pubsub.TLS(md.Properties)
 	if err != nil {
 		return &m, fmt.Errorf("invalid TLS configuration: %w", err)

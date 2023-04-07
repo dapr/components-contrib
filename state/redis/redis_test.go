@@ -31,7 +31,7 @@ import (
 )
 
 func TestGetKeyVersion(t *testing.T) {
-	store := NewRedisStateStore(logger.NewLogger("test")).(*StateStore)
+	store := newStateStore(logger.NewLogger("test"))
 	t.Run("With all required fields", func(t *testing.T) {
 		key, ver, err := store.getKeyVersion([]interface{}{"data", "TEST_KEY", "version", "TEST_VER"})
 		assert.NoError(t, err, "failed to read all fields")
@@ -63,7 +63,7 @@ func TestGetKeyVersion(t *testing.T) {
 }
 
 func TestParseEtag(t *testing.T) {
-	store := NewRedisStateStore(logger.NewLogger("test")).(*StateStore)
+	store := newStateStore(logger.NewLogger("test"))
 	t.Run("Empty ETag", func(t *testing.T) {
 		etag := ""
 		ver, err := store.parseETag(&state.SetRequest{
@@ -127,7 +127,7 @@ func TestParseEtag(t *testing.T) {
 }
 
 func TestParseTTL(t *testing.T) {
-	store := NewRedisStateStore(logger.NewLogger("test")).(*StateStore)
+	store := newStateStore(logger.NewLogger("test"))
 	t.Run("TTL Not an integer", func(t *testing.T) {
 		ttlInSeconds := "not an integer"
 		ttl, err := store.parseTTL(&state.SetRequest{
@@ -172,7 +172,7 @@ func TestParseTTL(t *testing.T) {
 }
 
 func TestParseConnectedSlavs(t *testing.T) {
-	store := NewRedisStateStore(logger.NewLogger("test")).(*StateStore)
+	store := newStateStore(logger.NewLogger("test"))
 
 	t.Run("Empty info", func(t *testing.T) {
 		slaves := store.parseConnectedSlaves("")
@@ -207,31 +207,22 @@ func TestTransactionalUpsert(t *testing.T) {
 
 	err := ss.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: []state.TransactionalStateOperation{
-			{
-				Operation: state.Upsert,
-				Request: state.SetRequest{
-					Key:   "weapon",
-					Value: "deathstar",
+			state.SetRequest{
+				Key:   "weapon",
+				Value: "deathstar",
+			},
+			state.SetRequest{
+				Key:   "weapon2",
+				Value: "deathstar2",
+				Metadata: map[string]string{
+					"ttlInSeconds": "123",
 				},
 			},
-			{
-				Operation: state.Upsert,
-				Request: state.SetRequest{
-					Key:   "weapon2",
-					Value: "deathstar2",
-					Metadata: map[string]string{
-						"ttlInSeconds": "123",
-					},
-				},
-			},
-			{
-				Operation: state.Upsert,
-				Request: state.SetRequest{
-					Key:   "weapon3",
-					Value: "deathstar3",
-					Metadata: map[string]string{
-						"ttlInSeconds": "-1",
-					},
+			state.SetRequest{
+				Key:   "weapon3",
+				Value: "deathstar3",
+				Metadata: map[string]string{
+					"ttlInSeconds": "-1",
 				},
 			},
 		},
@@ -278,13 +269,12 @@ func TestTransactionalDelete(t *testing.T) {
 
 	etag := "1"
 	err := ss.Multi(context.Background(), &state.TransactionalStateRequest{
-		Operations: []state.TransactionalStateOperation{{
-			Operation: state.Delete,
-			Request: state.DeleteRequest{
+		Operations: []state.TransactionalStateOperation{
+			state.DeleteRequest{
 				Key:  "weapon",
 				ETag: &etag,
 			},
-		}},
+		},
 	})
 	assert.NoError(t, err)
 
@@ -354,31 +344,22 @@ func TestRequestsWithGlobalTTL(t *testing.T) {
 	t.Run("TTL: Global and Request specified", func(t *testing.T) {
 		err := ss.Multi(context.Background(), &state.TransactionalStateRequest{
 			Operations: []state.TransactionalStateOperation{
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   "weapon",
-						Value: "deathstar",
+				state.SetRequest{
+					Key:   "weapon",
+					Value: "deathstar",
+				},
+				state.SetRequest{
+					Key:   "weapon2",
+					Value: "deathstar2",
+					Metadata: map[string]string{
+						"ttlInSeconds": "123",
 					},
 				},
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   "weapon2",
-						Value: "deathstar2",
-						Metadata: map[string]string{
-							"ttlInSeconds": "123",
-						},
-					},
-				},
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   "weapon3",
-						Value: "deathstar3",
-						Metadata: map[string]string{
-							"ttlInSeconds": "-1",
-						},
+				state.SetRequest{
+					Key:   "weapon3",
+					Value: "deathstar3",
+					Metadata: map[string]string{
+						"ttlInSeconds": "-1",
 					},
 				},
 			},
@@ -494,12 +475,11 @@ func TestTransactionalDeleteNoEtag(t *testing.T) {
 	})
 
 	err := ss.Multi(context.Background(), &state.TransactionalStateRequest{
-		Operations: []state.TransactionalStateOperation{{
-			Operation: state.Delete,
-			Request: state.DeleteRequest{
+		Operations: []state.TransactionalStateOperation{
+			state.DeleteRequest{
 				Key: "weapon100",
 			},
-		}},
+		},
 	})
 	assert.NoError(t, err)
 

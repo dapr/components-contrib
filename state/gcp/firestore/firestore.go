@@ -33,7 +33,8 @@ const defaultEntityKind = "DaprState"
 
 // Firestore State Store.
 type Firestore struct {
-	state.DefaultBulkStore
+	state.BulkStore
+
 	client     *datastore.Client
 	entityKind string
 	noIndex    bool
@@ -64,9 +65,10 @@ type StateEntityNoIndex struct {
 }
 
 func NewFirestoreStateStore(logger logger.Logger) state.Store {
-	s := &Firestore{logger: logger}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
+	s := &Firestore{
+		logger: logger,
+	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
 }
 

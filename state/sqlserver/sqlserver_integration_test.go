@@ -12,6 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package sqlserver
 
 import (
@@ -123,7 +124,9 @@ func getTestStore(t *testing.T, indexedProperties string) *SQLServer {
 func getTestStoreWithKeyType(t *testing.T, kt KeyType, indexedProperties string) *SQLServer {
 	schema := getUniqueDBSchema()
 	metadata := createMetadata(schema, kt, indexedProperties)
-	store := New(logger.NewLogger("test")).(*SQLServer)
+	store := &SQLServer{
+		logger: logger.NewLogger("test"),
+	}
 	err := store.Init(context.Background(), metadata)
 	assert.Nil(t, err)
 
@@ -366,8 +369,8 @@ func testMultiOperations(t *testing.T) {
 
 				localErr := store.Multi(context.Background(), &state.TransactionalStateRequest{
 					Operations: []state.TransactionalStateOperation{
-						{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID}},
-						{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: modified}},
+						state.DeleteRequest{Key: toDelete.ID},
+						state.SetRequest{Key: modified.ID, Value: modified},
 					},
 				})
 				assert.Nil(t, localErr)
@@ -389,9 +392,9 @@ func testMultiOperations(t *testing.T) {
 
 				err = store.Multi(context.Background(), &state.TransactionalStateRequest{
 					Operations: []state.TransactionalStateOperation{
-						{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID, ETag: &toDelete.etag}},
-						{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: modified, ETag: &toModify.etag}},
-						{Operation: state.Upsert, Request: state.SetRequest{Key: toInsert.ID, Value: toInsert}},
+						state.DeleteRequest{Key: toDelete.ID, ETag: &toDelete.etag},
+						state.SetRequest{Key: modified.ID, Value: modified, ETag: &toModify.etag},
+						state.SetRequest{Key: toInsert.ID, Value: toInsert},
 					},
 				})
 				assert.Nil(t, err)
@@ -413,8 +416,8 @@ func testMultiOperations(t *testing.T) {
 
 				err = store.Multi(context.Background(), &state.TransactionalStateRequest{
 					Operations: []state.TransactionalStateOperation{
-						{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID, ETag: &toDelete.etag}},
-						{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: modified, ETag: &toModify.etag}},
+						state.DeleteRequest{Key: toDelete.ID, ETag: &toDelete.etag},
+						state.SetRequest{Key: modified.ID, Value: modified, ETag: &toModify.etag},
 					},
 				})
 				assert.Nil(t, err)
@@ -434,8 +437,8 @@ func testMultiOperations(t *testing.T) {
 				invEtag := invalidEtag
 				err = store.Multi(context.Background(), &state.TransactionalStateRequest{
 					Operations: []state.TransactionalStateOperation{
-						{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID, ETag: &invEtag}},
-						{Operation: state.Upsert, Request: state.SetRequest{Key: toInsert.ID, Value: toInsert}},
+						state.DeleteRequest{Key: toDelete.ID, ETag: &invEtag},
+						state.SetRequest{Key: toInsert.ID, Value: toInsert},
 					},
 				})
 
@@ -455,8 +458,8 @@ func testMultiOperations(t *testing.T) {
 				invEtag := invalidEtag
 				err = store.Multi(context.Background(), &state.TransactionalStateRequest{
 					Operations: []state.TransactionalStateOperation{
-						{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID, ETag: &invEtag}},
-						{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: modified}},
+						state.DeleteRequest{Key: toDelete.ID, ETag: &invEtag},
+						state.SetRequest{Key: modified.ID, Value: modified},
 					},
 				})
 				assert.NotNil(t, err)
@@ -475,8 +478,8 @@ func testMultiOperations(t *testing.T) {
 				invEtag := invalidEtag
 				err = store.Multi(context.Background(), &state.TransactionalStateRequest{
 					Operations: []state.TransactionalStateOperation{
-						{Operation: state.Delete, Request: state.DeleteRequest{Key: toDelete.ID}},
-						{Operation: state.Upsert, Request: state.SetRequest{Key: modified.ID, Value: modified, ETag: &invEtag}},
+						state.DeleteRequest{Key: toDelete.ID},
+						state.SetRequest{Key: modified.ID, Value: modified, ETag: &invEtag},
 					},
 				})
 
@@ -799,8 +802,11 @@ func testMultipleInitializations(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			store := getTestStoreWithKeyType(t, test.kt, test.indexedProperties)
 
-			store2 := New(logger.NewLogger("test")).(*SQLServer)
-			assert.Nil(t, store2.Init(context.Background(), createMetadata(store.schema, test.kt, test.indexedProperties)))
+			store2 := &SQLServer{
+				logger: logger.NewLogger("test"),
+			}
+			err := store2.Init(context.Background(), createMetadata(store.schema, test.kt, test.indexedProperties))
+			assert.NoError(t, err)
 		})
 	}
 }

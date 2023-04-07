@@ -15,166 +15,103 @@ package jetstream
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/nats-io/nats.go"
 
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 )
 
 type metadata struct {
-	natsURL string
+	NatsURL string `mapstructure:"natsURL"`
 
-	jwt     string
-	seedKey string
-	token   string
+	Jwt     string `mapstructure:"jwt"`
+	SeedKey string `mapstructure:"seedKey"`
+	Token   string `mapstructure:"token"`
 
-	tlsClientCert string
-	tlsClientKey  string
+	TlsClientCert string `mapstructure:"tls_client_cert"`
+	TlsClientKey  string `mapstructure:"tls_client_key"`
 
-	name           string
-	streamName     string
-	durableName    string
-	queueGroupName string
-	startSequence  uint64
-	startTime      time.Time
-	flowControl    bool
-	ackWait        time.Duration
-	maxDeliver     int
-	backOff        []time.Duration
-	maxAckPending  int
-	replicas       int
-	memoryStorage  bool
-	rateLimit      uint64
-	heartbeat      time.Duration
-	deliverPolicy  nats.DeliverPolicy
-	ackPolicy      nats.AckPolicy
-	domain         string
-	apiPrefix      string
+	Name                  string             `mapstructure:"name"`
+	StreamName            string             `mapstructure:"streamName"`
+	DurableName           string             `mapstructure:"durableName"`
+	QueueGroupName        string             `mapstructure:"queueGroupName"`
+	StartSequence         uint64             `mapstructure:"startSequence"`
+	StartTime             uint64             `mapstructure:"startTime"`
+	internalStartTime     time.Time          `mapstructure:"-"`
+	FlowControl           bool               `mapstructure:"flowControl"`
+	AckWait               time.Duration      `mapstructure:"ackWait"`
+	MaxDeliver            int                `mapstructure:"maxDeliver"`
+	BackOff               []time.Duration    `mapstructure:"backOff"`
+	MaxAckPending         int                `mapstructure:"maxAckPending"`
+	Replicas              int                `mapstructure:"replicas"`
+	MemoryStorage         bool               `mapstructure:"memoryStorage"`
+	RateLimit             uint64             `mapstructure:"rateLimit"`
+	Heartbeat             time.Duration      `mapstructure:"heartbeat"`
+	DeliverPolicy         string             `mapstructure:"deliverPolicy"`
+	internalDeliverPolicy nats.DeliverPolicy `mapstructure:"-"`
+	AckPolicy             string             `mapstructure:"ackPolicy"`
+	internalAckPolicy     nats.AckPolicy     `mapstructure:"-"`
+	Domain                string             `mapstructure:"domain"`
+	ApiPrefix             string             `mapstructure:"apiPrefix"`
 }
 
 func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 	var m metadata
 
-	if v, ok := psm.Properties["natsURL"]; ok && v != "" {
-		m.natsURL = v
-	} else {
+	contribMetadata.DecodeMetadata(psm.Properties, &m)
+
+	if m.NatsURL == "" {
 		return metadata{}, fmt.Errorf("missing nats URL")
 	}
 
-	m.token = psm.Properties["token"]
-	m.jwt = psm.Properties["jwt"]
-	m.seedKey = psm.Properties["seedKey"]
-
-	if m.jwt != "" && m.seedKey == "" {
+	if m.Jwt != "" && m.SeedKey == "" {
 		return metadata{}, fmt.Errorf("missing seed key")
 	}
 
-	if m.jwt == "" && m.seedKey != "" {
+	if m.Jwt == "" && m.SeedKey != "" {
 		return metadata{}, fmt.Errorf("missing jwt")
 	}
 
-	m.tlsClientCert = psm.Properties["tls_client_cert"]
-	m.tlsClientKey = psm.Properties["tls_client_key"]
-
-	if m.tlsClientCert != "" && m.tlsClientKey == "" {
+	if m.TlsClientCert != "" && m.TlsClientKey == "" {
 		return metadata{}, fmt.Errorf("missing tls client key")
 	}
 
-	if m.tlsClientCert == "" && m.tlsClientKey != "" {
+	if m.TlsClientCert == "" && m.TlsClientKey != "" {
 		return metadata{}, fmt.Errorf("missing tls client cert")
 	}
 
-	if m.name = psm.Properties["name"]; m.name == "" {
-		m.name = "dapr.io - pubsub.jetstream"
+	if m.Name == "" {
+		m.Name = "dapr.io - pubsub.jetstream"
 	}
 
-	m.durableName = psm.Properties["durableName"]
-	m.queueGroupName = psm.Properties["queueGroupName"]
+	m.internalStartTime = time.Unix(int64(m.StartTime), 0)
 
-	if v, err := strconv.ParseUint(psm.Properties["startSequence"], 10, 64); err == nil {
-		m.startSequence = v
-	}
-
-	if v, err := strconv.ParseInt(psm.Properties["startTime"], 10, 64); err == nil {
-		m.startTime = time.Unix(v, 0)
-	}
-
-	if v, err := strconv.ParseBool(psm.Properties["flowControl"]); err == nil {
-		m.flowControl = v
-	}
-	if v, err := time.ParseDuration(psm.Properties["ackWait"]); err == nil {
-		m.ackWait = v
-	}
-
-	if v, err := strconv.Atoi(psm.Properties["maxDeliver"]); err == nil {
-		m.maxDeliver = v
-	}
-
-	backOffSlice := strings.Split(psm.Properties["backOff"], ",")
-	var backOff []time.Duration
-
-	for _, item := range backOffSlice {
-		trimmed := strings.TrimSpace(item)
-		if duration, err := time.ParseDuration(trimmed); err == nil {
-			backOff = append(backOff, duration)
-		}
-	}
-	m.backOff = backOff
-
-	if v, err := strconv.Atoi(psm.Properties["maxAckPending"]); err == nil {
-		m.maxAckPending = v
-	}
-	if v, err := strconv.Atoi(psm.Properties["replicas"]); err == nil {
-		m.replicas = v
-	}
-	if v, err := strconv.ParseBool(psm.Properties["memoryStorage"]); err == nil {
-		m.memoryStorage = v
-	}
-	if v, err := strconv.ParseUint(psm.Properties["rateLimit"], 10, 64); err == nil {
-		m.rateLimit = v
-	}
-
-	if v, err := time.ParseDuration(psm.Properties["heartbeat"]); err == nil {
-		m.heartbeat = v
-	}
-
-	if domain := psm.Properties["domain"]; domain != "" {
-		m.domain = domain
-	}
-	if apiPrefix := psm.Properties["apiPrefix"]; apiPrefix != "" {
-		m.apiPrefix = apiPrefix
-	}
-
-	deliverPolicy := psm.Properties["deliverPolicy"]
-	switch deliverPolicy {
+	switch m.DeliverPolicy {
 	case "all", "":
-		m.deliverPolicy = nats.DeliverAllPolicy
+		m.internalDeliverPolicy = nats.DeliverAllPolicy
 	case "last":
-		m.deliverPolicy = nats.DeliverLastPolicy
+		m.internalDeliverPolicy = nats.DeliverLastPolicy
 	case "new":
-		m.deliverPolicy = nats.DeliverNewPolicy
+		m.internalDeliverPolicy = nats.DeliverNewPolicy
 	case "sequence":
-		m.deliverPolicy = nats.DeliverByStartSequencePolicy
+		m.internalDeliverPolicy = nats.DeliverByStartSequencePolicy
 	case "time":
-		m.deliverPolicy = nats.DeliverByStartTimePolicy
+		m.internalDeliverPolicy = nats.DeliverByStartTimePolicy
 	default:
-		return metadata{}, fmt.Errorf("deliver policy %s is not one of: all, last, new, sequence, time", deliverPolicy)
+		return metadata{}, fmt.Errorf("deliver policy %s is not one of: all, last, new, sequence, time", m.DeliverPolicy)
 	}
 
-	m.streamName = psm.Properties["streamName"]
-
-	switch psm.Properties["ackPolicy"] {
+	switch m.AckPolicy {
 	case "explicit":
-		m.ackPolicy = nats.AckExplicitPolicy
+		m.internalAckPolicy = nats.AckExplicitPolicy
 	case "all":
-		m.ackPolicy = nats.AckAllPolicy
+		m.internalAckPolicy = nats.AckAllPolicy
 	case "none":
-		m.ackPolicy = nats.AckNonePolicy
+		m.internalAckPolicy = nats.AckNonePolicy
 	default:
-		m.ackPolicy = nats.AckExplicitPolicy
+		m.internalAckPolicy = nats.AckExplicitPolicy
 	}
 
 	return m, nil

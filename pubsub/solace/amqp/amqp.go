@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,6 +29,7 @@ import (
 
 	amqp "github.com/Azure/go-amqp"
 
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -235,15 +237,15 @@ func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiv
 
 // Connect to the AMQP broker
 func (a *amqpPubSub) connect(ctx context.Context) (*amqp.Session, error) {
-	uri, err := url.Parse(a.metadata.url)
+	uri, err := url.Parse(a.metadata.Url)
 	if err != nil {
 		return nil, err
 	}
 
 	clientOpts := a.createClientOptions(uri)
 
-	a.logger.Infof("Attempting to connect to %s", a.metadata.url)
-	client, err := amqp.Dial(a.metadata.url, &clientOpts)
+	a.logger.Infof("Attempting to connect to %s", a.metadata.Url)
+	client, err := amqp.Dial(a.metadata.Url, &clientOpts)
 	if err != nil {
 		a.logger.Fatal("Dialing AMQP server:", err)
 	}
@@ -260,8 +262,8 @@ func (a *amqpPubSub) connect(ctx context.Context) (*amqp.Session, error) {
 func (a *amqpPubSub) newTLSConfig() *tls.Config {
 	tlsConfig := new(tls.Config)
 
-	if a.metadata.clientCert != "" && a.metadata.clientKey != "" {
-		cert, err := tls.X509KeyPair([]byte(a.metadata.clientCert), []byte(a.metadata.clientKey))
+	if a.metadata.ClientCert != "" && a.metadata.ClientKey != "" {
+		cert, err := tls.X509KeyPair([]byte(a.metadata.ClientCert), []byte(a.metadata.ClientKey))
 		if err != nil {
 			a.logger.Warnf("unable to load client certificate and key pair. Err: %v", err)
 
@@ -270,9 +272,9 @@ func (a *amqpPubSub) newTLSConfig() *tls.Config {
 		tlsConfig.Certificates = []tls.Certificate{cert}
 	}
 
-	if a.metadata.caCert != "" {
+	if a.metadata.CaCert != "" {
 		tlsConfig.RootCAs = x509.NewCertPool()
-		if ok := tlsConfig.RootCAs.AppendCertsFromPEM([]byte(a.metadata.caCert)); !ok {
+		if ok := tlsConfig.RootCAs.AppendCertsFromPEM([]byte(a.metadata.CaCert)); !ok {
 			a.logger.Warnf("unable to load ca certificate.")
 		}
 	}
@@ -287,13 +289,13 @@ func (a *amqpPubSub) createClientOptions(uri *url.URL) amqp.ConnOptions {
 
 	switch scheme {
 	case "amqp":
-		if a.metadata.anonymous {
+		if a.metadata.Anonymous {
 			opts.SASLType = amqp.SASLTypeAnonymous()
 		} else {
-			opts.SASLType = amqp.SASLTypePlain(a.metadata.username, a.metadata.password)
+			opts.SASLType = amqp.SASLTypePlain(a.metadata.Username, a.metadata.Password)
 		}
 	case "amqps":
-		opts.SASLType = amqp.SASLTypePlain(a.metadata.username, a.metadata.password)
+		opts.SASLType = amqp.SASLTypePlain(a.metadata.Username, a.metadata.Password)
 		opts.TLSConfig = a.newTLSConfig()
 	}
 
@@ -322,4 +324,12 @@ func (a *amqpPubSub) Close() error {
 // Feature list for AMQP PubSub
 func (a *amqpPubSub) Features() []pubsub.Feature {
 	return []pubsub.Feature{pubsub.FeatureSubscribeWildcards, pubsub.FeatureMessageTTL}
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (a *amqpPubSub) GetComponentMetadata() map[string]string {
+	metadataStruct := metadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
+	return metadataInfo
 }

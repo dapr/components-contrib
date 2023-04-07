@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -31,6 +32,7 @@ import (
 	"github.com/apache/rocketmq-client-go/v2/rlog"
 
 	"github.com/dapr/components-contrib/internal/utils"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -525,4 +527,12 @@ func (r *rocketMQ) Close() error {
 	}
 
 	return nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (r *rocketMQ) GetComponentMetadata() map[string]string {
+	metadataStruct := rocketMQMetaData{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

@@ -26,7 +26,9 @@ import (
 
 func TestInit(t *testing.T) {
 	m := state.Metadata{}
-	s := NewAzureBlobStorageStore(logger.NewLogger("logger")).(*StateStore)
+	s := &StateStore{
+		logger: logger.NewLogger("logger"),
+	}
 
 	t.Run("Init with missing metadata", func(t *testing.T) {
 		m.Properties = map[string]string{

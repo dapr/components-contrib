@@ -43,7 +43,7 @@ type DBAccess interface {
 	Set(ctx context.Context, req *state.SetRequest) error
 	Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error)
 	Delete(ctx context.Context, req *state.DeleteRequest) error
-	BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error)
+	BulkGet(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error)
 	ExecuteMulti(ctx context.Context, reqs []state.TransactionalStateOperation) error
 	Close() error
 }
@@ -272,9 +272,9 @@ func (a *sqliteDBAccess) Get(parentCtx context.Context, req *state.GetRequest) (
 	}, nil
 }
 
-func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error) {
 	if len(req) == 0 {
-		return true, []state.BulkGetResponse{}, nil
+		return []state.BulkGetResponse{}, nil
 	}
 
 	// SQLite doesn't support passing an array for an IN clause, so we need to build a custom query
@@ -294,7 +294,7 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 	defer cancel()
 	rows, err := a.db.QueryContext(ctx, stmt, params...)
 	if err != nil {
-		return true, nil, err
+		return nil, err
 	}
 
 	var (
@@ -312,7 +312,7 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 		res[n] = r
 	}
 
-	return true, res[:n], nil
+	return res[:n], nil
 }
 
 func readRow(row interface{ Scan(dest ...any) error }) (key string, value []byte, etag string, err error) {
@@ -486,25 +486,17 @@ func (a *sqliteDBAccess) ExecuteMulti(parentCtx context.Context, reqs []state.Tr
 	}
 	defer tx.Rollback()
 
-	for _, req := range reqs {
-		switch req.Operation {
-		case state.Upsert:
-			if setReq, ok := req.Request.(state.SetRequest); ok {
-				err = a.doSet(parentCtx, tx, &setReq)
-				if err != nil {
-					return err
-				}
-			} else {
-				return fmt.Errorf("expecting set request")
+	for _, o := range reqs {
+		switch req := o.(type) {
+		case state.SetRequest:
+			err = a.doSet(parentCtx, tx, &req)
+			if err != nil {
+				return err
 			}
-		case state.Delete:
-			if delReq, ok := req.Request.(state.DeleteRequest); ok {
-				err = a.doDelete(parentCtx, tx, &delReq)
-				if err != nil {
-					return err
-				}
-			} else {
-				return fmt.Errorf("expecting delete request")
+		case state.DeleteRequest:
+			err = a.doDelete(parentCtx, tx, &req)
+			if err != nil {
+				return err
 			}
 		default:
 			// Do nothing

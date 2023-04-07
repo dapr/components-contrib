@@ -33,7 +33,7 @@ func TestGetConsulMetadata(t *testing.T) {
 		}
 
 		metadata, err := metadataToConfig(m.Properties)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, properties["datacenter"], metadata.Datacenter)
 		assert.Equal(t, properties["httpAddr"], metadata.HTTPAddr)
 	})
@@ -51,7 +51,7 @@ func TestGetConsulMetadata(t *testing.T) {
 		}
 
 		metadata, err := metadataToConfig(m.Properties)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, properties["datacenter"], metadata.Datacenter)
 		assert.Equal(t, properties["httpAddr"], metadata.HTTPAddr)
 		assert.Equal(t, properties["aclToken"], metadata.ACLToken)

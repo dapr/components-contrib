@@ -12,14 +12,16 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package oracledatabase
 
 import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"net/url"
+	"io"
 	"os"
 	"testing"
 	"time"
@@ -59,12 +61,15 @@ func TestOracleDatabaseIntegration(t *testing.T) {
 	oracleWalletLocation := getWalletLocation()
 
 	metadata := state.Metadata{
-		Base: metadata.Base{Properties: map[string]string{connectionStringKey: connectionString, oracleWalletLocationKey: oracleWalletLocation}},
+		Base: metadata.Base{Properties: map[string]string{
+			connectionStringKey:     connectionString,
+			oracleWalletLocationKey: oracleWalletLocation,
+		}},
 	}
 
-	ods := NewOracleDatabaseStateStore(logger.NewLogger("test")).(*OracleDatabase)
+	ods := NewOracleDatabaseStateStore(logger.NewLogger("test"))
 	t.Cleanup(func() {
-		defer ods.Close()
+		defer ods.(io.Closer).Close()
 	})
 
 	if initerror := ods.Init(context.Background(), metadata); initerror != nil {
@@ -72,30 +77,25 @@ func TestOracleDatabaseIntegration(t *testing.T) {
 	}
 
 	t.Run("Create table succeeds", func(t *testing.T) {
-		testCreateTable(t, ods.dbaccess.(*oracleDatabaseAccess))
+		testCreateTable(t, ods.(*OracleDatabase).GetDBAccess())
 	})
 
 	t.Run("Get Set Delete one item", func(t *testing.T) {
-		t.Parallel()
 		setGetUpdateDeleteOneItem(t, ods)
 	})
 
 	t.Run("Get item that does not exist", func(t *testing.T) {
-		t.Parallel()
 		getItemThatDoesNotExist(t, ods)
 	})
 
 	t.Run("Get item with no key fails", func(t *testing.T) {
-		t.Parallel()
 		getItemWithNoKey(t, ods)
 	})
 
 	t.Run("Set item with invalid (non numeric) TTL", func(t *testing.T) {
-		t.Parallel()
 		testSetItemWithInvalidTTL(t, ods)
 	})
 	t.Run("Set item with negative TTL", func(t *testing.T) {
-		t.Parallel()
 		testSetItemWithNegativeTTL(t, ods)
 	})
 	t.Run("Set with TTL updates the expiration field", func(t *testing.T) {
@@ -105,11 +105,9 @@ func TestOracleDatabaseIntegration(t *testing.T) {
 		setNoTTLUpdatesExpiry(t, ods)
 	})
 	t.Run("Expired item cannot be read", func(t *testing.T) {
-		t.Parallel()
 		expiredStateCannotBeRead(t, ods)
 	})
 	t.Run("Unexpired item be read", func(t *testing.T) {
-		t.Parallel()
 		unexpiredStateCanBeRead(t, ods)
 	})
 	t.Run("Set updates the updatedate field", func(t *testing.T) {
@@ -117,50 +115,37 @@ func TestOracleDatabaseIntegration(t *testing.T) {
 	})
 
 	t.Run("Set item with no key fails", func(t *testing.T) {
-		t.Parallel()
 		setItemWithNoKey(t, ods)
 	})
 
 	t.Run("Bulk set and bulk delete", func(t *testing.T) {
-		//	t.Parallel()
 		testBulkSetAndBulkDelete(t, ods)
 	})
 
 	t.Run("Update and delete with etag succeeds", func(t *testing.T) {
-		//	t.Parallel()
 		updateAndDeleteWithEtagSucceeds(t, ods)
 	})
 
 	t.Run("Update with old etag fails", func(t *testing.T) {
-		//	t.Parallel()
 		updateWithOldEtagFails(t, ods)
 	})
 
 	t.Run("Insert with etag fails", func(t *testing.T) {
-		t.Parallel()
 		newItemWithEtagFails(t, ods)
 	})
 
 	t.Run("Delete with invalid etag fails when first write is enforced", func(t *testing.T) {
-		t.Parallel()
 		deleteWithInvalidEtagFails(t, ods)
-	})
-	t.Run("Update and Delete with invalid etag and no first write policy enforced succeeds", func(t *testing.T) {
-		t.Parallel()
-		updateAndDeleteWithWrongEtagAndNoFirstWriteSucceeds(t, ods)
 	})
 
 	t.Run("Delete item with no key fails", func(t *testing.T) {
-		t.Parallel()
 		deleteWithNoKeyFails(t, ods)
 	})
 
 	t.Run("Delete an item that does not exist", func(t *testing.T) {
-		t.Parallel()
 		deleteItemThatDoesNotExist(t, ods)
 	})
 	t.Run("Multi with delete and set", func(t *testing.T) {
-		//	t.Parallel()
 		multiWithDeleteAndSet(t, ods)
 	})
 
@@ -174,7 +159,7 @@ func TestOracleDatabaseIntegration(t *testing.T) {
 }
 
 // setGetUpdateDeleteOneItem validates setting one item, getting it, and deleting it.
-func setGetUpdateDeleteOneItem(t *testing.T, ods *OracleDatabase) {
+func setGetUpdateDeleteOneItem(t *testing.T, ods state.Store) {
 	key := randomKey()
 	value := &fakeItem{Color: "yellow"}
 
@@ -219,7 +204,7 @@ func dropTable(t *testing.T, db *sql.DB, tableName string) {
 	require.NoError(t, err)
 }
 
-func deleteItemThatDoesNotExist(t *testing.T, ods *OracleDatabase) {
+func deleteItemThatDoesNotExist(t *testing.T, ods state.Store) {
 	// Delete the item with a key not in the store.
 	deleteReq := &state.DeleteRequest{
 		Key: randomKey(),
@@ -228,7 +213,7 @@ func deleteItemThatDoesNotExist(t *testing.T, ods *OracleDatabase) {
 	require.NoError(t, err)
 }
 
-func multiWithSetOnly(t *testing.T, ods *OracleDatabase) {
+func multiWithSetOnly(t *testing.T, ods state.Store) {
 	var operations []state.TransactionalStateOperation
 	var setRequests []state.SetRequest
 	for i := 0; i < 3; i++ {
@@ -237,24 +222,23 @@ func multiWithSetOnly(t *testing.T, ods *OracleDatabase) {
 			Value: randomJSON(),
 		}
 		setRequests = append(setRequests, req)
-		operations = append(operations, state.TransactionalStateOperation{
-			Operation: state.Upsert,
-			Request:   req,
-		})
+		operations = append(operations, req)
 	}
 
-	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
+	err := ods.(state.TransactionalStore).Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	require.NoError(t, err)
 
+	db := getDB(ods)
+
 	for _, set := range setRequests {
-		assert.True(t, storeItemExists(t, set.Key))
+		assert.True(t, storeItemExists(t, db, set.Key))
 		deleteItem(t, ods, set.Key, nil)
 	}
 }
 
-func multiWithDeleteOnly(t *testing.T, ods *OracleDatabase) {
+func multiWithDeleteOnly(t *testing.T, ods state.Store) {
 	var operations []state.TransactionalStateOperation
 	var deleteRequests []state.DeleteRequest
 	for i := 0; i < 3; i++ {
@@ -267,23 +251,21 @@ func multiWithDeleteOnly(t *testing.T, ods *OracleDatabase) {
 		deleteRequests = append(deleteRequests, req)
 
 		// Add the item to the multi transaction request.
-		operations = append(operations, state.TransactionalStateOperation{
-			Operation: state.Delete,
-			Request:   req,
-		})
+		operations = append(operations, req)
 	}
 
-	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
+	err := ods.(state.TransactionalStore).Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	require.NoError(t, err)
 
+	db := getDB(ods)
 	for _, delete := range deleteRequests {
-		assert.False(t, storeItemExists(t, delete.Key))
+		assert.False(t, storeItemExists(t, db, delete.Key))
 	}
 }
 
-func multiWithDeleteAndSet(t *testing.T, ods *OracleDatabase) {
+func multiWithDeleteAndSet(t *testing.T, ods state.Store) {
 	var operations []state.TransactionalStateOperation
 	var deleteRequests []state.DeleteRequest
 	for i := 0; i < 3; i++ {
@@ -296,10 +278,7 @@ func multiWithDeleteAndSet(t *testing.T, ods *OracleDatabase) {
 		deleteRequests = append(deleteRequests, req)
 
 		// Add the item to the multi transaction request.
-		operations = append(operations, state.TransactionalStateOperation{
-			Operation: state.Delete,
-			Request:   req,
-		})
+		operations = append(operations, req)
 	}
 
 	// Create the set requests.
@@ -310,28 +289,25 @@ func multiWithDeleteAndSet(t *testing.T, ods *OracleDatabase) {
 			Value: randomJSON(),
 		}
 		setRequests = append(setRequests, req)
-		operations = append(operations, state.TransactionalStateOperation{
-			Operation: state.Upsert,
-			Request:   req,
-		})
+		operations = append(operations, req)
 	}
 
-	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
+	err := ods.(state.TransactionalStore).Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	require.NoError(t, err)
 
+	db := getDB(ods)
 	for _, delete := range deleteRequests {
-		assert.False(t, storeItemExists(t, delete.Key))
+		assert.False(t, storeItemExists(t, db, delete.Key))
 	}
-
 	for _, set := range setRequests {
-		assert.True(t, storeItemExists(t, set.Key))
+		assert.True(t, storeItemExists(t, db, set.Key))
 		deleteItem(t, ods, set.Key, nil)
 	}
 }
 
-func deleteWithInvalidEtagFails(t *testing.T, ods *OracleDatabase) {
+func deleteWithInvalidEtagFails(t *testing.T, ods state.Store) {
 	// Create new item.
 	key := randomKey()
 	value := &fakeItem{Color: "mauvebrown"}
@@ -347,19 +323,19 @@ func deleteWithInvalidEtagFails(t *testing.T, ods *OracleDatabase) {
 		},
 	}
 	err := ods.Delete(context.Background(), deleteReq)
-	assert.NotNil(t, err, "Deleting an item with the wrong etag while enforcing FirstWrite policy should fail")
+	assert.Error(t, err, "Deleting an item with the wrong etag while enforcing FirstWrite policy should fail")
 }
 
-func deleteWithNoKeyFails(t *testing.T, ods *OracleDatabase) {
+func deleteWithNoKeyFails(t *testing.T, ods state.Store) {
 	deleteReq := &state.DeleteRequest{
 		Key: "",
 	}
 	err := ods.Delete(context.Background(), deleteReq)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 // newItemWithEtagFails creates a new item and also supplies a non existent ETag and requests FirstWrite, which is invalid - expect failure.
-func newItemWithEtagFails(t *testing.T, ods *OracleDatabase) {
+func newItemWithEtagFails(t *testing.T, ods state.Store) {
 	value := &fakeItem{Color: "teal"}
 	invalidEtag := "12345"
 
@@ -373,10 +349,10 @@ func newItemWithEtagFails(t *testing.T, ods *OracleDatabase) {
 	}
 
 	err := ods.Set(context.Background(), setReq)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
-func updateWithOldEtagFails(t *testing.T, ods *OracleDatabase) {
+func updateWithOldEtagFails(t *testing.T, ods state.Store) {
 	// Create and retrieve new item.
 	key := randomKey()
 	value := &fakeItem{Color: "gray"}
@@ -403,10 +379,10 @@ func updateWithOldEtagFails(t *testing.T, ods *OracleDatabase) {
 		},
 	}
 	err := ods.Set(context.Background(), setReq)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
-func updateAndDeleteWithEtagSucceeds(t *testing.T, ods *OracleDatabase) {
+func updateAndDeleteWithEtagSucceeds(t *testing.T, ods state.Store) {
 	// Create and retrieve new item.
 	key := randomKey()
 	value := &fakeItem{Color: "hazel"}
@@ -444,50 +420,12 @@ func updateAndDeleteWithEtagSucceeds(t *testing.T, ods *OracleDatabase) {
 	require.NoError(t, err, "Deleting an item with the right etag while enforcing FirstWrite policy should succeed")
 
 	// Item is not in the data store.
-	assert.False(t, storeItemExists(t, key))
-}
-
-func updateAndDeleteWithWrongEtagAndNoFirstWriteSucceeds(t *testing.T, ods *OracleDatabase) {
-	// Create and retrieve new item.
-	key := randomKey()
-	value := &fakeItem{Color: "hazel"}
-	setItem(t, ods, key, value, nil)
-	getResponse, _ := getItem(t, ods, key)
-	assert.NotNil(t, getResponse.ETag)
-
-	// Change the value and compare.
-	value.Color = "purple"
-	someInvalidEtag := "1234581736145"
-	setReq := &state.SetRequest{
-		Key:   key,
-		ETag:  &someInvalidEtag,
-		Value: value,
-		Options: state.SetStateOption{
-			Concurrency: state.LastWrite,
-		},
-	}
-	err := ods.Set(context.Background(), setReq)
-	require.NoError(t, err, "Setting the item should be successful")
-	_, updatedItem := getItem(t, ods, key)
-	assert.Equal(t, value, updatedItem)
-
-	// Delete.
-	deleteReq := &state.DeleteRequest{
-		Key:  key,
-		ETag: &someInvalidEtag,
-		Options: state.DeleteStateOption{
-			Concurrency: state.LastWrite,
-		},
-	}
-	err = ods.Delete(context.Background(), deleteReq)
-	require.NoError(t, err, "Deleting an item with the wrong etag but not enforcing FirstWrite policy should succeed")
-
-	// Item is not in the data store.
-	assert.False(t, storeItemExists(t, key))
+	db := getDB(ods)
+	assert.False(t, storeItemExists(t, db, key))
 }
 
 // getItemThatDoesNotExist validates the behavior of retrieving an item that does not exist.
-func getItemThatDoesNotExist(t *testing.T, ods *OracleDatabase) {
+func getItemThatDoesNotExist(t *testing.T, ods state.Store) {
 	key := randomKey()
 	response, outputObject := getItem(t, ods, key)
 	assert.Nil(t, response.Data)
@@ -496,7 +434,7 @@ func getItemThatDoesNotExist(t *testing.T, ods *OracleDatabase) {
 }
 
 // getItemWithNoKey validates that attempting a Get operation without providing a key will return an error.
-func getItemWithNoKey(t *testing.T, ods *OracleDatabase) {
+func getItemWithNoKey(t *testing.T, ods state.Store) {
 	getReq := &state.GetRequest{
 		Key: "",
 	}
@@ -507,27 +445,22 @@ func getItemWithNoKey(t *testing.T, ods *OracleDatabase) {
 }
 
 // setUpdatesTheUpdatedateField proves that the updateddate is set for an update, and not set upon insert.
-func setUpdatesTheUpdatedateField(t *testing.T, ods *OracleDatabase) {
+func setUpdatesTheUpdatedateField(t *testing.T, ods state.Store) {
 	key := randomKey()
 	value := &fakeItem{Color: "orange"}
 	setItem(t, ods, key, value, nil)
-	connectionString := getConnectionString()
-	if getWalletLocation() != "" {
-		connectionString += "?TRACE FILE=trace.log&SSL=enable&SSL Verify=false&WALLET=" + url.QueryEscape(getWalletLocation())
-	}
-	db, err := sql.Open("oracle", connectionString)
-	require.NoError(t, err)
-	defer db.Close()
+
+	db := getDB(ods)
 
 	// insertdate should have a value and updatedate should be nil.
-	_, insertdate, updatedate := getRowData(t, key)
+	_, insertdate, updatedate := getRowData(t, db, key)
 	assert.NotNil(t, insertdate)
 	assert.Equal(t, "", updatedate.String)
 
 	// insertdate should not change, updatedate should have a value.
 	value = &fakeItem{Color: "aqua"}
 	setItem(t, ods, key, value, nil)
-	_, newinsertdate, updatedate := getRowData(t, key)
+	_, newinsertdate, updatedate := getRowData(t, db, key)
 	assert.Equal(t, insertdate, newinsertdate) // The insertdate should not change.
 	assert.NotEqual(t, "", updatedate.String)
 
@@ -535,7 +468,7 @@ func setUpdatesTheUpdatedateField(t *testing.T, ods *OracleDatabase) {
 }
 
 // setTTLUpdatesExpiry proves that the expirydate is set when a TTL is passed for a key.
-func setTTLUpdatesExpiry(t *testing.T, ods *OracleDatabase) {
+func setTTLUpdatesExpiry(t *testing.T, ods state.Store) {
 	key := randomKey()
 	value := &fakeItem{Color: "darkgray"}
 	setOptions := state.SetStateOption{}
@@ -551,16 +484,10 @@ func setTTLUpdatesExpiry(t *testing.T, ods *OracleDatabase) {
 
 	err := ods.Set(context.Background(), setReq)
 	require.NoError(t, err)
-	connectionString := getConnectionString()
-	if getWalletLocation() != "" {
-		connectionString += "?TRACE FILE=trace.log&SSL=enable&SSL Verify=false&WALLET=" + url.QueryEscape(getWalletLocation())
-	}
-	db, err := sql.Open("oracle", connectionString)
-	require.NoError(t, err)
-	defer db.Close()
 
 	// expirationTime should be set (to a date in the future).
-	_, _, expirationTime := getTimesForRow(t, key)
+	db := getDB(ods)
+	_, _, expirationTime := getTimesForRow(t, db, key)
 
 	assert.NotNil(t, expirationTime)
 	assert.True(t, expirationTime.Valid, "Expiration Time should have a value after set with TTL value")
@@ -568,7 +495,7 @@ func setTTLUpdatesExpiry(t *testing.T, ods *OracleDatabase) {
 }
 
 // setNoTTLUpdatesExpiry proves that the expirydate is reset when a state element with expiration time (TTL) loses TTL upon second set without TTL.
-func setNoTTLUpdatesExpiry(t *testing.T, ods *OracleDatabase) {
+func setNoTTLUpdatesExpiry(t *testing.T, ods state.Store) {
 	key := randomKey()
 	value := &fakeItem{Color: "darkorange"}
 	setOptions := state.SetStateOption{}
@@ -586,23 +513,17 @@ func setNoTTLUpdatesExpiry(t *testing.T, ods *OracleDatabase) {
 	delete(setReq.Metadata, "ttlInSeconds")
 	err = ods.Set(context.Background(), setReq)
 	require.NoError(t, err)
-	connectionString := getConnectionString()
-	if getWalletLocation() != "" {
-		connectionString += "?TRACE FILE=trace.log&SSL=enable&SSL Verify=false&WALLET=" + url.QueryEscape(getWalletLocation())
-	}
-	db, err := sql.Open("oracle", connectionString)
-	require.NoError(t, err)
-	defer db.Close()
 
 	// expirationTime should not be set.
-	_, _, expirationTime := getTimesForRow(t, key)
+	db := getDB(ods)
+	_, _, expirationTime := getTimesForRow(t, db, key)
 
 	assert.True(t, !expirationTime.Valid, "Expiration Time should not have a value after first being set with TTL value and then being set without TTL value")
 	deleteItem(t, ods, key, nil)
 }
 
 // expiredStateCannotBeRead proves that an expired state element can not be read.
-func expiredStateCannotBeRead(t *testing.T, ods *OracleDatabase) {
+func expiredStateCannotBeRead(t *testing.T, ods state.Store) {
 	key := randomKey()
 	value := &fakeItem{Color: "darkgray"}
 	setOptions := state.SetStateOption{}
@@ -627,7 +548,7 @@ func expiredStateCannotBeRead(t *testing.T, ods *OracleDatabase) {
 }
 
 // unexpiredStateCanBeRead proves that a state element with TTL - but no yet expired - can be read.
-func unexpiredStateCanBeRead(t *testing.T, ods *OracleDatabase) {
+func unexpiredStateCanBeRead(t *testing.T, ods state.Store) {
 	key := randomKey()
 	value := &fakeItem{Color: "dark white"}
 	setOptions := state.SetStateOption{}
@@ -649,7 +570,7 @@ func unexpiredStateCanBeRead(t *testing.T, ods *OracleDatabase) {
 	deleteItem(t, ods, key, nil)
 }
 
-func setItemWithNoKey(t *testing.T, ods *OracleDatabase) {
+func setItemWithNoKey(t *testing.T, ods state.Store) {
 	setReq := &state.SetRequest{
 		Key: "",
 	}
@@ -658,7 +579,7 @@ func setItemWithNoKey(t *testing.T, ods *OracleDatabase) {
 	assert.Error(t, err)
 }
 
-func testSetItemWithInvalidTTL(t *testing.T, ods *OracleDatabase) {
+func testSetItemWithInvalidTTL(t *testing.T, ods state.Store) {
 	setReq := &state.SetRequest{
 		Key:   randomKey(),
 		Value: &fakeItem{Color: "oceanblue"},
@@ -670,7 +591,7 @@ func testSetItemWithInvalidTTL(t *testing.T, ods *OracleDatabase) {
 	assert.Error(t, err, "Setting a value with a proper key and a incorrect TTL value should be produce an error")
 }
 
-func testSetItemWithNegativeTTL(t *testing.T, ods *OracleDatabase) {
+func testSetItemWithNegativeTTL(t *testing.T, ods state.Store) {
 	setReq := &state.SetRequest{
 		Key:   randomKey(),
 		Value: &fakeItem{Color: "oceanblue"},
@@ -683,7 +604,9 @@ func testSetItemWithNegativeTTL(t *testing.T, ods *OracleDatabase) {
 }
 
 // Tests valid bulk sets and deletes.
-func testBulkSetAndBulkDelete(t *testing.T, ods *OracleDatabase) {
+func testBulkSetAndBulkDelete(t *testing.T, ods state.Store) {
+	db := getDB(ods)
+
 	setReq := []state.SetRequest{
 		{
 			Key:   randomKey(),
@@ -697,8 +620,8 @@ func testBulkSetAndBulkDelete(t *testing.T, ods *OracleDatabase) {
 
 	err := ods.BulkSet(context.Background(), setReq)
 	require.NoError(t, err)
-	assert.True(t, storeItemExists(t, setReq[0].Key))
-	assert.True(t, storeItemExists(t, setReq[1].Key))
+	assert.True(t, storeItemExists(t, db, setReq[0].Key))
+	assert.True(t, storeItemExists(t, db, setReq[1].Key))
 
 	deleteReq := []state.DeleteRequest{
 		{
@@ -711,8 +634,8 @@ func testBulkSetAndBulkDelete(t *testing.T, ods *OracleDatabase) {
 
 	err = ods.BulkDelete(context.Background(), deleteReq)
 	require.NoError(t, err)
-	assert.False(t, storeItemExists(t, setReq[0].Key))
-	assert.False(t, storeItemExists(t, setReq[1].Key))
+	assert.False(t, storeItemExists(t, db, setReq[0].Key))
+	assert.False(t, storeItemExists(t, db, setReq[1].Key))
 }
 
 // testInitConfiguration tests valid and invalid config settings.
@@ -737,8 +660,8 @@ func testInitConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewOracleDatabaseStateStore(logger).(*OracleDatabase)
-			defer p.Close()
+			p := NewOracleDatabaseStateStore(logger)
+			defer p.(io.Closer).Close()
 
 			metadata := state.Metadata{
 				Base: metadata.Base{Properties: tt.props},
@@ -748,7 +671,7 @@ func testInitConfiguration(t *testing.T) {
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
 			} else {
-				assert.NotNil(t, err)
+				assert.Error(t, err)
 				assert.Equal(t, err.Error(), tt.expectedErr)
 			}
 		})
@@ -759,11 +682,15 @@ func getConnectionString() string {
 	return os.Getenv(connectionStringEnvKey)
 }
 
+func getDB(ods state.Store) *sql.DB {
+	return ods.(*OracleDatabase).getDB()
+}
+
 func getWalletLocation() string {
 	return os.Getenv(oracleWalletLocationEnvKey)
 }
 
-func setItem(t *testing.T, ods *OracleDatabase, key string, value interface{}, etag *string) {
+func setItem(t *testing.T, ods state.Store, key string, value any, etag *string) {
 	setOptions := state.SetStateOption{}
 	if etag != nil {
 		setOptions.Concurrency = state.FirstWrite
@@ -776,13 +703,15 @@ func setItem(t *testing.T, ods *OracleDatabase, key string, value interface{}, e
 		Options: setOptions,
 	}
 
+	db := getDB(ods)
+
 	err := ods.Set(context.Background(), setReq)
 	require.NoError(t, err)
-	itemExists := storeItemExists(t, key)
-	assert.True(t, itemExists, "Item should exist after set has been executed ")
+	itemExists := storeItemExists(t, db, key)
+	assert.True(t, itemExists, "Item should exist after set has been executed")
 }
 
-func getItem(t *testing.T, ods *OracleDatabase, key string) (*state.GetResponse, *fakeItem) {
+func getItem(t *testing.T, ods state.Store, key string) (*state.GetResponse, *fakeItem) {
 	getReq := &state.GetRequest{
 		Key:     key,
 		Options: state.GetStateOption{},
@@ -797,59 +726,41 @@ func getItem(t *testing.T, ods *OracleDatabase, key string) (*state.GetResponse,
 	return response, outputObject
 }
 
-func deleteItem(t *testing.T, ods *OracleDatabase, key string, etag *string) {
+func deleteItem(t *testing.T, ods state.Store, key string, etag *string) {
 	deleteReq := &state.DeleteRequest{
 		Key:     key,
 		ETag:    etag,
 		Options: state.DeleteStateOption{},
 	}
 
+	db := getDB(ods)
+
 	deleteErr := ods.Delete(context.Background(), deleteReq)
 	require.NoError(t, deleteErr)
-	assert.False(t, storeItemExists(t, key), "item should no longer exist after delete has been performed")
+	assert.False(t, storeItemExists(t, db, key), "item should no longer exist after delete has been performed")
 }
 
-func storeItemExists(t *testing.T, key string) bool {
-	connectionString := getConnectionString()
-	if getWalletLocation() != "" {
-		connectionString += "?TRACE FILE=trace.log&SSL=enable&SSL Verify=false&WALLET=" + url.QueryEscape(getWalletLocation())
+func storeItemExists(t *testing.T, db *sql.DB, key string) bool {
+	var got string
+	statement := fmt.Sprintf(`SELECT key FROM %s WHERE key = :key`, defaultTableName)
+	err := db.QueryRow(statement, key).Scan(&got)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false
 	}
-	db, err := sql.Open("oracle", connectionString)
 	require.NoError(t, err)
-	defer db.Close()
-	var rowCount int32
-	statement := fmt.Sprintf(`SELECT count(key) FROM %s WHERE key = :key`, defaultTableName)
-	err = db.QueryRow(statement, key).Scan(&rowCount)
-	require.NoError(t, err)
-	exists := rowCount > 0
-	return exists
+	return true
 }
 
-func getRowData(t *testing.T, key string) (returnValue string, insertdate sql.NullString, updatedate sql.NullString) {
-	connectionString := getConnectionString()
-	if getWalletLocation() != "" {
-		connectionString += "?TRACE FILE=trace.log&SSL=enable&SSL Verify=false&WALLET=" + url.QueryEscape(getWalletLocation())
-	}
-	db, err := sql.Open("oracle", connectionString)
+func getRowData(t *testing.T, db *sql.DB, key string) (returnValue string, insertdate sql.NullString, updatedate sql.NullString) {
+	err := db.QueryRow(fmt.Sprintf("SELECT value, creation_time, update_time FROM %s WHERE key = :key", defaultTableName), key).Scan(&returnValue, &insertdate, &updatedate)
 	require.NoError(t, err)
-	defer db.Close()
-	err = db.QueryRow(fmt.Sprintf("SELECT value, creation_time, update_time FROM %s WHERE key = :key", defaultTableName), key).Scan(&returnValue, &insertdate, &updatedate)
-	require.NoError(t, err)
-
 	return returnValue, insertdate, updatedate
 }
 
-func getTimesForRow(t *testing.T, key string) (insertdate sql.NullString, updatedate sql.NullString, expirationtime sql.NullString) {
-	connectionString := getConnectionString()
-	if getWalletLocation() != "" {
-		connectionString += "?TRACE FILE=trace.log&SSL=enable&SSL Verify=false&WALLET=" + url.QueryEscape(getWalletLocation())
-	}
-	db, err := sql.Open("oracle", connectionString)
+func getTimesForRow(t *testing.T, db *sql.DB, key string) (insertdate sql.NullString, updatedate sql.NullString, expirationtime sql.NullString) {
+	err := db.QueryRow(fmt.Sprintf("SELECT creation_time, update_time, expiration_time FROM %s WHERE key = :key", defaultTableName), key).
+		Scan(&insertdate, &updatedate, &expirationtime)
 	require.NoError(t, err)
-	defer db.Close()
-	err = db.QueryRow(fmt.Sprintf("SELECT creation_time, update_time, expiration_time FROM %s WHERE key = :key", defaultTableName), key).Scan(&insertdate, &updatedate, &expirationtime)
-	require.NoError(t, err)
-
 	return insertdate, updatedate, expirationtime
 }
 

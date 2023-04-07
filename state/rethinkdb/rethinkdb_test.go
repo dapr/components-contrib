@@ -67,7 +67,9 @@ func TestRethinkDBStateStore(t *testing.T) {
 	}
 
 	m := state.Metadata{Base: metadata.Base{Properties: getTestMetadata()}}
-	db := NewRethinkDBStateStore(logger.NewLogger("test")).(*RethinkDB)
+	db := &RethinkDB{
+		logger: logger.NewLogger("test"),
+	}
 
 	t.Run("With init", func(t *testing.T) {
 		if err := db.Init(context.Background(), m); err != nil {
@@ -146,6 +148,7 @@ func TestRethinkDBStateStore(t *testing.T) {
 	})
 
 	t.Run("With bulk", func(t *testing.T) {
+		db.BulkStore = state.NewDefaultBulkStore(db)
 		testBulk(t, db, 0)
 	})
 }
@@ -156,7 +159,7 @@ func TestRethinkDBStateStoreRongRun(t *testing.T) {
 	}
 
 	m := state.Metadata{Base: metadata.Base{Properties: getTestMetadata()}}
-	db := NewRethinkDBStateStore(logger.NewLogger("test")).(*RethinkDB)
+	db := NewRethinkDBStateStore(logger.NewLogger("test"))
 	if err := db.Init(context.Background(), m); err != nil {
 		t.Fatalf("error initializing db: %v", err)
 	}
@@ -166,7 +169,7 @@ func TestRethinkDBStateStoreRongRun(t *testing.T) {
 	}
 }
 
-func testBulk(t *testing.T, db *RethinkDB, i int) {
+func testBulk(t *testing.T, db state.Store, i int) {
 	// create data list
 	deleteList := make([]state.DeleteRequest, 0)
 	setList := make([]state.SetRequest, 3)

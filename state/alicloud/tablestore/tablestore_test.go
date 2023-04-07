@@ -19,6 +19,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
@@ -38,7 +39,7 @@ func TestTableStoreMetadata(t *testing.T) {
 
 	meta, err := aliCloudTableStore.parse(m)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "ACCESSKEYID", meta.AccessKeyID)
 	assert.Equal(t, "ACCESSKEY", meta.AccessKey)
 	assert.Equal(t, "INSTANCENAME", meta.InstanceName)
@@ -51,7 +52,9 @@ func TestReadAndWrite(t *testing.T) {
 
 	defer ctl.Finish()
 
-	store := NewAliCloudTableStore(logger.NewLogger("test")).(*AliCloudTableStore)
+	store := &AliCloudTableStore{
+		logger: logger.NewLogger("test"),
+	}
 	store.Init(context.Background(), state.Metadata{})
 
 	store.client = &mockClient{
@@ -65,7 +68,7 @@ func TestReadAndWrite(t *testing.T) {
 			ETag:  ptr.Of("the etag"),
 		}
 		err := store.Set(context.Background(), setReq)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("test get 1", func(t *testing.T) {
@@ -73,7 +76,7 @@ func TestReadAndWrite(t *testing.T) {
 			Key: "theFirstKey",
 		}
 		resp, err := store.Get(context.Background(), getReq)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, resp)
 		assert.Equal(t, "value of key", string(resp.Data))
 	})
@@ -85,7 +88,7 @@ func TestReadAndWrite(t *testing.T) {
 			ETag:  ptr.Of("the etag"),
 		}
 		err := store.Set(context.Background(), setReq)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("test get 2", func(t *testing.T) {
@@ -93,7 +96,7 @@ func TestReadAndWrite(t *testing.T) {
 			Key: "theSecondKey",
 		}
 		resp, err := store.Get(context.Background(), getReq)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, resp)
 		assert.Equal(t, "1234", string(resp.Data))
 	})
@@ -107,17 +110,17 @@ func TestReadAndWrite(t *testing.T) {
 			Value: "777",
 		}})
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("test BulkGet", func(t *testing.T) {
-		_, resp, err := store.BulkGet(context.Background(), []state.GetRequest{{
+		resp, err := store.BulkGet(context.Background(), []state.GetRequest{{
 			Key: "theFirstKey",
 		}, {
 			Key: "theSecondKey",
-		}})
+		}}, state.BulkGetOpts{})
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 2, len(resp))
 		assert.Equal(t, "666", string(resp[0].Data))
 		assert.Equal(t, "777", string(resp[1].Data))
@@ -128,17 +131,17 @@ func TestReadAndWrite(t *testing.T) {
 			Key: "theFirstKey",
 		}
 		err := store.Delete(context.Background(), req)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("test BulkGet2", func(t *testing.T) {
-		_, resp, err := store.BulkGet(context.Background(), []state.GetRequest{{
+		resp, err := store.BulkGet(context.Background(), []state.GetRequest{{
 			Key: "theFirstKey",
 		}, {
 			Key: "theSecondKey",
-		}})
+		}}, state.BulkGetOpts{})
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 1, len(resp))
 		assert.Equal(t, "777", string(resp[0].Data))
 	})

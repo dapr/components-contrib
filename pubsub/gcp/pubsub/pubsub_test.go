@@ -83,7 +83,6 @@ func TestInit(t *testing.T) {
 		m.Properties = map[string]string{
 			"projectId": "superproject",
 		}
-		m.Properties[metadataMaxReconnectionAttemptsKey] = ""
 
 		pubSubMetadata, err := createMetadata(m)
 
@@ -101,7 +100,7 @@ func TestInit(t *testing.T) {
 		_, err := createMetadata(m)
 
 		assert.Error(t, err)
-		assertValidErrorMessage(t, err)
+		assert.ErrorContains(t, err, "maxReconnectionAttempts")
 	})
 
 	t.Run("missing optional connectionRecoveryInSec", func(t *testing.T) {
@@ -109,7 +108,6 @@ func TestInit(t *testing.T) {
 		m.Properties = map[string]string{
 			"projectId": "superproject",
 		}
-		m.Properties[metadataConnectionRecoveryInSecKey] = ""
 
 		pubSubMetadata, err := createMetadata(m)
 
@@ -127,10 +125,6 @@ func TestInit(t *testing.T) {
 		_, err := createMetadata(m)
 
 		assert.Error(t, err)
-		assertValidErrorMessage(t, err)
+		assert.ErrorContains(t, err, "connectionRecoveryInSec")
 	})
-}
-
-func assertValidErrorMessage(t *testing.T, err error) {
-	assert.Contains(t, err.Error(), errorMessagePrefix)
 }

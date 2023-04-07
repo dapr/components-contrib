@@ -44,7 +44,7 @@ func TestParsePulsarMetadata(t *testing.T) {
 	assert.Equal(t, 5*time.Second, meta.BatchingMaxPublishDelay)
 	assert.Equal(t, uint(100), meta.BatchingMaxSize)
 	assert.Equal(t, uint(200), meta.BatchingMaxMessages)
-	assert.Empty(t, meta.topicSchemas)
+	assert.Empty(t, meta.internalTopicSchemas)
 }
 
 func TestParsePulsarSchemaMetadata(t *testing.T) {
@@ -59,9 +59,9 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 
 		assert.Nil(t, err)
 		assert.Equal(t, "a", meta.Host)
-		assert.Len(t, meta.topicSchemas, 2)
-		assert.Equal(t, "1", meta.topicSchemas["obiwan"].value)
-		assert.Equal(t, "2", meta.topicSchemas["kenobi.jsonschema"].value)
+		assert.Len(t, meta.internalTopicSchemas, 2)
+		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan"].value)
+		assert.Equal(t, "2", meta.internalTopicSchemas["kenobi.jsonschema"].value)
 	})
 
 	t.Run("test avro", func(t *testing.T) {
@@ -75,9 +75,9 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 
 		assert.Nil(t, err)
 		assert.Equal(t, "a", meta.Host)
-		assert.Len(t, meta.topicSchemas, 2)
-		assert.Equal(t, "1", meta.topicSchemas["obiwan"].value)
-		assert.Equal(t, "2", meta.topicSchemas["kenobi.avroschema"].value)
+		assert.Len(t, meta.internalTopicSchemas, 2)
+		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan"].value)
+		assert.Equal(t, "2", meta.internalTopicSchemas["kenobi.avroschema"].value)
 	})
 
 	t.Run("test combined avro/json", func(t *testing.T) {
@@ -91,11 +91,11 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 
 		assert.Nil(t, err)
 		assert.Equal(t, "a", meta.Host)
-		assert.Len(t, meta.topicSchemas, 2)
-		assert.Equal(t, "1", meta.topicSchemas["obiwan"].value)
-		assert.Equal(t, "2", meta.topicSchemas["kenobi"].value)
-		assert.Equal(t, avroProtocol, meta.topicSchemas["obiwan"].protocol)
-		assert.Equal(t, jsonProtocol, meta.topicSchemas["kenobi"].protocol)
+		assert.Len(t, meta.internalTopicSchemas, 2)
+		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan"].value)
+		assert.Equal(t, "2", meta.internalTopicSchemas["kenobi"].value)
+		assert.Equal(t, avroProtocol, meta.internalTopicSchemas["obiwan"].protocol)
+		assert.Equal(t, jsonProtocol, meta.internalTopicSchemas["kenobi"].protocol)
 	})
 
 	t.Run("test funky edge case", func(t *testing.T) {
@@ -108,8 +108,8 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 
 		assert.Nil(t, err)
 		assert.Equal(t, "a", meta.Host)
-		assert.Len(t, meta.topicSchemas, 1)
-		assert.Equal(t, "1", meta.topicSchemas["obiwan.jsonschema"].value)
+		assert.Len(t, meta.internalTopicSchemas, 1)
+		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan.jsonschema"].value)
 	})
 }
 

@@ -106,7 +106,12 @@ func NewPulsar(l logger.Logger) pubsub.PubSub {
 }
 
 func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
-	m := pulsarMetadata{Persistent: true, Tenant: defaultTenant, Namespace: defaultNamespace, topicSchemas: map[string]schemaMetadata{}}
+	m := pulsarMetadata{
+		Persistent: true,
+		Tenant: defaultTenant,
+		Namespace: defaultNamespace,
+		internalTopicSchemas: map[string]schemaMetadata{}
+	}
 	m.ConsumerID = meta.Properties[consumerID]
 
 	if val, ok := meta.Properties[host]; ok && val != "" {
@@ -182,13 +187,13 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 	for k, v := range meta.Properties {
 		if strings.HasSuffix(k, topicJSONSchemaIdentifier) {
 			topic := k[:len(k)-len(topicJSONSchemaIdentifier)]
-			m.topicSchemas[topic] = schemaMetadata{
+			m.internalTopicSchemas[topic] = schemaMetadata{
 				protocol: jsonProtocol,
 				value:    v,
 			}
 		} else if strings.HasSuffix(k, topicAvroSchemaIdentifier) {
 			topic := k[:len(k)-len(topicJSONSchemaIdentifier)]
-			m.topicSchemas[topic] = schemaMetadata{
+			m.internalTopicSchemas[topic] = schemaMetadata{
 				protocol: avroProtocol,
 				value:    v,
 			}
@@ -253,7 +258,7 @@ func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 	topic := p.formatTopic(req.Topic)
 	producer, ok := p.cache.Get(topic)
 
-	sm, hasSchema := p.metadata.topicSchemas[req.Topic]
+	sm, hasSchema := p.metadata.internalTopicSchemas[req.Topic]
 
 	if !ok || producer == nil {
 		p.logger.Debugf("creating producer for topic %s, full topic name in pulsar is %s", req.Topic, topic)
@@ -401,7 +406,7 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 		NackRedeliveryDelay: p.metadata.RedeliveryDelay,
 	}
 
-	if sm, ok := p.metadata.topicSchemas[req.Topic]; ok {
+	if sm, ok := p.metadata.internalTopicSchemas[req.Topic]; ok {
 		options.Schema = getPulsarSchema(sm)
 	}
 	consumer, err := p.client.Subscribe(options)

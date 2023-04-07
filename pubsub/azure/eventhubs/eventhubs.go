@@ -16,12 +16,14 @@ package eventhubs
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strconv"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs"
 
 	impl "github.com/dapr/components-contrib/internal/component/azure/eventhubs"
 	"github.com/dapr/components-contrib/internal/utils"
+	"github.com/dapr/components-contrib/metadata"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -143,4 +145,12 @@ func (aeh *AzureEventHubs) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 
 func (aeh *AzureEventHubs) Close() (err error) {
 	return aeh.AzureEventHubs.Close()
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (aeh *AzureEventHubs) GetComponentMetadata() map[string]string {
+	metadataStruct := impl.AzureEventHubsMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
+	return metadataInfo
 }

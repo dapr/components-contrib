@@ -472,6 +472,6 @@ func (r *redisStreams) Ping(ctx context.Context) error {
 func (r *redisStreams) GetComponentMetadata() map[string]string {
 	metadataStruct := metadata{}
 	metadataInfo := map[string]string{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.PubSubType)
 	return metadataInfo
 }

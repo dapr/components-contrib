@@ -934,6 +934,6 @@ func (s *snsSqs) Features() []pubsub.Feature {
 func (s *snsSqs) GetComponentMetadata() map[string]string {
 	metadataStruct := snsSqsMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
 	return metadataInfo
 }

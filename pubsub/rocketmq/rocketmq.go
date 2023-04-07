@@ -533,6 +533,6 @@ func (r *rocketMQ) Close() error {
 func (r *rocketMQ) GetComponentMetadata() map[string]string {
 	metadataStruct := rocketMQMetaData{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
 	return metadataInfo
 }

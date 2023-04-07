@@ -17,12 +17,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -465,4 +467,11 @@ func (r *redisStreams) Ping(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (r *redisStreams) GetComponentMetadata() map[string]string {
+	metadataStruct := metadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
+	return metadataInfo
 }

@@ -237,18 +237,20 @@ func TestMetadataStructToStringMap(t *testing.T) {
 		}
 
 		type testMetadata struct {
-			NestedStruct             `mapstructure:",squash"`
-			Mystring                 string
-			Myduration               Duration
-			Myinteger                int
-			Myfloat64                float64
-			Mybool                   *bool
-			MyRegularDuration        time.Duration
-			SomethingWithCustomName  string `mapstructure:"something_with_custom_name"`
-			PubSubOnlyProperty       string `mapstructure:"pubsub_only_property" only:"pubsub"`
-			BindingOnlyProperty      string `mapstructure:"binding_only_property" only:"binding"`
-			PubSubAndBindingProperty string `mapstructure:"pubsub_and_binding_property" only:"pubsub,binding"`
-			MyDurationArray          []time.Duration
+			NestedStruct              `mapstructure:",squash"`
+			Mystring                  string
+			Myduration                Duration
+			Myinteger                 int
+			Myfloat64                 float64
+			Mybool                    *bool
+			MyRegularDuration         time.Duration
+			SomethingWithCustomName   string `mapstructure:"something_with_custom_name"`
+			PubSubOnlyProperty        string `mapstructure:"pubsub_only_property" only:"pubsub"`
+			BindingOnlyProperty       string `mapstructure:"binding_only_property" only:"binding"`
+			PubSubAndBindingProperty  string `mapstructure:"pubsub_and_binding_property" only:"pubsub,binding"`
+			MyDurationArray           []time.Duration
+			NotExportedByMapStructure string `mapstructure:"-"`
+			notExported               string
 		}
 		m := testMetadata{}
 		metadatainfo := map[string]string{}
@@ -269,5 +271,7 @@ func TestMetadataStructToStringMap(t *testing.T) {
 		assert.Equal(t, "string", metadatainfo["binding_only_property"])
 		assert.Equal(t, "string", metadatainfo["pubsub_and_binding_property"])
 		assert.Equal(t, "[]time.Duration", metadatainfo["MyDurationArray"])
+		assert.NotContains(t, metadatainfo, "NotExportedByMapStructure")
+		assert.NotContains(t, metadatainfo, "notExported")
 	})
 }

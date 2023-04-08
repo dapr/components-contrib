@@ -230,6 +230,6 @@ func (a *azureServiceBus) GetComponentMetadata() map[string]string {
 	metadataStruct := impl.Metadata{}
 	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
-	delete(metadataInfo, "ConsumerID") // does not apply to queues
+	delete(metadataInfo, "consumerID") // does not apply to queues
 	return metadataInfo
 }

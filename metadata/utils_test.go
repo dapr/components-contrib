@@ -250,7 +250,7 @@ func TestMetadataStructToStringMap(t *testing.T) {
 			PubSubAndBindingProperty  string `mapstructure:"pubsub_and_binding_property" only:"pubsub,binding"`
 			MyDurationArray           []time.Duration
 			NotExportedByMapStructure string `mapstructure:"-"`
-			notExported               string
+			notExported               string //nolint:structcheck,unused
 		}
 		m := testMetadata{}
 		metadatainfo := map[string]string{}

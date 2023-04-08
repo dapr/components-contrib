@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -30,6 +31,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
+	"github.com/dapr/kit/ptr"
 )
 
 type ValueType struct {
@@ -230,7 +232,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		err := statestore.Init(context.Background(), state.Metadata{
 			Base: metadata.Base{Properties: props},
 		})
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	// Don't run more tests if init failed
@@ -241,12 +243,12 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	t.Run("ping", func(t *testing.T) {
 		err := state.Ping(context.Background(), statestore)
 		// TODO: Ideally, all stable components should implenment ping function,
-		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
+		// so will only assert assert.NoError(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
 		if err != nil {
 			assert.EqualError(t, err, "ping is not implemented by this state store")
 		} else {
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 		}
 	})
 
@@ -263,7 +265,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
 					}
 					err := statestore.Set(context.Background(), req)
-					assert.Nil(t, err)
+					assert.NoError(t, err)
 				}
 			}
 		})
@@ -291,7 +293,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	if config.HasOperation("query") {
 		t.Run("query", func(t *testing.T) {
 			querier, ok := statestore.(state.Querier)
-			assert.Truef(t, ok, "Querier interface is not implemented")
+			assert.True(t, ok, "Querier interface is not implemented")
 			for _, scenario := range queryScenarios {
 				t.Logf("Querying value presence for %s", scenario.query)
 				var req state.QueryRequest
@@ -385,9 +387,8 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					expects[scenario.key] = scenario.value
 				}
 			}
-			hasBulkGet, res, err := statestore.BulkGet(context.Background(), req)
+			res, err := statestore.BulkGet(context.Background(), req, state.BulkGetOpts{})
 			require.NoError(t, err)
-			require.True(t, hasBulkGet)
 			require.Len(t, res, len(expects))
 
 			for _, r := range res {
@@ -412,14 +413,14 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				}
 			}
 			err := statestore.BulkDelete(context.Background(), bulk)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 
 			for _, req := range bulk {
 				t.Logf("Checking value absence for %s", req.Key)
 				res, err := statestore.Get(context.Background(), &state.GetRequest{
 					Key: req.Key,
 				})
-				assert.Nil(t, err)
+				assert.NoError(t, err)
 				assert.Nil(t, res.Data)
 			}
 		})
@@ -440,13 +441,12 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						transactionGroups = append(transactionGroups, scenario.transactionGroup)
 					}
 					transactions[scenario.transactionGroup] = append(
-						transactions[scenario.transactionGroup], state.TransactionalStateOperation{
-							Operation: state.Upsert,
-							Request: state.SetRequest{
-								Key:   scenario.key,
-								Value: scenario.value,
-							},
-						})
+						transactions[scenario.transactionGroup],
+						state.SetRequest{
+							Key:   scenario.key,
+							Value: scenario.value,
+						},
+					)
 
 					// Deletion happens in the following transaction.
 					if scenario.toBeDeleted {
@@ -454,12 +454,11 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 							transactionGroups = append(transactionGroups, scenario.transactionGroup+1)
 						}
 						transactions[scenario.transactionGroup+1] = append(
-							transactions[scenario.transactionGroup+1], state.TransactionalStateOperation{
-								Operation: state.Delete,
-								Request: state.DeleteRequest{
-									Key: scenario.key,
-								},
-							})
+							transactions[scenario.transactionGroup+1],
+							state.DeleteRequest{
+								Key: scenario.key,
+							},
+						)
 					}
 				}
 			}
@@ -549,41 +548,29 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 			operations := []state.TransactionalStateOperation{
 				// delete an item that already exists
-				{
-					Operation: state.Delete,
-					Request: state.DeleteRequest{
-						Key: firstKey,
-					},
+				state.DeleteRequest{
+					Key: firstKey,
 				},
 				// upsert a new item
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   secondKey,
-						Value: secondValue,
-					},
+				state.SetRequest{
+					Key:   secondKey,
+					Value: secondValue,
 				},
 				// delete the item that was just upserted
-				{
-					Operation: state.Delete,
-					Request: state.DeleteRequest{
-						Key: secondKey,
-					},
+				state.DeleteRequest{
+					Key: secondKey,
 				},
 				// upsert a new item
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   thirdKey,
-						Value: thirdValue,
-					},
+				state.SetRequest{
+					Key:   thirdKey,
+					Value: thirdValue,
 				},
 			}
 
 			expected := map[string][]byte{
 				firstKey:  []byte(nil),
 				secondKey: []byte(nil),
-				thirdKey:  []byte(fmt.Sprintf("\"%s\"", thirdValue)),
+				thirdKey:  []byte(strconv.Quote(thirdValue)),
 			}
 
 			// Act
@@ -694,7 +681,6 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			testKey := "first-writeTest"
 			firstValue := []byte("testValue1")
 			secondValue := []byte("testValue2")
-			emptyString := ""
 
 			requestSets := [][2]*state.SetRequest{
 				{
@@ -723,7 +709,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 							Concurrency: state.FirstWrite,
 							Consistency: state.Strong,
 						},
-						ETag: &emptyString,
+						ETag: ptr.Of(""),
 					},
 					{
 						Key:   testKey,
@@ -732,7 +718,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 							Concurrency: state.FirstWrite,
 							Consistency: state.Strong,
 						},
-						ETag: &emptyString,
+						ETag: ptr.Of(""),
 					},
 				},
 			}

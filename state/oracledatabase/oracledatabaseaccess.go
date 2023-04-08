@@ -287,28 +287,20 @@ func (o *oracleDatabaseAccess) ExecuteMulti(parentCtx context.Context, reqs []st
 	}
 	defer tx.Rollback()
 
-	for _, req := range reqs {
-		switch req.Operation {
-		case state.Upsert:
-			if setReq, ok := req.Request.(state.SetRequest); ok {
-				err = o.doSet(parentCtx, tx, &setReq)
-				if err != nil {
-					return err
-				}
-			} else {
-				return fmt.Errorf("expecting set request")
+	for _, op := range reqs {
+		switch req := op.(type) {
+		case state.SetRequest:
+			err = o.doSet(parentCtx, tx, &req)
+			if err != nil {
+				return err
 			}
-		case state.Delete:
-			if delReq, ok := req.Request.(state.DeleteRequest); ok {
-				err = o.doDelete(parentCtx, tx, &delReq)
-				if err != nil {
-					return err
-				}
-			} else {
-				return fmt.Errorf("expecting delete request")
+		case state.DeleteRequest:
+			err = o.doDelete(parentCtx, tx, &req)
+			if err != nil {
+				return err
 			}
 		default:
-			// Do nothing
+			return fmt.Errorf("unsupported operation: %s", req.Operation())
 		}
 	}
 	return tx.Commit()

@@ -16,10 +16,9 @@ package rabbitmq
 import (
 	"fmt"
 	"net/url"
-	"strconv"
 	"time"
 
-	"github.com/dapr/components-contrib/internal/utils"
+	"github.com/dapr/components-contrib/metadata"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
@@ -29,29 +28,30 @@ import (
 	"github.com/dapr/components-contrib/pubsub"
 )
 
-type metadata struct {
-	pubsub.TLSProperties
-	consumerID       string
-	connectionString string
-	protocol         string
-	hostname         string
-	username         string
-	password         string
-	durable          bool
-	enableDeadLetter bool
-	deleteWhenUnused bool
-	autoAck          bool
-	requeueInFailure bool
-	deliveryMode     uint8 // Transient (0 or 1) or Persistent (2)
-	prefetchCount    uint8 // Prefetch deactivated if 0
-	reconnectWait    time.Duration
-	maxLen           int64
-	maxLenBytes      int64
-	exchangeKind     string
-	publisherConfirm bool
-	saslExternal     bool
-	concurrency      pubsub.ConcurrencyMode
-	defaultQueueTTL  *time.Duration
+type rabbitmqMetadata struct {
+	pubsub.TLSProperties `mapstructure:",squash"`
+	ConsumerID           string                 `mapstructure:"consumerID"`
+	ConnectionString     string                 `mapstructure:"connectionString"`
+	Protocol             string                 `mapstructure:"protocol"`
+	internalProtocol     string                 `mapstructure:"-"`
+	Hostname             string                 `mapstructure:"hostname"`
+	Username             string                 `mapstructure:"username"`
+	Password             string                 `mapstructure:"password"`
+	Durable              bool                   `mapstructure:"durable"`
+	EnableDeadLetter     bool                   `mapstructure:"enableDeadLetter"`
+	DeleteWhenUnused     bool                   `mapstructure:"deletedWhenUnused"`
+	AutoAck              bool                   `mapstructure:"autoAck"`
+	RequeueInFailure     bool                   `mapstructure:"requeueInFailure"`
+	DeliveryMode         uint8                  `mapstructure:"deliveryMode"`  // Transient (0 or 1) or Persistent (2)
+	PrefetchCount        uint8                  `mapstructure:"prefetchCount"` // Prefetch deactivated if 0
+	ReconnectWait        time.Duration          `mapstructure:"reconnectWaitSeconds"`
+	MaxLen               int64                  `mapstructure:"maxLen"`
+	MaxLenBytes          int64                  `mapstructure:"maxLenBytes"`
+	ExchangeKind         string                 `mapstructure:"exchangeKind"`
+	PublisherConfirm     bool                   `mapstructure:"publisherConfirm"`
+	SaslExternal         bool                   `mapstructure:"saslExternal"`
+	Concurrency          pubsub.ConcurrencyMode `mapstructure:"concurrency"`
+	DefaultQueueTTL      *time.Duration         `mapstructure:"ttlInSeconds"`
 }
 
 const (
@@ -87,132 +87,53 @@ const (
 )
 
 // createMetadata creates a new instance from the pubsub metadata.
-func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*metadata, error) {
-	result := metadata{
-		protocol:         protocolAMQP,
-		hostname:         "localhost",
-		durable:          true,
-		deleteWhenUnused: true,
-		autoAck:          false,
-		reconnectWait:    time.Duration(defaultReconnectWaitSeconds) * time.Second,
-		exchangeKind:     fanoutExchangeKind,
-		publisherConfirm: false,
-		saslExternal:     false,
+func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitmqMetadata, error) {
+	result := rabbitmqMetadata{
+		internalProtocol: protocolAMQP,
+		Hostname:         "localhost",
+		Durable:          true,
+		DeleteWhenUnused: true,
+		AutoAck:          false,
+		ReconnectWait:    time.Duration(defaultReconnectWaitSeconds) * time.Second,
+		ExchangeKind:     fanoutExchangeKind,
+		PublisherConfirm: false,
+		SaslExternal:     false,
 	}
+
+	// upgrade metadata
 
 	if val, found := pubSubMetadata.Properties[metadataConnectionStringKey]; found && val != "" {
-		result.connectionString = val
-	} else if val, found := pubSubMetadata.Properties[metadataHostKey]; found && val != "" {
-		result.connectionString = val
-		log.Warn("[DEPRECATION NOTICE] The 'host' argument is deprecated. Use 'connectionString' or individual connection arguments instead: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-rabbitmq/")
+		if host, found := pubSubMetadata.Properties[metadataHostKey]; found && host != "" {
+			pubSubMetadata.Properties[metadataConnectionStringKey] = host
+			log.Warn("[DEPRECATION NOTICE] The 'host' argument is deprecated. Use 'connectionString' or individual connection arguments instead: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-rabbitmq/")
+		}
 	}
 
-	if result.connectionString != "" {
-		uri, err := amqp.ParseURI(result.connectionString)
+	if err := metadata.DecodeMetadata(pubSubMetadata.Properties, &result); err != nil {
+		return nil, err
+	}
+
+	if result.ConnectionString != "" {
+		uri, err := amqp.ParseURI(result.ConnectionString)
 		if err != nil {
-			return &result, fmt.Errorf("%s invalid connection string: %s, err: %w", errorMessagePrefix, result.connectionString, err)
+			return &result, fmt.Errorf("%s invalid connection string: %s, err: %w", errorMessagePrefix, result.ConnectionString, err)
 		}
-		result.protocol = uri.Scheme
+		result.internalProtocol = uri.Scheme
 	}
 
-	if val, found := pubSubMetadata.Properties[metadataProtocolKey]; found && val != "" {
-		if result.connectionString != "" && result.protocol != val {
-			return &result, fmt.Errorf("%s protocol does not match connection string, protocol: %s, connection string: %s", errorMessagePrefix, val, result.connectionString)
+	if result.Protocol != "" {
+		if result.ConnectionString != "" && result.internalProtocol != result.Protocol {
+			return &result, fmt.Errorf("%s protocol does not match connection string, protocol: %s, connection string: %s", errorMessagePrefix, result.Protocol, result.ConnectionString)
 		}
-		result.protocol = val
+		result.internalProtocol = result.Protocol
 	}
 
-	if val, found := pubSubMetadata.Properties[metadataHostnameKey]; found && val != "" {
-		result.hostname = val
+	if result.DeliveryMode < 0 || result.DeliveryMode > 2 {
+		return &result, fmt.Errorf("%s invalid RabbitMQ delivery mode, accepted values are between 0 and 2", errorMessagePrefix)
 	}
 
-	if val, found := pubSubMetadata.Properties[metadataUsernameKey]; found && val != "" {
-		result.username = val
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataPasswordKey]; found && val != "" {
-		result.password = val
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataConsumerIDKey]; found && val != "" {
-		result.consumerID = val
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataDeliveryModeKey]; found && val != "" {
-		if intVal, err := strconv.Atoi(val); err == nil {
-			if intVal < 0 || intVal > 2 {
-				return &result, fmt.Errorf("%s invalid RabbitMQ delivery mode, accepted values are between 0 and 2", errorMessagePrefix)
-			}
-			result.deliveryMode = uint8(intVal)
-		}
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataDurableKey]; found && val != "" {
-		if boolVal, err := strconv.ParseBool(val); err == nil {
-			result.durable = boolVal
-		}
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataEnableDeadLetterKey]; found && val != "" {
-		if boolVal, err := strconv.ParseBool(val); err == nil {
-			result.enableDeadLetter = boolVal
-		}
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataDeleteWhenUnusedKey]; found && val != "" {
-		if boolVal, err := strconv.ParseBool(val); err == nil {
-			result.deleteWhenUnused = boolVal
-		}
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataAutoAckKey]; found && val != "" {
-		if boolVal, err := strconv.ParseBool(val); err == nil {
-			result.autoAck = boolVal
-		}
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataRequeueInFailureKey]; found && val != "" {
-		if boolVal, err := strconv.ParseBool(val); err == nil {
-			result.requeueInFailure = boolVal
-		}
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataReconnectWaitSecondsKey]; found && val != "" {
-		if intVal, err := strconv.Atoi(val); err == nil {
-			result.reconnectWait = time.Duration(intVal) * time.Second
-		}
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataPrefetchCountKey]; found && val != "" {
-		if intVal, err := strconv.Atoi(val); err == nil {
-			result.prefetchCount = uint8(intVal)
-		}
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataMaxLenKey]; found && val != "" {
-		if intVal, err := strconv.ParseInt(val, 10, 64); err == nil {
-			result.maxLen = intVal
-		}
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataMaxLenBytesKey]; found && val != "" {
-		if intVal, err := strconv.ParseInt(val, 10, 64); err == nil {
-			result.maxLenBytes = intVal
-		}
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataExchangeKindKey]; found && val != "" {
-		if exchangeKindValid(val) {
-			result.exchangeKind = val
-		} else {
-			return &result, fmt.Errorf("%s invalid RabbitMQ exchange kind %s", errorMessagePrefix, val)
-		}
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataPublisherConfirmKey]; found && val != "" {
-		if boolVal, err := strconv.ParseBool(val); err == nil {
-			result.publisherConfirm = boolVal
-		}
+	if !exchangeKindValid(result.ExchangeKind) {
+		return &result, fmt.Errorf("%s invalid RabbitMQ exchange kind %s", errorMessagePrefix, result.ExchangeKind)
 	}
 
 	ttl, ok, err := contribMetadata.TryGetTTL(pubSubMetadata.Properties)
@@ -221,7 +142,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*metadat
 	}
 
 	if ok {
-		result.defaultQueueTTL = &ttl
+		result.DefaultQueueTTL = &ttl
 	}
 
 	result.TLSProperties, err = pubsub.TLS(pubSubMetadata.Properties)
@@ -229,32 +150,23 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*metadat
 		return &result, fmt.Errorf("%s invalid TLS configuration: %w", errorMessagePrefix, err)
 	}
 
-	if val, found := pubSubMetadata.Properties[metadataSaslExternal]; found && val != "" {
-		boolVal := utils.IsTruthy(val)
-		if boolVal && (result.TLSProperties.CACert == "" || result.TLSProperties.ClientCert == "" || result.TLSProperties.ClientKey == "") {
-			return &result, fmt.Errorf("%s can only be set to true, when all these properties are set: %s, %s, %s", metadataSaslExternal, pubsub.CACert, pubsub.ClientCert, pubsub.ClientKey)
-		}
-		result.saslExternal = boolVal
+	if result.SaslExternal && (result.TLSProperties.CACert == "" || result.TLSProperties.ClientCert == "" || result.TLSProperties.ClientKey == "") {
+		return &result, fmt.Errorf("%s can only be set to true, when all these properties are set: %s, %s, %s", metadataSaslExternal, pubsub.CACert, pubsub.ClientCert, pubsub.ClientKey)
 	}
 
-	c, err := pubsub.Concurrency(pubSubMetadata.Properties)
-	if err != nil {
-		return &result, err
-	}
-	result.concurrency = c
-
-	return &result, nil
+	result.Concurrency, err = pubsub.Concurrency(pubSubMetadata.Properties)
+	return &result, err
 }
 
-func (m *metadata) formatQueueDeclareArgs(origin amqp.Table) amqp.Table {
+func (m *rabbitmqMetadata) formatQueueDeclareArgs(origin amqp.Table) amqp.Table {
 	if origin == nil {
 		origin = amqp.Table{}
 	}
-	if m.maxLen > 0 {
-		origin[argMaxLength] = m.maxLen
+	if m.MaxLen > 0 {
+		origin[argMaxLength] = m.MaxLen
 	}
-	if m.maxLenBytes > 0 {
-		origin[argMaxLengthBytes] = m.maxLenBytes
+	if m.MaxLenBytes > 0 {
+		origin[argMaxLengthBytes] = m.MaxLenBytes
 	}
 
 	return origin
@@ -264,20 +176,20 @@ func exchangeKindValid(kind string) bool {
 	return kind == amqp.ExchangeFanout || kind == amqp.ExchangeTopic || kind == amqp.ExchangeDirect || kind == amqp.ExchangeHeaders
 }
 
-func (m *metadata) connectionURI() string {
-	if m.connectionString != "" {
-		return m.connectionString
+func (m *rabbitmqMetadata) connectionURI() string {
+	if m.ConnectionString != "" {
+		return m.ConnectionString
 	}
 
 	u := url.URL{
-		Scheme: m.protocol,
-		Host:   m.hostname,
+		Scheme: m.internalProtocol,
+		Host:   m.Hostname,
 	}
 
-	if m.username != "" && m.password != "" {
-		u.User = url.UserPassword(m.username, m.password)
-	} else if m.username != "" {
-		u.User = url.User(m.username)
+	if m.Username != "" && m.Password != "" {
+		u.User = url.UserPassword(m.Username, m.Password)
+	} else if m.Username != "" {
+		u.User = url.User(m.Username)
 	}
 
 	return u.String()

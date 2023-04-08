@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -29,6 +29,7 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	lru "github.com/hashicorp/golang-lru/v2"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -107,81 +108,23 @@ func NewPulsar(l logger.Logger) pubsub.PubSub {
 
 func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 	m := pulsarMetadata{
-		Persistent: true,
-		Tenant: defaultTenant,
-		Namespace: defaultNamespace,
-		internalTopicSchemas: map[string]schemaMetadata{}
+		Persistent:              true,
+		Tenant:                  defaultTenant,
+		Namespace:               defaultNamespace,
+		internalTopicSchemas:    map[string]schemaMetadata{},
+		DisableBatching:         false,
+		BatchingMaxPublishDelay: defaultBatchingMaxPublishDelay,
+		BatchingMaxMessages:     defaultMaxMessages,
+		BatchingMaxSize:         defaultMaxBatchSize,
+		RedeliveryDelay:         defaultRedeliveryDelay,
 	}
-	m.ConsumerID = meta.Properties[consumerID]
 
-	if val, ok := meta.Properties[host]; ok && val != "" {
-		m.Host = val
-	} else {
+	if err := metadata.DecodeMetadata(meta.Properties, &m); err != nil {
+		return nil, err
+	}
+
+	if m.Host == "" {
 		return nil, errors.New("pulsar error: missing pulsar host")
-	}
-	if val, ok := meta.Properties[enableTLS]; ok && val != "" {
-		tls, err := strconv.ParseBool(val)
-		if err != nil {
-			return nil, errors.New("pulsar error: invalid value for enableTLS")
-		}
-		m.EnableTLS = tls
-	}
-	// DisableBatching is defaultly batching.
-	m.DisableBatching = false
-	if val, ok := meta.Properties[disableBatching]; ok {
-		disableBatching, err := strconv.ParseBool(val)
-		if err != nil {
-			return nil, errors.New("pulsar error: invalid value for disableBatching")
-		}
-		m.DisableBatching = disableBatching
-	}
-	m.BatchingMaxPublishDelay = defaultBatchingMaxPublishDelay
-	if val, ok := meta.Properties[batchingMaxPublishDelay]; ok {
-		batchingMaxPublishDelay, err := formatDuration(val)
-		if err != nil {
-			return nil, errors.New("pulsar error: invalid value for batchingMaxPublishDelay")
-		}
-		m.BatchingMaxPublishDelay = batchingMaxPublishDelay
-	}
-	m.BatchingMaxMessages = defaultMaxMessages
-	if val, ok := meta.Properties[batchingMaxMessages]; ok {
-		batchingMaxMessages, err := strconv.ParseUint(val, 10, 64)
-		if err != nil {
-			return nil, errors.New("pulsar error: invalid value for batchingMaxMessages")
-		}
-		m.BatchingMaxMessages = uint(batchingMaxMessages)
-	}
-	m.BatchingMaxSize = defaultMaxBatchSize
-	if val, ok := meta.Properties[batchingMaxSize]; ok {
-		batchingMaxSize, err := strconv.ParseUint(val, 10, 64)
-		if err != nil {
-			return nil, errors.New("pulsar error: invalid value for batchingMaxSize")
-		}
-		m.BatchingMaxSize = uint(batchingMaxSize)
-	}
-	m.RedeliveryDelay = defaultRedeliveryDelay
-	if val, ok := meta.Properties[redeliveryDelay]; ok {
-		redeliveryDelay, err := formatDuration(val)
-		if err != nil {
-			return nil, errors.New("pulsar error: invalid value for redeliveryDelay")
-		}
-		m.RedeliveryDelay = redeliveryDelay
-	}
-	if val, ok := meta.Properties[persistent]; ok && val != "" {
-		per, err := strconv.ParseBool(val)
-		if err != nil {
-			return nil, errors.New("pulsar error: invalid value for persistent")
-		}
-		m.Persistent = per
-	}
-	if val, ok := meta.Properties[tenant]; ok && val != "" {
-		m.Tenant = val
-	}
-	if val, ok := meta.Properties[namespace]; ok && val != "" {
-		m.Namespace = val
-	}
-	if val, ok := meta.Properties[pulsarToken]; ok && val != "" {
-		m.Token = val
 	}
 
 	for k, v := range meta.Properties {
@@ -515,13 +458,10 @@ func (p *Pulsar) formatTopic(topic string) string {
 	return fmt.Sprintf(topicFormat, persist, p.metadata.Tenant, p.metadata.Namespace, topic)
 }
 
-func formatDuration(durationString string) (time.Duration, error) {
-	if val, err := strconv.Atoi(durationString); err == nil {
-		return time.Duration(val) * time.Millisecond, nil
-	}
-
-	// Convert it by parsing
-	d, err := time.ParseDuration(durationString)
-
-	return d, err
+// GetComponentMetadata returns the metadata of the component.
+func (p *Pulsar) GetComponentMetadata() map[string]string {
+	metadataStruct := pulsarMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
+	return metadataInfo
 }

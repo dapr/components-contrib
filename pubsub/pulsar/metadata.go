@@ -16,19 +16,19 @@ package pulsar
 import "time"
 
 type pulsarMetadata struct {
-	Host                    string        `mapstructure:"host"`
-	ConsumerID              string        `mapstructure:"consumerID"`
-	EnableTLS               bool          `mapstructure:"enableTLS"`
-	DisableBatching         bool          `mapstructure:"disableBatching"`
-	BatchingMaxPublishDelay time.Duration `mapstructure:"batchingMaxPublishDelay"`
-	BatchingMaxSize         uint          `mapstructure:"batchingMaxSize"`
-	BatchingMaxMessages     uint          `mapstructure:"batchingMaxMessages"`
-	Tenant                  string        `mapstructure:"tenant"`
-	Namespace               string        `mapstructure:"namespace"`
-	Persistent              bool          `mapstructure:"persistent"`
-	Token                   string        `mapstructure:"token"`
-	RedeliveryDelay         time.Duration `mapstructure:"redeliveryDelay"`
-	internalTopicSchemas    map[string]schemaMetadata
+	Host                    string                    `mapstructure:"host"`
+	ConsumerID              string                    `mapstructure:"consumerID"`
+	EnableTLS               bool                      `mapstructure:"enableTLS"`
+	DisableBatching         bool                      `mapstructure:"disableBatching"`
+	BatchingMaxPublishDelay time.Duration             `mapstructure:"batchingMaxPublishDelay"`
+	BatchingMaxSize         uint                      `mapstructure:"batchingMaxSize"`
+	BatchingMaxMessages     uint                      `mapstructure:"batchingMaxMessages"`
+	Tenant                  string                    `mapstructure:"tenant"`
+	Namespace               string                    `mapstructure:"namespace"`
+	Persistent              bool                      `mapstructure:"persistent"`
+	Token                   string                    `mapstructure:"token"`
+	RedeliveryDelay         time.Duration             `mapstructure:"redeliveryDelay"`
+	internalTopicSchemas    map[string]schemaMetadata `mapstructure:"-"`
 }
 
 type schemaMetadata struct {

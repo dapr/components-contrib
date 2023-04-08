@@ -30,7 +30,7 @@ const (
 
 type metadata struct {
 	tlsCfg    `mapstructure:",squash"`
-	Url       string
+	URL       string
 	Username  string
 	Password  string
 	Anonymous bool
@@ -70,7 +70,7 @@ func parseAMQPMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error)
 	}
 
 	// required configuration settings
-	if m.Url == "" {
+	if m.URL == "" {
 		return &m, fmt.Errorf("%s missing url", errorMsgPrefix)
 	}
 

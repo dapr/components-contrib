@@ -24,7 +24,6 @@ import (
 	impl "github.com/dapr/components-contrib/internal/component/azure/eventhubs"
 	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/components-contrib/metadata"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
@@ -84,7 +83,7 @@ func (aeh *AzureEventHubs) BulkPublish(ctx context.Context, req *pubsub.BulkPubl
 
 	// Batch options
 	batchOpts := &azeventhubs.EventDataBatchOptions{}
-	if val := req.Metadata[contribMetadata.MaxBulkPubBytesKey]; val != "" {
+	if val := req.Metadata[metadata.MaxBulkPubBytesKey]; val != "" {
 		var maxBytes uint64
 		maxBytes, err = strconv.ParseUint(val, 10, 63)
 		if err == nil && maxBytes > 0 {

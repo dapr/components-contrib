@@ -66,9 +66,9 @@ func (js *jetstreamPubSub) Init(_ context.Context, metadata pubsub.Metadata) err
 		}, func(nonce []byte) ([]byte, error) {
 			return sigHandler(js.meta.SeedKey, nonce)
 		}))
-	} else if js.meta.TlsClientCert != "" && js.meta.TlsClientKey != "" {
+	} else if js.meta.TLSClientCert != "" && js.meta.TLSClientKey != "" {
 		js.l.Debug("Configure nats for tls client authentication")
-		opts = append(opts, nats.ClientCert(js.meta.TlsClientCert, js.meta.TlsClientKey))
+		opts = append(opts, nats.ClientCert(js.meta.TLSClientCert, js.meta.TLSClientKey))
 	} else if js.meta.Token != "" {
 		js.l.Debug("Configure nats for token authentication")
 		opts = append(opts, nats.Token(js.meta.Token))
@@ -86,8 +86,8 @@ func (js *jetstreamPubSub) Init(_ context.Context, metadata pubsub.Metadata) err
 		jsOpts = append(jsOpts, nats.Domain(js.meta.Domain))
 	}
 
-	if js.meta.ApiPrefix != "" {
-		jsOpts = append(jsOpts, nats.APIPrefix(js.meta.ApiPrefix))
+	if js.meta.APIPrefix != "" {
+		jsOpts = append(jsOpts, nats.APIPrefix(js.meta.APIPrefix))
 	}
 
 	js.jsc, err = js.nc.JetStream(jsOpts...)

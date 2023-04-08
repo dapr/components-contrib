@@ -237,15 +237,15 @@ func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiv
 
 // Connect to the AMQP broker
 func (a *amqpPubSub) connect(ctx context.Context) (*amqp.Session, error) {
-	uri, err := url.Parse(a.metadata.Url)
+	uri, err := url.Parse(a.metadata.URL)
 	if err != nil {
 		return nil, err
 	}
 
 	clientOpts := a.createClientOptions(uri)
 
-	a.logger.Infof("Attempting to connect to %s", a.metadata.Url)
-	client, err := amqp.Dial(a.metadata.Url, &clientOpts)
+	a.logger.Infof("Attempting to connect to %s", a.metadata.URL)
+	client, err := amqp.Dial(a.metadata.URL, &clientOpts)
 	if err != nil {
 		a.logger.Fatal("Dialing AMQP server:", err)
 	}

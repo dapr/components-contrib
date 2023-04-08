@@ -260,7 +260,7 @@ func (m *mqttPubSub) handlerForTopic(topic string) pubsub.Handler {
 }
 
 func (m *mqttPubSub) doConnect(ctx context.Context, clientID string) (mqtt.Client, error) {
-	uri, err := url.Parse(m.metadata.Url)
+	uri, err := url.Parse(m.metadata.URL)
 	if err != nil {
 		return nil, err
 	}

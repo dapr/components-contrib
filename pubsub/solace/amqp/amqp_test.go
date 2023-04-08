@@ -48,7 +48,7 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		assert.NoError(t, err)
-		assert.Equal(t, fakeProperties[amqpURL], m.Url)
+		assert.Equal(t, fakeProperties[amqpURL], m.URL)
 	})
 
 	t.Run("url is not given", func(t *testing.T) {
@@ -63,7 +63,7 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		assert.EqualError(t, err, errors.New(errorMsgPrefix+" missing url").Error())
-		assert.Equal(t, fakeProperties[amqpURL], m.Url)
+		assert.Equal(t, fakeProperties[amqpURL], m.URL)
 	})
 
 	t.Run("invalid ca certificate", func(t *testing.T) {

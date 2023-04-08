@@ -209,8 +209,8 @@ func toStringArrayHookFunc() mapstructure.DecodeHookFunc {
 func toTimeDurationArrayHookFunc() mapstructure.DecodeHookFunc {
 	convert := func(input string) ([]time.Duration, error) {
 		res := make([]time.Duration, 0)
-		for _, input := range strings.Split(input, ",") {
-			input := strings.TrimSpace(input)
+		for _, v := range strings.Split(input, ",") {
+			input := strings.TrimSpace(v)
 			if input == "" {
 				continue
 			}

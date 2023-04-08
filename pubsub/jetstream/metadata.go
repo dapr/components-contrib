@@ -30,8 +30,8 @@ type metadata struct {
 	SeedKey string `mapstructure:"seedKey"`
 	Token   string `mapstructure:"token"`
 
-	TlsClientCert string `mapstructure:"tls_client_cert"`
-	TlsClientKey  string `mapstructure:"tls_client_key"`
+	TLSClientCert string `mapstructure:"tls_client_cert"`
+	TLSClientKey  string `mapstructure:"tls_client_key"`
 
 	Name                  string             `mapstructure:"name"`
 	StreamName            string             `mapstructure:"streamName"`
@@ -54,7 +54,7 @@ type metadata struct {
 	AckPolicy             string             `mapstructure:"ackPolicy"`
 	internalAckPolicy     nats.AckPolicy     `mapstructure:"-"`
 	Domain                string             `mapstructure:"domain"`
-	ApiPrefix             string             `mapstructure:"apiPrefix"`
+	APIPrefix             string             `mapstructure:"apiPrefix"`
 }
 
 func parseMetadata(psm pubsub.Metadata) (metadata, error) {
@@ -74,11 +74,11 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 		return metadata{}, fmt.Errorf("missing jwt")
 	}
 
-	if m.TlsClientCert != "" && m.TlsClientKey == "" {
+	if m.TLSClientCert != "" && m.TLSClientKey == "" {
 		return metadata{}, fmt.Errorf("missing tls client key")
 	}
 
-	if m.TlsClientCert == "" && m.TlsClientKey != "" {
+	if m.TLSClientCert == "" && m.TLSClientKey != "" {
 		return metadata{}, fmt.Errorf("missing tls client cert")
 	}
 

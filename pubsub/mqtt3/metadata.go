@@ -25,7 +25,7 @@ import (
 
 type mqttMetadata struct {
 	pubsub.TLSProperties `mapstructure:",squash"`
-	Url                  string `mapstructure:"url"`
+	URL                  string `mapstructure:"url"`
 	ConsumerID           string `mapstructure:"consumerID"`
 	Qos                  byte   `mapstructure:"qos"`
 	Retain               bool   `mapstructure:"retain"`
@@ -59,12 +59,12 @@ func parseMQTTMetaData(md pubsub.Metadata, log logger.Logger) (*mqttMetadata, er
 	}
 
 	// required configuration settings
-	if m.Url == "" {
+	if m.URL == "" {
 		return &m, errors.New("missing url")
 	}
 
 	// optional configuration settings
-	if m.Qos < 0 || m.Qos > 7 {
+	if m.Qos > 7 { // bytes cannot be less than 0
 		return &m, fmt.Errorf("invalid qos %d: %w", m.Qos, err)
 	}
 

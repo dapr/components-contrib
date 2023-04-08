@@ -227,7 +227,7 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		assert.NoError(t, err)
-		assert.Equal(t, fakeProperties[mqttURL], m.Url)
+		assert.Equal(t, fakeProperties[mqttURL], m.URL)
 		assert.Equal(t, byte(1), m.Qos)
 		assert.Equal(t, true, m.Retain)
 		assert.Equal(t, false, m.CleanSession)
@@ -255,7 +255,7 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		assert.ErrorContains(t, err, "missing url")
-		assert.Equal(t, fakeProperties[mqttURL], m.Url)
+		assert.Equal(t, fakeProperties[mqttURL], m.URL)
 	})
 
 	t.Run("qos and retain is not given", func(t *testing.T) {
@@ -271,7 +271,7 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		require.NoError(t, err)
-		assert.Equal(t, fakeProperties[mqttURL], m.Url)
+		assert.Equal(t, fakeProperties[mqttURL], m.URL)
 		assert.Equal(t, byte(1), m.Qos)
 		assert.Equal(t, false, m.Retain)
 	})

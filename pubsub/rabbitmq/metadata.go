@@ -18,13 +18,11 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/dapr/components-contrib/metadata"
-
 	amqp "github.com/rabbitmq/amqp091-go"
 
 	"github.com/dapr/kit/logger"
 
-	contribMetadata "github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 )
 
@@ -102,7 +100,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitm
 
 	// upgrade metadata
 
-	if val, found := pubSubMetadata.Properties[metadataConnectionStringKey]; found && val != "" {
+	if val, found := pubSubMetadata.Properties[metadataConnectionStringKey]; !found || val == "" {
 		if host, found := pubSubMetadata.Properties[metadataHostKey]; found && host != "" {
 			pubSubMetadata.Properties[metadataConnectionStringKey] = host
 			log.Warn("[DEPRECATION NOTICE] The 'host' argument is deprecated. Use 'connectionString' or individual connection arguments instead: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-rabbitmq/")
@@ -128,7 +126,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitm
 		result.internalProtocol = result.Protocol
 	}
 
-	if result.DeliveryMode < 0 || result.DeliveryMode > 2 {
+	if result.DeliveryMode > 2 {
 		return &result, fmt.Errorf("%s invalid RabbitMQ delivery mode, accepted values are between 0 and 2", errorMessagePrefix)
 	}
 
@@ -136,7 +134,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitm
 		return &result, fmt.Errorf("%s invalid RabbitMQ exchange kind %s", errorMessagePrefix, result.ExchangeKind)
 	}
 
-	ttl, ok, err := contribMetadata.TryGetTTL(pubSubMetadata.Properties)
+	ttl, ok, err := metadata.TryGetTTL(pubSubMetadata.Properties)
 	if err != nil {
 		return &result, fmt.Errorf("%s parse RabbitMQ ttl metadata with error: %s", errorMessagePrefix, err)
 	}

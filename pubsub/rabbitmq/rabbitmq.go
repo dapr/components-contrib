@@ -29,7 +29,6 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 
 	"github.com/dapr/components-contrib/metadata"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -218,7 +217,7 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 		routingKey = val
 	}
 
-	ttl, ok, err := contribMetadata.TryGetTTL(req.Metadata)
+	ttl, ok, err := metadata.TryGetTTL(req.Metadata)
 	if err != nil {
 		r.logger.Warnf("%s publishing to %s failed to parse TryGetTTL: %v, it is ignored.", logMessagePrefix, req.Topic, err)
 	}
@@ -237,7 +236,7 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 		Expiration:   expiration,
 	}
 
-	priority, ok, err := contribMetadata.TryGetPriority(req.Metadata)
+	priority, ok, err := metadata.TryGetPriority(req.Metadata)
 	if err != nil {
 		r.logger.Warnf("%s publishing to %s failed to parse priority: %v, it is ignored.", logMessagePrefix, req.Topic, err)
 	}

@@ -123,7 +123,7 @@ func TestParseMetadata(t *testing.T) {
 				AckPolicy:             "all",
 				internalDeliverPolicy: nats.DeliverByStartSequencePolicy,
 				internalAckPolicy:     nats.AckAllPolicy,
-				ApiPrefix:             "HUB",
+				APIPrefix:             "HUB",
 			},
 			expectErr: false,
 		},

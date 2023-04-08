@@ -22,6 +22,7 @@ import (
 
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/ptr"
 )
 
 func TestParseMetadata(t *testing.T) {
@@ -59,7 +60,7 @@ func TestParseMetadata(t *testing.T) {
 				DurableName:           "myDurable",
 				QueueGroupName:        "myQueue",
 				StartSequence:         1,
-				StartTime:             1629328511,
+				StartTime:             ptr.Of(uint64(1629328511)),
 				internalStartTime:     time.Unix(1629328511, 0),
 				FlowControl:           true,
 				AckWait:               2 * time.Second,
@@ -107,7 +108,7 @@ func TestParseMetadata(t *testing.T) {
 				DurableName:           "myDurable",
 				QueueGroupName:        "myQueue",
 				StartSequence:         5,
-				StartTime:             1629328511,
+				StartTime:             ptr.Of(uint64(1629328511)),
 				internalStartTime:     time.Unix(1629328511, 0),
 				FlowControl:           true,
 				AckWait:               2 * time.Second,

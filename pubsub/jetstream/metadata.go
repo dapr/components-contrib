@@ -38,7 +38,7 @@ type metadata struct {
 	DurableName           string             `mapstructure:"durableName"`
 	QueueGroupName        string             `mapstructure:"queueGroupName"`
 	StartSequence         uint64             `mapstructure:"startSequence"`
-	StartTime             uint64             `mapstructure:"startTime"`
+	StartTime             *uint64            `mapstructure:"startTime"`
 	internalStartTime     time.Time          `mapstructure:"-"`
 	FlowControl           bool               `mapstructure:"flowControl"`
 	AckWait               time.Duration      `mapstructure:"ackWait"`
@@ -86,7 +86,9 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 		m.Name = "dapr.io - pubsub.jetstream"
 	}
 
-	m.internalStartTime = time.Unix(int64(m.StartTime), 0)
+	if m.StartTime != nil {
+		m.internalStartTime = time.Unix(int64(*m.StartTime), 0)
+	}
 
 	switch m.DeliverPolicy {
 	case "all", "":

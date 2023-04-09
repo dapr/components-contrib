@@ -216,7 +216,7 @@ const (
 	MiddlewareType         ComponentType = "middleware"
 	CryptoType             ComponentType = "crypto"
 	NameResolutionType     ComponentType = "nameresolution"
-	WorkflowType           ComponentType = "workflow"
+	WorkflowType           ComponentType = "workflows"
 )
 
 // IsValid returns true if the component type is valid.
@@ -297,12 +297,6 @@ func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *map[string]strin
 			fieldName = currentField.Name
 		}
 		(*metadataMap)[fieldName] = currentField.Type.String()
-	}
-
-	// Ensure that built-in properties are not present
-	builtin := componentType.BuiltInMetadataProperties()
-	for _, k := range builtin {
-		delete(*metadataMap, k)
 	}
 
 	return nil

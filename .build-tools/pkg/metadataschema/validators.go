@@ -70,6 +70,18 @@ func (c *ComponentMetadata) AppendBuiltin() error {
 		if c.Metadata == nil {
 			c.Metadata = []Metadata{}
 		}
+
+		if slices.Contains(c.Capabilities, "actorStateStore") {
+			c.Metadata = append(c.Metadata,
+				Metadata{
+					Name:        "actorStateStore",
+					Type:        "bool",
+					Description: "Use this state store for actors. Defaults to `false`.",
+					Example:     `"false"`,
+				},
+			)
+		}
+
 		c.Metadata = append(c.Metadata,
 			Metadata{
 				Name:        "keyPrefix",
@@ -83,17 +95,6 @@ func (c *ComponentMetadata) AppendBuiltin() error {
 				},
 			},
 		)
-
-		if slices.Contains(c.Capabilities, "actorStateStore") {
-			c.Metadata = append(c.Metadata,
-				Metadata{
-					Name:        "actorStateStore",
-					Type:        "bool",
-					Description: "Use this state store for actors. Defaults to `false`.",
-					Example:     `"false"`,
-				},
-			)
-		}
 	case mdutils.LockStoreType:
 		if c.Metadata == nil {
 			c.Metadata = []Metadata{}
@@ -140,8 +141,7 @@ func (c *ComponentMetadata) AppendBuiltin() error {
 			} else if !hasCapability && ok {
 				return errors.New("found property 'actorStateStore' in component that does not have the 'actorStateStore' capability")
 			}
-		}
-		if !ok {
+		} else if !ok {
 			return fmt.Errorf("expected to find built-in property %s", k)
 		}
 	}

@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+
+	mdutils "github.com/dapr/components-contrib/metadata"
 )
 
 func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, outputfile string) {
@@ -68,17 +70,17 @@ func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, out
 
 		switch componentType {
 		// Only the component types listed here implement the GetComponentMetadata method today
-		case "secretstores":
+		case string(mdutils.SecretStoreType):
 			method, methodFinderErr = getConstructorMethod("secretstores.SecretStore", parsedFile)
 			if methodFinderErr == nil {
 				methodFound = true
 			}
-		case "state":
+		case string(mdutils.StateStoreType):
 			method, methodFinderErr = getConstructorMethod("state.Store", parsedFile)
 			if methodFinderErr == nil {
 				methodFound = true
 			}
-		case "bindings":
+		case string(mdutils.BindingType):
 			method, methodFinderErr = getConstructorMethod("bindings.InputOutputBinding", parsedFile)
 			if methodFinderErr == nil {
 				methodFound = true
@@ -93,27 +95,27 @@ func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, out
 					}
 				}
 			}
-		case "lock":
+		case string(mdutils.LockStoreType):
 			method, methodFinderErr = getConstructorMethod("lock.Store", parsedFile)
 			if methodFinderErr == nil {
 				methodFound = true
 			}
-		case "workflows":
+		case string(mdutils.WorkflowType):
 			method, methodFinderErr = getConstructorMethod("workflows.Workflow", parsedFile)
 			if methodFinderErr == nil {
 				methodFound = true
 			}
-		case "configuration":
+		case string(mdutils.ConfigurationStoreType):
 			method, methodFinderErr = getConstructorMethod("configuration.Store", parsedFile)
 			if methodFinderErr == nil {
 				methodFound = true
 			}
-		case "crypto":
+		case string(mdutils.CryptoType):
 			method, methodFinderErr = getConstructorMethod("contribCrypto.SubtleCrypto", parsedFile)
 			if methodFinderErr == nil {
 				methodFound = true
 			}
-		case "middleware":
+		case string(mdutils.MiddlewareType):
 			method, methodFinderErr = getConstructorMethod("middleware.Middleware", parsedFile)
 			if methodFinderErr == nil {
 				methodFound = true
@@ -144,22 +146,22 @@ func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, out
 	}
 
 	// let's try loading the template
-	bytes, fileErr := os.ReadFile(".build-tools/pkg/metadataanalyzer/analyzer.template")
+	bytes, err := os.ReadFile(".build-tools/pkg/metadataanalyzer/analyzer.template")
 	tmpl := string(bytes)
-	if fileErr != nil {
-		log.Fatal(fileErr)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	f, err := os.Create(outputfile)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	defer f.Close()
 
 	t := template.Must(template.New("tmpl").Parse(tmpl))
 	err = t.Execute(f, templateData)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 }
 

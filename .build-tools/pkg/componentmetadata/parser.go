@@ -118,5 +118,16 @@ func (p *Parser) Parse(read []byte) (*metadataschema.ComponentMetadata, error) {
 		return nil, err
 	}
 
+	// Append built-in authentication profiles
+	for _, profile := range componentMetadata.BuiltInAuthenticationProfiles {
+		appendProfiles, err := metadataschema.ParseBuiltinAuthenticationProfile(profile)
+		if err != nil {
+			return nil, err
+		}
+		componentMetadata.AuthenticationProfiles = append(componentMetadata.AuthenticationProfiles, appendProfiles...)
+	}
+	// Remove the property builtinAuthenticationProfiles now
+	componentMetadata.BuiltInAuthenticationProfiles = nil
+
 	return componentMetadata, nil
 }

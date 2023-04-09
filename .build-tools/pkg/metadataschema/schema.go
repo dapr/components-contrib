@@ -95,6 +95,8 @@ type Metadata struct {
 	// If set, specifies that the property is only applicable to bindings of the type specified below.
 	// At least one of "input" and "output" must be "true".
 	Binding *MetadataBinding `json:"binding,omitempty"`
+	// URL with additional information, such as docs.
+	URL *URL `json:"url,omitempty"`
 }
 
 // MetadataBinding is the type for the "binding" property in the "metadata" object.

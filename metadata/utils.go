@@ -207,17 +207,53 @@ func toStringArrayHookFunc() mapstructure.DecodeHookFunc {
 type ComponentType string
 
 const (
-	BindingType            ComponentType = "binding"
-	StateStoreType         ComponentType = "statestore"
-	SecretStoreType        ComponentType = "secretstore"
+	BindingType            ComponentType = "bindings"
+	StateStoreType         ComponentType = "state"
+	SecretStoreType        ComponentType = "secretstores"
 	PubSubType             ComponentType = "pubsub"
-	LockStoreType          ComponentType = "lockstore"
-	ConfigurationStoreType ComponentType = "configurationstore"
+	LockStoreType          ComponentType = "lock"
+	ConfigurationStoreType ComponentType = "configuration"
 	MiddlewareType         ComponentType = "middleware"
 	CryptoType             ComponentType = "crypto"
 	NameResolutionType     ComponentType = "nameresolution"
 	WorkflowType           ComponentType = "workflow"
 )
+
+// IsValid returns true if the component type is valid.
+func (t ComponentType) IsValid() bool {
+	switch t {
+	case BindingType, StateStoreType,
+		SecretStoreType, PubSubType,
+		LockStoreType, ConfigurationStoreType,
+		MiddlewareType, CryptoType,
+		NameResolutionType, WorkflowType:
+		return true
+	default:
+		return false
+	}
+}
+
+// BuiltInMetadataProperties returns the built-in metadata properties for the given component type.
+// These are normally parsed by the runtime.
+func (t ComponentType) BuiltInMetadataProperties() []string {
+	switch t {
+	case StateStoreType:
+		return []string{
+			"actorStateStore",
+			"keyPrefix",
+		}
+	case LockStoreType:
+		return []string{
+			"keyPrefix",
+		}
+	case PubSubType:
+		return []string{
+			"consumerID",
+		}
+	default:
+		return nil
+	}
+}
 
 // GetMetadataInfoFromStructType converts a struct to a map of field name (or struct tag) to field type.
 // This is used to generate metadata documentation for components.
@@ -262,5 +298,12 @@ func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *map[string]strin
 		}
 		(*metadataMap)[fieldName] = currentField.Type.String()
 	}
+
+	// Ensure that built-in properties are not present
+	builtin := componentType.BuiltInMetadataProperties()
+	for _, k := range builtin {
+		delete(*metadataMap, k)
+	}
+
 	return nil
 }

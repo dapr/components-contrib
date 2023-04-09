@@ -118,6 +118,10 @@
         "binding": {
           "$ref": "#/$defs/MetadataBinding",
           "description": "If set, specifies that the property is only applicable to bindings of the type specified below.\nAt least one of \"input\" and \"output\" must be \"true\"."
+        },
+        "url": {
+          "$ref": "#/$defs/URL",
+          "description": "URL with additional information, such as docs."
         }
       },
       "additionalProperties": false,

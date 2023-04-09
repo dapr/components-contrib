@@ -15,8 +15,6 @@ import (
 
 	// Import the embed package.
 	_ "embed"
-
-	mdutils "github.com/dapr/components-contrib/metadata"
 )
 
 //go:embed analyzer.template
@@ -47,7 +45,7 @@ func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, out
 			return nil
 		}
 
-		componentType := ""
+		componentTypeFolder := ""
 		packageName := ""
 		skip := true
 		dir := filepath.Dir(path)
@@ -64,7 +62,7 @@ func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, out
 
 			for _, val := range componentFolders {
 				if curFolder == val {
-					componentType = curFolder
+					componentTypeFolder = curFolder
 				}
 			}
 		}
@@ -79,19 +77,20 @@ func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, out
 		var methodFinderErr error
 		methodFound := false
 
-		switch componentType {
+		switch componentTypeFolder {
 		// Only the component types listed here implement the GetComponentMetadata method today
-		case string(mdutils.SecretStoreType):
+		// Note: these are folder names not the type of components
+		case "secretstores":
 			method, methodFinderErr = getConstructorMethod("secretstores.SecretStore", parsedFile)
 			if methodFinderErr == nil {
 				methodFound = true
 			}
-		case string(mdutils.StateStoreType):
+		case "state":
 			method, methodFinderErr = getConstructorMethod("state.Store", parsedFile)
 			if methodFinderErr == nil {
 				methodFound = true
 			}
-		case string(mdutils.BindingType):
+		case "bindings":
 			method, methodFinderErr = getConstructorMethod("bindings.InputOutputBinding", parsedFile)
 			if methodFinderErr == nil {
 				methodFound = true
@@ -106,32 +105,32 @@ func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, out
 					}
 				}
 			}
-		case string(mdutils.LockStoreType):
+		case "lock":
 			method, methodFinderErr = getConstructorMethod("lock.Store", parsedFile)
 			if methodFinderErr == nil {
 				methodFound = true
 			}
-		case string(mdutils.WorkflowType):
+		case "workflows":
 			method, methodFinderErr = getConstructorMethod("workflows.Workflow", parsedFile)
 			if methodFinderErr == nil {
 				methodFound = true
 			}
-		case string(mdutils.ConfigurationStoreType):
+		case "configuration":
 			method, methodFinderErr = getConstructorMethod("configuration.Store", parsedFile)
 			if methodFinderErr == nil {
 				methodFound = true
 			}
-		case string(mdutils.CryptoType):
+		case "crypto":
 			method, methodFinderErr = getConstructorMethod("contribCrypto.SubtleCrypto", parsedFile)
 			if methodFinderErr == nil {
 				methodFound = true
 			}
-		case string(mdutils.MiddlewareType):
+		case "middleware":
 			method, methodFinderErr = getConstructorMethod("middleware.Middleware", parsedFile)
 			if methodFinderErr == nil {
 				methodFound = true
 			}
-		case string(mdutils.PubSubType):
+		case "pubsub":
 			method, methodFinderErr = getConstructorMethod("pubsub.PubSub", parsedFile)
 			if methodFinderErr == nil {
 				methodFound = true
@@ -141,7 +140,7 @@ func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, out
 		if methodFound {
 			pkgs[packageName] = PkgInfo{
 				Method:        method,
-				ComponentType: componentType,
+				ComponentType: componentTypeFolder,
 			}
 		}
 

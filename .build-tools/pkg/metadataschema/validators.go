@@ -24,7 +24,7 @@ import (
 )
 
 // IsValid performs additional validation and returns true if the object is valid.
-func (c ComponentMetadata) IsValid() error {
+func (c *ComponentMetadata) IsValid() error {
 	// Check valid  component type
 	compType := mdutils.ComponentType(c.Type)
 	if c.Type == "" || !compType.IsValid() {
@@ -58,6 +58,17 @@ func (c ComponentMetadata) IsValid() error {
 	if err != nil {
 		return err
 	}
+
+	// Append built-in authentication profiles
+	for _, profile := range c.BuiltInAuthenticationProfiles {
+		appendProfiles, err := ParseBuiltinAuthenticationProfile(profile)
+		if err != nil {
+			return err
+		}
+		c.AuthenticationProfiles = append(c.AuthenticationProfiles, appendProfiles...)
+	}
+	// Remove the property builtinAuthenticationProfiles now
+	c.BuiltInAuthenticationProfiles = nil
 
 	return nil
 }

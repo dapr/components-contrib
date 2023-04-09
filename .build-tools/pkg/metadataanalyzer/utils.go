@@ -13,8 +13,14 @@ import (
 	"strings"
 	"text/template"
 
+	// Import the embed package.
+	_ "embed"
+
 	mdutils "github.com/dapr/components-contrib/metadata"
 )
+
+//go:embed analyzer.template
+var tmpl string
 
 type PkgInfo struct {
 	Method        string
@@ -154,12 +160,6 @@ func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, out
 	}
 
 	// let's try loading the template
-	bytes, err := os.ReadFile(".build-tools/pkg/metadataanalyzer/analyzer.template")
-	tmpl := string(bytes)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	f, err := os.Create(outputfile)
 	if err != nil {
 		log.Fatal(err)

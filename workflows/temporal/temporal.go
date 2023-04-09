@@ -90,7 +90,6 @@ func (c *TemporalWF) Start(ctx context.Context, req *workflows.StartRequest) (*w
 
 	opt := client.StartWorkflowOptions{ID: req.InstanceID, TaskQueue: taskQ}
 
-	// NOTE: We assume all inputs are JSON values
 	var inputArgs interface{}
 	if err := decodeInputData(req.WorkflowInput, inputArgs); err != nil {
 		return nil, fmt.Errorf("error decoding workflow input data: %w", err)

@@ -4,6 +4,7 @@ import "time"
 
 type WorkflowState struct {
 	InstanceID    string            `json:"instanceID"`
+	WorkflowName  string            `json:"workflowName"`
 	CreatedAt     time.Time         `json:"startedAt"`
 	LastUpdatedAt time.Time         `json:"lastUpdatedAt"`
 	RuntimeStatus string            `json:"runtimeStatus"`

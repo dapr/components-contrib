@@ -65,19 +65,19 @@ func Test_getSnsSqsMetatdata_AllConfiguration(t *testing.T) {
 
 	r.NoError(err)
 
-	r.Equal("consumer", md.sqsQueueName)
+	r.Equal("consumer", md.SqsQueueName)
 	r.Equal("endpoint", md.Endpoint)
-	r.Equal(pubsub.Single, md.concurrencyMode)
+	r.Equal(pubsub.Single, md.ConcurrencyMode)
 	r.Equal("a", md.AccessKey)
 	r.Equal("s", md.SecretKey)
 	r.Equal("t", md.SessionToken)
 	r.Equal("r", md.Region)
-	r.Equal("q", md.sqsDeadLettersQueueName)
-	r.Equal(int64(2), md.messageVisibilityTimeout)
-	r.Equal(int64(3), md.messageRetryLimit)
-	r.Equal(int64(4), md.messageWaitTimeSeconds)
-	r.Equal(int64(5), md.messageMaxNumber)
-	r.Equal(int64(6), md.messageReceiveLimit)
+	r.Equal("q", md.SqsDeadLettersQueueName)
+	r.Equal(int64(2), md.MessageVisibilityTimeout)
+	r.Equal(int64(3), md.MessageRetryLimit)
+	r.Equal(int64(4), md.MessageWaitTimeSeconds)
+	r.Equal(int64(5), md.MessageMaxNumber)
+	r.Equal(int64(6), md.MessageReceiveLimit)
 }
 
 func Test_getSnsSqsMetatdata_defaults(t *testing.T) {
@@ -98,20 +98,20 @@ func Test_getSnsSqsMetatdata_defaults(t *testing.T) {
 
 	r.NoError(err)
 
-	r.Equal("c", md.sqsQueueName)
+	r.Equal("c", md.SqsQueueName)
 	r.Equal("", md.Endpoint)
 	r.Equal("a", md.AccessKey)
 	r.Equal("s", md.SecretKey)
 	r.Equal("", md.SessionToken)
 	r.Equal("r", md.Region)
-	r.Equal(pubsub.Parallel, md.concurrencyMode)
-	r.Equal(int64(10), md.messageVisibilityTimeout)
-	r.Equal(int64(10), md.messageRetryLimit)
-	r.Equal(int64(2), md.messageWaitTimeSeconds)
-	r.Equal(int64(10), md.messageMaxNumber)
-	r.Equal(false, md.disableEntityManagement)
-	r.Equal(float64(5), md.assetsManagementTimeoutSeconds)
-	r.Equal(false, md.disableDeleteOnRetryLimit)
+	r.Equal(pubsub.Parallel, md.ConcurrencyMode)
+	r.Equal(int64(10), md.MessageVisibilityTimeout)
+	r.Equal(int64(10), md.MessageRetryLimit)
+	r.Equal(int64(2), md.MessageWaitTimeSeconds)
+	r.Equal(int64(10), md.MessageMaxNumber)
+	r.Equal(false, md.DisableEntityManagement)
+	r.Equal(float64(5), md.AssetsManagementTimeoutSeconds)
+	r.Equal(false, md.DisableDeleteOnRetryLimit)
 }
 
 func Test_getSnsSqsMetatdata_legacyaliases(t *testing.T) {
@@ -132,15 +132,15 @@ func Test_getSnsSqsMetatdata_legacyaliases(t *testing.T) {
 
 	r.NoError(err)
 
-	r.Equal("consumer", md.sqsQueueName)
+	r.Equal("consumer", md.SqsQueueName)
 	r.Equal("", md.Endpoint)
 	r.Equal("acctId", md.AccessKey)
 	r.Equal("secret", md.SecretKey)
 	r.Equal("region", md.Region)
-	r.Equal(int64(10), md.messageVisibilityTimeout)
-	r.Equal(int64(10), md.messageRetryLimit)
-	r.Equal(int64(2), md.messageWaitTimeSeconds)
-	r.Equal(int64(10), md.messageMaxNumber)
+	r.Equal(int64(10), md.MessageVisibilityTimeout)
+	r.Equal(int64(10), md.MessageRetryLimit)
+	r.Equal(int64(2), md.MessageWaitTimeSeconds)
+	r.Equal(int64(10), md.MessageMaxNumber)
 }
 
 func testMetadataParsingShouldFail(t *testing.T, metadata pubsub.Metadata, l logger.Logger) {
@@ -161,18 +161,6 @@ func Test_getSnsSqsMetatdata_invalidMetadataSetup(t *testing.T) {
 	t.Parallel()
 
 	fixtures := []testUnitFixture{
-		{
-			metadata: pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
-				"consumerID": "consumer",
-				"Endpoint":   "endpoint",
-				"AccessKey":  "acctId",
-				"SecretKey":  "secret",
-				"awsToken":   "token",
-				"Region":     "region",
-				"fifo":       "none bool",
-			}}},
-			name: "fifo not set to boolean",
-		},
 		{
 			metadata: pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
 				"consumerID":          "consumer",
@@ -221,7 +209,7 @@ func Test_getSnsSqsMetatdata_invalidMetadataSetup(t *testing.T) {
 				"Region":           "region",
 				"messageMaxNumber": "-100",
 			}}},
-			name: "illigal message max number (negative, too low)",
+			name: "illegal message max number (negative, too low)",
 		},
 		{
 			metadata: pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
@@ -233,7 +221,7 @@ func Test_getSnsSqsMetatdata_invalidMetadataSetup(t *testing.T) {
 				"Region":           "region",
 				"messageMaxNumber": "100",
 			}}},
-			name: "illigal message max number (too high)",
+			name: "illegal message max number (too high)",
 		},
 		{
 			metadata: pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
@@ -271,20 +259,6 @@ func Test_getSnsSqsMetatdata_invalidMetadataSetup(t *testing.T) {
 			}}},
 			name: "invalid message retry limit",
 		},
-		// disableEntityManagement
-		{
-			metadata: pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
-				"consumerID":              "consumer",
-				"Endpoint":                "endpoint",
-				"AccessKey":               "acctId",
-				"SecretKey":               "secret",
-				"awsToken":                "token",
-				"Region":                  "region",
-				"messageRetryLimit":       "10",
-				"disableEntityManagement": "y",
-			}}},
-			name: "invalid message disableEntityManagement",
-		},
 		// invalid concurrencyMode
 		{
 			metadata: pubsub.Metadata{Base: metadata.Base{Properties: map[string]string{
@@ -309,24 +283,6 @@ func Test_getSnsSqsMetatdata_invalidMetadataSetup(t *testing.T) {
 			testMetadataParsingShouldFail(t, tc.metadata, l)
 		})
 	}
-}
-
-func Test_parseInt64(t *testing.T) {
-	t.Parallel()
-	r := require.New(t)
-	number, err := parseInt64("applesauce", "propertyName")
-	r.EqualError(err, "parsing propertyName failed with: strconv.Atoi: parsing \"applesauce\": invalid syntax")
-	r.Equal(int64(-1), number)
-
-	number, _ = parseInt64("1000", "")
-	r.Equal(int64(1000), number)
-
-	number, _ = parseInt64("-1000", "")
-	r.Equal(int64(-1000), number)
-
-	// Expecting that this function doesn't panic.
-	_, err = parseInt64("999999999999999999999999999999999999999999999999999999999999999999999999999", "")
-	r.Error(err)
 }
 
 func Test_replaceNameToAWSSanitizedName(t *testing.T) {
@@ -483,7 +439,7 @@ func Test_buildARN_DefaultPartition(t *testing.T) {
 		"region":     "r",
 	}}})
 	r.NoError(err)
-	md.accountID = "123456789012"
+	md.AccountID = "123456789012"
 	ps.metadata = md
 
 	arn := ps.buildARN("sns", "myTopic")
@@ -506,7 +462,7 @@ func Test_buildARN_StandardPartition(t *testing.T) {
 		"region":     "us-west-2",
 	}}})
 	r.NoError(err)
-	md.accountID = "123456789012"
+	md.AccountID = "123456789012"
 	ps.metadata = md
 
 	arn := ps.buildARN("sns", "myTopic")
@@ -529,7 +485,7 @@ func Test_buildARN_NonStandardPartition(t *testing.T) {
 		"region":     "cn-northwest-1",
 	}}})
 	r.NoError(err)
-	md.accountID = "123456789012"
+	md.AccountID = "123456789012"
 	ps.metadata = md
 
 	arn := ps.buildARN("sns", "myTopic")

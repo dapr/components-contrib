@@ -131,6 +131,11 @@ func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, out
 			if methodFinderErr == nil {
 				methodFound = true
 			}
+		case "pubsub":
+			method, methodFinderErr = getConstructorMethod("pubsub.PubSub", parsedFile)
+			if methodFinderErr == nil {
+				methodFound = true
+			}
 		}
 
 		if methodFound {

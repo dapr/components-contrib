@@ -16,9 +16,14 @@ import (
 	mdutils "github.com/dapr/components-contrib/metadata"
 )
 
+type PkgInfo struct {
+	Method        string
+	ComponentType string
+}
+
 func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, outputfile string) {
 	fset := token.NewFileSet()
-	pkgs := make(map[string]string)
+	pkgs := make(map[string]PkgInfo)
 
 	err := filepath.WalkDir(contribRoot, func(path string, file fs.DirEntry, err error) error {
 		if err != nil {
@@ -123,7 +128,10 @@ func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, out
 		}
 
 		if methodFound {
-			pkgs[packageName] = method
+			pkgs[packageName] = PkgInfo{
+				Method:        method,
+				ComponentType: componentType,
+			}
 		}
 
 		return nil
@@ -134,9 +142,9 @@ func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, out
 
 	data := make(map[string][]string)
 
-	for fullpkg, method := range pkgs {
+	for fullpkg, info := range pkgs {
 		sanitizedPkg := strings.ReplaceAll(strings.ReplaceAll(fullpkg, "/", "_"), "-", "_")
-		data[fullpkg] = []string{sanitizedPkg, method}
+		data[fullpkg] = []string{sanitizedPkg, info.Method, info.ComponentType}
 	}
 
 	templateData := struct {

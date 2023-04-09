@@ -348,6 +348,7 @@ func TestParseMetadata(t *testing.T) {
 			// expectedAccountKey:       "myKey",
 			expectedQueueName:         "queue1",
 			expectedQueueEndpointURL:  "",
+			expectedTTL:               ptr.Of(time.Duration(0)),
 			expectedVisibilityTimeout: ptr.Of(30 * time.Second),
 		},
 		{
@@ -377,7 +378,7 @@ func TestParseMetadata(t *testing.T) {
 			assert.Nil(t, err)
 			// assert.Equal(t, tt.expectedAccountKey, meta.AccountKey)
 			assert.Equal(t, tt.expectedQueueName, meta.QueueName)
-			assert.Equal(t, tt.expectedTTL, meta.ttl)
+			assert.Equal(t, tt.expectedTTL, meta.TTL)
 			assert.Equal(t, tt.expectedQueueEndpointURL, meta.QueueEndpoint)
 			assert.Equal(t, tt.expectedVisibilityTimeout, meta.VisibilityTimeout)
 		})

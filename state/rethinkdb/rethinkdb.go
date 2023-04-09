@@ -39,6 +39,8 @@ const (
 
 // RethinkDB is a state store implementation with transactional support for RethinkDB.
 type RethinkDB struct {
+	state.BulkStore
+
 	session  *r.Session
 	config   *stateConfig
 	features []state.Feature
@@ -60,10 +62,12 @@ type stateRecord struct {
 
 // NewRethinkDBStateStore returns a new RethinkDB state store.
 func NewRethinkDBStateStore(logger logger.Logger) state.Store {
-	return &RethinkDB{
+	s := &RethinkDB{
 		features: []state.Feature{},
 		logger:   logger,
 	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // Init parses metadata, initializes the RethinkDB client, and ensures the state table exists.
@@ -197,12 +201,6 @@ func (s *RethinkDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 	return resp, nil
 }
 
-// BulkGet performs a bulks get operations.
-func (s *RethinkDB) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
-	// TODO: replace with bulk get for performance
-	return false, nil, nil
-}
-
 // Set saves a state KV item.
 func (s *RethinkDB) Set(ctx context.Context, req *state.SetRequest) error {
 	if req == nil || req.Key == "" || req.Value == nil {
@@ -310,6 +308,6 @@ func metadataToConfig(cfg map[string]string, logger logger.Logger) (*stateConfig
 func (s *RethinkDB) GetComponentMetadata() map[string]string {
 	metadataStruct := stateConfig{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }

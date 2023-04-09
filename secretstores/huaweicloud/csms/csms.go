@@ -160,6 +160,6 @@ func (c *csmsSecretStore) Features() []secretstores.Feature {
 func (c *csmsSecretStore) GetComponentMetadata() map[string]string {
 	metadataStruct := CsmsSecretStoreMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return metadataInfo
 }

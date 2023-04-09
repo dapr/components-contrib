@@ -275,32 +275,20 @@ func TestMultiWithNoRequestsReturnsNil(t *testing.T) {
 
 func TestValidSetRequest(t *testing.T) {
 	t.Parallel()
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: state.Upsert,
-		Request:   createSetRequest(),
-	})
 
 	ods := createSqlite(t)
 	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
-		Operations: operations,
+		Operations: []state.TransactionalStateOperation{createSetRequest()},
 	})
 	assert.NoError(t, err)
 }
 
 func TestValidMultiDeleteRequest(t *testing.T) {
 	t.Parallel()
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: state.Delete,
-		Request:   createDeleteRequest(),
-	})
 
 	ods := createSqlite(t)
 	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
-		Operations: operations,
+		Operations: []state.TransactionalStateOperation{createDeleteRequest()},
 	})
 	assert.NoError(t, err)
 }
@@ -345,8 +333,8 @@ func (m *fakeDBaccess) Get(ctx context.Context, req *state.GetRequest) (*state.G
 	return nil, nil
 }
 
-func (m *fakeDBaccess) BulkGet(parentCtx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
-	return false, nil, nil
+func (m *fakeDBaccess) BulkGet(parentCtx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error) {
+	return nil, nil
 }
 
 func (m *fakeDBaccess) Delete(ctx context.Context, req *state.DeleteRequest) error {

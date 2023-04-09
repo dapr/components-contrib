@@ -24,7 +24,10 @@ import (
 
 // SQLite Database state store.
 type SQLiteStore struct {
+	state.BulkStore
+
 	logger   logger.Logger
+	features []state.Feature
 	dbaccess DBAccess
 }
 
@@ -32,14 +35,20 @@ type SQLiteStore struct {
 func NewSQLiteStateStore(logger logger.Logger) state.Store {
 	dba := newSqliteDBAccess(logger)
 
-	return newSQLiteStateStore(logger, dba)
+	s := newSQLiteStateStore(logger, dba)
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // newSQLiteStateStore creates a newSQLiteStateStore instance of an Sqlite state store.
 // This unexported constructor allows injecting a dbAccess instance for unit testing.
 func newSQLiteStateStore(logger logger.Logger, dba DBAccess) *SQLiteStore {
 	return &SQLiteStore{
-		logger:   logger,
+		logger: logger,
+		features: []state.Feature{
+			state.FeatureETag,
+			state.FeatureTransactional,
+		},
 		dbaccess: dba,
 	}
 }
@@ -52,16 +61,13 @@ func (s *SQLiteStore) Init(ctx context.Context, metadata state.Metadata) error {
 func (s SQLiteStore) GetComponentMetadata() map[string]string {
 	metadataStruct := sqliteMetadataStruct{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }
 
 // Features returns the features available in this state store.
 func (s *SQLiteStore) Features() []state.Feature {
-	return []state.Feature{
-		state.FeatureETag,
-		state.FeatureTransactional,
-	}
+	return s.features
 }
 
 func (s *SQLiteStore) Ping(ctx context.Context) error {
@@ -73,43 +79,20 @@ func (s *SQLiteStore) Delete(ctx context.Context, req *state.DeleteRequest) erro
 	return s.dbaccess.Delete(ctx, req)
 }
 
-// BulkDelete removes multiple entries from the store.
-func (s *SQLiteStore) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	ops := make([]state.TransactionalStateOperation, len(req))
-	for i, r := range req {
-		ops[i] = state.TransactionalStateOperation{
-			Operation: state.Delete,
-			Request:   r,
-		}
-	}
-	return s.dbaccess.ExecuteMulti(ctx, ops)
-}
-
 // Get returns an entity from store.
 func (s *SQLiteStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	return s.dbaccess.Get(ctx, req)
 }
 
 // BulkGet performs a bulks get operations.
-func (s *SQLiteStore) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+// Options are ignored because this component requests all values in a single query.
+func (s *SQLiteStore) BulkGet(ctx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
 	return s.dbaccess.BulkGet(ctx, req)
 }
 
 // Set adds/updates an entity on store.
 func (s *SQLiteStore) Set(ctx context.Context, req *state.SetRequest) error {
 	return s.dbaccess.Set(ctx, req)
-}
-
-// BulkSet adds/updates multiple entities on store.
-func (s *SQLiteStore) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	ops := make([]state.TransactionalStateOperation, len(req))
-	for i, r := range req {
-		ops[i] = state.TransactionalStateOperation{
-			Operation: state.Upsert,
-			Request:   r,
-		}
-	}
-	return s.dbaccess.ExecuteMulti(ctx, ops)
 }
 
 // Multi handles multiple transactions. Implements TransactionalStore.

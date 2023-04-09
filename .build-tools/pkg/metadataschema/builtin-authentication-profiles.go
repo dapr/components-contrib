@@ -78,7 +78,7 @@ func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile) ([]Authe
 					Metadata{
 						Name:        "azureCertificate",
 						Description: "Certificate and private key (in either a PEM file containing both the certificate and key, or in PFX/PKCS#12 format)",
-						Example:     `"-----BEGIN PRIVATE KEY-----\n MIIEvgI... \n -----END PRIVATE KEY----- \n -----BEGIN CERTIFICATE----- \n MIICoTC... \n -----END CERTIFICATE-----"`,
+						Example:     `"-----BEGIN PRIVATE KEY-----\n MIIEvgI... \n -----END PRIVATE KEY----- \n -----BEGIN CERTIFICATE----- \n MIICoTC... \n -----END CERTIFICATE----- \n"`,
 						Required:    false,
 						Sensitive:   true,
 					},

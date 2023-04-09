@@ -151,6 +151,8 @@ func TestEnvStoreWithPrefix(t *testing.T) {
 					"prefix": "DAPR_",
 				}},
 			})
+			require.NoError(t, err)
+
 			resp, err := s.GetSecret(context.Background(), secretstores.GetSecretRequest{
 				Name: "API_TOKEN",
 			})

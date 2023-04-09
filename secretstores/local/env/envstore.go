@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -26,8 +26,13 @@ import (
 
 var _ secretstores.SecretStore = (*envSecretStore)(nil)
 
+type Metadata struct {
+	Prefix string
+}
+
 type envSecretStore struct {
-	logger logger.Logger
+	logger   logger.Logger
+	metadata Metadata
 }
 
 // NewEnvSecretStore returns a new env var secret store.
@@ -38,15 +43,19 @@ func NewEnvSecretStore(logger logger.Logger) secretstores.SecretStore {
 }
 
 // Init creates a Local secret store.
-func (s *envSecretStore) Init(_ context.Context, metadata secretstores.Metadata) error {
+func (s *envSecretStore) Init(_ context.Context, meta secretstores.Metadata) error {
+	if err := metadata.DecodeMetadata(meta.Properties, &s.metadata); err != nil {
+		return err
+	}
 	return nil
 }
 
 // GetSecret retrieves a secret from env var using provided key.
 func (s *envSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecretRequest) (secretstores.GetSecretResponse, error) {
 	var value string
-	if s.isKeyAllowed(req.Name) {
-		value = os.Getenv(req.Name)
+	name := s.metadata.Prefix + req.Name
+	if s.isKeyAllowed(name) {
+		value = os.Getenv(name)
 	} else {
 		s.logger.Warnf("Access to env var %s is forbidden", req.Name)
 	}
@@ -62,10 +71,15 @@ func (s *envSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bul
 	env := os.Environ()
 	r := make(map[string]map[string]string, len(env))
 
+	lp := len(s.metadata.Prefix)
 	for _, element := range env {
 		envVariable := strings.SplitN(element, "=", 2)
-		if s.isKeyAllowed(envVariable[0]) {
-			r[envVariable[0]] = map[string]string{envVariable[0]: envVariable[1]}
+		key := envVariable[0]
+		if s.metadata.Prefix != "" && !strings.HasPrefix(key, s.metadata.Prefix) {
+			continue
+		}
+		if s.isKeyAllowed(key) {
+			r[key[lp:]] = map[string]string{key[lp:]: envVariable[1]}
 		}
 	}
 
@@ -80,17 +94,18 @@ func (s *envSecretStore) Features() []secretstores.Feature {
 }
 
 func (s *envSecretStore) GetComponentMetadata() map[string]string {
-	type unusedMetadataStruct struct{}
-	metadataStruct := unusedMetadataStruct{}
+	metadataStruct := Metadata{}
 	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return metadataInfo
 }
 
 func (s *envSecretStore) isKeyAllowed(key string) bool {
-	switch key {
-	case "APP_API_TOKEN", "DAPR_API_TOKEN",
-		"DAPR_TRUST_ANCHORS", "DAPR_CERT_CHAIN", "DAPR_CERT_KEY":
+	key = strings.ToUpper(key)
+	switch {
+	case key == "APP_API_TOKEN":
+		return false
+	case strings.HasPrefix(key, "DAPR_"):
 		return false
 	default:
 		return true

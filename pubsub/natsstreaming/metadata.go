@@ -19,20 +19,20 @@ import (
 	"github.com/dapr/components-contrib/pubsub"
 )
 
-type metadata struct {
-	natsURL                 string
-	natsStreamingClusterID  string
-	subscriptionType        string
-	natsQueueGroupName      string
-	durableSubscriptionName string
-	startAtSequence         uint64
-	startWithLastReceived   string
-	deliverNew              string
-	deliverAll              string
-	startAtTimeDelta        time.Duration
-	startAtTime             string
-	startAtTimeFormat       string
-	ackWaitTime             time.Duration
-	maxInFlight             uint64
-	concurrencyMode         pubsub.ConcurrencyMode
+type natsMetadata struct {
+	NatsURL                 string
+	NatsStreamingClusterID  string
+	SubscriptionType        string
+	NatsQueueGroupName      string `mapstructure:"consumerId"`
+	DurableSubscriptionName string
+	StartAtSequence         *uint64
+	StartWithLastReceived   string
+	DeliverNew              string
+	DeliverAll              string
+	StartAtTimeDelta        time.Duration
+	StartAtTime             string
+	StartAtTimeFormat       string
+	AckWaitTime             time.Duration
+	MaxInFlight             *uint64
+	ConcurrencyMode         pubsub.ConcurrencyMode
 }

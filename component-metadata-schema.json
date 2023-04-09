@@ -72,6 +72,27 @@
       ],
       "description": "BindingOperation represents an operation offered by an output binding."
     },
+    "BuiltinAuthenticationProfile": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the built-in authentication profile.\nCurrently supports:\n\n- `azuread` (Azure AD, including Managed Identity)."
+        },
+        "metadata": {
+          "items": {
+            "$ref": "#/$defs/Metadata"
+          },
+          "type": "array",
+          "description": "Additional metadata options applicable when using this authentication profile."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "description": "BuiltinAuthenticationProfile is a reference to a built-in authentication profile."
+    },
     "Metadata": {
       "properties": {
         "name": {
@@ -240,6 +261,13 @@
       },
       "type": "array",
       "description": "Authentication profiles for the component."
+    },
+    "builtinAuthenticationProfiles": {
+      "items": {
+        "$ref": "#/$defs/BuiltinAuthenticationProfile"
+      },
+      "type": "array",
+      "description": "Built-in authentication profiles to import."
     },
     "metadata": {
       "items": {

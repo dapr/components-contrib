@@ -41,6 +41,8 @@ type ComponentMetadata struct {
 	Capabilities []string `json:"capabilities,omitempty"`
 	// Authentication profiles for the component.
 	AuthenticationProfiles []AuthenticationProfile `json:"authenticationProfiles,omitempty"`
+	// Built-in authentication profiles to import.
+	BuiltInAuthenticationProfiles []BuiltinAuthenticationProfile `json:"builtinAuthenticationProfiles,omitempty"`
 	// Metadata options for the component.
 	Metadata []Metadata `json:"metadata,omitempty"`
 }
@@ -114,5 +116,16 @@ type AuthenticationProfile struct {
 	// Additional description for the authentication profile, optional.
 	Description string `json:"description"`
 	// Metadata options applicable when using this authentication profile.
+	Metadata []Metadata `json:"metadata,omitempty"`
+}
+
+// BuiltinAuthenticationProfile is a reference to a built-in authentication profile.
+type BuiltinAuthenticationProfile struct {
+	// Name of the built-in authentication profile.
+	// Currently supports:
+	//
+	// - `azuread` (Azure AD, including Managed Identity).
+	Name string `json:"name"`
+	// Additional metadata options applicable when using this authentication profile.
 	Metadata []Metadata `json:"metadata,omitempty"`
 }

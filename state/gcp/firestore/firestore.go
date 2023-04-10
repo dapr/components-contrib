@@ -217,7 +217,8 @@ func getGCPClient(ctx context.Context, metadata *firestoreMetadata, l logger.Log
 	var err error
 
 	if metadata.PrivateKeyID != "" {
-		b, err := json.Marshal(metadata)
+		var b []byte
+		b, err = json.Marshal(metadata)
 		if err != nil {
 			return nil, err
 		}
@@ -227,7 +228,6 @@ func getGCPClient(ctx context.Context, metadata *firestoreMetadata, l logger.Log
 		if err != nil {
 			return nil, err
 		}
-
 	} else {
 		l.Debugf("Using implicit credentials for GCP")
 

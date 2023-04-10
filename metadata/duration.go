@@ -77,6 +77,8 @@ func toTimeDurationHookFunc() mapstructure.DecodeHookFunc {
 		}
 
 		switch f.Kind() {
+		case reflect.TypeOf(time.Duration(0)).Kind():
+			return data.(time.Duration), nil
 		case reflect.String:
 			var val time.Duration
 			if data.(string) != "" {

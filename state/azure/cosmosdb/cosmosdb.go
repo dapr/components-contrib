@@ -42,7 +42,6 @@ import (
 
 // StateStore is a CosmosDB state store.
 type StateStore struct {
-	state.DefaultBulkStore
 	client      *azcosmos.ContainerClient
 	metadata    metadata
 	contentType string
@@ -72,7 +71,7 @@ type CosmosItem struct {
 	IsBinary     bool        `json:"isBinary"`
 	PartitionKey string      `json:"partitionKey"`
 	TTL          *int        `json:"ttl,omitempty"`
-	Etag         string
+	Etag         string      `json:"_etag"`
 }
 
 const (
@@ -81,28 +80,25 @@ const (
 	statusNotFound       = "NotFound"
 )
 
-// policy that tracks the number of times it was invoked
+// Policy that makes all queries cross-partition
 type crossPartitionQueryPolicy struct{}
 
-func (p *crossPartitionQueryPolicy) Do(req *policy.Request) (*http.Response, error) {
+func (p crossPartitionQueryPolicy) Do(req *policy.Request) (*http.Response, error) {
 	raw := req.Raw()
-	hdr := raw.Header
-	if strings.ToLower(hdr.Get("x-ms-documentdb-query")) == "true" {
-		// modify req here since we know it is a query
-		hdr.Add("x-ms-documentdb-query-enablecrosspartition", "true")
-		hdr.Del("x-ms-documentdb-partitionkey")
-		raw.Header = hdr
+	// Check if we're performing a query
+	// In that case, remove the partitionkey header and enable cross-partition queries
+	if strings.ToLower(raw.Header.Get("x-ms-documentdb-query")) == "true" {
+		raw.Header.Add("x-ms-documentdb-query-enablecrosspartition", "true")
+		raw.Header.Del("x-ms-documentdb-partitionkey")
 	}
 	return req.Next()
 }
 
 // NewCosmosDBStateStore returns a new CosmosDB state store.
 func NewCosmosDBStateStore(logger logger.Logger) state.Store {
-	s := &StateStore{
+	return &StateStore{
 		logger: logger,
 	}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-	return s
 }
 
 func (c *StateStore) GetComponentMetadata() map[string]string {
@@ -138,10 +134,11 @@ func (c *StateStore) Init(ctx context.Context, meta state.Metadata) error {
 	}
 
 	// Internal query policy was created due to lack of cross partition query capability in the current Go sdk
-	queryPolicy := &crossPartitionQueryPolicy{}
 	opts := azcosmos.ClientOptions{
 		ClientOptions: policy.ClientOptions{
-			PerCallPolicies: []policy.Policy{queryPolicy},
+			PerCallPolicies: []policy.Policy{
+				crossPartitionQueryPolicy{},
+			},
 			Telemetry: policy.TelemetryOptions{
 				ApplicationID: "dapr-" + logger.DaprVersion,
 			},
@@ -228,43 +225,150 @@ func (c *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 		return nil, err
 	}
 
-	item := CosmosItem{}
-	err = jsoniter.ConfigFastest.Unmarshal(readItem.Value, &item)
+	item, err := NewCosmosItemFromResponse(readItem.Value, c.logger)
 	if err != nil {
 		return nil, err
 	}
 
-	item.Etag = string(readItem.Response.ETag)
-
-	if item.IsBinary {
-		if item.Value == nil {
-			return &state.GetResponse{
-				Data: make([]byte, 0),
-				ETag: ptr.Of(item.Etag),
-			}, nil
-		}
-
-		bytes, decodeErr := base64.StdEncoding.DecodeString(item.Value.(string))
-		if decodeErr != nil {
-			c.logger.Warnf("CosmosDB state store Get request could not decode binary string: %v. Returning raw string instead.", decodeErr)
-			bytes = []byte(item.Value.(string))
-		}
-
-		return &state.GetResponse{
-			Data: bytes,
-			ETag: ptr.Of(item.Etag),
-		}, nil
-	}
-
-	b, err := jsoniter.ConfigFastest.Marshal(&item.Value)
-	if err != nil {
-		return nil, err
-	}
-
+	// We are sure this is a []byte if not nil
+	b, _ := item.Value.([]byte)
 	return &state.GetResponse{
 		Data: b,
 		ETag: ptr.Of(item.Etag),
 	}, nil
+}
+
+// getMulti retrieves multiple items with a cross-partition query, retrieving multiple records with a single query.
+func (c *StateStore) getMulti(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error) {
+	// The partition key doesn't matter since it will be removed for a cross-partition query
+	pk := azcosmos.NewPartitionKeyBool(true)
+
+	// Build the query
+	var consistency azcosmos.ConsistencyLevel
+	keys := make([]string, len(req))
+	for i, r := range req {
+		keys[i] = r.Key
+
+		// Use the specified consistency if empty
+		// If there's a strong consistency, it overrides any eventual
+		if r.Options.Consistency == state.Strong {
+			consistency = azcosmos.ConsistencyLevelStrong
+		} else if r.Options.Consistency == state.Eventual && consistency == "" {
+			consistency = azcosmos.ConsistencyLevelEventual
+		}
+	}
+
+	// Execute the query
+	// Source for "ARRAY_CONTAINS": https://stackoverflow.com/a/44639998/192024
+	queryOpts := &azcosmos.QueryOptions{
+		QueryParameters: []azcosmos.QueryParameter{
+			{Name: "@keys", Value: keys},
+		},
+	}
+	if consistency != "" {
+		queryOpts.ConsistencyLevel = &consistency
+	}
+	pager := c.client.NewQueryItemsPager(
+		"SELECT * FROM r WHERE ARRAY_CONTAINS(@keys, r.id)",
+		pk, queryOpts,
+	)
+	result := make([]state.BulkGetResponse, len(req))
+	n := 0
+	for pager.More() {
+		queryResponse, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, value := range queryResponse.Items {
+			item, err := NewCosmosItemFromResponse(value, c.logger)
+			if err != nil {
+				// If the error was while unserializing JSON, we don't have an ID, so exit right away
+				// This should never happen, hopefully
+				if item.ID == "" {
+					return nil, err
+				}
+				result[n] = state.BulkGetResponse{
+					Key:   item.ID,
+					Error: err.Error(),
+				}
+				n++
+				continue
+			}
+
+			// We are sure this is a []byte if not nil
+			b, _ := item.Value.([]byte)
+
+			result[n] = state.BulkGetResponse{
+				Key:  item.ID,
+				Data: b,
+				ETag: &item.Etag,
+			}
+			n++
+		}
+	}
+
+	return result[:n], nil
+}
+
+// BulkGet performs a Get operation in bulk.
+func (c *StateStore) BulkGet(ctx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
+	if len(req) == 0 {
+		return []state.BulkGetResponse{}, nil
+	}
+
+	// If we have a single request, execute it as a regular Get request which is more efficient
+	if len(req) == 1 {
+		item, err := c.Get(ctx, &req[0])
+		res := state.BulkGetResponse{
+			Key: req[0].Key,
+		}
+		if err != nil {
+			res.Error = err.Error()
+		} else if item != nil {
+			res.Data = json.RawMessage(item.Data)
+			res.ETag = item.ETag
+			res.Metadata = item.Metadata
+		}
+		return []state.BulkGetResponse{res}, nil
+	}
+
+	// Execute a single query to retrieve all values, as a cross-partition query
+	items, err := c.getMulti(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	// Save all results
+	// For consistency with when using Get, we need to include keys that are missing and set an empty value
+	if len(items) > len(req) {
+		return nil, errors.New("received more results than expected")
+	}
+	result := make([]state.BulkGetResponse, len(req))
+	foundKeys := make(map[string]struct{}, len(items))
+	n := 0
+	for _, res := range items {
+		result[n] = res
+		foundKeys[res.Key] = struct{}{}
+		n++
+	}
+	for _, r := range req {
+		if _, ok := foundKeys[r.Key]; !ok {
+			// Prevents a panic if out of bounds
+			if n >= len(result) {
+				return nil, errors.New("received more results than expected")
+			}
+			result[n] = state.BulkGetResponse{
+				Key: r.Key,
+			}
+			n++
+		}
+	}
+	// Prevents a panic if out of bounds
+	if n > len(result) {
+		n = len(result)
+	}
+	return result[:n], nil
 }
 
 // Set saves a CosmosDB item.
@@ -280,8 +384,7 @@ func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	if req.ETag != nil && *req.ETag != "" {
 		etag := azcore.ETag(*req.ETag)
 		options.IfMatchEtag = &etag
-	}
-	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
+	} else if req.Options.Concurrency == state.FirstWrite {
 		var u uuid.UUID
 		u, err = uuid.NewRandom()
 		if err != nil {
@@ -316,6 +419,11 @@ func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	return nil
 }
 
+// BulkSet performs a bulk save operation.
+func (c *StateStore) BulkSet(ctx context.Context, req []state.SetRequest) error {
+	return c.doBulkSetDelete(ctx, state.ToTransactionalStateOperationSlice(req))
+}
+
 // Delete performs a delete operation.
 func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	err := state.CheckRequestOptions(req.Options)
@@ -328,7 +436,15 @@ func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	if req.ETag != nil && *req.ETag != "" {
 		etag := azcore.ETag(*req.ETag)
 		options.IfMatchEtag = &etag
+	} else if req.Options.Concurrency == state.FirstWrite {
+		var u uuid.UUID
+		u, err = uuid.NewRandom()
+		if err != nil {
+			return err
+		}
+		options.IfMatchEtag = ptr.Of(azcore.ETag(u.String()))
 	}
+
 	if req.Options.Consistency == state.Strong {
 		options.ConsistencyLevel = azcosmos.ConsistencyLevelSession.ToPtr()
 	} else if req.Options.Consistency == state.Eventual {
@@ -340,7 +456,6 @@ func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	pk := azcosmos.NewPartitionKeyString(partitionKey)
 	_, err = c.client.DeleteItem(deleteCtx, pk, req.Key, &options)
 	if err != nil && !isNotFoundError(err) {
-		c.logger.Debugf("Error from cosmos.DeleteDocument e=%e, e.Error=%s", err, err.Error())
 		if req.ETag != nil && *req.ETag != "" {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
@@ -350,16 +465,61 @@ func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	return nil
 }
 
-// Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
+// BulkDelete performs a bulk delete operation.
+func (c *StateStore) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
+	return c.doBulkSetDelete(ctx, state.ToTransactionalStateOperationSlice(req))
+}
+
+// Custom implementation for BulkSet and BulkDelete. We can't use the standard in DefaultBulkStore because we need to be aware of partition keys.
+func (c *StateStore) doBulkSetDelete(ctx context.Context, req []state.TransactionalStateOperation) error {
+	// Group all requests by partition key
+	// This has initial size of len(req) as pessimistic scenario
+	partitions := make(map[string]*state.TransactionalStateRequest, len(req))
+	for i := range req {
+		r := req[i]
+		pk := populatePartitionMetadata(r.GetKey(), r.GetMetadata())
+		if partitions[pk] == nil {
+			partitions[pk] = &state.TransactionalStateRequest{
+				Operations: make([]state.TransactionalStateOperation, 0),
+				Metadata: map[string]string{
+					metadataPartitionKey: pk,
+				},
+			}
+		}
+
+		partitions[pk].Operations = append(partitions[pk].Operations, r)
+	}
+
+	// Execute all transactions in parallel
+	errs := make(chan error)
+	for pk := range partitions {
+		go func(pk string) {
+			err := c.Multi(ctx, partitions[pk])
+			if err != nil {
+				err = fmt.Errorf("error while processing bulk set in partition %s: %w", pk, err)
+			}
+			errs <- err
+		}(pk)
+	}
+
+	// Wait for all results
+	var err error
+	for i := 0; i < len(partitions); i++ {
+		err = errors.Join(<-errs)
+	}
+
+	return err
+}
+
+// Multi performs a transactional operation. Succeeds only if all operations succeed, and fails if one or more operations fail.
+// Note that all operations must be in the same partition.
 func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStateRequest) (err error) {
 	if len(request.Operations) == 0 {
-		c.logger.Debugf("No Operations Provided")
+		c.logger.Debugf("No operations provided")
 		return nil
 	}
 
-	var partitionKey string
-	partitionKey = populatePartitionMetadata(partitionKey, request.Metadata)
-
+	partitionKey := request.Metadata[metadataPartitionKey]
 	batch := c.client.NewTransactionalBatch(azcosmos.NewPartitionKeyString(partitionKey))
 
 	numOperations := 0
@@ -367,19 +527,19 @@ func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 	for _, o := range request.Operations {
 		options := &azcosmos.TransactionalBatchItemOptions{}
 
-		if o.Operation == state.Upsert {
-			req := o.Request.(state.SetRequest)
+		switch req := o.(type) {
+		case state.SetRequest:
 			var doc CosmosItem
 			doc, err = createUpsertItem(c.contentType, req, partitionKey)
 			if err != nil {
 				return err
 			}
+			doc.PartitionKey = partitionKey
 
 			if req.ETag != nil && *req.ETag != "" {
 				etag := azcore.ETag(*req.ETag)
 				options.IfMatchETag = &etag
-			}
-			if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
+			} else if req.Options.Concurrency == state.FirstWrite {
 				var u uuid.UUID
 				u, err = uuid.NewRandom()
 				if err != nil {
@@ -393,16 +553,13 @@ func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 			if err != nil {
 				return err
 			}
-			batch.UpsertItem(marsh, nil)
+			batch.UpsertItem(marsh, options)
 			numOperations++
-		} else if o.Operation == state.Delete {
-			req := o.Request.(state.DeleteRequest)
-
+		case state.DeleteRequest:
 			if req.ETag != nil && *req.ETag != "" {
 				etag := azcore.ETag(*req.ETag)
 				options.IfMatchETag = &etag
-			}
-			if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
+			} else if req.Options.Concurrency == state.FirstWrite {
 				var u uuid.UUID
 				u, err = uuid.NewRandom()
 				if err != nil {
@@ -438,8 +595,10 @@ func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 
 	// Transaction succeeded
 	// We can inspect the individual operation results
-	for index, operation := range batchResponse.OperationResults {
-		c.logger.Debugf("Operation %v completed with status code %d", index, operation.StatusCode)
+	if c.logger.IsOutputLevelEnabled(logger.DebugLevel) {
+		for index, operation := range batchResponse.OperationResults {
+			c.logger.Debugf("Operation %v completed with status code %d", index, operation.StatusCode)
+		}
 	}
 
 	return nil
@@ -545,4 +704,37 @@ func isNotFoundError(err error) bool {
 	}
 
 	return false
+}
+
+func NewCosmosItemFromResponse(value []byte, logger logger.Logger) (item CosmosItem, err error) {
+	err = jsoniter.ConfigFastest.Unmarshal(value, &item)
+	if err != nil {
+		return item, err
+	}
+
+	if item.IsBinary {
+		if item.Value == nil {
+			return item, nil
+		}
+
+		strValue, ok := item.Value.(string)
+		if !ok || strValue == "" {
+			return item, nil
+		}
+
+		item.Value, err = base64.StdEncoding.DecodeString(strValue)
+		if err != nil {
+			logger.Warnf("CosmosDB state store Get request could not decode binary string: %v. Returning raw string instead.", err)
+			item.Value = []byte(strValue)
+		}
+
+		return item, nil
+	}
+
+	item.Value, err = jsoniter.ConfigFastest.Marshal(&item.Value)
+	if err != nil {
+		return item, err
+	}
+
+	return item, nil
 }

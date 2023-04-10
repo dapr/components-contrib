@@ -12,6 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package dynamodb
 
 import (
@@ -29,7 +30,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/kit/logger"
 )
 
 type mockedDynamoDB struct {
@@ -69,7 +69,9 @@ func (m *mockedDynamoDB) BatchWriteItemWithContext(ctx context.Context, input *d
 
 func TestInit(t *testing.T) {
 	m := state.Metadata{}
-	s := NewDynamoDBStateStore(logger.NewLogger("test")).(*StateStore)
+	s := &StateStore{
+		partitionKey: defaultPartitionKeyName,
+	}
 
 	t.Run("NewDynamoDBStateStore Default Partition Key", func(t *testing.T) {
 		assert.NotNil(t, s)
@@ -86,7 +88,7 @@ func TestInit(t *testing.T) {
 			"TtlAttributeName": "a",
 		}
 		err := s.Init(context.Background(), m)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("Init with missing table", func(t *testing.T) {
@@ -94,7 +96,7 @@ func TestInit(t *testing.T) {
 			"Dummy": "a",
 		}
 		err := s.Init(context.Background(), m)
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 		assert.Equal(t, err, fmt.Errorf("missing dynamodb table name"))
 	})
 
@@ -104,7 +106,7 @@ func TestInit(t *testing.T) {
 			"Region": "eu-west-1",
 		}
 		err := s.Init(context.Background(), m)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("Init with partition key", func(t *testing.T) {
@@ -114,14 +116,16 @@ func TestInit(t *testing.T) {
 			"partitionKey": pkey,
 		}
 		err := s.Init(context.Background(), m)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, s.partitionKey, pkey)
 	})
 }
 
 func TestGet(t *testing.T) {
 	t.Run("Successfully retrieve item", func(t *testing.T) {
-		ss := NewDynamoDBStateStore(logger.NewLogger("test")).(*StateStore)
+		ss := &StateStore{
+			partitionKey: defaultPartitionKeyName,
+		}
 		ss.client = &mockedDynamoDB{
 			GetItemWithContextFn: func(ctx context.Context, input *dynamodb.GetItemInput, op ...request.Option) (output *dynamodb.GetItemOutput, err error) {
 				return &dynamodb.GetItemOutput{
@@ -148,7 +152,7 @@ func TestGet(t *testing.T) {
 			},
 		}
 		out, err := ss.Get(context.Background(), req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, []byte("some value"), out.Data)
 		assert.Equal(t, "1bdead4badc0ffee", *out.ETag)
 	})
@@ -184,7 +188,7 @@ func TestGet(t *testing.T) {
 			},
 		}
 		out, err := ss.Get(context.Background(), req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, []byte("some value"), out.Data)
 		assert.Equal(t, "1bdead4badc0ffee", *out.ETag)
 	})
@@ -220,7 +224,7 @@ func TestGet(t *testing.T) {
 			},
 		}
 		out, err := ss.Get(context.Background(), req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Nil(t, out.Data)
 		assert.Nil(t, out.ETag)
 	})
@@ -240,7 +244,7 @@ func TestGet(t *testing.T) {
 			},
 		}
 		out, err := ss.Get(context.Background(), req)
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 		assert.Nil(t, out)
 	})
 	t.Run("Unsuccessfully with empty response", func(t *testing.T) {
@@ -261,7 +265,7 @@ func TestGet(t *testing.T) {
 			},
 		}
 		out, err := ss.Get(context.Background(), req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Nil(t, out.Data)
 		assert.Nil(t, out.ETag)
 	})
@@ -287,7 +291,7 @@ func TestGet(t *testing.T) {
 			},
 		}
 		out, err := ss.Get(context.Background(), req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Empty(t, out.Data)
 	})
 }
@@ -298,7 +302,9 @@ func TestSet(t *testing.T) {
 	}
 
 	t.Run("Successfully set item", func(t *testing.T) {
-		ss := NewDynamoDBStateStore(logger.NewLogger("test")).(*StateStore)
+		ss := &StateStore{
+			partitionKey: defaultPartitionKeyName,
+		}
 		ss.client = &mockedDynamoDB{
 			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
 				assert.Equal(t, dynamodb.AttributeValue{
@@ -325,11 +331,13 @@ func TestSet(t *testing.T) {
 			},
 		}
 		err := ss.Set(context.Background(), req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("Successfully set item with matching etag", func(t *testing.T) {
-		ss := NewDynamoDBStateStore(logger.NewLogger("test")).(*StateStore)
+		ss := &StateStore{
+			partitionKey: defaultPartitionKeyName,
+		}
 		ss.client = &mockedDynamoDB{
 			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
 				assert.Equal(t, dynamodb.AttributeValue{
@@ -362,11 +370,13 @@ func TestSet(t *testing.T) {
 			},
 		}
 		err := ss.Set(context.Background(), req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("Unsuccessfully set item with mismatched etag", func(t *testing.T) {
-		ss := NewDynamoDBStateStore(logger.NewLogger("test")).(*StateStore)
+		ss := &StateStore{
+			partitionKey: defaultPartitionKeyName,
+		}
 		ss.client = &mockedDynamoDB{
 			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
 				assert.Equal(t, dynamodb.AttributeValue{
@@ -395,7 +405,7 @@ func TestSet(t *testing.T) {
 		}
 
 		err := ss.Set(context.Background(), req)
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 		switch tagErr := err.(type) {
 		case *state.ETagError:
 			assert.Equal(t, tagErr.Kind(), state.ETagMismatch)
@@ -405,7 +415,9 @@ func TestSet(t *testing.T) {
 	})
 
 	t.Run("Successfully set item with first-write-concurrency", func(t *testing.T) {
-		ss := NewDynamoDBStateStore(logger.NewLogger("test")).(*StateStore)
+		ss := &StateStore{
+			partitionKey: defaultPartitionKeyName,
+		}
 		ss.client = &mockedDynamoDB{
 			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
 				assert.Equal(t, dynamodb.AttributeValue{
@@ -436,11 +448,13 @@ func TestSet(t *testing.T) {
 			},
 		}
 		err := ss.Set(context.Background(), req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("Unsuccessfully set item with first-write-concurrency", func(t *testing.T) {
-		ss := NewDynamoDBStateStore(logger.NewLogger("test")).(*StateStore)
+		ss := &StateStore{
+			partitionKey: defaultPartitionKeyName,
+		}
 		ss.client = &mockedDynamoDB{
 			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
 				assert.Equal(t, dynamodb.AttributeValue{
@@ -466,7 +480,7 @@ func TestSet(t *testing.T) {
 			},
 		}
 		err := ss.Set(context.Background(), req)
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 		switch err.(type) {
 		case *state.ETagError:
 			assert.True(t, false)
@@ -475,7 +489,9 @@ func TestSet(t *testing.T) {
 	})
 
 	t.Run("Successfully set item with ttl = -1", func(t *testing.T) {
-		ss := NewDynamoDBStateStore(logger.NewLogger("test")).(*StateStore)
+		ss := &StateStore{
+			partitionKey: defaultPartitionKeyName,
+		}
 		ss.client = &mockedDynamoDB{
 			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
 				assert.Equal(t, len(input.Item), 4)
@@ -507,10 +523,12 @@ func TestSet(t *testing.T) {
 			},
 		}
 		err := ss.Set(context.Background(), req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 	t.Run("Successfully set item with 'correct' ttl", func(t *testing.T) {
-		ss := NewDynamoDBStateStore(logger.NewLogger("test")).(*StateStore)
+		ss := &StateStore{
+			partitionKey: defaultPartitionKeyName,
+		}
 		ss.client = &mockedDynamoDB{
 			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
 				assert.Equal(t, len(input.Item), 4)
@@ -542,11 +560,13 @@ func TestSet(t *testing.T) {
 			},
 		}
 		err := ss.Set(context.Background(), req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("Unsuccessfully set item", func(t *testing.T) {
-		ss := NewDynamoDBStateStore(logger.NewLogger("test")).(*StateStore)
+		ss := &StateStore{
+			partitionKey: defaultPartitionKeyName,
+		}
 		ss.client = &mockedDynamoDB{
 			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
 				return nil, fmt.Errorf("unable to put item")
@@ -559,10 +579,12 @@ func TestSet(t *testing.T) {
 			},
 		}
 		err := ss.Set(context.Background(), req)
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 	})
 	t.Run("Successfully set item with correct ttl but without component metadata", func(t *testing.T) {
-		ss := NewDynamoDBStateStore(logger.NewLogger("test")).(*StateStore)
+		ss := &StateStore{
+			partitionKey: defaultPartitionKeyName,
+		}
 		ss.client = &mockedDynamoDB{
 			PutItemWithContextFn: func(ctx context.Context, input *dynamodb.PutItemInput, op ...request.Option) (output *dynamodb.PutItemOutput, err error) {
 				assert.Equal(t, dynamodb.AttributeValue{
@@ -592,7 +614,7 @@ func TestSet(t *testing.T) {
 			},
 		}
 		err := ss.Set(context.Background(), req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 	t.Run("Unsuccessfully set item with ttl (invalid value)", func(t *testing.T) {
 		ss := StateStore{
@@ -631,7 +653,7 @@ func TestSet(t *testing.T) {
 			},
 		}
 		err := ss.Set(context.Background(), req)
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 		assert.Equal(t, "dynamodb error: failed to parse ttlInSeconds: strconv.ParseInt: parsing \"invalidvalue\": invalid syntax", err.Error())
 	})
 }
@@ -642,7 +664,9 @@ func TestBulkSet(t *testing.T) {
 	}
 
 	t.Run("Successfully set items", func(t *testing.T) {
-		ss := NewDynamoDBStateStore(logger.NewLogger("test")).(*StateStore)
+		ss := &StateStore{
+			partitionKey: defaultPartitionKeyName,
+		}
 		ss.client = &mockedDynamoDB{
 			BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {
 				expected := map[string][]*dynamodb.WriteRequest{}
@@ -705,10 +729,12 @@ func TestBulkSet(t *testing.T) {
 			},
 		}
 		err := ss.BulkSet(context.Background(), req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 	t.Run("Successfully set items with ttl = -1", func(t *testing.T) {
-		ss := NewDynamoDBStateStore(logger.NewLogger("test")).(*StateStore)
+		ss := &StateStore{
+			partitionKey: defaultPartitionKeyName,
+		}
 		ss.client = &mockedDynamoDB{
 			BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {
 				expected := map[string][]*dynamodb.WriteRequest{}
@@ -777,10 +803,12 @@ func TestBulkSet(t *testing.T) {
 			},
 		}
 		err := ss.BulkSet(context.Background(), req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 	t.Run("Successfully set items with ttl", func(t *testing.T) {
-		ss := NewDynamoDBStateStore(logger.NewLogger("test")).(*StateStore)
+		ss := &StateStore{
+			partitionKey: defaultPartitionKeyName,
+		}
 		ss.client = &mockedDynamoDB{
 			BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {
 				expected := map[string][]*dynamodb.WriteRequest{}
@@ -851,7 +879,7 @@ func TestBulkSet(t *testing.T) {
 			},
 		}
 		err := ss.BulkSet(context.Background(), req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 	t.Run("Unsuccessfully set items", func(t *testing.T) {
 		ss := StateStore{
@@ -876,7 +904,7 @@ func TestBulkSet(t *testing.T) {
 			},
 		}
 		err := ss.BulkSet(context.Background(), req)
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 	})
 }
 
@@ -886,7 +914,9 @@ func TestDelete(t *testing.T) {
 			Key: "key",
 		}
 
-		ss := NewDynamoDBStateStore(logger.NewLogger("test")).(*StateStore)
+		ss := &StateStore{
+			partitionKey: defaultPartitionKeyName,
+		}
 		ss.client = &mockedDynamoDB{
 			DeleteItemWithContextFn: func(ctx context.Context, input *dynamodb.DeleteItemInput, op ...request.Option) (output *dynamodb.DeleteItemOutput, err error) {
 				assert.Equal(t, map[string]*dynamodb.AttributeValue{
@@ -900,7 +930,7 @@ func TestDelete(t *testing.T) {
 		}
 
 		err := ss.Delete(context.Background(), req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("Successfully delete item with matching etag", func(t *testing.T) {
@@ -909,7 +939,9 @@ func TestDelete(t *testing.T) {
 			ETag: &etag,
 			Key:  "key",
 		}
-		ss := NewDynamoDBStateStore(logger.NewLogger("test")).(*StateStore)
+		ss := &StateStore{
+			partitionKey: defaultPartitionKeyName,
+		}
 		ss.client = &mockedDynamoDB{
 			DeleteItemWithContextFn: func(ctx context.Context, input *dynamodb.DeleteItemInput, op ...request.Option) (output *dynamodb.DeleteItemOutput, err error) {
 				assert.Equal(t, map[string]*dynamodb.AttributeValue{
@@ -927,7 +959,7 @@ func TestDelete(t *testing.T) {
 		}
 
 		err := ss.Delete(context.Background(), req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("Unsuccessfully delete item with mismatched etag", func(t *testing.T) {
@@ -937,7 +969,9 @@ func TestDelete(t *testing.T) {
 			Key:  "key",
 		}
 
-		ss := NewDynamoDBStateStore(logger.NewLogger("test")).(*StateStore)
+		ss := &StateStore{
+			partitionKey: defaultPartitionKeyName,
+		}
 		ss.client = &mockedDynamoDB{
 			DeleteItemWithContextFn: func(ctx context.Context, input *dynamodb.DeleteItemInput, op ...request.Option) (output *dynamodb.DeleteItemOutput, err error) {
 				assert.Equal(t, map[string]*dynamodb.AttributeValue{
@@ -956,7 +990,7 @@ func TestDelete(t *testing.T) {
 		}
 
 		err := ss.Delete(context.Background(), req)
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 		switch tagErr := err.(type) {
 		case *state.ETagError:
 			assert.Equal(t, tagErr.Kind(), state.ETagMismatch)
@@ -977,13 +1011,15 @@ func TestDelete(t *testing.T) {
 			Key: "key",
 		}
 		err := ss.Delete(context.Background(), req)
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 	})
 }
 
 func TestBulkDelete(t *testing.T) {
 	t.Run("Successfully delete items", func(t *testing.T) {
-		ss := NewDynamoDBStateStore(logger.NewLogger("test")).(*StateStore)
+		ss := &StateStore{
+			partitionKey: defaultPartitionKeyName,
+		}
 		ss.client = &mockedDynamoDB{
 			BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {
 				expected := map[string][]*dynamodb.WriteRequest{}
@@ -1025,7 +1061,7 @@ func TestBulkDelete(t *testing.T) {
 			},
 		}
 		err := ss.BulkDelete(context.Background(), req)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 	t.Run("Unsuccessfully delete items", func(t *testing.T) {
 		ss := StateStore{
@@ -1044,6 +1080,6 @@ func TestBulkDelete(t *testing.T) {
 			},
 		}
 		err := ss.BulkDelete(context.Background(), req)
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 	})
 }

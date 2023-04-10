@@ -22,6 +22,7 @@ import (
 
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/ptr"
 )
 
 func TestParseNATSStreamingForMetadataMandatoryOptionsMissing(t *testing.T) {
@@ -236,18 +237,18 @@ func TestParseNATSStreamingMetadataForValidSubscriptionOptions(t *testing.T) {
 
 			assert.NoError(t, err)
 
-			assert.NotEmpty(t, m.natsURL)
-			assert.NotEmpty(t, m.natsStreamingClusterID)
-			assert.NotEmpty(t, m.subscriptionType)
-			assert.NotEmpty(t, m.natsQueueGroupName)
-			assert.NotEmpty(t, m.concurrencyMode)
+			assert.NotEmpty(t, m.NatsURL)
+			assert.NotEmpty(t, m.NatsStreamingClusterID)
+			assert.NotEmpty(t, m.SubscriptionType)
+			assert.NotEmpty(t, m.NatsQueueGroupName)
+			assert.NotEmpty(t, m.ConcurrencyMode)
 			assert.NotEmpty(t, _test.expectedMetadataValue)
 
-			assert.Equal(t, _test.properties[natsURL], m.natsURL)
-			assert.Equal(t, _test.properties[natsStreamingClusterID], m.natsStreamingClusterID)
-			assert.Equal(t, _test.properties[subscriptionType], m.subscriptionType)
-			assert.Equal(t, _test.properties[consumerID], m.natsQueueGroupName)
-			assert.Equal(t, _test.properties[pubsub.ConcurrencyKey], string(m.concurrencyMode))
+			assert.Equal(t, _test.properties[natsURL], m.NatsURL)
+			assert.Equal(t, _test.properties[natsStreamingClusterID], m.NatsStreamingClusterID)
+			assert.Equal(t, _test.properties[subscriptionType], m.SubscriptionType)
+			assert.Equal(t, _test.properties[consumerID], m.NatsQueueGroupName)
+			assert.Equal(t, _test.properties[pubsub.ConcurrencyKey], string(m.ConcurrencyMode))
 			assert.Equal(t, _test.properties[_test.expectedMetadataName], _test.expectedMetadataValue)
 		})
 	}
@@ -266,12 +267,12 @@ func TestParseNATSStreamingMetadata(t *testing.T) {
 		m, err := parseNATSStreamingMetadata(fakeMetaData)
 
 		assert.NoError(t, err)
-		assert.NotEmpty(t, m.natsURL)
-		assert.NotEmpty(t, m.natsStreamingClusterID)
-		assert.NotEmpty(t, m.natsQueueGroupName)
-		assert.Equal(t, fakeProperties[natsURL], m.natsURL)
-		assert.Equal(t, fakeProperties[natsStreamingClusterID], m.natsStreamingClusterID)
-		assert.Equal(t, fakeProperties[consumerID], m.natsQueueGroupName)
+		assert.NotEmpty(t, m.NatsURL)
+		assert.NotEmpty(t, m.NatsStreamingClusterID)
+		assert.NotEmpty(t, m.NatsQueueGroupName)
+		assert.Equal(t, fakeProperties[natsURL], m.NatsURL)
+		assert.Equal(t, fakeProperties[natsStreamingClusterID], m.NatsStreamingClusterID)
+		assert.Equal(t, fakeProperties[consumerID], m.NatsQueueGroupName)
 	})
 
 	t.Run("subscription type missing", func(t *testing.T) {
@@ -314,41 +315,41 @@ func TestParseNATSStreamingMetadata(t *testing.T) {
 		}
 		m, err := parseNATSStreamingMetadata(fakeMetaData)
 		assert.NoError(t, err)
-		assert.NotEmpty(t, m.natsURL)
-		assert.NotEmpty(t, m.natsStreamingClusterID)
-		assert.NotEmpty(t, m.subscriptionType)
-		assert.NotEmpty(t, m.natsQueueGroupName)
-		assert.NotEmpty(t, m.startAtSequence)
+		assert.NotEmpty(t, m.NatsURL)
+		assert.NotEmpty(t, m.NatsStreamingClusterID)
+		assert.NotEmpty(t, m.SubscriptionType)
+		assert.NotEmpty(t, m.NatsQueueGroupName)
+		assert.NotEmpty(t, m.StartAtSequence)
 		// startWithLastReceived ignored
-		assert.Empty(t, m.startWithLastReceived)
+		assert.Empty(t, m.StartWithLastReceived)
 		// deliverAll will be ignored
-		assert.Empty(t, m.deliverAll)
+		assert.Empty(t, m.DeliverAll)
 
-		assert.Equal(t, fakeProperties[natsURL], m.natsURL)
-		assert.Equal(t, fakeProperties[natsStreamingClusterID], m.natsStreamingClusterID)
-		assert.Equal(t, fakeProperties[subscriptionType], m.subscriptionType)
-		assert.Equal(t, fakeProperties[consumerID], m.natsQueueGroupName)
-		assert.Equal(t, fakeProperties[startAtSequence], strconv.FormatUint(m.startAtSequence, 10))
+		assert.Equal(t, fakeProperties[natsURL], m.NatsURL)
+		assert.Equal(t, fakeProperties[natsStreamingClusterID], m.NatsStreamingClusterID)
+		assert.Equal(t, fakeProperties[subscriptionType], m.SubscriptionType)
+		assert.Equal(t, fakeProperties[consumerID], m.NatsQueueGroupName)
+		assert.Equal(t, fakeProperties[startAtSequence], strconv.FormatUint(*m.StartAtSequence, 10))
 	})
 }
 
 func TestSubscriptionOptionsForValidOptions(t *testing.T) {
 	type test struct {
 		name                    string
-		m                       metadata
+		m                       natsMetadata
 		expectedNumberOfOptions int
 	}
 
 	tests := []test{
-		{"using durableSubscriptionName", metadata{durableSubscriptionName: "foobar"}, 2},
-		{"durableSubscriptionName is empty", metadata{durableSubscriptionName: ""}, 1},
-		{"using startAtSequence", metadata{startAtSequence: uint64(42)}, 2},
-		{"using startWithLastReceived", metadata{startWithLastReceived: startWithLastReceivedTrue}, 2},
-		{"using deliverAll", metadata{deliverAll: deliverAllTrue}, 2},
-		{"using startAtTimeDelta", metadata{startAtTimeDelta: 1 * time.Hour}, 2},
-		{"using startAtTime and startAtTimeFormat", metadata{startAtTime: "Feb 3, 2013 at 7:54pm (PST)", startAtTimeFormat: "Jan 2, 2006 at 3:04pm (MST)"}, 2},
-		{"using manual ack with ackWaitTime", metadata{ackWaitTime: 30 * time.Second}, 2},
-		{"using manual ack with maxInFlight", metadata{maxInFlight: uint64(42)}, 2},
+		{"using durableSubscriptionName", natsMetadata{DurableSubscriptionName: "foobar"}, 2},
+		{"durableSubscriptionName is empty", natsMetadata{DurableSubscriptionName: ""}, 1},
+		{"using startAtSequence", natsMetadata{StartAtSequence: ptr.Of(uint64(42))}, 2},
+		{"using startWithLastReceived", natsMetadata{StartWithLastReceived: startWithLastReceivedTrue}, 2},
+		{"using deliverAll", natsMetadata{DeliverAll: deliverAllTrue}, 2},
+		{"using startAtTimeDelta", natsMetadata{StartAtTimeDelta: 1 * time.Hour}, 2},
+		{"using startAtTime and startAtTimeFormat", natsMetadata{StartAtTime: "Feb 3, 2013 at 7:54pm (PST)", StartAtTimeFormat: "Jan 2, 2006 at 3:04pm (MST)"}, 2},
+		{"using manual ack with ackWaitTime", natsMetadata{AckWaitTime: 30 * time.Second}, 2},
+		{"using manual ack with maxInFlight", natsMetadata{MaxInFlight: ptr.Of(uint64(42))}, 2},
 	}
 
 	for _, _test := range tests {
@@ -365,16 +366,16 @@ func TestSubscriptionOptionsForValidOptions(t *testing.T) {
 func TestSubscriptionOptionsForInvalidOptions(t *testing.T) {
 	type test struct {
 		name string
-		m    metadata
+		m    natsMetadata
 	}
 
 	tests := []test{
-		{"startAtSequence is less than 1", metadata{startAtSequence: uint64(0)}},
-		{"startWithLastReceived is other than true", metadata{startWithLastReceived: "foo"}},
-		{"deliverAll is other than true", metadata{deliverAll: "foo"}},
-		{"deliverNew is other than true", metadata{deliverNew: "foo"}},
-		{"startAtTime is empty", metadata{startAtTime: "", startAtTimeFormat: "Jan 2, 2006 at 3:04pm (MST)"}},
-		{"startAtTimeFormat is empty", metadata{startAtTime: "Feb 3, 2013 at 7:54pm (PST)", startAtTimeFormat: ""}},
+		{"startAtSequence is less than 1", natsMetadata{StartAtSequence: ptr.Of(uint64(0))}},
+		{"startWithLastReceived is other than true", natsMetadata{StartWithLastReceived: "foo"}},
+		{"deliverAll is other than true", natsMetadata{DeliverAll: "foo"}},
+		{"deliverNew is other than true", natsMetadata{DeliverNew: "foo"}},
+		{"startAtTime is empty", natsMetadata{StartAtTime: "", StartAtTimeFormat: "Jan 2, 2006 at 3:04pm (MST)"}},
+		{"startAtTimeFormat is empty", natsMetadata{StartAtTime: "Feb 3, 2013 at 7:54pm (PST)", StartAtTimeFormat: ""}},
 	}
 
 	for _, _test := range tests {
@@ -391,7 +392,7 @@ func TestSubscriptionOptionsForInvalidOptions(t *testing.T) {
 func TestSubscriptionOptions(t *testing.T) {
 	// general
 	t.Run("manual ACK option is present by default", func(t *testing.T) {
-		natsStreaming := natsStreamingPubSub{metadata: metadata{}}
+		natsStreaming := natsStreamingPubSub{metadata: natsMetadata{}}
 		opts, err := natsStreaming.subscriptionOptions()
 		assert.Empty(t, err)
 		assert.NotEmpty(t, opts)
@@ -399,7 +400,7 @@ func TestSubscriptionOptions(t *testing.T) {
 	})
 
 	t.Run("only one subscription option will be honored", func(t *testing.T) {
-		m := metadata{deliverNew: deliverNewTrue, deliverAll: deliverAllTrue, startAtTimeDelta: 1 * time.Hour}
+		m := natsMetadata{DeliverNew: deliverNewTrue, DeliverAll: deliverAllTrue, StartAtTimeDelta: 1 * time.Hour}
 		natsStreaming := natsStreamingPubSub{metadata: m}
 		opts, err := natsStreaming.subscriptionOptions()
 		assert.Empty(t, err)
@@ -410,7 +411,7 @@ func TestSubscriptionOptions(t *testing.T) {
 	// invalid subscription options
 
 	t.Run("startAtTime is invalid", func(t *testing.T) {
-		m := metadata{startAtTime: "foobar", startAtTimeFormat: "Jan 2, 2006 at 3:04pm (MST)"}
+		m := natsMetadata{StartAtTime: "foobar", StartAtTimeFormat: "Jan 2, 2006 at 3:04pm (MST)"}
 		natsStreaming := natsStreamingPubSub{metadata: m}
 		opts, err := natsStreaming.subscriptionOptions()
 		assert.NotEmpty(t, err)
@@ -418,7 +419,7 @@ func TestSubscriptionOptions(t *testing.T) {
 	})
 
 	t.Run("startAtTimeFormat is invalid", func(t *testing.T) {
-		m := metadata{startAtTime: "Feb 3, 2013 at 7:54pm (PST)", startAtTimeFormat: "foo"}
+		m := natsMetadata{StartAtTime: "Feb 3, 2013 at 7:54pm (PST)", StartAtTimeFormat: "foo"}
 
 		natsStreaming := natsStreamingPubSub{metadata: m}
 		opts, err := natsStreaming.subscriptionOptions()

@@ -62,7 +62,8 @@ const (
 
 // StateStore Type.
 type StateStore struct {
-	state.DefaultBulkStore
+	state.BulkStore
+
 	containerClient *container.Client
 	logger          logger.Logger
 }
@@ -117,8 +118,7 @@ func NewAzureBlobStorageStore(logger logger.Logger) state.Store {
 	s := &StateStore{
 		logger: logger,
 	}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
+	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
 }
 

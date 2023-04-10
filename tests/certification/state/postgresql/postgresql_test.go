@@ -371,7 +371,7 @@ func TestPostgreSQL(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Equal(t, expectedEtag, *resp.ETag)
-		assert.Equal(t, "\"v2\"", string(resp.Data))
+		assert.Equal(t, `"v2"`, string(resp.Data))
 
 		return nil
 	}
@@ -379,51 +379,36 @@ func TestPostgreSQL(t *testing.T) {
 	transactionsTest := func(ctx flow.Context) error {
 		err := stateStore.Multi(context.Background(), &state.TransactionalStateRequest{
 			Operations: []state.TransactionalStateOperation{
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   "reqKey1",
-						Value: "reqVal1",
-						Metadata: map[string]string{
-							"ttlInSeconds": "-1",
-						},
+				state.SetRequest{
+					Key:   "reqKey1",
+					Value: "reqVal1",
+					Metadata: map[string]string{
+						"ttlInSeconds": "-1",
 					},
 				},
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   "reqKey2",
-						Value: "reqVal2",
-						Metadata: map[string]string{
-							"ttlInSeconds": "222",
-						},
+				state.SetRequest{
+					Key:   "reqKey2",
+					Value: "reqVal2",
+					Metadata: map[string]string{
+						"ttlInSeconds": "222",
 					},
 				},
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   "reqKey3",
-						Value: "reqVal3",
+				state.SetRequest{
+					Key:   "reqKey3",
+					Value: "reqVal3",
+				},
+				state.SetRequest{
+					Key:   "reqKey1",
+					Value: "reqVal101",
+					Metadata: map[string]string{
+						"ttlInSeconds": "50",
 					},
 				},
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   "reqKey1",
-						Value: "reqVal101",
-						Metadata: map[string]string{
-							"ttlInSeconds": "50",
-						},
-					},
-				},
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   "reqKey3",
-						Value: "reqVal103",
-						Metadata: map[string]string{
-							"ttlInSeconds": "50",
-						},
+				state.SetRequest{
+					Key:   "reqKey3",
+					Value: "reqVal103",
+					Metadata: map[string]string{
+						"ttlInSeconds": "50",
 					},
 				},
 			},

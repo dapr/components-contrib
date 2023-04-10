@@ -578,6 +578,11 @@ const components = {
         requireGCPCredentials: true,
         conformanceSetup: 'conformance-state.gcp.firestore-setup.sh',
     },
+    'state.gcp.firestore': {
+        certification: true,
+        requireAWSCredentials: true,
+        conformanceSetup: 'certification-state.gcp.firestore-setup.sh',
+    },
     'workflows.temporal': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh temporal',

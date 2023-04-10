@@ -87,7 +87,7 @@ func (d *StateStore) Init(_ context.Context, metadata state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (d *StateStore) Features() []state.Feature {
-	return []state.Feature{state.FeatureETag}
+	return []state.Feature{state.FeatureETag, state.FeatureTransactional}
 }
 
 // Get retrieves a dynamoDB item.
@@ -396,6 +396,53 @@ func (d *StateStore) parseTTL(req *state.SetRequest) (*int64, error) {
 	}
 
 	return nil, nil
+}
+
+// Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
+func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
+	twinput := &dynamodb.TransactWriteItemsInput{
+		TransactItems: []*dynamodb.TransactWriteItem{},
+	}
+	for _, o := range request.Operations {
+		tOp := o
+		twi := &dynamodb.TransactWriteItem{}
+		switch tOp.Operation {
+		case state.Upsert:
+			req := tOp.Request.(state.SetRequest)
+			value, err := d.marshalToString(req.Value)
+			if err != nil {
+				return fmt.Errorf("dynamodb error: failed to marshal value for key %s: %s", req.Key, err)
+			}
+			twi.Put = &dynamodb.Put{
+				TableName: aws.String(d.table),
+				Item: map[string]*dynamodb.AttributeValue{
+					d.partitionKey: {
+						S: aws.String(req.Key),
+					},
+					"value": {
+						S: aws.String(value),
+					},
+				},
+			}
+
+		case state.Delete:
+			req := tOp.Request.(state.DeleteRequest)
+			twi.Delete = &dynamodb.Delete{
+				TableName: aws.String(d.table),
+				Key: map[string]*dynamodb.AttributeValue{
+					d.partitionKey: {
+						S: aws.String(req.Key),
+					},
+				},
+			}
+		}
+		twinput.TransactItems = append(twinput.TransactItems, twi)
+	}
+
+	fmt.Printf("@@@ twInput: %v\n", twinput)
+	_, err := d.client.TransactWriteItems(twinput)
+
+	return err
 }
 
 // This is a helper to return the partition key to use.  If if metadata["partitionkey"] is present,

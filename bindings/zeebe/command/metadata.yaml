@@ -3,7 +3,7 @@ schemaVersion: v1
 type: bindings
 name: zeebe.command
 version: v1
-status: stable
+status: alpha
 title: "Zeebe Command"
 urls:
   - title: Reference

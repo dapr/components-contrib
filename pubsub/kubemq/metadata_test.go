@@ -13,7 +13,7 @@ func Test_createMetadata(t *testing.T) {
 	tests := []struct {
 		name    string
 		meta    pubsub.Metadata
-		want    *metadata
+		want    *kubemqMetadata
 		wantErr bool
 	}{
 		{
@@ -32,14 +32,15 @@ func Test_createMetadata(t *testing.T) {
 					},
 				},
 			},
-			want: &metadata{
-				host:              "localhost",
-				port:              50000,
-				clientID:          "clientID",
-				authToken:         "authToken",
-				group:             "group",
-				isStore:           true,
-				disableReDelivery: true,
+			want: &kubemqMetadata{
+				Address:           "localhost:50000",
+				internalHost:      "localhost",
+				internalPort:      50000,
+				ClientID:          "clientID",
+				AuthToken:         "authToken",
+				Group:             "group",
+				IsStore:           true,
+				DisableReDelivery: true,
 			},
 			wantErr: false,
 		},
@@ -55,13 +56,14 @@ func Test_createMetadata(t *testing.T) {
 					},
 				},
 			},
-			want: &metadata{
-				host:      "localhost",
-				port:      50000,
-				clientID:  "clientID",
-				authToken: "authToken",
-				group:     "",
-				isStore:   false,
+			want: &kubemqMetadata{
+				Address:      "localhost:50000",
+				internalHost: "localhost",
+				internalPort: 50000,
+				ClientID:     "clientID",
+				AuthToken:    "authToken",
+				Group:        "",
+				IsStore:      false,
 			},
 			wantErr: false,
 		},
@@ -78,13 +80,14 @@ func Test_createMetadata(t *testing.T) {
 					},
 				},
 			},
-			want: &metadata{
-				host:      "localhost",
-				port:      50000,
-				clientID:  "clientID",
-				authToken: "",
-				group:     "group",
-				isStore:   true,
+			want: &kubemqMetadata{
+				Address:      "localhost:50000",
+				internalHost: "localhost",
+				internalPort: 50000,
+				ClientID:     "clientID",
+				AuthToken:    "",
+				Group:        "group",
+				IsStore:      true,
 			},
 			wantErr: false,
 		},
@@ -134,20 +137,6 @@ func Test_createMetadata(t *testing.T) {
 					Properties: map[string]string{
 						"address":  "localhost:50000:badport",
 						"clientID": "clientID",
-					},
-				},
-			},
-			want:    nil,
-			wantErr: true,
-		},
-		{
-			name: "create invalid metadata with bad store info",
-			meta: pubsub.Metadata{
-				Base: mdata.Base{
-					Properties: map[string]string{
-						"address":  "localhost:50000",
-						"clientID": "clientID",
-						"store":    "bad",
 					},
 				},
 			},

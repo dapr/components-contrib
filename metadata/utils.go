@@ -291,10 +291,6 @@ func (t ComponentType) BuiltInMetadataProperties() []string {
 		return []string{
 			"keyPrefix",
 		}
-	case PubSubType:
-		return []string{
-			"consumerID",
-		}
 	default:
 		return nil
 	}

@@ -28,6 +28,11 @@ metadata:
     description: Username for Redis host. Defaults to empty. Make sure your redis server version is 6 or above, and have created acl rule correctly.
     example: "default"
     type: string
+  - name: consumerID
+    required: false
+    description: The consumer group ID
+    example: "myGroup"
+    type: string
   - name: enableTLS
     required: false
     description: |

@@ -46,8 +46,15 @@ func getBaseMetadata() map[string]string {
 
 func getCompleteMetadata() map[string]string {
 	return map[string]string{
-		"consumerGroup": "a", "clientID": "a", "brokers": "a", "authType": mtlsAuthType, "maxMessageBytes": "2048",
-		skipVerify: "true", clientCert: clientCertPemMock, clientKey: clientKeyMock, caCert: caCertMock,
+		"consumerGroup":        "a",
+		"clientID":             "a",
+		"brokers":              "a",
+		"authType":             mtlsAuthType,
+		"maxMessageBytes":      "2048",
+		skipVerify:             "true",
+		clientCert:             clientCertPemMock,
+		clientKey:              clientKeyMock,
+		caCert:                 caCertMock,
 		"consumeRetryInterval": "200",
 	}
 }
@@ -80,6 +87,30 @@ func TestParseMetadata(t *testing.T) {
 		require.Error(t, err)
 		require.Nil(t, meta)
 		require.Equal(t, "kafka error: invalid kafka version", err.Error())
+	})
+}
+
+func TestConsumerIDFallback(t *testing.T) {
+	k := getKafka()
+
+	m := getCompleteMetadata()
+	m["consumerGroup"] = "foo"
+	m["consumerid"] = "bar" // Lowercase to test case-insensitivity
+
+	t.Run("with consumerGroup set", func(t *testing.T) {
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.NotNil(t, meta)
+		require.Equal(t, "foo", meta.ConsumerGroup)
+	})
+
+	t.Run("with consumerGroup not set", func(t *testing.T) {
+		delete(m, "consumerGroup")
+
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.NotNil(t, meta)
+		require.Equal(t, "bar", meta.ConsumerGroup)
 	})
 }
 
@@ -119,7 +150,7 @@ func TestMetadataUpgradeNoAuth(t *testing.T) {
 	m := map[string]string{"brokers": "akfak.com:9092", "authRequired": "false"}
 	k := getKafka()
 	upgraded, err := k.upgradeMetadata(m)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, noAuthType, upgraded["authType"])
 }
 
@@ -127,7 +158,7 @@ func TestMetadataUpgradePasswordAuth(t *testing.T) {
 	k := getKafka()
 	m := map[string]string{"brokers": "akfak.com:9092", "authRequired": "true", "saslPassword": "sassapass"}
 	upgraded, err := k.upgradeMetadata(m)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, passwordAuthType, upgraded["authType"])
 }
 
@@ -135,7 +166,7 @@ func TestMetadataUpgradePasswordMTLSAuth(t *testing.T) {
 	k := getKafka()
 	m := map[string]string{"brokers": "akfak.com:9092", "authRequired": "true"}
 	upgraded, err := k.upgradeMetadata(m)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, mtlsAuthType, upgraded["authType"])
 }
 
@@ -161,7 +192,7 @@ func TestMissingSaslValuesOnUpgrade(t *testing.T) {
 	k := getKafka()
 	m := map[string]string{"brokers": "akfak.com:9092", "authRequired": "true", "saslPassword": "sassapass"}
 	upgraded, err := k.upgradeMetadata(m)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	meta, err := k.getKafkaMetadata(upgraded)
 	require.Error(t, err)
 	require.Nil(t, meta)
@@ -192,7 +223,7 @@ func TestMissingOidcValues(t *testing.T) {
 	// Check if missing scopes causes the default 'openid' to be used.
 	m["oidcClientSecret"] = "sassapass"
 	meta, err = k.getKafkaMetadata(m)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Contains(t, meta.internalOidcScopes, "openid")
 }
 

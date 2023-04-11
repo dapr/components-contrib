@@ -69,13 +69,14 @@ const (
 	ErrorMissingConnectionString = "missing postgreSQL connection string"
 	ErrorAlreadyInitialized      = "postgreSQL configuration store already initialized"
 	ErrorMissingMaxTimeout       = "missing PostgreSQL maxTimeout setting in configuration"
-	QueryTableExists             = "SELECT EXISTS (SELECT FROM pg_tables where tablename = lower($1))"
+	QueryTableExists             = "SELECT EXISTS (SELECT FROM pg_tables where tablename = $1)"
 	ErrorTooLongFieldLength      = "field name is too long"
 	maxIdentifierLength          = 64 // https://www.postgresql.org/docs/current/limits.html
 )
 
 var (
 	allowedChars           = regexp.MustCompile(`^[a-zA-Z0-9./_]*$`)
+	allowedTableNameChars  = regexp.MustCompile(`^[a-z0-9./_]*$`)
 	defaultMaxConnIdleTime = time.Second * 30
 )
 
@@ -290,8 +291,8 @@ func parseMetadata(cmetadata configuration.Metadata) (metadata, error) {
 	}
 
 	if m.ConfigTable != "" {
-		if !allowedChars.MatchString(m.ConfigTable) {
-			return m, fmt.Errorf("invalid table name : '%v'. non-alphanumerics are not supported", m.ConfigTable)
+		if !allowedTableNameChars.MatchString(m.ConfigTable) {
+			return m, fmt.Errorf("invalid table name : '%v'. non-alphanumerics or upper cased table names are not supported", m.ConfigTable)
 		}
 		if len(m.ConfigTable) > maxIdentifierLength {
 			return m, fmt.Errorf(ErrorTooLongFieldLength+" - tableName : '%v'. max allowed field length is %v ", m.ConfigTable, maxIdentifierLength)

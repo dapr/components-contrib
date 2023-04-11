@@ -1,0 +1,143 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: azure.blobstorage
+version: v1
+status: stable
+title: "Azure Blob Storage"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-azure-blobstorage/
+capabilities:
+  - crud
+  - etag
+authenticationProfiles:
+  - title: "Connection string"
+    description: "Authenticate using a connection string."
+    metadata:
+      - name: connectionString
+        required: true
+        sensitive: true
+        description: "Shared access policy connection string for Blob Storage. Required unless using Azure AD authentication."
+        example: '"BlobEndpoint=https://storagesample.blob.core.windows.net;SharedAccessSignature={KeySig}"'
+        # If omitted, uses the same values as "<root>.binding"
+        binding:
+          output: true
+          input: true
+  - title: "Account Key"
+    description: "Authenticate using a pre-shared \"account key\"."
+    metadata:
+      - name: accountKey
+        required: true
+        sensitive: true
+        description: "The key to authenticate to the Storage Account."
+        example: '"my-secret-key"'
+      # accountName would be required for this auth. method but it is obligatory for any Blog Storage.
+  - title: "Azure AD: Managed identity"
+    description: |
+      Authenticate using Azure AD and a managed identity.
+    metadata:
+      - name: azureClientId
+        required: false
+        description: |
+          Client ID (application ID). Required if the service has multiple identities assigned.
+        example: '"c7dd251f-811f-4ba2-a905-acd4d3f8f08b"'
+  - title: "Azure AD: Client credentials"
+    description: |
+      Authenticate using Azure AD with client credentials, also known as "service principals".
+    metadata:
+      - name: azureTenantId
+        required: true
+        description: |
+          ID of the Azure AD tenant
+        example: '"cd4b2887-304c-47e1-b4d5-65447fdd542b"'
+      - name: azureClientId
+        required: true
+        description: |
+          Client ID (application ID)
+        example: '"c7dd251f-811f-4ba2-a905-acd4d3f8f08b"'
+      - name: azureClientSecret
+        required: true
+        sensitive: true
+        description: |
+          Client secret (application password)
+        example: '"Ecy3XG7zVZK3/vl/a2NSB+a1zXLa8RnMum/IgD0E"'
+  - title: "Azure AD: Client certificate"
+    description: |
+      Authenticate using Azure AD with a client certificate (in PFX/PKCS#12 format). One of `azureCertificate` and `azureCertificateFile` is required.
+    metadata:
+      - name: azureTenantId
+        required: true
+        description: |
+          ID of the Azure AD tenant.
+        example: '"cd4b2887-304c-47e1-b4d5-65447fdd542b"'
+      - name: azureClientId
+        required: true
+        description: |
+          Client ID (application ID).
+        example: '"c7dd251f-811f-4ba2-a905-acd4d3f8f08b"'
+      - name: azureCertificate
+        required: false
+        sensitive: true
+        description: |
+          Certificate and private key (in PFX/PKCS#12 format).
+        example: |
+          -----BEGIN PRIVATE KEY-----
+          MIIEvgI...
+          -----END PRIVATE KEY-----
+          -----BEGIN CERTIFICATE-----
+          MIICoTC...
+          -----END CERTIFICATE-----
+      - name: azureCertificateFile
+        required: false
+        sensitive: true
+        description: |
+          Path to PFX/PKCS#12 file on disk, containing the certificate and private key.
+        example: "/path/to/file.pem"
+      - name: azureCertificatePassword
+        required: false
+        sensitive: true
+        description: |
+          Password for the certificate if encrypted.
+        example: "password"
+metadata:
+  - name: accountName
+    required: true
+    sensitive: false
+    description: "The storage account name"
+    example: '"mystorageaccount"'
+  - name: containerName
+    required: true
+    sensitive: false
+    description: |
+      The name of the container to be used for Dapr state. The container will be created for you if it doesn’t exist.
+    example: '"container"'
+  - name: PublicAccessLevel # none == ""; "blob" "container"
+    type: string
+    required: false
+    description: |
+      Indicates whether data in the container may be accessed publicly and the level of access.
+    example: '"none"'
+    default: "none"
+    allowedValues:
+      - "none" # Equivalent to private - https://learn.microsoft.com/en-us/rest/api/storageservices/get-container-acl
+      - "blob"
+      - "container"
+  - name: azureEnvironment
+    type: string
+    required: false
+    description: |
+      Optional name for the Azure environment if using a different Azure cloud
+    example: '"AZUREPUBLICCLOUD"'
+    example: '"AZUREPUBLICCLOUD"'
+    default: "AZUREPUBLICCLOUD"
+    allowedValues:
+      - "AZUREPUBLICCLOUD"
+      - "AZURECHINACLOUD"
+      - "AZUREUSGOVERNMENTCLOUD"
+  - name: endpoint
+    type: string
+    description: |
+      Optional custom endpoint URL. This is useful when using the Azurite emulator or when using custom domains for Azure Storage (although this is not officially supported). The endpoint must be the full base URL, including the protocol (http:// or https://), the IP or FQDN, and optional port.
+    required: false
+    example: '"http://127.0.0.1:10000"'

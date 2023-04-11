@@ -86,7 +86,7 @@ func (h *HTTPSource) Init(_ context.Context, meta bindings.Metadata) error {
 		return err
 	}
 	if h.metadata.MTLSClientCert != "" && h.metadata.MTLSClientKey != "" {
-		tlsConfig, err = h.readMTLSClientCertificates()
+		err = h.readMTLSClientCertificates(tlsConfig)
 		if err != nil {
 			return err
 		}
@@ -101,7 +101,7 @@ func (h *HTTPSource) Init(_ context.Context, meta bindings.Metadata) error {
 		Dial:                dialer.Dial,
 		TLSHandshakeTimeout: 5 * time.Second,
 	}
-	if tlsConfig != nil && len(tlsConfig.Certificates) > 0 && tlsConfig.RootCAs != nil {
+	if tlsConfig != nil {
 		netTransport.TLSClientConfig = tlsConfig
 	}
 	h.client = &http.Client{
@@ -120,30 +120,28 @@ func (h *HTTPSource) Init(_ context.Context, meta bindings.Metadata) error {
 }
 
 // readMTLSClientCertificates reads the certificates and key from the metadata and returns a tls.Config.
-func (h *HTTPSource) readMTLSClientCertificates() (*tls.Config, error) {
+func (h *HTTPSource) readMTLSClientCertificates(tlsConfig *tls.Config) error {
 	clientCertBytes, err := h.getPemBytes(MTLSClientCert, h.metadata.MTLSClientCert)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	clientKeyBytes, err := h.getPemBytes(MTLSClientKey, h.metadata.MTLSClientKey)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	cert, err := tls.X509KeyPair(clientCertBytes, clientKeyBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load client certificate: %w", err)
+		return fmt.Errorf("failed to load client certificate: %w", err)
 	}
-	tlsConfig := &tls.Config{
-		MinVersion:   tls.VersionTLS12,
-		Certificates: []tls.Certificate{cert},
-	}
-	return tlsConfig, nil
+	tlsConfig.MinVersion = tls.VersionTLS12
+	tlsConfig.Certificates = []tls.Certificate{cert}
+	return nil
 }
 
 // Add Root CA cert to the pool of trusted certificates.
 // This is required for the client to trust the server certificate in case of HTTPS connection.
 func (h *HTTPSource) addRootCAToCertPool() (*tls.Config, error) {
-	var tlsConfig *tls.Config
+	tlsConfig := &tls.Config{}
 	if h.metadata.MTLSRootCA != "" {
 		caCertBytes, err := h.getPemBytes(MTLSRootCA, h.metadata.MTLSRootCA)
 		if err != nil {

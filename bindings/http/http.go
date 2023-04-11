@@ -133,7 +133,9 @@ func (h *HTTPSource) readMTLSClientCertificates(tlsConfig *tls.Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to load client certificate: %w", err)
 	}
-	tlsConfig.MinVersion = tls.VersionTLS12
+	if tlsConfig == nil {
+		tlsConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
 	tlsConfig.Certificates = []tls.Certificate{cert}
 	return nil
 }
@@ -141,7 +143,7 @@ func (h *HTTPSource) readMTLSClientCertificates(tlsConfig *tls.Config) error {
 // Add Root CA cert to the pool of trusted certificates.
 // This is required for the client to trust the server certificate in case of HTTPS connection.
 func (h *HTTPSource) addRootCAToCertPool() (*tls.Config, error) {
-	tlsConfig := &tls.Config{}
+	var tlsConfig *tls.Config
 	if h.metadata.MTLSRootCA != "" {
 		caCertBytes, err := h.getPemBytes(MTLSRootCA, h.metadata.MTLSRootCA)
 		if err != nil {
@@ -152,7 +154,10 @@ func (h *HTTPSource) addRootCAToCertPool() (*tls.Config, error) {
 		if ok := caCertPool.AppendCertsFromPEM(caCertBytes); !ok {
 			return nil, errors.New("failed to add root certificate to certpool")
 		}
-		tlsConfig.RootCAs = caCertPool
+		tlsConfig = &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			RootCAs:    caCertPool,
+		}
 	}
 	return tlsConfig, nil
 }

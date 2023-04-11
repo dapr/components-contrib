@@ -45,7 +45,8 @@ var (
 
 // Aerospike is a state store.
 type Aerospike struct {
-	state.DefaultBulkStore
+	state.BulkStore
+
 	namespace string
 	set       string // optional
 	client    *as.Client
@@ -62,8 +63,7 @@ func NewAerospikeStateStore(logger logger.Logger) state.Store {
 		features: []state.Feature{state.FeatureETag},
 		logger:   logger,
 	}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
+	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
 }
 

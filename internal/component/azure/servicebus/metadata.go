@@ -16,12 +16,10 @@ package servicebus
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"time"
 
 	sbadmin "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
 
-	"github.com/dapr/components-contrib/internal/utils"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
@@ -31,27 +29,27 @@ import (
 // Note: AzureAD-related keys are handled separately.
 type Metadata struct {
 	/** For bindings and pubsubs **/
-	ConnectionString                string `json:"connectionString"`
-	ConsumerID                      string `json:"consumerID"` // Only topics
-	TimeoutInSec                    int    `json:"timeoutInSec"`
-	HandlerTimeoutInSec             int    `json:"handlerTimeoutInSec"`
-	LockRenewalInSec                int    `json:"lockRenewalInSec"`
-	MaxActiveMessages               int    `json:"maxActiveMessages"`
-	MaxConnectionRecoveryInSec      int    `json:"maxConnectionRecoveryInSec"`
-	MinConnectionRecoveryInSec      int    `json:"minConnectionRecoveryInSec"`
-	DisableEntityManagement         bool   `json:"disableEntityManagement"`
-	MaxRetriableErrorsPerSec        int    `json:"maxRetriableErrorsPerSec"`
-	MaxDeliveryCount                *int32 `json:"maxDeliveryCount"`              // Only used during subscription creation - default is set by the server (10)
-	LockDurationInSec               *int   `json:"lockDurationInSec"`             // Only used during subscription creation - default is set by the server (60s)
-	DefaultMessageTimeToLiveInSec   *int   `json:"defaultMessageTimeToLiveInSec"` // Only used during subscription creation - default is set by the server (depends on the tier)
-	AutoDeleteOnIdleInSec           *int   `json:"autoDeleteOnIdleInSec"`         // Only used during subscription creation - default is set by the server (disabled)
-	MaxConcurrentHandlers           int    `json:"maxConcurrentHandlers"`
-	PublishMaxRetries               int    `json:"publishMaxRetries"`
-	PublishInitialRetryIntervalInMs int    `json:"publishInitialRetryIntervalInMs"`
-	NamespaceName                   string `json:"namespaceName"` // Only for Azure AD
+	ConnectionString                string `mapstructure:"connectionString"`
+	ConsumerID                      string `mapstructure:"consumerID"` // Only topics
+	TimeoutInSec                    int    `mapstructure:"timeoutInSec"`
+	HandlerTimeoutInSec             int    `mapstructure:"handlerTimeoutInSec"`
+	LockRenewalInSec                int    `mapstructure:"lockRenewalInSec"`
+	MaxActiveMessages               int    `mapstructure:"maxActiveMessages"`
+	MaxConnectionRecoveryInSec      int    `mapstructure:"maxConnectionRecoveryInSec"`
+	MinConnectionRecoveryInSec      int    `mapstructure:"minConnectionRecoveryInSec"`
+	DisableEntityManagement         bool   `mapstructure:"disableEntityManagement"`
+	MaxRetriableErrorsPerSec        int    `mapstructure:"maxRetriableErrorsPerSec"`
+	MaxDeliveryCount                *int32 `mapstructure:"maxDeliveryCount"`              // Only used during subscription creation - default is set by the server (10)
+	LockDurationInSec               *int   `mapstructure:"lockDurationInSec"`             // Only used during subscription creation - default is set by the server (60s)
+	DefaultMessageTimeToLiveInSec   *int   `mapstructure:"defaultMessageTimeToLiveInSec"` // Only used during subscription creation - default is set by the server (depends on the tier)
+	AutoDeleteOnIdleInSec           *int   `mapstructure:"autoDeleteOnIdleInSec"`         // Only used during subscription creation - default is set by the server (disabled)
+	MaxConcurrentHandlers           int    `mapstructure:"maxConcurrentHandlers"`
+	PublishMaxRetries               int    `mapstructure:"publishMaxRetries"`
+	PublishInitialRetryIntervalInMs int    `mapstructure:"publishInitialRetryIntervalInMs"`
+	NamespaceName                   string `mapstructure:"namespaceName"` // Only for Azure AD
 
 	/** For bindings only **/
-	QueueName string `json:"queueName"` // Only queues
+	QueueName string `mapstructure:"queueName" only:"binding"` // Only queues
 }
 
 // Keys.
@@ -120,198 +118,89 @@ const (
 
 // ParseMetadata parses metadata keys that are common to all Service Bus components
 func ParseMetadata(md map[string]string, logger logger.Logger, mode byte) (m *Metadata, err error) {
-	m = &Metadata{}
+	m = &Metadata{
+		TimeoutInSec:                    defaultTimeoutInSec,
+		LockRenewalInSec:                defaultLockRenewalInSec,
+		MaxActiveMessages:               defaultMaxActiveMessagesPubSub,
+		MaxConnectionRecoveryInSec:      defaultMaxConnectionRecoveryInSec,
+		MinConnectionRecoveryInSec:      defaultMinConnectionRecoveryInSec,
+		DisableEntityManagement:         defaultDisableEntityManagement,
+		MaxRetriableErrorsPerSec:        defaultMaxRetriableErrorsPerSec,
+		MaxConcurrentHandlers:           defaultMaxConcurrentHandlersPubSub,
+		PublishMaxRetries:               defaultPublishMaxRetries,
+		PublishInitialRetryIntervalInMs: defaultPublishInitialRetryIntervalInMs,
+	}
+
+	if (mode & MetadataModeBinding) != 0 {
+		m.HandlerTimeoutInSec = defaultHandlerTimeoutInSecBinding
+		m.MaxActiveMessages = defaultMaxActiveMessagesBinding
+		m.MaxConcurrentHandlers = defaultMaxConcurrentHandlersBinding
+	} else {
+		m.HandlerTimeoutInSec = defaultHandlerTimeoutInSecPubSub
+		m.MaxActiveMessages = defaultMaxActiveMessagesPubSub
+		m.MaxConcurrentHandlers = defaultMaxConcurrentHandlersPubSub
+	}
+
+	// upgrade deprecated metadata keys
+
+	if val, ok := md["publishInitialRetryInternalInMs"]; ok && val != "" {
+		// TODO: Remove in a future Dapr release
+		logger.Warn("Found deprecated metadata property 'publishInitialRetryInternalInMs'; please use 'publishInitialRetryIntervalInMs'")
+		md["publishInitialRetryIntervalInMs"] = val
+		delete(md, "publishInitialRetryInternalInMs")
+	}
+
+	mdErr := mdutils.DecodeMetadata(md, &m)
+	if mdErr != nil {
+		return m, mdErr
+	}
 
 	/* Required configuration settings - no defaults. */
-	if val, ok := md[keyConnectionString]; ok && val != "" {
-		m.ConnectionString = val
-
+	if m.ConnectionString != "" {
 		// The connection string and the namespace cannot both be present.
-		if namespace, present := md[keyNamespaceName]; present && namespace != "" {
+		if m.NamespaceName != "" {
 			return m, errors.New("connectionString and namespaceName cannot both be specified")
 		}
-	} else if val, ok := md[keyNamespaceName]; ok && val != "" {
-		m.NamespaceName = val
-	} else {
+	} else if m.NamespaceName == "" {
 		return m, errors.New("either one of connection string or namespace name are required")
 	}
 
 	if (mode & MetadataModeTopics) != 0 {
-		if val, ok := md[keyConsumerID]; ok && val != "" {
-			m.ConsumerID = val
-		} else {
+		if m.ConsumerID == "" {
 			return m, errors.New("missing consumerID")
 		}
 	}
 
 	if (mode&MetadataModeBinding) != 0 && (mode&MetadataModeTopics) == 0 {
-		if val, ok := md[keyQueueName]; ok && val != "" {
-			m.QueueName = val
-		} else {
+		if m.QueueName == "" {
 			return m, errors.New("missing queueName")
 		}
 	}
 
-	/* Optional configuration settings - defaults will be set by the client. */
-	m.TimeoutInSec = defaultTimeoutInSec
-	if val, ok := md[keyTimeoutInSec]; ok && val != "" {
-		m.TimeoutInSec, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("invalid timeoutInSec %s: %s", val, err)
-		}
+	if m.MaxActiveMessages < 1 {
+		err = errors.New("must be 1 or greater")
+		return m, err
 	}
 
-	m.DisableEntityManagement = defaultDisableEntityManagement
-	if val, ok := md[keyDisableEntityManagement]; ok && val != "" {
-		m.DisableEntityManagement = utils.IsTruthy(val)
-	}
-
-	if (mode & MetadataModeBinding) != 0 {
-		m.HandlerTimeoutInSec = defaultHandlerTimeoutInSecBinding
-	} else {
-		m.HandlerTimeoutInSec = defaultHandlerTimeoutInSecPubSub
-	}
-	if val, ok := md[keyHandlerTimeoutInSec]; ok && val != "" {
-		m.HandlerTimeoutInSec, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("invalid handlerTimeoutInSec %s: %s", val, err)
-		}
-	}
-
-	m.LockRenewalInSec = defaultLockRenewalInSec
-	if val, ok := md[keyLockRenewalInSec]; ok && val != "" {
-		m.LockRenewalInSec, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("invalid lockRenewalInSec %s: %s", val, err)
-		}
-	}
-
-	if (mode & MetadataModeBinding) != 0 {
-		m.MaxActiveMessages = defaultMaxActiveMessagesBinding
-	} else {
-		m.MaxActiveMessages = defaultMaxActiveMessagesPubSub
-	}
-	if val, ok := md[keyMaxActiveMessages]; ok && val != "" {
-		m.MaxActiveMessages, err = strconv.Atoi(val)
-		if err == nil && m.MaxActiveMessages < 1 {
-			err = errors.New("must be 1 or greater")
-		}
-		if err != nil {
-			return m, fmt.Errorf("invalid maxActiveMessages %s: %s", val, err)
-		}
-	}
-
-	m.MaxRetriableErrorsPerSec = defaultMaxRetriableErrorsPerSec
-	if val, ok := md[keyMaxRetriableErrorsPerSec]; ok && val != "" {
-		m.MaxRetriableErrorsPerSec, err = strconv.Atoi(val)
-		if err == nil && m.MaxRetriableErrorsPerSec < 0 {
-			err = errors.New("must not be negative")
-		}
-		if err != nil {
-			return m, fmt.Errorf("invalid maxRetriableErrorsPerSec %s: %s", val, err)
-		}
-	}
-
-	m.MinConnectionRecoveryInSec = defaultMinConnectionRecoveryInSec
-	if val, ok := md[keyMinConnectionRecoveryInSec]; ok && val != "" {
-		m.MinConnectionRecoveryInSec, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("invalid minConnectionRecoveryInSec %s: %s", val, err)
-		}
-	}
-
-	m.MaxConnectionRecoveryInSec = defaultMaxConnectionRecoveryInSec
-	if val, ok := md[keyMaxConnectionRecoveryInSec]; ok && val != "" {
-		m.MaxConnectionRecoveryInSec, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("invalid maxConnectionRecoveryInSec %s: %s", val, err)
-		}
-	}
-
-	if (mode & MetadataModeBinding) != 0 {
-		m.MaxConcurrentHandlers = defaultMaxConcurrentHandlersBinding
-	} else {
-		m.MaxConcurrentHandlers = defaultMaxConcurrentHandlersPubSub
-	}
-	if val, ok := md[keyMaxConcurrentHandlers]; ok && val != "" {
-		m.MaxConcurrentHandlers, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("invalid maxConcurrentHandlers %s: %s", val, err)
-		}
-	}
-
-	m.PublishMaxRetries = defaultPublishMaxRetries
-	if val, ok := md[keyPublishMaxRetries]; ok && val != "" {
-		m.PublishMaxRetries, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("invalid publishMaxRetries %s: %s", val, err)
-		}
-	}
-
-	// This metadata property has an alias "publishInitialRetryInternalInMs" because of a typo in a previous version of Dapr
-	m.PublishInitialRetryIntervalInMs = defaultPublishInitialRetryIntervalInMs
-	if val, ok := md[keyPublishInitialRetryIntervalInMs]; ok && val != "" {
-		m.PublishInitialRetryIntervalInMs, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("invalid publishInitialRetryIntervalInMs %s: %s", val, err)
-		}
-	} else if val, ok := md["publishInitialRetryInternalInMs"]; ok && val != "" {
-		// TODO: Remove in a future Dapr release
-		logger.Warn("Found deprecated metadata property 'publishInitialRetryInternalInMs'; please use 'publishInitialRetryIntervalInMs'")
-		m.PublishInitialRetryIntervalInMs, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("invalid publishInitialRetryInternalInMs %s: %s", val, err)
-		}
+	if m.MaxRetriableErrorsPerSec < 0 {
+		err = errors.New("must not be negative")
+		return m, err
 	}
 
 	/* Nullable configuration settings - defaults will be set by the server. */
-	if val, ok := md[keyMaxDeliveryCount]; ok && val != "" {
-		var valAsInt int64
-		valAsInt, err = strconv.ParseInt(val, 10, 32)
-		if err != nil {
-			return m, fmt.Errorf("invalid maxDeliveryCount %s: %s", val, err)
+
+	if m.DefaultMessageTimeToLiveInSec == nil {
+		duration, found, ttlErr := mdutils.TryGetTTL(md)
+		if ttlErr != nil {
+			return m, fmt.Errorf("invalid %s %s: %s", mdutils.TTLMetadataKey, duration, ttlErr)
 		}
-		m.MaxDeliveryCount = ptr.Of(int32(valAsInt))
+		if found {
+			m.DefaultMessageTimeToLiveInSec = ptr.Of(int(duration.Seconds()))
+		}
 	}
 
-	if val, ok := md[keyLockDurationInSec]; ok && val != "" {
-		var valAsInt int
-		valAsInt, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("invalid lockDurationInSec %s: %s", val, err)
-		}
-		m.LockDurationInSec = &valAsInt
-	}
-
-	if val, ok := md[keyDefaultMessageTimeToLiveInSec]; ok && val != "" {
-		var valAsInt int
-		valAsInt, err = strconv.Atoi(val)
-		if err == nil && valAsInt < 0 {
-			err = errors.New("must be greater than 0")
-		}
-		if err != nil {
-			return m, fmt.Errorf("invalid defaultMessageTimeToLiveInSec %s: %s", val, err)
-		}
-		m.DefaultMessageTimeToLiveInSec = &valAsInt
-	} else if val, ok := md[mdutils.TTLMetadataKey]; ok && val != "" {
-		var valAsInt int
-		valAsInt, err = strconv.Atoi(val)
-		if err == nil && valAsInt < 0 {
-			err = errors.New("must be greater than 0")
-		}
-		if err != nil {
-			return m, fmt.Errorf("invalid %s %s: %s", mdutils.TTLMetadataKey, val, err)
-		}
-		m.DefaultMessageTimeToLiveInSec = &valAsInt
-	}
-
-	if val, ok := md[keyAutoDeleteOnIdleInSec]; ok && val != "" {
-		var valAsInt int
-		valAsInt, err = strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("invalid autoDeleteOnIdleInSecKey %s: %s", val, err)
-		}
-		m.AutoDeleteOnIdleInSec = &valAsInt
+	if m.DefaultMessageTimeToLiveInSec != nil && *m.DefaultMessageTimeToLiveInSec == 0 {
+		return m, errors.New("defaultMessageTimeToLiveInSec must be greater than 0")
 	}
 
 	return m, nil

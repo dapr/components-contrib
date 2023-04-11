@@ -15,6 +15,7 @@ package oracledatabase
 
 import (
 	"context"
+	"database/sql"
 	"reflect"
 
 	"github.com/dapr/components-contrib/metadata"
@@ -24,6 +25,8 @@ import (
 
 // Oracle Database state store.
 type OracleDatabase struct {
+	state.BulkStore
+
 	features []state.Feature
 	logger   logger.Logger
 	dbaccess dbAccess
@@ -32,8 +35,9 @@ type OracleDatabase struct {
 // NewOracleDatabaseStateStore creates a new instance of OracleDatabase state store.
 func NewOracleDatabaseStateStore(logger logger.Logger) state.Store {
 	dba := newOracleDatabaseAccess(logger)
-
-	return newOracleDatabaseStateStore(logger, dba)
+	s := newOracleDatabaseStateStore(logger, dba)
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // newOracleDatabaseStateStore creates a newOracleDatabaseStateStore instance of an OracleDatabase state store.
@@ -65,44 +69,14 @@ func (o *OracleDatabase) Delete(ctx context.Context, req *state.DeleteRequest) e
 	return o.dbaccess.Delete(ctx, req)
 }
 
-// BulkDelete removes multiple entries from the store.
-func (o *OracleDatabase) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	ops := make([]state.TransactionalStateOperation, len(req))
-	for i, r := range req {
-		ops[i] = state.TransactionalStateOperation{
-			Operation: state.Delete,
-			Request:   r,
-		}
-	}
-	return o.dbaccess.ExecuteMulti(ctx, ops)
-}
-
 // Get returns an entity from store.
 func (o *OracleDatabase) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	return o.dbaccess.Get(ctx, req)
 }
 
-// BulkGet performs a bulks get operations.
-func (o *OracleDatabase) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
-	// TODO: replace with ExecuteMulti for performance.
-	return false, nil, nil
-}
-
 // Set adds/updates an entity on store.
 func (o *OracleDatabase) Set(ctx context.Context, req *state.SetRequest) error {
 	return o.dbaccess.Set(ctx, req)
-}
-
-// BulkSet adds/updates multiple entities on store.
-func (o *OracleDatabase) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	ops := make([]state.TransactionalStateOperation, len(req))
-	for i, r := range req {
-		ops[i] = state.TransactionalStateOperation{
-			Operation: state.Upsert,
-			Request:   r,
-		}
-	}
-	return o.dbaccess.ExecuteMulti(ctx, ops)
 }
 
 // Multi handles multiple transactions. Implements TransactionalStore.
@@ -117,6 +91,11 @@ func (o *OracleDatabase) Close() error {
 	}
 
 	return nil
+}
+
+// Returns the database connection. Used by tests.
+func (o *OracleDatabase) getDB() *sql.DB {
+	return o.dbaccess.(*oracleDatabaseAccess).db
 }
 
 func (o *OracleDatabase) GetComponentMetadata() map[string]string {

@@ -29,7 +29,8 @@ import (
 
 // Consul is a state store implementation for HashiCorp Consul.
 type Consul struct {
-	state.DefaultBulkStore
+	state.BulkStore
+
 	client        *api.Client
 	keyPrefixPath string
 	logger        logger.Logger
@@ -45,9 +46,10 @@ type consulConfig struct {
 
 // NewConsulStateStore returns a new consul state store.
 func NewConsulStateStore(logger logger.Logger) state.Store {
-	s := &Consul{logger: logger}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
+	s := &Consul{
+		logger: logger,
+	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
 }
 

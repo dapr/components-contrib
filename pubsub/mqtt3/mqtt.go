@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -29,6 +30,7 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/dapr/components-contrib/internal/utils"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -41,7 +43,7 @@ const (
 // mqttPubSub type allows sending and receiving data to/from MQTT broker.
 type mqttPubSub struct {
 	conn            mqtt.Client
-	metadata        *metadata
+	metadata        *mqttMetadata
 	logger          logger.Logger
 	topics          map[string]mqttPubSubSubscription
 	subscribingLock sync.RWMutex
@@ -99,7 +101,7 @@ func (m *mqttPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) (e
 	// m.logger.Debugf("mqtt publishing topic %s with data: %v", req.Topic, req.Data)
 	m.logger.Debugf("mqtt publishing topic %s", req.Topic)
 
-	retain := m.metadata.retain
+	retain := m.metadata.Retain
 	if val, ok := req.Metadata[mqttRetain]; ok && val != "" {
 		retain, err = strconv.ParseBool(val)
 		if err != nil {
@@ -107,7 +109,7 @@ func (m *mqttPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) (e
 		}
 	}
 
-	token := m.conn.Publish(req.Topic, m.metadata.qos, retain, req.Data)
+	token := m.conn.Publish(req.Topic, m.metadata.Qos, retain, req.Data)
 	ctx, cancel := context.WithTimeout(ctx, defaultWait)
 	defer cancel()
 	select {
@@ -146,7 +148,7 @@ func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 	// Add the topic then start the subscription
 	m.addTopic(topic, handler)
 
-	token := m.conn.Subscribe(topic, m.metadata.qos, m.onMessage(ctx))
+	token := m.conn.Subscribe(topic, m.metadata.Qos, m.onMessage(ctx))
 	var err error
 	select {
 	case <-token.Done():
@@ -163,7 +165,7 @@ func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 		return fmt.Errorf("mqtt error from subscribe: %v", err)
 	}
 
-	m.logger.Infof("MQTT is subscribed to topic %s (qos: %d)", topic, m.metadata.qos)
+	m.logger.Infof("MQTT is subscribed to topic %s (qos: %d)", topic, m.metadata.Qos)
 
 	// Listen for context cancelation to remove the subscription
 	m.wg.Add(1)
@@ -185,7 +187,7 @@ func (m *mqttPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest,
 
 		// We will call Unsubscribe only if cleanSession is true or if "unsubscribeOnClose" in the request metadata is true
 		// Otherwise, calling this will make the broker lose the position of our subscription, which is not what we want if we are going to reconnect later
-		if !m.metadata.cleanSession && !unsubscribeOnClose {
+		if !m.metadata.CleanSession && !unsubscribeOnClose {
 			return
 		}
 
@@ -258,7 +260,7 @@ func (m *mqttPubSub) handlerForTopic(topic string) pubsub.Handler {
 }
 
 func (m *mqttPubSub) doConnect(ctx context.Context, clientID string) (mqtt.Client, error) {
-	uri, err := url.Parse(m.metadata.url)
+	uri, err := url.Parse(m.metadata.URL)
 	if err != nil {
 		return nil, err
 	}
@@ -287,7 +289,7 @@ func (m *mqttPubSub) connect(ctx context.Context) error {
 
 	ctx, cancel := context.WithTimeout(ctx, defaultWait)
 	defer cancel()
-	conn, err := m.doConnect(ctx, m.metadata.consumerID)
+	conn, err := m.doConnect(ctx, m.metadata.ConsumerID)
 	if err != nil {
 		return err
 	}
@@ -299,7 +301,7 @@ func (m *mqttPubSub) connect(ctx context.Context) error {
 func (m *mqttPubSub) createClientOptions(uri *url.URL, clientID string) *mqtt.ClientOptions {
 	opts := mqtt.NewClientOptions().
 		SetClientID(clientID).
-		SetCleanSession(m.metadata.cleanSession).
+		SetCleanSession(m.metadata.CleanSession).
 		// If OrderMatters is true (default), handlers must not block, which is not an option for us
 		SetOrderMatters(false).
 		// Disable automatic ACKs as we need to do it manually
@@ -331,7 +333,7 @@ func (m *mqttPubSub) createClientOptions(uri *url.URL, clientID string) *mqtt.Cl
 		// Create the list of topics to subscribe to
 		subscribeTopics := make(map[string]byte, len(m.topics))
 		for k := range m.topics {
-			subscribeTopics[k] = m.metadata.qos
+			subscribeTopics[k] = m.metadata.Qos
 		}
 
 		// Note that this is a bit unusual for a pubsub component as we're using a background context for the handler.
@@ -490,4 +492,12 @@ func buildRegexForTopic(topicName string) string {
 	}
 
 	return regexStr
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (m *mqttPubSub) GetComponentMetadata() map[string]string {
+	metadataStruct := mqttMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
+	return metadataInfo
 }

@@ -227,10 +227,10 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		assert.NoError(t, err)
-		assert.Equal(t, fakeProperties[mqttURL], m.url)
-		assert.Equal(t, byte(1), m.qos)
-		assert.Equal(t, true, m.retain)
-		assert.Equal(t, false, m.cleanSession)
+		assert.Equal(t, fakeProperties[mqttURL], m.URL)
+		assert.Equal(t, byte(1), m.Qos)
+		assert.Equal(t, true, m.Retain)
+		assert.Equal(t, false, m.CleanSession)
 	})
 
 	t.Run("missing consumerID", func(t *testing.T) {
@@ -255,7 +255,7 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		assert.ErrorContains(t, err, "missing url")
-		assert.Equal(t, fakeProperties[mqttURL], m.url)
+		assert.Equal(t, fakeProperties[mqttURL], m.URL)
 	})
 
 	t.Run("qos and retain is not given", func(t *testing.T) {
@@ -264,16 +264,16 @@ func TestParseMetadata(t *testing.T) {
 		fakeMetaData := pubsub.Metadata{
 			Base: mdata.Base{Properties: fakeProperties},
 		}
-		fakeMetaData.Properties[mqttQOS] = ""
-		fakeMetaData.Properties[mqttRetain] = ""
+		delete(fakeMetaData.Properties, mqttQOS)
+		delete(fakeMetaData.Properties, mqttRetain)
 
 		m, err := parseMQTTMetaData(fakeMetaData, log)
 
 		// assert
 		require.NoError(t, err)
-		assert.Equal(t, fakeProperties[mqttURL], m.url)
-		assert.Equal(t, byte(1), m.qos)
-		assert.Equal(t, false, m.retain)
+		assert.Equal(t, fakeProperties[mqttURL], m.URL)
+		assert.Equal(t, byte(1), m.Qos)
+		assert.Equal(t, false, m.Retain)
 	})
 
 	t.Run("invalid ca certificate", func(t *testing.T) {
@@ -624,7 +624,7 @@ func Test_buildRegexForTopic(t *testing.T) {
 func Test_mqttPubSub_Publish(t *testing.T) {
 	type fields struct {
 		logger   logger.Logger
-		metadata *metadata
+		metadata *mqttMetadata
 		ctx      context.Context
 	}
 	type args struct {
@@ -642,8 +642,8 @@ func Test_mqttPubSub_Publish(t *testing.T) {
 			fields: fields{
 				logger: logger.NewLogger("mqtt-test"),
 				ctx:    context.Background(),
-				metadata: &metadata{
-					retain: true,
+				metadata: &mqttMetadata{
+					Retain: true,
 				},
 			},
 			args: args{
@@ -668,8 +668,8 @@ func Test_mqttPubSub_Publish(t *testing.T) {
 			fields: fields{
 				logger: logger.NewLogger("mqtt-test"),
 				ctx:    context.Background(),
-				metadata: &metadata{
-					retain: true,
+				metadata: &mqttMetadata{
+					Retain: true,
 				},
 			},
 			args: args{

@@ -14,6 +14,7 @@ limitations under the License.
 package embedded
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
@@ -197,7 +198,7 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, *runtime.Co
 	if config != "" {
 		switch modes.DaprMode(mode) {
 		case modes.KubernetesMode:
-			client, conn, clientErr := client.GetOperatorClient(controlPlaneAddress, security.TLSServerName, runtimeConfig.CertChain)
+			client, conn, clientErr := client.GetOperatorClient(context.Background(), controlPlaneAddress, security.TLSServerName, runtimeConfig.CertChain)
 			if clientErr != nil {
 				return nil, nil, err
 			}

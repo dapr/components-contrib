@@ -106,7 +106,7 @@ func Test_kubeMQ_Init(t *testing.T) {
 
 func Test_kubeMQ_Close(t *testing.T) {
 	type fields struct {
-		metadata         *metadata
+		metadata         *kubemqMetadata
 		logger           logger.Logger
 		eventsClient     *kubeMQEvents
 		eventStoreClient *kubeMQEventStore
@@ -119,8 +119,8 @@ func Test_kubeMQ_Close(t *testing.T) {
 		{
 			name: "close events client",
 			fields: fields{
-				metadata: &metadata{
-					isStore: false,
+				metadata: &kubemqMetadata{
+					IsStore: false,
 				},
 				eventsClient:     getMockEventsClient(),
 				eventStoreClient: nil,
@@ -130,8 +130,8 @@ func Test_kubeMQ_Close(t *testing.T) {
 		{
 			name: "close events store client",
 			fields: fields{
-				metadata: &metadata{
-					isStore: true,
+				metadata: &kubemqMetadata{
+					IsStore: true,
 				},
 				eventsClient:     nil,
 				eventStoreClient: getMockEventsStoreClient(),

@@ -18,12 +18,14 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 
 	"gopkg.in/gomail.v2"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -42,17 +44,17 @@ type Mailer struct {
 
 // Metadata holds standard email properties.
 type Metadata struct {
-	Host          string `json:"host"`
-	Port          int    `json:"port"`
-	User          string `json:"user"`
-	SkipTLSVerify bool   `json:"skipTLSVerify"`
-	Password      string `json:"password"`
-	EmailFrom     string `json:"emailFrom"`
-	EmailTo       string `json:"emailTo"`
-	EmailCC       string `json:"emailCC"`
-	EmailBCC      string `json:"emailBCC"`
-	Subject       string `json:"subject"`
-	Priority      int    `json:"priority"`
+	Host          string `mapstructure:"host"`
+	Port          int    `mapstructure:"port"`
+	User          string `mapstructure:"user"`
+	SkipTLSVerify bool   `mapstructure:"skipTLSVerify"`
+	Password      string `mapstructure:"password"`
+	EmailFrom     string `mapstructure:"emailFrom"`
+	EmailTo       string `mapstructure:"emailTo"`
+	EmailCC       string `mapstructure:"emailCC"`
+	EmailBCC      string `mapstructure:"emailBCC"`
+	Subject       string `mapstructure:"subject"`
+	Priority      int    `mapstructure:"priority"`
 }
 
 // NewSMTP returns a new smtp binding instance.
@@ -138,46 +140,32 @@ func (s *Mailer) Invoke(_ context.Context, req *bindings.InvokeRequest) (*bindin
 // Helper to parse metadata.
 func (s *Mailer) parseMetadata(meta bindings.Metadata) (Metadata, error) {
 	smtpMeta := Metadata{}
+	err := metadata.DecodeMetadata(meta.Properties, &smtpMeta)
+	if err != nil {
+		return smtpMeta, err
+	}
 
 	// required metadata properties
-	if meta.Properties["host"] == "" || meta.Properties["port"] == "" {
+	if smtpMeta.Host == "" || smtpMeta.Port == 0 {
 		return smtpMeta, errors.New("smtp binding error: host and port fields are required in metadata")
 	}
 
-	if (meta.Properties["user"] != "" && meta.Properties["password"] == "") ||
-		(meta.Properties["user"] == "" && meta.Properties["password"] != "") {
+	if (smtpMeta.User != "" && smtpMeta.Password == "") ||
+		(smtpMeta.User == "" && smtpMeta.Password != "") {
 		return smtpMeta, errors.New("smtp binding error: both user and password fields are required in metadata")
 	}
 
-	if meta.Properties["user"] == "" && meta.Properties["password"] == "" {
+	if smtpMeta.User == "" && smtpMeta.Password == "" {
 		s.logger.Warn("smtp binding warn: User and password are empty")
 	}
 
-	smtpMeta.Host = meta.Properties["host"]
-	port, err := strconv.Atoi(meta.Properties["port"])
-	if err != nil {
-		return smtpMeta, fmt.Errorf("smtp binding error: Unable to parse specified port to integer value")
-	}
-	smtpMeta.Port = port
-
 	s.logger.Debugf("smtp binding: using server %v:%v", s.metadata.Host, s.metadata.Port)
 
-	smtpMeta.User = meta.Properties["user"]
-	smtpMeta.Password = meta.Properties["password"]
-
 	// Optional properties (override per request)
-	skipTLSVerify, err := strconv.ParseBool(meta.Properties["skipTLSVerify"])
-	if err == nil {
-		smtpMeta.SkipTLSVerify = skipTLSVerify
-		if smtpMeta.SkipTLSVerify {
-			s.logger.Warn("smtp binding warning: Skip TLS Verification is enabled. This is insecure and is NOT recommended for production scenarios.")
-		}
+	if smtpMeta.SkipTLSVerify {
+		s.logger.Warn("smtp binding warning: Skip TLS Verification is enabled. This is insecure and is NOT recommended for production scenarios.")
 	}
-	smtpMeta.EmailTo = meta.Properties["emailTo"]
-	smtpMeta.EmailCC = meta.Properties["emailCC"]
-	smtpMeta.EmailBCC = meta.Properties["emailBCC"]
-	smtpMeta.EmailFrom = meta.Properties["emailFrom"]
-	smtpMeta.Subject = meta.Properties["subject"]
+
 	err = smtpMeta.parsePriority(meta.Properties["priority"])
 
 	if err != nil {
@@ -240,4 +228,12 @@ func (metadata *Metadata) parsePriority(req string) error {
 
 func (metadata Metadata) parseAddresses(addresses string) []string {
 	return strings.Split(addresses, mailSeparator)
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (s *Mailer) GetComponentMetadata() map[string]string {
+	metadataStruct := Metadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

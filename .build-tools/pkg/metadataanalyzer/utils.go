@@ -78,6 +78,51 @@ func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, out
 			if methodFinderErr == nil {
 				methodFound = true
 			}
+		case "bindings":
+			method, methodFinderErr = getConstructorMethod("bindings.InputOutputBinding", parsedFile)
+			if methodFinderErr == nil {
+				methodFound = true
+			} else {
+				method, methodFinderErr = getConstructorMethod("bindings.OutputBinding", parsedFile)
+				if methodFinderErr == nil {
+					methodFound = true
+				} else {
+					method, methodFinderErr = getConstructorMethod("bindings.InputBinding", parsedFile)
+					if methodFinderErr == nil {
+						methodFound = true
+					}
+				}
+			}
+		case "lock":
+			method, methodFinderErr = getConstructorMethod("lock.Store", parsedFile)
+			if methodFinderErr == nil {
+				methodFound = true
+			}
+		case "workflows":
+			method, methodFinderErr = getConstructorMethod("workflows.Workflow", parsedFile)
+			if methodFinderErr == nil {
+				methodFound = true
+			}
+		case "configuration":
+			method, methodFinderErr = getConstructorMethod("configuration.Store", parsedFile)
+			if methodFinderErr == nil {
+				methodFound = true
+			}
+		case "crypto":
+			method, methodFinderErr = getConstructorMethod("contribCrypto.SubtleCrypto", parsedFile)
+			if methodFinderErr == nil {
+				methodFound = true
+			}
+		case "middleware":
+			method, methodFinderErr = getConstructorMethod("middleware.Middleware", parsedFile)
+			if methodFinderErr == nil {
+				methodFound = true
+			}
+		case "pubsub":
+			method, methodFinderErr = getConstructorMethod("pubsub.PubSub", parsedFile)
+			if methodFinderErr == nil {
+				methodFound = true
+			}
 		}
 
 		if methodFound {
@@ -138,7 +183,9 @@ func getConstructorMethod(componentType string, file *ast.File) (string, error) 
 						continue
 					}
 					if selExpr.Sel.Name == typeSplit[1] {
-						return f.Name.Name, nil
+						if len(f.Name.Name) > 3 && f.Name.Name[:3] == "New" {
+							return f.Name.Name, nil
+						}
 					}
 				}
 			}

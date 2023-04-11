@@ -14,6 +14,7 @@ limitations under the License.
 package metadata
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"reflect"
@@ -153,6 +154,7 @@ func DecodeMetadata(input interface{}, result interface{}) error {
 
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		DecodeHook: mapstructure.ComposeDecodeHookFunc(
+			toTimeDurationArrayHookFunc(),
 			toTimeDurationHookFunc(),
 			toTruthyBoolHookFunc(),
 			toStringArrayHookFunc(),
@@ -204,9 +206,67 @@ func toStringArrayHookFunc() mapstructure.DecodeHookFunc {
 	}
 }
 
+func toTimeDurationArrayHookFunc() mapstructure.DecodeHookFunc {
+	convert := func(input string) ([]time.Duration, error) {
+		res := make([]time.Duration, 0)
+		for _, v := range strings.Split(input, ",") {
+			input := strings.TrimSpace(v)
+			if input == "" {
+				continue
+			}
+			val, err := time.ParseDuration(input)
+			if err != nil {
+				// If we can't parse the duration, try parsing it as int64 seconds
+				seconds, errParse := strconv.ParseInt(input, 10, 0)
+				if errParse != nil {
+					return nil, errors.Join(err, errParse)
+				}
+				val = time.Duration(seconds * int64(time.Second))
+			}
+			res = append(res, val)
+		}
+		return res, nil
+	}
+
+	return func(
+		f reflect.Type,
+		t reflect.Type,
+		data interface{},
+	) (interface{}, error) {
+		if f == reflect.TypeOf("") && t == reflect.TypeOf([]time.Duration{}) {
+			inputArrayString := data.(string)
+			return convert(inputArrayString)
+		}
+		if f == reflect.TypeOf("") && t == reflect.TypeOf(ptr.Of([]time.Duration{})) {
+			inputArrayString := data.(string)
+			res, err := convert(inputArrayString)
+			if err != nil {
+				return nil, err
+			}
+			return ptr.Of(res), nil
+		}
+		return data, nil
+	}
+}
+
+type ComponentType string
+
+const (
+	BindingType            ComponentType = "binding"
+	StateStoreType         ComponentType = "statestore"
+	SecretStoreType        ComponentType = "secretstore"
+	PubSubType             ComponentType = "pubsub"
+	LockStoreType          ComponentType = "lockstore"
+	ConfigurationStoreType ComponentType = "configurationstore"
+	MiddlewareType         ComponentType = "middleware"
+	CryptoType             ComponentType = "crypto"
+	NameResolutionType     ComponentType = "nameresolution"
+	WorkflowType           ComponentType = "workflow"
+)
+
 // GetMetadataInfoFromStructType converts a struct to a map of field name (or struct tag) to field type.
 // This is used to generate metadata documentation for components.
-func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *map[string]string) error {
+func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *map[string]string, componentType ComponentType) error {
 	// Return if not struct or pointer to struct.
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
@@ -217,17 +277,39 @@ func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *map[string]strin
 
 	for i := 0; i < t.NumField(); i++ {
 		currentField := t.Field(i)
+		// fields that are not exported cannot be set via the mapstructure metadata decoding mechanism
+		if !currentField.IsExported() {
+			continue
+		}
 		mapStructureTag := currentField.Tag.Get("mapstructure")
-		tags := strings.Split(mapStructureTag, ",")
-		numTags := len(tags)
-		if numTags > 1 && tags[numTags-1] == "squash" && currentField.Anonymous {
+		// we are not exporting this field using the mapstructure tag mechanism
+		if mapStructureTag == "-" {
+			continue
+		}
+		onlyTag := currentField.Tag.Get("only")
+		if onlyTag != "" {
+			include := false
+			onlyTags := strings.Split(onlyTag, ",")
+			for _, tag := range onlyTags {
+				if tag == string(componentType) {
+					include = true
+					break
+				}
+			}
+			if !include {
+				continue
+			}
+		}
+		mapStructureTags := strings.Split(mapStructureTag, ",")
+		numTags := len(mapStructureTags)
+		if numTags > 1 && mapStructureTags[numTags-1] == "squash" && currentField.Anonymous {
 			// traverse embedded struct
-			GetMetadataInfoFromStructType(currentField.Type, metadataMap)
+			GetMetadataInfoFromStructType(currentField.Type, metadataMap, componentType)
 			continue
 		}
 		var fieldName string
-		if numTags > 0 && tags[0] != "" {
-			fieldName = tags[0]
+		if numTags > 0 && mapStructureTags[0] != "" {
+			fieldName = mapStructureTags[0]
 		} else {
 			fieldName = currentField.Name
 		}

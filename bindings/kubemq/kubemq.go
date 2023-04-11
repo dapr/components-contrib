@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -12,6 +13,7 @@ import (
 	qs "github.com/kubemq-io/kubemq-go/queues_stream"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -46,9 +48,9 @@ func (k *kubeMQ) Init(ctx context.Context, metadata bindings.Metadata) error {
 	}
 	k.opts = opts
 	client, err := qs.NewQueuesStreamClient(ctx,
-		qs.WithAddress(opts.host, opts.port),
+		qs.WithAddress(opts.internalHost, opts.internalPort),
 		qs.WithCheckConnection(true),
-		qs.WithAuthToken(opts.authToken),
+		qs.WithAuthToken(opts.AuthToken),
 		qs.WithAutoReconnect(true),
 		qs.WithReconnectInterval(time.Second))
 	if err != nil {
@@ -95,7 +97,7 @@ func (k *kubeMQ) Read(ctx context.Context, handler bindings.Handler) error {
 
 func (k *kubeMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	queueMessage := qs.NewQueueMessage().
-		SetChannel(k.opts.channel).
+		SetChannel(k.opts.Channel).
 		SetBody(req.Data).
 		SetPolicyDelaySeconds(parsePolicyDelaySeconds(req.Metadata)).
 		SetPolicyExpirationSeconds(parsePolicyExpirationSeconds(req.Metadata)).
@@ -130,10 +132,10 @@ func (k *kubeMQ) Close() error {
 
 func (k *kubeMQ) processQueueMessage(ctx context.Context, handler bindings.Handler) error {
 	pr := qs.NewPollRequest().
-		SetChannel(k.opts.channel).
-		SetMaxItems(k.opts.pollMaxItems).
-		SetWaitTimeout(k.opts.pollTimeoutSeconds).
-		SetAutoAck(k.opts.autoAcknowledged)
+		SetChannel(k.opts.Channel).
+		SetMaxItems(k.opts.PollMaxItems).
+		SetWaitTimeout(k.opts.PollTimeoutSeconds).
+		SetAutoAck(k.opts.AutoAcknowledged)
 
 	pollResp, err := k.client.Poll(ctx, pr)
 	if err != nil {
@@ -167,4 +169,12 @@ func (k *kubeMQ) processQueueMessage(ctx context.Context, handler bindings.Handl
 		}
 	}
 	return nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (k *kubeMQ) GetComponentMetadata() map[string]string {
+	metadataStruct := options{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

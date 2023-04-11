@@ -88,13 +88,13 @@ const (
 
 // New creates a new instance of a SQL Server transaction store.
 func New(logger logger.Logger) state.Store {
-	store := SQLServer{
-		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
-		logger:   logger,
+	s := &SQLServer{
+		features:        []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		logger:          logger,
+		migratorFactory: newMigration,
 	}
-	store.migratorFactory = newMigration
-
-	return &store
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // IndexedProperty defines a indexed property.
@@ -106,6 +106,8 @@ type IndexedProperty struct {
 
 // SQLServer defines a Ms SQL Server based state store.
 type SQLServer struct {
+	state.BulkStore
+
 	connectionString  string
 	databaseName      string
 	tableName         string
@@ -209,9 +211,10 @@ BEGIN TRY
   INSERT INTO [%[1]s].[%[2]s] ([Key], [Value]) VALUES ('last-cleanup', CONVERT(nvarchar(MAX), GETDATE(), 21));
 END TRY
 BEGIN CATCH
-UPDATE [%[1]s].[%[2]s] SET [Value] = CONVERT(nvarchar(MAX), GETDATE(), 21) WHERE [Key] = 'last-cleanup' AND Datediff_big(MS, [Value], GETUTCDATE()) > @Interval
+  UPDATE [%[1]s].[%[2]s] SET [Value] = CONVERT(nvarchar(MAX), GETDATE(), 21) WHERE [Key] = 'last-cleanup' AND Datediff_big(MS, [Value], GETUTCDATE()) > @Interval
 END CATCH
 COMMIT TRANSACTION;`, s.schema, s.metaTableName),
+			UpdateLastCleanupQueryParameterName: "Interval",
 			DeleteExpiredValuesQuery: fmt.Sprintf(
 				`DELETE FROM [%s].[%s] WHERE [ExpireDate] IS NOT NULL AND [ExpireDate] < GETDATE()`,
 				s.schema, s.tableName,
@@ -422,64 +425,26 @@ func (s *SQLServer) Multi(ctx context.Context, request *state.TransactionalState
 		return err
 	}
 
-	for _, req := range request.Operations {
-		switch req.Operation {
-		case state.Upsert:
-			setReq, err := s.getSets(req)
+	for _, o := range request.Operations {
+		switch req := o.(type) {
+		case state.SetRequest:
+			err = s.executeSet(ctx, tx, &req)
 			if err != nil {
 				return err
 			}
 
-			err = s.executeSet(ctx, tx, &setReq)
-			if err != nil {
-				return err
-			}
-
-		case state.Delete:
-			delReq, err := s.getDeletes(req)
-			if err != nil {
-				return err
-			}
-
-			err = s.executeDelete(ctx, tx, &delReq)
+		case state.DeleteRequest:
+			err = s.executeDelete(ctx, tx, &req)
 			if err != nil {
 				return err
 			}
 
 		default:
-			return fmt.Errorf("unsupported operation: %s", req.Operation)
+			return fmt.Errorf("unsupported operation: %s", o.Operation())
 		}
 	}
 
 	return tx.Commit()
-}
-
-// Returns the set requests.
-func (s *SQLServer) getSets(req state.TransactionalStateOperation) (state.SetRequest, error) {
-	setReq, ok := req.Request.(state.SetRequest)
-	if !ok {
-		return setReq, fmt.Errorf("expecting set request")
-	}
-
-	if setReq.Key == "" {
-		return setReq, fmt.Errorf("missing key in upsert operation")
-	}
-
-	return setReq, nil
-}
-
-// Returns the delete requests.
-func (s *SQLServer) getDeletes(req state.TransactionalStateOperation) (state.DeleteRequest, error) {
-	delReq, ok := req.Request.(state.DeleteRequest)
-	if !ok {
-		return delReq, fmt.Errorf("expecting delete request")
-	}
-
-	if delReq.Key == "" {
-		return delReq, fmt.Errorf("missing key in upsert operation")
-	}
-
-	return delReq, nil
 }
 
 // Delete removes an entity from the store.
@@ -574,9 +539,7 @@ func (s *SQLServer) executeBulkDelete(ctx context.Context, db dbExecutor, req []
 	}
 
 	if int(rows) != len(req) {
-		err = state.NewBulkDeleteRowMismatchError(uint64(rows), uint64(len(req)))
-
-		return err
+		return state.NewBulkDeleteRowMismatchError(uint64(rows), uint64(len(req)))
 	}
 
 	return nil
@@ -612,11 +575,6 @@ func (s *SQLServer) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 		Data: []byte(data),
 		ETag: ptr.Of(etag),
 	}, nil
-}
-
-// BulkGet performs a bulks get operations.
-func (s *SQLServer) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
-	return false, nil, nil
 }
 
 // Set adds/updates an entity on store.
@@ -704,7 +662,7 @@ func (s *SQLServer) GetComponentMetadata() map[string]string {
 	return map[string]string{}
 }
 
-// Close implements io.Close.
+// Close implements io.Closer.
 func (s *SQLServer) Close() error {
 	if s.db != nil {
 		s.db.Close()

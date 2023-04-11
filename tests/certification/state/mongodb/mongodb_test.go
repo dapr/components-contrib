@@ -3,6 +3,7 @@ package mongodb_test
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -50,7 +51,7 @@ func TestMongoDB(t *testing.T) {
 	currentHTTPPort := ports[1]
 
 	basicTest := func(ctx flow.Context) error {
-		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+		client, err := client.NewClientWithPort(strconv.Itoa(currentGrpcPort))
 		if err != nil {
 			panic(err)
 		}
@@ -165,8 +166,7 @@ func TestMongoDB(t *testing.T) {
 		Step("Get Values Saved Earlier And Not Expired, after MongoDB restart", testGetAfterMongoDBRestart).
 		Run()
 
-	flow.New(t, "Connecting MongoDB And Verifying majority of the tests for a replica set "+
-		"here with valid read, write concerns and operation timeout").
+	flow.New(t, "Connecting MongoDB And Verifying majority of the tests for a replica set here with valid read, write concerns and operation timeout").
 		Step(dockercompose.Run("mongodb", dockerComposeClusterYAML)).
 		Step("Waiting for component to start...", flow.Sleep(20*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerClusterValidReadWriteConcernAndTimeout",
@@ -189,8 +189,7 @@ func TestMongoDB(t *testing.T) {
 		Step("Get Values Saved Earlier And Not Expired, after MongoDB restart", testGetAfterMongoDBRestart).
 		Run()
 
-	flow.New(t, "Connecting MongoDB using connectionString And Verifying majority of the tests here for a single node with valid read, "+
-		"write concerns and operation timeout").
+	flow.New(t, "Connecting MongoDB using connectionString and Verifying majority of the tests here for a single node with valid read, write concerns and operation timeout").
 		Step(dockercompose.Run("mongodb", dockerComposeSingleYAML)).
 		Step("Waiting for component to start...", flow.Sleep(20*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerSingleNode",

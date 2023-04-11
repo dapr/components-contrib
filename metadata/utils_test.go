@@ -97,17 +97,20 @@ func TestTryGetContentType(t *testing.T) {
 func TestMetadataDecode(t *testing.T) {
 	t.Run("Test metadata decoding", func(t *testing.T) {
 		type testMetadata struct {
-			Mystring               string        `json:"mystring"`
-			Myduration             Duration      `json:"myduration"`
-			Myinteger              int           `json:"myinteger,string"`
-			Myfloat64              float64       `json:"myfloat64,string"`
-			Mybool                 *bool         `json:"mybool,omitempty"`
-			MyRegularDuration      time.Duration `json:"myregularduration"`
-			MyDurationWithoutUnit  time.Duration `json:"mydurationwithoutunit"`
-			MyRegularDurationEmpty time.Duration `json:"myregulardurationempty"`
+			Mystring                    string           `mapstructure:"mystring"`
+			Myduration                  Duration         `mapstructure:"myduration"`
+			Myinteger                   int              `mapstructure:"myinteger"`
+			Myfloat64                   float64          `mapstructure:"myfloat64"`
+			Mybool                      *bool            `mapstructure:"mybool"`
+			MyRegularDuration           time.Duration    `mapstructure:"myregularduration"`
+			MyDurationWithoutUnit       time.Duration    `mapstructure:"mydurationwithoutunit"`
+			MyRegularDurationEmpty      time.Duration    `mapstructure:"myregulardurationempty"`
+			MyDurationArray             []time.Duration  `mapstructure:"mydurationarray"`
+			MyDurationArrayPointer      *[]time.Duration `mapstructure:"mydurationarraypointer"`
+			MyDurationArrayPointerEmpty *[]time.Duration `mapstructure:"mydurationarraypointerempty"`
 
-			MyRegularDurationDefaultValueUnset time.Duration `json:"myregulardurationdefaultvalueunset"`
-			MyRegularDurationDefaultValueEmpty time.Duration `json:"myregulardurationdefaultvalueempty"`
+			MyRegularDurationDefaultValueUnset time.Duration `mapstructure:"myregulardurationdefaultvalueunset"`
+			MyRegularDurationDefaultValueEmpty time.Duration `mapstructure:"myregulardurationdefaultvalueempty"`
 		}
 
 		var m testMetadata
@@ -125,6 +128,9 @@ func TestMetadataDecode(t *testing.T) {
 			"myregulardurationempty": "",
 			// Not setting myregulardurationdefaultvalueunset on purpose
 			"myregulardurationdefaultvalueempty": "",
+			"mydurationarray":                    "1s,2s,3s,10",
+			"mydurationarraypointer":             "1s,10,2s,20,3s,30",
+			"mydurationarraypointerempty":        ",",
 		}
 
 		err := DecodeMetadata(testData, &m)
@@ -140,6 +146,9 @@ func TestMetadataDecode(t *testing.T) {
 		assert.Equal(t, time.Duration(0), m.MyRegularDurationEmpty)
 		assert.Equal(t, time.Hour, m.MyRegularDurationDefaultValueUnset)
 		assert.Equal(t, time.Duration(0), m.MyRegularDurationDefaultValueEmpty)
+		assert.Equal(t, []time.Duration{time.Second, time.Second * 2, time.Second * 3, time.Second * 10}, m.MyDurationArray)
+		assert.Equal(t, []time.Duration{time.Second, time.Second * 10, time.Second * 2, time.Second * 20, time.Second * 3, time.Second * 30}, *m.MyDurationArrayPointer)
+		assert.Equal(t, []time.Duration{}, *m.MyDurationArrayPointerEmpty)
 	})
 
 	t.Run("Test metadata decode hook for truthy values", func(t *testing.T) {
@@ -228,18 +237,24 @@ func TestMetadataStructToStringMap(t *testing.T) {
 		}
 
 		type testMetadata struct {
-			NestedStruct            `mapstructure:",squash"`
-			Mystring                string
-			Myduration              Duration
-			Myinteger               int
-			Myfloat64               float64
-			Mybool                  *bool `json:",omitempty"`
-			MyRegularDuration       time.Duration
-			SomethingWithCustomName string `mapstructure:"something_with_custom_name"`
+			NestedStruct              `mapstructure:",squash"`
+			Mystring                  string
+			Myduration                Duration
+			Myinteger                 int
+			Myfloat64                 float64
+			Mybool                    *bool
+			MyRegularDuration         time.Duration
+			SomethingWithCustomName   string `mapstructure:"something_with_custom_name"`
+			PubSubOnlyProperty        string `mapstructure:"pubsub_only_property" only:"pubsub"`
+			BindingOnlyProperty       string `mapstructure:"binding_only_property" only:"binding"`
+			PubSubAndBindingProperty  string `mapstructure:"pubsub_and_binding_property" only:"pubsub,binding"`
+			MyDurationArray           []time.Duration
+			NotExportedByMapStructure string `mapstructure:"-"`
+			notExported               string //nolint:structcheck,unused
 		}
 		m := testMetadata{}
 		metadatainfo := map[string]string{}
-		GetMetadataInfoFromStructType(reflect.TypeOf(m), &metadatainfo)
+		GetMetadataInfoFromStructType(reflect.TypeOf(m), &metadatainfo, BindingType)
 
 		assert.Equal(t, "string", metadatainfo["Mystring"])
 		assert.Equal(t, "metadata.Duration", metadatainfo["Myduration"])
@@ -252,5 +267,11 @@ func TestMetadataStructToStringMap(t *testing.T) {
 		assert.NotContains(t, metadatainfo, "SomethingWithCustomName")
 		assert.Equal(t, "string", metadatainfo["nested_string_custom"])
 		assert.Equal(t, "string", metadatainfo["NestedString"])
+		assert.NotContains(t, metadatainfo, "pubsub_only_property")
+		assert.Equal(t, "string", metadatainfo["binding_only_property"])
+		assert.Equal(t, "string", metadatainfo["pubsub_and_binding_property"])
+		assert.Equal(t, "[]time.Duration", metadatainfo["MyDurationArray"])
+		assert.NotContains(t, metadatainfo, "NotExportedByMapStructure")
+		assert.NotContains(t, metadatainfo, "notExported")
 	})
 }

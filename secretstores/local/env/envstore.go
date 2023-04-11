@@ -83,7 +83,7 @@ func (s *envSecretStore) GetComponentMetadata() map[string]string {
 	type unusedMetadataStruct struct{}
 	metadataStruct := unusedMetadataStruct{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return metadataInfo
 }
 

@@ -76,6 +76,8 @@ const (
 
 // MySQL state store.
 type MySQL struct {
+	state.BulkStore
+
 	tableName         string
 	metadataTableName string
 	cleanupInterval   *time.Duration
@@ -109,7 +111,9 @@ func NewMySQLStateStore(logger logger.Logger) state.Store {
 
 	// Store the provided logger and return the object. The rest of the
 	// properties will be populated in the Init function
-	return newMySQLStateStore(logger, factory)
+	s := newMySQLStateStore(logger, factory)
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // Hidden implementation for testing.
@@ -540,9 +544,8 @@ func (m *MySQL) BulkDelete(ctx context.Context, req []state.DeleteRequest) error
 	}()
 
 	if len(req) > 0 {
-		for _, d := range req {
-			da := d // Fix for goSec G601: Implicit memory aliasing in for loop.
-			err = m.deleteValue(ctx, tx, &da)
+		for i := range req {
+			err = m.deleteValue(ctx, tx, &req[i])
 			if err != nil {
 				return err
 			}
@@ -798,71 +801,26 @@ func (m *MySQL) Multi(ctx context.Context, request *state.TransactionalStateRequ
 		}
 	}()
 
-	for _, req := range request.Operations {
-		switch req.Operation {
-		case state.Upsert:
-			setReq, err := m.getSets(req)
+	for _, o := range request.Operations {
+		switch req := o.(type) {
+		case state.SetRequest:
+			err = m.setValue(ctx, tx, &req)
 			if err != nil {
 				return err
 			}
 
-			err = m.setValue(ctx, tx, &setReq)
-			if err != nil {
-				return err
-			}
-
-		case state.Delete:
-			delReq, err := m.getDeletes(req)
-			if err != nil {
-				return err
-			}
-
-			err = m.deleteValue(ctx, tx, &delReq)
+		case state.DeleteRequest:
+			err = m.deleteValue(ctx, tx, &req)
 			if err != nil {
 				return err
 			}
 
 		default:
-			return fmt.Errorf("unsupported operation: %s", req.Operation)
+			return fmt.Errorf("unsupported operation: %s", req.Operation())
 		}
 	}
 
 	return tx.Commit()
-}
-
-// Returns the set requests.
-func (m *MySQL) getSets(req state.TransactionalStateOperation) (state.SetRequest, error) {
-	setReq, ok := req.Request.(state.SetRequest)
-	if !ok {
-		return setReq, errors.New("expecting set request")
-	}
-
-	if setReq.Key == "" {
-		return setReq, errors.New("missing key in upsert operation")
-	}
-
-	return setReq, nil
-}
-
-// Returns the delete requests.
-func (m *MySQL) getDeletes(req state.TransactionalStateOperation) (state.DeleteRequest, error) {
-	delReq, ok := req.Request.(state.DeleteRequest)
-	if !ok {
-		return delReq, errors.New("expecting delete request")
-	}
-
-	if delReq.Key == "" {
-		return delReq, errors.New("missing key in delete operation")
-	}
-
-	return delReq, nil
-}
-
-// BulkGet performs a bulks get operations.
-func (m *MySQL) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
-	// by default, the store doesn't support bulk get
-	// return false so daprd will fallback to call get() method one by one
-	return false, nil, nil
 }
 
 // Close implements io.Closer.
@@ -911,6 +869,6 @@ type querier interface {
 func (m *MySQL) GetComponentMetadata() map[string]string {
 	metadataStruct := mySQLMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }

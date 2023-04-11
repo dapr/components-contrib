@@ -167,6 +167,6 @@ func (rh *requestHandler) Close() error {
 func (m *middleware) GetComponentMetadata() map[string]string {
 	metadataStruct := middlewareMetadata{}
 	metadataInfo := map[string]string{}
-	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
 	return metadataInfo
 }

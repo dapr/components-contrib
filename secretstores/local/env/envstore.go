@@ -17,6 +17,7 @@ import (
 	"context"
 	"os"
 	"reflect"
+	"runtime"
 	"strings"
 
 	"github.com/dapr/components-contrib/metadata"
@@ -73,16 +74,33 @@ func (s *envSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bul
 	env := os.Environ()
 	r := make(map[string]map[string]string, len(env))
 
+	// To maintain compatibility with how operating systems work, on Windows we do the prefix matching in a case-insensitive way
+	prefix := s.metadata.Prefix
+	if runtime.GOOS == "windows" && len(prefix) > 0 {
+		prefix = strings.ToUpper(prefix)
+	}
+
 	lp := len(s.metadata.Prefix)
 	for _, element := range env {
 		envVariable := strings.SplitN(element, "=", 2)
 		key := envVariable[0]
-		if s.metadata.Prefix != "" && !strings.HasPrefix(key, s.metadata.Prefix) {
+
+		// Sorry for this complex if... Essentially we want to skip variables if the prefix is set AND either one of:
+		// - The key is not longer than the prefix (bounds check to prevent a panic)
+		// - The key doesn't contain the prefix; this is done in a case-insensitive way on Windows (see how we changed the prefix to uppercase above), and case-sensitive way on other OS's
+		if prefix != "" &&
+			(len(key) <= len(prefix) ||
+				(runtime.GOOS == "windows" && strings.ToUpper(key[:len(prefix)]) != prefix) ||
+				(runtime.GOOS != "windows" && key[:len(prefix)] != prefix)) {
 			continue
 		}
-		if s.isKeyAllowed(key) {
-			r[key[lp:]] = map[string]string{key[lp:]: envVariable[1]}
+
+		// Skip disallowed keys
+		if !s.isKeyAllowed(key) {
+			continue
 		}
+
+		r[key[lp:]] = map[string]string{key[lp:]: envVariable[1]}
 	}
 
 	return secretstores.BulkGetSecretResponse{

@@ -13,15 +13,13 @@ capabilities:
   - etag
 builtinAuthenticationProfiles:
   - name: "azuread"
-authenticationProfiles:
-  - title: "Connection string"
-    description: "Authenticate using a connection string."
     metadata:
-      - name: connectionString
-        required: true
-        sensitive: true
-        description: "Shared access policy connection string for Blob Storage."
-        example: '"BlobEndpoint=https://storagesample.blob.core.windows.net;SharedAccessSignature={KeySig}"'
+    - name: accountName
+      required: true
+      sensitive: false
+      description: "The storage account name"
+      example: '"mystorageaccount"'
+authenticationProfiles:
   - title: "Account Key"
     description: "Authenticate using a pre-shared \"account key\"."
     metadata:
@@ -30,13 +28,12 @@ authenticationProfiles:
         sensitive: true
         description: "The key to authenticate to the Storage Account."
         example: '"my-secret-key"'
-      # accountName would be required for this auth. method but it is a required metadata regardless of the authentication profile used.
+      - name: accountName
+        required: true
+        sensitive: false
+        description: "The storage account name"
+        example: '"mystorageaccount"'
 metadata:
-  - name: accountName
-    required: true
-    sensitive: false
-    description: "The storage account name"
-    example: '"mystorageaccount"'
   - name: containerName
     required: true
     sensitive: false

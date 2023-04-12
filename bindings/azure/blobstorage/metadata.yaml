@@ -21,6 +21,17 @@ binding:
       description: "List blob."
 capabilities: []
 authenticationProfiles:
+  - title: "Connection string"
+    description: "Authenticate using a connection string."
+    metadata:
+      - name: connectionString
+        required: true
+        sensitive: true
+        description: "The Service Bus connection string."
+        example: '"Endpoint=sb://{ServiceBusNamespace}.servicebus.windows.net/;SharedAccessKeyName={PolicyName};SharedAccessKey={Key};EntityPath={ServiceBus}"'
+        # If omitted, uses the same values as "<root>.binding"
+        binding:
+          output: true
   - title: "Account Key"
     description: "Authenticate using a pre-shared \"account key\"."
     metadata:
@@ -104,27 +115,43 @@ metadata:
       The endpoint must be the full base URL, including the protocol (http:// or https://), the IP or FQDN, and optional port.
     example: '"http://127.0.0.1:10000"'
     type: string
-  - name: ContentType
+  - name: contentType
     description: "The blob's content type."
     example: '"text/plain"'
     type: string
-  - name: ContentMD5
+  - name: contentMD5
     description: "The blob's MD5 hash."
     example: '"vZGKbMRDAnMs4BIwlXaRvQ=="'
     type: string
-  - name: ContentEncoding
+  - name: contentEncoding
     description: "The blob's content encoding."
     example: '"UTF-8"'
     type: string
-  - name: ContentLanguage
+  - name: contentLanguage
     description: "The blob's content language."
     example: '"en-us"'
     type: string
-  - name: ContentDisposition
+  - name: contentDisposition
     description: "The blob's content disposition. Conveys additional information about how to process the response payload."
     example: '"attachment"'
     type: string
-  - name: CacheControl
+  - name: cacheControl
     description: "The blob's cache control."
     example: '"no-cache"'
     type: string
+  - name: PublicAccessLevel # none == ""; "blob" "container"
+    type: string
+    required: false
+    description: |
+      Indicates whether data in the container may be accessed publicly and the level of access.
+    example: '"none"'
+    default: "none"
+    allowedValues:
+      - "none" # Equivalent to private - https://learn.microsoft.com/en-us/rest/api/storageservices/get-container-acl
+      - "blob"
+      - "container"
+  - name: decodebase64
+    description: "Decode the blob in base64."
+    example: "true"
+    default: '"false"'
+    type: bool

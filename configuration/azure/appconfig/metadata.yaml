@@ -17,7 +17,7 @@ authenticationProfiles:
         required: true
         sensitive: true
         description: "The Service Bus connection string."
-        example: '"Endpoint=https://foo.azconfig.io;Id=osOX-l9-s0:sig;Secret=00000000000000000000000000000000000000000000"'
+        example: '"BlobEndpoint=https://storagesample.blob.core.windows.net;SharedAccessSignature={KeySig}"'
         # If omitted, uses the same values as "<root>.binding"
         binding:
           output: true
@@ -83,12 +83,12 @@ metadata:
     default: '3'
     example: '10'
   - name: retryDelay
-    description: "RetryDelay specifies the initial amount of delay to use before retrying an operation. The delay increases exponentially with each retry up to the maximum specified by MaxRetryDelay. Defaults to 4 seconds. -1 disables delay between retries."
+    description: "Specifies the initial amount of delay to use before retrying an operation. The delay increases exponentially with each retry up to the maximum specified by MaxRetryDelay. Defaults to 4 seconds. -1 disables delay between retries."
     type: number
     default: '4000000000'
     example: '5000000000'
   - name: maxRetryDelay
-    description: "MaxRetryDelay specifies the maximum delay allowed before retrying an operation. Typically the value is greater than or equal to the value specified in RetryDelay. Defaults to 120 seconds. -1 disables the limit."
+    description: "Specifies the maximum delay allowed before retrying an operation. Typically the value is greater than or equal to the value specified in RetryDelay. Defaults to 120 seconds. -1 disables the limit."
     type: number
     default: '120000000000'
     example: '180000000000'
@@ -97,3 +97,8 @@ metadata:
     type: number
     default: '86400000000000'
     example: '240000000000'
+  - name: requesttimeout
+    description: "Specifies the time allowed to pass until a request is failed. Default timeout is set to 15 seconds."
+    type: number
+    default: '15000000000'
+    example: '30000000000'

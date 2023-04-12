@@ -252,6 +252,9 @@ func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 			case "version":
 				version = v.Interface().(string)
 			case "metadata":
+				if v.Interface() == nil {
+					continue
+				}
 				a := v.Interface().(map[string]interface{})
 				for k, v := range a {
 					m[k] = v.(string)

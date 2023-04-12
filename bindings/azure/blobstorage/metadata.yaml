@@ -155,3 +155,8 @@ metadata:
     example: "true"
     default: '"false"'
     type: bool
+  - name: getBlobRetryCount
+    description: "Deprecated, Specifies the maximum number of HTTP GET requests that will be made while reading from a RetryReader."
+    type: number
+    default: '10'
+    example: '15'

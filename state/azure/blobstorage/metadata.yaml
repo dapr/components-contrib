@@ -20,6 +20,14 @@ builtinAuthenticationProfiles:
       description: "The storage account name"
       example: '"mystorageaccount"'
 authenticationProfiles:
+  - title: "Connection string"
+    description: "Authenticate using a connection string."
+    metadata:
+      - name: connectionString
+        required: true
+        sensitive: true
+        description: "Shared access policy connection string for Blob Storage."
+        example: '"BlobEndpoint=https://storagesample.blob.core.windows.net;SharedAccessSignature={KeySig}"'
   - title: "Account Key"
     description: "Authenticate using a pre-shared \"account key\"."
     metadata:

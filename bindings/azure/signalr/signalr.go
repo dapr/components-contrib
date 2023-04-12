@@ -16,6 +16,8 @@ package signalr
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -35,9 +37,6 @@ import (
 )
 
 const (
-	errorPrefix = "azure signalr error:"
-	logPrefix   = "azure signalr:"
-
 	connectionStringKey = "connectionString"
 	accessKeyKey        = "accessKey"
 	endpointKey         = "endpoint"
@@ -63,6 +62,11 @@ var httpClient *http.Client
 func init() {
 	httpClient = &http.Client{
 		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			},
+		},
 	}
 }
 
@@ -192,7 +196,7 @@ func (s *SignalR) resolveAPIURL(req *bindings.InvokeRequest) (string, error) {
 		hub = s.hub
 	}
 	if hub == "" {
-		return "", fmt.Errorf("%s missing hub", errorPrefix)
+		return "", errors.New("missing hub")
 	}
 
 	// Hub name is lower-cased in the official SDKs (e.g. .NET)
@@ -233,10 +237,10 @@ func (s *SignalR) sendMessageToSignalR(ctx context.Context, url string, token st
 	}
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		return fmt.Errorf("%s azure signalr failed with code %d, content is '%s'", errorPrefix, resp.StatusCode, string(body))
+		return fmt.Errorf("azure signalr failed with code %d, content is '%s'", resp.StatusCode, string(body))
 	}
 
-	s.logger.Debugf("%s azure signalr call to '%s' completed with code %d", logPrefix, url, resp.StatusCode)
+	s.logger.Debugf("azure signalr call to '%s' completed with code %d", url, resp.StatusCode)
 
 	return nil
 }

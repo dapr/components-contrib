@@ -27,6 +27,8 @@ import (
 var _ secretstores.SecretStore = (*envSecretStore)(nil)
 
 type Metadata struct {
+	// Prefix to add to the env vars when reading them.
+	// This is case sensitive on Linux and macOS, and case-insensitive on Windows.
 	Prefix string
 }
 

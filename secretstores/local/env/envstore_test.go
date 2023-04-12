@@ -18,6 +18,7 @@ package env
 import (
 	"context"
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -46,12 +47,21 @@ func TestEnvStore(t *testing.T) {
 		assert.Equal(t, "secret1", resp.Data["TEST_SECRET"])
 	})
 
-	t.Run("Get case sensitive", func(t *testing.T) {
-		resp, err := s.GetSecret(context.Background(), secretstores.GetSecretRequest{Name: "test_secret"})
-		require.NoError(t, err)
-		require.NotNil(t, resp)
-		assert.Empty(t, resp.Data["test_secret"])
-	})
+	if runtime.GOOS != "windows" {
+		t.Run("Get is case-sensitive on *nix", func(t *testing.T) {
+			resp, err := s.GetSecret(context.Background(), secretstores.GetSecretRequest{Name: "test_secret"})
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			assert.Empty(t, resp.Data["test_secret"])
+		})
+	} else {
+		t.Run("Get is case-insensitive on Windows", func(t *testing.T) {
+			resp, err := s.GetSecret(context.Background(), secretstores.GetSecretRequest{Name: "test_secret"})
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			assert.Equal(t, "secret1", resp.Data["test_secret"])
+		})
+	}
 
 	t.Run("Bulk get", func(t *testing.T) {
 		resp, err := s.BulkGetSecret(context.Background(), secretstores.BulkGetSecretRequest{})
@@ -114,7 +124,6 @@ func TestEnvStoreWithPrefix(t *testing.T) {
 	t.Run("Get", func(t *testing.T) {
 		err := s.Init(context.Background(), secretstores.Metadata{
 			Base: metadata.Base{Properties: map[string]string{
-				// Prefix should be case-sensitive
 				"prefix": "TEST_",
 			}},
 		})
@@ -130,6 +139,7 @@ func TestEnvStoreWithPrefix(t *testing.T) {
 	t.Run("Bulk get", func(t *testing.T) {
 		err := s.Init(context.Background(), secretstores.Metadata{
 			Base: metadata.Base{Properties: map[string]string{
+				// Prefix should be case-sensitive on *nix and case-insensitive on Windows
 				"prefix": "TEST_",
 			}},
 		})
@@ -138,8 +148,14 @@ func TestEnvStoreWithPrefix(t *testing.T) {
 		resp, err := s.BulkGetSecret(context.Background(), secretstores.BulkGetSecretRequest{})
 		require.NoError(t, err)
 		require.NotNil(t, resp)
-		assert.Len(t, resp.Data, 1)
-		assert.Equal(t, "test1", resp.Data["SECRET"]["SECRET"])
+		if runtime.GOOS != "windows" {
+			assert.Len(t, resp.Data, 1)
+			assert.Equal(t, "test1", resp.Data["SECRET"]["SECRET"])
+		} else {
+			assert.Len(t, resp.Data, 2)
+			assert.Equal(t, "test1", resp.Data["SECRET"]["SECRET"])
+			assert.Equal(t, "test2", resp.Data["secret2"]["secret2"])
+		}
 	})
 
 	t.Run("Disallowed keys", func(t *testing.T) {
@@ -161,7 +177,30 @@ func TestEnvStoreWithPrefix(t *testing.T) {
 			assert.Empty(t, resp.Data["API_TOKEN"])
 		})
 
+		t.Run("Get case insensitive", func(t *testing.T) {
+			err := s.Init(context.Background(), secretstores.Metadata{
+				Base: metadata.Base{Properties: map[string]string{
+					"prefix": "dapr_",
+				}},
+			})
+			require.NoError(t, err)
+
+			resp, err := s.GetSecret(context.Background(), secretstores.GetSecretRequest{
+				Name: "API_TOKEN",
+			})
+			require.NoError(t, err)
+			require.NotNil(t, resp.Data)
+			assert.Empty(t, resp.Data["API_TOKEN"])
+		})
+
 		t.Run("Bulk get", func(t *testing.T) {
+			resp, err := s.BulkGetSecret(context.Background(), secretstores.BulkGetSecretRequest{})
+			require.NoError(t, err)
+			require.NotNil(t, resp.Data)
+			assert.Empty(t, resp.Data["API_TOKEN"])
+		})
+
+		t.Run("Bulk get case insensitive", func(t *testing.T) {
 			resp, err := s.BulkGetSecret(context.Background(), secretstores.BulkGetSecretRequest{})
 			require.NoError(t, err)
 			require.NotNil(t, resp.Data)

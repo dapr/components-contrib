@@ -1,13 +1,13 @@
 # yaml-language-server: $schema=../../../component-metadata-schema.json
 schemaVersion: "v1"
 type: "bindings"
-name: "azure.servicebusqueues"
+name: "azure.storagequeues"
 version: "v1"
 status: "stable"
 title: "Azure Storage Queues"
 urls:
   - title: "Reference"
-    url: "https://docs.dapr.io/reference/components-reference/supported-bindings/servicebusqueues/"
+    url: "https://docs.dapr.io/reference/components-reference/supported-bindings/storagequeues/"
 binding:
   output: true
   input: true

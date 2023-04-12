@@ -143,5 +143,5 @@ metadata:
     default: 3
     example: 3
     description: |
-      Specifies the maximum number of HTTP requests that will be made to retry blob operations. A value
-	    of zero means that no additional HTTP requests will be made.
+      Specifies the maximum number of HTTP requests that will be made to retry blob operations.
+      A value of zero means that no additional HTTP requests will be made.

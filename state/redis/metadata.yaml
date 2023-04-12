@@ -136,11 +136,6 @@ metadata:
     description: Amount of time after which the client closes idle connections. Should be less than server's timeout. Default is \"5m\". \"-1\" disables idle timeout check.
     example: "10m"
     type: duration
-  - name: actorStateStore
-    required: false
-    description: Consider this state store for actors. Defaults to \"false\".
-    example: "true"
-    type: bool
   - name: ttlInSeconds
     required: false
     description: Allows specifying a default Time-to-live (TTL) in seconds that will be applied to every state store request unless TTL is explicitly defined via the request metadata.

@@ -30,7 +30,7 @@ authenticationProfiles:
         sensitive: true
         description: "The key to authenticate to the Storage Account."
         example: '"my-secret-key"'
-      # accountName would be required for this auth. method but it is obligatory for any Blog Storage.
+      # accountName would be required for this auth. method but it is a required metadata regardless of the authentication profile used.
 metadata:
   - name: accountName
     required: true

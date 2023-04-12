@@ -41,15 +41,15 @@ metadata:
     required: true
     sensitive: false
     description: |
-      The name of the container to be used for Dapr state. The container will be created for you if it doesn’t exist.
+      The name of the container to be used for Dapr state. The container will be created for you if it doesn't exist.
     example: '"container"'
-  - name: PublicAccessLevel # none == ""; "blob" "container"
+  - name: publicAccessLevel
     type: string
     required: false
     description: |
       Indicates whether data in the container may be accessed publicly and the level of access.
     example: '"none"'
-    default: "none"
+    default: '"none"'
     allowedValues:
       - "none" # Equivalent to private - https://learn.microsoft.com/en-us/rest/api/storageservices/get-container-acl
       - "blob"
@@ -79,4 +79,4 @@ metadata:
     example: 3
     description: |
       Specifies the maximum number of HTTP requests that will be made to retry blob operations.
-      A value of zero means that no additional HTTP requests will be made.
+      A value of zero means that no additional attempts will be made after a failure.

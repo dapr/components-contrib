@@ -20,10 +20,6 @@ authenticationProfiles:
         sensitive: true
         description: "Shared access policy connection string for Blob Storage. Required unless using Azure AD authentication."
         example: '"BlobEndpoint=https://storagesample.blob.core.windows.net;SharedAccessSignature={KeySig}"'
-        # If omitted, uses the same values as "<root>.binding"
-        binding:
-          output: true
-          input: true
   - title: "Account Key"
     description: "Authenticate using a pre-shared \"account key\"."
     metadata:
@@ -129,7 +125,6 @@ metadata:
     description: |
       Optional name for the Azure environment if using a different Azure cloud
     example: '"AZUREPUBLICCLOUD"'
-    example: '"AZUREPUBLICCLOUD"'
     default: "AZUREPUBLICCLOUD"
     allowedValues:
       - "AZUREPUBLICCLOUD"
@@ -141,3 +136,12 @@ metadata:
       Optional custom endpoint URL. This is useful when using the Azurite emulator or when using custom domains for Azure Storage (although this is not officially supported). The endpoint must be the full base URL, including the protocol (http:// or https://), the IP or FQDN, and optional port.
     required: false
     example: '"http://127.0.0.1:10000"'
+  - name: retryCount
+    # getBlobRetryCount is a deprecated alias for this field
+    type: number
+    required: false
+    default: 3
+    example: 3
+    description: |
+      Specifies the maximum number of HTTP requests that will be made to retry blob operations. A value
+	    of zero means that no additional HTTP requests will be made.

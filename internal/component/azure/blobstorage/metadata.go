@@ -25,7 +25,7 @@ import (
 
 type BlobStorageMetadata struct {
 	ContainerClientOpts `json:",inline" mapstructure:",squash"`
-	DecodeBase64        bool `json:"decodeBase64,string"`
+	DecodeBase64        bool `json:"decodeBase64,string" mapstructure:"decodeBase64" only:"bindings"`
 	PublicAccessLevel   azblob.PublicAccessType
 }
 

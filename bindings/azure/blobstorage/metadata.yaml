@@ -20,6 +20,14 @@ binding:
     - name: list
       description: "List blob."
 capabilities: []
+builtinAuthenticationProfiles:
+  - name: "azuread"
+    metadata:
+    - name: accountName
+      required: true
+      sensitive: false
+      description: "The storage account name"
+      example: '"mystorageaccount"'
 authenticationProfiles:
   - title: "Connection string"
     description: "Authenticate using a connection string."
@@ -27,7 +35,7 @@ authenticationProfiles:
       - name: connectionString
         required: true
         sensitive: true
-        description: "The Service Bus connection string."
+        description: "Shared access policy connection string for Blob Storage."
         example: '"BlobEndpoint=https://storagesample.blob.core.windows.net;SharedAccessSignature={KeySig}"'
         # If omitted, uses the same values as "<root>.binding"
         binding:
@@ -39,16 +47,14 @@ authenticationProfiles:
       - name: accountKey
         required: true
         sensitive: true
-        description: "The key to authenticate to the Storage Account or Cosmos DB Table API."
+        description: "The key to authenticate to the Storage Account."
         example: '"my-secret-key"'
-builtinAuthenticationProfiles:
-  - name: "azuread"
+      - name: accountName
+        required: true
+        sensitive: false
+        description: "The storage account name"
+        example: '"mystorageaccount"'
 metadata:
-  - name: accountName
-    description: "The storage account name."
-    required: true
-    type: string
-    example: '"mystorageaccount"'
   - name: containerName
     description: "The name of the container to be used for Dapr state. The container will be created for you if it doesn't exist."
     required: true
@@ -96,8 +102,11 @@ metadata:
     example: "true"
     default: '"false"'
     type: bool
-  - name: getBlobRetryCount
-    description: "Deprecated, Specifies the maximum number of HTTP GET requests that will be made while reading from a RetryReader."
+  - name: retryCount
+    # getBlobRetryCount is a deprecated alias for this field
     type: number
-    default: '10'
-    example: '15'
+    default: '3'
+    example: '3'
+    description: |
+      Specifies the maximum number of HTTP requests that will be made to retry blob operations.
+      A value of zero means that no additional attempts will be made after a failure.

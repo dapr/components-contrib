@@ -37,7 +37,7 @@ metadata:
     description: |
       The name of the Azure Storage queue.
     example: '"myqueue"'
-  - name: "endpoint"
+  - name: "queueEndpoint"
     description: |
       Optional custom endpoint URL.
       This is useful when using the Azurite emulator or when using custom domains for Azure Storage (although this is not officially supported). The endpoint must be the full base URL, including the protocol (`http://` or `https://`), the IP or FQDN, and optional port.

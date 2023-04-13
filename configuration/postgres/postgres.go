@@ -76,10 +76,6 @@ func NewPostgresConfigurationStore(logger logger.Logger) configuration.Store {
 }
 
 func (p *ConfigurationStore) Init(parentCtx context.Context, metadata configuration.Metadata) error {
-	p.logger.Debug("initializing postgreSQL configuration store")
-	if p.client != nil {
-		return fmt.Errorf("postgreSQL configuration store already initialized")
-	}
 	if m, err := parseMetadata(metadata); err != nil {
 		p.logger.Error(err)
 		return err
@@ -102,10 +98,10 @@ func (p *ConfigurationStore) Init(parentCtx context.Context, metadata configurat
 	exists := false
 	err = p.client.QueryRow(ctx, QueryTableExists, p.metadata.ConfigTable).Scan(&exists)
 	if err != nil {
-		return fmt.Errorf("error in checking if configtable '%s' exists - '%w'", p.metadata.ConfigTable, err)
+		return fmt.Errorf("error in checking if configtable '%s' exists: '%w'", p.metadata.ConfigTable, err)
 	}
 	if !exists {
-		return fmt.Errorf("postgreSQL configuration table - '%s' does not exist", p.metadata.ConfigTable)
+		return fmt.Errorf("postgreSQL configuration table '%s' does not exist", p.metadata.ConfigTable)
 	}
 	return nil
 }
@@ -219,13 +215,13 @@ func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration
 	pgChannel := "UNLISTEN " + sub.channel
 	conn, err := p.client.Acquire(ctx)
 	if err != nil {
-		p.logger.Errorf("error acquiring connection:", err)
+		p.logger.Error("error acquiring connection:", err)
 		return fmt.Errorf("error acquiring connection: %w ", err)
 	}
 	defer conn.Release()
 	_, err = conn.Exec(ctx, pgChannel)
 	if err != nil {
-		p.logger.Errorf("error un-listening to channel:", err)
+		p.logger.Error("error un-listening to channel:", err)
 		return fmt.Errorf("error un-listening to channel: %w", err)
 	}
 	delete(p.ActiveSubscriptions, req.ID)
@@ -325,10 +321,10 @@ func parseMetadata(cmetadata configuration.Metadata) (metadata, error) {
 
 	if m.ConfigTable != "" {
 		if !allowedTableNameChars.MatchString(m.ConfigTable) {
-			return m, fmt.Errorf("invalid table name : '%v'. non-alphanumerics or upper cased table names are not supported", m.ConfigTable)
+			return m, fmt.Errorf("invalid table name '%s'. non-alphanumerics or upper cased table names are not supported", m.ConfigTable)
 		}
 		if len(m.ConfigTable) > maxIdentifierLength {
-			return m, fmt.Errorf("field name is too long"+" - tableName : '%v'. max allowed field length is %v ", m.ConfigTable, maxIdentifierLength)
+			return m, fmt.Errorf("table name is too long - tableName : '%s'. max allowed field length is %d", m.ConfigTable, maxIdentifierLength)
 		}
 	} else {
 		return m, fmt.Errorf("missing postgreSQL configuration table name")

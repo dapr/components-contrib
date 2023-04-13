@@ -117,9 +117,17 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		return nil, err
 	}
 
-	k.logger.Debugf("Using %s as ConsumerGroup", m.ConsumerGroup)
-	k.logger.Debugf("Using %s as ClientID", m.ClientID)
-	k.logger.Debugf("Using %s as saslMechanism", m.SaslMechanism)
+	// If ConsumerGroup is not set, use the 'consumerID' (which can be set by the runtime) as the consumer group so that each dapr runtime creates its own consumergroup
+	if m.ConsumerGroup == "" {
+		for k, v := range meta {
+			if strings.ToLower(k) == "consumerid" { //nolint:gocritic
+				m.ConsumerGroup = v
+				break
+			}
+		}
+	}
+
+	k.logger.Debugf("ConsumerGroup='%s', ClientID='%s', saslMechanism='%s'", m.ConsumerGroup, m.ClientID, m.SaslMechanism)
 
 	initialOffset, err := parseInitialOffset(meta["initialOffset"])
 	if err != nil {

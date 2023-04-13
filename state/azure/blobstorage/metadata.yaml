@@ -1,0 +1,87 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: azure.blobstorage
+version: v1
+status: stable
+title: "Azure Blob Storage"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-azure-blobstorage/
+capabilities:
+  - crud
+  - etag
+builtinAuthenticationProfiles:
+  - name: "azuread"
+    metadata:
+    - name: accountName
+      required: true
+      sensitive: false
+      description: "The storage account name"
+      example: '"mystorageaccount"'
+authenticationProfiles:
+  - title: "Connection string"
+    description: "Authenticate using a connection string."
+    metadata:
+      - name: connectionString
+        required: true
+        sensitive: true
+        description: "Shared access policy connection string for Blob Storage."
+        example: '"BlobEndpoint=https://storagesample.blob.core.windows.net;SharedAccessSignature={KeySig}"'
+  - title: "Account Key"
+    description: "Authenticate using a pre-shared \"account key\"."
+    metadata:
+      - name: accountKey
+        required: true
+        sensitive: true
+        description: "The key to authenticate to the Storage Account."
+        example: '"my-secret-key"'
+      - name: accountName
+        required: true
+        sensitive: false
+        description: "The storage account name"
+        example: '"mystorageaccount"'
+metadata:
+  - name: containerName
+    required: true
+    sensitive: false
+    description: |
+      The name of the container to be used for Dapr state. The container will be created for you if it doesn't exist.
+    example: '"container"'
+  - name: publicAccessLevel
+    type: string
+    required: false
+    description: |
+      Indicates whether data in the container may be accessed publicly and the level of access.
+    example: '"none"'
+    default: '"none"'
+    allowedValues:
+      - "none" # Equivalent to private - https://learn.microsoft.com/en-us/rest/api/storageservices/get-container-acl
+      - "blob"
+      - "container"
+  - name: azureEnvironment
+    type: string
+    required: false
+    description: |
+      Optional name for the Azure environment if using a different Azure cloud
+    example: '"AZUREPUBLICCLOUD"'
+    default: "AZUREPUBLICCLOUD"
+    allowedValues:
+      - "AZUREPUBLICCLOUD"
+      - "AZURECHINACLOUD"
+      - "AZUREUSGOVERNMENTCLOUD"
+  - name: endpoint
+    type: string
+    description: |
+      Optional custom endpoint URL. This is useful when using the Azurite emulator or when using custom domains for Azure Storage (although this is not officially supported). The endpoint must be the full base URL, including the protocol (http:// or https://), the IP or FQDN, and optional port.
+    required: false
+    example: '"http://127.0.0.1:10000"'
+  - name: retryCount
+    # getBlobRetryCount is a deprecated alias for this field
+    type: number
+    required: false
+    default: "3"
+    example: "3"
+    description: |
+      Specifies the maximum number of HTTP requests that will be made to retry blob operations.
+      A value of zero means that no additional attempts will be made after a failure.

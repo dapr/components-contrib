@@ -48,8 +48,3 @@ metadata:
     description: Max idle time before unused connections are automatically closed in the connection pool. By default, there's no value and this is left to the database driver to choose.
     example:  "5m"
     type: duration
-  - name: actorStateStore
-    required: false
-    description: Consider this state store for actors. Defaults to `false`
-    example: "false"
-    type: bool

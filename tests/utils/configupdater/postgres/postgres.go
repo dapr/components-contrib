@@ -13,13 +13,6 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-const (
-	connectionStringKey          = "connectionString"
-	configtablekey               = "table"
-	ErrorMissingConnectionString = "missing postgreSQL connection string"
-	ErrorMissingTableName        = "missing postgreSQL configuration table name"
-)
-
 type ConfigUpdater struct {
 	client      *pgxpool.Pool
 	configTable string
@@ -90,15 +83,15 @@ func (r *ConfigUpdater) CreateTrigger(channel string) error {
 func (r *ConfigUpdater) Init(props map[string]string) error {
 	var conn string
 	ctx := context.Background()
-	if val, ok := props[connectionStringKey]; ok && val != "" {
+	if val, ok := props["connectionString"]; ok && val != "" {
 		conn = val
 	} else {
-		return fmt.Errorf(ErrorMissingConnectionString)
+		return fmt.Errorf("missing postgreSQL connection string")
 	}
-	if tbl, ok := props[configtablekey]; ok && tbl != "" {
+	if tbl, ok := props["table"]; ok && tbl != "" {
 		r.configTable = tbl
 	} else {
-		return fmt.Errorf(ErrorMissingTableName)
+		return fmt.Errorf("missing postgreSQL configuration table name")
 	}
 	config, err := pgxpool.ParseConfig(conn)
 	if err != nil {

@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/configuration"
 	"github.com/dapr/components-contrib/metadata"
@@ -36,7 +37,7 @@ const (
 	v1                     = "1.0.0"
 	defaultMaxReadDuration = 30 * time.Second
 	defaultWaitDuration    = 5 * time.Second
-	postgres               = "postgres"
+	postgresComponent      = "postgres"
 	pgNotifyChannelKey     = "pgNotifyChannel"
 	pgNotifyChannel        = "config"
 )
@@ -149,27 +150,31 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 	t.Run("init", func(t *testing.T) {
 		// Initializing config updater. It has to be initialized before the store to create the table
 		err := updater.Init(props)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Creating trigger for postgres config updater
-		if component == postgres {
+		if component == postgresComponent {
 			err = updater.(*postgres_updater.ConfigUpdater).CreateTrigger(pgNotifyChannel)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 
 		// Initializing store
 		err = store.Init(context.Background(), configuration.Metadata{
 			Base: metadata.Base{Properties: props},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
+
+	if t.Failed() {
+		t.Fatal("initialization failed")
+	}
 
 	t.Run("insert initial keys", func(t *testing.T) {
 		initValues1, counter = generateKeyValues(runID, counter, keyCount, v1)
 		initValues2, counter = generateKeyValues(runID, counter, keyCount, v1)
 		initValues = mergeMaps(initValues1, initValues2)
 		err := updater.AddKey(initValues)
-		assert.NoError(t, err, "expected no error on adding keys")
+		require.NoError(t, err, "expected no error on adding keys")
 	})
 
 	if config.HasOperation("get") {
@@ -182,7 +187,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			}
 
 			resp, err := store.Get(context.Background(), req)
-			assert.Nil(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, initValues1, resp.Items)
 		})
 
@@ -195,7 +200,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			}
 
 			resp, err := store.Get(context.Background(), req)
-			assert.Nil(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, initValues, resp.Items)
 		})
 
@@ -210,14 +215,14 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			}
 
 			resp, err := store.Get(context.Background(), req)
-			assert.Nil(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, expectedResponse, resp.Items)
 		})
 	}
 
 	if config.HasOperation("subscribe") {
 		subscribeMetadata := make(map[string]string)
-		if component == postgres {
+		if component == postgresComponent {
 			subscribeMetadata[pgNotifyChannelKey] = pgNotifyChannel
 		}
 		t.Run("subscriber 1 with non-empty key list", func(t *testing.T) {
@@ -301,7 +306,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			// Delete initValues2
 			errDelete := updater.DeleteKey(getKeys(initValues2))
 			assert.NoError(t, errDelete, "expected no error on updating keys")
-			if component != postgres {
+			if component != postgresComponent {
 				for k := range initValues2 {
 					initValues2[k] = &configuration.Item{}
 				}

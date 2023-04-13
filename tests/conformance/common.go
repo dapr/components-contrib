@@ -58,6 +58,7 @@ import (
 	b_postgres "github.com/dapr/components-contrib/bindings/postgres"
 	b_rabbitmq "github.com/dapr/components-contrib/bindings/rabbitmq"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
+	c_postgres "github.com/dapr/components-contrib/configuration/postgres"
 	c_redis "github.com/dapr/components-contrib/configuration/redis"
 	cr_azurekeyvault "github.com/dapr/components-contrib/crypto/azure/keyvault"
 	cr_jwks "github.com/dapr/components-contrib/crypto/jwks"
@@ -107,6 +108,7 @@ import (
 	conf_state "github.com/dapr/components-contrib/tests/conformance/state"
 	conf_workflows "github.com/dapr/components-contrib/tests/conformance/workflows"
 	"github.com/dapr/components-contrib/tests/utils/configupdater"
+	cu_postgres "github.com/dapr/components-contrib/tests/utils/configupdater/postgres"
 	cu_redis "github.com/dapr/components-contrib/tests/utils/configupdater/redis"
 	wf_temporal "github.com/dapr/components-contrib/workflows/temporal"
 )
@@ -115,6 +117,7 @@ const (
 	eventhubs                 = "azure.eventhubs"
 	redisv6                   = "redis.v6"
 	redisv7                   = "redis.v7"
+	postgres                  = "postgres"
 	kafka                     = "kafka"
 	generateUUID              = "$((uuid))"
 	generateEd25519PrivateKey = "$((ed25519PrivateKey))"
@@ -448,7 +451,7 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				require.NotNil(t, store)
 				require.NotNil(t, updater)
 				configurationConfig := conf_configuration.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
-				conf_configuration.ConformanceTests(t, props, store, updater, configurationConfig)
+				conf_configuration.ConformanceTests(t, props, store, updater, configurationConfig, comp.Component)
 			default:
 				t.Errorf("unknown component type %s", tc.ComponentType)
 			}
@@ -466,6 +469,9 @@ func loadConfigurationStore(tc TestComponent) (configuration.Store, configupdate
 	case redisv7:
 		store = c_redis.NewRedisConfigurationStore(testLogger)
 		updater = cu_redis.NewRedisConfigUpdater(testLogger)
+	case postgres:
+		store = c_postgres.NewPostgresConfigurationStore(testLogger)
+		updater = cu_postgres.NewPostgresConfigUpdater(testLogger)
 	default:
 		return nil, nil
 	}

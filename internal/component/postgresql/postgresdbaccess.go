@@ -216,13 +216,12 @@ func (p *PostgresDBAccess) doSet(parentCtx context.Context, db dbquerier, req *s
 
 	result, err := db.Exec(parentCtx, query, params...)
 	if err != nil {
-		if req.ETag != nil && *req.ETag != "" {
-			return state.NewETagError(state.ETagMismatch, err)
-		}
 		return err
 	}
-
 	if result.RowsAffected() != 1 {
+		if req.ETag != nil && *req.ETag != "" {
+			return state.NewETagError(state.ETagMismatch, nil)
+		}
 		return errors.New("no item was updated")
 	}
 

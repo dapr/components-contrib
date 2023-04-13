@@ -106,47 +106,31 @@ func (p *ConfigurationStore) Init(parentCtx context.Context, metadata configurat
 	return nil
 }
 
-// Compare the versions by converting them into `numeric` type
-// If a version is not a valid number, it will be converted to -1
-func compareVersion(v1, v2 string) bool {
-	num1, err1 := strconv.Atoi(v1)
-	if err1 != nil {
-		num1 = -1
+// If version is a valid number, return the number
+// If version is not a valid number, return -1
+func getNumericVersion(version string) int {
+	num, err := strconv.Atoi(version)
+	if err != nil {
+		num = -1
 	}
-	num2, err2 := strconv.Atoi(v2)
-	if err2 != nil {
-		num2 = -1
-	}
-	return num1 > num2
-}
-
-// Returns the latest version of the item from the list of items as per `compareVersion` function
-func getLatestItem(items []*configuration.Item) *configuration.Item {
-	// If there is just one item, return it
-	if len(items) == 1 {
-		return items[0]
-	}
-	item := items[0]
-	for _, i := range items {
-		if compareVersion(i.Version, item.Version) {
-			item = i
-		}
-	}
-	return item
+	return num
 }
 
 // Returns a map of unique items per key
 func getUniqueItemPerKey(res []pgResponse) map[string]*configuration.Item {
-	itemsList := make(map[string][]*configuration.Item)
-	for _, r := range res {
-		if itemsList[r.key] == nil {
-			itemsList[r.key] = make([]*configuration.Item, 0)
-		}
-		itemsList[r.key] = append(itemsList[r.key], r.item)
-	}
 	items := make(map[string]*configuration.Item)
-	for k, v := range itemsList {
-		items[k] = getLatestItem(v)
+	latestNumericVersion := make(map[string]int)
+	for _, r := range res {
+		if items[r.key] == nil {
+			items[r.key] = r.item
+			latestNumericVersion[r.key] = getNumericVersion(r.item.Version)
+		} else {
+			newNumericVersion := getNumericVersion(r.item.Version)
+			if newNumericVersion > latestNumericVersion[r.key] {
+				items[r.key] = r.item
+				latestNumericVersion[r.key] = newNumericVersion
+			}
+		}
 	}
 	return items
 }

@@ -111,10 +111,16 @@ func (p *ConfigurationStore) Init(parentCtx context.Context, metadata configurat
 }
 
 // Compare the versions by converting them into `numeric` type
-// If a version is not a valid number, it will be converted to 0
+// If a version is not a valid number, it will be converted to -1
 func compareVersion(v1, v2 string) bool {
-	num1, _ := strconv.Atoi(v1)
-	num2, _ := strconv.Atoi(v2)
+	num1, err1 := strconv.Atoi(v1)
+	if err1 != nil {
+		num1 = -1
+	}
+	num2, err2 := strconv.Atoi(v2)
+	if err2 != nil {
+		num2 = -1
+	}
 	return num1 > num2
 }
 
@@ -138,7 +144,7 @@ func getUniqueItemPerKey(res []pgResponse) map[string]*configuration.Item {
 	itemsList := make(map[string][]*configuration.Item)
 	for _, r := range res {
 		if itemsList[r.key] == nil {
-			itemsList[r.key] = make([]*configuration.Item, 1)
+			itemsList[r.key] = make([]*configuration.Item, 0)
 		}
 		itemsList[r.key] = append(itemsList[r.key], r.item)
 	}

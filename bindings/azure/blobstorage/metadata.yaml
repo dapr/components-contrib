@@ -68,26 +68,7 @@ metadata:
       The endpoint must be the full base URL, including the protocol (http:// or https://), the IP or FQDN, and optional port.
     example: '"http://127.0.0.1:10000"'
     type: string
-  - name: contentType
-    description: "The blob's content type."
-    example: '"text/plain"'
-  - name: contentMD5
-    description: "The blob's MD5 hash."
-    example: '"vZGKbMRDAnMs4BIwlXaRvQ=="'
-  - name: contentEncoding
-    description: "The blob's content encoding."
-    example: '"UTF-8"'
-  - name: contentLanguage
-    description: "The blob's content language."
-    example: '"en-us"'
-  - name: contentDisposition
-    description: "The blob's content disposition. Conveys additional information about how to process the response payload."
-    example: '"attachment"'
-  - name: cacheControl
-    description: "The blob's cache control."
-    example: '"no-cache"'
-    type: string
-  - name: publicAccessLevel # none == ""; "blob" "container"
+  - name: publicAccessLevel
     required: false
     description: |
       Indicates whether data in the container may be accessed publicly and the level of access.

@@ -25,7 +25,7 @@ import (
 
 type BlobStorageMetadata struct {
 	ContainerClientOpts `json:",inline" mapstructure:",squash"`
-	DecodeBase64        bool `json:"decodeBase64,string"`
+	DecodeBase64        bool `json:"decodeBase64,string" mapstructure:"decodeBase64" only:"bindings"`
 	PublicAccessLevel   azblob.PublicAccessType
 }
 
@@ -50,10 +50,12 @@ func parseMetadata(meta map[string]string) (*BlobStorageMetadata, error) {
 	m.RetryCount = defaultBlobRetryCount
 	mdutils.DecodeMetadata(meta, &m)
 
-	if val, ok := mdutils.GetMetadataProperty(meta, azauth.MetadataKeys["StorageAccountName"]...); ok && val != "" {
-		m.AccountName = val
-	} else {
-		return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.MetadataKeys["StorageAccountName"][0])
+	if m.ConnectionString == "" {
+		if val, ok := mdutils.GetMetadataProperty(meta, azauth.MetadataKeys["StorageAccountName"]...); ok && val != "" {
+			m.AccountName = val
+		} else {
+			return nil, fmt.Errorf("missing or empty %s field from metadata", azauth.MetadataKeys["StorageAccountName"][0])
+		}
 	}
 
 	if val, ok := mdutils.GetMetadataProperty(meta, azauth.MetadataKeys["StorageContainerName"]...); ok && val != "" {

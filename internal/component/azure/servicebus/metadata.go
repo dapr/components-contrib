@@ -49,7 +49,7 @@ type Metadata struct {
 	NamespaceName                   string `mapstructure:"namespaceName"` // Only for Azure AD
 
 	/** For bindings only **/
-	QueueName string `mapstructure:"queueName" only:"binding"` // Only queues
+	QueueName string `mapstructure:"queueName" only:"bindings"` // Only queues
 }
 
 // Keys.

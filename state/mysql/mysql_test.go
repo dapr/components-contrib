@@ -433,7 +433,7 @@ func TestGetHandlesNoRows(t *testing.T) {
 	m, _ := mockDatabase(t)
 	defer m.mySQL.Close()
 
-	m.mock1.ExpectQuery("SELECT value").WillReturnRows(sqlmock.NewRows([]string{"value", "eTag"}))
+	m.mock1.ExpectQuery("SELECT id").WillReturnRows(sqlmock.NewRows([]string{"UnitTest", "value", "eTag"}))
 
 	request := &state.GetRequest{
 		Key: "UnitTest",
@@ -443,7 +443,7 @@ func TestGetHandlesNoRows(t *testing.T) {
 	response, err := m.mySQL.Get(context.Background(), request)
 
 	// Assert
-	assert.Nil(t, err, "returned error")
+	assert.NoError(t, err, "returned error")
 	assert.NotNil(t, response, "did not return empty response")
 }
 
@@ -460,7 +460,7 @@ func TestGetHandlesNoKey(t *testing.T) {
 	response, err := m.mySQL.Get(context.Background(), request)
 
 	// Assert
-	assert.NotNil(t, err, "returned error")
+	assert.Error(t, err, "returned error")
 	assert.Equal(t, "missing key in get operation", err.Error(), "wrong error returned")
 	assert.Nil(t, response, "returned response")
 }
@@ -490,8 +490,8 @@ func TestGetSucceeds(t *testing.T) {
 	defer m.mySQL.Close()
 
 	t.Run("has json type", func(t *testing.T) {
-		rows := sqlmock.NewRows([]string{"value", "eTag", "isbinary"}).AddRow("{}", "946af56e", false)
-		m.mock1.ExpectQuery("SELECT value, eTag, isbinary FROM state WHERE id = ?").WillReturnRows(rows)
+		rows := sqlmock.NewRows([]string{"id", "value", "eTag", "isbinary"}).AddRow("UnitTest", "{}", "946af56e", false)
+		m.mock1.ExpectQuery("SELECT id, value, eTag, isbinary FROM state WHERE id = ?").WillReturnRows(rows)
 
 		request := &state.GetRequest{
 			Key: "UnitTest",
@@ -508,8 +508,8 @@ func TestGetSucceeds(t *testing.T) {
 
 	t.Run("has binary type", func(t *testing.T) {
 		value, _ := utils.Marshal(base64.StdEncoding.EncodeToString([]byte("abcdefg")), json.Marshal)
-		rows := sqlmock.NewRows([]string{"value", "eTag", "isbinary"}).AddRow(value, "946af56e", true)
-		m.mock1.ExpectQuery("SELECT value, eTag, isbinary FROM state WHERE id = ?").WillReturnRows(rows)
+		rows := sqlmock.NewRows([]string{"id", "value", "eTag", "isbinary"}).AddRow("UnitTest", value, "946af56e", true)
+		m.mock1.ExpectQuery("SELECT id, value, eTag, isbinary FROM state WHERE id = ?").WillReturnRows(rows)
 
 		request := &state.GetRequest{
 			Key: "UnitTest",

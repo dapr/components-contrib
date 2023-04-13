@@ -5,3 +5,5 @@ components:
     allOperations: true
   - component: redis.v7
     allOperations: true
+  - component: postgres
+    allOperations: true

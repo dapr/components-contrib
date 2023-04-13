@@ -53,10 +53,10 @@ const (
 	sidecarName1        = "dapr-1"
 	sidecarName2        = "dapr-2"
 	connectionString    = "host=localhost user=postgres password=example port=5432 connect_timeout=10 database=dapr_test"
-	configTable         = "configTable"
+	configTable         = "configtable"
 	connectionStringKey = "connectionString"
 	configTableKey      = "table"
-	configTable2        = "configTable2"
+	configTable2        = "configtable2"
 	pgNotifyChannelKey  = "pgNotifyChannel"
 	pgNotifyChannel     = "config"
 	portOffset          = 2
@@ -150,7 +150,7 @@ func TestPostgres(t *testing.T) {
 			storeobj := config_postgres.NewPostgresConfigurationStore(log).(*config_postgres.ConfigurationStore)
 			err := storeobj.Init(ctx, md)
 			require.Error(t, err)
-			require.Equal(t, err.Error(), "postgreSQL configuration table - 'configTable2' does not exist")
+			require.Equal(t, err.Error(), "postgreSQL configuration table 'configtable2' does not exist")
 		})
 		t.Run("Init with existing table", func(t *testing.T) {
 			md.Base.Properties[configTableKey] = configTable

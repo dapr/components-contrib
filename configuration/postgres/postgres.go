@@ -110,6 +110,45 @@ func (p *ConfigurationStore) Init(parentCtx context.Context, metadata configurat
 	return nil
 }
 
+// Compare the versions by converting them into `numeric` type
+// If a version is not a valid number, it will be converted to 0
+func compareVersion(v1, v2 string) bool {
+	num1, _ := strconv.Atoi(v1)
+	num2, _ := strconv.Atoi(v2)
+	return num1 > num2
+}
+
+// Returns the latest version of the item from the list of items as per `compareVersion` function
+func getLatestItem(items []*configuration.Item) *configuration.Item {
+	// If there is just one item, return it
+	if len(items) == 1 {
+		return items[0]
+	}
+	item := items[0]
+	for _, i := range items {
+		if compareVersion(i.Version, item.Version) {
+			item = i
+		}
+	}
+	return item
+}
+
+// Returns a map of unique items per key
+func getUniqueItemPerKey(res []pgResponse) map[string]*configuration.Item {
+	itemsList := make(map[string][]*configuration.Item)
+	for _, r := range res {
+		if itemsList[r.key] == nil {
+			itemsList[r.key] = make([]*configuration.Item, 1)
+		}
+		itemsList[r.key] = append(itemsList[r.key], r.item)
+	}
+	items := make(map[string]*configuration.Item)
+	for k, v := range itemsList {
+		items[k] = getLatestItem(v)
+	}
+	return items
+}
+
 func (p *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequest) (*configuration.GetResponse, error) {
 	if err := validateInput(req.Keys); err != nil {
 		p.logger.Error(err)
@@ -140,10 +179,7 @@ func (p *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse response from configuration store - %w", err)
 	}
-	result := make(map[string]*configuration.Item)
-	for _, v := range items {
-		result[v.key] = v.item
-	}
+	result := getUniqueItemPerKey(items)
 	return &configuration.GetResponse{
 		Items: result,
 	}, nil

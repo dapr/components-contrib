@@ -78,10 +78,11 @@ func (m *migration) newMigrationResult() migrationResult {
 func (m *migration) executeMigrations(ctx context.Context) (migrationResult, error) {
 	r := m.newMigrationResult()
 
-	db, err := sql.Open("sqlserver", m.metadata.ConnectionString)
+	conn, err := m.metadata.GetConnector()
 	if err != nil {
 		return r, err
 	}
+	db := sql.OpenDB(conn)
 
 	// If the user provides a database in the connection string to not attempt
 	// to create the database. This work as the component did before adding the
@@ -99,11 +100,12 @@ func (m *migration) executeMigrations(ctx context.Context) (migrationResult, err
 		db.Close()
 
 		// Re connect with a database specific connection
-		m.metadata.ConnectionString = fmt.Sprintf("%s;database=%s;", m.metadata.ConnectionString, m.metadata.DatabaseName)
-		db, err = sql.Open("sqlserver", m.metadata.ConnectionString)
+		m.metadata.ConnectionString += ";database=" + m.metadata.DatabaseName
+		conn, err = m.metadata.GetConnector()
 		if err != nil {
 			return r, err
 		}
+		db = sql.OpenDB(conn)
 
 		// Schedule close of new connection
 		defer db.Close()

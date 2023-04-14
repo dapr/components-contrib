@@ -122,10 +122,11 @@ func (s *SQLServer) Init(ctx context.Context, metadata state.Metadata) error {
 	s.deleteWithETagCommand = mr.deleteWithETagCommand
 	s.deleteWithoutETagCommand = mr.deleteWithoutETagCommand
 
-	s.db, err = sql.Open("sqlserver", s.metadata.ConnectionString)
+	conn, err := s.metadata.GetConnector()
 	if err != nil {
 		return err
 	}
+	s.db = sql.OpenDB(conn)
 
 	if s.metadata.CleanupInterval != nil {
 		err = s.startGC()

@@ -20,6 +20,9 @@ import (
 	"time"
 	"unicode"
 
+	mssql "github.com/microsoft/go-mssqldb"
+	"github.com/microsoft/go-mssqldb/msdsn"
+
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/ptr"
 )
@@ -122,6 +125,18 @@ func (m *sqlServerMetadata) Parse(meta map[string]string) error {
 	}
 
 	return nil
+}
+
+// GetConnector returns the connector from the connection string or Azure AD.
+// The returned connector can be used with sql.OpenDB.
+func (m *sqlServerMetadata) GetConnector() (*mssql.Connector, error) {
+	// Parse the connection string
+	config, err := msdsn.Parse(m.ConnectionString)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse connection string: %w", err)
+	}
+
+	return mssql.NewConnectorConfig(config), nil
 }
 
 // Validates and returns the key type.

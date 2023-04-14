@@ -59,17 +59,6 @@ metadata:
       - "none" # Equivalent to private - https://learn.microsoft.com/en-us/rest/api/storageservices/get-container-acl
       - "blob"
       - "container"
-  - name: azureEnvironment
-    type: string
-    required: false
-    description: |
-      Optional name for the Azure environment if using a different Azure cloud
-    example: '"AZUREPUBLICCLOUD"'
-    default: "AZUREPUBLICCLOUD"
-    allowedValues:
-      - "AZUREPUBLICCLOUD"
-      - "AZURECHINACLOUD"
-      - "AZUREUSGOVERNMENTCLOUD"
   - name: endpoint
     type: string
     description: |

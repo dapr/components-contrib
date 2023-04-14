@@ -59,9 +59,6 @@ metadata:
     description: "The name of the container to be used for Dapr state. The container will be created for you if it doesn't exist."
     required: true
     example: '"container"'
-  - name: azureEnvironment
-    description: Name of the Azure Environment if using a different Azure cloud.
-    example: '"AZUREPUBLICCLOUD"'
   - name: endpoint
     description: | 
       Optional custom endpoint URL. This is useful when using the Azurite emulator or when using custom domains for Azure Storage (although this is not officially supported). 

@@ -93,6 +93,16 @@ func TestGCPFirestoreStorage(t *testing.T) {
 			componentRuntimeOptions())).
 		Step("Run basic test with master key", basicTest("statestore-basic")).
 		Run()
+
+	flow.New(t, "Test NoIndex").
+		Step(sidecar.Run(sidecarNamePrefix,
+			embedded.WithoutApp(),
+			embedded.WithDaprGRPCPort(currentGrpcPort),
+			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithComponentsPath("./components/noindex"),
+			componentRuntimeOptions())).
+		Step("Run basic test with master key", basicTest("statestore-basic")).
+		Run()
 }
 
 func componentRuntimeOptions() []runtime.Option {

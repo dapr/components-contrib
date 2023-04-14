@@ -44,6 +44,12 @@ metadata:
     example: |
       "http://127.0.0.1:10001"
       "https://accountName.queue.example.com"
+  - name: "pollingInterval"
+    type: string
+    description: |
+      Set the interval to poll Azure Storage Queues for new messages, as a Go duration.
+    example: '"30s"'
+    default: '"10s"'
   - name: "ttlInSeconds"
     type: number
     description: |

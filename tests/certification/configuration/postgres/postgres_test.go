@@ -56,7 +56,6 @@ const (
 	configTable         = "configtable"
 	connectionStringKey = "connectionString"
 	configTableKey      = "table"
-	configTable2        = "configtable2"
 	pgNotifyChannelKey  = "pgNotifyChannel"
 	pgNotifyChannel     = "config"
 	portOffset          = 2
@@ -68,6 +67,8 @@ var (
 	runID   = strings.ReplaceAll(uuid.Must(uuid.NewRandom()).String(), "-", "_")
 	counter = 0
 )
+
+var updater *cu_postgres.ConfigUpdater
 
 // Cast go-sdk ConfigurationItem to contrib ConfigurationItem
 func castConfigurationItems(items map[string]*dapr.ConfigurationItem) map[string]*configuration.Item {
@@ -94,11 +95,24 @@ func getUpdateEvent(key string, val string) configuration.UpdateEvent {
 	return expectedUpdateEvent
 }
 
+func addKey(key, val, version string) error {
+	items := make(map[string]*configuration.Item)
+	items[key] = &configuration.Item{
+		Value:   val,
+		Version: version,
+	}
+	err := updater.AddKey(items)
+	if err != nil {
+		return fmt.Errorf("error adding key: %s", err)
+	}
+	return nil
+}
+
 func TestPostgres(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
 
 	// Updater client to update config table
-	updater := cu_postgres.NewPostgresConfigUpdater(log).(*cu_postgres.ConfigUpdater)
+	updater = cu_postgres.NewPostgresConfigUpdater(log).(*cu_postgres.ConfigUpdater)
 
 	ports, err := dapr_testing.GetFreePorts(2)
 	assert.NoError(t, err)
@@ -146,11 +160,19 @@ func TestPostgres(t *testing.T) {
 			},
 		}
 		t.Run("Init with non-existing table", func(t *testing.T) {
-			md.Base.Properties[configTableKey] = configTable2
+			md.Base.Properties[configTableKey] = "configtable2"
 			storeobj := config_postgres.NewPostgresConfigurationStore(log).(*config_postgres.ConfigurationStore)
 			err := storeobj.Init(ctx, md)
 			require.Error(t, err)
 			require.Equal(t, err.Error(), "postgreSQL configuration table 'configtable2' does not exist")
+		})
+		t.Run("Init with upper cased tablename", func(t *testing.T) {
+			upperCasedConfigTable := strings.ToUpper(configTable)
+			md.Base.Properties[configTableKey] = upperCasedConfigTable
+			storeobj := config_postgres.NewPostgresConfigurationStore(log).(*config_postgres.ConfigurationStore)
+			err := storeobj.Init(ctx, md)
+			require.Error(t, err)
+			require.Equal(t, err.Error(), "invalid table name 'CONFIGTABLE'. non-alphanumerics or upper cased table names are not supported")
 		})
 		t.Run("Init with existing table", func(t *testing.T) {
 			md.Base.Properties[configTableKey] = configTable
@@ -178,6 +200,54 @@ func TestPostgres(t *testing.T) {
 			})
 			return errSubscribe
 		}
+	}
+
+	testGet := func(ctx flow.Context) error {
+		client := sidecar.GetClient(ctx, sidecarName1)
+		// Delete key1 if it exists
+		err := updater.DeleteKey([]string{key1})
+		require.NoError(t, err, "error deleting key")
+
+		// Add key1 without any version
+		err = addKey(key1, "val-no-version", "")
+		require.NoError(t, err, "error adding key")
+		items, err := client.GetConfigurationItems(ctx, storeName, []string{key1})
+		require.NoError(t, err)
+		require.Equal(t, 1, len(items))
+		// Should return the value added
+		require.Equal(t, "val-no-version", items[key1].Value)
+
+		// Add key1 with version 1
+		err = addKey(key1, "val-version-1", "1")
+		require.NoError(t, err, "error adding key")
+		items, err = client.GetConfigurationItems(ctx, storeName, []string{key1})
+		require.NoError(t, err)
+		require.Equal(t, 1, len(items))
+		// Should return the value with version 1
+		require.Equal(t, "val-version-1", items[key1].Value)
+
+		// Add key1 with version 2
+		err = addKey(key1, "val-version-2", "2")
+		require.NoError(t, err, "error adding key")
+		items, err = client.GetConfigurationItems(ctx, storeName, []string{key1})
+		require.NoError(t, err)
+		require.Equal(t, 1, len(items))
+		// Should return the value with version 2
+		require.Equal(t, "val-version-2", items[key1].Value)
+
+		// Add key1 with non-numeric version
+		err = addKey(key1, "val-non-numeric-version", "non-numeric")
+		require.NoError(t, err, "error adding key")
+		items, err = client.GetConfigurationItems(ctx, storeName, []string{key1})
+		require.NoError(t, err)
+		require.Equal(t, 1, len(items))
+		// Should return the value with version 2
+		require.Equal(t, "val-version-2", items[key1].Value)
+
+		// Delete key1
+		err = updater.DeleteKey([]string{key1})
+		require.NoError(t, err, "error deleting key")
+		return nil
 	}
 
 	// Tests subscribe by adding key and checking if the update event is received
@@ -258,8 +328,7 @@ func TestPostgres(t *testing.T) {
 		Step("wait for postgres to be ready", retry.Do(time.Second*3, 10, checkPostgresConnection)).
 		Step("initialize updater", initUpdater).
 		Step("Init test", initTest).
-		Step("Creating trigger", createTriggers([]string{channel1, channel2})).
-		//Running Dapr Sidecars
+		//Running Dapr Sidecar `dapr-1`
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
@@ -267,6 +336,10 @@ func TestPostgres(t *testing.T) {
 			embedded.WithComponentsPath("components/default"),
 			componentRuntimeOptions(),
 		)).
+		Step("Test get", testGet).
+		// Creating triggers for subscribers
+		Step("Creating trigger", createTriggers([]string{channel1, channel2})).
+		//Running Dapr Sidecar `dapr-2`
 		Step(sidecar.Run(sidecarName2,
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(currentGrpcPort+portOffset),

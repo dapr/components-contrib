@@ -16,18 +16,6 @@ binding:
 capabilities: []
 builtinAuthenticationProfiles:
   - name: "azuread"
-    metadata:
-      - name: azureEnvironment
-        type: string
-        required: false
-        description: |
-          Optional name for the Azure environment if using a different Azure cloud
-        example: '"AzurePublicCloud"'
-        default: "AzurePublicCloud"
-        allowedValues:
-          - "AzurePublicCloud"
-          - "AzureChinaCloud"
-          - "AzureUSGovernmentCloud"
 authenticationProfiles:
   - title: "Master key"
     description: |

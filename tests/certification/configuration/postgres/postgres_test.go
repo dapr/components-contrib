@@ -36,7 +36,6 @@ import (
 	"github.com/dapr/kit/logger"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/metadata"
@@ -95,6 +94,19 @@ func getUpdateEvent(key string, val string) configuration.UpdateEvent {
 	return expectedUpdateEvent
 }
 
+func expectMessage(message *watcher.Watcher, key string, val string, version string) {
+	updateEvent := configuration.UpdateEvent{
+		Items: map[string]*configuration.Item{
+			key: {
+				Value:   val,
+				Version: version,
+			},
+		},
+	}
+	updateEventInJson, _ := json.Marshal(updateEvent)
+	message.Expect(string(updateEventInJson))
+}
+
 func addKey(key, val, version string) error {
 	items := make(map[string]*configuration.Item)
 	items[key] = &configuration.Item{
@@ -115,7 +127,7 @@ func TestPostgres(t *testing.T) {
 	updater = cu_postgres.NewPostgresConfigUpdater(log).(*cu_postgres.ConfigUpdater)
 
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	currentGrpcPort := ports[0]
 	currentHTTPPort := ports[1]
 
@@ -193,7 +205,7 @@ func TestPostgres(t *testing.T) {
 					Items: castConfigurationItems(items),
 				}
 				updateEventInJson, err := json.Marshal(updateEvent)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				message.Observe(string(updateEventInJson))
 			}, func(md map[string]string) {
 				md[pgNotifyChannelKey] = channel
@@ -255,22 +267,14 @@ func TestPostgres(t *testing.T) {
 		return func(ctx flow.Context) error {
 			for _, message := range messages {
 				message.Reset()
-				updateEvent := getUpdateEvent(key1, Val1)
-				updateEventInJson, err := json.Marshal(updateEvent)
-				if err != nil {
-					return fmt.Errorf("error marshalling update event: %s", err)
-				}
-				message.Expect(string(updateEventInJson))
+				expectMessage(message, key1, Val1, "")
+				expectMessage(message, key2, Val2, "")
 			}
 
-			items := make(map[string]*configuration.Item)
-			items[key1] = &configuration.Item{
-				Value: Val1,
-			}
-			err := updater.AddKey(items)
-			if err != nil {
-				return fmt.Errorf("error adding key: %s", err)
-			}
+			err := addKey(key1, Val1, "")
+			require.NoError(t, err, "error adding key")
+			err = addKey(key2, Val2, "")
+			require.NoError(t, err, "error adding key")
 
 			for _, message := range messages {
 				message.Assert(t, 10*time.Second)
@@ -298,7 +302,7 @@ func TestPostgres(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		assert.Equal(t, item.Value, Val1)
+		require.Equal(t, item.Value, Val1)
 		return nil
 
 	}
@@ -350,10 +354,10 @@ func TestPostgres(t *testing.T) {
 		)).
 		//
 		// Start subscribers subscribing to {key1} using different channels
-		StepAsync("start subscriber 1", &task1, subscribefn(&task1, []string{key1}, channel1, sidecarName1, watcher1)).
-		StepAsync("start subscriber 2", &task2, subscribefn(&task2, []string{key1}, channel2, sidecarName1, watcher2)).
-		StepAsync("start subscriber 3", &task3, subscribefn(&task3, []string{key1}, channel1, sidecarName2, watcher3)).
-		StepAsync("start subscriber 4", &task4, subscribefn(&task4, []string{key1}, channel2, sidecarName2, watcher4)).
+		StepAsync("start subscriber 1", &task1, subscribefn(&task1, []string{key1, key2}, channel1, sidecarName1, watcher1)).
+		StepAsync("start subscriber 2", &task2, subscribefn(&task2, []string{key1, key2}, channel2, sidecarName1, watcher2)).
+		StepAsync("start subscriber 3", &task3, subscribefn(&task3, []string{key1, key2}, channel1, sidecarName2, watcher3)).
+		StepAsync("start subscriber 4", &task4, subscribefn(&task4, []string{key1, key2}, channel2, sidecarName2, watcher4)).
 		Step("wait for subscriber to be ready", flow.Sleep(5*time.Second)).
 		// Add key in postgres and verify the update event is received by the subscriber
 		Step("testSubscribe", testSubscribe(watcher1, watcher2, watcher3, watcher4)).

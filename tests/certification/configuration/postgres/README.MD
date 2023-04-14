@@ -15,8 +15,8 @@ This project aims to test the Postgres Configuration Store component under vario
 
 ## Test multiple channels to same table
 1. Cerate multiple channels to same table
-2. Start multiple applications and subscribe to all channels with each application 
-3. Verify correct notification received to all applications for every channel
+2. Start multiple applications and subscribe to all channels with each application for multiple keys
+3. Verify all notifications received to all applications for every channel
 
 ## Network test
 1. Simulate network interruption

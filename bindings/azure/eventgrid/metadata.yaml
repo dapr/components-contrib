@@ -22,6 +22,9 @@ metadata:
   - name: subscriberEndpoint
     type: string
     required: true
+    binding:
+      input: true
+      output: false
     description: |
       The HTTPS endpoint of the webhook Event Grid sends events (formatted as
       Cloud Events) to. If you’re not re-writing URLs on ingress, it should be
@@ -32,6 +35,9 @@ metadata:
   - name: handshakePort
     type: number
     required: true # code actually defaults to 8080 if missing
+    binding:
+      input: true
+      output: false
     description: |
       The container port that the input binding listens on when receiving
       events on the webhook
@@ -39,6 +45,9 @@ metadata:
   - name: scope
     type: string
     required: true
+    binding:
+      input: true
+      output: false
     description: |
       The identifier of the resource to which the event subscription needs
       to be created or updated.
@@ -47,6 +56,9 @@ metadata:
   - name: eventSubscriptionName
     type: string
     required: false
+    binding:
+      input: true
+      output: false
     description: |
       The name of the event subscription. Event subscription names must be
       between 3 and 64 characters long and should use alphanumeric letters
@@ -56,12 +68,18 @@ metadata:
   - name: accessKey
     type: string
     required: true
+    binding:
+      input: false
+      output: true
     description: |
       The Access Key to be used for publishing an Event Grid Event to a custom topic
     example: '"accessKey"'
   - name: topicEndpoint
     type: string
     required: true
+    binding:
+      input: false
+      output: true
     description: |
       The topic endpoint in which this output binding should publish events
     example: '"topic-endpoint"'

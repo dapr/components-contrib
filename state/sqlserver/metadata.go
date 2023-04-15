@@ -14,15 +14,19 @@ limitations under the License.
 package sqlserver
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 	"unicode"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	mssql "github.com/microsoft/go-mssqldb"
 	"github.com/microsoft/go-mssqldb/msdsn"
 
+	"github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/ptr"
 )
@@ -58,11 +62,13 @@ type sqlServerMetadata struct {
 	KeyLength         int
 	IndexedProperties string
 	CleanupInterval   *time.Duration `mapstructure:"cleanupIntervalInSeconds"`
+	UseAzureAD        bool           `mapstructure:"useAzureAD"`
 
 	// Internal properties
 	keyTypeParsed           KeyType
 	keyLengthParsed         int
 	indexedPropertiesParsed []IndexedProperty
+	azureEnv                azure.EnvironmentSettings
 }
 
 func newMetadata() sqlServerMetadata {
@@ -124,19 +130,66 @@ func (m *sqlServerMetadata) Parse(meta map[string]string) error {
 		}
 	}
 
+	// If using Azure AD
+	if m.UseAzureAD {
+		m.azureEnv, err = azure.NewEnvironmentSettings(meta)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
 // GetConnector returns the connector from the connection string or Azure AD.
 // The returned connector can be used with sql.OpenDB.
-func (m *sqlServerMetadata) GetConnector() (*mssql.Connector, error) {
+func (m *sqlServerMetadata) GetConnector(setDatabase bool) (*mssql.Connector, bool, error) {
 	// Parse the connection string
 	config, err := msdsn.Parse(m.ConnectionString)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse connection string: %w", err)
+		return nil, false, fmt.Errorf("failed to parse connection string: %w", err)
 	}
 
-	return mssql.NewConnectorConfig(config), nil
+	// If setDatabase is true and the configuration (i.e. the connection string) does not contain a database, add it
+	// This is for backwards-compatibility reasons
+	if setDatabase && config.Database == "" {
+		config.Database = m.DatabaseName
+	}
+
+	fmt.Printf("config: %#v\n", config)
+
+	// We need to check if the configuration has a database because the migrator needs it
+	hasDatabase := config.Database != ""
+
+	// Configure Azure AD authentication if needed
+	if m.UseAzureAD {
+		tokenCred, errToken := m.azureEnv.GetTokenCredential()
+		if errToken != nil {
+			return nil, false, errToken
+		}
+
+		// Get the SPN, which is then used as scope for the token
+		spn := config.ServerSPN
+		if spn == "" {
+			spn = fmt.Sprintf("MSSQLSvc/%s:%d", config.Host, config.Port)
+		}
+		scope := strings.TrimRight(spn, "/") + "/.default"
+		fmt.Println(spn, scope)
+
+		conn, err := mssql.NewSecurityTokenConnector(config, func(ctx context.Context) (string, error) {
+			at, err := tokenCred.GetToken(ctx, policy.TokenRequestOptions{
+				Scopes: []string{scope},
+			})
+			if err != nil {
+				return "", err
+			}
+			return at.Token, nil
+		})
+		return conn, hasDatabase, err
+	}
+
+	conn := mssql.NewConnectorConfig(config)
+	return conn, hasDatabase, nil
 }
 
 // Validates and returns the key type.

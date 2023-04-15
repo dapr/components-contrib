@@ -17,7 +17,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"regexp"
 )
 
 type migrator interface {
@@ -78,16 +77,16 @@ func (m *migration) newMigrationResult() migrationResult {
 func (m *migration) executeMigrations(ctx context.Context) (migrationResult, error) {
 	r := m.newMigrationResult()
 
-	conn, err := m.metadata.GetConnector()
+	conn, hasDatabase, err := m.metadata.GetConnector(false)
 	if err != nil {
 		return r, err
 	}
 	db := sql.OpenDB(conn)
 
-	// If the user provides a database in the connection string to not attempt
+	// If the user provides a database in the connection string do not attempt
 	// to create the database. This work as the component did before adding the
 	// support to create the db.
-	if connStringContainsDatabase(m.metadata.ConnectionString) {
+	if hasDatabase {
 		// Schedule close of connection
 		defer db.Close()
 	} else {
@@ -99,9 +98,8 @@ func (m *migration) executeMigrations(ctx context.Context) (migrationResult, err
 		// Close the existing connection
 		db.Close()
 
-		// Re connect with a database specific connection
-		m.metadata.ConnectionString += ";database=" + m.metadata.DatabaseName
-		conn, err = m.metadata.GetConnector()
+		// Re connect with a database-specific connection
+		conn, _, err = m.metadata.GetConnector(true)
 		if err != nil {
 			return r, err
 		}
@@ -134,12 +132,6 @@ func (m *migration) executeMigrations(ctx context.Context) (migrationResult, err
 	}
 
 	return r, nil
-}
-
-func connStringContainsDatabase(connStr string) bool {
-	// This method is only going to be called once (or at least once per component), so we are not pre-compiling the regex to avoid keeping that as a global variable
-	return regexp.MustCompile(`(?i)(^|;)database=.+`).
-		MatchString(connStr)
 }
 
 func runCommand(ctx context.Context, db *sql.DB, tsql string) error {

@@ -394,17 +394,3 @@ func TestSupportedFeatures(t *testing.T) {
 	assert.Equal(t, state.FeatureETag, actual[0])
 	assert.Equal(t, state.FeatureTransactional, actual[1])
 }
-
-func TestConnStringContainsDatabase(t *testing.T) {
-	// Regular test - present
-	assert.True(t, connStringContainsDatabase(sampleConnectionString))
-
-	// Regular test - not present
-	assert.False(t, connStringContainsDatabase("server=localhost;user id=sa;password=Pass@Word1;port=1433;"))
-
-	// Case-insensitive test
-	assert.True(t, connStringContainsDatabase("server=localhost;user id=sa;password=Pass@Word1;port=1433;Database=sample;"))
-
-	// Beginning of string
-	assert.True(t, connStringContainsDatabase("Database=sample;server=localhost;user id=sa;password=Pass@Word1;port=1433;"))
-}

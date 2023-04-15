@@ -122,7 +122,7 @@ func (s *SQLServer) Init(ctx context.Context, metadata state.Metadata) error {
 	s.deleteWithETagCommand = mr.deleteWithETagCommand
 	s.deleteWithoutETagCommand = mr.deleteWithoutETagCommand
 
-	conn, err := s.metadata.GetConnector()
+	conn, _, err := s.metadata.GetConnector(true)
 	if err != nil {
 		return err
 	}

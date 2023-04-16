@@ -40,3 +40,12 @@ The purpose of this module is to provide tests that certify the CockroachDB Stat
     * Stop cockroachDB by calling a dockercompose stop command
     * Start cockroachDB by calling a dockercompose start command
     * Perform a Get Operation using a previously inserted key and verify that the data previously saved before the restart is returned
+
+## TTLs and cleanups
+
+1. Correctly parse the `cleanupIntervalInSeconds` metadata property:
+   - No value uses the default value (3600 seconds)
+   - A positive value sets the interval to the given number of seconds
+   - A zero or negative value disables the cleanup
+2. The cleanup method deletes expired records and updates the metadata table with the last time it ran
+3. The cleanup method doesn't run if the last iteration was less than `cleanupIntervalInSeconds` or if another process is doing the cleanup

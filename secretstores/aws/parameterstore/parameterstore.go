@@ -55,7 +55,7 @@ type ssmSecretStore struct {
 }
 
 // Init creates a AWS secret manager client.
-func (s *ssmSecretStore) Init(metadata secretstores.Metadata) error {
+func (s *ssmSecretStore) Init(_ context.Context, metadata secretstores.Metadata) error {
 	meta, err := s.getSecretManagerMetadata(metadata)
 	if err != nil {
 		return err
@@ -175,6 +175,6 @@ func (s *ssmSecretStore) Features() []secretstores.Feature {
 func (s *ssmSecretStore) GetComponentMetadata() map[string]string {
 	metadataStruct := ParameterStoreMetaData{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return metadataInfo
 }

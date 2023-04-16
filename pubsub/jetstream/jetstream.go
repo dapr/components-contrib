@@ -15,10 +15,15 @@ package jetstream
 
 import (
 	"context"
+	"errors"
+	"reflect"
+	"sync"
+	"sync/atomic"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nkeys"
 
+	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
@@ -31,13 +36,20 @@ type jetstreamPubSub struct {
 	meta metadata
 
 	backOffConfig retry.Config
+
+	closed  atomic.Bool
+	closeCh chan struct{}
+	wg      sync.WaitGroup
 }
 
 func NewJetStream(logger logger.Logger) pubsub.PubSub {
-	return &jetstreamPubSub{l: logger}
+	return &jetstreamPubSub{
+		l:       logger,
+		closeCh: make(chan struct{}),
+	}
 }
 
-func (js *jetstreamPubSub) Init(metadata pubsub.Metadata) error {
+func (js *jetstreamPubSub) Init(_ context.Context, metadata pubsub.Metadata) error {
 	var err error
 	js.meta, err = parseMetadata(metadata)
 	if err != nil {
@@ -45,30 +57,40 @@ func (js *jetstreamPubSub) Init(metadata pubsub.Metadata) error {
 	}
 
 	var opts []nats.Option
-	opts = append(opts, nats.Name(js.meta.name))
+	opts = append(opts, nats.Name(js.meta.Name))
 
 	// Set nats.UserJWT options when jwt and seed key is provided.
-	if js.meta.jwt != "" && js.meta.seedKey != "" {
+	if js.meta.Jwt != "" && js.meta.SeedKey != "" {
 		opts = append(opts, nats.UserJWT(func() (string, error) {
-			return js.meta.jwt, nil
+			return js.meta.Jwt, nil
 		}, func(nonce []byte) ([]byte, error) {
-			return sigHandler(js.meta.seedKey, nonce)
+			return sigHandler(js.meta.SeedKey, nonce)
 		}))
-	} else if js.meta.tlsClientCert != "" && js.meta.tlsClientKey != "" {
+	} else if js.meta.TLSClientCert != "" && js.meta.TLSClientKey != "" {
 		js.l.Debug("Configure nats for tls client authentication")
-		opts = append(opts, nats.ClientCert(js.meta.tlsClientCert, js.meta.tlsClientKey))
-	} else if js.meta.token != "" {
+		opts = append(opts, nats.ClientCert(js.meta.TLSClientCert, js.meta.TLSClientKey))
+	} else if js.meta.Token != "" {
 		js.l.Debug("Configure nats for token authentication")
-		opts = append(opts, nats.Token(js.meta.token))
+		opts = append(opts, nats.Token(js.meta.Token))
 	}
 
-	js.nc, err = nats.Connect(js.meta.natsURL, opts...)
+	js.nc, err = nats.Connect(js.meta.NatsURL, opts...)
 	if err != nil {
 		return err
 	}
-	js.l.Debugf("Connected to nats at %s", js.meta.natsURL)
+	js.l.Debugf("Connected to nats at %s", js.meta.NatsURL)
 
-	js.jsc, err = js.nc.JetStream()
+	jsOpts := []nats.JSOpt{}
+
+	if js.meta.Domain != "" {
+		jsOpts = append(jsOpts, nats.Domain(js.meta.Domain))
+	}
+
+	if js.meta.APIPrefix != "" {
+		jsOpts = append(jsOpts, nats.APIPrefix(js.meta.APIPrefix))
+	}
+
+	js.jsc, err = js.nc.JetStream(jsOpts...)
 	if err != nil {
 		return err
 	}
@@ -91,6 +113,10 @@ func (js *jetstreamPubSub) Features() []pubsub.Feature {
 }
 
 func (js *jetstreamPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
+	if js.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	var opts []nats.PubOpt
 	var msgID string
 
@@ -116,50 +142,54 @@ func (js *jetstreamPubSub) Publish(ctx context.Context, req *pubsub.PublishReque
 }
 
 func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	if js.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	var consumerConfig nats.ConsumerConfig
 
 	consumerConfig.DeliverSubject = nats.NewInbox()
 
-	if v := js.meta.durableName; v != "" {
+	if v := js.meta.DurableName; v != "" {
 		consumerConfig.Durable = v
 	}
 
-	if v := js.meta.startTime; !v.IsZero() {
+	if v := js.meta.internalStartTime; !v.IsZero() {
 		consumerConfig.OptStartTime = &v
 	}
-	if v := js.meta.startSequence; v > 0 {
+	if v := js.meta.StartSequence; v > 0 {
 		consumerConfig.OptStartSeq = v
 	}
-	consumerConfig.DeliverPolicy = js.meta.deliverPolicy
-	if js.meta.flowControl {
+	consumerConfig.DeliverPolicy = js.meta.internalDeliverPolicy
+	if js.meta.FlowControl {
 		consumerConfig.FlowControl = true
 	}
 
-	if js.meta.ackWait != 0 {
-		consumerConfig.AckWait = js.meta.ackWait
+	if js.meta.AckWait != 0 {
+		consumerConfig.AckWait = js.meta.AckWait
 	}
-	if js.meta.maxDeliver != 0 {
-		consumerConfig.MaxDeliver = js.meta.maxDeliver
+	if js.meta.MaxDeliver != 0 {
+		consumerConfig.MaxDeliver = js.meta.MaxDeliver
 	}
-	if len(js.meta.backOff) != 0 {
-		consumerConfig.BackOff = js.meta.backOff
+	if len(js.meta.BackOff) != 0 {
+		consumerConfig.BackOff = js.meta.BackOff
 	}
-	if js.meta.maxAckPending != 0 {
-		consumerConfig.MaxAckPending = js.meta.maxAckPending
+	if js.meta.MaxAckPending != 0 {
+		consumerConfig.MaxAckPending = js.meta.MaxAckPending
 	}
-	if js.meta.replicas != 0 {
-		consumerConfig.Replicas = js.meta.replicas
+	if js.meta.Replicas != 0 {
+		consumerConfig.Replicas = js.meta.Replicas
 	}
-	if js.meta.memoryStorage {
+	if js.meta.MemoryStorage {
 		consumerConfig.MemoryStorage = true
 	}
-	if js.meta.rateLimit != 0 {
-		consumerConfig.RateLimit = js.meta.rateLimit
+	if js.meta.RateLimit != 0 {
+		consumerConfig.RateLimit = js.meta.RateLimit
 	}
-	if js.meta.hearbeat != 0 {
-		consumerConfig.Heartbeat = js.meta.hearbeat
+	if js.meta.Heartbeat != 0 {
+		consumerConfig.Heartbeat = js.meta.Heartbeat
 	}
-	consumerConfig.AckPolicy = js.meta.ackPolicy
+	consumerConfig.AckPolicy = js.meta.internalAckPolicy
 	consumerConfig.FilterSubject = req.Topic
 
 	natsHandler := func(m *nats.Msg) {
@@ -183,7 +213,7 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 		if err != nil {
 			js.l.Errorf("Error processing JetStream message %s/%d: %v", m.Subject, jsm.Sequence, err)
 
-			if js.meta.ackPolicy == nats.AckExplicitPolicy || js.meta.ackPolicy == nats.AckAllPolicy {
+			if js.meta.internalAckPolicy == nats.AckExplicitPolicy || js.meta.internalAckPolicy == nats.AckAllPolicy {
 				nakErr := m.Nak()
 				if nakErr != nil {
 					js.l.Errorf("Error while sending NAK for JetStream message %s/%d: %v", m.Subject, jsm.Sequence, nakErr)
@@ -193,7 +223,7 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 			return
 		}
 
-		if js.meta.ackPolicy == nats.AckExplicitPolicy || js.meta.ackPolicy == nats.AckAllPolicy {
+		if js.meta.internalAckPolicy == nats.AckExplicitPolicy || js.meta.internalAckPolicy == nats.AckAllPolicy {
 			err = m.Ack()
 			if err != nil {
 				js.l.Errorf("Error while sending ACK for JetStream message %s/%d: %v", m.Subject, jsm.Sequence, err)
@@ -202,7 +232,7 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 	}
 
 	var err error
-	streamName := js.meta.streamName
+	streamName := js.meta.StreamName
 	if streamName == "" {
 		streamName, err = js.jsc.StreamNameBySubject(req.Topic)
 		if err != nil {
@@ -216,9 +246,9 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 		return err
 	}
 
-	if queue := js.meta.queueGroupName; queue != "" {
+	if queue := js.meta.QueueGroupName; queue != "" {
 		js.l.Debugf("nats: subscribed to subject %s with queue group %s",
-			req.Topic, js.meta.queueGroupName)
+			req.Topic, js.meta.QueueGroupName)
 		subscription, err = js.jsc.QueueSubscribe(req.Topic, queue, natsHandler, nats.Bind(streamName, consumerInfo.Name))
 	} else {
 		js.l.Debugf("nats: subscribed to subject %s", req.Topic)
@@ -228,8 +258,13 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 		return err
 	}
 
+	js.wg.Add(1)
 	go func() {
-		<-ctx.Done()
+		defer js.wg.Done()
+		select {
+		case <-ctx.Done():
+		case <-js.closeCh:
+		}
 		err := subscription.Unsubscribe()
 		if err != nil {
 			js.l.Warnf("nats: error while unsubscribing from topic %s: %v", req.Topic, err)
@@ -240,6 +275,10 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 }
 
 func (js *jetstreamPubSub) Close() error {
+	defer js.wg.Wait()
+	if js.closed.CompareAndSwap(false, true) {
+		close(js.closeCh)
+	}
 	return js.nc.Drain()
 }
 
@@ -254,4 +293,12 @@ func sigHandler(seedKey string, nonce []byte) ([]byte, error) {
 
 	sig, _ := kp.Sign(nonce)
 	return sig, nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (js *jetstreamPubSub) GetComponentMetadata() map[string]string {
+	metadataStruct := metadata{}
+	metadataInfo := map[string]string{}
+	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.PubSubType)
+	return metadataInfo
 }

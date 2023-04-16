@@ -18,17 +18,19 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"math"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
-	"github.com/dapr/kit/logger"
-
-	contribMetadata "github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -47,6 +49,7 @@ const (
 	argMaxLength          = "x-max-length"
 	argMaxLengthBytes     = "x-max-length-bytes"
 	argDeadLetterExchange = "x-dead-letter-exchange"
+	argMaxPriority        = "x-max-priority"
 	queueModeLazy         = "lazy"
 	reqMetadataRoutingKey = "routingKey"
 )
@@ -57,12 +60,13 @@ type rabbitMQ struct {
 	channel           rabbitMQChannelBroker
 	channelMutex      sync.RWMutex
 	connectionCount   int
-	metadata          *metadata
+	metadata          *rabbitmqMetadata
 	declaredExchanges map[string]bool
-	ctx               context.Context
-	cancel            context.CancelFunc
 
-	connectionDial func(protocol, uri string, tlsCfg *tls.Config) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error)
+	connectionDial func(protocol, uri string, tlsCfg *tls.Config, externalSasl bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error)
+	closeCh        chan struct{}
+	closed         atomic.Bool
+	wg             sync.WaitGroup
 
 	logger logger.Logger
 }
@@ -96,10 +100,11 @@ func NewRabbitMQ(logger logger.Logger) pubsub.PubSub {
 		declaredExchanges: make(map[string]bool),
 		logger:            logger,
 		connectionDial:    dial,
+		closeCh:           make(chan struct{}),
 	}
 }
 
-func dial(protocol, uri string, tlsCfg *tls.Config) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
+func dial(protocol, uri string, tlsCfg *tls.Config, externalSasl bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
 	var (
 		conn *amqp.Connection
 		ch   *amqp.Channel
@@ -107,7 +112,11 @@ func dial(protocol, uri string, tlsCfg *tls.Config) (rabbitMQConnectionBroker, r
 	)
 
 	if protocol == protocolAMQPS {
-		conn, err = amqp.DialTLS(uri, tlsCfg)
+		if externalSasl {
+			conn, err = amqp.DialTLS_ExternalAuth(uri, tlsCfg)
+		} else {
+			conn, err = amqp.DialTLS(uri, tlsCfg)
+		}
 	} else {
 		conn, err = amqp.Dial(uri)
 	}
@@ -125,13 +134,11 @@ func dial(protocol, uri string, tlsCfg *tls.Config) (rabbitMQConnectionBroker, r
 }
 
 // Init does metadata parsing and connection creation.
-func (r *rabbitMQ) Init(metadata pubsub.Metadata) error {
+func (r *rabbitMQ) Init(_ context.Context, metadata pubsub.Metadata) error {
 	meta, err := createMetadata(metadata, r.logger)
 	if err != nil {
 		return err
 	}
-
-	r.ctx, r.cancel = context.WithCancel(context.Background())
 
 	r.metadata = meta
 
@@ -169,14 +176,14 @@ func (r *rabbitMQ) reconnect(connectionCount int) error {
 		return err
 	}
 
-	r.connection, r.channel, err = r.connectionDial(r.metadata.protocol, r.metadata.connectionURI(), tlsCfg)
+	r.connection, r.channel, err = r.connectionDial(r.metadata.internalProtocol, r.metadata.connectionURI(), tlsCfg, r.metadata.SaslExternal)
 	if err != nil {
 		r.reset()
 
 		return err
 	}
 
-	if r.metadata.publisherConfirm {
+	if r.metadata.PublisherConfirm {
 		err = r.channel.Confirm(false)
 		if err != nil {
 			r.reset()
@@ -200,7 +207,7 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 		return r.channel, r.connectionCount, errors.New(errorChannelNotInitialized)
 	}
 
-	if err := r.ensureExchangeDeclared(r.channel, req.Topic, r.metadata.exchangeKind); err != nil {
+	if err := r.ensureExchangeDeclared(r.channel, req.Topic, r.metadata.ExchangeKind); err != nil {
 		r.logger.Errorf("%s publishing to %s failed in ensureExchangeDeclared: %v", logMessagePrefix, req.Topic, err)
 
 		return r.channel, r.connectionCount, err
@@ -210,24 +217,35 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 		routingKey = val
 	}
 
-	ttl, ok, err := contribMetadata.TryGetTTL(req.Metadata)
+	ttl, ok, err := metadata.TryGetTTL(req.Metadata)
 	if err != nil {
-		r.logger.Warnf("%s publishing to %s failed parse TryGetTTL: %v, it is ignored.", logMessagePrefix, req.Topic, err)
+		r.logger.Warnf("%s publishing to %s failed to parse TryGetTTL: %v, it is ignored.", logMessagePrefix, req.Topic, err)
 	}
 	var expiration string
 	if ok {
 		// RabbitMQ expects the duration in ms
 		expiration = strconv.FormatInt(ttl.Milliseconds(), 10)
-	} else if r.metadata.defaultQueueTTL != nil {
-		expiration = strconv.FormatInt(r.metadata.defaultQueueTTL.Milliseconds(), 10)
+	} else if r.metadata.DefaultQueueTTL != nil {
+		expiration = strconv.FormatInt(r.metadata.DefaultQueueTTL.Milliseconds(), 10)
 	}
 
-	confirm, err := r.channel.PublishWithDeferredConfirmWithContext(ctx, req.Topic, routingKey, false, false, amqp.Publishing{
+	p := amqp.Publishing{
 		ContentType:  "text/plain",
 		Body:         req.Data,
-		DeliveryMode: r.metadata.deliveryMode,
+		DeliveryMode: r.metadata.DeliveryMode,
 		Expiration:   expiration,
-	})
+	}
+
+	priority, ok, err := metadata.TryGetPriority(req.Metadata)
+	if err != nil {
+		r.logger.Warnf("%s publishing to %s failed to parse priority: %v, it is ignored.", logMessagePrefix, req.Topic, err)
+	}
+
+	if ok {
+		p.Priority = priority
+	}
+
+	confirm, err := r.channel.PublishWithDeferredConfirmWithContext(ctx, req.Topic, routingKey, false, false, p)
 	if err != nil {
 		r.logger.Errorf("%s publishing to %s failed in channel.Publish: %v", logMessagePrefix, req.Topic, err)
 
@@ -248,6 +266,10 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 }
 
 func (r *rabbitMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
+	if r.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	r.logger.Debugf("%s publishing message to %s", logMessagePrefix, req.Topic)
 
 	attempt := 0
@@ -262,28 +284,55 @@ func (r *rabbitMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) erro
 			return err
 		}
 		if mustReconnect(channel, err) {
-			r.logger.Warnf("%s publisher is reconnecting in %s ...", logMessagePrefix, r.metadata.reconnectWait.String())
-			time.Sleep(r.metadata.reconnectWait)
+			r.logger.Warnf("%s publisher is reconnecting in %s ...", logMessagePrefix, r.metadata.ReconnectWait.String())
+			select {
+			case <-time.After(r.metadata.ReconnectWait):
+			case <-ctx.Done():
+				return nil
+			}
+
 			r.reconnect(connectionCount)
 		} else {
 			r.logger.Warnf("%s publishing attempt (%d/%d) failed: %v", logMessagePrefix, attempt, publishMaxRetries, err)
-			time.Sleep(publishRetryWaitSeconds * time.Second)
+			select {
+			case <-time.After(publishRetryWaitSeconds * time.Second):
+			case <-ctx.Done():
+				return nil
+			}
 		}
 	}
 }
 
 func (r *rabbitMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
-	if r.metadata.consumerID == "" {
+	if r.closed.Load() {
+		return errors.New("component is closed")
+	}
+
+	if r.metadata.ConsumerID == "" {
 		return errors.New("consumerID is required for subscriptions")
 	}
 
-	queueName := fmt.Sprintf("%s-%s", r.metadata.consumerID, req.Topic)
+	queueName := fmt.Sprintf("%s-%s", r.metadata.ConsumerID, req.Topic)
 	r.logger.Infof("%s subscribe to topic/queue '%s/%s'", logMessagePrefix, req.Topic, queueName)
 
 	// Do not set a timeout on the context, as we're just waiting for the first ack; we're using a semaphore instead
 	ackCh := make(chan struct{}, 1)
 	defer close(ackCh)
-	go r.subscribeForever(ctx, req, queueName, handler, ackCh)
+
+	subctx, cancel := context.WithCancel(ctx)
+	r.wg.Add(2)
+	go func() {
+		defer r.wg.Done()
+		r.subscribeForever(subctx, req, queueName, handler, ackCh)
+	}()
+	go func() {
+		defer r.wg.Done()
+		defer cancel()
+		select {
+		case <-subctx.Done():
+		case <-r.closeCh:
+		}
+	}()
 
 	// Wait for the ack for 1 minute or return an error
 	select {
@@ -296,7 +345,7 @@ func (r *rabbitMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, h
 
 // this function call should be wrapped by channelMutex.
 func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub.SubscribeRequest, queueName string) (*amqp.Queue, error) {
-	err := r.ensureExchangeDeclared(channel, req.Topic, r.metadata.exchangeKind)
+	err := r.ensureExchangeDeclared(channel, req.Topic, r.metadata.ExchangeKind)
 	if err != nil {
 		r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in ensureExchangeDeclared: %v", logMessagePrefix, req.Topic, queueName, err)
 
@@ -305,7 +354,7 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 
 	r.logger.Infof("%s declaring queue '%s'", logMessagePrefix, queueName)
 	var args amqp.Table
-	if r.metadata.enableDeadLetter {
+	if r.metadata.EnableDeadLetter {
 		// declare dead letter exchange
 		dlxName := fmt.Sprintf(defaultDeadLetterExchangeFormat, queueName)
 		dlqName := fmt.Sprintf(defaultDeadLetterQueueFormat, queueName)
@@ -319,7 +368,7 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		dlqArgs := r.metadata.formatQueueDeclareArgs(nil)
 		// dead letter queue use lazy mode, keeping as many messages as possible on disk to reduce RAM usage
 		dlqArgs[argQueueMode] = queueModeLazy
-		q, err = channel.QueueDeclare(dlqName, true, r.metadata.deleteWhenUnused, false, false, dlqArgs)
+		q, err = channel.QueueDeclare(dlqName, true, r.metadata.DeleteWhenUnused, false, false, dlqArgs)
 		if err != nil {
 			r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueDeclare: %v", logMessagePrefix, req.Topic, dlqName, err)
 
@@ -335,16 +384,33 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		args = amqp.Table{argDeadLetterExchange: dlxName}
 	}
 	args = r.metadata.formatQueueDeclareArgs(args)
-	q, err := channel.QueueDeclare(queueName, r.metadata.durable, r.metadata.deleteWhenUnused, false, false, args)
+
+	// use priority queue if configured on subscription
+	if val, ok := req.Metadata[metadataMaxPriority]; ok && val != "" {
+		parsedVal, pErr := strconv.ParseUint(val, 10, 0)
+		if pErr != nil {
+			r.logger.Errorf("%s prepareSubscription error: can't parse maxPriority %s value on subscription metadata for topic/queue `%s/%s`: %s", logMessagePrefix, val, req.Topic, queueName, pErr)
+			return nil, pErr
+		}
+
+		mp := uint8(parsedVal)
+		if parsedVal > 255 {
+			mp = math.MaxUint8
+		}
+
+		args[argMaxPriority] = mp
+	}
+
+	q, err := channel.QueueDeclare(queueName, r.metadata.Durable, r.metadata.DeleteWhenUnused, false, false, args)
 	if err != nil {
 		r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueDeclare: %v", logMessagePrefix, req.Topic, queueName, err)
 
 		return nil, err
 	}
 
-	if r.metadata.prefetchCount > 0 {
-		r.logger.Infof("%s setting prefetch count to %s", logMessagePrefix, strconv.Itoa(int(r.metadata.prefetchCount)))
-		err = channel.Qos(int(r.metadata.prefetchCount), 0, false)
+	if r.metadata.PrefetchCount > 0 {
+		r.logger.Infof("%s setting prefetch count to %s", logMessagePrefix, strconv.Itoa(int(r.metadata.PrefetchCount)))
+		err = channel.Qos(int(r.metadata.PrefetchCount), 0, false)
 		if err != nil {
 			r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.Qos: %v", logMessagePrefix, req.Topic, queueName, err)
 
@@ -404,7 +470,7 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 			msgs, err = channel.Consume(
 				q.Name,
 				queueName,          // consumerId
-				r.metadata.autoAck, // autoAck
+				r.metadata.AutoAck, // autoAck
 				false,              // exclusive
 				false,              // noLocal
 				false,              // noWait
@@ -445,8 +511,13 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 		}
 
 		if mustReconnect(channel, err) {
-			r.logger.Warnf("%s subscriber is reconnecting in %s ...", logMessagePrefix, r.metadata.reconnectWait.String())
-			time.Sleep(r.metadata.reconnectWait)
+			r.logger.Warnf("%s subscriber is reconnecting in %s ...", logMessagePrefix, r.metadata.ReconnectWait.String())
+			select {
+			case <-time.After(r.metadata.ReconnectWait):
+			case <-ctx.Done():
+				r.logger.Infof("%s subscription for %s has context canceled", logMessagePrefix, queueName)
+				return
+			}
 			r.reconnect(connectionCount)
 		}
 	}
@@ -465,16 +536,20 @@ func (r *rabbitMQ) listenMessages(ctx context.Context, channel rabbitMQChannelBr
 				return nil
 			}
 
-			switch r.metadata.concurrency {
+			switch r.metadata.Concurrency {
 			case pubsub.Single:
 				err = r.handleMessage(ctx, d, topic, handler)
+				if err != nil && mustReconnect(channel, err) {
+					return err
+				}
 			case pubsub.Parallel:
+				r.wg.Add(1)
 				go func(d amqp.Delivery) {
-					err = r.handleMessage(ctx, d, topic, handler)
+					defer r.wg.Done()
+					if err := r.handleMessage(ctx, d, topic, handler); err != nil {
+						r.logger.Errorf("%s error handling message: %v", logMessagePrefix, err)
+					}
 				}(d)
-			}
-			if err != nil && mustReconnect(channel, err) {
-				return err
 			}
 		}
 	}
@@ -491,14 +566,14 @@ func (r *rabbitMQ) handleMessage(ctx context.Context, d amqp.Delivery, topic str
 	if err != nil {
 		r.logger.Errorf("%s handling message from topic '%s', %s", errorMessagePrefix, topic, err)
 
-		if !r.metadata.autoAck {
+		if !r.metadata.AutoAck {
 			// if message is not auto acked we need to ack/nack
-			r.logger.Debugf("%s nacking message '%s' from topic '%s', requeue=%t", logMessagePrefix, d.MessageId, topic, r.metadata.requeueInFailure)
-			if err = d.Nack(false, r.metadata.requeueInFailure); err != nil {
+			r.logger.Debugf("%s nacking message '%s' from topic '%s', requeue=%t", logMessagePrefix, d.MessageId, topic, r.metadata.RequeueInFailure)
+			if err = d.Nack(false, r.metadata.RequeueInFailure); err != nil {
 				r.logger.Errorf("%s error nacking message '%s' from topic '%s', %s", logMessagePrefix, d.MessageId, topic, err)
 			}
 		}
-	} else if !r.metadata.autoAck {
+	} else if !r.metadata.AutoAck {
 		// if message is not auto acked we need to ack/nack
 		r.logger.Debugf("%s acking message '%s' from topic '%s'", logMessagePrefix, d.MessageId, topic)
 		if err = d.Ack(false); err != nil {
@@ -564,17 +639,21 @@ func (r *rabbitMQ) reset() (err error) {
 }
 
 func (r *rabbitMQ) isStopped() bool {
-	return r.ctx.Err() != nil
+	return r.closed.Load()
 }
 
+// Close closes the rabbitMQ connection. Blocks until all go routines are done.
 func (r *rabbitMQ) Close() error {
 	r.channelMutex.Lock()
 	defer r.channelMutex.Unlock()
 
-	r.cancel()
-	err := r.reset()
+	if r.closed.CompareAndSwap(false, true) {
+		close(r.closeCh)
+	}
 
-	return err
+	defer r.wg.Wait()
+
+	return r.reset()
 }
 
 func (r *rabbitMQ) Features() []pubsub.Feature {
@@ -591,4 +670,12 @@ func mustReconnect(channel rabbitMQChannelBroker, err error) bool {
 	}
 
 	return strings.Contains(err.Error(), errorChannelConnection)
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (r *rabbitMQ) GetComponentMetadata() map[string]string {
+	metadataStruct := rabbitmqMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
+	return metadataInfo
 }

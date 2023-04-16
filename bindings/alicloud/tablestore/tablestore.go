@@ -16,15 +16,17 @@ package tablestore
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/aliyun/aliyun-tablestore-go-sdk/tablestore"
 
 	"github.com/dapr/components-contrib/bindings"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
-
-	"github.com/pkg/errors"
 )
 
 const (
@@ -38,11 +40,11 @@ const (
 )
 
 type tablestoreMetadata struct {
-	Endpoint     string `json:"endpoint"`
-	AccessKeyID  string `json:"accessKeyID"`
-	AccessKey    string `json:"accessKey"`
-	InstanceName string `json:"instanceName"`
-	TableName    string `json:"tableName"`
+	Endpoint     string `json:"endpoint" mapstructure:"endpoint"`
+	AccessKeyID  string `json:"accessKeyID" mapstructure:"accessKeyID"`
+	AccessKey    string `json:"accessKey" mapstructure:"accessKey"`
+	InstanceName string `json:"instanceName" mapstructure:"instanceName"`
+	TableName    string `json:"tableName" mapstructure:"tableName"`
 }
 
 type AliCloudTableStore struct {
@@ -58,7 +60,7 @@ func NewAliCloudTableStore(log logger.Logger) bindings.OutputBinding {
 	}
 }
 
-func (s *AliCloudTableStore) Init(metadata bindings.Metadata) error {
+func (s *AliCloudTableStore) Init(_ context.Context, metadata bindings.Metadata) error {
 	m, err := s.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -72,7 +74,7 @@ func (s *AliCloudTableStore) Init(metadata bindings.Metadata) error {
 
 func (s *AliCloudTableStore) Invoke(_ context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	if req == nil {
-		return nil, errors.Errorf("invoke request required")
+		return nil, errors.New("invoke request required")
 	}
 
 	startTime := time.Now()
@@ -104,7 +106,7 @@ func (s *AliCloudTableStore) Invoke(_ context.Context, req *bindings.InvokeReque
 			return nil, err
 		}
 	default:
-		return nil, errors.Errorf("invalid operation type: %s. Expected %s, %s, %s, or %s",
+		return nil, fmt.Errorf("invalid operation type: %s. Expected %s, %s, %s, or %s",
 			req.Operation, bindings.GetOperation, bindings.ListOperation, bindings.CreateOperation, bindings.DeleteOperation)
 	}
 
@@ -120,13 +122,8 @@ func (s *AliCloudTableStore) Operations() []bindings.OperationKind {
 }
 
 func (s *AliCloudTableStore) parseMetadata(metadata bindings.Metadata) (*tablestoreMetadata, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
-
-	var m tablestoreMetadata
-	err = json.Unmarshal(b, &m)
+	m := tablestoreMetadata{}
+	err := contribMetadata.DecodeMetadata(metadata.Properties, &m)
 	if err != nil {
 		return nil, err
 	}
@@ -347,4 +344,12 @@ func contains(arr []string, str string) bool {
 	}
 
 	return false
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (s *AliCloudTableStore) GetComponentMetadata() map[string]string {
+	metadataStruct := tablestoreMetadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
+	return metadataInfo
 }

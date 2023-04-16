@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"reflect"
+	"time"
 
 	"github.com/http-wasm/http-wasm-host-go/handler"
 
@@ -17,12 +18,10 @@ import (
 	"github.com/http-wasm/http-wasm-host-go/api"
 	"github.com/tetratelabs/wazero"
 
+	mdutils "github.com/dapr/components-contrib/metadata"
 	dapr "github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 )
-
-// ctx substitutes for context propagation until middleware APIs support it.
-var ctx = context.Background()
 
 // middlewareMetadata includes configuration used for the WebAssembly handler.
 // Detailed notes are in README.md for visibility.
@@ -33,10 +32,10 @@ var ctx = context.Background()
 type middlewareMetadata struct {
 	// Path is where to load a `%.wasm` file that implements the guest side of
 	// the handler protocol. No default.
-	Path string `json:"path"`
+	Path string `json:"path" mapstructure:"path"`
 
 	// guest is WebAssembly binary implementing the waPC guest, loaded from Path.
-	guest []byte
+	guest []byte `mapstructure:"-"`
 }
 
 type middleware struct {
@@ -47,8 +46,8 @@ func NewMiddleware(logger logger.Logger) dapr.Middleware {
 	return &middleware{logger: logger}
 }
 
-func (m *middleware) GetHandler(metadata dapr.Metadata) (func(next http.Handler) http.Handler, error) {
-	rh, err := m.getHandler(metadata)
+func (m *middleware) GetHandler(ctx context.Context, metadata dapr.Metadata) (func(next http.Handler) http.Handler, error) {
+	rh, err := m.getHandler(ctx, metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +55,7 @@ func (m *middleware) GetHandler(metadata dapr.Metadata) (func(next http.Handler)
 }
 
 // getHandler is extracted for unit testing.
-func (m *middleware) getHandler(metadata dapr.Metadata) (*requestHandler, error) {
+func (m *middleware) getHandler(ctx context.Context, metadata dapr.Metadata) (*requestHandler, error) {
 	meta, err := m.getMetadata(metadata)
 	if err != nil {
 		return nil, fmt.Errorf("wasm basic: failed to parse metadata: %w", err)
@@ -115,13 +114,8 @@ func (m *middleware) Log(_ context.Context, level api.LogLevel, message string) 
 }
 
 func (m *middleware) getMetadata(metadata dapr.Metadata) (*middlewareMetadata, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
-
-	var data middlewareMetadata
-	err = json.Unmarshal(b, &data)
+	data := middlewareMetadata{}
+	err := mdutils.DecodeMetadata(metadata.Properties, &data)
 	if err != nil {
 		return nil, err
 	}
@@ -165,5 +159,14 @@ func (rh *requestHandler) requestHandler(next http.Handler) http.Handler {
 
 // Close implements io.Closer
 func (rh *requestHandler) Close() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	return rh.mw.Close(ctx)
+}
+
+func (m *middleware) GetComponentMetadata() map[string]string {
+	metadataStruct := middlewareMetadata{}
+	metadataInfo := map[string]string{}
+	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
+	return metadataInfo
 }

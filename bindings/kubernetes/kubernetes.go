@@ -17,7 +17,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strconv"
+	"reflect"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -27,7 +30,9 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	kubeclient "github.com/dapr/components-contrib/internal/authentication/kubernetes"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 type kubernetesInput struct {
@@ -35,6 +40,9 @@ type kubernetesInput struct {
 	namespace    string
 	resyncPeriod time.Duration
 	logger       logger.Logger
+	closed       atomic.Bool
+	closeCh      chan struct{}
+	wg           sync.WaitGroup
 }
 
 type EventResponse struct {
@@ -43,12 +51,20 @@ type EventResponse struct {
 	NewVal v1.Event `json:"newVal"`
 }
 
-// NewKubernetes returns a new Kubernetes event input binding.
-func NewKubernetes(logger logger.Logger) bindings.InputBinding {
-	return &kubernetesInput{logger: logger}
+type kubernetesMetadata struct {
+	Namespace    string         `mapstructure:"namespace"`
+	ResyncPeriod *time.Duration `mapstructure:"resyncPeriodInSec"`
 }
 
-func (k *kubernetesInput) Init(metadata bindings.Metadata) error {
+// NewKubernetes returns a new Kubernetes event input binding.
+func NewKubernetes(logger logger.Logger) bindings.InputBinding {
+	return &kubernetesInput{
+		logger:  logger,
+		closeCh: make(chan struct{}),
+	}
+}
+
+func (k *kubernetesInput) Init(ctx context.Context, metadata bindings.Metadata) error {
 	client, err := kubeclient.GetKubeClient()
 	if err != nil {
 		return err
@@ -58,26 +74,30 @@ func (k *kubernetesInput) Init(metadata bindings.Metadata) error {
 	return k.parseMetadata(metadata)
 }
 
-func (k *kubernetesInput) parseMetadata(metadata bindings.Metadata) error {
-	if val, ok := metadata.Properties["namespace"]; ok && val != "" {
-		k.namespace = val
-	} else {
-		return errors.New("namespace is missing in metadata")
-	}
-	if val, ok := metadata.Properties["resyncPeriodInSec"]; ok && val != "" {
-		intval, err := strconv.ParseInt(val, 10, 64)
-		if err != nil {
-			k.logger.Warnf("invalid resyncPeriodInSec %s; %v; defaulting to 10s", val, err)
-			k.resyncPeriod = time.Second * 10
+func (k *kubernetesInput) parseMetadata(meta bindings.Metadata) error {
+	m := kubernetesMetadata{}
+	err := metadata.DecodeMetadata(meta.Properties, &m)
+	if err != nil {
+		if strings.Contains(err.Error(), "resyncPeriodInSec") {
+			k.logger.Warnf("invalid resyncPeriodInSec; %v; defaulting to 10s", err)
+			m.ResyncPeriod = ptr.Of(time.Second * 10)
 		} else {
-			k.resyncPeriod = time.Second * time.Duration(intval)
+			return err
 		}
 	}
+	k.resyncPeriod = *m.ResyncPeriod
 
+	if m.Namespace == "" {
+		return errors.New("namespace is missing in metadata")
+	}
+	k.namespace = m.Namespace
 	return nil
 }
 
 func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) error {
+	if k.closed.Load() {
+		return errors.New("binding is closed")
+	}
 	watchlist := cache.NewListWatchFromClient(
 		k.kubeClient.CoreV1().RESTClient(),
 		"events",
@@ -126,12 +146,28 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 		},
 	)
 
+	k.wg.Add(3)
+	readCtx, cancel := context.WithCancel(ctx)
+
+	// catch when binding is closed.
+	go func() {
+		defer k.wg.Done()
+		defer cancel()
+		select {
+		case <-readCtx.Done():
+		case <-k.closeCh:
+		}
+	}()
+
 	// Start the controller in backgound
-	stopCh := make(chan struct{})
-	go controller.Run(stopCh)
+	go func() {
+		defer k.wg.Done()
+		controller.Run(readCtx.Done())
+	}()
 
 	// Watch for new messages and for context cancellation
 	go func() {
+		defer k.wg.Done()
 		var (
 			obj  EventResponse
 			data []byte
@@ -148,12 +184,27 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 						Data: data,
 					})
 				}
-			case <-ctx.Done():
-				close(stopCh)
+			case <-readCtx.Done():
 				return
 			}
 		}
 	}()
 
 	return nil
+}
+
+func (k *kubernetesInput) Close() error {
+	if k.closed.CompareAndSwap(false, true) {
+		close(k.closeCh)
+	}
+	k.wg.Wait()
+	return nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (k *kubernetesInput) GetComponentMetadata() map[string]string {
+	metadataStruct := kubernetesMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

@@ -61,7 +61,7 @@ func NewAzureKeyvaultSecretStore(logger logger.Logger) secretstores.SecretStore 
 }
 
 // Init creates a Azure Key Vault client.
-func (k *keyvaultSecretStore) Init(meta secretstores.Metadata) error {
+func (k *keyvaultSecretStore) Init(_ context.Context, meta secretstores.Metadata) error {
 	m := KeyvaultMetadata{}
 	if err := metadata.DecodeMetadata(meta.Properties, &m); err != nil {
 		return err
@@ -70,18 +70,14 @@ func (k *keyvaultSecretStore) Init(meta secretstores.Metadata) error {
 	// This should be considered deprecated and users should rely the "azureEnvironment" metadata instead, but it's maintained here for backwards-compatibility
 	if m.VaultName != "" {
 		keyVaultSuffixToEnvironment := map[string]string{
-			".vault.azure.net":         "AZUREPUBLICCLOUD",
-			".vault.azure.cn":          "AZURECHINACLOUD",
-			".vault.usgovcloudapi.net": "AZUREUSGOVERNMENTCLOUD",
-			".vault.microsoftazure.de": "AZUREGERMANCLOUD",
+			".vault.azure.net":         "AzurePublicCloud",
+			".vault.azure.cn":          "AzureChinaCloud",
+			".vault.usgovcloudapi.net": "AzureUSGovernmentCloud",
 		}
 		for suffix, environment := range keyVaultSuffixToEnvironment {
 			if strings.HasSuffix(m.VaultName, suffix) {
 				meta.Properties["azureEnvironment"] = environment
-				m.VaultName = strings.TrimSuffix(m.VaultName, suffix)
-				if strings.HasPrefix(m.VaultName, "https://") {
-					m.VaultName = strings.TrimPrefix(m.VaultName, "https://")
-				}
+				m.VaultName = strings.TrimPrefix(strings.TrimSuffix(m.VaultName, suffix), "https://")
 				k.vaultName = m.VaultName
 				break
 			}
@@ -89,13 +85,13 @@ func (k *keyvaultSecretStore) Init(meta secretstores.Metadata) error {
 	}
 
 	// Initialization code
-	settings, err := azauth.NewEnvironmentSettings("keyvault", meta.Properties)
+	settings, err := azauth.NewEnvironmentSettings(meta.Properties)
 	if err != nil {
 		return err
 	}
 
 	k.vaultName = m.VaultName
-	k.vaultDNSSuffix = settings.AzureEnvironment.KeyVaultDNSSuffix
+	k.vaultDNSSuffix = settings.EndpointSuffix(azauth.ServiceAzureKeyVault)
 
 	cred, err := settings.GetTokenCredential()
 	if err != nil {
@@ -213,6 +209,6 @@ func (k *keyvaultSecretStore) Features() []secretstores.Feature {
 func (k *keyvaultSecretStore) GetComponentMetadata() map[string]string {
 	metadataStruct := KeyvaultMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return metadataInfo
 }

@@ -25,11 +25,13 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -80,7 +82,7 @@ func NewDingTalkWebhook(l logger.Logger) bindings.InputOutputBinding {
 }
 
 // Init performs metadata parsing.
-func (t *DingTalkWebhook) Init(metadata bindings.Metadata) error {
+func (t *DingTalkWebhook) Init(_ context.Context, metadata bindings.Metadata) error {
 	var err error
 	if err = t.settings.Decode(metadata.Properties); err != nil {
 		return fmt.Errorf("dingtalk configuration error: %w", err)
@@ -104,6 +106,13 @@ func (t *DingTalkWebhook) Read(ctx context.Context, handler bindings.Handler) er
 	}
 	webhooks.m[t.settings.ID] = &outgoingWebhook{handler: handler}
 
+	return nil
+}
+
+func (t *DingTalkWebhook) Close() error {
+	webhooks.Lock()
+	defer webhooks.Unlock()
+	delete(webhooks.m, t.settings.ID)
 	return nil
 }
 
@@ -195,6 +204,14 @@ func (t *DingTalkWebhook) sendMessage(ctx context.Context, req *bindings.InvokeR
 	}
 
 	return nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (t *DingTalkWebhook) GetComponentMetadata() map[string]string {
+	metadataStruct := Settings{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
+	return metadataInfo
 }
 
 func getPostURL(urlPath, secret string) (string, error) {

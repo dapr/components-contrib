@@ -29,6 +29,11 @@ const (
 	fakeConnectionString = "not a real connection"
 )
 
+// GetDBAccess is used in tests only, returns the dbaccess property.
+func (o *OracleDatabase) GetDBAccess() *oracleDatabaseAccess {
+	return o.dbaccess.(*oracleDatabaseAccess)
+}
+
 // Fake implementation of interface oracledatabase.dbaccess.
 type fakeDBaccess struct {
 	logger       logger.Logger
@@ -38,26 +43,23 @@ type fakeDBaccess struct {
 	getExecuted  bool
 }
 
-func (m *fakeDBaccess) Ping() error {
+func (m *fakeDBaccess) Ping(ctx context.Context) error {
 	m.pingExecuted = true
 	return nil
 }
 
-func (m *fakeDBaccess) Init(metadata state.Metadata) error {
+func (m *fakeDBaccess) Init(ctx context.Context, metadata state.Metadata) error {
 	m.initExecuted = true
-
 	return nil
 }
 
 func (m *fakeDBaccess) Set(ctx context.Context, req *state.SetRequest) error {
 	m.setExecuted = true
-
 	return nil
 }
 
 func (m *fakeDBaccess) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	m.getExecuted = true
-
 	return nil, nil
 }
 
@@ -65,7 +67,7 @@ func (m *fakeDBaccess) Delete(ctx context.Context, req *state.DeleteRequest) err
 	return nil
 }
 
-func (m *fakeDBaccess) ExecuteMulti(ctx context.Context, sets []state.SetRequest, deletes []state.DeleteRequest) error {
+func (m *fakeDBaccess) ExecuteMulti(parentCtx context.Context, reqs []state.TransactionalStateOperation) error {
 	return nil
 }
 
@@ -77,7 +79,7 @@ func (m *fakeDBaccess) Close() error {
 func TestInitRunsDBAccessInit(t *testing.T) {
 	t.Parallel()
 	ods, fake := createOracleDatabaseWithFake(t)
-	ods.Ping()
+	ods.Ping(context.Background())
 	assert.True(t, fake.initExecuted)
 }
 
@@ -88,87 +90,31 @@ func TestMultiWithNoRequestsReturnsNil(t *testing.T) {
 	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
-	assert.Nil(t, err)
-}
-
-func TestInvalidMultiAction(t *testing.T) {
-	t.Parallel()
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: "Something invalid",
-		Request:   createSetRequest(),
-	})
-
-	ods := createOracleDatabase(t)
-	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
-		Operations: operations,
-	})
-	assert.NotNil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestValidSetRequest(t *testing.T) {
 	t.Parallel()
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: state.Upsert,
-		Request:   createSetRequest(),
-	})
 
 	ods := createOracleDatabase(t)
 	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
-		Operations: operations,
+		Operations: []state.TransactionalStateOperation{
+			createSetRequest(),
+		},
 	})
-	assert.Nil(t, err)
-}
-
-func TestInvalidMultiSetRequest(t *testing.T) {
-	t.Parallel()
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: state.Upsert,
-		Request:   createDeleteRequest(), // Delete request is not valid for Upsert operation.
-	})
-
-	ods := createOracleDatabase(t)
-	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
-		Operations: operations,
-	})
-	assert.NotNil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestValidMultiDeleteRequest(t *testing.T) {
 	t.Parallel()
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: state.Delete,
-		Request:   createDeleteRequest(),
-	})
 
 	ods := createOracleDatabase(t)
 	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
-		Operations: operations,
+		Operations: []state.TransactionalStateOperation{
+			createDeleteRequest(),
+		},
 	})
-	assert.Nil(t, err)
-}
-
-func TestInvalidMultiDeleteRequest(t *testing.T) {
-	t.Parallel()
-	var operations []state.TransactionalStateOperation
-
-	operations = append(operations, state.TransactionalStateOperation{
-		Operation: state.Delete,
-		Request:   createSetRequest(), // Set request is not valid for Delete operation.
-	})
-
-	ods := createOracleDatabase(t)
-	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
-		Operations: operations,
-	})
-	assert.NotNil(t, err)
+	assert.NoError(t, err)
 }
 
 func createSetRequest() state.SetRequest {
@@ -194,7 +140,7 @@ func createOracleDatabaseWithFake(t *testing.T) (*OracleDatabase, *fakeDBaccess)
 func TestPingRunsDBAccessPing(t *testing.T) {
 	t.Parallel()
 	odb, fake := createOracleDatabaseWithFake(t)
-	odb.Ping()
+	odb.Ping(context.Background())
 	assert.True(t, fake.pingExecuted)
 }
 
@@ -212,9 +158,9 @@ func createOracleDatabase(t *testing.T) *OracleDatabase {
 		Base: metadata.Base{Properties: map[string]string{connectionStringKey: fakeConnectionString}},
 	}
 
-	err := odb.Init(*metadata)
+	err := odb.Init(context.Background(), *metadata)
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.NotNil(t, odb.dbaccess)
 
 	return odb

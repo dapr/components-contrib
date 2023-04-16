@@ -21,12 +21,15 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+
+	"github.com/dapr/components-contrib/metadata"
 )
 
 const (
 	key                  = "partitionKey"
 	skipVerify           = "skipVerify"
 	caCert               = "caCert"
+	certificateAuthType  = "certificate"
 	clientCert           = "clientCert"
 	clientKey            = "clientKey"
 	consumeRetryEnabled  = "consumeRetryEnabled"
@@ -38,28 +41,32 @@ const (
 	noAuthType           = "none"
 )
 
-type kafkaMetadata struct {
-	Brokers              []string
-	ConsumerGroup        string
-	ClientID             string
-	AuthType             string
-	SaslUsername         string
-	SaslPassword         string
-	SaslMechanism        string
-	InitialOffset        int64
-	MaxMessageBytes      int
-	OidcTokenEndpoint    string
-	OidcClientID         string
-	OidcClientSecret     string
-	OidcScopes           []string
-	TLSDisable           bool
-	TLSSkipVerify        bool
-	TLSCaCert            string
-	TLSClientCert        string
-	TLSClientKey         string
-	ConsumeRetryEnabled  bool
-	ConsumeRetryInterval time.Duration
-	Version              sarama.KafkaVersion
+type KafkaMetadata struct {
+	Brokers               string              `mapstructure:"brokers"`
+	internalBrokers       []string            `mapstructure:"-"`
+	ConsumerGroup         string              `mapstructure:"consumerGroup"`
+	ClientID              string              `mapstructure:"clientId"`
+	AuthType              string              `mapstructure:"authType"`
+	SaslUsername          string              `mapstructure:"saslUsername"`
+	SaslPassword          string              `mapstructure:"saslPassword"`
+	SaslMechanism         string              `mapstructure:"saslMechanism"`
+	InitialOffset         string              `mapstructure:"initialOffset"`
+	internalInitialOffset int64               `mapstructure:"-"`
+	MaxMessageBytes       int                 `mapstructure:"maxMessageBytes"`
+	OidcTokenEndpoint     string              `mapstructure:"oidcTokenEndpoint"`
+	OidcClientID          string              `mapstructure:"oidcClientID"`
+	OidcClientSecret      string              `mapstructure:"oidcClientSecret"`
+	OidcScopes            string              `mapstructure:"oidcScopes"`
+	internalOidcScopes    []string            `mapstructure:"-"`
+	TLSDisable            bool                `mapstructure:"disableTls"`
+	TLSSkipVerify         bool                `mapstructure:"skipVerify"`
+	TLSCaCert             string              `mapstructure:"caCert"`
+	TLSClientCert         string              `mapstructure:"clientCert"`
+	TLSClientKey          string              `mapstructure:"clientKey"`
+	ConsumeRetryEnabled   bool                `mapstructure:"consumeRetryEnabled"`
+	ConsumeRetryInterval  time.Duration       `mapstructure:"consumeRetryInterval"`
+	Version               string              `mapstructure:"version"`
+	internalVersion       sarama.KafkaVersion `mapstructure:"-"`
 }
 
 // upgradeMetadata updates metadata properties based on deprecated usage.
@@ -99,186 +106,136 @@ func (k *Kafka) upgradeMetadata(metadata map[string]string) (map[string]string, 
 }
 
 // getKafkaMetadata returns new Kafka metadata.
-func (k *Kafka) getKafkaMetadata(metadata map[string]string) (*kafkaMetadata, error) {
-	meta := kafkaMetadata{
+func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error) {
+	m := KafkaMetadata{
 		ConsumeRetryInterval: 100 * time.Millisecond,
-	}
-	// use the runtimeConfig.ID as the consumer group so that each dapr runtime creates its own consumergroup
-	if val, ok := metadata["consumerID"]; ok && val != "" {
-		meta.ConsumerGroup = val
-		k.logger.Debugf("Using %s as ConsumerGroup", meta.ConsumerGroup)
-		k.logger.Warn("ConsumerID is deprecated, if ConsumerID and ConsumerGroup are both set, ConsumerGroup is used")
+		internalVersion:      sarama.V2_0_0_0, //nolint:nosnakecase
 	}
 
-	if val, ok := metadata["consumerGroup"]; ok && val != "" {
-		meta.ConsumerGroup = val
-		k.logger.Debugf("Using %s as ConsumerGroup", meta.ConsumerGroup)
-	}
-
-	if val, ok := metadata["clientID"]; ok && val != "" {
-		meta.ClientID = val
-		k.logger.Debugf("Using %s as ClientID", meta.ClientID)
-	}
-
-	if val, ok := metadata["saslMechanism"]; ok && val != "" {
-		meta.SaslMechanism = val
-		k.logger.Debugf("Using %s as saslMechanism", meta.SaslMechanism)
-	}
-
-	initialOffset, err := parseInitialOffset(metadata["initialOffset"])
+	err := metadata.DecodeMetadata(meta, &m)
 	if err != nil {
 		return nil, err
 	}
-	meta.InitialOffset = initialOffset
 
-	if val, ok := metadata["brokers"]; ok && val != "" {
-		meta.Brokers = strings.Split(val, ",")
+	// If ConsumerGroup is not set, use the 'consumerID' (which can be set by the runtime) as the consumer group so that each dapr runtime creates its own consumergroup
+	if m.ConsumerGroup == "" {
+		for k, v := range meta {
+			if strings.ToLower(k) == "consumerid" { //nolint:gocritic
+				m.ConsumerGroup = v
+				break
+			}
+		}
+	}
+
+	k.logger.Debugf("ConsumerGroup='%s', ClientID='%s', saslMechanism='%s'", m.ConsumerGroup, m.ClientID, m.SaslMechanism)
+
+	initialOffset, err := parseInitialOffset(meta["initialOffset"])
+	if err != nil {
+		return nil, err
+	}
+	m.internalInitialOffset = initialOffset
+
+	if m.Brokers != "" {
+		m.internalBrokers = strings.Split(m.Brokers, ",")
 	} else {
 		return nil, errors.New("kafka error: missing 'brokers' attribute")
 	}
 
-	k.logger.Debugf("Found brokers: %v", meta.Brokers)
+	k.logger.Debugf("Found brokers: %v", m.internalBrokers)
 
-	val, ok := metadata["authType"]
-	if !ok {
-		return nil, errors.New("kafka error: missing 'authType' attribute")
-	}
-	if val == "" {
-		return nil, errors.New("kafka error: 'authType' attribute was empty")
+	if val, ok := meta[caCert]; ok && val != "" {
+		if !isValidPEM(val) {
+			return nil, errors.New("kafka error: invalid ca certificate")
+		}
+		m.TLSCaCert = val
 	}
 
-	switch strings.ToLower(val) {
+	if m.AuthType == "" {
+		return nil, errors.New("kafka error: 'authType' attribute was missing or empty")
+	}
+
+	switch strings.ToLower(m.AuthType) {
 	case passwordAuthType:
-		meta.AuthType = val
-		if val, ok = metadata["saslUsername"]; ok && val != "" {
-			meta.SaslUsername = val
-		} else {
+		if m.SaslUsername == "" {
 			return nil, errors.New("kafka error: missing SASL Username for authType 'password'")
 		}
 
-		if val, ok = metadata["saslPassword"]; ok && val != "" {
-			meta.SaslPassword = val
-		} else {
+		if m.SaslPassword == "" {
 			return nil, errors.New("kafka error: missing SASL Password for authType 'password'")
 		}
 		k.logger.Debug("Configuring SASL password authentication.")
 	case oidcAuthType:
-		meta.AuthType = val
-		if val, ok = metadata["oidcTokenEndpoint"]; ok && val != "" {
-			meta.OidcTokenEndpoint = val
-		} else {
+		if m.OidcTokenEndpoint == "" {
 			return nil, errors.New("kafka error: missing OIDC Token Endpoint for authType 'oidc'")
 		}
-		if val, ok = metadata["oidcClientID"]; ok && val != "" {
-			meta.OidcClientID = val
-		} else {
+		if m.OidcClientID == "" {
 			return nil, errors.New("kafka error: missing OIDC Client ID for authType 'oidc'")
 		}
-		if val, ok = metadata["oidcClientSecret"]; ok && val != "" {
-			meta.OidcClientSecret = val
-		} else {
+		if m.OidcClientSecret == "" {
 			return nil, errors.New("kafka error: missing OIDC Client Secret for authType 'oidc'")
 		}
-		if val, ok = metadata["oidcScopes"]; ok && val != "" {
-			meta.OidcScopes = strings.Split(val, ",")
+		if m.OidcScopes != "" {
+			m.internalOidcScopes = strings.Split(m.OidcScopes, ",")
 		} else {
 			k.logger.Warn("Warning: no OIDC scopes specified, using default 'openid' scope only. This is a security risk for token reuse.")
-			meta.OidcScopes = []string{"openid"}
+			m.internalOidcScopes = []string{"openid"}
 		}
 		k.logger.Debug("Configuring SASL token authentication via OIDC.")
 	case mtlsAuthType:
-		meta.AuthType = val
-		if val, ok = metadata[clientCert]; ok && val != "" {
-			if !isValidPEM(val) {
+		if m.TLSClientCert != "" {
+			if !isValidPEM(m.TLSClientCert) {
 				return nil, errors.New("kafka error: invalid client certificate")
 			}
-			meta.TLSClientCert = val
 		}
-		if val, ok = metadata[clientKey]; ok && val != "" {
-			if !isValidPEM(val) {
+		if m.TLSClientKey != "" {
+			if !isValidPEM(m.TLSClientKey) {
 				return nil, errors.New("kafka error: invalid client key")
 			}
-			meta.TLSClientKey = val
 		}
 		// clientKey and clientCert need to be all specified or all not specified.
-		if (meta.TLSClientKey == "") != (meta.TLSClientCert == "") {
+		if (m.TLSClientKey == "") != (m.TLSClientCert == "") {
 			return nil, errors.New("kafka error: clientKey or clientCert is missing")
 		}
 		k.logger.Debug("Configuring mTLS authentication.")
 	case noAuthType:
-		meta.AuthType = val
 		k.logger.Debug("No authentication configured.")
+	case certificateAuthType:
+		if m.TLSCaCert == "" {
+			return nil, errors.New("missing CA certificate property 'caCert' for authType 'certificate'")
+		}
+		k.logger.Debug("Configuring root certificate authentication.")
 	default:
 		return nil, errors.New("kafka error: invalid value for 'authType' attribute")
 	}
 
-	if val, ok := metadata["maxMessageBytes"]; ok && val != "" {
-		maxBytes, err := strconv.Atoi(val)
-		if err != nil {
-			return nil, fmt.Errorf("kafka error: cannot parse maxMessageBytes: %w", err)
-		}
-
-		meta.MaxMessageBytes = maxBytes
+	if m.TLSDisable {
+		k.logger.Info("kafka: TLS connectivity to broker disabled")
 	}
 
-	if val, ok := metadata[caCert]; ok && val != "" {
-		if !isValidPEM(val) {
-			return nil, errors.New("kafka error: invalid ca certificate")
-		}
-		meta.TLSCaCert = val
+	if m.TLSSkipVerify {
+		k.logger.Infof("kafka: you are using 'skipVerify' to skip server config verify which is unsafe!")
 	}
 
-	if val, ok := metadata["disableTls"]; ok && val != "" {
-		boolVal, err := strconv.ParseBool(val)
-		if err != nil {
-			return nil, fmt.Errorf("kafka: invalid value for 'tlsDisable' attribute: %w", err)
-		}
-		meta.TLSDisable = boolVal
-		if meta.TLSDisable {
-			k.logger.Info("kafka: TLS connectivity to broker disabled")
-		}
-	}
-
-	if val, ok := metadata[skipVerify]; ok && val != "" {
-		boolVal, err := strconv.ParseBool(val)
-		if err != nil {
-			return nil, fmt.Errorf("kafka error: invalid value for '%s' attribute: %w", skipVerify, err)
-		}
-		meta.TLSSkipVerify = boolVal
-		if boolVal {
-			k.logger.Infof("kafka: you are using 'skipVerify' to skip server config verify which is unsafe!")
-		}
-	}
-
-	if val, ok := metadata[consumeRetryEnabled]; ok && val != "" {
-		boolVal, err := strconv.ParseBool(val)
-		if err != nil {
-			return nil, fmt.Errorf("kafka error: invalid value for '%s' attribute: %w", consumeRetryEnabled, err)
-		}
-		meta.ConsumeRetryEnabled = boolVal
-	}
-
-	if val, ok := metadata[consumeRetryInterval]; ok && val != "" {
-		durationVal, err := time.ParseDuration(val)
-		if err != nil {
+	if val, ok := meta[consumeRetryInterval]; ok && val != "" {
+		// if the string is a number, parse it as a duration in milliseconds - this is necessary because DecodeMetadata would parse a numeric string in seconds instead.
+		// if the string is a duration, it was already correctly parsed in DecodeMetadata
+		_, err := strconv.Atoi(val)
+		if err == nil {
 			intVal, err := strconv.ParseUint(val, 10, 32)
 			if err != nil {
 				return nil, fmt.Errorf("kafka error: invalid value for '%s' attribute: %w", consumeRetryInterval, err)
 			}
-			durationVal = time.Duration(intVal) * time.Millisecond
+			m.ConsumeRetryInterval = time.Duration(intVal) * time.Millisecond
 		}
-		meta.ConsumeRetryInterval = durationVal
 	}
 
-	if val, ok := metadata["version"]; ok && val != "" {
-		version, err := sarama.ParseKafkaVersion(val)
+	if m.Version != "" {
+		version, err := sarama.ParseKafkaVersion(m.Version)
 		if err != nil {
 			return nil, errors.New("kafka error: invalid kafka version")
 		}
-		meta.Version = version
-	} else {
-		meta.Version = sarama.V2_0_0_0 //nolint:nosnakecase
+		m.internalVersion = version
 	}
 
-	return &meta, nil
+	return &m, nil
 }

@@ -16,30 +16,27 @@ package appconfig
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"testing"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig"
-	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/configuration"
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
-type MockConfigurationStore struct {
-	azAppConfigClient
-}
+type MockConfigurationStore struct{}
 
 func (m *MockConfigurationStore) GetSetting(ctx context.Context, key string, options *azappconfig.GetSettingOptions) (azappconfig.GetSettingResponse, error) {
 	if key == "testKey" || key == "test_sentinel_key" {
 		settings := azappconfig.Setting{}
 
-		settings.Key = to.StringPtr("testKey")
-		settings.Value = to.StringPtr("testValue")
+		settings.Key = ptr.Of("testKey")
+		settings.Value = ptr.Of("testValue")
 
 		resp := azappconfig.GetSettingResponse{}
 		resp.Setting = settings
@@ -53,12 +50,12 @@ func (m *MockConfigurationStore) NewListSettingsPager(selector azappconfig.Setti
 	settings := make([]azappconfig.Setting, 2)
 
 	setting1 := azappconfig.Setting{}
-	setting1.Key = to.StringPtr("testKey-1")
-	setting1.Value = to.StringPtr("testValue-1")
+	setting1.Key = ptr.Of("testKey-1")
+	setting1.Value = ptr.Of("testValue-1")
 
 	setting2 := azappconfig.Setting{}
-	setting2.Key = to.StringPtr("testKey-2")
-	setting2.Value = to.StringPtr("testValue-2")
+	setting2.Key = ptr.Of("testKey-2")
+	setting2.Value = ptr.Of("testValue-2")
 	settings[0] = setting1
 	settings[1] = setting2
 
@@ -204,16 +201,16 @@ func TestInit(t *testing.T) {
 			Properties: testProperties,
 		}}
 
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.Nil(t, err)
 		cs, ok := s.(*ConfigurationStore)
 		assert.True(t, ok)
-		assert.Equal(t, testProperties[host], cs.metadata.host)
-		assert.Equal(t, 3, cs.metadata.maxRetries)
-		assert.Equal(t, time.Second*4, cs.metadata.retryDelay)
-		assert.Equal(t, time.Second*120, cs.metadata.maxRetryDelay)
-		assert.Equal(t, time.Second*30, cs.metadata.subscribePollInterval)
-		assert.Equal(t, time.Second*30, cs.metadata.requestTimeout)
+		assert.Equal(t, testProperties[host], cs.metadata.Host)
+		assert.Equal(t, 3, cs.metadata.MaxRetries)
+		assert.Equal(t, time.Second*4, cs.metadata.internalRetryDelay)
+		assert.Equal(t, time.Second*120, cs.metadata.internalMaxRetryDelay)
+		assert.Equal(t, time.Second*30, cs.metadata.internalSubscribePollInterval)
+		assert.Equal(t, time.Second*30, cs.metadata.internalRequestTimeout)
 	})
 
 	t.Run("Init with valid appConfigConnectionString metadata", func(t *testing.T) {
@@ -229,16 +226,16 @@ func TestInit(t *testing.T) {
 			Properties: testProperties,
 		}}
 
-		err := s.Init(m)
+		err := s.Init(context.Background(), m)
 		assert.Nil(t, err)
 		cs, ok := s.(*ConfigurationStore)
 		assert.True(t, ok)
-		assert.Equal(t, testProperties[connectionString], cs.metadata.connectionString)
-		assert.Equal(t, 3, cs.metadata.maxRetries)
-		assert.Equal(t, time.Second*4, cs.metadata.retryDelay)
-		assert.Equal(t, time.Second*120, cs.metadata.maxRetryDelay)
-		assert.Equal(t, time.Second*30, cs.metadata.subscribePollInterval)
-		assert.Equal(t, time.Second*30, cs.metadata.requestTimeout)
+		assert.Equal(t, testProperties[connectionString], cs.metadata.ConnectionString)
+		assert.Equal(t, 3, cs.metadata.MaxRetries)
+		assert.Equal(t, time.Second*4, cs.metadata.internalRetryDelay)
+		assert.Equal(t, time.Second*120, cs.metadata.internalMaxRetryDelay)
+		assert.Equal(t, time.Second*30, cs.metadata.internalSubscribePollInterval)
+		assert.Equal(t, time.Second*30, cs.metadata.internalRequestTimeout)
 	})
 }
 
@@ -257,19 +254,22 @@ func Test_parseMetadata(t *testing.T) {
 		}}
 
 		want := metadata{
-			host:                  "testHost",
-			maxRetries:            3,
-			retryDelay:            time.Second * 4,
-			maxRetryDelay:         time.Second * 120,
-			subscribePollInterval: time.Second * 30,
-			requestTimeout:        time.Second * 30,
+			Host:                          "testHost",
+			MaxRetries:                    3,
+			internalRetryDelay:            time.Second * 4,
+			internalMaxRetryDelay:         time.Second * 120,
+			internalSubscribePollInterval: time.Second * 30,
+			internalRequestTimeout:        time.Second * 30,
 		}
 
 		m, _ := parseMetadata(meta)
 		assert.NotNil(t, m)
-		if !reflect.DeepEqual(m, want) {
-			t.Errorf("parseMetadata() got = %v, want %v", m, want)
-		}
+		assert.Equal(t, want.Host, m.Host)
+		assert.Equal(t, want.MaxRetries, m.MaxRetries)
+		assert.Equal(t, want.internalRetryDelay, m.internalRetryDelay)
+		assert.Equal(t, want.internalMaxRetryDelay, m.internalMaxRetryDelay)
+		assert.Equal(t, want.internalSubscribePollInterval, m.internalSubscribePollInterval)
+		assert.Equal(t, want.internalRequestTimeout, m.internalRequestTimeout)
 	})
 
 	t.Run(fmt.Sprintf("parse metadata with %s", connectionString), func(t *testing.T) {
@@ -286,19 +286,22 @@ func Test_parseMetadata(t *testing.T) {
 		}}
 
 		want := metadata{
-			connectionString:      "testConnectionString",
-			maxRetries:            3,
-			retryDelay:            time.Second * 4,
-			maxRetryDelay:         time.Second * 120,
-			subscribePollInterval: time.Second * 30,
-			requestTimeout:        time.Second * 30,
+			ConnectionString:              "testConnectionString",
+			MaxRetries:                    3,
+			internalRetryDelay:            time.Second * 4,
+			internalMaxRetryDelay:         time.Second * 120,
+			internalSubscribePollInterval: time.Second * 30,
+			internalRequestTimeout:        time.Second * 30,
 		}
 
 		m, _ := parseMetadata(meta)
 		assert.NotNil(t, m)
-		if !reflect.DeepEqual(m, want) {
-			t.Errorf("parseMetadata() got = %v, want %v", m, want)
-		}
+		assert.Equal(t, want.ConnectionString, m.ConnectionString)
+		assert.Equal(t, want.MaxRetries, m.MaxRetries)
+		assert.Equal(t, want.internalRetryDelay, m.internalRetryDelay)
+		assert.Equal(t, want.internalMaxRetryDelay, m.internalMaxRetryDelay)
+		assert.Equal(t, want.internalSubscribePollInterval, m.internalSubscribePollInterval)
+		assert.Equal(t, want.internalRequestTimeout, m.internalRequestTimeout)
 	})
 
 	t.Run(fmt.Sprintf("both %s and %s fields set in metadata", host, connectionString), func(t *testing.T) {

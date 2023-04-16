@@ -17,11 +17,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/zbc"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/bindings/zeebe"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -61,7 +63,7 @@ func NewZeebeCommand(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init does metadata parsing and connection creation.
-func (z *ZeebeCommand) Init(metadata bindings.Metadata) error {
+func (z *ZeebeCommand) Init(ctx context.Context, metadata bindings.Metadata) error {
 	client, err := z.clientFactory.Get(metadata)
 	if err != nil {
 		return err
@@ -114,7 +116,7 @@ func (z *ZeebeCommand) Invoke(ctx context.Context, req *bindings.InvokeRequest) 
 	case UpdateJobRetriesOperation:
 		return z.updateJobRetries(ctx, req)
 	case ThrowErrorOperation:
-		return z.throwError(req)
+		return z.throwError(ctx, req)
 	case bindings.GetOperation:
 		fallthrough
 	case bindings.CreateOperation:
@@ -126,4 +128,12 @@ func (z *ZeebeCommand) Invoke(ctx context.Context, req *bindings.InvokeRequest) 
 	default:
 		return nil, ErrUnsupportedOperation(req.Operation)
 	}
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (z *ZeebeCommand) GetComponentMetadata() map[string]string {
+	metadataStruct := zeebe.ClientMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

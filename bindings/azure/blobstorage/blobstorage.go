@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"strconv"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	storageinternal "github.com/dapr/components-contrib/internal/component/azure/blobstorage"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
 )
@@ -92,9 +94,9 @@ func NewAzureBlobStorage(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init performs metadata parsing.
-func (a *AzureBlobStorage) Init(metadata bindings.Metadata) error {
+func (a *AzureBlobStorage) Init(ctx context.Context, metadata bindings.Metadata) error {
 	var err error
-	a.containerClient, a.metadata, err = storageinternal.CreateContainerStorageClient(a.logger, metadata.Properties)
+	a.containerClient, a.metadata, err = storageinternal.CreateContainerStorageClient(ctx, a.logger, metadata.Properties)
 	if err != nil {
 		return err
 	}
@@ -211,7 +213,15 @@ func (a *AzureBlobStorage) get(ctx context.Context, req *bindings.InvokeRequest)
 			return nil, fmt.Errorf("error reading blob metadata: %w", err)
 		}
 
-		metadata = props.Metadata
+		if len(props.Metadata) > 0 {
+			metadata = make(map[string]string, len(props.Metadata))
+			for k, v := range props.Metadata {
+				if v == nil {
+					continue
+				}
+				metadata[k] = *v
+			}
+		}
 	}
 
 	return &bindings.InvokeResponse{
@@ -345,4 +355,12 @@ func (a *AzureBlobStorage) isValidDeleteSnapshotsOptionType(accessType azblob.De
 	}
 
 	return false
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (a *AzureBlobStorage) GetComponentMetadata() map[string]string {
+	metadataStruct := storageinternal.BlobStorageMetadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
+	return metadataInfo
 }

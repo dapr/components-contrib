@@ -15,6 +15,7 @@ package pubsub
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"sort"
@@ -25,7 +26,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
@@ -103,14 +103,14 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 
 	// Init
 	t.Run("init", func(t *testing.T) {
-		err := ps.Init(pubsub.Metadata{
+		err := ps.Init(context.Background(), pubsub.Metadata{
 			Base: metadata.Base{Properties: props},
 		})
 		assert.NoError(t, err, "expected no error on setting up pubsub")
 	})
 
 	t.Run("ping", func(t *testing.T) {
-		err := pubsub.Ping(ps)
+		err := pubsub.Ping(context.Background(), ps)
 		// TODO: Ideally, all stable components should implenment ping function,
 		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
@@ -196,8 +196,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 					// Sleep to allow messages to pile up and be delivered as a batch.
 					time.Sleep(1 * time.Second)
 					t.Logf("Simulating subscriber error")
-
-					return errors.Errorf("conf test simulated error")
+					return errors.New("conf test simulated error")
 				}
 
 				t.Logf("Simulating subscriber success")
@@ -224,11 +223,13 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 			}
 			var counter int
 			var lastSequence int
-			config.BulkSubscribeMetadata[metadata.MaxBulkSubCountKey] = strconv.Itoa(defaultMaxBulkCount)
-			config.BulkSubscribeMetadata[metadata.MaxBulkSubAwaitDurationMsKey] = strconv.Itoa(defaultMaxBulkAwaitDurationMs)
 			err := bS.BulkSubscribe(ctx, pubsub.SubscribeRequest{
 				Topic:    config.TestTopicForBulkSub,
 				Metadata: config.BulkSubscribeMetadata,
+				BulkSubscribeConfig: pubsub.BulkSubscribeConfig{
+					MaxMessagesCount:   defaultMaxBulkCount,
+					MaxAwaitDurationMs: defaultMaxBulkAwaitDurationMs,
+				},
 			}, func(ctx context.Context, bulkMsg *pubsub.BulkMessage) ([]pubsub.BulkSubscribeResponseEntry, error) {
 				bulkResponses := make([]pubsub.BulkSubscribeResponseEntry, len(bulkMsg.Entries))
 				hasAnyError := false
@@ -285,7 +286,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 						t.Logf("Simulating subscriber error")
 
 						bulkResponses[i].EntryId = msg.EntryId
-						bulkResponses[i].Error = errors.Errorf("conf test simulated error")
+						bulkResponses[i].Error = errors.New("conf test simulated error")
 						hasAnyError = true
 						continue
 					}
@@ -303,7 +304,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 					bulkResponses[i].Error = nil
 				}
 				if hasAnyError {
-					return bulkResponses, errors.Errorf("Few messages errorred out")
+					return bulkResponses, errors.New("at least one message errorred out")
 				}
 				return bulkResponses, nil
 			})

@@ -1,0 +1,16 @@
+#!/bin/sh
+
+set -e
+
+# Set variables for GitHub Actions
+echo "STATE_AWS_DYNAMODB_TABLE_1=conformance-test-terraform-basic-${UNIQUE_ID}" >> $GITHUB_ENV
+echo "STATE_AWS_DYNAMODB_TABLE_2=conformance-test-terraform-partition-key-${UNIQUE_ID}" >> $GITHUB_ENV
+
+# Navigate to the Terraform directory
+cd ".github/infrastructure/terraform/conformance/state/aws/dynamodb"
+
+# Run Terraform
+terraform init
+terraform validate -no-color
+terraform plan -no-color -var="UNIQUE_ID=$UNIQUE_ID" -var="TIMESTAMP=$CURRENT_TIME"
+terraform apply -auto-approve -var="UNIQUE_ID=$UNIQUE_ID" -var="TIMESTAMP=$CURRENT_TIME"

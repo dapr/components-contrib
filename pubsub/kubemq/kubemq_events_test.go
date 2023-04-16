@@ -122,13 +122,13 @@ func Test_kubeMQEvents_Publish(t *testing.T) {
 			setResultError(tt.resultError).
 			setPublishError(tt.publishErr)
 		k.isInitialized = true
-		k.metadata = &metadata{
-			host:      "",
-			port:      0,
-			clientID:  "some-client-id",
-			authToken: "",
-			group:     "",
-			isStore:   false,
+		k.metadata = &kubemqMetadata{
+			internalHost: "",
+			internalPort: 0,
+			ClientID:     "some-client-id",
+			AuthToken:    "",
+			Group:        "",
+			IsStore:      false,
 		}
 		if tt.timeout > 0 {
 			k.waitForResultTimeout = tt.timeout - 1*time.Second
@@ -185,13 +185,13 @@ func Test_kubeMQEvents_Subscribe(t *testing.T) {
 		k.client = newKubemqEventsMock().
 			setSubscribeError(tt.subscribeError)
 		k.isInitialized = true
-		k.metadata = &metadata{
-			host:      "",
-			port:      0,
-			clientID:  "some-client-id",
-			authToken: "",
-			group:     "",
-			isStore:   false,
+		k.metadata = &kubemqMetadata{
+			internalHost: "",
+			internalPort: 0,
+			ClientID:     "some-client-id",
+			AuthToken:    "",
+			Group:        "",
+			IsStore:      false,
 		}
 		err := k.Subscribe(k.ctx, pubsub.SubscribeRequest{Topic: "some-topic"}, tt.subscribeHandler)
 		if tt.wantErr {

@@ -1,6 +1,7 @@
 package wasm
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -45,7 +46,7 @@ func benchmarkMiddleware(b *testing.B, path string) {
 	l := logger.NewLogger(b.Name())
 	l.SetOutput(io.Discard)
 
-	handlerFn, err := NewMiddleware(l).GetHandler(dapr.Metadata{Base: md})
+	handlerFn, err := NewMiddleware(l).GetHandler(context.Background(), dapr.Metadata{Base: md})
 	if err != nil {
 		b.Fatal(err)
 	}

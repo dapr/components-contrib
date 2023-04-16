@@ -17,37 +17,45 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
 )
 
 func TestParseMetadata(t *testing.T) {
 	m := bindings.Metadata{}
 	m.Properties = map[string]string{
 		"tenantId":              "a",
-		"subscriptionId":        "a",
-		"clientId":              "a",
-		"clientSecret":          "a",
-		"subscriberEndpoint":    "a",
-		"handshakePort":         "a",
-		"scope":                 "a",
-		"eventSubscriptionName": "a",
-		"accessKey":             "a",
-		"topicEndpoint":         "a",
+		"subscriptionId":        "b",
+		"clientId":              "c",
+		"clientSecret":          "d",
+		"subscriberEndpoint":    "e",
+		"handshakePort":         "f",
+		"scope":                 "g",
+		"eventSubscriptionName": "h",
+		"accessKey":             "i",
+		"topicEndpoint":         "j",
 	}
 
-	eh := AzureEventGrid{}
+	eh := AzureEventGrid{
+		logger: logger.NewLogger("test"),
+	}
 	meta, err := eh.parseMetadata(m)
+	require.NoError(t, err)
+	eh.metadata = meta
+
+	err = eh.ensureInputBindingMetadata()
+	require.NoError(t, err)
 
 	assert.Nil(t, err)
-	assert.Equal(t, "a", meta.TenantID)
-	assert.Equal(t, "a", meta.SubscriptionID)
-	assert.Equal(t, "a", meta.ClientID)
-	assert.Equal(t, "a", meta.ClientSecret)
-	assert.Equal(t, "a", meta.SubscriberEndpoint)
-	assert.Equal(t, "a", meta.HandshakePort)
-	assert.Equal(t, "a", meta.Scope)
-	assert.Equal(t, "a", meta.EventSubscriptionName)
-	assert.Equal(t, "a", meta.AccessKey)
-	assert.Equal(t, "a", meta.TopicEndpoint)
+	assert.Equal(t, "a", meta.azureTenantID)
+	assert.Equal(t, "b", meta.azureSubscriptionID)
+	assert.Equal(t, "c", meta.azureClientID)
+	assert.Equal(t, "e", meta.SubscriberEndpoint)
+	assert.Equal(t, "f", meta.HandshakePort)
+	assert.Equal(t, "g", meta.Scope)
+	assert.Equal(t, "h", meta.EventSubscriptionName)
+	assert.Equal(t, "i", meta.AccessKey)
+	assert.Equal(t, "j", meta.TopicEndpoint)
 }

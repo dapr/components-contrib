@@ -1,0 +1,52 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: snssqs-cert-tests
+spec:
+  type: pubsub.snssqs
+  version: v1
+  metadata:
+    - name: accessKey
+      secretKeyRef:
+        name: AWS_ACCESS_KEY_ID
+        key: AWS_ACCESS_KEY_ID
+    - name: secretKey
+      secretKeyRef:
+        name: AWS_SECRET_ACCESS_KEY
+        key: AWS_SECRET_ACCESS_KEY
+    - name: region
+      secretKeyRef:
+        name: AWS_REGION
+        key: AWS_REGION
+    - name: timeoutInSec
+      value: 60
+    - name: handlerTimeoutInSec
+      value: 60
+    - name: disableEntityManagement
+      value: "true"
+    - name: maxDeliveryCount
+      value: 3
+    - name: lockDurationInSec
+      value: 60
+    - name: lockRenewalInSec
+      value: 20
+    - name: maxActiveMessages
+      value: 10000
+    - name: maxConcurrentHandlers
+      value: 10
+    - name: defaultMessageTimeToLiveInSec
+      value: 10
+    - name: autoDeleteOnIdleInSec
+      value: 3600
+    - name: minConnectionRecoveryInSec
+      value: 2
+    - name: maxConnectionRecoveryInSec
+      value: 300
+    - name: maxRetriableErrorsPerSec
+      value: 10
+    - name: publishMaxRetries
+      value: 5
+    - name: publishInitialRetryIntervalInMs
+      value: 500
+auth:
+  secretstore: envvar-secret-store

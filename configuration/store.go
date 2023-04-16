@@ -18,7 +18,7 @@ import "context"
 // Store is an interface to perform operations on store.
 type Store interface {
 	// Init configuration store.
-	Init(metadata Metadata) error
+	Init(ctx context.Context, metadata Metadata) error
 
 	// Get configuration.
 	Get(ctx context.Context, req *GetRequest) (*GetResponse, error)
@@ -28,6 +28,9 @@ type Store interface {
 
 	// Unsubscribe configuration with keys
 	Unsubscribe(ctx context.Context, req *UnsubscribeRequest) error
+
+	// GetComponentMetadata returns information on the component's metadata.
+	GetComponentMetadata() map[string]string
 }
 
 // UpdateHandler is the handler used to send event to daprd.

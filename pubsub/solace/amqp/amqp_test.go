@@ -48,7 +48,7 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		assert.NoError(t, err)
-		assert.Equal(t, fakeProperties[amqpURL], m.url)
+		assert.Equal(t, fakeProperties[amqpURL], m.URL)
 	})
 
 	t.Run("url is not given", func(t *testing.T) {
@@ -63,7 +63,7 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		assert.EqualError(t, err, errors.New(errorMsgPrefix+" missing url").Error())
-		assert.Equal(t, fakeProperties[amqpURL], m.url)
+		assert.Equal(t, fakeProperties[amqpURL], m.URL)
 	})
 
 	t.Run("invalid ca certificate", func(t *testing.T) {
@@ -84,7 +84,7 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		assert.NoError(t, err)
-		block, _ := pem.Decode([]byte(m.tlsCfg.caCert))
+		block, _ := pem.Decode([]byte(m.tlsCfg.CaCert))
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
 			t.Errorf("failed to parse ca certificate from metadata. %v", err)
@@ -110,7 +110,7 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		assert.NoError(t, err)
-		block, _ := pem.Decode([]byte(m.tlsCfg.clientCert))
+		block, _ := pem.Decode([]byte(m.tlsCfg.ClientCert))
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
 			t.Errorf("failed to parse client certificate from metadata. %v", err)
@@ -136,6 +136,6 @@ func TestParseMetadata(t *testing.T) {
 
 		// assert
 		assert.NoError(t, err)
-		assert.NotNil(t, m.tlsCfg.clientKey, "failed to parse valid client certificate key")
+		assert.NotNil(t, m.tlsCfg.ClientKey, "failed to parse valid client certificate key")
 	})
 }

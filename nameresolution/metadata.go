@@ -16,15 +16,6 @@ package nameresolution
 import "github.com/dapr/components-contrib/metadata"
 
 const (
-	// MDNSInstanceName is the instance name which is broadcasted.
-	MDNSInstanceName string = "name"
-	// MDNSInstanceAddress is the address of the instance.
-	MDNSInstanceAddress string = "address"
-	// MDNSInstancePort is the port of instance.
-	MDNSInstancePort string = "port"
-	// MDNSInstanceID is an optional unique instance ID.
-	MDNSInstanceID string = "instance"
-
 	// HostAddress is the address of the instance.
 	HostAddress string = "HOST_ADDRESS"
 	// DaprHTTPPort is the dapr api http port.

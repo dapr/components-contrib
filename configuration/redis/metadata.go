@@ -16,11 +16,14 @@ package redis
 import "time"
 
 type metadata struct {
-	Host               string
-	Password           string
-	SentinelMasterName string
-	MaxRetries         int
-	MaxRetryBackoff    time.Duration
-	EnableTLS          bool
-	Failover           bool
+	Host               string `mapstructure:"redishost"`
+	Password           string `mapstructure:"redisPassword"`
+	SentinelMasterName string `mapstructure:"sentinelMasterName"`
+	MaxRetries         int    `mapstructure:"maxRetries"`
+	MaxRetryBackoff    *int   `mapstructure:"maxRetryBackoff"`
+	EnableTLS          bool   `mapstructure:"enableTLS"`
+	Failover           bool   `mapstructure:"failover"`
+	DB                 int    `mapstructure:"redisDB"`
+
+	internalMaxRetryBackoff time.Duration `mapstructure:"-"`
 }

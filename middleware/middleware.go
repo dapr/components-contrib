@@ -14,10 +14,12 @@ limitations under the License.
 package middleware
 
 import (
+	"context"
 	"net/http"
 )
 
 // Middleware is the interface for a middleware.
 type Middleware interface {
-	GetHandler(metadata Metadata) (func(next http.Handler) http.Handler, error)
+	GetHandler(ctx context.Context, metadata Metadata) (func(next http.Handler) http.Handler, error)
+	GetComponentMetadata() map[string]string
 }

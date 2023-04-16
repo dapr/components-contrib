@@ -1,18 +1,21 @@
-# Supported operations: set, get, delete, bulkset, bulkdelete, transaction, etag, first-write, query, ttl
+# Supported operations: set, get, delete, bulkget, bulkset, bulkdelete, transaction, etag, first-write, query, ttl
 componentType: state
 components:
   - component: redis.v6
-    allOperations: true
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "query", "ttl" ]
   - component: redis.v7
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "first-write" ]
   - component: mongodb
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "query" ]
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkget", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "query", "ttl" ]
   - component: memcached
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "ttl" ]
   - component: azure.cosmosdb
-    allOperations: true
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "query", "ttl" ]
   - component: azure.blobstorage
     allOperations: false
     operations: [ "set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write" ]
@@ -21,34 +24,54 @@ components:
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "first-write" ]
   - component: sqlserver
     allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "first-write" ]
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "first-write", "ttl" ]
   - component: postgresql
-    allOperations: true
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkget", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "query", "ttl" ]
+  - component: sqlite
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkget", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]
   - component: mysql.mysql
     allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write" ]
+    operations: [ "set", "get", "delete", "bulkget", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]
   - component: mysql.mariadb
     allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write" ]
+    operations: [ "set", "get", "delete", "bulkget", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]
   - component: azure.tablestorage.storage
     allOperations: false
     operations: ["set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write"]
   - component: azure.tablestorage.cosmosdb
     allOperations: false
     operations: ["set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write"]
+  - component: oracledatabase
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]
   - component: cassandra
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "ttl" ]
   - component: cloudflare.workerskv
     allOperations: false
     # Although this component supports TTLs, the minimum TTL is 60s, which makes it not suitable for our conformance tests
+    # TODO: perhaps create a special case `ttl60` operation for this component
+    # where the test would set a TTL of 60s for this particular operation.
+    # `ttl` and `ttl60` are mutually exclusive, and `allOperations` would
+    # exclude `ttl60`
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete"]
   - component: cockroachdb
     allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "query" ]
+    operations: [ "set", "get", "delete", "bulkget", "bulkset", "bulkdelete", "transaction", "etag", "query", "ttl" ]
   - component: rethinkdb
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete"]
   - component: in-memory
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkget", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]
+  - component: aws.dynamodb.docker
+    allOperations: false
+    operations: [ "set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write" ]
+  - component: aws.dynamodb.terraform
+    allOperations: false
+    operations: [ "set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write" ]
+  - component: etcd
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]

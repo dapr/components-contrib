@@ -17,11 +17,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 
 	"github.com/aws/aws-sdk-go/service/sns"
 
 	"github.com/dapr/components-contrib/bindings"
 	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -53,7 +55,7 @@ func NewAWSSNS(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init does metadata parsing.
-func (a *AWSSNS) Init(metadata bindings.Metadata) error {
+func (a *AWSSNS) Init(_ context.Context, metadata bindings.Metadata) error {
 	m, err := a.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -68,14 +70,9 @@ func (a *AWSSNS) Init(metadata bindings.Metadata) error {
 	return nil
 }
 
-func (a *AWSSNS) parseMetadata(metadata bindings.Metadata) (*snsMetadata, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
-
-	var m snsMetadata
-	err = json.Unmarshal(b, &m)
+func (a *AWSSNS) parseMetadata(meta bindings.Metadata) (*snsMetadata, error) {
+	m := snsMetadata{}
+	err := metadata.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}
@@ -117,4 +114,12 @@ func (a *AWSSNS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 	}
 
 	return nil, nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (a *AWSSNS) GetComponentMetadata() map[string]string {
+	metadataStruct := snsMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

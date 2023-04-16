@@ -17,11 +17,14 @@ import "context"
 
 type Store interface {
 	// Init this component.
-	InitLockStore(metadata Metadata) error
+	InitLockStore(ctx context.Context, metadata Metadata) error
 
 	// TryLock tries to acquire a lock.
 	TryLock(ctx context.Context, req *TryLockRequest) (*TryLockResponse, error)
 
 	// Unlock tries to release a lock.
 	Unlock(ctx context.Context, req *UnlockRequest) (*UnlockResponse, error)
+
+	// GetComponentMetadata returns information on the component's metadata.
+	GetComponentMetadata() map[string]string
 }

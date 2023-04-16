@@ -14,6 +14,7 @@ limitations under the License.
 package embedded
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
@@ -93,15 +94,38 @@ func WithListenAddresses(addresses []string) Option {
 	}
 }
 
-func WithComponentsPath(path string) Option {
+func WithResourcesPath(path string) Option {
 	return func(config *runtime.Config) {
-		config.Standalone.ComponentsPath = path
+		config.Standalone.ResourcesPath[0] = path
 	}
+}
+
+// Deprecated: use WithResourcesPath.
+func WithComponentsPath(path string) Option {
+	return WithResourcesPath(path)
 }
 
 func WithProfilePort(port int) Option {
 	return func(config *runtime.Config) {
 		config.ProfilePort = port
+	}
+}
+
+func WithGracefulShutdownDuration(d time.Duration) Option {
+	return func(config *runtime.Config) {
+		config.GracefulShutdownDuration = d
+	}
+}
+
+func WithAPILoggingEnabled(enabled bool) Option {
+	return func(config *runtime.Config) {
+		config.EnableAPILogging = enabled
+	}
+}
+
+func WithProfilingEnabled(enabled bool) Option {
+	return func(config *runtime.Config) {
+		config.EnableProfiling = enabled
 	}
 }
 
@@ -118,9 +142,8 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, *runtime.Co
 		AppProtocol:                  string(runtime.HTTPProtocol),
 		Mode:                         string(mode),
 		PlacementAddresses:           []string{},
-		GlobalConfig:                 config,
 		AllowedOrigins:               allowedOrigins,
-		ComponentsPath:               componentsPath,
+		ResourcesPath:                []string{componentsPath},
 		EnableProfiling:              enableProfiling,
 		MaxConcurrency:               maxConcurrency,
 		MTLSEnabled:                  enableMTLS,
@@ -175,7 +198,7 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, *runtime.Co
 	if config != "" {
 		switch modes.DaprMode(mode) {
 		case modes.KubernetesMode:
-			client, conn, clientErr := client.GetOperatorClient(controlPlaneAddress, security.TLSServerName, runtimeConfig.CertChain)
+			client, conn, clientErr := client.GetOperatorClient(context.Background(), controlPlaneAddress, security.TLSServerName, runtimeConfig.CertChain)
 			if clientErr != nil {
 				return nil, nil, err
 			}

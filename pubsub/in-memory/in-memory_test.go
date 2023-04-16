@@ -26,7 +26,7 @@ import (
 
 func TestNewInMemoryBus(t *testing.T) {
 	bus := New(logger.NewLogger("test"))
-	bus.Init(pubsub.Metadata{})
+	bus.Init(context.Background(), pubsub.Metadata{})
 
 	ch := make(chan []byte)
 	bus.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: "demo"}, func(ctx context.Context, msg *pubsub.NewMessage) error {
@@ -39,7 +39,7 @@ func TestNewInMemoryBus(t *testing.T) {
 
 func TestMultipleSubscribers(t *testing.T) {
 	bus := New(logger.NewLogger("test"))
-	bus.Init(pubsub.Metadata{})
+	bus.Init(context.Background(), pubsub.Metadata{})
 
 	ch1 := make(chan []byte)
 	ch2 := make(chan []byte)
@@ -59,7 +59,7 @@ func TestMultipleSubscribers(t *testing.T) {
 
 func TestWildcards(t *testing.T) {
 	bus := New(logger.NewLogger("test"))
-	bus.Init(pubsub.Metadata{})
+	bus.Init(context.Background(), pubsub.Metadata{})
 
 	ch1 := make(chan []byte)
 	ch2 := make(chan []byte)
@@ -83,7 +83,7 @@ func TestWildcards(t *testing.T) {
 
 func TestRetry(t *testing.T) {
 	bus := New(logger.NewLogger("test"))
-	bus.Init(pubsub.Metadata{})
+	bus.Init(context.Background(), pubsub.Metadata{})
 
 	ch := make(chan []byte)
 	i := -1

@@ -18,7 +18,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
@@ -39,20 +42,23 @@ type ZeebeJobWorker struct {
 	client        zbc.Client
 	metadata      *jobWorkerMetadata
 	logger        logger.Logger
+	closed        atomic.Bool
+	closeCh       chan struct{}
+	wg            sync.WaitGroup
 }
 
 // https://docs.zeebe.io/basics/job-workers.html
 type jobWorkerMetadata struct {
-	WorkerName     string            `json:"workerName"`
-	WorkerTimeout  metadata.Duration `json:"workerTimeout"`
-	RequestTimeout metadata.Duration `json:"requestTimeout"`
-	JobType        string            `json:"jobType"`
-	MaxJobsActive  int               `json:"maxJobsActive,string"`
-	Concurrency    int               `json:"concurrency,string"`
-	PollInterval   metadata.Duration `json:"pollInterval"`
-	PollThreshold  float64           `json:"pollThreshold,string"`
-	FetchVariables string            `json:"fetchVariables"`
-	Autocomplete   *bool             `json:"autocomplete,omitempty"`
+	WorkerName     string            `mapstructure:"workerName"`
+	WorkerTimeout  metadata.Duration `mapstructure:"workerTimeout"`
+	RequestTimeout metadata.Duration `mapstructure:"requestTimeout"`
+	JobType        string            `mapstructure:"jobType"`
+	MaxJobsActive  int               `mapstructure:"maxJobsActive"`
+	Concurrency    int               `mapstructure:"concurrency"`
+	PollInterval   metadata.Duration `mapstructure:"pollInterval"`
+	PollThreshold  float64           `mapstructure:"pollThreshold"`
+	FetchVariables string            `mapstructure:"fetchVariables"`
+	Autocomplete   *bool             `mapstructure:"autocomplete"`
 }
 
 type jobHandler struct {
@@ -64,11 +70,15 @@ type jobHandler struct {
 
 // NewZeebeJobWorker returns a new ZeebeJobWorker instance.
 func NewZeebeJobWorker(logger logger.Logger) bindings.InputBinding {
-	return &ZeebeJobWorker{clientFactory: zeebe.NewClientFactoryImpl(logger), logger: logger}
+	return &ZeebeJobWorker{
+		clientFactory: zeebe.NewClientFactoryImpl(logger),
+		logger:        logger,
+		closeCh:       make(chan struct{}),
+	}
 }
 
 // Init does metadata parsing and connection creation.
-func (z *ZeebeJobWorker) Init(metadata bindings.Metadata) error {
+func (z *ZeebeJobWorker) Init(ctx context.Context, metadata bindings.Metadata) error {
 	meta, err := z.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -90,6 +100,10 @@ func (z *ZeebeJobWorker) Init(metadata bindings.Metadata) error {
 }
 
 func (z *ZeebeJobWorker) Read(ctx context.Context, handler bindings.Handler) error {
+	if z.closed.Load() {
+		return fmt.Errorf("binding is closed")
+	}
+
 	h := jobHandler{
 		callback:     handler,
 		logger:       z.logger,
@@ -99,14 +113,28 @@ func (z *ZeebeJobWorker) Read(ctx context.Context, handler bindings.Handler) err
 
 	jobWorker := z.getJobWorker(h)
 
+	z.wg.Add(1)
 	go func() {
-		<-ctx.Done()
+		defer z.wg.Done()
+
+		select {
+		case <-z.closeCh:
+		case <-ctx.Done():
+		}
 
 		jobWorker.Close()
 		jobWorker.AwaitClose()
 		z.client.Close()
 	}()
 
+	return nil
+}
+
+func (z *ZeebeJobWorker) Close() error {
+	if z.closed.CompareAndSwap(false, true) {
+		close(z.closeCh)
+	}
+	z.wg.Wait()
 	return nil
 }
 
@@ -225,4 +253,12 @@ func (h *jobHandler) failJob(ctx context.Context, client worker.JobClient, job e
 
 		return
 	}
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (z *ZeebeJobWorker) GetComponentMetadata() map[string]string {
+	metadataStruct := jobWorkerMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

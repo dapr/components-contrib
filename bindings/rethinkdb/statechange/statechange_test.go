@@ -68,10 +68,9 @@ func TestBinding(t *testing.T) {
 		Name:       "test",
 		Properties: getTestMetadata(),
 	}}
-	assert.NotNil(t, m.Properties)
 
 	b := getNewRethinkActorBinding()
-	err := b.Init(m)
+	err := b.Init(context.Background(), m)
 	assert.NoErrorf(t, err, "error initializing")
 
 	ctx, cancel := context.WithCancel(context.Background())

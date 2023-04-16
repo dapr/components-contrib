@@ -23,13 +23,13 @@ authenticationProfiles:
         required: true
         sensitive: true
         description: "The Service Bus connection string."
-        example: '"Endpoint=sb://************"'
+        example: '"Endpoint=sb://{ServiceBusNamespace}.servicebus.windows.net/;SharedAccessKeyName={PolicyName};SharedAccessKey={Key};EntityPath={ServiceBus}"'
         # If omitted, uses the same values as "<root>.binding"
         binding:
           output: true
           input: true
-  - title: "Azure AD: Managed identity"
-    description: "Authenticate using Azure AD and a managed identity."
+builtinAuthenticationProfiles:
+  - name: "azuread"
     metadata:
       - name: namespaceName
         description: "Parameter to set the address of the Service Bus namespace, as a fully-qualified domain name."
@@ -38,67 +38,6 @@ authenticationProfiles:
         binding:
           output: true
           input: true
-      - name: azureClientId
-        required: false
-        description: "Client ID (application ID). Required if the service has multiple identities assigned."
-        example: '"c7dd251f-811f-4ba2-a905-acd4d3f8f08b"'
-  - title: "Azure AD: Client credentials"
-    description: "Authenticate using Azure AD with client credentials, also known as \"service principals\"."
-    metadata:
-      - name: namespaceName
-        description: "Parameter to set the address of the Service Bus namespace, as a fully-qualified domain name."
-        example: '"namespace.servicebus.windows.net"'
-        required: true
-        binding:
-          output: true
-          input: true
-      - name: azureTenantId
-        required: true
-        description: "ID of the Azure AD tenant"
-        example: '"cd4b2887-304c-47e1-b4d5-65447fdd542b"'
-      - name: azureClientId
-        required: true
-        description: "Client ID (application ID)"
-        example: '"c7dd251f-811f-4ba2-a905-acd4d3f8f08b"'
-      - name: azureClientSecret
-        sensitive: true
-        required: true
-        description: "Client secret (application password)"
-        example: '"Ecy3XG7zVZK3/vl/a2NSB+a1zXLa8RnMum/IgD0E"'
-  - title: "Azure AD: Client certificate"
-    description: "Authenticate using Azure AD with a client certificate (in PFX/PKCS#12 format). One of azureCertificate and azureCertificateFile is required."
-    metadata:
-      - name: namespaceName
-        description: "Parameter to set the address of the Service Bus namespace, as a fully-qualified domain name."
-        example: '"namespace.servicebus.windows.net"'
-        required: true
-        binding:
-          output: true
-          input: true
-      - name: azureTenantId
-        required: true
-        description: "ID of the Azure AD tenant."
-        example: '"cd4b2887-304c-47e1-b4d5-65447fdd542b"'
-      - name: azureClientId
-        required: true
-        description: "Client ID (application ID)."
-        example: '"c7dd251f-811f-4ba2-a905-acd4d3f8f08b"'
-      - name: azureCertificate
-        sensitive: true
-        required: false
-        description: "Certificate and private key (in PFX/PKCS#12 format)."
-        example: |
-          "-----BEGIN PRIVATE KEY-----\n MIIEvgI... \n -----END PRIVATE KEY----- \n -----BEGIN CERTIFICATE----- \n MIICoTC... \n -----END CERTIFICATE-----"
-      - name: azureCertificateFile
-        sensitive: true
-        required: false
-        description: "Path to PFX/PKCS#12 file on disk, containing the certificate and private key."
-        example: "/path/to/file.pem"
-      - name: azureCertificatePassword
-        sensitive: true
-        required: false
-        description: "Password for the certificate if encrypted."
-        example: "password"
 metadata:
   - name: queueName
     required: true
@@ -106,9 +45,6 @@ metadata:
     # string is the default type if omitted
     type: string
     example: '"queuename"'
-    binding:
-      output: true
-      input: true
   - name: ttlInSeconds
     description: "Parameter to set the default message time to live. If this parameter is omitted, messages will expire after 14 days (the built-in default value in Azure Sevice Bus)."
     type: number
@@ -129,17 +65,11 @@ metadata:
     type: number
     default: '2'
     example: '5'
-    binding:
-      # output is omitted so it's assumed as false
-      input: true
   - name: maxConnectionRecoveryInSec
     description: "Maximum interval (in seconds) to wait before attempting to reconnect to Azure Service Bus in case of a connection failure. After each attempt, the binding waits a random number of seconds, increasing every time, between the minimum and the maximum. Default is 300 seconds (5 minutes)."
     type: number
     default: '300'
     example: '600'
-    binding:
-      # output is omitted so it's assumed as false
-      input: true
   - name: maxActiveMessages
     description: "Defines the maximum number of messages to be processing or in the buffer at once. This should be at least as big as the \"maxConcurrentHandlers\"."
     type: number
@@ -148,17 +78,17 @@ metadata:
     binding:
       input: true
   - name: maxConcurrentHandlers
-    description: "Defines the maximum number of concurrent message handlers."
+    description: "Defines the maximum number of concurrent message handlers; set to `0` for unlimited. Default: `1`"
     type: number
     default: '1'
-    example: '5'
+    example: '10'
     binding:
       input: true
   - name: lockRenewalInSec
     description: "Defines the frequency at which buffered message locks will be renewed."
     type: number
     default: '20'
-    example: '10'
+    example: '20'
     binding:
       input: true
   - name: timeoutInSec
@@ -167,3 +97,45 @@ metadata:
     default: '60'
     example: '30'
     # binding is not specified so it's the same as <root>.binding
+  - name: disableEntityManagement
+    description: "When set to true, queues and subscriptions do not get created automatically. Default: 'false'"
+    type: bool
+    default: 'false'
+    example: 'true'
+  - name: lockDurationInSec
+    description: "Defines the length in seconds that a message will be locked for before expiring. Used during subscription creation only. Default set by server."
+    type: number
+    example: '30'
+  - name: autoDeleteOnIdleInSec
+    description: "Time in seconds to wait before auto deleting idle subscriptions. Used during subscription creation only. Default: `0` (disabled)"
+    default: '0'
+    type: number
+    example: '3600'
+  - name: defaultMessageTimeToLiveInSec
+    description: "Default message time to live, in seconds. Used during subscription creation only."
+    type: number
+    example: '10'
+  - name: maxDeliveryCount
+    description: "Defines the number of attempts the server will make to deliver a message. Used during subscription creation only. Default set by server."
+    type: number
+    example: '10'
+  - name: handlerTimeoutInSec
+    description: "Timeout for invoking the app's handler. Default: `0`"
+    type: number
+    example: "30"
+    default: "0"
+  - name: publishMaxRetries
+    description: 'The max number of retries for when Azure Service Bus responds with "too busy" in order to throttle messages. Defaults: `5`'
+    type: number
+    example: "10"
+    default: "5"
+    binding:
+      output: true
+  - name: publishInitialRetryIntervalInMs
+    description: "Time in milliseconds for the initial exponential backoff when Azure Service Bus throttle messages. Defaults: `500`"
+    type: number
+    example: "1000"
+    default: "500"
+    binding:
+      output: true
+  

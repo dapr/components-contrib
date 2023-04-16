@@ -61,7 +61,7 @@ type oosSecretStore struct {
 }
 
 // Init creates a Alicloud parameter store client.
-func (o *oosSecretStore) Init(metadata secretstores.Metadata) error {
+func (o *oosSecretStore) Init(_ context.Context, metadata secretstores.Metadata) error {
 	meta, err := o.getParameterStoreMetadata(metadata)
 	if err != nil {
 		return err
@@ -87,7 +87,7 @@ func (o *oosSecretStore) GetSecret(ctx context.Context, req secretstores.GetSecr
 
 	runtime := &util.RuntimeOptions{}
 	if deadline, ok := ctx.Deadline(); ok {
-		timeout := deadline.Sub(time.Now()).Milliseconds()
+		timeout := time.Until(deadline).Milliseconds()
 		runtime.SetReadTimeout(int(timeout))
 	}
 	output, err := o.client.GetSecretParameterWithOptions(&oos.GetSecretParameterRequest{
@@ -125,7 +125,7 @@ func (o *oosSecretStore) BulkGetSecret(ctx context.Context, req secretstores.Bul
 	for {
 		runtime := &util.RuntimeOptions{}
 		if deadline, ok := ctx.Deadline(); ok {
-			timeout := deadline.Sub(time.Now()).Milliseconds()
+			timeout := time.Until(deadline).Milliseconds()
 			runtime.SetReadTimeout(int(timeout))
 		}
 		output, err := o.client.GetSecretParametersByPathWithOptions(&oos.GetSecretParametersByPathRequest{
@@ -200,6 +200,6 @@ func (o *oosSecretStore) Features() []secretstores.Feature {
 func (o *oosSecretStore) GetComponentMetadata() map[string]string {
 	metadataStruct := ParameterStoreMetaData{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return metadataInfo
 }

@@ -19,13 +19,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strconv"
 
-	"github.com/mitchellh/mapstructure"
 	"golang.org/x/exp/slices"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/internal/component/cloudflare/workers"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -48,9 +49,9 @@ func NewCFQueues(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init the component.
-func (q *CFQueues) Init(metadata bindings.Metadata) error {
+func (q *CFQueues) Init(_ context.Context, metadata bindings.Metadata) error {
 	// Decode the metadata
-	err := mapstructure.Decode(metadata.Properties, &q.metadata)
+	err := contribMetadata.DecodeMetadata(metadata.Properties, &q.metadata)
 	if err != nil {
 		return fmt.Errorf("failed to parse metadata: %w", err)
 	}
@@ -132,4 +133,12 @@ func (q *CFQueues) Close() error {
 		return err
 	}
 	return nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (q *CFQueues) GetComponentMetadata() map[string]string {
+	metadataStruct := componentMetadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
+	return metadataInfo
 }

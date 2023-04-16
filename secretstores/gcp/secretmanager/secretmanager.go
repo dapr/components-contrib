@@ -68,13 +68,13 @@ func NewSecreteManager(logger logger.Logger) secretstores.SecretStore {
 }
 
 // Init creates a GCP secret manager client.
-func (s *Store) Init(metadataRaw secretstores.Metadata) error {
+func (s *Store) Init(ctx context.Context, metadataRaw secretstores.Metadata) error {
 	metadata, err := s.parseSecretManagerMetadata(metadataRaw)
 	if err != nil {
 		return err
 	}
 
-	client, err := s.getClient(metadata)
+	client, err := s.getClient(ctx, metadata)
 	if err != nil {
 		return fmt.Errorf("failed to setup secretmanager client: %s", err)
 	}
@@ -85,10 +85,9 @@ func (s *Store) Init(metadataRaw secretstores.Metadata) error {
 	return nil
 }
 
-func (s *Store) getClient(metadata *GcpSecretManagerMetadata) (*secretmanager.Client, error) {
+func (s *Store) getClient(ctx context.Context, metadata *GcpSecretManagerMetadata) (*secretmanager.Client, error) {
 	b, _ := json.Marshal(metadata)
 	clientOptions := option.WithCredentialsJSON(b)
-	ctx := context.Background()
 
 	client, err := secretmanager.NewClient(ctx, clientOptions)
 	if err != nil {
@@ -207,6 +206,6 @@ func (s *Store) Features() []secretstores.Feature {
 func (s *Store) GetComponentMetadata() map[string]string {
 	metadataStruct := GcpSecretManagerMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return metadataInfo
 }

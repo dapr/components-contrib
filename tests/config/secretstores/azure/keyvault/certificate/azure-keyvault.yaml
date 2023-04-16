@@ -8,8 +8,8 @@ spec:
   - name: vaultName
     value: ${{AzureKeyVaultName}}
   - name: spnTenantId
-    value: ${{AzureKeyVaultSecretStoreTenantId}}
+    value: ${{AzureKeyVaultTenantId}}
   - name: spnClientId
-    value: ${{AzureKeyVaultSecretStoreClientId}}
+    value: ${{AzureKeyVaultClientId}}
   - name: spnCertificateFile
-    value : ${{AzureKeyVaultSecretStoreCert}}
+    value : ${{AzureKeyVaultCert}}

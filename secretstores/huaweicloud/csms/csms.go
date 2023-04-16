@@ -57,7 +57,7 @@ func NewHuaweiCsmsSecretStore(logger logger.Logger) secretstores.SecretStore {
 }
 
 // Init creates a Huawei csms client.
-func (c *csmsSecretStore) Init(meta secretstores.Metadata) error {
+func (c *csmsSecretStore) Init(ctx context.Context, meta secretstores.Metadata) error {
 	m := CsmsSecretStoreMetadata{}
 	metadata.DecodeMetadata(meta.Properties, &m)
 	auth := basic.NewCredentialsBuilder().
@@ -160,6 +160,6 @@ func (c *csmsSecretStore) Features() []secretstores.Feature {
 func (c *csmsSecretStore) GetComponentMetadata() map[string]string {
 	metadataStruct := CsmsSecretStoreMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return metadataInfo
 }

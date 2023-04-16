@@ -17,7 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
+	"reflect"
 	"sync"
 	"time"
 
@@ -30,6 +30,7 @@ import (
 
 	"github.com/dapr/components-contrib/configuration"
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 
 	"github.com/dapr/kit/logger"
 )
@@ -73,7 +74,7 @@ func NewAzureAppConfigurationStore(logger logger.Logger) configuration.Store {
 }
 
 // Init does metadata and connection parsing.
-func (r *ConfigurationStore) Init(metadata configuration.Metadata) error {
+func (r *ConfigurationStore) Init(_ context.Context, metadata configuration.Metadata) error {
 	m, err := parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -85,9 +86,9 @@ func (r *ConfigurationStore) Init(metadata configuration.Metadata) error {
 			ApplicationID: "dapr-" + logger.DaprVersion,
 		},
 		Retry: policy.RetryOptions{
-			MaxRetries:    int32(m.maxRetries),
-			RetryDelay:    m.maxRetryDelay,
-			MaxRetryDelay: m.maxRetryDelay,
+			MaxRetries:    int32(m.MaxRetries),
+			RetryDelay:    m.internalMaxRetryDelay,
+			MaxRetryDelay: m.internalMaxRetryDelay,
 		},
 	}
 
@@ -95,14 +96,14 @@ func (r *ConfigurationStore) Init(metadata configuration.Metadata) error {
 		ClientOptions: coreClientOpts,
 	}
 
-	if r.metadata.connectionString != "" {
-		r.client, err = azappconfig.NewClientFromConnectionString(r.metadata.connectionString, &options)
+	if r.metadata.ConnectionString != "" {
+		r.client, err = azappconfig.NewClientFromConnectionString(r.metadata.ConnectionString, &options)
 		if err != nil {
 			return err
 		}
 	} else {
 		var settings azauth.EnvironmentSettings
-		settings, err = azauth.NewEnvironmentSettings("appconfig", metadata.Properties)
+		settings, err = azauth.NewEnvironmentSettings(metadata.Properties)
 		if err != nil {
 			return err
 		}
@@ -113,7 +114,7 @@ func (r *ConfigurationStore) Init(metadata configuration.Metadata) error {
 			return err
 		}
 
-		r.client, err = azappconfig.NewClient(r.metadata.host, cred, &options)
+		r.client, err = azappconfig.NewClient(r.metadata.Host, cred, &options)
 		if err != nil {
 			return err
 		}
@@ -123,67 +124,37 @@ func (r *ConfigurationStore) Init(metadata configuration.Metadata) error {
 }
 
 func parseMetadata(meta configuration.Metadata) (metadata, error) {
-	m := metadata{}
-
-	if val, ok := meta.Properties[host]; ok && val != "" {
-		m.host = val
+	m := metadata{
+		MaxRetries:                    defaultMaxRetries,
+		internalMaxRetryDelay:         defaultMaxRetryDelay,
+		internalRetryDelay:            defaultRetryDelay,
+		internalSubscribePollInterval: defaultSubscribePollInterval,
+		internalRequestTimeout:        defaultRequestTimeout,
+	}
+	decodeErr := contribMetadata.DecodeMetadata(meta.Properties, &m)
+	if decodeErr != nil {
+		return m, decodeErr
 	}
 
-	if val, ok := meta.Properties[connectionString]; ok && val != "" {
-		m.connectionString = val
-	}
-
-	if m.connectionString != "" && m.host != "" {
+	if m.ConnectionString != "" && m.Host != "" {
 		return m, fmt.Errorf("azure appconfig error: can't set both %s and %s fields in metadata", host, connectionString)
 	}
 
-	if m.connectionString == "" && m.host == "" {
+	if m.ConnectionString == "" && m.Host == "" {
 		return m, fmt.Errorf("azure appconfig error: specify %s or %s field in metadata", host, connectionString)
 	}
 
-	m.maxRetries = defaultMaxRetries
-	if val, ok := meta.Properties[maxRetries]; ok && val != "" {
-		parsedVal, err := strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("azure appconfig error: can't parse maxRetries field: %w", err)
-		}
-		m.maxRetries = parsedVal
+	if m.MaxRetryDelay != nil {
+		m.internalMaxRetryDelay = time.Duration(*m.MaxRetryDelay)
 	}
-
-	m.maxRetryDelay = defaultMaxRetryDelay
-	if val, ok := meta.Properties[maxRetryDelay]; ok && val != "" {
-		parsedVal, err := strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("azure appconfig error: can't parse maxRetryDelay field: %w", err)
-		}
-		m.maxRetryDelay = time.Duration(parsedVal)
+	if m.RetryDelay != nil {
+		m.internalRetryDelay = time.Duration(*m.RetryDelay)
 	}
-
-	m.retryDelay = defaultRetryDelay
-	if val, ok := meta.Properties[retryDelay]; ok && val != "" {
-		parsedVal, err := strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("azure appconfig error: can't parse retryDelay field: %w", err)
-		}
-		m.retryDelay = time.Duration(parsedVal)
+	if m.SubscribePollInterval != nil {
+		m.internalSubscribePollInterval = time.Duration(*m.SubscribePollInterval)
 	}
-
-	m.subscribePollInterval = defaultSubscribePollInterval
-	if val, ok := meta.Properties[subscribePollInterval]; ok && val != "" {
-		parsedVal, err := strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("azure appconfig error: can't parse subscribePollInterval field: %w", err)
-		}
-		m.subscribePollInterval = time.Duration(parsedVal)
-	}
-
-	m.requestTimeout = defaultRequestTimeout
-	if val, ok := meta.Properties[requestTimeout]; ok && val != "" {
-		parsedVal, err := strconv.Atoi(val)
-		if err != nil {
-			return m, fmt.Errorf("azure appconfig error: can't parse requestTimeout field: %w", err)
-		}
-		m.requestTimeout = time.Duration(parsedVal)
+	if m.RequestTimeout != nil {
+		m.internalRequestTimeout = time.Duration(*m.RequestTimeout)
 	}
 
 	return m, nil
@@ -245,7 +216,7 @@ func (r *ConfigurationStore) getAll(ctx context.Context, req *configuration.GetR
 		nil)
 
 	for allSettingsPgr.More() {
-		timeoutContext, cancel := context.WithTimeout(ctx, r.metadata.requestTimeout)
+		timeoutContext, cancel := context.WithTimeout(ctx, r.metadata.internalRequestTimeout)
 		defer cancel()
 		if revResp, err := allSettingsPgr.NextPage(timeoutContext); err == nil {
 			for _, setting := range revResp.Settings {
@@ -326,13 +297,13 @@ func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(r.metadata.subscribePollInterval):
+		case <-time.After(r.metadata.internalSubscribePollInterval):
 		}
 	}
 }
 
 func (r *ConfigurationStore) getSettings(ctx context.Context, key string, getSettingsOptions *azappconfig.GetSettingOptions) (azappconfig.GetSettingResponse, error) {
-	timeoutContext, cancel := context.WithTimeout(ctx, r.metadata.requestTimeout)
+	timeoutContext, cancel := context.WithTimeout(ctx, r.metadata.internalRequestTimeout)
 	defer cancel()
 	resp, err := r.client.GetSetting(timeoutContext, key, getSettingsOptions)
 	return resp, err
@@ -364,4 +335,12 @@ func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration
 		return nil
 	}
 	return fmt.Errorf("azure appconfig error: subscription with id %s does not exist", req.ID)
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (r *ConfigurationStore) GetComponentMetadata() map[string]string {
+	metadataStruct := metadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
+	return metadataInfo
 }

@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/pubsub"
@@ -43,6 +44,93 @@ func TestParsePulsarMetadata(t *testing.T) {
 	assert.Equal(t, 5*time.Second, meta.BatchingMaxPublishDelay)
 	assert.Equal(t, uint(100), meta.BatchingMaxSize)
 	assert.Equal(t, uint(200), meta.BatchingMaxMessages)
+	assert.Empty(t, meta.internalTopicSchemas)
+}
+
+func TestParsePulsarSchemaMetadata(t *testing.T) {
+	t.Run("test json", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"host":                         "a",
+			"obiwan.jsonschema":            "1",
+			"kenobi.jsonschema.jsonschema": "2",
+		}
+		meta, err := parsePulsarMetadata(m)
+
+		assert.Nil(t, err)
+		assert.Equal(t, "a", meta.Host)
+		assert.Len(t, meta.internalTopicSchemas, 2)
+		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan"].value)
+		assert.Equal(t, "2", meta.internalTopicSchemas["kenobi.jsonschema"].value)
+	})
+
+	t.Run("test avro", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"host":                         "a",
+			"obiwan.avroschema":            "1",
+			"kenobi.avroschema.avroschema": "2",
+		}
+		meta, err := parsePulsarMetadata(m)
+
+		assert.Nil(t, err)
+		assert.Equal(t, "a", meta.Host)
+		assert.Len(t, meta.internalTopicSchemas, 2)
+		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan"].value)
+		assert.Equal(t, "2", meta.internalTopicSchemas["kenobi.avroschema"].value)
+	})
+
+	t.Run("test combined avro/json", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"host":              "a",
+			"obiwan.avroschema": "1",
+			"kenobi.jsonschema": "2",
+		}
+		meta, err := parsePulsarMetadata(m)
+
+		assert.Nil(t, err)
+		assert.Equal(t, "a", meta.Host)
+		assert.Len(t, meta.internalTopicSchemas, 2)
+		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan"].value)
+		assert.Equal(t, "2", meta.internalTopicSchemas["kenobi"].value)
+		assert.Equal(t, avroProtocol, meta.internalTopicSchemas["obiwan"].protocol)
+		assert.Equal(t, jsonProtocol, meta.internalTopicSchemas["kenobi"].protocol)
+	})
+
+	t.Run("test funky edge case", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"host":                         "a",
+			"obiwan.jsonschema.avroschema": "1",
+		}
+		meta, err := parsePulsarMetadata(m)
+
+		assert.Nil(t, err)
+		assert.Equal(t, "a", meta.Host)
+		assert.Len(t, meta.internalTopicSchemas, 1)
+		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan.jsonschema"].value)
+	})
+}
+
+func TestGetPulsarSchema(t *testing.T) {
+	t.Run("json schema", func(t *testing.T) {
+		s := getPulsarSchema(schemaMetadata{
+			protocol: "json",
+			value: "{\"type\":\"record\",\"name\":\"Example\",\"namespace\":\"test\"," +
+				"\"fields\":[{\"name\":\"ID\",\"type\":\"int\"},{\"name\":\"Name\",\"type\":\"string\"}]}",
+		})
+		assert.IsType(t, &pulsar.JSONSchema{}, s)
+	})
+
+	t.Run("avro schema", func(t *testing.T) {
+		s := getPulsarSchema(schemaMetadata{
+			protocol: "avro",
+			value: "{\"type\":\"record\",\"name\":\"Example\",\"namespace\":\"test\"," +
+				"\"fields\":[{\"name\":\"ID\",\"type\":\"int\"},{\"name\":\"Name\",\"type\":\"string\"}]}",
+		})
+		assert.IsType(t, &pulsar.AvroSchema{}, s)
+	})
 }
 
 func TestParsePublishMetadata(t *testing.T) {
@@ -51,7 +139,7 @@ func TestParsePublishMetadata(t *testing.T) {
 		"deliverAt":    "2021-08-31T11:45:02Z",
 		"deliverAfter": "60s",
 	}
-	msg, err := parsePublishMetadata(m)
+	msg, err := parsePublishMetadata(m, schemaMetadata{})
 	assert.Nil(t, err)
 
 	val, _ := time.ParseDuration("60s")
@@ -70,14 +158,14 @@ func TestMissingHost(t *testing.T) {
 	assert.Equal(t, "pulsar error: missing pulsar host", err.Error())
 }
 
-func TestInvalidTLSInput(t *testing.T) {
+func TestInvalidTLSInputDefaultsToFalse(t *testing.T) {
 	m := pubsub.Metadata{}
 	m.Properties = map[string]string{"host": "a", "enableTLS": "honk"}
 	meta, err := parsePulsarMetadata(m)
 
-	assert.Error(t, err)
-	assert.Nil(t, meta)
-	assert.Equal(t, "pulsar error: invalid value for enableTLS", err.Error())
+	assert.NoError(t, err)
+	assert.NotNil(t, meta)
+	assert.False(t, meta.EnableTLS)
 }
 
 func TestValidTenantAndNS(t *testing.T) {

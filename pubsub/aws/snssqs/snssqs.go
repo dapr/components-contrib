@@ -16,10 +16,13 @@ package snssqs
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -33,6 +36,7 @@ import (
 	gonanoid "github.com/matoous/go-nanoid/v2"
 
 	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -61,12 +65,12 @@ type snsSqs struct {
 	logger        logger.Logger
 	id            string
 	opsTimeout    time.Duration
-	ctx           context.Context
-	cancel        context.CancelFunc
-	pollerCtx     context.Context
-	pollerCancel  context.CancelFunc
 	backOffConfig retry.Config
 	pollerRunning chan struct{}
+
+	closeCh chan struct{}
+	closed  atomic.Bool
+	wg      sync.WaitGroup
 }
 
 type sqsQueueInfo struct {
@@ -105,6 +109,7 @@ func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 		id:            id,
 		topicsLock:    sync.RWMutex{},
 		pollerRunning: make(chan struct{}, 1),
+		closeCh:       make(chan struct{}),
 	}
 }
 
@@ -147,7 +152,7 @@ func nameToAWSSanitizedName(name string, isFifo bool) string {
 	return string(s[:j])
 }
 
-func (s *snsSqs) Init(metadata pubsub.Metadata) error {
+func (s *snsSqs) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	md, err := s.getSnsSqsMetatdata(metadata)
 	if err != nil {
 		return err
@@ -171,10 +176,9 @@ func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 	s.sqsClient = sqs.New(sess)
 	s.stsClient = sts.New(sess)
 
-	s.opsTimeout = time.Duration(md.assetsManagementTimeoutSeconds * float64(time.Second))
-	s.ctx, s.cancel = context.WithCancel(context.Background())
+	s.opsTimeout = time.Duration(md.AssetsManagementTimeoutSeconds * float64(time.Second))
 
-	err = s.setAwsAccountIDIfNotProvided(s.ctx)
+	err = s.setAwsAccountIDIfNotProvided(ctx)
 	if err != nil {
 		return err
 	}
@@ -190,7 +194,7 @@ func (s *snsSqs) Init(metadata pubsub.Metadata) error {
 }
 
 func (s *snsSqs) setAwsAccountIDIfNotProvided(parentCtx context.Context) error {
-	if len(s.metadata.accountID) == awsAccountIDLength {
+	if len(s.metadata.AccountID) == awsAccountIDLength {
 		return nil
 	}
 
@@ -201,22 +205,22 @@ func (s *snsSqs) setAwsAccountIDIfNotProvided(parentCtx context.Context) error {
 		return fmt.Errorf("error fetching sts caller ID: %w", err)
 	}
 
-	s.metadata.accountID = *callerIDOutput.Account
+	s.metadata.AccountID = *callerIDOutput.Account
 	return nil
 }
 
 func (s *snsSqs) buildARN(serviceName, entityName string) string {
-	return fmt.Sprintf("arn:%s:%s:%s:%s:%s", s.metadata.Partition, serviceName, s.metadata.Region, s.metadata.accountID, entityName)
+	return fmt.Sprintf("arn:%s:%s:%s:%s:%s", s.metadata.internalPartition, serviceName, s.metadata.Region, s.metadata.AccountID, entityName)
 }
 
 func (s *snsSqs) createTopic(parentCtx context.Context, topic string) (string, error) {
-	sanitizedName := nameToAWSSanitizedName(topic, s.metadata.fifo)
+	sanitizedName := nameToAWSSanitizedName(topic, s.metadata.Fifo)
 	snsCreateTopicInput := &sns.CreateTopicInput{
 		Name: aws.String(sanitizedName),
 		Tags: []*sns.Tag{{Key: aws.String(awsSnsTopicNameKey), Value: aws.String(topic)}},
 	}
 
-	if s.metadata.fifo {
+	if s.metadata.Fifo {
 		attributes := map[string]*string{"FifoTopic": aws.String("true"), "ContentBasedDeduplication": aws.String("true")}
 		snsCreateTopicInput.SetAttributes(attributes)
 	}
@@ -251,7 +255,7 @@ func (s *snsSqs) getOrCreateTopic(ctx context.Context, topic string) (topicArn s
 	s.topicsLock.Lock()
 	defer s.topicsLock.Unlock()
 
-	sanitizedName = nameToAWSSanitizedName(topic, s.metadata.fifo)
+	sanitizedName = nameToAWSSanitizedName(topic, s.metadata.Fifo)
 
 	topicArnCached, ok := s.topicArns[sanitizedName]
 	if ok && topicArnCached != "" {
@@ -261,7 +265,7 @@ func (s *snsSqs) getOrCreateTopic(ctx context.Context, topic string) (topicArn s
 	// creating queues is idempotent, the names serve as unique keys among a given region.
 	s.logger.Debugf("No SNS topic arn found for %s\nCreating SNS topic", topic)
 
-	if !s.metadata.disableEntityManagement {
+	if !s.metadata.DisableEntityManagement {
 		topicArn, err = s.createTopic(ctx, sanitizedName)
 		if err != nil {
 			s.logger.Errorf("error creating new topic %s: %w", topic, err)
@@ -284,13 +288,13 @@ func (s *snsSqs) getOrCreateTopic(ctx context.Context, topic string) (topicArn s
 }
 
 func (s *snsSqs) createQueue(parentCtx context.Context, queueName string) (*sqsQueueInfo, error) {
-	sanitizedName := nameToAWSSanitizedName(queueName, s.metadata.fifo)
+	sanitizedName := nameToAWSSanitizedName(queueName, s.metadata.Fifo)
 	sqsCreateQueueInput := &sqs.CreateQueueInput{
 		QueueName: aws.String(sanitizedName),
 		Tags:      map[string]*string{awsSqsQueueNameKey: aws.String(queueName)},
 	}
 
-	if s.metadata.fifo {
+	if s.metadata.Fifo {
 		attributes := map[string]*string{"FifoQueue": aws.String("true"), "ContentBasedDeduplication": aws.String("true")}
 		sqsCreateQueueInput.SetAttributes(attributes)
 	}
@@ -319,7 +323,7 @@ func (s *snsSqs) createQueue(parentCtx context.Context, queueName string) (*sqsQ
 
 func (s *snsSqs) getQueueArn(parentCtx context.Context, queueName string) (*sqsQueueInfo, error) {
 	ctx, cancel := context.WithTimeout(parentCtx, s.opsTimeout)
-	queueURLOutput, err := s.sqsClient.GetQueueUrlWithContext(ctx, &sqs.GetQueueUrlInput{QueueName: aws.String(queueName), QueueOwnerAWSAccountId: aws.String(s.metadata.accountID)})
+	queueURLOutput, err := s.sqsClient.GetQueueUrlWithContext(ctx, &sqs.GetQueueUrlInput{QueueName: aws.String(queueName), QueueOwnerAWSAccountId: aws.String(s.metadata.AccountID)})
 	cancel()
 	if err != nil {
 		return nil, fmt.Errorf("error: %w while getting url of queue: %s", err, queueName)
@@ -350,9 +354,9 @@ func (s *snsSqs) getOrCreateQueue(ctx context.Context, queueName string) (*sqsQu
 	// creating queues is idempotent, the names serve as unique keys among a given region.
 	s.logger.Debugf("No SQS queue arn found for %s\nCreating SQS queue", queueName)
 
-	sanitizedName := nameToAWSSanitizedName(queueName, s.metadata.fifo)
+	sanitizedName := nameToAWSSanitizedName(queueName, s.metadata.Fifo)
 
-	if !s.metadata.disableEntityManagement {
+	if !s.metadata.DisableEntityManagement {
 		queueInfo, err = s.createQueue(ctx, sanitizedName)
 		if err != nil {
 			s.logger.Errorf("Error creating queue %s: %v", queueName, err)
@@ -375,8 +379,8 @@ func (s *snsSqs) getOrCreateQueue(ctx context.Context, queueName string) (*sqsQu
 }
 
 func (s *snsSqs) getMessageGroupID(req *pubsub.PublishRequest) *string {
-	if len(s.metadata.fifoMessageGroupID) > 0 {
-		return &s.metadata.fifoMessageGroupID
+	if len(s.metadata.FifoMessageGroupID) > 0 {
+		return &s.metadata.FifoMessageGroupID
 	}
 	// each daprd, of a given PubSub, of a given publisher application publishes to a message group ID of its own.
 	// for example: for a daprd serving the SNS/SQS Pubsub component we generate a unique id -> A; that component serves on behalf
@@ -433,7 +437,7 @@ func (s *snsSqs) getOrCreateSnsSqsSubscription(ctx context.Context, queueArn, to
 
 	s.logger.Debugf("No subscription arn found of queue arn:%s to topic arn: %s\nCreating subscription", queueArn, topicArn)
 
-	if !s.metadata.disableEntityManagement {
+	if !s.metadata.DisableEntityManagement {
 		subscriptionArn, err = s.createSnsSqsSubscription(ctx, queueArn, topicArn)
 		if err != nil {
 			s.logger.Errorf("Error creating subscription %s: %v", subscriptionArn, err)
@@ -507,10 +511,10 @@ func (s *snsSqs) validateMessage(ctx context.Context, message *sqs.Message, queu
 		return err
 	}
 
-	messageRetryLimit := s.metadata.messageRetryLimit
+	messageRetryLimit := s.metadata.MessageRetryLimit
 	if deadLettersQueueInfo == nil && recvCount >= messageRetryLimit {
 		// if we are over the allowable retry limit, and there is no dead-letters queue, and we don't disable deletes, then delete the message from the queue.
-		if !s.metadata.disableDeleteOnRetryLimit {
+		if !s.metadata.DisableDeleteOnRetryLimit {
 			if innerErr := s.acknowledgeMessage(ctx, queueInfo.url, message.ReceiptHandle); innerErr != nil {
 				return fmt.Errorf("error acknowledging message after receiving the message too many times: %w", innerErr)
 			}
@@ -531,7 +535,7 @@ func (s *snsSqs) validateMessage(ctx context.Context, message *sqs.Message, queu
 	// a message if we've already surpassed the messageRetryLimit value.
 	if deadLettersQueueInfo != nil && recvCount > messageRetryLimit {
 		awsErr := fmt.Errorf(
-			"message received greater than %v times, this message should have been moved without further processing to dead-letters queue: %v", messageRetryLimit, s.metadata.sqsDeadLettersQueueName)
+			"message received greater than %v times, this message should have been moved without further processing to dead-letters queue: %v", messageRetryLimit, s.metadata.SqsDeadLettersQueueName)
 
 		return awsErr
 	}
@@ -579,10 +583,10 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 		AttributeNames: []*string{
 			aws.String(sqs.MessageSystemAttributeNameApproximateReceiveCount),
 		},
-		MaxNumberOfMessages: aws.Int64(s.metadata.messageMaxNumber),
+		MaxNumberOfMessages: aws.Int64(s.metadata.MessageMaxNumber),
 		QueueUrl:            aws.String(queueInfo.url),
-		VisibilityTimeout:   aws.Int64(s.metadata.messageVisibilityTimeout),
-		WaitTimeSeconds:     aws.Int64(s.metadata.messageWaitTimeSeconds),
+		VisibilityTimeout:   aws.Int64(s.metadata.MessageVisibilityTimeout),
+		WaitTimeSeconds:     aws.Int64(s.metadata.MessageWaitTimeSeconds),
 	}
 
 	for {
@@ -599,7 +603,10 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 		if err != nil {
 			if err == context.Canceled || err == context.DeadlineExceeded {
 				s.logger.Warn("context canceled; stopping consuming from queue arn: %v", queueInfo.arn)
-			} else if awsErr, ok := err.(awserr.Error); ok {
+				continue
+			}
+
+			if awsErr, ok := err.(awserr.Error); ok {
 				s.logger.Errorf("AWS operation error while consuming from queue arn: %v with error: %w. retrying...", queueInfo.arn, awsErr.Error())
 			} else {
 				s.logger.Errorf("error consuming from queue arn: %v with error: %w. retrying...", queueInfo.arn, err)
@@ -633,11 +640,15 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 			}
 
 			wg.Add(1)
-			switch s.metadata.concurrencyMode {
+			switch s.metadata.ConcurrencyMode {
 			case pubsub.Single:
 				f(message)
 			case pubsub.Parallel:
-				go f(message)
+				wg.Add(1)
+				go func(message *sqs.Message) {
+					defer wg.Done()
+					f(message)
+				}(message)
 			}
 		}
 		wg.Wait()
@@ -650,7 +661,7 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 func (s *snsSqs) createDeadLettersQueueAttributes(queueInfo, deadLettersQueueInfo *sqsQueueInfo) (*sqs.SetQueueAttributesInput, error) {
 	policy := map[string]string{
 		"deadLetterTargetArn": deadLettersQueueInfo.arn,
-		"maxReceiveCount":     strconv.FormatInt(s.metadata.messageReceiveLimit, 10),
+		"maxReceiveCount":     strconv.FormatInt(s.metadata.MessageReceiveLimit, 10),
 	}
 
 	b, err := json.Marshal(policy)
@@ -672,7 +683,7 @@ func (s *snsSqs) createDeadLettersQueueAttributes(queueInfo, deadLettersQueueInf
 }
 
 func (s *snsSqs) setDeadLettersQueueAttributes(parentCtx context.Context, queueInfo, deadLettersQueueInfo *sqsQueueInfo) error {
-	if s.metadata.disableEntityManagement {
+	if s.metadata.DisableEntityManagement {
 		return nil
 	}
 
@@ -700,7 +711,7 @@ func (s *snsSqs) setDeadLettersQueueAttributes(parentCtx context.Context, queueI
 
 func (s *snsSqs) restrictQueuePublishPolicyToOnlySNS(parentCtx context.Context, sqsQueueInfo *sqsQueueInfo, snsARN string) error {
 	// not creating any policies of disableEntityManagement is true.
-	if s.metadata.disableEntityManagement {
+	if s.metadata.DisableEntityManagement {
 		return nil
 	}
 
@@ -747,10 +758,14 @@ func (s *snsSqs) restrictQueuePublishPolicyToOnlySNS(parentCtx context.Context, 
 	return nil
 }
 
-func (s *snsSqs) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
+	if s.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	// subscribers declare a topic ARN and declare a SQS queue to use
 	// these should be idempotent - queues should not be created if they exist.
-	topicArn, sanitizedName, err := s.getOrCreateTopic(subscribeCtx, req.Topic)
+	topicArn, sanitizedName, err := s.getOrCreateTopic(ctx, req.Topic)
 	if err != nil {
 		wrappedErr := fmt.Errorf("error getting topic ARN for %s: %w", req.Topic, err)
 		s.logger.Error(wrappedErr)
@@ -760,7 +775,7 @@ func (s *snsSqs) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeReq
 
 	// this is the ID of the application, it is supplied via runtime as "consumerID".
 	var queueInfo *sqsQueueInfo
-	queueInfo, err = s.getOrCreateQueue(subscribeCtx, s.metadata.sqsQueueName)
+	queueInfo, err = s.getOrCreateQueue(ctx, s.metadata.SqsQueueName)
 	if err != nil {
 		wrappedErr := fmt.Errorf("error retrieving SQS queue: %w", err)
 		s.logger.Error(wrappedErr)
@@ -770,7 +785,7 @@ func (s *snsSqs) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeReq
 
 	// only after a SQS queue and SNS topic had been setup, we restrict the SendMessage action to SNS as sole source
 	// to prevent anyone but SNS to publish message to SQS.
-	err = s.restrictQueuePublishPolicyToOnlySNS(subscribeCtx, queueInfo, topicArn)
+	err = s.restrictQueuePublishPolicyToOnlySNS(ctx, queueInfo, topicArn)
 	if err != nil {
 		wrappedErr := fmt.Errorf("error setting sns-sqs subscription policy: %w", err)
 		s.logger.Error(wrappedErr)
@@ -782,8 +797,8 @@ func (s *snsSqs) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeReq
 	var deadLettersQueueInfo *sqsQueueInfo
 	var derr error
 
-	if len(s.metadata.sqsDeadLettersQueueName) > 0 {
-		deadLettersQueueInfo, derr = s.getOrCreateQueue(subscribeCtx, s.metadata.sqsDeadLettersQueueName)
+	if len(s.metadata.SqsDeadLettersQueueName) > 0 {
+		deadLettersQueueInfo, derr = s.getOrCreateQueue(ctx, s.metadata.SqsDeadLettersQueueName)
 		if derr != nil {
 			wrappedErr := fmt.Errorf("error retrieving SQS dead-letter queue: %w", err)
 			s.logger.Error(wrappedErr)
@@ -791,7 +806,7 @@ func (s *snsSqs) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeReq
 			return wrappedErr
 		}
 
-		err = s.setDeadLettersQueueAttributes(subscribeCtx, queueInfo, deadLettersQueueInfo)
+		err = s.setDeadLettersQueueAttributes(ctx, queueInfo, deadLettersQueueInfo)
 		if err != nil {
 			wrappedErr := fmt.Errorf("error creating dead-letter queue: %w", err)
 			s.logger.Error(wrappedErr)
@@ -801,7 +816,7 @@ func (s *snsSqs) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeReq
 	}
 
 	// subscription creation is idempotent. Subscriptions are unique by topic/queue.
-	_, err = s.getOrCreateSnsSqsSubscription(subscribeCtx, queueInfo.arn, topicArn)
+	_, err = s.getOrCreateSnsSqsSubscription(ctx, queueInfo.arn, topicArn)
 	if err != nil {
 		wrappedErr := fmt.Errorf("error subscribing topic: %s, to queue: %s, with error: %w", topicArn, queueInfo.arn, err)
 		s.logger.Error(wrappedErr)
@@ -815,23 +830,45 @@ func (s *snsSqs) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeReq
 	s.topicHandlers[sanitizedName] = topicHandler{
 		topicName: req.Topic,
 		handler:   handler,
-		ctx:       subscribeCtx,
+		ctx:       ctx,
 	}
 
+	// pollerCancel is used to cancel the polling goroutine. We use a noop cancel
+	// func in case the poller is already running and there is no cancel to use
+	// from the select below.
+	var pollerCancel context.CancelFunc = func() {}
 	// Start the poller for the queue if it's not running already
 	select {
 	case s.pollerRunning <- struct{}{}:
 		// If inserting in the channel succeeds, then it's not running already
 		// Use a context that is tied to the background context
-		s.pollerCtx, s.pollerCancel = context.WithCancel(s.ctx)
-		go s.consumeSubscription(s.ctx, queueInfo, deadLettersQueueInfo)
+		var subctx context.Context
+		subctx, pollerCancel = context.WithCancel(context.Background())
+		s.wg.Add(2)
+		go func() {
+			defer s.wg.Done()
+			defer pollerCancel()
+			select {
+			case <-s.closeCh:
+			case <-subctx.Done():
+			}
+		}()
+		go func() {
+			defer s.wg.Done()
+			s.consumeSubscription(subctx, queueInfo, deadLettersQueueInfo)
+		}()
 	default:
 		// Do nothing, it means the poller is already running
 	}
 
-	// Watch for subscription context cancelation to remove this subscription
+	// Watch for subscription context cancellation to remove this subscription
+	s.wg.Add(1)
 	go func() {
-		<-subscribeCtx.Done()
+		defer s.wg.Done()
+		select {
+		case <-ctx.Done():
+		case <-s.closeCh:
+		}
 
 		s.topicsLock.Lock()
 		defer s.topicsLock.Unlock()
@@ -839,9 +876,9 @@ func (s *snsSqs) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeReq
 		// Remove the handler
 		delete(s.topicHandlers, sanitizedName)
 
-		// If we don't have any topic left, close the poller
+		// If we don't have any topic left, close the poller.
 		if len(s.topicHandlers) == 0 {
-			s.pollerCancel()
+			pollerCancel()
 		}
 	}()
 
@@ -849,6 +886,10 @@ func (s *snsSqs) Subscribe(subscribeCtx context.Context, req pubsub.SubscribeReq
 }
 
 func (s *snsSqs) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
+	if s.closed.Load() {
+		return errors.New("component is closed")
+	}
+
 	topicArn, _, err := s.getOrCreateTopic(ctx, req.Topic)
 	if err != nil {
 		s.logger.Errorf("error getting topic ARN for %s: %v", req.Topic, err)
@@ -859,7 +900,7 @@ func (s *snsSqs) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 		Message:  aws.String(message),
 		TopicArn: aws.String(topicArn),
 	}
-	if s.metadata.fifo {
+	if s.metadata.Fifo {
 		snsPublishInput.MessageGroupId = s.getMessageGroupID(req)
 	}
 
@@ -875,12 +916,24 @@ func (s *snsSqs) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 	return nil
 }
 
+// Close should always be called to release the resources used by the SNS/SQS
+// client. Blocks until all goroutines have returned.
 func (s *snsSqs) Close() error {
-	s.cancel()
-
+	if s.closed.CompareAndSwap(false, true) {
+		close(s.closeCh)
+	}
+	s.wg.Wait()
 	return nil
 }
 
 func (s *snsSqs) Features() []pubsub.Feature {
 	return nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (s *snsSqs) GetComponentMetadata() map[string]string {
+	metadataStruct := snsSqsMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
+	return metadataInfo
 }

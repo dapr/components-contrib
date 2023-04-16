@@ -21,6 +21,12 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/fasthttp-contrib/sessions"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/components-contrib/middleware"
+	"github.com/dapr/kit/logger"
 )
 
 // mockedRequestHandler acts like an upstream service returns success status code 200 and a fixed response body.

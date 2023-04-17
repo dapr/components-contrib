@@ -16,12 +16,14 @@ package redis
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
 	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"github.com/dapr/components-contrib/lock"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -185,4 +187,12 @@ func (r *StandaloneRedisLock) Close() error {
 		return closeErr
 	}
 	return nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (r *StandaloneRedisLock) GetComponentMetadata() map[string]string {
+	metadataStruct := rediscomponent.Metadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.LockStoreType)
+	return metadataInfo
 }

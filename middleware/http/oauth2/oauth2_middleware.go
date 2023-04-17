@@ -17,6 +17,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 
 	"github.com/fasthttp-contrib/sessions"
@@ -32,14 +33,14 @@ import (
 
 // Metadata is the oAuth middleware config.
 type oAuth2MiddlewareMetadata struct {
-	ClientID       string `json:"clientID"`
-	ClientSecret   string `json:"clientSecret"`
-	Scopes         string `json:"scopes"`
-	AuthURL        string `json:"authURL"`
-	TokenURL       string `json:"tokenURL"`
-	AuthHeaderName string `json:"authHeaderName"`
-	RedirectURL    string `json:"redirectURL"`
-	ForceHTTPS     string `json:"forceHTTPS"`
+	ClientID       string `json:"clientID" mapstructure:"clientID"`
+	ClientSecret   string `json:"clientSecret" mapstructure:"clientSecret"`
+	Scopes         string `json:"scopes" mapstructure:"scopes"`
+	AuthURL        string `json:"authURL" mapstructure:"authURL"`
+	TokenURL       string `json:"tokenURL" mapstructure:"tokenURL"`
+	AuthHeaderName string `json:"authHeaderName" mapstructure:"authHeaderName"`
+	RedirectURL    string `json:"redirectURL" mapstructure:"redirectURL"`
+	ForceHTTPS     string `json:"forceHTTPS" mapstructure:"forceHTTPS"`
 }
 
 // NewOAuth2Middleware returns a new oAuth2 middleware.
@@ -152,4 +153,11 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*oAuth2Mid
 		return nil, err
 	}
 	return &middlewareMetadata, nil
+}
+
+func (m *Middleware) GetComponentMetadata() map[string]string {
+	metadataStruct := oAuth2MiddlewareMetadata{}
+	metadataInfo := map[string]string{}
+	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
+	return metadataInfo
 }

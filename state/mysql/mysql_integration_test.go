@@ -118,7 +118,7 @@ func TestMySQLIntegration(t *testing.T) {
 				err := p.Init(context.Background(), metadata)
 
 				if tt.expectedErr == "" {
-					assert.Nil(t, err)
+					assert.NoError(t, err)
 				} else {
 					assert.NotNil(t, err)
 					assert.Equal(t, err.Error(), tt.expectedErr)
@@ -149,20 +149,20 @@ func TestMySQLIntegration(t *testing.T) {
 		tableName := "test_state"
 
 		// Drop the table if it already exists
-		exists, err := tableExists(context.Background(), mys.db, tableName, 10*time.Second)
-		assert.Nil(t, err)
+		exists, err := tableExists(context.Background(), mys.db, "dapr_state_store", tableName, 10*time.Second)
+		assert.NoError(t, err)
 		if exists {
 			dropTable(t, mys.db, tableName)
 		}
 
 		// Create the state table and test for its existence
 		// There should be no error
-		err = mys.ensureStateTable(context.Background(), tableName)
-		assert.Nil(t, err)
+		err = mys.ensureStateTable(context.Background(), "dapr_state_store", tableName)
+		assert.NoError(t, err)
 
 		// Now create it and make sure there are no errors
-		exists, err = tableExists(context.Background(), mys.db, tableName, 10*time.Second)
-		assert.Nil(t, err)
+		exists, err = tableExists(context.Background(), mys.db, "dapr_state_store", tableName, 10*time.Second)
+		assert.NoError(t, err)
 		assert.True(t, exists)
 
 		// Drop the state table
@@ -364,7 +364,7 @@ func TestMySQLIntegration(t *testing.T) {
 		}
 
 		err := mys.Delete(context.Background(), deleteReq)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("Inserts with first-write-wins", func(t *testing.T) {
@@ -456,10 +456,7 @@ func TestMySQLIntegration(t *testing.T) {
 			deleteRequests = append(deleteRequests, req)
 
 			// Add the item to the multi transaction request
-			operations = append(operations, state.TransactionalStateOperation{
-				Operation: state.Delete,
-				Request:   req,
-			})
+			operations = append(operations, req)
 		}
 
 		// Create the set requests
@@ -470,16 +467,13 @@ func TestMySQLIntegration(t *testing.T) {
 				Value: randomJSON(),
 			}
 			setRequests = append(setRequests, req)
-			operations = append(operations, state.TransactionalStateOperation{
-				Operation: state.Upsert,
-				Request:   req,
-			})
+			operations = append(operations, req)
 		}
 
 		err := mys.Multi(context.Background(), &state.TransactionalStateRequest{
 			Operations: operations,
 		})
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		for _, delete := range deleteRequests {
 			assert.False(t, storeItemExists(t, delete.Key))
@@ -506,16 +500,13 @@ func TestMySQLIntegration(t *testing.T) {
 			deleteRequests = append(deleteRequests, req)
 
 			// Add the item to the multi transaction request
-			operations = append(operations, state.TransactionalStateOperation{
-				Operation: state.Delete,
-				Request:   req,
-			})
+			operations = append(operations, req)
 		}
 
 		err := mys.Multi(context.Background(), &state.TransactionalStateRequest{
 			Operations: operations,
 		})
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		for _, delete := range deleteRequests {
 			assert.False(t, storeItemExists(t, delete.Key))
@@ -533,16 +524,13 @@ func TestMySQLIntegration(t *testing.T) {
 				Value: randomJSON(),
 			}
 			setRequests = append(setRequests, req)
-			operations = append(operations, state.TransactionalStateOperation{
-				Operation: state.Upsert,
-				Request:   req,
-			})
+			operations = append(operations, req)
 		}
 
 		err := mys.Multi(context.Background(), &state.TransactionalStateRequest{
 			Operations: operations,
 		})
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		for _, set := range setRequests {
 			assert.True(t, storeItemExists(t, set.Key))
@@ -565,7 +553,7 @@ func testBulkSetAndBulkDelete(t *testing.T, mys *MySQL) {
 	}
 
 	err := mys.BulkSet(context.Background(), setReq)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.True(t, storeItemExists(t, setReq[0].Key))
 	assert.True(t, storeItemExists(t, setReq[1].Key))
 
@@ -579,7 +567,7 @@ func testBulkSetAndBulkDelete(t *testing.T, mys *MySQL) {
 	}
 
 	err = mys.BulkDelete(context.Background(), deleteReq)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.False(t, storeItemExists(t, setReq[0].Key))
 	assert.False(t, storeItemExists(t, setReq[1].Key))
 }
@@ -588,7 +576,7 @@ func dropTable(t *testing.T, db *sql.DB, tableName string) {
 	_, err := db.Exec(fmt.Sprintf(
 		`DROP TABLE %s;`,
 		tableName))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func setItem(t *testing.T, mys *MySQL, key string, value interface{}, eTag *string) {
@@ -633,7 +621,7 @@ func deleteItem(t *testing.T, mys *MySQL, key string, eTag *string) {
 
 func storeItemExists(t *testing.T, key string) bool {
 	db, err := connectToDB(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer db.Close()
 
 	exists := false
@@ -641,20 +629,20 @@ func storeItemExists(t *testing.T, key string) bool {
 		`SELECT EXISTS (SELECT * FROM %s WHERE id = ?)`,
 		defaultTableName)
 	err = db.QueryRow(statement, key).Scan(&exists)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	return exists
 }
 
 func getRowData(t *testing.T, key string) (returnValue string, insertdate sql.NullString, updatedate sql.NullString, eTag string) {
 	db, err := connectToDB(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer db.Close()
 
 	err = db.QueryRow(fmt.Sprintf(
 		`SELECT value, insertdate, updatedate, eTag FROM %s WHERE id = ?`,
 		defaultTableName), key).Scan(&returnValue, &insertdate, &updatedate, &eTag)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	return returnValue, insertdate, updatedate, eTag
 }

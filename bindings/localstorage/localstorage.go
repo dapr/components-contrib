@@ -22,6 +22,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -329,4 +330,12 @@ func (ls *LocalStorage) Invoke(_ context.Context, req *bindings.InvokeRequest) (
 	default:
 		return nil, fmt.Errorf("unsupported operation %s", req.Operation)
 	}
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (ls *LocalStorage) GetComponentMetadata() map[string]string {
+	metadataStruct := Metadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

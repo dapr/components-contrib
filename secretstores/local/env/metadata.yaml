@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: secretstores
+name: local.env
+version: v1
+status: stable
+title: "Local environment variables"
+urls:
+  - title: Reference
+    url: "https://docs.dapr.io/reference/components-reference/supported-secret-stores/envvar-secret-store/"
+metadata:
+  - name: prefix
+    description: |
+      If set, limits operations to environmental variables with the given prefix. The prefix is removed from the returned secrets' names.
+      The matching is case-insensitive on Windows and case-sensitive on all other operating systems.
+    example: '"MYAPP_"'
+    type: string

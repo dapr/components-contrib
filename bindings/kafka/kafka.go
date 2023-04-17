@@ -16,6 +16,7 @@ package kafka
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -24,6 +25,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/internal/component/kafka"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 )
 
 const (
@@ -133,4 +135,12 @@ func adaptHandler(handler bindings.Handler) kafka.EventHandler {
 		})
 		return err
 	}
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (b *Binding) GetComponentMetadata() map[string]string {
+	metadataStruct := kafka.KafkaMetadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
+	return metadataInfo
 }

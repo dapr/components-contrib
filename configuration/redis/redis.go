@@ -18,6 +18,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/dapr/components-contrib/configuration"
 	"github.com/dapr/components-contrib/configuration/redis/internal"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -74,69 +76,29 @@ func NewRedisConfigurationStore(logger logger.Logger) configuration.Store {
 }
 
 func parseRedisMetadata(meta configuration.Metadata) (metadata, error) {
-	m := metadata{}
+	m := metadata{
+		EnableTLS:               defaultEnableTLS,
+		MaxRetries:              defaultMaxRetries,
+		internalMaxRetryBackoff: defaultMaxRetryBackoff,
+		Failover:                false,
+		DB:                      defaultDB,
+	}
+	decodeErr := contribMetadata.DecodeMetadata(meta.Properties, &m)
+	if decodeErr != nil {
+		return m, decodeErr
+	}
 
-	if val, ok := meta.Properties[host]; ok && val != "" {
-		m.Host = val
-	} else {
+	if m.Host == "" {
 		return m, errors.New("redis store error: missing host address")
 	}
 
-	if val, ok := meta.Properties[password]; ok && val != "" {
-		m.Password = val
-	}
-
-	m.EnableTLS = defaultEnableTLS
-	if val, ok := meta.Properties[enableTLS]; ok && val != "" {
-		tls, err := strconv.ParseBool(val)
-		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse enableTLS field: %s", err)
-		}
-		m.EnableTLS = tls
-	}
-
-	m.MaxRetries = defaultMaxRetries
-	if val, ok := meta.Properties[maxRetries]; ok && val != "" {
-		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
-		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse maxRetries field: %s", err)
-		}
-		m.MaxRetries = int(parsedVal)
-	}
-
-	m.MaxRetryBackoff = defaultMaxRetryBackoff
-	if val, ok := meta.Properties[maxRetryBackoff]; ok && val != "" {
-		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
-		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse maxRetryBackoff field: %s", err)
-		}
-		m.MaxRetryBackoff = time.Duration(parsedVal)
-	}
-
-	if val, ok := meta.Properties[failover]; ok && val != "" {
-		failover, err := strconv.ParseBool(val)
-		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse failover field: %s", err)
-		}
-		m.Failover = failover
-	}
-
 	// set the sentinelMasterName only with failover == true.
-	if m.Failover {
-		if val, ok := meta.Properties[sentinelMasterName]; ok && val != "" {
-			m.SentinelMasterName = val
-		} else {
-			return m, errors.New("redis store error: missing sentinelMasterName")
-		}
+	if m.Failover && m.SentinelMasterName == "" {
+		return m, errors.New("redis store error: missing sentinelMasterName")
 	}
 
-	m.DB = defaultDB
-	if val, ok := meta.Properties[redisDB]; ok && val != "" {
-		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
-		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse redisDB field from metadata: %w", err)
-		}
-		m.DB = int(parsedVal)
+	if m.MaxRetryBackoff != nil {
+		m.internalMaxRetryBackoff = time.Duration(*m.MaxRetryBackoff)
 	}
 
 	return m, nil
@@ -171,7 +133,7 @@ func (r *ConfigurationStore) newClient(m metadata) *redis.Client {
 		Password:        m.Password,
 		DB:              m.DB,
 		MaxRetries:      m.MaxRetries,
-		MaxRetryBackoff: m.MaxRetryBackoff,
+		MaxRetryBackoff: m.internalMaxRetryBackoff,
 	}
 
 	// tell the linter to skip a check here.
@@ -191,7 +153,7 @@ func (r *ConfigurationStore) newFailoverClient(m metadata) *redis.Client {
 		SentinelAddrs:   []string{r.metadata.Host},
 		DB:              m.DB,
 		MaxRetries:      m.MaxRetries,
-		MaxRetryBackoff: m.MaxRetryBackoff,
+		MaxRetryBackoff: m.internalMaxRetryBackoff,
 	}
 
 	/* #nosec */
@@ -368,4 +330,12 @@ func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *co
 	if err != nil {
 		r.logger.Errorf("fail to call handler to notify event for configuration update subscribe: %s", err)
 	}
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (r *ConfigurationStore) GetComponentMetadata() map[string]string {
+	metadataStruct := metadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
+	return metadataInfo
 }

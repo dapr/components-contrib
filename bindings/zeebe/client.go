@@ -36,7 +36,7 @@ type ClientFactoryImpl struct {
 }
 
 // https://docs.zeebe.io/operations/authentication.html
-type clientMetadata struct {
+type ClientMetadata struct {
 	GatewayAddr            string        `json:"gatewayAddr" mapstructure:"gatewayAddr"`
 	GatewayKeepAlive       time.Duration `json:"gatewayKeepAlive" mapstructure:"gatewayKeepAlive"`
 	CaCertificatePath      string        `json:"caCertificatePath" mapstructure:"caCertificatePath"`
@@ -67,8 +67,8 @@ func (c *ClientFactoryImpl) Get(metadata bindings.Metadata) (zbc.Client, error) 
 	return client, nil
 }
 
-func (c *ClientFactoryImpl) parseMetadata(meta bindings.Metadata) (*clientMetadata, error) {
-	var m clientMetadata
+func (c *ClientFactoryImpl) parseMetadata(meta bindings.Metadata) (*ClientMetadata, error) {
+	var m ClientMetadata
 	err := metadata.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err

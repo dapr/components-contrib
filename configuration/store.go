@@ -28,6 +28,9 @@ type Store interface {
 
 	// Unsubscribe configuration with keys
 	Unsubscribe(ctx context.Context, req *UnsubscribeRequest) error
+
+	// GetComponentMetadata returns information on the component's metadata.
+	GetComponentMetadata() map[string]string
 }
 
 // UpdateHandler is the handler used to send event to daprd.

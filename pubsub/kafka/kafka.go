@@ -16,6 +16,7 @@ package kafka
 import (
 	"context"
 	"errors"
+	"reflect"
 	"sync"
 	"sync/atomic"
 
@@ -23,6 +24,7 @@ import (
 
 	"github.com/dapr/components-contrib/internal/component/kafka"
 	"github.com/dapr/components-contrib/internal/utils"
+	"github.com/dapr/components-contrib/metadata"
 
 	"github.com/dapr/components-contrib/pubsub"
 )
@@ -172,4 +174,12 @@ func adaptBulkHandler(handler pubsub.BulkHandler) kafka.BulkEventHandler {
 			Metadata: event.Metadata,
 		})
 	}
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (p *PubSub) GetComponentMetadata() map[string]string {
+	metadataStruct := kafka.KafkaMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
+	return metadataInfo
 }

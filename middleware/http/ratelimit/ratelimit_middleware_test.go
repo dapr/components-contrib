@@ -26,13 +26,6 @@ import (
 func TestMiddlewareGetNativeMetadata(t *testing.T) {
 	m := &Middleware{}
 
-	t.Run(maxRequestsPerSecondKey+" is empty", func(t *testing.T) {
-		res, err := m.getNativeMetadata(middleware.Metadata{Base: metadata.Base{Properties: map[string]string{}}})
-		require.Error(t, err)
-		assert.ErrorContains(t, err, "metadata property "+maxRequestsPerSecondKey+" must not be empty")
-		assert.Nil(t, res)
-	})
-
 	t.Run(maxRequestsPerSecondKey+" is 0", func(t *testing.T) {
 		res, err := m.getNativeMetadata(middleware.Metadata{Base: metadata.Base{Properties: map[string]string{
 			maxRequestsPerSecondKey: "0",
@@ -56,7 +49,7 @@ func TestMiddlewareGetNativeMetadata(t *testing.T) {
 			maxRequestsPerSecondKey: "foo-bar",
 		}}})
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "error parsing metadata property "+maxRequestsPerSecondKey)
+		assert.ErrorContains(t, err, "cannot parse 'MaxRequestsPerSecond' as float")
 		assert.Nil(t, res)
 	})
 

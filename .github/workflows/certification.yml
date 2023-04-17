@@ -82,9 +82,18 @@ jobs:
 
   certification:
     name: ${{ matrix.component }} certification
+
+    # Add "id-token" with the intended permissions.
+    # Needed by the 'Authenticate to Google Cloud' step.
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
     runs-on: ubuntu-22.04
     env:
       UNIQUE_ID: ${{github.run_id}}-${{github.run_attempt}}
+      GOCOV_VER: "v1.1.0"
+      GOTESTSUM_VER: "v1.9.0"
     defaults:
       run:
         shell: bash
@@ -159,6 +168,22 @@ jobs:
           echo "$secretName=$value" >> $GITHUB_ENV
         done
 
+    # Authenticate with GCP Workload Identity Pool
+    # Exports GCP ENV Vars:
+    #    - GCP_PROJECT
+    #    - GOOGLE_APPLICATION_CREDENTIALS
+    - id: 'auth'
+      if: matrix.require-gcp-credentials == 'true'
+      name: 'Authenticate to Google Cloud'
+      uses: 'google-github-actions/auth@v1'
+      with:
+        token_format: 'access_token'
+        workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER_NAME }}
+        service_account: ${{ secrets.GCP_WIF_SA_EMAIL }}
+        create_credentials_file: true
+        export_environment_variables: true
+        cleanup_credentials: true
+
     # Download the required certificates into files, and set env var pointing to their names
     - name: Setup certs
       if: matrix.required-certs != ''
@@ -208,17 +233,8 @@ jobs:
       working-directory: ${{ env.TEST_PATH }}
       run: |
         go mod download
-        go install gotest.tools/gotestsum@latest
-        go install github.com/axw/gocov/gocov@v1.1.0
-
-    - name: Check that go mod tidy is up-to-date
-      working-directory: ${{ env.TEST_PATH }}
-      run: |
-        # Get just the major version and major update (e.g. "1.20") from the installed Go version
-        GOVER=$(echo "${{ steps.setup-go.outputs.go-version }}" | cut -d '.' -f 1,2)
-        go mod tidy -compat=$GOVER
-        git diff --exit-code ./go.mod
-        git diff --exit-code ./go.sum
+        go install github.com/axw/gocov/gocov@${{ env.GOCOV_VER }}
+        go install gotest.tools/gotestsum@${{ env.GOTESTSUM_VER }}
 
     - name: Run setup script
       if: matrix.setup-script != ''
@@ -238,11 +254,12 @@ jobs:
         AWS_REGION: "${{ env.AWS_REGION }}"
       run: |
         echo "Running certification tests for ${{ matrix.component }} ... "
+        echo "Source Pacakge: " ${{ matrix.source-pkg }}
         export GOLANG_PROTOBUF_REGISTRATION_CONFLICT=ignore
         set +e
         gotestsum --jsonfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.json \
           --junitfile ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.xml --format standard-quiet -- \
-          -coverprofile=cover.out -covermode=set -tags=certtests -coverpkg=${{ env.SOURCE_PATH }}
+          -coverprofile=cover.out -covermode=set -tags=certtests -coverpkg=${{ matrix.source-pkg }}
         status=$?
         echo "Completed certification tests for ${{ matrix.component }} ... "
         if test $status -ne 0; then
@@ -250,12 +267,9 @@ jobs:
           export CERTIFICATION_FAILURE=true
         fi
         set -e
-
-        COVERAGE_REPORT=$(gocov convert cover.out | gocov report)
-        COVERAGE_LINE=$(echo $COVERAGE_REPORT  | grep -oP '(?<=Total Coverage:).*') # example: "80.00% (40/50)"
-        COVERAGE_PERCENTAGE=$(echo $COVERAGE_LINE | grep -oP '([0-9\.]*)' | head -n 1) # example "80.00"
-        echo "COVERAGE_LINE=$COVERAGE_LINE" >> $GITHUB_ENV
-        echo "COMPONENT_PERCENTAGE=$COVERAGE_PERCENTAGE" >> $GITHUB_ENV
+        mkdir -p tmp/cert_code_cov_files
+        cat cover.out >> tmp/cert_code_cov_files/${{ env.SOURCE_PATH_LINEAR }}.out
+        cat tmp/cert_code_cov_files/${{ env.SOURCE_PATH_LINEAR }}.out
 
         # Fail the step if we found no test to run
         if grep -q "\[no test files\]" ${{ env.TEST_OUTPUT_FILE_PREFIX }}_certification.json ; then
@@ -277,6 +291,14 @@ jobs:
           echo "CERTIFICATION_FAILURE=false" >> $GITHUB_ENV
         fi
 
+    - name: Upload Cert Coverage Report File
+      uses: actions/upload-artifact@v3
+      if: github.event_name == 'schedule'
+      with:
+        name: cert_code_cov
+        path: ${{ env.TEST_PATH }}/tmp/cert_code_cov_files
+        retention-days: 7
+
     - name: Prepare test result info
       if: always()
       run: |
@@ -295,29 +317,6 @@ jobs:
         name: result_files
         path: tmp/result_files
         retention-days: 1
-
-    - name: Prepare Cert Coverage Info
-      if: github.event_name == 'schedule'
-      run: |
-       mkdir -p tmp/cov_files
-       echo "${{ env.COVERAGE_LINE }}" >> tmp/cov_files/${{ env.SOURCE_PATH_LINEAR }}.txt
-
-    - name: Upload Cert Coverage Artifact
-      uses: actions/upload-artifact@v3
-      if: github.event_name == 'schedule'
-      with:
-        name: certtest_cov
-        path: tmp/cov_files
-        retention-days: 1
-
-    - name: Component Coverage Discord Notification
-      if: github.event_name == 'schedule'
-      env:
-        DISCORD_WEBHOOK: ${{ secrets.DISCORD_MONITORING_WEBHOOK_URL }}
-      uses: Ilshidur/action-discord@0c4b27844ba47cb1c7bee539c8eead5284ce9fa9
-      continue-on-error: true
-      with:
-        args: 'Cert Test Coverage for {{ SOURCE_PATH }} is {{ COVERAGE_LINE }}'
 
     # Upload logs for test analytics to consume
     - name: Upload test results
@@ -458,48 +457,3 @@ jobs:
           number: ${{ env.PR_NUMBER }}
           GITHUB_TOKEN: ${{ secrets.DAPR_BOT_TOKEN }}
           path: message.txt
-
-      - name: Download Cert Coverage Artifact
-        uses: actions/download-artifact@v3
-        continue-on-error: true
-        if: success() && github.event_name == 'schedule'
-        id: download
-        with:
-          name: certtest_cov
-          path: tmp/cov_files
-
-      - name: Calculate total coverage
-        if: success() && github.event_name == 'schedule'
-        run: |
-          threshold=60.0
-          echo "threshold=$threshold" >> $GITHUB_ENV
-          aboveThreshold=0
-          totalFiles=0
-          ls "${{steps.download.outputs.download-path}}" | while read f; do
-          while read LINE;
-              do
-              ratio=$(echo $LINE | cut -d "(" -f2 | cut -d ")" -f1)
-              prcnt=$(echo $LINE | cut -d "(" -f1 | cut -d ")" -f1)
-              tempPrcnt=$(echo $prcnt | cut -d'%' -f1)
-              if [ $tempPrcnt \> $threshold ]; then aboveThreshold=$(($aboveThreshold+1)); fi
-              totalFiles=$(($totalFiles+1))
-              tempNumerator=$(echo $ratio | cut -d'/' -f1)
-              tempDenominator=$(echo $ratio | cut -d'/' -f2)
-              export numerator=$(($numerator+$tempNumerator))
-              export denominator=$(($denominator+$tempDenominator))
-              totalPer=$(awk "BEGIN { print (($numerator / $denominator) * 100) }")
-              echo "totalPer=$totalPer" >> $GITHUB_ENV
-              echo "aboveThreshold=$aboveThreshold" >> $GITHUB_ENV
-              echo "totalFiles=$totalFiles" >> $GITHUB_ENV
-            done < "${{steps.download.outputs.download-path}}/$f"
-          done
-        continue-on-error: true
-
-      - name: Final Coverage Discord Notification
-        if: success() && github.event_name == 'schedule'
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_MONITORING_WEBHOOK_URL }}
-        uses: Ilshidur/action-discord@0c4b27844ba47cb1c7bee539c8eead5284ce9fa9
-        continue-on-error: true
-        with:
-          args: 'Total Coverage for Certification Tests is {{ totalPer }}%. {{ aboveThreshold }} out of {{ totalFiles }} components have certification tests with code coverage > {{ threshold }}%'

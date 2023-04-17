@@ -206,6 +206,6 @@ func (s *Store) Features() []secretstores.Feature {
 func (s *Store) GetComponentMetadata() map[string]string {
 	metadataStruct := GcpSecretManagerMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return metadataInfo
 }

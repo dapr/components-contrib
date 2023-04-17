@@ -91,3 +91,9 @@ func (out *DubboOutputBinding) Invoke(ctx context.Context, req *bindings.InvokeR
 func (out *DubboOutputBinding) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{bindings.GetOperation}
 }
+
+// GetComponentMetadata returns the metadata of the component.
+func (out *DubboOutputBinding) GetComponentMetadata() map[string]string {
+	metadataInfo := map[string]string{}
+	return metadataInfo
+}

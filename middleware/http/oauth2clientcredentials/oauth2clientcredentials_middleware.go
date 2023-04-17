@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"time"
 
@@ -34,13 +35,13 @@ import (
 
 // Metadata is the oAuth clientcredentials middleware config.
 type oAuth2ClientCredentialsMiddlewareMetadata struct {
-	ClientID            string `json:"clientID"`
-	ClientSecret        string `json:"clientSecret"`
-	Scopes              string `json:"scopes"`
-	TokenURL            string `json:"tokenURL"`
-	HeaderName          string `json:"headerName"`
-	EndpointParamsQuery string `json:"endpointParamsQuery,omitempty"`
-	AuthStyle           int    `json:"authStyle"`
+	ClientID            string `json:"clientID" mapstructure:"clientID"`
+	ClientSecret        string `json:"clientSecret" mapstructure:"clientSecret"`
+	Scopes              string `json:"scopes" mapstructure:"scopes"`
+	TokenURL            string `json:"tokenURL" mapstructure:"tokenURL"`
+	HeaderName          string `json:"headerName" mapstructure:"headerName"`
+	EndpointParamsQuery string `json:"endpointParamsQuery,omitempty" mapstructure:"endpointParamsQuery"`
+	AuthStyle           int    `json:"authStyle" mapstructure:"authStyle"`
 }
 
 // TokenProviderInterface provides a common interface to Mock the Token retrieval in unit tests.
@@ -175,4 +176,11 @@ func (m *Middleware) GetToken(ctx context.Context, conf *clientcredentials.Confi
 	tokenSource := conf.TokenSource(ctx)
 
 	return tokenSource.Token()
+}
+
+func (m *Middleware) GetComponentMetadata() map[string]string {
+	metadataStruct := oAuth2ClientCredentialsMiddlewareMetadata{}
+	metadataInfo := map[string]string{}
+	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
+	return metadataInfo
 }

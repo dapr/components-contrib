@@ -1,21 +1,21 @@
 # yaml-language-server: $schema=../../../component-metadata-schema.json
 schemaVersion: v1
-type: state
+type: bindings
 name: azure.cosmosdb
 version: v1
 status: stable
 title: "Azure Cosmos DB (SQL API)"
 urls:
   - title: Reference
-    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-azure-cosmosdb/
-capabilities:
-  # If actorStateStore is present, the metadata key actorStateStore can be used
-  - actorStateStore
-  - crud
-  - transactional
-  - etag
-  - ttl
-  - query
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/cosmosdb/
+binding:
+  output: true
+  operations:
+    - name: create
+      description: "Create an item."
+capabilities: []
+builtinAuthenticationProfiles:
+  - name: "azuread"
 authenticationProfiles:
   - title: "Master key"
     description: |
@@ -27,8 +27,6 @@ authenticationProfiles:
         description: |
           The key to authenticate to the Cosmos DB account.
         example: '"my-secret-key"'
-builtinAuthenticationProfiles:
-  - name: "azuread"
 metadata:
   - name: url
     required: true
@@ -37,21 +35,23 @@ metadata:
     example: '"https://******.documents.azure.com:443/"'
     type: string
   - name: database
+    type: string
     required: true
     description: |
       The name of the database.
-    example: '"db"'
-    type: string
+    example: '"OrdersDB"'
   - name: collection
+    type: string
     required: true
     description: |
       The name of the collection (container).
-    example: '"collection"'
+    example: '"Orders"'
+  - name: partitionKey
     type: string
-  - name: contenttype
-    required: false
+    required: true
     description: |
-      The default content type of the data.
-    example: "application/json"
-    default: "application/json"
-    type: string
+      The name of the key to extract from the payload (document to be created) that is used as the
+      partition key. This name must match the partition key specified upon creation of the
+      Cosmos DB container.
+    example: '"OrderId"'
+

@@ -246,8 +246,8 @@ func TestMetadataStructToStringMap(t *testing.T) {
 			MyRegularDuration         time.Duration
 			SomethingWithCustomName   string `mapstructure:"something_with_custom_name"`
 			PubSubOnlyProperty        string `mapstructure:"pubsub_only_property" only:"pubsub"`
-			BindingOnlyProperty       string `mapstructure:"binding_only_property" only:"binding"`
-			PubSubAndBindingProperty  string `mapstructure:"pubsub_and_binding_property" only:"pubsub,binding"`
+			BindingOnlyProperty       string `mapstructure:"binding_only_property" only:"bindings"`
+			PubSubAndBindingProperty  string `mapstructure:"pubsub_and_binding_property" only:"pubsub,bindings"`
 			MyDurationArray           []time.Duration
 			NotExportedByMapStructure string `mapstructure:"-"`
 			notExported               string //nolint:structcheck,unused

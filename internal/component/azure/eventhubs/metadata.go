@@ -40,9 +40,9 @@ type AzureEventHubsMetadata struct {
 	ResourceGroupName       string `json:"resourceGroupName" mapstructure:"resourceGroupName"`
 
 	// Binding only
-	EventHub      string `json:"eventHub" mapstructure:"eventHub" only:"binding"`
-	ConsumerGroup string `json:"consumerGroup" mapstructure:"consumerGroup" only:"binding"` // Alias for ConsumerID
-	PartitionID   string `json:"partitionID" mapstructure:"partitionID" only:"binding"`     // Deprecated
+	EventHub      string `json:"eventHub" mapstructure:"eventHub" only:"bindings"`
+	ConsumerGroup string `json:"consumerGroup" mapstructure:"consumerGroup" only:"bindings"` // Alias for ConsumerID
+	PartitionID   string `json:"partitionID" mapstructure:"partitionID" only:"bindings"`     // Deprecated
 
 	// Internal properties
 	namespaceName string

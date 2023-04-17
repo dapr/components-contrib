@@ -171,6 +171,10 @@ const components = {
         conformanceSetup: 'docker-compose.sh redis7 redis',
         sourcePkg: ['bindings/redis', 'internal/component/redis'],
     },
+    'configuration.postgres': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh postgresql',
+    },
     'configuration.redis.v6': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redisjson redis',

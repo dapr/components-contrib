@@ -36,5 +36,5 @@ metadata:
     type: string
     required: true
     description: |
-        The Cosmos DB url for Gremlin APIs
+        The Cosmos DB URL for Gremlin APIs
     example: '"wss://******.gremlin.cosmos.azure.com:443/"'

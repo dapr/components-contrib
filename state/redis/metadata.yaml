@@ -44,7 +44,7 @@ metadata:
     type: number
   - name: maxRetryBackoff
     required: false
-    description: Maximum backoff between each retry in milliseconds. Defaults to 2 seconds; \"-1\" disables backoff.
+    description: Maximum backoff between each retry in nanoseconds. Defaults to 2 seconds; \"-1\" disables backoff.
     example: "3000000000"
     default: "2000000000"
     type: number

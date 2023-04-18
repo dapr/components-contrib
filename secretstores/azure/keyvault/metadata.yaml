@@ -17,9 +17,3 @@ metadata:
       The Azure Key Vault name.
     example: '"mykeyvault"'
     type: string
-  - name: azureEnvironment
-    required: false
-    description: |
-      Name of the Azure Environment if using a different Azure cloud.
-    example: '"AZUREPUBLICCLOUD"'
-    type: string

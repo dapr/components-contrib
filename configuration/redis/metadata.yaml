@@ -12,19 +12,18 @@ capabilities: []
 metadata:
   - name: redisHost
     required: true
-    description: Connection-string for the redis host
+    description: Connection string for the Redis host
     example: "redis-master.default.svc.cluster.local:6379"
     type: string
   - name: redisPassword
     required: false
-    description: Password for Redis host. No Default. Can be secretKeyRef to use a secret reference
+    description: Password for the Redis host
     example:  "KeFg23!"
     type: string
   - name: enableTLS
     required: false
     description: | 
-      If the Redis instance supports TLS with public certificates, can be
-      configured to be enabled or disabled. Defaults to false.
+      If enabled, connects to Redis using TLS with public certificates.
     example: "false"
     default: "false"
     type: bool
@@ -38,23 +37,25 @@ metadata:
   - name: maxRetryBackoff
     required: false
     description: |
-      Maximum backoff between each retry in milliseconds. Defaults to 2 seconds; "-1" disables backoff.
+      Maximum backoff between each retry in nanoseconds. Defaults to 2 seconds; "-1" disables backoff.
     example: "3000000000"
     default: "2000000000"
     type: number
   - name: failover
     required: false
     description: |
-      Property to enabled failover configuration. Needs sentinelMasterName to
-      be set. The redisHost should be the sentinel host address. See Redis
-      Sentinel Documentation. Defaults to "false".
+      Enables failover configuration. It requires "sentinelMasterName" to
+      be set, and "redisHost" to be the sentinel host address.
     default: "false"
     example: "true"
     type: bool
+    url:
+      title: "Redis Sentinel documentation"
+      url: "https://redis.io/docs/manual/sentinel/"
   - name: sentinelMasterName
     required: false
     description: |
-      The sentinel master name. Requires "failover" to be set. See Redis
+      The Redis sentinel master name. Required when "failover" is enabled.
       Sentinel Documentation.
     example:  "127.0.0.1:6379"
     type: string
@@ -62,7 +63,7 @@ metadata:
     required: false
     description: |
       Database selected after connecting to redis. If "redisType" is "cluster"
-      this option is ignored. Defaults to "0".
+      this option is ignored.
     default: "0"
     example: "0"
     type: number

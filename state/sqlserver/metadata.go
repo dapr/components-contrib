@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 	"unicode"
 
@@ -156,8 +155,6 @@ func (m *sqlServerMetadata) GetConnector(setDatabase bool) (*mssql.Connector, bo
 		config.Database = m.DatabaseName
 	}
 
-	fmt.Printf("config: %#v\n", config)
-
 	// We need to check if the configuration has a database because the migrator needs it
 	hasDatabase := config.Database != ""
 
@@ -168,17 +165,11 @@ func (m *sqlServerMetadata) GetConnector(setDatabase bool) (*mssql.Connector, bo
 			return nil, false, errToken
 		}
 
-		// Get the SPN, which is then used as scope for the token
-		spn := config.ServerSPN
-		if spn == "" {
-			spn = fmt.Sprintf("MSSQLSvc/%s:%d", config.Host, config.Port)
-		}
-		scope := strings.TrimRight(spn, "/") + "/.default"
-		fmt.Println(spn, scope)
-
 		conn, err := mssql.NewSecurityTokenConnector(config, func(ctx context.Context) (string, error) {
 			at, err := tokenCred.GetToken(ctx, policy.TokenRequestOptions{
-				Scopes: []string{scope},
+				Scopes: []string{
+					m.azureEnv.Cloud.Services[azure.ServiceAzureSQL].Audience,
+				},
 			})
 			if err != nil {
 				return "", err

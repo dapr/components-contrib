@@ -50,14 +50,24 @@ metadata:
     type: number
   - name: failover
     required: false
-    description: Property to enabled failover configuration. Needs sentinelMasterName to be set. The redisHost should be the sentinel host address. See Redis Sentinel Documentation. Defaults to \"false\".
+    description: |
+      Enables failover configuration. It requires "sentinelMasterName" to
+      be set, and "redisHost" to be the sentinel host address.
+    default: "false"
     example: "true"
     type: bool
+    url:
+      title: "Redis Sentinel documentation"
+      url: "https://redis.io/docs/manual/sentinel/"
   - name: sentinelMasterName
     required: false
-    description: The sentinel master name. See Redis Sentinel Documentation.
+    description: |
+      The Redis sentinel master name. Required when "failover" is enabled.
     example:  "127.0.0.1:6379"
     type: string
+    url:
+      title: "Redis Sentinel documentation"
+      url: "https://redis.io/docs/manual/sentinel/"
   - name: redeliverInterval
     required: false
     description: The interval between checking for pending messages to redelivery. Defaults to \"60s\". \"0\" disables redelivery.

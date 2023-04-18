@@ -22,7 +22,7 @@ metadata:
     example: "redis-master.default.svc.cluster.local:6379"
     type: string
   - name: redisPassword
-    required: true
+    required: false
     description: Password for Redis host. No Default. Can be secretKeyRef to use a secret reference
     example:  "KeFg23!"
     type: string
@@ -40,11 +40,13 @@ metadata:
     required: false
     description: Maximum number of retries before giving up. Defaults to \"3\".
     example: "5"
+    default: "3"
     type: number
   - name: maxRetryBackoff
     required: false
-    description: Maximum backoff between each retry. Defaults to 2 seconds; \"-1\" disables backoff.
+    description: Maximum backoff between each retry in nanoseconds. Defaults to 2 seconds; \"-1\" disables backoff.
     example: "3000000000"
+    default: "2000000000"
     type: number
   - name: failover
     required: false
@@ -67,10 +69,15 @@ metadata:
     example: "30s"
     type: duration
   - name: redisType
-    required: false
-    description: The type of redis. There are two valid values, one is \"node\" for single node mode, the other is \"cluster\" for redis cluster mode. Defaults to \"node\".
-    example: "cluster"
     type: string
+    required: false
+    allowedValues:
+      - "node"
+      - "cluster"
+    default: "node"
+    description: |
+      Redis service type. Set to "node" for single-node mode, or "cluster" for Redis Cluster.
+    example: "cluster"
   - name: redisDB
     required: false
     description: Database selected after connecting to redis. If "redisType" is "cluster" this option is ignored. Defaults to "0".

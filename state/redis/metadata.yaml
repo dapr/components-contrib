@@ -76,9 +76,7 @@ metadata:
       - "cluster"
     default: "node"
     description: |
-      The type of redis. There are two valid values, one is "node" for single node mode, the other is
-      "cluster" for redis cluster mode.
-      Defaults to "node".
+      Redis service type. Set to "node" for single-node mode, or "cluster" for Redis Cluster.
     example: "cluster"
   - name: redisDB
     required: false

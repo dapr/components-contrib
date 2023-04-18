@@ -17,5 +17,3 @@ spec:
     value: 120
   - name: schema
     value: proto
-  - name: useAzureAD
-    value: true

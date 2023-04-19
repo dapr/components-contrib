@@ -499,6 +499,8 @@ func TestHandleRegoResult(t *testing.T) {
 					assert.Equal(t, value, r.Header.Get(key))
 				}
 			}
+
+			w.Result().Body.Close() // Close the response body
 		})
 	}
 }

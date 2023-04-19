@@ -429,6 +429,7 @@ func TestStatus_UnmarshalJSON(t *testing.T) {
 		})
 	}
 }
+
 func TestHandleRegoResult(t *testing.T) {
 	m := &Middleware{}
 	meta := &middlewareMetadata{

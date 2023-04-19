@@ -37,8 +37,8 @@ metadata:
   - name: redisUsername
     required: false
     description: |
-      Username for Redis host. Defaults to empty. Make sure your redis server
-      version is 6 or above, and have created acl rule correctly.
+      Username for Redis host. Defaults to empty. Make sure your Redis server
+      version is 6 or above, and have created ACL rule correctly.
     example:  "default"
     type: string
   - name: enableTLS

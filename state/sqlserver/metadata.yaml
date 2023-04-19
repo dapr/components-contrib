@@ -17,14 +17,14 @@ capabilities:
 authenticationProfiles:
   - title: "Connection string"
     description: |
-      Authenticate using a connection string.
+      Authenticates using a connection string.
     metadata:
       - name: connectionString
         required: true
         sensitive: true
         description: |
           The connection string used to connect.
-          If the connection string contains the database it must already exist. Otherwise, if the database is omitted, a default database named "Dapr" is created.
+          If the connection string contains the database, it must already exist. Otherwise, if the database is omitted, a default database named "Dapr" is created.
         example: |
           "Server=myServerName\myInstanceName;Database=myDataBase;User Id=myUsername;Password=myPassword;"
 builtinAuthenticationProfiles:
@@ -41,7 +41,7 @@ builtinAuthenticationProfiles:
         sensitive: true
         description: |
           The connection string or URL of the Azure SQL database, without credentials.
-          If the connection string contains the database it must already exist. Otherwise, if the database is omitted, a default database named "Dapr" is created.
+          If the connection string contains the database, it must already exist. Otherwise, if the database is omitted, a default database named "Dapr" is created.
         example: |
           "sqlserver://myServerName.database.windows.net:1433?database=myDataBase"
 metadata:

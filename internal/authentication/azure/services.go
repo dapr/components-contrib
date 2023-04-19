@@ -28,7 +28,7 @@ func init() {
 		Audience: "https://database.chinacloudapi.cn",
 	}
 	cloud.AzureGovernment.Services[ServiceAzureSQL] = cloud.ServiceConfiguration{
-		Audience: "https://	database.usgovcloudapi.net",
+		Audience: "https://database.usgovcloudapi.net",
 	}
 	cloud.AzurePublic.Services[ServiceAzureSQL] = cloud.ServiceConfiguration{
 		Audience: "https://database.windows.net",

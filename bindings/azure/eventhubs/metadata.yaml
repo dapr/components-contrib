@@ -24,7 +24,7 @@ authenticationProfiles:
         sensitive: true
         description: |
           Connection string for the Event Hub or the Event Hub namespace.
-        example: '""Endpoint=sb://{EventHubNamespace}.servicebus.windows.net/;SharedAccessKeyName={PolicyName};SharedAccessKey={Key};EntityPath={EventHub}""'
+        example: '"Endpoint=sb://{EventHubNamespace}.servicebus.windows.net/;SharedAccessKeyName={PolicyName};SharedAccessKey={Key};EntityPath={EventHub}"'
       - name: eventHub
         type: string
         description: |
@@ -114,7 +114,6 @@ metadata:
       Alias to consumerId.
     example: '"group1"'
     deprecated: true
-
   - name: storageAccountKey
     type: string
     required: false
@@ -136,7 +135,6 @@ metadata:
     description: |
       Connection string for the checkpoint store, alternative to specifying
       storageAccountKey.
-
       Property "storageAccountKey" is ignored when "storageConnectionString" is present
   - name: storageAccountName
     type: string

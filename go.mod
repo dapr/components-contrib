@@ -52,7 +52,6 @@ require (
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/dancannon/gorethink v4.0.0+incompatible
 	github.com/dapr/kit v0.0.5-0.20230401092230-30d122f67bdc
-	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/didip/tollbooth/v7 v7.0.1
 	github.com/eclipse/paho.mqtt.golang v1.4.2
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
@@ -83,6 +82,7 @@ require (
 	github.com/lestrrat-go/jwx/v2 v2.0.9
 	github.com/machinebox/graphql v0.2.2
 	github.com/matoous/go-nanoid/v2 v2.0.0
+	github.com/microsoft/go-mssqldb v0.21.0
 	github.com/mitchellh/mapstructure v1.5.1-0.20220423185008-bf980b35cac4
 	github.com/mrz1836/postmark v1.4.0
 	github.com/nacos-group/nacos-sdk-go/v2 v2.1.3

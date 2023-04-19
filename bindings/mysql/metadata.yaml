@@ -21,11 +21,11 @@ binding:
 metadata:
   - name: url
     required: true
-    description: "Represent DB connection in Data Source Name (DNS) format. See here SSL details"
+    description: "Represent a DB connection in Data Source Name (DNS) format."
     example: "user:password@tcp(localhost:3306)/dbname"
     type: string
   - name: pemPath
-    required: true
+    required: false
     description: "Path to the PEM file. Used with SSL connection"
     example: "path/to/pem/file"
     type: string
@@ -41,12 +41,12 @@ metadata:
     type: number
   - name: connMaxLifetime
     required: false
-    description: "The max connection lifetime. Duration string"
+    description: "The max connection lifetime."
     example: "12s"
     type: duration
   - name: connMaxIdleTime
     required: false
-    description: "The max connection idel time. Duration string"
+    description: "The max connection idel time."
     example: "12s"
     type: duration
   - name: maxRetries

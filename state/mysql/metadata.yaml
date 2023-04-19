@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: mysql
+version: v1
+status: stable
+title: "MySQL"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-mysql/
+capabilities:
+  # If actorStateStore is present, the metadata key actorStateStore can be used
+  - actorStateStore
+  - crud
+  - transactional
+  - etag
+authenticationProfiles:
+  - title: "Connection string"
+    description: |
+      Authenticate using a connetion string.
+    metadata:
+      - name: connectionString
+        required: true
+        description: |
+          The connection string to connect to MySQL. Do not add the schema to the connection string.
+        example: '""<user>:<password>@tcp(<server>:3306)/?allowNativePasswords=true&tls=custom""'
+metadata:
+  - name: cleanupInterval
+    description: "Interval at which entries with TTL are cleaned up."
+    type: duration
+    default: "1h"
+    example: "20m"
+    # We do not expose TTL as a feature, but we have cleanupInterval :)
+  - name: metadataTableName
+    description: "Name of the table Dapr uses to store a few metadata properties"
+    type: string
+    default: "dapr_metadata"
+  - name: pemPath
+    description: |
+      Full path to the PEM file to use for enforced SSL Connection.
+    type: string
+    example: '"/path/to/file.pem" '
+    # Docs mention "pemContents" but there is no mention of this metadata in the code
+    # in this whole repository
+  - name: schemaName
+    description: "The schema name to use. Will be created if schema does not exist."
+    type: string
+    default: "dapr_state_store"
+    example: '"custom_schema"'
+  - name: tableName
+    description: "The table name to use. Will be created if table does not exist."
+    type: string
+    default: "state"
+    example: '"table_name"'
+  - name: timeoutInSeconds
+    description: "Timeout for all database operations (in seconds)."
+    type: number
+    default: "20"
+    example: "30"

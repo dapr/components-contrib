@@ -429,3 +429,80 @@ func TestStatus_UnmarshalJSON(t *testing.T) {
 		})
 	}
 }
+
+func TestHandleRegoResult(t *testing.T) {
+	m := &Middleware{}
+	meta := &middlewareMetadata{
+		DefaultStatus: http.StatusForbidden,
+	}
+
+	tests := []struct {
+		name           string
+		result         any
+		expectedStatus int
+		expectedAllow  bool
+	}{
+		{
+			name:           "bool_result_allow",
+			result:         true,
+			expectedStatus: 0,
+			expectedAllow:  true,
+		},
+		{
+			name:           "bool_result_deny",
+			result:         false,
+			expectedStatus: http.StatusForbidden,
+			expectedAllow:  false,
+		},
+		{
+			name: "rego_result_allow",
+			result: map[string]any{
+				"allow":              true,
+				"additional_headers": map[string]string{"X-Test-Header": "test-value"},
+			},
+			expectedStatus: http.StatusOK,
+			expectedAllow:  true,
+		},
+		{
+			name: "rego_result_deny",
+			result: map[string]any{
+				"allow":              false,
+				"status_code":        301,
+				"additional_headers": map[string]string{"location": "test-value"},
+			},
+			expectedStatus: 301,
+			expectedAllow:  false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+
+			allow := m.handleRegoResult(w, req, meta, tc.result)
+
+			assert.Equal(t, tc.expectedAllow, allow)
+			resp := w.Result()
+			defer resp.Body.Close()
+
+			if tc.expectedStatus != 0 {
+				assert.Equal(t, tc.expectedStatus, resp.StatusCode)
+			}
+
+			switch result := tc.result.(type) {
+			case map[string]any:
+				if headers, ok := result["additional_headers"]; ok && tc.expectedAllow {
+					for key, value := range headers.(map[string]string) {
+						assert.Equal(t, value, req.Header.Get(key))
+					}
+				}
+				if headers, ok := result["additional_headers"]; ok && !tc.expectedAllow {
+					for key, value := range headers.(map[string]string) {
+						assert.Equal(t, value, resp.Header.Get(key))
+					}
+				}
+			}
+		})
+	}
+}

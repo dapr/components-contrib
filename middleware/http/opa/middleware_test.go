@@ -429,3 +429,75 @@ func TestStatus_UnmarshalJSON(t *testing.T) {
 		})
 	}
 }
+func TestHandleRegoResult(t *testing.T) {
+	m := &Middleware{}
+	meta := &middlewareMetadata{
+		DefaultStatus: http.StatusForbidden,
+	}
+
+	tests := []struct {
+		name           string
+		result         any
+		expectedStatus int
+		expectedAllow  bool
+	}{
+		{
+			name:           "bool_result_allow",
+			result:         true,
+			expectedStatus: 0,
+			expectedAllow:  true,
+		},
+		{
+			name:           "bool_result_deny",
+			result:         false,
+			expectedStatus: http.StatusForbidden,
+			expectedAllow:  false,
+		},
+		{
+			name:           "invalid_result_type",
+			result:         42,
+			expectedStatus: http.StatusInternalServerError,
+			expectedAllow:  false,
+		},
+		{
+			name: "rego_result_allow",
+			result: map[string]any{
+				"allow":             true,
+				"statusCode":        int(meta.DefaultStatus),
+				"additionalHeaders": map[string]string{"X-Test-Header": "test-value"},
+			},
+			expectedStatus: 0,
+			expectedAllow:  true,
+		},
+		{
+			name: "rego_result_deny",
+			result: map[string]any{
+				"allow":             false,
+				"statusCode":        http.StatusUnauthorized,
+				"additionalHeaders": map[string]string{"X-Test-Header": "test-value"},
+			},
+			expectedStatus: http.StatusUnauthorized,
+			expectedAllow:  false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodGet, "/", nil)
+
+			allow := m.handleRegoResult(w, r, meta, tc.result)
+
+			assert.Equal(t, tc.expectedAllow, allow)
+			if tc.expectedStatus != 0 {
+				assert.Equal(t, tc.expectedStatus, w.Result().StatusCode)
+			}
+
+			if headers, ok := tc.result.(map[string]any)["additionalHeaders"]; ok && tc.expectedAllow {
+				for key, value := range headers.(map[string]string) {
+					assert.Equal(t, value, r.Header.Get(key))
+				}
+			}
+		})
+	}
+}

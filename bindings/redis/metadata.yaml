@@ -24,13 +24,13 @@ binding:
 metadata:
   - name: redisHost
     required: true
-    description: Connection-string for the redis host
+    description: Connection-string for the Redis host
     example: "redis-master.default.svc.cluster.local:6379"
     type: string
   - name: redisPassword
     required: false
     description: |
-      Password for Redis host. No Default. Can be secretKeyRef to use a
+      Password for Redis host. Use secretKeyRef for
       secret reference
     example:  "KeFg23!"
     type: string
@@ -87,7 +87,7 @@ metadata:
   - name: redisDB
     required: false
     description: |
-      Database selected after connecting to redis. If "redisType" is "cluster"
+      Database selected after connecting to Redis. If "redisType" is "cluster"
       this option is ignored.
     default: "0"
     example: "0"
@@ -121,7 +121,7 @@ metadata:
   - name: redisMinRetryInterval
     required: false
     description: |
-      Minimum backoff for redis commands between each retry. "-1" disables backoff.
+      Minimum backoff for Redis commands between each retry. "-1" disables backoff.
     default: "8ms"
     example: "-1"
     type: duration
@@ -134,7 +134,7 @@ metadata:
   - name: readTimeout
     required: false
     description: |
-      Timeout for socket reads. If reached, redis commands will fail with a
+      Timeout for socket reads. If reached, Redis commands will fail with a
       timeout instead of blocking. Use "-1" for no timeout.
     default: "3s"
     example: "10s"
@@ -142,8 +142,8 @@ metadata:
   - name: writeTimeout
     required: false
     description: |
-      Timeout for socket writes. If reached, redis commands will fail with
-      a timeout instead of blocking. Defaults is "readTimeout".
+      Timeout for socket writes. If reached, Redis commands will fail with
+      a timeout instead of blocking. Defaults to "readTimeout".
     example: "3s"
     type: duration
   - name: poolSize

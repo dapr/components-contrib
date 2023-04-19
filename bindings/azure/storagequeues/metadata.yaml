@@ -44,6 +44,12 @@ metadata:
     example: |
       "http://127.0.0.1:10001"
       "https://accountName.queue.example.com"
+  - name: "pollingInterval"
+    type: duration
+    description: |
+      Set the interval to poll Azure Storage Queues for new messages
+    example: '"30s"'
+    default: '"10s"'
   - name: "ttlInSeconds"
     type: number
     description: |
@@ -74,10 +80,9 @@ metadata:
       output: true
       input: false
   - name: "visibilityTimeout"
-    type: number
+    type: duration
     description: |
       Allows setting a custom queue visibility timeout to avoid immediate retrying of recently-failed messages.
-      Value is formatted as a Go duration, with a 30s default.
     example: '1m'
     default: '30s'
     binding:

@@ -21,6 +21,14 @@ import (
 func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile) ([]AuthenticationProfile, error) {
 	switch bi.Name {
 	case "azuread":
+		azureEnvironmentMetadata := Metadata{
+			Name:          "azureEnvironment",
+			Required:      false,
+			Description:   "Optional name for the Azure environment if using a different Azure cloud",
+			Example:       `"AzurePublicCloud"`,
+			Default:       "AzurePublicCloud",
+			AllowedValues: []string{"AzurePublicCloud", "AzureChinaCloud", "AzureUSGovernmentCloud"},
+		}
 		profiles := []AuthenticationProfile{
 			{
 				Title:       "Azure AD: Managed identity",
@@ -32,6 +40,7 @@ func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile) ([]Authe
 						Example:     `"c7dd251f-811f-4ba2-a905-acd4d3f8f08b"`,
 						Required:    false,
 					},
+					azureEnvironmentMetadata,
 				),
 			},
 			{
@@ -57,6 +66,7 @@ func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile) ([]Authe
 						Required:    true,
 						Sensitive:   true,
 					},
+					azureEnvironmentMetadata,
 				),
 			},
 			{
@@ -96,6 +106,7 @@ func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile) ([]Authe
 						Required:    false,
 						Sensitive:   true,
 					},
+					azureEnvironmentMetadata,
 				),
 			},
 		}

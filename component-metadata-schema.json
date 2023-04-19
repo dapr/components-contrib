@@ -143,6 +143,10 @@
         "url": {
           "$ref": "#/$defs/URL",
           "description": "URL with additional information, such as docs."
+        },
+        "deprecated": {
+          "type": "boolean",
+          "description": "If set, specifies that the property is deprecated and should not be used in new configurations."
         }
       },
       "additionalProperties": false,

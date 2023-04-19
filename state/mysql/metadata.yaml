@@ -23,7 +23,7 @@ authenticationProfiles:
         required: true
         description: |
           The connection string to connect to MySQL. Do not add the schema to the connection string.
-        example: '""<user>:<password>@tcp(<server>:3306)/?allowNativePasswords=true&tls=custom""'
+        example: '"<user>:<password>@tcp(<server>:3306)/?allowNativePasswords=true&tls=custom"'
 metadata:
   - name: cleanupInterval
     description: "Interval at which entries with TTL are cleaned up."

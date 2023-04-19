@@ -45,46 +45,52 @@ builtinAuthenticationProfiles:
         description: |
           The name of the Event Hubs hub (“topic”).
         example: '"mytopic"'
+      # Entity management is only possible when using Azure AD
+      - name: enableEntityManagement
+        type: bool
+        required: false
+        default: "false"
+        description: |
+          Allow management of the Event Hub namespace and storage account.
+      - name: resourceGroupName
+        type: string
+        required: false
+        description: |
+          Name of the resource group the Event Hub namespace is part of.
+          Required when entity management is enabled.
+        example: '"test-rg"'
+      - name: subscriptionId
+        type: string
+        required: false
+        bindings:
+          input: true
+          output: false
+        description: |
+          Azure subscription ID value. Required when entity management is enabled
+        example: '"00112233-4455-6677-8899-aabbccddeeff"'
+      - name: messageRetentionInDays
+        type: number
+        required: false
+        default: "1"
+        example: "90"
+        description: |
+          Number of days to retain messages for in the newly created Event
+          Hub namespace. Used only when entity management is enabled.
+      - name: partitionCount
+        type: number
+        required: false
+        default: "1"
+        example: "3"
+        description: |
+          Number of partitions for the new Event Hub namespace. Used only when
+          entity management is enabled.
 metadata:
   # Input and output metadata
-
-  # Entity management is only possible when using Azure AD
-  - name: enableEntityManagement
-    type: bool
-    required: false
-    default: "false"
-    description: |
-      Allow management of the Event Hub namespace and storage account.
-  - name: messageRetentionInDays
-    type: number
-    required: false
-    default: "1"
-    example: "90"
-    description: |
-      Number of days to retain messages for in the newly created Event
-      Hub namespace. Used only when entity management is enabled.
-  - name: partitionCount
-    type: number
-    required: false
-    default: "1"
-    example: "3"
-    description: |
-      Number of partitions for the new Event Hub namespace. Used only when
-      entity management is enabled.
   - name: partitionId
     type: string
     required: false
     description: |
       DEPRECATED.
-  - name: resourceGroupName
-    type: string
-    required: false
-    description: |
-      Name of the resource group the Event Hub namespace is part of.
-      Required when entity management is enabled.
-    example: '"test-rg"'
-
-
   # Input-only metadata
   # consumerGroup is an alias for consumerId, if both are defined consumerId takes precedence.
   - name: consumerId
@@ -147,12 +153,3 @@ metadata:
     description: |
       Storage container name.
     example: '"myeventhubstoragecontainer"'
-  - name: subscriptionId
-    type: string
-    required: false
-    bindings:
-      input: true
-      output: false
-    description: |
-      Azure subscription ID value. Required when entity management is enabled
-    example: '"00112233-4455-6677-8899-aabbccddeeff"'

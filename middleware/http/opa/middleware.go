@@ -214,14 +214,18 @@ func (m *Middleware) handleRegoResult(w http.ResponseWriter, r *http.Request, me
 		return false
 	}
 
-	// Set the headers on the ongoing request (overriding as necessary)
-	for key, value := range regoResult.AdditionalHeaders {
-		r.Header.Set(key, value)
-	}
-
-	// If the result isn't allowed, set the response status
+	// If the result isn't allowed, set the response status and
+	// apply the additional headers to the response.
+	// Otherwise, set the headers on the ongoing request (overriding as necessary).
 	if !regoResult.Allow {
+		for key, value := range regoResult.AdditionalHeaders {
+			w.Header().Set(key, value)
+		}
 		httputils.RespondWithError(w, regoResult.StatusCode)
+	} else {
+		for key, value := range regoResult.AdditionalHeaders {
+			r.Header.Set(key, value)
+		}
 	}
 
 	return regoResult.Allow

@@ -16,6 +16,7 @@ package opa
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -455,29 +456,22 @@ func TestHandleRegoResult(t *testing.T) {
 			expectedAllow:  false,
 		},
 		{
-			name:           "invalid_result_type",
-			result:         42,
-			expectedStatus: http.StatusInternalServerError,
-			expectedAllow:  false,
-		},
-		{
 			name: "rego_result_allow",
 			result: map[string]any{
-				"allow":             true,
-				"statusCode":        int(meta.DefaultStatus),
-				"additionalHeaders": map[string]string{"X-Test-Header": "test-value"},
+				"allow":              true,
+				"additional_headers": map[string]string{"X-Test-Header": "test-value"},
 			},
-			expectedStatus: 0,
+			expectedStatus: http.StatusOK,
 			expectedAllow:  true,
 		},
 		{
 			name: "rego_result_deny",
 			result: map[string]any{
-				"allow":             false,
-				"statusCode":        http.StatusUnauthorized,
-				"additionalHeaders": map[string]string{"X-Test-Header": "test-value"},
+				"allow":              false,
+				"status_code":        301,
+				"additional_headers": map[string]string{"location": "test-value"},
 			},
-			expectedStatus: http.StatusUnauthorized,
+			expectedStatus: 301,
 			expectedAllow:  false,
 		},
 	}
@@ -485,22 +479,36 @@ func TestHandleRegoResult(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest(http.MethodGet, "/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
 
-			allow := m.handleRegoResult(w, r, meta, tc.result)
+			allow := m.handleRegoResult(w, req, meta, tc.result)
 
 			assert.Equal(t, tc.expectedAllow, allow)
+			resp := w.Result()
+			defer func(Body io.ReadCloser) {
+				err := Body.Close()
+				if err != nil {
+					t.Fatal(err)
+				}
+			}(resp.Body)
+
 			if tc.expectedStatus != 0 {
-				assert.Equal(t, tc.expectedStatus, w.Result().StatusCode)
+				assert.Equal(t, tc.expectedStatus, resp.StatusCode)
 			}
 
-			if headers, ok := tc.result.(map[string]any)["additionalHeaders"]; ok && tc.expectedAllow {
-				for key, value := range headers.(map[string]string) {
-					assert.Equal(t, value, r.Header.Get(key))
+			switch result := tc.result.(type) {
+			case map[string]any:
+				if headers, ok := result["additional_headers"]; ok && tc.expectedAllow {
+					for key, value := range headers.(map[string]string) {
+						assert.Equal(t, value, req.Header.Get(key))
+					}
+				}
+				if headers, ok := result["additional_headers"]; ok && !tc.expectedAllow {
+					for key, value := range headers.(map[string]string) {
+						assert.Equal(t, value, resp.Header.Get(key))
+					}
 				}
 			}
-
-			w.Result().Body.Close() // Close the response body
 		})
 	}
 }

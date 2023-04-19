@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -20,14 +20,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"time"
-	"unicode"
 
-	mssql "github.com/denisenkom/go-mssqldb"
+	mssql "github.com/microsoft/go-mssqldb"
 
 	internalsql "github.com/dapr/components-contrib/internal/component/sql"
-	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
@@ -65,27 +62,6 @@ const (
 	InvalidKeyType KeyType = "invalid"
 )
 
-const (
-	connectionStringKey  = "connectionString"
-	tableNameKey         = "tableName"
-	metadataTableNameKey = "metadataTableName"
-	schemaKey            = "schema"
-	keyTypeKey           = "keyType"
-	keyLengthKey         = "keyLength"
-	indexedPropertiesKey = "indexedProperties"
-	keyColumnName        = "Key"
-	rowVersionColumnName = "RowVersion"
-	databaseNameKey      = "databaseName"
-	cleanupIntervalKey   = "cleanupIntervalInSeconds"
-
-	defaultKeyLength       = 200
-	defaultSchema          = "dbo"
-	defaultDatabase        = "dapr"
-	defaultTable           = "state"
-	defaultMetaTable       = "dapr_metadata"
-	defaultCleanupInterval = time.Hour
-)
-
 // New creates a new instance of a SQL Server transaction store.
 func New(logger logger.Logger) state.Store {
 	s := &SQLServer{
@@ -108,17 +84,9 @@ type IndexedProperty struct {
 type SQLServer struct {
 	state.BulkStore
 
-	connectionString  string
-	databaseName      string
-	tableName         string
-	metaTableName     string
-	schema            string
-	keyType           KeyType
-	keyLength         int
-	indexedProperties []IndexedProperty
-	migratorFactory   func(*SQLServer) migrator
+	metadata sqlServerMetadata
 
-	cleanupInterval *time.Duration
+	migratorFactory func(*sqlServerMetadata) migrator
 
 	bulkDeleteCommand        string
 	itemRefTableTypeName     string
@@ -133,59 +101,15 @@ type SQLServer struct {
 	gc       internalsql.GarbageCollector
 }
 
-type sqlServerMetadata struct {
-	ConnectionString  string
-	DatabaseName      string
-	TableName         string
-	MetadataTableName string
-	Schema            string
-	KeyType           string
-	KeyLength         int
-	IndexedProperties string
-}
-
-func isLetterOrNumber(c rune) bool {
-	return unicode.IsNumber(c) || unicode.IsLetter(c)
-}
-
-func isValidSQLName(s string) bool {
-	for _, c := range s {
-		if !(isLetterOrNumber(c) || (c == '_')) {
-			return false
-		}
-	}
-
-	return true
-}
-
-func isValidIndexedPropertyName(s string) bool {
-	for _, c := range s {
-		if !(isLetterOrNumber(c) || (c == '_') || (c == '.') || (c == '[') || (c == ']')) {
-			return false
-		}
-	}
-
-	return true
-}
-
-func isValidIndexedPropertyType(s string) bool {
-	for _, c := range s {
-		if !(isLetterOrNumber(c) || (c == '(') || (c == ')')) {
-			return false
-		}
-	}
-
-	return true
-}
-
 // Init initializes the SQL server state store.
 func (s *SQLServer) Init(ctx context.Context, metadata state.Metadata) error {
-	err := s.parseMetadata(metadata.Properties)
+	s.metadata = newMetadata()
+	err := s.metadata.Parse(metadata.Properties)
 	if err != nil {
 		return err
 	}
 
-	migration := s.migratorFactory(s)
+	migration := s.migratorFactory(&s.metadata)
 	mr, err := migration.executeMigrations(ctx)
 	if err != nil {
 		return err
@@ -198,216 +122,45 @@ func (s *SQLServer) Init(ctx context.Context, metadata state.Metadata) error {
 	s.deleteWithETagCommand = mr.deleteWithETagCommand
 	s.deleteWithoutETagCommand = mr.deleteWithoutETagCommand
 
-	s.db, err = sql.Open("sqlserver", s.connectionString)
+	conn, _, err := s.metadata.GetConnector(true)
 	if err != nil {
 		return err
 	}
+	s.db = sql.OpenDB(conn)
 
-	if s.cleanupInterval != nil {
-		gc, err := internalsql.ScheduleGarbageCollector(internalsql.GCOptions{
-			Logger: s.logger,
-			UpdateLastCleanupQuery: fmt.Sprintf(`BEGIN TRANSACTION;
+	if s.metadata.CleanupInterval != nil {
+		err = s.startGC()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *SQLServer) startGC() error {
+	gc, err := internalsql.ScheduleGarbageCollector(internalsql.GCOptions{
+		Logger: s.logger,
+		UpdateLastCleanupQuery: fmt.Sprintf(`BEGIN TRANSACTION;
 BEGIN TRY
-  INSERT INTO [%[1]s].[%[2]s] ([Key], [Value]) VALUES ('last-cleanup', CONVERT(nvarchar(MAX), GETDATE(), 21));
+INSERT INTO [%[1]s].[%[2]s] ([Key], [Value]) VALUES ('last-cleanup', CONVERT(nvarchar(MAX), GETDATE(), 21));
 END TRY
 BEGIN CATCH
-  UPDATE [%[1]s].[%[2]s] SET [Value] = CONVERT(nvarchar(MAX), GETDATE(), 21) WHERE [Key] = 'last-cleanup' AND Datediff_big(MS, [Value], GETUTCDATE()) > @Interval
+UPDATE [%[1]s].[%[2]s] SET [Value] = CONVERT(nvarchar(MAX), GETDATE(), 21) WHERE [Key] = 'last-cleanup' AND Datediff_big(MS, [Value], GETUTCDATE()) > @Interval
 END CATCH
-COMMIT TRANSACTION;`, s.schema, s.metaTableName),
-			UpdateLastCleanupQueryParameterName: "Interval",
-			DeleteExpiredValuesQuery: fmt.Sprintf(
-				`DELETE FROM [%s].[%s] WHERE [ExpireDate] IS NOT NULL AND [ExpireDate] < GETDATE()`,
-				s.schema, s.tableName,
-			),
-			CleanupInterval: *s.cleanupInterval,
-			DBSql:           s.db,
-		})
-		if err != nil {
-			return err
-		}
-		s.gc = gc
-	}
-
-	return nil
-}
-
-func (s *SQLServer) parseMetadata(meta map[string]string) error {
-	m := sqlServerMetadata{
-		TableName:         defaultTable,
-		Schema:            defaultSchema,
-		DatabaseName:      defaultDatabase,
-		KeyLength:         defaultKeyLength,
-		MetadataTableName: defaultMetaTable,
-	}
-	err := metadata.DecodeMetadata(meta, &m)
+COMMIT TRANSACTION;`, s.metadata.Schema, s.metadata.MetadataTableName),
+		UpdateLastCleanupQueryParameterName: "Interval",
+		DeleteExpiredValuesQuery: fmt.Sprintf(
+			`DELETE FROM [%s].[%s] WHERE [ExpireDate] IS NOT NULL AND [ExpireDate] < GETDATE()`,
+			s.metadata.Schema, s.metadata.TableName,
+		),
+		CleanupInterval: *s.metadata.CleanupInterval,
+		DBSql:           s.db,
+	})
 	if err != nil {
 		return err
 	}
-	if m.ConnectionString == "" {
-		return fmt.Errorf("missing connection string")
-	}
-	s.connectionString = m.ConnectionString
-
-	if err := s.setTable(m.TableName); err != nil {
-		return err
-	}
-
-	if err := s.setMetadataTable(m.MetadataTableName); err != nil {
-		return err
-	}
-
-	if err := s.setDatabase(m.DatabaseName); err != nil {
-		return err
-	}
-
-	if err := s.setKeyType(m.KeyType, m.KeyLength); err != nil {
-		return err
-	}
-
-	if err := s.setSchema(m.Schema); err != nil {
-		return err
-	}
-
-	if err := s.setIndexedProperties(m.IndexedProperties); err != nil {
-		return err
-	}
-
-	// Cleanup interval
-	if v := meta[cleanupIntervalKey]; v != "" {
-		cleanupIntervalInSec, err := strconv.ParseInt(v, 10, 0)
-		if err != nil {
-			return fmt.Errorf("invalid value for '%s': %s", cleanupIntervalKey, v)
-		}
-
-		// Non-positive value from meta means disable auto cleanup.
-		if cleanupIntervalInSec > 0 {
-			s.cleanupInterval = ptr.Of(time.Duration(cleanupIntervalInSec) * time.Second)
-		} else {
-			s.cleanupInterval = nil
-		}
-	} else {
-		s.cleanupInterval = ptr.Of(defaultCleanupInterval)
-	}
-
-	return nil
-}
-
-// Returns validated index properties.
-func (s *SQLServer) setIndexedProperties(indexedPropertiesString string) error {
-	if indexedPropertiesString != "" {
-		var indexedProperties []IndexedProperty
-		err := json.Unmarshal([]byte(indexedPropertiesString), &indexedProperties)
-		if err != nil {
-			return err
-		}
-
-		err = s.validateIndexedProperties(indexedProperties)
-		if err != nil {
-			return err
-		}
-
-		s.indexedProperties = indexedProperties
-	}
-
-	return nil
-}
-
-// Validates that all the mandator index properties are supplied and that the
-// values are valid.
-func (s *SQLServer) validateIndexedProperties(indexedProperties []IndexedProperty) error {
-	for _, p := range indexedProperties {
-		if p.ColumnName == "" {
-			return errors.New("indexed property column cannot be empty")
-		}
-
-		if p.Property == "" {
-			return errors.New("indexed property name cannot be empty")
-		}
-
-		if p.Type == "" {
-			return errors.New("indexed property type cannot be empty")
-		}
-
-		if !isValidSQLName(p.ColumnName) {
-			return fmt.Errorf("invalid indexed property column name, accepted characters are (A-Z, a-z, 0-9, _)")
-		}
-
-		if !isValidIndexedPropertyName(p.Property) {
-			return fmt.Errorf("invalid indexed property name, accepted characters are (A-Z, a-z, 0-9, _, ., [, ])")
-		}
-
-		if !isValidIndexedPropertyType(p.Type) {
-			return fmt.Errorf("invalid indexed property type, accepted characters are (A-Z, a-z, 0-9, _, (, ))")
-		}
-	}
-
-	return nil
-}
-
-// Validates and returns the key type.
-func (s *SQLServer) setKeyType(keyType string, keyLength int) error {
-	if keyType != "" {
-		kt, err := KeyTypeFromString(keyType)
-		if err != nil {
-			return err
-		}
-
-		s.keyType = kt
-	} else {
-		s.keyType = StringKeyType
-	}
-
-	if s.keyType != StringKeyType {
-		return nil
-	}
-
-	if keyLength <= 0 {
-		return fmt.Errorf("invalid key length value of %d", keyLength)
-	} else {
-		s.keyLength = keyLength
-	}
-
-	return nil
-}
-
-// Returns the schema name if set or the default value otherwise.
-func (s *SQLServer) setSchema(schemaName string) error {
-	if !isValidSQLName(schemaName) {
-		return fmt.Errorf("invalid schema name, accepted characters are (A-Z, a-z, 0-9, _)")
-	}
-	s.schema = schemaName
-
-	return nil
-}
-
-// Returns the database name if set or the default value otherwise.
-func (s *SQLServer) setDatabase(databaseName string) error {
-	if !isValidSQLName(databaseName) {
-		return fmt.Errorf("invalid database name, accepted characters are (A-Z, a-z, 0-9, _)")
-	}
-
-	s.databaseName = databaseName
-
-	return nil
-}
-
-// Returns the table name if set or the default value otherwise.
-func (s *SQLServer) setTable(tableName string) error {
-	if !isValidSQLName(tableName) {
-		return fmt.Errorf("invalid table name, accepted characters are (A-Z, a-z, 0-9, _)")
-	}
-
-	s.tableName = tableName
-
-	return nil
-}
-
-func (s *SQLServer) setMetadataTable(tableName string) error {
-	if !isValidSQLName(tableName) {
-		return fmt.Errorf("invalid metadata table name, accepted characters are (A-Z, a-z, 0-9, _)")
-	}
-
-	s.metaTableName = tableName
+	s.gc = gc
 
 	return nil
 }
@@ -679,7 +432,7 @@ func (s *SQLServer) Close() error {
 // GetCleanupInterval returns the cleanupInterval property.
 // This is primarily used for tests.
 func (s *SQLServer) GetCleanupInterval() *time.Duration {
-	return s.cleanupInterval
+	return s.metadata.CleanupInterval
 }
 
 func (s *SQLServer) CleanupExpired() error {

@@ -485,12 +485,7 @@ func TestHandleRegoResult(t *testing.T) {
 
 			assert.Equal(t, tc.expectedAllow, allow)
 			resp := w.Result()
-			defer func(Body io.ReadCloser) {
-				err := Body.Close()
-				if err != nil {
-					t.Fatal(err)
-				}
-			}(resp.Body)
+			defer resp.Body.Close()
 
 			if tc.expectedStatus != 0 {
 				assert.Equal(t, tc.expectedStatus, resp.StatusCode)

@@ -1,0 +1,91 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: "v1"
+type: "bindings"
+name: "azure.storagequeues"
+version: "v1"
+status: "stable"
+title: "Azure Storage Queues"
+urls:
+  - title: "Reference"
+    url: "https://docs.dapr.io/reference/components-reference/supported-bindings/storagequeues/"
+binding:
+  output: true
+  input: true
+  operations:
+    - name: "create"
+      description: "Publish a new message in the queue."
+builtinAuthenticationProfiles:
+  - name: "azuread"
+authenticationProfiles:
+  - title: "Account Key"
+    description: |
+      Authenticate using a pre-shared "account key"
+    metadata:
+      - name: accountKey
+        required: true
+        sensitive: true
+        description: "The key to authenticate to the Storage Account."
+        example: '"my-secret-key"'
+metadata:
+  - name: "accountName"
+    required: true
+    description: |
+      The storage account name
+    example: '"mystorageaccount"'
+  - name: "queueName"
+    required: true
+    description: |
+      The name of the Azure Storage queue.
+    example: '"myqueue"'
+  - name: "queueEndpoint"
+    description: |
+      Optional custom endpoint URL.
+      This is useful when using the Azurite emulator or when using custom domains for Azure Storage (although this is not officially supported). The endpoint must be the full base URL, including the protocol (`http://` or `https://`), the IP or FQDN, and optional port.
+    example: |
+      "http://127.0.0.1:10001"
+      "https://accountName.queue.example.com"
+  - name: "pollingInterval"
+    type: duration
+    description: |
+      Set the interval to poll Azure Storage Queues for new messages
+    example: '"30s"'
+    default: '"10s"'
+  - name: "ttlInSeconds"
+    type: number
+    description: |
+      Set the default message Time To Live (TTL), in seconds.
+      If empty, messages expire after 10 minutes.
+      It's also possible to specify a per-message TTL by setting the `ttlInSeconds` property in the invocation request's metadata.
+    example: '30'
+    default: '600'
+    binding:
+      output: true
+      input: false
+  - name: "decodeBase64"
+    type: bool
+    description: |
+      Configuration to decode base64 file content before saving to Storage Queues (e.g. in case of saving a file with binary content).
+    example: 'true, false'
+    default: 'false'
+    binding:
+      output: true
+      input: false
+  - name: "encodeBase64"
+    type: bool
+    description: |
+      When enabled, the data payload is base64-encoded before being sent to Azure Storage Queues.
+    example: 'true, false'
+    default: 'false'
+    binding:
+      output: true
+      input: false
+  - name: "visibilityTimeout"
+    type: duration
+    description: |
+      Allows setting a custom queue visibility timeout to avoid immediate retrying of recently-failed messages.
+    example: '1m'
+    default: '30s'
+    binding:
+      output: false
+      input: true
+

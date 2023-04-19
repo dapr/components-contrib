@@ -173,6 +173,7 @@ const components = {
     },
     'configuration.postgres': {
         conformance: true,
+        certification: true,
         conformanceSetup: 'docker-compose.sh postgresql',
     },
     'configuration.redis.v6': {

@@ -128,21 +128,21 @@ func getTestStoreWithKeyType(t *testing.T, kt KeyType, indexedProperties string)
 		logger: logger.NewLogger("test"),
 	}
 	err := store.Init(context.Background(), metadata)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	return store
 }
 
 func assertUserExists(t *testing.T, store *SQLServer, key string) (user, string) {
 	getRes, err := store.Get(context.Background(), &state.GetRequest{Key: key})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, getRes)
 	assert.NotNil(t, getRes.Data, "No data was returned")
 	require.NotNil(t, getRes.ETag)
 
 	var loaded user
 	err = json.Unmarshal(getRes.Data, &loaded)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	return loaded, *getRes.ETag
 }
@@ -158,16 +158,16 @@ func assertLoadedUserIsEqual(t *testing.T, store *SQLServer, key string, expecte
 
 func assertUserDoesNotExist(t *testing.T, store *SQLServer, key string) {
 	_, err := store.Get(context.Background(), &state.GetRequest{Key: key})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func assertDBQuery(t *testing.T, store *SQLServer, query string, assertReader func(t *testing.T, rows *sql.Rows)) {
-	db, err := sql.Open("sqlserver", store.connectionString)
-	assert.Nil(t, err)
+	db, err := sql.Open("sqlserver", store.metadata.ConnectionString)
+	require.NoError(t, err)
 	defer db.Close()
 
 	rows, err := db.Query(query)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Nil(t, rows.Err())
 
 	defer rows.Close()
@@ -176,12 +176,12 @@ func assertDBQuery(t *testing.T, store *SQLServer, query string, assertReader fu
 
 /* #nosec. */
 func assertUserCountIsEqualTo(t *testing.T, store *SQLServer, expected int) {
-	tsql := fmt.Sprintf("SELECT count(*) FROM [%s].[%s]", store.schema, store.tableName)
+	tsql := fmt.Sprintf("SELECT count(*) FROM [%s].[%s]", store.metadata.Schema, store.metadata.TableName)
 	assertDBQuery(t, store, tsql, func(t *testing.T, rows *sql.Rows) {
 		assert.True(t, rows.Next())
 		var actual int
 		err := rows.Scan(&actual)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, expected, actual)
 	})
 }
@@ -229,14 +229,14 @@ func testSingleOperations(t *testing.T) {
 
 			// Save and read
 			err := store.Set(context.Background(), &state.SetRequest{Key: john.ID, Value: john})
-			assert.Nil(t, err)
+			require.NoError(t, err)
 			johnV1, etagFromInsert := assertLoadedUserIsEqual(t, store, john.ID, john)
 
 			// Update with ETAG
 			waterJohn := johnV1
 			waterJohn.FavoriteBeverage = "Water"
 			err = store.Set(context.Background(), &state.SetRequest{Key: waterJohn.ID, Value: waterJohn, ETag: &etagFromInsert})
-			assert.Nil(t, err)
+			require.NoError(t, err)
 
 			// Get updated
 			johnV2, _ := assertLoadedUserIsEqual(t, store, waterJohn.ID, waterJohn)
@@ -245,7 +245,7 @@ func testSingleOperations(t *testing.T) {
 			noEtagJohn := johnV2
 			noEtagJohn.FavoriteBeverage = "No Etag John"
 			err = store.Set(context.Background(), &state.SetRequest{Key: noEtagJohn.ID, Value: noEtagJohn})
-			assert.Nil(t, err)
+			require.NoError(t, err)
 
 			// 7. Get updated
 			johnV3, _ := assertLoadedUserIsEqual(t, store, noEtagJohn.ID, noEtagJohn)
@@ -264,7 +264,7 @@ func testSingleOperations(t *testing.T) {
 
 			// 10. Delete with valid ETAG
 			err = store.Delete(context.Background(), &state.DeleteRequest{Key: johnV2.ID, ETag: &etag})
-			assert.Nil(t, err)
+			require.NoError(t, err)
 
 			assertUserDoesNotExist(t, store, johnV2.ID)
 		})
@@ -292,10 +292,10 @@ func testIndexedProperties(t *testing.T) {
 		{Key: "4", Value: userWithPets{user{"4", "Maria", "Wine"}, 100}},
 	})
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	// Check the database for computed columns
-	assertDBQuery(t, store, fmt.Sprintf("SELECT count(*) from [%s].[%s] WHERE PetsCount < 3", store.schema, usersTableName), func(t *testing.T, rows *sql.Rows) {
+	assertDBQuery(t, store, fmt.Sprintf("SELECT count(*) from [%s].[%s] WHERE PetsCount < 3", store.metadata.Schema, usersTableName), func(t *testing.T, rows *sql.Rows) {
 		assert.True(t, rows.Next())
 
 		var c int
@@ -304,7 +304,7 @@ func testIndexedProperties(t *testing.T) {
 	})
 
 	// Ensure we can get by beverage
-	assertDBQuery(t, store, fmt.Sprintf("SELECT count(*) from [%s].[%s] WHERE FavoriteBeverage = '%s'", store.schema, usersTableName, "Coffee"), func(t *testing.T, rows *sql.Rows) {
+	assertDBQuery(t, store, fmt.Sprintf("SELECT count(*) from [%s].[%s] WHERE FavoriteBeverage = '%s'", store.metadata.Schema, usersTableName, "Coffee"), func(t *testing.T, rows *sql.Rows) {
 		assert.True(t, rows.Next())
 
 		var c int
@@ -348,7 +348,7 @@ func testMultiOperations(t *testing.T) {
 			}
 
 			err := store.BulkSet(context.Background(), bulkSet)
-			assert.Nil(t, err)
+			require.NoError(t, err)
 			assertUserCountIsEqualTo(t, store, len(initialUsers))
 
 			// Ensure initial users are correctly stored
@@ -397,7 +397,7 @@ func testMultiOperations(t *testing.T) {
 						state.SetRequest{Key: toInsert.ID, Value: toInsert},
 					},
 				})
-				assert.Nil(t, err)
+				require.NoError(t, err)
 				assertLoadedUserIsEqual(t, store, modified.ID, modified)
 				assertLoadedUserIsEqual(t, store, toInsert.ID, toInsert)
 				assertUserDoesNotExist(t, store, toDelete.ID)
@@ -420,7 +420,7 @@ func testMultiOperations(t *testing.T) {
 						state.SetRequest{Key: modified.ID, Value: modified, ETag: &toModify.etag},
 					},
 				})
-				assert.Nil(t, err)
+				require.NoError(t, err)
 				assertLoadedUserIsEqual(t, store, modified.ID, modified)
 				assertUserDoesNotExist(t, store, toDelete.ID)
 
@@ -525,7 +525,7 @@ func testBulkSet(t *testing.T) {
 				}
 
 				err := store.BulkSet(context.Background(), sets)
-				assert.Nil(t, err)
+				require.NoError(t, err)
 				totalUsers = len(sets)
 				assertUserCountIsEqualTo(t, store, totalUsers)
 			})
@@ -540,7 +540,7 @@ func testBulkSet(t *testing.T) {
 					{Key: modified.ID, Value: modified, ETag: &toModifyETag},
 					{Key: toInsert.ID, Value: toInsert},
 				})
-				assert.Nil(t, err)
+				require.NoError(t, err)
 				assertLoadedUserIsEqual(t, store, modified.ID, modified)
 				assertLoadedUserIsEqual(t, store, toInsert.ID, toInsert)
 				totalUsers++
@@ -559,7 +559,7 @@ func testBulkSet(t *testing.T) {
 					{Key: modified.ID, Value: modified},
 					{Key: toInsert.ID, Value: toInsert},
 				})
-				assert.Nil(t, err)
+				require.NoError(t, err)
 				assertLoadedUserIsEqual(t, store, modified.ID, modified)
 				assertLoadedUserIsEqual(t, store, toInsert.ID, toInsert)
 				totalUsers++
@@ -626,7 +626,7 @@ func testBulkDelete(t *testing.T) {
 				sets[i] = state.SetRequest{Key: u.ID, Value: u}
 			}
 			err := store.BulkSet(context.Background(), sets)
-			assert.Nil(t, err)
+			require.NoError(t, err)
 			totalUsers := len(initialUsers)
 			assertUserCountIsEqualTo(t, store, totalUsers)
 
@@ -639,7 +639,7 @@ func testBulkDelete(t *testing.T) {
 					{Key: deleted1},
 					{Key: deleted2},
 				})
-				assert.Nil(t, err)
+				require.NoError(t, err)
 				totalUsers -= 2
 				assertUserCountIsEqualTo(t, store, totalUsers)
 				assertUserDoesNotExist(t, store, deleted1)
@@ -656,7 +656,7 @@ func testBulkDelete(t *testing.T) {
 					{Key: deleted1.ID, ETag: &deleted1Etag},
 					{Key: deleted2.ID, ETag: &deleted2Etag},
 				})
-				assert.Nil(t, err)
+				require.NoError(t, err)
 				totalUsers -= 2
 				assertUserCountIsEqualTo(t, store, totalUsers)
 				assertUserDoesNotExist(t, store, deleted1.ID)
@@ -673,7 +673,7 @@ func testBulkDelete(t *testing.T) {
 					{Key: deleted1.ID, ETag: &deleted1Etag},
 					{Key: deleted2.ID},
 				})
-				assert.Nil(t, err)
+				require.NoError(t, err)
 				totalUsers -= 2
 				assertUserCountIsEqualTo(t, store, totalUsers)
 				assertUserDoesNotExist(t, store, deleted1.ID)
@@ -708,10 +708,10 @@ func testInsertAndUpdateSetRecordDates(t *testing.T) {
 
 	u := user{"1", "John", "Coffee"}
 	err := store.Set(context.Background(), &state.SetRequest{Key: u.ID, Value: u})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	var originalInsertTime time.Time
-	getUserTsql := fmt.Sprintf("SELECT [InsertDate], [UpdateDate] from [%s].[%s] WHERE [Key]='%s'", store.schema, store.tableName, u.ID)
+	getUserTsql := fmt.Sprintf("SELECT [InsertDate], [UpdateDate] from [%s].[%s] WHERE [Key]='%s'", store.metadata.Schema, store.metadata.TableName, u.ID)
 	assertDBQuery(t, store, getUserTsql, func(t *testing.T, rows *sql.Rows) {
 		assert.True(t, rows.Next())
 
@@ -730,13 +730,13 @@ func testInsertAndUpdateSetRecordDates(t *testing.T) {
 	modified := u
 	modified.FavoriteBeverage = beverageTea
 	err = store.Set(context.Background(), &state.SetRequest{Key: modified.ID, Value: modified})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assertDBQuery(t, store, getUserTsql, func(t *testing.T, rows *sql.Rows) {
 		assert.True(t, rows.Next())
 
 		var insertDate, updateDate sql.NullTime
 		err := rows.Scan(&insertDate, &updateDate)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		assert.True(t, insertDate.Valid)
 		assert.Equal(t, originalInsertTime, insertDate.Time)
@@ -754,7 +754,7 @@ func testConcurrentSets(t *testing.T) {
 
 	u := user{"1", "John", "Coffee"}
 	err := store.Set(context.Background(), &state.SetRequest{Key: u.ID, Value: u})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	_, etag := assertLoadedUserIsEqual(t, store, u.ID, u)
 
@@ -805,7 +805,7 @@ func testMultipleInitializations(t *testing.T) {
 			store2 := &SQLServer{
 				logger: logger.NewLogger("test"),
 			}
-			err := store2.Init(context.Background(), createMetadata(store.schema, test.kt, test.indexedProperties))
+			err := store2.Init(context.Background(), createMetadata(store.metadata.Schema, test.kt, test.indexedProperties))
 			assert.NoError(t, err)
 		})
 	}

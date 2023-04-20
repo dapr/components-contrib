@@ -137,7 +137,11 @@ func parseRedisMetadata(meta pubsub.Metadata) (metadata, error) {
 }
 
 func (r *redisStreams) Init(ctx context.Context, metadata pubsub.Metadata) error {
-	var err error
+	m, err := parseRedisMetadata(metadata)
+	if err != nil {
+		return err
+	}
+	r.metadata = m
 	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties, contribMetadata.PubSubType)
 	if err != nil {
 		return err

@@ -99,6 +99,8 @@ type Metadata struct {
 	Binding *MetadataBinding `json:"binding,omitempty"`
 	// URL with additional information, such as docs.
 	URL *URL `json:"url,omitempty"`
+	// If set, specifies that the property is deprecated and should not be used in new configurations.
+	Deprecated bool `json:"deprecated,omitempty"`
 }
 
 // MetadataBinding is the type for the "binding" property in the "metadata" object.

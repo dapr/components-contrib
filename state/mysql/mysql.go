@@ -38,9 +38,6 @@ import (
 // Optimistic Concurrency is implemented using a string column that stores a UUID.
 
 const (
-	// The key name in the metadata for the timeout of operations, in seconds.
-	keyTimeoutInSeconds = "timeoutInSeconds"
-
 	// To connect to MySQL running in Azure over SSL you have to download a
 	// SSL certificate. If this is provided the driver will connect using
 	// SSL. If you have disable SSL you can leave this empty.
@@ -97,7 +94,7 @@ type mySQLMetadata struct {
 	TableName         string
 	SchemaName        string
 	ConnectionString  string
-	Timeout           int
+	TimeoutInSeconds  int
 	PemPath           string
 	MetadataTableName string
 	CleanupInterval   *time.Duration
@@ -213,14 +210,9 @@ func (m *MySQL) parseMetadata(md map[string]string) error {
 		}
 	}
 
-	val, ok := md[keyTimeoutInSeconds]
-	if ok && val != "" {
-		n, err := strconv.Atoi(val)
-		if err == nil && n > 0 {
-			m.timeout = time.Duration(n) * time.Second
-		}
-	}
-	if m.timeout <= 0 {
+	if meta.TimeoutInSeconds > 0 {
+		m.timeout = time.Duration(meta.TimeoutInSeconds) * time.Second
+	} else {
 		m.timeout = time.Duration(defaultTimeoutInSeconds) * time.Second
 	}
 

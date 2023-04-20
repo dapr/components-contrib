@@ -87,7 +87,7 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 		if properties["redisMinRetryInterval"] == "" {
 			if properties["maxRetryBackoff"] != "" {
 				// due to different duration formats, do not simply change the key name
-				parsedVal, parseErr := strconv.ParseInt(val, 10, 0)
+				parsedVal, parseErr := strconv.ParseInt(properties["maxRetryBackoff"], 10, 0)
 				if parseErr != nil {
 					return nil, nil, fmt.Errorf("redis store error: can't parse maxRetryBackoff field: %s", parseErr)
 				}

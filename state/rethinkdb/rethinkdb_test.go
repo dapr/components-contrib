@@ -67,7 +67,9 @@ func TestRethinkDBStateStore(t *testing.T) {
 	}
 
 	m := state.Metadata{Base: metadata.Base{Properties: getTestMetadata()}}
-	db := NewRethinkDBStateStore(logger.NewLogger("test")).(*RethinkDB)
+	db := &RethinkDB{
+		logger: logger.NewLogger("test"),
+	}
 
 	t.Run("With init", func(t *testing.T) {
 		if err := db.Init(context.Background(), m); err != nil {
@@ -146,6 +148,7 @@ func TestRethinkDBStateStore(t *testing.T) {
 	})
 
 	t.Run("With bulk", func(t *testing.T) {
+		db.BulkStore = state.NewDefaultBulkStore(db)
 		testBulk(t, db, 0)
 	})
 }
@@ -156,7 +159,7 @@ func TestRethinkDBStateStoreRongRun(t *testing.T) {
 	}
 
 	m := state.Metadata{Base: metadata.Base{Properties: getTestMetadata()}}
-	db := NewRethinkDBStateStore(logger.NewLogger("test")).(*RethinkDB)
+	db := NewRethinkDBStateStore(logger.NewLogger("test"))
 	if err := db.Init(context.Background(), m); err != nil {
 		t.Fatalf("error initializing db: %v", err)
 	}
@@ -166,7 +169,7 @@ func TestRethinkDBStateStoreRongRun(t *testing.T) {
 	}
 }
 
-func testBulk(t *testing.T, db *RethinkDB, i int) {
+func testBulk(t *testing.T, db state.Store, i int) {
 	// create data list
 	deleteList := make([]state.DeleteRequest, 0)
 	setList := make([]state.SetRequest, 3)
@@ -185,7 +188,7 @@ func testBulk(t *testing.T, db *RethinkDB, i int) {
 	// check for the data
 	for _, v := range deleteList {
 		resp, err := db.Get(context.Background(), &state.GetRequest{Key: v.Key})
-		assert.Nilf(t, err, " -- run %d", i)
+		assert.NoErrorf(t, err, " -- run %d", i)
 		assert.NotNil(t, resp)
 		assert.NotNil(t, resp.Data)
 	}
@@ -198,84 +201,10 @@ func testBulk(t *testing.T, db *RethinkDB, i int) {
 	// check for the data NOT being there
 	for _, v := range deleteList {
 		resp, err := db.Get(context.Background(), &state.GetRequest{Key: v.Key})
-		assert.Nilf(t, err, " -- run %d", i)
+		assert.NoErrorf(t, err, " -- run %d", i)
 		assert.NotNil(t, resp)
 		assert.Nil(t, resp.Data)
 	}
-}
-
-// go test -timeout 30s github.com/dapr/components-contrib/state/rethinkdb -run ^TestRethinkDBStateStoreMulti$ -count 1 -v.
-func TestRethinkDBStateStoreMulti(t *testing.T) {
-	if !isLiveTest() {
-		t.SkipNow()
-	}
-
-	m := state.Metadata{Base: metadata.Base{Properties: getTestMetadata()}}
-	db := NewRethinkDBStateStore(logger.NewLogger("test")).(*RethinkDB)
-	if err := db.Init(context.Background(), m); err != nil {
-		t.Fatalf("error initializing db: %v", err)
-	}
-
-	numOfRecords := 4
-	recordIDFormat := "multi-%d"
-	t.Run("With multi", func(t *testing.T) {
-		// create data list
-		d := []byte("test")
-		list := make([]state.SetRequest, numOfRecords)
-		for i := 0; i < numOfRecords; i++ {
-			list[i] = state.SetRequest{Key: fmt.Sprintf(recordIDFormat, i), Value: d}
-		}
-		if err := db.BulkSet(context.Background(), list); err != nil {
-			t.Fatalf("error setting multi to db: %v", err)
-		}
-
-		// test multi
-		d2 := []byte("test")
-		req := &state.TransactionalStateRequest{
-			Operations: []state.TransactionalStateOperation{
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   fmt.Sprintf(recordIDFormat, 0),
-						Value: d2,
-					},
-				},
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   fmt.Sprintf(recordIDFormat, 1),
-						Value: d2,
-					},
-				},
-				{
-					Operation: state.Delete,
-					Request:   state.DeleteRequest{Key: fmt.Sprintf(recordIDFormat, 2)},
-				},
-				{
-					Operation: state.Delete,
-					Request:   state.DeleteRequest{Key: fmt.Sprintf(recordIDFormat, 3)},
-				},
-			},
-		}
-
-		// execute multi
-		if err := db.Multi(context.Background(), req); err != nil {
-			t.Fatalf("error setting multi to db: %v", err)
-		}
-
-		// the one not deleted should be still there
-		m1, err := db.Get(context.Background(), &state.GetRequest{Key: fmt.Sprintf(recordIDFormat, 1)})
-		assert.Nil(t, err)
-		assert.NotNil(t, m1)
-		assert.NotNil(t, m1.Data)
-		assert.Equal(t, string(d2), string(m1.Data))
-
-		// the one deleted should not
-		m2, err := db.Get(context.Background(), &state.GetRequest{Key: fmt.Sprintf(recordIDFormat, 3)})
-		assert.Nil(t, err)
-		assert.NotNil(t, m2)
-		assert.Nil(t, m2.Data)
-	})
 }
 
 type testObj struct {

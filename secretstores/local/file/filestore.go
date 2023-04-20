@@ -280,6 +280,6 @@ func (j *localSecretStore) Features() []secretstores.Feature {
 func (j *localSecretStore) GetComponentMetadata() map[string]string {
 	metadataStruct := localSecretStoreMetaData{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return metadataInfo
 }

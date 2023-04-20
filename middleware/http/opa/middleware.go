@@ -177,13 +177,13 @@ func (m *Middleware) evalRequest(w http.ResponseWriter, r *http.Request, meta *m
 		return false
 	}
 
-	return m.handleRegoResult(w, meta, results[0].Bindings["result"])
+	return m.handleRegoResult(w, r, meta, results[0].Bindings["result"])
 }
 
 // handleRegoResult takes the in process request and open policy agent evaluation result
 // and maps it the appropriate response or headers.
 // It returns true if the request should continue, or false if a response should be immediately returned.
-func (m *Middleware) handleRegoResult(w http.ResponseWriter, meta *middlewareMetadata, result any) bool {
+func (m *Middleware) handleRegoResult(w http.ResponseWriter, r *http.Request, meta *middlewareMetadata, result any) bool {
 	if allowed, ok := result.(bool); ok {
 		if !allowed {
 			httputils.RespondWithError(w, int(meta.DefaultStatus))
@@ -214,14 +214,18 @@ func (m *Middleware) handleRegoResult(w http.ResponseWriter, meta *middlewareMet
 		return false
 	}
 
-	// Set the headers on the ongoing request (overriding as necessary)
-	for key, value := range regoResult.AdditionalHeaders {
-		w.Header().Set(key, value)
-	}
-
-	// If the result isn't allowed, set the response status
+	// If the result isn't allowed, set the response status and
+	// apply the additional headers to the response.
+	// Otherwise, set the headers on the ongoing request (overriding as necessary).
 	if !regoResult.Allow {
+		for key, value := range regoResult.AdditionalHeaders {
+			w.Header().Set(key, value)
+		}
 		httputils.RespondWithError(w, regoResult.StatusCode)
+	} else {
+		for key, value := range regoResult.AdditionalHeaders {
+			r.Header.Set(key, value)
+		}
 	}
 
 	return regoResult.Allow
@@ -259,6 +263,6 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*middlewar
 func (m *Middleware) GetComponentMetadata() map[string]string {
 	metadataStruct := middlewareMetadata{}
 	metadataInfo := map[string]string{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.MiddlewareType)
 	return metadataInfo
 }

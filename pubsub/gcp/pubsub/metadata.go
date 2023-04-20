@@ -15,24 +15,24 @@ package pubsub
 
 // GCPPubSubMetaData pubsub metadata.
 type metadata struct {
-	consumerID              string
-	Type                    string
-	IdentityProjectID       string
-	ProjectID               string
-	PrivateKeyID            string
-	PrivateKey              string
-	ClientEmail             string
-	ClientID                string
-	AuthURI                 string
-	TokenURI                string
-	AuthProviderCertURL     string
-	ClientCertURL           string
-	DisableEntityManagement bool
-	EnableMessageOrdering   bool
-	MaxReconnectionAttempts int
-	ConnectionRecoveryInSec int
-	ConnectionEndpoint      string
-	OrderingKey             string
-	DeadLetterTopic         string
-	MaxDeliveryAttempts     int
+	ConsumerID              string `mapstructure:"consumerID"`
+	Type                    string `mapstructure:"type"`
+	IdentityProjectID       string `mapstructure:"identityProjectID"`
+	ProjectID               string `mapstructure:"projectID"`
+	PrivateKeyID            string `mapstructure:"privateKeyID"`
+	PrivateKey              string `mapstructure:"privateKey"`
+	ClientEmail             string `mapstructure:"clientEmail"`
+	ClientID                string `mapstructure:"clientID"`
+	AuthURI                 string `mapstructure:"authURI"`
+	TokenURI                string `mapstructure:"tokenURI"`
+	AuthProviderCertURL     string `mapstructure:"authProviderX509CertUrl"`
+	ClientCertURL           string `mapstructure:"clientX509CertUrl"`
+	DisableEntityManagement bool   `mapstructure:"disableEntityManagement"`
+	EnableMessageOrdering   bool   `mapstructure:"enableMessageOrdering"`
+	MaxReconnectionAttempts int    `mapstructure:"maxReconnectionAttempts"`
+	ConnectionRecoveryInSec int    `mapstructure:"connectionRecoveryInSec"`
+	ConnectionEndpoint      string `mapstructure:"endpoint"`
+	OrderingKey             string `mapstructure:"orderingKey"`
+	DeadLetterTopic         string `mapstructure:"deadLetterTopic"`
+	MaxDeliveryAttempts     int    `mapstructure:"maxDeliveryAttempts"`
 }

@@ -127,11 +127,21 @@ func (c *TemporalWF) Get(ctx context.Context, req *workflows.WorkflowReference) 
 
 func (c *TemporalWF) RaiseEvent(ctx context.Context, req *workflows.RaiseEventRequest) error {
 	// Unimplemented
-	return nil
+	return errors.New("method RaiseEvent not implemented in this component")
 }
 
 func (c *TemporalWF) Close() {
 	c.client.Close()
+}
+
+func (c *TemporalWF) Pause(ctx context.Context, req *workflows.WorkflowReference) error {
+	// Unimplemented
+	return errors.New("method Pause not implemented in this component")
+}
+
+func (c *TemporalWF) Resume(ctx context.Context, req *workflows.WorkflowReference) error {
+	// Unimplemented
+	return errors.New("method Resume not implemented in this component")
 }
 
 func (c *TemporalWF) parseMetadata(meta workflows.Metadata) (*temporalMetadata, error) {
@@ -143,7 +153,7 @@ func (c *TemporalWF) parseMetadata(meta workflows.Metadata) (*temporalMetadata, 
 func (c *TemporalWF) GetComponentMetadata() map[string]string {
 	metadataStruct := temporalMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.WorkflowType)
 	return metadataInfo
 }
 

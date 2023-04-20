@@ -38,9 +38,6 @@ import (
 // Optimistic Concurrency is implemented using a string column that stores a UUID.
 
 const (
-	// The key name in the metadata for the timeout of operations, in seconds.
-	keyTimeoutInSeconds = "timeoutInSeconds"
-
 	// To connect to MySQL running in Azure over SSL you have to download a
 	// SSL certificate. If this is provided the driver will connect using
 	// SSL. If you have disable SSL you can leave this empty.
@@ -97,7 +94,7 @@ type mySQLMetadata struct {
 	TableName         string
 	SchemaName        string
 	ConnectionString  string
-	Timeout           int
+	TimeoutInSeconds  int
 	PemPath           string
 	MetadataTableName string
 	CleanupInterval   *time.Duration
@@ -213,14 +210,9 @@ func (m *MySQL) parseMetadata(md map[string]string) error {
 		}
 	}
 
-	val, ok := md[keyTimeoutInSeconds]
-	if ok && val != "" {
-		n, err := strconv.Atoi(val)
-		if err == nil && n > 0 {
-			m.timeout = time.Duration(n) * time.Second
-		}
-	}
-	if m.timeout <= 0 {
+	if meta.TimeoutInSeconds > 0 {
+		m.timeout = time.Duration(meta.TimeoutInSeconds) * time.Second
+	} else {
 		m.timeout = time.Duration(defaultTimeoutInSeconds) * time.Second
 	}
 
@@ -307,7 +299,7 @@ func (m *MySQL) ensureStateSchema(ctx context.Context) error {
 		cctx, cancel := context.WithTimeout(ctx, m.timeout)
 		defer cancel()
 		_, err = m.db.ExecContext(cctx,
-			fmt.Sprintf("CREATE DATABASE %s;", m.schemaName),
+			"CREATE DATABASE "+m.schemaName,
 		)
 		if err != nil {
 			return err
@@ -500,13 +492,13 @@ func (m *MySQL) deleteValue(parentCtx context.Context, querier querier, req *sta
 	defer cancel()
 
 	if req.ETag == nil || *req.ETag == "" {
-		result, err = querier.ExecContext(execCtx, fmt.Sprintf(
-			`DELETE FROM %s WHERE id = ?`,
-			m.tableName), req.Key)
+		result, err = querier.ExecContext(execCtx,
+			`DELETE FROM `+m.tableName+` WHERE id = ?`,
+			req.Key)
 	} else {
-		result, err = querier.ExecContext(execCtx, fmt.Sprintf(
-			`DELETE FROM %s WHERE id = ? AND eTag = ?`,
-			m.tableName), req.Key, *req.ETag)
+		result, err = querier.ExecContext(execCtx,
+			`DELETE FROM `+m.tableName+` WHERE id = ? AND eTag = ?`,
+			req.Key, *req.ETag)
 	}
 
 	if err != nil {
@@ -540,9 +532,8 @@ func (m *MySQL) BulkDelete(ctx context.Context, req []state.DeleteRequest) error
 	}()
 
 	if len(req) > 0 {
-		for _, d := range req {
-			da := d // Fix for goSec G601: Implicit memory aliasing in for loop.
-			err = m.deleteValue(ctx, tx, &da)
+		for i := range req {
+			err = m.deleteValue(ctx, tx, &req[i])
 			if err != nil {
 				return err
 			}
@@ -556,59 +547,26 @@ func (m *MySQL) BulkDelete(ctx context.Context, req []state.DeleteRequest) error
 // Store Interface.
 func (m *MySQL) Get(parentCtx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	if req.Key == "" {
-		return nil, fmt.Errorf("missing key in get operation")
+		return nil, errors.New("missing key in get operation")
 	}
-
-	var (
-		eTag     string
-		value    []byte
-		isBinary bool
-	)
 
 	ctx, cancel := context.WithTimeout(parentCtx, m.timeout)
 	defer cancel()
-	//nolint:gosec
-	query := fmt.Sprintf(
-		`SELECT value, eTag, isbinary FROM %s WHERE id = ?
-			AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)`,
-		m.tableName, // m.tableName is sanitized
-	)
-	err := m.db.QueryRowContext(ctx, query, req.Key).Scan(&value, &eTag, &isBinary)
+	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
+	query := `SELECT id, value, eTag, isbinary FROM ` + m.tableName + ` WHERE id = ?
+			AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)`
+	row := m.db.QueryRowContext(ctx, query, req.Key)
+	_, value, etag, err := readRow(row)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return an error.
 		if errors.Is(err, sql.ErrNoRows) {
 			return &state.GetResponse{}, nil
 		}
-
 		return nil, err
 	}
-
-	if isBinary {
-		var (
-			s    string
-			data []byte
-		)
-
-		err = json.Unmarshal(value, &s)
-		if err != nil {
-			return nil, err
-		}
-
-		data, err = base64.StdEncoding.DecodeString(s)
-		if err != nil {
-			return nil, err
-		}
-
-		return &state.GetResponse{
-			Data:     data,
-			ETag:     &eTag,
-			Metadata: req.Metadata,
-		}, nil
-	}
-
 	return &state.GetResponse{
 		Data:     value,
-		ETag:     &eTag,
+		ETag:     &etag,
 		Metadata: req.Metadata,
 	}, nil
 }
@@ -758,6 +716,77 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 	return nil
 }
 
+func (m *MySQL) BulkGet(parentCtx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
+	if len(req) == 0 {
+		return []state.BulkGetResponse{}, nil
+	}
+
+	// MySQL doesn't support passing an array for an IN clause, so we need to build a custom query
+	inClause := strings.Repeat("?,", len(req))
+	inClause = inClause[:(len(inClause) - 1)]
+	params := make([]any, len(req))
+	for i, r := range req {
+		params[i] = r.Key
+	}
+
+	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
+	stmt := `SELECT id, value, eTag, isbinary FROM ` + m.tableName + `
+		WHERE
+			id IN (` + inClause + `)
+			AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)`
+	ctx, cancel := context.WithTimeout(parentCtx, m.timeout)
+	defer cancel()
+	rows, err := m.db.QueryContext(ctx, stmt, params...)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		n    int
+		etag string
+	)
+	res := make([]state.BulkGetResponse, len(req))
+	for ; rows.Next(); n++ {
+		r := state.BulkGetResponse{}
+		r.Key, r.Data, etag, err = readRow(rows)
+		if err != nil {
+			r.Error = err.Error()
+		}
+		r.ETag = &etag
+		res[n] = r
+	}
+
+	return res[:n], nil
+}
+
+func readRow(row interface{ Scan(dest ...any) error }) (key string, value []byte, etag string, err error) {
+	var isBinary bool
+	err = row.Scan(&key, &value, &etag, &isBinary)
+	if err != nil {
+		return key, nil, "", err
+	}
+
+	if isBinary {
+		var (
+			s    string
+			data []byte
+		)
+
+		err = json.Unmarshal(value, &s)
+		if err != nil {
+			return key, nil, "", fmt.Errorf("failed to unmarshal JSON binary data: %w", err)
+		}
+
+		data, err = base64.StdEncoding.DecodeString(s)
+		if err != nil {
+			return key, nil, "", fmt.Errorf("failed to decode binary data: %w", err)
+		}
+		return key, data, etag, nil
+	}
+
+	return key, value, etag, nil
+}
+
 // BulkSet adds/updates multiple entities on store
 // Store Interface.
 func (m *MySQL) BulkSet(ctx context.Context, req []state.SetRequest) error {
@@ -798,71 +827,26 @@ func (m *MySQL) Multi(ctx context.Context, request *state.TransactionalStateRequ
 		}
 	}()
 
-	for _, req := range request.Operations {
-		switch req.Operation {
-		case state.Upsert:
-			setReq, err := m.getSets(req)
+	for _, o := range request.Operations {
+		switch req := o.(type) {
+		case state.SetRequest:
+			err = m.setValue(ctx, tx, &req)
 			if err != nil {
 				return err
 			}
 
-			err = m.setValue(ctx, tx, &setReq)
-			if err != nil {
-				return err
-			}
-
-		case state.Delete:
-			delReq, err := m.getDeletes(req)
-			if err != nil {
-				return err
-			}
-
-			err = m.deleteValue(ctx, tx, &delReq)
+		case state.DeleteRequest:
+			err = m.deleteValue(ctx, tx, &req)
 			if err != nil {
 				return err
 			}
 
 		default:
-			return fmt.Errorf("unsupported operation: %s", req.Operation)
+			return fmt.Errorf("unsupported operation: %s", req.Operation())
 		}
 	}
 
 	return tx.Commit()
-}
-
-// Returns the set requests.
-func (m *MySQL) getSets(req state.TransactionalStateOperation) (state.SetRequest, error) {
-	setReq, ok := req.Request.(state.SetRequest)
-	if !ok {
-		return setReq, errors.New("expecting set request")
-	}
-
-	if setReq.Key == "" {
-		return setReq, errors.New("missing key in upsert operation")
-	}
-
-	return setReq, nil
-}
-
-// Returns the delete requests.
-func (m *MySQL) getDeletes(req state.TransactionalStateOperation) (state.DeleteRequest, error) {
-	delReq, ok := req.Request.(state.DeleteRequest)
-	if !ok {
-		return delReq, errors.New("expecting delete request")
-	}
-
-	if delReq.Key == "" {
-		return delReq, errors.New("missing key in delete operation")
-	}
-
-	return delReq, nil
-}
-
-// BulkGet performs a bulks get operations.
-func (m *MySQL) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
-	// by default, the store doesn't support bulk get
-	// return false so daprd will fallback to call get() method one by one
-	return false, nil, nil
 }
 
 // Close implements io.Closer.
@@ -911,6 +895,6 @@ type querier interface {
 func (m *MySQL) GetComponentMetadata() map[string]string {
 	metadataStruct := mySQLMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }

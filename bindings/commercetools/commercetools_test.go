@@ -31,11 +31,11 @@ func TestParseMetadata(t *testing.T) {
 		k := Binding{logger: logger}
 		meta, err := k.getCommercetoolsMetadata(m)
 		assert.Nil(t, err)
-		assert.Equal(t, "a", meta.region)
-		assert.Equal(t, "a", meta.provider)
-		assert.Equal(t, "a", meta.projectKey)
-		assert.Equal(t, "a", meta.clientID)
-		assert.Equal(t, "a", meta.clientSecret)
-		assert.Equal(t, "b", meta.scopes)
+		assert.Equal(t, "a", meta.Region)
+		assert.Equal(t, "a", meta.Provider)
+		assert.Equal(t, "a", meta.ProjectKey)
+		assert.Equal(t, "a", meta.ClientID)
+		assert.Equal(t, "a", meta.ClientSecret)
+		assert.Equal(t, "b", meta.Scopes)
 	})
 }

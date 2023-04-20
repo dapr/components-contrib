@@ -22,7 +22,7 @@ type kubemqEventsStoreClient interface {
 type kubeMQEventStore struct {
 	lock                 sync.RWMutex
 	client               kubemqEventsStoreClient
-	metadata             *metadata
+	metadata             *kubemqMetadata
 	logger               logger.Logger
 	publishFunc          func(msg *kubemq.EventStore) error
 	resultChan           chan *kubemq.EventStoreResult
@@ -56,16 +56,16 @@ func (k *kubeMQEventStore) init() error {
 	k.lock.Lock()
 	defer k.lock.Unlock()
 	k.ctx, k.ctxCancel = context.WithCancel(context.Background())
-	clientID := k.metadata.clientID
+	clientID := k.metadata.ClientID
 	if clientID == "" {
 		clientID = getRandomID()
 	}
 	client, err := kubemq.NewEventsStoreClient(k.ctx,
-		kubemq.WithAddress(k.metadata.host, k.metadata.port),
+		kubemq.WithAddress(k.metadata.internalHost, k.metadata.internalPort),
 		kubemq.WithClientId(clientID),
 		kubemq.WithTransportType(kubemq.TransportTypeGRPC),
 		kubemq.WithCheckConnection(true),
-		kubemq.WithAuthToken(k.metadata.authToken),
+		kubemq.WithAuthToken(k.metadata.AuthToken),
 		kubemq.WithAutoReconnect(true),
 		kubemq.WithReconnectInterval(time.Second))
 	if err != nil {
@@ -82,7 +82,7 @@ func (k *kubeMQEventStore) init() error {
 	return nil
 }
 
-func (k *kubeMQEventStore) Init(meta *metadata) error {
+func (k *kubeMQEventStore) Init(meta *kubemqMetadata) error {
 	k.metadata = meta
 	_ = k.init()
 	return nil
@@ -112,7 +112,7 @@ func (k *kubeMQEventStore) Publish(req *pubsub.PublishRequest) error {
 		Channel:  req.Topic,
 		Metadata: "",
 		Body:     req.Data,
-		ClientId: k.metadata.clientID,
+		ClientId: k.metadata.ClientID,
 		Tags:     map[string]string{},
 	}
 	if err := k.publishFunc(event); err != nil {
@@ -138,7 +138,7 @@ func (k *kubeMQEventStore) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 	if err := k.init(); err != nil {
 		return err
 	}
-	clientID := k.metadata.clientID
+	clientID := k.metadata.ClientID
 	if clientID == "" {
 		clientID = getRandomID()
 	}
@@ -146,7 +146,7 @@ func (k *kubeMQEventStore) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 	k.logger.Debugf("kubemq pub/sub: subscribing to %s", req.Topic)
 	err := k.client.Subscribe(ctx, &kubemq.EventsStoreSubscription{
 		Channel:          req.Topic,
-		Group:            k.metadata.group,
+		Group:            k.metadata.Group,
 		ClientId:         clientID,
 		SubscriptionType: kubemq.StartFromNewEvents(),
 	}, func(event *kubemq.EventStoreReceive, err error) {
@@ -166,7 +166,7 @@ func (k *kubeMQEventStore) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 
 		if err := handler(ctx, msg); err != nil {
 			k.logger.Errorf("kubemq pub/sub error: error handling message from topic '%s', %s, resending...", req.Topic, err.Error())
-			if k.metadata.disableReDelivery {
+			if k.metadata.DisableReDelivery {
 				return
 			}
 			if err := k.Publish(&pubsub.PublishRequest{

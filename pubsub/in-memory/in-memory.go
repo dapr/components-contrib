@@ -110,3 +110,8 @@ func (a *bus) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handle
 
 	return nil
 }
+
+// GetComponentMetadata returns the metadata of the component.
+func (a *bus) GetComponentMetadata() map[string]string {
+	return map[string]string{}
+}

@@ -24,6 +24,8 @@ import (
 
 // PostgreSQL state store.
 type PostgreSQL struct {
+	state.BulkStore
+
 	logger   logger.Logger
 	dbaccess dbAccess
 }
@@ -48,7 +50,9 @@ type SetQueryOptions struct {
 // NewPostgreSQLStateStore creates a new instance of PostgreSQL state store.
 func NewPostgreSQLStateStore(logger logger.Logger, opts Options) state.Store {
 	dba := newPostgresDBAccess(logger, opts)
-	return newPostgreSQLStateStore(logger, dba)
+	s := newPostgreSQLStateStore(logger, dba)
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // newPostgreSQLStateStore creates a newPostgreSQLStateStore instance of a PostgreSQL state store.
@@ -86,7 +90,8 @@ func (p *PostgreSQL) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 }
 
 // BulkGet performs a bulks get operations.
-func (p *PostgreSQL) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
+// Options are ignored because this component requests all values in a single query.
+func (p *PostgreSQL) BulkGet(ctx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
 	return p.dbaccess.BulkGet(ctx, req)
 }
 
@@ -127,6 +132,6 @@ func (p *PostgreSQL) GetDBAccess() dbAccess {
 func (p *PostgreSQL) GetComponentMetadata() map[string]string {
 	metadataStruct := postgresMetadataStruct{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }

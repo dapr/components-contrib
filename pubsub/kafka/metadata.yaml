@@ -1,0 +1,135 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: pubsub
+name: kafka
+version: v1
+status: stable
+title: "Apache Kafka"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-apache-kafka/
+metadata:
+    - name: brokers
+      required: true
+      description: "A comma-separated list of Kafka brokers"
+      example: "localhost:9092,dapr-kafka.myapp.svc.cluster.local:9093"
+      type: string
+    - name: consumerGroup
+      required: false
+      description: "A kafka consumer group to listen on. Each record published to a topic is delivered to one consumer within each consumer group subscribed to the topic"
+      example: "group1"
+      type: string
+    - name: clientID
+      required: false
+      description: "A user-provided string sent with every request to the Kafka brokers for logging, debugging, and auditing purposes. Defaults to \"sarama\""
+      example: "my-dapr-app"
+      type: string
+    - name: authRequired
+      required: false
+      description: "Deprecated Enable SASL authentication with the Kafka brokers"
+      example: "false"
+      type: bool
+    - name: authType
+      required: true
+      description: | 
+        Configure or disable authentication. Supported values: "none", "password", "mtls", or "oidc"
+      example: "none"
+      type: string
+    - name: saslUsername
+      required: false
+      description: |
+        The SASL username used for authentication. Only required if authType is set to "password"
+      example: "myuser"
+      type: string
+    - name: saslPassword
+      required: false
+      description: |
+        The SASL password used for authentication. Can be secretKeyRef to use a secret reference. Only required if authType is set to "password"
+      example: "mypassword"
+      type: string
+    - name: saslMechanism
+      required: false
+      description: |
+        The SASL Authentication Mechanism you wish to use. Only required if authType is set to "password". Defaults to "PLAINTEXT"
+      example: "SHA-512"
+      type: string
+    - name: initialOffset
+      required: false
+      description: |
+        The initial offset to use if no offset was previously committed. Should be "newest" or "oldest". Defaults to "newest"
+      example: "oldest"
+      type: string
+    - name: maxMessageBytes
+      required: false
+      description: "The maximum size in bytes allowed for a single Kafka message. Defaults to 1024"
+      example: "2048"
+      type: number
+    - name: consumeRetryInterval
+      required: false
+      description: |
+        The interval between retries when attempting to consume topics. Treats numbers without suffix as milliseconds. Defaults to "100ms"
+      example: "200ms"
+      type: string
+    - name: consumeRetryEnabled
+      required: false
+      description: |
+        Disables consumer retry by setting this to "false"
+      example: "true"
+      type: bool
+    - name: version
+      required: false
+      description: |
+        Kafka cluster version. Defaults to "2.0.0.0"
+      example: "0.10.2.0"
+      type: string
+    - name: caCert
+      required: false
+      description: "Certificate authority certificate, required for using TLS. Can be secretKeyRef to use a secret reference"
+      example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+      type: string
+    - name: clientCert
+      required: false
+      description: "Client certificate, required for authType mtls. Can be secretKeyRef to use a secret reference"
+      example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+      type: string
+    - name: clientKey
+      required: false
+      description: "Client key, required for authType mtls. Can be secretKeyRef to use a secret reference"
+      example: "-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded DER>\n-----END RSA PRIVATE KEY-----"
+      type: string
+    - name: skipVerify
+      required: false
+      description: |
+        Skip TLS verification, this is not recommended for use in production. Defaults to "false"
+      example: "true"
+      type: bool
+    - name: disableTls
+      required: false
+      description: |
+        Disable TLS for transport security. This is not recommended for use in production. Defaults to "false", which implies TLS is enabled
+      example: "true"
+      type: bool
+    - name: oidcTokenEndpoint
+      required: false
+      description: "Full URL to an OAuth2 identity provider access token endpoint. Required when authType is set to oidc"
+      example: "https://identity.example.com/v1/token"
+      type: string
+    - name: oidcClientID
+      required: false
+      description: "The OAuth2 client ID that has been provisioned in the identity provider. Required when authType is set to oidc"
+      example: "dapr-kafka"
+      type: string
+    - name: oidcClientSecret
+      required: false
+      description: "The OAuth2 client secret that has been provisioned in the identity provider. Required when authType is set to oidc"
+      example: "KeFg23!"
+      type: string
+    - name: oidcScopes
+      required: false
+      description: |
+        Comma-delimited list of OAuth2/OIDC scopes to request with the access token. Recommended when authType is set to oidc. Defaults to "openid"
+      example: "openid,kafka-prod"
+      type: string
+
+
+

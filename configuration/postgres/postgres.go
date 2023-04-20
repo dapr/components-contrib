@@ -46,8 +46,8 @@ type ConfigurationStore struct {
 }
 
 type subscription struct {
-	uuid string
-	keys []string
+	channel string
+	keys    []string
 }
 
 type pgResponse struct {
@@ -56,26 +56,14 @@ type pgResponse struct {
 }
 
 const (
-	configtablekey               = "table"
-	connMaxIdleTimeKey           = "connMaxIdleTime"
-	connectionStringKey          = "connectionString"
-	pgNotifyChannelKey           = "pgNotifyChannel"
-	listenTemplate               = "listen %s"
-	unlistenTemplate             = "unlisten %s"
-	payloadDataKey               = "data"
-	ErrorMissingTableName        = "missing postgreSQL configuration table name"
-	ErrorMissingTable            = "postgreSQL configuration table - '%s' does not exist"
-	InfoStartInit                = "initializing postgreSQL configuration store"
-	ErrorMissingConnectionString = "missing postgreSQL connection string"
-	ErrorAlreadyInitialized      = "postgreSQL configuration store already initialized"
-	ErrorMissingMaxTimeout       = "missing PostgreSQL maxTimeout setting in configuration"
-	QueryTableExists             = "SELECT EXISTS (SELECT FROM pg_tables where tablename = $1)"
-	ErrorTooLongFieldLength      = "field name is too long"
-	maxIdentifierLength          = 64 // https://www.postgresql.org/docs/current/limits.html
+	payloadDataKey      = "data"
+	QueryTableExists    = "SELECT EXISTS (SELECT FROM pg_tables where tablename = $1)"
+	maxIdentifierLength = 64 // https://www.postgresql.org/docs/current/limits.html
 )
 
 var (
 	allowedChars           = regexp.MustCompile(`^[a-zA-Z0-9./_]*$`)
+	allowedTableNameChars  = regexp.MustCompile(`^[a-z0-9./_]*$`)
 	defaultMaxConnIdleTime = time.Second * 30
 )
 
@@ -88,10 +76,6 @@ func NewPostgresConfigurationStore(logger logger.Logger) configuration.Store {
 }
 
 func (p *ConfigurationStore) Init(parentCtx context.Context, metadata configuration.Metadata) error {
-	p.logger.Debug(InfoStartInit)
-	if p.client != nil {
-		return fmt.Errorf(ErrorAlreadyInitialized)
-	}
 	if m, err := parseMetadata(metadata); err != nil {
 		p.logger.Error(err)
 		return err
@@ -114,12 +98,41 @@ func (p *ConfigurationStore) Init(parentCtx context.Context, metadata configurat
 	exists := false
 	err = p.client.QueryRow(ctx, QueryTableExists, p.metadata.ConfigTable).Scan(&exists)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return fmt.Errorf(ErrorMissingTable, p.metadata.ConfigTable)
-		}
-		return fmt.Errorf("error in checking if configtable '%s' exists - '%w'", p.metadata.ConfigTable, err)
+		return fmt.Errorf("error in checking if configtable '%s' exists: '%w'", p.metadata.ConfigTable, err)
+	}
+	if !exists {
+		return fmt.Errorf("postgreSQL configuration table '%s' does not exist", p.metadata.ConfigTable)
 	}
 	return nil
+}
+
+// If version is a valid number, return the number
+// If version is not a valid number, return -1
+func getNumericVersion(version string) int {
+	num, err := strconv.Atoi(version)
+	if err != nil {
+		num = -1
+	}
+	return num
+}
+
+// Returns a map of unique items per key
+func getUniqueItemPerKey(res []pgResponse) map[string]*configuration.Item {
+	items := make(map[string]*configuration.Item)
+	latestNumericVersion := make(map[string]int)
+	for _, r := range res {
+		if items[r.key] == nil {
+			items[r.key] = r.item
+			latestNumericVersion[r.key] = getNumericVersion(r.item.Version)
+		} else {
+			newNumericVersion := getNumericVersion(r.item.Version)
+			if newNumericVersion > latestNumericVersion[r.key] {
+				items[r.key] = r.item
+				latestNumericVersion[r.key] = newNumericVersion
+			}
+		}
+	}
+	return items
 }
 
 func (p *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequest) (*configuration.GetResponse, error) {
@@ -152,55 +165,51 @@ func (p *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse response from configuration store - %w", err)
 	}
-	result := make(map[string]*configuration.Item)
-	for _, v := range items {
-		result[v.key] = v.item
-	}
+	result := getUniqueItemPerKey(items)
 	return &configuration.GetResponse{
 		Items: result,
 	}, nil
 }
 
 func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
-	var pgNotifyChannels []string
+	pgNotifyChannel := ""
 	for k, v := range req.Metadata {
-		if res := strings.EqualFold(pgNotifyChannelKey, k) && !slices.Contains(pgNotifyChannels, v); res {
-			pgNotifyChannels = append(pgNotifyChannels, v) // append unique channel names only
+		if strings.ToLower(k) == "pgnotifychannel" { //nolint:gocritic
+			pgNotifyChannel = v
+			break
 		}
 	}
-	if len(pgNotifyChannels) == 0 {
+	if pgNotifyChannel == "" {
 		return "", fmt.Errorf("unable to subscribe to '%s'.pgNotifyChannel attribute cannot be empty", p.metadata.ConfigTable)
 	}
-	return p.subscribeToChannel(ctx, pgNotifyChannels, req, handler)
+	return p.subscribeToChannel(ctx, pgNotifyChannel, req, handler)
 }
 
 func (p *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnsubscribeRequest) error {
 	p.configLock.Lock()
 	defer p.configLock.Unlock()
-	for k, v := range p.ActiveSubscriptions {
-		if v.uuid == req.ID {
-			if oldStopChan, ok := p.subscribeStopChanMap[req.ID]; ok {
-				delete(p.subscribeStopChanMap, req.ID)
-				close(oldStopChan)
-				pgChannel := fmt.Sprintf(unlistenTemplate, k)
-				conn, err := p.client.Acquire(ctx)
-				if err != nil {
-					p.logger.Errorf("error acquiring connection:", err)
-					return fmt.Errorf("error acquiring connection: %w ", err)
-				}
-				defer conn.Release()
-				_, err = conn.Exec(ctx, pgChannel)
-				if err != nil {
-					p.logger.Errorf("error un-listening to channel:", err)
-					return fmt.Errorf("error un-listening to channel: %w", err)
-				}
-				delete(p.ActiveSubscriptions, k)
-				return nil
-			}
-		}
+	sub := p.ActiveSubscriptions[req.ID]
+	if sub == nil {
+		return fmt.Errorf("unable to find subscription with ID : %v", req.ID)
 	}
-
-	return fmt.Errorf("unable to find subscription with ID : %v", req.ID)
+	if oldStopChan, ok := p.subscribeStopChanMap[req.ID]; ok {
+		delete(p.subscribeStopChanMap, req.ID)
+		close(oldStopChan)
+	}
+	pgChannel := "UNLISTEN " + sub.channel
+	conn, err := p.client.Acquire(ctx)
+	if err != nil {
+		p.logger.Error("error acquiring connection:", err)
+		return fmt.Errorf("error acquiring connection: %w ", err)
+	}
+	defer conn.Release()
+	_, err = conn.Exec(ctx, pgChannel)
+	if err != nil {
+		p.logger.Error("error un-listening to channel:", err)
+		return fmt.Errorf("error un-listening to channel: %w", err)
+	}
+	delete(p.ActiveSubscriptions, req.ID)
+	return nil
 }
 
 func (p *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, command string, channel string, subscription string, stop chan struct{}) {
@@ -253,6 +262,9 @@ func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 			case "version":
 				version = v.Interface().(string)
 			case "metadata":
+				if v.Interface() == nil {
+					continue
+				}
 				a := v.Interface().(map[string]interface{})
 				for k, v := range a {
 					m[k] = v.(string)
@@ -288,18 +300,18 @@ func parseMetadata(cmetadata configuration.Metadata) (metadata, error) {
 	}
 
 	if m.ConnectionString == "" {
-		return m, fmt.Errorf(ErrorMissingConnectionString)
+		return m, fmt.Errorf("missing postgreSQL connection string")
 	}
 
 	if m.ConfigTable != "" {
-		if !allowedChars.MatchString(m.ConfigTable) {
-			return m, fmt.Errorf("invalid table name : '%v'. non-alphanumerics are not supported", m.ConfigTable)
+		if !allowedTableNameChars.MatchString(m.ConfigTable) {
+			return m, fmt.Errorf("invalid table name '%s'. non-alphanumerics or upper cased table names are not supported", m.ConfigTable)
 		}
 		if len(m.ConfigTable) > maxIdentifierLength {
-			return m, fmt.Errorf(ErrorTooLongFieldLength+" - tableName : '%v'. max allowed field length is %v ", m.ConfigTable, maxIdentifierLength)
+			return m, fmt.Errorf("table name is too long - tableName : '%s'. max allowed field length is %d", m.ConfigTable, maxIdentifierLength)
 		}
 	} else {
-		return m, fmt.Errorf(ErrorMissingTableName)
+		return m, fmt.Errorf("missing postgreSQL configuration table name")
 	}
 	if m.MaxIdleTimeout <= 0 {
 		m.MaxIdleTimeout = defaultMaxConnIdleTime
@@ -361,19 +373,9 @@ func buildQuery(req *configuration.GetRequest, configTable string) (string, []in
 	return query, params, nil
 }
 
-func (p *ConfigurationStore) isSubscriptionActive(req *configuration.SubscribeRequest) (string, bool) {
-	for _, channel := range req.Metadata {
-		for key2, sub := range p.ActiveSubscriptions {
-			if res := strings.EqualFold(channel, key2); res {
-				return sub.uuid, true
-			}
-		}
-	}
-	return " ", false
-}
-
 func (p *ConfigurationStore) isSubscribed(subscriptionID string, channel string, key string) bool {
-	if val, yes := p.ActiveSubscriptions[channel]; yes && val.uuid == subscriptionID && slices.Contains(val.keys, key) {
+	val := p.ActiveSubscriptions[subscriptionID]
+	if val != nil && val.channel == channel && (slices.Contains(val.keys, key) || len(val.keys) == 0) {
 		return true
 	}
 	return false
@@ -388,32 +390,23 @@ func validateInput(keys []string) error {
 	return nil
 }
 
-func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, pgNotifyChanList []string, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
+func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, pgNotifyChannel string, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
 	p.configLock.Lock()
 	defer p.configLock.Unlock()
 	var subscribeID string
-	for _, channel := range pgNotifyChanList {
-		pgNotifyCmd := fmt.Sprintf(listenTemplate, channel)
-		if sub, isActive := p.isSubscriptionActive(req); isActive {
-			if oldStopChan, ok := p.subscribeStopChanMap[sub]; ok {
-				close(oldStopChan)
-				delete(p.subscribeStopChanMap, sub)
-				delete(p.ActiveSubscriptions, channel)
-			}
-		}
-		stop := make(chan struct{})
-		subscribeUID, err := uuid.NewRandom()
-		if err != nil {
-			return "", fmt.Errorf("unable to generate subscription id - %w", err)
-		}
-		subscribeID = subscribeUID.String()
-		p.subscribeStopChanMap[subscribeID] = stop
-		p.ActiveSubscriptions[channel] = &subscription{
-			uuid: subscribeID,
-			keys: req.Keys,
-		}
-		go p.doSubscribe(ctx, req, handler, pgNotifyCmd, channel, subscribeID, stop)
+	pgNotifyCmd := "listen " + pgNotifyChannel
+	stop := make(chan struct{})
+	subscribeUID, err := uuid.NewRandom()
+	if err != nil {
+		return "", fmt.Errorf("unable to generate subscription id - %w", err)
 	}
+	subscribeID = subscribeUID.String()
+	p.subscribeStopChanMap[subscribeID] = stop
+	p.ActiveSubscriptions[subscribeID] = &subscription{
+		channel: pgNotifyChannel,
+		keys:    req.Keys,
+	}
+	go p.doSubscribe(ctx, req, handler, pgNotifyCmd, pgNotifyChannel, subscribeID, stop)
 	return subscribeID, nil
 }
 
@@ -421,6 +414,6 @@ func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, pgNotifyCha
 func (p *ConfigurationStore) GetComponentMetadata() map[string]string {
 	metadataStruct := metadata{}
 	metadataInfo := map[string]string{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
 	return metadataInfo
 }

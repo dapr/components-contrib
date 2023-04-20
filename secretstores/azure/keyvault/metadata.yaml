@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: secretstores
+name: azure.keyvault
+version: v1
+status: stable
+title: "Azure Key Vault"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-secret-stores/azure-keyvault/
+builtinAuthenticationProfiles:
+  - name: "azuread"
+metadata:
+  - name: vaultName
+    required: true
+    description: |
+      The Azure Key Vault name.
+    example: '"mykeyvault"'
+    type: string

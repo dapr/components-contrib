@@ -65,7 +65,8 @@ const (
 )
 
 type StateStore struct {
-	state.DefaultBulkStore
+	state.BulkStore
+
 	client       *aztables.Client
 	json         jsoniter.API
 	cosmosDBMode bool
@@ -205,7 +206,7 @@ func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 func (r *StateStore) GetComponentMetadata() map[string]string {
 	metadataStruct := tablesMetadata{}
 	metadataInfo := map[string]string{}
-	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.StateStoreType)
 	return metadataInfo
 }
 
@@ -215,8 +216,7 @@ func NewAzureTablesStateStore(logger logger.Logger) state.Store {
 		features: []state.Feature{state.FeatureETag},
 		logger:   logger,
 	}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
+	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
 }
 

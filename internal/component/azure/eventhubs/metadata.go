@@ -25,7 +25,7 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-type azureEventHubsMetadata struct {
+type AzureEventHubsMetadata struct {
 	ConnectionString        string `json:"connectionString" mapstructure:"connectionString"`
 	EventHubNamespace       string `json:"eventHubNamespace" mapstructure:"eventHubNamespace"`
 	ConsumerID              string `json:"consumerID" mapstructure:"consumerID"`
@@ -40,9 +40,9 @@ type azureEventHubsMetadata struct {
 	ResourceGroupName       string `json:"resourceGroupName" mapstructure:"resourceGroupName"`
 
 	// Binding only
-	EventHub      string `json:"eventHub" mapstructure:"eventHub"`
-	ConsumerGroup string `json:"consumerGroup" mapstructure:"consumerGroup"` // Alias for ConsumerID
-	PartitionID   string `json:"partitionID" mapstructure:"partitionID"`     // Deprecated
+	EventHub      string `json:"eventHub" mapstructure:"eventHub" only:"bindings"`
+	ConsumerGroup string `json:"consumerGroup" mapstructure:"consumerGroup" only:"bindings"` // Alias for ConsumerID
+	PartitionID   string `json:"partitionID" mapstructure:"partitionID" only:"bindings"`     // Deprecated
 
 	// Internal properties
 	namespaceName string
@@ -51,8 +51,8 @@ type azureEventHubsMetadata struct {
 	properties    map[string]string
 }
 
-func parseEventHubsMetadata(meta map[string]string, isBinding bool, log logger.Logger) (*azureEventHubsMetadata, error) {
-	var m azureEventHubsMetadata
+func parseEventHubsMetadata(meta map[string]string, isBinding bool, log logger.Logger) (*AzureEventHubsMetadata, error) {
+	var m AzureEventHubsMetadata
 	err := metadata.DecodeMetadata(meta, &m)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode metada: %w", err)

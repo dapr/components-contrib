@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"reflect"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -26,8 +27,7 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/internal/utils"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -69,15 +69,15 @@ type RabbitMQ struct {
 
 // Metadata is the rabbitmq config.
 type rabbitMQMetadata struct {
-	Host             string `json:"host"`
-	QueueName        string `json:"queueName"`
-	Exclusive        bool   `json:"exclusive,string"`
-	Durable          bool   `json:"durable,string"`
-	DeleteWhenUnused bool   `json:"deleteWhenUnused,string"`
-	PrefetchCount    int    `json:"prefetchCount"`
-	MaxPriority      *uint8 `json:"maxPriority"` // Priority Queue deactivated if nil
-	reconnectWait    time.Duration
-	defaultQueueTTL  *time.Duration
+	Host             string         `mapstructure:"host"`
+	QueueName        string         `mapstructure:"queueName"`
+	Exclusive        bool           `mapstructure:"exclusive"`
+	Durable          bool           `mapstructure:"durable"`
+	DeleteWhenUnused bool           `mapstructure:"deleteWhenUnused"`
+	PrefetchCount    int            `mapstructure:"prefetchCount"`
+	MaxPriority      *uint8         `mapstructure:"maxPriority"` // Priority Queue deactivated if nil
+	ReconnectWait    time.Duration  `mapstructure:"reconnectWaitInSeconds"`
+	DefaultQueueTTL  *time.Duration `mapstructure:"ttlInSeconds"`
 }
 
 // NewRabbitMQ returns a new rabbitmq instance.
@@ -118,7 +118,7 @@ func (r *RabbitMQ) reconnectWhenNecessary() {
 			// If this error can not be recovered, first wait and then retry.
 			if e != nil && !e.Recover {
 				select {
-				case <-time.After(r.metadata.reconnectWait):
+				case <-time.After(r.metadata.ReconnectWait):
 				case <-r.closeCh:
 					return
 				}
@@ -148,7 +148,7 @@ func (r *RabbitMQ) reconnectWhenNecessary() {
 				r.logger.Warnf("Reconnect failed: %v", err)
 
 				select {
-				case <-time.After(r.metadata.reconnectWait):
+				case <-time.After(r.metadata.ReconnectWait):
 				case <-r.closeCh:
 					return
 				}
@@ -190,14 +190,14 @@ func (r *RabbitMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		Body:         req.Data,
 	}
 
-	contentType, ok := contribMetadata.TryGetContentType(req.Metadata)
+	contentType, ok := metadata.TryGetContentType(req.Metadata)
 	if ok {
 		pub.ContentType = contentType
 	}
 
 	// The default time to live has been set in the queue
 	// We allow overriding on each call, by setting a value in request metadata
-	ttl, ok, err := contribMetadata.TryGetTTL(req.Metadata)
+	ttl, ok, err := metadata.TryGetTTL(req.Metadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get TTL: %w", err)
 	}
@@ -206,7 +206,7 @@ func (r *RabbitMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		pub.Expiration = strconv.FormatInt(ttl.Milliseconds(), 10)
 	}
 
-	priority, ok, err := contribMetadata.TryGetPriority(req.Metadata)
+	priority, ok, err := metadata.TryGetPriority(req.Metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -222,42 +222,22 @@ func (r *RabbitMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 	return nil, nil
 }
 
-func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
-	m := rabbitMQMetadata{reconnectWait: defaultReconnectWait}
+func (r *RabbitMQ) parseMetadata(meta bindings.Metadata) error {
+	m := rabbitMQMetadata{
+		ReconnectWait: defaultReconnectWait,
+	}
 
-	if val := metadata.Properties[host]; val != "" {
-		m.Host = val
-	} else {
+	metadata.DecodeMetadata(meta.Properties, &m)
+
+	if m.Host == "" {
 		return errors.New("missing host address")
 	}
 
-	if val := metadata.Properties[queueName]; val != "" {
-		m.QueueName = val
-	} else {
+	if m.QueueName == "" {
 		return errors.New("missing queue Name")
 	}
 
-	if val := metadata.Properties[durable]; val != "" {
-		m.Durable = utils.IsTruthy(val)
-	}
-
-	if val := metadata.Properties[deleteWhenUnused]; val != "" {
-		m.DeleteWhenUnused = utils.IsTruthy(val)
-	}
-
-	if val := metadata.Properties[prefetchCount]; val != "" {
-		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
-		if err != nil {
-			return fmt.Errorf("can't parse prefetchCount field: %s", err)
-		}
-		m.PrefetchCount = int(parsedVal)
-	}
-
-	if val := metadata.Properties[exclusive]; val != "" {
-		m.Exclusive = utils.IsTruthy(val)
-	}
-
-	if val := metadata.Properties[maxPriority]; val != "" {
+	if val := meta.Properties[maxPriority]; val != "" {
 		parsedVal, err := strconv.ParseUint(val, defaultBase, defaultBitSize)
 		if err != nil {
 			return fmt.Errorf("can't parse maxPriority field: %s", err)
@@ -272,18 +252,12 @@ func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
 		m.MaxPriority = &maxPriority
 	}
 
-	if val := metadata.Properties[reconnectWaitSecondsKey]; val != "" {
-		if intVal, err := strconv.Atoi(val); err == nil && intVal > 0 {
-			m.reconnectWait = time.Duration(intVal) * time.Second
-		}
-	}
-
-	ttl, ok, err := contribMetadata.TryGetTTL(metadata.Properties)
+	ttl, ok, err := metadata.TryGetTTL(meta.Properties)
 	if err != nil {
 		return fmt.Errorf("failed to parse TTL: %w", err)
 	}
 	if ok {
-		m.defaultQueueTTL = &ttl
+		m.DefaultQueueTTL = &ttl
 	}
 
 	r.metadata = m
@@ -293,9 +267,9 @@ func (r *RabbitMQ) parseMetadata(metadata bindings.Metadata) error {
 
 func (r *RabbitMQ) declareQueue(channel *amqp.Channel) (amqp.Queue, error) {
 	args := amqp.Table{}
-	if r.metadata.defaultQueueTTL != nil {
+	if r.metadata.DefaultQueueTTL != nil {
 		// Value in ms
-		ttl := *r.metadata.defaultQueueTTL / time.Millisecond
+		ttl := *r.metadata.DefaultQueueTTL / time.Millisecond
 		args[rabbitMQQueueMessageTTLKey] = int(ttl)
 	}
 
@@ -358,7 +332,7 @@ func (r *RabbitMQ) Read(ctx context.Context, handler bindings.Handler) error {
 
 			// something went wrong, wait for reconnect
 			select {
-			case <-time.After(r.metadata.reconnectWait):
+			case <-time.After(r.metadata.ReconnectWait):
 				continue
 			case <-readCtx.Done():
 				r.logger.Info("Input binding closed, stop fetching message")
@@ -454,4 +428,11 @@ func (r *RabbitMQ) reset() (err error) {
 	}
 
 	return err
+}
+
+func (r *RabbitMQ) GetComponentMetadata() map[string]string {
+	metadataStruct := rabbitMQMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

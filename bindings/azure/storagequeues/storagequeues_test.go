@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
@@ -96,13 +97,13 @@ func TestWriteQueue(t *testing.T) {
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
 	err := a.Init(context.Background(), m)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	r := bindings.InvokeRequest{Data: []byte("This is my message")}
 
 	_, err = a.Invoke(context.Background(), &r)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.NoError(t, a.Close())
 }
 
@@ -118,13 +119,13 @@ func TestWriteWithTTLInQueue(t *testing.T) {
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: "1"}
 
 	err := a.Init(context.Background(), m)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	r := bindings.InvokeRequest{Data: []byte("This is my message")}
 
 	_, err = a.Invoke(context.Background(), &r)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.NoError(t, a.Close())
 }
 
@@ -140,7 +141,7 @@ func TestWriteWithTTLInWrite(t *testing.T) {
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1", metadata.TTLMetadataKey: "1"}
 
 	err := a.Init(context.Background(), m)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	r := bindings.InvokeRequest{
 		Data:     []byte("This is my message"),
@@ -149,7 +150,7 @@ func TestWriteWithTTLInWrite(t *testing.T) {
 
 	_, err = a.Invoke(context.Background(), &r)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.NoError(t, a.Close())
 }
 
@@ -162,13 +163,13 @@ func TestWriteWithTTLInWrite(t *testing.T) {
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
 	err := a.Init(context.Background(), m)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	r := bindings.InvokeRequest{Data: []byte("This is my message")}
 
 	err = a.Write(&r)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 } */
 
 func TestReadQueue(t *testing.T) {
@@ -181,14 +182,14 @@ func TestReadQueue(t *testing.T) {
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
 	err := a.Init(context.Background(), m)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	r := bindings.InvokeRequest{Data: []byte("This is my message")}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	_, err = a.Invoke(ctx, &r)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	received := 0
 	handler := func(ctx context.Context, data *bindings.ReadResponse) ([]byte, error) {
@@ -223,14 +224,14 @@ func TestReadQueueDecode(t *testing.T) {
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1", "decodeBase64": "true"}
 
 	err := a.Init(context.Background(), m)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	r := bindings.InvokeRequest{Data: []byte("VGhpcyBpcyBteSBtZXNzYWdl")}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	_, err = a.Invoke(ctx, &r)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	received := 0
 	handler := func(ctx context.Context, data *bindings.ReadResponse) ([]byte, error) {
@@ -263,13 +264,13 @@ func TestReadQueueDecode(t *testing.T) {
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
 	err := a.Init(context.Background(), m)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	r := bindings.InvokeRequest{Data: []byte("This is my message")}
 
 	err = a.Write(&r)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	var handler = func(data *bindings.ReadResponse) ([]byte, error) {
 		s := string(data.Data)
@@ -294,7 +295,7 @@ func TestReadQueueNoMessage(t *testing.T) {
 	m.Properties = map[string]string{"storageAccessKey": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==", "queue": "queue1", "storageAccount": "devstoreaccount1"}
 
 	err := a.Init(context.Background(), m)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	received := 0
@@ -323,6 +324,7 @@ func TestParseMetadata(t *testing.T) {
 		// expectedAccountKey       string
 		expectedQueueName         string
 		expectedQueueEndpointURL  string
+		expectedPollingInterval   time.Duration
 		expectedTTL               *time.Duration
 		expectedVisibilityTimeout *time.Duration
 	}{
@@ -332,7 +334,8 @@ func TestParseMetadata(t *testing.T) {
 			// expectedAccountKey:       "myKey",
 			expectedQueueName:         "queue1",
 			expectedQueueEndpointURL:  "",
-			expectedVisibilityTimeout: ptr.Of(30 * time.Second),
+			expectedPollingInterval:   defaultPollingInterval,
+			expectedVisibilityTimeout: ptr.Of(defaultVisibilityTimeout),
 		},
 		{
 			name:       "Accout, key, and endpoint",
@@ -340,7 +343,8 @@ func TestParseMetadata(t *testing.T) {
 			// expectedAccountKey:       "myKey",
 			expectedQueueName:         "queue1",
 			expectedQueueEndpointURL:  "https://foo.example.com:10001",
-			expectedVisibilityTimeout: ptr.Of(30 * time.Second),
+			expectedPollingInterval:   defaultPollingInterval,
+			expectedVisibilityTimeout: ptr.Of(defaultVisibilityTimeout),
 		},
 		{
 			name:       "Empty TTL",
@@ -348,7 +352,9 @@ func TestParseMetadata(t *testing.T) {
 			// expectedAccountKey:       "myKey",
 			expectedQueueName:         "queue1",
 			expectedQueueEndpointURL:  "",
-			expectedVisibilityTimeout: ptr.Of(30 * time.Second),
+			expectedTTL:               ptr.Of(time.Duration(0)),
+			expectedPollingInterval:   defaultPollingInterval,
+			expectedVisibilityTimeout: ptr.Of(defaultVisibilityTimeout),
 		},
 		{
 			name:       "With TTL",
@@ -357,13 +363,24 @@ func TestParseMetadata(t *testing.T) {
 			expectedQueueName:         "queue1",
 			expectedTTL:               &oneSecondDuration,
 			expectedQueueEndpointURL:  "",
-			expectedVisibilityTimeout: ptr.Of(30 * time.Second),
+			expectedPollingInterval:   defaultPollingInterval,
+			expectedVisibilityTimeout: ptr.Of(defaultVisibilityTimeout),
 		},
 		{
 			name:                      "With visibility timeout",
 			properties:                map[string]string{"accessKey": "myKey", "storageAccountQueue": "queue1", "storageAccount": "devstoreaccount1", "visibilityTimeout": "5s"},
 			expectedQueueName:         "queue1",
+			expectedPollingInterval:   defaultPollingInterval,
 			expectedVisibilityTimeout: ptr.Of(5 * time.Second),
+		},
+		{
+			name:       "With polling interval",
+			properties: map[string]string{"accessKey": "myKey", "storageAccountQueue": "queue1", "storageAccount": "devstoreaccount1", "pollingInterval": "2s"},
+			// expectedAccountKey:       "myKey",
+			expectedQueueName:         "queue1",
+			expectedQueueEndpointURL:  "",
+			expectedPollingInterval:   2 * time.Second,
+			expectedVisibilityTimeout: ptr.Of(defaultVisibilityTimeout),
 		},
 	}
 
@@ -374,14 +391,28 @@ func TestParseMetadata(t *testing.T) {
 
 			meta, err := parseMetadata(m)
 
-			assert.Nil(t, err)
+			require.NoError(t, err)
 			// assert.Equal(t, tt.expectedAccountKey, meta.AccountKey)
 			assert.Equal(t, tt.expectedQueueName, meta.QueueName)
-			assert.Equal(t, tt.expectedTTL, meta.ttl)
+			assert.Equal(t, tt.expectedTTL, meta.TTL)
 			assert.Equal(t, tt.expectedQueueEndpointURL, meta.QueueEndpoint)
 			assert.Equal(t, tt.expectedVisibilityTimeout, meta.VisibilityTimeout)
 		})
 	}
+
+	t.Run("invalid pollingInterval", func(t *testing.T) {
+		m := bindings.Metadata{Base: metadata.Base{
+			Properties: map[string]string{
+				"accessKey":           "myKey",
+				"storageAccountQueue": "queue1",
+				"storageAccount":      "devstoreaccount1",
+				"pollingInterval":     "-1s",
+			},
+		}}
+
+		_, err := parseMetadata(m)
+		require.Error(t, err)
+	})
 }
 
 func TestParseMetadataWithInvalidTTL(t *testing.T) {

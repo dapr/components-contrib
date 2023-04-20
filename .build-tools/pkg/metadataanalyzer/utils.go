@@ -12,11 +12,22 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+
+	// Import the embed package.
+	_ "embed"
 )
+
+//go:embed analyzer.template
+var tmpl string
+
+type PkgInfo struct {
+	Method        string
+	ComponentType string
+}
 
 func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, outputfile string) {
 	fset := token.NewFileSet()
-	pkgs := make(map[string]string)
+	pkgs := make(map[string]PkgInfo)
 
 	err := filepath.WalkDir(contribRoot, func(path string, file fs.DirEntry, err error) error {
 		if err != nil {
@@ -34,7 +45,7 @@ func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, out
 			return nil
 		}
 
-		componentType := ""
+		componentTypeFolder := ""
 		packageName := ""
 		skip := true
 		dir := filepath.Dir(path)
@@ -51,7 +62,7 @@ func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, out
 
 			for _, val := range componentFolders {
 				if curFolder == val {
-					componentType = curFolder
+					componentTypeFolder = curFolder
 				}
 			}
 		}
@@ -66,8 +77,9 @@ func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, out
 		var methodFinderErr error
 		methodFound := false
 
-		switch componentType {
+		switch componentTypeFolder {
 		// Only the component types listed here implement the GetComponentMetadata method today
+		// Note: these are folder names not the type of components
 		case "secretstores":
 			method, methodFinderErr = getConstructorMethod("secretstores.SecretStore", parsedFile)
 			if methodFinderErr == nil {
@@ -78,10 +90,58 @@ func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, out
 			if methodFinderErr == nil {
 				methodFound = true
 			}
+		case "bindings":
+			method, methodFinderErr = getConstructorMethod("bindings.InputOutputBinding", parsedFile)
+			if methodFinderErr == nil {
+				methodFound = true
+			} else {
+				method, methodFinderErr = getConstructorMethod("bindings.OutputBinding", parsedFile)
+				if methodFinderErr == nil {
+					methodFound = true
+				} else {
+					method, methodFinderErr = getConstructorMethod("bindings.InputBinding", parsedFile)
+					if methodFinderErr == nil {
+						methodFound = true
+					}
+				}
+			}
+		case "lock":
+			method, methodFinderErr = getConstructorMethod("lock.Store", parsedFile)
+			if methodFinderErr == nil {
+				methodFound = true
+			}
+		case "workflows":
+			method, methodFinderErr = getConstructorMethod("workflows.Workflow", parsedFile)
+			if methodFinderErr == nil {
+				methodFound = true
+			}
+		case "configuration":
+			method, methodFinderErr = getConstructorMethod("configuration.Store", parsedFile)
+			if methodFinderErr == nil {
+				methodFound = true
+			}
+		case "crypto":
+			method, methodFinderErr = getConstructorMethod("contribCrypto.SubtleCrypto", parsedFile)
+			if methodFinderErr == nil {
+				methodFound = true
+			}
+		case "middleware":
+			method, methodFinderErr = getConstructorMethod("middleware.Middleware", parsedFile)
+			if methodFinderErr == nil {
+				methodFound = true
+			}
+		case "pubsub":
+			method, methodFinderErr = getConstructorMethod("pubsub.PubSub", parsedFile)
+			if methodFinderErr == nil {
+				methodFound = true
+			}
 		}
 
 		if methodFound {
-			pkgs[packageName] = method
+			pkgs[packageName] = PkgInfo{
+				Method:        method,
+				ComponentType: componentTypeFolder,
+			}
 		}
 
 		return nil
@@ -92,9 +152,9 @@ func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, out
 
 	data := make(map[string][]string)
 
-	for fullpkg, method := range pkgs {
+	for fullpkg, info := range pkgs {
 		sanitizedPkg := strings.ReplaceAll(strings.ReplaceAll(fullpkg, "/", "_"), "-", "_")
-		data[fullpkg] = []string{sanitizedPkg, method}
+		data[fullpkg] = []string{sanitizedPkg, info.Method, info.ComponentType}
 	}
 
 	templateData := struct {
@@ -104,22 +164,16 @@ func GenerateMetadataAnalyzer(contribRoot string, componentFolders []string, out
 	}
 
 	// let's try loading the template
-	bytes, fileErr := os.ReadFile(".build-tools/pkg/metadataanalyzer/analyzer.template")
-	tmpl := string(bytes)
-	if fileErr != nil {
-		log.Fatal(fileErr)
-	}
-
 	f, err := os.Create(outputfile)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	defer f.Close()
 
 	t := template.Must(template.New("tmpl").Parse(tmpl))
 	err = t.Execute(f, templateData)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 }
 
@@ -138,7 +192,9 @@ func getConstructorMethod(componentType string, file *ast.File) (string, error) 
 						continue
 					}
 					if selExpr.Sel.Name == typeSplit[1] {
-						return f.Name.Name, nil
+						if len(f.Name.Name) > 3 && f.Name.Name[:3] == "New" {
+							return f.Name.Name, nil
+						}
 					}
 				}
 			}

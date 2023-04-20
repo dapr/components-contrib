@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -13,13 +13,25 @@ limitations under the License.
 
 package state
 
-import "github.com/dapr/components-contrib/state/query"
+import (
+	"github.com/dapr/components-contrib/state/query"
+)
 
 // GetRequest is the object describing a state fetch request.
 type GetRequest struct {
 	Key      string            `json:"key"`
 	Metadata map[string]string `json:"metadata"`
 	Options  GetStateOption    `json:"options,omitempty"`
+}
+
+// Key gets the Key on a GetRequest.
+func (r GetRequest) GetKey() string {
+	return r.Key
+}
+
+// Metadata gets the Metadata on a GetRequest.
+func (r GetRequest) GetMetadata() map[string]string {
+	return r.Metadata
 }
 
 // GetStateOption controls how a state store reacts to a get request.
@@ -45,6 +57,11 @@ func (r DeleteRequest) GetMetadata() map[string]string {
 	return r.Metadata
 }
 
+// Operation returns the operation type for DeleteRequest, implementing TransactionalStateOperationRequest.
+func (r DeleteRequest) Operation() OperationType {
+	return OperationDelete
+}
+
 // DeleteStateOption controls how a state store reacts to a delete request.
 type DeleteStateOption struct {
 	Concurrency string `json:"concurrency,omitempty"` // "concurrency"
@@ -54,7 +71,7 @@ type DeleteStateOption struct {
 // SetRequest is the object describing an upsert request.
 type SetRequest struct {
 	Key         string            `json:"key"`
-	Value       interface{}       `json:"value"`
+	Value       any               `json:"value"`
 	ETag        *string           `json:"etag,omitempty"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
 	Options     SetStateOption    `json:"options,omitempty"`
@@ -71,38 +88,45 @@ func (r SetRequest) GetMetadata() map[string]string {
 	return r.Metadata
 }
 
+// Operation returns the operation type for SetRequest, implementing TransactionalStateOperationRequest.
+func (r SetRequest) Operation() OperationType {
+	return OperationUpsert
+}
+
 // SetStateOption controls how a state store reacts to a set request.
 type SetStateOption struct {
-	Concurrency string `json:"concurrency,omitempty"` // first-write, last-write
-	Consistency string `json:"consistency"`           // "eventual, strong"
+	Concurrency string // first-write, last-write
+	Consistency string // "eventual, strong"
 }
 
 // OperationType describes a CRUD operation performed against a state store.
 type OperationType string
 
-// Upsert is an update or create operation.
-const Upsert OperationType = "upsert"
-
-// Delete is a delete operation.
-const Delete OperationType = "delete"
+const (
+	// OperationUpsert is an update or create transactional operation.
+	OperationUpsert OperationType = "upsert"
+	// OperationDelete is a delete transactional operation.
+	OperationDelete OperationType = "delete"
+)
 
 // TransactionalStateRequest describes a transactional operation against a state store that comprises multiple types of operations
 // The Request field is either a DeleteRequest or SetRequest.
 type TransactionalStateRequest struct {
-	Operations []TransactionalStateOperation `json:"operations"`
-	Metadata   map[string]string             `json:"metadata,omitempty"`
+	Operations []TransactionalStateOperation
+	Metadata   map[string]string
 }
 
-// TransactionalStateOperation describes operation type, key, and value for transactional operation.
-type TransactionalStateOperation struct {
-	Operation OperationType `json:"operation"`
-	Request   interface{}   `json:"request"`
-}
-
-// KeyInt is an interface that allows gets of the Key and Metadata inside requests.
-type KeyInt interface {
+// StateRequest is an interface that allows gets of the Key and Metadata inside requests.
+type StateRequest interface {
 	GetKey() string
 	GetMetadata() map[string]string
+}
+
+// TransactionalStateOperation is an interface for all requests that can be part of a transaction.
+type TransactionalStateOperation interface {
+	StateRequest
+
+	Operation() OperationType
 }
 
 type QueryRequest struct {

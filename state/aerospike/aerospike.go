@@ -45,7 +45,8 @@ var (
 
 // Aerospike is a state store.
 type Aerospike struct {
-	state.DefaultBulkStore
+	state.BulkStore
+
 	namespace string
 	set       string // optional
 	client    *as.Client
@@ -62,8 +63,7 @@ func NewAerospikeStateStore(logger logger.Logger) state.Store {
 		features: []state.Feature{state.FeatureETag},
 		logger:   logger,
 	}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
+	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
 }
 
@@ -274,6 +274,6 @@ func convertETag(eTag string) (uint32, error) {
 func (aspike *Aerospike) GetComponentMetadata() map[string]string {
 	metadataStruct := aerospikeMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }

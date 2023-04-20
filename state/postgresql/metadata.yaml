@@ -16,12 +16,16 @@ capabilities:
   - etag
   - query
   - ttl
+authenticationProfiles:
+  - title: "Connection string"
+    description: "Authenticate using a Connection String."
+    metadata:
+      - name: connectionString
+        required: true
+        description: The connection string for the PostgreSQL database
+        example: "host=localhost user=postgres password=example port=5432 connect_timeout=10 database=dapr_test"
+        type: string
 metadata:
-  - name: connectionString
-    required: true
-    description: The connection string for the PostgreSQL database
-    example: "host=localhost user=postgres password=example port=5432 connect_timeout=10 database=dapr_test"
-    type: string
   - name: timeoutInSeconds
     required: false
     description: Timeout, in seconds, for all database operations. 
@@ -30,26 +34,33 @@ metadata:
     type: number
   - name: tableName
     required: false
-    description: Name of the table where the data is stored. Defaults to `state`. Can optionally have the schema name as prefix, such as `public.state`
+    description: |
+      Name of the table where the data is stored.
+      Can optionally have the schema name as prefix, such as `public.state`
     example: "public.state"
+    default: "state"
     type: string
   - name: metadataTableName
     required: false
-    description: Name of the table Dapr uses to store a few metadata properties. Defaults to `dapr_metadata`. Can optionally have the schema name as prefix, such as `public.dapr_metadata`
+    description: |
+      Name of the table Dapr uses to store a few metadata properties.
+      Can optionally have the schema name as prefix, such as `public.dapr_metadata`
     example: "public.dapr_metadata"
+    default: "dapr_metadata"
     type: string  
   - name: cleanupIntervalInSeconds
     required: false
-    description: Interval, in seconds, to clean up rows with an expired TTL. Default to 3600 (i.e. 1 hour). Setting this to values <=0 disables the periodic cleanup.
-    example:  "1800"
+    description: |
+      Interval, in seconds, to clean up rows with an expired TTL.
+      Setting this to values <=0 disables the periodic cleanup.
+    example: "1800"
+    default: "3600" # 1h
     type: number
   - name: connectionMaxIdleTime
     required: false
-    description: Max idle time before unused connections are automatically closed in the connection pool. By default, there's no value and this is left to the database driver to choose.
+    description: |
+      Max idle time before unused connections are automatically closed in the
+      connection pool. By default, there's no value and this is left to the
+      database driver to choose.
     example:  "5m"
     type: duration
-  - name: actorStateStore
-    required: false
-    description: Consider this state store for actors. Defaults to `false`
-    example: "false"
-    type: bool

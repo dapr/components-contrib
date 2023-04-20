@@ -33,7 +33,8 @@ const defaultEntityKind = "DaprState"
 
 // Firestore State Store.
 type Firestore struct {
-	state.DefaultBulkStore
+	state.BulkStore
+
 	client     *datastore.Client
 	entityKind string
 	noIndex    bool
@@ -64,9 +65,10 @@ type StateEntityNoIndex struct {
 }
 
 func NewFirestoreStateStore(logger logger.Logger) state.Store {
-	s := &Firestore{logger: logger}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
+	s := &Firestore{
+		logger: logger,
+	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
 }
 
@@ -203,6 +205,6 @@ func getFirestoreMetadata(meta state.Metadata) (*firestoreMetadata, error) {
 func (f *Firestore) GetComponentMetadata() map[string]string {
 	metadataStruct := firestoreMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }

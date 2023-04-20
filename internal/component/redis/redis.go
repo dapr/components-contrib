@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"golang.org/x/mod/semver"
+
+	"github.com/dapr/components-contrib/metadata"
 )
 
 const (
@@ -72,15 +74,25 @@ type RedisClient interface {
 	TTLResult(ctx context.Context, key string) (time.Duration, error)
 }
 
-func ParseClientFromProperties(properties map[string]string, defaultSettings *Settings) (client RedisClient, settings *Settings, err error) {
-	if defaultSettings == nil {
-		settings = &Settings{}
-	} else {
-		settings = defaultSettings
+func ParseClientFromProperties(properties map[string]string, componentType metadata.ComponentType) (client RedisClient, settings *Settings, err error) {
+	settings = &Settings{
+		LegacyMaxRetries:      3,
+		LegacyMaxRetryBackoff: time.Second * 2,
 	}
+
 	err = settings.Decode(properties)
 	if err != nil {
 		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+	}
+
+	if componentType == metadata.StateStoreType || componentType == metadata.LockStoreType {
+		// Backwards compatibility for legacy max retries and max retry backoff
+		if _, ok := properties["redisMaxRetries"]; !ok {
+			settings.RedisMaxRetries = settings.LegacyMaxRetries
+		}
+		if _, ok := properties["redisMinRetryInterval"]; !ok {
+			settings.RedisMinRetryInterval = Duration(settings.LegacyMaxRetryBackoff)
+		}
 	}
 
 	var c RedisClient

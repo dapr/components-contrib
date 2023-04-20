@@ -80,8 +80,8 @@ func createObjectRequest(ctx flow.Context, client daprsdk.Client, dataBytes []by
 	return client.InvokeBinding(ctx, invokeCreateRequest)
 }
 
-// listObejctRequest is used to make a common binding request for the list operation.
-func listObejctRequest(ctx flow.Context, client daprsdk.Client) (out *daprsdk.BindingEvent, err error) {
+// listObjectRequest is used to make a common binding request for the list operation.
+func listObjectRequest(ctx flow.Context, client daprsdk.Client) (out *daprsdk.BindingEvent, err error) {
 	invokeRequest := &daprsdk.InvokeBindingRequest{
 		Name:      bindingsMetadataName,
 		Operation: "list",
@@ -184,7 +184,7 @@ func S3SBasic(t *testing.T) {
 		assert.NoError(t, invokeGetErr)
 		assert.Equal(t, input, string(out.Data))
 
-		out, invokeErr := listObejctRequest(ctx, client)
+		out, invokeErr := listObjectRequest(ctx, client)
 		assert.NoError(t, invokeErr)
 		var output s3.ListObjectsOutput
 		unmarshalErr := json.Unmarshal(out.Data, &output)

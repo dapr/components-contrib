@@ -16,6 +16,7 @@ package redis
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -75,24 +76,34 @@ type RedisClient interface {
 }
 
 func ParseClientFromProperties(properties map[string]string, componentType metadata.ComponentType) (client RedisClient, settings *Settings, err error) {
-	settings = &Settings{
-		LegacyMaxRetries:      3,
-		LegacyMaxRetryBackoff: time.Second * 2,
+	settings = &Settings{}
+
+	// upgrade legacy metadata properties
+	if componentType == metadata.StateStoreType || componentType == metadata.LockStoreType {
+		// Apply legacy defaults
+		settings.RedisMaxRetries = 3
+		settings.RedisMinRetryInterval = Duration(2 * time.Second)
+		// Parse legacy keys
+		if _, ok := properties["redisMinRetryInterval"]; !ok {
+			if val, ok := properties["maxRetryBackoff"]; ok {
+				// due to different duration formats, do not simply change the key name
+				parsedVal, parseErr := strconv.ParseInt(val, 10, 0)
+				if parseErr != nil {
+					return nil, nil, fmt.Errorf("redis store error: can't parse maxRetryBackoff field: %s", parseErr)
+				}
+				settings.RedisMinRetryInterval = Duration(time.Duration(parsedVal))
+			}
+		}
+		if _, ok := properties["redisMaxRetries"]; !ok {
+			if _, ok := properties["maxRetries"]; ok {
+				properties["redisMaxRetries"] = properties["maxRetries"]
+			}
+		}
 	}
 
 	err = settings.Decode(properties)
 	if err != nil {
 		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
-	}
-
-	if componentType == metadata.StateStoreType || componentType == metadata.LockStoreType {
-		// Backwards compatibility for legacy max retries and max retry backoff
-		if _, ok := properties["redisMaxRetries"]; !ok {
-			settings.RedisMaxRetries = settings.LegacyMaxRetries
-		}
-		if _, ok := properties["redisMinRetryInterval"]; !ok {
-			settings.RedisMinRetryInterval = Duration(settings.LegacyMaxRetryBackoff)
-		}
 	}
 
 	var c RedisClient

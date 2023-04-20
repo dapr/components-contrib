@@ -551,5 +551,6 @@ func (r *StateStore) GetComponentMetadata() map[string]string {
 	settingsStruct := rediscomponent.Settings{}
 	metadataInfo := map[string]string{}
 	daprmetadata.GetMetadataInfoFromStructType(reflect.TypeOf(settingsStruct), &metadataInfo, daprmetadata.StateStoreType)
+
 	return metadataInfo
 }

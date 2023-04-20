@@ -78,10 +78,8 @@ type Settings struct {
 	// A flag to enables TLS by setting InsecureSkipVerify to true
 	EnableTLS bool `mapstructure:"enableTLS"`
 
-	LegacyMaxRetries      int           `mapstructure:"maxRetries" only:"state,lock"`
-	LegacyMaxRetryBackoff time.Duration `mapstructure:"maxRetryBackoff" only:"state,lock"`
-	TTLInSeconds          *int          `mapstructure:"ttlInSeconds" only:"state"`
-	QueryIndexes          string        `mapstructure:"ttlInSeconds" only:"state"`
+	TTLInSeconds *int   `mapstructure:"ttlInSeconds" only:"state"`
+	QueryIndexes string `mapstructure:"queryIndexes" only:"state"`
 }
 
 func (s *Settings) Decode(in interface{}) error {

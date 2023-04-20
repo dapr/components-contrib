@@ -14,7 +14,7 @@ capabilities:
   - ttl
 authenticationProfiles:
   - title: "Username and password"
-    description: "Authenticate using username, password."
+    description: "Authenticate using username and password."
     metadata:
       - name: username
         type: string

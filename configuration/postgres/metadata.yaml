@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: configuration
+name: postgres
+version: v1
+status: alpha
+title: "Postgres"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-configuration-stores/postgres-configuration-store/
+capabilities: []
+authenticationProfiles:
+  - title: "Connection string"
+    description: "Authenticate using a Connection String."
+    metadata:
+      - name: connectionString
+        required: true
+        sensitive: true
+        description: The connection string for PostgreSQL. Default pool_max_conns = 5
+        example: "host=localhost user=postgres password=example port=5432 connect_timeout=10 database=dapr_test pool_max_conns=10"
+        type: string
+metadata:
+  - name: table
+    required: true
+    description: The table name for configuration information.
+    example:  "configTable"
+    type: string
+  - name: connMaxIdleTime
+    required: false
+    description: The maximum amount of time a connection may be idle.
+    example: "15s"
+    default: "30s"
+    type: duration

@@ -31,6 +31,7 @@ provider "aws" {
 
 resource "aws_s3_bucket" "dapr_bucket" {
   bucket = "dapr-cert-test-${var.UNIQUE_ID}"
+  force_destroy = true
   tags = {
     dapr-topic-name = "dapr-cert-test-${var.UNIQUE_ID}"
   }

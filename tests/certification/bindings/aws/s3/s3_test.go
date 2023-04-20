@@ -123,8 +123,8 @@ func getObjectRequestWithMetadata(ctx flow.Context, client daprsdk.Client, invok
 	return out, nil
 }
 
-// deleteObejctRequest is used to make a common binding request for the delete operation.
-func deleteObejctRequest(ctx flow.Context, client daprsdk.Client, name string) (out *daprsdk.BindingEvent, err error) {
+// deleteObjectRequest is used to make a common binding request for the delete operation.
+func deleteObjectRequest(ctx flow.Context, client daprsdk.Client, name string) (out *daprsdk.BindingEvent, err error) {
 	invokeDeleteMetadata := map[string]string{
 		"key": name,
 	}
@@ -199,7 +199,7 @@ func S3SBasic(t *testing.T) {
 		}
 		assert.True(t, found)
 
-		out, invokeDeleteErr := deleteObejctRequest(ctx, client, objectName)
+		out, invokeDeleteErr := deleteObjectRequest(ctx, client, objectName)
 		assert.NoError(t, invokeDeleteErr)
 		assert.Empty(t, out.Data)
 
@@ -261,7 +261,7 @@ func S3SForcePathStyle(t *testing.T) {
 			assert.NoError(t, unmarshalErr)
 			assert.Equal(t, createResponse.Location, forcePathStyle)
 
-			out, invokeDeleteErr := deleteObejctRequest(ctx, client, objectName)
+			out, invokeDeleteErr := deleteObjectRequest(ctx, client, objectName)
 			assert.NoError(t, invokeDeleteErr)
 			assert.Empty(t, out.Data)
 
@@ -328,7 +328,7 @@ func S3SBase64(t *testing.T) {
 			assert.Equal(t, out.Data, dataBytes)
 			assert.Empty(t, out.Metadata)
 
-			out, invokeDeleteErr := deleteObejctRequest(ctx, client, genKey)
+			out, invokeDeleteErr := deleteObjectRequest(ctx, client, genKey)
 			assert.NoError(t, invokeDeleteErr)
 			assert.Empty(t, out.Data)
 
@@ -364,7 +364,7 @@ func S3SBase64(t *testing.T) {
 			assert.Equal(t, out.Data, b64EncodedDataBytes)
 			assert.Empty(t, out.Metadata)
 
-			out, invokeDeleteErr := deleteObejctRequest(ctx, client, genKey)
+			out, invokeDeleteErr := deleteObjectRequest(ctx, client, genKey)
 			assert.NoError(t, invokeDeleteErr)
 			assert.Empty(t, out.Data)
 

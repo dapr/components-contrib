@@ -44,7 +44,6 @@ const (
 	maxConcurrency      = -1
 	enableMTLS          = false
 	sentryAddress       = ""
-	appSSL              = false
 	maxRequestBodySize  = 4
 
 	daprHTTPPort     = runtime.DefaultDaprHTTPPort
@@ -148,7 +147,6 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, *runtime.Co
 		MaxConcurrency:               maxConcurrency,
 		MTLSEnabled:                  enableMTLS,
 		SentryAddress:                sentryAddress,
-		AppSSL:                       appSSL,
 		MaxRequestBodySize:           maxRequestBodySize,
 		ReadBufferSize:               runtime.DefaultReadBufferSize,
 		GracefulShutdownDuration:     time.Second,
@@ -223,7 +221,7 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, *runtime.Co
 		globalConfig = global_config.LoadDefaultConfiguration()
 	}
 
-	accessControlList, err = acl.ParseAccessControlSpec(globalConfig.Spec.AccessControlSpec, string(runtimeConfig.ApplicationProtocol))
+	accessControlList, err = acl.ParseAccessControlSpec(globalConfig.Spec.AccessControlSpec, runtimeConfig.ApplicationProtocol.IsHTTP())
 	if err != nil {
 		return nil, nil, err
 	}

@@ -84,8 +84,8 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 		settings.RedisMaxRetries = 3
 		settings.RedisMinRetryInterval = Duration(2 * time.Second)
 		// Parse legacy keys
-		if _, ok := properties["redisMinRetryInterval"]; !ok {
-			if val, ok := properties["maxRetryBackoff"]; ok {
+		if properties["redisMinRetryInterval"] == "" {
+			if properties["maxRetryBackoff"] != "" {
 				// due to different duration formats, do not simply change the key name
 				parsedVal, parseErr := strconv.ParseInt(val, 10, 0)
 				if parseErr != nil {
@@ -94,8 +94,8 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 				settings.RedisMinRetryInterval = Duration(time.Duration(parsedVal))
 			}
 		}
-		if _, ok := properties["redisMaxRetries"]; !ok {
-			if _, ok := properties["maxRetries"]; ok {
+		if properties["redisMaxRetries"] == "" {
+			if properties["maxRetries"] != "" {
 				properties["redisMaxRetries"] = properties["maxRetries"]
 			}
 		}

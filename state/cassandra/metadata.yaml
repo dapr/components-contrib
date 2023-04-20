@@ -65,7 +65,7 @@ metadata:
       - "LocalQuorum"
       - "EachQuorum"
       - "LocalOne"
-    description: "The consistency values"
+    description: "The consistency value to use."
     default: "All"
     example: "Three"
   - name: keyspace

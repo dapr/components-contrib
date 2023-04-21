@@ -16,7 +16,9 @@ authenticationProfiles:
       - name: connectionString
         required: true
         sensitive: true
-        description: The connection string for PostgreSQL. Default pool_max_conns = 5
+        description: |
+          The connection string for PostgreSQL, as a URL or DSN.
+          Note: the default value for `pool_max_conns` is 5.
         example: "host=localhost user=postgres password=example port=5432 connect_timeout=10 database=dapr_test pool_max_conns=10"
         type: string
 metadata:

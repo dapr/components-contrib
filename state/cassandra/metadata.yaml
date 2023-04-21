@@ -19,7 +19,7 @@ authenticationProfiles:
       - name: username
         type: string
         required: true
-        description: "The username of database user."
+        description: "The username of the database user."
         example: '"admin"'
       - name: password
         type: string

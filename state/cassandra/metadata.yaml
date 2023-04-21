@@ -70,6 +70,6 @@ metadata:
     example: "Three"
   - name: keyspace
     type: string
-    description: "The cassandra keyspace to use."
+    description: "The Cassandra keyspace to use."
     default: "dapr"
     example: "alt"

@@ -16,9 +16,9 @@ binding:
     - name: exec
       description: "The exec operation can be used for DDL operations (like table creation), as well as INSERT, UPDATE, DELETE operations which return only metadata (e.g. number of affected rows)."
     - name: query
-      description: "The query operation is used for SELECT statements, which returns the metadata along with data in a form of an array of row values."
+      description: "The query operation is used for SELECT statements, which return both the metadata and the retrieved data in a form of an array of row values."
     - name: close
-      description: "The close operation can be used to explicitly close the DB connection and return it to the pool. This operation doesn’t have any response."
+      description: "The close operation can be used to explicitly close the DB connection and return it to the pool. This operation doesn't have any response."
 authenticationProfiles:
   - title: "Connection string"
     description: "Authenticate using a Connection String."

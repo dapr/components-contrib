@@ -27,12 +27,12 @@ authenticationProfiles:
         sensitive: true
         description: "The password of the user."
         example: '"password"'
-      - name: hosts
-        type: string
-        required: true
-        description: "Comma separated list of the hosts."
-        example: '"cassandra.cassandra.svc.cluster.local,other.cassandra.example.tld"'
 metadata:
+  - name: hosts
+    type: string
+    required: true
+    description: "Comma separated list of the hosts."
+    example: '"cassandra.cassandra.svc.cluster.local,other.cassandra.example.tld"'
   - name: port
     type: number
     description: "Port for communication."

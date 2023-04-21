@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/kit/logger"
 
@@ -75,13 +76,13 @@ func ConformanceTests(t *testing.T, props map[string]string, workflowItem workfl
 			}
 
 			startRes, err := workflowItem.Start(context.Background(), req)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, testInstanceID, startRes.InstanceID)
 		})
 
 		t.Run("get after start", func(t *testing.T) {
 			resp, err := workflowItem.Get(context.Background(), &workflows.GetRequest{InstanceID: testInstanceID})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, "TestID", resp.Workflow.InstanceID)
 			assert.Equal(t, "Running", resp.Workflow.RuntimeStatus)
 		})
@@ -91,7 +92,7 @@ func ConformanceTests(t *testing.T, props map[string]string, workflowItem workfl
 
 		t.Run("get after wait", func(t *testing.T) {
 			resp, err := workflowItem.Get(context.Background(), &workflows.GetRequest{InstanceID: testInstanceID})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, "Running", resp.Workflow.RuntimeStatus)
 		})
 
@@ -105,7 +106,7 @@ func ConformanceTests(t *testing.T, props map[string]string, workflowItem workfl
 
 		t.Run("get after terminate", func(t *testing.T) {
 			resp, err := workflowItem.Get(context.Background(), &workflows.GetRequest{InstanceID: testInstanceID})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, "Terminated", resp.Workflow.RuntimeStatus)
 			assert.Equal(t, "TestID", resp.Workflow.InstanceID)
 		})

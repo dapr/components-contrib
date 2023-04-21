@@ -15,7 +15,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.2.0
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
-	github.com/dapr/components-contrib v1.10.6-0.20230413193624-6b59f2908d5c
+	github.com/dapr/components-contrib v1.10.6-0.20230419230437-7099066436ee
 	github.com/dapr/dapr v1.10.5-rc.1.0.20230404115414-eed80024b415
 	github.com/dapr/go-sdk v1.7.0
 	github.com/dapr/kit v0.0.5-0.20230405173032-e1fba87ca2c7
@@ -304,4 +304,4 @@ require (
 replace github.com/dapr/components-contrib => ../../
 
 // TEMPORARY: Needed to unblock certification tests; can revert once https://github.com/dapr/dapr/pull/6218 is merged
-replace github.com/dapr/dapr => github.com/cgillum/dapr v0.8.1-0.20230420181649-fb8c8693db48
+replace github.com/dapr/dapr => github.com/cgillum/dapr v0.8.1-0.20230421184728-1e1b4ab20d1e

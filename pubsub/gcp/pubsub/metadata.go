@@ -31,4 +31,8 @@ type metadata struct {
 	EnableMessageOrdering   bool   `mapstructure:"enableMessageOrdering"`
 	MaxReconnectionAttempts int    `mapstructure:"maxReconnectionAttempts"`
 	ConnectionRecoveryInSec int    `mapstructure:"connectionRecoveryInSec"`
+	ConnectionEndpoint      string `mapstructure:"endpoint"`
+	OrderingKey             string `mapstructure:"orderingKey"`
+	DeadLetterTopic         string `mapstructure:"deadLetterTopic"`
+	MaxDeliveryAttempts     int    `mapstructure:"maxDeliveryAttempts"`
 }

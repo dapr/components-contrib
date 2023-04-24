@@ -95,7 +95,7 @@ func TestInit(t *testing.T) {
 		m.Properties = map[string]string{
 			"projectId": "superproject",
 		}
-		m.Properties[metadataMaxReconnectionAttemptsKey] = invalidNumber
+		m.Properties["maxReconnectionAttempts"] = invalidNumber
 
 		_, err := createMetadata(m)
 
@@ -120,7 +120,7 @@ func TestInit(t *testing.T) {
 		m.Properties = map[string]string{
 			"projectId": "superproject",
 		}
-		m.Properties[metadataConnectionRecoveryInSecKey] = invalidNumber
+		m.Properties["connectionRecoveryInSec"] = invalidNumber
 
 		_, err := createMetadata(m)
 

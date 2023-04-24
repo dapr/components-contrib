@@ -18,7 +18,7 @@ require (
 	github.com/dapr/components-contrib v1.10.6-0.20230419230437-7099066436ee
 	github.com/dapr/dapr v1.10.5-rc.1.0.20230404115414-eed80024b415
 	github.com/dapr/go-sdk v1.7.0
-	github.com/dapr/kit v0.0.5-0.20230418193628-15a7040dec41
+	github.com/dapr/kit v0.0.5-0.20230418170151-c93a9df941ce
 	github.com/eclipse/paho.mqtt.golang v1.4.2
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/go-redis/redis/v8 v8.11.5
@@ -262,7 +262,7 @@ require (
 	golang.org/x/crypto v0.8.0 // indirect
 	golang.org/x/mod v0.10.0 // indirect
 	golang.org/x/net v0.9.0 // indirect
-	golang.org/x/oauth2 v0.7.0 // indirect
+	golang.org/x/oauth2 v0.6.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.7.0 // indirect
 	golang.org/x/term v0.7.0 // indirect

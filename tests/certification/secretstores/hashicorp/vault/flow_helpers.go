@@ -92,7 +92,7 @@ func createPositiveTestFlow(fs *commonFlowSettings, flowDescription string, comp
 		Step("Waiting for component to start...", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
-			embedded.WithComponentsPath(componentPath),
+			embedded.WithResourcesPath(componentPath),
 			embedded.WithDaprGRPCPort(fs.currentGrpcPort),
 			embedded.WithDaprHTTPPort(fs.currentHttpPort),
 			componentRuntimeOptions(),
@@ -119,7 +119,7 @@ func createInitSucceedsButComponentFailsFlow(fs *commonFlowSettings, flowDescrip
 		Step("Waiting for component to start...", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
-			embedded.WithComponentsPath(componentPath),
+			embedded.WithResourcesPath(componentPath),
 			embedded.WithDaprGRPCPort(fs.currentGrpcPort),
 			embedded.WithDaprHTTPPort(fs.currentHttpPort),
 			componentRuntimeOptions(),
@@ -128,30 +128,6 @@ func createInitSucceedsButComponentFailsFlow(fs *commonFlowSettings, flowDescrip
 		Step("Verify component is registered", testComponentFound(componentName, fs.currentGrpcPort)).
 		Step("Verify no errors regarding component initialization", AssertNoInitializationErrorsForComponent(componentPath)).
 		Step("Verify component does not work", testComponentIsNotWorking(componentName, fs.currentGrpcPort)).
-		Step("Stop HashiCorp Vault server", dockercompose.Stop(dockerComposeProjectName, dockerComposeClusterYAML)).
-		Run()
-}
-
-func createNegativeTestFlow(fs *commonFlowSettings, flowDescription string, componentSuffix string, initErrorCodes ...string) {
-	componentPath := filepath.Join(fs.secretStoreComponentPathBase, componentSuffix)
-	componentName := fs.componentNamePrefix + componentSuffix
-	dockerComposeClusterYAML := defaultDockerComposeClusterYAML
-
-	flow.New(fs.t, flowDescription).
-		Step(dockercompose.Run(dockerComposeProjectName, dockerComposeClusterYAML)).
-		Step("Waiting for component to start...", flow.Sleep(5*time.Second)).
-		Step(sidecar.Run(sidecarName,
-			embedded.WithoutApp(),
-			embedded.WithComponentsPath(componentPath),
-			embedded.WithDaprGRPCPort(fs.currentGrpcPort),
-			embedded.WithDaprHTTPPort(fs.currentHttpPort),
-			componentRuntimeOptions(),
-		)).
-		Step("Waiting for component to load...", flow.Sleep(5*time.Second)).
-		// TODO(tmacam) FIX https://github.com/dapr/dapr/issues/5487
-		Step("Verify component is NOT registered", testComponentNotFound(componentName, fs.currentGrpcPort)).
-		Step("Verify initialization error reported for component", AssertInitializationFailedWithErrorsForComponent(componentName, initErrorCodes...)).
-		Step(" Bug dependant behavior - test component is actually registered", testComponentFound(componentName, fs.currentGrpcPort)).
 		Step("Stop HashiCorp Vault server", dockercompose.Stop(dockerComposeProjectName, dockerComposeClusterYAML)).
 		Run()
 }

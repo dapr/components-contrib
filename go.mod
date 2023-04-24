@@ -83,6 +83,7 @@ require (
 	github.com/lestrrat-go/jwx/v2 v2.0.9
 	github.com/machinebox/graphql v0.2.2
 	github.com/matoous/go-nanoid/v2 v2.0.0
+	github.com/microsoft/go-mssqldb v0.21.0
 	github.com/mitchellh/mapstructure v1.5.1-0.20220423185008-bf980b35cac4
 	github.com/mrz1836/postmark v1.4.0
 	github.com/nacos-group/nacos-sdk-go/v2 v2.1.3

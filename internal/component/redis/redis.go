@@ -16,15 +16,25 @@ package redis
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"golang.org/x/mod/semver"
+
+	"github.com/dapr/components-contrib/metadata"
 )
 
 const (
 	ClusterType = "cluster"
 	NodeType    = "node"
+
+	processingTimeoutKey     = "processingTimeout"
+	redeliverIntervalKey     = "redeliverInterval"
+	redisMinRetryIntervalKey = "redisMinRetryInterval"
+	maxRetryBackoffKey       = "maxRetryBackoff"
+	redisMaxRetriesKey       = "redisMaxRetries"
+	maxRetriesKey            = "maxRetries"
 )
 
 type RedisXMessage struct {
@@ -72,15 +82,63 @@ type RedisClient interface {
 	TTLResult(ctx context.Context, key string) (time.Duration, error)
 }
 
-func ParseClientFromProperties(properties map[string]string, defaultSettings *Settings) (client RedisClient, settings *Settings, err error) {
-	if defaultSettings == nil {
-		settings = &Settings{}
-	} else {
-		settings = defaultSettings
+func ParseClientFromProperties(properties map[string]string, componentType metadata.ComponentType) (client RedisClient, settings *Settings, err error) {
+	settings = &Settings{}
+
+	// upgrade legacy metadata properties and set defaults
+	switch componentType {
+	case metadata.StateStoreType, metadata.LockStoreType:
+		// Apply legacy defaults
+		settings.RedisMaxRetries = 3
+		settings.RedisMinRetryInterval = Duration(2 * time.Second)
+		// Parse legacy keys
+		if properties[redisMinRetryIntervalKey] == "" {
+			if properties[maxRetryBackoffKey] != "" {
+				// due to different duration formats, do not simply change the key name
+				parsedVal, parseErr := strconv.ParseInt(properties[maxRetryBackoffKey], 10, 0)
+				if parseErr != nil {
+					return nil, nil, fmt.Errorf("redis store error: can't parse maxRetryBackoff field: %s", parseErr)
+				}
+				settings.RedisMinRetryInterval = Duration(time.Duration(parsedVal))
+			}
+		}
+		if properties[redisMaxRetriesKey] == "" {
+			if properties[maxRetriesKey] != "" {
+				properties[redisMaxRetriesKey] = properties[maxRetriesKey]
+			}
+		}
+
+	case metadata.PubSubType:
+		settings.ProcessingTimeout = 60 * time.Second
+		settings.RedeliverInterval = 15 * time.Second
+		settings.QueueDepth = 100
+		settings.Concurrency = 10
 	}
+
 	err = settings.Decode(properties)
 	if err != nil {
 		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+	}
+
+	switch componentType {
+	case metadata.PubSubType:
+		if val, ok := properties[processingTimeoutKey]; ok && val != "" {
+			if processingTimeoutMs, err := strconv.ParseUint(val, 10, 64); err == nil {
+				// because of legacy reasons, we need to interpret a number as milliseconds
+				// the library would default to seconds otherwise
+				settings.ProcessingTimeout = time.Duration(processingTimeoutMs) * time.Millisecond
+			}
+			// if there was an error we would try to interpret it as a duration string, which was already done in Decode()
+		}
+
+		if val, ok := properties[redeliverIntervalKey]; ok && val != "" {
+			if redeliverIntervalMs, err := strconv.ParseUint(val, 10, 64); err == nil {
+				// because of legacy reasons, we need to interpret a number as milliseconds
+				// the library would default to seconds otherwise
+				settings.RedeliverInterval = time.Duration(redeliverIntervalMs) * time.Millisecond
+			}
+			// if there was an error we would try to interpret it as a duration string, which was already done in Decode()
+		}
 	}
 
 	var c RedisClient

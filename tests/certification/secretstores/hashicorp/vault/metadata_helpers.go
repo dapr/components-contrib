@@ -36,21 +36,6 @@ func testComponentFound(targetComponentName string, currentGrpcPort int) flow.Ru
 	}
 }
 
-// Due to https://github.com/dapr/dapr/issues/5487 we cannot perform negative tests
-// for the component presence against the metadata registry.
-// Instead, we turned testComponentNotFound into a simpler negative test that ensures a good key cannot be found
-func testComponentNotFound(targetComponentName string, currentGrpcPort int) flow.Runnable {
-	// TODO(tmacam) once https://github.com/dapr/dapr/issues/5487 is fixed, uncomment the code bellow
-	return testSecretIsNotFound(currentGrpcPort, targetComponentName, "multiplekeyvaluessecret")
-
-	//return func(ctx flow.Context) error {
-	//	// Find the component
-	//	componentFound, _ := getComponentCapabilities(ctx, currentGrpcPort, targetComponentName)
-	//	assert.False(ctx.T, componentFound, "Component was expected to be missing but it was found.")
-	//	return nil
-	//}
-}
-
 func testComponentDoesNotHaveFeature(currentGrpcPort int, targetComponentName string, targetCapability secretstores.Feature) flow.Runnable {
 	return testComponentAndFeaturePresence(currentGrpcPort, targetComponentName, targetCapability, false)
 }

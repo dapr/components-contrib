@@ -239,10 +239,10 @@ const components = {
         certificationSetup: 'certification-pubsub.gcp.pubsub-setup.sh',
         certificationDestroy: 'certification-pubsub.gcp.pubsub-destroy.sh',
     },
-    'pubsub.gcp.pubsub.docker': {
-        conformance: true,
-        conformanceSetup: 'docker-compose.sh gcp-pubsub',
-    },
+    // 'pubsub.gcp.pubsub.docker': {
+    //     conformance: true,
+    //     conformanceSetup: 'docker-compose.sh gcp-pubsub',
+    // },
     'pubsub.gcp.pubsub.terraform': {
         conformance: true,
         requireTerraform: true,

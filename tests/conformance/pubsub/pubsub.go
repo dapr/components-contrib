@@ -49,6 +49,7 @@ const (
 	defaultMaxBulkCount           = 5
 	defaultMaxBulkAwaitDurationMs = 500
 	bulkSubStartingKey            = 1000
+	defaultProjectID              = "conformance-test-prj"
 )
 
 type TestConfig struct {
@@ -65,6 +66,7 @@ type TestConfig struct {
 	MaxReadDuration        time.Duration     `mapstructure:"maxReadDuration"`
 	WaitDurationToPublish  time.Duration     `mapstructure:"waitDurationToPublish"`
 	CheckInOrderProcessing bool              `mapstructure:"checkInOrderProcessing"`
+	TestProjectID          string            `mapstructure:"testProjectID"`
 }
 
 func NewTestConfig(componentName string, allOperations bool, operations []string, configMap map[string]interface{}) (TestConfig, error) {
@@ -88,6 +90,7 @@ func NewTestConfig(componentName string, allOperations bool, operations []string
 		BulkSubscribeMetadata:  map[string]string{},
 		CheckInOrderProcessing: defaultCheckInOrderProcessing,
 		TestTopicForBulkSub:    defaultTopicNameBulk,
+		TestProjectID:          defaultProjectID,
 	}
 
 	err := config.Decode(configMap, &tc)

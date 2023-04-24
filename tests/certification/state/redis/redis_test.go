@@ -100,19 +100,22 @@ func TestRedis(t *testing.T) {
 		defer client.Close()
 
 		ttlInSecondsWrongValue := "mock value"
-		mapOptionsWrongValue := map[string]string{
-			"ttlInSeconds": ttlInSecondsWrongValue,
-		}
+		mapOptionsWrongValue :=
+			map[string]string{
+				"ttlInSeconds": ttlInSecondsWrongValue,
+			}
 
 		ttlInSecondsNonExpiring := -1
-		mapOptionsNonExpiring := map[string]string{
-			"ttlInSeconds": strconv.Itoa(ttlInSecondsNonExpiring),
-		}
+		mapOptionsNonExpiring :=
+			map[string]string{
+				"ttlInSeconds": strconv.Itoa(ttlInSecondsNonExpiring),
+			}
 
 		ttlInSeconds := 1
-		mapOptions := map[string]string{
-			"ttlInSeconds": strconv.Itoa(ttlInSeconds),
-		}
+		mapOptions :=
+			map[string]string{
+				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
+			}
 
 		rdb := redis.NewClient(&redis.Options{
 			Addr:     "localhost:6379", // host:port of the redis server
@@ -158,7 +161,7 @@ func TestRedis(t *testing.T) {
 		return nil
 	}
 
-	// ETag test
+	//ETag test
 	eTagTest := func(ctx flow.Context) error {
 		etag1 := "1"
 		etag100 := "100"

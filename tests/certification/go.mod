@@ -109,6 +109,7 @@ require (
 	github.com/fasthttp/router v1.4.18 // indirect
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
+	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/go-logr/logr v1.2.4 // indirect
@@ -303,5 +304,4 @@ require (
 
 replace github.com/dapr/components-contrib => ../../
 
-// TEMPORARY
-replace github.com/dapr/dapr => github.com/cgillum/dapr v0.8.1-0.20230424162247-11bd4e3b1457
+replace github.com/dapr/dapr => github.com/italypaleale/dapr v1.6.1-0.20230404165709-453bccb6c007

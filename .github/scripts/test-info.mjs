@@ -573,11 +573,11 @@ const components = {
         requiredSecrets: ['AzureSqlServerConnectionString'],
         sourcePkg: ['state/sqlserver', 'internal/component/sql'],
     },
-    'state.gcp.firestore.docker': {
-        conformance: true,
-        requireDocker: true,
-        conformanceSetup: 'docker-compose.sh gcpfirestore',
-    },
+    // 'state.gcp.firestore.docker': {
+    //     conformance: true,
+    //     requireDocker: true,
+    //     conformanceSetup: 'docker-compose.sh gcpfirestore',
+    // },
     'state.gcp.firestore.cloud': {
         conformance: true,
         requireGCPCredentials: true,
@@ -585,7 +585,7 @@ const components = {
     },
     'state.gcp.firestore': {
         certification: true,
-        requireAWSCredentials: true,
+        requireGCPCredentials: true,
         conformanceSetup: 'certification-state.gcp.firestore-setup.sh',
     },
     'workflows.temporal': {

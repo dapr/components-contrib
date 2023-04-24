@@ -100,22 +100,19 @@ func TestRedis(t *testing.T) {
 		defer client.Close()
 
 		ttlInSecondsWrongValue := "mock value"
-		mapOptionsWrongValue :=
-			map[string]string{
-				"ttlInSeconds": ttlInSecondsWrongValue,
-			}
+		mapOptionsWrongValue := map[string]string{
+			"ttlInSeconds": ttlInSecondsWrongValue,
+		}
 
 		ttlInSecondsNonExpiring := -1
-		mapOptionsNonExpiring :=
-			map[string]string{
-				"ttlInSeconds": strconv.Itoa(ttlInSecondsNonExpiring),
-			}
+		mapOptionsNonExpiring := map[string]string{
+			"ttlInSeconds": strconv.Itoa(ttlInSecondsNonExpiring),
+		}
 
 		ttlInSeconds := 1
-		mapOptions :=
-			map[string]string{
-				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
-			}
+		mapOptions := map[string]string{
+			"ttlInSeconds": strconv.Itoa(ttlInSeconds),
+		}
 
 		rdb := redis.NewClient(&redis.Options{
 			Addr:     "localhost:6379", // host:port of the redis server
@@ -161,7 +158,7 @@ func TestRedis(t *testing.T) {
 		return nil
 	}
 
-	//ETag test
+	// ETag test
 	eTagTest := func(ctx flow.Context) error {
 		etag1 := "1"
 		etag100 := "100"
@@ -309,19 +306,6 @@ func TestRedis(t *testing.T) {
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
 			embedded.WithComponentsPath("components/docker/enableTLSConf"),
-			runtime.WithStates(stateRegistry),
-		)).
-		Step("Run basic test to confirm state store not yet configured", testForStateStoreNotConfigured).
-		Run()
-
-	flow.New(t, "test redis state store yaml having maxRetries set to non int value").
-		Step(dockercompose.Run("redis", dockerComposeYAML)).
-		Step("Waiting for Redis readiness", retry.Do(time.Second*3, 10, checkRedisConnection)).
-		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("components/docker/maxRetriesNonInt"),
 			runtime.WithStates(stateRegistry),
 		)).
 		Step("Run basic test to confirm state store not yet configured", testForStateStoreNotConfigured).

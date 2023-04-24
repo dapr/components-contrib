@@ -41,7 +41,7 @@ func TestGetFirestoreMetadata(t *testing.T) {
 			Base: metadata.Base{Properties: properties},
 		}
 		metadata, err := getFirestoreMetadata(m)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, "service_account", metadata.Type)
 		assert.Equal(t, "myprojectid", metadata.ProjectID)
 		assert.Equal(t, "123", metadata.PrivateKeyID)
@@ -61,6 +61,6 @@ func TestGetFirestoreMetadata(t *testing.T) {
 			Base: metadata.Base{Properties: properties},
 		}
 		_, err := getFirestoreMetadata(m)
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 	})
 }

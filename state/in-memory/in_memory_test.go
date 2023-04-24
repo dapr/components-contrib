@@ -21,9 +21,8 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dapr/kit/logger"
-
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/logger"
 )
 
 func TestReadAndWrite(t *testing.T) {
@@ -106,17 +105,6 @@ func TestReadAndWrite(t *testing.T) {
 		}})
 
 		assert.NoError(t, err)
-	})
-
-	t.Run("BulkGet fails when not supported", func(t *testing.T) {
-		supportBulk, _, err := store.BulkGet(context.Background(), []state.GetRequest{{
-			Key: "theFirstKey",
-		}, {
-			Key: "theSecondKey",
-		}})
-
-		assert.NoError(t, err)
-		assert.Equal(t, false, supportBulk)
 	})
 
 	t.Run("delete theFirstKey", func(t *testing.T) {

@@ -15,24 +15,24 @@ package jetstream
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"reflect"
 	"strings"
 
 	jsoniter "github.com/json-iterator/go"
+	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nkeys"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
-
-	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nkeys"
 )
 
 // StateStore is a nats jetstream KV state store.
 type StateStore struct {
-	state.DefaultBulkStore
+	state.BulkStore
+
 	nc     *nats.Conn
 	json   jsoniter.API
 	bucket nats.KeyValue
@@ -53,8 +53,7 @@ func NewJetstreamStateStore(logger logger.Logger) state.Store {
 		json:   jsoniter.ConfigFastest,
 		logger: logger,
 	}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
+	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
 }
 
@@ -131,15 +130,15 @@ func (js *StateStore) getMetadata(meta state.Metadata) (jetstreamMetadata, error
 	}
 
 	if m.NatsURL == "" {
-		return jetstreamMetadata{}, fmt.Errorf("missing nats URL")
+		return jetstreamMetadata{}, errors.New("missing nats URL")
 	}
 
 	if m.Jwt != "" && m.SeedKey == "" {
-		return jetstreamMetadata{}, fmt.Errorf("missing seed key")
+		return jetstreamMetadata{}, errors.New("missing seed key")
 	}
 
 	if m.Jwt == "" && m.SeedKey != "" {
-		return jetstreamMetadata{}, fmt.Errorf("missing jwt")
+		return jetstreamMetadata{}, errors.New("missing jwt")
 	}
 
 	if m.Name == "" {
@@ -147,7 +146,7 @@ func (js *StateStore) getMetadata(meta state.Metadata) (jetstreamMetadata, error
 	}
 
 	if m.Bucket == "" {
-		return jetstreamMetadata{}, fmt.Errorf("missing bucket")
+		return jetstreamMetadata{}, errors.New("missing bucket")
 	}
 
 	return m, nil

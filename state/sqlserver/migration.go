@@ -17,7 +17,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"regexp"
 )
 
 type migrator interface {
@@ -25,7 +24,7 @@ type migrator interface {
 }
 
 type migration struct {
-	store *SQLServer
+	metadata *sqlServerMetadata
 }
 
 type migrationResult struct {
@@ -40,29 +39,29 @@ type migrationResult struct {
 	deleteWithoutETagCommand string
 }
 
-func newMigration(store *SQLServer) migrator {
+func newMigration(metadata *sqlServerMetadata) migrator {
 	return &migration{
-		store: store,
+		metadata: metadata,
 	}
 }
 
 func (m *migration) newMigrationResult() migrationResult {
 	r := migrationResult{
-		bulkDeleteProcName:       fmt.Sprintf("sp_BulkDelete_%s", m.store.tableName),
-		itemRefTableTypeName:     fmt.Sprintf("[%s].%s_Table", m.store.schema, m.store.tableName),
-		upsertProcName:           fmt.Sprintf("sp_Upsert_v3_%s", m.store.tableName),
-		getCommand:               fmt.Sprintf("SELECT [Data], [RowVersion] FROM [%s].[%s] WHERE [Key] = @Key AND ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE())", m.store.schema, m.store.tableName),
-		deleteWithETagCommand:    fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key AND [RowVersion]=@RowVersion`, m.store.schema, m.store.tableName),
-		deleteWithoutETagCommand: fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key`, m.store.schema, m.store.tableName),
+		bulkDeleteProcName:       fmt.Sprintf("sp_BulkDelete_%s", m.metadata.TableName),
+		itemRefTableTypeName:     fmt.Sprintf("[%s].%s_Table", m.metadata.Schema, m.metadata.TableName),
+		upsertProcName:           fmt.Sprintf("sp_Upsert_v3_%s", m.metadata.TableName),
+		getCommand:               fmt.Sprintf("SELECT [Data], [RowVersion] FROM [%s].[%s] WHERE [Key] = @Key AND ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE())", m.metadata.Schema, m.metadata.TableName),
+		deleteWithETagCommand:    fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key AND [RowVersion]=@RowVersion`, m.metadata.Schema, m.metadata.TableName),
+		deleteWithoutETagCommand: fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key`, m.metadata.Schema, m.metadata.TableName),
 	}
 
-	r.bulkDeleteProcFullName = fmt.Sprintf("[%s].%s", m.store.schema, r.bulkDeleteProcName)
-	r.upsertProcFullName = fmt.Sprintf("[%s].%s", m.store.schema, r.upsertProcName)
+	r.bulkDeleteProcFullName = fmt.Sprintf("[%s].%s", m.metadata.Schema, r.bulkDeleteProcName)
+	r.upsertProcFullName = fmt.Sprintf("[%s].%s", m.metadata.Schema, r.upsertProcName)
 
 	//nolint:exhaustive
-	switch m.store.keyType {
+	switch m.metadata.keyTypeParsed {
 	case StringKeyType:
-		r.pkColumnType = fmt.Sprintf("NVARCHAR(%d)", m.store.keyLength)
+		r.pkColumnType = fmt.Sprintf("NVARCHAR(%d)", m.metadata.keyLengthParsed)
 
 	case UUIDKeyType:
 		r.pkColumnType = "uniqueidentifier"
@@ -78,15 +77,16 @@ func (m *migration) newMigrationResult() migrationResult {
 func (m *migration) executeMigrations(ctx context.Context) (migrationResult, error) {
 	r := m.newMigrationResult()
 
-	db, err := sql.Open("sqlserver", m.store.connectionString)
+	conn, hasDatabase, err := m.metadata.GetConnector(false)
 	if err != nil {
 		return r, err
 	}
+	db := sql.OpenDB(conn)
 
-	// If the user provides a database in the connection string to not attempt
+	// If the user provides a database in the connection string do not attempt
 	// to create the database. This work as the component did before adding the
 	// support to create the db.
-	if connStringContainsDatabase(m.store.connectionString) {
+	if hasDatabase {
 		// Schedule close of connection
 		defer db.Close()
 	} else {
@@ -98,12 +98,12 @@ func (m *migration) executeMigrations(ctx context.Context) (migrationResult, err
 		// Close the existing connection
 		db.Close()
 
-		// Re connect with a database specific connection
-		m.store.connectionString = fmt.Sprintf("%s;database=%s;", m.store.connectionString, m.store.databaseName)
-		db, err = sql.Open("sqlserver", m.store.connectionString)
+		// Re connect with a database-specific connection
+		conn, _, err = m.metadata.GetConnector(true)
 		if err != nil {
 			return r, err
 		}
+		db = sql.OpenDB(conn)
 
 		// Schedule close of new connection
 		defer db.Close()
@@ -124,7 +124,7 @@ func (m *migration) executeMigrations(ctx context.Context) (migrationResult, err
 		return r, fmt.Errorf("failed to create stored procedures: %w", err)
 	}
 
-	for _, ix := range m.store.indexedProperties {
+	for _, ix := range m.metadata.indexedPropertiesParsed {
 		err = m.ensureIndexedPropertyExists(ctx, db, ix)
 		if err != nil {
 			return r, err
@@ -132,12 +132,6 @@ func (m *migration) executeMigrations(ctx context.Context) (migrationResult, err
 	}
 
 	return r, nil
-}
-
-func connStringContainsDatabase(connStr string) bool {
-	// This method is only going to be called once (or at least once per component), so we are not pre-compiling the regex to avoid keeping that as a global variable
-	return regexp.MustCompile(`(?i)(^|;)database=.+`).
-		MatchString(connStr)
 }
 
 func runCommand(ctx context.Context, db *sql.DB, tsql string) error {
@@ -158,12 +152,12 @@ func (m *migration) ensureIndexedPropertyExists(ctx context.Context, db *sql.DB,
 				   WHERE object_id = OBJECT_ID('[%s].%s')
     					AND name='%s'))
 		CREATE INDEX %s ON [%s].[%s]([%s])`,
-		m.store.schema,
-		m.store.tableName,
+		m.metadata.Schema,
+		m.metadata.TableName,
 		indexName,
 		indexName,
-		m.store.schema,
-		m.store.tableName,
+		m.metadata.Schema,
+		m.metadata.TableName,
 		ix.ColumnName)
 
 	return runCommand(ctx, db, tsql)
@@ -174,7 +168,7 @@ func (m *migration) ensureDatabaseExists(ctx context.Context, db *sql.DB) error 
 	tsql := fmt.Sprintf(`
 IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = N'%s')
 	CREATE DATABASE [%s]`,
-		m.store.databaseName, m.store.databaseName)
+		m.metadata.DatabaseName, m.metadata.DatabaseName)
 
 	return runCommand(ctx, db, tsql)
 }
@@ -184,7 +178,7 @@ func (m *migration) ensureSchemaExists(ctx context.Context, db *sql.DB) error {
 	tsql := fmt.Sprintf(`
 	IF NOT EXISTS(SELECT * FROM sys.schemas WHERE name = N'%s')
 		EXEC('CREATE SCHEMA [%s]')`,
-		m.store.schema, m.store.schema)
+		m.metadata.Schema, m.metadata.Schema)
 
 	return runCommand(ctx, db, tsql)
 }
@@ -199,15 +193,13 @@ func (m *migration) ensureTableExists(ctx context.Context, db *sql.DB, r migrati
 			[InsertDate] 	DateTime2 NOT NULL DEFAULT(GETDATE()),
 			[UpdateDate] 	DateTime2 NULL,
 			[ExpireDate] 	DateTime2 NULL,`,
-		m.store.schema, m.store.tableName, m.store.schema, m.store.tableName, r.pkColumnType, m.store.tableName)
+		m.metadata.Schema, m.metadata.TableName, m.metadata.Schema, m.metadata.TableName, r.pkColumnType, m.metadata.TableName)
 
-	if m.store.indexedProperties != nil {
-		for _, prop := range m.store.indexedProperties {
-			if prop.Type != "" {
-				tsql += fmt.Sprintf("\n		[%s] AS CONVERT(%s, JSON_VALUE(Data, '$.%s')) PERSISTED,", prop.ColumnName, prop.Type, prop.Property)
-			} else {
-				tsql += fmt.Sprintf("\n		[%s] AS JSON_VALUE(Data, '$.%s') PERSISTED,", prop.ColumnName, prop.Property)
-			}
+	for _, prop := range m.metadata.indexedPropertiesParsed {
+		if prop.Type != "" {
+			tsql += fmt.Sprintf("\n		[%s] AS CONVERT(%s, JSON_VALUE(Data, '$.%s')) PERSISTED,", prop.ColumnName, prop.Type, prop.Property)
+		} else {
+			tsql += fmt.Sprintf("\n		[%s] AS JSON_VALUE(Data, '$.%s') PERSISTED,", prop.ColumnName, prop.Property)
 		}
 	}
 
@@ -224,7 +216,7 @@ func (m *migration) ensureTableExists(ctx context.Context, db *sql.DB, r migrati
     FROM INFORMATION_SCHEMA.COLUMNS
 	  WHERE TABLE_SCHEMA = '%[1]s' AND TABLE_NAME = '%[2]s'
 	   AND COLUMN_NAME = 'ExpireDate')
-  ALTER TABLE [%[1]s].[%[2]s] ADD [ExpireDate] DateTime2 NULL`, m.store.schema, m.store.tableName)
+  ALTER TABLE [%[1]s].[%[2]s] ADD [ExpireDate] DateTime2 NULL`, m.metadata.Schema, m.metadata.TableName)
 	if err := runCommand(ctx, db, tsql); err != nil {
 		return fmt.Errorf("failed to ensure ExpireDate column: %w", err)
 	}
@@ -234,7 +226,7 @@ func (m *migration) ensureTableExists(ctx context.Context, db *sql.DB, r migrati
 			CREATE TABLE [%[1]s].[%[2]s] (
 			[Key] 			%[3]s CONSTRAINT PK_%[4]s PRIMARY KEY,
 			[Value]			NVARCHAR(MAX) NOT NULL
-		)`, m.store.schema, m.store.metaTableName, r.pkColumnType, m.store.metaTableName)
+		)`, m.metadata.Schema, m.metadata.MetadataTableName, r.pkColumnType, m.metadata.MetadataTableName)
 	if err := runCommand(ctx, db, tsql); err != nil {
 		return err
 	}
@@ -251,7 +243,7 @@ func (m *migration) ensureTypeExists(ctx context.Context, db *sql.DB, mr migrati
 			[Key]           		%s NOT NULL,
 			[RowVersion]			BINARY(8)
 		)
-	`, m.store.schema, m.store.tableName, m.store.schema, m.store.tableName, mr.pkColumnType)
+	`, m.metadata.Schema, m.metadata.TableName, m.metadata.Schema, m.metadata.TableName, mr.pkColumnType)
 
 	return runCommand(ctx, db, tsql)
 }
@@ -267,10 +259,10 @@ func (m *migration) ensureBulkDeleteStoredProcedureExists(ctx context.Context, d
 			JOIN @itemsToDelete i ON i.[Key] = x.[Key] AND (i.[RowVersion] IS NULL OR i.[RowVersion] = x.[RowVersion])`,
 		mr.bulkDeleteProcFullName,
 		mr.itemRefTableTypeName,
-		m.store.schema,
-		m.store.tableName,
-		m.store.schema,
-		m.store.tableName)
+		m.metadata.Schema,
+		m.metadata.TableName,
+		m.metadata.Schema,
+		m.metadata.TableName)
 
 	return m.createStoredProcedureIfNotExists(ctx, db, mr.bulkDeleteProcName, tsql)
 }
@@ -301,7 +293,7 @@ func (m *migration) createStoredProcedureIfNotExists(ctx context.Context, db *sq
 	BEGIN
 		execute ('%s')
 	END`,
-		m.store.schema,
+		m.metadata.Schema,
 		name,
 		escapedDefinition)
 
@@ -385,7 +377,7 @@ func (m *migration) ensureUpsertStoredProcedureExists(ctx context.Context, db *s
 	`,
 		mr.upsertProcFullName,
 		mr.pkColumnType,
-		m.store.tableName,
+		m.metadata.TableName,
 	)
 
 	return m.createStoredProcedureIfNotExists(ctx, db, mr.upsertProcName, tsql)

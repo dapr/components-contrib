@@ -20,7 +20,7 @@ capabilities:
 authenticationProfiles:
   - title: "Connection string"
     description: |
-      Authenticate using a connetion string.
+      Authenticate using a connection string.
     metadata:
       - name: connectionString
         required: true

@@ -49,7 +49,8 @@ const (
 
 // Cassandra is a state store implementation for Apache Cassandra.
 type Cassandra struct {
-	state.DefaultBulkStore
+	state.BulkStore
+
 	session *gocql.Session
 	cluster *gocql.ClusterConfig
 	table   string
@@ -71,9 +72,10 @@ type cassandraMetadata struct {
 
 // NewCassandraStateStore returns a new cassandra state store.
 func NewCassandraStateStore(logger logger.Logger) state.Store {
-	s := &Cassandra{logger: logger}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
+	s := &Cassandra{
+		logger: logger,
+	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
 }
 
@@ -86,27 +88,27 @@ func (c *Cassandra) Init(_ context.Context, metadata state.Metadata) error {
 
 	cluster, err := c.createClusterConfig(meta)
 	if err != nil {
-		return fmt.Errorf("error creating cluster config: %s", err)
+		return fmt.Errorf("error creating cluster config: %w", err)
 	}
 	c.cluster = cluster
 
 	session, err := cluster.CreateSession()
 	if err != nil {
-		return fmt.Errorf("error creating session: %s", err)
+		return fmt.Errorf("error creating session: %w", err)
 	}
 	c.session = session
 
 	err = c.tryCreateKeyspace(meta.Keyspace, meta.ReplicationFactor)
 	if err != nil {
-		return fmt.Errorf("error creating keyspace %s: %s", meta.Keyspace, err)
+		return fmt.Errorf("error creating keyspace %s: %w", meta.Keyspace, err)
 	}
 
 	err = c.tryCreateTable(meta.Table, meta.Keyspace)
 	if err != nil {
-		return fmt.Errorf("error creating table %s: %s", meta.Table, err)
+		return fmt.Errorf("error creating table %s: %w", meta.Table, err)
 	}
 
-	c.table = fmt.Sprintf("%s.%s", meta.Keyspace, meta.Table)
+	c.table = meta.Keyspace + "." + meta.Table
 
 	return nil
 }

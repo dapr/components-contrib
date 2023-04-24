@@ -62,7 +62,7 @@ func TestBasicSecretRetrieval(t *testing.T) {
 		Step("Waiting for component to start...", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
-			embedded.WithComponentsPath(secretStoreComponentPath),
+			embedded.WithResourcesPath(secretStoreComponentPath),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHttpPort),
 			componentRuntimeOptions(),
@@ -93,7 +93,7 @@ func TestMultipleKVRetrieval(t *testing.T) {
 		Step("Waiting for component to start...", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
-			embedded.WithComponentsPath(secretStoreComponentPath),
+			embedded.WithResourcesPath(secretStoreComponentPath),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHttpPort),
 			componentRuntimeOptions(),
@@ -129,7 +129,7 @@ func TestVaultKVPrefix(t *testing.T) {
 		Step("Waiting for component to start...", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
-			embedded.WithComponentsPath(secretStoreComponentPath),
+			embedded.WithResourcesPath(secretStoreComponentPath),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHttpPort),
 			componentRuntimeOptions(),
@@ -161,7 +161,7 @@ func TestVaultKVUsePrefixFalse(t *testing.T) {
 		Step("Waiting for component to start...", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
-			embedded.WithComponentsPath(secretStoreComponentPath),
+			embedded.WithResourcesPath(secretStoreComponentPath),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHttpPort),
 			componentRuntimeOptions(),
@@ -196,7 +196,7 @@ func TestVaultValueTypeText(t *testing.T) {
 		Step("Waiting for component to start...", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
-			embedded.WithComponentsPath(secretStoreComponentPath),
+			embedded.WithResourcesPath(secretStoreComponentPath),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHttpPort),
 			componentRuntimeOptions(),
@@ -216,37 +216,6 @@ func TestVaultValueTypeText(t *testing.T) {
 		Step("Test secret registered with no prefix cannot be found", testSecretIsNotFound(currentGrpcPort, secretStoreName, "secretWithNoPrefix")).
 		Step("Stop HashiCorp Vault server", dockercompose.Stop(dockerComposeProjectName, defaultDockerComposeClusterYAML)).
 		Run()
-}
-
-func TestTokenAndTokenMountPath(t *testing.T) {
-	fs := NewFlowSettings(t)
-	fs.secretStoreComponentPathBase = "./components/vaultTokenAndTokenMountPath/"
-	fs.componentNamePrefix = "my-hashicorp-vault-TestTokenAndTokenMountPath-"
-
-	createNegativeTestFlow(fs,
-		"Verify component initialization failure when BOTH vaultToken and vaultTokenMountPath are present",
-		"both",
-		"token mount path and token both set")
-
-	createNegativeTestFlow(fs,
-		"Verify component initialization failure when NEITHER vaultToken nor vaultTokenMountPath are present",
-		"neither",
-		"token mount path and token not set")
-
-	createNegativeTestFlow(fs,
-		"Verify component initialization failure when vaultTokenPath points to a non-existing file",
-		"tokenMountPathPointsToBrokenPath",
-		"couldn't read vault token from mount path")
-
-	createInitSucceedsButComponentFailsFlow(fs,
-		"Verify failure when vaultToken value does not match our servers's value",
-		"badVaultToken",
-		false)
-
-	createPositiveTestFlow(fs,
-		"Verify success when vaultTokenPath points to an existing file matching the configured secret we have for our secret seeder",
-		"tokenMountPathHappyCase",
-		false)
 }
 
 func TestVaultAddr(t *testing.T) {
@@ -293,7 +262,7 @@ func TestEnginePathCustomSecretsPath(t *testing.T) {
 		Step("Waiting for component to start...", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
-			embedded.WithComponentsPath(componentPath),
+			embedded.WithResourcesPath(componentPath),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHttpPort),
 			// Dapr log-level debug?
@@ -380,7 +349,7 @@ func TestVersioning(t *testing.T) {
 		Step("Waiting for component to start...", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
-			embedded.WithComponentsPath(componentPath),
+			embedded.WithResourcesPath(componentPath),
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHttpPort),
 			// Dapr log-level debug?

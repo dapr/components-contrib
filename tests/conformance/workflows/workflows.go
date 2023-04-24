@@ -15,10 +15,12 @@ package workflows
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/kit/logger"
 
@@ -58,29 +60,55 @@ func ConformanceTests(t *testing.T, props map[string]string, workflowItem workfl
 
 	// Everything is within the same task since the workflow needs to persist between operations
 	if config.HasOperation("start") {
+		testLogger.Info("Start test running...")
+
+		inputBytes, _ := json.Marshal(10) // Time that the activity within the workflow runs for
+
+		testInstanceID := "TestID"
 		t.Run("start", func(t *testing.T) {
-			testLogger.Info("Start test running...")
 			req := &workflows.StartRequest{
-				Input:        10, // Time that the activity within the workflow runs for
-				WorkflowName: "TestWorkflow",
+				InstanceID:    testInstanceID,
+				WorkflowName:  "TestWorkflow",
+				WorkflowInput: inputBytes,
+				Options: map[string]string{
+					"task_queue": "TestTaskQueue",
+				},
 			}
-			req.InstanceID = "TestID"
-			req.Options = make(map[string]string)
-			req.Options["task_queue"] = "TestTaskQueue"
-			wf, err := workflowItem.Start(context.Background(), req)
+
+			startRes, err := workflowItem.Start(context.Background(), req)
+			require.NoError(t, err)
+			assert.Equal(t, testInstanceID, startRes.InstanceID)
+		})
+
+		t.Run("get after start", func(t *testing.T) {
+			resp, err := workflowItem.Get(context.Background(), &workflows.GetRequest{InstanceID: testInstanceID})
+			require.NoError(t, err)
+			assert.Equal(t, "TestID", resp.Workflow.InstanceID)
+			assert.Equal(t, "Running", resp.Workflow.RuntimeStatus)
+		})
+
+		// Let the workflow run for a bit and make sure it doesn't complete on its own
+		time.Sleep(5 * time.Second)
+
+		t.Run("get after wait", func(t *testing.T) {
+			resp, err := workflowItem.Get(context.Background(), &workflows.GetRequest{InstanceID: testInstanceID})
+			require.NoError(t, err)
+			assert.Equal(t, "Running", resp.Workflow.RuntimeStatus)
+		})
+
+		t.Run("terminate", func(t *testing.T) {
+			err := workflowItem.Terminate(context.Background(), &workflows.TerminateRequest{InstanceID: testInstanceID})
 			assert.NoError(t, err)
-			resp, err := workflowItem.Get(context.Background(), wf)
-			assert.NoError(t, err)
-			assert.Equal(t, "Running", resp.Metadata["status"])
-			time.Sleep(5 * time.Second)
-			resp, err = workflowItem.Get(context.Background(), wf)
-			assert.NoError(t, err)
-			assert.Equal(t, resp.Metadata["status"], "Running")
-			err = workflowItem.Terminate(context.Background(), wf)
-			assert.NoError(t, err)
-			resp, err = workflowItem.Get(context.Background(), wf)
-			assert.NoError(t, err)
-			assert.Equal(t, "Terminated", resp.Metadata["status"])
+		})
+
+		// Give the workflow time to process the terminate request
+		time.Sleep(5 * time.Second)
+
+		t.Run("get after terminate", func(t *testing.T) {
+			resp, err := workflowItem.Get(context.Background(), &workflows.GetRequest{InstanceID: testInstanceID})
+			require.NoError(t, err)
+			assert.Equal(t, "Terminated", resp.Workflow.RuntimeStatus)
+			assert.Equal(t, "TestID", resp.Workflow.InstanceID)
 		})
 		testLogger.Info("Start test done.")
 	}

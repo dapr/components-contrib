@@ -1,20 +1,36 @@
 package workflows
 
-type WorkflowReference struct {
-	InstanceID string `json:"instance_id"`
-}
-
-// StartRequest is the object describing a Start Workflow request.
+// StartRequest is the struct describing a start workflow request.
 type StartRequest struct {
-	Options      map[string]string `json:"workflow_options"`
-	InstanceID   string            `json:"workflow_reference"`
-	WorkflowName string            `json:"function_name"`
-	Input        interface{}       `json:"input"`
+	InstanceID    string            `json:"instanceID"`
+	Options       map[string]string `json:"options"`
+	WorkflowName  string            `json:"workflowName"`
+	WorkflowInput []byte            `json:"workflowInput"`
 }
 
-// RaiseEventRequest is the object describing a Raise Event request.
+// GetRequest is the struct describing a get workflow state request.
+type GetRequest struct {
+	InstanceID string `json:"instanceID"`
+}
+
+// TerminateRequest is the struct describing a terminate workflow request.
+type TerminateRequest struct {
+	InstanceID string `json:"instanceID"`
+}
+
+// RaiseEventRequest is the struct describing a raise workflow event request.
 type RaiseEventRequest struct {
-	InstanceID string `json:"workflow_reference"`
-	EventName  string `json:"event_name"`
-	Input      []byte `json:"input"`
+	InstanceID string `json:"instanceID"`
+	EventName  string `json:"name"`
+	EventData  []byte `json:"data"`
+}
+
+// PauseRequest is the struct describing a pause workflow request.
+type PauseRequest struct {
+	InstanceID string `json:"instanceID"`
+}
+
+// ResumeRequest is the struct describing a resume workflow request.
+type ResumeRequest struct {
+	InstanceID string `json:"instanceID"`
 }

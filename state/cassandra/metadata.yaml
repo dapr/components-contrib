@@ -1,0 +1,75 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: cassandra
+version: v1
+status: stable
+title: "Apache Cassandra"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-cassandra/
+capabilities:
+  # If actorStateStore is present, the metadata key actorStateStore can be used
+  - crud
+  - ttl
+authenticationProfiles:
+  - title: "Username and password"
+    description: "Authenticate using username and password."
+    metadata:
+      - name: username
+        type: string
+        required: true
+        description: "The username of the database user."
+        example: '"admin"'
+      - name: password
+        type: string
+        required: true
+        sensitive: true
+        description: "The password of the user."
+        example: '"password"'
+metadata:
+  - name: hosts
+    type: string
+    required: true
+    description: "Comma separated list of the hosts."
+    example: '"cassandra.cassandra.svc.cluster.local,other.cassandra.example.tld"'
+  - name: port
+    type: number
+    description: "Port for communication."
+    default: "9042"
+    example: "8080"
+  - name: table
+    type: string
+    description: "The name of the table to use."
+    default: "items"
+    example: "orders"
+  - name: protoVersion
+    type: number
+    description: "The proto version for the client."
+    default: "4"
+    example: "3"
+  - name: replicationFactor
+    type: number
+    description: "The replication factor for the calls. "
+    default: "1"
+    example: "3"
+  - name: consistency
+    type: string
+    allowedValues:
+      - "Any"
+      - "One"
+      - "Two"
+      - "Three"
+      - "Quorum"
+      - "All"
+      - "LocalQuorum"
+      - "EachQuorum"
+      - "LocalOne"
+    description: "The consistency value to use."
+    default: "All"
+    example: "Three"
+  - name: keyspace
+    type: string
+    description: "The Cassandra keyspace to use."
+    default: "dapr"
+    example: "alt"

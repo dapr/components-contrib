@@ -18,7 +18,7 @@ require (
 	github.com/dapr/components-contrib v1.10.6-0.20230419230437-7099066436ee
 	github.com/dapr/dapr v1.10.5-rc.1.0.20230404115414-eed80024b415
 	github.com/dapr/go-sdk v1.7.0
-	github.com/dapr/kit v0.0.5-0.20230418170151-c93a9df941ce
+	github.com/dapr/kit v0.0.5-0.20230418193628-15a7040dec41
 	github.com/eclipse/paho.mqtt.golang v1.4.2
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/go-redis/redis/v8 v8.11.5
@@ -109,7 +109,6 @@ require (
 	github.com/fasthttp/router v1.4.18 // indirect
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
-	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/go-logr/logr v1.2.4 // indirect
@@ -262,7 +261,7 @@ require (
 	golang.org/x/crypto v0.8.0 // indirect
 	golang.org/x/mod v0.10.0 // indirect
 	golang.org/x/net v0.9.0 // indirect
-	golang.org/x/oauth2 v0.6.0 // indirect
+	golang.org/x/oauth2 v0.7.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.7.0 // indirect
 	golang.org/x/term v0.7.0 // indirect
@@ -304,4 +303,4 @@ require (
 
 replace github.com/dapr/components-contrib => ../../
 
-replace github.com/dapr/dapr => github.com/italypaleale/dapr v1.6.1-0.20230404165709-453bccb6c007
+replace github.com/dapr/dapr => github.com/cgillum/dapr v0.8.1-0.20230424162247-11bd4e3b1457

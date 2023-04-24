@@ -36,18 +36,6 @@ metadata:
     description: If the Redis instance supports TLS with public certificates, can be configured to be enabled or disabled. Defaults to false.
     example: "false"
     type: bool
-  - name: maxRetries
-    required: false
-    description: Maximum number of retries before giving up. Defaults to \"3\".
-    example: "5"
-    default: "3"
-    type: number
-  - name: maxRetryBackoff
-    required: false
-    description: Maximum backoff between each retry in nanoseconds. Defaults to 2 seconds; \"-1\" disables backoff.
-    example: "3000000000"
-    default: "2000000000"
-    type: number
   - name: failover
     required: false
     description: |
@@ -90,18 +78,20 @@ metadata:
     example: "cluster"
   - name: redisDB
     required: false
-    description: Database selected after connecting to redis. If "redisType" is "cluster" this option is ignored. Defaults to "0".
+    description: Database selected after connecting to Redis. If "redisType" is "cluster" this option is ignored. Defaults to "0".
     example: "0"
     type: number
   - name: redisMaxRetries
     required: false
-    description: Alias for maxRetries. If both values are set maxRetries is ignored.
+    description: Maximum number of retries for Redis commands.
     example: "5"
+    default: "3"
     type: number
   - name: redisMinRetryInterval
     required: false
-    description: Minimum backoff for redis commands between each retry. Default is \"8ms\"; \"-1\" disables backoff.
+    description: Minimum backoff for Redis commands between each retry.\"-1\" disables backoff.
     example: "8ms"
+    default: "2s"
     type: duration
   - name: redisMaxRetryInterval
     required: false

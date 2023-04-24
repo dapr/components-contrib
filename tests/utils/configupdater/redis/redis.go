@@ -6,6 +6,7 @@ import (
 
 	"github.com/dapr/components-contrib/configuration"
 	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/tests/utils/configupdater"
 	"github.com/dapr/kit/logger"
 )
@@ -47,7 +48,7 @@ func getRedisValuesFromItems(items map[string]*configuration.Item) []interface{}
 
 func (r *ConfigUpdater) Init(props map[string]string) error {
 	var err error
-	r.Client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(props, nil)
+	r.Client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(props, metadata.ConfigurationStoreType)
 	if err != nil {
 		return err
 	}

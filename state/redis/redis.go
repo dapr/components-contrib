@@ -98,7 +98,6 @@ type StateStore struct {
 	clientSettings                 *rediscomponent.Settings
 	clientHasJSON                  bool
 	json                           jsoniter.API
-	metadata                       rediscomponent.Metadata
 	replicas                       int
 	querySchemas                   querySchemas
 	suppressActorStateStoreWarning atomic.Bool
@@ -133,20 +132,14 @@ func (r *StateStore) Ping(ctx context.Context) error {
 
 // Init does metadata and connection parsing.
 func (r *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
-	m, err := rediscomponent.ParseRedisMetadata(metadata.Properties)
-	if err != nil {
-		return err
-	}
-	r.metadata = m
-
-	defaultSettings := rediscomponent.Settings{RedisMaxRetries: m.MaxRetries, RedisMaxRetryInterval: rediscomponent.Duration(m.MaxRetryBackoff)}
-	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties, &defaultSettings)
+	var err error
+	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties, daprmetadata.StateStoreType)
 	if err != nil {
 		return err
 	}
 
 	// check for query schemas
-	if r.querySchemas, err = parseQuerySchemas(m.QueryIndexes); err != nil {
+	if r.querySchemas, err = parseQuerySchemas(r.clientSettings.QueryIndexes); err != nil {
 		return fmt.Errorf("redis store: error parsing query index schema: %w", err)
 	}
 
@@ -342,7 +335,7 @@ func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	}
 	// apply global TTL
 	if ttl == nil {
-		ttl = r.metadata.TTLInSeconds
+		ttl = r.clientSettings.TTLInSeconds
 	}
 
 	firstWrite := 1
@@ -413,7 +406,7 @@ func (r *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 			}
 			// apply global TTL
 			if ttl == nil {
-				ttl = r.metadata.TTLInSeconds
+				ttl = r.clientSettings.TTLInSeconds
 			}
 			var bt []byte
 			isReqJSON := isJSON ||
@@ -555,8 +548,9 @@ func (r *StateStore) Close() error {
 }
 
 func (r *StateStore) GetComponentMetadata() map[string]string {
-	metadataStruct := rediscomponent.Settings{}
+	settingsStruct := rediscomponent.Settings{}
 	metadataInfo := map[string]string{}
-	daprmetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, daprmetadata.StateStoreType)
+	daprmetadata.GetMetadataInfoFromStructType(reflect.TypeOf(settingsStruct), &metadataInfo, daprmetadata.StateStoreType)
+
 	return metadataInfo
 }

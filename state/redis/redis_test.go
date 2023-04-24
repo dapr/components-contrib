@@ -200,9 +200,10 @@ func TestTransactionalUpsert(t *testing.T) {
 	defer s.Close()
 
 	ss := &StateStore{
-		client: c,
-		json:   jsoniter.ConfigFastest,
-		logger: logger.NewLogger("test"),
+		client:         c,
+		clientSettings: &rediscomponent.Settings{},
+		json:           jsoniter.ConfigFastest,
+		logger:         logger.NewLogger("test"),
 	}
 
 	err := ss.Multi(context.Background(), &state.TransactionalStateRequest{
@@ -256,9 +257,10 @@ func TestTransactionalDelete(t *testing.T) {
 	defer s.Close()
 
 	ss := &StateStore{
-		client: c,
-		json:   jsoniter.ConfigFastest,
-		logger: logger.NewLogger("test"),
+		client:         c,
+		clientSettings: &rediscomponent.Settings{},
+		json:           jsoniter.ConfigFastest,
+		logger:         logger.NewLogger("test"),
 	}
 
 	// Insert a record first.
@@ -311,10 +313,10 @@ func TestRequestsWithGlobalTTL(t *testing.T) {
 	globalTTLInSeconds := 100
 
 	ss := &StateStore{
-		client:   c,
-		json:     jsoniter.ConfigFastest,
-		logger:   logger.NewLogger("test"),
-		metadata: rediscomponent.Metadata{TTLInSeconds: &globalTTLInSeconds},
+		client:         c,
+		json:           jsoniter.ConfigFastest,
+		logger:         logger.NewLogger("test"),
+		clientSettings: &rediscomponent.Settings{TTLInSeconds: &globalTTLInSeconds},
 	}
 
 	t.Run("TTL: Only global specified", func(t *testing.T) {
@@ -394,9 +396,10 @@ func TestSetRequestWithTTL(t *testing.T) {
 	defer s.Close()
 
 	ss := &StateStore{
-		client: c,
-		json:   jsoniter.ConfigFastest,
-		logger: logger.NewLogger("test"),
+		client:         c,
+		clientSettings: &rediscomponent.Settings{},
+		json:           jsoniter.ConfigFastest,
+		logger:         logger.NewLogger("test"),
 	}
 
 	t.Run("TTL specified", func(t *testing.T) {
@@ -463,9 +466,10 @@ func TestTransactionalDeleteNoEtag(t *testing.T) {
 	defer s.Close()
 
 	ss := &StateStore{
-		client: c,
-		json:   jsoniter.ConfigFastest,
-		logger: logger.NewLogger("test"),
+		client:         c,
+		clientSettings: &rediscomponent.Settings{},
+		json:           jsoniter.ConfigFastest,
+		logger:         logger.NewLogger("test"),
 	}
 
 	// Insert a record first.

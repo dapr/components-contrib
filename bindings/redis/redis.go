@@ -44,7 +44,7 @@ func NewRedis(logger logger.Logger) bindings.OutputBinding {
 
 // Init performs metadata parsing and connection creation.
 func (r *Redis) Init(ctx context.Context, meta bindings.Metadata) (err error) {
-	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(meta.Properties, nil)
+	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(meta.Properties, metadata.BindingType)
 	if err != nil {
 		return err
 	}
@@ -146,7 +146,7 @@ func (r *Redis) Close() error {
 
 // GetComponentMetadata returns the metadata of the component.
 func (r *Redis) GetComponentMetadata() map[string]string {
-	metadataStruct := rediscomponent.Metadata{}
+	metadataStruct := rediscomponent.Settings{}
 	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return metadataInfo

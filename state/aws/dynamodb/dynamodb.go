@@ -398,7 +398,19 @@ func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 	twinput := &dynamodb.TransactWriteItemsInput{
 		TransactItems: []*dynamodb.TransactWriteItem{},
 	}
-	for _, o := range request.Operations {
+
+	// Dedup ops where the last operation with a matching Key takes precedence
+	txs := map[string]int{}
+	for i, o := range request.Operations {
+		txs[o.GetKey()] = i
+	}
+
+	for i, o := range request.Operations {
+		// skip operations removed in simulated set
+		if txs[o.GetKey()] != i {
+			continue
+		}
+
 		twi := &dynamodb.TransactWriteItem{}
 		switch req := o.(type) {
 		case state.SetRequest:
@@ -432,17 +444,6 @@ func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 	}
 
 	_, err := d.client.TransactWriteItems(twinput)
-	if err != nil {
-		fmt.Printf("@@@ twinput: %#v\n", twinput)
-		switch t := err.(type) {
-		case *dynamodb.TransactionCanceledException:
-			fmt.Printf("failed to write items: %s\n%v",
-				t.Message(), t.CancellationReasons)
-		default:
-			fmt.Printf("@@@ twinput: %v - %#v\n", err, err)
-		}
-
-	}
 
 	return err
 }

@@ -29,7 +29,6 @@ import (
 	state_loader "github.com/dapr/dapr/pkg/components/state"
 	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
-	daprClient "github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 )
@@ -118,28 +117,56 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 
 	transactionsTest := func(statestore string) func(ctx flow.Context) error {
 		return func(ctx flow.Context) error {
-			client, err := daprClient.NewClientWithPort(strconv.Itoa(currentGrpcPort))
+			cl, err := client.NewClientWithPort(strconv.Itoa(currentGrpcPort))
 			if err != nil {
-				panic(err)
+				return err
 			}
-			defer client.Close()
+			defer cl.Close()
 
-			err = client.ExecuteStateTransaction(ctx, statestore, nil, []*daprClient.StateOperation{
+			ktx1 := "reqKeyTx1"
+			ktx2 := "reqKeyTx2"
+			kdel := "reqKey2"
+
+			err = cl.SaveState(ctx, statestore, kdel, []byte(kdel), nil)
+			assert.NoError(t, err)
+
+			err = cl.ExecuteStateTransaction(ctx, statestore, nil, []*client.StateOperation{
 				{
-					Type: daprClient.StateOperationTypeUpsert,
-					Item: &daprClient.SetStateItem{
-						Key:   "reqKey1",
-						Value: []byte("reqVal1"),
-						Etag: &daprClient.ETag{
+					Type: client.StateOperationTypeUpsert,
+					Item: &client.SetStateItem{
+						Key:   ktx1,
+						Value: []byte("reqValTx1"),
+						Etag: &client.ETag{
 							Value: "test",
 						},
-						Metadata: map[string]string{
-							"ttlInSeconds": "60",
-							"partitionKey": "txpartition",
+						Metadata: map[string]string{},
+					},
+				},
+				{
+					Type: client.StateOperationTypeDelete,
+					Item: &client.SetStateItem{
+						Key:      kdel,
+						Metadata: map[string]string{},
+					},
+				},
+				{
+					Type: client.StateOperationTypeUpsert,
+					Item: &client.SetStateItem{
+						Key:   ktx2,
+						Value: []byte("reqValTx2"),
+						Etag: &client.ETag{
+							Value: "test",
 						},
+						Metadata: map[string]string{},
 					},
 				},
 			})
+			assert.NoError(t, err)
+
+			err = cl.DeleteState(ctx, statestore, ktx1, nil)
+			assert.NoError(t, err)
+
+			err = cl.DeleteState(ctx, statestore, ktx2, nil)
 			assert.NoError(t, err)
 
 			return nil
@@ -155,7 +182,6 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 			embedded.WithComponentsPath("./components/basictest"),
 			componentRuntimeOptions())).
 		Step("Run basic test with master key", basicTest("statestore-basic")).
-		Step("Run transaction test", transactionsTest("statestore-basic")).
 		Run()
 
 	flow.New(t, "Test TTL").
@@ -178,6 +204,17 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 			embedded.WithComponentsPath("./components/partition_key"),
 			componentRuntimeOptions())).
 		Step("Run basic test with partition key", basicTest("statestore-partition-key")).
+		Run()
+
+	flow.New(t, "Test Tx operations").
+		// Run the Dapr sidecar with AWS DynamoDB storage.
+		Step(sidecar.Run(sidecarNamePrefix,
+			embedded.WithoutApp(),
+			embedded.WithDaprGRPCPort(currentGrpcPort),
+			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithComponentsPath("./components/basictest"),
+			componentRuntimeOptions())).
+		Step("Run transaction test", transactionsTest("statestore-basic")).
 		Run()
 }
 

@@ -34,3 +34,8 @@ type PauseRequest struct {
 type ResumeRequest struct {
 	InstanceID string `json:"instanceID"`
 }
+
+// PurgeRequest is the object describing a Purge request.
+type PurgeRequest struct {
+	InstanceID string `json:"instanceID"`
+}

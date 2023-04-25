@@ -149,6 +149,11 @@ func (c *TemporalWF) RaiseEvent(ctx context.Context, req *workflows.RaiseEventRe
 	return c.client.SignalWorkflow(ctx, req.InstanceID, "", req.EventName, decodedEventData)
 }
 
+func (c *TemporalWF) Purge(ctx context.Context, req *workflows.PurgeRequest) error {
+	// Unimplemented
+	return nil
+}
+
 func (c *TemporalWF) Close() {
 	c.client.Close()
 }

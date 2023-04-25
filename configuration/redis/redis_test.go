@@ -20,13 +20,13 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	redisComponent "github.com/dapr/components-contrib/internal/component/redis"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 
+	redisComponent "github.com/dapr/components-contrib/internal/component/redis"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
+
 	"github.com/dapr/components-contrib/configuration"
-	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -285,7 +285,7 @@ func Test_parseRedisMetadata(t *testing.T) {
 	}{
 		{
 			args: args{
-				meta: configuration.Metadata{Base: mdata.Base{
+				meta: configuration.Metadata{Base: contribMetadata.Base{
 					Properties: testProperties,
 				}},
 			},
@@ -293,7 +293,7 @@ func Test_parseRedisMetadata(t *testing.T) {
 		},
 		{
 			args: args{
-				meta: configuration.Metadata{Base: mdata.Base{
+				meta: configuration.Metadata{Base: contribMetadata.Base{
 					Properties: testDefaultProperties,
 				}},
 			},
@@ -303,7 +303,6 @@ func Test_parseRedisMetadata(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, got, err := redisComponent.ParseClientFromProperties(tt.args.meta.Properties, contribMetadata.ConfigurationStoreType)
-			// err := mdata.DecodeMetadata(tt.args.meta, &got)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("edisComponent.ParseClientFromProperties error = %v, wantErr %v", err, tt.wantErr)
 				return

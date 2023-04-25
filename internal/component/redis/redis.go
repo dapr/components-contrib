@@ -20,8 +20,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dapr/components-contrib/configuration"
 	"golang.org/x/mod/semver"
+
+	"github.com/dapr/components-contrib/configuration"
 
 	"github.com/dapr/components-contrib/metadata"
 )
@@ -225,9 +226,3 @@ type RedisError string
 func (e RedisError) Error() string { return string(e) }
 
 func (RedisError) RedisError() {}
-
-type RedisMessage interface {
-	String() string
-}
-
-type closeFunc func() error

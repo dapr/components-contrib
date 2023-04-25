@@ -399,11 +399,9 @@ func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 		TransactItems: []*dynamodb.TransactWriteItem{},
 	}
 	for _, o := range request.Operations {
-		tOp := o
 		twi := &dynamodb.TransactWriteItem{}
-		switch tOp.Operation {
-		case state.Upsert:
-			req := tOp.Request.(state.SetRequest)
+		switch req := o.(type) {
+		case state.SetRequest:
 			value, err := d.marshalToString(req.Value)
 			if err != nil {
 				return fmt.Errorf("dynamodb error: failed to marshal value for key %s: %s", req.Key, err)
@@ -420,8 +418,7 @@ func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 				},
 			}
 
-		case state.Delete:
-			req := tOp.Request.(state.DeleteRequest)
+		case state.DeleteRequest:
 			twi.Delete = &dynamodb.Delete{
 				TableName: aws.String(d.table),
 				Key: map[string]*dynamodb.AttributeValue{
@@ -434,7 +431,7 @@ func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 		twinput.TransactItems = append(twinput.TransactItems, twi)
 	}
 
-	fmt.Printf("@@@ twInput: %v\n", twinput)
+	//fmt.Printf("@@@ twInput: %v\n", twinput)
 	_, err := d.client.TransactWriteItems(twinput)
 
 	return err

@@ -431,8 +431,18 @@ func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 		twinput.TransactItems = append(twinput.TransactItems, twi)
 	}
 
-	//fmt.Printf("@@@ twInput: %v\n", twinput)
 	_, err := d.client.TransactWriteItems(twinput)
+	if err != nil {
+		fmt.Printf("@@@ twinput: %#v\n", twinput)
+		switch t := err.(type) {
+		case *dynamodb.TransactionCanceledException:
+			fmt.Printf("failed to write items: %s\n%v",
+				t.Message(), t.CancellationReasons)
+		default:
+			fmt.Printf("@@@ twinput: %v - %#v\n", err, err)
+		}
+
+	}
 
 	return err
 }

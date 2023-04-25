@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dapr/components-contrib/configuration"
 	"golang.org/x/mod/semver"
 
 	"github.com/dapr/components-contrib/metadata"
@@ -70,6 +71,7 @@ type RedisClient interface {
 	GetDel(ctx context.Context, key string) (string, error)
 	Close() error
 	PingResult(ctx context.Context) (string, error)
+	ConfigurationSubscribe(ctx context.Context, args *ConfigurationSubscribeArgs)
 	SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (*bool, error)
 	EvalInt(ctx context.Context, script string, keys []string, args ...interface{}) (*int, error, error)
 	XAdd(ctx context.Context, stream string, maxLenApprox int64, values map[string]interface{}) (string, error)
@@ -82,11 +84,26 @@ type RedisClient interface {
 	TTLResult(ctx context.Context, key string) (time.Duration, error)
 }
 
+type ConfigurationSubscribeArgs struct {
+	HandleSubscribedChange func(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, channel string, id string)
+	Req                    *configuration.SubscribeRequest
+	Handler                configuration.UpdateHandler
+	RedisChannel           string
+	IsAllKeysChannel       bool
+	ID                     string
+	Stop                   chan struct{}
+}
+
 func ParseClientFromProperties(properties map[string]string, componentType metadata.ComponentType) (client RedisClient, settings *Settings, err error) {
 	settings = &Settings{}
 
 	// upgrade legacy metadata properties and set defaults
 	switch componentType {
+	case metadata.ConfigurationStoreType:
+		// Apply legacy defaults
+		settings.RedisMaxRetries = 3
+		settings.RedisMaxRetryInterval = Duration(2 * time.Second)
+		settings.RedisMinRetryInterval = Duration(8 * time.Millisecond)
 	case metadata.StateStoreType, metadata.LockStoreType:
 		// Apply legacy defaults
 		settings.RedisMaxRetries = 3
@@ -208,3 +225,9 @@ type RedisError string
 func (e RedisError) Error() string { return string(e) }
 
 func (RedisError) RedisError() {}
+
+type RedisMessage interface {
+	String() string
+}
+
+type closeFunc func() error

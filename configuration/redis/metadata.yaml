@@ -3,7 +3,7 @@ schemaVersion: v1
 type: configuration
 name: redis
 version: v1
-status: alpha
+status: stable
 title: "Redis"
 urls:
   - title: Reference
@@ -27,20 +27,25 @@ metadata:
     example: "false"
     default: "false"
     type: bool
-  - name: maxRetries
+  - name: redisMaxRetries
     required: false
     description: |
       Maximum number of retries before giving up. Defaults to "3".
     default: "3"
     example: "5"
     type: number
-  - name: maxRetryBackoff
+  - name: redisMinRetryInterval
     required: false
     description: |
-      Maximum backoff between each retry in nanoseconds. Defaults to 2 seconds; "-1" disables backoff.
-    example: "3000000000"
-    default: "2000000000"
-    type: number
+      Minimum backoff for redis commands between each retry. Default is "8ms"; "-1" disables backoff.
+    example: "8ms"
+    type: duration
+  - name: redisMaxRetryInterval
+    required: false
+    description: |
+      Maximum backoff for redis commands between each retry. Default is "2s";"-1" disables backoff.
+    example: "5s"
+    type: duration
   - name: failover
     required: false
     description: |

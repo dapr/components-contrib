@@ -37,5 +37,5 @@ type ResumeRequest struct {
 
 // PurgeRequest is the object describing a Purge request.
 type PurgeRequest struct {
-	InstanceID string `json:"workflow_reference"`
+	InstanceID string `json:"instanceID"`
 }

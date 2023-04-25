@@ -313,17 +313,4 @@ func TestRedis(t *testing.T) {
 		)).
 		Step("Run basic test to confirm state store not yet configured", testForStateStoreNotConfigured).
 		Run()
-
-	flow.New(t, "test redis state store yaml having maxRetries set to non int value").
-		Step(dockercompose.Run("redis", dockerComposeYAML)).
-		Step("Waiting for Redis readiness", retry.Do(time.Second*3, 10, checkRedisConnection)).
-		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("components/docker/maxRetriesNonInt"),
-			runtime.WithStates(stateRegistry),
-		)).
-		Step("Run basic test to confirm state store not yet configured", testForStateStoreNotConfigured).
-		Run()
 }

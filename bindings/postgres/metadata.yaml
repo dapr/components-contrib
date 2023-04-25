@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: postgres
+version: v1
+status: stable
+title: "PostgreSQL"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/postgres/
+capabilities: []
+binding:
+  output: true
+  input: false
+  operations:
+    - name: exec
+      description: "The exec operation can be used for DDL operations (like table creation), as well as INSERT, UPDATE, DELETE operations which return only metadata (e.g. number of affected rows)."
+    - name: query
+      description: "The query operation is used for SELECT statements, which return both the metadata and the retrieved data in a form of an array of row values."
+    - name: close
+      description: "The close operation can be used to explicitly close the DB connection and return it to the pool. This operation doesn't have any response."
+authenticationProfiles:
+  - title: "Connection string"
+    description: "Authenticate using a Connection String."
+    metadata:
+      - name: url
+        required: true
+        sensitive: true
+        bindings:
+          input: false
+          output: true
+        description: "Connection string for PostgreSQL."
+        url:
+          title: More details
+          url: https://docs.dapr.io/reference/components-reference/supported-bindings/postgres/#url-format
+        example: |
+          "user=dapr password=secret host=dapr.example.com port=5432 dbname=dapr sslmode=verify-ca"
+          or "postgres://dapr:secret@dapr.example.com:5432/dapr?sslmode=verify-ca"
+        type: string

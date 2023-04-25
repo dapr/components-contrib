@@ -15,6 +15,7 @@ package dynamoDBStorage_test
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 
 	dynamodb "github.com/dapr/components-contrib/state/aws/dynamodb"
@@ -28,6 +29,7 @@ import (
 	state_loader "github.com/dapr/dapr/pkg/components/state"
 	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
+	daprClient "github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 )
@@ -114,6 +116,36 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 		}
 	}
 
+	transactionsTest := func(statestore string) func(ctx flow.Context) error {
+		return func(ctx flow.Context) error {
+			client, err := daprClient.NewClientWithPort(strconv.Itoa(currentGrpcPort))
+			if err != nil {
+				panic(err)
+			}
+			defer client.Close()
+
+			err = client.ExecuteStateTransaction(ctx, statestore, nil, []*daprClient.StateOperation{
+				{
+					Type: daprClient.StateOperationTypeUpsert,
+					Item: &daprClient.SetStateItem{
+						Key:   "reqKey1",
+						Value: []byte("reqVal1"),
+						Etag: &daprClient.ETag{
+							Value: "test",
+						},
+						Metadata: map[string]string{
+							"ttlInSeconds": "60",
+							"partitionKey": "txpartition",
+						},
+					},
+				},
+			})
+			assert.NoError(t, err)
+
+			return nil
+		}
+	}
+
 	flow.New(t, "Test basic operations").
 		// Run the Dapr sidecar with AWS DynamoDB storage.
 		Step(sidecar.Run(sidecarNamePrefix,
@@ -123,6 +155,7 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 			embedded.WithComponentsPath("./components/basictest"),
 			componentRuntimeOptions())).
 		Step("Run basic test with master key", basicTest("statestore-basic")).
+		Step("Run transaction test", transactionsTest("statestore-basic")).
 		Run()
 
 	flow.New(t, "Test TTL").

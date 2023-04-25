@@ -443,7 +443,7 @@ func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 		twinput.TransactItems = append(twinput.TransactItems, twi)
 	}
 
-	_, err := d.client.TransactWriteItems(twinput)
+	_, err := d.client.TransactWriteItemsWithContext(ctx, twinput)
 
 	return err
 }

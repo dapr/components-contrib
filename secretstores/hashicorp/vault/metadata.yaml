@@ -75,3 +75,14 @@ metadata:
       Vault value type. map means to parse the value into map[string]string, text means to use the value as a string. "map" sets the multipleKeyValuesPerSecret behavior. text makes Vault behave as a secret store with name/value semantics. Defaults to "map"
     example: "map"
     type: string
+  - name: vaultNamespace
+    type: string
+    required: false
+    description: |
+      TBD. Refer to multi-tenancy.
+      Setting this field to an empty string (default) disables this behavior.
+    example: "MyNameSpace"
+    default: ""
+    url:
+      title: "Vault Enterprise Namespaces"
+      url: "https://developer.hashicorp.com/vault/docs/enterprise/namespaces"

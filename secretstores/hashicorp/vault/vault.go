@@ -51,6 +51,7 @@ const (
 	componentVaultKVUsePrefix    string = "vaultKVUsePrefix"
 	defaultVaultKVPrefix         string = "dapr"
 	vaultHTTPHeader              string = "X-Vault-Token"
+	vaultHTTPNamespaceHeader     string = "X-Vault-Namespace"
 	vaultHTTPRequestHeader       string = "X-Vault-Request"
 	vaultEnginePath              string = "enginePath"
 	vaultValueType               string = "vaultValueType"
@@ -83,6 +84,8 @@ type vaultSecretStore struct {
 	vaultKVPrefix       string
 	vaultEnginePath     string
 	vaultValueType      valueType
+	// TBD update tests and certification tests
+	vaultNamespace string
 
 	json jsoniter.API
 
@@ -102,6 +105,7 @@ type VaultMetadata struct {
 	VaultTokenMountPath string
 	EnginePath          string
 	VaultValueType      string
+	VaultNamespace      string
 }
 
 // tlsConfig is TLS configuration to interact with HashiCorp Vault.
@@ -185,6 +189,8 @@ func (v *vaultSecretStore) Init(_ context.Context, meta secretstores.Metadata) e
 	}
 	v.vaultKVPrefix = vaultKVPrefix
 
+	v.vaultNamespace = m.VaultNamespace
+
 	// Generate TLS config
 	tlsConf := metadataToTLSConfig(&m)
 
@@ -230,10 +236,7 @@ func (v *vaultSecretStore) getSecret(ctx context.Context, secret, version string
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate request: %w", err)
 	}
-	// Set vault token.
-	httpReq.Header.Set(vaultHTTPHeader, v.vaultToken)
-	// Set X-Vault-Request header
-	httpReq.Header.Set(vaultHTTPRequestHeader, "true")
+	v.setHTTPRequestHeaders(httpReq)
 
 	httpresp, err := v.client.Do(httpReq)
 	if err != nil {
@@ -275,6 +278,17 @@ func (v *vaultSecretStore) getSecret(ctx context.Context, secret, version string
 	}
 
 	return &d, nil
+}
+
+func (v *vaultSecretStore) setHTTPRequestHeaders(httpReq *http.Request) {
+	// Set vault token.
+	httpReq.Header.Set(vaultHTTPHeader, v.vaultToken)
+	// Set X-Vault-Request header
+	httpReq.Header.Set(vaultHTTPRequestHeader, "true")
+	// Set X-Vault-Namespace header if configured to do so
+	if v.vaultNamespace != "" {
+		httpReq.Header.Set(vaultHTTPNamespaceHeader, v.vaultNamespace)
+	}
 }
 
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
@@ -349,10 +363,7 @@ func (v *vaultSecretStore) listKeysUnderPath(ctx context.Context, path string) (
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate request: %s", err)
 	}
-	// Set vault token.
-	httpReq.Header.Set(vaultHTTPHeader, v.vaultToken)
-	// Set X-Vault-Request header
-	httpReq.Header.Set(vaultHTTPRequestHeader, "true")
+	v.setHTTPRequestHeaders(httpReq)
 	httpresp, err := v.client.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't get secret: %s", err)

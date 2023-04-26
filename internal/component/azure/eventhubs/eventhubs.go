@@ -38,7 +38,7 @@ import (
 // AzureEventHubs allows sending/receiving Azure Event Hubs events.
 // This is an abstract class used by both the pubsub and binding components.
 type AzureEventHubs struct {
-	metadata  *azureEventHubsMetadata
+	metadata  *AzureEventHubsMetadata
 	logger    logger.Logger
 	isBinding bool
 

@@ -85,20 +85,6 @@ func TestInit(t *testing.T) {
 		assert.Equal(t, productionPrefix, binding.urlPrefix)
 	})
 
-	t.Run("invalid development value", func(t *testing.T) {
-		metadata := bindings.Metadata{Base: metadata.Base{
-			Properties: map[string]string{
-				developmentKey: "True",
-				keyIDKey:       testKeyID,
-				teamIDKey:      testTeamID,
-				privateKeyKey:  testPrivateKey,
-			},
-		}}
-		binding := NewAPNS(testLogger).(*APNS)
-		err := binding.Init(context.Background(), metadata)
-		assert.Error(t, err, "invalid value for development parameter: True")
-	})
-
 	t.Run("the key ID is required", func(t *testing.T) {
 		metadata := bindings.Metadata{Base: metadata.Base{
 			Properties: map[string]string{

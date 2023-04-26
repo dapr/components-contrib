@@ -16,7 +16,9 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -45,11 +47,17 @@ const (
 	certificationTestPrefix = "stable-certification-"
 	timeout                 = 5 * time.Second
 
-	defaultSchemaName = "dapr_state_store"
-	defaultTableName  = "state"
+	defaultSchemaName        = "dapr_state_store"
+	defaultTableName         = "state"
+	defaultMetadataTableName = "dapr_metadata"
 
 	mysqlConnString   = "root:root@tcp(localhost:3306)/?allowNativePasswords=true"
 	mariadbConnString = "root:root@tcp(localhost:3307)/"
+
+	keyConnectionString = "connectionString"
+	keyCleanupInterval  = "cleanupInterval"
+	keyTableName        = "tableName"
+	keyMetadatTableName = "metadataTableName"
 )
 
 func TestMySQL(t *testing.T) {
@@ -315,7 +323,7 @@ func TestMySQL(t *testing.T) {
 	}
 
 	// checks that metadata options schemaName and tableName behave correctly
-	metadataTest := func(connString string, schemaName string, tableName string) func(ctx flow.Context) error {
+	metadataTest := func(connString, schemaName, tableName, metadataTableName string) func(ctx flow.Context) error {
 		return func(ctx flow.Context) (err error) {
 			properties := map[string]string{
 				"connectionString": connString,
@@ -331,6 +339,11 @@ func TestMySQL(t *testing.T) {
 				properties["tableName"] = tableName
 			} else {
 				tableName = defaultTableName
+			}
+			if metadataTableName != "" {
+				properties["metadataTableName"] = metadataTableName
+			} else {
+				metadataTableName = defaultMetadataTableName
 			}
 
 			// Init the component
@@ -359,15 +372,188 @@ func TestMySQL(t *testing.T) {
 
 			// Check that the table exists
 			query = `SELECT EXISTS (
-				SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_NAME = ?
+				SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
 			) AS 'exists'`
-			err = conn.QueryRow(query, tableName).Scan(&exists)
+			err = conn.QueryRow(query, schemaName, tableName).Scan(&exists)
+			require.NoError(t, err)
+			assert.Equal(t, 1, exists)
+
+			// Check that the expiredate column exists
+			query = `SELECT count(*) AS 'exists' FROM information_schema.columns 
+				WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?`
+			err = conn.QueryRow(query, schemaName, tableName, "expiredate").Scan(&exists)
+			require.NoError(t, err)
+			assert.Equal(t, 1, exists)
+
+			// Check that the metadata table exists
+			query = `SELECT count(*) AS 'exists' FROM information_schema.tables 
+				WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`
+			err = conn.QueryRow(query, schemaName, tableName).Scan(&exists)
 			require.NoError(t, err)
 			assert.Equal(t, 1, exists)
 
 			// Close the component
 			err = component.Close()
 			require.NoError(t, err)
+
+			return nil
+		}
+	}
+
+	// Validates TTLs and garbage collections
+	ttlTest := func(connString string) func(ctx flow.Context) error {
+		return func(ctx flow.Context) (err error) {
+			md := state.Metadata{
+				Base: metadata.Base{
+					Name: "ttltest",
+					Properties: map[string]string{
+						keyConnectionString: connString,
+						keyTableName:        "ttl_state",
+						keyMetadatTableName: "ttl_metadata",
+					},
+				},
+			}
+
+			t.Run("parse cleanupInterval", func(t *testing.T) {
+				t.Run("default value", func(t *testing.T) {
+					// Default value is 1 hr
+					md.Properties[keyCleanupInterval] = ""
+					storeObj := stateMysql.NewMySQLStateStore(log).(*stateMysql.MySQL)
+
+					err := storeObj.Init(ctx, md)
+					require.NoError(t, err, "failed to init")
+					defer storeObj.Close()
+
+					cleanupInterval := storeObj.CleanupInterval()
+					_ = assert.NotNil(t, cleanupInterval) &&
+						assert.Equal(t, time.Duration(1*time.Hour), *cleanupInterval)
+				})
+
+				t.Run("positive value", func(t *testing.T) {
+					md.Properties[keyCleanupInterval] = "10s"
+					storeObj := stateMysql.NewMySQLStateStore(log).(*stateMysql.MySQL)
+
+					err := storeObj.Init(ctx, md)
+					require.NoError(t, err, "failed to init")
+					defer storeObj.Close()
+
+					cleanupInterval := storeObj.CleanupInterval()
+					_ = assert.NotNil(t, cleanupInterval) &&
+						assert.Equal(t, time.Duration(10*time.Second), *cleanupInterval)
+				})
+
+				t.Run("disabled", func(t *testing.T) {
+					// A value of <=0 means that the cleanup is disabled
+					md.Properties[keyCleanupInterval] = "0"
+					storeObj := stateMysql.NewMySQLStateStore(log).(*stateMysql.MySQL)
+
+					err := storeObj.Init(ctx, md)
+					require.NoError(t, err, "failed to init")
+					defer storeObj.Close()
+
+					cleanupInterval := storeObj.CleanupInterval()
+					_ = assert.Nil(t, cleanupInterval)
+				})
+
+			})
+
+			t.Run("cleanup", func(t *testing.T) {
+				md := state.Metadata{
+					Base: metadata.Base{
+						Name: "ttltest",
+						Properties: map[string]string{
+							keyConnectionString: connString,
+							keyTableName:        "ttl_state",
+							keyMetadatTableName: "ttl_metadata",
+						},
+					},
+				}
+
+				t.Run("automatically delete expired records", func(t *testing.T) {
+					// Run every second
+					md.Properties[keyCleanupInterval] = "1s"
+
+					storeObj := stateMysql.NewMySQLStateStore(log).(*stateMysql.MySQL)
+					err := storeObj.Init(ctx, md)
+					require.NoError(t, err, "failed to init")
+					defer storeObj.Close()
+
+					conn := storeObj.GetConnection()
+					// Seed the database with some records
+					err = populateTTLRecords(ctx, conn)
+					require.NoError(t, err, "failed to seed records")
+
+					// Wait 2 seconds then verify we have only 10 rows left
+					time.Sleep(2 * time.Second)
+					count, err := countRowsInTable(ctx, conn, "ttl_state")
+					require.NoError(t, err, "failed to run query to count rows")
+					assert.Equal(t, 10, count)
+
+					// The "last-cleanup" value should be <= 2 seconds (+ a bit of buffer)
+					lastCleanup, err := loadLastCleanupInterval(ctx, conn, "ttl_metadata")
+					require.NoError(t, err, "failed to load value for 'last-cleanup'")
+					assert.LessOrEqual(t, lastCleanup, 2)
+
+					// Wait 6 more seconds and verify there are no more rows left
+					time.Sleep(6 * time.Second)
+					count, err = countRowsInTable(ctx, conn, "ttl_state")
+					require.NoError(t, err, "failed to run query to count rows")
+					assert.Equal(t, 0, count)
+
+					// The "last-cleanup" value should be <= 2 seconds (+ a bit of buffer)
+					lastCleanup, err = loadLastCleanupInterval(ctx, conn, "ttl_metadata")
+					require.NoError(t, err, "failed to load value for 'last-cleanup'")
+					assert.LessOrEqual(t, lastCleanup, 2)
+				})
+
+				t.Run("cleanup concurrency", func(t *testing.T) {
+					// Set to run every hour
+					// (we'll manually trigger more frequent iterations)
+					md.Properties[keyCleanupInterval] = "1h"
+
+					storeObj := stateMysql.NewMySQLStateStore(log).(*stateMysql.MySQL)
+					err := storeObj.Init(ctx, md)
+					require.NoError(t, err, "failed to init")
+					defer storeObj.Close()
+
+					conn := storeObj.GetConnection()
+
+					// Seed the database with some records
+					err = populateTTLRecords(ctx, conn)
+					require.NoError(t, err, "failed to seed records")
+
+					// Validate that 20 records are present
+					count, err := countRowsInTable(ctx, conn, "ttl_state")
+					require.NoError(t, err, "failed to run query to count rows")
+					assert.Equal(t, 20, count)
+
+					// Set last-cleanup to 1s ago (less than 3600s)
+					err = setValueInMetadataTable(ctx, conn, "ttl_metadata", "'last-cleanup'", "CURRENT_TIMESTAMP - INTERVAL 1 SECOND")
+					require.NoError(t, err, "failed to set last-cleanup")
+
+					// The "last-cleanup" value should be ~2 seconds (+ a bit of buffer)
+					lastCleanup, err := loadLastCleanupInterval(ctx, conn, "ttl_metadata")
+					require.NoError(t, err, "failed to load value for 'last-cleanup'")
+					assert.LessOrEqual(t, lastCleanup, 2)
+					lastCleanupValueOrig, err := getValueFromMetadataTable(ctx, conn, "ttl_metadata", "last-cleanup")
+					require.NoError(t, err, "failed to load absolute value for 'last-cleanup'")
+					require.NotEmpty(t, lastCleanupValueOrig)
+
+					// Trigger the background cleanup, which should do nothing because the last cleanup was < 3600s
+					err = storeObj.CleanupExpired()
+					require.NoError(t, err, "CleanupExpired returned an error")
+
+					// Validate that 20 records are still present
+					count, err = countRowsInTable(ctx, conn, "ttl_state")
+					require.NoError(t, err, "failed to run query to count rows")
+					assert.Equal(t, 20, count)
+
+					// The "last-cleanup" value should not have been changed
+					lastCleanupValue, err := getValueFromMetadataTable(ctx, conn, "ttl_metadata", "last-cleanup")
+					require.NoError(t, err, "failed to load absolute value for 'last-cleanup'")
+					assert.Equal(t, lastCleanupValueOrig, lastCleanupValue)
+				})
+			})
 
 			return nil
 		}
@@ -389,6 +575,8 @@ func TestMySQL(t *testing.T) {
 		Step("Run eTag test on mariadb", eTagTest("mariadb")).
 		Step("Run transactions test", transactionsTest("mysql")).
 		Step("Run transactions test", transactionsTest("mariadb")).
+		Step("Run TTL test on mysql", ttlTest(mysqlConnString)).
+		Step("Run TTL test on mariadb", ttlTest(mariadbConnString)).
 		Step("Run SQL injection test on mysql", verifySQLInjectionTest("mysql")).
 		Step("Run SQL injection test on mariadb", verifySQLInjectionTest("mariadb")).
 		//Step("Interrupt network and simulate timeouts", timeoutTest).
@@ -408,10 +596,91 @@ func TestMySQL(t *testing.T) {
 		Step("Close database connection 1", closeTest(0)).
 		Step("Close database connection 2", closeTest(1)).
 		// Metadata
-		Step("Default schemaName and tableName on mysql", metadataTest(mysqlConnString, "", "")).
-		Step("Custom schemaName and tableName on mysql", metadataTest(mysqlConnString, "mydaprdb", "mytable")).
-		Step("Default schemaName and tableName on mariadb", metadataTest(mariadbConnString, "", "")).
-		Step("Custom schemaName and tableName on mariadb", metadataTest(mariadbConnString, "mydaprdb", "mytable")).
+		Step("Default schemaName, tableName and metadataTableName on mysql", metadataTest(mysqlConnString, "", "", "")).
+		Step("Custom schemaName, tableName and metadataTableName on mysql", metadataTest(mysqlConnString, "mydaprdb", "mytable", "metadatatable")).
+		Step("Default schemaName, tableName and metadataTableName on mariadb", metadataTest(mariadbConnString, "", "", "")).
+		Step("Custom schemaName, tableName and metadataTableName on mariadb", metadataTest(mariadbConnString, "mydaprdb", "mytable", "metadatatable")).
 		// Run tests
 		Run()
+}
+
+func populateTTLRecords(ctx context.Context, dbClient *sql.DB) error {
+	// Insert 10 records that have expired, and 10 that will expire in 4 seconds
+	exp := "DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 MINUTE)"
+	rows := make([][]any, 20)
+	for i := 0; i < 10; i++ {
+		rows[i] = []any{
+			fmt.Sprintf("expired_%d", i),
+			json.RawMessage(fmt.Sprintf(`"value_%d"`, i)),
+			false,
+			exp,
+		}
+	}
+	exp = "DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 4 second)"
+	for i := 0; i < 10; i++ {
+		rows[i+10] = []any{
+			fmt.Sprintf("notexpired_%d", i),
+			json.RawMessage(fmt.Sprintf(`"value_%d"`, i)),
+			false,
+			exp,
+		}
+	}
+	queryCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	for _, row := range rows {
+		query := fmt.Sprintf("INSERT INTO ttl_state (id, value, isbinary, eTag, expiredate) VALUES (?, ?, ?, '', %s)", row[3])
+		_, err := dbClient.ExecContext(queryCtx, query, row[0], row[1], row[2])
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func countRowsInTable(ctx context.Context, dbClient *sql.DB, table string) (count int, err error) {
+	queryCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	err = dbClient.QueryRowContext(queryCtx, "SELECT COUNT(id) FROM "+table).Scan(&count)
+
+	cancel()
+	return
+}
+
+func loadLastCleanupInterval(ctx context.Context, dbClient *sql.DB, table string) (lastCleanup int, err error) {
+	queryCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	var lastCleanupf float64
+	err = dbClient.
+		QueryRowContext(queryCtx,
+			fmt.Sprintf("SELECT UNIX_TIMESTAMP(CURRENT_TIMESTAMP) - UNIX_TIMESTAMP(value) AS lastCleanupf FROM %s WHERE id = 'last-cleanup'", table),
+		).
+		Scan(&lastCleanupf)
+	lastCleanup = int(lastCleanupf)
+	cancel()
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	return
+}
+
+func setValueInMetadataTable(ctx context.Context, dbClient *sql.DB, table, id, value string) error {
+	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	_, err := dbClient.ExecContext(queryCtx,
+		//nolint:gosec
+		fmt.Sprintf(`INSERT INTO %[1]s (id, value) VALUES (%[2]s, %[3]s) ON DUPLICATE KEY UPDATE
+		value = %[3]s`, table, id, value),
+	)
+	cancel()
+	return err
+}
+
+func getValueFromMetadataTable(ctx context.Context, dbClient *sql.DB, table, id string) (value string, err error) {
+	queryCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	err = dbClient.
+		QueryRowContext(queryCtx, fmt.Sprintf("SELECT value FROM %s WHERE id = ?", table), id).
+		Scan(&value)
+	cancel()
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	return
 }

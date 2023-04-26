@@ -22,6 +22,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -42,10 +43,10 @@ const ExecuteOperation bindings.OperationKind = "execute"
 type initMetadata struct {
 	// Path is where to load a `%.wasm` file that implements a command,
 	// usually compiled to target WASI.
-	Path string `json:"path"`
+	Path string `mapstructure:"path"`
 
 	// guest is WebAssembly binary implementing the waPC guest, loaded from Path.
-	guest []byte
+	guest []byte `mapstructure:"-"`
 }
 
 type outputBinding struct {
@@ -73,7 +74,7 @@ func NewWasmOutput(logger logger.Logger) bindings.OutputBinding {
 		runtimeConfig: wazero.NewRuntimeConfig().
 			WithCloseOnContextDone(true),
 
-		// The below violate sand-boxing, but allow code to behave as expecteout.
+		// The below violate sand-boxing, but allow code to behave as expected.
 		moduleConfig: wazero.NewModuleConfig().
 			WithRandSource(rand.Reader).
 			WithSysWalltime().
@@ -138,10 +139,11 @@ func (out *outputBinding) Invoke(ctx context.Context, req *bindings.InvokeReques
 	moduleConfig = moduleConfig.WithArgs(argsSlice...)
 
 	// Instantiating executes the guest's main function (exported as _start).
-	_, err := out.runtime.InstantiateModule(ctx, out.module, moduleConfig)
+	mod, err := out.runtime.InstantiateModule(ctx, out.module, moduleConfig)
 
 	// Return STDOUT if there was no error.
 	if err == nil {
+		_ = mod.Close(ctx)
 		return &bindings.InvokeResponse{Data: stdout.Bytes()}, nil
 	}
 
@@ -204,4 +206,12 @@ func detectImports(imports []api.FunctionDefinition) importMode {
 		}
 	}
 	return modeDefault
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (out *outputBinding) GetComponentMetadata() map[string]string {
+	metadataStruct := initMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

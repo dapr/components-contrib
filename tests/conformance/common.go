@@ -58,11 +58,16 @@ import (
 	b_postgres "github.com/dapr/components-contrib/bindings/postgres"
 	b_rabbitmq "github.com/dapr/components-contrib/bindings/rabbitmq"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
+	c_postgres "github.com/dapr/components-contrib/configuration/postgres"
 	c_redis "github.com/dapr/components-contrib/configuration/redis"
+	cr_azurekeyvault "github.com/dapr/components-contrib/crypto/azure/keyvault"
+	cr_jwks "github.com/dapr/components-contrib/crypto/jwks"
+	cr_localstorage "github.com/dapr/components-contrib/crypto/localstorage"
 	p_snssqs "github.com/dapr/components-contrib/pubsub/aws/snssqs"
 	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
 	p_servicebusqueues "github.com/dapr/components-contrib/pubsub/azure/servicebus/queues"
 	p_servicebustopics "github.com/dapr/components-contrib/pubsub/azure/servicebus/topics"
+	p_gcppubsub "github.com/dapr/components-contrib/pubsub/gcp/pubsub"
 	p_inmemory "github.com/dapr/components-contrib/pubsub/in-memory"
 	p_jetstream "github.com/dapr/components-contrib/pubsub/jetstream"
 	p_kafka "github.com/dapr/components-contrib/pubsub/kafka"
@@ -90,6 +95,7 @@ import (
 	s_memcached "github.com/dapr/components-contrib/state/memcached"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
 	s_mysql "github.com/dapr/components-contrib/state/mysql"
+	s_oracledatabase "github.com/dapr/components-contrib/state/oracledatabase"
 	s_postgresql "github.com/dapr/components-contrib/state/postgresql"
 	s_redis "github.com/dapr/components-contrib/state/redis"
 	s_rethinkdb "github.com/dapr/components-contrib/state/rethinkdb"
@@ -103,6 +109,7 @@ import (
 	conf_state "github.com/dapr/components-contrib/tests/conformance/state"
 	conf_workflows "github.com/dapr/components-contrib/tests/conformance/workflows"
 	"github.com/dapr/components-contrib/tests/utils/configupdater"
+	cu_postgres "github.com/dapr/components-contrib/tests/utils/configupdater/postgres"
 	cu_redis "github.com/dapr/components-contrib/tests/utils/configupdater/redis"
 	wf_temporal "github.com/dapr/components-contrib/workflows/temporal"
 )
@@ -111,6 +118,7 @@ const (
 	eventhubs                 = "azure.eventhubs"
 	redisv6                   = "redis.v6"
 	redisv7                   = "redis.v7"
+	postgres                  = "postgres"
 	kafka                     = "kafka"
 	generateUUID              = "$((uuid))"
 	generateEd25519PrivateKey = "$((ed25519PrivateKey))"
@@ -444,7 +452,7 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				require.NotNil(t, store)
 				require.NotNil(t, updater)
 				configurationConfig := conf_configuration.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
-				conf_configuration.ConformanceTests(t, props, store, updater, configurationConfig)
+				conf_configuration.ConformanceTests(t, props, store, updater, configurationConfig, comp.Component)
 			default:
 				t.Errorf("unknown component type %s", tc.ComponentType)
 			}
@@ -462,6 +470,9 @@ func loadConfigurationStore(tc TestComponent) (configuration.Store, configupdate
 	case redisv7:
 		store = c_redis.NewRedisConfigurationStore(testLogger)
 		updater = cu_redis.NewRedisConfigUpdater(testLogger)
+	case postgres:
+		store = c_postgres.NewPostgresConfigurationStore(testLogger)
+		updater = cu_postgres.NewPostgresConfigUpdater(testLogger)
 	default:
 		return nil, nil
 	}
@@ -499,6 +510,10 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_snssqs.NewSnsSqs(testLogger)
 	case "aws.snssqs.docker":
 		pubsub = p_snssqs.NewSnsSqs(testLogger)
+	case "gcp.pubsub.terraform":
+		pubsub = p_gcppubsub.NewGCPPubSub(testLogger)
+	case "gcp.pubsub.docker":
+		pubsub = p_gcppubsub.NewGCPPubSub(testLogger)
 	case "kubemq":
 		pubsub = p_kubemq.NewKubeMQ(testLogger)
 	case "solace.amqp":
@@ -535,6 +550,12 @@ func loadSecretStore(tc TestComponent) secretstores.SecretStore {
 func loadCryptoProvider(tc TestComponent) contribCrypto.SubtleCrypto {
 	var component contribCrypto.SubtleCrypto
 	switch tc.Component {
+	case "azure.keyvault":
+		component = cr_azurekeyvault.NewAzureKeyvaultCrypto(testLogger)
+	case "localstorage":
+		component = cr_localstorage.NewLocalStorageCrypto(testLogger)
+	case "jwks":
+		component = cr_jwks.NewJWKSCrypto(testLogger)
 	}
 
 	return component
@@ -565,6 +586,8 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_mysql.NewMySQLStateStore(testLogger)
 	case "mysql.mariadb":
 		store = s_mysql.NewMySQLStateStore(testLogger)
+	case "oracledatabase":
+		store = s_oracledatabase.NewOracleDatabaseStateStore(testLogger)
 	case "azure.tablestorage.storage":
 		store = s_azuretablestorage.NewAzureTablesStateStore(testLogger)
 	case "azure.tablestorage.cosmosdb":

@@ -17,10 +17,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/dapr/components-contrib/bindings"
 	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -43,7 +44,7 @@ func NewRedis(logger logger.Logger) bindings.OutputBinding {
 
 // Init performs metadata parsing and connection creation.
 func (r *Redis) Init(ctx context.Context, meta bindings.Metadata) (err error) {
-	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(meta.Properties, nil)
+	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(meta.Properties, metadata.BindingType)
 	if err != nil {
 		return err
 	}
@@ -75,7 +76,7 @@ func (r *Redis) Operations() []bindings.OperationKind {
 
 func (r *Redis) expireKeyIfRequested(ctx context.Context, requestMetadata map[string]string, key string) error {
 	// get ttl from request metadata
-	ttl, ok, err := contribMetadata.TryGetTTL(requestMetadata)
+	ttl, ok, err := metadata.TryGetTTL(requestMetadata)
 	if err != nil {
 		return err
 	}
@@ -141,4 +142,12 @@ func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 
 func (r *Redis) Close() error {
 	return r.client.Close()
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (r *Redis) GetComponentMetadata() map[string]string {
+	metadataStruct := rediscomponent.Settings{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

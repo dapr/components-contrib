@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -55,149 +56,173 @@ func TestValidConfiguration(t *testing.T) {
 		"No schema": {
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName},
 			expected: SQLServer{
-				connectionString: sampleConnectionString,
-				tableName:        sampleUserTableName,
-				schema:           defaultSchema,
-				keyType:          StringKeyType,
-				keyLength:        defaultKeyLength,
-				databaseName:     defaultDatabase,
-				metaTableName:    defaultMetaTable,
+				metadata: sqlServerMetadata{
+					ConnectionString:  sampleConnectionString,
+					TableName:         sampleUserTableName,
+					Schema:            defaultSchema,
+					keyTypeParsed:     StringKeyType,
+					keyLengthParsed:   defaultKeyLength,
+					DatabaseName:      defaultDatabase,
+					MetadataTableName: defaultMetaTable,
+				},
 			},
 		},
 		"Custom schema": {
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, schemaKey: "mytest"},
 			expected: SQLServer{
-				connectionString: sampleConnectionString,
-				tableName:        sampleUserTableName,
-				schema:           "mytest",
-				keyType:          StringKeyType,
-				keyLength:        defaultKeyLength,
-				databaseName:     defaultDatabase,
-				metaTableName:    defaultMetaTable,
+				metadata: sqlServerMetadata{
+					ConnectionString:  sampleConnectionString,
+					TableName:         sampleUserTableName,
+					Schema:            "mytest",
+					keyTypeParsed:     StringKeyType,
+					keyLengthParsed:   defaultKeyLength,
+					DatabaseName:      defaultDatabase,
+					MetadataTableName: defaultMetaTable,
+				},
 			},
 		},
 		"String key type": {
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, keyTypeKey: "string"},
 			expected: SQLServer{
-				connectionString: sampleConnectionString,
-				schema:           defaultSchema,
-				tableName:        sampleUserTableName,
-				keyType:          StringKeyType,
-				keyLength:        defaultKeyLength,
-				databaseName:     defaultDatabase,
-				metaTableName:    defaultMetaTable,
+				metadata: sqlServerMetadata{
+					ConnectionString:  sampleConnectionString,
+					Schema:            defaultSchema,
+					TableName:         sampleUserTableName,
+					keyTypeParsed:     StringKeyType,
+					keyLengthParsed:   defaultKeyLength,
+					DatabaseName:      defaultDatabase,
+					MetadataTableName: defaultMetaTable,
+				},
 			},
 		},
 		"Unique identifier key type": {
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, keyTypeKey: "uuid"},
 			expected: SQLServer{
-				connectionString: sampleConnectionString,
-				schema:           defaultSchema,
-				tableName:        sampleUserTableName,
-				keyType:          UUIDKeyType,
-				keyLength:        0,
-				databaseName:     defaultDatabase,
-				metaTableName:    defaultMetaTable,
+				metadata: sqlServerMetadata{
+					ConnectionString:  sampleConnectionString,
+					Schema:            defaultSchema,
+					TableName:         sampleUserTableName,
+					keyTypeParsed:     UUIDKeyType,
+					keyLengthParsed:   0,
+					DatabaseName:      defaultDatabase,
+					MetadataTableName: defaultMetaTable,
+				},
 			},
 		},
 		"Integer identifier key type": {
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, keyTypeKey: "integer"},
 			expected: SQLServer{
-				connectionString: sampleConnectionString,
-				schema:           defaultSchema,
-				tableName:        sampleUserTableName,
-				keyType:          IntegerKeyType,
-				keyLength:        0,
-				databaseName:     defaultDatabase,
-				metaTableName:    defaultMetaTable,
+				metadata: sqlServerMetadata{
+					ConnectionString:  sampleConnectionString,
+					Schema:            defaultSchema,
+					TableName:         sampleUserTableName,
+					keyTypeParsed:     IntegerKeyType,
+					keyLengthParsed:   0,
+					DatabaseName:      defaultDatabase,
+					MetadataTableName: defaultMetaTable,
+				},
 			},
 		},
 		"Custom key length": {
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, keyLengthKey: "100"},
 			expected: SQLServer{
-				connectionString: sampleConnectionString,
-				schema:           defaultSchema,
-				tableName:        sampleUserTableName,
-				keyType:          StringKeyType,
-				keyLength:        100,
-				databaseName:     defaultDatabase,
-				metaTableName:    defaultMetaTable,
+				metadata: sqlServerMetadata{
+					ConnectionString:  sampleConnectionString,
+					Schema:            defaultSchema,
+					TableName:         sampleUserTableName,
+					keyTypeParsed:     StringKeyType,
+					keyLengthParsed:   100,
+					DatabaseName:      defaultDatabase,
+					MetadataTableName: defaultMetaTable,
+				},
 			},
 		},
 		"Single indexed property": {
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, indexedPropertiesKey: `[{"column": "Age","property":"age", "type":"int"}]`},
 			expected: SQLServer{
-				connectionString: sampleConnectionString,
-				schema:           defaultSchema,
-				tableName:        sampleUserTableName,
-				keyType:          StringKeyType,
-				keyLength:        defaultKeyLength,
-				indexedProperties: []IndexedProperty{
-					{ColumnName: "Age", Property: "age", Type: "int"},
+				metadata: sqlServerMetadata{
+					ConnectionString: sampleConnectionString,
+					Schema:           defaultSchema,
+					TableName:        sampleUserTableName,
+					keyTypeParsed:    StringKeyType,
+					keyLengthParsed:  defaultKeyLength,
+					indexedPropertiesParsed: []IndexedProperty{
+						{ColumnName: "Age", Property: "age", Type: "int"},
+					},
+					DatabaseName:      defaultDatabase,
+					MetadataTableName: defaultMetaTable,
 				},
-				databaseName:  defaultDatabase,
-				metaTableName: defaultMetaTable,
 			},
 		},
 		"Multiple indexed properties": {
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, indexedPropertiesKey: `[{"column": "Age","property":"age", "type":"int"}, {"column": "Name","property":"name", "type":"nvarchar(100)"}]`},
 			expected: SQLServer{
-				connectionString: sampleConnectionString,
-				schema:           defaultSchema,
-				tableName:        sampleUserTableName,
-				keyType:          StringKeyType,
-				keyLength:        defaultKeyLength,
-				indexedProperties: []IndexedProperty{
-					{ColumnName: "Age", Property: "age", Type: "int"},
-					{ColumnName: "Name", Property: "name", Type: "nvarchar(100)"},
+				metadata: sqlServerMetadata{
+					ConnectionString: sampleConnectionString,
+					Schema:           defaultSchema,
+					TableName:        sampleUserTableName,
+					keyTypeParsed:    StringKeyType,
+					keyLengthParsed:  defaultKeyLength,
+					indexedPropertiesParsed: []IndexedProperty{
+						{ColumnName: "Age", Property: "age", Type: "int"},
+						{ColumnName: "Name", Property: "name", Type: "nvarchar(100)"},
+					},
+					DatabaseName:      defaultDatabase,
+					MetadataTableName: defaultMetaTable,
 				},
-				databaseName:  defaultDatabase,
-				metaTableName: defaultMetaTable,
 			},
 		},
 		"Custom database": {
 			props: map[string]string{connectionStringKey: sampleConnectionString, tableNameKey: sampleUserTableName, databaseNameKey: "dapr_test_table"},
 			expected: SQLServer{
-				connectionString: sampleConnectionString,
-				schema:           defaultSchema,
-				tableName:        sampleUserTableName,
-				keyType:          StringKeyType,
-				keyLength:        defaultKeyLength,
-				databaseName:     "dapr_test_table",
-				metaTableName:    defaultMetaTable,
+				metadata: sqlServerMetadata{
+					ConnectionString:  sampleConnectionString,
+					Schema:            defaultSchema,
+					TableName:         sampleUserTableName,
+					keyTypeParsed:     StringKeyType,
+					keyLengthParsed:   defaultKeyLength,
+					DatabaseName:      "dapr_test_table",
+					MetadataTableName: defaultMetaTable,
+				},
 			},
 		},
 		"No table": {
 			props: map[string]string{connectionStringKey: sampleConnectionString},
 			expected: SQLServer{
-				connectionString: sampleConnectionString,
-				tableName:        defaultTable,
-				schema:           defaultSchema,
-				keyType:          StringKeyType,
-				keyLength:        defaultKeyLength,
-				databaseName:     defaultDatabase,
-				metaTableName:    defaultMetaTable,
+				metadata: sqlServerMetadata{
+					ConnectionString:  sampleConnectionString,
+					TableName:         defaultTable,
+					Schema:            defaultSchema,
+					keyTypeParsed:     StringKeyType,
+					keyLengthParsed:   defaultKeyLength,
+					DatabaseName:      defaultDatabase,
+					MetadataTableName: defaultMetaTable,
+				},
 			},
 		},
 		"Custom meta table": {
 			props: map[string]string{connectionStringKey: sampleConnectionString, "metadataTableName": "dapr_test_meta_table"},
 			expected: SQLServer{
-				connectionString: sampleConnectionString,
-				tableName:        defaultTable,
-				schema:           defaultSchema,
-				keyType:          StringKeyType,
-				keyLength:        defaultKeyLength,
-				databaseName:     defaultDatabase,
-				metaTableName:    "dapr_test_meta_table",
+				metadata: sqlServerMetadata{
+					ConnectionString:  sampleConnectionString,
+					TableName:         defaultTable,
+					Schema:            defaultSchema,
+					keyTypeParsed:     StringKeyType,
+					keyLengthParsed:   defaultKeyLength,
+					DatabaseName:      defaultDatabase,
+					MetadataTableName: "dapr_test_meta_table",
+				},
 			},
 		},
 	}
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			sqlStore := New(logger.NewLogger("test")).(*SQLServer)
-			sqlStore.migratorFactory = func(s *SQLServer) migrator {
-				return &mockMigrator{}
+			sqlStore := &SQLServer{
+				logger: logger.NewLogger("test"),
+				migratorFactory: func(*sqlServerMetadata) migrator {
+					return &mockMigrator{}
+				},
 			}
 
 			metadata := state.Metadata{
@@ -205,21 +230,21 @@ func TestValidConfiguration(t *testing.T) {
 			}
 
 			err := sqlStore.Init(context.Background(), metadata)
-			assert.Nil(t, err)
-			assert.Equal(t, tt.expected.connectionString, sqlStore.connectionString)
-			assert.Equal(t, tt.expected.tableName, sqlStore.tableName)
-			assert.Equal(t, tt.expected.schema, sqlStore.schema)
-			assert.Equal(t, tt.expected.keyType, sqlStore.keyType)
-			assert.Equal(t, tt.expected.keyLength, sqlStore.keyLength)
-			assert.Equal(t, tt.expected.databaseName, sqlStore.databaseName)
-			assert.Equal(t, tt.expected.metaTableName, sqlStore.metaTableName)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected.metadata.ConnectionString, sqlStore.metadata.ConnectionString)
+			assert.Equal(t, tt.expected.metadata.TableName, sqlStore.metadata.TableName)
+			assert.Equal(t, tt.expected.metadata.Schema, sqlStore.metadata.Schema)
+			assert.Equal(t, tt.expected.metadata.keyTypeParsed, sqlStore.metadata.keyTypeParsed)
+			assert.Equal(t, tt.expected.metadata.keyLengthParsed, sqlStore.metadata.keyLengthParsed)
+			assert.Equal(t, tt.expected.metadata.DatabaseName, sqlStore.metadata.DatabaseName)
+			assert.Equal(t, tt.expected.metadata.MetadataTableName, sqlStore.metadata.MetadataTableName)
 
-			assert.Equal(t, len(tt.expected.indexedProperties), len(sqlStore.indexedProperties))
-			if len(tt.expected.indexedProperties) > 0 && len(tt.expected.indexedProperties) == len(sqlStore.indexedProperties) {
-				for i, e := range tt.expected.indexedProperties {
-					assert.Equal(t, e.ColumnName, sqlStore.indexedProperties[i].ColumnName)
-					assert.Equal(t, e.Property, sqlStore.indexedProperties[i].Property)
-					assert.Equal(t, e.Type, sqlStore.indexedProperties[i].Type)
+			assert.Equal(t, len(tt.expected.metadata.indexedPropertiesParsed), len(sqlStore.metadata.indexedPropertiesParsed))
+			if len(tt.expected.metadata.indexedPropertiesParsed) > 0 && len(tt.expected.metadata.indexedPropertiesParsed) == len(sqlStore.metadata.indexedPropertiesParsed) {
+				for i, e := range tt.expected.metadata.indexedPropertiesParsed {
+					assert.Equal(t, e.ColumnName, sqlStore.metadata.indexedPropertiesParsed[i].ColumnName)
+					assert.Equal(t, e.Property, sqlStore.metadata.indexedPropertiesParsed[i].Property)
+					assert.Equal(t, e.Type, sqlStore.metadata.indexedPropertiesParsed[i].Type)
 				}
 			}
 		})
@@ -323,17 +348,19 @@ func TestInvalidConfiguration(t *testing.T) {
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			sqlStore := New(logger.NewLogger("test")).(*SQLServer)
+			sqlStore := &SQLServer{
+				logger: logger.NewLogger("test"),
+			}
 
 			metadata := state.Metadata{
 				Base: metadata.Base{Properties: tt.props},
 			}
 
 			err := sqlStore.Init(context.Background(), metadata)
-			assert.NotNil(t, err)
+			require.Error(t, err)
 
 			if tt.expectedErr != "" {
-				assert.Contains(t, err.Error(), tt.expectedErr)
+				require.ErrorContains(t, err, tt.expectedErr)
 			}
 		})
 	}
@@ -341,9 +368,11 @@ func TestInvalidConfiguration(t *testing.T) {
 
 // Test that if the migration fails the error is reported.
 func TestExecuteMigrationFails(t *testing.T) {
-	sqlStore := New(logger.NewLogger("test")).(*SQLServer)
-	sqlStore.migratorFactory = func(s *SQLServer) migrator {
-		return &mockFailingMigrator{}
+	sqlStore := &SQLServer{
+		logger: logger.NewLogger("test"),
+		migratorFactory: func(*sqlServerMetadata) migrator {
+			return &mockFailingMigrator{}
+		},
 	}
 
 	metadata := state.Metadata{
@@ -351,11 +380,14 @@ func TestExecuteMigrationFails(t *testing.T) {
 	}
 
 	err := sqlStore.Init(context.Background(), metadata)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestSupportedFeatures(t *testing.T) {
-	sqlStore := New(logger.NewLogger("test")).(*SQLServer)
+	sqlStore := &SQLServer{
+		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		logger:   logger.NewLogger("test"),
+	}
 
 	actual := sqlStore.Features()
 	assert.NotNil(t, actual)

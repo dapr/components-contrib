@@ -14,6 +14,7 @@ limitations under the License.
 package embedded
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
@@ -43,7 +44,6 @@ const (
 	maxConcurrency      = -1
 	enableMTLS          = false
 	sentryAddress       = ""
-	appSSL              = false
 	maxRequestBodySize  = 4
 
 	daprHTTPPort     = runtime.DefaultDaprHTTPPort
@@ -147,7 +147,6 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, *runtime.Co
 		MaxConcurrency:               maxConcurrency,
 		MTLSEnabled:                  enableMTLS,
 		SentryAddress:                sentryAddress,
-		AppSSL:                       appSSL,
 		MaxRequestBodySize:           maxRequestBodySize,
 		ReadBufferSize:               runtime.DefaultReadBufferSize,
 		GracefulShutdownDuration:     time.Second,
@@ -197,7 +196,7 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, *runtime.Co
 	if config != "" {
 		switch modes.DaprMode(mode) {
 		case modes.KubernetesMode:
-			client, conn, clientErr := client.GetOperatorClient(controlPlaneAddress, security.TLSServerName, runtimeConfig.CertChain)
+			client, conn, clientErr := client.GetOperatorClient(context.Background(), controlPlaneAddress, security.TLSServerName, runtimeConfig.CertChain)
 			if clientErr != nil {
 				return nil, nil, err
 			}
@@ -222,7 +221,7 @@ func NewRuntime(appID string, opts ...Option) (*runtime.DaprRuntime, *runtime.Co
 		globalConfig = global_config.LoadDefaultConfiguration()
 	}
 
-	accessControlList, err = acl.ParseAccessControlSpec(globalConfig.Spec.AccessControlSpec, string(runtimeConfig.ApplicationProtocol))
+	accessControlList, err = acl.ParseAccessControlSpec(globalConfig.Spec.AccessControlSpec, true)
 	if err != nil {
 		return nil, nil, err
 	}

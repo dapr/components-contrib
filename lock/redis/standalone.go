@@ -16,12 +16,14 @@ package redis
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
 	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"github.com/dapr/components-contrib/lock"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -35,7 +37,6 @@ const (
 type StandaloneRedisLock struct {
 	client         rediscomponent.RedisClient
 	clientSettings *rediscomponent.Settings
-	metadata       rediscomponent.Metadata
 
 	logger logger.Logger
 }
@@ -52,12 +53,6 @@ func NewStandaloneRedisLock(logger logger.Logger) lock.Store {
 
 // Init StandaloneRedisLock.
 func (r *StandaloneRedisLock) InitLockStore(ctx context.Context, metadata lock.Metadata) error {
-	// 1. parse config
-	m, err := rediscomponent.ParseRedisMetadata(metadata.Properties)
-	if err != nil {
-		return err
-	}
-	r.metadata = m
 	// must have `redisHost`
 	if metadata.Properties["redisHost"] == "" {
 		return fmt.Errorf("[standaloneRedisLock]: InitLockStore error. redisHost is empty")
@@ -66,9 +61,9 @@ func (r *StandaloneRedisLock) InitLockStore(ctx context.Context, metadata lock.M
 	if needFailover(metadata.Properties) {
 		return fmt.Errorf("[standaloneRedisLock]: InitLockStore error. Failover is not supported")
 	}
-	// 2. construct client
-	defaultSettings := rediscomponent.Settings{RedisMaxRetries: m.MaxRetries, RedisMaxRetryInterval: rediscomponent.Duration(m.MaxRetryBackoff)}
-	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties, &defaultSettings)
+	// construct client
+	var err error
+	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties, contribMetadata.LockStoreType)
 	if err != nil {
 		return err
 	}
@@ -185,4 +180,12 @@ func (r *StandaloneRedisLock) Close() error {
 		return closeErr
 	}
 	return nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (r *StandaloneRedisLock) GetComponentMetadata() map[string]string {
+	metadataStruct := rediscomponent.Settings{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.LockStoreType)
+	return metadataInfo
 }

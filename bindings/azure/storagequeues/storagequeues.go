@@ -18,6 +18,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -34,7 +35,9 @@ import (
 )
 
 const (
-	defaultTTL = time.Minute * 10
+	defaultTTL               = 10 * time.Minute
+	defaultVisibilityTimeout = 30 * time.Second
+	defaultPollingInterval   = 10 * time.Second
 )
 
 type consumer struct {
@@ -55,6 +58,7 @@ type AzureQueueHelper struct {
 	logger            logger.Logger
 	decodeBase64      bool
 	encodeBase64      bool
+	pollingInterval   time.Duration
 	visibilityTimeout time.Duration
 }
 
@@ -104,6 +108,7 @@ func (d *AzureQueueHelper) Init(ctx context.Context, meta bindings.Metadata) (*s
 
 	d.decodeBase64 = m.DecodeBase64
 	d.encodeBase64 = m.EncodeBase64
+	d.pollingInterval = m.PollingInterval
 	d.visibilityTimeout = *m.VisibilityTimeout
 	d.queueClient = queueServiceClient.NewQueueClient(m.QueueName)
 
@@ -150,9 +155,9 @@ func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 		return err
 	}
 	if len(res.Messages) == 0 {
-		// Queue was empty so back off by 10 seconds before trying again
+		// Queue was empty so back off seconds before trying again
 		select {
-		case <-time.After(10 * time.Second):
+		case <-time.After(d.pollingInterval):
 		case <-ctx.Done():
 		}
 		return nil
@@ -221,7 +226,8 @@ type storageQueuesMetadata struct {
 	AccountKey        string
 	DecodeBase64      bool
 	EncodeBase64      bool
-	ttl               *time.Duration
+	PollingInterval   time.Duration  `mapstructure:"pollingInterval"`
+	TTL               *time.Duration `mapstructure:"ttlInSeconds"`
 	VisibilityTimeout *time.Duration
 }
 
@@ -256,7 +262,8 @@ func (a *AzureStorageQueues) Init(ctx context.Context, metadata bindings.Metadat
 
 func parseMetadata(meta bindings.Metadata) (*storageQueuesMetadata, error) {
 	m := storageQueuesMetadata{
-		VisibilityTimeout: ptr.Of(time.Second * 30),
+		PollingInterval:   defaultPollingInterval,
+		VisibilityTimeout: ptr.Of(defaultVisibilityTimeout),
 	}
 	contribMetadata.DecodeMetadata(meta.Properties, &m)
 
@@ -280,12 +287,16 @@ func parseMetadata(meta bindings.Metadata) (*storageQueuesMetadata, error) {
 		m.AccountKey = val
 	}
 
+	if m.PollingInterval < (100 * time.Millisecond) {
+		return nil, errors.New("invalid value for 'pollingInterval': must be greater than 100ms")
+	}
+
 	ttl, ok, err := contribMetadata.TryGetTTL(meta.Properties)
 	if err != nil {
 		return nil, err
 	}
 	if ok {
-		m.ttl = &ttl
+		m.TTL = &ttl
 	}
 
 	return &m, nil
@@ -296,7 +307,7 @@ func (a *AzureStorageQueues) Operations() []bindings.OperationKind {
 }
 
 func (a *AzureStorageQueues) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	ttlToUse := a.metadata.ttl
+	ttlToUse := a.metadata.TTL
 	ttl, ok, err := contribMetadata.TryGetTTL(req.Metadata)
 	if err != nil {
 		return nil, err
@@ -356,4 +367,12 @@ func (a *AzureStorageQueues) Close() error {
 	}
 	a.wg.Wait()
 	return nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (a *AzureStorageQueues) GetComponentMetadata() map[string]string {
+	metadataStruct := storageQueuesMetadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
+	return metadataInfo
 }

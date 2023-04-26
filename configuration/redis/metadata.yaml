@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: configuration
+name: redis
+version: v1
+status: alpha
+title: "Redis"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-configuration-stores/redis-configuration-store/
+capabilities: []
+metadata:
+  - name: redisHost
+    required: true
+    description: Connection string for the Redis host
+    example: "redis-master.default.svc.cluster.local:6379"
+    type: string
+  - name: redisPassword
+    required: false
+    description: Password for the Redis host
+    example:  "KeFg23!"
+    type: string
+  - name: enableTLS
+    required: false
+    description: | 
+      If enabled, connects to Redis using TLS with public certificates.
+    example: "false"
+    default: "false"
+    type: bool
+  - name: maxRetries
+    required: false
+    description: |
+      Maximum number of retries before giving up. Defaults to "3".
+    default: "3"
+    example: "5"
+    type: number
+  - name: maxRetryBackoff
+    required: false
+    description: |
+      Maximum backoff between each retry in nanoseconds. Defaults to 2 seconds; "-1" disables backoff.
+    example: "3000000000"
+    default: "2000000000"
+    type: number
+  - name: failover
+    required: false
+    description: |
+      Enables failover configuration. It requires "sentinelMasterName" to
+      be set, and "redisHost" to be the sentinel host address.
+    default: "false"
+    example: "true"
+    type: bool
+    url:
+      title: "Redis Sentinel documentation"
+      url: "https://redis.io/docs/manual/sentinel/"
+  - name: sentinelMasterName
+    required: false
+    description: |
+      The Redis sentinel master name. Required when "failover" is enabled.
+    example:  "127.0.0.1:6379"
+    type: string
+    url:
+      title: "Redis Sentinel documentation"
+      url: "https://redis.io/docs/manual/sentinel/"
+  - name: redisDB
+    required: false
+    description: |
+      Database selected after connecting to redis. If "redisType" is "cluster"
+      this option is ignored.
+    default: "0"
+    example: "0"
+    type: number

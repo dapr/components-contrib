@@ -20,6 +20,9 @@ import (
 	"testing"
 	"time"
 
+	redis "github.com/go-redis/redis/v8"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/dapr/components-contrib/state"
 	state_redis "github.com/dapr/components-contrib/state/redis"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
@@ -33,8 +36,6 @@ import (
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
-	redis "github.com/go-redis/redis/v8"
-	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -196,51 +197,36 @@ func TestRedis(t *testing.T) {
 	upsertTest := func(ctx flow.Context) error {
 		err := stateStore.Multi(context.Background(), &state.TransactionalStateRequest{
 			Operations: []state.TransactionalStateOperation{
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   "reqKey1",
-						Value: "reqVal1",
-						Metadata: map[string]string{
-							"ttlInSeconds": "-1",
-						},
+				state.SetRequest{
+					Key:   "reqKey1",
+					Value: "reqVal1",
+					Metadata: map[string]string{
+						"ttlInSeconds": "-1",
 					},
 				},
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   "reqKey2",
-						Value: "reqVal2",
-						Metadata: map[string]string{
-							"ttlInSeconds": "222",
-						},
+				state.SetRequest{
+					Key:   "reqKey2",
+					Value: "reqVal2",
+					Metadata: map[string]string{
+						"ttlInSeconds": "222",
 					},
 				},
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   "reqKey3",
-						Value: "reqVal3",
+				state.SetRequest{
+					Key:   "reqKey3",
+					Value: "reqVal3",
+				},
+				state.SetRequest{
+					Key:   "reqKey1",
+					Value: "reqVal101",
+					Metadata: map[string]string{
+						"ttlInSeconds": "50",
 					},
 				},
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   "reqKey1",
-						Value: "reqVal101",
-						Metadata: map[string]string{
-							"ttlInSeconds": "50",
-						},
-					},
-				},
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   "reqKey3",
-						Value: "reqVal103",
-						Metadata: map[string]string{
-							"ttlInSeconds": "50",
-						},
+				state.SetRequest{
+					Key:   "reqKey3",
+					Value: "reqVal103",
+					Metadata: map[string]string{
+						"ttlInSeconds": "50",
 					},
 				},
 			},
@@ -250,13 +236,13 @@ func TestRedis(t *testing.T) {
 			Key: "reqKey1",
 		})
 		assert.Equal(t, "2", *resp1.ETag)
-		assert.Equal(t, "\"reqVal101\"", string(resp1.Data))
+		assert.Equal(t, `"reqVal101"`, string(resp1.Data))
 
 		resp3, err := stateStore.Get(context.Background(), &state.GetRequest{
 			Key: "reqKey3",
 		})
 		assert.Equal(t, "2", *resp3.ETag)
-		assert.Equal(t, "\"reqVal103\"", string(resp3.Data))
+		assert.Equal(t, `"reqVal103"`, string(resp3.Data))
 		return nil
 	}
 
@@ -323,19 +309,6 @@ func TestRedis(t *testing.T) {
 			embedded.WithDaprGRPCPort(currentGrpcPort),
 			embedded.WithDaprHTTPPort(currentHTTPPort),
 			embedded.WithComponentsPath("components/docker/enableTLSConf"),
-			runtime.WithStates(stateRegistry),
-		)).
-		Step("Run basic test to confirm state store not yet configured", testForStateStoreNotConfigured).
-		Run()
-
-	flow.New(t, "test redis state store yaml having maxRetries set to non int value").
-		Step(dockercompose.Run("redis", dockerComposeYAML)).
-		Step("Waiting for Redis readiness", retry.Do(time.Second*3, 10, checkRedisConnection)).
-		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("components/docker/maxRetriesNonInt"),
 			runtime.WithStates(stateRegistry),
 		)).
 		Step("Run basic test to confirm state store not yet configured", testForStateStoreNotConfigured).

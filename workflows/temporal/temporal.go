@@ -15,8 +15,10 @@ package temporal
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"go.temporal.io/api/enums/v1"
@@ -33,9 +35,9 @@ type TemporalWF struct {
 }
 
 type temporalMetadata struct {
-	Identity  string `json:"identity"`
-	HostPort  string `json:"hostport"`
-	Namespace string `json:"namespace"`
+	Identity  string `json:"identity" mapstructure:"identity"`
+	HostPort  string `json:"hostport" mapstructure:"hostport"`
+	Namespace string `json:"namespace" mapstructure:"namespace"`
 }
 
 // NewTemporalWorkflow returns a new workflow.
@@ -72,30 +74,36 @@ func (c *TemporalWF) Init(metadata workflows.Metadata) error {
 	return nil
 }
 
-func (c *TemporalWF) Start(ctx context.Context, req *workflows.StartRequest) (*workflows.WorkflowReference, error) {
+func (c *TemporalWF) Start(ctx context.Context, req *workflows.StartRequest) (*workflows.StartResponse, error) {
 	c.logger.Debugf("starting workflow")
 
 	if len(req.Options) == 0 {
 		c.logger.Debugf("no options provided")
-		return &workflows.WorkflowReference{}, errors.New("no options provided. At the very least, a task queue is needed")
+		return nil, errors.New("no options provided. At the very least, a task queue is needed")
 	}
 
 	if _, ok := req.Options["task_queue"]; !ok {
 		c.logger.Debugf("no task queue provided")
-		return &workflows.WorkflowReference{}, errors.New("no task queue provided")
+		return nil, errors.New("no task queue provided")
 	}
 	taskQ := req.Options["task_queue"]
 
 	opt := client.StartWorkflowOptions{ID: req.InstanceID, TaskQueue: taskQ}
-	run, err := c.client.ExecuteWorkflow(ctx, opt, req.WorkflowName, req.Input)
-	if err != nil {
-		return &workflows.WorkflowReference{}, fmt.Errorf("error executing workflow: %w", err)
+
+	var inputArgs interface{}
+	if err := decodeInputData(req.WorkflowInput, &inputArgs); err != nil {
+		return nil, fmt.Errorf("error decoding workflow input data: %w", err)
 	}
-	wfStruct := workflows.WorkflowReference{InstanceID: run.GetID()}
+
+	run, err := c.client.ExecuteWorkflow(ctx, opt, req.WorkflowName, inputArgs)
+	if err != nil {
+		return nil, fmt.Errorf("error executing workflow: %w", err)
+	}
+	wfStruct := workflows.StartResponse{InstanceID: run.GetID()}
 	return &wfStruct, nil
 }
 
-func (c *TemporalWF) Terminate(ctx context.Context, req *workflows.WorkflowReference) error {
+func (c *TemporalWF) Terminate(ctx context.Context, req *workflows.TerminateRequest) error {
 	c.logger.Debugf("terminating workflow")
 
 	err := c.client.TerminateWorkflow(ctx, req.InstanceID, "", "")
@@ -105,19 +113,28 @@ func (c *TemporalWF) Terminate(ctx context.Context, req *workflows.WorkflowRefer
 	return nil
 }
 
-func (c *TemporalWF) Get(ctx context.Context, req *workflows.WorkflowReference) (*workflows.StateResponse, error) {
+func (c *TemporalWF) Get(ctx context.Context, req *workflows.GetRequest) (*workflows.StateResponse, error) {
 	c.logger.Debugf("getting workflow data")
 	resp, err := c.client.DescribeWorkflowExecution(ctx, req.InstanceID, "")
 	if err != nil {
 		return nil, err
 	}
+
+	var createdAtTime time.Time
+	if resp.WorkflowExecutionInfo.StartTime != nil {
+		createdAtTime = *resp.WorkflowExecutionInfo.StartTime
+	}
+
 	// Build the output struct
 	outputStruct := workflows.StateResponse{
-		WFInfo:    workflows.WorkflowReference{InstanceID: req.InstanceID},
-		StartTime: resp.WorkflowExecutionInfo.StartTime.Format(time.RFC3339),
-		Metadata: map[string]string{
-			"task_queue": resp.WorkflowExecutionInfo.GetTaskQueue(),
-			"status":     lookupStatus(resp.WorkflowExecutionInfo.Status),
+		Workflow: &workflows.WorkflowState{
+			InstanceID:    req.InstanceID,
+			CreatedAt:     createdAtTime,
+			LastUpdatedAt: createdAtTime,
+			RuntimeStatus: lookupStatus(resp.WorkflowExecutionInfo.Status),
+			Properties: map[string]string{
+				"task_queue": resp.WorkflowExecutionInfo.GetTaskQueue(),
+			},
 		},
 	}
 
@@ -125,6 +142,14 @@ func (c *TemporalWF) Get(ctx context.Context, req *workflows.WorkflowReference) 
 }
 
 func (c *TemporalWF) RaiseEvent(ctx context.Context, req *workflows.RaiseEventRequest) error {
+	var decodedEventData interface{}
+	if err := decodeInputData(req.EventData, &decodedEventData); err != nil {
+		return fmt.Errorf("error decoding workflow event data: %w", err)
+	}
+	return c.client.SignalWorkflow(ctx, req.InstanceID, "", req.EventName, decodedEventData)
+}
+
+func (c *TemporalWF) Purge(ctx context.Context, req *workflows.PurgeRequest) error {
 	// Unimplemented
 	return nil
 }
@@ -133,10 +158,25 @@ func (c *TemporalWF) Close() {
 	c.client.Close()
 }
 
+func (c *TemporalWF) Pause(ctx context.Context, req *workflows.PauseRequest) error {
+	return workflows.ErrNotImplemented
+}
+
+func (c *TemporalWF) Resume(ctx context.Context, req *workflows.ResumeRequest) error {
+	return workflows.ErrNotImplemented
+}
+
 func (c *TemporalWF) parseMetadata(meta workflows.Metadata) (*temporalMetadata, error) {
 	var m temporalMetadata
 	err := metadata.DecodeMetadata(meta.Properties, &m)
 	return &m, err
+}
+
+func (c *TemporalWF) GetComponentMetadata() map[string]string {
+	metadataStruct := temporalMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.WorkflowType)
+	return metadataInfo
 }
 
 func lookupStatus(status enums.WorkflowExecutionStatus) string {
@@ -160,4 +200,13 @@ func lookupStatus(status enums.WorkflowExecutionStatus) string {
 	default:
 		return "status unknown"
 	}
+}
+
+func decodeInputData(data []byte, result interface{}) error {
+	if len(data) == 0 {
+		return nil
+	}
+
+	// NOTE: We assume all inputs are JSON values
+	return json.Unmarshal(data, result)
 }

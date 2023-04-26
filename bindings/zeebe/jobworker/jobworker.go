@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -48,16 +49,16 @@ type ZeebeJobWorker struct {
 
 // https://docs.zeebe.io/basics/job-workers.html
 type jobWorkerMetadata struct {
-	WorkerName     string            `json:"workerName"`
-	WorkerTimeout  metadata.Duration `json:"workerTimeout"`
-	RequestTimeout metadata.Duration `json:"requestTimeout"`
-	JobType        string            `json:"jobType"`
-	MaxJobsActive  int               `json:"maxJobsActive,string"`
-	Concurrency    int               `json:"concurrency,string"`
-	PollInterval   metadata.Duration `json:"pollInterval"`
-	PollThreshold  float64           `json:"pollThreshold,string"`
-	FetchVariables string            `json:"fetchVariables"`
-	Autocomplete   *bool             `json:"autocomplete,omitempty"`
+	WorkerName     string            `mapstructure:"workerName"`
+	WorkerTimeout  metadata.Duration `mapstructure:"workerTimeout"`
+	RequestTimeout metadata.Duration `mapstructure:"requestTimeout"`
+	JobType        string            `mapstructure:"jobType"`
+	MaxJobsActive  int               `mapstructure:"maxJobsActive"`
+	Concurrency    int               `mapstructure:"concurrency"`
+	PollInterval   metadata.Duration `mapstructure:"pollInterval"`
+	PollThreshold  float64           `mapstructure:"pollThreshold"`
+	FetchVariables string            `mapstructure:"fetchVariables"`
+	Autocomplete   *bool             `mapstructure:"autocomplete"`
 }
 
 type jobHandler struct {
@@ -252,4 +253,12 @@ func (h *jobHandler) failJob(ctx context.Context, client worker.JobClient, job e
 
 		return
 	}
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (z *ZeebeJobWorker) GetComponentMetadata() map[string]string {
+	metadataStruct := jobWorkerMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

@@ -37,7 +37,8 @@ import (
 
 // Etcd is a state store implementation for Etcd.
 type Etcd struct {
-	state.DefaultBulkStore
+	state.BulkStore
+
 	client        *clientv3.Client
 	keyPrefixPath string
 	features      []state.Feature
@@ -60,8 +61,7 @@ func NewEtcdStateStore(logger logger.Logger) state.Store {
 		logger:   logger,
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
 	}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
+	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
 }
 
@@ -168,37 +168,6 @@ func (e *Etcd) Set(ctx context.Context, req *state.SetRequest) error {
 	return e.doSet(ctx, keyWithPath, string(reqVal), req.ETag, ttlInSeconds)
 }
 
-func (e *Etcd) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	if len(req) == 0 {
-		return nil
-	}
-
-	for i := range req {
-		dr := req[i]
-		ttlInSeconds, err := e.doSetValidateParameters(&dr)
-		if err != nil {
-			return err
-		}
-
-		keyWithPath := e.keyPrefixPath + "/" + dr.Key
-		err = e.doValidateEtag(keyWithPath, dr.ETag, dr.Options.Concurrency)
-		if err != nil {
-			return err
-		}
-
-		reqVal, err := stateutils.Marshal(dr.Value, json.Marshal)
-		if err != nil {
-			return err
-		}
-
-		err = e.doSet(ctx, keyWithPath, string(reqVal), dr.ETag, ttlInSeconds)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (e *Etcd) doSet(ctx context.Context, key, reqVal string, etag *string, ttlInSeconds int64) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -271,30 +240,6 @@ func (e *Etcd) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	return e.doDelete(ctx, keyWithPath, req.ETag)
 }
 
-func (e *Etcd) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	if len(req) == 0 {
-		return nil
-	}
-
-	for _, dr := range req {
-		if err := state.CheckRequestOptions(&dr.Options); err != nil {
-			return err
-		}
-
-		keyWithPath := e.keyPrefixPath + "/" + dr.Key
-		err := e.doValidateEtag(keyWithPath, dr.ETag, dr.Options.Concurrency)
-		if err != nil {
-			return err
-		}
-
-		err = e.doDelete(ctx, keyWithPath, dr.ETag)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (e *Etcd) doDelete(ctx context.Context, key string, etag *string) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -349,7 +294,7 @@ func (e *Etcd) doValidateEtag(key string, etag *string, concurrency string) erro
 func (e *Etcd) GetComponentMetadata() map[string]string {
 	metadataStruct := etcdConfig{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }
 
@@ -381,8 +326,8 @@ func (e *Etcd) Multi(ctx context.Context, request *state.TransactionalStateReque
 	ops := make([]clientv3.Op, 0, len(request.Operations))
 
 	for _, o := range request.Operations {
-		if o.Operation == state.Upsert {
-			req := o.Request.(state.SetRequest)
+		switch req := o.(type) {
+		case state.SetRequest:
 			ttlInSeconds, err := e.doSetValidateParameters(&req)
 			if err != nil {
 				return err
@@ -422,8 +367,7 @@ func (e *Etcd) Multi(ctx context.Context, request *state.TransactionalStateReque
 					ops = append(ops, clientv3.OpTxn(nil, []clientv3.Op{put}, nil))
 				}
 			}
-		} else if o.Operation == state.Delete {
-			req := o.Request.(state.DeleteRequest)
+		case state.DeleteRequest:
 			if err := state.CheckRequestOptions(req.Options); err != nil {
 				return err
 			}

@@ -39,6 +39,8 @@ const (
 
 // RethinkDB is a state store implementation with transactional support for RethinkDB.
 type RethinkDB struct {
+	state.BulkStore
+
 	session  *r.Session
 	config   *stateConfig
 	features []state.Feature
@@ -52,18 +54,20 @@ type stateConfig struct {
 }
 
 type stateRecord struct {
-	ID   string      `json:"id" rethinkdb:"id"`
-	TS   int64       `json:"timestamp" rethinkdb:"timestamp"`
-	Hash string      `json:"hash,omitempty" rethinkdb:"hash,omitempty"`
-	Data interface{} `json:"data,omitempty" rethinkdb:"data,omitempty"`
+	ID   string `json:"id" rethinkdb:"id"`
+	TS   int64  `json:"timestamp" rethinkdb:"timestamp"`
+	Hash string `json:"hash,omitempty" rethinkdb:"hash,omitempty"`
+	Data any    `json:"data,omitempty" rethinkdb:"data,omitempty"`
 }
 
 // NewRethinkDBStateStore returns a new RethinkDB state store.
 func NewRethinkDBStateStore(logger logger.Logger) state.Store {
-	return &RethinkDB{
+	s := &RethinkDB{
 		features: []state.Feature{},
 		logger:   logger,
 	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // Init parses metadata, initializes the RethinkDB client, and ensures the state table exists.
@@ -197,12 +201,6 @@ func (s *RethinkDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 	return resp, nil
 }
 
-// BulkGet performs a bulks get operations.
-func (s *RethinkDB) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
-	// TODO: replace with bulk get for performance
-	return false, nil, nil
-}
-
 // Set saves a state KV item.
 func (s *RethinkDB) Set(ctx context.Context, req *state.SetRequest) error {
 	if req == nil || req.Key == "" || req.Value == nil {
@@ -215,6 +213,7 @@ func (s *RethinkDB) Set(ctx context.Context, req *state.SetRequest) error {
 // BulkSet performs a bulk save operation.
 func (s *RethinkDB) BulkSet(ctx context.Context, req []state.SetRequest) error {
 	docs := make([]*stateRecord, len(req))
+	now := time.Now().UnixNano()
 	for i, v := range req {
 		var etag string
 		if v.ETag != nil {
@@ -223,7 +222,7 @@ func (s *RethinkDB) BulkSet(ctx context.Context, req []state.SetRequest) error {
 
 		docs[i] = &stateRecord{
 			ID:   v.Key,
-			TS:   time.Now().UTC().UnixNano(),
+			TS:   now,
 			Data: v.Value,
 			Hash: etag,
 		}
@@ -278,9 +277,9 @@ func (s *RethinkDB) Delete(ctx context.Context, req *state.DeleteRequest) error 
 
 // BulkDelete performs a bulk delete operation.
 func (s *RethinkDB) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	list := make([]string, 0)
-	for _, d := range req {
-		list = append(list, d.Key)
+	list := make([]string, len(req))
+	for i, d := range req {
+		list[i] = d.Key
 	}
 
 	c, err := r.Table(s.config.Table).GetAll(r.Args(list)).Delete().Run(s.session, r.RunOpts{Context: ctx})
@@ -288,42 +287,6 @@ func (s *RethinkDB) BulkDelete(ctx context.Context, req []state.DeleteRequest) e
 		return fmt.Errorf("error deleting record from the database: %w", err)
 	}
 	defer c.Close()
-
-	return nil
-}
-
-// Multi performs multiple operations.
-func (s *RethinkDB) Multi(ctx context.Context, req *state.TransactionalStateRequest) error {
-	upserts := make([]state.SetRequest, 0)
-	deletes := make([]state.DeleteRequest, 0)
-
-	for _, v := range req.Operations {
-		switch v.Operation {
-		case state.Upsert:
-			r, ok := v.Request.(state.SetRequest)
-			if !ok {
-				return fmt.Errorf("invalid request type (expected SetRequest, got %t)", v.Request)
-			}
-			upserts = append(upserts, r)
-		case state.Delete:
-			r, ok := v.Request.(state.DeleteRequest)
-			if !ok {
-				return fmt.Errorf("invalid request type (expected DeleteRequest, got %t)", v.Request)
-			}
-			deletes = append(deletes, r)
-		default:
-			return fmt.Errorf("invalid operation type: %s", v.Operation)
-		}
-	}
-
-	// best effort, no transacts supported
-	if err := s.BulkSet(ctx, upserts); err != nil {
-		return fmt.Errorf("error saving records to the database: %w", err)
-	}
-
-	if err := s.BulkDelete(ctx, deletes); err != nil {
-		return fmt.Errorf("error deleting records to the database: %w", err)
-	}
 
 	return nil
 }
@@ -345,6 +308,6 @@ func metadataToConfig(cfg map[string]string, logger logger.Logger) (*stateConfig
 func (s *RethinkDB) GetComponentMetadata() map[string]string {
 	metadataStruct := stateConfig{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }

@@ -18,7 +18,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
+	"os"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -28,6 +29,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -36,26 +38,13 @@ const (
 	errorMessagePrefix = "gcp pubsub error:"
 
 	// Metadata keys.
-	metadataConsumerIDKey              = "consumerID"
-	metadataTypeKey                    = "type"
-	metadataProjectIDKey               = "projectId"
-	metadataIdentityProjectIDKey       = "identityProjectId"
-	metadataPrivateKeyIDKey            = "privateKeyId"
-	metadataClientEmailKey             = "clientEmail"
-	metadataClientIDKey                = "clientId"
-	metadataAuthURIKey                 = "authUri"
-	metadataTokenURIKey                = "tokenUri"
-	metadataAuthProviderX509CertURLKey = "authProviderX509CertUrl"
-	metadataClientX509CertURLKey       = "clientX509CertUrl"
-	metadataPrivateKeyKey              = "privateKey"
-	metadataDisableEntityManagementKey = "disableEntityManagement"
-	metadataEnableMessageOrderingKey   = "enableMessageOrdering"
-	metadataMaxReconnectionAttemptsKey = "maxReconnectionAttempts"
-	metadataConnectionRecoveryInSecKey = "connectionRecoveryInSec"
+	metadataProjectIDKey   = "projectId"
+	metedataOrderingKeyKey = "orderingKey"
 
 	// Defaults.
 	defaultMaxReconnectionAttempts = 30
 	defaultConnectionRecoveryInSec = 2
+	defaultMaxDeliveryAttempts     = 5
 )
 
 // GCPPubSub type.
@@ -96,86 +85,18 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 	result := metadata{
 		DisableEntityManagement: false,
 		Type:                    "service_account",
+		MaxReconnectionAttempts: defaultMaxReconnectionAttempts,
+		ConnectionRecoveryInSec: defaultConnectionRecoveryInSec,
+		MaxDeliveryAttempts:     defaultMaxDeliveryAttempts,
 	}
 
-	if val, found := pubSubMetadata.Properties[metadataTypeKey]; found && val != "" {
-		result.Type = val
+	err := contribMetadata.DecodeMetadata(pubSubMetadata.Properties, &result)
+	if err != nil {
+		return nil, err
 	}
 
-	if val, found := pubSubMetadata.Properties[metadataConsumerIDKey]; found && val != "" {
-		result.consumerID = val
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataIdentityProjectIDKey]; found && val != "" {
-		result.IdentityProjectID = val
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataProjectIDKey]; found && val != "" {
-		result.ProjectID = val
-	} else {
+	if result.ProjectID == "" {
 		return &result, fmt.Errorf("%s missing attribute %s", errorMessagePrefix, metadataProjectIDKey)
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataPrivateKeyIDKey]; found && val != "" {
-		result.PrivateKeyID = val
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataClientEmailKey]; found && val != "" {
-		result.ClientEmail = val
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataClientIDKey]; found && val != "" {
-		result.ClientID = val
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataAuthURIKey]; found && val != "" {
-		result.AuthURI = val
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataTokenURIKey]; found && val != "" {
-		result.TokenURI = val
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataAuthProviderX509CertURLKey]; found && val != "" {
-		result.AuthProviderCertURL = val
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataClientX509CertURLKey]; found && val != "" {
-		result.ClientCertURL = val
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataPrivateKeyKey]; found && val != "" {
-		result.PrivateKey = val
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataDisableEntityManagementKey]; found && val != "" {
-		if boolVal, err := strconv.ParseBool(val); err == nil {
-			result.DisableEntityManagement = boolVal
-		}
-	}
-
-	if val, found := pubSubMetadata.Properties[metadataEnableMessageOrderingKey]; found && val != "" {
-		if boolVal, err := strconv.ParseBool(val); err == nil {
-			result.EnableMessageOrdering = boolVal
-		}
-	}
-
-	result.MaxReconnectionAttempts = defaultMaxReconnectionAttempts
-	if val, ok := pubSubMetadata.Properties[metadataMaxReconnectionAttemptsKey]; ok && val != "" {
-		var err error
-		result.MaxReconnectionAttempts, err = strconv.Atoi(val)
-		if err != nil {
-			return &result, fmt.Errorf("%s invalid maxReconnectionAttempts %s, %s", errorMessagePrefix, val, err)
-		}
-	}
-
-	result.ConnectionRecoveryInSec = defaultConnectionRecoveryInSec
-	if val, ok := pubSubMetadata.Properties[metadataConnectionRecoveryInSecKey]; ok && val != "" {
-		var err error
-		result.ConnectionRecoveryInSec, err = strconv.Atoi(val)
-		if err != nil {
-			return &result, fmt.Errorf("%s invalid connectionRecoveryInSec %s, %s", errorMessagePrefix, val, err)
-		}
 	}
 
 	return &result, nil
@@ -226,6 +147,15 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 		}
 	} else {
 		g.logger.Debugf("Using implicit credentials for GCP")
+
+		// The following allows the Google SDK to connect to
+		// the GCP PubSub Emulator.
+		// example: export PUBSUB_EMULATOR_HOST=localhost:8085
+		// see: https://cloud.google.com/pubsub/docs/emulator#env
+		if metadata.ConnectionEndpoint != "" {
+			g.logger.Debugf("setting GCP PubSub Emulator environment variable to 'PUBSUB_EMULATOR_HOST=%s'", metadata.ConnectionEndpoint)
+			os.Setenv("PUBSUB_EMULATOR_HOST", metadata.ConnectionEndpoint)
+		}
 		pubsubClient, err = gcppubsub.NewClient(ctx, metadata.ProjectID)
 		if err != nil {
 			return pubsubClient, err
@@ -250,9 +180,23 @@ func (g *GCPPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) err
 
 	topic := g.getTopic(req.Topic)
 
-	_, err := topic.Publish(ctx, &gcppubsub.Message{
+	msg := &gcppubsub.Message{
 		Data: req.Data,
-	}).Get(ctx)
+	}
+
+	// If Message Ordering is enabled,
+	// use the provided OrderingKey giving
+	// preference to the OrderingKey at the request level
+	if g.metadata.EnableMessageOrdering {
+		topic.EnableMessageOrdering = g.metadata.EnableMessageOrdering
+		msgOrderingKey := g.metadata.OrderingKey
+		if req.Metadata != nil && req.Metadata[metedataOrderingKeyKey] != "" {
+			msgOrderingKey = req.Metadata[metedataOrderingKeyKey]
+		}
+		msg.OrderingKey = msgOrderingKey
+		g.logger.Infof("Message Ordering Key: %s", msg.OrderingKey)
+	}
+	_, err := topic.Publish(ctx, msg).Get(ctx)
 
 	return err
 }
@@ -266,17 +210,17 @@ func (g *GCPPubSub) Subscribe(parentCtx context.Context, req pubsub.SubscribeReq
 	if !g.metadata.DisableEntityManagement {
 		topicErr := g.ensureTopic(parentCtx, req.Topic)
 		if topicErr != nil {
-			return fmt.Errorf("%s could not get valid topic %s, %s", errorMessagePrefix, req.Topic, topicErr)
+			return fmt.Errorf("%s could not get valid topic - topic:%q, error: %v", errorMessagePrefix, req.Topic, topicErr)
 		}
 
-		subError := g.ensureSubscription(parentCtx, g.metadata.consumerID, req.Topic)
+		subError := g.ensureSubscription(parentCtx, g.metadata.ConsumerID, req.Topic)
 		if subError != nil {
-			return fmt.Errorf("%s could not get valid subscription %s, %s", errorMessagePrefix, g.metadata.consumerID, subError)
+			return fmt.Errorf("%s could not get valid subscription - consumerID:%q, error: %v", errorMessagePrefix, g.metadata.ConsumerID, subError)
 		}
 	}
 
 	topic := g.getTopic(req.Topic)
-	sub := g.getSubscription(g.metadata.consumerID + "-" + req.Topic)
+	sub := g.getSubscription(BuildSubscriptionID(g.metadata.ConsumerID, req.Topic))
 
 	subscribeCtx, cancel := context.WithCancel(parentCtx)
 	g.wg.Add(2)
@@ -294,6 +238,10 @@ func (g *GCPPubSub) Subscribe(parentCtx context.Context, req pubsub.SubscribeReq
 	}()
 
 	return nil
+}
+
+func BuildSubscriptionID(consumerID, topic string) string {
+	return fmt.Sprintf("%s-%s", consumerID, topic)
 }
 
 func (g *GCPPubSub) handleSubscriptionMessages(parentCtx context.Context, topic *gcppubsub.Topic, sub *gcppubsub.Subscription, handler pubsub.Handler) error {
@@ -411,10 +359,27 @@ func (g *GCPPubSub) ensureSubscription(parentCtx context.Context, subscription s
 	entity := g.getSubscription(managedSubscription)
 	exists, subErr := entity.Exists(parentCtx)
 	if !exists {
-		_, subErr = g.client.CreateSubscription(parentCtx, managedSubscription, gcppubsub.SubscriptionConfig{
+		subConfig := gcppubsub.SubscriptionConfig{
+			AckDeadline:           20 * time.Second,
 			Topic:                 g.getTopic(topic),
 			EnableMessageOrdering: g.metadata.EnableMessageOrdering,
-		})
+		}
+
+		if g.metadata.DeadLetterTopic != "" {
+			subErr = g.ensureTopic(parentCtx, g.metadata.DeadLetterTopic)
+			if subErr != nil {
+				return subErr
+			}
+			dlTopic := fmt.Sprintf("projects/%s/topics/%s", g.metadata.ProjectID, g.metadata.DeadLetterTopic)
+			subConfig.DeadLetterPolicy = &gcppubsub.DeadLetterPolicy{
+				DeadLetterTopic:     dlTopic,
+				MaxDeliveryAttempts: g.metadata.MaxDeliveryAttempts,
+			}
+		}
+		_, subErr = g.client.CreateSubscription(parentCtx, managedSubscription, subConfig)
+		if subErr != nil {
+			g.logger.Errorf("unable to create subscription (%s): %#v - %v ", managedSubscription, subConfig, subErr)
+		}
 	}
 
 	return subErr
@@ -434,4 +399,12 @@ func (g *GCPPubSub) Close() error {
 
 func (g *GCPPubSub) Features() []pubsub.Feature {
 	return nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (g *GCPPubSub) GetComponentMetadata() map[string]string {
+	metadataStruct := metadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.PubSubType)
+	return metadataInfo
 }

@@ -17,12 +17,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
 	"github.com/dapr/components-contrib/internal/utils"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -221,4 +223,13 @@ func (a *azureServiceBus) Features() []pubsub.Feature {
 	return []pubsub.Feature{
 		pubsub.FeatureMessageTTL,
 	}
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (a *azureServiceBus) GetComponentMetadata() map[string]string {
+	metadataStruct := impl.Metadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
+	delete(metadataInfo, "consumerID") // does not apply to queues
+	return metadataInfo
 }

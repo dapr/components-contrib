@@ -18,12 +18,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -43,19 +45,28 @@ type Postgres struct {
 	db     *pgxpool.Pool
 }
 
+type psqlMetadata struct {
+	// ConnectionURL is the connection string to connect to the database.
+	ConnectionURL string `mapstructure:"url"`
+}
+
 // NewPostgres returns a new PostgreSQL output binding.
 func NewPostgres(logger logger.Logger) bindings.OutputBinding {
 	return &Postgres{logger: logger}
 }
 
 // Init initializes the PostgreSql binding.
-func (p *Postgres) Init(ctx context.Context, metadata bindings.Metadata) error {
-	url, ok := metadata.Properties[connectionURLKey]
-	if !ok || url == "" {
+func (p *Postgres) Init(ctx context.Context, meta bindings.Metadata) error {
+	m := psqlMetadata{}
+	err := metadata.DecodeMetadata(meta.Properties, &m)
+	if err != nil {
+		return err
+	}
+	if m.ConnectionURL == "" {
 		return fmt.Errorf("required metadata not set: %s", connectionURLKey)
 	}
 
-	poolConfig, err := pgxpool.ParseConfig(url)
+	poolConfig, err := pgxpool.ParseConfig(m.ConnectionURL)
 	if err != nil {
 		return fmt.Errorf("error opening DB connection: %w", err)
 	}
@@ -184,4 +195,12 @@ func (p *Postgres) exec(ctx context.Context, sql string) (result int64, err erro
 	result = res.RowsAffected()
 
 	return
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (p *Postgres) GetComponentMetadata() map[string]string {
+	metadataStruct := psqlMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

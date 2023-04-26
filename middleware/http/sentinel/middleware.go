@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"reflect"
 
 	sentinel "github.com/alibaba/sentinel-golang/api"
 	"github.com/alibaba/sentinel-golang/core/base"
@@ -29,15 +30,15 @@ import (
 )
 
 type middlewareMetadata struct {
-	AppName string `json:"appName"`
+	AppName string `json:"appName" mapstructure:"appName"`
 	// LogConfig
-	LogDir string `json:"logDir"`
+	LogDir string `json:"logDir" mapstructure:"logDir"`
 	// Rules
-	FlowRules           string `yaml:"flowRules"`
-	CircuitBreakerRules string `yaml:"circuitBreakerRules"`
-	HotSpotParamRules   string `yaml:"hotSpotParamRules"`
-	IsolationRules      string `yaml:"isolationRules"`
-	SystemRules         string `yaml:"systemRules"`
+	FlowRules           string `yaml:"flowRules" mapstructure:"flowRules"`
+	CircuitBreakerRules string `yaml:"circuitBreakerRules" mapstructure:"circuitBreakerRules"`
+	HotSpotParamRules   string `yaml:"hotSpotParamRules" mapstructure:"hotSpotParamRules"`
+	IsolationRules      string `yaml:"isolationRules" mapstructure:"isolationRules"`
+	SystemRules         string `yaml:"systemRules" mapstructure:"systemRules"`
 }
 
 // NewMiddleware returns a new sentinel middleware.
@@ -154,4 +155,11 @@ func getNativeMetadata(metadata middleware.Metadata) (*middlewareMetadata, error
 		return nil, err
 	}
 	return &md, nil
+}
+
+func (m *Middleware) GetComponentMetadata() map[string]string {
+	metadataStruct := middlewareMetadata{}
+	metadataInfo := map[string]string{}
+	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
+	return metadataInfo
 }

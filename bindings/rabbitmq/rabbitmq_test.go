@@ -22,6 +22,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 func getFakeClientKey() string {
@@ -50,6 +51,7 @@ func TestParseMetadata(t *testing.T) {
 		expectedTTL              *time.Duration
 		expectedPrefetchCount    int
 		expectedMaxPriority      *uint8
+    expectedReconnectWaitCheck func(expect time.Duration) bool
 		expectedClientCert       string
 		expectedClientKey        string
 		expectedCACert           string
@@ -60,6 +62,9 @@ func TestParseMetadata(t *testing.T) {
 			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "true", "durable": "true"},
 			expectedDeleteWhenUnused: true,
 			expectedDurable:          true,
+			expectedReconnectWaitCheck: func(expect time.Duration) bool {
+				return expect == defaultReconnectWait
+			},
 		},
 		{
 			name:                     "Not Delete / Not durable",
@@ -79,6 +84,7 @@ func TestParseMetadata(t *testing.T) {
 			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", metadata.TTLMetadataKey: ""},
 			expectedDeleteWhenUnused: false,
 			expectedDurable:          false,
+			expectedTTL:              ptr.Of(time.Duration(0)),
 		},
 		{
 			name:                     "With one prefetchCount",
@@ -117,9 +123,19 @@ func TestParseMetadata(t *testing.T) {
 			}(),
 		},
 		{
+
 			name:                 "With Certificates and not external SASL",
 			properties:           map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "saslExternal": "true", "ClientCert": getFakeClientCert(), "ClientKey": getFakeClientKey(), "CaCert": getFakeCaCert()},
 			expectedSaslExternal: true,
+    },
+    {
+			name:                     "With reconnectWait 10 second",
+			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "reconnectWaitInSeconds": "10"},
+			expectedDeleteWhenUnused: false,
+			expectedDurable:          false,
+			expectedReconnectWaitCheck: func(expect time.Duration) bool {
+				return expect == 10*time.Second
+			},
 		},
 	}
 
@@ -129,12 +145,12 @@ func TestParseMetadata(t *testing.T) {
 			m.Properties = tt.properties
 			r := RabbitMQ{logger: logger.NewLogger("test")}
 			err := r.parseMetadata(m)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			assert.Equal(t, queueName, r.metadata.QueueName)
 			assert.Equal(t, host, r.metadata.Host)
 			assert.Equal(t, tt.expectedDeleteWhenUnused, r.metadata.DeleteWhenUnused)
 			assert.Equal(t, tt.expectedDurable, r.metadata.Durable)
-			assert.Equal(t, tt.expectedTTL, r.metadata.defaultQueueTTL)
+			assert.Equal(t, tt.expectedTTL, r.metadata.DefaultQueueTTL)
 			assert.Equal(t, tt.expectedPrefetchCount, r.metadata.PrefetchCount)
 			assert.Equal(t, tt.expectedExclusive, r.metadata.Exclusive)
 			assert.Equal(t, tt.expectedMaxPriority, r.metadata.MaxPriority)
@@ -142,7 +158,10 @@ func TestParseMetadata(t *testing.T) {
 			assert.Equal(t, tt.expectedClientKey, r.metadata.ClientKey)
 			assert.Equal(t, tt.expectedCACert, r.metadata.CaCert)
 			assert.Equal(t, tt.expectedSaslExternal, r.metadata.ExternalSasl)
-		})
+			if tt.expectedReconnectWaitCheck != nil {
+				assert.True(t, tt.expectedReconnectWaitCheck(r.metadata.ReconnectWait))
+			}
+		})  
 	}
 }
 

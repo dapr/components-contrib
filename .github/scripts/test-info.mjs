@@ -605,7 +605,7 @@ const components = {
     'state.gcp.firestore': {
         certification: true,
         requireGCPCredentials: true,
-        conformanceSetup: 'certification-state.gcp.firestore-setup.sh',
+        certificationSetup: 'certification-state.gcp.firestore-setup.sh',
     },
     'workflows.temporal': {
         conformance: true,

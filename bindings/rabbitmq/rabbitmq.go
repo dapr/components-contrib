@@ -87,10 +87,10 @@ type rabbitMQMetadata struct {
 	MaxPriority      *uint8         `mapstructure:"maxPriority"` // Priority Queue deactivated if nil
 	ReconnectWait    time.Duration  `mapstructure:"reconnectWaitInSeconds"`
 	DefaultQueueTTL  *time.Duration `mapstructure:"ttlInSeconds"`
-	CaCert           string         `json:caCert`
-	ClientCert       string         `json:clientCert`
-	ClientKey        string         `json:clientKey`
-	ExternalSasl     bool           `json:saslExternal`
+	CaCert           string         `mapstructure:"caCert"`
+	ClientCert       string         `mapstructure:"clientCert"`
+	ClientKey        string         `mapstructure:"clientKey"`
+	ExternalSasl     bool           `mapstructure:"externalSasl"`
 }
 
 // NewRabbitMQ returns a new rabbitmq instance.
@@ -185,7 +185,7 @@ func dial(uri string) (conn *amqp.Connection, ch *amqp.Channel, err error) {
 	return conn, ch, nil
 }
 
-func dialTls(uri string, tlsConfig *tls.Config, externalAuth bool) (conn *amqp.Connection, ch *amqp.Channel, err error) {
+func dialTLS(uri string, tlsConfig *tls.Config, externalAuth bool) (conn *amqp.Connection, ch *amqp.Channel, err error) {
 	if externalAuth {
 		conn, err = amqp.DialTLS_ExternalAuth(uri, tlsConfig)
 	} else {
@@ -491,7 +491,7 @@ func (r *RabbitMQ) connect() error {
 	var err error
 	if r.metadata.ClientCert != "" && r.metadata.ClientKey != "" && r.metadata.CaCert != "" {
 		tlsConfig := r.newTLSConfig()
-		conn, ch, err = dialTls(r.metadata.Host, tlsConfig, r.metadata.ExternalSasl)
+		conn, ch, err = dialTLS(r.metadata.Host, tlsConfig, r.metadata.ExternalSasl)
 	} else {
 		conn, ch, err = dial(r.metadata.Host)
 	}

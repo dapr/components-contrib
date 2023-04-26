@@ -123,7 +123,6 @@ func TestParseMetadata(t *testing.T) {
 			}(),
 		},
 		{
-
 			name:                 "With Certificates and not external SASL",
 			properties:           map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "saslExternal": "true", "ClientCert": getFakeClientCert(), "ClientKey": getFakeClientKey(), "CaCert": getFakeCaCert()},
 			expectedSaslExternal: true,
@@ -169,7 +168,6 @@ func TestParseMetadata(t *testing.T) {
 			if tt.expectedReconnectWaitCheck != nil {
 				assert.True(t, tt.expectedReconnectWaitCheck(r.metadata.ReconnectWait))
 			}
-
 		})
 	}
 }
@@ -177,7 +175,7 @@ func TestParseMetadata(t *testing.T) {
 func TestParseMetadataWithInvalidTTL(t *testing.T) {
 	const queueName = "test-queue"
 	const host = "test-host"
-	
+
 	testCases := []struct {
 		name       string
 		properties map[string]string
@@ -195,7 +193,6 @@ func TestParseMetadataWithInvalidTTL(t *testing.T) {
 			properties: map[string]string{"queueName": queueName, "host": host, metadata.TTLMetadataKey: "abc"},
 		},
 	}
-
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			m := bindings.Metadata{}

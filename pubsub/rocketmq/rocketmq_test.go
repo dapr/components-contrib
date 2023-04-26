@@ -31,6 +31,7 @@ func getTestMetadata() map[string]string {
 		"consumerGroup":      "dapr.rocketmq.producer",
 		"accessKey":          "RocketMQ",
 		"secretKey":          "12345",
+		"consumeTimeout":     "20",
 		"consumerBatchSize":  "1",
 		"consumerThreadNums": "2",
 		"retries":            "2",

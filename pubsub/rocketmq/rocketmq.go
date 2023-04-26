@@ -181,6 +181,9 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 				"we will use default value [ConsumeFromLastOffset]", r.name, r.metadata.FromWhere)
 		}
 	}
+	if r.metadata.ConsumeTimestamp != "" {
+		opts = append(opts, mqc.WithConsumeTimestamp(r.metadata.ConsumeTimestamp))
+	}
 	if r.metadata.ConsumeOrderly != "" {
 		if utils.IsTruthy(r.metadata.ConsumeOrderly) {
 			opts = append(opts, mqc.WithConsumerOrder(true))
@@ -195,11 +198,20 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 	if r.metadata.ConsumeMessageBatchMaxSize > 0 {
 		opts = append(opts, mqc.WithConsumeMessageBatchMaxSize(r.metadata.ConsumeMessageBatchMaxSize))
 	}
+	if r.metadata.ConsumeConcurrentlyMaxSpan > 0 {
+		opts = append(opts, mqc.WithConsumeConcurrentlyMaxSpan(r.metadata.ConsumeConcurrentlyMaxSpan))
+	}
 	if r.metadata.MaxReconsumeTimes > 0 {
 		opts = append(opts, mqc.WithMaxReconsumeTimes(r.metadata.MaxReconsumeTimes))
 	}
 	if r.metadata.AutoCommit != "" {
 		opts = append(opts, mqc.WithAutoCommit(utils.IsTruthy(r.metadata.AutoCommit)))
+	}
+	if r.metadata.ConsumeTimeout > 0 {
+		opts = append(opts, mqc.WithConsumeTimeout(time.Duration(r.metadata.ConsumeTimeout)*time.Minute))
+	}
+	if r.metadata.ConsumerPullTimeout > 0 {
+		opts = append(opts, mqc.WithConsumerPullTimeout(time.Duration(r.metadata.ConsumerPullTimeout)*time.Second))
 	}
 	if r.metadata.PullInterval > 0 {
 		opts = append(opts, mqc.WithPullInterval(time.Duration(r.metadata.PullInterval)*time.Millisecond))
@@ -211,6 +223,15 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 		opts = append(opts, mqc.WithPullBatchSize(r.metadata.PullBatchSize))
 		r.logger.Warn("set the number of msg pulled from the broker at a time, " +
 			"please use pullBatchSize instead of consumerBatchSize")
+	}
+	if r.metadata.PullThresholdForTopic > 0 {
+		opts = append(opts, mqc.WithPullThresholdForTopic(r.metadata.PullThresholdForTopic))
+	}
+	if r.metadata.PullThresholdSizeForQueue > 0 {
+		opts = append(opts, mqc.WithPullThresholdSizeForQueue(r.metadata.PullThresholdSizeForQueue))
+	}
+	if r.metadata.PullThresholdSizeForTopic > 0 {
+		opts = append(opts, mqc.WithPullThresholdSizeForTopic(r.metadata.PullThresholdSizeForTopic))
 	}
 	c, e := mqc.NewPushConsumer(opts...)
 	if e != nil {

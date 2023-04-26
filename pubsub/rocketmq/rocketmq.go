@@ -224,6 +224,9 @@ func (r *rocketMQ) setUpConsumer() (mq.PushConsumer, error) {
 		r.logger.Warn("set the number of msg pulled from the broker at a time, " +
 			"please use pullBatchSize instead of consumerBatchSize")
 	}
+	if r.metadata.PullThresholdForQueue > 0 {
+		opts = append(opts, mqc.WithPullThresholdForQueue(r.metadata.PullThresholdForQueue))
+	}
 	if r.metadata.PullThresholdForTopic > 0 {
 		opts = append(opts, mqc.WithPullThresholdForTopic(r.metadata.PullThresholdForTopic))
 	}

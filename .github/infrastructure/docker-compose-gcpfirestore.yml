@@ -1,0 +1,8 @@
+version: '3'
+services:
+  pubsub:
+    image: gcr.io/google.com/cloudsdktool/cloud-sdk:425.0.0-emulators
+    ports:
+      - "8432:8432"
+    container_name: gcpfirestore
+    entrypoint: gcloud beta emulators datastore start --project conf-test-project --host-port 0.0.0.0:8432

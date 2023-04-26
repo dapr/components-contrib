@@ -123,11 +123,6 @@ func TestParseMetadata(t *testing.T) {
 			}(),
 		},
 		{
-			name:                 "With Certificates and not external SASL",
-			properties:           map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "saslExternal": "true", "ClientCert": getFakeClientCert(), "ClientKey": getFakeClientKey(), "CaCert": getFakeCaCert()},
-			expectedSaslExternal: true,
-		},
-		{
 			name:                     "With reconnectWait 10 second",
 			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "reconnectWaitInSeconds": "10"},
 			expectedDeleteWhenUnused: false,
@@ -137,9 +132,17 @@ func TestParseMetadata(t *testing.T) {
 			},
 		},
 		{
-			name:                 "With Certificates and not external SASL",
+			name:                 "With Certificates and external SASL",
 			properties:           map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "saslExternal": "true", "ClientCert": getFakeClientCert(), "ClientKey": getFakeClientKey(), "CaCert": getFakeCaCert()},
 			expectedSaslExternal: true,
+			expectedCACert:       getFakeCaCert(),
+			expectedClientCert:   getFakeClientCert(),
+			expectedClientKey:    getFakeClientKey(),
+		},
+		{
+			name:                 "With Certificates and not external SASL",
+			properties:           map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "saslExternal": "false", "ClientCert": getFakeClientCert(), "ClientKey": getFakeClientKey(), "CaCert": getFakeCaCert()},
+			expectedSaslExternal: false,
 			expectedCACert:       getFakeCaCert(),
 			expectedClientCert:   getFakeClientCert(),
 			expectedClientKey:    getFakeClientKey(),

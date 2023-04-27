@@ -395,6 +395,9 @@ func (d *StateStore) parseTTL(req *state.SetRequest) (*int64, error) {
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
 func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
+	if len(request.Operations) == 0 {
+		return nil
+	}
 	twinput := &dynamodb.TransactWriteItemsInput{
 		TransactItems: []*dynamodb.TransactWriteItem{},
 	}

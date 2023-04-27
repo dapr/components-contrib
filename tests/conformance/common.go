@@ -43,6 +43,7 @@ import (
 	"github.com/dapr/components-contrib/workflows"
 	"github.com/dapr/kit/logger"
 
+	b_aws_s3 "github.com/dapr/components-contrib/bindings/aws/s3"
 	b_azure_blobstorage "github.com/dapr/components-contrib/bindings/azure/blobstorage"
 	b_azure_cosmosdb "github.com/dapr/components-contrib/bindings/azure/cosmosdb"
 	b_azure_eventgrid "github.com/dapr/components-contrib/bindings/azure/eventgrid"
@@ -656,6 +657,10 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_kubemq.NewKubeMQ(testLogger)
 	case "postgres":
 		binding = b_postgres.NewPostgres(testLogger)
+	case "aws.s3.docker":
+		binding = b_aws_s3.NewAWSS3(testLogger)
+	case "aws.s3.terraform":
+		binding = b_aws_s3.NewAWSS3(testLogger)
 	default:
 		return nil
 	}

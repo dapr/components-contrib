@@ -75,3 +75,9 @@ components:
   - component: etcd
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]
+  - component: gcp.firestore.docker
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete" ]
+  - component: gcp.firestore.cloud
+    allOperations: false
+    operations: [ "set", "get", "delete", "bulkset", "bulkdelete" ]

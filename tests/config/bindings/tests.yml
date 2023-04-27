@@ -76,3 +76,15 @@ components:
   - component: postgres
     allOperations: false
     operations: [ "exec", "query", "close", "operations" ]
+  - component: aws.s3.docker
+    operations: ["create", "operations", "get", "list"]
+    config:
+      output:
+        key: $((uuid))
+      outputData: '{"data": {"maxResults": 10}}'
+  - component: aws.s3.terraform
+    operations: ["create", "operations", "get", "list"]
+    config:
+      output:
+        key: $((uuid))
+      outputData: '{"data": {"maxResults": 10}}'

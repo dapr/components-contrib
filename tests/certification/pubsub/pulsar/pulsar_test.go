@@ -808,6 +808,7 @@ func TestPulsarSchema(t *testing.T) {
 
 func TestPulsarEncryption(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
+	consumerGroup2 := watcher.NewUnordered()
 
 	publishMessages := func(sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
@@ -877,15 +878,16 @@ func TestPulsarEncryption(t *testing.T) {
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
 			componentRuntimeOptions(),
 		)).
-		Step("publish messages to topic1", publishMessages(sidecarName1, topicActiveName, consumerGroup1)).
+		Step("publish messages to topic1", publishMessages(sidecarName1, topicActiveName, consumerGroup2)).
 		Step("verify if app1 has received messages published to topic", assertMessages(10*time.Second, consumerGroup1)).
+		Step("reset", flow.Reset(consumerGroup1)).
 		Run()
 
 	flow.New(t, "pulsar encryption test with data").
 
 		// Run subscriberApplication app2
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort),
-			subscriberSchemaApplication(appID2, topicActiveName, consumerGroup1))).
+			subscriberSchemaApplication(appID2, topicActiveName, consumerGroup2))).
 		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
 		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
@@ -915,8 +917,9 @@ func TestPulsarEncryption(t *testing.T) {
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
 			componentRuntimeOptions(),
 		)).
-		Step("publish messages to topic1", publishMessages(sidecarName2, topicActiveName, consumerGroup1)).
-		Step("verify if app1 has received messages published to topic", assertMessages(10*time.Second, consumerGroup1)).
+		Step("publish messages to topic1", publishMessages(sidecarName2, topicActiveName, consumerGroup2)).
+		Step("verify if app2 has received messages published to topic", assertMessages(10*time.Second, consumerGroup2)).
+		Step("reset", flow.Reset(consumerGroup2)).
 		Run()
 }
 

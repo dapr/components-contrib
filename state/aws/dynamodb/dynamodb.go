@@ -404,6 +404,11 @@ func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 		TransactItems: make([]*dynamodb.TransactWriteItem, 0, opns),
 	}
 
+	// Note: The following is a DynamoDB logic to avoid errors like following,
+	// which happen when the same key is used in multiple operations within a Transaction:
+	//
+	//    ValidationException: Transaction request cannot include multiple operations on one item
+	//
 	// Dedup ops where the last operation with a matching Key takes precedence
 	txs := map[string]int{}
 	for i, o := range request.Operations {

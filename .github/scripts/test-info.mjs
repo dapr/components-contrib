@@ -101,11 +101,11 @@ const components = {
         certificationSetup: 'certification-bindings.aws.s3-setup.sh',
         certificationDestroy: 'certification-bindings.aws.s3-destroy.sh',
     },
-    'bindings.aws.s3.docker': {
-        conformance: true,
-        requireDocker: true,
-        conformanceSetup: 'docker-compose.sh s3',
-    },
+    // 'bindings.aws.s3.docker': {
+    //     conformance: true,
+    //     requireDocker: true,
+    //     conformanceSetup: 'docker-compose.sh s3',
+    // },
     'bindings.aws.s3.terraform': {
         conformance: true,
         requireAWSCredentials: true,
@@ -237,12 +237,12 @@ const components = {
         certificationSetup: 'certification-pubsub.aws.snssqs-setup.sh',
         certificationDestroy: 'certification-pubsub.aws.snssqs-destroy.sh',
     },
-    'pubsub.aws.snssqs.docker': {
-        conformance: true,
-        requireDocker: true,
-        conformanceSetup: 'docker-compose.sh snssqs',
-        sourcePkg: 'pubsub/aws/snssqs',
-    },
+    // 'pubsub.aws.snssqs.docker': {
+    //     conformance: true,
+    //     requireDocker: true,
+    //     conformanceSetup: 'docker-compose.sh snssqs',
+    //     sourcePkg: 'pubsub/aws/snssqs',
+    // },
     'pubsub.aws.snssqs.terraform': {
         conformance: true,
         requireAWSCredentials: true,
@@ -442,11 +442,11 @@ const components = {
         certificationSetup: 'certification-state.aws.dynamodb-setup.sh',
         certificationDestroy: 'certification-state.aws.dynamodb-destroy.sh',
     },
-    'state.aws.dynamodb.docker': {
-        conformance: true,
-        requireDocker: true,
-        conformanceSetup: 'docker-compose.sh dynamodb',
-    },
+    // 'state.aws.dynamodb.docker': {
+    //     conformance: true,
+    //     requireDocker: true,
+    //     conformanceSetup: 'docker-compose.sh dynamodb',
+    // },
     'state.aws.dynamodb.terraform': {
         conformance: true,
         requireAWSCredentials: true,

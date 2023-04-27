@@ -12,6 +12,7 @@ require (
 	github.com/apache/pulsar-client-go v0.11.0
 	github.com/apache/thrift v0.13.0
 	github.com/aws/aws-sdk-go v1.44.333
+	github.com/camunda/zeebe/clients/go/v8 v8.2.12
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
@@ -26,6 +27,7 @@ require (
 	github.com/google/go-cmp v0.5.9
 	github.com/google/uuid v1.3.1
 	github.com/jackc/pgx/v5 v5.4.3
+	github.com/joho/godotenv v1.4.0
 	github.com/lestrrat-go/jwx/v2 v2.0.12
 	github.com/nacos-group/nacos-sdk-go/v2 v2.2.3
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
@@ -76,6 +78,7 @@ require (
 	github.com/apache/dubbo-getty v1.4.9-0.20220610060150-8af010f3f3dc // indirect
 	github.com/ardielle/ardielle-go v1.5.2 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
+	github.com/asaskevich/govalidator v0.0.0-20200108200545-475eaeb16496 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.4.0 // indirect
@@ -121,6 +124,7 @@ require (
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.20.0 // indirect
 	github.com/go-openapi/swag v0.21.1 // indirect
+	github.com/go-ozzo/ozzo-validation/v4 v4.3.0 // indirect
 	github.com/go-pkgz/expirable-cache v0.1.0 // indirect
 	github.com/go-playground/locales v0.14.0 // indirect
 	github.com/go-playground/universal-translator v0.18.0 // indirect

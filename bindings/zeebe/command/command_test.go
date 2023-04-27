@@ -95,7 +95,7 @@ func TestOperations(t *testing.T) {
 	operations := testBinding.Operations()
 	require.Equal(t, 12, len(operations))
 	assert.Equal(t, TopologyOperation, operations[0])
-	assert.Equal(t, DeployProcessOperation, operations[1])
+	assert.Equal(t, DeployResourceOperation, operations[1])
 	assert.Equal(t, CreateInstanceOperation, operations[2])
 	assert.Equal(t, CancelInstanceOperation, operations[3])
 	assert.Equal(t, SetVariablesOperation, operations[4])

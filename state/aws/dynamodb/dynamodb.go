@@ -419,7 +419,7 @@ func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 		case state.SetRequest:
 			value, err := d.marshalToString(req.Value)
 			if err != nil {
-				return fmt.Errorf("dynamodb error: failed to marshal value for key %s: %s", req.Key, err)
+				return fmt.Errorf("dynamodb error: failed to marshal value for key %s: %w", req.Key, err)
 			}
 			twi.Put = &dynamodb.Put{
 				TableName: aws.String(d.table),

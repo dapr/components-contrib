@@ -806,6 +806,127 @@ func TestPulsarSchema(t *testing.T) {
 		Run()
 }
 
+func componentRuntimeOptions() []runtime.Option {
+	log := logger.NewLogger("dapr.components")
+
+	pubsubRegistry := pubsub_loader.NewRegistry()
+	pubsubRegistry.Logger = log
+	pubsubRegistry.RegisterComponent(pubsub_pulsar.NewPulsar, "pulsar")
+
+	return []runtime.Option{
+		runtime.WithPubSubs(pubsubRegistry),
+	}
+}
+
+func createMultiPartitionTopic(tenant, namespace, topic string, partition int) flow.Runnable {
+	return func(ctx flow.Context) error {
+		reqURL := fmt.Sprintf("http://localhost:8080/admin/v2/persistent/%s/%s/%s/partitions",
+			tenant, namespace, topic)
+
+		reqBody, err := json.Marshal(partition)
+
+		if err != nil {
+			return fmt.Errorf("createMultiPartitionTopic json.Marshal(%d) err: %s", partition, err.Error())
+		}
+
+		req, err := http.NewRequest(http.MethodPut, reqURL, bytes.NewBuffer(reqBody))
+
+		if err != nil {
+			return fmt.Errorf("createMultiPartitionTopic NewRequest(url: %s, body: %s) err:%s",
+				reqURL, reqBody, err.Error())
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+
+		rsp, err := http.DefaultClient.Do(req)
+
+		if err != nil {
+			return fmt.Errorf("createMultiPartitionTopic(url: %s, body: %s) err:%s",
+				reqURL, reqBody, err.Error())
+		}
+
+		defer rsp.Body.Close()
+
+		if rsp.StatusCode >= http.StatusOK && rsp.StatusCode <= http.StatusMultipleChoices {
+			return nil
+		}
+
+		rspBody, _ := ioutil.ReadAll(rsp.Body)
+
+		return fmt.Errorf("createMultiPartitionTopic(url: %s, body: %s) statusCode: %d, resBody: %s",
+			reqURL, reqBody, rsp.StatusCode, string(rspBody))
+	}
+}
+
+func TestPulsarPartitionedOrderingProcess(t *testing.T) {
+	consumerGroup1 := watcher.NewOrdered()
+
+	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
+	metadata := map[string]string{
+		messageKey: partition0,
+	}
+
+	flow.New(t, "pulsar certification -  process message in order with partitioned-topic").
+		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
+
+		// Run subscriberApplication app1
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset),
+			subscriberApplicationWithoutError(appID1, topicMultiPartitionName, consumerGroup1))).
+		Step("wait", flow.Sleep(10*time.Second)).
+		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
+			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
+			if err != nil {
+				return fmt.Errorf("could not create pulsar client: %v", err)
+			}
+
+			defer client.Close()
+
+			consumer, err := client.Subscribe(pulsar.ConsumerOptions{
+				Topic:            "topic-1",
+				SubscriptionName: "my-sub",
+				Type:             pulsar.Shared,
+			})
+			if err != nil {
+				return fmt.Errorf("could not create pulsar Topic: %v", err)
+			}
+
+			defer consumer.Close()
+
+			// Ensure the brokers are ready by attempting to consume
+			// a topic partition.
+			return err
+		})).
+		Step("create multi-partition topic explicitly", retry.Do(10*time.Second, 30,
+			createMultiPartitionTopic("public", "default", topicMultiPartitionName, 4))).
+		// Run the Dapr sidecar with the component entitymanagement
+		Step(sidecar.Run(sidecarName1,
+			embedded.WithComponentsPath("./components/consumer_one"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
+			componentRuntimeOptions(),
+		)).
+		// Run subscriberApplication app2
+		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset*3),
+			subscriberApplicationWithoutError(appID2, topicActiveName, consumerGroup1))).
+
+		// Run the Dapr sidecar with the component 2.
+		Step(sidecar.Run(sidecarName2,
+			embedded.WithComponentsPath("./components/consumer_two"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*3),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*3),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*3),
+			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*3),
+			componentRuntimeOptions(),
+		)).
+		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicMultiPartitionName), publishMessages(metadata, sidecarName1, topicMultiPartitionName, consumerGroup1)).
+		Step("wait", flow.Sleep(30*time.Second)).
+		Step("verify if app1 has received messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
+		Step("reset", flow.Reset(consumerGroup1)).
+		Run()
+}
+
 func TestPulsarEncryptionFromFile(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 
@@ -956,127 +1077,6 @@ func TestPulsarEncryptionFromData(t *testing.T) {
 		)).
 		Step("publish messages to topic1", publishMessages(sidecarName1, topicActiveName, consumerGroup1)).
 		Step("verify if app1 has received messages published to topic", assertMessages(10*time.Second, consumerGroup1)).
-		Step("reset", flow.Reset(consumerGroup1)).
-		Run()
-}
-
-func componentRuntimeOptions() []runtime.Option {
-	log := logger.NewLogger("dapr.components")
-
-	pubsubRegistry := pubsub_loader.NewRegistry()
-	pubsubRegistry.Logger = log
-	pubsubRegistry.RegisterComponent(pubsub_pulsar.NewPulsar, "pulsar")
-
-	return []runtime.Option{
-		runtime.WithPubSubs(pubsubRegistry),
-	}
-}
-
-func createMultiPartitionTopic(tenant, namespace, topic string, partition int) flow.Runnable {
-	return func(ctx flow.Context) error {
-		reqURL := fmt.Sprintf("http://localhost:8080/admin/v2/persistent/%s/%s/%s/partitions",
-			tenant, namespace, topic)
-
-		reqBody, err := json.Marshal(partition)
-
-		if err != nil {
-			return fmt.Errorf("createMultiPartitionTopic json.Marshal(%d) err: %s", partition, err.Error())
-		}
-
-		req, err := http.NewRequest(http.MethodPut, reqURL, bytes.NewBuffer(reqBody))
-
-		if err != nil {
-			return fmt.Errorf("createMultiPartitionTopic NewRequest(url: %s, body: %s) err:%s",
-				reqURL, reqBody, err.Error())
-		}
-
-		req.Header.Set("Content-Type", "application/json")
-
-		rsp, err := http.DefaultClient.Do(req)
-
-		if err != nil {
-			return fmt.Errorf("createMultiPartitionTopic(url: %s, body: %s) err:%s",
-				reqURL, reqBody, err.Error())
-		}
-
-		defer rsp.Body.Close()
-
-		if rsp.StatusCode >= http.StatusOK && rsp.StatusCode <= http.StatusMultipleChoices {
-			return nil
-		}
-
-		rspBody, _ := ioutil.ReadAll(rsp.Body)
-
-		return fmt.Errorf("createMultiPartitionTopic(url: %s, body: %s) statusCode: %d, resBody: %s",
-			reqURL, reqBody, rsp.StatusCode, string(rspBody))
-	}
-}
-
-func TestPulsarPartitionedOrderingProcess(t *testing.T) {
-	consumerGroup1 := watcher.NewOrdered()
-
-	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
-	metadata := map[string]string{
-		messageKey: partition0,
-	}
-
-	flow.New(t, "pulsar certification -  process message in order with partitioned-topic").
-		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
-
-		// Run subscriberApplication app1
-		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset),
-			subscriberApplicationWithoutError(appID1, topicMultiPartitionName, consumerGroup1))).
-		Step("wait", flow.Sleep(10*time.Second)).
-		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
-			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
-			if err != nil {
-				return fmt.Errorf("could not create pulsar client: %v", err)
-			}
-
-			defer client.Close()
-
-			consumer, err := client.Subscribe(pulsar.ConsumerOptions{
-				Topic:            "topic-1",
-				SubscriptionName: "my-sub",
-				Type:             pulsar.Shared,
-			})
-			if err != nil {
-				return fmt.Errorf("could not create pulsar Topic: %v", err)
-			}
-
-			defer consumer.Close()
-
-			// Ensure the brokers are ready by attempting to consume
-			// a topic partition.
-			return err
-		})).
-		Step("create multi-partition topic explicitly", retry.Do(10*time.Second, 30,
-			createMultiPartitionTopic("public", "default", topicMultiPartitionName, 4))).
-		// Run the Dapr sidecar with the component entitymanagement
-		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer_one"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
-		)).
-		// Run subscriberApplication app2
-		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset*3),
-			subscriberApplicationWithoutError(appID2, topicActiveName, consumerGroup1))).
-
-		// Run the Dapr sidecar with the component 2.
-		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/consumer_two"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*3),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*3),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*3),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*3),
-			componentRuntimeOptions(),
-		)).
-		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicMultiPartitionName), publishMessages(metadata, sidecarName1, topicMultiPartitionName, consumerGroup1)).
-		Step("wait", flow.Sleep(30*time.Second)).
-		Step("verify if app1 has received messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
 		Step("reset", flow.Reset(consumerGroup1)).
 		Run()
 }

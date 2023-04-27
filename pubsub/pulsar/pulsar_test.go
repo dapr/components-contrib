@@ -208,3 +208,83 @@ func TestValidTenantAndNS(t *testing.T) {
 		assert.Equal(t, expectNonPersistentResult, res)
 	})
 }
+
+func TestEncryptionKeys(t *testing.T) {
+	m := pubsub.Metadata{}
+	m.Properties = map[string]string{"host": "a", "privateKey": "111", "publicKey": "222", "keys": "a,b"}
+
+	t.Run("test encryption metadata", func(t *testing.T) {
+		meta, err := parsePulsarMetadata(m)
+
+		assert.Nil(t, err)
+		assert.Equal(t, "111", meta.PrivateKey)
+		assert.Equal(t, "222", meta.PublicKey)
+		assert.Equal(t, "a,b", meta.Keys)
+	})
+
+	t.Run("test valid producer encryption", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{"host": "a", "publicKey": "222", "keys": "a,b"}
+
+		meta, _ := parsePulsarMetadata(m)
+		p := &Pulsar{metadata: *meta}
+		r := p.useProducerEncryption()
+
+		assert.True(t, r)
+	})
+
+	t.Run("test invalid producer encryption missing public key", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{"host": "a", "keys": "a,b"}
+
+		meta, _ := parsePulsarMetadata(m)
+		p := &Pulsar{metadata: *meta}
+		r := p.useProducerEncryption()
+
+		assert.False(t, r)
+	})
+
+	t.Run("test invalid producer encryption missing keys", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{"host": "a", "publicKey": "222"}
+
+		meta, _ := parsePulsarMetadata(m)
+		p := &Pulsar{metadata: *meta}
+		r := p.useProducerEncryption()
+
+		assert.False(t, r)
+	})
+
+	t.Run("test valid consumer encryption", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{"host": "a", "privateKey": "222", "publicKey": "333"}
+
+		meta, _ := parsePulsarMetadata(m)
+		p := &Pulsar{metadata: *meta}
+		r := p.useConsumerEncryption()
+
+		assert.True(t, r)
+	})
+
+	t.Run("test invalid consumer encryption missing public key", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{"host": "a", "privateKey": "222"}
+
+		meta, _ := parsePulsarMetadata(m)
+		p := &Pulsar{metadata: *meta}
+		r := p.useConsumerEncryption()
+
+		assert.False(t, r)
+	})
+
+	t.Run("test invalid producer encryption missing private key", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{"host": "a", "privateKey": "222"}
+
+		meta, _ := parsePulsarMetadata(m)
+		p := &Pulsar{metadata: *meta}
+		r := p.useConsumerEncryption()
+
+		assert.False(t, r)
+	})
+}

@@ -27,6 +27,7 @@ import (
 	"github.com/hamba/avro/v2"
 
 	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/apache/pulsar-client-go/pulsar/crypto"
 	lru "github.com/hashicorp/golang-lru/v2"
 
 	"github.com/dapr/components-contrib/metadata"
@@ -189,6 +190,14 @@ func (p *Pulsar) Init(_ context.Context, metadata pubsub.Metadata) error {
 	return nil
 }
 
+func (p *Pulsar) useProducerEncryption() bool {
+	return p.metadata.PublicKey != "" && p.metadata.Keys != ""
+}
+
+func (p *Pulsar) useConsumerEncryption() bool {
+	return p.metadata.PublicKey != "" && p.metadata.PrivateKey != ""
+}
+
 func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if p.closed.Load() {
 		return errors.New("component is closed")
@@ -215,6 +224,14 @@ func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 
 		if hasSchema {
 			opts.Schema = getPulsarSchema(sm)
+		}
+
+		if p.useProducerEncryption() {
+			keyReader := crypto.NewFileKeyReader(p.metadata.PublicKey, "")
+			opts.Encryption = &pulsar.ProducerEncryptionInfo{
+				KeyReader: keyReader,
+				Keys:      strings.Split(p.metadata.Keys, ","),
+			}
 		}
 
 		producer, err = p.client.CreateProducer(opts)
@@ -347,6 +364,13 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 		Type:                getSubscribeType(req.Metadata),
 		MessageChannel:      channel,
 		NackRedeliveryDelay: p.metadata.RedeliveryDelay,
+	}
+
+	if p.useConsumerEncryption() {
+		keyReader := crypto.NewFileKeyReader(p.metadata.PublicKey, p.metadata.PrivateKey)
+		options.Decryption = &pulsar.MessageDecryptionInfo{
+			KeyReader: keyReader,
+		}
 	}
 
 	if sm, ok := p.metadata.internalTopicSchemas[req.Topic]; ok {

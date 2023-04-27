@@ -16,6 +16,7 @@ package pulsar
 import (
 	"context"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"reflect"
@@ -227,9 +228,15 @@ func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 		}
 
 		if p.useProducerEncryption() {
-			keyReader := crypto.NewFileKeyReader(p.metadata.PublicKey, "")
+			var reader crypto.KeyReader
+			if isValidPEM(p.metadata.PublicKey) {
+				reader = NewDataKeyReader(p.metadata.PublicKey, "")
+			} else {
+				reader = crypto.NewFileKeyReader(p.metadata.PublicKey, "")
+			}
+
 			opts.Encryption = &pulsar.ProducerEncryptionInfo{
-				KeyReader: keyReader,
+				KeyReader: reader,
 				Keys:      strings.Split(p.metadata.Keys, ","),
 			}
 		}
@@ -367,9 +374,15 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	}
 
 	if p.useConsumerEncryption() {
-		keyReader := crypto.NewFileKeyReader(p.metadata.PublicKey, p.metadata.PrivateKey)
+		var reader crypto.KeyReader
+		if isValidPEM(p.metadata.PublicKey) {
+			reader = NewDataKeyReader(p.metadata.PublicKey, p.metadata.PrivateKey)
+		} else {
+			reader = crypto.NewFileKeyReader(p.metadata.PublicKey, p.metadata.PrivateKey)
+		}
+
 		options.Decryption = &pulsar.MessageDecryptionInfo{
-			KeyReader: keyReader,
+			KeyReader: reader,
 		}
 	}
 
@@ -488,4 +501,10 @@ func (p *Pulsar) GetComponentMetadata() map[string]string {
 	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
 	return metadataInfo
+}
+
+// isValidPEM validates the provided input has PEM formatted block.
+func isValidPEM(val string) bool {
+	block, _ := pem.Decode([]byte(val))
+	return block != nil
 }

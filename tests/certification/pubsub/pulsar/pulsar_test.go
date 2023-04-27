@@ -843,7 +843,7 @@ func TestPulsarEncryption(t *testing.T) {
 		}
 	}
 
-	flow.New(t, "pulsar encryption test").
+	flow.New(t, "pulsar encryption test with file path").
 
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
@@ -878,6 +878,44 @@ func TestPulsarEncryption(t *testing.T) {
 			componentRuntimeOptions(),
 		)).
 		Step("publish messages to topic1", publishMessages(sidecarName1, topicActiveName, consumerGroup1)).
+		Step("verify if app1 has received messages published to topic", assertMessages(10*time.Second, consumerGroup1)).
+		Run()
+
+	flow.New(t, "pulsar encryption test with data").
+
+		// Run subscriberApplication app2
+		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort),
+			subscriberSchemaApplication(appID2, topicActiveName, consumerGroup1))).
+		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
+		Step("wait", flow.Sleep(10*time.Second)).
+		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
+			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
+			if err != nil {
+				return fmt.Errorf("could not create pulsar client: %v", err)
+			}
+
+			defer client.Close()
+
+			consumer, err := client.Subscribe(pulsar.ConsumerOptions{
+				Topic:            "topic-1",
+				SubscriptionName: "my-sub",
+				Type:             pulsar.Shared,
+			})
+			if err != nil {
+				return fmt.Errorf("could not create pulsar Topic: %v", err)
+			}
+			defer consumer.Close()
+
+			return err
+		})).
+		Step(sidecar.Run(sidecarName2,
+			embedded.WithComponentsPath("./components/consumer_six"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
+			componentRuntimeOptions(),
+		)).
+		Step("publish messages to topic1", publishMessages(sidecarName2, topicActiveName, consumerGroup1)).
 		Step("verify if app1 has received messages published to topic", assertMessages(10*time.Second, consumerGroup1)).
 		Run()
 }

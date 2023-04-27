@@ -1,0 +1,33 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: s3-cert-tests
+spec:
+  type: bindings.aws.s3
+  version: v1
+  metadata:
+  - name: bucket
+    secretKeyRef:
+      name: BINDINGS_AWS_S3_BUCKET
+      key: BINDINGS_AWS_S3_BUCKET
+  - name: accessKey
+    secretKeyRef:
+      name: AWS_ACCESS_KEY_ID
+      key: AWS_ACCESS_KEY_ID
+  - name: secretKey
+    secretKeyRef:
+      name: AWS_SECRET_ACCESS_KEY
+      key: AWS_SECRET_ACCESS_KEY
+  - name: region
+    secretKeyRef:
+      name: AWS_REGION
+      key: AWS_REGION
+  - name: decodeBase64
+    value: "false"
+  - name: encodeBase64
+    value: "false"
+  - name: forcePathStyle
+    value: "true"
+
+auth:
+  secretStore: envvar-secret-store

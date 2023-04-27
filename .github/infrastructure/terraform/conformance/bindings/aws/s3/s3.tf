@@ -37,7 +37,9 @@ resource "aws_s3_bucket" "dapr_bucket" {
   }
 }
 
-resource "aws_s3_bucket_acl" "dapr_bucket_acl" {
-  bucket = aws_s3_bucket.dapr_bucket.id
-  acl    = "private"
+resource "aws_s3_bucket_ownership_controls" "dapr_bucket" {
+ bucket = aws_s3_bucket.dapr_bucket.id
+  rule {
+    object_ownership = "BucketOwnerPreferred"
+  }
 }

@@ -67,6 +67,7 @@ import (
 	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
 	p_servicebusqueues "github.com/dapr/components-contrib/pubsub/azure/servicebus/queues"
 	p_servicebustopics "github.com/dapr/components-contrib/pubsub/azure/servicebus/topics"
+	p_gcppubsub "github.com/dapr/components-contrib/pubsub/gcp/pubsub"
 	p_inmemory "github.com/dapr/components-contrib/pubsub/in-memory"
 	p_jetstream "github.com/dapr/components-contrib/pubsub/jetstream"
 	p_kafka "github.com/dapr/components-contrib/pubsub/kafka"
@@ -90,6 +91,7 @@ import (
 	s_cloudflareworkerskv "github.com/dapr/components-contrib/state/cloudflare/workerskv"
 	s_cockroachdb "github.com/dapr/components-contrib/state/cockroachdb"
 	s_etcd "github.com/dapr/components-contrib/state/etcd"
+	s_gcpfirestore "github.com/dapr/components-contrib/state/gcp/firestore"
 	s_inmemory "github.com/dapr/components-contrib/state/in-memory"
 	s_memcached "github.com/dapr/components-contrib/state/memcached"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
@@ -509,6 +511,10 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_snssqs.NewSnsSqs(testLogger)
 	case "aws.snssqs.docker":
 		pubsub = p_snssqs.NewSnsSqs(testLogger)
+	case "gcp.pubsub.terraform":
+		pubsub = p_gcppubsub.NewGCPPubSub(testLogger)
+	case "gcp.pubsub.docker":
+		pubsub = p_gcppubsub.NewGCPPubSub(testLogger)
 	case "kubemq":
 		pubsub = p_kubemq.NewKubeMQ(testLogger)
 	case "solace.amqp":
@@ -605,6 +611,10 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_awsdynamodb.NewDynamoDBStateStore(testLogger)
 	case "etcd":
 		store = s_etcd.NewEtcdStateStore(testLogger)
+	case "gcp.firestore.docker":
+		store = s_gcpfirestore.NewFirestoreStateStore(testLogger)
+	case "gcp.firestore.cloud":
+		store = s_gcpfirestore.NewFirestoreStateStore(testLogger)
 	default:
 		return nil
 	}

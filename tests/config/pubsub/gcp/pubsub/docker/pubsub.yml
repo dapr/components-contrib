@@ -1,0 +1,14 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: gcp-pubsub
+spec:
+  type: pubsub.gcp.pubsub
+  version: v1
+  metadata:
+  - name: projectId
+    value: "conformance-test-prj"
+  - name: consumerID
+    value: "conformanceTestConsumer"
+  - name: endpoint
+    value: "localhost:8085"

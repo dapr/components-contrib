@@ -173,6 +173,7 @@ const components = {
     },
     'configuration.postgres': {
         conformance: true,
+        certification: true,
         conformanceSetup: 'docker-compose.sh postgresql',
     },
     'configuration.redis.v6': {
@@ -230,6 +231,25 @@ const components = {
         conformanceDestroy:
             'conformance-pubsub.aws.snssqs.terraform-destroy.sh',
         sourcePkg: 'pubsub/aws/snssqs',
+    },
+    'pubsub.gcp.pubsub': {
+        certification: true,
+        requireTerraform: true,
+        requireGCPCredentials: true,
+        certificationSetup: 'certification-pubsub.gcp.pubsub-setup.sh',
+        certificationDestroy: 'certification-pubsub.gcp.pubsub-destroy.sh',
+    },
+    // 'pubsub.gcp.pubsub.docker': {
+    //     conformance: true,
+    //     conformanceSetup: 'docker-compose.sh gcp-pubsub',
+    // },
+    'pubsub.gcp.pubsub.terraform': {
+        conformance: true,
+        requireTerraform: true,
+        requireGCPCredentials: true,
+        conformanceSetup: 'conformance-pubsub.gcp.pubsub.terraform-setup.sh',
+        conformanceDestroy:
+            'conformance-pubsub.gcp.pubsub.terraform-destroy.sh',
     },
     'pubsub.azure.eventhubs': {
         conformance: true,
@@ -571,6 +591,21 @@ const components = {
         conformanceSetup: 'docker-compose.sh sqlserver',
         requiredSecrets: ['AzureSqlServerConnectionString'],
         sourcePkg: ['state/sqlserver', 'internal/component/sql'],
+    },
+    // 'state.gcp.firestore.docker': {
+    //     conformance: true,
+    //     requireDocker: true,
+    //     conformanceSetup: 'docker-compose.sh gcpfirestore',
+    // },
+    'state.gcp.firestore.cloud': {
+        conformance: true,
+        requireGCPCredentials: true,
+        conformanceSetup: 'conformance-state.gcp.firestore-setup.sh',
+    },
+    'state.gcp.firestore': {
+        certification: true,
+        requireGCPCredentials: true,
+        certificationSetup: 'certification-state.gcp.firestore-setup.sh',
     },
     'workflows.temporal': {
         conformance: true,

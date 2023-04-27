@@ -15,45 +15,37 @@ package jwks
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
-	"net/http"
-	"os"
-	"path/filepath"
 	"reflect"
-	"strings"
 	"sync"
+	"sync/atomic"
 
-	"github.com/lestrrat-go/httprc"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
 	contribCrypto "github.com/dapr/components-contrib/crypto"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
-	"github.com/dapr/kit/fswatcher"
+	"github.com/dapr/kit/jwkscache"
 	"github.com/dapr/kit/logger"
 )
 
 type jwksCrypto struct {
 	contribCrypto.LocalCryptoBaseComponent
 
-	md       jwksMetadata
-	jwks     jwk.Set
-	jwksLock sync.Mutex
-
-	logger logger.Logger
-	ctx    context.Context
-	cancel context.CancelFunc
+	md      jwksMetadata
+	cache   *jwkscache.JWKSCache
+	logger  logger.Logger
+	closed  atomic.Bool
+	closeCh chan struct{}
+	wg      sync.WaitGroup
 }
 
 // NewJWKSCrypto returns a new crypto provider based a JWKS, either passed as metadata, or read from a file or HTTP(S) URL.
 // The key argument in methods is the ID of the key in the JWKS ("kid" property).
 func NewJWKSCrypto(logger logger.Logger) contribCrypto.SubtleCrypto {
-	ctx, cancel := context.WithCancel(context.Background())
 	k := &jwksCrypto{
-		logger: logger,
-		ctx:    ctx,
-		cancel: cancel,
+		logger:  logger,
+		closeCh: make(chan struct{}),
 	}
 	k.RetrieveKeyFn = k.retrieveKeyFromSecretFn
 	return k
@@ -71,20 +63,47 @@ func (k *jwksCrypto) Init(ctx context.Context, metadata contribCrypto.Metadata) 
 		return fmt.Errorf("failed to load metadata: %w", err)
 	}
 
-	// Load the JWKS
-	err = k.initJWKS(ctx)
+	// Init the JWKS cache
+	k.cache = jwkscache.NewJWKSCache(k.md.JWKS, k.logger)
+	k.cache.SetMinRefreshInterval(k.md.MinRefreshInterval)
+	k.cache.SetRequestTimeout(k.md.RequestTimeout)
+
+	// Start the JWKS cache in background
+	startErrCh := make(chan error)
+	go func() {
+		startErrCh <- k.cache.Start(k.getContext())
+	}()
+
+	// Wait for the cache to be ready
+	// Here we use the init context
+	err = k.cache.WaitForCacheReady(ctx)
 	if err != nil {
+		// If we have an initialization error, return
 		return err
 	}
 
 	return nil
 }
 
+// Returns a context that is canceled when the component is closed.
+func (k *jwksCrypto) getContext() context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	k.wg.Add(1)
+	go func() {
+		defer k.wg.Done()
+		defer cancel()
+		<-k.closeCh
+	}()
+	return ctx
+}
+
 // Close implements the io.Closer interface to close the component
 func (k *jwksCrypto) Close() error {
-	if k.cancel != nil {
-		k.cancel()
+	if k.closed.CompareAndSwap(false, true) {
+		close(k.closeCh)
 	}
+
+	k.wg.Wait()
 	return nil
 }
 
@@ -93,151 +112,9 @@ func (k *jwksCrypto) Features() []contribCrypto.Feature {
 	return []contribCrypto.Feature{} // No Feature supported.
 }
 
-// Init the JWKS object from the metadata property
-func (k *jwksCrypto) initJWKS(ctx context.Context) error {
-	if len(k.md.JWKS) == 0 {
-		return errors.New("metadata property 'jwks' is required")
-	}
-
-	// If the value starts with "http://" or "https://", treat it as URL
-	if strings.HasPrefix(k.md.JWKS, "http://") || strings.HasPrefix(k.md.JWKS, "https://") {
-		return k.initJWKSFromURL(ctx, k.md.JWKS)
-	}
-
-	// Check if the value is a valid path to a local file
-	stat, err := os.Stat(k.md.JWKS)
-	if err == nil && stat != nil && !stat.IsDir() {
-		return k.initJWKSFromFile(ctx, k.md.JWKS)
-	}
-
-	// Treat the value as the actual JWKS
-	// First, check if it's base64-encoded (remove trailing padding chars if present first)
-	mdJSON, err := base64.RawStdEncoding.DecodeString(strings.TrimRight(k.md.JWKS, "="))
-	if err != nil {
-		// Assume it's already JSON, not encoded
-		mdJSON = []byte(k.md.JWKS)
-	}
-
-	// Try decoding from JSON
-	k.jwks, err = jwk.Parse(mdJSON)
-	if err != nil {
-		return errors.New("failed to parse metadata property 'jwks': not a URL, path to local file, or JSON value (optionally base64-encoded)")
-	}
-
-	return nil
-}
-
-func (k *jwksCrypto) initJWKSFromURL(ctx context.Context, url string) error {
-	// Create the JWKS cache
-	// We are using k.ctx here because we want this to be tied to the component's lifecycle
-	cache := jwk.NewCache(k.ctx,
-		jwk.WithErrSink(httprc.ErrSinkFunc(func(err error) {
-			k.logger.Warnf("Error while refreshing JWKS cache: %v", err)
-		})),
-	)
-	// We also need to create a custom HTTP client because otherwise there's no timeout.
-	client := &http.Client{
-		Timeout: k.md.RequestTimeout,
-	}
-	err := cache.Register(url,
-		jwk.WithMinRefreshInterval(k.md.MinRefreshInterval),
-		jwk.WithHTTPClient(client),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to register JWKS cache: %w", err)
-	}
-
-	// Fetch the JWKS right away to start, so we can check it's valid and populate the cache
-	refreshCtx, refreshCancel := context.WithTimeout(ctx, k.md.RequestTimeout)
-	_, err = cache.Refresh(refreshCtx, url)
-	refreshCancel()
-	if err != nil {
-		return fmt.Errorf("failed to fetch JWKS: %w", err)
-	}
-
-	k.jwks = jwk.NewCachedSet(cache, url)
-	return nil
-}
-
-func (k *jwksCrypto) initJWKSFromFile(ctx context.Context, file string) error {
-	// Get the path to the folder containing the file
-	path := filepath.Dir(file)
-
-	// Start watching for changes in the filesystem
-	eventCh := make(chan struct{})
-	loaded := make(chan error, 1) // Needs to be buffered to prevent an (unlikely, but possible) goroutine leak
-	go func() {
-		watchErr := fswatcher.Watch(k.ctx, path, eventCh)
-		if watchErr != nil && !errors.Is(watchErr, context.Canceled) {
-			// Log errors only
-			k.logger.Errorf("Error while watching for changes to the local JWKS file: %v", watchErr)
-		}
-	}()
-	go func() {
-		var firstDone bool
-		for {
-			select {
-			case <-eventCh:
-				// When there's a change, reload the JWKS file
-				err := k.parseJWKSFile(file)
-				if !firstDone {
-					// The first time, signal that the initialization was complete and pass the error
-					loaded <- err
-					close(loaded)
-					firstDone = true
-				} else {
-					// Log errors only
-					k.logger.Errorf("Error reading JWKS from disk: %v", err)
-				}
-			case <-ctx.Done():
-				return
-			case <-k.ctx.Done():
-				return
-			}
-		}
-	}()
-
-	// Trigger a refresh immediately and wait for the first reload
-	eventCh <- struct{}{}
-
-	select {
-	case err := <-loaded:
-		// Error could be nil if everything is fine
-		return err
-	case <-ctx.Done():
-		return fmt.Errorf("failed to initialize JWKS from file: %w", ctx.Err())
-	case <-k.ctx.Done():
-		return errors.New("component's context is canceled")
-	}
-}
-
-// Used by initJWKSFromFile to parse a JWKS file every time it's changed
-func (k *jwksCrypto) parseJWKSFile(file string) error {
-	k.logger.Debugf("Reloading JWKS file from disk")
-
-	read, err := os.ReadFile(file)
-	if err != nil {
-		return fmt.Errorf("failed to read JgoWKS file: %v", err)
-	}
-
-	jwks, err := jwk.Parse(read)
-	if err != nil {
-		return fmt.Errorf("failed to parse JWKS file: %v", err)
-	}
-
-	k.jwksLock.Lock()
-	k.jwks = jwks
-	k.jwksLock.Unlock()
-
-	return nil
-}
-
 // Retrieves a key (public or private or symmetric) from the JWKS
 func (k *jwksCrypto) retrieveKeyFromSecretFn(parentCtx context.Context, kid string) (jwk.Key, error) {
-	k.jwksLock.Lock()
-	jwks := k.jwks
-	k.jwksLock.Unlock()
-
+	jwks := k.cache.KeySet()
 	if jwks == nil {
 		return nil, errors.New("no JWKS loaded")
 	}

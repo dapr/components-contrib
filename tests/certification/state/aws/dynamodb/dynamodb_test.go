@@ -15,6 +15,7 @@ package dynamoDBStorage_test
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 
 	dynamodb "github.com/dapr/components-contrib/state/aws/dynamodb"
@@ -114,6 +115,64 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 		}
 	}
 
+	transactionsTest := func(statestore string) func(ctx flow.Context) error {
+		return func(ctx flow.Context) error {
+			cl, err := client.NewClientWithPort(strconv.Itoa(currentGrpcPort))
+			if err != nil {
+				return err
+			}
+			defer cl.Close()
+
+			ktx1 := "reqKeyTx1"
+			ktx2 := "reqKeyTx2"
+			kdel := "reqKey2"
+
+			err = cl.SaveState(ctx, statestore, kdel, []byte(kdel), nil)
+			assert.NoError(t, err)
+
+			err = cl.ExecuteStateTransaction(ctx, statestore, nil, []*client.StateOperation{
+				{
+					Type: client.StateOperationTypeUpsert,
+					Item: &client.SetStateItem{
+						Key:   ktx1,
+						Value: []byte("reqValTx1"),
+						Etag: &client.ETag{
+							Value: "test",
+						},
+						Metadata: map[string]string{},
+					},
+				},
+				{
+					Type: client.StateOperationTypeDelete,
+					Item: &client.SetStateItem{
+						Key:      kdel,
+						Metadata: map[string]string{},
+					},
+				},
+				{
+					Type: client.StateOperationTypeUpsert,
+					Item: &client.SetStateItem{
+						Key:   ktx2,
+						Value: []byte("reqValTx2"),
+						Etag: &client.ETag{
+							Value: "test",
+						},
+						Metadata: map[string]string{},
+					},
+				},
+			})
+			assert.NoError(t, err)
+
+			err = cl.DeleteState(ctx, statestore, ktx1, nil)
+			assert.NoError(t, err)
+
+			err = cl.DeleteState(ctx, statestore, ktx2, nil)
+			assert.NoError(t, err)
+
+			return nil
+		}
+	}
+
 	flow.New(t, "Test basic operations").
 		// Run the Dapr sidecar with AWS DynamoDB storage.
 		Step(sidecar.Run(sidecarNamePrefix,
@@ -145,6 +204,17 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 			embedded.WithComponentsPath("./components/partition_key"),
 			componentRuntimeOptions())).
 		Step("Run basic test with partition key", basicTest("statestore-partition-key")).
+		Run()
+
+	flow.New(t, "Test Tx operations").
+		// Run the Dapr sidecar with AWS DynamoDB storage.
+		Step(sidecar.Run(sidecarNamePrefix,
+			embedded.WithoutApp(),
+			embedded.WithDaprGRPCPort(currentGrpcPort),
+			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithComponentsPath("./components/basictest"),
+			componentRuntimeOptions())).
+		Step("Run transaction test", transactionsTest("statestore-basic")).
 		Run()
 }
 

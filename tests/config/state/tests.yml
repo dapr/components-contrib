@@ -68,10 +68,10 @@ components:
     operations: [ "set", "get", "delete", "bulkget", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]
   - component: aws.dynamodb.docker
     allOperations: false
-    operations: [ "set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write" ]
+    operations: [ "set", "get", "delete", "etag", "bulkset", "bulkdelete", "transaction", "first-write" ]
   - component: aws.dynamodb.terraform
     allOperations: false
-    operations: [ "set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write" ]
+    operations: [ "set", "get", "delete", "etag", "bulkset", "bulkdelete", "transaction", "first-write" ]
   - component: etcd
     allOperations: false
     operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]

@@ -92,7 +92,7 @@ func (d *StateStore) Init(_ context.Context, metadata state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (d *StateStore) Features() []state.Feature {
-	return []state.Feature{state.FeatureETag}
+	return []state.Feature{state.FeatureETag, state.FeatureTransactional}
 }
 
 // Get retrieves a dynamoDB item.
@@ -391,6 +391,71 @@ func (d *StateStore) parseTTL(req *state.SetRequest) (*int64, error) {
 	}
 
 	return nil, nil
+}
+
+// Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
+func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
+	opns := len(request.Operations)
+	if opns == 0 {
+		return nil
+	}
+
+	twinput := &dynamodb.TransactWriteItemsInput{
+		TransactItems: make([]*dynamodb.TransactWriteItem, 0, opns),
+	}
+
+	// Note: The following is a DynamoDB logic to avoid errors like following,
+	// which happen when the same key is used in multiple operations within a Transaction:
+	//
+	//    ValidationException: Transaction request cannot include multiple operations on one item
+	//
+	// Dedup ops where the last operation with a matching Key takes precedence
+	txs := map[string]int{}
+	for i, o := range request.Operations {
+		txs[o.GetKey()] = i
+	}
+
+	for i, o := range request.Operations {
+		// skip operations removed in simulated set
+		if txs[o.GetKey()] != i {
+			continue
+		}
+
+		twi := &dynamodb.TransactWriteItem{}
+		switch req := o.(type) {
+		case state.SetRequest:
+			value, err := d.marshalToString(req.Value)
+			if err != nil {
+				return fmt.Errorf("dynamodb error: failed to marshal value for key %s: %w", req.Key, err)
+			}
+			twi.Put = &dynamodb.Put{
+				TableName: aws.String(d.table),
+				Item: map[string]*dynamodb.AttributeValue{
+					d.partitionKey: {
+						S: aws.String(req.Key),
+					},
+					"value": {
+						S: aws.String(value),
+					},
+				},
+			}
+
+		case state.DeleteRequest:
+			twi.Delete = &dynamodb.Delete{
+				TableName: aws.String(d.table),
+				Key: map[string]*dynamodb.AttributeValue{
+					d.partitionKey: {
+						S: aws.String(req.Key),
+					},
+				},
+			}
+		}
+		twinput.TransactItems = append(twinput.TransactItems, twi)
+	}
+
+	_, err := d.client.TransactWriteItemsWithContext(ctx, twinput)
+
+	return err
 }
 
 // This is a helper to return the partition key to use.  If if metadata["partitionkey"] is present,

@@ -98,10 +98,19 @@ func TestPublishAndSubscribeWithPriorityQueue(t *testing.T) {
 	assert.Equal(t, 1, messageCount)
 	assert.Equal(t, "hello world", lastMessage)
 
-	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
+	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic, Metadata: map[string]string{metadataQueueType: "classic"}}, handler)
+	assert.Nil(t, err)
+
+	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hello world"), Metadata: map[string]string{metadataQueueType: "classic"}})
 	assert.Nil(t, err)
 	<-processed
 	assert.Equal(t, 2, messageCount)
+	assert.Equal(t, "hello world", lastMessage)
+
+	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
+	assert.Nil(t, err)
+	<-processed
+	assert.Equal(t, 3, messageCount)
 	assert.Equal(t, "foo bar", lastMessage)
 }
 

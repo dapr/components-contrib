@@ -77,6 +77,7 @@ const (
 	metadataPublisherConfirmKey     = "publisherConfirm"
 	metadataSaslExternal            = "saslExternal"
 	metadataMaxPriority             = "maxPriority"
+	metadataQueueType               = "queueType" // classic or quorum
 
 	defaultReconnectWaitSeconds = 3
 

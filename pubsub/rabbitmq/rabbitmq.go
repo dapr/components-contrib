@@ -50,8 +50,11 @@ const (
 	argMaxLengthBytes     = "x-max-length-bytes"
 	argDeadLetterExchange = "x-dead-letter-exchange"
 	argMaxPriority        = "x-max-priority"
+	argQueueType          = "x-queue-type"
 	queueModeLazy         = "lazy"
 	reqMetadataRoutingKey = "routingKey"
+	queueTypeClassic      = "classic"
+	queueTypeQuorum       = "quorum"
 )
 
 // RabbitMQ allows sending/receiving messages in pub/sub format.
@@ -399,6 +402,17 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		}
 
 		args[argMaxPriority] = mp
+	}
+
+	// queue type is classic by default, but we allow user to create quorum queues if desired
+	if val, ok := req.Metadata[metadataQueueType]; ok && val != "" {
+		if val == queueTypeClassic {
+			args[argQueueType] = queueTypeClassic
+		} else if val == queueTypeQuorum {
+			args[argQueueType] = queueTypeQuorum
+		} else {
+			return nil, errors.New(fmt.Sprintf("Invalid queue type %s. Valid types are %s and %s", val, queueTypeClassic, queueTypeQuorum));
+		}
 	}
 
 	q, err := channel.QueueDeclare(queueName, r.metadata.Durable, r.metadata.DeleteWhenUnused, false, false, args)

@@ -24,7 +24,7 @@ import (
 )
 
 func BenchmarkExample(b *testing.B) {
-	md := metadata.Base{Properties: map[string]string{"path": pathArgs}}
+	md := metadata.Base{Properties: map[string]string{"url": urlArgsFile}}
 
 	l := logger.NewLogger(b.Name())
 	l.SetOutput(io.Discard)

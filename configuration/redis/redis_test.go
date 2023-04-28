@@ -15,16 +15,18 @@ package redis
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/go-redis/redis/v8"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 
+	redisComponent "github.com/dapr/components-contrib/internal/component/redis"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
+
 	"github.com/dapr/components-contrib/configuration"
-	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -33,11 +35,10 @@ func TestConfigurationStore_Get(t *testing.T) {
 	defer s.Close()
 	assert.Nil(t, s.Set("testKey", "testValue"))
 	assert.Nil(t, s.Set("testKey2", "testValue2"))
-
 	type fields struct {
-		client   *redis.Client
+		client redisComponent.RedisClient
+
 		json     jsoniter.API
-		metadata metadata
 		replicas int
 		logger   logger.Logger
 	}
@@ -47,8 +48,8 @@ func TestConfigurationStore_Get(t *testing.T) {
 	}
 	tests := []struct {
 		name    string
-		prepare func(*redis.Client)
-		restore func(*redis.Client)
+		prepare func(redisComponent.RedisClient)
+		restore func(redisComponent.RedisClient)
 		fields  fields
 		args    args
 		want    *configuration.GetResponse
@@ -119,8 +120,8 @@ func TestConfigurationStore_Get(t *testing.T) {
 		},
 		{
 			name: "test does not throw error for wrong type during get all",
-			prepare: func(client *redis.Client) {
-				client.HSet(context.Background(), "notSupportedType", []string{"key1", "value1", "key2", "value2"})
+			prepare: func(client redisComponent.RedisClient) {
+				client.DoWrite(context.Background(), "HSET", "notSupportedType", []string{"key1", "value1", "key2", "value2"})
 			},
 			fields: fields{
 				client: c,
@@ -143,8 +144,8 @@ func TestConfigurationStore_Get(t *testing.T) {
 					},
 				},
 			},
-			restore: func(client *redis.Client) {
-				client.HDel(context.Background(), "notSupportedType")
+			restore: func(client redisComponent.RedisClient) {
+				client.DoWrite(context.Background(), "HDEL", "notSupportedType")
 			},
 		},
 	}
@@ -156,7 +157,6 @@ func TestConfigurationStore_Get(t *testing.T) {
 			r := &ConfigurationStore{
 				client:   tt.fields.client,
 				json:     tt.fields.json,
-				metadata: tt.fields.metadata,
 				replicas: tt.fields.replicas,
 				logger:   tt.fields.logger,
 			}
@@ -245,70 +245,74 @@ func Test_parseRedisMetadata(t *testing.T) {
 	testProperties[host] = "testHost"
 	testProperties[password] = "testPassword"
 	testProperties[enableTLS] = "true"
-	testProperties[maxRetries] = "10"
-	testProperties[maxRetryBackoff] = "1000000000"
+	testProperties[redisMaxRetries] = "10"
+	testProperties[redisMaxRetryInterval] = "100ms"
+	testProperties[redisMinRetryInterval] = "10ms"
 	testProperties[failover] = "true"
 	testProperties[sentinelMasterName] = "tesSentinelMasterName"
 	testProperties[redisDB] = "1"
-	testMetadata := metadata{
-		Host:                    "testHost",
-		Password:                "testPassword",
-		EnableTLS:               true,
-		MaxRetries:              10,
-		internalMaxRetryBackoff: time.Second,
-		Failover:                true,
-		SentinelMasterName:      "tesSentinelMasterName",
-		DB:                      1,
+	testSettings := redisComponent.Settings{
+		Host:                  "testHost",
+		Password:              "testPassword",
+		EnableTLS:             true,
+		RedisMaxRetries:       10,
+		RedisMaxRetryInterval: redisComponent.Duration(100 * time.Millisecond),
+		RedisMinRetryInterval: redisComponent.Duration(10 * time.Millisecond),
+		Failover:              true,
+		SentinelMasterName:    "tesSentinelMasterName",
+		DB:                    1,
 	}
 
 	testDefaultProperties := make(map[string]string)
 	testDefaultProperties[host] = "testHost"
-	defaultMetadata := metadata{
-		Host:                    "testHost",
-		Password:                "",
-		EnableTLS:               defaultEnableTLS,
-		MaxRetries:              defaultMaxRetries,
-		internalMaxRetryBackoff: defaultMaxRetryBackoff,
-		Failover:                false,
-		SentinelMasterName:      "",
-		DB:                      defaultDB,
+	defaultSettings := redisComponent.Settings{
+		Host:                  "testHost",
+		Password:              "",
+		EnableTLS:             false,
+		RedisMaxRetries:       defaultRedisMaxRetries,
+		RedisMaxRetryInterval: redisComponent.Duration(defaultRedisMaxRetryInterval),
+		RedisMinRetryInterval: redisComponent.Duration(defaultRedisMinRetryInterval),
+		Failover:              false,
+		SentinelMasterName:    "",
+		DB:                    defaultDB,
 	}
 
 	tests := []struct {
 		name    string
 		args    args
-		want    metadata
+		want    redisComponent.Settings
 		wantErr bool
 	}{
 		{
 			args: args{
-				meta: configuration.Metadata{Base: mdata.Base{
+				meta: configuration.Metadata{Base: contribMetadata.Base{
 					Properties: testProperties,
 				}},
 			},
-			want: testMetadata,
+			want: testSettings,
 		},
 		{
 			args: args{
-				meta: configuration.Metadata{Base: mdata.Base{
+				meta: configuration.Metadata{Base: contribMetadata.Base{
 					Properties: testDefaultProperties,
 				}},
 			},
-			want: defaultMetadata,
+			want: defaultSettings,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseRedisMetadata(tt.args.meta)
+			_, got, err := redisComponent.ParseClientFromProperties(tt.args.meta.Properties, contribMetadata.ConfigurationStoreType)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("parseRedisMetadata() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("edisComponent.ParseClientFromProperties error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			assert.Equal(t, tt.want.Host, got.Host)
 			assert.Equal(t, tt.want.Password, got.Password)
 			assert.Equal(t, tt.want.EnableTLS, got.EnableTLS)
-			assert.Equal(t, tt.want.MaxRetries, got.MaxRetries)
-			assert.Equal(t, tt.want.internalMaxRetryBackoff, got.internalMaxRetryBackoff)
+			assert.Equal(t, tt.want.RedisMaxRetries, got.RedisMaxRetries)
+			assert.Equal(t, tt.want.RedisMaxRetryInterval, got.RedisMaxRetryInterval)
+			assert.Equal(t, tt.want.RedisMinRetryInterval, got.RedisMinRetryInterval)
 			assert.Equal(t, tt.want.Failover, got.Failover)
 			assert.Equal(t, tt.want.SentinelMasterName, got.SentinelMasterName)
 			assert.Equal(t, tt.want.DB, got.DB)
@@ -316,15 +320,16 @@ func Test_parseRedisMetadata(t *testing.T) {
 	}
 }
 
-func setupMiniredis() (*miniredis.Miniredis, *redis.Client) {
+func setupMiniredis() (*miniredis.Miniredis, redisComponent.RedisClient) {
 	s, err := miniredis.Run()
 	if err != nil {
 		panic(err)
 	}
-	opts := &redis.Options{
-		Addr: s.Addr(),
-		DB:   defaultDB,
+	props := map[string]string{
+		"redisHost": s.Addr(),
+		"redisDB":   fmt.Sprint(defaultDB),
 	}
+	redisClient, _, _ := redisComponent.ParseClientFromProperties(props, contribMetadata.ConfigurationStoreType)
 
-	return s, redis.NewClient(opts)
+	return s, redisClient
 }

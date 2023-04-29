@@ -16,6 +16,7 @@ package pulsar
 import (
 	"context"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"reflect"
@@ -27,6 +28,7 @@ import (
 	"github.com/hamba/avro/v2"
 
 	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/apache/pulsar-client-go/pulsar/crypto"
 	lru "github.com/hashicorp/golang-lru/v2"
 
 	"github.com/dapr/components-contrib/metadata"
@@ -189,6 +191,14 @@ func (p *Pulsar) Init(_ context.Context, metadata pubsub.Metadata) error {
 	return nil
 }
 
+func (p *Pulsar) useProducerEncryption() bool {
+	return p.metadata.PublicKey != "" && p.metadata.Keys != ""
+}
+
+func (p *Pulsar) useConsumerEncryption() bool {
+	return p.metadata.PublicKey != "" && p.metadata.PrivateKey != ""
+}
+
 func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
 	if p.closed.Load() {
 		return errors.New("component is closed")
@@ -215,6 +225,20 @@ func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 
 		if hasSchema {
 			opts.Schema = getPulsarSchema(sm)
+		}
+
+		if p.useProducerEncryption() {
+			var reader crypto.KeyReader
+			if isValidPEM(p.metadata.PublicKey) {
+				reader = NewDataKeyReader(p.metadata.PublicKey, "")
+			} else {
+				reader = crypto.NewFileKeyReader(p.metadata.PublicKey, "")
+			}
+
+			opts.Encryption = &pulsar.ProducerEncryptionInfo{
+				KeyReader: reader,
+				Keys:      strings.Split(p.metadata.Keys, ","),
+			}
 		}
 
 		producer, err = p.client.CreateProducer(opts)
@@ -349,6 +373,19 @@ func (p *Pulsar) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 		NackRedeliveryDelay: p.metadata.RedeliveryDelay,
 	}
 
+	if p.useConsumerEncryption() {
+		var reader crypto.KeyReader
+		if isValidPEM(p.metadata.PublicKey) {
+			reader = NewDataKeyReader(p.metadata.PublicKey, p.metadata.PrivateKey)
+		} else {
+			reader = crypto.NewFileKeyReader(p.metadata.PublicKey, p.metadata.PrivateKey)
+		}
+
+		options.Decryption = &pulsar.MessageDecryptionInfo{
+			KeyReader: reader,
+		}
+	}
+
 	if sm, ok := p.metadata.internalTopicSchemas[req.Topic]; ok {
 		options.Schema = getPulsarSchema(sm)
 	}
@@ -464,4 +501,10 @@ func (p *Pulsar) GetComponentMetadata() map[string]string {
 	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
 	return metadataInfo
+}
+
+// isValidPEM validates the provided input has PEM formatted block.
+func isValidPEM(val string) bool {
+	block, _ := pem.Decode([]byte(val))
+	return block != nil
 }

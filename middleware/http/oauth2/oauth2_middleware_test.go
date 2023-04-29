@@ -48,14 +48,15 @@ func TestOAuth2RedirectURL(t *testing.T) {
 	// Specify components metadata
 	var metadata middleware.Metadata
 	metadata.Properties = map[string]string{
-		"clientID":          "testId",
-		"clientSecret":      "testSecret",
-		"scopes":            "ascope",
-		"authURL":           ts.URL,
-		"tokenURL":          ts.URL,
-		"authHeaderName":    "someHeader",
-		"redirectURL":       "https://127.0.0.1:8080",
-		"redirectParamName": "redirectPath",
+		"clientID":             "testId",
+		"clientSecret":         "testSecret",
+		"scopes":               "ascope",
+		"authURL":              ts.URL,
+		"tokenURL":             ts.URL,
+		"authHeaderName":       "someHeader",
+		"redirectURL":          "https://127.0.0.1:8080",
+		"redirectParamName":    "redirectPath",
+		"redirectURLWhitelist": `https://127.0.0.1:8080,https://192.168.0.1:8080,https://dapr.io, https://*.dapr.io`,
 	}
 
 	// Initialize middleware component
@@ -64,6 +65,67 @@ func TestOAuth2RedirectURL(t *testing.T) {
 	handler, err := oauth2Middleware.GetHandler(context.Background(), metadata)
 	require.NoError(t, err)
 
+	// Test redirect url whitelist
+	t.Run("redirect url exact match whitelist", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "http://dapr.io?redirectPath=https://dapr.io", nil)
+		w := httptest.NewRecorder()
+		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
+
+		assert.Equal(t, http.StatusFound, w.Code)
+	})
+	t.Run("redirect url with query parameter", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "http://dapr.io?redirectPath=https://dapr.io?a=123", nil)
+		w := httptest.NewRecorder()
+		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
+
+		assert.Equal(t, http.StatusFound, w.Code)
+	})
+	t.Run("redirect url matches wildcard", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "http://dapr.io?redirectPath=https://api.dapr.io?a=123", nil)
+		w := httptest.NewRecorder()
+		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
+
+		assert.Equal(t, http.StatusFound, w.Code)
+	})
+	t.Run("invalid redirect url", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "http://dapr.io?redirectPath=https://daprs.io?a=123", nil)
+		w := httptest.NewRecorder()
+		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		r = httptest.NewRequest(http.MethodGet, "http://dapr.io?redirectPath=http://dapr.io?a=123", nil)
+		w = httptest.NewRecorder()
+		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		r = httptest.NewRequest(http.MethodGet, "https://dapr.io?redirectPath=https://dapr.io.io?a=123", nil)
+		w = httptest.NewRecorder()
+		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+	t.Run("empty whitelist", func(t *testing.T) {
+		metadata.Properties = map[string]string{
+			"clientID":          "testId",
+			"clientSecret":      "testSecret",
+			"scopes":            "ascope",
+			"authURL":           ts.URL,
+			"tokenURL":          ts.URL,
+			"authHeaderName":    "someHeader",
+			"redirectURL":       "https://127.0.0.1:8080",
+			"redirectParamName": "redirectPath",
+		}
+		handler, err = oauth2Middleware.GetHandler(context.Background(), metadata)
+		r := httptest.NewRequest(http.MethodGet, "http://dapr.io?redirectPath=https://dapr.io.io?a=123", nil)
+		w := httptest.NewRecorder()
+		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
+
+		assert.Equal(t, http.StatusFound, w.Code)
+	})
+
+	// Test redirect url metadata and redirect param
 	t.Run("request without redirect param", func(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "http://dapr.io", nil)
 		w := httptest.NewRecorder()
@@ -92,7 +154,6 @@ func TestOAuth2RedirectURL(t *testing.T) {
 
 		assert.Equal(t, "https://127.0.0.1:8080", w1.Header().Get("location"))
 	})
-
 	t.Run("request with redirect param", func(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "http://dapr.io?redirectPath=https://192.168.0.1:8080", nil)
 		w := httptest.NewRecorder()

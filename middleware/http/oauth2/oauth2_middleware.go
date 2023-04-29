@@ -32,16 +32,19 @@ import (
 )
 
 // Metadata is the oAuth middleware config.
+// For RedirectURLWhitelist, Each URL can be a wildcard, e.g. https://*.dapr.io . Empty whitelist means no restriction.
+// Please be careful about using wildcards and empty whitelist in production environments, as this may be a security risk.
 type oAuth2MiddlewareMetadata struct {
-	ClientID          string `json:"clientID" mapstructure:"clientID"`
-	ClientSecret      string `json:"clientSecret" mapstructure:"clientSecret"`
-	Scopes            string `json:"scopes" mapstructure:"scopes"`
-	AuthURL           string `json:"authURL" mapstructure:"authURL"`
-	TokenURL          string `json:"tokenURL" mapstructure:"tokenURL"`
-	AuthHeaderName    string `json:"authHeaderName" mapstructure:"authHeaderName"`
-	RedirectParamName string `json:"redirectParamName" mapstructure:"redirectParamName"`
-	RedirectURL       string `json:"redirectURL" mapstructure:"redirectURL"`
-	ForceHTTPS        string `json:"forceHTTPS" mapstructure:"forceHTTPS"`
+	ClientID             string   `json:"clientID" mapstructure:"clientID"`
+	ClientSecret         string   `json:"clientSecret" mapstructure:"clientSecret"`
+	Scopes               string   `json:"scopes" mapstructure:"scopes"`
+	AuthURL              string   `json:"authURL" mapstructure:"authURL"`
+	TokenURL             string   `json:"tokenURL" mapstructure:"tokenURL"`
+	AuthHeaderName       string   `json:"authHeaderName" mapstructure:"authHeaderName"`
+	RedirectParamName    string   `json:"redirectParamName" mapstructure:"redirectParamName"`
+	RedirectURL          string   `json:"redirectURL" mapstructure:"redirectURL"`
+	RedirectURLWhitelist []string `json:"redirectURLWhitelist" mapstructure:"redirectURLWhitelist"`
+	ForceHTTPS           string   `json:"forceHTTPS" mapstructure:"forceHTTPS"`
 }
 
 // NewOAuth2Middleware returns a new oAuth2 middleware.
@@ -112,6 +115,32 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 					httputils.RespondWithError(w, http.StatusInternalServerError)
 					m.logger.Errorf("Failed to parse redirect URL: %v", err)
 					return
+				}
+
+				// check if redirect URL is whitelisted
+				if len(meta.RedirectURLWhitelist) > 0 {
+					isAllowed := false
+					tmpRedirectURLStr := strings.Clone(redirectURLStr)
+					if i := strings.IndexByte(tmpRedirectURLStr, '?'); i >= 0 {
+						tmpRedirectURLStr = tmpRedirectURLStr[:i]
+					}
+					for _, allowed := range meta.RedirectURLWhitelist {
+						allowed = strings.TrimSpace(allowed)
+						i := strings.IndexByte(allowed, '*')
+						if i >= 0 && len(tmpRedirectURLStr) >= len(allowed)-1 &&
+							strings.HasPrefix(tmpRedirectURLStr, allowed[:i]) &&
+							strings.HasSuffix(tmpRedirectURLStr, allowed[i+1:]) {
+							isAllowed = true
+							break
+						} else if tmpRedirectURLStr == allowed {
+							isAllowed = true
+							break
+						}
+					}
+					if !isAllowed {
+						httputils.RespondWithErrorAndMessage(w, http.StatusBadRequest, "invalid redirect URL")
+						return
+					}
 				}
 
 				session.Set(savedState, idStr)

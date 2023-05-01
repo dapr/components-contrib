@@ -162,7 +162,7 @@ func (h *HTTPSource) setTLSRenegotiation(tlsConfig *tls.Config) error {
 			tlsConfig.Renegotiation = tls.RenegotiateFreelyAsClient
 		}
 	default:
-		return fmt.Errorf("invalid renegotiation value: %s", string(h.metadata.MTLSRenegotiation))
+		return fmt.Errorf("invalid renegotiation value: %s", h.metadata.MTLSRenegotiation)
 	}
 	return nil
 }

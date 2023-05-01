@@ -66,6 +66,10 @@ metadata:
   - name: MTLSRenegotiation
     required: false
     description: "Set TLS renegotiation setting"
+    allowedValues:
+      - "RenegotiateNever"
+      - "RenegotiateOnceAsClient"
+      - "RenegotiateFreelyAsClient"
     example: "RenegotiateOnceAsClient"
     binding:
       output: true

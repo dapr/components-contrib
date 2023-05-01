@@ -80,6 +80,30 @@ func (c v9Client) Del(ctx context.Context, keys ...string) error {
 	return nil
 }
 
+func (c v9Client) ConfigurationSubscribe(ctx context.Context, args *ConfigurationSubscribeArgs) {
+	// enable notify-keyspace-events by redis Set command
+	// only subscribe to generic and string keyspace events
+	c.DoWrite(ctx, "CONFIG", "SET", "notify-keyspace-events", "Kg$xe")
+
+	var p *v9.PubSub
+	if args.IsAllKeysChannel {
+		p = c.client.PSubscribe(ctx, args.RedisChannel)
+	} else {
+		p = c.client.Subscribe(ctx, args.RedisChannel)
+	}
+	defer p.Close()
+	for {
+		select {
+		case <-args.Stop:
+			return
+		case <-ctx.Done():
+			return
+		case msg := <-p.Channel():
+			args.HandleSubscribedChange(ctx, args.Req, args.Handler, msg.Channel, args.ID)
+		}
+	}
+}
+
 func (c v9Client) Get(ctx context.Context, key string) (string, error) {
 	return c.client.Get(ctx, key).Result()
 }

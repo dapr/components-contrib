@@ -151,7 +151,11 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 		if file, ok := os.LookupEnv(azureFederatedTokenFile); ok {
 			if _, ok := os.LookupEnv(azureAuthorityHost); ok {
 				if tenantID, ok := os.LookupEnv(azureTenantID); ok {
-					workloadCred, err := azidentity.NewWorkloadIdentityCredential(tenantID, clientID, file, nil)
+					workloadCred, err := azidentity.NewWorkloadIdentityCredential(&azidentity.WorkloadIdentityCredentialOptions{
+						ClientID:      clientID,
+						TenantID:      tenantID,
+						TokenFilePath: file,
+					})
 					if err == nil {
 						creds = append(creds, workloadCred)
 					} else {

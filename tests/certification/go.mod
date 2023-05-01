@@ -53,16 +53,16 @@ require (
 	github.com/AdhityaRamadhanus/fasthttpcors v0.0.0-20170121111917-d4c07198763a // indirect
 	github.com/AthenZ/athenz v1.10.39 // indirect
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.5.0-beta.1 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0-beta.4 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v0.3.3 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.5.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0-beta.5 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v0.3.5-0.20230428192423-86627ae445bc // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.0.1 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/internal v1.1.2 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets v0.11.0 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/keyvault/internal v0.7.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.3.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs v0.5.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.2.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventhub/armeventhub v1.0.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v0.13.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v0.8.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue v0.1.0 // indirect
 	github.com/Azure/go-amqp v0.18.1 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v0.9.0 // indirect
@@ -133,7 +133,7 @@ require (
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
-	github.com/golang-jwt/jwt/v4 v4.4.3 // indirect
+	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
 	github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect

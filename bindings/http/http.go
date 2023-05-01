@@ -93,7 +93,7 @@ func (h *HTTPSource) Init(_ context.Context, meta bindings.Metadata) error {
 		}
 	}
 	if h.metadata.MTLSRenegotiation != "" {
-		err = h.setTLSRenegotiation((tlsConfig))
+		err = h.setTLSRenegotiation(tlsConfig)
 		if err != nil {
 			return err
 		}
@@ -151,21 +151,15 @@ func (h *HTTPSource) setTLSRenegotiation(tlsConfig *tls.Config) error {
 	switch h.metadata.MTLSRenegotiation {
 	case "RenegotiateNever":
 		{
-			tlsConfig = &tls.Config{
-				Renegotiation: tls.RenegotiateNever,
-			}
+			tlsConfig.Renegotiation = tls.RenegotiateNever
 		}
 	case "RenegotiateOnceAsClient":
 		{
-			tlsConfig = &tls.Config{
-				Renegotiation: tls.RenegotiateOnceAsClient,
-			}
+			tlsConfig.Renegotiation = tls.RenegotiateOnceAsClient
 		}
 	case "RenegotiateFreelyAsClient":
 		{
-			tlsConfig = &tls.Config{
-				Renegotiation: tls.RenegotiateFreelyAsClient,
-			}
+			tlsConfig.Renegotiation = tls.RenegotiateFreelyAsClient
 		}
 	default:
 		return fmt.Errorf("invalid renegotiation value: %s", string(h.metadata.MTLSRenegotiation))

@@ -27,7 +27,6 @@ import (
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
-	"github.com/tetratelabs/wazero/sys"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/internal/wasm"
@@ -129,14 +128,12 @@ func (out *outputBinding) Invoke(ctx context.Context, req *bindings.InvokeReques
 	// Instantiating executes the guest's main function (exported as _start).
 	mod, err := out.runtime.InstantiateModule(ctx, out.module, moduleConfig)
 
+	// WASI typically calls proc_exit which exits the module, but just in case
+	// it doesn't, close the module manually.
+	_ = mod.Close(ctx)
+
 	// Return STDOUT if there was no error.
 	if err == nil {
-		_ = mod.Close(ctx)
-		return &bindings.InvokeResponse{Data: stdout.Bytes()}, nil
-	}
-
-	// Handle any error, noting exit zero is not one.
-	if exitErr, ok := err.(*sys.ExitError); ok && exitErr.ExitCode() == 0 {
 		return &bindings.InvokeResponse{Data: stdout.Bytes()}, nil
 	}
 	return nil, err

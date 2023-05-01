@@ -2,7 +2,7 @@ version: "3.7"
 services:
   rabbitmq_external_sasl:
     image: rabbitmq_external_sasl
-    build: mtls_sasl_external/docker_sasl_external
+    build: docker_sasl_external
     container_name: 'rabbitmq_external_sasl'
     ports:
     - 5671:5671

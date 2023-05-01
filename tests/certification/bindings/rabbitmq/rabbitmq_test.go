@@ -556,7 +556,7 @@ func TestRabbitMQExtAuth(t *testing.T) {
 		return err
 	}
 
-	flow.New(t, "rabbitmq certification").
+	flow.New(t, "rabbitmq mtls certification").
 		// Run the application logic above.
 		Step(dockercompose.Run(clusterName, extSaslDockerComposeYAML)).
 		Step("wait for rabbitmq readiness",

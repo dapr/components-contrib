@@ -15,7 +15,6 @@ package redis
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -242,15 +241,15 @@ func Test_parseRedisMetadata(t *testing.T) {
 		meta configuration.Metadata
 	}
 	testProperties := make(map[string]string)
-	testProperties[host] = "testHost"
-	testProperties[password] = "testPassword"
-	testProperties[enableTLS] = "true"
-	testProperties[redisMaxRetries] = "10"
-	testProperties[redisMaxRetryInterval] = "100ms"
-	testProperties[redisMinRetryInterval] = "10ms"
-	testProperties[failover] = "true"
-	testProperties[sentinelMasterName] = "tesSentinelMasterName"
-	testProperties[redisDB] = "1"
+	testProperties["redisHost"] = "testHost"
+	testProperties["redisPassword"] = "testPassword"
+	testProperties["enableTLS"] = "true"
+	testProperties["redisMaxRetries"] = "10"
+	testProperties["redisMaxRetryInterval"] = "100ms"
+	testProperties["redisMinRetryInterval"] = "10ms"
+	testProperties["failover"] = "true"
+	testProperties["sentinelMasterName"] = "tesSentinelMasterName"
+	testProperties["redisDB"] = "1"
 	testSettings := redisComponent.Settings{
 		Host:                  "testHost",
 		Password:              "testPassword",
@@ -264,17 +263,17 @@ func Test_parseRedisMetadata(t *testing.T) {
 	}
 
 	testDefaultProperties := make(map[string]string)
-	testDefaultProperties[host] = "testHost"
+	testDefaultProperties["redisHost"] = "testHost"
 	defaultSettings := redisComponent.Settings{
 		Host:                  "testHost",
 		Password:              "",
 		EnableTLS:             false,
-		RedisMaxRetries:       defaultRedisMaxRetries,
-		RedisMaxRetryInterval: redisComponent.Duration(defaultRedisMaxRetryInterval),
-		RedisMinRetryInterval: redisComponent.Duration(defaultRedisMinRetryInterval),
+		RedisMaxRetries:       3,
+		RedisMaxRetryInterval: redisComponent.Duration(time.Second * 2),
+		RedisMinRetryInterval: redisComponent.Duration(time.Millisecond * 8),
 		Failover:              false,
 		SentinelMasterName:    "",
-		DB:                    defaultDB,
+		DB:                    0,
 	}
 
 	tests := []struct {
@@ -327,7 +326,7 @@ func setupMiniredis() (*miniredis.Miniredis, redisComponent.RedisClient) {
 	}
 	props := map[string]string{
 		"redisHost": s.Addr(),
-		"redisDB":   fmt.Sprint(defaultDB),
+		"redisDB":   "0",
 	}
 	redisClient, _, _ := redisComponent.ParseClientFromProperties(props, contribMetadata.ConfigurationStoreType)
 

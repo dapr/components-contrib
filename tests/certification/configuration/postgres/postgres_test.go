@@ -63,8 +63,9 @@ const (
 )
 
 var (
-	runID   = strings.ReplaceAll(uuid.Must(uuid.NewRandom()).String(), "-", "_")
-	counter = 0
+	runID        = strings.ReplaceAll(uuid.Must(uuid.NewRandom()).String(), "-", "_")
+	counter      = 0
+	subscribeIDs = make(map[string][]string)
 )
 
 var updater *cu_postgres.ConfigUpdater
@@ -196,11 +197,11 @@ func TestPostgres(t *testing.T) {
 	}
 
 	// Subscribes to given keys and channel
-	subscribefn := func(task *flow.AsyncTask, keys []string, channel string, sidecarName string, message *watcher.Watcher) flow.Runnable {
+	subscribefn := func(keys []string, channel string, sidecarName string, message *watcher.Watcher) flow.Runnable {
 		return func(ctx flow.Context) error {
 			client := sidecar.GetClient(ctx, sidecarName)
 			message.Reset()
-			errSubscribe := client.SubscribeConfigurationItems(*task, storeName, keys, func(id string, items map[string]*dapr.ConfigurationItem) {
+			subscribeID, errSubscribe := client.SubscribeConfigurationItems(ctx, storeName, keys, func(id string, items map[string]*dapr.ConfigurationItem) {
 				updateEvent := &configuration.UpdateEvent{
 					Items: castConfigurationItems(items),
 				}
@@ -210,6 +211,10 @@ func TestPostgres(t *testing.T) {
 			}, func(md map[string]string) {
 				md[pgNotifyChannelKey] = channel
 			})
+			if subscribeIDs[sidecarName] == nil {
+				subscribeIDs[sidecarName] = make([]string, 0)
+			}
+			subscribeIDs[sidecarName] = append(subscribeIDs[sidecarName], subscribeID)
 			return errSubscribe
 		}
 	}
@@ -325,7 +330,22 @@ func TestPostgres(t *testing.T) {
 		return nil
 	}
 
-	var task1, task2, task3, task4 flow.AsyncTask
+	stopSubscribers := func(sidecars []string) flow.Runnable {
+		return func(ctx flow.Context) error {
+			for _, sidecarName := range sidecars {
+				client := sidecar.GetClient(ctx, sidecarName)
+				for _, subscribeID := range subscribeIDs[sidecarName] {
+					err := client.UnsubscribeConfigurationItems(ctx, storeName, subscribeID)
+					if err != nil {
+						return err
+					}
+				}
+				subscribeIDs[sidecarName] = nil
+			}
+			return nil
+		}
+	}
+
 	flow.New(t, "postgres certification test").
 		// Run Postgres server
 		Step(dockercompose.Run("db", dockerComposeYAML)).
@@ -354,10 +374,10 @@ func TestPostgres(t *testing.T) {
 		)).
 		//
 		// Start subscribers subscribing to {key1} using different channels
-		StepAsync("start subscriber 1", &task1, subscribefn(&task1, []string{key1, key2}, channel1, sidecarName1, watcher1)).
-		StepAsync("start subscriber 2", &task2, subscribefn(&task2, []string{key1, key2}, channel2, sidecarName1, watcher2)).
-		StepAsync("start subscriber 3", &task3, subscribefn(&task3, []string{key1, key2}, channel1, sidecarName2, watcher3)).
-		StepAsync("start subscriber 4", &task4, subscribefn(&task4, []string{key1, key2}, channel2, sidecarName2, watcher4)).
+		Step("start subscriber 1", subscribefn([]string{key1, key2}, channel1, sidecarName1, watcher1)).
+		Step("start subscriber 2", subscribefn([]string{key1, key2}, channel2, sidecarName1, watcher2)).
+		Step("start subscriber 3", subscribefn([]string{key1, key2}, channel1, sidecarName2, watcher3)).
+		Step("start subscriber 4", subscribefn([]string{key1, key2}, channel2, sidecarName2, watcher4)).
 		Step("wait for subscriber to be ready", flow.Sleep(5*time.Second)).
 		// Add key in postgres and verify the update event is received by the subscriber
 		Step("testSubscribe", testSubscribe(watcher1, watcher2, watcher3, watcher4)).
@@ -366,6 +386,7 @@ func TestPostgres(t *testing.T) {
 		Step("interrupt network",
 			network.InterruptNetwork(10*time.Second, nil, nil, "5432:5432")).
 		Step("testSubscribe", testSubscribe(watcher1, watcher2, watcher3, watcher4)).
+		Step("stop subscribers", stopSubscribers([]string{sidecarName1, sidecarName2})).
 		Step("reset", flow.Reset(watcher1, watcher2, watcher3, watcher4)).
 		// Save a key before restarting postgres server
 		Step("Save before restart", saveBeforeRestart).

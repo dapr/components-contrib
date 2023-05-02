@@ -342,8 +342,8 @@ github.com/danieljoos/wincred v1.1.2 h1:QLdCxFs1/Yl4zduvBdcHB8goaYk9RARS2SgLLRuA
 github.com/danieljoos/wincred v1.1.2/go.mod h1:GijpziifJoIBfYh+S7BbkdUTU4LfM+QnGqR5Vl2tAx0=
 github.com/dapr/dapr v1.10.5-rc.1.0.20230430203526-7a0fdf9f016b h1:+6TVW2t2GveAxqVNSOezU2fUJVec5MCS5J/MXycfwFs=
 github.com/dapr/dapr v1.10.5-rc.1.0.20230430203526-7a0fdf9f016b/go.mod h1:o/M7becq2NE4unx2v3Hv6vq2DrLmUQx5Knkn+6QTkY4=
-github.com/dapr/go-sdk v1.7.0 h1:SJC8layk2eKuJ8N+S84DtYpP4fgVugu8sUAliGu6/nM=
-github.com/dapr/go-sdk v1.7.0/go.mod h1:kWMKJ39k2smLVnB6v5Y6dMbwfj1Z3XBxa4Q2dCFzf2U=
+github.com/dapr/go-sdk v1.6.1-0.20230427230219-d485c1775c37 h1:gAiBprMLnsdaz4mhr28RlmK1PTnz+UXDNy0Giujty5c=
+github.com/dapr/go-sdk v1.6.1-0.20230427230219-d485c1775c37/go.mod h1:+ec5FDv7wGcy+Hlg7vY6msKQClm6es2Q5yCGbDHoURQ=
 github.com/dapr/kit v0.0.5-0.20230418193628-15a7040dec41 h1:G55KmJAn2UsJm2+T0Vyz8gPcbphDe1PvjrES18JxfHQ=
 github.com/dapr/kit v0.0.5-0.20230418193628-15a7040dec41/go.mod h1:VTWiX6nk5RWZ/kqEJD/EGjJU8hdwHZ73r75K510OHBY=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
@@ -654,8 +654,6 @@ github.com/gorilla/context v1.1.1/go.mod h1:kBGZzfjB9CEq2AlWe17Uuf7NDRt0dE0s8S51
 github.com/gorilla/mux v1.6.2/go.mod h1:1lud6UwP+6orDFRuTfBEV8e9/aOM/c4fVVCaMa2zaAs=
 github.com/gorilla/mux v1.7.3/go.mod h1:1lud6UwP+6orDFRuTfBEV8e9/aOM/c4fVVCaMa2zaAs=
 github.com/gorilla/mux v1.7.4/go.mod h1:DVbg23sWSpFRCP0SfiEN6jmj59UnW/n46BH5rLB71So=
-github.com/gorilla/mux v1.8.0 h1:i40aqfkR1h2SlN9hojwV5ZA91wcXFOvkdNIeFDP5koI=
-github.com/gorilla/mux v1.8.0/go.mod h1:DVbg23sWSpFRCP0SfiEN6jmj59UnW/n46BH5rLB71So=
 github.com/gorilla/securecookie v1.1.1/go.mod h1:ra0sb63/xPlUeL+yeDciTfxMRAA+MP+HVt/4epWDjd4=
 github.com/gorilla/sessions v1.2.1/go.mod h1:dk2InVEVJ0sfLlnXv9EAgkf6ecYs/i80K/zI+bUmuGM=
 github.com/gorilla/websocket v0.0.0-20170926233335-4201258b820c/go.mod h1:E7qHFY5m1UJ88s3WnNqhKjPHQ0heANvMoAMk2YaljkQ=

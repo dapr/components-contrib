@@ -31,7 +31,7 @@ authenticationProfiles:
         example:  "KeFg23!"
         default: ""
 metadata:
- - name: redisHost
+  - name: redisHost
     required: true
     description: Connection-string for the Redis host
     example: "redis-master.default.svc.cluster.local:6379"

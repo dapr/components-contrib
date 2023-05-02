@@ -408,14 +408,10 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 
 	// queue type is classic by default, but we allow user to create quorum queues if desired
 	if val, ok := req.Metadata[metadataQueueType]; ok && val != "" {
-		if val == queueTypeClassic {
-			args[argQueueType] = queueTypeClassic
-		} else if val == queueTypeQuorum {
-			args[argQueueType] = queueTypeQuorum
-		} else if val == queueTypeStream {
-			args[argQueueType] = queueTypeStream
-		} else {
+		if !queueTypeValid(val) {
 			return nil, errors.New(fmt.Sprintf("Invalid queue type %s. Valid types are %s, %s and %s", val, queueTypeClassic, queueTypeQuorum, queueTypeStream));
+		} else {
+			args[argQueueType] = val
 		}
 	} else if val == "" {
 		args[argQueueType] = queueTypeClassic

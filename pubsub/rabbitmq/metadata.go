@@ -45,11 +45,13 @@ type rabbitmqMetadata struct {
 	ReconnectWait        time.Duration          `mapstructure:"reconnectWaitSeconds"`
 	MaxLen               int64                  `mapstructure:"maxLen"`
 	MaxLenBytes          int64                  `mapstructure:"maxLenBytes"`
+	MaxAge               string                 `mapstructure:"maxAge"`
 	ExchangeKind         string                 `mapstructure:"exchangeKind"`
 	PublisherConfirm     bool                   `mapstructure:"publisherConfirm"`
 	SaslExternal         bool                   `mapstructure:"saslExternal"`
 	Concurrency          pubsub.ConcurrencyMode `mapstructure:"concurrency"`
 	DefaultQueueTTL      *time.Duration         `mapstructure:"ttlInSeconds"`
+	QueueType            string                 `mapstructure:"queueType"`
 }
 
 const (
@@ -174,6 +176,10 @@ func (m *rabbitmqMetadata) formatQueueDeclareArgs(origin amqp.Table) amqp.Table 
 
 func exchangeKindValid(kind string) bool {
 	return kind == amqp.ExchangeFanout || kind == amqp.ExchangeTopic || kind == amqp.ExchangeDirect || kind == amqp.ExchangeHeaders
+}
+
+func queueTypeValid(qType string) bool {
+	return qType == queueTypeClassic || qType == queueTypeQuorum || qType == queueTypeStream
 }
 
 func (m *rabbitmqMetadata) connectionURI() string {

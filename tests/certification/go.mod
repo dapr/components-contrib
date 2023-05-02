@@ -18,7 +18,7 @@ require (
 	github.com/cloudwego/kitex-examples v0.1.1
 	github.com/dapr/components-contrib v1.10.6-0.20230426221256-e099a548fbb5
 	github.com/dapr/dapr v1.10.5-rc.1.0.20230430203526-7a0fdf9f016b
-	github.com/dapr/go-sdk v1.7.0
+	github.com/dapr/go-sdk v1.6.1-0.20230427230219-d485c1775c37
 	github.com/dapr/kit v0.0.5-0.20230418193628-15a7040dec41
 	github.com/eclipse/paho.mqtt.golang v1.4.2
 	github.com/go-chi/chi/v5 v5.0.8
@@ -145,7 +145,6 @@ require (
 	github.com/google/pprof v0.0.0-20221118152302-e6195bd50e26 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.3 // indirect
 	github.com/googleapis/gax-go/v2 v2.8.0 // indirect
-	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/grandcat/zeroconf v1.0.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect

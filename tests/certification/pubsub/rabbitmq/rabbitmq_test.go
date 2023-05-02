@@ -239,7 +239,10 @@ func TestRabbitMQ(t *testing.T) {
 						PubsubName: consumer.pubsub,
 						Topic:      topic,
 						Route:      fmt.Sprintf("/%s-%d", topic, routeIndex),
-						Metadata:   map[string]string{"x-queue-type": "classic"},
+						Metadata:   map[string]string{
+													"queueType": "classic",
+													"maxLen": "1024"
+												},
 					}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
 						if err := sim(); err != nil {
 							log.Debugf("Simulated error - consumer: %s, pubsub: %s, topic: %s, id: %s, data: %s", consumer.pubsub, e.PubsubName, e.Topic, e.ID, e.Data)

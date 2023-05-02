@@ -73,11 +73,12 @@ const (
 	metadataReconnectWaitSecondsKey = "reconnectWaitSeconds"
 	metadataMaxLenKey               = "maxLen"
 	metadataMaxLenBytesKey          = "maxLenBytes"
+	metadataMaxAgeKey               = "maxAge"
 	metadataExchangeKindKey         = "exchangeKind"
 	metadataPublisherConfirmKey     = "publisherConfirm"
 	metadataSaslExternal            = "saslExternal"
 	metadataMaxPriority             = "maxPriority"
-	metadataQueueType               = "queueType" // classic or quorum
+	metadataQueueType               = "queueType" // classic, quorum or stream
 
 	defaultReconnectWaitSeconds = 3
 

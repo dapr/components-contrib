@@ -48,6 +48,7 @@ const (
 	argQueueMode          = "x-queue-mode"
 	argMaxLength          = "x-max-length"
 	argMaxLengthBytes     = "x-max-length-bytes"
+	argMaxAge             = "x-max-age" // only for stream type queues
 	argDeadLetterExchange = "x-dead-letter-exchange"
 	argMaxPriority        = "x-max-priority"
 	argQueueType          = "x-queue-type"
@@ -55,6 +56,7 @@ const (
 	reqMetadataRoutingKey = "routingKey"
 	queueTypeClassic      = "classic"
 	queueTypeQuorum       = "quorum"
+	queueTypeStream       = "stream"
 )
 
 // RabbitMQ allows sending/receiving messages in pub/sub format.
@@ -410,9 +412,50 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 			args[argQueueType] = queueTypeClassic
 		} else if val == queueTypeQuorum {
 			args[argQueueType] = queueTypeQuorum
+		} else if val == queueTypeStream {
+			args[argQueueType] = queueTypeStream
 		} else {
-			return nil, errors.New(fmt.Sprintf("Invalid queue type %s. Valid types are %s and %s", val, queueTypeClassic, queueTypeQuorum));
+			return nil, errors.New(fmt.Sprintf("Invalid queue type %s. Valid types are %s, %s and %s", val, queueTypeClassic, queueTypeQuorum, queueTypeStream));
 		}
+	}
+
+	// Applying queue limits if defined
+	//		x-max-length-bytes apply to all types of queues
+	if val, ok := req.Metadata[argMaxLengthBytes]; ok && val != "" {
+		parsedVal, pErr := strconv.ParseUint(val, 10, 0)
+		if pErr != nil {
+			r.logger.Errorf("%s prepareSubscription error: can't parse %s value on subscription metadata for topic/queue `%s/%s`: %s", logMessagePrefix, argMaxLengthBytes, req.Topic, queueName, pErr)
+			return nil, pErr
+		}
+		args[argMaxLengthBytes] = parsedVal
+	}
+	//		x-max-length applies to quorum and classic queues
+	if val, ok := req.Metadata[argMaxLength]; ok && val != "" {
+		if args[argQueueType] == queueTypeStream {
+			errMsg := fmt.Sprintf("%s prepareSubscription error: can't apply %s to stream queues on subscription metadata for topic/queue `%s/%s`", logMessagePrefix, argMaxLength, req.Topic, queueName)
+			r.logger.Errorf(errMsg)
+			return nil, errors.New(errMsg)
+		}
+		parsedVal, pErr := strconv.ParseUint(val, 10, 0)
+		if pErr != nil {
+			r.logger.Errorf("%s prepareSubscription error: can't parse %s value on subscription metadata for topic/queue `%s/%s`: %s", logMessagePrefix, argMaxLength, req.Topic, queueName, pErr)
+			return nil, pErr
+		}
+		args[argMaxLength] = parsedVal
+	}
+	//		x-max-age applies only to stream queues
+	if val, ok := req.Metadata[argMaxAge]; ok && val != "" {
+		if args[argQueueType] != queueTypeStream {
+			errMsg := fmt.Sprintf("%s prepareSubscription error: can't apply %s to classic or quorum queues on subscription metadata for topic/queue `%s/%s`", logMessagePrefix, argMaxAge, req.Topic, queueName)
+			r.logger.Errorf(errMsg)
+			return nil, errors.New(errMsg)
+		}
+		_, pErr := time.ParseDuration(val)
+		if pErr != nil {
+			r.logger.Errorf("%s prepareSubscription error: can't parse %s value on subscription metadata for topic/queue `%s/%s`: %s", logMessagePrefix, argMaxAge, req.Topic, queueName, pErr)
+			return nil, pErr
+		}
+		args[argMaxAge] = val
 	}
 
 	q, err := channel.QueueDeclare(queueName, r.metadata.Durable, r.metadata.DeleteWhenUnused, false, false, args)

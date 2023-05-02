@@ -22,11 +22,12 @@ import (
 
 // PubSub is the interface for message buses.
 type PubSub interface {
-	Init(metadata Metadata) error
+	Init(ctx context.Context, metadata Metadata) error
 	Features() []Feature
 	Publish(ctx context.Context, req *PublishRequest) error
 	Subscribe(ctx context.Context, req SubscribeRequest, handler Handler) error
 	Close() error
+	GetComponentMetadata() map[string]string
 }
 
 // BulkPublisher is the interface that wraps the BulkPublish method.
@@ -64,10 +65,10 @@ type Handler func(ctx context.Context, msg *NewMessage) error
 // orderly fashion.
 type BulkHandler func(ctx context.Context, msg *BulkMessage) ([]BulkSubscribeResponseEntry, error)
 
-func Ping(pubsub PubSub) error {
+func Ping(ctx context.Context, pubsub PubSub) error {
 	// checks if this pubsub has the ping option then executes
 	if pubsubWithPing, ok := pubsub.(health.Pinger); ok {
-		return pubsubWithPing.Ping()
+		return pubsubWithPing.Ping(ctx)
 	} else {
 		return fmt.Errorf("ping is not implemented by this pubsub")
 	}

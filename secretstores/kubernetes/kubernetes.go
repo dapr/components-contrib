@@ -42,7 +42,7 @@ func NewKubernetesSecretStore(logger logger.Logger) secretstores.SecretStore {
 }
 
 // Init creates a Kubernetes client.
-func (k *kubernetesSecretStore) Init(metadata secretstores.Metadata) error {
+func (k *kubernetesSecretStore) Init(_ context.Context, metadata secretstores.Metadata) error {
 	client, err := kubeclient.GetKubeClient()
 	if err != nil {
 		return err
@@ -121,6 +121,6 @@ func (k *kubernetesSecretStore) GetComponentMetadata() map[string]string {
 	type unusedMetadataStruct struct{}
 	metadataStruct := unusedMetadataStruct{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return metadataInfo
 }

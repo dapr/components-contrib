@@ -85,7 +85,7 @@ func TestQueuesWithTTL(t *testing.T) {
 	logger := logger.NewLogger("test")
 
 	r := NewRabbitMQ(logger).(*RabbitMQ)
-	err := r.Init(metadata)
+	err := r.Init(context.Background(), metadata)
 	assert.Nil(t, err)
 
 	// Assert that if waited too long, we won't see any message
@@ -117,6 +117,60 @@ func TestQueuesWithTTL(t *testing.T) {
 	assert.True(t, ok)
 	msgBody := string(msg.Body)
 	assert.Equal(t, testMsgContent, msgBody)
+	assert.NoError(t, r.Close())
+}
+
+func TestQueuesReconnect(t *testing.T) {
+	rabbitmqHost := getTestRabbitMQHost()
+	assert.NotEmpty(t, rabbitmqHost, fmt.Sprintf("RabbitMQ host configuration must be set in environment variable '%s' (example 'amqp://guest:guest@localhost:5672/')", testRabbitMQHostEnvKey))
+
+	queueName := uuid.New().String()
+	durable := true
+	exclusive := false
+
+	metadata := bindings.Metadata{
+		Base: contribMetadata.Base{
+			Name: "testQueue",
+			Properties: map[string]string{
+				"queueName":        queueName,
+				"host":             rabbitmqHost,
+				"deleteWhenUnused": strconv.FormatBool(exclusive),
+				"durable":          strconv.FormatBool(durable),
+			},
+		},
+	}
+
+	var messageReceivedCount int
+	var handler bindings.Handler = func(ctx context.Context, in *bindings.ReadResponse) ([]byte, error) {
+		messageReceivedCount++
+		return nil, nil
+	}
+
+	logger := logger.NewLogger("test")
+
+	r := NewRabbitMQ(logger).(*RabbitMQ)
+	err := r.Init(context.Background(), metadata)
+	assert.Nil(t, err)
+
+	err = r.Read(context.Background(), handler)
+	assert.Nil(t, err)
+
+	const tooLateMsgContent = "success_msg1"
+	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{Data: []byte(tooLateMsgContent)})
+	assert.Nil(t, err)
+
+	// perform a close connection with the rabbitmq server
+	r.channel.Close()
+	time.Sleep(3 * defaultReconnectWait)
+
+	const testMsgContent = "reconnect_msg"
+	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{Data: []byte(testMsgContent)})
+	assert.Nil(t, err)
+
+	time.Sleep(defaultReconnectWait)
+	// sending 2 messages, one before the reconnect and one after
+	assert.Equal(t, 2, messageReceivedCount)
+	assert.NoError(t, r.Close())
 }
 
 func TestPublishingWithTTL(t *testing.T) {
@@ -144,7 +198,7 @@ func TestPublishingWithTTL(t *testing.T) {
 	logger := logger.NewLogger("test")
 
 	rabbitMQBinding1 := NewRabbitMQ(logger).(*RabbitMQ)
-	err := rabbitMQBinding1.Init(metadata)
+	err := rabbitMQBinding1.Init(context.Background(), metadata)
 	assert.Nil(t, err)
 
 	// Assert that if waited too long, we won't see any message
@@ -175,7 +229,7 @@ func TestPublishingWithTTL(t *testing.T) {
 
 	// Getting before it is expired, should return it
 	rabbitMQBinding2 := NewRabbitMQ(logger).(*RabbitMQ)
-	err = rabbitMQBinding2.Init(metadata)
+	err = rabbitMQBinding2.Init(context.Background(), metadata)
 	assert.Nil(t, err)
 
 	const testMsgContent = "test_msg"
@@ -193,6 +247,9 @@ func TestPublishingWithTTL(t *testing.T) {
 	assert.True(t, ok)
 	msgBody := string(msg.Body)
 	assert.Equal(t, testMsgContent, msgBody)
+
+	assert.NoError(t, rabbitMQBinding1.Close())
+	assert.NoError(t, rabbitMQBinding2.Close())
 }
 
 func TestExclusiveQueue(t *testing.T) {
@@ -222,7 +279,7 @@ func TestExclusiveQueue(t *testing.T) {
 	logger := logger.NewLogger("test")
 
 	r := NewRabbitMQ(logger).(*RabbitMQ)
-	err := r.Init(metadata)
+	err := r.Init(context.Background(), metadata)
 	assert.Nil(t, err)
 
 	// Assert that if waited too long, we won't see any message
@@ -276,7 +333,7 @@ func TestPublishWithPriority(t *testing.T) {
 	logger := logger.NewLogger("test")
 
 	r := NewRabbitMQ(logger).(*RabbitMQ)
-	err := r.Init(metadata)
+	err := r.Init(context.Background(), metadata)
 	assert.Nil(t, err)
 
 	// Assert that if waited too long, we won't see any message

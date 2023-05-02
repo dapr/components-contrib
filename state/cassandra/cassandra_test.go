@@ -33,7 +33,7 @@ func TestGetCassandraMetadata(t *testing.T) {
 		}
 
 		metadata, err := getCassandraMetadata(m)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, properties[hosts], metadata.Hosts[0])
 		assert.Equal(t, "All", metadata.Consistency)
 		assert.Equal(t, defaultKeyspace, metadata.Keyspace)
@@ -60,7 +60,7 @@ func TestGetCassandraMetadata(t *testing.T) {
 		}
 
 		metadata, err := getCassandraMetadata(m)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, strings.Split(properties[hosts], ",")[0], metadata.Hosts[0])
 		assert.Equal(t, strings.Split(properties[hosts], ",")[1], metadata.Hosts[1])
 		assert.Equal(t, properties[consistency], metadata.Consistency)
@@ -89,7 +89,7 @@ func TestGetCassandraMetadata(t *testing.T) {
 		}
 
 		_, err := getCassandraMetadata(m)
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 	})
 
 	t.Run("Missing hosts", func(t *testing.T) {
@@ -107,6 +107,6 @@ func TestGetCassandraMetadata(t *testing.T) {
 		}
 
 		_, err := getCassandraMetadata(m)
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 	})
 }

@@ -16,7 +16,7 @@ package postgres
 import "time"
 
 type metadata struct {
-	maxIdleTimeout   time.Duration
-	connectionString string
-	configTable      string
+	MaxIdleTimeout   time.Duration `mapstructure:"connMaxIdleTime"`
+	ConnectionString string        `mapstructure:"connectionString"`
+	ConfigTable      string        `mapstructure:"table"`
 }

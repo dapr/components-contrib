@@ -17,11 +17,13 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
@@ -38,11 +40,11 @@ func newRabbitMQTest(broker *rabbitMQInMemoryBroker) pubsub.PubSub {
 	return &rabbitMQ{
 		declaredExchanges: make(map[string]bool),
 		logger:            logger.NewLogger("test"),
-		connectionDial: func(protocol, uri string, tlsCfg *tls.Config) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
-			broker.connectCount++
-
+		connectionDial: func(protocol, uri string, tlsCfg *tls.Config, externalSasl bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
+			broker.connectCount.Add(1)
 			return broker, broker, nil
 		},
+		closeCh: make(chan struct{}),
 	}
 }
 
@@ -54,10 +56,53 @@ func TestNoConsumer(t *testing.T) {
 			metadataHostnameKey: "anyhost",
 		},
 	}}
-	err := pubsubRabbitMQ.Init(metadata)
+	err := pubsubRabbitMQ.Init(context.Background(), metadata)
 	assert.NoError(t, err)
 	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{}, nil)
 	assert.Contains(t, err.Error(), "consumerID is required for subscriptions")
+}
+
+func TestPublishAndSubscribeWithPriorityQueue(t *testing.T) {
+	broker := newBroker()
+	pubsubRabbitMQ := newRabbitMQTest(broker)
+	metadata := pubsub.Metadata{Base: mdata.Base{
+		Properties: map[string]string{
+			metadataHostnameKey:   "anyhost",
+			metadataConsumerIDKey: "consumer",
+		},
+	}}
+	err := pubsubRabbitMQ.Init(context.Background(), metadata)
+	assert.Nil(t, err)
+	assert.Equal(t, int32(1), broker.connectCount.Load())
+	assert.Equal(t, int32(0), broker.closeCount.Load())
+
+	topic := "mytopic"
+
+	messageCount := 0
+	lastMessage := ""
+	processed := make(chan bool)
+	handler := func(ctx context.Context, msg *pubsub.NewMessage) error {
+		messageCount++
+		lastMessage = string(msg.Data)
+		processed <- true
+
+		return nil
+	}
+
+	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic, Metadata: map[string]string{metadataMaxPriority: "5"}}, handler)
+	assert.Nil(t, err)
+
+	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hello world"), Metadata: map[string]string{metadataMaxPriority: "5"}})
+	assert.Nil(t, err)
+	<-processed
+	assert.Equal(t, 1, messageCount)
+	assert.Equal(t, "hello world", lastMessage)
+
+	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
+	assert.Nil(t, err)
+	<-processed
+	assert.Equal(t, 2, messageCount)
+	assert.Equal(t, "foo bar", lastMessage)
 }
 
 func TestConcurrencyMode(t *testing.T) {
@@ -71,9 +116,9 @@ func TestConcurrencyMode(t *testing.T) {
 				pubsub.ConcurrencyKey: string(pubsub.Parallel),
 			},
 		}}
-		err := pubsubRabbitMQ.Init(metadata)
+		err := pubsubRabbitMQ.Init(context.Background(), metadata)
 		assert.Nil(t, err)
-		assert.Equal(t, pubsub.Parallel, pubsubRabbitMQ.(*rabbitMQ).metadata.concurrency)
+		assert.Equal(t, pubsub.Parallel, pubsubRabbitMQ.(*rabbitMQ).metadata.Concurrency)
 	})
 
 	t.Run("single", func(t *testing.T) {
@@ -86,9 +131,9 @@ func TestConcurrencyMode(t *testing.T) {
 				pubsub.ConcurrencyKey: string(pubsub.Single),
 			},
 		}}
-		err := pubsubRabbitMQ.Init(metadata)
+		err := pubsubRabbitMQ.Init(context.Background(), metadata)
 		assert.Nil(t, err)
-		assert.Equal(t, pubsub.Single, pubsubRabbitMQ.(*rabbitMQ).metadata.concurrency)
+		assert.Equal(t, pubsub.Single, pubsubRabbitMQ.(*rabbitMQ).metadata.Concurrency)
 	})
 
 	t.Run("default", func(t *testing.T) {
@@ -100,9 +145,9 @@ func TestConcurrencyMode(t *testing.T) {
 				metadataConsumerIDKey: "consumer",
 			},
 		}}
-		err := pubsubRabbitMQ.Init(metadata)
+		err := pubsubRabbitMQ.Init(context.Background(), metadata)
 		assert.Nil(t, err)
-		assert.Equal(t, pubsub.Parallel, pubsubRabbitMQ.(*rabbitMQ).metadata.concurrency)
+		assert.Equal(t, pubsub.Parallel, pubsubRabbitMQ.(*rabbitMQ).metadata.Concurrency)
 	})
 }
 
@@ -115,10 +160,10 @@ func TestPublishAndSubscribe(t *testing.T) {
 			metadataConsumerIDKey: "consumer",
 		},
 	}}
-	err := pubsubRabbitMQ.Init(metadata)
+	err := pubsubRabbitMQ.Init(context.Background(), metadata)
 	assert.Nil(t, err)
-	assert.Equal(t, 1, broker.connectCount)
-	assert.Equal(t, 0, broker.closeCount)
+	assert.Equal(t, int32(1), broker.connectCount.Load())
+	assert.Equal(t, int32(0), broker.closeCount.Load())
 
 	topic := "mytopic"
 
@@ -158,10 +203,10 @@ func TestPublishReconnect(t *testing.T) {
 			metadataConsumerIDKey: "consumer",
 		},
 	}}
-	err := pubsubRabbitMQ.Init(metadata)
+	err := pubsubRabbitMQ.Init(context.Background(), metadata)
 	assert.Nil(t, err)
-	assert.Equal(t, 1, broker.connectCount)
-	assert.Equal(t, 0, broker.closeCount)
+	assert.Equal(t, int32(1), broker.connectCount.Load())
+	assert.Equal(t, int32(0), broker.closeCount.Load())
 
 	topic := "othertopic"
 
@@ -190,8 +235,8 @@ func TestPublishReconnect(t *testing.T) {
 	assert.Equal(t, 1, messageCount)
 	assert.Equal(t, "hello world", lastMessage)
 	// Check that reconnection happened
-	assert.Equal(t, 3, broker.connectCount) // three counts - one initial connection plus 2 reconnect attempts
-	assert.Equal(t, 4, broker.closeCount)   // four counts - one for connection, one for channel , times 2 reconnect attempts
+	assert.Equal(t, int32(3), broker.connectCount.Load()) // three counts - one initial connection plus 2 reconnect attempts
+	assert.Equal(t, int32(4), broker.closeCount.Load())   // four counts - one for connection, one for channel , times 2 reconnect attempts
 
 	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
 	assert.Nil(t, err)
@@ -209,10 +254,10 @@ func TestPublishReconnectAfterClose(t *testing.T) {
 			metadataConsumerIDKey: "consumer",
 		},
 	}}
-	err := pubsubRabbitMQ.Init(metadata)
+	err := pubsubRabbitMQ.Init(context.Background(), metadata)
 	assert.Nil(t, err)
-	assert.Equal(t, 1, broker.connectCount)
-	assert.Equal(t, 0, broker.closeCount)
+	assert.Equal(t, int32(1), broker.connectCount.Load())
+	assert.Equal(t, int32(0), broker.closeCount.Load())
 
 	topic := "mytopic2"
 
@@ -239,15 +284,15 @@ func TestPublishReconnectAfterClose(t *testing.T) {
 	// Close PubSub
 	err = pubsubRabbitMQ.Close()
 	assert.Nil(t, err)
-	assert.Equal(t, 2, broker.closeCount) // two counts - one for connection, one for channel
+	assert.Equal(t, int32(2), broker.closeCount.Load()) // two counts - one for connection, one for channel
 
 	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte(errorChannelConnection)})
 	assert.NotNil(t, err)
 	assert.Equal(t, 1, messageCount)
 	assert.Equal(t, "hello world", lastMessage)
 	// Check that reconnection did not happened
-	assert.Equal(t, 1, broker.connectCount)
-	assert.Equal(t, 2, broker.closeCount) // two counts - one for connection, one for channel
+	assert.Equal(t, int32(1), broker.connectCount.Load())
+	assert.Equal(t, int32(2), broker.closeCount.Load()) // two counts - one for connection, one for channel
 }
 
 func TestSubscribeBindRoutingKeys(t *testing.T) {
@@ -259,10 +304,10 @@ func TestSubscribeBindRoutingKeys(t *testing.T) {
 			metadataConsumerIDKey: "consumer",
 		},
 	}}
-	err := pubsubRabbitMQ.Init(metadata)
+	err := pubsubRabbitMQ.Init(context.Background(), metadata)
 	assert.Nil(t, err)
-	assert.Equal(t, 1, broker.connectCount)
-	assert.Equal(t, 0, broker.closeCount)
+	assert.Equal(t, int32(1), broker.connectCount.Load())
+	assert.Equal(t, int32(0), broker.closeCount.Load())
 
 	topic := "mytopic_routingkeys"
 
@@ -286,10 +331,10 @@ func TestSubscribeReconnect(t *testing.T) {
 			pubsub.ConcurrencyKey:           string(pubsub.Single),
 		},
 	}}
-	err := pubsubRabbitMQ.Init(metadata)
+	err := pubsubRabbitMQ.Init(context.Background(), metadata)
 	assert.Nil(t, err)
-	assert.Equal(t, 1, broker.connectCount)
-	assert.Equal(t, 0, broker.closeCount)
+	assert.Equal(t, int32(1), broker.connectCount.Load())
+	assert.Equal(t, int32(0), broker.closeCount.Load())
 
 	topic := "thetopic"
 
@@ -309,13 +354,21 @@ func TestSubscribeReconnect(t *testing.T) {
 
 	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hello world")})
 	assert.Nil(t, err)
-	<-processed
+	select {
+	case <-processed:
+	case <-time.After(5 * time.Second):
+		require.Fail(t, "timeout waiting for message")
+	}
 	assert.Equal(t, 1, messageCount)
 	assert.Equal(t, "hello world", lastMessage)
 
 	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
 	assert.Nil(t, err)
-	<-processed
+	select {
+	case <-processed:
+	case <-time.After(5 * time.Second):
+		require.Fail(t, "timeout waiting for message")
+	}
 	assert.Equal(t, 2, messageCount)
 	assert.Equal(t, "foo bar", lastMessage)
 
@@ -323,8 +376,8 @@ func TestSubscribeReconnect(t *testing.T) {
 	time.Sleep(time.Second)
 
 	// Check that reconnection happened
-	assert.Equal(t, 3, broker.connectCount) // initial connect + 2 reconnects
-	assert.Equal(t, 4, broker.closeCount)   // two counts for each connection closure - one for connection, one for channel
+	assert.Equal(t, int32(3), broker.connectCount.Load()) // initial connect + 2 reconnects
+	assert.Equal(t, int32(4), broker.closeCount.Load())   // two counts for each connection closure - one for connection, one for channel
 }
 
 func createAMQPMessage(body []byte) amqp.Delivery {
@@ -334,8 +387,8 @@ func createAMQPMessage(body []byte) amqp.Delivery {
 type rabbitMQInMemoryBroker struct {
 	buffer chan amqp.Delivery
 
-	connectCount int
-	closeCount   int
+	connectCount atomic.Int32
+	closeCount   atomic.Int32
 }
 
 func (r *rabbitMQInMemoryBroker) Qos(prefetchCount, prefetchSize int, global bool) error {
@@ -387,11 +440,11 @@ func (r *rabbitMQInMemoryBroker) Confirm(noWait bool) error {
 }
 
 func (r *rabbitMQInMemoryBroker) Close() error {
-	r.closeCount++
+	r.closeCount.Add(1)
 
 	return nil
 }
 
 func (r *rabbitMQInMemoryBroker) IsClosed() bool {
-	return r.connectCount <= r.closeCount
+	return r.connectCount.Load() <= r.closeCount.Load()
 }

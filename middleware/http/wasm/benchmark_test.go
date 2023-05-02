@@ -1,17 +1,17 @@
 package wasm
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"testing"
 
-	dapr "github.com/dapr/components-contrib/middleware"
-	"github.com/dapr/kit/logger"
-
 	"github.com/dapr/components-contrib/internal/httputils"
 	"github.com/dapr/components-contrib/metadata"
+	dapr "github.com/dapr/components-contrib/middleware"
+	"github.com/dapr/kit/logger"
 )
 
 const parallel = 10
@@ -45,7 +45,7 @@ func benchmarkMiddleware(b *testing.B, path string) {
 	l := logger.NewLogger(b.Name())
 	l.SetOutput(io.Discard)
 
-	handlerFn, err := NewMiddleware(l).GetHandler(dapr.Metadata{Base: md})
+	handlerFn, err := NewMiddleware(l).GetHandler(context.Background(), dapr.Metadata{Base: md})
 	if err != nil {
 		b.Fatal(err)
 	}

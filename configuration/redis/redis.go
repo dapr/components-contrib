@@ -15,9 +15,8 @@ package redis
 
 import (
 	"context"
-	"crypto/tls"
-	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,35 +28,38 @@ import (
 
 	"github.com/dapr/components-contrib/configuration"
 	"github.com/dapr/components-contrib/configuration/redis/internal"
+	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
 const (
-	connectedSlavesReplicas   = "connected_slaves:"
-	infoReplicationDelimiter  = "\r\n"
-	host                      = "redisHost"
-	password                  = "redisPassword"
-	enableTLS                 = "enableTLS"
-	maxRetries                = "maxRetries"
-	maxRetryBackoff           = "maxRetryBackoff"
-	failover                  = "failover"
-	sentinelMasterName        = "sentinelMasterName"
-	defaultBase               = 10
-	defaultBitSize            = 0
-	defaultDB                 = 0
-	defaultMaxRetries         = 3
-	defaultMaxRetryBackoff    = time.Second * 2
-	defaultEnableTLS          = false
-	keySpacePrefix            = "__keyspace@0__:"
-	keySpaceAny               = "__keyspace@0__:*"
-	redisWrongTypeIdentifyStr = "WRONGTYPE"
+	connectedSlavesReplicas      = "connected_slaves:"
+	infoReplicationDelimiter     = "\r\n"
+	host                         = "redisHost"
+	password                     = "redisPassword"
+	enableTLS                    = "enableTLS"
+	redisMaxRetries              = "redisMaxRetries"
+	redisMaxRetryInterval        = "redisMaxRetryInterval"
+	redisMinRetryInterval        = "redisMinRetryInterval"
+	failover                     = "failover"
+	sentinelMasterName           = "sentinelMasterName"
+	redisDB                      = "redisDB"
+	defaultBase                  = 10
+	defaultBitSize               = 0
+	defaultDB                    = 0
+	defaultRedisMaxRetries       = 3
+	defaultRedisMaxRetryInterval = time.Second * 2
+	defaultRedisMinRetryInterval = time.Millisecond * 8
+	defaultEnableTLS             = false
+	redisWrongTypeIdentifyStr    = "WRONGTYPE"
 )
 
 // ConfigurationStore is a Redis configuration store.
 type ConfigurationStore struct {
-	client               redis.UniversalClient
+	client               rediscomponent.RedisClient
+	clientSettings       *rediscomponent.Settings
 	json                 jsoniter.API
-	metadata             metadata
 	replicas             int
 	subscribeStopChanMap sync.Map
 
@@ -74,130 +76,25 @@ func NewRedisConfigurationStore(logger logger.Logger) configuration.Store {
 	return s
 }
 
-func parseRedisMetadata(meta configuration.Metadata) (metadata, error) {
-	m := metadata{}
-
-	if val, ok := meta.Properties[host]; ok && val != "" {
-		m.Host = val
-	} else {
-		return m, errors.New("redis store error: missing host address")
-	}
-
-	if val, ok := meta.Properties[password]; ok && val != "" {
-		m.Password = val
-	}
-
-	m.EnableTLS = defaultEnableTLS
-	if val, ok := meta.Properties[enableTLS]; ok && val != "" {
-		tls, err := strconv.ParseBool(val)
-		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse enableTLS field: %s", err)
-		}
-		m.EnableTLS = tls
-	}
-
-	m.MaxRetries = defaultMaxRetries
-	if val, ok := meta.Properties[maxRetries]; ok && val != "" {
-		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
-		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse maxRetries field: %s", err)
-		}
-		m.MaxRetries = int(parsedVal)
-	}
-
-	m.MaxRetryBackoff = defaultMaxRetryBackoff
-	if val, ok := meta.Properties[maxRetryBackoff]; ok && val != "" {
-		parsedVal, err := strconv.ParseInt(val, defaultBase, defaultBitSize)
-		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse maxRetryBackoff field: %s", err)
-		}
-		m.MaxRetryBackoff = time.Duration(parsedVal)
-	}
-
-	if val, ok := meta.Properties[failover]; ok && val != "" {
-		failover, err := strconv.ParseBool(val)
-		if err != nil {
-			return m, fmt.Errorf("redis store error: can't parse failover field: %s", err)
-		}
-		m.Failover = failover
-	}
-
-	// set the sentinelMasterName only with failover == true.
-	if m.Failover {
-		if val, ok := meta.Properties[sentinelMasterName]; ok && val != "" {
-			m.SentinelMasterName = val
-		} else {
-			return m, errors.New("redis store error: missing sentinelMasterName")
-		}
-	}
-
-	return m, nil
-}
-
 // Init does metadata and connection parsing.
-func (r *ConfigurationStore) Init(metadata configuration.Metadata) error {
-	m, err := parseRedisMetadata(metadata)
+func (r *ConfigurationStore) Init(ctx context.Context, metadata configuration.Metadata) error {
+	var err error
+	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(metadata.Properties, contribMetadata.ConfigurationStoreType)
 	if err != nil {
 		return err
 	}
-	r.metadata = m
 
-	if r.metadata.Failover {
-		r.client = r.newFailoverClient(m)
-	} else {
-		r.client = r.newClient(m)
+	if _, err = r.client.PingResult(ctx); err != nil {
+		return fmt.Errorf("redis store: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
 
-	if _, err = r.client.Ping(context.TODO()).Result(); err != nil {
-		return fmt.Errorf("redis store: error connecting to redis at %s: %s", m.Host, err)
-	}
-
-	r.replicas, err = r.getConnectedSlaves()
+	r.replicas, err = r.getConnectedSlaves(ctx)
 
 	return err
 }
 
-func (r *ConfigurationStore) newClient(m metadata) *redis.Client {
-	opts := &redis.Options{
-		Addr:            m.Host,
-		Password:        m.Password,
-		DB:              defaultDB,
-		MaxRetries:      m.MaxRetries,
-		MaxRetryBackoff: m.MaxRetryBackoff,
-	}
-
-	// tell the linter to skip a check here.
-	/* #nosec */
-	if m.EnableTLS {
-		opts.TLSConfig = &tls.Config{
-			InsecureSkipVerify: m.EnableTLS,
-		}
-	}
-
-	return redis.NewClient(opts)
-}
-
-func (r *ConfigurationStore) newFailoverClient(m metadata) *redis.Client {
-	opts := &redis.FailoverOptions{
-		MasterName:      r.metadata.SentinelMasterName,
-		SentinelAddrs:   []string{r.metadata.Host},
-		DB:              defaultDB,
-		MaxRetries:      m.MaxRetries,
-		MaxRetryBackoff: m.MaxRetryBackoff,
-	}
-
-	/* #nosec */
-	if m.EnableTLS {
-		opts.TLSConfig = &tls.Config{
-			InsecureSkipVerify: m.EnableTLS,
-		}
-	}
-
-	return redis.NewFailoverClient(opts)
-}
-
-func (r *ConfigurationStore) getConnectedSlaves() (int, error) {
-	res, err := r.client.Do(context.Background(), "INFO", "replication").Result()
+func (r *ConfigurationStore) getConnectedSlaves(ctx context.Context) (int, error) {
+	res, err := r.client.DoRead(ctx, "INFO", "replication")
 	if err != nil {
 		return 0, err
 	}
@@ -228,8 +125,14 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 	keys := req.Keys
 	var err error
 	if len(keys) == 0 {
-		if keys, err = r.client.Keys(ctx, "*").Result(); err != nil {
+		var res interface{}
+		if res, err = r.client.DoRead(ctx, "KEYS", "*"); err != nil {
 			r.logger.Errorf("failed to all keys, error is %s", err)
+			return nil, err
+		}
+		keyList := res.([]interface{})
+		for _, key := range keyList {
+			keys = append(keys, fmt.Sprint(key))
 		}
 	}
 
@@ -241,8 +144,12 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 			Metadata: map[string]string{},
 		}
 
-		redisValue, err := r.client.Get(ctx, redisKey).Result()
+		redisValue, err := r.client.Get(ctx, redisKey)
 		if err != nil {
+			if err.Error() == redis.Nil.Error() {
+				r.logger.Warnf("redis key %s does not exist, ignore it\n", redisKey)
+				continue
+			}
 			if strings.Contains(err.Error(), redisWrongTypeIdentifyStr) {
 				r.logger.Warnf("redis key %s 's type is not supported, ignore it\n", redisKey)
 				continue
@@ -265,81 +172,97 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 
 func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
 	subscribeID := uuid.New().String()
+	keyStopChanMap := make(map[string]chan struct{})
 	if len(req.Keys) == 0 {
 		// subscribe all keys
 		stop := make(chan struct{})
-		r.subscribeStopChanMap.Store(subscribeID, stop)
-		go r.doSubscribe(ctx, req, handler, keySpaceAny, subscribeID, stop)
+		allKeysChannel := internal.GetRedisChannelFromKey("*", r.clientSettings.DB)
+		keyStopChanMap[allKeysChannel] = stop
+		subscribeArgs := &rediscomponent.ConfigurationSubscribeArgs{
+			HandleSubscribedChange: r.handleSubscribedChange,
+			Req:                    req,
+			Handler:                handler,
+			RedisChannel:           allKeysChannel,
+			IsAllKeysChannel:       true,
+			ID:                     subscribeID,
+			Stop:                   stop,
+		}
+		go r.client.ConfigurationSubscribe(ctx, subscribeArgs)
+		r.subscribeStopChanMap.Store(subscribeID, keyStopChanMap)
 		return subscribeID, nil
 	}
+
 	for _, k := range req.Keys {
 		// subscribe single key
 		stop := make(chan struct{})
-		keySpacePrefixAndKey := keySpacePrefix + k
-		if oldStopChan, ok := r.subscribeStopChanMap.Load(keySpacePrefixAndKey); ok {
-			// already exist subscription
-			close(oldStopChan.(chan struct{}))
+		redisChannel := internal.GetRedisChannelFromKey(k, r.clientSettings.DB)
+		keyStopChanMap[redisChannel] = stop
+		subscribeArgs := &rediscomponent.ConfigurationSubscribeArgs{
+			HandleSubscribedChange: r.handleSubscribedChange,
+			Req:                    req,
+			Handler:                handler,
+			RedisChannel:           redisChannel,
+			IsAllKeysChannel:       false,
+			ID:                     subscribeID,
+			Stop:                   stop,
 		}
-		r.subscribeStopChanMap.Store(subscribeID, stop)
-		go r.doSubscribe(ctx, req, handler, keySpacePrefixAndKey, subscribeID, stop)
+		go r.client.ConfigurationSubscribe(ctx, subscribeArgs)
 	}
+	r.subscribeStopChanMap.Store(subscribeID, keyStopChanMap)
 	return subscribeID, nil
 }
 
 func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration.UnsubscribeRequest) error {
-	if oldStopChan, ok := r.subscribeStopChanMap.Load(req.ID); ok {
+	if keyStopChanMap, ok := r.subscribeStopChanMap.Load(req.ID); ok {
 		// already exist subscription
+		for _, stop := range keyStopChanMap.(map[string]chan struct{}) {
+			close(stop)
+		}
 		r.subscribeStopChanMap.Delete(req.ID)
-		close(oldStopChan.(chan struct{}))
 		return nil
 	}
 	return fmt.Errorf("subscription with id %s does not exist", req.ID)
 }
 
-func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, redisChannel4revision string, id string, stop chan struct{}) {
-	// enable notify-keyspace-events by redis Set command
-	r.client.ConfigSet(ctx, "notify-keyspace-events", "KA")
-	var p *redis.PubSub
-	if redisChannel4revision == keySpaceAny {
-		p = r.client.PSubscribe(ctx, redisChannel4revision)
-	} else {
-		p = r.client.Subscribe(ctx, redisChannel4revision)
-	}
-	for {
-		select {
-		case <-stop:
-			return
-		case <-ctx.Done():
-			return
-		case msg := <-p.Channel():
-			r.handleSubscribedChange(ctx, req, handler, msg, id)
-		}
-	}
-}
-
-func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, msg *redis.Message, id string) {
-	targetKey, err := internal.ParseRedisKeyFromEvent(msg.Channel)
+func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, redisChannel string, id string) {
+	targetKey, err := internal.ParseRedisKeyFromChannel(redisChannel, r.clientSettings.DB)
 	if err != nil {
 		r.logger.Errorf("parse redis key failed: %s", err)
 		return
 	}
 
+	var items map[string]*configuration.Item
+
 	// get all keys if only one is changed
-	getResponse, err := r.Get(ctx, &configuration.GetRequest{
+	getResponse, errGet := r.Get(ctx, &configuration.GetRequest{
 		Metadata: req.Metadata,
 		Keys:     []string{targetKey},
 	})
-	if err != nil {
+	if errGet != nil {
 		r.logger.Errorf("get response from redis failed: %s", err)
 		return
 	}
+	items = getResponse.Items
+	if len(items) == 0 {
+		items = map[string]*configuration.Item{
+			targetKey: {},
+		}
+	}
 
 	e := &configuration.UpdateEvent{
-		Items: getResponse.Items,
+		Items: items,
 		ID:    id,
 	}
 	err = handler(ctx, e)
 	if err != nil {
 		r.logger.Errorf("fail to call handler to notify event for configuration update subscribe: %s", err)
 	}
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (r *ConfigurationStore) GetComponentMetadata() map[string]string {
+	metadataStruct := rediscomponent.Settings{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
+	return metadataInfo
 }

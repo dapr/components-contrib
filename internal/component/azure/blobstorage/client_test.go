@@ -14,6 +14,7 @@ limitations under the License.
 package blobstorage
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -43,7 +44,7 @@ func TestClientInitFailures(t *testing.T) {
 
 	for name, s := range scenarios {
 		t.Run(name, func(t *testing.T) {
-			_, _, err := CreateContainerStorageClient(log, s.metadata)
+			_, _, err := CreateContainerStorageClient(context.Background(), log, s.metadata)
 			assert.Contains(t, err.Error(), s.expectedFailureSubString)
 		})
 	}
@@ -52,13 +53,13 @@ func TestClientInitFailures(t *testing.T) {
 func createTestMetadata(accountName bool, accountKey bool, container bool) map[string]string {
 	m := map[string]string{}
 	if accountName {
-		m[azauth.StorageAccountNameKeys[0]] = "account"
+		m[azauth.MetadataKeys["StorageAccountName"][0]] = "account"
 	}
 	if accountKey {
-		m[azauth.StorageAccountKeyKeys[0]] = "key"
+		m[azauth.MetadataKeys["StorageAccountKey"][0]] = "key"
 	}
 	if container {
-		m[azauth.StorageContainerNameKeys[0]] = "test"
+		m[azauth.MetadataKeys["StorageContainerName"][0]] = "test"
 	}
 	return m
 }

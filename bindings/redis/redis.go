@@ -17,9 +17,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/dapr/components-contrib/bindings"
 	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -28,10 +30,12 @@ type Redis struct {
 	client         rediscomponent.RedisClient
 	clientSettings *rediscomponent.Settings
 	logger         logger.Logger
-
-	ctx    context.Context
-	cancel context.CancelFunc
 }
+
+const (
+	// IncrementOperation is the operation to increment a key.
+	IncrementOperation bindings.OperationKind = "increment"
+)
 
 // NewRedis returns a new redis bindings instance.
 func NewRedis(logger logger.Logger) bindings.OutputBinding {
@@ -39,15 +43,13 @@ func NewRedis(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init performs metadata parsing and connection creation.
-func (r *Redis) Init(meta bindings.Metadata) (err error) {
-	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(meta.Properties, nil)
+func (r *Redis) Init(ctx context.Context, meta bindings.Metadata) (err error) {
+	r.client, r.clientSettings, err = rediscomponent.ParseClientFromProperties(meta.Properties, metadata.BindingType)
 	if err != nil {
 		return err
 	}
 
-	r.ctx, r.cancel = context.WithCancel(context.Background())
-
-	_, err = r.client.PingResult(r.ctx)
+	_, err = r.client.PingResult(ctx)
 	if err != nil {
 		return fmt.Errorf("redis binding: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
@@ -55,8 +57,8 @@ func (r *Redis) Init(meta bindings.Metadata) (err error) {
 	return err
 }
 
-func (r *Redis) Ping() error {
-	if _, err := r.client.PingResult(r.ctx); err != nil {
+func (r *Redis) Ping(ctx context.Context) error {
+	if _, err := r.client.PingResult(ctx); err != nil {
 		return fmt.Errorf("redis binding: error connecting to redis at %s: %s", r.clientSettings.Host, err)
 	}
 
@@ -68,7 +70,23 @@ func (r *Redis) Operations() []bindings.OperationKind {
 		bindings.CreateOperation,
 		bindings.DeleteOperation,
 		bindings.GetOperation,
+		IncrementOperation,
 	}
+}
+
+func (r *Redis) expireKeyIfRequested(ctx context.Context, requestMetadata map[string]string, key string) error {
+	// get ttl from request metadata
+	ttl, ok, err := metadata.TryGetTTL(requestMetadata)
+	if err != nil {
+		return err
+	}
+	if ok {
+		errExpire := r.client.DoWrite(ctx, "EXPIRE", key, int(ttl.Seconds()))
+		if errExpire != nil {
+			return errExpire
+		}
+	}
+	return nil
 }
 
 func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -80,8 +98,17 @@ func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 				return nil, err
 			}
 		case bindings.GetOperation:
-			data, err := r.client.Get(ctx, key)
+			var data string
+			var err error
+			if req.Metadata["delete"] == "true" {
+				data, err = r.client.GetDel(ctx, key)
+			} else {
+				data, err = r.client.Get(ctx, key)
+			}
 			if err != nil {
+				if err.Error() == "redis: nil" {
+					return &bindings.InvokeResponse{}, nil
+				}
 				return nil, err
 			}
 			rep := &bindings.InvokeResponse{}
@@ -89,6 +116,19 @@ func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 			return rep, nil
 		case bindings.CreateOperation:
 			err := r.client.DoWrite(ctx, "SET", key, req.Data)
+			if err != nil {
+				return nil, err
+			}
+			err = r.expireKeyIfRequested(ctx, req.Metadata, key)
+			if err != nil {
+				return nil, err
+			}
+		case IncrementOperation:
+			err := r.client.DoWrite(ctx, "INCR", key)
+			if err != nil {
+				return nil, err
+			}
+			err = r.expireKeyIfRequested(ctx, req.Metadata, key)
 			if err != nil {
 				return nil, err
 			}
@@ -101,7 +141,13 @@ func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 }
 
 func (r *Redis) Close() error {
-	r.cancel()
-
 	return r.client.Close()
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (r *Redis) GetComponentMetadata() map[string]string {
+	metadataStruct := rediscomponent.Settings{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

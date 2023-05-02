@@ -14,6 +14,7 @@ limitations under the License.
 package watcher
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -319,6 +320,29 @@ func (w *Watcher) Observe(data ...interface{}) {
 	}
 }
 
+// ObserveJSON adds any json data that is in `remaining` to
+// the `observed` slice. If the the watcher is closable
+// (all expected data captured) and there is no more
+// remaining data to observe, then the finish channel
+// is closed.
+func (w *Watcher) ObserveJSON(data ...interface{}) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	for _, item := range data {
+		b, _ := json.Marshal(&item)
+		str := string(b)
+		if _, ok := w.remaining[str]; ok {
+			w.observed = append(w.observed, str)
+			delete(w.remaining, str)
+		}
+	}
+
+	if w.closable && len(w.remaining) == 0 {
+		w.finish()
+	}
+}
+
 // WaitForResult waits for up to `timeout` for all
 // expected data to be observed and returns an error
 // if expected and observed data differ.
@@ -376,6 +400,27 @@ func (w *Watcher) Result(t TestingT, timeout time.Duration) (TestingT, interface
 	}
 }
 
+// Partial waits for up to `timeout` for any
+// expected data to be observed and returns
+// the expected and observed slices even if
+// not complete.
+func (w *Watcher) Partial(t TestingT, timeout time.Duration) (TestingT, interface{}, interface{}) {
+	w.checkClosable()
+
+	select {
+	case <-time.After(timeout):
+		w.mu.Lock()
+		defer w.mu.Unlock()
+
+		return t, w.expected, w.observed
+	case <-w.finished:
+		w.mu.Lock()
+		defer w.mu.Unlock()
+
+		return t, w.expected, w.observed
+	}
+}
+
 // Assert waits for up to `timeout` for all
 // expected data to be observed and asserts
 // the expected and observed data are either
@@ -401,6 +446,22 @@ func (w *Watcher) Assert(t TestingT, timeout time.Duration) bool {
 		}
 
 		return assert.ElementsMatch(t, w.expected, w.observed)
+	}
+}
+
+func (w *Watcher) AssertNotDelivered(t TestingT, timeout time.Duration) bool {
+	w.checkClosable()
+
+	select {
+	case <-time.After(timeout):
+		w.mu.Lock()
+		defer w.mu.Unlock()
+		return true
+	case <-w.finished:
+		w.mu.Lock()
+		defer w.mu.Unlock()
+
+		return len(w.observed) == 0
 	}
 }
 

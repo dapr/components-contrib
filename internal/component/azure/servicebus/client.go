@@ -21,10 +21,15 @@ import (
 
 	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	sbadmin "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus/admin"
+	"github.com/cenkalti/backoff/v4"
+	"golang.org/x/exp/maps"
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/kit/logger"
 )
+
+// Type that matches Client.EnsureTopic and Client.EnsureSubscription
+type ensureFn func(context.Context, string) error
 
 // Client contains the clients for Service Bus and methods to get senders and to create topics, subscriptions, queues.
 type Client struct {
@@ -66,7 +71,7 @@ func NewClient(metadata *Metadata, rawMetadata map[string]string) (*Client, erro
 			}
 		}
 	} else {
-		settings, err := azauth.NewEnvironmentSettings(azauth.AzureServiceBusResourceName, rawMetadata)
+		settings, err := azauth.NewEnvironmentSettings(rawMetadata)
 		if err != nil {
 			return nil, err
 		}
@@ -97,8 +102,8 @@ func (c *Client) GetClient() *servicebus.Client {
 	return c.client
 }
 
-// GetSenderForTopic returns the sender for a topic, or creates a new one if it doesn't exist
-func (c *Client) GetSender(ctx context.Context, queueOrTopic string) (*servicebus.Sender, error) {
+// GetSenderForTopic returns the sender for a queue or topic, or creates a new one if it doesn't exist
+func (c *Client) GetSender(ctx context.Context, queueOrTopic string, ensureFn ensureFn) (*servicebus.Sender, error) {
 	c.lock.RLock()
 	sender, ok := c.senders[queueOrTopic]
 	c.lock.RUnlock()
@@ -115,6 +120,16 @@ func (c *Client) GetSender(ctx context.Context, queueOrTopic string) (*servicebu
 		return sender, nil
 	}
 
+	// Ensure the queue or topic exists, if needed
+	if ensureFn != nil {
+		// Ensure the queue or topic exists the first time it is referenced
+		// This does nothing if DisableEntityManagement is true
+		err := ensureFn(ctx, queueOrTopic)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// Create the sender
 	sender, err := c.client.NewSender(queueOrTopic, nil)
 	if err != nil {
@@ -126,17 +141,26 @@ func (c *Client) GetSender(ctx context.Context, queueOrTopic string) (*servicebu
 }
 
 // CloseSender closes a sender for a queue or topic.
-func (c *Client) CloseSender(queueOrTopic string) {
+func (c *Client) CloseSender(queueOrTopic string, log logger.Logger) {
 	c.lock.Lock()
-	defer c.lock.Unlock()
-
 	sender, ok := c.senders[queueOrTopic]
-	if ok && sender != nil {
-		closeCtx, closeCancel := context.WithTimeout(context.Background(), time.Second)
-		_ = sender.Close(closeCtx)
-		closeCancel()
+	if ok {
+		delete(c.senders, queueOrTopic)
 	}
-	delete(c.senders, queueOrTopic)
+	c.lock.Unlock()
+
+	if sender != nil {
+		log.Info("Closing sender: " + queueOrTopic)
+		closeCtx, closeCancel := context.WithTimeout(context.Background(), time.Second)
+		// Log only
+		err := sender.Close(closeCtx)
+		closeCancel()
+		if err != nil {
+			// Log only
+			log.Warnf("Error closing sender %s: %v", queueOrTopic, err)
+		}
+		log.Debug("Closed sender: " + queueOrTopic)
+	}
 }
 
 // CloseAllSenders closes all sender connections.
@@ -150,7 +174,7 @@ func (c *Client) CloseAllSenders(log logger.Logger) {
 		// Blocks if we have too many goroutines
 		workersCh <- true
 		go func(k string, t *servicebus.Sender) {
-			log.Debugf("Closing sender %s", k)
+			log.Debug("Closing sender: " + k)
 			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(c.metadata.TimeoutInSec)*time.Second)
 			err := t.Close(ctx)
 			cancel()
@@ -168,7 +192,27 @@ func (c *Client) CloseAllSenders(log logger.Logger) {
 	close(workersCh)
 
 	// Clear the map
-	c.senders = make(map[string]*servicebus.Sender)
+	maps.Clear(c.senders)
+}
+
+// Close the client and every sender or consumer created by the connnection.
+func (c *Client) Close(log logger.Logger) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	if c.client != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(c.metadata.TimeoutInSec)*time.Second)
+		err := c.client.Close(ctx)
+		cancel()
+		if err != nil {
+			// log only
+			log.Warnf("Error closing client: %v", err)
+		}
+		c.client = nil
+	}
+
+	// Clear the map of senders
+	maps.Clear(c.senders)
 }
 
 // EnsureTopic creates the topic if it doesn't exist.
@@ -193,9 +237,14 @@ func (c *Client) EnsureTopic(ctx context.Context, topic string) error {
 	return nil
 }
 
+type SubscribeOptions struct {
+	RequireSessions      bool
+	MaxConcurrentSesions int
+}
+
 // EnsureSubscription creates the topic subscription if it doesn't exist.
 // Returns with nil error if the admin client doesn't exist.
-func (c *Client) EnsureSubscription(ctx context.Context, name string, topic string) error {
+func (c *Client) EnsureSubscription(ctx context.Context, name string, topic string, opts SubscribeOptions) error {
 	if c.adminClient == nil {
 		return nil
 	}
@@ -205,13 +254,13 @@ func (c *Client) EnsureSubscription(ctx context.Context, name string, topic stri
 		return err
 	}
 
-	shouldCreate, err := c.shouldCreateSubscription(ctx, topic, name)
+	shouldCreate, err := c.shouldCreateSubscription(ctx, topic, name, opts)
 	if err != nil {
 		return err
 	}
 
 	if shouldCreate {
-		err = c.createSubscription(ctx, topic, name)
+		err = c.createSubscription(ctx, topic, name, opts)
 		if err != nil {
 			return err
 		}
@@ -268,7 +317,7 @@ func (c *Client) createTopic(parentCtx context.Context, topic string) error {
 	return nil
 }
 
-func (c *Client) shouldCreateSubscription(parentCtx context.Context, topic, subscription string) (bool, error) {
+func (c *Client) shouldCreateSubscription(parentCtx context.Context, topic, subscription string, opts SubscribeOptions) (bool, error) {
 	ctx, cancel := context.WithTimeout(parentCtx, time.Second*time.Duration(c.metadata.TimeoutInSec))
 	defer cancel()
 
@@ -280,15 +329,20 @@ func (c *Client) shouldCreateSubscription(parentCtx context.Context, topic, subs
 		// If res is nil, the subscription does not exist
 		return true, nil
 	}
+
+	if notEqual(res.RequiresSession, &opts.RequireSessions) {
+		return false, fmt.Errorf("subscription %s already exists but session requirement doesn't match", subscription)
+	}
+
 	return false, nil
 }
 
-func (c *Client) createSubscription(parentCtx context.Context, topic, subscription string) error {
+func (c *Client) createSubscription(parentCtx context.Context, topic, subscription string, opts SubscribeOptions) error {
 	ctx, cancel := context.WithTimeout(parentCtx, time.Second*time.Duration(c.metadata.TimeoutInSec))
 	defer cancel()
 
 	_, err := c.adminClient.CreateSubscription(ctx, topic, subscription, &sbadmin.CreateSubscriptionOptions{
-		Properties: c.metadata.CreateSubscriptionProperties(),
+		Properties: c.metadata.CreateSubscriptionProperties(opts),
 	})
 	if err != nil {
 		return fmt.Errorf("could not create subscription %s: %w", subscription, err)
@@ -322,4 +376,22 @@ func (c *Client) createQueue(parentCtx context.Context, queue string) error {
 		return fmt.Errorf("could not create queue %s: %w", queue, err)
 	}
 	return nil
+}
+
+// ReconnectionBackoff returns the backoff for reconnecting in a subscription.
+func (c *Client) ReconnectionBackoff() backoff.BackOff {
+	bo := backoff.NewExponentialBackOff()
+	bo.MaxElapsedTime = 0
+	bo.InitialInterval = time.Duration(c.metadata.MinConnectionRecoveryInSec) * time.Second
+	bo.MaxInterval = time.Duration(c.metadata.MaxConnectionRecoveryInSec) * time.Second
+	return bo
+}
+
+func notEqual(a, b *bool) bool {
+	if a == nil && b == nil {
+		return false
+	} else if a == nil || b == nil {
+		return true
+	}
+	return *a != *b
 }

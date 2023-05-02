@@ -2,6 +2,8 @@ package kubemq
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -20,7 +22,7 @@ type kubemqEventsClient interface {
 type kubeMQEvents struct {
 	lock                 sync.RWMutex
 	client               kubemqEventsClient
-	metadata             *metadata
+	metadata             *kubemqMetadata
 	logger               logger.Logger
 	publishFunc          func(event *kubemq.Event) error
 	resultChan           chan error
@@ -54,16 +56,16 @@ func (k *kubeMQEvents) init() error {
 	k.lock.Lock()
 	defer k.lock.Unlock()
 	k.ctx, k.ctxCancel = context.WithCancel(context.Background())
-	clientID := k.metadata.clientID
+	clientID := k.metadata.ClientID
 	if clientID == "" {
 		clientID = getRandomID()
 	}
 	client, err := kubemq.NewEventsClient(k.ctx,
-		kubemq.WithAddress(k.metadata.host, k.metadata.port),
+		kubemq.WithAddress(k.metadata.internalHost, k.metadata.internalPort),
 		kubemq.WithClientId(clientID),
 		kubemq.WithTransportType(kubemq.TransportTypeGRPC),
 		kubemq.WithCheckConnection(true),
-		kubemq.WithAuthToken(k.metadata.authToken),
+		kubemq.WithAuthToken(k.metadata.AuthToken),
 		kubemq.WithAutoReconnect(true),
 		kubemq.WithReconnectInterval(time.Second))
 	if err != nil {
@@ -80,7 +82,7 @@ func (k *kubeMQEvents) init() error {
 	return nil
 }
 
-func (k *kubeMQEvents) Init(meta *metadata) error {
+func (k *kubeMQEvents) Init(meta *kubemqMetadata) error {
 	k.metadata = meta
 	_ = k.init()
 	return nil
@@ -101,14 +103,31 @@ func (k *kubeMQEvents) Publish(req *pubsub.PublishRequest) error {
 	if err := k.init(); err != nil {
 		return err
 	}
+	if req.Topic == "" {
+		return fmt.Errorf("kubemq pub/sub error: topic is required")
+	}
+	metadata := ""
+	if req.Metadata != nil {
+		data, err := json.Marshal(req.Metadata)
+		if err != nil {
+			return fmt.Errorf("kubemq pub/sub error: failed to marshal metadata: %s", err.Error())
+		}
+		metadata = string(data)
+	}
+	contentType := ""
+	if req.ContentType != nil {
+		contentType = *req.ContentType
+	}
 	k.logger.Debugf("kubemq pub/sub: publishing message to %s", req.Topic)
 	event := &kubemq.Event{
 		Id:       "",
 		Channel:  req.Topic,
-		Metadata: "",
+		Metadata: metadata,
 		Body:     req.Data,
-		ClientId: k.metadata.clientID,
-		Tags:     map[string]string{},
+		ClientId: k.metadata.ClientID,
+		Tags: map[string]string{
+			"ContentType": contentType,
+		},
 	}
 	if err := k.publishFunc(event); err != nil {
 		k.logger.Errorf("kubemq pub/sub error: publishing to %s failed with error: %s", req.Topic, err.Error())
@@ -125,14 +144,14 @@ func (k *kubeMQEvents) Subscribe(ctx context.Context, req pubsub.SubscribeReques
 	if err := k.init(); err != nil {
 		return err
 	}
-	clientID := k.metadata.clientID
+	clientID := k.metadata.ClientID
 	if clientID == "" {
 		clientID = getRandomID()
 	}
 	k.logger.Debugf("kubemq pub/sub: subscribing to %s", req.Topic)
 	err := k.client.Subscribe(ctx, &kubemq.EventsSubscription{
 		Channel:  req.Topic,
-		Group:    k.metadata.group,
+		Group:    k.metadata.Group,
 		ClientId: clientID,
 	}, func(event *kubemq.Event, err error) {
 		if err != nil {
@@ -142,14 +161,26 @@ func (k *kubeMQEvents) Subscribe(ctx context.Context, req pubsub.SubscribeReques
 		if ctx.Err() != nil {
 			return
 		}
+		var metadata map[string]string
+		if event.Metadata != "" {
+			_ = json.Unmarshal([]byte(event.Metadata), &metadata)
+		}
+		var contentType *string
+		if event.Tags != nil {
+			if event.Tags["ContentType"] != "" {
+				*contentType = event.Tags["ContentType"]
+			}
+		}
 		msg := &pubsub.NewMessage{
-			Data:  event.Body,
-			Topic: req.Topic,
+			Data:        event.Body,
+			Topic:       req.Topic,
+			Metadata:    metadata,
+			ContentType: contentType,
 		}
 
 		if err := handler(k.ctx, msg); err != nil {
 			k.logger.Errorf("kubemq events pub/sub error: error handling message from topic '%s', %s", req.Topic, err.Error())
-			if k.metadata.disableReDelivery {
+			if k.metadata.DisableReDelivery {
 				return
 			}
 			if err := k.Publish(&pubsub.PublishRequest{
@@ -172,6 +203,9 @@ func (k *kubeMQEvents) Subscribe(ctx context.Context, req pubsub.SubscribeReques
 func (k *kubeMQEvents) Close() error {
 	if k.ctxCancel != nil {
 		k.ctxCancel()
+	}
+	if k.client == nil {
+		return nil
 	}
 	return k.client.Close()
 }

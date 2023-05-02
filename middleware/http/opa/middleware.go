@@ -23,6 +23,7 @@ import (
 	"math"
 	"net/http"
 	"net/textproto"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -32,6 +33,7 @@ import (
 
 	"github.com/dapr/components-contrib/internal/httputils"
 	"github.com/dapr/components-contrib/internal/utils"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 )
@@ -39,11 +41,11 @@ import (
 type Status int
 
 type middlewareMetadata struct {
-	Rego                  string   `json:"rego"`
-	DefaultStatus         Status   `json:"defaultStatus,omitempty"`
-	IncludedHeaders       string   `json:"includedHeaders,omitempty"`
-	ReadBody              string   `json:"readBody,omitempty"`
-	includedHeadersParsed []string `json:"-"`
+	Rego                          string   `json:"rego" mapstructure:"rego"`
+	DefaultStatus                 Status   `json:"defaultStatus,omitempty" mapstructure:"defaultStatus"`
+	IncludedHeaders               string   `json:"includedHeaders,omitempty" mapstructure:"includedHeaders"`
+	ReadBody                      string   `json:"readBody,omitempty" mapstructure:"readBody"`
+	internalIncludedHeadersParsed []string `json:"-" mapstructure:"-"`
 }
 
 // NewMiddleware returns a new Open Policy Agent middleware.
@@ -106,13 +108,13 @@ func (s *Status) Valid() bool {
 }
 
 // GetHandler returns the HTTP handler provided by the middleware.
-func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
+func (m *Middleware) GetHandler(parentCtx context.Context, metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Minute)
+	ctx, cancel := context.WithTimeout(parentCtx, time.Minute)
 	query, err := rego.New(
 		rego.Query("result = data.http.allow"),
 		rego.Module("inline.rego", meta.Rego),
@@ -136,7 +138,7 @@ func (m *Middleware) evalRequest(w http.ResponseWriter, r *http.Request, meta *m
 	headers := map[string]string{}
 
 	for key, value := range r.Header {
-		if len(value) > 0 && slices.Contains(meta.includedHeadersParsed, key) {
+		if len(value) > 0 && slices.Contains(meta.internalIncludedHeadersParsed, key) {
 			headers[key] = strings.Join(value, ", ")
 		}
 	}
@@ -175,13 +177,13 @@ func (m *Middleware) evalRequest(w http.ResponseWriter, r *http.Request, meta *m
 		return false
 	}
 
-	return m.handleRegoResult(w, meta, results[0].Bindings["result"])
+	return m.handleRegoResult(w, r, meta, results[0].Bindings["result"])
 }
 
 // handleRegoResult takes the in process request and open policy agent evaluation result
 // and maps it the appropriate response or headers.
 // It returns true if the request should continue, or false if a response should be immediately returned.
-func (m *Middleware) handleRegoResult(w http.ResponseWriter, meta *middlewareMetadata, result any) bool {
+func (m *Middleware) handleRegoResult(w http.ResponseWriter, r *http.Request, meta *middlewareMetadata, result any) bool {
 	if allowed, ok := result.(bool); ok {
 		if !allowed {
 			httputils.RespondWithError(w, int(meta.DefaultStatus))
@@ -212,14 +214,18 @@ func (m *Middleware) handleRegoResult(w http.ResponseWriter, meta *middlewareMet
 		return false
 	}
 
-	// Set the headers on the ongoing request (overriding as necessary)
-	for key, value := range regoResult.AdditionalHeaders {
-		w.Header().Set(key, value)
-	}
-
-	// If the result isn't allowed, set the response status
+	// If the result isn't allowed, set the response status and
+	// apply the additional headers to the response.
+	// Otherwise, set the headers on the ongoing request (overriding as necessary).
 	if !regoResult.Allow {
+		for key, value := range regoResult.AdditionalHeaders {
+			w.Header().Set(key, value)
+		}
 		httputils.RespondWithError(w, regoResult.StatusCode)
+	} else {
+		for key, value := range regoResult.AdditionalHeaders {
+			r.Header.Set(key, value)
+		}
 	}
 
 	return regoResult.Allow
@@ -232,29 +238,31 @@ func (m *Middleware) opaError(w http.ResponseWriter, meta *middlewareMetadata, e
 }
 
 func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*middlewareMetadata, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
-
 	meta := middlewareMetadata{
 		DefaultStatus: 403,
 	}
-	err = json.Unmarshal(b, &meta)
+	err := contribMetadata.DecodeMetadata(metadata.Properties, &meta)
 	if err != nil {
 		return nil, err
 	}
 
-	meta.includedHeadersParsed = strings.Split(meta.IncludedHeaders, ",")
+	meta.internalIncludedHeadersParsed = strings.Split(meta.IncludedHeaders, ",")
 	n := 0
-	for i := range meta.includedHeadersParsed {
-		scrubbed := strings.ReplaceAll(meta.includedHeadersParsed[i], " ", "")
+	for i := range meta.internalIncludedHeadersParsed {
+		scrubbed := strings.ReplaceAll(meta.internalIncludedHeadersParsed[i], " ", "")
 		if scrubbed != "" {
-			meta.includedHeadersParsed[n] = textproto.CanonicalMIMEHeaderKey(scrubbed)
+			meta.internalIncludedHeadersParsed[n] = textproto.CanonicalMIMEHeaderKey(scrubbed)
 			n++
 		}
 	}
-	meta.includedHeadersParsed = meta.includedHeadersParsed[:n]
+	meta.internalIncludedHeadersParsed = meta.internalIncludedHeadersParsed[:n]
 
 	return &meta, nil
+}
+
+func (m *Middleware) GetComponentMetadata() map[string]string {
+	metadataStruct := middlewareMetadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.MiddlewareType)
+	return metadataInfo
 }

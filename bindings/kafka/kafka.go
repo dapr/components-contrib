@@ -15,12 +15,17 @@ package kafka
 
 import (
 	"context"
+	"errors"
+	"reflect"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/dapr/kit/logger"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/internal/component/kafka"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 )
 
 const (
@@ -29,12 +34,13 @@ const (
 )
 
 type Binding struct {
-	kafka           *kafka.Kafka
-	publishTopic    string
-	topics          []string
-	logger          logger.Logger
-	subscribeCtx    context.Context
-	subscribeCancel context.CancelFunc
+	kafka        *kafka.Kafka
+	publishTopic string
+	topics       []string
+	logger       logger.Logger
+	closeCh      chan struct{}
+	closed       atomic.Bool
+	wg           sync.WaitGroup
 }
 
 // NewKafka returns a new kafka binding instance.
@@ -43,15 +49,14 @@ func NewKafka(logger logger.Logger) bindings.InputOutputBinding {
 	// in kafka binding component, disable consumer retry by default
 	k.DefaultConsumeRetryEnabled = false
 	return &Binding{
-		kafka:  k,
-		logger: logger,
+		kafka:   k,
+		logger:  logger,
+		closeCh: make(chan struct{}),
 	}
 }
 
-func (b *Binding) Init(metadata bindings.Metadata) error {
-	b.subscribeCtx, b.subscribeCancel = context.WithCancel(context.Background())
-
-	err := b.kafka.Init(metadata.Properties)
+func (b *Binding) Init(ctx context.Context, metadata bindings.Metadata) error {
+	err := b.kafka.Init(ctx, metadata.Properties)
 	if err != nil {
 		return err
 	}
@@ -74,7 +79,10 @@ func (b *Binding) Operations() []bindings.OperationKind {
 }
 
 func (b *Binding) Close() (err error) {
-	b.subscribeCancel()
+	if b.closed.CompareAndSwap(false, true) {
+		close(b.closeCh)
+	}
+	defer b.wg.Wait()
 	return b.kafka.Close()
 }
 
@@ -84,6 +92,10 @@ func (b *Binding) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bin
 }
 
 func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
+	if b.closed.Load() {
+		return errors.New("error: binding is closed")
+	}
+
 	if len(b.topics) == 0 {
 		b.logger.Warnf("kafka binding: no topic defined, input bindings will not be started")
 		return nil
@@ -96,31 +108,22 @@ func (b *Binding) Read(ctx context.Context, handler bindings.Handler) error {
 	for _, t := range b.topics {
 		b.kafka.AddTopicHandler(t, handlerConfig)
 	}
-
+	b.wg.Add(1)
 	go func() {
-		// Wait for context cancelation
+		defer b.wg.Done()
+		// Wait for context cancelation or closure.
 		select {
 		case <-ctx.Done():
-		case <-b.subscribeCtx.Done():
+		case <-b.closeCh:
 		}
 
-		// Remove the topic handler before restarting the subscriber
+		// Remove the topic handlers.
 		for _, t := range b.topics {
 			b.kafka.RemoveTopicHandler(t)
 		}
-
-		// If the component's context has been canceled, do not re-subscribe
-		if b.subscribeCtx.Err() != nil {
-			return
-		}
-
-		err := b.kafka.Subscribe(b.subscribeCtx)
-		if err != nil {
-			b.logger.Errorf("kafka binding: error re-subscribing: %v", err)
-		}
 	}()
 
-	return b.kafka.Subscribe(b.subscribeCtx)
+	return b.kafka.Subscribe(ctx)
 }
 
 func adaptHandler(handler bindings.Handler) kafka.EventHandler {
@@ -132,4 +135,12 @@ func adaptHandler(handler bindings.Handler) kafka.EventHandler {
 		})
 		return err
 	}
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (b *Binding) GetComponentMetadata() map[string]string {
+	metadataStruct := kafka.KafkaMetadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
+	return metadataInfo
 }

@@ -16,9 +16,9 @@ package amqp
 import (
 	"encoding/pem"
 	"fmt"
-	"strconv"
 	"time"
 
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -29,17 +29,17 @@ const (
 )
 
 type metadata struct {
-	tlsCfg
-	url       string
-	username  string
-	password  string
-	anonymous bool
+	tlsCfg    `mapstructure:",squash"`
+	URL       string
+	Username  string
+	Password  string
+	Anonymous bool
 }
 
 type tlsCfg struct {
-	caCert     string
-	clientCert string
-	clientKey  string
+	CaCert     string
+	ClientCert string
+	ClientKey  string
 }
 
 const (
@@ -62,55 +62,43 @@ func isValidPEM(val string) bool {
 }
 
 func parseAMQPMetaData(md pubsub.Metadata, log logger.Logger) (*metadata, error) {
-	m := metadata{anonymous: false}
+	m := metadata{Anonymous: false}
+
+	err := contribMetadata.DecodeMetadata(md.Properties, &m)
+	if err != nil {
+		return &m, fmt.Errorf("%s %s", errorMsgPrefix, err)
+	}
 
 	// required configuration settings
-	if val, ok := md.Properties[amqpURL]; ok && val != "" {
-		m.url = val
-	} else {
+	if m.URL == "" {
 		return &m, fmt.Errorf("%s missing url", errorMsgPrefix)
 	}
 
 	// optional configuration settings
-	if val, ok := md.Properties[anonymous]; ok && val != "" {
-		var err error
-		m.anonymous, err = strconv.ParseBool(val)
-		if err != nil {
-			return &m, fmt.Errorf("%s invalid anonymous %s, %s", errorMsgPrefix, val, err)
-		}
-	}
-
-	if !m.anonymous {
-		if val, ok := md.Properties[username]; ok && val != "" {
-			m.username = val
-		} else {
+	if !m.Anonymous {
+		if m.Username == "" {
 			return &m, fmt.Errorf("%s missing username", errorMsgPrefix)
 		}
 
-		if val, ok := md.Properties[password]; ok && val != "" {
-			m.password = val
-		} else {
+		if m.Password == "" {
 			return &m, fmt.Errorf("%s missing username", errorMsgPrefix)
 		}
 	}
 
-	if val, ok := md.Properties[amqpCACert]; ok && val != "" {
-		if !isValidPEM(val) {
+	if m.CaCert != "" {
+		if !isValidPEM(m.CaCert) {
 			return &m, fmt.Errorf("%s invalid caCert", errorMsgPrefix)
 		}
-		m.tlsCfg.caCert = val
 	}
-	if val, ok := md.Properties[amqpClientCert]; ok && val != "" {
-		if !isValidPEM(val) {
+	if m.ClientCert != "" {
+		if !isValidPEM(m.ClientCert) {
 			return &m, fmt.Errorf("%s invalid clientCert", errorMsgPrefix)
 		}
-		m.tlsCfg.clientCert = val
 	}
-	if val, ok := md.Properties[amqpClientKey]; ok && val != "" {
-		if !isValidPEM(val) {
+	if m.ClientKey != "" {
+		if !isValidPEM(m.ClientKey) {
 			return &m, fmt.Errorf("%s invalid clientKey", errorMsgPrefix)
 		}
-		m.tlsCfg.clientKey = val
 	}
 
 	return &m, nil

@@ -16,17 +16,27 @@ package redis
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"golang.org/x/mod/semver"
 
-	"github.com/dapr/kit/ptr"
+	"github.com/dapr/components-contrib/configuration"
+
+	"github.com/dapr/components-contrib/metadata"
 )
 
 const (
 	ClusterType = "cluster"
 	NodeType    = "node"
+
+	processingTimeoutKey     = "processingTimeout"
+	redeliverIntervalKey     = "redeliverInterval"
+	redisMinRetryIntervalKey = "redisMinRetryInterval"
+	maxRetryBackoffKey       = "maxRetryBackoff"
+	redisMaxRetriesKey       = "redisMaxRetries"
+	maxRetriesKey            = "maxRetries"
 )
 
 type RedisXMessage struct {
@@ -51,8 +61,6 @@ type RedisPipeliner interface {
 	Do(ctx context.Context, args ...interface{})
 }
 
-var clientHasJSONSupport *bool
-
 //nolint:interfacebloat
 type RedisClient interface {
 	GetNilValueError() RedisError
@@ -61,8 +69,10 @@ type RedisClient interface {
 	DoWrite(ctx context.Context, args ...interface{}) error
 	Del(ctx context.Context, keys ...string) error
 	Get(ctx context.Context, key string) (string, error)
+	GetDel(ctx context.Context, key string) (string, error)
 	Close() error
 	PingResult(ctx context.Context) (string, error)
+	ConfigurationSubscribe(ctx context.Context, args *ConfigurationSubscribeArgs)
 	SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (*bool, error)
 	EvalInt(ctx context.Context, script string, keys []string, args ...interface{}) (*int, error, error)
 	XAdd(ctx context.Context, stream string, maxLenApprox int64, values map[string]interface{}) (string, error)
@@ -75,15 +85,78 @@ type RedisClient interface {
 	TTLResult(ctx context.Context, key string) (time.Duration, error)
 }
 
-func ParseClientFromProperties(properties map[string]string, defaultSettings *Settings) (client RedisClient, settings *Settings, err error) {
-	if defaultSettings == nil {
-		settings = &Settings{}
-	} else {
-		settings = defaultSettings
+type ConfigurationSubscribeArgs struct {
+	HandleSubscribedChange func(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler, channel string, id string)
+	Req                    *configuration.SubscribeRequest
+	Handler                configuration.UpdateHandler
+	RedisChannel           string
+	IsAllKeysChannel       bool
+	ID                     string
+	Stop                   chan struct{}
+}
+
+func ParseClientFromProperties(properties map[string]string, componentType metadata.ComponentType) (client RedisClient, settings *Settings, err error) {
+	settings = &Settings{}
+
+	// upgrade legacy metadata properties and set defaults
+	switch componentType {
+	case metadata.ConfigurationStoreType:
+		// Apply legacy defaults
+		settings.RedisMaxRetries = 3
+		settings.RedisMaxRetryInterval = Duration(2 * time.Second)
+		settings.RedisMinRetryInterval = Duration(8 * time.Millisecond)
+	case metadata.StateStoreType, metadata.LockStoreType:
+		// Apply legacy defaults
+		settings.RedisMaxRetries = 3
+		settings.RedisMinRetryInterval = Duration(2 * time.Second)
+		// Parse legacy keys
+		if properties[redisMinRetryIntervalKey] == "" {
+			if properties[maxRetryBackoffKey] != "" {
+				// due to different duration formats, do not simply change the key name
+				parsedVal, parseErr := strconv.ParseInt(properties[maxRetryBackoffKey], 10, 0)
+				if parseErr != nil {
+					return nil, nil, fmt.Errorf("redis store error: can't parse maxRetryBackoff field: %s", parseErr)
+				}
+				settings.RedisMinRetryInterval = Duration(time.Duration(parsedVal))
+			}
+		}
+		if properties[redisMaxRetriesKey] == "" {
+			if properties[maxRetriesKey] != "" {
+				properties[redisMaxRetriesKey] = properties[maxRetriesKey]
+			}
+		}
+
+	case metadata.PubSubType:
+		settings.ProcessingTimeout = 60 * time.Second
+		settings.RedeliverInterval = 15 * time.Second
+		settings.QueueDepth = 100
+		settings.Concurrency = 10
 	}
+
 	err = settings.Decode(properties)
 	if err != nil {
 		return nil, nil, fmt.Errorf("redis client configuration error: %w", err)
+	}
+
+	switch componentType {
+	case metadata.PubSubType:
+		if val, ok := properties[processingTimeoutKey]; ok && val != "" {
+			if processingTimeoutMs, err := strconv.ParseUint(val, 10, 64); err == nil {
+				// because of legacy reasons, we need to interpret a number as milliseconds
+				// the library would default to seconds otherwise
+				settings.ProcessingTimeout = time.Duration(processingTimeoutMs) * time.Millisecond
+			}
+			// if there was an error we would try to interpret it as a duration string, which was already done in Decode()
+		}
+
+		if val, ok := properties[redeliverIntervalKey]; ok && val != "" {
+			if redeliverIntervalMs, err := strconv.ParseUint(val, 10, 64); err == nil {
+				// because of legacy reasons, we need to interpret a number as milliseconds
+				// the library would default to seconds otherwise
+				settings.RedeliverInterval = time.Duration(redeliverIntervalMs) * time.Millisecond
+			}
+			// if there was an error we would try to interpret it as a duration string, which was already done in Decode()
+		}
 	}
 
 	var c RedisClient
@@ -117,30 +190,22 @@ func ParseClientFromProperties(properties map[string]string, defaultSettings *Se
 }
 
 func ClientHasJSONSupport(c RedisClient) bool {
-	if clientHasJSONSupport != nil {
-		return *clientHasJSONSupport
-	}
-	bgctx := context.Background()
-	ctx, cancel := context.WithTimeout(bgctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err := c.DoWrite(ctx, "JSON.GET")
 
+	err := c.DoWrite(ctx, "JSON.GET")
 	if err == nil {
-		clientHasJSONSupport = ptr.Of(true)
 		return true
 	}
 
 	if strings.HasPrefix(err.Error(), "ERR unknown command") {
-		clientHasJSONSupport = ptr.Of(false)
 		return false
 	}
-	clientHasJSONSupport = ptr.Of(true)
 	return true
 }
 
 func GetServerVersion(c RedisClient) (string, error) {
-	bgctx := context.Background()
-	ctx, cancel := context.WithTimeout(bgctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	res, err := c.DoRead(ctx, "INFO", "server")
 	if err != nil {

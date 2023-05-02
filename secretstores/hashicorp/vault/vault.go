@@ -137,7 +137,7 @@ func NewHashiCorpVaultSecretStore(logger logger.Logger) secretstores.SecretStore
 }
 
 // Init creates a HashiCorp Vault client.
-func (v *vaultSecretStore) Init(meta secretstores.Metadata) error {
+func (v *vaultSecretStore) Init(_ context.Context, meta secretstores.Metadata) error {
 	m := VaultMetadata{
 		VaultKVUsePrefix: true,
 	}
@@ -219,7 +219,12 @@ func metadataToTLSConfig(meta *VaultMetadata) *tlsConfig {
 // GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
 func (v *vaultSecretStore) getSecret(ctx context.Context, secret, version string) (*vaultKVResponse, error) {
 	// Create get secret url
-	vaultSecretPathAddr := fmt.Sprintf("%s/v1/%s/data/%s/%s?version=%s", v.vaultAddress, v.vaultEnginePath, v.vaultKVPrefix, secret, version)
+	var vaultSecretPathAddr string
+	if v.vaultKVPrefix == "" {
+		vaultSecretPathAddr = v.vaultAddress + "/v1/" + v.vaultEnginePath + "/data/" + secret + "?version=" + version
+	} else {
+		vaultSecretPathAddr = v.vaultAddress + "/v1/" + v.vaultEnginePath + "/data/" + v.vaultKVPrefix + "/" + secret + "?version=" + version
+	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, vaultSecretPathAddr, nil)
 	if err != nil {
@@ -529,6 +534,6 @@ func (v *vaultSecretStore) Features() []secretstores.Feature {
 func (v *vaultSecretStore) GetComponentMetadata() map[string]string {
 	metadataStruct := VaultMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return metadataInfo
 }

@@ -14,13 +14,15 @@ limitations under the License.
 package ratelimit
 
 import (
+	"context"
 	"fmt"
 	"net/http"
-	"strconv"
+	"reflect"
 
 	tollbooth "github.com/didip/tollbooth/v7"
 	libstring "github.com/didip/tollbooth/v7/libstring"
 
+	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 )
@@ -46,7 +48,7 @@ func NewRateLimitMiddleware(_ logger.Logger) middleware.Middleware {
 type Middleware struct{}
 
 // GetHandler returns the HTTP handler provided by the middleware.
-func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
+func (m *Middleware) GetHandler(_ context.Context, metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {
 		return nil, err
@@ -84,19 +86,24 @@ func (m *Middleware) GetHandler(metadata middleware.Metadata) (func(next http.Ha
 }
 
 func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*rateLimitMiddlewareMetadata, error) {
-	var middlewareMetadata rateLimitMiddlewareMetadata
+	middlewareMetadata := rateLimitMiddlewareMetadata{
+		MaxRequestsPerSecond: defaultMaxRequestsPerSecond,
+	}
+	err := contribMetadata.DecodeMetadata(metadata.Properties, &middlewareMetadata)
+	if err != nil {
+		return nil, err
+	}
 
-	middlewareMetadata.MaxRequestsPerSecond = defaultMaxRequestsPerSecond
-	if val, ok := metadata.Properties[maxRequestsPerSecondKey]; ok {
-		f, err := strconv.ParseFloat(val, 64)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing ratelimit middleware property %s: %w", maxRequestsPerSecondKey, err)
-		}
-		if f <= 0 {
-			return nil, fmt.Errorf("ratelimit middleware property %s must be a positive value", maxRequestsPerSecondKey)
-		}
-		middlewareMetadata.MaxRequestsPerSecond = f
+	if middlewareMetadata.MaxRequestsPerSecond <= 0 {
+		return nil, fmt.Errorf("metadata property %s must be a positive value", maxRequestsPerSecondKey)
 	}
 
 	return &middlewareMetadata, nil
+}
+
+func (m *Middleware) GetComponentMetadata() map[string]string {
+	metadataStruct := rateLimitMiddlewareMetadata{}
+	metadataInfo := map[string]string{}
+	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.MiddlewareType)
+	return metadataInfo
 }

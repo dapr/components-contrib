@@ -16,16 +16,25 @@ package pulsar
 import "time"
 
 type pulsarMetadata struct {
-	Host                    string        `json:"host"`
-	ConsumerID              string        `json:"consumerID"`
-	EnableTLS               bool          `json:"enableTLS"`
-	DisableBatching         bool          `json:"disableBatching"`
-	BatchingMaxPublishDelay time.Duration `json:"batchingMaxPublishDelay"`
-	BatchingMaxSize         uint          `json:"batchingMaxSize"`
-	BatchingMaxMessages     uint          `json:"batchingMaxMessages"`
-	Tenant                  string        `json:"tenant"`
-	Namespace               string        `json:"namespace"`
-	Persistent              bool          `json:"persistent"`
-	Token                   string        `json:"token"`
-	RedeliveryDelay         time.Duration `json:"redeliveryDelay"`
+	Host                    string                    `mapstructure:"host"`
+	ConsumerID              string                    `mapstructure:"consumerID"`
+	EnableTLS               bool                      `mapstructure:"enableTLS"`
+	DisableBatching         bool                      `mapstructure:"disableBatching"`
+	BatchingMaxPublishDelay time.Duration             `mapstructure:"batchingMaxPublishDelay"`
+	BatchingMaxSize         uint                      `mapstructure:"batchingMaxSize"`
+	BatchingMaxMessages     uint                      `mapstructure:"batchingMaxMessages"`
+	Tenant                  string                    `mapstructure:"tenant"`
+	Namespace               string                    `mapstructure:"namespace"`
+	Persistent              bool                      `mapstructure:"persistent"`
+	Token                   string                    `mapstructure:"token"`
+	RedeliveryDelay         time.Duration             `mapstructure:"redeliveryDelay"`
+	internalTopicSchemas    map[string]schemaMetadata `mapstructure:"-"`
+	PublicKey               string                    `mapstructure:"publicKey"`
+	PrivateKey              string                    `mapstructure:"privateKey"`
+	Keys                    string                    `mapstructure:"keys"`
+}
+
+type schemaMetadata struct {
+	protocol string
+	value    string
 }

@@ -17,12 +17,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/internal/utils"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -42,11 +46,11 @@ type SMS struct {
 }
 
 type twilioMetadata struct {
-	toNumber   string
-	fromNumber string
-	accountSid string
-	authToken  string
-	timeout    time.Duration
+	ToNumber   string        `mapstructure:"toNumber"`
+	FromNumber string        `mapstructure:"fromNumber"`
+	AccountSid string        `mapstructure:"accountSid"`
+	AuthToken  string        `mapstructure:"authToken"`
+	Timeout    time.Duration `mapstructure:"timeout"`
 }
 
 func NewSMS(logger logger.Logger) bindings.OutputBinding {
@@ -58,35 +62,28 @@ func NewSMS(logger logger.Logger) bindings.OutputBinding {
 	}
 }
 
-func (t *SMS) Init(metadata bindings.Metadata) error {
+func (t *SMS) Init(_ context.Context, meta bindings.Metadata) error {
 	twilioM := twilioMetadata{
-		timeout: time.Minute * 5,
+		Timeout: time.Minute * 5,
 	}
 
-	if metadata.Properties[fromNumber] == "" {
-		return errors.New("\"fromNumber\" is a required field")
-	}
-	if metadata.Properties[accountSid] == "" {
-		return errors.New("\"accountSid\" is a required field")
-	}
-	if metadata.Properties[authToken] == "" {
-		return errors.New("\"authToken\" is a required field")
+	err := metadata.DecodeMetadata(meta.Properties, &twilioM)
+	if err != nil {
+		return err
 	}
 
-	twilioM.toNumber = metadata.Properties[toNumber]
-	twilioM.fromNumber = metadata.Properties[fromNumber]
-	twilioM.accountSid = metadata.Properties[accountSid]
-	twilioM.authToken = metadata.Properties[authToken]
-	if metadata.Properties[timeout] != "" {
-		t, err := time.ParseDuration(metadata.Properties[timeout])
-		if err != nil {
-			return fmt.Errorf("error parsing timeout: %s", err)
-		}
-		twilioM.timeout = t
+	if twilioM.FromNumber == "" {
+		return errors.New(`"fromNumber" is a required field`)
+	}
+	if twilioM.AccountSid == "" {
+		return errors.New(`"accountSid" is a required field`)
+	}
+	if twilioM.AuthToken == "" {
+		return errors.New(`"authToken" is a required field`)
 	}
 
 	t.metadata = twilioM
-	t.httpClient.Timeout = twilioM.timeout
+	t.httpClient.Timeout = twilioM.Timeout
 
 	return nil
 }
@@ -96,7 +93,7 @@ func (t *SMS) Operations() []bindings.OperationKind {
 }
 
 func (t *SMS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	toNumberValue := t.metadata.toNumber
+	toNumberValue := t.metadata.ToNumber
 	if toNumberValue == "" {
 		toNumberFromRequest, ok := req.Metadata[toNumber]
 		if !ok || toNumberFromRequest == "" {
@@ -105,18 +102,19 @@ func (t *SMS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*binding
 		toNumberValue = toNumberFromRequest
 	}
 
+	body := utils.Unquote(req.Data)
+
 	v := url.Values{}
 	v.Set("To", toNumberValue)
-	v.Set("From", t.metadata.fromNumber)
-	v.Set("Body", string(req.Data))
-	vDr := *strings.NewReader(v.Encode())
+	v.Set("From", t.metadata.FromNumber)
+	v.Set("Body", body)
 
-	twilioURL := fmt.Sprintf("%s%s/Messages.json", twilioURLBase, t.metadata.accountSid)
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, twilioURL, &vDr)
+	twilioURL := twilioURLBase + t.metadata.AccountSid + "/Messages.json"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, twilioURL, strings.NewReader(v.Encode()))
 	if err != nil {
 		return nil, err
 	}
-	httpReq.SetBasicAuth(t.metadata.accountSid, t.metadata.authToken)
+	httpReq.SetBasicAuth(t.metadata.AccountSid, t.metadata.AuthToken)
 	httpReq.Header.Add("Accept", "application/json")
 	httpReq.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
@@ -124,10 +122,22 @@ func (t *SMS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*binding
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		// Drain the body before closing
+		_, _ = io.ReadAll(resp.Body)
+		resp.Body.Close()
+	}()
 	if !(resp.StatusCode >= 200 && resp.StatusCode < 300) {
-		return nil, fmt.Errorf("error from Twilio: %s", resp.Status)
+		return nil, fmt.Errorf("error from Twilio (%d): %s", resp.StatusCode, resp.Status)
 	}
 
 	return nil, nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (t *SMS) GetComponentMetadata() map[string]string {
+	metadataStruct := twilioMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

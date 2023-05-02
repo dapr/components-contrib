@@ -2,6 +2,7 @@ package internal_test
 
 import (
 	"bytes"
+	"context"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -10,15 +11,12 @@ import (
 	"path"
 	"testing"
 
-	"github.com/dapr/components-contrib/middleware/http/wasm"
-
-	"github.com/dapr/kit/logger"
-
-	"github.com/dapr/components-contrib/metadata"
-
 	"github.com/stretchr/testify/require"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
+	"github.com/dapr/components-contrib/middleware/http/wasm"
+	"github.com/dapr/kit/logger"
 )
 
 var guestWasm map[string][]byte
@@ -138,8 +136,8 @@ func Test_EndToEnd(t *testing.T) {
 			wasmPath := path.Join(t.TempDir(), "guest.wasm")
 			require.NoError(t, os.WriteFile(wasmPath, tc.guest, 0o600))
 
-			meta := metadata.Base{Properties: map[string]string{"path": wasmPath}}
-			handlerFn, err := wasm.NewMiddleware(l).GetHandler(middleware.Metadata{Base: meta})
+			meta := metadata.Base{Properties: map[string]string{"url": "file://" + wasmPath}}
+			handlerFn, err := wasm.NewMiddleware(l).GetHandler(context.Background(), middleware.Metadata{Base: meta})
 			require.NoError(t, err)
 			handler := handlerFn(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 			tc.test(t, handler, &buf)

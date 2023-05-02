@@ -22,8 +22,8 @@ import (
 	"strconv"
 	"strings"
 
-	as "github.com/aerospike/aerospike-client-go"
-	"github.com/aerospike/aerospike-client-go/types"
+	as "github.com/aerospike/aerospike-client-go/v6"
+	"github.com/aerospike/aerospike-client-go/v6/types"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/metadata"
@@ -45,7 +45,8 @@ var (
 
 // Aerospike is a state store.
 type Aerospike struct {
-	state.DefaultBulkStore
+	state.BulkStore
+
 	namespace string
 	set       string // optional
 	client    *as.Client
@@ -62,8 +63,7 @@ func NewAerospikeStateStore(logger logger.Logger) state.Store {
 		features: []state.Feature{state.FeatureETag},
 		logger:   logger,
 	}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
+	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
 }
 
@@ -91,7 +91,7 @@ func parseAndValidateMetadata(meta state.Metadata) (*aerospikeMetadata, error) {
 }
 
 // Init does metadata and connection parsing.
-func (aspike *Aerospike) Init(metadata state.Metadata) error {
+func (aspike *Aerospike) Init(_ context.Context, metadata state.Metadata) error {
 	m, err := parseAndValidateMetadata(metadata)
 	if err != nil {
 		return err
@@ -185,15 +185,15 @@ func (aspike *Aerospike) Get(ctx context.Context, req *state.GetRequest) (*state
 	}
 	record, err := aspike.client.Get(policy, asKey)
 	if err != nil {
-		if err == types.ErrKeyNotFound {
+		if err.Matches(types.KEY_NOT_FOUND_ERROR) {
 			return &state.GetResponse{}, nil
 		}
 
 		return nil, fmt.Errorf("aerospike: failed to get value for key %s - %v", req.Key, err)
 	}
-	value, err := aspike.json.Marshal(record.Bins)
+	value, jsonErr := aspike.json.Marshal(record.Bins)
 	if err != nil {
-		return nil, err
+		return nil, jsonErr
 	}
 
 	return &state.GetResponse{
@@ -274,6 +274,6 @@ func convertETag(eTag string) (uint32, error) {
 func (aspike *Aerospike) GetComponentMetadata() map[string]string {
 	metadataStruct := aerospikeMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }

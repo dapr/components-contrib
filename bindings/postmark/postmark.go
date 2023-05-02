@@ -17,11 +17,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 
 	"github.com/mrz1836/postmark"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -33,13 +35,13 @@ type Postmark struct {
 
 // Our metadata holds standard email properties.
 type postmarkMetadata struct {
-	ServerToken  string `json:"serverToken"`
-	AccountToken string `json:"accountToken"`
-	EmailFrom    string `json:"emailFrom"`
-	EmailTo      string `json:"emailTo"`
-	Subject      string `json:"subject"`
-	EmailCc      string `json:"emailCc"`
-	EmailBcc     string `json:"emailBcc"`
+	ServerToken  string `mapstructure:"serverToken"`
+	AccountToken string `mapstructure:"accountToken"`
+	EmailFrom    string `mapstructure:"emailFrom"`
+	EmailTo      string `mapstructure:"emailTo"`
+	Subject      string `mapstructure:"subject"`
+	EmailCc      string `mapstructure:"emailCc"`
+	EmailBcc     string `mapstructure:"emailBcc"`
 }
 
 // NewPostmark returns a new Postmark bindings instance.
@@ -51,30 +53,24 @@ func NewPostmark(logger logger.Logger) bindings.OutputBinding {
 func (p *Postmark) parseMetadata(meta bindings.Metadata) (postmarkMetadata, error) {
 	pMeta := postmarkMetadata{}
 
-	// Required properties
-	if val, ok := meta.Properties["serverToken"]; ok && val != "" {
-		pMeta.ServerToken = val
-	} else {
-		return pMeta, errors.New("Postmark binding error: serverToken field is required in metadata")
-	}
-	if val, ok := meta.Properties["accountToken"]; ok && val != "" {
-		pMeta.AccountToken = val
-	} else {
-		return pMeta, errors.New("Postmark binding error: accountToken field is required in metadata")
+	err := metadata.DecodeMetadata(meta.Properties, &pMeta)
+	if err != nil {
+		return pMeta, err
 	}
 
-	// Optional properties, these can be set on a per request basis
-	pMeta.EmailTo = meta.Properties["emailTo"]
-	pMeta.EmailFrom = meta.Properties["emailFrom"]
-	pMeta.Subject = meta.Properties["subject"]
-	pMeta.EmailCc = meta.Properties["emailCc"]
-	pMeta.EmailBcc = meta.Properties["emailBcc"]
+	// Required properties
+	if pMeta.ServerToken == "" {
+		return pMeta, errors.New("Postmark binding error: serverToken field is required in metadata")
+	}
+	if pMeta.AccountToken == "" {
+		return pMeta, errors.New("Postmark binding error: accountToken field is required in metadata")
+	}
 
 	return pMeta, nil
 }
 
 // Init does metadata parsing and not much else :).
-func (p *Postmark) Init(metadata bindings.Metadata) error {
+func (p *Postmark) Init(_ context.Context, metadata bindings.Metadata) error {
 	// Parse input metadata
 	meta, err := p.parseMetadata(metadata)
 	if err != nil {
@@ -162,4 +158,12 @@ func (p *Postmark) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 	p.logger.Info("sent email with Postmark")
 
 	return nil, nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (p *Postmark) GetComponentMetadata() map[string]string {
+	metadataStruct := postmarkMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

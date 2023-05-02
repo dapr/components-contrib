@@ -16,20 +16,37 @@ package http
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
 
-	"github.com/mitchellh/mapstructure"
-
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/internal/utils"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+)
+
+const (
+	MTLSRootCA     = "MTLSRootCA"
+	MTLSClientCert = "MTLSClientCert"
+	MTLSClientKey  = "MTLSClientKey"
+
+	TraceparentHeaderKey = "traceparent"
+	TracestateHeaderKey  = "tracestate"
+	TraceMetadataKey     = "traceHeaders"
+	securityToken        = "securityToken"
+	securityTokenHeader  = "securityTokenHeader"
 )
 
 // HTTPSource is a binding for an http url endpoint invocation
@@ -43,7 +60,14 @@ type HTTPSource struct {
 }
 
 type httpMetadata struct {
-	URL string `mapstructure:"url"`
+	URL                 string         `mapstructure:"url"`
+	MTLSClientCert      string         `mapstructure:"mtlsClientCert"`
+	MTLSClientKey       string         `mapstructure:"mtlsClientKey"`
+	MTLSRootCA          string         `mapstructure:"mtlsRootCA"`
+	MTLSRenegotiation   string         `mapstructure:"mtlsRenegotiation"`
+	SecurityToken       string         `mapstructure:"securityToken"`
+	SecurityTokenHeader string         `mapstructure:"securityTokenHeader"`
+	ResponseTimeout     *time.Duration `mapstructure:"responseTimeout"`
 }
 
 // NewHTTP returns a new HTTPSource.
@@ -52,9 +76,27 @@ func NewHTTP(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init performs metadata parsing.
-func (h *HTTPSource) Init(metadata bindings.Metadata) error {
-	if err := mapstructure.Decode(metadata.Properties, &h.metadata); err != nil {
+func (h *HTTPSource) Init(_ context.Context, meta bindings.Metadata) error {
+	var err error
+	if err = metadata.DecodeMetadata(meta.Properties, &h.metadata); err != nil {
 		return err
+	}
+
+	tlsConfig, err := h.addRootCAToCertPool()
+	if err != nil {
+		return err
+	}
+	if h.metadata.MTLSClientCert != "" && h.metadata.MTLSClientKey != "" {
+		err = h.readMTLSClientCertificates(tlsConfig)
+		if err != nil {
+			return err
+		}
+	}
+	if h.metadata.MTLSRenegotiation != "" {
+		err = h.setTLSRenegotiation(tlsConfig)
+		if err != nil {
+			return err
+		}
 	}
 
 	// See guidance on proper HTTP client settings here:
@@ -65,13 +107,15 @@ func (h *HTTPSource) Init(metadata bindings.Metadata) error {
 	netTransport := &http.Transport{
 		Dial:                dialer.Dial,
 		TLSHandshakeTimeout: 5 * time.Second,
+		TLSClientConfig:     tlsConfig,
 	}
+
 	h.client = &http.Client{
-		Timeout:   time.Second * 30,
+		Timeout:   0, // no time out here, we use request timeouts instead
 		Transport: netTransport,
 	}
 
-	if val, ok := metadata.Properties["errorIfNot2XX"]; ok {
+	if val := meta.Properties["errorIfNot2XX"]; val != "" {
 		h.errorIfNot2XX = utils.IsTruthy(val)
 	} else {
 		// Default behavior
@@ -79,6 +123,91 @@ func (h *HTTPSource) Init(metadata bindings.Metadata) error {
 	}
 
 	return nil
+}
+
+// readMTLSClientCertificates reads the certificates and key from the metadata and returns a tls.Config.
+func (h *HTTPSource) readMTLSClientCertificates(tlsConfig *tls.Config) error {
+	clientCertBytes, err := h.getPemBytes(MTLSClientCert, h.metadata.MTLSClientCert)
+	if err != nil {
+		return err
+	}
+	clientKeyBytes, err := h.getPemBytes(MTLSClientKey, h.metadata.MTLSClientKey)
+	if err != nil {
+		return err
+	}
+	cert, err := tls.X509KeyPair(clientCertBytes, clientKeyBytes)
+	if err != nil {
+		return fmt.Errorf("failed to load client certificate: %w", err)
+	}
+	if tlsConfig == nil {
+		tlsConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
+	tlsConfig.Certificates = []tls.Certificate{cert}
+	return nil
+}
+
+// setTLSRenegotiation set TLS renegotiation parameter and returns a tls.Config
+func (h *HTTPSource) setTLSRenegotiation(tlsConfig *tls.Config) error {
+	switch h.metadata.MTLSRenegotiation {
+	case "RenegotiateNever":
+		{
+			tlsConfig.Renegotiation = tls.RenegotiateNever
+		}
+	case "RenegotiateOnceAsClient":
+		{
+			tlsConfig.Renegotiation = tls.RenegotiateOnceAsClient
+		}
+	case "RenegotiateFreelyAsClient":
+		{
+			tlsConfig.Renegotiation = tls.RenegotiateFreelyAsClient
+		}
+	default:
+		return fmt.Errorf("invalid renegotiation value: %s", h.metadata.MTLSRenegotiation)
+	}
+	return nil
+}
+
+// Add Root CA cert to the pool of trusted certificates.
+// This is required for the client to trust the server certificate in case of HTTPS connection.
+func (h *HTTPSource) addRootCAToCertPool() (*tls.Config, error) {
+	if h.metadata.MTLSRootCA == "" {
+		return nil, nil
+	}
+	caCertBytes, err := h.getPemBytes(MTLSRootCA, h.metadata.MTLSRootCA)
+	if err != nil {
+		return nil, err
+	}
+
+	caCertPool := x509.NewCertPool()
+	if !caCertPool.AppendCertsFromPEM(caCertBytes) {
+		return nil, errors.New("failed to add root certificate to certpool")
+	}
+	return &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		RootCAs:    caCertPool,
+	}, nil
+}
+
+// getPemBytes returns the PEM encoded bytes from the provided certName and certData.
+// If the certData is a PEM encoded string, it returns the bytes.
+// If there is an error in decoding the PEM, assume it is a filepath and try to read its content.
+// Return the error occurred while reading the file.
+func (h *HTTPSource) getPemBytes(certName, certData string) ([]byte, error) {
+	if !isValidPEM(certData) {
+		// Read the file
+		pemBytes, err := os.ReadFile(certData)
+		if err != nil {
+			return nil, fmt.Errorf("provided %q value is neither a valid file path or nor a valid pem encoded string: %w", certName, err)
+		}
+		return pemBytes, nil
+	}
+	return []byte(certData), nil
+}
+
+// isValidPEM validates the provided input has PEM formatted block.
+func isValidPEM(val string) bool {
+	block, _ := pem.Decode([]byte(val))
+	return block != nil
 }
 
 // Operations returns the supported operations for this binding.
@@ -97,7 +226,7 @@ func (h *HTTPSource) Operations() []bindings.OperationKind {
 }
 
 // Invoke performs an HTTP request to the configured HTTP endpoint.
-func (h *HTTPSource) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+func (h *HTTPSource) Invoke(parentCtx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	u := h.metadata.URL
 
 	errorIfNot2XX := h.errorIfNot2XX // Default to the component config (default is true)
@@ -133,6 +262,15 @@ func (h *HTTPSource) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 		return nil, fmt.Errorf("invalid operation: %s", req.Operation)
 	}
 
+	var ctx context.Context
+	if h.metadata.ResponseTimeout == nil {
+		ctx = parentCtx
+	} else {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(parentCtx, *h.metadata.ResponseTimeout)
+		defer cancel()
+	}
+
 	request, err := http.NewRequestWithContext(ctx, method, u, body)
 	if err != nil {
 		return nil, err
@@ -148,6 +286,11 @@ func (h *HTTPSource) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 		request.Header.Set("Accept", "application/json; charset=utf-8")
 	}
 
+	// Set security token values if set.
+	if h.metadata.SecurityToken != "" && h.metadata.SecurityTokenHeader != "" {
+		request.Header.Set(h.metadata.SecurityTokenHeader, h.metadata.SecurityToken)
+	}
+
 	// Any metadata keys that start with a capital letter
 	// are treated as request headers
 	for mdKey, mdValue := range req.Metadata {
@@ -155,6 +298,22 @@ func (h *HTTPSource) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 		if len(keyAsRunes) > 0 && unicode.IsUpper(keyAsRunes[0]) {
 			request.Header.Set(mdKey, mdValue)
 		}
+	}
+
+	// HTTP binding needs to inject traceparent header for proper tracing stack.
+	if tp, ok := req.Metadata[TraceparentHeaderKey]; ok && tp != "" {
+		if _, ok := request.Header[http.CanonicalHeaderKey(TraceparentHeaderKey)]; ok {
+			h.logger.Warn("Tracing is enabled. A custom Traceparent request header cannot be specified and is ignored.")
+		}
+
+		request.Header.Set(TraceparentHeaderKey, tp)
+	}
+	if ts, ok := req.Metadata[TracestateHeaderKey]; ok && ts != "" {
+		if _, ok := request.Header[http.CanonicalHeaderKey(TracestateHeaderKey)]; ok {
+			h.logger.Warn("Tracing is enabled. A custom Tracestate request header cannot be specified and is ignored.")
+		}
+
+		request.Header.Set(TracestateHeaderKey, ts)
 	}
 
 	// Send the question
@@ -191,4 +350,12 @@ func (h *HTTPSource) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*
 		Data:     b,
 		Metadata: metadata,
 	}, err
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (h *HTTPSource) GetComponentMetadata() map[string]string {
+	metadataStruct := httpMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

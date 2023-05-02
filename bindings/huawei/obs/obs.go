@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"reflect"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -75,7 +76,7 @@ func NewHuaweiOBS(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init does metadata parsing and connection creation.
-func (o *HuaweiOBS) Init(metadata bindings.Metadata) error {
+func (o *HuaweiOBS) Init(_ context.Context, metadata bindings.Metadata) error {
 	o.logger.Debugf("initializing Huawei OBS binding and parsing metadata")
 
 	m, err := o.parseMetadata(metadata)
@@ -318,4 +319,12 @@ func (o *HuaweiOBS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 	default:
 		return nil, fmt.Errorf("obs binding error. unsupported operation %s", req.Operation)
 	}
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (o *HuaweiOBS) GetComponentMetadata() map[string]string {
+	metadataStruct := obsMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

@@ -14,9 +14,8 @@ limitations under the License.
 package consul
 
 import (
-	"crypto/rand"
 	"fmt"
-	"math/big"
+	"math/rand"
 	"net"
 	"strconv"
 	"sync"
@@ -104,8 +103,8 @@ func (e *registryEntry) next() *consul.ServiceEntry {
 		return nil
 	}
 
-	rndbig, _ := rand.Int(rand.Reader, big.NewInt(int64(len(e.services))))
-	return e.services[rndbig.Int64()]
+	//nolint:gosec
+	return e.services[rand.Int()%len(e.services)]
 }
 
 func (r *resolver) getService(service string) (*consul.ServiceEntry, error) {
@@ -133,11 +132,11 @@ func (r *resolver) getService(service string) (*consul.ServiceEntry, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to query healthy consul services: %w", err)
 	} else if len(services) == 0 {
-		return nil, fmt.Errorf("no healthy services found with AppID:%s", service)
+		return nil, fmt.Errorf("no healthy services found with AppID '%s'", service)
 	}
 
-	rndbig, _ := rand.Int(rand.Reader, big.NewInt(int64(len(services))))
-	return services[rndbig.Int64()], nil
+	//nolint:gosec
+	return services[rand.Int()%len(services)], nil
 }
 
 func (r *registry) addOrUpdate(service string, services []*consul.ServiceEntry) {
@@ -199,66 +198,64 @@ func newResolver(logger logger.Logger, resolverConfig resolverConfig, client cli
 }
 
 // Init will configure component. It will also register service or validate client connection based on config.
-func (r *resolver) Init(metadata nr.Metadata) error {
-	var err error
-
+func (r *resolver) Init(metadata nr.Metadata) (err error) {
 	r.config, err = getConfig(metadata)
 	if err != nil {
 		return err
 	}
 
-	if err = r.client.InitClient(r.config.Client); err != nil {
+	err = r.client.InitClient(r.config.Client)
+	if err != nil {
 		return fmt.Errorf("failed to init consul client: %w", err)
 	}
 
-	// register service to consul
+	// Register service to consul
 	if r.config.Registration != nil {
-		if err := r.client.Agent().ServiceRegister(r.config.Registration); err != nil {
+		agent := r.client.Agent()
+
+		err = agent.ServiceRegister(r.config.Registration)
+		if err != nil {
 			return fmt.Errorf("failed to register consul service: %w", err)
 		}
 
 		r.logger.Infof("service:%s registered on consul agent", r.config.Registration.Name)
-	} else if _, err := r.client.Agent().Self(); err != nil {
-		return fmt.Errorf("failed check on consul agent: %w", err)
+	} else {
+		_, err = r.client.Agent().Self()
+		if err != nil {
+			return fmt.Errorf("failed check on consul agent: %w", err)
+		}
 	}
 
 	return nil
 }
 
 // ResolveID resolves name to address via consul.
-func (r *resolver) ResolveID(req nr.ResolveRequest) (string, error) {
-	var addr string
-
+func (r *resolver) ResolveID(req nr.ResolveRequest) (addr string, err error) {
+	cfg := r.config
 	svc, err := r.getService(req.ID)
 	if err != nil {
 		return "", err
 	}
 
-	if port, ok := svc.Service.Meta[r.config.DaprPortMetaKey]; ok {
-		if svc.Service.Address != "" {
-			addr = fmt.Sprintf("%s:%s", svc.Service.Address, port)
-		} else if svc.Node.Address != "" {
-			addr = fmt.Sprintf("%s:%s", svc.Node.Address, port)
-		} else {
-			return "", fmt.Errorf("no healthy services found with AppID:%s", req.ID)
-		}
+	port := svc.Service.Meta[cfg.DaprPortMetaKey]
+	if port == "" {
+		return "", fmt.Errorf("target service AppID '%s' found but %s missing from meta", req.ID, cfg.DaprPortMetaKey)
+	}
+
+	if svc.Service.Address != "" {
+		addr = svc.Service.Address + ":" + port
+	} else if svc.Node.Address != "" {
+		addr = svc.Node.Address + ":" + port
 	} else {
-		return "", fmt.Errorf("target service AppID:%s found but %s missing from meta", req.ID, r.config.DaprPortMetaKey)
+		return "", fmt.Errorf("no healthy services found with AppID '%s'", req.ID)
 	}
 
 	return addr, nil
 }
 
 // getConfig configuration from metadata, defaults are best suited for self-hosted mode.
-func getConfig(metadata nr.Metadata) (resolverConfig, error) {
-	var daprPort string
-	var ok bool
-	var err error
-	resolverCfg := resolverConfig{}
-
-	props := metadata.Properties
-
-	if daprPort, ok = props[nr.DaprPort]; !ok {
+func getConfig(metadata nr.Metadata) (resolverCfg resolverConfig, err error) {
+	if metadata.Properties[nr.DaprPort] == "" {
 		return resolverCfg, fmt.Errorf("metadata property missing: %s", nr.DaprPort)
 	}
 
@@ -271,7 +268,8 @@ func getConfig(metadata nr.Metadata) (resolverConfig, error) {
 	resolverCfg.UseCache = cfg.UseCache
 
 	resolverCfg.Client = getClientConfig(cfg)
-	if resolverCfg.Registration, err = getRegistrationConfig(cfg, props); err != nil {
+	resolverCfg.Registration, err = getRegistrationConfig(cfg, metadata.Properties)
+	if err != nil {
 		return resolverCfg, err
 	}
 	resolverCfg.QueryOptions = getQueryOptionsConfig(cfg)
@@ -282,7 +280,7 @@ func getConfig(metadata nr.Metadata) (resolverConfig, error) {
 			resolverCfg.Registration.Meta = map[string]string{}
 		}
 
-		resolverCfg.Registration.Meta[resolverCfg.DaprPortMetaKey] = daprPort
+		resolverCfg.Registration.Meta[resolverCfg.DaprPortMetaKey] = metadata.Properties[nr.DaprPort]
 	}
 
 	return resolverCfg, nil
@@ -301,15 +299,18 @@ func getRegistrationConfig(cfg configSpec, props map[string]string) (*consul.Age
 	// if advanced registration configured ignore other registration related configs
 	if cfg.AdvancedRegistration != nil {
 		return cfg.AdvancedRegistration, nil
-	} else if !cfg.SelfRegister {
+	}
+	if !cfg.SelfRegister {
 		return nil, nil
 	}
 
-	var appID string
-	var appPort string
-	var host string
-	var httpPort string
-	var ok bool
+	var (
+		appID    string
+		appPort  string
+		host     string
+		httpPort string
+		ok       bool
+	)
 
 	if appID, ok = props[nr.AppID]; !ok {
 		return nil, fmt.Errorf("metadata property missing: %s", nr.AppID)

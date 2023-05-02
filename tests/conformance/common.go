@@ -35,12 +35,15 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/configuration"
+	contribCrypto "github.com/dapr/components-contrib/crypto"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/workflows"
 	"github.com/dapr/kit/logger"
 
+	b_aws_s3 "github.com/dapr/components-contrib/bindings/aws/s3"
 	b_azure_blobstorage "github.com/dapr/components-contrib/bindings/azure/blobstorage"
 	b_azure_cosmosdb "github.com/dapr/components-contrib/bindings/azure/cosmosdb"
 	b_azure_eventgrid "github.com/dapr/components-contrib/bindings/azure/eventgrid"
@@ -52,20 +55,25 @@ import (
 	b_influx "github.com/dapr/components-contrib/bindings/influx"
 	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
 	b_kubemq "github.com/dapr/components-contrib/bindings/kubemq"
-	b_mqtt "github.com/dapr/components-contrib/bindings/mqtt"
+	b_mqtt3 "github.com/dapr/components-contrib/bindings/mqtt3"
 	b_postgres "github.com/dapr/components-contrib/bindings/postgres"
 	b_rabbitmq "github.com/dapr/components-contrib/bindings/rabbitmq"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
+	c_postgres "github.com/dapr/components-contrib/configuration/postgres"
+	c_redis "github.com/dapr/components-contrib/configuration/redis"
+	cr_azurekeyvault "github.com/dapr/components-contrib/crypto/azure/keyvault"
+	cr_jwks "github.com/dapr/components-contrib/crypto/jwks"
+	cr_localstorage "github.com/dapr/components-contrib/crypto/localstorage"
 	p_snssqs "github.com/dapr/components-contrib/pubsub/aws/snssqs"
 	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
 	p_servicebusqueues "github.com/dapr/components-contrib/pubsub/azure/servicebus/queues"
 	p_servicebustopics "github.com/dapr/components-contrib/pubsub/azure/servicebus/topics"
-	p_hazelcast "github.com/dapr/components-contrib/pubsub/hazelcast"
+	p_gcppubsub "github.com/dapr/components-contrib/pubsub/gcp/pubsub"
 	p_inmemory "github.com/dapr/components-contrib/pubsub/in-memory"
 	p_jetstream "github.com/dapr/components-contrib/pubsub/jetstream"
 	p_kafka "github.com/dapr/components-contrib/pubsub/kafka"
 	p_kubemq "github.com/dapr/components-contrib/pubsub/kubemq"
-	p_mqtt "github.com/dapr/components-contrib/pubsub/mqtt"
+	p_mqtt3 "github.com/dapr/components-contrib/pubsub/mqtt3"
 	p_natsstreaming "github.com/dapr/components-contrib/pubsub/natsstreaming"
 	p_pulsar "github.com/dapr/components-contrib/pubsub/pulsar"
 	p_rabbitmq "github.com/dapr/components-contrib/pubsub/rabbitmq"
@@ -76,25 +84,35 @@ import (
 	ss_kubernetes "github.com/dapr/components-contrib/secretstores/kubernetes"
 	ss_local_env "github.com/dapr/components-contrib/secretstores/local/env"
 	ss_local_file "github.com/dapr/components-contrib/secretstores/local/file"
+	s_awsdynamodb "github.com/dapr/components-contrib/state/aws/dynamodb"
 	s_blobstorage "github.com/dapr/components-contrib/state/azure/blobstorage"
 	s_cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
 	s_azuretablestorage "github.com/dapr/components-contrib/state/azure/tablestorage"
 	s_cassandra "github.com/dapr/components-contrib/state/cassandra"
 	s_cloudflareworkerskv "github.com/dapr/components-contrib/state/cloudflare/workerskv"
 	s_cockroachdb "github.com/dapr/components-contrib/state/cockroachdb"
+	s_etcd "github.com/dapr/components-contrib/state/etcd"
+	s_gcpfirestore "github.com/dapr/components-contrib/state/gcp/firestore"
 	s_inmemory "github.com/dapr/components-contrib/state/in-memory"
 	s_memcached "github.com/dapr/components-contrib/state/memcached"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
 	s_mysql "github.com/dapr/components-contrib/state/mysql"
+	s_oracledatabase "github.com/dapr/components-contrib/state/oracledatabase"
 	s_postgresql "github.com/dapr/components-contrib/state/postgresql"
 	s_redis "github.com/dapr/components-contrib/state/redis"
 	s_rethinkdb "github.com/dapr/components-contrib/state/rethinkdb"
+	s_sqlite "github.com/dapr/components-contrib/state/sqlite"
 	s_sqlserver "github.com/dapr/components-contrib/state/sqlserver"
 	conf_bindings "github.com/dapr/components-contrib/tests/conformance/bindings"
+	conf_configuration "github.com/dapr/components-contrib/tests/conformance/configuration"
+	conf_crypto "github.com/dapr/components-contrib/tests/conformance/crypto"
 	conf_pubsub "github.com/dapr/components-contrib/tests/conformance/pubsub"
 	conf_secret "github.com/dapr/components-contrib/tests/conformance/secretstores"
 	conf_state "github.com/dapr/components-contrib/tests/conformance/state"
 	conf_workflows "github.com/dapr/components-contrib/tests/conformance/workflows"
+	"github.com/dapr/components-contrib/tests/utils/configupdater"
+	cu_postgres "github.com/dapr/components-contrib/tests/utils/configupdater/postgres"
+	cu_redis "github.com/dapr/components-contrib/tests/utils/configupdater/redis"
 	wf_temporal "github.com/dapr/components-contrib/workflows/temporal"
 )
 
@@ -102,14 +120,19 @@ const (
 	eventhubs                 = "azure.eventhubs"
 	redisv6                   = "redis.v6"
 	redisv7                   = "redis.v7"
+	postgres                  = "postgres"
 	kafka                     = "kafka"
-	mqtt                      = "mqtt"
 	generateUUID              = "$((uuid))"
 	generateEd25519PrivateKey = "$((ed25519PrivateKey))"
 )
 
 //nolint:gochecknoglobals
-var testLogger = logger.NewLogger("testLogger")
+var testLogger logger.Logger
+
+func init() {
+	testLogger = logger.NewLogger("testLogger")
+	testLogger.SetOutputLevel(logger.DebugLevel)
+}
 
 type TestConfiguration struct {
 	ComponentType string          `yaml:"componentType,omitempty"`
@@ -345,7 +368,6 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				props, err := tc.loadComponentsAndProperties(t, filepath)
 				if err != nil {
 					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-
 					break
 				}
 				store := loadStateStore(comp)
@@ -357,7 +379,6 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				props, err := tc.loadComponentsAndProperties(t, filepath)
 				if err != nil {
 					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-
 					break
 				}
 				store := loadSecretStore(comp)
@@ -369,7 +390,6 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				props, err := tc.loadComponentsAndProperties(t, filepath)
 				if err != nil {
 					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-
 					break
 				}
 				pubsub := loadPubSub(comp)
@@ -377,7 +397,6 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				pubsubConfig, err := conf_pubsub.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
 				if err != nil {
 					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-
 					break
 				}
 				conf_pubsub.ConformanceTests(t, props, pubsub, pubsubConfig)
@@ -386,7 +405,6 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				props, err := tc.loadComponentsAndProperties(t, filepath)
 				if err != nil {
 					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-
 					break
 				}
 				inputBinding := loadInputBindings(comp)
@@ -397,7 +415,6 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				bindingsConfig, err := conf_bindings.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
 				if err != nil {
 					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-
 					break
 				}
 				conf_bindings.ConformanceTests(t, props, inputBinding, outputBinding, bindingsConfig)
@@ -411,11 +428,57 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				wf := loadWorkflow(comp)
 				wfConfig := conf_workflows.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
 				conf_workflows.ConformanceTests(t, props, wf, wfConfig)
+			case "crypto":
+				filepath := fmt.Sprintf("../config/crypto/%s", componentConfigPath)
+				props, err := tc.loadComponentsAndProperties(t, filepath)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
+					break
+				}
+				component := loadCryptoProvider(comp)
+				require.NotNil(t, component)
+				cryptoConfig, err := conf_crypto.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
+					break
+				}
+				conf_crypto.ConformanceTests(t, props, component, cryptoConfig)
+			case "configuration":
+				filepath := fmt.Sprintf("../config/configuration/%s", componentConfigPath)
+				props, err := tc.loadComponentsAndProperties(t, filepath)
+				if err != nil {
+					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
+					break
+				}
+				store, updater := loadConfigurationStore(comp)
+				require.NotNil(t, store)
+				require.NotNil(t, updater)
+				configurationConfig := conf_configuration.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				conf_configuration.ConformanceTests(t, props, store, updater, configurationConfig, comp.Component)
 			default:
 				t.Errorf("unknown component type %s", tc.ComponentType)
 			}
 		})
 	}
+}
+
+func loadConfigurationStore(tc TestComponent) (configuration.Store, configupdater.Updater) {
+	var store configuration.Store
+	var updater configupdater.Updater
+	switch tc.Component {
+	case redisv6:
+		store = c_redis.NewRedisConfigurationStore(testLogger)
+		updater = cu_redis.NewRedisConfigUpdater(testLogger)
+	case redisv7:
+		store = c_redis.NewRedisConfigurationStore(testLogger)
+		updater = cu_redis.NewRedisConfigUpdater(testLogger)
+	case postgres:
+		store = c_postgres.NewPostgresConfigurationStore(testLogger)
+		updater = cu_postgres.NewPostgresConfigUpdater(testLogger)
+	default:
+		return nil, nil
+	}
+	return store, updater
 }
 
 func loadPubSub(tc TestComponent) pubsub.PubSub {
@@ -439,10 +502,8 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_kafka.NewKafka(testLogger)
 	case "pulsar":
 		pubsub = p_pulsar.NewPulsar(testLogger)
-	case mqtt:
-		pubsub = p_mqtt.NewMQTTPubSub(testLogger)
-	case "hazelcast":
-		pubsub = p_hazelcast.NewHazelcastPubSub(testLogger)
+	case "mqtt3":
+		pubsub = p_mqtt3.NewMQTTPubSub(testLogger)
 	case "rabbitmq":
 		pubsub = p_rabbitmq.NewRabbitMQ(testLogger)
 	case "in-memory":
@@ -451,6 +512,10 @@ func loadPubSub(tc TestComponent) pubsub.PubSub {
 		pubsub = p_snssqs.NewSnsSqs(testLogger)
 	case "aws.snssqs.docker":
 		pubsub = p_snssqs.NewSnsSqs(testLogger)
+	case "gcp.pubsub.terraform":
+		pubsub = p_gcppubsub.NewGCPPubSub(testLogger)
+	case "gcp.pubsub.docker":
+		pubsub = p_gcppubsub.NewGCPPubSub(testLogger)
 	case "kubemq":
 		pubsub = p_kubemq.NewKubeMQ(testLogger)
 	case "solace.amqp":
@@ -471,9 +536,9 @@ func loadSecretStore(tc TestComponent) secretstores.SecretStore {
 		store = ss_azure.NewAzureKeyvaultSecretStore(testLogger)
 	case "kubernetes":
 		store = ss_kubernetes.NewKubernetesSecretStore(testLogger)
-	case "localenv":
+	case "local.env":
 		store = ss_local_env.NewEnvSecretStore(testLogger)
-	case "localfile":
+	case "local.file":
 		store = ss_local_file.NewLocalSecretStore(testLogger)
 	case "hashicorp.vault":
 		store = ss_hashicorp_vault.NewHashiCorpVaultSecretStore(testLogger)
@@ -482,6 +547,20 @@ func loadSecretStore(tc TestComponent) secretstores.SecretStore {
 	}
 
 	return store
+}
+
+func loadCryptoProvider(tc TestComponent) contribCrypto.SubtleCrypto {
+	var component contribCrypto.SubtleCrypto
+	switch tc.Component {
+	case "azure.keyvault":
+		component = cr_azurekeyvault.NewAzureKeyvaultCrypto(testLogger)
+	case "localstorage":
+		component = cr_localstorage.NewLocalStorageCrypto(testLogger)
+	case "jwks":
+		component = cr_jwks.NewJWKSCrypto(testLogger)
+	}
+
+	return component
 }
 
 func loadStateStore(tc TestComponent) state.Store {
@@ -500,13 +579,17 @@ func loadStateStore(tc TestComponent) state.Store {
 	case "azure.sql":
 		fallthrough
 	case "sqlserver":
-		store = s_sqlserver.NewSQLServerStateStore(testLogger)
+		store = s_sqlserver.New(testLogger)
 	case "postgresql":
 		store = s_postgresql.NewPostgreSQLStateStore(testLogger)
+	case "sqlite":
+		store = s_sqlite.NewSQLiteStateStore(testLogger)
 	case "mysql.mysql":
 		store = s_mysql.NewMySQLStateStore(testLogger)
 	case "mysql.mariadb":
 		store = s_mysql.NewMySQLStateStore(testLogger)
+	case "oracledatabase":
+		store = s_oracledatabase.NewOracleDatabaseStateStore(testLogger)
 	case "azure.tablestorage.storage":
 		store = s_azuretablestorage.NewAzureTablesStateStore(testLogger)
 	case "azure.tablestorage.cosmosdb":
@@ -523,6 +606,16 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_rethinkdb.NewRethinkDBStateStore(testLogger)
 	case "in-memory":
 		store = s_inmemory.NewInMemoryStateStore(testLogger)
+	case "aws.dynamodb.docker":
+		store = s_awsdynamodb.NewDynamoDBStateStore(testLogger)
+	case "aws.dynamodb.terraform":
+		store = s_awsdynamodb.NewDynamoDBStateStore(testLogger)
+	case "etcd":
+		store = s_etcd.NewEtcdStateStore(testLogger)
+	case "gcp.firestore.docker":
+		store = s_gcpfirestore.NewFirestoreStateStore(testLogger)
+	case "gcp.firestore.cloud":
+		store = s_gcpfirestore.NewFirestoreStateStore(testLogger)
 	default:
 		return nil
 	}
@@ -556,14 +649,18 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_http.NewHTTP(testLogger)
 	case "influx":
 		binding = b_influx.NewInflux(testLogger)
-	case mqtt:
-		binding = b_mqtt.NewMQTT(testLogger)
+	case "mqtt3":
+		binding = b_mqtt3.NewMQTT(testLogger)
 	case "rabbitmq":
 		binding = b_rabbitmq.NewRabbitMQ(testLogger)
 	case "kubemq":
 		binding = b_kubemq.NewKubeMQ(testLogger)
 	case "postgres":
 		binding = b_postgres.NewPostgres(testLogger)
+	case "aws.s3.docker":
+		binding = b_aws_s3.NewAWSS3(testLogger)
+	case "aws.s3.terraform":
+		binding = b_aws_s3.NewAWSS3(testLogger)
 	default:
 		return nil
 	}
@@ -587,8 +684,8 @@ func loadInputBindings(tc TestComponent) bindings.InputBinding {
 		binding = b_azure_eventhubs.NewAzureEventHubs(testLogger)
 	case kafka:
 		binding = b_kafka.NewKafka(testLogger)
-	case mqtt:
-		binding = b_mqtt.NewMQTT(testLogger)
+	case "mqtt3":
+		binding = b_mqtt3.NewMQTT(testLogger)
 	case "rabbitmq":
 		binding = b_rabbitmq.NewRabbitMQ(testLogger)
 	case "kubemq":

@@ -15,17 +15,25 @@ package oracledatabase
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/dapr/components-contrib/state"
 )
 
 // dbAccess is a private interface which enables unit testing of Oracle Database.
 type dbAccess interface {
-	Init(metadata state.Metadata) error
-	Ping() error
+	Init(ctx context.Context, metadata state.Metadata) error
+	Ping(ctx context.Context) error
 	Set(ctx context.Context, req *state.SetRequest) error
 	Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error)
 	Delete(ctx context.Context, req *state.DeleteRequest) error
-	ExecuteMulti(ctx context.Context, sets []state.SetRequest, deletes []state.DeleteRequest) error
+	ExecuteMulti(parentCtx context.Context, reqs []state.TransactionalStateOperation) error
 	Close() error // io.Closer.
+}
+
+// Interface for both sql.DB and sql.Tx
+type querier interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }

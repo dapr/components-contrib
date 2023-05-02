@@ -1,0 +1,20 @@
+name: Generate and Upload Component Metadata Bundle on Push to Tag
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  upload-bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Build component-metadata-bundle.json
+        run: make bundle-component-metadata
+      - name: Upload component-metadata-bundle.json
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: component-metadata-bundle.json

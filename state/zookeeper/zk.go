@@ -22,9 +22,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-zookeeper/zk"
 	"github.com/hashicorp/go-multierror"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/samuel/go-zookeeper/zk"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -114,6 +114,8 @@ type Conn interface {
 
 // StateStore is a state store.
 type StateStore struct {
+	state.BulkStore
+
 	*config
 	conn Conn
 
@@ -121,20 +123,17 @@ type StateStore struct {
 	logger   logger.Logger
 }
 
-var (
-	_ Conn        = (*zk.Conn)(nil)
-	_ state.Store = (*StateStore)(nil)
-)
-
 // NewZookeeperStateStore returns a new Zookeeper state store.
 func NewZookeeperStateStore(logger logger.Logger) state.Store {
-	return &StateStore{
+	s := &StateStore{
 		features: []state.Feature{state.FeatureETag},
 		logger:   logger,
 	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
-func (s *StateStore) Init(metadata state.Metadata) (err error) {
+func (s *StateStore) Init(_ context.Context, metadata state.Metadata) (err error) {
 	var c *config
 
 	if c, err = newConfig(metadata.Properties); err != nil {
@@ -175,12 +174,6 @@ func (s *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 	}, nil
 }
 
-// BulkGet performs a bulks get operations.
-func (s *StateStore) BulkGet(ctx context.Context, req []state.GetRequest) (bool, []state.BulkGetResponse, error) {
-	// TODO: replace with Multi for performance
-	return false, nil, nil
-}
-
 // Delete performs a delete operation.
 func (s *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	r, err := s.newDeleteRequest(req)
@@ -206,7 +199,7 @@ func (s *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 
 // BulkDelete performs a bulk delete operation.
 func (s *StateStore) BulkDelete(ctx context.Context, reqs []state.DeleteRequest) error {
-	ops := make([]interface{}, 0, len(reqs))
+	ops := make([]any, 0, len(reqs))
 
 	for i := range reqs {
 		req, err := s.newDeleteRequest(&reqs[i])
@@ -256,7 +249,7 @@ func (s *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 
 // BulkSet performs a bulks save operation.
 func (s *StateStore) BulkSet(ctx context.Context, reqs []state.SetRequest) error {
-	ops := make([]interface{}, 0, len(reqs))
+	ops := make([]any, 0, len(reqs))
 
 	for i := range reqs {
 		req, err := s.newSetDataRequest(&reqs[i])
@@ -272,7 +265,7 @@ func (s *StateStore) BulkSet(ctx context.Context, reqs []state.SetRequest) error
 			return err
 		}
 
-		var retry []interface{}
+		var retry []any
 
 		for i, res := range res {
 			if res.Error != nil {
@@ -387,6 +380,6 @@ func (s *StateStore) marshalData(v interface{}) ([]byte, error) {
 func (s *StateStore) GetComponentMetadata() map[string]string {
 	metadataStruct := properties{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }

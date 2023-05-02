@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -30,6 +31,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
+	"github.com/dapr/kit/ptr"
 )
 
 type ValueType struct {
@@ -93,11 +95,15 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		},
 		{
 			key:   fmt.Sprintf("%s-string-with-json", key),
-			value: "{\"a\":\"b\"}",
+			value: `{"a":"b"}`,
 		},
 		{
 			key:   fmt.Sprintf("%s-string", key),
 			value: "hello world",
+		},
+		{
+			key:   fmt.Sprintf("%s-empty-string", key),
+			value: "",
 		},
 		{
 			key:         fmt.Sprintf("%s-struct", key),
@@ -216,17 +222,17 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			results: []state.QueryItem{
 				{
 					Key:  fmt.Sprintf("%s-struct", key),
-					Data: []byte(fmt.Sprintf("{\"message\":\"test%s\"}", key)),
+					Data: []byte(fmt.Sprintf(`{"message":"test%s"}`, key)),
 				},
 			},
 		},
 	}
 
 	t.Run("init", func(t *testing.T) {
-		err := statestore.Init(state.Metadata{
+		err := statestore.Init(context.Background(), state.Metadata{
 			Base: metadata.Base{Properties: props},
 		})
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	// Don't run more tests if init failed
@@ -235,14 +241,14 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	}
 
 	t.Run("ping", func(t *testing.T) {
-		err := state.Ping(statestore)
+		err := state.Ping(context.Background(), statestore)
 		// TODO: Ideally, all stable components should implenment ping function,
-		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
+		// so will only assert assert.NoError(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
 		if err != nil {
 			assert.EqualError(t, err, "ping is not implemented by this state store")
 		} else {
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 		}
 	})
 
@@ -259,7 +265,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
 					}
 					err := statestore.Set(context.Background(), req)
-					assert.Nil(t, err)
+					assert.NoError(t, err)
 				}
 			}
 		})
@@ -287,7 +293,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	if config.HasOperation("query") {
 		t.Run("query", func(t *testing.T) {
 			querier, ok := statestore.(state.Querier)
-			assert.Truef(t, ok, "Querier interface is not implemented")
+			assert.True(t, ok, "Querier interface is not implemented")
 			for _, scenario := range queryScenarios {
 				t.Logf("Querying value presence for %s", scenario.query)
 				var req state.QueryRequest
@@ -326,13 +332,13 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
 					}
 					err := statestore.Delete(context.Background(), req)
-					assert.Nil(t, err, "no error expected while deleting %s", scenario.key)
+					assert.NoError(t, err, "no error expected while deleting %s", scenario.key)
 
 					t.Logf("Checking value absence for %s", scenario.key)
 					res, err := statestore.Get(context.Background(), &state.GetRequest{
 						Key: scenario.key,
 					})
-					assert.Nil(t, err, "no error expected while checking for absence for %s", scenario.key)
+					assert.NoError(t, err, "no error expected while checking for absence for %s", scenario.key)
 					assert.Nil(t, res.Data, "no data expected while checking for absence for %s", scenario.key)
 				}
 			}
@@ -352,7 +358,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				}
 			}
 			err := statestore.BulkSet(context.Background(), bulk)
-			assert.Nil(t, err)
+			require.NoError(t, err)
 
 			for _, scenario := range scenarios {
 				if scenario.bulkOnly {
@@ -361,8 +367,35 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					res, err := statestore.Get(context.Background(), &state.GetRequest{
 						Key: scenario.key,
 					})
-					assert.Nil(t, err)
+					require.NoError(t, err)
 					assertEquals(t, scenario.value, res)
+				}
+			}
+		})
+	}
+
+	if config.HasOperation("bulkget") {
+		t.Run("bulkget", func(t *testing.T) {
+			var req []state.GetRequest
+			expects := map[string]any{}
+			for _, scenario := range scenarios {
+				if scenario.bulkOnly {
+					t.Logf("Adding get request to bulk for %s", scenario.key)
+					req = append(req, state.GetRequest{
+						Key: scenario.key,
+					})
+					expects[scenario.key] = scenario.value
+				}
+			}
+			res, err := statestore.BulkGet(context.Background(), req, state.BulkGetOpts{})
+			require.NoError(t, err)
+			require.Len(t, res, len(expects))
+
+			for _, r := range res {
+				t.Logf("Checking value equality %s", r.Key)
+				_, ok := expects[r.Key]
+				if assert.Empty(t, r.Error) && assert.True(t, ok) {
+					assertDataEquals(t, expects[r.Key], r.Data)
 				}
 			}
 		})
@@ -380,14 +413,14 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				}
 			}
 			err := statestore.BulkDelete(context.Background(), bulk)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 
 			for _, req := range bulk {
 				t.Logf("Checking value absence for %s", req.Key)
 				res, err := statestore.Get(context.Background(), &state.GetRequest{
 					Key: req.Key,
 				})
-				assert.Nil(t, err)
+				assert.NoError(t, err)
 				assert.Nil(t, res.Data)
 			}
 		})
@@ -408,13 +441,12 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						transactionGroups = append(transactionGroups, scenario.transactionGroup)
 					}
 					transactions[scenario.transactionGroup] = append(
-						transactions[scenario.transactionGroup], state.TransactionalStateOperation{
-							Operation: state.Upsert,
-							Request: state.SetRequest{
-								Key:   scenario.key,
-								Value: scenario.value,
-							},
-						})
+						transactions[scenario.transactionGroup],
+						state.SetRequest{
+							Key:   scenario.key,
+							Value: scenario.value,
+						},
+					)
 
 					// Deletion happens in the following transaction.
 					if scenario.toBeDeleted {
@@ -422,12 +454,11 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 							transactionGroups = append(transactionGroups, scenario.transactionGroup+1)
 						}
 						transactions[scenario.transactionGroup+1] = append(
-							transactions[scenario.transactionGroup+1], state.TransactionalStateOperation{
-								Operation: state.Delete,
-								Request: state.DeleteRequest{
-									Key: scenario.key,
-								},
-							})
+							transactions[scenario.transactionGroup+1],
+							state.DeleteRequest{
+								Key: scenario.key,
+							},
+						)
 					}
 				}
 			}
@@ -444,7 +475,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						"partitionKey": "myPartition",
 					},
 				})
-				assert.Nil(t, err)
+				require.NoError(t, err)
 				for _, scenario := range scenarios {
 					if scenario.transactionOnly {
 						if scenario.transactionGroup == transactionGroup {
@@ -457,7 +488,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 									"partitionKey": "myPartition",
 								},
 							})
-							assert.Nil(t, err)
+							require.NoError(t, err)
 							assertEquals(t, scenario.value, res)
 						}
 
@@ -471,7 +502,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 									"partitionKey": "myPartition",
 								},
 							})
-							assert.Nil(t, err)
+							require.NoError(t, err)
 							assert.Nil(t, res.Data)
 						}
 					}
@@ -517,41 +548,29 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 			operations := []state.TransactionalStateOperation{
 				// delete an item that already exists
-				{
-					Operation: state.Delete,
-					Request: state.DeleteRequest{
-						Key: firstKey,
-					},
+				state.DeleteRequest{
+					Key: firstKey,
 				},
 				// upsert a new item
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   secondKey,
-						Value: secondValue,
-					},
+				state.SetRequest{
+					Key:   secondKey,
+					Value: secondValue,
 				},
 				// delete the item that was just upserted
-				{
-					Operation: state.Delete,
-					Request: state.DeleteRequest{
-						Key: secondKey,
-					},
+				state.DeleteRequest{
+					Key: secondKey,
 				},
 				// upsert a new item
-				{
-					Operation: state.Upsert,
-					Request: state.SetRequest{
-						Key:   thirdKey,
-						Value: thirdValue,
-					},
+				state.SetRequest{
+					Key:   thirdKey,
+					Value: thirdValue,
 				},
 			}
 
 			expected := map[string][]byte{
 				firstKey:  []byte(nil),
 				secondKey: []byte(nil),
-				thirdKey:  []byte(fmt.Sprintf("\"%s\"", thirdValue)),
+				thirdKey:  []byte(strconv.Quote(thirdValue)),
 			}
 
 			// Act
@@ -561,7 +580,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				Operations: operations,
 				Metadata:   partitionMetadata,
 			})
-			assert.Nil(t, err)
+			require.NoError(t, err)
 
 			// Assert
 			for k, v := range expected {
@@ -569,7 +588,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					Key:      k,
 					Metadata: partitionMetadata,
 				})
-				assert.Nil(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, v, res.Data)
 			}
 		})
@@ -662,7 +681,6 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			testKey := "first-writeTest"
 			firstValue := []byte("testValue1")
 			secondValue := []byte("testValue2")
-			emptyString := ""
 
 			requestSets := [][2]*state.SetRequest{
 				{
@@ -673,7 +691,8 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 							Concurrency: state.FirstWrite,
 							Consistency: state.Strong,
 						},
-					}, {
+					},
+					{
 						Key:   testKey,
 						Value: secondValue,
 						Options: state.SetStateOption{
@@ -682,23 +701,26 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						},
 					},
 				},
-				{{
-					Key:   testKey,
-					Value: firstValue,
-					Options: state.SetStateOption{
-						Concurrency: state.FirstWrite,
-						Consistency: state.Strong,
+				{
+					{
+						Key:   testKey,
+						Value: firstValue,
+						Options: state.SetStateOption{
+							Concurrency: state.FirstWrite,
+							Consistency: state.Strong,
+						},
+						ETag: ptr.Of(""),
 					},
-					ETag: &emptyString,
-				}, {
-					Key:   testKey,
-					Value: secondValue,
-					Options: state.SetStateOption{
-						Concurrency: state.FirstWrite,
-						Consistency: state.Strong,
+					{
+						Key:   testKey,
+						Value: secondValue,
+						Options: state.SetStateOption{
+							Concurrency: state.FirstWrite,
+							Consistency: state.Strong,
+						},
+						ETag: ptr.Of(""),
 					},
-					ETag: &emptyString,
-				}},
+				},
 			}
 
 			for i, requestSet := range requestSets {
@@ -801,43 +823,50 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			assertEquals(t, "⏱️", res)
 
 			// Wait for the object to expire and request again
-			time.Sleep(3 * time.Second)
-			res, err = statestore.Get(context.Background(), &state.GetRequest{
-				Key: key + "-ttl",
-			})
-			require.NoError(t, err)
-			assert.Nil(t, res.Data)
+			assert.Eventually(t, func() bool {
+				res, err = statestore.Get(context.Background(), &state.GetRequest{
+					Key: key + "-ttl",
+				})
+				require.NoError(t, err)
+				return res.Data == nil
+			}, time.Second*3, 200*time.Millisecond, "expected object to have been deleted in time")
 		})
 	}
 }
 
 func assertEquals(t *testing.T, value any, res *state.GetResponse) {
-	switch v := value.(type) {
+	t.Helper()
+	assertDataEquals(t, value, res.Data)
+}
+
+func assertDataEquals(t *testing.T, expect any, actual []byte) {
+	t.Helper()
+	switch v := expect.(type) {
 	case intValueType:
 		// Custom type requires case mapping
-		if err := json.Unmarshal(res.Data, &v); err != nil {
-			assert.Failf(t, "unmarshal error", "error: %w, json: %s", err, string(res.Data))
+		if err := json.Unmarshal(actual, &v); err != nil {
+			assert.Failf(t, "unmarshal error", "error: %v, json: %s", err, string(actual))
 		}
-		assert.Equal(t, value, v)
+		assert.Equal(t, expect, v)
 	case ValueType:
 		// Custom type requires case mapping
-		if err := json.Unmarshal(res.Data, &v); err != nil {
-			assert.Failf(t, "unmarshal error", "error: %w, json: %s", err, string(res.Data))
+		if err := json.Unmarshal(actual, &v); err != nil {
+			assert.Failf(t, "unmarshal error", "error: %v, json: %s", err, string(actual))
 		}
-		assert.Equal(t, value, v)
+		assert.Equal(t, expect, v)
 	case int:
 		// json.Unmarshal to float64 by default, case mapping to int coerces to int type
-		if err := json.Unmarshal(res.Data, &v); err != nil {
-			assert.Failf(t, "unmarshal error", "error: %w, json: %s", err, string(res.Data))
+		if err := json.Unmarshal(actual, &v); err != nil {
+			assert.Failf(t, "unmarshal error", "error: %v, json: %s", err, string(actual))
 		}
-		assert.Equal(t, value, v)
+		assert.Equal(t, expect, v)
 	case []byte:
-		assert.Equal(t, value, res.Data)
+		assert.Equal(t, expect, actual)
 	default:
 		// Other golang primitive types (string, bool ...)
-		if err := json.Unmarshal(res.Data, &v); err != nil {
-			assert.Failf(t, "unmarshal error", "error: %w, json: %s", err, string(res.Data))
+		if err := json.Unmarshal(actual, &v); err != nil {
+			assert.Failf(t, "unmarshal error", "error: %v, json: %s", err, string(actual))
 		}
-		assert.Equal(t, value, v)
+		assert.Equal(t, expect, v)
 	}
 }

@@ -14,7 +14,6 @@ limitations under the License.
 package s3
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	b64 "encoding/base64"
@@ -23,7 +22,8 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strconv"
+	"reflect"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -35,7 +35,9 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
 	"github.com/dapr/components-contrib/internal/utils"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -46,8 +48,8 @@ const (
 
 	metadataKey = "key"
 
-	maxResults       = 1000
-	presignOperation = "presign"
+	defaultMaxResults = 1000
+	presignOperation  = "presign"
 )
 
 // AWSS3 is a binding for an AWS S3 storage bucket.
@@ -60,19 +62,19 @@ type AWSS3 struct {
 }
 
 type s3Metadata struct {
-	Region         string `json:"region"`
-	Endpoint       string `json:"endpoint"`
-	AccessKey      string `json:"accessKey"`
-	SecretKey      string `json:"secretKey"`
-	SessionToken   string `json:"sessionToken"`
-	Bucket         string `json:"bucket"`
-	DecodeBase64   bool   `json:"decodeBase64,string"`
-	EncodeBase64   bool   `json:"encodeBase64,string"`
-	ForcePathStyle bool   `json:"forcePathStyle,string"`
-	DisableSSL     bool   `json:"disableSSL,string"`
-	InsecureSSL    bool   `json:"insecureSSL,string"`
-	FilePath       string
-	PresignTTL     string
+	Region         string `json:"region" mapstructure:"region"`
+	Endpoint       string `json:"endpoint" mapstructure:"endpoint"`
+	AccessKey      string `json:"accessKey" mapstructure:"accessKey"`
+	SecretKey      string `json:"secretKey" mapstructure:"secretKey"`
+	SessionToken   string `json:"sessionToken" mapstructure:"sessionToken"`
+	Bucket         string `json:"bucket" mapstructure:"bucket"`
+	DecodeBase64   bool   `json:"decodeBase64,string" mapstructure:"decodeBase64"`
+	EncodeBase64   bool   `json:"encodeBase64,string" mapstructure:"encodeBase64"`
+	ForcePathStyle bool   `json:"forcePathStyle,string" mapstructure:"forcePathStyle"`
+	DisableSSL     bool   `json:"disableSSL,string" mapstructure:"disableSSL"`
+	InsecureSSL    bool   `json:"insecureSSL,string" mapstructure:"insecureSSL"`
+	FilePath       string `mapstructure:"filePath"`
+	PresignTTL     string `mapstructure:"presignTTL"`
 }
 
 type createResponse struct {
@@ -98,7 +100,7 @@ func NewAWSS3(logger logger.Logger) bindings.OutputBinding {
 }
 
 // Init does metadata parsing and connection creation.
-func (s *AWSS3) Init(metadata bindings.Metadata) error {
+func (s *AWSS3) Init(_ context.Context, metadata bindings.Metadata) error {
 	m, err := s.parseMetadata(metadata)
 	if err != nil {
 		return err
@@ -152,27 +154,26 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: error merging metadata: %w", err)
 	}
-	var key string
-	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
-		key = val
-	} else {
-		key = uuid.New().String()
-		s.logger.Debugf("s3 binding: key not found. generating key %s", key)
-	}
 
-	d, err := strconv.Unquote(string(req.Data))
-	if err == nil {
-		req.Data = []byte(d)
+	key := req.Metadata[metadataKey]
+	if key == "" {
+		var u uuid.UUID
+		u, err = uuid.NewRandom()
+		if err != nil {
+			return nil, fmt.Errorf("s3 binding error: failed to generate UUID: %w", err)
+		}
+		key = u.String()
+		s.logger.Debugf("s3 binding error: key not found. generating key %s", key)
 	}
 
 	var r io.Reader
 	if metadata.FilePath != "" {
 		r, err = os.Open(metadata.FilePath)
 		if err != nil {
-			return nil, fmt.Errorf("s3 file read error: %s", err)
+			return nil, fmt.Errorf("s3 binding error: file read error: %w", err)
 		}
 	} else {
-		r = bytes.NewReader(req.Data)
+		r = strings.NewReader(utils.Unquote(req.Data))
 	}
 
 	if metadata.DecodeBase64 {
@@ -180,12 +181,12 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	}
 
 	resultUpload, err := s.uploader.UploadWithContext(ctx, &s3manager.UploadInput{
-		Bucket: aws.String(metadata.Bucket),
-		Key:    aws.String(key),
+		Bucket: ptr.Of(metadata.Bucket),
+		Key:    ptr.Of(key),
 		Body:   r,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("s3 binding error: Uploading: %w", err)
+		return nil, fmt.Errorf("s3 binding error: uploading failed: %w", err)
 	}
 
 	var presignURL string
@@ -204,11 +205,14 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		PresignURL: presignURL,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("s3 binding error: Error marshalling create response: %w", err)
+		return nil, fmt.Errorf("s3 binding error: error marshalling create response: %w", err)
 	}
 
 	return &bindings.InvokeResponse{
 		Data: jsonResponse,
+		Metadata: map[string]string{
+			metadataKey: key,
+		},
 	}, nil
 }
 
@@ -217,10 +221,9 @@ func (s *AWSS3) presign(ctx context.Context, req *bindings.InvokeRequest) (*bind
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: error merging metadata: %w", err)
 	}
-	var key string
-	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
-		key = val
-	} else {
+
+	key := req.Metadata[metadataKey]
+	if key == "" {
 		return nil, fmt.Errorf("s3 binding error: required metadata '%s' missing", metadataKey)
 	}
 
@@ -237,7 +240,7 @@ func (s *AWSS3) presign(ctx context.Context, req *bindings.InvokeRequest) (*bind
 		PresignURL: url,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("s3 binding error: Error marshalling presign response: %w", err)
+		return nil, fmt.Errorf("s3 binding error: error marshalling presign response: %w", err)
 	}
 
 	return &bindings.InvokeResponse{
@@ -248,16 +251,16 @@ func (s *AWSS3) presign(ctx context.Context, req *bindings.InvokeRequest) (*bind
 func (s *AWSS3) presignObject(bucket, key, ttl string) (string, error) {
 	d, err := time.ParseDuration(ttl)
 	if err != nil {
-		return "", fmt.Errorf("cannot parse duration %s: %w", ttl, err)
+		return "", fmt.Errorf("s3 binding error: cannot parse duration %s: %w", ttl, err)
 	}
 
 	objReq, _ := s.s3Client.GetObjectRequest(&s3.GetObjectInput{
-		Bucket: aws.String(bucket),
-		Key:    aws.String(key),
+		Bucket: ptr.Of(bucket),
+		Key:    ptr.Of(key),
 	})
 	url, err := objReq.Presign(d)
 	if err != nil {
-		return "", fmt.Errorf("failed to presign URL: %w", err)
+		return "", fmt.Errorf("s3 binding error: failed to presign URL: %w", err)
 	}
 
 	return url, nil
@@ -266,14 +269,12 @@ func (s *AWSS3) presignObject(bucket, key, ttl string) (string, error) {
 func (s *AWSS3) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	metadata, err := s.metadata.mergeWithRequestMetadata(req)
 	if err != nil {
-		return nil, fmt.Errorf("s3 binding error. error merge metadata : %w", err)
+		return nil, fmt.Errorf("s3 binding error: error merging metadata : %w", err)
 	}
 
-	var key string
-	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
-		key = val
-	} else {
-		return nil, fmt.Errorf("s3 binding error: can't read key value")
+	key := req.Metadata[metadataKey]
+	if key == "" {
+		return nil, fmt.Errorf("s3 binding error: required metadata '%s' missing", metadataKey)
 	}
 
 	buff := &aws.WriteAtBuffer{}
@@ -281,8 +282,8 @@ func (s *AWSS3) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings
 	_, err = s.downloader.DownloadWithContext(ctx,
 		buff,
 		&s3.GetObjectInput{
-			Bucket: aws.String(s.metadata.Bucket),
-			Key:    aws.String(key),
+			Bucket: ptr.Of(s.metadata.Bucket),
+			Key:    ptr.Of(key),
 		},
 	)
 	if err != nil {
@@ -304,49 +305,51 @@ func (s *AWSS3) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings
 }
 
 func (s *AWSS3) delete(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	var key string
-	if val, ok := req.Metadata[metadataKey]; ok && val != "" {
-		key = val
-	} else {
-		return nil, fmt.Errorf("s3 binding error: can't read key value")
+	key := req.Metadata[metadataKey]
+	if key == "" {
+		return nil, fmt.Errorf("s3 binding error: required metadata '%s' missing", metadataKey)
 	}
 
 	_, err := s.s3Client.DeleteObjectWithContext(
 		ctx,
 		&s3.DeleteObjectInput{
-			Bucket: aws.String(s.metadata.Bucket),
-			Key:    aws.String(key),
+			Bucket: ptr.Of(s.metadata.Bucket),
+			Key:    ptr.Of(key),
 		},
 	)
+	if err != nil {
+		return nil, fmt.Errorf("s3 binding error: delete operation failed: %w", err)
+	}
 
-	return nil, err
+	return nil, nil
 }
 
 func (s *AWSS3) list(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	var payload listPayload
-	err := json.Unmarshal(req.Data, &payload)
-	if err != nil {
-		return nil, err
+	payload := listPayload{}
+	if req.Data != nil {
+		if err := json.Unmarshal(req.Data, &payload); err != nil {
+			return nil, fmt.Errorf("s3 binding (List Operation) - unable to parse Data property - %v", err)
+		}
 	}
 
-	if payload.MaxResults == int32(0) {
-		payload.MaxResults = maxResults
+	if payload.MaxResults < 1 {
+		payload.MaxResults = defaultMaxResults
 	}
 
 	result, err := s.s3Client.ListObjectsWithContext(ctx, &s3.ListObjectsInput{
-		Bucket:    aws.String(s.metadata.Bucket),
-		MaxKeys:   aws.Int64(int64(payload.MaxResults)),
-		Marker:    aws.String(payload.Marker),
-		Prefix:    aws.String(payload.Prefix),
-		Delimiter: aws.String(payload.Delimiter),
+		Bucket:    ptr.Of(s.metadata.Bucket),
+		MaxKeys:   ptr.Of(int64(payload.MaxResults)),
+		Marker:    ptr.Of(payload.Marker),
+		Prefix:    ptr.Of(payload.Prefix),
+		Delimiter: ptr.Of(payload.Delimiter),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("s3 binding error. list operation. cannot marshal blobs to json: %w", err)
+		return nil, fmt.Errorf("s3 binding error: list operation failed: %w", err)
 	}
 
 	jsonResponse, err := json.Marshal(result)
 	if err != nil {
-		return nil, fmt.Errorf("s3 binding error. list operation. cannot marshal blobs to json: %w", err)
+		return nil, fmt.Errorf("s3 binding error: list operation: cannot marshal list to json: %w", err)
 	}
 
 	return &bindings.InvokeResponse{
@@ -367,22 +370,16 @@ func (s *AWSS3) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	case presignOperation:
 		return s.presign(ctx, req)
 	default:
-		return nil, fmt.Errorf("s3 binding error. unsupported operation %s", req.Operation)
+		return nil, fmt.Errorf("s3 binding error: unsupported operation %s", req.Operation)
 	}
 }
 
-func (s *AWSS3) parseMetadata(metadata bindings.Metadata) (*s3Metadata, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
-	}
-
+func (s *AWSS3) parseMetadata(md bindings.Metadata) (*s3Metadata, error) {
 	var m s3Metadata
-	err = json.Unmarshal(b, &m)
+	err := metadata.DecodeMetadata(md.Properties, &m)
 	if err != nil {
 		return nil, err
 	}
-
 	return &m, nil
 }
 
@@ -416,4 +413,12 @@ func (metadata s3Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest)
 	}
 
 	return merged, nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (s *AWSS3) GetComponentMetadata() map[string]string {
+	metadataStruct := s3Metadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

@@ -15,6 +15,7 @@ package hazelcast
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -30,7 +31,8 @@ import (
 
 // Hazelcast state store.
 type Hazelcast struct {
-	state.DefaultBulkStore
+	state.BulkStore
+
 	hzMap  core.Map
 	json   jsoniter.API
 	logger logger.Logger
@@ -47,8 +49,7 @@ func NewHazelcastStore(logger logger.Logger) state.Store {
 		json:   jsoniter.ConfigFastest,
 		logger: logger,
 	}
-	s.DefaultBulkStore = state.NewDefaultBulkStore(s)
-
+	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
 }
 
@@ -59,17 +60,17 @@ func validateAndParseMetadata(meta state.Metadata) (*hazelcastMetadata, error) {
 		return nil, err
 	}
 	if m.HazelcastServers == "" {
-		return nil, fmt.Errorf("hazelcast error: missing hazelcast servers")
+		return nil, errors.New("missing hazelcast servers")
 	}
 	if m.HazelcastMap == "" {
-		return nil, fmt.Errorf("hazelcast error: missing hazelcast map name")
+		return nil, errors.New("missing hazelcast map name")
 	}
 
 	return m, nil
 }
 
 // Init does metadata and connection parsing.
-func (store *Hazelcast) Init(metadata state.Metadata) error {
+func (store *Hazelcast) Init(_ context.Context, metadata state.Metadata) error {
 	meta, err := validateAndParseMetadata(metadata)
 	if err != nil {
 		return err
@@ -81,12 +82,12 @@ func (store *Hazelcast) Init(metadata state.Metadata) error {
 
 	client, err := hazelcast.NewClientWithConfig(hzConfig)
 	if err != nil {
-		return fmt.Errorf("hazelcast error: %v", err)
+		return err
 	}
 	store.hzMap, err = client.GetMap(meta.HazelcastMap)
 
 	if err != nil {
-		return fmt.Errorf("hazelcast error: %v", err)
+		return err
 	}
 
 	return nil
@@ -111,13 +112,13 @@ func (store *Hazelcast) Set(ctx context.Context, req *state.SetRequest) error {
 	} else {
 		value, err = store.json.MarshalToString(req.Value)
 		if err != nil {
-			return fmt.Errorf("hazelcast error: failed to set key %s: %s", req.Key, err)
+			return fmt.Errorf("failed to set key %s: %w", req.Key, err)
 		}
 	}
 	_, err = store.hzMap.Put(req.Key, value)
 
 	if err != nil {
-		return fmt.Errorf("hazelcast error: failed to set key %s: %s", req.Key, err)
+		return fmt.Errorf("failed to set key %s: %w", req.Key, err)
 	}
 
 	return nil
@@ -127,7 +128,7 @@ func (store *Hazelcast) Set(ctx context.Context, req *state.SetRequest) error {
 func (store *Hazelcast) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	resp, err := store.hzMap.Get(req.Key)
 	if err != nil {
-		return nil, fmt.Errorf("hazelcast error: failed to get value for %s: %s", req.Key, err)
+		return nil, fmt.Errorf("failed to get value for %s: %w", req.Key, err)
 	}
 
 	// HZ Get API returns nil response if key does not exist in the map
@@ -136,7 +137,7 @@ func (store *Hazelcast) Get(ctx context.Context, req *state.GetRequest) (*state.
 	}
 	value, err := store.json.Marshal(&resp)
 	if err != nil {
-		return nil, fmt.Errorf("hazelcast error: %v", err)
+		return nil, err
 	}
 
 	return &state.GetResponse{
@@ -152,7 +153,7 @@ func (store *Hazelcast) Delete(ctx context.Context, req *state.DeleteRequest) er
 	}
 	err = store.hzMap.Delete(req.Key)
 	if err != nil {
-		return fmt.Errorf("hazelcast error: failed to delete key - %s", req.Key)
+		return fmt.Errorf("failed to delete key: %w", err)
 	}
 
 	return nil
@@ -161,6 +162,6 @@ func (store *Hazelcast) Delete(ctx context.Context, req *state.DeleteRequest) er
 func (store *Hazelcast) GetComponentMetadata() map[string]string {
 	metadataStruct := hazelcastMetadata{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }

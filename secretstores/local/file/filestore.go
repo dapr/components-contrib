@@ -56,7 +56,7 @@ func NewLocalSecretStore(logger logger.Logger) secretstores.SecretStore {
 }
 
 // Init creates a Local secret store.
-func (j *localSecretStore) Init(metadata secretstores.Metadata) error {
+func (j *localSecretStore) Init(_ context.Context, metadata secretstores.Metadata) error {
 	meta, err := j.getLocalSecretStoreMetadata(metadata)
 	if err != nil {
 		return err
@@ -280,6 +280,6 @@ func (j *localSecretStore) Features() []secretstores.Feature {
 func (j *localSecretStore) GetComponentMetadata() map[string]string {
 	metadataStruct := localSecretStoreMetaData{}
 	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo)
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
 	return metadataInfo
 }

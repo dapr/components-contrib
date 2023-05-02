@@ -36,7 +36,6 @@ type Kafka struct {
 	saslPassword    string
 	initialOffset   int64
 	cg              sarama.ConsumerGroup
-	cancel          context.CancelFunc
 	consumer        consumer
 	config          *sarama.Config
 	subscribeTopics TopicHandlerConfig
@@ -60,7 +59,7 @@ func NewKafka(logger logger.Logger) *Kafka {
 }
 
 // Init does metadata parsing and connection establishment.
-func (k *Kafka) Init(metadata map[string]string) error {
+func (k *Kafka) Init(_ context.Context, metadata map[string]string) error {
 	upgradedMetadata, err := k.upgradeMetadata(metadata)
 	if err != nil {
 		return err
@@ -71,13 +70,13 @@ func (k *Kafka) Init(metadata map[string]string) error {
 		return err
 	}
 
-	k.brokers = meta.Brokers
+	k.brokers = meta.internalBrokers
 	k.consumerGroup = meta.ConsumerGroup
-	k.initialOffset = meta.InitialOffset
+	k.initialOffset = meta.internalInitialOffset
 	k.authType = meta.AuthType
 
 	config := sarama.NewConfig()
-	config.Version = meta.Version
+	config.Version = meta.internalVersion
 	config.Consumer.Offsets.Initial = k.initialOffset
 
 	if meta.ClientID != "" {
@@ -107,6 +106,8 @@ func (k *Kafka) Init(metadata map[string]string) error {
 		if err != nil {
 			return err
 		}
+	case certificateAuthType:
+		// already handled in updateTLSConfig
 	}
 
 	k.config = config

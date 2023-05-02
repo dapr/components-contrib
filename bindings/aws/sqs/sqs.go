@@ -15,7 +15,10 @@ package sqs
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
+	"reflect"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -23,6 +26,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -31,7 +35,10 @@ type AWSSQS struct {
 	Client   *sqs.SQS
 	QueueURL *string
 
-	logger logger.Logger
+	logger  logger.Logger
+	wg      sync.WaitGroup
+	closeCh chan struct{}
+	closed  atomic.Bool
 }
 
 type sqsMetadata struct {
@@ -45,11 +52,14 @@ type sqsMetadata struct {
 
 // NewAWSSQS returns a new AWS SQS instance.
 func NewAWSSQS(logger logger.Logger) bindings.InputOutputBinding {
-	return &AWSSQS{logger: logger}
+	return &AWSSQS{
+		logger:  logger,
+		closeCh: make(chan struct{}),
+	}
 }
 
 // Init does metadata parsing and connection creation.
-func (a *AWSSQS) Init(metadata bindings.Metadata) error {
+func (a *AWSSQS) Init(ctx context.Context, metadata bindings.Metadata) error {
 	m, err := a.parseSQSMetadata(metadata)
 	if err != nil {
 		return err
@@ -61,7 +71,7 @@ func (a *AWSSQS) Init(metadata bindings.Metadata) error {
 	}
 
 	queueName := m.QueueName
-	resultURL, err := client.GetQueueUrl(&sqs.GetQueueUrlInput{
+	resultURL, err := client.GetQueueUrlWithContext(ctx, &sqs.GetQueueUrlInput{
 		QueueName: aws.String(queueName),
 	})
 	if err != nil {
@@ -89,9 +99,20 @@ func (a *AWSSQS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 }
 
 func (a *AWSSQS) Read(ctx context.Context, handler bindings.Handler) error {
+	if a.closed.Load() {
+		return errors.New("binding is closed")
+	}
+
+	a.wg.Add(1)
 	go func() {
-		// Repeat until the context is canceled
-		for ctx.Err() == nil {
+		defer a.wg.Done()
+
+		// Repeat until the context is canceled or component is closed
+		for {
+			if ctx.Err() != nil || a.closed.Load() {
+				return
+			}
+
 			result, err := a.Client.ReceiveMessageWithContext(ctx, &sqs.ReceiveMessageInput{
 				QueueUrl: a.QueueURL,
 				AttributeNames: aws.StringSlice([]string{
@@ -126,21 +147,28 @@ func (a *AWSSQS) Read(ctx context.Context, handler bindings.Handler) error {
 				}
 			}
 
-			time.Sleep(time.Millisecond * 50)
+			select {
+			case <-ctx.Done():
+			case <-a.closeCh:
+			case <-time.After(time.Millisecond * 50):
+			}
 		}
 	}()
 
 	return nil
 }
 
-func (a *AWSSQS) parseSQSMetadata(metadata bindings.Metadata) (*sqsMetadata, error) {
-	b, err := json.Marshal(metadata.Properties)
-	if err != nil {
-		return nil, err
+func (a *AWSSQS) Close() error {
+	if a.closed.CompareAndSwap(false, true) {
+		close(a.closeCh)
 	}
+	a.wg.Wait()
+	return nil
+}
 
-	var m sqsMetadata
-	err = json.Unmarshal(b, &m)
+func (a *AWSSQS) parseSQSMetadata(meta bindings.Metadata) (*sqsMetadata, error) {
+	m := sqsMetadata{}
+	err := metadata.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}
@@ -156,4 +184,12 @@ func (a *AWSSQS) getClient(metadata *sqsMetadata) (*sqs.SQS, error) {
 	c := sqs.New(sess)
 
 	return c, nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (a *AWSSQS) GetComponentMetadata() map[string]string {
+	metadataStruct := sqsMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

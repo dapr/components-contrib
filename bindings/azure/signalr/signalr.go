@@ -16,28 +16,27 @@ package signalr
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	jwt "github.com/golang-jwt/jwt/v4"
-	"github.com/pkg/errors"
+	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwt"
 
 	"github.com/dapr/components-contrib/bindings"
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
 const (
-	errorPrefix = "azure signalr error:"
-	logPrefix   = "azure signalr:"
-
-	// Metadata keys.
-	// Azure AD credentials are parsed separately and not listed here.
 	connectionStringKey = "connectionString"
 	accessKeyKey        = "accessKey"
 	endpointKey         = "endpoint"
@@ -48,12 +47,26 @@ const (
 	userKey  = "user"
 )
 
+// Metadata keys.
+// Azure AD credentials are parsed separately and not listed here.
+type SignalRMetadata struct {
+	Endpoint         string `mapstructure:"endpoint"`
+	AccessKey        string `mapstructure:"accessKey"`
+	Hub              string `mapstructure:"hub"`
+	ConnectionString string `mapstructure:"connectionString"`
+}
+
 // Global HTTP client
 var httpClient *http.Client
 
 func init() {
 	httpClient = &http.Client{
 		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			},
+		},
 	}
 }
 
@@ -78,7 +91,7 @@ type SignalR struct {
 }
 
 // Init is responsible for initializing the SignalR output based on the metadata.
-func (s *SignalR) Init(metadata bindings.Metadata) (err error) {
+func (s *SignalR) Init(_ context.Context, metadata bindings.Metadata) (err error) {
 	s.userAgent = "dapr-" + logger.DaprVersion
 
 	err = s.parseMetadata(metadata.Properties)
@@ -89,7 +102,7 @@ func (s *SignalR) Init(metadata bindings.Metadata) (err error) {
 	// If using AAD for authentication, init the token provider
 	if s.accessKey == "" {
 		var settings azauth.EnvironmentSettings
-		settings, err = azauth.NewEnvironmentSettings("signalr", metadata.Properties)
+		settings, err = azauth.NewEnvironmentSettings(metadata.Properties)
 		if err != nil {
 			return err
 		}
@@ -103,16 +116,21 @@ func (s *SignalR) Init(metadata bindings.Metadata) (err error) {
 }
 
 func (s *SignalR) parseMetadata(md map[string]string) (err error) {
+	m := SignalRMetadata{}
+	err = metadata.DecodeMetadata(md, &m)
+	if err != nil {
+		return err
+	}
+
 	// Start by parsing the connection string if present
-	connectionString, ok := md[connectionStringKey]
-	if ok && connectionString != "" {
+	if m.ConnectionString != "" {
 		// Expected options:
 		// Access key: "Endpoint=https://<servicename>.service.signalr.net;AccessKey=<access key>;Version=1.0;"
 		// System-assigned managed identity: "Endpoint=https://<servicename>.service.signalr.net;AuthType=aad;Version=1.0;"
 		// User-assigned managed identity: "Endpoint=https://<servicename>.service.signalr.net;AuthType=aad;ClientId=<clientid>;Version=1.0;"
 		// Azure AD application: "Endpoint=https://<servicename>.service.signalr.net;AuthType=aad;ClientId=<clientid>;ClientSecret=<clientsecret>;TenantId=<tenantid>;Version=1.0;"
 		// Note: connection string can't be used if the client secret contains the ; key
-		connectionValues := strings.Split(strings.TrimSpace(connectionString), ";")
+		connectionValues := strings.Split(strings.TrimSpace(m.ConnectionString), ";")
 		useAAD := false
 		for _, connectionValue := range connectionValues {
 			if i := strings.Index(connectionValue, "="); i != -1 && len(connectionValue) > (i+1) {
@@ -151,14 +169,14 @@ func (s *SignalR) parseMetadata(md map[string]string) (err error) {
 	}
 
 	// Parse the other metadata keys, which could also override the values from the connection string
-	if v, ok := md[hubKey]; ok && v != "" {
-		s.hub = v
+	if m.Hub != "" {
+		s.hub = m.Hub
 	}
-	if v, ok := md[endpointKey]; ok && v != "" {
-		s.endpoint = v
+	if m.Endpoint != "" {
+		s.endpoint = m.Endpoint
 	}
-	if v, ok := md[accessKeyKey]; ok && v != "" {
-		s.accessKey = v
+	if m.AccessKey != "" {
+		s.accessKey = m.AccessKey
 	}
 
 	// Trim ending "/" from endpoint
@@ -178,7 +196,7 @@ func (s *SignalR) resolveAPIURL(req *bindings.InvokeRequest) (string, error) {
 		hub = s.hub
 	}
 	if hub == "" {
-		return "", fmt.Errorf("%s missing hub", errorPrefix)
+		return "", errors.New("missing hub")
 	}
 
 	// Hub name is lower-cased in the official SDKs (e.g. .NET)
@@ -208,7 +226,7 @@ func (s *SignalR) sendMessageToSignalR(ctx context.Context, url string, token st
 
 	resp, err := s.httpClient.Do(httpReq)
 	if err != nil {
-		return errors.Wrap(err, "request to azure signalr api failed")
+		return fmt.Errorf("request to azure signalr api failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -219,10 +237,10 @@ func (s *SignalR) sendMessageToSignalR(ctx context.Context, url string, token st
 	}
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		return fmt.Errorf("%s azure signalr failed with code %d, content is '%s'", errorPrefix, resp.StatusCode, string(body))
+		return fmt.Errorf("azure signalr failed with code %d, content is '%s'", resp.StatusCode, string(body))
 	}
 
-	s.logger.Debugf("%s azure signalr call to '%s' completed with code %d", logPrefix, url, resp.StatusCode)
+	s.logger.Debugf("azure signalr call to '%s' completed with code %d", url, resp.StatusCode)
 
 	return nil
 }
@@ -251,7 +269,9 @@ func (s *SignalR) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bin
 }
 
 // Returns an access token for a request to the given URL
-func (s *SignalR) getToken(ctx context.Context, url string) (token string, err error) {
+func (s *SignalR) getToken(ctx context.Context, url string) (string, error) {
+	var err error
+
 	// If we have an Azure AD token provider, use that first
 	if s.aadToken != nil {
 		var at azcore.AccessToken
@@ -261,24 +281,29 @@ func (s *SignalR) getToken(ctx context.Context, url string) (token string, err e
 		if err != nil {
 			return "", err
 		}
-		token = at.Token
-	} else {
-		// TODO: Use jwt.RegisteredClaims instead
-		claims := &jwt.StandardClaims{ //nolint:staticcheck
-			ExpiresAt: time.Now().Add(15 * time.Minute).Unix(),
-			Audience:  url,
-		}
-		err = claims.Valid()
-		if err != nil {
-			return "", err
-		}
-
-		jwtToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-		token, err = jwtToken.SignedString([]byte(s.accessKey))
-		if err != nil {
-			return "", err
-		}
+		return at.Token, nil
 	}
 
-	return token, nil
+	now := time.Now()
+	token, err := jwt.NewBuilder().
+		Audience([]string{url}).
+		Expiration(now.Add(15 * time.Minute)).
+		Build()
+	if err != nil {
+		return "", fmt.Errorf("failed to build token: %w", err)
+	}
+	signed, err := jwt.Sign(token, jwt.WithKey(jwa.HS256, []byte(s.accessKey)))
+	if err != nil {
+		return "", fmt.Errorf("failed to sign token: %w", err)
+	}
+
+	return string(signed), nil
+}
+
+// GetComponentMetadata returns the metadata of the component.
+func (s *SignalR) GetComponentMetadata() map[string]string {
+	metadataStruct := SignalRMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return metadataInfo
 }

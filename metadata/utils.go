@@ -14,6 +14,7 @@ limitations under the License.
 package metadata
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"reflect"
@@ -22,7 +23,6 @@ import (
 	"time"
 
 	"github.com/mitchellh/mapstructure"
-	"github.com/pkg/errors"
 
 	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/kit/ptr"
@@ -44,12 +44,6 @@ const (
 	// QueryIndexName defines the metadata key for the name of query indexing schema (for redis).
 	QueryIndexName = "queryIndexName"
 
-	// MaxBulkCountSubKey defines the maximum number of messages to be sent in a single bulk subscribe request.
-	MaxBulkSubCountKey string = "maxBulkSubCount"
-
-	// MaxBulkAwaitDurationKey is the key for the max bulk await duration in the metadata.
-	MaxBulkSubAwaitDurationMsKey string = "maxBulkSubAwaitDurationMs"
-
 	// MaxBulkPubBytesKey defines the maximum bytes to publish in a bulk publish request metadata.
 	MaxBulkPubBytesKey string = "maxBulkPubBytes"
 )
@@ -59,7 +53,7 @@ func TryGetTTL(props map[string]string) (time.Duration, bool, error) {
 	if val, ok := props[TTLMetadataKey]; ok && val != "" {
 		valInt64, err := strconv.ParseInt(val, 10, 64)
 		if err != nil {
-			return 0, false, errors.Wrapf(err, "%s value must be a valid integer: actual is '%s'", TTLMetadataKey, val)
+			return 0, false, fmt.Errorf("%s value must be a valid integer: actual is '%s'", TTLMetadataKey, val)
 		}
 
 		if valInt64 <= 0 {
@@ -83,7 +77,7 @@ func TryGetPriority(props map[string]string) (uint8, bool, error) {
 	if val, ok := props[PriorityMetadataKey]; ok && val != "" {
 		intVal, err := strconv.Atoi(val)
 		if err != nil {
-			return 0, false, errors.Wrapf(err, "%s value must be a valid integer: actual is '%s'", PriorityMetadataKey, val)
+			return 0, false, fmt.Errorf("%s value must be a valid integer: actual is '%s'", PriorityMetadataKey, val)
 		}
 
 		priority := uint8(intVal)
@@ -104,7 +98,7 @@ func IsRawPayload(props map[string]string) (bool, error) {
 	if val, ok := props[RawPayloadKey]; ok && val != "" {
 		boolVal, err := strconv.ParseBool(val)
 		if err != nil {
-			return false, errors.Wrapf(err, "%s value must be a valid boolean: actual is '%s'", RawPayloadKey, val)
+			return false, fmt.Errorf("%s value must be a valid boolean: actual is '%s'", RawPayloadKey, val)
 		}
 
 		return boolVal, nil
@@ -131,8 +125,12 @@ func TryGetQueryIndexName(props map[string]string) (string, bool) {
 
 // GetMetadataProperty returns a property from the metadata map, with support for aliases
 func GetMetadataProperty(props map[string]string, keys ...string) (val string, ok bool) {
+	lcProps := make(map[string]string, len(props))
+	for k, v := range props {
+		lcProps[strings.ToLower(k)] = v
+	}
 	for _, k := range keys {
-		val, ok = props[k]
+		val, ok = lcProps[strings.ToLower(k)]
 		if ok {
 			return val, true
 		}
@@ -143,8 +141,20 @@ func GetMetadataProperty(props map[string]string, keys ...string) (val string, o
 // DecodeMetadata decodes metadata into a struct
 // This is an extension of mitchellh/mapstructure which also supports decoding durations
 func DecodeMetadata(input interface{}, result interface{}) error {
+	// avoids a common mistake of passing the metadata struct, instead of the properties map
+	// if input is of type struct, case it to metadata.Base and access the Properties instead
+	v := reflect.ValueOf(input)
+	if v.Kind() == reflect.Struct {
+		f := v.FieldByName("Properties")
+		if f.IsValid() && f.Kind() == reflect.Map {
+			properties := f.Interface().(map[string]string)
+			input = properties
+		}
+	}
+
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		DecodeHook: mapstructure.ComposeDecodeHookFunc(
+			toTimeDurationArrayHookFunc(),
 			toTimeDurationHookFunc(),
 			toTruthyBoolHookFunc(),
 			toStringArrayHookFunc(),
@@ -196,9 +206,99 @@ func toStringArrayHookFunc() mapstructure.DecodeHookFunc {
 	}
 }
 
+func toTimeDurationArrayHookFunc() mapstructure.DecodeHookFunc {
+	convert := func(input string) ([]time.Duration, error) {
+		res := make([]time.Duration, 0)
+		for _, v := range strings.Split(input, ",") {
+			input := strings.TrimSpace(v)
+			if input == "" {
+				continue
+			}
+			val, err := time.ParseDuration(input)
+			if err != nil {
+				// If we can't parse the duration, try parsing it as int64 seconds
+				seconds, errParse := strconv.ParseInt(input, 10, 0)
+				if errParse != nil {
+					return nil, errors.Join(err, errParse)
+				}
+				val = time.Duration(seconds * int64(time.Second))
+			}
+			res = append(res, val)
+		}
+		return res, nil
+	}
+
+	return func(
+		f reflect.Type,
+		t reflect.Type,
+		data interface{},
+	) (interface{}, error) {
+		if f == reflect.TypeOf("") && t == reflect.TypeOf([]time.Duration{}) {
+			inputArrayString := data.(string)
+			return convert(inputArrayString)
+		}
+		if f == reflect.TypeOf("") && t == reflect.TypeOf(ptr.Of([]time.Duration{})) {
+			inputArrayString := data.(string)
+			res, err := convert(inputArrayString)
+			if err != nil {
+				return nil, err
+			}
+			return ptr.Of(res), nil
+		}
+		return data, nil
+	}
+}
+
+type ComponentType string
+
+const (
+	BindingType            ComponentType = "bindings"
+	StateStoreType         ComponentType = "state"
+	SecretStoreType        ComponentType = "secretstores"
+	PubSubType             ComponentType = "pubsub"
+	LockStoreType          ComponentType = "lock"
+	ConfigurationStoreType ComponentType = "configuration"
+	MiddlewareType         ComponentType = "middleware"
+	CryptoType             ComponentType = "crypto"
+	NameResolutionType     ComponentType = "nameresolution"
+	WorkflowType           ComponentType = "workflows"
+)
+
+// IsValid returns true if the component type is valid.
+func (t ComponentType) IsValid() bool {
+	switch t {
+	case BindingType, StateStoreType,
+		SecretStoreType, PubSubType,
+		LockStoreType, ConfigurationStoreType,
+		MiddlewareType, CryptoType,
+		NameResolutionType, WorkflowType:
+		return true
+	default:
+		return false
+	}
+}
+
+// BuiltInMetadataProperties returns the built-in metadata properties for the given component type.
+// These are normally parsed by the runtime.
+func (t ComponentType) BuiltInMetadataProperties() []string {
+	switch t {
+	case StateStoreType:
+		return []string{
+			"actorStateStore",
+			"keyPrefix",
+		}
+	case LockStoreType:
+		return []string{
+			"keyPrefix",
+		}
+	default:
+		return nil
+	}
+}
+
 // GetMetadataInfoFromStructType converts a struct to a map of field name (or struct tag) to field type.
 // This is used to generate metadata documentation for components.
-func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *map[string]string) error {
+func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *map[string]string, componentType ComponentType) error {
 	// Return if not struct or pointer to struct.
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
@@ -209,21 +309,44 @@ func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *map[string]strin
 
 	for i := 0; i < t.NumField(); i++ {
 		currentField := t.Field(i)
+		// fields that are not exported cannot be set via the mapstructure metadata decoding mechanism
+		if !currentField.IsExported() {
+			continue
+		}
 		mapStructureTag := currentField.Tag.Get("mapstructure")
-		tags := strings.Split(mapStructureTag, ",")
-		numTags := len(tags)
-		if numTags > 1 && tags[numTags-1] == "squash" && currentField.Anonymous {
+		// we are not exporting this field using the mapstructure tag mechanism
+		if mapStructureTag == "-" {
+			continue
+		}
+		onlyTag := currentField.Tag.Get("only")
+		if onlyTag != "" {
+			include := false
+			onlyTags := strings.Split(onlyTag, ",")
+			for _, tag := range onlyTags {
+				if tag == string(componentType) {
+					include = true
+					break
+				}
+			}
+			if !include {
+				continue
+			}
+		}
+		mapStructureTags := strings.Split(mapStructureTag, ",")
+		numTags := len(mapStructureTags)
+		if numTags > 1 && mapStructureTags[numTags-1] == "squash" && currentField.Anonymous {
 			// traverse embedded struct
-			GetMetadataInfoFromStructType(currentField.Type, metadataMap)
+			GetMetadataInfoFromStructType(currentField.Type, metadataMap, componentType)
 			continue
 		}
 		var fieldName string
-		if numTags > 0 && tags[0] != "" {
-			fieldName = tags[0]
+		if numTags > 0 && mapStructureTags[0] != "" {
+			fieldName = mapStructureTags[0]
 		} else {
 			fieldName = currentField.Name
 		}
 		(*metadataMap)[fieldName] = currentField.Type.String()
 	}
+
 	return nil
 }

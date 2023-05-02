@@ -65,7 +65,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v0.8.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue v0.1.0 // indirect
 	github.com/Azure/go-amqp v0.18.1 // indirect
-	github.com/AzureAD/microsoft-authentication-library-for-go v0.9.0 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v1.0.0 // indirect
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/PuerkitoBio/purell v1.2.0 // indirect
 	github.com/RoaringBitmap/roaring v1.1.0 // indirect

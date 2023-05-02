@@ -143,7 +143,7 @@ require (
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.3.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v0.8.0 // indirect
-	github.com/AzureAD/microsoft-authentication-library-for-go v0.9.0 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v1.0.0 // indirect
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
 	github.com/RoaringBitmap/roaring v1.1.0 // indirect

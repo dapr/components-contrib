@@ -134,32 +134,13 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 	// 3. Workload identity
 	// workload identity requires values for AZURE_AUTHORITY_HOST, AZURE_CLIENT_ID, AZURE_FEDERATED_TOKEN_FILE, AZURE_TENANT_ID
 	// The workload identity mutating admissions webhook in Kubernetes injects these values into the pod.
+	// These environment variables are read using the default WorkloadIdentityCredentialOptions
 
-	// The workload identity section code directly comes from the Azure SDK for Go.
-	// https://github.com/Azure/azure-sdk-for-go/blob/8aa96821d5dfea73c78e7cfc72613adb45b718c5/sdk/azidentity/default_azure_credential.go#L70-L94
-	// Copyright (c) Microsoft Corporation. All rights reserved. Licensed under the MIT License.
-
-	const (
-		azureAuthorityHost      = "AZURE_AUTHORITY_HOST"
-		azureClientID           = "AZURE_CLIENT_ID"
-		azureFederatedTokenFile = "AZURE_FEDERATED_TOKEN_FILE"
-		azureTenantID           = "AZURE_TENANT_ID"
-	)
-
-	clientID, haveClientID := os.LookupEnv(azureClientID)
-	if haveClientID {
-		if file, ok := os.LookupEnv(azureFederatedTokenFile); ok {
-			if _, ok := os.LookupEnv(azureAuthorityHost); ok {
-				if tenantID, ok := os.LookupEnv(azureTenantID); ok {
-					workloadCred, err := azidentity.NewWorkloadIdentityCredential(tenantID, clientID, file, nil)
-					if err == nil {
-						creds = append(creds, workloadCred)
-					} else {
-						errs = append(errs, err)
-					}
-				}
-			}
-		}
+	workloadCred, err := azidentity.NewWorkloadIdentityCredential(nil)
+	if err == nil {
+		creds = append(creds, workloadCred)
+	} else {
+		errs = append(errs, err)
 	}
 
 	// 4. MSI with timeout of 1 second (same as DefaultAzureCredential)

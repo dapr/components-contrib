@@ -4,39 +4,21 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"reflect"
 	"time"
 
-	"github.com/http-wasm/http-wasm-host-go/handler"
-
-	wasmnethttp "github.com/http-wasm/http-wasm-host-go/handler/nethttp"
-
 	"github.com/http-wasm/http-wasm-host-go/api"
+	"github.com/http-wasm/http-wasm-host-go/handler"
+	wasmnethttp "github.com/http-wasm/http-wasm-host-go/handler/nethttp"
 	"github.com/tetratelabs/wazero"
 
+	"github.com/dapr/components-contrib/internal/wasm"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	dapr "github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 )
-
-// middlewareMetadata includes configuration used for the WebAssembly handler.
-// Detailed notes are in README.md for visibility.
-//
-// Note: When changing this, you must update the docs with summary comments per
-// field.
-// https://github.com/dapr/docs/blob/v1.9/daprdocs/content/en/reference/components-reference/supported-middleware/middleware-wasm.md
-type middlewareMetadata struct {
-	// Path is where to load a `%.wasm` file that implements the guest side of
-	// the handler protocol. No default.
-	Path string `json:"path" mapstructure:"path"`
-
-	// guest is WebAssembly binary implementing the waPC guest, loaded from Path.
-	guest []byte `mapstructure:"-"`
-}
 
 type middleware struct {
 	logger logger.Logger
@@ -56,15 +38,16 @@ func (m *middleware) GetHandler(ctx context.Context, metadata dapr.Metadata) (fu
 
 // getHandler is extracted for unit testing.
 func (m *middleware) getHandler(ctx context.Context, metadata dapr.Metadata) (*requestHandler, error) {
-	meta, err := m.getMetadata(metadata)
+	meta, err := wasm.GetInitMetadata(ctx, metadata.Base)
 	if err != nil {
-		return nil, fmt.Errorf("wasm basic: failed to parse metadata: %w", err)
+		return nil, fmt.Errorf("wasm: failed to parse metadata: %w", err)
 	}
 
 	var stdout, stderr bytes.Buffer
-	mw, err := wasmnethttp.NewMiddleware(ctx, meta.guest,
+	mw, err := wasmnethttp.NewMiddleware(ctx, meta.Guest,
 		handler.Logger(m),
 		handler.ModuleConfig(wazero.NewModuleConfig().
+			WithName(meta.GuestName).
 			WithStdout(&stdout). // reset per request
 			WithStderr(&stderr). // reset per request
 			// The below violate sand-boxing, but allow code to behave as expected.
@@ -113,25 +96,6 @@ func (m *middleware) Log(_ context.Context, level api.LogLevel, message string) 
 	}
 }
 
-func (m *middleware) getMetadata(metadata dapr.Metadata) (*middlewareMetadata, error) {
-	data := middlewareMetadata{}
-	err := mdutils.DecodeMetadata(metadata.Properties, &data)
-	if err != nil {
-		return nil, err
-	}
-
-	if data.Path == "" {
-		return nil, errors.New("missing path")
-	}
-
-	data.guest, err = os.ReadFile(data.Path)
-	if err != nil {
-		return nil, fmt.Errorf("error reading path: %w", err)
-	}
-
-	return &data, nil
-}
-
 type requestHandler struct {
 	mw             wasmnethttp.Middleware
 	logger         logger.Logger
@@ -165,7 +129,7 @@ func (rh *requestHandler) Close() error {
 }
 
 func (m *middleware) GetComponentMetadata() map[string]string {
-	metadataStruct := middlewareMetadata{}
+	metadataStruct := wasm.InitMetadata{}
 	metadataInfo := map[string]string{}
 	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
 	return metadataInfo

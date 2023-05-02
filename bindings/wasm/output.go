@@ -17,11 +17,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"errors"
 	"fmt"
 	"io"
-	"os"
-	"path"
 	"reflect"
 	"strconv"
 	"strings"
@@ -30,9 +27,9 @@ import (
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
-	"github.com/tetratelabs/wazero/sys"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/internal/wasm"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
@@ -40,23 +37,14 @@ import (
 // ExecuteOperation is defined here as it isn't in the bindings package.
 const ExecuteOperation bindings.OperationKind = "execute"
 
-type initMetadata struct {
-	// Path is where to load a `%.wasm` file that implements a command,
-	// usually compiled to target WASI.
-	Path string `mapstructure:"path"`
-
-	// guest is WebAssembly binary implementing the waPC guest, loaded from Path.
-	guest []byte `mapstructure:"-"`
-}
-
 type outputBinding struct {
 	logger        logger.Logger
 	runtimeConfig wazero.RuntimeConfig
 	moduleConfig  wazero.ModuleConfig
 
-	binaryName string
-	runtime    wazero.Runtime
-	module     wazero.CompiledModule
+	guestName string
+	runtime   wazero.Runtime
+	module    wazero.CompiledModule
 
 	instanceCounter atomic.Uint64
 }
@@ -83,19 +71,18 @@ func NewWasmOutput(logger logger.Logger) bindings.OutputBinding {
 }
 
 func (out *outputBinding) Init(ctx context.Context, metadata bindings.Metadata) (err error) {
-	meta, err := out.getInitMetadata(metadata)
+	meta, err := wasm.GetInitMetadata(ctx, metadata.Base)
 	if err != nil {
 		return fmt.Errorf("wasm: failed to parse metadata: %w", err)
 	}
 
-	// Use the name of the wasm binary as the module name.
-	out.binaryName, _ = strings.CutSuffix(path.Base(meta.Path), ".wasm")
+	out.guestName = meta.GuestName
 
 	// Create the runtime, which when closed releases any resources associated with it.
 	out.runtime = wazero.NewRuntimeWithConfig(ctx, out.runtimeConfig)
 
 	// Compile the module, which reduces execution time of Invoke
-	out.module, err = out.runtime.CompileModule(ctx, meta.guest)
+	out.module, err = out.runtime.CompileModule(ctx, meta.Guest)
 	if err != nil {
 		_ = out.runtime.Close(context.Background())
 		return fmt.Errorf("wasm: error compiling binary: %w", err)
@@ -117,7 +104,7 @@ func (out *outputBinding) Invoke(ctx context.Context, req *bindings.InvokeReques
 	// Currently, concurrent modules can conflict on name. Make sure we have
 	// a unique one.
 	instanceNum := out.instanceCounter.Add(1)
-	instanceName := out.binaryName + "-" + strconv.FormatUint(instanceNum, 10)
+	instanceName := out.guestName + "-" + strconv.FormatUint(instanceNum, 10)
 	moduleConfig := out.moduleConfig.WithName(instanceName)
 
 	// Only assign STDIN if it is present in the request.
@@ -130,7 +117,7 @@ func (out *outputBinding) Invoke(ctx context.Context, req *bindings.InvokeReques
 	moduleConfig = moduleConfig.WithStdout(&stdout)
 
 	// Set the program name to the binary name
-	argsSlice := []string{out.binaryName}
+	argsSlice := []string{out.guestName}
 
 	// Get any remaining args from configuration
 	if args := req.Metadata["args"]; args != "" {
@@ -141,14 +128,12 @@ func (out *outputBinding) Invoke(ctx context.Context, req *bindings.InvokeReques
 	// Instantiating executes the guest's main function (exported as _start).
 	mod, err := out.runtime.InstantiateModule(ctx, out.module, moduleConfig)
 
+	// WASI typically calls proc_exit which exits the module, but just in case
+	// it doesn't, close the module manually.
+	_ = mod.Close(ctx)
+
 	// Return STDOUT if there was no error.
 	if err == nil {
-		_ = mod.Close(ctx)
-		return &bindings.InvokeResponse{Data: stdout.Bytes()}, nil
-	}
-
-	// Handle any error, noting exit zero is not one.
-	if exitErr, ok := err.(*sys.ExitError); ok && exitErr.ExitCode() == 0 {
 		return &bindings.InvokeResponse{Data: stdout.Bytes()}, nil
 	}
 	return nil, err
@@ -167,26 +152,6 @@ func (out *outputBinding) Close() error {
 		return rt.Close(context.Background())
 	}
 	return nil
-}
-
-func (out *outputBinding) getInitMetadata(meta bindings.Metadata) (*initMetadata, error) {
-	var m initMetadata
-	// Decode the metadata
-	err := metadata.DecodeMetadata(meta.Properties, &m)
-	if err != nil {
-		return nil, err
-	}
-
-	if m.Path == "" {
-		return nil, errors.New("missing path")
-	}
-
-	m.guest, err = os.ReadFile(m.Path)
-	if err != nil {
-		return nil, fmt.Errorf("error reading path: %w", err)
-	}
-
-	return &m, nil
 }
 
 // In the future
@@ -210,7 +175,7 @@ func detectImports(imports []api.FunctionDefinition) importMode {
 
 // GetComponentMetadata returns the metadata of the component.
 func (out *outputBinding) GetComponentMetadata() map[string]string {
-	metadataStruct := initMetadata{}
+	metadataStruct := wasm.InitMetadata{}
 	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
 	return metadataInfo

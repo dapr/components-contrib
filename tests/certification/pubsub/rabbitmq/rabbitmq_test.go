@@ -226,7 +226,7 @@ func TestRabbitMQ(t *testing.T) {
 	}
 
 	// Application logic that tracks messages from a topic.
-	application := func(consumer *Consumer, routeIndex int) app.SetupFn {
+	application := func(consumer *Consumer, routeIndex int, queueType string) app.SetupFn {
 		return func(ctx flow.Context, s common.Service) (err error) {
 			// Simulate periodic errors.
 			sim := simulate.PeriodicError(ctx, errFrequency)
@@ -239,10 +239,7 @@ func TestRabbitMQ(t *testing.T) {
 						PubsubName: consumer.pubsub,
 						Topic:      topic,
 						Route:      fmt.Sprintf("/%s-%d", topic, routeIndex),
-						Metadata:   map[string]string{
-													"queueType": "classic",
-													"maxLen": "1024"
-												},
+						Metadata:   map[string]string{"queueType": queueType},
 					}, func(_ context.Context, e *common.TopicEvent) (retry bool, err error) {
 						if err := sim(); err != nil {
 							log.Debugf("Simulated error - consumer: %s, pubsub: %s, topic: %s, id: %s, data: %s", consumer.pubsub, e.PubsubName, e.Topic, e.ID, e.Data)
@@ -322,7 +319,7 @@ func TestRabbitMQ(t *testing.T) {
 			retry.Do(time.Second, 30, amqpReady(rabbitMQURL))).
 		// Run the application1 logic above.
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
-			application(alpha, 1))).
+			application(alpha, 1, "quorum"))).
 		// Run the Dapr sidecar with the RabbitMQ component.
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithComponentsPath("./components/alpha"),
@@ -335,7 +332,7 @@ func TestRabbitMQ(t *testing.T) {
 		)).
 		// Run the application2 logic above.
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+2),
-			application(beta, 2))).
+			application(beta, 2, "classic"))).
 		// Run the Dapr sidecar with the RabbitMQ component.
 		Step(sidecar.Run(sidecarName2,
 			embedded.WithComponentsPath("./components/beta"),
@@ -348,7 +345,7 @@ func TestRabbitMQ(t *testing.T) {
 		)).
 		// Run the application3 logic above.
 		Step(app.Run(appID3, fmt.Sprintf(":%d", appPort+4),
-			application(beta, 3))).
+			application(beta, 3, "stream"))).
 		// Run the Dapr sidecar with the RabbitMQ component.
 		Step(sidecar.Run(sidecarName3,
 			embedded.WithComponentsPath("./components/beta"),

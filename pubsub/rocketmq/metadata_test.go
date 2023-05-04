@@ -86,7 +86,7 @@ func TestMetaDataDecode(t *testing.T) {
 	assert.Equal(t, int32(10), metaData.PullBatchSize)
 	assert.Equal(t, int(10), metaData.ConsumerBatchSize)
 	assert.Equal(t, int64(100), metaData.PullThresholdForQueue)
-	assert.Equal(t, int64(100), metaData.PullThresholdForTopic)
+	assert.Equal(t, int(100), metaData.PullThresholdForTopic)
 	assert.Equal(t, 10, metaData.PullThresholdSizeForQueue)
 	assert.Equal(t, 10, metaData.PullThresholdSizeForTopic)
 	assert.Equal(t, "json", metaData.ContentType)

@@ -22,30 +22,32 @@ import (
 )
 
 // GetKeyFn is the type of the getKeyFn function used by the PubKeyCache.
-type GetKeyFn = func(key string) func(resolve func(jwk.Key), reject func(error))
+type GetKeyFn = func(ctx context.Context, key string) func(resolve func(jwk.Key), reject func(error))
 
-// PubKeyCache implements GetKey with a local cache.
+// PubKeyCache implements GetKey with a local cache. We use promises for cache
+// entries so that multiple callers getting the same key at the same time
+// (where the key is not in the cache yet), will result in only a single key
+// fetch.
 type PubKeyCache struct {
 	getKeyFn GetKeyFn
 
 	pubKeys     map[string]*promise.Promise[jwk.Key]
-	pubKeysLock *sync.Mutex
+	pubKeysLock sync.Mutex
 }
 
 // NewPubKeyCache returns a new PubKeyCache object
 func NewPubKeyCache(getKeyFn GetKeyFn) *PubKeyCache {
 	return &PubKeyCache{
-		getKeyFn:    getKeyFn,
-		pubKeys:     map[string]*promise.Promise[jwk.Key]{},
-		pubKeysLock: &sync.Mutex{},
+		getKeyFn: getKeyFn,
+		pubKeys:  map[string]*promise.Promise[jwk.Key]{},
 	}
 }
 
-// GetKey returns a public key from the cache, or uses getKeyFn to request it
-func (kc *PubKeyCache) GetKey(parentCtx context.Context, key string) (pubKey jwk.Key, err error) {
+// GetKey returns a public key from the cache, or uses getKeyFn to request it.
+func (kc *PubKeyCache) GetKey(ctx context.Context, key string) (jwk.Key, error) {
 	timeoutPromise := promise.New(func(_ func(jwk.Key), reject func(error)) {
-		<-parentCtx.Done()
-		reject(parentCtx.Err())
+		<-ctx.Done()
+		reject(ctx.Err())
 	})
 
 	// Check if the key is in the cache already
@@ -56,8 +58,9 @@ func (kc *PubKeyCache) GetKey(parentCtx context.Context, key string) (pubKey jwk
 		return promise.Race(p, timeoutPromise).Await()
 	}
 
-	// Create a new promise, which resolves with a background context
-	p = promise.New(kc.getKeyFn(key))
+	// Key is not in the cache, create the promise in the cache and return
+	// result.
+	p = promise.New(kc.getKeyFn(ctx, key))
 	p = promise.Catch(p, func(err error) error {
 		kc.pubKeysLock.Lock()
 		delete(kc.pubKeys, key)

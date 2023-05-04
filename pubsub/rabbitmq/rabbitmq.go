@@ -45,7 +45,6 @@ const (
 
 	publishMaxRetries          = 3
 	publishRetryWaitSeconds    = 2
-	defaultStreamPrefetchCount = 1
 
 	argQueueMode              = "x-queue-mode"
 	argMaxLength              = "x-max-length"
@@ -456,9 +455,6 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 
 			return nil, err
 		}
-	} else if args[amqp.QueueTypeArg] == amqp.QueueTypeStream {
-		// Consumer prefetch count is mandatory for stream queues
-		err = channel.Qos(defaultStreamPrefetchCount, 0, false)
 	}
 
 	metadataRoutingKey := ""

@@ -43,6 +43,7 @@ import (
 	"github.com/dapr/components-contrib/workflows"
 	"github.com/dapr/kit/logger"
 
+	b_aws_s3 "github.com/dapr/components-contrib/bindings/aws/s3"
 	b_azure_blobstorage "github.com/dapr/components-contrib/bindings/azure/blobstorage"
 	b_azure_cosmosdb "github.com/dapr/components-contrib/bindings/azure/cosmosdb"
 	b_azure_eventgrid "github.com/dapr/components-contrib/bindings/azure/eventgrid"
@@ -91,6 +92,7 @@ import (
 	s_cloudflareworkerskv "github.com/dapr/components-contrib/state/cloudflare/workerskv"
 	s_cockroachdb "github.com/dapr/components-contrib/state/cockroachdb"
 	s_etcd "github.com/dapr/components-contrib/state/etcd"
+	s_gcpfirestore "github.com/dapr/components-contrib/state/gcp/firestore"
 	s_inmemory "github.com/dapr/components-contrib/state/in-memory"
 	s_memcached "github.com/dapr/components-contrib/state/memcached"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
@@ -610,6 +612,10 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_awsdynamodb.NewDynamoDBStateStore(testLogger)
 	case "etcd":
 		store = s_etcd.NewEtcdStateStore(testLogger)
+	case "gcp.firestore.docker":
+		store = s_gcpfirestore.NewFirestoreStateStore(testLogger)
+	case "gcp.firestore.cloud":
+		store = s_gcpfirestore.NewFirestoreStateStore(testLogger)
 	default:
 		return nil
 	}
@@ -651,6 +657,10 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_kubemq.NewKubeMQ(testLogger)
 	case "postgres":
 		binding = b_postgres.NewPostgres(testLogger)
+	case "aws.s3.docker":
+		binding = b_aws_s3.NewAWSS3(testLogger)
+	case "aws.s3.terraform":
+		binding = b_aws_s3.NewAWSS3(testLogger)
 	default:
 		return nil
 	}

@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
 
 	"cloud.google.com/go/datastore"
@@ -29,7 +30,10 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-const defaultEntityKind = "DaprState"
+const (
+	defaultEntityKind = "DaprState"
+	endpointKey       = "endpoint"
+)
 
 // Firestore State Store.
 type Firestore struct {
@@ -54,6 +58,7 @@ type firestoreMetadata struct {
 	ClientCertURL       string `json:"client_x509_cert_url" mapstructure:"client_x509_cert_url"`
 	EntityKind          string `json:"entity_kind" mapstructure:"entity_kind"`
 	NoIndex             bool   `json:"-"`
+	ConnectionEndpoint  string `json:"endpoint"`
 }
 
 type StateEntity struct {
@@ -78,13 +83,8 @@ func (f *Firestore) Init(ctx context.Context, metadata state.Metadata) error {
 	if err != nil {
 		return err
 	}
-	b, err := json.Marshal(meta)
-	if err != nil {
-		return err
-	}
 
-	opt := option.WithCredentialsJSON(b)
-	client, err := datastore.NewClient(ctx, meta.ProjectID, opt)
+	client, err := getGCPClient(ctx, meta, f.logger)
 	if err != nil {
 		return err
 	}
@@ -168,6 +168,13 @@ func (f *Firestore) Delete(ctx context.Context, req *state.DeleteRequest) error 
 	return nil
 }
 
+func (f *Firestore) GetComponentMetadata() map[string]string {
+	metadataStruct := firestoreMetadata{}
+	metadataInfo := map[string]string{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
+	return metadataInfo
+}
+
 func getFirestoreMetadata(meta state.Metadata) (*firestoreMetadata, error) {
 	m := firestoreMetadata{
 		EntityKind: defaultEntityKind,
@@ -179,8 +186,7 @@ func getFirestoreMetadata(meta state.Metadata) (*firestoreMetadata, error) {
 	}
 
 	requiredMetaProperties := []string{
-		"type", "project_id", "private_key_id", "private_key", "client_email", "client_id",
-		"auth_uri", "token_uri", "auth_provider_x509_cert_url", "client_x509_cert_url",
+		"project_id",
 	}
 
 	metadataMap := map[string]string{}
@@ -199,12 +205,45 @@ func getFirestoreMetadata(meta state.Metadata) (*firestoreMetadata, error) {
 		}
 	}
 
+	if val, found := meta.Properties[endpointKey]; found && val != "" {
+		m.ConnectionEndpoint = val
+	}
+
 	return &m, nil
 }
 
-func (f *Firestore) GetComponentMetadata() map[string]string {
-	metadataStruct := firestoreMetadata{}
-	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+func getGCPClient(ctx context.Context, metadata *firestoreMetadata, l logger.Logger) (*datastore.Client, error) {
+	var gcpClient *datastore.Client
+	var err error
+
+	if metadata.PrivateKeyID != "" {
+		var b []byte
+		b, err = json.Marshal(metadata)
+		if err != nil {
+			return nil, err
+		}
+
+		opt := option.WithCredentialsJSON(b)
+		gcpClient, err = datastore.NewClient(ctx, metadata.ProjectID, opt)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		l.Debugf("Using implicit credentials for GCP")
+
+		// The following allows the Google SDK to connect to
+		// the GCP Datastore Emulator.
+		// example: export DATASTORE_EMULATOR_HOST=localhost:8432
+		// see: https://cloud.google.com/pubsub/docs/emulator#env
+		if metadata.ConnectionEndpoint != "" {
+			l.Debugf("setting GCP Datastore Emulator environment variable to 'DATASTORE_EMULATOR_HOST=%s'", metadata.ConnectionEndpoint)
+			os.Setenv("DATASTORE_EMULATOR_HOST", metadata.ConnectionEndpoint)
+		}
+		gcpClient, err = datastore.NewClient(ctx, metadata.ProjectID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return gcpClient, nil
 }

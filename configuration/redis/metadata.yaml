@@ -3,7 +3,7 @@ schemaVersion: v1
 type: configuration
 name: redis
 version: v1
-status: alpha
+status: stable
 title: "Redis"
 urls:
   - title: Reference
@@ -20,6 +20,17 @@ metadata:
     description: Password for the Redis host
     example:  "KeFg23!"
     type: string
+  - name: redisUsername
+    required: false
+    description: Username for Redis host. Defaults to empty. Make sure your redis server version is 6 or above, and have created acl rule correctly.
+    example: "default"
+    type: string
+  - name: redisType
+    required: false
+    description: |
+      The type of redis. There are two valid values, one is "node" for single node mode, the other is "cluster" for redis cluster mode. Defaults to "node".
+    example: "cluster"
+    type: string
   - name: enableTLS
     required: false
     description: | 
@@ -27,20 +38,75 @@ metadata:
     example: "false"
     default: "false"
     type: bool
-  - name: maxRetries
+  - name: redisMaxRetries
     required: false
     description: |
       Maximum number of retries before giving up. Defaults to "3".
     default: "3"
     example: "5"
     type: number
-  - name: maxRetryBackoff
+  - name: redisMinRetryInterval
     required: false
     description: |
-      Maximum backoff between each retry in nanoseconds. Defaults to 2 seconds; "-1" disables backoff.
-    example: "3000000000"
-    default: "2000000000"
+      Minimum backoff for redis commands between each retry. Default is "8ms"; "-1" disables backoff.
+    example: "8ms"
+    type: duration
+  - name: redisMaxRetryInterval
+    required: false
+    description: |
+      Maximum backoff for redis commands between each retry. Default is "2s";"-1" disables backoff.
+    example: "5s"
+    type: duration
+  - name: dialTimeout
+    required: false
+    description: |
+      Dial timeout for establishing new connections. Defaults to "5s".
+    example: "5s"
+    type: duration
+  - name: readTimeout
+    required: false
+    description: |
+      Timeout for socket reads. If reached, redis commands will fail with a timeout instead of blocking. Defaults to "3s", "-1" for no timeout.
+    example: "3s"
+    type: duration
+  - name: writeTimeout
+    required: false
+    description: Timeout for socket writes. If reached, redis commands will fail with a timeout instead of blocking. Defaults is readTimeout.
+    example: "3s"
+    type: duration
+  - name: poolSize
+    required: false
+    description: Maximum number of socket connections. Default is 10 connections per every CPU as reported by runtime.NumCPU.
+    example: "20"
     type: number
+  - name: poolTimeout
+    required: false
+    description: Amount of time client waits for a connection if all connections are busy before returning an error. Default is readTimeout + 1 second.
+    example: "5s"
+    type: duration
+  - name: maxConnAge
+    required: false
+    description: Connection age at which the client retires (closes) the connection. Default is to not close aged connections.
+    example: "30m"
+    type: duration
+  - name: minIdleConns
+    required: false
+    description: |
+      Minimum number of idle connections to keep open in order to avoid the performance degradation associated with creating new connections. Defaults to "0".
+    example: "2"
+    type: number
+  - name: idleCheckFrequency
+    required: false
+    description: |
+      Frequency of idle checks made by idle connections reaper. Default is "1m". "-1" disables idle connections reaper.
+    example: "-1"
+    type: duration
+  - name: idleTimeout
+    required: false
+    description: |
+      Amount of time after which the client closes idle connections. Should be less than server's timeout. Default is "5m". "-1" disables idle timeout check.
+    example: "10m"
+    type: duration
   - name: failover
     required: false
     description: |

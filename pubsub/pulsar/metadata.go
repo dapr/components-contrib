@@ -29,6 +29,9 @@ type pulsarMetadata struct {
 	Token                   string                    `mapstructure:"token"`
 	RedeliveryDelay         time.Duration             `mapstructure:"redeliveryDelay"`
 	internalTopicSchemas    map[string]schemaMetadata `mapstructure:"-"`
+	PublicKey               string                    `mapstructure:"publicKey"`
+	PrivateKey              string                    `mapstructure:"privateKey"`
+	Keys                    string                    `mapstructure:"keys"`
 }
 
 type schemaMetadata struct {

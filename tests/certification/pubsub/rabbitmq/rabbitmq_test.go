@@ -345,7 +345,7 @@ func TestRabbitMQ(t *testing.T) {
 		)).
 		// Run the application3 logic above.
 		Step(app.Run(appID3, fmt.Sprintf(":%d", appPort+4),
-			application(beta, 3, "stream"))).
+			application(beta, 3, "classic"))).
 		// Run the Dapr sidecar with the RabbitMQ component.
 		Step(sidecar.Run(sidecarName3,
 			embedded.WithComponentsPath("./components/beta"),

@@ -343,11 +343,11 @@ func (r *rabbitMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, h
 	select {
 	case <-time.After(time.Minute):
 		return fmt.Errorf("failed to subscribe to %s", queueName)
-	case retry := <-ackCh:
-		if retry {
-			return nil
-		} else {
+	case channelCrash := <-ackCh:
+		if channelCrash {
 			return fmt.Errorf("error not retriable for %s", queueName)
+		} else {
+			return nil
 		}
 	}
 }
@@ -527,7 +527,7 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 
 			// one-time notification on successful subscribe
 			if ackCh != nil {
-				ackCh <- true
+				ackCh <- false
 				ackCh = nil
 			}
 
@@ -539,7 +539,7 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 		}
 
 		if strings.Contains(err.Error(), errorInvalidQueueType) {
-			ackCh <- false
+			ackCh <- true
 			return
 		}
 

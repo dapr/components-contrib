@@ -115,15 +115,13 @@ func Test_ContextPool(t *testing.T) {
 	t.Run("pool size will not increase if the pool has been closed", func(t *testing.T) {
 		t.Parallel()
 
-		ctx1, cancel1 := context.WithCancel(context.Background())
-		ctx2, cancel2 := context.WithCancel(context.Background())
+		ctx1 := context.Background()
+		ctx2 := context.Background()
 		pool := NewContextPool(ctx1, ctx2)
 		assert.Equal(t, 2, pool.Size())
-		pool.Close()
+		pool.Cancel()
 		pool.Add(context.Background())
-		assert.Equal(t, 2, pool.Size())
-		cancel1()
-		cancel2()
+		assert.Equal(t, 0, pool.Size())
 		select {
 		case <-pool.Done():
 		case <-time.After(time.Second):

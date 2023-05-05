@@ -32,7 +32,7 @@ type ContextPool struct {
 
 // NewContextPool creates a new context pool with the given contexts. The
 // returned context is cancelled when all contexts in the pool are done. Added
-// contexts are ignored if the pool is already closed or if all current
+// contexts are ignored if the pool is already cancelled or if all current
 // contexts in the pool are done.
 func NewContextPool(ctx ...context.Context) *ContextPool {
 	callee, cancel := context.WithCancel(context.Background())
@@ -57,7 +57,10 @@ func NewContextPool(ctx ...context.Context) *ContextPool {
 		for i := 0; i < len(p.pool); i++ {
 			ch := p.pool[i]
 			p.lock.RUnlock()
-			<-ch
+			select {
+			case <-ch:
+			case <-p.closed:
+			}
 			p.lock.RLock()
 		}
 	}()
@@ -66,7 +69,7 @@ func NewContextPool(ctx ...context.Context) *ContextPool {
 }
 
 // Add adds a context to the pool. The context is ignored if the pool is
-// already closed or if all current contexts in the pool are done.
+// already cancelled or if all current contexts in the pool are done.
 func (p *ContextPool) Add(ctx context.Context) *ContextPool {
 	select {
 	case <-p.Done():
@@ -79,10 +82,14 @@ func (p *ContextPool) Add(ctx context.Context) *ContextPool {
 	return p
 }
 
-func (p *ContextPool) Close() {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-	p.once.Do(func() { close(p.closed) })
+// Cancel cancels the pool. Removes all contexts from the pool.
+func (p *ContextPool) Cancel() {
+	p.once.Do(func() {
+		p.lock.Lock()
+		defer p.lock.Unlock()
+		close(p.closed)
+		p.pool = nil
+	})
 }
 
 // Size returns the number of contexts in the pool.

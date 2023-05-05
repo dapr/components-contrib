@@ -70,11 +70,11 @@ func (kc *PubKeyCache) GetKey(ctx context.Context, key string) (jwk.Key, error) 
 	}
 
 	// Key is not in the cache, create the promise in the cache and return
-	// result. Create a new context pool for the promise. Close the pool on
+	// result. Create a new context pool for the promise. Cancel the pool on
 	// return so that the context pool doesn't expand indefinitely on cache
 	// reads.
 	p.ctx = utils.NewContextPool(ctx)
-	defer p.ctx.Close()
+	defer p.ctx.Cancel()
 	p.promise = promise.Catch(
 		promise.New(kc.getKeyFn(p.ctx, key)),
 		p.ctx,

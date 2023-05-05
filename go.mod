@@ -36,7 +36,7 @@ require (
 	github.com/aliyun/aliyun-tablestore-go-sdk v1.7.7
 	github.com/apache/dubbo-go-hessian2 v1.11.5
 	github.com/apache/pulsar-client-go v0.9.0
-	github.com/apache/rocketmq-client-go/v2 v2.1.1-rc2
+	github.com/apache/rocketmq-client-go/v2 v2.1.2-0.20230412142645-25003f6f083d
 	github.com/apache/thrift v0.13.0
 	github.com/aws/aws-sdk-go v1.44.214
 	github.com/benbjohnson/clock v1.3.0
@@ -183,7 +183,7 @@ require (
 	github.com/cloudwego/netpoll v0.3.2 // indirect
 	github.com/cloudwego/thriftgo v0.2.8 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
-	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
+	github.com/coreos/go-systemd/v22 v22.3.3-0.20220203105225-a9a7ef127534 // indirect
 	github.com/creasty/defaults v1.5.2 // indirect
 	github.com/danieljoos/wincred v1.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -326,7 +326,7 @@ require (
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/robfig/cron v1.2.0 // indirect
-	github.com/rs/zerolog v1.25.0 // indirect
+	github.com/rs/zerolog v1.28.0 // indirect
 	github.com/russross/blackfriday v1.6.0 // indirect
 	github.com/sendgrid/rest v2.6.9+incompatible // indirect
 	github.com/sergi/go-diff v1.2.0 // indirect
@@ -335,7 +335,6 @@ require (
 	github.com/sony/gobreaker v0.5.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/stathat/consistent v1.0.0 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
 	github.com/tchap/go-patricia/v2 v2.3.1 // indirect
 	github.com/tidwall/gjson v1.13.0 // indirect
@@ -398,12 +397,13 @@ require (
 	sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
+	stathat.com/c/consistent v1.0.0 // indirect
 )
 
 replace github.com/gobwas/pool => github.com/gobwas/pool v0.2.1
 
 // version v1.38.X currently breaks connections to EventHubs using SALS auth.
-replace github.com/shopify/sarama => github.com/shopify/sarama v1.37.2
+replace github.com/Shopify/sarama => github.com/Shopify/sarama v1.37.2
 
 replace github.com/toolkits/concurrent => github.com/niean/gotools v0.0.0-20151221085310-ff3f51fc5c60
 

@@ -43,8 +43,8 @@ const (
 	defaultDeadLetterExchangeFormat = "dlx-%s"
 	defaultDeadLetterQueueFormat    = "dlq-%s"
 
-	publishMaxRetries          = 3
-	publishRetryWaitSeconds    = 2
+	publishMaxRetries       = 3
+	publishRetryWaitSeconds = 2
 
 	argQueueMode              = "x-queue-mode"
 	argMaxLength              = "x-max-length"

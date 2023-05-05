@@ -71,8 +71,8 @@ func Test_ContextPool(t *testing.T) {
 			pool.Add(ctx[i])
 		}
 
-		rand.Seed(time.Now().UnixNano())
-		rand.Shuffle(len(ctx), func(i, j int) {
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+		r.Shuffle(len(ctx), func(i, j int) {
 			ctx[i], ctx[j] = ctx[j], ctx[i]
 			cancel[i], cancel[j] = cancel[j], cancel[i]
 		})

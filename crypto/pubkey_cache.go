@@ -63,7 +63,7 @@ func (kc *PubKeyCache) GetKey(ctx context.Context, key string) (jwk.Key, error) 
 		kc.pubKeys[key].ctx.Add(ctx)
 		kc.lock.Unlock()
 		jwkKey, err := p.promise.Await(ctx)
-		if err != nil {
+		if err != nil || jwkKey == nil {
 			return nil, err
 		}
 		return *jwkKey, nil
@@ -89,7 +89,7 @@ func (kc *PubKeyCache) GetKey(ctx context.Context, key string) (jwk.Key, error) 
 	kc.lock.Unlock()
 
 	jwkKey, err := p.promise.Await(ctx)
-	if err != nil {
+	if err != nil || jwkKey == nil {
 		return nil, err
 	}
 	return *jwkKey, nil

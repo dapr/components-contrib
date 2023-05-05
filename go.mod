@@ -23,7 +23,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue v0.1.0
 	github.com/Azure/go-amqp v0.18.1
 	github.com/DATA-DOG/go-sqlmock v1.5.0
-	github.com/Shopify/sarama v1.38.1
+	github.com/Shopify/sarama v1.37.2
 	github.com/aerospike/aerospike-client-go/v6 v6.10.0
 	github.com/alibaba/sentinel-golang v1.0.4
 	github.com/alibabacloud-go/darabonba-openapi v0.2.1
@@ -401,6 +401,9 @@ require (
 )
 
 replace github.com/gobwas/pool => github.com/gobwas/pool v0.2.1
+
+// version v1.38.X currently breaks connections to EventHubs using SALS auth.
+replace github.com/shopify/sarama => github.com/shopify/sarama v1.37.2
 
 replace github.com/toolkits/concurrent => github.com/niean/gotools v0.0.0-20151221085310-ff3f51fc5c60
 

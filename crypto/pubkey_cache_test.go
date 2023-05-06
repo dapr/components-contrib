@@ -298,4 +298,68 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 		wg.Wait()
 		close(getKeyReturned)
 	})
+
+	t.Run("if first caller cancels their context, other callers should still await", func(t *testing.T) {
+		t.Parallel()
+
+		var cache *PubKeyCache
+		assertSize := func(size int) {
+			require.Eventually(t, func() bool {
+				cache.lock.Lock()
+				defer cache.lock.Unlock()
+				pk, ok := cache.pubKeys["key"]
+				return ok && pk.ctx.Size() == size
+			}, time.Second*5, time.Millisecond)
+		}
+
+		ctx, cancel := context.WithCancelCause(context.Background())
+
+		getKeyReturned := make(chan struct{})
+
+		cache = NewPubKeyCache(func(ctx context.Context, i string) func(resolve func(jwk.Key), reject func(error)) {
+			return func(resolve func(jwk.Key), reject func(error)) {
+				assertSize(3)
+
+				// cancel the first caller
+				cancel(assert.AnError)
+
+				t.Cleanup(func() {
+					select {
+					case <-getKeyReturned:
+					case <-time.After(1 * time.Second):
+						assert.Fail(t, "expected GetKey to return from cancelled context in time")
+					}
+				})
+
+				resolve(testKey)
+			}
+		})
+
+		var wg sync.WaitGroup
+		wg.Add(3)
+		go func() {
+			defer wg.Done()
+			result, err := cache.GetKey(ctx, "key")
+			assert.Equal(t, context.Canceled, err)
+			assert.Nil(t, result)
+		}()
+
+		go func() {
+			defer wg.Done()
+			assertSize(1)
+			result, err := cache.GetKey(context.Background(), "key")
+			assert.NoError(t, err)
+			assert.Equal(t, testKey, result)
+		}()
+		go func() {
+			defer wg.Done()
+			assertSize(2)
+			result, err := cache.GetKey(context.Background(), "key")
+			assert.NoError(t, err)
+			assert.Equal(t, testKey, result)
+		}()
+
+		wg.Wait()
+		close(getKeyReturned)
+	})
 }

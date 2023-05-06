@@ -74,12 +74,12 @@ func (kc *PubKeyCache) GetKey(ctx context.Context, key string) (jwk.Key, error) 
 	// return so that the context pool doesn't expand indefinitely on cache
 	// reads.
 	p.ctx = utils.NewContextPool(ctx)
-	defer p.ctx.Cancel()
 	p.promise = promise.Catch(
 		promise.New(kc.getKeyFn(p.ctx, key)),
 		p.ctx,
 		func(err error) error {
 			kc.lock.Lock()
+			p.ctx.Cancel()
 			delete(kc.pubKeys, key)
 			kc.lock.Unlock()
 			return err
@@ -92,5 +92,6 @@ func (kc *PubKeyCache) GetKey(ctx context.Context, key string) (jwk.Key, error) 
 	if err != nil || jwkKey == nil {
 		return nil, err
 	}
+	p.ctx.Cancel()
 	return *jwkKey, nil
 }

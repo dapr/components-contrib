@@ -51,26 +51,26 @@ import (
 )
 
 const (
-	sidecarName1      = "dapr-1"
-	sidecarName2      = "dapr-2"
-	sidecarName3      = "dapr-3"
-	appID1            = "app-1"
-	appID2            = "app-2"
-	appID3            = "app-3"
-	clusterName       = "kafkacertification"
-	dockerComposeYAML = "docker-compose.yml"
-	numMessages       = 1000
-	appPort           = 8000
-	portOffset        = 2
-	messageKey        = "partitionKey"
+	sidecarName1          = "dapr-1"
+	sidecarName2          = "dapr-2"
+	sidecarName3          = "dapr-3"
+	appID1                = "app-1"
+	appID2                = "app-2"
+	appID3                = "app-3"
+	appID4                = "app-4"
+	clusterName           = "kafkacertification"
+	dockerComposeYAML     = "docker-compose.yml"
+	dockerComposeYAMLSasl = "sasl-docker/docker-compose.yml"
+	numMessages           = 1000
+	appPort               = 8000
+	portOffset            = 2
+	messageKey            = "partitionKey"
 
 	bindingName = "messagebus"
 	topicName   = "neworder"
 )
 
-var (
-	brokers          = []string{"localhost:19092", "localhost:29092", "localhost:39092"}
-)
+var brokers = []string{"localhost:19092", "localhost:29092", "localhost:39092"}
 
 func TestKafka_with_retry(t *testing.T) {
 	// For Kafka, we should ensure messages are received in order.
@@ -339,6 +339,31 @@ func TestKafka_with_retry(t *testing.T) {
 		Step("stop app 2", app.Stop(appID2)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("assert messages(consumer rebalance)", assertMessages(consumerGroup2)).
+		Run()
+
+	flow.New(t, "kafka with sals password auth - no tls - wurstmeister").
+		// Run Kafka using Docker Compose.
+		Step(dockercompose.Run(clusterName, dockerComposeYAMLSasl)).
+		Step("wait for broker sockets",
+			network.WaitForAddresses(5*time.Minute, "localhost:9092")).
+		Step("wait", flow.Sleep(20*time.Second)).
+		// Run the application logic above.
+		Step(app.Run(appID4, fmt.Sprintf(":%d", appPort),
+			application(appID4, consumerGroup1))).
+		//
+		// Run the Dapr sidecar with the Kafka component.
+		Step(sidecar.Run(sidecarName1,
+			embedded.WithResourcesPath("./components/sasl-password"),
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
+			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
+			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
+			componentRuntimeOptions(),
+		)).
+		// Send messages using the same metadata/message key so we can expect
+		// in-order processing.
+		Step("send and wait(in-order)", sendRecvTest(metadata, consumerGroup1)).
+		Step("wait", flow.Sleep(10*time.Second)).
+		Step("stop sidecar 1", sidecar.Stop(sidecarName1)).
 		Run()
 }
 

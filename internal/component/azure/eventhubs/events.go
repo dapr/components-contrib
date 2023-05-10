@@ -51,9 +51,7 @@ func subscribeHandler(ctx context.Context, getAllProperties bool, handler Subscr
 		if e.EnqueuedTime != nil {
 			md[sysPropEnqueuedTime] = e.EnqueuedTime.Format(time.RFC3339)
 		}
-		if e.Offset != nil {
-			md[sysPropOffset] = strconv.FormatInt(*e.Offset, 10)
-		}
+		md[sysPropOffset] = strconv.FormatInt(e.Offset, 10)
 		if e.PartitionKey != nil {
 			md[sysPropPartitionKey] = *e.PartitionKey
 		}

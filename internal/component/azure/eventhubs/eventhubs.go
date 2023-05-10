@@ -305,7 +305,7 @@ func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, topic str
 			// Update the checkpoint with the last event received. If we lose ownership of this partition or have to restart the next owner will start from this point.
 			// This context inherits from the background one in case subscriptionCtx gets canceled
 			ctx, cancel = context.WithTimeout(context.Background(), resourceCreationTimeout)
-			err = partitionClient.UpdateCheckpoint(ctx, events[len(events)-1])
+			err = partitionClient.UpdateCheckpoint(ctx, events[len(events)-1], nil)
 			cancel()
 			if err != nil {
 				return fmt.Errorf("failed to update checkpoint: %w", err)

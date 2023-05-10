@@ -8,20 +8,20 @@ require (
 	cloud.google.com/go/secretmanager v1.10.0
 	cloud.google.com/go/storage v1.30.1
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.5.0
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0-beta.5
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.6.0
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig v0.5.0
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v0.3.5-0.20230428192423-86627ae445bc
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v0.3.5
 	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.0.1
-	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs v0.5.0
-	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.2.1
+	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs v1.0.0
+	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventgrid/armeventgrid/v2 v2.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventhub/armeventhub v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v0.11.0
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v0.13.0
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.0.0
-	github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue v0.1.0
-	github.com/Azure/go-amqp v0.18.1
+	github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue v1.0.0
+	github.com/Azure/go-amqp v1.0.0
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/Shopify/sarama v1.37.2
 	github.com/aerospike/aerospike-client-go/v6 v6.10.0

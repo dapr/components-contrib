@@ -16,8 +16,8 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.0.1
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.3.0
-	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventgrid/armeventgrid/v2 v2.0.0
-	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventhub/armeventhub v1.0.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventgrid/armeventgrid/v2 v2.1.1
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventhub/armeventhub v1.1.1
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v0.13.0
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.0.0
 	github.com/Azure/azure-storage-queue-go v0.0.0-20191125232315-636801874cdd

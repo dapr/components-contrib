@@ -79,11 +79,6 @@ metadata:
       "-1" disables backoff.
     example: "-1"
     default: "512ms"
-  - name: maxLenApprox
-    required: false
-    type: number
-    description: |
-      The approximate maximum length of a stream.
   - name: failover
     type: bool
     required: false

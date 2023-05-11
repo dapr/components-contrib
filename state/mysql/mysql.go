@@ -73,6 +73,8 @@ const (
 
 // MySQL state store.
 type MySQL struct {
+	state.BulkStore
+
 	tableName         string
 	metadataTableName string
 	cleanupInterval   *time.Duration
@@ -113,11 +115,13 @@ func NewMySQLStateStore(logger logger.Logger) state.Store {
 func newMySQLStateStore(logger logger.Logger, factory iMySQLFactory) *MySQL {
 	// Store the provided logger and return the object. The rest of the
 	// properties will be populated in the Init function
-	return &MySQL{
+	s := &MySQL{
 		logger:  logger,
 		factory: factory,
 		timeout: 5 * time.Second,
 	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // Init initializes the SQL server state store
@@ -517,32 +521,6 @@ func (m *MySQL) deleteValue(parentCtx context.Context, querier querier, req *sta
 	return nil
 }
 
-// BulkDelete removes multiple entries from the store
-// Store Interface.
-func (m *MySQL) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	tx, err := m.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer func() {
-		rollbackErr := tx.Rollback()
-		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
-		}
-	}()
-
-	if len(req) > 0 {
-		for i := range req {
-			err = m.deleteValue(ctx, tx, &req[i])
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return tx.Commit()
-}
-
 // Get returns an entity from store
 // Store Interface.
 func (m *MySQL) Get(parentCtx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
@@ -785,32 +763,6 @@ func readRow(row interface{ Scan(dest ...any) error }) (key string, value []byte
 	}
 
 	return key, value, etag, nil
-}
-
-// BulkSet adds/updates multiple entities on store
-// Store Interface.
-func (m *MySQL) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	tx, err := m.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer func() {
-		rollbackErr := tx.Rollback()
-		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
-		}
-	}()
-
-	if len(req) > 0 {
-		for i := range req {
-			err = m.setValue(ctx, tx, &req[i])
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return tx.Commit()
 }
 
 // Multi handles multiple transactions.

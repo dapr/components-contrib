@@ -228,32 +228,6 @@ func (p *PostgresDBAccess) doSet(parentCtx context.Context, db dbquerier, req *s
 	return nil
 }
 
-func (p *PostgresDBAccess) BulkSet(parentCtx context.Context, req []state.SetRequest) error {
-	tx, err := p.beginTx(parentCtx)
-	if err != nil {
-		return err
-	}
-	defer p.rollbackTx(parentCtx, tx, "BulkSet")
-
-	if len(req) > 0 {
-		for i := range req {
-			err = p.doSet(parentCtx, tx, &req[i])
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
-	err = tx.Commit(ctx)
-	cancel()
-	if err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return nil
-}
-
 // Get returns data from the database. If data does not exist for the key an empty state.GetResponse will be returned.
 func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	if req.Key == "" {
@@ -400,32 +374,6 @@ func (p *PostgresDBAccess) doDelete(parentCtx context.Context, db dbquerier, req
 	rows := result.RowsAffected()
 	if rows != 1 && req.ETag != nil && *req.ETag != "" {
 		return state.NewETagError(state.ETagMismatch, nil)
-	}
-
-	return nil
-}
-
-func (p *PostgresDBAccess) BulkDelete(parentCtx context.Context, req []state.DeleteRequest) error {
-	tx, err := p.beginTx(parentCtx)
-	if err != nil {
-		return err
-	}
-	defer p.rollbackTx(parentCtx, tx, "BulkDelete")
-
-	if len(req) > 0 {
-		for i := range req {
-			err = p.doDelete(parentCtx, tx, &req[i])
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
-	err = tx.Commit(ctx)
-	cancel()
-	if err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil

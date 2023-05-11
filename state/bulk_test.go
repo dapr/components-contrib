@@ -54,45 +54,6 @@ func TestBulkStore(t *testing.T) {
 		require.Equal(t, expectBulkCount, s.bulkCount)
 	})
 
-	t.Run("default implementation on transactional store", func(t *testing.T) {
-		var (
-			expectCount              int
-			expectTransactionalCount int
-			expectBulkCount          int
-		)
-
-		s := &storeBulkTransactional{}
-		s.BulkStore = NewDefaultBulkStore(s)
-		require.Equal(t, expectCount, s.count)
-		require.Equal(t, expectTransactionalCount, s.transactionalCount)
-		require.Equal(t, expectBulkCount, s.bulkCount)
-
-		s.Get(context.Background(), &GetRequest{})
-		s.Set(context.Background(), &SetRequest{})
-		s.Delete(context.Background(), &DeleteRequest{})
-		expectCount += 3
-		require.Equal(t, expectCount, s.count)
-		require.Equal(t, expectTransactionalCount, s.transactionalCount)
-		require.Equal(t, expectBulkCount, s.bulkCount)
-
-		_, err := s.BulkGet(context.Background(), []GetRequest{{}, {}, {}}, BulkGetOpts{})
-		require.NoError(t, err)
-		expectCount += 3
-		require.Equal(t, expectCount, s.count)
-		require.Equal(t, expectTransactionalCount, s.transactionalCount)
-		require.Equal(t, expectBulkCount, s.bulkCount)
-		s.BulkSet(context.Background(), []SetRequest{{}, {}, {}, {}})
-		expectTransactionalCount += 1
-		require.Equal(t, expectCount, s.count)
-		require.Equal(t, expectTransactionalCount, s.transactionalCount)
-		require.Equal(t, expectBulkCount, s.bulkCount)
-		s.BulkDelete(context.Background(), []DeleteRequest{{}, {}, {}, {}, {}})
-		expectTransactionalCount += 1
-		require.Equal(t, expectCount, s.count)
-		require.Equal(t, expectTransactionalCount, s.transactionalCount)
-		require.Equal(t, expectBulkCount, s.bulkCount)
-	})
-
 	t.Run("native bulk implementation", func(t *testing.T) {
 		var (
 			expectCount     int
@@ -164,18 +125,6 @@ func (s *storeBulk) GetComponentMetadata() map[string]string {
 }
 
 func (s *storeBulk) Features() []Feature {
-	return nil
-}
-
-// example of a transactional store which doesn't support native bulk methods
-type storeBulkTransactional struct {
-	storeBulk
-
-	transactionalCount int
-}
-
-func (s *storeBulkTransactional) Multi(ctx context.Context, request *TransactionalStateRequest) error {
-	s.transactionalCount++
 	return nil
 }
 

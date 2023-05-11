@@ -16,9 +16,10 @@ package state
 import (
 	"context"
 	"encoding/json"
+	"errors"
 )
 
-// BulkGetOpts contains options for the BulkGet method
+// BulkGetOpts contains options for the BulkGet method.
 type BulkGetOpts struct {
 	// Number of requests made in parallel while retrieving values in bulk.
 	// When set to <= 0 (the default value), will fetch all requested values in bulk without limit.
@@ -26,11 +27,41 @@ type BulkGetOpts struct {
 	Parallelism int
 }
 
+// BulkStoreOpts contains options for the BulkSet and BulkDelete methods.
+type BulkStoreOpts struct {
+	// Number of requests made in parallel while storing/deleting values in bulk.
+	// When set to <= 0 (the default value), will perform all operations in parallel without limit.
+	Parallelism int
+}
+
 // BulkStore is an interface to perform bulk operations on store.
 type BulkStore interface {
 	BulkGet(ctx context.Context, req []GetRequest, opts BulkGetOpts) ([]BulkGetResponse, error)
-	BulkDelete(ctx context.Context, req []DeleteRequest) error
 	BulkSet(ctx context.Context, req []SetRequest) error
+	BulkSetWithOptions(ctx context.Context, req []SetRequest, opts BulkStoreOpts) error
+	BulkDelete(ctx context.Context, req []DeleteRequest) error
+	BulkDeleteWithOptions(ctx context.Context, req []DeleteRequest, opts BulkStoreOpts) error
+}
+
+// BulkStoreError is an error object that contains details on the operations that failed.
+type BulkStoreError struct {
+	sequence int
+	err      error
+}
+
+// Sequence returns the number of the operation that failed.
+func (e BulkStoreError) Sequence() int {
+	return e.sequence
+}
+
+// Error returns the error message. It implements the error interface.
+func (e BulkStoreError) Error() string {
+	return e.err.Error()
+}
+
+// Unwrap returns the wrapped error. It implements the error wrapping interface.
+func (e BulkStoreError) Unwrap() error {
+	return e.err
 }
 
 // DefaultBulkStore is a default implementation of BulkStore.
@@ -88,49 +119,60 @@ func (b *DefaultBulkStore) BulkGet(ctx context.Context, req []GetRequest, opts B
 
 // BulkSet performs a bulk save operation.
 func (b *DefaultBulkStore) BulkSet(ctx context.Context, req []SetRequest) error {
-	// Check if the base implementation supports transactions
-	if ts, ok := b.base.(TransactionalStore); ok {
-		return ts.Multi(ctx, &TransactionalStateRequest{
-			Operations: ToTransactionalStateOperationSlice(req),
-		})
-	}
+	return b.BulkSetWithOptions(ctx, req, BulkStoreOpts{})
+}
 
-	// Fallback to executing all operations in sequence
-	for i := range req {
-		err := b.base.Set(ctx, &req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+// BulkSetWithOptions performs a bulk save operation with options.
+func (b *DefaultBulkStore) BulkSetWithOptions(ctx context.Context, req []SetRequest, opts BulkStoreOpts) error {
+	return doBulkSetDelete(ctx, req, b.base.Set, opts)
 }
 
 // BulkDelete performs a bulk delete operation.
 func (b *DefaultBulkStore) BulkDelete(ctx context.Context, req []DeleteRequest) error {
-	// Check if the base implementation supports transactions
-	if ts, ok := b.base.(TransactionalStore); ok {
-		return ts.Multi(ctx, &TransactionalStateRequest{
-			Operations: ToTransactionalStateOperationSlice(req),
-		})
-	}
-
-	// Fallback to executing all operations in sequence
-	for i := range req {
-		err := b.base.Delete(ctx, &req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return b.BulkDeleteWithOptions(ctx, req, BulkStoreOpts{})
 }
 
-// ToTransactionalStateOperationSlice is necessary to convert []SetRequest and []DeleteRequest to []TransactionalStateOperation.
-func ToTransactionalStateOperationSlice[T TransactionalStateOperation](req []T) []TransactionalStateOperation {
-	ops := make([]TransactionalStateOperation, len(req))
-	for i, r := range req {
-		ops[i] = r
+// BulkDeleteWithOptions performs a bulk delete operation with options
+func (b *DefaultBulkStore) BulkDeleteWithOptions(ctx context.Context, req []DeleteRequest, opts BulkStoreOpts) error {
+	return doBulkSetDelete(ctx, req, b.base.Delete, opts)
+}
+
+func doBulkSetDelete[T SetRequest | DeleteRequest](ctx context.Context, req []T, method func(ctx context.Context, req *T) error, opts BulkStoreOpts) error {
+	// If parallelism isn't set, run all operations in parallel
+	if opts.Parallelism <= 0 {
+		opts.Parallelism = len(req)
 	}
-	return ops
+	limitCh := make(chan struct{}, opts.Parallelism)
+	errCh := make(chan error, len(req))
+
+	// Execute all operations in parallel
+	for i := range req {
+		// Limit concurrency
+		limitCh <- struct{}{}
+
+		go func(i int) {
+			defer func() {
+				// Release the token for concurrency
+				<-limitCh
+			}()
+
+			rErr := method(ctx, &req[i])
+			if rErr != nil {
+				errCh <- BulkStoreError{
+					sequence: i,
+					err:      rErr,
+				}
+			} else {
+				errCh <- nil
+			}
+		}(i)
+	}
+
+	// Collect all errors
+	// This will make us wait for all operations to complete too
+	var err error
+	for i := 0; i < len(req); i++ {
+		err = errors.Join(<-errCh)
+	}
+	return err
 }

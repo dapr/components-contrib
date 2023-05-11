@@ -73,6 +73,8 @@ const (
 
 // MongoDB is a state store implementation for MongoDB.
 type MongoDB struct {
+	state.BulkStore
+
 	client           *mongo.Client
 	collection       *mongo.Collection
 	operationTimeout time.Duration
@@ -106,10 +108,12 @@ type Item struct {
 
 // NewMongoDB returns a new MongoDB state store.
 func NewMongoDB(logger logger.Logger) state.Store {
-	return &MongoDB{
+	s := &MongoDB{
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI},
 		logger:   logger,
 	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // Init establishes connection to the store based on the metadata.
@@ -430,48 +434,6 @@ func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) 
 
 	if result.DeletedCount == 0 && req.ETag != nil {
 		return errors.New("key or etag not found")
-	}
-
-	return nil
-}
-
-// BulkSet performs a bulk save operation.
-// We need to implement a custom BulkSet/BulkDelete because with MongoDB transactions are not always available (only when connecting to a replica set), and when they're not, we need to fall back to performing operations in sequence.
-func (m *MongoDB) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	// Use transactions if we can
-	if m.isReplicaSet {
-		return m.Multi(ctx, &state.TransactionalStateRequest{
-			Operations: state.ToTransactionalStateOperationSlice(req),
-		})
-	}
-
-	// Fallback to executing all operations in sequence
-	for i := range req {
-		err := m.Set(ctx, &req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// BulkDelete performs a bulk delete operation.
-// We need to implement a custom BulkSet/BulkDelete because with MongoDB transactions are not always available (only when connecting to a replica set), and when they're not, we need to fall back to performing operations in sequence.
-func (m *MongoDB) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	// Use transactions if we can
-	if m.isReplicaSet {
-		return m.Multi(ctx, &state.TransactionalStateRequest{
-			Operations: state.ToTransactionalStateOperationSlice(req),
-		})
-	}
-
-	// Fallback to executing all operations in sequence
-	for i := range req {
-		err := m.Delete(ctx, &req[i])
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil

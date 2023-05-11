@@ -210,62 +210,6 @@ func (s *RethinkDB) Set(ctx context.Context, req *state.SetRequest) error {
 	return s.BulkSet(ctx, []state.SetRequest{*req})
 }
 
-// BulkSet performs a bulk save operation.
-func (s *RethinkDB) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	docs := make([]*stateRecord, len(req))
-	now := time.Now().UnixNano()
-	for i, v := range req {
-		var etag string
-		if v.ETag != nil {
-			etag = *v.ETag
-		}
-
-		docs[i] = &stateRecord{
-			ID:   v.Key,
-			TS:   now,
-			Data: v.Value,
-			Hash: etag,
-		}
-	}
-
-	resp, err := r.Table(s.config.Table).Insert(docs, r.InsertOpts{
-		Conflict:      "replace",
-		ReturnChanges: true,
-	}).RunWrite(s.session, r.RunOpts{Context: ctx})
-	if err != nil {
-		return fmt.Errorf("error saving records to the database: %w", err)
-	}
-
-	if s.config.Archive && len(resp.Changes) > 0 {
-		s.archive(ctx, resp.Changes)
-	}
-
-	return nil
-}
-
-func (s *RethinkDB) archive(ctx context.Context, changes []r.ChangeResponse) error {
-	list := make([]map[string]interface{}, 0)
-	for _, c := range changes {
-		if c.NewValue != nil {
-			record, ok := c.NewValue.(map[string]interface{})
-			if !ok {
-				s.logger.Infof("invalid state DB change type: %T", c.NewValue)
-
-				continue
-			}
-			list = append(list, record)
-		}
-	}
-	if len(list) > 0 {
-		_, err := r.Table(stateArchiveTableName).Insert(list).RunWrite(s.session, r.RunOpts{Context: ctx})
-		if err != nil {
-			return fmt.Errorf("error archiving records to the database: %w", err)
-		}
-	}
-
-	return nil
-}
-
 // Delete performes a RethinkDB KV delete operation.
 func (s *RethinkDB) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	if req == nil || req.Key == "" {
@@ -273,22 +217,6 @@ func (s *RethinkDB) Delete(ctx context.Context, req *state.DeleteRequest) error 
 	}
 
 	return s.BulkDelete(ctx, []state.DeleteRequest{*req})
-}
-
-// BulkDelete performs a bulk delete operation.
-func (s *RethinkDB) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	list := make([]string, len(req))
-	for i, d := range req {
-		list[i] = d.Key
-	}
-
-	c, err := r.Table(s.config.Table).GetAll(r.Args(list)).Delete().Run(s.session, r.RunOpts{Context: ctx})
-	if err != nil {
-		return fmt.Errorf("error deleting record from the database: %w", err)
-	}
-	defer c.Close()
-
-	return nil
 }
 
 func metadataToConfig(cfg map[string]string, logger logger.Logger) (*stateConfig, error) {

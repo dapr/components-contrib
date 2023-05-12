@@ -43,27 +43,6 @@ type BulkStore interface {
 	BulkDeleteWithOptions(ctx context.Context, req []DeleteRequest, opts BulkStoreOpts) error
 }
 
-// BulkStoreError is an error object that contains details on the operations that failed.
-type BulkStoreError struct {
-	sequence int
-	err      error
-}
-
-// Sequence returns the number of the operation that failed.
-func (e BulkStoreError) Sequence() int {
-	return e.sequence
-}
-
-// Error returns the error message. It implements the error interface.
-func (e BulkStoreError) Error() string {
-	return e.err.Error()
-}
-
-// Unwrap returns the wrapped error. It implements the error wrapping interface.
-func (e BulkStoreError) Unwrap() error {
-	return e.err
-}
-
 // DefaultBulkStore is a default implementation of BulkStore.
 type DefaultBulkStore struct {
 	base BaseStore

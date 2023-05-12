@@ -151,7 +151,7 @@ func doBulkSetDelete[T SetRequest | DeleteRequest](ctx context.Context, req []T,
 	// This will make us wait for all operations to complete too
 	var err error
 	for i := 0; i < len(req); i++ {
-		err = errors.Join(<-errCh)
+		err = errors.Join(err, <-errCh)
 	}
 	return err
 }

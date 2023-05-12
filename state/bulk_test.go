@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var simulatedError = errors.New("simulated")
+var errSimulated = errors.New("simulated")
 
 func TestBulkStore(t *testing.T) {
 	t.Run("default implementation", func(t *testing.T) {
@@ -64,7 +64,7 @@ func TestBulkStore(t *testing.T) {
 		err = s.Set(ctx, &SetRequest{Key: "error-key"})
 		require.Error(t, err)
 		expectCount++
-		require.Equal(t, simulatedError, err)
+		require.Equal(t, errSimulated, err)
 		require.Equal(t, expectCount, s.count)
 		require.Equal(t, expectBulkCount, s.bulkCount)
 
@@ -75,8 +75,8 @@ func TestBulkStore(t *testing.T) {
 		require.True(t, ok)
 		errs := merr.Unwrap()
 		require.Len(t, errs, 2)
-		require.ErrorIs(t, errs[0], simulatedError)
-		require.ErrorIs(t, errs[1], simulatedError)
+		require.ErrorIs(t, errs[0], errSimulated)
+		require.ErrorIs(t, errs[1], errSimulated)
 		require.Equal(t, expectCount, s.count)
 		require.Equal(t, expectBulkCount, s.bulkCount)
 	})
@@ -149,7 +149,7 @@ func (s *storeBulk) Get(ctx context.Context, req *GetRequest) (*GetResponse, err
 func (s *storeBulk) Set(ctx context.Context, req *SetRequest) error {
 	s.count++
 	if req.Key == "error-key" {
-		return simulatedError
+		return errSimulated
 	}
 	return nil
 }

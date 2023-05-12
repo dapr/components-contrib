@@ -346,8 +346,8 @@ github.com/dapr/dapr v1.10.5-rc.1.0.20230430203526-7a0fdf9f016b h1:+6TVW2t2GveAx
 github.com/dapr/dapr v1.10.5-rc.1.0.20230430203526-7a0fdf9f016b/go.mod h1:o/M7becq2NE4unx2v3Hv6vq2DrLmUQx5Knkn+6QTkY4=
 github.com/dapr/go-sdk v1.6.1-0.20230427230219-d485c1775c37 h1:gAiBprMLnsdaz4mhr28RlmK1PTnz+UXDNy0Giujty5c=
 github.com/dapr/go-sdk v1.6.1-0.20230427230219-d485c1775c37/go.mod h1:+ec5FDv7wGcy+Hlg7vY6msKQClm6es2Q5yCGbDHoURQ=
-github.com/dapr/kit v0.0.5-0.20230418193628-15a7040dec41 h1:G55KmJAn2UsJm2+T0Vyz8gPcbphDe1PvjrES18JxfHQ=
-github.com/dapr/kit v0.0.5-0.20230418193628-15a7040dec41/go.mod h1:VTWiX6nk5RWZ/kqEJD/EGjJU8hdwHZ73r75K510OHBY=
+github.com/dapr/kit v0.0.5 h1:BbjO6LksdXAv6iuTVZiHJNkXj9Ii1gS2wA1u785Ypsg=
+github.com/dapr/kit v0.0.5/go.mod h1:VTWiX6nk5RWZ/kqEJD/EGjJU8hdwHZ73r75K510OHBY=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

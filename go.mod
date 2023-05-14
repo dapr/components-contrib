@@ -8,22 +8,22 @@ require (
 	cloud.google.com/go/secretmanager v1.10.0
 	cloud.google.com/go/storage v1.30.1
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.5.0
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0-beta.5
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.6.0
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig v0.5.0
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v0.3.5-0.20230428192423-86627ae445bc
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v0.3.5
 	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.0.1
-	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs v0.5.0
-	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.2.1
+	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs v1.0.0
+	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventgrid/armeventgrid/v2 v2.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventhub/armeventhub v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v0.11.0
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v0.13.0
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.0.0
-	github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue v0.1.0
-	github.com/Azure/go-amqp v0.18.1
+	github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue v1.0.0
+	github.com/Azure/go-amqp v1.0.0
 	github.com/DATA-DOG/go-sqlmock v1.5.0
-	github.com/Shopify/sarama v1.38.1
+	github.com/Shopify/sarama v1.37.2
 	github.com/aerospike/aerospike-client-go/v6 v6.10.0
 	github.com/alibaba/sentinel-golang v1.0.4
 	github.com/alibabacloud-go/darabonba-openapi v0.2.1
@@ -183,7 +183,7 @@ require (
 	github.com/cloudwego/netpoll v0.3.2 // indirect
 	github.com/cloudwego/thriftgo v0.2.8 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
-	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
+	github.com/coreos/go-systemd/v22 v22.3.3-0.20220203105225-a9a7ef127534 // indirect
 	github.com/creasty/defaults v1.5.2 // indirect
 	github.com/danieljoos/wincred v1.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -326,7 +326,7 @@ require (
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/robfig/cron v1.2.0 // indirect
-	github.com/rs/zerolog v1.25.0 // indirect
+	github.com/rs/zerolog v1.28.0 // indirect
 	github.com/russross/blackfriday v1.6.0 // indirect
 	github.com/sendgrid/rest v2.6.9+incompatible // indirect
 	github.com/sergi/go-diff v1.2.0 // indirect
@@ -401,6 +401,9 @@ require (
 )
 
 replace github.com/gobwas/pool => github.com/gobwas/pool v0.2.1
+
+// version v1.38.X currently breaks connections to EventHubs using SALS auth.
+replace github.com/Shopify/sarama => github.com/Shopify/sarama v1.37.2
 
 replace github.com/toolkits/concurrent => github.com/niean/gotools v0.0.0-20151221085310-ff3f51fc5c60
 

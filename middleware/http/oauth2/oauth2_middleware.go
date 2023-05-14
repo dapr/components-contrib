@@ -32,7 +32,7 @@ import (
 )
 
 // Metadata is the oAuth middleware config.
-// For RedirectURLWhitelist, Each URL can be a wildcard, e.g. https://*.dapr.io . Empty whitelist means no restriction.
+// For RedirectURLAllowlist, Each URL can be a wildcard, e.g. https://*.dapr.io . Empty whitelist means no restriction.
 // Please be careful about using wildcards and empty whitelist in production environments, as this may be a security risk.
 type oAuth2MiddlewareMetadata struct {
 	ClientID             string   `json:"clientID" mapstructure:"clientID"`
@@ -43,7 +43,7 @@ type oAuth2MiddlewareMetadata struct {
 	AuthHeaderName       string   `json:"authHeaderName" mapstructure:"authHeaderName"`
 	RedirectParamName    string   `json:"redirectParamName" mapstructure:"redirectParamName"`
 	RedirectURL          string   `json:"redirectURL" mapstructure:"redirectURL"`
-	RedirectURLWhitelist []string `json:"redirectURLWhitelist" mapstructure:"redirectURLWhitelist"`
+	RedirectURLAllowlist []string `json:"redirectURLAllowlist" mapstructure:"redirectURLAllowlist"`
 	ForceHTTPS           string   `json:"forceHTTPS" mapstructure:"forceHTTPS"`
 }
 
@@ -118,13 +118,13 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 				}
 
 				// check if redirect URL is whitelisted
-				if len(meta.RedirectURLWhitelist) > 0 {
+				if len(meta.RedirectURLAllowlist) > 0 {
 					isAllowed := false
 					tmpRedirectURLStr := strings.Clone(redirectURLStr)
 					if i := strings.IndexByte(tmpRedirectURLStr, '?'); i >= 0 {
 						tmpRedirectURLStr = tmpRedirectURLStr[:i]
 					}
-					for _, allowed := range meta.RedirectURLWhitelist {
+					for _, allowed := range meta.RedirectURLAllowlist {
 						allowed = strings.TrimSpace(allowed)
 						i := strings.IndexByte(allowed, '*')
 						if i >= 0 && len(tmpRedirectURLStr) >= len(allowed)-1 &&

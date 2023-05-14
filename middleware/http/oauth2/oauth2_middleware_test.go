@@ -56,7 +56,7 @@ func TestOAuth2RedirectURL(t *testing.T) {
 		"authHeaderName":       "someHeader",
 		"redirectURL":          "https://127.0.0.1:8080",
 		"redirectParamName":    "redirectPath",
-		"redirectURLWhitelist": `https://127.0.0.1:8080,https://192.168.0.1:8080,https://dapr.io, https://*.dapr.io`,
+		"redirectURLAllowlist": `https://127.0.0.1:8080,https://192.168.0.1:8080,https://dapr.io, https://*.dapr.io`,
 	}
 
 	// Initialize middleware component
@@ -65,8 +65,8 @@ func TestOAuth2RedirectURL(t *testing.T) {
 	handler, err := oauth2Middleware.GetHandler(context.Background(), metadata)
 	require.NoError(t, err)
 
-	// Test redirect url whitelist
-	t.Run("redirect url exact match whitelist", func(t *testing.T) {
+	// Test redirect url allowlist
+	t.Run("redirect url exact match allowlist", func(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "http://dapr.io?redirectPath=https://dapr.io", nil)
 		w := httptest.NewRecorder()
 		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
@@ -106,7 +106,7 @@ func TestOAuth2RedirectURL(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
-	t.Run("empty whitelist", func(t *testing.T) {
+	t.Run("empty allowlist", func(t *testing.T) {
 		metadata.Properties = map[string]string{
 			"clientID":          "testId",
 			"clientSecret":      "testSecret",

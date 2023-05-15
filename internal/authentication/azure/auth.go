@@ -14,7 +14,6 @@ limitations under the License.
 package azure
 
 import (
-	"context"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
@@ -22,11 +21,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"golang.org/x/crypto/pkcs12"
 
@@ -37,36 +34,6 @@ import (
 type EnvironmentSettings struct {
 	Metadata map[string]string
 	Cloud    *cloud.Configuration
-}
-
-// timeoutWrapper prevents a potentially very long timeout when managed identity or CLI credential aren't available
-type timeoutWrapper struct {
-	cred azcore.TokenCredential
-	// timeout applies to all auth attempts until one doesn't time out
-	timeout    time.Duration
-	authmethod string
-}
-
-// GetToken wraps Token acquisition attempts with a short timeout because managed identity or CLI credential
-// may not be available and connecting to IMDS can take several minutes to time out.
-func (w *timeoutWrapper) GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error) {
-	var tk azcore.AccessToken
-	var err error
-	// no need to synchronize around this value because it's written only within ChainedTokenCredential's critical section
-	if w.timeout > 0 {
-		c, cancel := context.WithTimeout(ctx, w.timeout)
-		defer cancel()
-		tk, err = w.cred.GetToken(c, opts)
-		if ce := c.Err(); errors.Is(ce, context.DeadlineExceeded) {
-			err = azidentity.NewCredentialUnavailableError(w.authmethod)
-		} else {
-			// some managed identity implementation is available, so don't apply the timeout to future calls
-			w.timeout = 0
-		}
-	} else {
-		tk, err = w.cred.GetToken(ctx, opts)
-	}
-	return tk, err
 }
 
 // NewEnvironmentSettings returns a new EnvironmentSettings configured for a given Azure resource.

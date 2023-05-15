@@ -57,6 +57,31 @@ func NewDefaultBulkStore(base BaseStore) BulkStore {
 
 // BulkGet performs a Get operation in bulk.
 func (b *DefaultBulkStore) BulkGet(ctx context.Context, req []GetRequest, opts BulkGetOpts) ([]BulkGetResponse, error) {
+	return DoBulkGet(ctx, req, opts, b.base.Get)
+}
+
+// BulkSet performs a bulk save operation.
+func (b *DefaultBulkStore) BulkSet(ctx context.Context, req []SetRequest) error {
+	return b.BulkSetWithOptions(ctx, req, BulkStoreOpts{})
+}
+
+// BulkSetWithOptions performs a bulk save operation with options.
+func (b *DefaultBulkStore) BulkSetWithOptions(ctx context.Context, req []SetRequest, opts BulkStoreOpts) error {
+	return DoBulkSetDelete(ctx, req, b.base.Set, opts)
+}
+
+// BulkDelete performs a bulk delete operation.
+func (b *DefaultBulkStore) BulkDelete(ctx context.Context, req []DeleteRequest) error {
+	return b.BulkDeleteWithOptions(ctx, req, BulkStoreOpts{})
+}
+
+// BulkDeleteWithOptions performs a bulk delete operation with options
+func (b *DefaultBulkStore) BulkDeleteWithOptions(ctx context.Context, req []DeleteRequest, opts BulkStoreOpts) error {
+	return DoBulkSetDelete(ctx, req, b.base.Delete, opts)
+}
+
+// DoBulkGet performs BulkGet.
+func DoBulkGet(ctx context.Context, req []GetRequest, opts BulkGetOpts, getFn func(ctx context.Context, req *GetRequest) (*GetResponse, error)) ([]BulkGetResponse, error) {
 	// If parallelism isn't set, run all operations in parallel
 	if opts.Parallelism <= 0 {
 		opts.Parallelism = len(req)
@@ -74,7 +99,7 @@ func (b *DefaultBulkStore) BulkGet(ctx context.Context, req []GetRequest, opts B
 
 			r := req[i]
 			res[i].Key = r.Key
-			item, rErr := b.base.Get(ctx, &r)
+			item, rErr := getFn(ctx, &r)
 			if rErr != nil {
 				res[i].Error = rErr.Error()
 				return
@@ -96,27 +121,8 @@ func (b *DefaultBulkStore) BulkGet(ctx context.Context, req []GetRequest, opts B
 	return res, nil
 }
 
-// BulkSet performs a bulk save operation.
-func (b *DefaultBulkStore) BulkSet(ctx context.Context, req []SetRequest) error {
-	return b.BulkSetWithOptions(ctx, req, BulkStoreOpts{})
-}
-
-// BulkSetWithOptions performs a bulk save operation with options.
-func (b *DefaultBulkStore) BulkSetWithOptions(ctx context.Context, req []SetRequest, opts BulkStoreOpts) error {
-	return doBulkSetDelete(ctx, req, b.base.Set, opts)
-}
-
-// BulkDelete performs a bulk delete operation.
-func (b *DefaultBulkStore) BulkDelete(ctx context.Context, req []DeleteRequest) error {
-	return b.BulkDeleteWithOptions(ctx, req, BulkStoreOpts{})
-}
-
-// BulkDeleteWithOptions performs a bulk delete operation with options
-func (b *DefaultBulkStore) BulkDeleteWithOptions(ctx context.Context, req []DeleteRequest, opts BulkStoreOpts) error {
-	return doBulkSetDelete(ctx, req, b.base.Delete, opts)
-}
-
-func doBulkSetDelete[T SetRequest | DeleteRequest](ctx context.Context, req []T, method func(ctx context.Context, req *T) error, opts BulkStoreOpts) error {
+// DoBulkSetDelete performs BulkSet and BulkDelete.
+func DoBulkSetDelete[T SetRequest | DeleteRequest](ctx context.Context, req []T, method func(ctx context.Context, req *T) error, opts BulkStoreOpts) error {
 	// If parallelism isn't set, run all operations in parallel
 	var limitCh chan struct{}
 	if opts.Parallelism > 0 {

@@ -23,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
@@ -148,7 +149,6 @@ func TestRethinkDBStateStore(t *testing.T) {
 	})
 
 	t.Run("With bulk", func(t *testing.T) {
-		db.BulkStore = state.NewDefaultBulkStore(db)
 		testBulk(t, db, 0)
 	})
 }
@@ -227,7 +227,7 @@ func testGetTestObj(t *testing.T, resp *state.GetResponse) *testObj {
 }
 
 func isLiveTest() bool {
-	return os.Getenv("RUN_LIVE_RETHINKDB_TEST") == "true"
+	return utils.IsTruthy(os.Getenv("RUN_LIVE_RETHINKDB_TEST"))
 }
 
 func getTestMetadata() map[string]string {

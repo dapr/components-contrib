@@ -149,15 +149,6 @@ func doBulkSetDelete[T SetRequest | DeleteRequest](ctx context.Context, req []T,
 		}(i)
 	}
 
-	// TODO: Uncomment to use this (which is cleaner) when https://github.com/golang/go/issues/60209 is addressed
-	/*
-		// Collect all errors
-		// This will make us wait for all operations to complete too
-		var err error
-		for i := 0; i < len(req); i++ {
-			err = errors.Join(err, <-errCh)
-		}
-	*/
 	errs := make([]error, len(req))
 	for i := 0; i < len(req); i++ {
 		errs[i] = <-errCh

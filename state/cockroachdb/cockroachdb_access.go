@@ -475,10 +475,6 @@ func validateAndReturnValue(request *state.SetRequest) (value string, isBinary b
 		return "", false, fmt.Errorf("missing key in set operation")
 	}
 
-	if v, ok := request.Value.(string); ok && v == "" {
-		return "", false, fmt.Errorf("empty string is not allowed in set operation")
-	}
-
 	requestValue := request.Value
 	byteArray, isBinary := request.Value.([]uint8)
 	if isBinary {

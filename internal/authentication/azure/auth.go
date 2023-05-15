@@ -100,16 +100,13 @@ func (s EnvironmentSettings) GetAzureEnvironment() (*cloud.Configuration, error)
 // GetTokenCredential returns an azcore.TokenCredential retrieved from, in order:
 // 1. Client credentials
 // 2. Client certificate
-// 3. Workload identity
-// 4. MSI with a timeout of 1 second
-// 5. Azure CLI
-// 6. Retry MSI without timeout
+// 3. MSI
 //
 // This order and timeout (with the exception of the additional step 5) matches the DefaultAzureCredential.
 func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error) {
 	// Create a chain
 	var creds []azcore.TokenCredential
-	errs := make([]error, 0, 3)
+	errMsg := ""
 
 	// 1. Client credentials
 	if c, e := s.GetClientCredentials(); e == nil {
@@ -117,7 +114,7 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 		if err == nil {
 			creds = append(creds, cred)
 		} else {
-			errs = append(errs, err)
+			errMsg += err.Error() + "\n"
 		}
 	}
 
@@ -127,55 +124,24 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 		if err == nil {
 			creds = append(creds, cred)
 		} else {
-			errs = append(errs, err)
+			errMsg += err.Error() + "\n"
 		}
 	}
 
-	// 3. Workload identity
-	// workload identity requires values for AZURE_AUTHORITY_HOST, AZURE_CLIENT_ID, AZURE_FEDERATED_TOKEN_FILE, AZURE_TENANT_ID
-	// The workload identity mutating admissions webhook in Kubernetes injects these values into the pod.
-	// These environment variables are read using the default WorkloadIdentityCredentialOptions
-
-	workloadCred, err := azidentity.NewWorkloadIdentityCredential(nil)
-	if err == nil {
-		creds = append(creds, workloadCred)
-	} else {
-		errs = append(errs, err)
-	}
-
-	// 4. MSI with timeout of 1 second (same as DefaultAzureCredential)
-	var msiCred *azcore.TokenCredential
+	// 3. MSI
 	{
 		c := s.GetMSI()
-		msiCred, err := c.GetTokenCredential()
+		cred, err := c.GetTokenCredential()
 		if err == nil {
-			creds = append(creds, &timeoutWrapper{cred: msiCred, authmethod: "managed identity", timeout: 1 * time.Second})
+			creds = append(creds, cred)
 		} else {
-			errs = append(errs, err)
+			errMsg += err.Error() + "\n"
 		}
-	}
-
-	// 5. AzureCLICredential
-	{
-		cred, credErr := azidentity.NewAzureCLICredential(nil)
-		if credErr == nil {
-			creds = append(creds, &timeoutWrapper{cred: cred, authmethod: "Azure CLI", timeout: 5 * time.Second})
-		} else {
-			errs = append(errs, credErr)
-		}
-	}
-
-	// 6. Retry MSI without timeout
-	if msiCred != nil {
-		creds = append(creds, *msiCred)
 	}
 
 	if len(creds) == 0 {
-		return nil, fmt.Errorf("no suitable token provider for Azure AD; errors: %w", errors.Join(errs...))
+		return nil, fmt.Errorf("no suitable token provider for Azure AD; errors: %v", errMsg)
 	}
-	// The ChainedTokenCredential executes the auth methods (with their given timeouts) in order. No execution occurs before this method.
-	// As such there is no option to run the auth methods in parallel.
-	// It would be ideal if the Azure SDK for Go team could support a parallel execution option.
 	return azidentity.NewChainedTokenCredential(creds, nil)
 }
 

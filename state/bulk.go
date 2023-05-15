@@ -118,23 +118,20 @@ func (b *DefaultBulkStore) BulkDeleteWithOptions(ctx context.Context, req []Dele
 
 func doBulkSetDelete[T SetRequest | DeleteRequest](ctx context.Context, req []T, method func(ctx context.Context, req *T) error, opts BulkStoreOpts) error {
 	// If parallelism isn't set, run all operations in parallel
-	if opts.Parallelism <= 0 {
-		opts.Parallelism = len(req)
+	var limitCh chan struct{}
+	if opts.Parallelism > 0 {
+		limitCh = make(chan struct{}, opts.Parallelism)
 	}
-	limitCh := make(chan struct{}, opts.Parallelism)
 	errCh := make(chan error, len(req))
 
 	// Execute all operations in parallel
 	for i := range req {
 		// Limit concurrency
-		limitCh <- struct{}{}
+		if limitCh != nil {
+			limitCh <- struct{}{}
+		}
 
 		go func(i int) {
-			defer func() {
-				// Release the token for concurrency
-				<-limitCh
-			}()
-
 			rErr := method(ctx, &req[i])
 			if rErr != nil {
 				errCh <- BulkStoreError{
@@ -144,14 +141,27 @@ func doBulkSetDelete[T SetRequest | DeleteRequest](ctx context.Context, req []T,
 			} else {
 				errCh <- nil
 			}
+
+			// Release the token for concurrency
+			if limitCh != nil {
+				<-limitCh
+			}
 		}(i)
 	}
 
-	// Collect all errors
-	// This will make us wait for all operations to complete too
-	var err error
+	// TODO: Uncomment to use this (which is cleaner) when https://github.com/golang/go/issues/60209 is addressed
+	/*
+		// Collect all errors
+		// This will make us wait for all operations to complete too
+		var err error
+		for i := 0; i < len(req); i++ {
+			err = errors.Join(err, <-errCh)
+		}
+	*/
+	errs := make([]error, len(req))
 	for i := 0; i < len(req); i++ {
-		err = errors.Join(err, <-errCh)
+		errs[i] = <-errCh
 	}
-	return err
+
+	return errors.Join(errs...)
 }

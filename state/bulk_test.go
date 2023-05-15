@@ -16,6 +16,7 @@ package state
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -26,47 +27,47 @@ var errSimulated = errors.New("simulated")
 func TestBulkStore(t *testing.T) {
 	t.Run("default implementation", func(t *testing.T) {
 		var (
-			expectCount     int
-			expectBulkCount int
+			expectCount     int32
+			expectBulkCount int32
 		)
 
 		ctx := context.Background()
 
 		s := &storeBulk{}
 		s.BulkStore = NewDefaultBulkStore(s)
-		require.Equal(t, expectCount, s.count)
-		require.Equal(t, expectBulkCount, s.bulkCount)
+		require.Equal(t, expectCount, s.count.Load())
+		require.Equal(t, expectBulkCount, s.bulkCount.Load())
 
 		s.Get(ctx, &GetRequest{})
 		s.Set(ctx, &SetRequest{})
 		s.Delete(ctx, &DeleteRequest{})
 		expectCount += 3
-		require.Equal(t, expectCount, s.count)
-		require.Equal(t, expectBulkCount, s.bulkCount)
+		require.Equal(t, expectCount, s.count.Load())
+		require.Equal(t, expectBulkCount, s.bulkCount.Load())
 
 		_, err := s.BulkGet(ctx, []GetRequest{{}, {}, {}}, BulkGetOpts{})
 		require.NoError(t, err)
 		expectCount += 3
-		require.Equal(t, expectCount, s.count)
-		require.Equal(t, expectBulkCount, s.bulkCount)
+		require.Equal(t, expectCount, s.count.Load())
+		require.Equal(t, expectBulkCount, s.bulkCount.Load())
 
 		s.BulkSet(ctx, []SetRequest{{}, {}, {}, {}})
 		expectCount += 4
-		require.Equal(t, expectCount, s.count)
-		require.Equal(t, expectBulkCount, s.bulkCount)
+		require.Equal(t, expectCount, s.count.Load())
+		require.Equal(t, expectBulkCount, s.bulkCount.Load())
 
 		s.BulkDelete(ctx, []DeleteRequest{{}, {}, {}, {}, {}})
 		expectCount += 5
-		require.Equal(t, expectCount, s.count)
-		require.Equal(t, expectBulkCount, s.bulkCount)
+		require.Equal(t, expectCount, s.count.Load())
+		require.Equal(t, expectBulkCount, s.bulkCount.Load())
 
 		// Test errors
 		err = s.Set(ctx, &SetRequest{Key: "error-key"})
 		require.Error(t, err)
 		expectCount++
 		require.Equal(t, errSimulated, err)
-		require.Equal(t, expectCount, s.count)
-		require.Equal(t, expectBulkCount, s.bulkCount)
+		require.Equal(t, expectCount, s.count.Load())
+		require.Equal(t, expectBulkCount, s.bulkCount.Load())
 
 		err = s.BulkSet(ctx, []SetRequest{{Key: "error-key"}, {}, {Key: "error-key"}, {}})
 		expectCount += 4
@@ -77,14 +78,14 @@ func TestBulkStore(t *testing.T) {
 		require.Len(t, errs, 2)
 		require.ErrorIs(t, errs[0], errSimulated)
 		require.ErrorIs(t, errs[1], errSimulated)
-		require.Equal(t, expectCount, s.count)
-		require.Equal(t, expectBulkCount, s.bulkCount)
+		require.Equal(t, expectCount, s.count.Load())
+		require.Equal(t, expectBulkCount, s.bulkCount.Load())
 	})
 
 	t.Run("native bulk implementation", func(t *testing.T) {
 		var (
-			expectCount     int
-			expectBulkCount int
+			expectCount     int32
+			expectBulkCount int32
 		)
 
 		ctx := context.Background()
@@ -92,30 +93,30 @@ func TestBulkStore(t *testing.T) {
 		s := &storeBulkNative{}
 		s.BulkStore = NewDefaultBulkStore(s)
 
-		require.Equal(t, expectCount, s.count)
-		require.Equal(t, expectBulkCount, s.bulkCount)
+		require.Equal(t, expectCount, s.count.Load())
+		require.Equal(t, expectBulkCount, s.bulkCount.Load())
 
 		s.Get(ctx, &GetRequest{})
 		s.Set(ctx, &SetRequest{})
 		s.Delete(ctx, &DeleteRequest{})
 		expectCount += 3
-		require.Equal(t, expectCount, s.count)
-		require.Equal(t, expectBulkCount, s.bulkCount)
+		require.Equal(t, expectCount, s.count.Load())
+		require.Equal(t, expectBulkCount, s.bulkCount.Load())
 
 		_, _ = s.BulkGet(ctx, []GetRequest{{}, {}, {}}, BulkGetOpts{})
 		expectBulkCount += 1
-		require.Equal(t, expectCount, s.count)
-		require.Equal(t, expectBulkCount, s.bulkCount)
+		require.Equal(t, expectCount, s.count.Load())
+		require.Equal(t, expectBulkCount, s.bulkCount.Load())
 
 		s.BulkSet(ctx, []SetRequest{{}, {}, {}, {}})
 		expectBulkCount += 1
-		require.Equal(t, expectCount, s.count)
-		require.Equal(t, expectBulkCount, s.bulkCount)
+		require.Equal(t, expectCount, s.count.Load())
+		require.Equal(t, expectBulkCount, s.bulkCount.Load())
 
 		s.BulkDelete(ctx, []DeleteRequest{{}, {}, {}, {}, {}})
 		expectBulkCount += 1
-		require.Equal(t, expectCount, s.count)
-		require.Equal(t, expectBulkCount, s.bulkCount)
+		require.Equal(t, expectCount, s.count.Load())
+		require.Equal(t, expectBulkCount, s.bulkCount.Load())
 	})
 }
 
@@ -128,8 +129,8 @@ var (
 type storeBulk struct {
 	BulkStore
 
-	count     int
-	bulkCount int
+	count     atomic.Int32
+	bulkCount atomic.Int32
 }
 
 func (s *storeBulk) Init(ctx context.Context, metadata Metadata) error {
@@ -137,17 +138,17 @@ func (s *storeBulk) Init(ctx context.Context, metadata Metadata) error {
 }
 
 func (s *storeBulk) Delete(ctx context.Context, req *DeleteRequest) error {
-	s.count++
+	s.count.Add(1)
 	return nil
 }
 
 func (s *storeBulk) Get(ctx context.Context, req *GetRequest) (*GetResponse, error) {
-	s.count++
+	s.count.Add(1)
 	return &GetResponse{}, nil
 }
 
 func (s *storeBulk) Set(ctx context.Context, req *SetRequest) error {
-	s.count++
+	s.count.Add(1)
 	if req.Key == "error-key" {
 		return errSimulated
 	}
@@ -168,16 +169,16 @@ type storeBulkNative struct {
 }
 
 func (s *storeBulkNative) BulkGet(ctx context.Context, req []GetRequest, opts BulkGetOpts) ([]BulkGetResponse, error) {
-	s.bulkCount++
+	s.bulkCount.Add(1)
 	return nil, nil
 }
 
 func (s *storeBulkNative) BulkSet(ctx context.Context, req []SetRequest) error {
-	s.bulkCount++
+	s.bulkCount.Add(1)
 	return nil
 }
 
 func (s *storeBulkNative) BulkDelete(ctx context.Context, req []DeleteRequest) error {
-	s.bulkCount++
+	s.bulkCount.Add(1)
 	return nil
 }

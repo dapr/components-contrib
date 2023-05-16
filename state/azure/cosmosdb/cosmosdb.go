@@ -418,6 +418,10 @@ func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	pk := azcosmos.NewPartitionKeyString(partitionKey)
 	_, err = c.client.UpsertItem(upsertCtx, pk, marsh, &options)
 	if err != nil {
+		resErr := &azcore.ResponseError{}
+		if errors.As(err, &resErr) && resErr.StatusCode == http.StatusPreconditionFailed {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
 		return err
 	}
 	return nil
@@ -455,7 +459,8 @@ func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	pk := azcosmos.NewPartitionKeyString(partitionKey)
 	_, err = c.client.DeleteItem(deleteCtx, pk, req.Key, &options)
 	if err != nil && !isNotFoundError(err) {
-		if req.ETag != nil && *req.ETag != "" {
+		resErr := &azcore.ResponseError{}
+		if errors.As(err, &resErr) && resErr.StatusCode == http.StatusPreconditionFailed {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 		return err

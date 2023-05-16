@@ -109,7 +109,7 @@ func TestReadAndWrite(t *testing.T) {
 		}, {
 			Key:   "theSecondKey",
 			Value: "777",
-		}})
+		}}, state.BulkStoreOpts{})
 
 		require.NoError(t, err)
 	})

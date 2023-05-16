@@ -208,15 +208,11 @@ func (s *RethinkDB) Set(ctx context.Context, req *state.SetRequest) error {
 		return errors.New("invalid state request, key and value required")
 	}
 
-	return s.BulkSet(ctx, []state.SetRequest{*req})
-}
-
-func (s *RethinkDB) BulkSetWithOptions(ctx context.Context, req []state.SetRequest, _ state.BulkStoreOpts) error {
-	return s.BulkSet(ctx, req)
+	return s.BulkSet(ctx, []state.SetRequest{*req}, state.BulkStoreOpts{})
 }
 
 // BulkSet performs a bulk save operation.
-func (s *RethinkDB) BulkSet(ctx context.Context, req []state.SetRequest) error {
+func (s *RethinkDB) BulkSet(ctx context.Context, req []state.SetRequest, _ state.BulkStoreOpts) error {
 	docs := make([]*stateRecord, len(req))
 	now := time.Now().UnixNano()
 	for i, v := range req {
@@ -277,15 +273,11 @@ func (s *RethinkDB) Delete(ctx context.Context, req *state.DeleteRequest) error 
 		return errors.New("invalid request, missing key")
 	}
 
-	return s.BulkDelete(ctx, []state.DeleteRequest{*req})
-}
-
-func (s *RethinkDB) BulkDeleteWithOptions(ctx context.Context, req []state.DeleteRequest, _ state.BulkStoreOpts) error {
-	return s.BulkDelete(ctx, req)
+	return s.BulkDelete(ctx, []state.DeleteRequest{*req}, state.BulkStoreOpts{})
 }
 
 // BulkDelete performs a bulk delete operation.
-func (s *RethinkDB) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
+func (s *RethinkDB) BulkDelete(ctx context.Context, req []state.DeleteRequest, _ state.BulkStoreOpts) error {
 	list := make([]string, len(req))
 	for i, d := range req {
 		list[i] = d.Key

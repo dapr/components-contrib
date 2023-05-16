@@ -51,12 +51,12 @@ func TestBulkStore(t *testing.T) {
 		require.Equal(t, expectCount, s.count.Load())
 		require.Equal(t, expectBulkCount, s.bulkCount.Load())
 
-		s.BulkSet(ctx, []SetRequest{{}, {}, {}, {}})
+		s.BulkSet(ctx, []SetRequest{{}, {}, {}, {}}, BulkStoreOpts{})
 		expectCount += 4
 		require.Equal(t, expectCount, s.count.Load())
 		require.Equal(t, expectBulkCount, s.bulkCount.Load())
 
-		s.BulkDelete(ctx, []DeleteRequest{{}, {}, {}, {}, {}})
+		s.BulkDelete(ctx, []DeleteRequest{{}, {}, {}, {}, {}}, BulkStoreOpts{})
 		expectCount += 5
 		require.Equal(t, expectCount, s.count.Load())
 		require.Equal(t, expectBulkCount, s.bulkCount.Load())
@@ -69,7 +69,7 @@ func TestBulkStore(t *testing.T) {
 		require.Equal(t, expectCount, s.count.Load())
 		require.Equal(t, expectBulkCount, s.bulkCount.Load())
 
-		err = s.BulkSet(ctx, []SetRequest{{Key: "error-key"}, {}, {Key: "error-key"}, {}})
+		err = s.BulkSet(ctx, []SetRequest{{Key: "error-key"}, {}, {Key: "error-key"}, {}}, BulkStoreOpts{})
 		expectCount += 4
 		require.Error(t, err)
 		merr, ok := err.(interface{ Unwrap() []error })
@@ -108,12 +108,12 @@ func TestBulkStore(t *testing.T) {
 		require.Equal(t, expectCount, s.count.Load())
 		require.Equal(t, expectBulkCount, s.bulkCount.Load())
 
-		s.BulkSet(ctx, []SetRequest{{}, {}, {}, {}})
+		s.BulkSet(ctx, []SetRequest{{}, {}, {}, {}}, BulkStoreOpts{})
 		expectBulkCount += 1
 		require.Equal(t, expectCount, s.count.Load())
 		require.Equal(t, expectBulkCount, s.bulkCount.Load())
 
-		s.BulkDelete(ctx, []DeleteRequest{{}, {}, {}, {}, {}})
+		s.BulkDelete(ctx, []DeleteRequest{{}, {}, {}, {}, {}}, BulkStoreOpts{})
 		expectBulkCount += 1
 		require.Equal(t, expectCount, s.count.Load())
 		require.Equal(t, expectBulkCount, s.bulkCount.Load())
@@ -173,12 +173,12 @@ func (s *storeBulkNative) BulkGet(ctx context.Context, req []GetRequest, opts Bu
 	return nil, nil
 }
 
-func (s *storeBulkNative) BulkSet(ctx context.Context, req []SetRequest) error {
+func (s *storeBulkNative) BulkSet(ctx context.Context, req []SetRequest, _ BulkStoreOpts) error {
 	s.bulkCount.Add(1)
 	return nil
 }
 
-func (s *storeBulkNative) BulkDelete(ctx context.Context, req []DeleteRequest) error {
+func (s *storeBulkNative) BulkDelete(ctx context.Context, req []DeleteRequest, _ BulkStoreOpts) error {
 	s.bulkCount.Add(1)
 	return nil
 }

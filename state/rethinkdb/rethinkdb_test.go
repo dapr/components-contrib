@@ -181,7 +181,7 @@ func testBulk(t *testing.T, db state.Store, i int) {
 	}
 
 	// bulk set it
-	if err := db.BulkSet(context.Background(), setList); err != nil {
+	if err := db.BulkSet(context.Background(), setList, state.BulkStoreOpts{}); err != nil {
 		t.Fatalf("error setting data to db: %v -- run %d", err, i)
 	}
 
@@ -194,7 +194,7 @@ func testBulk(t *testing.T, db state.Store, i int) {
 	}
 
 	// delete data
-	if err := db.BulkDelete(context.Background(), deleteList); err != nil {
+	if err := db.BulkDelete(context.Background(), deleteList, state.BulkStoreOpts{}); err != nil {
 		t.Fatalf("error on data deletion: %v -- run %d", err, i)
 	}
 

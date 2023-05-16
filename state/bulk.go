@@ -37,10 +37,8 @@ type BulkStoreOpts struct {
 // BulkStore is an interface to perform bulk operations on store.
 type BulkStore interface {
 	BulkGet(ctx context.Context, req []GetRequest, opts BulkGetOpts) ([]BulkGetResponse, error)
-	BulkSet(ctx context.Context, req []SetRequest) error
-	BulkSetWithOptions(ctx context.Context, req []SetRequest, opts BulkStoreOpts) error
-	BulkDelete(ctx context.Context, req []DeleteRequest) error
-	BulkDeleteWithOptions(ctx context.Context, req []DeleteRequest, opts BulkStoreOpts) error
+	BulkSet(ctx context.Context, req []SetRequest, opts BulkStoreOpts) error
+	BulkDelete(ctx context.Context, req []DeleteRequest, opts BulkStoreOpts) error
 }
 
 // DefaultBulkStore is a default implementation of BulkStore.
@@ -61,22 +59,12 @@ func (b *DefaultBulkStore) BulkGet(ctx context.Context, req []GetRequest, opts B
 }
 
 // BulkSet performs a bulk save operation.
-func (b *DefaultBulkStore) BulkSet(ctx context.Context, req []SetRequest) error {
-	return b.BulkSetWithOptions(ctx, req, BulkStoreOpts{})
-}
-
-// BulkSetWithOptions performs a bulk save operation with options.
-func (b *DefaultBulkStore) BulkSetWithOptions(ctx context.Context, req []SetRequest, opts BulkStoreOpts) error {
+func (b *DefaultBulkStore) BulkSet(ctx context.Context, req []SetRequest, opts BulkStoreOpts) error {
 	return DoBulkSetDelete(ctx, req, b.base.Set, opts)
 }
 
 // BulkDelete performs a bulk delete operation.
-func (b *DefaultBulkStore) BulkDelete(ctx context.Context, req []DeleteRequest) error {
-	return b.BulkDeleteWithOptions(ctx, req, BulkStoreOpts{})
-}
-
-// BulkDeleteWithOptions performs a bulk delete operation with options
-func (b *DefaultBulkStore) BulkDeleteWithOptions(ctx context.Context, req []DeleteRequest, opts BulkStoreOpts) error {
+func (b *DefaultBulkStore) BulkDelete(ctx context.Context, req []DeleteRequest, opts BulkStoreOpts) error {
 	return DoBulkSetDelete(ctx, req, b.base.Delete, opts)
 }
 

@@ -410,6 +410,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						Key: scenario.key,
 					})
 					tests[1].expect[scenario.key] = scenario.value
+					first = false
 				}
 			}
 		}

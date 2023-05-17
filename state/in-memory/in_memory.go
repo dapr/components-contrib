@@ -169,7 +169,6 @@ func (store *inMemoryStore) BulkGet(ctx context.Context, req []state.GetRequest,
 	store.lock.RLock()
 	defer store.lock.RUnlock()
 
-	n := 0
 	for i, r := range req {
 		item := store.items[r.Key]
 		if item != nil && !item.isExpired() {
@@ -178,11 +177,14 @@ func (store *inMemoryStore) BulkGet(ctx context.Context, req []state.GetRequest,
 				Data: item.data,
 				ETag: item.etag,
 			}
-			n++
+		} else {
+			res[i] = state.BulkGetResponse{
+				Key: r.Key,
+			}
 		}
 	}
 
-	return res[:n], nil
+	return res, nil
 }
 
 func (store *inMemoryStore) getAndExpire(key string) *inMemStateStoreItem {

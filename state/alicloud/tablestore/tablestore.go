@@ -170,7 +170,7 @@ func (s *AliCloudTableStore) updateRowChange(req *state.SetRequest) *tablestore.
 	value, _ := marshal(req.Value)
 	change.PutColumn(stateValue, value)
 
-	if req.ETag != nil {
+	if req.HasETag() {
 		change.PutColumn(sateEtag, *req.ETag)
 	}
 

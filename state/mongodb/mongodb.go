@@ -206,7 +206,7 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 
 	// create a document based on request key and value
 	filter := bson.M{id: req.Key}
-	if req.ETag != nil && *req.ETag != "" {
+	if req.HasETag() {
 		filter[etag] = *req.ETag
 	} else if req.Options.Concurrency == state.FirstWrite {
 		uuid, err := uuid.NewRandom()
@@ -302,7 +302,7 @@ func (m *MongoDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetRes
 func (m *MongoDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
 	// If nothing is being requested, short-circuit
 	if len(req) == 0 {
-		return []state.BulkGetResponse{}, nil
+		return nil, nil
 	}
 
 	// Get all the keys
@@ -326,12 +326,13 @@ func (m *MongoDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.B
 			// No documents found, just return an empty list
 			err = nil
 		}
-		return []state.BulkGetResponse{}, err
+		return nil, err
 	}
 	defer cur.Close(ctx)
 
 	// Read all results
 	res := make([]state.BulkGetResponse, 0, len(keys))
+	foundKeys := make(map[string]struct{}, len(keys))
 	for cur.Next(ctx) {
 		var (
 			doc  Item
@@ -339,7 +340,7 @@ func (m *MongoDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.B
 		)
 		err = cur.Decode(&doc)
 		if err != nil {
-			return res, err
+			return nil, err
 		}
 
 		bgr := state.BulkGetResponse{
@@ -356,10 +357,25 @@ func (m *MongoDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.B
 			bgr.Data = data
 		}
 		res = append(res, bgr)
+		foundKeys[bgr.Key] = struct{}{}
 	}
 	err = cur.Err()
 	if err != nil {
 		return res, err
+	}
+
+	// Populate missing keys with empty values
+	// This is to ensure consistency with the other state stores that implement BulkGet as a loop over Get, and with the Get method
+	if len(foundKeys) < len(req) {
+		var ok bool
+		for _, r := range req {
+			_, ok = foundKeys[r.Key]
+			if !ok {
+				res = append(res, state.BulkGetResponse{
+					Key: r.Key,
+				})
+			}
+		}
 	}
 
 	return res, nil
@@ -427,7 +443,7 @@ func (m *MongoDB) Delete(ctx context.Context, req *state.DeleteRequest) error {
 
 func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) error {
 	filter := bson.M{id: req.Key}
-	if req.ETag != nil && *req.ETag != "" {
+	if req.HasETag() {
 		filter[etag] = *req.ETag
 	}
 	result, err := m.collection.DeleteOne(ctx, filter)
@@ -436,7 +452,7 @@ func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) 
 	}
 
 	if result.DeletedCount == 0 && req.ETag != nil && *req.ETag != "" {
-		return errors.New("key or etag not found")
+		return state.NewETagError(state.ETagMismatch, err)
 	}
 
 	return nil

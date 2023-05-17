@@ -21,7 +21,6 @@ import (
 
 	"github.com/go-zookeeper/zk"
 	gomock "github.com/golang/mock/gomock"
-	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/state"
@@ -146,48 +145,6 @@ func TestDelete(t *testing.T) {
 	})
 }
 
-// BulkDelete.
-func TestBulkDelete(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	conn := NewMockConn(ctrl)
-	s := StateStore{conn: conn}
-
-	t.Run("With keys", func(t *testing.T) {
-		conn.EXPECT().Multi([]interface{}{
-			&zk.DeleteRequest{Path: "foo", Version: int32(anyVersion)},
-			&zk.DeleteRequest{Path: "bar", Version: int32(anyVersion)},
-		}).Return([]zk.MultiResponse{{}, {}}, nil).Times(1)
-
-		err := s.BulkDelete(context.Background(), []state.DeleteRequest{{Key: "foo"}, {Key: "bar"}})
-		assert.NoError(t, err, "Key must be exists")
-	})
-
-	t.Run("With keys and error", func(t *testing.T) {
-		conn.EXPECT().Multi([]interface{}{
-			&zk.DeleteRequest{Path: "foo", Version: int32(anyVersion)},
-			&zk.DeleteRequest{Path: "bar", Version: int32(anyVersion)},
-		}).Return([]zk.MultiResponse{
-			{Error: zk.ErrUnknown}, {Error: zk.ErrNoAuth},
-		}, nil).Times(1)
-
-		err := s.BulkDelete(context.Background(), []state.DeleteRequest{{Key: "foo"}, {Key: "bar"}})
-		assert.Equal(t, err.(*multierror.Error).Errors, []error{zk.ErrUnknown, zk.ErrNoAuth})
-	})
-	t.Run("With keys and ignore NoNode error", func(t *testing.T) {
-		conn.EXPECT().Multi([]interface{}{
-			&zk.DeleteRequest{Path: "foo", Version: int32(anyVersion)},
-			&zk.DeleteRequest{Path: "bar", Version: int32(anyVersion)},
-		}).Return([]zk.MultiResponse{
-			{Error: zk.ErrNoNode}, {},
-		}, nil).Times(1)
-
-		err := s.BulkDelete(context.Background(), []state.DeleteRequest{{Key: "foo"}, {Key: "bar"}})
-		assert.NoError(t, err, "Key must be exists")
-	})
-}
-
 // Set.
 func TestSet(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -235,59 +192,5 @@ func TestSet(t *testing.T) {
 
 		err := s.Set(context.Background(), &state.SetRequest{Key: "foo", Value: "bar"})
 		assert.NoError(t, err, "Key must be create")
-	})
-}
-
-// BulkSet.
-func TestBulkSet(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	conn := NewMockConn(ctrl)
-	s := StateStore{conn: conn}
-
-	t.Run("With keys", func(t *testing.T) {
-		conn.EXPECT().Multi([]interface{}{
-			&zk.SetDataRequest{Path: "foo", Data: []byte("\"bar\""), Version: int32(anyVersion)},
-			&zk.SetDataRequest{Path: "bar", Data: []byte("\"foo\""), Version: int32(anyVersion)},
-		}).Return([]zk.MultiResponse{{}, {}}, nil).Times(1)
-
-		err := s.BulkSet(context.Background(), []state.SetRequest{
-			{Key: "foo", Value: "bar"},
-			{Key: "bar", Value: "foo"},
-		})
-		assert.NoError(t, err, "Key must be set")
-	})
-
-	t.Run("With keys and error", func(t *testing.T) {
-		conn.EXPECT().Multi([]interface{}{
-			&zk.SetDataRequest{Path: "foo", Data: []byte("\"bar\""), Version: int32(anyVersion)},
-			&zk.SetDataRequest{Path: "bar", Data: []byte("\"foo\""), Version: int32(anyVersion)},
-		}).Return([]zk.MultiResponse{
-			{Error: zk.ErrUnknown}, {Error: zk.ErrNoAuth},
-		}, nil).Times(1)
-
-		err := s.BulkSet(context.Background(), []state.SetRequest{
-			{Key: "foo", Value: "bar"},
-			{Key: "bar", Value: "foo"},
-		})
-		assert.Equal(t, err.(*multierror.Error).Errors, []error{zk.ErrUnknown, zk.ErrNoAuth})
-	})
-	t.Run("With keys and retry NoNode error", func(t *testing.T) {
-		conn.EXPECT().Multi([]interface{}{
-			&zk.SetDataRequest{Path: "foo", Data: []byte("\"bar\""), Version: int32(anyVersion)},
-			&zk.SetDataRequest{Path: "bar", Data: []byte("\"foo\""), Version: int32(anyVersion)},
-		}).Return([]zk.MultiResponse{
-			{Error: zk.ErrNoNode}, {},
-		}, nil).Times(1)
-		conn.EXPECT().Multi([]interface{}{
-			&zk.CreateRequest{Path: "foo", Data: []byte("\"bar\"")},
-		}).Return([]zk.MultiResponse{{}, {}}, nil).Times(1)
-
-		err := s.BulkSet(context.Background(), []state.SetRequest{
-			{Key: "foo", Value: "bar"},
-			{Key: "bar", Value: "foo"},
-		})
-		assert.NoError(t, err, "Key must be set")
 	})
 }

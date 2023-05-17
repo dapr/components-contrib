@@ -290,7 +290,7 @@ func testIndexedProperties(t *testing.T) {
 		{Key: "2", Value: userWithPets{user{"2", "Laura", "Water"}, 1}},
 		{Key: "3", Value: userWithPets{user{"3", "Carl", "Beer"}, 0}},
 		{Key: "4", Value: userWithPets{user{"4", "Maria", "Wine"}, 100}},
-	})
+	}, state.BulkStoreOpts{})
 
 	require.NoError(t, err)
 
@@ -347,7 +347,7 @@ func testMultiOperations(t *testing.T) {
 				bulkSet[i] = state.SetRequest{Key: u.ID, Value: u}
 			}
 
-			err := store.BulkSet(context.Background(), bulkSet)
+			err := store.BulkSet(context.Background(), bulkSet, state.BulkStoreOpts{})
 			require.NoError(t, err)
 			assertUserCountIsEqualTo(t, store, len(initialUsers))
 
@@ -524,7 +524,7 @@ func testBulkSet(t *testing.T) {
 					sets[i] = state.SetRequest{Key: u.ID, Value: u}
 				}
 
-				err := store.BulkSet(context.Background(), sets)
+				err := store.BulkSet(context.Background(), sets, state.BulkStoreOpts{})
 				require.NoError(t, err)
 				totalUsers = len(sets)
 				assertUserCountIsEqualTo(t, store, totalUsers)
@@ -539,7 +539,7 @@ func testBulkSet(t *testing.T) {
 				err := store.BulkSet(context.Background(), []state.SetRequest{
 					{Key: modified.ID, Value: modified, ETag: &toModifyETag},
 					{Key: toInsert.ID, Value: toInsert},
-				})
+				}, state.BulkStoreOpts{})
 				require.NoError(t, err)
 				assertLoadedUserIsEqual(t, store, modified.ID, modified)
 				assertLoadedUserIsEqual(t, store, toInsert.ID, toInsert)
@@ -558,7 +558,7 @@ func testBulkSet(t *testing.T) {
 				err := store.BulkSet(context.Background(), []state.SetRequest{
 					{Key: modified.ID, Value: modified},
 					{Key: toInsert.ID, Value: toInsert},
-				})
+				}, state.BulkStoreOpts{})
 				require.NoError(t, err)
 				assertLoadedUserIsEqual(t, store, modified.ID, modified)
 				assertLoadedUserIsEqual(t, store, toInsert.ID, toInsert)
@@ -582,7 +582,7 @@ func testBulkSet(t *testing.T) {
 					{Key: modified.ID, Value: modified, ETag: &invEtag},
 				}
 
-				err := store.BulkSet(context.Background(), sets)
+				err := store.BulkSet(context.Background(), sets, state.BulkStoreOpts{})
 				assert.NotNil(t, err)
 				assertUserCountIsEqualTo(t, store, totalUsers)
 				assertUserDoesNotExist(t, store, toInsert1.ID)
@@ -625,7 +625,7 @@ func testBulkDelete(t *testing.T) {
 			for i, u := range initialUsers {
 				sets[i] = state.SetRequest{Key: u.ID, Value: u}
 			}
-			err := store.BulkSet(context.Background(), sets)
+			err := store.BulkSet(context.Background(), sets, state.BulkStoreOpts{})
 			require.NoError(t, err)
 			totalUsers := len(initialUsers)
 			assertUserCountIsEqualTo(t, store, totalUsers)
@@ -638,7 +638,7 @@ func testBulkDelete(t *testing.T) {
 				err := store.BulkDelete(context.Background(), []state.DeleteRequest{
 					{Key: deleted1},
 					{Key: deleted2},
-				})
+				}, state.BulkStoreOpts{})
 				require.NoError(t, err)
 				totalUsers -= 2
 				assertUserCountIsEqualTo(t, store, totalUsers)
@@ -655,7 +655,7 @@ func testBulkDelete(t *testing.T) {
 				err := store.BulkDelete(context.Background(), []state.DeleteRequest{
 					{Key: deleted1.ID, ETag: &deleted1Etag},
 					{Key: deleted2.ID, ETag: &deleted2Etag},
-				})
+				}, state.BulkStoreOpts{})
 				require.NoError(t, err)
 				totalUsers -= 2
 				assertUserCountIsEqualTo(t, store, totalUsers)
@@ -672,7 +672,7 @@ func testBulkDelete(t *testing.T) {
 				err := store.BulkDelete(context.Background(), []state.DeleteRequest{
 					{Key: deleted1.ID, ETag: &deleted1Etag},
 					{Key: deleted2.ID},
-				})
+				}, state.BulkStoreOpts{})
 				require.NoError(t, err)
 				totalUsers -= 2
 				assertUserCountIsEqualTo(t, store, totalUsers)
@@ -690,7 +690,7 @@ func testBulkDelete(t *testing.T) {
 				err := store.BulkDelete(context.Background(), []state.DeleteRequest{
 					{Key: deleted1.ID, ETag: &deleted1Etag},
 					{Key: deleted2.ID, ETag: &invEtag},
-				})
+				}, state.BulkStoreOpts{})
 				assert.NotNil(t, err)
 				assert.NotNil(t, err)
 				assertUserCountIsEqualTo(t, store, totalUsers)

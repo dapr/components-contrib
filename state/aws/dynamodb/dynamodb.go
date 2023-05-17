@@ -187,44 +187,6 @@ func (d *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	return err
 }
 
-// BulkSet performs a bulk set operation.
-func (d *StateStore) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	if len(req) == 1 {
-		return d.Set(ctx, &req[0])
-	}
-
-	writeRequests := make([]*dynamodb.WriteRequest, len(req))
-	for i := range req {
-		if req[i].ETag != nil && *req[i].ETag != "" {
-			return errors.New("dynamodb error: BulkSet() does not support etags; please use Set() instead")
-		}
-		if req[i].Options.Concurrency == state.FirstWrite {
-			return errors.New("dynamodb error: BulkSet() does not support FirstWrite concurrency; please use Set() instead")
-		}
-
-		item, err := d.getItemFromReq(&req[i])
-		if err != nil {
-			return err
-		}
-
-		writeRequests[i] = &dynamodb.WriteRequest{
-			PutRequest: &dynamodb.PutRequest{
-				Item: item,
-			},
-		}
-	}
-
-	requestItems := map[string][]*dynamodb.WriteRequest{
-		d.table: writeRequests,
-	}
-
-	_, e := d.client.BatchWriteItemWithContext(ctx, &dynamodb.BatchWriteItemInput{
-		RequestItems: requestItems,
-	})
-
-	return e
-}
-
 // Delete performs a delete operation.
 func (d *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	input := &dynamodb.DeleteItemInput{
@@ -255,40 +217,6 @@ func (d *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	}
 
 	return err
-}
-
-// BulkDelete performs a bulk delete operation.
-func (d *StateStore) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	if len(req) == 1 {
-		return d.Delete(ctx, &req[0])
-	}
-
-	writeRequests := make([]*dynamodb.WriteRequest, len(req))
-	for i, r := range req {
-		if r.ETag != nil && *r.ETag != "" {
-			return errors.New("dynamodb error: BulkDelete() does not support etags; please use Delete() instead")
-		}
-
-		writeRequests[i] = &dynamodb.WriteRequest{
-			DeleteRequest: &dynamodb.DeleteRequest{
-				Key: map[string]*dynamodb.AttributeValue{
-					d.partitionKey: {
-						S: aws.String(r.Key),
-					},
-				},
-			},
-		}
-	}
-
-	requestItems := map[string][]*dynamodb.WriteRequest{
-		d.table: writeRequests,
-	}
-
-	_, e := d.client.BatchWriteItemWithContext(ctx, &dynamodb.BatchWriteItemInput{
-		RequestItems: requestItems,
-	})
-
-	return e
 }
 
 func (d *StateStore) GetComponentMetadata() map[string]string {

@@ -73,6 +73,8 @@ const (
 
 // MongoDB is a state store implementation for MongoDB.
 type MongoDB struct {
+	state.BulkStore
+
 	client           *mongo.Client
 	collection       *mongo.Collection
 	operationTimeout time.Duration
@@ -106,10 +108,12 @@ type Item struct {
 
 // NewMongoDB returns a new MongoDB state store.
 func NewMongoDB(logger logger.Logger) state.Store {
-	return &MongoDB{
+	s := &MongoDB{
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI},
 		logger:   logger,
 	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // Init establishes connection to the store based on the metadata.
@@ -202,7 +206,7 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 
 	// create a document based on request key and value
 	filter := bson.M{id: req.Key}
-	if req.ETag != nil {
+	if req.ETag != nil && *req.ETag != "" {
 		filter[etag] = *req.ETag
 	} else if req.Options.Concurrency == state.FirstWrite {
 		uuid, err := uuid.NewRandom()
@@ -254,7 +258,10 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 
 	_, err = m.collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
 	if err != nil {
-		return fmt.Errorf("error in updating document: %s", err)
+		if mongo.IsDuplicateKeyError(err) {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+		return fmt.Errorf("error in updating document: %w", err)
 	}
 
 	return nil
@@ -420,7 +427,7 @@ func (m *MongoDB) Delete(ctx context.Context, req *state.DeleteRequest) error {
 
 func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) error {
 	filter := bson.M{id: req.Key}
-	if req.ETag != nil {
+	if req.ETag != nil && *req.ETag != "" {
 		filter[etag] = *req.ETag
 	}
 	result, err := m.collection.DeleteOne(ctx, filter)
@@ -428,50 +435,8 @@ func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) 
 		return err
 	}
 
-	if result.DeletedCount == 0 && req.ETag != nil {
+	if result.DeletedCount == 0 && req.ETag != nil && *req.ETag != "" {
 		return errors.New("key or etag not found")
-	}
-
-	return nil
-}
-
-// BulkSet performs a bulk save operation.
-// We need to implement a custom BulkSet/BulkDelete because with MongoDB transactions are not always available (only when connecting to a replica set), and when they're not, we need to fall back to performing operations in sequence.
-func (m *MongoDB) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	// Use transactions if we can
-	if m.isReplicaSet {
-		return m.Multi(ctx, &state.TransactionalStateRequest{
-			Operations: state.ToTransactionalStateOperationSlice(req),
-		})
-	}
-
-	// Fallback to executing all operations in sequence
-	for i := range req {
-		err := m.Set(ctx, &req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// BulkDelete performs a bulk delete operation.
-// We need to implement a custom BulkSet/BulkDelete because with MongoDB transactions are not always available (only when connecting to a replica set), and when they're not, we need to fall back to performing operations in sequence.
-func (m *MongoDB) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	// Use transactions if we can
-	if m.isReplicaSet {
-		return m.Multi(ctx, &state.TransactionalStateRequest{
-			Operations: state.ToTransactionalStateOperationSlice(req),
-		})
-	}
-
-	// Fallback to executing all operations in sequence
-	for i := range req {
-		err := m.Delete(ctx, &req[i])
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil

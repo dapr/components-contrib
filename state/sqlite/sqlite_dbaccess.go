@@ -267,7 +267,7 @@ func (a *sqliteDBAccess) Get(parentCtx context.Context, req *state.GetRequest) (
 
 	return &state.GetResponse{
 		Data:     value,
-		ETag:     &etag,
+		ETag:     etag,
 		Metadata: req.Metadata,
 	}, nil
 }
@@ -297,29 +297,28 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 		return nil, err
 	}
 
-	var (
-		n    int
-		etag string
-	)
+	var n int
 	res := make([]state.BulkGetResponse, len(req))
 	for ; rows.Next(); n++ {
 		r := state.BulkGetResponse{}
-		r.Key, r.Data, etag, err = readRow(rows)
+		r.Key, r.Data, r.ETag, err = readRow(rows)
 		if err != nil {
 			r.Error = err.Error()
 		}
-		r.ETag = &etag
 		res[n] = r
 	}
 
 	return res[:n], nil
 }
 
-func readRow(row interface{ Scan(dest ...any) error }) (key string, value []byte, etag string, err error) {
-	var isBinary bool
+func readRow(row interface{ Scan(dest ...any) error }) (key string, value []byte, etagP *string, err error) {
+	var (
+		isBinary bool
+		etag     string
+	)
 	err = row.Scan(&key, &value, &isBinary, &etag)
 	if err != nil {
-		return key, nil, "", err
+		return key, nil, nil, err
 	}
 
 	if isBinary {
@@ -327,12 +326,12 @@ func readRow(row interface{ Scan(dest ...any) error }) (key string, value []byte
 		data := make([]byte, len(value))
 		n, err = base64.StdEncoding.Decode(data, value)
 		if err != nil {
-			return key, nil, "", fmt.Errorf("failed to decode binary data: %w", err)
+			return key, nil, nil, fmt.Errorf("failed to decode binary data: %w", err)
 		}
-		return key, data[:n], etag, nil
+		return key, data[:n], &etag, nil
 	}
 
-	return key, value, etag, nil
+	return key, value, &etag, nil
 }
 
 func (a *sqliteDBAccess) Set(ctx context.Context, req *state.SetRequest) error {

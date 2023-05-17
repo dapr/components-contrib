@@ -43,7 +43,7 @@ metadata:
     # Docs mention "pemContents" but there is no mention of this metadata in the code
     # in this whole repository
   - name: schemaName
-    description: "The schema name to use. Will be created if schema does not exist."
+    description: "The schema name (database) to use. Will be created if schema does not exist."
     type: string
     default: "dapr_state_store"
     example: '"custom_schema"'

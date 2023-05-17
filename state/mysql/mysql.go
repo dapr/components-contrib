@@ -544,7 +544,7 @@ func (m *MySQL) Get(parentCtx context.Context, req *state.GetRequest) (*state.Ge
 	}
 	return &state.GetResponse{
 		Data:     value,
-		ETag:     &etag,
+		ETag:     etag,
 		Metadata: req.Metadata,
 	}, nil
 }
@@ -719,29 +719,28 @@ func (m *MySQL) BulkGet(parentCtx context.Context, req []state.GetRequest, _ sta
 		return nil, err
 	}
 
-	var (
-		n    int
-		etag string
-	)
+	var n int
 	res := make([]state.BulkGetResponse, len(req))
 	for ; rows.Next(); n++ {
 		r := state.BulkGetResponse{}
-		r.Key, r.Data, etag, err = readRow(rows)
+		r.Key, r.Data, r.ETag, err = readRow(rows)
 		if err != nil {
 			r.Error = err.Error()
 		}
-		r.ETag = &etag
 		res[n] = r
 	}
 
 	return res[:n], nil
 }
 
-func readRow(row interface{ Scan(dest ...any) error }) (key string, value []byte, etag string, err error) {
-	var isBinary bool
+func readRow(row interface{ Scan(dest ...any) error }) (key string, value []byte, etagP *string, err error) {
+	var (
+		etag     string
+		isBinary bool
+	)
 	err = row.Scan(&key, &value, &etag, &isBinary)
 	if err != nil {
-		return key, nil, "", err
+		return key, nil, nil, err
 	}
 
 	if isBinary {
@@ -752,17 +751,17 @@ func readRow(row interface{ Scan(dest ...any) error }) (key string, value []byte
 
 		err = json.Unmarshal(value, &s)
 		if err != nil {
-			return key, nil, "", fmt.Errorf("failed to unmarshal JSON binary data: %w", err)
+			return key, nil, nil, fmt.Errorf("failed to unmarshal JSON binary data: %w", err)
 		}
 
 		data, err = base64.StdEncoding.DecodeString(s)
 		if err != nil {
-			return key, nil, "", fmt.Errorf("failed to decode binary data: %w", err)
+			return key, nil, nil, fmt.Errorf("failed to decode binary data: %w", err)
 		}
-		return key, data, etag, nil
+		return key, data, &etag, nil
 	}
 
-	return key, value, etag, nil
+	return key, value, &etag, nil
 }
 
 // Multi handles multiple transactions.

@@ -318,10 +318,6 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 	}
 
 	if err != nil {
-		if req.ETag != nil && *req.ETag != "" {
-			return state.NewETagError(state.ETagMismatch, err)
-		}
-
 		return err
 	}
 
@@ -331,6 +327,9 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 	}
 
 	if rows != 1 {
+		if req.ETag != nil && *req.ETag != "" {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
 		return errors.New("no item was updated")
 	}
 

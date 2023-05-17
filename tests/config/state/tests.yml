@@ -5,9 +5,15 @@ componentType: state
 components:
   - component: redis.v6
     allOperations: true
+    config:
+      # This component requires etags to be numeric
+      badEtag: "9999999"
   - component: redis.v7
     allOperations: false
     operations: [ "transaction", "etag", "first-write" ]
+    config:
+      # This component requires etags to be numeric
+      badEtag: "9999999"
   - component: mongodb
     allOperations: true
   - component: memcached
@@ -24,6 +30,9 @@ components:
   - component: sqlserver
     allOperations: false
     operations: [ "transaction", "etag", "first-write", "ttl" ]
+    config:
+      # This component requires etags to be hex-encoded numbers
+      badEtag: "FFFF"
   - component: postgresql
     allOperations: true
     config:
@@ -56,6 +65,9 @@ components:
     operations: []
   - component: cockroachdb
     allOperations: true
+    config:
+      # This component requires etags to be numeric
+      badEtag: "9999999"
   - component: rethinkdb
     allOperations: false
     operations: []

@@ -270,7 +270,7 @@ func (sg *SendGrid) GetComponentMetadata() map[string]string {
 func UnmarshalDynamicTemplateData(jsonString string, result *map[string]interface{}) error {
 	err := json.Unmarshal([]byte(jsonString), &result)
 	if err != nil {
-		return fmt.Errorf("error from SendGrid binding, dynamic template data is not valid JSON: %+v", err)
+		return fmt.Errorf("error from SendGrid binding, dynamic template data is not valid JSON: %w", err)
 	}
 	return nil
 }

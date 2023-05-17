@@ -73,11 +73,11 @@ func TestUnmarshalDynamicTemplateData(t *testing.T) {
 
 		// Test valid JSON
 		err := UnmarshalDynamicTemplateData(string(dynamicTemplateData), &data)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, map[string]interface{}{"first": "MyFirst", "last": "MyLast"}, data["name"])
 
 		// Test invalid JSON
 		err = UnmarshalDynamicTemplateData("{\"wrong\"}", &data)
-		assert.NotNil(t, err)
+		assert.Error(t, err)
 	})
 }

@@ -38,16 +38,17 @@ type SendGrid struct {
 
 // Our metadata holds standard email properties.
 type sendGridMetadata struct {
-	APIKey              string `mapstructure:"apiKey"`
-	EmailFrom           string `mapstructure:"emailFrom"`
-	EmailFromName       string `mapstructure:"emailFromName"`
-	EmailTo             string `mapstructure:"emailTo"`
-	EmailToName         string `mapstructure:"emailToName"`
-	Subject             string `mapstructure:"subject"`
-	EmailCc             string `mapstructure:"emailCc"`
-	EmailBcc            string `mapstructure:"emailBcc"`
-	DynamicTemplateData string `mapstructure:"dynamicTemplateData"`
-	DynamicTemplateID   string `mapstructure:"dynamicTemplateId"`
+	APIKey                   string                 `mapstructure:"apiKey"`
+	EmailFrom                string                 `mapstructure:"emailFrom"`
+	EmailFromName            string                 `mapstructure:"emailFromName"`
+	EmailTo                  string                 `mapstructure:"emailTo"`
+	EmailToName              string                 `mapstructure:"emailToName"`
+	Subject                  string                 `mapstructure:"subject"`
+	EmailCc                  string                 `mapstructure:"emailCc"`
+	EmailBcc                 string                 `mapstructure:"emailBcc"`
+	DynamicTemplateData      string                 `mapstructure:"dynamicTemplateData"`
+	DynamicTemplateID        string                 `mapstructure:"dynamicTemplateId"`
+	dynamicTemplateDataCache map[string]interface{} // Cache the unmarshalled dynamic template data
 }
 
 // Wrapper to help decode SendGrid API errors.
@@ -76,6 +77,14 @@ func (sg *SendGrid) parseMetadata(meta bindings.Metadata) (sendGridMetadata, err
 	// Required properties
 	if sgMeta.APIKey == "" {
 		return sgMeta, errors.New("SendGrid binding error: apiKey field is required in metadata")
+	}
+
+	// Cache the unmarshalled dynamic template data if present
+	if sgMeta.DynamicTemplateData != "" {
+		templateError := UnmarshalDynamicTemplateData(sgMeta.DynamicTemplateData, &sgMeta.dynamicTemplateDataCache)
+		if templateError != nil {
+			return sgMeta, templateError
+		}
 	}
 
 	return sgMeta, nil
@@ -193,11 +202,8 @@ func (sg *SendGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 
 	// Build email dynamic template, this is optional
 	var templateData map[string]interface{}
-	if sg.metadata.DynamicTemplateData != "" {
-		templateError := UnmarshalDynamicTemplateData(sg.metadata.DynamicTemplateData, &templateData)
-		if templateError != nil {
-			return nil, templateError
-		}
+	if sg.metadata.dynamicTemplateDataCache != nil {
+		templateData = sg.metadata.dynamicTemplateDataCache
 	}
 	if req.Metadata["dynamicTemplateData"] != "" {
 		templateError := UnmarshalDynamicTemplateData(req.Metadata["dynamicTemplateData"], &templateData)

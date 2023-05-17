@@ -54,6 +54,7 @@ import (
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -263,10 +264,8 @@ func (r *StateStore) writeRow(ctx context.Context, req *state.SetRequest) error 
 			// Today the presence of etag takes precedence over Concurrency.
 			// In the future #2739 will impose a breaking change which must disallow the use of etag when not using FirstWrite.
 			if req.HasETag() {
-				etag := azcore.ETag(*req.ETag)
-
 				_, err = r.client.UpdateEntity(updateContext, marshalledEntity, &aztables.UpdateEntityOptions{
-					IfMatch:    &etag,
+					IfMatch:    ptr.Of(azcore.ETag(*req.ETag)),
 					UpdateMode: aztables.UpdateModeReplace,
 				})
 				if err != nil {
@@ -338,8 +337,9 @@ func (r *StateStore) deleteRow(ctx context.Context, req *state.DeleteRequest) er
 	deleteContext, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	if req.HasETag() {
-		azcoreETag := azcore.ETag(*req.ETag)
-		_, err := r.client.DeleteEntity(deleteContext, pk, rk, &aztables.DeleteEntityOptions{IfMatch: &azcoreETag})
+		_, err := r.client.DeleteEntity(deleteContext, pk, rk, &aztables.DeleteEntityOptions{
+			IfMatch: ptr.Of(azcore.ETag(*req.ETag)),
+		})
 		if err != nil {
 			if isPreconditionFailedError(err) {
 				return state.NewETagError(state.ETagMismatch, err)

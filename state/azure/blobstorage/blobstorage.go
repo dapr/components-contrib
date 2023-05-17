@@ -155,7 +155,7 @@ func (r *StateStore) writeFile(ctx context.Context, req *state.SetRequest) error
 	if req.HasETag() {
 		modifiedAccessConditions.IfMatch = ptr.Of(azcore.ETag(*req.ETag))
 	}
-	if req.Options.Concurrency == state.FirstWrite && (req.ETag == nil || *req.ETag == "") {
+	if req.Options.Concurrency == state.FirstWrite && !req.HasETag() {
 		modifiedAccessConditions.IfNoneMatch = ptr.Of(azcore.ETagAny)
 	}
 
@@ -179,7 +179,7 @@ func (r *StateStore) writeFile(ctx context.Context, req *state.SetRequest) error
 
 	if err != nil {
 		// Check if the error is due to ETag conflict
-		if req.HasETag() {
+		if req.HasETag() && isETagConflictError(err) {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
@@ -206,7 +206,7 @@ func (r *StateStore) deleteFile(ctx context.Context, req *state.DeleteRequest) e
 
 	_, err := blockBlobClient.Delete(ctx, &deleteOptions)
 	if err != nil {
-		if req.HasETag() {
+		if req.HasETag() && isETagConflictError(err) {
 			return state.NewETagError(state.ETagMismatch, err)
 		} else if isNotFoundError(err) {
 			// deleting an item that doesn't exist without specifying an ETAG is a noop

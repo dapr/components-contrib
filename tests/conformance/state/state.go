@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/dapr/components-contrib/contenttype"
 	"github.com/dapr/components-contrib/metadata"
@@ -385,27 +386,49 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	})
 
 	t.Run("bulkget", func(t *testing.T) {
-		var req []state.GetRequest
-		expects := map[string]any{}
+		tests := []struct {
+			name   string
+			req    []state.GetRequest
+			expect map[string]any
+		}{
+			{name: "scenario", req: []state.GetRequest{}, expect: map[string]any{}},
+			{name: "include non-existent key", req: []state.GetRequest{{Key: "doesnotexist"}}, expect: map[string]any{"doesnotexist": nil}},
+		}
+
+		// Build test cases
+		first := true
 		for _, scenario := range scenarios {
 			if scenario.bulkOnly {
 				t.Logf("Adding get request to bulk for %s", scenario.key)
-				req = append(req, state.GetRequest{
+				tests[0].req = append(tests[0].req, state.GetRequest{
 					Key: scenario.key,
 				})
-				expects[scenario.key] = scenario.value
+				tests[0].expect[scenario.key] = scenario.value
+
+				if first {
+					tests[1].req = append(tests[1].req, state.GetRequest{
+						Key: scenario.key,
+					})
+					tests[1].expect[scenario.key] = scenario.value
+				}
 			}
 		}
-		res, err := statestore.BulkGet(context.Background(), req, state.BulkGetOpts{})
-		require.NoError(t, err)
-		require.Len(t, res, len(expects))
 
-		for _, r := range res {
-			t.Logf("Checking value equality %s", r.Key)
-			_, ok := expects[r.Key]
-			if assert.Empty(t, r.Error) && assert.True(t, ok) {
-				assertDataEquals(t, expects[r.Key], r.Data)
-			}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				res, err := statestore.BulkGet(context.Background(), tt.req, state.BulkGetOpts{})
+				require.NoError(t, err)
+				require.Len(t, res, len(tt.expect))
+
+				for _, r := range res {
+					t.Logf("Checking value equality %s", r.Key)
+					val, ok := tt.expect[r.Key]
+					if assert.Empty(t, r.Error) && assert.True(t, ok) {
+						assertDataEquals(t, val, r.Data)
+					}
+					delete(tt.expect, r.Key)
+				}
+			})
 		}
 	})
 
@@ -821,8 +844,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				{Key: testKeys[3]},
 			}, state.BulkGetOpts{})
 			require.NoError(t, err)
-			// TODO: DECIDE IF WE SHOULD STANDARDIZE ON INCLUDING MISSING KEYS (IF WE DO THAT, UPDATE THE BULKGET TEST TOO)
-			/*require.Len(t, bulkRes, 2)
+			require.Len(t, bulkRes, 2)
 			foundKeys := []string{}
 			for i := 0; i < 2; i++ {
 				require.Empty(t, bulkRes[i].Data)
@@ -835,7 +857,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}
 			slices.Sort(foundKeys)
 			slices.Sort(expectKeys)
-			assert.EqualValues(t, expectKeys, foundKeys)*/
+			assert.EqualValues(t, expectKeys, foundKeys)
 		})
 	} else {
 		t.Run("etag feature not present", func(t *testing.T) {
@@ -1025,6 +1047,8 @@ func assertDataEquals(t *testing.T, expect any, actual []byte) {
 		assert.Equal(t, expect, v)
 	case []byte:
 		assert.Equal(t, expect, actual)
+	case nil:
+		assert.Empty(t, actual)
 	default:
 		// Other golang primitive types (string, bool ...)
 		if err := json.Unmarshal(actual, &v); err != nil {

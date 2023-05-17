@@ -109,8 +109,13 @@ func DoBulkGet(ctx context.Context, req []GetRequest, opts BulkGetOpts, getFn fu
 	return res, nil
 }
 
+type stateRequestConstraint interface {
+	SetRequest | DeleteRequest
+	StateRequest
+}
+
 // DoBulkSetDelete performs BulkSet and BulkDelete.
-func DoBulkSetDelete[T SetRequest | DeleteRequest](ctx context.Context, req []T, method func(ctx context.Context, req *T) error, opts BulkStoreOpts) error {
+func DoBulkSetDelete[T stateRequestConstraint](ctx context.Context, req []T, method func(ctx context.Context, req *T) error, opts BulkStoreOpts) error {
 	// If parallelism isn't set, run all operations in parallel
 	var limitCh chan struct{}
 	if opts.Parallelism > 0 {
@@ -129,8 +134,8 @@ func DoBulkSetDelete[T SetRequest | DeleteRequest](ctx context.Context, req []T,
 			rErr := method(ctx, &req[i])
 			if rErr != nil {
 				errCh <- BulkStoreError{
-					sequence: i,
-					err:      rErr,
+					key: req[i].GetKey(),
+					err: rErr,
 				}
 			} else {
 				errCh <- nil

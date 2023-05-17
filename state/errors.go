@@ -86,20 +86,20 @@ func (e *BulkDeleteRowMismatchError) Error() string {
 
 // BulkStoreError is an error object that contains details on the operations that failed.
 type BulkStoreError struct {
-	sequence int
-	err      error
+	key string
+	err error
 }
 
-func NewBulkStoreError(sequence int, err error) BulkStoreError {
+func NewBulkStoreError(key string, err error) BulkStoreError {
 	return BulkStoreError{
-		sequence: sequence,
-		err:      err,
+		key: key,
+		err: err,
 	}
 }
 
-// Sequence returns the number of the operation that failed.
-func (e BulkStoreError) Sequence() int {
-	return e.sequence
+// Key returns the key of the operation that failed.
+func (e BulkStoreError) Key() string {
+	return e.key
 }
 
 // Error returns the error message. It implements the error interface.

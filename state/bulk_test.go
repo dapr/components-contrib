@@ -16,9 +16,11 @@ package state
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync/atomic"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -69,15 +71,20 @@ func TestBulkStore(t *testing.T) {
 		require.Equal(t, expectCount, s.count.Load())
 		require.Equal(t, expectBulkCount, s.bulkCount.Load())
 
-		err = s.BulkSet(ctx, []SetRequest{{Key: "error-key"}, {}, {Key: "error-key"}, {}}, BulkStoreOpts{})
+		err = s.BulkSet(ctx, []SetRequest{{Key: "error-key1"}, {}, {Key: "error-key2"}, {}}, BulkStoreOpts{})
 		expectCount += 4
 		require.Error(t, err)
 		merr, ok := err.(interface{ Unwrap() []error })
 		require.True(t, ok)
 		errs := merr.Unwrap()
 		require.Len(t, errs, 2)
-		require.ErrorIs(t, errs[0], errSimulated)
-		require.ErrorIs(t, errs[1], errSimulated)
+		for i := 0; i < 2; i++ {
+			var bse BulkStoreError
+			assert.ErrorAs(t, errs[i], &bse)
+			assert.True(t, bse.key == "error-key1" || bse.key == "error-key2")
+			assert.ErrorIs(t, bse, errSimulated)
+			assert.ErrorIs(t, errs[i], errSimulated)
+		}
 		require.Equal(t, expectCount, s.count.Load())
 		require.Equal(t, expectBulkCount, s.bulkCount.Load())
 	})
@@ -149,7 +156,7 @@ func (s *storeBulk) Get(ctx context.Context, req *GetRequest) (*GetResponse, err
 
 func (s *storeBulk) Set(ctx context.Context, req *SetRequest) error {
 	s.count.Add(1)
-	if req.Key == "error-key" {
+	if strings.Contains(req.Key, "error-key") {
 		return errSimulated
 	}
 	return nil

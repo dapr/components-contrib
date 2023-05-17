@@ -312,4 +312,4 @@ require (
 
 replace github.com/dapr/components-contrib => ../../
 
-replace github.com/dapr/dapr => github.com/italypaleale/dapr v1.6.1-0.20230516165216-3ccb743366a0
+replace github.com/dapr/dapr => github.com/italypaleale/dapr v1.6.1-0.20230517003350-c5aed3bc5b0f

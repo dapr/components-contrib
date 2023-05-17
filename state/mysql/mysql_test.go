@@ -174,44 +174,6 @@ func TestExecuteMultiCannotBeginTransaction(t *testing.T) {
 	assert.Equal(t, "beginError", err.Error(), "wrong error returned")
 }
 
-func TestMySQLBulkDeleteRollbackDeletes(t *testing.T) {
-	// Arrange
-	m, _ := mockDatabase(t)
-	defer m.mySQL.Close()
-
-	m.mock1.ExpectBegin()
-	m.mock1.ExpectExec("DELETE FROM").WillReturnError(fmt.Errorf("deleteError"))
-	m.mock1.ExpectRollback()
-
-	deletes := []state.DeleteRequest{createDeleteRequest()}
-
-	// Act
-	err := m.mySQL.BulkDelete(context.Background(), deletes)
-
-	// Assert
-	assert.NotNil(t, err, "no error returned")
-	assert.Equal(t, "deleteError", err.Error(), "wrong error returned")
-}
-
-func TestMySQLBulkSetRollbackSets(t *testing.T) {
-	// Arrange
-	m, _ := mockDatabase(t)
-	defer m.mySQL.Close()
-
-	m.mock1.ExpectBegin()
-	m.mock1.ExpectExec("INSERT INTO").WillReturnError(fmt.Errorf("setError"))
-	m.mock1.ExpectRollback()
-
-	sets := []state.SetRequest{createSetRequest()}
-
-	// Act
-	err := m.mySQL.BulkSet(context.Background(), sets)
-
-	// Assert
-	assert.NotNil(t, err, "no error returned")
-	assert.Equal(t, "setError", err.Error(), "wrong error returned")
-}
-
 func TestExecuteMultiCommitSetsAndDeletes(t *testing.T) {
 	// Arrange
 	m, _ := mockDatabase(t)

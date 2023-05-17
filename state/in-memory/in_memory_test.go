@@ -102,7 +102,7 @@ func TestReadAndWrite(t *testing.T) {
 		}, {
 			Key:   "theSecondKey",
 			Value: "84",
-		}})
+		}}, state.BulkStoreOpts{})
 
 		assert.NoError(t, err)
 	})

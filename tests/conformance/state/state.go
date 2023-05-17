@@ -357,7 +357,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					})
 				}
 			}
-			err := statestore.BulkSet(context.Background(), bulk)
+			err := statestore.BulkSet(context.Background(), bulk, state.BulkStoreOpts{})
 			require.NoError(t, err)
 
 			for _, scenario := range scenarios {
@@ -412,7 +412,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					})
 				}
 			}
-			err := statestore.BulkDelete(context.Background(), bulk)
+			err := statestore.BulkDelete(context.Background(), bulk, state.BulkStoreOpts{})
 			assert.NoError(t, err)
 
 			for _, req := range bulk {

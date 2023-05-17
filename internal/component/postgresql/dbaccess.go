@@ -26,11 +26,9 @@ import (
 type dbAccess interface {
 	Init(ctx context.Context, metadata state.Metadata) error
 	Set(ctx context.Context, req *state.SetRequest) error
-	BulkSet(ctx context.Context, req []state.SetRequest) error
 	Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error)
 	BulkGet(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error)
 	Delete(ctx context.Context, req *state.DeleteRequest) error
-	BulkDelete(ctx context.Context, req []state.DeleteRequest) error
 	ExecuteMulti(ctx context.Context, req *state.TransactionalStateRequest) error
 	Query(ctx context.Context, req *state.QueryRequest) (*state.QueryResponse, error)
 	Close() error // io.Closer

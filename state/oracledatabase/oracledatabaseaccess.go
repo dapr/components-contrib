@@ -194,9 +194,6 @@ func (o *oracleDatabaseAccess) doSet(ctx context.Context, db querier, req *state
 		result, err = db.ExecContext(ctx, updateStatement, value, binaryYN, etag, req.Key, *req.ETag)
 	}
 	if err != nil {
-		if req.ETag != nil && *req.ETag != "" {
-			return state.NewETagError(state.ETagMismatch, err)
-		}
 		return err
 	}
 	rows, err := result.RowsAffected()
@@ -204,6 +201,9 @@ func (o *oracleDatabaseAccess) doSet(ctx context.Context, db querier, req *state
 		return err
 	}
 	if rows != 1 {
+		if req.ETag != nil && *req.ETag != "" {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
 		return errors.New("no item was updated")
 	}
 	return nil

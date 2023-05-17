@@ -206,7 +206,7 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 
 	// create a document based on request key and value
 	filter := bson.M{id: req.Key}
-	if req.ETag != nil && *req.ETag != "" {
+	if req.HasETag() {
 		filter[etag] = *req.ETag
 	} else if req.Options.Concurrency == state.FirstWrite {
 		uuid, err := uuid.NewRandom()
@@ -427,7 +427,7 @@ func (m *MongoDB) Delete(ctx context.Context, req *state.DeleteRequest) error {
 
 func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) error {
 	filter := bson.M{id: req.Key}
-	if req.ETag != nil && *req.ETag != "" {
+	if req.HasETag() {
 		filter[etag] = *req.ETag
 	}
 	result, err := m.collection.DeleteOne(ctx, filter)
@@ -436,7 +436,7 @@ func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) 
 	}
 
 	if result.DeletedCount == 0 && req.ETag != nil && *req.ETag != "" {
-		return errors.New("key or etag not found")
+		return state.NewETagError(state.ETagMismatch, err)
 	}
 
 	return nil

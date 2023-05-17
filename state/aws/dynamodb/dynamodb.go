@@ -138,9 +138,10 @@ func (d *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 		Data: []byte(output),
 	}
 
-	var etag string
-	if etagVal, ok := result.Item["etag"]; ok {
-		if err = dynamodbattribute.Unmarshal(etagVal, &etag); err != nil {
+	if result.Item["etag"] != nil {
+		var etag string
+		err = dynamodbattribute.Unmarshal(result.Item["etag"], &etag)
+		if err != nil {
 			return nil, err
 		}
 		resp.ETag = &etag
@@ -161,9 +162,7 @@ func (d *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 		TableName: &d.table,
 	}
 
-	haveEtag := false
-	if req.ETag != nil && *req.ETag != "" {
-		haveEtag = true
+	if req.HasETag() {
 		condExpr := "etag = :etag"
 		input.ConditionExpression = &condExpr
 		exprAttrValues := make(map[string]*dynamodb.AttributeValue)
@@ -177,7 +176,7 @@ func (d *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	}
 
 	_, err = d.client.PutItemWithContext(ctx, input)
-	if err != nil && haveEtag {
+	if err != nil && req.HasETag() {
 		switch cErr := err.(type) {
 		case *dynamodb.ConditionalCheckFailedException:
 			err = state.NewETagError(state.ETagMismatch, cErr)
@@ -198,7 +197,7 @@ func (d *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 		TableName: aws.String(d.table),
 	}
 
-	if req.ETag != nil && *req.ETag != "" {
+	if req.HasETag() {
 		condExpr := "etag = :etag"
 		input.ConditionExpression = &condExpr
 		exprAttrValues := make(map[string]*dynamodb.AttributeValue)

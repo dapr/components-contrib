@@ -495,7 +495,7 @@ func (m *MySQL) deleteValue(parentCtx context.Context, querier querier, req *sta
 	execCtx, cancel := context.WithTimeout(parentCtx, m.timeout)
 	defer cancel()
 
-	if req.ETag == nil || *req.ETag == "" {
+	if !req.HasETag() {
 		result, err = querier.ExecContext(execCtx,
 			`DELETE FROM `+m.tableName+` WHERE id = ?`,
 			req.Key)

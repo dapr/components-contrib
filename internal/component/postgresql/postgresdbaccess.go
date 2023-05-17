@@ -193,7 +193,7 @@ func (p *PostgresDBAccess) doSet(parentCtx context.Context, db dbquerier, req *s
 		params          []any
 	)
 
-	if req.ETag == nil || *req.ETag == "" {
+	if !req.HasETag() {
 		params = []any{req.Key, value, isBinary}
 	} else {
 		var etag64 uint64
@@ -220,7 +220,7 @@ func (p *PostgresDBAccess) doSet(parentCtx context.Context, db dbquerier, req *s
 		return err
 	}
 	if result.RowsAffected() != 1 {
-		if req.ETag != nil && *req.ETag != "" {
+		if req.HasETag() {
 			return state.NewETagError(state.ETagMismatch, nil)
 		}
 		return errors.New("no item was updated")
@@ -352,7 +352,7 @@ func (p *PostgresDBAccess) doDelete(parentCtx context.Context, db dbquerier, req
 	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
 	defer cancel()
 	var result pgconn.CommandTag
-	if req.ETag == nil || *req.ETag == "" {
+	if !req.HasETag() {
 		result, err = db.Exec(ctx, "DELETE FROM "+p.metadata.TableName+" WHERE key = $1", req.Key)
 	} else {
 		// Convert req.ETag to uint32 for postgres XID compatibility

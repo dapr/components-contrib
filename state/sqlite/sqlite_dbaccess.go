@@ -299,13 +299,39 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 
 	var n int
 	res := make([]state.BulkGetResponse, len(req))
+	foundKeys := make(map[string]struct{}, len(req))
 	for ; rows.Next(); n++ {
+		if n >= len(req) {
+			// Sanity check to prevent panics, which should never happen
+			return nil, fmt.Errorf("query returned more records than expected (expected %d)", len(req))
+		}
+
 		r := state.BulkGetResponse{}
 		r.Key, r.Data, r.ETag, err = readRow(rows)
 		if err != nil {
 			r.Error = err.Error()
 		}
 		res[n] = r
+		foundKeys[r.Key] = struct{}{}
+	}
+
+	// Populate missing keys with empty values
+	// This is to ensure consistency with the other state stores that implement BulkGet as a loop over Get, and with the Get method
+	if len(foundKeys) < len(req) {
+		var ok bool
+		for _, r := range req {
+			_, ok = foundKeys[r.Key]
+			if !ok {
+				if n >= len(req) {
+					// Sanity check to prevent panics, which should never happen
+					return nil, fmt.Errorf("query returned more records than expected (expected %d)", len(req))
+				}
+				res[n] = state.BulkGetResponse{
+					Key: r.Key,
+				}
+				n++
+			}
+		}
 	}
 
 	return res[:n], nil
@@ -393,7 +419,7 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 	)
 	// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
 	// And the same is for DATETIME function's seconds parameter (which is from an integer anyways).
-	if req.ETag == nil || *req.ETag == "" {
+	if !req.HasETag() {
 		// If the operation uses first-write concurrency, we need to handle the special case of a row that has expired but hasn't been garbage collected yet
 		// In this case, the row should be considered as if it were deleted
 		// With SQLite, the only way we can handle that is by performing a SELECT query first
@@ -457,7 +483,7 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 		return err
 	}
 	if rows == 0 {
-		if req.ETag != nil && *req.ETag != "" {
+		if req.HasETag() {
 			return state.NewETagError(state.ETagMismatch, nil)
 		}
 		return errors.New("no item was updated")
@@ -530,7 +556,7 @@ func (a *sqliteDBAccess) doDelete(parentCtx context.Context, db querier, req *st
 	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
 	defer cancel()
 	var result sql.Result
-	if req.ETag == nil || *req.ETag == "" {
+	if !req.HasETag() {
 		// Concatenation is required for table name because sql.DB does not substitute parameters for table names.
 		result, err = db.ExecContext(ctx, "DELETE FROM "+a.metadata.TableName+" WHERE key = ?",
 			req.Key)

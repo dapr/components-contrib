@@ -186,7 +186,7 @@ func (s *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	}
 
 	if err != nil {
-		if req.ETag != nil {
+		if req.HasETag() {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
@@ -209,7 +209,7 @@ func (s *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	}
 
 	if err != nil {
-		if req.ETag != nil {
+		if req.HasETag() {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
@@ -232,7 +232,7 @@ func (s *StateStore) newDeleteRequest(req *state.DeleteRequest) (*zk.DeleteReque
 	} else {
 		var etag string
 
-		if req.ETag != nil {
+		if req.HasETag() {
 			etag = *req.ETag
 		}
 		version = s.parseETag(etag)
@@ -262,7 +262,7 @@ func (s *StateStore) newSetDataRequest(req *state.SetRequest) (*zk.SetDataReques
 	} else {
 		var etag string
 
-		if req.ETag != nil {
+		if req.HasETag() {
 			etag = *req.ETag
 		}
 		version = s.parseETag(etag)

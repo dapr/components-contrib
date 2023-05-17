@@ -102,8 +102,7 @@ type StateStore struct {
 	querySchemas                   querySchemas
 	suppressActorStateStoreWarning atomic.Bool
 
-	features []state.Feature
-	logger   logger.Logger
+	logger logger.Logger
 }
 
 // NewRedisStateStore returns a new redis state store.
@@ -116,7 +115,6 @@ func NewRedisStateStore(log logger.Logger) state.Store {
 func newStateStore(log logger.Logger) *StateStore {
 	return &StateStore{
 		json:                           jsoniter.ConfigFastest,
-		features:                       []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI},
 		logger:                         log,
 		suppressActorStateStoreWarning: atomic.Bool{},
 	}
@@ -162,7 +160,11 @@ func (r *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (r *StateStore) Features() []state.Feature {
-	return r.features
+	if r.clientHasJSON {
+		return []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI}
+	} else {
+		return []state.Feature{state.FeatureETag, state.FeatureTransactional}
+	}
 }
 
 func (r *StateStore) getConnectedSlaves(ctx context.Context) (int, error) {
@@ -201,9 +203,8 @@ func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 		return err
 	}
 
-	if req.ETag == nil {
-		etag := "0"
-		req.ETag = &etag
+	if !req.HasETag() {
+		req.ETag = ptr.Of("0")
 	}
 
 	if req.Metadata[daprmetadata.ContentType] == contenttype.JSONContentType && r.clientHasJSON {
@@ -352,7 +353,7 @@ func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	}
 
 	if err != nil {
-		if req.ETag != nil {
+		if req.HasETag() {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
@@ -426,9 +427,8 @@ func (r *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 			}
 
 		case state.DeleteRequest:
-			if req.ETag == nil {
-				etag := "0"
-				req.ETag = &etag
+			if !req.HasETag() {
+				req.ETag = ptr.Of("0")
 			}
 			isReqJSON := isJSON ||
 				(len(req.Metadata) > 0 && req.Metadata[daprmetadata.ContentType] == contenttype.JSONContentType)

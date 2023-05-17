@@ -14,6 +14,7 @@ limitations under the License.
 package sendgrid
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -42,8 +43,12 @@ func TestParseMetadataWithOptionalNames(t *testing.T) {
 	logger := logger.NewLogger("test")
 
 	t.Run("Has correct metadata", func(t *testing.T) {
+		// Sample nested JSON with Dynamic Template Data
+		dynamicTemplateData, _ := json.Marshal(map[string]interface{}{"name": map[string]interface{}{"first": "MyFirst", "last": "MyLast"}})
+
 		m := bindings.Metadata{}
-		m.Properties = map[string]string{"apiKey": "123", "emailFrom": "test1@example.net", "emailFromName": "test 1", "emailTo": "test2@example.net", "emailToName": "test 2", "subject": "hello"}
+		m.Properties = map[string]string{"apiKey": "123", "emailFrom": "test1@example.net", "emailFromName": "test 1", "emailTo": "test2@example.net", "emailToName": "test 2", "subject": "hello",
+			"dynamicTemplateData": string(dynamicTemplateData), "dynamicTemplateId": "456"}
 		r := SendGrid{logger: logger}
 		sgMeta, err := r.parseMetadata(m)
 		assert.Nil(t, err)
@@ -53,5 +58,26 @@ func TestParseMetadataWithOptionalNames(t *testing.T) {
 		assert.Equal(t, "test2@example.net", sgMeta.EmailTo)
 		assert.Equal(t, "test 2", sgMeta.EmailToName)
 		assert.Equal(t, "hello", sgMeta.Subject)
+		assert.Equal(t, "{\"name\":{\"first\":\"MyFirst\",\"last\":\"MyLast\"}}", sgMeta.DynamicTemplateData)
+		assert.Equal(t, "456", sgMeta.DynamicTemplateID)
+	})
+}
+
+// Test UnmarshalDynamicTemplateData function
+func TestUnmarshalDynamicTemplateData(t *testing.T) {
+	t.Run("Has correct metadata", func(t *testing.T) {
+		// Sample nested JSON with Dynamic Template Data
+		dynamicTemplateData, _ := json.Marshal(map[string]interface{}{"name": map[string]interface{}{"first": "MyFirst", "last": "MyLast"}})
+
+		var data map[string]interface{}
+
+		// Test valid JSON
+		err := UnmarshalDynamicTemplateData(string(dynamicTemplateData), &data)
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]interface{}{"first": "MyFirst", "last": "MyLast"}, data["name"])
+
+		// Test invalid JSON
+		err = UnmarshalDynamicTemplateData("{\"wrong\"}", &data)
+		assert.NotNil(t, err)
 	})
 }

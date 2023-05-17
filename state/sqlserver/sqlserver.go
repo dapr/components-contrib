@@ -204,7 +204,7 @@ func (s *SQLServer) Delete(ctx context.Context, req *state.DeleteRequest) error 
 func (s *SQLServer) executeDelete(ctx context.Context, db dbExecutor, req *state.DeleteRequest) error {
 	var err error
 	var res sql.Result
-	if req.ETag != nil {
+	if req.HasETag() {
 		var b []byte
 		b, err = hex.DecodeString(*req.ETag)
 		if err != nil {
@@ -292,7 +292,7 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 		return err
 	}
 	etag := sql.Named(rowVersionColumnName, nil)
-	if req.ETag != nil && *req.ETag != "" {
+	if req.HasETag() {
 		var b []byte
 		b, err = hex.DecodeString(*req.ETag)
 		if err != nil {
@@ -327,7 +327,7 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 	}
 
 	if rows != 1 {
-		if req.ETag != nil && *req.ETag != "" {
+		if req.HasETag() {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 		return errors.New("no item was updated")

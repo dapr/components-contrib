@@ -385,7 +385,7 @@ func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	partitionKey := populatePartitionMetadata(req.Key, req.Metadata)
 	options := azcosmos.ItemOptions{}
 
-	if req.ETag != nil && *req.ETag != "" {
+	if req.HasETag() {
 		etag := azcore.ETag(*req.ETag)
 		options.IfMatchEtag = &etag
 	} else if req.Options.Concurrency == state.FirstWrite {
@@ -436,7 +436,7 @@ func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	partitionKey := populatePartitionMetadata(req.Key, req.Metadata)
 	options := azcosmos.ItemOptions{}
 
-	if req.ETag != nil && *req.ETag != "" {
+	if req.HasETag() {
 		etag := azcore.ETag(*req.ETag)
 		options.IfMatchEtag = &etag
 	} else if req.Options.Concurrency == state.FirstWrite {
@@ -494,7 +494,7 @@ func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 			}
 			doc.PartitionKey = partitionKey
 
-			if req.ETag != nil && *req.ETag != "" {
+			if req.HasETag() {
 				etag := azcore.ETag(*req.ETag)
 				options.IfMatchETag = &etag
 			} else if req.Options.Concurrency == state.FirstWrite {
@@ -514,7 +514,7 @@ func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 			batch.UpsertItem(marsh, options)
 			numOperations++
 		case state.DeleteRequest:
-			if req.ETag != nil && *req.ETag != "" {
+			if req.HasETag() {
 				etag := azcore.ETag(*req.ETag)
 				options.IfMatchETag = &etag
 			} else if req.Options.Concurrency == state.FirstWrite {

@@ -31,6 +31,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/tests/conformance/utils"
+	"github.com/dapr/kit/config"
 	"github.com/dapr/kit/ptr"
 )
 
@@ -59,19 +60,27 @@ type queryScenario struct {
 
 type TestConfig struct {
 	utils.CommonConfig
+
+	BadEtag string `mapstructure:"badEtag"`
 }
 
-func NewTestConfig(component string, allOperations bool, operations []string, conf map[string]interface{}) TestConfig {
-	tc := TestConfig{
+func NewTestConfig(component string, allOperations bool, operations []string, configMap map[string]interface{}) (TestConfig, error) {
+	testConfig := TestConfig{
 		CommonConfig: utils.CommonConfig{
 			ComponentType: "state",
 			ComponentName: component,
 			AllOperations: allOperations,
 			Operations:    utils.NewStringSet(operations...),
 		},
+		BadEtag: "bad-etag",
 	}
 
-	return tc
+	err := config.Decode(configMap, &testConfig)
+	if err != nil {
+		return testConfig, err
+	}
+
+	return testConfig, nil
 }
 
 // ConformanceTests runs conf tests for state store.
@@ -237,7 +246,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 	// Don't run more tests if init failed
 	if t.Failed() {
-		t.Fatal("Init test failed, stopping further tests")
+		t.Fatal("Init failed, stopping further tests")
 	}
 
 	t.Run("ping", func(t *testing.T) {
@@ -252,46 +261,46 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		}
 	})
 
-	if config.HasOperation("set") {
-		t.Run("set", func(t *testing.T) {
-			for _, scenario := range scenarios {
-				if !scenario.bulkOnly && !scenario.transactionOnly {
-					t.Logf("Setting value for %s", scenario.key)
-					req := &state.SetRequest{
-						Key:   scenario.key,
-						Value: scenario.value,
-					}
-					if len(scenario.contentType) != 0 {
-						req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
-					}
-					err := statestore.Set(context.Background(), req)
-					assert.NoError(t, err)
+	t.Run("set", func(t *testing.T) {
+		for _, scenario := range scenarios {
+			if !scenario.bulkOnly && !scenario.transactionOnly {
+				t.Logf("Setting value for %s", scenario.key)
+				req := &state.SetRequest{
+					Key:   scenario.key,
+					Value: scenario.value,
 				}
+				if len(scenario.contentType) != 0 {
+					req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
+				}
+				err := statestore.Set(context.Background(), req)
+				assert.NoError(t, err)
 			}
-		})
-	}
+		}
+	})
 
-	if config.HasOperation("get") {
-		t.Run("get", func(t *testing.T) {
-			for _, scenario := range scenarios {
-				if !scenario.bulkOnly && !scenario.transactionOnly {
-					t.Logf("Checking value presence for %s", scenario.key)
-					req := &state.GetRequest{
-						Key: scenario.key,
-					}
-					if len(scenario.contentType) != 0 {
-						req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
-					}
-					res, err := statestore.Get(context.Background(), req)
-					require.NoError(t, err)
-					assertEquals(t, scenario.value, res)
+	t.Run("get", func(t *testing.T) {
+		for _, scenario := range scenarios {
+			if !scenario.bulkOnly && !scenario.transactionOnly {
+				t.Logf("Checking value presence for %s", scenario.key)
+				req := &state.GetRequest{
+					Key: scenario.key,
 				}
+				if len(scenario.contentType) != 0 {
+					req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
+				}
+				res, err := statestore.Get(context.Background(), req)
+				require.NoError(t, err)
+				assertEquals(t, scenario.value, res)
 			}
-		})
-	}
+		}
+	})
 
 	if config.HasOperation("query") {
 		t.Run("query", func(t *testing.T) {
+			// Check if query feature is listed
+			features := statestore.Features()
+			require.True(t, state.FeatureQueryAPI.IsPresent(features))
+
 			querier, ok := statestore.(state.Querier)
 			assert.True(t, ok, "Querier interface is not implemented")
 			for _, scenario := range queryScenarios {
@@ -317,116 +326,112 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				}
 			}
 		})
-	}
-
-	if config.HasOperation("delete") {
-		t.Run("delete", func(t *testing.T) {
-			for _, scenario := range scenarios {
-				if !scenario.bulkOnly && scenario.toBeDeleted {
-					// this also deletes two keys that were not inserted in the set operation
-					t.Logf("Deleting %s", scenario.key)
-					req := &state.DeleteRequest{
-						Key: scenario.key,
-					}
-					if len(scenario.contentType) != 0 {
-						req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
-					}
-					err := statestore.Delete(context.Background(), req)
-					assert.NoError(t, err, "no error expected while deleting %s", scenario.key)
-
-					t.Logf("Checking value absence for %s", scenario.key)
-					res, err := statestore.Get(context.Background(), &state.GetRequest{
-						Key: scenario.key,
-					})
-					assert.NoError(t, err, "no error expected while checking for absence for %s", scenario.key)
-					assert.Nil(t, res.Data, "no data expected while checking for absence for %s", scenario.key)
-				}
-			}
+	} else {
+		t.Run("query API feature not present", func(t *testing.T) {
+			features := statestore.Features()
+			assert.False(t, state.FeatureQueryAPI.IsPresent(features))
 		})
 	}
 
-	if config.HasOperation("bulkset") {
-		t.Run("bulkset", func(t *testing.T) {
-			var bulk []state.SetRequest
-			for _, scenario := range scenarios {
-				if scenario.bulkOnly {
-					t.Logf("Adding set request to bulk for %s", scenario.key)
-					bulk = append(bulk, state.SetRequest{
-						Key:   scenario.key,
-						Value: scenario.value,
-					})
+	t.Run("delete", func(t *testing.T) {
+		for _, scenario := range scenarios {
+			if !scenario.bulkOnly && scenario.toBeDeleted {
+				// this also deletes two keys that were not inserted in the set operation
+				t.Logf("Deleting %s", scenario.key)
+				req := &state.DeleteRequest{
+					Key: scenario.key,
 				}
-			}
-			err := statestore.BulkSet(context.Background(), bulk, state.BulkStoreOpts{})
-			require.NoError(t, err)
-
-			for _, scenario := range scenarios {
-				if scenario.bulkOnly {
-					t.Logf("Checking value presence for %s", scenario.key)
-					// Data should have been inserted at this point
-					res, err := statestore.Get(context.Background(), &state.GetRequest{
-						Key: scenario.key,
-					})
-					require.NoError(t, err)
-					assertEquals(t, scenario.value, res)
+				if len(scenario.contentType) != 0 {
+					req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
 				}
-			}
-		})
-	}
+				err := statestore.Delete(context.Background(), req)
+				assert.NoError(t, err, "no error expected while deleting %s", scenario.key)
 
-	if config.HasOperation("bulkget") {
-		t.Run("bulkget", func(t *testing.T) {
-			var req []state.GetRequest
-			expects := map[string]any{}
-			for _, scenario := range scenarios {
-				if scenario.bulkOnly {
-					t.Logf("Adding get request to bulk for %s", scenario.key)
-					req = append(req, state.GetRequest{
-						Key: scenario.key,
-					})
-					expects[scenario.key] = scenario.value
-				}
-			}
-			res, err := statestore.BulkGet(context.Background(), req, state.BulkGetOpts{})
-			require.NoError(t, err)
-			require.Len(t, res, len(expects))
-
-			for _, r := range res {
-				t.Logf("Checking value equality %s", r.Key)
-				_, ok := expects[r.Key]
-				if assert.Empty(t, r.Error) && assert.True(t, ok) {
-					assertDataEquals(t, expects[r.Key], r.Data)
-				}
-			}
-		})
-	}
-
-	if config.HasOperation("bulkdelete") {
-		t.Run("bulkdelete", func(t *testing.T) {
-			var bulk []state.DeleteRequest
-			for _, scenario := range scenarios {
-				if scenario.bulkOnly && scenario.toBeDeleted {
-					t.Logf("Adding delete request to bulk for %s", scenario.key)
-					bulk = append(bulk, state.DeleteRequest{
-						Key: scenario.key,
-					})
-				}
-			}
-			err := statestore.BulkDelete(context.Background(), bulk, state.BulkStoreOpts{})
-			assert.NoError(t, err)
-
-			for _, req := range bulk {
-				t.Logf("Checking value absence for %s", req.Key)
+				t.Logf("Checking value absence for %s", scenario.key)
 				res, err := statestore.Get(context.Background(), &state.GetRequest{
-					Key: req.Key,
+					Key: scenario.key,
 				})
-				assert.NoError(t, err)
-				assert.Nil(t, res.Data)
+				assert.NoError(t, err, "no error expected while checking for absence for %s", scenario.key)
+				assert.Nil(t, res.Data, "no data expected while checking for absence for %s", scenario.key)
 			}
-		})
-	}
+		}
+	})
 
-	//nolint:nestif
+	t.Run("bulkset", func(t *testing.T) {
+		var bulk []state.SetRequest
+		for _, scenario := range scenarios {
+			if scenario.bulkOnly {
+				t.Logf("Adding set request to bulk for %s", scenario.key)
+				bulk = append(bulk, state.SetRequest{
+					Key:   scenario.key,
+					Value: scenario.value,
+				})
+			}
+		}
+		err := statestore.BulkSet(context.Background(), bulk, state.BulkStoreOpts{})
+		require.NoError(t, err)
+
+		for _, scenario := range scenarios {
+			if scenario.bulkOnly {
+				t.Logf("Checking value presence for %s", scenario.key)
+				// Data should have been inserted at this point
+				res, err := statestore.Get(context.Background(), &state.GetRequest{
+					Key: scenario.key,
+				})
+				require.NoError(t, err)
+				assertEquals(t, scenario.value, res)
+			}
+		}
+	})
+
+	t.Run("bulkget", func(t *testing.T) {
+		var req []state.GetRequest
+		expects := map[string]any{}
+		for _, scenario := range scenarios {
+			if scenario.bulkOnly {
+				t.Logf("Adding get request to bulk for %s", scenario.key)
+				req = append(req, state.GetRequest{
+					Key: scenario.key,
+				})
+				expects[scenario.key] = scenario.value
+			}
+		}
+		res, err := statestore.BulkGet(context.Background(), req, state.BulkGetOpts{})
+		require.NoError(t, err)
+		require.Len(t, res, len(expects))
+
+		for _, r := range res {
+			t.Logf("Checking value equality %s", r.Key)
+			_, ok := expects[r.Key]
+			if assert.Empty(t, r.Error) && assert.True(t, ok) {
+				assertDataEquals(t, expects[r.Key], r.Data)
+			}
+		}
+	})
+
+	t.Run("bulkdelete", func(t *testing.T) {
+		var bulk []state.DeleteRequest
+		for _, scenario := range scenarios {
+			if scenario.bulkOnly && scenario.toBeDeleted {
+				t.Logf("Adding delete request to bulk for %s", scenario.key)
+				bulk = append(bulk, state.DeleteRequest{
+					Key: scenario.key,
+				})
+			}
+		}
+		err := statestore.BulkDelete(context.Background(), bulk, state.BulkStoreOpts{})
+		assert.NoError(t, err)
+
+		for _, req := range bulk {
+			t.Logf("Checking value absence for %s", req.Key)
+			res, err := statestore.Get(context.Background(), &state.GetRequest{
+				Key: req.Key,
+			})
+			assert.NoError(t, err)
+			assert.Nil(t, res.Data)
+		}
+	})
+
 	if config.HasOperation("transaction") {
 		t.Run("transaction", func(t *testing.T) {
 			// Check if transactional feature is listed
@@ -512,11 +517,11 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 		t.Run("transaction-order", func(t *testing.T) {
 			// Arrange
-			firstKey := "key1"
+			firstKey := key + "-key1"
 			firstValue := "value1"
-			secondKey := "key2"
+			secondKey := key + "-key2"
 			secondValue := "value2"
-			thirdKey := "key3"
+			thirdKey := key + "-key3"
 			thirdValue := "value3"
 
 			// for CosmosDB
@@ -593,92 +598,255 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}
 		})
 	} else {
-		// Check if transactional feature is NOT listed
-		features := statestore.Features()
-		assert.False(t, state.FeatureTransactional.IsPresent(features))
+		t.Run("transactional feature not present", func(t *testing.T) {
+			features := statestore.Features()
+			assert.False(t, state.FeatureTransactional.IsPresent(features))
+		})
 	}
 
 	// Supporting etags requires support for get, set, and delete so they are not checked individually
 	if config.HasOperation("etag") {
 		t.Run("etag", func(t *testing.T) {
-			testKey := "etagTest"
-			firstValue := []byte("testValue1")
-			secondValue := []byte("testValue2")
-			fakeEtag := "not-an-etag"
+			var (
+				etagErr      *state.ETagError
+				bulkStoreErr state.BulkStoreError
+				testKeys     = [4]string{key + "-etag1", key + "-etag2", key + "-etag3", key + "-etag4"}
+				etags        [4]string
+			)
+			const (
+				firstValue  = "first-value"
+				secondValue = "second-value"
+				thirdValue  = "third-value"
+			)
 
 			// Check if eTag feature is listed
 			features := statestore.Features()
 			require.True(t, state.FeatureETag.IsPresent(features))
 
-			// Delete any potential object, it's important to start from a clean slate.
-			err := statestore.Delete(context.Background(), &state.DeleteRequest{
-				Key: testKey,
-			})
+			// Set some objects (no etag as they are new)
+			err := statestore.BulkSet(context.Background(), []state.SetRequest{
+				{Key: testKeys[0], Value: firstValue},
+				{Key: testKeys[1], Value: firstValue},
+				{Key: testKeys[2], Value: firstValue},
+				{Key: testKeys[3], Value: firstValue},
+			}, state.BulkStoreOpts{})
 			require.NoError(t, err)
 
-			// Set an object.
-			err = statestore.Set(context.Background(), &state.SetRequest{
-				Key:   testKey,
-				Value: firstValue,
-			})
-			require.NoError(t, err)
-
-			// Validate the set.
+			// Validate the set, using both regular Get and BulkGet
 			res, err := statestore.Get(context.Background(), &state.GetRequest{
-				Key: testKey,
+				Key: testKeys[0],
 			})
 			require.NoError(t, err)
+			require.NotNil(t, res.ETag)
+			require.NotEmpty(t, *res.ETag)
 			assertEquals(t, firstValue, res)
-			etag := res.ETag
+			etags[0] = *res.ETag
 
-			// Try and update with wrong ETag, expect failure.
+			bulkRes, err := statestore.BulkGet(context.Background(), []state.GetRequest{
+				{Key: testKeys[1]},
+				{Key: testKeys[2]},
+				{Key: testKeys[3]},
+			}, state.BulkGetOpts{})
+			require.NoError(t, err)
+			require.Len(t, bulkRes, 3)
+			for i := 0; i < 3; i++ {
+				require.NotNil(t, bulkRes[i].ETag)
+				require.NotEmpty(t, *bulkRes[i].ETag)
+				assertDataEquals(t, firstValue, bulkRes[i].Data)
+				switch bulkRes[i].Key {
+				case testKeys[1]:
+					etags[1] = *bulkRes[i].ETag
+				case testKeys[2]:
+					etags[2] = *bulkRes[i].ETag
+				case testKeys[3]:
+					etags[3] = *bulkRes[i].ETag
+				}
+			}
+
+			// Try and update with wrong ETag, expect failure
 			err = statestore.Set(context.Background(), &state.SetRequest{
-				Key:   testKey,
+				Key:   testKeys[0],
 				Value: secondValue,
-				ETag:  &fakeEtag,
+				ETag:  &config.BadEtag,
 			})
 			require.Error(t, err)
+			require.ErrorAs(t, err, &etagErr)
+			assert.Equal(t, state.ETagMismatch, etagErr.Kind())
 
-			// Try and update with corect ETag, expect success.
+			// Try and update with Set and corect ETag, expect success
 			err = statestore.Set(context.Background(), &state.SetRequest{
-				Key:   testKey,
+				Key:   testKeys[0],
 				Value: secondValue,
-				ETag:  etag,
+				ETag:  &etags[0],
 			})
 			require.NoError(t, err)
 
-			// Validate the set.
+			// Validate the Set
 			res, err = statestore.Get(context.Background(), &state.GetRequest{
-				Key: testKey,
+				Key: testKeys[0],
 			})
 			require.NoError(t, err)
 			assertEquals(t, secondValue, res)
-			require.NotEqual(t, etag, res.ETag)
-			etag = res.ETag
+			require.NotNil(t, res.ETag)
+			require.NotEqual(t, etags[0], *res.ETag)
+			etags[0] = *res.ETag
 
-			// Try and delete with wrong ETag, expect failure.
-			err = statestore.Delete(context.Background(), &state.DeleteRequest{
-				Key:  testKey,
-				ETag: &fakeEtag,
-			})
+			// Try and update bulk with one ETag wrong, expect partial success
+			err = statestore.BulkSet(context.Background(), []state.SetRequest{
+				{Key: testKeys[1], Value: secondValue, ETag: &config.BadEtag},
+				{Key: testKeys[2], Value: secondValue, ETag: &etags[2]},
+			}, state.BulkStoreOpts{})
 			require.Error(t, err)
+			unwrapErr, ok := err.(interface{ Unwrap() []error })
+			require.True(t, ok, "Returned error is not a joined error")
+			errs := unwrapErr.Unwrap()
+			require.Len(t, errs, 1)
+			require.ErrorAs(t, errs[0], &bulkStoreErr)
+			assert.Equal(t, testKeys[1], bulkStoreErr.Key())
+			etagErr = bulkStoreErr.ETagError()
+			require.NotNil(t, etagErr)
+			assert.Equal(t, state.ETagMismatch, etagErr.Kind())
 
-			// Try and delete with correct ETag, expect success.
-			err = statestore.Delete(context.Background(), &state.DeleteRequest{
-				Key:  testKey,
-				ETag: etag,
+			// Validate: key 1 should be unchanged, and key 2 should be changed
+			res, err = statestore.Get(context.Background(), &state.GetRequest{
+				Key: testKeys[1],
 			})
 			require.NoError(t, err)
+			assertEquals(t, firstValue, res)
+			require.NotNil(t, res.ETag)
+			require.Equal(t, etags[1], *res.ETag)
+
+			res, err = statestore.Get(context.Background(), &state.GetRequest{
+				Key: testKeys[2],
+			})
+			require.NoError(t, err)
+			assertEquals(t, secondValue, res)
+			require.NotNil(t, res.ETag)
+			require.NotEqual(t, etags[2], *res.ETag)
+			etags[2] = *res.ETag
+
+			// Update bulk with valid etags
+			err = statestore.BulkSet(context.Background(), []state.SetRequest{
+				{Key: testKeys[1], Value: thirdValue, ETag: &etags[1]},
+				{Key: testKeys[2], Value: thirdValue, ETag: &etags[2]},
+			}, state.BulkStoreOpts{})
+			require.NoError(t, err)
+
+			// Validate
+			bulkRes, err = statestore.BulkGet(context.Background(), []state.GetRequest{
+				{Key: testKeys[1]},
+				{Key: testKeys[2]},
+			}, state.BulkGetOpts{})
+			require.NoError(t, err)
+			require.Len(t, bulkRes, 2)
+			for i := 0; i < 2; i++ {
+				require.NotNil(t, bulkRes[i].ETag)
+				require.NotEmpty(t, *bulkRes[i].ETag)
+				assertDataEquals(t, thirdValue, bulkRes[i].Data)
+				switch bulkRes[i].Key {
+				case testKeys[1]:
+					etags[1] = *bulkRes[i].ETag
+				case testKeys[2]:
+					etags[2] = *bulkRes[i].ETag
+				}
+			}
+
+			// Try and delete with wrong ETag, expect failure
+			err = statestore.Delete(context.Background(), &state.DeleteRequest{
+				Key:  testKeys[0],
+				ETag: &config.BadEtag,
+			})
+			require.Error(t, err)
+			require.ErrorAs(t, err, &etagErr)
+			assert.NotEmpty(t, etagErr.Kind())
+
+			// Try and delete with correct ETag, expect success
+			err = statestore.Delete(context.Background(), &state.DeleteRequest{
+				Key:  testKeys[0],
+				ETag: &etags[0],
+			})
+			require.NoError(t, err)
+
+			// Validate missing
+			res, err = statestore.Get(context.Background(), &state.GetRequest{
+				Key: testKeys[0],
+			})
+			require.NoError(t, err)
+			require.Empty(t, res.Data)
+			require.Empty(t, res.ETag)
+
+			// Try and delete bulk with two ETag's wrong, expect partial success
+			err = statestore.BulkDelete(context.Background(), []state.DeleteRequest{
+				{Key: testKeys[1], ETag: &etags[1]},
+				{Key: testKeys[2], ETag: &config.BadEtag},
+			}, state.BulkStoreOpts{})
+			require.Error(t, err)
+			unwrapErr, ok = err.(interface{ Unwrap() []error })
+			require.True(t, ok, "Returned error is not a joined error")
+			errs = unwrapErr.Unwrap()
+			require.Len(t, errs, 1)
+			require.ErrorAs(t, errs[0], &bulkStoreErr)
+			assert.Equal(t, testKeys[2], bulkStoreErr.Key())
+			etagErr = bulkStoreErr.ETagError()
+			require.NotNil(t, etagErr)
+			assert.Equal(t, state.ETagMismatch, etagErr.Kind())
+
+			// Validate key 1 missing
+			res, err = statestore.Get(context.Background(), &state.GetRequest{
+				Key: testKeys[1],
+			})
+			require.NoError(t, err)
+			require.Empty(t, res.Data)
+			require.Empty(t, res.ETag)
+
+			// Validate key 2 unchanged
+			res, err = statestore.Get(context.Background(), &state.GetRequest{
+				Key: testKeys[2],
+			})
+			require.NoError(t, err)
+			assertEquals(t, thirdValue, res)
+			require.NotNil(t, res.ETag)
+			require.Equal(t, etags[2], *res.ETag)
+
+			// Try and delete bulk with valid ETags
+			err = statestore.BulkDelete(context.Background(), []state.DeleteRequest{
+				{Key: testKeys[2], ETag: &etags[2]},
+				{Key: testKeys[3], ETag: &etags[3]},
+			}, state.BulkStoreOpts{})
+			require.NoError(t, err)
+
+			// Validate keys missing
+			bulkRes, err = statestore.BulkGet(context.Background(), []state.GetRequest{
+				{Key: testKeys[2]},
+				{Key: testKeys[3]},
+			}, state.BulkGetOpts{})
+			require.NoError(t, err)
+			// TODO: DECIDE IF WE SHOULD STANDARDIZE ON INCLUDING MISSING KEYS (IF WE DO THAT, UPDATE THE BULKGET TEST TOO)
+			/*require.Len(t, bulkRes, 2)
+			foundKeys := []string{}
+			for i := 0; i < 2; i++ {
+				require.Empty(t, bulkRes[i].Data)
+				require.Empty(t, bulkRes[i].ETag)
+				foundKeys = append(foundKeys, bulkRes[i].Key)
+			}
+			expectKeys := []string{
+				testKeys[2],
+				testKeys[3],
+			}
+			slices.Sort(foundKeys)
+			slices.Sort(expectKeys)
+			assert.EqualValues(t, expectKeys, foundKeys)*/
 		})
 	} else {
-		// Check if eTag feature is NOT listed
-		features := statestore.Features()
-		require.False(t, state.FeatureETag.IsPresent(features))
+		t.Run("etag feature not present", func(t *testing.T) {
+			features := statestore.Features()
+			require.False(t, state.FeatureETag.IsPresent(features))
+		})
 	}
 
 	if config.HasOperation("first-write") {
 		t.Run("first-write without etag", func(t *testing.T) {
-			testKey := "first-writeTest"
+			testKey := key + "-firstwrite-test"
 			firstValue := []byte("testValue1")
 			secondValue := []byte("testValue2")
 
@@ -731,10 +899,11 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					})
 					require.NoError(t, err)
 
+					// Set the value
 					err = statestore.Set(context.Background(), requestSet[0])
 					require.NoError(t, err)
 
-					// Validate the set.
+					// Validate the set
 					res, err := statestore.Get(context.Background(), &state.GetRequest{
 						Key: testKey,
 					})
@@ -749,7 +918,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		})
 
 		t.Run("first-write with etag", func(t *testing.T) {
-			testKey := "first-writeTest"
+			testKey := key + "-firstwrite-etag-test"
 			firstValue := []byte("testValue1")
 			secondValue := []byte("testValue2")
 
@@ -758,13 +927,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				Value: firstValue,
 			}
 
-			// Delete any potential object, it's important to start from a clean slate.
-			err := statestore.Delete(context.Background(), &state.DeleteRequest{
-				Key: testKey,
-			})
-			require.NoError(t, err)
-
-			err = statestore.Set(context.Background(), request)
+			err := statestore.Set(context.Background(), request)
 			require.NoError(t, err)
 
 			// Validate the set.

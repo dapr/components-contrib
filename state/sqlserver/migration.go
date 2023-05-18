@@ -28,8 +28,6 @@ type migration struct {
 }
 
 type migrationResult struct {
-	bulkDeleteProcName       string
-	bulkDeleteProcFullName   string
 	itemRefTableTypeName     string
 	upsertProcName           string
 	upsertProcFullName       string
@@ -47,7 +45,6 @@ func newMigration(metadata *sqlServerMetadata) migrator {
 
 func (m *migration) newMigrationResult() migrationResult {
 	r := migrationResult{
-		bulkDeleteProcName:       fmt.Sprintf("sp_BulkDelete_%s", m.metadata.TableName),
 		itemRefTableTypeName:     fmt.Sprintf("[%s].%s_Table", m.metadata.Schema, m.metadata.TableName),
 		upsertProcName:           fmt.Sprintf("sp_Upsert_v3_%s", m.metadata.TableName),
 		getCommand:               fmt.Sprintf("SELECT [Data], [RowVersion] FROM [%s].[%s] WHERE [Key] = @Key AND ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE())", m.metadata.Schema, m.metadata.TableName),
@@ -55,7 +52,6 @@ func (m *migration) newMigrationResult() migrationResult {
 		deleteWithoutETagCommand: fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key`, m.metadata.Schema, m.metadata.TableName),
 	}
 
-	r.bulkDeleteProcFullName = fmt.Sprintf("[%s].%s", m.metadata.Schema, r.bulkDeleteProcName)
 	r.upsertProcFullName = fmt.Sprintf("[%s].%s", m.metadata.Schema, r.upsertProcName)
 
 	//nolint:exhaustive
@@ -248,32 +244,8 @@ func (m *migration) ensureTypeExists(ctx context.Context, db *sql.DB, mr migrati
 	return runCommand(ctx, db, tsql)
 }
 
-/* #nosec. */
-func (m *migration) ensureBulkDeleteStoredProcedureExists(ctx context.Context, db *sql.DB, mr migrationResult) error {
-	tsql := fmt.Sprintf(`
-		CREATE PROCEDURE %s
-			@itemsToDelete %s READONLY
-		AS
-			DELETE [%s].[%s]
-			FROM [%s].[%s] x
-			JOIN @itemsToDelete i ON i.[Key] = x.[Key] AND (i.[RowVersion] IS NULL OR i.[RowVersion] = x.[RowVersion])`,
-		mr.bulkDeleteProcFullName,
-		mr.itemRefTableTypeName,
-		m.metadata.Schema,
-		m.metadata.TableName,
-		m.metadata.Schema,
-		m.metadata.TableName)
-
-	return m.createStoredProcedureIfNotExists(ctx, db, mr.bulkDeleteProcName, tsql)
-}
-
 func (m *migration) ensureStoredProcedureExists(ctx context.Context, db *sql.DB, mr migrationResult) error {
 	err := m.ensureTypeExists(ctx, db, mr)
-	if err != nil {
-		return err
-	}
-
-	err = m.ensureBulkDeleteStoredProcedureExists(ctx, db, mr)
 	if err != nil {
 		return err
 	}

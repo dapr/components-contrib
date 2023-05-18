@@ -25,10 +25,8 @@ func NewPostgreSQLStateStore(logger logger.Logger) state.Store {
 		ETagColumn: "xmin",
 		MigrateFn:  performMigration,
 		SetQueryFn: func(req *state.SetRequest, opts postgresql.SetQueryOptions) string {
-			// Sprintf is required for table name because sql.DB does not
-			// substitute parameters for table names.
-			// Other parameters use sql.DB parameter substitution.
-			if req.ETag == nil || *req.ETag == "" {
+			// Sprintf is required for table name because the driver does not substitute parameters for table names.
+			if !req.HasETag() {
 				// We do an upsert in both cases, even when concurrency is first-write, because the row may exist but be expired (and not yet garbage collected)
 				// The difference is that with concurrency as first-write, we'll update the row only if it's expired
 				var whereClause string

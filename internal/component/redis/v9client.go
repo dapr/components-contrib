@@ -176,6 +176,7 @@ func (c v9Client) XAdd(ctx context.Context, stream string, maxLenApprox int64, v
 		Stream: stream,
 		Values: values,
 		MaxLen: maxLenApprox,
+		Approx: true,
 	}).Result()
 }
 

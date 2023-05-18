@@ -73,6 +73,8 @@ const (
 
 // MySQL state store.
 type MySQL struct {
+	state.BulkStore
+
 	tableName         string
 	metadataTableName string
 	cleanupInterval   *time.Duration
@@ -113,11 +115,13 @@ func NewMySQLStateStore(logger logger.Logger) state.Store {
 func newMySQLStateStore(logger logger.Logger, factory iMySQLFactory) *MySQL {
 	// Store the provided logger and return the object. The rest of the
 	// properties will be populated in the Init function
-	return &MySQL{
+	s := &MySQL{
 		logger:  logger,
 		factory: factory,
 		timeout: 5 * time.Second,
 	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // Init initializes the SQL server state store
@@ -491,7 +495,7 @@ func (m *MySQL) deleteValue(parentCtx context.Context, querier querier, req *sta
 	execCtx, cancel := context.WithTimeout(parentCtx, m.timeout)
 	defer cancel()
 
-	if req.ETag == nil || *req.ETag == "" {
+	if !req.HasETag() {
 		result, err = querier.ExecContext(execCtx,
 			`DELETE FROM `+m.tableName+` WHERE id = ?`,
 			req.Key)
@@ -517,32 +521,6 @@ func (m *MySQL) deleteValue(parentCtx context.Context, querier querier, req *sta
 	return nil
 }
 
-// BulkDelete removes multiple entries from the store
-// Store Interface.
-func (m *MySQL) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	tx, err := m.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer func() {
-		rollbackErr := tx.Rollback()
-		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
-		}
-	}()
-
-	if len(req) > 0 {
-		for i := range req {
-			err = m.deleteValue(ctx, tx, &req[i])
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return tx.Commit()
-}
-
 // Get returns an entity from store
 // Store Interface.
 func (m *MySQL) Get(parentCtx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
@@ -566,7 +544,7 @@ func (m *MySQL) Get(parentCtx context.Context, req *state.GetRequest) (*state.Ge
 	}
 	return &state.GetResponse{
 		Data:     value,
-		ETag:     &etag,
+		ETag:     etag,
 		Metadata: req.Metadata,
 	}, nil
 }
@@ -741,29 +719,54 @@ func (m *MySQL) BulkGet(parentCtx context.Context, req []state.GetRequest, _ sta
 		return nil, err
 	}
 
-	var (
-		n    int
-		etag string
-	)
+	var n int
 	res := make([]state.BulkGetResponse, len(req))
+	foundKeys := make(map[string]struct{}, len(req))
 	for ; rows.Next(); n++ {
+		if n >= len(req) {
+			// Sanity check to prevent panics, which should never happen
+			return nil, fmt.Errorf("query returned more records than expected (expected %d)", len(req))
+		}
+
 		r := state.BulkGetResponse{}
-		r.Key, r.Data, etag, err = readRow(rows)
+		r.Key, r.Data, r.ETag, err = readRow(rows)
 		if err != nil {
 			r.Error = err.Error()
 		}
-		r.ETag = &etag
 		res[n] = r
+		foundKeys[r.Key] = struct{}{}
+	}
+
+	// Populate missing keys with empty values
+	// This is to ensure consistency with the other state stores that implement BulkGet as a loop over Get, and with the Get method
+	if len(foundKeys) < len(req) {
+		var ok bool
+		for _, r := range req {
+			_, ok = foundKeys[r.Key]
+			if !ok {
+				if n >= len(req) {
+					// Sanity check to prevent panics, which should never happen
+					return nil, fmt.Errorf("query returned more records than expected (expected %d)", len(req))
+				}
+				res[n] = state.BulkGetResponse{
+					Key: r.Key,
+				}
+				n++
+			}
+		}
 	}
 
 	return res[:n], nil
 }
 
-func readRow(row interface{ Scan(dest ...any) error }) (key string, value []byte, etag string, err error) {
-	var isBinary bool
+func readRow(row interface{ Scan(dest ...any) error }) (key string, value []byte, etagP *string, err error) {
+	var (
+		etag     string
+		isBinary bool
+	)
 	err = row.Scan(&key, &value, &etag, &isBinary)
 	if err != nil {
-		return key, nil, "", err
+		return key, nil, nil, err
 	}
 
 	if isBinary {
@@ -774,43 +777,17 @@ func readRow(row interface{ Scan(dest ...any) error }) (key string, value []byte
 
 		err = json.Unmarshal(value, &s)
 		if err != nil {
-			return key, nil, "", fmt.Errorf("failed to unmarshal JSON binary data: %w", err)
+			return key, nil, nil, fmt.Errorf("failed to unmarshal JSON binary data: %w", err)
 		}
 
 		data, err = base64.StdEncoding.DecodeString(s)
 		if err != nil {
-			return key, nil, "", fmt.Errorf("failed to decode binary data: %w", err)
+			return key, nil, nil, fmt.Errorf("failed to decode binary data: %w", err)
 		}
-		return key, data, etag, nil
+		return key, data, &etag, nil
 	}
 
-	return key, value, etag, nil
-}
-
-// BulkSet adds/updates multiple entities on store
-// Store Interface.
-func (m *MySQL) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	tx, err := m.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer func() {
-		rollbackErr := tx.Rollback()
-		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			m.logger.Errorf("Error rolling back transaction: %v", rollbackErr)
-		}
-	}()
-
-	if len(req) > 0 {
-		for i := range req {
-			err = m.setValue(ctx, tx, &req[i])
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return tx.Commit()
+	return key, value, &etag, nil
 }
 
 // Multi handles multiple transactions.

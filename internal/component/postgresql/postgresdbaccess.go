@@ -32,6 +32,7 @@ import (
 	"github.com/dapr/components-contrib/state/query"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 var errMissingConnectionString = errors.New("missing connection string")
@@ -192,7 +193,7 @@ func (p *PostgresDBAccess) doSet(parentCtx context.Context, db dbquerier, req *s
 		params          []any
 	)
 
-	if req.ETag == nil || *req.ETag == "" {
+	if !req.HasETag() {
 		params = []any{req.Key, value, isBinary}
 	} else {
 		var etag64 uint64
@@ -219,36 +220,10 @@ func (p *PostgresDBAccess) doSet(parentCtx context.Context, db dbquerier, req *s
 		return err
 	}
 	if result.RowsAffected() != 1 {
-		if req.ETag != nil && *req.ETag != "" {
+		if req.HasETag() {
 			return state.NewETagError(state.ETagMismatch, nil)
 		}
 		return errors.New("no item was updated")
-	}
-
-	return nil
-}
-
-func (p *PostgresDBAccess) BulkSet(parentCtx context.Context, req []state.SetRequest) error {
-	tx, err := p.beginTx(parentCtx)
-	if err != nil {
-		return err
-	}
-	defer p.rollbackTx(parentCtx, tx, "BulkSet")
-
-	if len(req) > 0 {
-		for i := range req {
-			err = p.doSet(parentCtx, tx, &req[i])
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
-	err = tx.Commit(ctx)
-	cancel()
-	if err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil
@@ -280,7 +255,7 @@ func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest)
 
 	return &state.GetResponse{
 		Data: value,
-		ETag: &etag,
+		ETag: etag,
 	}, nil
 }
 
@@ -314,36 +289,58 @@ func (p *PostgresDBAccess) BulkGet(parentCtx context.Context, req []state.GetReq
 	}
 
 	// Scan all rows
-	var (
-		n    int
-		etag string
-	)
+	var n int
 	res := make([]state.BulkGetResponse, len(req))
+	foundKeys := make(map[string]struct{}, len(req))
 	for ; rows.Next(); n++ {
+		if n >= len(req) {
+			// Sanity check to prevent panics, which should never happen
+			return nil, fmt.Errorf("query returned more records than expected (expected %d)", len(req))
+		}
+
 		r := state.BulkGetResponse{}
-		r.Key, r.Data, etag, err = readRow(rows)
+		r.Key, r.Data, r.ETag, err = readRow(rows)
 		if err != nil {
 			r.Error = err.Error()
 		}
-		r.ETag = &etag
 		res[n] = r
+		foundKeys[r.Key] = struct{}{}
+	}
+
+	// Populate missing keys with empty values
+	// This is to ensure consistency with the other state stores that implement BulkGet as a loop over Get, and with the Get method
+	if len(foundKeys) < len(req) {
+		var ok bool
+		for _, r := range req {
+			_, ok = foundKeys[r.Key]
+			if !ok {
+				if n >= len(req) {
+					// Sanity check to prevent panics, which should never happen
+					return nil, fmt.Errorf("query returned more records than expected (expected %d)", len(req))
+				}
+				res[n] = state.BulkGetResponse{
+					Key: r.Key,
+				}
+				n++
+			}
+		}
 	}
 
 	return res[:n], nil
 }
 
-func readRow(row pgx.Row) (key string, value []byte, etagS string, err error) {
+func readRow(row pgx.Row) (key string, value []byte, etagS *string, err error) {
 	var (
 		isBinary bool
 		etag     pgtype.Int8
 	)
 	err = row.Scan(&key, &value, &isBinary, &etag)
 	if err != nil {
-		return key, nil, "", err
+		return key, nil, nil, err
 	}
 
 	if etag.Valid {
-		etagS = strconv.FormatInt(etag.Int64, 10)
+		etagS = ptr.Of(strconv.FormatInt(etag.Int64, 10))
 	}
 
 	if isBinary {
@@ -354,12 +351,12 @@ func readRow(row pgx.Row) (key string, value []byte, etagS string, err error) {
 
 		err = json.Unmarshal(value, &s)
 		if err != nil {
-			return key, nil, "", fmt.Errorf("failed to unmarshal JSON data: %w", err)
+			return key, nil, nil, fmt.Errorf("failed to unmarshal JSON data: %w", err)
 		}
 
 		data, err = base64.StdEncoding.DecodeString(s)
 		if err != nil {
-			return key, nil, "", fmt.Errorf("failed to decode base64 data: %w", err)
+			return key, nil, nil, fmt.Errorf("failed to decode base64 data: %w", err)
 		}
 
 		return key, data, etagS, nil
@@ -381,7 +378,7 @@ func (p *PostgresDBAccess) doDelete(parentCtx context.Context, db dbquerier, req
 	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
 	defer cancel()
 	var result pgconn.CommandTag
-	if req.ETag == nil || *req.ETag == "" {
+	if !req.HasETag() {
 		result, err = db.Exec(ctx, "DELETE FROM "+p.metadata.TableName+" WHERE key = $1", req.Key)
 	} else {
 		// Convert req.ETag to uint32 for postgres XID compatibility
@@ -400,32 +397,6 @@ func (p *PostgresDBAccess) doDelete(parentCtx context.Context, db dbquerier, req
 	rows := result.RowsAffected()
 	if rows != 1 && req.ETag != nil && *req.ETag != "" {
 		return state.NewETagError(state.ETagMismatch, nil)
-	}
-
-	return nil
-}
-
-func (p *PostgresDBAccess) BulkDelete(parentCtx context.Context, req []state.DeleteRequest) error {
-	tx, err := p.beginTx(parentCtx)
-	if err != nil {
-		return err
-	}
-	defer p.rollbackTx(parentCtx, tx, "BulkDelete")
-
-	if len(req) > 0 {
-		for i := range req {
-			err = p.doDelete(parentCtx, tx, &req[i])
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
-	err = tx.Commit(ctx)
-	cancel()
-	if err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil

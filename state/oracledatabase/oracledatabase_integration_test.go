@@ -618,7 +618,7 @@ func testBulkSetAndBulkDelete(t *testing.T, ods state.Store) {
 		},
 	}
 
-	err := ods.BulkSet(context.Background(), setReq)
+	err := ods.BulkSet(context.Background(), setReq, state.BulkStoreOpts{})
 	require.NoError(t, err)
 	assert.True(t, storeItemExists(t, db, setReq[0].Key))
 	assert.True(t, storeItemExists(t, db, setReq[1].Key))
@@ -632,7 +632,7 @@ func testBulkSetAndBulkDelete(t *testing.T, ods state.Store) {
 		},
 	}
 
-	err = ods.BulkDelete(context.Background(), deleteReq)
+	err = ods.BulkDelete(context.Background(), deleteReq, state.BulkStoreOpts{})
 	require.NoError(t, err)
 	assert.False(t, storeItemExists(t, db, setReq[0].Key))
 	assert.False(t, storeItemExists(t, db, setReq[1].Key))

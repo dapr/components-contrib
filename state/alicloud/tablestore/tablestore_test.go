@@ -55,6 +55,7 @@ func TestReadAndWrite(t *testing.T) {
 	store := &AliCloudTableStore{
 		logger: logger.NewLogger("test"),
 	}
+	store.BulkStore = state.NewDefaultBulkStore(store)
 	store.Init(context.Background(), state.Metadata{})
 
 	store.client = &mockClient{
@@ -108,7 +109,7 @@ func TestReadAndWrite(t *testing.T) {
 		}, {
 			Key:   "theSecondKey",
 			Value: "777",
-		}})
+		}}, state.BulkStoreOpts{})
 
 		require.NoError(t, err)
 	})

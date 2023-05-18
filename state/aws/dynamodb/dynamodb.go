@@ -138,9 +138,10 @@ func (d *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 		Data: []byte(output),
 	}
 
-	var etag string
-	if etagVal, ok := result.Item["etag"]; ok {
-		if err = dynamodbattribute.Unmarshal(etagVal, &etag); err != nil {
+	if result.Item["etag"] != nil {
+		var etag string
+		err = dynamodbattribute.Unmarshal(result.Item["etag"], &etag)
+		if err != nil {
 			return nil, err
 		}
 		resp.ETag = &etag
@@ -161,9 +162,7 @@ func (d *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 		TableName: &d.table,
 	}
 
-	haveEtag := false
-	if req.ETag != nil && *req.ETag != "" {
-		haveEtag = true
+	if req.HasETag() {
 		condExpr := "etag = :etag"
 		input.ConditionExpression = &condExpr
 		exprAttrValues := make(map[string]*dynamodb.AttributeValue)
@@ -177,7 +176,7 @@ func (d *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	}
 
 	_, err = d.client.PutItemWithContext(ctx, input)
-	if err != nil && haveEtag {
+	if err != nil && req.HasETag() {
 		switch cErr := err.(type) {
 		case *dynamodb.ConditionalCheckFailedException:
 			err = state.NewETagError(state.ETagMismatch, cErr)
@@ -185,44 +184,6 @@ func (d *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	}
 
 	return err
-}
-
-// BulkSet performs a bulk set operation.
-func (d *StateStore) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	if len(req) == 1 {
-		return d.Set(ctx, &req[0])
-	}
-
-	writeRequests := make([]*dynamodb.WriteRequest, len(req))
-	for i := range req {
-		if req[i].ETag != nil && *req[i].ETag != "" {
-			return errors.New("dynamodb error: BulkSet() does not support etags; please use Set() instead")
-		}
-		if req[i].Options.Concurrency == state.FirstWrite {
-			return errors.New("dynamodb error: BulkSet() does not support FirstWrite concurrency; please use Set() instead")
-		}
-
-		item, err := d.getItemFromReq(&req[i])
-		if err != nil {
-			return err
-		}
-
-		writeRequests[i] = &dynamodb.WriteRequest{
-			PutRequest: &dynamodb.PutRequest{
-				Item: item,
-			},
-		}
-	}
-
-	requestItems := map[string][]*dynamodb.WriteRequest{
-		d.table: writeRequests,
-	}
-
-	_, e := d.client.BatchWriteItemWithContext(ctx, &dynamodb.BatchWriteItemInput{
-		RequestItems: requestItems,
-	})
-
-	return e
 }
 
 // Delete performs a delete operation.
@@ -236,7 +197,7 @@ func (d *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 		TableName: aws.String(d.table),
 	}
 
-	if req.ETag != nil && *req.ETag != "" {
+	if req.HasETag() {
 		condExpr := "etag = :etag"
 		input.ConditionExpression = &condExpr
 		exprAttrValues := make(map[string]*dynamodb.AttributeValue)
@@ -255,40 +216,6 @@ func (d *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	}
 
 	return err
-}
-
-// BulkDelete performs a bulk delete operation.
-func (d *StateStore) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	if len(req) == 1 {
-		return d.Delete(ctx, &req[0])
-	}
-
-	writeRequests := make([]*dynamodb.WriteRequest, len(req))
-	for i, r := range req {
-		if r.ETag != nil && *r.ETag != "" {
-			return errors.New("dynamodb error: BulkDelete() does not support etags; please use Delete() instead")
-		}
-
-		writeRequests[i] = &dynamodb.WriteRequest{
-			DeleteRequest: &dynamodb.DeleteRequest{
-				Key: map[string]*dynamodb.AttributeValue{
-					d.partitionKey: {
-						S: aws.String(r.Key),
-					},
-				},
-			},
-		}
-	}
-
-	requestItems := map[string][]*dynamodb.WriteRequest{
-		d.table: writeRequests,
-	}
-
-	_, e := d.client.BatchWriteItemWithContext(ctx, &dynamodb.BatchWriteItemInput{
-		RequestItems: requestItems,
-	})
-
-	return e
 }
 
 func (d *StateStore) GetComponentMetadata() map[string]string {

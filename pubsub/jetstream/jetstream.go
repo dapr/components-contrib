@@ -153,6 +153,9 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 	if v := js.meta.DurableName; v != "" {
 		consumerConfig.Durable = v
 	}
+	if v := js.meta.QueueGroupName; v != "" {
+		consumerConfig.DeliverGroup = v
+	}
 
 	if v := js.meta.internalStartTime; !v.IsZero() {
 		consumerConfig.OptStartTime = &v

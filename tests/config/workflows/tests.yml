@@ -1,6 +1,5 @@
-# Supported operations: start, get, terminate
+# Supported additional operations: (none)
 componentType: workflows
 components:
   - component: temporal
-    allOperations: false
-    operations: [ "start", "get", "terminate"]
+    operations: []

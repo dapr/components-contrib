@@ -5,12 +5,14 @@
 1. `tests/` directory contains the configuration and the test definition for conformance tests.
 2. All the conformance tests are within the `tests/conformance` directory.
 3. All the configurations are in the `tests/config` directory.
-4. Each of the component specific `component` definition are in their specific `component type` folder in the `tests/config` folder. E.g. `redis` statestore component definition within `state` directory. The component types are `bindings`, `state`, `secretstores`, `pubsub`. Cloud specific components will be within their own `cloud` directory within the `component type` folder, e.g. `pubsub/azure/servicebus`.
+4. Each of the component specific `component` definition are in their specific `component type` folder in the `tests/config` folder. For example, the `redis` statestore component definition within `state` directory.
+  - The component types are: `bindings`, `configuration`, `crypto`, `pubsub`, `state`, `secretstores`, `workflows`.
+  - Cloud specific components will be within their own `cloud` directory within the `component type` folder, e.g. `pubsub/azure/servicebus`.
 5. Similar to the component definitions, each component type has its own set of the conformance tests definitions.
-6. Each `component type` contains a `tests.yml` definition that defines the component to be tested along with component specific test configuration. Nested folder names have their `/` in path replaced by `.` in the component name in `tests.yml`, e.g. `azure/servicebus` should be `azure.servicebus`
+6. Each `component type` contains a `tests.yml` definition that defines the component to be tested along with component specific test configuration. Nested folder names have their `/` in path replaced by `.` in the component name in `tests.yml`, e.g. `azure/servicebus/topics` should be `azure.servicebus.topics`
 7. All the tests configurations are defined in `common.go` file.
 8. Each `component type` has its own `_test` file to trigger the conformance tests. E.g. `bindings_test.go`.
-9. Each test added will also need to be added to the `conformance.yml` workflow file.
+9. Each test added will also need to be added to the `component type/tests.yml` workflow file.
 
 ## Conformance test workflow
 
@@ -48,10 +50,12 @@
     ```yaml
     componentType: binding
     components:
-    ## All other components
-    - component: <COMPONENT>
-        allOperations: <true/false>
-        operations: <List of operations if needed>
+      # For each component
+      - component: <COMPONENT>
+        # If the component supports additional (optional) operations
+        operations: [ '<operation1>', '<operation2'> ]
+        # If the component does NOT support additional operations
+        operations: []
     ```
 
 5. Any UUID generation for keys can be specified using `$((uuid))`. E.g. see [/tests/config/bindings/tests.yml](../config/bindings/tests.yml)

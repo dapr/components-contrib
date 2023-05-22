@@ -21,14 +21,6 @@ import (
 )
 
 func TestHasOperation(t *testing.T) {
-	t.Run("all operations", func(t *testing.T) {
-		cc := CommonConfig{
-			ComponentType: "state",
-			ComponentName: "redis",
-			AllOperations: true,
-		}
-		assert.True(t, cc.HasOperation("op"))
-	})
 	t.Run("operations list", func(t *testing.T) {
 		cc := CommonConfig{
 			ComponentType: "state",
@@ -45,7 +37,6 @@ func TestCopyMap(t *testing.T) {
 	cc := CommonConfig{
 		ComponentType: "state",
 		ComponentName: "redis",
-		AllOperations: true,
 	}
 	in := map[string]string{
 		"k": "v",

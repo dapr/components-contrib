@@ -71,12 +71,11 @@ type TestConfig struct {
 	Keys []testConfigKey `mapstructure:"keys"`
 }
 
-func NewTestConfig(name string, allOperations bool, operations []string, configMap map[string]interface{}) (TestConfig, error) {
+func NewTestConfig(name string, operations []string, configMap map[string]interface{}) (TestConfig, error) {
 	testConfig := TestConfig{
 		CommonConfig: utils.CommonConfig{
 			ComponentType: "crypto",
 			ComponentName: name,
-			AllOperations: allOperations,
 			Operations:    utils.NewStringSet(operations...),
 		},
 	}

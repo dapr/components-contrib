@@ -576,7 +576,7 @@ func testBulkSetAndBulkDelete(t *testing.T, pgs *postgresql.PostgreSQL) {
 		},
 	}
 
-	err := pgs.BulkSet(context.Background(), setReq)
+	err := pgs.BulkSet(context.Background(), setReq, state.BulkStoreOpts{})
 	assert.NoError(t, err)
 	assert.True(t, storeItemExists(t, setReq[0].Key))
 	assert.True(t, storeItemExists(t, setReq[1].Key))
@@ -590,7 +590,7 @@ func testBulkSetAndBulkDelete(t *testing.T, pgs *postgresql.PostgreSQL) {
 		},
 	}
 
-	err = pgs.BulkDelete(context.Background(), deleteReq)
+	err = pgs.BulkDelete(context.Background(), deleteReq, state.BulkStoreOpts{})
 	assert.NoError(t, err)
 	assert.False(t, storeItemExists(t, setReq[0].Key))
 	assert.False(t, storeItemExists(t, setReq[1].Key))

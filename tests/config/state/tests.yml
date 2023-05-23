@@ -1,83 +1,81 @@
-# Supported operations: set, get, delete, bulkget, bulkset, bulkdelete, transaction, etag, first-write, query, ttl
+# Supported operations: transaction, etag, first-write, query, ttl
+# Supported config: 
+# - badEtag: string containing a value for the bad etag, for exaple if the component uses numeric etags (default: "bad-etag")
 componentType: state
 components:
   - component: redis.v6
-    allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "query", "ttl" ]
+    operations: [ "transaction", "etag", "first-write", "query", "ttl" ]
+    config:
+      # This component requires etags to be numeric
+      badEtag: "9999999"
   - component: redis.v7
-    allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "first-write" ]
+    # "query" is not included because redisjson hasn't been updated to Redis v7 yet
+    operations: [ "transaction", "etag", "first-write", "ttl" ]
+    config:
+      # This component requires etags to be numeric
+      badEtag: "9999999"
   - component: mongodb
-    allOperations: false
-    operations: [ "set", "get", "delete", "bulkget", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "query", "ttl" ]
+    operations: [ "transaction", "etag", "first-write", "query", "ttl" ]
   - component: memcached
-    allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "ttl" ]
+    operations: [ "ttl" ]
   - component: azure.cosmosdb
-    allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "query", "ttl" ]
+    operations: [ "transaction", "etag", "first-write", "query", "ttl" ]
   - component: azure.blobstorage
-    allOperations: false
-    operations: [ "set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write" ]
+    operations: [ "etag", "first-write" ]
   - component: azure.sql
-    allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "first-write" ]
+    operations: [ "transaction", "etag", "first-write", "ttl" ]
+    config:
+      # This component requires etags to be hex-encoded numbers
+      badEtag: "FFFF"
   - component: sqlserver
-    allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag", "first-write", "ttl" ]
+    operations: [ "transaction", "etag", "first-write", "ttl" ]
+    config:
+      # This component requires etags to be hex-encoded numbers
+      badEtag: "FFFF"
   - component: postgresql
-    allOperations: false
-    operations: [ "set", "get", "delete", "bulkget", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "query", "ttl" ]
+    operations: [ "transaction", "etag", "first-write", "query", "ttl" ]
+    config:
+      # This component requires etags to be numeric
+      badEtag: "1"
   - component: sqlite
-    allOperations: false
-    operations: [ "set", "get", "delete", "bulkget", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]
+    operations: [ "transaction", "etag",  "first-write", "ttl" ]
   - component: mysql.mysql
-    allOperations: false
-    operations: [ "set", "get", "delete", "bulkget", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]
+    operations: [ "transaction", "etag",  "first-write", "ttl" ]
   - component: mysql.mariadb
-    allOperations: false
-    operations: [ "set", "get", "delete", "bulkget", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]
+    operations: [ "transaction", "etag",  "first-write", "ttl" ]
   - component: azure.tablestorage.storage
-    allOperations: false
-    operations: ["set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write"]
+    operations: [ "etag", "first-write"]
+    config:
+      # This component requires etags to be in this format
+      badEtag: "W/\"datetime'2023-05-09T12%3A28%3A54.1442151Z'\""
   - component: azure.tablestorage.cosmosdb
-    allOperations: false
-    operations: ["set", "get", "delete", "etag", "bulkset", "bulkdelete", "first-write"]
+    operations: [ "etag", "first-write"]
+    config:
+      # This component requires etags to be in this format
+      badEtag: "W/\"datetime'2023-05-09T12%3A28%3A54.1442151Z'\""
   - component: oracledatabase
-    allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]
+    operations: [ "transaction", "etag",  "first-write", "ttl" ]
   - component: cassandra
-    allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "ttl" ]
+    operations: [ "ttl" ]
   - component: cloudflare.workerskv
-    allOperations: false
     # Although this component supports TTLs, the minimum TTL is 60s, which makes it not suitable for our conformance tests
-    # TODO: perhaps create a special case `ttl60` operation for this component
-    # where the test would set a TTL of 60s for this particular operation.
-    # `ttl` and `ttl60` are mutually exclusive, and `allOperations` would
-    # exclude `ttl60`
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete"]
+    operations: []
   - component: cockroachdb
-    allOperations: false
-    operations: [ "set", "get", "delete", "bulkget", "bulkset", "bulkdelete", "transaction", "etag", "query", "ttl" ]
+    operations: [ "transaction", "etag", "first-write", "query", "ttl" ]
+    config:
+      # This component requires etags to be numeric
+      badEtag: "9999999"
   - component: rethinkdb
-    allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete"]
+    operations: []
   - component: in-memory
-    allOperations: false
-    operations: [ "set", "get", "delete", "bulkget", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]
+    operations: [ "transaction", "etag",  "first-write", "ttl" ]
   - component: aws.dynamodb.docker
-    allOperations: false
-    operations: [ "set", "get", "delete", "etag", "bulkset", "bulkdelete", "transaction", "first-write" ]
+    operations: [ "transaction", "etag", "first-write" ]
   - component: aws.dynamodb.terraform
-    allOperations: false
-    operations: [ "set", "get", "delete", "etag", "bulkset", "bulkdelete", "transaction", "first-write" ]
+    operations: [ "transaction", "etag", "first-write" ]
   - component: etcd
-    allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete", "transaction", "etag",  "first-write", "ttl" ]
+    operations: [ "transaction", "etag",  "first-write", "ttl" ]
   - component: gcp.firestore.docker
-    allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete" ]
+    operations: []
   - component: gcp.firestore.cloud
-    allOperations: false
-    operations: [ "set", "get", "delete", "bulkset", "bulkdelete" ]
+    operations: []

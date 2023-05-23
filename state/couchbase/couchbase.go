@@ -173,7 +173,7 @@ func (cbs *Couchbase) Set(ctx context.Context, req *state.SetRequest) error {
 
 	//nolint:nestif
 	// key already exists (use Replace)
-	if req.ETag != nil {
+	if req.HasETag() {
 		// compare-and-swap (CAS) for managing concurrent modifications - https://docs.couchbase.com/go-sdk/current/concurrent-mutations-cluster.html
 		cas, cerr := eTagToCas(*req.ETag)
 		if cerr != nil {
@@ -194,7 +194,7 @@ func (cbs *Couchbase) Set(ctx context.Context, req *state.SetRequest) error {
 	}
 
 	if err != nil {
-		if req.ETag != nil {
+		if req.HasETag() {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
@@ -231,7 +231,7 @@ func (cbs *Couchbase) Delete(ctx context.Context, req *state.DeleteRequest) erro
 
 	var cas gocb.Cas = 0
 
-	if req.ETag != nil {
+	if req.HasETag() {
 		cas, err = eTagToCas(*req.ETag)
 		if err != nil {
 			return err
@@ -243,7 +243,7 @@ func (cbs *Couchbase) Delete(ctx context.Context, req *state.DeleteRequest) erro
 		_, err = cbs.bucket.Remove(req.Key, cas)
 	}
 	if err != nil {
-		if req.ETag != nil {
+		if req.HasETag() {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 

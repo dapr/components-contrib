@@ -95,7 +95,7 @@ type Settings struct {
 	Concurrency uint `mapstructure:"concurrency" only:"pubsub"`
 
 	// the max len of stream
-	MaxLenApprox int64 `mapstructure:"maxLenApprox" only:"bindings"`
+	MaxLenApprox int64 `mapstructure:"maxLenApprox" only:"pubsub"`
 }
 
 func (s *Settings) Decode(in interface{}) error {

@@ -187,7 +187,8 @@ func DeployProcess(
 	}
 
 	// TODO: pb.DeployProcessResponse is deprecated and needs to be replaced eventually
-	deployment := &pb.DeployProcessResponse{} //nolint:staticcheck
+	//nolint:staticcheck
+	deployment := &pb.DeployProcessResponse{}
 	err = json.Unmarshal(res.Data, deployment)
 	if err != nil {
 		return nil, err

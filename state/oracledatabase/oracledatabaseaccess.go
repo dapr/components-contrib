@@ -162,7 +162,7 @@ func (o *oracleDatabaseAccess) doSet(ctx context.Context, db querier, req *state
 	etag := etagObj.String()
 
 	var result sql.Result
-	if req.ETag == nil || *req.ETag == "" {
+	if !req.HasETag() {
 		// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
 		// Other parameters use sql.DB parameter substitution.
 		var stmt string
@@ -194,9 +194,6 @@ func (o *oracleDatabaseAccess) doSet(ctx context.Context, db querier, req *state
 		result, err = db.ExecContext(ctx, updateStatement, value, binaryYN, etag, req.Key, *req.ETag)
 	}
 	if err != nil {
-		if req.ETag != nil && *req.ETag != "" {
-			return state.NewETagError(state.ETagMismatch, err)
-		}
 		return err
 	}
 	rows, err := result.RowsAffected()
@@ -204,6 +201,9 @@ func (o *oracleDatabaseAccess) doSet(ctx context.Context, db querier, req *state
 		return err
 	}
 	if rows != 1 {
+		if req.HasETag() {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
 		return errors.New("no item was updated")
 	}
 	return nil
@@ -262,7 +262,7 @@ func (o *oracleDatabaseAccess) doDelete(ctx context.Context, db querier, req *st
 	}
 
 	var result sql.Result
-	if req.ETag == nil || *req.ETag == "" {
+	if !req.HasETag() {
 		result, err = db.ExecContext(ctx, "DELETE FROM "+o.metadata.TableName+" WHERE key = :key", req.Key)
 	} else {
 		result, err = db.ExecContext(ctx, "DELETE FROM "+o.metadata.TableName+" WHERE key = :key AND etag = :etag", req.Key, *req.ETag)

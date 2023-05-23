@@ -57,6 +57,11 @@ func (r DeleteRequest) GetMetadata() map[string]string {
 	return r.Metadata
 }
 
+// HasETag returns true if the request has a non-empty ETag.
+func (r DeleteRequest) HasETag() bool {
+	return r.ETag != nil && *r.ETag != ""
+}
+
 // Operation returns the operation type for DeleteRequest, implementing TransactionalStateOperationRequest.
 func (r DeleteRequest) Operation() OperationType {
 	return OperationDelete
@@ -86,6 +91,11 @@ func (r SetRequest) GetKey() string {
 // GetMetadata gets the Key on a SetRequest.
 func (r SetRequest) GetMetadata() map[string]string {
 	return r.Metadata
+}
+
+// HasETag returns true if the request has a non-empty ETag.
+func (r SetRequest) HasETag() bool {
+	return r.ETag != nil && *r.ETag != ""
 }
 
 // Operation returns the operation type for SetRequest, implementing TransactionalStateOperationRequest.

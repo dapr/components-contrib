@@ -343,8 +343,6 @@ github.com/cyphar/filepath-securejoin v0.2.3 h1:YX6ebbZCZP7VkM3scTTokDgBL2TY741X
 github.com/cyphar/filepath-securejoin v0.2.3/go.mod h1:aPGpWjXOXUn2NCNjFvBE6aRxGGx79pTxQpKOJNYHHl4=
 github.com/danieljoos/wincred v1.1.2 h1:QLdCxFs1/Yl4zduvBdcHB8goaYk9RARS2SgLLRuAyr0=
 github.com/danieljoos/wincred v1.1.2/go.mod h1:GijpziifJoIBfYh+S7BbkdUTU4LfM+QnGqR5Vl2tAx0=
-github.com/dapr/dapr v1.10.7-0.20230510004949-770d4e51604f h1:nH57MQUUVRyeFmWRzmXh+FqzVOPm6SgWztowU22Gwmw=
-github.com/dapr/dapr v1.10.7-0.20230510004949-770d4e51604f/go.mod h1:CZZZ8iru8XMw8nlsBBXiau0wjPE9vDmx0iUw+j9B+zQ=
 github.com/dapr/go-sdk v1.6.1-0.20230427230219-d485c1775c37 h1:gAiBprMLnsdaz4mhr28RlmK1PTnz+UXDNy0Giujty5c=
 github.com/dapr/go-sdk v1.6.1-0.20230427230219-d485c1775c37/go.mod h1:+ec5FDv7wGcy+Hlg7vY6msKQClm6es2Q5yCGbDHoURQ=
 github.com/dapr/kit v0.0.5 h1:BbjO6LksdXAv6iuTVZiHJNkXj9Ii1gS2wA1u785Ypsg=

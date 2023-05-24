@@ -344,7 +344,7 @@ func (e *Etcd) Multi(ctx context.Context, request *state.TransactionalStateReque
 				return err
 			}
 			var cmp clientv3.Cmp
-			if req.ETag != nil {
+			if req.HasETag() {
 				etag, _ := strconv.ParseInt(*req.ETag, 10, 64)
 				cmp = clientv3.Compare(clientv3.ModRevision(keyWithPath), "=", etag)
 			}
@@ -354,14 +354,14 @@ func (e *Etcd) Multi(ctx context.Context, request *state.TransactionalStateReque
 					return fmt.Errorf("couldn't grant lease %s: %w", keyWithPath, err)
 				}
 				put := clientv3.OpPut(keyWithPath, string(reqVal), clientv3.WithLease(resp.ID))
-				if req.ETag != nil {
+				if req.HasETag() {
 					ops = append(ops, clientv3.OpTxn([]clientv3.Cmp{cmp}, []clientv3.Op{put}, nil))
 				} else {
 					ops = append(ops, clientv3.OpTxn(nil, []clientv3.Op{put}, nil))
 				}
 			} else {
 				put := clientv3.OpPut(keyWithPath, string(reqVal))
-				if req.ETag != nil {
+				if req.HasETag() {
 					ops = append(ops, clientv3.OpTxn([]clientv3.Cmp{cmp}, []clientv3.Op{put}, nil))
 				} else {
 					ops = append(ops, clientv3.OpTxn(nil, []clientv3.Op{put}, nil))
@@ -379,7 +379,7 @@ func (e *Etcd) Multi(ctx context.Context, request *state.TransactionalStateReque
 			}
 
 			del := clientv3.OpDelete(keyWithPath)
-			if req.ETag != nil {
+			if req.HasETag() {
 				etag, _ := strconv.ParseInt(*req.ETag, 10, 64)
 				cmp := clientv3.Compare(clientv3.ModRevision(keyWithPath), "=", etag)
 				ops = append(ops, clientv3.OpTxn([]clientv3.Cmp{cmp}, []clientv3.Op{del}, nil))

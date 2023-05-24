@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/go-zookeeper/zk"
-	"github.com/hashicorp/go-multierror"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/metadata"
@@ -187,7 +186,7 @@ func (s *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	}
 
 	if err != nil {
-		if req.ETag != nil {
+		if req.HasETag() {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
@@ -195,33 +194,6 @@ func (s *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	}
 
 	return nil
-}
-
-// BulkDelete performs a bulk delete operation.
-func (s *StateStore) BulkDelete(ctx context.Context, reqs []state.DeleteRequest) error {
-	ops := make([]any, 0, len(reqs))
-
-	for i := range reqs {
-		req, err := s.newDeleteRequest(&reqs[i])
-		if err != nil {
-			return err
-		}
-
-		ops = append(ops, req)
-	}
-
-	res, err := s.conn.Multi(ops...)
-	if err != nil {
-		return err
-	}
-
-	for _, res := range res {
-		if res.Error != nil && !errors.Is(res.Error, zk.ErrNoNode) {
-			err = multierror.Append(err, res.Error)
-		}
-	}
-
-	return err
 }
 
 // Set saves state into Zookeeper.
@@ -237,7 +209,7 @@ func (s *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	}
 
 	if err != nil {
-		if req.ETag != nil {
+		if req.HasETag() {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
@@ -245,52 +217,6 @@ func (s *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	}
 
 	return nil
-}
-
-// BulkSet performs a bulks save operation.
-func (s *StateStore) BulkSet(ctx context.Context, reqs []state.SetRequest) error {
-	ops := make([]any, 0, len(reqs))
-
-	for i := range reqs {
-		req, err := s.newSetDataRequest(&reqs[i])
-		if err != nil {
-			return err
-		}
-		ops = append(ops, req)
-	}
-
-	for {
-		res, err := s.conn.Multi(ops...)
-		if err != nil {
-			return err
-		}
-
-		var retry []any
-
-		for i, res := range res {
-			if res.Error != nil {
-				if errors.Is(res.Error, zk.ErrNoNode) {
-					if req, ok := ops[i].(*zk.SetDataRequest); ok {
-						retry = append(retry, s.newCreateRequest(req))
-
-						continue
-					}
-				}
-
-				err = multierror.Append(err, res.Error)
-			}
-		}
-
-		if err != nil || retry == nil {
-			return err
-		}
-
-		ops = retry
-	}
-}
-
-func (s *StateStore) newCreateRequest(req *zk.SetDataRequest) *zk.CreateRequest {
-	return &zk.CreateRequest{Path: req.Path, Data: req.Data}
 }
 
 func (s *StateStore) newDeleteRequest(req *state.DeleteRequest) (*zk.DeleteRequest, error) {
@@ -306,7 +232,7 @@ func (s *StateStore) newDeleteRequest(req *state.DeleteRequest) (*zk.DeleteReque
 	} else {
 		var etag string
 
-		if req.ETag != nil {
+		if req.HasETag() {
 			etag = *req.ETag
 		}
 		version = s.parseETag(etag)
@@ -336,7 +262,7 @@ func (s *StateStore) newSetDataRequest(req *state.SetRequest) (*zk.SetDataReques
 	} else {
 		var etag string
 
-		if req.ETag != nil {
+		if req.HasETag() {
 			etag = *req.ETag
 		}
 		version = s.parseETag(etag)

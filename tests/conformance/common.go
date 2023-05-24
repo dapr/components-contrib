@@ -30,7 +30,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
@@ -140,11 +139,10 @@ type TestConfiguration struct {
 }
 
 type TestComponent struct {
-	Component     string                 `yaml:"component,omitempty"`
-	Profile       string                 `yaml:"profile,omitempty"`
-	AllOperations bool                   `yaml:"allOperations,omitempty"`
-	Operations    []string               `yaml:"operations,omitempty"`
-	Config        map[string]interface{} `yaml:"config,omitempty"`
+	Component  string                 `yaml:"component,omitempty"`
+	Profile    string                 `yaml:"profile,omitempty"`
+	Operations []string               `yaml:"operations,omitempty"`
+	Config     map[string]interface{} `yaml:"config,omitempty"`
 }
 
 // NewTestConfiguration reads the tests.yml and loads the TestConfiguration.
@@ -366,97 +364,66 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 			case "state":
 				filepath := fmt.Sprintf("../config/state/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				store := loadStateStore(comp)
-				assert.NotNil(t, store)
-				storeConfig := conf_state.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				require.NotNilf(t, store, "error running conformance test for component %s", comp.Component)
+				storeConfig, err := conf_state.NewTestConfig(comp.Component, comp.Operations, comp.Config)
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				conf_state.ConformanceTests(t, props, store, storeConfig)
 			case "secretstores":
 				filepath := fmt.Sprintf("../config/secretstores/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				store := loadSecretStore(comp)
-				assert.NotNil(t, store)
-				storeConfig := conf_secret.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations)
+				require.NotNilf(t, store, "error running conformance test for component %s", comp.Component)
+				storeConfig := conf_secret.NewTestConfig(comp.Component, comp.Operations)
 				conf_secret.ConformanceTests(t, props, store, storeConfig)
 			case "pubsub":
 				filepath := fmt.Sprintf("../config/pubsub/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				pubsub := loadPubSub(comp)
-				assert.NotNil(t, pubsub)
-				pubsubConfig, err := conf_pubsub.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NotNil(t, pubsub, "error running conformance test for component %s", comp.Component)
+				pubsubConfig, err := conf_pubsub.NewTestConfig(comp.Component, comp.Operations, comp.Config)
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				conf_pubsub.ConformanceTests(t, props, pubsub, pubsubConfig)
 			case "bindings":
 				filepath := fmt.Sprintf("../config/bindings/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				inputBinding := loadInputBindings(comp)
 				outputBinding := loadOutputBindings(comp)
-				atLeastOne(t, func(item interface{}) bool {
-					return item != nil
-				}, inputBinding, outputBinding)
-				bindingsConfig, err := conf_bindings.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.True(t, inputBinding != nil || outputBinding != nil)
+				bindingsConfig, err := conf_bindings.NewTestConfig(comp.Component, comp.Operations, comp.Config)
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				conf_bindings.ConformanceTests(t, props, inputBinding, outputBinding, bindingsConfig)
 			case "workflows":
 				filepath := fmt.Sprintf("../config/workflows/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				wf := loadWorkflow(comp)
-				wfConfig := conf_workflows.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				wfConfig := conf_workflows.NewTestConfig(comp.Component, comp.Operations, comp.Config)
 				conf_workflows.ConformanceTests(t, props, wf, wfConfig)
 			case "crypto":
 				filepath := fmt.Sprintf("../config/crypto/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				component := loadCryptoProvider(comp)
-				require.NotNil(t, component)
-				cryptoConfig, err := conf_crypto.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NotNil(t, component, "error running conformance test for component %s", comp.Component)
+				cryptoConfig, err := conf_crypto.NewTestConfig(comp.Component, comp.Operations, comp.Config)
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				conf_crypto.ConformanceTests(t, props, component, cryptoConfig)
 			case "configuration":
 				filepath := fmt.Sprintf("../config/configuration/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				store, updater := loadConfigurationStore(comp)
-				require.NotNil(t, store)
-				require.NotNil(t, updater)
-				configurationConfig := conf_configuration.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				require.NotNil(t, store, "error running conformance test for component %s", comp.Component)
+				require.NotNil(t, updater, "error running conformance test for component %s", comp.Component)
+				configurationConfig := conf_configuration.NewTestConfig(comp.Component, comp.Operations, comp.Config)
 				conf_configuration.ConformanceTests(t, props, store, updater, configurationConfig, comp.Component)
 			default:
-				t.Errorf("unknown component type %s", tc.ComponentType)
+				t.Fatalf("unknown component type %s", tc.ComponentType)
 			}
 		})
 	}
@@ -708,14 +675,4 @@ func loadWorkflow(tc TestComponent) workflows.Workflow {
 	}
 
 	return wf
-}
-
-func atLeastOne(t *testing.T, predicate func(interface{}) bool, items ...interface{}) {
-	met := false
-
-	for _, item := range items {
-		met = met || predicate(item)
-	}
-
-	assert.True(t, met)
 }

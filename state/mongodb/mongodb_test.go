@@ -214,6 +214,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 	t.Run("test decode", func(t *testing.T) {
 		mongo := MongoDB{}
 		thetime, err := time.Parse(time.RFC3339, "2023-02-01T12:13:09-08:00")
+		assert.NoError(t, err)
 		timestring := thetime.Format(time.RFC3339) // needed to get the local timezone
 
 		msg := bson.M{

@@ -46,12 +46,11 @@ type TestConfig struct {
 	utils.CommonConfig
 }
 
-func NewTestConfig(componentName string, allOperations bool, operations []string, configMap map[string]interface{}) TestConfig {
+func NewTestConfig(componentName string, operations []string, configMap map[string]interface{}) TestConfig {
 	tc := TestConfig{
 		utils.CommonConfig{
 			ComponentType: "configuration",
 			ComponentName: componentName,
-			AllOperations: allOperations,
 			Operations:    utils.NewStringSet(operations...),
 		},
 	}
@@ -177,7 +176,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 		require.NoError(t, err, "expected no error on adding keys")
 	})
 
-	if config.HasOperation("get") {
+	t.Run("get", func(t *testing.T) {
 		t.Run("get with non-empty key list", func(t *testing.T) {
 			keys := getKeys(initValues1)
 
@@ -218,9 +217,9 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			require.NoError(t, err)
 			assert.Equal(t, expectedResponse, resp.Items)
 		})
-	}
+	})
 
-	if config.HasOperation("subscribe") {
+	t.Run("subscribe", func(t *testing.T) {
 		subscribeMetadata := make(map[string]string)
 		if component == postgresComponent {
 			subscribeMetadata[pgNotifyChannelKey] = pgNotifyChannel
@@ -318,9 +317,9 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			verifyMessagesReceived(t, processedC2, awaitingMessages2)
 			verifyMessagesReceived(t, processedC3, awaitingMessages3)
 		})
-	}
+	})
 
-	if config.HasOperation("unsubscribe") {
+	t.Run("unsubscribe", func(t *testing.T) {
 		t.Run("unsubscribe subscriber 1", func(t *testing.T) {
 			ID1 := subscribeIDs[0]
 			err := store.Unsubscribe(context.Background(),
@@ -382,7 +381,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 
 			verifyNoMessagesReceived(t, processedC3)
 		})
-	}
+	})
 }
 
 func verifyNoMessagesReceived(t *testing.T, processedChan chan *configuration.UpdateEvent) {

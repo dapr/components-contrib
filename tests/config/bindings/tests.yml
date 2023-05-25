@@ -1,4 +1,4 @@
-# Supported operations: create, operations and read
+# Supported operations: create, operations, read
 # Config map:
 ## output: A map of strings that will be part of the request for the output binding
 ## readBindingTimeout : timeout to wait to receive test event
@@ -74,7 +74,6 @@ components:
   - component: kubemq
     operations: [ "create", "operations", "read" ]
   - component: postgres
-    allOperations: false
     operations: [ "exec", "query", "close", "operations" ]
   - component: aws.s3.docker
     operations: ["create", "operations", "get", "list"]

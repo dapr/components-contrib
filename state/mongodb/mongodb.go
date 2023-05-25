@@ -16,6 +16,7 @@ package mongodb
 // mongodb package is an implementation of StateStore interface to perform operations on store
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -26,6 +27,7 @@ import (
 
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/bsonrw"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -217,44 +219,70 @@ func (m *MongoDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetRes
 		return &state.GetResponse{}, err
 	}
 
-	var data []byte
-	switch obj := result.Value.(type) {
-	case string:
-		data = []byte(obj)
-	case primitive.D:
-		// Setting canonical to `false`.
-		// See https://docs.mongodb.com/manual/reference/mongodb-extended-json/#bson-data-types-and-associated-representations
-		// Having bson marshalled into Relaxed JSON instead of canonical JSON, this way type preservation is lost but
-		// interoperability is preserved
-		// See https://mongodb.github.io/swift-bson/docs/current/SwiftBSON/json-interop.html
-		// A decimal value stored as BSON will be returned as {"d": 5.5} if canonical is set to false instead of
-		// {"d": {"$numberDouble": 5.5}} when canonical JSON is returned.
-		if data, err = bson.MarshalExtJSON(obj, false, true); err != nil {
-			return &state.GetResponse{}, err
-		}
-	case primitive.A:
-		newobj := bson.D{{Key: value, Value: obj}}
-
-		if data, err = bson.MarshalExtJSON(newobj, false, true); err != nil {
-			return &state.GetResponse{}, err
-		}
-		var input interface{}
-		json.Unmarshal(data, &input)
-		value := input.(map[string]interface{})[value]
-		if data, err = json.Marshal(value); err != nil {
-			return &state.GetResponse{}, err
-		}
-
-	default:
-		if data, err = json.Marshal(result.Value); err != nil {
-			return &state.GetResponse{}, err
-		}
+	data, err := m.decodeData(result.Value)
+	if err != nil {
+		return &state.GetResponse{}, err
 	}
 
 	return &state.GetResponse{
 		Data: data,
 		ETag: ptr.Of(result.Etag),
 	}, nil
+}
+
+func (m *MongoDB) decodeData(resValue any) (data []byte, err error) {
+	switch obj := resValue.(type) {
+	case string:
+		data = []byte(obj)
+	case primitive.D, primitive.M:
+		if data, err = bson.MarshalExtJSON(obj, true, true); err != nil {
+			return nil, err
+		}
+		vr, errvr := bsonrw.NewExtJSONValueReader(bytes.NewReader(data), true)
+		if err != nil {
+			return nil, errvr
+		}
+		decoder, cerr := bson.NewDecoder(vr)
+		if cerr != nil {
+			return nil, cerr
+		}
+		var output map[string]interface{}
+		if err = decoder.Decode(&output); err != nil {
+			return nil, err
+		}
+		data, err = json.Marshal(output)
+		if err != nil {
+			return nil, err
+		}
+	case primitive.A:
+		newobj := bson.D{{Key: value, Value: obj}}
+
+		if data, err = bson.MarshalExtJSON(newobj, true, true); err != nil {
+			return nil, err
+		}
+		vr, errvr := bsonrw.NewExtJSONValueReader(bytes.NewReader(data), true)
+		if err != nil {
+			return nil, errvr
+		}
+		decoder, cerr := bson.NewDecoder(vr)
+		if cerr != nil {
+			return nil, cerr
+		}
+		var input map[string]interface{}
+		if err = decoder.Decode(&input); err != nil {
+			return nil, err
+		}
+		value := input[value]
+		if data, err = json.Marshal(value); err != nil {
+			return nil, err
+		}
+
+	default:
+		if data, err = json.Marshal(resValue); err != nil {
+			return nil, err
+		}
+	}
+	return data, nil
 }
 
 // Delete performs a delete operation.

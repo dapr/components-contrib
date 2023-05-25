@@ -43,7 +43,7 @@ require (
 	github.com/bradfitz/gomemcache v0.0.0-20230124162541-5f7a7d875746
 	github.com/camunda/zeebe/clients/go/v8 v8.1.8
 	github.com/cenkalti/backoff/v4 v4.2.1
-	github.com/chebyrash/promise v0.0.0-20220530143319-1123826567d6
+	github.com/chebyrash/promise v0.0.0-20230414144155-dd8f641675f4
 	github.com/cinience/go_rocketmq v0.0.2
 	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.13.0
 	github.com/cloudevents/sdk-go/v2 v2.13.0

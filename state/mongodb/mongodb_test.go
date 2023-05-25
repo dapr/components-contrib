@@ -14,9 +14,12 @@ limitations under the License.
 package mongodb
 
 import (
+	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -206,5 +209,82 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		expected := "mongodb://localhost:99999/UnchanedDB"
 
 		assert.Equal(t, expected, uri)
+	})
+
+	t.Run("test decode", func(t *testing.T) {
+		mongo := MongoDB{}
+		time.Local = time.UTC
+		thetime, err := time.Parse(time.RFC3339, "2023-02-01T12:13:09Z")
+		assert.NoError(t, err)
+		timestring := thetime.UTC().Format("2006-01-02T15:04:05Z")
+
+		msg := bson.M{
+			"message": "test message",
+			"time":    thetime,
+			"decimal": 123.456789,
+			"integer": 123456789,
+			"boolean": true,
+		}
+
+		res, err := mongo.decodeData(msg)
+		assert.NoError(t, err)
+
+		var data map[string]interface{}
+		err = json.Unmarshal(res, &data)
+		assert.NoError(t, err)
+
+		assert.Equal(t, "test message", data["message"])
+		assert.Equal(t, timestring, data["time"])
+		assert.Equal(t, 123.456789, data["decimal"])
+		assert.Equal(t, float64(123456789), data["integer"])
+		assert.Equal(t, true, data["boolean"])
+
+		msg2 := bson.D{
+			{Key: "message", Value: "test message"},
+			{Key: "time", Value: thetime},
+			{Key: "decimal", Value: 123.456789},
+			{Key: "integer", Value: 123456789},
+			{Key: "boolean", Value: true},
+			{Key: "nestedarray", Value: bson.A{
+				"test", 123, 123.456, true, timestring,
+			}},
+		}
+
+		res2, err := mongo.decodeData(msg2)
+		assert.NoError(t, err)
+
+		var data2 map[string]interface{}
+		err = json.Unmarshal(res2, &data2)
+		assert.NoError(t, err)
+
+		assert.Equal(t, "test message", data2["message"])
+		assert.Equal(t, timestring, data2["time"])
+		assert.Equal(t, 123.456789, data2["decimal"])
+		assert.Equal(t, float64(123456789), data2["integer"])
+		assert.Equal(t, true, data2["boolean"])
+		assert.Equal(t, []interface{}{"test", float64(123), 123.456, true, timestring}, data2["nestedarray"])
+
+		// this is an array type
+		msg3 := bson.A{
+			thetime, "test message", 123.456789, 123456789, true,
+			bson.D{{Key: "somedecimal", Value: 9.87654321}, {Key: "sometime", Value: thetime}},
+		}
+		res3, err := mongo.decodeData(msg3)
+		assert.NoError(t, err)
+		var data3 []interface{}
+		err = json.Unmarshal(res3, &data3)
+		assert.NoError(t, err)
+
+		assert.Contains(t, data3, "test message")
+		assert.Contains(t, data3, timestring)
+		assert.Contains(t, data3, 123.456789)
+		assert.Contains(t, data3, float64(123456789))
+		assert.Contains(t, data3, true)
+
+		targetMap := map[string]interface{}{
+			"somedecimal": 9.87654321,
+			"sometime":    timestring,
+		}
+		assert.Contains(t, data3, targetMap)
 	})
 }

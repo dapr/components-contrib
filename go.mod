@@ -69,7 +69,7 @@ require (
 	github.com/hashicorp/consul/api v1.13.0
 	github.com/hashicorp/golang-lru/v2 v2.0.2
 	github.com/hazelcast/hazelcast-go-client v0.0.0-20190530123621-6cf767c2f31a
-	github.com/http-wasm/http-wasm-host-go v0.4.2
+	github.com/http-wasm/http-wasm-host-go v0.5.0
 	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.22.11+incompatible
 	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.28
 	github.com/influxdata/influxdb-client-go v1.4.0

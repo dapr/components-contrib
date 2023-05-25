@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dapr/components-contrib/internal/utils"
+	kitctx "github.com/dapr/kit/context"
 )
 
 func TestPubKeyCacheGetKey(t *testing.T) {
@@ -51,7 +51,7 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 			promise: promise.New(func(resolve func(jwk.Key), reject func(error)) {
 				resolve(testKey)
 			}),
-			ctx: utils.NewContextPool(),
+			ctx: kitctx.NewPool(),
 		}
 		result, err := cache.GetKey(context.Background(), "key")
 		assert.NoError(t, err)
@@ -67,13 +67,13 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 			promise: promise.New(func(resolve func(jwk.Key), reject func(error)) {
 				resolve(testKey)
 			}),
-			ctx: utils.NewContextPool(),
+			ctx: kitctx.NewPool(),
 		}
 		cache.pubKeys["another-key"] = pubKeyCacheEntry{
 			promise: promise.New(func(resolve func(jwk.Key), reject func(error)) {
 				resolve(testKey2)
 			}),
-			ctx: utils.NewContextPool(),
+			ctx: kitctx.NewPool(),
 		}
 
 		result, err := cache.GetKey(context.Background(), "key")

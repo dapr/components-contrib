@@ -20,7 +20,7 @@ import (
 	"github.com/chebyrash/promise"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
-	"github.com/dapr/components-contrib/internal/utils"
+	kitctx "github.com/dapr/kit/context"
 )
 
 // GetKeyFn is the type of the getKeyFn function used by the PubKeyCache.
@@ -41,7 +41,7 @@ type PubKeyCache struct {
 
 type pubKeyCacheEntry struct {
 	promise *promise.Promise[jwk.Key]
-	ctx     *utils.ContextPool
+	ctx     *kitctx.Pool
 }
 
 // NewPubKeyCache returns a new PubKeyCache object
@@ -73,7 +73,7 @@ func (kc *PubKeyCache) GetKey(ctx context.Context, key string) (jwk.Key, error) 
 	// result. Create a new context pool for the promise. Cancel the pool on
 	// return so that the context pool doesn't expand indefinitely on cache
 	// reads.
-	p.ctx = utils.NewContextPool(ctx)
+	p.ctx = kitctx.NewPool(ctx)
 	p.promise = promise.Catch(
 		promise.New(kc.getKeyFn(p.ctx, key)),
 		p.ctx,

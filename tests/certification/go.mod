@@ -16,8 +16,8 @@ require (
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
-	github.com/dapr/components-contrib v1.11.0-rc.1
-	github.com/dapr/dapr v1.10.5-rc.1.0.20230430203526-7a0fdf9f016b
+	github.com/dapr/components-contrib v1.11.0-rc.6
+	github.com/dapr/dapr v1.11.0-rc.4
 	github.com/dapr/go-sdk v1.6.1-0.20230427230219-d485c1775c37
 	github.com/dapr/kit v0.0.5
 	github.com/eclipse/paho.mqtt.golang v1.4.2
@@ -197,7 +197,7 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.18 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
-	github.com/microsoft/durabletask-go v0.2.1 // indirect
+	github.com/microsoft/durabletask-go v0.2.3 // indirect
 	github.com/microsoft/go-mssqldb v0.21.0 // indirect
 	github.com/miekg/dns v1.1.50 // indirect
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1 // indirect
@@ -311,5 +311,3 @@ require (
 )
 
 replace github.com/dapr/components-contrib => ../../
-
-replace github.com/dapr/dapr => github.com/italypaleale/dapr v1.6.1-0.20230517003350-c5aed3bc5b0f

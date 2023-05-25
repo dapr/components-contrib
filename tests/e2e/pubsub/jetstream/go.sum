@@ -4,8 +4,8 @@ github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.13.0 h1:iPKdoP+7qq68
 github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.13.0/go.mod h1:Wpbh+0sQ/E5AA5EpqLncez2noG65dlyedpp5qfoYyPE=
 github.com/cloudevents/sdk-go/v2 v2.13.0 h1:2zxDS8RyY1/wVPULGGbdgniGXSzLaRJVl136fLXGsYw=
 github.com/cloudevents/sdk-go/v2 v2.13.0/go.mod h1:xDmKfzNjM8gBvjaF8ijFjM1VYOVUEeUfapHMUX1T5To=
-github.com/dapr/kit v0.0.5 h1:BbjO6LksdXAv6iuTVZiHJNkXj9Ii1gS2wA1u785Ypsg=
-github.com/dapr/kit v0.0.5/go.mod h1:VTWiX6nk5RWZ/kqEJD/EGjJU8hdwHZ73r75K510OHBY=
+github.com/dapr/kit v0.0.6-0.20230524210218-56f99b79fbba h1:10hevzrOAhydVmw5DyJ6qWfGHR2aZQQATjGSiw8IwTU=
+github.com/dapr/kit v0.0.6-0.20230524210218-56f99b79fbba/go.mod h1:VTWiX6nk5RWZ/kqEJD/EGjJU8hdwHZ73r75K510OHBY=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

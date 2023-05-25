@@ -12,7 +12,7 @@ require (
 )
 
 require (
-	github.com/dapr/kit v0.0.5 // indirect
+	github.com/dapr/kit v0.0.6-0.20230524210218-56f99b79fbba // indirect
 	github.com/iancoleman/orderedmap v0.0.0-20190318233801-ac98e3ecb4b0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.1 // indirect
 	github.com/mitchellh/mapstructure v1.5.1-0.20220423185008-bf980b35cac4 // indirect

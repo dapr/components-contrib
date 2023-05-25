@@ -126,11 +126,10 @@ func (k *keyvaultCrypto) getKeyFromVault(parentCtx context.Context, kid keyID) (
 }
 
 // Handler for the getKeyCacheFn method
-func (k *keyvaultCrypto) getKeyCacheFn(key string) func(resolve func(jwk.Key), reject func(error)) {
+func (k *keyvaultCrypto) getKeyCacheFn(ctx context.Context, key string) func(resolve func(jwk.Key), reject func(error)) {
 	kid := newKeyID(key)
-	parentCtx := context.Background()
 	return func(resolve func(jwk.Key), reject func(error)) {
-		pk, err := k.getKeyFromVault(parentCtx, kid)
+		pk, err := k.getKeyFromVault(ctx, kid)
 		if err != nil {
 			reject(err)
 			return

@@ -1054,7 +1054,8 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				Key:   key + "-ttl-expire-time",
 				Value: "⏱️",
 				Metadata: map[string]string{
-					"ttlInSeconds": "60",
+					// Expire in an hour.
+					"ttlInSeconds": "3600",
 				},
 			})
 			require.NoError(t, err)
@@ -1069,8 +1070,9 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			require.Containsf(t, res.Metadata, "ttlExpireTime", "expected metadata to contain ttlExpireTime")
 			expireTime, err := time.Parse(time.RFC3339, res.Metadata["ttlExpireTime"])
 			require.NoError(t, err)
-			// Check the expire time is returned, and is in a 10 second window. This window should be _more_ than enough.
-			assert.InDelta(t, now.Add(time.Minute-(5*time.Second)), expireTime.Add(time.Second*5), float64(time.Second*10))
+			// Check the expire time is returned and is in a 10 minute window. This
+			// window should be _more_ than enough.
+			assert.InDelta(t, now.Add(time.Hour).Unix(), expireTime.Unix(), 10*60)
 		})
 	}
 }

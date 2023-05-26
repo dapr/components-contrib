@@ -247,6 +247,9 @@ func TestCockroach(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, "2", *resp3.ETag)
 		assert.Equal(t, "\"reqVal103\"", string(resp3.Data))
+		require.Contains(t, resp3.Metadata, "ttlExpireTime")
+		expireTime, err := time.Parse(time.RFC3339, resp3.Metadata["ttlExpireTime"])
+		assert.InDelta(t, time.Now().Add(50*time.Second).Unix(), expireTime.Unix(), 5)
 		return nil
 	}
 

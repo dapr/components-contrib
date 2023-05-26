@@ -236,7 +236,7 @@ func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest)
 	}
 
 	query := `SELECT
-			key, value, isbinary, ` + p.etagColumn + ` AS etag
+			key, value, isbinary, ` + p.etagColumn + ` AS etag, expiredate
 		FROM ` + p.metadata.TableName + `
 			WHERE
 				key = $1
@@ -244,7 +244,7 @@ func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest)
 	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
 	defer cancel()
 	row := p.db.QueryRow(ctx, query, req.Key)
-	_, value, etag, err := readRow(row)
+	_, value, etag, expireTime, err := readRow(row)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -253,10 +253,18 @@ func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest)
 		return nil, err
 	}
 
-	return &state.GetResponse{
+	resp := &state.GetResponse{
 		Data: value,
 		ETag: etag,
-	}, nil
+	}
+
+	if expireTime != nil {
+		resp.Metadata = map[string]string{
+			state.GetRespMetaKeyTTLExpireTime: expireTime.Format(time.RFC3339),
+		}
+	}
+
+	return resp, nil
 }
 
 func (p *PostgresDBAccess) BulkGet(parentCtx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error) {
@@ -272,7 +280,7 @@ func (p *PostgresDBAccess) BulkGet(parentCtx context.Context, req []state.GetReq
 
 	// Execute the query
 	query := `SELECT
-			key, value, isbinary, ` + p.etagColumn + ` AS etag
+			key, value, isbinary, ` + p.etagColumn + ` AS etag, expiredate
 		FROM ` + p.metadata.TableName + `
 			WHERE
 				key = ANY($1)
@@ -299,9 +307,15 @@ func (p *PostgresDBAccess) BulkGet(parentCtx context.Context, req []state.GetReq
 		}
 
 		r := state.BulkGetResponse{}
-		r.Key, r.Data, r.ETag, err = readRow(rows)
+		var expireTime *time.Time
+		r.Key, r.Data, r.ETag, expireTime, err = readRow(rows)
 		if err != nil {
 			r.Error = err.Error()
+		}
+		if expireTime != nil {
+			r.Metadata = map[string]string{
+				state.GetRespMetaKeyTTLExpireTime: expireTime.Format(time.RFC3339),
+			}
 		}
 		res[n] = r
 		foundKeys[r.Key] = struct{}{}
@@ -329,18 +343,23 @@ func (p *PostgresDBAccess) BulkGet(parentCtx context.Context, req []state.GetReq
 	return res[:n], nil
 }
 
-func readRow(row pgx.Row) (key string, value []byte, etagS *string, err error) {
+func readRow(row pgx.Row) (key string, value []byte, etagS *string, expireTime *time.Time, err error) {
 	var (
 		isBinary bool
 		etag     pgtype.Int8
+		expT     pgtype.Timestamp
 	)
-	err = row.Scan(&key, &value, &isBinary, &etag)
+	err = row.Scan(&key, &value, &isBinary, &etag, &expT)
 	if err != nil {
-		return key, nil, nil, err
+		return key, nil, nil, nil, err
 	}
 
 	if etag.Valid {
 		etagS = ptr.Of(strconv.FormatInt(etag.Int64, 10))
+	}
+
+	if expT.Valid {
+		expireTime = &expT.Time
 	}
 
 	if isBinary {
@@ -351,18 +370,18 @@ func readRow(row pgx.Row) (key string, value []byte, etagS *string, err error) {
 
 		err = json.Unmarshal(value, &s)
 		if err != nil {
-			return key, nil, nil, fmt.Errorf("failed to unmarshal JSON data: %w", err)
+			return key, nil, nil, nil, fmt.Errorf("failed to unmarshal JSON data: %w", err)
 		}
 
 		data, err = base64.StdEncoding.DecodeString(s)
 		if err != nil {
-			return key, nil, nil, fmt.Errorf("failed to decode base64 data: %w", err)
+			return key, nil, nil, nil, fmt.Errorf("failed to decode base64 data: %w", err)
 		}
 
-		return key, data, etagS, nil
+		return key, data, etagS, expireTime, nil
 	}
 
-	return key, value, etagS, nil
+	return key, value, etagS, expireTime, nil
 }
 
 // Delete removes an item from the state store.

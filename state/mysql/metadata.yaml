@@ -4,7 +4,7 @@ type: state
 name: mysql
 version: v1
 status: stable
-title: "MySQL"
+title: "MySQL & MariaDB"
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-mysql/
@@ -35,6 +35,7 @@ metadata:
     description: "Name of the table Dapr uses to store a few metadata properties"
     type: string
     default: "dapr_metadata"
+    example: '"dapr_metadata"'
   - name: pemPath
     description: |
       Full path to the PEM file to use for enforced SSL Connection.

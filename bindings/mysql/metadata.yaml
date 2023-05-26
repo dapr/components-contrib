@@ -4,7 +4,7 @@ type: bindings
 name: mysql
 version: v1
 status: alpha
-title: "MySQL"
+title: "MySQL & MariaDB"
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-bindings/mysql/

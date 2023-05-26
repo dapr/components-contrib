@@ -1020,6 +1020,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				return res.Data == nil
 			}, time.Second*3, 200*time.Millisecond, "expected object to have been deleted in time")
 		})
+
 	} else {
 		t.Run("ttl feature not present", func(t *testing.T) {
 			// We skip this check for Cloudflare Workers KV
@@ -1030,6 +1031,46 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 			features := statestore.Features()
 			require.False(t, state.FeatureTTL.IsPresent(features))
+		})
+
+		t.Run("no TTL should not return any expire time", func(t *testing.T) {
+			err := statestore.Set(context.Background(), &state.SetRequest{
+				Key:      key + "-no-ttl",
+				Value:    "⏱️",
+				Metadata: map[string]string{},
+			})
+			require.NoError(t, err)
+
+			// Request immediately
+			res, err := statestore.Get(context.Background(), &state.GetRequest{Key: key + "-ttl"})
+			require.NoError(t, err)
+			assertEquals(t, "⏱️", res)
+			assert.NotContains(t, res.Metadata, "ttlExpireTime")
+		})
+
+		t.Run("set and get expire time", func(t *testing.T) {
+			now := time.Now()
+			err := statestore.Set(context.Background(), &state.SetRequest{
+				Key:   key + "-ttl-expire-time",
+				Value: "⏱️",
+				Metadata: map[string]string{
+					"ttlInSeconds": "60",
+				},
+			})
+			require.NoError(t, err)
+
+			// Request immediately
+			res, err := statestore.Get(context.Background(), &state.GetRequest{
+				Key: key + "-ttl-expire-time",
+			})
+			require.NoError(t, err)
+			assertEquals(t, "⏱️", res)
+
+			require.Containsf(t, res.Metadata, "ttlExpireTime", "expected metadata to contain ttlExpireTime")
+			expireTime, err := time.Parse(time.RFC3339, res.Metadata["ttlExpireTime"])
+			require.NoError(t, err)
+			// Check the expire time is returned, and is in a 10 second window. This window should be _more_ than enough.
+			assert.InDelta(t, now.Add(time.Minute-(5*time.Second)), expireTime.Add(time.Second*5), float64(time.Second*10))
 		})
 	}
 }

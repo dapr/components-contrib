@@ -250,14 +250,14 @@ func (a *sqliteDBAccess) Get(parentCtx context.Context, req *state.GetRequest) (
 	}
 
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
-	stmt := `SELECT key, value, is_binary, etag FROM ` + a.metadata.TableName + `
+	stmt := `SELECT key, value, is_binary, etag, expiration_time FROM ` + a.metadata.TableName + `
 		WHERE
 			key = ?
 			AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
 	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
 	defer cancel()
 	row := a.db.QueryRowContext(ctx, stmt, req.Key)
-	_, value, etag, err := readRow(row)
+	_, value, etag, expireTime, err := readRow(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return &state.GetResponse{}, nil
@@ -265,10 +265,17 @@ func (a *sqliteDBAccess) Get(parentCtx context.Context, req *state.GetRequest) (
 		return nil, err
 	}
 
+	var metadata map[string]string
+	if expireTime != nil {
+		metadata = map[string]string{
+			state.GetRespMetaKeyTTLExpireTime: strconv.FormatInt(expireTime.UnixMilli(), 10),
+		}
+	}
+
 	return &state.GetResponse{
 		Data:     value,
 		ETag:     etag,
-		Metadata: req.Metadata,
+		Metadata: metadata,
 	}, nil
 }
 
@@ -286,7 +293,7 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 	}
 
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
-	stmt := `SELECT key, value, is_binary, etag FROM ` + a.metadata.TableName + `
+	stmt := `SELECT key, value, is_binary, etag, expiration_time FROM ` + a.metadata.TableName + `
 		WHERE
 			key IN (` + inClause + `)
 			AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
@@ -307,9 +314,15 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 		}
 
 		r := state.BulkGetResponse{}
-		r.Key, r.Data, r.ETag, err = readRow(rows)
+		var expireTime *time.Time
+		r.Key, r.Data, r.ETag, expireTime, err = readRow(rows)
 		if err != nil {
 			r.Error = err.Error()
+		}
+		if expireTime != nil {
+			r.Metadata = map[string]string{
+				state.GetRespMetaKeyTTLExpireTime: strconv.FormatInt(expireTime.UnixMilli(), 10),
+			}
 		}
 		res[n] = r
 		foundKeys[r.Key] = struct{}{}
@@ -337,14 +350,22 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 	return res[:n], nil
 }
 
-func readRow(row interface{ Scan(dest ...any) error }) (key string, value []byte, etagP *string, err error) {
+func readRow(row interface{ Scan(dest ...any) error }) (string, []byte, *string, *time.Time, error) {
 	var (
-		isBinary bool
-		etag     string
+		key        string
+		value      []byte
+		isBinary   bool
+		etag       string
+		expire     sql.NullTime
+		expireTime *time.Time
 	)
-	err = row.Scan(&key, &value, &isBinary, &etag)
+	err := row.Scan(&key, &value, &isBinary, &etag, &expire)
 	if err != nil {
-		return key, nil, nil, err
+		return key, nil, nil, nil, err
+	}
+
+	if expire.Valid {
+		expireTime = &expire.Time
 	}
 
 	if isBinary {
@@ -352,12 +373,12 @@ func readRow(row interface{ Scan(dest ...any) error }) (key string, value []byte
 		data := make([]byte, len(value))
 		n, err = base64.StdEncoding.Decode(data, value)
 		if err != nil {
-			return key, nil, nil, fmt.Errorf("failed to decode binary data: %w", err)
+			return key, nil, nil, nil, fmt.Errorf("failed to decode binary data: %w", err)
 		}
-		return key, data[:n], &etag, nil
+		return key, data[:n], &etag, expireTime, nil
 	}
 
-	return key, value, &etag, nil
+	return key, value, &etag, expireTime, nil
 }
 
 func (a *sqliteDBAccess) Set(ctx context.Context, req *state.SetRequest) error {

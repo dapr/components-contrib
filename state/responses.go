@@ -14,8 +14,8 @@ limitations under the License.
 package state
 
 const (
-	// GetRespMetaKeyTTLExpireTime is the key for the metadata value of
-	// the TTL expire time.
+	// GetRespMetaKeyTTLExpireTime is the key for the metadata value of the TTL
+	// expire time. Value is Milliseconds since Unix Epoch.
 	GetRespMetaKeyTTLExpireTime string = "ttlExpireTime"
 )
 

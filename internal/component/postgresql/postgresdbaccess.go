@@ -260,7 +260,7 @@ func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest)
 
 	if expireTime != nil {
 		resp.Metadata = map[string]string{
-			state.GetRespMetaKeyTTLExpireTime: expireTime.Format(time.RFC3339),
+			state.GetRespMetaKeyTTLExpireTime: expireTime.UTC().Format(time.RFC3339),
 		}
 	}
 
@@ -314,7 +314,7 @@ func (p *PostgresDBAccess) BulkGet(parentCtx context.Context, req []state.GetReq
 		}
 		if expireTime != nil {
 			r.Metadata = map[string]string{
-				state.GetRespMetaKeyTTLExpireTime: expireTime.Format(time.RFC3339),
+				state.GetRespMetaKeyTTLExpireTime: expireTime.UTC().Format(time.RFC3339),
 			}
 		}
 		res[n] = r

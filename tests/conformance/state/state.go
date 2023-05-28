@@ -1074,6 +1074,48 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			// window should be _more_ than enough.
 			assert.InDelta(t, now.Add(time.Hour).Unix(), expireTime.Unix(), 10*60)
 		})
+
+		t.Run("set and get expire time bulkGet", func(t *testing.T) {
+			now := time.Now()
+			require.NoError(t, statestore.Set(context.Background(), &state.SetRequest{
+				Key:      key + "-ttl-expire-time-bulk-1",
+				Value:    "123",
+				Metadata: map[string]string{"ttlInSeconds": "3600"},
+			}))
+
+			require.NoError(t, statestore.Set(context.Background(), &state.SetRequest{
+				Key:      key + "-ttl-expire-time-bulk-2",
+				Value:    "234",
+				Metadata: map[string]string{"ttlInSeconds": "3600"},
+			}))
+
+			// Request immediately
+			res, err := statestore.BulkGet(context.Background(), []state.GetRequest{
+				{Key: key + "-ttl-expire-time-bulk-1"},
+				{Key: key + "-ttl-expire-time-bulk-2"},
+			}, state.BulkGetOpts{})
+			require.NoError(t, err)
+
+			require.Len(t, res, 2)
+			sort.Slice(res, func(i, j int) bool {
+				return res[i].Key < res[j].Key
+			})
+
+			assert.Equal(t, key+"-ttl-expire-time-bulk-1", res[0].Key)
+			assert.Equal(t, key+"-ttl-expire-time-bulk-2", res[1].Key)
+			assert.Equal(t, "123", res[0].Data)
+			assert.Equal(t, "234", res[1].Data)
+
+			for i := range res {
+				require.Containsf(t, res[i].Metadata, "ttlExpireTime", "expected metadata to contain ttlExpireTime")
+				require.Containsf(t, res[i].Metadata, "ttlExpireTime", "expected metadata to contain ttlExpireTime")
+				expireTime, err := time.Parse(time.RFC3339, res[i].Metadata["ttlExpireTime"])
+				require.NoError(t, err)
+				// Check the expire time is returned and is in a 10 minute window. This
+				// window should be _more_ than enough.
+				assert.InDelta(t, now.Add(time.Hour).Unix(), expireTime.Unix(), 10*60)
+			}
+		})
 	}
 }
 

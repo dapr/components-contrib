@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"k8s.io/utils/clock"
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
@@ -37,6 +38,7 @@ type inMemoryStore struct {
 	items   map[string]*inMemStateStoreItem
 	lock    sync.RWMutex
 	log     logger.Logger
+	clock   clock.Clock
 	closeCh chan struct{}
 	closed  atomic.Bool
 	wg      sync.WaitGroup
@@ -51,6 +53,7 @@ func newStateStore(log logger.Logger) *inMemoryStore {
 		items:   map[string]*inMemStateStoreItem{},
 		log:     log,
 		closeCh: make(chan struct{}),
+		clock:   clock.RealClock{},
 	}
 	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
@@ -146,7 +149,7 @@ func (store *inMemoryStore) Get(ctx context.Context, req *state.GetRequest) (*st
 	store.lock.RLock()
 	item := store.items[req.Key]
 	store.lock.RUnlock()
-	if item != nil && item.isExpired() {
+	if item != nil && item.isExpired(store.clock.Now()) {
 		store.lock.Lock()
 		item = store.getAndExpire(req.Key)
 		store.lock.Unlock()
@@ -156,7 +159,14 @@ func (store *inMemoryStore) Get(ctx context.Context, req *state.GetRequest) (*st
 		return &state.GetResponse{}, nil
 	}
 
-	return &state.GetResponse{Data: item.data, ETag: item.etag}, nil
+	var metadata map[string]string
+	if item.expire != nil {
+		metadata = map[string]string{
+			state.GetRespMetaKeyTTLExpireTime: strconv.FormatInt(*item.expire, 10),
+		}
+	}
+
+	return &state.GetResponse{Data: item.data, ETag: item.etag, Metadata: metadata}, nil
 }
 
 func (store *inMemoryStore) BulkGet(ctx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
@@ -171,11 +181,17 @@ func (store *inMemoryStore) BulkGet(ctx context.Context, req []state.GetRequest,
 
 	for i, r := range req {
 		item := store.items[r.Key]
-		if item != nil && !item.isExpired() {
+		if item != nil && !item.isExpired(store.clock.Now()) {
 			res[i] = state.BulkGetResponse{
 				Key:  r.Key,
 				Data: item.data,
 				ETag: item.etag,
+			}
+
+			if item.expire != nil {
+				res[i].Metadata = map[string]string{
+					state.GetRespMetaKeyTTLExpireTime: strconv.FormatInt(*item.expire, 10),
+				}
 			}
 		} else {
 			res[i] = state.BulkGetResponse{
@@ -193,7 +209,7 @@ func (store *inMemoryStore) getAndExpire(key string) *inMemStateStoreItem {
 	if item == nil {
 		return nil
 	}
-	if item.isExpired() {
+	if item.isExpired(store.clock.Now()) {
 		delete(store.items, key)
 		return nil
 	}
@@ -280,7 +296,7 @@ func (store *inMemoryStore) doSet(ctx context.Context, key string, data []byte, 
 		etag: &etag,
 	}
 	if ttlInSeconds > 0 {
-		el.expire = ptr.Of(time.Now().UnixMilli() + int64(ttlInSeconds)*1000)
+		el.expire = ptr.Of(store.clock.Now().UnixMilli() + int64(ttlInSeconds)*1000)
 	}
 
 	store.items[key] = el
@@ -388,7 +404,7 @@ func (store *inMemoryStore) doCleanExpiredItems() {
 	defer store.lock.Unlock()
 
 	for key, item := range store.items {
-		if item.expire != nil && item.isExpired() {
+		if item.expire != nil && item.isExpired(store.clock.Now()) {
 			store.doDelete(context.Background(), key)
 		}
 	}
@@ -405,9 +421,9 @@ type inMemStateStoreItem struct {
 	expire *int64
 }
 
-func (item *inMemStateStoreItem) isExpired() bool {
+func (item *inMemStateStoreItem) isExpired(now time.Time) bool {
 	if item == nil || item.expire == nil {
 		return false
 	}
-	return time.Now().UnixMilli() > *item.expire
+	return now.UnixMilli() > *item.expire
 }

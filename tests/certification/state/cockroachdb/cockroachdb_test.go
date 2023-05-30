@@ -198,28 +198,36 @@ func TestCockroach(t *testing.T) {
 		err = stateStore.Multi(context.Background(), &state.TransactionalStateRequest{
 			Operations: []state.TransactionalStateOperation{
 				state.SetRequest{
-					Key:      "reqKey1",
-					Value:    "reqVal1",
-					Metadata: map[string]string{},
+					Key:   "reqKey1",
+					Value: "reqVal1",
+					Metadata: map[string]string{
+						"ttlInSeconds": "-1",
+					},
 				},
 				state.SetRequest{
-					Key:      "reqKey2",
-					Value:    "reqVal2",
-					Metadata: map[string]string{},
+					Key:   "reqKey2",
+					Value: "reqVal2",
+					Metadata: map[string]string{
+						"ttlInSeconds": "222",
+					},
 				},
 				state.SetRequest{
 					Key:   "reqKey3",
 					Value: "reqVal3",
 				},
 				state.SetRequest{
-					Key:      "reqKey1",
-					Value:    "reqVal101",
-					Metadata: map[string]string{},
+					Key:   "reqKey1",
+					Value: "reqVal101",
+					Metadata: map[string]string{
+						"ttlInSeconds": "50",
+					},
 				},
 				state.SetRequest{
-					Key:      "reqKey3",
-					Value:    "reqVal103",
-					Metadata: map[string]string{},
+					Key:   "reqKey3",
+					Value: "reqVal103",
+					Metadata: map[string]string{
+						"ttlInSeconds": "50",
+					},
 				},
 				state.DeleteRequest{
 					Key:      certificationTestPrefix + "key1",

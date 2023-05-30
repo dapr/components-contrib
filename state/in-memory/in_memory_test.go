@@ -110,8 +110,6 @@ func TestReadAndWrite(t *testing.T) {
 	})
 
 	t.Run("return expire time when ttlInSeconds set with GetBulk", func(t *testing.T) {
-		//now := fakeClock.Now()
-
 		assert.NoError(t, store.Set(context.Background(), &state.SetRequest{
 			Key:      "a",
 			Value:    "123",

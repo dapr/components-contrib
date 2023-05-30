@@ -329,22 +329,19 @@ func (c v8Client) PExpireTimeResult(ctx context.Context, key string) (*time.Time
 		writeCtx = ctx
 	}
 
-	cmd := v8.NewIntCmd(writeCtx, "pexpiretime", key)
-	if err := c.client.Process(writeCtx, cmd); err != nil {
-		return nil, err
-	}
-
-	res, err := cmd.Result()
+	// Pre v7 does not have PEXPIRETIME command, so we use PTTL instead and
+	// approximate the expire time.
+	ttl, err := c.client.PTTL(writeCtx, key).Result()
 	if err != nil {
 		return nil, err
 	}
 
-	if res < 0 {
-		return nil, nil
+	if ttl >= 0 {
+		t := time.Now().Add(ttl)
+		return &t, nil
 	}
 
-	t := time.UnixMilli(res)
-	return &t, nil
+	return nil, nil
 }
 
 func newV8FailoverClient(s *Settings) RedisClient {

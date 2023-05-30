@@ -330,7 +330,7 @@ func (c v9Client) PExpireTimeResult(ctx context.Context, key string) (*time.Time
 		writeCtx = ctx
 	}
 
-	res, err := v9.NewIntCmd(writeCtx, "PEXPIRETIME", key).Result()
+	res, err := v9.NewIntCmd(writeCtx, "pexpiretime", key).Result()
 	if err != nil {
 		return nil, err
 	}

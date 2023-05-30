@@ -20,7 +20,6 @@ import (
 	"time"
 
 	miniredis "github.com/alicebob/miniredis/v2"
-	"github.com/alicebob/miniredis/v2/server"
 	redis "github.com/go-redis/redis/v8"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
@@ -531,20 +530,6 @@ func setupMiniredis() (*miniredis.Miniredis, rediscomponent.RedisClient) {
 		Addr: s.Addr(),
 		DB:   defaultDB,
 	}
-	client := rediscomponent.ClientFromV8Client(redis.NewClient(opts))
 
-	s.Server().Register("pexpiretime", func(c *server.Peer, _ string, args []string) {
-		if len(args) != 1 {
-			c.WriteError("ERR wrong number of arguments for 'pexpiretime' command")
-			return
-		}
-		res, err := client.TTLResult(context.Background(), args[0])
-		if err != nil {
-			c.WriteError(err.Error())
-			return
-		}
-		c.WriteInt(int(time.Now().UnixMilli() + res.Milliseconds()))
-	})
-
-	return s, client
+	return s, rediscomponent.ClientFromV8Client(redis.NewClient(opts))
 }

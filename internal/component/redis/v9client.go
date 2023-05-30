@@ -317,6 +317,32 @@ func (c v9Client) TTLResult(ctx context.Context, key string) (time.Duration, err
 	return c.client.TTL(writeCtx, key).Result()
 }
 
+// PExpireTimeResult returns the time when the key will expire.
+// If the key does not exist or does not have an associated expire, nil is
+// returned.
+func (c v9Client) PExpireTimeResult(ctx context.Context, key string) (*time.Time, error) {
+	var writeCtx context.Context
+	if c.writeTimeout > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(c.writeTimeout))
+		defer cancel()
+		writeCtx = timeoutCtx
+	} else {
+		writeCtx = ctx
+	}
+
+	res, err := v9.NewIntCmd(writeCtx, "PEXPIRETIME", key).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	if res < 0 {
+		return nil, nil
+	}
+
+	t := time.UnixMilli(res)
+	return &t, nil
+}
+
 func newV9FailoverClient(s *Settings) RedisClient {
 	if s == nil {
 		return nil

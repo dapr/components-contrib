@@ -23,7 +23,6 @@ import (
 	"golang.org/x/mod/semver"
 
 	"github.com/dapr/components-contrib/configuration"
-
 	"github.com/dapr/components-contrib/metadata"
 )
 
@@ -83,6 +82,7 @@ type RedisClient interface {
 	XClaimResult(ctx context.Context, stream string, group string, consumer string, minIdleTime time.Duration, messageIDs []string) ([]RedisXMessage, error)
 	TxPipeline() RedisPipeliner
 	TTLResult(ctx context.Context, key string) (time.Duration, error)
+	PExpireTimeResult(context.Context, string) (*time.Time, error)
 }
 
 type ConfigurationSubscribeArgs struct {

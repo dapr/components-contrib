@@ -195,6 +195,7 @@ func TestRedis(t *testing.T) {
 
 	// Transaction related test - also for Multi
 	upsertTest := func(ctx flow.Context) error {
+		now := time.Now()
 		err := stateStore.Multi(context.Background(), &state.TransactionalStateRequest{
 			Operations: []state.TransactionalStateOperation{
 				state.SetRequest{
@@ -237,12 +238,19 @@ func TestRedis(t *testing.T) {
 		})
 		assert.Equal(t, "2", *resp1.ETag)
 		assert.Equal(t, `"reqVal101"`, string(resp1.Data))
+		assert.Contains(t, resp1.Metadata, "ttlExpireTime")
+		expireTime, err := strconv.ParseInt(resp1.Metadata["ttlExpireTime"], 10, 64)
+		_ = assert.NoError(t, err) && assert.InDelta(t, now.Add(time.Second*50).UnixMilli(), expireTime, 5000)
 
 		resp3, err := stateStore.Get(context.Background(), &state.GetRequest{
 			Key: "reqKey3",
 		})
 		assert.Equal(t, "2", *resp3.ETag)
 		assert.Equal(t, `"reqVal103"`, string(resp3.Data))
+		assert.Contains(t, resp1.Metadata, "ttlExpireTime")
+		expireTime, err = strconv.ParseInt(resp1.Metadata["ttlExpireTime"], 10, 64)
+		_ = assert.NoError(t, err) && assert.InDelta(t, now.Add(time.Second*50).UnixMilli(), expireTime, 5000)
+
 		return nil
 	}
 

@@ -263,10 +263,10 @@ func (r *StateStore) getDefault(ctx context.Context, req *state.GetRequest) (*st
 		return nil, err
 	}
 
-	return &state.GetResponse{
+	return r.getWithExpireTime(ctx, req.Key, &state.GetResponse{
 		Data: []byte(data),
 		ETag: version,
-	}, nil
+	})
 }
 
 func (r *StateStore) getJSON(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
@@ -300,10 +300,26 @@ func (r *StateStore) getJSON(ctx context.Context, req *state.GetRequest) (*state
 		return nil, err
 	}
 
-	return &state.GetResponse{
+	return r.getWithExpireTime(ctx, req.Key, &state.GetResponse{
 		Data: data,
 		ETag: version,
-	}, nil
+	})
+}
+
+func (r *StateStore) getWithExpireTime(ctx context.Context, key string, resp *state.GetResponse) (*state.GetResponse, error) {
+	expireTime, err := r.client.PExpireTimeResult(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+
+	if expireTime != nil {
+		if resp.Metadata == nil {
+			resp.Metadata = make(map[string]string)
+		}
+		resp.Metadata[state.GetRespMetaKeyTTLExpireTime] = strconv.FormatInt(expireTime.UnixMilli(), 10)
+	}
+
+	return resp, nil
 }
 
 // Get retrieves state from redis with a key.

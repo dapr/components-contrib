@@ -20,9 +20,11 @@ import (
 	"time"
 
 	miniredis "github.com/alicebob/miniredis/v2"
+	"github.com/alicebob/miniredis/v2/server"
 	redis "github.com/go-redis/redis/v8"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	"github.com/dapr/components-contrib/state"
@@ -403,18 +405,27 @@ func TestSetRequestWithTTL(t *testing.T) {
 	}
 
 	t.Run("TTL specified", func(t *testing.T) {
+		now := time.Now().UTC()
 		ttlInSeconds := 100
-		ss.Set(context.Background(), &state.SetRequest{
+		assert.NoError(t, ss.Set(context.Background(), &state.SetRequest{
 			Key:   "weapon100",
 			Value: "deathstar100",
 			Metadata: map[string]string{
 				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
 			},
-		})
+		}))
 
-		ttl, _ := ss.client.TTLResult(context.Background(), "weapon100")
+		ttl, err := ss.client.TTLResult(context.Background(), "weapon100")
+		assert.NoError(t, err)
 
 		assert.Equal(t, time.Duration(ttlInSeconds)*time.Second, ttl)
+
+		resp, err := ss.Get(context.Background(), &state.GetRequest{Key: "weapon100"})
+		assert.NoError(t, err)
+		require.Contains(t, resp.Metadata, "ttlExpireTime")
+		expireTime, err := strconv.ParseInt(resp.Metadata["ttlExpireTime"], 10, 64)
+		require.NoError(t, err)
+		assert.InDelta(t, now.Add(time.Duration(ttlInSeconds)*time.Second).UnixMilli(), expireTime, 1000)
 	})
 
 	t.Run("TTL not specified", func(t *testing.T) {
@@ -520,6 +531,20 @@ func setupMiniredis() (*miniredis.Miniredis, rediscomponent.RedisClient) {
 		Addr: s.Addr(),
 		DB:   defaultDB,
 	}
+	client := rediscomponent.ClientFromV8Client(redis.NewClient(opts))
 
-	return s, rediscomponent.ClientFromV8Client(redis.NewClient(opts))
+	s.Server().Register("pexpiretime", func(c *server.Peer, _ string, args []string) {
+		if len(args) != 1 {
+			c.WriteError("ERR wrong number of arguments for 'pexpiretime' command")
+			return
+		}
+		res, err := client.TTLResult(context.Background(), args[0])
+		if err != nil {
+			c.WriteError(err.Error())
+			return
+		}
+		c.WriteInt(int(time.Now().UnixMilli() + res.Milliseconds()))
+	})
+
+	return s, client
 }

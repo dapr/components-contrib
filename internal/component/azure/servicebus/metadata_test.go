@@ -14,8 +14,6 @@ limitations under the License.
 package servicebus
 
 import (
-	"fmt"
-	"net/http"
 	"testing"
 
 	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
@@ -517,8 +515,6 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		parseErr := addMetadataToMessage(&msg, metadata)
 		assert.NoError(t, parseErr)
 		assert.Equal(t, int64(1718459130000000), msg.ScheduledEnqueueTime.UnixMicro())
-
-		fmt.Println(msg.ScheduledEnqueueTime.Format(http.TimeFormat))
 
 		msg2 := azservicebus.Message{}
 		metadata2 := map[string]string{

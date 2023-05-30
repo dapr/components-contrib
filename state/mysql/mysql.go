@@ -531,10 +531,10 @@ func (m *MySQL) Get(parentCtx context.Context, req *state.GetRequest) (*state.Ge
 	ctx, cancel := context.WithTimeout(parentCtx, m.timeout)
 	defer cancel()
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
-	query := `SELECT id, value, eTag, isbinary FROM ` + m.tableName + ` WHERE id = ?
+	query := `SELECT id, value, eTag, isbinary, expiredate FROM ` + m.tableName + ` WHERE id = ?
 			AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)`
 	row := m.db.QueryRowContext(ctx, query, req.Key)
-	_, value, etag, err := readRow(row)
+	_, value, etag, expireTime, err := readRow(row)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return an error.
 		if errors.Is(err, sql.ErrNoRows) {
@@ -542,10 +542,18 @@ func (m *MySQL) Get(parentCtx context.Context, req *state.GetRequest) (*state.Ge
 		}
 		return nil, err
 	}
+
+	var metadata map[string]string
+	if expireTime != nil {
+		metadata = map[string]string{
+			state.GetRespMetaKeyTTLExpireTime: strconv.FormatInt(expireTime.UnixMilli(), 10),
+		}
+	}
+
 	return &state.GetResponse{
 		Data:     value,
 		ETag:     etag,
-		Metadata: req.Metadata,
+		Metadata: metadata,
 	}, nil
 }
 
@@ -708,7 +716,7 @@ func (m *MySQL) BulkGet(parentCtx context.Context, req []state.GetRequest, _ sta
 	}
 
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
-	stmt := `SELECT id, value, eTag, isbinary FROM ` + m.tableName + `
+	stmt := `SELECT id, value, eTag, isbinary, expiredate FROM ` + m.tableName + `
 		WHERE
 			id IN (` + inClause + `)
 			AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)`
@@ -720,6 +728,7 @@ func (m *MySQL) BulkGet(parentCtx context.Context, req []state.GetRequest, _ sta
 	}
 
 	var n int
+	var expireTime *time.Time
 	res := make([]state.BulkGetResponse, len(req))
 	foundKeys := make(map[string]struct{}, len(req))
 	for ; rows.Next(); n++ {
@@ -729,9 +738,14 @@ func (m *MySQL) BulkGet(parentCtx context.Context, req []state.GetRequest, _ sta
 		}
 
 		r := state.BulkGetResponse{}
-		r.Key, r.Data, r.ETag, err = readRow(rows)
+		r.Key, r.Data, r.ETag, expireTime, err = readRow(rows)
 		if err != nil {
 			r.Error = err.Error()
+		}
+		if expireTime != nil {
+			r.Metadata = map[string]string{
+				state.GetRespMetaKeyTTLExpireTime: strconv.FormatInt(expireTime.UnixMilli(), 10),
+			}
 		}
 		res[n] = r
 		foundKeys[r.Key] = struct{}{}
@@ -759,14 +773,24 @@ func (m *MySQL) BulkGet(parentCtx context.Context, req []state.GetRequest, _ sta
 	return res[:n], nil
 }
 
-func readRow(row interface{ Scan(dest ...any) error }) (key string, value []byte, etagP *string, err error) {
+func readRow(row interface{ Scan(dest ...any) error }) (key string, value []byte, etagP *string, expireTime *time.Time, err error) {
 	var (
 		etag     string
 		isBinary bool
+		expire   sql.NullString
 	)
-	err = row.Scan(&key, &value, &etag, &isBinary)
+	err = row.Scan(&key, &value, &etag, &isBinary, &expire)
 	if err != nil {
-		return key, nil, nil, err
+		return key, nil, nil, nil, err
+	}
+
+	if len(expire.String) > 0 {
+		var expireT time.Time
+		expireT, err = time.Parse(time.DateTime, expire.String)
+		if err != nil {
+			return key, nil, nil, nil, fmt.Errorf("failed to parse expiration time: %w", err)
+		}
+		expireTime = &expireT
 	}
 
 	if isBinary {
@@ -777,17 +801,17 @@ func readRow(row interface{ Scan(dest ...any) error }) (key string, value []byte
 
 		err = json.Unmarshal(value, &s)
 		if err != nil {
-			return key, nil, nil, fmt.Errorf("failed to unmarshal JSON binary data: %w", err)
+			return key, nil, nil, nil, fmt.Errorf("failed to unmarshal JSON binary data: %w", err)
 		}
 
 		data, err = base64.StdEncoding.DecodeString(s)
 		if err != nil {
-			return key, nil, nil, fmt.Errorf("failed to decode binary data: %w", err)
+			return key, nil, nil, nil, fmt.Errorf("failed to decode binary data: %w", err)
 		}
-		return key, data, &etag, nil
+		return key, data, &etag, expireTime, nil
 	}
 
-	return key, value, &etag, nil
+	return key, value, &etag, expireTime, nil
 }
 
 // Multi handles multiple transactions.

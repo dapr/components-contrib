@@ -22,6 +22,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -29,6 +31,7 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -251,6 +254,12 @@ func TestMySQLIntegration(t *testing.T) {
 	t.Run("Bulk set and bulk delete", func(t *testing.T) {
 		t.Parallel()
 		testBulkSetAndBulkDelete(t, mys)
+	})
+
+	t.Run("Get and BulkGet with ttl", func(t *testing.T) {
+		t.Parallel()
+		testGetExpireTime(t, mys)
+		testGetBulkExpireTime(t, mys)
 	})
 
 	t.Run("Update and delete with eTag succeeds", func(t *testing.T) {
@@ -570,6 +579,65 @@ func testBulkSetAndBulkDelete(t *testing.T, mys *MySQL) {
 	assert.NoError(t, err)
 	assert.False(t, storeItemExists(t, setReq[0].Key))
 	assert.False(t, storeItemExists(t, setReq[1].Key))
+}
+
+func testGetExpireTime(t *testing.T, mys *MySQL) {
+	key1 := randomKey()
+	assert.NoError(t, mys.Set(context.Background(), &state.SetRequest{
+		Key:   key1,
+		Value: "123",
+		Metadata: map[string]string{
+			"ttlInSeconds": "1000",
+		},
+	}))
+
+	resp, err := mys.Get(context.Background(), &state.GetRequest{Key: key1})
+	assert.NoError(t, err)
+	assert.Equal(t, `"123"`, string(resp.Data))
+	require.Len(t, resp.Metadata, 1)
+	mili, err := strconv.ParseInt(resp.Metadata["ttlExpireTime"], 10, 64)
+	require.NoError(t, err)
+	assert.InDelta(t, time.Now().Add(time.Second*1000).UnixMilli(), mili, 1000)
+}
+
+func testGetBulkExpireTime(t *testing.T, mys *MySQL) {
+	key1 := randomKey()
+	key2 := randomKey()
+
+	assert.NoError(t, mys.Set(context.Background(), &state.SetRequest{
+		Key:   key1,
+		Value: "123",
+		Metadata: map[string]string{
+			"ttlInSeconds": "1000",
+		},
+	}))
+	assert.NoError(t, mys.Set(context.Background(), &state.SetRequest{
+		Key:   key2,
+		Value: "456",
+		Metadata: map[string]string{
+			"ttlInSeconds": "2001",
+		},
+	}))
+
+	resp, err := mys.BulkGet(context.Background(), []state.GetRequest{
+		{Key: key1}, {Key: key2},
+	}, state.BulkGetOpts{})
+	require.NoError(t, err)
+	assert.Len(t, resp, 2)
+	sort.Slice(resp, func(i, j int) bool {
+		return string(resp[i].Data) < string(resp[j].Data)
+	})
+
+	assert.Equal(t, `"123"`, string(resp[0].Data))
+	assert.Equal(t, `"456"`, string(resp[1].Data))
+	require.Len(t, resp[0].Metadata, 1)
+	require.Len(t, resp[1].Metadata, 1)
+	mili, err := strconv.ParseInt(resp[0].Metadata["ttlExpireTime"], 10, 64)
+	require.NoError(t, err)
+	assert.InDelta(t, time.Now().Add(time.Second*1000).UnixMilli(), mili, 1000)
+	mili, err = strconv.ParseInt(resp[1].Metadata["ttlExpireTime"], 10, 64)
+	require.NoError(t, err)
+	assert.InDelta(t, time.Now().Add(time.Second*2001).UnixMilli(), mili, 2001)
 }
 
 func dropTable(t *testing.T, db *sql.DB, tableName string) {

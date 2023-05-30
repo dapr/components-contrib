@@ -164,7 +164,7 @@ func addMetadataToMessage(asbMsg *azservicebus.Message, metadata map[string]stri
 				if err2 == nil {
 					asbMsg.ScheduledEnqueueTime = &timeVal
 				} else {
-					return fmt.Errorf("invalid time format for %s: %s. Expect HTTP time format or RFC3339", k, v)
+					return fmt.Errorf("invalid time format for %s; expected HTTP time format or RFC3339", k)
 				}
 			}
 

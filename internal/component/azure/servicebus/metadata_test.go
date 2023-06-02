@@ -559,7 +559,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert.
 		assert.Error(t, err)
-        })
+	})
 
 	t.Run("Test add system metadata: ScheduledEnqueueTimeUtc", func(t *testing.T) {
 		msg := azservicebus.Message{}

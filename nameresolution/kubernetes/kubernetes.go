@@ -58,19 +58,20 @@ func (k *resolver) Init(metadata nameresolution.Metadata) error {
 	if err != nil {
 		return err
 	}
-	if cfg, ok := configInterface.(map[string]interface{}); ok {
-		clusterDomainPtr := cfg[ClusterDomainKey]
-		tmplStrPtr := cfg[TemplateKey]
 
-		if clusterDomainPtr != nil {
-			clusterDomain, _ := clusterDomainPtr.(string)
+	if cfg, ok := configInterface.(map[string]interface{}); ok {
+		clusterDomainAny := cfg[ClusterDomainKey]
+		tmplStrAny := cfg[TemplateKey]
+
+		if clusterDomainAny != nil {
+			clusterDomain, _ := clusterDomainAny.(string)
 			if clusterDomain != "" {
 				k.clusterDomain = clusterDomain
 			}
 		}
 
-		if tmplStrPtr != nil {
-			tmplStr, _ := tmplStrPtr.(string)
+		if tmplStrAny != nil {
+			tmplStr, _ := tmplStrAny.(string)
 			if tmplStr != "" {
 				k.tmpl = template.Must(template.New("kubernetes-template").Parse(tmplStr))
 				k.logger.Debugf("using custom template %s", tmplStr)

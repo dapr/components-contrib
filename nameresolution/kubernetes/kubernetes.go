@@ -15,11 +15,11 @@ package kubernetes
 
 import (
 	"bytes"
-	"github.com/dapr/kit/config"
 	"strconv"
 	"text/template"
 
 	"github.com/dapr/components-contrib/nameresolution"
+	"github.com/dapr/kit/config"
 	"github.com/dapr/kit/logger"
 )
 

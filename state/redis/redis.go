@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	jsoniter "github.com/json-iterator/go"
 
@@ -316,7 +317,7 @@ func (r *StateStore) getWithExpireTime(ctx context.Context, key string, resp *st
 		if resp.Metadata == nil {
 			resp.Metadata = make(map[string]string)
 		}
-		resp.Metadata[state.GetRespMetaKeyTTLExpireTime] = strconv.FormatInt(expireTime.UnixMilli(), 10)
+		resp.Metadata[state.GetRespMetaKeyTTLExpireTime] = expireTime.UTC().Format(time.RFC3339)
 	}
 
 	return resp, nil

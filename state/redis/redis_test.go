@@ -422,9 +422,9 @@ func TestSetRequestWithTTL(t *testing.T) {
 		resp, err := ss.Get(context.Background(), &state.GetRequest{Key: "weapon100"})
 		assert.NoError(t, err)
 		require.Contains(t, resp.Metadata, "ttlExpireTime")
-		expireTime, err := strconv.ParseInt(resp.Metadata["ttlExpireTime"], 10, 64)
+		expireTime, err := time.Parse(time.RFC3339, resp.Metadata["ttlExpireTime"])
 		require.NoError(t, err)
-		assert.InDelta(t, now.Add(time.Duration(ttlInSeconds)*time.Second).UnixMilli(), expireTime, 1000)
+		assert.InDelta(t, now.Add(time.Duration(ttlInSeconds)*time.Second).Unix(), expireTime.Unix(), 5)
 	})
 
 	t.Run("TTL not specified", func(t *testing.T) {
@@ -433,9 +433,12 @@ func TestSetRequestWithTTL(t *testing.T) {
 			Value: "deathstar200",
 		})
 
-		ttl, _ := ss.client.TTLResult(context.Background(), "weapon200")
-
+		ttl, err := ss.client.TTLResult(context.Background(), "weapon200")
+		assert.NoError(t, err)
 		assert.Equal(t, time.Duration(-1), ttl)
+		resp, err := ss.Get(context.Background(), &state.GetRequest{Key: "weapon200"})
+		assert.NoError(t, err)
+		require.NotContains(t, resp.Metadata, "ttlExpireTime")
 	})
 
 	t.Run("TTL Changed for Existing Key", func(t *testing.T) {

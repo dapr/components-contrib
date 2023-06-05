@@ -488,8 +488,7 @@ func TestGetSucceeds(t *testing.T) {
 		assert.NotNil(t, response)
 		assert.Equal(t, "abcdefg", string(response.Data))
 		assert.Contains(t, response.Metadata, state.GetRespMetaKeyTTLExpireTime)
-		// We loose precision when converting to/from mysql timestamp.
-		assert.Equal(t, "20000", response.Metadata[state.GetRespMetaKeyTTLExpireTime])
+		assert.Equal(t, "1970-01-01T00:00:20Z", response.Metadata[state.GetRespMetaKeyTTLExpireTime])
 	})
 }
 

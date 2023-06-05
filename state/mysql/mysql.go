@@ -546,7 +546,7 @@ func (m *MySQL) Get(parentCtx context.Context, req *state.GetRequest) (*state.Ge
 	var metadata map[string]string
 	if expireTime != nil {
 		metadata = map[string]string{
-			state.GetRespMetaKeyTTLExpireTime: strconv.FormatInt(expireTime.UnixMilli(), 10),
+			state.GetRespMetaKeyTTLExpireTime: expireTime.UTC().Format(time.RFC3339),
 		}
 	}
 
@@ -744,7 +744,7 @@ func (m *MySQL) BulkGet(parentCtx context.Context, req []state.GetRequest, _ sta
 		}
 		if expireTime != nil {
 			r.Metadata = map[string]string{
-				state.GetRespMetaKeyTTLExpireTime: strconv.FormatInt(expireTime.UnixMilli(), 10),
+				state.GetRespMetaKeyTTLExpireTime: expireTime.UTC().Format(time.RFC3339),
 			}
 		}
 		res[n] = r

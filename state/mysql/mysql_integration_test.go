@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -595,9 +594,9 @@ func testGetExpireTime(t *testing.T, mys *MySQL) {
 	assert.NoError(t, err)
 	assert.Equal(t, `"123"`, string(resp.Data))
 	require.Len(t, resp.Metadata, 1)
-	mili, err := strconv.ParseInt(resp.Metadata["ttlExpireTime"], 10, 64)
+	expireTime, err := time.Parse(time.RFC3339, resp.Metadata["ttlExpireTime"])
 	require.NoError(t, err)
-	assert.InDelta(t, time.Now().Add(time.Second*1000).UnixMilli(), mili, 1000)
+	assert.InDelta(t, time.Now().Add(time.Second*1000).Unix(), expireTime.Unix(), 5)
 }
 
 func testGetBulkExpireTime(t *testing.T, mys *MySQL) {
@@ -632,12 +631,12 @@ func testGetBulkExpireTime(t *testing.T, mys *MySQL) {
 	assert.Equal(t, `"456"`, string(resp[1].Data))
 	require.Len(t, resp[0].Metadata, 1)
 	require.Len(t, resp[1].Metadata, 1)
-	mili, err := strconv.ParseInt(resp[0].Metadata["ttlExpireTime"], 10, 64)
+	expireTime, err := time.Parse(time.RFC3339, resp[0].Metadata["ttlExpireTime"])
 	require.NoError(t, err)
-	assert.InDelta(t, time.Now().Add(time.Second*1000).UnixMilli(), mili, 1000)
-	mili, err = strconv.ParseInt(resp[1].Metadata["ttlExpireTime"], 10, 64)
+	assert.InDelta(t, time.Now().Add(time.Second*1000).Unix(), expireTime.Unix(), 5)
+	expireTime, err = time.Parse(time.RFC3339, resp[1].Metadata["ttlExpireTime"])
 	require.NoError(t, err)
-	assert.InDelta(t, time.Now().Add(time.Second*2001).UnixMilli(), mili, 2001)
+	assert.InDelta(t, time.Now().Add(time.Second*2001).Unix(), expireTime.Unix(), 5)
 }
 
 func dropTable(t *testing.T, db *sql.DB, tableName string) {

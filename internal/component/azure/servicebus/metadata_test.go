@@ -16,6 +16,7 @@ package servicebus
 import (
 	"testing"
 
+	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -558,5 +559,30 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert.
 		assert.Error(t, err)
+	})
+
+	t.Run("Test add system metadata: ScheduledEnqueueTimeUtc", func(t *testing.T) {
+		msg := azservicebus.Message{}
+		metadata := map[string]string{
+			MessageKeyScheduledEnqueueTimeUtc: "2024-06-15T13:45:30.00000000Z",
+		}
+		parseErr := addMetadataToMessage(&msg, metadata)
+		assert.NoError(t, parseErr)
+		assert.Equal(t, int64(1718459130000000), msg.ScheduledEnqueueTime.UnixMicro())
+
+		msg2 := azservicebus.Message{}
+		metadata2 := map[string]string{
+			MessageKeyScheduledEnqueueTimeUtc: "Sat, 15 Jun 2024 13:45:30 GMT",
+		}
+		parseErr2 := addMetadataToMessage(&msg2, metadata2)
+		assert.NoError(t, parseErr2)
+		assert.Equal(t, int64(1718459130000000), msg2.ScheduledEnqueueTime.UnixMicro())
+
+		msg3 := azservicebus.Message{}
+		metadata3 := map[string]string{
+			MessageKeyScheduledEnqueueTimeUtc: "Sat 2024-06-15 12:13:14 UTC+4",
+		}
+		parseErr3 := addMetadataToMessage(&msg3, metadata3)
+		assert.Error(t, parseErr3)
 	})
 }

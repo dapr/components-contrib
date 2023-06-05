@@ -15,9 +15,11 @@ package cassandra
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
+	"time"
 
 	"github.com/gocql/gocql"
 	jsoniter "github.com/json-iterator/go"
@@ -240,7 +242,7 @@ func (c *Cassandra) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 		session = sess
 	}
 
-	results, err := session.Query(fmt.Sprintf("SELECT value FROM %s WHERE key = ?", c.table), req.Key).WithContext(ctx).Iter().SliceMap()
+	results, err := session.Query(fmt.Sprintf("SELECT value, TTL(value) AS ttl, toTimestamp(now()) AS now FROM %s WHERE key = ?", c.table), req.Key).WithContext(ctx).Iter().SliceMap()
 	if err != nil {
 		return nil, err
 	}
@@ -249,8 +251,20 @@ func (c *Cassandra) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 		return &state.GetResponse{}, nil
 	}
 
+	var metadata map[string]string
+	if ttl := results[0]["ttl"].(int); ttl > 0 {
+		now, ok := results[0]["now"].(time.Time)
+		if !ok {
+			return nil, errors.New("failed to parse cassandra timestamp")
+		}
+		metadata = map[string]string{
+			state.GetRespMetaKeyTTLExpireTime: now.Add(time.Duration(ttl) * time.Second).Format(time.RFC3339),
+		}
+	}
+
 	return &state.GetResponse{
-		Data: results[0]["value"].([]byte),
+		Data:     results[0]["value"].([]byte),
+		Metadata: metadata,
 	}, nil
 }
 

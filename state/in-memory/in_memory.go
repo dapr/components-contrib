@@ -162,7 +162,7 @@ func (store *inMemoryStore) Get(ctx context.Context, req *state.GetRequest) (*st
 	var metadata map[string]string
 	if item.expire != nil {
 		metadata = map[string]string{
-			state.GetRespMetaKeyTTLExpireTime: strconv.FormatInt(*item.expire, 10),
+			state.GetRespMetaKeyTTLExpireTime: item.expire.UTC().Format(time.RFC3339),
 		}
 	}
 
@@ -190,7 +190,7 @@ func (store *inMemoryStore) BulkGet(ctx context.Context, req []state.GetRequest,
 
 			if item.expire != nil {
 				res[i].Metadata = map[string]string{
-					state.GetRespMetaKeyTTLExpireTime: strconv.FormatInt(*item.expire, 10),
+					state.GetRespMetaKeyTTLExpireTime: item.expire.UTC().Format(time.RFC3339),
 				}
 			}
 		} else {
@@ -296,7 +296,7 @@ func (store *inMemoryStore) doSet(ctx context.Context, key string, data []byte, 
 		etag: &etag,
 	}
 	if ttlInSeconds > 0 {
-		el.expire = ptr.Of(store.clock.Now().UnixMilli() + int64(ttlInSeconds)*1000)
+		el.expire = ptr.Of(store.clock.Now().Add(time.Duration(ttlInSeconds) * time.Second))
 	}
 
 	store.items[key] = el
@@ -418,12 +418,12 @@ func (store *inMemoryStore) GetComponentMetadata() map[string]string {
 type inMemStateStoreItem struct {
 	data   []byte
 	etag   *string
-	expire *int64
+	expire *time.Time
 }
 
 func (item *inMemStateStoreItem) isExpired(now time.Time) bool {
 	if item == nil || item.expire == nil {
 		return false
 	}
-	return now.UnixMilli() > *item.expire
+	return now.After(*item.expire)
 }

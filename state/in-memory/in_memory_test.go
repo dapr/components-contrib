@@ -16,7 +16,6 @@ package inmemory
 import (
 	"context"
 	"sort"
-	"strconv"
 	"testing"
 	"time"
 
@@ -106,7 +105,7 @@ func TestReadAndWrite(t *testing.T) {
 		assert.Equal(t, `"value of key"`, string(resp.Data))
 		assert.Len(t, resp.Metadata, 1)
 		require.Contains(t, resp.Metadata, "ttlExpireTime")
-		assert.Equal(t, strconv.FormatInt(now.Add(time.Second*1000).UnixMilli(), 10), resp.Metadata["ttlExpireTime"])
+		assert.Equal(t, now.Add(time.Second*1000).UTC().Format(time.RFC3339), resp.Metadata["ttlExpireTime"])
 	})
 
 	t.Run("return expire time when ttlInSeconds set with GetBulk", func(t *testing.T) {
@@ -137,8 +136,8 @@ func TestReadAndWrite(t *testing.T) {
 		require.Contains(t, resp[0].Metadata, "ttlExpireTime")
 		assert.Len(t, resp[1].Metadata, 1)
 		require.Contains(t, resp[1].Metadata, "ttlExpireTime")
-		assert.Equal(t, strconv.FormatInt(fakeClock.Now().Add(time.Second*1000).UnixMilli(), 10), resp[0].Metadata["ttlExpireTime"])
-		assert.Equal(t, strconv.FormatInt(fakeClock.Now().Add(time.Second*2001).UnixMilli(), 10), resp[1].Metadata["ttlExpireTime"])
+		assert.Equal(t, fakeClock.Now().Add(time.Second*1000).UTC().Format(time.RFC3339), resp[0].Metadata["ttlExpireTime"])
+		assert.Equal(t, fakeClock.Now().Add(time.Second*2001).UTC().Format(time.RFC3339), resp[1].Metadata["ttlExpireTime"])
 	})
 
 	t.Run("set and get the second key successfully", func(t *testing.T) {

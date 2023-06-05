@@ -15,7 +15,7 @@ package state
 
 const (
 	// GetRespMetaKeyTTLExpireTime is the key for the metadata value of the TTL
-	// expire time. Value is milliseconds since Epoch.
+	// expire time. Value is RFC3339 formatted string.
 	GetRespMetaKeyTTLExpireTime string = "ttlExpireTime"
 )
 

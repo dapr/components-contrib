@@ -268,7 +268,7 @@ func (a *sqliteDBAccess) Get(parentCtx context.Context, req *state.GetRequest) (
 	var metadata map[string]string
 	if expireTime != nil {
 		metadata = map[string]string{
-			state.GetRespMetaKeyTTLExpireTime: strconv.FormatInt(expireTime.UnixMilli(), 10),
+			state.GetRespMetaKeyTTLExpireTime: expireTime.UTC().Format(time.RFC3339),
 		}
 	}
 
@@ -321,7 +321,7 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 		}
 		if expireTime != nil {
 			r.Metadata = map[string]string{
-				state.GetRespMetaKeyTTLExpireTime: strconv.FormatInt(expireTime.UnixMilli(), 10),
+				state.GetRespMetaKeyTTLExpireTime: expireTime.UTC().Format(time.RFC3339),
 			}
 		}
 		res[n] = r

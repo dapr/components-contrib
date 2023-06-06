@@ -15,7 +15,6 @@ package cassandra
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -242,7 +241,8 @@ func (c *Cassandra) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 		session = sess
 	}
 
-	results, err := session.Query(fmt.Sprintf("SELECT value, TTL(value) AS ttl, toTimestamp(now()) AS now FROM %s WHERE key = ?", c.table), req.Key).WithContext(ctx).Iter().SliceMap()
+	const selectQuery = "SELECT value, IF (TTL(value) > 0, toTimestamp(now() + TTL(value)*1000), 0) AS ttl FROM %s WHERE key = ?"
+	results, err := session.Query(fmt.Sprintf(selectQuery, c.table), req.Key).WithContext(ctx).Iter().SliceMap()
 	if err != nil {
 		return nil, err
 	}
@@ -252,13 +252,9 @@ func (c *Cassandra) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 	}
 
 	var metadata map[string]string
-	if ttl := results[0]["ttl"].(int); ttl > 0 {
-		now, ok := results[0]["now"].(time.Time)
-		if !ok {
-			return nil, errors.New("failed to parse cassandra timestamp")
-		}
+	if ttl, ok := results[0]["ttl"].(time.Time); ok && !ttl.IsZero() {
 		metadata = map[string]string{
-			state.GetRespMetaKeyTTLExpireTime: now.Add(time.Duration(ttl) * time.Second).Format(time.RFC3339),
+			state.GetRespMetaKeyTTLExpireTime: ttl.UTC().Format(time.RFC3339),
 		}
 	}
 

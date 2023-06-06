@@ -23,6 +23,7 @@ import (
 
 	"github.com/bradfitz/gomemcache/memcache"
 	jsoniter "github.com/json-iterator/go"
+	"k8s.io/utils/clock"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -45,6 +46,7 @@ type Memcached struct {
 	client *memcache.Client
 	json   jsoniter.API
 	logger logger.Logger
+	clock  clock.Clock
 }
 
 type memcachedMetadata struct {
@@ -57,6 +59,7 @@ func NewMemCacheStateStore(logger logger.Logger) state.Store {
 	s := &Memcached{
 		json:   jsoniter.ConfigFastest,
 		logger: logger,
+		clock:  clock.RealClock{},
 	}
 	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
@@ -133,7 +136,14 @@ func (m *Memcached) parseTTL(req *state.SetRequest) (*int32, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		parsedInt := int32(parsedVal)
+
+		// If ttl is more than 30 days, convert it to unix timestamp.
+		// https://github.com/memcached/memcached/wiki/Commands#standard-protocol
+		if parsedInt > 60*60*24*30 {
+			parsedInt = int32(m.clock.Now().Unix()) + parsedInt
+		}
 
 		// Notice that for Dapr, -1 means "persist with no TTL".
 		// Memcached uses "0" as the non-expiring marker TTL.

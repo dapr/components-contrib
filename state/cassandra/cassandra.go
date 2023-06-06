@@ -241,7 +241,7 @@ func (c *Cassandra) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 		session = sess
 	}
 
-	const selectQuery = "SELECT value, IF (TTL(value) > 0, toTimestamp(now() + TTL(value)*1000), 0) AS ttl FROM %s WHERE key = ?"
+	const selectQuery = "SELECT value, IF(TTL(value)>0, toTimestamp(now() + TTL(value)*1000), '') AS ttl FROM %s WHERE key = ?"
 	results, err := session.Query(fmt.Sprintf(selectQuery, c.table), req.Key).WithContext(ctx).Iter().SliceMap()
 	if err != nil {
 		return nil, err

@@ -141,7 +141,7 @@ func (m *Memcached) parseTTL(req *state.SetRequest) (*int32, error) {
 
 		// If ttl is more than 30 days, convert it to unix timestamp.
 		// https://github.com/memcached/memcached/wiki/Commands#standard-protocol
-		if parsedInt > 60*60*24*30 {
+		if parsedInt >= 60*60*24*30 {
 			parsedInt = int32(m.clock.Now().Unix()) + parsedInt
 		}
 

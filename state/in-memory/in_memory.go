@@ -32,6 +32,8 @@ import (
 )
 
 type inMemoryStore struct {
+	state.BulkStore
+
 	items   map[string]*inMemStateStoreItem
 	lock    sync.RWMutex
 	log     logger.Logger
@@ -45,11 +47,13 @@ func NewInMemoryStateStore(log logger.Logger) state.Store {
 }
 
 func newStateStore(log logger.Logger) *inMemoryStore {
-	return &inMemoryStore{
+	s := &inMemoryStore{
 		items:   map[string]*inMemStateStoreItem{},
 		log:     log,
 		closeCh: make(chan struct{}),
 	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 func (store *inMemoryStore) Init(ctx context.Context, metadata state.Metadata) error {
@@ -138,37 +142,6 @@ func (store *inMemoryStore) doDelete(ctx context.Context, key string) {
 	delete(store.items, key)
 }
 
-func (store *inMemoryStore) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	if len(req) == 0 {
-		return nil
-	}
-
-	// step1: validate parameters
-	for i := 0; i < len(req); i++ {
-		if err := state.CheckRequestOptions(&req[i].Options); err != nil {
-			return err
-		}
-	}
-
-	// step2 and step3 should be protected by write-lock
-	store.lock.Lock()
-	defer store.lock.Unlock()
-
-	// step2: validate etag if needed
-	for _, dr := range req {
-		err := store.doValidateEtag(dr.Key, dr.ETag, dr.Options.Concurrency)
-		if err != nil {
-			return fmt.Errorf("etag mismatch for key %s", dr.Key)
-		}
-	}
-
-	// step3: do really delete
-	for _, dr := range req {
-		store.doDelete(ctx, dr.Key)
-	}
-	return nil
-}
-
 func (store *inMemoryStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	store.lock.RLock()
 	item := store.items[req.Key]
@@ -196,7 +169,6 @@ func (store *inMemoryStore) BulkGet(ctx context.Context, req []state.GetRequest,
 	store.lock.RLock()
 	defer store.lock.RUnlock()
 
-	n := 0
 	for i, r := range req {
 		item := store.items[r.Key]
 		if item != nil && !item.isExpired() {
@@ -205,11 +177,14 @@ func (store *inMemoryStore) BulkGet(ctx context.Context, req []state.GetRequest,
 				Data: item.data,
 				ETag: item.etag,
 			}
-			n++
+		} else {
+			res[i] = state.BulkGetResponse{
+				Key: r.Key,
+			}
 		}
 	}
 
-	return res[:n], nil
+	return res, nil
 }
 
 func (store *inMemoryStore) getAndExpire(key string) *inMemStateStoreItem {
@@ -330,51 +305,6 @@ func (r innerSetRequest) GetKey() string {
 
 func (r innerSetRequest) GetMetadata() map[string]string {
 	return r.req.Metadata
-}
-
-func (store *inMemoryStore) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	if len(req) == 0 {
-		return nil
-	}
-
-	// step1: validate parameters
-	innerSetRequestList := make([]*innerSetRequest, 0, len(req))
-	for i := 0; i < len(req); i++ {
-		ttlInSeconds, err := store.doSetValidateParameters(&req[i])
-		if err != nil {
-			return err
-		}
-
-		bt, err := store.marshal(req[i].Value)
-		if err != nil {
-			return err
-		}
-		innerSetRequest := &innerSetRequest{
-			req:  req[i],
-			ttl:  ttlInSeconds,
-			data: bt,
-		}
-		innerSetRequestList = append(innerSetRequestList, innerSetRequest)
-	}
-
-	// step2 and step3 should be protected by write-lock
-	store.lock.Lock()
-	defer store.lock.Unlock()
-
-	// step2: validate etag if needed
-	for _, dr := range req {
-		err := store.doValidateEtag(dr.Key, dr.ETag, dr.Options.Concurrency)
-		if err != nil {
-			return fmt.Errorf("etag mismatch for key %s", dr.Key)
-		}
-	}
-
-	// step3: do really set
-	// these operations won't fail
-	for _, innerSetRequest := range innerSetRequestList {
-		store.doSet(ctx, innerSetRequest.req.Key, innerSetRequest.data, innerSetRequest.ttl)
-	}
-	return nil
 }
 
 func (store *inMemoryStore) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {

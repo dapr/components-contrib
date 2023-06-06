@@ -69,13 +69,12 @@ type TestConfig struct {
 	TestProjectID          string            `mapstructure:"testProjectID"`
 }
 
-func NewTestConfig(componentName string, allOperations bool, operations []string, configMap map[string]interface{}) (TestConfig, error) {
+func NewTestConfig(componentName string, operations []string, configMap map[string]interface{}) (TestConfig, error) {
 	// Populate defaults
 	tc := TestConfig{
 		CommonConfig: utils.CommonConfig{
 			ComponentType: "pubsub",
 			ComponentName: componentName,
-			AllOperations: allOperations,
 			Operations:    utils.NewStringSet(operations...),
 		},
 		PubsubName:             defaultPubsubName,
@@ -143,79 +142,77 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 	var muBulk sync.Mutex
 
 	// Subscribe
-	if config.HasOperation("subscribe") { //nolint:nestif
-		t.Run("subscribe", func(t *testing.T) {
-			var counter int
-			var lastSequence int
-			err := ps.Subscribe(ctx, pubsub.SubscribeRequest{
-				Topic:    config.TestTopicName,
-				Metadata: config.SubscribeMetadata,
-			}, func(ctx context.Context, msg *pubsub.NewMessage) error {
-				dataString := string(msg.Data)
-				if !strings.HasPrefix(dataString, dataPrefix) {
-					t.Logf("Ignoring message without expected prefix")
-
-					return nil
-				}
-
-				sequence, err := strconv.Atoi(dataString[len(dataPrefix):])
-				if err != nil {
-					t.Logf("Message did not contain a sequence number")
-					assert.Fail(t, "message did not contain a sequence number")
-
-					return err
-				}
-
-				// Ignore already processed messages
-				// in case we receive a redelivery from the broker
-				// during retries.
-				mu.Lock()
-				_, alreadyProcessed := processedMessages[sequence]
-				mu.Unlock()
-				if alreadyProcessed {
-					t.Logf("Message was already processed: %d", sequence)
-
-					return nil
-				}
-
-				counter++
-
-				// Only consider order when we receive a message for the first time
-				// Messages that fail and are re-queued will naturally come out of order
-				if errorCount == 0 {
-					if sequence < lastSequence {
-						outOfOrder = true
-						t.Logf("Message received out of order: expected sequence >= %d, got %d", lastSequence, sequence)
-					}
-
-					lastSequence = sequence
-				}
-
-				// This behavior is standard to repro a failure of one message in a batch.
-				if errorCount < 2 || counter%5 == 0 {
-					// First message errors just to give time for more messages to pile up.
-					// Second error is to force an error in a batch.
-					errorCount++
-					// Sleep to allow messages to pile up and be delivered as a batch.
-					time.Sleep(1 * time.Second)
-					t.Logf("Simulating subscriber error")
-					return errors.New("conf test simulated error")
-				}
-
-				t.Logf("Simulating subscriber success")
-				actualReadCount++
-
-				mu.Lock()
-				processedMessages[sequence] = struct{}{}
-				mu.Unlock()
-
-				processedC <- dataString
+	t.Run("subscribe", func(t *testing.T) {
+		var counter int
+		var lastSequence int
+		err := ps.Subscribe(ctx, pubsub.SubscribeRequest{
+			Topic:    config.TestTopicName,
+			Metadata: config.SubscribeMetadata,
+		}, func(ctx context.Context, msg *pubsub.NewMessage) error {
+			dataString := string(msg.Data)
+			if !strings.HasPrefix(dataString, dataPrefix) {
+				t.Logf("Ignoring message without expected prefix")
 
 				return nil
-			})
-			assert.NoError(t, err, "expected no error on subscribe")
+			}
+
+			sequence, err := strconv.Atoi(dataString[len(dataPrefix):])
+			if err != nil {
+				t.Logf("Message did not contain a sequence number")
+				assert.Fail(t, "message did not contain a sequence number")
+
+				return err
+			}
+
+			// Ignore already processed messages
+			// in case we receive a redelivery from the broker
+			// during retries.
+			mu.Lock()
+			_, alreadyProcessed := processedMessages[sequence]
+			mu.Unlock()
+			if alreadyProcessed {
+				t.Logf("Message was already processed: %d", sequence)
+
+				return nil
+			}
+
+			counter++
+
+			// Only consider order when we receive a message for the first time
+			// Messages that fail and are re-queued will naturally come out of order
+			if errorCount == 0 {
+				if sequence < lastSequence {
+					outOfOrder = true
+					t.Logf("Message received out of order: expected sequence >= %d, got %d", lastSequence, sequence)
+				}
+
+				lastSequence = sequence
+			}
+
+			// This behavior is standard to repro a failure of one message in a batch.
+			if errorCount < 2 || counter%5 == 0 {
+				// First message errors just to give time for more messages to pile up.
+				// Second error is to force an error in a batch.
+				errorCount++
+				// Sleep to allow messages to pile up and be delivered as a batch.
+				time.Sleep(1 * time.Second)
+				t.Logf("Simulating subscriber error")
+				return errors.New("conf test simulated error")
+			}
+
+			t.Logf("Simulating subscriber success")
+			actualReadCount++
+
+			mu.Lock()
+			processedMessages[sequence] = struct{}{}
+			mu.Unlock()
+
+			processedC <- dataString
+
+			return nil
 		})
-	}
+		assert.NoError(t, err, "expected no error on subscribe")
+	})
 
 	// Bulk Subscribe
 	if config.HasOperation("bulksubscribe") { //nolint:nestif
@@ -316,45 +313,44 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 	}
 
 	// Publish
-	if config.HasOperation("publish") {
+	t.Run("publish", func(t *testing.T) {
 		// Some pubsub, like Kafka need to wait for Subscriber to be up before messages can be consumed.
 		// So, wait for some time here.
 		time.Sleep(config.WaitDurationToPublish)
-		t.Run("publish", func(t *testing.T) {
-			for k := 1; k <= config.MessageCount; k++ {
+
+		for k := 1; k <= config.MessageCount; k++ {
+			data := []byte(fmt.Sprintf("%s%d", dataPrefix, k))
+			err := ps.Publish(ctx, &pubsub.PublishRequest{
+				Data:       data,
+				PubsubName: config.PubsubName,
+				Topic:      config.TestTopicName,
+				Metadata:   config.PublishMetadata,
+			})
+			if err == nil {
+				awaitingMessages[string(data)] = struct{}{}
+			}
+			assert.NoError(t, err, "expected no error on publishing data %s on topic %s", data, config.TestTopicName)
+		}
+		if config.HasOperation("bulksubscribe") {
+			_, ok := ps.(pubsub.BulkSubscriber)
+			if !ok {
+				t.Fatalf("cannot run bulkSubscribe conformance, BulkSubscriber interface not implemented by the component %s", config.ComponentName)
+			}
+			for k := bulkSubStartingKey; k <= (bulkSubStartingKey + config.MessageCount); k++ {
 				data := []byte(fmt.Sprintf("%s%d", dataPrefix, k))
 				err := ps.Publish(ctx, &pubsub.PublishRequest{
 					Data:       data,
 					PubsubName: config.PubsubName,
-					Topic:      config.TestTopicName,
+					Topic:      config.TestTopicForBulkSub,
 					Metadata:   config.PublishMetadata,
 				})
 				if err == nil {
-					awaitingMessages[string(data)] = struct{}{}
+					awaitingMessagesBulk[string(data)] = struct{}{}
 				}
-				assert.NoError(t, err, "expected no error on publishing data %s on topic %s", data, config.TestTopicName)
+				assert.NoError(t, err, "expected no error on publishing data %s on topic %s", data, config.TestTopicForBulkSub)
 			}
-			if config.HasOperation("bulksubscribe") {
-				_, ok := ps.(pubsub.BulkSubscriber)
-				if !ok {
-					t.Fatalf("cannot run bulkSubscribe conformance, BulkSubscriber interface not implemented by the component %s", config.ComponentName)
-				}
-				for k := bulkSubStartingKey; k <= (bulkSubStartingKey + config.MessageCount); k++ {
-					data := []byte(fmt.Sprintf("%s%d", dataPrefix, k))
-					err := ps.Publish(ctx, &pubsub.PublishRequest{
-						Data:       data,
-						PubsubName: config.PubsubName,
-						Topic:      config.TestTopicForBulkSub,
-						Metadata:   config.PublishMetadata,
-					})
-					if err == nil {
-						awaitingMessagesBulk[string(data)] = struct{}{}
-					}
-					assert.NoError(t, err, "expected no error on publishing data %s on topic %s", data, config.TestTopicForBulkSub)
-				}
-			}
-		})
-	}
+		}
+	})
 
 	// assumes that publish operation is run only once for publishing config.MessageCount number of events
 	// bulkpublish needs to be run after publish operation
@@ -410,29 +406,27 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 	}
 
 	// Verify read
-	if (config.HasOperation("publish") || config.HasOperation("bulkpublish")) && config.HasOperation("subscribe") {
-		t.Run("verify read", func(t *testing.T) {
-			t.Logf("waiting for %v to complete read", config.MaxReadDuration)
-			timeout := time.After(config.MaxReadDuration)
-			waiting := true
-			for waiting {
-				select {
-				case processed := <-processedC:
-					t.Logf("deleting %s processed message", processed)
-					delete(awaitingMessages, processed)
-					waiting = len(awaitingMessages) > 0
-				case <-timeout:
-					// Break out after the mamimum read duration has elapsed
-					waiting = false
-				}
+	t.Run("verify read", func(t *testing.T) {
+		t.Logf("waiting for %v to complete read", config.MaxReadDuration)
+		timeout := time.After(config.MaxReadDuration)
+		waiting := true
+		for waiting {
+			select {
+			case processed := <-processedC:
+				t.Logf("deleting %s processed message", processed)
+				delete(awaitingMessages, processed)
+				waiting = len(awaitingMessages) > 0
+			case <-timeout:
+				// Break out after the mamimum read duration has elapsed
+				waiting = false
 			}
-			assert.False(t, config.CheckInOrderProcessing && outOfOrder, "received messages out of order")
-			assert.Empty(t, awaitingMessages, "expected to read %v messages", config.MessageCount)
-		})
-	}
+		}
+		assert.False(t, config.CheckInOrderProcessing && outOfOrder, "received messages out of order")
+		assert.Empty(t, awaitingMessages, "expected to read %v messages", config.MessageCount)
+	})
 
 	// Verify read on bulk subscription
-	if config.HasOperation("publish") && config.HasOperation("bulksubscribe") {
+	if config.HasOperation("bulksubscribe") {
 		t.Run("verify read on bulk subscription", func(t *testing.T) {
 			_, ok := ps.(pubsub.BulkSubscriber)
 			if !ok {
@@ -457,7 +451,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 	}
 
 	// Multiple handlers
-	if config.HasOperation("multiplehandlers") {
+	t.Run("multiple handlers", func(t *testing.T) {
 		received1Ch := make(chan string)
 		received2Ch := make(chan string)
 		subscribe1Ctx, subscribe1Cancel := context.WithCancel(context.Background())
@@ -560,7 +554,7 @@ func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, c
 				<-wait
 			}
 		})
-	}
+	})
 }
 
 func receiveInBackground(t *testing.T, timeout time.Duration, received1Ch <-chan string, received2Ch <-chan string, sent1Ch <-chan string, sent2Ch <-chan string, allSentCh <-chan bool) <-chan struct{} {

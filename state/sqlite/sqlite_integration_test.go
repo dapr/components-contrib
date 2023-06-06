@@ -582,7 +582,7 @@ func testBulkSetAndBulkDelete(t *testing.T, s state.Store) {
 		},
 	}
 
-	err := s.BulkSet(context.Background(), setReq)
+	err := s.BulkSet(context.Background(), setReq, state.BulkStoreOpts{})
 	assert.NoError(t, err)
 	assert.True(t, storeItemExists(t, s, setReq[0].Key))
 	assert.True(t, storeItemExists(t, s, setReq[1].Key))
@@ -596,7 +596,7 @@ func testBulkSetAndBulkDelete(t *testing.T, s state.Store) {
 		},
 	}
 
-	err = s.BulkDelete(context.Background(), deleteReq)
+	err = s.BulkDelete(context.Background(), deleteReq, state.BulkStoreOpts{})
 	assert.NoError(t, err)
 	assert.False(t, storeItemExists(t, s, setReq[0].Key))
 	assert.False(t, storeItemExists(t, s, setReq[1].Key))

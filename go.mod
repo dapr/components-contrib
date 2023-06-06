@@ -107,7 +107,7 @@ require (
 	github.com/vmware/vmware-go-kcl v1.5.0
 	github.com/xdg-go/scram v1.1.2
 	go.etcd.io/etcd/client/v3 v3.5.5
-	go.mongodb.org/mongo-driver v1.11.2
+	go.mongodb.org/mongo-driver v1.11.6
 	go.temporal.io/api v1.18.1
 	go.temporal.io/sdk v1.21.1
 	go.uber.org/multierr v1.11.0

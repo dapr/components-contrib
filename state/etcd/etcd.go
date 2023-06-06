@@ -26,6 +26,7 @@ import (
 	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"k8s.io/utils/clock"
 
 	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/components-contrib/metadata"
@@ -43,6 +44,7 @@ type Etcd struct {
 	keyPrefixPath string
 	features      []state.Feature
 	logger        logger.Logger
+	clock         clock.Clock
 }
 
 type etcdConfig struct {
@@ -59,6 +61,7 @@ type etcdConfig struct {
 func NewEtcdStateStore(logger logger.Logger) state.Store {
 	s := &Etcd{
 		logger:   logger,
+		clock:    clock.RealClock{},
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
 	}
 	s.BulkStore = state.NewDefaultBulkStore(s)
@@ -141,9 +144,25 @@ func (e *Etcd) Get(ctx context.Context, req *state.GetRequest) (*state.GetRespon
 		return &state.GetResponse{}, nil
 	}
 
+	var metadata map[string]string
+	if resp.Kvs[0].Lease > 0 {
+		leaseResp, err := e.client.TimeToLive(ctx, clientv3.LeaseID(resp.Kvs[0].Lease))
+		if err != nil {
+			return nil, fmt.Errorf("couldn't get lease %d: %w", resp.Kvs[0].Lease, err)
+		}
+
+		// Etcd doesn't expose current datetime so estimate TTL value (which is
+		// susceptible to clock skew).
+		metadata = map[string]string{
+			state.GetRespMetaKeyTTLExpireTime: e.clock.Now().UTC().
+				Add(time.Duration(leaseResp.TTL) * time.Second).Format(time.RFC3339),
+		}
+	}
+
 	return &state.GetResponse{
-		Data: resp.Kvs[0].Value,
-		ETag: ptr.Of(strconv.Itoa(int(resp.Kvs[0].ModRevision))),
+		Data:     resp.Kvs[0].Value,
+		ETag:     ptr.Of(strconv.Itoa(int(resp.Kvs[0].ModRevision))),
+		Metadata: metadata,
 	}, nil
 }
 

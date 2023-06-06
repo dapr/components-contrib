@@ -107,7 +107,7 @@ require (
 	github.com/valyala/fasthttp v1.44.0
 	github.com/vmware/vmware-go-kcl v1.5.0
 	github.com/xdg-go/scram v1.1.2
-	go.mongodb.org/mongo-driver v1.11.1
+	go.mongodb.org/mongo-driver v1.11.6
 	go.temporal.io/api v1.15.0
 	go.temporal.io/sdk v1.20.0
 	go.uber.org/atomic v1.10.0

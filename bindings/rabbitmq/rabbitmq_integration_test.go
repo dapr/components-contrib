@@ -389,3 +389,60 @@ func TestPublishWithPriority(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, lowPriorityMsgContent, string(msg.Body))
 }
+
+func TestPublishWithHeaders(t *testing.T) {
+	rabbitmqHost := getTestRabbitMQHost()
+	assert.NotEmpty(t, rabbitmqHost, fmt.Sprintf("RabbitMQ host configuration must be set in environment variable '%s' (example 'amqp://guest:guest@localhost:5672/')", testRabbitMQHostEnvKey))
+
+	queueName := uuid.New().String()
+	durable := true
+	exclusive := false
+	const maxPriority = 10
+
+	metadata := bindings.Metadata{
+		Base: contribMetadata.Base{
+			Name: "testQueue",
+			Properties: map[string]string{
+				"queueName":        queueName,
+				"host":             rabbitmqHost,
+				"deleteWhenUnused": strconv.FormatBool(exclusive),
+				"durable":          strconv.FormatBool(durable),
+				"maxPriority":      strconv.FormatInt(maxPriority, 10),
+			},
+		},
+	}
+
+	logger := logger.NewLogger("test")
+
+	r := NewRabbitMQ(logger).(*RabbitMQ)
+	err := r.Init(context.Background(), metadata)
+	assert.Nil(t, err)
+
+	// Assert that if waited too long, we won't see any message
+	conn, err := amqp.Dial(rabbitmqHost)
+	assert.Nil(t, err)
+	defer conn.Close()
+
+	ch, err := conn.Channel()
+	assert.Nil(t, err)
+	defer ch.Close()
+
+	const msgContent = "some content"
+	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{
+		Metadata: map[string]string{
+			"custom_header1": "some value",
+			"custom_header2": "some other value",
+		},
+		Data: []byte(msgContent),
+	})
+	assert.Nil(t, err)
+
+	time.Sleep(100 * time.Millisecond)
+
+	msg, ok, err := getMessageWithRetries(ch, queueName, 1*time.Second)
+	assert.Nil(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, msgContent, string(msg.Body))
+	assert.Contains(t, msg.Header, "custom_header1")
+	assert.Contains(t, msg.Header, "custom_header2")
+}

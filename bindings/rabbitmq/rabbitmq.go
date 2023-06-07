@@ -220,6 +220,11 @@ func (r *RabbitMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		DeliveryMode: amqp.Persistent,
 		ContentType:  "text/plain",
 		Body:         req.Data,
+		Headers:      make(amqp.Table),
+	}
+
+	for k, v := range req.Metadata {
+		pub.Headers[k] = v
 	}
 
 	contentType, ok := metadata.TryGetContentType(req.Metadata)

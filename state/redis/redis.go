@@ -238,7 +238,7 @@ func (r *StateStore) directGet(ctx context.Context, req *state.GetRequest) (*sta
 }
 
 func (r *StateStore) getDefault(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
-	res, err := r.client.DoRead(ctx, "HGETALL", req.Key) // Prefer values with ETags
+	res, expireTime, err := r.client.DoReadWithTTL(ctx, "HGETALL", req.Key) // Prefer values with ETags
 	if err != nil {
 		return r.directGet(ctx, req) // Falls back to original get for backward compats.
 	}
@@ -264,14 +264,22 @@ func (r *StateStore) getDefault(ctx context.Context, req *state.GetRequest) (*st
 		return nil, err
 	}
 
-	return r.getWithExpireTime(ctx, req.Key, &state.GetResponse{
-		Data: []byte(data),
-		ETag: version,
-	})
+	var metadata map[string]string
+	if expireTime != nil {
+		metadata = map[string]string{
+			state.GetRespMetaKeyTTLExpireTime: expireTime.UTC().Format(time.RFC3339),
+		}
+	}
+
+	return &state.GetResponse{
+		Data:     []byte(data),
+		ETag:     version,
+		Metadata: metadata,
+	}, nil
 }
 
 func (r *StateStore) getJSON(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
-	res, err := r.client.DoRead(ctx, "JSON.GET", req.Key)
+	res, expireTime, err := r.client.DoReadWithTTL(ctx, "JSON.GET", req.Key)
 	if err != nil {
 		return nil, err
 	}
@@ -301,26 +309,18 @@ func (r *StateStore) getJSON(ctx context.Context, req *state.GetRequest) (*state
 		return nil, err
 	}
 
-	return r.getWithExpireTime(ctx, req.Key, &state.GetResponse{
-		Data: data,
-		ETag: version,
-	})
-}
-
-func (r *StateStore) getWithExpireTime(ctx context.Context, key string, resp *state.GetResponse) (*state.GetResponse, error) {
-	expireTime, err := r.client.PExpireTimeResult(ctx, key)
-	if err != nil {
-		return nil, err
-	}
-
+	var metadata map[string]string
 	if expireTime != nil {
-		if resp.Metadata == nil {
-			resp.Metadata = make(map[string]string)
+		metadata = map[string]string{
+			state.GetRespMetaKeyTTLExpireTime: expireTime.UTC().Format(time.RFC3339),
 		}
-		resp.Metadata[state.GetRespMetaKeyTTLExpireTime] = expireTime.UTC().Format(time.RFC3339)
 	}
 
-	return resp, nil
+	return &state.GetResponse{
+		Data:     data,
+		ETag:     version,
+		Metadata: metadata,
+	}, nil
 }
 
 // Get retrieves state from redis with a key.

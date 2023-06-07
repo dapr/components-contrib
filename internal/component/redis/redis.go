@@ -82,7 +82,7 @@ type RedisClient interface {
 	XClaimResult(ctx context.Context, stream string, group string, consumer string, minIdleTime time.Duration, messageIDs []string) ([]RedisXMessage, error)
 	TxPipeline() RedisPipeliner
 	TTLResult(ctx context.Context, key string) (time.Duration, error)
-	PExpireTimeResult(context.Context, string) (*time.Time, error)
+	DoReadWithTTL(ctx context.Context, cmd, key string) (any, *time.Time, error)
 }
 
 type ConfigurationSubscribeArgs struct {

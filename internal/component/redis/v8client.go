@@ -72,6 +72,42 @@ func (c v8Client) DoRead(ctx context.Context, args ...interface{}) (interface{},
 	return c.client.Do(ctx, args...).Result()
 }
 
+func (c v8Client) DoReadWithTTL(ctx context.Context, cmd, key string) (any, *time.Time, error) {
+	if c.readTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(c.readTimeout))
+		defer cancel()
+	}
+
+	cmds, err := c.client.Pipelined(ctx, func(p v8.Pipeliner) error {
+		p.TTL(ctx, key)
+		p.Do(ctx, cmd, key)
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if len(cmds) != 2 {
+		return nil, nil, nil
+	}
+
+	// Pre v7 does not have PEXPIRETIME command, so we use PTTL instead and
+	// approximate the expire time.
+	ttl, err := c.client.TTL(ctx, key).Result()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var exp *time.Time
+	if ttl >= 0 {
+		expT := time.Now().Add(ttl)
+		exp = &expT
+	}
+
+	return cmds[1].(*v8.Cmd).Val(), exp, nil
+}
+
 func (c v8Client) ConfigurationSubscribe(ctx context.Context, args *ConfigurationSubscribeArgs) {
 	// enable notify-keyspace-events by redis Set command
 	// only subscribe to generic and string keyspace events
@@ -314,34 +350,6 @@ func (c v8Client) TTLResult(ctx context.Context, key string) (time.Duration, err
 		writeCtx = ctx
 	}
 	return c.client.TTL(writeCtx, key).Result()
-}
-
-// PExpireTimeResult returns the time when the key will expire.
-// If the key does not exist or does not have an associated expire, nil is
-// returned.
-func (c v8Client) PExpireTimeResult(ctx context.Context, key string) (*time.Time, error) {
-	var writeCtx context.Context
-	if c.writeTimeout > 0 {
-		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(c.writeTimeout))
-		defer cancel()
-		writeCtx = timeoutCtx
-	} else {
-		writeCtx = ctx
-	}
-
-	// Pre v7 does not have PEXPIRETIME command, so we use PTTL instead and
-	// approximate the expire time.
-	ttl, err := c.client.PTTL(writeCtx, key).Result()
-	if err != nil {
-		return nil, err
-	}
-
-	if ttl >= 0 {
-		t := time.Now().Add(ttl)
-		return &t, nil
-	}
-
-	return nil, nil
 }
 
 func newV8FailoverClient(s *Settings) RedisClient {

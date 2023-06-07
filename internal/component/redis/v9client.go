@@ -72,6 +72,35 @@ func (c v9Client) DoRead(ctx context.Context, args ...interface{}) (interface{},
 	return c.client.Do(ctx, args...).Result()
 }
 
+func (c v9Client) DoReadWithTTL(ctx context.Context, cmd, key string) (any, *time.Time, error) {
+	if c.readTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(c.readTimeout))
+		defer cancel()
+	}
+
+	cmds, err := c.client.Pipelined(ctx, func(p v9.Pipeliner) error {
+		p.ExpireTime(ctx, key)
+		p.Do(ctx, cmd, key)
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if len(cmds) != 2 {
+		return nil, nil, nil
+	}
+
+	var exp *time.Time
+	if cmd, ok := cmds[0].(*v9.IntCmd); ok && cmd.Val() > 0 {
+		expT := time.Unix(cmd.Val(), 0)
+		exp = &expT
+	}
+
+	return cmds[1].(*v9.Cmd).Val(), exp, nil
+}
+
 func (c v9Client) Del(ctx context.Context, keys ...string) error {
 	err := c.client.Del(ctx, keys...).Err()
 	if err != nil {

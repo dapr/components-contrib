@@ -491,6 +491,13 @@ func setTTLUpdatesExpiry(t *testing.T, ods state.Store) {
 
 	assert.NotNil(t, expirationTime)
 	assert.True(t, expirationTime.Valid, "Expiration Time should have a value after set with TTL value")
+
+	resp, err := ods.Get(context.Background(), &state.GetRequest{Key: key})
+	require.NoError(t, err)
+	assert.Contains(t, resp.Metadata, "ttlExpireTime")
+	expireTime, err := time.Parse(time.RFC3339, resp.Metadata["ttlExpireTime"])
+	_ = assert.NoError(t, err) && assert.InDelta(t, time.Now().Add(time.Second*1000).Unix(), expireTime.Unix(), 10)
+
 	deleteItem(t, ods, key, nil)
 }
 
@@ -517,6 +524,9 @@ func setNoTTLUpdatesExpiry(t *testing.T, ods state.Store) {
 	// expirationTime should not be set.
 	db := getDB(ods)
 	_, _, expirationTime := getTimesForRow(t, db, key)
+	resp, err := ods.Get(context.Background(), &state.GetRequest{Key: key})
+	require.NoError(t, err)
+	assert.NotContains(t, resp.Metadata, "ttlExpireTime")
 
 	assert.True(t, !expirationTime.Valid, "Expiration Time should not have a value after first being set with TTL value and then being set without TTL value")
 	deleteItem(t, ods, key, nil)

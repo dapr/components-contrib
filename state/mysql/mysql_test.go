@@ -452,8 +452,8 @@ func TestGetSucceeds(t *testing.T) {
 	defer m.mySQL.Close()
 
 	t.Run("has json type", func(t *testing.T) {
-		rows := sqlmock.NewRows([]string{"id", "value", "eTag", "isbinary", "expiredate"}).AddRow("UnitTest", "{}", "946af56e", false, nil)
-		m.mock1.ExpectQuery("SELECT id, value, eTag, isbinary, expiredate FROM state WHERE id = ?").WillReturnRows(rows)
+		rows := sqlmock.NewRows([]string{"id", "value", "eTag", "isbinary", "expiredate"}).AddRow("UnitTest", "{}", "946af56e", false, "")
+		m.mock1.ExpectQuery(`SELECT id, value, eTag, isbinary, IFNULL\(expiredate, ""\) FROM state WHERE id = ?`).WillReturnRows(rows)
 
 		request := &state.GetRequest{
 			Key: "UnitTest",
@@ -474,7 +474,7 @@ func TestGetSucceeds(t *testing.T) {
 
 		value, _ := utils.Marshal(base64.StdEncoding.EncodeToString([]byte("abcdefg")), json.Marshal)
 		rows := sqlmock.NewRows([]string{"id", "value", "eTag", "isbinary", "expiredate"}).AddRow("UnitTest", value, "946af56e", true, now.Format(time.DateTime))
-		m.mock1.ExpectQuery("SELECT id, value, eTag, isbinary, expiredate FROM state WHERE id = ?").WillReturnRows(rows)
+		m.mock1.ExpectQuery(`SELECT id, value, eTag, isbinary, IFNULL\(expiredate, ""\) FROM state WHERE id = ?`).WillReturnRows(rows)
 
 		request := &state.GetRequest{
 			Key: "UnitTest",

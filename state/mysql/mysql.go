@@ -531,7 +531,7 @@ func (m *MySQL) Get(parentCtx context.Context, req *state.GetRequest) (*state.Ge
 	ctx, cancel := context.WithTimeout(parentCtx, m.timeout)
 	defer cancel()
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
-	query := `SELECT id, value, eTag, isbinary, expiredate FROM ` + m.tableName + ` WHERE id = ?
+	query := `SELECT id, value, eTag, isbinary, IFNULL(expiredate, "") FROM ` + m.tableName + ` WHERE id = ?
 			AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)`
 	row := m.db.QueryRowContext(ctx, query, req.Key)
 	_, value, etag, expireTime, err := readRow(row)
@@ -716,7 +716,7 @@ func (m *MySQL) BulkGet(parentCtx context.Context, req []state.GetRequest, _ sta
 	}
 
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
-	stmt := `SELECT id, value, eTag, isbinary, expiredate FROM ` + m.tableName + `
+	stmt := `SELECT id, value, eTag, isbinary, IFNULL(expiredate, "") FROM ` + m.tableName + `
 		WHERE
 			id IN (` + inClause + `)
 			AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)`
@@ -777,16 +777,16 @@ func readRow(row interface{ Scan(dest ...any) error }) (key string, value []byte
 	var (
 		etag     string
 		isBinary bool
-		expire   sql.NullString
+		expire   string
 	)
 	err = row.Scan(&key, &value, &etag, &isBinary, &expire)
 	if err != nil {
 		return key, nil, nil, nil, err
 	}
 
-	if len(expire.String) > 0 {
+	if len(expire) > 0 {
 		var expireT time.Time
-		expireT, err = time.Parse(time.DateTime, expire.String)
+		expireT, err = time.Parse(time.DateTime, expire)
 		if err != nil {
 			return key, nil, nil, nil, fmt.Errorf("failed to parse expiration time: %w", err)
 		}

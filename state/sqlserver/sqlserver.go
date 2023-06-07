@@ -259,18 +259,29 @@ func (s *SQLServer) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 		return &state.GetResponse{}, nil
 	}
 
-	var data string
-	var rowVersion []byte
-	err = rows.Scan(&data, &rowVersion)
+	var (
+		data       string
+		rowVersion []byte
+		expireDate sql.NullTime
+	)
+	err = rows.Scan(&data, &rowVersion, &expireDate)
 	if err != nil {
 		return nil, err
 	}
 
 	etag := hex.EncodeToString(rowVersion)
 
+	var metadata map[string]string
+	if expireDate.Valid {
+		metadata = map[string]string{
+			state.GetRespMetaKeyTTLExpireTime: expireDate.Time.UTC().Format(time.RFC3339),
+		}
+	}
+
 	return &state.GetResponse{
-		Data: []byte(data),
-		ETag: ptr.Of(etag),
+		Data:     []byte(data),
+		ETag:     ptr.Of(etag),
+		Metadata: metadata,
 	}, nil
 }
 

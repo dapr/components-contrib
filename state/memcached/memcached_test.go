@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	clocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -85,6 +87,7 @@ func TestMemcachedMetadata(t *testing.T) {
 
 func TestParseTTL(t *testing.T) {
 	store := NewMemCacheStateStore(logger.NewLogger("test")).(*Memcached)
+	store.clock = clocktesting.NewFakeClock(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
 	t.Run("TTL Not an integer", func(t *testing.T) {
 		ttlInSeconds := "not an integer"
 		ttl, err := store.parseTTL(&state.SetRequest{
@@ -139,5 +142,17 @@ func TestParseTTL(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Equal(t, int(*ttl), ttlInSeconds)
+	})
+
+	t.Run("TTL is Unix time larger than a month", func(t *testing.T) {
+		ttlInSeconds := 2 * 30 * 24 * 60 * 60
+		ttl, err := store.parseTTL(&state.SetRequest{
+			Metadata: map[string]string{
+				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
+			},
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, time.Date(2023, 2, 30, 0, 0, 0, 0, time.UTC).Unix(), int64(*ttl))
 	})
 }

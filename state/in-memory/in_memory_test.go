@@ -15,11 +15,14 @@ package inmemory
 
 import (
 	"context"
+	"sort"
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	clocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
@@ -30,7 +33,9 @@ func TestReadAndWrite(t *testing.T) {
 
 	defer ctl.Finish()
 
-	store := NewInMemoryStateStore(logger.NewLogger("test"))
+	store := NewInMemoryStateStore(logger.NewLogger("test")).(*inMemoryStore)
+	fakeClock := clocktesting.NewFakeClock(time.Now())
+	store.clock = fakeClock
 	store.Init(context.Background(), state.Metadata{})
 
 	keyA := "theFirstKey"
@@ -65,7 +70,7 @@ func TestReadAndWrite(t *testing.T) {
 		err := store.Set(context.Background(), setReq)
 		assert.NoError(t, err)
 		// simulate expiration
-		time.Sleep(2 * time.Second)
+		fakeClock.Step(2 * time.Second)
 		// get
 		getReq := &state.GetRequest{
 			Key: keyA,
@@ -75,6 +80,64 @@ func TestReadAndWrite(t *testing.T) {
 		assert.NotNil(t, resp)
 		assert.Nil(t, resp.Data)
 		assert.Nil(t, resp.ETag)
+	})
+
+	t.Run("return expire time when ttlInSeconds set with Get", func(t *testing.T) {
+		now := fakeClock.Now()
+
+		// set with LWW
+		setReq := &state.SetRequest{
+			Key:      keyA,
+			Value:    valueA,
+			Metadata: map[string]string{"ttlInSeconds": "1000"},
+		}
+
+		err := store.Set(context.Background(), setReq)
+		assert.NoError(t, err)
+
+		// get
+		getReq := &state.GetRequest{
+			Key: keyA,
+		}
+		resp, err := store.Get(context.Background(), getReq)
+		assert.NoError(t, err)
+		assert.NotNil(t, resp)
+		assert.Equal(t, `"value of key"`, string(resp.Data))
+		assert.Len(t, resp.Metadata, 1)
+		require.Contains(t, resp.Metadata, "ttlExpireTime")
+		assert.Equal(t, now.Add(time.Second*1000).UTC().Format(time.RFC3339), resp.Metadata["ttlExpireTime"])
+	})
+
+	t.Run("return expire time when ttlInSeconds set with GetBulk", func(t *testing.T) {
+		assert.NoError(t, store.Set(context.Background(), &state.SetRequest{
+			Key:      "a",
+			Value:    "123",
+			Metadata: map[string]string{"ttlInSeconds": "1000"},
+		}))
+		assert.NoError(t, store.Set(context.Background(), &state.SetRequest{
+			Key:      "b",
+			Value:    "456",
+			Metadata: map[string]string{"ttlInSeconds": "2001"},
+		}))
+
+		resp, err := store.BulkGet(context.Background(), []state.GetRequest{
+			{Key: "a"},
+			{Key: "b"},
+		}, state.BulkGetOpts{})
+		assert.NoError(t, err)
+		assert.NotNil(t, resp)
+		require.Len(t, resp, 2)
+		sort.Slice(resp, func(i, j int) bool {
+			return resp[i].Key < resp[j].Key
+		})
+		assert.Equal(t, `"123"`, string(resp[0].Data))
+		assert.Equal(t, `"456"`, string(resp[1].Data))
+		assert.Len(t, resp[0].Metadata, 1)
+		require.Contains(t, resp[0].Metadata, "ttlExpireTime")
+		assert.Len(t, resp[1].Metadata, 1)
+		require.Contains(t, resp[1].Metadata, "ttlExpireTime")
+		assert.Equal(t, fakeClock.Now().Add(time.Second*1000).UTC().Format(time.RFC3339), resp[0].Metadata["ttlExpireTime"])
+		assert.Equal(t, fakeClock.Now().Add(time.Second*2001).UTC().Format(time.RFC3339), resp[1].Metadata["ttlExpireTime"])
 	})
 
 	t.Run("set and get the second key successfully", func(t *testing.T) {

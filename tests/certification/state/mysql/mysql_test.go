@@ -207,6 +207,11 @@ func TestMySQL(t *testing.T) {
 			resp3, err := client.GetState(ctx, stateStoreName, "reqKey3", nil)
 			require.NoError(t, err)
 			assert.Equal(t, "reqVal103", string(resp3.Value))
+
+			require.Contains(t, resp3.Metadata, "ttlExpireTime")
+			expireTime, err := time.Parse(time.RFC3339, resp3.Metadata["ttlExpireTime"])
+			assert.InDelta(t, time.Now().Add(50*time.Second).Unix(), expireTime.Unix(), 5)
+
 			return nil
 		}
 	}

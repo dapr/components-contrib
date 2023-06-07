@@ -220,7 +220,7 @@ func (r *RabbitMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 		DeliveryMode: amqp.Persistent,
 		ContentType:  "text/plain",
 		Body:         req.Data,
-		Headers:      make(amqp.Table),
+		Headers:      make(amqp.Table, len(req.Metadata)),
 	}
 
 	for k, v := range req.Metadata {

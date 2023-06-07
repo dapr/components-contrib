@@ -416,15 +416,15 @@ func TestPublishWithHeaders(t *testing.T) {
 
 	r := NewRabbitMQ(logger).(*RabbitMQ)
 	err := r.Init(context.Background(), metadata)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	// Assert that if waited too long, we won't see any message
 	conn, err := amqp.Dial(rabbitmqHost)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer conn.Close()
 
 	ch, err := conn.Channel()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer ch.Close()
 
 	const msgContent = "some content"
@@ -435,12 +435,12 @@ func TestPublishWithHeaders(t *testing.T) {
 		},
 		Data: []byte(msgContent),
 	})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond)
 
 	msg, ok, err := getMessageWithRetries(ch, queueName, 1*time.Second)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.True(t, ok)
 	assert.Equal(t, msgContent, string(msg.Body))
 	assert.Contains(t, msg.Header, "custom_header1")

@@ -121,9 +121,10 @@ func (d *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 		return nil, err
 	}
 
-	var ttl int64
+	var metadata map[string]string
 	if d.ttlAttributeName != "" {
 		if val, ok := result.Item[d.ttlAttributeName]; ok {
+			var ttl int64
 			if err = dynamodbattribute.Unmarshal(val, &ttl); err != nil {
 				return nil, err
 			}
@@ -131,11 +132,15 @@ func (d *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 				// Item has expired but DynamoDB didn't delete it yet.
 				return &state.GetResponse{}, nil
 			}
+			metadata = map[string]string{
+				state.GetRespMetaKeyTTLExpireTime: time.Unix(ttl, 0).UTC().Format(time.RFC3339),
+			}
 		}
 	}
 
 	resp := &state.GetResponse{
-		Data: []byte(output),
+		Data:     []byte(output),
+		Metadata: metadata,
 	}
 
 	if result.Item["etag"] != nil {

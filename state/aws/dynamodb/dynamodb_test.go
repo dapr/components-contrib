@@ -159,6 +159,7 @@ func TestGet(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, []byte("some value"), out.Data)
 		assert.Equal(t, "1bdead4badc0ffee", *out.ETag)
+		assert.NotContains(t, out.Metadata, "ttlExpireTime")
 	})
 	t.Run("Successfully retrieve item (with unexpired ttl)", func(t *testing.T) {
 		ss := StateStore{
@@ -195,6 +196,9 @@ func TestGet(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, []byte("some value"), out.Data)
 		assert.Equal(t, "1bdead4badc0ffee", *out.ETag)
+		assert.Contains(t, out.Metadata, "ttlExpireTime")
+		expireTime, err := time.Parse(time.RFC3339, out.Metadata["ttlExpireTime"])
+		_ = assert.NoError(t, err) && assert.Equal(t, expireTime.Unix(), int64(4074862051))
 	})
 	t.Run("Successfully retrieve item (with expired ttl)", func(t *testing.T) {
 		ss := StateStore{
@@ -231,6 +235,7 @@ func TestGet(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Nil(t, out.Data)
 		assert.Nil(t, out.ETag)
+		assert.Nil(t, out.Metadata)
 	})
 	t.Run("Unsuccessfully get item", func(t *testing.T) {
 		ss := StateStore{
@@ -272,6 +277,7 @@ func TestGet(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Nil(t, out.Data)
 		assert.Nil(t, out.ETag)
+		assert.Nil(t, out.Metadata)
 	})
 	t.Run("Unsuccessfully with no required key", func(t *testing.T) {
 		ss := StateStore{
@@ -297,6 +303,7 @@ func TestGet(t *testing.T) {
 		out, err := ss.Get(context.Background(), req)
 		assert.NoError(t, err)
 		assert.Empty(t, out.Data)
+		assert.Nil(t, out.ETag)
 	})
 }
 

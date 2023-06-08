@@ -1141,7 +1141,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			assertEquals(t, "⏱️", res)
 			assert.Contains(t, res.Metadata, "ttlExpireTime")
 
-			// Remove TTL by ommiting the ttlInSeconds field.
+			// Remove TTL by omitting the ttlInSeconds field.
 			require.NoError(t, statestore.Set(context.Background(), req(map[string]string{})))
 			res, err = statestore.Get(context.Background(), &state.GetRequest{
 				Key: key + "-ttl-expire-time-minus-1",

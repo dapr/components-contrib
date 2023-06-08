@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
+	"time"
 
 	dynamodb "github.com/dapr/components-contrib/state/aws/dynamodb"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
@@ -65,6 +66,7 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 			assert.NoError(t, err)
 			assert.NotNil(t, item)
 			assert.Equal(t, stateValue, string(item.Value))
+			assert.NotContains(t, item.Metadata, "ttlExpireTime")
 
 			// delete state
 			err = client.DeleteState(ctx, statestore, stateKey, nil)
@@ -100,6 +102,12 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 				item, err := client.GetState(ctx, statestore, stateKey, nil)
 				assert.NoError(t, err)
 				assert.Equal(t, expectedValue, string(item.Value))
+
+				if len(expectedValue) > 0 {
+					assert.Contains(t, item.Metadata, "ttlExpireTime")
+					expireTime, err := time.Parse(time.RFC3339, item.Metadata["ttlExpireTime"])
+					_ = assert.NoError(t, err) && assert.InDelta(t, time.Now().Add(5*time.Minute).Unix(), expireTime.Unix(), 10)
+				}
 
 				err = client.DeleteState(ctx, statestore, stateKey, nil)
 				assert.NoError(t, err)

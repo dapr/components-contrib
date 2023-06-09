@@ -16,10 +16,13 @@ package routeralias
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
+	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
+	"gopkg.in/yaml.v3"
 
 	"github.com/gorilla/mux"
 )
@@ -57,15 +60,36 @@ func (m *Middleware) GetHandler(_ context.Context, metadata middleware.Metadata)
 			next.ServeHTTP(w, r)
 		})
 	}, nil
+
 }
 
 func (m *Middleware) createRouterFromMetadata(metadata middleware.Metadata) error {
 	m.router = mux.NewRouter()
-	for key, value := range metadata.Properties {
-		if key == "" || value == "" {
-			return errors.New("invalid key/value pair in metadata: must not be empty")
+
+	if len(metadata.Properties) == 0 {
+		return nil
+	}
+
+	// Check if using legacy metadata
+	routesVal, _ := mdutils.GetMetadataProperty(metadata.Properties, "routes")
+	if len(metadata.Properties) > 1 || routesVal == "" {
+		m.logger.Warn("Listing routes as key-value pairs is deprecated. Please use the 'routes' property instead. See: https://docs.dapr.io/reference/components-reference/supported-middleware/middleware-routeralias/")
+
+		for key, value := range metadata.Properties {
+			if key == "" || value == "" {
+				return errors.New("invalid key/value pair in metadata: must not be empty")
+			}
+			m.router.Handle(key, m.routerConvert(value))
 		}
-		m.router.Handle(key, m.routerConvert(value))
+	} else {
+		routes := map[string]string{}
+		err := yaml.Unmarshal([]byte(routesVal), &routes)
+		if err != nil {
+			return fmt.Errorf("failed to decode 'routes' property as JSON or YAML: %w", err)
+		}
+		for key, value := range routes {
+			m.router.Handle(key, m.routerConvert(value))
+		}
 	}
 
 	return nil

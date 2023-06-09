@@ -15,7 +15,7 @@ package routeralias
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net/http"
 
 	"github.com/dapr/components-contrib/middleware"
@@ -43,7 +43,7 @@ func NewMiddleware(logger logger.Logger) middleware.Middleware {
 func (m *Middleware) GetHandler(_ context.Context, metadata middleware.Metadata) (
 	func(next http.Handler) http.Handler, error,
 ) {
-	if err := m.getNativeMetadata(metadata); err != nil {
+	if err := m.createRouterFromMetadata(metadata); err != nil {
 		return nil, err
 	}
 	return func(next http.Handler) http.Handler {
@@ -59,9 +59,12 @@ func (m *Middleware) GetHandler(_ context.Context, metadata middleware.Metadata)
 	}, nil
 }
 
-func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) error {
+func (m *Middleware) createRouterFromMetadata(metadata middleware.Metadata) error {
 	m.router = mux.NewRouter()
 	for key, value := range metadata.Properties {
+		if key == "" || value == "" {
+			return errors.New("invalid key/value pair in metadata: must not be empty")
+		}
 		m.router.Handle(key, m.routerConvert(value))
 	}
 
@@ -70,14 +73,17 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) error {
 
 func (m *Middleware) routerConvert(daprRouter string) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		params := vars(req)
-		vals := req.URL.Query()
-		for key, val := range params {
-			vals.Add(key, val)
-		}
-		req.URL.RawQuery = vals.Encode()
 		req.URL.Path = daprRouter
-		req.RequestURI = fmt.Sprintf("%s?%s", daprRouter, req.URL.RawQuery)
+
+		params := vars(req)
+		if len(params) > 0 {
+			vals := req.URL.Query()
+			for key, val := range params {
+				vals.Add(key, val)
+			}
+			req.URL.RawQuery = vals.Encode()
+			req.RequestURI = daprRouter + "?" + req.URL.RawQuery
+		}
 	})
 }
 

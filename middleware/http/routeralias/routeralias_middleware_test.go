@@ -48,7 +48,7 @@ func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {
 	log := logger.NewLogger("routeralias.test")
 	ralias := NewMiddleware(log)
 	handler, err := ralias.GetHandler(context.Background(), meta)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	t.Run("hit: change router with common request", func(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet,
@@ -57,7 +57,7 @@ func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {
 
 		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 		msg, err := io.ReadAll(w.Body)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		result := w.Result()
 		assert.Equal(t, http.StatusOK, result.StatusCode)
 		assert.Equal(t,
@@ -73,7 +73,7 @@ func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {
 
 		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 		msg, err := io.ReadAll(w.Body)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		result := w.Result()
 		assert.Equal(t, http.StatusOK, result.StatusCode)
 		assert.Equal(t,
@@ -89,7 +89,7 @@ func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {
 
 		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 		msg, err := io.ReadAll(w.Body)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		result := w.Result()
 		assert.Equal(t, http.StatusOK, result.StatusCode)
 		assert.Equal(t,
@@ -104,7 +104,7 @@ func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {
 		w := httptest.NewRecorder()
 		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 		msg, err := io.ReadAll(w.Body)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		result := w.Result()
 		assert.Equal(t, http.StatusOK, result.StatusCode)
 		assert.Equal(t,

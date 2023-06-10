@@ -1,0 +1,125 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: aws.s3
+version: v1
+status: stable
+title: "AWS S3 Bindings"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/s3/
+binding:
+  output: true
+  operations:
+    - name: create
+      description: "Create blob."
+    - name: get
+      description: "Get blob."
+    - name: delete
+      description: "Delete blob."
+    - name: list
+      description: "List blob."
+capabilities: []
+authenticationProfiles:
+  - title: "AccessKey and secretKey"
+    description: "Authenticate using accessKey and secretKey."
+    metadata:
+      - name: accessKey
+        type: string
+        required: false
+        sensitive: true
+        description: |
+          ID of the AWS account with appropriate permissions to SNS and SQS.
+          Can be secretKeyRef to use a secret reference.
+        example:  "AKIAIOSFODNN7EXAMPLE"
+        default: ""
+      - name: secretKey
+        type: string
+        required: false
+        sensitive: true
+        description: |
+          Secret for the AWS user. Can be secretKeyRef to use a secret 
+          reference.
+        example:  "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        default: ""
+metadata:
+  - name: bucket
+    required: true
+    description: |
+      The name of the S3 bucket to write to.
+    example: '"bucket"'
+    type: string
+  - name: region
+    required: true
+    description: |
+      The AWS region to the instance. See this page for valid regions:
+      https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html. 
+      Ensure that DynamoDB are available in that region.
+    example: '"us-east-1"'
+    type: string
+  - name: endpoint
+    required: false
+    description: |
+      AWS endpoint for the component to use. Only used for local development. 
+      The endpoint is unncessary when running against production AWS.
+    example: '"http://localhost:4566"'
+    type: string
+  - name: sessionToken
+    required: false
+    sensitive: true
+    description: |
+      AWS session token to use. A session token is only required if you are using 
+      temporary security credentials.
+    example: '"TOKEN"'
+    type: string
+  - name: forcePathStyle
+    description: |
+      Currently Amazon S3 SDK supports virtual hosted-style and path-style access.
+      true is path-style format like https://<endpoint>/<your bucket>/<key>.
+      false is hosted-style format like https://<your bucket>.<endpoint>/<key>. 
+    type: bool
+    default: 'false'
+    example: '"true", "false"'
+  - name: decodeBase64
+    description: |
+      Configuration to decode base64 file content before saving to bucket storage.
+      (In case of saving a file with binary content). true is the only allowed
+      positive value. Other positive variations like "True", "1" are not acceptable. 
+    type: bool
+    default: 'false'
+    example: '"true", "false"'
+  - name: encodeBase64
+    description: |
+      Configuration to encode base64 file content before return the content.
+      (In case of opening a file with binary content). true is the only allowed
+      positive value. Other positive variations like "True", "1" are not acceptable.  
+    type: bool
+    default: 'false'
+    example: '"true", "false"'
+  - name: disableSSL
+    description: |
+      Allows to connect to non https:// endpoints. 
+    type: bool
+    default: 'false'
+    example: '"true", "false"'
+  - name: insecureSSL
+    description: |
+      When connecting to https:// endpoints, accepts invalid or self-signed certificates.
+    type: bool
+    default: 'false'
+    example: '"true", "false"'
+  - name: filePath
+    required: false
+    description: |
+      To upload a file from a supplied path (relative or absolute), use the filePath
+      metadata key on a create request that contains empty data fields.
+    example: '"mydir/my-test-file.txt"'
+    type: string
+  - name: presignTTL
+    required: false
+    description: |
+      To presign an object with a specified time-to-live, use the presignTTL metadata
+      key on a create request. Valid values for presignTTL are Go duration strings:
+      https://pkg.go.dev/maze.io/x/duration#:~:text=A%20duration%20string%20is%20a,w%22%2C%20%22y%22
+    example: '"2h45m"'
+    type: string

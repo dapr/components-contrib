@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: cloudflare.workerskv
+version: v1
+status: beta
+title: "Cloudflare Workers KV"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-cloudflare-workerskv/
+capabilities:
+  - crud
+authenticationProfiles:
+  - title: "Ed25519 key pair"
+    description: "User generated Ed25519 key pair."
+    metadata:
+      - name: key
+        required: true
+        sensitive: true
+        description: "Ed25519 private key, PEM-encoded."
+        example: '"
+        -----BEGIN PRIVATE KEY-----
+        MC4CAQ...
+        -----END PRIVATE KEY-----   
+        "'
+metadata:
+ - name: kvNamespaceID
+   description: "ID of the pre-created Workers KV namespace."
+   required: true
+   type: string
+   example: '"123456789abcdef8b5588f3d134f74ac"'
+ - name: workerName
+   description: "Name of the Worker to connect to."
+   required: true
+   type: string
+   example: '"mydaprkv"'
+ - name: cfAccountID
+   description: "Cloudflare account ID. Required to have Dapr manage the worker."
+   required: false
+   type: string
+   example: '"456789abcdef8b5588f3d134f74ac"'
+ - name: cfAPIToken
+   description: "API token for Cloudflare. Required to have Dapr manage the Worker."
+   required: true
+   type: string
+   example: '"secret-key"'
+ - name: workerUrl
+   description: "URL of the Worker. Required if the Worker has been pre-provisioned outside of Dapr."
+   required: true
+   type: string
+   example: '"https://mydaprkv.mydomain.workers.dev"'
+ - name: timeoutInSeconds
+   required: false
+   description: |
+      The Timeout for network requests in seconds.
+   type: number
+   default: '20'
+   example: '20'

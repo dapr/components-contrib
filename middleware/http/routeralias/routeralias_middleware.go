@@ -19,12 +19,12 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/gorilla/mux"
+	"gopkg.in/yaml.v3"
+
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
-	"gopkg.in/yaml.v3"
-
-	"github.com/gorilla/mux"
 )
 
 type contextKey int
@@ -60,7 +60,6 @@ func (m *Middleware) GetHandler(_ context.Context, metadata middleware.Metadata)
 			next.ServeHTTP(w, r)
 		})
 	}, nil
-
 }
 
 func (m *Middleware) createRouterFromMetadata(metadata middleware.Metadata) error {

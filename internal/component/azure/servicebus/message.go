@@ -159,6 +159,13 @@ func addMetadataToMessage(asbMsg *azservicebus.Message, metadata map[string]stri
 			timeVal, err := time.Parse(http.TimeFormat, v)
 			if err == nil {
 				asbMsg.ScheduledEnqueueTime = &timeVal
+			} else {
+				timeVal, err2 := time.Parse(time.RFC3339, v)
+				if err2 == nil {
+					asbMsg.ScheduledEnqueueTime = &timeVal
+				} else {
+					return fmt.Errorf("invalid time format for %s; expected HTTP time format or RFC3339", k)
+				}
 			}
 
 		// Fallback: set as application property

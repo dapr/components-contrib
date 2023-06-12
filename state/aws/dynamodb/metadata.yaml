@@ -47,7 +47,7 @@ metadata:
     description: |
       The AWS region to the instance. See this page for valid regions:
       https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html. 
-      Ensure that DynamoDB are available in that region.
+      Ensure that DynamoDB is available in that region.
     example: '"us-east-1"'
     type: string
   - name: endpoint

@@ -19,7 +19,7 @@ require (
 	github.com/dapr/components-contrib v1.11.0-rc.6
 	github.com/dapr/dapr v1.11.0-rc.4
 	github.com/dapr/go-sdk v1.6.1-0.20230427230219-d485c1775c37
-	github.com/dapr/kit v0.11.0
+	github.com/dapr/kit v0.11.1
 	github.com/eclipse/paho.mqtt.golang v1.4.2
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/go-redis/redis/v8 v8.11.5
@@ -34,7 +34,7 @@ require (
 	github.com/rabbitmq/amqp091-go v1.7.0
 	github.com/stretchr/testify v1.8.3
 	github.com/tylertreat/comcast v1.0.1
-	go.mongodb.org/mongo-driver v1.11.2
+	go.mongodb.org/mongo-driver v1.11.6
 	go.uber.org/multierr v1.11.0
 	go.uber.org/ratelimit v0.2.0
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1

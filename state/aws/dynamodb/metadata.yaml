@@ -54,7 +54,7 @@ metadata:
     required: false
     description: |
       AWS endpoint for the component to use. Only used for local development. 
-      The endpoint is unncessary when running against production AWS.
+      The endpoint is not necessary when running against production AWS.
     example: '"http://localhost:4566"'
     type: string
   - name: sessionToken

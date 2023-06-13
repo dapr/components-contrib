@@ -13,6 +13,7 @@ capabilities:
   - transactional
   - etag
   - ttl
+  - actorStateStore
 authenticationProfiles:
   - title: "Access key"
     description: "Authenticate using accessKey and secretKey."

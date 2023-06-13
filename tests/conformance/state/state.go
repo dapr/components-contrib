@@ -1021,13 +1021,13 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	t.Run("write and read values with special characters", func(t *testing.T) {
 		req := &state.SetRequest{
 			Key:   "key",
-			Value: `<>&"'"`,
+			Value: `<>&"'"';`,
 		}
 		require.NoError(t, statestore.Set(context.Background(), req))
 
 		resp, err := statestore.Get(context.Background(), &state.GetRequest{Key: "key"})
 		require.NoError(t, err)
-		require.Equalf(t, []byte(`"<>&"'""`), resp.Data, "%s", resp.Data)
+		require.Equalf(t, []byte(`"<>&\"'\"';"`), resp.Data, "%s", resp.Data)
 	})
 }
 

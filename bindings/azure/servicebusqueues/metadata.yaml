@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../../component-metadata-schema.json
 schemaVersion: v1
 type: bindings
-name: azure.servicebusqueues
+name: azure.servicebus.queues
 version: v1
 status: stable
 title: "Azure Service Bus Queues"

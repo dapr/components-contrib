@@ -88,6 +88,41 @@ func TestSqlServer(t *testing.T) {
 		return nil
 	}
 
+	basicTTLTest := func(ctx flow.Context) error {
+		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+		if err != nil {
+			panic(err)
+		}
+		defer client.Close()
+
+		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("certificationdata"), map[string]string{
+			"ttlInSeconds": "86400",
+		})
+		require.NoError(ctx.T, err)
+
+		// get state
+		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
+		require.NoError(ctx.T, err)
+		assert.Equal(ctx.T, "certificationdata", string(item.Value))
+		assert.Contains(ctx.T, item.Metadata, "ttlExpireTime")
+		expireTime, err := time.Parse(time.RFC3339, item.Metadata["ttlExpireTime"])
+		_ = assert.NoError(ctx.T, err) && assert.InDelta(ctx.T, time.Now().Add(24*time.Hour).Unix(), expireTime.Unix(), 10)
+
+		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("certificationdata"), map[string]string{
+			"ttlInSeconds": "1",
+		})
+		require.NoError(ctx.T, err)
+
+		time.Sleep(2 * time.Second)
+
+		item, err = client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
+		require.NoError(ctx.T, err)
+		assert.Nil(ctx.T, item.Value)
+		assert.Nil(ctx.T, item.Metadata)
+
+		return nil
+	}
+
 	// this test function heavily depends on the values defined in ./components/docker/customschemawithindex
 	verifyIndexedPopertiesTest := func(ctx flow.Context) error {
 		// verify indices were created by Dapr as specified in the component metadata
@@ -400,6 +435,7 @@ func TestSqlServer(t *testing.T) {
 				componentRuntimeOptions(),
 			)).
 			Step("Run basic test", basicTest).
+			Step("Run basic TTL test", basicTTLTest).
 			// Introduce network interruption of 15 seconds
 			// Note: the connection timeout is set to 5 seconds via the component metadata connection string.
 			Step("interrupt network",
@@ -459,6 +495,7 @@ func TestSqlServer(t *testing.T) {
 				componentRuntimeOptions(),
 			)).
 			Step("Run basic test", basicTest).
+			Step("Run basic TTL test", basicTTLTest).
 			Step("interrupt network",
 				network.InterruptNetwork(15*time.Second, nil, nil, "1433", "1434")).
 

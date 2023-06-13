@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/dapr/components-contrib v1.10.6-0.20230403162214-9ee9d56cb7ea
-	github.com/dapr/kit v0.11.0
+	github.com/dapr/kit v0.11.1
 )
 
 require (

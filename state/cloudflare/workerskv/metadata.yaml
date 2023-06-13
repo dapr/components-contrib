@@ -18,11 +18,10 @@ authenticationProfiles:
         required: true
         sensitive: true
         description: "Ed25519 private key, PEM-encoded."
-        example: '"
-        -----BEGIN PRIVATE KEY-----
-        MC4CAQ...
-        -----END PRIVATE KEY-----   
-        "'
+        example: |
+          -----BEGIN PRIVATE KEY-----
+          MC4CAQ...
+          -----END PRIVATE KEY-----
 metadata:
  - name: kvNamespaceID
    description: "ID of the pre-created Workers KV namespace."

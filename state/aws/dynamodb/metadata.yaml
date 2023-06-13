@@ -19,21 +19,19 @@ authenticationProfiles:
     metadata:
       - name: accessKey
         type: string
-        required: false
+        required: true
         sensitive: true
         description: |
-          ID of the AWS account with appropriate permissions to SNS and SQS.
-          Can be secretKeyRef to use a secret reference.
-        example:  "AKIAIOSFODNN7EXAMPLE"
+          Access Key of the AWS account with appropriate permissions to access DynamoDB.
+        example:  "EXAMPLEAKEY"
         default: ""
       - name: secretKey
         type: string
-        required: false
+        required: true
         sensitive: true
         description: |
-          Secret for the AWS user. Can be secretKeyRef to use a secret 
-          reference.
-        example:  "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+          Secret for the AWS account.
+        example:  "EXAMPLESKEY"
         default: ""
 metadata:
   - name: table
@@ -45,9 +43,10 @@ metadata:
   - name: region
     required: false
     description: |
-      The AWS region to the instance. See this page for valid regions:
-      https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html. 
-      Ensure that DynamoDB is available in that region.
+      The AWS region to use. Ensure that DynamoDB is available in that region.
+    url:
+      title: More details
+      url: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html
     example: '"us-east-1"'
     type: string
   - name: endpoint
@@ -76,8 +75,9 @@ metadata:
     description: |
       The table primary key or partition key attribute name. 
       This field is used to replace the default primary key attribute name "key". 
-      See the section:
-      https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-dynamodb/#partition-keys.
+    url:
+      title: More details
+      url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-dynamodb/#partition-keys
     example: '"ContractID"'
     type: string
  

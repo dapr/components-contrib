@@ -14,7 +14,7 @@ capabilities:
   - etag
   - ttl
 authenticationProfiles:
-  - title: "AccessKey and secretKey"
+  - title: "Access key"
     description: "Authenticate using accessKey and secretKey."
     metadata:
       - name: accessKey

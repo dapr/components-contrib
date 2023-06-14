@@ -32,7 +32,7 @@ func JSONStringify(value any) ([]byte, error) {
 	}
 }
 
-// DEPRECATED: use JSONStringify instead.
+// Deprecated: use JSONStringify instead.
 func Marshal(val interface{}, marshaler func(interface{}) ([]byte, error)) ([]byte, error) {
 	var err error = nil
 	bt, ok := val.([]byte)

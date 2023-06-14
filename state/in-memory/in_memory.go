@@ -15,7 +15,6 @@ package inmemory
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -216,19 +215,6 @@ func (store *inMemoryStore) getAndExpire(key string) *inMemStateStoreItem {
 	return item
 }
 
-func (store *inMemoryStore) marshal(v any) (bt []byte, err error) {
-	byteArray, isBinary := v.([]uint8)
-	if isBinary {
-		bt = byteArray
-	} else {
-		bt, err = utils.Marshal(v, json.Marshal)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return bt, nil
-}
-
 func (store *inMemoryStore) Set(ctx context.Context, req *state.SetRequest) error {
 	// step1: validate parameters
 	ttlInSeconds, err := store.doSetValidateParameters(req)
@@ -246,15 +232,7 @@ func (store *inMemoryStore) Set(ctx context.Context, req *state.SetRequest) erro
 		return err
 	}
 
-	// step3: do really set
-	bt, err := store.marshal(req.Value)
-	if err != nil {
-		return err
-	}
-
-	// this operation won't fail
-	store.doSet(ctx, req.Key, bt, ttlInSeconds)
-	return nil
+	return store.doSet(ctx, req.Key, req.Value, ttlInSeconds)
 }
 
 func (store *inMemoryStore) doSetValidateParameters(req *state.SetRequest) (int, error) {
@@ -289,8 +267,14 @@ func doParseTTLInSeconds(metadata map[string]string) (int, error) {
 	return i, nil
 }
 
-func (store *inMemoryStore) doSet(ctx context.Context, key string, data []byte, ttlInSeconds int) {
+func (store *inMemoryStore) doSet(ctx context.Context, key string, value any, ttlInSeconds int) error {
 	etag := uuid.New().String()
+
+	data, err := utils.JSONStringify(value)
+	if err != nil {
+		return err
+	}
+
 	el := &inMemStateStoreItem{
 		data: data,
 		etag: &etag,
@@ -300,6 +284,8 @@ func (store *inMemoryStore) doSet(ctx context.Context, key string, data []byte, 
 	}
 
 	store.items[key] = el
+
+	return nil
 }
 
 // innerSetRequest is only used to pass ttlInSeconds and data with SetRequest.
@@ -336,14 +322,9 @@ func (store *inMemoryStore) Multi(ctx context.Context, request *state.Transactio
 			if err != nil {
 				return err
 			}
-			bt, err := store.marshal(req.Value)
-			if err != nil {
-				return err
-			}
 			innerSetRequest := &innerSetRequest{
-				req:  req,
-				ttl:  ttlInSeconds,
-				data: bt,
+				req: req,
+				ttl: ttlInSeconds,
 			}
 			// replace with innerSetRequest
 			request.Operations[i] = innerSetRequest
@@ -377,15 +358,16 @@ func (store *inMemoryStore) Multi(ctx context.Context, request *state.Transactio
 
 	// step3: do really set
 	// these operations won't fail
+	var err error
 	for _, o := range request.Operations {
 		switch req := o.(type) {
 		case *innerSetRequest:
-			store.doSet(ctx, req.req.Key, req.data, req.ttl)
+			err = errors.Join(err, store.doSet(ctx, req.req.Key, req.req.Value, req.ttl))
 		case state.DeleteRequest:
 			store.doDelete(ctx, req.Key)
 		}
 	}
-	return nil
+	return err
 }
 
 func (store *inMemoryStore) startCleanThread() {

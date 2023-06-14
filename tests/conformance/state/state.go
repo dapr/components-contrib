@@ -1029,6 +1029,30 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		require.NoError(t, err)
 		require.Equalf(t, []byte(`"<>&\"'\"';"`), resp.Data, "%s", resp.Data)
 	})
+
+	t.Run("write and read values bool and number values", func(t *testing.T) {
+		require.NoError(t, statestore.BulkSet(context.Background(), []state.SetRequest{
+			{Key: "key-1", Value: true},
+			{Key: "key-2", Value: "true"},
+			{Key: "key-3", Value: 1234.5},
+			{Key: "key-4", Value: "1234.5"},
+			{Key: "key-5", Value: false},
+			{Key: "key-6", Value: "false"},
+		}, state.BulkStoreOpts{}))
+
+		for key, exp := range map[string][]byte{
+			"key-1": []byte("true"),
+			"key-2": []byte(`"true"`),
+			"key-3": []byte("1234.5"),
+			"key-4": []byte(`"1234.5"`),
+			"key-5": []byte("false"),
+			"key-6": []byte(`"false"`),
+		} {
+			resp, err := statestore.Get(context.Background(), &state.GetRequest{Key: key})
+			require.NoError(t, err)
+			require.Equalf(t, exp, resp.Data, "%s", resp.Data)
+		}
+	})
 }
 
 func assertEquals(t *testing.T, value any, res *state.GetResponse) {

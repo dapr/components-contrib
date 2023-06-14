@@ -19,7 +19,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -472,7 +471,7 @@ func TestGetSucceeds(t *testing.T) {
 	t.Run("has binary type and expiredate", func(t *testing.T) {
 		now := time.UnixMilli(20001).UTC()
 
-		value, _ := utils.Marshal(base64.StdEncoding.EncodeToString([]byte("abcdefg")), json.Marshal)
+		value, _ := utils.JSONStringify(base64.StdEncoding.EncodeToString([]byte("abcdefg")))
 		rows := sqlmock.NewRows([]string{"id", "value", "eTag", "isbinary", "expiredate"}).AddRow("UnitTest", value, "946af56e", true, now.Format(time.DateTime))
 		m.mock1.ExpectQuery(`SELECT id, value, eTag, isbinary, IFNULL\(expiredate, ""\) FROM state WHERE id = ?`).WillReturnRows(rows)
 

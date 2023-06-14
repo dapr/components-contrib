@@ -112,8 +112,11 @@ func (js *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Ge
 
 // Set stores value for a key.
 func (js *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
-	bt, _ := utils.Marshal(req.Value, js.json.Marshal)
-	_, err := js.bucket.Put(escape(req.Key), bt)
+	bt, err := utils.JSONStringify(req.Value)
+	if err != nil {
+		return err
+	}
+	_, err = js.bucket.Put(escape(req.Key), bt)
 	return err
 }
 

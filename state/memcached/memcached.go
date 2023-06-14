@@ -160,13 +160,15 @@ func (m *Memcached) parseTTL(req *state.SetRequest) (*int32, error) {
 }
 
 func (m *Memcached) Set(ctx context.Context, req *state.SetRequest) error {
-	var bt []byte
 	ttl, err := m.parseTTL(req)
 	if err != nil {
 		return fmt.Errorf("failed to parse ttl %s: %s", req.Key, err)
 	}
 
-	bt, _ = utils.Marshal(req.Value, m.json.Marshal)
+	bt, err := utils.JSONStringify(req.Value)
+	if err != nil {
+		return err
+	}
 	if ttl != nil {
 		err = m.client.Set(&memcache.Item{Key: req.Key, Value: bt, Expiration: *ttl})
 	} else {

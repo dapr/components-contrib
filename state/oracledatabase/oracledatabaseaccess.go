@@ -137,7 +137,10 @@ func (o *oracleDatabaseAccess) doSet(ctx context.Context, db querier, req *state
 	}
 
 	// Convert to json string
-	bt, _ := stateutils.Marshal(requestValue, json.Marshal)
+	bt, err := stateutils.JSONStringify(requestValue)
+	if err != nil {
+		return err
+	}
 	value := string(bt)
 
 	// TTL

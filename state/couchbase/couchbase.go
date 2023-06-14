@@ -166,7 +166,7 @@ func (cbs *Couchbase) Set(ctx context.Context, req *state.SetRequest) error {
 	if err != nil {
 		return err
 	}
-	value, err := utils.Marshal(req.Value, cbs.json.Marshal)
+	value, err := utils.JSONStringify(req.Value)
 	if err != nil {
 		return fmt.Errorf("couchbase error: failed to convert value %v", err)
 	}

@@ -13,12 +13,21 @@ limitations under the License.
 
 package utils
 
-func Marshal(val interface{}, marshaler func(interface{}) ([]byte, error)) ([]byte, error) {
-	var err error = nil
-	bt, ok := val.([]byte)
-	if !ok {
-		bt, err = marshaler(val)
-	}
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+)
 
-	return bt, err
+func JSONStringify(value any) ([]byte, error) {
+	switch value := value.(type) {
+	case []byte:
+		return value, nil
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64, bool:
+		return []byte(fmt.Sprintf("%v", value)), nil
+	case string:
+		return []byte(`"` + strings.ReplaceAll(value, `"`, `\"`) + `"`), nil
+	default:
+		return json.Marshal(value)
+	}
 }

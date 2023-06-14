@@ -17,7 +17,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -160,7 +159,7 @@ func (e *Etcd) Set(ctx context.Context, req *state.SetRequest) error {
 		return err
 	}
 
-	reqVal, err := stateutils.Marshal(req.Value, json.Marshal)
+	reqVal, err := stateutils.JSONStringify(req.Value)
 	if err != nil {
 		return err
 	}
@@ -339,7 +338,7 @@ func (e *Etcd) Multi(ctx context.Context, request *state.TransactionalStateReque
 				return err
 			}
 
-			reqVal, err := stateutils.Marshal(req.Value, json.Marshal)
+			reqVal, err := stateutils.JSONStringify(req.Value)
 			if err != nil {
 				return err
 			}

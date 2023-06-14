@@ -17,7 +17,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -296,9 +295,7 @@ type dbExecutor interface {
 }
 
 func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.SetRequest) error {
-	var err error
-	var bytes []byte
-	bytes, err = utils.Marshal(req.Value, json.Marshal)
+	bytes, err := utils.JSONStringify(req.Value)
 	if err != nil {
 		return err
 	}

@@ -154,7 +154,7 @@ func TestReadAndWrite(t *testing.T) {
 		}
 		resp, err := store.Get(context.Background(), getReq)
 		assert.NoError(t, err)
-		assert.NotNil(t, resp)
+		require.NotNil(t, resp)
 		assert.Equal(t, `1234`, string(resp.Data))
 	})
 
@@ -176,5 +176,29 @@ func TestReadAndWrite(t *testing.T) {
 		}
 		err := store.Delete(context.Background(), req)
 		assert.NoError(t, err)
+	})
+
+	t.Run("read write special characters", func(t *testing.T) {
+		req := &state.SetRequest{
+			Key:   "key",
+			Value: `<>&"'"`,
+		}
+		require.NoError(t, store.Set(context.Background(), req))
+
+		resp, err := store.Get(context.Background(), &state.GetRequest{Key: "key"})
+		require.NoError(t, err)
+		require.Equalf(t, []byte(`"<>&\"'\""`), resp.Data, "%s", resp.Data)
+	})
+
+	t.Run("read write bool values", func(t *testing.T) {
+		req := &state.SetRequest{
+			Key:   "key",
+			Value: true,
+		}
+		require.NoError(t, store.Set(context.Background(), req))
+
+		resp, err := store.Get(context.Background(), &state.GetRequest{Key: "key"})
+		require.NoError(t, err)
+		require.Equalf(t, []byte("true"), resp.Data, "%s", resp.Data)
 	})
 }

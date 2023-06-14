@@ -30,6 +30,7 @@ import (
 	internalsql "github.com/dapr/components-contrib/internal/component/sql"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
+	"github.com/dapr/components-contrib/state/utils"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
@@ -175,8 +176,10 @@ func (p *PostgresDBAccess) doSet(parentCtx context.Context, db dbquerier, req *s
 	}
 
 	// Convert to json string
-	bt, _ := stateutils.Marshal(v, json.Marshal)
-	value := string(bt)
+	value, err := utils.JSONStringify(v)
+	if err != nil {
+		return fmt.Errorf("failed to convert value to json string: %w", err)
+	}
 
 	// TTL
 	var ttlSeconds int

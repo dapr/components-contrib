@@ -74,6 +74,7 @@ type CosmosItem struct {
 	PartitionKey string      `json:"partitionKey"`
 	TTL          *int        `json:"ttl,omitempty"`
 	Etag         string      `json:"_etag"`
+	TS           int64       `json:"_ts"`
 }
 
 const (
@@ -234,11 +235,19 @@ func (c *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 		return nil, err
 	}
 
+	var metadata map[string]string
+	if item.TTL != nil {
+		metadata = map[string]string{
+			state.GetRespMetaKeyTTLExpireTime: time.Unix(item.TS+int64(*item.TTL), 0).UTC().Format(time.RFC3339),
+		}
+	}
+
 	// We are sure this is a []byte if not nil
 	b, _ := item.Value.([]byte)
 	return &state.GetResponse{
-		Data: b,
-		ETag: ptr.Of(item.Etag),
+		Data:     b,
+		ETag:     ptr.Of(item.Etag),
+		Metadata: metadata,
 	}, nil
 }
 
@@ -300,13 +309,21 @@ func (c *StateStore) getMulti(ctx context.Context, req []state.GetRequest) ([]st
 				continue
 			}
 
+			var metadata map[string]string
+			if item.TTL != nil {
+				metadata = map[string]string{
+					state.GetRespMetaKeyTTLExpireTime: time.Unix(item.TS+int64(*item.TTL), 0).UTC().Format(time.RFC3339),
+				}
+			}
+
 			// We are sure this is a []byte if not nil
 			b, _ := item.Value.([]byte)
 
 			result[n] = state.BulkGetResponse{
-				Key:  item.ID,
-				Data: b,
-				ETag: &item.Etag,
+				Key:      item.ID,
+				Data:     b,
+				ETag:     &item.Etag,
+				Metadata: metadata,
 			}
 			n++
 		}

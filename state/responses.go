@@ -13,6 +13,12 @@ limitations under the License.
 
 package state
 
+const (
+	// GetRespMetaKeyTTLExpireTime is the key for the metadata value of the TTL
+	// expire time. Value is a RFC3339 formatted string.
+	GetRespMetaKeyTTLExpireTime string = "ttlExpireTime"
+)
+
 // GetResponse is the response object for getting state.
 type GetResponse struct {
 	Data        []byte            `json:"data"`

@@ -290,9 +290,8 @@ func (store *inMemoryStore) doSet(ctx context.Context, key string, value any, tt
 
 // innerSetRequest is only used to pass ttlInSeconds and data with SetRequest.
 type innerSetRequest struct {
-	req  state.SetRequest
-	ttl  int
-	data []byte
+	req state.SetRequest
+	ttl int
 }
 
 // Implements state.TransactionalStateOperation

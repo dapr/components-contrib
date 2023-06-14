@@ -1030,6 +1030,19 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		require.Equalf(t, []byte(`"<>&\"'\"';"`), resp.Data, "%s", resp.Data)
 	})
 
+	t.Run("bulk write and read values with special characters", func(t *testing.T) {
+		req := state.SetRequest{
+			Key:   "key-bulk",
+			Value: `<>&"'"';`,
+		}
+		require.NoError(t, statestore.BulkSet(context.Background(), []state.SetRequest{req}, state.BulkStoreOpts{}))
+
+		resp, err := statestore.BulkGet(context.Background(), []state.GetRequest{{Key: "key-bulk"}}, state.BulkGetOpts{})
+		require.NoError(t, err)
+		require.Len(t, resp, 1)
+		require.Equalf(t, []byte(`"<>&\"'\"';"`), resp[0].Data, "%s", resp[0].Data)
+	})
+
 	t.Run("write and read values bool and number values", func(t *testing.T) {
 		require.NoError(t, statestore.BulkSet(context.Background(), []state.SetRequest{
 			{Key: "key-1", Value: true},

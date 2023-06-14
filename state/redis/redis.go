@@ -15,6 +15,7 @@ package redis
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -344,13 +345,11 @@ func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 		firstWrite = 0
 	}
 
-	bt, err := utils.JSONStringify(req.Value)
-	if err != nil {
-		return fmt.Errorf("failed to stringify value: %w", err)
-	}
 	if req.Metadata[daprmetadata.ContentType] == contenttype.JSONContentType && r.clientHasJSON {
+		bt, _ := json.Marshal(&jsonEntry{Data: req.Value})
 		err = r.client.DoWrite(ctx, "EVAL", setJSONQuery, 1, req.Key, ver, bt, firstWrite)
 	} else {
+		bt, _ := utils.JSONStringify(req.Value)
 		err = r.client.DoWrite(ctx, "EVAL", setDefaultQuery, 1, req.Key, ver, bt, firstWrite)
 	}
 
@@ -411,15 +410,13 @@ func (r *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 			if ttl == nil {
 				ttl = r.clientSettings.TTLInSeconds
 			}
-			bt, err := utils.JSONStringify(req.Value)
-			if err != nil {
-				return err
-			}
 			isReqJSON := isJSON ||
 				(len(req.Metadata) > 0 && req.Metadata[daprmetadata.ContentType] == contenttype.JSONContentType)
 			if isReqJSON {
+				bt, _ := json.Marshal(&jsonEntry{Data: req.Value})
 				pipe.Do(ctx, "EVAL", setJSONQuery, 1, req.Key, ver, bt)
 			} else {
+				bt, _ := utils.JSONStringify(req.Value)
 				pipe.Do(ctx, "EVAL", setDefaultQuery, 1, req.Key, ver, bt)
 			}
 			if ttl != nil && *ttl > 0 {

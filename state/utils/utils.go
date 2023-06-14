@@ -31,3 +31,14 @@ func JSONStringify(value any) ([]byte, error) {
 		return json.Marshal(value)
 	}
 }
+
+// DEPRECATED: use JSONStringify instead.
+func Marshal(val interface{}, marshaler func(interface{}) ([]byte, error)) ([]byte, error) {
+	var err error = nil
+	bt, ok := val.([]byte)
+	if !ok {
+		bt, err = marshaler(val)
+	}
+
+	return bt, err
+}

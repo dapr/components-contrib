@@ -16,10 +16,10 @@ require (
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
-	github.com/dapr/components-contrib v1.11.0-rc.6
-	github.com/dapr/dapr v1.11.0-rc.4
-	github.com/dapr/go-sdk v1.6.1-0.20230427230219-d485c1775c37
-	github.com/dapr/kit v0.11.1
+	github.com/dapr/components-contrib v1.11.0-rc.11
+	github.com/dapr/dapr v1.11.0
+	github.com/dapr/go-sdk v1.8.0
+	github.com/dapr/kit v0.11.2
 	github.com/eclipse/paho.mqtt.golang v1.4.2
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/go-redis/redis/v8 v8.11.5
@@ -197,7 +197,7 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.18 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
-	github.com/microsoft/durabletask-go v0.2.3 // indirect
+	github.com/microsoft/durabletask-go v0.2.4 // indirect
 	github.com/microsoft/go-mssqldb v0.21.0 // indirect
 	github.com/miekg/dns v1.1.50 // indirect
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1 // indirect
@@ -280,7 +280,7 @@ require (
 	google.golang.org/api v0.115.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
-	google.golang.org/grpc v1.54.0 // indirect
+	google.golang.org/grpc v1.55.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect

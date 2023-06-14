@@ -70,7 +70,7 @@ func TestValidSetRequest(t *testing.T) {
 
 	m.db.ExpectBegin()
 	m.db.ExpectExec("INSERT INTO").
-		WithArgs(setReq.Key, string(val), false).
+		WithArgs(setReq.Key, val, false).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	m.db.ExpectCommit()
 	// There's also a rollback called after a commit, which is expected and will not have effect
@@ -162,7 +162,7 @@ func TestMultiOperationOrder(t *testing.T) {
 
 	m.db.ExpectBegin()
 	m.db.ExpectExec("INSERT INTO").
-		WithArgs("key1", `"value1"`, false).
+		WithArgs("key1", []byte(`"value1"`), false).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	m.db.ExpectExec("DELETE FROM").
 		WithArgs("key1").

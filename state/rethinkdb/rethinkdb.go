@@ -15,7 +15,6 @@ package rethinkdb
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -26,6 +25,7 @@ import (
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
 )
@@ -184,15 +184,9 @@ func (s *RethinkDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 	}
 
 	resp := &state.GetResponse{ETag: ptr.Of(doc.Hash)}
-	b, ok := doc.Data.([]byte)
-	if ok {
-		resp.Data = b
-	} else {
-		data, err := json.Marshal(doc.Data)
-		if err != nil {
-			return nil, errors.New("error serializing data from database")
-		}
-		resp.Data = data
+	resp.Data, err = utils.JSONStringify(doc.Data)
+	if err != nil {
+		return nil, fmt.Errorf("error serializing data from database: %w", err)
 	}
 
 	return resp, nil

@@ -17,7 +17,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -406,17 +405,15 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 	}
 
 	// Encode the value
-	var requestValue string
+	var requestValue []byte
 	byteArray, isBinary := req.Value.([]uint8)
 	if isBinary {
-		requestValue = base64.StdEncoding.EncodeToString(byteArray)
+		requestValue = []byte(base64.StdEncoding.EncodeToString(byteArray))
 	} else {
-		var bt []byte
-		bt, err = json.Marshal(req.Value)
+		requestValue, err = stateutils.JSONStringify(req.Value)
 		if err != nil {
 			return err
 		}
-		requestValue = string(bt)
 	}
 
 	// New ETag

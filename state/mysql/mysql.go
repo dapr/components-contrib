@@ -593,18 +593,17 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 		maxRows  int64 = 1
 	)
 
-	var v any
+	v := req.Value
 	isBinary := false
-	switch x := req.Value.(type) {
-	case []uint8:
+	if x, ok := req.Value.([]byte); ok {
 		isBinary = true
 		v = base64.StdEncoding.EncodeToString(x)
-	default:
-		v = x
 	}
 
-	encB, _ := json.Marshal(v)
-	enc := string(encB)
+	v, err = utils.JSONStringify(v)
+	if err != nil {
+		return err
+	}
 
 	eTagObj, err := uuid.NewRandom()
 	if err != nil {
@@ -628,7 +627,7 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 			WHERE id = ?
 				AND eTag = ?
 				AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)`
-		params = []any{enc, eTag, isBinary, req.Key, *req.ETag}
+		params = []any{v, eTag, isBinary, req.Key, *req.ETag}
 	} else if req.Options.Concurrency == state.FirstWrite {
 		// If we're not in a transaction already, start one as we need to ensure consistency
 		if querier == m.db {
@@ -645,15 +644,15 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 		// What we can do in that case is to first check if the row doesn't exist or has expired, and then perform an upsert
 		// To do that, we use a stored procedure
 		query = "CALL DaprSaveFirstWriteV1(?, ?, ?, ?, ?, ?)"
-		params = []any{m.tableName, req.Key, enc, eTag, isBinary, ttlQuery}
+		params = []any{m.tableName, req.Key, v, eTag, isBinary, ttlQuery}
 	} else {
 		// If this is a duplicate MySQL returns that two rows affected
 		maxRows = 2
 		query = `INSERT INTO ` + m.tableName + ` (id, value, eTag, isbinary, expiredate)
-			VALUES (?, ?, ?, ?, ` + ttlQuery + `) 
+			VALUES (?, ?, ?, ?, ` + ttlQuery + `)
 			ON DUPLICATE KEY UPDATE
 				value=?, eTag=?, isbinary=?, expiredate=` + ttlQuery
-		params = []any{req.Key, enc, eTag, isBinary, enc, eTag, isBinary}
+		params = []any{req.Key, v, eTag, isBinary, v, eTag, isBinary}
 	}
 
 	ctx, cancel := context.WithTimeout(parentCtx, m.timeout)

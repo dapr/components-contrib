@@ -14,30 +14,49 @@ limitations under the License.
 package utils
 
 import (
+	"bytes"
 	"encoding/json"
 	"strconv"
-	"strings"
 )
 
 func JSONStringify(value any) ([]byte, error) {
 	switch value := value.(type) {
 	case []byte:
 		return value, nil
-	case int, int8, int16, int32, int64:
-		return []byte(strconv.FormatInt(value.(int64), 10)), nil
-	case uint, uint8, uint16, uint32, uint64:
-		return []byte(strconv.FormatUint(value.(uint64), 10)), nil
-	case float32, float64:
-		return []byte(strconv.FormatFloat(value.(float64), 'f', -1, 64)), nil
+	case int:
+		return []byte(strconv.FormatInt(int64(value), 10)), nil
+	case int8:
+		return []byte(strconv.FormatInt(int64(value), 10)), nil
+	case int16:
+		return []byte(strconv.FormatInt(int64(value), 10)), nil
+	case int32:
+		return []byte(strconv.FormatInt(int64(value), 10)), nil
+	case int64:
+		return []byte(strconv.FormatInt(value, 10)), nil
+	case uint:
+		return []byte(strconv.FormatUint(uint64(value), 10)), nil
+	case uint16:
+		return []byte(strconv.FormatUint(uint64(value), 10)), nil
+	case uint32:
+		return []byte(strconv.FormatUint(uint64(value), 10)), nil
+	case uint64:
+		return []byte(strconv.FormatUint(value, 10)), nil
+	case float32:
+		return []byte(strconv.FormatFloat(float64(value), 'f', -1, 64)), nil
+	case float64:
+		return []byte(strconv.FormatFloat(value, 'f', -1, 64)), nil
 	case bool:
 		if value {
 			return []byte("true"), nil
 		}
 		return []byte("false"), nil
-	case string:
-		return []byte(`"` + strings.ReplaceAll(value, `"`, `\"`) + `"`), nil
 	default:
-		return json.Marshal(value)
+		var buf bytes.Buffer
+		enc := json.NewEncoder(&buf)
+		enc.SetEscapeHTML(false)
+		err := enc.Encode(value)
+		// Trim newline.
+		return bytes.TrimSuffix(buf.Bytes(), []byte{0xa}), err
 	}
 }
 

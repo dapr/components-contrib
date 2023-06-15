@@ -357,16 +357,18 @@ func (store *inMemoryStore) Multi(ctx context.Context, request *state.Transactio
 
 	// step3: do really set
 	// these operations won't fail
-	var err error
+	var errs []error
 	for _, o := range request.Operations {
 		switch req := o.(type) {
 		case *innerSetRequest:
-			err = errors.Join(err, store.doSet(ctx, req.req.Key, req.req.Value, req.ttl))
+			if err := store.doSet(ctx, req.req.Key, req.req.Value, req.ttl); err != nil {
+				errs = append(errs, err)
+			}
 		case state.DeleteRequest:
 			store.doDelete(ctx, req.Key)
 		}
 	}
-	return err
+	return errors.Join(errs...)
 }
 
 func (store *inMemoryStore) startCleanThread() {

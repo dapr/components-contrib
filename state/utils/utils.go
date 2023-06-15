@@ -15,7 +15,7 @@ package utils
 
 import (
 	"encoding/json"
-	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -23,8 +23,17 @@ func JSONStringify(value any) ([]byte, error) {
 	switch value := value.(type) {
 	case []byte:
 		return value, nil
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64, bool:
-		return []byte(fmt.Sprintf("%v", value)), nil
+	case int, int8, int16, int32, int64:
+		return []byte(strconv.FormatInt(value.(int64), 10)), nil
+	case uint, uint8, uint16, uint32, uint64:
+		return []byte(strconv.FormatUint(value.(uint64), 10)), nil
+	case float32, float64:
+		return []byte(strconv.FormatFloat(value.(float64), 'f', -1, 64)), nil
+	case bool:
+		if value {
+			return []byte("true"), nil
+		}
+		return []byte("false"), nil
 	case string:
 		return []byte(`"` + strings.ReplaceAll(value, `"`, `\"`) + `"`), nil
 	default:

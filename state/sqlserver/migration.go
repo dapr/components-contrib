@@ -46,7 +46,7 @@ func newMigration(metadata *sqlServerMetadata) migrator {
 func (m *migration) newMigrationResult() migrationResult {
 	r := migrationResult{
 		itemRefTableTypeName:     fmt.Sprintf("[%s].%s_Table", m.metadata.Schema, m.metadata.TableName),
-		upsertProcName:           fmt.Sprintf("sp_Upsert_v3_%s", m.metadata.TableName),
+		upsertProcName:           fmt.Sprintf("sp_Upsert_v4_%s", m.metadata.TableName),
 		getCommand:               fmt.Sprintf("SELECT [Data], [RowVersion], [ExpireDate] FROM [%s].[%s] WHERE [Key] = @Key AND ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE())", m.metadata.Schema, m.metadata.TableName),
 		deleteWithETagCommand:    fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key AND [RowVersion]=@RowVersion`, m.metadata.Schema, m.metadata.TableName),
 		deleteWithoutETagCommand: fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key`, m.metadata.Schema, m.metadata.TableName),
@@ -296,7 +296,7 @@ func (m *migration) ensureUpsertStoredProcedureExists(ctx context.Context, db *s
 								BEGIN
 									UPDATE [%[3]s]
 									SET [Data]=@Data, UpdateDate=GETDATE(), ExpireDate=CASE WHEN @TTL IS NULL THEN NULL ELSE DATEADD(SECOND, @TTL, GETDATE()) END
-									WHERE [Key]=@Key AND RowVersion = @RowVersion AND (([RowVersion] IS NULL) OR ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE()))
+									WHERE [Key]=@Key AND RowVersion = @RowVersion
 								END
 								COMMIT;
 							END
@@ -316,7 +316,7 @@ func (m *migration) ensureUpsertStoredProcedureExists(ctx context.Context, db *s
 										IF ERROR_NUMBER() IN (2601, 2627)
 											UPDATE [%[3]s]
 											SET [Data]=@Data, UpdateDate=GETDATE(), ExpireDate=CASE WHEN @TTL IS NULL THEN NULL ELSE DATEADD(SECOND, @TTL, GETDATE()) END
-											WHERE [Key]=@Key AND RowVersion = ISNULL(@RowVersion, RowVersion) AND (([RowVersion] IS NULL) OR ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE()))
+											WHERE [Key]=@Key AND RowVersion = ISNULL(@RowVersion, RowVersion)
 									END CATCH
 								END
 								COMMIT;
@@ -328,7 +328,7 @@ func (m *migration) ensureUpsertStoredProcedureExists(ctx context.Context, db *s
 							BEGIN
 								UPDATE [%[3]s]
 								SET [Data]=@Data, UpdateDate=GETDATE(), ExpireDate=CASE WHEN @TTL IS NULL THEN NULL ELSE DATEADD(SECOND, @TTL, GETDATE()) END
-								WHERE [Key]=@Key AND RowVersion = @RowVersion AND (([RowVersion] IS NULL) OR ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE()))
+								WHERE [Key]=@Key AND RowVersion = @RowVersion
 								RETURN
 							END
 						ELSE
@@ -341,7 +341,7 @@ func (m *migration) ensureUpsertStoredProcedureExists(ctx context.Context, db *s
 									IF ERROR_NUMBER() IN (2601, 2627)
 										UPDATE [%[3]s]
 										SET [Data]=@Data, UpdateDate=GETDATE(), ExpireDate=CASE WHEN @TTL IS NULL THEN NULL ELSE DATEADD(SECOND, @TTL, GETDATE()) END
-										WHERE [Key]=@Key AND RowVersion = ISNULL(@RowVersion, RowVersion) AND (([RowVersion] IS NULL) OR ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE()))
+										WHERE [Key]=@Key AND RowVersion = ISNULL(@RowVersion, RowVersion)
 								END CATCH
 							END
 					END

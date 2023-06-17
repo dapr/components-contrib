@@ -24,11 +24,12 @@ var guestWasm map[string][]byte
 const (
 	guestWasmOutput  = "output"
 	guestWasmRewrite = "rewrite"
+	guestWasmConfig  = "config"
 )
 
 // TestMain ensures we can read the test wasm prior to running e2e tests.
 func TestMain(m *testing.M) {
-	wasms := []string{guestWasmOutput, guestWasmRewrite}
+	wasms := []string{guestWasmOutput, guestWasmRewrite, guestWasmConfig}
 	guestWasm = make(map[string][]byte, len(wasms))
 	for _, name := range wasms {
 		if wasm, err := os.ReadFile(path.Join("e2e-guests", name, "main.wasm")); err != nil {
@@ -47,9 +48,10 @@ func Test_EndToEnd(t *testing.T) {
 	l.SetOutput(&buf)
 
 	type testCase struct {
-		name  string
-		guest []byte
-		test  func(t *testing.T, handler http.Handler, log *bytes.Buffer)
+		name     string
+		guest    []byte
+		property map[string]string
+		test     func(t *testing.T, handler http.Handler, log *bytes.Buffer)
 	}
 
 	tests := []testCase{
@@ -126,6 +128,14 @@ func Test_EndToEnd(t *testing.T) {
 				require.Equal(t, "/v1.0/hello?name=teddy", r.URL.RequestURI())
 			},
 		},
+		{
+			name:     "consoleLog config",
+			guest:    guestWasm[guestWasmConfig],
+			property: map[string]string{"config": "config bytes in any format"},
+			test: func(t *testing.T, handler http.Handler, log *bytes.Buffer) {
+				require.Contains(t, log.String(), "config bytes in any format")
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -137,6 +147,11 @@ func Test_EndToEnd(t *testing.T) {
 			require.NoError(t, os.WriteFile(wasmPath, tc.guest, 0o600))
 
 			meta := metadata.Base{Properties: map[string]string{"url": "file://" + wasmPath}}
+			if len(tc.property) > 0 {
+				for k, v := range tc.property {
+					meta.Properties[k] = v
+				}
+			}
 			handlerFn, err := wasm.NewMiddleware(l).GetHandler(context.Background(), middleware.Metadata{Base: meta})
 			require.NoError(t, err)
 			handler := handlerFn(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))

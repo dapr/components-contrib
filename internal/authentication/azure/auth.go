@@ -190,7 +190,7 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 	{
 		cred, credErr := azidentity.NewAzureCLICredential(nil)
 		if credErr == nil {
-			creds = append(creds, &timeoutWrapper{cred: cred, authmethod: "Azure CLI", timeout: 5 * time.Second})
+			creds = append(creds, &timeoutWrapper{cred: cred, authmethod: "Azure CLI", timeout: 30 * time.Second})
 		} else {
 			errs = append(errs, credErr)
 		}

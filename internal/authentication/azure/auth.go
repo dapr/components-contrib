@@ -167,11 +167,9 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 				if _, ok := os.LookupEnv(msiEndpoint); ok {
 					// Cloud Shell
 					useTimeout = false
-				} else {
-					if isVirtualMachineWithManagedIdentity() {
-						// Azure VM with MSI enabled
-						useTimeout = false
-					}
+				} else if isVirtualMachineWithManagedIdentity() {
+					// Azure VM with MSI enabled
+					useTimeout = false
 				}
 			}
 		}
@@ -444,7 +442,7 @@ func isVirtualMachineWithManagedIdentity() bool {
 		Timeout: time.Second * 3,
 	}
 
-	req, err := http.NewRequest("GET", imdsEndpoint, nil)
+	req, err := http.NewRequest(http.MethodGet, imdsEndpoint, nil)
 	if err != nil {
 		return false
 	}

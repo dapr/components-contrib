@@ -33,7 +33,7 @@ metadata:
     required: true
     sensitive: true
     description: |
-      Ed25519 private key, PEM-encoded.
+      Key for authenticating calls from Dapr to the Worker. This is an Ed25519 private key, PEM-encoded.
     example: |
       -----BEGIN PRIVATE KEY-----
       MC4CAQ...

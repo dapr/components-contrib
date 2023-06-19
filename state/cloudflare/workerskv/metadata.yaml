@@ -12,9 +12,9 @@ capabilities:
   - crud
   - ttl
 authenticationProfiles:
-  - title: "Cloudflare account ID and Token"
+  - title: "Cloudflare API Token"
     description: |
-      Cloudflare account ID and Token.
+      Authenticate with a Cloudflare API token to let Dapr manage your Worker
     metadata:
       - name: cfAccountID
         required: true
@@ -28,6 +28,15 @@ authenticationProfiles:
         description: |
           API token for Cloudflare. Required to have Dapr manage the Worker.
         example: '"secret-key"'
+  - title: "No authentication"
+    description: Using a pre-previsioned Worker that is not managed by Dapr doesn't require authenticating with Cloudflare
+    metadata:
+      - name: workerUrl
+        description: |
+          URL of the pre-provisioned Worker
+        required: true
+        type: string
+        example: '"https://mydaprkv.mydomain.workers.dev"'
 metadata:
   - name: key
     required: true
@@ -50,12 +59,6 @@ metadata:
     required: true
     type: string
     example: '"mydaprkv"'
-  - name: workerUrl
-    description: |
-      URL of the Worker. Required if the Worker has been pre-provisioned outside of Dapr.
-    required: true
-    type: string
-    example: '"https://mydaprkv.mydomain.workers.dev"'
   - name: timeoutInSeconds
     required: false
     description: |

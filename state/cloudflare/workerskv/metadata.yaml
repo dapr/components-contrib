@@ -59,7 +59,7 @@ metadata:
   - name: timeoutInSeconds
     required: false
     description: |
-      The Timeout for network requests in seconds.
+      Timeout for network requests, in seconds.
     type: number
     default: '20'
     example: '20'

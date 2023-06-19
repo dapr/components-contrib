@@ -78,7 +78,7 @@ type IndexedProperty struct {
 	Type       string `json:"type"`
 }
 
-// SQLServer defines a Ms SQL Server based state store.
+// SQLServer defines a MS SQL Server based state store.
 type SQLServer struct {
 	state.BulkStore
 

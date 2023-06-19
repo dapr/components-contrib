@@ -26,6 +26,7 @@ import (
 	"github.com/dapr/kit/logger"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // mockedRequestHandler acts like an upstream service returns success status code 200 and a fixed response body.
@@ -35,8 +36,79 @@ func mockedRequestHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(uri))
 }
 
-func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {
-	meta := middleware.Metadata{
+func TestRouterAlias(t *testing.T) {
+	runTest := func(meta middleware.Metadata) func(t *testing.T) {
+		return func(t *testing.T) {
+			ralias := NewMiddleware(logger.NewLogger("routeralias.test"))
+			handler, err := ralias.GetHandler(context.Background(), meta)
+			require.NoError(t, err)
+
+			t.Run("hit: change router with common request", func(t *testing.T) {
+				r := httptest.NewRequest(http.MethodGet,
+					"http://localhost:5001/v1.0/mall/activity/info?id=123", nil)
+				w := httptest.NewRecorder()
+
+				handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
+				msg, err := io.ReadAll(w.Body)
+				assert.NoError(t, err)
+				result := w.Result()
+				assert.Equal(t, http.StatusOK, result.StatusCode)
+				assert.Equal(t,
+					"/v1.0/invoke/srv.default/method/mall/activity/info?id=123",
+					string(msg))
+				result.Body.Close()
+			})
+
+			t.Run("hit: change router with restful request", func(t *testing.T) {
+				r := httptest.NewRequest(http.MethodGet,
+					"http://localhost:5001/v1.0/hello/activity/1/info", nil)
+				w := httptest.NewRecorder()
+
+				handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
+				msg, err := io.ReadAll(w.Body)
+				assert.NoError(t, err)
+				result := w.Result()
+				assert.Equal(t, http.StatusOK, result.StatusCode)
+				assert.Equal(t,
+					"/v1.0/invoke/srv.default/method/hello/activity/info?id=1",
+					string(msg))
+				result.Body.Close()
+			})
+
+			t.Run("hit: change router with restful request and query string", func(t *testing.T) {
+				r := httptest.NewRequest(http.MethodGet,
+					"http://localhost:5001/v1.0/hello/activity/1/user?userid=123", nil)
+				w := httptest.NewRecorder()
+
+				handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
+				msg, err := io.ReadAll(w.Body)
+				assert.NoError(t, err)
+				result := w.Result()
+				assert.Equal(t, http.StatusOK, result.StatusCode)
+				assert.Equal(t,
+					"/v1.0/invoke/srv.default/method/hello/activity/user?id=1&userid=123",
+					string(msg))
+				result.Body.Close()
+			})
+
+			t.Run("miss: no change router", func(t *testing.T) {
+				r := httptest.NewRequest(http.MethodGet,
+					"http://localhost:5001/v1.0/invoke/srv.default", nil)
+				w := httptest.NewRecorder()
+				handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
+				msg, err := io.ReadAll(w.Body)
+				assert.NoError(t, err)
+				result := w.Result()
+				assert.Equal(t, http.StatusOK, result.StatusCode)
+				assert.Equal(t,
+					"/v1.0/invoke/srv.default",
+					string(msg))
+				result.Body.Close()
+			})
+		}
+	}
+
+	t.Run("test with legacy metadata", runTest(middleware.Metadata{
 		Base: metadata.Base{
 			Properties: map[string]string{
 				"/v1.0/mall/activity/info":       "/v1.0/invoke/srv.default/method/mall/activity/info",
@@ -44,72 +116,29 @@ func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {
 				"/v1.0/hello/activity/{id}/user": "/v1.0/invoke/srv.default/method/hello/activity/user",
 			},
 		},
-	}
-	log := logger.NewLogger("routeralias.test")
-	ralias := NewMiddleware(log)
-	handler, err := ralias.GetHandler(context.Background(), meta)
-	assert.Nil(t, err)
+	}))
 
-	t.Run("hit: change router with common request", func(t *testing.T) {
-		r := httptest.NewRequest(http.MethodGet,
-			"http://localhost:5001/v1.0/mall/activity/info?id=123", nil)
-		w := httptest.NewRecorder()
+	t.Run("test with metadata with routes as JSON", runTest(middleware.Metadata{
+		Base: metadata.Base{
+			Properties: map[string]string{
+				"routes": `{
+					"/v1.0/mall/activity/info": "/v1.0/invoke/srv.default/method/mall/activity/info",
+					"/v1.0/hello/activity/{id}/info": "/v1.0/invoke/srv.default/method/hello/activity/info",
+					"/v1.0/hello/activity/{id}/user": "/v1.0/invoke/srv.default/method/hello/activity/user"
+				}`,
+			},
+		},
+	}))
 
-		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
-		msg, err := io.ReadAll(w.Body)
-		assert.Nil(t, err)
-		result := w.Result()
-		assert.Equal(t, http.StatusOK, result.StatusCode)
-		assert.Equal(t,
-			"/v1.0/invoke/srv.default/method/mall/activity/info?id=123",
-			string(msg))
-		result.Body.Close()
-	})
-
-	t.Run("hit: change router with restful request", func(t *testing.T) {
-		r := httptest.NewRequest(http.MethodGet,
-			"http://localhost:5001/v1.0/hello/activity/1/info", nil)
-		w := httptest.NewRecorder()
-
-		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
-		msg, err := io.ReadAll(w.Body)
-		assert.Nil(t, err)
-		result := w.Result()
-		assert.Equal(t, http.StatusOK, result.StatusCode)
-		assert.Equal(t,
-			"/v1.0/invoke/srv.default/method/hello/activity/info?id=1",
-			string(msg))
-		result.Body.Close()
-	})
-
-	t.Run("hit: change router with restful request and query string", func(t *testing.T) {
-		r := httptest.NewRequest(http.MethodGet,
-			"http://localhost:5001/v1.0/hello/activity/1/user?userid=123", nil)
-		w := httptest.NewRecorder()
-
-		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
-		msg, err := io.ReadAll(w.Body)
-		assert.Nil(t, err)
-		result := w.Result()
-		assert.Equal(t, http.StatusOK, result.StatusCode)
-		assert.Equal(t,
-			"/v1.0/invoke/srv.default/method/hello/activity/user?id=1&userid=123",
-			string(msg))
-		result.Body.Close()
-	})
-
-	t.Run("miss: no change router", func(t *testing.T) {
-		r := httptest.NewRequest(http.MethodGet,
-			"http://localhost:5001/v1.0/invoke/srv.default", nil)
-		w := httptest.NewRecorder()
-		handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
-		msg, err := io.ReadAll(w.Body)
-		assert.Nil(t, err)
-		result := w.Result()
-		assert.Equal(t, http.StatusOK, result.StatusCode)
-		assert.Equal(t,
-			"/v1.0/invoke/srv.default",
-			string(msg))
-		result.Body.Close()
-	})
+	t.Run("test with metadata with routes as YAML", runTest(middleware.Metadata{
+		Base: metadata.Base{
+			Properties: map[string]string{
+				"routes": `
+"/v1.0/mall/activity/info": "/v1.0/invoke/srv.default/method/mall/activity/info"
+"/v1.0/hello/activity/{id}/info": "/v1.0/invoke/srv.default/method/hello/activity/info"
+"/v1.0/hello/activity/{id}/user": "/v1.0/invoke/srv.default/method/hello/activity/user"
+`,
+			},
+		},
+	}))
 }

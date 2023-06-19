@@ -1,4 +1,4 @@
-module github.com/dapr/components-contrib
+module github.com/brendandburns/components-contrib
 
 go 1.20
 

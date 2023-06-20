@@ -78,7 +78,7 @@ type IndexedProperty struct {
 	Type       string `json:"type"`
 }
 
-// SQLServer defines a Ms SQL Server based state store.
+// SQLServer defines a MS SQL Server based state store.
 type SQLServer struct {
 	state.BulkStore
 
@@ -259,9 +259,12 @@ func (s *SQLServer) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 		return &state.GetResponse{}, nil
 	}
 
-	var data string
-	var rowVersion []byte
-	err = rows.Scan(&data, &rowVersion)
+	var (
+		data       string
+		rowVersion []byte
+		expireDate sql.NullTime
+	)
+	err = rows.Scan(&data, &rowVersion, &expireDate)
 	if err != nil {
 		return nil, err
 	}

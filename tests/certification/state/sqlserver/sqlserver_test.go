@@ -440,12 +440,7 @@ func TestSqlServer(t *testing.T) {
 				componentRuntimeOptions(),
 			)).
 			Step("Run basic test", basicTest).
-<<<<<<< HEAD
 			// Introduce network interruption of 15 seconds
-=======
-			Step("Run basic TTL test", basicTTLTest).
-			// Introduce network interruption of 10 seconds
->>>>>>> d9ea9c69 (Fixes for SQL Server state store (#2912))
 			// Note: the connection timeout is set to 5 seconds via the component metadata connection string.
 			Step("interrupt network",
 				network.InterruptNetwork(10*time.Second, nil, nil, "1433", "1434")).

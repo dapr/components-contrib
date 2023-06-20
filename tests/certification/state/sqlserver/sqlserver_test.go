@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -66,32 +67,33 @@ func TestSqlServer(t *testing.T) {
 	currentHTTPPort := ports[1]
 
 	basicTest := func(ctx flow.Context) error {
-		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
-		if err != nil {
-			panic(err)
-		}
-		defer client.Close()
+		ctx.T.Run("basic test", func(t *testing.T) {
+			client, err := client.NewClientWithPort(strconv.Itoa(currentGrpcPort))
+			if err != nil {
+				panic(err)
+			}
+			defer client.Close()
 
-		// save state, default options: strong, last-write
-		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("certificationdata"), nil)
-		require.NoError(ctx.T, err)
+			// save state, default options: strong, last-write
+			err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("certificationdata"), nil)
+			require.NoError(t, err)
 
-		// get state
-		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		require.NoError(ctx.T, err)
-		assert.Equal(ctx.T, "certificationdata", string(item.Value))
+			// get state
+			item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
+			require.NoError(t, err)
+			assert.Equal(t, "certificationdata", string(item.Value))
 
-		// delete state
-		err = client.DeleteState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		require.NoError(ctx.T, err)
-
+			// delete state
+			err = client.DeleteState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
+			require.NoError(t, err)
+		})
 		return nil
 	}
 
 	// this test function heavily depends on the values defined in ./components/docker/customschemawithindex
 	verifyIndexedPopertiesTest := func(ctx flow.Context) error {
 		// verify indices were created by Dapr as specified in the component metadata
-		db, err := sql.Open("sqlserver", fmt.Sprintf("%sdatabase=certificationtest;", dockerConnectionString))
+		db, err := sql.Open("mssql", fmt.Sprintf("%sdatabase=certificationtest;", dockerConnectionString))
 		require.NoError(ctx.T, err)
 		defer db.Close()
 
@@ -117,7 +119,7 @@ func TestSqlServer(t *testing.T) {
 		assert.Equal(ctx.T, 3, indexFoundCount)
 
 		// write JSON data to the state store (which will automatically be indexed in separate columns)
-		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+		client, err := client.NewClientWithPort(strconv.Itoa(currentGrpcPort))
 		if err != nil {
 			panic(err)
 		}
@@ -166,7 +168,7 @@ func TestSqlServer(t *testing.T) {
 
 	// helper function for testing the use of an existing custom schema
 	createCustomSchema := func(ctx flow.Context) error {
-		db, err := sql.Open("sqlserver", dockerConnectionString)
+		db, err := sql.Open("mssql", dockerConnectionString)
 		assert.NoError(ctx.T, err)
 		_, err = db.Exec("CREATE SCHEMA customschema;")
 		assert.NoError(ctx.T, err)
@@ -176,7 +178,7 @@ func TestSqlServer(t *testing.T) {
 
 	// helper function to insure the SQL Server Docker Container is truly ready
 	checkSQLServerAvailability := func(ctx flow.Context) error {
-		db, err := sql.Open("sqlserver", dockerConnectionString)
+		db, err := sql.Open("mssql", dockerConnectionString)
 		if err != nil {
 			return err
 		}
@@ -189,7 +191,7 @@ func TestSqlServer(t *testing.T) {
 
 	// checks the state store component is not vulnerable to SQL injection
 	verifySQLInjectionTest := func(ctx flow.Context) error {
-		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+		client, err := client.NewClientWithPort(strconv.Itoa(currentGrpcPort))
 		if err != nil {
 			panic(err)
 		}
@@ -280,7 +282,7 @@ func TestSqlServer(t *testing.T) {
 			})
 
 			ctx.T.Run("cleanup", func(t *testing.T) {
-				dbClient, err := sql.Open("sqlserver", connString)
+				dbClient, err := sql.Open("mssql", connString)
 				require.NoError(t, err)
 
 				t.Run("automatically delete expiredate records", func(t *testing.T) {

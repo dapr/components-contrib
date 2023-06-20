@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"time"
 
 	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
@@ -167,7 +168,9 @@ func (a *AzureServiceBusQueues) getHandlerFn(handler bindings.Handler) impl.Hand
 		// Passthrough any custom metadata to the handler.
 		for key, val := range msg.ApplicationProperties {
 			if stringVal, ok := val.(string); ok {
-				metadata[key] = stringVal
+				// Escape the key and value to ensure they are valid URL query parameters.
+				// This is necessary for them to be sent as HTTP Metadata.
+				metadata[url.QueryEscape(key)] = url.QueryEscape(stringVal)
 			}
 		}
 

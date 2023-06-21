@@ -14,6 +14,7 @@ limitations under the License.
 package crypto
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwk"
@@ -64,6 +65,12 @@ func (k Key) isValidAtTime(t time.Time) bool {
 	}
 
 	return true
+}
+
+// MarshalJSON implements the json.Marshaler interface
+func (k Key) MarshalJSON() ([]byte, error) {
+	// Marshal the Key property only
+	return json.Marshal(k.Key)
 }
 
 // KeyCanPerformOperation returns true if the key can be used to perform a specific operation.

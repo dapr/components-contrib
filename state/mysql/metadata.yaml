@@ -14,6 +14,7 @@ capabilities:
   - crud
   - transactional
   - etag
+  - ttl
 authenticationProfiles:
   - title: "Connection string"
     description: |
@@ -30,7 +31,6 @@ metadata:
     type: duration
     default: "1h"
     example: "20m"
-    # We do not expose TTL as a feature, but we have cleanupInterval :)
   - name: metadataTableName
     description: "Name of the table Dapr uses to store a few metadata properties"
     type: string

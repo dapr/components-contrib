@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: middleware
+name: routeralias
+version: v1
+status: alpha
+title: "Router Alias"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-middleware/middleware-routeralias/
+metadata:
+  - name: routes
+    description: |
+      Dictionary where the key is the path to match in the incoming request, and the value indicates the updated path.
+      This is included as a JSON or YAML-encoded string.
+    type: string
+    default: ""
+    example: |
+      {
+        "/v1.0/mall/activity/info": "/v1.0/invoke/srv.default/method/mall/activity/info",
+        "/v1.0/hello/activity/{id}/info": "/v1.0/invoke/srv.default/method/hello/activity/info",
+        "/v1.0/hello/activity/{id}/user": "/v1.0/invoke/srv.default/method/hello/activity/user"
+      }

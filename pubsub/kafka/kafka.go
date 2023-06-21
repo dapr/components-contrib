@@ -123,6 +123,10 @@ func (p *PubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 	return p.kafka.Publish(ctx, req.Topic, req.Data, req.Metadata)
 }
 
+func (p *PubSub) UseBulkDefaultPublisher(_ context.Context) (bool, error) {
+	return false, nil
+}
+
 // BatchPublish messages to Kafka cluster.
 func (p *PubSub) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
 	if p.closed.Load() {

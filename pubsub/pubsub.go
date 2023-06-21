@@ -20,8 +20,13 @@ import (
 	"github.com/dapr/components-contrib/health"
 )
 
-// PubSub is the interface for message buses.
 type PubSub interface {
+	BasePubSub
+	BulkPublisher
+}
+
+// BasePubSub is the interface for message buses.
+type BasePubSub interface {
 	Init(ctx context.Context, metadata Metadata) error
 	Features() []Feature
 	Publish(ctx context.Context, req *PublishRequest) error
@@ -37,6 +42,7 @@ type PubSub interface {
 // Error is returned on partial or complete failures. If there are no failures, error is nil.
 type BulkPublisher interface {
 	BulkPublish(ctx context.Context, req *BulkPublishRequest) (BulkPublishResponse, error)
+	UseBulkDefaultPublisher(ctx context.Context) (bool, error)
 }
 
 // BulkSubscriber is the interface defining BulkSubscribe definition for message buses
@@ -72,4 +78,16 @@ func Ping(ctx context.Context, pubsub PubSub) error {
 	} else {
 		return fmt.Errorf("ping is not implemented by this pubsub")
 	}
+}
+
+// DefaultBulkPublisher empty implementation pending by concrete implementation in the component for the applicable scenarios
+type DefaultBulkPublisher struct{}
+
+func (p DefaultBulkPublisher) UseBulkDefaultPublisher(ctx context.Context) (bool, error) {
+	return true, nil
+}
+
+func (p DefaultBulkPublisher) BulkPublish(ctx context.Context, req *BulkPublishRequest) (BulkPublishResponse, error) {
+	panic("implement me")
+	return BulkPublishResponse{}, nil
 }

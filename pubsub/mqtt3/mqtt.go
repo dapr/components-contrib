@@ -51,6 +51,9 @@ type mqttPubSub struct {
 	closeCh         chan struct{}
 	closed          atomic.Bool
 	wg              sync.WaitGroup
+
+	// Use the default settings to publish in batches
+	pubsub.DefaultBulkPublisher
 }
 
 type mqttPubSubSubscription struct {

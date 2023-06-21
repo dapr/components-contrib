@@ -73,6 +73,10 @@ func (a *azureServiceBus) Publish(ctx context.Context, req *pubsub.PublishReques
 	return a.client.PublishPubSub(ctx, req, a.client.EnsureQueue, a.logger)
 }
 
+func (a *azureServiceBus) UseBulkDefaultPublisher(_ context.Context) (bool, error) {
+	return false, nil
+}
+
 func (a *azureServiceBus) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
 	if a.closed.Load() {
 		return pubsub.BulkPublishResponse{}, errors.New("component is closed")

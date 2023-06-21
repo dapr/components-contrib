@@ -47,7 +47,7 @@ type Query struct {
 	QueryFields `json:",inline"`
 
 	// derived from Filters
-	Filter Filter
+	Filter Filter `json:"filter"`
 }
 
 type Visitor interface {

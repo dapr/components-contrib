@@ -31,6 +31,9 @@ type bus struct {
 	closed  atomic.Bool
 	closeCh chan struct{}
 	wg      sync.WaitGroup
+
+	// Use the default settings to publish in batches
+	pubsub.DefaultBulkPublisher
 }
 
 func New(logger logger.Logger) pubsub.PubSub {

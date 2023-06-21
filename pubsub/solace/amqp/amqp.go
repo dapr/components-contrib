@@ -49,6 +49,9 @@ type amqpPubSub struct {
 	wg                sync.WaitGroup
 	closed            atomic.Bool
 	closeCh           chan struct{}
+
+	// Use the default settings to publish in batches
+	pubsub.DefaultBulkPublisher
 }
 
 // NewAMQPPubsub returns a new AMQPPubSub instance

@@ -69,6 +69,9 @@ type rabbitMQ struct {
 	wg             sync.WaitGroup
 
 	logger logger.Logger
+
+	// Use the default settings to publish in batches
+	pubsub.DefaultBulkPublisher
 }
 
 // interface used to allow unit testing.

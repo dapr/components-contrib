@@ -72,6 +72,10 @@ func (aeh *AzureEventHubs) Publish(ctx context.Context, req *pubsub.PublishReque
 	return aeh.AzureEventHubs.Publish(ctx, req.Topic, messages, batchOpts)
 }
 
+func (aeh AzureEventHubs) UseBulkDefaultPublisher(_ context.Context) (bool, error) {
+	return false, nil
+}
+
 // BulkPublish sends data to Azure Event Hubs in bulk.
 func (aeh *AzureEventHubs) BulkPublish(ctx context.Context, req *pubsub.BulkPublishRequest) (pubsub.BulkPublishResponse, error) {
 	var err error

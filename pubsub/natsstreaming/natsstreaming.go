@@ -81,6 +81,9 @@ type natsStreamingPubSub struct {
 	closed  atomic.Bool
 	closeCh chan struct{}
 	wg      sync.WaitGroup
+
+	// Use the default settings to publish in batches
+	pubsub.DefaultBulkPublisher
 }
 
 // NewNATSStreamingPubSub returns a new NATS Streaming pub-sub implementation.

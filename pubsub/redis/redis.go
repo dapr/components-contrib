@@ -53,6 +53,9 @@ type redisStreams struct {
 	closeCh        chan struct{}
 
 	queue chan redisMessageWrapper
+
+	// Use the default settings to publish in batches
+	pubsub.DefaultBulkPublisher
 }
 
 // redisMessageWrapper encapsulates the message identifier,

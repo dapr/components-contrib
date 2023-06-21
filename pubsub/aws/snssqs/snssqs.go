@@ -71,6 +71,9 @@ type snsSqs struct {
 	closeCh chan struct{}
 	closed  atomic.Bool
 	wg      sync.WaitGroup
+
+	// Use the default settings to publish in batches
+	pubsub.DefaultBulkPublisher
 }
 
 type sqsQueueInfo struct {

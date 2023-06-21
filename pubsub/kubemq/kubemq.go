@@ -18,6 +18,9 @@ type kubeMQ struct {
 	logger           logger.Logger
 	eventsClient     *kubeMQEvents
 	eventStoreClient *kubeMQEventStore
+
+	// Use the default settings to publish in batches
+	pubsub.DefaultBulkPublisher
 }
 
 func NewKubeMQ(logger logger.Logger) pubsub.PubSub {

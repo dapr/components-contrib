@@ -80,6 +80,9 @@ type rocketMQ struct {
 	wg            sync.WaitGroup
 	closed        atomic.Bool
 	closeCh       chan struct{}
+
+	// Use the default settings to publish in batches
+	pubsub.DefaultBulkPublisher
 }
 
 func NewRocketMQ(l logger.Logger) pubsub.PubSub {

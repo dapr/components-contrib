@@ -99,6 +99,9 @@ type Pulsar struct {
 	closed   atomic.Bool
 	closeCh  chan struct{}
 	wg       sync.WaitGroup
+
+	// Use the default settings to publish in batches
+	pubsub.DefaultBulkPublisher
 }
 
 func NewPulsar(l logger.Logger) pubsub.PubSub {

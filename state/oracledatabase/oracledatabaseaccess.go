@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -215,17 +216,25 @@ func (o *oracleDatabaseAccess) Get(ctx context.Context, req *state.GetRequest) (
 		return nil, errors.New("missing key in get operation")
 	}
 	var (
-		value    string
-		binaryYN string
-		etag     string
+		value      string
+		binaryYN   string
+		etag       string
+		expireTime sql.NullTime
 	)
-	err := o.db.QueryRowContext(ctx, "SELECT value, binary_yn, etag FROM "+o.metadata.TableName+" WHERE key = :key AND (expiration_time IS NULL OR expiration_time > systimestamp)", req.Key).Scan(&value, &binaryYN, &etag)
+	err := o.db.QueryRowContext(ctx, "SELECT value, binary_yn, etag, expiration_time FROM "+o.metadata.TableName+" WHERE key = :key AND (expiration_time IS NULL OR expiration_time > systimestamp)", req.Key).Scan(&value, &binaryYN, &etag, &expireTime)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
 		if err == sql.ErrNoRows {
 			return &state.GetResponse{}, nil
 		}
 		return nil, err
+	}
+
+	var metadata map[string]string
+	if expireTime.Valid {
+		metadata = map[string]string{
+			state.GetRespMetaKeyTTLExpireTime: expireTime.Time.UTC().Format(time.RFC3339),
+		}
 	}
 	if binaryYN == "Y" {
 		var (
@@ -241,13 +250,13 @@ func (o *oracleDatabaseAccess) Get(ctx context.Context, req *state.GetRequest) (
 		return &state.GetResponse{
 			Data:     data,
 			ETag:     &etag,
-			Metadata: req.Metadata,
+			Metadata: metadata,
 		}, nil
 	}
 	return &state.GetResponse{
 		Data:     []byte(value),
 		ETag:     &etag,
-		Metadata: req.Metadata,
+		Metadata: metadata,
 	}, nil
 }
 

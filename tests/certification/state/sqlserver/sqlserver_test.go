@@ -125,10 +125,6 @@ func TestSqlServer(t *testing.T) {
 			assert.Nil(t, item.Metadata)
 		})
 
-			// delete state
-			err = client.DeleteState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-			require.NoError(t, err)
-		})
 		return nil
 	}
 

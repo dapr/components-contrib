@@ -401,7 +401,12 @@ require (
 	stathat.com/c/consistent v1.0.0 // indirect
 )
 
-replace github.com/gobwas/pool => github.com/gobwas/pool v0.2.1
+// These are indirect dependencies that are unlicensed and must be replaced for license reasons
+replace (
+	github.com/chenzhuoyu/iasm => github.com/chenzhuoyu/iasm v0.9.0
+	github.com/gobwas/pool => github.com/gobwas/pool v0.2.1
+	github.com/toolkits/concurrent => github.com/niean/gotools v0.0.0-20151221085310-ff3f51fc5c60
+)
 
 // version v1.38.X currently breaks connections to EventHubs using SALS auth.
 replace github.com/Shopify/sarama => github.com/Shopify/sarama v1.37.2

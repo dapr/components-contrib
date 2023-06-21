@@ -406,5 +406,5 @@ replace github.com/gobwas/pool => github.com/gobwas/pool v0.2.1
 // version v1.38.X currently breaks connections to EventHubs using SALS auth.
 replace github.com/Shopify/sarama => github.com/Shopify/sarama v1.37.2
 
-// this is a fork which addresses a performance issues due to go routines
+// this is a fork which addresses a performance issues due to go routines.
 replace dubbo.apache.org/dubbo-go/v3 => dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3

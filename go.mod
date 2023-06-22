@@ -60,6 +60,7 @@ require (
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/go-zookeeper/zk v1.0.3
 	github.com/gocql/gocql v1.3.1
+	github.com/gogo/protobuf v1.3.2
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.3.0
 	github.com/googleapis/gax-go/v2 v2.8.0
@@ -119,6 +120,7 @@ require (
 	golang.org/x/oauth2 v0.8.0
 	google.golang.org/api v0.115.0
 	google.golang.org/grpc v1.54.0
+	google.golang.org/protobuf v1.30.0
 	gopkg.in/couchbase/gocb.v1 v1.6.7
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gopkg.in/yaml.v3 v3.0.1
@@ -223,7 +225,6 @@ require (
 	github.com/gogap/errors v0.0.0-20200228125012-531a6449b28c // indirect
 	github.com/gogap/stack v0.0.0-20150131034635-fef68dddd4f8 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
-	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/gogo/status v1.1.1 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
@@ -371,7 +372,6 @@ require (
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20230403163135-c38d8f061ccd // indirect
-	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/couchbase/gocbcore.v7 v7.1.18 // indirect
 	gopkg.in/couchbaselabs/gocbconnstr.v1 v1.0.4 // indirect

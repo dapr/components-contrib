@@ -59,13 +59,12 @@ type TestConfig struct {
 	ReadBindingWait    time.Duration     `mapstructure:"readBindingWait"`
 }
 
-func NewTestConfig(name string, allOperations bool, operations []string, configMap map[string]interface{}) (TestConfig, error) {
+func NewTestConfig(name string, operations []string, configMap map[string]interface{}) (TestConfig, error) {
 	waitForSetup = false
 	testConfig := TestConfig{
 		CommonConfig: utils.CommonConfig{
 			ComponentType: "bindings",
 			ComponentName: name,
-			AllOperations: allOperations,
 			Operations:    utils.NewStringSet(operations...),
 		},
 		InputMetadata:      make(map[string]string),

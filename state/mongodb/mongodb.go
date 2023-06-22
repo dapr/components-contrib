@@ -106,6 +106,7 @@ type Item struct {
 	Key   string      `bson:"_id"`
 	Value interface{} `bson:"value"`
 	Etag  string      `bson:"_etag"`
+	TTL   *time.Time  `bson:"_ttl,omitempty"`
 }
 
 // NewMongoDB returns a new MongoDB state store.
@@ -295,9 +296,17 @@ func (m *MongoDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetRes
 		return &state.GetResponse{}, err
 	}
 
+	var metadata map[string]string
+	if result.TTL != nil {
+		metadata = map[string]string{
+			state.GetRespMetaKeyTTLExpireTime: result.TTL.UTC().Format(time.RFC3339),
+		}
+	}
+
 	return &state.GetResponse{
-		Data: data,
-		ETag: ptr.Of(result.Etag),
+		Data:     data,
+		ETag:     ptr.Of(result.Etag),
+		Metadata: metadata,
 	}, nil
 }
 
@@ -350,6 +359,12 @@ func (m *MongoDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.B
 		}
 		if doc.Etag != "" {
 			bgr.ETag = ptr.Of(doc.Etag)
+		}
+
+		if doc.TTL != nil {
+			bgr.Metadata = map[string]string{
+				state.GetRespMetaKeyTTLExpireTime: doc.TTL.UTC().Format(time.RFC3339),
+			}
 		}
 
 		data, err = m.decodeData(doc.Value)

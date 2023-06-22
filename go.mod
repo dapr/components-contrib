@@ -43,7 +43,7 @@ require (
 	github.com/bradfitz/gomemcache v0.0.0-20230124162541-5f7a7d875746
 	github.com/camunda/zeebe/clients/go/v8 v8.1.8
 	github.com/cenkalti/backoff/v4 v4.2.1
-	github.com/chebyrash/promise v0.0.0-20220530143319-1123826567d6
+	github.com/chebyrash/promise v0.0.0-20230414144155-dd8f641675f4
 	github.com/cinience/go_rocketmq v0.0.2
 	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.13.0
 	github.com/cloudevents/sdk-go/v2 v2.13.0
@@ -51,7 +51,7 @@ require (
 	github.com/cloudwego/kitex-examples v0.1.1
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/dancannon/gorethink v4.0.0+incompatible
-	github.com/dapr/kit v0.11.1
+	github.com/dapr/kit v0.11.3-0.20230615225244-804821bb8f2d
 	github.com/didip/tollbooth/v7 v7.0.1
 	github.com/eclipse/paho.mqtt.golang v1.4.2
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
@@ -78,7 +78,7 @@ require (
 	github.com/kubemq-io/kubemq-go v1.7.8
 	github.com/labd/commercetools-go-sdk v1.2.0
 	github.com/lestrrat-go/httprc v1.0.4
-	github.com/lestrrat-go/jwx/v2 v2.0.9
+	github.com/lestrrat-go/jwx/v2 v2.0.11
 	github.com/machinebox/graphql v0.2.2
 	github.com/matoous/go-nanoid/v2 v2.0.0
 	github.com/microsoft/go-mssqldb v0.21.0
@@ -98,7 +98,7 @@ require (
 	github.com/sendgrid/sendgrid-go v3.12.0+incompatible
 	github.com/sijms/go-ora/v2 v2.7.6
 	github.com/spf13/cast v1.5.1
-	github.com/stretchr/testify v1.8.3
+	github.com/stretchr/testify v1.8.4
 	github.com/supplyon/gremcos v0.1.40
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.608
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.0.608
@@ -112,7 +112,7 @@ require (
 	go.temporal.io/sdk v1.21.1
 	go.uber.org/multierr v1.11.0
 	go.uber.org/ratelimit v0.2.0
-	golang.org/x/crypto v0.9.0
+	golang.org/x/crypto v0.10.0
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 	golang.org/x/mod v0.10.0
 	golang.org/x/net v0.10.0
@@ -328,10 +328,11 @@ require (
 	github.com/robfig/cron v1.2.0 // indirect
 	github.com/rs/zerolog v1.28.0 // indirect
 	github.com/russross/blackfriday v1.6.0 // indirect
+	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/sendgrid/rest v2.6.9+incompatible // indirect
 	github.com/sergi/go-diff v1.2.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.22.2 // indirect
-	github.com/sirupsen/logrus v1.9.2 // indirect
+	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/sony/gobreaker v0.5.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
@@ -362,9 +363,9 @@ require (
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/arch v0.3.0 // indirect
 	golang.org/x/sync v0.2.0 // indirect
-	golang.org/x/sys v0.8.0 // indirect
-	golang.org/x/term v0.8.0 // indirect
-	golang.org/x/text v0.9.0 // indirect
+	golang.org/x/sys v0.9.0 // indirect
+	golang.org/x/term v0.9.0 // indirect
+	golang.org/x/text v0.10.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.9.1 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
@@ -410,5 +411,5 @@ replace (
 // version v1.38.X currently breaks connections to EventHubs using SALS auth.
 replace github.com/Shopify/sarama => github.com/Shopify/sarama v1.37.2
 
-// this is a fork which addresses a performance issues due to go routines
+// this is a fork which addresses a performance issues due to go routines.
 replace dubbo.apache.org/dubbo-go/v3 => dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3

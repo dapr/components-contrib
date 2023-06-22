@@ -90,6 +90,44 @@ func TestSqlServer(t *testing.T) {
 		return nil
 	}
 
+	basicTTLTest := func(ctx flow.Context) error {
+		ctx.T.Run("basic TTL test", func(t *testing.T) {
+			client, err := client.NewClientWithPort(strconv.Itoa(currentGrpcPort))
+			if err != nil {
+				panic(err)
+			}
+			defer client.Close()
+
+			err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key2", []byte("certificationdata"), map[string]string{
+				"ttlInSeconds": "86400",
+			})
+			require.NoError(t, err)
+
+			// get state
+			item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key2", nil)
+			require.NoError(t, err)
+			assert.Equal(t, "certificationdata", string(item.Value))
+			assert.Contains(t, item.Metadata, "ttlExpireTime")
+			expireTime, err := time.Parse(time.RFC3339, item.Metadata["ttlExpireTime"])
+			_ = assert.NoError(t, err) &&
+				assert.InDelta(t, time.Now().Add(24*time.Hour).Unix(), expireTime.Unix(), 10)
+
+			err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key2", []byte("certificationdata"), map[string]string{
+				"ttlInSeconds": "1",
+			})
+			require.NoError(t, err)
+
+			time.Sleep(2 * time.Second)
+
+			item, err = client.GetState(ctx, stateStoreName, certificationTestPrefix+"key2", nil)
+			require.NoError(t, err)
+			assert.Nil(t, item.Value)
+			assert.Nil(t, item.Metadata)
+		})
+
+		return nil
+	}
+
 	// this test function heavily depends on the values defined in ./components/docker/customschemawithindex
 	verifyIndexedPopertiesTest := func(ctx flow.Context) error {
 		// verify indices were created by Dapr as specified in the component metadata
@@ -402,7 +440,8 @@ func TestSqlServer(t *testing.T) {
 				componentRuntimeOptions(),
 			)).
 			Step("Run basic test", basicTest).
-			// Introduce network interruption of 15 seconds
+			Step("Run basic TTL test", basicTTLTest).
+			// Introduce network interruption of 10 seconds
 			// Note: the connection timeout is set to 5 seconds via the component metadata connection string.
 			Step("interrupt network",
 				network.InterruptNetwork(10*time.Second, nil, nil, "1433", "1434")).
@@ -461,6 +500,7 @@ func TestSqlServer(t *testing.T) {
 				componentRuntimeOptions(),
 			)).
 			Step("Run basic test", basicTest).
+			Step("Run basic TTL test", basicTTLTest).
 			Step("interrupt network",
 				network.InterruptNetwork(15*time.Second, nil, nil, "1433", "1434")).
 

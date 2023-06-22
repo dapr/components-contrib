@@ -35,12 +35,11 @@ type TestConfig struct {
 	utils.CommonConfig
 }
 
-func NewTestConfig(component string, allOperations bool, operations []string, conf map[string]interface{}) TestConfig {
+func NewTestConfig(component string, operations []string, conf map[string]interface{}) TestConfig {
 	tc := TestConfig{
 		CommonConfig: utils.CommonConfig{
 			ComponentType: "workflows",
 			ComponentName: component,
-			AllOperations: allOperations,
 			Operations:    utils.NewStringSet(operations...),
 		},
 	}
@@ -59,7 +58,7 @@ func ConformanceTests(t *testing.T, props map[string]string, workflowItem workfl
 	})
 
 	// Everything is within the same task since the workflow needs to persist between operations
-	if config.HasOperation("start") {
+	t.Run("start", func(t *testing.T) {
 		testLogger.Info("Start test running...")
 
 		inputBytes, _ := json.Marshal(10) // Time that the activity within the workflow runs for
@@ -111,5 +110,5 @@ func ConformanceTests(t *testing.T, props map[string]string, workflowItem workfl
 			assert.Equal(t, "TestID", resp.Workflow.InstanceID)
 		})
 		testLogger.Info("Start test done.")
-	}
+	})
 }

@@ -29,8 +29,7 @@ func TestDecodeYaml(t *testing.T) {
 		yam := `componentType: state
 components:
   - component: redis
-    allOperations: false
-    operations: ["init", "set"]
+    operations: ["foo", "bar"]
     config:
       maxInitDurationInMs: 20
       maxSetDurationInMs: 20
@@ -41,9 +40,8 @@ components:
 		assert.NoError(t, err)
 		assert.NotNil(t, config)
 		assert.Equal(t, 1, len(config.Components))
-		assert.False(t, config.Components[0].AllOperations)
 		assert.Equal(t, "state", config.ComponentType)
-		assert.Equal(t, 2, len(config.Components[0].Operations))
+		assert.Equal(t, []string{"foo", "bar"}, config.Components[0].Operations)
 		assert.Equal(t, 5, len(config.Components[0].Config))
 	})
 

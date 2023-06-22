@@ -452,8 +452,8 @@ func TestGetSucceeds(t *testing.T) {
 	defer m.mySQL.Close()
 
 	t.Run("has json type", func(t *testing.T) {
-		rows := sqlmock.NewRows([]string{"id", "value", "eTag", "isbinary"}).AddRow("UnitTest", "{}", "946af56e", false)
-		m.mock1.ExpectQuery("SELECT id, value, eTag, isbinary FROM state WHERE id = ?").WillReturnRows(rows)
+		rows := sqlmock.NewRows([]string{"id", "value", "eTag", "isbinary", "expiredate"}).AddRow("UnitTest", "{}", "946af56e", false, "")
+		m.mock1.ExpectQuery(`SELECT id, value, eTag, isbinary, IFNULL\(expiredate, ""\) FROM state WHERE id = ?`).WillReturnRows(rows)
 
 		request := &state.GetRequest{
 			Key: "UnitTest",
@@ -466,12 +466,15 @@ func TestGetSucceeds(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, response)
 		assert.Equal(t, "{}", string(response.Data))
+		assert.NotContains(t, response.Metadata, state.GetRespMetaKeyTTLExpireTime)
 	})
 
-	t.Run("has binary type", func(t *testing.T) {
+	t.Run("has binary type and expiredate", func(t *testing.T) {
+		now := time.UnixMilli(20001).UTC()
+
 		value, _ := utils.Marshal(base64.StdEncoding.EncodeToString([]byte("abcdefg")), json.Marshal)
-		rows := sqlmock.NewRows([]string{"id", "value", "eTag", "isbinary"}).AddRow("UnitTest", value, "946af56e", true)
-		m.mock1.ExpectQuery("SELECT id, value, eTag, isbinary FROM state WHERE id = ?").WillReturnRows(rows)
+		rows := sqlmock.NewRows([]string{"id", "value", "eTag", "isbinary", "expiredate"}).AddRow("UnitTest", value, "946af56e", true, now.Format(time.DateTime))
+		m.mock1.ExpectQuery(`SELECT id, value, eTag, isbinary, IFNULL\(expiredate, ""\) FROM state WHERE id = ?`).WillReturnRows(rows)
 
 		request := &state.GetRequest{
 			Key: "UnitTest",
@@ -484,6 +487,8 @@ func TestGetSucceeds(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, response)
 		assert.Equal(t, "abcdefg", string(response.Data))
+		assert.Contains(t, response.Metadata, state.GetRespMetaKeyTTLExpireTime)
+		assert.Equal(t, "1970-01-01T00:00:20Z", response.Metadata[state.GetRespMetaKeyTTLExpireTime])
 	})
 }
 

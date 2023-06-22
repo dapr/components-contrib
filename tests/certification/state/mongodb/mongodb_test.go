@@ -67,6 +67,7 @@ func TestMongoDB(t *testing.T) {
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
 		assert.NoError(t, err)
 		assert.Equal(t, "mongodbCert", string(item.Value))
+		assert.NotContains(t, item.Metadata, "ttlExpireTime")
 
 		errUpdate := client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("mongodbCertUpdate"), nil)
 		assert.NoError(t, errUpdate)
@@ -125,6 +126,10 @@ func TestMongoDB(t *testing.T) {
 			item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl3", nil)
 			assert.NoError(t, err)
 			assert.Equal(t, "mongodbCert3", string(item.Value))
+			assert.Contains(t, item.Metadata, "ttlExpireTime")
+			expireTime, err := time.Parse(time.RFC3339, item.Metadata["ttlExpireTime"])
+			_ = assert.NoError(t, err) && assert.InDelta(t, time.Now().Add(time.Second*3).Unix(), expireTime.Unix(), 2)
+
 			assert.Eventually(t, func() bool {
 				item, err = client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl3", nil)
 				require.NoError(t, err)

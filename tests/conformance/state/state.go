@@ -65,12 +65,11 @@ type TestConfig struct {
 	BadEtag string `mapstructure:"badEtag"`
 }
 
-func NewTestConfig(component string, allOperations bool, operations []string, configMap map[string]interface{}) (TestConfig, error) {
+func NewTestConfig(component string, operations []string, configMap map[string]interface{}) (TestConfig, error) {
 	testConfig := TestConfig{
 		CommonConfig: utils.CommonConfig{
 			ComponentType: "state",
 			ComponentName: component,
-			AllOperations: allOperations,
 			Operations:    utils.NewStringSet(operations...),
 		},
 		BadEtag: "bad-etag",

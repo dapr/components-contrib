@@ -73,7 +73,9 @@ components:
     operations: [ "transaction", "etag", "first-write" ]
   - component: aws.dynamodb.terraform
     operations: [ "transaction", "etag", "first-write" ]
-  - component: etcd
+  - component: etcd.v1
+    operations: [ "transaction", "etag",  "first-write", "ttl" ]
+  - component: etcd.v2
     operations: [ "transaction", "etag",  "first-write", "ttl" ]
   - component: gcp.firestore.docker
     operations: []

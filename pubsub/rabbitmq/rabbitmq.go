@@ -44,12 +44,15 @@ const (
 
 	publishMaxRetries       = 3
 	publishRetryWaitSeconds = 2
+	defaultHeartbeat        = 10 * time.Second
+	defaultLocale           = "en_US"
 
 	argQueueMode          = "x-queue-mode"
 	argMaxLength          = "x-max-length"
 	argMaxLengthBytes     = "x-max-length-bytes"
 	argDeadLetterExchange = "x-dead-letter-exchange"
 	argMaxPriority        = "x-max-priority"
+	propertyClientName    = "connection_name"
 	queueModeLazy         = "lazy"
 	reqMetadataRoutingKey = "routingKey"
 )
@@ -63,7 +66,7 @@ type rabbitMQ struct {
 	metadata          *rabbitmqMetadata
 	declaredExchanges map[string]bool
 
-	connectionDial func(protocol, uri string, tlsCfg *tls.Config, externalSasl bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error)
+	connectionDial func(protocol, uri, clientName string, tlsCfg *tls.Config, externalSasl bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error)
 	closeCh        chan struct{}
 	closed         atomic.Bool
 	wg             sync.WaitGroup
@@ -104,22 +107,27 @@ func NewRabbitMQ(logger logger.Logger) pubsub.PubSub {
 	}
 }
 
-func dial(protocol, uri string, tlsCfg *tls.Config, externalSasl bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
+func dial(protocol, uri, clientName string, tlsCfg *tls.Config, externalSasl bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
 	var (
 		conn *amqp.Connection
 		ch   *amqp.Channel
 		err  error
+		cfg  amqp.Config = amqp.Config{Heartbeat: defaultHeartbeat, Locale: defaultLocale} // default config of amqp091-go
 	)
+	if len(clientName) > 0 {
+		cfg.Properties = map[string]interface{}{
+			propertyClientName: clientName,
+		}
+	}
 
 	if protocol == protocolAMQPS {
+		cfg.TLSClientConfig = tlsCfg
 		if externalSasl {
-			conn, err = amqp.DialTLS_ExternalAuth(uri, tlsCfg)
-		} else {
-			conn, err = amqp.DialTLS(uri, tlsCfg)
+			cfg.SASL = []amqp.Authentication{&amqp.ExternalAuth{}}
 		}
-	} else {
-		conn, err = amqp.Dial(uri)
 	}
+	conn, err = amqp.DialConfig(uri, cfg)
+
 	if err != nil {
 		return nil, nil, err
 	}
@@ -176,7 +184,7 @@ func (r *rabbitMQ) reconnect(connectionCount int) error {
 		return err
 	}
 
-	r.connection, r.channel, err = r.connectionDial(r.metadata.internalProtocol, r.metadata.connectionURI(), tlsCfg, r.metadata.SaslExternal)
+	r.connection, r.channel, err = r.connectionDial(r.metadata.internalProtocol, r.metadata.connectionURI(), r.metadata.ClientName, tlsCfg, r.metadata.SaslExternal)
 	if err != nil {
 		r.reset()
 

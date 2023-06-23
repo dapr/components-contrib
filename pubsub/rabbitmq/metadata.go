@@ -46,6 +46,7 @@ type rabbitmqMetadata struct {
 	MaxLen               int64                  `mapstructure:"maxLen"`
 	MaxLenBytes          int64                  `mapstructure:"maxLenBytes"`
 	ExchangeKind         string                 `mapstructure:"exchangeKind"`
+	ClientName           string                 `mapstructure:"clientName"`
 	PublisherConfirm     bool                   `mapstructure:"publisherConfirm"`
 	SaslExternal         bool                   `mapstructure:"saslExternal"`
 	Concurrency          pubsub.ConcurrencyMode `mapstructure:"concurrency"`
@@ -77,6 +78,7 @@ const (
 	metadataPublisherConfirmKey     = "publisherConfirm"
 	metadataSaslExternal            = "saslExternal"
 	metadataMaxPriority             = "maxPriority"
+	metadataClientNameKey           = "clientName"
 
 	defaultReconnectWaitSeconds = 3
 

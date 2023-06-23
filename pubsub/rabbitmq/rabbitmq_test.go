@@ -40,7 +40,7 @@ func newRabbitMQTest(broker *rabbitMQInMemoryBroker) pubsub.PubSub {
 	return &rabbitMQ{
 		declaredExchanges: make(map[string]bool),
 		logger:            logger.NewLogger("test"),
-		connectionDial: func(protocol, uri string, tlsCfg *tls.Config, externalSasl bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
+		connectionDial: func(protocol, uri, clientName string, tlsCfg *tls.Config, externalSasl bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
 			broker.connectCount.Add(1)
 			return broker, broker, nil
 		},

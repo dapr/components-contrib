@@ -141,6 +141,24 @@ func TestCreateMetadata(t *testing.T) {
 		assert.Equal(t, uint8(2), m.DeliveryMode)
 	})
 
+	t.Run("client name is set", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Base: mdata.Base{Properties: fakeProperties},
+		}
+		fakeMetaData.Properties[metadataClientNameKey] = "fakeclientname"
+
+		// act
+		m, err := createMetadata(fakeMetaData, log)
+
+		// assert
+		assert.NoError(t, err)
+		assert.Equal(t, fakeProperties[metadataHostnameKey], m.Hostname)
+		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.ConsumerID)
+		assert.Equal(t, "fakeclientname", m.ClientName)
+	})
+
 	t.Run("disable durable mode, disable delete when unused", func(t *testing.T) {
 		fakeProperties := getFakeProperties()
 

@@ -365,14 +365,14 @@ func (e *Etcd) Multi(ctx context.Context, request *state.TransactionalStateReque
 				if err != nil {
 					return fmt.Errorf("couldn't grant lease %s: %w", keyWithPath, err)
 				}
-				put := clientv3.OpPut(keyWithPath, string(reqVal), clientv3.WithLease(resp.ID))
+				put := clientv3.OpPut(keyWithPath, reqVal, clientv3.WithLease(resp.ID))
 				if req.HasETag() {
 					ops = append(ops, clientv3.OpTxn([]clientv3.Cmp{cmp}, []clientv3.Op{put}, nil))
 				} else {
 					ops = append(ops, clientv3.OpTxn(nil, []clientv3.Op{put}, nil))
 				}
 			} else {
-				put := clientv3.OpPut(keyWithPath, string(reqVal))
+				put := clientv3.OpPut(keyWithPath, reqVal)
 				if req.HasETag() {
 					ops = append(ops, clientv3.OpTxn([]clientv3.Cmp{cmp}, []clientv3.Op{put}, nil))
 				} else {

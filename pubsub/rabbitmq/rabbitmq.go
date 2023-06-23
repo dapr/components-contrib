@@ -112,7 +112,7 @@ func dial(protocol, uri, clientName string, tlsCfg *tls.Config, externalSasl boo
 		conn *amqp.Connection
 		ch   *amqp.Channel
 		err  error
-		cfg  amqp.Config = amqp.Config{Heartbeat: defaultHeartbeat, Locale: defaultLocale} // default config of amqp091-go
+		cfg  = amqp.Config{Heartbeat: defaultHeartbeat, Locale: defaultLocale} // default config of amqp091-go
 	)
 	if len(clientName) > 0 {
 		cfg.Properties = map[string]interface{}{

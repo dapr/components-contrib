@@ -48,12 +48,10 @@ func NewTestConfig(component string, operations []string, conf map[string]interf
 }
 
 // ConformanceTests runs conf tests for workflows.
-func ConformanceTests(t *testing.T, props map[string]string, workflowItem workflows.Workflow, config TestConfig) {
+func ConformanceTests(t *testing.T, meta metadata.Base, workflowItem workflows.Workflow, config TestConfig) {
 	// Test vars
 	t.Run("init", func(t *testing.T) {
-		err := workflowItem.Init(workflows.Metadata{
-			Base: metadata.Base{Properties: props},
-		})
+		err := workflowItem.Init(workflows.Metadata{Base: meta})
 		assert.NoError(t, err)
 	})
 

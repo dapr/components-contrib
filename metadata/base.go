@@ -18,6 +18,10 @@ package metadata
 type Base struct {
 	// Name is the name of the component that's being used.
 	Name string
+
+	// Version is the version of the component that's being used.
+	Version string
+
 	// Properties is the metadata properties.
 	Properties map[string]string `json:"properties,omitempty"`
 }

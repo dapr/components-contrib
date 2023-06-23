@@ -53,7 +53,6 @@ type etcdConfig struct {
 	CA        string `json:"ca"`
 	Cert      string `json:"cert"`
 	Key       string `json:"key"`
-	Version   string `json:"version"`
 }
 
 // NewEtcdStateStore returns a new etcd state store.
@@ -81,13 +80,13 @@ func (e *Etcd) Init(_ context.Context, metadata state.Metadata) error {
 
 	e.keyPrefixPath = etcdConfig.KeyPrefixPath
 
-	switch etcdConfig.Version {
+	switch metadata.Version {
 	case "", "v1":
 		e.schema = schemaV1{}
 	case "v2":
 		e.schema = schemaV2{}
 	default:
-		return fmt.Errorf("unsupported etcd state store version: %s", etcdConfig.Version)
+		return fmt.Errorf("unsupported etcd state store version: %s", metadata.Version)
 	}
 
 	return nil

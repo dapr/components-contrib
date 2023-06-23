@@ -110,7 +110,7 @@ func (tc *TestConfig) createInvokeRequest() bindings.InvokeRequest {
 	}
 }
 
-func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindings.InputBinding, outputBinding bindings.OutputBinding, config TestConfig) {
+func ConformanceTests(t *testing.T, meta metadata.Base, inputBinding bindings.InputBinding, outputBinding bindings.OutputBinding, config TestConfig) {
 	// TODO: Further investigate the parallelism issue below.
 	// Some input bindings launch more goroutines than others. It was found that some were not able to run in parallel without increasing the GOMAXPROCS.
 	// Example: runtime.GOMAXPROCS(20)
@@ -126,17 +126,13 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		// Check for an output binding specific operation before init
 		if config.HasOperation("operations") {
 			testLogger.Info("Init output binding ...")
-			err := outputBinding.Init(context.Background(), bindings.Metadata{
-				Base: metadata.Base{Properties: props},
-			})
+			err := outputBinding.Init(context.Background(), bindings.Metadata{Base: meta})
 			assert.NoError(t, err, "expected no error setting up output binding")
 		}
 		// Check for an input binding specific operation before init
 		if config.HasOperation("read") {
 			testLogger.Info("Init input binding ...")
-			err := inputBinding.Init(context.Background(), bindings.Metadata{
-				Base: metadata.Base{Properties: props},
-			})
+			err := inputBinding.Init(context.Background(), bindings.Metadata{Base: meta})
 			assert.NoError(t, err, "expected no error setting up input binding")
 		}
 		testLogger.Info("Init test done.")

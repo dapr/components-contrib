@@ -93,7 +93,7 @@ require (
 	github.com/oracle/oci-go-sdk/v54 v54.0.0
 	github.com/pashagolub/pgxmock/v2 v2.5.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/rabbitmq/amqp091-go v1.7.0
+	github.com/rabbitmq/amqp091-go v1.8.1
 	github.com/redis/go-redis/v9 v9.0.3
 	github.com/sendgrid/sendgrid-go v3.12.0+incompatible
 	github.com/sijms/go-ora/v2 v2.7.6
@@ -401,12 +401,15 @@ require (
 	stathat.com/c/consistent v1.0.0 // indirect
 )
 
-replace github.com/gobwas/pool => github.com/gobwas/pool v0.2.1
+// These are indirect dependencies that are unlicensed and must be replaced for license reasons
+replace (
+	github.com/chenzhuoyu/iasm => github.com/chenzhuoyu/iasm v0.9.0
+	github.com/gobwas/pool => github.com/gobwas/pool v0.2.1
+	github.com/toolkits/concurrent => github.com/niean/gotools v0.0.0-20151221085310-ff3f51fc5c60
+)
 
 // version v1.38.X currently breaks connections to EventHubs using SALS auth.
 replace github.com/Shopify/sarama => github.com/Shopify/sarama v1.37.2
 
-replace github.com/toolkits/concurrent => github.com/niean/gotools v0.0.0-20151221085310-ff3f51fc5c60
-
-// this is a fork which addresses a performance issues due to go routines
+// this is a fork which addresses a performance issues due to go routines.
 replace dubbo.apache.org/dubbo-go/v3 => dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3

@@ -31,7 +31,7 @@ require (
 	github.com/lib/pq v1.10.7
 	github.com/nacos-group/nacos-sdk-go/v2 v2.1.3
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
-	github.com/rabbitmq/amqp091-go v1.7.0
+	github.com/rabbitmq/amqp091-go v1.8.1
 	github.com/stretchr/testify v1.8.4
 	github.com/tylertreat/comcast v1.0.1
 	go.mongodb.org/mongo-driver v1.11.6

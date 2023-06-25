@@ -84,7 +84,7 @@ func NewTestConfig(component string, operations []string, configMap map[string]i
 }
 
 // ConformanceTests runs conf tests for state store.
-func ConformanceTests(t *testing.T, meta metadata.Base, statestore state.Store, config TestConfig) {
+func ConformanceTests(t *testing.T, props map[string]string, statestore state.Store, config TestConfig) {
 	// Test vars
 	key := strings.ReplaceAll(uuid.New().String(), "-", "")
 	t.Logf("Base key for test: %s", key)
@@ -238,7 +238,9 @@ func ConformanceTests(t *testing.T, meta metadata.Base, statestore state.Store, 
 	}
 
 	t.Run("init", func(t *testing.T) {
-		err := statestore.Init(context.Background(), state.Metadata{Base: meta})
+		err := statestore.Init(context.Background(), state.Metadata{Base: metadata.Base{
+			Properties: props,
+		}})
 		assert.NoError(t, err)
 	})
 

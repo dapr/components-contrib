@@ -89,7 +89,7 @@ func NewTestConfig(name string, operations []string, configMap map[string]interf
 	return testConfig, nil
 }
 
-func ConformanceTests(t *testing.T, meta metadata.Base, component contribCrypto.SubtleCrypto, config TestConfig) {
+func ConformanceTests(t *testing.T, props map[string]string, component contribCrypto.SubtleCrypto, config TestConfig) {
 	// Parse all keys and algorithms, then ensure the required ones are present
 	keys := newKeybagFromConfig(config)
 	for _, alg := range strings.Split(algsPrivateRequired, " ") {
@@ -114,7 +114,9 @@ func ConformanceTests(t *testing.T, meta metadata.Base, component contribCrypto.
 
 	// Init
 	t.Run("Init", func(t *testing.T) {
-		err := component.Init(context.Background(), contribCrypto.Metadata{Base: meta})
+		err := component.Init(context.Background(), contribCrypto.Metadata{Base: metadata.Base{
+			Properties: props,
+		}})
 		require.NoError(t, err, "expected no error on initializing store")
 	})
 

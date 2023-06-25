@@ -130,7 +130,7 @@ func getStringItem(item *configuration.Item) string {
 	return string(jsonItem)
 }
 
-func ConformanceTests(t *testing.T, meta metadata.Base, store configuration.Store, updater configupdater.Updater, config TestConfig, component string) {
+func ConformanceTests(t *testing.T, props map[string]string, store configuration.Store, updater configupdater.Updater, config TestConfig, component string) {
 	var subscribeIDs []string
 	initValues1 := make(map[string]*configuration.Item)
 	initValues2 := make(map[string]*configuration.Item)
@@ -148,7 +148,7 @@ func ConformanceTests(t *testing.T, meta metadata.Base, store configuration.Stor
 
 	t.Run("init", func(t *testing.T) {
 		// Initializing config updater. It has to be initialized before the store to create the table
-		err := updater.Init(meta.Properties)
+		err := updater.Init(props)
 		require.NoError(t, err)
 
 		// Creating trigger for postgres config updater
@@ -159,7 +159,9 @@ func ConformanceTests(t *testing.T, meta metadata.Base, store configuration.Stor
 
 		// Initializing store
 		err = store.Init(context.Background(), configuration.Metadata{
-			Base: meta,
+			Base: metadata.Base{
+				Properties: props,
+			},
 		})
 		require.NoError(t, err)
 	})

@@ -97,7 +97,7 @@ func NewTestConfig(componentName string, operations []string, configMap map[stri
 	return tc, err
 }
 
-func ConformanceTests(t *testing.T, meta metadata.Base, ps pubsub.PubSub, config TestConfig) {
+func ConformanceTests(t *testing.T, props map[string]string, ps pubsub.PubSub, config TestConfig) {
 	// Properly close pubsub
 	defer ps.Close()
 
@@ -105,7 +105,9 @@ func ConformanceTests(t *testing.T, meta metadata.Base, ps pubsub.PubSub, config
 
 	// Init
 	t.Run("init", func(t *testing.T) {
-		err := ps.Init(context.Background(), pubsub.Metadata{Base: meta})
+		err := ps.Init(context.Background(), pubsub.Metadata{Base: metadata.Base{
+			Properties: props,
+		}})
 		assert.NoError(t, err, "expected no error on setting up pubsub")
 	})
 

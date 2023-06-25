@@ -55,9 +55,19 @@ type etcdConfig struct {
 	Key       string `json:"key"`
 }
 
-// NewEtcdStateStore returns a new etcd state store.
-func NewEtcdStateStore(logger logger.Logger) state.Store {
+// NewEtcdStateStoreV1 returns a new etcd state store for schema V1.
+func NewEtcdStateStoreV1(logger logger.Logger) state.Store {
+	return newETCD(logger, schemaV1{})
+}
+
+// NewEtcdStateStoreV2 returns a new etcd state store for schema V2.
+func NewEtcdStateStoreV2(logger logger.Logger) state.Store {
+	return newETCD(logger, schemaV2{})
+}
+
+func newETCD(logger logger.Logger, schema schemaMarshaller) state.Store {
 	s := &Etcd{
+		schema:   schema,
 		logger:   logger,
 		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
 	}
@@ -79,15 +89,6 @@ func (e *Etcd) Init(_ context.Context, metadata state.Metadata) error {
 	}
 
 	e.keyPrefixPath = etcdConfig.KeyPrefixPath
-
-	switch metadata.Version {
-	case "", "v1":
-		e.schema = schemaV1{}
-	case "v2":
-		e.schema = schemaV2{}
-	default:
-		return fmt.Errorf("unsupported etcd state store version: %s", metadata.Version)
-	}
 
 	return nil
 }

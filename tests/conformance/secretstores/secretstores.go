@@ -41,7 +41,7 @@ func NewTestConfig(name string, operations []string) TestConfig {
 	return tc
 }
 
-func ConformanceTests(t *testing.T, meta metadata.Base, store secretstores.SecretStore, config TestConfig) {
+func ConformanceTests(t *testing.T, props map[string]string, store secretstores.SecretStore, config TestConfig) {
 	// TODO add support for metadata
 	// For local env var based component test
 	t.Setenv("conftestsecret", "abcd")
@@ -49,7 +49,9 @@ func ConformanceTests(t *testing.T, meta metadata.Base, store secretstores.Secre
 
 	// Init
 	t.Run("init", func(t *testing.T) {
-		err := store.Init(context.Background(), secretstores.Metadata{Base: meta})
+		err := store.Init(context.Background(), secretstores.Metadata{Base: metadata.Base{
+			Properties: props,
+		}})
 		assert.NoError(t, err, "expected no error on initializing store")
 	})
 

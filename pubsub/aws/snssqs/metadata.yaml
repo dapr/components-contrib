@@ -16,7 +16,7 @@ authenticationProfiles:
     metadata:
       - name: accessKey
         type: string
-        required: false
+        required: true
         sensitive: true
         description: |
           ID of the AWS account with appropriate permissions to SNS and SQS.
@@ -25,7 +25,7 @@ authenticationProfiles:
         default: ""
       - name: secretKey
         type: string
-        required: false
+        required: true
         sensitive: true
         description: |
           Secret for the AWS user. Can be secretKeyRef to use a secret 
@@ -34,7 +34,7 @@ authenticationProfiles:
         default: ""
 metadata:
   - name: region
-    required: false
+    required: true
     description: |
       The AWS region to the instance. See this page for valid regions:
       https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html. 

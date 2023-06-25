@@ -44,12 +44,6 @@ metadata:
     description: |
       The GCP credentials type.
     example: '"service_account"'
-  - name: collection
-    type: string
-    required: true
-    description: |
-      The name of the collection (container).
-    example: '"Orders"'
   - name: project_id
     type: string
     required: true
@@ -70,25 +64,25 @@ metadata:
     example: '"0123456789-0123456789"'
   - name: auth_uri
     type: string
-    required: true
+    required: false
     description: |
       Google account OAuth endpoint.
     example: '"https://accounts.google.com/o/oauth2/auth"'
   - name: token_uri
     type: string
-    required: true
+    required: false
     description: |
       Google account token uri.
     example: '"https://oauth2.googleapis.com/token"'
   - name: auth_provider_x509_cert_url
     type: string
-    required: true
+    required: false
     description: |
       GCP credentials cert url.
     example: '"https://www.googleapis.com/oauth2/v1/certs"'
   - name: client_x509_cert_url
     type: string
-    required: true
+    required: false
     description: |
       GCP credentials project x509 cert url.
     example: '"https://www.googleapis.com/robot/v1/metadata/x509/<PROJECT_NAME>.iam.gserviceaccount.com"'

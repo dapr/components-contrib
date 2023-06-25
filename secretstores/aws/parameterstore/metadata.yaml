@@ -1,0 +1,55 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: secretstores
+name: aws.parameterstore
+version: v1
+status: alpha
+title: "AWS SSM Parameter Store"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-secret-stores/aws-parameter-store/
+authenticationProfiles:
+  - title: "AccessKey and secretKey"
+    description: 
+      Authenticate using accessKey and secretKey.
+    metadata:
+      - name: accessKey
+        type: string
+        required: true
+        sensitive: true
+        description: |
+          ID of the AWS account with appropriate permissions to SSM Parameter Store.
+          Can be secretKeyRef to use a secret reference.
+        example:  "AKIAIOSFODNN7EXAMPLE"
+        default: ""
+      - name: secretKey
+        type: string
+        required: true
+        sensitive: true
+        description: |
+          Secret for the AWS user. Can be secretKeyRef to use a secret 
+          reference.
+        example:  "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        default: ""
+metadata:
+  - name: region
+    required: true
+    description: |
+      The specific AWS region the AWS SSM Parameter Store instance is deployed in.
+    example: '"us-east-1"'
+    type: string
+  - name: sessionToken
+    required: false
+    sensitive: true
+    description: |
+      AWS session token to use. A session token is only required if you are using 
+      temporary security credentials.
+    example: '"TOKEN"'
+    type: string
+  - name: prefix
+    required: false
+    description: |
+      The SSM Parameter Store prefix to be specified. If specified, it will be 
+      used as the 'BeginsWith' as part of the 'ParameterStringFilter'.
+    example: '"myprefix"'
+    type: string

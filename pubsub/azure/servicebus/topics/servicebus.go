@@ -219,6 +219,7 @@ func (a *azureServiceBus) Close() (err error) {
 func (a *azureServiceBus) Features() []pubsub.Feature {
 	return []pubsub.Feature{
 		pubsub.FeatureMessageTTL,
+		pubsub.FeatureBulkPublish,
 	}
 }
 

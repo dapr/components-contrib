@@ -65,13 +65,13 @@ func (schemaV2) encode(data any, ttlInSeconds *int64) (string, error) {
 		duration = durationpb.Duration{Seconds: *ttlInSeconds}
 	}
 
-	value := &pbv2.Value{
+	value, err := proto.Marshal(&pbv2.Value{
 		Data: dataB,
 		Ts:   timestamppb.New(time.Now().UTC()),
 		Ttl:  &duration,
-	}
+	})
 
-	return value.String(), nil
+	return string(value), err
 }
 
 func (schemaV2) decode(data []byte) ([]byte, map[string]string, error) {

@@ -542,7 +542,11 @@ const components = {
             'internal/component/sql',
         ],
     },
-    'state.etcd': {
+    'state.etcd.v1': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh etcd',
+    },
+    'state.etcd.v2': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh etcd',
     },

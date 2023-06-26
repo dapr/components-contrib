@@ -329,7 +329,6 @@ func (tc *TestConfiguration) loadComponentsAndProperties(t *testing.T, filepath 
 	require.Equal(t, 1, len(comps)) // We only expect a single component per file
 	c := comps[0]
 	props, err := ConvertMetadataToProperties(c.Spec.Metadata)
-
 	return props, err
 }
 
@@ -577,8 +576,10 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_awsdynamodb.NewDynamoDBStateStore(testLogger)
 	case "aws.dynamodb.terraform":
 		store = s_awsdynamodb.NewDynamoDBStateStore(testLogger)
-	case "etcd":
-		store = s_etcd.NewEtcdStateStore(testLogger)
+	case "etcd.v1":
+		store = s_etcd.NewEtcdStateStoreV1(testLogger)
+	case "etcd.v2":
+		store = s_etcd.NewEtcdStateStoreV2(testLogger)
 	case "gcp.firestore.docker":
 		store = s_gcpfirestore.NewFirestoreStateStore(testLogger)
 	case "gcp.firestore.cloud":

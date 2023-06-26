@@ -76,7 +76,7 @@ func (schemaV2) encode(data any, ttlInSeconds *int64) (string, error) {
 
 func (schemaV2) decode(data []byte) ([]byte, map[string]string, error) {
 	var value pbv2.Value
-	if err := proto.UnmarshalText(string(data), &value); err != nil {
+	if err := proto.Unmarshal(data, &value); err != nil {
 		return nil, nil, err
 	}
 

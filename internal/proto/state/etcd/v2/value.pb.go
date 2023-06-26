@@ -47,8 +47,9 @@ type Value struct {
 	// approximation by the components-contrib instance since ETCD does not
 	// provide this information natively.
 	Ts *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=ts,proto3" json:"ts,omitempty"`
-	// Optional. The Time To Live the state key item. If not
-	// specified, the key has no TTL.
+	// Optional. The Time To Live of the state key item. The duration of the TTL
+	// is from the creation time of the key (`ts`). If not specified, the key has
+	// no TTL.
 	Ttl *durationpb.Duration `protobuf:"bytes,3,opt,name=ttl,proto3,oneof" json:"ttl,omitempty"`
 }
 

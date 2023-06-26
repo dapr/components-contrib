@@ -32,7 +32,8 @@ message Value {
   // provide this information natively.
   google.protobuf.Timestamp ts = 2;
 
-  // Optional. The Time To Live the state key item. If not
-  // specified, the key has no TTL.
+  // Optional. The Time To Live of the state key item. The duration of the TTL
+  // is from the creation time of the key (`ts`). If not specified, the key has
+  // no TTL.
   optional google.protobuf.Duration ttl = 3;
 }

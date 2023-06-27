@@ -64,12 +64,8 @@ type userWithEtag struct {
 	etag string
 }
 
-func getMasterConnectionString() string {
-	return os.Getenv(connectionStringEnvKey)
-}
-
 func TestIntegrationCases(t *testing.T) {
-	connectionString := getMasterConnectionString()
+	connectionString := os.Getenv(connectionStringEnvKey)
 	if connectionString == "" {
 		t.Skipf("SQLServer state integration tests skipped. To enable define the connection string using environment variable '%s' (example 'export %s=\"server=localhost;user id=sa;password=Pass@Word1;port=1433;\")", connectionStringEnvKey, connectionStringEnvKey)
 	}
@@ -78,8 +74,6 @@ func TestIntegrationCases(t *testing.T) {
 	t.Run("Set New Record With Invalid Etag Should Fail", testSetNewRecordWithInvalidEtagShouldFail)
 	t.Run("Indexed Properties", testIndexedProperties)
 	t.Run("Multi operations", testMultiOperations)
-	t.Run("Bulk sets", testBulkSet)
-	t.Run("Bulk delete", testBulkDelete)
 	t.Run("Insert and Update Set Record Dates", testInsertAndUpdateSetRecordDates)
 	t.Run("Multiple initializations", testMultipleInitializations)
 
@@ -100,7 +94,7 @@ func getUniqueDBSchema() string {
 func createMetadata(schema string, kt KeyType, indexedProperties string) state.Metadata {
 	metadata := state.Metadata{Base: metadata.Base{
 		Properties: map[string]string{
-			connectionStringKey: getMasterConnectionString(),
+			connectionStringKey: os.Getenv(connectionStringEnvKey),
 			schemaKey:           schema,
 			tableNameKey:        usersTableName,
 			keyTypeKey:          string(kt),
@@ -125,8 +119,10 @@ func getTestStoreWithKeyType(t *testing.T, kt KeyType, indexedProperties string)
 	schema := getUniqueDBSchema()
 	metadata := createMetadata(schema, kt, indexedProperties)
 	store := &SQLServer{
-		logger: logger.NewLogger("test"),
+		logger:          logger.NewLogger("test"),
+		migratorFactory: newMigration,
 	}
+	store.BulkStore = state.NewDefaultBulkStore(store)
 	err := store.Init(context.Background(), metadata)
 	require.NoError(t, err)
 
@@ -162,13 +158,9 @@ func assertUserDoesNotExist(t *testing.T, store *SQLServer, key string) {
 }
 
 func assertDBQuery(t *testing.T, store *SQLServer, query string, assertReader func(t *testing.T, rows *sql.Rows)) {
-	db, err := sql.Open("sqlserver", store.metadata.ConnectionString)
+	rows, err := store.db.Query(query)
 	require.NoError(t, err)
-	defer db.Close()
-
-	rows, err := db.Query(query)
-	require.NoError(t, err)
-	assert.Nil(t, rows.Err())
+	require.NoError(t, rows.Err())
 
 	defer rows.Close()
 	assertReader(t, rows)
@@ -493,214 +485,6 @@ func testMultiOperations(t *testing.T) {
 	}
 }
 
-func testBulkSet(t *testing.T) {
-	tests := []struct {
-		name   string
-		kt     KeyType
-		keyGen userKeyGenerator
-	}{
-		{"Bulk set string key type", StringKeyType, &numbericKeyGenerator{}},
-		{"Bulk set integer key type", IntegerKeyType, &numbericKeyGenerator{}},
-		{"Bulk set uuid key type", UUIDKeyType, &uuidKeyGenerator{}},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			store := getTestStoreWithKeyType(t, test.kt, "")
-			keyGen := test.keyGen
-
-			initialUsers := []user{
-				{keyGen.NextKey(), "John", "Coffee"},
-				{keyGen.NextKey(), "Laura", "Water"},
-				{keyGen.NextKey(), "Carl", "Beer"},
-			}
-
-			totalUsers := 0
-			userIndex := 0
-
-			t.Run("Add initial users", func(t *testing.T) {
-				sets := make([]state.SetRequest, len(initialUsers))
-				for i, u := range initialUsers {
-					sets[i] = state.SetRequest{Key: u.ID, Value: u}
-				}
-
-				err := store.BulkSet(context.Background(), sets, state.BulkStoreOpts{})
-				require.NoError(t, err)
-				totalUsers = len(sets)
-				assertUserCountIsEqualTo(t, store, totalUsers)
-			})
-
-			t.Run("Add 1, update 1 with valid etag", func(t *testing.T) {
-				toModify, toModifyETag := assertUserExists(t, store, initialUsers[userIndex].ID)
-				modified := toModify
-				modified.FavoriteBeverage = beverageTea
-				toInsert := user{keyGen.NextKey(), "Maria", "Wine"}
-
-				err := store.BulkSet(context.Background(), []state.SetRequest{
-					{Key: modified.ID, Value: modified, ETag: &toModifyETag},
-					{Key: toInsert.ID, Value: toInsert},
-				}, state.BulkStoreOpts{})
-				require.NoError(t, err)
-				assertLoadedUserIsEqual(t, store, modified.ID, modified)
-				assertLoadedUserIsEqual(t, store, toInsert.ID, toInsert)
-				totalUsers++
-				assertUserCountIsEqualTo(t, store, totalUsers)
-
-				userIndex++
-			})
-
-			t.Run("Add 1, update 1 without etag", func(t *testing.T) {
-				toModify := initialUsers[userIndex]
-				modified := toModify
-				modified.FavoriteBeverage = beverageTea
-				toInsert := user{keyGen.NextKey(), "Tony", "Milk"}
-
-				err := store.BulkSet(context.Background(), []state.SetRequest{
-					{Key: modified.ID, Value: modified},
-					{Key: toInsert.ID, Value: toInsert},
-				}, state.BulkStoreOpts{})
-				require.NoError(t, err)
-				assertLoadedUserIsEqual(t, store, modified.ID, modified)
-				assertLoadedUserIsEqual(t, store, toInsert.ID, toInsert)
-				totalUsers++
-				assertUserCountIsEqualTo(t, store, totalUsers)
-
-				userIndex++
-			})
-
-			t.Run("Failed upsert due to etag should be aborted", func(t *testing.T) {
-				toInsert1 := user{keyGen.NextKey(), "Ted1", "Beer"}
-				toInsert2 := user{keyGen.NextKey(), "Ted2", "Beer"}
-				toModify := initialUsers[userIndex]
-				modified := toModify
-				modified.FavoriteBeverage = beverageTea
-
-				invEtag := invalidEtag
-				sets := []state.SetRequest{
-					{Key: toInsert1.ID, Value: toInsert1},
-					{Key: toInsert2.ID, Value: toInsert2},
-					{Key: modified.ID, Value: modified, ETag: &invEtag},
-				}
-
-				err := store.BulkSet(context.Background(), sets, state.BulkStoreOpts{})
-				assert.NotNil(t, err)
-				assertUserCountIsEqualTo(t, store, totalUsers)
-				assertUserDoesNotExist(t, store, toInsert1.ID)
-				assertUserDoesNotExist(t, store, toInsert2.ID)
-				assertLoadedUserIsEqual(t, store, modified.ID, toModify)
-				assertUserCountIsEqualTo(t, store, totalUsers)
-			})
-		})
-	}
-}
-
-func testBulkDelete(t *testing.T) {
-	tests := []struct {
-		name   string
-		kt     KeyType
-		keyGen userKeyGenerator
-	}{
-		{"Bulk delete string key type", StringKeyType, &numbericKeyGenerator{}},
-		{"Bulk delete integer key type", IntegerKeyType, &numbericKeyGenerator{}},
-		{"Bulk delete uuid key type", UUIDKeyType, &uuidKeyGenerator{}},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			store := getTestStoreWithKeyType(t, test.kt, "")
-			keyGen := test.keyGen
-
-			initialUsers := []user{
-				{keyGen.NextKey(), "John", "Coffee"},
-				{keyGen.NextKey(), "Laura", "Water"},
-				{keyGen.NextKey(), "Carl", "Beer"},
-				{keyGen.NextKey(), "Maria", "Wine"},
-				{keyGen.NextKey(), "Mark", "Juice"},
-				{keyGen.NextKey(), "Sara", "Soda"},
-				{keyGen.NextKey(), "Tony", "Milk"},
-				{keyGen.NextKey(), "Hugo", "Juice"},
-			}
-
-			sets := make([]state.SetRequest, len(initialUsers))
-			for i, u := range initialUsers {
-				sets[i] = state.SetRequest{Key: u.ID, Value: u}
-			}
-			err := store.BulkSet(context.Background(), sets, state.BulkStoreOpts{})
-			require.NoError(t, err)
-			totalUsers := len(initialUsers)
-			assertUserCountIsEqualTo(t, store, totalUsers)
-
-			userIndex := 0
-
-			t.Run("Delete 2 items without etag should work", func(t *testing.T) {
-				deleted1 := initialUsers[userIndex].ID
-				deleted2 := initialUsers[userIndex+1].ID
-				err := store.BulkDelete(context.Background(), []state.DeleteRequest{
-					{Key: deleted1},
-					{Key: deleted2},
-				}, state.BulkStoreOpts{})
-				require.NoError(t, err)
-				totalUsers -= 2
-				assertUserCountIsEqualTo(t, store, totalUsers)
-				assertUserDoesNotExist(t, store, deleted1)
-				assertUserDoesNotExist(t, store, deleted2)
-
-				userIndex += 2
-			})
-
-			t.Run("Delete 2 items with etag should work", func(t *testing.T) {
-				deleted1, deleted1Etag := assertUserExists(t, store, initialUsers[userIndex].ID)
-				deleted2, deleted2Etag := assertUserExists(t, store, initialUsers[userIndex+1].ID)
-
-				err := store.BulkDelete(context.Background(), []state.DeleteRequest{
-					{Key: deleted1.ID, ETag: &deleted1Etag},
-					{Key: deleted2.ID, ETag: &deleted2Etag},
-				}, state.BulkStoreOpts{})
-				require.NoError(t, err)
-				totalUsers -= 2
-				assertUserCountIsEqualTo(t, store, totalUsers)
-				assertUserDoesNotExist(t, store, deleted1.ID)
-				assertUserDoesNotExist(t, store, deleted2.ID)
-
-				userIndex += 2
-			})
-
-			t.Run("Delete with/without etag should work", func(t *testing.T) {
-				deleted1, deleted1Etag := assertUserExists(t, store, initialUsers[userIndex].ID)
-				deleted2 := initialUsers[userIndex+1]
-
-				err := store.BulkDelete(context.Background(), []state.DeleteRequest{
-					{Key: deleted1.ID, ETag: &deleted1Etag},
-					{Key: deleted2.ID},
-				}, state.BulkStoreOpts{})
-				require.NoError(t, err)
-				totalUsers -= 2
-				assertUserCountIsEqualTo(t, store, totalUsers)
-				assertUserDoesNotExist(t, store, deleted1.ID)
-				assertUserDoesNotExist(t, store, deleted2.ID)
-
-				userIndex += 2
-			})
-
-			t.Run("Failed delete due to etag should be aborted", func(t *testing.T) {
-				deleted1, deleted1Etag := assertUserExists(t, store, initialUsers[userIndex].ID)
-				deleted2 := initialUsers[userIndex+1]
-
-				invEtag := invalidEtag
-				err := store.BulkDelete(context.Background(), []state.DeleteRequest{
-					{Key: deleted1.ID, ETag: &deleted1Etag},
-					{Key: deleted2.ID, ETag: &invEtag},
-				}, state.BulkStoreOpts{})
-				assert.NotNil(t, err)
-				assert.NotNil(t, err)
-				assertUserCountIsEqualTo(t, store, totalUsers)
-				assertUserExists(t, store, deleted1.ID)
-				assertUserExists(t, store, deleted2.ID)
-			})
-		})
-	}
-}
-
 /* #nosec. */
 func testInsertAndUpdateSetRecordDates(t *testing.T) {
 	const maxDiffInMs = float64(500)
@@ -803,8 +587,10 @@ func testMultipleInitializations(t *testing.T) {
 			store := getTestStoreWithKeyType(t, test.kt, test.indexedProperties)
 
 			store2 := &SQLServer{
-				logger: logger.NewLogger("test"),
+				logger:          logger.NewLogger("test"),
+				migratorFactory: newMigration,
 			}
+			store2.BulkStore = state.NewDefaultBulkStore(store2)
 			err := store2.Init(context.Background(), createMetadata(store.metadata.Schema, test.kt, test.indexedProperties))
 			assert.NoError(t, err)
 		})

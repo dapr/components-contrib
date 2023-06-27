@@ -47,7 +47,7 @@ func (aeh *AzureEventHubs) Init(_ context.Context, metadata pubsub.Metadata) err
 }
 
 func (aeh *AzureEventHubs) Features() []pubsub.Feature {
-	return nil
+	return []pubsub.Feature{pubsub.FeatureBulkPublish}
 }
 
 // Publish sends a message to Azure Event Hubs.

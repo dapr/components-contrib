@@ -51,9 +51,9 @@ func NewTestConfig(component string, operations []string, conf map[string]interf
 func ConformanceTests(t *testing.T, props map[string]string, workflowItem workflows.Workflow, config TestConfig) {
 	// Test vars
 	t.Run("init", func(t *testing.T) {
-		err := workflowItem.Init(workflows.Metadata{
-			Base: metadata.Base{Properties: props},
-		})
+		err := workflowItem.Init(workflows.Metadata{Base: metadata.Base{
+			Properties: props,
+		}})
 		assert.NoError(t, err)
 	})
 

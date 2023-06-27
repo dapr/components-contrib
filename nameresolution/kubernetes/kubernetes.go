@@ -14,7 +14,9 @@ limitations under the License.
 package kubernetes
 
 import (
+	"bytes"
 	"strconv"
+	"text/template"
 
 	"github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/config"
@@ -24,11 +26,21 @@ import (
 const (
 	DefaultClusterDomain = "cluster.local"
 	ClusterDomainKey     = "clusterDomain"
+	TemplateKey          = "template"
 )
+
+func executeTemplateWithResolveRequest(tmpl *template.Template, req nameresolution.ResolveRequest) (string, error) {
+	var addr bytes.Buffer
+	if err := tmpl.Execute(&addr, req); err != nil {
+		return "", err
+	}
+	return addr.String(), nil
+}
 
 type resolver struct {
 	logger        logger.Logger
 	clusterDomain string
+	tmpl          *template.Template
 }
 
 // NewResolver creates Kubernetes name resolver.
@@ -36,6 +48,7 @@ func NewResolver(logger logger.Logger) nameresolution.Resolver {
 	return &resolver{
 		logger:        logger,
 		clusterDomain: DefaultClusterDomain,
+		tmpl:          nil,
 	}
 }
 
@@ -45,12 +58,23 @@ func (k *resolver) Init(metadata nameresolution.Metadata) error {
 	if err != nil {
 		return err
 	}
-	if config, ok := configInterface.(map[string]interface{}); ok {
-		clusterDomainPtr := config[ClusterDomainKey]
-		if clusterDomainPtr != nil {
-			clusterDomain, _ := clusterDomainPtr.(string)
+
+	if cfg, ok := configInterface.(map[string]interface{}); ok {
+		clusterDomainAny := cfg[ClusterDomainKey]
+		tmplStrAny := cfg[TemplateKey]
+
+		if clusterDomainAny != nil {
+			clusterDomain, _ := clusterDomainAny.(string)
 			if clusterDomain != "" {
 				k.clusterDomain = clusterDomain
+			}
+		}
+
+		if tmplStrAny != nil {
+			tmplStr, _ := tmplStrAny.(string)
+			if tmplStr != "" {
+				k.tmpl = template.Must(template.New("kubernetes-template").Parse(tmplStr))
+				k.logger.Debugf("using custom template %s", tmplStr)
 			}
 		}
 	}
@@ -60,6 +84,9 @@ func (k *resolver) Init(metadata nameresolution.Metadata) error {
 
 // ResolveID resolves name to address in Kubernetes.
 func (k *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) {
+	if k.tmpl != nil {
+		return executeTemplateWithResolveRequest(k.tmpl, req)
+	}
 	// Dapr requires this formatting for Kubernetes services
 	return req.ID + "-dapr." + req.Namespace + ".svc." + k.clusterDomain + ":" + strconv.Itoa(req.Port), nil
 }

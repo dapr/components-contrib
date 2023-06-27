@@ -22,6 +22,7 @@ const (
 	FeatureMessageTTL Feature = "MESSAGE_TTL"
 	// FeatureSubscribeWildcards is the feature to allow subscribing to topics/queues using a wildcard.
 	FeatureSubscribeWildcards Feature = "SUBSCRIBE_WILDCARDS"
+	FeatureBulkPublish        Feature = "BULK_PUBSUB"
 )
 
 // Feature names a feature that can be implemented by PubSub components.

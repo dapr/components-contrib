@@ -179,7 +179,7 @@ func (c *ComponentMetadata) AppendBuiltin() error {
 						Name:        BINDING_ROUTE_METADATA_KEY,
 						Type:        "string",
 						Description: "Specifies a custom route for incoming events.",
-						Example:     "/customroute",
+						Example:     "`/customroute`",
 						URL: &URL{
 							Title: "Documentation",
 							URL:   "https://docs.dapr.io/developing-applications/building-blocks/bindings/howto-triggers/#specifying-a-custom-route",

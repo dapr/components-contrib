@@ -24,11 +24,11 @@ import (
 )
 
 const (
-	BINDING_DIRECTION_METADATA_KEY = "direction"
-	BINDING_DIRECTION_INPUT        = "input"
-	BINDING_DIRECTION_OUTPUT       = "output"
-	BINDING_DIRECTION_BOTH         = BINDING_DIRECTION_INPUT + ", " + BINDING_DIRECTION_OUTPUT
-	BINDING_ROUTE_METADATA_KEY     = "route"
+	bindingDirectionMetadataKey = "direction"
+	bindingDirectionInput       = "input"
+	bindingDirectionOutput      = "output"
+	bindingDirectionBoth        = bindingDirectionInput + ", " + bindingDirectionOutput
+	bindingRouteMetadataKey     = "route"
 )
 
 // IsValid performs additional validation and returns true if the object is valid.
@@ -153,16 +153,16 @@ func (c *ComponentMetadata) AppendBuiltin() error {
 
 			switch {
 			case c.Binding.Input && c.Binding.Output:
-				direction = BINDING_DIRECTION_BOTH
+				direction = bindingDirectionBoth
 			case c.Binding.Input:
-				direction = BINDING_DIRECTION_INPUT
+				direction = bindingDirectionInput
 			case c.Binding.Output:
-				direction = BINDING_DIRECTION_OUTPUT
+				direction = bindingDirectionOutput
 			}
 
 			c.Metadata = append(c.Metadata,
 				Metadata{
-					Name:        BINDING_DIRECTION_METADATA_KEY,
+					Name:        bindingDirectionMetadataKey,
 					Type:        "string",
 					Description: "Indicates the direction of the binding component.",
 					Example:     direction,
@@ -176,7 +176,7 @@ func (c *ComponentMetadata) AppendBuiltin() error {
 			if c.Binding.Input {
 				c.Metadata = append(c.Metadata,
 					Metadata{
-						Name:        BINDING_ROUTE_METADATA_KEY,
+						Name:        bindingRouteMetadataKey,
 						Type:        "string",
 						Description: "Specifies a custom route for incoming events.",
 						Example:     "`/customroute`",

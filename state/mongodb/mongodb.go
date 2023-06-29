@@ -681,3 +681,12 @@ func (m *MongoDB) GetComponentMetadata() map[string]string {
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }
+
+// Close finishes connection to the store.
+func (m *MongoDB) Close(ctx context.Context) (err error) {
+	if m.client == nil {
+		return nil
+	}
+
+	return m.client.Disconnect(ctx)
+}

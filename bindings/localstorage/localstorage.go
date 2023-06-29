@@ -40,6 +40,7 @@ const (
 
 // List of root paths that are disallowed
 var disallowedRootPaths = []string{
+	filepath.Clean("/proc"),
 	// See: https://github.com/dapr/components-contrib/issues/2444
 	filepath.Clean("/var/run/secrets"),
 }

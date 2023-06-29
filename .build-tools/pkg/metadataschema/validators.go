@@ -23,6 +23,14 @@ import (
 	mdutils "github.com/dapr/components-contrib/metadata"
 )
 
+const (
+	BINDING_DIRECTION_METADATA_KEY = "direction"
+	BINDING_DIRECTION_INPUT        = "input"
+	BINDING_DIRECTION_OUTPUT       = "output"
+	BINDING_DIRECTION_BOTH         = BINDING_DIRECTION_INPUT + ", " + BINDING_DIRECTION_OUTPUT
+	BINDING_ROUTE_METADATA_KEY     = "route"
+)
+
 // IsValid performs additional validation and returns true if the object is valid.
 func (c *ComponentMetadata) IsValid() error {
 	// Check valid  component type
@@ -135,6 +143,52 @@ func (c *ComponentMetadata) AppendBuiltin() error {
 				},
 			},
 		)
+	case mdutils.BindingType:
+		if c.Binding != nil {
+			if c.Metadata == nil {
+				c.Metadata = []Metadata{}
+			}
+
+			var direction string
+
+			switch {
+			case c.Binding.Input && c.Binding.Output:
+				direction = BINDING_DIRECTION_BOTH
+			case c.Binding.Input:
+				direction = BINDING_DIRECTION_INPUT
+			case c.Binding.Output:
+				direction = BINDING_DIRECTION_OUTPUT
+			}
+
+			c.Metadata = append(c.Metadata,
+				Metadata{
+					Name:        BINDING_DIRECTION_METADATA_KEY,
+					Type:        "string",
+					Description: "Indicates the bindings direction of the component.",
+					Example:     direction,
+					URL: &URL{
+						Title: "Documentation",
+						URL:   "https://docs.dapr.io/reference/api/bindings_api/#binding-direction-optional",
+					},
+				},
+			)
+
+			if c.Binding.Input {
+				c.Metadata = append(c.Metadata,
+					Metadata{
+						Name:        BINDING_ROUTE_METADATA_KEY,
+						Type:        "string",
+						Description: "Specifies a custom route for incoming events.",
+						Example:     "/customroute",
+						URL: &URL{
+							Title: "Documentation",
+							URL:   "https://docs.dapr.io/developing-applications/building-blocks/bindings/howto-triggers/#specifying-a-custom-route",
+						},
+					},
+				)
+			}
+		}
+
 	}
 
 	// Sanity check to ensure the data is in sync

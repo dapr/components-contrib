@@ -164,7 +164,7 @@ func (c *ComponentMetadata) AppendBuiltin() error {
 				Metadata{
 					Name:        BINDING_DIRECTION_METADATA_KEY,
 					Type:        "string",
-					Description: "Indicates the bindings direction of the component.",
+					Description: "Indicates the direction of the binding component.",
 					Example:     direction,
 					URL: &URL{
 						Title: "Documentation",

@@ -70,6 +70,17 @@ func (c *ComponentMetadata) IsValid() error {
 	// Remove the property builtinAuthenticationProfiles now
 	c.BuiltInAuthenticationProfiles = nil
 
+	// Append common authentication profiles
+	for _, profile := range c.CommonAuthenticationProfiles {
+		appendProfiles, err := ParseCommonAuthenticationProfile(profile)
+		if err != nil {
+			return err
+		}
+		c.AuthenticationProfiles = append(c.AuthenticationProfiles, appendProfiles...)
+	}
+	// Remove the property commonAuthenticationProfiles now
+	c.CommonAuthenticationProfiles = nil
+
 	return nil
 }
 

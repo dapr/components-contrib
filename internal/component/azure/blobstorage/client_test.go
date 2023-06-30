@@ -14,22 +14,24 @@ limitations under the License.
 package blobstorage
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/kit/logger"
 )
 
-type scenario struct {
-	metadata                 map[string]string
-	expectedFailureSubString string
-}
-
 func TestClientInitFailures(t *testing.T) {
 	log := logger.NewLogger("test")
+
+	type scenario struct {
+		metadata                 map[string]string
+		expectedFailureSubString string
+	}
 
 	scenarios := map[string]scenario{
 		"missing accountName": {
@@ -48,6 +50,94 @@ func TestClientInitFailures(t *testing.T) {
 			assert.Contains(t, err.Error(), s.expectedFailureSubString)
 		})
 	}
+}
+
+func TestSetCustomEndpoint(t *testing.T) {
+	logDest := &bytes.Buffer{}
+	log := logger.NewLogger("test")
+	log.SetOutput(logDest)
+
+	t.Run("no custom endpoint", func(t *testing.T) {
+		meta := createTestMetadata(true, true, true)
+		m, err := parseMetadata(meta)
+		require.NoError(t, err)
+
+		azEnvSettings, err := azauth.NewEnvironmentSettings(meta)
+		require.NoError(t, err)
+
+		err = m.setCustomEndpoint(log, meta, azEnvSettings)
+		require.NoError(t, err)
+
+		assert.Equal(t, "", m.customEndpoint)
+
+		u, err := m.GetContainerURL(azEnvSettings)
+		require.NoError(t, err)
+		assert.Equal(t, "https://account.blob.core.windows.net/test", u.String())
+	})
+
+	t.Run("custom endpoint set", func(t *testing.T) {
+		meta := createTestMetadata(true, true, true)
+		meta[azauth.MetadataKeys["StorageEndpoint"][0]] = "https://localhost:8080"
+
+		m, err := parseMetadata(meta)
+		require.NoError(t, err)
+
+		azEnvSettings, err := azauth.NewEnvironmentSettings(meta)
+		require.NoError(t, err)
+
+		err = m.setCustomEndpoint(log, meta, azEnvSettings)
+		require.NoError(t, err)
+
+		assert.Equal(t, "https://localhost:8080", m.customEndpoint)
+
+		u, err := m.GetContainerURL(azEnvSettings)
+		require.NoError(t, err)
+		assert.Equal(t, "https://localhost:8080/account/test", u.String())
+	})
+
+	t.Run("custom endpoint set with trailing slash removed", func(t *testing.T) {
+		meta := createTestMetadata(true, true, true)
+		meta[azauth.MetadataKeys["StorageEndpoint"][0]] = "https://localhost:8080/"
+
+		m, err := parseMetadata(meta)
+		require.NoError(t, err)
+
+		azEnvSettings, err := azauth.NewEnvironmentSettings(meta)
+		require.NoError(t, err)
+
+		err = m.setCustomEndpoint(log, meta, azEnvSettings)
+		require.NoError(t, err)
+
+		assert.Equal(t, "https://localhost:8080", m.customEndpoint)
+
+		u, err := m.GetContainerURL(azEnvSettings)
+		require.NoError(t, err)
+		assert.Equal(t, "https://localhost:8080/account/test", u.String())
+	})
+
+	t.Run("custom endpoint set to Azure Blob Storage endpoint", func(t *testing.T) {
+		logDest.Reset()
+
+		meta := createTestMetadata(true, true, true)
+		meta[azauth.MetadataKeys["StorageEndpoint"][0]] = "https://account.blob.core.windows.net/test"
+
+		m, err := parseMetadata(meta)
+		require.NoError(t, err)
+
+		azEnvSettings, err := azauth.NewEnvironmentSettings(meta)
+		require.NoError(t, err)
+
+		err = m.setCustomEndpoint(log, meta, azEnvSettings)
+		require.NoError(t, err)
+
+		assert.Equal(t, "", m.customEndpoint)
+
+		u, err := m.GetContainerURL(azEnvSettings)
+		require.NoError(t, err)
+		assert.Equal(t, "https://account.blob.core.windows.net/test", u.String())
+
+		assert.Contains(t, logDest.String(), "Metadata property endpoint is set to an Azure Blob Storage endpoint and will be ignored")
+	})
 }
 
 func createTestMetadata(accountName bool, accountKey bool, container bool) map[string]string {

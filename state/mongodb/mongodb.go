@@ -682,7 +682,7 @@ func (m *MongoDB) GetComponentMetadata() map[string]string {
 	return metadataInfo
 }
 
-// Close finishes connection to the store.
+// Close connection to the database.
 func (m *MongoDB) Close(ctx context.Context) (err error) {
 	if m.client == nil {
 		return nil

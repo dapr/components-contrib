@@ -84,18 +84,18 @@ func (opts *ContainerClientOpts) setCustomEndpoint(log logger.Logger, meta map[s
 		return nil
 	}
 
-	eu, err := url.Parse(val)
+	endpointURL, err := url.Parse(val)
 	if err != nil {
 		return fmt.Errorf("failed to parse custom endpoint %q: %w", val, err)
 	}
 
 	// Check if the custom endpoint is set to an Azure Blob Storage public endpoint
-	azbu := opts.getAzureBlobStorageContainerURL(azEnvSettings)
-	if eu.Hostname() == azbu.Hostname() && azbu.Path == eu.Path {
+	azbURL := opts.getAzureBlobStorageContainerURL(azEnvSettings)
+	if endpointURL.Hostname() == azbURL.Hostname() && azbURL.Path == endpointURL.Path {
 		log.Warn("Metadata property endpoint is set to an Azure Blob Storage endpoint and will be ignored")
 	} else {
 		log.Info("Using custom endpoint for Azure Blob Storage")
-		opts.customEndpoint = strings.TrimSuffix(eu.String(), "/")
+		opts.customEndpoint = strings.TrimSuffix(endpointURL.String(), "/")
 	}
 
 	return nil

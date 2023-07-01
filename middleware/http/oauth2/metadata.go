@@ -15,12 +15,14 @@ package oauth2
 
 import (
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"errors"
-	"strings"
+	"io"
 
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -57,19 +59,18 @@ type oAuth2MiddlewareMetadata struct {
 	// Forces the use of TLS/HTTPS for the redirect URL.
 	// Defaults to false.
 	ForceHTTPS bool `json:"forceHTTPS" mapstructure:"forceHTTPS"`
-	// Configure token storage.
-	// Possible values: "memory" (default) and "cookie"
-	TokenStorage string `json:"tokenStorage" mapstructure:"tokenStorage"`
 	// Name of the cookie where Dapr will store the encrypted access token, when storing tokens in cookies.
 	// Defaults to "_dapr_oauth2".
 	CookieName string `json:"cookieName" mapstructure:"cookieName"`
 	// Cookie encryption key.
-	// Required if storing access tokens in cookies.
+	// Required to allow sessions to persist across restarts of the Dapr runtime and to allow multiple instances of Dapr to access the session.
+	// Not setting an explicit encryption key is deprecated, and this field will become required in Dapr 1.13.
+	// TODO @ItalyPaleAle: make required in Dapr 1.13.
 	CookieEncryptionKey string `json:"cookieEncryptionKey" mapstructure:"cookieEncryptionKey"`
 }
 
 // Parse the component's metadata into the object.
-func (md *oAuth2MiddlewareMetadata) fromMetadata(metadata middleware.Metadata) error {
+func (md *oAuth2MiddlewareMetadata) fromMetadata(metadata middleware.Metadata, log logger.Logger) error {
 	// Set default values
 	if md.AuthHeaderName == "" {
 		md.AuthHeaderName = defaultAuthHeaderName
@@ -101,18 +102,10 @@ func (md *oAuth2MiddlewareMetadata) fromMetadata(metadata middleware.Metadata) e
 		return errors.New("required field 'redirectURL' is empty")
 	}
 
-	switch strings.ToLower(md.TokenStorage) {
-	case "cookie":
-		// Re-set to ensure it's lowercase
-		md.TokenStorage = "cookie"
-		if md.CookieEncryptionKey == "" {
-			return errors.New("field 'cookieEncryptionKey' is required when storing tokens in cookies")
-		}
-	case "memory", "": // Default value
-		// Re-set to ensure it's lowercase
-		md.TokenStorage = "memory"
-	default:
-		return errors.New("invalid value for property 'tokenStorage'; supported values: 'memory', 'cookie'")
+	// If there's no cookie encryption key, show a warning
+	// TODO @ItalyPaleAle: make required in Dapr 1.13.
+	if md.CookieEncryptionKey == "" {
+		log.Warnf("[DEPRECATION NOTICE] Initializing the OAuth2 middleware with an empty 'cookieEncryptionKey' is deprecated, and the field will become required in Dapr 1.13. Setting an explicit 'cookieEncryptionKey' is required to allow sessions to be shared across multiple instances of Dapr and to survive a restart of Dapr.")
 	}
 
 	return nil
@@ -121,8 +114,26 @@ func (md *oAuth2MiddlewareMetadata) fromMetadata(metadata middleware.Metadata) e
 // GetCookieEncryptionKey derives a 128-bit cookie encryption key from the user-defined value.
 func (md *oAuth2MiddlewareMetadata) GetCookieEncryptionKey() []byte {
 	if md.CookieEncryptionKey == "" {
-		// This should never happen as the validation method ensures that cookieEncryptionKey isn't empty
-		return nil
+		// TODO @ItalyPaleAle: uncomment for Dapr 1.13 and remove existing code in this block
+		/*
+			// This should never happen as the validation method ensures that cookieEncryptionKey isn't empty
+			// So if we're here, it means there was a development-time error.
+			panic("cookie encryption key is empty")
+		*/
+
+		// If the user didn't provide a cookie encryption key, generate a random one
+		// Naturally, this means that the cookie encryption key is unique to this process and cookies cannot be decrypted by other instances of Dapr or if the process is restarted
+		// This is not good, but it is no different than how this component behaved in Dapr 1.11.
+		// This behavior is deprecated and will be removed in Dapr 1.13.
+		cek := make([]byte, 16)
+		_, err := io.ReadFull(rand.Reader, cek)
+		if err != nil {
+			// This makes Dapr panic, but it's ok here because:
+			// 1. This code is temporary and will be removed in Dapr 1.13. I would rather not change the interface of this method to return an error since it won't be needed in the future
+			// 2. Errors from io.ReadFull above are possible but highly unlikely (only if the kernel doesn't have enough entropy)
+			panic("Failed to generate a random cookie encryption key: " + err.Error())
+		}
+		return cek
 	}
 
 	h := hmac.New(sha256.New, []byte(hmacKey))

@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -25,29 +25,16 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/dapr/components-contrib/internal/httputils"
-	"github.com/dapr/components-contrib/internal/utils"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 )
 
-// Metadata is the oAuth middleware config.
-type oAuth2MiddlewareMetadata struct {
-	ClientID       string `json:"clientID" mapstructure:"clientID"`
-	ClientSecret   string `json:"clientSecret" mapstructure:"clientSecret"`
-	Scopes         string `json:"scopes" mapstructure:"scopes"`
-	AuthURL        string `json:"authURL" mapstructure:"authURL"`
-	TokenURL       string `json:"tokenURL" mapstructure:"tokenURL"`
-	AuthHeaderName string `json:"authHeaderName" mapstructure:"authHeaderName"`
-	RedirectURL    string `json:"redirectURL" mapstructure:"redirectURL"`
-	ForceHTTPS     string `json:"forceHTTPS" mapstructure:"forceHTTPS"`
-}
-
 // NewOAuth2Middleware returns a new oAuth2 middleware.
 func NewOAuth2Middleware(log logger.Logger) middleware.Middleware {
-	m := &Middleware{logger: log}
-
-	return m
+	return &Middleware{
+		logger: log,
+	}
 }
 
 // Middleware is an oAuth2 authentication middleware.
@@ -56,20 +43,18 @@ type Middleware struct {
 }
 
 const (
-	stateParam   = "state"
 	savedState   = "auth-state"
 	redirectPath = "redirect-url"
-	codeParam    = "code"
 )
 
 // GetHandler retruns the HTTP handler provided by the middleware.
 func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
-	meta, err := m.getNativeMetadata(metadata)
+	meta := oAuth2MiddlewareMetadata{}
+	err := meta.fromMetadata(metadata)
 	if err != nil {
 		return nil, err
 	}
 
-	forceHTTPS := utils.IsTruthy(meta.ForceHTTPS)
 	conf := &oauth2.Config{
 		ClientID:     meta.ClientID,
 		ClientSecret: meta.ClientSecret,
@@ -92,7 +77,7 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 			}
 
 			// Redirect to the auth server
-			state := r.URL.Query().Get(stateParam)
+			state := r.URL.Query().Get("state")
 			if state == "" {
 				id, err := uuid.NewRandom()
 				if err != nil {
@@ -116,7 +101,7 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 					return
 				}
 
-				if forceHTTPS {
+				if meta.ForceHTTPS {
 					redirectURL.Scheme = "https"
 				}
 
@@ -125,7 +110,7 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 					return
 				}
 
-				code := r.URL.Query().Get(codeParam)
+				code := r.URL.Query().Get("code")
 				if code == "" {
 					httputils.RespondWithErrorAndMessage(w, http.StatusBadRequest, "code not found")
 					return

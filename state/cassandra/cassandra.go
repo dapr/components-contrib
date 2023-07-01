@@ -326,3 +326,14 @@ func (c *Cassandra) GetComponentMetadata() map[string]string {
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return metadataInfo
 }
+
+// Set saves state into cassandra.
+func (c *Cassandra) Close() error {
+	if c.session == nil {
+		return nil
+	}
+
+	c.session.Close()
+
+	return nil
+}

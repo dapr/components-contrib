@@ -327,7 +327,7 @@ func (c *Cassandra) GetComponentMetadata() map[string]string {
 	return metadataInfo
 }
 
-// Set saves state into cassandra.
+// Close the connection to Cassandra.
 func (c *Cassandra) Close() error {
 	if c.session == nil {
 		return nil

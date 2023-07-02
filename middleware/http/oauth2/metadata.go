@@ -14,11 +14,18 @@ limitations under the License.
 package oauth2
 
 import (
+	"crypto"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"io"
+	"strings"
+
+	"github.com/lestrrat-go/jwx/v2/jwk"
+	"golang.org/x/oauth2"
 
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
@@ -62,11 +69,19 @@ type oAuth2MiddlewareMetadata struct {
 	// Name of the cookie where Dapr will store the encrypted access token, when storing tokens in cookies.
 	// Defaults to "_dapr_oauth2".
 	CookieName string `json:"cookieName" mapstructure:"cookieName"`
-	// Cookie encryption key.
+	// Cookie encryption and signing key (technically, seed used to derive those two).
+	// It is recommended to provide a random string with sufficient entropy.
 	// Required to allow sessions to persist across restarts of the Dapr runtime and to allow multiple instances of Dapr to access the session.
 	// Not setting an explicit encryption key is deprecated, and this field will become required in Dapr 1.13.
 	// TODO @ItalyPaleAle: make required in Dapr 1.13.
-	CookieEncryptionKey string `json:"cookieEncryptionKey" mapstructure:"cookieEncryptionKey"`
+	CookieKey string `json:"cookieKey" mapstructure:"cookieKey"`
+
+	// Internal: cookie encryption key
+	cek jwk.Key
+	// Internal: cookie signing key
+	csk jwk.Key
+	// Internal: OAuth2 configuration object
+	oauth2Conf oauth2.Config
 }
 
 // Parse the component's metadata into the object.
@@ -104,42 +119,73 @@ func (md *oAuth2MiddlewareMetadata) fromMetadata(metadata middleware.Metadata, l
 
 	// If there's no cookie encryption key, show a warning
 	// TODO @ItalyPaleAle: make required in Dapr 1.13.
-	if md.CookieEncryptionKey == "" {
-		log.Warnf("[DEPRECATION NOTICE] Initializing the OAuth2 middleware with an empty 'cookieEncryptionKey' is deprecated, and the field will become required in Dapr 1.13. Setting an explicit 'cookieEncryptionKey' is required to allow sessions to be shared across multiple instances of Dapr and to survive a restart of Dapr.")
+	if md.CookieKey == "" {
+		log.Warnf("[DEPRECATION NOTICE] Initializing the OAuth2 middleware with an empty 'cookieKey' is deprecated, and the field will become required in Dapr 1.13. Setting an explicit 'cookieKey' is required to allow sessions to be shared across multiple instances of Dapr and to survive a restart of Dapr.")
 	}
 
 	return nil
 }
 
-// GetCookieEncryptionKey derives a 128-bit cookie encryption key from the user-defined value.
-func (md *oAuth2MiddlewareMetadata) GetCookieEncryptionKey() []byte {
-	if md.CookieEncryptionKey == "" {
+// Derives a 128-bit cookie encryption key and a 256-bit cookie signing key from the user-provided value.
+func (md *oAuth2MiddlewareMetadata) setCookieKeys() (err error) {
+	var b []byte
+
+	if md.CookieKey == "" {
 		// TODO @ItalyPaleAle: uncomment for Dapr 1.13 and remove existing code in this block
 		/*
-			// This should never happen as the validation method ensures that cookieEncryptionKey isn't empty
+			// This should never happen as the validation method ensures that cookieKey isn't empty
 			// So if we're here, it means there was a development-time error.
 			panic("cookie encryption key is empty")
 		*/
 
-		// If the user didn't provide a cookie encryption key, generate a random one
-		// Naturally, this means that the cookie encryption key is unique to this process and cookies cannot be decrypted by other instances of Dapr or if the process is restarted
+		// If the user didn't provide a cookie key, generate a random one
+		// Naturally, this means that the cookie key is unique to this process and cookies cannot be decrypted by other instances of Dapr or if the process is restarted
 		// This is not good, but it is no different than how this component behaved in Dapr 1.11.
 		// This behavior is deprecated and will be removed in Dapr 1.13.
-		cek := make([]byte, 16)
-		_, err := io.ReadFull(rand.Reader, cek)
+		b = make([]byte, 48)
+		_, err := io.ReadFull(rand.Reader, b)
 		if err != nil {
-			// This makes Dapr panic, but it's ok here because:
-			// 1. This code is temporary and will be removed in Dapr 1.13. I would rather not change the interface of this method to return an error since it won't be needed in the future
-			// 2. Errors from io.ReadFull above are possible but highly unlikely (only if the kernel doesn't have enough entropy)
-			panic("Failed to generate a random cookie encryption key: " + err.Error())
+			return fmt.Errorf("failed to generate a random cookie key: %w", err)
 		}
-		return cek
+	} else {
+		// Derive 48 bytes from the cookie key using HMAC with a fixed "HMAC key"
+		h := hmac.New(crypto.SHA384.New, []byte(hmacKey))
+		h.Write([]byte(md.CookieKey))
+		b = h.Sum(nil)
 	}
 
-	h := hmac.New(sha256.New, []byte(hmacKey))
-	h.Write([]byte(md.CookieEncryptionKey))
-	res := h.Sum(nil)
+	// We must set a kid for the jwx library to work
+	kidH := sha256.New224()
+	kidH.Write(b)
+	kid := base64.RawURLEncoding.EncodeToString(kidH.Sum(nil))
 
-	// Return the first 16 bytes only
-	return res[:16]
+	// Cookie encryption key uses 128 bits
+	md.cek, err = jwk.FromRaw(b[:16])
+	if err != nil {
+		return fmt.Errorf("failed to import cookie encryption key: %w", err)
+	}
+	md.cek.Set("kid", kid)
+
+	// Cookie signing key uses 256 bits
+	md.csk, err = jwk.FromRaw(b[16:])
+	if err != nil {
+		return fmt.Errorf("failed to import cookie signing key: %w", err)
+	}
+	md.csk.Set("kid", kid)
+
+	return nil
+}
+
+// Sets the oauth2Conf property in the object.
+func (md *oAuth2MiddlewareMetadata) setOAuth2Conf() {
+	md.oauth2Conf = oauth2.Config{
+		ClientID:     md.ClientID,
+		ClientSecret: md.ClientSecret,
+		Scopes:       strings.Split(md.Scopes, ","),
+		RedirectURL:  md.RedirectURL,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  md.AuthURL,
+			TokenURL: md.TokenURL,
+		},
+	}
 }

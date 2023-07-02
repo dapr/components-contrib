@@ -64,6 +64,7 @@ type httpMetadata struct {
 	MTLSClientCert      string         `mapstructure:"mtlsClientCert"`
 	MTLSClientKey       string         `mapstructure:"mtlsClientKey"`
 	MTLSRootCA          string         `mapstructure:"mtlsRootCA"`
+	MTLSRenegotiation   string         `mapstructure:"mtlsRenegotiation"`
 	SecurityToken       string         `mapstructure:"securityToken"`
 	SecurityTokenHeader string         `mapstructure:"securityTokenHeader"`
 	ResponseTimeout     *time.Duration `mapstructure:"responseTimeout"`
@@ -87,6 +88,12 @@ func (h *HTTPSource) Init(_ context.Context, meta bindings.Metadata) error {
 	}
 	if h.metadata.MTLSClientCert != "" && h.metadata.MTLSClientKey != "" {
 		err = h.readMTLSClientCertificates(tlsConfig)
+		if err != nil {
+			return err
+		}
+	}
+	if h.metadata.MTLSRenegotiation != "" {
+		err = h.setTLSRenegotiation(tlsConfig)
 		if err != nil {
 			return err
 		}
@@ -136,6 +143,27 @@ func (h *HTTPSource) readMTLSClientCertificates(tlsConfig *tls.Config) error {
 		tlsConfig = &tls.Config{MinVersion: tls.VersionTLS12}
 	}
 	tlsConfig.Certificates = []tls.Certificate{cert}
+	return nil
+}
+
+// setTLSRenegotiation set TLS renegotiation parameter and returns a tls.Config
+func (h *HTTPSource) setTLSRenegotiation(tlsConfig *tls.Config) error {
+	switch h.metadata.MTLSRenegotiation {
+	case "RenegotiateNever":
+		{
+			tlsConfig.Renegotiation = tls.RenegotiateNever
+		}
+	case "RenegotiateOnceAsClient":
+		{
+			tlsConfig.Renegotiation = tls.RenegotiateOnceAsClient
+		}
+	case "RenegotiateFreelyAsClient":
+		{
+			tlsConfig.Renegotiation = tls.RenegotiateFreelyAsClient
+		}
+	default:
+		return fmt.Errorf("invalid renegotiation value: %s", h.metadata.MTLSRenegotiation)
+	}
 	return nil
 }
 

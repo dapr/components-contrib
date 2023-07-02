@@ -63,6 +63,16 @@ metadata:
     example: "client.key"
     binding:
       output: true
+  - name: MTLSRenegotiation
+    required: false
+    description: "Set TLS renegotiation setting"
+    allowedValues:
+      - "RenegotiateNever"
+      - "RenegotiateOnceAsClient"
+      - "RenegotiateFreelyAsClient"
+    example: "RenegotiateOnceAsClient"
+    binding:
+      output: true
   - name: securityToken
     required: false
     description: "The security token to include on an outgoing HTTP request as a header"

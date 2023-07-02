@@ -66,14 +66,6 @@ func (m *fakeDBaccess) Delete(ctx context.Context, req *state.DeleteRequest) err
 	return nil
 }
 
-func (m *fakeDBaccess) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	return nil
-}
-
-func (m *fakeDBaccess) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	return nil
-}
-
 func (m *fakeDBaccess) ExecuteMulti(ctx context.Context, req *state.TransactionalStateRequest) error {
 	return nil
 }

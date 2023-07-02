@@ -190,6 +190,33 @@ func TestMemcached(t *testing.T) {
 		return nil
 	}
 
+	timeToLiveWithATwoMonthsTTL := func(ctx flow.Context) error {
+		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+		if err != nil {
+			panic(err)
+		}
+		defer client.Close()
+
+		key := certificationTestPrefix + "_expiresInTwoMonthsKey"
+		value := "This key will self-destroy in 2 months"
+
+		ttlExpirationTime := 2 * 30 * 24 * time.Hour
+		ttlInSeconds := int(ttlExpirationTime.Seconds())
+		mapOptionsExpiringKey := map[string]string{
+			"ttlInSeconds": strconv.Itoa(ttlInSeconds),
+		}
+
+		errSave := client.SaveState(ctx, stateStoreName, key, []byte(value), mapOptionsExpiringKey)
+		assert.NoError(t, errSave)
+
+		// get state
+		item, errGetBeforeTTLExpiration := client.GetState(ctx, stateStoreName, key, nil)
+		assert.NoError(t, errGetBeforeTTLExpiration)
+		assert.Equal(t, value, string(item.Value))
+
+		return nil
+	}
+
 	flow.New(t, "Connecting Memcached And Test for CRUD operations").
 		Step(dockercompose.Run("memcached", dockerComposeClusterYAML)).
 		Step("Waiting for component to start...", flow.Sleep(5*time.Second)).
@@ -220,6 +247,7 @@ func TestMemcached(t *testing.T) {
 		Step("Run TTL related test: TTL not a valid number.", timeToLiveTestWithInvalidTTLValue).
 		Step("Run TTL related test: TTL not expiring.", timeToLiveTestWithNonExpiringTTL).
 		Step("Run TTL related test: TTL of 1 second.", timeToLiveWithAOneSecondTTL).
+		Step("Run TTL related test: TTL of 2 months.", timeToLiveWithATwoMonthsTTL).
 		Step("Stop Memcached server", dockercompose.Stop("memcached", dockerComposeClusterYAML)).
 		Run()
 }

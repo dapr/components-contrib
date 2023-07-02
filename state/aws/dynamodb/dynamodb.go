@@ -92,7 +92,7 @@ func (d *StateStore) Init(_ context.Context, metadata state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (d *StateStore) Features() []state.Feature {
-	return []state.Feature{state.FeatureETag}
+	return []state.Feature{state.FeatureETag, state.FeatureTransactional}
 }
 
 // Get retrieves a dynamoDB item.
@@ -121,9 +121,10 @@ func (d *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 		return nil, err
 	}
 
-	var ttl int64
+	var metadata map[string]string
 	if d.ttlAttributeName != "" {
 		if val, ok := result.Item[d.ttlAttributeName]; ok {
+			var ttl int64
 			if err = dynamodbattribute.Unmarshal(val, &ttl); err != nil {
 				return nil, err
 			}
@@ -131,16 +132,21 @@ func (d *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 				// Item has expired but DynamoDB didn't delete it yet.
 				return &state.GetResponse{}, nil
 			}
+			metadata = map[string]string{
+				state.GetRespMetaKeyTTLExpireTime: time.Unix(ttl, 0).UTC().Format(time.RFC3339),
+			}
 		}
 	}
 
 	resp := &state.GetResponse{
-		Data: []byte(output),
+		Data:     []byte(output),
+		Metadata: metadata,
 	}
 
-	var etag string
-	if etagVal, ok := result.Item["etag"]; ok {
-		if err = dynamodbattribute.Unmarshal(etagVal, &etag); err != nil {
+	if result.Item["etag"] != nil {
+		var etag string
+		err = dynamodbattribute.Unmarshal(result.Item["etag"], &etag)
+		if err != nil {
 			return nil, err
 		}
 		resp.ETag = &etag
@@ -161,9 +167,7 @@ func (d *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 		TableName: &d.table,
 	}
 
-	haveEtag := false
-	if req.ETag != nil && *req.ETag != "" {
-		haveEtag = true
+	if req.HasETag() {
 		condExpr := "etag = :etag"
 		input.ConditionExpression = &condExpr
 		exprAttrValues := make(map[string]*dynamodb.AttributeValue)
@@ -177,7 +181,7 @@ func (d *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	}
 
 	_, err = d.client.PutItemWithContext(ctx, input)
-	if err != nil && haveEtag {
+	if err != nil && req.HasETag() {
 		switch cErr := err.(type) {
 		case *dynamodb.ConditionalCheckFailedException:
 			err = state.NewETagError(state.ETagMismatch, cErr)
@@ -185,44 +189,6 @@ func (d *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	}
 
 	return err
-}
-
-// BulkSet performs a bulk set operation.
-func (d *StateStore) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	if len(req) == 1 {
-		return d.Set(ctx, &req[0])
-	}
-
-	writeRequests := make([]*dynamodb.WriteRequest, len(req))
-	for i := range req {
-		if req[i].ETag != nil && *req[i].ETag != "" {
-			return errors.New("dynamodb error: BulkSet() does not support etags; please use Set() instead")
-		}
-		if req[i].Options.Concurrency == state.FirstWrite {
-			return errors.New("dynamodb error: BulkSet() does not support FirstWrite concurrency; please use Set() instead")
-		}
-
-		item, err := d.getItemFromReq(&req[i])
-		if err != nil {
-			return err
-		}
-
-		writeRequests[i] = &dynamodb.WriteRequest{
-			PutRequest: &dynamodb.PutRequest{
-				Item: item,
-			},
-		}
-	}
-
-	requestItems := map[string][]*dynamodb.WriteRequest{
-		d.table: writeRequests,
-	}
-
-	_, e := d.client.BatchWriteItemWithContext(ctx, &dynamodb.BatchWriteItemInput{
-		RequestItems: requestItems,
-	})
-
-	return e
 }
 
 // Delete performs a delete operation.
@@ -236,7 +202,7 @@ func (d *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 		TableName: aws.String(d.table),
 	}
 
-	if req.ETag != nil && *req.ETag != "" {
+	if req.HasETag() {
 		condExpr := "etag = :etag"
 		input.ConditionExpression = &condExpr
 		exprAttrValues := make(map[string]*dynamodb.AttributeValue)
@@ -255,40 +221,6 @@ func (d *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	}
 
 	return err
-}
-
-// BulkDelete performs a bulk delete operation.
-func (d *StateStore) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	if len(req) == 1 {
-		return d.Delete(ctx, &req[0])
-	}
-
-	writeRequests := make([]*dynamodb.WriteRequest, len(req))
-	for i, r := range req {
-		if r.ETag != nil && *r.ETag != "" {
-			return errors.New("dynamodb error: BulkDelete() does not support etags; please use Delete() instead")
-		}
-
-		writeRequests[i] = &dynamodb.WriteRequest{
-			DeleteRequest: &dynamodb.DeleteRequest{
-				Key: map[string]*dynamodb.AttributeValue{
-					d.partitionKey: {
-						S: aws.String(r.Key),
-					},
-				},
-			},
-		}
-	}
-
-	requestItems := map[string][]*dynamodb.WriteRequest{
-		d.table: writeRequests,
-	}
-
-	_, e := d.client.BatchWriteItemWithContext(ctx, &dynamodb.BatchWriteItemInput{
-		RequestItems: requestItems,
-	})
-
-	return e
 }
 
 func (d *StateStore) GetComponentMetadata() map[string]string {
@@ -391,6 +323,71 @@ func (d *StateStore) parseTTL(req *state.SetRequest) (*int64, error) {
 	}
 
 	return nil, nil
+}
+
+// Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
+func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
+	opns := len(request.Operations)
+	if opns == 0 {
+		return nil
+	}
+
+	twinput := &dynamodb.TransactWriteItemsInput{
+		TransactItems: make([]*dynamodb.TransactWriteItem, 0, opns),
+	}
+
+	// Note: The following is a DynamoDB logic to avoid errors like following,
+	// which happen when the same key is used in multiple operations within a Transaction:
+	//
+	//    ValidationException: Transaction request cannot include multiple operations on one item
+	//
+	// Dedup ops where the last operation with a matching Key takes precedence
+	txs := map[string]int{}
+	for i, o := range request.Operations {
+		txs[o.GetKey()] = i
+	}
+
+	for i, o := range request.Operations {
+		// skip operations removed in simulated set
+		if txs[o.GetKey()] != i {
+			continue
+		}
+
+		twi := &dynamodb.TransactWriteItem{}
+		switch req := o.(type) {
+		case state.SetRequest:
+			value, err := d.marshalToString(req.Value)
+			if err != nil {
+				return fmt.Errorf("dynamodb error: failed to marshal value for key %s: %w", req.Key, err)
+			}
+			twi.Put = &dynamodb.Put{
+				TableName: aws.String(d.table),
+				Item: map[string]*dynamodb.AttributeValue{
+					d.partitionKey: {
+						S: aws.String(req.Key),
+					},
+					"value": {
+						S: aws.String(value),
+					},
+				},
+			}
+
+		case state.DeleteRequest:
+			twi.Delete = &dynamodb.Delete{
+				TableName: aws.String(d.table),
+				Key: map[string]*dynamodb.AttributeValue{
+					d.partitionKey: {
+						S: aws.String(req.Key),
+					},
+				},
+			}
+		}
+		twinput.TransactItems = append(twinput.TransactItems, twi)
+	}
+
+	_, err := d.client.TransactWriteItemsWithContext(ctx, twinput)
+
+	return err
 }
 
 // This is a helper to return the partition key to use.  If if metadata["partitionkey"] is present,

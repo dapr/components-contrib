@@ -96,6 +96,7 @@ func TestCreateMetadata(t *testing.T) {
 		assert.Equal(t, "", m.ClientCert)
 		assert.Equal(t, "", m.CACert)
 		assert.Equal(t, fanoutExchangeKind, m.ExchangeKind)
+		assert.Equal(t, true, m.Durable)
 	})
 
 	invalidDeliveryModes := []string{"3", "10", "-1"}
@@ -138,6 +139,26 @@ func TestCreateMetadata(t *testing.T) {
 		assert.Equal(t, fakeProperties[metadataHostnameKey], m.Hostname)
 		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.ConsumerID)
 		assert.Equal(t, uint8(2), m.DeliveryMode)
+	})
+
+	t.Run("disable durable mode, disable delete when unused", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Base: mdata.Base{Properties: fakeProperties},
+		}
+		fakeMetaData.Properties[metadataDurableKey] = "false"
+		fakeMetaData.Properties[metadataDeleteWhenUnusedKey] = "false"
+
+		// act
+		m, err := createMetadata(fakeMetaData, log)
+
+		// assert
+		assert.NoError(t, err)
+		assert.Equal(t, fakeProperties[metadataHostnameKey], m.Hostname)
+		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.ConsumerID)
+		assert.False(t, m.Durable)
+		assert.False(t, m.DeleteWhenUnused)
 	})
 
 	t.Run("protocol does not match connection string", func(t *testing.T) {

@@ -4,7 +4,7 @@
 componentType: crypto
 components:
   - component: localstorage
-    allOperations: true
+    operations: ["public", "symmetric"]
     config:
       keys:
         - algorithms: ["EdDSA"]
@@ -29,7 +29,7 @@ components:
           type: symmetric
           name: symmetric-256.b64
   - component: jwks
-    allOperations: true
+    operations: ["public", "symmetric"]
     config:
       keys:
         - algorithms: ["EdDSA"]
@@ -55,7 +55,6 @@ components:
           name: symmetric-256
   - component: azure.keyvault
     # Althoguh Azure Key Vault supports symmetric keys, those are only available in "Managed HSMs", which are too impractical for our tests
-    allOperations: false
     operations: []
     config:
       keys:

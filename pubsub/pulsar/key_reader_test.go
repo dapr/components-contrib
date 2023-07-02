@@ -11,19 +11,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package redis
+package pulsar
 
-import "time"
+import (
+	"testing"
 
-type metadata struct {
-	Host               string `mapstructure:"redishost"`
-	Password           string `mapstructure:"redisPassword"`
-	SentinelMasterName string `mapstructure:"sentinelMasterName"`
-	MaxRetries         int    `mapstructure:"maxRetries"`
-	MaxRetryBackoff    *int   `mapstructure:"maxRetryBackoff"`
-	EnableTLS          bool   `mapstructure:"enableTLS"`
-	Failover           bool   `mapstructure:"failover"`
-	DB                 int    `mapstructure:"redisDB"`
+	"github.com/stretchr/testify/assert"
+)
 
-	internalMaxRetryBackoff time.Duration `mapstructure:"-"`
+func TestDataKeyReader(t *testing.T) {
+	kr := NewDataKeyReader("111", "222")
+	pk, err := kr.PublicKey("1", map[string]string{})
+	assert.Nil(t, err)
+
+	pr, err := kr.PrivateKey("2", map[string]string{})
+	assert.Nil(t, err)
+
+	assert.NotNil(t, pk)
+	assert.NotNil(t, pr)
 }

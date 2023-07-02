@@ -2,13 +2,13 @@
 
 This component lets you manipulate an incoming request or serve a response with custom logic compiled using the [htp-wasm](https://http-wasm.io/) Application Binary Interface (ABI). The `handle_request` function receives an incoming request and can manipulate it or serve a response as necessary.
 
-Please see the [documentation](https://github.com/dapr/docs/blob/v1.9/daprdocs/content/en/reference/components-reference/supported-middleware/middleware-wasm.md) for general configuration.
+Please see the [documentation](https://github.com/dapr/docs/blob/v1.11/daprdocs/content/en/reference/components-reference/supported-middleware/middleware-wasm.md) for general configuration.
 
 ### Generating Wasm
 
 To compile your wasm, you must compile source using an SDK such as [http-wasm-guest-tinygo](https://github.com/http-wasm/http-wasm-guest-tinygo). You can also make a copy of [hello.go](./example/example.go) and replace the `handler.HandleFn` function with your custom logic.
 
-If using TinyGo, compile like so and set the `path` attribute to the output:
+If using TinyGo, compile like so and set the `url` attribute to "file://router.wasm":
 ```bash
 tinygo build -o router.wasm -scheduler=none --no-debug -target=wasi router.go`
 ```

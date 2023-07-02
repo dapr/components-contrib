@@ -30,7 +30,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
@@ -43,6 +42,7 @@ import (
 	"github.com/dapr/components-contrib/workflows"
 	"github.com/dapr/kit/logger"
 
+	b_aws_s3 "github.com/dapr/components-contrib/bindings/aws/s3"
 	b_azure_blobstorage "github.com/dapr/components-contrib/bindings/azure/blobstorage"
 	b_azure_cosmosdb "github.com/dapr/components-contrib/bindings/azure/cosmosdb"
 	b_azure_eventgrid "github.com/dapr/components-contrib/bindings/azure/eventgrid"
@@ -91,6 +91,7 @@ import (
 	s_cloudflareworkerskv "github.com/dapr/components-contrib/state/cloudflare/workerskv"
 	s_cockroachdb "github.com/dapr/components-contrib/state/cockroachdb"
 	s_etcd "github.com/dapr/components-contrib/state/etcd"
+	s_gcpfirestore "github.com/dapr/components-contrib/state/gcp/firestore"
 	s_inmemory "github.com/dapr/components-contrib/state/in-memory"
 	s_memcached "github.com/dapr/components-contrib/state/memcached"
 	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
@@ -138,11 +139,10 @@ type TestConfiguration struct {
 }
 
 type TestComponent struct {
-	Component     string                 `yaml:"component,omitempty"`
-	Profile       string                 `yaml:"profile,omitempty"`
-	AllOperations bool                   `yaml:"allOperations,omitempty"`
-	Operations    []string               `yaml:"operations,omitempty"`
-	Config        map[string]interface{} `yaml:"config,omitempty"`
+	Component  string                 `yaml:"component,omitempty"`
+	Profile    string                 `yaml:"profile,omitempty"`
+	Operations []string               `yaml:"operations,omitempty"`
+	Config     map[string]interface{} `yaml:"config,omitempty"`
 }
 
 // NewTestConfiguration reads the tests.yml and loads the TestConfiguration.
@@ -329,7 +329,6 @@ func (tc *TestConfiguration) loadComponentsAndProperties(t *testing.T, filepath 
 	require.Equal(t, 1, len(comps)) // We only expect a single component per file
 	c := comps[0]
 	props, err := ConvertMetadataToProperties(c.Spec.Metadata)
-
 	return props, err
 }
 
@@ -364,97 +363,66 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 			case "state":
 				filepath := fmt.Sprintf("../config/state/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				store := loadStateStore(comp)
-				assert.NotNil(t, store)
-				storeConfig := conf_state.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				require.NotNilf(t, store, "error running conformance test for component %s", comp.Component)
+				storeConfig, err := conf_state.NewTestConfig(comp.Component, comp.Operations, comp.Config)
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				conf_state.ConformanceTests(t, props, store, storeConfig)
 			case "secretstores":
 				filepath := fmt.Sprintf("../config/secretstores/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				store := loadSecretStore(comp)
-				assert.NotNil(t, store)
-				storeConfig := conf_secret.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations)
+				require.NotNilf(t, store, "error running conformance test for component %s", comp.Component)
+				storeConfig := conf_secret.NewTestConfig(comp.Component, comp.Operations)
 				conf_secret.ConformanceTests(t, props, store, storeConfig)
 			case "pubsub":
 				filepath := fmt.Sprintf("../config/pubsub/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				pubsub := loadPubSub(comp)
-				assert.NotNil(t, pubsub)
-				pubsubConfig, err := conf_pubsub.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NotNil(t, pubsub, "error running conformance test for component %s", comp.Component)
+				pubsubConfig, err := conf_pubsub.NewTestConfig(comp.Component, comp.Operations, comp.Config)
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				conf_pubsub.ConformanceTests(t, props, pubsub, pubsubConfig)
 			case "bindings":
 				filepath := fmt.Sprintf("../config/bindings/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				inputBinding := loadInputBindings(comp)
 				outputBinding := loadOutputBindings(comp)
-				atLeastOne(t, func(item interface{}) bool {
-					return item != nil
-				}, inputBinding, outputBinding)
-				bindingsConfig, err := conf_bindings.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.True(t, inputBinding != nil || outputBinding != nil)
+				bindingsConfig, err := conf_bindings.NewTestConfig(comp.Component, comp.Operations, comp.Config)
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				conf_bindings.ConformanceTests(t, props, inputBinding, outputBinding, bindingsConfig)
 			case "workflows":
 				filepath := fmt.Sprintf("../config/workflows/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				wf := loadWorkflow(comp)
-				wfConfig := conf_workflows.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				wfConfig := conf_workflows.NewTestConfig(comp.Component, comp.Operations, comp.Config)
 				conf_workflows.ConformanceTests(t, props, wf, wfConfig)
 			case "crypto":
 				filepath := fmt.Sprintf("../config/crypto/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				component := loadCryptoProvider(comp)
-				require.NotNil(t, component)
-				cryptoConfig, err := conf_crypto.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NotNil(t, component, "error running conformance test for component %s", comp.Component)
+				cryptoConfig, err := conf_crypto.NewTestConfig(comp.Component, comp.Operations, comp.Config)
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				conf_crypto.ConformanceTests(t, props, component, cryptoConfig)
 			case "configuration":
 				filepath := fmt.Sprintf("../config/configuration/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				store, updater := loadConfigurationStore(comp)
-				require.NotNil(t, store)
-				require.NotNil(t, updater)
-				configurationConfig := conf_configuration.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				require.NotNil(t, store, "error running conformance test for component %s", comp.Component)
+				require.NotNil(t, updater, "error running conformance test for component %s", comp.Component)
+				configurationConfig := conf_configuration.NewTestConfig(comp.Component, comp.Operations, comp.Config)
 				conf_configuration.ConformanceTests(t, props, store, updater, configurationConfig, comp.Component)
 			default:
-				t.Errorf("unknown component type %s", tc.ComponentType)
+				t.Fatalf("unknown component type %s", tc.ComponentType)
 			}
 		})
 	}
@@ -608,8 +576,14 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_awsdynamodb.NewDynamoDBStateStore(testLogger)
 	case "aws.dynamodb.terraform":
 		store = s_awsdynamodb.NewDynamoDBStateStore(testLogger)
-	case "etcd":
-		store = s_etcd.NewEtcdStateStore(testLogger)
+	case "etcd.v1":
+		store = s_etcd.NewEtcdStateStoreV1(testLogger)
+	case "etcd.v2":
+		store = s_etcd.NewEtcdStateStoreV2(testLogger)
+	case "gcp.firestore.docker":
+		store = s_gcpfirestore.NewFirestoreStateStore(testLogger)
+	case "gcp.firestore.cloud":
+		store = s_gcpfirestore.NewFirestoreStateStore(testLogger)
 	default:
 		return nil
 	}
@@ -651,6 +625,10 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_kubemq.NewKubeMQ(testLogger)
 	case "postgres":
 		binding = b_postgres.NewPostgres(testLogger)
+	case "aws.s3.docker":
+		binding = b_aws_s3.NewAWSS3(testLogger)
+	case "aws.s3.terraform":
+		binding = b_aws_s3.NewAWSS3(testLogger)
 	default:
 		return nil
 	}
@@ -698,14 +676,4 @@ func loadWorkflow(tc TestComponent) workflows.Workflow {
 	}
 
 	return wf
-}
-
-func atLeastOne(t *testing.T, predicate func(interface{}) bool, items ...interface{}) {
-	met := false
-
-	for _, item := range items {
-		met = met || predicate(item)
-	}
-
-	assert.True(t, met)
 }

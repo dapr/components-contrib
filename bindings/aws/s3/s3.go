@@ -210,6 +210,9 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 
 	return &bindings.InvokeResponse{
 		Data: jsonResponse,
+		Metadata: map[string]string{
+			metadataKey: key,
+		},
 	}, nil
 }
 
@@ -322,10 +325,11 @@ func (s *AWSS3) delete(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 }
 
 func (s *AWSS3) list(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	var payload listPayload
-	err := json.Unmarshal(req.Data, &payload)
-	if err != nil {
-		return nil, err
+	payload := listPayload{}
+	if req.Data != nil {
+		if err := json.Unmarshal(req.Data, &payload); err != nil {
+			return nil, fmt.Errorf("s3 binding (List Operation) - unable to parse Data property - %v", err)
+		}
 	}
 
 	if payload.MaxResults < 1 {

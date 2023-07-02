@@ -79,11 +79,6 @@ func (p *PostgreSQL) Delete(ctx context.Context, req *state.DeleteRequest) error
 	return p.dbaccess.Delete(ctx, req)
 }
 
-// BulkDelete removes multiple entries from the store.
-func (p *PostgreSQL) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	return p.dbaccess.BulkDelete(ctx, req)
-}
-
 // Get returns an entity from store.
 func (p *PostgreSQL) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	return p.dbaccess.Get(ctx, req)
@@ -98,11 +93,6 @@ func (p *PostgreSQL) BulkGet(ctx context.Context, req []state.GetRequest, _ stat
 // Set adds/updates an entity on store.
 func (p *PostgreSQL) Set(ctx context.Context, req *state.SetRequest) error {
 	return p.dbaccess.Set(ctx, req)
-}
-
-// BulkSet adds/updates multiple entities on store.
-func (p *PostgreSQL) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	return p.dbaccess.BulkSet(ctx, req)
 }
 
 // Multi handles multiple transactions. Implements TransactionalStore.

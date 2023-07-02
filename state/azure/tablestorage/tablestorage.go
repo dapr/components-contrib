@@ -54,6 +54,7 @@ import (
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -168,7 +169,7 @@ func (r *StateStore) Features() []state.Feature {
 func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	err := r.deleteRow(ctx, req)
 	if err != nil {
-		if req.ETag != nil {
+		if req.HasETag() {
 			return state.NewETagError(state.ETagMismatch, err)
 		} else if isNotFoundError(err) {
 			// deleting an item that doesn't exist without specifying an ETAG is a noop
@@ -262,18 +263,16 @@ func (r *StateStore) writeRow(ctx context.Context, req *state.SetRequest) error 
 			// Always Update using the etag when provided even if Concurrency != FirstWrite.
 			// Today the presence of etag takes precedence over Concurrency.
 			// In the future #2739 will impose a breaking change which must disallow the use of etag when not using FirstWrite.
-			if req.ETag != nil && *req.ETag != "" {
-				etag := azcore.ETag(*req.ETag)
-
-				_, uerr := r.client.UpdateEntity(updateContext, marshalledEntity, &aztables.UpdateEntityOptions{
-					IfMatch:    &etag,
+			if req.HasETag() {
+				_, err = r.client.UpdateEntity(updateContext, marshalledEntity, &aztables.UpdateEntityOptions{
+					IfMatch:    ptr.Of(azcore.ETag(*req.ETag)),
 					UpdateMode: aztables.UpdateModeReplace,
 				})
-				if uerr != nil {
-					if isNotFoundError(uerr) {
-						return state.NewETagError(state.ETagMismatch, uerr)
+				if err != nil {
+					if isPreconditionFailedError(err) {
+						return state.NewETagError(state.ETagMismatch, err)
 					}
-					return uerr
+					return err
 				}
 			} else if req.Options.Concurrency == state.FirstWrite {
 				// Otherwise, if FirstWrite was set, but no etag was provided for an Update operation
@@ -283,12 +282,12 @@ func (r *StateStore) writeRow(ctx context.Context, req *state.SetRequest) error 
 				return state.NewETagError(state.ETagMismatch, errors.New("update with Concurrency.FirstWrite without ETag"))
 			} else {
 				// Finally, last write semantics without ETag should always perform a force update.
-				_, uerr := r.client.UpdateEntity(updateContext, marshalledEntity, &aztables.UpdateEntityOptions{
+				_, err = r.client.UpdateEntity(updateContext, marshalledEntity, &aztables.UpdateEntityOptions{
 					IfMatch:    nil, // this is the same as "*" matching all ETags
 					UpdateMode: aztables.UpdateModeReplace,
 				})
-				if uerr != nil {
-					return uerr
+				if err != nil {
+					return err
 				}
 			}
 		} else {
@@ -304,6 +303,14 @@ func isNotFoundError(err error) bool {
 	var respErr *azcore.ResponseError
 	if errors.As(err, &respErr) {
 		return (respErr.ErrorCode == string(aztables.ResourceNotFound)) || (respErr.ErrorCode == string(aztables.EntityNotFound))
+	}
+	return false
+}
+
+func isPreconditionFailedError(err error) bool {
+	var respErr *azcore.ResponseError
+	if errors.As(err, &respErr) {
+		return respErr.ErrorCode == string(aztables.UpdateConditionNotSatisfied)
 	}
 	return false
 }
@@ -329,10 +336,17 @@ func (r *StateStore) deleteRow(ctx context.Context, req *state.DeleteRequest) er
 
 	deleteContext, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	if req.ETag != nil {
-		azcoreETag := azcore.ETag(*req.ETag)
-		_, err := r.client.DeleteEntity(deleteContext, pk, rk, &aztables.DeleteEntityOptions{IfMatch: &azcoreETag})
-		return err
+	if req.HasETag() {
+		_, err := r.client.DeleteEntity(deleteContext, pk, rk, &aztables.DeleteEntityOptions{
+			IfMatch: ptr.Of(azcore.ETag(*req.ETag)),
+		})
+		if err != nil {
+			if isPreconditionFailedError(err) {
+				return state.NewETagError(state.ETagMismatch, err)
+			}
+			return err
+		}
+		return nil
 	}
 	all := azcore.ETagAny
 	_, err := r.client.DeleteEntity(deleteContext, pk, rk, &aztables.DeleteEntityOptions{IfMatch: &all})
@@ -373,7 +387,7 @@ func (r *StateStore) marshal(req *state.SetRequest) ([]byte, error) {
 		},
 	}
 
-	if req.ETag != nil {
+	if req.HasETag() {
 		entity.ETag = *req.ETag
 	}
 

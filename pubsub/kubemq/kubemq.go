@@ -35,12 +35,11 @@ func (k *kubeMQ) Init(_ context.Context, metadata pubsub.Metadata) error {
 	k.metadata = meta
 	if meta.IsStore {
 		k.eventStoreClient = newKubeMQEventsStore(k.logger)
-		_ = k.eventStoreClient.Init(meta)
+		return k.eventStoreClient.Init(meta)
 	} else {
 		k.eventsClient = newkubeMQEvents(k.logger)
-		_ = k.eventsClient.Init(meta)
+		return k.eventsClient.Init(meta)
 	}
-	return nil
 }
 
 func (k *kubeMQ) Features() []pubsub.Feature {

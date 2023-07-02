@@ -53,7 +53,6 @@ func TestGetFirestoreMetadata(t *testing.T) {
 	t.Run("With incorrect properties", func(t *testing.T) {
 		properties := map[string]string{
 			"type":           "service_account",
-			"project_id":     "myprojectid",
 			"private_key_id": "123",
 			"private_key":    "mykey",
 		}

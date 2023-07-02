@@ -20,6 +20,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -38,6 +39,13 @@ type EnvironmentSettings struct {
 	Metadata map[string]string
 	Cloud    *cloud.Configuration
 }
+
+const (
+	arcIMDSEndpoint  = "IMDS_ENDPOINT"
+	identityEndpoint = "IDENTITY_ENDPOINT"
+	msiEndpoint      = "MSI_ENDPOINT"
+	imdsEndpoint     = "http://169.254.169.254/metadata/identity/oauth2/token"
+)
 
 // timeoutWrapper prevents a potentially very long timeout when managed identity or CLI credential aren't available
 type timeoutWrapper struct {
@@ -101,9 +109,8 @@ func (s EnvironmentSettings) GetAzureEnvironment() (*cloud.Configuration, error)
 // 1. Client credentials
 // 2. Client certificate
 // 3. Workload identity
-// 4. MSI with a timeout of 1 second
+// 4. MSI (we use a timeout of 1 second when no compatible managed identity implementation is available)
 // 5. Azure CLI
-// 6. Retry MSI without timeout
 //
 // This order and timeout (with the exception of the additional step 5) matches the DefaultAzureCredential.
 func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error) {
@@ -134,41 +141,46 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 	// 3. Workload identity
 	// workload identity requires values for AZURE_AUTHORITY_HOST, AZURE_CLIENT_ID, AZURE_FEDERATED_TOKEN_FILE, AZURE_TENANT_ID
 	// The workload identity mutating admissions webhook in Kubernetes injects these values into the pod.
+	// These environment variables are read using the default WorkloadIdentityCredentialOptions
 
-	// The workload identity section code directly comes from the Azure SDK for Go.
-	// https://github.com/Azure/azure-sdk-for-go/blob/8aa96821d5dfea73c78e7cfc72613adb45b718c5/sdk/azidentity/default_azure_credential.go#L70-L94
-	// Copyright (c) Microsoft Corporation. All rights reserved. Licensed under the MIT License.
-
-	const (
-		azureAuthorityHost      = "AZURE_AUTHORITY_HOST"
-		azureClientID           = "AZURE_CLIENT_ID"
-		azureFederatedTokenFile = "AZURE_FEDERATED_TOKEN_FILE"
-		azureTenantID           = "AZURE_TENANT_ID"
-	)
-
-	clientID, haveClientID := os.LookupEnv(azureClientID)
-	if haveClientID {
-		if file, ok := os.LookupEnv(azureFederatedTokenFile); ok {
-			if _, ok := os.LookupEnv(azureAuthorityHost); ok {
-				if tenantID, ok := os.LookupEnv(azureTenantID); ok {
-					workloadCred, err := azidentity.NewWorkloadIdentityCredential(tenantID, clientID, file, nil)
-					if err == nil {
-						creds = append(creds, workloadCred)
-					} else {
-						errs = append(errs, err)
-					}
-				}
-			}
-		}
+	workloadCred, err := azidentity.NewWorkloadIdentityCredential(nil)
+	if err == nil {
+		creds = append(creds, workloadCred)
+	} else {
+		errs = append(errs, err)
 	}
 
 	// 4. MSI with timeout of 1 second (same as DefaultAzureCredential)
-	var msiCred *azcore.TokenCredential
 	{
 		c := s.GetMSI()
 		msiCred, err := c.GetTokenCredential()
+
+		useTimeout := true
+		if _, ok := os.LookupEnv(identityEndpoint); ok {
+			// App Service & Service Fabric
+			useTimeout = false
+		} else {
+			if _, ok := os.LookupEnv(arcIMDSEndpoint); ok {
+				// Azure Arc
+				useTimeout = false
+			} else {
+				if _, ok := os.LookupEnv(msiEndpoint); ok {
+					// Cloud Shell
+					useTimeout = false
+				} else if isVirtualMachineWithManagedIdentity() {
+					// Azure VM with MSI enabled
+					useTimeout = false
+				}
+			}
+		}
+
+		// We need to use a timeout for MSI on environments where it is not available because the request for the default IMDS endpoint can hang for several minutes.
+		if useTimeout {
+			msiCred = &timeoutWrapper{cred: msiCred, authmethod: "managed identity", timeout: 1 * time.Second}
+		}
+
 		if err == nil {
-			creds = append(creds, &timeoutWrapper{cred: msiCred, authmethod: "managed identity", timeout: 1 * time.Second})
+			creds = append(creds, msiCred)
 		} else {
 			errs = append(errs, err)
 		}
@@ -178,15 +190,10 @@ func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error
 	{
 		cred, credErr := azidentity.NewAzureCLICredential(nil)
 		if credErr == nil {
-			creds = append(creds, &timeoutWrapper{cred: cred, authmethod: "Azure CLI", timeout: 5 * time.Second})
+			creds = append(creds, &timeoutWrapper{cred: cred, authmethod: "Azure CLI", timeout: 30 * time.Second})
 		} else {
 			errs = append(errs, credErr)
 		}
-	}
-
-	// 6. Retry MSI without timeout
-	if msiCred != nil {
-		creds = append(creds, *msiCred)
 	}
 
 	if len(creds) == 0 {
@@ -426,4 +433,30 @@ func (c MSIConfig) GetTokenCredential() (token azcore.TokenCredential, err error
 // GetAzureEnvironment returns the Azure environment for a given name, supporting aliases too.
 func (s EnvironmentSettings) GetEnvironment(key string) (val string, ok bool) {
 	return metadata.GetMetadataProperty(s.Metadata, MetadataKeys[key]...)
+}
+
+// isVirtualMachineWithManagedIdentity returns true if the code is running on a virtual machine with managed identity enabled.
+// This is indicated by the standard IMDS endpoint being reachable.
+func isVirtualMachineWithManagedIdentity() bool {
+	client := http.Client{
+		Timeout: time.Second * 3,
+	}
+
+	req, err := http.NewRequest(http.MethodGet, imdsEndpoint, nil)
+	if err != nil {
+		return false
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	req = req.WithContext(ctx)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	return true
 }

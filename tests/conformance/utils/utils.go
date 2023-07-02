@@ -30,7 +30,6 @@ import (
 type CommonConfig struct {
 	ComponentType string
 	ComponentName string
-	AllOperations bool
 	Operations    map[string]struct{}
 }
 
@@ -45,11 +44,7 @@ var (
 )
 
 func (cc CommonConfig) HasOperation(operation string) bool {
-	if cc.AllOperations {
-		return true
-	}
 	_, exists := cc.Operations[operation]
-
 	return exists
 }
 
@@ -58,7 +53,6 @@ func (cc CommonConfig) CopyMap(config map[string]string) map[string]string {
 	for k, v := range config {
 		m[k] = v
 	}
-
 	return m
 }
 
@@ -133,14 +127,4 @@ func NewStringSet(values ...string) map[string]struct{} {
 	}
 
 	return set
-}
-
-func Contains[V comparable](arr []V, str V) bool {
-	for _, a := range arr {
-		if a == str {
-			return true
-		}
-	}
-
-	return false
 }

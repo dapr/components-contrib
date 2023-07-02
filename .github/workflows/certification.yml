@@ -24,7 +24,6 @@ on:
       - 'release-*'
   pull_request:
     branches:
-      # TODO: REMOVE "master" BEFORE MERGING
       - 'master'
       - 'release-*'
 

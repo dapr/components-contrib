@@ -8,11 +8,10 @@ import (
 	"net/url"
 	"testing"
 
-	dapr "github.com/dapr/components-contrib/middleware"
-	"github.com/dapr/kit/logger"
-
 	"github.com/dapr/components-contrib/internal/httputils"
 	"github.com/dapr/components-contrib/metadata"
+	dapr "github.com/dapr/components-contrib/middleware"
+	"github.com/dapr/kit/logger"
 )
 
 const parallel = 10

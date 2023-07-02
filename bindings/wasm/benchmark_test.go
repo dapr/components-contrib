@@ -14,7 +14,9 @@ limitations under the License.
 package wasm
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"testing"
 
@@ -24,7 +26,7 @@ import (
 )
 
 func BenchmarkExample(b *testing.B) {
-	md := metadata.Base{Properties: map[string]string{"path": pathArgs}}
+	md := metadata.Base{Properties: map[string]string{"url": urlArgsFile}}
 
 	l := logger.NewLogger(b.Name())
 	l.SetOutput(io.Discard)
@@ -39,11 +41,16 @@ func BenchmarkExample(b *testing.B) {
 	}
 
 	request := &bindings.InvokeRequest{Operation: ExecuteOperation}
+	// args returns argv back as stdout. Since we aren't doing adding any in
+	// the request, the only arg we expect is the program name: "main"
+	expected := []byte("main")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := output.Invoke(ctx, request); err != nil {
+		if resp, err := output.Invoke(ctx, request); err != nil {
 			b.Fatal(err)
+		} else if !bytes.Equal(expected, resp.Data) {
+			b.Fatal(fmt.Errorf("unexpected response data: %s", string(resp.Data)))
 		}
 	}
 }

@@ -1,0 +1,14 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.gcp.firestore
+  version: v1
+  metadata:
+   - name: project_id
+     value: ${{GCP_PROJECT_ID}}
+   - name: entity_kind
+     value: "ConformanceTestEntity"
+   - name: noindex
+     value:  "false"

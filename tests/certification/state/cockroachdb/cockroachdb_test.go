@@ -198,28 +198,36 @@ func TestCockroach(t *testing.T) {
 		err = stateStore.Multi(context.Background(), &state.TransactionalStateRequest{
 			Operations: []state.TransactionalStateOperation{
 				state.SetRequest{
-					Key:      "reqKey1",
-					Value:    "reqVal1",
-					Metadata: map[string]string{},
+					Key:   "reqKey1",
+					Value: "reqVal1",
+					Metadata: map[string]string{
+						"ttlInSeconds": "-1",
+					},
 				},
 				state.SetRequest{
-					Key:      "reqKey2",
-					Value:    "reqVal2",
-					Metadata: map[string]string{},
+					Key:   "reqKey2",
+					Value: "reqVal2",
+					Metadata: map[string]string{
+						"ttlInSeconds": "222",
+					},
 				},
 				state.SetRequest{
 					Key:   "reqKey3",
 					Value: "reqVal3",
 				},
 				state.SetRequest{
-					Key:      "reqKey1",
-					Value:    "reqVal101",
-					Metadata: map[string]string{},
+					Key:   "reqKey1",
+					Value: "reqVal101",
+					Metadata: map[string]string{
+						"ttlInSeconds": "50",
+					},
 				},
 				state.SetRequest{
-					Key:      "reqKey3",
-					Value:    "reqVal103",
-					Metadata: map[string]string{},
+					Key:   "reqKey3",
+					Value: "reqVal103",
+					Metadata: map[string]string{
+						"ttlInSeconds": "50",
+					},
 				},
 				state.DeleteRequest{
 					Key:      certificationTestPrefix + "key1",
@@ -247,6 +255,9 @@ func TestCockroach(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, "2", *resp3.ETag)
 		assert.Equal(t, "\"reqVal103\"", string(resp3.Data))
+		require.Contains(t, resp3.Metadata, "ttlExpireTime")
+		expireTime, err := time.Parse(time.RFC3339, resp3.Metadata["ttlExpireTime"])
+		assert.InDelta(t, time.Now().Add(50*time.Second).Unix(), expireTime.Unix(), 5)
 		return nil
 	}
 

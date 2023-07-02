@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"k8s.io/utils/clock"
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
@@ -32,9 +33,12 @@ import (
 )
 
 type inMemoryStore struct {
+	state.BulkStore
+
 	items   map[string]*inMemStateStoreItem
 	lock    sync.RWMutex
 	log     logger.Logger
+	clock   clock.Clock
 	closeCh chan struct{}
 	closed  atomic.Bool
 	wg      sync.WaitGroup
@@ -45,11 +49,14 @@ func NewInMemoryStateStore(log logger.Logger) state.Store {
 }
 
 func newStateStore(log logger.Logger) *inMemoryStore {
-	return &inMemoryStore{
+	s := &inMemoryStore{
 		items:   map[string]*inMemStateStoreItem{},
 		log:     log,
 		closeCh: make(chan struct{}),
+		clock:   clock.RealClock{},
 	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 func (store *inMemoryStore) Init(ctx context.Context, metadata state.Metadata) error {
@@ -138,42 +145,11 @@ func (store *inMemoryStore) doDelete(ctx context.Context, key string) {
 	delete(store.items, key)
 }
 
-func (store *inMemoryStore) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	if len(req) == 0 {
-		return nil
-	}
-
-	// step1: validate parameters
-	for i := 0; i < len(req); i++ {
-		if err := state.CheckRequestOptions(&req[i].Options); err != nil {
-			return err
-		}
-	}
-
-	// step2 and step3 should be protected by write-lock
-	store.lock.Lock()
-	defer store.lock.Unlock()
-
-	// step2: validate etag if needed
-	for _, dr := range req {
-		err := store.doValidateEtag(dr.Key, dr.ETag, dr.Options.Concurrency)
-		if err != nil {
-			return fmt.Errorf("etag mismatch for key %s", dr.Key)
-		}
-	}
-
-	// step3: do really delete
-	for _, dr := range req {
-		store.doDelete(ctx, dr.Key)
-	}
-	return nil
-}
-
 func (store *inMemoryStore) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	store.lock.RLock()
 	item := store.items[req.Key]
 	store.lock.RUnlock()
-	if item != nil && item.isExpired() {
+	if item != nil && item.isExpired(store.clock.Now()) {
 		store.lock.Lock()
 		item = store.getAndExpire(req.Key)
 		store.lock.Unlock()
@@ -183,7 +159,14 @@ func (store *inMemoryStore) Get(ctx context.Context, req *state.GetRequest) (*st
 		return &state.GetResponse{}, nil
 	}
 
-	return &state.GetResponse{Data: item.data, ETag: item.etag}, nil
+	var metadata map[string]string
+	if item.expire != nil {
+		metadata = map[string]string{
+			state.GetRespMetaKeyTTLExpireTime: item.expire.UTC().Format(time.RFC3339),
+		}
+	}
+
+	return &state.GetResponse{Data: item.data, ETag: item.etag, Metadata: metadata}, nil
 }
 
 func (store *inMemoryStore) BulkGet(ctx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
@@ -196,20 +179,28 @@ func (store *inMemoryStore) BulkGet(ctx context.Context, req []state.GetRequest,
 	store.lock.RLock()
 	defer store.lock.RUnlock()
 
-	n := 0
 	for i, r := range req {
 		item := store.items[r.Key]
-		if item != nil && !item.isExpired() {
+		if item != nil && !item.isExpired(store.clock.Now()) {
 			res[i] = state.BulkGetResponse{
 				Key:  r.Key,
 				Data: item.data,
 				ETag: item.etag,
 			}
-			n++
+
+			if item.expire != nil {
+				res[i].Metadata = map[string]string{
+					state.GetRespMetaKeyTTLExpireTime: item.expire.UTC().Format(time.RFC3339),
+				}
+			}
+		} else {
+			res[i] = state.BulkGetResponse{
+				Key: r.Key,
+			}
 		}
 	}
 
-	return res[:n], nil
+	return res, nil
 }
 
 func (store *inMemoryStore) getAndExpire(key string) *inMemStateStoreItem {
@@ -218,7 +209,7 @@ func (store *inMemoryStore) getAndExpire(key string) *inMemStateStoreItem {
 	if item == nil {
 		return nil
 	}
-	if item.isExpired() {
+	if item.isExpired(store.clock.Now()) {
 		delete(store.items, key)
 		return nil
 	}
@@ -305,7 +296,7 @@ func (store *inMemoryStore) doSet(ctx context.Context, key string, data []byte, 
 		etag: &etag,
 	}
 	if ttlInSeconds > 0 {
-		el.expire = ptr.Of(time.Now().UnixMilli() + int64(ttlInSeconds)*1000)
+		el.expire = ptr.Of(store.clock.Now().Add(time.Duration(ttlInSeconds) * time.Second))
 	}
 
 	store.items[key] = el
@@ -330,51 +321,6 @@ func (r innerSetRequest) GetKey() string {
 
 func (r innerSetRequest) GetMetadata() map[string]string {
 	return r.req.Metadata
-}
-
-func (store *inMemoryStore) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	if len(req) == 0 {
-		return nil
-	}
-
-	// step1: validate parameters
-	innerSetRequestList := make([]*innerSetRequest, 0, len(req))
-	for i := 0; i < len(req); i++ {
-		ttlInSeconds, err := store.doSetValidateParameters(&req[i])
-		if err != nil {
-			return err
-		}
-
-		bt, err := store.marshal(req[i].Value)
-		if err != nil {
-			return err
-		}
-		innerSetRequest := &innerSetRequest{
-			req:  req[i],
-			ttl:  ttlInSeconds,
-			data: bt,
-		}
-		innerSetRequestList = append(innerSetRequestList, innerSetRequest)
-	}
-
-	// step2 and step3 should be protected by write-lock
-	store.lock.Lock()
-	defer store.lock.Unlock()
-
-	// step2: validate etag if needed
-	for _, dr := range req {
-		err := store.doValidateEtag(dr.Key, dr.ETag, dr.Options.Concurrency)
-		if err != nil {
-			return fmt.Errorf("etag mismatch for key %s", dr.Key)
-		}
-	}
-
-	// step3: do really set
-	// these operations won't fail
-	for _, innerSetRequest := range innerSetRequestList {
-		store.doSet(ctx, innerSetRequest.req.Key, innerSetRequest.data, innerSetRequest.ttl)
-	}
-	return nil
 }
 
 func (store *inMemoryStore) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
@@ -458,7 +404,7 @@ func (store *inMemoryStore) doCleanExpiredItems() {
 	defer store.lock.Unlock()
 
 	for key, item := range store.items {
-		if item.expire != nil && item.isExpired() {
+		if item.expire != nil && item.isExpired(store.clock.Now()) {
 			store.doDelete(context.Background(), key)
 		}
 	}
@@ -472,12 +418,12 @@ func (store *inMemoryStore) GetComponentMetadata() map[string]string {
 type inMemStateStoreItem struct {
 	data   []byte
 	etag   *string
-	expire *int64
+	expire *time.Time
 }
 
-func (item *inMemStateStoreItem) isExpired() bool {
+func (item *inMemStateStoreItem) isExpired(now time.Time) bool {
 	if item == nil || item.expire == nil {
 		return false
 	}
-	return time.Now().UnixMilli() > *item.expire
+	return now.After(*item.expire)
 }

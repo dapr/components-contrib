@@ -15,7 +15,12 @@ package rabbitmq_test
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"github.com/dapr/components-contrib/tests/certification/flow/network"
+	"log"
+	"os"
 	"testing"
 	"time"
 
@@ -36,7 +41,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/app"
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
-	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/retry"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	"github.com/dapr/components-contrib/tests/certification/flow/simulate"
@@ -44,12 +48,14 @@ import (
 )
 
 const (
-	rabbitMQURL       = "amqp://test:test@localhost:5672"
-	clusterName       = "rabbitmqcertification"
-	dockerComposeYAML = "docker-compose.yml"
-	numOfMessages     = 10
-	sidecarName1      = "dapr-1"
-	sidecarName2      = "dapr-2"
+	rabbitMQURL              = "amqp://test:test@localhost:5672"
+	rabbitMQURLExtAuth       = "amqps://localhost:5671"
+	clusterName              = "rabbitmqcertification"
+	dockerComposeYAML        = "docker-compose.yml"
+	extSaslDockerComposeYAML = "mtls_sasl_external/docker-compose.yml"
+	numOfMessages            = 10
+	sidecarName1             = "dapr-1"
+	sidecarName2             = "dapr-2"
 )
 
 func amqpReady(url string) flow.Runnable {
@@ -499,6 +505,103 @@ func TestRabbitMQExclusive(t *testing.T) {
 		// TODO: The following test function will always fail as expected because the sidecar didn't initialize the component (expected). This should be updated to look for a much more specific error signature however by reading the sidecar's stderr.
 		Step("send and wait", test).
 		Run()
+}
+
+func TestRabbitMQExtAuth(t *testing.T) {
+	messages := watcher.NewUnordered()
+
+	ports, _ := dapr_testing.GetFreePorts(3)
+	grpcPort := ports[0]
+	httpPort := ports[1]
+	appPort := ports[2]
+
+	test := func(ctx flow.Context) error {
+		client, err := daprClient.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
+		require.NoError(t, err, "Could not initialize dapr client.")
+
+		// Declare the expected data.
+		msgs := make([]string, numOfMessages)
+
+		for i := 0; i < numOfMessages; i++ {
+			msgs[i] = fmt.Sprintf("standard-binding: Message %03d", i)
+		}
+
+		messages.ExpectStrings(msgs...)
+
+		metadata := make(map[string]string)
+
+		ctx.Log("Invoking binding!")
+		for _, msg := range msgs {
+			ctx.Logf("Sending: %q", msg)
+
+			req := &daprClient.InvokeBindingRequest{Name: "mq-mtls", Operation: "create", Data: []byte(msg), Metadata: metadata}
+			err := client.InvokeOutputBinding(ctx, req)
+			require.NoError(ctx, err, "error publishing message")
+		}
+
+		// Assertion on the data.
+		messages.Assert(ctx, time.Minute)
+
+		return nil
+	}
+
+	application := func(ctx flow.Context, s common.Service) (err error) {
+		// Setup the input binding endpoints.
+		err = multierr.Combine(err,
+			s.AddBindingInvocationHandler("mq-mtls", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
+				messages.Observe(string(in.Data))
+				ctx.Logf("Got message: %s", string(in.Data))
+				return []byte("{}"), nil
+			}))
+		return err
+	}
+
+	flow.New(t, "rabbitmq mtls certification").
+		// Run the application logic above.
+		Step(dockercompose.Run(clusterName, extSaslDockerComposeYAML)).
+		Step("wait for rabbitmq readiness",
+			retry.Do(time.Second, 30, amqpMtlsExternalAuthReady(rabbitMQURLExtAuth))).
+		Step(app.Run("standardApp", fmt.Sprintf(":%d", appPort), application)).
+		Step(sidecar.Run("standardSidecar",
+			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
+			embedded.WithDaprGRPCPort(grpcPort),
+			embedded.WithDaprHTTPPort(httpPort),
+			embedded.WithComponentsPath("./mtls_sasl_external/components/mtls_external"),
+			componentRuntimeOptions(),
+		)).
+		Step("send and wait", test).
+		Run()
+}
+
+func amqpMtlsExternalAuthReady(url string) flow.Runnable {
+	return func(ctx flow.Context) error {
+		cer, err := tls.LoadX509KeyPair("./mtls_sasl_external/docker_sasl_external/certs/client/cert.pem", "./mtls_sasl_external/docker_sasl_external/certs/client/key.pem")
+		if err != nil {
+			log.Println(err)
+		}
+
+		tlsConfig := &tls.Config{Certificates: []tls.Certificate{cer}}
+		tlsConfig.InsecureSkipVerify = false
+		tlsConfig.RootCAs = x509.NewCertPool()
+		if ok := tlsConfig.RootCAs.AppendCertsFromPEM([]byte("-----BEGIN CERTIFICATE-----\nMIIC8DCCAdigAwIBAgIUHyqaUOmitCL9oR5ut9c9A7kfapEwDQYJKoZIhvcNAQEL\nBQAwEzERMA8GA1UEAwwITXlUZXN0Q0EwHhcNMjMwMjA4MjMxNTI2WhcNMjQwMjA4\nMjMxNTI2WjATMREwDwYDVQQDDAhNeVRlc3RDQTCCASIwDQYJKoZIhvcNAQEBBQAD\nggEPADCCAQoCggEBAOb8I5ng1cnKw37YbMBrgJQnsFOuqamSWT2AQAnzet/ZIHnE\n9cl/wjNNxluku7bR/YW1AB5syoNjyoFmLb9R8rx5awP/DrYjhyEp7DWE4attTTWB\nZQp4nFp9PDlGee5pQjZl/hq3ceqMVuCDP9OQnCv9fMYmZtpzEJuoAxOTuvc4NaNS\nFzKhvUWkpq/6lelk4r8a7nmxT7KgPbLohhXJmrfy81bQRrMz0m4eDlNDeDHm5IUg\n4dbUCsTPs8hibeogbz1DtSQh8wPe2IgsSKrJc94KSzrdhY7UohlkSxsQBXZlm/g0\nGyGdLmf39/iMn2x9bbqQodO+CiSoNm0rXdi+5zsCAwEAAaM8MDowDAYDVR0TBAUw\nAwEB/zALBgNVHQ8EBAMCAQYwHQYDVR0OBBYEFG8vXs0iB+ovHV1aISx/aJSYAOnF\nMA0GCSqGSIb3DQEBCwUAA4IBAQCOyfgf4TszN9jq+/CKJaTCC/Lw7Wkrzjx88/Sj\nCs8efyuM2ps/7+ce71jM5oUnSysg4cZcdEdKTVgd/ZQxcOyksQRskjhG/Y5MUHRl\nO2JH3zRSRKP3vKyHQ6K9DWIQw6RgC1PB+qG+MjU5MJONpn/H/7sjCeSCZqSWoled\nUhAKF0YAipYtMgpuE+lrwIu0LVQFvbK3QFPo59LYazjI4JG6mLC0mPE1rKOY4+cZ\nuDA6D/qYtM1344ZIYHrV1jhWRI8cwS0AUoYPTGb+muSXKpW0qeOJZmJli6wkAqZx\n0BULAkIRi0nBXhTP5w53TjAWwvNQ7IK+5MXBPr/f+ZjjtHIG\n-----END CERTIFICATE-----")); !ok {
+			os.Exit(1)
+		}
+		log.Println("Trying to connect...")
+		conn, err := amqp.DialTLS_ExternalAuth(url, tlsConfig)
+
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+
+		ch, err := conn.Channel()
+		if err != nil {
+			return err
+		}
+		defer ch.Close()
+
+		return nil
+	}
 }
 
 func componentRuntimeOptions() []runtime.Option {

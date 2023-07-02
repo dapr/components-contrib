@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"testing"
 	"time"
 
@@ -137,6 +138,11 @@ func TestSqliteIntegration(t *testing.T) {
 
 	t.Run("Multi with set only", func(t *testing.T) {
 		multiWithSetOnly(t, s)
+	})
+
+	t.Run("ttlExpireTime", func(t *testing.T) {
+		getExpireTime(t, s)
+		getBulkExpireTime(t, s)
 	})
 
 	t.Run("Binary data", func(t *testing.T) {
@@ -488,6 +494,65 @@ func setNoTTLUpdatesExpiry(t *testing.T, s state.Store) {
 	deleteItem(t, s, key, nil)
 }
 
+func getExpireTime(t *testing.T, s state.Store) {
+	key1 := randomKey()
+	assert.NoError(t, s.Set(context.Background(), &state.SetRequest{
+		Key:   key1,
+		Value: "123",
+		Metadata: map[string]string{
+			"ttlInSeconds": "1000",
+		},
+	}))
+
+	resp, err := s.Get(context.Background(), &state.GetRequest{Key: key1})
+	assert.NoError(t, err)
+	assert.Equal(t, `"123"`, string(resp.Data))
+	require.Len(t, resp.Metadata, 1)
+	expireTime, err := time.Parse(time.RFC3339, resp.Metadata["ttlExpireTime"])
+	require.NoError(t, err)
+	assert.InDelta(t, time.Now().Add(time.Second*1000).Unix(), expireTime.Unix(), 10)
+}
+
+func getBulkExpireTime(t *testing.T, s state.Store) {
+	key1 := randomKey()
+	key2 := randomKey()
+
+	assert.NoError(t, s.Set(context.Background(), &state.SetRequest{
+		Key:   key1,
+		Value: "123",
+		Metadata: map[string]string{
+			"ttlInSeconds": "1000",
+		},
+	}))
+	assert.NoError(t, s.Set(context.Background(), &state.SetRequest{
+		Key:   key2,
+		Value: "456",
+		Metadata: map[string]string{
+			"ttlInSeconds": "2001",
+		},
+	}))
+
+	resp, err := s.BulkGet(context.Background(), []state.GetRequest{
+		{Key: key1}, {Key: key2},
+	}, state.BulkGetOpts{})
+	require.NoError(t, err)
+	assert.Len(t, resp, 2)
+	sort.Slice(resp, func(i, j int) bool {
+		return string(resp[i].Data) < string(resp[j].Data)
+	})
+
+	assert.Equal(t, `"123"`, string(resp[0].Data))
+	assert.Equal(t, `"456"`, string(resp[1].Data))
+	require.Len(t, resp[0].Metadata, 1)
+	require.Len(t, resp[1].Metadata, 1)
+	expireTime, err := time.Parse(time.RFC3339, resp[0].Metadata["ttlExpireTime"])
+	require.NoError(t, err)
+	assert.InDelta(t, time.Now().Add(time.Second*1000).Unix(), expireTime.Unix(), 10)
+	expireTime, err = time.Parse(time.RFC3339, resp[1].Metadata["ttlExpireTime"])
+	require.NoError(t, err)
+	assert.InDelta(t, time.Now().Add(time.Second*2001).Unix(), expireTime.Unix(), 10)
+}
+
 // expiredStateCannotBeRead proves that an expired state element can not be read.
 func expiredStateCannotBeRead(t *testing.T, s state.Store) {
 	key := randomKey()
@@ -582,7 +647,7 @@ func testBulkSetAndBulkDelete(t *testing.T, s state.Store) {
 		},
 	}
 
-	err := s.BulkSet(context.Background(), setReq)
+	err := s.BulkSet(context.Background(), setReq, state.BulkStoreOpts{})
 	assert.NoError(t, err)
 	assert.True(t, storeItemExists(t, s, setReq[0].Key))
 	assert.True(t, storeItemExists(t, s, setReq[1].Key))
@@ -596,7 +661,7 @@ func testBulkSetAndBulkDelete(t *testing.T, s state.Store) {
 		},
 	}
 
-	err = s.BulkDelete(context.Background(), deleteReq)
+	err = s.BulkDelete(context.Background(), deleteReq, state.BulkStoreOpts{})
 	assert.NoError(t, err)
 	assert.False(t, storeItemExists(t, s, setReq[0].Key))
 	assert.False(t, storeItemExists(t, s, setReq[1].Key))

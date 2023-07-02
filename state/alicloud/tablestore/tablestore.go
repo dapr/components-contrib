@@ -170,7 +170,7 @@ func (s *AliCloudTableStore) updateRowChange(req *state.SetRequest) *tablestore.
 	value, _ := marshal(req.Value)
 	change.PutColumn(stateValue, value)
 
-	if req.ETag != nil {
+	if req.HasETag() {
 		change.PutColumn(sateEtag, *req.ETag)
 	}
 
@@ -213,35 +213,6 @@ func (s *AliCloudTableStore) deleteRowChange(req *state.DeleteRequest) *tablesto
 	change.SetCondition(tablestore.RowExistenceExpectation_EXPECT_EXIST) //nolint:nosnakecase
 
 	return change
-}
-
-func (s *AliCloudTableStore) BulkSet(ctx context.Context, reqs []state.SetRequest) error {
-	return s.batchWrite(ctx, reqs, nil)
-}
-
-func (s *AliCloudTableStore) BulkDelete(ctx context.Context, reqs []state.DeleteRequest) error {
-	return s.batchWrite(ctx, nil, reqs)
-}
-
-func (s *AliCloudTableStore) batchWrite(ctx context.Context, setReqs []state.SetRequest, deleteReqs []state.DeleteRequest) error {
-	bathReq := &tablestore.BatchWriteRowRequest{
-		IsAtomic: true,
-	}
-
-	for i := range setReqs {
-		bathReq.AddRowChange(s.updateRowChange(&setReqs[i]))
-	}
-
-	for i := range deleteReqs {
-		bathReq.AddRowChange(s.deleteRowChange(&deleteReqs[i]))
-	}
-
-	_, err := s.client.BatchWriteRow(bathReq)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (s *AliCloudTableStore) parse(meta state.Metadata) (*tablestoreMetadata, error) {

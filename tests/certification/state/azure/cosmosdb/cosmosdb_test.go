@@ -191,7 +191,7 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 								Metadata: setMetadata,
 							})
 						}
-						err := store.BulkSet(ctx, reqs)
+						err := store.BulkSet(ctx, reqs, state.BulkStoreOpts{})
 						require.NoError(t, err)
 					})
 
@@ -249,7 +249,7 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 						}
 
 						// Delete
-						err := store.BulkDelete(ctx, deleteReqs)
+						err := store.BulkDelete(ctx, deleteReqs, state.BulkStoreOpts{})
 						require.NoError(t, err)
 
 						// Retrieve

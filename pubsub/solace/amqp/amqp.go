@@ -129,7 +129,7 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 	if err != nil {
 		a.logger.Errorf("Unable to create link to %s", req.Topic, err)
 	} else {
-		err = sender.Send(ctx, m)
+		err = sender.Send(ctx, m, nil)
 
 		// If the publish operation has failed, attempt to republish a maximum number of times
 		// before giving up
@@ -138,7 +138,7 @@ func (a *amqpPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) er
 				a.publishRetryCount++
 
 				// Send message
-				err = sender.Send(ctx, m)
+				err = sender.Send(ctx, m, nil)
 
 				if err != nil {
 					a.logger.Warnf("Failed to publish a message to the broker", err)
@@ -196,7 +196,7 @@ func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiv
 	defer a.logger.Infof("closing receiver for %s", t)
 	for ctx.Err() == nil {
 		// Receive next message
-		msg, err := receiver.Receive(ctx)
+		msg, err := receiver.Receive(ctx, nil)
 
 		if msg != nil {
 			data := msg.GetData()
@@ -208,7 +208,7 @@ func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiv
 
 			pubsubMsg := &pubsub.NewMessage{
 				Data:  data,
-				Topic: msg.LinkName(),
+				Topic: receiver.LinkName(),
 			}
 
 			if err != nil {
@@ -224,7 +224,7 @@ func (a *amqpPubSub) subscribeForever(ctx context.Context, receiver *amqp.Receiv
 					a.logger.Errorf("failed to acknowledge a message")
 				}
 			} else {
-				a.logger.Errorf("Error processing message from %s", msg.LinkName())
+				a.logger.Errorf("Error processing message from %s", receiver.LinkName())
 				a.logger.Debugf("NAKd a message")
 				err := receiver.RejectMessage(ctx, msg, nil)
 				if err != nil {
@@ -245,7 +245,7 @@ func (a *amqpPubSub) connect(ctx context.Context) (*amqp.Session, error) {
 	clientOpts := a.createClientOptions(uri)
 
 	a.logger.Infof("Attempting to connect to %s", a.metadata.URL)
-	client, err := amqp.Dial(a.metadata.URL, &clientOpts)
+	client, err := amqp.Dial(ctx, a.metadata.URL, &clientOpts)
 	if err != nil {
 		a.logger.Fatal("Dialing AMQP server:", err)
 	}

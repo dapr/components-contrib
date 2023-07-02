@@ -141,7 +141,7 @@ func (p *PubSub) Close() (err error) {
 }
 
 func (p *PubSub) Features() []pubsub.Feature {
-	return nil
+	return []pubsub.Feature{pubsub.FeatureBulkPublish}
 }
 
 func adaptHandler(handler pubsub.Handler) kafka.EventHandler {

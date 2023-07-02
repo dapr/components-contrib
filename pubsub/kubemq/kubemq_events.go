@@ -2,6 +2,8 @@ package kubemq
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -101,14 +103,31 @@ func (k *kubeMQEvents) Publish(req *pubsub.PublishRequest) error {
 	if err := k.init(); err != nil {
 		return err
 	}
+	if req.Topic == "" {
+		return fmt.Errorf("kubemq pub/sub error: topic is required")
+	}
+	metadata := ""
+	if req.Metadata != nil {
+		data, err := json.Marshal(req.Metadata)
+		if err != nil {
+			return fmt.Errorf("kubemq pub/sub error: failed to marshal metadata: %s", err.Error())
+		}
+		metadata = string(data)
+	}
+	contentType := ""
+	if req.ContentType != nil {
+		contentType = *req.ContentType
+	}
 	k.logger.Debugf("kubemq pub/sub: publishing message to %s", req.Topic)
 	event := &kubemq.Event{
 		Id:       "",
 		Channel:  req.Topic,
-		Metadata: "",
+		Metadata: metadata,
 		Body:     req.Data,
 		ClientId: k.metadata.ClientID,
-		Tags:     map[string]string{},
+		Tags: map[string]string{
+			"ContentType": contentType,
+		},
 	}
 	if err := k.publishFunc(event); err != nil {
 		k.logger.Errorf("kubemq pub/sub error: publishing to %s failed with error: %s", req.Topic, err.Error())
@@ -142,9 +161,21 @@ func (k *kubeMQEvents) Subscribe(ctx context.Context, req pubsub.SubscribeReques
 		if ctx.Err() != nil {
 			return
 		}
+		var metadata map[string]string
+		if event.Metadata != "" {
+			_ = json.Unmarshal([]byte(event.Metadata), &metadata)
+		}
+		var contentType *string
+		if event.Tags != nil {
+			if event.Tags["ContentType"] != "" {
+				*contentType = event.Tags["ContentType"]
+			}
+		}
 		msg := &pubsub.NewMessage{
-			Data:  event.Body,
-			Topic: req.Topic,
+			Data:        event.Body,
+			Topic:       req.Topic,
+			Metadata:    metadata,
+			ContentType: contentType,
 		}
 
 		if err := handler(k.ctx, msg); err != nil {
@@ -172,6 +203,9 @@ func (k *kubeMQEvents) Subscribe(ctx context.Context, req pubsub.SubscribeReques
 func (k *kubeMQEvents) Close() error {
 	if k.ctxCancel != nil {
 		k.ctxCancel()
+	}
+	if k.client == nil {
+		return nil
 	}
 	return k.client.Close()
 }

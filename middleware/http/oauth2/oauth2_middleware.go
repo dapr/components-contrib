@@ -105,13 +105,14 @@ func (m *Middleware) handler(next http.Handler) http.Handler {
 		if claims[claimToken] != "" {
 			r.Header.Add(m.meta.AuthHeaderName, claims[claimToken])
 			next.ServeHTTP(w, r)
+			return
 		}
 
 		// If we have the "state" and "code" parameter, we need to exchange the authorization code for the access token
 		code := r.URL.Query().Get("code")
 		state := r.URL.Query().Get("state")
 		if code != "" && state != "" {
-			m.exchangeAccessCode(r.Context(), w, claims, code, state, secureCookie)
+			m.exchangeAccessCode(r.Context(), w, claims, code, state, r.URL.Host, secureCookie)
 			return
 		}
 
@@ -138,14 +139,19 @@ func (m *Middleware) redirectToAuthenticationEndpoint(w http.ResponseWriter, red
 	err = m.setSecureCookie(w, map[string]string{
 		claimState:    state,
 		claimRedirect: redirectURL.String(),
-	}, authenticationTimeout, secureCookie)
+	}, authenticationTimeout, redirectURL.Host, secureCookie)
+	if err != nil {
+		httputils.RespondWithError(w, http.StatusInternalServerError)
+		m.logger.Errorf("Failed to set secure cookie: %w", err)
+		return
+	}
 
 	// Redirect to the auth endpoint
 	url := m.meta.oauth2Conf.AuthCodeURL(state, oauth2.AccessTypeOffline)
 	httputils.RespondWithRedirect(w, http.StatusFound, url)
 }
 
-func (m *Middleware) exchangeAccessCode(ctx context.Context, w http.ResponseWriter, claims map[string]string, code string, state string, secureCookie bool) {
+func (m *Middleware) exchangeAccessCode(ctx context.Context, w http.ResponseWriter, claims map[string]string, code string, state string, domain string, secureCookie bool) {
 	if claims[claimRedirect] == "" {
 		httputils.RespondWithError(w, http.StatusInternalServerError)
 		m.logger.Error("Missing claim 'redirect'")
@@ -172,10 +178,9 @@ func (m *Middleware) exchangeAccessCode(ctx context.Context, w http.ResponseWrit
 	}
 
 	// Set the cookie
-	saveClaims := map[string]string{
+	err = m.setSecureCookie(w, map[string]string{
 		claimToken: token.Type() + " " + token.AccessToken,
-	}
-	err = m.setSecureCookie(w, saveClaims, exp, secureCookie)
+	}, exp, domain, secureCookie)
 	if err != nil {
 		httputils.RespondWithError(w, http.StatusInternalServerError)
 		m.logger.Errorf("Failed to set secure cookie: %w", err)
@@ -218,7 +223,7 @@ func (m *Middleware) getClaimsFromCookie(r *http.Request) (map[string]string, er
 	return cast.ToStringMapString(token.PrivateClaims()), nil
 }
 
-func (m *Middleware) setSecureCookie(w http.ResponseWriter, claims map[string]string, ttl time.Duration, isSecure bool) error {
+func (m *Middleware) setSecureCookie(w http.ResponseWriter, claims map[string]string, ttl time.Duration, domain string, isSecure bool) error {
 	now := time.Now()
 	exp := now.Add(ttl)
 
@@ -255,9 +260,10 @@ func (m *Middleware) setSecureCookie(w http.ResponseWriter, claims map[string]st
 	http.SetCookie(w, &http.Cookie{
 		Name:     m.meta.CookieName,
 		Value:    string(val),
-		Expires:  exp,
+		MaxAge:   int(ttl.Seconds()),
 		HttpOnly: true,
 		Secure:   isSecure,
+		Domain:   domain,
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
 	})

@@ -11,7 +11,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package oauth2
+// Package impl contains the abstract, shared implementation for the OAuth2 middleware.
+package impl
 
 import (
 	"context"
@@ -31,7 +32,6 @@ import (
 
 	"github.com/dapr/components-contrib/internal/httputils"
 	mdutils "github.com/dapr/components-contrib/metadata"
-	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 )
 
@@ -49,30 +49,31 @@ const (
 	claimState     = "state"
 )
 
-// NewOAuth2Middleware returns a new oAuth2 middleware.
-func NewOAuth2Middleware(log logger.Logger) middleware.Middleware {
-	return &Middleware{
-		logger: log,
-	}
+// ErrTokenTooLargeForCookie is returned by SetSecureCookie when the token is too large to be stored in a cookie
+var ErrTokenTooLargeForCookie = errors.New("token is too large to be stored in a cookie")
+
+// OAuth2Middleware is an oAuth2 authentication middleware.
+type OAuth2Middleware struct {
+	logger logger.Logger
+	meta   OAuth2MiddlewareMetadata
+
+	// GetClaimsFn is the function invoked to retrieve the claims from the request.
+	GetClaimsFn func(r *http.Request) (map[string]string, error)
+	// SetClaimsFn is the function invoked to store claims in the response.
+	SetClaimsFn func(w http.ResponseWriter, claims map[string]string, ttl time.Duration, domain string, secureContext bool) error
 }
 
-// Middleware is an oAuth2 authentication middleware.
-type Middleware struct {
-	logger logger.Logger
-	meta   oAuth2MiddlewareMetadata
+// SetMetadata sets the metadata in the object.
+func (m *OAuth2Middleware) SetMetadata(meta OAuth2MiddlewareMetadata) {
+	m.meta = meta
 }
 
 // GetHandler retruns the HTTP handler provided by the middleware.
-func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
-	err := m.meta.fromMetadata(metadata, m.logger)
+func (m *OAuth2Middleware) GetHandler(ctx context.Context) (func(next http.Handler) http.Handler, error) {
+	// Derive the token keys
+	err := m.meta.setTokenKeys()
 	if err != nil {
-		return nil, fmt.Errorf("invalid metadata: %w", err)
-	}
-
-	// Derive the cookie keys
-	err = m.meta.setCookieKeys()
-	if err != nil {
-		return nil, fmt.Errorf("failed to derive cookie keys: %w", err)
+		return nil, fmt.Errorf("failed to derive token keys: %w", err)
 	}
 
 	// Create the OAuth2 configuration object
@@ -81,19 +82,37 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 	return m.handler, nil
 }
 
-func (m *Middleware) handler(next http.Handler) http.Handler {
+func (m *OAuth2Middleware) handler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// To check if the request is coming in using HTTPS, we check if the scheme of the URL is "https"
 		// Checking for `r.TLS` alone may not work if Dapr is behind a proxy that does TLS termination
-		secureCookie := r.URL.Scheme == "https"
+		secureContext := r.URL.Scheme == "https"
 
-		// Get the token from the cookie
-		claims, err := m.getClaimsFromCookie(r)
+		// If we have the "state" and "code" parameter, we need to exchange the authorization code for the access token
+		code := r.URL.Query().Get("code")
+		state := r.URL.Query().Get("state")
+		if code != "" && state != "" {
+			// Always get the claims from the cookies in this case
+			claims, err := m.GetClaimsFromCookie(r)
+			if err != nil {
+				// If the cookie is invalid, redirect to the auth endpoint again
+				// This will overwrite the old cookie
+				m.logger.Debugf("Invalid session cookie: %v", err)
+				m.redirectToAuthenticationEndpoint(w, r.URL, secureContext)
+				return
+			}
+
+			m.exchangeAccessCode(r.Context(), w, claims, code, state, r.URL.Host, secureContext)
+			return
+		}
+
+		// Get the token from the request
+		// This uses the function provided by the implementation
+		claims, err := m.GetClaimsFn(r)
 		if err != nil {
-			// If the cookie is invalid, redirect to the auth endpoint again
-			// This will overwrite the old cookie
+			// If the function returns an error, redirect to the auth endpoint again
 			m.logger.Debugf("Invalid session cookie: %v", err)
-			m.redirectToAuthenticationEndpoint(w, r.URL, secureCookie)
+			m.redirectToAuthenticationEndpoint(w, r.URL, secureContext)
 			return
 		}
 
@@ -108,20 +127,12 @@ func (m *Middleware) handler(next http.Handler) http.Handler {
 			return
 		}
 
-		// If we have the "state" and "code" parameter, we need to exchange the authorization code for the access token
-		code := r.URL.Query().Get("code")
-		state := r.URL.Query().Get("state")
-		if code != "" && state != "" {
-			m.exchangeAccessCode(r.Context(), w, claims, code, state, r.URL.Host, secureCookie)
-			return
-		}
-
 		// Redirect to the auhentication endpoint
-		m.redirectToAuthenticationEndpoint(w, r.URL, secureCookie)
+		m.redirectToAuthenticationEndpoint(w, r.URL, secureContext)
 	})
 }
 
-func (m *Middleware) redirectToAuthenticationEndpoint(w http.ResponseWriter, redirectURL *url.URL, secureCookie bool) {
+func (m *OAuth2Middleware) redirectToAuthenticationEndpoint(w http.ResponseWriter, redirectURL *url.URL, secureContext bool) {
 	// Generate a new state token
 	stateObj, err := uuid.NewRandom()
 	if err != nil {
@@ -136,10 +147,10 @@ func (m *Middleware) redirectToAuthenticationEndpoint(w http.ResponseWriter, red
 	}
 
 	// Set the cookie with the state and redirect URL
-	err = m.setSecureCookie(w, map[string]string{
+	err = m.SetSecureCookie(w, map[string]string{
 		claimState:    state,
 		claimRedirect: redirectURL.String(),
-	}, authenticationTimeout, redirectURL.Host, secureCookie)
+	}, authenticationTimeout, redirectURL.Host, secureContext)
 	if err != nil {
 		httputils.RespondWithError(w, http.StatusInternalServerError)
 		m.logger.Errorf("Failed to set secure cookie: %v", err)
@@ -151,8 +162,8 @@ func (m *Middleware) redirectToAuthenticationEndpoint(w http.ResponseWriter, red
 	httputils.RespondWithRedirect(w, http.StatusFound, url)
 }
 
-func (m *Middleware) exchangeAccessCode(ctx context.Context, w http.ResponseWriter, claims map[string]string, code string, state string, domain string, secureCookie bool) {
-	if claims[claimRedirect] == "" {
+func (m *OAuth2Middleware) exchangeAccessCode(ctx context.Context, w http.ResponseWriter, claims map[string]string, code string, state string, domain string, secureContext bool) {
+	if len(claims) == 0 || claims[claimRedirect] == "" {
 		httputils.RespondWithError(w, http.StatusInternalServerError)
 		m.logger.Error("Missing claim 'redirect'")
 		return
@@ -177,14 +188,14 @@ func (m *Middleware) exchangeAccessCode(ctx context.Context, w http.ResponseWrit
 		exp = time.Hour
 	}
 
-	// Set the cookie
-	err = m.setSecureCookie(w, map[string]string{
+	// Set the claims in the response
+	err = m.SetClaimsFn(w, map[string]string{
 		claimTokenType: token.Type(),
 		claimToken:     token.AccessToken,
-	}, exp, domain, secureCookie)
+	}, exp, domain, secureContext)
 	if err != nil {
 		httputils.RespondWithError(w, http.StatusInternalServerError)
-		m.logger.Errorf("Failed to set secure cookie: %v", err)
+		m.logger.Errorf("Failed to set token in the response: %v", err)
 		return
 	}
 
@@ -192,7 +203,32 @@ func (m *Middleware) exchangeAccessCode(ctx context.Context, w http.ResponseWrit
 	httputils.RespondWithRedirect(w, http.StatusFound, claims[claimRedirect])
 }
 
-func (m *Middleware) getClaimsFromCookie(r *http.Request) (map[string]string, error) {
+func (m *OAuth2Middleware) ParseToken(token string) (map[string]string, error) {
+	// Decrypt the encrypted (JWE) token
+	dec, err := jwe.Decrypt(
+		[]byte(token),
+		jwe.WithKey(jwa.A128KW, m.meta.encKey),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt token: %w", err)
+	}
+
+	// Validate the JWT from the decrypted token
+	tk, err := jwt.Parse(dec,
+		jwt.WithKey(jwa.HS256, m.meta.sigKey),
+		jwt.WithIssuer(jwtIssuer),
+		jwt.WithAudience(m.meta.ClientID), // Use the client ID as audience
+		jwt.WithAcceptableSkew(allowedClockSkew),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate JWT token: %w", err)
+	}
+
+	return cast.ToStringMapString(tk.PrivateClaims()), nil
+}
+
+// GetClaimsFromCookie retrieves the claims from the cookie.
+func (m *OAuth2Middleware) GetClaimsFromCookie(r *http.Request) (map[string]string, error) {
 	// Get the cookie, which should contain a JWE
 	cookie, err := r.Cookie(m.meta.CookieName)
 	if errors.Is(err, http.ErrNoCookie) || cookie.Valid() != nil || cookie.Value == "" {
@@ -202,30 +238,11 @@ func (m *Middleware) getClaimsFromCookie(r *http.Request) (map[string]string, er
 		return nil, fmt.Errorf("failed to retrieve cookie: %w", err)
 	}
 
-	// Decrypt the encrypted (JWE) cookie
-	dec, err := jwe.Decrypt(
-		[]byte(cookie.Value),
-		jwe.WithKey(jwa.A128KW, m.meta.cek),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt cookie: %w", err)
-	}
-
-	// Validate the JWT from the decrypted cookie
-	token, err := jwt.Parse(dec,
-		jwt.WithKey(jwa.HS256, m.meta.csk),
-		jwt.WithIssuer(jwtIssuer),
-		jwt.WithAudience(m.meta.ClientID), // Use the client ID as audience
-		jwt.WithAcceptableSkew(allowedClockSkew),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to validate JWT token: %w", err)
-	}
-
-	return cast.ToStringMapString(token.PrivateClaims()), nil
+	return m.ParseToken(cookie.Value)
 }
 
-func (m *Middleware) setSecureCookie(w http.ResponseWriter, claims map[string]string, ttl time.Duration, domain string, isSecure bool) error {
+// CreateToken generates an encrypted JWT containing the claims.
+func (m *OAuth2Middleware) CreateToken(claims map[string]string, ttl time.Duration) (string, error) {
 	now := time.Now()
 	exp := now.Add(ttl)
 
@@ -243,7 +260,7 @@ func (m *Middleware) setSecureCookie(w http.ResponseWriter, claims map[string]st
 	}
 	token, err := builder.Build()
 	if err != nil {
-		return fmt.Errorf("error building JWT: %w", err)
+		return "", fmt.Errorf("error building JWT: %w", err)
 	}
 
 	// Generate the encrypted JWT
@@ -251,30 +268,39 @@ func (m *Middleware) setSecureCookie(w http.ResponseWriter, claims map[string]st
 	if claimsSize > 800 {
 		// If the total size of the claims is more than 800 bytes, we should enable compression
 		encryptOpts = []jwt.EncryptOption{
-			jwt.WithKey(jwa.A128KW, m.meta.cek),
+			jwt.WithKey(jwa.A128KW, m.meta.encKey),
 			jwt.WithEncryptOption(jwe.WithContentEncryption(jwa.A128GCM)),
 			jwt.WithEncryptOption(jwe.WithCompress(jwa.Deflate)),
 		}
 	} else {
 		encryptOpts = []jwt.EncryptOption{
-			jwt.WithKey(jwa.A128KW, m.meta.cek),
+			jwt.WithKey(jwa.A128KW, m.meta.encKey),
 			jwt.WithEncryptOption(jwe.WithContentEncryption(jwa.A128GCM)),
 		}
 	}
 	val, err := jwt.NewSerializer().
 		Sign(
-			jwt.WithKey(jwa.HS256, m.meta.csk),
+			jwt.WithKey(jwa.HS256, m.meta.sigKey),
 		).
 		Encrypt(encryptOpts...).
 		Serialize(token)
 	if err != nil {
-		return fmt.Errorf("failed to serialize token: %w", err)
+		return "", fmt.Errorf("failed to serialize token: %w", err)
+	}
+
+	return string(val), nil
+}
+
+func (m *OAuth2Middleware) SetSecureCookie(w http.ResponseWriter, claims map[string]string, ttl time.Duration, domain string, isSecure bool) error {
+	token, err := m.CreateToken(claims, ttl)
+	if err != nil {
+		return err
 	}
 
 	// Generate the cookie
 	cookie := http.Cookie{
 		Name:     m.meta.CookieName,
-		Value:    string(val),
+		Value:    token,
 		MaxAge:   int(ttl.Seconds()),
 		HttpOnly: true,
 		Secure:   isSecure,
@@ -284,10 +310,10 @@ func (m *Middleware) setSecureCookie(w http.ResponseWriter, claims map[string]st
 	}
 	cookieStr := cookie.String()
 
-	// Browsers have a maximum size of about 4KB, and if the cookie is larger than that (by looking at the entire value of the header), it is silently rejected
+	// Browsers have a maximum size of 4093 bytes, and if the cookie is larger than that (by looking at the entire value of the header), it is silently rejected
 	// Some info: https://stackoverflow.com/a/4604212/192024
-	if len(cookieStr) > 4<<10 {
-		return errors.New("token is too large to be stored in a cookie")
+	if len(cookieStr) > 4093 {
+		return ErrTokenTooLargeForCookie
 	}
 
 	// Finally set the cookie
@@ -296,7 +322,7 @@ func (m *Middleware) setSecureCookie(w http.ResponseWriter, claims map[string]st
 	return nil
 }
 
-func (m *Middleware) UnsetCookie(w http.ResponseWriter, isSecure bool) {
+func (m *OAuth2Middleware) UnsetCookie(w http.ResponseWriter, isSecure bool) {
 	// To delete the cookie, create a new cookie with the same name, but no value and that has already expired
 	http.SetCookie(w, &http.Cookie{
 		Name:     m.meta.CookieName,
@@ -310,8 +336,8 @@ func (m *Middleware) UnsetCookie(w http.ResponseWriter, isSecure bool) {
 	})
 }
 
-func (m *Middleware) GetComponentMetadata() map[string]string {
-	metadataStruct := oAuth2MiddlewareMetadata{}
+func (m *OAuth2Middleware) GetComponentMetadata() map[string]string {
+	metadataStruct := OAuth2MiddlewareMetadata{}
 	metadataInfo := map[string]string{}
 	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
 	return metadataInfo

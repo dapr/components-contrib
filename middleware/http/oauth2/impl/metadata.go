@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package oauth2
+package impl
 
 import (
 	"crypto"
@@ -34,15 +34,14 @@ import (
 
 const (
 	defaultAuthHeaderName = "Authorization"
-	defaultTokenStorage   = "memory"
 	defaultCookieName     = "_dapr_oauth2"
 
 	// Key used to derive cookie encryption keys using HMAC.
 	hmacKey = "dapr_oauth2"
 )
 
-// Metadata is the oAuth middleware config.
-type oAuth2MiddlewareMetadata struct {
+// OAuth2MiddlewareMetadata is the OAuth2 middleware config.
+type OAuth2MiddlewareMetadata struct {
 	// Client ID of the OAuth2 application.
 	// Required.
 	ClientID string `json:"clientID" mapstructure:"clientID"`
@@ -66,26 +65,26 @@ type oAuth2MiddlewareMetadata struct {
 	// Forces the use of TLS/HTTPS for the redirect URL.
 	// Defaults to false.
 	ForceHTTPS bool `json:"forceHTTPS" mapstructure:"forceHTTPS"`
-	// Name of the cookie where Dapr will store the encrypted access token, when storing tokens in cookies.
-	// Defaults to "_dapr_oauth2".
-	CookieName string `json:"cookieName" mapstructure:"cookieName"`
-	// Cookie encryption and signing key (technically, seed used to derive those two).
+	// Token encryption and signing key (technically, seed used to derive those two).
 	// It is recommended to provide a random string with sufficient entropy.
 	// Required to allow sessions to persist across restarts of the Dapr runtime and to allow multiple instances of Dapr to access the session.
 	// Not setting an explicit encryption key is deprecated, and this field will become required in Dapr 1.13.
 	// TODO @ItalyPaleAle: make required in Dapr 1.13.
-	CookieKey string `json:"cookieKey" mapstructure:"cookieKey"`
+	TokenEncryptionKey string `json:"tokenEncryptionKey" mapstructure:"tokenEncryptionKey"`
+	// Name of the cookie where Dapr will store the session state during authentication (and when using cookies for storage, the encrypted access token too).
+	// Defaults to "_dapr_oauth2".
+	CookieName string `json:"cookieName" mapstructure:"cookieName"`
 
-	// Internal: cookie encryption key
-	cek jwk.Key
-	// Internal: cookie signing key
-	csk jwk.Key
+	// Internal: token encryption key
+	encKey jwk.Key
+	// Internal: token signing key
+	sigKey jwk.Key
 	// Internal: OAuth2 configuration object
 	oauth2Conf oauth2.Config
 }
 
 // Parse the component's metadata into the object.
-func (md *oAuth2MiddlewareMetadata) fromMetadata(metadata middleware.Metadata, log logger.Logger) error {
+func (md *OAuth2MiddlewareMetadata) FromMetadata(metadata middleware.Metadata, log logger.Logger) error {
 	// Set default values
 	if md.AuthHeaderName == "" {
 		md.AuthHeaderName = defaultAuthHeaderName
@@ -117,40 +116,40 @@ func (md *oAuth2MiddlewareMetadata) fromMetadata(metadata middleware.Metadata, l
 		return errors.New("required field 'redirectURL' is empty")
 	}
 
-	// If there's no cookie encryption key, show a warning
+	// If there's no token encryption key, show a warning
 	// TODO @ItalyPaleAle: make required in Dapr 1.13.
-	if md.CookieKey == "" {
-		log.Warnf("[DEPRECATION NOTICE] Initializing the OAuth2 middleware with an empty 'cookieKey' is deprecated, and the field will become required in Dapr 1.13. Setting an explicit 'cookieKey' is required to allow sessions to be shared across multiple instances of Dapr and to survive a restart of Dapr.")
+	if md.TokenEncryptionKey == "" {
+		log.Warnf("[DEPRECATION NOTICE] Initializing the OAuth2 middleware with an empty 'tokenEncryptionKey' is deprecated, and the field will become required in Dapr 1.13. Setting an explicit 'tokenEncryptionKey' is required to allow sessions to be shared across multiple instances of Dapr and to survive a restart of Dapr.")
 	}
 
 	return nil
 }
 
-// Derives a 128-bit cookie encryption key and a 256-bit cookie signing key from the user-provided value.
-func (md *oAuth2MiddlewareMetadata) setCookieKeys() (err error) {
+// setTokenKeys derives a 128-bit token encryption key and a 256-bit token signing key from the user-provided value.
+func (md *OAuth2MiddlewareMetadata) setTokenKeys() (err error) {
 	var b []byte
 
-	if md.CookieKey == "" {
+	if md.TokenEncryptionKey == "" {
 		// TODO @ItalyPaleAle: uncomment for Dapr 1.13 and remove existing code in this block
 		/*
-			// This should never happen as the validation method ensures that cookieKey isn't empty
+			// This should never happen as the validation method ensures that tokenEncryptionKey isn't empty
 			// So if we're here, it means there was a development-time error.
-			panic("cookie encryption key is empty")
+			panic("token encryption key is empty")
 		*/
 
-		// If the user didn't provide a cookie key, generate a random one
-		// Naturally, this means that the cookie key is unique to this process and cookies cannot be decrypted by other instances of Dapr or if the process is restarted
+		// If the user didn't provide an encryption key, generate a random one
+		// Naturally, this means that the key is unique to this process and sessions cannot be decrypted by other instances of Dapr or if the process is restarted
 		// This is not good, but it is no different than how this component behaved in Dapr 1.11.
 		// This behavior is deprecated and will be removed in Dapr 1.13.
 		b = make([]byte, 48)
 		_, err = io.ReadFull(rand.Reader, b)
 		if err != nil {
-			return fmt.Errorf("failed to generate a random cookie key: %w", err)
+			return fmt.Errorf("failed to generate a random encryption key: %w", err)
 		}
 	} else {
-		// Derive 48 bytes from the cookie key using HMAC with a fixed "HMAC key"
+		// Derive 48 bytes from the token encryption key using HMAC with a fixed "HMAC key"
 		h := hmac.New(crypto.SHA384.New, []byte(hmacKey))
-		h.Write([]byte(md.CookieKey))
+		h.Write([]byte(md.TokenEncryptionKey))
 		b = h.Sum(nil)
 	}
 
@@ -159,25 +158,25 @@ func (md *oAuth2MiddlewareMetadata) setCookieKeys() (err error) {
 	kidH.Write(b)
 	kid := base64.RawURLEncoding.EncodeToString(kidH.Sum(nil))
 
-	// Cookie encryption key uses 128 bits
-	md.cek, err = jwk.FromRaw(b[:16])
+	// Token encryption key uses 128 bits
+	md.encKey, err = jwk.FromRaw(b[:16])
 	if err != nil {
-		return fmt.Errorf("failed to import cookie encryption key: %w", err)
+		return fmt.Errorf("failed to import token encryption key: %w", err)
 	}
-	md.cek.Set("kid", kid)
+	md.encKey.Set("kid", kid)
 
-	// Cookie signing key uses 256 bits
-	md.csk, err = jwk.FromRaw(b[16:])
+	// Token signing key uses 256 bits
+	md.sigKey, err = jwk.FromRaw(b[16:])
 	if err != nil {
-		return fmt.Errorf("failed to import cookie signing key: %w", err)
+		return fmt.Errorf("failed to import token signing key: %w", err)
 	}
-	md.csk.Set("kid", kid)
+	md.sigKey.Set("kid", kid)
 
 	return nil
 }
 
-// Sets the oauth2Conf property in the object.
-func (md *oAuth2MiddlewareMetadata) setOAuth2Conf() {
+// setOAuth2Conf sets the oauth2Conf property in the object.
+func (md *OAuth2MiddlewareMetadata) setOAuth2Conf() {
 	md.oauth2Conf = oauth2.Config{
 		ClientID:     md.ClientID,
 		ClientSecret: md.ClientSecret,

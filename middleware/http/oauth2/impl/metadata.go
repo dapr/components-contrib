@@ -62,9 +62,6 @@ type OAuth2MiddlewareMetadata struct {
 	// The URL of your application that the authorization server should redirect to once the user has authenticated.
 	// Required.
 	RedirectURL string `json:"redirectURL" mapstructure:"redirectURL"`
-	// Forces the use of TLS/HTTPS for the redirect URL.
-	// Defaults to false.
-	ForceHTTPS bool `json:"forceHTTPS" mapstructure:"forceHTTPS"`
 	// Token encryption and signing key (technically, seed used to derive those two).
 	// It is recommended to provide a random string with sufficient entropy.
 	// Required to allow sessions to persist across restarts of the Dapr runtime and to allow multiple instances of Dapr to access the session.

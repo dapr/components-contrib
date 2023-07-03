@@ -147,7 +147,7 @@ func (m *Middleware) redirectToAuthenticationEndpoint(w http.ResponseWriter, red
 	}, authenticationTimeout, redirectURL.Host, secureCookie)
 	if err != nil {
 		httputils.RespondWithError(w, http.StatusInternalServerError)
-		m.logger.Errorf("Failed to set secure cookie: %w", err)
+		m.logger.Errorf("Failed to set secure cookie: %v", err)
 		return
 	}
 
@@ -189,7 +189,7 @@ func (m *Middleware) exchangeAccessCode(ctx context.Context, w http.ResponseWrit
 	}, exp, domain, secureCookie)
 	if err != nil {
 		httputils.RespondWithError(w, http.StatusInternalServerError)
-		m.logger.Errorf("Failed to set secure cookie: %w", err)
+		m.logger.Errorf("Failed to set secure cookie: %v", err)
 		return
 	}
 
@@ -275,8 +275,8 @@ func (m *Middleware) setSecureCookie(w http.ResponseWriter, claims map[string]st
 		return fmt.Errorf("failed to serialize token: %w", err)
 	}
 
-	// Set the cookie
-	http.SetCookie(w, &http.Cookie{
+	// Generate the cookie
+	cookie := http.Cookie{
 		Name:     m.meta.CookieName,
 		Value:    string(val),
 		MaxAge:   int(ttl.Seconds()),
@@ -285,7 +285,17 @@ func (m *Middleware) setSecureCookie(w http.ResponseWriter, claims map[string]st
 		Domain:   domain,
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
-	})
+	}
+	cookieStr := cookie.String()
+
+	// Browsers have a maximum size of about 4KB, and if the cookie is larger than that (by looking at the entire value of the header), it is silently rejected
+	// Some info: https://stackoverflow.com/a/4604212/192024
+	if len(cookieStr) > 4<<10 {
+		return errors.New("token is too large to be stored in a cookie")
+	}
+
+	// Finally set the cookie
+	w.Header().Add("Set-Cookie", cookieStr)
 
 	return nil
 }

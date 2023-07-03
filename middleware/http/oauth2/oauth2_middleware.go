@@ -43,9 +43,10 @@ const (
 	// Issuer for JWTs
 	jwtIssuer = "oauth2.dapr.io"
 
-	claimToken    = "token"
-	claimRedirect = "redirect"
-	claimState    = "state"
+	claimToken     = "tkn"
+	claimTokenType = "tkt"
+	claimRedirect  = "redirect"
+	claimState     = "state"
 )
 
 // NewOAuth2Middleware returns a new oAuth2 middleware.
@@ -103,7 +104,11 @@ func (m *Middleware) handler(next http.Handler) http.Handler {
 
 		// If we already have a token, forward the request to the app
 		if claims[claimToken] != "" {
-			r.Header.Add(m.meta.AuthHeaderName, claims[claimToken])
+			if claims[claimTokenType] != "" {
+				r.Header.Add(m.meta.AuthHeaderName, claims[claimTokenType]+" "+claims[claimToken])
+			} else {
+				r.Header.Add(m.meta.AuthHeaderName, claims[claimToken])
+			}
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -179,7 +184,8 @@ func (m *Middleware) exchangeAccessCode(ctx context.Context, w http.ResponseWrit
 
 	// Set the cookie
 	err = m.setSecureCookie(w, map[string]string{
-		claimToken: token.Type() + " " + token.AccessToken,
+		claimTokenType: token.Type(),
+		claimToken:     token.AccessToken,
 	}, exp, domain, secureCookie)
 	if err != nil {
 		httputils.RespondWithError(w, http.StatusInternalServerError)
@@ -234,8 +240,10 @@ func (m *Middleware) setSecureCookie(w http.ResponseWriter, claims map[string]st
 		Audience([]string{m.meta.ClientID}).
 		Expiration(exp).
 		NotBefore(now)
+	var claimsSize int
 	for k, v := range claims {
 		builder.Claim(k, v)
+		claimsSize += len(v)
 	}
 	token, err := builder.Build()
 	if err != nil {
@@ -243,14 +251,25 @@ func (m *Middleware) setSecureCookie(w http.ResponseWriter, claims map[string]st
 	}
 
 	// Generate the encrypted JWT
+	var encryptOpts []jwt.EncryptOption
+	if claimsSize > 800 {
+		// If the total size of the claims is more than 800 bytes, we should enable compression
+		encryptOpts = []jwt.EncryptOption{
+			jwt.WithKey(jwa.A128KW, m.meta.cek),
+			jwt.WithEncryptOption(jwe.WithContentEncryption(jwa.A128GCM)),
+			jwt.WithEncryptOption(jwe.WithCompress(jwa.Deflate)),
+		}
+	} else {
+		encryptOpts = []jwt.EncryptOption{
+			jwt.WithKey(jwa.A128KW, m.meta.cek),
+			jwt.WithEncryptOption(jwe.WithContentEncryption(jwa.A128GCM)),
+		}
+	}
 	val, err := jwt.NewSerializer().
 		Sign(
 			jwt.WithKey(jwa.HS256, m.meta.csk),
 		).
-		Encrypt(
-			jwt.WithKey(jwa.A128KW, m.meta.cek),
-			jwt.WithEncryptOption(jwe.WithContentEncryption(jwa.A128GCM)),
-		).
+		Encrypt(encryptOpts...).
 		Serialize(token)
 	if err != nil {
 		return fmt.Errorf("failed to serialize token: %w", err)

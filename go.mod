@@ -413,3 +413,6 @@ replace github.com/Shopify/sarama => github.com/Shopify/sarama v1.37.2
 
 // this is a fork which addresses a performance issues due to go routines.
 replace dubbo.apache.org/dubbo-go/v3 => dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
+
+// TODO: Remove once a new release of jwx that fixes https://github.com/lestrrat-go/jwx/pull/952 is merged
+replace github.com/lestrrat-go/jwx/v2 => github.com/italypaleale/jwx/v2 v2.0.0-20230702235135-620113e5ff93

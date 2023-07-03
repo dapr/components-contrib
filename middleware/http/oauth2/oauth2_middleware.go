@@ -62,11 +62,6 @@ type Middleware struct {
 	meta   oAuth2MiddlewareMetadata
 }
 
-const (
-	savedState   = "auth-state"
-	redirectPath = "redirect-url"
-)
-
 // GetHandler retruns the HTTP handler provided by the middleware.
 func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
 	err := m.meta.fromMetadata(metadata, m.logger)
@@ -201,6 +196,7 @@ func (m *Middleware) getClaimsFromCookie(r *http.Request) (map[string]string, er
 	// Get the cookie, which should contain a JWE
 	cookie, err := r.Cookie(m.meta.CookieName)
 	if errors.Is(err, http.ErrNoCookie) || cookie.Valid() != nil || cookie.Value == "" {
+		//nolint:nilerr
 		return nil, nil
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to retrieve cookie: %w", err)
@@ -300,7 +296,7 @@ func (m *Middleware) setSecureCookie(w http.ResponseWriter, claims map[string]st
 	return nil
 }
 
-func (m *Middleware) unsetCookie(w http.ResponseWriter, isSecure bool) {
+func (m *Middleware) UnsetCookie(w http.ResponseWriter, isSecure bool) {
 	// To delete the cookie, create a new cookie with the same name, but no value and that has already expired
 	http.SetCookie(w, &http.Cookie{
 		Name:     m.meta.CookieName,
@@ -312,15 +308,6 @@ func (m *Middleware) unsetCookie(w http.ResponseWriter, isSecure bool) {
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
 	})
-}
-
-func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*oAuth2MiddlewareMetadata, error) {
-	var middlewareMetadata oAuth2MiddlewareMetadata
-	err := mdutils.DecodeMetadata(metadata.Properties, &middlewareMetadata)
-	if err != nil {
-		return nil, err
-	}
-	return &middlewareMetadata, nil
 }
 
 func (m *Middleware) GetComponentMetadata() map[string]string {

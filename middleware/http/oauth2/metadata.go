@@ -143,7 +143,7 @@ func (md *oAuth2MiddlewareMetadata) setCookieKeys() (err error) {
 		// This is not good, but it is no different than how this component behaved in Dapr 1.11.
 		// This behavior is deprecated and will be removed in Dapr 1.13.
 		b = make([]byte, 48)
-		_, err := io.ReadFull(rand.Reader, b)
+		_, err = io.ReadFull(rand.Reader, b)
 		if err != nil {
 			return fmt.Errorf("failed to generate a random cookie key: %w", err)
 		}

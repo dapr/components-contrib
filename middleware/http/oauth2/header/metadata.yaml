@@ -1,0 +1,88 @@
+# yaml-language-server: $schema=../../../../component-metadata-schema.json
+schemaVersion: "v1"
+type: "middleware"
+name: "http.oauth2.header"
+version: "v1"
+status: "alpha"
+title: "OAuth2 (Header)"
+description: |
+  Enables the OAuth2 Authorization Code flow, requiring access tokens to be passed in the "Authorization" header in requests to Dapr.
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-middleware/middleware-oauth2-header/
+metadata:
+  - name: clientID
+    description: |
+      Client ID of the OAuth2 application.
+    type: string
+    required: true
+    sensitive: false
+    example: |
+      "39cc4eaf-4ad9-4bb2-bf84-791678dbbf57"
+  - name: clientSecret
+    description: |
+      Client secret of the OAuth2 application.
+    type: string
+    required: true
+    sensitive: true
+    example: |
+      "39cc4eaf-4ad9-4bb2-bf84-791678dbbf57"
+  - name: scopes
+    description: |
+      Scopes to request, as a comma-separated string
+    type: string
+    required: false
+    default: ""
+    example: |
+      Google: "https://www.googleapis.com/auth/userinfo.email"
+      Microsoft Graph: "https://graph.microsoft.com/User.Read"
+  - name: authURL
+    description: |
+      URL of the OAuth2 authorization server.
+    type: string
+    required: true
+    example: |
+      Google: "https://accounts.google.com/o/oauth2/v2/auth"
+      Azure AD: "https://login.microsoftonline.com/{tenantID}/oauth2/v2.0/authorize"
+  - name: tokenURL
+    description: |
+      URL of the OAuth2 token endpoint, used to exchange an authorization code for an access token.
+    type: string
+    required: true
+    example: |
+      Google: "https://accounts.google.com/o/oauth2/token"
+      Azure AD: "https://login.microsoftonline.com/{tenantID}/oauth2/v2.0/token"
+  - name: authHeaderName
+    description: |
+      Name of the header forwarded to the application, containing the token.
+      Note that this impacts only the name of the header forwarded to the application. Dapr always expects access tokens in the "Authorization" header.
+    type: string
+    required: false
+    default: |
+      "Authorization"
+    example: |
+      "x-dapr-auth"
+  - name: redirectURL
+    description: |
+      The URL of your application that the authorization server should redirect to once the user has authenticated.
+    type: string
+    required: true
+    example: |
+      "https://myapp.com"
+  - name: "tokenEncryptionKey"
+    description: |
+      Token encryption and signing key (technically, seed used to derive those two). It is recommended to provide a random string with sufficient entropy.
+      This can for example be generated with `openssl rand -base64 24` (the value does not need to be base64-encoded).
+    type: string
+    required: true
+    example: |
+      "21af6uV80hocAzs7/Ok4oOcdMCqPQit6"
+  - name: "cookieName"
+    description: |
+      Name of the cookie used by Dapr to store session state during authentication.
+    type: string
+    required: false
+    default: |
+      "_dapr_oauth2"
+    example: |
+      "auth"

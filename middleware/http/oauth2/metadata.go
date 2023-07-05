@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package impl
+package oauth2
 
 import (
 	"crypto"
@@ -33,6 +33,9 @@ import (
 )
 
 const (
+	modeCookie = "cookie"
+	modeHeader = "header"
+
 	defaultAuthHeaderName = "Authorization"
 	defaultCookieName     = "_dapr_oauth2"
 
@@ -42,6 +45,10 @@ const (
 
 // OAuth2MiddlewareMetadata is the OAuth2 middleware config.
 type OAuth2MiddlewareMetadata struct {
+	// Mode of operation: 'cookie' (default) or 'header'
+	// - In 'cookie' mode, access tokens are set in cookies, and clients are automatically redirected to the URL they requested before authenticating.
+	// - In 'header' mode, access tokens must be passed to Dapr in the "Authorization" header. Once the user has been authenticated, the access token is returned in the body of the response; clients are not automatically redirected.
+	Mode string `json:"mode" mapstructure:"mode"`
 	// Client ID of the OAuth2 application.
 	// Required.
 	ClientID string `json:"clientID" mapstructure:"clientID"`
@@ -71,6 +78,10 @@ type OAuth2MiddlewareMetadata struct {
 	// Name of the cookie where Dapr will store the session state during authentication (and when using cookies for storage, the encrypted access token too).
 	// Defaults to "_dapr_oauth2".
 	CookieName string `json:"cookieName" mapstructure:"cookieName"`
+	// Forces the use of TLS/HTTPS for the redirect URL.
+	// Only used when "mode" is "cookie"
+	// Defaults to false.
+	ForceHTTPS bool `json:"forceHTTPS" mapstructure:"forceHTTPS"`
 
 	// Internal: token encryption key
 	encKey jwk.Key
@@ -83,12 +94,9 @@ type OAuth2MiddlewareMetadata struct {
 // Parse the component's metadata into the object.
 func (md *OAuth2MiddlewareMetadata) FromMetadata(metadata middleware.Metadata, log logger.Logger) error {
 	// Set default values
-	if md.AuthHeaderName == "" {
-		md.AuthHeaderName = defaultAuthHeaderName
-	}
-	if md.CookieName == "" {
-		md.CookieName = defaultCookieName
-	}
+	md.AuthHeaderName = defaultAuthHeaderName
+	md.CookieName = defaultCookieName
+	md.Mode = modeCookie
 
 	// Decode the properties
 	err := mdutils.DecodeMetadata(metadata.Properties, md)
@@ -97,6 +105,14 @@ func (md *OAuth2MiddlewareMetadata) FromMetadata(metadata middleware.Metadata, l
 	}
 
 	// Check required fields
+	md.Mode = strings.ToLower(md.Mode)
+	switch md.Mode {
+	case "cookie", "header":
+		// Ok
+	default:
+		return errors.New("field 'mode' is invalid: must be 'cookie' (default) or 'header'")
+	}
+
 	if md.ClientID == "" {
 		return errors.New("required field 'clientID' is empty")
 	}

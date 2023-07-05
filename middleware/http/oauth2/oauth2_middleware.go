@@ -11,14 +11,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package impl contains the abstract, shared implementation for the OAuth2 middleware.
-package impl
+package oauth2
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,6 +31,8 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/dapr/components-contrib/internal/httputils"
+	mdutils "github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 )
 
@@ -43,40 +47,61 @@ const (
 	claimToken     = "tkn"
 	claimTokenType = "tkt"
 	claimState     = "state"
+	claimRedirect  = "redirect"
+
+	headerName   = "Authorization"
+	bearerPrefix = "bearer "
 )
 
 // ErrTokenTooLargeForCookie is returned by SetSecureCookie when the token is too large to be stored in a cookie
 var ErrTokenTooLargeForCookie = errors.New("token is too large to be stored in a cookie")
 
-// OAuth2Middleware is an oAuth2 authentication middleware.
+// OAuth2Middleware is an OAuth2 authentication middleware.
 type OAuth2Middleware struct {
-	Logger logger.Logger
+	// Function invoked to retrieve the token from the request.
+	getTokenFn func(r *http.Request) (map[string]string, error)
+	// Optional function invoked before redirecting to the authorization endpoint that allows setting additional claims in the state cookie.
+	claimsForAuthFn func(r *http.Request) (map[string]string, error)
+	// Function invoked to store the token in the response.
+	setTokenFn func(w http.ResponseWriter, r *http.Request, reqClaims map[string]string, token string, exp time.Duration)
 
-	// GetTokenFn is the function invoked to retrieve the token from the request.
-	GetTokenFn func(r *http.Request) (map[string]string, error)
-	// ClaimsForAuthFn is an optional function invoked before redirecting to the authorization endpoint that allows setting additional claims in the state cookie.
-	ClaimsForAuthFn func(r *http.Request) (map[string]string, error)
-	// SetTokenFn is the function invoked to store the token in the response.
-	SetTokenFn func(w http.ResponseWriter, r *http.Request, reqClaims map[string]string, token string, exp time.Duration)
-
-	meta OAuth2MiddlewareMetadata
+	logger logger.Logger
+	meta   OAuth2MiddlewareMetadata
 }
 
-// SetMetadata sets the metadata in the object.
-func (m *OAuth2Middleware) SetMetadata(meta OAuth2MiddlewareMetadata) {
-	m.meta = meta
+// NewOAuth2Middleware returns a new OAuth2 middleware.
+func NewOAuth2Middleware(log logger.Logger) middleware.Middleware {
+	return &OAuth2Middleware{
+		logger: log,
+	}
 }
 
 // GetHandler retruns the HTTP handler provided by the middleware.
-func (m *OAuth2Middleware) GetHandler(ctx context.Context) (func(next http.Handler) http.Handler, error) {
+func (m *OAuth2Middleware) GetHandler(ctx context.Context, metadata middleware.Metadata) (func(next http.Handler) http.Handler, error) {
+	err := m.meta.FromMetadata(metadata, m.logger)
+	if err != nil {
+		return nil, fmt.Errorf("invalid metadata: %w", err)
+	}
+
 	// Derive the token keys
-	err := m.meta.setTokenKeys()
+	err = m.meta.setTokenKeys()
 	if err != nil {
 		return nil, fmt.Errorf("failed to derive token keys: %w", err)
 	}
 
 	// Create the OAuth2 configuration object
 	m.meta.setOAuth2Conf()
+
+	// Set the callbacks depending on the mode of operation
+	switch m.meta.Mode {
+	case modeCookie:
+		m.getTokenFn = m.GetClaimsFromCookie
+		m.setTokenFn = m.cookieModeSetTokenInResponse
+		m.claimsForAuthFn = m.cookieModeClaimsForAuth
+	case modeHeader:
+		m.getTokenFn = m.headerModeGetClaimsFromHeader
+		m.setTokenFn = m.headerModeSetTokenResponse
+	}
 
 	return m.handler, nil
 }
@@ -92,7 +117,7 @@ func (m *OAuth2Middleware) handler(next http.Handler) http.Handler {
 			if err != nil {
 				// If the cookie is invalid, redirect to the auth endpoint again
 				// This will overwrite the old cookie
-				m.Logger.Debugf("Invalid session cookie: %v", err)
+				m.logger.Debugf("Invalid session cookie: %v", err)
 				m.redirectToAuthenticationEndpoint(w, r)
 				return
 			}
@@ -103,10 +128,10 @@ func (m *OAuth2Middleware) handler(next http.Handler) http.Handler {
 
 		// Get the token from the request
 		// This uses the function provided by the implementation
-		claims, err := m.GetTokenFn(r)
+		claims, err := m.getTokenFn(r)
 		if err != nil {
 			// If the function returns an error, redirect to the auth endpoint again
-			m.Logger.Debugf("Invalid session: %v", err)
+			m.logger.Debugf("Invalid session: %v", err)
 			m.redirectToAuthenticationEndpoint(w, r)
 			return
 		}
@@ -136,18 +161,18 @@ func (m *OAuth2Middleware) redirectToAuthenticationEndpoint(w http.ResponseWrite
 	stateObj, err := uuid.NewRandom()
 	if err != nil {
 		httputils.RespondWithError(w, http.StatusInternalServerError)
-		m.Logger.Errorf("Failed to generate UUID: %v", err)
+		m.logger.Errorf("Failed to generate UUID: %v", err)
 		return
 	}
 	state := stateObj.String()
 
 	// Get additional claims from the implementation
 	var claims map[string]string
-	if m.ClaimsForAuthFn != nil {
-		claims, err = m.ClaimsForAuthFn(r)
+	if m.claimsForAuthFn != nil {
+		claims, err = m.claimsForAuthFn(r)
 		if err != nil {
 			httputils.RespondWithError(w, http.StatusInternalServerError)
-			m.Logger.Errorf("Failed to retrieve claims for the authentication endpoint: %v", err)
+			m.logger.Errorf("Failed to retrieve claims for the authentication endpoint: %v", err)
 			return
 		}
 	} else {
@@ -159,7 +184,7 @@ func (m *OAuth2Middleware) redirectToAuthenticationEndpoint(w http.ResponseWrite
 	err = m.setCookieWithClaims(w, claims, authenticationTimeout, domain, isSecureContext)
 	if err != nil {
 		httputils.RespondWithError(w, http.StatusInternalServerError)
-		m.Logger.Errorf("Failed to set secure cookie: %v", err)
+		m.logger.Errorf("Failed to set secure cookie: %v", err)
 		return
 	}
 
@@ -178,7 +203,7 @@ func (m *OAuth2Middleware) exchangeAccessCode(w http.ResponseWriter, r *http.Req
 	accessToken, err := m.meta.oauth2Conf.Exchange(r.Context(), code)
 	if err != nil {
 		httputils.RespondWithError(w, http.StatusInternalServerError)
-		m.Logger.Error("Failed to exchange token")
+		m.logger.Error("Failed to exchange token")
 		return
 	}
 
@@ -195,12 +220,12 @@ func (m *OAuth2Middleware) exchangeAccessCode(w http.ResponseWriter, r *http.Req
 	}, exp)
 	if err != nil {
 		httputils.RespondWithError(w, http.StatusInternalServerError)
-		m.Logger.Errorf("Failed to generate token: %v", err)
+		m.logger.Errorf("Failed to generate token: %v", err)
 		return
 	}
 
 	// Allow the implementation to send the response
-	m.SetTokenFn(w, r, reqClaims, token, exp)
+	m.setTokenFn(w, r, reqClaims, token, exp)
 }
 
 func (m *OAuth2Middleware) ParseToken(token string) (map[string]string, error) {
@@ -338,6 +363,73 @@ func (m *OAuth2Middleware) UnsetCookie(w http.ResponseWriter, isSecure bool) {
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
 	})
+}
+
+func (m *OAuth2Middleware) cookieModeClaimsForAuth(r *http.Request) (map[string]string, error) {
+	// Get the redirect URL
+	redirectURL := r.URL
+	if m.meta.ForceHTTPS {
+		redirectURL.Scheme = "https"
+	}
+
+	return map[string]string{
+		claimRedirect: redirectURL.String(),
+	}, nil
+}
+
+func (m *OAuth2Middleware) cookieModeSetTokenInResponse(w http.ResponseWriter, r *http.Request, reqClaims map[string]string, token string, exp time.Duration) {
+	if reqClaims[claimRedirect] == "" {
+		httputils.RespondWithError(w, http.StatusInternalServerError)
+		m.logger.Error("Missing claim 'redirect'")
+		return
+	}
+
+	// Set the claims in the response
+	err := m.SetCookie(w, token, exp, r.URL.Host, IsRequestSecure(r))
+	if err != nil {
+		httputils.RespondWithError(w, http.StatusInternalServerError)
+		m.logger.Errorf("Failed to set cookie in the response: %v", err)
+		return
+	}
+
+	// Redirect to the URL set in the request
+	httputils.RespondWithRedirect(w, http.StatusFound, reqClaims[claimRedirect])
+}
+
+func (m *OAuth2Middleware) headerModeGetClaimsFromHeader(r *http.Request) (map[string]string, error) {
+	// Get the header which should contain the JWE
+	// The "Bearer " prefix is optional
+	header := r.Header.Get(headerName)
+	if header == "" {
+		return nil, nil
+	}
+	if len(header) > len(bearerPrefix) && strings.ToLower(header[0:len(bearerPrefix)]) == bearerPrefix {
+		header = header[len(bearerPrefix):]
+	}
+
+	return m.ParseToken(header)
+}
+
+func (m *OAuth2Middleware) headerModeSetTokenResponse(w http.ResponseWriter, r *http.Request, reqClaims map[string]string, token string, exp time.Duration) {
+	// Delete the state token cookie
+	m.UnsetCookie(w, IsRequestSecure(r))
+
+	// Set the response in the body
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	enc.Encode(map[string]string{
+		headerName: token,
+	})
+}
+
+func (m *OAuth2Middleware) GetComponentMetadata() map[string]string {
+	metadataStruct := OAuth2MiddlewareMetadata{}
+	metadataInfo := map[string]string{}
+	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
+	return metadataInfo
 }
 
 // IsRequestSecure returns true if the request is using a secure context.

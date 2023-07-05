@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../../../../component-metadata-schema.json
+# yaml-language-server: $schema=../../../component-metadata-schema.json
 schemaVersion: "v1"
 type: "middleware"
 name: "http.oauth2.cookie"
@@ -11,6 +11,17 @@ urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-middleware/middleware-oauth2/
 metadata:
+  - name: mode
+    description: |
+      Mode of operation: 'cookie' (default) or 'header':
+
+      - In 'cookie' mode, access tokens are set in cookies, and clients are automatically redirected to the URL they requested before authenticating.
+      - In 'header' mode, access tokens must be passed to Dapr in the "Authorization" header. Once the user has been authenticated, the access token is returned in the body of the response; clients are not automatically redirected.
+    required: false
+    type: string
+    allowedValues: ['cookie', 'header']
+    default: '"cookie"'
+    example: '"cookie"'
   - name: clientID
     description: |
       Client ID of the OAuth2 application.
@@ -71,6 +82,7 @@ metadata:
   - name: forceHTTPS
     description: |
       Forces the use of TLS/HTTPS for the redirect URL.
+      Only used when 'mode' is 'cookie'.
     type: bool
     required: false
     default: |

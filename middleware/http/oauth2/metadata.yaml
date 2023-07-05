@@ -1,12 +1,12 @@
 # yaml-language-server: $schema=../../../component-metadata-schema.json
 schemaVersion: "v1"
 type: "middleware"
-name: "http.oauth2.cookie"
+name: "http.oauth2"
 version: "v1"
 status: "alpha"
-title: "OAuth2 (Cookie)"
+title: "OAuth2"
 description: |
-  Enables the OAuth2 Authorization Code flow, storing the authentication token in a cookie on the client.
+  Enables the OAuth2 Authorization Code flow.
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-middleware/middleware-oauth2/
@@ -99,7 +99,7 @@ metadata:
       "21af6uV80hocAzs7/Ok4oOcdMCqPQit6"
   - name: "cookieName"
     description: |
-      Name of the cookie used by Dapr to store the (encrypted) access token and session state during authentication.
+      Name of the cookie used by Dapr to store the encrypted access token (if 'mode' is 'cookie') and session state during authentication.
     type: string
     required: false
     default: |

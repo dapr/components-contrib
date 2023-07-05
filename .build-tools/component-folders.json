@@ -24,8 +24,6 @@
         "configuration/redis/internal",
         "crypto/azure",
         "crypto/kubernetes",
-        "middleware/http/oauth2",
-        "middleware/http/oauth2/impl",
         "pubsub/aws",
         "pubsub/azure",
         "pubsub/azure/servicebus",

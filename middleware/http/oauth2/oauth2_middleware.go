@@ -95,6 +95,11 @@ func (m *OAuth2Middleware) GetHandler(ctx context.Context, metadata middleware.M
 	// Create the OAuth2 configuration object
 	m.meta.setOAuth2Conf()
 
+	return m.getHandler(), nil
+}
+
+// Returns the handler. This is split out to make unit testing easier.
+func (m *OAuth2Middleware) getHandler() func(next http.Handler) http.Handler {
 	// Set the callbacks depending on the mode of operation
 	switch m.meta.Mode {
 	case modeCookie:
@@ -106,7 +111,7 @@ func (m *OAuth2Middleware) GetHandler(ctx context.Context, metadata middleware.M
 		m.setTokenFn = m.headerModeSetTokenResponse
 	}
 
-	return m.handler, nil
+	return m.handler
 }
 
 func (m *OAuth2Middleware) handler(next http.Handler) http.Handler {
@@ -157,7 +162,7 @@ func (m *OAuth2Middleware) handler(next http.Handler) http.Handler {
 
 func (m *OAuth2Middleware) redirectToAuthenticationEndpoint(w http.ResponseWriter, r *http.Request) {
 	// Do this here in case ClaimsForAuthFn modifies the request object
-	domain := r.URL.Host
+	domain := r.URL.Hostname()
 	isSecureContext := IsRequestSecure(r)
 
 	// Generate a new state token
@@ -394,7 +399,7 @@ func (m *OAuth2Middleware) cookieModeSetTokenInResponse(w http.ResponseWriter, r
 	}
 
 	// Set the claims in the response
-	err := m.SetCookie(w, token, exp, r.URL.Host, IsRequestSecure(r))
+	err := m.SetCookie(w, token, exp, r.URL.Hostname(), IsRequestSecure(r))
 	if err != nil {
 		httputils.RespondWithError(w, http.StatusInternalServerError)
 		m.logger.Errorf("Failed to set cookie in the response: %v", err)

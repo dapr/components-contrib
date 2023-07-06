@@ -63,12 +63,12 @@ type OAuth2MiddlewareMetadata struct {
 	// URL of the OAuth2 token endpoint, used to exchange an authorization code for an access token.
 	// Required.
 	TokenURL string `json:"tokenURL" mapstructure:"tokenURL"`
-	// Name of the header forwarded to the application, containing the token.
-	// Default: "Authorization".
-	AuthHeaderName string `json:"authHeaderName" mapstructure:"authHeaderName"`
 	// The URL of your application that the authorization server should redirect to once the user has authenticated.
 	// Required.
 	RedirectURL string `json:"redirectURL" mapstructure:"redirectURL"`
+	// Name of the header forwarded to the application, containing the token.
+	// Default: "Authorization".
+	AuthHeaderName string `json:"authHeaderName" mapstructure:"authHeaderName"`
 	// Token encryption and signing key (technically, seed used to derive those two).
 	// It is recommended to provide a random string with sufficient entropy.
 	// Required to allow sessions to persist across restarts of the Dapr runtime and to allow multiple instances of Dapr to access the session.

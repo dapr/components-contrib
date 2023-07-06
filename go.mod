@@ -8,8 +8,9 @@ require (
 	cloud.google.com/go/secretmanager v1.10.0
 	cloud.google.com/go/storage v1.30.1
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.6.0
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.6.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0
+	github.com/Azure/azure-sdk-for-go/sdk/cognitiveservices/azopenai v0.0.0-20230705184009-934612c4f2b5
 	github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig v0.5.0
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v0.3.5
 	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.0.1

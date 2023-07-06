@@ -17,6 +17,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/ptr"
@@ -33,13 +35,17 @@ const (
 )
 
 type postgresMetadataStruct struct {
-	ConnectionString      string
-	ConnectionMaxIdleTime time.Duration
-	TableName             string // Could be in the format "schema.table" or just "table"
-	MetadataTableName     string // Could be in the format "schema.table" or just "table"
+	ConnectionString      string         `mapstructure:"connectionString"`
+	ConnectionMaxIdleTime time.Duration  `mapstructure:"connectionMaxIdleTime"`
+	TableName             string         `mapstructure:"tableName"`         // Could be in the format "schema.table" or just "table"
+	MetadataTableName     string         `mapstructure:"metadataTableName"` // Could be in the format "schema.table" or just "table"
+	Timeout               time.Duration  `mapstructure:"timeoutInSeconds"`
+	CleanupInterval       *time.Duration `mapstructure:"cleanupIntervalInSeconds"`
+	UseAzureAD            bool           `mapstructure:"useAzureAD"`
 
-	Timeout         time.Duration  `mapstructure:"timeoutInSeconds"`
-	CleanupInterval *time.Duration `mapstructure:"cleanupIntervalInSeconds"`
+	// Set to true if the component can support authentication with Azure AD.
+	// This is different from the "useAzureAD" property above, which is provided by the user and instructs the component to authenticate using Azure AD.
+	azureADEnabled bool
 }
 
 func (m *postgresMetadataStruct) InitWithMetadata(meta state.Metadata) error {
@@ -80,4 +86,17 @@ func (m *postgresMetadataStruct) InitWithMetadata(meta state.Metadata) error {
 	}
 
 	return nil
+}
+
+// GetPgxPoolConfig returns the pgxpool.Config object that contains the credentials for connecting to Postgres.
+func (m *postgresMetadataStruct) GetPgxPoolConfig() (*pgxpool.Config, error) {
+	config, err := pgxpool.ParseConfig(m.ConnectionString)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse connection string: %w", err)
+	}
+	if m.ConnectionMaxIdleTime > 0 {
+		config.MaxConnIdleTime = m.ConnectionMaxIdleTime
+	}
+
+	return config, nil
 }

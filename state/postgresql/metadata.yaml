@@ -16,14 +16,35 @@ capabilities:
   - etag
   - query
   - ttl
+builtinAuthenticationProfiles:
+  - name: "azuread"
+    metadata:
+      - name: useAzureAD
+        required: true
+        type: bool
+        example: '"true"'
+        description: |
+          Must be set to `true` to enable the component to retrieve access tokens from Azure AD.
+          This authentication method only works with Azure Database for PostgreSQL databases.
+      - name: connectionString
+        required: true
+        sensitive: true
+        description: |
+          The connection string for the PostgreSQL database
+          This must contain the user, which is normally the Client ID of the Azure AD application, but no password.
+        example: |
+          "host=mydb.postgres.database.azure.com user=<client-id> port=5432 database=dapr_test sslmode=require"
+        type: string
 authenticationProfiles:
   - title: "Connection string"
     description: "Authenticate using a Connection String."
     metadata:
       - name: connectionString
         required: true
+        sensitive: true
         description: The connection string for the PostgreSQL database
-        example: "host=localhost user=postgres password=example port=5432 connect_timeout=10 database=dapr_test"
+        example: |
+          "host=localhost user=postgres password=example port=5432 connect_timeout=10 database=dapr_test"
         type: string
 metadata:
   - name: timeoutInSeconds

@@ -43,6 +43,8 @@ const (
 	allowedClockSkew = 5 * time.Minute
 	// Issuer for JWTs
 	jwtIssuer = "oauth2.dapr.io"
+	// Min size of the access token returned by the IdP, in bytes, before it's compressed
+	tokenCompressionThreshold = 800
 
 	claimToken     = "tkn"
 	claimTokenType = "tkt"
@@ -290,8 +292,8 @@ func (m *OAuth2Middleware) CreateToken(claims map[string]string, ttl time.Durati
 
 	// Generate the encrypted JWT
 	var encryptOpts []jwt.EncryptOption
-	if claimsSize > 800 {
-		// If the total size of the claims is more than 800 bytes, we should enable compression
+	if claimsSize > tokenCompressionThreshold {
+		// If the total size of the claims is more than tokenCompressionThreshold, we should enable compression
 		encryptOpts = []jwt.EncryptOption{
 			jwt.WithKey(jwa.A128KW, m.meta.encKey),
 			jwt.WithEncryptOption(jwe.WithContentEncryption(jwa.A128GCM)),

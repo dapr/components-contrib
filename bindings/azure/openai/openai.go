@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/cognitiveservices/azopenai"
 	"github.com/dapr/components-contrib/bindings"
+	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/config"
 	"github.com/dapr/kit/logger"
@@ -97,9 +98,6 @@ func (p *AzOpenAI) Init(ctx context.Context, meta bindings.Metadata) error {
 	if err != nil {
 		return err
 	}
-	if m.APIKey == "" {
-		return fmt.Errorf("required metadata not set: %s", APIKey)
-	}
 	if m.APIBase == "" {
 		return fmt.Errorf("required metadata not set: %s", APIBase)
 	}
@@ -107,11 +105,29 @@ func (p *AzOpenAI) Init(ctx context.Context, meta bindings.Metadata) error {
 		return fmt.Errorf("required metadata not set: %s", DeploymentId)
 	}
 
-	keyCredential, err := azopenai.NewKeyCredential(m.APIKey)
-	p.client, err = azopenai.NewClientWithKeyCredential(m.APIBase, keyCredential, m.DeploymentId, nil)
-	if err != nil {
-		// TODO: handle error
-		return fmt.Errorf("error in connecting to openai: %w", err)
+	if m.APIKey != "" {
+		// use API key authentication
+		keyCredential, err := azopenai.NewKeyCredential(m.APIKey)
+		p.client, err = azopenai.NewClientWithKeyCredential(m.APIBase, keyCredential, m.DeploymentId, nil)
+		if err != nil {
+			return fmt.Errorf("error in creating Azure OpenAI client: %w", err)
+		}
+	} else {
+		// fallback to Azure AD authentication
+		settings, innerErr := azauth.NewEnvironmentSettings(meta.Properties)
+		if innerErr != nil {
+			return fmt.Errorf("error in creating environment settings: %w", innerErr)
+		}
+
+		token, innerErr := settings.GetTokenCredential()
+		if innerErr != nil {
+			return fmt.Errorf("error in getting token credential: %w", innerErr)
+		}
+
+		p.client, err = azopenai.NewClient(m.APIBase, token, m.DeploymentId, nil)
+		if err != nil {
+			return fmt.Errorf("error in creating Azure OpenAI client: %w", err)
+		}
 	}
 
 	return nil

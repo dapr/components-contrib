@@ -23,6 +23,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/cognitiveservices/azopenai"
+
 	"github.com/dapr/components-contrib/bindings"
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/components-contrib/metadata"
@@ -36,7 +37,7 @@ const (
 	ChatCompletionOperation bindings.OperationKind = "chatCompletion"
 
 	APIKey           = "apiKey"
-	DeploymentId     = "deploymentId"
+	DeploymentID     = "deploymentId"
 	APIBase          = "apiBase"
 	MessagesKey      = "messages"
 	Temperature      = "temperature"
@@ -58,8 +59,8 @@ type AzOpenAI struct {
 type openAIMetadata struct {
 	// APIKey is the API key for the OpenAI API.
 	APIKey string `mapstructure:"apiKey"`
-	// DeploymentId is the deployment ID for the OpenAI API.
-	DeploymentId string `mapstructure:"deploymentId"`
+	// DeploymentID is the deployment ID for the OpenAI API.
+	DeploymentID string `mapstructure:"deploymentId"`
 	// APIBase is the base URL for the OpenAI API.
 	APIBase string `mapstructure:"apiBase"`
 }
@@ -101,32 +102,37 @@ func (p *AzOpenAI) Init(ctx context.Context, meta bindings.Metadata) error {
 	if m.APIBase == "" {
 		return fmt.Errorf("required metadata not set: %s", APIBase)
 	}
-	if m.DeploymentId == "" {
-		return fmt.Errorf("required metadata not set: %s", DeploymentId)
+	if m.DeploymentID == "" {
+		return fmt.Errorf("required metadata not set: %s", DeploymentID)
 	}
 
 	if m.APIKey != "" {
 		// use API key authentication
-		keyCredential, err := azopenai.NewKeyCredential(m.APIKey)
-		p.client, err = azopenai.NewClientWithKeyCredential(m.APIBase, keyCredential, m.DeploymentId, nil)
+		var keyCredential azopenai.KeyCredential
+		keyCredential, err = azopenai.NewKeyCredential(m.APIKey)
 		if err != nil {
-			return fmt.Errorf("error in creating Azure OpenAI client: %w", err)
+			return fmt.Errorf("error getting credentials object: %w", err)
+		}
+
+		p.client, err = azopenai.NewClientWithKeyCredential(m.APIBase, keyCredential, m.DeploymentID, nil)
+		if err != nil {
+			return fmt.Errorf("error creating Azure OpenAI client: %w", err)
 		}
 	} else {
 		// fallback to Azure AD authentication
 		settings, innerErr := azauth.NewEnvironmentSettings(meta.Properties)
 		if innerErr != nil {
-			return fmt.Errorf("error in creating environment settings: %w", innerErr)
+			return fmt.Errorf("error creating environment settings: %w", innerErr)
 		}
 
 		token, innerErr := settings.GetTokenCredential()
 		if innerErr != nil {
-			return fmt.Errorf("error in getting token credential: %w", innerErr)
+			return fmt.Errorf("error getting token credential: %w", innerErr)
 		}
 
-		p.client, err = azopenai.NewClient(m.APIBase, token, m.DeploymentId, nil)
+		p.client, err = azopenai.NewClient(m.APIBase, token, m.DeploymentID, nil)
 		if err != nil {
-			return fmt.Errorf("error in creating Azure OpenAI client: %w", err)
+			return fmt.Errorf("error creating Azure OpenAI client: %w", err)
 		}
 	}
 
@@ -150,7 +156,7 @@ func (p *AzOpenAI) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 	startTime := time.Now().UTC()
 	resp = &bindings.InvokeResponse{
 		Metadata: map[string]string{
-			"operation":  string(req.Operation),
+			"operation": string(req.Operation),
 			"startTime": startTime.Format(time.RFC3339),
 		},
 	}
@@ -161,7 +167,6 @@ func (p *AzOpenAI) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 		if err != nil {
 			return nil, fmt.Errorf("error performing completion: %w", err)
 		}
-		p.logger.Infof("response is : %v", response)
 		resp.Metadata["response"] = response
 
 	case ChatCompletionOperation:
@@ -169,12 +174,11 @@ func (p *AzOpenAI) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 		if err != nil {
 			return nil, fmt.Errorf("error performing chat completion: %w", err)
 		}
-		p.logger.Infof("response is : %v", response)
 		resp.Metadata["response"] = response
 
 	default:
 		return nil, fmt.Errorf(
-			"invalid operation type: %s. Expected %s, %s, %s",
+			"invalid operation type: %s. Expected %s, %s",
 			req.Operation, CompletionOperation, ChatCompletionOperation,
 		)
 	}
@@ -198,7 +202,7 @@ func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[
 	var ma Prompt
 	err = json.Unmarshal(message, &ma)
 	if err != nil {
-		return "", fmt.Errorf("error in unmarshalling the message array: %w", err)
+		return "", fmt.Errorf("error unmarshalling the message array: %w", err)
 	}
 
 	settings := ChatSettings{}
@@ -209,7 +213,7 @@ func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[
 
 	err = settings.Decode(metadata)
 	if err != nil {
-		return "", fmt.Errorf("error in decoding the parameters: %w", err)
+		return "", fmt.Errorf("error decoding the parameters: %w", err)
 	}
 
 	resp, err := p.client.GetCompletions(ctx, azopenai.CompletionsOptions{
@@ -217,21 +221,21 @@ func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[
 		MaxTokens:   to.Ptr(int32(15)),
 		Temperature: to.Ptr(float32(0.0)),
 	}, nil)
-
 	if err != nil {
 		panic(err)
 	}
+
 	entry := resp.Completions
 	response = *entry.Choices[0].Text
 
-	return
+	return response, nil
 }
 
 func (p *AzOpenAI) chatCompletion(ctx context.Context, messageArray []byte, metadata map[string]string) (response string, err error) {
 	var ma MessageArray
 	err = json.Unmarshal(messageArray, &ma)
 	if err != nil {
-		return "", fmt.Errorf("error in unmarshalling the message array: %w", err)
+		return "", fmt.Errorf("error unmarshalling the message array: %w", err)
 	}
 
 	settings := ChatSettings{}
@@ -241,7 +245,7 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageArray []byte, meta
 
 	err = settings.Decode(metadata)
 	if err != nil {
-		return "", fmt.Errorf("Error in decoding the parameters: %w", err)
+		return "", fmt.Errorf("error decoding the parameters: %w", err)
 	}
 
 	messageReq := []*azopenai.ChatMessage{}
@@ -254,25 +258,24 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageArray []byte, meta
 	}
 	var maxTokens *int32
 	if settings.MaxTokens != 0 {
-		maxTokens = to.Ptr(int32(settings.MaxTokens))
+		maxTokens = &settings.MaxTokens
 	}
 
 	res, err := p.client.GetChatCompletions(ctx, azopenai.ChatCompletionsOptions{
 		MaxTokens:   maxTokens,
-		Temperature: to.Ptr(float32(settings.Temperature)),
-		TopP:        to.Ptr(float32(settings.TopP)),
-		N:           to.Ptr(int32(settings.N)),
+		Temperature: &settings.Temperature,
+		TopP:        &settings.TopP,
+		N:           &settings.N,
 		Messages:    messageReq,
 	}, nil)
-
 	if err != nil {
-		return "", fmt.Errorf("Error in chat completion api: %w", err)
+		return "", fmt.Errorf("error from chat completion api: %w", err)
 	}
 
 	entry := res.ChatCompletions
 	response = *entry.Choices[0].Message.Content
 
-	return
+	return response, nil
 }
 
 // Close Az OpenAI instance.

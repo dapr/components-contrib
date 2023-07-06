@@ -89,7 +89,9 @@ type Prompt struct {
 
 // NewOpenAI returns a new OpenAI output binding.
 func NewOpenAI(logger logger.Logger) bindings.OutputBinding {
-	return &AzOpenAI{logger: logger}
+	return &AzOpenAI{
+		logger: logger,
+	}
 }
 
 // Init initializes the OpenAI binding.
@@ -205,11 +207,16 @@ func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[
 		return "", fmt.Errorf("error unmarshalling the message array: %w", err)
 	}
 
-	settings := ChatSettings{}
-	settings.Temperature = 1.0
-	settings.TopP = 1.0
-	settings.MaxTokens = 16
-	settings.N = 1
+	if ma.Prompt == "" {
+		return "", errors.New("metadata property 'prompt' is required")
+	}
+
+	settings := ChatSettings{
+		Temperature: 1.0,
+		TopP:        1.0,
+		MaxTokens:   16,
+		N:           1,
+	}
 
 	err = settings.Decode(metadata)
 	if err != nil {
@@ -218,8 +225,10 @@ func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[
 
 	resp, err := p.client.GetCompletions(ctx, azopenai.CompletionsOptions{
 		Prompt:      []*string{to.Ptr(ma.Prompt)},
-		MaxTokens:   to.Ptr(int32(15)),
-		Temperature: to.Ptr(float32(0.0)),
+		MaxTokens:   &settings.MaxTokens,
+		Temperature: &settings.Temperature,
+		TopP:        &settings.Temperature,
+		N:           &settings.N,
 	}, nil)
 	if err != nil {
 		panic(err)
@@ -238,10 +247,15 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageArray []byte, meta
 		return "", fmt.Errorf("error unmarshalling the message array: %w", err)
 	}
 
-	settings := ChatSettings{}
-	settings.Temperature = 1.0
-	settings.TopP = 1.0
-	settings.N = 1
+	if len(ma.Messages) == 0 {
+		return "", errors.New("metadata property 'messages' is required")
+	}
+
+	settings := ChatSettings{
+		Temperature: 1.0,
+		TopP:        1.0,
+		N:           1,
+	}
 
 	err = settings.Decode(metadata)
 	if err != nil {
@@ -252,10 +266,11 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageArray []byte, meta
 	for _, message := range ma.Messages {
 		role := azopenai.ChatRole(message.Role)
 		messageReq = append(messageReq, &azopenai.ChatMessage{
-			Role:    to.Ptr(role),
-			Content: to.Ptr(message.Message),
+			Role:    &role,
+			Content: &message.Message,
 		})
 	}
+
 	var maxTokens *int32
 	if settings.MaxTokens != 0 {
 		maxTokens = &settings.MaxTokens

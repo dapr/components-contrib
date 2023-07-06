@@ -33,7 +33,7 @@ import (
 // List of operations.
 const (
 	CompletionOperation     bindings.OperationKind = "completion"
-	ChatCompletionOperation bindings.OperationKind = "chat-completion"
+	ChatCompletionOperation bindings.OperationKind = "chatCompletion"
 
 	APIKey           = "apiKey"
 	DeploymentId     = "deploymentId"
@@ -143,21 +143,15 @@ func (p *AzOpenAI) Operations() []bindings.OperationKind {
 
 // Invoke handles all invoke operations.
 func (p *AzOpenAI) Invoke(ctx context.Context, req *bindings.InvokeRequest) (resp *bindings.InvokeResponse, err error) {
-	p.logger.Infof("Invoke request: %v", req)
-	if req == nil {
-		return nil, errors.New("invoke request required")
+	if req == nil || len(req.Metadata) == 0 {
+		return nil, errors.New("request metadata must not be empty")
 	}
-
-	if req.Metadata == nil {
-		return nil, errors.New("metadata required")
-	}
-	p.logger.Debugf("operation: %v", req.Operation)
 
 	startTime := time.Now().UTC()
 	resp = &bindings.InvokeResponse{
 		Metadata: map[string]string{
 			"operation":  string(req.Operation),
-			"start-time": startTime.Format(time.RFC3339Nano),
+			"startTime": startTime.Format(time.RFC3339),
 		},
 	}
 
@@ -165,7 +159,7 @@ func (p *AzOpenAI) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 	case CompletionOperation:
 		response, err := p.completion(ctx, req.Data, req.Metadata)
 		if err != nil {
-			return nil, fmt.Errorf("error in the completion api %s: %w", &req.Data, err)
+			return nil, fmt.Errorf("error performing completion: %w", err)
 		}
 		p.logger.Infof("response is : %v", response)
 		resp.Metadata["response"] = response
@@ -173,7 +167,7 @@ func (p *AzOpenAI) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 	case ChatCompletionOperation:
 		response, err := p.chatCompletion(ctx, req.Data, req.Metadata)
 		if err != nil {
-			return nil, fmt.Errorf("error executing %s: %w", &req.Data, err)
+			return nil, fmt.Errorf("error performing chat completion: %w", err)
 		}
 		p.logger.Infof("response is : %v", response)
 		resp.Metadata["response"] = response
@@ -186,7 +180,7 @@ func (p *AzOpenAI) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 	}
 
 	endTime := time.Now().UTC()
-	resp.Metadata["end-time"] = endTime.Format(time.RFC3339Nano)
+	resp.Metadata["endTime"] = endTime.Format(time.RFC3339)
 	resp.Metadata["duration"] = endTime.Sub(startTime).String()
 
 	return resp, nil
@@ -215,10 +209,10 @@ func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[
 
 	err = settings.Decode(metadata)
 	if err != nil {
-		return "", fmt.Errorf("Error in decoding the parameters: %w", err)
+		return "", fmt.Errorf("error in decoding the parameters: %w", err)
 	}
 
-	resp, err := p.client.GetCompletions(context.TODO(), azopenai.CompletionsOptions{
+	resp, err := p.client.GetCompletions(ctx, azopenai.CompletionsOptions{
 		Prompt:      []*string{to.Ptr(ma.Prompt)},
 		MaxTokens:   to.Ptr(int32(15)),
 		Temperature: to.Ptr(float32(0.0)),
@@ -263,7 +257,7 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageArray []byte, meta
 		maxTokens = to.Ptr(int32(settings.MaxTokens))
 	}
 
-	res, err := p.client.GetChatCompletions(context.TODO(), azopenai.ChatCompletionsOptions{
+	res, err := p.client.GetChatCompletions(ctx, azopenai.ChatCompletionsOptions{
 		MaxTokens:   maxTokens,
 		Temperature: to.Ptr(float32(settings.Temperature)),
 		TopP:        to.Ptr(float32(settings.TopP)),
@@ -283,9 +277,7 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageArray []byte, meta
 
 // Close Az OpenAI instance.
 func (p *AzOpenAI) Close() error {
-	if p.client != nil {
-		p.client = nil
-	}
+	p.client = nil
 
 	return nil
 }

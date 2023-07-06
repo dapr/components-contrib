@@ -42,7 +42,7 @@ func TestMetadataValidation(t *testing.T) {
 		md := &OAuth2MiddlewareMetadata{}
 		meta := maps.Clone(allMeta)
 		delete(meta, "clientID")
-		err := md.FromMetadata(middleware.Metadata{metadata.Base{Properties: meta}}, log)
+		err := md.FromMetadata(middleware.Metadata{Base: metadata.Base{Properties: meta}}, log)
 		require.ErrorContains(t, err, "clientID")
 	})
 
@@ -50,7 +50,7 @@ func TestMetadataValidation(t *testing.T) {
 		md := &OAuth2MiddlewareMetadata{}
 		meta := maps.Clone(allMeta)
 		delete(meta, "clientSecret")
-		err := md.FromMetadata(middleware.Metadata{metadata.Base{Properties: meta}}, log)
+		err := md.FromMetadata(middleware.Metadata{Base: metadata.Base{Properties: meta}}, log)
 		require.ErrorContains(t, err, "clientSecret")
 	})
 
@@ -58,7 +58,7 @@ func TestMetadataValidation(t *testing.T) {
 		md := &OAuth2MiddlewareMetadata{}
 		meta := maps.Clone(allMeta)
 		delete(meta, "authURL")
-		err := md.FromMetadata(middleware.Metadata{metadata.Base{Properties: meta}}, log)
+		err := md.FromMetadata(middleware.Metadata{Base: metadata.Base{Properties: meta}}, log)
 		require.ErrorContains(t, err, "authURL")
 	})
 
@@ -66,7 +66,7 @@ func TestMetadataValidation(t *testing.T) {
 		md := &OAuth2MiddlewareMetadata{}
 		meta := maps.Clone(allMeta)
 		delete(meta, "tokenURL")
-		err := md.FromMetadata(middleware.Metadata{metadata.Base{Properties: meta}}, log)
+		err := md.FromMetadata(middleware.Metadata{Base: metadata.Base{Properties: meta}}, log)
 		require.ErrorContains(t, err, "tokenURL")
 	})
 
@@ -74,7 +74,7 @@ func TestMetadataValidation(t *testing.T) {
 		md := &OAuth2MiddlewareMetadata{}
 		meta := maps.Clone(allMeta)
 		delete(meta, "redirectURL")
-		err := md.FromMetadata(middleware.Metadata{metadata.Base{Properties: meta}}, log)
+		err := md.FromMetadata(middleware.Metadata{Base: metadata.Base{Properties: meta}}, log)
 		require.ErrorContains(t, err, "redirectURL")
 	})
 
@@ -84,14 +84,14 @@ func TestMetadataValidation(t *testing.T) {
 			md := &OAuth2MiddlewareMetadata{}
 			meta := maps.Clone(allMeta)
 			delete(meta, "tokenEncryptionKey")
-			err := md.FromMetadata(middleware.Metadata{metadata.Base{Properties: meta}}, log)
+			err := md.FromMetadata(middleware.Metadata{Base: metadata.Base{Properties: meta}}, log)
 			require.ErrorContains(t, err, "tokenEncryptionKey")
 		})
 	*/
 
 	t.Run("default values", func(t *testing.T) {
 		md := &OAuth2MiddlewareMetadata{}
-		err := md.FromMetadata(middleware.Metadata{metadata.Base{Properties: allMeta}}, log)
+		err := md.FromMetadata(middleware.Metadata{Base: metadata.Base{Properties: allMeta}}, log)
 		require.NoError(t, err)
 
 		assert.Equal(t, modeCookie, md.Mode)
@@ -105,7 +105,7 @@ func TestMetadataValidation(t *testing.T) {
 			meta := maps.Clone(allMeta)
 			delete(meta, "mode")
 
-			err := md.FromMetadata(middleware.Metadata{metadata.Base{Properties: meta}}, log)
+			err := md.FromMetadata(middleware.Metadata{Base: metadata.Base{Properties: meta}}, log)
 			require.NoError(t, err)
 
 			assert.Equal(t, modeCookie, md.Mode)
@@ -116,7 +116,7 @@ func TestMetadataValidation(t *testing.T) {
 			meta := maps.Clone(allMeta)
 			meta["mode"] = "COOKIE" // Should be case-insensitive
 
-			err := md.FromMetadata(middleware.Metadata{metadata.Base{Properties: meta}}, log)
+			err := md.FromMetadata(middleware.Metadata{Base: metadata.Base{Properties: meta}}, log)
 			require.NoError(t, err)
 
 			assert.Equal(t, modeCookie, md.Mode)
@@ -127,7 +127,7 @@ func TestMetadataValidation(t *testing.T) {
 			meta := maps.Clone(allMeta)
 			meta["mode"] = "header"
 
-			err := md.FromMetadata(middleware.Metadata{metadata.Base{Properties: meta}}, log)
+			err := md.FromMetadata(middleware.Metadata{Base: metadata.Base{Properties: meta}}, log)
 			require.NoError(t, err)
 
 			assert.Equal(t, modeHeader, md.Mode)
@@ -138,7 +138,7 @@ func TestMetadataValidation(t *testing.T) {
 			meta := maps.Clone(allMeta)
 			meta["mode"] = "invalid"
 
-			err := md.FromMetadata(middleware.Metadata{metadata.Base{Properties: meta}}, log)
+			err := md.FromMetadata(middleware.Metadata{Base: metadata.Base{Properties: meta}}, log)
 			require.ErrorContains(t, err, "mode")
 		})
 	})

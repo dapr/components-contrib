@@ -110,6 +110,7 @@ func TestMain(m *testing.M) {
 			return
 		}
 	})
+	//nolint:gosec
 	srv := http.Server{
 		Handler: mux,
 	}

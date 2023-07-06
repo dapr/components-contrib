@@ -37,8 +37,8 @@ const (
 	ChatCompletionOperation bindings.OperationKind = "chatCompletion"
 
 	APIKey           = "apiKey"
-	DeploymentID     = "deploymentId"
-	APIBase          = "apiBase"
+	DeploymentID     = "deploymentID"
+	Endpoint         = "endpoint"
 	MessagesKey      = "messages"
 	Temperature      = "temperature"
 	MaxTokens        = "maxTokens"
@@ -57,12 +57,12 @@ type AzOpenAI struct {
 }
 
 type openAIMetadata struct {
-	// APIKey is the API key for the OpenAI API.
+	// APIKey is the API key for the Azure OpenAI API.
 	APIKey string `mapstructure:"apiKey"`
-	// DeploymentID is the deployment ID for the OpenAI API.
-	DeploymentID string `mapstructure:"deploymentId"`
-	// APIBase is the base URL for the OpenAI API.
-	APIBase string `mapstructure:"apiBase"`
+	// DeploymentID is the deployment ID for the Azure OpenAI API.
+	DeploymentID string `mapstructure:"deploymentID"`
+	// Endpoint is the endpoint for the Azure OpenAI API.
+	Endpoint string `mapstructure:"endpoint"`
 }
 
 type ChatSettings struct {
@@ -99,8 +99,8 @@ func (p *AzOpenAI) Init(ctx context.Context, meta bindings.Metadata) error {
 	if err != nil {
 		return err
 	}
-	if m.APIBase == "" {
-		return fmt.Errorf("required metadata not set: %s", APIBase)
+	if m.Endpoint == "" {
+		return fmt.Errorf("required metadata not set: %s", Endpoint)
 	}
 	if m.DeploymentID == "" {
 		return fmt.Errorf("required metadata not set: %s", DeploymentID)
@@ -114,7 +114,7 @@ func (p *AzOpenAI) Init(ctx context.Context, meta bindings.Metadata) error {
 			return fmt.Errorf("error getting credentials object: %w", err)
 		}
 
-		p.client, err = azopenai.NewClientWithKeyCredential(m.APIBase, keyCredential, m.DeploymentID, nil)
+		p.client, err = azopenai.NewClientWithKeyCredential(m.Endpoint, keyCredential, m.DeploymentID, nil)
 		if err != nil {
 			return fmt.Errorf("error creating Azure OpenAI client: %w", err)
 		}
@@ -130,7 +130,7 @@ func (p *AzOpenAI) Init(ctx context.Context, meta bindings.Metadata) error {
 			return fmt.Errorf("error getting token credential: %w", innerErr)
 		}
 
-		p.client, err = azopenai.NewClient(m.APIBase, token, m.DeploymentID, nil)
+		p.client, err = azopenai.NewClient(m.Endpoint, token, m.DeploymentID, nil)
 		if err != nil {
 			return fmt.Errorf("error creating Azure OpenAI client: %w", err)
 		}

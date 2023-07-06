@@ -13,33 +13,24 @@ binding:
   input: false
   operations:
     - name: completion
-      description: "Text Completion."
-    - name: chat-completion
-      description: "Chat Completion."
+      description: "Text completion"
+    - name: chatCompletion
+      description: "Chat completion"
 authenticationProfiles:
-  - title: "Azure OpenAI API Key"
-    description: "Authenticate using the Azure OpenAI Key."
+  - title: "API Key"
+    description: "Authenticate using an API key"
     metadata:
       - name: apiKey
         required: true
         sensitive: true
-        description: "Azure OpenAI key."
-        example: '"19dfa925q40a407d8d7d48302f94be36"'
-  - title: "Azure OpenAI API Base"
-    description: |
-      Azure OpenAI API Base.
-    metadata:
-      - name: apiBase
-        required: true
-        sensitive: true
-        description: "The Azure OpenAI API Version."
-        example: 'https://openaiwesteurope.openai.azure.com'
-  - title: "Azure OpenAI API Version"
-    description: |
-      Azure OpenAI API Version.
-    metadata:
-      - name: apiVersion
-        required: true
-        sensitive: true
-        description: "The Azure OpenAI Deployment Id."
-        example: '"2023-03-15-preview"'
+        description: "API Key"
+        example: '"1234567890abcdef"'
+metadata:
+  - name: endpoint
+    required: true
+    description: "Endpoint of the Azure OpenAI service"
+    example: 'https://myopenai.openai.azure.com'
+  - name: deploymentID
+    required: true
+    description: "ID of the model deployment in the Azure OpenAI service"
+    example: '"my-model"'

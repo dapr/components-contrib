@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwe"
+	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/spf13/cast"
 	"golang.org/x/oauth2"
@@ -270,6 +271,12 @@ func (m *OAuth2Middleware) GetClaimsFromCookie(r *http.Request) (map[string]stri
 
 // CreateToken generates an encrypted JWT containing the claims.
 func (m *OAuth2Middleware) CreateToken(claims map[string]string, ttl time.Duration) (string, error) {
+	return createEncryptedJWT(claims, ttl, []string{m.meta.ClientID}, m.meta.encKey, m.meta.sigKey)
+}
+
+// Creates an encrypted JWT given the encryption and signing keys.
+// Split into a separate function to allow better unit testing.
+func createEncryptedJWT(claims map[string]string, ttl time.Duration, audience []string, encKey jwk.Key, sigKey jwk.Key) (string, error) {
 	now := time.Now()
 	exp := now.Add(ttl)
 
@@ -277,7 +284,7 @@ func (m *OAuth2Middleware) CreateToken(claims map[string]string, ttl time.Durati
 	builder := jwt.NewBuilder().
 		IssuedAt(now).
 		Issuer(jwtIssuer).
-		Audience([]string{m.meta.ClientID}).
+		Audience(audience).
 		Expiration(exp).
 		NotBefore(now)
 	var claimsSize int
@@ -295,19 +302,19 @@ func (m *OAuth2Middleware) CreateToken(claims map[string]string, ttl time.Durati
 	if claimsSize > tokenCompressionThreshold {
 		// If the total size of the claims is more than tokenCompressionThreshold, we should enable compression
 		encryptOpts = []jwt.EncryptOption{
-			jwt.WithKey(jwa.A128KW, m.meta.encKey),
+			jwt.WithKey(jwa.A128KW, encKey),
 			jwt.WithEncryptOption(jwe.WithContentEncryption(jwa.A128GCM)),
 			jwt.WithEncryptOption(jwe.WithCompress(jwa.Deflate)),
 		}
 	} else {
 		encryptOpts = []jwt.EncryptOption{
-			jwt.WithKey(jwa.A128KW, m.meta.encKey),
+			jwt.WithKey(jwa.A128KW, encKey),
 			jwt.WithEncryptOption(jwe.WithContentEncryption(jwa.A128GCM)),
 		}
 	}
 	val, err := jwt.NewSerializer().
 		Sign(
-			jwt.WithKey(jwa.HS256, m.meta.sigKey),
+			jwt.WithKey(jwa.HS256, sigKey),
 		).
 		Encrypt(encryptOpts...).
 		Serialize(token)

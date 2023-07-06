@@ -166,10 +166,10 @@ func (md *OAuth2MiddlewareMetadata) setTokenKeys() (err error) {
 		b = h.Sum(nil)
 	}
 
-	// We must set a kid for the jwx library to work
-	kidH := sha256.New224()
+	// We must set a kid (Key ID) for the jwx library to work
+	kidH := sha256.New()
 	kidH.Write(b)
-	kid := base64.RawURLEncoding.EncodeToString(kidH.Sum(nil))
+	kid := base64.RawURLEncoding.EncodeToString(kidH.Sum(nil)[:8])
 
 	// Token encryption key uses 128 bits
 	md.encKey, err = jwk.FromRaw(b[:16])

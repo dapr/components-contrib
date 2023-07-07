@@ -19,7 +19,8 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/lib/pq"
+	// PGX driver for database/sql
+	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -102,7 +103,7 @@ func TestPostgres(t *testing.T) {
 	}
 
 	createTable := func(ctx flow.Context) error {
-		db, err := sql.Open("postgres", dockerConnectionString)
+		db, err := sql.Open("pgx", dockerConnectionString)
 		assert.NoError(t, err)
 		_, err = db.Exec("CREATE TABLE dapr_test_table(id INT, c1 TEXT, ts TEXT);")
 		assert.NoError(t, err)
@@ -114,7 +115,6 @@ func TestPostgres(t *testing.T) {
 		Step(dockercompose.Run("db", dockerComposeYAML)).
 		Step("wait for component to start", flow.Sleep(10*time.Second)).
 		Step("Creating table", createTable).
-		Step("wait for component to start", flow.Sleep(10*time.Second)).
 		Step(sidecar.Run("standardSidecar",
 			embedded.WithoutApp(),
 			embedded.WithDaprGRPCPort(grpcPort),
@@ -124,10 +124,9 @@ func TestPostgres(t *testing.T) {
 		)).
 		Step("Run exec test", testExec).
 		Step("Run query test", testQuery).
-		Step("wait for DB operations to complete", flow.Sleep(10*time.Second)).
+		Step("wait for DB operations to complete", flow.Sleep(5*time.Second)).
 		Step("Run close test", testClose).
 		Step("stop postgresql", dockercompose.Stop("db", dockerComposeYAML, "db")).
-		Step("wait for component to start", flow.Sleep(10*time.Second)).
 		Run()
 }
 
@@ -168,7 +167,7 @@ func TestPostgresNetworkError(t *testing.T) {
 	}
 
 	createTable := func(ctx flow.Context) error {
-		db, err := sql.Open("postgres", dockerConnectionString)
+		db, err := sql.Open("pgx", dockerConnectionString)
 		assert.NoError(t, err)
 		_, err = db.Exec("CREATE TABLE dapr_test_table(id INT, c1 TEXT, ts TEXT);")
 		assert.NoError(t, err)
@@ -204,7 +203,7 @@ func componentRuntimeOptions() []runtime.Option {
 	bindingsRegistry.Logger = log
 	bindingsRegistry.RegisterOutputBinding(func(l logger.Logger) bindings.OutputBinding {
 		return binding_postgres.NewPostgres(l)
-	}, "postgres")
+	}, "postgresql")
 
 	return []runtime.Option{
 		runtime.WithBindings(bindingsRegistry),

@@ -14,9 +14,15 @@ limitations under the License.
 package postgresql
 
 import (
+	"context"
 	"fmt"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/ptr"
@@ -33,13 +39,19 @@ const (
 )
 
 type postgresMetadataStruct struct {
-	ConnectionString      string
-	ConnectionMaxIdleTime time.Duration
-	TableName             string // Could be in the format "schema.table" or just "table"
-	MetadataTableName     string // Could be in the format "schema.table" or just "table"
+	ConnectionString      string         `mapstructure:"connectionString"`
+	ConnectionMaxIdleTime time.Duration  `mapstructure:"connectionMaxIdleTime"`
+	TableName             string         `mapstructure:"tableName"`         // Could be in the format "schema.table" or just "table"
+	MetadataTableName     string         `mapstructure:"metadataTableName"` // Could be in the format "schema.table" or just "table"
+	Timeout               time.Duration  `mapstructure:"timeoutInSeconds"`
+	CleanupInterval       *time.Duration `mapstructure:"cleanupIntervalInSeconds"`
+	MaxConns              int            `mapstructure:"maxConns"`
+	UseAzureAD            bool           `mapstructure:"useAzureAD"`
 
-	Timeout         time.Duration  `mapstructure:"timeoutInSeconds"`
-	CleanupInterval *time.Duration `mapstructure:"cleanupIntervalInSeconds"`
+	// Set to true if the component can support authentication with Azure AD.
+	// This is different from the "useAzureAD" property above, which is provided by the user and instructs the component to authenticate using Azure AD.
+	azureADEnabled bool
+	azureEnv       azure.EnvironmentSettings
 }
 
 func (m *postgresMetadataStruct) InitWithMetadata(meta state.Metadata) error {
@@ -79,5 +91,67 @@ func (m *postgresMetadataStruct) InitWithMetadata(meta state.Metadata) error {
 		}
 	}
 
+	// Populate the Azure environment if using Azure AD
+	if m.azureADEnabled && m.UseAzureAD {
+		m.azureEnv, err = azure.NewEnvironmentSettings(meta.Properties)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+// GetPgxPoolConfig returns the pgxpool.Config object that contains the credentials for connecting to Postgres.
+func (m *postgresMetadataStruct) GetPgxPoolConfig() (*pgxpool.Config, error) {
+	// Get the config from the connection string
+	config, err := pgxpool.ParseConfig(m.ConnectionString)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse connection string: %w", err)
+	}
+	if m.ConnectionMaxIdleTime > 0 {
+		config.MaxConnIdleTime = m.ConnectionMaxIdleTime
+	}
+	if m.MaxConns > 1 {
+		config.MaxConns = int32(m.MaxConns)
+	}
+
+	// Check if we should use Azure AD
+	if m.azureADEnabled && m.UseAzureAD {
+		tokenCred, errToken := m.azureEnv.GetTokenCredential()
+		if errToken != nil {
+			return nil, errToken
+		}
+
+		// Reset the password
+		config.ConnConfig.Password = ""
+
+		/*// For Azure AD, using SSL is required
+		// If not already enabled, configure TLS without certificate validation
+		if config.ConnConfig.TLSConfig == nil {
+			config.ConnConfig.TLSConfig = &tls.Config{
+				//nolint:gosec
+				InsecureSkipVerify: true,
+			}
+		}*/
+
+		// We need to retrieve the token every time we attempt a new connection
+		// This is because tokens expire, and connections can drop and need to be re-established at any time
+		// Fortunately, we can do this with the "BeforeConnect" hook
+		config.BeforeConnect = func(ctx context.Context, cc *pgx.ConnConfig) error {
+			at, err := tokenCred.GetToken(ctx, policy.TokenRequestOptions{
+				Scopes: []string{
+					m.azureEnv.Cloud.Services[azure.ServiceOSSRDBMS].Audience + "/.default",
+				},
+			})
+			if err != nil {
+				return err
+			}
+
+			cc.Password = at.Token
+			return nil
+		}
+	}
+
+	return config, nil
 }

@@ -75,7 +75,7 @@ func (r *ConfigUpdater) CreateTrigger(channel string) error {
 		return fmt.Errorf("error creating config event function : %w", err)
 	}
 	triggerName := "configTrigger_" + channel
-	createTriggerSQL := "CREATE TRIGGER " + triggerName + " AFTER INSERT OR UPDATE OR DELETE ON " + r.configTable + " FOR EACH ROW EXECUTE PROCEDURE " + procedureName + "();"
+	createTriggerSQL := "CREATE OR REPLACE TRIGGER " + triggerName + " AFTER INSERT OR UPDATE OR DELETE ON " + r.configTable + " FOR EACH ROW EXECUTE PROCEDURE " + procedureName + "();"
 	_, err = r.client.Exec(ctx, createTriggerSQL)
 	if err != nil {
 		return fmt.Errorf("error creating config trigger : %w", err)

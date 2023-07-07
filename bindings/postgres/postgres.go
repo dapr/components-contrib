@@ -36,7 +36,8 @@ const (
 	queryOperation bindings.OperationKind = "query"
 	closeOperation bindings.OperationKind = "close"
 
-	commandSQLKey = "sql"
+	commandSQLKey  = "sql"
+	commandArgsKey = "params"
 )
 
 // Postgres represents PostgreSQL output binding.
@@ -109,9 +110,20 @@ func (p *Postgres) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 		return nil, errors.New("metadata required")
 	}
 
-	sql, ok := req.Metadata[commandSQLKey]
-	if !ok || sql == "" {
+	// Metadata property "sql" contains the query to execute
+	sql := req.Metadata[commandSQLKey]
+	if sql == "" {
 		return nil, fmt.Errorf("required metadata not set: %s", commandSQLKey)
+	}
+
+	// Metadata property "params" contains JSON-encoded parameters, and it's optional
+	// If present, it must be unserializable into a []any object
+	var args []any
+	if argsStr := req.Metadata[commandArgsKey]; argsStr != "" {
+		err = json.Unmarshal([]byte(argsStr), &args)
+		if err != nil {
+			return nil, fmt.Errorf("invalid metadata property %s: failed to unserialize into an array: %w", commandArgsKey, err)
+		}
 	}
 
 	startTime := time.Now().UTC()
@@ -125,14 +137,14 @@ func (p *Postgres) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 
 	switch req.Operation { //nolint:exhaustive
 	case execOperation:
-		r, err := p.exec(ctx, sql)
+		r, err := p.exec(ctx, sql, args...)
 		if err != nil {
 			return nil, err
 		}
 		resp.Metadata["rows-affected"] = strconv.FormatInt(r, 10) // 0 if error
 
 	case queryOperation:
-		d, err := p.query(ctx, sql)
+		d, err := p.query(ctx, sql, args...)
 		if err != nil {
 			return nil, err
 		}
@@ -168,8 +180,8 @@ func (p *Postgres) Close() error {
 	return nil
 }
 
-func (p *Postgres) query(ctx context.Context, sql string) (result []byte, err error) {
-	rows, err := p.db.Query(ctx, sql)
+func (p *Postgres) query(ctx context.Context, sql string, args ...any) (result []byte, err error) {
+	rows, err := p.db.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("error executing query: %w", err)
 	}
@@ -191,8 +203,8 @@ func (p *Postgres) query(ctx context.Context, sql string) (result []byte, err er
 	return result, nil
 }
 
-func (p *Postgres) exec(ctx context.Context, sql string) (result int64, err error) {
-	res, err := p.db.Exec(ctx, sql)
+func (p *Postgres) exec(ctx context.Context, sql string, args ...any) (result int64, err error) {
+	res, err := p.db.Exec(ctx, sql, args...)
 	if err != nil {
 		return 0, fmt.Errorf("error executing query: %w", err)
 	}

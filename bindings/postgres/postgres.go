@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -45,11 +45,6 @@ type Postgres struct {
 	db     *pgxpool.Pool
 }
 
-type psqlMetadata struct {
-	// ConnectionURL is the connection string to connect to the database.
-	ConnectionURL string `mapstructure:"url"`
-}
-
 // NewPostgres returns a new PostgreSQL output binding.
 func NewPostgres(logger logger.Logger) bindings.OutputBinding {
 	return &Postgres{logger: logger}
@@ -58,15 +53,12 @@ func NewPostgres(logger logger.Logger) bindings.OutputBinding {
 // Init initializes the PostgreSql binding.
 func (p *Postgres) Init(ctx context.Context, meta bindings.Metadata) error {
 	m := psqlMetadata{}
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := m.InitWithMetadata(meta.Properties)
 	if err != nil {
 		return err
 	}
-	if m.ConnectionURL == "" {
-		return fmt.Errorf("required metadata not set: %s", connectionURLKey)
-	}
 
-	poolConfig, err := pgxpool.ParseConfig(m.ConnectionURL)
+	poolConfig, err := m.GetPgxPoolConfig()
 	if err != nil {
 		return fmt.Errorf("error opening DB connection: %w", err)
 	}
@@ -98,14 +90,12 @@ func (p *Postgres) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 
 	if req.Operation == closeOperation {
 		p.db.Close()
-
 		return nil, nil
 	}
 
 	if req.Metadata == nil {
 		return nil, errors.New("metadata required")
 	}
-	p.logger.Debugf("operation: %v", req.Operation)
 
 	sql, ok := req.Metadata[commandSQLKey]
 	if !ok || sql == "" {
@@ -152,17 +142,15 @@ func (p *Postgres) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 
 // Close close PostgreSql instance.
 func (p *Postgres) Close() error {
-	if p.db == nil {
-		return nil
+	if p.db != nil {
+		p.db.Close()
 	}
-	p.db.Close()
+	p.db = nil
 
 	return nil
 }
 
 func (p *Postgres) query(ctx context.Context, sql string) (result []byte, err error) {
-	p.logger.Debugf("query: %s", sql)
-
 	rows, err := p.db.Query(ctx, sql)
 	if err != nil {
 		return nil, fmt.Errorf("error executing query: %w", err)
@@ -177,24 +165,21 @@ func (p *Postgres) query(ctx context.Context, sql string) (result []byte, err er
 		rs = append(rs, val) //nolint:asasalint
 	}
 
-	if result, err = json.Marshal(rs); err != nil {
-		err = fmt.Errorf("error serializing results: %w", err)
+	result, err = json.Marshal(rs)
+	if err != nil {
+		return nil, fmt.Errorf("error serializing results: %w", err)
 	}
 
-	return
+	return result, nil
 }
 
 func (p *Postgres) exec(ctx context.Context, sql string) (result int64, err error) {
-	p.logger.Debugf("exec: %s", sql)
-
 	res, err := p.db.Exec(ctx, sql)
 	if err != nil {
 		return 0, fmt.Errorf("error executing query: %w", err)
 	}
 
-	result = res.RowsAffected()
-
-	return
+	return res.RowsAffected(), nil
 }
 
 // GetComponentMetadata returns the metadata of the component.

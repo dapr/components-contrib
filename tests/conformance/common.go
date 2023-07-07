@@ -621,7 +621,9 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_rabbitmq.NewRabbitMQ(testLogger)
 	case "kubemq":
 		binding = b_kubemq.NewKubeMQ(testLogger)
-	case "postgres":
+	case "postgresql.docker":
+		binding = b_postgres.NewPostgres(testLogger)
+	case "postgresql.azure":
 		binding = b_postgres.NewPostgres(testLogger)
 	case "aws.s3.docker":
 		binding = b_aws_s3.NewAWSS3(testLogger)

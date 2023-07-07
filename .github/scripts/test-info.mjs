@@ -167,9 +167,23 @@ const components = {
         sourcePkg: ['bindings/mqtt3'],
     },
     'bindings.postgres': {
-        conformance: true,
         certification: true,
+    },
+    'bindings.postgresql.docker': {
+        conformance: true,
         conformanceSetup: 'docker-compose.sh postgresql',
+        sourcePkg: [
+            'bindings/postgresql',
+            'internal/authentication/postgresql',
+        ],
+    },
+    'bindings.postgresql.azure': {
+        conformance: true,
+        requiredSecrets: ['AzureDBPostgresConnectionString'],
+        sourcePkg: [
+            'bindings/postgresql',
+            'internal/authentication/postgresql',
+        ],
     },
     'bindings.rabbitmq': {
         conformance: true,

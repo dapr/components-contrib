@@ -582,8 +582,7 @@ const components = {
         conformanceSetup: 'docker-compose.sh oracledatabase',
     },
     'state.postgresql': {
-        conformance: true,
-        conformanceSetup: 'docker-compose.sh postgresql',
+        certification: true,
         sourcePkg: [
             'state/postgresql',
             'internal/component/postgresql',

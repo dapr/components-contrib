@@ -546,7 +546,9 @@ func loadStateStore(tc TestComponent) state.Store {
 		fallthrough
 	case "sqlserver":
 		store = s_sqlserver.New(testLogger)
-	case "postgresql":
+	case "postgresql.docker":
+		store = s_postgresql.NewPostgreSQLStateStore(testLogger)
+	case "postgresql.azure":
 		store = s_postgresql.NewPostgreSQLStateStore(testLogger)
 	case "sqlite":
 		store = s_sqlite.NewSQLiteStateStore(testLogger)

@@ -16,7 +16,6 @@ package openai
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"reflect"
 	"time"
@@ -66,10 +65,12 @@ type openAIMetadata struct {
 }
 
 type ChatSettings struct {
-	Temperature float32 `mapstructure:"temperature"`
-	MaxTokens   int32   `mapstructure:"maxTokens"`
-	TopP        float32 `mapstructure:"topP"`
-	N           int32   `mapstructure:"n"`
+	Temperature      float32 `mapstructure:"temperature"`
+	MaxTokens        int32   `mapstructure:"maxTokens"`
+	TopP             float32 `mapstructure:"topP"`
+	N                int32   `mapstructure:"n"`
+	PresencePenalty  float32 `mapstructure:"presencePenalty"`
+	FrequencyPenalty float32 `mapstructure:"frequencyPenalty"`
 }
 
 // MessageArray type for chat completion API.
@@ -99,7 +100,7 @@ func (p *AzOpenAI) Init(ctx context.Context, meta bindings.Metadata) error {
 	m := openAIMetadata{}
 	err := metadata.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
-		return err
+		return fmt.Errorf("error decoding metadata: %w", err)
 	}
 	if m.Endpoint == "" {
 		return fmt.Errorf("required metadata not set: %s", Endpoint)
@@ -152,7 +153,7 @@ func (p *AzOpenAI) Operations() []bindings.OperationKind {
 // Invoke handles all invoke operations.
 func (p *AzOpenAI) Invoke(ctx context.Context, req *bindings.InvokeRequest) (resp *bindings.InvokeResponse, err error) {
 	if req == nil || len(req.Metadata) == 0 {
-		return nil, errors.New("request metadata must not be empty")
+		return nil, fmt.Errorf("invalid request: metadata is required")
 	}
 
 	startTime := time.Now().UTC()
@@ -208,14 +209,18 @@ func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[
 	}
 
 	if ma.Prompt == "" {
-		return "", errors.New("metadata property 'prompt' is required")
+		return "", fmt.Errorf("prompt is required for completion operation")
 	}
 
+	// Refer to the following link for more information on the parameters and their default values:
+	// https://platform.openai.com/docs/api-reference/completions/create
 	settings := ChatSettings{
-		Temperature: 1.0,
-		TopP:        1.0,
-		MaxTokens:   16,
-		N:           1,
+		Temperature:      1.0,
+		TopP:             1.0,
+		MaxTokens:        16,
+		N:                1,
+		PresencePenalty:  0.0,
+		FrequencyPenalty: 0.0,
 	}
 
 	err = settings.Decode(metadata)
@@ -231,10 +236,13 @@ func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[
 		N:           &settings.N,
 	}, nil)
 	if err != nil {
-		panic(err)
+		return "", fmt.Errorf("error getting completion api: %w", err)
 	}
 
 	entry := resp.Completions
+	if entry.Choices == nil || len(entry.Choices) == 0 {
+		return "", fmt.Errorf("error getting response from completion api: %w", err)
+	}
 	response = *entry.Choices[0].Text
 
 	return response, nil
@@ -248,13 +256,17 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageArray []byte, meta
 	}
 
 	if len(ma.Messages) == 0 {
-		return "", errors.New("metadata property 'messages' is required")
+		return "", fmt.Errorf("messages are required for chatCompletion operation")
 	}
 
+	// Refer to the following link for more information on the parameters and their default values:
+	// https://platform.openai.com/docs/api-reference/chat/create
 	settings := ChatSettings{
-		Temperature: 1.0,
-		TopP:        1.0,
-		N:           1,
+		Temperature:      1.0,
+		TopP:             1.0,
+		N:                1,
+		PresencePenalty:  0.0,
+		FrequencyPenalty: 0.0,
 	}
 
 	err = settings.Decode(metadata)
@@ -264,10 +276,9 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageArray []byte, meta
 
 	messageReq := []*azopenai.ChatMessage{}
 	for _, message := range ma.Messages {
-		role := azopenai.ChatRole(message.Role)
 		messageReq = append(messageReq, &azopenai.ChatMessage{
-			Role:    &role,
-			Content: &message.Message,
+			Role:    to.Ptr(azopenai.ChatRole(message.Role)),
+			Content: to.Ptr(message.Message),
 		})
 	}
 
@@ -284,10 +295,14 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageArray []byte, meta
 		Messages:    messageReq,
 	}, nil)
 	if err != nil {
-		return "", fmt.Errorf("error from chat completion api: %w", err)
+		return "", fmt.Errorf("error getting chat completion api: %w", err)
 	}
 
 	entry := res.ChatCompletions
+	if entry.Choices == nil || len(entry.Choices) == 0 {
+		return "", fmt.Errorf("error getting response from chat completion api: %w", err)
+	}
+
 	response = *entry.Choices[0].Message.Content
 
 	return response, nil

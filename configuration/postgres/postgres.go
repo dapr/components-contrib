@@ -174,7 +174,7 @@ func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 		}
 	}
 	if pgNotifyChannel == "" {
-		return "", fmt.Errorf("unable to subscribe to '%s'.pgNotifyChannel attribute cannot be empty", p.metadata.ConfigTable)
+		return "", fmt.Errorf("unable to subscribe to '%s'. pgNotifyChannel attribute cannot be empty", p.metadata.ConfigTable)
 	}
 	return p.subscribeToChannel(ctx, pgNotifyChannel, req, handler)
 }

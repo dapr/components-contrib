@@ -191,9 +191,27 @@ const components = {
         sourcePkg: ['bindings/redis', 'internal/component/redis'],
     },
     'configuration.postgres': {
-        conformance: true,
         certification: true,
+        sourcePkg: [
+            'configuration/postgresql',
+            'internal/authentication/postgresql',
+        ],
+    },
+    'configuration.postgresql.docker': {
+        conformance: true,
         conformanceSetup: 'docker-compose.sh postgresql',
+        sourcePkg: [
+            'configuration/postgresql',
+            'internal/authentication/postgresql',
+        ],
+    },
+    'configuration.postgresql.azure': {
+        conformance: true,
+        requiredSecrets: ['AzureDBPostgresConnectionString'],
+        sourcePkg: [
+            'configuration/postgresql',
+            'internal/authentication/postgresql',
+        ],
     },
     'configuration.redis.v6': {
         conformance: true,
@@ -585,6 +603,7 @@ const components = {
         certification: true,
         sourcePkg: [
             'state/postgresql',
+            'internal/authentication/postgresql',
             'internal/component/postgresql',
             'internal/component/sql',
         ],
@@ -594,6 +613,7 @@ const components = {
         conformanceSetup: 'docker-compose.sh postgresql',
         sourcePkg: [
             'state/postgresql',
+            'internal/authentication/postgresql',
             'internal/component/postgresql',
             'internal/component/sql',
         ],
@@ -603,6 +623,7 @@ const components = {
         requiredSecrets: ['AzureDBPostgresConnectionString'],
         sourcePkg: [
             'state/postgresql',
+            'internal/authentication/postgresql',
             'internal/component/postgresql',
             'internal/component/sql',
         ],

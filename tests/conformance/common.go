@@ -431,13 +431,10 @@ func loadConfigurationStore(tc TestComponent) (configuration.Store, configupdate
 	var store configuration.Store
 	var updater configupdater.Updater
 	switch tc.Component {
-	case redisv6:
+	case redisv6, redisv7:
 		store = c_redis.NewRedisConfigurationStore(testLogger)
 		updater = cu_redis.NewRedisConfigUpdater(testLogger)
-	case redisv7:
-		store = c_redis.NewRedisConfigurationStore(testLogger)
-		updater = cu_redis.NewRedisConfigUpdater(testLogger)
-	case "postgres":
+	case "postgresql.docker", "postgresql.azure":
 		store = c_postgres.NewPostgresConfigurationStore(testLogger)
 		updater = cu_postgres.NewPostgresConfigUpdater(testLogger)
 	default:

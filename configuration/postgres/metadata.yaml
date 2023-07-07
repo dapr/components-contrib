@@ -61,3 +61,10 @@ metadata:
     example: "4"
     default: "0"
     type: number
+  - name: connMaxIdleTime
+    deprecated: true
+    required: false
+    description: |
+      Deprecated alias for 'connectionMaxIdleTime'.
+    example:  "5m"
+    type: duration

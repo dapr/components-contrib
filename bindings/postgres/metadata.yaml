@@ -70,3 +70,12 @@ metadata:
       database driver to choose.
     example:  "5m"
     type: duration
+  - name: url
+    deprecated: true
+    required: false
+    description: |
+      Deprecated alias for "connectionString"
+    type: string
+    sensitive: true
+    example: |
+      "user=dapr password=secret host=dapr.example.com port=5432 dbname=dapr sslmode=verify-ca"

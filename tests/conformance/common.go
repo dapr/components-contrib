@@ -119,7 +119,6 @@ const (
 	eventhubs                 = "azure.eventhubs"
 	redisv6                   = "redis.v6"
 	redisv7                   = "redis.v7"
-	postgres                  = "postgres"
 	kafka                     = "kafka"
 	generateUUID              = "$((uuid))"
 	generateEd25519PrivateKey = "$((ed25519PrivateKey))"
@@ -438,7 +437,7 @@ func loadConfigurationStore(tc TestComponent) (configuration.Store, configupdate
 	case redisv7:
 		store = c_redis.NewRedisConfigurationStore(testLogger)
 		updater = cu_redis.NewRedisConfigUpdater(testLogger)
-	case postgres:
+	case "postgres":
 		store = c_postgres.NewPostgresConfigurationStore(testLogger)
 		updater = cu_postgres.NewPostgresConfigUpdater(testLogger)
 	default:
@@ -543,10 +542,12 @@ func loadStateStore(tc TestComponent) state.Store {
 	case "mongodb":
 		store = s_mongodb.NewMongoDB(testLogger)
 	case "azure.sql":
-		fallthrough
+		store = s_sqlserver.New(testLogger)
 	case "sqlserver":
 		store = s_sqlserver.New(testLogger)
-	case "postgresql":
+	case "postgresql.docker":
+		store = s_postgresql.NewPostgreSQLStateStore(testLogger)
+	case "postgresql.azure":
 		store = s_postgresql.NewPostgreSQLStateStore(testLogger)
 	case "sqlite":
 		store = s_sqlite.NewSQLiteStateStore(testLogger)

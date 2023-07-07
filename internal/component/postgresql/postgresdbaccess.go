@@ -67,7 +67,10 @@ func newPostgresDBAccess(logger logger.Logger, opts Options) *PostgresDBAccess {
 	logger.Debug("Instantiating new Postgres state store")
 
 	return &PostgresDBAccess{
-		logger:     logger,
+		logger: logger,
+		metadata: postgresMetadataStruct{
+			azureADEnabled: opts.EnableAzureAD,
+		},
 		migrateFn:  opts.MigrateFn,
 		setQueryFn: opts.SetQueryFn,
 		etagColumn: opts.ETagColumn,
@@ -84,14 +87,10 @@ func (p *PostgresDBAccess) Init(ctx context.Context, meta state.Metadata) error 
 		return err
 	}
 
-	config, err := pgxpool.ParseConfig(p.metadata.ConnectionString)
+	config, err := p.metadata.GetPgxPoolConfig()
 	if err != nil {
-		err = fmt.Errorf("failed to parse connection string: %w", err)
 		p.logger.Error(err)
 		return err
-	}
-	if p.metadata.ConnectionMaxIdleTime > 0 {
-		config.MaxConnIdleTime = p.metadata.ConnectionMaxIdleTime
 	}
 
 	connCtx, connCancel := context.WithTimeout(ctx, p.metadata.Timeout)

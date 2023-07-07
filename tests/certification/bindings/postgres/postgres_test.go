@@ -47,6 +47,7 @@ const (
 )
 
 func TestPostgres(t *testing.T) {
+	const tableName = "dapr_test_table"
 
 	ports, _ := dapr_testing.GetFreePorts(3)
 	grpcPort := ports[0]
@@ -60,7 +61,7 @@ func TestPostgres(t *testing.T) {
 
 		ctx.Log("Invoking output binding for exec operation!")
 		req := &daprClient.InvokeBindingRequest{Name: "standard-binding", Operation: "exec", Metadata: metadata}
-		req.Metadata["sql"] = "INSERT INTO dapr_test_table (id, c1, ts) VALUES (1, 'demo', '2020-09-24T11:45:05Z07:00');"
+		req.Metadata["sql"] = "INSERT INTO " + tableName + " (id, c1, ts) VALUES (1, 'demo', '2020-09-24T11:45:05Z07:00');"
 		errBinding := client.InvokeOutputBinding(ctx, req)
 		require.NoError(ctx, errBinding, "error in output binding - exec")
 
@@ -75,7 +76,7 @@ func TestPostgres(t *testing.T) {
 
 		ctx.Log("Invoking output binding for query operation!")
 		req := &daprClient.InvokeBindingRequest{Name: "standard-binding", Operation: "query", Metadata: metadata}
-		req.Metadata["sql"] = "SELECT * FROM dapr_test_table WHERE id = 1;"
+		req.Metadata["sql"] = "SELECT * FROM " + tableName + " WHERE id = 1;"
 		resp, errBinding := client.InvokeBinding(ctx, req)
 		assert.Contains(t, string(resp.Data), "1,\"demo\",\"2020-09-24T11:45:05Z07:00\"")
 		require.NoError(ctx, errBinding, "error in output binding - query")
@@ -85,17 +86,18 @@ func TestPostgres(t *testing.T) {
 
 	testClose := func(ctx flow.Context) error {
 		client, err := daprClient.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
-		require.NoError(t, err, "Could not initialize dapr client.")
+		require.NoError(ctx, err, "Could not initialize dapr client.")
 
 		metadata := make(map[string]string)
 
-		ctx.Log("Invoking output binding for query operation!")
+		ctx.Log("Invoking output binding for close operation!")
 		req := &daprClient.InvokeBindingRequest{Name: "standard-binding", Operation: "close", Metadata: metadata}
 		errBinding := client.InvokeOutputBinding(ctx, req)
 		require.NoError(ctx, errBinding, "error in output binding - close")
 
+		ctx.Log("Invoking output binding for query operation!")
 		req = &daprClient.InvokeBindingRequest{Name: "standard-binding", Operation: "query", Metadata: metadata}
-		req.Metadata["sql"] = "SELECT * FROM dapr_test_table WHERE id = 1;"
+		req.Metadata["sql"] = "SELECT * FROM " + tableName + " WHERE id = 1;"
 		errBinding = client.InvokeOutputBinding(ctx, req)
 		require.Error(ctx, errBinding, "error in output binding - query")
 
@@ -105,7 +107,71 @@ func TestPostgres(t *testing.T) {
 	createTable := func(ctx flow.Context) error {
 		db, err := sql.Open("pgx", dockerConnectionString)
 		assert.NoError(t, err)
-		_, err = db.Exec("CREATE TABLE dapr_test_table(id INT, c1 TEXT, ts TEXT);")
+		_, err = db.Exec("CREATE TABLE " + tableName + " (id INT, c1 TEXT, ts TEXT);")
+		assert.NoError(t, err)
+		db.Close()
+		return nil
+	}
+
+	flow.New(t, "Run tests").
+		Step(dockercompose.Run("db", dockerComposeYAML)).
+		Step("wait for component to start", flow.Sleep(10*time.Second)).
+		Step("Creating table", createTable).
+		Step(sidecar.Run("standardSidecar",
+			embedded.WithoutApp(),
+			embedded.WithDaprGRPCPort(grpcPort),
+			embedded.WithDaprHTTPPort(httpPort),
+			embedded.WithComponentsPath("./components/standard"),
+			componentRuntimeOptions(),
+		)).
+		Step("Run exec test", testExec).
+		Step("Run query test", testQuery).
+		Step("Run close test", testClose).
+		Step("stop postgresql", dockercompose.Stop("db", dockerComposeYAML, "db")).
+		Run()
+}
+
+func TestPostgresNetworkError(t *testing.T) {
+	const tableName = "dapr_test_table_network"
+
+	ports, _ := dapr_testing.GetFreePorts(3)
+	grpcPort := ports[0]
+	httpPort := ports[1]
+
+	testExec := func(ctx flow.Context) error {
+		client, err := daprClient.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
+		require.NoError(t, err, "Could not initialize dapr client.")
+
+		metadata := make(map[string]string)
+
+		ctx.Log("Invoking output binding for exec operation!")
+		req := &daprClient.InvokeBindingRequest{Name: "standard-binding", Operation: "exec", Metadata: metadata}
+		req.Metadata["sql"] = "INSERT INTO " + tableName + " (id, c1, ts) VALUES (1, 'demo', '2020-09-24T11:45:05Z07:00');"
+		errBinding := client.InvokeOutputBinding(ctx, req)
+		require.NoError(ctx, errBinding, "error in output binding - exec")
+
+		return nil
+	}
+
+	testQuery := func(ctx flow.Context) error {
+		client, err := daprClient.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
+		require.NoError(t, err, "Could not initialize dapr client.")
+
+		metadata := make(map[string]string)
+
+		ctx.Log("Invoking output binding for query operation!")
+		req := &daprClient.InvokeBindingRequest{Name: "standard-binding", Operation: "query", Metadata: metadata}
+		req.Metadata["sql"] = "SELECT * FROM " + tableName + " WHERE id = 1;"
+		errBinding := client.InvokeOutputBinding(ctx, req)
+		require.NoError(ctx, errBinding, "error in output binding - query")
+
+		return nil
+	}
+
+	createTable := func(ctx flow.Context) error {
+		db, err := sql.Open("pgx", dockerConnectionString)
+		assert.NoError(t, err)
+		_, err = db.Exec("CREATE TABLE " + tableName + "(id INT, c1 TEXT, ts TEXT);")
 		assert.NoError(t, err)
 		db.Close()
 		return nil
@@ -125,72 +191,7 @@ func TestPostgres(t *testing.T) {
 		Step("Run exec test", testExec).
 		Step("Run query test", testQuery).
 		Step("wait for DB operations to complete", flow.Sleep(5*time.Second)).
-		Step("Run close test", testClose).
-		Step("stop postgresql", dockercompose.Stop("db", dockerComposeYAML, "db")).
-		Run()
-}
-
-func TestPostgresNetworkError(t *testing.T) {
-
-	ports, _ := dapr_testing.GetFreePorts(3)
-	grpcPort := ports[0]
-	httpPort := ports[1]
-
-	testExec := func(ctx flow.Context) error {
-		client, err := daprClient.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
-		require.NoError(t, err, "Could not initialize dapr client.")
-
-		metadata := make(map[string]string)
-
-		ctx.Log("Invoking output binding for exec operation!")
-		req := &daprClient.InvokeBindingRequest{Name: "standard-binding", Operation: "exec", Metadata: metadata}
-		req.Metadata["sql"] = "INSERT INTO dapr_test_table (id, c1, ts) VALUES (1, 'demo', '2020-09-24T11:45:05Z07:00');"
-		errBinding := client.InvokeOutputBinding(ctx, req)
-		require.NoError(ctx, errBinding, "error in output binding - exec")
-
-		return nil
-	}
-
-	testQuery := func(ctx flow.Context) error {
-		client, err := daprClient.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
-		require.NoError(t, err, "Could not initialize dapr client.")
-
-		metadata := make(map[string]string)
-
-		ctx.Log("Invoking output binding for query operation!")
-		req := &daprClient.InvokeBindingRequest{Name: "standard-binding", Operation: "query", Metadata: metadata}
-		req.Metadata["sql"] = "SELECT * FROM dapr_test_table WHERE id = 1;"
-		errBinding := client.InvokeOutputBinding(ctx, req)
-		require.NoError(ctx, errBinding, "error in output binding - query")
-
-		return nil
-	}
-
-	createTable := func(ctx flow.Context) error {
-		db, err := sql.Open("pgx", dockerConnectionString)
-		assert.NoError(t, err)
-		_, err = db.Exec("CREATE TABLE dapr_test_table(id INT, c1 TEXT, ts TEXT);")
-		assert.NoError(t, err)
-		db.Close()
-		return nil
-	}
-
-	flow.New(t, "Run tests").
-		Step(dockercompose.Run("db", dockerComposeYAML)).
-		Step("wait for component to start", flow.Sleep(10*time.Second)).
-		Step("Creating table", createTable).
-		Step("wait for component to start", flow.Sleep(10*time.Second)).
-		Step(sidecar.Run("standardSidecar",
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithComponentsPath("./components/standard"),
-			componentRuntimeOptions(),
-		)).
-		Step("Run exec test", testExec).
-		Step("Run query test", testQuery).
-		Step("wait for DB operations to complete", flow.Sleep(10*time.Second)).
-		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "5432")).
+		Step("interrupt network", network.InterruptNetwork(20*time.Second, nil, nil, "5432")).
 		Step("wait for component to recover", flow.Sleep(10*time.Second)).
 		Step("Run query test", testQuery).
 		Run()

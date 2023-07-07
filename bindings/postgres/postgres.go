@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -42,15 +43,22 @@ const (
 type Postgres struct {
 	logger logger.Logger
 	db     *pgxpool.Pool
+	closed atomic.Bool
 }
 
 // NewPostgres returns a new PostgreSQL output binding.
 func NewPostgres(logger logger.Logger) bindings.OutputBinding {
-	return &Postgres{logger: logger}
+	return &Postgres{
+		logger: logger,
+	}
 }
 
 // Init initializes the PostgreSql binding.
 func (p *Postgres) Init(ctx context.Context, meta bindings.Metadata) error {
+	if p.closed.Load() {
+		return errors.New("cannot initialize a previously-closed component")
+	}
+
 	m := psqlMetadata{}
 	err := m.InitWithMetadata(meta.Properties)
 	if err != nil {
@@ -87,9 +95,14 @@ func (p *Postgres) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 		return nil, errors.New("invoke request required")
 	}
 
+	// We let the "close" operation here succeed even if the component has been closed already
 	if req.Operation == closeOperation {
 		err = p.Close()
 		return nil, err
+	}
+
+	if p.closed.Load() {
+		return nil, errors.New("component is closed")
 	}
 
 	if req.Metadata == nil {
@@ -141,6 +154,12 @@ func (p *Postgres) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 
 // Close close PostgreSql instance.
 func (p *Postgres) Close() error {
+	if !p.closed.CompareAndSwap(false, true) {
+		// If this failed, the component has already been closed
+		// We allow multiple calls to close
+		return nil
+	}
+
 	if p.db != nil {
 		p.db.Close()
 	}

@@ -215,18 +215,18 @@ func TestPublishAndSubscribe(t *testing.T) {
 			}
 
 			err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: test.topic, Metadata: test.subscribeMetadata}, handler)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			assert.True(t, pubsubRabbitMQ.declaredExchanges[test.topic])
 			assert.ElementsMatch(t, test.declaredQueues, broker.declaredQueues)
 
 			err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: test.topic, Data: []byte("hello world")})
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			<-processed
 			assert.Equal(t, 1, messageCount)
 			assert.Equal(t, "hello world", lastMessage)
 
 			err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: test.topic, Data: []byte("foo bar")})
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			<-processed
 			assert.Equal(t, 2, messageCount)
 			assert.Equal(t, "foo bar", lastMessage)

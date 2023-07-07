@@ -32,7 +32,12 @@ components:
     config:
       # This component requires etags to be hex-encoded numbers
       badEtag: "FFFF"
-  - component: postgresql
+  - component: postgresql.docker
+    operations: [ "transaction", "etag", "first-write", "query", "ttl" ]
+    config:
+      # This component requires etags to be numeric
+      badEtag: "1"
+  - component: postgresql.azure
     operations: [ "transaction", "etag", "first-write", "query", "ttl" ]
     config:
       # This component requires etags to be numeric

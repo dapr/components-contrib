@@ -8,5 +8,11 @@ spec:
   metadata:
     - name: connectionString
       value: "${{AzureDBPostgresConnectionString}}"
+    - name: azureClientId
+      value: "${{AzureDBPostgresClientId}}"
+    - name: azureClientSecret
+      value: "${{AzureDBPostgresClientSecret}}"
+    - name: azureTenantId
+      value: "${{AzureDBPostgresTenantId}}"
     - name: useAzureAD
       value: "true"

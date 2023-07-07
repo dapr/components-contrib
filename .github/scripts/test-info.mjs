@@ -179,7 +179,12 @@ const components = {
     },
     'bindings.postgresql.azure': {
         conformance: true,
-        requiredSecrets: ['AzureDBPostgresConnectionString'],
+        requiredSecrets: [
+            'AzureDBPostgresConnectionString',
+            'AzureDBPostgresClientId',
+            'AzureDBPostgresClientSecret',
+            'AzureDBPostgresTenantId',
+        ],
         sourcePkg: [
             'bindings/postgresql',
             'internal/authentication/postgresql',
@@ -221,7 +226,12 @@ const components = {
     },
     'configuration.postgresql.azure': {
         conformance: true,
-        requiredSecrets: ['AzureDBPostgresConnectionString'],
+        requiredSecrets: [
+            'AzureDBPostgresConnectionString',
+            'AzureDBPostgresClientId',
+            'AzureDBPostgresClientSecret',
+            'AzureDBPostgresTenantId',
+        ],
         sourcePkg: [
             'configuration/postgresql',
             'internal/authentication/postgresql',
@@ -634,7 +644,12 @@ const components = {
     },
     'state.postgresql.azure': {
         conformance: true,
-        requiredSecrets: ['AzureDBPostgresConnectionString'],
+        requiredSecrets: [
+            'AzureDBPostgresConnectionString',
+            'AzureDBPostgresClientId',
+            'AzureDBPostgresClientSecret',
+            'AzureDBPostgresTenantId',
+        ],
         sourcePkg: [
             'state/postgresql',
             'internal/authentication/postgresql',

@@ -10,3 +10,5 @@ spec:
       value: "${{AzureDBPostgresConnectionString}}"
     - name: useAzureAD
       value: "true"
+    - name: table
+      value: configtable

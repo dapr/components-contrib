@@ -269,7 +269,7 @@ if [[ -n ${CREDENTIALS_PATH} ]]; then
     fi
     SDK_AUTH_SP_NAME="$(az ad sp show --id "${SDK_AUTH_SP_APPID}" --query "appDisplayName" --output tsv)"
     SDK_AUTH_SP_ID="$(az ad sp show --id "${SDK_AUTH_SP_APPID}" --query "id" --output tsv)"
-    echo "Using Service Principal from ${CREDENTIALS_PATH} for SDK Auth: ${SDK_AUTH_SP_NAME}"
+    echo "Using Service Principal from ${CREDENTIALS_PATH} for SDK Auth: ${SDK_AUTH_SP_NAME} (ID: ${SDK_AUTH_SP_ID})"
 else
     SDK_AUTH_SP_NAME="${PREFIX}-conf-test-runner-sp"
     SDK_AUTH_SP_INFO="$(az ad sp create-for-rbac --name "${SDK_AUTH_SP_NAME}" --sdk-auth --years 1)"
@@ -277,7 +277,7 @@ else
     SDK_AUTH_SP_CLIENT_SECRET="$(echo "${SDK_AUTH_SP_INFO}" | jq -r '.clientSecret')"
     SDK_AUTH_SP_ID="$(az ad sp list --display-name "${SDK_AUTH_SP_NAME}" --query "[].id" --output tsv)"
     echo "${SDK_AUTH_SP_INFO}"
-    echo "Created Service Principal for SDK Auth: ${SDK_AUTH_SP_NAME}"
+    echo "Created Service Principal for SDK Auth: ${SDK_AUTH_SP_NAME} (ID: ${SDK_AUTH_SP_ID})"
     AZURE_CREDENTIALS_FILENAME="${OUTPUT_PATH}/AZURE_CREDENTIALS"
     echo "${SDK_AUTH_SP_INFO}" > "${AZURE_CREDENTIALS_FILENAME}"
 fi
@@ -292,7 +292,16 @@ echo "Building conf-test-azure.bicep to ${ARM_TEMPLATE_FILE} ..."
 az bicep build --file conf-test-azure.bicep --outfile "${ARM_TEMPLATE_FILE}"
 
 echo "Creating azure deployment ${DEPLOY_NAME} in ${DEPLOY_LOCATION} and resource prefix ${PREFIX}-* ..."
-az deployment sub create --name "${DEPLOY_NAME}" --location "${DEPLOY_LOCATION}" --template-file "${ARM_TEMPLATE_FILE}" -p namePrefix="${PREFIX}" -p adminId="${ADMIN_ID}" -p certAuthSpId="${CERT_AUTH_SP_ID}" -p sdkAuthSpId="${SDK_AUTH_SP_ID}" -p rgLocation="${DEPLOY_LOCATION}" -p sqlServerAdminPassword="${SQL_SERVER_ADMIN_PASSWORD}"
+az deployment sub create \
+  --name "${DEPLOY_NAME}" \
+  --location "${DEPLOY_LOCATION}" \
+  --template-file "${ARM_TEMPLATE_FILE}" \
+  -p namePrefix="${PREFIX}" \
+  -p adminId="${ADMIN_ID}" \
+  -p certAuthSpId="${CERT_AUTH_SP_ID}" \
+  -p sdkAuthSpId="${SDK_AUTH_SP_ID}" \
+  -p rgLocation="${DEPLOY_LOCATION}" \
+  -p sqlServerAdminPassword="${SQL_SERVER_ADMIN_PASSWORD}"
 
 echo "Sleeping for 5s to allow created ARM deployment info to propagate to query endpoints ..."
 sleep 5

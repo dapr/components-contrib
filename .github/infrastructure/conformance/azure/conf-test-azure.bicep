@@ -33,7 +33,7 @@ param adminId string
 
 @minLength(36)
 @maxLength(36)
-@description('Provide the objectId of the Service Principal using secret auth with get access to secrets in Azure Key Vault.')
+@description('Provide the objectId of the Service Principal using secret auth with get access to secrets in Azure Key Vault and access Azure PostgreSQL')
 param sdkAuthSpId string
 
 @minLength(36)
@@ -43,6 +43,7 @@ param certAuthSpId string
 
 @minLength(16)
 @description('Provide the SQL server admin password of at least 16 characters.')
+@secure()
 param sqlServerAdminPassword string
 
 var confTestRgName = '${toLower(namePrefix)}-conf-test-rg'
@@ -54,6 +55,7 @@ var iotHubName = '${toLower(namePrefix)}-conf-test-iothub'
 var keyVaultName = '${toLower(namePrefix)}-conf-test-kv'
 var serviceBusName = '${toLower(namePrefix)}-conf-test-servicebus'
 var sqlServerName = '${toLower(namePrefix)}-conf-test-sql'
+var postgresServerName = '${toLower(namePrefix)}-conf-test-pg'
 var storageName = '${toLower(namePrefix)}ctstorage'
 
 resource confTestRg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
@@ -72,6 +74,7 @@ module cosmosDb 'conf-test-azure-cosmosdb.bicep' = {
   params: {
     confTestTags: confTestTags
     cosmosDbName: cosmosDbName
+    rgLocation: rgLocation
   }
 }
 
@@ -81,6 +84,7 @@ module cosmosDbTable 'conf-test-azure-cosmosdb-table.bicep' = {
   params: {
     confTestTags: confTestTags
     cosmosDbTableAPIName: cosmosDbTableAPIName
+    rgLocation: rgLocation
   }
 }
 
@@ -90,6 +94,7 @@ module eventGridTopic 'conf-test-azure-eventgrid.bicep' = {
   params: {
     confTestTags: confTestTags
     eventGridTopicName: eventGridTopicName
+    rgLocation: rgLocation
   }
 }
 
@@ -99,6 +104,7 @@ module eventHubsNamespace 'conf-test-azure-eventhubs.bicep' = {
   params: {
     confTestTags: confTestTags
     eventHubsNamespaceName: eventHubsNamespaceName
+    rgLocation: rgLocation
   }
 }
 
@@ -108,6 +114,7 @@ module iotHub 'conf-test-azure-iothub.bicep' = {
   params: {
     confTestTags: confTestTags
     iotHubName: iotHubName
+    rgLocation: rgLocation
   }
 }
 
@@ -120,6 +127,7 @@ module keyVault 'conf-test-azure-keyvault.bicep' = {
     certAuthSpId: certAuthSpId
     keyVaultName: keyVaultName
     sdkAuthSpId: sdkAuthSpId
+    rgLocation: rgLocation
   }
 }
 
@@ -129,6 +137,7 @@ module serviceBus 'conf-test-azure-servicebus.bicep' = {
   params: {
     confTestTags: confTestTags
     serviceBusName: serviceBusName
+    rgLocation: rgLocation
   }
 }
 
@@ -139,6 +148,7 @@ module sqlServer 'conf-test-azure-sqlserver.bicep' = {
     confTestTags: confTestTags
     sqlServerName: sqlServerName
     sqlServerAdminPassword: sqlServerAdminPassword
+    rgLocation: rgLocation
   }
 }
 
@@ -148,6 +158,18 @@ module storage 'conf-test-azure-storage.bicep' = {
   params: {
     confTestTags: confTestTags
     storageName: storageName
+    rgLocation: rgLocation
+  }
+}
+
+module postgres 'conf-test-azure-postgres.bicep' = {
+  name: postgresServerName
+  scope: resourceGroup(confTestRg.name)
+  params: {
+    confTestTags: confTestTags
+    postgresServerName: postgresServerName
+    sdkAuthSpId: sdkAuthSpId
+    rgLocation: rgLocation
   }
 }
 
@@ -176,4 +198,5 @@ output keyVaultName string = keyVault.name
 output serviceBusName string = serviceBus.name
 output sqlServerName string = sqlServer.name
 output sqlServerAdminName string = sqlServer.outputs.sqlServerAdminName
+output postgresServerName string = postgres.name
 output storageName string = storage.name

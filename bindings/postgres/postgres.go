@@ -35,8 +35,7 @@ const (
 	queryOperation bindings.OperationKind = "query"
 	closeOperation bindings.OperationKind = "close"
 
-	connectionURLKey = "url"
-	commandSQLKey    = "sql"
+	commandSQLKey = "sql"
 )
 
 // Postgres represents PostgreSQL output binding.
@@ -67,7 +66,7 @@ func (p *Postgres) Init(ctx context.Context, meta bindings.Metadata) error {
 	// only scoped to postgres creating resources at init.
 	p.db, err = pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
-		return fmt.Errorf("unable to ping the DB: %w", err)
+		return fmt.Errorf("unable to connect to the DB: %w", err)
 	}
 
 	return nil
@@ -89,8 +88,8 @@ func (p *Postgres) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 	}
 
 	if req.Operation == closeOperation {
-		p.db.Close()
-		return nil, nil
+		err = p.Close()
+		return nil, err
 	}
 
 	if req.Metadata == nil {
@@ -115,14 +114,14 @@ func (p *Postgres) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 	case execOperation:
 		r, err := p.exec(ctx, sql)
 		if err != nil {
-			return nil, fmt.Errorf("error executing %s: %w", sql, err)
+			return nil, err
 		}
 		resp.Metadata["rows-affected"] = strconv.FormatInt(r, 10) // 0 if error
 
 	case queryOperation:
 		d, err := p.query(ctx, sql)
 		if err != nil {
-			return nil, fmt.Errorf("error executing %s: %w", sql, err)
+			return nil, err
 		}
 		resp.Data = d
 
@@ -160,7 +159,7 @@ func (p *Postgres) query(ctx context.Context, sql string) (result []byte, err er
 	for rows.Next() {
 		val, rowErr := rows.Values()
 		if rowErr != nil {
-			return nil, fmt.Errorf("error parsing result '%v': %w", rows.Err(), rowErr)
+			return nil, fmt.Errorf("error reading result '%v': %w", rows.Err(), rowErr)
 		}
 		rs = append(rs, val) //nolint:asasalint
 	}

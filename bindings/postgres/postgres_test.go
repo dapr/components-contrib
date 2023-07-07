@@ -63,7 +63,7 @@ func TestPostgresIntegration(t *testing.T) {
 
 	// live DB test
 	b := NewPostgres(logger.NewLogger("test")).(*Postgres)
-	m := bindings.Metadata{Base: metadata.Base{Properties: map[string]string{connectionURLKey: url}}}
+	m := bindings.Metadata{Base: metadata.Base{Properties: map[string]string{"connectionString": url}}}
 	if err := b.Init(context.Background(), m); err != nil {
 		t.Fatal(err)
 	}

@@ -45,12 +45,6 @@ func (m *metadata) InitWithMetadata(meta map[string]string) error {
 	}
 
 	// Validate and sanitize input
-	// Azure AD auth is supported for this component
-	err = m.PostgresAuthMetadata.InitWithMetadata(meta, true)
-	if err != nil {
-		return err
-	}
-
 	if m.ConfigTable == "" {
 		return fmt.Errorf("missing postgreSQL configuration table name")
 	}
@@ -60,5 +54,12 @@ func (m *metadata) InitWithMetadata(meta map[string]string) error {
 	if !allowedTableNameChars.MatchString(m.ConfigTable) {
 		return fmt.Errorf("invalid table name '%s'. non-alphanumerics or upper cased table names are not supported", m.ConfigTable)
 	}
+
+	// Azure AD auth is supported for this component
+	err = m.PostgresAuthMetadata.InitWithMetadata(meta, true)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

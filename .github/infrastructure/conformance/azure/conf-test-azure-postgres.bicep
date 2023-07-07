@@ -12,13 +12,14 @@
 // ------------------------------------------------------------------------
 
 param postgresServerName string
+param sdkAuthSpId string
+param sdkAuthSpName string
 param rgLocation string = resourceGroup().location
 param confTestTags object = {}
 param postgresqlVersion string = '14'
-param sdkAuthSpId string
 param tenantId string = subscription().tenantId
 
-resource sqlServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-03-01-preview' = {
+resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-03-01-preview' = {
   name: postgresServerName
   location: rgLocation
   tags: confTestTags
@@ -60,7 +61,7 @@ resource sqlServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-03-01-preview
     name: sdkAuthSpId
     properties: {
       principalType: 'ServicePrincipal'
-      principalName: sdkAuthSpId
+      principalName: sdkAuthSpName
       tenantId: tenantId
     }
   }

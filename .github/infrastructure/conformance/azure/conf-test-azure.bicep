@@ -36,6 +36,9 @@ param adminId string
 @description('Provide the objectId of the Service Principal using secret auth with get access to secrets in Azure Key Vault and access Azure PostgreSQL')
 param sdkAuthSpId string
 
+@description('Provide the name of the Service Principal using secret auth with get access to secrets in Azure Key Vault and access Azure PostgreSQL')
+param sdkAuthSpName string
+
 @minLength(36)
 @maxLength(36)
 @description('Provide the objectId of the Service Principal using cert auth with get and list access to all assets in Azure Key Vault.')
@@ -169,6 +172,7 @@ module postgres 'conf-test-azure-postgres.bicep' = {
     confTestTags: confTestTags
     postgresServerName: postgresServerName
     sdkAuthSpId: sdkAuthSpId
+    sdkAuthSpName: sdkAuthSpName
     rgLocation: rgLocation
   }
 }

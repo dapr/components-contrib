@@ -583,8 +583,25 @@ const components = {
     },
     'state.postgresql': {
         conformance: true,
-        certification: true,
         conformanceSetup: 'docker-compose.sh postgresql',
+        sourcePkg: [
+            'state/postgresql',
+            'internal/component/postgresql',
+            'internal/component/sql',
+        ],
+    },
+    'state.postgresql.docker': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh postgresql',
+        sourcePkg: [
+            'state/postgresql',
+            'internal/component/postgresql',
+            'internal/component/sql',
+        ],
+    },
+    'state.postgresql.azure': {
+        conformance: true,
+        requiredSecrets: ['AzureDBPostgresConnectionString'],
         sourcePkg: [
             'state/postgresql',
             'internal/component/postgresql',

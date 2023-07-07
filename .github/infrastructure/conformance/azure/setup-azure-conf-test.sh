@@ -229,6 +229,8 @@ SQL_SERVER_NAME_VAR_NAME="AzureSqlServerName"
 SQL_SERVER_DB_NAME_VAR_NAME="AzureSqlServerDbName"
 SQL_SERVER_CONNECTION_STRING_VAR_NAME="AzureSqlServerConnectionString"
 
+AZURE_DB_POSTGRES_CONNSTRING_VAR_NAME="AzureDBPostgresConnectionString"
+
 STORAGE_ACCESS_KEY_VAR_NAME="AzureBlobStorageAccessKey"
 STORAGE_ACCOUNT_VAR_NAME="AzureBlobStorageAccount"
 STORAGE_CONTAINER_VAR_NAME="AzureBlobStorageContainer"
@@ -300,6 +302,7 @@ az deployment sub create \
   -p adminId="${ADMIN_ID}" \
   -p certAuthSpId="${CERT_AUTH_SP_ID}" \
   -p sdkAuthSpId="${SDK_AUTH_SP_ID}" \
+  -p sdkAuthSpName="${SDK_AUTH_SP_NAME}" \
   -p rgLocation="${DEPLOY_LOCATION}" \
   -p sqlServerAdminPassword="${SQL_SERVER_ADMIN_PASSWORD}"
 
@@ -555,6 +558,7 @@ az keyvault secret set --name "${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_ID_VAR_NAME}"
 KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET=${AKV_SPAUTH_SP_CLIENT_SECRET}
 echo export ${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET_VAR_NAME}=\"${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${KEYVAULT_SERVICE_PRINCIPAL_CLIENT_SECRET}"
+
 # ------------------------------------
 # Populate Blob Storage test settings
 # ------------------------------------
@@ -679,6 +683,15 @@ echo export ${SQL_SERVER_DB_NAME_VAR_NAME}=\"${PREFIX}SqlDb\" >> "${ENV_CONFIG_F
 SQL_SERVER_CONNECTION_STRING="Server=${SQL_SERVER_NAME}.database.windows.net;port=1433;User ID=${SQL_SERVER_ADMIN_NAME};Password=${SQL_SERVER_ADMIN_PASSWORD};Encrypt=true;"
 echo export ${SQL_SERVER_CONNECTION_STRING_VAR_NAME}=\"${SQL_SERVER_CONNECTION_STRING}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${SQL_SERVER_CONNECTION_STRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${SQL_SERVER_CONNECTION_STRING}"
+
+# ----------------------------------
+# Populate Azure Database for PostgreSQL test settings
+# ----------------------------------
+echo "Configuring Azure Database for PostgreSQL test settings ..."
+
+AZURE_DB_POSTGRES_CONNSTRING="host=${PREFIX}-conf-test-pg.postgres.database.azure.com user=${SDK_AUTH_SP_NAME} port=5432 connect_timeout=30 database=dapr_test"
+echo export ${AZURE_DB_POSTGRES_CONNSTRING_VAR_NAME}=\"${AZURE_DB_POSTGRES_CONNSTRING}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${AZURE_DB_POSTGRES_CONNSTRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${AZURE_DB_POSTGRES_CONNSTRING}"
 
 # ----------------------------------
 # Populate Event Hubs test settings

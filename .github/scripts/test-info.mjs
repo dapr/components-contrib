@@ -582,9 +582,25 @@ const components = {
         conformanceSetup: 'docker-compose.sh oracledatabase',
     },
     'state.postgresql': {
-        conformance: true,
         certification: true,
+        sourcePkg: [
+            'state/postgresql',
+            'internal/component/postgresql',
+            'internal/component/sql',
+        ],
+    },
+    'state.postgresql.docker': {
+        conformance: true,
         conformanceSetup: 'docker-compose.sh postgresql',
+        sourcePkg: [
+            'state/postgresql',
+            'internal/component/postgresql',
+            'internal/component/sql',
+        ],
+    },
+    'state.postgresql.azure': {
+        conformance: true,
+        requiredSecrets: ['AzureDBPostgresConnectionString'],
         sourcePkg: [
             'state/postgresql',
             'internal/component/postgresql',

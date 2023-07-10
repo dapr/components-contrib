@@ -43,8 +43,6 @@ type ComponentMetadata struct {
 	AuthenticationProfiles []AuthenticationProfile `json:"authenticationProfiles,omitempty"`
 	// Built-in authentication profiles to import.
 	BuiltInAuthenticationProfiles []BuiltinAuthenticationProfile `json:"builtinAuthenticationProfiles,omitempty"`
-	// Common authentication profiles to import.
-	CommonAuthenticationProfiles []CommonAuthenticationProfile `json:"commonAuthenticationProfiles,omitempty"`
 	// Metadata options for the component.
 	Metadata []Metadata `json:"metadata,omitempty"`
 }
@@ -129,18 +127,6 @@ type BuiltinAuthenticationProfile struct {
 	// Currently supports:
 	//
 	// - `azuread` (Azure AD, including Managed Identity).
-	Name string `json:"name"`
-	// Additional metadata options applicable when using this authentication profile.
-	Metadata []Metadata `json:"metadata,omitempty"`
-}
-
-// CommonAuthenticationProfile is a reference to a common authentication profile.
-type CommonAuthenticationProfile struct {
-	// Name of the common authentication profile.
-	// Currently supports:
-	//
-	// - `aws` (AWS Environment variables - AWS_ACCESS_KEY, AWS_SECRET_KEY).
-	// - `gcp` (GCP Environment variables - GCP_PROJECT, GOOGLE_APPLICATION_CREDENTIALS)
 	Name string `json:"name"`
 	// Additional metadata options applicable when using this authentication profile.
 	Metadata []Metadata `json:"metadata,omitempty"`

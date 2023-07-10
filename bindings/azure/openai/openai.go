@@ -33,7 +33,7 @@ import (
 // List of operations.
 const (
 	CompletionOperation     bindings.OperationKind = "completion"
-	ChatCompletionOperation bindings.OperationKind = "chatCompletion"
+	ChatCompletionOperation bindings.OperationKind = "chat-completion"
 
 	APIKey           = "apiKey"
 	DeploymentID     = "deploymentID"

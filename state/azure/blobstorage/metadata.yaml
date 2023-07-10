@@ -14,11 +14,11 @@ capabilities:
 builtinAuthenticationProfiles:
   - name: "azuread"
     metadata:
-    - name: accountName
-      required: true
-      sensitive: false
-      description: "The storage account name"
-      example: '"mystorageaccount"'
+      - name: accountName
+        required: true
+        sensitive: false
+        description: "The storage account name"
+        example: '"mystorageaccount"'
 authenticationProfiles:
   - title: "Connection string"
     description: "Authenticate using a connection string."

@@ -265,7 +265,8 @@ func (m *Mysql) exec(ctx context.Context, sql string, params ...any) (int64, err
 }
 
 func initDB(url, pemPath string) (*sql.DB, error) {
-	if _, err := mysql.ParseDSN(url); err != nil {
+	conf, err := mysql.ParseDSN(url)
+	if err != nil {
 		return nil, fmt.Errorf("illegal Data Source Name (DSN) specified by %s", connectionURLKey)
 	}
 
@@ -290,11 +291,16 @@ func initDB(url, pemPath string) (*sql.DB, error) {
 		}
 	}
 
-	db, err := sql.Open("mysql", url)
+	// Required to correctly parse time columns
+	// See: https://stackoverflow.com/a/45040724
+	conf.ParseTime = true
+
+	connector, err := mysql.NewConnector(conf)
 	if err != nil {
 		return nil, fmt.Errorf("error opening DB connection: %w", err)
 	}
 
+	db := sql.OpenDB(connector)
 	return db, nil
 }
 

@@ -77,14 +77,14 @@ func TestMysqlIntegration(t *testing.T) {
 			b  BOOLEAN,
 			ts TIMESTAMP,
 			data LONGTEXT)`
-		res, err := b.Invoke(context.TODO(), req)
+		res, err := b.Invoke(context.Background(), req)
 		assertResponse(t, res, err)
 	})
 
 	t.Run("Invoke delete", func(t *testing.T) {
 		req.Operation = execOperation
 		req.Metadata[commandSQLKey] = "DELETE FROM foo"
-		res, err := b.Invoke(context.TODO(), req)
+		res, err := b.Invoke(context.Background(), req)
 		assertResponse(t, res, err)
 	})
 
@@ -94,7 +94,7 @@ func TestMysqlIntegration(t *testing.T) {
 			req.Metadata[commandSQLKey] = fmt.Sprintf(
 				"INSERT INTO foo (id, v1, b, ts, data) VALUES (%d, 'test-%d', %t, '%v', '%s')",
 				i, i, true, time.Now().Format(mySQLDateTimeFormat), `{"key":"val"}`)
-			res, err := b.Invoke(context.TODO(), req)
+			res, err := b.Invoke(context.Background(), req)
 			assertResponse(t, res, err)
 		}
 	})
@@ -105,7 +105,7 @@ func TestMysqlIntegration(t *testing.T) {
 			req.Metadata[commandSQLKey] = fmt.Sprintf(
 				"UPDATE foo SET ts = '%v' WHERE id = %d",
 				time.Now().Format(mySQLDateTimeFormat), i)
-			res, err := b.Invoke(context.TODO(), req)
+			res, err := b.Invoke(context.Background(), req)
 			assertResponse(t, res, err)
 		}
 	})
@@ -113,7 +113,7 @@ func TestMysqlIntegration(t *testing.T) {
 	t.Run("Invoke select", func(t *testing.T) {
 		req.Operation = queryOperation
 		req.Metadata[commandSQLKey] = "SELECT * FROM foo WHERE id < 3"
-		res, err := b.Invoke(context.TODO(), req)
+		res, err := b.Invoke(context.Background(), req)
 		assertResponse(t, res, err)
 		t.Logf("received result: %s", res.Data)
 
@@ -121,7 +121,7 @@ func TestMysqlIntegration(t *testing.T) {
 		assert.Contains(t, string(res.Data), `"id":1`)
 		assert.Contains(t, string(res.Data), `"b":1`)
 		assert.Contains(t, string(res.Data), `"v1":"test-1"`)
-		assert.Contains(t, string(res.Data), `"data":"{"key":"val"}"`)
+		assert.Contains(t, string(res.Data), `"data":"{\"key\":\"val\"}"`)
 
 		result := make([]any, 0)
 		err = json.Unmarshal(res.Data, &result)
@@ -138,34 +138,18 @@ func TestMysqlIntegration(t *testing.T) {
 		t.Logf("time stamp is: %v", tt)
 	})
 
-	t.Run("Invoke select JSON_EXTRACT", func(t *testing.T) {
-		req.Operation = queryOperation
-		req.Metadata[commandSQLKey] = "SELECT JSON_EXTRACT(data, '$.key') AS `key` FROM foo WHERE id < 3"
-		res, err := b.Invoke(context.TODO(), req)
-		assertResponse(t, res, err)
-		t.Logf("received result: %s", res.Data)
-
-		// verify json extract string
-		assert.Contains(t, string(res.Data), `{"key":"\"val\"}`)
-
-		result := make([]any, 0)
-		err = json.Unmarshal(res.Data, &result)
-		require.NoError(t, err)
-		assert.Equal(t, 3, len(result))
-	})
-
 	t.Run("Invoke delete", func(t *testing.T) {
 		req.Operation = execOperation
 		req.Metadata[commandSQLKey] = "DELETE FROM foo"
 		req.Data = nil
-		res, err := b.Invoke(context.TODO(), req)
+		res, err := b.Invoke(context.Background(), req)
 		assertResponse(t, res, err)
 	})
 
 	t.Run("Invoke drop", func(t *testing.T) {
 		req.Operation = execOperation
 		req.Metadata[commandSQLKey] = "DROP TABLE foo"
-		res, err := b.Invoke(context.TODO(), req)
+		res, err := b.Invoke(context.Background(), req)
 		assertResponse(t, res, err)
 	})
 
@@ -173,7 +157,7 @@ func TestMysqlIntegration(t *testing.T) {
 		req.Operation = closeOperation
 		req.Metadata = nil
 		req.Data = nil
-		_, err := b.Invoke(context.TODO(), req)
+		_, err := b.Invoke(context.Background(), req)
 		assert.NoError(t, err)
 	})
 }

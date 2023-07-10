@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -159,8 +159,8 @@ func (p *AzOpenAI) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 	startTime := time.Now().UTC()
 	resp = &bindings.InvokeResponse{
 		Metadata: map[string]string{
-			"operation": string(req.Operation),
-			"startTime": startTime.Format(time.RFC3339),
+			"operation":  string(req.Operation),
+			"start-time": startTime.Format(time.RFC3339Nano),
 		},
 	}
 
@@ -187,18 +187,14 @@ func (p *AzOpenAI) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 	}
 
 	endTime := time.Now().UTC()
-	resp.Metadata["endTime"] = endTime.Format(time.RFC3339)
+	resp.Metadata["end-time"] = endTime.Format(time.RFC3339Nano)
 	resp.Metadata["duration"] = endTime.Sub(startTime).String()
 
 	return resp, nil
 }
 
-func (s *ChatSettings) Decode(in interface{}) error {
-	if err := config.Decode(in, s); err != nil {
-		return fmt.Errorf("decode failed. %w", err)
-	}
-
-	return nil
+func (s *ChatSettings) Decode(in any) error {
+	return config.Decode(in, s)
 }
 
 func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[string]string) (response string, err error) {
@@ -229,7 +225,7 @@ func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[
 	}
 
 	resp, err := p.client.GetCompletions(ctx, azopenai.CompletionsOptions{
-		Prompt:      []*string{to.Ptr(ma.Prompt)},
+		Prompt:      []*string{&ma.Prompt},
 		MaxTokens:   &settings.MaxTokens,
 		Temperature: &settings.Temperature,
 		TopP:        &settings.Temperature,
@@ -239,11 +235,11 @@ func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[
 		return "", fmt.Errorf("error getting completion api: %w", err)
 	}
 
-	entry := resp.Completions
-	if entry.Choices == nil || len(entry.Choices) == 0 {
+	if len(resp.Completions.Choices) == 0 {
 		return "", fmt.Errorf("error getting response from completion api: %w", err)
 	}
-	response = *entry.Choices[0].Text
+
+	response = *resp.Completions.Choices[0].Text
 
 	return response, nil
 }
@@ -278,7 +274,7 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageArray []byte, meta
 	for _, message := range ma.Messages {
 		messageReq = append(messageReq, &azopenai.ChatMessage{
 			Role:    to.Ptr(azopenai.ChatRole(message.Role)),
-			Content: to.Ptr(message.Message),
+			Content: &message.Message,
 		})
 	}
 
@@ -298,12 +294,11 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageArray []byte, meta
 		return "", fmt.Errorf("error getting chat completion api: %w", err)
 	}
 
-	entry := res.ChatCompletions
-	if entry.Choices == nil || len(entry.Choices) == 0 {
+	if len(res.ChatCompletions.Choices) == 0 {
 		return "", fmt.Errorf("error getting response from chat completion api: %w", err)
 	}
 
-	response = *entry.Choices[0].Message.Content
+	response = *res.ChatCompletions.Choices[0].Message.Content
 
 	return response, nil
 }

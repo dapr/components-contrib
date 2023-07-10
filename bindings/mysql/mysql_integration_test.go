@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
@@ -100,7 +101,7 @@ func TestMysqlIntegration(t *testing.T) {
 	t.Run("Invoke insert", func(t *testing.T) {
 		req.Operation = execOperation
 		for i := 0; i < 10; i++ {
-			req.Metadata[commandSQLKey] = fmt.Sprintf(testInsert, i, i, true, time.Now().Format(mySQLDateTimeFormat), "{\"key\":\"val\"}")
+			req.Metadata[commandSQLKey] = fmt.Sprintf(testInsert, i, i, true, time.Now().Format(mySQLDateTimeFormat), `{"key":"val"}`)
 			res, err := b.Invoke(context.TODO(), req)
 			assertResponse(t, res, err)
 		}
@@ -123,14 +124,14 @@ func TestMysqlIntegration(t *testing.T) {
 		t.Logf("received result: %s", res.Data)
 
 		// verify number, boolean and string
-		assert.Contains(t, string(res.Data), "\"id\":1")
-		assert.Contains(t, string(res.Data), "\"b\":1")
-		assert.Contains(t, string(res.Data), "\"v1\":\"test-1\"")
-		assert.Contains(t, string(res.Data), "\"data\":\"{\\\"key\\\":\\\"val\\\"}\"")
+		assert.Contains(t, string(res.Data), `"id":1`)
+		assert.Contains(t, string(res.Data), `"b":1`)
+		assert.Contains(t, string(res.Data), `"v1":"test-1"`)
+		assert.Contains(t, string(res.Data), `"data":"{"key":"val"}"`)
 
 		result := make([]interface{}, 0)
 		err = json.Unmarshal(res.Data, &result)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 3, len(result))
 
 		// verify timestamp
@@ -139,7 +140,7 @@ func TestMysqlIntegration(t *testing.T) {
 		// have to use custom layout to parse timestamp, see this: https://github.com/dapr/components-contrib/pull/615
 		var tt time.Time
 		tt, err = time.Parse("2006-01-02T15:04:05Z", ts)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		t.Logf("time stamp is: %v", tt)
 	})
 
@@ -151,11 +152,11 @@ func TestMysqlIntegration(t *testing.T) {
 		t.Logf("received result: %s", res.Data)
 
 		// verify json extract number
-		assert.Contains(t, string(res.Data), "{\"key\":\"\\\"val\\\"\"}")
+		assert.Contains(t, string(res.Data), `{"key":"\"val\"}`)
 
 		result := make([]interface{}, 0)
 		err = json.Unmarshal(res.Data, &result)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 3, len(result))
 	})
 
@@ -184,6 +185,8 @@ func TestMysqlIntegration(t *testing.T) {
 }
 
 func assertResponse(t *testing.T, res *bindings.InvokeResponse, err error) {
+	t.Helper()
+
 	assert.NoError(t, err)
 	assert.NotNil(t, res)
 	if res != nil {

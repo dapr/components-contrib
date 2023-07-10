@@ -29,30 +29,15 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-const (
-	// MySQL doesn't accept RFC3339 formatted time, rejects trailing 'Z' for UTC indicator.
-	mySQLDateTimeFormat = "2006-01-02 15:04:05"
-
-	testCreateTable = `CREATE TABLE IF NOT EXISTS foo (
-		id bigint NOT NULL,
-		v1 character varying(50) NOT NULL,
-		b  BOOLEAN,
-		ts TIMESTAMP,
-		data LONGTEXT)`
-	testDropTable         = `DROP TABLE foo`
-	testInsert            = "INSERT INTO foo (id, v1, b, ts, data) VALUES (%d, 'test-%d', %t, '%v', '%s')"
-	testDelete            = "DELETE FROM foo"
-	testUpdate            = "UPDATE foo SET ts = '%v' WHERE id = %d"
-	testSelect            = "SELECT * FROM foo WHERE id < 3"
-	testSelectJSONExtract = "SELECT JSON_EXTRACT(data, '$.key') AS `key` FROM foo WHERE id < 3"
-)
+// MySQL doesn't accept RFC3339 formatted time, rejects trailing 'Z' for UTC indicator.
+const mySQLDateTimeFormat = "2006-01-02 15:04:05"
 
 func TestOperations(t *testing.T) {
 	t.Parallel()
 	t.Run("Get operation list", func(t *testing.T) {
 		t.Parallel()
-		b := NewMysql(nil)
-		assert.NotNil(t, b)
+		b := NewMysql(logger.NewLogger("test"))
+		require.NotNil(t, b)
 		l := b.Operations()
 		assert.Equal(t, 3, len(l))
 		assert.Contains(t, l, execOperation)
@@ -71,14 +56,14 @@ func TestOperations(t *testing.T) {
 func TestMysqlIntegration(t *testing.T) {
 	url := os.Getenv("MYSQL_TEST_CONN_URL")
 	if url == "" {
-		t.SkipNow()
+		t.Skip("Skipping because env var MYSQL_TEST_CONN_URL is empty")
 	}
 
 	b := NewMysql(logger.NewLogger("test")).(*Mysql)
 	m := bindings.Metadata{Base: metadata.Base{Properties: map[string]string{connectionURLKey: url}}}
-	if err := b.Init(context.Background(), m); err != nil {
-		t.Fatal(err)
-	}
+
+	err := b.Init(context.Background(), m)
+	require.NoError(t, err)
 
 	defer b.Close()
 
@@ -86,14 +71,19 @@ func TestMysqlIntegration(t *testing.T) {
 
 	t.Run("Invoke create table", func(t *testing.T) {
 		req.Operation = execOperation
-		req.Metadata[commandSQLKey] = testCreateTable
+		req.Metadata[commandSQLKey] = `CREATE TABLE IF NOT EXISTS foo (
+			id bigint NOT NULL,
+			v1 character varying(50) NOT NULL,
+			b  BOOLEAN,
+			ts TIMESTAMP,
+			data LONGTEXT)`
 		res, err := b.Invoke(context.TODO(), req)
 		assertResponse(t, res, err)
 	})
 
 	t.Run("Invoke delete", func(t *testing.T) {
 		req.Operation = execOperation
-		req.Metadata[commandSQLKey] = testDelete
+		req.Metadata[commandSQLKey] = "DELETE FROM foo"
 		res, err := b.Invoke(context.TODO(), req)
 		assertResponse(t, res, err)
 	})
@@ -101,7 +91,9 @@ func TestMysqlIntegration(t *testing.T) {
 	t.Run("Invoke insert", func(t *testing.T) {
 		req.Operation = execOperation
 		for i := 0; i < 10; i++ {
-			req.Metadata[commandSQLKey] = fmt.Sprintf(testInsert, i, i, true, time.Now().Format(mySQLDateTimeFormat), `{"key":"val"}`)
+			req.Metadata[commandSQLKey] = fmt.Sprintf(
+				"INSERT INTO foo (id, v1, b, ts, data) VALUES (%d, 'test-%d', %t, '%v', '%s')",
+				i, i, true, time.Now().Format(mySQLDateTimeFormat), `{"key":"val"}`)
 			res, err := b.Invoke(context.TODO(), req)
 			assertResponse(t, res, err)
 		}
@@ -110,7 +102,9 @@ func TestMysqlIntegration(t *testing.T) {
 	t.Run("Invoke update", func(t *testing.T) {
 		req.Operation = execOperation
 		for i := 0; i < 10; i++ {
-			req.Metadata[commandSQLKey] = fmt.Sprintf(testUpdate, time.Now().Format(mySQLDateTimeFormat), i)
+			req.Metadata[commandSQLKey] = fmt.Sprintf(
+				"UPDATE foo SET ts = '%v' WHERE id = %d",
+				time.Now().Format(mySQLDateTimeFormat), i)
 			res, err := b.Invoke(context.TODO(), req)
 			assertResponse(t, res, err)
 		}
@@ -118,7 +112,7 @@ func TestMysqlIntegration(t *testing.T) {
 
 	t.Run("Invoke select", func(t *testing.T) {
 		req.Operation = queryOperation
-		req.Metadata[commandSQLKey] = testSelect
+		req.Metadata[commandSQLKey] = "SELECT * FROM foo WHERE id < 3"
 		res, err := b.Invoke(context.TODO(), req)
 		assertResponse(t, res, err)
 		t.Logf("received result: %s", res.Data)
@@ -129,13 +123,13 @@ func TestMysqlIntegration(t *testing.T) {
 		assert.Contains(t, string(res.Data), `"v1":"test-1"`)
 		assert.Contains(t, string(res.Data), `"data":"{"key":"val"}"`)
 
-		result := make([]interface{}, 0)
+		result := make([]any, 0)
 		err = json.Unmarshal(res.Data, &result)
 		require.NoError(t, err)
 		assert.Equal(t, 3, len(result))
 
 		// verify timestamp
-		ts, ok := result[0].(map[string]interface{})["ts"].(string)
+		ts, ok := result[0].(map[string]any)["ts"].(string)
 		assert.True(t, ok)
 		// have to use custom layout to parse timestamp, see this: https://github.com/dapr/components-contrib/pull/615
 		var tt time.Time
@@ -146,15 +140,15 @@ func TestMysqlIntegration(t *testing.T) {
 
 	t.Run("Invoke select JSON_EXTRACT", func(t *testing.T) {
 		req.Operation = queryOperation
-		req.Metadata[commandSQLKey] = testSelectJSONExtract
+		req.Metadata[commandSQLKey] = "SELECT JSON_EXTRACT(data, '$.key') AS `key` FROM foo WHERE id < 3"
 		res, err := b.Invoke(context.TODO(), req)
 		assertResponse(t, res, err)
 		t.Logf("received result: %s", res.Data)
 
-		// verify json extract number
+		// verify json extract string
 		assert.Contains(t, string(res.Data), `{"key":"\"val\"}`)
 
-		result := make([]interface{}, 0)
+		result := make([]any, 0)
 		err = json.Unmarshal(res.Data, &result)
 		require.NoError(t, err)
 		assert.Equal(t, 3, len(result))
@@ -162,7 +156,7 @@ func TestMysqlIntegration(t *testing.T) {
 
 	t.Run("Invoke delete", func(t *testing.T) {
 		req.Operation = execOperation
-		req.Metadata[commandSQLKey] = testDelete
+		req.Metadata[commandSQLKey] = "DELETE FROM foo"
 		req.Data = nil
 		res, err := b.Invoke(context.TODO(), req)
 		assertResponse(t, res, err)
@@ -170,7 +164,7 @@ func TestMysqlIntegration(t *testing.T) {
 
 	t.Run("Invoke drop", func(t *testing.T) {
 		req.Operation = execOperation
-		req.Metadata[commandSQLKey] = testDropTable
+		req.Metadata[commandSQLKey] = "DROP TABLE foo"
 		res, err := b.Invoke(context.TODO(), req)
 		assertResponse(t, res, err)
 	})

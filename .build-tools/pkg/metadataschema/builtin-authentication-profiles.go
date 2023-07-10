@@ -20,6 +20,68 @@ import (
 // ParseBuiltinAuthenticationProfile returns an AuthenticationProfile(s) from a given BuiltinAuthenticationProfile.
 func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile) ([]AuthenticationProfile, error) {
 	switch bi.Name {
+	case "aws":
+		return []AuthenticationProfile{
+			{
+				Title:       "AWS: Access Key ID and Secret Access Key Dapr Metadata",
+				Description: "Authenticate using an Access Key ID and Secret Access Key included in the metadata",
+				Metadata: []Metadata{
+					{
+						Name:        "AWS_ACCESS_KEY_ID",
+						Required:    true,
+						Sensitive:   true,
+						Description: "AWS access key associated with an IAM account",
+						Example:     `"AKIAIOSFODNN7EXAMPLE"`,
+					},
+					{
+						Name:        "AWS_SECRET_ACCESS_KEY",
+						Required:    true,
+						Sensitive:   true,
+						Description: "The secret key associated with the access key",
+						Example:     `"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"`,
+					},
+				},
+			},
+			{
+				Title:       "AWS: Credentials from Environment Variables",
+				Description: "Use AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY",
+				Metadata: []Metadata{
+					{
+						Name:        "AWS_ACCESS_KEY_ID",
+						Required:    true,
+						Sensitive:   true,
+						Description: "Optional name for the Azure environment if using a different Azure cloud",
+						Example:     `"AKIAIOSFODNN7EXAMPLE"`,
+					},
+					{
+						Name:        "AWS_SECRET_ACCESS_KEY",
+						Required:    true,
+						Sensitive:   true,
+						Description: "Optional name for the Azure environment if using a different Azure cloud",
+						Example:     `"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"`,
+					},
+				},
+			},
+		}, nil
+	case "gcp":
+		return []AuthenticationProfile{
+			{
+				Title:       "GCP: Application Default Credentials (ADC) Google authentication",
+				Description: "Environment variable to provide the location of a credential JSON file",
+				Metadata: []Metadata{
+					{
+						Name:        "GOOGLE_APPLICATION_CREDENTIALS",
+						Required:    true,
+						Description: "Environment variable to provide the location of a credential JSON file",
+						Example:     `"$HOME/.config/gcloud/application_default_credentials.json"`,
+						URL: &URL{
+							Title: "Application Default Credentials",
+							URL:   "https://cloud.google.com/docs/authentication/application-default-credentials",
+						},
+					},
+				},
+			},
+		}, nil
 	case "azuread":
 		azureEnvironmentMetadata := Metadata{
 			Name:          "azureEnvironment",

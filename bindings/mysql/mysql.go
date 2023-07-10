@@ -271,8 +271,9 @@ func initDB(url, pemPath string) (*sql.DB, error) {
 	}
 
 	if pemPath != "" {
+		var pem []byte
 		rootCertPool := x509.NewCertPool()
-		pem, err := os.ReadFile(pemPath)
+		pem, err = os.ReadFile(pemPath)
 		if err != nil {
 			return nil, fmt.Errorf("error reading PEM file from %s: %w", pemPath, err)
 		}

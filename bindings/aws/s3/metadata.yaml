@@ -54,9 +54,9 @@ metadata:
     type: string
   - name: forcePathStyle
     description: |
-      Currently Amazon S3 SDK supports virtual hosted-style and path-style access.
-      true is path-style format like https://<endpoint>/<your bucket>/<key>.
-      false is hosted-style format like https://<your bucket>.<endpoint>/<key>. 
+      Currently Amazon S3 SDK supports virtual-hosted-style and path-style access.
+      When false (the default), uses virtual-hosted-style format, i.e.: `https://<your bucket>.<endpoint>/<key>`. 
+      When true, uses path-style format, i.e.: `https://<endpoint>/<your bucket>/<key>`.
     type: bool
     default: 'false'
     example: '"true", "false"'

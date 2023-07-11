@@ -4,7 +4,7 @@ type: bindings
 name: aws.s3
 version: v1
 status: stable
-title: "AWS S3 Bindings"
+title: "AWS S3"
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-bindings/s3/

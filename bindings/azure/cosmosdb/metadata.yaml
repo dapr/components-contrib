@@ -12,7 +12,7 @@ binding:
   output: true
   operations:
     - name: create
-      description: "Create an item."
+      description: "Create an item"
 capabilities: []
 builtinAuthenticationProfiles:
   - name: "azuread"

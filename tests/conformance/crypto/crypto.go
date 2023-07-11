@@ -114,9 +114,9 @@ func ConformanceTests(t *testing.T, props map[string]string, component contribCr
 
 	// Init
 	t.Run("Init", func(t *testing.T) {
-		err := component.Init(context.Background(), contribCrypto.Metadata{
-			Base: metadata.Base{Properties: props},
-		})
+		err := component.Init(context.Background(), contribCrypto.Metadata{Base: metadata.Base{
+			Properties: props,
+		}})
 		require.NoError(t, err, "expected no error on initializing store")
 	})
 

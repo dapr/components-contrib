@@ -23,7 +23,7 @@ func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile) ([]Authe
 	case "aws":
 		return []AuthenticationProfile{
 			{
-				Title:       "AWS: Access Key ID and Secret Access Key Dapr Metadata",
+				Title:       "AWS: Access Key ID and Secret Access Key"
 				Description: "Authenticate using an Access Key ID and Secret Access Key included in the metadata",
 				Metadata: []Metadata{
 					{

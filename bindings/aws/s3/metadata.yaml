@@ -83,7 +83,7 @@ metadata:
     example: '"true", "false"'
   - name: insecureSSL
     description: |
-      When connecting to https:// endpoints, accepts invalid or self-signed certificates.
+      When connecting to `https://` endpoints, accepts self-signed or invalid certificates.
     type: bool
     default: 'false'
     example: '"true", "false"'

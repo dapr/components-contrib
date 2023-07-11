@@ -4,8 +4,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-
-	"github.com/dapr/components-contrib/build-tools/pkg/metadataschema"
 )
 
 // Globals
@@ -15,9 +13,6 @@ var (
 
 	// Paths within ComponentFolders to ignore
 	ExcludeFolders []string
-
-	// Built-in authentication profiles
-	BuiltinAuthenticationProfiles map[string][]metadataschema.BuiltinAuthenticationProfile
 )
 
 // Navigate to the root of the repo

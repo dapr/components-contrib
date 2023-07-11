@@ -13,7 +13,7 @@ binding:
   output: true
   operations:
     - name: create
-      description: "Create an event subscription."
+      description: "Create an event subscription"
 capabilities: []
 builtinAuthenticationProfiles:
   - name: "azuread"

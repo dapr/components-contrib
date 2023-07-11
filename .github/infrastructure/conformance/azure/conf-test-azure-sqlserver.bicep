@@ -14,6 +14,7 @@
 param sqlServerName string
 param rgLocation string = resourceGroup().location
 param confTestTags object = {}
+@secure()
 param sqlServerAdminPassword string
 
 var sqlServerAdminName = '${sqlServerName}-admin'

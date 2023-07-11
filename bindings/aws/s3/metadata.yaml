@@ -70,9 +70,8 @@ metadata:
     example: '"true", "false"'
   - name: encodeBase64
     description: |
-      Configuration to encode base64 file content before return the content.
-      (In case of opening a file with binary content). true is the only allowed
-      positive value. Other positive variations like "True", "1" are not acceptable.  
+      Configuration to encode base64 file content before returning the content.
+      (In case of opening a file with binary content).
     type: bool
     default: 'false'
     example: '"true", "false"'

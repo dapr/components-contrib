@@ -198,9 +198,8 @@ func (p *Postgres) exec(ctx context.Context, sql string) (result int64, err erro
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (p *Postgres) GetComponentMetadata() map[string]string {
+func (p *Postgres) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := psqlMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

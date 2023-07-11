@@ -358,9 +358,8 @@ func (a *AzureBlobStorage) isValidDeleteSnapshotsOptionType(accessType azblob.De
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (a *AzureBlobStorage) GetComponentMetadata() map[string]string {
+func (a *AzureBlobStorage) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := storageinternal.BlobStorageMetadata{}
-	metadataInfo := map[string]string{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
-	return metadataInfo
+	return
 }

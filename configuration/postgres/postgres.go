@@ -411,9 +411,8 @@ func (p *ConfigurationStore) subscribeToChannel(ctx context.Context, pgNotifyCha
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (p *ConfigurationStore) GetComponentMetadata() map[string]string {
+func (p *ConfigurationStore) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := metadata{}
-	metadataInfo := map[string]string{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
-	return metadataInfo
+	return
 }

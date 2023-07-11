@@ -353,9 +353,8 @@ func (h *HTTPSource) Invoke(parentCtx context.Context, req *bindings.InvokeReque
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (h *HTTPSource) GetComponentMetadata() map[string]string {
+func (h *HTTPSource) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := httpMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

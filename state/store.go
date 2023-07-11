@@ -18,6 +18,7 @@ import (
 	"errors"
 
 	"github.com/dapr/components-contrib/health"
+	"github.com/dapr/components-contrib/metadata"
 )
 
 // Store is an interface to perform operations on store.
@@ -28,12 +29,13 @@ type Store interface {
 
 // BaseStore is an interface that contains the base methods for each state store.
 type BaseStore interface {
+	metadata.ComponentWithMetadata
+
 	Init(ctx context.Context, metadata Metadata) error
 	Features() []Feature
 	Delete(ctx context.Context, req *DeleteRequest) error
 	Get(ctx context.Context, req *GetRequest) (*GetResponse, error)
 	Set(ctx context.Context, req *SetRequest) error
-	GetComponentMetadata() map[string]string
 }
 
 // TransactionalStore is an interface for initialization and support multiple transactional requests.

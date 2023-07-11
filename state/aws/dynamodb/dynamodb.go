@@ -223,11 +223,10 @@ func (d *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	return err
 }
 
-func (d *StateStore) GetComponentMetadata() map[string]string {
+func (d *StateStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := dynamoDBMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
 }
 
 func (d *StateStore) getDynamoDBMetadata(meta state.Metadata) (*dynamoDBMetadata, error) {

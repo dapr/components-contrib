@@ -204,10 +204,8 @@ func (a *AzureServiceBusQueues) Close() (err error) {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (a *AzureServiceBusQueues) GetComponentMetadata() map[string]string {
+func (a *AzureServiceBusQueues) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := impl.Metadata{}
-	metadataInfo := map[string]string{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
-	delete(metadataInfo, "consumerID") // only applies to topics, not queues
-	return metadataInfo
+	return
 }

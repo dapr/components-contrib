@@ -13,9 +13,15 @@ limitations under the License.
 
 package lock
 
-import "context"
+import (
+	"context"
+
+	"github.com/dapr/components-contrib/metadata"
+)
 
 type Store interface {
+	metadata.ComponentWithMetadata
+
 	// Init this component.
 	InitLockStore(ctx context.Context, metadata Metadata) error
 
@@ -24,7 +30,4 @@ type Store interface {
 
 	// Unlock tries to release a lock.
 	Unlock(ctx context.Context, req *UnlockRequest) (*UnlockResponse, error)
-
-	// GetComponentMetadata returns information on the component's metadata.
-	GetComponentMetadata() map[string]string
 }

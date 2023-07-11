@@ -124,9 +124,6 @@ type AuthenticationProfile struct {
 // BuiltinAuthenticationProfile is a reference to a built-in authentication profile.
 type BuiltinAuthenticationProfile struct {
 	// Name of the built-in authentication profile.
-	// Currently supports:
-	//
-	// - `azuread` (Azure AD, including Managed Identity).
 	Name string `json:"name" yaml:"name"`
 	// Additional metadata options applicable when using this authentication profile.
 	Metadata []Metadata `json:"metadata,omitempty" yaml:"metadata,omitempty"`

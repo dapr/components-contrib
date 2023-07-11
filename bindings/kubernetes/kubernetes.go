@@ -202,9 +202,8 @@ func (k *kubernetesInput) Close() error {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (k *kubernetesInput) GetComponentMetadata() map[string]string {
+func (k *kubernetesInput) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := kubernetesMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

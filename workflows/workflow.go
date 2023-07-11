@@ -16,12 +16,16 @@ package workflows
 import (
 	"context"
 	"errors"
+
+	"github.com/dapr/components-contrib/metadata"
 )
 
 var ErrNotImplemented = errors.New("this component doesn't implement the current API operation")
 
 // Workflow is an interface to perform operations on Workflow.
 type Workflow interface {
+	metadata.ComponentWithMetadata
+
 	Init(metadata Metadata) error
 	Start(ctx context.Context, req *StartRequest) (*StartResponse, error)
 	Terminate(ctx context.Context, req *TerminateRequest) error
@@ -30,5 +34,4 @@ type Workflow interface {
 	Purge(ctx context.Context, req *PurgeRequest) error
 	Pause(ctx context.Context, req *PauseRequest) error
 	Resume(ctx context.Context, req *ResumeRequest) error
-	GetComponentMetadata() map[string]string
 }

@@ -230,5 +230,6 @@ func (a *azureServiceBus) Features() []pubsub.Feature {
 func (a *azureServiceBus) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := impl.Metadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
+	delete(metadataInfo, "consumerID") // only applies to topics, not queues
 	return
 }

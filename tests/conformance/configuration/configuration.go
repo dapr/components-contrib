@@ -159,7 +159,9 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 
 		// Initializing store
 		err = store.Init(context.Background(), configuration.Metadata{
-			Base: metadata.Base{Properties: props},
+			Base: metadata.Base{
+				Properties: props,
+			},
 		})
 		require.NoError(t, err)
 	})

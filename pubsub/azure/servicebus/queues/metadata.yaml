@@ -18,7 +18,8 @@ authenticationProfiles:
         required: true
         sensitive: true
         description: "Shared access policy connection string for the Service Bus."
-        example: '"Endpoint=sb://{ServiceBusNamespace}.servicebus.windows.net/;SharedAccessKeyName={PolicyName};SharedAccessKey={Key};EntityPath={ServiceBus}"'
+        example: |
+          "Endpoint=sb://{ServiceBusNamespace}.servicebus.windows.net/;SharedAccessKeyName={PolicyName};SharedAccessKey={Key};EntityPath={ServiceBus}"
         # If omitted, uses the same values as "<root>.binding"
         binding:
           output: true

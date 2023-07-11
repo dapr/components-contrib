@@ -23,18 +23,18 @@ func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile) ([]Authe
 	case "aws":
 		return []AuthenticationProfile{
 			{
-				Title:       "AWS: Access Key ID and Secret Access Key"
+				Title:       "AWS: Access Key ID and Secret Access Key",
 				Description: "Authenticate using an Access Key ID and Secret Access Key included in the metadata",
 				Metadata: []Metadata{
 					{
-						Name:        "AWS_ACCESS_KEY_ID",
+						Name:        "accessKey",
 						Required:    true,
 						Sensitive:   true,
 						Description: "AWS access key associated with an IAM account",
 						Example:     `"AKIAIOSFODNN7EXAMPLE"`,
 					},
 					{
-						Name:        "AWS_SECRET_ACCESS_KEY",
+						Name:        "secretKey",
 						Required:    true,
 						Sensitive:   true,
 						Description: "The secret key associated with the access key",
@@ -45,41 +45,34 @@ func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile) ([]Authe
 			{
 				Title:       "AWS: Credentials from Environment Variables",
 				Description: "Use AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY from the environment",
-				Metadata: []Metadata{
-					{
-						Name:        "AWS_ACCESS_KEY_ID",
-						Required:    true,
-						Sensitive:   true,
-						Description: "Optional name for the Azure environment if using a different Azure cloud",
-						Example:     `"AKIAIOSFODNN7EXAMPLE"`,
-					},
-					{
-						Name:        "AWS_SECRET_ACCESS_KEY",
-						Required:    true,
-						Sensitive:   true,
-						Description: "Optional name for the Azure environment if using a different Azure cloud",
-						Example:     `"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"`,
-					},
-				},
+				Metadata:    []Metadata{},
 			},
 		}, nil
 	case "gcp":
 		return []AuthenticationProfile{
 			{
-				Title:       "GCP: Application Default Credentials (ADC) Google authentication",
+				Title:       "GCP: Use private_key_id and private_key",
 				Description: "Environment variable to provide the location of a credential JSON file",
 				Metadata: []Metadata{
 					{
-						Name:        "GOOGLE_APPLICATION_CREDENTIALS",
+						Name:        "private_key_id",
 						Required:    true,
-						Description: "Environment variable to provide the location of a credential JSON file",
-						Example:     `"$HOME/.config/gcloud/application_default_credentials.json"`,
-						URL: &URL{
-							Title: "Application Default Credentials",
-							URL:   "https://cloud.google.com/docs/authentication/application-default-credentials",
-						},
+						Description: "The ID of the private key from the credentials",
+						Example:     `"privateKeyId"`,
+					},
+					{
+						Name:        "private_key",
+						Required:    true,
+						Sensitive:   true,
+						Description: "GCP credentials private key. Replace with x509 cert",
+						Example:     `"12345-12345"`,
 					},
 				},
+			},
+			{
+				Title:       "GCP: Application Default Credentials (ADC) Google authentication",
+				Description: "Environment variable (GOOGLE_APPLICATION_CREDENTIALS) to provide the location of a credential JSON file",
+				Metadata:    []Metadata{},
 			},
 		}, nil
 	case "azuread":

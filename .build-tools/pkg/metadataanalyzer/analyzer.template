@@ -17,19 +17,19 @@ import (
 )
 
 func main() {
-  if len(os.Args) < 2 {
-    fmt.Println("Please provide the path to the components-contrib root as an argument")
-    os.Exit(1)
-  }
-  basePath := os.Args[1]
-  log := logger.NewLogger("metadata")
+	if len(os.Args) < 2 {
+		fmt.Println("Please provide the path to the components-contrib root as an argument")
+		os.Exit(1)
+	}
+	basePath := os.Args[1]
+	log := logger.NewLogger("metadata")
 
-  var (
+	var (
 		yamlMetadata *map[string]string
-		missing      map[string]string
+		missing      []string
 		unexpected   []string
 	)
-	missingByComponent := make(map[string]map[string]string)
+	missingByComponent := make(map[string][]string)
 	unexpectedByComponent := make(map[string][]string)
 
 {{range $fullpkg, $val := .Pkgs}}
@@ -127,14 +127,17 @@ func getYamlMetadata(basePath string, pkg string) *map[string]string {
 	return &names
 }
 
-func checkMissingMetadata(yamlMetadata *map[string]string, componentMetadata map[string]string) map[string]string {
-	missingMetadata := make(map[string]string)
+func checkMissingMetadata(yamlMetadata *map[string]string, componentMetadata mdutils.MetadataMap) []string {
+	missingMetadata := make([]string, 0)
 	// if there is no yaml metadata, then we are not missing anything yet
 	if yamlMetadata != nil && len(*yamlMetadata) > 0 {
-		for key := range componentMetadata {
+		for key, md := range componentMetadata {
+			if md.Ignored {
+				continue
+			}
 			lowerKey := strings.ToLower(key)
 			if _, ok := (*yamlMetadata)[lowerKey]; !ok {
-				missingMetadata[lowerKey] = componentMetadata[key]
+				missingMetadata = append(missingMetadata, key)
 			}
 			// todo - check if the metadata is the same data type
 		}

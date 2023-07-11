@@ -253,7 +253,7 @@ func TestMetadataStructToStringMap(t *testing.T) {
 			notExported               string //nolint:structcheck,unused
 			DeprecatedProperty        string `mapstructure:"something_deprecated" mddeprecated:"true"`
 			Aliased                   string `mapstructure:"aliased" mdaliases:"another,name"`
-			Ignored                   string `mapstructure:"ignored" mdignored:"true"`
+			Ignored                   string `mapstructure:"ignored" mdignore:"true"`
 		}
 		m := testMetadata{}
 		metadatainfo := MetadataMap{}

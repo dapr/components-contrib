@@ -360,7 +360,7 @@ func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *MetadataMap, com
 		}
 
 		// If there's a mdignore tag and that's truthy, the field should be ignored by the metadata analyzer
-		mdField.Ignored = utils.IsTruthy(currentField.Tag.Get("mdignored"))
+		mdField.Ignored = utils.IsTruthy(currentField.Tag.Get("mdignore"))
 
 		// If there's a "mddeprecated" tag, the field may be deprecated
 		mdField.Deprecated = utils.IsTruthy(currentField.Tag.Get("mddeprecated"))

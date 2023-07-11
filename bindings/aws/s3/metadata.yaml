@@ -77,7 +77,7 @@ metadata:
     example: '"true", "false"'
   - name: disableSSL
     description: |
-      Allows to connect to non https:// endpoints. 
+      Allows to connect to non-`https://` endpoints. 
     type: bool
     default: 'false'
     example: '"true", "false"'

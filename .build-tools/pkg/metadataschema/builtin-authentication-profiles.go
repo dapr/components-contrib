@@ -17,6 +17,8 @@ import (
 	"fmt"
 )
 
+var builtinAuthProfiles map[string]AuthenticationProfile
+
 // ParseBuiltinAuthenticationProfile returns an AuthenticationProfile(s) from a given BuiltinAuthenticationProfile.
 func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile) ([]AuthenticationProfile, error) {
 	switch bi.Name {

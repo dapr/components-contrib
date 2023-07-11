@@ -17,26 +17,37 @@ import (
 	_ "embed"
 	"encoding/json"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/dapr/components-contrib/build-tools/cmd"
 )
 
-//go:embed component-folders.json
-var componentFoldersJSON []byte
+var (
+	//go:embed component-folders.json
+	componentFoldersJSON []byte
+	//go:embed builtin-authentication-profiles.yaml
+	builtinAuthenticationProfilesYAML []byte
+)
 
-func init() {
-	parsed := struct {
+func main() {
+	// Parse component-folders.json
+	parsedComponentFolders := struct {
 		ComponentFolders []string `json:"componentFolders"`
 		ExcludeFolders   []string `json:"excludeFolders"`
 	}{}
-	err := json.Unmarshal(componentFoldersJSON, &parsed)
+	err := json.Unmarshal(componentFoldersJSON, &parsedComponentFolders)
 	if err != nil {
 		panic(err)
 	}
 
-	cmd.ComponentFolders = parsed.ComponentFolders
-	cmd.ExcludeFolders = parsed.ExcludeFolders
-}
+	cmd.ComponentFolders = parsedComponentFolders.ComponentFolders
+	cmd.ExcludeFolders = parsedComponentFolders.ExcludeFolders
 
-func main() {
+	// Parse builtin-authentication-profiles.yaml
+	err = yaml.Unmarshal(builtinAuthenticationProfilesYAML, &cmd.BuiltinAuthenticationProfiles)
+	if err != nil {
+		panic(err)
+	}
+
 	cmd.Execute()
 }

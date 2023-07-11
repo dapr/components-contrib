@@ -70,6 +70,18 @@ func (c *ComponentMetadata) IsValid() error {
 	// Remove the property builtinAuthenticationProfiles now
 	c.BuiltInAuthenticationProfiles = nil
 
+	// Trim newlines from all descriptions
+	c.Description = strings.TrimSpace(c.Description)
+	for i := range c.AuthenticationProfiles {
+		c.AuthenticationProfiles[i].Description = strings.TrimSpace(c.AuthenticationProfiles[i].Description)
+		for j := range c.AuthenticationProfiles[i].Metadata {
+			c.AuthenticationProfiles[i].Metadata[j].Description = strings.TrimSpace(c.AuthenticationProfiles[i].Metadata[j].Description)
+		}
+	}
+	for i := range c.Metadata {
+		c.Metadata[i].Description = strings.TrimSpace(c.Metadata[i].Description)
+	}
+
 	return nil
 }
 

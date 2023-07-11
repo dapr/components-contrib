@@ -40,8 +40,8 @@ metadata:
   - name: endpoint
     required: false
     description: |
-      AWS endpoint for the component to use. Only used for local development. 
-      The endpoint is unncessary when running against production AWS.
+      AWS endpoint for the component to use, to connect to S3-compatible services or emulators.
+      Do not use this when running against production AWS.
     example: '"http://localhost:4566"'
     type: string
   - name: sessionToken

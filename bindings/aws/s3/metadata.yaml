@@ -98,7 +98,6 @@ metadata:
     required: false
     description: |
       To presign an object with a specified time-to-live, use the presignTTL metadata
-      key on a create request. Valid values for presignTTL are Go duration strings:
-      https://pkg.go.dev/maze.io/x/duration#:~:text=A%20duration%20string%20is%20a,w%22%2C%20%22y%22
+      key on a create request, as a Go duration.
     example: '"2h45m"'
-    type: string
+    type: duration

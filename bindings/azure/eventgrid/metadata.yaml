@@ -27,7 +27,7 @@ metadata:
       output: false
     description: |
       The HTTPS endpoint of the webhook Event Grid sends events (formatted as
-      Cloud Events) to. If you’re not re-writing URLs on ingress, it should be
+      Cloud Events) to. If you're not re-writing URLs on ingress, it should be
       in the form of: `"https://[YOUR HOSTNAME]/<path>"` If testing on your
       local machine, you can use something like `ngrok` to create a public
       endpoint.

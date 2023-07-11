@@ -1,10 +1,11 @@
-# yaml-language-server: $schema=../../../component-metadata-schema.json
+# yaml-language-server: $schema=../../component-metadata-schema.json
 schemaVersion: "v1"
 type: "state"
 name: "sqlserver"
 version: "v1"
 status: "stable"
 title: "SQL Server"
+description: "Microsoft SQL Server and Azure SQL"
 urls:
   - title: "Reference"
     url: "https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-sqlserver/"
@@ -17,7 +18,7 @@ capabilities:
 authenticationProfiles:
   - title: "Connection string"
     description: |
-      Authenticates using a connection string.
+      Authenticates using a connection string
     metadata:
       - name: connectionString
         required: true
@@ -36,6 +37,7 @@ builtinAuthenticationProfiles:
         description: |
           Must be set to `true` to enable the component to retrieve access tokens from Azure AD.
           This authentication method only works with Azure SQL databases.
+        example: "true"
       - name: connectionString
         required: true
         sensitive: true

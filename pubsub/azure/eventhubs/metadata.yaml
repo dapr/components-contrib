@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../../../../component-metadata-schema.json
+# yaml-language-server: $schema=../../../component-metadata-schema.json
 schemaVersion: v1
 type: pubsub
 name: azure.eventhubs
@@ -17,7 +17,8 @@ authenticationProfiles:
         sensitive: true
         description: |
           Connection string for the Event Hub or the Event Hub namespace.
-        example: '"Endpoint=sb://{EventHubNamespace}.servicebus.windows.net/;SharedAccessKeyName={PolicyName};SharedAccessKey={Key};EntityPath={EventHub}"'
+        example: |
+          "Endpoint=sb://{EventHubNamespace}.servicebus.windows.net/;SharedAccessKeyName={PolicyName};SharedAccessKey={Key};EntityPath={EventHub}"
 builtinAuthenticationProfiles:
   - name: "azuread"
     metadata:
@@ -31,6 +32,7 @@ builtinAuthenticationProfiles:
         type: bool
         required: false
         default: "false"
+        example: "false"
         description: |
           Allow management of the Event Hub namespace and storage account.
 
@@ -81,6 +83,8 @@ metadata:
       Connection string for the checkpoint store, alternative to specifying
       storageAccountKey.
       Property "storageAccountKey" is ignored when "storageConnectionString" is present
+    example: |
+      "BlobEndpoint=https://storagesample.blob.core.windows.net;..."
   - name: storageAccountName
     type: string
     required: true

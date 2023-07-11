@@ -77,6 +77,7 @@ const (
 	metadataPublisherConfirmKey     = "publisherConfirm"
 	metadataSaslExternal            = "saslExternal"
 	metadataMaxPriority             = "maxPriority"
+	metadataQueueNameKey            = "queueName"
 
 	defaultReconnectWaitSeconds = 3
 

@@ -31,9 +31,10 @@ type PostgreSQL struct {
 }
 
 type Options struct {
-	MigrateFn  func(context.Context, PGXPoolConn, MigrateOptions) error
-	SetQueryFn func(*state.SetRequest, SetQueryOptions) string
-	ETagColumn string
+	MigrateFn     func(context.Context, PGXPoolConn, MigrateOptions) error
+	SetQueryFn    func(*state.SetRequest, SetQueryOptions) string
+	ETagColumn    string
+	EnableAzureAD bool
 }
 
 type MigrateOptions struct {

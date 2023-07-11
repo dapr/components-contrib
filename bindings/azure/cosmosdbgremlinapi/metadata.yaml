@@ -12,7 +12,7 @@ binding:
   output: true
   operations:
     - name: query
-      description: "Perform a query."
+      description: "Perform a query"
 capabilities: []
 authenticationProfiles:
   - title: "Master key"

@@ -542,7 +542,11 @@ const components = {
             'internal/component/sql',
         ],
     },
-    'state.etcd': {
+    'state.etcd.v1': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh etcd',
+    },
+    'state.etcd.v2': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh etcd',
     },
@@ -578,9 +582,25 @@ const components = {
         conformanceSetup: 'docker-compose.sh oracledatabase',
     },
     'state.postgresql': {
-        conformance: true,
         certification: true,
+        sourcePkg: [
+            'state/postgresql',
+            'internal/component/postgresql',
+            'internal/component/sql',
+        ],
+    },
+    'state.postgresql.docker': {
+        conformance: true,
         conformanceSetup: 'docker-compose.sh postgresql',
+        sourcePkg: [
+            'state/postgresql',
+            'internal/component/postgresql',
+            'internal/component/sql',
+        ],
+    },
+    'state.postgresql.azure': {
+        conformance: true,
+        requiredSecrets: ['AzureDBPostgresConnectionString'],
         sourcePkg: [
             'state/postgresql',
             'internal/component/postgresql',

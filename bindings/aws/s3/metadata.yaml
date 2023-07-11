@@ -22,23 +22,6 @@ binding:
 capabilities: []
 builtinAuthenticationProfiles:
   - name: "aws"
-    metadata:
-    - name: accessKey
-      type: string
-      required: true
-      sensitive: true
-      description: |
-        AWS access key associated with an IAM account.
-      example: "AKIAIOSFODNN7EXAMPLE"
-      default: ""
-    - name: secretKey
-      type: string
-      required: true
-      sensitive: true
-      description: |
-        The secret key associated with the access key.
-      example: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
-      default: ""
 metadata:
   - name: bucket
     required: true

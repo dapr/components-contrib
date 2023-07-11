@@ -16,13 +16,9 @@ package middleware
 import (
 	"context"
 	"net/http"
-
-	"github.com/dapr/components-contrib/metadata"
 )
 
 // Middleware is the interface for a middleware.
 type Middleware interface {
-	metadata.ComponentWithMetadata
-
 	GetHandler(ctx context.Context, metadata Metadata) (func(next http.Handler) http.Handler, error)
 }

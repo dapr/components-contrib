@@ -15,13 +15,9 @@ package lock
 
 import (
 	"context"
-
-	"github.com/dapr/components-contrib/metadata"
 )
 
 type Store interface {
-	metadata.ComponentWithMetadata
-
 	// Init this component.
 	InitLockStore(ctx context.Context, metadata Metadata) error
 

@@ -34,7 +34,7 @@ func main() {
 
 {{range $fullpkg, $val := .Pkgs}}
 	instanceOf_{{index $val 0}} := {{index $val 0}}.{{index $val 1}}(log)
-	metadataFor_{{index $val 0}} := instanceOf_{{index $val 0}}.GetComponentMetadata()
+	metadataFor_{{index $val 0}} := instanceOf_{{index $val 0}}.(mdutils.ComponentWithMetadata).GetComponentMetadata()
 	yamlMetadata = getYamlMetadata(basePath, "{{$fullpkg}}")
 	missing = checkMissingMetadata(yamlMetadata, metadataFor_{{index $val 0}})
 	if len(missing) > 0 {

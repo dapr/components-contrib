@@ -20,28 +20,25 @@ binding:
     - name: list
       description: "List blob."
 capabilities: []
-authenticationProfiles:
-  - title: "AccessKey and secretKey"
-    description: "Authenticate using accessKey and secretKey."
+builtinAuthenticationProfiles:
+  - name: "aws"
     metadata:
-      - name: accessKey
-        type: string
-        required: true
-        sensitive: true
-        description: |
-          ID of the AWS account with appropriate permissions to SNS and SQS.
-          Can be secretKeyRef to use a secret reference.
-        example:  "AKIAIOSFODNN7EXAMPLE"
-        default: ""
-      - name: secretKey
-        type: string
-        required: true
-        sensitive: true
-        description: |
-          Secret for the AWS user. Can be secretKeyRef to use a secret 
-          reference.
-        example:  "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
-        default: ""
+    - name: accessKey
+      type: string
+      required: true
+      sensitive: true
+      description: |
+        AWS access key associated with an IAM account.
+      example: "AKIAIOSFODNN7EXAMPLE"
+      default: ""
+    - name: secretKey
+      type: string
+      required: true
+      sensitive: true
+      description: |
+        The secret key associated with the access key.
+      example: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+      default: ""
 metadata:
   - name: bucket
     required: true

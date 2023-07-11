@@ -44,7 +44,7 @@ func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile) ([]Authe
 			},
 			{
 				Title:       "AWS: Credentials from Environment Variables",
-				Description: "Use AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY",
+				Description: "Use AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY from the environment",
 				Metadata: []Metadata{
 					{
 						Name:        "AWS_ACCESS_KEY_ID",

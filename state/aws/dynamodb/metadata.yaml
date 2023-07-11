@@ -14,26 +14,8 @@ capabilities:
   - etag
   - ttl
   - actorStateStore
-authenticationProfiles:
-  - title: "Access key"
-    description: "Authenticate using accessKey and secretKey."
-    metadata:
-      - name: accessKey
-        type: string
-        required: true
-        sensitive: true
-        description: |
-          Access Key of the AWS account with appropriate permissions to access DynamoDB.
-        example:  "EXAMPLEAKEY"
-        default: ""
-      - name: secretKey
-        type: string
-        required: true
-        sensitive: true
-        description: |
-          Secret for the AWS account.
-        example:  "EXAMPLESKEY"
-        default: ""
+builtinAuthenticationProfiles:
+  - name: "aws"
 metadata:
   - name: table
     required: true

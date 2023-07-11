@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../../../component-metadata-schema.json
+# yaml-language-server: $schema=../../component-metadata-schema.json
 schemaVersion: v1
 type: bindings
 name: postgres
@@ -26,7 +26,7 @@ authenticationProfiles:
       - name: url
         required: true
         sensitive: true
-        bindings:
+        binding:
           input: false
           output: true
         description: "Connection string for PostgreSQL."

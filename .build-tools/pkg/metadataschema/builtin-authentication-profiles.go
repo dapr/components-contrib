@@ -48,33 +48,6 @@ func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile) ([]Authe
 				Metadata:    []Metadata{},
 			},
 		}, nil
-	case "gcp":
-		return []AuthenticationProfile{
-			{
-				Title:       "GCP: Use private_key_id and private_key",
-				Description: "Environment variable to provide the location of a credential JSON file",
-				Metadata: []Metadata{
-					{
-						Name:        "private_key_id",
-						Required:    true,
-						Description: "The ID of the private key from the credentials",
-						Example:     `"privateKeyId"`,
-					},
-					{
-						Name:        "private_key",
-						Required:    true,
-						Sensitive:   true,
-						Description: "GCP credentials private key. Replace with x509 cert",
-						Example:     `"12345-12345"`,
-					},
-				},
-			},
-			{
-				Title:       "GCP: Application Default Credentials (ADC) Google authentication",
-				Description: "Environment variable (GOOGLE_APPLICATION_CREDENTIALS) to provide the location of a credential JSON file",
-				Metadata:    []Metadata{},
-			},
-		}, nil
 	case "azuread":
 		azureEnvironmentMetadata := Metadata{
 			Name:          "azureEnvironment",

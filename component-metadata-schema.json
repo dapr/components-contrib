@@ -76,7 +76,7 @@
       "properties": {
         "name": {
           "type": "string",
-          "description": "Name of the built-in authentication profile.\nCurrently supports:\n\n- `azuread` (Azure AD, including Managed Identity)."
+          "description": "Name of the built-in authentication profile."
         },
         "metadata": {
           "items": {

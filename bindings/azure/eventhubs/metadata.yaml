@@ -13,7 +13,7 @@ binding:
   output: true
   operations:
     - name: create
-      description: "Create an event subscription."
+      description: "Create an event subscription"
 capabilities: []
 authenticationProfiles:
   - title: "Connection string"
@@ -24,12 +24,15 @@ authenticationProfiles:
         sensitive: true
         description: |
           Connection string for the Event Hub or the Event Hub namespace.
-        example: '"Endpoint=sb://{EventHubNamespace}.servicebus.windows.net/;SharedAccessKeyName={PolicyName};SharedAccessKey={Key};EntityPath={EventHub}"'
+        example: |
+          "Endpoint=sb://{EventHubNamespace}.servicebus.windows.net/;SharedAccessKeyName={PolicyName};SharedAccessKey={Key};EntityPath={EventHub}"
       - name: eventHub
         type: string
         description: |
-          The name of the Event Hubs hub (“topic”). Required if the connection string doesn’t contain an EntityPath value.
+          The name of the Event Hubs hub ("topic"). Required if the connection string doesn't contain an EntityPath value.
         required: false # Optional when a connectionString is provided
+        example: |
+          mytopic
 builtinAuthenticationProfiles:
   - name: "azuread"
     metadata:
@@ -50,6 +53,7 @@ builtinAuthenticationProfiles:
         type: bool
         required: false
         default: "false"
+        example: "false"
         description: |
           Allow management of the Event Hub namespace and storage account.
       - name: resourceGroupName
@@ -62,7 +66,7 @@ builtinAuthenticationProfiles:
       - name: subscriptionId
         type: string
         required: false
-        bindings:
+        binding:
           input: true
           output: false
         description: |
@@ -92,12 +96,13 @@ metadata:
     description: |
       DEPRECATED.
     deprecated: true
+    example: ""
   # Input-only metadata
   # consumerGroup is an alias for consumerId, if both are defined consumerId takes precedence.
   - name: consumerId
     type: string
     required: true # consumerGroup is an alias for this field, let's promote this to default
-    bindings:
+    binding:
       input: true
       output: false
     description: |
@@ -106,7 +111,7 @@ metadata:
   - name: consumerGroup
     type: string
     required: false
-    bindings:
+    binding:
       input: true
       output: false
     description: |
@@ -117,7 +122,7 @@ metadata:
   - name: storageAccountKey
     type: string
     required: false
-    bindings:
+    binding:
       input: true
       output: false
     description: |
@@ -129,17 +134,19 @@ metadata:
   - name: storageConnectionString
     type: string
     required: false
-    bindings:
+    binding:
       input: true
       output: false
     description: |
       Connection string for the checkpoint store, alternative to specifying
       storageAccountKey.
       Property "storageAccountKey" is ignored when "storageConnectionString" is present
+    example: |
+      "BlobEndpoint=https://storagesample.blob.core.windows.net;..."
   - name: storageAccountName
     type: string
     required: true
-    bindings:
+    binding:
       input: true
       output: false
     description: |
@@ -148,7 +155,7 @@ metadata:
   - name: storageContainerName
     type: string
     required: true
-    bindings:
+    binding:
       input: true
       output: false
     description: |

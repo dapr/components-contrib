@@ -49,9 +49,9 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 
 	// Init
 	t.Run("init", func(t *testing.T) {
-		err := store.Init(context.Background(), secretstores.Metadata{
-			Base: metadata.Base{Properties: props},
-		})
+		err := store.Init(context.Background(), secretstores.Metadata{Base: metadata.Base{
+			Properties: props,
+		}})
 		assert.NoError(t, err, "expected no error on initializing store")
 	})
 

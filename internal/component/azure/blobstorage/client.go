@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -49,8 +50,10 @@ func CreateContainerStorageClient(parentCtx context.Context, log logger.Logger, 
 		return nil, nil, err
 	}
 
-	if val, _ := mdutils.GetMetadataProperty(meta, azauth.MetadataKeys["StorageEndpoint"]...); val != "" {
-		m.customEndpoint = val
+	// Check if using a custom endpoint
+	err = m.setCustomEndpoint(log, meta, azEnvSettings)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	// Get the container client
@@ -74,21 +77,50 @@ func CreateContainerStorageClient(parentCtx context.Context, log logger.Logger, 
 	return client, m, nil
 }
 
+// Sets the customEndpoint property if needed
+func (opts *ContainerClientOpts) setCustomEndpoint(log logger.Logger, meta map[string]string, azEnvSettings azauth.EnvironmentSettings) error {
+	val, _ := mdutils.GetMetadataProperty(meta, azauth.MetadataKeys["StorageEndpoint"]...)
+	if val == "" {
+		return nil
+	}
+
+	endpointURL, err := url.Parse(val)
+	if err != nil {
+		return fmt.Errorf("failed to parse custom endpoint %q: %w", val, err)
+	}
+
+	// Check if the custom endpoint is set to an Azure Blob Storage public endpoint
+	azbURL := opts.getAzureBlobStorageContainerURL(azEnvSettings)
+	if endpointURL.Hostname() == azbURL.Hostname() && azbURL.Path == endpointURL.Path {
+		log.Warn("Metadata property endpoint is set to an Azure Blob Storage endpoint and will be ignored")
+	} else {
+		log.Info("Using custom endpoint for Azure Blob Storage")
+		opts.customEndpoint = strings.TrimSuffix(endpointURL.String(), "/")
+	}
+
+	return nil
+}
+
 // GetContainerURL returns the URL of the container, needed by some auth methods.
-func (opts ContainerClientOpts) GetContainerURL(azEnvSettings azauth.EnvironmentSettings) (u *url.URL, err error) {
+func (opts *ContainerClientOpts) GetContainerURL(azEnvSettings azauth.EnvironmentSettings) (u *url.URL, err error) {
 	if opts.customEndpoint != "" {
 		u, err = url.Parse(fmt.Sprintf("%s/%s/%s", opts.customEndpoint, opts.AccountName, opts.ContainerName))
 		if err != nil {
 			return nil, fmt.Errorf("failed to get container's URL with custom endpoint")
 		}
 	} else {
-		u, _ = url.Parse(fmt.Sprintf("https://%s.blob.%s/%s", opts.AccountName, azEnvSettings.EndpointSuffix(azauth.ServiceAzureStorage), opts.ContainerName))
+		u = opts.getAzureBlobStorageContainerURL(azEnvSettings)
 	}
 	return u, nil
 }
 
+func (opts *ContainerClientOpts) getAzureBlobStorageContainerURL(azEnvSettings azauth.EnvironmentSettings) *url.URL {
+	u, _ := url.Parse(fmt.Sprintf("https://%s.blob.%s/%s", opts.AccountName, azEnvSettings.EndpointSuffix(azauth.ServiceAzureStorage), opts.ContainerName))
+	return u
+}
+
 // InitContainerClient returns a new container.Client object from the given options.
-func (opts ContainerClientOpts) InitContainerClient(azEnvSettings azauth.EnvironmentSettings) (client *container.Client, err error) {
+func (opts *ContainerClientOpts) InitContainerClient(azEnvSettings azauth.EnvironmentSettings) (client *container.Client, err error) {
 	clientOpts := &container.ClientOptions{
 		ClientOptions: azcore.ClientOptions{
 			Retry: policy.RetryOptions{
@@ -149,7 +181,7 @@ func (opts ContainerClientOpts) InitContainerClient(azEnvSettings azauth.Environ
 
 // EnsureContainer creates the container if it doesn't already exist.
 // Property "accessLevel" indicates the public access level; nil-value means the container is private
-func (opts ContainerClientOpts) EnsureContainer(ctx context.Context, client *container.Client, accessLevel *azblob.PublicAccessType) error {
+func (opts *ContainerClientOpts) EnsureContainer(ctx context.Context, client *container.Client, accessLevel *azblob.PublicAccessType) error {
 	// Create the container
 	// This will return an error if it already exists
 	_, err := client.Create(ctx, &container.CreateOptions{

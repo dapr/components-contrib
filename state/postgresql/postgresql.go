@@ -22,8 +22,9 @@ import (
 // NewPostgreSQLStateStore creates a new instance of PostgreSQL state store.
 func NewPostgreSQLStateStore(logger logger.Logger) state.Store {
 	return postgresql.NewPostgreSQLStateStore(logger, postgresql.Options{
-		ETagColumn: "xmin",
-		MigrateFn:  performMigration,
+		ETagColumn:    "xmin",
+		EnableAzureAD: true,
+		MigrateFn:     performMigration,
 		SetQueryFn: func(req *state.SetRequest, opts postgresql.SetQueryOptions) string {
 			// Sprintf is required for table name because the driver does not substitute parameters for table names.
 			if !req.HasETag() {

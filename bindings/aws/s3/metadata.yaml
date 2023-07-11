@@ -12,13 +12,13 @@ binding:
   output: true
   operations:
     - name: create
-      description: "Create blob."
+      description: "Create blob"
     - name: get
-      description: "Get blob."
+      description: "Get blob"
     - name: delete
-      description: "Delete blob."
+      description: "Delete blob"
     - name: list
-      description: "List blob."
+      description: "List blob"
 capabilities: []
 builtinAuthenticationProfiles:
   - name: "aws"

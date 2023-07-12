@@ -18,9 +18,6 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-// config is the guest configuration, assigned during instantiation by handler.GuestConfig
-const metadataConfig = "config"
-
 type middleware struct {
 	logger logger.Logger
 }
@@ -44,8 +41,6 @@ func (m *middleware) getHandler(ctx context.Context, metadata dapr.Metadata) (*r
 		return nil, fmt.Errorf("wasm: failed to parse metadata: %w", err)
 	}
 
-	wasmConfig := []byte(metadata.Properties[metadataConfig])
-
 	var stdout, stderr bytes.Buffer
 	mw, err := wasmnethttp.NewMiddleware(ctx, meta.Guest,
 		handler.Logger(m),
@@ -53,7 +48,7 @@ func (m *middleware) getHandler(ctx context.Context, metadata dapr.Metadata) (*r
 			WithName(meta.GuestName).
 			WithStdout(&stdout).  // reset per request
 			WithStderr(&stderr)), // reset per request
-		handler.GuestConfig(wasmConfig))
+		handler.GuestConfig([]byte(meta.GuestConfig)))
 	if err != nil {
 		return nil, err
 	}

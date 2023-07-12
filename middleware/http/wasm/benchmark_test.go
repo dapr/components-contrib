@@ -28,19 +28,19 @@ func BenchmarkNative(b *testing.B) {
 }
 
 func BenchmarkTinygo(b *testing.B) {
-	path := "file://internal/e2e-guests/rewrite/main.wasm"
-	benchmarkMiddleware(b, path)
+	url := "file://internal/e2e-guests/rewrite/main.wasm"
+	benchmarkMiddleware(b, url)
 }
 
 // BenchmarkWat gives baseline performance for the same handler by
 // writing it directly in WebAssembly Text Format.
 func BenchmarkWat(b *testing.B) {
-	path := "file://internal/testdata/rewrite.wasm"
-	benchmarkMiddleware(b, path)
+	url := "file://internal/testdata/rewrite.wasm"
+	benchmarkMiddleware(b, url)
 }
 
-func benchmarkMiddleware(b *testing.B, path string) {
-	md := metadata.Base{Properties: map[string]string{"url": path}}
+func benchmarkMiddleware(b *testing.B, url string) {
+	md := metadata.Base{Properties: map[string]string{"url": url}}
 
 	l := logger.NewLogger(b.Name())
 	l.SetOutput(io.Discard)

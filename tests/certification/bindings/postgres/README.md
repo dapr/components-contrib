@@ -17,6 +17,7 @@ The purpose of this module is to provide tests that certify the PostgreSQL Outpu
     * Run dapr application with component to store data in postgres as output binding.
     * Read stored data from postgres.
     * Ensure that read data is same as the data that was stored.
+    * Verify the ability to use named paramters in queries.
 * Verify reconnection to postgres for output binding.
     * Simulate a network error before sending any messages.
     * Run dapr application with the component.

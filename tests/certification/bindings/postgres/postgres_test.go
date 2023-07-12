@@ -55,31 +55,58 @@ func TestPostgres(t *testing.T) {
 
 	testExec := func(ctx flow.Context) error {
 		client, err := daprClient.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
-		require.NoError(t, err, "Could not initialize dapr client.")
+		require.NoError(t, err, "Could not initialize dapr client")
 
-		metadata := make(map[string]string)
+		ctx.Log("Invoking output binding for exec operation")
+		err = client.InvokeOutputBinding(ctx, &daprClient.InvokeBindingRequest{
+			Name:      "standard-binding",
+			Operation: "exec",
+			Metadata: map[string]string{
+				"sql": "INSERT INTO " + tableName + " (id, c1, ts) VALUES (1, 'demo', '2020-09-24T11:45:05+07:00');",
+			},
+		})
+		require.NoError(ctx, err, "error in output binding - exec")
 
-		ctx.Log("Invoking output binding for exec operation!")
-		req := &daprClient.InvokeBindingRequest{Name: "standard-binding", Operation: "exec", Metadata: metadata}
-		req.Metadata["sql"] = "INSERT INTO " + tableName + " (id, c1, ts) VALUES (1, 'demo', '2020-09-24T11:45:05Z07:00');"
-		errBinding := client.InvokeOutputBinding(ctx, req)
-		require.NoError(ctx, errBinding, "error in output binding - exec")
+		ctx.Log("Invoking output binding for exec operation with parameters")
+		err = client.InvokeOutputBinding(ctx, &daprClient.InvokeBindingRequest{
+			Name:      "standard-binding",
+			Operation: "exec",
+			Metadata: map[string]string{
+				"sql":    "INSERT INTO " + tableName + " (id, c1, ts) VALUES ($1, $2, $3);",
+				"params": `[2, "demo2", "2021-03-19T11:45:05+07:00"]`,
+			},
+		})
+		require.NoError(ctx, err, "error in output binding - exec")
 
 		return nil
 	}
 
 	testQuery := func(ctx flow.Context) error {
 		client, err := daprClient.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
-		require.NoError(t, err, "Could not initialize dapr client.")
+		require.NoError(t, err, "Could not initialize dapr client")
 
-		metadata := make(map[string]string)
+		ctx.Log("Invoking output binding for query operation")
+		resp, err := client.InvokeBinding(ctx, &daprClient.InvokeBindingRequest{
+			Name:      "standard-binding",
+			Operation: "query",
+			Metadata: map[string]string{
+				"sql": "SELECT * FROM " + tableName + " WHERE id = 1;",
+			},
+		})
+		assert.Equal(t, `[[1,"demo","2020-09-24T11:45:05Z"]]`, string(resp.Data))
+		require.NoError(ctx, err, "error in output binding - query")
 
-		ctx.Log("Invoking output binding for query operation!")
-		req := &daprClient.InvokeBindingRequest{Name: "standard-binding", Operation: "query", Metadata: metadata}
-		req.Metadata["sql"] = "SELECT * FROM " + tableName + " WHERE id = 1;"
-		resp, errBinding := client.InvokeBinding(ctx, req)
-		assert.Contains(t, string(resp.Data), "1,\"demo\",\"2020-09-24T11:45:05Z07:00\"")
-		require.NoError(ctx, errBinding, "error in output binding - query")
+		ctx.Log("Invoking output binding for query operation with parameters")
+		resp, err = client.InvokeBinding(ctx, &daprClient.InvokeBindingRequest{
+			Name:      "standard-binding",
+			Operation: "query",
+			Metadata: map[string]string{
+				"sql":    "SELECT * FROM " + tableName + " WHERE id = ANY($1);",
+				"params": `[[1, 2]]`,
+			},
+		})
+		assert.Equal(t, `[[1,"demo","2020-09-24T11:45:05Z"],[2,"demo2","2021-03-19T11:45:05Z"]]`, string(resp.Data))
+		require.NoError(ctx, err, "error in output binding - query")
 
 		return nil
 	}
@@ -107,8 +134,8 @@ func TestPostgres(t *testing.T) {
 	createTable := func(ctx flow.Context) error {
 		db, err := sql.Open("pgx", dockerConnectionString)
 		assert.NoError(t, err)
-		_, err = db.Exec("CREATE TABLE " + tableName + " (id INT, c1 TEXT, ts TEXT);")
-		assert.NoError(t, err)
+		_, err = db.Exec("CREATE TABLE " + tableName + " (id INT, c1 TEXT, ts TIMESTAMP);")
+		require.NoError(t, err)
 		db.Close()
 		return nil
 	}
@@ -140,14 +167,16 @@ func TestPostgresNetworkError(t *testing.T) {
 
 	testExec := func(ctx flow.Context) error {
 		client, err := daprClient.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
-		require.NoError(t, err, "Could not initialize dapr client.")
-
-		metadata := make(map[string]string)
+		require.NoError(t, err, "Could not initialize dapr client")
 
 		ctx.Log("Invoking output binding for exec operation!")
-		req := &daprClient.InvokeBindingRequest{Name: "standard-binding", Operation: "exec", Metadata: metadata}
-		req.Metadata["sql"] = "INSERT INTO " + tableName + " (id, c1, ts) VALUES (1, 'demo', '2020-09-24T11:45:05Z07:00');"
-		errBinding := client.InvokeOutputBinding(ctx, req)
+		errBinding := client.InvokeOutputBinding(ctx, &daprClient.InvokeBindingRequest{
+			Name:      "standard-binding",
+			Operation: "exec",
+			Metadata: map[string]string{
+				"sql": "INSERT INTO " + tableName + " (id, c1, ts) VALUES (1, 'demo', '2020-09-24T11:45:05+07:00');",
+			},
+		})
 		require.NoError(ctx, errBinding, "error in output binding - exec")
 
 		return nil
@@ -155,14 +184,16 @@ func TestPostgresNetworkError(t *testing.T) {
 
 	testQuery := func(ctx flow.Context) error {
 		client, err := daprClient.NewClientWithPort(fmt.Sprintf("%d", grpcPort))
-		require.NoError(t, err, "Could not initialize dapr client.")
-
-		metadata := make(map[string]string)
+		require.NoError(t, err, "Could not initialize dapr client")
 
 		ctx.Log("Invoking output binding for query operation!")
-		req := &daprClient.InvokeBindingRequest{Name: "standard-binding", Operation: "query", Metadata: metadata}
-		req.Metadata["sql"] = "SELECT * FROM " + tableName + " WHERE id = 1;"
-		errBinding := client.InvokeOutputBinding(ctx, req)
+		errBinding := client.InvokeOutputBinding(ctx, &daprClient.InvokeBindingRequest{
+			Name:      "standard-binding",
+			Operation: "query",
+			Metadata: map[string]string{
+				"sql": "SELECT * FROM " + tableName + " WHERE id = 1;",
+			},
+		})
 		require.NoError(ctx, errBinding, "error in output binding - query")
 
 		return nil
@@ -171,7 +202,7 @@ func TestPostgresNetworkError(t *testing.T) {
 	createTable := func(ctx flow.Context) error {
 		db, err := sql.Open("pgx", dockerConnectionString)
 		assert.NoError(t, err)
-		_, err = db.Exec("CREATE TABLE " + tableName + "(id INT, c1 TEXT, ts TEXT);")
+		_, err = db.Exec("CREATE TABLE " + tableName + " (id INT, c1 TEXT, ts TIMESTAMP);")
 		assert.NoError(t, err)
 		db.Close()
 		return nil

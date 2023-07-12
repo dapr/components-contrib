@@ -1,9 +1,9 @@
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: statestore
+  name: configstore
 spec:
-  type: state.postgresql
+  type: configuration.postgresql
   version: v1
   metadata:
     - name: connectionString
@@ -16,3 +16,5 @@ spec:
       value: "${{AzureDBPostgresTenantId}}"
     - name: useAzureAD
       value: "true"
+    - name: table
+      value: configtable

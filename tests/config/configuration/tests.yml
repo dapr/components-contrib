@@ -5,5 +5,7 @@ components:
     operations: []
   - component: redis.v7
     operations: []
-  - component: postgres
+  - component: postgresql.azure
+    operations: []
+  - component: postgresql.docker
     operations: []

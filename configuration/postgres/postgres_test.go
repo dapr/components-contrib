@@ -20,8 +20,10 @@ import (
 
 	"github.com/pashagolub/pgxmock/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/configuration"
+	pgauth "github.com/dapr/components-contrib/internal/authentication/postgresql"
 )
 
 func TestSelectAllQuery(t *testing.T) {
@@ -43,7 +45,7 @@ func TestSelectAllQuery(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error building query: %v ", err)
 	}
-	assert.Nil(t, err, "Error building query: %v ", err)
+	assert.NoError(t, err, "Error building query: %v ", err)
 	assert.Equal(t, expected, query, "did not get expected result. Got: '%v' , Expected: '%v'", query, expected)
 }
 
@@ -57,7 +59,7 @@ func TestPostgresbuildQuery(t *testing.T) {
 
 	query, params, err := buildQuery(g, "cfgtbl")
 	_ = params
-	assert.Nil(t, err, "Error building query: %v ", err)
+	assert.NoError(t, err, "Error building query: %v ", err)
 	expected := "SELECT * FROM cfgtbl WHERE KEY IN ($1) AND $2 = $3"
 	assert.Equal(t, expected, query, "did not get expected result. Got: '%v' , Expected: '%v'", query, expected)
 	i := 0
@@ -80,12 +82,14 @@ func TestPostgresbuildQuery(t *testing.T) {
 
 func TestConnectAndQuery(t *testing.T) {
 	m := metadata{
-		ConnectionString: "mockConnectionString",
-		ConfigTable:      "mockConfigTable",
+		PostgresAuthMetadata: pgauth.PostgresAuthMetadata{
+			ConnectionString: "mockConnectionString",
+		},
+		ConfigTable: "mockConfigTable",
 	}
 
 	mock, err := pgxmock.NewPool()
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	defer mock.Close()
 
 	query := "SELECT EXISTS (SELECT FROM pg_tables where tablename = '" + m.ConfigTable + "'"
@@ -97,9 +101,9 @@ func TestConnectAndQuery(t *testing.T) {
 	rows := mock.QueryRow(context.Background(), query)
 	var id string
 	err = rows.Scan(&id)
-	assert.Nil(t, err, "error in scan")
+	assert.NoError(t, err, "error in scan")
 	err = mock.ExpectationsWereMet()
-	assert.Nil(t, err, "pgxmock error in expectations were met")
+	assert.NoError(t, err, "pgxmock error in expectations were met")
 }
 
 func TestValidateInput(t *testing.T) {

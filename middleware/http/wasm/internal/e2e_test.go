@@ -129,7 +129,7 @@ func Test_EndToEnd(t *testing.T) {
 			},
 		},
 		{
-			name:     "consoleLog config",
+			name:     "log config to console",
 			guest:    guestWasm[guestWasmConfig],
 			property: map[string]string{"config": "config bytes in any format"},
 			test: func(t *testing.T, handler http.Handler, log *bytes.Buffer) {

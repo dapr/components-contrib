@@ -18,6 +18,7 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
+// config is the guest configuration, assigned during instantiation by handler.GuestConfig
 const metadataConfig = "config"
 
 type middleware struct {

@@ -90,6 +90,7 @@ func (store *inMemoryStore) Features() []state.Feature {
 	return []state.Feature{
 		state.FeatureETag,
 		state.FeatureTransactional,
+		state.FeatureTTL,
 	}
 }
 

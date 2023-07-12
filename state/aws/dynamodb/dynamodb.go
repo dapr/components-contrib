@@ -92,7 +92,11 @@ func (d *StateStore) Init(_ context.Context, metadata state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (d *StateStore) Features() []state.Feature {
-	return []state.Feature{state.FeatureETag, state.FeatureTransactional}
+	return []state.Feature{
+		state.FeatureETag,
+		state.FeatureTransactional,
+		state.FeatureTTL,
+	}
 }
 
 // Get retrieves a dynamoDB item.

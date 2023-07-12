@@ -91,7 +91,9 @@ func (q *CFWorkersKV) GetComponentMetadata() map[string]string {
 
 // Features returns the features supported by this state store.
 func (q CFWorkersKV) Features() []state.Feature {
-	return []state.Feature{}
+	return []state.Feature{
+		state.FeatureTTL,
+	}
 }
 
 func (q *CFWorkersKV) Delete(parentCtx context.Context, stateReq *state.DeleteRequest) error {

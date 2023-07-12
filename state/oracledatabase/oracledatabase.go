@@ -44,7 +44,11 @@ func NewOracleDatabaseStateStore(logger logger.Logger) state.Store {
 // This unexported constructor allows injecting a dbAccess instance for unit testing.
 func newOracleDatabaseStateStore(logger logger.Logger, dba dbAccess) *OracleDatabase {
 	return &OracleDatabase{
-		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		features: []state.Feature{
+			state.FeatureETag,
+			state.FeatureTransactional,
+			state.FeatureTTL,
+		},
 		logger:   logger,
 		dbaccess: dba,
 	}

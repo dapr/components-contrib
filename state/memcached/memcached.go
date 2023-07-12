@@ -93,7 +93,9 @@ func (m *Memcached) Init(_ context.Context, metadata state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (m *Memcached) Features() []state.Feature {
-	return nil
+	return []state.Feature{
+		state.FeatureTTL,
+	}
 }
 
 func getMemcachedMetadata(meta state.Metadata) (*memcachedMetadata, error) {

@@ -37,7 +37,7 @@ const (
 	stateArchiveTablePKName = "key"
 )
 
-// RethinkDB is a state store implementation with transactional support for RethinkDB.
+// RethinkDB is a state store implementation for RethinkDB.
 type RethinkDB struct {
 	session  *r.Session
 	config   *stateConfig
@@ -61,8 +61,10 @@ type stateRecord struct {
 // NewRethinkDBStateStore returns a new RethinkDB state store.
 func NewRethinkDBStateStore(logger logger.Logger) state.Store {
 	s := &RethinkDB{
-		features: []state.Feature{},
-		logger:   logger,
+		features: []state.Feature{
+			state.FeatureETag,
+		},
+		logger: logger,
 	}
 	return s
 }

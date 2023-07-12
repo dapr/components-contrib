@@ -161,9 +161,9 @@ func (r *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 // Features returns the features available in this state store.
 func (r *StateStore) Features() []state.Feature {
 	if r.clientHasJSON {
-		return []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI}
+		return []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureTTL, state.FeatureQueryAPI}
 	} else {
-		return []state.Feature{state.FeatureETag, state.FeatureTransactional}
+		return []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureTTL}
 	}
 }
 

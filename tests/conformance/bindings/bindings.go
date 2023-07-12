@@ -126,17 +126,17 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		// Check for an output binding specific operation before init
 		if config.HasOperation("operations") {
 			testLogger.Info("Init output binding ...")
-			err := outputBinding.Init(context.Background(), bindings.Metadata{
-				Base: metadata.Base{Properties: props},
-			})
+			err := outputBinding.Init(context.Background(), bindings.Metadata{Base: metadata.Base{
+				Properties: props,
+			}})
 			assert.NoError(t, err, "expected no error setting up output binding")
 		}
 		// Check for an input binding specific operation before init
 		if config.HasOperation("read") {
 			testLogger.Info("Init input binding ...")
-			err := inputBinding.Init(context.Background(), bindings.Metadata{
-				Base: metadata.Base{Properties: props},
-			})
+			err := inputBinding.Init(context.Background(), bindings.Metadata{Base: metadata.Base{
+				Properties: props,
+			}})
 			assert.NoError(t, err, "expected no error setting up input binding")
 		}
 		testLogger.Info("Init test done.")

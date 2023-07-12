@@ -191,7 +191,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		assert.Equal(t, expected, err.Error())
 	})
 
-	t.Run("Connectionstring ignores all other connection details", func(t *testing.T) {
+	t.Run("Connection string ignores all other connection details", func(t *testing.T) {
 		properties := map[string]string{
 			host:               "localhost:27017",
 			databaseName:       "TestDB",

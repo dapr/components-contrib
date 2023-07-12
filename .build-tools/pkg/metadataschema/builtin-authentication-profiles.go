@@ -20,6 +20,34 @@ import (
 // ParseBuiltinAuthenticationProfile returns an AuthenticationProfile(s) from a given BuiltinAuthenticationProfile.
 func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile) ([]AuthenticationProfile, error) {
 	switch bi.Name {
+	case "aws":
+		return []AuthenticationProfile{
+			{
+				Title:       "AWS: Access Key ID and Secret Access Key",
+				Description: "Authenticate using an Access Key ID and Secret Access Key included in the metadata",
+				Metadata: []Metadata{
+					{
+						Name:        "accessKey",
+						Required:    true,
+						Sensitive:   true,
+						Description: "AWS access key associated with an IAM account",
+						Example:     `"AKIAIOSFODNN7EXAMPLE"`,
+					},
+					{
+						Name:        "secretKey",
+						Required:    true,
+						Sensitive:   true,
+						Description: "The secret key associated with the access key",
+						Example:     `"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"`,
+					},
+				},
+			},
+			{
+				Title:       "AWS: Credentials from Environment Variables",
+				Description: "Use AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY from the environment",
+				Metadata:    []Metadata{},
+			},
+		}, nil
 	case "azuread":
 		azureEnvironmentMetadata := Metadata{
 			Name:          "azureEnvironment",

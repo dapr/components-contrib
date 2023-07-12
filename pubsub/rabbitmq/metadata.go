@@ -79,6 +79,7 @@ const (
 	metadataSaslExternal            = "saslExternal"
 	metadataMaxPriority             = "maxPriority"
 	metadataClientNameKey           = "clientName"
+	metadataQueueNameKey            = "queueName"
 
 	defaultReconnectWaitSeconds = 3
 

@@ -75,9 +75,9 @@ components:
   - component: in-memory
     operations: [ "transaction", "etag",  "first-write", "ttl" ]
   - component: aws.dynamodb.docker
-    operations: [ "transaction", "etag", "first-write" ]
+    operations: [ "transaction", "etag", "first-write", "ttl" ]
   - component: aws.dynamodb.terraform
-    operations: [ "transaction", "etag", "first-write" ]
+    operations: [ "transaction", "etag", "first-write", "ttl" ]
   - component: etcd.v1
     operations: [ "transaction", "etag",  "first-write", "ttl" ]
   - component: etcd.v2

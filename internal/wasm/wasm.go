@@ -47,6 +47,8 @@ type InitMetadata struct {
 
 	// GuestName is module name of the guest, loaded from URL.
 	GuestName string `mapstructure:"-"`
+
+	EnableWasiHttp bool `mapstructure:"enableWasiHttp"`
 }
 
 // GetInitMetadata returns InitMetadata from the input metadata.

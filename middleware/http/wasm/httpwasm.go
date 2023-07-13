@@ -11,6 +11,8 @@ import (
 	"github.com/http-wasm/http-wasm-host-go/api"
 	"github.com/http-wasm/http-wasm-host-go/handler"
 	wasmnethttp "github.com/http-wasm/http-wasm-host-go/handler/nethttp"
+	"github.com/stealthrocket/wasi-go/imports/wasi_http"
+	"github.com/tetratelabs/wazero"
 
 	"github.com/dapr/components-contrib/internal/wasm"
 	mdutils "github.com/dapr/components-contrib/metadata"
@@ -34,6 +36,17 @@ func (m *middleware) GetHandler(ctx context.Context, metadata dapr.Metadata) (fu
 	return rh.requestHandler, nil
 }
 
+func wasiHttpRuntime(ctx context.Context) (wazero.Runtime, error) {
+	rt, err := handler.DefaultRuntime(ctx)
+
+	if err != nil {
+		return rt, err
+	}
+
+	err = wasi_http.Instantiate(ctx, rt)
+	return rt, err
+}
+
 // getHandler is extracted for unit testing.
 func (m *middleware) getHandler(ctx context.Context, metadata dapr.Metadata) (*requestHandler, error) {
 	meta, err := wasm.GetInitMetadata(metadata.Base)
@@ -42,12 +55,17 @@ func (m *middleware) getHandler(ctx context.Context, metadata dapr.Metadata) (*r
 	}
 
 	var stdout, stderr bytes.Buffer
-	mw, err := wasmnethttp.NewMiddleware(ctx, meta.Guest,
+	options := []handler.Option{
 		handler.Logger(m),
 		handler.ModuleConfig(wasm.NewModuleConfig(meta).
 			WithName(meta.GuestName).
 			WithStdout(&stdout).  // reset per request
-			WithStderr(&stderr))) // reset per request
+			WithStderr(&stderr)), // reset per request
+	}
+	if meta.EnableWasiHttp {
+		options = append(options, handler.Runtime(wasiHttpRuntime))
+	}
+	mw, err := wasmnethttp.NewMiddleware(ctx, meta.Guest, options...)
 	if err != nil {
 		return nil, err
 	}

@@ -269,7 +269,7 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageRequest []byte, me
 	}
 
 	if len(messages.Messages) == 0 {
-		return nil, fmt.Errorf("messages are required for chatCompletion operation")
+		return nil, fmt.Errorf("messages are required for chat-completion operation")
 	}
 
 	messageReq := make([]*azopenai.ChatMessage, len(messages.Messages))

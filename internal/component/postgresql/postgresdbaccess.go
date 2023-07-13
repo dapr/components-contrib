@@ -35,8 +35,6 @@ import (
 	"github.com/dapr/kit/ptr"
 )
 
-var errMissingConnectionString = errors.New("missing connection string")
-
 // Interface that applies to *pgxpool.Pool.
 // We need this to be able to mock the connection in tests.
 type PGXPoolConn interface {
@@ -57,9 +55,10 @@ type PostgresDBAccess struct {
 
 	gc internalsql.GarbageCollector
 
-	migrateFn  func(context.Context, PGXPoolConn, MigrateOptions) error
-	setQueryFn func(*state.SetRequest, SetQueryOptions) string
-	etagColumn string
+	migrateFn     func(context.Context, PGXPoolConn, MigrateOptions) error
+	setQueryFn    func(*state.SetRequest, SetQueryOptions) string
+	etagColumn    string
+	enableAzureAD bool
 }
 
 // newPostgresDBAccess creates a new instance of postgresAccess.
@@ -67,10 +66,11 @@ func newPostgresDBAccess(logger logger.Logger, opts Options) *PostgresDBAccess {
 	logger.Debug("Instantiating new Postgres state store")
 
 	return &PostgresDBAccess{
-		logger:     logger,
-		migrateFn:  opts.MigrateFn,
-		setQueryFn: opts.SetQueryFn,
-		etagColumn: opts.ETagColumn,
+		logger:        logger,
+		migrateFn:     opts.MigrateFn,
+		setQueryFn:    opts.SetQueryFn,
+		etagColumn:    opts.ETagColumn,
+		enableAzureAD: opts.EnableAzureAD,
 	}
 }
 
@@ -78,20 +78,16 @@ func newPostgresDBAccess(logger logger.Logger, opts Options) *PostgresDBAccess {
 func (p *PostgresDBAccess) Init(ctx context.Context, meta state.Metadata) error {
 	p.logger.Debug("Initializing Postgres state store")
 
-	err := p.metadata.InitWithMetadata(meta)
+	err := p.metadata.InitWithMetadata(meta, p.enableAzureAD)
 	if err != nil {
 		p.logger.Errorf("Failed to parse metadata: %v", err)
 		return err
 	}
 
-	config, err := pgxpool.ParseConfig(p.metadata.ConnectionString)
+	config, err := p.metadata.GetPgxPoolConfig()
 	if err != nil {
-		err = fmt.Errorf("failed to parse connection string: %w", err)
 		p.logger.Error(err)
 		return err
-	}
-	if p.metadata.ConnectionMaxIdleTime > 0 {
-		config.MaxConnIdleTime = p.metadata.ConnectionMaxIdleTime
 	}
 
 	connCtx, connCancel := context.WithTimeout(ctx, p.metadata.Timeout)

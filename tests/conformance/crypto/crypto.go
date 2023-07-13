@@ -16,6 +16,7 @@ package crypto
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -113,9 +114,9 @@ func ConformanceTests(t *testing.T, props map[string]string, component contribCr
 
 	// Init
 	t.Run("Init", func(t *testing.T) {
-		err := component.Init(context.Background(), contribCrypto.Metadata{
-			Base: metadata.Base{Properties: props},
-		})
+		err := component.Init(context.Background(), contribCrypto.Metadata{Base: metadata.Base{
+			Properties: props,
+		}})
 		require.NoError(t, err, "expected no error on initializing store")
 	})
 
@@ -178,6 +179,23 @@ func ConformanceTests(t *testing.T, props map[string]string, component contribCr
 					require.NoError(t, err)
 					assert.NotNil(t, key)
 					requireKeyPublic(t, key)
+
+					// Test how keys are marshaled as JSON
+					// We first marshal as JSON and then unmarshal into a POJO to verify that the required keys (the public part of RSA keys) are present
+					// For now we test this with RSA only for simplicity
+					if algorithm == "RSA-OAEP" {
+						j, err := json.Marshal(key)
+						require.NoError(t, err)
+						require.NotEmpty(t, j)
+
+						keyDict := map[string]any{}
+						err = json.Unmarshal(j, &keyDict)
+						require.NoError(t, err)
+
+						assert.NotEmptyf(t, keyDict["e"], "missing 'e' property in dictionary: %#v", keyDict)
+						assert.NotEmptyf(t, keyDict["n"], "missing 'n' property in dictionary: %#v", keyDict)
+						assert.Equal(t, "RSA", keyDict["kty"], "invalid 'kty' property in dictionary: %#v", keyDict)
+					}
 				}
 			})
 		})

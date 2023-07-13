@@ -37,7 +37,7 @@ const (
 	v1                     = "1.0.0"
 	defaultMaxReadDuration = 30 * time.Second
 	defaultWaitDuration    = 5 * time.Second
-	postgresComponent      = "postgres"
+	postgresComponent      = "postgresql"
 	pgNotifyChannelKey     = "pgNotifyChannel"
 	pgNotifyChannel        = "config"
 )
@@ -152,14 +152,16 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 		require.NoError(t, err)
 
 		// Creating trigger for postgres config updater
-		if component == postgresComponent {
+		if strings.HasPrefix(component, postgresComponent) {
 			err = updater.(*postgres_updater.ConfigUpdater).CreateTrigger(pgNotifyChannel)
 			require.NoError(t, err)
 		}
 
 		// Initializing store
 		err = store.Init(context.Background(), configuration.Metadata{
-			Base: metadata.Base{Properties: props},
+			Base: metadata.Base{
+				Properties: props,
+			},
 		})
 		require.NoError(t, err)
 	})
@@ -221,7 +223,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 
 	t.Run("subscribe", func(t *testing.T) {
 		subscribeMetadata := make(map[string]string)
-		if component == postgresComponent {
+		if strings.HasPrefix(component, postgresComponent) {
 			subscribeMetadata[pgNotifyChannelKey] = pgNotifyChannel
 		}
 		t.Run("subscriber 1 with non-empty key list", func(t *testing.T) {
@@ -305,7 +307,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			// Delete initValues2
 			errDelete := updater.DeleteKey(getKeys(initValues2))
 			assert.NoError(t, errDelete, "expected no error on updating keys")
-			if component != postgresComponent {
+			if !strings.HasPrefix(component, postgresComponent) {
 				for k := range initValues2 {
 					initValues2[k] = &configuration.Item{}
 				}
@@ -321,10 +323,9 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 
 	t.Run("unsubscribe", func(t *testing.T) {
 		t.Run("unsubscribe subscriber 1", func(t *testing.T) {
-			ID1 := subscribeIDs[0]
 			err := store.Unsubscribe(context.Background(),
 				&configuration.UnsubscribeRequest{
-					ID: ID1,
+					ID: subscribeIDs[0],
 				},
 			)
 			assert.NoError(t, err, "expected no error in unsubscribe")
@@ -344,10 +345,9 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 		})
 
 		t.Run("unsubscribe subscriber 2", func(t *testing.T) {
-			ID2 := subscribeIDs[1]
 			err := store.Unsubscribe(context.Background(),
 				&configuration.UnsubscribeRequest{
-					ID: ID2,
+					ID: subscribeIDs[1],
 				},
 			)
 			assert.NoError(t, err, "expected no error in unsubscribe")
@@ -365,10 +365,9 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 		})
 
 		t.Run("unsubscribe subscriber 3", func(t *testing.T) {
-			ID3 := subscribeIDs[2]
 			err := store.Unsubscribe(context.Background(),
 				&configuration.UnsubscribeRequest{
-					ID: ID3,
+					ID: subscribeIDs[2],
 				},
 			)
 			assert.NoError(t, err, "expected no error in unsubscribe")

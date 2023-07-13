@@ -292,7 +292,6 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageRequest []byte, me
 		N:           &messages.N,
 		Messages:    messageReq,
 	}, nil)
-
 	if err != nil {
 		return nil, fmt.Errorf("error getting chat completion api: %w", err)
 	}

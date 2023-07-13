@@ -73,11 +73,12 @@ type ChatSettings struct {
 	FrequencyPenalty float32 `mapstructure:"frequencyPenalty"`
 }
 
-// MessageArray type for chat completion API.
-type MessageArray struct {
+// Messages type for chat completion API.
+type Messages struct {
 	Messages []Message
 }
 
+// Message type stores the messages for bot conversation.
 type Message struct {
 	Role    string
 	Message string
@@ -170,14 +171,16 @@ func (p *AzOpenAI) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 		if err != nil {
 			return nil, fmt.Errorf("error performing completion: %w", err)
 		}
-		resp.Metadata["response"] = response
+		responseAsBytes, _ := json.Marshal(response)
+		resp.Data = responseAsBytes
 
 	case ChatCompletionOperation:
 		response, err := p.chatCompletion(ctx, req.Data, req.Metadata)
 		if err != nil {
 			return nil, fmt.Errorf("error performing chat completion: %w", err)
 		}
-		resp.Metadata["response"] = response
+		responseAsBytes, _ := json.Marshal(response)
+		resp.Data = responseAsBytes
 
 	default:
 		return nil, fmt.Errorf(
@@ -197,15 +200,21 @@ func (s *ChatSettings) Decode(in any) error {
 	return config.Decode(in, s)
 }
 
-func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[string]string) (response string, err error) {
-	var ma Prompt
-	err = json.Unmarshal(message, &ma)
+func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[string]string) (response []*azopenai.Choice, err error) {
+	var prompt Prompt
+	err = json.Unmarshal(message, &prompt)
 	if err != nil {
-		return "", fmt.Errorf("error unmarshalling the message array: %w", err)
+		return []*azopenai.Choice{}, fmt.Errorf("error unmarshalling the input object: %w", err)
 	}
 
-	if ma.Prompt == "" {
-		return "", fmt.Errorf("prompt is required for completion operation")
+	messageSettings := make(map[string]any)
+	err = json.Unmarshal(message, &messageSettings)
+	if err != nil {
+		return []*azopenai.Choice{}, fmt.Errorf("error unmarshalling settings from the input object: %w", err)
+	}
+
+	if prompt.Prompt == "" {
+		return []*azopenai.Choice{}, fmt.Errorf("prompt is required for completion operation")
 	}
 
 	// Refer to the following link for more information on the parameters and their default values:
@@ -219,40 +228,45 @@ func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[
 		FrequencyPenalty: 0.0,
 	}
 
-	err = settings.Decode(metadata)
+	err = settings.Decode(messageSettings)
 	if err != nil {
-		return "", fmt.Errorf("error decoding the parameters: %w", err)
+		return []*azopenai.Choice{}, fmt.Errorf("error decoding the parameters: %w", err)
 	}
 
 	resp, err := p.client.GetCompletions(ctx, azopenai.CompletionsOptions{
-		Prompt:      []*string{&ma.Prompt},
+		Prompt:      []*string{&prompt.Prompt},
 		MaxTokens:   &settings.MaxTokens,
 		Temperature: &settings.Temperature,
-		TopP:        &settings.Temperature,
+		TopP:        &settings.TopP,
 		N:           &settings.N,
 	}, nil)
 	if err != nil {
-		return "", fmt.Errorf("error getting completion api: %w", err)
+		return []*azopenai.Choice{}, fmt.Errorf("error getting completion api: %w", err)
 	}
 
 	if len(resp.Completions.Choices) == 0 {
-		return "", fmt.Errorf("error getting response from completion api: %w", err)
+		return []*azopenai.Choice{}, fmt.Errorf("error getting response from completion api: %w", err)
 	}
 
-	response = *resp.Completions.Choices[0].Text
-
+	response = resp.Completions.Choices
 	return response, nil
 }
 
-func (p *AzOpenAI) chatCompletion(ctx context.Context, messageArray []byte, metadata map[string]string) (response string, err error) {
-	var ma MessageArray
-	err = json.Unmarshal(messageArray, &ma)
+func (p *AzOpenAI) chatCompletion(ctx context.Context, messageRequest []byte, metadata map[string]string) (response []*azopenai.ChatChoice, err error) {
+	var messages Messages
+	err = json.Unmarshal(messageRequest, &messages)
 	if err != nil {
-		return "", fmt.Errorf("error unmarshalling the message array: %w", err)
+		return []*azopenai.ChatChoice{}, fmt.Errorf("error unmarshalling the input object: %w", err)
 	}
 
-	if len(ma.Messages) == 0 {
-		return "", fmt.Errorf("messages are required for chatCompletion operation")
+	messageSettings := make(map[string]any)
+	err = json.Unmarshal(messageRequest, &messageSettings)
+	if err != nil {
+		return []*azopenai.ChatChoice{}, fmt.Errorf("error unmarshalling settings from the input object: %w", err)
+	}
+
+	if len(messages.Messages) == 0 {
+		return []*azopenai.ChatChoice{}, fmt.Errorf("messages are required for chatCompletion operation")
 	}
 
 	// Refer to the following link for more information on the parameters and their default values:
@@ -265,17 +279,17 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageArray []byte, meta
 		FrequencyPenalty: 0.0,
 	}
 
-	err = settings.Decode(metadata)
+	err = settings.Decode(messageSettings)
 	if err != nil {
-		return "", fmt.Errorf("error decoding the parameters: %w", err)
+		return []*azopenai.ChatChoice{}, fmt.Errorf("error decoding the parameters: %w", err)
 	}
 
-	messageReq := []*azopenai.ChatMessage{}
-	for _, message := range ma.Messages {
-		messageReq = append(messageReq, &azopenai.ChatMessage{
-			Role:    to.Ptr(azopenai.ChatRole(message.Role)),
-			Content: &message.Message,
-		})
+	messageReq := make([]*azopenai.ChatMessage, len(messages.Messages))
+	for i, m := range messages.Messages {
+		messageReq[i] = &azopenai.ChatMessage{
+			Role:    to.Ptr(azopenai.ChatRole(m.Role)),
+			Content: to.Ptr(m.Message),
+		}
 	}
 
 	var maxTokens *int32
@@ -291,15 +305,14 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageArray []byte, meta
 		Messages:    messageReq,
 	}, nil)
 	if err != nil {
-		return "", fmt.Errorf("error getting chat completion api: %w", err)
+		return []*azopenai.ChatChoice{}, fmt.Errorf("error getting chat completion api: %w", err)
 	}
 
 	if len(res.ChatCompletions.Choices) == 0 {
-		return "", fmt.Errorf("error getting response from chat completion api: %w", err)
+		return []*azopenai.ChatChoice{}, fmt.Errorf("error getting response from chat completion api: %w", err)
 	}
 
-	response = *res.ChatCompletions.Choices[0].Message.Content
-
+	response = res.ChatCompletions.Choices
 	return response, nil
 }
 

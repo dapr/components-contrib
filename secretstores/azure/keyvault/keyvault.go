@@ -146,7 +146,7 @@ func (k *keyvaultSecretStore) BulkGetSecret(ctx context.Context, req secretstore
 
 	secretIDPrefix := k.getVaultURI() + secretItemIDPrefix
 
-	pager := k.vaultClient.NewListSecretsPager(nil)
+	pager := k.vaultClient.NewListSecretPropertiesPager(nil)
 
 out:
 	for pager.More() {

@@ -227,7 +227,7 @@ check-component-metadata:
 	go get "github.com/dapr/components-contrib@master" && \
 	go mod edit -replace "github.com/dapr/components-contrib"="../" && \
 	go mod tidy && \
-	go build . && \
+	go build -tags metadata . && \
 	rm ./go.mod && rm ./go.sum && rm ./main.go && \
         ./metadataanalyzer ../
 

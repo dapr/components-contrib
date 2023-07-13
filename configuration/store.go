@@ -15,10 +15,14 @@ package configuration
 
 import (
 	"context"
+
+	"github.com/dapr/components-contrib/metadata"
 )
 
 // Store is an interface to perform operations on store.
 type Store interface {
+	metadata.ComponentWithMetadata
+
 	// Init configuration store.
 	Init(ctx context.Context, metadata Metadata) error
 

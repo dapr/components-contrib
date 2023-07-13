@@ -18,10 +18,13 @@ import (
 	"fmt"
 
 	"github.com/dapr/components-contrib/health"
+	"github.com/dapr/components-contrib/metadata"
 )
 
 // OutputBinding is the interface for an output binding, allowing users to invoke remote systems with optional payloads.
 type OutputBinding interface {
+	metadata.ComponentWithMetadata
+
 	Init(ctx context.Context, metadata Metadata) error
 	Invoke(ctx context.Context, req *InvokeRequest) (*InvokeResponse, error)
 	Operations() []OperationKind

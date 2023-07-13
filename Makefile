@@ -109,14 +109,13 @@ verify-linter-version:
 ################################################################################
 .PHONY: test
 test:
-	CGO_ENABLED=$(CGO) go test ./... $(COVERAGE_OPTS) $(BUILDMODE) --timeout=15m
+	CGO_ENABLED=$(CGO) go test ./... $(COVERAGE_OPTS) $(BUILDMODE) -tags metadata --timeout=15m
 
 ################################################################################
 # Target: lint                                                                 #
 ################################################################################
 .PHONY: lint
 lint: verify-linter-installed verify-linter-version
-	# Due to https://github.com/golangci/golangci-lint/issues/580, we need to add --fix for windows
 	$(GOLANGCI_LINT) run --timeout=20m
 
 ################################################################################

@@ -28,10 +28,6 @@ import (
 	"github.com/dapr/kit/ptr"
 )
 
-type ComponentWithMetadata interface {
-	GetComponentMetadata() MetadataMap
-}
-
 const (
 	// TTLMetadataKey defines the metadata key for setting a time to live (in seconds).
 	TTLMetadataKey = "ttlInSeconds"

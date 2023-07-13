@@ -19,10 +19,13 @@ import (
 	"io"
 
 	"github.com/dapr/components-contrib/health"
+	"github.com/dapr/components-contrib/metadata"
 )
 
 // InputBinding is the interface to define a binding that triggers on incoming events.
 type InputBinding interface {
+	metadata.ComponentWithMetadata
+
 	// Init passes connection and properties metadata to the binding implementation.
 	Init(ctx context.Context, metadata Metadata) error
 	// Read is a method that runs in background and triggers the callback function whenever an event arrives.

@@ -3,7 +3,7 @@ module github.com/dapr/components-contrib/build-tools
 go 1.20
 
 require (
-	github.com/dapr/components-contrib v0.0.0
+	github.com/dapr/components-contrib v1.11.3-0.20230627174739-a2bc8cf6e036
 	github.com/invopop/jsonschema v0.6.0
 	github.com/spf13/cobra v1.6.1
 	github.com/xeipuuv/gojsonschema v1.2.1-0.20201027075954-b076d39a02e5

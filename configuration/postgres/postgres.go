@@ -23,13 +23,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"k8s.io/utils/strings/slices"
+	"golang.org/x/exp/slices"
 
 	"github.com/dapr/components-contrib/configuration"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
@@ -62,34 +61,29 @@ const (
 )
 
 var (
-	allowedChars           = regexp.MustCompile(`^[a-zA-Z0-9./_]*$`)
-	allowedTableNameChars  = regexp.MustCompile(`^[a-z0-9./_]*$`)
-	defaultMaxConnIdleTime = time.Second * 30
+	allowedChars          = regexp.MustCompile(`^[a-zA-Z0-9./_]*$`)
+	allowedTableNameChars = regexp.MustCompile(`^[a-z0-9./_]*$`)
 )
 
 func NewPostgresConfigurationStore(logger logger.Logger) configuration.Store {
-	logger.Debug("Instantiating PostgreSQL configuration store")
 	return &ConfigurationStore{
 		logger:               logger,
 		subscribeStopChanMap: make(map[string]chan struct{}),
 	}
 }
 
-func (p *ConfigurationStore) Init(parentCtx context.Context, metadata configuration.Metadata) error {
-	if m, err := parseMetadata(metadata); err != nil {
+func (p *ConfigurationStore) Init(ctx context.Context, metadata configuration.Metadata) error {
+	err := p.metadata.InitWithMetadata(metadata.Properties)
+	if err != nil {
 		p.logger.Error(err)
 		return err
-	} else {
-		p.metadata = m
 	}
+
 	p.ActiveSubscriptions = make(map[string]*subscription)
-	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.MaxIdleTimeout)
-	defer cancel()
-	client, err := Connect(ctx, p.metadata.ConnectionString, p.metadata.MaxIdleTimeout)
+	p.client, err = p.connectDB(ctx)
 	if err != nil {
 		return fmt.Errorf("error connecting to configuration store: '%w'", err)
 	}
-	p.client = client
 	err = p.client.Ping(ctx)
 	if err != nil {
 		return fmt.Errorf("unable to connect to configuration store: '%w'", err)
@@ -180,7 +174,7 @@ func (p *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.S
 		}
 	}
 	if pgNotifyChannel == "" {
-		return "", fmt.Errorf("unable to subscribe to '%s'.pgNotifyChannel attribute cannot be empty", p.metadata.ConfigTable)
+		return "", fmt.Errorf("unable to subscribe to '%s'. pgNotifyChannel attribute cannot be empty", p.metadata.ConfigTable)
 	}
 	return p.subscribeToChannel(ctx, pgNotifyChannel, req, handler)
 }
@@ -290,37 +284,8 @@ func (p *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 	}
 }
 
-func parseMetadata(cmetadata configuration.Metadata) (metadata, error) {
-	m := metadata{
-		MaxIdleTimeout: defaultMaxConnIdleTime,
-	}
-	decodeErr := contribMetadata.DecodeMetadata(cmetadata.Properties, &m)
-	if decodeErr != nil {
-		return m, decodeErr
-	}
-
-	if m.ConnectionString == "" {
-		return m, fmt.Errorf("missing postgreSQL connection string")
-	}
-
-	if m.ConfigTable != "" {
-		if !allowedTableNameChars.MatchString(m.ConfigTable) {
-			return m, fmt.Errorf("invalid table name '%s'. non-alphanumerics or upper cased table names are not supported", m.ConfigTable)
-		}
-		if len(m.ConfigTable) > maxIdentifierLength {
-			return m, fmt.Errorf("table name is too long - tableName : '%s'. max allowed field length is %d", m.ConfigTable, maxIdentifierLength)
-		}
-	} else {
-		return m, fmt.Errorf("missing postgreSQL configuration table name")
-	}
-	if m.MaxIdleTimeout <= 0 {
-		m.MaxIdleTimeout = defaultMaxConnIdleTime
-	}
-	return m, nil
-}
-
-func Connect(ctx context.Context, conn string, maxTimeout time.Duration) (*pgxpool.Pool, error) {
-	config, err := pgxpool.ParseConfig(conn)
+func (p *ConfigurationStore) connectDB(ctx context.Context) (*pgxpool.Pool, error) {
+	config, err := p.metadata.GetPgxPoolConfig()
 	if err != nil {
 		return nil, fmt.Errorf("postgres configuration store connection error : %w", err)
 	}

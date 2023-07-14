@@ -22,36 +22,20 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
-const (
-	// MySQL doesn't accept RFC3339 formatted time, rejects trailing 'Z' for UTC indicator.
-	mySQLDateTimeFormat = "2006-01-02 15:04:05"
-
-	testCreateTable = `CREATE TABLE IF NOT EXISTS foo (
-		id bigint NOT NULL,
-		v1 character varying(50) NOT NULL,
-		b  BOOLEAN,
-		ts TIMESTAMP,
-		data LONGTEXT)`
-	testDropTable         = `DROP TABLE foo`
-	testInsert            = "INSERT INTO foo (id, v1, b, ts, data) VALUES (%d, 'test-%d', %t, '%v', '%s')"
-	testDelete            = "DELETE FROM foo"
-	testUpdate            = "UPDATE foo SET ts = '%v' WHERE id = %d"
-	testSelect            = "SELECT * FROM foo WHERE id < 3"
-	testSelectJSONExtract = "SELECT JSON_EXTRACT(data, '$.key') AS `key` FROM foo WHERE id < 3"
-)
+// MySQL doesn't accept RFC3339 formatted time, rejects trailing 'Z' for UTC indicator.
+const mySQLDateTimeFormat = "2006-01-02 15:04:05"
 
 func TestOperations(t *testing.T) {
-	t.Parallel()
 	t.Run("Get operation list", func(t *testing.T) {
-		t.Parallel()
-		b := NewMysql(nil)
-		assert.NotNil(t, b)
+		b := NewMysql(logger.NewLogger("test"))
+		require.NotNil(t, b)
 		l := b.Operations()
 		assert.Equal(t, 3, len(l))
 		assert.Contains(t, l, execOperation)
@@ -70,123 +54,165 @@ func TestOperations(t *testing.T) {
 func TestMysqlIntegration(t *testing.T) {
 	url := os.Getenv("MYSQL_TEST_CONN_URL")
 	if url == "" {
-		t.SkipNow()
+		t.Skip("Skipping because env var MYSQL_TEST_CONN_URL is empty")
 	}
 
 	b := NewMysql(logger.NewLogger("test")).(*Mysql)
 	m := bindings.Metadata{Base: metadata.Base{Properties: map[string]string{connectionURLKey: url}}}
-	if err := b.Init(context.Background(), m); err != nil {
-		t.Fatal(err)
-	}
+
+	err := b.Init(context.Background(), m)
+	require.NoError(t, err)
 
 	defer b.Close()
 
-	req := &bindings.InvokeRequest{Metadata: map[string]string{}}
-
 	t.Run("Invoke create table", func(t *testing.T) {
-		req.Operation = execOperation
-		req.Metadata[commandSQLKey] = testCreateTable
-		res, err := b.Invoke(context.TODO(), req)
+		res, err := b.Invoke(context.Background(), &bindings.InvokeRequest{
+			Operation: execOperation,
+			Metadata: map[string]string{
+				commandSQLKey: `CREATE TABLE IF NOT EXISTS foo (
+					id bigint NOT NULL,
+					v1 character varying(50) NOT NULL,
+					b  BOOLEAN,
+					ts TIMESTAMP,
+					data LONGTEXT)`,
+			},
+		})
 		assertResponse(t, res, err)
 	})
 
 	t.Run("Invoke delete", func(t *testing.T) {
-		req.Operation = execOperation
-		req.Metadata[commandSQLKey] = testDelete
-		res, err := b.Invoke(context.TODO(), req)
+		res, err := b.Invoke(context.Background(), &bindings.InvokeRequest{
+			Operation: execOperation,
+			Metadata: map[string]string{
+				commandSQLKey: "DELETE FROM foo",
+			},
+		})
 		assertResponse(t, res, err)
 	})
 
 	t.Run("Invoke insert", func(t *testing.T) {
-		req.Operation = execOperation
 		for i := 0; i < 10; i++ {
-			req.Metadata[commandSQLKey] = fmt.Sprintf(testInsert, i, i, true, time.Now().Format(mySQLDateTimeFormat), "{\"key\":\"val\"}")
-			res, err := b.Invoke(context.TODO(), req)
+			res, err := b.Invoke(context.Background(), &bindings.InvokeRequest{
+				Operation: execOperation,
+				Metadata: map[string]string{
+					commandSQLKey: fmt.Sprintf(
+						"INSERT INTO foo (id, v1, b, ts, data) VALUES (%d, 'test-%d', %t, '%v', '%s')",
+						i, i, true, time.Now().Format(mySQLDateTimeFormat), `{"key":"val"}`),
+				},
+			})
 			assertResponse(t, res, err)
 		}
 	})
 
 	t.Run("Invoke update", func(t *testing.T) {
-		req.Operation = execOperation
+		date := time.Now().Add(time.Hour)
 		for i := 0; i < 10; i++ {
-			req.Metadata[commandSQLKey] = fmt.Sprintf(testUpdate, time.Now().Format(mySQLDateTimeFormat), i)
-			res, err := b.Invoke(context.TODO(), req)
+			res, err := b.Invoke(context.Background(), &bindings.InvokeRequest{
+				Operation: execOperation,
+				Metadata: map[string]string{
+					commandSQLKey: fmt.Sprintf(
+						"UPDATE foo SET ts = '%v' WHERE id = %d",
+						date.Add(10*time.Duration(i)*time.Second).Format(mySQLDateTimeFormat), i),
+				},
+			})
 			assertResponse(t, res, err)
+			assert.Equal(t, "1", res.Metadata[respRowsAffectedKey])
+		}
+	})
+
+	t.Run("Invoke update with parameters", func(t *testing.T) {
+		date := time.Now().Add(2 * time.Hour)
+		for i := 0; i < 10; i++ {
+			res, err := b.Invoke(context.Background(), &bindings.InvokeRequest{
+				Operation: execOperation,
+				Metadata: map[string]string{
+					commandSQLKey:    "UPDATE foo SET ts = ? WHERE id = ?",
+					commandParamsKey: fmt.Sprintf(`[%q,%d]`, date.Add(10*time.Duration(i)*time.Second).Format(mySQLDateTimeFormat), i),
+				},
+			})
+			assertResponse(t, res, err)
+			assert.Equal(t, "1", res.Metadata[respRowsAffectedKey])
 		}
 	})
 
 	t.Run("Invoke select", func(t *testing.T) {
-		req.Operation = queryOperation
-		req.Metadata[commandSQLKey] = testSelect
-		res, err := b.Invoke(context.TODO(), req)
+		res, err := b.Invoke(context.Background(), &bindings.InvokeRequest{
+			Operation: queryOperation,
+			Metadata: map[string]string{
+				commandSQLKey: "SELECT * FROM foo WHERE id < 3",
+			},
+		})
 		assertResponse(t, res, err)
 		t.Logf("received result: %s", res.Data)
 
 		// verify number, boolean and string
-		assert.Contains(t, string(res.Data), "\"id\":1")
-		assert.Contains(t, string(res.Data), "\"b\":1")
-		assert.Contains(t, string(res.Data), "\"v1\":\"test-1\"")
-		assert.Contains(t, string(res.Data), "\"data\":\"{\\\"key\\\":\\\"val\\\"}\"")
+		assert.Contains(t, string(res.Data), `"id":1`)
+		assert.Contains(t, string(res.Data), `"b":1`)
+		assert.Contains(t, string(res.Data), `"v1":"test-1"`)
+		assert.Contains(t, string(res.Data), `"data":"{\"key\":\"val\"}"`)
 
-		result := make([]interface{}, 0)
+		result := make([]any, 0)
 		err = json.Unmarshal(res.Data, &result)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 3, len(result))
 
 		// verify timestamp
-		ts, ok := result[0].(map[string]interface{})["ts"].(string)
+		ts, ok := result[0].(map[string]any)["ts"].(string)
 		assert.True(t, ok)
 		// have to use custom layout to parse timestamp, see this: https://github.com/dapr/components-contrib/pull/615
 		var tt time.Time
 		tt, err = time.Parse("2006-01-02T15:04:05Z", ts)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		t.Logf("time stamp is: %v", tt)
 	})
 
-	t.Run("Invoke select JSON_EXTRACT", func(t *testing.T) {
-		req.Operation = queryOperation
-		req.Metadata[commandSQLKey] = testSelectJSONExtract
-		res, err := b.Invoke(context.TODO(), req)
+	t.Run("Invoke select with parameters", func(t *testing.T) {
+		res, err := b.Invoke(context.Background(), &bindings.InvokeRequest{
+			Operation: queryOperation,
+			Metadata: map[string]string{
+				commandSQLKey:    "SELECT * FROM foo WHERE id = ?",
+				commandParamsKey: `[1]`,
+			},
+		})
 		assertResponse(t, res, err)
 		t.Logf("received result: %s", res.Data)
 
-		// verify json extract number
-		assert.Contains(t, string(res.Data), "{\"key\":\"\\\"val\\\"\"}")
+		// verify number, boolean and string
+		assert.Contains(t, string(res.Data), `"id":1`)
+		assert.Contains(t, string(res.Data), `"b":1`)
+		assert.Contains(t, string(res.Data), `"v1":"test-1"`)
+		assert.Contains(t, string(res.Data), `"data":"{\"key\":\"val\"}"`)
 
-		result := make([]interface{}, 0)
+		result := make([]any, 0)
 		err = json.Unmarshal(res.Data, &result)
-		assert.Nil(t, err)
-		assert.Equal(t, 3, len(result))
-	})
-
-	t.Run("Invoke delete", func(t *testing.T) {
-		req.Operation = execOperation
-		req.Metadata[commandSQLKey] = testDelete
-		req.Data = nil
-		res, err := b.Invoke(context.TODO(), req)
-		assertResponse(t, res, err)
+		require.NoError(t, err)
+		assert.Equal(t, 1, len(result))
 	})
 
 	t.Run("Invoke drop", func(t *testing.T) {
-		req.Operation = execOperation
-		req.Metadata[commandSQLKey] = testDropTable
-		res, err := b.Invoke(context.TODO(), req)
+		res, err := b.Invoke(context.Background(), &bindings.InvokeRequest{
+			Operation: execOperation,
+			Metadata: map[string]string{
+				commandSQLKey: "DROP TABLE foo",
+			},
+		})
 		assertResponse(t, res, err)
 	})
 
 	t.Run("Invoke close", func(t *testing.T) {
-		req.Operation = closeOperation
-		req.Metadata = nil
-		req.Data = nil
-		_, err := b.Invoke(context.TODO(), req)
+		_, err := b.Invoke(context.Background(), &bindings.InvokeRequest{
+			Operation: closeOperation,
+		})
 		assert.NoError(t, err)
 	})
 }
 
 func assertResponse(t *testing.T, res *bindings.InvokeResponse, err error) {
+	t.Helper()
+
 	assert.NoError(t, err)
 	assert.NotNil(t, res)
 	if res != nil {
-		assert.NotNil(t, res.Metadata)
+		assert.NotEmpty(t, res.Metadata)
 	}
 }

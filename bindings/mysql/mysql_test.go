@@ -42,7 +42,7 @@ func TestQuery(t *testing.T) {
 		assert.Nil(t, err)
 		t.Logf("query result: %s", ret)
 		assert.Contains(t, string(ret), "\"id\":1")
-		var result []interface{}
+		var result []any
 		err = json.Unmarshal(ret, &result)
 		assert.Nil(t, err)
 		assert.Equal(t, 3, len(result))
@@ -65,13 +65,13 @@ func TestQuery(t *testing.T) {
 		assert.Contains(t, string(ret), "\"id\":1")
 		assert.Contains(t, string(ret), "\"value\":2.2")
 
-		var result []interface{}
+		var result []any
 		err = json.Unmarshal(ret, &result)
 		assert.Nil(t, err)
 		assert.Equal(t, 3, len(result))
 
 		// verify timestamp
-		ts, ok := result[0].(map[string]interface{})["timestamp"].(string)
+		ts, ok := result[0].(map[string]any)["timestamp"].(string)
 		assert.True(t, ok)
 		var tt time.Time
 		tt, err = time.Parse(time.RFC3339, ts)
@@ -134,7 +134,7 @@ func TestInvoke(t *testing.T) {
 		}
 		resp, err := m.Invoke(context.Background(), req)
 		assert.Nil(t, err)
-		var data []interface{}
+		var data []any
 		err = json.Unmarshal(resp.Data, &data)
 		assert.Nil(t, err)
 		assert.Equal(t, 1, len(data))

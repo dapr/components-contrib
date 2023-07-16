@@ -27,7 +27,6 @@ const (
 	bindingDirectionMetadataKey = "direction"
 	bindingDirectionInput       = "input"
 	bindingDirectionOutput      = "output"
-	bindingDirectionBoth        = bindingDirectionInput + ", " + bindingDirectionOutput
 	bindingRouteMetadataKey     = "route"
 )
 
@@ -149,31 +148,31 @@ func (c *ComponentMetadata) AppendBuiltin() error {
 				c.Metadata = []Metadata{}
 			}
 
-			var direction string
-
-			switch {
-			case c.Binding.Input && c.Binding.Output:
-				direction = bindingDirectionBoth
-			case c.Binding.Input:
-				direction = bindingDirectionInput
-			case c.Binding.Output:
-				direction = bindingDirectionOutput
-			}
-
-			c.Metadata = append(c.Metadata,
-				Metadata{
-					Name:        bindingDirectionMetadataKey,
-					Type:        "string",
-					Description: "Indicates the direction of the binding component.",
-					Example:     direction,
-					URL: &URL{
-						Title: "Documentation",
-						URL:   "https://docs.dapr.io/reference/api/bindings_api/#binding-direction-optional",
-					},
-				},
-			)
-
 			if c.Binding.Input {
+				direction := bindingDirectionInput
+				allowedValues := []string{
+					bindingDirectionInput,
+				}
+
+				if c.Binding.Output {
+					direction = fmt.Sprintf("%s,%s", bindingDirectionInput, bindingDirectionOutput)
+					allowedValues = append(allowedValues, bindingDirectionOutput, direction)
+				}
+
+				c.Metadata = append(c.Metadata,
+					Metadata{
+						Name:        bindingDirectionMetadataKey,
+						Type:        "string",
+						Description: "Indicates the direction of the binding component.",
+						Example:     direction,
+						URL: &URL{
+							Title: "Documentation",
+							URL:   "https://docs.dapr.io/reference/api/bindings_api/#binding-direction-optional",
+						},
+						AllowedValues: allowedValues,
+					},
+				)
+
 				c.Metadata = append(c.Metadata,
 					Metadata{
 						Name:        bindingRouteMetadataKey,
@@ -188,7 +187,6 @@ func (c *ComponentMetadata) AppendBuiltin() error {
 				)
 			}
 		}
-
 	}
 
 	// Sanity check to ensure the data is in sync

@@ -303,9 +303,8 @@ func (s *StateStore) marshalData(v interface{}) ([]byte, error) {
 	return jsoniter.ConfigFastest.Marshal(v)
 }
 
-func (s *StateStore) GetComponentMetadata() map[string]string {
+func (s *StateStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := properties{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
 }

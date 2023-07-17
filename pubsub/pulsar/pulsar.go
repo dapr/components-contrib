@@ -496,11 +496,10 @@ func (p *Pulsar) formatTopic(topic string) string {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (p *Pulsar) GetComponentMetadata() map[string]string {
+func (p *Pulsar) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := pulsarMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
-	return metadataInfo
+	return
 }
 
 // isValidPEM validates the provided input has PEM formatted block.

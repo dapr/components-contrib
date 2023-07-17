@@ -318,9 +318,8 @@ func (p *AzOpenAI) Close() error {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (p *AzOpenAI) GetComponentMetadata() map[string]string {
+func (p *AzOpenAI) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := openAIMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

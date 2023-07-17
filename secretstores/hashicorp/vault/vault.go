@@ -531,9 +531,8 @@ func (v *vaultSecretStore) Features() []secretstores.Feature {
 	return []secretstores.Feature{secretstores.FeatureMultipleKeyValuesPerSecret}
 }
 
-func (v *vaultSecretStore) GetComponentMetadata() map[string]string {
+func (v *vaultSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := VaultMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
-	return metadataInfo
+	return
 }

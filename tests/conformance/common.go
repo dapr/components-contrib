@@ -431,13 +431,10 @@ func loadConfigurationStore(tc TestComponent) (configuration.Store, configupdate
 	var store configuration.Store
 	var updater configupdater.Updater
 	switch tc.Component {
-	case redisv6:
+	case redisv6, redisv7:
 		store = c_redis.NewRedisConfigurationStore(testLogger)
 		updater = cu_redis.NewRedisConfigUpdater(testLogger)
-	case redisv7:
-		store = c_redis.NewRedisConfigurationStore(testLogger)
-		updater = cu_redis.NewRedisConfigUpdater(testLogger)
-	case "postgres":
+	case "postgresql.docker", "postgresql.azure":
 		store = c_postgres.NewPostgresConfigurationStore(testLogger)
 		updater = cu_postgres.NewPostgresConfigUpdater(testLogger)
 	default:
@@ -624,7 +621,9 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_rabbitmq.NewRabbitMQ(testLogger)
 	case "kubemq":
 		binding = b_kubemq.NewKubeMQ(testLogger)
-	case "postgres":
+	case "postgresql.docker":
+		binding = b_postgres.NewPostgres(testLogger)
+	case "postgresql.azure":
 		binding = b_postgres.NewPostgres(testLogger)
 	case "aws.s3.docker":
 		binding = b_aws_s3.NewAWSS3(testLogger)

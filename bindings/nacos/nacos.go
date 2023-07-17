@@ -457,9 +457,8 @@ func parseServerURL(s string) (*constant.ServerConfig, error) {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (n *Nacos) GetComponentMetadata() map[string]string {
+func (n *Nacos) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := Settings{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

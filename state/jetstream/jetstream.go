@@ -170,9 +170,8 @@ func escape(key string) string {
 	return strings.ReplaceAll(key, "||", ".")
 }
 
-func (js *StateStore) GetComponentMetadata() map[string]string {
+func (js *StateStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := jetstreamMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
 }

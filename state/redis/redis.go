@@ -547,10 +547,8 @@ func (r *StateStore) Close() error {
 	return r.client.Close()
 }
 
-func (r *StateStore) GetComponentMetadata() map[string]string {
+func (r *StateStore) GetComponentMetadata() (metadataInfo daprmetadata.MetadataMap) {
 	settingsStruct := rediscomponent.Settings{}
-	metadataInfo := map[string]string{}
 	daprmetadata.GetMetadataInfoFromStructType(reflect.TypeOf(settingsStruct), &metadataInfo, daprmetadata.StateStoreType)
-
-	return metadataInfo
+	return
 }

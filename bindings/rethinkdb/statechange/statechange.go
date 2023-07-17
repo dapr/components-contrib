@@ -166,9 +166,8 @@ func metadataToConfig(cfg map[string]string, logger logger.Logger) (StateConfig,
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (b *Binding) GetComponentMetadata() map[string]string {
+func (b *Binding) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := StateConfig{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

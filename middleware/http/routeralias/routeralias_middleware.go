@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 
 	"github.com/gorilla/mux"
 	"gopkg.in/yaml.v3"
@@ -118,6 +119,10 @@ func vars(r *http.Request) map[string]string {
 	return nil
 }
 
-func (m *Middleware) GetComponentMetadata() map[string]string {
-	return map[string]string{}
+func (m *Middleware) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
+	metadataStruct := struct {
+		Routes string `mapstructure:"routes"`
+	}{}
+	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
+	return
 }

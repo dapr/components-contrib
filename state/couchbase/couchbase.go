@@ -266,9 +266,8 @@ func eTagToCas(eTag string) (gocb.Cas, error) {
 	return cas, nil
 }
 
-func (cbs *Couchbase) GetComponentMetadata() map[string]string {
+func (cbs *Couchbase) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := couchbaseMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
 }

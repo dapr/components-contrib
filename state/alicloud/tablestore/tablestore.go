@@ -228,9 +228,8 @@ func (s *AliCloudTableStore) primaryKey(key string) *tablestore.PrimaryKey {
 	return pk
 }
 
-func (s *AliCloudTableStore) GetComponentMetadata() map[string]string {
+func (s *AliCloudTableStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := tablestoreMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
 }

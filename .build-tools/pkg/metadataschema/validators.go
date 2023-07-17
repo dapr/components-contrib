@@ -23,6 +23,13 @@ import (
 	mdutils "github.com/dapr/components-contrib/metadata"
 )
 
+const (
+	bindingDirectionMetadataKey = "direction"
+	bindingDirectionInput       = "input"
+	bindingDirectionOutput      = "output"
+	bindingRouteMetadataKey     = "route"
+)
+
 // IsValid performs additional validation and returns true if the object is valid.
 func (c *ComponentMetadata) IsValid() error {
 	// Check valid  component type
@@ -69,6 +76,18 @@ func (c *ComponentMetadata) IsValid() error {
 	}
 	// Remove the property builtinAuthenticationProfiles now
 	c.BuiltInAuthenticationProfiles = nil
+
+	// Trim newlines from all descriptions
+	c.Description = strings.TrimSpace(c.Description)
+	for i := range c.AuthenticationProfiles {
+		c.AuthenticationProfiles[i].Description = strings.TrimSpace(c.AuthenticationProfiles[i].Description)
+		for j := range c.AuthenticationProfiles[i].Metadata {
+			c.AuthenticationProfiles[i].Metadata[j].Description = strings.TrimSpace(c.AuthenticationProfiles[i].Metadata[j].Description)
+		}
+	}
+	for i := range c.Metadata {
+		c.Metadata[i].Description = strings.TrimSpace(c.Metadata[i].Description)
+	}
 
 	return nil
 }
@@ -135,6 +154,51 @@ func (c *ComponentMetadata) AppendBuiltin() error {
 				},
 			},
 		)
+	case mdutils.BindingType:
+		if c.Binding != nil {
+			if c.Metadata == nil {
+				c.Metadata = []Metadata{}
+			}
+
+			if c.Binding.Input {
+				direction := bindingDirectionInput
+				allowedValues := []string{
+					bindingDirectionInput,
+				}
+
+				if c.Binding.Output {
+					direction = fmt.Sprintf("%s,%s", bindingDirectionInput, bindingDirectionOutput)
+					allowedValues = append(allowedValues, bindingDirectionOutput, direction)
+				}
+
+				c.Metadata = append(c.Metadata,
+					Metadata{
+						Name:        bindingDirectionMetadataKey,
+						Type:        "string",
+						Description: "Indicates the direction of the binding component.",
+						Example:     `"`+direction+`"`,
+						URL: &URL{
+							Title: "Documentation",
+							URL:   "https://docs.dapr.io/reference/api/bindings_api/#binding-direction-optional",
+						},
+						AllowedValues: allowedValues,
+					},
+				)
+
+				c.Metadata = append(c.Metadata,
+					Metadata{
+						Name:        bindingRouteMetadataKey,
+						Type:        "string",
+						Description: "Specifies a custom route for incoming events.",
+						Example:     `"/custom-path"`,
+						URL: &URL{
+							Title: "Documentation",
+							URL:   "https://docs.dapr.io/developing-applications/building-blocks/bindings/howto-triggers/#specifying-a-custom-route",
+						},
+					},
+				)
+			}
+		}
 	}
 
 	// Sanity check to ensure the data is in sync

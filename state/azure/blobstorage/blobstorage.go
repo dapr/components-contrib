@@ -106,11 +106,10 @@ func (r *StateStore) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (r *StateStore) GetComponentMetadata() map[string]string {
+func (r *StateStore) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
 	metadataStruct := storageinternal.BlobStorageMetadata{}
-	metadataInfo := map[string]string{}
 	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.StateStoreType)
-	return metadataInfo
+	return
 }
 
 // NewAzureBlobStorageStore instance.

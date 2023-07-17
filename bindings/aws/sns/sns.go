@@ -117,9 +117,8 @@ func (a *AWSSNS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (a *AWSSNS) GetComponentMetadata() map[string]string {
+func (a *AWSSNS) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := snsMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

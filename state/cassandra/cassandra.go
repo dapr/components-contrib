@@ -320,11 +320,10 @@ func (c *Cassandra) createSession(consistency gocql.Consistency) (*gocql.Session
 	return session, nil
 }
 
-func (c *Cassandra) GetComponentMetadata() map[string]string {
+func (c *Cassandra) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := cassandraMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
 }
 
 // Close the connection to Cassandra.

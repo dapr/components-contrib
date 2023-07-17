@@ -186,9 +186,8 @@ func (gql *GraphQL) runRequest(ctx context.Context, requestKey string, req *bind
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (gql *GraphQL) GetComponentMetadata() map[string]string {
+func (gql *GraphQL) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := graphQLMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

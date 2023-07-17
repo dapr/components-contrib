@@ -203,9 +203,8 @@ func (s *Store) Features() []secretstores.Feature {
 	return []secretstores.Feature{} // No Feature supported.
 }
 
-func (s *Store) GetComponentMetadata() map[string]string {
+func (s *Store) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := GcpSecretManagerMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
-	return metadataInfo
+	return
 }

@@ -40,6 +40,9 @@ const (
 
 // List of root paths that are disallowed
 var disallowedRootPaths = []string{
+	filepath.Clean("/proc"),
+	filepath.Clean("/sys"),
+	filepath.Clean("/boot"),
 	// See: https://github.com/dapr/components-contrib/issues/2444
 	filepath.Clean("/var/run/secrets"),
 }
@@ -333,9 +336,8 @@ func (ls *LocalStorage) Invoke(_ context.Context, req *bindings.InvokeRequest) (
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (ls *LocalStorage) GetComponentMetadata() map[string]string {
+func (ls *LocalStorage) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := Metadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

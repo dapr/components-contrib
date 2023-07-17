@@ -172,11 +172,10 @@ func (c *TemporalWF) parseMetadata(meta workflows.Metadata) (*temporalMetadata, 
 	return &m, err
 }
 
-func (c *TemporalWF) GetComponentMetadata() map[string]string {
+func (c *TemporalWF) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := temporalMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.WorkflowType)
-	return metadataInfo
+	return
 }
 
 func lookupStatus(status enums.WorkflowExecutionStatus) string {

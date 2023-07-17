@@ -535,9 +535,8 @@ func (a *AzureEventGrid) subscriptionNeedsUpdating(res armeventgrid.EventSubscri
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (a *AzureEventGrid) GetComponentMetadata() map[string]string {
+func (a *AzureEventGrid) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := azureEventGridMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

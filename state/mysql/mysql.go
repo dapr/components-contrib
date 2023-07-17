@@ -893,9 +893,8 @@ type querier interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
-func (m *MySQL) GetComponentMetadata() map[string]string {
+func (m *MySQL) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := mySQLMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
 }

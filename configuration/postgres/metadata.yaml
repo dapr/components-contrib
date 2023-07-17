@@ -1,14 +1,33 @@
 # yaml-language-server: $schema=../../component-metadata-schema.json
 schemaVersion: v1
 type: configuration
-name: postgres
+name: postgresql
 version: v1
-status: alpha
-title: "Postgres"
+status: stable
+title: "PostgreSQL"
 urls:
   - title: Reference
-    url: https://docs.dapr.io/reference/components-reference/supported-configuration-stores/postgres-configuration-store/
+    url: https://docs.dapr.io/reference/components-reference/supported-configuration-stores/postgresql-configuration-store/
 capabilities: []
+builtinAuthenticationProfiles:
+  - name: "azuread"
+    metadata:
+      - name: useAzureAD
+        required: true
+        type: bool
+        example: '"true"'
+        description: |
+          Must be set to `true` to enable the component to retrieve access tokens from Azure AD.
+          This authentication method only works with Azure Database for PostgreSQL databases.
+      - name: connectionString
+        required: true
+        sensitive: true
+        description: |
+          The connection string for the PostgreSQL database
+          This must contain the user, which corresponds to the name of the user created inside PostgreSQL that maps to the Azure AD identity; this is often the name of the corresponding principal (e.g. the name of the Azure AD application). This connection string should not contain any password.
+        example: |
+          "host=mydb.postgres.database.azure.com user=myapplication port=5432 database=dapr_test sslmode=require"
+        type: string
 authenticationProfiles:
   - title: "Connection string"
     description: "Authenticate using a Connection String."
@@ -16,10 +35,9 @@ authenticationProfiles:
       - name: connectionString
         required: true
         sensitive: true
-        description: |
-          The connection string for PostgreSQL, as a URL or DSN.
-          Note: the default value for `pool_max_conns` is 5.
-        example: "host=localhost user=postgres password=example port=5432 connect_timeout=10 database=dapr_test pool_max_conns=10"
+        description: The connection string for the PostgreSQL database
+        example: |
+          "host=localhost user=postgres password=example port=5432 connect_timeout=10 database=dapr_test"
         type: string
 metadata:
   - name: table
@@ -27,9 +45,26 @@ metadata:
     description: The table name for configuration information.
     example:  "configTable"
     type: string
-  - name: connMaxIdleTime
+  - name: connectionMaxIdleTime
     required: false
-    description: The maximum amount of time a connection may be idle.
-    example: "15s"
-    default: "30s"
+    description: |
+      Max idle time before unused connections are automatically closed in the
+      connection pool. By default, there's no value and this is left to the
+      database driver to choose.
+    example:  "5m"
+    type: duration
+  - name: maxConns
+    required: false
+    description: |
+      Maximum number of connections pooled by this component.
+      Set to 0 or lower to use the default value, which is the greater of 4 or the number of CPUs.
+    example: "4"
+    default: "0"
+    type: number
+  - name: connMaxIdleTime
+    deprecated: true
+    required: false
+    description: |
+      Deprecated alias for 'connectionMaxIdleTime'.
+    example:  "5m"
     type: duration

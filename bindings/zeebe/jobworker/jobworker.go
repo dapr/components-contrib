@@ -256,9 +256,8 @@ func (h *jobHandler) failJob(ctx context.Context, client worker.JobClient, job e
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (z *ZeebeJobWorker) GetComponentMetadata() map[string]string {
+func (z *ZeebeJobWorker) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := jobWorkerMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

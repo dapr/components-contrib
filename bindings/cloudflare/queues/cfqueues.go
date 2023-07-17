@@ -136,9 +136,8 @@ func (q *CFQueues) Close() error {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (q *CFQueues) GetComponentMetadata() map[string]string {
+func (q *CFQueues) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := componentMetadata{}
-	metadataInfo := map[string]string{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
-	return metadataInfo
+	return
 }

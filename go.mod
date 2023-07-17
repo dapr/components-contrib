@@ -65,7 +65,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.8.0
 	github.com/gorilla/mux v1.8.0
 	github.com/grandcat/zeroconf v1.0.0
-	github.com/hamba/avro/v2 v2.5.0
+	github.com/hamba/avro/v2 v2.13.0
 	github.com/hashicorp/consul/api v1.13.0
 	github.com/hashicorp/golang-lru/v2 v2.0.2
 	github.com/hazelcast/hazelcast-go-client v0.0.0-20190530123621-6cf767c2f31a

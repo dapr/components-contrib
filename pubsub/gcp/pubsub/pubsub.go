@@ -402,9 +402,8 @@ func (g *GCPPubSub) Features() []pubsub.Feature {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (g *GCPPubSub) GetComponentMetadata() map[string]string {
+func (g *GCPPubSub) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := metadata{}
-	metadataInfo := map[string]string{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.PubSubType)
-	return metadataInfo
+	return
 }

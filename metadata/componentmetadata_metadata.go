@@ -1,3 +1,6 @@
+//go:build metadata
+// +build metadata
+
 /*
 Copyright 2021 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,23 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package lock
+package metadata
 
-import (
-	"context"
-
-	"github.com/dapr/components-contrib/metadata"
-)
-
-type Store interface {
-	metadata.ComponentWithMetadata
-
-	// Init this component.
-	InitLockStore(ctx context.Context, metadata Metadata) error
-
-	// TryLock tries to acquire a lock.
-	TryLock(ctx context.Context, req *TryLockRequest) (*TryLockResponse, error)
-
-	// Unlock tries to release a lock.
-	Unlock(ctx context.Context, req *UnlockRequest) (*UnlockResponse, error)
+// ComponentWithMetadata includes the GetComponentMetadata method when the `metadata` build tag is present.
+// The build tag is present when running the linter.
+type ComponentWithMetadata interface {
+	GetComponentMetadata() MetadataMap
 }

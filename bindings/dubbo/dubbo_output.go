@@ -27,6 +27,7 @@ import (
 	dubboImpl "dubbo.apache.org/dubbo-go/v3/protocol/dubbo/impl"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -93,7 +94,6 @@ func (out *DubboOutputBinding) Operations() []bindings.OperationKind {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (out *DubboOutputBinding) GetComponentMetadata() map[string]string {
-	metadataInfo := map[string]string{}
-	return metadataInfo
+func (out *DubboOutputBinding) GetComponentMetadata() metadata.MetadataMap {
+	return metadata.MetadataMap{}
 }

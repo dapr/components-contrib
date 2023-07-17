@@ -418,9 +418,8 @@ func (p *recordProcessor) Shutdown(input *interfaces.ShutdownInput) {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (a *AWSKinesis) GetComponentMetadata() map[string]string {
+func (a *AWSKinesis) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := &kinesisMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

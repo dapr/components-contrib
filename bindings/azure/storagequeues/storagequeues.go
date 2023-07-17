@@ -370,9 +370,8 @@ func (a *AzureStorageQueues) Close() error {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (a *AzureStorageQueues) GetComponentMetadata() map[string]string {
+func (a *AzureStorageQueues) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := storageQueuesMetadata{}
-	metadataInfo := map[string]string{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
-	return metadataInfo
+	return
 }

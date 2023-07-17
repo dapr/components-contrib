@@ -299,9 +299,8 @@ func sigHandler(seedKey string, nonce []byte) ([]byte, error) {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (js *jetstreamPubSub) GetComponentMetadata() map[string]string {
+func (js *jetstreamPubSub) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
 	metadataStruct := metadata{}
-	metadataInfo := map[string]string{}
 	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.PubSubType)
-	return metadataInfo
+	return
 }

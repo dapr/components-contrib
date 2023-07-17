@@ -406,11 +406,10 @@ func (keyvaultCrypto) SupportedSignatureAlgorithms() []string {
 	return signatureAlgsList
 }
 
-func (keyvaultCrypto) GetComponentMetadata() map[string]string {
+func (keyvaultCrypto) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := keyvaultMetadata{}
-	metadataInfo := map[string]string{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.CryptoType)
-	return metadataInfo
+	return
 }
 
 type keyID struct {

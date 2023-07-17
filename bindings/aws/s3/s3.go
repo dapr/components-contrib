@@ -62,10 +62,12 @@ type AWSS3 struct {
 }
 
 type s3Metadata struct {
+	// Ignored by metadata parser because included in built-in authentication profile
+	AccessKey string `json:"accessKey" mapstructure:"accessKey" mdignore:"true"`
+	SecretKey string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
+
 	Region         string `json:"region" mapstructure:"region"`
 	Endpoint       string `json:"endpoint" mapstructure:"endpoint"`
-	AccessKey      string `json:"accessKey" mapstructure:"accessKey"`
-	SecretKey      string `json:"secretKey" mapstructure:"secretKey"`
 	SessionToken   string `json:"sessionToken" mapstructure:"sessionToken"`
 	Bucket         string `json:"bucket" mapstructure:"bucket"`
 	DecodeBase64   bool   `json:"decodeBase64,string" mapstructure:"decodeBase64"`
@@ -416,9 +418,8 @@ func (metadata s3Metadata) mergeWithRequestMetadata(req *bindings.InvokeRequest)
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (s *AWSS3) GetComponentMetadata() map[string]string {
+func (s *AWSS3) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := s3Metadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

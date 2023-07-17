@@ -29,7 +29,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/internal/utils"
@@ -102,11 +101,11 @@ func (h *HTTPSource) Init(_ context.Context, meta bindings.Metadata) error {
 	// See guidance on proper HTTP client settings here:
 	// https://medium.com/@nate510/don-t-use-go-s-default-http-client-4804cb19f779
 	dialer := &net.Dialer{
-		Timeout: 5 * time.Second,
+		Timeout: 15 * time.Second,
 	}
 	netTransport := &http.Transport{
 		Dial:                dialer.Dial,
-		TLSHandshakeTimeout: 5 * time.Second,
+		TLSHandshakeTimeout: 15 * time.Second,
 		TLSClientConfig:     tlsConfig,
 	}
 
@@ -150,17 +149,11 @@ func (h *HTTPSource) readMTLSClientCertificates(tlsConfig *tls.Config) error {
 func (h *HTTPSource) setTLSRenegotiation(tlsConfig *tls.Config) error {
 	switch h.metadata.MTLSRenegotiation {
 	case "RenegotiateNever":
-		{
-			tlsConfig.Renegotiation = tls.RenegotiateNever
-		}
+		tlsConfig.Renegotiation = tls.RenegotiateNever
 	case "RenegotiateOnceAsClient":
-		{
-			tlsConfig.Renegotiation = tls.RenegotiateOnceAsClient
-		}
+		tlsConfig.Renegotiation = tls.RenegotiateOnceAsClient
 	case "RenegotiateFreelyAsClient":
-		{
-			tlsConfig.Renegotiation = tls.RenegotiateFreelyAsClient
-		}
+		tlsConfig.Renegotiation = tls.RenegotiateFreelyAsClient
 	default:
 		return fmt.Errorf("invalid renegotiation value: %s", h.metadata.MTLSRenegotiation)
 	}
@@ -231,21 +224,16 @@ func (h *HTTPSource) Invoke(parentCtx context.Context, req *bindings.InvokeReque
 
 	errorIfNot2XX := h.errorIfNot2XX // Default to the component config (default is true)
 
-	if req.Metadata != nil {
-		if path, ok := req.Metadata["path"]; ok {
-			// Simplicity and no "../../.." type exploits.
-			u = fmt.Sprintf("%s/%s", strings.TrimRight(u, "/"), strings.TrimLeft(path, "/"))
-			if strings.Contains(u, "..") {
-				return nil, fmt.Errorf("invalid path: %s", path)
-			}
-		}
-
-		if _, ok := req.Metadata["errorIfNot2XX"]; ok {
-			errorIfNot2XX = utils.IsTruthy(req.Metadata["errorIfNot2XX"])
-		}
-	} else {
+	if req.Metadata == nil {
 		// Prevent things below from failing if req.Metadata is nil.
 		req.Metadata = make(map[string]string)
+	}
+
+	if req.Metadata["path"] != "" {
+		u = strings.TrimRight(u, "/") + "/" + strings.TrimLeft(req.Metadata["path"], "/")
+	}
+	if req.Metadata["errorIfNot2XX"] != "" {
+		errorIfNot2XX = utils.IsTruthy(req.Metadata["errorIfNot2XX"])
 	}
 
 	var body io.Reader
@@ -262,10 +250,8 @@ func (h *HTTPSource) Invoke(parentCtx context.Context, req *bindings.InvokeReque
 		return nil, fmt.Errorf("invalid operation: %s", req.Operation)
 	}
 
-	var ctx context.Context
-	if h.metadata.ResponseTimeout == nil {
-		ctx = parentCtx
-	} else {
+	ctx := parentCtx
+	if h.metadata.ResponseTimeout != nil {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(parentCtx, *h.metadata.ResponseTimeout)
 		defer cancel()
@@ -294,8 +280,7 @@ func (h *HTTPSource) Invoke(parentCtx context.Context, req *bindings.InvokeReque
 	// Any metadata keys that start with a capital letter
 	// are treated as request headers
 	for mdKey, mdValue := range req.Metadata {
-		keyAsRunes := []rune(mdKey)
-		if len(keyAsRunes) > 0 && unicode.IsUpper(keyAsRunes[0]) {
+		if len(mdKey) > 0 && (mdKey[0] >= 'A' && mdKey[0] <= 'Z') {
 			request.Header.Set(mdKey, mdValue)
 		}
 	}
@@ -353,9 +338,8 @@ func (h *HTTPSource) Invoke(parentCtx context.Context, req *bindings.InvokeReque
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (h *HTTPSource) GetComponentMetadata() map[string]string {
+func (h *HTTPSource) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := httpMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

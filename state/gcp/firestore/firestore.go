@@ -168,11 +168,10 @@ func (f *Firestore) Delete(ctx context.Context, req *state.DeleteRequest) error 
 	return nil
 }
 
-func (f *Firestore) GetComponentMetadata() map[string]string {
+func (f *Firestore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := firestoreMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
 }
 
 func getFirestoreMetadata(meta state.Metadata) (*firestoreMetadata, error) {

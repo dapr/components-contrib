@@ -677,9 +677,8 @@ func mustReconnect(channel rabbitMQChannelBroker, err error) bool {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (r *rabbitMQ) GetComponentMetadata() map[string]string {
+func (r *rabbitMQ) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := rabbitmqMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
-	return metadataInfo
+	return
 }

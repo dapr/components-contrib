@@ -164,7 +164,7 @@ func (c *ComponentMetadata) AppendBuiltin() error {
 						Name:        bindingDirectionMetadataKey,
 						Type:        "string",
 						Description: "Indicates the direction of the binding component.",
-						Example:     direction,
+						Example:     `"`+direction+`"`,
 						URL: &URL{
 							Title: "Documentation",
 							URL:   "https://docs.dapr.io/reference/api/bindings_api/#binding-direction-optional",
@@ -178,7 +178,7 @@ func (c *ComponentMetadata) AppendBuiltin() error {
 						Name:        bindingRouteMetadataKey,
 						Type:        "string",
 						Description: "Specifies a custom route for incoming events.",
-						Example:     "`/customroute`",
+						Example:     `"/custom-path"`,
 						URL: &URL{
 							Title: "Documentation",
 							URL:   "https://docs.dapr.io/developing-applications/building-blocks/bindings/howto-triggers/#specifying-a-custom-route",

@@ -18,10 +18,13 @@ import (
 	"fmt"
 
 	"github.com/dapr/components-contrib/health"
+	"github.com/dapr/components-contrib/metadata"
 )
 
 // SecretStore is the interface for a component that handles secrets management.
 type SecretStore interface {
+	metadata.ComponentWithMetadata
+
 	// Init authenticates with the actual secret store and performs other init operation
 	Init(ctx context.Context, metadata Metadata) error
 	// GetSecret retrieves a secret using a key and returns a map of decrypted string/string values.
@@ -30,8 +33,6 @@ type SecretStore interface {
 	BulkGetSecret(ctx context.Context, req BulkGetSecretRequest) (BulkGetSecretResponse, error)
 	// Features lists the features supported by the secret store.
 	Features() []Feature
-	// GetComponentMetadata returns the metadata options for the secret store.
-	GetComponentMetadata() map[string]string
 }
 
 func Ping(ctx context.Context, secretStore SecretStore) error {

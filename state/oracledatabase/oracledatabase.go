@@ -98,9 +98,8 @@ func (o *OracleDatabase) getDB() *sql.DB {
 	return o.dbaccess.(*oracleDatabaseAccess).db
 }
 
-func (o *OracleDatabase) GetComponentMetadata() map[string]string {
+func (o *OracleDatabase) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := oracleDatabaseMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
 }

@@ -245,33 +245,61 @@ func TestMetadataStructToStringMap(t *testing.T) {
 			Mybool                    *bool
 			MyRegularDuration         time.Duration
 			SomethingWithCustomName   string `mapstructure:"something_with_custom_name"`
-			PubSubOnlyProperty        string `mapstructure:"pubsub_only_property" only:"pubsub"`
-			BindingOnlyProperty       string `mapstructure:"binding_only_property" only:"bindings"`
-			PubSubAndBindingProperty  string `mapstructure:"pubsub_and_binding_property" only:"pubsub,bindings"`
+			PubSubOnlyProperty        string `mapstructure:"pubsub_only_property" mdonly:"pubsub"`
+			BindingOnlyProperty       string `mapstructure:"binding_only_property" mdonly:"bindings"`
+			PubSubAndBindingProperty  string `mapstructure:"pubsub_and_binding_property" mdonly:"pubsub,bindings"`
 			MyDurationArray           []time.Duration
 			NotExportedByMapStructure string `mapstructure:"-"`
 			notExported               string //nolint:structcheck,unused
+			DeprecatedProperty        string `mapstructure:"something_deprecated" mddeprecated:"true"`
+			Aliased                   string `mapstructure:"aliased" mdaliases:"another,name"`
+			Ignored                   string `mapstructure:"ignored" mdignore:"true"`
 		}
 		m := testMetadata{}
-		metadatainfo := map[string]string{}
+		metadatainfo := MetadataMap{}
 		GetMetadataInfoFromStructType(reflect.TypeOf(m), &metadatainfo, BindingType)
 
-		assert.Equal(t, "string", metadatainfo["Mystring"])
-		assert.Equal(t, "metadata.Duration", metadatainfo["Myduration"])
-		assert.Equal(t, "int", metadatainfo["Myinteger"])
-		assert.Equal(t, "float64", metadatainfo["Myfloat64"])
-		assert.Equal(t, "*bool", metadatainfo["Mybool"])
-		assert.Equal(t, "time.Duration", metadatainfo["MyRegularDuration"])
-		assert.Equal(t, "string", metadatainfo["something_with_custom_name"])
+		_ = assert.NotEmpty(t, metadatainfo["Mystring"]) &&
+			assert.Equal(t, "string", metadatainfo["Mystring"].Type)
+		_ = assert.NotEmpty(t, metadatainfo["Myduration"]) &&
+			assert.Equal(t, "metadata.Duration", metadatainfo["Myduration"].Type)
+		_ = assert.NotEmpty(t, metadatainfo["Myinteger"]) &&
+			assert.Equal(t, "int", metadatainfo["Myinteger"].Type)
+		_ = assert.NotEmpty(t, metadatainfo["Myfloat64"]) &&
+			assert.Equal(t, "float64", metadatainfo["Myfloat64"].Type)
+		_ = assert.NotEmpty(t, metadatainfo["Mybool"]) &&
+			assert.Equal(t, "*bool", metadatainfo["Mybool"].Type)
+		_ = assert.NotEmpty(t, metadatainfo["MyRegularDuration"]) &&
+			assert.Equal(t, "time.Duration", metadatainfo["MyRegularDuration"].Type)
+		_ = assert.NotEmpty(t, metadatainfo["something_with_custom_name"]) &&
+			assert.Equal(t, "string", metadatainfo["something_with_custom_name"].Type)
 		assert.NotContains(t, metadatainfo, "NestedStruct")
 		assert.NotContains(t, metadatainfo, "SomethingWithCustomName")
-		assert.Equal(t, "string", metadatainfo["nested_string_custom"])
-		assert.Equal(t, "string", metadatainfo["NestedString"])
+		_ = assert.NotEmpty(t, metadatainfo["nested_string_custom"]) &&
+			assert.Equal(t, "string", metadatainfo["nested_string_custom"].Type)
+		_ = assert.NotEmpty(t, metadatainfo["NestedString"]) &&
+			assert.Equal(t, "string", metadatainfo["NestedString"].Type)
 		assert.NotContains(t, metadatainfo, "pubsub_only_property")
-		assert.Equal(t, "string", metadatainfo["binding_only_property"])
-		assert.Equal(t, "string", metadatainfo["pubsub_and_binding_property"])
-		assert.Equal(t, "[]time.Duration", metadatainfo["MyDurationArray"])
+		_ = assert.NotEmpty(t, metadatainfo["binding_only_property"]) &&
+			assert.Equal(t, "string", metadatainfo["binding_only_property"].Type)
+		_ = assert.NotEmpty(t, metadatainfo["pubsub_and_binding_property"]) &&
+			assert.Equal(t, "string", metadatainfo["pubsub_and_binding_property"].Type)
+		_ = assert.NotEmpty(t, metadatainfo["MyDurationArray"]) &&
+			assert.Equal(t, "[]time.Duration", metadatainfo["MyDurationArray"].Type)
 		assert.NotContains(t, metadatainfo, "NotExportedByMapStructure")
 		assert.NotContains(t, metadatainfo, "notExported")
+		_ = assert.NotEmpty(t, metadatainfo["something_deprecated"]) &&
+			assert.Equal(t, "string", metadatainfo["something_deprecated"].Type) &&
+			assert.True(t, metadatainfo["something_deprecated"].Deprecated)
+		_ = assert.NotEmpty(t, metadatainfo["aliased"]) &&
+			assert.Equal(t, "string", metadatainfo["aliased"].Type) &&
+			assert.False(t, metadatainfo["aliased"].Deprecated) &&
+			assert.False(t, metadatainfo["aliased"].Ignored) &&
+			assert.Equal(t, []string{"another", "name"}, metadatainfo["aliased"].Aliases)
+		_ = assert.NotEmpty(t, metadatainfo["ignored"]) &&
+			assert.Equal(t, "string", metadatainfo["ignored"].Type) &&
+			assert.False(t, metadatainfo["ignored"].Deprecated) &&
+			assert.True(t, metadatainfo["ignored"].Ignored) &&
+			assert.Empty(t, metadatainfo["ignored"].Aliases)
 	})
 }

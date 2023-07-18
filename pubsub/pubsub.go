@@ -18,16 +18,18 @@ import (
 	"fmt"
 
 	"github.com/dapr/components-contrib/health"
+	"github.com/dapr/components-contrib/metadata"
 )
 
 // PubSub is the interface for message buses.
 type PubSub interface {
+	metadata.ComponentWithMetadata
+
 	Init(ctx context.Context, metadata Metadata) error
 	Features() []Feature
 	Publish(ctx context.Context, req *PublishRequest) error
 	Subscribe(ctx context.Context, req SubscribeRequest, handler Handler) error
 	Close() error
-	GetComponentMetadata() map[string]string
 }
 
 // BulkPublisher is the interface that wraps the BulkPublish method.

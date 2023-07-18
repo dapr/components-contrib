@@ -22,6 +22,11 @@ type middleware struct {
 	logger logger.Logger
 }
 
+type Metadata struct {
+	// GuestConfig is the guest configuration, assigned during instantiation by handler.GuestConfig.
+	GuestConfig string `mapstructure:"guestConfig"`
+}
+
 func NewMiddleware(logger logger.Logger) dapr.Middleware {
 	return &middleware{logger: logger}
 }
@@ -36,9 +41,17 @@ func (m *middleware) GetHandler(ctx context.Context, metadata dapr.Metadata) (fu
 
 // getHandler is extracted for unit testing.
 func (m *middleware) getHandler(ctx context.Context, metadata dapr.Metadata) (*requestHandler, error) {
+	// parse common wasm metadata configuration
 	meta, err := wasm.GetInitMetadata(metadata.Base)
 	if err != nil {
 		return nil, fmt.Errorf("wasm: failed to parse metadata: %w", err)
+	}
+
+	// parse wasm middleware specific metadata
+	var middlewareMeta Metadata
+	err = mdutils.DecodeMetadata(metadata.Base, &middlewareMeta)
+	if err != nil {
+		return nil, fmt.Errorf("wasm: failed to parse wasm middleware metadata: %w", err)
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -48,7 +61,7 @@ func (m *middleware) getHandler(ctx context.Context, metadata dapr.Metadata) (*r
 			WithName(meta.GuestName).
 			WithStdout(&stdout).  // reset per request
 			WithStderr(&stderr)), // reset per request
-		handler.GuestConfig([]byte(meta.GuestConfig)))
+		handler.GuestConfig([]byte(middlewareMeta.GuestConfig)))
 	if err != nil {
 		return nil, err
 	}

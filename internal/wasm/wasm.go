@@ -42,10 +42,6 @@ type InitMetadata struct {
 	//   - Random number generators are seeded with a deterministic source.
 	StrictSandbox bool `mapstructure:"strictSandbox"`
 
-	// GuestConfig is the guest configuration, assigned during instantiation by handler.GuestConfig.
-	// Currently only used by the HTTP wasm middleware.
-	GuestConfig string `mapstructure:"guestConfig"`
-
 	// Guest is WebAssembly binary implementing the guest, loaded from URL.
 	Guest []byte `mapstructure:"-"`
 

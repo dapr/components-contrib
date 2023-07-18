@@ -49,11 +49,9 @@ metadata:
   - name: messageReceiveLimit
     required: false
     description: |
-      Number of times a message is received, after processing of that message fails,
-      that once reached, results in removing of that message from the queue. 
-      If sqsDeadLettersQueueName is specified, messageReceiveLimit is the number of
-      times a message is received, after processing of that message fails, that once
-      reached, results in moving of the message to the SQS dead-letters queue.
+      Maximun number of attempts the message will be re-delivered after processing failures.
+      The sqsDeadLettersQueueName is a SQS dead-letters queue to move the message to
+      once the maximun number of attempts have been reached.
     type: number
     default: '10'
     example: '10'

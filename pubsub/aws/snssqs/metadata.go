@@ -11,12 +11,14 @@ import (
 )
 
 type snsSqsMetadata struct {
+	// Ignored by metadata parser because included in built-in authentication profile
+	// access key to use for accessing sqs/sns.
+	AccessKey string `json:"accessKey" mapstructure:"accessKey" mdignore:"true"`
+	// secret key to use for accessing sqs/sns.
+	SecretKey string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
+
 	// aws endpoint for the component to use.
 	Endpoint string `mapstructure:"endpoint"`
-	// access key to use for accessing sqs/sns.
-	AccessKey string `mapstructure:"accessKey"`
-	// secret key to use for accessing sqs/sns.
-	SecretKey string `mapstructure:"secretKey"`
 	// aws session token to use.
 	SessionToken string `mapstructure:"sessionToken"`
 	// aws region in which SNS/SQS should create resources.

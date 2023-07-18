@@ -508,7 +508,7 @@ func (m *MongoDB) Multi(ctx context.Context, request *state.TransactionalStateRe
 
 	txnOpts := options.Transaction().
 		SetReadConcern(readconcern.Snapshot()).
-		SetWriteConcern(writeconcern.New(writeconcern.WMajority()))
+		SetWriteConcern(writeconcern.Majority())
 	sess.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
 		err = m.doTransaction(sessCtx, request.Operations)
 		return nil, err
@@ -642,16 +642,22 @@ func getWriteConcernObject(cn string) (*writeconcern.WriteConcern, error) {
 	var wc *writeconcern.WriteConcern
 	if cn != "" {
 		if cn == "majority" {
-			wc = writeconcern.New(writeconcern.WMajority(), writeconcern.J(true), writeconcern.WTimeout(defaultTimeout))
+			wc = writeconcern.Majority()
 		} else {
 			w, err := strconv.Atoi(cn)
-			wc = writeconcern.New(writeconcern.W(w), writeconcern.J(true), writeconcern.WTimeout(defaultTimeout))
-
-			return wc, err
+			if err != nil {
+				return nil, err
+			}
+			wc = &writeconcern.WriteConcern{
+				W: w,
+			}
 		}
 	} else {
-		wc = writeconcern.New(writeconcern.W(1), writeconcern.J(true), writeconcern.WTimeout(defaultTimeout))
+		wc = writeconcern.W1()
 	}
+
+	wc.Journal = ptr.Of(true)
+	wc.WTimeout = defaultTimeout
 
 	return wc, nil
 }

@@ -16,9 +16,11 @@ metadata:
   - name: region
     required: true
     description: |
-      The AWS region to the instance. See this page for valid regions:
-      https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html. 
-      Ensure that DynamoDB are available in that region.
+      The AWS region where the SNS/SQS assets are located or be created in. See the regions product services page.
+      Ensure that SNS and SQS are available in that region.
+    url:
+      title: "Regions Product Services"
+      url: "https://aws.amazon.com/about-aws/global-infrastructure/regional-product-services/?p=ugi&l=na"
     example: '"us-east-1"'
     type: string
   - name: endpoint
@@ -89,8 +91,10 @@ metadata:
   - name: fifo
     description: |
       Use SQS FIFO queue to provide message ordering and deduplication.
-      See further details about SQS FIFO:
-      https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/FIFO-queues.html
+      See SQS FIFO documentation further details.
+    url:
+      title: "SQS FIFO documentation"
+      url: "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/FIFO-queues.html"
     type: bool
     default: 'false'
     example: '"true", "false"'
@@ -98,10 +102,13 @@ metadata:
     required: false
     description: |
       If fifo is enabled, instructs Dapr to use a custom Message Group ID 
-      https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/using-messagegroupid-property.html
       for the pubsub deployment. This is not mandatory as Dapr creates a
       custom Message Group ID for each producer, thus ensuring ordering
-      of messages per a Dapr producer. 
+      of messages per a Dapr producer.
+      See Message Group ID Property documentation.
+    url:
+      title: "Message Group ID Property documentation"
+      url: "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/using-messagegroupid-property.html"
     example: '"app1-mgi"'
     type: string
   - name: disableEntityManagement

@@ -231,9 +231,8 @@ func (metadata Metadata) parseAddresses(addresses string) []string {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (s *Mailer) GetComponentMetadata() map[string]string {
+func (s *Mailer) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := Metadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

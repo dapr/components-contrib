@@ -106,11 +106,10 @@ func NewCosmosDBStateStore(logger logger.Logger) state.Store {
 	return s
 }
 
-func (c *StateStore) GetComponentMetadata() map[string]string {
+func (c *StateStore) GetComponentMetadata() (metadataInfo contribmeta.MetadataMap) {
 	metadataStruct := metadata{}
-	metadataInfo := map[string]string{}
 	contribmeta.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribmeta.StateStoreType)
-	return metadataInfo
+	return
 }
 
 // Init does metadata and connection parsing.

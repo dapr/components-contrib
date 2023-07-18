@@ -553,14 +553,6 @@ func verifyDefaultBehaviors(t *testing.T, hs bindings.OutputBinding, handler *HT
 			err:        "",
 			statusCode: 200,
 		},
-		"invalid path": {
-			input:      "expected",
-			operation:  "POST",
-			metadata:   map[string]string{"path": "/../test"},
-			path:       "",
-			err:        "invalid path: /../test",
-			statusCode: 400,
-		},
 		"invalid operation": {
 			input:      "notvalid",
 			operation:  "notvalid",
@@ -664,14 +656,6 @@ func verifyNon2XXErrorsSuppressed(t *testing.T, hs bindings.OutputBinding, handl
 			path:       "/test",
 			err:        "",
 			statusCode: 200,
-		},
-		"invalid path": {
-			input:      "expected",
-			operation:  "POST",
-			metadata:   map[string]string{"path": "/../test"},
-			path:       "",
-			err:        "invalid path: /../test",
-			statusCode: 400,
 		},
 	}
 

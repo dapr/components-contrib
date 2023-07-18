@@ -675,9 +675,17 @@ func getReadConcernObject(cn string) (*readconcern.ReadConcern, error) {
 	return nil, fmt.Errorf("readConcern %s not found", cn)
 }
 
-func (m *MongoDB) GetComponentMetadata() map[string]string {
+func (m *MongoDB) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := mongoDBMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
+}
+
+// Close connection to the database.
+func (m *MongoDB) Close(ctx context.Context) (err error) {
+	if m.client == nil {
+		return nil
+	}
+
+	return m.client.Disconnect(ctx)
 }

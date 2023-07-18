@@ -13,10 +13,16 @@ limitations under the License.
 
 package configuration
 
-import "context"
+import (
+	"context"
+
+	"github.com/dapr/components-contrib/metadata"
+)
 
 // Store is an interface to perform operations on store.
 type Store interface {
+	metadata.ComponentWithMetadata
+
 	// Init configuration store.
 	Init(ctx context.Context, metadata Metadata) error
 
@@ -28,9 +34,6 @@ type Store interface {
 
 	// Unsubscribe configuration with keys
 	Unsubscribe(ctx context.Context, req *UnsubscribeRequest) error
-
-	// GetComponentMetadata returns information on the component's metadata.
-	GetComponentMetadata() map[string]string
 }
 
 // UpdateHandler is the handler used to send event to daprd.

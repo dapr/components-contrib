@@ -347,9 +347,8 @@ func contains(arr []string, str string) bool {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (s *AliCloudTableStore) GetComponentMetadata() map[string]string {
+func (s *AliCloudTableStore) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := tablestoreMetadata{}
-	metadataInfo := map[string]string{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
-	return metadataInfo
+	return
 }

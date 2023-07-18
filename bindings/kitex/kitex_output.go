@@ -18,6 +18,7 @@ import (
 	"sync"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -79,7 +80,6 @@ func (out *kitexOutputBinding) Operations() []bindings.OperationKind {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (out *kitexOutputBinding) GetComponentMetadata() map[string]string {
-	metadataInfo := map[string]string{}
-	return metadataInfo
+func (out *kitexOutputBinding) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+	return
 }

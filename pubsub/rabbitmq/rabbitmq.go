@@ -308,11 +308,14 @@ func (r *rabbitMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, h
 		return errors.New("component is closed")
 	}
 
-	if r.metadata.ConsumerID == "" {
-		return errors.New("consumerID is required for subscriptions")
+	queueName := req.Metadata[metadataQueueNameKey]
+	if queueName == "" {
+		if r.metadata.ConsumerID == "" {
+			return errors.New("consumerID is required for subscriptions that don't specify a queue name")
+		}
+		queueName = fmt.Sprintf("%s-%s", r.metadata.ConsumerID, req.Topic)
 	}
 
-	queueName := fmt.Sprintf("%s-%s", r.metadata.ConsumerID, req.Topic)
 	r.logger.Infof("%s subscribe to topic/queue '%s/%s'", logMessagePrefix, req.Topic, queueName)
 
 	// Do not set a timeout on the context, as we're just waiting for the first ack; we're using a semaphore instead
@@ -674,9 +677,8 @@ func mustReconnect(channel rabbitMQChannelBroker, err error) bool {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (r *rabbitMQ) GetComponentMetadata() map[string]string {
+func (r *rabbitMQ) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := rabbitmqMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
-	return metadataInfo
+	return
 }

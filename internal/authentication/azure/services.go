@@ -20,6 +20,8 @@ import (
 const (
 	// Service configuration for Azure SQL. Namespaced with dapr.io
 	ServiceAzureSQL cloud.ServiceName = "dapr.io/azuresql"
+	// Service configuration for OSS RDBMS (Azure Database for PostgreSQL and MySQL). Namespaced with dapr.io
+	ServiceOSSRDBMS cloud.ServiceName = "dapr.io/oss-rdbms"
 )
 
 func init() {
@@ -32,5 +34,14 @@ func init() {
 	}
 	cloud.AzurePublic.Services[ServiceAzureSQL] = cloud.ServiceConfiguration{
 		Audience: "https://database.windows.net",
+	}
+	cloud.AzureChina.Services[ServiceOSSRDBMS] = cloud.ServiceConfiguration{
+		Audience: "https://ossrdbms-aad.database.chinacloudapi.cn",
+	}
+	cloud.AzureGovernment.Services[ServiceOSSRDBMS] = cloud.ServiceConfiguration{
+		Audience: "https://ossrdbms-aad.database.usgovcloudapi.net",
+	}
+	cloud.AzurePublic.Services[ServiceOSSRDBMS] = cloud.ServiceConfiguration{
+		Audience: "https://ossrdbms-aad.database.windows.net",
 	}
 }

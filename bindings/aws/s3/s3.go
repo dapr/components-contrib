@@ -75,8 +75,8 @@ type s3Metadata struct {
 	ForcePathStyle bool   `json:"forcePathStyle,string" mapstructure:"forcePathStyle"`
 	DisableSSL     bool   `json:"disableSSL,string" mapstructure:"disableSSL"`
 	InsecureSSL    bool   `json:"insecureSSL,string" mapstructure:"insecureSSL"`
-	FilePath       string `mapstructure:"filePath"`
-	PresignTTL     string `mapstructure:"presignTTL"`
+	FilePath       string `json:"filePath" mapstructure:"filePath"   mdignore:"true"`
+	PresignTTL     string `json:"presignTTL" mapstructure:"presignTTL"  mdignore:"true"`
 }
 
 type createResponse struct {

@@ -32,8 +32,7 @@ metadata:
   - name: region
     required: true
     description: |
-      The AWS region to the instance. See this page for valid regions:
-      https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html. 
+      The specific AWS region where the S3 bucket is located.
     example: '"us-east-1"'
     type: string
   - name: endpoint
@@ -86,17 +85,3 @@ metadata:
     type: bool
     default: 'false'
     example: '"true", "false"'
-  - name: filePath
-    required: false
-    description: |
-      To upload a file from a supplied path (relative or absolute), use the filePath
-      metadata key on a create request that contains empty data fields.
-    example: '"mydir/my-test-file.txt"'
-    type: string
-  - name: presignTTL
-    required: false
-    description: |
-      To presign an object with a specified time-to-live, use the presignTTL metadata
-      key on a create request, as a Go duration.
-    example: '"2h45m"'
-    type: duration

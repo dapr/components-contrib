@@ -24,8 +24,8 @@ metadata:
   - name: endpoint
     required: false
     description: |
-      AWS endpoint for the component to use. Only used for local development. 
-      The endpoint is unncessary when running against production AWS.
+      AWS endpoint for the component to use, to connect to emulators.
+      Do not use this when running against production AWS.
     example: '"http://localhost:4566"'
     type: string
   - name: sessionToken
@@ -141,13 +141,13 @@ metadata:
     default: '"parallel"'
     example: '"single", "parallel"'
     type: string
-  - name: accountid
+  - name: accountId
     required: false
     description: |
-      The AWS account ID internally resolved if not provided.
+      The AWS account ID. Resolved automatically if not provided.
     example: '""'
     type: string
-  - name: consumerid
+  - name: consumerId
     required: false
     description: |
       This is the ID of the application. It is supplied via runtime as "consumerID".

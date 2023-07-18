@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -28,9 +28,9 @@ func TestMetadata(t *testing.T) {
 		m := postgresMetadataStruct{}
 		props := map[string]string{}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}})
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
 		assert.Error(t, err)
-		assert.ErrorIs(t, err, errMissingConnectionString)
+		assert.ErrorContains(t, err, "connection string")
 	})
 
 	t.Run("has connection string", func(t *testing.T) {
@@ -39,7 +39,7 @@ func TestMetadata(t *testing.T) {
 			"connectionString": "foo",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}})
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
 		assert.NoError(t, err)
 	})
 
@@ -49,7 +49,7 @@ func TestMetadata(t *testing.T) {
 			"connectionString": "foo",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}})
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
 		assert.NoError(t, err)
 		assert.Equal(t, m.TableName, defaultTableName)
 	})
@@ -61,7 +61,7 @@ func TestMetadata(t *testing.T) {
 			"tableName":        "mytable",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}})
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
 		assert.NoError(t, err)
 		assert.Equal(t, m.TableName, "mytable")
 	})
@@ -72,7 +72,7 @@ func TestMetadata(t *testing.T) {
 			"connectionString": "foo",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}})
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
 		assert.NoError(t, err)
 		assert.Equal(t, defaultTimeout*time.Second, m.Timeout)
 	})
@@ -84,7 +84,7 @@ func TestMetadata(t *testing.T) {
 			"timeoutInSeconds": "NaN",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}})
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
 		assert.Error(t, err)
 	})
 
@@ -95,7 +95,7 @@ func TestMetadata(t *testing.T) {
 			"timeoutInSeconds": "42",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}})
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
 		assert.NoError(t, err)
 		assert.Equal(t, 42*time.Second, m.Timeout)
 	})
@@ -107,7 +107,7 @@ func TestMetadata(t *testing.T) {
 			"timeoutInSeconds": "0",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}})
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
 		assert.Error(t, err)
 	})
 
@@ -117,7 +117,7 @@ func TestMetadata(t *testing.T) {
 			"connectionString": "foo",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}})
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
 		assert.NoError(t, err)
 		_ = assert.NotNil(t, m.CleanupInterval) &&
 			assert.Equal(t, defaultCleanupInternal*time.Second, *m.CleanupInterval)
@@ -130,7 +130,7 @@ func TestMetadata(t *testing.T) {
 			"cleanupIntervalInSeconds": "NaN",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}})
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
 		assert.Error(t, err)
 	})
 
@@ -141,7 +141,7 @@ func TestMetadata(t *testing.T) {
 			"cleanupIntervalInSeconds": "42",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}})
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
 		assert.NoError(t, err)
 		_ = assert.NotNil(t, m.CleanupInterval) &&
 			assert.Equal(t, 42*time.Second, *m.CleanupInterval)
@@ -154,7 +154,7 @@ func TestMetadata(t *testing.T) {
 			"cleanupIntervalInSeconds": "0",
 		}
 
-		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}})
+		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
 		assert.NoError(t, err)
 		assert.Nil(t, m.CleanupInterval)
 	})

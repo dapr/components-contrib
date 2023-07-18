@@ -230,6 +230,9 @@ SQL_SERVER_DB_NAME_VAR_NAME="AzureSqlServerDbName"
 SQL_SERVER_CONNECTION_STRING_VAR_NAME="AzureSqlServerConnectionString"
 
 AZURE_DB_POSTGRES_CONNSTRING_VAR_NAME="AzureDBPostgresConnectionString"
+AZURE_DB_POSTGRES_CLIENT_ID_VAR_NAME="AzureDBPostgresClientId"
+AZURE_DB_POSTGRES_CLIENT_SECRET_VAR_NAME="AzureDBPostgresClientSecret"
+AZURE_DB_POSTGRES_TENANT_ID_VAR_NAME="AzureDBPostgresTenantId"
 
 STORAGE_ACCESS_KEY_VAR_NAME="AzureBlobStorageAccessKey"
 STORAGE_ACCOUNT_VAR_NAME="AzureBlobStorageAccount"
@@ -692,6 +695,15 @@ echo "Configuring Azure Database for PostgreSQL test settings ..."
 AZURE_DB_POSTGRES_CONNSTRING="host=${PREFIX}-conf-test-pg.postgres.database.azure.com user=${SDK_AUTH_SP_NAME} port=5432 connect_timeout=30 database=dapr_test"
 echo export ${AZURE_DB_POSTGRES_CONNSTRING_VAR_NAME}=\"${AZURE_DB_POSTGRES_CONNSTRING}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${AZURE_DB_POSTGRES_CONNSTRING_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${AZURE_DB_POSTGRES_CONNSTRING}"
+
+echo export ${AZURE_DB_POSTGRES_CLIENT_ID_VAR_NAME}=\"${SDK_AUTH_SP_APPID}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${AZURE_DB_POSTGRES_CLIENT_ID_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${SDK_AUTH_SP_APPID}"
+
+echo export ${AZURE_DB_POSTGRES_CLIENT_SECRET_VAR_NAME}=\"${SDK_AUTH_SP_CLIENT_SECRET}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${AZURE_DB_POSTGRES_CLIENT_SECRET_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${SDK_AUTH_SP_CLIENT_SECRET}"
+
+echo export ${AZURE_DB_POSTGRES_TENANT_ID_VAR_NAME}=\"${TENANT_ID}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${AZURE_DB_POSTGRES_TENANT_ID_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${TENANT_ID}"
 
 # ----------------------------------
 # Populate Event Hubs test settings

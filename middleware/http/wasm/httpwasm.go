@@ -122,9 +122,8 @@ func (rh *requestHandler) Close() error {
 	return rh.mw.Close(ctx)
 }
 
-func (m *middleware) GetComponentMetadata() map[string]string {
+func (m *middleware) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
 	metadataStruct := wasm.InitMetadata{}
-	metadataInfo := map[string]string{}
 	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
-	return metadataInfo
+	return
 }

@@ -79,9 +79,8 @@ func getRandomID() string {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (k *kubeMQ) GetComponentMetadata() map[string]string {
+func (k *kubeMQ) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := &kubemqMetadata{}
-	metadataInfo := map[string]string{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.PubSubType)
-	return metadataInfo
+	return
 }

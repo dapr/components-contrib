@@ -197,9 +197,8 @@ func (o *oosSecretStore) Features() []secretstores.Feature {
 	return []secretstores.Feature{} // No Feature supported.
 }
 
-func (o *oosSecretStore) GetComponentMetadata() map[string]string {
+func (o *oosSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := ParameterStoreMetaData{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
-	return metadataInfo
+	return
 }

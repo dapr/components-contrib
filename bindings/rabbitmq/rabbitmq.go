@@ -548,9 +548,8 @@ func (r *RabbitMQ) reset() (err error) {
 	return err
 }
 
-func (r *RabbitMQ) GetComponentMetadata() map[string]string {
+func (r *RabbitMQ) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := rabbitMQMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

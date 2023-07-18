@@ -1,0 +1,11 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: postgres-binding
+spec:
+  type: bindings.postgresql
+  version: v1
+  metadata:
+    # "url" is the old name for "connectionString" and is kept here to test for backwards-compatibility
+    - name: url
+      value: "host=localhost user=postgres password=example port=5432 connect_timeout=10 database=dapr_test"

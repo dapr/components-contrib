@@ -327,9 +327,8 @@ func (a *amqpPubSub) Features() []pubsub.Feature {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (a *amqpPubSub) GetComponentMetadata() map[string]string {
+func (a *amqpPubSub) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := metadata{}
-	metadataInfo := map[string]string{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.PubSubType)
-	return metadataInfo
+	return
 }

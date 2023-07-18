@@ -37,6 +37,7 @@ type middleware struct {
 
 type Metadata struct {
 	// GuestConfig is an optional configuration passed to WASM guests.
+	// Users can pass an arbitrary string to be parsed by the guest code.
 	GuestConfig string `mapstructure:"guestConfig"`
 }
 

@@ -264,11 +264,10 @@ func (sg *SendGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (sg *SendGrid) GetComponentMetadata() map[string]string {
+func (sg *SendGrid) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := sendGridMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }
 
 // Function that unmarshals the Dynamic Template Data JSON String into a map[string]any.

@@ -554,9 +554,8 @@ func (r *rocketMQ) Close() error {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (r *rocketMQ) GetComponentMetadata() map[string]string {
+func (r *rocketMQ) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := rocketMQMetaData{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
-	return metadataInfo
+	return
 }

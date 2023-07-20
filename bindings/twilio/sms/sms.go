@@ -135,9 +135,8 @@ func (t *SMS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*binding
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (t *SMS) GetComponentMetadata() map[string]string {
+func (t *SMS) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := twilioMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

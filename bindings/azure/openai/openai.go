@@ -26,7 +26,6 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/components-contrib/metadata"
-	"github.com/dapr/kit/config"
 	"github.com/dapr/kit/logger"
 )
 
@@ -62,15 +61,6 @@ type openAIMetadata struct {
 	DeploymentID string `mapstructure:"deploymentID"`
 	// Endpoint is the endpoint for the Azure OpenAI API.
 	Endpoint string `mapstructure:"endpoint"`
-}
-
-type ChatSettings struct {
-	Temperature      float32 `mapstructure:"temperature"`
-	MaxTokens        int32   `mapstructure:"maxTokens"`
-	TopP             float32 `mapstructure:"topP"`
-	N                int32   `mapstructure:"n"`
-	PresencePenalty  float32 `mapstructure:"presencePenalty"`
-	FrequencyPenalty float32 `mapstructure:"frequencyPenalty"`
 }
 
 // ChatMessages type for chat completion API.
@@ -208,10 +198,6 @@ func (p *AzOpenAI) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 	return resp, nil
 }
 
-func (s *ChatSettings) Decode(in any) error {
-	return config.Decode(in, s)
-}
-
 func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[string]string) (response []azopenai.Choice, err error) {
 	prompt := Prompt{
 		Temperature:      1.0,
@@ -231,7 +217,7 @@ func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[
 	}
 
 	resp, err := p.client.GetCompletions(ctx, azopenai.CompletionsOptions{
-		Prompt:      []*string{&prompt.Prompt},
+		Prompt:      []string{prompt.Prompt},
 		MaxTokens:   &prompt.MaxTokens,
 		Temperature: &prompt.Temperature,
 		TopP:        &prompt.TopP,
@@ -249,7 +235,7 @@ func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[
 	choices := resp.Completions.Choices
 	response = make([]azopenai.Choice, len(choices))
 	for i, c := range choices {
-		response[i] = *c
+		response[i] = c
 	}
 
 	return response, nil
@@ -272,9 +258,9 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageRequest []byte, me
 		return nil, fmt.Errorf("messages are required for chat-completion operation")
 	}
 
-	messageReq := make([]*azopenai.ChatMessage, len(messages.Messages))
+	messageReq := make([]azopenai.ChatMessage, len(messages.Messages))
 	for i, m := range messages.Messages {
-		messageReq[i] = &azopenai.ChatMessage{
+		messageReq[i] = azopenai.ChatMessage{
 			Role:    to.Ptr(azopenai.ChatRole(m.Role)),
 			Content: to.Ptr(m.Message),
 		}
@@ -304,7 +290,7 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageRequest []byte, me
 	choices := res.ChatCompletions.Choices
 	response = make([]azopenai.ChatChoice, len(choices))
 	for i, c := range choices {
-		response[i] = *c
+		response[i] = c
 	}
 
 	return response, nil

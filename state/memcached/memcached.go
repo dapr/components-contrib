@@ -219,9 +219,8 @@ func (m *Memcached) Close() (err error) {
 	return nil
 }
 
-func (m *Memcached) GetComponentMetadata() map[string]string {
+func (m *Memcached) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := memcachedMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
 }

@@ -168,9 +168,8 @@ func detectImports(imports []api.FunctionDefinition) importMode {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (out *outputBinding) GetComponentMetadata() map[string]string {
+func (out *outputBinding) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := wasm.InitMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

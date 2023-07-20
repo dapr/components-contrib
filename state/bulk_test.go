@@ -22,6 +22,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/components-contrib/metadata"
 )
 
 var errSimulated = errors.New("simulated")
@@ -162,8 +164,8 @@ func (s *storeBulk) Set(ctx context.Context, req *SetRequest) error {
 	return nil
 }
 
-func (s *storeBulk) GetComponentMetadata() map[string]string {
-	return map[string]string{}
+func (s *storeBulk) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+	return
 }
 
 func (s *storeBulk) Features() []Feature {

@@ -277,9 +277,8 @@ func (j *localSecretStore) Features() []secretstores.Feature {
 	return j.features
 }
 
-func (j *localSecretStore) GetComponentMetadata() map[string]string {
+func (j *localSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := localSecretStoreMetaData{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
-	return metadataInfo
+	return
 }

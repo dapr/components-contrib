@@ -161,9 +161,8 @@ func (p *Postmark) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (p *Postmark) GetComponentMetadata() map[string]string {
+func (p *Postmark) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := postmarkMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

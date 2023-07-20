@@ -159,9 +159,8 @@ func (store *Hazelcast) Delete(ctx context.Context, req *state.DeleteRequest) er
 	return nil
 }
 
-func (store *Hazelcast) GetComponentMetadata() map[string]string {
+func (store *Hazelcast) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := hazelcastMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
 }

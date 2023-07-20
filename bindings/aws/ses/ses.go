@@ -171,9 +171,8 @@ func (a *AWSSES) getClient(metadata *sesMetadata) (*ses.SES, error) {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (a *AWSSES) GetComponentMetadata() map[string]string {
+func (a *AWSSES) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := sesMetadata{}
-	metadataInfo := map[string]string{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
-	return metadataInfo
+	return
 }

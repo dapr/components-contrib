@@ -89,14 +89,6 @@ builtinAuthenticationProfiles:
           Number of partitions for the new Event Hub namespace. Used only when
           entity management is enabled.
 metadata:
-  # Input and output metadata
-  - name: partitionId
-    type: string
-    required: false
-    description: |
-      DEPRECATED.
-    deprecated: true
-    example: ""
   # Input-only metadata
   # consumerGroup is an alias for consumerId, if both are defined consumerId takes precedence.
   - name: consumerId

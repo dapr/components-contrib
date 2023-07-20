@@ -183,9 +183,8 @@ func (r *StandaloneRedisLock) Close() error {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (r *StandaloneRedisLock) GetComponentMetadata() map[string]string {
+func (r *StandaloneRedisLock) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := rediscomponent.Settings{}
-	metadataInfo := map[string]string{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.LockStoreType)
-	return metadataInfo
+	return
 }

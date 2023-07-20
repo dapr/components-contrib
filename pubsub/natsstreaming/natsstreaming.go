@@ -363,9 +363,8 @@ func (n *natsStreamingPubSub) Features() []pubsub.Feature {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (n *natsStreamingPubSub) GetComponentMetadata() map[string]string {
+func (n *natsStreamingPubSub) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := natsMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
-	return metadataInfo
+	return
 }

@@ -1,0 +1,18 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: postgres-binding
+spec:
+  type: bindings.postgresql
+  version: v1
+  metadata:
+    - name: connectionString
+      value: "${{AzureDBPostgresConnectionString}}"
+    - name: azureClientId
+      value: "${{AzureDBPostgresClientId}}"
+    - name: azureClientSecret
+      value: "${{AzureDBPostgresClientSecret}}"
+    - name: azureTenantId
+      value: "${{AzureDBPostgresTenantId}}"
+    - name: useAzureAD
+      value: "true"

@@ -439,11 +439,10 @@ func (m *OAuth2Middleware) headerModeSetTokenResponse(w http.ResponseWriter, r *
 	})
 }
 
-func (m *OAuth2Middleware) GetComponentMetadata() map[string]string {
+func (m *OAuth2Middleware) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
 	metadataStruct := OAuth2MiddlewareMetadata{}
-	metadataInfo := map[string]string{}
 	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
-	return metadataInfo
+	return
 }
 
 // IsRequestSecure returns true if the request is using a secure context.

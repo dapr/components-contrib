@@ -167,9 +167,8 @@ func (i *Influx) Close() error {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (i *Influx) GetComponentMetadata() map[string]string {
+func (i *Influx) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := influxMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

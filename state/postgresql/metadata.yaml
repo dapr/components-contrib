@@ -37,7 +37,7 @@ builtinAuthenticationProfiles:
         type: string
 authenticationProfiles:
   - title: "Connection string"
-    description: "Authenticate using a Connection String."
+    description: "Authenticate using a Connection String"
     metadata:
       - name: connectionString
         required: true

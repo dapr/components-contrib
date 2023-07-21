@@ -422,8 +422,8 @@ github.com/Azure/azure-sdk-for-go/sdk/azcore v1.7.0 h1:8q4SaHjFsClSvuVne0ID/5Ka8
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.7.0/go.mod h1:bjGvMhVMb+EEm3VRNQawDMUyMMjo+S5ewNjflkep/0Q=
 github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0 h1:vcYCAze6p19qBW7MhZybIsqD8sMV8js0NyQM8JDnVtg=
 github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0/go.mod h1:OQeznEEkTZ9OrhHJoDD8ZDq51FHgXjqtP9z6bEwBq9U=
-github.com/Azure/azure-sdk-for-go/sdk/cognitiveservices/azopenai v0.0.0-20230715001925-38bc7d361490 h1:uzTmz/rDZ4K8HP0O0rIMR2YADdX1S6wx5i5WiSjHZOk=
-github.com/Azure/azure-sdk-for-go/sdk/cognitiveservices/azopenai v0.0.0-20230715001925-38bc7d361490/go.mod h1:NwVkXm5Ty88Xd7cx6b53fGNeGG3W3ZDXgOXBNHLUy84=
+github.com/Azure/azure-sdk-for-go/sdk/cognitiveservices/azopenai v0.1.0 h1:lkflJSWI6jicmEBImjpliUOWCr1PdJO/GcZj3bWx19Q=
+github.com/Azure/azure-sdk-for-go/sdk/cognitiveservices/azopenai v0.1.0/go.mod h1:NwVkXm5Ty88Xd7cx6b53fGNeGG3W3ZDXgOXBNHLUy84=
 github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig v0.5.0 h1:OrKZybbyagpgJiREiIVzH5mV/z9oS4rXqdX7i31DSF0=
 github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig v0.5.0/go.mod h1:p74+tP95m8830ypJk53L93+BEsjTKY4SKQ75J2NmS5U=
 github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v0.3.5 h1:qS0Bp4do0cIvnuQgSGeO6ZCu/q/HlRKl4NPfv1eJ2p0=

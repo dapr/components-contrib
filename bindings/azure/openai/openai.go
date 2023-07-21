@@ -50,8 +50,9 @@ const (
 
 // AzOpenAI represents OpenAI output binding.
 type AzOpenAI struct {
-	logger logger.Logger
-	client *azopenai.Client
+	logger       logger.Logger
+	client       *azopenai.Client
+	deploymentID string
 }
 
 type openAIMetadata struct {
@@ -120,7 +121,7 @@ func (p *AzOpenAI) Init(ctx context.Context, meta bindings.Metadata) error {
 			return fmt.Errorf("error getting credentials object: %w", err)
 		}
 
-		p.client, err = azopenai.NewClientWithKeyCredential(m.Endpoint, keyCredential, m.DeploymentID, nil)
+		p.client, err = azopenai.NewClientWithKeyCredential(m.Endpoint, keyCredential, nil)
 		if err != nil {
 			return fmt.Errorf("error creating Azure OpenAI client: %w", err)
 		}
@@ -136,11 +137,12 @@ func (p *AzOpenAI) Init(ctx context.Context, meta bindings.Metadata) error {
 			return fmt.Errorf("error getting token credential: %w", innerErr)
 		}
 
-		p.client, err = azopenai.NewClient(m.Endpoint, token, m.DeploymentID, nil)
+		p.client, err = azopenai.NewClient(m.Endpoint, token, nil)
 		if err != nil {
 			return fmt.Errorf("error creating Azure OpenAI client: %w", err)
 		}
 	}
+	p.deploymentID = m.DeploymentID
 
 	return nil
 }
@@ -217,11 +219,12 @@ func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[
 	}
 
 	resp, err := p.client.GetCompletions(ctx, azopenai.CompletionsOptions{
-		Prompt:      []string{prompt.Prompt},
-		MaxTokens:   &prompt.MaxTokens,
-		Temperature: &prompt.Temperature,
-		TopP:        &prompt.TopP,
-		N:           &prompt.N,
+		DeploymentID: p.deploymentID,
+		Prompt:       []string{prompt.Prompt},
+		MaxTokens:    &prompt.MaxTokens,
+		Temperature:  &prompt.Temperature,
+		TopP:         &prompt.TopP,
+		N:            &prompt.N,
 	}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error getting completion api: %w", err)
@@ -272,11 +275,12 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageRequest []byte, me
 	}
 
 	res, err := p.client.GetChatCompletions(ctx, azopenai.ChatCompletionsOptions{
-		MaxTokens:   maxTokens,
-		Temperature: &messages.Temperature,
-		TopP:        &messages.TopP,
-		N:           &messages.N,
-		Messages:    messageReq,
+		DeploymentID: p.deploymentID,
+		MaxTokens:    maxTokens,
+		Temperature:  &messages.Temperature,
+		TopP:         &messages.TopP,
+		N:            &messages.N,
+		Messages:     messageReq,
 	}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error getting chat completion api: %w", err)

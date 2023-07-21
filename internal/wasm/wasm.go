@@ -1,9 +1,11 @@
 package wasm
 
 import (
+	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -74,11 +76,16 @@ func GetInitMetadata(md metadata.Base) (*InitMetadata, error) {
 	case "oci":
 		return nil, fmt.Errorf("TODO %s", scheme)
 	case "http", "https":
-		_, err = url.Parse(m.URL)
+		u, err := url.Parse(m.URL)
 		if err != nil {
 			return nil, err
 		}
-		return nil, fmt.Errorf("TODO %s", scheme)
+		fetcher := newHTTPFetcher(http.DefaultTransport)
+		m.Guest, err = fetcher.fetch(context.Background(), u)
+		if err != nil {
+			return nil, err
+		}
+		m.GuestName, _ = strings.CutSuffix(path.Base(u.Path), ".wasm")
 	case "file":
 		guestPath := m.URL[7:]
 		m.Guest, err = os.ReadFile(guestPath)

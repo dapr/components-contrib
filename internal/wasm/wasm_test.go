@@ -84,16 +84,16 @@ func TestGetInitMetadata(t *testing.T) {
 		{
 			name: "TODO http",
 			metadata: metadata.Base{Properties: map[string]string{
-				"url": "http://foo/bar.wasm",
+				"url": "http://foo.invalid/bar.wasm",
 			}},
-			expectedErr: "TODO http",
+			expectedErr: "no such host",
 		},
 		{
 			name: "TODO https",
 			metadata: metadata.Base{Properties: map[string]string{
-				"url": "https://foo/bar.wasm",
+				"url": "https://foo.invalid/bar.wasm",
 			}},
-			expectedErr: "TODO https",
+			expectedErr: "no such host",
 		},
 		{
 			name: "unsupported scheme",

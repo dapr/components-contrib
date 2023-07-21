@@ -61,8 +61,7 @@ metadata:
   - name: decodeBase64
     description: |
       Configuration to decode base64 file content before saving to bucket storage.
-      (In case of saving a file with binary content). true is the only allowed
-      positive value. Other positive variations like "True", "1" are not acceptable. 
+      (In case of saving a file with binary content).
     type: bool
     default: 'false'
     example: '"true", "false"'

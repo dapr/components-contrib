@@ -35,22 +35,22 @@ metadata:
     default: '3'
     example: '10'
   - name: retryDelay
-    description: "Specifies the initial amount of delay to use before retrying an operation, in nanoseconds. The delay increases exponentially with each retry up to the maximum specified by MaxRetryDelay. Defaults to 4 seconds. -1 disables delay between retries."
-    type: number
-    default: '4000000000'
-    example: '5000000000'
+    description: "Specifies the initial amount of delay to use before retrying an operation. The delay increases exponentially with each retry up to the maximum specified by MaxRetryDelay. Defaults to 4 seconds."
+    type: duration
+    default: '4s'
+    example: '5s'
   - name: maxRetryDelay
-    description: "Specifies the maximum delay allowed before retrying an operation, in nanoseconds. Typically the value is greater than or equal to the value specified in RetryDelay. Defaults to 120 seconds. -1 disables the limit."
-    type: number
-    default: '120000000000'
-    example: '180000000000'
+    description: "Specifies the maximum delay allowed before retrying an operation. Typically the value is greater than or equal to the value specified in RetryDelay. Defaults to 120 seconds."
+    type: duration
+    default: '120s'
+    example: '180s'
   - name: subscribePollInterval
-    description: "Specifies the poll interval for polling the subscribed keys for any changes, in nanoseconds. Default polling interval is set to 24 hours."
-    type: number
-    default: '86400000000000'
-    example: '240000000000'
+    description: "Specifies the poll interval for polling the subscribed keys for any changes. Default polling interval is set to 24 hours."
+    type: duration
+    default: '24h'
+    example: '5m'
   - name: requesttimeout
-    description: "Specifies the time allowed to pass until a request is failed, in nanoseconds. Default timeout is set to 15 seconds."
-    type: number
-    default: '15000000000'
-    example: '30000000000'
+    description: "Specifies the time allowed to pass until a request is failed. Default timeout is set to 15 seconds."
+    type: duration
+    default: '15s'
+    example: '30s'

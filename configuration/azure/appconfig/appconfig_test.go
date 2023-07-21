@@ -192,10 +192,10 @@ func TestInit(t *testing.T) {
 		testProperties := make(map[string]string)
 		testProperties[host] = "testHost"
 		testProperties[maxRetries] = "3"
-		testProperties[retryDelay] = "4000000000"
-		testProperties[maxRetryDelay] = "120000000000"
-		testProperties[subscribePollInterval] = "30000000000"
-		testProperties[requestTimeout] = "30000000000"
+		testProperties[retryDelay] = "4s"
+		testProperties[maxRetryDelay] = "120s"
+		testProperties[subscribePollInterval] = "30s"
+		testProperties[requestTimeout] = "30s"
 
 		m := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
@@ -217,10 +217,10 @@ func TestInit(t *testing.T) {
 		testProperties := make(map[string]string)
 		testProperties[connectionString] = "Endpoint=https://foo.azconfig.io;Id=osOX-l9-s0:sig;Secret=00000000000000000000000000000000000000000000"
 		testProperties[maxRetries] = "3"
-		testProperties[retryDelay] = "4000000000"
-		testProperties[maxRetryDelay] = "120000000000"
-		testProperties[subscribePollInterval] = "30000000000"
-		testProperties[requestTimeout] = "30000000000"
+		testProperties[retryDelay] = "4s"
+		testProperties[maxRetryDelay] = "120s"
+		testProperties[subscribePollInterval] = "30s"
+		testProperties[requestTimeout] = "30s"
 
 		m := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
@@ -244,10 +244,10 @@ func Test_parseMetadata(t *testing.T) {
 		testProperties := make(map[string]string)
 		testProperties[host] = "testHost"
 		testProperties[maxRetries] = "3"
-		testProperties[retryDelay] = "4000000000"
-		testProperties[maxRetryDelay] = "120000000000"
-		testProperties[subscribePollInterval] = "30000000000"
-		testProperties[requestTimeout] = "30000000000"
+		testProperties[retryDelay] = "4s"
+		testProperties[maxRetryDelay] = "120s"
+		testProperties[subscribePollInterval] = "30s"
+		testProperties[requestTimeout] = "30s"
 
 		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
@@ -276,10 +276,10 @@ func Test_parseMetadata(t *testing.T) {
 		testProperties := make(map[string]string)
 		testProperties[connectionString] = "testConnectionString"
 		testProperties[maxRetries] = "3"
-		testProperties[retryDelay] = "4000000000"
-		testProperties[maxRetryDelay] = "120000000000"
-		testProperties[subscribePollInterval] = "30000000000"
-		testProperties[requestTimeout] = "30000000000"
+		testProperties[retryDelay] = "4s"
+		testProperties[maxRetryDelay] = "120s"
+		testProperties[subscribePollInterval] = "30s"
+		testProperties[requestTimeout] = "30s"
 
 		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
@@ -309,10 +309,10 @@ func Test_parseMetadata(t *testing.T) {
 		testProperties[host] = "testHost"
 		testProperties[connectionString] = "testConnectionString"
 		testProperties[maxRetries] = "3"
-		testProperties[retryDelay] = "4000000000"
-		testProperties[maxRetryDelay] = "120000000000"
-		testProperties[subscribePollInterval] = "30000000000"
-		testProperties[requestTimeout] = "30000000000"
+		testProperties[retryDelay] = "4s"
+		testProperties[maxRetryDelay] = "120s"
+		testProperties[subscribePollInterval] = "30s"
+		testProperties[requestTimeout] = "30s"
 
 		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
@@ -327,10 +327,10 @@ func Test_parseMetadata(t *testing.T) {
 		testProperties[host] = ""
 		testProperties[connectionString] = ""
 		testProperties[maxRetries] = "3"
-		testProperties[retryDelay] = "4000000000"
-		testProperties[maxRetryDelay] = "120000000000"
-		testProperties[subscribePollInterval] = "30000000000"
-		testProperties[requestTimeout] = "30000000000"
+		testProperties[retryDelay] = "4s"
+		testProperties[maxRetryDelay] = "120s"
+		testProperties[subscribePollInterval] = "30s"
+		testProperties[requestTimeout] = "30s"
 
 		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,

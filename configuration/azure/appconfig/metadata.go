@@ -16,13 +16,13 @@ package appconfig
 import "time"
 
 type metadata struct {
-	Host                  string `mapstructure:"host"`
-	ConnectionString      string `mapstructure:"connectionString"`
-	MaxRetries            int    `mapstructure:"maxRetries"`
-	MaxRetryDelay         *int   `mapstructure:"maxRetryDelay"`
-	RetryDelay            *int   `mapstructure:"retryDelay"`
-	SubscribePollInterval *int   `mapstructure:"subscribePollInterval"`
-	RequestTimeout        *int   `mapstructure:"requestTimeout"`
+	Host                  string        `mapstructure:"host"`
+	ConnectionString      string        `mapstructure:"connectionString"`
+	MaxRetries            int           `mapstructure:"maxRetries"`
+	MaxRetryDelay         time.Duration `mapstructure:"maxRetryDelay"`
+	RetryDelay            time.Duration `mapstructure:"retryDelay"`
+	SubscribePollInterval time.Duration `mapstructure:"subscribePollInterval"`
+	RequestTimeout        time.Duration `mapstructure:"requestTimeout"`
 
 	internalRequestTimeout        time.Duration `mapstructure:"-"`
 	internalMaxRetryDelay         time.Duration `mapstructure:"-"`

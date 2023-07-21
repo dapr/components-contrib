@@ -144,17 +144,17 @@ func parseMetadata(meta configuration.Metadata) (metadata, error) {
 		return m, fmt.Errorf("azure appconfig error: specify %s or %s field in metadata", host, connectionString)
 	}
 
-	if m.MaxRetryDelay != nil {
-		m.internalMaxRetryDelay = time.Duration(*m.MaxRetryDelay)
+	if m.MaxRetryDelay != 0 {
+		m.internalMaxRetryDelay = m.MaxRetryDelay
 	}
-	if m.RetryDelay != nil {
-		m.internalRetryDelay = time.Duration(*m.RetryDelay)
+	if m.RetryDelay != 0 {
+		m.internalRetryDelay = m.RetryDelay
 	}
-	if m.SubscribePollInterval != nil {
-		m.internalSubscribePollInterval = time.Duration(*m.SubscribePollInterval)
+	if m.SubscribePollInterval != 0 {
+		m.internalSubscribePollInterval = m.SubscribePollInterval
 	}
-	if m.RequestTimeout != nil {
-		m.internalRequestTimeout = time.Duration(*m.RequestTimeout)
+	if m.RequestTimeout != 0 {
+		m.internalRequestTimeout = m.RequestTimeout
 	}
 
 	return m, nil

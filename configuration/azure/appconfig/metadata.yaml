@@ -40,10 +40,10 @@ metadata:
     default: '4s'
     example: '5s'
   - name: maxRetryDelay
-    description: "Specifies the maximum delay allowed before retrying an operation. Typically the value is greater than or equal to the value specified in RetryDelay. Defaults to 120 seconds."
+    description: "Specifies the maximum delay allowed before retrying an operation. Typically the value is greater than or equal to the value specified in RetryDelay. Defaults to 2 minutes."
     type: duration
-    default: '120s'
-    example: '180s'
+    default: '2m'
+    example: '3m'
   - name: subscribePollInterval
     description: "Specifies the poll interval for polling the subscribed keys for any changes. Default polling interval is set to 24 hours."
     type: duration

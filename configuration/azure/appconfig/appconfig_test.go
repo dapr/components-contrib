@@ -31,6 +31,11 @@ import (
 
 type MockConfigurationStore struct{}
 
+const (
+	testMaxRetryDelay                      = "120s"
+	testSubscribePollIntervalAndReqTimeout = "30s"
+)
+
 func (m *MockConfigurationStore) GetSetting(ctx context.Context, key string, options *azappconfig.GetSettingOptions) (azappconfig.GetSettingResponse, error) {
 	if key == "testKey" || key == "test_sentinel_key" {
 		settings := azappconfig.Setting{}
@@ -193,9 +198,9 @@ func TestInit(t *testing.T) {
 		testProperties[host] = "testHost"
 		testProperties[maxRetries] = "3"
 		testProperties[retryDelay] = "4s"
-		testProperties[maxRetryDelay] = "120s"
-		testProperties[subscribePollInterval] = "30s"
-		testProperties[requestTimeout] = "30s"
+		testProperties[maxRetryDelay] = testMaxRetryDelay
+		testProperties[subscribePollInterval] = testSubscribePollIntervalAndReqTimeout
+		testProperties[requestTimeout] = testSubscribePollIntervalAndReqTimeout
 
 		m := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
@@ -218,9 +223,9 @@ func TestInit(t *testing.T) {
 		testProperties[connectionString] = "Endpoint=https://foo.azconfig.io;Id=osOX-l9-s0:sig;Secret=00000000000000000000000000000000000000000000"
 		testProperties[maxRetries] = "3"
 		testProperties[retryDelay] = "4s"
-		testProperties[maxRetryDelay] = "120s"
-		testProperties[subscribePollInterval] = "30s"
-		testProperties[requestTimeout] = "30s"
+		testProperties[maxRetryDelay] = testMaxRetryDelay
+		testProperties[subscribePollInterval] = testSubscribePollIntervalAndReqTimeout
+		testProperties[requestTimeout] = testSubscribePollIntervalAndReqTimeout
 
 		m := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
@@ -245,9 +250,9 @@ func Test_parseMetadata(t *testing.T) {
 		testProperties[host] = "testHost"
 		testProperties[maxRetries] = "3"
 		testProperties[retryDelay] = "4s"
-		testProperties[maxRetryDelay] = "120s"
-		testProperties[subscribePollInterval] = "30s"
-		testProperties[requestTimeout] = "30s"
+		testProperties[maxRetryDelay] = testMaxRetryDelay
+		testProperties[subscribePollInterval] = testSubscribePollIntervalAndReqTimeout
+		testProperties[requestTimeout] = testSubscribePollIntervalAndReqTimeout
 
 		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
@@ -277,9 +282,9 @@ func Test_parseMetadata(t *testing.T) {
 		testProperties[connectionString] = "testConnectionString"
 		testProperties[maxRetries] = "3"
 		testProperties[retryDelay] = "4s"
-		testProperties[maxRetryDelay] = "120s"
-		testProperties[subscribePollInterval] = "30s"
-		testProperties[requestTimeout] = "30s"
+		testProperties[maxRetryDelay] = testMaxRetryDelay
+		testProperties[subscribePollInterval] = testSubscribePollIntervalAndReqTimeout
+		testProperties[requestTimeout] = testSubscribePollIntervalAndReqTimeout
 
 		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
@@ -310,9 +315,9 @@ func Test_parseMetadata(t *testing.T) {
 		testProperties[connectionString] = "testConnectionString"
 		testProperties[maxRetries] = "3"
 		testProperties[retryDelay] = "4s"
-		testProperties[maxRetryDelay] = "120s"
-		testProperties[subscribePollInterval] = "30s"
-		testProperties[requestTimeout] = "30s"
+		testProperties[maxRetryDelay] = testMaxRetryDelay
+		testProperties[subscribePollInterval] = testSubscribePollIntervalAndReqTimeout
+		testProperties[requestTimeout] = testSubscribePollIntervalAndReqTimeout
 
 		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,
@@ -328,9 +333,9 @@ func Test_parseMetadata(t *testing.T) {
 		testProperties[connectionString] = ""
 		testProperties[maxRetries] = "3"
 		testProperties[retryDelay] = "4s"
-		testProperties[maxRetryDelay] = "120s"
-		testProperties[subscribePollInterval] = "30s"
-		testProperties[requestTimeout] = "30s"
+		testProperties[maxRetryDelay] = testMaxRetryDelay
+		testProperties[subscribePollInterval] = testSubscribePollIntervalAndReqTimeout
+		testProperties[requestTimeout] = testSubscribePollIntervalAndReqTimeout
 
 		meta := configuration.Metadata{Base: mdata.Base{
 			Properties: testProperties,

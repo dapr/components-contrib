@@ -63,12 +63,12 @@ type AWSS3 struct {
 
 type s3Metadata struct {
 	// Ignored by metadata parser because included in built-in authentication profile
-	AccessKey string `json:"accessKey" mapstructure:"accessKey" mdignore:"true"`
-	SecretKey string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
+	AccessKey    string `json:"accessKey" mapstructure:"accessKey" mdignore:"true"`
+	SecretKey    string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
+	SessionToken string `json:"sessionToken" mapstructure:"sessionToken" mdignore:"true"`
 
 	Region         string `json:"region" mapstructure:"region"`
 	Endpoint       string `json:"endpoint" mapstructure:"endpoint"`
-	SessionToken   string `json:"sessionToken" mapstructure:"sessionToken"`
 	Bucket         string `json:"bucket" mapstructure:"bucket"`
 	DecodeBase64   bool   `json:"decodeBase64,string" mapstructure:"decodeBase64"`
 	EncodeBase64   bool   `json:"encodeBase64,string" mapstructure:"encodeBase64"`

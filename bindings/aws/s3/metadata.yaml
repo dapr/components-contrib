@@ -42,14 +42,6 @@ metadata:
       Do not use this when running against production AWS.
     example: '"http://localhost:4566"'
     type: string
-  - name: sessionToken
-    required: false
-    sensitive: true
-    description: |
-      AWS session token to use. A session token is only required if you are using 
-      temporary security credentials.
-    example: '"TOKEN"'
-    type: string
   - name: forcePathStyle
     description: |
       Currently Amazon S3 SDK supports virtual-hosted-style and path-style access.

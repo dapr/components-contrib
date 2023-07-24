@@ -16,17 +16,17 @@ type snsSqsMetadata struct {
 	AccessKey string `json:"accessKey" mapstructure:"accessKey" mdignore:"true"`
 	// secret key to use for accessing sqs/sns.
 	SecretKey string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
+	// aws session token to use.
+	SessionToken string `mapstructure:"sessionToken" mdignore:"true"`
 
 	// aws endpoint for the component to use.
 	Endpoint string `mapstructure:"endpoint"`
-	// aws session token to use.
-	SessionToken string `mapstructure:"sessionToken"`
 	// aws region in which SNS/SQS should create resources.
 	Region string `mapstructure:"region"`
 	// aws partition in which SNS/SQS should create resources.
 	internalPartition string `mapstructure:"-"`
 	// name of the queue for this application. The is provided by the runtime as "consumerID".
-	SqsQueueName string `mapstructure:"consumerID"`
+	SqsQueueName string `mapstructure:"consumerID"  mdignore:"true"`
 	// name of the dead letter queue for this application.
 	SqsDeadLettersQueueName string `mapstructure:"sqsDeadLettersQueueName"`
 	// flag to SNS and SQS FIFO.

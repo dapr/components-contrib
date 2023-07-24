@@ -16,10 +16,10 @@ metadata:
   - name: region
     required: true
     description: |
-      The AWS region where the SNS/SQS assets are located or be created in. See the regions product services page.
+      The AWS region where the SNS/SQS assets are located or be created in. See the `AWS Services by Region` page.
       Ensure that SNS and SQS are available in that region.
     url:
-      title: "Regions Product Services"
+      title: "AWS Services by Region"
       url: "https://aws.amazon.com/about-aws/global-infrastructure/regional-product-services/?p=ugi&l=na"
     example: '"us-east-1"'
     type: string
@@ -29,14 +29,6 @@ metadata:
       AWS endpoint for the component to use, to connect to emulators.
       Do not use this when running against production AWS.
     example: '"http://localhost:4566"'
-    type: string
-  - name: sessionToken
-    required: false
-    sensitive: true
-    description: |
-      AWS session token to use. A session token is only required if you are using 
-      temporary security credentials.
-    example: '"TOKEN"'
     type: string
   - name: messageVisibilityTimeout
     required: false
@@ -150,11 +142,5 @@ metadata:
     required: false
     description: |
       The AWS account ID. Resolved automatically if not provided.
-    example: '""'
-    type: string
-  - name: consumerId
-    required: false
-    description: |
-      This is the ID of the application. It is supplied via runtime as "consumerID".
     example: '""'
     type: string

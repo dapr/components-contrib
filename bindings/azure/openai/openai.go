@@ -26,7 +26,6 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/components-contrib/metadata"
-	"github.com/dapr/kit/config"
 	"github.com/dapr/kit/logger"
 )
 
@@ -51,8 +50,9 @@ const (
 
 // AzOpenAI represents OpenAI output binding.
 type AzOpenAI struct {
-	logger logger.Logger
-	client *azopenai.Client
+	logger       logger.Logger
+	client       *azopenai.Client
+	deploymentID string
 }
 
 type openAIMetadata struct {
@@ -64,15 +64,6 @@ type openAIMetadata struct {
 	Endpoint string `mapstructure:"endpoint"`
 }
 
-type ChatSettings struct {
-	Temperature      float32 `mapstructure:"temperature"`
-	MaxTokens        int32   `mapstructure:"maxTokens"`
-	TopP             float32 `mapstructure:"topP"`
-	N                int32   `mapstructure:"n"`
-	PresencePenalty  float32 `mapstructure:"presencePenalty"`
-	FrequencyPenalty float32 `mapstructure:"frequencyPenalty"`
-}
-
 // ChatMessages type for chat completion API.
 type ChatMessages struct {
 	Messages         []Message `json:"messages"`
@@ -82,6 +73,7 @@ type ChatMessages struct {
 	N                int32     `json:"n"`
 	PresencePenalty  float32   `json:"presencePenalty"`
 	FrequencyPenalty float32   `json:"frequencyPenalty"`
+	Stop             []string  `json:"stop"`
 }
 
 // Message type stores the messages for bot conversation.
@@ -92,13 +84,14 @@ type Message struct {
 
 // Prompt type for completion API.
 type Prompt struct {
-	Prompt           string  `json:"prompt"`
-	Temperature      float32 `json:"temperature"`
-	MaxTokens        int32   `json:"maxTokens"`
-	TopP             float32 `json:"topP"`
-	N                int32   `json:"n"`
-	PresencePenalty  float32 `json:"presencePenalty"`
-	FrequencyPenalty float32 `json:"frequencyPenalty"`
+	Prompt           string   `json:"prompt"`
+	Temperature      float32  `json:"temperature"`
+	MaxTokens        int32    `json:"maxTokens"`
+	TopP             float32  `json:"topP"`
+	N                int32    `json:"n"`
+	PresencePenalty  float32  `json:"presencePenalty"`
+	FrequencyPenalty float32  `json:"frequencyPenalty"`
+	Stop             []string `json:"stop"`
 }
 
 // NewOpenAI returns a new OpenAI output binding.
@@ -130,7 +123,7 @@ func (p *AzOpenAI) Init(ctx context.Context, meta bindings.Metadata) error {
 			return fmt.Errorf("error getting credentials object: %w", err)
 		}
 
-		p.client, err = azopenai.NewClientWithKeyCredential(m.Endpoint, keyCredential, m.DeploymentID, nil)
+		p.client, err = azopenai.NewClientWithKeyCredential(m.Endpoint, keyCredential, nil)
 		if err != nil {
 			return fmt.Errorf("error creating Azure OpenAI client: %w", err)
 		}
@@ -146,11 +139,12 @@ func (p *AzOpenAI) Init(ctx context.Context, meta bindings.Metadata) error {
 			return fmt.Errorf("error getting token credential: %w", innerErr)
 		}
 
-		p.client, err = azopenai.NewClient(m.Endpoint, token, m.DeploymentID, nil)
+		p.client, err = azopenai.NewClient(m.Endpoint, token, nil)
 		if err != nil {
 			return fmt.Errorf("error creating Azure OpenAI client: %w", err)
 		}
 	}
+	p.deploymentID = m.DeploymentID
 
 	return nil
 }
@@ -208,10 +202,6 @@ func (p *AzOpenAI) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 	return resp, nil
 }
 
-func (s *ChatSettings) Decode(in any) error {
-	return config.Decode(in, s)
-}
-
 func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[string]string) (response []azopenai.Choice, err error) {
 	prompt := Prompt{
 		Temperature:      1.0,
@@ -230,12 +220,18 @@ func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[
 		return nil, fmt.Errorf("prompt is required for completion operation")
 	}
 
+	if len(prompt.Stop) == 0 {
+		prompt.Stop = nil
+	}
+
 	resp, err := p.client.GetCompletions(ctx, azopenai.CompletionsOptions{
-		Prompt:      []*string{&prompt.Prompt},
-		MaxTokens:   &prompt.MaxTokens,
-		Temperature: &prompt.Temperature,
-		TopP:        &prompt.TopP,
-		N:           &prompt.N,
+		DeploymentID: p.deploymentID,
+		Prompt:       []string{prompt.Prompt},
+		MaxTokens:    &prompt.MaxTokens,
+		Temperature:  &prompt.Temperature,
+		TopP:         &prompt.TopP,
+		N:            &prompt.N,
+		Stop:         prompt.Stop,
 	}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error getting completion api: %w", err)
@@ -249,7 +245,7 @@ func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[
 	choices := resp.Completions.Choices
 	response = make([]azopenai.Choice, len(choices))
 	for i, c := range choices {
-		response[i] = *c
+		response[i] = c
 	}
 
 	return response, nil
@@ -272,9 +268,13 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageRequest []byte, me
 		return nil, fmt.Errorf("messages are required for chat-completion operation")
 	}
 
-	messageReq := make([]*azopenai.ChatMessage, len(messages.Messages))
+	if len(messages.Stop) == 0 {
+		messages.Stop = nil
+	}
+
+	messageReq := make([]azopenai.ChatMessage, len(messages.Messages))
 	for i, m := range messages.Messages {
-		messageReq[i] = &azopenai.ChatMessage{
+		messageReq[i] = azopenai.ChatMessage{
 			Role:    to.Ptr(azopenai.ChatRole(m.Role)),
 			Content: to.Ptr(m.Message),
 		}
@@ -286,11 +286,13 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageRequest []byte, me
 	}
 
 	res, err := p.client.GetChatCompletions(ctx, azopenai.ChatCompletionsOptions{
-		MaxTokens:   maxTokens,
-		Temperature: &messages.Temperature,
-		TopP:        &messages.TopP,
-		N:           &messages.N,
-		Messages:    messageReq,
+		DeploymentID: p.deploymentID,
+		MaxTokens:    maxTokens,
+		Temperature:  &messages.Temperature,
+		TopP:         &messages.TopP,
+		N:            &messages.N,
+		Messages:     messageReq,
+		Stop:         messages.Stop,
 	}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error getting chat completion api: %w", err)
@@ -304,7 +306,7 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageRequest []byte, me
 	choices := res.ChatCompletions.Choices
 	response = make([]azopenai.ChatChoice, len(choices))
 	for i, c := range choices {
-		response[i] = *c
+		response[i] = c
 	}
 
 	return response, nil

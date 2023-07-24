@@ -31,7 +31,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/internal/utils"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -110,7 +110,7 @@ func (g *GCPStorage) Init(ctx context.Context, metadata bindings.Metadata) error
 
 func (g *GCPStorage) parseMetadata(meta bindings.Metadata) (*gcpMetadata, error) {
 	m := gcpMetadata{}
-	err := contribMetadata.DecodeMetadata(meta.Properties, &m)
+	err := metadata.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}
@@ -311,9 +311,8 @@ func (g *GCPStorage) handleBackwardCompatibilityForMetadata(metadata map[string]
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (g *GCPStorage) GetComponentMetadata() map[string]string {
+func (g *GCPStorage) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := gcpMetadata{}
-	metadataInfo := map[string]string{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
-	return metadataInfo
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return
 }

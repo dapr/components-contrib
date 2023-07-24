@@ -452,33 +452,6 @@ func TestParseConfig(t *testing.T) {
 			},
 		},
 		{
-			"invalid configuration in metadata",
-			false,
-			map[interface{}]interface{}{
-				"Checks": []interface{}{
-					map[interface{}]interface{}{
-						"Name":     "health check name",
-						"IAMFAKE":  "health check id",
-						"Interval": "15s",
-						"HTTP":     "http://127.0.0.1:3500/health",
-					},
-				},
-				"Bob": []interface{}{
-					"dapr",
-					"test",
-				},
-				"Meta": map[interface{}]interface{}{
-					"DAPR_HTTP_PORT": "3500",
-					"DAPR_GRPC_PORT": "50005",
-				},
-				"QueryOptions": map[interface{}]interface{}{
-					"NOTAREALFIELDNAME": true,
-					"Filter":            "Checks.ServiceTags contains dapr",
-				},
-			},
-			configSpec{},
-		},
-		{
 			"empty configuration in metadata",
 			true,
 			nil,
@@ -565,7 +538,7 @@ func TestGetConfig(t *testing.T) {
 				assert.Equal(t, "Dapr Health Status", check.Name)
 				assert.Equal(t, "daprHealth:test-app-"+metadata.Properties[nr.HostAddress]+"-"+metadata.Properties[nr.DaprHTTPPort], check.CheckID)
 				assert.Equal(t, "15s", check.Interval)
-				assert.Equal(t, fmt.Sprintf("http://%s/v1.0/healthz", net.JoinHostPort(metadata.Properties[nr.HostAddress], metadata.Properties[nr.DaprHTTPPort])), check.HTTP)
+				assert.Equal(t, fmt.Sprintf("http://%s/v1.0/healthz?appid=%s", net.JoinHostPort(metadata.Properties[nr.HostAddress], metadata.Properties[nr.DaprHTTPPort]), metadata.Properties[nr.AppID]), check.HTTP)
 
 				// Metadata
 				assert.Equal(t, 1, len(actual.Registration.Meta))

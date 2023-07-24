@@ -16,10 +16,10 @@ metadata:
   - name: region
     required: true
     description: |
-      The AWS region where the SNS/SQS assets are located or be created in. See the `AWS Services by Region` page.
+      The AWS region where the SNS/SQS assets are located or be created in. See the `Supported AWS services per region` page.
       Ensure that SNS and SQS are available in that region.
     url:
-      title: "AWS Services by Region"
+      title: "Supported AWS services per region"
       url: "https://aws.amazon.com/about-aws/global-infrastructure/regional-product-services/?p=ugi&l=na"
     example: '"us-east-1"'
     type: string
@@ -81,9 +81,9 @@ metadata:
   - name: fifo
     description: |
       Use SQS FIFO queue to provide message ordering and deduplication.
-      See SQS FIFO documentation further details.
+      See `Amazon SQS FIFO (First-In-First-Out) queues` further details.
     url:
-      title: "SQS FIFO documentation"
+      title: "Amazon SQS FIFO (First-In-First-Out) queues"
       url: "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/FIFO-queues.html"
     type: bool
     default: 'false'

@@ -183,6 +183,16 @@ func (c *ComponentMetadata) AppendBuiltin() error {
 					URL:   "https://docs.dapr.io/developing-applications/building-blocks/pubsub/pubsub-scopes/",
 				},
 			},
+			Metadata{
+				Name:        "protectedTopics",
+				Type:        "string",
+				Description: `A comma-separated list of topics marked as "protected" for all applications. If a topic is marked as protected then an application must be explicitly granted publish or subscribe permissions through 'publishingScopes' or 'subscriptionScopes' to publish or subscribe to it.`,
+				Example:     `"topic1,topic2"`,
+				URL: &URL{
+					Title: "Documentation",
+					URL:   "https://docs.dapr.io/developing-applications/building-blocks/pubsub/pubsub-scopes/",
+				},
+			},
 		)
 	case mdutils.BindingType:
 		if c.Binding != nil {

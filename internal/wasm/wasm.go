@@ -1,3 +1,18 @@
+/*
+Copyright 2023 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implieout.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package wasm
 
 import (
@@ -57,8 +72,7 @@ func GetInitMetadata(md metadata.Base) (*InitMetadata, error) {
 
 	var m InitMetadata
 	// Decode the metadata
-	err := metadata.DecodeMetadata(md.Properties, &m)
-	if err != nil {
+	if err := metadata.DecodeMetadata(md.Properties, &m); err != nil {
 		return nil, err
 	}
 
@@ -80,18 +94,19 @@ func GetInitMetadata(md metadata.Base) (*InitMetadata, error) {
 		if err != nil {
 			return nil, err
 		}
-		fetcher := newHTTPFetcher(http.DefaultTransport)
-		m.Guest, err = fetcher.fetch(context.Background(), u)
+		c := newHTTPCLient(http.DefaultTransport)
+		m.Guest, err = c.get(context.Background(), u)
 		if err != nil {
 			return nil, err
 		}
 		m.GuestName, _ = strings.CutSuffix(path.Base(u.Path), ".wasm")
 	case "file":
 		guestPath := m.URL[7:]
-		m.Guest, err = os.ReadFile(guestPath)
+		guest, err := os.ReadFile(guestPath)
 		if err != nil {
 			return nil, err
 		}
+		m.Guest = guest
 		// Use the name of the wasm binary as the module name.
 		m.GuestName, _ = strings.CutSuffix(path.Base(guestPath), ".wasm")
 	default:

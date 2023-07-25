@@ -56,18 +56,18 @@ func (m *metadata) Parse(log logger.Logger, meta configuration.Metadata) error {
 	}
 
 	// In Dapr 1.11, these properties accepted nanoseconds as integers
-	// If users pass values larger than 10^6 (before 1ms; now 10^6 seconds), they probably set the metadata property for 1.11 in nanoseconds and that's not what they want here
+	// If users pass values larger than 10^6 (before, 1ms; now, 10^6 seconds), they probably set the metadata property for 1.11 in nanoseconds and that's not what they want here
 	// TODO: Remove this in Dapr 1.13
-	if m.MaxRetryDelay > time.Duration(10^6)*time.Second {
+	if m.MaxRetryDelay > time.Millisecond*time.Second {
 		log.Warnf("[WARN] Property 'maxRetryDelay' is %v, which is probably incorrect. If you are upgrading from Dapr 1.11, please note that the property is now a Go duration rather than a number of nanoseconds", m.MaxRetryDelay)
 	}
-	if m.RetryDelay > time.Duration(10^6)*time.Second {
+	if m.RetryDelay > time.Millisecond*time.Second {
 		log.Warnf("[WARN] Property 'retryDelay' is %v, which is probably incorrect. If you are upgrading from Dapr 1.11, please note that the property is now a Go duration rather than a number of nanoseconds", m.RetryDelay)
 	}
-	if m.SubscribePollInterval > time.Duration(10^6)*time.Second {
+	if m.SubscribePollInterval > time.Millisecond*time.Second {
 		log.Warnf("[WARN] Property 'subscribePollInterval' is %v, which is probably incorrect. If you are upgrading from Dapr 1.11, please note that the property is now a Go duration rather than a number of nanoseconds", m.SubscribePollInterval)
 	}
-	if m.RequestTimeout > time.Duration(10^6)*time.Second {
+	if m.RequestTimeout > time.Millisecond*time.Second {
 		log.Warnf("[WARN] Property 'requestTimeout' is %v, which is probably incorrect. If you are upgrading from Dapr 1.11, please note that the property is now a Go duration rather than a number of nanoseconds", m.RequestTimeout)
 	}
 

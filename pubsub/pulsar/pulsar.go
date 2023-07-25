@@ -132,19 +132,20 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 	}
 
 	for k, v := range meta.Properties {
-		if strings.HasSuffix(k, topicJSONSchemaIdentifier) {
+		switch {
+		case strings.HasSuffix(k, topicJSONSchemaIdentifier):
 			topic := k[:len(k)-len(topicJSONSchemaIdentifier)]
 			m.internalTopicSchemas[topic] = schemaMetadata{
 				protocol: jsonProtocol,
 				value:    v,
 			}
-		} else if strings.HasSuffix(k, topicAvroSchemaIdentifier) {
+		case strings.HasSuffix(k, topicAvroSchemaIdentifier):
 			topic := k[:len(k)-len(topicAvroSchemaIdentifier)]
 			m.internalTopicSchemas[topic] = schemaMetadata{
 				protocol: avroProtocol,
 				value:    v,
 			}
-		} else if strings.HasSuffix(k, topicProtoSchemaIdentifier) {
+		case strings.HasSuffix(k, topicProtoSchemaIdentifier):
 			topic := k[:len(k)-len(topicProtoSchemaIdentifier)]
 			m.internalTopicSchemas[topic] = schemaMetadata{
 				protocol: protoProtocol,

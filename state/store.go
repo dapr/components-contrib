@@ -43,6 +43,11 @@ type TransactionalStore interface {
 	Multi(ctx context.Context, request *TransactionalStateRequest) error
 }
 
+// TransactionalStoreMaxMultiSize is an optional interface transactional state stores can implement to indicate the maximum size for a transaction.
+type TransactionalStoreMaxMultiSize interface {
+	MultiMaxSize() int
+}
+
 // Querier is an interface to execute queries.
 type Querier interface {
 	Query(ctx context.Context, req *QueryRequest) (*QueryResponse, error)

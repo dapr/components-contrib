@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs"
+	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/google/uuid"
 	"github.com/spf13/cast"
@@ -83,6 +84,16 @@ func getMetadataFromEventData(e *azeventhubs.ReceivedEventData, getAllProperties
 		}
 	}
 	return md
+}
+
+// Returns bindings read response message from azure eventhub message
+func NewBindingsReadResponseFromEventData(e *azeventhubs.ReceivedEventData, topic string, getAllProperties bool) (*bindings.ReadResponse, error) {
+	meta := getMetadataFromEventData(e, getAllProperties)
+	msg := &bindings.ReadResponse{
+		Data:     e.Body,
+		Metadata: meta,
+	}
+	return msg, nil
 }
 
 // Returns a new pubsub message from azure eventhub message

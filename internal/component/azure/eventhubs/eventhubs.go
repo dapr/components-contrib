@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"golang.org/x/exp/maps"
 
+	"github.com/dapr/components-contrib/bindings"
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/components-contrib/internal/component/azure/blobstorage"
 	"github.com/dapr/components-contrib/pubsub"
@@ -150,6 +151,57 @@ func (aeh *AzureEventHubs) Publish(ctx context.Context, topic string, messages [
 	}
 
 	return nil
+}
+
+// GetPubSubHandlerFunc returns the handler function for pubsub messages
+func (aeh *AzureEventHubs) GetBindingsHandlerFunc(topic string, getAllProperties bool, handler bindings.Handler, timeout time.Duration) HandlerFn {
+	return func(ctx context.Context, messages []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error) {
+		if len(messages) != 1 {
+			return nil, fmt.Errorf("expected 1 message, got %d", len(messages))
+		}
+
+		bindingsMsg, err := NewBindingsReadResponseFromEventData(messages[0], topic, getAllProperties)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get bindings read response from azure eventhubs message: %+v", err)
+		}
+
+		// This component has built-in retries because Event Hubs doesn't support N/ACK for messages
+		retryHandler := func(ctx context.Context, msg *bindings.ReadResponse) error {
+			b := aeh.backOffConfig.NewBackOffWithContext(ctx)
+
+			mID := msg.Metadata[sysPropMessageID]
+			if mID == "" {
+				mID = "(nil)"
+			}
+			// This method is synchronous so no risk of race conditions if using side effects
+			var attempts int
+			retryerr := retry.NotifyRecover(func() error {
+				attempts++
+				aeh.logger.Debugf("Processing EventHubs event %s/%s (attempt: %d)", topic, mID, attempts)
+
+				if attempts > 1 {
+					// Adding number of attempts in `dapr-attempt` key in metadata
+					msg.Metadata["dapr-attempt"] = strconv.Itoa(attempts)
+				}
+
+				_, rErr := handler(ctx, msg)
+				return rErr
+			}, b, func(_ error, _ time.Duration) {
+				aeh.logger.Warnf("Error processing EventHubs event: %s/%s. Retrying...", topic, mID)
+			}, func() {
+				aeh.logger.Warnf("Successfully processed EventHubs event after it previously failed: %s/%s", topic, mID)
+			})
+			if retryerr != nil {
+				aeh.logger.Errorf("Too many failed attempts at processing Eventhubs event: %s/%s. Error: %v", topic, mID, retryerr)
+			}
+			return retryerr
+		}
+
+		handlerCtx, handlerCancel := context.WithTimeout(ctx, timeout)
+		defer handlerCancel()
+		aeh.logger.Debugf("Calling app's handler for message %s on topic %s", messages[0].SequenceNumber, topic)
+		return nil, retryHandler(handlerCtx, bindingsMsg)
+	}
 }
 
 // GetPubSubHandlerFunc returns the handler function for pubsub messages

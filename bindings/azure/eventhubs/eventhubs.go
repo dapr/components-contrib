@@ -16,6 +16,7 @@ package eventhubs
 import (
 	"context"
 	"reflect"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs"
 
@@ -81,14 +82,9 @@ func (a *AzureEventHubs) Invoke(ctx context.Context, req *bindings.InvokeRequest
 func (a *AzureEventHubs) Read(ctx context.Context, handler bindings.Handler) error {
 	// Start the subscription
 	// This is non-blocking
-	return a.AzureEventHubs.Subscribe(ctx, a.AzureEventHubs.EventHubName(), false, func(ctx context.Context, data []byte, metadata map[string]string) error {
-		res := bindings.ReadResponse{
-			Data:     data,
-			Metadata: metadata,
-		}
-		_, hErr := handler(ctx, &res)
-		return hErr
-	})
+	topic := a.AzureEventHubs.EventHubName()
+	bindingsHandler := a.AzureEventHubs.GetBindingsHandlerFunc(topic, false, handler, 1*time.Minute)
+	return a.AzureEventHubs.Subscribe(ctx, topic, 1, impl.DefaultMaxBulkSubAwaitDurationMs, bindingsHandler)
 }
 
 func (a *AzureEventHubs) Close() error {

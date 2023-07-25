@@ -17,7 +17,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -165,42 +164,11 @@ func (aeh *AzureEventHubs) GetBindingsHandlerFunc(topic string, getAllProperties
 			return nil, fmt.Errorf("failed to get bindings read response from azure eventhubs message: %+v", err)
 		}
 
-		// This component has built-in retries because Event Hubs doesn't support N/ACK for messages
-		retryHandler := func(ctx context.Context, msg *bindings.ReadResponse) error {
-			b := aeh.backOffConfig.NewBackOffWithContext(ctx)
-
-			mID := msg.Metadata[sysPropMessageID]
-			if mID == "" {
-				mID = "(nil)"
-			}
-			// This method is synchronous so no risk of race conditions if using side effects
-			var attempts int
-			retryerr := retry.NotifyRecover(func() error {
-				attempts++
-				aeh.logger.Debugf("Processing EventHubs event %s/%s (attempt: %d)", topic, mID, attempts)
-
-				if attempts > 1 {
-					// Adding number of attempts in `dapr-attempt` key in metadata
-					msg.Metadata["dapr-attempt"] = strconv.Itoa(attempts)
-				}
-
-				_, rErr := handler(ctx, msg)
-				return rErr
-			}, b, func(_ error, _ time.Duration) {
-				aeh.logger.Warnf("Error processing EventHubs event: %s/%s. Retrying...", topic, mID)
-			}, func() {
-				aeh.logger.Warnf("Successfully processed EventHubs event after it previously failed: %s/%s", topic, mID)
-			})
-			if retryerr != nil {
-				aeh.logger.Errorf("Too many failed attempts at processing Eventhubs event: %s/%s. Error: %v", topic, mID, retryerr)
-			}
-			return retryerr
-		}
-
 		handlerCtx, handlerCancel := context.WithTimeout(ctx, timeout)
 		defer handlerCancel()
 		aeh.logger.Debugf("Calling app's handler for message %s on topic %s", messages[0].SequenceNumber, topic)
-		return nil, retryHandler(handlerCtx, bindingsMsg)
+		_, err = handler(handlerCtx, bindingsMsg)
+		return nil, err
 	}
 }
 
@@ -216,42 +184,10 @@ func (aeh *AzureEventHubs) GetPubSubHandlerFunc(topic string, getAllProperties b
 			return nil, fmt.Errorf("failed to get pubsub message from azure eventhubs message: %+v", err)
 		}
 
-		// This component has built-in retries because Event Hubs doesn't support N/ACK for messages
-		retryHandler := func(ctx context.Context, msg *pubsub.NewMessage) error {
-			b := aeh.backOffConfig.NewBackOffWithContext(ctx)
-
-			mID := msg.Metadata[sysPropMessageID]
-			if mID == "" {
-				mID = "(nil)"
-			}
-			// This method is synchronous so no risk of race conditions if using side effects
-			var attempts int
-			retryerr := retry.NotifyRecover(func() error {
-				attempts++
-				aeh.logger.Debugf("Processing EventHubs event %s/%s (attempt: %d)", topic, mID, attempts)
-
-				if attempts > 1 {
-					// Adding number of attempts in `dapr-attempt` key in metadata
-					msg.Metadata["dapr-attempt"] = strconv.Itoa(attempts)
-				}
-
-				return handler(ctx, msg)
-			}, b, func(_ error, _ time.Duration) {
-				aeh.logger.Warnf("Error processing EventHubs event: %s/%s. Retrying...", topic, mID)
-			}, func() {
-				aeh.logger.Warnf("Successfully processed EventHubs event after it previously failed: %s/%s", topic, mID)
-			})
-			if retryerr != nil {
-				aeh.logger.Errorf("Too many failed attempts at processing Eventhubs event: %s/%s. Error: %v", topic, mID, retryerr)
-			}
-			return retryerr
-		}
-
 		handlerCtx, handlerCancel := context.WithTimeout(ctx, timeout)
 		defer handlerCancel()
 		aeh.logger.Debugf("Calling app's handler for message %s on topic %s", messages[0].SequenceNumber, topic)
-		return nil, retryHandler(handlerCtx, pubsubMsg)
-
+		return nil, handler(handlerCtx, pubsubMsg)
 	}
 }
 
@@ -275,40 +211,10 @@ func (aeh *AzureEventHubs) GetBulkPubSubHandlerFunc(topic string, getAllProperti
 			Metadata: map[string]string{},
 		}
 
-		// This component has built-in retries because Event Hubs doesn't support N/ACK for messages
-		retryHandler := func(ctx context.Context, msg *pubsub.BulkMessage) ([]pubsub.BulkSubscribeResponseEntry, error) {
-			b := aeh.backOffConfig.NewBackOffWithContext(ctx)
-			var resp []pubsub.BulkSubscribeResponseEntry
-			var err error
-
-			// This method is synchronous so no risk of race conditions if using side effects
-			var attempts int
-			retryerr := retry.NotifyRecover(func() error {
-				attempts++
-				aeh.logger.Debugf("Processing EventHubs bulk events %s (attempt: %d)", topic, attempts)
-
-				if attempts > 1 {
-					// Adding number of attempts in `dapr-attempt` key in metadata
-					msg.Metadata["dapr-attempt"] = strconv.Itoa(attempts)
-				}
-
-				resp, err = handler(ctx, msg)
-				return err
-			}, b, func(err error, _ time.Duration) {
-				aeh.logger.Warnf("Error processing EventHubs bulk events: %s. Error: %v. Retrying...", topic)
-			}, func() {
-				aeh.logger.Warnf("Successfully processed bulk EventHubs events after it previously failed: %s", topic)
-			})
-			if retryerr != nil {
-				aeh.logger.Errorf("Too many failed attempts at processing bulk Eventhubs events: %s. Error: %v", topic, retryerr)
-			}
-			return resp, retryerr
-		}
-
 		handlerCtx, handlerCancel := context.WithTimeout(ctx, timeout)
 		defer handlerCancel()
 		aeh.logger.Debugf("Calling app's handler for %d messages on topic %s", len(messages), topic)
-		resps, err := retryHandler(handlerCtx, bulkMessage)
+		resps, err := handler(handlerCtx, bulkMessage)
 
 		handlerResps := make([]HandlerResponseItem, len(resps))
 		for i, resp := range resps {
@@ -372,6 +278,30 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, topic string,
 		}
 	}
 
+	// This component has built-in retries because Event Hubs doesn't support N/ACK for messages
+	retryHandler := func(ctx context.Context, events []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error) {
+		b := aeh.backOffConfig.NewBackOffWithContext(ctx)
+		var resp []HandlerResponseItem
+		var err error
+
+		// This method is synchronous so no risk of race conditions if using side effects
+		var attempts int
+		retryerr := retry.NotifyRecover(func() error {
+			attempts++
+			aeh.logger.Debugf("Processing EventHubs events for topic %s (attempt: %d)", topic, attempts)
+			resp, err = handler(ctx, events)
+			return err
+		}, b, func(err error, _ time.Duration) {
+			aeh.logger.Warnf("Error processing EventHubs events for topic %s. Error: %v. Retrying...", topic)
+		}, func() {
+			aeh.logger.Warnf("Successfully processed EventHubs events after it previously failed for topic %s", topic)
+		})
+		if retryerr != nil {
+			aeh.logger.Errorf("Too many failed attempts at processing Eventhubs events for topic %s. Error: %v", topic, retryerr)
+		}
+		return resp, retryerr
+	}
+
 	// Process all partition clients as they come in
 	go func() {
 		for {
@@ -385,7 +315,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, topic string,
 
 			// Once we get a partition client, process the events in a separate goroutine
 			go func() {
-				processErr := aeh.processEvents(subscribeCtx, topic, partitionClient, maxBulkSubCount, maxBulkSubAwaitDurationMs, handler)
+				processErr := aeh.processEvents(subscribeCtx, topic, partitionClient, maxBulkSubCount, maxBulkSubAwaitDurationMs, retryHandler)
 				// Do not log context.Canceled which happens at shutdown
 				if processErr != nil && !errors.Is(processErr, context.Canceled) {
 					aeh.logger.Errorf("Error processing events from partition client: %v", processErr)
@@ -408,15 +338,16 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, topic string,
 }
 
 // Processes received eventhubs messages asynchronously
-func (aeh *AzureEventHubs) handleAsync(ctx context.Context, messages []*azeventhubs.ReceivedEventData, handler HandlerFn) error {
+func (aeh *AzureEventHubs) handleAsync(ctx context.Context, topic string, messages []*azeventhubs.ReceivedEventData, handler HandlerFn) error {
 	resp, err := handler(ctx, messages)
 	if err != nil {
+		// If we have a response with 0 items (or a nil response), it means the handler was a non-bulk one
 		if len(resp) == 0 {
-			aeh.logger.Errorf("App handler returned error on processing eventhubs messages. Error: %v", err)
+			aeh.logger.Errorf("Failed to process Eventhubs message %s for topic %s: Error: %v", messages[0].MessageID, topic, err)
 		}
 		for _, item := range resp {
 			if item.Error != nil {
-				aeh.logger.Errorf("Failed to process Eventhubs bulk event. EntryId: %s. Error: %v ", item.EntryId, item.Error)
+				aeh.logger.Errorf("Failed to process Eventhubs bulk message entry. EntryId: %s. Error: %v ", item.EntryId, item.Error)
 			}
 		}
 	}
@@ -465,7 +396,7 @@ func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, topic str
 
 		if len(events) != 0 {
 			// Handle received message
-			go aeh.handleAsync(ctx, events, handler)
+			go aeh.handleAsync(ctx, topic, events, handler)
 
 			// Update the checkpoint with the last event received. If we lose ownership of this partition or have to restart the next owner will start from this point.
 			// This context inherits from the background one in case subscriptionCtx gets canceled

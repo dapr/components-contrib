@@ -52,6 +52,7 @@ const (
 	redeliveryDelay         = "redeliveryDelay"
 	avroProtocol            = "avro"
 	jsonProtocol            = "json"
+	protoProtocol           = "proto"
 	partitionKey            = "partitionKey"
 
 	defaultTenant     = "public"
@@ -61,11 +62,12 @@ const (
 	pulsarToken       = "token"
 	// topicFormat is the format for pulsar, which have a well-defined structure: {persistent|non-persistent}://tenant/namespace/topic,
 	// see https://pulsar.apache.org/docs/en/concepts-messaging/#topics for details.
-	topicFormat               = "%s://%s/%s/%s"
-	persistentStr             = "persistent"
-	nonPersistentStr          = "non-persistent"
-	topicJSONSchemaIdentifier = ".jsonschema"
-	topicAvroSchemaIdentifier = ".avroschema"
+	topicFormat                = "%s://%s/%s/%s"
+	persistentStr              = "persistent"
+	nonPersistentStr           = "non-persistent"
+	topicJSONSchemaIdentifier  = ".jsonschema"
+	topicAvroSchemaIdentifier  = ".avroschema"
+	topicProtoSchemaIdentifier = ".protoschema"
 
 	// defaultBatchingMaxPublishDelay init default for maximum delay to batch messages.
 	defaultBatchingMaxPublishDelay = 10 * time.Millisecond
@@ -137,9 +139,15 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 				value:    v,
 			}
 		} else if strings.HasSuffix(k, topicAvroSchemaIdentifier) {
-			topic := k[:len(k)-len(topicJSONSchemaIdentifier)]
+			topic := k[:len(k)-len(topicAvroSchemaIdentifier)]
 			m.internalTopicSchemas[topic] = schemaMetadata{
 				protocol: avroProtocol,
+				value:    v,
+			}
+		} else if strings.HasSuffix(k, topicProtoSchemaIdentifier) {
+			topic := k[:len(k)-len(topicProtoSchemaIdentifier)]
+			m.internalTopicSchemas[topic] = schemaMetadata{
+				protocol: protoProtocol,
 				value:    v,
 			}
 		}
@@ -267,6 +275,8 @@ func getPulsarSchema(metadata schemaMetadata) pulsar.Schema {
 		return pulsar.NewJSONSchema(metadata.value, nil)
 	case avroProtocol:
 		return pulsar.NewAvroSchema(metadata.value, nil)
+	case protoProtocol:
+		return pulsar.NewProtoSchema(metadata.value, nil)
 	default:
 		return nil
 	}

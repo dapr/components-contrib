@@ -89,7 +89,7 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		}
 		meta, err := parsePulsarMetadata(m)
 
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, "a", meta.Host)
 		assert.Len(t, meta.internalTopicSchemas, 2)
 		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan"].value)

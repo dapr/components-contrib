@@ -43,8 +43,8 @@ type TransactionalStore interface {
 	Multi(ctx context.Context, request *TransactionalStateRequest) error
 }
 
-// TransactionalStoreMaxMultiSize is an optional interface transactional state stores can implement to indicate the maximum size for a transaction.
-type TransactionalStoreMaxMultiSize interface {
+// TransactionalStoreMultiMaxSize is an optional interface transactional state stores can implement to indicate the maximum size for a transaction.
+type TransactionalStoreMultiMaxSize interface {
 	MultiMaxSize() int
 }
 

@@ -21,10 +21,11 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs"
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/pubsub"
 	"github.com/google/uuid"
 	"github.com/spf13/cast"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/pubsub"
 )
 
 // Type for the handler for messages coming in from the subscriptions.
@@ -109,14 +110,14 @@ func NewPubsubMessageFromEventData(e *azeventhubs.ReceivedEventData, topic strin
 
 // Returns a new bulk pubsub message entry from azure eventhub message
 func NewBulkMessageEntryFromEventData(e *azeventhubs.ReceivedEventData, topic string, getAllProperties bool) (pubsub.BulkMessageEntry, error) {
-	entryId, err := uuid.NewRandom()
+	entryID, err := uuid.NewRandom()
 	if err != nil {
 		return pubsub.BulkMessageEntry{}, err
 	}
 
 	meta := getMetadataFromEventData(e, getAllProperties)
 	entry := pubsub.BulkMessageEntry{
-		EntryId:  entryId.String(),
+		EntryId:  entryID.String(),
 		Event:    e.Body,
 		Metadata: meta,
 	}

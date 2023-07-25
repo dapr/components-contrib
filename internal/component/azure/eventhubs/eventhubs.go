@@ -228,7 +228,7 @@ func (aeh *AzureEventHubs) GetBulkPubSubHandlerFunc(topic string, getAllProperti
 }
 
 // Subscribe receives data from Azure Event Hubs in background.
-func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, topic string, maxBulkSubCount int, maxBulkSubAwaitDurationMs int, handler HandlerFn) (err error) {
+func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, topic string, maxBulkSubCount int, maxBulkSubAwaitDurationMs int, handler HandlerFn) error {
 	if aeh.metadata.ConsumerGroup == "" {
 		return errors.New("property consumerID is required to subscribe to an Event Hub topic")
 	}
@@ -282,7 +282,6 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, topic string,
 	retryHandler := func(ctx context.Context, events []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error) {
 		b := aeh.backOffConfig.NewBackOffWithContext(ctx)
 		var resp []HandlerResponseItem
-		var err error
 
 		// This method is synchronous so no risk of race conditions if using side effects
 		var attempts int

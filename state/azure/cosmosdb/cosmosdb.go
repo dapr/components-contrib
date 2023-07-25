@@ -485,6 +485,12 @@ func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	return nil
 }
 
+// MultiMaxSize returns the maximum number of operations allowed in a transaction.
+// For Azure Cosmos DB, that's 100.
+func (c StateStore) MultiMaxSize() int {
+	return 100
+}
+
 // Multi performs a transactional operation. Succeeds only if all operations succeed, and fails if one or more operations fail.
 // Note that all operations must be in the same partition.
 func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStateRequest) (err error) {

@@ -18,6 +18,7 @@ import (
 	"errors"
 	"reflect"
 	"strconv"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs"
 
@@ -130,7 +131,7 @@ func (aeh *AzureEventHubs) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 	// Check if requireAllProperties is set and is truthy
 	getAllProperties := utils.IsTruthy(req.Metadata["requireAllProperties"])
 
-	pubsubHandler := aeh.GetPubSubHandlerFunc(topic, getAllProperties, handler)
+	pubsubHandler := aeh.GetPubSubHandlerFunc(topic, getAllProperties, handler, 1*time.Minute)
 	// Start the subscription
 	// This is non-blocking
 	return aeh.AzureEventHubs.Subscribe(ctx, topic, 1, impl.DefaultMaxBulkSubAwaitDurationMs, pubsubHandler)
@@ -149,7 +150,7 @@ func (aeh *AzureEventHubs) BulkSubscribe(ctx context.Context, req pubsub.Subscri
 	maxBulkSubCount := utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxMessagesCount, impl.DefaultMaxBulkSubCount)
 	maxBulkSubAwaitDurationMs := utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxAwaitDurationMs, impl.DefaultMaxBulkSubAwaitDurationMs)
 
-	bulkPubsubHandler := aeh.GetBulkPubSubHandlerFunc(topic, getAllProperties, handler)
+	bulkPubsubHandler := aeh.GetBulkPubSubHandlerFunc(topic, getAllProperties, handler, 1*time.Minute)
 
 	// Start the subscription
 	// This is non-blocking

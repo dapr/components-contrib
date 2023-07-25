@@ -13,7 +13,14 @@ limitations under the License.
 
 package appconfig
 
-import "time"
+import (
+	"fmt"
+	"time"
+
+	"github.com/dapr/components-contrib/configuration"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/logger"
+)
 
 type metadata struct {
 	Host                  string        `mapstructure:"host"`
@@ -23,9 +30,46 @@ type metadata struct {
 	RetryDelay            time.Duration `mapstructure:"retryDelay"`
 	SubscribePollInterval time.Duration `mapstructure:"subscribePollInterval"`
 	RequestTimeout        time.Duration `mapstructure:"requestTimeout"`
+}
 
-	internalRequestTimeout        time.Duration `mapstructure:"-"`
-	internalMaxRetryDelay         time.Duration `mapstructure:"-"`
-	internalSubscribePollInterval time.Duration `mapstructure:"-"`
-	internalRetryDelay            time.Duration `mapstructure:"-"`
+func (m *metadata) Parse(log logger.Logger, meta configuration.Metadata) error {
+	// Set defaults
+	m.MaxRetries = defaultMaxRetries
+	m.MaxRetryDelay = defaultMaxRetryDelay
+	m.RetryDelay = defaultRetryDelay
+	m.SubscribePollInterval = defaultSubscribePollInterval
+	m.RequestTimeout = defaultRequestTimeout
+
+	// Decode the metadata
+	decodeErr := contribMetadata.DecodeMetadata(meta.Properties, m)
+	if decodeErr != nil {
+		return decodeErr
+	}
+
+	// Validate options
+	if m.ConnectionString != "" && m.Host != "" {
+		return fmt.Errorf("azure appconfig error: can't set both %s and %s fields in metadata", host, connectionString)
+	}
+
+	if m.ConnectionString == "" && m.Host == "" {
+		return fmt.Errorf("azure appconfig error: specify %s or %s field in metadata", host, connectionString)
+	}
+
+	// In Dapr 1.11, these properties accepted nanoseconds as integers
+	// If users pass values larger than 10^6 (before 1ms; now 10^6 seconds), they probably set the metadata property for 1.11 in nanoseconds and that's not what they want here
+	// TODO: Remove this in Dapr 1.13
+	if m.MaxRetryDelay > time.Duration(10^6)*time.Second {
+		log.Warnf("[WARN] Property 'maxRetryDelay' is %v, which is probably incorrect. If you are upgrading from Dapr 1.11, please note that the property is now a Go duration rather than a number of nanoseconds", m.MaxRetryDelay)
+	}
+	if m.RetryDelay > time.Duration(10^6)*time.Second {
+		log.Warnf("[WARN] Property 'retryDelay' is %v, which is probably incorrect. If you are upgrading from Dapr 1.11, please note that the property is now a Go duration rather than a number of nanoseconds", m.RetryDelay)
+	}
+	if m.SubscribePollInterval > time.Duration(10^6)*time.Second {
+		log.Warnf("[WARN] Property 'subscribePollInterval' is %v, which is probably incorrect. If you are upgrading from Dapr 1.11, please note that the property is now a Go duration rather than a number of nanoseconds", m.SubscribePollInterval)
+	}
+	if m.RequestTimeout > time.Duration(10^6)*time.Second {
+		log.Warnf("[WARN] Property 'requestTimeout' is %v, which is probably incorrect. If you are upgrading from Dapr 1.11, please note that the property is now a Go duration rather than a number of nanoseconds", m.RequestTimeout)
+	}
+
+	return nil
 }

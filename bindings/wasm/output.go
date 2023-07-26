@@ -67,7 +67,6 @@ func (out *outputBinding) Init(ctx context.Context, metadata bindings.Metadata) 
 	if out.meta, err = wasm.GetInitMetadata(ctx, metadata.Base); err != nil {
 		return fmt.Errorf("wasm: failed to parse metadata: %w", err)
 	}
-	//	ctx = context.WithValue(ctx, experimental.FunctionListenerFactoryKey{}, logging.NewHostLoggingListenerFactory(os.Stderr, logging.LogScopeAll))
 
 	// Create the runtime, which when closed releases any resources associated with it.
 	out.runtime = wazero.NewRuntimeWithConfig(ctx, out.runtimeConfig)

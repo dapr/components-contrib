@@ -40,12 +40,10 @@ func newHTTPCLient(transport http.RoundTripper) *httpClient {
 
 // fetch returns a byte slice of the wasm module found at the given URL, or an error otherwise.
 func (f *httpClient) get(ctx context.Context, u *url.URL) ([]byte, error) {
-	h := http.Header{}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header = h
 	resp, err := f.c.Do(req.WithContext(ctx))
 	if err != nil {
 		return nil, err
@@ -58,10 +56,9 @@ func (f *httpClient) get(ctx context.Context, u *url.URL) ([]byte, error) {
 	}
 
 	bytes, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
 	if err != nil {
 		return nil, err
 	}
-	io.Copy(io.Discard, resp.Body)
-	resp.Body.Close()
 	return bytes, nil
 }

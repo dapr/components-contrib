@@ -119,7 +119,7 @@ func Test_Invoke(t *testing.T) {
 			name: "args",
 			url:  ruby,
 			request: &bindings.InvokeRequest{
-				Metadata:  map[string]string{"args": "-ne 'print \"Hello \";print '"},
+				Metadata:  map[string]string{"args": `-ne 'print "Hello ";print '`},
 				Operation: ExecuteOperation,
 				Data:      []byte("salaboy"),
 			},

@@ -16,6 +16,7 @@ package wasm
 import (
 	"bytes"
 	"context"
+	"encoding/csv"
 	"fmt"
 	"io"
 	"reflect"
@@ -63,9 +64,10 @@ func NewWasmOutput(logger logger.Logger) bindings.OutputBinding {
 }
 
 func (out *outputBinding) Init(ctx context.Context, metadata bindings.Metadata) (err error) {
-	if out.meta, err = wasm.GetInitMetadata(metadata.Base); err != nil {
+	if out.meta, err = wasm.GetInitMetadata(ctx, metadata.Base); err != nil {
 		return fmt.Errorf("wasm: failed to parse metadata: %w", err)
 	}
+	//	ctx = context.WithValue(ctx, experimental.FunctionListenerFactoryKey{}, logging.NewHostLoggingListenerFactory(os.Stderr, logging.LogScopeAll))
 
 	// Create the runtime, which when closed releases any resources associated with it.
 	out.runtime = wazero.NewRuntimeWithConfig(ctx, out.runtimeConfig)
@@ -115,7 +117,13 @@ func (out *outputBinding) Invoke(ctx context.Context, req *bindings.InvokeReques
 
 	// Get any remaining args from configuration
 	if args := req.Metadata["args"]; args != "" {
-		argsSlice = append(argsSlice, strings.Split(args, ",")...)
+		parser := csv.NewReader(strings.NewReader(args))
+		parser.Comma = ' '
+		records, err := parser.ReadAll()
+		if err != nil {
+			return nil, err
+		}
+		argsSlice = append(argsSlice, records[0]...)
 	}
 	moduleConfig = moduleConfig.WithArgs(argsSlice...)
 

@@ -41,15 +41,18 @@ func newHTTPCLient(transport http.RoundTripper) *httpClient {
 // fetch returns a byte slice of the wasm module found at the given URL, or an error otherwise.
 func (f *httpClient) get(ctx context.Context, u *url.URL) ([]byte, error) {
 	h := http.Header{}
-	// Clear default user agent.
-	h.Set("User-Agent", "")
-	req := &http.Request{Method: http.MethodGet, URL: u, Header: h}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header = h
 	resp, err := f.c.Do(req.WithContext(ctx))
 	if err != nil {
 		return nil, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
 		return nil, fmt.Errorf("received %v status code from %q", resp.StatusCode, u)
 	}
@@ -58,6 +61,7 @@ func (f *httpClient) get(ctx context.Context, u *url.URL) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	io.Copy(io.Discard, resp.Body)
 	resp.Body.Close()
 	return bytes, nil
 }

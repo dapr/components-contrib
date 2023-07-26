@@ -38,6 +38,9 @@ const (
 var binArgs []byte
 
 func TestGetInitMetadata(t *testing.T) {
+	testCtx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
 	type testCase struct {
 		name        string
 		metadata    metadata.Base
@@ -137,7 +140,7 @@ func TestGetInitMetadata(t *testing.T) {
 	for _, tt := range tests {
 		tc := tt
 		t.Run(tc.name, func(t *testing.T) {
-			md, err := GetInitMetadata(tc.metadata)
+			md, err := GetInitMetadata(testCtx, tc.metadata)
 			if tc.expectedErr == "" {
 				require.NoError(t, err)
 				require.Equal(t, tc.expected, md)

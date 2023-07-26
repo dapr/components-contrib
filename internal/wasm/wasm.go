@@ -67,7 +67,7 @@ type InitMetadata struct {
 }
 
 // GetInitMetadata returns InitMetadata from the input metadata.
-func GetInitMetadata(md metadata.Base) (*InitMetadata, error) {
+func GetInitMetadata(ctx context.Context, md metadata.Base) (*InitMetadata, error) {
 	// Note: the ctx will be used for other schemes such as HTTP and OCI.
 
 	var m InitMetadata
@@ -95,7 +95,7 @@ func GetInitMetadata(md metadata.Base) (*InitMetadata, error) {
 			return nil, err
 		}
 		c := newHTTPCLient(http.DefaultTransport)
-		m.Guest, err = c.get(context.Background(), u)
+		m.Guest, err = c.get(ctx, u)
 		if err != nil {
 			return nil, err
 		}

@@ -28,7 +28,6 @@ import (
 )
 
 const (
-	ruby           = "https://github.com/vmware-labs/webassembly-language-runtimes/releases/download/ruby%2F3.2.0%2B20230215-1349da9/ruby-3.2.0-slim.wasm"
 	urlArgsFile    = "file://testdata/args/main.wasm"
 	urlExampleFile = "file://testdata/example/main.wasm"
 	urlLoopFile    = "file://testdata/loop/main.wasm"
@@ -117,11 +116,10 @@ func Test_Invoke(t *testing.T) {
 		},
 		{
 			name: "args",
-			url:  ruby,
+			url:  urlArgsFile,
 			request: &bindings.InvokeRequest{
-				Metadata:  map[string]string{"args": `-ne 'print "Hello ";print '`},
+				Metadata:  map[string]string{"args": "1,2"},
 				Operation: ExecuteOperation,
-				Data:      []byte("salaboy"),
 			},
 			expectedData: "main\n1\n2",
 		},

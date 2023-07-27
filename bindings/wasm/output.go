@@ -16,7 +16,6 @@ package wasm
 import (
 	"bytes"
 	"context"
-	"encoding/csv"
 	"fmt"
 	"io"
 	"reflect"
@@ -116,13 +115,7 @@ func (out *outputBinding) Invoke(ctx context.Context, req *bindings.InvokeReques
 
 	// Get any remaining args from configuration
 	if args := req.Metadata["args"]; args != "" {
-		parser := csv.NewReader(strings.NewReader(args))
-		parser.Comma = ' '
-		records, err := parser.ReadAll()
-		if err != nil {
-			return nil, err
-		}
-		argsSlice = append(argsSlice, records[0]...)
+		argsSlice = append(argsSlice, strings.Split(args, ",")...)
 	}
 	moduleConfig = moduleConfig.WithArgs(argsSlice...)
 

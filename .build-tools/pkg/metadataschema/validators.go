@@ -153,6 +153,46 @@ func (c *ComponentMetadata) AppendBuiltin() error {
 					URL:   "https://docs.dapr.io/developing-applications/building-blocks/pubsub/howto-namespace/",
 				},
 			},
+			Metadata{
+				Name:        "allowedTopics",
+				Type:        "string",
+				Description: "A comma-separated list of allowed topics for all applications. If empty (default) apps can publish and subscribe to all topics, notwithstanding `publishingScopes` and `subscriptionScopes`.",
+				Example:     `"app1=topic1;app2=topic2,topic3"`,
+				URL: &URL{
+					Title: "Documentation",
+					URL:   "https://docs.dapr.io/developing-applications/building-blocks/pubsub/pubsub-scopes/",
+				},
+			},
+			Metadata{
+				Name:        "publishingScopes",
+				Type:        "string",
+				Description: "A semicolon-separated list of applications and comma-separated topic lists, allowing that app to publish to that list of topics. If empty (default), apps can publish to all topics.",
+				Example:     `"app1=topic1;app2=topic2,topic3;app3="`,
+				URL: &URL{
+					Title: "Documentation",
+					URL:   "https://docs.dapr.io/developing-applications/building-blocks/pubsub/pubsub-scopes/",
+				},
+			},
+			Metadata{
+				Name:        "subscriptionScopes",
+				Type:        "string",
+				Description: "A semicolon-separated list of applications and comma-separated topic lists, allowing that app to subscribe to that list of topics. If empty (default), apps can subscribe to all topics.",
+				Example:     `"app1=topic1;app2=topic2,topic3"`,
+				URL: &URL{
+					Title: "Documentation",
+					URL:   "https://docs.dapr.io/developing-applications/building-blocks/pubsub/pubsub-scopes/",
+				},
+			},
+			Metadata{
+				Name:        "protectedTopics",
+				Type:        "string",
+				Description: `A comma-separated list of topics marked as "protected" for all applications. If a topic is marked as protected then an application must be explicitly granted publish or subscribe permissions through 'publishingScopes' or 'subscriptionScopes' to publish or subscribe to it.`,
+				Example:     `"topic1,topic2"`,
+				URL: &URL{
+					Title: "Documentation",
+					URL:   "https://docs.dapr.io/developing-applications/building-blocks/pubsub/pubsub-scopes/",
+				},
+			},
 		)
 	case mdutils.BindingType:
 		if c.Binding != nil {
@@ -176,7 +216,7 @@ func (c *ComponentMetadata) AppendBuiltin() error {
 						Name:        bindingDirectionMetadataKey,
 						Type:        "string",
 						Description: "Indicates the direction of the binding component.",
-						Example:     `"`+direction+`"`,
+						Example:     `"` + direction + `"`,
 						URL: &URL{
 							Title: "Documentation",
 							URL:   "https://docs.dapr.io/reference/api/bindings_api/#binding-direction-optional",

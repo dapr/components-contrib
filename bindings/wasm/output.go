@@ -65,7 +65,7 @@ func NewWasmOutput(logger logger.Logger) bindings.OutputBinding {
 }
 
 func (out *outputBinding) Init(ctx context.Context, metadata bindings.Metadata) (err error) {
-	if out.meta, err = wasm.GetInitMetadata(metadata.Base); err != nil {
+	if out.meta, err = wasm.GetInitMetadata(ctx, metadata.Base); err != nil {
 		return fmt.Errorf("wasm: failed to parse metadata: %w", err)
 	}
 

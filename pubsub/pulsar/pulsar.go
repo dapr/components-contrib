@@ -25,12 +25,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/hamba/avro/v2"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/apache/pulsar-client-go/pulsar/crypto"
+	"github.com/hamba/avro/v2"
 	lru "github.com/hashicorp/golang-lru/v2"
 
+	"github.com/dapr/components-contrib/internal/authentication/oidc"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -54,6 +54,10 @@ const (
 	jsonProtocol            = "json"
 	protoProtocol           = "proto"
 	partitionKey            = "partitionKey"
+
+	authTypeNone  = "none"
+	authTypeToken = "token"
+	authTypeOIDC  = "oidc"
 
 	defaultTenant     = "public"
 	defaultNamespace  = "default"
@@ -94,13 +98,14 @@ const (
 type ProcessMode string
 
 type Pulsar struct {
-	logger   logger.Logger
-	client   pulsar.Client
-	metadata pulsarMetadata
-	cache    *lru.Cache[string, pulsar.Producer]
-	closed   atomic.Bool
-	closeCh  chan struct{}
-	wg       sync.WaitGroup
+	logger       logger.Logger
+	client       pulsar.Client
+	metadata     pulsarMetadata
+	oidcProvider *oidc.ClientCredentials
+	cache        *lru.Cache[string, pulsar.Producer]
+	closed       atomic.Bool
+	closeCh      chan struct{}
+	wg           sync.WaitGroup
 }
 
 func NewPulsar(l logger.Logger) pubsub.PubSub {
@@ -157,7 +162,7 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 	return &m, nil
 }
 
-func (p *Pulsar) Init(_ context.Context, metadata pubsub.Metadata) error {
+func (p *Pulsar) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	m, err := parsePulsarMetadata(metadata)
 	if err != nil {
 		return err
@@ -173,9 +178,36 @@ func (p *Pulsar) Init(_ context.Context, metadata pubsub.Metadata) error {
 		ConnectionTimeout:          30 * time.Second,
 		TLSAllowInsecureConnection: !m.EnableTLS,
 	}
-	if m.Token != "" {
+
+	switch m.AuthType {
+	case "":
+		// To ensure backward compatibility, if authType is not set but the token
+		// is we fallthrough to token auth.
+		if m.Token == "" {
+			break
+		}
+		fallthrough
+	case authTypeToken:
 		options.Authentication = pulsar.NewAuthenticationToken(m.Token)
+	case authTypeOIDC:
+		cc, err := oidc.NewClientCredentials(ctx, oidc.ClientCredentialsOptions{
+			Logger:       p.logger,
+			TokenURL:     m.OIDCTokenURL,
+			CAPEM:        []byte(m.OIDCTokenCAPEM),
+			ClientID:     m.OIDCClientID,
+			ClientSecret: m.OIDCClientSecret,
+			Scopes:       m.OIDCScopes,
+			Audiences:    m.OIDCAudiences,
+		})
+		if err != nil {
+			return fmt.Errorf("could not instantiate oidc token provider: %v", err)
+		}
+
+		options.Authentication = pulsar.NewAuthenticationTokenFromSupplier(cc.Token)
+		p.oidcProvider = cc
+		p.oidcProvider.Run(ctx)
 	}
+
 	client, err := pulsar.NewClient(options)
 	if err != nil {
 		return fmt.Errorf("could not instantiate pulsar client: %v", err)
@@ -489,6 +521,10 @@ func (p *Pulsar) Close() error {
 		}
 	}
 	p.client.Close()
+
+	if p.oidcProvider != nil {
+		p.oidcProvider.Close()
+	}
 
 	return nil
 }

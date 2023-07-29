@@ -1,0 +1,28 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messagebus
+spec:
+  type: pubsub.pulsar
+  version: v1
+  metadata:
+  - name: host
+    value: "localhost:6650"
+  - name: consumerID
+    value: certification2
+  - name: redeliveryDelay
+    value: 200ms
+  - name: authType
+    value: oidc
+  - name: oidcTokenURL
+    value: https://localhost:8085/issuer1/token
+  - name: oidcClientID
+    value: foo
+  - name: oidcClientSecret
+    value: bar
+  - name: oidcScopes
+    value: openid
+  - name: oidcAudiences
+    value: pulsar
+  - name: oidcTokenCAPEM
+    value: "{{ .OIDCCAPEM }}"

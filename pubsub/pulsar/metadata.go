@@ -26,12 +26,20 @@ type pulsarMetadata struct {
 	Tenant                  string                    `mapstructure:"tenant"`
 	Namespace               string                    `mapstructure:"namespace"`
 	Persistent              bool                      `mapstructure:"persistent"`
-	Token                   string                    `mapstructure:"token"`
 	RedeliveryDelay         time.Duration             `mapstructure:"redeliveryDelay"`
 	internalTopicSchemas    map[string]schemaMetadata `mapstructure:"-"`
 	PublicKey               string                    `mapstructure:"publicKey"`
 	PrivateKey              string                    `mapstructure:"privateKey"`
 	Keys                    string                    `mapstructure:"keys"`
+
+	AuthType         string   `mapstructure:"authType"`
+	Token            string   `mapstructure:"token"`
+	OIDCTokenCAPEM   string   `mapstructure:"oidcTokenCAPEM"`
+	OIDCTokenURL     string   `mapstructure:"oidcTokenURL"`
+	OIDCClientID     string   `mapstructure:"oidcClientID"`
+	OIDCClientSecret string   `mapstructure:"oidcClientSecret"`
+	OIDCAudiences    []string `mapstructure:"oidcAudiences"`
+	OIDCScopes       []string `mapstructure:"oidcScopes"`
 }
 
 type schemaMetadata struct {

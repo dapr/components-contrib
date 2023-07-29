@@ -284,7 +284,21 @@ func (k *Kafka) Subscribe(ctx context.Context) error {
 		running: make(chan struct{}),
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
+
+	k.wg.Add(2)
 	go func() {
+		defer k.wg.Done()
+		defer cancel()
+		select {
+		case <-ctx.Done():
+		case <-k.closeCh:
+		}
+	}()
+
+	go func() {
+		defer k.wg.Done()
+
 		k.logger.Debugf("Subscribed and listening to topics: %s", topics)
 
 		for {

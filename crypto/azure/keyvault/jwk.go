@@ -104,13 +104,13 @@ func (key JSONWebKey) publicEC() (*ecdsa.PublicKey, error) {
 		return nil, errors.New("property Crv is nil")
 	}
 	switch *key.Crv {
-	case azkeys.JSONWebKeyCurveNameP256:
+	case azkeys.CurveNameP256:
 		res.Curve = elliptic.P256()
-	case azkeys.JSONWebKeyCurveNameP384:
+	case azkeys.CurveNameP384:
 		res.Curve = elliptic.P384()
-	case azkeys.JSONWebKeyCurveNameP521:
+	case azkeys.CurveNameP521:
 		res.Curve = elliptic.P521()
-	case azkeys.JSONWebKeyCurveNameP256K:
+	case azkeys.CurveNameP256K:
 		return nil, errors.New("curves of type P-256K are not supported by this method")
 	}
 
@@ -132,11 +132,11 @@ func (key JSONWebKey) publicEC() (*ecdsa.PublicKey, error) {
 }
 
 // IsRSAKey returns true if the key is an RSA key (RSA or RSA-HSM).
-func IsRSAKey(kt azkeys.JSONWebKeyType) bool {
-	return kt == azkeys.JSONWebKeyTypeRSA || kt == azkeys.JSONWebKeyTypeRSAHSM
+func IsRSAKey(kt azkeys.KeyType) bool {
+	return kt == azkeys.KeyTypeRSA || kt == azkeys.KeyTypeRSAHSM
 }
 
 // IsECKey returns true if the key is an EC key (EC or EC-HSM).
-func IsECKey(kt azkeys.JSONWebKeyType) bool {
-	return kt == azkeys.JSONWebKeyTypeEC || kt == azkeys.JSONWebKeyTypeECHSM
+func IsECKey(kt azkeys.KeyType) bool {
+	return kt == azkeys.KeyTypeEC || kt == azkeys.KeyTypeECHSM
 }

@@ -204,11 +204,10 @@ func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	return r.writeRow(ctx, req)
 }
 
-func (r *StateStore) GetComponentMetadata() map[string]string {
+func (r *StateStore) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
 	metadataStruct := tablesMetadata{}
-	metadataInfo := map[string]string{}
 	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.StateStoreType)
-	return metadataInfo
+	return
 }
 
 func NewAzureTablesStateStore(logger logger.Logger) state.Store {

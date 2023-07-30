@@ -109,14 +109,13 @@ verify-linter-version:
 ################################################################################
 .PHONY: test
 test:
-	CGO_ENABLED=$(CGO) go test ./... $(COVERAGE_OPTS) $(BUILDMODE) --timeout=15m
+	CGO_ENABLED=$(CGO) go test ./... $(COVERAGE_OPTS) $(BUILDMODE) -tags metadata --timeout=15m
 
 ################################################################################
 # Target: lint                                                                 #
 ################################################################################
 .PHONY: lint
 lint: verify-linter-installed verify-linter-version
-	# Due to https://github.com/golangci/golangci-lint/issues/580, we need to add --fix for windows
 	$(GOLANGCI_LINT) run --timeout=20m
 
 ################################################################################
@@ -228,7 +227,7 @@ check-component-metadata:
 	go get "github.com/dapr/components-contrib@master" && \
 	go mod edit -replace "github.com/dapr/components-contrib"="../" && \
 	go mod tidy && \
-	go build . && \
+	go build -tags metadata . && \
 	rm ./go.mod && rm ./go.sum && rm ./main.go && \
         ./metadataanalyzer ../
 

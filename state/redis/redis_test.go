@@ -507,8 +507,6 @@ func TestGetMetadata(t *testing.T) {
 	metadataInfo := ss.GetComponentMetadata()
 	assert.Contains(t, metadataInfo, "redisHost")
 	assert.Contains(t, metadataInfo, "idleCheckFrequency")
-	assert.Equal(t, metadataInfo["redisHost"], "string")
-	assert.Equal(t, metadataInfo["idleCheckFrequency"], "redis.Duration")
 }
 
 func setupMiniredis() (*miniredis.Miniredis, rediscomponent.RedisClient) {

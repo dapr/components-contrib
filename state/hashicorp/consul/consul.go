@@ -36,8 +36,7 @@ type Consul struct {
 	client        *api.Client
 	keyPrefixPath string
 	logger        logger.Logger
-
-	transport *http.Transport
+	transport     *http.Transport
 }
 
 type consulConfig struct {

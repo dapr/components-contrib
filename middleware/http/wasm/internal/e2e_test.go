@@ -15,6 +15,7 @@ package internal_test
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"log"
 	"net/http"
@@ -151,24 +152,70 @@ func Test_EndToEnd(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		tc := tt
-		t.Run(tc.name, func(t *testing.T) {
-			defer buf.Reset()
+	t.Run("local", func(t *testing.T) {
+		for _, tt := range tests {
+			tc := tt
+			t.Run(tc.name, func(t *testing.T) {
+				defer buf.Reset()
 
-			wasmPath := path.Join(t.TempDir(), "guest.wasm")
-			require.NoError(t, os.WriteFile(wasmPath, tc.guest, 0o600))
+				wasmPath := path.Join(t.TempDir(), "guest.wasm")
+				require.NoError(t, os.WriteFile(wasmPath, tc.guest, 0o600))
 
-			meta := metadata.Base{Properties: map[string]string{"url": "file://" + wasmPath}}
-			if len(tc.property) > 0 {
-				for k, v := range tc.property {
-					meta.Properties[k] = v
+				meta := metadata.Base{Properties: map[string]string{"url": "file://" + wasmPath}}
+				if len(tc.property) > 0 {
+					for k, v := range tc.property {
+						meta.Properties[k] = v
+					}
 				}
+				handlerFn, err := wasm.NewMiddleware(l).GetHandler(context.Background(), middleware.Metadata{Base: meta})
+				require.NoError(t, err)
+				handler := handlerFn(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+				tc.test(t, handler, &buf)
+			})
+		}
+	})
+
+	httptests := []struct {
+		name    string
+		handler func(w http.ResponseWriter, r *http.Request, guest []byte)
+	}{
+		{
+			name: "http",
+			handler: func(w http.ResponseWriter, r *http.Request, guest []byte) {
+				w.Write(guest)
+			},
+		},
+		{
+			name: "http+gzip",
+			handler: func(w http.ResponseWriter, r *http.Request, guest []byte) {
+				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("Content-Encoding", "gzip")
+
+				gw := gzip.NewWriter(w)
+				defer gw.Close()
+				gw.Write(guest)
+			},
+		},
+	}
+
+	for _, ht := range httptests {
+		t.Run(ht.name, func(t *testing.T) {
+			for _, tt := range tests {
+				tc := tt
+				t.Run(tc.name, func(t *testing.T) {
+					defer buf.Reset()
+					ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						ht.handler(w, r, tc.guest)
+					}))
+					defer ts.Close()
+
+					meta := metadata.Base{Properties: map[string]string{"url": ts.URL + "/guest.wasm"}}
+					handlerFn, err := wasm.NewMiddleware(l).GetHandler(context.Background(), middleware.Metadata{Base: meta})
+					require.NoError(t, err)
+					handler := handlerFn(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+					tc.test(t, handler, &buf)
+				})
 			}
-			handlerFn, err := wasm.NewMiddleware(l).GetHandler(context.Background(), middleware.Metadata{Base: meta})
-			require.NoError(t, err)
-			handler := handlerFn(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
-			tc.test(t, handler, &buf)
 		})
 	}
 }

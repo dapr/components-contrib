@@ -31,6 +31,9 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
+//go:embed internal/testdata/rewrite.wasm
+var exampleWasmBin []byte
+
 func Test_NewMiddleWare(t *testing.T) {
 	l := logger.NewLogger(t.Name())
 	require.Equal(t, &middleware{logger: l}, NewMiddleware(l))
@@ -50,6 +53,11 @@ func Test_middleware_log(t *testing.T) {
 
 func Test_middleware_getHandler(t *testing.T) {
 	m := &middleware{logger: logger.NewLogger(t.Name())}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/example.wasm" {
+			w.Write(exampleWasmBin)
+		}
+	}))
 
 	type testCase struct {
 		name        string
@@ -73,6 +81,12 @@ func Test_middleware_getHandler(t *testing.T) {
 				"url": "file://example/router.go",
 			}},
 			expectedErr: "wasm: error compiling guest: invalid magic number",
+		},
+		{
+			name: "remote wasm url",
+			metadata: metadata.Base{Properties: map[string]string{
+				"url": ts.URL + "/example.wasm",
+			}},
 		},
 		{
 			name: "ok",

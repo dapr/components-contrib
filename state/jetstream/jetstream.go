@@ -16,6 +16,7 @@ package jetstream
 import (
 	"context"
 	"errors"
+	"io"
 	"reflect"
 	"strings"
 
@@ -175,3 +176,12 @@ func (js *StateStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap)
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
+
+func (js *StateStore) Close() error {
+	if js.nc != nil {
+		js.nc.Close()
+	}
+	return nil
+}
+
+var _ io.Closer = (*StateStore)(nil)

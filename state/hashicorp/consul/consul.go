@@ -162,3 +162,11 @@ func (c *Consul) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
+
+func (c *Consul) Close() error {
+	// no persistent connection to close. It only uses http api calls.
+	// There is an http Transport Pool created during init by the default configuration that could accumulate if
+	// it is called multiple times.  An option, if needed, would be to create a custom http transport or use a non-pool one but that
+	// is discouraged by the go http client docs.
+	return nil
+}

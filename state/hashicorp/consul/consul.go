@@ -17,9 +17,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"reflect"
 
 	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/go-cleanhttp"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -34,6 +36,8 @@ type Consul struct {
 	client        *api.Client
 	keyPrefixPath string
 	logger        logger.Logger
+
+	transport *http.Transport
 }
 
 type consulConfig struct {
@@ -72,6 +76,9 @@ func (c *Consul) Init(_ context.Context, metadata state.Metadata) error {
 		Token:      consulConfig.ACLToken,
 		Scheme:     consulConfig.Scheme,
 	}
+	// DefaultPooledTransport is the default transport used when Config.Transport is nil. vendor/github.com/hashicorp/consul/api/api.go:405
+	c.transport = cleanhttp.DefaultPooledTransport()
+	config.Transport = c.transport
 
 	client, err := api.NewClient(config)
 	if err != nil {
@@ -164,9 +171,8 @@ func (c *Consul) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 }
 
 func (c *Consul) Close() error {
-	// no persistent connection to close. It only uses http api calls.
-	// There is an http Transport Pool created during init by the default configuration that could accumulate if
-	// it is called multiple times.  An option, if needed, would be to create a custom http transport or use a non-pool one but that
-	// is discouraged by the go http client docs.
+	if c != nil && c.transport != nil {
+		c.transport.CloseIdleConnections()
+	}
 	return nil
 }

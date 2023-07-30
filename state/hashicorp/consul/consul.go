@@ -76,7 +76,8 @@ func (c *Consul) Init(_ context.Context, metadata state.Metadata) error {
 		Token:      consulConfig.ACLToken,
 		Scheme:     consulConfig.Scheme,
 	}
-	// DefaultPooledTransport is the default transport used when Config.Transport is nil. vendor/github.com/hashicorp/consul/api/api.go:405
+	// DefaultPooledTransport is the default transport used when Config.Transport is nil.
+	// https://pkg.go.dev/github.com/hashicorp/consul/api#DefaultConfig
 	c.transport = cleanhttp.DefaultPooledTransport()
 	config.Transport = c.transport
 

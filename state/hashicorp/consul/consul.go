@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"sync/atomic"
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-cleanhttp"
@@ -37,6 +38,7 @@ type Consul struct {
 	keyPrefixPath string
 	logger        logger.Logger
 	transport     *http.Transport
+	closed        atomic.Bool
 }
 
 type consulConfig struct {
@@ -171,7 +173,7 @@ func (c *Consul) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 }
 
 func (c *Consul) Close() error {
-	if c != nil && c.transport != nil {
+	if c.closed.CompareAndSwap(false, true) && c.transport != nil {
 		c.transport.CloseIdleConnections()
 	}
 	return nil

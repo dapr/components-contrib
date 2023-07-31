@@ -177,7 +177,7 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		if m.OidcScopes != "" {
 			m.internalOidcScopes = strings.Split(m.OidcScopes, ",")
 		} else {
-			k.logger.Warn("Warning: no OIDC scopes specified, using default 'openid' scope only. This could result in full authorization access for this client.")
+			k.logger.Warn("Warning: no OIDC scopes specified, using default 'openid' scope only. This is a security risk for token reuse.")
 			m.internalOidcScopes = []string{"openid"}
 		}
 		k.logger.Debug("Configuring SASL token authentication via OIDC.")

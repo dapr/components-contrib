@@ -51,6 +51,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/app"
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
+	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/retry"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	"github.com/dapr/components-contrib/tests/certification/flow/simulate"
@@ -115,9 +116,13 @@ func TestPulsar(t *testing.T) {
 	})
 
 	t.Run("Auth:OIDC", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, os.Chmod(dir, 0o777))
+
 		t.Log("Starting OIDC server...")
 		out, err := exec.Command(
 			"docker-compose",
+			"-p", "oidc",
 			"-f", dockerComposeMockOAuthYAML,
 			"up", "-d").CombinedOutput()
 		require.NoError(t, err, string(out))
@@ -125,9 +130,9 @@ func TestPulsar(t *testing.T) {
 
 		t.Cleanup(func() {
 			t.Log("Stopping OIDC server...")
-			out, err := exec.Command(
+			out, err = exec.Command(
 				"docker-compose",
-				"-p", clusterName,
+				"-p", "oidc",
 				"-f", dockerComposeMockOAuthYAML,
 				"down", "-v",
 				"--remove-orphans").CombinedOutput()
@@ -137,8 +142,7 @@ func TestPulsar(t *testing.T) {
 
 		t.Log("Waiting for OAuth server to be ready...")
 		oauthCA := peerCertificate(t, "localhost:8085")
-
-		dir := t.TempDir()
+		t.Log("OAuth server is ready")
 
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "ca.pem"), oauthCA, 0o644))
 		outf, err := os.OpenFile("./config/pulsar_auth-oidc.conf", os.O_RDONLY, 0o644)
@@ -716,7 +720,7 @@ func (p *pulsarSuite) TestPulsarNetworkInterruption() {
 			componentRuntimeOptions(),
 		)).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicActiveName), publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
-		//Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "6650")).
+		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "6650")).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("verify if app1 has received messages published to newly created topic", assertMessages(10*time.Second, consumerGroup1)).
 		Run()
@@ -766,9 +770,9 @@ func (p *pulsarSuite) TestPulsarPersitant() {
 			componentRuntimeOptions(),
 		)).
 		Step("publish messages to topic1", publishMessages(nil, sidecarName1, topicActiveName, consumerGroup1)).
-		Step("stop pulsar server", dockercompose.Stop(clusterName, p.dockerComposeYAML, "zookeeper", "bookie", "broker")).
-		Step("wait", flow.Sleep(20*time.Second)).
-		Step("start pulsar server", dockercompose.Start(clusterName, p.dockerComposeYAML, "zookeeper", "pulsar-init", "bookie", "broker")).
+		Step("stop pulsar server", dockercompose.Stop(clusterName, p.dockerComposeYAML, p.services...)).
+		Step("wait", flow.Sleep(5*time.Second)).
+		Step("start pulsar server", dockercompose.Start(clusterName, p.dockerComposeYAML, p.services...)).
 		Step("wait", flow.Sleep(10*time.Second)).
 		Step("verify if app1 has received messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).
 		Step("reset", flow.Reset(consumerGroup1)).
@@ -904,9 +908,6 @@ func (p *pulsarSuite) TestPulsarSchema() {
 		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
 			client, err := p.client(t)
-			if err != nil {
-				return fmt.Errorf("could not create pulsar client: %v", err)
-			}
 			if err != nil {
 				return fmt.Errorf("could not create pulsar client: %v", err)
 			}

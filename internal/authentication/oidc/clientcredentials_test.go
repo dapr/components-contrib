@@ -21,12 +21,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/oauth2"
 	ccreds "golang.org/x/oauth2/clientcredentials"
 	"k8s.io/utils/clock"
 	clocktesting "k8s.io/utils/clock/testing"
+
+	"github.com/dapr/kit/logger"
 )
 
 func TestRun(t *testing.T) {

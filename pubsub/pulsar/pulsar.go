@@ -190,7 +190,8 @@ func (p *Pulsar) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	case authTypeToken:
 		options.Authentication = pulsar.NewAuthenticationToken(m.Token)
 	case authTypeOIDC:
-		cc, err := oidc.NewClientCredentials(ctx, oidc.ClientCredentialsOptions{
+		var cc *oidc.ClientCredentials
+		cc, err = oidc.NewClientCredentials(ctx, oidc.ClientCredentialsOptions{
 			Logger:       p.logger,
 			TokenURL:     m.OIDCTokenURL,
 			CAPEM:        []byte(m.OIDCTokenCAPEM),

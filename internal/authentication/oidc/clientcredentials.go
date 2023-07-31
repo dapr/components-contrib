@@ -164,9 +164,6 @@ func toConfig(opts ClientCredentialsOptions) (*ccreds.Config, *http.Client, erro
 		if !caPool.AppendCertsFromPEM(opts.CAPEM) {
 			return nil, nil, errors.New("failed to parse CA PEM")
 		}
-		if len(caPool.Subjects()) == 0 {
-			return nil, nil, errors.New("no CA subjects found")
-		}
 	}
 
 	return conf, &http.Client{

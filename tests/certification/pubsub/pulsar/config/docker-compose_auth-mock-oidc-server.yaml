@@ -1,3 +1,6 @@
+# We run in network_mode: "host" so `localhost` is the same for both the host
+# and containers. This is required as the mock server uses the SNI hostname to
+# build the issuer URL.
 version: '3'
 services:
   mock-oauth2-server:
@@ -9,5 +12,3 @@ services:
       - PORT=8085
       - LOG_LEVEL=DEBUG
       - 'JSON_CONFIG={"interactiveLogin":false,"httpServer":{"type":"NettyWrapper","ssl":{}},"tokenCallbacks":[{"issuerId":"issuer1","tokenExpiry":120,"requestMappings":[{"requestParam":"scope","match":"openid","claims":{"sub":"foo","aud":["pulsar"]}}]}]}'
-    ports:
-      - "8085:8085"

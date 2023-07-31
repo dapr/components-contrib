@@ -7,12 +7,10 @@ version: '3'
 services:
   # Start zookeeper
   zookeeper:
-    image: apachepulsar/pulsar:latest
+    image: apachepulsar/pulsar:3.0.0
     container_name: zookeeper
     restart: on-failure
     network_mode: "host"
-    volumes:
-      - zookeeperdata:/pulsar/data/zookeeper
     environment:
       - metadataStoreUrl=zk:localhost:2181
       - metricsProvider.httpPort=7000
@@ -23,14 +21,14 @@ services:
              exec bin/pulsar zookeeper"
     healthcheck:
       test: ["CMD", "bin/pulsar-zookeeper-ruok.sh"]
-      interval: 10s
+      interval: 1s
       timeout: 5s
-      retries: 30
+      retries: 300
 
   # Init cluster metadata
   pulsar-init:
     container_name: pulsar-init
-    image: apachepulsar/pulsar:latest
+    image: apachepulsar/pulsar:3.0.0
     network_mode: "host"
     env_file:
       - ./pulsar_auth-oidc.conf
@@ -47,7 +45,7 @@ services:
 
   # Start bookie
   bookie:
-    image: apachepulsar/pulsar:latest
+    image: apachepulsar/pulsar:3.0.0
     container_name: bookie
     restart: on-failure
     network_mode: "host"
@@ -62,8 +60,7 @@ services:
     env_file:
       - ./pulsar_auth-oidc.conf
     volumes:
-      - "bookiedata:/pulsar/data/bookkeeper"
-      - "{{ .TmpDir }}:/daprconfig"
+      - "{{ .TmpDir }}:/pulsar/conf/dapr"
     depends_on:
       zookeeper:
         condition: service_healthy
@@ -73,14 +70,14 @@ services:
 
   # Start broker
   broker:
-    image: apachepulsar/pulsar:latest
+    image: apachepulsar/pulsar:3.0.0
     container_name: broker
     restart: on-failure
     network_mode: "host"
     env_file:
       - ./pulsar_auth-oidc.conf
     volumes:
-      - "{{ .TmpDir }}:/daprconfig"
+      - "{{ .TmpDir }}:/pulsar/conf/dapr"
     environment:
       - metadataStoreUrl=zk:localhost:2181
       - zookeeperServers=localhost:2181
@@ -96,11 +93,4 @@ services:
         condition: service_healthy
       bookie:
         condition: service_started
-    ports:
-      - "6650:6650"
-      - "8080:8080"
     command: bash -c "bin/apply-config-from-env.py conf/broker.conf && exec bin/pulsar broker"
-
-volumes:
-  zookeeperdata:
-  bookiedata:

@@ -16,7 +16,6 @@ package kafka
 import (
 	"context"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/Shopify/sarama"
@@ -49,10 +48,6 @@ type Kafka struct {
 	DefaultConsumeRetryEnabled bool
 	consumeRetryEnabled        bool
 	consumeRetryInterval       time.Duration
-
-	wg      sync.WaitGroup
-	closed  atomic.Bool
-	closeCh chan struct{}
 }
 
 func NewKafka(logger logger.Logger) *Kafka {
@@ -139,19 +134,15 @@ func (k *Kafka) Init(_ context.Context, metadata map[string]string) error {
 	return nil
 }
 
-func (k *Kafka) Close() error {
-	defer k.wg.Wait()
-	if k.closed.CompareAndSwap(false, true) {
-		close(k.closeCh)
-	}
-
+func (k *Kafka) Close() (err error) {
 	k.closeSubscriptionResources()
 
 	if k.producer != nil {
-		return k.producer.Close()
+		err = k.producer.Close()
+		k.producer = nil
 	}
 
-	return nil
+	return err
 }
 
 // EventHandler is the handler used to handle the subscribed event.

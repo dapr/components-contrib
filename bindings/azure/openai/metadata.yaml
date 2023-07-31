@@ -33,6 +33,10 @@ metadata:
     description: "Endpoint of the Azure OpenAI service"
     example: '"https://myopenai.openai.azure.com"'
   - name: deploymentID
-    required: true
-    description: "ID of the model deployment in the Azure OpenAI service"
+    required: false
+    description: "ID of the model deployment that supports completion and chat completion in the Azure OpenAI service"
     example: '"my-model"'
+  - name: embeddingDeploymentID
+    required: false
+    description: "ID of the model deployment that supports text embedding operation in the Azure OpenAI service"
+    example: '"my-embedding-model"'

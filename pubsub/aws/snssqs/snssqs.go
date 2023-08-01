@@ -931,9 +931,8 @@ func (s *snsSqs) Features() []pubsub.Feature {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (s *snsSqs) GetComponentMetadata() map[string]string {
+func (s *snsSqs) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := snsSqsMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
-	return metadataInfo
+	return
 }

@@ -174,8 +174,6 @@ func (c *CosmosDB) lookup(m map[string]interface{}, ks []string) (val interface{
 		return nil, fmt.Errorf("needs at least one key")
 	}
 
-	c.logger.Infof("%s, %s", ks[0], m[ks[0]])
-
 	if val, ok = m[ks[0]]; !ok {
 		return nil, fmt.Errorf("key not found %v", ks[0])
 	}
@@ -194,9 +192,8 @@ func (c *CosmosDB) lookup(m map[string]interface{}, ks []string) (val interface{
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (c *CosmosDB) GetComponentMetadata() map[string]string {
+func (c *CosmosDB) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := cosmosDBCredentials{}
-	metadataInfo := map[string]string{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
-	return metadataInfo
+	return
 }

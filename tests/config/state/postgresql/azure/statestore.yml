@@ -1,0 +1,18 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.postgresql
+  version: v1
+  metadata:
+    - name: connectionString
+      value: "${{AzureDBPostgresConnectionString}}"
+    - name: azureClientId
+      value: "${{AzureDBPostgresClientId}}"
+    - name: azureClientSecret
+      value: "${{AzureDBPostgresClientSecret}}"
+    - name: azureTenantId
+      value: "${{AzureDBPostgresTenantId}}"
+    - name: useAzureAD
+      value: "true"

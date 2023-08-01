@@ -30,5 +30,4 @@ type Workflow interface {
 	Purge(ctx context.Context, req *PurgeRequest) error
 	Pause(ctx context.Context, req *PauseRequest) error
 	Resume(ctx context.Context, req *ResumeRequest) error
-	GetComponentMetadata() map[string]string
 }

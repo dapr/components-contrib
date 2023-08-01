@@ -20,9 +20,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	internalsql "github.com/dapr/components-contrib/internal/component/sql"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
@@ -78,7 +80,7 @@ type IndexedProperty struct {
 	Type       string `json:"type"`
 }
 
-// SQLServer defines a Ms SQL Server based state store.
+// SQLServer defines a MS SQL Server based state store.
 type SQLServer struct {
 	state.BulkStore
 
@@ -347,8 +349,10 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 	return nil
 }
 
-func (s *SQLServer) GetComponentMetadata() map[string]string {
-	return map[string]string{}
+func (s *SQLServer) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+	settingsStruct := sqlServerMetadata{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(settingsStruct), &metadataInfo, metadata.StateStoreType)
+	return
 }
 
 // Close implements io.Closer.

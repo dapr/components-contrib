@@ -31,9 +31,10 @@ type PostgreSQL struct {
 }
 
 type Options struct {
-	MigrateFn  func(context.Context, PGXPoolConn, MigrateOptions) error
-	SetQueryFn func(*state.SetRequest, SetQueryOptions) string
-	ETagColumn string
+	MigrateFn     func(context.Context, PGXPoolConn, MigrateOptions) error
+	SetQueryFn    func(*state.SetRequest, SetQueryOptions) string
+	ETagColumn    string
+	EnableAzureAD bool
 }
 
 type MigrateOptions struct {
@@ -119,9 +120,8 @@ func (p *PostgreSQL) GetDBAccess() dbAccess {
 	return p.dbaccess
 }
 
-func (p *PostgreSQL) GetComponentMetadata() map[string]string {
+func (p *PostgreSQL) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := postgresMetadataStruct{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
 }

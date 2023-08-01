@@ -3,7 +3,6 @@ package wasm
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -12,7 +11,6 @@ import (
 	"github.com/http-wasm/http-wasm-host-go/api"
 	"github.com/http-wasm/http-wasm-host-go/handler"
 	wasmnethttp "github.com/http-wasm/http-wasm-host-go/handler/nethttp"
-	"github.com/tetratelabs/wazero"
 
 	"github.com/dapr/components-contrib/internal/wasm"
 	mdutils "github.com/dapr/components-contrib/metadata"
@@ -46,15 +44,10 @@ func (m *middleware) getHandler(ctx context.Context, metadata dapr.Metadata) (*r
 	var stdout, stderr bytes.Buffer
 	mw, err := wasmnethttp.NewMiddleware(ctx, meta.Guest,
 		handler.Logger(m),
-		handler.ModuleConfig(wazero.NewModuleConfig().
+		handler.ModuleConfig(wasm.NewModuleConfig(meta).
 			WithName(meta.GuestName).
-			WithStdout(&stdout). // reset per request
-			WithStderr(&stderr). // reset per request
-			// The below violate sand-boxing, but allow code to behave as expected.
-			WithRandSource(rand.Reader).
-			WithSysNanosleep().
-			WithSysWalltime().
-			WithSysNanosleep()))
+			WithStdout(&stdout).  // reset per request
+			WithStderr(&stderr))) // reset per request
 	if err != nil {
 		return nil, err
 	}
@@ -128,9 +121,8 @@ func (rh *requestHandler) Close() error {
 	return rh.mw.Close(ctx)
 }
 
-func (m *middleware) GetComponentMetadata() map[string]string {
+func (m *middleware) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
 	metadataStruct := wasm.InitMetadata{}
-	metadataInfo := map[string]string{}
 	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
-	return metadataInfo
+	return
 }

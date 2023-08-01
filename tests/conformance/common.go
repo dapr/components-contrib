@@ -119,7 +119,6 @@ const (
 	eventhubs                 = "azure.eventhubs"
 	redisv6                   = "redis.v6"
 	redisv7                   = "redis.v7"
-	postgres                  = "postgres"
 	kafka                     = "kafka"
 	generateUUID              = "$((uuid))"
 	generateEd25519PrivateKey = "$((ed25519PrivateKey))"
@@ -329,7 +328,6 @@ func (tc *TestConfiguration) loadComponentsAndProperties(t *testing.T, filepath 
 	require.Equal(t, 1, len(comps)) // We only expect a single component per file
 	c := comps[0]
 	props, err := ConvertMetadataToProperties(c.Spec.Metadata)
-
 	return props, err
 }
 
@@ -433,13 +431,10 @@ func loadConfigurationStore(tc TestComponent) (configuration.Store, configupdate
 	var store configuration.Store
 	var updater configupdater.Updater
 	switch tc.Component {
-	case redisv6:
+	case redisv6, redisv7:
 		store = c_redis.NewRedisConfigurationStore(testLogger)
 		updater = cu_redis.NewRedisConfigUpdater(testLogger)
-	case redisv7:
-		store = c_redis.NewRedisConfigurationStore(testLogger)
-		updater = cu_redis.NewRedisConfigUpdater(testLogger)
-	case postgres:
+	case "postgresql.docker", "postgresql.azure":
 		store = c_postgres.NewPostgresConfigurationStore(testLogger)
 		updater = cu_postgres.NewPostgresConfigUpdater(testLogger)
 	default:
@@ -544,10 +539,12 @@ func loadStateStore(tc TestComponent) state.Store {
 	case "mongodb":
 		store = s_mongodb.NewMongoDB(testLogger)
 	case "azure.sql":
-		fallthrough
+		store = s_sqlserver.New(testLogger)
 	case "sqlserver":
 		store = s_sqlserver.New(testLogger)
-	case "postgresql":
+	case "postgresql.docker":
+		store = s_postgresql.NewPostgreSQLStateStore(testLogger)
+	case "postgresql.azure":
 		store = s_postgresql.NewPostgreSQLStateStore(testLogger)
 	case "sqlite":
 		store = s_sqlite.NewSQLiteStateStore(testLogger)
@@ -577,8 +574,10 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_awsdynamodb.NewDynamoDBStateStore(testLogger)
 	case "aws.dynamodb.terraform":
 		store = s_awsdynamodb.NewDynamoDBStateStore(testLogger)
-	case "etcd":
-		store = s_etcd.NewEtcdStateStore(testLogger)
+	case "etcd.v1":
+		store = s_etcd.NewEtcdStateStoreV1(testLogger)
+	case "etcd.v2":
+		store = s_etcd.NewEtcdStateStoreV2(testLogger)
 	case "gcp.firestore.docker":
 		store = s_gcpfirestore.NewFirestoreStateStore(testLogger)
 	case "gcp.firestore.cloud":
@@ -622,7 +621,9 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_rabbitmq.NewRabbitMQ(testLogger)
 	case "kubemq":
 		binding = b_kubemq.NewKubeMQ(testLogger)
-	case "postgres":
+	case "postgresql.docker":
+		binding = b_postgres.NewPostgres(testLogger)
+	case "postgresql.azure":
 		binding = b_postgres.NewPostgres(testLogger)
 	case "aws.s3.docker":
 		binding = b_aws_s3.NewAWSS3(testLogger)

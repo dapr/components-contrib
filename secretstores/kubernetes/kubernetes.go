@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"reflect"
 
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -117,10 +116,7 @@ func (k *kubernetesSecretStore) Features() []secretstores.Feature {
 	return []secretstores.Feature{}
 }
 
-func (k *kubernetesSecretStore) GetComponentMetadata() map[string]string {
-	type unusedMetadataStruct struct{}
-	metadataStruct := unusedMetadataStruct{}
-	metadataInfo := map[string]string{}
-	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
-	return metadataInfo
+func (k *kubernetesSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+	// No component metadata
+	return
 }

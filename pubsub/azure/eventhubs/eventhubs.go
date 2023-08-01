@@ -47,7 +47,7 @@ func (aeh *AzureEventHubs) Init(_ context.Context, metadata pubsub.Metadata) err
 }
 
 func (aeh *AzureEventHubs) Features() []pubsub.Feature {
-	return nil
+	return []pubsub.Feature{pubsub.FeatureBulkPublish}
 }
 
 // Publish sends a message to Azure Event Hubs.
@@ -147,9 +147,8 @@ func (aeh *AzureEventHubs) Close() (err error) {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (aeh *AzureEventHubs) GetComponentMetadata() map[string]string {
+func (aeh *AzureEventHubs) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := impl.AzureEventHubsMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
-	return metadataInfo
+	return
 }

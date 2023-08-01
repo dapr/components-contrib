@@ -23,6 +23,7 @@ metadata:
     type: string
   - name: redisPassword
     required: false
+    sensitive: true
     description: Password for Redis host. No Default. Can be secretKeyRef to use a secret reference
     example:  "KeFg23!"
     type: string

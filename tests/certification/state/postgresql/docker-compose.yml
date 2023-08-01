@@ -1,7 +1,7 @@
 version: '2'
 services:
   db:
-    image: postgres
+    image: postgres:15-alpine
     restart: always
     ports:
       - "5432:5432"

@@ -38,6 +38,12 @@ const (
 	defaultTTL               = 10 * time.Minute
 	defaultVisibilityTimeout = 30 * time.Second
 	defaultPollingInterval   = 10 * time.Second
+	dequeueCount             = "dequeueCount"
+	insertionTime            = "insertionTime"
+	expirationTime           = "expirationTime"
+	nextVisibleTime          = "nextVisibleTime"
+	popReceipt               = "popReceipt"
+	messageId                = "messageId"
 )
 
 type consumer struct {
@@ -178,8 +184,15 @@ func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 	}
 
 	_, err = consumer.callback(ctx, &bindings.ReadResponse{
-		Data:     data,
-		Metadata: map[string]string{},
+		Data: data,
+		Metadata: map[string]string{
+			messageId:       *res.Messages[0].MessageID,
+			insertionTime:   res.Messages[0].InsertionTime.Format("2006-01-02 15:04:05"),
+			expirationTime:  res.Messages[0].ExpirationTime.Format("2006-01-02 15:04:05"),
+			popReceipt:      *res.Messages[0].PopReceipt,
+			nextVisibleTime: res.Messages[0].TimeNextVisible.Format("2006-01-02 15:04:05"),
+			dequeueCount:    strconv.FormatInt(*res.Messages[0].DequeueCount, 10),
+		},
 	})
 	if err != nil {
 		return err

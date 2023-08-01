@@ -1,0 +1,78 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: aws.s3
+version: v1
+status: stable
+title: "AWS S3"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/s3/
+binding:
+  output: true
+  operations:
+    - name: create
+      description: "Create blob"
+    - name: get
+      description: "Get blob"
+    - name: delete
+      description: "Delete blob"
+    - name: list
+      description: "List blob"
+capabilities: []
+builtinAuthenticationProfiles:
+  - name: "aws"
+metadata:
+  - name: bucket
+    required: true
+    description: |
+      The name of the S3 bucket to write to.
+    example: '"bucket"'
+    type: string
+  - name: region
+    required: true
+    description: |
+      The specific AWS region where the S3 bucket is located.
+    example: '"us-east-1"'
+    type: string
+  - name: endpoint
+    required: false
+    description: |
+      AWS endpoint for the component to use, to connect to S3-compatible services or emulators.
+      Do not use this when running against production AWS.
+    example: '"http://localhost:4566"'
+    type: string
+  - name: forcePathStyle
+    description: |
+      Currently Amazon S3 SDK supports virtual-hosted-style and path-style access.
+      When false (the default), uses virtual-hosted-style format, i.e.: `https://<your bucket>.<endpoint>/<key>`. 
+      When true, uses path-style format, i.e.: `https://<endpoint>/<your bucket>/<key>`.
+    type: bool
+    default: 'false'
+    example: '"true", "false"'
+  - name: decodeBase64
+    description: |
+      Configuration to decode base64 file content before saving to bucket storage.
+      (In case of saving a file with binary content).
+    type: bool
+    default: 'false'
+    example: '"true", "false"'
+  - name: encodeBase64
+    description: |
+      Configuration to encode base64 file content before returning the content.
+      (In case of opening a file with binary content).
+    type: bool
+    default: 'false'
+    example: '"true", "false"'
+  - name: disableSSL
+    description: |
+      Allows to connect to non-`https://` endpoints. 
+    type: bool
+    default: 'false'
+    example: '"true", "false"'
+  - name: insecureSSL
+    description: |
+      When connecting to `https://` endpoints, accepts self-signed or invalid certificates.
+    type: bool
+    default: 'false'
+    example: '"true", "false"'

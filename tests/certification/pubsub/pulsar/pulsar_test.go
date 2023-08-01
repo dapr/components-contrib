@@ -634,9 +634,6 @@ func (p *pulsarSuite) TestPulsarNonexistingTopic() {
 			if err != nil {
 				return fmt.Errorf("could not create pulsar client: %v", err)
 			}
-			if err != nil {
-				return fmt.Errorf("could not create pulsar client: %v", err)
-			}
 
 			defer client.Close()
 
@@ -690,9 +687,6 @@ func (p *pulsarSuite) TestPulsarNetworkInterruption() {
 			if err != nil {
 				return fmt.Errorf("could not create pulsar client: %v", err)
 			}
-			if err != nil {
-				return fmt.Errorf("could not create pulsar client: %v", err)
-			}
 
 			defer client.Close()
 
@@ -739,9 +733,6 @@ func (p *pulsarSuite) TestPulsarPersitant() {
 		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
 			client, err := p.client(t)
-			if err != nil {
-				return fmt.Errorf("could not create pulsar client: %v", err)
-			}
 			if err != nil {
 				return fmt.Errorf("could not create pulsar client: %v", err)
 			}
@@ -814,9 +805,6 @@ func (p *pulsarSuite) TestPulsarDelay() {
 		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
 			client, err := p.client(t)
-			if err != nil {
-				return fmt.Errorf("could not create pulsar client: %v", err)
-			}
 			if err != nil {
 				return fmt.Errorf("could not create pulsar client: %v", err)
 			}

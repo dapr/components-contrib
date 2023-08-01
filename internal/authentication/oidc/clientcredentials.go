@@ -32,6 +32,10 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
+const (
+	oidcScopeOpenID = "openid"
+)
+
 type ClientCredentialsOptions struct {
 	Logger       logger.Logger
 	TokenURL     string
@@ -100,7 +104,7 @@ func (c *ClientCredentials) Run(ctx context.Context) {
 			case <-c.clock.After(renewDuration):
 			}
 
-			c.log.Info("Renewing client credentials token")
+			c.log.Debug("Renewing client credentials token")
 
 			token, err := c.fetchTokenFn(context.WithValue(ctx, oauth2.HTTPClient, c.httpClient))
 			if err != nil {
@@ -122,18 +126,18 @@ func toConfig(opts ClientCredentialsOptions) (*ccreds.Config, *http.Client, erro
 	if len(scopes) == 0 {
 		// If no scopes are provided, then the default is to use the 'openid' scope
 		// since that is always required for OIDC so implicitly add it.
-		scopes = []string{"openid"}
+		scopes = []string{oidcScopeOpenID}
 	}
 
 	var oidcScopeFound bool
 	for _, scope := range scopes {
-		if scope == "openid" {
+		if scope == oidcScopeOpenID {
 			oidcScopeFound = true
 			break
 		}
 	}
 	if !oidcScopeFound {
-		return nil, nil, errors.New("oidc client_credentials token source requires the 'openid' scope")
+		return nil, nil, fmt.Errorf("oidc client_credentials token source requires the %q scope", oidcScopeOpenID)
 	}
 
 	tokenURL, err := url.Parse(opts.TokenURL)

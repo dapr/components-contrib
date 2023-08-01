@@ -35,41 +35,36 @@ const (
 	ChatCompletionOperation bindings.OperationKind = "chat-completion"
 	GetEmbeddingOperation   bindings.OperationKind = "get-embedding"
 
-	APIKey                = "apiKey"
-	DeploymentID          = "deploymentID"
-	EmbeddingDeploymentID = "embeddingDeploymentId"
-	Endpoint              = "endpoint"
-	MessagesKey           = "messages"
-	Temperature           = "temperature"
-	MaxTokens             = "maxTokens"
-	TopP                  = "topP"
-	N                     = "n"
-	Stop                  = "stop"
-	FrequencyPenalty      = "frequencyPenalty"
-	LogitBias             = "logitBias"
-	User                  = "user"
+	APIKey           = "apiKey"
+	DeploymentID     = "deploymentID"
+	Endpoint         = "endpoint"
+	MessagesKey      = "messages"
+	Temperature      = "temperature"
+	MaxTokens        = "maxTokens"
+	TopP             = "topP"
+	N                = "n"
+	Stop             = "stop"
+	FrequencyPenalty = "frequencyPenalty"
+	LogitBias        = "logitBias"
+	User             = "user"
 )
 
 // AzOpenAI represents OpenAI output binding.
 type AzOpenAI struct {
-	logger                logger.Logger
-	client                *azopenai.Client
-	deploymentID          string
-	embeddingDeploymentID string
+	logger logger.Logger
+	client *azopenai.Client
 }
 
 type openAIMetadata struct {
 	// APIKey is the API key for the Azure OpenAI API.
 	APIKey string `mapstructure:"apiKey"`
-	// DeploymentID is the deployment ID for the Azure OpenAI API.
-	DeploymentID          string `mapstructure:"deploymentID"`
-	EmbeddingDeploymentID string `mapstructure:"embeddingDeploymentId"`
 	// Endpoint is the endpoint for the Azure OpenAI API.
 	Endpoint string `mapstructure:"endpoint"`
 }
 
 // ChatMessages type for chat completion API.
 type ChatMessages struct {
+	DeploymentID     string    `json:"deploymentID"`
 	Messages         []Message `json:"messages"`
 	Temperature      float32   `json:"temperature"`
 	MaxTokens        int32     `json:"maxTokens"`
@@ -88,6 +83,7 @@ type Message struct {
 
 // Prompt type for completion API.
 type Prompt struct {
+	DeploymentID     string   `json:"deploymentID"`
 	Prompt           string   `json:"prompt"`
 	Temperature      float32  `json:"temperature"`
 	MaxTokens        int32    `json:"maxTokens"`
@@ -99,7 +95,8 @@ type Prompt struct {
 }
 
 type EmbeddingMessage struct {
-	Message string `json:"message"`
+	DeploymentID string `json:"deploymentID"`
+	Message      string `json:"message"`
 }
 
 // NewOpenAI returns a new OpenAI output binding.
@@ -150,14 +147,6 @@ func (p *AzOpenAI) Init(ctx context.Context, meta bindings.Metadata) error {
 		}
 	}
 
-	if m.DeploymentID != "" {
-		p.deploymentID = m.DeploymentID
-	}
-
-	if m.EmbeddingDeploymentID != "" {
-		p.embeddingDeploymentID = m.EmbeddingDeploymentID
-	}
-
 	return nil
 }
 
@@ -186,9 +175,6 @@ func (p *AzOpenAI) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 
 	switch req.Operation { //nolint:exhaustive
 	case CompletionOperation:
-		if p.deploymentID == "" {
-			return nil, fmt.Errorf("required metadata not set: %s", DeploymentID)
-		}
 		response, err := p.completion(ctx, req.Data, req.Metadata)
 		if err != nil {
 			return nil, fmt.Errorf("error performing completion: %w", err)
@@ -197,9 +183,6 @@ func (p *AzOpenAI) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 		resp.Data = responseAsBytes
 
 	case ChatCompletionOperation:
-		if p.deploymentID == "" {
-			return nil, fmt.Errorf("required metadata not set: %s", DeploymentID)
-		}
 		response, err := p.chatCompletion(ctx, req.Data, req.Metadata)
 		if err != nil {
 			return nil, fmt.Errorf("error performing chat completion: %w", err)
@@ -208,9 +191,6 @@ func (p *AzOpenAI) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 		resp.Data = responseAsBytes
 
 	case GetEmbeddingOperation:
-		if p.embeddingDeploymentID == "" {
-			return nil, fmt.Errorf("required metadata not set: %s", EmbeddingDeploymentID)
-		}
 		response, err := p.getEmbedding(ctx, req.Data, req.Metadata)
 		if err != nil {
 			return nil, fmt.Errorf("error performing get embedding operation: %w", err)
@@ -250,12 +230,16 @@ func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[
 		return nil, fmt.Errorf("prompt is required for completion operation")
 	}
 
+	if prompt.DeploymentID == "" {
+		return nil, fmt.Errorf("required metadata not set: %s", DeploymentID)
+	}
+
 	if len(prompt.Stop) == 0 {
 		prompt.Stop = nil
 	}
 
 	resp, err := p.client.GetCompletions(ctx, azopenai.CompletionsOptions{
-		DeploymentID: p.deploymentID,
+		DeploymentID: prompt.DeploymentID,
 		Prompt:       []string{prompt.Prompt},
 		MaxTokens:    &prompt.MaxTokens,
 		Temperature:  &prompt.Temperature,
@@ -298,6 +282,10 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageRequest []byte, me
 		return nil, fmt.Errorf("messages are required for chat-completion operation")
 	}
 
+	if messages.DeploymentID == "" {
+		return nil, fmt.Errorf("required metadata not set: %s", DeploymentID)
+	}
+
 	if len(messages.Stop) == 0 {
 		messages.Stop = nil
 	}
@@ -316,7 +304,7 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageRequest []byte, me
 	}
 
 	res, err := p.client.GetChatCompletions(ctx, azopenai.ChatCompletionsOptions{
-		DeploymentID: p.deploymentID,
+		DeploymentID: messages.DeploymentID,
 		MaxTokens:    maxTokens,
 		Temperature:  &messages.Temperature,
 		TopP:         &messages.TopP,
@@ -343,15 +331,19 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageRequest []byte, me
 }
 
 func (p *AzOpenAI) getEmbedding(ctx context.Context, messageRequest []byte, metadata map[string]string) (response []float32, err error) {
-	messages := EmbeddingMessage{}
-	err = json.Unmarshal(messageRequest, &messages)
+	message := EmbeddingMessage{}
+	err = json.Unmarshal(messageRequest, &message)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling the input object: %w", err)
 	}
 
+	if message.DeploymentID == "" {
+		return nil, fmt.Errorf("required metadata not set: %s", DeploymentID)
+	}
+
 	res, err := p.client.GetEmbeddings(ctx, azopenai.EmbeddingsOptions{
-		DeploymentID: p.embeddingDeploymentID,
-		Input:        []string{messages.Message},
+		DeploymentID: message.DeploymentID,
+		Input:        []string{message.Message},
 	}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error getting embedding api: %w", err)

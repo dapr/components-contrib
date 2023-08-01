@@ -342,8 +342,8 @@ func (r *rabbitMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, h
 	select {
 	case <-time.After(time.Minute):
 		return fmt.Errorf("failed to subscribe to %s", queueName)
-	case channelCrash := <-ackCh:
-		if channelCrash {
+	case failed := <-ackCh:
+		if failed {
 			return fmt.Errorf("error not retriable for %s", queueName)
 		} else {
 			return nil
@@ -411,13 +411,13 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 	}
 
 	// queue type is classic by default, but we allow user to create quorum queues if desired
-	if val, ok := req.Metadata[reqMetadataQueueTypeKey]; ok && val != "" {
+	if val := req.Metadata[reqMetadataQueueTypeKey]; val != "" {
 		if !queueTypeValid(val) {
-			return nil, errors.New(fmt.Sprintf("invalid queue type %s. Valid types are %s and %s", val, amqp.QueueTypeClassic, amqp.QueueTypeQuorum))
+			return nil, fmt.Errorf("invalid queue type %s. Valid types are %s and %s", val, amqp.QueueTypeClassic, amqp.QueueTypeQuorum)
 		} else {
 			args[amqp.QueueTypeArg] = val
 		}
-	} else if val == "" {
+	} else {
 		args[amqp.QueueTypeArg] = amqp.QueueTypeClassic
 	}
 

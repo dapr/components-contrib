@@ -32,7 +32,6 @@ type pulsarMetadata struct {
 	PrivateKey              string                    `mapstructure:"privateKey"`
 	Keys                    string                    `mapstructure:"keys"`
 
-	AuthType         string   `mapstructure:"authType"`
 	Token            string   `mapstructure:"token"`
 	OIDCTokenCAPEM   string   `mapstructure:"oidcTokenCAPEM"`
 	OIDCTokenURL     string   `mapstructure:"oidcTokenURL"`

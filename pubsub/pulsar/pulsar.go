@@ -55,10 +55,6 @@ const (
 	protoProtocol           = "proto"
 	partitionKey            = "partitionKey"
 
-	authTypeNone  = "none"
-	authTypeToken = "token"
-	authTypeOIDC  = "oidc"
-
 	defaultTenant     = "public"
 	defaultNamespace  = "default"
 	cachedNumProducer = 10
@@ -98,14 +94,13 @@ const (
 type ProcessMode string
 
 type Pulsar struct {
-	logger       logger.Logger
-	client       pulsar.Client
-	metadata     pulsarMetadata
-	oidcProvider *oidc.ClientCredentials
-	cache        *lru.Cache[string, pulsar.Producer]
-	closed       atomic.Bool
-	closeCh      chan struct{}
-	wg           sync.WaitGroup
+	logger   logger.Logger
+	client   pulsar.Client
+	metadata pulsarMetadata
+	cache    *lru.Cache[string, pulsar.Producer]
+	closed   atomic.Bool
+	closeCh  chan struct{}
+	wg       sync.WaitGroup
 }
 
 func NewPulsar(l logger.Logger) pubsub.PubSub {
@@ -179,17 +174,10 @@ func (p *Pulsar) Init(ctx context.Context, metadata pubsub.Metadata) error {
 		TLSAllowInsecureConnection: !m.EnableTLS,
 	}
 
-	switch m.AuthType {
-	case "":
-		// To ensure backward compatibility, if authType is not set but the token
-		// is we fallthrough to token auth.
-		if m.Token == "" {
-			break
-		}
-		fallthrough
-	case authTypeToken:
+	switch {
+	case len(m.Token) > 0:
 		options.Authentication = pulsar.NewAuthenticationToken(m.Token)
-	case authTypeOIDC:
+	case len(m.OIDCTokenURL) > 0:
 		var cc *oidc.ClientCredentials
 		cc, err = oidc.NewClientCredentials(ctx, oidc.ClientCredentialsOptions{
 			Logger:       p.logger,
@@ -205,8 +193,6 @@ func (p *Pulsar) Init(ctx context.Context, metadata pubsub.Metadata) error {
 		}
 
 		options.Authentication = pulsar.NewAuthenticationTokenFromSupplier(cc.Token)
-		p.oidcProvider = cc
-		p.oidcProvider.Run(ctx)
 	}
 
 	client, err := pulsar.NewClient(options)
@@ -522,10 +508,6 @@ func (p *Pulsar) Close() error {
 		}
 	}
 	p.client.Close()
-
-	if p.oidcProvider != nil {
-		p.oidcProvider.Close()
-	}
 
 	return nil
 }

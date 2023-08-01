@@ -22,12 +22,10 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"golang.org/x/oauth2"
 	ccreds "golang.org/x/oauth2/clientcredentials"
-	"k8s.io/utils/clock"
 
 	"github.com/dapr/kit/logger"
 )
@@ -54,11 +52,7 @@ type ClientCredentials struct {
 	httpClient   *http.Client
 	fetchTokenFn func(context.Context) (*oauth2.Token, error)
 
-	lock    sync.RWMutex
-	wg      sync.WaitGroup
-	closeCh chan struct{}
-	closed  atomic.Bool
-	clock   clock.Clock
+	lock sync.RWMutex
 }
 
 func NewClientCredentials(ctx context.Context, opts ClientCredentialsOptions) (*ClientCredentials, error) {
@@ -78,47 +72,8 @@ func NewClientCredentials(ctx context.Context, opts ClientCredentialsOptions) (*
 		log:          opts.Logger,
 		currentToken: token,
 		httpClient:   httpClient,
-		closeCh:      make(chan struct{}),
-		clock:        clock.RealClock{},
 		fetchTokenFn: conf.Token,
 	}, nil
-}
-
-func (c *ClientCredentials) Run(ctx context.Context) {
-	c.log.Info("Running oidc client_credentials token renewer")
-	renewDuration := c.tokenRenewDuration()
-
-	c.wg.Add(1)
-	go func() {
-		defer func() {
-			c.log.Info("Stopped oidc client_credentials token renewer")
-			c.wg.Done()
-		}()
-
-		for {
-			select {
-			case <-c.closeCh:
-				return
-			case <-ctx.Done():
-				return
-			case <-c.clock.After(renewDuration):
-			}
-
-			c.log.Debug("Renewing client credentials token")
-
-			token, err := c.fetchTokenFn(context.WithValue(ctx, oauth2.HTTPClient, c.httpClient))
-			if err != nil {
-				c.log.Errorf("Error fetching renewed oidc client_credentials token, retrying in 30 seconds: %s", err)
-				renewDuration = time.Second * 30
-				continue
-			}
-
-			c.lock.Lock()
-			c.currentToken = token
-			c.lock.Unlock()
-			renewDuration = c.tokenRenewDuration()
-		}
-	}()
 }
 
 func toConfig(opts ClientCredentialsOptions) (*ccreds.Config, *http.Client, error) {
@@ -181,33 +136,37 @@ func toConfig(opts ClientCredentialsOptions) (*ccreds.Config, *http.Client, erro
 	}, nil
 }
 
-func (c *ClientCredentials) Close() {
-	defer c.wg.Wait()
-
-	if c.closed.CompareAndSwap(false, true) {
-		close(c.closeCh)
-	}
-}
-
 func (c *ClientCredentials) Token() (string, error) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 
-	if c.closed.Load() {
-		return "", errors.New("client_credentials token source is closed")
-	}
-
 	if !c.currentToken.Valid() {
-		return "", errors.New("client_credentials token source is invalid")
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		defer cancel()
+		if err := c.renewToken(ctx); err != nil {
+			return "", err
+		}
 	}
 
 	return c.currentToken.AccessToken, nil
 }
 
-// tokenRenewTime returns the duration when the token should be renewed, which is
-// half of the token's lifetime.
-func (c *ClientCredentials) tokenRenewDuration() time.Duration {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
-	return c.currentToken.Expiry.Sub(c.clock.Now()) / 2
+func (c *ClientCredentials) renewToken(ctx context.Context) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	// We need to check if the current token is valid because we might have lost
+	// the mutex lock race from the caller and we don't want to double-fetch a
+	// token unnecessarily!
+	if c.currentToken.Valid() {
+		return nil
+	}
+
+	token, err := c.fetchTokenFn(context.WithValue(ctx, oauth2.HTTPClient, c.httpClient))
+	if err != nil {
+		return err
+	}
+
+	c.currentToken = token
+	return nil
 }

@@ -311,3 +311,10 @@ func (s *RethinkDB) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
+
+func (s *RethinkDB) Close() error {
+	if s.session == nil {
+		return nil
+	}
+	return s.session.Close()
+}

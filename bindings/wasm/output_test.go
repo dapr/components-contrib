@@ -18,6 +18,8 @@ import (
 	"context"
 	_ "embed"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -31,6 +33,7 @@ const (
 	urlArgsFile    = "file://testdata/args/main.wasm"
 	urlExampleFile = "file://testdata/example/main.wasm"
 	urlLoopFile    = "file://testdata/loop/main.wasm"
+	urlHTTPFile    = "file://testdata/http/main.wasm"
 )
 
 func Test_outputBinding_Init(t *testing.T) {
@@ -164,6 +167,92 @@ func Test_Invoke(t *testing.T) {
 			if reqCtx == nil {
 				reqCtx = ctx
 			}
+
+			if tc.expectedErr == "" {
+				// execute twice to prove idempotency
+				for i := 0; i < 2; i++ {
+					resp, outputErr := output.Invoke(reqCtx, tc.request)
+					require.NoError(t, outputErr)
+					require.Equal(t, tc.expectedData, string(resp.Data))
+				}
+			} else {
+				_, err = output.Invoke(reqCtx, tc.request)
+				require.EqualError(t, err, tc.expectedErr)
+			}
+		})
+	}
+}
+
+type handler struct{}
+
+func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/unknown" {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("Not found"))
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(r.URL.Path))
+}
+
+func Test_InvokeHttp(t *testing.T) {
+	type testCase struct {
+		name         string
+		url          string
+		request      *bindings.InvokeRequest
+		ctx          context.Context
+		reqURL       string
+		expectedData string
+		expectedErr  string
+	}
+
+	s := httptest.NewServer(&handler{})
+	defer s.Close()
+
+	tests := []testCase{
+		{
+			name: "http",
+			url:  urlHTTPFile,
+			request: &bindings.InvokeRequest{
+				Operation: ExecuteOperation,
+			},
+			reqURL:       s.URL,
+			expectedData: "Status: 200\nBody: \n/\n",
+		},
+		{
+			name: "unknown",
+			url:  urlHTTPFile,
+			request: &bindings.InvokeRequest{
+				Operation: ExecuteOperation,
+			},
+			reqURL:       s.URL + "/unknown",
+			expectedData: "Status: 404\nBody: \nNot found\n",
+		},
+	}
+
+	for _, tt := range tests {
+		tc := tt
+		t.Run(tc.name, func(t *testing.T) {
+			l := logger.NewLogger(t.Name())
+			var buf bytes.Buffer
+			l.SetOutput(&buf)
+
+			meta := metadata.Base{Properties: map[string]string{"url": tc.url}}
+
+			output := NewWasmOutput(l)
+			defer output.(io.Closer).Close()
+
+			ctx := context.Background()
+
+			err := output.Init(ctx, bindings.Metadata{Base: meta})
+			require.NoError(t, err)
+
+			reqCtx := tc.ctx
+			if reqCtx == nil {
+				reqCtx = ctx
+			}
+
+			tc.request.Metadata = map[string]string{"args": tc.reqURL}
 
 			if tc.expectedErr == "" {
 				// execute twice to prove idempotency

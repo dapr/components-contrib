@@ -16,28 +16,17 @@ package pulsar_test
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
-	"io"
-	"io/fs"
 	"io/ioutil"
 	"net/http"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 	"testing"
-	"text/template"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 	"go.uber.org/multierr"
 
-	"github.com/dapr/components-contrib/internal/authentication/oidc"
 	pubsub_pulsar "github.com/dapr/components-contrib/pubsub/pulsar"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
 
@@ -65,23 +54,21 @@ const (
 	appID1 = "app-1"
 	appID2 = "app-2"
 
-	numMessages                = 10
-	appPort                    = 8001
-	portOffset                 = 2
-	messageKey                 = "partitionKey"
-	pubsubName                 = "messagebus"
-	topicActiveName            = "certification-pubsub-topic-active"
-	topicPassiveName           = "certification-pubsub-topic-passive"
-	topicToBeCreated           = "certification-topic-per-test-run"
-	topicDefaultName           = "certification-topic-default"
-	topicMultiPartitionName    = "certification-topic-multi-partition8"
-	partition0                 = "partition-0"
-	partition1                 = "partition-1"
-	clusterName                = "pulsarcertification"
-	dockerComposeAuthNoneYAML  = "./config/docker-compose_auth-none.yaml"
-	dockerComposeAuthOIDCYAML  = "./config/docker-compose_auth-oidc.yaml.tmpl"
-	dockerComposeMockOAuthYAML = "./config/docker-compose_auth-mock-oidc-server.yaml"
-	pulsarURL                  = "localhost:6650"
+	numMessages             = 10
+	appPort                 = 8000
+	portOffset              = 2
+	messageKey              = "partitionKey"
+	pubsubName              = "messagebus"
+	topicActiveName         = "certification-pubsub-topic-active"
+	topicPassiveName        = "certification-pubsub-topic-passive"
+	topicToBeCreated        = "certification-topic-per-test-run"
+	topicDefaultName        = "certification-topic-default"
+	topicMultiPartitionName = "certification-topic-multi-partition8"
+	partition0              = "partition-0"
+	partition1              = "partition-1"
+	clusterName             = "pulsarcertification"
+	dockerComposeYAML       = "docker-compose.yml"
+	pulsarURL               = "localhost:6650"
 
 	subscribeTypeKey = "subscribeType"
 
@@ -94,103 +81,6 @@ const (
 	processModeAsync = "async"
 	processModeSync  = "sync"
 )
-
-type pulsarSuite struct {
-	suite.Suite
-
-	authType          string
-	oidcCAPEM         []byte
-	dockerComposeYAML string
-	componentsPath    string
-	services          []string
-}
-
-func TestPulsar(t *testing.T) {
-	t.Run("Auth:None", func(t *testing.T) {
-		suite.Run(t, &pulsarSuite{
-			authType:          "none",
-			dockerComposeYAML: dockerComposeAuthNoneYAML,
-			componentsPath:    "./components/auth-none",
-			services:          []string{"standalone"},
-		})
-	})
-
-	t.Run("Auth:OIDC", func(t *testing.T) {
-		dir := t.TempDir()
-		require.NoError(t, os.Chmod(dir, 0o777))
-
-		t.Log("Starting OIDC server...")
-		out, err := exec.Command(
-			"docker-compose",
-			"-p", "oidc",
-			"-f", dockerComposeMockOAuthYAML,
-			"up", "-d").CombinedOutput()
-		require.NoError(t, err, string(out))
-		t.Log(string(out))
-
-		t.Cleanup(func() {
-			t.Log("Stopping OIDC server...")
-			out, err = exec.Command(
-				"docker-compose",
-				"-p", "oidc",
-				"-f", dockerComposeMockOAuthYAML,
-				"down", "-v",
-				"--remove-orphans").CombinedOutput()
-			require.NoError(t, err, string(out))
-			t.Log(string(out))
-		})
-
-		t.Log("Waiting for OAuth server to be ready...")
-		oauthCA := peerCertificate(t, "localhost:8085")
-		t.Log("OAuth server is ready")
-
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "ca.pem"), oauthCA, 0o644))
-		outf, err := os.OpenFile("./config/pulsar_auth-oidc.conf", os.O_RDONLY, 0o644)
-		require.NoError(t, err)
-		inf, err := os.OpenFile(filepath.Join(dir, "pulsar_auth-oidc.conf"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
-		require.NoError(t, err)
-		_, err = io.Copy(inf, outf)
-		require.NoError(t, err)
-		outf.Close()
-		inf.Close()
-
-		td := struct {
-			TmpDir    string
-			OIDCCAPEM string
-		}{
-			TmpDir:    dir,
-			OIDCCAPEM: strings.ReplaceAll(string(oauthCA), "\n", "\\n"),
-		}
-
-		tmpl, err := template.New("").ParseFiles(dockerComposeAuthOIDCYAML)
-		require.NoError(t, err)
-		f, err := os.OpenFile(filepath.Join(dir, "docker-compose.yaml"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
-		require.NoError(t, err)
-		require.NoError(t, tmpl.ExecuteTemplate(f, "docker-compose_auth-oidc.yaml.tmpl", td))
-
-		require.NoError(t, filepath.Walk("./components/auth-oidc", func(path string, info fs.FileInfo, err error) error {
-			if info.IsDir() {
-				return nil
-			}
-			tmpl, err := template.New("").ParseFiles(path)
-			require.NoError(t, err)
-			path = strings.TrimSuffix(path, ".tmpl")
-			require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(dir, path)), 0o755))
-			f, err := os.OpenFile(filepath.Join(dir, path), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
-			require.NoError(t, err)
-			require.NoError(t, tmpl.ExecuteTemplate(f, filepath.Base(path)+".tmpl", td))
-			return nil
-		}))
-
-		suite.Run(t, &pulsarSuite{
-			oidcCAPEM:         oauthCA,
-			authType:          "oidc",
-			dockerComposeYAML: filepath.Join(dir, "docker-compose.yaml"),
-			componentsPath:    filepath.Join(dir, "components/auth-oidc"),
-			services:          []string{"zookeeper", "pulsar-init", "bookie", "broker"},
-		})
-	})
-}
 
 func subscriberApplication(appID string, topicName string, messagesWatcher *watcher.Watcher) app.SetupFn {
 	return func(ctx flow.Context, s common.Service) error {
@@ -306,8 +196,7 @@ func assertMessages(timeout time.Duration, messageWatchers ...*watcher.Watcher) 
 	}
 }
 
-func (p *pulsarSuite) TestPulsar() {
-	t := p.T()
+func TestPulsar(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 
@@ -355,10 +244,10 @@ func (p *pulsarSuite) TestPulsar() {
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
-		Step(dockercompose.Run(clusterName, p.dockerComposeYAML)).
+		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
 		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
-			client, err := p.client(t)
+			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
 				return fmt.Errorf("could not create pulsar client: %v", err)
 			}
@@ -378,7 +267,7 @@ func (p *pulsarSuite) TestPulsar() {
 			return err
 		})).
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_one")),
+			embedded.WithComponentsPath("./components/consumer_one"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
@@ -391,7 +280,7 @@ func (p *pulsarSuite) TestPulsar() {
 
 		// Run the Dapr sidecar with the component 2.
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_two")),
+			embedded.WithComponentsPath("./components/consumer_two"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
@@ -406,8 +295,7 @@ func (p *pulsarSuite) TestPulsar() {
 		Run()
 }
 
-func (p *pulsarSuite) TestPulsarMultipleSubsSameConsumerIDs() {
-	t := p.T()
+func TestPulsarMultipleSubsSameConsumerIDs(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 
@@ -424,10 +312,10 @@ func (p *pulsarSuite) TestPulsarMultipleSubsSameConsumerIDs() {
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
-		Step(dockercompose.Run(clusterName, p.dockerComposeYAML)).
+		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
 		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
-			client, err := p.client(t)
+			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
 				return fmt.Errorf("could not create pulsar client: %v", err)
 			}
@@ -447,7 +335,7 @@ func (p *pulsarSuite) TestPulsarMultipleSubsSameConsumerIDs() {
 			return err
 		})).
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_one")),
+			embedded.WithComponentsPath("./components/consumer_one"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
@@ -460,7 +348,7 @@ func (p *pulsarSuite) TestPulsarMultipleSubsSameConsumerIDs() {
 
 		// Run the Dapr sidecar with the component 2.
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_two")),
+			embedded.WithComponentsPath("./components/consumer_two"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
@@ -474,9 +362,7 @@ func (p *pulsarSuite) TestPulsarMultipleSubsSameConsumerIDs() {
 		Run()
 }
 
-func (p *pulsarSuite) TestPulsarMultipleSubsDifferentConsumerIDs() {
-	t := p.T()
-
+func TestPulsarMultipleSubsDifferentConsumerIDs(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 
@@ -490,10 +376,10 @@ func (p *pulsarSuite) TestPulsarMultipleSubsDifferentConsumerIDs() {
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
-		Step(dockercompose.Run(clusterName, p.dockerComposeYAML)).
+		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
 		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
-			client, err := p.client(t)
+			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
 				return fmt.Errorf("could not create pulsar client: %v", err)
 			}
@@ -515,7 +401,7 @@ func (p *pulsarSuite) TestPulsarMultipleSubsDifferentConsumerIDs() {
 			return err
 		})).
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_one")),
+			embedded.WithComponentsPath("./components/consumer_one"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
@@ -528,7 +414,7 @@ func (p *pulsarSuite) TestPulsarMultipleSubsDifferentConsumerIDs() {
 
 		// Run the Dapr sidecar with the component 2.
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_two")),
+			embedded.WithComponentsPath("./components/consumer_two"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
@@ -541,8 +427,7 @@ func (p *pulsarSuite) TestPulsarMultipleSubsDifferentConsumerIDs() {
 		Run()
 }
 
-func (p *pulsarSuite) TestPulsarMultiplePubSubsDifferentConsumerIDs() {
-	t := p.T()
+func TestPulsarMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 	consumerGroup2 := watcher.NewUnordered()
 
@@ -560,10 +445,10 @@ func (p *pulsarSuite) TestPulsarMultiplePubSubsDifferentConsumerIDs() {
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
-		Step(dockercompose.Run(clusterName, p.dockerComposeYAML)).
+		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
 		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
-			client, err := p.client(t)
+			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
 				return fmt.Errorf("could not create pulsar client: %v", err)
 			}
@@ -585,7 +470,7 @@ func (p *pulsarSuite) TestPulsarMultiplePubSubsDifferentConsumerIDs() {
 			return err
 		})).
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_one")),
+			embedded.WithComponentsPath("./components/consumer_one"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
@@ -598,7 +483,7 @@ func (p *pulsarSuite) TestPulsarMultiplePubSubsDifferentConsumerIDs() {
 
 		// Run the Dapr sidecar with the component 2.
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_two")),
+			embedded.WithComponentsPath("./components/consumer_two"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
@@ -613,8 +498,7 @@ func (p *pulsarSuite) TestPulsarMultiplePubSubsDifferentConsumerIDs() {
 		Run()
 }
 
-func (p *pulsarSuite) TestPulsarNonexistingTopic() {
-	t := p.T()
+func TestPulsarNonexistingTopic(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 
 	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
@@ -627,10 +511,10 @@ func (p *pulsarSuite) TestPulsarNonexistingTopic() {
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset*3),
 			subscriberApplication(appID1, topicToBeCreated, consumerGroup1))).
-		Step(dockercompose.Run(clusterName, p.dockerComposeYAML)).
+		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
 		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
-			client, err := p.client(t)
+			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
 				return fmt.Errorf("could not create pulsar client: %v", err)
 			}
@@ -653,7 +537,7 @@ func (p *pulsarSuite) TestPulsarNonexistingTopic() {
 		})).
 		// Run the Dapr sidecar with the component entitymanagement
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_one")),
+			embedded.WithComponentsPath("./components/consumer_one"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*3),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*3),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*3),
@@ -666,8 +550,7 @@ func (p *pulsarSuite) TestPulsarNonexistingTopic() {
 		Run()
 }
 
-func (p *pulsarSuite) TestPulsarNetworkInterruption() {
-	t := p.T()
+func TestPulsarNetworkInterruption(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 
 	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
@@ -680,10 +563,10 @@ func (p *pulsarSuite) TestPulsarNetworkInterruption() {
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
-		Step(dockercompose.Run(clusterName, p.dockerComposeYAML)).
+		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
 		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
-			client, err := p.client(t)
+			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
 				return fmt.Errorf("could not create pulsar client: %v", err)
 			}
@@ -706,7 +589,7 @@ func (p *pulsarSuite) TestPulsarNetworkInterruption() {
 		})).
 		// Run the Dapr sidecar with the component entitymanagement
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_one")),
+			embedded.WithComponentsPath("./components/consumer_one"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
@@ -720,8 +603,7 @@ func (p *pulsarSuite) TestPulsarNetworkInterruption() {
 		Run()
 }
 
-func (p *pulsarSuite) TestPulsarPersitant() {
-	t := p.T()
+func TestPulsarPersitant(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 
 	flow.New(t, "pulsar certification persistant test").
@@ -729,10 +611,10 @@ func (p *pulsarSuite) TestPulsarPersitant() {
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
-		Step(dockercompose.Run(clusterName, p.dockerComposeYAML)).
+		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
 		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
-			client, err := p.client(t)
+			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
 				return fmt.Errorf("could not create pulsar client: %v", err)
 			}
@@ -754,24 +636,23 @@ func (p *pulsarSuite) TestPulsarPersitant() {
 			return err
 		})).
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_one")),
+			embedded.WithComponentsPath("./components/consumer_one"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
 			componentRuntimeOptions(),
 		)).
 		Step("publish messages to topic1", publishMessages(nil, sidecarName1, topicActiveName, consumerGroup1)).
-		Step("stop pulsar server", dockercompose.Stop(clusterName, p.dockerComposeYAML, p.services...)).
+		Step("stop pulsar server", dockercompose.Stop(clusterName, dockerComposeYAML, "standalone")).
 		Step("wait", flow.Sleep(5*time.Second)).
-		Step("start pulsar server", dockercompose.Start(clusterName, p.dockerComposeYAML, p.services...)).
+		Step("start pulsar server", dockercompose.Start(clusterName, dockerComposeYAML, "standalone")).
 		Step("wait", flow.Sleep(10*time.Second)).
 		Step("verify if app1 has received messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).
 		Step("reset", flow.Reset(consumerGroup1)).
 		Run()
 }
 
-func (p *pulsarSuite) TestPulsarDelay() {
-	t := p.T()
+func TestPulsarDelay(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 
 	date := time.Now()
@@ -801,10 +682,10 @@ func (p *pulsarSuite) TestPulsarDelay() {
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(appID1, topicActiveName, consumerGroup1))).
-		Step(dockercompose.Run(clusterName, p.dockerComposeYAML)).
+		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
 		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
-			client, err := p.client(t)
+			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
 				return fmt.Errorf("could not create pulsar client: %v", err)
 			}
@@ -826,7 +707,7 @@ func (p *pulsarSuite) TestPulsarDelay() {
 			return err
 		})).
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_three")),
+			embedded.WithComponentsPath("./components/consumer_three"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
@@ -849,8 +730,7 @@ type schemaTest struct {
 	Name string `json:"name"`
 }
 
-func (p *pulsarSuite) TestPulsarSchema() {
-	t := p.T()
+func TestPulsarSchema(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 
 	publishMessages := func(sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
@@ -892,10 +772,10 @@ func (p *pulsarSuite) TestPulsarSchema() {
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberSchemaApplication(appID1, topicActiveName, consumerGroup1))).
-		Step(dockercompose.Run(clusterName, p.dockerComposeYAML)).
+		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
 		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
-			client, err := p.client(t)
+			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
 				return fmt.Errorf("could not create pulsar client: %v", err)
 			}
@@ -915,7 +795,7 @@ func (p *pulsarSuite) TestPulsarSchema() {
 			return err
 		})).
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_four")),
+			embedded.WithComponentsPath("./components/consumer_four"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
@@ -938,7 +818,7 @@ func componentRuntimeOptions() []runtime.Option {
 	}
 }
 
-func (p *pulsarSuite) createMultiPartitionTopic(tenant, namespace, topic string, partition int) flow.Runnable {
+func createMultiPartitionTopic(tenant, namespace, topic string, partition int) flow.Runnable {
 	return func(ctx flow.Context) error {
 		reqURL := fmt.Sprintf("http://localhost:8080/admin/v2/persistent/%s/%s/%s/partitions",
 			tenant, namespace, topic)
@@ -957,19 +837,6 @@ func (p *pulsarSuite) createMultiPartitionTopic(tenant, namespace, topic string,
 		}
 
 		req.Header.Set("Content-Type", "application/json")
-
-		if p.authType == "oidc" {
-			cc, err := p.oidcClientCredentials()
-			if err != nil {
-				return err
-			}
-			token, err := cc.Token()
-			if err != nil {
-				return err
-			}
-
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-		}
 
 		rsp, err := http.DefaultClient.Do(req)
 
@@ -991,8 +858,7 @@ func (p *pulsarSuite) createMultiPartitionTopic(tenant, namespace, topic string,
 	}
 }
 
-func (p *pulsarSuite) TestPulsarPartitionedOrderingProcess() {
-	t := p.T()
+func TestPulsarPartitionedOrderingProcess(t *testing.T) {
 	consumerGroup1 := watcher.NewOrdered()
 
 	// Set the partition key on all messages so they are written to the same partition. This allows for checking of ordered messages.
@@ -1001,14 +867,14 @@ func (p *pulsarSuite) TestPulsarPartitionedOrderingProcess() {
 	}
 
 	flow.New(t, "pulsar certification -  process message in order with partitioned-topic").
-		Step(dockercompose.Run(clusterName, p.dockerComposeYAML)).
+		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
 
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset),
 			subscriberApplicationWithoutError(appID1, topicMultiPartitionName, consumerGroup1))).
 		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
-			client, err := p.client(t)
+			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
 				return fmt.Errorf("could not create pulsar client: %v", err)
 			}
@@ -1031,10 +897,10 @@ func (p *pulsarSuite) TestPulsarPartitionedOrderingProcess() {
 			return err
 		})).
 		Step("create multi-partition topic explicitly", retry.Do(10*time.Second, 30,
-			p.createMultiPartitionTopic("public", "default", topicMultiPartitionName, 4))).
+			createMultiPartitionTopic("public", "default", topicMultiPartitionName, 4))).
 		// Run the Dapr sidecar with the component entitymanagement
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_one")),
+			embedded.WithComponentsPath("./components/consumer_one"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
@@ -1047,7 +913,7 @@ func (p *pulsarSuite) TestPulsarPartitionedOrderingProcess() {
 
 		// Run the Dapr sidecar with the component 2.
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_two")),
+			embedded.WithComponentsPath("./components/consumer_two"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*3),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*3),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*3),
@@ -1061,8 +927,7 @@ func (p *pulsarSuite) TestPulsarPartitionedOrderingProcess() {
 		Run()
 }
 
-func (p *pulsarSuite) TestPulsarEncryptionFromFile() {
-	t := p.T()
+func TestPulsarEncryptionFromFile(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 
 	publishMessages := func(sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
@@ -1104,10 +969,10 @@ func (p *pulsarSuite) TestPulsarEncryptionFromFile() {
 		// Run subscriberApplication app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberSchemaApplication(appID1, topicActiveName, consumerGroup1))).
-		Step(dockercompose.Run(clusterName, p.dockerComposeYAML)).
+		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
 		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
-			client, err := p.client(t)
+			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
 				return fmt.Errorf("could not create pulsar client: %v", err)
 			}
@@ -1127,7 +992,7 @@ func (p *pulsarSuite) TestPulsarEncryptionFromFile() {
 			return err
 		})).
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_five")),
+			embedded.WithComponentsPath("./components/consumer_five"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
@@ -1139,8 +1004,7 @@ func (p *pulsarSuite) TestPulsarEncryptionFromFile() {
 		Run()
 }
 
-func (p *pulsarSuite) TestPulsarEncryptionFromData() {
-	t := p.T()
+func TestPulsarEncryptionFromData(t *testing.T) {
 	consumerGroup1 := watcher.NewUnordered()
 
 	publishMessages := func(sidecarName string, topicName string, messageWatchers ...*watcher.Watcher) flow.Runnable {
@@ -1182,10 +1046,10 @@ func (p *pulsarSuite) TestPulsarEncryptionFromData() {
 		// Run subscriberApplication app2
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			subscriberSchemaApplication(appID1, topicActiveName, consumerGroup1))).
-		Step(dockercompose.Run(clusterName, p.dockerComposeYAML)).
+		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
 		Step("wait", flow.Sleep(10*time.Second)).
 		Step("wait for pulsar readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
-			client, err := p.client(t)
+			client, err := pulsar.NewClient(pulsar.ClientOptions{URL: "pulsar://localhost:6650"})
 			if err != nil {
 				return fmt.Errorf("could not create pulsar client: %v", err)
 			}
@@ -1205,7 +1069,7 @@ func (p *pulsarSuite) TestPulsarEncryptionFromData() {
 			return err
 		})).
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath(filepath.Join(p.componentsPath, "consumer_six")),
+			embedded.WithComponentsPath("./components/consumer_six"),
 			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
 			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
 			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
@@ -1215,58 +1079,4 @@ func (p *pulsarSuite) TestPulsarEncryptionFromData() {
 		Step("verify if app1 has received messages published to topic", assertMessages(10*time.Second, consumerGroup1)).
 		Step("reset", flow.Reset(consumerGroup1)).
 		Run()
-}
-
-func (p *pulsarSuite) client(t *testing.T) (pulsar.Client, error) {
-	t.Helper()
-
-	opts := pulsar.ClientOptions{
-		URL: "pulsar://localhost:6650",
-	}
-	switch p.authType {
-	case "oidc":
-		cc, err := p.oidcClientCredentials()
-		require.NoError(t, err)
-		opts.Authentication = pulsar.NewAuthenticationTokenFromSupplier(cc.Token)
-	default:
-	}
-
-	return pulsar.NewClient(opts)
-}
-
-func (p *pulsarSuite) oidcClientCredentials() (*oidc.ClientCredentials, error) {
-	cc, err := oidc.NewClientCredentials(context.Background(), oidc.ClientCredentialsOptions{
-		Logger:       logger.NewLogger("dapr.test.readiness"),
-		TokenURL:     "https://localhost:8085/issuer1/token",
-		ClientID:     "foo",
-		ClientSecret: "bar",
-		Scopes:       []string{"openid"},
-		Audiences:    []string{"pulsar"},
-		CAPEM:        p.oidcCAPEM,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return cc, nil
-}
-
-func peerCertificate(t *testing.T, hostport string) []byte {
-	conf := &tls.Config{InsecureSkipVerify: true}
-
-	for {
-		time.Sleep(1 * time.Second)
-
-		conn, err := tls.Dial("tcp", hostport, conf)
-		if err != nil {
-			t.Log(err)
-			continue
-		}
-
-		defer conn.Close()
-
-		certs := conn.ConnectionState().PeerCertificates
-		require.Len(t, certs, 1, "expected 1 peer certificate")
-		return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certs[0].Raw})
-	}
 }

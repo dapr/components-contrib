@@ -56,7 +56,7 @@ type ClientCredentials struct {
 }
 
 func NewClientCredentials(ctx context.Context, opts ClientCredentialsOptions) (*ClientCredentials, error) {
-	conf, httpClient, err := toConfig(opts)
+	conf, httpClient, err := opts.toConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -76,8 +76,8 @@ func NewClientCredentials(ctx context.Context, opts ClientCredentialsOptions) (*
 	}, nil
 }
 
-func toConfig(opts ClientCredentialsOptions) (*ccreds.Config, *http.Client, error) {
-	scopes := opts.Scopes
+func (c *ClientCredentialsOptions) toConfig() (*ccreds.Config, *http.Client, error) {
+	scopes := c.Scopes
 	if len(scopes) == 0 {
 		// If no scopes are provided, then the default is to use the 'openid' scope
 		// since that is always required for OIDC so implicitly add it.
@@ -95,7 +95,7 @@ func toConfig(opts ClientCredentialsOptions) (*ccreds.Config, *http.Client, erro
 		return nil, nil, fmt.Errorf("oidc client_credentials token source requires the %q scope", oidcScopeOpenID)
 	}
 
-	tokenURL, err := url.Parse(opts.TokenURL)
+	tokenURL, err := url.Parse(c.TokenURL)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error parsing token URL: %w", err)
 	}
@@ -104,23 +104,23 @@ func toConfig(opts ClientCredentialsOptions) (*ccreds.Config, *http.Client, erro
 	}
 
 	conf := &ccreds.Config{
-		ClientID:     opts.ClientID,
-		ClientSecret: opts.ClientSecret,
-		TokenURL:     opts.TokenURL,
+		ClientID:     c.ClientID,
+		ClientSecret: c.ClientSecret,
+		TokenURL:     c.TokenURL,
 		Scopes:       scopes,
 	}
 
-	if len(opts.Audiences) == 0 {
+	if len(c.Audiences) == 0 {
 		return nil, nil, errors.New("oidc client_credentials token source requires at least one audience")
 	}
 
-	conf.EndpointParams = url.Values{"audience": opts.Audiences}
+	conf.EndpointParams = url.Values{"audience": c.Audiences}
 
 	// If caPool is nil, then the Go TLS library will use the system's root CA.
 	var caPool *x509.CertPool
-	if len(opts.CAPEM) > 0 {
+	if len(c.CAPEM) > 0 {
 		caPool = x509.NewCertPool()
-		if !caPool.AppendCertsFromPEM(opts.CAPEM) {
+		if !caPool.AppendCertsFromPEM(c.CAPEM) {
 			return nil, nil, errors.New("failed to parse CA PEM")
 		}
 	}
@@ -165,6 +165,10 @@ func (c *ClientCredentials) renewToken(ctx context.Context) error {
 	token, err := c.fetchTokenFn(context.WithValue(ctx, oauth2.HTTPClient, c.httpClient))
 	if err != nil {
 		return err
+	}
+
+	if !c.currentToken.Valid() {
+		return errors.New("oidc client_credentials token source returned an invalid token")
 	}
 
 	c.currentToken = token

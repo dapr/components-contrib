@@ -84,7 +84,7 @@ func Test_toConfig(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			config, _, err := toConfig(test.opts)
+			config, _, err := test.opts.toConfig()
 			assert.Equalf(t, test.expErr, err != nil, "%v", err)
 			assert.Equal(t, test.expConfig, config)
 		})

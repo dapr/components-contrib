@@ -43,7 +43,7 @@ const (
 	expirationTime           = "expirationTime"
 	nextVisibleTime          = "nextVisibleTime"
 	popReceipt               = "popReceipt"
-	messageId                = "messageId"
+	messageID                = "messageID"
 )
 
 type consumer struct {
@@ -183,16 +183,22 @@ func (d *AzureQueueHelper) Read(ctx context.Context, consumer *consumer) error {
 		}
 	}
 
+	metadata := make(map[string]string)
+
+	metadata[insertionTime] = res.Messages[0].InsertionTime.Format(time.RFC3339)
+	metadata[expirationTime] = res.Messages[0].ExpirationTime.Format(time.RFC3339)
+	metadata[nextVisibleTime] = res.Messages[0].TimeNextVisible.Format(time.RFC3339)
+	metadata[dequeueCount] = strconv.FormatInt(*res.Messages[0].DequeueCount, 10)
+
+	if res.Messages[0].MessageID != nil {
+		metadata[messageID] = *res.Messages[0].MessageID
+	}
+	if res.Messages[0].MessageID != nil {
+		metadata[popReceipt] = *res.Messages[0].PopReceipt
+	}
 	_, err = consumer.callback(ctx, &bindings.ReadResponse{
-		Data: data,
-		Metadata: map[string]string{
-			messageId:       *res.Messages[0].MessageID,
-			insertionTime:   res.Messages[0].InsertionTime.Format("2006-01-02 15:04:05"),
-			expirationTime:  res.Messages[0].ExpirationTime.Format("2006-01-02 15:04:05"),
-			popReceipt:      *res.Messages[0].PopReceipt,
-			nextVisibleTime: res.Messages[0].TimeNextVisible.Format("2006-01-02 15:04:05"),
-			dequeueCount:    strconv.FormatInt(*res.Messages[0].DequeueCount, 10),
-		},
+		Data:     data,
+		Metadata: metadata,
 	})
 	if err != nil {
 		return err

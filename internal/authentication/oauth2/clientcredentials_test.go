@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package oidc
+package oauth2
 
 import (
 	"net/url"
@@ -27,55 +27,58 @@ func Test_toConfig(t *testing.T) {
 		expConfig *ccreds.Config
 		expErr    bool
 	}{
-		"openid not in scopes should error": {
+		"no scopes should error": {
 			opts: ClientCredentialsOptions{
 				TokenURL:     "https://localhost:8080",
 				ClientID:     "client-id",
 				ClientSecret: "client-secret",
-				Scopes:       []string{"profile"},
 				Audiences:    []string{"audience"},
 			},
 			expErr: true,
 		},
-		"non-https endpoint should error": {
+		"bad URL endpoint should error": {
 			opts: ClientCredentialsOptions{
-				TokenURL:     "http://localhost:8080",
+				TokenURL:     "&&htp:/f url",
 				ClientID:     "client-id",
 				ClientSecret: "client-secret",
 				Audiences:    []string{"audience"},
+				Scopes:       []string{"foo"},
 			},
 			expErr: true,
 		},
 		"bad CA certificate should error": {
 			opts: ClientCredentialsOptions{
-				TokenURL:     "https://localhost:8080",
+				TokenURL:     "http://localhost:8080",
 				ClientID:     "client-id",
 				ClientSecret: "client-secret",
 				Audiences:    []string{"audience"},
+				Scopes:       []string{"foo"},
 				CAPEM:        []byte("ca-pem"),
 			},
 			expErr: true,
 		},
 		"no audiences should error": {
 			opts: ClientCredentialsOptions{
-				TokenURL:     "https://localhost:8080",
+				TokenURL:     "http://localhost:8080",
 				ClientID:     "client-id",
 				ClientSecret: "client-secret",
+				Scopes:       []string{"foo"},
 			},
 			expErr: true,
 		},
 		"should default scope": {
 			opts: ClientCredentialsOptions{
-				TokenURL:     "https://localhost:8080",
+				TokenURL:     "http://localhost:8080",
 				ClientID:     "client-id",
 				ClientSecret: "client-secret",
 				Audiences:    []string{"audience"},
+				Scopes:       []string{"foo", "bar"},
 			},
 			expConfig: &ccreds.Config{
 				ClientID:       "client-id",
 				ClientSecret:   "client-secret",
-				TokenURL:       "https://localhost:8080",
-				Scopes:         []string{"openid"},
+				TokenURL:       "http://localhost:8080",
+				Scopes:         []string{"foo", "bar"},
 				EndpointParams: url.Values{"audience": []string{"audience"}},
 			},
 			expErr: false,

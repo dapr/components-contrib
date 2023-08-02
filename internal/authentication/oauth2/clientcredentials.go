@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package oidc
+package oauth2
 
 import (
 	"context"
@@ -30,19 +30,15 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-const (
-	oidcScopeOpenID = "openid"
-)
-
 // ClientCredentialsMetadata is the metadata fields which can be used by a
 // component to configure an OIDC client_credentials token source.
 type ClientCredentialsMetadata struct {
-	TokenCAPEM   string   `mapstructure:"oidcTokenCAPEM"`
-	TokenURL     string   `mapstructure:"oidcTokenURL"`
-	ClientID     string   `mapstructure:"oidcClientID"`
-	ClientSecret string   `mapstructure:"oidcClientSecret"`
-	Audiences    []string `mapstructure:"oidcAudiences"`
-	Scopes       []string `mapstructure:"oidcScopes"`
+	TokenCAPEM   string   `mapstructure:"oauth2TokenCAPEM"`
+	TokenURL     string   `mapstructure:"oauth2TokenURL"`
+	ClientID     string   `mapstructure:"oauth2ClientID"`
+	ClientSecret string   `mapstructure:"oauth2ClientSecret"`
+	Audiences    []string `mapstructure:"oauth2Audiences"`
+	Scopes       []string `mapstructure:"oauth2Scopes"`
 }
 
 type ClientCredentialsOptions struct {
@@ -74,10 +70,10 @@ func NewClientCredentials(ctx context.Context, opts ClientCredentialsOptions) (*
 
 	token, err := conf.Token(context.WithValue(ctx, oauth2.HTTPClient, httpClient))
 	if err != nil {
-		return nil, fmt.Errorf("error fetching initial oidc client_credentials token: %w", err)
+		return nil, fmt.Errorf("error fetching initial oauth2 client_credentials token: %w", err)
 	}
 
-	opts.Logger.Info("Fetched initial oidc client_credentials token")
+	opts.Logger.Info("Fetched initial oauth2 client_credentials token")
 
 	return &ClientCredentials{
 		log:          opts.Logger,
@@ -88,44 +84,26 @@ func NewClientCredentials(ctx context.Context, opts ClientCredentialsOptions) (*
 }
 
 func (c *ClientCredentialsOptions) toConfig() (*ccreds.Config, *http.Client, error) {
-	scopes := c.Scopes
-	if len(scopes) == 0 {
-		// If no scopes are provided, then the default is to use the 'openid' scope
-		// since that is always required for OIDC so implicitly add it.
-		scopes = []string{oidcScopeOpenID}
-	}
-
-	var oidcScopeFound bool
-	for _, scope := range scopes {
-		if scope == oidcScopeOpenID {
-			oidcScopeFound = true
-			break
-		}
-	}
-	if !oidcScopeFound {
-		return nil, nil, fmt.Errorf("oidc client_credentials token source requires the %q scope", oidcScopeOpenID)
-	}
-
-	tokenURL, err := url.Parse(c.TokenURL)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error parsing token URL: %w", err)
-	}
-	if tokenURL.Scheme != "https" {
-		return nil, nil, fmt.Errorf("OIDC token provider URL requires 'https' scheme: %q", tokenURL)
-	}
-
-	conf := &ccreds.Config{
-		ClientID:     c.ClientID,
-		ClientSecret: c.ClientSecret,
-		TokenURL:     c.TokenURL,
-		Scopes:       scopes,
+	if len(c.Scopes) == 0 {
+		return nil, nil, errors.New("oauth2 client_credentials token source requires at least one scope")
 	}
 
 	if len(c.Audiences) == 0 {
-		return nil, nil, errors.New("oidc client_credentials token source requires at least one audience")
+		return nil, nil, errors.New("oauth2 client_credentials token source requires at least one audience")
 	}
 
-	conf.EndpointParams = url.Values{"audience": c.Audiences}
+	_, err := url.Parse(c.TokenURL)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error parsing token URL: %w", err)
+	}
+
+	conf := &ccreds.Config{
+		ClientID:       c.ClientID,
+		ClientSecret:   c.ClientSecret,
+		TokenURL:       c.TokenURL,
+		Scopes:         c.Scopes,
+		EndpointParams: url.Values{"audience": c.Audiences},
+	}
 
 	// If caPool is nil, then the Go TLS library will use the system's root CA.
 	var caPool *x509.CertPool
@@ -179,7 +157,7 @@ func (c *ClientCredentials) renewToken(ctx context.Context) error {
 	}
 
 	if !c.currentToken.Valid() {
-		return errors.New("oidc client_credentials token source returned an invalid token")
+		return errors.New("oauth2 client_credentials token source returned an invalid token")
 	}
 
 	c.currentToken = token

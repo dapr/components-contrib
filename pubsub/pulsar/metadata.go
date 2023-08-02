@@ -16,7 +16,7 @@ package pulsar
 import (
 	"time"
 
-	"github.com/dapr/components-contrib/internal/authentication/oidc"
+	"github.com/dapr/components-contrib/internal/authentication/oauth2"
 )
 
 type pulsarMetadata struct {
@@ -37,7 +37,7 @@ type pulsarMetadata struct {
 	Keys                    string                    `mapstructure:"keys"`
 
 	Token string `mapstructure:"token"`
-	oidc.ClientCredentialsMetadata
+	oauth2.ClientCredentialsMetadata
 }
 
 type schemaMetadata struct {

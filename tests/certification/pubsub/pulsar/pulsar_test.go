@@ -37,7 +37,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/multierr"
 
-	"github.com/dapr/components-contrib/internal/authentication/oidc"
+	"github.com/dapr/components-contrib/internal/authentication/oauth2"
 	pubsub_pulsar "github.com/dapr/components-contrib/pubsub/pulsar"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
 
@@ -79,8 +79,8 @@ const (
 	partition1                 = "partition-1"
 	clusterName                = "pulsarcertification"
 	dockerComposeAuthNoneYAML  = "./config/docker-compose_auth-none.yaml"
-	dockerComposeAuthOIDCYAML  = "./config/docker-compose_auth-oidc.yaml.tmpl"
-	dockerComposeMockOAuthYAML = "./config/docker-compose_auth-mock-oidc-server.yaml"
+	dockerComposeAuthOAuth2YAML  = "./config/docker-compose_auth-oauth2.yaml.tmpl"
+	dockerComposeMockOAuthYAML = "./config/docker-compose_auth-mock-oauth2-server.yaml"
 	pulsarURL                  = "localhost:6650"
 
 	subscribeTypeKey = "subscribeType"
@@ -99,7 +99,7 @@ type pulsarSuite struct {
 	suite.Suite
 
 	authType          string
-	oidcCAPEM         []byte
+	oauth2CAPEM         []byte
 	dockerComposeYAML string
 	componentsPath    string
 	services          []string
@@ -115,24 +115,24 @@ func TestPulsar(t *testing.T) {
 		})
 	})
 
-	t.Run("Auth:OIDC", func(t *testing.T) {
+	t.Run("Auth:OAuth2", func(t *testing.T) {
 		dir := t.TempDir()
 		require.NoError(t, os.Chmod(dir, 0o777))
 
-		t.Log("Starting OIDC server...")
+		t.Log("Starting OAuth2 server...")
 		out, err := exec.Command(
 			"docker-compose",
-			"-p", "oidc",
+			"-p", "oauth2",
 			"-f", dockerComposeMockOAuthYAML,
 			"up", "-d").CombinedOutput()
 		require.NoError(t, err, string(out))
 		t.Log(string(out))
 
 		t.Cleanup(func() {
-			t.Log("Stopping OIDC server...")
+			t.Log("Stopping OAuth2 server...")
 			out, err = exec.Command(
 				"docker-compose",
-				"-p", "oidc",
+				"-p", "oauth2",
 				"-f", dockerComposeMockOAuthYAML,
 				"down", "-v",
 				"--remove-orphans").CombinedOutput()
@@ -145,9 +145,9 @@ func TestPulsar(t *testing.T) {
 		t.Log("OAuth server is ready")
 
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "ca.pem"), oauthCA, 0o644))
-		outf, err := os.OpenFile("./config/pulsar_auth-oidc.conf", os.O_RDONLY, 0o644)
+		outf, err := os.OpenFile("./config/pulsar_auth-oauth2.conf", os.O_RDONLY, 0o644)
 		require.NoError(t, err)
-		inf, err := os.OpenFile(filepath.Join(dir, "pulsar_auth-oidc.conf"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+		inf, err := os.OpenFile(filepath.Join(dir, "pulsar_auth-oauth2.conf"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 		require.NoError(t, err)
 		_, err = io.Copy(inf, outf)
 		require.NoError(t, err)
@@ -156,19 +156,19 @@ func TestPulsar(t *testing.T) {
 
 		td := struct {
 			TmpDir    string
-			OIDCCAPEM string
+			OAuth2CAPEM string
 		}{
 			TmpDir:    dir,
-			OIDCCAPEM: strings.ReplaceAll(string(oauthCA), "\n", "\\n"),
+			OAuth2CAPEM: strings.ReplaceAll(string(oauthCA), "\n", "\\n"),
 		}
 
-		tmpl, err := template.New("").ParseFiles(dockerComposeAuthOIDCYAML)
+		tmpl, err := template.New("").ParseFiles(dockerComposeAuthOAuth2YAML)
 		require.NoError(t, err)
 		f, err := os.OpenFile(filepath.Join(dir, "docker-compose.yaml"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 		require.NoError(t, err)
-		require.NoError(t, tmpl.ExecuteTemplate(f, "docker-compose_auth-oidc.yaml.tmpl", td))
+		require.NoError(t, tmpl.ExecuteTemplate(f, "docker-compose_auth-oauth2.yaml.tmpl", td))
 
-		require.NoError(t, filepath.Walk("./components/auth-oidc", func(path string, info fs.FileInfo, err error) error {
+		require.NoError(t, filepath.Walk("./components/auth-oauth2", func(path string, info fs.FileInfo, err error) error {
 			if info.IsDir() {
 				return nil
 			}
@@ -183,10 +183,10 @@ func TestPulsar(t *testing.T) {
 		}))
 
 		suite.Run(t, &pulsarSuite{
-			oidcCAPEM:         oauthCA,
-			authType:          "oidc",
+			oauth2CAPEM:         oauthCA,
+			authType:          "oauth2",
 			dockerComposeYAML: filepath.Join(dir, "docker-compose.yaml"),
-			componentsPath:    filepath.Join(dir, "components/auth-oidc"),
+			componentsPath:    filepath.Join(dir, "components/auth-oauth2"),
 			services:          []string{"zookeeper", "pulsar-init", "bookie", "broker"},
 		})
 	})
@@ -958,8 +958,8 @@ func (p *pulsarSuite) createMultiPartitionTopic(tenant, namespace, topic string,
 
 		req.Header.Set("Content-Type", "application/json")
 
-		if p.authType == "oidc" {
-			cc, err := p.oidcClientCredentials()
+		if p.authType == "oauth2" {
+			cc, err := p.oauth2ClientCredentials()
 			if err != nil {
 				return err
 			}
@@ -1224,8 +1224,8 @@ func (p *pulsarSuite) client(t *testing.T) (pulsar.Client, error) {
 		URL: "pulsar://localhost:6650",
 	}
 	switch p.authType {
-	case "oidc":
-		cc, err := p.oidcClientCredentials()
+	case "oauth2":
+		cc, err := p.oauth2ClientCredentials()
 		require.NoError(t, err)
 		opts.Authentication = pulsar.NewAuthenticationTokenFromSupplier(cc.Token)
 	default:
@@ -1234,15 +1234,15 @@ func (p *pulsarSuite) client(t *testing.T) (pulsar.Client, error) {
 	return pulsar.NewClient(opts)
 }
 
-func (p *pulsarSuite) oidcClientCredentials() (*oidc.ClientCredentials, error) {
-	cc, err := oidc.NewClientCredentials(context.Background(), oidc.ClientCredentialsOptions{
+func (p *pulsarSuite) oauth2ClientCredentials() (*oauth2.ClientCredentials, error) {
+	cc, err := oauth2.NewClientCredentials(context.Background(), oauth2.ClientCredentialsOptions{
 		Logger:       logger.NewLogger("dapr.test.readiness"),
 		TokenURL:     "https://localhost:8085/issuer1/token",
 		ClientID:     "foo",
 		ClientSecret: "bar",
 		Scopes:       []string{"openid"},
 		Audiences:    []string{"pulsar"},
-		CAPEM:        p.oidcCAPEM,
+		CAPEM:        p.oauth2CAPEM,
 	})
 	if err != nil {
 		return nil, err

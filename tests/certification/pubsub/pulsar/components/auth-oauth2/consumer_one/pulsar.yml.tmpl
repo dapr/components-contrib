@@ -9,18 +9,18 @@ spec:
   - name: host
     value: "localhost:6650"
   - name: consumerID
-    value: certification2
+    value: certification1
   - name: redeliveryDelay
     value: 200ms
-  - name: oidcTokenURL
+  - name: oauth2TokenURL
     value: https://localhost:8085/issuer1/token
-  - name: oidcClientID
+  - name: oauth2ClientID
     value: foo
-  - name: oidcClientSecret
+  - name: oauth2ClientSecret
     value: bar
-  - name: oidcScopes
+  - name: oauth2Scopes
     value: openid
-  - name: oidcAudiences
+  - name: oauth2Audiences
     value: pulsar
-  - name: oidcTokenCAPEM
-    value: "{{ .OIDCCAPEM }}"
+  - name: oauth2TokenCAPEM
+    value: "{{ .OAuth2CAPEM }}"

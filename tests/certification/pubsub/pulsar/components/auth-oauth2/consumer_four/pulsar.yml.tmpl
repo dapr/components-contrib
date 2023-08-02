@@ -14,15 +14,15 @@ spec:
     value: 200ms
   - name: certification-pubsub-topic-active.jsonschema
     value: "{\"type\":\"record\",\"name\":\"Example\",\"namespace\":\"test\",\"fields\":[{\"name\":\"ID\",\"type\":\"int\"},{\"name\":\"Name\",\"type\":\"string\"}]}"
-  - name: oidcTokenURL
+  - name: oauth2TokenURL
     value: https://localhost:8085/issuer1/token
-  - name: oidcClientID
+  - name: oauth2ClientID
     value: foo
-  - name: oidcClientSecret
+  - name: oauth2ClientSecret
     value: bar
-  - name: oidcScopes
+  - name: oauth2Scopes
     value: openid
-  - name: oidcAudiences
+  - name: oauth2Audiences
     value: pulsar
-  - name: oidcTokenCAPEM
-    value: "{{ .OIDCCAPEM }}"
+  - name: oauth2TokenCAPEM
+    value: "{{ .OAuth2CAPEM }}"

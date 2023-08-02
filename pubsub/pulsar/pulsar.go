@@ -30,7 +30,7 @@ import (
 	"github.com/hamba/avro/v2"
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	"github.com/dapr/components-contrib/internal/authentication/oidc"
+	"github.com/dapr/components-contrib/internal/authentication/oauth2"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -178,8 +178,8 @@ func (p *Pulsar) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	case len(m.Token) > 0:
 		options.Authentication = pulsar.NewAuthenticationToken(m.Token)
 	case len(m.ClientCredentialsMetadata.TokenURL) > 0:
-		var cc *oidc.ClientCredentials
-		cc, err = oidc.NewClientCredentials(ctx, oidc.ClientCredentialsOptions{
+		var cc *oauth2.ClientCredentials
+		cc, err = oauth2.NewClientCredentials(ctx, oauth2.ClientCredentialsOptions{
 			Logger:       p.logger,
 			TokenURL:     m.ClientCredentialsMetadata.TokenURL,
 			CAPEM:        []byte(m.ClientCredentialsMetadata.TokenCAPEM),
@@ -189,7 +189,7 @@ func (p *Pulsar) Init(ctx context.Context, metadata pubsub.Metadata) error {
 			Audiences:    m.ClientCredentialsMetadata.Audiences,
 		})
 		if err != nil {
-			return fmt.Errorf("could not instantiate oidc token provider: %v", err)
+			return fmt.Errorf("could not instantiate oauth2 token provider: %v", err)
 		}
 
 		options.Authentication = pulsar.NewAuthenticationTokenFromSupplier(cc.Token)

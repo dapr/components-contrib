@@ -1,3 +1,18 @@
+/*
+Copyright 2023 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implieout.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package wasm
 
 import (
@@ -23,6 +38,9 @@ const (
 var binArgs []byte
 
 func TestGetInitMetadata(t *testing.T) {
+	testCtx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
 	type testCase struct {
 		name        string
 		metadata    metadata.Base
@@ -84,16 +102,16 @@ func TestGetInitMetadata(t *testing.T) {
 		{
 			name: "TODO http",
 			metadata: metadata.Base{Properties: map[string]string{
-				"url": "http://foo/bar.wasm",
+				"url": "http://foo.invalid/bar.wasm",
 			}},
-			expectedErr: "TODO http",
+			expectedErr: "no such host",
 		},
 		{
 			name: "TODO https",
 			metadata: metadata.Base{Properties: map[string]string{
-				"url": "https://foo/bar.wasm",
+				"url": "https://foo.invalid/bar.wasm",
 			}},
-			expectedErr: "TODO https",
+			expectedErr: "no such host",
 		},
 		{
 			name: "unsupported scheme",
@@ -122,7 +140,7 @@ func TestGetInitMetadata(t *testing.T) {
 	for _, tt := range tests {
 		tc := tt
 		t.Run(tc.name, func(t *testing.T) {
-			md, err := GetInitMetadata(tc.metadata)
+			md, err := GetInitMetadata(testCtx, tc.metadata)
 			if tc.expectedErr == "" {
 				require.NoError(t, err)
 				require.Equal(t, tc.expected, md)

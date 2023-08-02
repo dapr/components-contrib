@@ -10,7 +10,7 @@ require (
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.7.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0
-	github.com/Azure/azure-sdk-for-go/sdk/cognitiveservices/azopenai v0.0.0-20230705184009-934612c4f2b5
+	github.com/Azure/azure-sdk-for-go/sdk/cognitiveservices/azopenai v0.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig v0.5.0
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v0.3.5
 	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.0.1
@@ -99,6 +99,7 @@ require (
 	github.com/sendgrid/sendgrid-go v3.12.0+incompatible
 	github.com/sijms/go-ora/v2 v2.7.9
 	github.com/spf13/cast v1.5.1
+	github.com/stealthrocket/wasi-go v0.7.6-0.20230718231108-c3d30af59057
 	github.com/stretchr/testify v1.8.4
 	github.com/supplyon/gremcos v0.1.40
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.608

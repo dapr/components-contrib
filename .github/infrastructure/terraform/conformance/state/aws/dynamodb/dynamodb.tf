@@ -34,6 +34,10 @@ resource "aws_dynamodb_table" "conformance_test_basic_table" {
   billing_mode   = "PROVISIONED"
   read_capacity  = "10"
   write_capacity = "10"
+  ttl {
+    attribute_name = "expiresAt"
+    enabled        = true
+  }
   attribute {
     name = "key"
     type = "S"

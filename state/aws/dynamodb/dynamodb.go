@@ -92,6 +92,14 @@ func (d *StateStore) Init(_ context.Context, metadata state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (d *StateStore) Features() []state.Feature {
+	// TTLs are enabled only if ttlAttributeName is set
+	if d.ttlAttributeName == "" {
+		return []state.Feature{
+			state.FeatureETag,
+			state.FeatureTransactional,
+		}
+	}
+
 	return []state.Feature{
 		state.FeatureETag,
 		state.FeatureTransactional,

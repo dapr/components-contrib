@@ -75,7 +75,8 @@ components:
   - component: in-memory
     operations: [ "transaction", "etag",  "first-write", "ttl" ]
   - component: aws.dynamodb.docker
-    operations: [ "transaction", "etag", "first-write", "ttl" ]
+    # In the Docker variant, we do not set ttlAttributeName in the metadata, so TTLs are not enabled
+    operations: [ "transaction", "etag", "first-write" ]
   - component: aws.dynamodb.terraform
     operations: [ "transaction", "etag", "first-write", "ttl" ]
   - component: etcd.v1

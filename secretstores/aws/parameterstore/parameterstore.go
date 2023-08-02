@@ -42,8 +42,8 @@ func NewParameterStore(logger logger.Logger) secretstores.SecretStore {
 
 type ParameterStoreMetaData struct {
 	Region       string `json:"region"`
-	AccessKey    string `json:"accessKey"`
-	SecretKey    string `json:"secretKey"`
+	AccessKey    string `json:"accessKey" mapstructure:"accessKey" mdignore:"true"`
+	SecretKey    string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
 	SessionToken string `json:"sessionToken"`
 	Prefix       string `json:"prefix"`
 }

@@ -189,7 +189,7 @@ func (p *Pulsar) Init(ctx context.Context, metadata pubsub.Metadata) error {
 			Audiences:    m.ClientCredentialsMetadata.Audiences,
 		})
 		if err != nil {
-			return fmt.Errorf("could not instantiate oauth2 token provider: %v", err)
+			return fmt.Errorf("could not instantiate oauth2 token provider: %w", err)
 		}
 
 		options.Authentication = pulsar.NewAuthenticationTokenFromSupplier(cc.Token)

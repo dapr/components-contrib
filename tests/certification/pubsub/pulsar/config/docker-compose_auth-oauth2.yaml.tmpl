@@ -31,7 +31,7 @@ services:
     image: apachepulsar/pulsar:3.0.0
     network_mode: "host"
     env_file:
-      - ./pulsar_auth-auth2.conf
+      - ./pulsar_auth-oauth2.conf
     command: >
       bin/pulsar initialize-cluster-metadata \
                --cluster cluster-a \
@@ -58,7 +58,7 @@ services:
       - advertisedAddress=localhost
       - BOOKIE_MEM=-Xms512m -Xmx512m -XX:MaxDirectMemorySize=256m
     env_file:
-      - ./pulsar_auth-auth2.conf
+      - ./pulsar_auth-oauth2.conf
     volumes:
       - "{{ .TmpDir }}:/pulsar/conf/dapr"
     depends_on:
@@ -75,7 +75,7 @@ services:
     restart: on-failure
     network_mode: "host"
     env_file:
-      - ./pulsar_auth-auth2.conf
+      - ./pulsar_auth-oauth2.conf
     volumes:
       - "{{ .TmpDir }}:/pulsar/conf/dapr"
     environment:

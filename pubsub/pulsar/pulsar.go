@@ -177,16 +177,16 @@ func (p *Pulsar) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	switch {
 	case len(m.Token) > 0:
 		options.Authentication = pulsar.NewAuthenticationToken(m.Token)
-	case len(m.OIDCTokenURL) > 0:
+	case len(m.ClientCredentialsMetadata.TokenURL) > 0:
 		var cc *oidc.ClientCredentials
 		cc, err = oidc.NewClientCredentials(ctx, oidc.ClientCredentialsOptions{
 			Logger:       p.logger,
-			TokenURL:     m.OIDCTokenURL,
-			CAPEM:        []byte(m.OIDCTokenCAPEM),
-			ClientID:     m.OIDCClientID,
-			ClientSecret: m.OIDCClientSecret,
-			Scopes:       m.OIDCScopes,
-			Audiences:    m.OIDCAudiences,
+			TokenURL:     m.ClientCredentialsMetadata.TokenURL,
+			CAPEM:        []byte(m.ClientCredentialsMetadata.TokenCAPEM),
+			ClientID:     m.ClientCredentialsMetadata.ClientID,
+			ClientSecret: m.ClientCredentialsMetadata.ClientSecret,
+			Scopes:       m.ClientCredentialsMetadata.Scopes,
+			Audiences:    m.ClientCredentialsMetadata.Audiences,
 		})
 		if err != nil {
 			return fmt.Errorf("could not instantiate oidc token provider: %v", err)

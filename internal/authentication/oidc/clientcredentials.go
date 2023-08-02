@@ -34,6 +34,17 @@ const (
 	oidcScopeOpenID = "openid"
 )
 
+// ClientCredentialsMetadata is the metadata fields which can be used by a
+// component to configure an OIDC client_credentials token source.
+type ClientCredentialsMetadata struct {
+	TokenCAPEM   string   `mapstructure:"oidcTokenCAPEM"`
+	TokenURL     string   `mapstructure:"oidcTokenURL"`
+	ClientID     string   `mapstructure:"oidcClientID"`
+	ClientSecret string   `mapstructure:"oidcClientSecret"`
+	Audiences    []string `mapstructure:"oidcAudiences"`
+	Scopes       []string `mapstructure:"oidcScopes"`
+}
+
 type ClientCredentialsOptions struct {
 	Logger       logger.Logger
 	TokenURL     string

@@ -13,7 +13,11 @@ limitations under the License.
 
 package pulsar
 
-import "time"
+import (
+	"time"
+
+	"github.com/dapr/components-contrib/internal/authentication/oidc"
+)
 
 type pulsarMetadata struct {
 	Host                    string                    `mapstructure:"host"`
@@ -32,13 +36,8 @@ type pulsarMetadata struct {
 	PrivateKey              string                    `mapstructure:"privateKey"`
 	Keys                    string                    `mapstructure:"keys"`
 
-	Token            string   `mapstructure:"token"`
-	OIDCTokenCAPEM   string   `mapstructure:"oidcTokenCAPEM"`
-	OIDCTokenURL     string   `mapstructure:"oidcTokenURL"`
-	OIDCClientID     string   `mapstructure:"oidcClientID"`
-	OIDCClientSecret string   `mapstructure:"oidcClientSecret"`
-	OIDCAudiences    []string `mapstructure:"oidcAudiences"`
-	OIDCScopes       []string `mapstructure:"oidcScopes"`
+	Token string `mapstructure:"token"`
+	oidc.ClientCredentialsMetadata
 }
 
 type schemaMetadata struct {

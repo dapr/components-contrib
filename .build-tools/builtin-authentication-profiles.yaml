@@ -105,7 +105,7 @@ azuread:
           - AzureUSGovernmentCloud
 
 gcp:
-  - title: "GCP API call Authentication"
+  - title: "GCP API Authentication with Service Account Key"
     description: |
       Authenticate authenticates API calls with the given service account or refresh token JSON credentials.
     metadata:

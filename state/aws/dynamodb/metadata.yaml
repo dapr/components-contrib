@@ -27,9 +27,10 @@ metadata:
     required: false
     description: |
       The AWS region to use. Ensure that DynamoDB is available in that region.
+      See the `Amazon DynamoDB endpoints and quotas` documentation.
     url:
-      title: More details
-      url: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html
+      title: Amazon DynamoDB endpoints and quotas
+      url: https://docs.aws.amazon.com/general/latest/gr/ddb.html
     example: '"us-east-1"'
     type: string
   - name: endpoint
@@ -38,14 +39,6 @@ metadata:
       AWS endpoint for the component to use. Only used for local development. 
       The endpoint is not necessary when running against production AWS.
     example: '"http://localhost:4566"'
-    type: string
-  - name: sessionToken
-    required: false
-    sensitive: true
-    description: |
-      AWS session token to use. A session token is only required if you are using 
-      temporary security credentials.
-    example: '"TOKEN"'
     type: string
   - name: ttlAttributeName
     required: false

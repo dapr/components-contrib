@@ -36,7 +36,7 @@ func (m *middleware) GetHandler(ctx context.Context, metadata dapr.Metadata) (fu
 
 // getHandler is extracted for unit testing.
 func (m *middleware) getHandler(ctx context.Context, metadata dapr.Metadata) (*requestHandler, error) {
-	meta, err := wasm.GetInitMetadata(metadata.Base)
+	meta, err := wasm.GetInitMetadata(ctx, metadata.Base)
 	if err != nil {
 		return nil, fmt.Errorf("wasm: failed to parse metadata: %w", err)
 	}

@@ -466,7 +466,7 @@ func (r *RabbitMQ) handleMessage(ctx context.Context, handler bindings.Handler, 
 				return
 			}
 
-			metadata := make(map[string]string)
+			metadata := make(map[string]string, len(d.Headers))
 			// Passthrough any custom metadata to the handler.
 			for k, v := range d.Headers {
 				if s, ok := v.(string); ok {

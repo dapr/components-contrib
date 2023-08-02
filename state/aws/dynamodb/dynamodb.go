@@ -46,11 +46,13 @@ type StateStore struct {
 }
 
 type dynamoDBMetadata struct {
+	// Ignored by metadata parser because included in built-in authentication profile
+	AccessKey    string `json:"accessKey" mapstructure:"accessKey" mdignore:"true"`
+	SecretKey    string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
+	SessionToken string `json:"sessionToken"  mapstructure:"sessionToken" mdignore:"true"`
+
 	Region           string `json:"region"`
 	Endpoint         string `json:"endpoint"`
-	AccessKey        string `json:"accessKey"`
-	SecretKey        string `json:"secretKey"`
-	SessionToken     string `json:"sessionToken"`
 	Table            string `json:"table"`
 	TTLAttributeName string `json:"ttlAttributeName"`
 	PartitionKey     string `json:"partitionKey"`

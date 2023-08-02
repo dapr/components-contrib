@@ -36,8 +36,8 @@ type pulsarMetadata struct {
 	PrivateKey              string                    `mapstructure:"privateKey"`
 	Keys                    string                    `mapstructure:"keys"`
 
-	Token string `mapstructure:"token"`
-	oauth2.ClientCredentialsMetadata
+	Token                            string `mapstructure:"token"`
+	oauth2.ClientCredentialsMetadata `mapstructure:",squash"`
 }
 
 type schemaMetadata struct {

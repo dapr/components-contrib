@@ -65,23 +65,23 @@ const (
 	appID1 = "app-1"
 	appID2 = "app-2"
 
-	numMessages                = 10
-	appPort                    = 8001
-	portOffset                 = 2
-	messageKey                 = "partitionKey"
-	pubsubName                 = "messagebus"
-	topicActiveName            = "certification-pubsub-topic-active"
-	topicPassiveName           = "certification-pubsub-topic-passive"
-	topicToBeCreated           = "certification-topic-per-test-run"
-	topicDefaultName           = "certification-topic-default"
-	topicMultiPartitionName    = "certification-topic-multi-partition8"
-	partition0                 = "partition-0"
-	partition1                 = "partition-1"
-	clusterName                = "pulsarcertification"
-	dockerComposeAuthNoneYAML  = "./config/docker-compose_auth-none.yaml"
-	dockerComposeAuthOAuth2YAML  = "./config/docker-compose_auth-oauth2.yaml.tmpl"
-	dockerComposeMockOAuthYAML = "./config/docker-compose_auth-mock-oauth2-server.yaml"
-	pulsarURL                  = "localhost:6650"
+	numMessages                 = 10
+	appPort                     = 8001
+	portOffset                  = 2
+	messageKey                  = "partitionKey"
+	pubsubName                  = "messagebus"
+	topicActiveName             = "certification-pubsub-topic-active"
+	topicPassiveName            = "certification-pubsub-topic-passive"
+	topicToBeCreated            = "certification-topic-per-test-run"
+	topicDefaultName            = "certification-topic-default"
+	topicMultiPartitionName     = "certification-topic-multi-partition8"
+	partition0                  = "partition-0"
+	partition1                  = "partition-1"
+	clusterName                 = "pulsarcertification"
+	dockerComposeAuthNoneYAML   = "./config/docker-compose_auth-none.yaml"
+	dockerComposeAuthOAuth2YAML = "./config/docker-compose_auth-oauth2.yaml.tmpl"
+	dockerComposeMockOAuth2YAML = "./config/docker-compose_auth-mock-oauth2-server.yaml"
+	pulsarURL                   = "localhost:6650"
 
 	subscribeTypeKey = "subscribeType"
 
@@ -99,7 +99,7 @@ type pulsarSuite struct {
 	suite.Suite
 
 	authType          string
-	oauth2CAPEM         []byte
+	oauth2CAPEM       []byte
 	dockerComposeYAML string
 	componentsPath    string
 	services          []string
@@ -123,7 +123,7 @@ func TestPulsar(t *testing.T) {
 		out, err := exec.Command(
 			"docker-compose",
 			"-p", "oauth2",
-			"-f", dockerComposeMockOAuthYAML,
+			"-f", dockerComposeMockOAuth2YAML,
 			"up", "-d").CombinedOutput()
 		require.NoError(t, err, string(out))
 		t.Log(string(out))
@@ -133,7 +133,7 @@ func TestPulsar(t *testing.T) {
 			out, err = exec.Command(
 				"docker-compose",
 				"-p", "oauth2",
-				"-f", dockerComposeMockOAuthYAML,
+				"-f", dockerComposeMockOAuth2YAML,
 				"down", "-v",
 				"--remove-orphans").CombinedOutput()
 			require.NoError(t, err, string(out))
@@ -141,10 +141,10 @@ func TestPulsar(t *testing.T) {
 		})
 
 		t.Log("Waiting for OAuth server to be ready...")
-		oauthCA := peerCertificate(t, "localhost:8085")
+		oauth2CA := peerCertificate(t, "localhost:8085")
 		t.Log("OAuth server is ready")
 
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "ca.pem"), oauthCA, 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "ca.pem"), oauth2CA, 0o644))
 		outf, err := os.OpenFile("./config/pulsar_auth-oauth2.conf", os.O_RDONLY, 0o644)
 		require.NoError(t, err)
 		inf, err := os.OpenFile(filepath.Join(dir, "pulsar_auth-oauth2.conf"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
@@ -155,11 +155,11 @@ func TestPulsar(t *testing.T) {
 		inf.Close()
 
 		td := struct {
-			TmpDir    string
+			TmpDir      string
 			OAuth2CAPEM string
 		}{
-			TmpDir:    dir,
-			OAuth2CAPEM: strings.ReplaceAll(string(oauthCA), "\n", "\\n"),
+			TmpDir:      dir,
+			OAuth2CAPEM: strings.ReplaceAll(string(oauth2CA), "\n", "\\n"),
 		}
 
 		tmpl, err := template.New("").ParseFiles(dockerComposeAuthOAuth2YAML)
@@ -183,7 +183,7 @@ func TestPulsar(t *testing.T) {
 		}))
 
 		suite.Run(t, &pulsarSuite{
-			oauth2CAPEM:         oauthCA,
+			oauth2CAPEM:       oauth2CA,
 			authType:          "oauth2",
 			dockerComposeYAML: filepath.Join(dir, "docker-compose.yaml"),
 			componentsPath:    filepath.Join(dir, "components/auth-oauth2"),

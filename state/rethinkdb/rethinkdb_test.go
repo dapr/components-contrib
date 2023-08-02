@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"testing"
 	"time"
@@ -163,6 +164,9 @@ func TestRethinkDBStateStoreRongRun(t *testing.T) {
 	if err := db.Init(context.Background(), m); err != nil {
 		t.Fatalf("error initializing db: %v", err)
 	}
+	closer, ok := db.(io.Closer)
+	assert.True(t, ok)
+	defer assert.NoError(t, closer.Close())
 
 	for i := 0; i < 1000; i++ {
 		testBulk(t, db, i)

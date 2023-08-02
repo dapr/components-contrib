@@ -80,6 +80,22 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		assert.Equal(t, "2", meta.internalTopicSchemas["kenobi.avroschema"].value)
 	})
 
+	t.Run("test proto", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"host":                           "a",
+			"obiwan.avroschema":              "1",
+			"kenobi.protoschema.protoschema": "2",
+		}
+		meta, err := parsePulsarMetadata(m)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "a", meta.Host)
+		assert.Len(t, meta.internalTopicSchemas, 2)
+		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan"].value)
+		assert.Equal(t, "2", meta.internalTopicSchemas["kenobi.protoschema"].value)
+	})
+
 	t.Run("test combined avro/json", func(t *testing.T) {
 		m := pubsub.Metadata{}
 		m.Properties = map[string]string{
@@ -96,6 +112,27 @@ func TestParsePulsarSchemaMetadata(t *testing.T) {
 		assert.Equal(t, "2", meta.internalTopicSchemas["kenobi"].value)
 		assert.Equal(t, avroProtocol, meta.internalTopicSchemas["obiwan"].protocol)
 		assert.Equal(t, jsonProtocol, meta.internalTopicSchemas["kenobi"].protocol)
+	})
+
+	t.Run("test combined avro/json/proto", func(t *testing.T) {
+		m := pubsub.Metadata{}
+		m.Properties = map[string]string{
+			"host":              "a",
+			"obiwan.avroschema": "1",
+			"kenobi.jsonschema": "2",
+			"darth.protoschema": "3",
+		}
+		meta, err := parsePulsarMetadata(m)
+
+		assert.Nil(t, err)
+		assert.Equal(t, "a", meta.Host)
+		assert.Len(t, meta.internalTopicSchemas, 3)
+		assert.Equal(t, "1", meta.internalTopicSchemas["obiwan"].value)
+		assert.Equal(t, "2", meta.internalTopicSchemas["kenobi"].value)
+		assert.Equal(t, "3", meta.internalTopicSchemas["darth"].value)
+		assert.Equal(t, avroProtocol, meta.internalTopicSchemas["obiwan"].protocol)
+		assert.Equal(t, jsonProtocol, meta.internalTopicSchemas["kenobi"].protocol)
+		assert.Equal(t, protoProtocol, meta.internalTopicSchemas["darth"].protocol)
 	})
 
 	t.Run("test funky edge case", func(t *testing.T) {

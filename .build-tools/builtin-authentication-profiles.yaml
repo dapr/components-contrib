@@ -13,6 +13,14 @@ aws:
         required: true
         sensitive: true
         example: '"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"'
+      - name: sessionToken
+        required: false
+        sensitive: true
+        description: |
+          AWS session token to use. A session token is only required if you are using
+          temporary security credentials.
+        example: '"TOKEN"'
+        type: string
   - title: "AWS: Credentials from Environment Variables"
     description: Use AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY from the environment
 

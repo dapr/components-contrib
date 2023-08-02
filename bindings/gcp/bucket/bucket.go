@@ -54,19 +54,22 @@ type GCPStorage struct {
 }
 
 type gcpMetadata struct {
-	Bucket              string `json:"bucket" mapstructure:"bucket"`
-	Type                string `json:"type" mapstructure:"type"`
-	ProjectID           string `json:"project_id" mapstructure:"project_id"`
-	PrivateKeyID        string `json:"private_key_id" mapstructure:"private_key_id"`
-	PrivateKey          string `json:"private_key" mapstructure:"private_key"`
-	ClientEmail         string `json:"client_email " mapstructure:"client_email"`
-	ClientID            string `json:"client_id" mapstructure:"client_id"`
-	AuthURI             string `json:"auth_uri" mapstructure:"auth_uri"`
-	TokenURI            string `json:"token_uri" mapstructure:"token_uri"`
-	AuthProviderCertURL string `json:"auth_provider_x509_cert_url" mapstructure:"auth_provider_x509_cert_url"`
-	ClientCertURL       string `json:"client_x509_cert_url" mapstructure:"client_x509_cert_url"`
-	DecodeBase64        bool   `json:"decodeBase64,string" mapstructure:"decodeBase64"`
-	EncodeBase64        bool   `json:"encodeBase64,string" mapstructure:"encodeBase64"`
+	// Ignored by metadata parser because included in built-in authentication profile
+
+	Type                string `json:"type" mapstructure:"type" mdignore:"true"`
+	ProjectID           string `json:"project_id" mapstructure:"project_id" mdignore:"true"`
+	PrivateKeyID        string `json:"private_key_id" mapstructure:"private_key_id" mdignore:"true"`
+	PrivateKey          string `json:"private_key" mapstructure:"private_key" mdignore:"true"`
+	ClientEmail         string `json:"client_email " mapstructure:"client_email" mdignore:"true"`
+	ClientID            string `json:"client_id" mapstructure:"client_id" mdignore:"true"`
+	AuthURI             string `json:"auth_uri" mapstructure:"auth_uri" mdignore:"true"`
+	TokenURI            string `json:"token_uri" mapstructure:"token_uri" mdignore:"true"`
+	AuthProviderCertURL string `json:"auth_provider_x509_cert_url" mapstructure:"auth_provider_x509_cert_url" mdignore:"true"`
+	ClientCertURL       string `json:"client_x509_cert_url" mapstructure:"client_x509_cert_url" mdignore:"true"`
+
+	Bucket       string `json:"bucket" mapstructure:"bucket"`
+	DecodeBase64 bool   `json:"decodeBase64,string" mapstructure:"decodeBase64"`
+	EncodeBase64 bool   `json:"encodeBase64,string" mapstructure:"encodeBase64"`
 }
 
 type listPayload struct {

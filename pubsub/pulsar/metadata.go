@@ -13,7 +13,11 @@ limitations under the License.
 
 package pulsar
 
-import "time"
+import (
+	"time"
+
+	"github.com/dapr/components-contrib/internal/authentication/oauth2"
+)
 
 type pulsarMetadata struct {
 	Host                    string                    `mapstructure:"host"`
@@ -26,12 +30,14 @@ type pulsarMetadata struct {
 	Tenant                  string                    `mapstructure:"tenant"`
 	Namespace               string                    `mapstructure:"namespace"`
 	Persistent              bool                      `mapstructure:"persistent"`
-	Token                   string                    `mapstructure:"token"`
 	RedeliveryDelay         time.Duration             `mapstructure:"redeliveryDelay"`
 	internalTopicSchemas    map[string]schemaMetadata `mapstructure:"-"`
 	PublicKey               string                    `mapstructure:"publicKey"`
 	PrivateKey              string                    `mapstructure:"privateKey"`
 	Keys                    string                    `mapstructure:"keys"`
+
+	Token                            string `mapstructure:"token"`
+	oauth2.ClientCredentialsMetadata `mapstructure:",squash"`
 }
 
 type schemaMetadata struct {

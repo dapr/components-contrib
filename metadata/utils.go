@@ -170,7 +170,7 @@ func DecodeMetadata(input any, result any) error {
 			toTimeDurationHookFunc(),
 			toTruthyBoolHookFunc(),
 			toStringArrayHookFunc(),
-			toResourceHookFunc(),
+			toResourceQuantityHookFunc(),
 		),
 		Metadata:         nil,
 		Result:           result,

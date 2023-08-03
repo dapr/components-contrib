@@ -30,8 +30,6 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/components-contrib/metadata"
@@ -74,7 +72,7 @@ type httpMetadata struct {
 	// This can either be an integer which is interpreted in bytes, or a string with an added unit such as Mi.
 	// A value <= 0 means no limit.
 	// Default: 100MB
-	MaxResponseBodySize *resource.Quantity `mapstructure:"maxResponseBodySize"`
+	MaxResponseBodySize metadata.ResourceQuantity `mapstructure:"maxResponseBodySize"`
 
 	maxResponseBodySizeBytes int64
 }
@@ -89,7 +87,7 @@ func NewHTTP(logger logger.Logger) bindings.OutputBinding {
 // Init performs metadata parsing.
 func (h *HTTPSource) Init(_ context.Context, meta bindings.Metadata) error {
 	h.metadata = httpMetadata{
-		MaxResponseBodySize: resource.NewQuantity(defaultMaxResponseBodySizeBytes, resource.BinarySI),
+		MaxResponseBodySize: metadata.NewResourceQuantityBytes(defaultMaxResponseBodySizeBytes),
 	}
 	err := metadata.DecodeMetadata(meta.Properties, &h.metadata)
 	if err != nil {
@@ -113,12 +111,9 @@ func (h *HTTPSource) Init(_ context.Context, meta bindings.Metadata) error {
 		}
 	}
 
-	if h.metadata.MaxResponseBodySize != nil && !h.metadata.MaxResponseBodySize.IsZero() {
-		val, ok := h.metadata.MaxResponseBodySize.AsInt64()
-		if !ok {
-			return fmt.Errorf("value for maxResponseBodySize cannot be converted to integer: %v", h.metadata.MaxResponseBodySize)
-		}
-		h.metadata.maxResponseBodySizeBytes = val
+	h.metadata.maxResponseBodySizeBytes, err = h.metadata.MaxResponseBodySize.GetBytes()
+	if err != nil {
+		return fmt.Errorf("invalid value for maxResponseBodySize: %w", err)
 	}
 
 	// See guidance on proper HTTP client settings here:

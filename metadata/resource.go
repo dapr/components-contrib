@@ -22,9 +22,37 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-func toResourceHookFunc() mapstructure.DecodeHookFunc {
-	quantityType := reflect.TypeOf(resource.Quantity{})
-	quantityPtrType := reflect.TypeOf(&resource.Quantity{})
+// ResourceQuantity contains a quantity for a resource, such as data size.
+// This extends the resource.Quantity struct from k8s.io/apimachinery to add some utility methods specific for Dapr.
+type ResourceQuantity struct {
+	resource.Quantity
+}
+
+// NewResourceQuantityBytes returns a new ResourceQuantity with a default value in bytes.
+func NewResourceQuantityBytes(defaultBytesValue int64) ResourceQuantity {
+	return ResourceQuantity{
+		Quantity: *resource.NewQuantity(defaultBytesValue, resource.BinarySI),
+	}
+}
+
+// GetBytes returns the number of bytes in the quantity.
+// Note: this operation is expensive, so it's recommended to cache the returned value.
+func (q *ResourceQuantity) GetBytes() (int64, error) {
+	if q == nil || q.IsZero() {
+		return 0, nil
+	}
+
+	val, ok := q.AsInt64()
+	if !ok {
+		return 0, fmt.Errorf("cannot get bytes from resource quantity value '%v'", q)
+	}
+
+	return val, nil
+}
+
+func toResourceQuantityHookFunc() mapstructure.DecodeHookFunc {
+	quantityType := reflect.TypeOf(ResourceQuantity{})
+	quantityPtrType := reflect.TypeOf(&ResourceQuantity{})
 
 	return func(
 		f reflect.Type,
@@ -55,9 +83,10 @@ func toResourceHookFunc() mapstructure.DecodeHookFunc {
 		}
 
 		// Return a pointer if desired
+		res := ResourceQuantity{Quantity: q}
 		if isPtr {
-			return &q, nil
+			return &res, nil
 		}
-		return q, nil
+		return res, nil
 	}
 }

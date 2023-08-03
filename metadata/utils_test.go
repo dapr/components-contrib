@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
-	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 func TestIsRawPayload(t *testing.T) {
@@ -241,13 +240,13 @@ func TestMetadataDecode(t *testing.T) {
 
 	t.Run("Test metadata decode hook for resources", func(t *testing.T) {
 		type testMetadata struct {
-			ResourceValue1              resource.Quantity
-			ResourceValue2              resource.Quantity
-			ResourceValue3              resource.Quantity
-			ResourceValue4              resource.Quantity
-			ResourceValueNotProvided    resource.Quantity
-			ResourceValuePtr            *resource.Quantity
-			ResourceValuePtrNotProvided *resource.Quantity
+			ResourceValue1              ResourceQuantity
+			ResourceValue2              ResourceQuantity
+			ResourceValue3              ResourceQuantity
+			ResourceValue4              ResourceQuantity
+			ResourceValueNotProvided    ResourceQuantity
+			ResourceValuePtr            *ResourceQuantity
+			ResourceValuePtrNotProvided *ResourceQuantity
 		}
 
 		var m testMetadata

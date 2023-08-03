@@ -29,7 +29,7 @@ metadata:
     default: 'false'
     description: |
       Configuration to decode base64 file content before saving to bucket storage. 
-      (In case of saving a file with binary content). Defaults to false.
+      (In case of opening a file with binary content).
     example: '"true, false"'
   - name: encodeBase64
     type: bool
@@ -37,5 +37,5 @@ metadata:
     default: 'false'
     description: |
       Configuration to encode base64 file content before return the content. 
-      (In case of opening a file with binary content). Defaults to false.
+      (In case of saving a file with binary content).
     example: '"true, false"'

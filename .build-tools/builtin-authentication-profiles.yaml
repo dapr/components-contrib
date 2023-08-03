@@ -113,13 +113,13 @@ gcp:
         required: true
         sensitive: true
         description: |
-          GCP private key id.
+          The GCP private key id. Replace with the value of "private_key_id" field of the Service Account Key file.
         example: '"privateKeyID"'
       - name: privateKey
         required: true
         sensitive: true
         description: |
-          GCP credentials private key. Replace with x509 cert.
+          The GCP credentials private key. Replace with the value of "private_key" field of the Service Account Key file.
         example: '"-----BEGIN PRIVATE KEY-----\nMIIEvgIBADAsUw+2/y/MfhhkIKQTgnoiIZFHximeQN67VF9pifNR/D0k\\n-----END PRIVATE KEY-----\n"'
       - name: type
         type: string

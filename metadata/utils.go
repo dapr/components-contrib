@@ -197,9 +197,13 @@ func resolveAliases(md map[string]string, result any) error {
 		keys[lk] = k
 	}
 
-	// Return if result is not struct or pointer to struct
+	// Error if result is not pointer to struct, or pointer to pointer to struct
 	t := reflect.TypeOf(result)
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() != reflect.Pointer {
+		return fmt.Errorf("not a pointer: %s", t.Kind().String())
+	}
+	t = t.Elem()
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	if t.Kind() != reflect.Struct {

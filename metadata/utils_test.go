@@ -328,7 +328,7 @@ func TestResolveAliases(t *testing.T) {
 				"hello": "world",
 				"ciao":  "mondo",
 			},
-			result: struct {
+			result: &struct {
 				Hello   string `mapstructure:"hello"`
 				Ciao    string `mapstructure:"ciao"`
 				Bonjour string `mapstructure:"bonjour"`
@@ -343,7 +343,7 @@ func TestResolveAliases(t *testing.T) {
 			md: map[string]string{
 				"ciao": "mondo",
 			},
-			result: struct {
+			result: &struct {
 				Hello   string `mapstructure:"hello" mapstructurealiases:"ciao"`
 				Bonjour string `mapstructure:"bonjour"`
 			}{},
@@ -358,7 +358,7 @@ func TestResolveAliases(t *testing.T) {
 				"hello": "world",
 				"ciao":  "mondo",
 			},
-			result: struct {
+			result: &struct {
 				Hello   string `mapstructure:"hello" mapstructurealiases:"ciao"`
 				Bonjour string `mapstructure:"bonjour"`
 			}{},
@@ -372,7 +372,7 @@ func TestResolveAliases(t *testing.T) {
 			md: map[string]string{
 				"bonjour": "monde",
 			},
-			result: struct {
+			result: &struct {
 				Hello   string `mapstructure:"hello" mapstructurealiases:"ciao"`
 				Bonjour string `mapstructure:"bonjour"`
 			}{},
@@ -385,7 +385,7 @@ func TestResolveAliases(t *testing.T) {
 			md: map[string]string{
 				"bonjour": "monde",
 			},
-			result: struct {
+			result: &struct {
 				Hello string `mapstructure:"hello" mapstructurealiases:"ciao,bonjour"`
 			}{},
 			wantMd: map[string]string{
@@ -399,7 +399,7 @@ func TestResolveAliases(t *testing.T) {
 				"ciao":    "mondo",
 				"bonjour": "monde",
 			},
-			result: struct {
+			result: &struct {
 				Hello string `mapstructure:"hello" mapstructurealiases:"ciao,bonjour"`
 			}{},
 			wantMd: map[string]string{

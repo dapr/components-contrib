@@ -30,6 +30,8 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/components-contrib/metadata"
@@ -41,11 +43,12 @@ const (
 	MTLSClientCert = "MTLSClientCert"
 	MTLSClientKey  = "MTLSClientKey"
 
-	TraceparentHeaderKey = "traceparent"
-	TracestateHeaderKey  = "tracestate"
-	TraceMetadataKey     = "traceHeaders"
-	securityToken        = "securityToken"
-	securityTokenHeader  = "securityTokenHeader"
+	TraceparentHeaderKey            = "traceparent"
+	TracestateHeaderKey             = "tracestate"
+	TraceMetadataKey                = "traceHeaders"
+	securityToken                   = "securityToken"
+	securityTokenHeader             = "securityTokenHeader"
+	defaultMaxResponseBodySizeBytes = 100 << 20 // 100 MB
 )
 
 // HTTPSource is a binding for an http url endpoint invocation
@@ -67,17 +70,29 @@ type httpMetadata struct {
 	SecurityToken       string         `mapstructure:"securityToken"`
 	SecurityTokenHeader string         `mapstructure:"securityTokenHeader"`
 	ResponseTimeout     *time.Duration `mapstructure:"responseTimeout"`
+	// Maximum response to read from HTTP response bodies.
+	// This can either be an integer which is interpreted in bytes, or a string with an added unit such as Mi.
+	// A value <= 0 means no limit.
+	// Default: 100MB
+	MaxResponseBodySize *resource.Quantity `mapstructure:"maxResponseBodySize"`
+
+	maxResponseBodySizeBytes int64
 }
 
 // NewHTTP returns a new HTTPSource.
 func NewHTTP(logger logger.Logger) bindings.OutputBinding {
-	return &HTTPSource{logger: logger}
+	return &HTTPSource{
+		logger: logger,
+	}
 }
 
 // Init performs metadata parsing.
 func (h *HTTPSource) Init(_ context.Context, meta bindings.Metadata) error {
-	var err error
-	if err = metadata.DecodeMetadata(meta.Properties, &h.metadata); err != nil {
+	h.metadata = httpMetadata{
+		MaxResponseBodySize: resource.NewQuantity(defaultMaxResponseBodySizeBytes, resource.BinarySI),
+	}
+	err := metadata.DecodeMetadata(meta.Properties, &h.metadata)
+	if err != nil {
 		return err
 	}
 
@@ -96,6 +111,14 @@ func (h *HTTPSource) Init(_ context.Context, meta bindings.Metadata) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	if h.metadata.MaxResponseBodySize != nil && !h.metadata.MaxResponseBodySize.IsZero() {
+		val, ok := h.metadata.MaxResponseBodySize.AsInt64()
+		if !ok {
+			return fmt.Errorf("value for maxResponseBodySize cannot be converted to integer: %v", h.metadata.MaxResponseBodySize)
+		}
+		h.metadata.maxResponseBodySizeBytes = val
 	}
 
 	// See guidance on proper HTTP client settings here:
@@ -226,7 +249,7 @@ func (h *HTTPSource) Invoke(parentCtx context.Context, req *bindings.InvokeReque
 
 	if req.Metadata == nil {
 		// Prevent things below from failing if req.Metadata is nil.
-		req.Metadata = make(map[string]string)
+		req.Metadata = make(map[string]string, 0)
 	}
 
 	if req.Metadata["path"] != "" {
@@ -306,11 +329,20 @@ func (h *HTTPSource) Invoke(parentCtx context.Context, req *bindings.InvokeReque
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		// Drain before closing
+		_, _ = io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+	}()
+
+	var respBody io.Reader = resp.Body
+	if h.metadata.maxResponseBodySizeBytes > 0 {
+		respBody = io.LimitReader(resp.Body, h.metadata.maxResponseBodySizeBytes)
+	}
 
 	// Read the response body. For empty responses (e.g. 204 No Content)
 	// `b` will be an empty slice.
-	b, err := io.ReadAll(resp.Body)
+	b, err := io.ReadAll(respBody)
 	if err != nil {
 		return nil, err
 	}

@@ -16,13 +16,14 @@ package conformance
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/ghodss/yaml"
+	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -63,7 +64,7 @@ func (s *StandaloneComponents) LoadComponents() ([]Component, error) {
 				continue
 			}
 
-			components, _ := s.decodeYaml(path, b)
+			components := s.decodeYaml(path, b)
 			list = append(list, components...)
 		}
 	}
@@ -82,17 +83,15 @@ func (s *StandaloneComponents) isYaml(fileName string) bool {
 }
 
 // decodeYaml decodes the yaml document.
-func (s *StandaloneComponents) decodeYaml(filename string, b []byte) ([]Component, []error) {
+func (s *StandaloneComponents) decodeYaml(filename string, b []byte) []Component {
 	list := []Component{}
-	errors := []error{}
 	scanner := bufio.NewScanner(bytes.NewReader(b))
 	scanner.Split(s.splitYamlDoc)
 
 	for {
 		var comp Component
-		comp.Spec = ComponentSpec{}
 		err := s.decode(scanner, &comp)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 
@@ -103,13 +102,13 @@ func (s *StandaloneComponents) decodeYaml(filename string, b []byte) ([]Componen
 		list = append(list, comp)
 	}
 
-	return list, errors
+	return list
 }
 
 // decode reads the YAML resource in document.
-func (s *StandaloneComponents) decode(scanner *bufio.Scanner, c interface{}) error {
+func (s *StandaloneComponents) decode(scanner *bufio.Scanner, c any) error {
 	if scanner.Scan() {
-		return yaml.Unmarshal(scanner.Bytes(), &c)
+		return yaml.Unmarshal(scanner.Bytes(), c)
 	}
 
 	err := scanner.Err()

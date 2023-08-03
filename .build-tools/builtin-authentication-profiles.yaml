@@ -109,13 +109,13 @@ gcp:
     description: |
       Authenticate authenticates API calls with the given service account or refresh token JSON credentials.
     metadata:
-      - name: private_key_id
+      - name: privateKeyID
         required: true
         sensitive: true
         description: |
           GCP private key id.
-        example: '"privateKeyId"'
-      - name: private_key
+        example: '"privateKeyID"'
+      - name: privateKey
         required: true
         sensitive: true
         description: |
@@ -127,46 +127,46 @@ gcp:
         description: |
           The GCP credentials type.
         example: '"service_account"'
-      - name: project_id
+      - name: projectID
         type: string
         required: true
         description: |
           GCP project id.
-        example: '"projectId"'
-      - name: client_email
+        example: '"projectID"'
+      - name: clientEmail
         type: string
         required: true
         description: |
           GCP client email.
         example: '"client@email.com"'
-      - name: client_id
+      - name: clientID
         type: string
         required: true
         description: |
-          GCP client id.
+          The GCP client ID.
         example: '"0123456789-0123456789"'
-      - name: auth_uri
+      - name: authURI
         type: string
         required: false
         description: |
-          Google account OAuth endpoint.
+          The GCP account OAuth authorization server endpoint URI.
         example: '"https://accounts.google.com/o/oauth2/auth"'
-      - name: token_uri
+      - name: tokenURI
         type: string
         required: false
         description: |
-          Google account token uri.
+         The GCP account token server endpoint URI.
         example: '"https://oauth2.googleapis.com/token"'
-      - name: auth_provider_x509_cert_url
+      - name: authProviderX509CertURL
         type: string
         required: false
         description: |
-          GCP credentials cert url.
+          The GCP URL of the public x509 certificate, used to verify the signature
+           on JWTs, such as ID tokens, signed by the authentication provider.
         example: '"https://www.googleapis.com/oauth2/v1/certs"'
-      - name: client_x509_cert_url
+      - name: clientX509CertURL
         type: string
         required: false
         description: |
-          GCP credentials project x509 cert url.
+          The GCP URL of the public x509 certificate, used to verify JWTs signed by the client.
         example: '"https://www.googleapis.com/robot/v1/metadata/x509/<PROJECT_NAME>.iam.gserviceaccount.com"'
-

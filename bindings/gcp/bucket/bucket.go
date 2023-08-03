@@ -55,17 +55,16 @@ type GCPStorage struct {
 
 type gcpMetadata struct {
 	// Ignored by metadata parser because included in built-in authentication profile
-
 	Type                string `json:"type" mapstructure:"type" mdignore:"true"`
-	ProjectID           string `json:"project_id" mapstructure:"project_id" mdignore:"true"`
-	PrivateKeyID        string `json:"private_key_id" mapstructure:"private_key_id" mdignore:"true"`
-	PrivateKey          string `json:"private_key" mapstructure:"private_key" mdignore:"true"`
-	ClientEmail         string `json:"client_email " mapstructure:"client_email" mdignore:"true"`
-	ClientID            string `json:"client_id" mapstructure:"client_id" mdignore:"true"`
-	AuthURI             string `json:"auth_uri" mapstructure:"auth_uri" mdignore:"true"`
-	TokenURI            string `json:"token_uri" mapstructure:"token_uri" mdignore:"true"`
-	AuthProviderCertURL string `json:"auth_provider_x509_cert_url" mapstructure:"auth_provider_x509_cert_url" mdignore:"true"`
-	ClientCertURL       string `json:"client_x509_cert_url" mapstructure:"client_x509_cert_url" mdignore:"true"`
+	ProjectID           string `json:"project_id" mapstructure:"projectID" mdignore:"true" mapstructurealiases:"projectID"`
+	PrivateKeyID        string `json:"private_key_id" mapstructure:"privateKeyID" mdignore:"true" mapstructurealiases:"privateKeyID"`
+	PrivateKey          string `json:"private_key" mapstructure:"privateKey" mdignore:"true" mapstructurealiases:"privateKey"`
+	ClientEmail         string `json:"client_email " mapstructure:"clientEmail" mdignore:"true" mapstructurealiases:"clientEmail"`
+	ClientID            string `json:"client_id" mapstructure:"clientID" mdignore:"true" mapstructurealiases:"clientID"`
+	AuthURI             string `json:"auth_uri" mapstructure:"authURI" mdignore:"true" mapstructurealiases:"authURI"`
+	TokenURI            string `json:"token_uri" mapstructure:"tokenURI" mdignore:"true" mapstructurealiases:"tokenURI"`
+	AuthProviderCertURL string `json:"auth_provider_x509_cert_url" mapstructure:"authProviderX509CertURL" mdignore:"true" mapstructurealiases:"authProviderX509CertURL"`
+	ClientCertURL       string `json:"client_x509_cert_url" mapstructure:"clientX509CertURL" mdignore:"true" mapstructurealiases:"clientX509CertURL"`
 
 	Bucket       string `json:"bucket" mapstructure:"bucket"`
 	DecodeBase64 bool   `json:"decodeBase64,string" mapstructure:"decodeBase64"`

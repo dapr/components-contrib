@@ -408,6 +408,64 @@ func TestResolveAliases(t *testing.T) {
 				"bonjour": "monde",
 			},
 		},
+		{
+			name: "no aliases with mixed case",
+			md: map[string]string{
+				"hello": "world",
+				"CIAO":  "mondo",
+			},
+			result: &struct {
+				Hello   string `mapstructure:"Hello"`
+				Ciao    string `mapstructure:"ciao"`
+				Bonjour string `mapstructure:"bonjour"`
+			}{},
+			wantMd: map[string]string{
+				"hello": "world",
+				"CIAO":  "mondo",
+			},
+		},
+		{
+			name: "set with aliased field with mixed case",
+			md: map[string]string{
+				"ciao": "mondo",
+			},
+			result: &struct {
+				Hello   string `mapstructure:"Hello" mapstructurealiases:"CIAO"`
+				Bonjour string `mapstructure:"bonjour"`
+			}{},
+			wantMd: map[string]string{
+				"Hello": "mondo",
+				"ciao":  "mondo",
+			},
+		},
+		{
+			name: "do not overwrite existing fields with aliases with mixed cases",
+			md: map[string]string{
+				"HELLO": "world",
+				"CIAO":  "mondo",
+			},
+			result: &struct {
+				Hello   string `mapstructure:"hELLo" mapstructurealiases:"cIAo"`
+				Bonjour string `mapstructure:"bonjour"`
+			}{},
+			wantMd: map[string]string{
+				"HELLO": "world",
+				"CIAO":  "mondo",
+			},
+		},
+		{
+			name: "multiple aliases with mixed cases",
+			md: map[string]string{
+				"bonjour": "monde",
+			},
+			result: &struct {
+				Hello string `mapstructure:"HELLO" mapstructurealiases:"CIAO,BONJOUR"`
+			}{},
+			wantMd: map[string]string{
+				"HELLO":   "monde",
+				"bonjour": "monde",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

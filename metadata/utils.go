@@ -215,13 +215,13 @@ func resolveAliases(md map[string]string, result any) error {
 		currentField := t.Field(i)
 
 		// Ignored fields that are not exported or that don't have a "mapstructure" tag
-		mapstructureTag := strings.ToLower(currentField.Tag.Get("mapstructure"))
+		mapstructureTag := currentField.Tag.Get("mapstructure")
 		if !currentField.IsExported() || mapstructureTag == "" {
 			continue
 		}
 
 		// If the current property has a value in the metadata, then we don't need to handle aliases
-		_, ok := keys[mapstructureTag]
+		_, ok := keys[strings.ToLower(mapstructureTag)]
 		if ok {
 			continue
 		}

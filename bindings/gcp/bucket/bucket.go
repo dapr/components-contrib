@@ -56,7 +56,7 @@ type GCPStorage struct {
 type gcpMetadata struct {
 	// Ignored by metadata parser because included in built-in authentication profile
 	Type                string `json:"type" mapstructure:"type" mdignore:"true"`
-	ProjectID           string `json:"project_id" mapstructure:"projectID" mdignore:"true" mapstructurealiases:"projectID"`
+	ProjectID           string `json:"project_id" mapstructure:"projectID" mdignore:"true" mapstructurealiases:"project_id"`
 	PrivateKeyID        string `json:"private_key_id" mapstructure:"privateKeyID" mdignore:"true" mapstructurealiases:"privateKeyID"`
 	PrivateKey          string `json:"private_key" mapstructure:"privateKey" mdignore:"true" mapstructurealiases:"privateKey"`
 	ClientEmail         string `json:"client_email " mapstructure:"clientEmail" mdignore:"true" mapstructurealiases:"clientEmail"`

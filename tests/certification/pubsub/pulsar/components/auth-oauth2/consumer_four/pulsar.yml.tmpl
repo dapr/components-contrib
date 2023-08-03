@@ -1,0 +1,28 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messagebus
+spec:
+  type: pubsub.pulsar
+  version: v1
+  metadata:
+  - name: host
+    value: "localhost:6650"
+  - name: consumerID
+    value: certification4
+  - name: redeliveryDelay
+    value: 200ms
+  - name: certification-pubsub-topic-active.jsonschema
+    value: "{\"type\":\"record\",\"name\":\"Example\",\"namespace\":\"test\",\"fields\":[{\"name\":\"ID\",\"type\":\"int\"},{\"name\":\"Name\",\"type\":\"string\"}]}"
+  - name: oauth2TokenURL
+    value: https://localhost:8085/issuer1/token
+  - name: oauth2ClientID
+    value: foo
+  - name: oauth2ClientSecret
+    value: bar
+  - name: oauth2Scopes
+    value: openid
+  - name: oauth2Audiences
+    value: pulsar
+  - name: oauth2TokenCAPEM
+    value: "{{ .OAuth2CAPEM }}"

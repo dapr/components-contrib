@@ -20,8 +20,8 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/ai/azopenai"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/cognitiveservices/azopenai"
 
 	"github.com/dapr/components-contrib/bindings"
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"

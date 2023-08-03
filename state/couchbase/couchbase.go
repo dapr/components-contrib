@@ -271,3 +271,10 @@ func (cbs *Couchbase) GetComponentMetadata() (metadataInfo metadata.MetadataMap)
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }
+
+func (cbs *Couchbase) Close() error {
+	if cbs.bucket == nil {
+		return nil
+	}
+	return cbs.bucket.Close()
+}

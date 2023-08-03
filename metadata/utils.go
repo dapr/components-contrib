@@ -170,6 +170,7 @@ func DecodeMetadata(input any, result any) error {
 			toTimeDurationHookFunc(),
 			toTruthyBoolHookFunc(),
 			toStringArrayHookFunc(),
+			toResourceHookFunc(),
 		),
 		Metadata:         nil,
 		Result:           result,
@@ -250,16 +251,18 @@ func resolveAliases(md map[string]string, result any) error {
 }
 
 func toTruthyBoolHookFunc() mapstructure.DecodeHookFunc {
+	boolPtrType := reflect.TypeOf(ptr.Of(true))
+
 	return func(
 		f reflect.Type,
 		t reflect.Type,
 		data any,
 	) (any, error) {
-		if f == reflect.TypeOf("") && t == reflect.TypeOf(true) {
+		if f.Kind() == reflect.String && t.Kind() == reflect.Bool {
 			val := data.(string)
 			return utils.IsTruthy(val), nil
 		}
-		if f == reflect.TypeOf("") && t == reflect.TypeOf(reflect.TypeOf(ptr.Of(true))) {
+		if f.Kind() == reflect.String && t == boolPtrType {
 			val := data.(string)
 			return ptr.Of(utils.IsTruthy(val)), nil
 		}
@@ -268,16 +271,19 @@ func toTruthyBoolHookFunc() mapstructure.DecodeHookFunc {
 }
 
 func toStringArrayHookFunc() mapstructure.DecodeHookFunc {
+	stringSliceType := reflect.TypeOf([]string{})
+	stringSlicePtrType := reflect.TypeOf(ptr.Of([]string{}))
+
 	return func(
 		f reflect.Type,
 		t reflect.Type,
 		data any,
 	) (any, error) {
-		if f == reflect.TypeOf("") && t == reflect.TypeOf([]string{}) {
+		if f.Kind() == reflect.String && t == stringSliceType {
 			val := data.(string)
 			return strings.Split(val, ","), nil
 		}
-		if f == reflect.TypeOf("") && t == reflect.TypeOf(ptr.Of([]string{})) {
+		if f.Kind() == reflect.String && t == stringSlicePtrType {
 			val := data.(string)
 			return ptr.Of(strings.Split(val, ",")), nil
 		}
@@ -287,8 +293,9 @@ func toStringArrayHookFunc() mapstructure.DecodeHookFunc {
 
 func toTimeDurationArrayHookFunc() mapstructure.DecodeHookFunc {
 	convert := func(input string) ([]time.Duration, error) {
-		res := make([]time.Duration, 0)
-		for _, v := range strings.Split(input, ",") {
+		parts := strings.Split(input, ",")
+		res := make([]time.Duration, 0, len(parts))
+		for _, v := range parts {
 			input := strings.TrimSpace(v)
 			if input == "" {
 				continue
@@ -307,16 +314,19 @@ func toTimeDurationArrayHookFunc() mapstructure.DecodeHookFunc {
 		return res, nil
 	}
 
+	durationSliceType := reflect.TypeOf([]time.Duration{})
+	durationSlicePtrType := reflect.TypeOf(ptr.Of([]time.Duration{}))
+
 	return func(
 		f reflect.Type,
 		t reflect.Type,
 		data any,
 	) (any, error) {
-		if f == reflect.TypeOf("") && t == reflect.TypeOf([]time.Duration{}) {
+		if f.Kind() == reflect.String && t == durationSliceType {
 			inputArrayString := data.(string)
 			return convert(inputArrayString)
 		}
-		if f == reflect.TypeOf("") && t == reflect.TypeOf(ptr.Of([]time.Duration{})) {
+		if f.Kind() == reflect.String && t == durationSlicePtrType {
 			inputArrayString := data.(string)
 			res, err := convert(inputArrayString)
 			if err != nil {

@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 func TestIsRawPayload(t *testing.T) {
@@ -30,14 +31,14 @@ func TestIsRawPayload(t *testing.T) {
 		})
 
 		assert.Equal(t, false, val)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("Metadata map is nil", func(t *testing.T) {
 		val, err := IsRawPayload(nil)
 
 		assert.Equal(t, false, val)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("Metadata with bad value", func(t *testing.T) {
@@ -55,7 +56,7 @@ func TestIsRawPayload(t *testing.T) {
 		})
 
 		assert.Equal(t, false, val)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("Metadata with correct value as true", func(t *testing.T) {
@@ -64,7 +65,7 @@ func TestIsRawPayload(t *testing.T) {
 		})
 
 		assert.Equal(t, true, val)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 }
 
@@ -143,7 +144,7 @@ func TestMetadataDecode(t *testing.T) {
 
 		err := DecodeMetadata(testData, &m)
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, true, *m.Mybool)
 		assert.Equal(t, "test", m.Mystring)
 		assert.Equal(t, 1, m.Myinteger)
@@ -185,7 +186,7 @@ func TestMetadataDecode(t *testing.T) {
 		testData["boolvaluenonsense"] = "nonsense"
 
 		err := DecodeMetadata(testData, &m)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.True(t, *m.BoolPointer)
 		assert.True(t, m.BoolValueOn)
 		assert.True(t, m.BoolValue1)
@@ -225,7 +226,7 @@ func TestMetadataDecode(t *testing.T) {
 		testData["emptystringarraypointerwithcomma"] = ","
 
 		err := DecodeMetadata(testData, &m)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, []string{"one", "two", "three"}, m.StringArray)
 		assert.Equal(t, []string{"one", "two", "three"}, *m.StringArrayPointer)
 		assert.Equal(t, []string{""}, m.EmptyStringArray)
@@ -236,6 +237,37 @@ func TestMetadataDecode(t *testing.T) {
 		assert.Equal(t, []string{"test", ""}, *m.StringArrayOneElementPointerWithComma)
 		assert.Equal(t, []string{"", ""}, m.EmptyStringArrayWithComma)
 		assert.Equal(t, []string{"", ""}, *m.EmptyStringArrayPointerWithComma)
+	})
+
+	t.Run("Test metadata decode hook for resources", func(t *testing.T) {
+		type testMetadata struct {
+			ResourceValue1              resource.Quantity
+			ResourceValue2              resource.Quantity
+			ResourceValue3              resource.Quantity
+			ResourceValue4              resource.Quantity
+			ResourceValueNotProvided    resource.Quantity
+			ResourceValuePtr            *resource.Quantity
+			ResourceValuePtrNotProvided *resource.Quantity
+		}
+
+		var m testMetadata
+
+		testData := make(map[string]any)
+		testData["resourcevalue1"] = "100"
+		testData["resourcevalue2"] = 100
+		testData["resourcevalue3"] = "1Ki"
+		testData["resourcevalue4"] = "1000k"
+		testData["resourcevalueptr"] = "1Gi"
+
+		err := DecodeMetadata(testData, &m)
+		require.NoError(t, err)
+		assert.Equal(t, "100", m.ResourceValue1.String())
+		assert.Equal(t, "100", m.ResourceValue2.String())
+		assert.Equal(t, "1Ki", m.ResourceValue3.String())
+		assert.Equal(t, "1M", m.ResourceValue4.String())
+		assert.Equal(t, "1Gi", m.ResourceValuePtr.String())
+		assert.Nil(t, m.ResourceValuePtrNotProvided)
+		assert.Equal(t, "0", m.ResourceValueNotProvided.String())
 	})
 }
 

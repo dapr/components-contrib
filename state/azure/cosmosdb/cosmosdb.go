@@ -204,6 +204,7 @@ func (c *StateStore) Features() []state.Feature {
 		state.FeatureETag,
 		state.FeatureTransactional,
 		state.FeatureQueryAPI,
+		state.FeatureTTL,
 	}
 }
 

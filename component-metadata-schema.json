@@ -118,7 +118,7 @@
             "number",
             "bool",
             "duration",
-            "resource"
+            "resourcequantity"
           ],
           "description": "Type of the property.\nIf this is empty, it's interpreted as \"string\"."
         },

@@ -44,7 +44,7 @@ metadata:
   - name: maxResponseBodySize
     required: false
     description: "Max amount of data to read from the response body, as a resource quantity. A value <= 0 means no limit."
-    type: resource
+    type: resourcequantity
     default: '"100Mi"'
     example: '"100" (as bytes), "1k", "10Ki", "1M", "1G"'
   - name: MTLSRootCA

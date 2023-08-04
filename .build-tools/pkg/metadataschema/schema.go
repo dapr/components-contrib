@@ -86,7 +86,7 @@ type Metadata struct {
 	Sensitive bool `json:"sensitive,omitempty" yaml:"sensitive,omitempty"`
 	// Type of the property.
 	// If this is empty, it's interpreted as "string".
-	Type string `json:"type,omitempty" yaml:"type,omitempty" jsonschema:"enum=string,enum=number,enum=bool,enum=duration,enum=resource"`
+	Type string `json:"type,omitempty" yaml:"type,omitempty" jsonschema:"enum=string,enum=number,enum=bool,enum=duration,enum=resourcequantity"`
 	// Default value for the property.
 	// If it's a string, don't forget to add quotes.
 	Default string `json:"default,omitempty" yaml:"default,omitempty"`

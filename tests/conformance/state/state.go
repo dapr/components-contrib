@@ -1193,8 +1193,8 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 				assert.Equal(t, key+"-ttl-expire-time-bulk-1", res[0].Key)
 				assert.Equal(t, key+"-ttl-expire-time-bulk-2", res[1].Key)
-				assert.Equal(t, []byte("123"), res[0].Data)
-				assert.Equal(t, []byte("234"), res[1].Data)
+				assert.Equal(t, []byte(`"123"`), res[0].Data)
+				assert.Equal(t, []byte(`"234"`), res[1].Data)
 
 				for i := range res {
 					if config.HasOperation("transaction") {

@@ -1059,150 +1059,156 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			assert.NotContains(t, res.Metadata, "ttlExpireTime")
 		})
 
-		t.Run("set and get expire time", func(t *testing.T) {
-			now := time.Now()
-			err := statestore.Set(context.Background(), &state.SetRequest{
-				Key:   key + "-ttl-expire-time",
-				Value: "⏱️",
-				Metadata: map[string]string{
-					// Expire in an hour.
-					"ttlInSeconds": "3600",
-				},
-			})
-			require.NoError(t, err)
+		t.Run("ttlExpireTime", func(t *testing.T) {
+			if config.ComponentName == "redis.v6" || config.ComponentName == "redis.v7" {
+				t.Skip("redis does not support ttlExpireTime")
+			}
 
-			// Request immediately
-			res, err := statestore.Get(context.Background(), &state.GetRequest{
-				Key: key + "-ttl-expire-time",
-			})
-			require.NoError(t, err)
-			assertEquals(t, "⏱️", res)
-
-			if config.HasOperation("transaction") {
-				require.Containsf(t, res.Metadata, "ttlExpireTime", "expected metadata to contain ttlExpireTime")
-				expireTime, err := time.Parse(time.RFC3339, res.Metadata["ttlExpireTime"])
+			t.Run("set and get expire time", func(t *testing.T) {
+				now := time.Now()
+				err := statestore.Set(context.Background(), &state.SetRequest{
+					Key:   key + "-ttl-expire-time",
+					Value: "⏱️",
+					Metadata: map[string]string{
+						// Expire in an hour.
+						"ttlInSeconds": "3600",
+					},
+				})
 				require.NoError(t, err)
-				assert.InDelta(t, now.Add(time.Hour).UnixMilli(), expireTime.UnixMilli(), float64(time.Minute*10))
-			} else {
-				assert.NotContains(t, res.Metadata, "ttlExpireTime")
-			}
-		})
 
-		t.Run("ttl set to -1 should remove the TTL of a state store key", func(t *testing.T) {
-			req := func(meta map[string]string) *state.SetRequest {
-				return &state.SetRequest{
-					Key:      key + "-ttl-expire-time-minus-1",
-					Value:    "⏱️",
-					Metadata: meta,
-				}
-			}
+				// Request immediately
+				res, err := statestore.Get(context.Background(), &state.GetRequest{
+					Key: key + "-ttl-expire-time",
+				})
+				require.NoError(t, err)
+				assertEquals(t, "⏱️", res)
 
-			require.NoError(t, statestore.Set(context.Background(), req(map[string]string{
-				// Expire in 2 seconds.
-				"ttlInSeconds": "2",
-			})))
-
-			// Request immediately
-			res, err := statestore.Get(context.Background(), &state.GetRequest{
-				Key: key + "-ttl-expire-time-minus-1",
-			})
-			require.NoError(t, err)
-			assertEquals(t, "⏱️", res)
-			assert.Contains(t, res.Metadata, "ttlExpireTime")
-
-			// Remove TTL by setting a value of -1.
-			require.NoError(t, statestore.Set(context.Background(), req(map[string]string{
-				"ttlInSeconds": "-1",
-			})))
-			res, err = statestore.Get(context.Background(), &state.GetRequest{
-				Key: key + "-ttl-expire-time-minus-1",
-			})
-			require.NoError(t, err)
-			assertEquals(t, "⏱️", res)
-			assert.NotContains(t, res.Metadata, "ttlExpireTime")
-
-			// Ensure that the key is not expired after previous TTL.
-			time.Sleep(3 * time.Second)
-
-			res, err = statestore.Get(context.Background(), &state.GetRequest{
-				Key: key + "-ttl-expire-time-minus-1",
-			})
-			require.NoError(t, err)
-			assertEquals(t, "⏱️", res)
-
-			// Set a new TTL.
-			require.NoError(t, statestore.Set(context.Background(), req(map[string]string{
-				"ttlInSeconds": "2",
-			})))
-			res, err = statestore.Get(context.Background(), &state.GetRequest{
-				Key: key + "-ttl-expire-time-minus-1",
-			})
-			require.NoError(t, err)
-			assertEquals(t, "⏱️", res)
-			assert.Contains(t, res.Metadata, "ttlExpireTime")
-
-			// Remove TTL by omitting the ttlInSeconds field.
-			require.NoError(t, statestore.Set(context.Background(), req(map[string]string{})))
-			res, err = statestore.Get(context.Background(), &state.GetRequest{
-				Key: key + "-ttl-expire-time-minus-1",
-			})
-			require.NoError(t, err)
-			assertEquals(t, "⏱️", res)
-			assert.NotContains(t, res.Metadata, "ttlExpireTime")
-
-			// Ensure key is not expired after previous TTL.
-			time.Sleep(3 * time.Second)
-			res, err = statestore.Get(context.Background(), &state.GetRequest{
-				Key: key + "-ttl-expire-time-minus-1",
-			})
-			require.NoError(t, err)
-			assertEquals(t, "⏱️", res)
-			assert.NotContains(t, res.Metadata, "ttlExpireTime")
-		})
-
-		t.Run("set and get expire time bulkGet", func(t *testing.T) {
-			now := time.Now()
-			require.NoError(t, statestore.Set(context.Background(), &state.SetRequest{
-				Key:      key + "-ttl-expire-time-bulk-1",
-				Value:    "123",
-				Metadata: map[string]string{"ttlInSeconds": "3600"},
-			}))
-
-			require.NoError(t, statestore.Set(context.Background(), &state.SetRequest{
-				Key:      key + "-ttl-expire-time-bulk-2",
-				Value:    "234",
-				Metadata: map[string]string{"ttlInSeconds": "3600"},
-			}))
-
-			// Request immediately
-			res, err := statestore.BulkGet(context.Background(), []state.GetRequest{
-				{Key: key + "-ttl-expire-time-bulk-1"},
-				{Key: key + "-ttl-expire-time-bulk-2"},
-			}, state.BulkGetOpts{})
-			require.NoError(t, err)
-
-			require.Len(t, res, 2)
-			sort.Slice(res, func(i, j int) bool {
-				return res[i].Key < res[j].Key
-			})
-
-			assert.Equal(t, key+"-ttl-expire-time-bulk-1", res[0].Key)
-			assert.Equal(t, key+"-ttl-expire-time-bulk-2", res[1].Key)
-			assert.Equal(t, "123", res[0].Data)
-			assert.Equal(t, "234", res[1].Data)
-
-			for i := range res {
 				if config.HasOperation("transaction") {
-					require.Containsf(t, res[i].Metadata, "ttlExpireTime", "expected metadata to contain ttlExpireTime")
-					expireTime, err := time.Parse(time.RFC3339, res[i].Metadata["ttlExpireTime"])
+					require.Containsf(t, res.Metadata, "ttlExpireTime", "expected metadata to contain ttlExpireTime")
+					expireTime, err := time.Parse(time.RFC3339, res.Metadata["ttlExpireTime"])
 					require.NoError(t, err)
-					// Check the expire time is returned and is in a 10 minute window. This
-					// window should be _more_ than enough.
 					assert.InDelta(t, now.Add(time.Hour).UnixMilli(), expireTime.UnixMilli(), float64(time.Minute*10))
 				} else {
-					assert.NotContains(t, res[i].Metadata, "ttlExpireTime")
+					assert.NotContains(t, res.Metadata, "ttlExpireTime")
 				}
-			}
+			})
+
+			t.Run("ttl set to -1 should remove the TTL of a state store key", func(t *testing.T) {
+				req := func(meta map[string]string) *state.SetRequest {
+					return &state.SetRequest{
+						Key:      key + "-ttl-expire-time-minus-1",
+						Value:    "⏱️",
+						Metadata: meta,
+					}
+				}
+
+				require.NoError(t, statestore.Set(context.Background(), req(map[string]string{
+					// Expire in 2 seconds.
+					"ttlInSeconds": "2",
+				})))
+
+				// Request immediately
+				res, err := statestore.Get(context.Background(), &state.GetRequest{
+					Key: key + "-ttl-expire-time-minus-1",
+				})
+				require.NoError(t, err)
+				assertEquals(t, "⏱️", res)
+				assert.Contains(t, res.Metadata, "ttlExpireTime")
+
+				// Remove TTL by setting a value of -1.
+				require.NoError(t, statestore.Set(context.Background(), req(map[string]string{
+					"ttlInSeconds": "-1",
+				})))
+				res, err = statestore.Get(context.Background(), &state.GetRequest{
+					Key: key + "-ttl-expire-time-minus-1",
+				})
+				require.NoError(t, err)
+				assertEquals(t, "⏱️", res)
+				assert.NotContains(t, res.Metadata, "ttlExpireTime")
+
+				// Ensure that the key is not expired after previous TTL.
+				time.Sleep(3 * time.Second)
+
+				res, err = statestore.Get(context.Background(), &state.GetRequest{
+					Key: key + "-ttl-expire-time-minus-1",
+				})
+				require.NoError(t, err)
+				assertEquals(t, "⏱️", res)
+
+				// Set a new TTL.
+				require.NoError(t, statestore.Set(context.Background(), req(map[string]string{
+					"ttlInSeconds": "2",
+				})))
+				res, err = statestore.Get(context.Background(), &state.GetRequest{
+					Key: key + "-ttl-expire-time-minus-1",
+				})
+				require.NoError(t, err)
+				assertEquals(t, "⏱️", res)
+				assert.Contains(t, res.Metadata, "ttlExpireTime")
+
+				// Remove TTL by omitting the ttlInSeconds field.
+				require.NoError(t, statestore.Set(context.Background(), req(map[string]string{})))
+				res, err = statestore.Get(context.Background(), &state.GetRequest{
+					Key: key + "-ttl-expire-time-minus-1",
+				})
+				require.NoError(t, err)
+				assertEquals(t, "⏱️", res)
+				assert.NotContains(t, res.Metadata, "ttlExpireTime")
+
+				// Ensure key is not expired after previous TTL.
+				time.Sleep(3 * time.Second)
+				res, err = statestore.Get(context.Background(), &state.GetRequest{
+					Key: key + "-ttl-expire-time-minus-1",
+				})
+				require.NoError(t, err)
+				assertEquals(t, "⏱️", res)
+				assert.NotContains(t, res.Metadata, "ttlExpireTime")
+			})
+
+			t.Run("set and get expire time bulkGet", func(t *testing.T) {
+				now := time.Now()
+				require.NoError(t, statestore.Set(context.Background(), &state.SetRequest{
+					Key:      key + "-ttl-expire-time-bulk-1",
+					Value:    "123",
+					Metadata: map[string]string{"ttlInSeconds": "3600"},
+				}))
+
+				require.NoError(t, statestore.Set(context.Background(), &state.SetRequest{
+					Key:      key + "-ttl-expire-time-bulk-2",
+					Value:    "234",
+					Metadata: map[string]string{"ttlInSeconds": "3600"},
+				}))
+
+				// Request immediately
+				res, err := statestore.BulkGet(context.Background(), []state.GetRequest{
+					{Key: key + "-ttl-expire-time-bulk-1"},
+					{Key: key + "-ttl-expire-time-bulk-2"},
+				}, state.BulkGetOpts{})
+				require.NoError(t, err)
+
+				require.Len(t, res, 2)
+				sort.Slice(res, func(i, j int) bool {
+					return res[i].Key < res[j].Key
+				})
+
+				assert.Equal(t, key+"-ttl-expire-time-bulk-1", res[0].Key)
+				assert.Equal(t, key+"-ttl-expire-time-bulk-2", res[1].Key)
+				assert.Equal(t, "123", res[0].Data)
+				assert.Equal(t, "234", res[1].Data)
+
+				for i := range res {
+					if config.HasOperation("transaction") {
+						require.Containsf(t, res[i].Metadata, "ttlExpireTime", "expected metadata to contain ttlExpireTime")
+						expireTime, err := time.Parse(time.RFC3339, res[i].Metadata["ttlExpireTime"])
+						require.NoError(t, err)
+						// Check the expire time is returned and is in a 10 minute window. This
+						// window should be _more_ than enough.
+						assert.InDelta(t, now.Add(time.Hour).UnixMilli(), expireTime.UnixMilli(), float64(time.Minute*10))
+					} else {
+						assert.NotContains(t, res[i].Metadata, "ttlExpireTime")
+					}
+				}
+			})
 		})
 	}
 }

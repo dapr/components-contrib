@@ -1060,6 +1060,10 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		})
 
 		t.Run("ttlExpireTime", func(t *testing.T) {
+			if !config.HasOperation("transaction") {
+				t.Skip("state store does not support transactions")
+			}
+
 			if config.ComponentName == "redis.v6" || config.ComponentName == "redis.v7" {
 				t.Skip("redis does not support ttlExpireTime")
 			}
@@ -1083,14 +1087,10 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				require.NoError(t, err)
 				assertEquals(t, "⏱️", res)
 
-				if config.HasOperation("transaction") {
-					require.Containsf(t, res.Metadata, "ttlExpireTime", "expected metadata to contain ttlExpireTime")
-					expireTime, err := time.Parse(time.RFC3339, res.Metadata["ttlExpireTime"])
-					require.NoError(t, err)
-					assert.InDelta(t, now.Add(time.Hour).UnixMilli(), expireTime.UnixMilli(), float64(time.Minute*10))
-				} else {
-					assert.NotContains(t, res.Metadata, "ttlExpireTime")
-				}
+				require.Containsf(t, res.Metadata, "ttlExpireTime", "expected metadata to contain ttlExpireTime")
+				expireTime, err := time.Parse(time.RFC3339, res.Metadata["ttlExpireTime"])
+				require.NoError(t, err)
+				assert.InDelta(t, now.Add(time.Hour).UnixMilli(), expireTime.UnixMilli(), float64(time.Minute*10))
 			})
 
 			t.Run("ttl set to -1 should remove the TTL of a state store key", func(t *testing.T) {

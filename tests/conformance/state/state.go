@@ -1030,7 +1030,6 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				return res.Data == nil
 			}, time.Second*3, 200*time.Millisecond, "expected object to have been deleted in time")
 		})
-
 	} else {
 		t.Run("ttl feature not present", func(t *testing.T) {
 			// We skip this check for Cloudflare Workers KV

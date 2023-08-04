@@ -194,7 +194,8 @@ func (e *Etcd) doSet(ctx context.Context, key string, val any, etag *string, ttl
 
 	var leaseID clientv3.LeaseID
 	if ttlInSeconds != nil {
-		resp, err := e.client.Grant(ctx, *ttlInSeconds)
+		var resp *clientv3.LeaseGrantResponse
+		resp, err = e.client.Grant(ctx, *ttlInSeconds)
 		if err != nil {
 			return fmt.Errorf("couldn't grant lease %s: %w", key, err)
 		}

@@ -1061,11 +1061,13 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 		t.Run("ttlExpireTime", func(t *testing.T) {
 			if !config.HasOperation("transaction") {
-				t.Skip("state store does not support transactions")
+				// This test is only for state stores that support transactions
+				return
 			}
 
 			if config.ComponentName == "redis.v6" || config.ComponentName == "redis.v7" {
-				t.Skip("redis does not support ttlExpireTime")
+				// Redis does not support ttlExpireTime
+				return
 			}
 
 			t.Run("set and get expire time", func(t *testing.T) {

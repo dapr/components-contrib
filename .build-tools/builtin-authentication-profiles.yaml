@@ -123,10 +123,12 @@ gcp:
         example: '"-----BEGIN PRIVATE KEY-----\nMIIE...\\n-----END PRIVATE KEY-----\n"'
       - name: type
         type: string
-        required: true
+        required: false
         description: |
           The GCP credentials type.
         example: '"service_account"'
+        allowedValues:
+          - service_account
       - name: projectID
         type: string
         required: true

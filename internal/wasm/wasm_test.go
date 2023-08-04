@@ -172,9 +172,14 @@ func TestNewModuleConfig(t *testing.T) {
 			maxDuration: 50 * time.Millisecond * 5,
 		},
 		{
-			name:        "strictSandbox = true",
-			metadata:    &InitMetadata{StrictSandbox: true, Guest: binStrict},
-			minDuration: 10 * time.Microsecond,
+			name:     "strictSandbox = true",
+			metadata: &InitMetadata{StrictSandbox: true, Guest: binStrict},
+			// In strict mode, nanosleep is implemented by an incrementing
+			// number. The resolution of the real clock timing the wasm
+			// invocation is lower resolution in Windows, so we can't verify a
+			// lower bound. In any case, the important part is that we aren't
+			// actually sleeping 50ms, which is what wasm thinks is happening.
+			minDuration: 0,
 			maxDuration: 1 * time.Millisecond,
 		},
 	}
@@ -211,7 +216,8 @@ func TestNewModuleConfig(t *testing.T) {
 			} else {
 				require.NotEqual(t, deterministicOut, out.String())
 			}
-			require.True(t, duration > tc.minDuration && duration < tc.maxDuration, duration)
+			require.GreaterOrEqual(t, duration, tc.minDuration)
+			require.LessOrEqual(t, duration, tc.maxDuration)
 		})
 	}
 }

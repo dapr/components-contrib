@@ -67,9 +67,13 @@ func NewEtcdStateStoreV2(logger logger.Logger) state.Store {
 
 func newETCD(logger logger.Logger, schema schemaMarshaller) state.Store {
 	s := &Etcd{
-		schema:   schema,
-		logger:   logger,
-		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		schema: schema,
+		logger: logger,
+		features: []state.Feature{
+			state.FeatureETag,
+			state.FeatureTransactional,
+			state.FeatureTTL,
+		},
 	}
 	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s

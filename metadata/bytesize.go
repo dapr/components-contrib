@@ -22,22 +22,23 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-// ResourceQuantity contains a quantity for a resource, such as data size.
+// ByteSize contains a quantity for a resource that is measured in bytes.
 // This extends the resource.Quantity struct from k8s.io/apimachinery to add some utility methods specific for Dapr.
-type ResourceQuantity struct {
+// Although the library from K8s supports other kinds of resource quantities, our focus is on sizes in bytes.
+type ByteSize struct {
 	resource.Quantity
 }
 
-// NewResourceQuantityBytes returns a new ResourceQuantity with a default value in bytes.
-func NewResourceQuantityBytes(defaultBytesValue int64) ResourceQuantity {
-	return ResourceQuantity{
-		Quantity: *resource.NewQuantity(defaultBytesValue, resource.BinarySI),
+// NewByteSize returns a new ByteSize with a default value in bytes.
+func NewByteSize(defaultValue int64) ByteSize {
+	return ByteSize{
+		Quantity: *resource.NewQuantity(defaultValue, resource.BinarySI),
 	}
 }
 
 // GetBytes returns the number of bytes in the quantity.
 // Note: this operation is expensive, so it's recommended to cache the returned value.
-func (q *ResourceQuantity) GetBytes() (int64, error) {
+func (q *ByteSize) GetBytes() (int64, error) {
 	if q == nil || q.IsZero() {
 		return 0, nil
 	}
@@ -50,9 +51,9 @@ func (q *ResourceQuantity) GetBytes() (int64, error) {
 	return val, nil
 }
 
-func toResourceQuantityHookFunc() mapstructure.DecodeHookFunc {
-	quantityType := reflect.TypeOf(ResourceQuantity{})
-	quantityPtrType := reflect.TypeOf(&ResourceQuantity{})
+func toByteSizeHookFunc() mapstructure.DecodeHookFunc {
+	bytesizeType := reflect.TypeOf(ByteSize{})
+	bytesizePtrType := reflect.TypeOf(&ByteSize{})
 
 	return func(
 		f reflect.Type,
@@ -61,9 +62,9 @@ func toResourceQuantityHookFunc() mapstructure.DecodeHookFunc {
 	) (any, error) {
 		var isPtr bool
 		switch t {
-		case quantityType:
+		case bytesizeType:
 			// Nop
-		case quantityPtrType:
+		case bytesizePtrType:
 			isPtr = true
 		default:
 			// Not a type we support with this hook
@@ -83,7 +84,7 @@ func toResourceQuantityHookFunc() mapstructure.DecodeHookFunc {
 		}
 
 		// Return a pointer if desired
-		res := ResourceQuantity{Quantity: q}
+		res := ByteSize{Quantity: q}
 		if isPtr {
 			return &res, nil
 		}

@@ -238,35 +238,35 @@ func TestMetadataDecode(t *testing.T) {
 		assert.Equal(t, []string{"", ""}, *m.EmptyStringArrayPointerWithComma)
 	})
 
-	t.Run("Test metadata decode hook for resources", func(t *testing.T) {
+	t.Run("Test metadata decode hook for byte sizes", func(t *testing.T) {
 		type testMetadata struct {
-			ResourceValue1              ResourceQuantity
-			ResourceValue2              ResourceQuantity
-			ResourceValue3              ResourceQuantity
-			ResourceValue4              ResourceQuantity
-			ResourceValueNotProvided    ResourceQuantity
-			ResourceValuePtr            *ResourceQuantity
-			ResourceValuePtrNotProvided *ResourceQuantity
+			BytesizeValue1              ByteSize
+			BytesizeValue2              ByteSize
+			BytesizeValue3              ByteSize
+			BytesizeValue4              ByteSize
+			BytesizeValueNotProvided    ByteSize
+			BytesizeValuePtr            *ByteSize
+			BytesizeValuePtrNotProvided *ByteSize
 		}
 
 		var m testMetadata
 
 		testData := make(map[string]any)
-		testData["resourcevalue1"] = "100"
-		testData["resourcevalue2"] = 100
-		testData["resourcevalue3"] = "1Ki"
-		testData["resourcevalue4"] = "1000k"
-		testData["resourcevalueptr"] = "1Gi"
+		testData["bytesizevalue1"] = "100"
+		testData["bytesizevalue2"] = 100
+		testData["bytesizevalue3"] = "1Ki"
+		testData["bytesizevalue4"] = "1000k"
+		testData["bytesizevalueptr"] = "1Gi"
 
 		err := DecodeMetadata(testData, &m)
 		require.NoError(t, err)
-		assert.Equal(t, "100", m.ResourceValue1.String())
-		assert.Equal(t, "100", m.ResourceValue2.String())
-		assert.Equal(t, "1Ki", m.ResourceValue3.String())
-		assert.Equal(t, "1M", m.ResourceValue4.String())
-		assert.Equal(t, "1Gi", m.ResourceValuePtr.String())
-		assert.Nil(t, m.ResourceValuePtrNotProvided)
-		assert.Equal(t, "0", m.ResourceValueNotProvided.String())
+		assert.Equal(t, "100", m.BytesizeValue1.String())
+		assert.Equal(t, "100", m.BytesizeValue2.String())
+		assert.Equal(t, "1Ki", m.BytesizeValue3.String())
+		assert.Equal(t, "1M", m.BytesizeValue4.String())
+		assert.Equal(t, "1Gi", m.BytesizeValuePtr.String())
+		assert.Nil(t, m.BytesizeValuePtrNotProvided)
+		assert.Equal(t, "0", m.BytesizeValueNotProvided.String())
 	})
 }
 

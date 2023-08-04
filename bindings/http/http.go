@@ -72,7 +72,7 @@ type httpMetadata struct {
 	// This can either be an integer which is interpreted in bytes, or a string with an added unit such as Mi.
 	// A value <= 0 means no limit.
 	// Default: 100MB
-	MaxResponseBodySize metadata.ResourceQuantity `mapstructure:"maxResponseBodySize"`
+	MaxResponseBodySize metadata.ByteSize `mapstructure:"maxResponseBodySize"`
 
 	maxResponseBodySizeBytes int64
 }
@@ -87,7 +87,7 @@ func NewHTTP(logger logger.Logger) bindings.OutputBinding {
 // Init performs metadata parsing.
 func (h *HTTPSource) Init(_ context.Context, meta bindings.Metadata) error {
 	h.metadata = httpMetadata{
-		MaxResponseBodySize: metadata.NewResourceQuantityBytes(defaultMaxResponseBodySizeBytes),
+		MaxResponseBodySize: metadata.NewByteSize(defaultMaxResponseBodySizeBytes),
 	}
 	err := metadata.DecodeMetadata(meta.Properties, &h.metadata)
 	if err != nil {

@@ -1065,9 +1065,16 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				return
 			}
 
-			if config.ComponentName == "redis.v6" || config.ComponentName == "redis.v7" {
-				// Redis does not support ttlExpireTime
-				return
+			unsupported := []string{
+				"redis.v6",
+				"redis.v7",
+				"etcd.v1",
+			}
+
+			for _, noSup := range unsupported {
+				if strings.Contains(config.ComponentName, noSup) {
+					t.Skipf("skipping test for unsupported state store %s", noSup)
+				}
 			}
 
 			t.Run("set and get expire time", func(t *testing.T) {

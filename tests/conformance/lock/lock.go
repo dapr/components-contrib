@@ -59,7 +59,7 @@ func ConformanceTests(t *testing.T, props map[string]string, lockstore lock.Stor
 	t.Run("init", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		err := lockstore.InitLockStore(ctx, lock.Metadata{Base: metadata.Base{
+		err := lockstore.Init(ctx, lock.Metadata{Base: metadata.Base{
 			Properties: props,
 		}})
 		require.NoError(t, err)
@@ -71,18 +71,20 @@ func ConformanceTests(t *testing.T, props map[string]string, lockstore lock.Stor
 	}
 
 	const lockOwner = "conftest"
-	lockKey1 := key + "-1"
-	lockKey2 := key + "-2"
+	var lockKeys = [2]string{
+		key + "-1",
+		key + "-2",
+	}
 
-	var expirationCh *time.Timer
+	var expirationChs [2]*time.Timer
 
 	t.Run("TryLock", func(t *testing.T) {
 		// Acquire a lock
 		t.Run("acquire lock1", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			res, err := lockstore.TryLock(ctx, &lock.TryLockRequest{
-				ResourceID:      lockKey1,
+			res, err := lockstore.TryLock(ctx, &lock.LockRequest{
+				ResourceID:      lockKeys[0],
 				LockOwner:       lockOwner,
 				ExpiryInSeconds: 15,
 			})
@@ -95,25 +97,25 @@ func ConformanceTests(t *testing.T, props map[string]string, lockstore lock.Stor
 		t.Run("acquire lock2", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			res, err := lockstore.TryLock(ctx, &lock.TryLockRequest{
-				ResourceID:      lockKey2,
+			res, err := lockstore.TryLock(ctx, &lock.LockRequest{
+				ResourceID:      lockKeys[1],
 				LockOwner:       lockOwner,
-				ExpiryInSeconds: 3,
+				ExpiryInSeconds: 8,
 			})
 			require.NoError(t, err)
 			require.NotNil(t, res)
 			assert.True(t, res.Success)
 
-			// Set expirationCh to when lock2 expires
-			expirationCh = time.NewTimer(3 * time.Second)
+			// Set expirationChs[0] to when lock2 expires
+			expirationChs[0] = time.NewTimer(3 * time.Second)
 		})
 
 		// Acquiring the same lock again should fail
 		t.Run("fails to acquire existing lock", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			res, err := lockstore.TryLock(ctx, &lock.TryLockRequest{
-				ResourceID:      lockKey1,
+			res, err := lockstore.TryLock(ctx, &lock.LockRequest{
+				ResourceID:      lockKeys[0],
 				LockOwner:       lockOwner,
 				ExpiryInSeconds: 15,
 			})
@@ -133,48 +135,152 @@ func ConformanceTests(t *testing.T, props map[string]string, lockstore lock.Stor
 			})
 			require.NoError(t, err)
 			require.NotNil(t, res)
-			assert.Equal(t, lock.LockDoesNotExist, res.Status)
+			assert.Equal(t, lock.LockStatusNotExist, res.Status)
 		})
 
 		t.Run("fails to unlock with wrong owner", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			res, err := lockstore.Unlock(ctx, &lock.UnlockRequest{
-				ResourceID: lockKey1,
+				ResourceID: lockKeys[0],
 				LockOwner:  "nonowner",
 			})
 			require.NoError(t, err)
 			require.NotNil(t, res)
-			assert.Equal(t, lock.LockBelongsToOthers, res.Status)
+			assert.Equal(t, lock.LockStatusOwnerMismatch, res.Status)
 		})
 
 		t.Run("unlocks successfully", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			res, err := lockstore.Unlock(ctx, &lock.UnlockRequest{
-				ResourceID: lockKey1,
+				ResourceID: lockKeys[0],
 				LockOwner:  lockOwner,
 			})
 			require.NoError(t, err)
 			require.NotNil(t, res)
-			assert.Equal(t, lock.Success, res.Status)
+			assert.Equal(t, lock.LockStatusSuccess, res.Status)
 		})
 	})
 
-	t.Run("lock expires", func(t *testing.T) {
-		// Wait until the lock is supposed to expire
-		<-expirationCh.C
+	t.Run("Renew lock", func(t *testing.T) {
+		// Sleep for 1s to allow some time to advance
+		time.Sleep(1 * time.Second)
 
-		// Assert that the lock doesn't exist anymore - we should be able to re-acquire it
-		assert.Eventually(t, func() bool {
+		t.Run("renews locks successfully", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			res, err := lockstore.TryLock(ctx, &lock.TryLockRequest{
-				ResourceID:      lockKey2,
+			res, err := lockstore.RenewLock(ctx, &lock.RenewLockRequest{
+				ResourceID:      lockKeys[1],
 				LockOwner:       lockOwner,
-				ExpiryInSeconds: 3,
+				ExpiryInSeconds: 5,
 			})
-			return err == nil && res != nil && res.Success
-		}, 5*time.Second, 100*time.Millisecond, "Lock 2 was not released in time after its scheduled expiration")
+			require.NoError(t, err)
+			require.NotNil(t, res)
+			assert.Equal(t, lock.LockStatusSuccess, res.Status)
+
+			// Set expirationChs[1] to when lock2 expires (after being updated)
+			expirationChs[1] = time.NewTimer(3 * time.Second)
+		})
+
+		t.Run("fails to renew locks with nonexistent resource ID", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			res, err := lockstore.RenewLock(ctx, &lock.RenewLockRequest{
+				ResourceID:      "nonexistent",
+				LockOwner:       lockOwner,
+				ExpiryInSeconds: 15,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, res)
+			assert.Equal(t, lock.LockStatusNotExist, res.Status)
+		})
+
+		t.Run("fails to renew locks with wrong owner", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			res, err := lockstore.RenewLock(ctx, &lock.RenewLockRequest{
+				ResourceID:      lockKeys[1],
+				LockOwner:       "nonowner",
+				ExpiryInSeconds: 15,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, res)
+			assert.Equal(t, lock.LockStatusOwnerMismatch, res.Status)
+		})
+	})
+
+	t.Run("Lock expires", func(t *testing.T) {
+		// Wait until the lock was originally supposed to expire at
+		<-expirationChs[0].C
+
+		assertLockReleasedFn := func(resourceID string) func() bool {
+			return func() bool {
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				res, err := lockstore.TryLock(ctx, &lock.LockRequest{
+					ResourceID:      resourceID,
+					LockOwner:       lockOwner,
+					ExpiryInSeconds: 3,
+				})
+				return err == nil && res != nil && res.Success
+			}
+		}
+
+		// Assert that the lock is still active - we can't re-acquire it
+		assert.Never(t, assertLockReleasedFn(lockKeys[1]), time.Second, 100*time.Millisecond, "Lock 2 was released before its expected expiration")
+
+		// Wait for when the lock is now supposed to expire at
+		<-expirationChs[1].C
+
+		// Assert that the lock doesn't exist anymore - we should be able to re-acquire it
+		assert.Eventually(t, assertLockReleasedFn(lockKeys[1]), 5*time.Second, 100*time.Millisecond, "Lock 2 was not released in time after its expected expiration")
+	})
+
+	t.Run("Lock", func(t *testing.T) {
+		var exp time.Time
+		t.Run("acquire available lock right away", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			res, err := lockstore.Lock(ctx, &lock.LockRequest{
+				ResourceID:      lockKeys[0],
+				LockOwner:       lockOwner,
+				ExpiryInSeconds: 8,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, res)
+			assert.True(t, res.Success)
+
+			// Subtract 500ms to give some buffer
+			exp = time.Now().Add(8*time.Second - 500*time.Millisecond)
+		})
+
+		t.Run("times out trying to acquire lock that already exists", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			res, err := lockstore.Lock(ctx, &lock.LockRequest{
+				ResourceID:      lockKeys[0],
+				LockOwner:       lockOwner,
+				ExpiryInSeconds: 10,
+			})
+			require.Error(t, err)
+			require.ErrorIs(t, err, context.DeadlineExceeded)
+			require.Nil(t, res)
+		})
+
+		t.Run("acquires the lock after it expires", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			res, err := lockstore.Lock(ctx, &lock.LockRequest{
+				ResourceID:      lockKeys[0],
+				LockOwner:       lockOwner,
+				ExpiryInSeconds: 10,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, res)
+			assert.True(t, res.Success)
+
+			assert.Greater(t, time.Now().UnixMilli(), exp.UnixMilli())
+		})
 	})
 }

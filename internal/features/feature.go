@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -11,23 +11,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package lock
+package features
 
 import (
-	"context"
-
-	"github.com/dapr/components-contrib/metadata"
+	"golang.org/x/exp/slices"
 )
 
-type Store interface {
-	metadata.ComponentWithMetadata
+// Feature is a generic type for features supported by components.
+type Feature[T any] string
 
-	// Init this component.
-	InitLockStore(ctx context.Context, metadata Metadata) error
-
-	// TryLock tries to acquire a lock.
-	TryLock(ctx context.Context, req *TryLockRequest) (*TryLockResponse, error)
-
-	// Unlock tries to release a lock.
-	Unlock(ctx context.Context, req *UnlockRequest) (*UnlockResponse, error)
+// IsPresent checks if a given feature is present in the list.
+func (f Feature[T]) IsPresent(features []Feature[T]) bool {
+	return slices.Contains(features, f)
 }

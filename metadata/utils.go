@@ -251,6 +251,8 @@ func resolveAliases(md map[string]string, result any) error {
 }
 
 func toTruthyBoolHookFunc() mapstructure.DecodeHookFunc {
+	stringType := reflect.TypeOf("")
+	boolType := reflect.TypeOf(true)
 	boolPtrType := reflect.TypeOf(ptr.Of(true))
 
 	return func(
@@ -258,19 +260,18 @@ func toTruthyBoolHookFunc() mapstructure.DecodeHookFunc {
 		t reflect.Type,
 		data any,
 	) (any, error) {
-		if f.Kind() == reflect.String && t.Kind() == reflect.Bool {
-			val := data.(string)
-			return utils.IsTruthy(val), nil
+		if f == stringType && t == boolType {
+			return utils.IsTruthy(data.(string)), nil
 		}
-		if f.Kind() == reflect.String && t == boolPtrType {
-			val := data.(string)
-			return ptr.Of(utils.IsTruthy(val)), nil
+		if f == stringType && t == boolPtrType {
+			return ptr.Of(utils.IsTruthy(data.(string))), nil
 		}
 		return data, nil
 	}
 }
 
 func toStringArrayHookFunc() mapstructure.DecodeHookFunc {
+	stringType := reflect.TypeOf("")
 	stringSliceType := reflect.TypeOf([]string{})
 	stringSlicePtrType := reflect.TypeOf(ptr.Of([]string{}))
 
@@ -279,13 +280,11 @@ func toStringArrayHookFunc() mapstructure.DecodeHookFunc {
 		t reflect.Type,
 		data any,
 	) (any, error) {
-		if f.Kind() == reflect.String && t == stringSliceType {
-			val := data.(string)
-			return strings.Split(val, ","), nil
+		if f == stringType && t == stringSliceType {
+			return strings.Split(data.(string), ","), nil
 		}
-		if f.Kind() == reflect.String && t == stringSlicePtrType {
-			val := data.(string)
-			return ptr.Of(strings.Split(val, ",")), nil
+		if f == stringType && t == stringSlicePtrType {
+			return ptr.Of(strings.Split(data.(string), ",")), nil
 		}
 		return data, nil
 	}
@@ -314,6 +313,7 @@ func toTimeDurationArrayHookFunc() mapstructure.DecodeHookFunc {
 		return res, nil
 	}
 
+	stringType := reflect.TypeOf("")
 	durationSliceType := reflect.TypeOf([]time.Duration{})
 	durationSlicePtrType := reflect.TypeOf(ptr.Of([]time.Duration{}))
 
@@ -322,11 +322,11 @@ func toTimeDurationArrayHookFunc() mapstructure.DecodeHookFunc {
 		t reflect.Type,
 		data any,
 	) (any, error) {
-		if f.Kind() == reflect.String && t == durationSliceType {
+		if f == stringType && t == durationSliceType {
 			inputArrayString := data.(string)
 			return convert(inputArrayString)
 		}
-		if f.Kind() == reflect.String && t == durationSlicePtrType {
+		if f == stringType && t == durationSlicePtrType {
 			inputArrayString := data.(string)
 			res, err := convert(inputArrayString)
 			if err != nil {

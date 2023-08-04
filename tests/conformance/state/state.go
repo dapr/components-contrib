@@ -991,6 +991,10 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 
 	if config.HasOperation("ttl") {
 		t.Run("set and get with TTL", func(t *testing.T) {
+			// Check if ttl feature is listed
+			features := statestore.Features()
+			require.True(t, state.FeatureTTL.IsPresent(features))
+
 			err := statestore.Set(context.Background(), &state.SetRequest{
 				Key:   key + "-ttl",
 				Value: "⏱️",
@@ -1015,6 +1019,17 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				require.NoError(t, err)
 				return res.Data == nil
 			}, time.Second*3, 200*time.Millisecond, "expected object to have been deleted in time")
+		})
+	} else {
+		t.Run("ttl feature not present", func(t *testing.T) {
+			// We skip this check for Cloudflare Workers KV
+			// Even though the component supports TTLs, it's not tested in the conformance tests because the minimum TTL for the component is 1 minute, and the state store doesn't have strong consistency
+			if config.ComponentName == "cloudflare.workerskv" {
+				t.Skip()
+			}
+
+			features := statestore.Features()
+			require.False(t, state.FeatureTTL.IsPresent(features))
 		})
 	}
 }

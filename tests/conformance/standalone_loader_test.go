@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStandaloneIsYaml(t *testing.T) {
@@ -48,12 +49,11 @@ spec:
    - name: prop2
      value: value2
 `
-	components, errs := request.decodeYaml("components/messagebus.yaml", []byte(yaml))
-	assert.Len(t, components, 1)
-	assert.Empty(t, errs)
+	components := request.decodeYaml("components/messagebus.yaml", []byte(yaml))
+	require.Len(t, components, 1)
 	assert.Equal(t, "statestore", components[0].Name)
 	assert.Equal(t, "state.couchbase", components[0].Spec.Type)
-	assert.Len(t, components[0].Spec.Metadata, 2)
+	require.Len(t, components[0].Spec.Metadata, 2)
 	assert.Equal(t, "prop1", components[0].Spec.Metadata[0].Name)
 	assert.Equal(t, "value1", components[0].Spec.Metadata[0].Value.String())
 }
@@ -72,17 +72,15 @@ spec:
    - name: prop2
      value: value2
 `
-	components, errs := request.decodeYaml("components/messagebus.yaml", []byte(yaml))
+	components := request.decodeYaml("components/messagebus.yaml", []byte(yaml))
 	assert.Len(t, components, 0)
-	assert.Len(t, errs, 0)
 }
 
 func TestStandaloneDecodeUnsuspectingFile(t *testing.T) {
 	request := NewStandaloneComponents("test_component_path")
 
-	components, errs := request.decodeYaml("components/messagebus.yaml", []byte("hey there"))
+	components := request.decodeYaml("components/messagebus.yaml", []byte("hey there"))
 	assert.Len(t, components, 0)
-	assert.Len(t, errs, 0)
 }
 
 func TestStandaloneDecodeInvalidYaml(t *testing.T) {
@@ -93,9 +91,8 @@ apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
 name: statestore`
-	components, errs := request.decodeYaml("components/messagebus.yaml", []byte(yaml))
+	components := request.decodeYaml("components/messagebus.yaml", []byte(yaml))
 	assert.Len(t, components, 0)
-	assert.Len(t, errs, 0)
 }
 
 func TestStandaloneDecodeValidMultiYaml(t *testing.T) {
@@ -123,9 +120,8 @@ spec:
     - name: prop3
       value: value3
 `
-	components, errs := request.decodeYaml("components/messagebus.yaml", []byte(yaml))
+	components := request.decodeYaml("components/messagebus.yaml", []byte(yaml))
 	assert.Len(t, components, 2)
-	assert.Empty(t, errs)
 	assert.Equal(t, "statestore1", components[0].Name)
 	assert.Equal(t, "state.couchbase", components[0].Spec.Type)
 	assert.Len(t, components[0].Spec.Metadata, 2)
@@ -172,9 +168,8 @@ spec:
     - name: prop3
       value: value3
 `
-	components, errs := request.decodeYaml("components/messagebus.yaml", []byte(yaml))
+	components := request.decodeYaml("components/messagebus.yaml", []byte(yaml))
 	assert.Len(t, components, 2)
-	assert.Len(t, errs, 0)
 
 	assert.Equal(t, "statestore1", components[0].Name)
 	assert.Equal(t, "state.couchbase", components[0].Spec.Type)

@@ -1052,7 +1052,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			require.NoError(t, err)
 
 			// Request immediately
-			res, err := statestore.Get(context.Background(), &state.GetRequest{Key: key + "-ttl"})
+			res, err := statestore.Get(context.Background(), &state.GetRequest{Key: key + "-no-ttl"})
 			require.NoError(t, err)
 			assertEquals(t, "⏱️", res)
 

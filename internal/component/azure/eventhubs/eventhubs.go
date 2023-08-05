@@ -153,7 +153,7 @@ func (aeh *AzureEventHubs) Publish(ctx context.Context, topic string, messages [
 }
 
 // GetPubSubHandlerFunc returns the handler function for pubsub messages
-func (aeh *AzureEventHubs) GetBindingsHandlerFunc(topic string, getAllProperties bool, handler bindings.Handler, timeout time.Duration) HandlerFn {
+func (aeh *AzureEventHubs) GetBindingsHandlerFunc(topic string, getAllProperties bool, handler bindings.Handler) HandlerFn {
 	return func(ctx context.Context, messages []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error) {
 		if len(messages) != 1 {
 			return nil, fmt.Errorf("expected 1 message, got %d", len(messages))
@@ -164,16 +164,14 @@ func (aeh *AzureEventHubs) GetBindingsHandlerFunc(topic string, getAllProperties
 			return nil, fmt.Errorf("failed to get bindings read response from azure eventhubs message: %+v", err)
 		}
 
-		handlerCtx, handlerCancel := context.WithTimeout(ctx, timeout)
-		defer handlerCancel()
 		aeh.logger.Debugf("Calling app's handler for message %s on topic %s", messages[0].SequenceNumber, topic)
-		_, err = handler(handlerCtx, bindingsMsg)
+		_, err = handler(ctx, bindingsMsg)
 		return nil, err
 	}
 }
 
 // GetPubSubHandlerFunc returns the handler function for pubsub messages
-func (aeh *AzureEventHubs) GetPubSubHandlerFunc(topic string, getAllProperties bool, handler pubsub.Handler, timeout time.Duration) HandlerFn {
+func (aeh *AzureEventHubs) GetPubSubHandlerFunc(topic string, getAllProperties bool, handler pubsub.Handler) HandlerFn {
 	return func(ctx context.Context, messages []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error) {
 		if len(messages) != 1 {
 			return nil, fmt.Errorf("expected 1 message, got %d", len(messages))
@@ -184,15 +182,13 @@ func (aeh *AzureEventHubs) GetPubSubHandlerFunc(topic string, getAllProperties b
 			return nil, fmt.Errorf("failed to get pubsub message from azure eventhubs message: %+v", err)
 		}
 
-		handlerCtx, handlerCancel := context.WithTimeout(ctx, timeout)
-		defer handlerCancel()
 		aeh.logger.Debugf("Calling app's handler for message %s on topic %s", messages[0].SequenceNumber, topic)
-		return nil, handler(handlerCtx, pubsubMsg)
+		return nil, handler(ctx, pubsubMsg)
 	}
 }
 
 // GetPubSubHandlerFunc returns the handler function for bulk pubsub messages.
-func (aeh *AzureEventHubs) GetBulkPubSubHandlerFunc(topic string, getAllProperties bool, handler pubsub.BulkHandler, timeout time.Duration) HandlerFn {
+func (aeh *AzureEventHubs) GetBulkPubSubHandlerFunc(topic string, getAllProperties bool, handler pubsub.BulkHandler) HandlerFn {
 	return func(ctx context.Context, messages []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error) {
 		pubsubMsgs := make([]pubsub.BulkMessageEntry, len(messages))
 		for i, msg := range messages {
@@ -211,10 +207,8 @@ func (aeh *AzureEventHubs) GetBulkPubSubHandlerFunc(topic string, getAllProperti
 			Metadata: map[string]string{},
 		}
 
-		handlerCtx, handlerCancel := context.WithTimeout(ctx, timeout)
-		defer handlerCancel()
 		aeh.logger.Debugf("Calling app's handler for %d messages on topic %s", len(messages), topic)
-		resps, err := handler(handlerCtx, bulkMessage)
+		resps, err := handler(ctx, bulkMessage)
 
 		handlerResps := make([]HandlerResponseItem, len(resps))
 		for i, resp := range resps {

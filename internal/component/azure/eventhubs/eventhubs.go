@@ -62,7 +62,7 @@ type AzureEventHubs struct {
 
 // HandlerResponseItem represents a response from the handler for each message.
 type HandlerResponseItem struct {
-	EntryId string //nolint:stylecheck
+	EntryID string
 	Error   error
 }
 
@@ -213,7 +213,7 @@ func (aeh *AzureEventHubs) GetBulkPubSubHandlerFunc(topic string, getAllProperti
 		handlerResps := make([]HandlerResponseItem, len(resps))
 		for i, resp := range resps {
 			handlerResps[i] = HandlerResponseItem{
-				EntryId: resp.EntryId,
+				EntryID: resp.EntryId,
 				Error:   resp.Error,
 			}
 		}
@@ -340,7 +340,7 @@ func (aeh *AzureEventHubs) handleAsync(ctx context.Context, topic string, messag
 		}
 		for _, item := range resp {
 			if item.Error != nil {
-				aeh.logger.Errorf("Failed to process Eventhubs bulk message entry. EntryId: %s. Error: %v ", item.EntryId, item.Error)
+				aeh.logger.Errorf("Failed to process Eventhubs bulk message entry. EntryID: %s. Error: %v ", item.EntryID, item.Error)
 			}
 		}
 	}

@@ -152,7 +152,7 @@ func (aeh *AzureEventHubs) Publish(ctx context.Context, topic string, messages [
 	return nil
 }
 
-// GetPubSubHandlerFunc returns the handler function for pubsub messages
+// GetBindingsHandlerFunc returns the handler function for bindings messages
 func (aeh *AzureEventHubs) GetBindingsHandlerFunc(topic string, getAllProperties bool, handler bindings.Handler) HandlerFn {
 	return func(ctx context.Context, messages []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error) {
 		if len(messages) != 1 {

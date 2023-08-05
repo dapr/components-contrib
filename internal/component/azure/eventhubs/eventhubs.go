@@ -66,7 +66,7 @@ type HandlerResponseItem struct {
 	Error   error
 }
 
-type HandlerFn func(context.Context, []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error)
+type HandlerFn = func(context.Context, []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error)
 
 // NewAzureEventHubs returns a new Azure Event hubs instance.
 func NewAzureEventHubs(logger logger.Logger, isBinding bool) *AzureEventHubs {
@@ -161,7 +161,7 @@ func (aeh *AzureEventHubs) GetBindingsHandlerFunc(topic string, getAllProperties
 
 		bindingsMsg, err := NewBindingsReadResponseFromEventData(messages[0], topic, getAllProperties)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get bindings read response from azure eventhubs message: %+v", err)
+			return nil, fmt.Errorf("failed to get bindings read response from azure eventhubs message: %w", err)
 		}
 
 		aeh.logger.Debugf("Calling app's handler for message %s on topic %s", messages[0].SequenceNumber, topic)
@@ -179,7 +179,7 @@ func (aeh *AzureEventHubs) GetPubSubHandlerFunc(topic string, getAllProperties b
 
 		pubsubMsg, err := NewPubsubMessageFromEventData(messages[0], topic, getAllProperties)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get pubsub message from azure eventhubs message: %+v", err)
+			return nil, fmt.Errorf("failed to get pubsub message from azure eventhubs message: %w", err)
 		}
 
 		aeh.logger.Debugf("Calling app's handler for message %s on topic %s", messages[0].SequenceNumber, topic)
@@ -194,7 +194,7 @@ func (aeh *AzureEventHubs) GetBulkPubSubHandlerFunc(topic string, getAllProperti
 		for i, msg := range messages {
 			pubsubMsg, err := NewBulkMessageEntryFromEventData(msg, topic, getAllProperties)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get pubsub message from eventhub message: %+v", err)
+				return nil, fmt.Errorf("failed to get pubsub message from eventhub message: %w", err)
 			}
 			pubsubMsgs[i] = pubsubMsg
 		}

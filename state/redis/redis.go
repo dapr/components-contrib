@@ -23,9 +23,11 @@ import (
 	"sync/atomic"
 
 	jsoniter "github.com/json-iterator/go"
+	"google.golang.org/grpc/codes"
 
 	"github.com/dapr/components-contrib/contenttype"
 	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
+	"github.com/dapr/components-contrib/internal/errorcodes"
 	daprmetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
@@ -101,6 +103,7 @@ type StateStore struct {
 	replicas                       int
 	querySchemas                   querySchemas
 	suppressActorStateStoreWarning atomic.Bool
+	resourceInfoData               errorcodes.ResourceInfoData
 
 	logger logger.Logger
 }
@@ -117,6 +120,10 @@ func newStateStore(log logger.Logger) *StateStore {
 		json:                           jsoniter.ConfigFastest,
 		logger:                         log,
 		suppressActorStateStoreWarning: atomic.Bool{},
+		resourceInfoData: errorcodes.ResourceInfoData{
+			ResourceType: "state.redis/v1",
+			ResourceName: "REDIS",
+		},
 	}
 }
 
@@ -213,6 +220,11 @@ func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 		err = r.client.DoWrite(ctx, "EVAL", delDefaultQuery, 1, req.Key, *req.ETag)
 	}
 	if err != nil {
+		if errorcodes.FeatureEnabled(req.Metadata) {
+			errMsg := fmt.Sprintf("state store Delete - possible etag(%s) %s. original error: %v", *req.ETag, string(state.ETagMismatch), err)
+			return errorcodes.NewStatusError(codes.InvalidArgument, err, errMsg, errorcodes.StateETagMismatchReason, &r.resourceInfoData, nil)
+		}
+
 		return state.NewETagError(state.ETagMismatch, err)
 	}
 
@@ -354,6 +366,11 @@ func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 
 	if err != nil {
 		if req.HasETag() {
+			if errorcodes.FeatureEnabled(req.Metadata) {
+				errMsg := fmt.Sprintf("state store Set - possible etag(%s) %s. original error: %v", *req.ETag, string(state.ETagMismatch), err)
+				return errorcodes.NewStatusError(codes.InvalidArgument, fmt.Errorf(errMsg), errMsg, errorcodes.StateETagMismatchReason, &r.resourceInfoData, nil)
+			}
+
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 

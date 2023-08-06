@@ -30,9 +30,7 @@ const (
 	Domain                       = "dapr.io"
 )
 
-var (
-	StateETagMismatchReason = Reason("DAPR_STATE_ETAG_MISMATCH")
-)
+var StateETagMismatchReason = Reason("DAPR_STATE_ETAG_MISMATCH")
 
 type ResourceInfoData struct {
 	ResourceType, ResourceName string

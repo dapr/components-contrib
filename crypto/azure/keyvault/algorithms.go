@@ -33,7 +33,7 @@ var (
 )
 
 // GetJWKEncryptionAlgorithm returns a JSONWebKeyEncryptionAlgorithm constant is the algorithm is a supported one.
-func GetJWKEncryptionAlgorithm(algorithm string) *azkeys.JSONWebKeyEncryptionAlgorithm {
+func GetJWKEncryptionAlgorithm(algorithm string) *azkeys.EncryptionAlgorithm {
 	// Special case for AES-CBC, since we treat A[NNN]CBC as having PKCS#7 padding, and A[NNN]CBC-NOPAD as not using padding
 	switch algorithm {
 	case internals.Algorithm_A128CBC, internals.Algorithm_A192CBC, internals.Algorithm_A256CBC:
@@ -45,23 +45,23 @@ func GetJWKEncryptionAlgorithm(algorithm string) *azkeys.JSONWebKeyEncryptionAlg
 	}
 
 	if _, ok := validEncryptionAlgs[algorithm]; ok {
-		return to.Ptr(azkeys.JSONWebKeyEncryptionAlgorithm(algorithm))
+		return to.Ptr(azkeys.EncryptionAlgorithm(algorithm))
 	} else {
 		return nil
 	}
 }
 
 // GetJWKSignatureAlgorithm returns a JSONWebKeySignatureAlgorithm constant is the algorithm is a supported one.
-func GetJWKSignatureAlgorithm(algorithm string) *azkeys.JSONWebKeySignatureAlgorithm {
+func GetJWKSignatureAlgorithm(algorithm string) *azkeys.SignatureAlgorithm {
 	if _, ok := validSignatureAlgs[algorithm]; ok {
-		return to.Ptr(azkeys.JSONWebKeySignatureAlgorithm(algorithm))
+		return to.Ptr(azkeys.SignatureAlgorithm(algorithm))
 	} else {
 		return nil
 	}
 }
 
 type algorithms interface {
-	azkeys.JSONWebKeyEncryptionAlgorithm | azkeys.JSONWebKeySignatureAlgorithm
+	azkeys.EncryptionAlgorithm | azkeys.SignatureAlgorithm
 }
 
 // IsAlgorithmAsymmetric returns true if the algorithm identifier is asymmetric.

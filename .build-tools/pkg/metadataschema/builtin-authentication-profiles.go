@@ -17,131 +17,22 @@ import (
 	"fmt"
 )
 
+// Built-in authentication profiles
+var BuiltinAuthenticationProfiles map[string][]AuthenticationProfile
+
 // ParseBuiltinAuthenticationProfile returns an AuthenticationProfile(s) from a given BuiltinAuthenticationProfile.
 func ParseBuiltinAuthenticationProfile(bi BuiltinAuthenticationProfile) ([]AuthenticationProfile, error) {
-	switch bi.Name {
-	case "aws":
-		return []AuthenticationProfile{
-			{
-				Title:       "AWS: Access Key ID and Secret Access Key",
-				Description: "Authenticate using an Access Key ID and Secret Access Key included in the metadata",
-				Metadata: []Metadata{
-					{
-						Name:        "accessKey",
-						Required:    true,
-						Sensitive:   true,
-						Description: "AWS access key associated with an IAM account",
-						Example:     `"AKIAIOSFODNN7EXAMPLE"`,
-					},
-					{
-						Name:        "secretKey",
-						Required:    true,
-						Sensitive:   true,
-						Description: "The secret key associated with the access key",
-						Example:     `"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"`,
-					},
-				},
-			},
-			{
-				Title:       "AWS: Credentials from Environment Variables",
-				Description: "Use AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY from the environment",
-				Metadata:    []Metadata{},
-			},
-		}, nil
-	case "azuread":
-		azureEnvironmentMetadata := Metadata{
-			Name:          "azureEnvironment",
-			Required:      false,
-			Description:   "Optional name for the Azure environment if using a different Azure cloud",
-			Example:       `"AzurePublicCloud"`,
-			Default:       "AzurePublicCloud",
-			AllowedValues: []string{"AzurePublicCloud", "AzureChinaCloud", "AzureUSGovernmentCloud"},
-		}
-		profiles := []AuthenticationProfile{
-			{
-				Title:       "Azure AD: Managed identity",
-				Description: "Authenticate using Azure AD and a managed identity.",
-				Metadata: mergedMetadata(bi.Metadata,
-					Metadata{
-						Name:        "azureClientId",
-						Description: "Client ID (application ID). Required if the service has multiple identities assigned.",
-						Example:     `"c7dd251f-811f-4ba2-a905-acd4d3f8f08b"`,
-						Required:    false,
-					},
-					azureEnvironmentMetadata,
-				),
-			},
-			{
-				Title:       "Azure AD: Client credentials",
-				Description: "Authenticate using Azure AD with client credentials, also known as \"service principals\".",
-				Metadata: mergedMetadata(bi.Metadata,
-					Metadata{
-						Name:        "azureTenantId",
-						Description: "ID of the Azure AD tenant",
-						Example:     `"cd4b2887-304c-47e1-b4d5-65447fdd542a"`,
-						Required:    true,
-					},
-					Metadata{
-						Name:        "azureClientId",
-						Description: "Client ID (application ID)",
-						Example:     `"c7dd251f-811f-4ba2-a905-acd4d3f8f08b"`,
-						Required:    true,
-					},
-					Metadata{
-						Name:        "azureClientSecret",
-						Description: "Client secret (application password)",
-						Example:     `"Ecy3XG7zVZK3/vl/a2NSB+a1zXLa8RnMum/IgD0E"`,
-						Required:    true,
-						Sensitive:   true,
-					},
-					azureEnvironmentMetadata,
-				),
-			},
-			{
-				Title:       "Azure AD: Client certificate",
-				Description: `Authenticate using Azure AD with a client certificate. One of "azureCertificate" and "azureCertificateFile" is required.`,
-				Metadata: mergedMetadata(bi.Metadata,
-					Metadata{
-						Name:        "azureTenantId",
-						Description: "ID of the Azure AD tenant",
-						Example:     `"cd4b2887-304c-47e1-b4d5-65447fdd542a"`,
-						Required:    true,
-					},
-					Metadata{
-						Name:        "azureClientId",
-						Description: "Client ID (application ID)",
-						Example:     `"c7dd251f-811f-4ba2-a905-acd4d3f8f08b"`,
-						Required:    true,
-					},
-					Metadata{
-						Name:        "azureCertificate",
-						Description: "Certificate and private key (in either a PEM file containing both the certificate and key, or in PFX/PKCS#12 format)",
-						Example:     `"-----BEGIN PRIVATE KEY-----\n MIIEvgI... \n -----END PRIVATE KEY----- \n -----BEGIN CERTIFICATE----- \n MIICoTC... \n -----END CERTIFICATE----- \n"`,
-						Required:    false,
-						Sensitive:   true,
-					},
-					Metadata{
-						Name:        "azureCertificateFile",
-						Description: "Path to PEM or PFX/PKCS#12 file on disk, containing the certificate and private key.",
-						Example:     `"/path/to/file.pem"`,
-						Required:    false,
-						Sensitive:   false,
-					},
-					Metadata{
-						Name:        "azureCertificatePassword",
-						Description: "Password for the certificate if encrypted.",
-						Example:     `"password"`,
-						Required:    false,
-						Sensitive:   true,
-					},
-					azureEnvironmentMetadata,
-				),
-			},
-		}
-		return profiles, nil
-	default:
+	profiles, ok := BuiltinAuthenticationProfiles[bi.Name]
+	if !ok {
 		return nil, fmt.Errorf("built-in authentication profile %s does not exist", bi.Name)
 	}
+
+	res := make([]AuthenticationProfile, len(profiles))
+	for i, profile := range profiles {
+		res[i] = profile
+		res[i].Metadata = mergedMetadata(bi.Metadata, res[i].Metadata...)
+	}
+	return res, nil
 }
 
 func mergedMetadata(base []Metadata, add ...Metadata) []Metadata {

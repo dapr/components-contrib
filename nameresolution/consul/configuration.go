@@ -14,7 +14,6 @@ limitations under the License.
 package consul
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -61,11 +60,9 @@ func parseConfig(rawConfig interface{}) (configSpec, error) {
 		return result, fmt.Errorf("error serializing to json: %w", err)
 	}
 
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-
 	var configuration intermediateConfig
-	if err := decoder.Decode(&configuration); err != nil {
+	err = json.Unmarshal(data, &configuration)
+	if err != nil {
 		return result, fmt.Errorf("error deserializing to configSpec: %w", err)
 	}
 

@@ -161,9 +161,9 @@ func (r *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 // Features returns the features available in this state store.
 func (r *StateStore) Features() []state.Feature {
 	if r.clientHasJSON {
-		return []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI}
+		return []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureTTL, state.FeatureQueryAPI}
 	} else {
-		return []state.Feature{state.FeatureETag, state.FeatureTransactional}
+		return []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureTTL}
 	}
 }
 
@@ -547,10 +547,8 @@ func (r *StateStore) Close() error {
 	return r.client.Close()
 }
 
-func (r *StateStore) GetComponentMetadata() map[string]string {
+func (r *StateStore) GetComponentMetadata() (metadataInfo daprmetadata.MetadataMap) {
 	settingsStruct := rediscomponent.Settings{}
-	metadataInfo := map[string]string{}
 	daprmetadata.GetMetadataInfoFromStructType(reflect.TypeOf(settingsStruct), &metadataInfo, daprmetadata.StateStoreType)
-
-	return metadataInfo
+	return
 }

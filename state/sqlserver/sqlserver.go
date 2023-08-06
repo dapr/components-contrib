@@ -20,9 +20,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	internalsql "github.com/dapr/components-contrib/internal/component/sql"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
@@ -63,7 +65,11 @@ const (
 // New creates a new instance of a SQL Server transaction store.
 func New(logger logger.Logger) state.Store {
 	s := &SQLServer{
-		features:        []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		features: []state.Feature{
+			state.FeatureETag,
+			state.FeatureTransactional,
+			state.FeatureTTL,
+		},
 		logger:          logger,
 		migratorFactory: newMigration,
 	}
@@ -236,12 +242,6 @@ func (s *SQLServer) executeDelete(ctx context.Context, db dbExecutor, req *state
 	return nil
 }
 
-// TvpDeleteTableStringKey defines a table type with string key.
-type TvpDeleteTableStringKey struct {
-	ID         string
-	RowVersion []byte
-}
-
 // Get returns an entity from store.
 func (s *SQLServer) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	rows, err := s.db.QueryContext(ctx, s.getCommand, sql.Named(keyColumnName, req.Key))
@@ -347,8 +347,10 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 	return nil
 }
 
-func (s *SQLServer) GetComponentMetadata() map[string]string {
-	return map[string]string{}
+func (s *SQLServer) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+	settingsStruct := sqlServerMetadata{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(settingsStruct), &metadataInfo, metadata.StateStoreType)
+	return
 }
 
 // Close implements io.Closer.

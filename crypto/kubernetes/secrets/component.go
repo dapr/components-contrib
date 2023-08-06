@@ -28,7 +28,7 @@ import (
 
 	contribCrypto "github.com/dapr/components-contrib/crypto"
 	kubeclient "github.com/dapr/components-contrib/internal/authentication/kubernetes"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/metadata"
 	internals "github.com/dapr/kit/crypto"
 	"github.com/dapr/kit/logger"
 )
@@ -136,9 +136,8 @@ func (k *kubeSecretsCrypto) parseKeyString(param string) (namespace string, secr
 	return
 }
 
-func (kubeSecretsCrypto) GetComponentMetadata() map[string]string {
+func (kubeSecretsCrypto) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := secretsMetadata{}
-	metadataInfo := map[string]string{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.CryptoType)
-	return metadataInfo
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.CryptoType)
+	return
 }

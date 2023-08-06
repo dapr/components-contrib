@@ -36,7 +36,7 @@ func (m *middleware) GetHandler(ctx context.Context, metadata dapr.Metadata) (fu
 
 // getHandler is extracted for unit testing.
 func (m *middleware) getHandler(ctx context.Context, metadata dapr.Metadata) (*requestHandler, error) {
-	meta, err := wasm.GetInitMetadata(metadata.Base)
+	meta, err := wasm.GetInitMetadata(ctx, metadata.Base)
 	if err != nil {
 		return nil, fmt.Errorf("wasm: failed to parse metadata: %w", err)
 	}
@@ -121,9 +121,8 @@ func (rh *requestHandler) Close() error {
 	return rh.mw.Close(ctx)
 }
 
-func (m *middleware) GetComponentMetadata() map[string]string {
+func (m *middleware) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
 	metadataStruct := wasm.InitMetadata{}
-	metadataInfo := map[string]string{}
 	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.MiddlewareType)
-	return metadataInfo
+	return
 }

@@ -1,9 +1,26 @@
+/*
+Copyright 2023 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implieout.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package wasm
 
 import (
+	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -50,13 +67,12 @@ type InitMetadata struct {
 }
 
 // GetInitMetadata returns InitMetadata from the input metadata.
-func GetInitMetadata(md metadata.Base) (*InitMetadata, error) {
+func GetInitMetadata(ctx context.Context, md metadata.Base) (*InitMetadata, error) {
 	// Note: the ctx will be used for other schemes such as HTTP and OCI.
 
 	var m InitMetadata
 	// Decode the metadata
-	err := metadata.DecodeMetadata(md.Properties, &m)
-	if err != nil {
+	if err := metadata.DecodeMetadata(md.Properties, &m); err != nil {
 		return nil, err
 	}
 
@@ -74,17 +90,23 @@ func GetInitMetadata(md metadata.Base) (*InitMetadata, error) {
 	case "oci":
 		return nil, fmt.Errorf("TODO %s", scheme)
 	case "http", "https":
-		_, err = url.Parse(m.URL)
+		u, err := url.Parse(m.URL)
 		if err != nil {
 			return nil, err
 		}
-		return nil, fmt.Errorf("TODO %s", scheme)
+		c := newHTTPCLient(http.DefaultTransport)
+		m.Guest, err = c.get(ctx, u)
+		if err != nil {
+			return nil, err
+		}
+		m.GuestName, _ = strings.CutSuffix(path.Base(u.Path), ".wasm")
 	case "file":
 		guestPath := m.URL[7:]
-		m.Guest, err = os.ReadFile(guestPath)
+		guest, err := os.ReadFile(guestPath)
 		if err != nil {
 			return nil, err
 		}
+		m.Guest = guest
 		// Use the name of the wasm binary as the module name.
 		m.GuestName, _ = strings.CutSuffix(path.Base(guestPath), ".wasm")
 	default:

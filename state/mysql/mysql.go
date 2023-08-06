@@ -225,7 +225,11 @@ func (m *MySQL) parseMetadata(md map[string]string) error {
 
 // Features returns the features available in this state store.
 func (m *MySQL) Features() []state.Feature {
-	return []state.Feature{state.FeatureETag, state.FeatureTransactional}
+	return []state.Feature{
+		state.FeatureETag,
+		state.FeatureTransactional,
+		state.FeatureTTL,
+	}
 }
 
 // Ping the database.
@@ -893,9 +897,8 @@ type querier interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
-func (m *MySQL) GetComponentMetadata() map[string]string {
+func (m *MySQL) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := mySQLMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
 }

@@ -106,11 +106,10 @@ func NewCosmosDBStateStore(logger logger.Logger) state.Store {
 	return s
 }
 
-func (c *StateStore) GetComponentMetadata() map[string]string {
+func (c *StateStore) GetComponentMetadata() (metadataInfo contribmeta.MetadataMap) {
 	metadataStruct := metadata{}
-	metadataInfo := map[string]string{}
 	contribmeta.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribmeta.StateStoreType)
-	return metadataInfo
+	return
 }
 
 // Init does metadata and connection parsing.
@@ -205,6 +204,7 @@ func (c *StateStore) Features() []state.Feature {
 		state.FeatureETag,
 		state.FeatureTransactional,
 		state.FeatureQueryAPI,
+		state.FeatureTTL,
 	}
 }
 
@@ -484,6 +484,12 @@ func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	}
 
 	return nil
+}
+
+// MultiMaxSize returns the maximum number of operations allowed in a transaction.
+// For Azure Cosmos DB, that's 100.
+func (c StateStore) MultiMaxSize() int {
+	return 100
 }
 
 // Multi performs a transactional operation. Succeeds only if all operations succeed, and fails if one or more operations fail.

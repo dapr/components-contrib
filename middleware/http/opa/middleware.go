@@ -260,9 +260,8 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*middlewar
 	return &meta, nil
 }
 
-func (m *Middleware) GetComponentMetadata() map[string]string {
+func (m *Middleware) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := middlewareMetadata{}
-	metadataInfo := map[string]string{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.MiddlewareType)
-	return metadataInfo
+	return
 }

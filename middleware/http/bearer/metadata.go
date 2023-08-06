@@ -29,16 +29,12 @@ import (
 
 type bearerMiddlewareMetadata struct {
 	// Issuer authority.
-	Issuer string `json:"issuer" mapstructure:"issuer"`
+	Issuer string `json:"issuer" mapstructure:"issuer" mapstructurealiases:"issuerURL"`
 	// Audience to expect in the token (usually, a client ID).
-	Audience string `json:"audience" mapstructure:"audience"`
+	Audience string `json:"audience" mapstructure:"audience" mapstructurealiases:"clientID"`
 	// Optional address of the JKWS file.
 	// If missing, will try to fetch the URL set in the OpenID Configuration document `<issuer>/.well-known/openid-configuration`.
 	JWKSURL string `json:"jwksURL" mapstructure:"jwksURL"`
-	// Deprecated - use "issuer" instead.
-	IssuerURL string `json:"issuerURL" mapstructure:"issuerURL"`
-	// Deprecated - use "audience" instead.
-	ClientID string `json:"clientID" mapstructure:"clientID"`
 
 	// Internal properties
 	logger logger.Logger `json:"-" mapstructure:"-"`
@@ -50,18 +46,6 @@ func (md *bearerMiddlewareMetadata) fromMetadata(metadata middleware.Metadata) e
 	err := mdutils.DecodeMetadata(metadata.Properties, md)
 	if err != nil {
 		return err
-	}
-
-	// Support IssuerURL as deprecated alias for Issuer
-	if md.Issuer == "" && md.IssuerURL != "" {
-		md.Issuer = md.IssuerURL
-		md.logger.Warnf("Metadata property 'issuerURL' is deprecated and will be removed in the future. Please use 'issuer' instead.")
-	}
-
-	// Support ClientID as deprecated alias for Audience
-	if md.Audience == "" && md.ClientID != "" {
-		md.Audience = md.ClientID
-		md.logger.Warnf("Metadata property 'clientID' is deprecated and will be removed in the future. Please use 'audience' instead.")
 	}
 
 	// Validate properties

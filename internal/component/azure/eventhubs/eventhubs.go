@@ -279,7 +279,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, topic string,
 
 		// This method is synchronous so no risk of race conditions if using side effects
 		var attempts int
-		retryerr := retry.NotifyRecover(func() error {
+		retryErr := retry.NotifyRecover(func() error {
 			attempts++
 			aeh.logger.Debugf("Processing EventHubs events for topic %s (attempt: %d)", topic, attempts)
 			resp, err = handler(ctx, events)
@@ -289,10 +289,10 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, topic string,
 		}, func() {
 			aeh.logger.Warnf("Successfully processed EventHubs events after it previously failed for topic %s", topic)
 		})
-		if retryerr != nil {
+		if retryErr != nil {
 			aeh.logger.Errorf("Too many failed attempts at processing Eventhubs events for topic %s. Error: %v", topic, retryerr)
 		}
-		return resp, retryerr
+		return resp, retryErr
 	}
 
 	// Process all partition clients as they come in

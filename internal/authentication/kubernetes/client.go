@@ -15,38 +15,54 @@ package kubernetes
 
 import (
 	"flag"
+	"os"
 	"path/filepath"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
+
+	"github.com/dapr/kit/logger"
 )
 
-//nolint:gochecknoglobals
-var kubeconfig *string
+const (
+	cliFlagName = "kubeconfig"
+	envVarName  = "KUBECONFIG"
+)
 
-//nolint:gochecknoinits
-func init() {
-	if f := flag.CommandLine.Lookup("kubeconfig"); f != nil {
-		kubeconfigStr := f.Value.String()
-		kubeconfig = &kubeconfigStr
-	} else {
-		if home := homedir.HomeDir(); home != "" {
-			kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-		} else {
-			kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-
-		}
+func getKubeconfigPath(log logger.Logger) string {
+	// Check if the path is set via the CLI flag `-kubeconfig`
+	// This is deprecated
+	var cliVal string
+	fs := flag.NewFlagSet(cliFlagName, flag.ContinueOnError)
+	fs.StringVar(&cliVal, cliFlagName, "", "absolute path to the kubeconfig file")
+	_ = fs.Parse(os.Args)
+	cliFlag := fs.Lookup(cliFlagName)
+	if cliFlag != nil && cliFlag.Value.String() != "" {
+		log.Warn("Setting kubeconfig using the CLI flag --kubeconfig is deprecated and will be removed in a future version")
+		return cliFlag.Value.String()
 	}
+
+	// Check if we have the KUBECONFIG env var
+	envVal := os.Getenv(envVarName)
+	if envVal != "" {
+		return envVal
+	}
+
+	// Return the default value
+	home := homedir.HomeDir()
+	if home != "" {
+		return filepath.Join(home, ".kube", "config")
+	}
+	return ""
 }
 
 // GetKubeClient returns a kubernetes client.
-func GetKubeClient() (*kubernetes.Clientset, error) {
-	flag.Parse()
+func GetKubeClient(log logger.Logger) (*kubernetes.Clientset, error) {
 	conf, err := rest.InClusterConfig()
 	if err != nil {
-		conf, err = clientcmd.BuildConfigFromFlags("", *kubeconfig)
+		conf, err = clientcmd.BuildConfigFromFlags("", getKubeconfigPath(log))
 		if err != nil {
 			return nil, err
 		}

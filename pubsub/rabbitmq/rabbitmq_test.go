@@ -98,10 +98,36 @@ func TestPublishAndSubscribeWithPriorityQueue(t *testing.T) {
 	assert.Equal(t, 1, messageCount)
 	assert.Equal(t, "hello world", lastMessage)
 
-	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
-	assert.Nil(t, err)
+	// subscribe using classic queue type
+	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic, Metadata: map[string]string{reqMetadataQueueTypeKey: "classic"}}, handler)
+	assert.NoError(t, err)
+
+	// publish using classic queue type
+	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hey there"), Metadata: map[string]string{reqMetadataQueueTypeKey: "classic"}})
+	assert.NoError(t, err)
 	<-processed
 	assert.Equal(t, 2, messageCount)
+	assert.Equal(t, "hey there", lastMessage)
+
+	// subscribe using quorum queue type
+	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic, Metadata: map[string]string{reqMetadataQueueTypeKey: "quorum"}}, handler)
+	assert.NoError(t, err)
+
+	// publish using quorum queue type
+	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("hello friends"), Metadata: map[string]string{reqMetadataQueueTypeKey: "quorum"}})
+	assert.NoError(t, err)
+	<-processed
+	assert.Equal(t, 3, messageCount)
+	assert.Equal(t, "hello friends", lastMessage)
+
+	// trying to subscribe using invalid queue type
+	err = pubsubRabbitMQ.Subscribe(context.Background(), pubsub.SubscribeRequest{Topic: topic, Metadata: map[string]string{reqMetadataQueueTypeKey: "invalid"}}, handler)
+	assert.Error(t, err)
+
+	err = pubsubRabbitMQ.Publish(context.Background(), &pubsub.PublishRequest{Topic: topic, Data: []byte("foo bar")})
+	assert.NoError(t, err)
+	<-processed
+	assert.Equal(t, 4, messageCount)
 	assert.Equal(t, "foo bar", lastMessage)
 }
 

@@ -221,8 +221,8 @@ func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	}
 	if err != nil {
 		if errorcodes.FeatureEnabled(req.Metadata) {
-			errMsg := fmt.Sprintf("state store Delete - possible etag(%s) %s. original error: %v", *req.ETag, string(state.ETagMismatch), err)
-			return errorcodes.NewStatusError(codes.InvalidArgument, err, errMsg, errorcodes.StateETagMismatchReason, &r.resourceInfoData, nil)
+			ew := fmt.Errorf("state store Delete - possible etag(%s) %s. original error: %v", *req.ETag, string(state.ETagMismatch), err)
+			return errorcodes.NewStatusError(codes.InvalidArgument, ew, errorcodes.StateETagMismatchReason, &r.resourceInfoData, nil)
 		}
 
 		return state.NewETagError(state.ETagMismatch, err)
@@ -367,8 +367,8 @@ func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	if err != nil {
 		if req.HasETag() {
 			if errorcodes.FeatureEnabled(req.Metadata) {
-				errMsg := fmt.Sprintf("state store Set - possible etag(%s) %s. original error: %v", *req.ETag, string(state.ETagMismatch), err)
-				return errorcodes.NewStatusError(codes.InvalidArgument, fmt.Errorf(errMsg), errMsg, errorcodes.StateETagMismatchReason, &r.resourceInfoData, nil)
+				ew := fmt.Errorf("state store Set - possible etag(%s) %s. original error: %v", *req.ETag, string(state.ETagMismatch), err)
+				return errorcodes.NewStatusError(codes.InvalidArgument, ew, errorcodes.StateETagMismatchReason, &r.resourceInfoData, nil)
 			}
 
 			return state.NewETagError(state.ETagMismatch, err)

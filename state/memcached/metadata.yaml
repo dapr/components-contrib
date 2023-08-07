@@ -12,9 +12,21 @@ capabilities:
   - crud
   - ttl
 metadata:
-  - name: table
+  - name: hosts
     required: true
     description: |
-      The name of the DynamoDB table to use.
-    example: '"Contracts"'
+      Comma delimited endpoints
+    example: '"memcached.default.svc.cluster.local:11211"'
     type: string
+  - name: maxIdleConnections
+    required: false
+    description: |
+      The max number of idle connections. Defaults to "2"
+    example: '"3"'
+    type: number
+  - name: timeout
+    required: false
+    description: |
+      The timeout for the calls. Defaults to "1000ms"
+    example: '"1000ms"'
+    type: number

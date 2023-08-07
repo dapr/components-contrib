@@ -19,12 +19,12 @@ package conformance
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStateConformance(t *testing.T) {
 	tc, err := NewTestConfiguration("../config/state/tests.yml")
-	assert.NoError(t, err)
-	assert.NotNil(t, tc)
+	require.NoError(t, err)
+	require.NotNil(t, tc)
 	tc.Run(t)
 }

@@ -7,8 +7,8 @@ package zookeeper
 import (
 	reflect "reflect"
 
-	zk "github.com/go-zookeeper/zk"
 	gomock "github.com/golang/mock/gomock"
+	zk "github.com/go-zookeeper/zk"
 )
 
 // MockConn is a mock of Conn interface

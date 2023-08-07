@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: cockroachdb
+version: v1
+status: stable
+title: "CockroachDB"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-cockroachdb/
+capabilities:
+  - crud
+  - transactional
+  - etag
+  - ttl
+  - actorStateStore
+metadata:
+  - name: table
+    required: true
+    description: |
+      The name of the DynamoDB table to use.
+    example: '"Contracts"'
+    type: string

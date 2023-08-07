@@ -117,7 +117,9 @@ func (c *Cassandra) Init(_ context.Context, metadata state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (c *Cassandra) Features() []state.Feature {
-	return nil
+	return []state.Feature{
+		state.FeatureTTL,
+	}
 }
 
 func (c *Cassandra) tryCreateKeyspace(keyspace string, replicationFactor int) error {

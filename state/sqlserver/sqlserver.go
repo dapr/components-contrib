@@ -65,7 +65,11 @@ const (
 // New creates a new instance of a SQL Server transaction store.
 func New(logger logger.Logger) state.Store {
 	s := &SQLServer{
-		features:        []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		features: []state.Feature{
+			state.FeatureETag,
+			state.FeatureTransactional,
+			state.FeatureTTL,
+		},
 		logger:          logger,
 		migratorFactory: newMigration,
 	}
@@ -236,12 +240,6 @@ func (s *SQLServer) executeDelete(ctx context.Context, db dbExecutor, req *state
 
 	// successful deletion, or noop if no ETAG specified
 	return nil
-}
-
-// TvpDeleteTableStringKey defines a table type with string key.
-type TvpDeleteTableStringKey struct {
-	ID         string
-	RowVersion []byte
 }
 
 // Get returns an entity from store.

@@ -48,6 +48,7 @@ func newSQLiteStateStore(logger logger.Logger, dba DBAccess) *SQLiteStore {
 		features: []state.Feature{
 			state.FeatureETag,
 			state.FeatureTransactional,
+			state.FeatureTTL,
 		},
 		dbaccess: dba,
 	}

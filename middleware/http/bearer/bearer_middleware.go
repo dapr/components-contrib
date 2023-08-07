@@ -23,6 +23,7 @@ import (
 
 	"github.com/lestrrat-go/httprc"
 	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 
 	"github.com/dapr/components-contrib/internal/httputils"
@@ -112,7 +113,7 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 			_, err = jwt.Parse([]byte(rawToken),
 				jwt.WithContext(r.Context()),
 				jwt.WithAcceptableSkew(allowedClockSkew),
-				jwt.WithKeySet(keyset),
+				jwt.WithKeySet(keyset, jws.WithInferAlgorithmFromKey(true)),
 				jwt.WithAudience(meta.Audience),
 				jwt.WithIssuer(meta.Issuer),
 			)

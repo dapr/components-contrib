@@ -74,21 +74,21 @@ func NewAzureAppConfigurationStore(logger logger.Logger) configuration.Store {
 }
 
 // Init does metadata and connection parsing.
-func (r *ConfigurationStore) Init(_ context.Context, metadata configuration.Metadata) error {
-	m, err := parseMetadata(metadata)
+func (r *ConfigurationStore) Init(_ context.Context, md configuration.Metadata) error {
+	r.metadata = metadata{}
+	err := r.metadata.Parse(r.logger, md)
 	if err != nil {
 		return err
 	}
-	r.metadata = m
 
 	coreClientOpts := azcore.ClientOptions{
 		Telemetry: policy.TelemetryOptions{
 			ApplicationID: "dapr-" + logger.DaprVersion,
 		},
 		Retry: policy.RetryOptions{
-			MaxRetries:    int32(m.MaxRetries),
-			RetryDelay:    m.internalMaxRetryDelay,
-			MaxRetryDelay: m.internalMaxRetryDelay,
+			MaxRetries:    int32(r.metadata.MaxRetries),
+			RetryDelay:    r.metadata.MaxRetryDelay,
+			MaxRetryDelay: r.metadata.MaxRetryDelay,
 		},
 	}
 
@@ -103,7 +103,7 @@ func (r *ConfigurationStore) Init(_ context.Context, metadata configuration.Meta
 		}
 	} else {
 		var settings azauth.EnvironmentSettings
-		settings, err = azauth.NewEnvironmentSettings(metadata.Properties)
+		settings, err = azauth.NewEnvironmentSettings(md.Properties)
 		if err != nil {
 			return err
 		}
@@ -121,43 +121,6 @@ func (r *ConfigurationStore) Init(_ context.Context, metadata configuration.Meta
 	}
 
 	return nil
-}
-
-func parseMetadata(meta configuration.Metadata) (metadata, error) {
-	m := metadata{
-		MaxRetries:                    defaultMaxRetries,
-		internalMaxRetryDelay:         defaultMaxRetryDelay,
-		internalRetryDelay:            defaultRetryDelay,
-		internalSubscribePollInterval: defaultSubscribePollInterval,
-		internalRequestTimeout:        defaultRequestTimeout,
-	}
-	decodeErr := contribMetadata.DecodeMetadata(meta.Properties, &m)
-	if decodeErr != nil {
-		return m, decodeErr
-	}
-
-	if m.ConnectionString != "" && m.Host != "" {
-		return m, fmt.Errorf("azure appconfig error: can't set both %s and %s fields in metadata", host, connectionString)
-	}
-
-	if m.ConnectionString == "" && m.Host == "" {
-		return m, fmt.Errorf("azure appconfig error: specify %s or %s field in metadata", host, connectionString)
-	}
-
-	if m.MaxRetryDelay != nil {
-		m.internalMaxRetryDelay = time.Duration(*m.MaxRetryDelay)
-	}
-	if m.RetryDelay != nil {
-		m.internalRetryDelay = time.Duration(*m.RetryDelay)
-	}
-	if m.SubscribePollInterval != nil {
-		m.internalSubscribePollInterval = time.Duration(*m.SubscribePollInterval)
-	}
-	if m.RequestTimeout != nil {
-		m.internalRequestTimeout = time.Duration(*m.RequestTimeout)
-	}
-
-	return m, nil
 }
 
 func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequest) (*configuration.GetResponse, error) {
@@ -216,7 +179,7 @@ func (r *ConfigurationStore) getAll(ctx context.Context, req *configuration.GetR
 		nil)
 
 	for allSettingsPgr.More() {
-		timeoutContext, cancel := context.WithTimeout(ctx, r.metadata.internalRequestTimeout)
+		timeoutContext, cancel := context.WithTimeout(ctx, r.metadata.RequestTimeout)
 		defer cancel()
 		if revResp, err := allSettingsPgr.NextPage(timeoutContext); err == nil {
 			for _, setting := range revResp.Settings {
@@ -248,11 +211,11 @@ func (r *ConfigurationStore) getLabelFromMetadata(metadata map[string]string) *s
 func (r *ConfigurationStore) Subscribe(ctx context.Context, req *configuration.SubscribeRequest, handler configuration.UpdateHandler) (string, error) {
 	sentinelKey := r.getSentinelKeyFromMetadata(req.Metadata)
 	if sentinelKey == "" {
-		return "", fmt.Errorf("azure appconfig error: sentinel key is not provided in metadata")
+		return "", fmt.Errorf("sentinel key is not provided in metadata")
 	}
 	uuid, err := uuid.NewRandom()
 	if err != nil {
-		return "", fmt.Errorf("azure appconfig error: failed to generate uuid, error is %w", err)
+		return "", fmt.Errorf("failed to generate uuid, error is %w", err)
 	}
 	subscribeID := uuid.String()
 	childContext, cancel := context.WithCancel(ctx)
@@ -277,7 +240,7 @@ func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 			if errors.Is(err, context.Canceled) {
 				return
 			}
-			r.logger.Debugf("azure appconfig error: fail to get sentinel key or sentinel's key %s value is unchanged: %s", sentinelKey, err)
+			r.logger.Debugf("Failed to get sentinel key or sentinel's key %s value is unchanged: %s", sentinelKey, err)
 		} else {
 			// if sentinel key has changed then update the Etag value.
 			etagVal = resp.ETag
@@ -289,7 +252,7 @@ func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 				if errors.Is(err, context.Canceled) {
 					return
 				}
-				r.logger.Errorf("azure appconfig error: fail to get configuration key changes: %s", err)
+				r.logger.Errorf("Failed to get configuration key changes: %s", err)
 			} else {
 				r.handleSubscribedChange(ctx, handler, items, id)
 			}
@@ -297,13 +260,13 @@ func (r *ConfigurationStore) doSubscribe(ctx context.Context, req *configuration
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(r.metadata.internalSubscribePollInterval):
+		case <-time.After(r.metadata.SubscribePollInterval):
 		}
 	}
 }
 
 func (r *ConfigurationStore) getSettings(ctx context.Context, key string, getSettingsOptions *azappconfig.GetSettingOptions) (azappconfig.GetSettingResponse, error) {
-	timeoutContext, cancel := context.WithTimeout(ctx, r.metadata.internalRequestTimeout)
+	timeoutContext, cancel := context.WithTimeout(ctx, r.metadata.RequestTimeout)
 	defer cancel()
 	resp, err := r.client.GetSetting(timeoutContext, key, getSettingsOptions)
 	return resp, err
@@ -316,7 +279,7 @@ func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, handler
 	}
 	err := handler(ctx, e)
 	if err != nil {
-		r.logger.Errorf("azure appconfig error: fail to call handler to notify event for configuration update subscribe: %s", err)
+		r.logger.Errorf("Failed to call handler to notify event for configuration update subscribe: %s", err)
 	}
 }
 
@@ -334,7 +297,7 @@ func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration
 		cancelContext.(context.CancelFunc)()
 		return nil
 	}
-	return fmt.Errorf("azure appconfig error: subscription with id %s does not exist", req.ID)
+	return fmt.Errorf("subscription with id %s does not exist", req.ID)
 }
 
 // GetComponentMetadata returns the metadata of the component.

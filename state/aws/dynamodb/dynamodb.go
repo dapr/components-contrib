@@ -46,11 +46,13 @@ type StateStore struct {
 }
 
 type dynamoDBMetadata struct {
+	// Ignored by metadata parser because included in built-in authentication profile
+	AccessKey    string `json:"accessKey" mapstructure:"accessKey" mdignore:"true"`
+	SecretKey    string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
+	SessionToken string `json:"sessionToken"  mapstructure:"sessionToken" mdignore:"true"`
+
 	Region           string `json:"region"`
 	Endpoint         string `json:"endpoint"`
-	AccessKey        string `json:"accessKey"`
-	SecretKey        string `json:"secretKey"`
-	SessionToken     string `json:"sessionToken"`
 	Table            string `json:"table"`
 	TTLAttributeName string `json:"ttlAttributeName"`
 	PartitionKey     string `json:"partitionKey"`
@@ -92,7 +94,19 @@ func (d *StateStore) Init(_ context.Context, metadata state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (d *StateStore) Features() []state.Feature {
-	return []state.Feature{state.FeatureETag, state.FeatureTransactional}
+	// TTLs are enabled only if ttlAttributeName is set
+	if d.ttlAttributeName == "" {
+		return []state.Feature{
+			state.FeatureETag,
+			state.FeatureTransactional,
+		}
+	}
+
+	return []state.Feature{
+		state.FeatureETag,
+		state.FeatureTransactional,
+		state.FeatureTTL,
+	}
 }
 
 // Get retrieves a dynamoDB item.

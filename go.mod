@@ -3,24 +3,24 @@ module github.com/dapr/components-contrib
 go 1.20
 
 require (
-	cloud.google.com/go/datastore v1.12.1
-	cloud.google.com/go/pubsub v1.32.0
+	cloud.google.com/go/datastore v1.13.0
+	cloud.google.com/go/pubsub v1.33.0
 	cloud.google.com/go/secretmanager v1.11.1
 	cloud.google.com/go/storage v1.31.0
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
+	github.com/Azure/azure-sdk-for-go/sdk/ai/azopenai v0.1.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.7.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0
-	github.com/Azure/azure-sdk-for-go/sdk/cognitiveservices/azopenai v0.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig v0.5.0
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v0.3.5
-	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.0.1
+	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.0.2
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs v1.0.1
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.4.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventgrid/armeventgrid/v2 v2.1.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventhub/armeventhub v1.1.1
-	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v0.12.0
-	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v0.14.0
-	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.0.0
+	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v1.0.0
+	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.0.0
+	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue v1.0.0
 	github.com/Azure/go-amqp v1.0.1
 	github.com/DATA-DOG/go-sqlmock v1.5.0
@@ -39,7 +39,7 @@ require (
 	github.com/apache/pulsar-client-go v0.11.0
 	github.com/apache/rocketmq-client-go/v2 v2.1.2-0.20230412142645-25003f6f083d
 	github.com/apache/thrift v0.13.0
-	github.com/aws/aws-sdk-go v1.44.299
+	github.com/aws/aws-sdk-go v1.44.315
 	github.com/benbjohnson/clock v1.3.5
 	github.com/bradfitz/gomemcache v0.0.0-20230611145640-acc696258285
 	github.com/camunda/zeebe/clients/go/v8 v8.2.8
@@ -56,7 +56,6 @@ require (
 	github.com/didip/tollbooth/v7 v7.0.1
 	github.com/eclipse/paho.mqtt.golang v1.4.3
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
-	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/go-zookeeper/zk v1.0.3
@@ -82,7 +81,7 @@ require (
 	github.com/lestrrat-go/jwx/v2 v2.0.11
 	github.com/machinebox/graphql v0.2.2
 	github.com/matoous/go-nanoid/v2 v2.0.0
-	github.com/microsoft/go-mssqldb v1.3.0
+	github.com/microsoft/go-mssqldb v1.5.0
 	github.com/mitchellh/mapstructure v1.5.1-0.20220423185008-bf980b35cac4
 	github.com/mrz1836/postmark v1.4.0
 	github.com/nacos-group/nacos-sdk-go/v2 v2.2.2
@@ -99,12 +98,13 @@ require (
 	github.com/sendgrid/sendgrid-go v3.12.0+incompatible
 	github.com/sijms/go-ora/v2 v2.7.9
 	github.com/spf13/cast v1.5.1
+	github.com/stealthrocket/wasi-go v0.7.6-0.20230718231108-c3d30af59057
 	github.com/stretchr/testify v1.8.4
 	github.com/supplyon/gremcos v0.1.40
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.608
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ssm v1.0.608
 	github.com/tetratelabs/wazero v1.3.0
-	github.com/valyala/fasthttp v1.47.0
+	github.com/valyala/fasthttp v1.48.0
 	github.com/vmware/vmware-go-kcl v1.5.0
 	github.com/xdg-go/scram v1.1.2
 	go.etcd.io/etcd/client/v3 v3.5.9
@@ -114,9 +114,9 @@ require (
 	go.uber.org/multierr v1.11.0
 	go.uber.org/ratelimit v0.3.0
 	golang.org/x/crypto v0.11.0
-	golang.org/x/exp v0.0.0-20230711153332-06a737ee72cb
+	golang.org/x/exp v0.0.0-20230801115018-d63ba01acd4b
 	golang.org/x/mod v0.12.0
-	golang.org/x/net v0.12.0
+	golang.org/x/net v0.13.0
 	golang.org/x/oauth2 v0.10.0
 	google.golang.org/api v0.128.0
 	google.golang.org/grpc v1.56.1
@@ -128,8 +128,9 @@ require (
 	k8s.io/apiextensions-apiserver v0.26.3
 	k8s.io/apimachinery v0.26.3
 	k8s.io/client-go v0.26.3
-	k8s.io/utils v0.0.0-20230313181309-38a27ef9d749
+	k8s.io/utils v0.0.0-20230726121419-3b25d923346b
 	modernc.org/sqlite v1.24.0
+	sigs.k8s.io/yaml v1.3.0
 )
 
 require (
@@ -203,6 +204,7 @@ require (
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/gavv/httpexpect v2.0.0+incompatible // indirect
+	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32 // indirect
 	github.com/go-kit/kit v0.10.0 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
@@ -402,7 +404,6 @@ require (
 	modernc.org/token v1.1.0 // indirect
 	sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
-	sigs.k8s.io/yaml v1.3.0 // indirect
 	stathat.com/c/consistent v1.0.0 // indirect
 )
 

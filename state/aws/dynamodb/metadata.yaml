@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: aws.dynamodb
+version: v1
+status: stable
+title: "AWS DynamoDB"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-dynamodb/
+capabilities:
+  - crud
+  - transactional
+  - etag
+  - ttl
+  - actorStateStore
+builtinAuthenticationProfiles:
+  - name: "aws"
+metadata:
+  - name: table
+    required: true
+    description: |
+      The name of the DynamoDB table to use.
+    example: '"Contracts"'
+    type: string
+  - name: region
+    required: false
+    description: |
+      The AWS region to use. Ensure that DynamoDB is available in that region.
+      See the `Amazon DynamoDB endpoints and quotas` documentation.
+    url:
+      title: Amazon DynamoDB endpoints and quotas
+      url: https://docs.aws.amazon.com/general/latest/gr/ddb.html
+    example: '"us-east-1"'
+    type: string
+  - name: endpoint
+    required: false
+    description: |
+      AWS endpoint for the component to use. Only used for local development. 
+      The endpoint is not necessary when running against production AWS.
+    example: '"http://localhost:4566"'
+    type: string
+  - name: ttlAttributeName
+    required: false
+    description: |
+      The table attribute name which should be used for TTL.
+    example: '"expiresAt"'
+    type: string
+  - name: partitionKey
+    required: false
+    description: |
+      The table primary key or partition key attribute name. 
+      This field is used to replace the default primary key attribute name "key". 
+    url:
+      title: More details
+      url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-dynamodb/#partition-keys
+    example: '"ContractID"'
+    type: string
+ 

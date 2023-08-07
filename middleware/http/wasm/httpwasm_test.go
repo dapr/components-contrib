@@ -1,3 +1,16 @@
+/*
+Copyright 2023 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package wasm
 
 import (
@@ -18,6 +31,9 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
+//go:embed internal/testdata/rewrite.wasm
+var exampleWasmBin []byte
+
 func Test_NewMiddleWare(t *testing.T) {
 	l := logger.NewLogger(t.Name())
 	require.Equal(t, &middleware{logger: l}, NewMiddleware(l))
@@ -37,6 +53,11 @@ func Test_middleware_log(t *testing.T) {
 
 func Test_middleware_getHandler(t *testing.T) {
 	m := &middleware{logger: logger.NewLogger(t.Name())}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/example.wasm" {
+			w.Write(exampleWasmBin)
+		}
+	}))
 
 	type testCase struct {
 		name        string
@@ -60,6 +81,12 @@ func Test_middleware_getHandler(t *testing.T) {
 				"url": "file://example/router.go",
 			}},
 			expectedErr: "wasm: error compiling guest: invalid magic number",
+		},
+		{
+			name: "remote wasm url",
+			metadata: metadata.Base{Properties: map[string]string{
+				"url": ts.URL + "/example.wasm",
+			}},
 		},
 		{
 			name: "ok",

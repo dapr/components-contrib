@@ -72,7 +72,12 @@ func (p *PostgreSQL) Init(ctx context.Context, metadata state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (p *PostgreSQL) Features() []state.Feature {
-	return []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI}
+	return []state.Feature{
+		state.FeatureETag,
+		state.FeatureTransactional,
+		state.FeatureQueryAPI,
+		state.FeatureTTL,
+	}
 }
 
 // Delete removes an entity from the store.

@@ -3,15 +3,15 @@ module github.com/dapr/components-contrib/tests/certification
 go 1.20
 
 require (
-	cloud.google.com/go/pubsub v1.32.0
+	cloud.google.com/go/pubsub v1.33.0
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
-	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.0.0
+	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.1.0
 	github.com/Shopify/sarama v1.38.1
 	github.com/a8m/documentdb v1.3.0
 	github.com/apache/dubbo-go-hessian2 v1.11.5
 	github.com/apache/pulsar-client-go v0.11.0
 	github.com/apache/thrift v0.13.0
-	github.com/aws/aws-sdk-go v1.44.299
+	github.com/aws/aws-sdk-go v1.44.315
 	github.com/benbjohnson/clock v1.3.5
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/cloudwego/kitex v0.5.0
@@ -36,7 +36,7 @@ require (
 	go.mongodb.org/mongo-driver v1.12.0
 	go.uber.org/multierr v1.11.0
 	go.uber.org/ratelimit v0.3.0
-	golang.org/x/exp v0.0.0-20230711153332-06a737ee72cb
+	golang.org/x/exp v0.0.0-20230801115018-d63ba01acd4b
 	modernc.org/sqlite v1.24.0
 )
 
@@ -44,7 +44,7 @@ require (
 	cloud.google.com/go v0.110.2 // indirect
 	cloud.google.com/go/compute v1.20.1 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
-	cloud.google.com/go/datastore v1.12.1 // indirect
+	cloud.google.com/go/datastore v1.13.0 // indirect
 	cloud.google.com/go/iam v1.1.0 // indirect
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
@@ -55,12 +55,12 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.7.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v0.3.5 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.0.1 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.0.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.3.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs v1.0.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.4.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventhub/armeventhub v1.1.1 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v0.14.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v0.8.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue v1.0.0 // indirect
 	github.com/Azure/go-amqp v1.0.1 // indirect
@@ -197,7 +197,7 @@ require (
 	github.com/mattn/go-isatty v0.0.18 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/microsoft/durabletask-go v0.2.4 // indirect
-	github.com/microsoft/go-mssqldb v1.3.0 // indirect
+	github.com/microsoft/go-mssqldb v1.5.0 // indirect
 	github.com/miekg/dns v1.1.50 // indirect
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
@@ -248,7 +248,7 @@ require (
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/tklauser/numcpus v0.4.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
-	github.com/valyala/fasthttp v1.47.0 // indirect
+	github.com/valyala/fasthttp v1.48.0 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
@@ -269,7 +269,7 @@ require (
 	golang.org/x/arch v0.3.0 // indirect
 	golang.org/x/crypto v0.11.0 // indirect
 	golang.org/x/mod v0.12.0 // indirect
-	golang.org/x/net v0.12.0 // indirect
+	golang.org/x/net v0.13.0 // indirect
 	golang.org/x/oauth2 v0.10.0 // indirect
 	golang.org/x/sync v0.2.0 // indirect
 	golang.org/x/sys v0.10.0 // indirect
@@ -298,7 +298,7 @@ require (
 	k8s.io/component-base v0.26.3 // indirect
 	k8s.io/klog/v2 v2.80.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280 // indirect
-	k8s.io/utils v0.0.0-20230406110748-d93618cff8a2 // indirect
+	k8s.io/utils v0.0.0-20230726121419-3b25d923346b // indirect
 	lukechampine.com/uint128 v1.3.0 // indirect
 	modernc.org/cc/v3 v3.40.0 // indirect
 	modernc.org/ccgo/v3 v3.16.13 // indirect

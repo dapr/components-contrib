@@ -1,3 +1,16 @@
+/*
+Copyright 2023 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package wasm
 
 import (
@@ -22,6 +35,12 @@ type middleware struct {
 	logger logger.Logger
 }
 
+type Metadata struct {
+	// GuestConfig is an optional configuration passed to WASM guests.
+	// Users can pass an arbitrary string to be parsed by the guest code.
+	GuestConfig string `mapstructure:"guestConfig"`
+}
+
 func NewMiddleware(logger logger.Logger) dapr.Middleware {
 	return &middleware{logger: logger}
 }
@@ -36,9 +55,17 @@ func (m *middleware) GetHandler(ctx context.Context, metadata dapr.Metadata) (fu
 
 // getHandler is extracted for unit testing.
 func (m *middleware) getHandler(ctx context.Context, metadata dapr.Metadata) (*requestHandler, error) {
-	meta, err := wasm.GetInitMetadata(metadata.Base)
+	// parse common wasm metadata configuration
+	meta, err := wasm.GetInitMetadata(ctx, metadata.Base)
 	if err != nil {
 		return nil, fmt.Errorf("wasm: failed to parse metadata: %w", err)
+	}
+
+	// parse wasm middleware specific metadata
+	var middlewareMeta Metadata
+	err = mdutils.DecodeMetadata(metadata.Base, &middlewareMeta)
+	if err != nil {
+		return nil, fmt.Errorf("wasm: failed to parse wasm middleware metadata: %w", err)
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -47,7 +74,8 @@ func (m *middleware) getHandler(ctx context.Context, metadata dapr.Metadata) (*r
 		handler.ModuleConfig(wasm.NewModuleConfig(meta).
 			WithName(meta.GuestName).
 			WithStdout(&stdout).  // reset per request
-			WithStderr(&stderr))) // reset per request
+			WithStderr(&stderr)), // reset per request
+		handler.GuestConfig([]byte(middlewareMeta.GuestConfig)))
 	if err != nil {
 		return nil, err
 	}

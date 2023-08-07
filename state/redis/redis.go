@@ -122,7 +122,7 @@ func newStateStore(log logger.Logger) *StateStore {
 		suppressActorStateStoreWarning: atomic.Bool{},
 		resourceInfoData: errorcodes.ResourceInfoData{
 			ResourceType: "state.redis/v1",
-			ResourceName: "REDIS",
+			ResourceName: "Redis",
 		},
 	}
 }

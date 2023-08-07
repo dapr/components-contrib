@@ -42,7 +42,7 @@ func NewKubernetesSecretStore(logger logger.Logger) secretstores.SecretStore {
 
 // Init creates a Kubernetes client.
 func (k *kubernetesSecretStore) Init(_ context.Context, metadata secretstores.Metadata) error {
-	client, err := kubeclient.GetKubeClient()
+	client, err := kubeclient.GetKubeClient(k.logger)
 	if err != nil {
 		return err
 	}

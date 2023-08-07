@@ -65,7 +65,7 @@ func NewKubernetes(logger logger.Logger) bindings.InputBinding {
 }
 
 func (k *kubernetesInput) Init(ctx context.Context, metadata bindings.Metadata) error {
-	client, err := kubeclient.GetKubeClient()
+	client, err := kubeclient.GetKubeClient(k.logger)
 	if err != nil {
 		return err
 	}

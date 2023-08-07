@@ -34,16 +34,17 @@ import (
 const VersionID = "version_id"
 
 type GcpSecretManagerMetadata struct {
-	Type                string `mapstructure:"type" json:"type"`
-	ProjectID           string `mapstructure:"project_id" json:"project_id"`
-	PrivateKey          string `mapstructure:"private_key" json:"private_key"`
-	ClientEmail         string `mapstructure:"client_email" json:"client_email"`
-	PrivateKeyID        string `mapstructure:"private_key_id" json:"private_key_id"`
-	ClientID            string `mapstructure:"client_id" json:"client_id"`
-	AuthURI             string `mapstructure:"auth_uri" json:"auth_uri"`
-	TokenURI            string `mapstructure:"token_uri" json:"token_uri"`
-	AuthProviderCertURL string `mapstructure:"auth_provider_x509_cert_url" json:"auth_provider_x509_cert_url"`
-	ClientCertURL       string `mapstructure:"client_x509_cert_url" json:"client_x509_cert_url"`
+	// Ignored by metadata parser because included in built-in authentication profile
+	Type                string `json:"type" mapstructure:"type" mdignore:"true"`
+	ProjectID           string `json:"project_id" mapstructure:"projectID" mdignore:"true" mapstructurealiases:"project_id"`
+	PrivateKeyID        string `json:"private_key_id" mapstructure:"privateKeyID" mdignore:"true" mapstructurealiases:"private_key_id"`
+	PrivateKey          string `json:"private_key" mapstructure:"privateKey" mdignore:"true" mapstructurealiases:"private_key"`
+	ClientEmail         string `json:"client_email" mapstructure:"clientEmail" mdignore:"true" mapstructurealiases:"client_email"`
+	ClientID            string `json:"client_id" mapstructure:"clientID" mdignore:"true" mapstructurealiases:"client_id"`
+	AuthURI             string `json:"auth_uri" mapstructure:"authURI" mdignore:"true" mapstructurealiases:"auth_uri"`
+	TokenURI            string `json:"token_uri" mapstructure:"tokenURI" mdignore:"true" mapstructurealiases:"token_uri"`
+	AuthProviderCertURL string `json:"auth_provider_x509_cert_url" mapstructure:"authProviderX509CertURL" mdignore:"true" mapstructurealiases:"auth_provider_x509_cert_url"`
+	ClientCertURL       string `json:"client_x509_cert_url" mapstructure:"clientX509CertURL" mdignore:"true" mapstructurealiases:"client_x509_cert_url"`
 }
 
 type gcpSecretemanagerClient interface {

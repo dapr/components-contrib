@@ -1,0 +1,37 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: kafka
+version: v1
+status: stable
+title: "Kafka"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/kafka/
+binding:
+  output: true
+  input: true
+  operations:
+    - name: create
+      description: "Publish a new message in the topic."
+capabilities: []
+authenticationProfiles:
+  - title: "Connection string"
+    description: "Authenticate using a connection string."
+    metadata:
+      - name: connectionString
+        required: true
+        sensitive: true
+        description: "The Service Bus connection string."
+        example: '"Endpoint=sb://{ServiceBusNamespace}.servicebus.windows.net/;SharedAccessKeyName={PolicyName};SharedAccessKey={Key};EntityPath={ServiceBus}"'
+        # If omitted, uses the same values as "<root>.binding"
+        binding:
+          output: true
+          input: true
+metadata:
+  - name: queueName
+    required: true
+    description: "The Service Bus queue name. Queue names are case-insensitive and will always be forced to lowercase."
+    # string is the default type if omitted
+    type: string
+    example: '"queuename"'

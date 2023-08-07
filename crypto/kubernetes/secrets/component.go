@@ -41,14 +41,17 @@ const (
 type kubeSecretsCrypto struct {
 	contribCrypto.LocalCryptoBaseComponent
 
+	logger     logger.Logger
 	md         secretsMetadata
 	kubeClient kubernetes.Interface
 }
 
 // NewKubeSecretsCrypto returns a new Kubernetes secrets crypto provider.
 // The key arguments in methods can be in the format "namespace/secretName/key" or "secretName/key" if using the default namespace passed as component metadata.
-func NewKubeSecretsCrypto(_ logger.Logger) contribCrypto.SubtleCrypto {
-	k := &kubeSecretsCrypto{}
+func NewKubeSecretsCrypto(log logger.Logger) contribCrypto.SubtleCrypto {
+	k := &kubeSecretsCrypto{
+		logger: log,
+	}
 	k.RetrieveKeyFn = k.retrieveKeyFromSecret
 	return k
 }
@@ -62,7 +65,7 @@ func (k *kubeSecretsCrypto) Init(_ context.Context, metadata contribCrypto.Metad
 	}
 
 	// Init Kubernetes client
-	k.kubeClient, err = kubeclient.GetKubeClient()
+	k.kubeClient, err = kubeclient.GetKubeClient(k.logger)
 	if err != nil {
 		return fmt.Errorf("failed to init Kubernetes client: %w", err)
 	}

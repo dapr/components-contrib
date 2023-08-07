@@ -51,7 +51,7 @@ require (
 	github.com/cloudwego/kitex-examples v0.1.1
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/dancannon/gorethink v4.0.0+incompatible
-	github.com/dapr/kit v0.11.4-0.20230806034249-bc1c1eee0a1a
+	github.com/dapr/kit v0.11.4-0.20230807225040-b6b141aa3e32
 	github.com/didip/tollbooth/v7 v7.0.1
 	github.com/eclipse/paho.mqtt.golang v1.4.3
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5

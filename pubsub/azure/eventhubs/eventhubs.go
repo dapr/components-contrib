@@ -129,11 +129,20 @@ func (aeh *AzureEventHubs) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 
 	// Check if requireAllProperties is set and is truthy
 	getAllProperties := utils.IsTruthy(req.Metadata["requireAllProperties"])
+	checkPointFrequencyPerPartition := utils.GetIntValFromString(req.Metadata["checkPointFrequencyPerPartition"], impl.DefaultCheckpointFrequencyPerPartition)
 
 	pubsubHandler := aeh.GetPubSubHandlerFunc(topic, getAllProperties, handler)
+
+	subscribeConfig := impl.SubscribeConfig{
+		Topic:                           topic,
+		MaxBulkSubCount:                 1,
+		MaxBulkSubAwaitDurationMs:       impl.DefaultMaxBulkSubAwaitDurationMs,
+		CheckPointFrequencyPerPartition: checkPointFrequencyPerPartition,
+		Handler:                         pubsubHandler,
+	}
 	// Start the subscription
 	// This is non-blocking
-	return aeh.AzureEventHubs.Subscribe(ctx, topic, 1, impl.DefaultMaxBulkSubAwaitDurationMs, pubsubHandler)
+	return aeh.AzureEventHubs.Subscribe(ctx, subscribeConfig)
 }
 
 // BulkSubscribe receives bulk messages from Azure Event Hubs.
@@ -145,15 +154,23 @@ func (aeh *AzureEventHubs) BulkSubscribe(ctx context.Context, req pubsub.Subscri
 
 	// Check if requireAllProperties is set and is truthy
 	getAllProperties := utils.IsTruthy(req.Metadata["requireAllProperties"])
-
+	checkPointFrequencyPerPartition := utils.GetIntValFromString(req.Metadata["checkPointFrequencyPerPartition"], impl.DefaultCheckpointFrequencyPerPartition)
 	maxBulkSubCount := utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxMessagesCount, impl.DefaultMaxBulkSubCount)
 	maxBulkSubAwaitDurationMs := utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxAwaitDurationMs, impl.DefaultMaxBulkSubAwaitDurationMs)
 
 	bulkPubsubHandler := aeh.GetBulkPubSubHandlerFunc(topic, getAllProperties, handler)
 
+	subscribeConfig := impl.SubscribeConfig{
+		Topic:                           topic,
+		MaxBulkSubCount:                 maxBulkSubCount,
+		MaxBulkSubAwaitDurationMs:       maxBulkSubAwaitDurationMs,
+		CheckPointFrequencyPerPartition: checkPointFrequencyPerPartition,
+		Handler:                         bulkPubsubHandler,
+	}
+
 	// Start the subscription
 	// This is non-blocking
-	return aeh.AzureEventHubs.Subscribe(ctx, topic, maxBulkSubCount, maxBulkSubAwaitDurationMs, bulkPubsubHandler)
+	return aeh.AzureEventHubs.Subscribe(ctx, subscribeConfig)
 }
 
 func (aeh *AzureEventHubs) Close() (err error) {

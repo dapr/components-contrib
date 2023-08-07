@@ -37,8 +37,9 @@ import (
 )
 
 const (
-	DefaultMaxBulkSubCount           = 100
-	DefaultMaxBulkSubAwaitDurationMs = 10000
+	DefaultMaxBulkSubCount                 = 100
+	DefaultMaxBulkSubAwaitDurationMs       = 10000
+	DefaultCheckpointFrequencyPerPartition = 1
 )
 
 // AzureEventHubs allows sending/receiving Azure Event Hubs events.
@@ -67,6 +68,14 @@ type HandlerResponseItem struct {
 }
 
 type HandlerFn = func(context.Context, []*azeventhubs.ReceivedEventData) ([]HandlerResponseItem, error)
+
+type SubscribeConfig struct {
+	Topic                           string
+	MaxBulkSubCount                 int
+	MaxBulkSubAwaitDurationMs       int
+	CheckPointFrequencyPerPartition int
+	Handler                         HandlerFn
+}
 
 // NewAzureEventHubs returns a new Azure Event hubs instance.
 func NewAzureEventHubs(logger logger.Logger, isBinding bool) *AzureEventHubs {
@@ -222,18 +231,19 @@ func (aeh *AzureEventHubs) GetBulkPubSubHandlerFunc(topic string, getAllProperti
 }
 
 // Subscribe receives data from Azure Event Hubs in background.
-func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, topic string, maxBulkSubCount int, maxBulkSubAwaitDurationMs int, handler HandlerFn) error {
+func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, config SubscribeConfig) error {
 	if aeh.metadata.ConsumerGroup == "" {
 		return errors.New("property consumerID is required to subscribe to an Event Hub topic")
 	}
-	if maxBulkSubCount < 1 {
+	if config.MaxBulkSubCount < 1 {
 		aeh.logger.Warnf("maxBulkSubCount must be greater than 0, setting it to 1")
-		maxBulkSubCount = 1
+		config.MaxBulkSubCount = 1
 	}
-	if maxBulkSubAwaitDurationMs < 1 {
+	if config.MaxBulkSubAwaitDurationMs < 1 {
 		aeh.logger.Warnf("maxBulkSubAwaitDurationMs must be greater than 0, setting it to %d", DefaultMaxBulkSubAwaitDurationMs)
-		maxBulkSubAwaitDurationMs = DefaultMaxBulkSubAwaitDurationMs
+		config.MaxBulkSubAwaitDurationMs = DefaultMaxBulkSubAwaitDurationMs
 	}
+	topic := config.Topic
 
 	// Get the processor client
 	processor, err := aeh.getProcessorForTopic(subscribeCtx, topic)
@@ -282,7 +292,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, topic string,
 		retryErr := retry.NotifyRecover(func() error {
 			attempts++
 			aeh.logger.Debugf("Processing EventHubs events for topic %s (attempt: %d)", topic, attempts)
-			resp, err = handler(ctx, events)
+			resp, err = config.Handler(ctx, events)
 			return err
 		}, b, func(err error, _ time.Duration) {
 			aeh.logger.Warnf("Error processing EventHubs events for topic %s. Error: %v. Retrying...", topic)
@@ -294,6 +304,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, topic string,
 		}
 		return resp, retryErr
 	}
+	config.Handler = retryHandler
 
 	// Process all partition clients as they come in
 	go func() {
@@ -308,7 +319,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, topic string,
 
 			// Once we get a partition client, process the events in a separate goroutine
 			go func() {
-				processErr := aeh.processEvents(subscribeCtx, topic, partitionClient, maxBulkSubCount, maxBulkSubAwaitDurationMs, retryHandler)
+				processErr := aeh.processEvents(subscribeCtx, partitionClient, config)
 				// Do not log context.Canceled which happens at shutdown
 				if processErr != nil && !errors.Is(processErr, context.Canceled) {
 					aeh.logger.Errorf("Error processing events from partition client: %v", processErr)
@@ -347,7 +358,7 @@ func (aeh *AzureEventHubs) handleAsync(ctx context.Context, topic string, messag
 	return err
 }
 
-func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, topic string, partitionClient *azeventhubs.ProcessorPartitionClient, maxBulkSubCount int, maxBulkSubAwaitDurationMs int, handler HandlerFn) error {
+func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, partitionClient *azeventhubs.ProcessorPartitionClient, config SubscribeConfig) error {
 	// At the end of the method we need to do some cleanup and close the partition client
 	defer func() {
 		closeCtx, closeCancel := context.WithTimeout(context.Background(), resourceGetTimeout)
@@ -365,11 +376,12 @@ func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, topic str
 		events []*azeventhubs.ReceivedEventData
 		err    error
 	)
+	counter := 0
 	for {
 		// Maximum duration to wait till bulk message is sent to app is `maxBulkSubAwaitDurationMs`
-		ctx, cancel = context.WithTimeout(subscribeCtx, time.Duration(maxBulkSubAwaitDurationMs)*time.Millisecond)
+		ctx, cancel = context.WithTimeout(subscribeCtx, time.Duration(config.MaxBulkSubAwaitDurationMs)*time.Millisecond)
 		// Receive events with batchsize of `maxBulkSubCount`
-		events, err = partitionClient.ReceiveEvents(ctx, maxBulkSubCount, nil)
+		events, err = partitionClient.ReceiveEvents(ctx, config.MaxBulkSubCount, nil)
 		cancel()
 
 		// A DeadlineExceeded error means that the context timed out before we received the full batch of messages, and that's fine
@@ -378,27 +390,32 @@ func (aeh *AzureEventHubs) processEvents(subscribeCtx context.Context, topic str
 			// We'll just stop this subscription and return
 			eventHubError := (*azeventhubs.Error)(nil)
 			if errors.As(err, &eventHubError) && eventHubError.Code == azeventhubs.ErrorCodeOwnershipLost {
-				aeh.logger.Debugf("Client lost ownership of partition %s for topic %s", partitionClient.PartitionID(), topic)
+				aeh.logger.Debugf("Client lost ownership of partition %s for topic %s", partitionClient.PartitionID(), config.Topic)
 				return nil
 			}
 
 			return fmt.Errorf("error receiving events: %w", err)
 		}
 
-		aeh.logger.Debugf("Received batch with %d events on topic %s, partition %s", len(events), topic, partitionClient.PartitionID())
+		aeh.logger.Debugf("Received batch with %d events on topic %s, partition %s", len(events), config.Topic, partitionClient.PartitionID())
 
 		if len(events) != 0 {
 			// Handle received message
-			go aeh.handleAsync(ctx, topic, events, handler)
+			go aeh.handleAsync(ctx, config.Topic, events, config.Handler)
 
-			// Update the checkpoint with the last event received. If we lose ownership of this partition or have to restart the next owner will start from this point.
-			// This context inherits from the background one in case subscriptionCtx gets canceled
-			ctx, cancel = context.WithTimeout(context.Background(), resourceCreationTimeout)
-			err = partitionClient.UpdateCheckpoint(ctx, events[len(events)-1], nil)
-			cancel()
-			if err != nil {
-				return fmt.Errorf("failed to update checkpoint: %w", err)
+			// Update checkpoint with frequency of `checkpointFrequencyPerPartition` for a given partition
+			if counter%config.CheckPointFrequencyPerPartition == 0 {
+				// Update the checkpoint with the last event received. If we lose ownership of this partition or have to restart the next owner will start from this point.
+				// This context inherits from the background one in case subscriptionCtx gets canceled
+				ctx, cancel = context.WithTimeout(context.Background(), resourceCreationTimeout)
+				err = partitionClient.UpdateCheckpoint(ctx, events[len(events)-1], nil)
+				cancel()
+				if err != nil {
+					return fmt.Errorf("failed to update checkpoint: %w", err)
+				}
 			}
+			// Update counter
+			counter = (counter + 1) % config.CheckPointFrequencyPerPartition
 		}
 	}
 }

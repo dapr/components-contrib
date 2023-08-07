@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,9 +14,9 @@ limitations under the License.
 package kubernetes
 
 import (
-	"flag"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -31,17 +31,35 @@ const (
 	envVarName  = "KUBECONFIG"
 )
 
-func getKubeconfigPath(log logger.Logger) string {
-	// Check if the path is set via the CLI flag `-kubeconfig`
-	// This is deprecated
+var defaultKubeConfig string
+
+func init() {
+	if home := homedir.HomeDir(); home != "" {
+		defaultKubeConfig = filepath.Join(home, ".kube", "config")
+	}
+}
+
+func getKubeconfigPath(log logger.Logger, args []string) string {
+	// Check if the path is set via the CLI flag `--kubeconfig`
+	// This is deprecated but kept for backwards compatibility
 	var cliVal string
-	fs := flag.NewFlagSet(cliFlagName, flag.ContinueOnError)
-	fs.StringVar(&cliVal, cliFlagName, "", "absolute path to the kubeconfig file")
-	_ = fs.Parse(os.Args)
-	cliFlag := fs.Lookup(cliFlagName)
-	if cliFlag != nil && cliFlag.Value.String() != "" {
-		log.Warn("Setting kubeconfig using the CLI flag --kubeconfig is deprecated and will be removed in a future version")
-		return cliFlag.Value.String()
+	for i, a := range args {
+		parts := strings.SplitN(a, "=", 2)
+		if parts[0] == "-"+cliFlagName || parts[0] == "--"+cliFlagName {
+			// Case: "--kubeconfig=val" or "-kubeconfig=val"
+			if len(parts) == 2 {
+				cliVal = parts[1]
+				break
+			} else if len(args) > (i+1) && !strings.HasPrefix(args[i+1], "-") {
+				// Case: "--kubeconfig val" or "-kubeconfig val"
+				cliVal = args[i+1]
+				break
+			}
+		}
+	}
+	if cliVal != "" {
+		log.Warnf("Setting kubeconfig using the CLI flag '--%s' is deprecated and will be removed in a future version", cliFlagName)
+		return cliVal
 	}
 
 	// Check if we have the KUBECONFIG env var
@@ -51,18 +69,14 @@ func getKubeconfigPath(log logger.Logger) string {
 	}
 
 	// Return the default value
-	home := homedir.HomeDir()
-	if home != "" {
-		return filepath.Join(home, ".kube", "config")
-	}
-	return ""
+	return defaultKubeConfig
 }
 
 // GetKubeClient returns a kubernetes client.
 func GetKubeClient(log logger.Logger) (*kubernetes.Clientset, error) {
 	conf, err := rest.InClusterConfig()
 	if err != nil {
-		conf, err = clientcmd.BuildConfigFromFlags("", getKubeconfigPath(log))
+		conf, err = clientcmd.BuildConfigFromFlags("", getKubeconfigPath(log, os.Args))
 		if err != nil {
 			return nil, err
 		}

@@ -290,7 +290,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, topic string,
 			aeh.logger.Warnf("Successfully processed EventHubs events after it previously failed for topic %s", topic)
 		})
 		if retryErr != nil {
-			aeh.logger.Errorf("Too many failed attempts at processing Eventhubs events for topic %s. Error: %v", topic, retryerr)
+			aeh.logger.Errorf("Too many failed attempts at processing Eventhubs events for topic %s. Error: %v", topic, retryErr)
 		}
 		return resp, retryErr
 	}

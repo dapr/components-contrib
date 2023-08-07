@@ -210,6 +210,11 @@ func Test_EndToEnd(t *testing.T) {
 					defer ts.Close()
 
 					meta := metadata.Base{Properties: map[string]string{"url": ts.URL + "/guest.wasm"}}
+					if len(tc.property) > 0 {
+						for k, v := range tc.property {
+							meta.Properties[k] = v
+						}
+					}
 					handlerFn, err := wasm.NewMiddleware(l).GetHandler(context.Background(), middleware.Metadata{Base: meta})
 					require.NoError(t, err)
 					handler := handlerFn(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))

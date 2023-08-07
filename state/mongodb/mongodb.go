@@ -112,8 +112,13 @@ type Item struct {
 // NewMongoDB returns a new MongoDB state store.
 func NewMongoDB(logger logger.Logger) state.Store {
 	s := &MongoDB{
-		features: []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI},
-		logger:   logger,
+		features: []state.Feature{
+			state.FeatureETag,
+			state.FeatureTransactional,
+			state.FeatureQueryAPI,
+			state.FeatureTTL,
+		},
+		logger: logger,
 	}
 	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s

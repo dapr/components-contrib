@@ -25,12 +25,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/hamba/avro/v2"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/apache/pulsar-client-go/pulsar/crypto"
+	"github.com/hamba/avro/v2"
 	lru "github.com/hashicorp/golang-lru/v2"
 
+	"github.com/dapr/components-contrib/internal/authentication/oauth2"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -157,7 +157,7 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 	return &m, nil
 }
 
-func (p *Pulsar) Init(_ context.Context, metadata pubsub.Metadata) error {
+func (p *Pulsar) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	m, err := parsePulsarMetadata(metadata)
 	if err != nil {
 		return err
@@ -173,9 +173,28 @@ func (p *Pulsar) Init(_ context.Context, metadata pubsub.Metadata) error {
 		ConnectionTimeout:          30 * time.Second,
 		TLSAllowInsecureConnection: !m.EnableTLS,
 	}
-	if m.Token != "" {
+
+	switch {
+	case len(m.Token) > 0:
 		options.Authentication = pulsar.NewAuthenticationToken(m.Token)
+	case len(m.ClientCredentialsMetadata.TokenURL) > 0:
+		var cc *oauth2.ClientCredentials
+		cc, err = oauth2.NewClientCredentials(ctx, oauth2.ClientCredentialsOptions{
+			Logger:       p.logger,
+			TokenURL:     m.ClientCredentialsMetadata.TokenURL,
+			CAPEM:        []byte(m.ClientCredentialsMetadata.TokenCAPEM),
+			ClientID:     m.ClientCredentialsMetadata.ClientID,
+			ClientSecret: m.ClientCredentialsMetadata.ClientSecret,
+			Scopes:       m.ClientCredentialsMetadata.Scopes,
+			Audiences:    m.ClientCredentialsMetadata.Audiences,
+		})
+		if err != nil {
+			return fmt.Errorf("could not instantiate oauth2 token provider: %w", err)
+		}
+
+		options.Authentication = pulsar.NewAuthenticationTokenFromSupplier(cc.Token)
 	}
+
 	client, err := pulsar.NewClient(options)
 	if err != nil {
 		return fmt.Errorf("could not instantiate pulsar client: %v", err)

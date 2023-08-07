@@ -66,9 +66,11 @@ type couchbaseMetadata struct {
 // NewCouchbaseStateStore returns a new couchbase state store.
 func NewCouchbaseStateStore(logger logger.Logger) state.Store {
 	s := &Couchbase{
-		json:     jsoniter.ConfigFastest,
-		features: []state.Feature{state.FeatureETag},
-		logger:   logger,
+		json: jsoniter.ConfigFastest,
+		features: []state.Feature{
+			state.FeatureETag,
+		},
+		logger: logger,
 	}
 	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
@@ -270,4 +272,11 @@ func (cbs *Couchbase) GetComponentMetadata() (metadataInfo metadata.MetadataMap)
 	metadataStruct := couchbaseMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
+}
+
+func (cbs *Couchbase) Close() error {
+	if cbs.bucket == nil {
+		return nil
+	}
+	return cbs.bucket.Close()
 }

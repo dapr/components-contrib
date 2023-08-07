@@ -17,6 +17,7 @@ capabilities:
   - transactional
   - etag
   - query
+  - ttl
 authenticationProfiles:
   - title: "Connection string"
     description: |

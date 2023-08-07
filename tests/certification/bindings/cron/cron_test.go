@@ -101,12 +101,12 @@ func TestCronBindingTrigger(t *testing.T) {
 			httpPort := ports[1]
 			appPort := ports[2]
 
-			testFn, triggeredCh := testerFn(cronTest.clk, cronTest.testDuration, cronTest.expectedTriggerCount, cronTest.step)
+			testFn, triggeredCb := testerFn(cronTest.clk, cronTest.testDuration, cronTest.expectedTriggerCount, cronTest.step)
 
 			flow.New(t, "test cron trigger with different schedules").
 				Step(app.Run(appName,
 					fmt.Sprintf(":%d", appPort),
-					appWithTriggerCounter(t, cronTest.clk, cronTest.cronName, triggeredCh),
+					appWithTriggerCounter(t, cronTest.clk, cronTest.cronName, triggeredCb),
 				)).
 				Step(sidecar.Run(sidecarName,
 					embedded.WithResourcesPath("./components"),
@@ -141,12 +141,12 @@ func TestCronBindingsWithSameRoute(t *testing.T) {
 
 	clk := clocktesting.NewFakeClock(startTime)
 
-	testFn, triggeredCh := testerFn(clk, testDuration, expectedTriggerCount, time.Second/2)
+	testFn, triggeredCb := testerFn(clk, testDuration, expectedTriggerCount, time.Second/2)
 
 	flow.New(t, "test cron bindings with different schedules and same route").
 		Step(app.Run(appName,
 			fmt.Sprintf(":%d", appPort),
-			appWithTriggerCounter(t, clk, cronName, triggeredCh),
+			appWithTriggerCounter(t, clk, cronName, triggeredCb),
 		)).
 		Step(sidecar.Run(sidecarName,
 			embedded.WithResourcesPath("./components_sameroute"),
@@ -184,12 +184,12 @@ func TestCronBindingWithAppRestart(t *testing.T) {
 	clk := clocktesting.NewFakeClock(startTime)
 
 	observedTriggerCountCh := make(chan int64)
-	counterFn, triggeredCh := counterFn(clk, testDuration, time.Second/2)
+	counterFn, triggeredCb := counterFn(clk, testDuration, time.Second/2)
 
 	flow.New(t, "test cron trigger schedule @every3s with app restart").
 		Step(app.Run(appName,
 			fmt.Sprintf(":%d", appPort),
-			appWithTriggerCounter(t, clk, cronName, triggeredCh),
+			appWithTriggerCounter(t, clk, cronName, triggeredCb),
 		)).
 		Step(sidecar.Run(sidecarName,
 			embedded.WithResourcesPath("./components"),
@@ -209,7 +209,7 @@ func TestCronBindingWithAppRestart(t *testing.T) {
 		Step("wait before app restart", flow.Sleep(waitBeforeAppRestart)).
 		Step(app.Run(appName,
 			fmt.Sprintf(":%d", appPort),
-			appWithTriggerCounter(t, clk, cronName, triggeredCh),
+			appWithTriggerCounter(t, clk, cronName, triggeredCb),
 		)).
 		Step("assert cron triggered within deadline", func(ctx flow.Context) error {
 			// Assert number of executions
@@ -251,12 +251,12 @@ func TestCronBindingWithSidecarRestart(t *testing.T) {
 	clk := clocktesting.NewFakeClock(startTime)
 
 	observedTriggerCountCh := make(chan int64)
-	counterFn, triggeredCh := counterFn(clk, testDuration, time.Second/2)
+	counterFn, triggeredCb := counterFn(clk, testDuration, time.Second/2)
 
 	flow.New(t, "test cron trigger schedule @every 3s with sidecar restart").
 		Step(app.Run(appName,
 			fmt.Sprintf(":%d", appPort),
-			appWithTriggerCounter(t, clk, cronName, triggeredCh),
+			appWithTriggerCounter(t, clk, cronName, triggeredCb),
 		)).
 		Step(sidecar.Run(sidecarName,
 			embedded.WithResourcesPath("./components"),
@@ -298,19 +298,15 @@ func TestCronBindingWithSidecarRestart(t *testing.T) {
 		Run()
 }
 
-func counterFn(clk *clocktesting.FakeClock, testDuration time.Duration, step time.Duration) (func() int64, chan struct{}) {
-	triggeredCh := make(chan struct{})
+func counterFn(clk *clocktesting.FakeClock, testDuration time.Duration, step time.Duration) (func() int64, func()) {
+	observedTriggerCount := atomic.Int64{}
+	triggeredCb := func() {
+		observedTriggerCount.Add(1)
+	}
 
 	return func() int64 {
 		// In background advance the clock and count the executions
-		observedTriggerCount := atomic.Int64{}
 		doneCh := make(chan struct{})
-		go func() {
-			for range triggeredCh {
-				observedTriggerCount.Add(1)
-			}
-			close(doneCh)
-		}()
 		go func() {
 			end := clk.Now().Add(testDuration)
 			// We can't use Before because we want to count the equal time too
@@ -322,23 +318,23 @@ func counterFn(clk *clocktesting.FakeClock, testDuration time.Duration, step tim
 				time.Sleep(time.Millisecond / 2)
 			}
 
-			// Close triggeredCh
-			close(triggeredCh)
+			// Close doneCh
+			close(doneCh)
 		}()
 
-		// Sleep for 1s to allow goroutines to catch up if needed
+		// Sleep for 2s to allow goroutines to catch up if needed
 		goruntime.Gosched()
-		time.Sleep(time.Second)
+		time.Sleep(2 * time.Second)
 
 		// Wait for test to end
 		<-doneCh
 
 		return observedTriggerCount.Load()
-	}, triggeredCh
+	}, triggeredCb
 }
 
-func testerFn(clk *clocktesting.FakeClock, testDuration time.Duration, expectedTriggerCount int64, step time.Duration) (func(ctx flow.Context) error, chan struct{}) {
-	counter, triggeredCh := counterFn(clk, testDuration, step)
+func testerFn(clk *clocktesting.FakeClock, testDuration time.Duration, expectedTriggerCount int64, step time.Duration) (func(ctx flow.Context) error, func()) {
+	counter, triggeredCb := counterFn(clk, testDuration, step)
 
 	return func(ctx flow.Context) error {
 		t := ctx.T
@@ -356,15 +352,15 @@ func testerFn(clk *clocktesting.FakeClock, testDuration time.Duration, expectedT
 		default:
 			return nil
 		}
-	}, triggeredCh
+	}, triggeredCb
 }
 
-func appWithTriggerCounter(t *testing.T, clk clock.Clock, cronName string, triggeredCh chan<- struct{}) func(ctx flow.Context, s common.Service) error {
+func appWithTriggerCounter(t *testing.T, clk clock.Clock, cronName string, triggeredCb func()) func(ctx flow.Context, s common.Service) error {
 	return func(ctx flow.Context, s common.Service) error {
 		// Setup the input binding endpoint
 		err := s.AddBindingInvocationHandler(cronName, func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
 			ctx.Logf("Cron triggered at %s", clk.Now().String())
-			triggeredCh <- struct{}{}
+			triggeredCb()
 			return []byte("{}"), nil
 		})
 		require.NoError(t, err)

@@ -266,6 +266,16 @@ const components = {
     'crypto.jwks': {
         conformance: true,
     },
+    'lock.redis.v6': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh redisjson redis',
+        sourcePkg: ['lock/redis', 'internal/component/redis'],
+    },
+    'lock.redis.v7': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh redis7 redis',
+        sourcePkg: ['lock/redis', 'internal/component/redis'],
+    },
     'middleware.http.bearer': {
         certification: true,
     },

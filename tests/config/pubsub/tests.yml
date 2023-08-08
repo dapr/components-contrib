@@ -16,6 +16,7 @@ components:
     config:
       pubsubName: azure-eventhubs
       testTopicName: eventhubs-pubsub-topic
+      testTopicForBulkSub: eventhubs-pubsub-topic-bulk
       testMultiTopic1Name: certification-pubsub-multi-topic1
       testMultiTopic2Name: certification-pubsub-multi-topic2
       ## with partition key set, inorder processing is guaranteed.

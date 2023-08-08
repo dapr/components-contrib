@@ -46,23 +46,18 @@ func FeatureEnabled(md map[string]string) bool {
 	return false
 }
 
-// NewStatusError returns a Status representing Code, error Reason, Message, and optional ResourceInfo and Metadata.
+// NewStatusError returns a Status representing Code, error Reason, and optional ResourceInfo and Metadata.
 // When successful, it returns a StatusError, otherwise returns the original error
-func NewStatusError(code codes.Code, err error, errDescription string, reason Reason, rid *ResourceInfoData, metadata map[string]string) error {
-	md := metadata
-	if md == nil {
-		md = map[string]string{}
-	}
-
+func NewStatusError(code codes.Code, err error, reason Reason, rid *ResourceInfoData, metadata map[string]string) error {
 	messages := []protoiface.MessageV1{
-		NewErrorInfo(reason, md),
+		NewErrorInfo(reason, metadata),
 	}
 
 	if rid != nil {
-		messages = append(messages, NewResourceInfo(rid, errDescription))
+		messages = append(messages, NewResourceInfo(rid, err))
 	}
 
-	ste, stErr := status.New(code, errDescription).WithDetails(messages...)
+	ste, stErr := status.New(code, err.Error()).WithDetails(messages...)
 	if stErr != nil {
 		return err
 	}
@@ -80,11 +75,11 @@ func NewErrorInfo(reason Reason, md map[string]string) *errdetails.ErrorInfo {
 	return &ei
 }
 
-func NewResourceInfo(rid *ResourceInfoData, description string) *errdetails.ResourceInfo {
+func NewResourceInfo(rid *ResourceInfoData, err error) *errdetails.ResourceInfo {
 	return &errdetails.ResourceInfo{
 		ResourceType: rid.ResourceType,
 		ResourceName: rid.ResourceName,
 		Owner:        Owner,
-		Description:  description,
+		Description:  err.Error(),
 	}
 }

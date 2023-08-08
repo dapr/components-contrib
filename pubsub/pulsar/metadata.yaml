@@ -1,0 +1,102 @@
+# yaml-language-server: $schema=../../../../component-metadata-schema.json
+schemaVersion: v1
+type: pubsub
+name: pulsar
+version: v1
+status: stable
+title: "Apache Pulsar"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-pulsar/
+metadata:
+  - name: consumerID
+    description: "Used to set the subscription name or consumer ID."
+    type: string
+    example: "channel1"
+  - name: namespace
+    description: |
+      "The administrative unit of the topic, which acts as a grouping mechanism for related topics.
+       Default: "default""
+    type: string
+    default: '"default"'
+    example: '"default"'
+  - name: enableTLS
+    description: '"Enable TLS. Default: "false""' 
+    type: bool
+    default: 'false'
+    example: '"true", "false"'
+  - name: disableBatching
+    description: |
+      '"disable batching.When batching enabled default batch delay is set to 10 ms and default 
+      batch size is 1000 messages,Setting disableBatching: true will make the producer to send 
+      messages individually. Default: "false""' 
+    type: bool
+    default: 'false'
+    example: '"true", "false"'
+  - name: batchingMaxPublishDelay
+    description: |
+      '"batchingMaxPublishDelay set the time period within which the messages sent will be batched,
+      if batch messages are enabled. If set to a non zero value, messages will be queued until this 
+      time interval or batchingMaxMessages (see below) or batchingMaxSize (see below). There are two
+      valid formats, one is the fraction with a unit suffix format, and the other is the pure digital 
+      format that is processed as milliseconds. Valid time units are “ns”, “us” (or “µs”), “ms”, “s”,
+      “m”, “h”. Default: "10ms""' 
+    type: duration
+    default: '"10ms"'
+    example: '"10ms", "10"'
+  - name: tenant
+    description: |
+      '"The topic tenant within the instance. Tenants are essential to multi-tenancy in Pulsar, and spread
+       across clusters. Default: "public""' 
+    type: string
+    default: '"public"'
+    example: '"public"'
+  - name: batchingMaxMessages
+    description: |
+      '"batchingMaxMessages set the maximum number of messages permitted in a batch.If set to a value greater
+       than 1, messages will be queued until this threshold is reached or batchingMaxSize (see below) has been
+       reached or the batch interval has elapsed. Default: "1000""' 
+    type: number
+    default: '"1000"'
+    example: '"1000"'
+  - name: batchingMaxSize
+    description: |
+      '"batchingMaxSize sets the maximum number of bytes permitted in a batch. If set to a value greater than 1,
+       messages will be queued until this threshold is reached or batchingMaxMessages (see above) has been reached
+       or the batch interval has elapsed. Default: "128KB""' 
+    type: number
+    default: '"128KB"'
+    example: '"131072"'
+  - name: host
+    required: true
+    description: '"Address of the Pulsar broker. Default is "localhost:6650""' 
+    type: string
+    default: '"localhost:6650"'
+    example: '"localhost:6650" OR "http://pulsar-pj54qwwdpz4b-pulsar.ap-sg.public.pulsar.com:8080"'
+  - name: publicKey
+    description: |
+      "A public key to be used for publisher and consumer encryption. Value can be one of two options:
+       file path for a local PEM cert, or the cert data string value"
+    type: string
+  - name: privateKey
+    description: |
+      "A private key to be used for consumer encryption. Value can be one of two options: file path for
+       a local PEM cert, or the cert data string value"
+    type: string
+  - name: token
+    description: "Enable Authentication."
+    type: string
+    example: '"https://pulsar.apache.org/docs/3.0.x/security-jwt/#generate-tokens"'
+  - name: keys
+    description: |
+      "A comma delimited string containing names of Pulsar session keys. Used in conjunction with publicKey
+       for publisher encryption"
+    type: string
+  - name: persistent
+    description: |
+      "Pulsar supports two kinds of topics: persistent and non-persistent. With persistent topics, all messages
+       are durably persisted on disks (if the broker is not standalone, messages are durably persisted on
+       multiple disks), whereas data for non-persistent topics is not persisted to storage disks."
+    type: bool
+    default: 'true'
+    example: '"true", "false"'

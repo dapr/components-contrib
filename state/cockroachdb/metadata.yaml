@@ -14,10 +14,46 @@ capabilities:
   - etag
   - ttl
   - actorStateStore
-metadata:
-  - name: table
+metadata: 
+  - name: connectionString
     required: true
-    description: |
-      The name of the DynamoDB table to use.
-    example: '"Contracts"'
+    description: "The connection string for CockroachDB"	 
     type: string
+    example: '"host=localhost user=root port=26257 connect_timeout=10 database=dapr_test"'
+  - name: timeoutInSeconds
+    description: "Timeout, in seconds, for all database operations. Defaults to 20"	 
+    type: number
+    default: '20'
+    example: '30'
+  - name: tableName
+    description: |
+      "Name of the table where the data is stored. Defaults to state. Can optionally have 
+      the schema name as prefix, such as public.state"	 
+    type: string
+    default: '"state"'  
+    example: '"state", "public.state"'
+  - name: metadataTableName
+    description: |
+      "Name of the table Dapr uses to store a few metadata properties. Defaults to dapr_metadata.
+       Can optionally have the schema name as prefix, such as public.dapr_metadata"	 
+    type: string
+    default: '"dapr_metadata"' 
+    example: '"dapr_metadata", "public.dapr_metadata"'
+  - name: cleanupIntervalInSeconds
+    description: |
+      "Interval, in seconds, to clean up rows with an expired TTL. Default: 3600 (i.e. 1 hour). 
+      Setting this to values <=0 disables the periodic cleanup."	 
+    type: number
+    default: '"3600"'
+    example: '"1800, -1"'
+  - name: connectionMaxIdleTime
+    description: |
+      "Max idle time before unused connections are automatically closed in the connection pool. 
+      By default, there’s no value and this is left to the database driver to choose."	 
+    type: duration
+    example: '"5m"'
+  - name: actorStateStore
+    description: '"Consider this state store for actors. Defaults to "false""' 	  
+    type: bool
+    default: '"false"'  
+    example: '"true", "false"'

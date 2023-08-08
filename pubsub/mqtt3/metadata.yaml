@@ -1,0 +1,68 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: pubsub
+name: mqtt3
+version: v1
+status: stable
+title: "MQTT3"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-mqtt3/
+metadata:
+  - name: url
+    required: true
+    description: |
+      "Address of the MQTT broker. Can be secretKeyRef to use a secret reference.
+      Use the tcp:// URI scheme for non-TLS communication. Use the ssl:// URI scheme for TLS communication."
+    type: string
+    example: '"tcp://[username][:password]@host.domain[:port]"'
+  - name: consumerID
+    description: |
+      "The client ID used to connect to the MQTT broker. Defaults to the Dapr app ID."
+    type: string
+    example: '"myMqttClientApp"'
+  - name: retain
+    description: |
+      "Defines whether the message is saved by the broker as the last known good value for a specified topic.
+       Defaults to "false"."
+    type: bool
+    default: 'false'
+    example: '"true", "false"'
+  - name: cleanSession
+    description: |
+      "Sets the clean_session flag in the connection message to the MQTT broker if "true" (more info).
+       Defaults to "false"."
+    type: bool
+    default: 'false'
+    example: '"true", "false"'
+  - name: qos
+    description: |
+      "Indicates the Quality of Service Level (QoS) of the message (more info). Defaults to 1." 
+    type: number
+    default: 1
+    example: '0, 1, 2'
+  - name: caCert
+    description: |
+      "Certificate Authority (CA) certificate in PEM format for verifying server TLS certificates." 
+    type: string
+    example: |
+      '-----BEGIN CERTIFICATE-----
+        ...
+        -----END CERTIFICATE-----'
+  - name: clientCert
+    description: |
+      "TLS client certificate in PEM format. Must be used with clientKey." 
+    type: string
+    example: |
+      '-----BEGIN CERTIFICATE-----
+        ...
+        -----END CERTIFICATE-----'
+  - name: clientKey
+    description: |
+      "TLS client key in PEM format. Must be used with clientCert. Can be secretKeyRef to use a secret reference."  
+    type: string
+    example: |
+      '-----BEGIN RSA PRIVATE KEY-----
+        ...
+        -----END RSA PRIVATE KEY-----'
+

@@ -16,12 +16,14 @@ package cron
 import (
 	"context"
 	"os"
+	"runtime"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/utils/clock"
+	clocktesting "k8s.io/utils/clock/testing"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -37,7 +39,7 @@ func getTestMetadata(schedule string) bindings.Metadata {
 }
 
 func getNewCron() *Binding {
-	clk := clock.New()
+	clk := clocktesting.NewFakeClock(time.Now())
 	return getNewCronWithClock(clk)
 }
 
@@ -94,7 +96,7 @@ func TestCronInitSuccess(t *testing.T) {
 // TestLongRead
 // go test -v -count=1 -timeout 15s -run TestLongRead ./bindings/cron/.
 func TestCronRead(t *testing.T) {
-	clk := clock.NewMock()
+	clk := clocktesting.NewFakeClock(time.Now())
 	c := getNewCronWithClock(clk)
 	schedule := "@every 1s"
 	assert.NoErrorf(t, c.Init(context.Background(), getTestMetadata(schedule)), "error initializing valid schedule")
@@ -108,7 +110,9 @@ func TestCronRead(t *testing.T) {
 	// Check if cron triggers 5 times in 5 seconds
 	for i := int32(0); i < expectedCount; i++ {
 		// Add time to mock clock in 1 second intervals using loop to allow cron go routine to run
-		clk.Add(time.Second)
+		clk.Step(time.Second)
+		runtime.Gosched()
+		time.Sleep(100 * time.Millisecond)
 	}
 	// Wait for 1 second after adding the last second to mock clock to allow cron to finish triggering
 	assert.Eventually(t, func() bool {
@@ -120,7 +124,7 @@ func TestCronRead(t *testing.T) {
 }
 
 func TestCronReadWithContextCancellation(t *testing.T) {
-	clk := clock.NewMock()
+	clk := clocktesting.NewFakeClock(time.Now())
 	c := getNewCronWithClock(clk)
 	schedule := "@every 1s"
 	assert.NoErrorf(t, c.Init(context.Background(), getTestMetadata(schedule)), "error initializing valid schedule")
@@ -140,7 +144,9 @@ func TestCronReadWithContextCancellation(t *testing.T) {
 	// Check if cron triggers only 5 times in 10 seconds since context should be cancelled after 5 triggers
 	for i := 0; i < 10; i++ {
 		// Add time to mock clock in 1 second intervals using loop to allow cron go routine to run
-		clk.Add(time.Second)
+		clk.Step(time.Second)
+		runtime.Gosched()
+		time.Sleep(100 * time.Millisecond)
 	}
 	assert.Eventually(t, func() bool {
 		return observedCount.Load() == expectedCount

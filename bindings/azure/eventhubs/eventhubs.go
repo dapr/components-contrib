@@ -84,7 +84,12 @@ func (a *AzureEventHubs) Read(ctx context.Context, handler bindings.Handler) err
 	topic := a.AzureEventHubs.EventHubName()
 	bindingsHandler := a.AzureEventHubs.GetBindingsHandlerFunc(topic, false, handler)
 	// Setting `maxBulkSubCount` to 1 as bindings are not supported for bulk subscriptions
-	return a.AzureEventHubs.Subscribe(ctx, topic, 1, impl.DefaultMaxBulkSubAwaitDurationMs, bindingsHandler)
+	return a.AzureEventHubs.Subscribe(ctx, impl.SubscribeConfig{
+		Topic:                     topic,
+		MaxBulkSubCount:           1,
+		MaxBulkSubAwaitDurationMs: impl.DefaultMaxBulkSubAwaitDurationMs,
+		Handler:                   bindingsHandler,
+	})
 }
 
 func (a *AzureEventHubs) Close() error {

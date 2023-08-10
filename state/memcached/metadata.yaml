@@ -13,20 +13,19 @@ capabilities:
   - ttl
 metadata:
   - name: hosts
+    type: string
     required: true
     description: |
       Comma delimited endpoints
     example: '"memcached.default.svc.cluster.local:11211"'
-    type: string
   - name: maxIdleConnections
-    required: false
-    description: |
-      The max number of idle connections. Defaults to "2"
-    example: '"3"'
     type: number
+    default: '2'
+    description: |
+      The max number of idle connections.
+    example: '"3"'
   - name: timeout
-    required: false
+    type: duration
     description: |
       The timeout for the calls. Defaults to "1000ms"
     example: '"1000ms"'
-    type: number

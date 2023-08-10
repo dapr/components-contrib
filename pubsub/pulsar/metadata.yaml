@@ -8,62 +8,72 @@ title: "Apache Pulsar"
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-pulsar/
+authenticationProfiles:
+  - title: "Connection string"
+    description: "Authenticate using a Connection String"
+    metadata:
+      - name: connectionString
+        type: string
+        required: true
+        description: "Address of the Pulsar broker."
+        example: |
+          "localhost:6650" OR "http://pulsar-pj54qwwdpz4b-pulsar.ap-sg.public.pulsar.com:8080"
 metadata:
   - name: consumerID
-    description: "Used to set the subscription name or consumer ID."
     type: string
+    description: "Used to set the subscription name or consumer ID."
     example: "channel1"
   - name: namespace
     description: |
-      "The administrative unit of the topic, which acts as a grouping mechanism for related topics.
-       Default: "default""
+      The administrative unit of the topic, which acts as a grouping mechanism for related topics.
     type: string
     default: '"default"'
     example: '"default"'
   - name: enableTLS
-    description: '"Enable TLS. Default: "false""' 
     type: bool
+    description: |
+      Enable TLS.
     default: 'false'
     example: '"true", "false"'
   - name: disableBatching
-    description: |
-      '"disable batching.When batching enabled default batch delay is set to 10 ms and default 
-      batch size is 1000 messages,Setting disableBatching: true will make the producer to send 
-      messages individually. Default: "false""' 
     type: bool
+    description: |
+      Disable batching. When batching enabled default batch delay is set to 10 ms and default 
+      batch size is 1000 messages,Setting disableBatching: true will make the producer to send 
+      messages individually.
     default: 'false'
     example: '"true", "false"'
   - name: batchingMaxPublishDelay
+    type: duration
     description: |
       '"batchingMaxPublishDelay set the time period within which the messages sent will be batched,
-      if batch messages are enabled. If set to a non zero value, messages will be queued until this 
+      if batch messages are enabled. If set to a non zero value, messages will be queued until this
       time interval or batchingMaxMessages (see below) or batchingMaxSize (see below). There are two
-      valid formats, one is the fraction with a unit suffix format, and the other is the pure digital 
+      valid formats, one is the fraction with a unit suffix format, and the other is the pure digital
       format that is processed as milliseconds. Valid time units are “ns”, “us” (or “µs”), “ms”, “s”,
       “m”, “h”. Default: "10ms""' 
-    type: duration
     default: '"10ms"'
-    example: '"10ms", "10"'
+    example: '"10ms"'
   - name: tenant
     description: |
-      '"The topic tenant within the instance. Tenants are essential to multi-tenancy in Pulsar, and spread
-       across clusters. Default: "public""' 
+      The topic tenant within the instance. Tenants are essential to multi-tenancy in Pulsar, and spread
+      across clusters.
     type: string
     default: '"public"'
     example: '"public"'
   - name: batchingMaxMessages
-    description: |
-      '"batchingMaxMessages set the maximum number of messages permitted in a batch.If set to a value greater
-       than 1, messages will be queued until this threshold is reached or batchingMaxSize (see below) has been
-       reached or the batch interval has elapsed. Default: "1000""' 
     type: number
+    description: |
+      Sets the maximum number of messages permitted in a batch. If set to a value greater
+       than 1, messages will be queued until this threshold is reached or batchingMaxSize (see below) has been
+       reached or the batch interval has elapsed.
     default: '"1000"'
     example: '"1000"'
   - name: batchingMaxSize
     description: |
-      '"batchingMaxSize sets the maximum number of bytes permitted in a batch. If set to a value greater than 1,
+      Sets the maximum number of bytes permitted in a batch. If set to a value greater than 1,
        messages will be queued until this threshold is reached or batchingMaxMessages (see above) has been reached
-       or the batch interval has elapsed. Default: "128KB""' 
+       or the batch interval has elapsed.
     type: number
     default: '"128KB"'
     example: '"131072"'

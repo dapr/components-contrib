@@ -221,6 +221,33 @@ func GetServerVersion(c RedisClient) (string, error) {
 	return "", fmt.Errorf("could not find redis_version in redis info response")
 }
 
+// GetConnectedSlaves returns the number of slaves connected to the Redis master.
+func GetConnectedSlaves(ctx context.Context, c RedisClient) (int, error) {
+	const connectedSlavesReplicas = "connected_slaves:"
+
+	res, err := c.DoRead(ctx, "INFO", "replication")
+	if err != nil {
+		return 0, err
+	}
+
+	// Response example: https://redis.io/commands/info#return-value
+	// # Replication\r\nrole:master\r\nconnected_slaves:1\r\n
+	s, _ := strconv.Unquote(fmt.Sprintf("%q", res))
+	if len(s) == 0 {
+		return 0, nil
+	}
+
+	infos := strings.Split(s, "\r\n")
+	for _, info := range infos {
+		if strings.HasPrefix(info, connectedSlavesReplicas) {
+			parsedReplicas, _ := strconv.ParseInt(info[len(connectedSlavesReplicas):], 10, 32)
+			return int(parsedReplicas), nil
+		}
+	}
+
+	return 0, nil
+}
+
 type RedisError string
 
 func (e RedisError) Error() string { return string(e) }

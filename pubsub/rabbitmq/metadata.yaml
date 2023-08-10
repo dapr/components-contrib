@@ -12,162 +12,172 @@ capabilities:
   - ttl
 authenticationProfiles:
   - title: "Connection string"
-    description: "Authenticate using a connection string."
-    metadata: 
+    description: "The RabbitMQ Connection/Authentication."
+    metadata:
       - name: connectionString
         required: true
         sensitive: true
-        description: "Shared access policy connection string for the Service Bus."
-        example: |
-          "Endpoint=sb://{ServiceBusNamespace}.servicebus.windows.net/;SharedAccessKeyName={PolicyName};SharedAccessKey={Key};EntityPath={ServiceBus}"
-        # If omitted, uses the same values as "<root>.binding"
-        binding:
-          output: true
-          input: true
+        description: "The RabbitMQ host address."
+        example: '"amqp://[username][:password]@host.domain[:port]" "amqps://[username][:password]@host.domain[:port]"'
 metadata:
   - name: consumerID
+    type: string
     description: |
-      "Consumer ID (consumer tag) organizes one or more consumers into 
+      Consumer ID (consumer tag) organizes one or more consumers into
       a group. Consumers with the same consumer ID work as one virtual 
       consumer; for example, a message is processed only once by one of
-      the consumers in the group. If the consumerID is not provided, 
+      the consumers in the group. If the consumerID is not provided,
       the Dapr runtime set it to the Dapr application ID (appID) value.
-    type: string
   - name: durable
-    description: |
-      "Whether or not to use durable queues. Defaults to "false"
     type: bool
+    description: |
+      Whether or not to use durable queues.
     default: '"false"'
     example: '"true", "false"'
   - name: publisherConfirm
-    description: |
-      "If enabled, client waits for publisher confirms after publishing 
-      a message. Defaults to "false""
     type: bool
+    description: |
+      If enabled, client waits for publisher confirms after publishing
+      a message.
     default: '"false"'
     example: '"true", "false"'
   - name: maxLen
-    description: |
-      "The maximum number of messages of a queue and its dead letter queue
-      (if dead letter enabled). If both maxLen and maxLenBytes are set then
-      both will apply; whichever limit is hit first will be enforced. 
-      Defaults to no limit."
     type: number
+    description: |
+      The maximum number of messages of a queue and its dead letter queue
+      (if dead letter enabled). If both maxLen and maxLenBytes are set then
+      both will apply; whichever limit is hit first will be enforced.
+      Defaults to no limit.
     example: '"1000"'
   - name: maxLenBytes
-    description: |
-      "Maximum length in bytes of a queue and its dead letter queue (if dead 
-      letter enabled). If both maxLen and maxLenBytes are set then both will 
-      apply; whichever limit is hit first will be enforced. Defaults to no limit."
     type: number
+    description: |
+      Maximum length in bytes of a queue and its dead letter queue (if dead
+      letter enabled). If both maxLen and maxLenBytes are set then both will 
+      apply; whichever limit is hit first will be enforced.
     example: '"1048576"'
   - name: hostname
-    description: |
-      "The RabbitMQ hostname. *Mutally exclusive with connectionString field"
     type: string
+    description: |
+      The RabbitMQ hostname. *Mutally exclusive with connectionString field.
     example: '"localhost"'
   - name: username
-    description: |
-      "The RabbitMQ username. *Mutally exclusive with connectionString field"
     type: string
+    description: |
+      The RabbitMQ username. *Mutally exclusive with connectionString field.
     example: '"username"'
   - name: password
-    description: |
-      "The RabbitMQ password. *Mutally exclusive with connectionString field"
     type: string
+    description: |
+      The RabbitMQ password. *Mutally exclusive with connectionString field.
     example: '"password"'
   - name: concurrency
+    type: string
     description: |
-      "parallel is the default, and allows processing multiple messages in 
-      parallel (limited by the app-max-concurrency annotation, if configured). 
+      Parallel is the default, and allows processing multiple messages in
+      parallel (limited by the app-max-concurrency annotation, if configured).
       Set to single to disable parallel processing. In most situations there’s 
-      no reason to change this."
-    type: string
+      no reason to change this.
     example: '"parallel, single"'
-  - name: caCert
-    description: "Input/Output"
-    type: string
-    example: |
-      '"Certificate Authority (CA) certificate in PEM format for verifying 
-      server TLS certificates."'
-  - name: clientCert
-    description: "Input/Output"
-    type: string
-    example: |
-      '"TLS client certificate in PEM format. Must be used with clientKey."'
-  - name: clientKey
-    description: "Input/Output"
-    type: string
-    example: |
-      '"TLS client key in PEM format. Must be used with clientCert. Can be 
-      secretKeyRef to use a secret reference."'
+    default: '"parallel"'
   - name: enableDeadLetter
-    description: |
-      "Enable forwarding Messages that cannot be handled to a dead-letter 
-      topic. Defaults to "false""
     type: bool
+    description: |
+      Enable forwarding Messages that cannot be handled to a dead-letter
+      topic.
     default: '"false"'
     example: '"true", "false"'
   - name: prefetchCount
-    description: |
-      "Number of messages to prefetch. Consider changing this to a non-zero 
-      value for production environments. Defaults to "0", which means that 
-      all available messages will be pre-fetched."
     type: number
+    description: |
+      Number of messages to prefetch. Consider changing this to a non-zero
+      value for production environments. The value of "0" means that
+      all available messages will be pre-fetched.
     default: '0'
     example: '2'
   - name: exchangeKind
-    description: |
-      "Exchange kind of the rabbitmq exchange. Defaults to "fanout"."
     type: string
+    description: |
+      Exchange kind of the rabbitmq exchange.
     default: '"fanout"'
     example: '"fanout","topic"'
   - name: deliveryMode
-    description: |
-      "Persistence mode when publishing messages. Defaults to "0". 
-      RabbitMQ treats "2" as persistent, all other numbers as non-persistent"
     type: number
+    description: |
+      Persistence mode when publishing messages.
+      RabbitMQ treats "2" as persistent, all other numbers as non-persistent.
     default: '0'
     example: '2'
   - name: autoAck
-    description: |
-      "Whether or not the queue consumer should auto-ack messages. 
-      Defaults to "false""
     type: bool
+    description: |
+      Whether or not the queue consumer should auto-ack messages.
     default: '"false"'
     example: '"true", "false"'
   - name: deletedWhenUnused
-    description: |
-      "Whether or not the queue should be configured to auto-delete 
-      Defaults to "true""
     type: bool
+    description: |
+      Whether or not the queue should be configured to auto-delete.
     default: '"true"'
     example: '"true", "false"'
   - name: requeueInFailure
     description: |
-      "Whether or not to requeue when sending a negative acknowledgement 
-      in case of a failure. Defaults to "false""
+      Whether or not to requeue when sending a negative acknowledgement
+      in case of a failure.
     type: bool
     default: '"false"'
     example: '"true", "false"'
   - name: reconnectWaitSeconds
     description: |
-      "Reconnect wait in Seconds""
+      Reconnect wait in Seconds.
     type: duration
   - name: ttlInSeconds
     description: |
-      "Default Queue TTL ""
+      Default Queue TTL.
     type: duration
-  - name: saslExternal
-    description: |
-      "With TLS, should the username be taken from an additional field 
-      (for example, CN). See RabbitMQ Authentication Mechanisms. 
-      Defaults to "false"."
-    type: bool
-    default: '"false"'
-    example: '"true", "false"'
   - name: protocol
     description: |
-      "The RabbitMQ protocol. *Mutally exclusive with connectionString field"
+      The RabbitMQ protocol. *Mutally exclusive with connectionString field.
     type: string
     example: '"amqp"'
+  - name: caCert
+    type: string
+    description: |
+      Certificate authority certificate, required for using TLS.
+      Can be secretKeyRef to use a secret reference.
+    example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+    binding:
+      input: true
+      output: true
+  - name: clientCert
+    type: string
+    description: |
+      Client certificate, required for authType mtls.
+      Can be secretKeyRef to use a secret reference.
+    example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+    binding:
+      input: true
+      output: true
+  - name: clientKey
+    type: string
+    description: |
+      Client key, required for authType mtls.
+      Can be secretKeyRef to use a secret reference.
+    example: "-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded DER>\n-----END RSA PRIVATE KEY-----"
+    binding:
+      input: true
+      output: true
+  - name: saslExternal
+    type: string
+    description: |
+      With TLS, should the username be taken
+      from an additional field (e.g. CN.)
+      See RabbitMQ Authentication Mechanisms.
+    url:
+      title: "RabbitMQ Authentication Mechanisms"
+      url: "https://www.rabbitmq.com/access-control.html#mechanisms"
+    default: '“text/plain”'
+    example: '"text/plain", "application/cloudevent+json"'
+    binding:
+      input: true
+      output: true

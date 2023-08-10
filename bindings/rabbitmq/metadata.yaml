@@ -17,28 +17,144 @@ binding:
 capabilities: []
 authenticationProfiles:
   - title: "Connection string"
-    description: "Authenticate using a connection string."
+    description: "The RabbitMQ Connection/Authentication."
     metadata:
-      - name: connectionString
+      - name: host
         required: true
         sensitive: true
-        description: "The Service Bus connection string."
-        example: '"Endpoint=sb://{ServiceBusNamespace}.servicebus.windows.net/;SharedAccessKeyName={PolicyName};SharedAccessKey={Key};EntityPath={ServiceBus}"'
-        # If omitted, uses the same values as "<root>.binding"
+        description: "The RabbitMQ host address."
+        example: '"amqp://[username][:password]@host.domain[:port]" "amqps://[username][:password]@host.domain[:port]"'
         binding:
           output: true
           input: true
 metadata:
   - name: queueName
     required: true
-    description: "The Service Bus queue name. Queue names are case-insensitive and will always be forced to lowercase."
-    # string is the default type if omitted
+    description: "The RabbitMQ queue name."
     type: string
-    example: '"queuename"'
-  - name: ttlInSeconds
-    description: "Parameter to set the default message time to live. If this parameter is omitted, messages will expire after 14 days (the built-in default value in Azure Sevice Bus)."
-    type: number
-    example: '86400'
+    example: '"myqueue"'
     binding:
-      # input is omitted so it's assumed as false
+      input: true
+      output: true
+  - name: durable
+    type: bool
+    description: |
+      Tells RabbitMQ to persist message in storage.
+    default: 'false'
+    example: '"true", "false"'
+    binding:
+      output: true
+  - name: deleteWhenUnused
+    type: bool
+    description: "Enables or disables auto-delete."
+    default: 'false'
+    example: '"true", "false"'
+    binding:
+      input: true
+      output: true
+  - name: ttlInSeconds
+    type: number
+    description: |
+      Set the default message time to live at RabbitMQ queue level.
+      If this parameter is omitted, messages won’t expire, continuing
+      to exist on the queue until processed.
+    example: '60'
+    url:
+      title: "RabbitMQ Time-To-Live and Expiration"
+      url: "https://www.rabbitmq.com/ttl.html"
+    binding:
+      output: true
+  - name: prefetchCount
+    type: number
+    description: |
+      Set the Channel Prefetch Setting (QoS). If this parameter is omiited, 
+      QoS would set value to 0 as no limit.
+    default: 'false'
+    example: '"true", "false"'
+    url:
+      title: "RabbitMQ Channel Prefetch Setting (QoS)"
+      url: "https://www.rabbitmq.com/confirms.html#channel-qos-prefetch"
+    binding:
+      input: true
+  - name: exclusive
+    type: bool
+    description: |
+      Determines whether the topic will be an exclusive topic or not.
+    default: 'false'
+    example: '"true", "false"'
+    binding:
+      input: true
+      output: true
+  - name: maxPriority
+    type: number
+    description: |
+      Parameter to set the priority queue. If this parameter is omitted, 
+      queue will be created as a general queue instead of a priority queue. 
+      Value is between 1 and 255.
+    default: 'false'
+    example: '"true", "false"'
+    url:
+      title: "RabbitMQ Priority Queue Support"
+      url: "https://www.rabbitmq.com/priority.html"
+    binding:
+      input: true
+      output: true
+  - name: contentType
+    type: string
+    description: "The content type of the message."
+    default: '“text/plain”'
+    example: '"text/plain", "application/cloudevent+json"'
+    binding:
+      input: true
+      output: true
+  - name: reconnectWaitInSeconds
+    type: number
+    description: |
+      Represents the duration in seconds that the client should
+      wait before attempting to reconnect to the server after a disconnection occurs.
+    default: '5'
+    example: '"5", "10"'
+    binding:
+      input: true
+      output: true
+  - name: caCert
+    type: string
+    description: |
+      Certificate authority certificate, required for using TLS.
+      Can be secretKeyRef to use a secret reference.
+    example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+    binding:
+      input: true
+      output: true
+  - name: clientCert
+    type: string
+    description: |
+      Client certificate, required for authType mtls.
+      Can be secretKeyRef to use a secret reference.
+    example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+    binding:
+      input: true
+      output: true
+  - name: clientKey
+    type: string
+    description: |
+      Client key, required for authType mtls.
+      Can be secretKeyRef to use a secret reference.
+    example: "-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded DER>\n-----END RSA PRIVATE KEY-----"
+    binding:
+      input: true
+      output: true
+  - name: externalSasl
+    type: string
+    description: |
+      With TLS, should the username be taken 
+      from an additional field (e.g. CN.) 
+      See RabbitMQ Authentication Mechanisms.
+    url:
+      title: "RabbitMQ Authentication Mechanisms"
+      url: "https://www.rabbitmq.com/access-control.html#mechanisms"
+    default: '“text/plain”'
+    example: '"text/plain", "application/cloudevent+json"'
+    binding:
+      input: true
       output: true

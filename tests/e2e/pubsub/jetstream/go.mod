@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/dapr/components-contrib v1.10.6-0.20230403162214-9ee9d56cb7ea
-	github.com/dapr/kit v0.11.3
+	github.com/dapr/kit v0.11.4-0.20230807225040-b6b141aa3e32
 )
 
 require (
@@ -25,7 +25,7 @@ require (
 	github.com/spf13/cast v1.5.1 // indirect
 	golang.org/x/crypto v0.11.0 // indirect
 	golang.org/x/exp v0.0.0-20230801115018-d63ba01acd4b // indirect
-	golang.org/x/sys v0.10.0 // indirect
+	golang.org/x/sys v0.11.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 )
 

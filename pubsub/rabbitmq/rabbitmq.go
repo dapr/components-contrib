@@ -39,19 +39,23 @@ const (
 	errorMessagePrefix              = "rabbitmq pub/sub error:"
 	errorChannelNotInitialized      = "channel not initialized"
 	errorChannelConnection          = "channel/connection is not open"
+	errorInvalidQueueType           = "invalid queue type"
 	defaultDeadLetterExchangeFormat = "dlx-%s"
 	defaultDeadLetterQueueFormat    = "dlq-%s"
 
 	publishMaxRetries       = 3
 	publishRetryWaitSeconds = 2
 
-	argQueueMode          = "x-queue-mode"
-	argMaxLength          = "x-max-length"
-	argMaxLengthBytes     = "x-max-length-bytes"
-	argDeadLetterExchange = "x-dead-letter-exchange"
-	argMaxPriority        = "x-max-priority"
-	queueModeLazy         = "lazy"
-	reqMetadataRoutingKey = "routingKey"
+	argQueueMode              = "x-queue-mode"
+	argMaxLength              = "x-max-length"
+	argMaxLengthBytes         = "x-max-length-bytes"
+	argDeadLetterExchange     = "x-dead-letter-exchange"
+	argMaxPriority            = "x-max-priority"
+	queueModeLazy             = "lazy"
+	reqMetadataRoutingKey     = "routingKey"
+	reqMetadataQueueTypeKey   = "queueType" // at the moment, only supporting classic and quorum queues
+	reqMetadataMaxLenKey      = "maxLen"
+	reqMetadataMaxLenBytesKey = "maxLenBytes"
 )
 
 // RabbitMQ allows sending/receiving messages in pub/sub format.
@@ -319,7 +323,7 @@ func (r *rabbitMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, h
 	r.logger.Infof("%s subscribe to topic/queue '%s/%s'", logMessagePrefix, req.Topic, queueName)
 
 	// Do not set a timeout on the context, as we're just waiting for the first ack; we're using a semaphore instead
-	ackCh := make(chan struct{}, 1)
+	ackCh := make(chan bool, 1)
 	defer close(ackCh)
 
 	subctx, cancel := context.WithCancel(ctx)
@@ -341,8 +345,12 @@ func (r *rabbitMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, h
 	select {
 	case <-time.After(time.Minute):
 		return fmt.Errorf("failed to subscribe to %s", queueName)
-	case <-ackCh:
-		return nil
+	case failed := <-ackCh:
+		if failed {
+			return fmt.Errorf("error not retriable for %s", queueName)
+		} else {
+			return nil
+		}
 	}
 }
 
@@ -405,6 +413,37 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		args[argMaxPriority] = mp
 	}
 
+	// queue type is classic by default, but we allow user to create quorum queues if desired
+	if val := req.Metadata[reqMetadataQueueTypeKey]; val != "" {
+		if !queueTypeValid(val) {
+			return nil, fmt.Errorf("invalid queue type %s. Valid types are %s and %s", val, amqp.QueueTypeClassic, amqp.QueueTypeQuorum)
+		} else {
+			args[amqp.QueueTypeArg] = val
+		}
+	} else {
+		args[amqp.QueueTypeArg] = amqp.QueueTypeClassic
+	}
+
+	// Applying x-max-length-bytes if defined at subscription level
+	if val, ok := req.Metadata[reqMetadataMaxLenBytesKey]; ok && val != "" {
+		parsedVal, pErr := strconv.ParseUint(val, 10, 0)
+		if pErr != nil {
+			r.logger.Errorf("%s prepareSubscription error: can't parse %s value on subscription metadata for topic/queue `%s/%s`: %s", logMessagePrefix, argMaxLengthBytes, req.Topic, queueName, pErr)
+			return nil, pErr
+		}
+		args[argMaxLengthBytes] = parsedVal
+	}
+
+	// Applying x-max-length if defined at subscription level
+	if val, ok := req.Metadata[reqMetadataMaxLenKey]; ok && val != "" {
+		parsedVal, pErr := strconv.ParseUint(val, 10, 0)
+		if pErr != nil {
+			r.logger.Errorf("%s prepareSubscription error: can't parse %s value on subscription metadata for topic/queue `%s/%s`: %s", logMessagePrefix, argMaxLength, req.Topic, queueName, pErr)
+			return nil, pErr
+		}
+		args[argMaxLength] = parsedVal
+	}
+
 	q, err := channel.QueueDeclare(queueName, r.metadata.Durable, r.metadata.DeleteWhenUnused, false, false, args)
 	if err != nil {
 		r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in channel.QueueDeclare: %v", logMessagePrefix, req.Topic, queueName, err)
@@ -454,7 +493,7 @@ func (r *rabbitMQ) ensureSubscription(req pubsub.SubscribeRequest, queueName str
 	return r.channel, r.connectionCount, q, err
 }
 
-func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeRequest, queueName string, handler pubsub.Handler, ackCh chan struct{}) {
+func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeRequest, queueName string, handler pubsub.Handler, ackCh chan bool) {
 	for {
 		var (
 			err             error
@@ -466,6 +505,7 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 		)
 		for {
 			channel, connectionCount, q, err = r.ensureSubscription(req, queueName)
+
 			if err != nil {
 				errFuncName = "ensureSubscription"
 				break
@@ -487,7 +527,7 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 
 			// one-time notification on successful subscribe
 			if ackCh != nil {
-				ackCh <- struct{}{}
+				ackCh <- false
 				ackCh = nil
 			}
 
@@ -496,6 +536,11 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 				errFuncName = "listenMessages"
 				break
 			}
+		}
+
+		if strings.Contains(err.Error(), errorInvalidQueueType) {
+			ackCh <- true
+			return
 		}
 
 		if err == context.Canceled || err == context.DeadlineExceeded {
@@ -681,4 +726,8 @@ func (r *rabbitMQ) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := rabbitmqMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
 	return
+}
+
+func queueTypeValid(qType string) bool {
+	return qType == amqp.QueueTypeClassic || qType == amqp.QueueTypeQuorum
 }

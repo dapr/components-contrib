@@ -11,14 +11,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package secrets
+package kubernetes
 
 import (
-	contribCrypto "github.com/dapr/components-contrib/crypto"
 	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/secretstores"
 )
 
-type secretsMetadata struct {
+type kubernetesMetadata struct {
 	// Default namespace to retrieve secrets from.
 	// If unset, the namespace must be specified for each key, as `namespace/secretName/key`.
 	DefaultNamespace string `json:"defaultNamespace" mapstructure:"defaultNamespace"`
@@ -28,7 +28,7 @@ type secretsMetadata struct {
 	KubeconfigPath string `json:"kubeconfigPath" mapstructure:"kubeconfigPath"`
 }
 
-func (m *secretsMetadata) InitWithMetadata(meta contribCrypto.Metadata) error {
+func (m *kubernetesMetadata) InitWithMetadata(meta secretstores.Metadata) error {
 	m.reset()
 
 	// Decode the metadata
@@ -41,6 +41,6 @@ func (m *secretsMetadata) InitWithMetadata(meta contribCrypto.Metadata) error {
 }
 
 // Reset the object
-func (m *secretsMetadata) reset() {
+func (m *kubernetesMetadata) reset() {
 	m.DefaultNamespace = ""
 }

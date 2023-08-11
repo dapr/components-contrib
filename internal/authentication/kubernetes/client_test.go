@@ -53,7 +53,7 @@ func TestGetKubeconfigPath(t *testing.T) {
 			if args == nil {
 				args = []string{}
 			}
-			if got := getKubeconfigPath(log, args); got != tt.want {
+			if got := GetKubeconfigPath(log, args); got != tt.want {
 				t.Errorf("getKubeconfigPath() = %v, want %v", got, tt.want)
 			}
 		})

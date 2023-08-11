@@ -50,9 +50,9 @@ type Memcached struct {
 }
 
 type memcachedMetadata struct {
-	Hosts              []string
-	MaxIdleConnections int
-	Timeout            int
+	Hosts              []string `mapstructure:"hosts"`
+	MaxIdleConnections int      `mapstructure:"maxIdleConnections"`
+	Timeout            int      `mapstructure:"timeout"`
 }
 
 func NewMemCacheStateStore(logger logger.Logger) state.Store {

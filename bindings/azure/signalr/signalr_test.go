@@ -23,9 +23,12 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
 	"github.com/lestrrat-go/jwx/v2/jwt"
@@ -265,6 +268,17 @@ func TestInvalidConfigurations(t *testing.T) {
 	}
 }
 
+type MockTokenCredential struct {
+	AccessToken string
+}
+
+func (m *MockTokenCredential) GetToken(ctx context.Context, options policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	return azcore.AccessToken{
+		Token:     m.AccessToken,
+		ExpiresOn: time.Now().Add(time.Hour),
+	}, nil
+}
+
 type mockTransport struct {
 	response     *http.Response
 	errToReturn  error
@@ -417,8 +431,8 @@ func TestGetShouldSucceed(t *testing.T) {
 	}
 
 	t.Run("Can get negotiate response with accessKey", func(t *testing.T) {
+		s.aadToken = nil;
 		s.accessKey = "AAbbcCsGEQKoLEH6oodDR0jK104Fu1c39Qgk+AA8D+M="
-		httpTransport.reset()
 		res, err := s.Invoke(context.Background(), &bindings.InvokeRequest{
 			Metadata: map[string]string{
 				hubKey: "testHub",
@@ -447,8 +461,8 @@ func TestGetShouldSucceed(t *testing.T) {
 	})
 
 	t.Run("Can get negotiate response with accessKey and userId", func(t *testing.T) {
+		s.aadToken = nil;
 		s.accessKey = "AAbbcCsGEQKoLEH6oodDR0jK104Fu1c39Qgk+AA8D+M="
-		httpTransport.reset()
 		res, err := s.Invoke(context.Background(), &bindings.InvokeRequest{
 			Metadata: map[string]string{
 				hubKey:  "testHub",
@@ -477,5 +491,37 @@ func TestGetShouldSucceed(t *testing.T) {
 		assert.Equal(t, []string{"https://fake.service.signalr.net/client/?hub=testhub"}, audience)
 		user := claims.Subject()
 		assert.Equal(t, "user1", user)
+	})
+
+	t.Run("Can get negotiate response with aad token and userId", func(t *testing.T) {
+		s.aadToken = &MockTokenCredential{
+			AccessToken: "mock-access-token",
+		}
+
+		httpTransport.reset()
+		res, err := s.Invoke(context.Background(), &bindings.InvokeRequest{
+			Metadata: map[string]string{
+				hubKey:  "testHub",
+				userKey: "user?1&2",
+			},
+			Operation: "clientNegotiate",
+		})
+
+		assert.NoError(t, err)
+		// when it is accessKey mode, there is no outbound call
+
+		assert.Equal(t, int32(1), httpTransport.requestCount)
+		assert.Equal(t, "https://fake.service.signalr.net/api/hubs/testhub/:generateToken?api-version=2022-11-01&userId=user%3F1%262", httpTransport.request.URL.String())
+		assert.NotNil(t, httpTransport.request)
+
+		assert.Equal(t, "application/json", *res.ContentType)
+
+		assert.NotNil(t, res.Data)
+		var data map[string]string
+		err = json.Unmarshal(res.Data, &data)
+		assert.NoError(t, err)
+		assert.Equal(t, "https://fake.service.signalr.net/client/?hub=testhub", data["url"])
+		accessToken := data["accessToken"]
+		assert.Equal(t, "ABCDEFG.ABC.ABC", accessToken)
 	})
 }

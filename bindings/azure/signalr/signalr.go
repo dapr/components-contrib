@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
 	"time"
@@ -36,6 +37,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
+var URLQueryEscape = url.QueryEscape
 
 type TokenResponse struct {
 	Token string `json:"token"`
@@ -284,11 +286,7 @@ func (s *SignalR) GenerateClientNegotiateResponse(ctx context.Context, req *bind
 		return nil, err
 	}
 
-	user, ok := req.Metadata[userKey]
-	if !ok {
-		user = ""
-	}
-
+	user := req.Metadata[userKey]
 	clientURL := fmt.Sprintf("%s/client/?hub=%s", s.endpoint, hub)
 
 	// If we have an Azure AD token provider, invoke REST API to generate token
@@ -302,7 +300,7 @@ func (s *SignalR) GenerateClientNegotiateResponse(ctx context.Context, req *bind
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("error generating negotaite payload")
+		return nil, fmt.Errorf("error generating negotiate payload: %s", err)
 	}
 
 	// Create the negotiate JSON payload
@@ -312,7 +310,7 @@ func (s *SignalR) GenerateClientNegotiateResponse(ctx context.Context, req *bind
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
-		return nil, fmt.Errorf("error generating negotaite payload")
+		return nil, fmt.Errorf("error generating negotiate payload: %s", err)
 	}
 	contentType := "application/json"
 	response := bindings.InvokeResponse{
@@ -329,7 +327,11 @@ func (s *SignalR) GetAadClientAccessToken(ctx context.Context, hub string, user 
 		return "", err
 	}
 
-	url := fmt.Sprintf("%s/api/hubs/%s/:generateToken?userId=%s&api-version=%s", s.endpoint, hub, user, apiVersion)
+	url := fmt.Sprintf("%s/api/hubs/%s/:generateToken?api-version=%s", s.endpoint, hub, apiVersion)
+	if user != "" {
+		url += fmt.Sprintf("&userId=%s", URLQueryEscape(user))
+	}
+
 	body, err := s.sendRequestToSignalR(ctx, url, aadToken, nil)
 
 	if err != nil {

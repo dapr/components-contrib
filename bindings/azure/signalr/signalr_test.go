@@ -14,9 +14,12 @@ limitations under the License.
 package signalr
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -26,6 +29,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
+	"github.com/lestrrat-go/jwx/v2/jwt"
 )
 
 func TestConfigurationValid(t *testing.T) {
@@ -367,12 +371,12 @@ func TestWriteShouldSucceed(t *testing.T) {
 		userID            string
 		expectedURL       string
 	}{
-		{"Broadcast receiving hub should call SignalR service", "testHub", "", "", "", "https://fake.service.signalr.net/api/v1/hubs/testhub"},
-		{"Broadcast with hub metadata should call SignalR service", "", "testHub", "", "", "https://fake.service.signalr.net/api/v1/hubs/testhub"},
-		{"Group receiving hub should call SignalR service", "testHub", "", "mygroup", "", "https://fake.service.signalr.net/api/v1/hubs/testhub/groups/mygroup"},
-		{"Group with hub metadata should call SignalR service", "", "testHub", "mygroup", "", "https://fake.service.signalr.net/api/v1/hubs/testhub/groups/mygroup"},
-		{"User receiving hub should call SignalR service", "testHub", "", "", "myuser", "https://fake.service.signalr.net/api/v1/hubs/testhub/users/myuser"},
-		{"User with hub metadata should call SignalR service", "", "testHub", "", "myuser", "https://fake.service.signalr.net/api/v1/hubs/testhub/users/myuser"},
+		{"Broadcast receiving hub should call SignalR service", "testHub", "", "", "", "https://fake.service.signalr.net/api/hubs/testhub/:send?api-version=2022-11-01"},
+		{"Broadcast with hub metadata should call SignalR service", "", "testHub", "", "", "https://fake.service.signalr.net/api/hubs/testhub/:send?api-version=2022-11-01"},
+		{"Group receiving hub should call SignalR service", "testHub", "", "mygroup", "", "https://fake.service.signalr.net/api/hubs/testhub/groups/mygroup/:send?api-version=2022-11-01"},
+		{"Group with hub metadata should call SignalR service", "", "testHub", "mygroup", "", "https://fake.service.signalr.net/api/hubs/testhub/groups/mygroup/:send?api-version=2022-11-01"},
+		{"User receiving hub should call SignalR service", "testHub", "", "", "myuser", "https://fake.service.signalr.net/api/hubs/testhub/users/myuser/:send?api-version=2022-11-01"},
+		{"User with hub metadata should call SignalR service", "", "testHub", "", "myuser", "https://fake.service.signalr.net/api/hubs/testhub/users/myuser/:send?api-version=2022-11-01"},
 	}
 
 	for _, tt := range tests {
@@ -396,4 +400,83 @@ func TestWriteShouldSucceed(t *testing.T) {
 			assert.Equal(t, "application/json; charset=utf-8", httpTransport.request.Header.Get("Content-Type"))
 		})
 	}
+}
+
+func TestGetShouldSucceed(t *testing.T) {
+	payload := map[string]string{
+		"token": "ABCDEFG.ABC.ABC",
+	}
+	payloadBytes, _ := json.Marshal(payload)
+	httpTransport := &mockTransport{
+		response: &http.Response{StatusCode: http.StatusOK, Body: ioutil.NopCloser(bytes.NewBuffer(payloadBytes))},
+	}
+
+	s := NewSignalR(logger.NewLogger("test")).(*SignalR)
+	s.endpoint = "https://fake.service.signalr.net"
+	s.httpClient = &http.Client{
+		Transport: httpTransport,
+	}
+
+	t.Run("Can get negotiate response with accessKey", func(t *testing.T) {
+		s.accessKey = "AAbbcCsGEQKoLEH6oodDR0jK104Fu1c39Qgk+AA8D+M="
+		httpTransport.reset()
+		res, err := s.Invoke(context.Background(), &bindings.InvokeRequest{
+			Metadata: map[string]string{
+				hubKey: "testHub",
+			},
+			Operation: "clientNegotiate",
+		})
+
+		assert.NoError(t, err)
+		// when it is accessKey mode, there is no outbound call
+		assert.Equal(t, int32(0), httpTransport.requestCount)
+
+		assert.Equal(t, "application/json", *res.ContentType)
+
+		assert.NotNil(t, res.Data)
+		var data map[string]string
+		err = json.Unmarshal(res.Data, &data)
+		assert.NoError(t, err)
+		assert.Equal(t, "https://fake.service.signalr.net/client/?hub=testhub", data["url"])
+		accessToken := data["accessToken"]
+		assert.NotNil(t, accessToken)
+		claims, err := jwt.ParseString(accessToken, jwt.WithVerify(false))
+
+		assert.NoError(t, err)
+		audience := claims.Audience()
+		assert.Equal(t, []string{"https://fake.service.signalr.net/client/?hub=testhub"}, audience)
+	})
+
+	t.Run("Can get negotiate response with accessKey and userId", func(t *testing.T) {
+		s.accessKey = "AAbbcCsGEQKoLEH6oodDR0jK104Fu1c39Qgk+AA8D+M="
+		httpTransport.reset()
+		res, err := s.Invoke(context.Background(), &bindings.InvokeRequest{
+			Metadata: map[string]string{
+				hubKey:  "testHub",
+				userKey: "user1",
+			},
+			Operation: "clientNegotiate",
+		})
+
+		assert.NoError(t, err)
+		// when it is accessKey mode, there is no outbound call
+		assert.Equal(t, int32(0), httpTransport.requestCount)
+
+		assert.Equal(t, "application/json", *res.ContentType)
+
+		assert.NotNil(t, res.Data)
+		var data map[string]string
+		err = json.Unmarshal(res.Data, &data)
+		assert.NoError(t, err)
+		assert.Equal(t, "https://fake.service.signalr.net/client/?hub=testhub", data["url"])
+		accessToken := data["accessToken"]
+		assert.NotNil(t, accessToken)
+		claims, err := jwt.ParseString(accessToken, jwt.WithVerify(false))
+
+		assert.NoError(t, err)
+		audience := claims.Audience()
+		assert.Equal(t, []string{"https://fake.service.signalr.net/client/?hub=testhub"}, audience)
+		userId := claims.Subject()
+		assert.Equal(t, "user1", userId)
+	})
 }

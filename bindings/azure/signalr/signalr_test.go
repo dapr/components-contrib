@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -408,7 +407,7 @@ func TestGetShouldSucceed(t *testing.T) {
 	}
 	payloadBytes, _ := json.Marshal(payload)
 	httpTransport := &mockTransport{
-		response: &http.Response{StatusCode: http.StatusOK, Body: ioutil.NopCloser(bytes.NewBuffer(payloadBytes))},
+		response: &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewBuffer(payloadBytes))},
 	}
 
 	s := NewSignalR(logger.NewLogger("test")).(*SignalR)
@@ -476,7 +475,7 @@ func TestGetShouldSucceed(t *testing.T) {
 		assert.NoError(t, err)
 		audience := claims.Audience()
 		assert.Equal(t, []string{"https://fake.service.signalr.net/client/?hub=testhub"}, audience)
-		userId := claims.Subject()
-		assert.Equal(t, "user1", userId)
+		user := claims.Subject()
+		assert.Equal(t, "user1", user)
 	})
 }

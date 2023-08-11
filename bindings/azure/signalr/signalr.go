@@ -284,35 +284,35 @@ func (s *SignalR) GenerateClientNegotiateResponse(ctx context.Context, req *bind
 		return nil, err
 	}
 
-	userId, ok := req.Metadata[userKey]
+	user, ok := req.Metadata[userKey]
 	if !ok {
-		userId = ""
+		user = ""
 	}
 
-	clientUrl := fmt.Sprintf("%s/client/?hub=%s", s.endpoint, hub)
+	clientURL := fmt.Sprintf("%s/client/?hub=%s", s.endpoint, hub)
 
 	// If we have an Azure AD token provider, invoke REST API to generate token
 	// Otherwise, generate token locally
 	var token string
 	if s.aadToken != nil {
-		token, err = s.GetAadClientAccessToken(ctx, hub, userId)
+		token, err = s.GetAadClientAccessToken(ctx, hub, user)
 	} else {
 		// Default to 60 minutes
-		token, err = s.getToken(ctx, clientUrl, userId, 60)
+		token, err = s.getToken(ctx, clientURL, user, 60)
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("Error generating negotaite payload")
+		return nil, fmt.Errorf("error generating negotaite payload")
 	}
 
 	// Create the negotiate JSON payload
 	payload := map[string]string{
-		"url":         clientUrl,
+		"url":         clientURL,
 		"accessToken": token,
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
-		return nil, fmt.Errorf("Error generating negotaite payload")
+		return nil, fmt.Errorf("error generating negotaite payload")
 	}
 	contentType := "application/json"
 	response := bindings.InvokeResponse{
@@ -323,14 +323,19 @@ func (s *SignalR) GenerateClientNegotiateResponse(ctx context.Context, req *bind
 	return &response, nil
 }
 
-func (s *SignalR) GetAadClientAccessToken(ctx context.Context, hub string, userId string) (string, error) {
+func (s *SignalR) GetAadClientAccessToken(ctx context.Context, hub string, user string) (string, error) {
 	aadToken, err := s.getAadToken(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	url := fmt.Sprintf("%s/api/hubs/%s/:generateToken?userId=%s&api-version=%s", s.endpoint, hub, userId, apiVersion)
+	url := fmt.Sprintf("%s/api/hubs/%s/:generateToken?userId=%s&api-version=%s", s.endpoint, hub, user, apiVersion)
 	body, err := s.sendRequestToSignalR(ctx, url, aadToken, nil)
+
+	if err != nil {
+		return "", err
+	}
+
 	var tokenResponse TokenResponse
 	err = json.Unmarshal(body, &tokenResponse)
 
@@ -371,14 +376,14 @@ func (s *SignalR) getAadToken(ctx context.Context) (string, error) {
 	return at.Token, nil
 }
 
-func (s *SignalR) signJwtToken(audience string, expireAt time.Time, userId string) (string, error) {
+func (s *SignalR) signJwtToken(audience string, expireAt time.Time, user string) (string, error) {
 	builder := jwt.NewBuilder().
 		Audience([]string{audience}).
 		Expiration(expireAt)
 
 	// Add the subject if the user ID is not empty
-	if userId != "" {
-		builder = builder.Subject(userId)
+	if user != "" {
+		builder = builder.Subject(user)
 	}
 	token, err := builder.Build()
 	if err != nil {
@@ -393,12 +398,12 @@ func (s *SignalR) signJwtToken(audience string, expireAt time.Time, userId strin
 }
 
 // Returns an access token for a request to the given URL
-func (s *SignalR) getToken(ctx context.Context, url string, userId string, expireMinutes int) (string, error) {
+func (s *SignalR) getToken(ctx context.Context, url string, user string, expireMinutes int) (string, error) {
 	// If we have an Azure AD token provider, use that first
 	if s.aadToken != nil {
 		return s.getAadToken(ctx)
 	}
-	return s.signJwtToken(url, time.Now().Add(time.Duration(expireMinutes)*time.Minute), userId)
+	return s.signJwtToken(url, time.Now().Add(time.Duration(expireMinutes)*time.Minute), user)
 }
 
 // GetComponentMetadata returns the metadata of the component.

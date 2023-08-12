@@ -102,7 +102,7 @@ type StateStore struct {
 	replicas                       int
 	querySchemas                   querySchemas
 	suppressActorStateStoreWarning atomic.Bool
-	resourceInfoData               kitErrorCodes.ResourceInfoData
+	resourceInfo                   kitErrorCodes.ResourceInfo
 
 	logger logger.Logger
 }
@@ -119,7 +119,7 @@ func newStateStore(log logger.Logger) *StateStore {
 		json:                           jsoniter.ConfigFastest,
 		logger:                         log,
 		suppressActorStateStoreWarning: atomic.Bool{},
-		resourceInfoData: kitErrorCodes.ResourceInfoData{
+		resourceInfo: kitErrorCodes.ResourceInfo{
 			ResourceType: "state.redis/v1",
 			ResourceName: "Redis",
 		},
@@ -219,8 +219,8 @@ func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 		err = r.client.DoWrite(ctx, "EVAL", delDefaultQuery, 1, req.Key, *req.ETag)
 	}
 	if err != nil {
-		if de := kitErrorCodes.New(err, req.Metadata, kitErrorCodes.WithReason(kitErrorCodes.StateETagMismatchReason)); de != nil {
-			de.SetResourceInfoData(&r.resourceInfoData)
+		if de := kitErrorCodes.NewDaprError(err, req.Metadata, kitErrorCodes.WithReason(kitErrorCodes.StateETagMismatchReason)); de != nil {
+			de.SetResourceInfoData(&r.resourceInfo)
 			de.SetDescription(fmt.Sprintf("state store Delete - possible etag(%s) %s. original error: %v", *req.ETag, string(state.ETagMismatch), err))
 			return de
 		}
@@ -366,8 +366,8 @@ func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 
 	if err != nil {
 		if req.HasETag() {
-			if de := kitErrorCodes.New(err, req.Metadata, kitErrorCodes.WithReason(kitErrorCodes.StateETagMismatchReason)); de != nil {
-				de.SetResourceInfoData(&r.resourceInfoData)
+			if de := kitErrorCodes.NewDaprError(err, req.Metadata, kitErrorCodes.WithReason(kitErrorCodes.StateETagMismatchReason)); de != nil {
+				de.SetResourceInfoData(&r.resourceInfo)
 				de.SetDescription(fmt.Sprintf("state store Set - possible etag(%s) %s. original error: %v", *req.ETag, string(state.ETagMismatch), err))
 				return de
 			}

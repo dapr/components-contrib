@@ -30,14 +30,13 @@ import (
 	"github.com/aws/aws-sdk-go/service/sns"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/aws/aws-sdk-go/service/sts"
-	grpcCodes "google.golang.org/grpc/codes"
+	kitErrorCodes "github.com/dapr/kit/errorcodes"
 
 	"github.com/dapr/kit/retry"
 
 	gonanoid "github.com/matoous/go-nanoid/v2"
 
 	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
-	"github.com/dapr/components-contrib/internal/errorcodes"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -60,16 +59,16 @@ type snsSqs struct {
 	// key is a composite key of queue ARN and topic ARN mapping to subscription ARN.
 	subscriptions sync.Map
 
-	snsClient        *sns.SNS
-	sqsClient        *sqs.SQS
-	stsClient        *sts.STS
-	metadata         *snsSqsMetadata
-	logger           logger.Logger
-	id               string
-	opsTimeout       time.Duration
-	backOffConfig    retry.Config
-	pollerRunning    chan struct{}
-	resourceInfoData errorcodes.ResourceInfoData
+	snsClient     *sns.SNS
+	sqsClient     *sqs.SQS
+	stsClient     *sts.STS
+	metadata      *snsSqsMetadata
+	logger        logger.Logger
+	id            string
+	opsTimeout    time.Duration
+	backOffConfig retry.Config
+	pollerRunning chan struct{}
+	resourceInfo  kitErrorCodes.ResourceInfo
 
 	closeCh chan struct{}
 	closed  atomic.Bool
@@ -113,7 +112,7 @@ func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 		topicsLock:    sync.RWMutex{},
 		pollerRunning: make(chan struct{}, 1),
 		closeCh:       make(chan struct{}),
-		resourceInfoData: errorcodes.ResourceInfoData{
+		resourceInfo: kitErrorCodes.ResourceInfo{
 			ResourceType: "pubsub.aws.snssqs/v1",
 			ResourceName: "SnsSqs",
 		},
@@ -774,12 +773,10 @@ func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	// these should be idempotent - queues should not be created if they exist.
 	topicArn, sanitizedName, err := s.getOrCreateTopic(ctx, req.Topic)
 	if err != nil {
-		if errorcodes.FeatureEnabled(req.Metadata) && s.metadata.DisableEntityManagement {
-			ew := fmt.Errorf("error getting topic ARN for %s: %w", req.Topic, err)
-			if wrappedErr := errorcodes.NewStatusError(grpcCodes.NotFound, ew,
-				errorcodes.PubSubTopicNotFoundReason, &s.resourceInfoData, nil); wrappedErr != ew {
-				s.logger.Error(wrappedErr)
-				return wrappedErr
+		if s.metadata.DisableEntityManagement {
+			if de := kitErrorCodes.NewDaprError(err, req.Metadata, kitErrorCodes.WithReason(kitErrorCodes.TopicNotFoundReason)); de != nil {
+				s.logger.Error(de)
+				return de
 			}
 		}
 
@@ -908,14 +905,13 @@ func (s *snsSqs) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 
 	topicArn, _, err := s.getOrCreateTopic(ctx, req.Topic)
 	if err != nil {
-		if errorcodes.FeatureEnabled(req.Metadata) && s.metadata.DisableEntityManagement {
-			ew := fmt.Errorf("error getting topic ARN for %s: %w", req.Topic, err)
-			if wrappedErr := errorcodes.NewStatusError(grpcCodes.NotFound, ew,
-				errorcodes.PubSubTopicNotFoundReason, &s.resourceInfoData, nil); wrappedErr != ew {
-				s.logger.Error(wrappedErr)
-				return wrappedErr
+		if s.metadata.DisableEntityManagement {
+			if de := kitErrorCodes.NewDaprError(err, req.Metadata, kitErrorCodes.WithReason(kitErrorCodes.TopicNotFoundReason)); de != nil {
+				s.logger.Error(de)
+				return de
 			}
 		}
+
 		s.logger.Errorf("error getting topic ARN for %s: %v", req.Topic, err)
 	}
 

@@ -96,9 +96,8 @@ func (a *AzureEventHubs) Close() error {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (a *AzureEventHubs) GetComponentMetadata() map[string]string {
+func (a *AzureEventHubs) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := impl.AzureEventHubsMetadata{}
-	metadataInfo := map[string]string{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
-	return metadataInfo
+	return
 }

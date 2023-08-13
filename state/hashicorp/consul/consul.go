@@ -157,9 +157,8 @@ func (c *Consul) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	return nil
 }
 
-func (c *Consul) GetComponentMetadata() map[string]string {
+func (c *Consul) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := consulConfig{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
 }

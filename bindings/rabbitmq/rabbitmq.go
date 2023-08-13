@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/url"
 	"reflect"
 	"strconv"
 	"sync"
@@ -464,8 +465,20 @@ func (r *RabbitMQ) handleMessage(ctx context.Context, handler bindings.Handler, 
 				r.logger.Info("Input binding channel closed")
 				return
 			}
+
+			metadata := make(map[string]string, len(d.Headers))
+			// Passthrough any custom metadata to the handler.
+			for k, v := range d.Headers {
+				if s, ok := v.(string); ok {
+					// Escape the key and value to ensure they are valid URL query parameters.
+					// This is necessary for them to be sent as HTTP Metadata.
+					metadata[url.QueryEscape(k)] = url.QueryEscape(s)
+				}
+			}
+
 			_, err := handler(ctx, &bindings.ReadResponse{
-				Data: d.Body,
+				Data:     d.Body,
+				Metadata: metadata,
 			})
 			if err != nil {
 				ch.Nack(d.DeliveryTag, false, true)
@@ -548,9 +561,8 @@ func (r *RabbitMQ) reset() (err error) {
 	return err
 }
 
-func (r *RabbitMQ) GetComponentMetadata() map[string]string {
+func (r *RabbitMQ) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := rabbitMQMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

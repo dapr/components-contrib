@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: azure.openai
+version: v1
+status: alpha
+title: "Azure OpenAI"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/azure-openai/
+binding:
+  output: true
+  input: false
+  operations:
+    - name: completion
+      description: "Text completion"
+    - name: chat-completion
+      description: "Chat completion"
+builtinAuthenticationProfiles:
+  - name: "azuread"
+authenticationProfiles:
+  - title: "API Key"
+    description: "Authenticate using an API key"
+    metadata:
+      - name: apiKey
+        required: true
+        sensitive: true
+        description: "API Key"
+        example: '"1234567890abcdef"'
+metadata:
+  - name: endpoint
+    required: true
+    description: "Endpoint of the Azure OpenAI service"
+    example: '"https://myopenai.openai.azure.com"'

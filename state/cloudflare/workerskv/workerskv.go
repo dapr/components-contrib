@@ -82,16 +82,17 @@ func (q *CFWorkersKV) Init(_ context.Context, metadata state.Metadata) error {
 	return q.Base.Init(workerBindings, componentDocsURL, infoResponseValidate)
 }
 
-func (q *CFWorkersKV) GetComponentMetadata() map[string]string {
+func (q *CFWorkersKV) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := componentMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
 }
 
 // Features returns the features supported by this state store.
 func (q CFWorkersKV) Features() []state.Feature {
-	return []state.Feature{}
+	return []state.Feature{
+		state.FeatureTTL,
+	}
 }
 
 func (q *CFWorkersKV) Delete(parentCtx context.Context, stateReq *state.DeleteRequest) error {

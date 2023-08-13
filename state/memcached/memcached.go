@@ -50,9 +50,9 @@ type Memcached struct {
 }
 
 type memcachedMetadata struct {
-	Hosts              []string
-	MaxIdleConnections int
-	Timeout            int
+	Hosts              []string `mapstructure:"hosts"`
+	MaxIdleConnections int      `mapstructure:"maxIdleConnections"`
+	Timeout            int      `mapstructure:"timeout"`
 }
 
 func NewMemCacheStateStore(logger logger.Logger) state.Store {
@@ -93,7 +93,9 @@ func (m *Memcached) Init(_ context.Context, metadata state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (m *Memcached) Features() []state.Feature {
-	return nil
+	return []state.Feature{
+		state.FeatureTTL,
+	}
 }
 
 func getMemcachedMetadata(meta state.Metadata) (*memcachedMetadata, error) {
@@ -217,9 +219,8 @@ func (m *Memcached) Close() (err error) {
 	return nil
 }
 
-func (m *Memcached) GetComponentMetadata() map[string]string {
+func (m *Memcached) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := memcachedMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
 }

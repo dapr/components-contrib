@@ -15,28 +15,39 @@ package main
 
 import (
 	_ "embed"
-	"encoding/json"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/dapr/components-contrib/build-tools/cmd"
+	"github.com/dapr/components-contrib/build-tools/pkg/metadataschema"
 )
 
-//go:embed component-folders.json
-var componentFoldersJSON []byte
+var (
+	//go:embed component-folders.yaml
+	componentFoldersYAML []byte
+	//go:embed builtin-authentication-profiles.yaml
+	builtinAuthenticationProfilesYAML []byte
+)
 
-func init() {
-	parsed := struct {
-		ComponentFolders []string `json:"componentFolders"`
-		ExcludeFolders   []string `json:"excludeFolders"`
+func main() {
+	// Parse component-folders.json
+	parsedComponentFolders := struct {
+		ComponentFolders []string `json:"componentFolders" yaml:"componentFolders"`
+		ExcludeFolders   []string `json:"excludeFolders" yaml:"excludeFolders"`
 	}{}
-	err := json.Unmarshal(componentFoldersJSON, &parsed)
+	err := yaml.Unmarshal(componentFoldersYAML, &parsedComponentFolders)
 	if err != nil {
 		panic(err)
 	}
 
-	cmd.ComponentFolders = parsed.ComponentFolders
-	cmd.ExcludeFolders = parsed.ExcludeFolders
-}
+	cmd.ComponentFolders = parsedComponentFolders.ComponentFolders
+	cmd.ExcludeFolders = parsedComponentFolders.ExcludeFolders
 
-func main() {
+	// Parse builtin-authentication-profiles.yaml
+	err = yaml.Unmarshal(builtinAuthenticationProfilesYAML, &metadataschema.BuiltinAuthenticationProfiles)
+	if err != nil {
+		panic(err)
+	}
+
 	cmd.Execute()
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"k8s.io/utils/clock"
 
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
@@ -90,6 +91,7 @@ func (store *inMemoryStore) Features() []state.Feature {
 	return []state.Feature{
 		state.FeatureETag,
 		state.FeatureTransactional,
+		state.FeatureTTL,
 	}
 }
 
@@ -410,9 +412,9 @@ func (store *inMemoryStore) doCleanExpiredItems() {
 	}
 }
 
-func (store *inMemoryStore) GetComponentMetadata() map[string]string {
+func (store *inMemoryStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	// no metadata, hence no metadata struct to convert here
-	return map[string]string{}
+	return
 }
 
 type inMemStateStoreItem struct {

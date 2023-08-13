@@ -31,7 +31,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/internal/utils"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 
@@ -54,19 +54,21 @@ type GCPStorage struct {
 }
 
 type gcpMetadata struct {
-	Bucket              string `json:"bucket" mapstructure:"bucket"`
-	Type                string `json:"type" mapstructure:"type"`
-	ProjectID           string `json:"project_id" mapstructure:"project_id"`
-	PrivateKeyID        string `json:"private_key_id" mapstructure:"private_key_id"`
-	PrivateKey          string `json:"private_key" mapstructure:"private_key"`
-	ClientEmail         string `json:"client_email " mapstructure:"client_email"`
-	ClientID            string `json:"client_id" mapstructure:"client_id"`
-	AuthURI             string `json:"auth_uri" mapstructure:"auth_uri"`
-	TokenURI            string `json:"token_uri" mapstructure:"token_uri"`
-	AuthProviderCertURL string `json:"auth_provider_x509_cert_url" mapstructure:"auth_provider_x509_cert_url"`
-	ClientCertURL       string `json:"client_x509_cert_url" mapstructure:"client_x509_cert_url"`
-	DecodeBase64        bool   `json:"decodeBase64,string" mapstructure:"decodeBase64"`
-	EncodeBase64        bool   `json:"encodeBase64,string" mapstructure:"encodeBase64"`
+	// Ignored by metadata parser because included in built-in authentication profile
+	Type                string `json:"type" mapstructure:"type" mdignore:"true"`
+	ProjectID           string `json:"project_id" mapstructure:"projectID" mdignore:"true" mapstructurealiases:"project_id"`
+	PrivateKeyID        string `json:"private_key_id" mapstructure:"privateKeyID" mdignore:"true" mapstructurealiases:"private_key_id"`
+	PrivateKey          string `json:"private_key" mapstructure:"privateKey" mdignore:"true" mapstructurealiases:"private_key"`
+	ClientEmail         string `json:"client_email " mapstructure:"clientEmail" mdignore:"true" mapstructurealiases:"client_email"`
+	ClientID            string `json:"client_id" mapstructure:"clientID" mdignore:"true" mapstructurealiases:"client_id"`
+	AuthURI             string `json:"auth_uri" mapstructure:"authURI" mdignore:"true" mapstructurealiases:"auth_uri"`
+	TokenURI            string `json:"token_uri" mapstructure:"tokenURI" mdignore:"true" mapstructurealiases:"token_uri"`
+	AuthProviderCertURL string `json:"auth_provider_x509_cert_url" mapstructure:"authProviderX509CertURL" mdignore:"true" mapstructurealiases:"auth_provider_x509_cert_url"`
+	ClientCertURL       string `json:"client_x509_cert_url" mapstructure:"clientX509CertURL" mdignore:"true" mapstructurealiases:"client_x509_cert_url"`
+
+	Bucket       string `json:"bucket" mapstructure:"bucket"`
+	DecodeBase64 bool   `json:"decodeBase64,string" mapstructure:"decodeBase64"`
+	EncodeBase64 bool   `json:"encodeBase64,string" mapstructure:"encodeBase64"`
 }
 
 type listPayload struct {
@@ -110,7 +112,7 @@ func (g *GCPStorage) Init(ctx context.Context, metadata bindings.Metadata) error
 
 func (g *GCPStorage) parseMetadata(meta bindings.Metadata) (*gcpMetadata, error) {
 	m := gcpMetadata{}
-	err := contribMetadata.DecodeMetadata(meta.Properties, &m)
+	err := metadata.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}
@@ -311,9 +313,8 @@ func (g *GCPStorage) handleBackwardCompatibilityForMetadata(metadata map[string]
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (g *GCPStorage) GetComponentMetadata() map[string]string {
+func (g *GCPStorage) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := gcpMetadata{}
-	metadataInfo := map[string]string{}
-	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
-	return metadataInfo
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
+	return
 }

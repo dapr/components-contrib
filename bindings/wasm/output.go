@@ -23,6 +23,8 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/stealthrocket/wasi-go/imports/wasi_http"
+	"github.com/stealthrocket/wasi-go/imports/wasi_http/default_http"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
@@ -63,7 +65,7 @@ func NewWasmOutput(logger logger.Logger) bindings.OutputBinding {
 }
 
 func (out *outputBinding) Init(ctx context.Context, metadata bindings.Metadata) (err error) {
-	if out.meta, err = wasm.GetInitMetadata(metadata.Base); err != nil {
+	if out.meta, err = wasm.GetInitMetadata(ctx, metadata.Base); err != nil {
 		return fmt.Errorf("wasm: failed to parse metadata: %w", err)
 	}
 
@@ -77,16 +79,27 @@ func (out *outputBinding) Init(ctx context.Context, metadata bindings.Metadata) 
 		return fmt.Errorf("wasm: error compiling binary: %w", err)
 	}
 
-	switch detectImports(out.module.ImportedFunctions()) {
-	case modeWasiP1:
+	imports := detectImports(out.module.ImportedFunctions())
+
+	if _, found := imports[modeWasiP1]; found {
 		_, err = wasi_snapshot_preview1.Instantiate(ctx, out.runtime)
 	}
-
 	if err != nil {
 		_ = out.runtime.Close(context.Background())
-		return fmt.Errorf("wasm: error instantiating host functions: %w", err)
+		return fmt.Errorf("wasm: error instantiating host wasi functions: %w", err)
 	}
-	return
+	if _, found := imports[modeWasiHTTP]; found {
+		if out.meta.StrictSandbox {
+			_ = out.runtime.Close(context.Background())
+			return fmt.Errorf("can not instantiate wasi-http with strict sandbox")
+		}
+		err = wasi_http.Instantiate(ctx, out.runtime)
+	}
+	if err != nil {
+		_ = out.runtime.Close(context.Background())
+		return fmt.Errorf("wasm: error instantiating host wasi-http functions: %w", err)
+	}
+	return nil
 }
 
 func (out *outputBinding) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -152,25 +165,28 @@ func (out *outputBinding) Close() error {
 const (
 	modeDefault importMode = iota
 	modeWasiP1
+	modeWasiHTTP
 )
 
 type importMode uint
 
-func detectImports(imports []api.FunctionDefinition) importMode {
+func detectImports(imports []api.FunctionDefinition) map[importMode]bool {
+	result := make(map[importMode]bool)
 	for _, f := range imports {
 		moduleName, _, _ := f.Import()
 		switch moduleName {
 		case wasi_snapshot_preview1.ModuleName:
-			return modeWasiP1
+			result[modeWasiP1] = true
+		case default_http.ModuleName:
+			result[modeWasiHTTP] = true
 		}
 	}
-	return modeDefault
+	return result
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (out *outputBinding) GetComponentMetadata() map[string]string {
+func (out *outputBinding) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := wasm.InitMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

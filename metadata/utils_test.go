@@ -19,6 +19,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 )
 
 func TestIsRawPayload(t *testing.T) {
@@ -111,6 +113,9 @@ func TestMetadataDecode(t *testing.T) {
 
 			MyRegularDurationDefaultValueUnset time.Duration `mapstructure:"myregulardurationdefaultvalueunset"`
 			MyRegularDurationDefaultValueEmpty time.Duration `mapstructure:"myregulardurationdefaultvalueempty"`
+
+			AliasedFieldA string `mapstructure:"aliasA1" mapstructurealiases:"aliasA2"`
+			AliasedFieldB string `mapstructure:"aliasB1" mapstructurealiases:"aliasB2"`
 		}
 
 		var m testMetadata
@@ -131,6 +136,9 @@ func TestMetadataDecode(t *testing.T) {
 			"mydurationarray":                    "1s,2s,3s,10",
 			"mydurationarraypointer":             "1s,10,2s,20,3s,30",
 			"mydurationarraypointerempty":        ",",
+			"aliasA2":                            "hello",
+			"aliasB1":                            "ciao",
+			"aliasB2":                            "bonjour",
 		}
 
 		err := DecodeMetadata(testData, &m)
@@ -149,6 +157,8 @@ func TestMetadataDecode(t *testing.T) {
 		assert.Equal(t, []time.Duration{time.Second, time.Second * 2, time.Second * 3, time.Second * 10}, m.MyDurationArray)
 		assert.Equal(t, []time.Duration{time.Second, time.Second * 10, time.Second * 2, time.Second * 20, time.Second * 3, time.Second * 30}, *m.MyDurationArrayPointer)
 		assert.Equal(t, []time.Duration{}, *m.MyDurationArrayPointerEmpty)
+		assert.Equal(t, "hello", m.AliasedFieldA)
+		assert.Equal(t, "ciao", m.AliasedFieldB)
 	})
 
 	t.Run("Test metadata decode hook for truthy values", func(t *testing.T) {
@@ -245,33 +255,230 @@ func TestMetadataStructToStringMap(t *testing.T) {
 			Mybool                    *bool
 			MyRegularDuration         time.Duration
 			SomethingWithCustomName   string `mapstructure:"something_with_custom_name"`
-			PubSubOnlyProperty        string `mapstructure:"pubsub_only_property" only:"pubsub"`
-			BindingOnlyProperty       string `mapstructure:"binding_only_property" only:"bindings"`
-			PubSubAndBindingProperty  string `mapstructure:"pubsub_and_binding_property" only:"pubsub,bindings"`
+			PubSubOnlyProperty        string `mapstructure:"pubsub_only_property" mdonly:"pubsub"`
+			BindingOnlyProperty       string `mapstructure:"binding_only_property" mdonly:"bindings"`
+			PubSubAndBindingProperty  string `mapstructure:"pubsub_and_binding_property" mdonly:"pubsub,bindings"`
 			MyDurationArray           []time.Duration
 			NotExportedByMapStructure string `mapstructure:"-"`
 			notExported               string //nolint:structcheck,unused
+			DeprecatedProperty        string `mapstructure:"something_deprecated" mddeprecated:"true"`
+			Aliased                   string `mapstructure:"aliased" mdaliases:"another,name"`
+			Ignored                   string `mapstructure:"ignored" mdignore:"true"`
 		}
 		m := testMetadata{}
-		metadatainfo := map[string]string{}
+		metadatainfo := MetadataMap{}
 		GetMetadataInfoFromStructType(reflect.TypeOf(m), &metadatainfo, BindingType)
 
-		assert.Equal(t, "string", metadatainfo["Mystring"])
-		assert.Equal(t, "metadata.Duration", metadatainfo["Myduration"])
-		assert.Equal(t, "int", metadatainfo["Myinteger"])
-		assert.Equal(t, "float64", metadatainfo["Myfloat64"])
-		assert.Equal(t, "*bool", metadatainfo["Mybool"])
-		assert.Equal(t, "time.Duration", metadatainfo["MyRegularDuration"])
-		assert.Equal(t, "string", metadatainfo["something_with_custom_name"])
+		_ = assert.NotEmpty(t, metadatainfo["Mystring"]) &&
+			assert.Equal(t, "string", metadatainfo["Mystring"].Type)
+		_ = assert.NotEmpty(t, metadatainfo["Myduration"]) &&
+			assert.Equal(t, "metadata.Duration", metadatainfo["Myduration"].Type)
+		_ = assert.NotEmpty(t, metadatainfo["Myinteger"]) &&
+			assert.Equal(t, "int", metadatainfo["Myinteger"].Type)
+		_ = assert.NotEmpty(t, metadatainfo["Myfloat64"]) &&
+			assert.Equal(t, "float64", metadatainfo["Myfloat64"].Type)
+		_ = assert.NotEmpty(t, metadatainfo["Mybool"]) &&
+			assert.Equal(t, "*bool", metadatainfo["Mybool"].Type)
+		_ = assert.NotEmpty(t, metadatainfo["MyRegularDuration"]) &&
+			assert.Equal(t, "time.Duration", metadatainfo["MyRegularDuration"].Type)
+		_ = assert.NotEmpty(t, metadatainfo["something_with_custom_name"]) &&
+			assert.Equal(t, "string", metadatainfo["something_with_custom_name"].Type)
 		assert.NotContains(t, metadatainfo, "NestedStruct")
 		assert.NotContains(t, metadatainfo, "SomethingWithCustomName")
-		assert.Equal(t, "string", metadatainfo["nested_string_custom"])
-		assert.Equal(t, "string", metadatainfo["NestedString"])
+		_ = assert.NotEmpty(t, metadatainfo["nested_string_custom"]) &&
+			assert.Equal(t, "string", metadatainfo["nested_string_custom"].Type)
+		_ = assert.NotEmpty(t, metadatainfo["NestedString"]) &&
+			assert.Equal(t, "string", metadatainfo["NestedString"].Type)
 		assert.NotContains(t, metadatainfo, "pubsub_only_property")
-		assert.Equal(t, "string", metadatainfo["binding_only_property"])
-		assert.Equal(t, "string", metadatainfo["pubsub_and_binding_property"])
-		assert.Equal(t, "[]time.Duration", metadatainfo["MyDurationArray"])
+		_ = assert.NotEmpty(t, metadatainfo["binding_only_property"]) &&
+			assert.Equal(t, "string", metadatainfo["binding_only_property"].Type)
+		_ = assert.NotEmpty(t, metadatainfo["pubsub_and_binding_property"]) &&
+			assert.Equal(t, "string", metadatainfo["pubsub_and_binding_property"].Type)
+		_ = assert.NotEmpty(t, metadatainfo["MyDurationArray"]) &&
+			assert.Equal(t, "[]time.Duration", metadatainfo["MyDurationArray"].Type)
 		assert.NotContains(t, metadatainfo, "NotExportedByMapStructure")
 		assert.NotContains(t, metadatainfo, "notExported")
+		_ = assert.NotEmpty(t, metadatainfo["something_deprecated"]) &&
+			assert.Equal(t, "string", metadatainfo["something_deprecated"].Type) &&
+			assert.True(t, metadatainfo["something_deprecated"].Deprecated)
+		_ = assert.NotEmpty(t, metadatainfo["aliased"]) &&
+			assert.Equal(t, "string", metadatainfo["aliased"].Type) &&
+			assert.False(t, metadatainfo["aliased"].Deprecated) &&
+			assert.False(t, metadatainfo["aliased"].Ignored) &&
+			assert.Equal(t, []string{"another", "name"}, metadatainfo["aliased"].Aliases)
+		_ = assert.NotEmpty(t, metadatainfo["ignored"]) &&
+			assert.Equal(t, "string", metadatainfo["ignored"].Type) &&
+			assert.False(t, metadatainfo["ignored"].Deprecated) &&
+			assert.True(t, metadatainfo["ignored"].Ignored) &&
+			assert.Empty(t, metadatainfo["ignored"].Aliases)
 	})
+}
+
+func TestResolveAliases(t *testing.T) {
+	tests := []struct {
+		name    string
+		md      map[string]string
+		result  any
+		wantErr bool
+		wantMd  map[string]string
+	}{
+		{
+			name: "no aliases",
+			md: map[string]string{
+				"hello": "world",
+				"ciao":  "mondo",
+			},
+			result: &struct {
+				Hello   string `mapstructure:"hello"`
+				Ciao    string `mapstructure:"ciao"`
+				Bonjour string `mapstructure:"bonjour"`
+			}{},
+			wantMd: map[string]string{
+				"hello": "world",
+				"ciao":  "mondo",
+			},
+		},
+		{
+			name: "set with aliased field",
+			md: map[string]string{
+				"ciao": "mondo",
+			},
+			result: &struct {
+				Hello   string `mapstructure:"hello" mapstructurealiases:"ciao"`
+				Bonjour string `mapstructure:"bonjour"`
+			}{},
+			wantMd: map[string]string{
+				"hello": "mondo",
+				"ciao":  "mondo",
+			},
+		},
+		{
+			name: "do not overwrite existing fields with aliases",
+			md: map[string]string{
+				"hello": "world",
+				"ciao":  "mondo",
+			},
+			result: &struct {
+				Hello   string `mapstructure:"hello" mapstructurealiases:"ciao"`
+				Bonjour string `mapstructure:"bonjour"`
+			}{},
+			wantMd: map[string]string{
+				"hello": "world",
+				"ciao":  "mondo",
+			},
+		},
+		{
+			name: "no fields with aliased value",
+			md: map[string]string{
+				"bonjour": "monde",
+			},
+			result: &struct {
+				Hello   string `mapstructure:"hello" mapstructurealiases:"ciao"`
+				Bonjour string `mapstructure:"bonjour"`
+			}{},
+			wantMd: map[string]string{
+				"bonjour": "monde",
+			},
+		},
+		{
+			name: "multiple aliases",
+			md: map[string]string{
+				"bonjour": "monde",
+			},
+			result: &struct {
+				Hello string `mapstructure:"hello" mapstructurealiases:"ciao,bonjour"`
+			}{},
+			wantMd: map[string]string{
+				"hello":   "monde",
+				"bonjour": "monde",
+			},
+		},
+		{
+			name: "first alias wins",
+			md: map[string]string{
+				"ciao":    "mondo",
+				"bonjour": "monde",
+			},
+			result: &struct {
+				Hello string `mapstructure:"hello" mapstructurealiases:"ciao,bonjour"`
+			}{},
+			wantMd: map[string]string{
+				"hello":   "mondo",
+				"ciao":    "mondo",
+				"bonjour": "monde",
+			},
+		},
+		{
+			name: "no aliases with mixed case",
+			md: map[string]string{
+				"hello": "world",
+				"CIAO":  "mondo",
+			},
+			result: &struct {
+				Hello   string `mapstructure:"Hello"`
+				Ciao    string `mapstructure:"ciao"`
+				Bonjour string `mapstructure:"bonjour"`
+			}{},
+			wantMd: map[string]string{
+				"hello": "world",
+				"CIAO":  "mondo",
+			},
+		},
+		{
+			name: "set with aliased field with mixed case",
+			md: map[string]string{
+				"ciao": "mondo",
+			},
+			result: &struct {
+				Hello   string `mapstructure:"Hello" mapstructurealiases:"CIAO"`
+				Bonjour string `mapstructure:"bonjour"`
+			}{},
+			wantMd: map[string]string{
+				"Hello": "mondo",
+				"ciao":  "mondo",
+			},
+		},
+		{
+			name: "do not overwrite existing fields with aliases with mixed cases",
+			md: map[string]string{
+				"HELLO": "world",
+				"CIAO":  "mondo",
+			},
+			result: &struct {
+				Hello   string `mapstructure:"hELLo" mapstructurealiases:"cIAo"`
+				Bonjour string `mapstructure:"bonjour"`
+			}{},
+			wantMd: map[string]string{
+				"HELLO": "world",
+				"CIAO":  "mondo",
+			},
+		},
+		{
+			name: "multiple aliases with mixed cases",
+			md: map[string]string{
+				"bonjour": "monde",
+			},
+			result: &struct {
+				Hello string `mapstructure:"HELLO" mapstructurealiases:"CIAO,BONJOUR"`
+			}{},
+			wantMd: map[string]string{
+				"HELLO":   "monde",
+				"bonjour": "monde",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			md := maps.Clone(tt.md)
+			err := resolveAliases(md, tt.result)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tt.wantMd, md)
+		})
+	}
 }

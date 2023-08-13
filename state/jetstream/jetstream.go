@@ -16,8 +16,10 @@ package jetstream
 import (
 	"context"
 	"errors"
+	"io"
 	"reflect"
 	"strings"
+	"sync/atomic"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/nats-io/nats.go"
@@ -37,6 +39,7 @@ type StateStore struct {
 	json   jsoniter.API
 	bucket nats.KeyValue
 	logger logger.Logger
+	closed atomic.Bool
 }
 
 type jetstreamMetadata struct {
@@ -170,9 +173,17 @@ func escape(key string) string {
 	return strings.ReplaceAll(key, "||", ".")
 }
 
-func (js *StateStore) GetComponentMetadata() map[string]string {
+func (js *StateStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := jetstreamMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
 }
+
+func (js *StateStore) Close() error {
+	if js.closed.CompareAndSwap(false, true) && js.nc != nil {
+		js.nc.Close()
+	}
+	return nil
+}
+
+var _ io.Closer = (*StateStore)(nil)

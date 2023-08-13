@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -63,7 +63,7 @@ func TestPostgresIntegration(t *testing.T) {
 
 	// live DB test
 	b := NewPostgres(logger.NewLogger("test")).(*Postgres)
-	m := bindings.Metadata{Base: metadata.Base{Properties: map[string]string{connectionURLKey: url}}}
+	m := bindings.Metadata{Base: metadata.Base{Properties: map[string]string{"connectionString": url}}}
 	if err := b.Init(context.Background(), m); err != nil {
 		t.Fatal(err)
 	}

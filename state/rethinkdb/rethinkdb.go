@@ -37,7 +37,7 @@ const (
 	stateArchiveTablePKName = "key"
 )
 
-// RethinkDB is a state store implementation with transactional support for RethinkDB.
+// RethinkDB is a state store implementation for RethinkDB.
 type RethinkDB struct {
 	session  *r.Session
 	config   *stateConfig
@@ -306,9 +306,15 @@ func metadataToConfig(cfg map[string]string, logger logger.Logger) (*stateConfig
 	return &c, nil
 }
 
-func (s *RethinkDB) GetComponentMetadata() map[string]string {
+func (s *RethinkDB) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := stateConfig{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
+}
+
+func (s *RethinkDB) Close() error {
+	if s.session == nil {
+		return nil
+	}
+	return s.session.Close()
 }

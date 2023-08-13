@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/mitchellh/mapstructure"
+	"github.com/spf13/cast"
 
 	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/kit/ptr"
@@ -140,18 +141,29 @@ func GetMetadataProperty(props map[string]string, keys ...string) (val string, o
 
 // DecodeMetadata decodes metadata into a struct
 // This is an extension of mitchellh/mapstructure which also supports decoding durations
-func DecodeMetadata(input interface{}, result interface{}) error {
+func DecodeMetadata(input any, result any) error {
 	// avoids a common mistake of passing the metadata struct, instead of the properties map
-	// if input is of type struct, case it to metadata.Base and access the Properties instead
+	// if input is of type struct, cast it to metadata.Base and access the Properties instead
 	v := reflect.ValueOf(input)
 	if v.Kind() == reflect.Struct {
 		f := v.FieldByName("Properties")
 		if f.IsValid() && f.Kind() == reflect.Map {
-			properties := f.Interface().(map[string]string)
-			input = properties
+			input = f.Interface().(map[string]string)
 		}
 	}
 
+	inputMap, err := cast.ToStringMapStringE(input)
+	if err != nil {
+		return fmt.Errorf("input object cannot be cast to map[string]string: %w", err)
+	}
+
+	// Handle aliases
+	err = resolveAliases(inputMap, result)
+	if err != nil {
+		return fmt.Errorf("failed to resolve aliases: %w", err)
+	}
+
+	// Finally, decode the metadata using mapstructure
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		DecodeHook: mapstructure.ComposeDecodeHookFunc(
 			toTimeDurationArrayHookFunc(),
@@ -166,16 +178,83 @@ func DecodeMetadata(input interface{}, result interface{}) error {
 	if err != nil {
 		return err
 	}
-	err = decoder.Decode(input)
+	err = decoder.Decode(inputMap)
 	return err
+}
+
+func resolveAliases(md map[string]string, result any) error {
+	// Get the list of all keys in the map
+	keys := make(map[string]string, len(md))
+	for k := range md {
+		lk := strings.ToLower(k)
+
+		// Check if there are duplicate keys after lowercasing
+		_, ok := keys[lk]
+		if ok {
+			return fmt.Errorf("key %s is duplicate in the metadata", lk)
+		}
+
+		keys[lk] = k
+	}
+
+	// Error if result is not pointer to struct, or pointer to pointer to struct
+	t := reflect.TypeOf(result)
+	if t.Kind() != reflect.Pointer {
+		return fmt.Errorf("not a pointer: %s", t.Kind().String())
+	}
+	t = t.Elem()
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	if t.Kind() != reflect.Struct {
+		return fmt.Errorf("not a struct: %s", t.Kind().String())
+	}
+
+	// Iterate through all the properties of result to see if anyone has the "mapstructurealiases" property
+	for i := 0; i < t.NumField(); i++ {
+		currentField := t.Field(i)
+
+		// Ignored fields that are not exported or that don't have a "mapstructure" tag
+		mapstructureTag := currentField.Tag.Get("mapstructure")
+		if !currentField.IsExported() || mapstructureTag == "" {
+			continue
+		}
+
+		// If the current property has a value in the metadata, then we don't need to handle aliases
+		_, ok := keys[strings.ToLower(mapstructureTag)]
+		if ok {
+			continue
+		}
+
+		// Check if there's a "mapstructurealiases" tag
+		aliasesTag := strings.ToLower(currentField.Tag.Get("mapstructurealiases"))
+		if aliasesTag == "" {
+			continue
+		}
+
+		// Look for the first alias that has a value
+		var mdKey string
+		for _, alias := range strings.Split(aliasesTag, ",") {
+			mdKey, ok = keys[alias]
+			if !ok {
+				continue
+			}
+
+			// We found an alias
+			md[mapstructureTag] = md[mdKey]
+			break
+		}
+	}
+
+	return nil
 }
 
 func toTruthyBoolHookFunc() mapstructure.DecodeHookFunc {
 	return func(
 		f reflect.Type,
 		t reflect.Type,
-		data interface{},
-	) (interface{}, error) {
+		data any,
+	) (any, error) {
 		if f == reflect.TypeOf("") && t == reflect.TypeOf(true) {
 			val := data.(string)
 			return utils.IsTruthy(val), nil
@@ -192,8 +271,8 @@ func toStringArrayHookFunc() mapstructure.DecodeHookFunc {
 	return func(
 		f reflect.Type,
 		t reflect.Type,
-		data interface{},
-	) (interface{}, error) {
+		data any,
+	) (any, error) {
 		if f == reflect.TypeOf("") && t == reflect.TypeOf([]string{}) {
 			val := data.(string)
 			return strings.Split(val, ","), nil
@@ -231,8 +310,8 @@ func toTimeDurationArrayHookFunc() mapstructure.DecodeHookFunc {
 	return func(
 		f reflect.Type,
 		t reflect.Type,
-		data interface{},
-	) (interface{}, error) {
+		data any,
+	) (any, error) {
 		if f == reflect.TypeOf("") && t == reflect.TypeOf([]time.Duration{}) {
 			inputArrayString := data.(string)
 			return convert(inputArrayString)
@@ -296,15 +375,32 @@ func (t ComponentType) BuiltInMetadataProperties() []string {
 	}
 }
 
+type MetadataField struct {
+	// Field type
+	Type string
+	// True if the field should be ignored by the metadata analyzer
+	Ignored bool
+	// True if the field is deprecated
+	Deprecated bool
+	// Aliases used for old, deprecated names
+	Aliases []string
+}
+
+type MetadataMap map[string]MetadataField
+
 // GetMetadataInfoFromStructType converts a struct to a map of field name (or struct tag) to field type.
 // This is used to generate metadata documentation for components.
-func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *map[string]string, componentType ComponentType) error {
+func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *MetadataMap, componentType ComponentType) error {
 	// Return if not struct or pointer to struct.
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
 	if t.Kind() != reflect.Struct {
 		return fmt.Errorf("not a struct: %s", t.Kind().String())
+	}
+
+	if *metadataMap == nil {
+		*metadataMap = MetadataMap{}
 	}
 
 	for i := 0; i < t.NumField(); i++ {
@@ -318,10 +414,11 @@ func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *map[string]strin
 		if mapStructureTag == "-" {
 			continue
 		}
-		onlyTag := currentField.Tag.Get("only")
-		if onlyTag != "" {
+
+		// If there's a "mdonly" tag, that metadata option is only included for certain component types
+		if mdOnlyTag := currentField.Tag.Get("mdonly"); mdOnlyTag != "" {
 			include := false
-			onlyTags := strings.Split(onlyTag, ",")
+			onlyTags := strings.Split(mdOnlyTag, ",")
 			for _, tag := range onlyTags {
 				if tag == string(componentType) {
 					include = true
@@ -332,6 +429,24 @@ func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *map[string]strin
 				continue
 			}
 		}
+
+		mdField := MetadataField{
+			Type: currentField.Type.String(),
+		}
+
+		// If there's a mdignore tag and that's truthy, the field should be ignored by the metadata analyzer
+		mdField.Ignored = utils.IsTruthy(currentField.Tag.Get("mdignore"))
+
+		// If there's a "mddeprecated" tag, the field may be deprecated
+		mdField.Deprecated = utils.IsTruthy(currentField.Tag.Get("mddeprecated"))
+
+		// If there's a "mdaliases" tag, the field contains aliases
+		// The value is a comma-separated string
+		if mdAliasesTag := currentField.Tag.Get("mdaliases"); mdAliasesTag != "" {
+			mdField.Aliases = strings.Split(mdAliasesTag, ",")
+		}
+
+		// Handle mapstructure tags and get the field name
 		mapStructureTags := strings.Split(mapStructureTag, ",")
 		numTags := len(mapStructureTags)
 		if numTags > 1 && mapStructureTags[numTags-1] == "squash" && currentField.Anonymous {
@@ -345,7 +460,9 @@ func GetMetadataInfoFromStructType(t reflect.Type, metadataMap *map[string]strin
 		} else {
 			fieldName = currentField.Name
 		}
-		(*metadataMap)[fieldName] = currentField.Type.String()
+
+		// Add the field
+		(*metadataMap)[fieldName] = mdField
 	}
 
 	return nil

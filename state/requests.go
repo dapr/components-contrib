@@ -17,7 +17,7 @@ import (
 	"github.com/dapr/components-contrib/state/query"
 )
 
-// GetRequest is the object describing a state fetch request.
+// GetRequest is the object describing a state "fetch" request.
 type GetRequest struct {
 	Key      string            `json:"key"`
 	Metadata map[string]string `json:"metadata"`

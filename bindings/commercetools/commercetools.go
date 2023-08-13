@@ -201,9 +201,8 @@ func (ct *Binding) Close() error {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (ct Binding) GetComponentMetadata() map[string]string {
+func (ct Binding) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := commercetoolsMetadata{}
-	metadataInfo := map[string]string{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
-	return metadataInfo
+	return
 }

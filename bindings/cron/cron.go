@@ -22,7 +22,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/benbjohnson/clock"
+	"k8s.io/utils/clock"
 
 	"github.com/dapr/components-contrib/bindings"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
@@ -48,7 +48,7 @@ type metadata struct {
 
 // NewCron returns a new Cron event input binding.
 func NewCron(logger logger.Logger) bindings.InputBinding {
-	return NewCronWithClock(logger, clock.New())
+	return NewCronWithClock(logger, clock.RealClock{})
 }
 
 func NewCronWithClock(logger logger.Logger, clk clock.Clock) bindings.InputBinding {
@@ -132,9 +132,8 @@ func (b *Binding) Close() error {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (b *Binding) GetComponentMetadata() map[string]string {
+func (b *Binding) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := metadata{}
-	metadataInfo := map[string]string{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
-	return metadataInfo
+	return
 }

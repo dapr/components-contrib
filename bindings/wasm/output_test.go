@@ -17,9 +17,11 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -181,6 +183,41 @@ func Test_Invoke(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEnsureConcurrency(t *testing.T) {
+	l := logger.NewLogger(t.Name())
+	var buf bytes.Buffer
+	l.SetOutput(&buf)
+
+	meta := metadata.Base{Properties: map[string]string{"url": urlArgsFile}}
+
+	output := NewWasmOutput(l)
+	defer output.(io.Closer).Close()
+
+	ctx := context.Background()
+
+	err := output.Init(ctx, bindings.Metadata{Base: meta})
+	require.NoError(t, err)
+
+	// Wasm is running in goroutine, use wait group to ensure all goroutines are finished
+	wg := sync.WaitGroup{}
+	// 100 is enough to trigger concurrency, and wasm should be executed run fast enough to not consuming too much time
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			request := &bindings.InvokeRequest{
+				Metadata:  map[string]string{"args": fmt.Sprintf("1,%d", i)},
+				Operation: ExecuteOperation,
+			}
+			expectedResp := fmt.Sprintf("main\n1\n%d", i)
+			resp, err := output.Invoke(ctx, request)
+			require.NoError(t, err)
+			require.Equal(t, expectedResp, string(resp.Data))
+			wg.Done()
+		}()
+	}
+	wg.Wait()
 }
 
 type handler struct{}

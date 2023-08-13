@@ -70,7 +70,7 @@ type rabbitMQ struct {
 	metadata          *rabbitmqMetadata
 	declaredExchanges map[string]bool
 
-	connectionDial func(protocol, uri, clientName string, tlsCfg *tls.Config, externalSasl bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error)
+	connectionDial func(protocol, uri, clientName string, heartBeat time.Duration, tlsCfg *tls.Config, externalSasl bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error)
 	closeCh        chan struct{}
 	closed         atomic.Bool
 	wg             sync.WaitGroup
@@ -111,12 +111,12 @@ func NewRabbitMQ(logger logger.Logger) pubsub.PubSub {
 	}
 }
 
-func dial(protocol, uri, clientName string, tlsCfg *tls.Config, externalSasl bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
+func dial(protocol, uri, clientName string, heartBeat time.Duration, tlsCfg *tls.Config, externalSasl bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
 	var (
 		conn *amqp.Connection
 		ch   *amqp.Channel
 		err  error
-		cfg  = amqp.Config{Heartbeat: defaultHeartbeat, Locale: defaultLocale} // default config of amqp091-go
+		cfg  = amqp.Config{Heartbeat: heartBeat, Locale: defaultLocale} // use default locale of amqp091-go
 	)
 	if len(clientName) > 0 {
 		cfg.Properties = map[string]interface{}{
@@ -188,7 +188,7 @@ func (r *rabbitMQ) reconnect(connectionCount int) error {
 		return err
 	}
 
-	r.connection, r.channel, err = r.connectionDial(r.metadata.internalProtocol, r.metadata.connectionURI(), r.metadata.ClientName, tlsCfg, r.metadata.SaslExternal)
+	r.connection, r.channel, err = r.connectionDial(r.metadata.internalProtocol, r.metadata.connectionURI(), r.metadata.ClientName, r.metadata.HeartBeat, tlsCfg, r.metadata.SaslExternal)
 	if err != nil {
 		r.reset()
 

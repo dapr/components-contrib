@@ -140,3 +140,4 @@ metadata:
     url:
       title: "Access Token Scope"
       url: "https://datatracker.ietf.org/doc/html/rfc6749#section-3.3"
+# TODO: ADD .avroschema and .jsonschema

@@ -143,4 +143,31 @@ metadata:
       Specifies the delay after which to redeliver the messages that failed to be processed.
     default: '"30s"'
     example: '"30s"'
-# TODO: ADD .avroschema and .jsonschema
+  - name: "<topic-name>.avroschema"
+    type: string
+    description: |
+      Enforces Avro schema validation for the configured topic. The value is a string containing a JSON object.
+    example: |
+      {
+        "type": "record",
+        "name": "Example",
+        "namespace": "test",
+        "fields": [
+          {"name": "ID","type": "int"},
+          {"name": "Name","type": "string"}
+        ]
+      }
+  - name: "<topic-name>.jsonschema"
+    type: string
+    description: |
+      Enforces JSON schema validation for the configured topic. The value is a string containing a JSON object.
+    example: |
+      {
+        "type": "record",
+        "name": "Example",
+        "namespace": "test",
+        "fields": [
+          {"name": "ID","type": "int"},
+          {"name": "Name","type": "string"}
+        ]
+      }

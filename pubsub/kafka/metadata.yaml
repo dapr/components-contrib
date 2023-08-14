@@ -43,6 +43,7 @@ metadata:
       type: string
     - name: saslPassword
       required: false
+      sensitive: true
       description: |
         The SASL password used for authentication. Can be secretKeyRef to use a secret reference. Only required if authType is set to "password"
       example: "mypassword"
@@ -89,11 +90,13 @@ metadata:
       type: string
     - name: clientCert
       required: false
+      sensitive: true
       description: "Client certificate, required for authType mtls. Can be secretKeyRef to use a secret reference"
       example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
       type: string
     - name: clientKey
       required: false
+      sensitive: true
       description: "Client key, required for authType mtls. Can be secretKeyRef to use a secret reference"
       example: "-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded DER>\n-----END RSA PRIVATE KEY-----"
       type: string
@@ -121,6 +124,7 @@ metadata:
       type: string
     - name: oidcClientSecret
       required: false
+      sensitive: true
       description: "The OAuth2 client secret that has been provisioned in the identity provider. Required when authType is set to oidc"
       example: "KeFg23!"
       type: string

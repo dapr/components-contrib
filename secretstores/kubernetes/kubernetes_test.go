@@ -28,16 +28,16 @@ func TestGetNamespace(t *testing.T) {
 		namespace := "a"
 
 		ns, err := store.getNamespaceFromMetadata(map[string]string{"namespace": namespace})
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, namespace, ns)
 	})
 
 	t.Run("has namespace env", func(t *testing.T) {
 		store := kubernetesSecretStore{logger: logger.NewLogger("test")}
-		os.Setenv("NAMESPACE", "b")
+		t.Setenv("NAMESPACE", "b")
 
 		ns, err := store.getNamespaceFromMetadata(map[string]string{})
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, "b", ns)
 	})
 
@@ -46,8 +46,21 @@ func TestGetNamespace(t *testing.T) {
 		os.Setenv("NAMESPACE", "")
 		_, err := store.getNamespaceFromMetadata(map[string]string{})
 
-		assert.NotNil(t, err)
-		assert.Equal(t, "namespace is missing on metadata and NAMESPACE env variable", err.Error())
+		assert.Error(t, err)
+		assert.ErrorContains(t, err, "namespace is missing")
+	})
+
+	t.Run("has default namespace", func(t *testing.T) {
+		store := kubernetesSecretStore{
+			logger: logger.NewLogger("test"),
+			md: kubernetesMetadata{
+				DefaultNamespace: "c",
+			},
+		}
+
+		ns, err := store.getNamespaceFromMetadata(map[string]string{})
+		assert.NoError(t, err)
+		assert.Equal(t, "c", ns)
 	})
 }
 

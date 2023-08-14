@@ -15,6 +15,7 @@ authenticationProfiles:
       - name: url
         type: string
         required: true
+        sensitive: true
         description: |
           Address of the MQTT broker. Can be secretKeyRef to use a secret reference.
           Use the tcp:// URI scheme for non-TLS communication. 
@@ -52,12 +53,14 @@ metadata:
     example: '"-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"'
   - name: clientCert
     type: string
+    sensitive: true
     description: |
       Client certificate, required for authType mtls. 
       Can be secretKeyRef to use a secret reference.
     example: '"-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"'
   - name: clientKey
     type: string
+    sensitive: true
     description: |
       Client key, required for authType mtls.
       Can be secretKeyRef to use a secret reference.

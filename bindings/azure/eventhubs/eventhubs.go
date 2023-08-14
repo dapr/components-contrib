@@ -84,11 +84,13 @@ func (a *AzureEventHubs) Read(ctx context.Context, handler bindings.Handler) err
 	topic := a.AzureEventHubs.EventHubName()
 	bindingsHandler := a.AzureEventHubs.GetBindingsHandlerFunc(topic, false, handler)
 	// Setting `maxBulkSubCount` to 1 as bindings are not supported for bulk subscriptions
+	// Setting `CheckPointFrequencyPerPartition` to default value of 1
 	return a.AzureEventHubs.Subscribe(ctx, impl.SubscribeConfig{
-		Topic:                     topic,
-		MaxBulkSubCount:           1,
-		MaxBulkSubAwaitDurationMs: impl.DefaultMaxBulkSubAwaitDurationMs,
-		Handler:                   bindingsHandler,
+		Topic:                           topic,
+		MaxBulkSubCount:                 1,
+		MaxBulkSubAwaitDurationMs:       impl.DefaultMaxBulkSubAwaitDurationMs,
+		CheckPointFrequencyPerPartition: impl.DefaultCheckpointFrequencyPerPartition,
+		Handler:                         bindingsHandler,
 	})
 }
 

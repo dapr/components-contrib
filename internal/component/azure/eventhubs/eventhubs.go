@@ -300,7 +300,14 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, config Subscr
 		}
 		return resp, retryErr
 	}
-	config.Handler = retryHandler
+
+	retryConfig := SubscribeConfig{
+		Topic:                           config.Topic,
+		MaxBulkSubCount:                 config.MaxBulkSubCount,
+		MaxBulkSubAwaitDurationMs:       config.MaxBulkSubAwaitDurationMs,
+		CheckPointFrequencyPerPartition: config.CheckPointFrequencyPerPartition,
+		Handler:                         retryHandler,
+	}
 
 	// Process all partition clients as they come in
 	go func() {
@@ -315,7 +322,7 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, config Subscr
 
 			// Once we get a partition client, process the events in a separate goroutine
 			go func() {
-				processErr := aeh.processEvents(subscribeCtx, partitionClient, config)
+				processErr := aeh.processEvents(subscribeCtx, partitionClient, retryConfig)
 				// Do not log context.Canceled which happens at shutdown
 				if processErr != nil && !errors.Is(processErr, context.Canceled) {
 					aeh.logger.Errorf("Error processing events from partition client: %v", processErr)

@@ -149,12 +149,14 @@ metadata:
     example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
   - name: clientCert
     type: string
+    sensitive: true
     description: |
       Client certificate, required for authType mtls.
       Can be secretKeyRef to use a secret reference.
     example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
   - name: clientKey
     type: string
+    sensitive: true
     description: |
       Client key, required for authType mtls.
       Can be secretKeyRef to use a secret reference.

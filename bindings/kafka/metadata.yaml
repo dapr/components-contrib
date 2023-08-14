@@ -87,6 +87,7 @@ metadata:
       input: true
   - name: saslPassword
     type: string
+    senstive: true
     description: |
       The SASL password used for authentication. 
       Can be secretKeyRef to use a secret reference. 
@@ -118,7 +119,7 @@ metadata:
     type: number
     description: |
       The maximum size in bytes allowed for a single Kafka message.
-    example: '"2048"'
+    example: '2048'
     default: '1024'
     binding:
       output: true
@@ -217,6 +218,7 @@ metadata:
       input: true
   - name: oidcClientSecret
     type: string
+    sensitive: true
     description: |
       The OAuth2 client secret that has been provisioned in the identity provider.
       Required when authType is set to oidc.

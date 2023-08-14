@@ -292,7 +292,7 @@ func TestEnsureConcurrency(t *testing.T) {
 	// Wasm is running in goroutine, use wait group to ensure all goroutines are finished
 	wg := sync.WaitGroup{}
 	// 100 is enough to trigger concurrency, and wasm should be executed run fast enough to not consuming too much time
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 100; i++ {
 		wg.Add(1)
 		go func(i int) {
 			request := &bindings.InvokeRequest{

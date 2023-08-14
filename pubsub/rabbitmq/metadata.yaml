@@ -48,14 +48,14 @@ metadata:
       (if dead letter enabled). If both maxLen and maxLenBytes are set then
       both will apply; whichever limit is hit first will be enforced.
       Defaults to no limit.
-    example: '"1000"'
+    example: '1000'
   - name: maxLenBytes
     type: number
     description: |
       Maximum length in bytes of a queue and its dead letter queue (if dead
       letter enabled). If both maxLen and maxLenBytes are set then both will 
       apply; whichever limit is hit first will be enforced.
-    example: '"1048576"'
+    example: '1048576'
   - name: hostname
     type: string
     description: |
@@ -68,6 +68,7 @@ metadata:
     example: '"username"'
   - name: password
     type: string
+    sensitive: true
     description: |
       The RabbitMQ password. *Mutally exclusive with connectionString field.
     example: '"password"'
@@ -146,27 +147,18 @@ metadata:
       Certificate authority certificate, required for using TLS.
       Can be secretKeyRef to use a secret reference.
     example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
-    binding:
-      input: true
-      output: true
   - name: clientCert
     type: string
     description: |
       Client certificate, required for authType mtls.
       Can be secretKeyRef to use a secret reference.
     example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
-    binding:
-      input: true
-      output: true
   - name: clientKey
     type: string
     description: |
       Client key, required for authType mtls.
       Can be secretKeyRef to use a secret reference.
     example: "-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded DER>\n-----END RSA PRIVATE KEY-----"
-    binding:
-      input: true
-      output: true
   - name: saslExternal
     type: string
     description: |
@@ -178,6 +170,3 @@ metadata:
       url: "https://www.rabbitmq.com/access-control.html#mechanisms"
     default: '“text/plain”'
     example: '"text/plain", "application/cloudevent+json"'
-    binding:
-      input: true
-      output: true

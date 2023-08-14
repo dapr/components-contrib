@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: memcached
+version: v1
+status: stable
+title: "Memcached"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-memcached/ 
+capabilities:
+  - crud
+  - ttl
+metadata:
+  - name: hosts
+    type: string
+    required: true
+    description: |
+      Comma delimited endpoints
+    example: '"memcached.default.svc.cluster.local:11211"'
+  - name: maxIdleConnections
+    type: number
+    default: '2'
+    description: |
+      The max number of idle connections.
+    example: '"3"'
+  - name: timeout
+    type: duration
+    description: |
+      The timeout for the calls. Defaults to "1000ms"
+    example: '"1000ms"'

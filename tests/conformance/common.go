@@ -36,6 +36,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/configuration"
 	contribCrypto "github.com/dapr/components-contrib/crypto"
+	"github.com/dapr/components-contrib/lock"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/components-contrib/state"
@@ -63,6 +64,7 @@ import (
 	cr_azurekeyvault "github.com/dapr/components-contrib/crypto/azure/keyvault"
 	cr_jwks "github.com/dapr/components-contrib/crypto/jwks"
 	cr_localstorage "github.com/dapr/components-contrib/crypto/localstorage"
+	l_redis "github.com/dapr/components-contrib/lock/redis"
 	p_snssqs "github.com/dapr/components-contrib/pubsub/aws/snssqs"
 	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
 	p_servicebusqueues "github.com/dapr/components-contrib/pubsub/azure/servicebus/queues"
@@ -105,6 +107,7 @@ import (
 	conf_bindings "github.com/dapr/components-contrib/tests/conformance/bindings"
 	conf_configuration "github.com/dapr/components-contrib/tests/conformance/configuration"
 	conf_crypto "github.com/dapr/components-contrib/tests/conformance/crypto"
+	conf_lock "github.com/dapr/components-contrib/tests/conformance/lock"
 	conf_pubsub "github.com/dapr/components-contrib/tests/conformance/pubsub"
 	conf_secret "github.com/dapr/components-contrib/tests/conformance/secretstores"
 	conf_state "github.com/dapr/components-contrib/tests/conformance/state"
@@ -402,6 +405,15 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 				wf := loadWorkflow(comp)
 				wfConfig := conf_workflows.NewTestConfig(comp.Component, comp.Operations, comp.Config)
 				conf_workflows.ConformanceTests(t, props, wf, wfConfig)
+			case "lock":
+				filepath := fmt.Sprintf("../config/lock/%s", componentConfigPath)
+				props, err := tc.loadComponentsAndProperties(t, filepath)
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
+				component := loadLockStore(comp)
+				require.NotNil(t, component, "error running conformance test for component %s", comp.Component)
+				lockConfig, err := conf_lock.NewTestConfig(comp.Component, comp.Operations, comp.Config)
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
+				conf_lock.ConformanceTests(t, props, component, lockConfig)
 			case "crypto":
 				filepath := fmt.Sprintf("../config/crypto/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
@@ -520,6 +532,18 @@ func loadCryptoProvider(tc TestComponent) contribCrypto.SubtleCrypto {
 		component = cr_localstorage.NewLocalStorageCrypto(testLogger)
 	case "jwks":
 		component = cr_jwks.NewJWKSCrypto(testLogger)
+	}
+
+	return component
+}
+
+func loadLockStore(tc TestComponent) lock.Store {
+	var component lock.Store
+	switch tc.Component {
+	case redisv6:
+		component = l_redis.NewStandaloneRedisLock(testLogger)
+	case redisv7:
+		component = l_redis.NewStandaloneRedisLock(testLogger)
 	}
 
 	return component

@@ -1,0 +1,7 @@
+# Supported additional operations: (none)
+componentType: lock
+components:
+  - component: redis.v6
+    operations: []
+  - component: redis.v7
+    operations: []

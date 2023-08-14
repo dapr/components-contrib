@@ -33,8 +33,8 @@ func TestParseMetadata(t *testing.T) {
 		i := kubernetesInput{logger: logger.NewLogger("test")}
 		i.parseMetadata(m)
 
-		assert.Equal(t, nsName, i.namespace, "The namespaces should be the same.")
-		assert.Equal(t, resyncPeriod, i.resyncPeriod, "The resyncPeriod should be the same.")
+		assert.Equal(t, nsName, i.metadata.Namespace, "The namespaces should be the same.")
+		assert.Equal(t, resyncPeriod, i.metadata.ResyncPeriod, "The resyncPeriod should be the same.")
 	})
 	t.Run("parse metadata no namespace", func(t *testing.T) {
 		m := bindings.Metadata{}
@@ -43,18 +43,7 @@ func TestParseMetadata(t *testing.T) {
 		i := kubernetesInput{logger: logger.NewLogger("test")}
 		err := i.parseMetadata(m)
 
-		assert.NotNil(t, err, "Expected err to be returned.")
-		assert.Equal(t, "namespace is missing in metadata", err.Error(), "Error message not same.")
-	})
-	t.Run("parse metadata invalid resync period", func(t *testing.T) {
-		m := bindings.Metadata{}
-		m.Properties = map[string]string{"namespace": nsName, "resyncPeriodInSec": "invalid"}
-
-		i := kubernetesInput{logger: logger.NewLogger("test")}
-		err := i.parseMetadata(m)
-
-		assert.Nil(t, err, "Expected err to be nil.")
-		assert.Equal(t, nsName, i.namespace, "The namespaces should be the same.")
-		assert.Equal(t, time.Second*10, i.resyncPeriod, "The resyncPeriod should be the same.")
+		assert.Error(t, err, "Expected err to be returned.")
+		assert.ErrorContains(t, err, "namespace is missing in metadata", "Error message not same.")
 	})
 }

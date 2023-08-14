@@ -51,8 +51,8 @@ metadata:
       Interval, in seconds, to clean up rows with an expired TTL.
       Setting this to values <=0 disables the periodic cleanup.
     type: number
-    default: '"3600"'
-    example: '"1800, -1"'
+    default: '3600'
+    example: '1800, -1'
   - name: connectionMaxIdleTime
     description: |
       Max idle time before unused connections are automatically closed in the connection pool.

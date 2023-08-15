@@ -13,13 +13,13 @@ limitations under the License.
 
 package kubernetes
 
-//nolint:nosnakecase
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 
-	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
 	kubeclient "github.com/dapr/components-contrib/internal/authentication/kubernetes"
@@ -32,6 +32,7 @@ var _ secretstores.SecretStore = (*kubernetesSecretStore)(nil)
 
 type kubernetesSecretStore struct {
 	kubeClient kubernetes.Interface
+	md         kubernetesMetadata
 	logger     logger.Logger
 }
 
@@ -42,11 +43,21 @@ func NewKubernetesSecretStore(logger logger.Logger) secretstores.SecretStore {
 
 // Init creates a Kubernetes client.
 func (k *kubernetesSecretStore) Init(_ context.Context, metadata secretstores.Metadata) error {
-	client, err := kubeclient.GetKubeClient()
+	// Init metadata
+	err := k.md.InitWithMetadata(metadata)
+	if err != nil {
+		return fmt.Errorf("failed to load metadata: %w", err)
+	}
+
+	// Init Kubernetes client
+	kubeconfigPath := k.md.KubeconfigPath
+	if kubeconfigPath == "" {
+		kubeconfigPath = kubeclient.GetKubeconfigPath(k.logger, os.Args)
+	}
+	k.kubeClient, err = kubeclient.GetKubeClient(kubeconfigPath)
 	if err != nil {
 		return err
 	}
-	k.kubeClient = client
 
 	return nil
 }
@@ -61,7 +72,7 @@ func (k *kubernetesSecretStore) GetSecret(ctx context.Context, req secretstores.
 		return resp, err
 	}
 
-	secret, err := k.kubeClient.CoreV1().Secrets(namespace).Get(ctx, req.Name, meta_v1.GetOptions{}) //nolint:nosnakecase
+	secret, err := k.kubeClient.CoreV1().Secrets(namespace).Get(ctx, req.Name, metav1.GetOptions{})
 	if err != nil {
 		return resp, err
 	}
@@ -83,7 +94,7 @@ func (k *kubernetesSecretStore) BulkGetSecret(ctx context.Context, req secretsto
 		return resp, err
 	}
 
-	secrets, err := k.kubeClient.CoreV1().Secrets(namespace).List(ctx, meta_v1.ListOptions{}) //nolint:nosnakecase
+	secrets, err := k.kubeClient.CoreV1().Secrets(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return resp, err
 	}
@@ -103,12 +114,15 @@ func (k *kubernetesSecretStore) getNamespaceFromMetadata(metadata map[string]str
 		return val, nil
 	}
 
-	val := os.Getenv("NAMESPACE")
-	if val != "" {
+	if val := os.Getenv("NAMESPACE"); val != "" {
 		return val, nil
 	}
 
-	return "", errors.New("namespace is missing on metadata and NAMESPACE env variable")
+	if k.md.DefaultNamespace != "" {
+		return k.md.DefaultNamespace, nil
+	}
+
+	return "", errors.New("namespace is missing on metadata and NAMESPACE env variable, and no default namespace is set")
 }
 
 // Features returns the features available in this secret store.

@@ -40,7 +40,6 @@ require (
 	github.com/apache/rocketmq-client-go/v2 v2.1.2-0.20230412142645-25003f6f083d
 	github.com/apache/thrift v0.13.0
 	github.com/aws/aws-sdk-go v1.44.315
-	github.com/benbjohnson/clock v1.3.5
 	github.com/bradfitz/gomemcache v0.0.0-20230611145640-acc696258285
 	github.com/camunda/zeebe/clients/go/v8 v8.2.8
 	github.com/cenkalti/backoff/v4 v4.2.1
@@ -52,7 +51,7 @@ require (
 	github.com/cloudwego/kitex-examples v0.1.1
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/dancannon/gorethink v4.0.0+incompatible
-	github.com/dapr/kit v0.11.3
+	github.com/dapr/kit v0.11.4-0.20230807225040-b6b141aa3e32
 	github.com/didip/tollbooth/v7 v7.0.1
 	github.com/eclipse/paho.mqtt.golang v1.4.3
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
@@ -169,6 +168,7 @@ require (
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20200108200545-475eaeb16496 // indirect
 	github.com/awslabs/kinesis-aggregation/go v0.0.0-20210630091500-54e17340d32f // indirect
+	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.4.0 // indirect
 	github.com/bufbuild/protocompile v0.4.0 // indirect
@@ -369,7 +369,7 @@ require (
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/arch v0.3.0 // indirect
 	golang.org/x/sync v0.2.0 // indirect
-	golang.org/x/sys v0.10.0 // indirect
+	golang.org/x/sys v0.11.0 // indirect
 	golang.org/x/term v0.10.0 // indirect
 	golang.org/x/text v0.11.0 // indirect
 	golang.org/x/time v0.3.0 // indirect

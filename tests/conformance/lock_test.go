@@ -2,7 +2,7 @@
 // +build conftests
 
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -22,8 +22,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestConfigurationConformance(t *testing.T) {
-	tc, err := NewTestConfiguration("../config/configuration/tests.yml")
+func TestLockConformance(t *testing.T) {
+	tc, err := NewTestConfiguration("../config/lock/tests.yml")
 	require.NoError(t, err)
 	require.NotNil(t, tc)
 	tc.Run(t)

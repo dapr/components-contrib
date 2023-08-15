@@ -17,13 +17,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
 	"reflect"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -32,28 +33,27 @@ import (
 	kubeclient "github.com/dapr/components-contrib/internal/authentication/kubernetes"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/ptr"
 )
 
 type kubernetesInput struct {
-	kubeClient   kubernetes.Interface
-	namespace    string
-	resyncPeriod time.Duration
-	logger       logger.Logger
-	closed       atomic.Bool
-	closeCh      chan struct{}
-	wg           sync.WaitGroup
+	metadata   kubernetesMetadata
+	kubeClient kubernetes.Interface
+	logger     logger.Logger
+	closed     atomic.Bool
+	closeCh    chan struct{}
+	wg         sync.WaitGroup
 }
 
 type EventResponse struct {
-	Event  string   `json:"event"`
-	OldVal v1.Event `json:"oldVal"`
-	NewVal v1.Event `json:"newVal"`
+	Event  string       `json:"event"`
+	OldVal corev1.Event `json:"oldVal"`
+	NewVal corev1.Event `json:"newVal"`
 }
 
 type kubernetesMetadata struct {
-	Namespace    string         `mapstructure:"namespace"`
-	ResyncPeriod *time.Duration `mapstructure:"resyncPeriodInSec"`
+	Namespace      string        `mapstructure:"namespace"`
+	KubeconfigPath string        `mapstructure:"kubeconfigPath"`
+	ResyncPeriod   time.Duration `mapstructure:"resyncPeriod" mapstructurealiases:"resyncPeriodInSec"`
 }
 
 // NewKubernetes returns a new Kubernetes event input binding.
@@ -65,32 +65,42 @@ func NewKubernetes(logger logger.Logger) bindings.InputBinding {
 }
 
 func (k *kubernetesInput) Init(ctx context.Context, metadata bindings.Metadata) error {
-	client, err := kubeclient.GetKubeClient()
+	err := k.parseMetadata(metadata)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse metadata: %w", err)
+	}
+
+	kubeconfigPath := k.metadata.KubeconfigPath
+	if kubeconfigPath == "" {
+		kubeconfigPath = kubeclient.GetKubeconfigPath(k.logger, os.Args)
+	}
+
+	client, err := kubeclient.GetKubeClient(kubeconfigPath)
+	if err != nil {
+		return fmt.Errorf("failed to initialize Kubernetes client: %w", err)
 	}
 	k.kubeClient = client
 
-	return k.parseMetadata(metadata)
+	return nil
 }
 
 func (k *kubernetesInput) parseMetadata(meta bindings.Metadata) error {
-	m := kubernetesMetadata{}
-	err := metadata.DecodeMetadata(meta.Properties, &m)
-	if err != nil {
-		if strings.Contains(err.Error(), "resyncPeriodInSec") {
-			k.logger.Warnf("invalid resyncPeriodInSec; %v; defaulting to 10s", err)
-			m.ResyncPeriod = ptr.Of(time.Second * 10)
-		} else {
-			return err
-		}
+	// Set default values
+	k.metadata = kubernetesMetadata{
+		ResyncPeriod: 10 * time.Second,
 	}
-	k.resyncPeriod = *m.ResyncPeriod
 
-	if m.Namespace == "" {
+	// Decode
+	err := metadata.DecodeMetadata(meta.Properties, &k.metadata)
+	if err != nil {
+		return err
+	}
+
+	// Validate
+	if k.metadata.Namespace == "" {
 		return errors.New("namespace is missing in metadata")
 	}
-	k.namespace = m.Namespace
+
 	return nil
 }
 
@@ -101,21 +111,21 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 	watchlist := cache.NewListWatchFromClient(
 		k.kubeClient.CoreV1().RESTClient(),
 		"events",
-		k.namespace,
+		k.metadata.Namespace,
 		fields.Everything(),
 	)
 	resultChan := make(chan EventResponse)
 	_, controller := cache.NewInformer(
 		watchlist,
-		&v1.Event{},
-		k.resyncPeriod,
+		&corev1.Event{},
+		k.metadata.ResyncPeriod,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				if obj != nil {
 					resultChan <- EventResponse{
 						Event:  "add",
-						NewVal: *(obj.(*v1.Event)),
-						OldVal: v1.Event{},
+						NewVal: *(obj.(*corev1.Event)),
+						OldVal: corev1.Event{},
 					}
 				} else {
 					k.logger.Warnf("Nil Object in Add handle %v", obj)
@@ -125,8 +135,8 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 				if obj != nil {
 					resultChan <- EventResponse{
 						Event:  "delete",
-						OldVal: *(obj.(*v1.Event)),
-						NewVal: v1.Event{},
+						OldVal: *(obj.(*corev1.Event)),
+						NewVal: corev1.Event{},
 					}
 				} else {
 					k.logger.Warnf("Nil Object in Delete handle %v", obj)
@@ -136,8 +146,8 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 				if oldObj != nil && newObj != nil {
 					resultChan <- EventResponse{
 						Event:  "update",
-						OldVal: *(oldObj.(*v1.Event)),
-						NewVal: *(newObj.(*v1.Event)),
+						OldVal: *(oldObj.(*corev1.Event)),
+						NewVal: *(newObj.(*corev1.Event)),
 					}
 				} else {
 					k.logger.Warnf("Nil Objects in Update handle %v %v", oldObj, newObj)
@@ -159,7 +169,7 @@ func (k *kubernetesInput) Read(ctx context.Context, handler bindings.Handler) er
 		}
 	}()
 
-	// Start the controller in backgound
+	// Start the controller in background
 	go func() {
 		defer k.wg.Done()
 		controller.Run(readCtx.Done())

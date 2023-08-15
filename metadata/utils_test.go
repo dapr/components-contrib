@@ -30,14 +30,14 @@ func TestIsRawPayload(t *testing.T) {
 		})
 
 		assert.Equal(t, false, val)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("Metadata map is nil", func(t *testing.T) {
 		val, err := IsRawPayload(nil)
 
 		assert.Equal(t, false, val)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("Metadata with bad value", func(t *testing.T) {
@@ -55,7 +55,7 @@ func TestIsRawPayload(t *testing.T) {
 		})
 
 		assert.Equal(t, false, val)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("Metadata with correct value as true", func(t *testing.T) {
@@ -64,7 +64,7 @@ func TestIsRawPayload(t *testing.T) {
 		})
 
 		assert.Equal(t, true, val)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 }
 
@@ -143,7 +143,7 @@ func TestMetadataDecode(t *testing.T) {
 
 		err := DecodeMetadata(testData, &m)
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, true, *m.Mybool)
 		assert.Equal(t, "test", m.Mystring)
 		assert.Equal(t, 1, m.Myinteger)
@@ -185,7 +185,7 @@ func TestMetadataDecode(t *testing.T) {
 		testData["boolvaluenonsense"] = "nonsense"
 
 		err := DecodeMetadata(testData, &m)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.True(t, *m.BoolPointer)
 		assert.True(t, m.BoolValueOn)
 		assert.True(t, m.BoolValue1)
@@ -225,7 +225,7 @@ func TestMetadataDecode(t *testing.T) {
 		testData["emptystringarraypointerwithcomma"] = ","
 
 		err := DecodeMetadata(testData, &m)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, []string{"one", "two", "three"}, m.StringArray)
 		assert.Equal(t, []string{"one", "two", "three"}, *m.StringArrayPointer)
 		assert.Equal(t, []string{""}, m.EmptyStringArray)
@@ -236,6 +236,37 @@ func TestMetadataDecode(t *testing.T) {
 		assert.Equal(t, []string{"test", ""}, *m.StringArrayOneElementPointerWithComma)
 		assert.Equal(t, []string{"", ""}, m.EmptyStringArrayWithComma)
 		assert.Equal(t, []string{"", ""}, *m.EmptyStringArrayPointerWithComma)
+	})
+
+	t.Run("Test metadata decode hook for byte sizes", func(t *testing.T) {
+		type testMetadata struct {
+			BytesizeValue1              ByteSize
+			BytesizeValue2              ByteSize
+			BytesizeValue3              ByteSize
+			BytesizeValue4              ByteSize
+			BytesizeValueNotProvided    ByteSize
+			BytesizeValuePtr            *ByteSize
+			BytesizeValuePtrNotProvided *ByteSize
+		}
+
+		var m testMetadata
+
+		testData := make(map[string]any)
+		testData["bytesizevalue1"] = "100"
+		testData["bytesizevalue2"] = 100
+		testData["bytesizevalue3"] = "1Ki"
+		testData["bytesizevalue4"] = "1000k"
+		testData["bytesizevalueptr"] = "1Gi"
+
+		err := DecodeMetadata(testData, &m)
+		require.NoError(t, err)
+		assert.Equal(t, "100", m.BytesizeValue1.String())
+		assert.Equal(t, "100", m.BytesizeValue2.String())
+		assert.Equal(t, "1Ki", m.BytesizeValue3.String())
+		assert.Equal(t, "1M", m.BytesizeValue4.String())
+		assert.Equal(t, "1Gi", m.BytesizeValuePtr.String())
+		assert.Nil(t, m.BytesizeValuePtrNotProvided)
+		assert.Equal(t, "0", m.BytesizeValueNotProvided.String())
 	})
 }
 

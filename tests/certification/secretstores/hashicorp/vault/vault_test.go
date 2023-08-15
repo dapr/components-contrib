@@ -17,6 +17,7 @@ import (
 	"context"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -52,8 +53,8 @@ func TestBasicSecretRetrieval(t *testing.T) {
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithResourcesPath(secretStoreComponentPath),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHttpPort)),
 			componentRuntimeOptions(),
 		)).
 		Step("Waiting for component to load...", flow.Sleep(5*time.Second)).
@@ -83,8 +84,8 @@ func TestMultipleKVRetrieval(t *testing.T) {
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithResourcesPath(secretStoreComponentPath),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHttpPort)),
 			componentRuntimeOptions(),
 		)).
 		Step("Waiting for component to load...", flow.Sleep(5*time.Second)).
@@ -119,8 +120,8 @@ func TestVaultKVPrefix(t *testing.T) {
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithResourcesPath(secretStoreComponentPath),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHttpPort)),
 			componentRuntimeOptions(),
 		)).
 		Step("Waiting for component to load...", flow.Sleep(5*time.Second)).
@@ -151,8 +152,8 @@ func TestVaultKVUsePrefixFalse(t *testing.T) {
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithResourcesPath(secretStoreComponentPath),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHttpPort)),
 			componentRuntimeOptions(),
 		)).
 		Step("Waiting for component to load...", flow.Sleep(5*time.Second)).
@@ -186,8 +187,8 @@ func TestVaultValueTypeText(t *testing.T) {
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithResourcesPath(secretStoreComponentPath),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHttpPort)),
 			componentRuntimeOptions(),
 		)).
 		Step("Waiting for component to load...", flow.Sleep(5*time.Second)).
@@ -252,8 +253,8 @@ func TestEnginePathCustomSecretsPath(t *testing.T) {
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithResourcesPath(componentPath),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHttpPort)),
 			// Dapr log-level debug?
 			componentRuntimeOptions(),
 		)).
@@ -339,8 +340,8 @@ func TestVersioning(t *testing.T) {
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithResourcesPath(componentPath),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHttpPort)),
 			// Dapr log-level debug?
 			componentRuntimeOptions(),
 		)).

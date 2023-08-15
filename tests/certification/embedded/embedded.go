@@ -21,6 +21,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dapr/dapr/pkg/components/bindings"
+	"github.com/dapr/dapr/pkg/components/configuration"
+	"github.com/dapr/dapr/pkg/components/middleware/http"
+	"github.com/dapr/dapr/pkg/components/pubsub"
+	"github.com/dapr/dapr/pkg/components/secretstores"
+	"github.com/dapr/dapr/pkg/components/state"
 	env "github.com/dapr/dapr/pkg/config/env"
 	"github.com/dapr/dapr/pkg/config/protocol"
 	"github.com/dapr/dapr/pkg/cors"
@@ -127,6 +133,42 @@ func WithProfilingEnabled(enabled bool) Option {
 	}
 }
 
+func WithStates(reg *state.Registry) Option {
+	return func(config *runtime.Config) {
+		config.Registry = config.Registry.WithStateStores(reg)
+	}
+}
+
+func WithSecretStores(reg *secretstores.Registry) Option {
+	return func(config *runtime.Config) {
+		config.Registry = config.Registry.WithSecretStores(reg)
+	}
+}
+
+func WithPubSubs(reg *pubsub.Registry) Option {
+	return func(config *runtime.Config) {
+		config.Registry = config.Registry.WithPubSubs(reg)
+	}
+}
+
+func WithConfigurations(reg *configuration.Registry) Option {
+	return func(config *runtime.Config) {
+		config.Registry = config.Registry.WithConfigurations(reg)
+	}
+}
+
+func WithHTTPMiddlewares(reg *http.Registry) Option {
+	return func(config *runtime.Config) {
+		config.Registry = config.Registry.WithHTTPMiddlewares(reg)
+	}
+}
+
+func WithBindings(reg *bindings.Registry) Option {
+	return func(config *runtime.Config) {
+		config.Registry = config.Registry.WithBindings(reg)
+	}
+}
+
 func NewRuntime(ctx context.Context, appID string, opts ...Option) (*runtime.DaprRuntime, *runtime.Config, error) {
 	var err error
 	runtimeConfig := &runtime.Config{
@@ -167,12 +209,12 @@ func NewRuntime(ctx context.Context, appID string, opts ...Option) (*runtime.Dap
 
 	variables := map[string]string{
 		env.AppID:           runtimeConfig.AppID,
-		env.AppPort:         fmt.Sprintf("%d", runtimeConfig.ApplicationPort),
+		env.AppPort:         fmt.Sprintf("%s", runtimeConfig.ApplicationPort),
 		env.HostAddress:     "127.0.0.1",
-		env.DaprPort:        fmt.Sprintf("%d", runtimeConfig.DaprInternalGRPCPort),
-		env.DaprGRPCPort:    fmt.Sprintf("%d", runtimeConfig.DaprAPIGRPCPort),
-		env.DaprHTTPPort:    fmt.Sprintf("%d", runtimeConfig.DaprHTTPPort),
-		env.DaprProfilePort: fmt.Sprintf("%d", runtimeConfig.ProfilePort),
+		env.DaprPort:        fmt.Sprintf("%s", runtimeConfig.DaprInternalGRPCPort),
+		env.DaprGRPCPort:    fmt.Sprintf("%s", runtimeConfig.DaprAPIGRPCPort),
+		env.DaprHTTPPort:    fmt.Sprintf("%s", runtimeConfig.DaprHTTPPort),
+		env.DaprProfilePort: fmt.Sprintf("%s", runtimeConfig.ProfilePort),
 	}
 
 	for key, value := range variables {

@@ -32,7 +32,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/retry"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
-	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
@@ -281,10 +280,10 @@ func TestRedis(t *testing.T) {
 		Step("Waiting for Redis readiness", retry.Do(time.Second*3, 10, checkRedisConnection)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
 			embedded.WithComponentsPath("components/docker/default"),
-			runtime.WithStates(stateRegistry),
+			embedded.WithStates(stateRegistry),
 		)).
 		Step("Run basic test", basicTest).
 		Step("Run TTL related test", timeToLiveTest).
@@ -306,10 +305,10 @@ func TestRedis(t *testing.T) {
 		Step("Waiting for Redis readiness", retry.Do(time.Second*3, 10, checkRedisConnection)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
 			embedded.WithComponentsPath("components/docker/enableTLSConf"),
-			runtime.WithStates(stateRegistry),
+			embedded.WithStates(stateRegistry),
 		)).
 		Step("Run basic test to confirm state store not yet configured", testForStateStoreNotConfigured).
 		Run()

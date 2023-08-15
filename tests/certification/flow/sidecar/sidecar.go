@@ -113,7 +113,7 @@ func (s Sidecar) Start(ctx flow.Context) error {
 		s.errCh <- rt.Run(ctx)
 	}()
 
-	daprClient, err := dapr.NewClientWithPort(fmt.Sprintf("%d", rtConf.DaprAPIGRPCPort))
+	daprClient, err := dapr.NewClientWithPort(fmt.Sprintf("%s", rtConf.DaprAPIGRPCPort))
 	if err != nil {
 		return err
 	}

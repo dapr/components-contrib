@@ -81,13 +81,16 @@ func (a *AzureEventHubs) Invoke(ctx context.Context, req *bindings.InvokeRequest
 func (a *AzureEventHubs) Read(ctx context.Context, handler bindings.Handler) error {
 	// Start the subscription
 	// This is non-blocking
-	return a.AzureEventHubs.Subscribe(ctx, a.AzureEventHubs.EventHubName(), false, func(ctx context.Context, data []byte, metadata map[string]string) error {
-		res := bindings.ReadResponse{
-			Data:     data,
-			Metadata: metadata,
-		}
-		_, hErr := handler(ctx, &res)
-		return hErr
+	topic := a.AzureEventHubs.EventHubName()
+	bindingsHandler := a.AzureEventHubs.GetBindingsHandlerFunc(topic, false, handler)
+	// Setting `maxBulkSubCount` to 1 as bindings are not supported for bulk subscriptions
+	// Setting `CheckPointFrequencyPerPartition` to default value of 1
+	return a.AzureEventHubs.Subscribe(ctx, impl.SubscribeConfig{
+		Topic:                           topic,
+		MaxBulkSubCount:                 1,
+		MaxBulkSubAwaitDurationMs:       impl.DefaultMaxBulkSubAwaitDurationMs,
+		CheckPointFrequencyPerPartition: impl.DefaultCheckpointFrequencyPerPartition,
+		Handler:                         bindingsHandler,
 	})
 }
 

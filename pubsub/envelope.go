@@ -141,9 +141,15 @@ func FromCloudEvent(cloudEvent []byte, topic, pubsub, traceParent string, traceS
 		m[TimeField] = time.Now().Format(time.RFC3339)
 	}
 
-	m[TraceIDField] = traceParent
-	m[TraceParentField] = traceParent
-	m[TraceStateField] = traceState
+	if _, ok := m[TraceIDField]; !ok {
+		m[TraceIDField] = traceParent
+		m[TraceParentField] = traceParent
+	}
+
+	if _, ok := m[TraceStateField]; !ok {
+		m[TraceStateField] = traceState
+	}
+
 	m[TopicField] = topic
 	m[PubsubField] = pubsub
 

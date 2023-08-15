@@ -30,6 +30,7 @@ import (
 	env "github.com/dapr/dapr/pkg/config/env"
 	"github.com/dapr/dapr/pkg/config/protocol"
 	"github.com/dapr/dapr/pkg/cors"
+	"github.com/dapr/dapr/pkg/metrics"
 	"github.com/dapr/dapr/pkg/modes"
 	"github.com/dapr/dapr/pkg/runtime"
 	"github.com/dapr/kit/logger"
@@ -193,6 +194,7 @@ func NewRuntime(ctx context.Context, appID string, opts ...Option) (*runtime.Dap
 		DaprGracefulShutdownSeconds:  1,
 		EnableAPILogging:             ptr.Of(true),
 		DisableBuiltinK8sSecretStore: false,
+		Metrics:                      metrics.DefaultMetricOptions(),
 	}
 
 	for _, opt := range opts {

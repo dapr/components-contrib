@@ -21,9 +21,9 @@ authenticationProfiles:
       - name: connectionString
         required: true
         sensitive: true
-        description: The connection string for the PostgreSQL database
+        description: The connection string for the CockroachDB database
         example: |
-          "host=localhost user=postgres password=example port=5432 connect_timeout=10 database=dapr_test"
+          "host=localhost user=root password=example port=5432 connect_timeout=10 database=dapr_test"
         type: string
 metadata: 
   - name: timeoutInSeconds
@@ -34,14 +34,14 @@ metadata:
     example: '30'
   - name: tableName
     description: |
-      Name of the table where the data is stored. Defaults to state. Can optionally have 
+      Name of the table where the data is stored. Can optionally have
       the schema name as prefix, such as public.state.
     type: string
     default: '"state"'  
     example: '"state", "public.state"'
   - name: metadataTableName
     description: |
-      Name of the table Dapr uses to store a few metadata properties. Defaults to dapr_metadata.
+      Name of the table Dapr uses to store a few metadata properties.
       Can optionally have the schema name as prefix, such as public.dapr_metadata.
     type: string
     default: '"dapr_metadata"' 
@@ -59,9 +59,3 @@ metadata:
       By default, there’s no value and this is left to the database driver to choose.
     type: duration
     example: '"5m"'
-  - name: actorStateStore
-    description: |
-      Consider this state store for actors.
-    type: bool
-    default: '"false"'  
-    example: '"true", "false"'

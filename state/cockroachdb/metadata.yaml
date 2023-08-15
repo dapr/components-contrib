@@ -21,9 +21,9 @@ authenticationProfiles:
       - name: connectionString
         required: true
         sensitive: true
-        description: The connection string for the PostgreSQL database
+        description: The connection string for the Cockroach database
         example: |
-          "host=localhost user=postgres password=example port=5432 connect_timeout=10 database=dapr_test"
+          "host=localhost user=cockroach password=example port=5432 connect_timeout=10 database=dapr_test"
         type: string
 metadata: 
   - name: timeoutInSeconds

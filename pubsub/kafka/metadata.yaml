@@ -8,6 +8,69 @@ title: "Apache Kafka"
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-apache-kafka/
+authenticationProfiles:
+  - title: "OAuth Authentication"
+    description: |
+      Authenticate using OAuth.
+    metadata:
+      - name: oidcTokenEndpoint
+        type: string
+        description: |
+          Full URL to an OAuth2 identity provider access token endpoint.
+          Required when authType is set to oidc.
+        example: '"https://identity.example.com/v1/token"'
+      - name: oidcClientID
+        description: |
+          The OAuth2 client ID that has been provisioned in the identity provider.
+          Required when authType is set to oidc.
+        example: '"dapr-kafka"'
+        type: string
+      - name: oidcClientSecret
+        type: string
+        sensitive: true
+        description: |
+          The OAuth2 client secret that has been provisioned in the identity provider.
+          Required when authType is set to oidc.
+        example: '"KeFg23!"'
+      - name: oidcScopes
+        type: string
+        description: |
+          Comma-delimited list of OAuth2/OIDC scopes to request with the access token.
+          Recommended when authType is set to oidc.
+        example: '"openid,kafka-prod"'
+        default: '"openid"'
+  - title: "SASL Authentication"
+    description: |
+      Authentication using SASL.
+    metadata:
+        - name: authType
+          type: string
+          required: true
+          description: |
+            Configure or disable authentication.
+            Supported values: "none", "password", "mtls", or "oidc".
+          example: '"none"'
+        - name: saslUsername
+          type: string
+          description: |
+            The SASL username used for authentication.
+            Only required if authType is set to "password".
+          example: '"myuser"'
+        - name: saslPassword
+          type: string
+          senstive: true
+          description: |
+            The SASL password used for authentication.
+            Can be secretKeyRef to use a secret reference.
+            Only required if authType is set to "password".
+          example: '"mypassword"'
+        - name: saslMechanism
+          type: string
+          description: |
+            The SASL Authentication Mechanism you wish to use.
+            Only required if authType is set to "password".
+          example: '"SHA-512"'
+          default: '"PLAINTEXT"'
 metadata:
     - name: brokers
       required: true
@@ -23,36 +86,6 @@ metadata:
       required: false
       description: "A user-provided string sent with every request to the Kafka brokers for logging, debugging, and auditing purposes. Defaults to \"sarama\""
       example: "my-dapr-app"
-      type: string
-    - name: authRequired
-      required: false
-      description: "Deprecated Enable SASL authentication with the Kafka brokers"
-      example: "false"
-      type: bool
-    - name: authType
-      required: true
-      description: | 
-        Configure or disable authentication. Supported values: "none", "password", "mtls", or "oidc"
-      example: "none"
-      type: string
-    - name: saslUsername
-      required: false
-      description: |
-        The SASL username used for authentication. Only required if authType is set to "password"
-      example: "myuser"
-      type: string
-    - name: saslPassword
-      required: false
-      sensitive: true
-      description: |
-        The SASL password used for authentication. Can be secretKeyRef to use a secret reference. Only required if authType is set to "password"
-      example: "mypassword"
-      type: string
-    - name: saslMechanism
-      required: false
-      description: |
-        The SASL Authentication Mechanism you wish to use. Only required if authType is set to "password". Defaults to "PLAINTEXT"
-      example: "SHA-512"
       type: string
     - name: initialOffset
       required: false
@@ -112,28 +145,3 @@ metadata:
         Disable TLS for transport security. This is not recommended for use in production. Defaults to "false", which implies TLS is enabled
       example: "true"
       type: bool
-    - name: oidcTokenEndpoint
-      required: false
-      description: "Full URL to an OAuth2 identity provider access token endpoint. Required when authType is set to oidc"
-      example: "https://identity.example.com/v1/token"
-      type: string
-    - name: oidcClientID
-      required: false
-      description: "The OAuth2 client ID that has been provisioned in the identity provider. Required when authType is set to oidc"
-      example: "dapr-kafka"
-      type: string
-    - name: oidcClientSecret
-      required: false
-      sensitive: true
-      description: "The OAuth2 client secret that has been provisioned in the identity provider. Required when authType is set to oidc"
-      example: "KeFg23!"
-      type: string
-    - name: oidcScopes
-      required: false
-      description: |
-        Comma-delimited list of OAuth2/OIDC scopes to request with the access token. Recommended when authType is set to oidc. Defaults to "openid"
-      example: "openid,kafka-prod"
-      type: string
-
-
-

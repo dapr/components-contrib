@@ -36,8 +36,8 @@ import (
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
-var URLQueryEscape = url.QueryEscape
 
 type TokenResponse struct {
 	Token string `json:"token"`
@@ -218,7 +218,6 @@ func (s *SignalR) getHub(req *bindings.InvokeRequest) (string, error) {
 
 func (s *SignalR) resolveAPIURL(req *bindings.InvokeRequest) (string, error) {
 	hub, err := s.getHub(req)
-
 	if err != nil {
 		return "", err
 	}
@@ -271,9 +270,14 @@ func (s *SignalR) Operations() []bindings.OperationKind {
 }
 
 func (s *SignalR) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	if req.Operation == ClientNegotiateOperation {
+	switch req.Operation {
+	case ClientNegotiateOperation:
 		return s.GenerateClientNegotiateResponse(ctx, req)
-	} else {
+	case bindings.CreateOperation:
+		return s.SendMessages(ctx, req)
+	default:
+		// return nil, fmt.Errorf("invalid operation '%s'; supported operations: '%s', '%s'", req.Operation, ClientNegotiateOperation, bindings.CreateOperation)
+		// We invoke SendMessage for backwards-compatibility if no operation is defined
 		return s.SendMessages(ctx, req)
 	}
 }
@@ -281,7 +285,6 @@ func (s *SignalR) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bin
 func (s *SignalR) GenerateClientNegotiateResponse(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	// Generate token
 	hub, err := s.getHub(req)
-
 	if err != nil {
 		return nil, err
 	}
@@ -300,7 +303,7 @@ func (s *SignalR) GenerateClientNegotiateResponse(ctx context.Context, req *bind
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("error generating negotiate payload: %s", err)
+		return nil, fmt.Errorf("error generating negotiate payload: %w", err)
 	}
 
 	// Create the negotiate JSON payload
@@ -310,13 +313,13 @@ func (s *SignalR) GenerateClientNegotiateResponse(ctx context.Context, req *bind
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
-		return nil, fmt.Errorf("error generating negotiate payload: %s", err)
+		return nil, fmt.Errorf("error generating negotiate payload: %w", err)
 	}
-	contentType := "application/json"
+
 	response := bindings.InvokeResponse{
 		Data:        data,
 		Metadata:    map[string]string{},
-		ContentType: &contentType,
+		ContentType: ptr.Of("application/json"),
 	}
 	return &response, nil
 }
@@ -327,22 +330,23 @@ func (s *SignalR) GetAadClientAccessToken(ctx context.Context, hub string, user 
 		return "", err
 	}
 
-	url := fmt.Sprintf("%s/api/hubs/%s/:generateToken?api-version=%s", s.endpoint, hub, apiVersion)
+	u := fmt.Sprintf("%s/api/hubs/%s/:generateToken?api-version=%s", s.endpoint, hub, apiVersion)
 	if user != "" {
-		url += fmt.Sprintf("&userId=%s", URLQueryEscape(user))
+		u += fmt.Sprintf("&userId=%s", url.QueryEscape(user))
 	}
 
-	body, err := s.sendRequestToSignalR(ctx, url, aadToken, nil)
-
+	body, err := s.sendRequestToSignalR(ctx, u, aadToken, nil)
 	if err != nil {
 		return "", err
 	}
 
 	var tokenResponse TokenResponse
 	err = json.Unmarshal(body, &tokenResponse)
-
 	if err != nil {
 		return "", err
+	}
+	if tokenResponse.Token == "" {
+		return "", errors.New("token is empty in response from Azure SignalR")
 	}
 
 	return tokenResponse.Token, err

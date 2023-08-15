@@ -25,13 +25,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
-	"github.com/lestrrat-go/jwx/v2/jwt"
 )
 
 func TestConfigurationValid(t *testing.T) {
@@ -193,7 +194,7 @@ func TestConfigurationValid(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewSignalR(logger.NewLogger("test")).(*SignalR)
 			err := s.parseMetadata(tt.properties)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.expectedEndpoint, s.endpoint)
 			assert.Equal(t, tt.expectedAccessKey, s.accessKey)
 			assert.Equal(t, tt.expectedHub, s.hub)
@@ -331,7 +332,7 @@ func TestWriteShouldFail(t *testing.T) {
 			},
 		})
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), httpErr.Error())
 	})
 
@@ -370,7 +371,7 @@ func TestWriteShouldSucceed(t *testing.T) {
 			},
 		})
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		actualAuthorization := httpTransport.request.Header.Get("Authorization")
 		assert.NotEmpty(t, actualAuthorization)
 		assert.Truef(t, strings.HasPrefix(actualAuthorization, "Bearer "), "expecting to start with 'Bearer ', but was '%s'", actualAuthorization)
@@ -431,7 +432,7 @@ func TestGetShouldSucceed(t *testing.T) {
 	}
 
 	t.Run("Can get negotiate response with accessKey", func(t *testing.T) {
-		s.aadToken = nil;
+		s.aadToken = nil
 		s.accessKey = "AAbbcCsGEQKoLEH6oodDR0jK104Fu1c39Qgk+AA8D+M="
 		res, err := s.Invoke(context.Background(), &bindings.InvokeRequest{
 			Metadata: map[string]string{
@@ -461,7 +462,7 @@ func TestGetShouldSucceed(t *testing.T) {
 	})
 
 	t.Run("Can get negotiate response with accessKey and userId", func(t *testing.T) {
-		s.aadToken = nil;
+		s.aadToken = nil
 		s.accessKey = "AAbbcCsGEQKoLEH6oodDR0jK104Fu1c39Qgk+AA8D+M="
 		res, err := s.Invoke(context.Background(), &bindings.InvokeRequest{
 			Metadata: map[string]string{

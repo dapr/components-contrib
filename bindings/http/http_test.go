@@ -68,6 +68,7 @@ func (tc TestCase) ToInvokeRequest() bindings.InvokeRequest {
 	}
 
 	requestMetadata["X-Status-Code"] = strconv.Itoa(tc.statusCode)
+	requestMetadata["path"] = tc.path
 
 	return bindings.InvokeRequest{
 		Data:      []byte(tc.input),
@@ -83,6 +84,14 @@ type HTTPHandler struct {
 
 func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	h.Path = req.URL.Path
+	if strings.TrimPrefix(h.Path, "/") == "large" {
+		// Write 5KB
+		for i := 0; i < 1<<10; i++ {
+			fmt.Fprint(w, "12345")
+		}
+		return
+	}
+
 	h.Headers = make(map[string]string)
 	for headerKey, headerValue := range req.Header {
 		h.Headers[headerKey] = headerValue[0]
@@ -727,4 +736,28 @@ func verifyTimeoutBehavior(t *testing.T, hs bindings.OutputBinding, handler *HTT
 			}
 		})
 	}
+}
+
+func TestMaxBodySizeHonored(t *testing.T) {
+	handler := NewHTTPHandler()
+	s := httptest.NewServer(handler)
+	defer s.Close()
+
+	hs, err := InitBinding(s, map[string]string{"maxResponseBodySize": "1Ki"})
+	require.NoError(t, err)
+
+	tc := TestCase{
+		input:      "GET",
+		operation:  "get",
+		path:       "/large",
+		err:        "context deadline exceeded",
+		statusCode: 200,
+	}
+
+	req := tc.ToInvokeRequest()
+	response, err := hs.Invoke(context.Background(), &req)
+	require.NoError(t, err)
+
+	// Should have only read 1KB
+	assert.Len(t, response.Data, 1<<10)
 }

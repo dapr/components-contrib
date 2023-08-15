@@ -117,7 +117,8 @@
             "string",
             "number",
             "bool",
-            "duration"
+            "duration",
+            "bytesize"
           ],
           "description": "Type of the property.\nIf this is empty, it's interpreted as \"string\"."
         },
@@ -211,7 +212,8 @@
         "workflows",
         "configuration",
         "lock",
-        "middleware"
+        "middleware",
+        "crypto"
       ],
       "description": "Component type, of one of the allowed values."
     },

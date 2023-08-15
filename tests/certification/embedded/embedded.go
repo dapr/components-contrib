@@ -15,7 +15,6 @@ package embedded
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -211,12 +210,12 @@ func NewRuntime(ctx context.Context, appID string, opts ...Option) (*runtime.Dap
 
 	variables := map[string]string{
 		env.AppID:           runtimeConfig.AppID,
-		env.AppPort:         fmt.Sprintf("%s", runtimeConfig.ApplicationPort),
+		env.AppPort:         runtimeConfig.ApplicationPort,
 		env.HostAddress:     "127.0.0.1",
-		env.DaprPort:        fmt.Sprintf("%s", runtimeConfig.DaprInternalGRPCPort),
-		env.DaprGRPCPort:    fmt.Sprintf("%s", runtimeConfig.DaprAPIGRPCPort),
-		env.DaprHTTPPort:    fmt.Sprintf("%s", runtimeConfig.DaprHTTPPort),
-		env.DaprProfilePort: fmt.Sprintf("%s", runtimeConfig.ProfilePort),
+		env.DaprPort:        runtimeConfig.DaprInternalGRPCPort,
+		env.DaprGRPCPort:    runtimeConfig.DaprAPIGRPCPort,
+		env.DaprHTTPPort:    runtimeConfig.DaprHTTPPort,
+		env.DaprProfilePort: runtimeConfig.ProfilePort,
 	}
 
 	for key, value := range variables {

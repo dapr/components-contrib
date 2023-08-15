@@ -14,12 +14,11 @@ binding:
   operations:
     - name: create
       description: "Publish a new message in the topic."
-capabilities: []
 metadata:
   - name: topics
     type: string
     description: |
-      A comma-separated string of topics.
+      A comma-separated list of topics.
     example: '"mytopic1,topic2"'
     binding:
       input: true
@@ -128,7 +127,6 @@ metadata:
     type: duration
     description: |
       The interval between retries when attempting to consume topics.
-      Treats numbers without suffix as milliseconds.
     example: '"200ms"'
     default: '"100ms"'
     binding:
@@ -155,7 +153,6 @@ metadata:
     type: string
     description: |
       Certificate authority certificate, required for using TLS. 
-      Can be secretKeyRef to use a secret reference".
     example: '"-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"'
     binding:
       output: true
@@ -164,7 +161,6 @@ metadata:
     type: string
     description: |
       Client certificate, required for authType mtls. 
-      Can be secretKeyRef to use a secret reference.
     example: '"-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"'
     binding:
       output: true
@@ -181,18 +177,17 @@ metadata:
   - name: skipVerify
     type: bool
     description: |
-      Skip TLS verification, this is not recommended for use in production.
+      Skip verification of TLS certificates. This allows, for example, the use of self-signed TLS certificates, and is not recommended for use in production.
     example: '"true"'
     default: '"false"'
     binding:
       output: true
       input: true
-  - name: disableTls
+  - name: disableTLS
     type: bool
     description: |
-      Disable TLS for transport security. 
+      Disable TLS for transport security, which is enabled by default.
       This is not recommended for use in production. 
-      The value "false" implies TLS is enabled.
     example: '"true"'
     default: '"false"'
     binding:

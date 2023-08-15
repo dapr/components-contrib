@@ -193,14 +193,14 @@ func clear() error {
 	return os.RemoveAll(dir)
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() runtime.Config {
 	log := logger.NewLogger("dapr.components")
 
 	bindingsRegistry := bindings_loader.NewRegistry()
 	bindingsRegistry.Logger = log
 	bindingsRegistry.RegisterOutputBinding(bindings_localstorage.NewLocalStorage, "localstorage")
 
-	return []runtime.Option{
+	return runtime.Config{
 		runtime.WithBindings(bindingsRegistry),
 	}
 }

@@ -315,7 +315,7 @@ func TestEventhubs(t *testing.T) {
 	deleteEventhub()
 }
 
-func componentRuntimeOptions(instance int) []runtime.Option {
+func componentRuntimeOptions(instance int) runtime.Config {
 	log := logger.NewLogger("dapr.components")
 	log.SetOutputLevel(logger.DebugLevel)
 
@@ -334,7 +334,7 @@ func componentRuntimeOptions(instance int) []runtime.Option {
 	secretstoreRegistry.Logger = log
 	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
 
-	return []runtime.Option{
+	return runtime.Config{
 		runtime.WithPubSubs(pubsubRegistry),
 		runtime.WithSecretStores(secretstoreRegistry),
 	}

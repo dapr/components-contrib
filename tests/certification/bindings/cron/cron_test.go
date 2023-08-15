@@ -368,7 +368,7 @@ func appWithTriggerCounter(t *testing.T, clk clock.Clock, cronName string, trigg
 	}
 }
 
-func componentRuntimeOptions(clk clock.Clock) []runtime.Option {
+func componentRuntimeOptions(clk clock.Clock) runtime.Config {
 	log := logger.NewLogger("dapr.components")
 
 	bindingsRegistry := bindings_loader.NewRegistry()
@@ -377,7 +377,7 @@ func componentRuntimeOptions(clk clock.Clock) []runtime.Option {
 	bindingsRegistry.RegisterInputBinding(func(l logger.Logger) bindings.InputBinding {
 		return cron.NewCronWithClock(l, clk)
 	}, "cron")
-	return []runtime.Option{
+	return runtime.Config{
 		runtime.WithBindings(bindingsRegistry),
 	}
 }

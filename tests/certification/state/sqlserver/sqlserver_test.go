@@ -513,7 +513,7 @@ func TestSqlServer(t *testing.T) {
 	})
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() runtime.Config {
 	log := logger.NewLogger("dapr.components")
 
 	stateRegistry := state_loader.NewRegistry()
@@ -524,7 +524,7 @@ func componentRuntimeOptions() []runtime.Option {
 	secretstoreRegistry.Logger = log
 	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
 
-	return []runtime.Option{
+	return runtime.Config{
 		runtime.WithStates(stateRegistry),
 		runtime.WithSecretStores(secretstoreRegistry),
 	}

@@ -280,7 +280,7 @@ func TestRedisBinding(t *testing.T) {
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() runtime.Config {
 	log := logger.NewLogger("dapr.components")
 
 	bindingsRegistry := bindingsLoader.NewRegistry()
@@ -289,7 +289,7 @@ func componentRuntimeOptions() []runtime.Option {
 		return bindingRedis.NewRedis(l)
 	}, "redis")
 
-	return []runtime.Option{
+	return runtime.Config{
 		runtime.WithBindings(bindingsRegistry),
 	}
 }

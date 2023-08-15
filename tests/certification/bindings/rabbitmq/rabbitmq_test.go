@@ -604,7 +604,7 @@ func amqpMtlsExternalAuthReady(url string) flow.Runnable {
 	}
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() runtime.Config {
 	log := logger.NewLogger("dapr.components")
 
 	bindingsRegistry := bindings_loader.NewRegistry()
@@ -616,7 +616,7 @@ func componentRuntimeOptions() []runtime.Option {
 		return binding_rabbitmq.NewRabbitMQ(l)
 	}, "rabbitmq")
 
-	return []runtime.Option{
+	return runtime.Config{
 		runtime.WithBindings(bindingsRegistry),
 	}
 }

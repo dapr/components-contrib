@@ -1668,7 +1668,7 @@ func SNSSQSMessageDisableDeleteOnRetryLimit(t *testing.T) {
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() runtime.Config {
 	log := logger.NewLogger("dapr.components")
 
 	pubsubRegistry := pubsub_loader.NewRegistry()
@@ -1679,7 +1679,7 @@ func componentRuntimeOptions() []runtime.Option {
 	secretstoreRegistry.Logger = log
 	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
 
-	return []runtime.Option{
+	return runtime.Config{
 		runtime.WithPubSubs(pubsubRegistry),
 		runtime.WithSecretStores(secretstoreRegistry),
 	}

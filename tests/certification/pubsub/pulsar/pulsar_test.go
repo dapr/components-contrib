@@ -926,14 +926,14 @@ func (p *pulsarSuite) TestPulsarSchema() {
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() runtime.Config {
 	log := logger.NewLogger("dapr.components")
 
 	pubsubRegistry := pubsub_loader.NewRegistry()
 	pubsubRegistry.Logger = log
 	pubsubRegistry.RegisterComponent(pubsub_pulsar.NewPulsar, "pulsar")
 
-	return []runtime.Option{
+	return runtime.Config{
 		runtime.WithPubSubs(pubsubRegistry),
 	}
 }

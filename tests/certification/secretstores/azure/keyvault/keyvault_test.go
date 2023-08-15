@@ -188,7 +188,7 @@ func TestKeyVault(t *testing.T) {
 	// Run().
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() runtime.Config {
 	log := logger.NewLogger("dapr.components")
 
 	secretstoreRegistry := secretstores_loader.NewRegistry()
@@ -196,7 +196,7 @@ func componentRuntimeOptions() []runtime.Option {
 	secretstoreRegistry.RegisterComponent(akv.NewAzureKeyvaultSecretStore, "azure.keyvault")
 	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
 
-	return []runtime.Option{
+	return runtime.Config{
 		runtime.WithSecretStores(secretstoreRegistry),
 	}
 }

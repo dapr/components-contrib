@@ -839,14 +839,14 @@ func TestRabbitMQPriority(t *testing.T) {
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() runtime.Config {
 	log := logger.NewLogger("dapr.components")
 
 	pubsubRegistry := pubsub_loader.NewRegistry()
 	pubsubRegistry.Logger = log
 	pubsubRegistry.RegisterComponent(pubsub_rabbitmq.NewRabbitMQ, "rabbitmq")
 
-	return []runtime.Option{
+	return runtime.Config{
 		runtime.WithPubSubs(pubsubRegistry),
 	}
 }

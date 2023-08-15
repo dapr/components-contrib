@@ -376,7 +376,7 @@ func TestKafka_with_retry(t *testing.T) {
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() runtime.Config {
 	log := logger.NewLogger("dapr.components")
 
 	bindingsRegistry := bindings_loader.NewRegistry()
@@ -388,7 +388,7 @@ func componentRuntimeOptions() []runtime.Option {
 		return bindings_kafka.NewKafka(l)
 	}, "kafka")
 
-	return []runtime.Option{
+	return runtime.Config{
 		runtime.WithBindings(bindingsRegistry),
 	}
 }

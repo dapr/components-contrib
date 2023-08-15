@@ -101,14 +101,14 @@ func TestEnv(t *testing.T) {
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() runtime.Config {
 	log := logger.NewLogger("dapr.components")
 
 	secretstoreRegistry := secretstores_loader.NewRegistry()
 	secretstoreRegistry.Logger = log
 	secretstoreRegistry.RegisterComponent(secretstore_file.NewLocalSecretStore, "local.file")
 
-	return []runtime.Option{
+	return runtime.Config{
 		runtime.WithSecretStores(secretstoreRegistry),
 	}
 }

@@ -336,14 +336,14 @@ func TestMemcachedNetworkInstability(t *testing.T) {
 		Run()
 }
 
-func componentRuntimeOptions(stateStore state.Store, log logger.Logger, stateStoreName string) []runtime.Option {
+func componentRuntimeOptions(stateStore state.Store, log logger.Logger, stateStoreName string) runtime.Config {
 	stateRegistry := state_loader.NewRegistry()
 	stateRegistry.Logger = log
 	componentFactory := func(l logger.Logger) state.Store { return stateStore }
 
 	stateRegistry.RegisterComponent(componentFactory, stateStoreName)
 
-	return []runtime.Option{
+	return runtime.Config{
 		runtime.WithStates(stateRegistry),
 	}
 }

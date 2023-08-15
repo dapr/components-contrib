@@ -28,17 +28,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 )
 
-const (
-	sidecarName                     = "hashicorp-vault-sidecar"
-	defaultDockerComposeClusterYAML = "../../../../../.github/infrastructure/docker-compose-hashicorp-vault.yml"
-	dockerComposeProjectName        = "hashicorp-vault"
-	// secretStoreName          = "my-hashicorp-vault" // as set in the component YAML
-
-	networkInstabilityTime   = 1 * time.Minute
-	waitAfterInstabilityTime = networkInstabilityTime / 4
-	servicePortToInterrupt   = "8200"
-)
-
 func TestBasicSecretRetrieval(t *testing.T) {
 	const (
 		secretStoreComponentPath = "./components/default"

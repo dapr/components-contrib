@@ -233,7 +233,7 @@ func TestHTTPMiddlewareRatelimit(t *testing.T) {
 
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() runtime.Config {
 	log := logger.NewLogger("dapr.components")
 
 	middlewareRegistry := httpMiddlewareLoader.NewRegistry()
@@ -244,7 +244,7 @@ func componentRuntimeOptions() []runtime.Option {
 		}
 	}, "ratelimit")
 
-	return []runtime.Option{
+	return runtime.Config{
 		runtime.WithHTTPMiddlewares(middlewareRegistry),
 	}
 }

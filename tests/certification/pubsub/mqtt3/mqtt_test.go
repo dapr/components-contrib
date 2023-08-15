@@ -422,14 +422,14 @@ type topicSubscription struct {
 	route    string
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() runtime.Config {
 	log := logger.NewLogger("dapr.components")
 
 	pubsubRegistry := pubsub_loader.NewRegistry()
 	pubsubRegistry.Logger = log
 	pubsubRegistry.RegisterComponent(pubsub_mqtt.NewMQTTPubSub, "mqtt3")
 
-	return []runtime.Option{
+	return runtime.Config{
 		runtime.WithPubSubs(pubsubRegistry),
 	}
 }

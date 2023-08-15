@@ -15,6 +15,7 @@ package embedded
 
 import (
 	"github.com/dapr/dapr/pkg/runtime"
+	"github.com/dapr/dapr/pkg/runtime/registry"
 	"github.com/dapr/kit/logger"
 
 	// Name resolutions.
@@ -25,13 +26,15 @@ import (
 	nrLoader "github.com/dapr/dapr/pkg/components/nameresolution"
 )
 
-func CommonComponents(log logger.Logger) []runtime.Option {
-	registry := nrLoader.NewRegistry()
-	registry.Logger = log
-	registry.RegisterComponent(nrMdns.NewResolver, "mdns")
-	registry.RegisterComponent(nrKubernetes.NewResolver, "kubernetes")
-	registry.RegisterComponent(nrConsul.NewResolver, "consul")
-	return []runtime.Option{
-		runtime.WithNameResolutions(registry),
+func CommonComponents(log logger.Logger) []Option {
+	reg := nrLoader.NewRegistry()
+	reg.Logger = log
+	reg.RegisterComponent(nrMdns.NewResolver, "mdns")
+	reg.RegisterComponent(nrKubernetes.NewResolver, "kubernetes")
+	reg.RegisterComponent(nrConsul.NewResolver, "consul")
+	return []Option{
+		func(cfg *runtime.Config) {
+			cfg.Registry = registry.NewOptions().WithNameResolutions(reg)
+		},
 	}
 }

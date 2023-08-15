@@ -399,14 +399,14 @@ func TestPostgres(t *testing.T) {
 		Run()
 
 }
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() runtime.Config {
 	log := logger.NewLogger("dapr.components")
 
 	configurationRegistry := configuration_loader.NewRegistry()
 	configurationRegistry.Logger = log
 	configurationRegistry.RegisterComponent(config_postgres.NewPostgresConfigurationStore, "postgres")
 
-	return []runtime.Option{
+	return runtime.Config{
 		runtime.WithConfigurations(configurationRegistry),
 	}
 }

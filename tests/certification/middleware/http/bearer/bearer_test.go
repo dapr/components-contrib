@@ -521,7 +521,7 @@ func TestHTTPMiddlewareBearer(t *testing.T) {
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() runtime.Config {
 	middlewareRegistry := httpMiddlewareLoader.NewRegistry()
 	middlewareRegistry.Logger = log
 	middlewareRegistry.RegisterComponent(func(log logger.Logger) httpMiddlewareLoader.FactoryMethod {
@@ -530,7 +530,7 @@ func componentRuntimeOptions() []runtime.Option {
 		}
 	}, "bearer")
 
-	return []runtime.Option{
+	return runtime.Config{
 		runtime.WithHTTPMiddlewares(middlewareRegistry),
 	}
 }

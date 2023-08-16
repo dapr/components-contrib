@@ -15,7 +15,6 @@ package embedded
 
 import (
 	"github.com/dapr/dapr/pkg/runtime"
-	"github.com/dapr/dapr/pkg/runtime/registry"
 	"github.com/dapr/kit/logger"
 
 	// Name resolutions.
@@ -34,7 +33,7 @@ func CommonComponents(log logger.Logger) []Option {
 	reg.RegisterComponent(nrConsul.NewResolver, "consul")
 	return []Option{
 		func(cfg *runtime.Config) {
-			cfg.Registry = registry.NewOptions().WithNameResolutions(reg)
+			cfg.Registry = cfg.Registry.WithNameResolutions(reg)
 		},
 	}
 }

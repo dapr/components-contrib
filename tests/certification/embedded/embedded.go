@@ -32,6 +32,7 @@ import (
 	"github.com/dapr/dapr/pkg/metrics"
 	"github.com/dapr/dapr/pkg/modes"
 	"github.com/dapr/dapr/pkg/runtime"
+	"github.com/dapr/dapr/pkg/runtime/registry"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
 	"github.com/phayes/freeport"
@@ -193,6 +194,7 @@ func NewRuntime(ctx context.Context, appID string, opts ...Option) (*runtime.Dap
 		DaprGracefulShutdownSeconds:  1,
 		EnableAPILogging:             ptr.Of(true),
 		DisableBuiltinK8sSecretStore: false,
+		Registry:                     registry.NewOptions(),
 		Metrics:                      metrics.DefaultMetricOptions(),
 	}
 

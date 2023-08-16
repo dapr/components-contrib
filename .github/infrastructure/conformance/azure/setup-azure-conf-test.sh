@@ -239,6 +239,8 @@ STORAGE_ACCOUNT_VAR_NAME="AzureBlobStorageAccount"
 STORAGE_CONTAINER_VAR_NAME="AzureBlobStorageContainer"
 STORAGE_QUEUE_VAR_NAME="AzureBlobStorageQueue"
 
+AZURE_APP_CONFIG_NAME_VAR_NAME="AzureAppConfigName"
+
 # Derived variables
 if [[ -z "${ADMIN_ID}" ]]; then
     # If the user did not pass an admin ID, look it up in the directory
@@ -362,6 +364,8 @@ echo "INFO: CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICMULTI1_NAME=${CERTIFICATION_EVE
 CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICMULTI2_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.certificationEventHubPubsubTopicMulti2Name.value" --output tsv)"
 echo "INFO: CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICMULTI2_NAME=${CERTIFICATION_EVENT_HUB_PUB_SUB_TOPICMULTI2_NAME}"
 #end
+
+AZURE_APP_CONFIG_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.appconfigName.value" --output tsv)"
 
 IOT_HUB_NAME="$(az deployment sub show --name "${DEPLOY_NAME}" --query "properties.outputs.iotHubName.value" --output tsv)"
 echo "INFO: IOT_HUB_NAME=${IOT_HUB_NAME}"
@@ -758,6 +762,11 @@ EVENT_HUBS_PUBSUB_CONTAINER_NAME="${PREFIX}-eventhubs-pubsub-container"
 echo export ${EVENT_HUBS_PUBSUB_CONTAINER_VAR_NAME}=\"${EVENT_HUBS_PUBSUB_CONTAINER_NAME}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${EVENT_HUBS_PUBSUB_CONTAINER_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${EVENT_HUBS_PUBSUB_CONTAINER_NAME}"
 
+# ------------------------------
+# Populate Azure App config info
+# ------------------------------
+echo export ${AZURE_APP_CONFIG_NAME_VAR_NAME}=\"${AZURE_APP_CONFIG_NAME}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${AZURE_APP_CONFIG_NAME_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${AZURE_APP_CONFIG_NAME}"
 # ----------------------------------
 # Populate IoT Hub test settings
 # ----------------------------------
@@ -799,6 +808,8 @@ az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" -
 # Azure Service Bus
 ASB_ID=$(az servicebus namespace show --resource-group "${RESOURCE_GROUP_NAME}" --name "${SERVICE_BUS_NAME}" --query "id" -otsv)
 az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "Azure Service Bus Data Owner" --scope "${ASB_ID}"
+# Azure App Config
+az role assignment create --assignee "${CERTIFICATION_SPAUTH_SP_PRINCIPAL_ID}" --role "App Configuration Data Owner" --scope "/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP_NAME}/providers/Microsoft.AppConfiguration/configurationStores/${AZURE_APP_CONFIG_NAME}"
 
 # Now export the service principal information
 CERTIFICATION_TENANT_ID="$(az ad sp list --display-name "${CERTIFICATION_SPAUTH_SP_NAME}" --query "[].appOwnerOrganizationId" --output tsv)"

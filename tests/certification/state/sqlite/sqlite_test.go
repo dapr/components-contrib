@@ -694,6 +694,7 @@ func TestSQLite(t *testing.T) {
 		// Run some basic certification tests with the in-memory database
 		Step("run basic test", basicTest(runtime.DefaultDaprAPIGRPCPort)).
 		Step("run SQL injection test", verifySQLInjectionTest(runtime.DefaultDaprAPIGRPCPort)).
+		Step("stop app", sidecar.Stop("sqlite-memory")).
 
 		// Start the sidecar with a read-only database
 		Step(sidecar.Run("sqlite-readonly",

@@ -298,6 +298,7 @@ func TestRedis(t *testing.T) {
 		Step("start redis server", dockercompose.Start("redis", dockerComposeYAML, "redis")).
 		Step("Waiting for Redis readiness after Redis Restart", retry.Do(time.Second*3, 10, checkRedisConnection)).
 		Step("Get Values Saved Earlier And Not Expired, after redis restart", testGetAfterRedisRestart).
+		Step("stop dapr", sidecar.Stop(sidecarNamePrefix+"dockerDefault")).
 		Run()
 
 	flow.New(t, "test redis state store yaml having enableTLS true with no relevant certs/secrets").
@@ -311,5 +312,6 @@ func TestRedis(t *testing.T) {
 			embedded.WithStates(stateRegistry),
 		)).
 		Step("Run basic test to confirm state store not yet configured", testForStateStoreNotConfigured).
+		Step("stop dapr", sidecar.Stop(sidecarNamePrefix+"dockerDefault")).
 		Run()
 }

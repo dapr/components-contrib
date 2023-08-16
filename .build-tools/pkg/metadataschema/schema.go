@@ -20,7 +20,7 @@ type ComponentMetadata struct {
 	// Version of the component metadata schema.
 	SchemaVersion string `json:"schemaVersion" yaml:"schemaVersion" jsonschema:"enum=v1"`
 	// Component type, of one of the allowed values.
-	Type string `json:"type" yaml:"type" jsonschema:"enum=bindings,enum=state,enum=secretstores,enum=pubsub,enum=workflows,enum=configuration,enum=lock,enum=middleware"`
+	Type string `json:"type" yaml:"type" jsonschema:"enum=bindings,enum=state,enum=secretstores,enum=pubsub,enum=workflows,enum=configuration,enum=lock,enum=middleware,enum=crypto"`
 	// Name of the component (without the inital type, e.g. "http" instead of "bindings.http").
 	Name string `json:"name" yaml:"name"`
 	// Version of the component, with the leading "v", e.g. "v1".
@@ -86,7 +86,7 @@ type Metadata struct {
 	Sensitive bool `json:"sensitive,omitempty" yaml:"sensitive,omitempty"`
 	// Type of the property.
 	// If this is empty, it's interpreted as "string".
-	Type string `json:"type,omitempty" yaml:"type,omitempty" jsonschema:"enum=string,enum=number,enum=bool,enum=duration"`
+	Type string `json:"type,omitempty" yaml:"type,omitempty" jsonschema:"enum=string,enum=number,enum=bool,enum=duration,enum=bytesize"`
 	// Default value for the property.
 	// If it's a string, don't forget to add quotes.
 	Default string `json:"default,omitempty" yaml:"default,omitempty"`

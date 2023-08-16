@@ -25,7 +25,7 @@ binding:
     - name: patch
       description: "Sometimes used to update a subset of fields of a record"
     - name: delete
-      description: "Delete a data/record"
+      description: "Delete data/record"
     - name: options
       description: "Requests for information about the communication options available (not commonly used)"
     - name: trace
@@ -37,32 +37,28 @@ metadata:
     description: "The base URL of the HTTP endpoint to invoke"
     example: '"http://host:port/path", "http://myservice:8000/customer"'
     # If omitted, uses the same values as "<root>.binding"
-    binding:
-      output: true
   - name: responseTimeout
     required: false
     description: "The duration after which HTTP requests should be canceled."
     example: '"10s", "5m"'
-    binding:
-      output: true
+  - name: maxResponseBodySize
+    required: false
+    description: "Max amount of data to read from the response body, as a resource quantity. A value <= 0 means no limit."
+    type: bytesize
+    default: '"100Mi"'
+    example: '"100" (as bytes), "1k", "10Ki", "1M", "1G"'
   - name: MTLSRootCA
     required: false
-    description: "Path to root ca certificate or pem encoded string"
-    example: "ca.pem"
-    binding:
-      output: true
+    description: "CA certificate: either a PEM-encoded string, or a path to a certificate on disk"
+    example: '"/path/to/ca.pem"'
   - name: MTLSClientCert
     required: false
-    description: "Path to client certificate or pem encoded string"
-    example: "client.pem"
-    binding:
-      output: true
+    description: "Client certificate for mTLS: either a PEM-encoded string, or a path to a certificate on disk"
+    example: '"/path/to/client.pem"'
   - name: MTLSClientKey
     required: false
-    description: "Path to client private key or pem encoded string"
-    example: "client.key"
-    binding:
-      output: true
+    description: "Client key for mTLS: either a PEM-encoded string, or a path to a certificate on disk"
+    example: '"/path/to/client.key"'
   - name: MTLSRenegotiation
     required: false
     description: "Set TLS renegotiation setting"
@@ -70,18 +66,12 @@ metadata:
       - "RenegotiateNever"
       - "RenegotiateOnceAsClient"
       - "RenegotiateFreelyAsClient"
-    example: "RenegotiateOnceAsClient"
-    binding:
-      output: true
+    example: '"RenegotiateOnceAsClient"'
   - name: securityToken
     required: false
     description: "The security token to include on an outgoing HTTP request as a header"
-    example: "this-value-is-preferably-injected-from-a-secret-store"
-    binding:
-      output: true
+    example: '"this-value-is-preferably-injected-from-a-secret-store"'
   - name: securityTokenHeader
     required: false
     description: "The header name on an outgoing HTTP request for a security token"
-    example: "X-Security-Token"
-    binding:
-      output: true
+    example: '"X-Security-Token"'

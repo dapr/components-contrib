@@ -172,6 +172,9 @@ func WithBindings(reg *bindings.Registry) Option {
 
 func NewRuntime(ctx context.Context, appID string, opts ...Option) (*runtime.DaprRuntime, *runtime.Config, error) {
 	var err error
+	metricsOpts := metrics.DefaultMetricOptions()
+	metricsOpts.Port = "0"
+
 	runtimeConfig := &runtime.Config{
 		AppID:                        appID,
 		DaprHTTPPort:                 strconv.Itoa(daprHTTPPort),
@@ -195,7 +198,7 @@ func NewRuntime(ctx context.Context, appID string, opts ...Option) (*runtime.Dap
 		EnableAPILogging:             ptr.Of(true),
 		DisableBuiltinK8sSecretStore: false,
 		Registry:                     registry.NewOptions(),
-		Metrics:                      metrics.DefaultMetricOptions(),
+		Metrics:                      metricsOpts,
 	}
 
 	for _, opt := range opts {

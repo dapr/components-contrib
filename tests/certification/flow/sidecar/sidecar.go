@@ -15,6 +15,7 @@ package sidecar
 
 import (
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/dapr/dapr/pkg/runtime"
@@ -33,14 +34,15 @@ type (
 	Client struct {
 		dapr.Client
 		registry.ComponentRegistry
-		rt *runtime.DaprRuntime
+		rt     *runtime.DaprRuntime
+		errCh  chan error
+		closed atomic.Bool
 	}
 
 	Sidecar struct {
 		appID                    string
 		options                  []embedded.Option
 		gracefulShutdownDuration time.Duration
-		errCh                    chan error
 	}
 
 	ClientCallback func(client *Client)
@@ -72,7 +74,6 @@ func New(appID string, options ...embedded.Option) Sidecar {
 	return Sidecar{
 		appID:   appID,
 		options: options,
-		errCh:   make(chan error),
 	}
 }
 
@@ -85,7 +86,7 @@ func (s Sidecar) ToStep() (string, flow.Runnable, flow.Runnable) {
 }
 
 func Start(appID string, options ...embedded.Option) flow.Runnable {
-	return Sidecar{appID, options, 0, make(chan error)}.Start
+	return Sidecar{appID, options, 0}.Start
 }
 
 func (s Sidecar) Start(ctx flow.Context) error {
@@ -109,9 +110,10 @@ func (s Sidecar) Start(ctx flow.Context) error {
 	s.gracefulShutdownDuration = time.Duration(rtConf.DaprGracefulShutdownSeconds) * time.Second
 
 	client.rt = rt
+	client.errCh = make(chan error)
 
 	go func() {
-		s.errCh <- rt.Run(ctx)
+		client.errCh <- rt.Run(ctx)
 	}()
 
 	daprClient, err := dapr.NewClientWithPort(fmt.Sprintf("%s", rtConf.DaprAPIGRPCPort))
@@ -138,7 +140,10 @@ func (s Sidecar) Stop(ctx flow.Context) error {
 	var client *Client
 	if ctx.Get(s.appID, &client) {
 		client.rt.ShutdownWithWait()
-		return <-s.errCh
+		if client.closed.CompareAndSwap(false, true) {
+			return <-client.errCh
+		}
+		return nil
 	}
 
 	return nil

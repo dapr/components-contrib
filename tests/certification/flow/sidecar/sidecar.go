@@ -72,6 +72,7 @@ func New(appID string, options ...embedded.Option) Sidecar {
 	return Sidecar{
 		appID:   appID,
 		options: options,
+		errCh:   make(chan error),
 	}
 }
 

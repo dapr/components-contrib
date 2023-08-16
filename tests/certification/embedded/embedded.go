@@ -198,6 +198,7 @@ func NewRuntime(ctx context.Context, appID string, opts ...Option) (*runtime.Dap
 		EnableAPILogging:             ptr.Of(true),
 		DisableBuiltinK8sSecretStore: false,
 		Registry:                     registry.NewOptions(),
+		Config:                       []string{"config.yaml"},
 		Metrics:                      metricsOpts,
 	}
 

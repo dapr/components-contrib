@@ -46,6 +46,11 @@ const (
 )
 
 func TestRedis(t *testing.T) {
+	// Dapr run takes longer than 5 seconds to becomes ready because of the
+	// (ignoreErrors=true) failing redis component below, so we need to configure
+	// the go-sdk to wait longer to connect.
+	t.Setenv("DAPR_CLIENT_TIMEOUT_SECONDS", "10")
+
 	log := logger.NewLogger("dapr.components")
 
 	stateStore := state_redis.NewRedisStateStore(log).(*state_redis.StateStore)

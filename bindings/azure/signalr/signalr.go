@@ -17,10 +17,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
 	"time"
@@ -34,7 +36,12 @@ import (
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
+
+type TokenResponse struct {
+	Token string `json:"token"`
+}
 
 const (
 	connectionStringKey = "connectionString"
@@ -42,9 +49,15 @@ const (
 	endpointKey         = "endpoint"
 	hubKey              = "hub"
 
+	// REST API version
+	apiVersion = "2022-11-01"
+
 	// Invoke metadata keys.
 	groupKey = "group"
 	userKey  = "user"
+
+	// OperationKind
+	ClientNegotiateOperation bindings.OperationKind = "clientNegotiate"
 )
 
 // Metadata keys.
@@ -190,7 +203,7 @@ func (s *SignalR) parseMetadata(md map[string]string) (err error) {
 	return nil
 }
 
-func (s *SignalR) resolveAPIURL(req *bindings.InvokeRequest) (string, error) {
+func (s *SignalR) getHub(req *bindings.InvokeRequest) (string, error) {
 	hub, ok := req.Metadata[hubKey]
 	if !ok || hub == "" {
 		hub = s.hub
@@ -200,24 +213,31 @@ func (s *SignalR) resolveAPIURL(req *bindings.InvokeRequest) (string, error) {
 	}
 
 	// Hub name is lower-cased in the official SDKs (e.g. .NET)
-	hub = strings.ToLower(hub)
+	return strings.ToLower(hub), nil
+}
+
+func (s *SignalR) resolveAPIURL(req *bindings.InvokeRequest) (string, error) {
+	hub, err := s.getHub(req)
+	if err != nil {
+		return "", err
+	}
 
 	var url string
 	if group, ok := req.Metadata[groupKey]; ok && group != "" {
-		url = fmt.Sprintf("%s/api/v1/hubs/%s/groups/%s", s.endpoint, hub, group)
+		url = fmt.Sprintf("%s/api/hubs/%s/groups/%s/:send?api-version=%s", s.endpoint, hub, group, apiVersion)
 	} else if user, ok := req.Metadata[userKey]; ok && user != "" {
-		url = fmt.Sprintf("%s/api/v1/hubs/%s/users/%s", s.endpoint, hub, user)
+		url = fmt.Sprintf("%s/api/hubs/%s/users/%s/:send?api-version=%s", s.endpoint, hub, user, apiVersion)
 	} else {
-		url = fmt.Sprintf("%s/api/v1/hubs/%s", s.endpoint, hub)
+		url = fmt.Sprintf("%s/api/hubs/%s/:send?api-version=%s", s.endpoint, hub, apiVersion)
 	}
 
 	return url, nil
 }
 
-func (s *SignalR) sendMessageToSignalR(ctx context.Context, url string, token string, data []byte) error {
+func (s *SignalR) sendRequestToSignalR(ctx context.Context, url string, token string, data []byte) ([]byte, error) {
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(data))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	httpReq.Header.Set("Authorization", "Bearer "+token)
@@ -226,41 +246,124 @@ func (s *SignalR) sendMessageToSignalR(ctx context.Context, url string, token st
 
 	resp, err := s.httpClient.Do(httpReq)
 	if err != nil {
-		return fmt.Errorf("request to azure signalr api failed: %w", err)
+		return nil, fmt.Errorf("request to azure signalr api failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// Read the body regardless to drain it and ensure the connection can be reused
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		return fmt.Errorf("azure signalr failed with code %d, content is '%s'", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("azure signalr failed with code %d, content is '%s'", resp.StatusCode, string(body))
 	}
 
 	s.logger.Debugf("azure signalr call to '%s' completed with code %d", url, resp.StatusCode)
 
-	return nil
+	return body, nil
 }
 
 func (s *SignalR) Operations() []bindings.OperationKind {
-	return []bindings.OperationKind{bindings.CreateOperation}
+	return []bindings.OperationKind{bindings.CreateOperation, ClientNegotiateOperation}
 }
 
 func (s *SignalR) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	switch req.Operation {
+	case ClientNegotiateOperation:
+		return s.GenerateClientNegotiateResponse(ctx, req)
+	case bindings.CreateOperation:
+		return s.SendMessages(ctx, req)
+	default:
+		// return nil, fmt.Errorf("invalid operation '%s'; supported operations: '%s', '%s'", req.Operation, ClientNegotiateOperation, bindings.CreateOperation)
+		// We invoke SendMessage for backwards-compatibility if no operation is defined
+		return s.SendMessages(ctx, req)
+	}
+}
+
+func (s *SignalR) GenerateClientNegotiateResponse(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
+	// Generate token
+	hub, err := s.getHub(req)
+	if err != nil {
+		return nil, err
+	}
+
+	user := req.Metadata[userKey]
+	clientURL := fmt.Sprintf("%s/client/?hub=%s", s.endpoint, hub)
+
+	// If we have an Azure AD token provider, invoke REST API to generate token
+	// Otherwise, generate token locally
+	var token string
+	if s.aadToken != nil {
+		token, err = s.GetAadClientAccessToken(ctx, hub, user)
+	} else {
+		// Default to 60 minutes
+		token, err = s.getToken(ctx, clientURL, user, 60)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("error generating negotiate payload: %w", err)
+	}
+
+	// Create the negotiate JSON payload
+	payload := map[string]string{
+		"url":         clientURL,
+		"accessToken": token,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("error generating negotiate payload: %w", err)
+	}
+
+	response := bindings.InvokeResponse{
+		Data:        data,
+		Metadata:    map[string]string{},
+		ContentType: ptr.Of("application/json"),
+	}
+	return &response, nil
+}
+
+func (s *SignalR) GetAadClientAccessToken(ctx context.Context, hub string, user string) (string, error) {
+	aadToken, err := s.getAadToken(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	u := fmt.Sprintf("%s/api/hubs/%s/:generateToken?api-version=%s", s.endpoint, hub, apiVersion)
+	if user != "" {
+		u += fmt.Sprintf("&userId=%s", url.QueryEscape(user))
+	}
+
+	body, err := s.sendRequestToSignalR(ctx, u, aadToken, nil)
+	if err != nil {
+		return "", err
+	}
+
+	var tokenResponse TokenResponse
+	err = json.Unmarshal(body, &tokenResponse)
+	if err != nil {
+		return "", err
+	}
+	if tokenResponse.Token == "" {
+		return "", errors.New("token is empty in response from Azure SignalR")
+	}
+
+	return tokenResponse.Token, err
+}
+
+func (s *SignalR) SendMessages(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
 	url, err := s.resolveAPIURL(req)
 	if err != nil {
 		return nil, err
 	}
 
-	token, err := s.getToken(ctx, url)
+	token, err := s.getToken(ctx, url, "", 15)
 	if err != nil {
 		return nil, err
 	}
 
-	err = s.sendMessageToSignalR(ctx, url, token, req.Data)
+	_, err = s.sendRequestToSignalR(ctx, url, token, req.Data)
 	if err != nil {
 		return nil, err
 	}
@@ -269,26 +372,26 @@ func (s *SignalR) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bin
 }
 
 // Returns an access token for a request to the given URL
-func (s *SignalR) getToken(ctx context.Context, url string) (string, error) {
-	var err error
-
-	// If we have an Azure AD token provider, use that first
-	if s.aadToken != nil {
-		var at azcore.AccessToken
-		at, err = s.aadToken.GetToken(ctx, policy.TokenRequestOptions{
-			Scopes: []string{"https://signalr.azure.com/.default"},
-		})
-		if err != nil {
-			return "", err
-		}
-		return at.Token, nil
+func (s *SignalR) getAadToken(ctx context.Context) (string, error) {
+	at, err := s.aadToken.GetToken(ctx, policy.TokenRequestOptions{
+		Scopes: []string{"https://signalr.azure.com/.default"},
+	})
+	if err != nil {
+		return "", err
 	}
+	return at.Token, nil
+}
 
-	now := time.Now()
-	token, err := jwt.NewBuilder().
-		Audience([]string{url}).
-		Expiration(now.Add(15 * time.Minute)).
-		Build()
+func (s *SignalR) signJwtToken(audience string, expireAt time.Time, user string) (string, error) {
+	builder := jwt.NewBuilder().
+		Audience([]string{audience}).
+		Expiration(expireAt)
+
+	// Add the subject if the user ID is not empty
+	if user != "" {
+		builder = builder.Subject(user)
+	}
+	token, err := builder.Build()
 	if err != nil {
 		return "", fmt.Errorf("failed to build token: %w", err)
 	}
@@ -298,6 +401,15 @@ func (s *SignalR) getToken(ctx context.Context, url string) (string, error) {
 	}
 
 	return string(signed), nil
+}
+
+// Returns an access token for a request to the given URL
+func (s *SignalR) getToken(ctx context.Context, url string, user string, expireMinutes int) (string, error) {
+	// If we have an Azure AD token provider, use that first
+	if s.aadToken != nil {
+		return s.getAadToken(ctx)
+	}
+	return s.signJwtToken(url, time.Now().Add(time.Duration(expireMinutes)*time.Minute), user)
 }
 
 // GetComponentMetadata returns the metadata of the component.

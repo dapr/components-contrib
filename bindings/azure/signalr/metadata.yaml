@@ -14,6 +14,8 @@ binding:
   operations:
     - name: "create"
       description: "Send a message to SignalR"
+    - name: "clientNegotiate"
+      description: "Get the SignalR client negotiation response"
 capabilities: []
 authenticationProfiles:
   - title: "Connection string with access key"
@@ -73,7 +75,7 @@ metadata:
   - name: "hub"
     description: |
       Defines the hub in which the message will be sent.
-      This value can also be set for each invocation of the binding by passing the metadata option `hub`` with the invocation request.
+      This value can also be set for each invocation of the binding by passing the metadata option `hub` with the invocation request.
     example: |
       "myhub"
 

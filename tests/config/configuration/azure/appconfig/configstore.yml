@@ -7,7 +7,7 @@ spec:
   version: v1
   metadata:
     - name: host
-      value: "https://dapr3-conf-test-cfg.azconfig.io"
+      value: "${{AzureAppConfigHost}}"
     - name: azureClientId
       value: "${{AzureCertificationServicePrincipalClientId}}"
     - name: azureClientSecret

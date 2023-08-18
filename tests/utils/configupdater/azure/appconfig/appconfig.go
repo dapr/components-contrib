@@ -72,7 +72,6 @@ func (r *ConfigUpdater) AddKey(items map[string]*configuration.Item) error {
 			&azappconfig.AddSettingOptions{
 				Label: to.Ptr(item.Metadata["label"]),
 			})
-
 		if err != nil {
 			return err
 		}
@@ -87,7 +86,6 @@ func (r *ConfigUpdater) UpdateKey(items map[string]*configuration.Item) error {
 			&azappconfig.SetSettingOptions{
 				Label: to.Ptr(item.Metadata["label"]),
 			})
-
 		if err != nil {
 			return err
 		}
@@ -96,7 +94,6 @@ func (r *ConfigUpdater) UpdateKey(items map[string]*configuration.Item) error {
 }
 
 func (r *ConfigUpdater) DeleteKey(keys []string) error {
-
 	for _, key := range keys {
 		_, err := r.client.DeleteSetting(context.TODO(), key, nil)
 		if err != nil {

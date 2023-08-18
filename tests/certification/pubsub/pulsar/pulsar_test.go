@@ -771,13 +771,14 @@ func (p *pulsarSuite) TestPulsarPersitant() {
 				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
 				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+				embedded.WithGracefulShutdownDuration(time.Second*20),
 			)...,
 		)).
 		Step("publish messages to topic1", publishMessages(nil, sidecarName1, topicActiveName, consumerGroup1)).
 		Step("stop pulsar server", dockercompose.Stop(clusterName, p.dockerComposeYAML, p.services...)).
 		Step("wait", flow.Sleep(5*time.Second)).
 		Step("start pulsar server", dockercompose.Start(clusterName, p.dockerComposeYAML, p.services...)).
-		Step("wait", flow.Sleep(20*time.Second)).
+		Step("wait", flow.Sleep(10*time.Second)).
 		Step("verify if app1 has received messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).
 		Step("reset", flow.Reset(consumerGroup1)).
 		Run()

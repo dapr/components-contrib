@@ -259,7 +259,7 @@ func TestParseMetadata(t *testing.T) {
 			Properties: testProperties,
 		}}
 
-		want := metadata{
+		want := AppConfigMetadata{
 			Host:                  "testHost",
 			MaxRetries:            3,
 			RetryDelay:            time.Second * 4,
@@ -268,7 +268,7 @@ func TestParseMetadata(t *testing.T) {
 			RequestTimeout:        time.Second * 30,
 		}
 
-		m := metadata{}
+		m := AppConfigMetadata{}
 		err := m.Parse(logger.NewLogger("test"), meta)
 		require.NoError(t, err)
 		assert.Equal(t, want.Host, m.Host)
@@ -292,7 +292,7 @@ func TestParseMetadata(t *testing.T) {
 			Properties: testProperties,
 		}}
 
-		want := metadata{
+		want := AppConfigMetadata{
 			ConnectionString:      "testConnectionString",
 			MaxRetries:            3,
 			RetryDelay:            time.Second * 4,
@@ -301,7 +301,7 @@ func TestParseMetadata(t *testing.T) {
 			RequestTimeout:        time.Second * 30,
 		}
 
-		m := metadata{}
+		m := AppConfigMetadata{}
 		err := m.Parse(logger.NewLogger("test"), meta)
 		require.NoError(t, err)
 		assert.Equal(t, want.ConnectionString, m.ConnectionString)
@@ -326,7 +326,7 @@ func TestParseMetadata(t *testing.T) {
 			Properties: testProperties,
 		}}
 
-		m := metadata{}
+		m := AppConfigMetadata{}
 		err := m.Parse(logger.NewLogger("test"), meta)
 		require.Error(t, err)
 	})
@@ -345,7 +345,7 @@ func TestParseMetadata(t *testing.T) {
 			Properties: testProperties,
 		}}
 
-		m := metadata{}
+		m := AppConfigMetadata{}
 		err := m.Parse(logger.NewLogger("test"), meta)
 		require.Error(t, err)
 	})

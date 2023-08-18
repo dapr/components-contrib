@@ -58,7 +58,7 @@ type azAppConfigClient interface {
 // ConfigurationStore is a Azure App Configuration store.
 type ConfigurationStore struct {
 	client                azAppConfigClient
-	metadata              metadata
+	metadata              AppConfigMetadata
 	subscribeCancelCtxMap sync.Map
 
 	logger logger.Logger
@@ -75,7 +75,7 @@ func NewAzureAppConfigurationStore(logger logger.Logger) configuration.Store {
 
 // Init does metadata and connection parsing.
 func (r *ConfigurationStore) Init(_ context.Context, md configuration.Metadata) error {
-	r.metadata = metadata{}
+	r.metadata = AppConfigMetadata{}
 	err := r.metadata.Parse(r.logger, md)
 	if err != nil {
 		return err
@@ -302,7 +302,7 @@ func (r *ConfigurationStore) Unsubscribe(ctx context.Context, req *configuration
 
 // GetComponentMetadata returns the metadata of the component.
 func (r *ConfigurationStore) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
-	metadataStruct := metadata{}
+	metadataStruct := AppConfigMetadata{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
 	return
 }

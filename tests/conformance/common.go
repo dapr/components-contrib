@@ -59,6 +59,7 @@ import (
 	b_postgres "github.com/dapr/components-contrib/bindings/postgres"
 	b_rabbitmq "github.com/dapr/components-contrib/bindings/rabbitmq"
 	b_redis "github.com/dapr/components-contrib/bindings/redis"
+	c_azure_appconfig "github.com/dapr/components-contrib/configuration/azure/appconfig"
 	c_postgres "github.com/dapr/components-contrib/configuration/postgres"
 	c_redis "github.com/dapr/components-contrib/configuration/redis"
 	cr_azurekeyvault "github.com/dapr/components-contrib/crypto/azure/keyvault"
@@ -113,6 +114,7 @@ import (
 	conf_state "github.com/dapr/components-contrib/tests/conformance/state"
 	conf_workflows "github.com/dapr/components-contrib/tests/conformance/workflows"
 	"github.com/dapr/components-contrib/tests/utils/configupdater"
+	cu_azure_appconfig "github.com/dapr/components-contrib/tests/utils/configupdater/azure/appconfig"
 	cu_postgres "github.com/dapr/components-contrib/tests/utils/configupdater/postgres"
 	cu_redis "github.com/dapr/components-contrib/tests/utils/configupdater/redis"
 	wf_temporal "github.com/dapr/components-contrib/workflows/temporal"
@@ -122,6 +124,7 @@ const (
 	eventhubs                 = "azure.eventhubs"
 	redisv6                   = "redis.v6"
 	redisv7                   = "redis.v7"
+	appconfig                 = "azure.appconfig"
 	kafka                     = "kafka"
 	generateUUID              = "$((uuid))"
 	generateEd25519PrivateKey = "$((ed25519PrivateKey))"
@@ -449,6 +452,9 @@ func loadConfigurationStore(tc TestComponent) (configuration.Store, configupdate
 	case "postgresql.docker", "postgresql.azure":
 		store = c_postgres.NewPostgresConfigurationStore(testLogger)
 		updater = cu_postgres.NewPostgresConfigUpdater(testLogger)
+	case "azure.appconfig", "azure.appconfiguration":
+		store = c_azure_appconfig.NewAzureAppConfigurationStore(testLogger)
+		updater = cu_azure_appconfig.NewAzureAppconfigConfigUpdater(testLogger)
 	default:
 		return nil, nil
 	}

@@ -22,7 +22,7 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-type metadata struct {
+type AppConfigMetadata struct {
 	Host                  string        `mapstructure:"host"`
 	ConnectionString      string        `mapstructure:"connectionString"`
 	MaxRetries            int           `mapstructure:"maxRetries"`
@@ -32,7 +32,7 @@ type metadata struct {
 	RequestTimeout        time.Duration `mapstructure:"requestTimeout"`
 }
 
-func (m *metadata) Parse(log logger.Logger, meta configuration.Metadata) error {
+func (m *AppConfigMetadata) Parse(log logger.Logger, meta configuration.Metadata) error {
 	// Set defaults
 	m.MaxRetries = defaultMaxRetries
 	m.MaxRetryDelay = defaultMaxRetryDelay

@@ -240,6 +240,7 @@ STORAGE_CONTAINER_VAR_NAME="AzureBlobStorageContainer"
 STORAGE_QUEUE_VAR_NAME="AzureBlobStorageQueue"
 
 AZURE_APP_CONFIG_NAME_VAR_NAME="AzureAppConfigName"
+AZURE_APP_CONFIG_HOST_VAR_NAME="AzureAppConfigHost"
 
 # Derived variables
 if [[ -z "${ADMIN_ID}" ]]; then
@@ -767,6 +768,9 @@ az keyvault secret set --name "${EVENT_HUBS_PUBSUB_CONTAINER_VAR_NAME}" --vault-
 # ------------------------------
 echo export ${AZURE_APP_CONFIG_NAME_VAR_NAME}=\"${AZURE_APP_CONFIG_NAME}\" >> "${ENV_CONFIG_FILENAME}"
 az keyvault secret set --name "${AZURE_APP_CONFIG_NAME_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${AZURE_APP_CONFIG_NAME}"
+AZURE_APP_CONFIG_HOST="$(az appconfig show -n dapr3-conf-test-cfg -g ${AZURE_APP_CONFIG_NAME} -otsv --query 'endpoint')"
+echo export ${AZURE_APP_CONFIG_HOST_VAR_NAME}=\"${AZURE_APP_CONFIG_HOST}\" >> "${ENV_CONFIG_FILENAME}"
+az keyvault secret set --name "${AZURE_APP_CONFIG_HOST_VAR_NAME}" --vault-name "${KEYVAULT_NAME}" --value "${AZURE_APP_CONFIG_HOST}"
 # ----------------------------------
 # Populate IoT Hub test settings
 # ----------------------------------

@@ -1,0 +1,16 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: configstore
+spec:
+  type: configuration.postgresql
+  version: v1
+  metadata:
+    - name: host
+      value: "https://dapr3-conf-test-cfg.azconfig.io"
+    - name: azureClientId
+      value: "${{AzureCertificationServicePrincipalClientId}}"
+    - name: azureClientSecret
+      value: "${{AzureCertificationServicePrincipalClientSecret}}"
+    - name: azureTenantId
+      value: "${{AzureCertificationTenantId}}"

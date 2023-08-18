@@ -127,6 +127,8 @@ func (s *AWSS3) Init(_ context.Context, metadata bindings.Metadata) error {
 			Transport: customTransport,
 		}
 		cfg = cfg.WithHTTPClient(client)
+
+		s.logger.Infof("aws s3: you are using 'insecureSSL' to skip server config verify which is unsafe!")
 	}
 
 	s.metadata = m

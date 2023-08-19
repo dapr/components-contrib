@@ -17,7 +17,7 @@ authenticationProfiles:
         required: true
         sensitive: true
         description: |
-          Address of the MQTT broker. Can be secretKeyRef to use a secret reference.
+          Address of the MQTT broker.
           Use the tcp:// URI scheme for non-TLS communication. 
           Use the ssl:// URI scheme for TLS communication.
         example: '"tcp://[username][:password]@host.domain[:port]"'

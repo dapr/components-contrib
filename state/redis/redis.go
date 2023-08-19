@@ -22,7 +22,6 @@ import (
 	"strings"
 	"sync/atomic"
 
-	kitErrorCodes "github.com/dapr/kit/errorcodes"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/contenttype"
@@ -102,10 +101,11 @@ type StateStore struct {
 	replicas                       int
 	querySchemas                   querySchemas
 	suppressActorStateStoreWarning atomic.Bool
-	resourceInfo                   kitErrorCodes.ResourceInfo
 
 	logger logger.Logger
 }
+
+var resourceInfo = state.WithResourceInfo("state.redis/v1", "Redis")
 
 // NewRedisStateStore returns a new redis state store.
 func NewRedisStateStore(log logger.Logger) state.Store {
@@ -119,10 +119,6 @@ func newStateStore(log logger.Logger) *StateStore {
 		json:                           jsoniter.ConfigFastest,
 		logger:                         log,
 		suppressActorStateStoreWarning: atomic.Bool{},
-		resourceInfo: kitErrorCodes.ResourceInfo{
-			ResourceType: "state.redis/v1",
-			ResourceName: "Redis",
-		},
 	}
 }
 
@@ -219,8 +215,8 @@ func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 		err = r.client.DoWrite(ctx, "EVAL", delDefaultQuery, 1, req.Key, *req.ETag)
 	}
 	if err != nil {
-		if de := kitErrorCodes.NewDaprError(err, req.Metadata, kitErrorCodes.WithReason(kitErrorCodes.StateETagMismatchReason)); de != nil {
-			de.SetResourceInfoData(&r.resourceInfo)
+		if de := state.NewDaprError(err, req.Metadata, state.StateETagMismatchReason); de != nil {
+			de.SetResourceInfo(resourceInfo)
 			de.SetDescription(fmt.Sprintf("state store Delete - possible etag(%s) %s. original error: %v", *req.ETag, string(state.ETagMismatch), err))
 			return de
 		}
@@ -366,8 +362,8 @@ func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 
 	if err != nil {
 		if req.HasETag() {
-			if de := kitErrorCodes.NewDaprError(err, req.Metadata, kitErrorCodes.WithReason(kitErrorCodes.StateETagMismatchReason)); de != nil {
-				de.SetResourceInfoData(&r.resourceInfo)
+			if de := state.NewDaprError(err, req.Metadata, state.StateETagMismatchReason); de != nil {
+				de.SetResourceInfo(resourceInfo)
 				de.SetDescription(fmt.Sprintf("state store Set - possible etag(%s) %s. original error: %v", *req.ETag, string(state.ETagMismatch), err))
 				return de
 			}

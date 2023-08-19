@@ -16,6 +16,9 @@ package state
 import (
 	"errors"
 	"fmt"
+
+	"github.com/dapr/kit/errorcodes"
+	"google.golang.org/grpc/codes"
 )
 
 type ETagErrorKind string
@@ -26,6 +29,16 @@ const (
 
 	ETagInvalid  ETagErrorKind = "invalid"
 	ETagMismatch ETagErrorKind = "mismatch"
+
+	ErrorReasonPrefix      = "DAPR_"
+	StateStoreReasonPrefix = ErrorReasonPrefix + "STATE_"
+	StateStoreEtagMismatch = StateStoreReasonPrefix + "ETAG_MISMATCH"
+	StateStoreETagInvalid  = StateStoreReasonPrefix + "ETAG_INVALID"
+)
+
+var (
+	StateETagMismatchReason = errorcodes.WithErrorReason(StateStoreEtagMismatch, 400, codes.Aborted)
+	StateETagInvalidReason  = errorcodes.WithErrorReason(StateStoreETagInvalid, 400, codes.Aborted)
 )
 
 // ETagError is a custom error type for etag exceptions.
@@ -119,4 +132,19 @@ func (e BulkStoreError) ETagError() *ETagError {
 		return etagErr
 	}
 	return nil
+}
+
+// WithResourceInfo wrapper function to hide implementation
+// details like kit/errorcodes.ResourceInfo
+func WithResourceInfo(resourceType, resourceName string) *errorcodes.ResourceInfo {
+	return &errorcodes.ResourceInfo{
+		ResourceName: resourceName,
+		ResourceType: resourceType,
+	}
+}
+
+// NewDaprError wrapper function to hide implementation
+// details.
+func NewDaprError(err error, metadata map[string]string, options ...errorcodes.ErrorOption) *errorcodes.DaprError {
+	return errorcodes.NewDaprError(err, metadata, options...)
 }

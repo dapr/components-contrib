@@ -778,7 +778,7 @@ func (p *pulsarSuite) TestPulsarPersitant() {
 		Step("stop pulsar server", dockercompose.Stop(clusterName, p.dockerComposeYAML, p.services...)).
 		Step("wait", flow.Sleep(5*time.Second)).
 		Step("start pulsar server", dockercompose.Start(clusterName, p.dockerComposeYAML, p.services...)).
-		Step("wait", flow.Sleep(10*time.Second)).
+		Step("wait", flow.Sleep(30*time.Second)).
 		Step("verify if app1 has received messages published to active topic", assertMessages(10*time.Second, consumerGroup1)).
 		Step("reset", flow.Reset(consumerGroup1)).
 		Run()

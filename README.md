@@ -19,7 +19,7 @@ Available component types:
 * [Name resolvers](nameresolution/README.md)
 * [Configuration stores](configuration/README.md)
 * [Middlewares](middleware/README.md)
-* [Workflow services](workflow/README.md)
+* [Workflow services](workflows/README.md)
 
 For documentation on how components are being used in Dapr in a language/platform agnostic way, visit [Dapr Docs](https://docs.dapr.io).
 

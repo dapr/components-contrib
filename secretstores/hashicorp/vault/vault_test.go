@@ -118,7 +118,9 @@ func TestVaultTLSConfig(t *testing.T) {
 
 func TestVaultEnginePath(t *testing.T) {
 	t.Run("without engine path config", func(t *testing.T) {
-		v := vaultSecretStore{}
+		v := vaultSecretStore{
+			logger: logger.NewLogger("test"),
+		}
 
 		err := v.Init(context.Background(), secretstores.Metadata{Base: metadata.Base{Properties: map[string]string{componentVaultToken: expectedTok, "skipVerify": "true"}}})
 		assert.Nil(t, err)
@@ -126,7 +128,9 @@ func TestVaultEnginePath(t *testing.T) {
 	})
 
 	t.Run("with engine path config", func(t *testing.T) {
-		v := vaultSecretStore{}
+		v := vaultSecretStore{
+			logger: logger.NewLogger("test"),
+		}
 
 		err := v.Init(context.Background(), secretstores.Metadata{Base: metadata.Base{Properties: map[string]string{componentVaultToken: expectedTok, "skipVerify": "true", vaultEnginePath: "kv"}}})
 		assert.Nil(t, err)
@@ -332,7 +336,7 @@ func TestVaultValueType(t *testing.T) {
 
 		target := &vaultSecretStore{
 			client: nil,
-			logger: nil,
+			logger: logger.NewLogger("test"),
 		}
 
 		err := target.Init(context.Background(), m)
@@ -353,7 +357,7 @@ func TestVaultValueType(t *testing.T) {
 
 		target := &vaultSecretStore{
 			client: nil,
-			logger: nil,
+			logger: logger.NewLogger("test"),
 		}
 
 		err := target.Init(context.Background(), m)
@@ -373,7 +377,7 @@ func TestVaultValueType(t *testing.T) {
 
 		target := &vaultSecretStore{
 			client: nil,
-			logger: nil,
+			logger: logger.NewLogger("test"),
 		}
 
 		err := target.Init(context.Background(), m)
@@ -422,7 +426,7 @@ func TestGetFeatures(t *testing.T) {
 
 		target := &vaultSecretStore{
 			client: nil,
-			logger: nil,
+			logger: logger.NewLogger("test"),
 		}
 
 		// This call will throw an error on Windows systems because of the of

@@ -9,10 +9,16 @@ urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-apache-kafka/
 authenticationProfiles:
-  - title: "OAuth Authentication"
+  - title: "OIDC Authentication"
     description: |
-      Authenticate using OAuth.
+      Authenticate using OIDC.
     metadata:
+      - name: authType
+        type: string
+        required: true
+        description: |
+          Configure or disable authentication.
+          The authType must be set to oidc.
       - name: oidcTokenEndpoint
         type: string
         description: |
@@ -43,34 +49,67 @@ authenticationProfiles:
     description: |
       Authentication using SASL.
     metadata:
-        - name: authType
-          type: string
-          required: true
-          description: |
-            Configure or disable authentication.
-            Supported values: "none", "password", "mtls", or "oidc".
-          example: '"none"'
-        - name: saslUsername
-          type: string
-          description: |
-            The SASL username used for authentication.
-            Only required if authType is set to "password".
-          example: '"myuser"'
-        - name: saslPassword
-          type: string
-          senstive: true
-          description: |
-            The SASL password used for authentication.
-            Can be secretKeyRef to use a secret reference.
-            Only required if authType is set to "password".
-          example: '"mypassword"'
-        - name: saslMechanism
-          type: string
-          description: |
-            The SASL Authentication Mechanism you wish to use.
-            Only required if authType is set to "password".
-          example: '"SHA-512"'
-          default: '"PLAINTEXT"'
+      - name: authType
+        type: string
+        required: true
+        description: |
+          Configure or disable authentication.
+          The authType must be set to "password".
+        example: '"none"'
+      - name: saslUsername
+        type: string
+        description: |
+          The SASL username used for authentication.
+          Only required if authType is set to "password".
+        example: '"myuser"'
+      - name: saslPassword
+        type: string
+        senstive: true
+        description: |
+          The SASL password used for authentication.
+          Can be secretKeyRef to use a secret reference.
+          Only required if authType is set to "password".
+        example: '"mypassword"'
+      - name: saslMechanism
+        type: string
+        description: |
+          The SASL Authentication Mechanism you wish to use.
+          Only required if authType is set to "password".
+        example: '"SHA-512"'
+        default: '"PLAINTEXT"'
+  - title: "MTLS Authentication"
+    description: |
+      Authentication using MTLS.
+    metadata:
+      - name: caCert
+        required: false
+        description: "Certificate authority certificate, required for using TLS. Can be secretKeyRef to use a secret reference"
+        example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+        type: string
+      - name: clientCert
+        required: false
+        sensitive: true
+        description: "Client certificate, required for authType mtls. Can be secretKeyRef to use a secret reference"
+        example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+        type: string
+      - name: clientKey
+        required: false
+        sensitive: true
+        description: "Client key, required for authType mtls. Can be secretKeyRef to use a secret reference"
+        example: "-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded DER>\n-----END RSA PRIVATE KEY-----"
+        type: string
+      - name: skipVerify
+        required: false
+        description: |
+          Skip TLS verification, this is not recommended for use in production. Defaults to "false"
+        example: "true"
+        type: bool
+      - name: disableTls
+        required: false
+        description: |
+          Disable TLS for transport security. This is not recommended for use in production. Defaults to "false", which implies TLS is enabled
+        example: "true"
+        type: bool
 metadata:
     - name: brokers
       required: true
@@ -116,32 +155,3 @@ metadata:
         Kafka cluster version. Defaults to "2.0.0.0"
       example: "0.10.2.0"
       type: string
-    - name: caCert
-      required: false
-      description: "Certificate authority certificate, required for using TLS. Can be secretKeyRef to use a secret reference"
-      example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
-      type: string
-    - name: clientCert
-      required: false
-      sensitive: true
-      description: "Client certificate, required for authType mtls. Can be secretKeyRef to use a secret reference"
-      example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
-      type: string
-    - name: clientKey
-      required: false
-      sensitive: true
-      description: "Client key, required for authType mtls. Can be secretKeyRef to use a secret reference"
-      example: "-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded DER>\n-----END RSA PRIVATE KEY-----"
-      type: string
-    - name: skipVerify
-      required: false
-      description: |
-        Skip TLS verification, this is not recommended for use in production. Defaults to "false"
-      example: "true"
-      type: bool
-    - name: disableTls
-      required: false
-      description: |
-        Disable TLS for transport security. This is not recommended for use in production. Defaults to "false", which implies TLS is enabled
-      example: "true"
-      type: bool

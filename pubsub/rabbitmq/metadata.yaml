@@ -19,6 +19,25 @@ authenticationProfiles:
         sensitive: true
         description: "The RabbitMQ host address."
         example: '"amqp://[username][:password]@host.domain[:port]" "amqps://[username][:password]@host.domain[:port]"'
+  - title: "Authenticate Using RabbitMQ properties"
+    description: "RabbitMQ authentication by providing hostname, username and password."
+    metadata:
+    - name: hostname
+      type: string
+      description: |
+        The RabbitMQ hostname.
+      example: '"localhost"'
+    - name: username
+      type: string
+      description: |
+        The RabbitMQ username.
+      example: '"username"'
+    - name: password
+      type: string
+      sensitive: true
+      description: |
+        The RabbitMQ password.
+      example: '"password"'
 metadata:
   - name: consumerID
     type: string
@@ -56,22 +75,6 @@ metadata:
       letter enabled). If both maxLen and maxLenBytes are set then both will 
       apply; whichever limit is hit first will be enforced.
     example: '1048576'
-  - name: hostname
-    type: string
-    description: |
-      The RabbitMQ hostname. *Mutally exclusive with connectionString field.
-    example: '"localhost"'
-  - name: username
-    type: string
-    description: |
-      The RabbitMQ username. *Mutally exclusive with connectionString field.
-    example: '"username"'
-  - name: password
-    type: string
-    sensitive: true
-    description: |
-      The RabbitMQ password. *Mutally exclusive with connectionString field.
-    example: '"password"'
   - name: concurrency
     type: string
     description: |

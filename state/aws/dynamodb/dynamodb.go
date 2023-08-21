@@ -338,6 +338,12 @@ func (d *StateStore) parseTTL(req *state.SetRequest) (*int64, error) {
 	return nil, nil
 }
 
+// MultiMaxSize returns the maximum number of operations allowed in a transaction.
+// For AWS DynamoDB, that's 100.
+func (d *StateStore) MultiMaxSize() int {
+	return 100
+}
+
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
 func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
 	opns := len(request.Operations)

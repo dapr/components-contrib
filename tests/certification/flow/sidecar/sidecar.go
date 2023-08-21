@@ -145,7 +145,10 @@ func (s Sidecar) Stop(ctx flow.Context) error {
 	if ctx.Get(s.appID, &client) {
 		client.rt.ShutdownWithWait()
 		if client.closed.CompareAndSwap(false, true) {
-			return <-client.errCh
+			if err := <-client.errCh; err != nil {
+				logger.NewLogger("dapr.contrib").Errorf("error on shutdown: %s", err)
+				return err
+			}
 		}
 		return nil
 	}

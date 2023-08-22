@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../../component-metadata-schema.json
 schemaVersion: v1
 type: pubsub
-name: pubsub.gcp.pubsub
+name: gcp.pubsub
 version: v1
 status: stable
 title: "GCP Pub/Sub"

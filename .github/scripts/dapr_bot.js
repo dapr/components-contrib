@@ -94,6 +94,10 @@ async function handleIssueCommentCreate({ github, context }) {
         case '/ok-to-test':
             await cmdOkToTest(github, issue, isFromPulls)
             break
+        case command.match(/^\/rerun \d+/)?.input:
+            const workflowrunid = command.match(/\d+/)[0];
+            await rerunWorkflow(github, issue, workflowrunid)
+            break
         default:
             console.log(
                 `[handleIssueCommentCreate] command ${command} not found, exiting.`
@@ -233,4 +237,19 @@ async function cmdOkToTest(github, issue, isFromPulls) {
             )}`
         )
     }
+}
+
+/**
+ * Rerun all failed jobs of a given workflow run ID.
+ * @param {*} github GitHub object reference
+ * @param {*} issue GitHub issue object
+ * @param {int} workflowrunid the workflow run ID for which to rerun all failed jobs
+ */
+async function rerunWorkflow(github, issue, workflowrunid) {
+    // Rerun all failed jobs of the specified workflow run
+    const pull = await github.rest.actions.reRunWorkflowFailedJobs({
+       owner: issue.owner,
+       repo: issue.repo,
+       run_id: workflowrunid,
+    });
 }

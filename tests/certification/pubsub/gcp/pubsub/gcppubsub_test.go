@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 
 	"testing"
 	"time"
@@ -30,6 +31,7 @@ import (
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
+	"github.com/dapr/dapr/pkg/config/protocol"
 	"github.com/dapr/kit/logger"
 
 	"github.com/dapr/dapr/pkg/runtime"
@@ -257,11 +259,12 @@ func GCPPubSubBasic(t *testing.T) {
 
 		// Run the Dapr sidecar with ConsumerID "PUBSUB_GCP_CONSUMER_ID_1"
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer_one"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
 		)).
 
 		// Run subscriberApplication app2
@@ -270,12 +273,13 @@ func GCPPubSubBasic(t *testing.T) {
 
 		// Run the Dapr sidecar with ConsumerID "PUBSUB_GCP_CONSUMER_ID_2"
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/consumer_two"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_two"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+			)...,
 		)).
 		Step("publish messages to active topic ==> "+topicActiveName, publishMessages(nil, sidecarName1, topicActiveName, consumerGroup1, consumerGroup2)).
 		Step("publish messages to passive topic ==> "+topicPassiveName, publishMessages(nil, sidecarName1, topicPassiveName)).
@@ -384,11 +388,12 @@ func GCPPubSubFIFOMessages(t *testing.T) {
 		Step(app.Run(sub, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(sub, fifoTopic, consumerGroup1))).
 		Step(sidecar.Run(subsc,
-			embedded.WithComponentsPath("./components/fifo"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/fifo"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
 		)).
 		Step("wait", flow.Sleep(5*time.Second)).
 
@@ -396,12 +401,13 @@ func GCPPubSubFIFOMessages(t *testing.T) {
 		Step(app.Run(pub1, fmt.Sprintf(":%d", appPort+portOffset+2),
 			doNothingApp(pub1, fifoTopic, consumerGroup1))).
 		Step(sidecar.Run(sc1,
-			embedded.WithComponentsPath("./components/fifo"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset+2),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset+2),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset+2),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset+2),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/fifo"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset+2)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset+2)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset+2)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset+2)),
+			)...,
 		)).
 		Step("publish messages to topic ==> "+fifoTopic, publishMessages(nil, sc1, fifoTopic, consumerGroup1)).
 
@@ -409,12 +415,13 @@ func GCPPubSubFIFOMessages(t *testing.T) {
 		Step(app.Run(pub2, fmt.Sprintf(":%d", appPort+portOffset+4),
 			doNothingApp(pub2, fifoTopic, consumerGroup1))).
 		Step(sidecar.Run(sc2,
-			embedded.WithComponentsPath("./components/fifo"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset+4),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset+4),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset+4),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset+4),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/fifo"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset+4)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset+4)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset+4)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset+4)),
+			)...,
 		)).
 		Step("publish messages to topic ==> "+fifoTopic, publishMessages(nil, sc2, fifoTopic, consumerGroup1)).
 		Step("wait", flow.Sleep(10*time.Second)).
@@ -565,12 +572,13 @@ func GCPPubSubMessageDeadLetter(t *testing.T) {
 
 		// Run the Dapr sidecar with ConsumerID "PUBSUB_GCP_PUBSUB_TOPIC_DLOUT"
 		Step(sidecar.Run(subAppSideCar,
-			embedded.WithComponentsPath("./components/deadletter"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset+4),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset+4),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset+4),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset+4),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/deadletter"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset+4)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset+4)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset+4)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset+4)),
+			)...,
 		)).
 		Step("publish messages to deadLetterTopicIn ==> "+deadLetterTopicIn, publishMessages(nil, subAppSideCar, deadLetterTopicIn, deadLetterConsumerGroup)).
 		Step("wait", flow.Sleep(10*time.Second)).
@@ -652,12 +660,13 @@ func GCPPubSubEntityManagement(t *testing.T) {
 
 		// Run the Dapr sidecar
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/entity_mgmt"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/entity_mgmt"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+			)...,
 		)).
 		Step(fmt.Sprintf("publish messages to topicDefault: %s", topicDefaultName), publishMessages(nil, sidecarName1, topicDefaultName, consumerGroup1)).
 		Run()
@@ -753,12 +762,13 @@ func GCPPubSubExistingTopic(t *testing.T) {
 
 		// Run the Dapr sidecar with ConsumerID "PUBSUB_GCP_CONSUMER_ID_EXISTS"
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/existing_topic"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*3),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*3),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*3),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*3),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/existing_topic"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset*3)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset*3)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset*3)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset*3)),
+			)...,
 		)).
 		Step(fmt.Sprintf("publish messages to existingTopic: %s", existingTopic), publishMessages(nil, sidecarName1, existingTopic, consumerGroup1)).
 		Step("wait", flow.Sleep(20*time.Second)).
@@ -766,7 +776,7 @@ func GCPPubSubExistingTopic(t *testing.T) {
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	pubsubRegistry := pubsub_loader.NewRegistry()
@@ -777,9 +787,9 @@ func componentRuntimeOptions() []runtime.Option {
 	secretstoreRegistry.Logger = log
 	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
 
-	return []runtime.Option{
-		runtime.WithPubSubs(pubsubRegistry),
-		runtime.WithSecretStores(secretstoreRegistry),
+	return []embedded.Option{
+		embedded.WithPubSubs(pubsubRegistry),
+		embedded.WithSecretStores(secretstoreRegistry),
 	}
 }
 

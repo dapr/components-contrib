@@ -18,11 +18,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"log"
 	"os"
+	"strconv"
 	"testing"
 	"time"
+
+	"github.com/dapr/components-contrib/tests/certification/flow/network"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/require"
@@ -31,7 +33,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	binding_rabbitmq "github.com/dapr/components-contrib/bindings/rabbitmq"
 	bindings_loader "github.com/dapr/dapr/pkg/components/bindings"
-	"github.com/dapr/dapr/pkg/runtime"
+	"github.com/dapr/dapr/pkg/config/protocol"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	daprClient "github.com/dapr/go-sdk/client"
 	"github.com/dapr/go-sdk/service/common"
@@ -132,11 +134,12 @@ func TestRabbitMQ(t *testing.T) {
 			retry.Do(time.Second, 30, amqpReady(rabbitMQURL))).
 		Step(app.Run("standardApp", fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run("standardSidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithComponentsPath("./components/standard"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithComponentsPath("./components/standard"),
+			)...,
 		)).
 		Step("send and wait", test).
 		Run()
@@ -198,11 +201,12 @@ func TestRabbitMQForOptions(t *testing.T) {
 			retry.Do(time.Second, 30, amqpReady(rabbitMQURL))).
 		Step(app.Run("optionsApp", fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run("optionsSidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithComponentsPath("./components/options"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithComponentsPath("./components/options"),
+			)...,
 		)).
 		Step("send and wait", test).
 		Run()
@@ -280,20 +284,22 @@ func TestRabbitMQTTLs(t *testing.T) {
 			retry.Do(time.Second, 30, amqpReady(rabbitMQURL))).
 		Step(app.Run("ttlApp", fmt.Sprintf(":%d", appPort), ttlApplication)).
 		Step(sidecar.Run("ttlSidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithComponentsPath("./components/ttl"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithComponentsPath("./components/ttl"),
+			)...,
 		)).
 		Step("send ttl messages", ttlTest).
 		Step("stop initial sidecar", sidecar.Stop("ttlSidecar")).
 		Step(app.Run("ttlApp", fmt.Sprintf(":%d", appPort), ttlApplication)).
 		Step(sidecar.Run("appSidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(freshPorts[0]),
-			embedded.WithDaprHTTPPort(freshPorts[1]),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(freshPorts[0])),
+				embedded.WithDaprHTTPPort(strconv.Itoa(freshPorts[1])),
+			)...,
 		)).
 		Step("verify no messages", func(ctx flow.Context) error {
 			// Assertion on the data.
@@ -367,11 +373,12 @@ func TestRabbitMQRetriesOnError(t *testing.T) {
 			retry.Do(time.Second, 30, amqpReady(rabbitMQURL))).
 		Step(app.Run("retryApp", fmt.Sprintf(":%d", appPort), retryApplication)).
 		Step(sidecar.Run("retrySidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithComponentsPath("./components/retry"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithComponentsPath("./components/retry"),
+			)...,
 		)).
 		Step("send and wait", testRetry).
 		Run()
@@ -433,11 +440,12 @@ func TestRabbitMQNetworkError(t *testing.T) {
 			retry.Do(time.Second, 30, amqpReady(rabbitMQURL))).
 		Step(app.Run("standardApp", fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run("standardSidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithComponentsPath("./components/standard"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithComponentsPath("./components/standard"),
+			)...,
 		)).
 		Step("send and wait", test).
 		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "5672")).
@@ -496,11 +504,12 @@ func TestRabbitMQExclusive(t *testing.T) {
 			retry.Do(time.Second, 30, amqpReady(rabbitMQURL))).
 		Step(app.Run("standardApp", fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run("standardSidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithComponentsPath("./components/exclusive"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithComponentsPath("./components/exclusive"),
+			)...,
 		)).
 		// TODO: The following test function will always fail as expected because the sidecar didn't initialize the component (expected). This should be updated to look for a much more specific error signature however by reading the sidecar's stderr.
 		Step("send and wait", test).
@@ -563,11 +572,12 @@ func TestRabbitMQExtAuth(t *testing.T) {
 			retry.Do(time.Second, 30, amqpMtlsExternalAuthReady(rabbitMQURLExtAuth))).
 		Step(app.Run("standardApp", fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run("standardSidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithComponentsPath("./mtls_sasl_external/components/mtls_external"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithComponentsPath("./mtls_sasl_external/components/mtls_external"),
+			)...,
 		)).
 		Step("send and wait", test).
 		Run()
@@ -604,7 +614,7 @@ func amqpMtlsExternalAuthReady(url string) flow.Runnable {
 	}
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	bindingsRegistry := bindings_loader.NewRegistry()
@@ -616,7 +626,7 @@ func componentRuntimeOptions() []runtime.Option {
 		return binding_rabbitmq.NewRabbitMQ(l)
 	}, "rabbitmq")
 
-	return []runtime.Option{
-		runtime.WithBindings(bindingsRegistry),
+	return []embedded.Option{
+		embedded.WithBindings(bindingsRegistry),
 	}
 }

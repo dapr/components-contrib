@@ -684,25 +684,26 @@ func TestSQLite(t *testing.T) {
 		// Start the sidecar with the in-memory database
 		Step(sidecar.Run("sqlite-memory",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
 			embedded.WithProfilingEnabled(false),
 			embedded.WithResourcesPath("resources/memory"),
-			runtime.WithStates(stateRegistry),
+			embedded.WithStates(stateRegistry),
 		)).
 
 		// Run some basic certification tests with the in-memory database
 		Step("run basic test", basicTest(runtime.DefaultDaprAPIGRPCPort)).
 		Step("run SQL injection test", verifySQLInjectionTest(runtime.DefaultDaprAPIGRPCPort)).
+		Step("stop app", sidecar.Stop("sqlite-memory")).
 
 		// Start the sidecar with a read-only database
 		Step(sidecar.Run("sqlite-readonly",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
+			embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
 			embedded.WithProfilingEnabled(false),
 			embedded.WithResourcesPath("resources/readonly"),
-			runtime.WithStates(stateRegistry),
+			embedded.WithStates(stateRegistry),
 		)).
 		Step("run read-only test", readonlyTest(runtime.DefaultDaprAPIGRPCPort+portOffset)).
 		Step("stop sqlite-readonly sidecar", sidecar.Stop("sqlite-readonly")).

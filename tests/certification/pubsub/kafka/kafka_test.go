@@ -16,6 +16,7 @@ package kafka_test
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 
 	pubsub_kafka "github.com/dapr/components-contrib/pubsub/kafka"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
+	"github.com/dapr/dapr/pkg/config/protocol"
 
 	// Dapr runtime and Go-SDK
 	"github.com/dapr/dapr/pkg/runtime"
@@ -244,11 +246,12 @@ func TestKafka(t *testing.T) {
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer1"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer1"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
 		)).
 		//
 		// Run the second application.
@@ -257,12 +260,13 @@ func TestKafka(t *testing.T) {
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/consumer2"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer2"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+			)...,
 		)).
 		//
 		// Send messages using the same metadata/message key so we can expect
@@ -275,12 +279,13 @@ func TestKafka(t *testing.T) {
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName3,
-			embedded.WithComponentsPath("./components/consumer2"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*2),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*2),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*2),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*2),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer2"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset*2)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset*2)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset*2)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset*2)),
+			)...,
 		)).
 		Step("reset", flow.Reset(consumerGroup2)).
 		//
@@ -341,14 +346,14 @@ func TestKafka(t *testing.T) {
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	pubsubRegistry := pubsub_loader.NewRegistry()
 	pubsubRegistry.Logger = log
 	pubsubRegistry.RegisterComponent(pubsub_kafka.NewKafka, "kafka")
 
-	return []runtime.Option{
-		runtime.WithPubSubs(pubsubRegistry),
+	return []embedded.Option{
+		embedded.WithPubSubs(pubsubRegistry),
 	}
 }

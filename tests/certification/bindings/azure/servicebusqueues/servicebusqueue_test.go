@@ -20,6 +20,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"strconv"
 	"testing"
 	"time"
 
@@ -32,7 +33,7 @@ import (
 
 	bindings_loader "github.com/dapr/dapr/pkg/components/bindings"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
-	"github.com/dapr/dapr/pkg/runtime"
+	"github.com/dapr/dapr/pkg/config/protocol"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 
 	daprClient "github.com/dapr/go-sdk/client"
@@ -146,11 +147,12 @@ func TestServiceBusQueue(t *testing.T) {
 		// Run the application logic above.
 		Step(app.Run("basicApp", fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run("basicSidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithResourcesPath("./components/standard"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithResourcesPath("./components/standard"),
+			)...,
 		)).
 		// Block the standard AMPQ ports.
 		Step("interrupt network", network.InterruptNetwork(time.Minute, []string{}, []string{}, "5671", "5672")).
@@ -252,20 +254,22 @@ func TestAzureServiceBusQueuesTTLs(t *testing.T) {
 
 	flow.New(t, "servicebusqueue ttl certification").
 		Step(sidecar.Run("ttlSidecar",
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithResourcesPath("./components/ttl"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithResourcesPath("./components/ttl"),
+			)...,
 		)).
 		Step("send ttl messages", sendTTLMessages).
 		Step("stop initial sidecar", sidecar.Stop("ttlSidecar")).
 		Step(app.Run("ttlApp", fmt.Sprintf(":%d", appPort), ttlApplication)).
 		Step(sidecar.Run("appSidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(freshPorts[0]),
-			embedded.WithDaprHTTPPort(freshPorts[1]),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(freshPorts[0])),
+				embedded.WithDaprHTTPPort(strconv.Itoa(freshPorts[1])),
+			)...,
 		)).
 		Step("verify no messages", func(ctx flow.Context) error {
 			ttlMessages.Assert(t, time.Minute)
@@ -344,11 +348,12 @@ func TestAzureServiceBusQueueRetriesOnError(t *testing.T) {
 		// Run the application logic above.
 		Step(app.Run("retryApp", fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run("retrySidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithResourcesPath("./components/retry"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithResourcesPath("./components/retry"),
+			)...,
 		)).
 		Step("send and wait", test).
 		Run()
@@ -410,11 +415,12 @@ func TestServiceBusQueueMetadata(t *testing.T) {
 		// Run the application logic above.
 		Step(app.Run("metadataApp", fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run("metadataSidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithResourcesPath("./components/standard"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithResourcesPath("./components/standard"),
+			)...,
 		)).
 		Step("send and wait", test).
 		Run()
@@ -445,17 +451,18 @@ func TestServiceBusQueueDisableEntityManagement(t *testing.T) {
 	flow.New(t, "servicebus queues certification - entity management disabled").
 		// Run the application logic above.
 		Step(sidecar.Run("metadataSidecar",
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithResourcesPath("./components/disable_entity_mgmt"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithResourcesPath("./components/disable_entity_mgmt"),
+			)...,
 		)).
 		Step("send and wait", testWithExpectedFailure).
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	bindingsRegistry := bindings_loader.NewRegistry()
@@ -471,8 +478,8 @@ func componentRuntimeOptions() []runtime.Option {
 	secretstoreRegistry.Logger = log
 	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
 
-	return []runtime.Option{
-		runtime.WithBindings(bindingsRegistry),
-		runtime.WithSecretStores(secretstoreRegistry),
+	return []embedded.Option{
+		embedded.WithBindings(bindingsRegistry),
+		embedded.WithSecretStores(secretstoreRegistry),
 	}
 }

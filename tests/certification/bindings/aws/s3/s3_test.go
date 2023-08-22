@@ -17,8 +17,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"os"
+	"strconv"
+
+	"github.com/stretchr/testify/assert"
 
 	"testing"
 
@@ -27,7 +29,6 @@ import (
 	bindings_loader "github.com/dapr/dapr/pkg/components/bindings"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 
-	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	daprsdk "github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
@@ -213,11 +214,12 @@ func S3SBasic(t *testing.T) {
 
 	flow.New(t, "AWS S3 binding basic").
 		Step(sidecar.Run(sidecarName,
-			embedded.WithoutApp(),
-			embedded.WithComponentsPath("./components/basic"),
-			embedded.WithDaprGRPCPort(currentGRPCPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithComponentsPath("./components/basic"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+			)...,
 		)).
 		Step("Create/Get/List/Delete S3 Object", testCreateGetListDelete).
 		Run()
@@ -276,22 +278,24 @@ func S3SForcePathStyle(t *testing.T) {
 
 	flow.New(t, "AWS S3 binding with forcePathStyle True").
 		Step(sidecar.Run(sidecarName,
-			embedded.WithoutApp(),
-			embedded.WithComponentsPath("./components/forcePathStyleTrue"),
-			embedded.WithDaprGRPCPort(currentGRPCPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithComponentsPath("./components/forcePathStyleTrue"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+			)...,
 		)).
 		Step("Create/Delete S3 Object forcePathStyle True", testForcePathStyle(locationForcePathStyleTrue)).
 		Run()
 
 	flow.New(t, "AWS S3 binding with forcePathStyleFalse").
 		Step(sidecar.Run(sidecarName,
-			embedded.WithoutApp(),
-			embedded.WithComponentsPath("./components/forcePathStyleFalse"),
-			embedded.WithDaprGRPCPort(currentGRPCPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithComponentsPath("./components/forcePathStyleFalse"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+			)...,
 		)).
 		Step("Create/Delete S3 Object forcePathStyle False", testForcePathStyle(locationForcePathStyleFalse)).
 		Run()
@@ -378,29 +382,31 @@ func S3SBase64(t *testing.T) {
 
 	flow.New(t, "decode base64 option for binary").
 		Step(sidecar.Run(sidecarName,
-			embedded.WithoutApp(),
-			embedded.WithComponentsPath("./components/decodeBase64"),
-			embedded.WithDaprGRPCPort(currentGRPCPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithComponentsPath("./components/decodeBase64"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+			)...,
 		)).
 		Step("Create blob from file", testCreateBase64FromFile()).
 		Run()
 
 	flow.New(t, "upload regular file get as encode base64").
 		Step(sidecar.Run(sidecarName,
-			embedded.WithoutApp(),
-			embedded.WithComponentsPath("./components/encodeBase64"),
-			embedded.WithDaprGRPCPort(currentGRPCPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithComponentsPath("./components/encodeBase64"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+			)...,
 		)).
 		Step("Create blob from file get  encode base64", testCreateFromFileGetEncodeBase64()).
 		Run()
 
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	bindingsRegistry := bindings_loader.NewRegistry()
@@ -411,9 +417,9 @@ func componentRuntimeOptions() []runtime.Option {
 	secretstoreRegistry.Logger = log
 	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
 
-	return []runtime.Option{
-		runtime.WithBindings(bindingsRegistry),
-		runtime.WithSecretStores(secretstoreRegistry),
+	return []embedded.Option{
+		embedded.WithBindings(bindingsRegistry),
+		embedded.WithSecretStores(secretstoreRegistry),
 	}
 }
 

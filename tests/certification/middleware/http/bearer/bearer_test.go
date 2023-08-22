@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -44,8 +45,8 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/app"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	httpMiddlewareLoader "github.com/dapr/dapr/pkg/components/middleware/http"
+	"github.com/dapr/dapr/pkg/config/protocol"
 	httpMiddleware "github.com/dapr/dapr/pkg/middleware/http"
-	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/go-sdk/service/common"
 	"github.com/dapr/kit/logger"
@@ -495,24 +496,26 @@ func TestHTTPMiddlewareBearer(t *testing.T) {
 		// Start app and sidecar 1
 		Step(app.Run("Start application 1", fmt.Sprintf(":%d", appPorts[0]), application)).
 		Step(sidecar.Run(appID,
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPorts[0]),
-			embedded.WithDaprGRPCPort(grpcPorts[0]),
-			embedded.WithDaprHTTPPort(httpPorts[0]),
-			embedded.WithResourcesPath("./resources"),
-			embedded.WithAPILoggingEnabled(false),
-			embedded.WithProfilingEnabled(false),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPorts[0])),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPorts[0])),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPorts[0])),
+				embedded.WithResourcesPath("./resources"),
+				embedded.WithAPILoggingEnabled(false),
+				embedded.WithProfilingEnabled(false),
+			)...,
 		)).
 		// Start app and sidecar 2
 		Step(app.Run("Start application 2", fmt.Sprintf(":%d", appPorts[1]), application)).
 		Step(sidecar.Run(appID,
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPorts[1]),
-			embedded.WithDaprGRPCPort(grpcPorts[1]),
-			embedded.WithDaprHTTPPort(httpPorts[1]),
-			embedded.WithResourcesPath("./resources"),
-			embedded.WithAPILoggingEnabled(false),
-			embedded.WithProfilingEnabled(false),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPorts[1])),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPorts[1])),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPorts[1])),
+				embedded.WithResourcesPath("./resources"),
+				embedded.WithAPILoggingEnabled(false),
+				embedded.WithProfilingEnabled(false),
+			)...,
 		)).
 		// Tests
 		Step("bearer token validation", bearerTests).
@@ -521,7 +524,7 @@ func TestHTTPMiddlewareBearer(t *testing.T) {
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	middlewareRegistry := httpMiddlewareLoader.NewRegistry()
 	middlewareRegistry.Logger = log
 	middlewareRegistry.RegisterComponent(func(log logger.Logger) httpMiddlewareLoader.FactoryMethod {
@@ -530,7 +533,7 @@ func componentRuntimeOptions() []runtime.Option {
 		}
 	}, "bearer")
 
-	return []runtime.Option{
-		runtime.WithHTTPMiddlewares(middlewareRegistry),
+	return []embedded.Option{
+		embedded.WithHTTPMiddlewares(middlewareRegistry),
 	}
 }

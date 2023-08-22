@@ -39,7 +39,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/watcher"
 	bindings_loader "github.com/dapr/dapr/pkg/components/bindings"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
-	"github.com/dapr/dapr/pkg/runtime"
+	"github.com/dapr/dapr/pkg/config/protocol"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	dapr "github.com/dapr/go-sdk/client"
 	"github.com/dapr/go-sdk/service/common"
@@ -127,11 +127,12 @@ func TestSinglePartition(t *testing.T) {
 	flow.New(t, "eventhubs binding authentication using connection string").
 		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run("sidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithComponentsPath("./components/binding/consumer1"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithComponentsPath("./components/binding/consumer1"),
+			)...,
 		)).
 		Step("wait", flow.Sleep(15*time.Second)).
 		Step("interrupt network", network.InterruptNetwork(30*time.Second, nil, nil, "443", "5671", "5672")).
@@ -215,11 +216,12 @@ func TestEventhubBindingSerivcePrincipalAuth(t *testing.T) {
 	flow.New(t, "eventhubs binding authentication using service principal").
 		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run("sidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithComponentsPath("./components/binding/serviceprincipal"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithComponentsPath("./components/binding/serviceprincipal"),
+			)...,
 		)).
 		Step("wait", flow.Sleep(15*time.Second)).
 		Step("send and wait", sendAndReceive(metadata)).
@@ -278,11 +280,12 @@ func TestEventhubBindingIOTHub(t *testing.T) {
 	flow.New(t, "eventhubs binding IoTHub testing").
 		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run("sidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithComponentsPath("./components/binding/iothub"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithComponentsPath("./components/binding/iothub"),
+			)...,
 		)).
 		Step("wait", flow.Sleep(15*time.Second)).
 		Step("Send messages to IoT", sendIOTDevice(consumerGroup3)).
@@ -377,11 +380,12 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 		Step("sleep", flow.Sleep(10*time.Second)).
 		Step(app.Run("app", fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run("sidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithComponentsPath("./components/binding/consumer3"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithComponentsPath("./components/binding/consumer3"),
+			)...,
 		)).
 		Step("wait", flow.Sleep(15*time.Second)).
 		Step("send and wait", sendAndReceive).
@@ -390,7 +394,7 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 	log.SetOutputLevel(logger.DebugLevel)
 
@@ -407,8 +411,8 @@ func componentRuntimeOptions() []runtime.Option {
 	secretstoreRegistry.Logger = log
 	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
 
-	return []runtime.Option{
-		runtime.WithBindings(bindingsRegistry),
-		runtime.WithSecretStores(secretstoreRegistry),
+	return []embedded.Option{
+		embedded.WithBindings(bindingsRegistry),
+		embedded.WithSecretStores(secretstoreRegistry),
 	}
 }

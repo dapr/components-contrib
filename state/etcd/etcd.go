@@ -43,6 +43,7 @@ type Etcd struct {
 	features      []state.Feature
 	logger        logger.Logger
 	schema        schemaMarshaller
+	maxTxnOps     int
 }
 
 type etcdConfig struct {
@@ -53,6 +54,8 @@ type etcdConfig struct {
 	CA        string `json:"ca"`
 	Cert      string `json:"cert"`
 	Key       string `json:"key"`
+	// Transaction server options
+	MaxTxnOps int `mapstructure:"maxTxnOps"`
 }
 
 // NewEtcdStateStoreV1 returns a new etcd state store for schema V1.
@@ -93,6 +96,7 @@ func (e *Etcd) Init(_ context.Context, metadata state.Metadata) error {
 	}
 
 	e.keyPrefixPath = etcdConfig.KeyPrefixPath
+	e.maxTxnOps = etcdConfig.MaxTxnOps
 
 	return nil
 }
@@ -134,7 +138,10 @@ func (e *Etcd) Features() []state.Feature {
 }
 
 func metadataToConfig(connInfo map[string]string) (*etcdConfig, error) {
-	m := &etcdConfig{}
+	m := &etcdConfig{
+		// This is the default value for maximum ops per transaction, configurtable via etcd server flag --max-txn-ops.
+		MaxTxnOps: 128,
+	}
 	err := metadata.DecodeMetadata(connInfo, m)
 	return m, err
 }
@@ -321,6 +328,13 @@ func (e *Etcd) Ping() error {
 	}
 
 	return nil
+}
+
+// MultiMaxSize returns the maximum number of operations allowed in a transaction.
+// For Etcd the default is 128, but this can be configured via the server flag --max-txn-ops.
+// As such we are using the component metadata value maxTxnOps.
+func (e *Etcd) MultiMaxSize() int {
+	return e.maxTxnOps
 }
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.

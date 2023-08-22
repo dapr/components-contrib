@@ -246,7 +246,7 @@ async function cmdOkToTest(github, issue, isFromPulls) {
  * @param {int} workflowrunid the workflow run ID for which to rerun all failed jobs
  */
 async function rerunWorkflow(github, issue, workflowrunid) {
-    // Get pull request
+    // Rerun all failed jobs of the specified workflow run
     const pull = await github.rest.actions.reRunWorkflowFailedJobs({
        owner: issue.owner,
        repo: issue.repo,

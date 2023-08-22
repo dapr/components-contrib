@@ -94,7 +94,7 @@ async function handleIssueCommentCreate({ github, context }) {
         case '/ok-to-test':
             await cmdOkToTest(github, issue, isFromPulls)
             break
-        case command.match(/^\/rerun /)?.input:
+        case command.match(/^\/rerun \d+/)?.input:
             const workflowrunid = command.match(/\d+/)[0];
             await rerunWorkflow(github, issue, workflowrunid)
             break

@@ -176,11 +176,12 @@ func TestLocalStorage(t *testing.T) {
 
 	flow.New(t, "test local storage operations").
 		Step(sidecar.Run(sidecarName,
-			embedded.WithoutApp(),
-			embedded.WithComponentsPath("./components"),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithComponentsPath("./components"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
 		)).
 		Step("create file and get data success", testInvokeCreateAndGet).
 		Step("get error when file not exists", testInvokeGetFileNotExists).
@@ -193,14 +194,14 @@ func clear() error {
 	return os.RemoveAll(dir)
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	bindingsRegistry := bindings_loader.NewRegistry()
 	bindingsRegistry.Logger = log
 	bindingsRegistry.RegisterOutputBinding(bindings_localstorage.NewLocalStorage, "localstorage")
 
-	return []runtime.Option{
-		runtime.WithBindings(bindingsRegistry),
+	return []embedded.Option{
+		embedded.WithBindings(bindingsRegistry),
 	}
 }

@@ -15,6 +15,7 @@ package redis_test
 
 import (
 	"encoding/json"
+	"strconv"
 	"testing"
 	"time"
 
@@ -28,7 +29,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	cu_redis "github.com/dapr/components-contrib/tests/utils/configupdater/redis"
 	configuration_loader "github.com/dapr/dapr/pkg/components/configuration"
-	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	dapr "github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
@@ -372,10 +372,10 @@ func TestRedis(t *testing.T) {
 		// Run dapr sidecar with redis configuration store component
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
 			embedded.WithComponentsPath("components/default"),
-			runtime.WithConfigurations(configurationRegistry),
+			embedded.WithConfigurations(configurationRegistry),
 		)).
 		//
 		// Start subscriber subscribing to keys {key1,key2}
@@ -408,10 +408,10 @@ func TestRedis(t *testing.T) {
 		// Run dapr sidecar with redis configuration store component
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
 			embedded.WithComponentsPath("components/redisDB1"),
-			runtime.WithConfigurations(configurationRegistry),
+			embedded.WithConfigurations(configurationRegistry),
 		)).
 		Step("start subscriber", subscribefn([]string{key1, key2}, messageWatcher)).
 		Step("wait for subscriber to be ready", flow.Sleep(5*time.Second)).

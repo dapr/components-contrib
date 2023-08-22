@@ -29,7 +29,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
-	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
@@ -221,11 +220,12 @@ func TestMemcached(t *testing.T) {
 		Step(dockercompose.Run("memcached", dockerComposeClusterYAML)).
 		Step("Waiting for component to start...", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerClusterDefault",
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("components/docker/default"),
-			componentRuntimeOptions(stateStore, log, "memcached"),
+			append(componentRuntimeOptions(stateStore, log, "memcached"),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+				embedded.WithComponentsPath("components/docker/default"),
+			)...,
 		)).
 		Step("Waiting for component to load...", flow.Sleep(5*time.Second)).
 		Step("Run basic test", basicTest).
@@ -236,11 +236,12 @@ func TestMemcached(t *testing.T) {
 		Step(dockercompose.Run("memcached", dockerComposeClusterYAML)).
 		Step("Waiting for component to start...", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerClusterDefault",
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("components/docker/default"),
-			componentRuntimeOptions(stateStore, log, "memcached"),
+			append(componentRuntimeOptions(stateStore, log, "memcached"),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+				embedded.WithComponentsPath("components/docker/default"),
+			)...,
 		)).
 		Step("Waiting for component to load...", flow.Sleep(5*time.Second)).
 		Step("Run basic test", basicTest).
@@ -317,11 +318,12 @@ func TestMemcachedNetworkInstability(t *testing.T) {
 		Step(dockercompose.Run("memcached", dockerComposeClusterYAML)).
 		Step("Waiting for component to start...", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerClusterDefault",
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath(componentsPathFor20sTimeout),
-			componentRuntimeOptions(stateStore, log, "memcached"),
+			append(componentRuntimeOptions(stateStore, log, "memcached"),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+				embedded.WithComponentsPath(componentsPathFor20sTimeout),
+			)...,
 		)).
 		Step("Waiting for component to load...", flow.Sleep(5*time.Second)).
 		Step("Setup a key with a TTL of 4x memcached timeout ", setKeyWithTTL(keyTTL, targetKey, targetValue)).
@@ -336,14 +338,14 @@ func TestMemcachedNetworkInstability(t *testing.T) {
 		Run()
 }
 
-func componentRuntimeOptions(stateStore state.Store, log logger.Logger, stateStoreName string) []runtime.Option {
+func componentRuntimeOptions(stateStore state.Store, log logger.Logger, stateStoreName string) []embedded.Option {
 	stateRegistry := state_loader.NewRegistry()
 	stateRegistry.Logger = log
 	componentFactory := func(l logger.Logger) state.Store { return stateStore }
 
 	stateRegistry.RegisterComponent(componentFactory, stateStoreName)
 
-	return []runtime.Option{
-		runtime.WithStates(stateRegistry),
+	return []embedded.Option{
+		embedded.WithStates(stateRegistry),
 	}
 }

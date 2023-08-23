@@ -177,7 +177,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chenzhuoyu/iasm v0.0.0-20230222070914-0b1b64b0e762 // indirect
-	github.com/choleraehyq/pid v0.0.16 // indirect
+	github.com/choleraehyq/pid v0.0.17 // indirect
 	github.com/clbanning/mxj/v2 v2.5.6 // indirect
 	github.com/cloudwego/fastpb v0.0.4-0.20230131074846-6fc453d58b96 // indirect
 	github.com/cloudwego/frugal v0.1.6 // indirect

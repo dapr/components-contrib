@@ -679,6 +679,8 @@ github.com/choleraehyq/pid v0.0.13/go.mod h1:uhzeFgxJZWQsZulelVQZwdASxQ9TIPZYL4T
 github.com/choleraehyq/pid v0.0.15/go.mod h1:uhzeFgxJZWQsZulelVQZwdASxQ9TIPZYL4TPkQMtL/U=
 github.com/choleraehyq/pid v0.0.16 h1:1/714sMH9IBlE/aK6xM0acTagGKSzpiR0bDt7l0cG7o=
 github.com/choleraehyq/pid v0.0.16/go.mod h1:uhzeFgxJZWQsZulelVQZwdASxQ9TIPZYL4TPkQMtL/U=
+github.com/choleraehyq/pid v0.0.17 h1:BLBfHTllp2nRRbZ/cOFHKlx9oWJuMwKmp7GqB5d58Hk=
+github.com/choleraehyq/pid v0.0.17/go.mod h1:uhzeFgxJZWQsZulelVQZwdASxQ9TIPZYL4TPkQMtL/U=
 github.com/chzyer/logex v1.1.10/go.mod h1:+Ywpsq7O8HXn0nuIou7OrIPyXbp3wmkHB+jjWRnGsAI=
 github.com/chzyer/logex v1.2.0/go.mod h1:9+9sk7u7pGNWYMkh0hdiL++6OeibzJccyQU4p4MedaY=
 github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e/go.mod h1:nSuG5e5PlCu98SY8svDHJxuZscDgtXS6KTTbou5AhLI=

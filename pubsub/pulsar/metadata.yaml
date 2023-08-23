@@ -58,10 +58,6 @@ metadata:
     description: "Address of the Pulsar broker."
     example: |
       "localhost:6650", "http://pulsar-pj54qwwdpz4b-pulsar.ap-sg.public.pulsar.com:8080"
-  - name: consumerID
-    type: string
-    description: "Used to set the subscription name or consumer ID."
-    example: '"channel1"'
   - name: namespace
     description: |
       The administrative unit of the topic, which acts as a grouping mechanism for related topics.

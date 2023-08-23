@@ -97,9 +97,3 @@ metadata:
     description: |
       Storage container name.
     example: '"myeventhubstoragecontainer"'
-  - name: consumerId
-    type: string
-    required: true # consumerGroup is an alias for this field, let's promote this to default
-    description: |
-      The name of the Event Hubs Consumer Group to listen on.
-    example: '"group1"'

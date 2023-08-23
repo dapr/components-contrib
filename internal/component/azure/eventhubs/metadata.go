@@ -28,7 +28,7 @@ import (
 type AzureEventHubsMetadata struct {
 	ConnectionString        string `json:"connectionString" mapstructure:"connectionString"`
 	EventHubNamespace       string `json:"eventHubNamespace" mapstructure:"eventHubNamespace"`
-	ConsumerID              string `json:"consumerID" mapstructure:"consumerID"`
+	ConsumerID              string `json:"consumerID" mapstructure:"consumerID" mdignore:"true"`
 	StorageConnectionString string `json:"storageConnectionString" mapstructure:"storageConnectionString"`
 	StorageAccountName      string `json:"storageAccountName" mapstructure:"storageAccountName"`
 	StorageAccountKey       string `json:"storageAccountKey" mapstructure:"storageAccountKey"`

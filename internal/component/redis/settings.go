@@ -84,7 +84,7 @@ type Settings struct {
 
 	// == pubsub only properties ==
 	// The consumer identifier
-	ConsumerID string `mapstructure:"consumerID" mdonly:"pubsub"`
+	ConsumerID string `mapstructure:"consumerID" mdonly:"pubsub" mdignore:"true"`
 	// The interval between checking for pending messages to redelivery (0 disables redelivery)
 	RedeliverInterval time.Duration `mapstructure:"-" mdonly:"pubsub"`
 	// The amount time a message must be pending before attempting to redeliver it (0 disables redelivery)

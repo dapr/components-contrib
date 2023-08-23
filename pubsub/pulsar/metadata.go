@@ -21,7 +21,7 @@ import (
 
 type pulsarMetadata struct {
 	Host                    string                    `mapstructure:"host"`
-	ConsumerID              string                    `mapstructure:"consumerID"`
+	ConsumerID              string                    `mapstructure:"consumerID" mdignore:"true"`
 	EnableTLS               bool                      `mapstructure:"enableTLS"`
 	DisableBatching         bool                      `mapstructure:"disableBatching"`
 	BatchingMaxPublishDelay time.Duration             `mapstructure:"batchingMaxPublishDelay"`

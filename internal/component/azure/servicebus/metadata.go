@@ -30,7 +30,7 @@ import (
 type Metadata struct {
 	/** For bindings and pubsubs **/
 	ConnectionString                string `mapstructure:"connectionString"`
-	ConsumerID                      string `mapstructure:"consumerID"` // Only topics
+	ConsumerID                      string `mapstructure:"consumerID" mdignore:"true"` // Only topics
 	TimeoutInSec                    int    `mapstructure:"timeoutInSec"`
 	HandlerTimeoutInSec             int    `mapstructure:"handlerTimeoutInSec"`
 	LockRenewalInSec                int    `mapstructure:"lockRenewalInSec"`

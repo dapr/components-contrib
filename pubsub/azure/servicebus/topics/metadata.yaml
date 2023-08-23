@@ -35,11 +35,6 @@ builtinAuthenticationProfiles:
           output: true
           input: true
 metadata:
-  - name: consumerID
-    description: "Consumer ID (a.k.a consumer tag) organizes one or more consumers into a group. Consumers with the same consumer ID work as one virtual consumer, i.e. a message is processed only once by one of the consumers in the group. If the consumer ID is not set, the dapr runtime will set it to the dapr application ID."
-    type: string
-    default: "The ID of the app"
-    example: "myconsumer"
   - name: maxRetriableErrorsPerSec
     description: "Maximum number of retriable errors that are processed per second. If a message fails to be processed with a retriable error, the component adds a delay before it starts processing another message, to avoid immediately re-processing messages that have failed"
     type: number

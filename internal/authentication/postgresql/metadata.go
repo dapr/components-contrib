@@ -93,6 +93,8 @@ func (m *PostgresAuthMetadata) GetPgxPoolConfig() (*pgxpool.Config, error) {
 		}
 		if mode, ok := queryExecModes[m.QueryExecMode]; ok {
 			config.ConnConfig.DefaultQueryExecMode = mode
+		} else {
+			return nil, fmt.Errorf("invalid queryExecMode metadata value: %s", m.QueryExecMode)
 		}
 	}
 

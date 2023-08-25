@@ -32,6 +32,7 @@ type PostgresAuthMetadata struct {
 	ConnectionMaxIdleTime time.Duration `mapstructure:"connectionMaxIdleTime"`
 	MaxConns              int           `mapstructure:"maxConns"`
 	UseAzureAD            bool          `mapstructure:"useAzureAD"`
+	QueryExecMode         string        `mapstructure:"queryExecMode"`
 
 	azureEnv azure.EnvironmentSettings
 }
@@ -42,6 +43,7 @@ func (m *PostgresAuthMetadata) Reset() {
 	m.ConnectionMaxIdleTime = 0
 	m.MaxConns = 0
 	m.UseAzureAD = false
+	m.QueryExecMode = ""
 }
 
 // InitWithMetadata inits the object with metadata from the user.
@@ -79,6 +81,19 @@ func (m *PostgresAuthMetadata) GetPgxPoolConfig() (*pgxpool.Config, error) {
 	}
 	if m.MaxConns > 1 {
 		config.MaxConns = int32(m.MaxConns)
+	}
+
+	if m.QueryExecMode != "" {
+		queryExecModes := map[string]pgx.QueryExecMode{
+			"cache_statement": pgx.QueryExecModeCacheStatement,
+			"cache_describe":  pgx.QueryExecModeCacheDescribe,
+			"describe_exec":   pgx.QueryExecModeDescribeExec,
+			"exec":            pgx.QueryExecModeExec,
+			"simple_protocol": pgx.QueryExecModeSimpleProtocol,
+		}
+		if mode, ok := queryExecModes[m.QueryExecMode]; ok {
+			config.ConnConfig.DefaultQueryExecMode = mode
+		}
 	}
 
 	// Check if we should use Azure AD

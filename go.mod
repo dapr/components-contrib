@@ -25,7 +25,7 @@ require (
 	github.com/Azure/go-amqp v1.0.1
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/Shopify/sarama v1.37.2
-	github.com/aerospike/aerospike-client-go/v6 v6.14.0
+	github.com/aerospike/aerospike-client-go/v6 v6.12.0
 	github.com/alibaba/sentinel-golang v1.0.4
 	github.com/alibabacloud-go/darabonba-openapi v0.2.1
 	github.com/alibabacloud-go/oos-20190601 v1.0.4
@@ -58,7 +58,7 @@ require (
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/go-zookeeper/zk v1.0.3
-	github.com/gocql/gocql v1.6.0
+	github.com/gocql/gocql v1.5.2
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.3.1
 	github.com/googleapis/gax-go/v2 v2.12.0

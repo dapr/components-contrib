@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"

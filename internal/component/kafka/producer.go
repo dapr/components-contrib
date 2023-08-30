@@ -17,7 +17,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 
 	"github.com/dapr/components-contrib/pubsub"
 )

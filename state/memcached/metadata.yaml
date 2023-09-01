@@ -16,16 +16,17 @@ metadata:
     type: string
     required: true
     description: |
-      Comma delimited endpoints
+      Comma-delimited list of endpoints
     example: '"memcached.default.svc.cluster.local:11211"'
   - name: maxIdleConnections
     type: number
     default: '2'
     description: |
-      The max number of idle connections.
+      Max number of idle connections.
     example: '"3"'
   - name: timeout
     type: duration
     description: |
-      The timeout for the calls. Defaults to "1000ms"
-    example: '"1000ms"'
+      Timeout for calls to the service.
+    default: '"1s"'
+    example: '"5s"'

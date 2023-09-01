@@ -21,6 +21,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,7 +30,6 @@ import (
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	bindings_loader "github.com/dapr/dapr/pkg/components/bindings"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
-	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	daprsdk "github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
@@ -603,11 +603,12 @@ func TestBlobStorage(t *testing.T) {
 
 	flow.New(t, "blobstorage binding authentication using service principal").
 		Step(sidecar.Run(sidecarName,
-			embedded.WithoutApp(),
-			embedded.WithComponentsPath("./components/serviceprincipal"),
-			embedded.WithDaprGRPCPort(currentGRPCPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithComponentsPath("./components/serviceprincipal"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+			)...,
 		)).
 		Step("Create blob", testCreateGetListDelete).
 		Run()
@@ -620,11 +621,12 @@ func TestBlobStorage(t *testing.T) {
 
 	flow.New(t, "blobstorage binding main test suite with access key authentication").
 		Step(sidecar.Run(sidecarName,
-			embedded.WithoutApp(),
-			embedded.WithComponentsPath("./components/accesskey"),
-			embedded.WithDaprGRPCPort(currentGRPCPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithComponentsPath("./components/accesskey"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+			)...,
 		)).
 		Step("Create blob", testCreateGetListDelete).
 		Step("Create blob from file", testCreateBlobFromFile(false)).
@@ -644,11 +646,12 @@ func TestBlobStorage(t *testing.T) {
 
 	flow.New(t, "decode base64 option for binary blobs with access key authentication").
 		Step(sidecar.Run(sidecarName,
-			embedded.WithoutApp(),
-			embedded.WithComponentsPath("./components/decodeBase64"),
-			embedded.WithDaprGRPCPort(currentGRPCPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithComponentsPath("./components/decodeBase64"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+			)...,
 		)).
 		Step("Create blob from file", testCreateBlobFromFile(true)).
 		Run()
@@ -661,11 +664,12 @@ func TestBlobStorage(t *testing.T) {
 
 	flow.New(t, "Blob Container Access Policy: Blog - with access key authentication").
 		Step(sidecar.Run(sidecarName,
-			embedded.WithoutApp(),
-			embedded.WithComponentsPath("./components/publicAccessBlob"),
-			embedded.WithDaprGRPCPort(currentGRPCPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithComponentsPath("./components/publicAccessBlob"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+			)...,
 		)).
 		Step("Creating a public blob works", testCreatePublicBlob(true, "publiccontainer")).
 		Run()
@@ -678,17 +682,18 @@ func TestBlobStorage(t *testing.T) {
 
 	flow.New(t, "Blob Container Access Policy: Container - with access key authentication").
 		Step(sidecar.Run(sidecarName,
-			embedded.WithoutApp(),
-			embedded.WithComponentsPath("./components/publicAccessContainer"),
-			embedded.WithDaprGRPCPort(currentGRPCPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithComponentsPath("./components/publicAccessContainer"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+			)...,
 		)).
 		Step("Creating a public blob works", testCreatePublicBlob(true, "alsopubliccontainer")).
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	bindingsRegistry := bindings_loader.NewRegistry()
@@ -699,8 +704,8 @@ func componentRuntimeOptions() []runtime.Option {
 	secretstoreRegistry.Logger = log
 	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
 
-	return []runtime.Option{
-		runtime.WithBindings(bindingsRegistry),
-		runtime.WithSecretStores(secretstoreRegistry),
+	return []embedded.Option{
+		embedded.WithBindings(bindingsRegistry),
+		embedded.WithSecretStores(secretstoreRegistry),
 	}
 }

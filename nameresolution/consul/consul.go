@@ -97,6 +97,10 @@ func (r *resolver) Init(metadata nr.Metadata) (err error) {
 		return err
 	}
 
+	if r.config.Client.TLSConfig.InsecureSkipVerify {
+		r.logger.Infof("hashicorp consul: you are using 'insecureSkipVerify' to skip server config verify which is unsafe!")
+	}
+
 	err = r.client.InitClient(r.config.Client)
 	if err != nil {
 		return fmt.Errorf("failed to init consul client: %w", err)

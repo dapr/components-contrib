@@ -1,0 +1,62 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: pubsub
+name: gcp.pubsub
+version: v1
+status: stable
+title: "GCP Pub/Sub"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-gcp-pubsub/
+builtinAuthenticationProfiles:
+  - name: "gcp"
+metadata:
+  - name: enableMessageOrdering
+    description: |
+      When set to "true", subscribed messages will be received in order, 
+      depending on publishing and permissions configuration.
+    type: bool
+    default: 'false'
+    example: '"true", "false"'
+  - name: orderingKey
+    description: |
+      The key provided in the request. It's used when "enableMessageOrdering" 
+      is set to true to order messages based on such key.
+    type: string
+    example: '"my-orderingkey"'
+  - name: disableEntityManagement
+    description: |
+      When set to true, topics and subscriptions do not get created automatically.  
+    type: bool
+    default: 'false'
+    example: '"true", "false"'
+  - name: maxReconnectionAttempts
+    description: |
+      Defines the maximum number of reconnect attempts.   
+    type: number
+    default: '30'
+    example: '30'
+  - name: connectionRecoveryInSec
+    description: |
+      Time in seconds to wait between connection recovery attempts.   
+    type: number
+    default: '2'
+    example: '2'
+  - name: deadLetterTopic
+    description: |
+      Name of the GCP Pub/Sub Topic. The topic must exist before using this component.
+    type: string
+    example: '"myapp-dlq"'
+  - name: endpoint
+    description: |
+      GCP endpoint for the component to use.
+      Only used for local development, for example with the GCP Pub/Sub Emulator. The endpoint is unnecessary when running against the GCP production API.
+    type: string
+    example: '"http://localhost:8085"'
+  - name: maxDeliveryAttempts
+    description: |
+      Maximum number of attempts to deliver the message.
+      If "deadLetterTopic" is specified as well, "maxDeliveryAttempts" is the maximum number of attempts before messages are moved to the dead-letter queue.
+    type: number
+    default: '5'
+    example: '5'

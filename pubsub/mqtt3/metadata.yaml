@@ -10,7 +10,7 @@ urls:
     url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-mqtt3/
 authenticationProfiles:
   - title: "Connection string"
-    description: "The MQTT3 Connection/Authentication."
+    description: "Authenticate using a connection string."
     metadata:
       - name: url
         type: string
@@ -22,11 +22,6 @@ authenticationProfiles:
           Use the `ssl://`` URI scheme for TLS communication.
         example: '"tcp://[username][:password]@host.domain[:port]"'
 metadata:
-  - name: consumerID
-    type: string
-    description: |
-      The client ID used to connect to the MQTT broker. Defaults to the Dapr app ID.
-    example: '"myMqttClientApp"'
   - name: retain
     type: bool
     description: |
@@ -36,32 +31,29 @@ metadata:
   - name: cleanSession
     type: bool
     description: |
-      Sets the clean_session flag in the connection message to the MQTT broker if "true" (more info).
+      When the value is set to "true", sets the clean_session flag in the connection message to the MQTT broker.
     default: 'false'
     example: '"true", "false"'
   - name: qos
     type: number
     description: |
-      Indicates the Quality of Service Level (QoS) of the message (more info).
+      Indicates the Quality of Service Level (QoS) of the message.
     default: '1'
-    example: '0, 1, 2'
+    example: '"0", "1", "2"'
   - name: caCert
     type: string
     description: |
-      Certificate authority certificate, required for using TLS. 
-      Can be secretKeyRef to use a secret reference".
+      Certificate authority certificate, required for using TLS.
     example: '"-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"'
   - name: clientCert
     type: string
     sensitive: true
     description: |
-      Client certificate, required for authType mtls. 
-      Can be secretKeyRef to use a secret reference.
+      Client certificate, required for authType mtls.
     example: '"-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"'
   - name: clientKey
     type: string
     sensitive: true
     description: |
       Client key, required for authType mtls.
-      Can be secretKeyRef to use a secret reference.
     example: '"-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded DER>\n-----END RSA PRIVATE KEY-----"'

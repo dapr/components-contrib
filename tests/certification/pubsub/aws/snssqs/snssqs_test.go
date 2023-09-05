@@ -16,6 +16,7 @@ package snssqs_test
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync/atomic"
 
 	"os"
@@ -31,6 +32,7 @@ import (
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
+	"github.com/dapr/dapr/pkg/config/protocol"
 	"github.com/dapr/kit/logger"
 
 	"github.com/dapr/dapr/pkg/runtime"
@@ -296,11 +298,12 @@ func SNSSQSBasic(t *testing.T) {
 
 		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_QUEUE_1"
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer_one"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
 		)).
 
 		// Run subscriberApplication app2
@@ -309,12 +312,13 @@ func SNSSQSBasic(t *testing.T) {
 
 		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_QUEUE_2"
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/consumer_two"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_two"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+			)...,
 		)).
 		Step("publish messages to active topic ==> "+topicActiveName, publishMessages(nil, sidecarName1, topicActiveName, consumerGroup1, consumerGroup2)).
 		Step("publish messages to passive topic ==> "+topicPassiveName, publishMessages(nil, sidecarName1, topicPassiveName)).
@@ -424,11 +428,12 @@ func SNSSQSMultipleSubsSameConsumerIDs(t *testing.T) {
 
 		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_QUEUE_1"
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer_one"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
 		)).
 
 		// Run subscriberApplication app2
@@ -437,12 +442,13 @@ func SNSSQSMultipleSubsSameConsumerIDs(t *testing.T) {
 
 		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_QUEUE_2"
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/consumer_two"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_two"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+			)...,
 		)).
 		Step("publish messages to  ==> "+topicActiveName, publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup2)).
 		Step("publish messages to  ==> "+topicActiveName, publishMessages(metadata1, sidecarName2, topicActiveName, consumerGroup2)).
@@ -547,11 +553,12 @@ func SNSSQSMultipleSubsDifferentConsumerIDs(t *testing.T) {
 
 		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_QUEUE_1"
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer_one"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
 		)).
 
 		// Run subscriberApplication app2
@@ -560,12 +567,13 @@ func SNSSQSMultipleSubsDifferentConsumerIDs(t *testing.T) {
 
 		// RRun the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_QUEUE_2"
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/consumer_two"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_two"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+			)...,
 		)).
 		Step("publish messages to ==>"+topicActiveName, publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
 		Step("verify if app1, app2 together have recevied messages published to topic1", assertMessages(10*time.Second, consumerGroup1)).
@@ -673,11 +681,12 @@ func SNSSQSMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 
 		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_QUEUE_1"
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer_one"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
 		)).
 
 		// Run subscriberApplication app2
@@ -686,12 +695,13 @@ func SNSSQSMultiplePubSubsDifferentConsumerIDs(t *testing.T) {
 
 		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_QUEUE_2"
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/consumer_two"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_two"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+			)...,
 		)).
 		Step("publish messages to ==> "+topicActiveName, publishMessages(metadata, sidecarName1, topicActiveName, consumerGroup1)).
 		Step("publish messages to ==> "+topicActiveName, publishMessages(metadata1, sidecarName2, topicActiveName, consumerGroup2)).
@@ -796,12 +806,13 @@ func SNSSQSNonexistingTopic(t *testing.T) {
 
 		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_QUEUE_1"
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer_one"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*3),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*3),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*3),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*3),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer_one"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset*3)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset*3)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset*3)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset*3)),
+			)...,
 		)).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicToBeCreated), publishMessages(metadata, sidecarName1, topicToBeCreated, consumerGroup1)).
 		Step("wait", flow.Sleep(30*time.Second)).
@@ -904,12 +915,13 @@ func SNSSQSExistingQueueAndTopic(t *testing.T) {
 
 		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_QUEUE_3"
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/existing_queue"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*3),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*3),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*3),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*3),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/existing_queue"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset*3)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset*3)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset*3)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset*3)),
+			)...,
 		)).
 		Step(fmt.Sprintf("publish messages to existingTopic: %s", existingTopic), publishMessages(metadata, sidecarName1, existingTopic, consumerGroup1)).
 		Step("wait", flow.Sleep(30*time.Second)).
@@ -1012,12 +1024,13 @@ func SNSSQSExistingQueueNonexistingTopic(t *testing.T) {
 
 		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_QUEUE_3"
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/existing_queue"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*3),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*3),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*3),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*3),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/existing_queue"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset*3)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset*3)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset*3)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset*3)),
+			)...,
 		)).
 		Step(fmt.Sprintf("publish messages to topicToBeCreated: %s", topicToBeCreated), publishMessages(metadata, sidecarName1, topicToBeCreated, consumerGroup1)).
 		Step("wait", flow.Sleep(30*time.Second)).
@@ -1102,12 +1115,13 @@ func SNSSQSEntityManagement(t *testing.T) {
 
 		// Run the Dapr sidecar
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/entity_mgmt"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/entity_mgmt"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+			)...,
 		)).
 		Step(fmt.Sprintf("publish messages to topicDefault: %s", topicDefaultName), publishMessages(metadata, sidecarName1, topicDefaultName, consumerGroup1)).
 		Run()
@@ -1218,12 +1232,13 @@ func SNSSQSMessageVisibilityTimeout(t *testing.T) {
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+portOffset),
 			subscriberMVTimeoutApp(appID1, messageVisibilityTimeoutTopic, consumerGroup1, latch))).
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/message_visibility_timeout"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/message_visibility_timeout"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+			)...,
 		)).
 		Step(fmt.Sprintf("publish messages to messageVisibilityTimeoutTopic: %s", messageVisibilityTimeoutTopic),
 			testTtlPublishMessages(metadata, sidecarName1, messageVisibilityTimeoutTopic, consumerGroup1)).
@@ -1234,12 +1249,13 @@ func SNSSQSMessageVisibilityTimeout(t *testing.T) {
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+portOffset+2),
 			notExpectingMessagesSubscriberApp(appID2, messageVisibilityTimeoutTopic, consumerGroup1, latch))).
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/message_visibility_timeout"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset+2),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset+2),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset+2),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset+2),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/message_visibility_timeout"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset+2)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset+2)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset+2)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset+2)),
+			)...,
 		)).
 		Step("No messages will be sent here",
 			connectToSideCar(sidecarName2)).
@@ -1347,11 +1363,12 @@ func SNSSQSFIFOMessages(t *testing.T) {
 		Step(app.Run(sub, fmt.Sprintf(":%d", appPort),
 			subscriberApplication(sub, fifoTopic, consumerGroup1))).
 		Step(sidecar.Run(subsc,
-			embedded.WithComponentsPath("./components/fifo"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/fifo"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
 		)).
 		Step("wait", flow.Sleep(5*time.Second)).
 
@@ -1359,12 +1376,13 @@ func SNSSQSFIFOMessages(t *testing.T) {
 		Step(app.Run(pub1, fmt.Sprintf(":%d", appPort+portOffset+2),
 			doNothingApp(pub1, fifoTopic, consumerGroup1))).
 		Step(sidecar.Run(sc1,
-			embedded.WithComponentsPath("./components/fifo"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset+2),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset+2),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset+2),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset+2),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/fifo"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset+2)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset+2)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset+2)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset+2)),
+			)...,
 		)).
 		Step("publish messages to topic ==> "+fifoTopic, publishMessages(nil, sc1, fifoTopic, consumerGroup1)).
 
@@ -1372,12 +1390,13 @@ func SNSSQSFIFOMessages(t *testing.T) {
 		Step(app.Run(pub2, fmt.Sprintf(":%d", appPort+portOffset+4),
 			doNothingApp(pub2, fifoTopic, consumerGroup1))).
 		Step(sidecar.Run(sc2,
-			embedded.WithComponentsPath("./components/fifo"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset+4),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset+4),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset+4),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset+4),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/fifo"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset+4)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset+4)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset+4)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset+4)),
+			)...,
 		)).
 		Step("publish messages to topic ==> "+fifoTopic, publishMessages(nil, sc2, fifoTopic, consumerGroup1)).
 		Step("wait", flow.Sleep(10*time.Second)).
@@ -1523,12 +1542,13 @@ func SNSSQSMessageDeadLetter(t *testing.T) {
 
 		// Run the Dapr sidecar with ConsumerID "PUBSUB_AWS_SNSSQS_TOPIC_DLIN"
 		Step(sidecar.Run(subAppSideCar,
-			embedded.WithComponentsPath("./components/deadletter"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset+4),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset+4),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset+4),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset+4),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/deadletter"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset+4)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset+4)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset+4)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset+4)),
+			)...,
 		)).
 		Step("publish messages to deadLetterTopicIn ==> "+deadLetterTopicIn, publishMessages(nil, subAppSideCar, deadLetterTopicIn, deadLetterConsumerGroup)).
 		Step("wait", flow.Sleep(30*time.Second)).
@@ -1654,12 +1674,13 @@ func SNSSQSMessageDisableDeleteOnRetryLimit(t *testing.T) {
 
 		// Run the Dapr sidecar with  "PUBSUB_AWS_SNSSQS_TOPIC_NODRT"
 		Step(sidecar.Run(subAppSideCar,
-			embedded.WithComponentsPath("./components/disableDeleteOnRetryLimit"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset+4),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset+4),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset+4),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset+4),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/disableDeleteOnRetryLimit"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset+4)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset+4)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset+4)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset+4)),
+			)...,
 		)).
 		Step("publish messages to disableDeleteOnRetryLimitTopicIn ==> "+disableDeleteOnRetryLimitTopicIn, publishMessages(nil, subAppSideCar, disableDeleteOnRetryLimitTopicIn, consumerGroup1)).
 		Step("wait", flow.Sleep(30*time.Second)).
@@ -1668,7 +1689,7 @@ func SNSSQSMessageDisableDeleteOnRetryLimit(t *testing.T) {
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	pubsubRegistry := pubsub_loader.NewRegistry()
@@ -1679,9 +1700,9 @@ func componentRuntimeOptions() []runtime.Option {
 	secretstoreRegistry.Logger = log
 	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
 
-	return []runtime.Option{
-		runtime.WithPubSubs(pubsubRegistry),
-		runtime.WithSecretStores(secretstoreRegistry),
+	return []embedded.Option{
+		embedded.WithPubSubs(pubsubRegistry),
+		embedded.WithSecretStores(secretstoreRegistry),
 	}
 }
 

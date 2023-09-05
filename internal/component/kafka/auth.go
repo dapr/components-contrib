@@ -19,7 +19,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 )
 
 func updatePasswordAuthInfo(config *sarama.Config, metadata *KafkaMetadata, saslUsername, saslPassword string) {

@@ -20,7 +20,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	stateLoader "github.com/dapr/dapr/pkg/components/state"
-	"github.com/dapr/dapr/pkg/runtime"
 	daprTesting "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
@@ -153,10 +152,10 @@ func TestMongoDB(t *testing.T) {
 		Step("Waiting for component to start...", flow.Sleep(20*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerClusterDefault",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
 			embedded.WithComponentsPath("components/docker/default"),
-			runtime.WithStates(stateRegistry))).
+			embedded.WithStates(stateRegistry))).
 		Step("Waiting for component to load...", flow.Sleep(10*time.Second)).
 		Step("Run basic test", basicTest).
 		Step("Run time to live test", timeToLiveTest(sidecarNamePrefix+"dockerClusterDefault")).
@@ -176,10 +175,10 @@ func TestMongoDB(t *testing.T) {
 		Step("Waiting for component to start...", flow.Sleep(20*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerClusterValidReadWriteConcernAndTimeout",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
 			embedded.WithComponentsPath("components/docker/validReadWriteConcernAndTimeout"),
-			runtime.WithStates(stateRegistry))).
+			embedded.WithStates(stateRegistry))).
 		Step("Waiting for component to load...", flow.Sleep(10*time.Second)).
 		Step("Run basic test", basicTest).
 		Step("Run time to live test", timeToLiveTest(sidecarNamePrefix+"dockerClusterValidReadWriteConcernAndTimeout")).
@@ -199,10 +198,10 @@ func TestMongoDB(t *testing.T) {
 		Step("Waiting for component to start...", flow.Sleep(20*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerSingleNode",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
 			embedded.WithComponentsPath("components/docker/singleNode"),
-			runtime.WithStates(stateRegistry))).
+			embedded.WithStates(stateRegistry))).
 		Step("Waiting for component to load...", flow.Sleep(10*time.Second)).
 		Step("Run basic test", basicTest).
 		Step("Run time to live test", timeToLiveTest(sidecarNamePrefix+"dockerSingleNode")).

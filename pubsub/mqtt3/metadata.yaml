@@ -18,8 +18,8 @@ authenticationProfiles:
         sensitive: true
         description: |
           Address of the MQTT broker.
-          Use the tcp:// URI scheme for non-TLS communication. 
-          Use the ssl:// URI scheme for TLS communication.
+          Use the `tcp://`` URI scheme for non-TLS communication. 
+          Use the `ssl://`` URI scheme for TLS communication.
         example: '"tcp://[username][:password]@host.domain[:port]"'
 metadata:
   - name: consumerID

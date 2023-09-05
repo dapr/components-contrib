@@ -42,6 +42,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/simulate"
 	"github.com/dapr/components-contrib/tests/certification/flow/watcher"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
+	"github.com/dapr/dapr/pkg/config/protocol"
 	"github.com/dapr/dapr/pkg/runtime"
 	daprClient "github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
@@ -322,39 +323,42 @@ func TestRabbitMQ(t *testing.T) {
 			application(alpha, 1, "quorum"))).
 		// Run the Dapr sidecar with the RabbitMQ component.
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/alpha"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+10),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			embedded.WithProfilePort(runtime.DefaultProfilePort),
-			embedded.WithGracefulShutdownDuration(2*time.Second),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/alpha"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+10)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort)),
+				embedded.WithGracefulShutdownDuration(2*time.Second),
+			)...,
 		)).
 		// Run the application2 logic above.
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+2),
 			application(beta, 2, "classic"))).
 		// Run the Dapr sidecar with the RabbitMQ component.
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/beta"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+2),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+11),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+2),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+2),
-			embedded.WithGracefulShutdownDuration(2*time.Second),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/beta"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+2)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+11)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+2)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+2)),
+				embedded.WithGracefulShutdownDuration(2*time.Second),
+			)...,
 		)).
 		// Run the application3 logic above.
 		Step(app.Run(appID3, fmt.Sprintf(":%d", appPort+4),
 			application(beta, 3, "classic"))).
 		// Run the Dapr sidecar with the RabbitMQ component.
 		Step(sidecar.Run(sidecarName3,
-			embedded.WithComponentsPath("./components/beta"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+4),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+12),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+4),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+4),
-			embedded.WithGracefulShutdownDuration(2*time.Second),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/beta"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+4)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+12)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+4)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+4)),
+				embedded.WithGracefulShutdownDuration(2*time.Second),
+			)...,
 		)).
 		Step("wait", flow.Sleep(5*time.Second)).
 		Step("signal subscribed", flow.MustDo(func() {
@@ -449,35 +453,38 @@ func TestRabbitMQTTL(t *testing.T) {
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+1),
 			application(pubsubMessageOnlyTTL, topicTTL1, fullMessages))).
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/ttl"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+1),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+10),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+1),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+1),
-			embedded.WithGracefulShutdownDuration(2*time.Second),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/ttl"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+1)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+10)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+1)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+1)),
+				embedded.WithGracefulShutdownDuration(2*time.Second),
+			)...,
 		)).
 		Step(app.Run(appID2, fmt.Sprintf(":%d", appPort+2),
 			application(pubsubQueueOnlyTTL, topicTTL2, QueueOnlyMessages))).
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/ttl"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+2),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+11),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+2),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+2),
-			embedded.WithGracefulShutdownDuration(2*time.Second),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/ttl"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+2)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+11)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+2)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+2)),
+				embedded.WithGracefulShutdownDuration(2*time.Second),
+			)...,
 		)).
 		Step(app.Run(appID3, fmt.Sprintf(":%d", appPort+4),
 			application(pubsubOverwriteTTL, topicTTL3, OverwriteMessages))).
 		Step(sidecar.Run(sidecarName3,
-			embedded.WithComponentsPath("./components/ttl"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+4),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+12),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+4),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+4),
-			embedded.WithGracefulShutdownDuration(2*time.Second),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/ttl"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+4)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+12)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+4)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+4)),
+				embedded.WithGracefulShutdownDuration(2*time.Second),
+			)...,
 		)).
 		// Wait for all queue crated and then stop.
 		Step("wait", flow.Sleep(10*time.Second)).
@@ -489,13 +496,14 @@ func TestRabbitMQTTL(t *testing.T) {
 		Step("stop app3", app.Stop(appID3)).
 		// Run publishing sidecars and send to RabbitMQ.
 		Step(sidecar.Run(sidecarNameTTLClient,
-			embedded.WithComponentsPath("./components/ttl"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, 0),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+14),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			embedded.WithProfilePort(runtime.DefaultProfilePort),
-			embedded.WithGracefulShutdownDuration(2*time.Second),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/ttl"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, "0"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+14)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort)),
+				embedded.WithGracefulShutdownDuration(2*time.Second),
+			)...,
 		)).
 		Step("wait", flow.Sleep(5*time.Second)).
 		// base test case, send message with large ttl and check messages are received.
@@ -506,13 +514,14 @@ func TestRabbitMQTTL(t *testing.T) {
 			application(pubsubMessageOnlyTTL, topicTTL1, fullMessages))).
 		// Run the Dapr sidecar with the RabbitMQ component.
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/ttl"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+1),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+10),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+1),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+1),
-			embedded.WithGracefulShutdownDuration(2*time.Second),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/ttl"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+1)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+10)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+1)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+1)),
+				embedded.WithGracefulShutdownDuration(2*time.Second),
+			)...,
 		)).
 		Step("verify full messages", func(ctx flow.Context) error {
 			// Assertion on the data.
@@ -527,13 +536,14 @@ func TestRabbitMQTTL(t *testing.T) {
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+1),
 			application(pubsubMessageOnlyTTL, topicTTL1, MessageOnlyMessages))).
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/ttl"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+1),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+10),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+1),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+1),
-			embedded.WithGracefulShutdownDuration(2*time.Second),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/ttl"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+1)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+10)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+1)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+1)),
+				embedded.WithGracefulShutdownDuration(2*time.Second),
+			)...,
 		)).
 		Step("verify messages only ttl", func(ctx flow.Context) error {
 			// Assertion on the data.
@@ -548,13 +558,14 @@ func TestRabbitMQTTL(t *testing.T) {
 			application(pubsubQueueOnlyTTL, topicTTL2, QueueOnlyMessages))).
 		// Run the Dapr sidecar with the RabbitMQ component.
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/ttl"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+2),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+11),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+2),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+2),
-			embedded.WithGracefulShutdownDuration(2*time.Second),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/ttl"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+2)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+11)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+2)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+2)),
+				embedded.WithGracefulShutdownDuration(2*time.Second),
+			)...,
 		)).
 		Step("verify messages only ttl", func(ctx flow.Context) error {
 			// Assertion on the data.
@@ -569,13 +580,14 @@ func TestRabbitMQTTL(t *testing.T) {
 			application(pubsubOverwriteTTL, topicTTL3, OverwriteMessages))).
 		// Run the Dapr sidecar with the RabbitMQ component.
 		Step(sidecar.Run(sidecarName3,
-			embedded.WithComponentsPath("./components/ttl"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+4),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+12),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+4),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+4),
-			embedded.WithGracefulShutdownDuration(2*time.Second),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/ttl"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+4)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+12)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+4)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+4)),
+				embedded.WithGracefulShutdownDuration(2*time.Second),
+			)...,
 		)).
 		Step("verify messages only ttl", func(ctx flow.Context) error {
 			// Assertion on the data.
@@ -695,13 +707,14 @@ func TestRabbitMQExtAuth(t *testing.T) {
 			application(mtlsClient, 1))).
 		// Run the Dapr sidecar with the RabbitMQ component.
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./mtls_sasl_external/components/mtls_external"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+10),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			embedded.WithProfilePort(runtime.DefaultProfilePort),
-			embedded.WithGracefulShutdownDuration(2*time.Second),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./mtls_sasl_external/components/mtls_external"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+10)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort)),
+				embedded.WithGracefulShutdownDuration(2*time.Second),
+			)...,
 		)).
 		Step("wait", flow.Sleep(5*time.Second)).
 		Step("signal subscribed", flow.MustDo(func() {
@@ -824,13 +837,14 @@ func TestRabbitMQPriority(t *testing.T) {
 		Step(app.Run(appID4, fmt.Sprintf(":%d", appPort+1),
 			application(priorityClient, 1))).
 		Step(sidecar.Run(sidecarName4,
-			embedded.WithComponentsPath("./components/priority"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+1),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+10),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+1),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+1),
-			embedded.WithGracefulShutdownDuration(2*time.Second),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/priority"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+1)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+10)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+1)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+1)),
+				embedded.WithGracefulShutdownDuration(2*time.Second),
+			)...,
 		)).
 		Step("signal subscribed", flow.MustDo(func() {
 			close(subscribed)
@@ -839,14 +853,14 @@ func TestRabbitMQPriority(t *testing.T) {
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	pubsubRegistry := pubsub_loader.NewRegistry()
 	pubsubRegistry.Logger = log
 	pubsubRegistry.RegisterComponent(pubsub_rabbitmq.NewRabbitMQ, "rabbitmq")
 
-	return []runtime.Option{
-		runtime.WithPubSubs(pubsubRegistry),
+	return []embedded.Option{
+		embedded.WithPubSubs(pubsubRegistry),
 	}
 }

@@ -217,7 +217,12 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 			js.l.Errorf("Error processing JetStream message %s/%d: %v", m.Subject, jsm.Sequence, err)
 
 			if js.meta.internalAckPolicy == nats.AckExplicitPolicy || js.meta.internalAckPolicy == nats.AckAllPolicy {
-				nakErr := m.Nak()
+				var nakErr error
+				if js.meta.AckWait != 0 {
+					nakErr = m.NakWithDelay(js.meta.AckWait)
+				} else {
+					nakErr = m.Nak()
+				}
 				if nakErr != nil {
 					js.l.Errorf("Error while sending NAK for JetStream message %s/%d: %v", m.Subject, jsm.Sequence, nakErr)
 				}

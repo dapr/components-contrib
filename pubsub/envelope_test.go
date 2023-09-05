@@ -316,6 +316,39 @@ func TestNewFromExisting(t *testing.T) {
 		assert.Nil(t, n[DataField])
 		assert.Equal(t, base64.StdEncoding.EncodeToString([]byte{0x1}), n[DataBase64Field])
 	})
+
+	t.Run("populate traceid, traceparent and tracestate when provided via metadata", func(t *testing.T) {
+		m := map[string]interface{}{
+			"specversion": "1.0",
+			"customfield": "a",
+			"time":        "2021-08-02T09:00:00Z",
+		}
+		b, _ := json.Marshal(&m)
+
+		n, err := FromCloudEvent(b, "b", "pubsub", "1", "2")
+		assert.NoError(t, err)
+		assert.Equal(t, "1", n[TraceIDField])
+		assert.Equal(t, "1", n[TraceParentField])
+		assert.Equal(t, "2", n[TraceStateField])
+	})
+
+	t.Run("populate traceid, traceparent and tracestate from existing cloudevent", func(t *testing.T) {
+		m := map[string]interface{}{
+			"specversion":    "1.0",
+			"customfield":    "a",
+			"time":           "2021-08-02T09:00:00Z",
+			TraceIDField:     "e",
+			TraceStateField:  "f",
+			TraceParentField: "g",
+		}
+		b, _ := json.Marshal(&m)
+
+		n, err := FromCloudEvent(b, "b", "pubsub", "", "")
+		assert.NoError(t, err)
+		assert.Equal(t, "e", n[TraceIDField])
+		assert.Equal(t, "f", n[TraceStateField])
+		assert.Equal(t, "g", n[TraceParentField])
+	})
 }
 
 func TestCreateFromBinaryPayload(t *testing.T) {

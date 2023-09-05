@@ -17,6 +17,7 @@ import (
 	"context"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -26,17 +27,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
 	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
-)
-
-const (
-	sidecarName                     = "hashicorp-vault-sidecar"
-	defaultDockerComposeClusterYAML = "../../../../../.github/infrastructure/docker-compose-hashicorp-vault.yml"
-	dockerComposeProjectName        = "hashicorp-vault"
-	// secretStoreName          = "my-hashicorp-vault" // as set in the component YAML
-
-	networkInstabilityTime   = 1 * time.Minute
-	waitAfterInstabilityTime = networkInstabilityTime / 4
-	servicePortToInterrupt   = "8200"
 )
 
 func TestBasicSecretRetrieval(t *testing.T) {
@@ -63,8 +53,8 @@ func TestBasicSecretRetrieval(t *testing.T) {
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithResourcesPath(secretStoreComponentPath),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHttpPort)),
 			componentRuntimeOptions(),
 		)).
 		Step("Waiting for component to load...", flow.Sleep(5*time.Second)).
@@ -94,8 +84,8 @@ func TestMultipleKVRetrieval(t *testing.T) {
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithResourcesPath(secretStoreComponentPath),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHttpPort)),
 			componentRuntimeOptions(),
 		)).
 		Step("Waiting for component to load...", flow.Sleep(5*time.Second)).
@@ -130,8 +120,8 @@ func TestVaultKVPrefix(t *testing.T) {
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithResourcesPath(secretStoreComponentPath),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHttpPort)),
 			componentRuntimeOptions(),
 		)).
 		Step("Waiting for component to load...", flow.Sleep(5*time.Second)).
@@ -162,8 +152,8 @@ func TestVaultKVUsePrefixFalse(t *testing.T) {
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithResourcesPath(secretStoreComponentPath),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHttpPort)),
 			componentRuntimeOptions(),
 		)).
 		Step("Waiting for component to load...", flow.Sleep(5*time.Second)).
@@ -197,8 +187,8 @@ func TestVaultValueTypeText(t *testing.T) {
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithResourcesPath(secretStoreComponentPath),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHttpPort)),
 			componentRuntimeOptions(),
 		)).
 		Step("Waiting for component to load...", flow.Sleep(5*time.Second)).
@@ -263,8 +253,8 @@ func TestEnginePathCustomSecretsPath(t *testing.T) {
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithResourcesPath(componentPath),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHttpPort)),
 			// Dapr log-level debug?
 			componentRuntimeOptions(),
 		)).
@@ -350,8 +340,8 @@ func TestVersioning(t *testing.T) {
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithResourcesPath(componentPath),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHttpPort)),
 			// Dapr log-level debug?
 			componentRuntimeOptions(),
 		)).

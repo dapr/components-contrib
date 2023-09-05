@@ -193,10 +193,10 @@ func TestCassandra(t *testing.T) {
 		Step("wait", flow.Sleep(80*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
 			embedded.WithComponentsPath("components/docker/default"),
-			runtime.WithStates(stateRegistry),
+			embedded.WithStates(stateRegistry),
 		)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("Run TTL related test", timeToLiveTest).
@@ -212,21 +212,21 @@ func TestCassandra(t *testing.T) {
 		Step("Run basic test", basicTest).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault2",
 			embedded.WithoutApp(),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+2),
-			embedded.WithDaprGRPCPort(currentGrpcPort+2),
-			embedded.WithDaprHTTPPort(currentHTTPPort+2),
+			embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+2)),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort+2)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort+2)),
 			embedded.WithComponentsPath("components/docker/defaultfactorfail"),
-			runtime.WithStates(stateRegistry),
+			embedded.WithStates(stateRegistry),
 		)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("Run replication factor fail test", failTest).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault3",
 			embedded.WithoutApp(),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+4),
-			embedded.WithDaprGRPCPort(currentGrpcPort+4),
-			embedded.WithDaprHTTPPort(currentHTTPPort+4),
+			embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+4)),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort+4)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort+4)),
 			embedded.WithComponentsPath("components/docker/defaultverisonfail"),
-			runtime.WithStates(stateRegistry),
+			embedded.WithStates(stateRegistry),
 		)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("Run replication factor fail test", failVerTest).
@@ -299,20 +299,20 @@ func TestCluster(t *testing.T) {
 		Step("wait", flow.Sleep(80*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
 			embedded.WithComponentsPath("components/docker/cluster"),
-			runtime.WithStates(stateRegistry),
+			embedded.WithStates(stateRegistry),
 		)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("Run basic test", basicTest).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault2",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort+2),
-			embedded.WithDaprHTTPPort(currentHTTPPort+2),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort+2)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort+2)),
 			embedded.WithComponentsPath("components/docker/cluster-fail"),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+2),
-			runtime.WithStates(stateRegistry),
+			embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+2)),
+			embedded.WithStates(stateRegistry),
 		)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("Run consistency fail test", failTest).

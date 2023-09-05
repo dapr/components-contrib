@@ -15,6 +15,7 @@ package kitex
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -100,9 +101,9 @@ func TestKitexBinding(t *testing.T) {
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithComponentsPath("./components"),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			runtime.WithBindings(newBindingsRegistry()))).
+			embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			embedded.WithBindings(newBindingsRegistry()))).
 		Step("verify kitex invocation", testKitexInvocation).
 		Run()
 }

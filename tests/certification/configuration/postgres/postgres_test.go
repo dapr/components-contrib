@@ -16,6 +16,7 @@ package postgres_test
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -354,23 +355,25 @@ func TestPostgres(t *testing.T) {
 		Step("Init test", initTest).
 		//Running Dapr Sidecar `dapr-1`
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("components/default"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+				embedded.WithComponentsPath("components/default"),
+			)...,
 		)).
 		Step("Test get", testGet).
 		// Creating triggers for subscribers
 		Step("Creating trigger", createTriggers([]string{channel1, channel2})).
 		//Running Dapr Sidecar `dapr-2`
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort+portOffset),
-			embedded.WithDaprHTTPPort(currentHTTPPort+portOffset),
-			embedded.WithComponentsPath("components/default"),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort+portOffset)),
+				embedded.WithComponentsPath("components/default"),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+			)...,
 		)).
 		//
 		// Start subscribers subscribing to {key1} using different channels
@@ -399,14 +402,14 @@ func TestPostgres(t *testing.T) {
 		Run()
 
 }
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	configurationRegistry := configuration_loader.NewRegistry()
 	configurationRegistry.Logger = log
 	configurationRegistry.RegisterComponent(config_postgres.NewPostgresConfigurationStore, "postgres")
 
-	return []runtime.Option{
-		runtime.WithConfigurations(configurationRegistry),
+	return []embedded.Option{
+		embedded.WithConfigurations(configurationRegistry),
 	}
 }

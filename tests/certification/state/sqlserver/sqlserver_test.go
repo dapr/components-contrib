@@ -38,7 +38,7 @@ import (
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 
 	// Dapr runtime and Go-SDK
-	"github.com/dapr/dapr/pkg/runtime"
+
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/go-sdk/client"
 
@@ -432,12 +432,13 @@ func TestSqlServer(t *testing.T) {
 
 			// Run the Dapr sidecar with the SQL Server component.
 			Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
-				embedded.WithoutApp(),
-				embedded.WithDaprGRPCPort(currentGrpcPort),
-				embedded.WithDaprHTTPPort(currentHTTPPort),
-				embedded.WithResourcesPath("components/docker/default"),
-				embedded.WithProfilingEnabled(false),
-				componentRuntimeOptions(),
+				append(componentRuntimeOptions(),
+					embedded.WithoutApp(),
+					embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+					embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+					embedded.WithResourcesPath("components/docker/default"),
+					embedded.WithProfilingEnabled(false),
+				)...,
 			)).
 			Step("Run basic test", basicTest).
 			Step("Run basic TTL test", basicTTLTest).
@@ -470,12 +471,13 @@ func TestSqlServer(t *testing.T) {
 
 			// Run the Dapr sidecar with the SQL Server component.
 			Step(sidecar.Run(sidecarNamePrefix+"dockerCustomSchema",
-				embedded.WithoutApp(),
-				embedded.WithDaprGRPCPort(currentGrpcPort),
-				embedded.WithDaprHTTPPort(currentHTTPPort),
-				embedded.WithResourcesPath("components/docker/customschemawithindex"),
-				embedded.WithProfilingEnabled(false),
-				componentRuntimeOptions(),
+				append(componentRuntimeOptions(),
+					embedded.WithoutApp(),
+					embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+					embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+					embedded.WithResourcesPath("components/docker/customschemawithindex"),
+					embedded.WithProfilingEnabled(false),
+				)...,
 			)).
 			Step("Run indexed properties verification test", verifyIndexedPopertiesTest, sidecar.Stop(sidecarNamePrefix+"dockerCustomSchema")).
 			Step("Stopping SQL Server Docker container", dockercompose.Stop("sqlserver", dockerComposeYAML)).
@@ -492,12 +494,13 @@ func TestSqlServer(t *testing.T) {
 		flow.New(t, "SQL Server certification using Azure SQL").
 			// Run the Dapr sidecar with the SQL Server component.
 			Step(sidecar.Run(sidecarNamePrefix+"azure",
-				embedded.WithoutApp(),
-				embedded.WithDaprGRPCPort(currentGrpcPort),
-				embedded.WithDaprHTTPPort(currentHTTPPort),
-				embedded.WithResourcesPath("components/azure"),
-				embedded.WithProfilingEnabled(false),
-				componentRuntimeOptions(),
+				append(componentRuntimeOptions(),
+					embedded.WithoutApp(),
+					embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+					embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+					embedded.WithResourcesPath("components/azure"),
+					embedded.WithProfilingEnabled(false),
+				)...,
 			)).
 			Step("Run basic test", basicTest).
 			Step("Run basic TTL test", basicTTLTest).
@@ -513,7 +516,7 @@ func TestSqlServer(t *testing.T) {
 	})
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	stateRegistry := state_loader.NewRegistry()
@@ -524,9 +527,9 @@ func componentRuntimeOptions() []runtime.Option {
 	secretstoreRegistry.Logger = log
 	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
 
-	return []runtime.Option{
-		runtime.WithStates(stateRegistry),
-		runtime.WithSecretStores(secretstoreRegistry),
+	return []embedded.Option{
+		embedded.WithStates(stateRegistry),
+		embedded.WithSecretStores(secretstoreRegistry),
 	}
 }
 

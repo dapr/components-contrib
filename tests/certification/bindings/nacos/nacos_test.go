@@ -15,6 +15,7 @@ package nacosbinding_test
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -180,9 +181,9 @@ func TestNacosBinding(t *testing.T) {
 		Step(sidecar.Run(sidecarName,
 			embedded.WithoutApp(),
 			embedded.WithComponentsPath("./components"),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			runtime.WithBindings(newBindingsRegistry()))).
+			embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			embedded.WithBindings(newBindingsRegistry()))).
 		Step("verify data sent to output binding is written to nacos", testInvokeCreateAndVerify).
 		Step("verify data sent in nacos can be got correctly", testInvokeGetAndVerify).
 		Step("verify get config with error", testInvokeGetWithErrorAndVerify).

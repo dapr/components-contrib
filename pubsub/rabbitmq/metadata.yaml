@@ -12,7 +12,7 @@ capabilities:
   - ttl
 authenticationProfiles:
   - title: "Connection string"
-    description: "The RabbitMQ Connection/Authentication."
+    description: "Authenticate using a connection string."
     metadata:
       - name: connectionString
         required: true
@@ -39,14 +39,6 @@ authenticationProfiles:
         The RabbitMQ password.
       example: '"password"'
 metadata:
-  - name: consumerID
-    type: string
-    description: |
-      Consumer ID (consumer tag) organizes one or more consumers into
-      a group. Consumers with the same consumer ID work as one virtual 
-      consumer; for example, a message is processed only once by one of
-      the consumers in the group. If the consumerID is not provided,
-      the Dapr runtime set it to the Dapr application ID (appID) value.
   - name: durable
     type: bool
     description: |
@@ -56,7 +48,7 @@ metadata:
   - name: publisherConfirm
     type: bool
     description: |
-      If enabled, client waits for publisher confirms after publishing
+      If enabled, client waits for publisher confirmation after publishing
       a message.
     default: '"false"'
     example: '"true", "false"'
@@ -66,7 +58,6 @@ metadata:
       The maximum number of messages of a queue and its dead letter queue
       (if dead letter enabled). If both maxLen and maxLenBytes are set then
       both will apply; whichever limit is hit first will be enforced.
-      Defaults to no limit.
     example: '1000'
   - name: maxLenBytes
     type: number
@@ -78,16 +69,16 @@ metadata:
   - name: concurrency
     type: string
     description: |
-      Parallel is the default, and allows processing multiple messages in
+      Allows processing multiple messages in
       parallel (limited by the app-max-concurrency annotation, if configured).
       Set to single to disable parallel processing. In most situations there’s 
       no reason to change this.
-    example: '"parallel, single"'
+    example: '"parallel", "single"'
     default: '"parallel"'
   - name: enableDeadLetter
     type: bool
     description: |
-      Enable forwarding Messages that cannot be handled to a dead-letter
+      Enable forwarding messages that cannot be handled to a dead-letter
       topic.
     default: '"false"'
     example: '"true", "false"'
@@ -141,31 +132,31 @@ metadata:
     type: duration
   - name: protocol
     description: |
-      The RabbitMQ protocol. *Mutally exclusive with connectionString field.
+      The RabbitMQ protocol. If the connectionString is specified,
+      this value will be set from URI scheme of the connectionString.
+      If both the connectionString and this property are specified,
+      the value specified here must match URI scheme of the connectionString.
     type: string
-    example: '"amqp"'
+    example: '"amqp", "amqps"'
   - name: caCert
     type: string
     description: |
       Certificate authority certificate, required for using TLS.
-      Can be secretKeyRef to use a secret reference.
     example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
   - name: clientCert
     type: string
     sensitive: true
     description: |
       Client certificate, required for authType mtls.
-      Can be secretKeyRef to use a secret reference.
     example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
   - name: clientKey
     type: string
     sensitive: true
     description: |
       Client key, required for authType mtls.
-      Can be secretKeyRef to use a secret reference.
     example: "-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded DER>\n-----END RSA PRIVATE KEY-----"
   - name: saslExternal
-    type: string
+    type: bool
     description: |
       With TLS, should the username be taken
       from an additional field (e.g. CN.)
@@ -173,5 +164,5 @@ metadata:
     url:
       title: "RabbitMQ Authentication Mechanisms"
       url: "https://www.rabbitmq.com/access-control.html#mechanisms"
-    default: '“text/plain”'
-    example: '"text/plain", "application/cloudevent+json"'
+    default: '“false”'
+    example: '"true", "false"'

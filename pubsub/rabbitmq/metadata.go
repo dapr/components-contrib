@@ -28,7 +28,7 @@ import (
 
 type rabbitmqMetadata struct {
 	pubsub.TLSProperties `mapstructure:",squash"`
-	ConsumerID           string                 `mapstructure:"consumerID"`
+	ConsumerID           string                 `mapstructure:"consumerID" mdignore:"true"`
 	ConnectionString     string                 `mapstructure:"connectionString"`
 	Protocol             string                 `mapstructure:"protocol"`
 	internalProtocol     string                 `mapstructure:"-"`

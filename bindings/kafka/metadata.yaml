@@ -73,7 +73,6 @@ authenticationProfiles:
         senstive: true
         description: |
           The SASL password used for authentication.
-          Can be secretKeyRef to use a secret reference.
           Only required if authType is set to "password".
         example: '"mypassword"'
       - name: saslMechanism
@@ -89,19 +88,19 @@ authenticationProfiles:
     metadata:
       - name: caCert
         required: false
-        description: "Certificate authority certificate, required for using TLS. Can be secretKeyRef to use a secret reference"
+        description: "Certificate authority certificate, required for using TLS."
         example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
         type: string
       - name: clientCert
         required: false
         sensitive: true
-        description: "Client certificate, required for authType mtls. Can be secretKeyRef to use a secret reference"
+        description: "Client certificate, required for authType mtls."
         example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
         type: string
       - name: clientKey
         required: false
         sensitive: true
-        description: "Client key, required for authType mtls. Can be secretKeyRef to use a secret reference"
+        description: "Client key, required for authType mtls."
         example: "-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded DER>\n-----END RSA PRIVATE KEY-----"
         type: string
       - name: skipVerify
@@ -153,7 +152,7 @@ metadata:
   - name: clientID
     type: string
     description: |
-      A user-provided string sent with every request to 
+      A user-provided string sent with every request to
       the Kafka brokers for logging, debugging, and auditing purposes.
     example: '"my-dapr-app"'
   - name: initialOffset

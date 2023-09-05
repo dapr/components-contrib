@@ -38,6 +38,10 @@ metadata:
     type: number
     description: |
       Indicates the Quality of Service Level (QoS) of the message.
+      See MQTT Essentials - Part 6.
+    url:
+      title: "MQTT Essentials - Part 6"
+      url: "https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels/"
     default: '1'
     example: '"0", "1", "2"'
   - name: caCert

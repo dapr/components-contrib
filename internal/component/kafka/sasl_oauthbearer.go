@@ -22,7 +22,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"golang.org/x/oauth2"
 	ccred "golang.org/x/oauth2/clientcredentials"
 )

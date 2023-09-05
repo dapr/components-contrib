@@ -79,3 +79,16 @@ metadata:
     sensitive: true
     example: |
       "user=dapr password=secret host=dapr.example.com port=5432 dbname=dapr sslmode=verify-ca"
+  - name: queryExecMode
+    required: false
+    description: |
+      Controls the default mode for executing queries. By default Dapr uses the extended protocol and automatically prepares and caches prepared statements.
+      However, this may be incompatible with proxies such as PGBouncer. In this case it may be preferrable to use `exec` or `simple_protocol`.
+    allowedValues:
+      - "cache_statement"
+      - "cache_describe"
+      - "describe_exec"
+      - "exec"
+      - "simple_protocol"
+    example: "cache_describe"
+    default: ""

@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 )

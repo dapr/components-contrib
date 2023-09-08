@@ -59,6 +59,7 @@ type jobWorkerMetadata struct {
 	PollThreshold  float64           `mapstructure:"pollThreshold"`
 	FetchVariables string            `mapstructure:"fetchVariables"`
 	Autocomplete   *bool             `mapstructure:"autocomplete"`
+	RetryBackOff   metadata.Duration `mapstructure:"retryBackOff"`
 }
 
 type jobHandler struct {
@@ -66,6 +67,7 @@ type jobHandler struct {
 	logger       logger.Logger
 	ctx          context.Context
 	autocomplete bool
+	retryBackOff *time.Duration
 }
 
 // NewZeebeJobWorker returns a new ZeebeJobWorker instance.
@@ -104,11 +106,17 @@ func (z *ZeebeJobWorker) Read(ctx context.Context, handler bindings.Handler) err
 		return fmt.Errorf("binding is closed")
 	}
 
+	var retryBackOff *time.Duration
+	if z.metadata.RetryBackOff.Duration != time.Duration(0) {
+		retryBackOff = &z.metadata.RetryBackOff.Duration
+	}
+
 	h := jobHandler{
 		callback:     handler,
 		logger:       z.logger,
 		ctx:          ctx,
 		autocomplete: z.metadata.Autocomplete == nil || *z.metadata.Autocomplete,
+		retryBackOff: retryBackOff,
 	}
 
 	jobWorker := z.getJobWorker(h)
@@ -116,15 +124,13 @@ func (z *ZeebeJobWorker) Read(ctx context.Context, handler bindings.Handler) err
 	z.wg.Add(1)
 	go func() {
 		defer z.wg.Done()
-
+		// Wait for context cancelation or closure.
 		select {
-		case <-z.closeCh:
 		case <-ctx.Done():
+		case <-z.closeCh:
 		}
 
 		jobWorker.Close()
-		jobWorker.AwaitClose()
-		z.client.Close()
 	}()
 
 	return nil
@@ -134,7 +140,11 @@ func (z *ZeebeJobWorker) Close() error {
 	if z.closed.CompareAndSwap(false, true) {
 		close(z.closeCh)
 	}
-	z.wg.Wait()
+	defer z.wg.Wait()
+	if z.client != nil {
+		return z.client.Close()
+	}
+
 	return nil
 }
 
@@ -182,7 +192,7 @@ func (z *ZeebeJobWorker) getJobWorker(handler jobHandler) worker.JobWorker {
 func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 	headers, err := job.GetCustomHeadersAsMap()
 	if err != nil {
-		// Use a background context because the subscription one may be canceled
+		// Use a background context because the subscription context may be canceled
 		h.failJob(context.Background(), client, job, err)
 		return
 	}
@@ -198,13 +208,14 @@ func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 	headers["X-Zeebe-Worker"] = job.Worker
 	headers["X-Zeebe-Retries"] = strconv.FormatInt(int64(job.Retries), 10)
 	headers["X-Zeebe-Deadline"] = strconv.FormatInt(job.Deadline, 10)
+	headers["X-Zeebe-Autocomplete"] = strconv.FormatBool(h.autocomplete)
 
 	resultVariables, err := h.callback(h.ctx, &bindings.ReadResponse{
 		Data:     []byte(job.Variables),
 		Metadata: headers,
 	})
 	if err != nil {
-		// Use a background context because the subscription one may be canceled
+		// Use a background context because the subscription context may be canceled
 		h.failJob(context.Background(), client, job, err)
 		return
 	}
@@ -215,7 +226,7 @@ func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 		if resultVariables != nil {
 			err = json.Unmarshal(resultVariables, &variablesMap)
 			if err != nil {
-				// Use a background context because the subscription one may be canceled
+				// Use a background context because the subscription context may be canceled
 				h.failJob(context.Background(), client, job, fmt.Errorf("cannot parse variables from binding result %s; got error %w", string(resultVariables), err))
 				return
 			}
@@ -223,14 +234,14 @@ func (h *jobHandler) handleJob(client worker.JobClient, job entities.Job) {
 
 		request, err := client.NewCompleteJobCommand().JobKey(jobKey).VariablesFromMap(variablesMap)
 		if err != nil {
-			// Use a background context because the subscription one may be canceled
+			// Use a background context because the subscription context may be canceled
 			h.failJob(context.Background(), client, job, err)
 			return
 		}
 
 		h.logger.Debugf("Complete job `%d` of type `%s`", jobKey, job.Type)
 
-		// Use a background context because the subscription one may be canceled
+		// Use a background context because the subscription context may be canceled
 		_, err = request.Send(context.Background())
 		if err != nil {
 			h.logger.Errorf("Cannot complete job `%d` of type `%s`; got error: %s", jobKey, job.Type, err.Error())
@@ -247,10 +258,14 @@ func (h *jobHandler) failJob(ctx context.Context, client worker.JobClient, job e
 	reasonMsg := reason.Error()
 	h.logger.Errorf("Failed to complete job `%d` reason: %s", job.GetKey(), reasonMsg)
 
-	_, err := client.NewFailJobCommand().JobKey(job.GetKey()).Retries(job.Retries - 1).ErrorMessage(reasonMsg).Send(ctx)
+	cmd := client.NewFailJobCommand().JobKey(job.GetKey()).Retries(job.Retries - 1).ErrorMessage(reasonMsg)
+	if h.retryBackOff != nil {
+		cmd = cmd.RetryBackoff(*h.retryBackOff)
+	}
+
+	_, err := cmd.Send(ctx)
 	if err != nil {
 		h.logger.Errorf("Cannot fail job `%d` of type `%s`; got error: %s", job.GetKey(), job.Type, err.Error())
-
 		return
 	}
 }

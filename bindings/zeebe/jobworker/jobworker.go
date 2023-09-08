@@ -141,7 +141,11 @@ func (z *ZeebeJobWorker) Close() error {
 		close(z.closeCh)
 	}
 	defer z.wg.Wait()
-	return z.client.Close()
+	if z.client != nil {
+		return z.client.Close()
+	}
+
+	return nil
 }
 
 func (z *ZeebeJobWorker) parseMetadata(meta bindings.Metadata) (*jobWorkerMetadata, error) {

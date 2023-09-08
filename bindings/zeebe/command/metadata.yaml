@@ -15,7 +15,9 @@ binding:
     - name: topology
       description: "Obtains the current topology of the cluster the gateway is part of."
     - name: deploy-process
-      description: "Deploys a single process to Zeebe."
+      description: "Deprecated alias of 'deploy-resource'."
+    - name: deploy-resource
+      description: "Deploys a single resource to Zeebe."
     - name: create-instance
       description: "Creates and starts an instance of the specified process."
     - name: cancel-instance

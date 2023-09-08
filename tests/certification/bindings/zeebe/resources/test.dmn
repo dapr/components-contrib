@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" id="Definitions_0c98xne" name="DRD" namespace="http://camunda.org/schema/1.0/dmn">
+  <decision id="zeebe-test" name="Test">
+    <decisionTable id="decisionTable_1" hitPolicy="FIRST">
+      <input id="input_1">
+        <inputExpression id="inputExpression_1" typeRef="string">
+          <text>someText</text>
+        </inputExpression>
+      </input>
+      <output id="output_1" name="approved" typeRef="boolean" />
+      <rule id="DecisionRule_055tel2">
+        <inputEntry id="UnaryTests_07t8pl0">
+          <text>"Camunda"</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_0uazlvb">
+          <text>true</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_15j1rm8">
+        <inputEntry id="UnaryTests_1101kcr">
+          <text>"Zeebe"</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_07ie5ac">
+          <text>true</text>
+        </outputEntry>
+      </rule>
+      <rule id="DecisionRule_1wr7h4p">
+        <inputEntry id="UnaryTests_1m8ggp8">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_1hmewu6">
+          <text>false</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

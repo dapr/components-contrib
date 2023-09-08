@@ -1,0 +1,16 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: zeebe-command
+spec:
+  type: bindings.zeebe.command
+  version: v1
+  metadata:
+    - name: gatewayAddr
+      value: localhost:26500
+    - name: gatewayKeepAlive
+      value: 45s
+    - name: usePlainTextConnection
+      value: false
+    - name: caCertificatePath
+      value: /tmp/dapr-cert-test-zeebe-cert.pem

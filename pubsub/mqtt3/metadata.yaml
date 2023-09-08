@@ -49,6 +49,10 @@ metadata:
     type: bool
     description: |
       When the value is set to "true", sets the clean_session flag in the connection message to the MQTT broker.
+      See MQTT Clean Sessions Example.
+    url:
+      title: "MQTT Clean Sessions Example"
+      url: "http://www.steves-internet-guide.com/mqtt-clean-sessions-example/"
     default: 'false'
     example: '"true", "false"'
   - name: qos

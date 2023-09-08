@@ -80,6 +80,7 @@ authenticationProfiles:
         description: |
           The SASL Authentication Mechanism you wish to use.
           Only required if authType is set to "password".
+          If unset defaults to `PLAINTEXT`.
         example: '"SHA-512"'
         default: '"PLAINTEXT"'
   - title: "MTLS Authentication"

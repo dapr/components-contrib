@@ -19,7 +19,7 @@ authenticationProfiles:
         description: |
           Address of the MQTT broker.
           Use the `tcp://`` URI scheme for non-TLS communication. 
-          Use the `ssl://`` URI scheme for TLS communication.
+          Use the `ssl://`` URI scheme for TLS communication. Requires `caCert`, `clientKey`, `clientCert` to be defined.
         example: '"tcp://[username][:password]@host.domain[:port]"'
 metadata:
   - name: retain

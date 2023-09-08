@@ -21,6 +21,23 @@ authenticationProfiles:
           Use the `tcp://`` URI scheme for non-TLS communication. 
           Use the `ssl://`` URI scheme for TLS communication. Requires `caCert`, `clientKey`, `clientCert` to be defined.
         example: '"tcp://[username][:password]@host.domain[:port]"'
+      - name: caCert
+        type: string
+        description: |
+          Certificate authority certificate, required for using TLS.
+        example: '"-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"'
+      - name: clientCert
+        type: string
+        sensitive: true
+        description: |
+          Client certificate, required for using TLS.
+        example: '"-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"'
+      - name: clientKey
+        type: string
+        sensitive: true
+        description: |
+          Client key, required for using TLS.
+        example: '"-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded DER>\n-----END RSA PRIVATE KEY-----"'
 metadata:
   - name: retain
     type: bool
@@ -43,21 +60,8 @@ metadata:
       title: "MQTT Essentials - Part 6"
       url: "https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels/"
     default: '1'
-    example: '"0", "1", "2"'
-  - name: caCert
-    type: string
-    description: |
-      Certificate authority certificate, required for using TLS.
-    example: '"-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"'
-  - name: clientCert
-    type: string
-    sensitive: true
-    description: |
-      Client certificate, required for authType mtls.
-    example: '"-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"'
-  - name: clientKey
-    type: string
-    sensitive: true
-    description: |
-      Client key, required for authType mtls.
-    example: '"-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded DER>\n-----END RSA PRIVATE KEY-----"'
+    allowedValues:
+      - '0'
+      - '1'
+      - '2'
+    example: '2'

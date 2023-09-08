@@ -56,14 +56,14 @@ metadata:
     type: number
     description: |
       The maximum number of messages of a queue and its dead letter queue
-      (if dead letter enabled). If both maxLen and maxLenBytes are set then
+      (if dead letter enabled by `enableDeadLetter`). If both `maxLen` and `maxLenBytes` are set then
       both will apply; whichever limit is hit first will be enforced.
     example: '1000'
   - name: maxLenBytes
     type: number
     description: |
       Maximum length in bytes of a queue and its dead letter queue (if dead
-      letter enabled). If both maxLen and maxLenBytes are set then both will 
+      letter enabled by `enableDeadLetter`). If both `maxLen` and `maxLenBytes` are set then both will 
       apply; whichever limit is hit first will be enforced.
     example: '1048576'
   - name: concurrency
@@ -71,10 +71,13 @@ metadata:
     description: |
       Allows processing multiple messages in
       parallel (limited by the app-max-concurrency annotation, if configured).
-      Set to single to disable parallel processing. In most situations there’s 
+      Set to single to disable parallel processing. In most situations there's 
       no reason to change this.
     example: '"parallel", "single"'
     default: '"parallel"'
+    allowedValues:
+      - "parallel"
+      - "single"
   - name: enableDeadLetter
     type: bool
     description: |
@@ -95,6 +98,9 @@ metadata:
     description: |
       Exchange kind of the rabbitmq exchange.
     default: '"fanout"'
+    allowedValues:
+      - "fanout"
+      - "topic"
     example: '"fanout","topic"'
   - name: deliveryMode
     type: number

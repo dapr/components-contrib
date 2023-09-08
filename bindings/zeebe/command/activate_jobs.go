@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
+
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 )
@@ -35,6 +37,7 @@ type activateJobsPayload struct {
 	Timeout           metadata.Duration `json:"timeout"`
 	WorkerName        string            `json:"workerName"`
 	FetchVariables    []string          `json:"fetchVariables"`
+	RequestTimeout    metadata.Duration `json:"requestTimeout"`
 }
 
 func (z *ZeebeCommand) activateJobs(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -68,7 +71,15 @@ func (z *ZeebeCommand) activateJobs(ctx context.Context, req *bindings.InvokeReq
 		cmd = cmd.FetchVariables(payload.FetchVariables...)
 	}
 
-	response, err := cmd.Send(ctx)
+	var response []entities.Job
+	if payload.RequestTimeout.Duration != time.Duration(0) {
+		ctxWithTimeout, cancel := context.WithTimeout(ctx, payload.RequestTimeout.Duration)
+		defer cancel()
+		response, err = cmd.Send(ctxWithTimeout)
+	} else {
+		response, err = cmd.Send(ctx)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("cannot activate jobs for type %s: %w", payload.JobType, err)
 	}

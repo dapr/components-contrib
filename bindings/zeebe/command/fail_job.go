@@ -18,16 +18,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
+
+	"github.com/camunda/zeebe/clients/go/v8/pkg/commands"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 )
 
 var ErrMissingRetries = errors.New("retries is a required attribute")
 
 type failJobPayload struct {
-	JobKey       *int64 `json:"jobKey"`
-	Retries      *int32 `json:"retries"`
-	ErrorMessage string `json:"errorMessage"`
+	JobKey       *int64            `json:"jobKey"`
+	Retries      *int32            `json:"retries"`
+	ErrorMessage string            `json:"errorMessage"`
+	RetryBackOff metadata.Duration `json:"retryBackOff"`
+	Variables    interface{}       `json:"variables"`
 }
 
 func (z *ZeebeCommand) failJob(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -53,7 +59,19 @@ func (z *ZeebeCommand) failJob(ctx context.Context, req *bindings.InvokeRequest)
 		cmd = cmd.ErrorMessage(payload.ErrorMessage)
 	}
 
-	_, err = cmd.Send(ctx)
+	if payload.RetryBackOff.Duration != time.Duration(0) {
+		cmd = cmd.RetryBackoff(payload.RetryBackOff.Duration)
+	}
+
+	var cmdDispatch commands.DispatchFailJobCommand = cmd
+	if payload.Variables != nil {
+		cmdDispatch, err = cmd.VariablesFromObject(payload.Variables)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	_, err = cmdDispatch.Send(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("cannot fail job for key %d: %w", payload.JobKey, err)
 	}

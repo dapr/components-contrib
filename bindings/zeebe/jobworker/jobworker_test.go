@@ -44,7 +44,11 @@ func (mcf *mockClientFactory) Get(metadata bindings.Metadata) (zbc.Client, error
 		return nil, mcf.error
 	}
 
-	return mockClient{}, nil
+	return &mockClient{}, nil
+}
+
+func (mc *mockClient) Close() error {
+	return nil
 }
 
 func TestInit(t *testing.T) {

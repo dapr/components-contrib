@@ -18,14 +18,13 @@ import (
 	"math/rand"
 	"net"
 	"strconv"
+	"sync"
 
 	consul "github.com/hashicorp/consul/api"
 
 	nr "github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/logger"
 )
-
-const daprMeta string = "DAPR_PORT" // default key for DAPR_PORT metadata
 
 type client struct {
 	*consul.Client
@@ -66,9 +65,114 @@ type healthInterface interface {
 }
 
 type resolver struct {
-	config resolverConfig
-	logger logger.Logger
-	client clientInterface
+	config   resolverConfig
+	logger   logger.Logger
+	client   clientInterface
+	registry registryInterface
+}
+
+type registryInterface interface {
+	get(service string) *registryEntry
+	expire(service string) // clears slice of instances
+	remove(service string) // removes entry from registry
+	addOrUpdate(service string, services []*consul.ServiceEntry)
+}
+
+type registry struct {
+	entries *sync.Map
+}
+
+type registryEntry struct {
+	services []*consul.ServiceEntry
+	mu       sync.RWMutex
+}
+
+func (r *registry) get(service string) *registryEntry {
+	if result, ok := r.entries.Load(service); ok {
+		return result.(*registryEntry)
+	}
+
+	return nil
+}
+
+func (e *registryEntry) next() *consul.ServiceEntry {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if len(e.services) == 0 {
+		return nil
+	}
+
+	//nolint:gosec
+	return e.services[rand.Int()%len(e.services)]
+}
+
+func (r *resolver) getService(service string) (*consul.ServiceEntry, error) {
+	var services []*consul.ServiceEntry
+
+	if r.config.UseCache {
+		var entry *registryEntry
+
+		if entry = r.registry.get(service); entry != nil {
+			result := entry.next()
+
+			if result != nil {
+				return result, nil
+			}
+		} else {
+			r.watchService(service)
+		}
+	}
+
+	options := *r.config.QueryOptions
+	options.WaitHash = ""
+	options.WaitIndex = 0
+	services, _, err := r.client.Health().Service(service, "", true, &options)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to query healthy consul services: %w", err)
+	} else if len(services) == 0 {
+		return nil, fmt.Errorf("no healthy services found with AppID '%s'", service)
+	}
+
+	//nolint:gosec
+	return services[rand.Int()%len(services)], nil
+}
+
+func (r *registry) addOrUpdate(service string, services []*consul.ServiceEntry) {
+	var entry *registryEntry
+
+	// update
+	if entry = r.get(service); entry != nil {
+		entry.mu.Lock()
+		defer entry.mu.Unlock()
+
+		entry.services = services
+
+		return
+	}
+
+	// add
+	r.entries.Store(service, &registryEntry{
+		services: services,
+	})
+}
+
+func (r *registry) remove(service string) {
+	r.entries.Delete(service)
+}
+
+func (r *registry) expire(service string) {
+	var entry *registryEntry
+
+	if entry = r.get(service); entry == nil {
+		return
+	}
+
+	entry.mu.Lock()
+	defer entry.mu.Unlock()
+
+	entry.services = nil
 }
 
 type resolverConfig struct {
@@ -76,17 +180,20 @@ type resolverConfig struct {
 	QueryOptions    *consul.QueryOptions
 	Registration    *consul.AgentServiceRegistration
 	DaprPortMetaKey string
+	UseCache        bool
 }
 
 // NewResolver creates Consul name resolver.
 func NewResolver(logger logger.Logger) nr.Resolver {
-	return newResolver(logger, &client{})
+	return newResolver(logger, resolverConfig{}, &client{}, &registry{entries: &sync.Map{}})
 }
 
-func newResolver(logger logger.Logger, client clientInterface) *resolver {
+func newResolver(logger logger.Logger, resolverConfig resolverConfig, client clientInterface, registry registryInterface) nr.Resolver {
 	return &resolver{
-		logger: logger,
-		client: client,
+		logger:   logger,
+		config:   resolverConfig,
+		client:   client,
+		registry: registry,
 	}
 }
 
@@ -129,23 +236,14 @@ func (r *resolver) Init(metadata nr.Metadata) (err error) {
 // ResolveID resolves name to address via consul.
 func (r *resolver) ResolveID(req nr.ResolveRequest) (addr string, err error) {
 	cfg := r.config
-	services, _, err := r.client.Health().Service(req.ID, "", true, cfg.QueryOptions)
+	svc, err := r.getService(req.ID)
 	if err != nil {
-		return "", fmt.Errorf("failed to query healthy consul services: %w", err)
+		return "", err
 	}
-
-	if len(services) == 0 {
-		return "", fmt.Errorf("no healthy services found with AppID '%s'", req.ID)
-	}
-
-	// Pick a random service from the result
-	// Note: we're using math/random here as PRNG and that's ok since we're just using this for selecting a random address from a list for load-balancing, so we don't need a CSPRNG
-	//nolint:gosec
-	svc := services[rand.Int()%len(services)]
 
 	port := svc.Service.Meta[cfg.DaprPortMetaKey]
 	if port == "" {
-		return "", fmt.Errorf("target service AppID '%s' found but DAPR_PORT missing from meta", req.ID)
+		return "", fmt.Errorf("target service AppID '%s' found but %s missing from meta", req.ID, cfg.DaprPortMetaKey)
 	}
 
 	if svc.Service.Address != "" {
@@ -180,12 +278,8 @@ func getConfig(metadata nr.Metadata) (resolverCfg resolverConfig, err error) {
 		return resolverCfg, err
 	}
 
-	// set DaprPortMetaKey used for registring DaprPort and resolving from Consul
-	if cfg.DaprPortMetaKey == "" {
-		resolverCfg.DaprPortMetaKey = daprMeta
-	} else {
-		resolverCfg.DaprPortMetaKey = cfg.DaprPortMetaKey
-	}
+	resolverCfg.DaprPortMetaKey = cfg.DaprPortMetaKey
+	resolverCfg.UseCache = cfg.UseCache
 
 	resolverCfg.Client = getClientConfig(cfg)
 	resolverCfg.Registration, err = getRegistrationConfig(cfg, metadata.Properties)

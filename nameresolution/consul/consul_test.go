@@ -17,7 +17,9 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"sync"
 	"testing"
+	"time"
 
 	consul "github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
@@ -50,16 +52,25 @@ func (m *mockClient) Agent() agentInterface {
 }
 
 type mockHealth struct {
-	serviceCalled int
-	serviceErr    error
-	serviceResult []*consul.ServiceEntry
-	serviceMeta   *consul.QueryMeta
+	serviceCalled   int
+	serviceErr      *error
+	serviceBehavior func(service, tag string, passingOnly bool, q *consul.QueryOptions)
+	serviceResult   []*consul.ServiceEntry
+	serviceMeta     *consul.QueryMeta
 }
 
 func (m *mockHealth) Service(service, tag string, passingOnly bool, q *consul.QueryOptions) ([]*consul.ServiceEntry, *consul.QueryMeta, error) {
+	if m.serviceBehavior != nil {
+		m.serviceBehavior(service, tag, passingOnly, q)
+	}
+
 	m.serviceCalled++
 
-	return m.serviceResult, m.serviceMeta, m.serviceErr
+	if m.serviceErr == nil {
+		return m.serviceResult, m.serviceMeta, nil
+	}
+
+	return m.serviceResult, m.serviceMeta, *m.serviceErr
 }
 
 type mockAgent struct {
@@ -82,6 +93,32 @@ func (m *mockAgent) ServiceRegister(service *consul.AgentServiceRegistration) er
 	return m.serviceRegisterErr
 }
 
+type mockRegistry struct {
+	addOrUpdateCalled int
+	expireCalled      int
+	removeCalled      int
+	getCalled         int
+	getResult         *registryEntry
+}
+
+func (m *mockRegistry) addOrUpdate(service string, services []*consul.ServiceEntry) {
+	m.addOrUpdateCalled++
+}
+
+func (m *mockRegistry) expire(service string) {
+	m.expireCalled++
+}
+
+func (m *mockRegistry) remove(service string) {
+	m.removeCalled++
+}
+
+func (m *mockRegistry) get(service string) *registryEntry {
+	m.getCalled++
+
+	return m.getResult
+}
+
 func TestInit(t *testing.T) {
 	t.Parallel()
 
@@ -99,7 +136,7 @@ func TestInit(t *testing.T) {
 				t.Helper()
 
 				var mock mockClient
-				resolver := newResolver(logger.NewLogger("test"), &mock)
+				resolver := newResolver(logger.NewLogger("test"), resolverConfig{}, &mock, &registry{})
 
 				_ = resolver.Init(metadata)
 
@@ -122,7 +159,7 @@ func TestInit(t *testing.T) {
 				t.Helper()
 
 				var mock mockClient
-				resolver := newResolver(logger.NewLogger("test"), &mock)
+				resolver := newResolver(logger.NewLogger("test"), resolverConfig{}, &mock, &registry{})
 
 				_ = resolver.Init(metadata)
 
@@ -144,7 +181,7 @@ func TestInit(t *testing.T) {
 				t.Helper()
 
 				var mock mockClient
-				resolver := newResolver(logger.NewLogger("test"), &mock)
+				resolver := newResolver(logger.NewLogger("test"), resolverConfig{}, &mock, &registry{})
 
 				_ = resolver.Init(metadata)
 
@@ -168,6 +205,7 @@ func TestResolveID(t *testing.T) {
 	t.Parallel()
 	testConfig := resolverConfig{
 		DaprPortMetaKey: "DAPR_PORT",
+		QueryOptions:    &consul.QueryOptions{},
 	}
 
 	tests := []struct {
@@ -175,6 +213,302 @@ func TestResolveID(t *testing.T) {
 		req      nr.ResolveRequest
 		test     func(*testing.T, nr.ResolveRequest)
 	}{
+		{
+			"should use cache when enabled",
+			nr.ResolveRequest{
+				ID: "test-app",
+			},
+			func(t *testing.T, req nr.ResolveRequest) {
+				t.Helper()
+
+				blockingCall := make(chan uint64)
+				firstTime := true
+				meta := &consul.QueryMeta{
+					LastIndex: 0,
+				}
+
+				serviceEntries := []*consul.ServiceEntry{
+					{
+						Service: &consul.AgentService{
+							Address: "10.3.245.137",
+							Port:    8600,
+							Meta: map[string]string{
+								"DAPR_PORT": "50005",
+							},
+						},
+					},
+				}
+
+				mock := &mockClient{
+					mockHealth: mockHealth{
+						serviceResult: serviceEntries,
+						serviceMeta:   meta,
+						serviceBehavior: func(service, tag string, passingOnly bool, q *consul.QueryOptions) {
+							if firstTime {
+								firstTime = false
+							} else {
+								meta.LastIndex = <-blockingCall
+							}
+						},
+						serviceErr: nil,
+					},
+				}
+
+				cfg := resolverConfig{
+					DaprPortMetaKey: "DAPR_PORT",
+					UseCache:        true,
+					QueryOptions:    &consul.QueryOptions{},
+				}
+
+				mockReg := &mockRegistry{}
+				resolver := newResolver(logger.NewLogger("test"), cfg, mock, mockReg)
+				addr, _ := resolver.ResolveID(req)
+
+				// Cache miss pass through
+				assert.Equal(t, 1, mockReg.getCalled)
+				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled == 1 })
+				assert.Equal(t, 1, mockReg.addOrUpdateCalled)
+				assert.Equal(t, "10.3.245.137:50005", addr)
+
+				mockReg.getResult = &registryEntry{
+					services: serviceEntries,
+				}
+
+				blockingCall <- 2
+				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled == 2 })
+				assert.Equal(t, 2, mockReg.addOrUpdateCalled)
+
+				// no update when no change in index and payload
+				blockingCall <- 2
+				assert.Equal(t, 2, mockReg.addOrUpdateCalled)
+
+				// no update when no change in payload
+				blockingCall <- 3
+				assert.Equal(t, 2, mockReg.addOrUpdateCalled)
+
+				// update when change in index and payload
+				mock.mockHealth.serviceResult = []*consul.ServiceEntry{
+					{
+						Service: &consul.AgentService{
+							Address: "10.3.245.137",
+							Port:    8601,
+							Meta: map[string]string{
+								"DAPR_PORT": "50005",
+							},
+						},
+					},
+				}
+				blockingCall <- 4
+				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled == 3 })
+				assert.Equal(t, 3, mockReg.addOrUpdateCalled)
+
+				_, _ = resolver.ResolveID(req)
+				assert.Equal(t, 2, mockReg.getCalled)
+			},
+		},
+		{
+			"should remove from cache if watch panic",
+			nr.ResolveRequest{
+				ID: "test-app",
+			},
+			func(t *testing.T, req nr.ResolveRequest) {
+				t.Helper()
+
+				meta := &consul.QueryMeta{
+					LastIndex: 0,
+				}
+				firstTime := true
+				mock := mockClient{
+					mockHealth: mockHealth{
+						serviceResult: []*consul.ServiceEntry{
+							{
+								Service: &consul.AgentService{
+									Address: "10.3.245.137",
+									Port:    8600,
+									Meta: map[string]string{
+										"DAPR_PORT": "50005",
+									},
+								},
+							},
+						},
+						serviceMeta: meta,
+						serviceBehavior: func(service, tag string, passingOnly bool, q *consul.QueryOptions) {
+							if firstTime {
+								firstTime = false
+							} else {
+								panic("oh no")
+							}
+						},
+						serviceErr: nil,
+					},
+				}
+
+				cfg := resolverConfig{
+					DaprPortMetaKey: "DAPR_PORT",
+					UseCache:        true,
+					QueryOptions:    &consul.QueryOptions{},
+				}
+
+				mockReg := &mockRegistry{}
+				resolver := newResolver(logger.NewLogger("test"), cfg, &mock, mockReg)
+				addr, _ := resolver.ResolveID(req)
+
+				// Cache miss pass through
+				assert.Equal(t, 1, mockReg.getCalled)
+				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled == 1 })
+				assert.Equal(t, 1, mockReg.addOrUpdateCalled)
+				assert.Equal(t, "10.3.245.137:50005", addr)
+
+				// Remove
+				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.removeCalled == 1 })
+				assert.Equal(t, 0, mockReg.expireCalled)
+				assert.Equal(t, 1, mockReg.removeCalled)
+			},
+		},
+		{
+			"should use stale agent cache if available",
+			nr.ResolveRequest{
+				ID: "test-app",
+			},
+			func(t *testing.T, req nr.ResolveRequest) {
+				t.Helper()
+
+				blockingCall := make(chan uint64)
+				firstTime := true
+				meta := &consul.QueryMeta{}
+
+				var err error
+
+				mock := mockClient{
+					mockHealth: mockHealth{
+						serviceResult: []*consul.ServiceEntry{
+							{
+								Service: &consul.AgentService{
+									Address: "10.3.245.137",
+									Port:    8600,
+									Meta: map[string]string{
+										"DAPR_PORT": "50005",
+									},
+								},
+							},
+						},
+						serviceMeta: meta,
+						serviceBehavior: func(service, tag string, passingOnly bool, q *consul.QueryOptions) {
+							if firstTime {
+								firstTime = false
+							} else {
+								if q.WaitIndex > 0 {
+									err = fmt.Errorf("oh no")
+								} else {
+									err = nil
+								}
+
+								meta.LastIndex = <-blockingCall
+							}
+						},
+						serviceErr: &err,
+					},
+				}
+
+				cfg := resolverConfig{
+					DaprPortMetaKey: "DAPR_PORT",
+					UseCache:        true,
+					QueryOptions: &consul.QueryOptions{
+						WaitIndex: 1,
+					},
+				}
+
+				mockReg := &mockRegistry{}
+				resolver := newResolver(logger.NewLogger("test"), cfg, &mock, mockReg)
+				addr, _ := resolver.ResolveID(req)
+
+				// Cache miss pass through
+				assert.Equal(t, 1, mockReg.getCalled)
+				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled == 1 })
+				assert.Equal(t, 1, mockReg.addOrUpdateCalled)
+				assert.Equal(t, "10.3.245.137:50005", addr)
+
+				// Blocking call will error as WaitIndex = 1
+				blockingCall <- 2
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.serviceCalled == 2 })
+				assert.Equal(t, 2, mock.mockHealth.serviceCalled)
+
+				// Will make a non-blocking call to stale cache
+				meta.CacheHit = true
+				meta.CacheAge = time.Hour
+				blockingCall <- 3
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.serviceCalled == 3 })
+				assert.Equal(t, 3, mock.mockHealth.serviceCalled)
+				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled == 2 })
+				assert.Equal(t, 2, mockReg.addOrUpdateCalled)
+			},
+		},
+		{
+			"should expire cache upon blocking call error",
+			nr.ResolveRequest{
+				ID: "test-app",
+			},
+			func(t *testing.T, req nr.ResolveRequest) {
+				t.Helper()
+
+				blockingCall := make(chan uint64)
+				firstTime := true
+				meta := &consul.QueryMeta{
+					LastIndex: 0,
+				}
+
+				err := fmt.Errorf("oh no")
+
+				mock := mockClient{
+					mockHealth: mockHealth{
+						serviceResult: []*consul.ServiceEntry{
+							{
+								Service: &consul.AgentService{
+									Address: "10.3.245.137",
+									Port:    8600,
+									Meta: map[string]string{
+										"DAPR_PORT": "50005",
+									},
+								},
+							},
+						},
+						serviceMeta: meta,
+						serviceBehavior: func(service, tag string, passingOnly bool, q *consul.QueryOptions) {
+							if firstTime {
+								firstTime = false
+							} else {
+								meta.LastIndex = <-blockingCall
+							}
+						},
+						serviceErr: nil,
+					},
+				}
+
+				cfg := resolverConfig{
+					DaprPortMetaKey: "DAPR_PORT",
+					UseCache:        true,
+					QueryOptions:    &consul.QueryOptions{},
+				}
+
+				mockReg := &mockRegistry{}
+				resolver := newResolver(logger.NewLogger("test"), cfg, &mock, mockReg)
+				addr, _ := resolver.ResolveID(req)
+
+				// Cache miss pass through
+				assert.Equal(t, 1, mockReg.getCalled)
+				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled == 1 })
+				assert.Equal(t, 1, mockReg.addOrUpdateCalled)
+				assert.Equal(t, "10.3.245.137:50005", addr)
+
+				// Error and release blocking call
+				mock.mockHealth.serviceErr = &err
+				blockingCall <- 2
+
+				// Cache expired
+				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.expireCalled == 1 })
+				assert.Equal(t, 1, mockReg.expireCalled)
+			},
+		},
 		{
 			"error if no healthy services found",
 			nr.ResolveRequest{
@@ -187,8 +521,7 @@ func TestResolveID(t *testing.T) {
 						serviceResult: []*consul.ServiceEntry{},
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), &mock)
-				resolver.config = testConfig
+				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{})
 
 				_, err := resolver.ResolveID(req)
 				assert.Equal(t, 1, mock.mockHealth.serviceCalled)
@@ -207,7 +540,7 @@ func TestResolveID(t *testing.T) {
 						serviceResult: []*consul.ServiceEntry{
 							{
 								Service: &consul.AgentService{
-									Address: "123.234.245.255",
+									Address: "10.3.245.137",
 									Port:    8600,
 									Meta: map[string]string{
 										"DAPR_PORT": "50005",
@@ -217,12 +550,11 @@ func TestResolveID(t *testing.T) {
 						},
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), &mock)
-				resolver.config = testConfig
+				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{})
 
 				addr, _ := resolver.ResolveID(req)
 
-				assert.Equal(t, "123.234.245.255:50005", addr)
+				assert.Equal(t, "10.3.245.137:50005", addr)
 			},
 		},
 		{
@@ -247,8 +579,7 @@ func TestResolveID(t *testing.T) {
 						},
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), &mock)
-				resolver.config = testConfig
+				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{})
 
 				addr, _ := resolver.ResolveID(req)
 
@@ -267,7 +598,7 @@ func TestResolveID(t *testing.T) {
 						serviceResult: []*consul.ServiceEntry{
 							{
 								Service: &consul.AgentService{
-									Address: "123.234.245.255",
+									Address: "10.3.245.137",
 									Port:    8600,
 									Meta: map[string]string{
 										"DAPR_PORT": "50005",
@@ -286,15 +617,14 @@ func TestResolveID(t *testing.T) {
 						},
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), &mock)
-				resolver.config = testConfig
+				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{})
 
 				total1 := 0
 				total2 := 0
 				for i := 0; i < 100; i++ {
 					addr, _ := resolver.ResolveID(req)
 
-					if addr == "123.234.245.255:50005" {
+					if addr == "10.3.245.137:50005" {
 						total1++
 					} else if addr == "234.245.255.228:50005" {
 						total2++
@@ -321,7 +651,7 @@ func TestResolveID(t *testing.T) {
 						serviceResult: []*consul.ServiceEntry{
 							{
 								Node: &consul.Node{
-									Address: "123.234.245.255",
+									Address: "10.3.245.137",
 								},
 								Service: &consul.AgentService{
 									Address: "",
@@ -333,7 +663,7 @@ func TestResolveID(t *testing.T) {
 							},
 							{
 								Node: &consul.Node{
-									Address: "123.234.245.255",
+									Address: "10.3.245.137",
 								},
 								Service: &consul.AgentService{
 									Address: "",
@@ -346,12 +676,11 @@ func TestResolveID(t *testing.T) {
 						},
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), &mock)
-				resolver.config = testConfig
+				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{})
 
 				addr, _ := resolver.ResolveID(req)
 
-				assert.Equal(t, "123.234.245.255:50005", addr)
+				assert.Equal(t, "10.3.245.137:50005", addr)
 			},
 		},
 		{
@@ -376,8 +705,7 @@ func TestResolveID(t *testing.T) {
 						},
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), &mock)
-				resolver.config = testConfig
+				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{})
 
 				_, err := resolver.ResolveID(req)
 
@@ -403,8 +731,7 @@ func TestResolveID(t *testing.T) {
 						},
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), &mock)
-				resolver.config = testConfig
+				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{})
 
 				_, err := resolver.ResolveID(req)
 
@@ -416,8 +743,122 @@ func TestResolveID(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
-			t.Parallel()
 			tt.test(t, tt.req)
+		})
+	}
+}
+
+func TestRegistry(t *testing.T) {
+	t.Parallel()
+
+	appID := "myService"
+	tests := []struct {
+		testName string
+		test     func(*testing.T)
+	}{
+		{
+			"should add and update entry",
+			func(t *testing.T) {
+				t.Helper()
+
+				registry := &registry{entries: &sync.Map{}}
+
+				result := []*consul.ServiceEntry{
+					{
+						Service: &consul.AgentService{
+							Address: "10.3.245.137",
+							Port:    8600,
+						},
+					},
+				}
+
+				registry.addOrUpdate(appID, result)
+
+				entry, _ := registry.entries.Load(appID)
+				assert.Equal(t, result, entry.(*registryEntry).services)
+
+				update := []*consul.ServiceEntry{
+					{
+						Service: &consul.AgentService{
+							Address: "random",
+							Port:    123,
+						},
+					},
+				}
+
+				registry.addOrUpdate(appID, update)
+				entry, _ = registry.entries.Load(appID)
+				assert.Equal(t, update, entry.(*registryEntry).services)
+			},
+		},
+		{
+			"should expire entries",
+			func(t *testing.T) {
+				t.Helper()
+
+				entryMap := &sync.Map{}
+				entryMap.Store(
+					appID,
+					&registryEntry{
+						services: []*consul.ServiceEntry{
+							{
+								Service: &consul.AgentService{
+									Address: "10.3.245.137",
+									Port:    8600,
+								},
+							},
+						},
+					})
+
+				registry := &registry{
+					entries: entryMap,
+				}
+
+				entry, _ := registry.entries.Load(appID)
+				assert.NotNil(t, entry.(*registryEntry).services)
+
+				registry.expire(appID)
+
+				entry, _ = registry.entries.Load(appID)
+				assert.Nil(t, entry.(*registryEntry).services)
+			},
+		},
+		{
+			"should remove entry",
+			func(t *testing.T) {
+				t.Helper()
+
+				entryMap := &sync.Map{}
+				entryMap.Store(
+					appID,
+					&registryEntry{
+						services: []*consul.ServiceEntry{
+							{
+								Service: &consul.AgentService{
+									Address: "10.3.245.137",
+									Port:    8600,
+								},
+							},
+						},
+					})
+
+				registry := &registry{
+					entries: entryMap,
+				}
+
+				registry.remove(appID)
+
+				entry, _ := registry.entries.Load(appID)
+				assert.Nil(t, entry)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.testName, func(t *testing.T) {
+			t.Parallel()
+			tt.test(t)
 		})
 	}
 }
@@ -456,6 +897,8 @@ func TestParseConfig(t *testing.T) {
 					"UseCache": true,
 					"Filter":   "Checks.ServiceTags contains dapr",
 				},
+				"DaprPortMetaKey": "DAPR_PORT",
+				"UseCache":        false,
 			},
 			configSpec{
 				Checks: []*consul.AgentServiceCheck{
@@ -479,13 +922,17 @@ func TestParseConfig(t *testing.T) {
 					UseCache: true,
 					Filter:   "Checks.ServiceTags contains dapr",
 				},
+				DaprPortMetaKey: "DAPR_PORT",
+				UseCache:        false,
 			},
 		},
 		{
 			"empty configuration in metadata",
 			true,
 			nil,
-			configSpec{},
+			configSpec{
+				DaprPortMetaKey: defaultDaprPortMetaKey,
+			},
 		},
 		{
 			"fail on unsupported map key",
@@ -545,15 +992,18 @@ func TestGetConfig(t *testing.T) {
 				assert.Equal(t, true, actual.QueryOptions.UseCache)
 
 				// DaprPortMetaKey
-				assert.Equal(t, "DAPR_PORT", actual.DaprPortMetaKey)
+				assert.Equal(t, defaultDaprPortMetaKey, actual.DaprPortMetaKey)
+
+				// Cache
+				assert.Equal(t, false, actual.UseCache)
 			},
 		},
 		{
 			"empty configuration with SelfRegister should default correctly",
 			nr.Metadata{
 				Base: metadata.Base{Properties: getTestPropsWithoutKey("")},
-				Configuration: configSpec{
-					SelfRegister: true,
+				Configuration: map[interface{}]interface{}{
+					"SelfRegister": true,
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
@@ -572,22 +1022,25 @@ func TestGetConfig(t *testing.T) {
 
 				// Metadata
 				assert.Equal(t, 1, len(actual.Registration.Meta))
-				assert.Equal(t, "50001", actual.Registration.Meta["DAPR_PORT"])
+				assert.Equal(t, "50001", actual.Registration.Meta[actual.DaprPortMetaKey])
 
 				// QueryOptions
 				assert.Equal(t, true, actual.QueryOptions.UseCache)
 
 				// DaprPortMetaKey
-				assert.Equal(t, "DAPR_PORT", actual.DaprPortMetaKey)
+				assert.Equal(t, defaultDaprPortMetaKey, actual.DaprPortMetaKey)
+
+				// Cache
+				assert.Equal(t, false, actual.UseCache)
 			},
 		},
 		{
 			"DaprPortMetaKey should set registration meta and config used for resolve",
 			nr.Metadata{
 				Base: metadata.Base{Properties: getTestPropsWithoutKey("")},
-				Configuration: configSpec{
-					SelfRegister:    true,
-					DaprPortMetaKey: "random_key",
+				Configuration: map[interface{}]interface{}{
+					"SelfRegister":    true,
+					"DaprPortMetaKey": "random_key",
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
@@ -604,8 +1057,8 @@ func TestGetConfig(t *testing.T) {
 			"missing AppID property should error when SelfRegister true",
 			nr.Metadata{
 				Base: metadata.Base{Properties: getTestPropsWithoutKey(nr.AppID)},
-				Configuration: configSpec{
-					SelfRegister: true,
+				Configuration: map[interface{}]interface{}{
+					"SelfRegister": true,
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
@@ -634,8 +1087,8 @@ func TestGetConfig(t *testing.T) {
 			"missing AppPort property should error when SelfRegister true",
 			nr.Metadata{
 				Base: metadata.Base{Properties: getTestPropsWithoutKey(nr.AppPort)},
-				Configuration: configSpec{
-					SelfRegister: true,
+				Configuration: map[interface{}]interface{}{
+					"SelfRegister": true,
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
@@ -664,8 +1117,8 @@ func TestGetConfig(t *testing.T) {
 			"missing HostAddress property should error when SelfRegister true",
 			nr.Metadata{
 				Base: metadata.Base{Properties: getTestPropsWithoutKey(nr.HostAddress)},
-				Configuration: configSpec{
-					SelfRegister: true,
+				Configuration: map[interface{}]interface{}{
+					"SelfRegister": true,
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
@@ -694,8 +1147,8 @@ func TestGetConfig(t *testing.T) {
 			"missing DaprHTTPPort property should error only when SelfRegister true",
 			nr.Metadata{
 				Base: metadata.Base{Properties: getTestPropsWithoutKey(nr.DaprHTTPPort)},
-				Configuration: configSpec{
-					SelfRegister: true,
+				Configuration: map[interface{}]interface{}{
+					"SelfRegister": true,
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
@@ -757,27 +1210,29 @@ func TestGetConfig(t *testing.T) {
 			"registration should configure correctly",
 			nr.Metadata{
 				Base: metadata.Base{Properties: getTestPropsWithoutKey("")},
-				Configuration: configSpec{
-					Checks: []*consul.AgentServiceCheck{
-						{
-							Name:     "test-app health check name",
-							CheckID:  "test-app health check id",
-							Interval: "15s",
-							HTTP:     "http://127.0.0.1:3500/health",
+				Configuration: map[interface{}]interface{}{
+					"Checks": []interface{}{
+						map[interface{}]interface{}{
+							"Name":     "test-app health check name",
+							"CheckID":  "test-app health check id",
+							"Interval": "15s",
+							"HTTP":     "http://127.0.0.1:3500/health",
 						},
 					},
-					Tags: []string{
+					"Tags": []interface{}{
 						"test",
 					},
-					Meta: map[string]string{
+					"Meta": map[interface{}]interface{}{
 						"APP_PORT":       "8650",
 						"DAPR_GRPC_PORT": "50005",
 					},
-					QueryOptions: &consul.QueryOptions{
-						UseCache: false,
-						Filter:   "Checks.ServiceTags contains something",
+					"QueryOptions": map[interface{}]interface{}{
+						"UseCache": false,
+						"Filter":   "Checks.ServiceTags contains something",
 					},
-					SelfRegister: true,
+					"SelfRegister":    true,
+					"DaprPortMetaKey": "PORT",
+					"UseCache":        false,
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
@@ -798,50 +1253,53 @@ func TestGetConfig(t *testing.T) {
 				assert.Equal(t, "test", actual.Registration.Tags[0])
 				assert.Equal(t, "8650", actual.Registration.Meta["APP_PORT"])
 				assert.Equal(t, "50005", actual.Registration.Meta["DAPR_GRPC_PORT"])
+				assert.Equal(t, metadata.Properties[nr.DaprPort], actual.Registration.Meta["PORT"])
 				assert.Equal(t, false, actual.QueryOptions.UseCache)
 				assert.Equal(t, "Checks.ServiceTags contains something", actual.QueryOptions.Filter)
+				assert.Equal(t, "PORT", actual.DaprPortMetaKey)
+				assert.Equal(t, false, actual.UseCache)
 			},
 		},
 		{
 			"advanced registration should override/ignore other configs",
 			nr.Metadata{
 				Base: metadata.Base{Properties: getTestPropsWithoutKey("")},
-				Configuration: configSpec{
-					AdvancedRegistration: &consul.AgentServiceRegistration{
-						Name:    "random-app-id",
-						Port:    0o00,
-						Address: "123.345.678",
-						Tags:    []string{"random-tag"},
-						Meta: map[string]string{
+				Configuration: map[interface{}]interface{}{
+					"AdvancedRegistration": map[interface{}]interface{}{
+						"Name":    "random-app-id",
+						"Port":    0o00,
+						"Address": "123.345.678",
+						"Tags":    []string{"random-tag"},
+						"Meta": map[string]string{
 							"APP_PORT": "000",
 						},
-						Checks: []*consul.AgentServiceCheck{
-							{
-								Name:     "random health check name",
-								CheckID:  "random health check id",
-								Interval: "15s",
-								HTTP:     "http://127.0.0.1:3500/health",
+						"Checks": []interface{}{
+							map[interface{}]interface{}{
+								"Name":     "random health check name",
+								"CheckID":  "random health check id",
+								"Interval": "15s",
+								"HTTP":     "http://127.0.0.1:3500/health",
 							},
 						},
 					},
-					Checks: []*consul.AgentServiceCheck{
-						{
-							Name:     "test-app health check name",
-							CheckID:  "test-app health check id",
-							Interval: "15s",
-							HTTP:     "http://127.0.0.1:3500/health",
+					"Checks": []interface{}{
+						map[interface{}]interface{}{
+							"Name":     "test-app health check name",
+							"CheckID":  "test-app health check id",
+							"Interval": "15s",
+							"HTTP":     "http://127.0.0.1:3500/health",
 						},
 					},
-					Tags: []string{
+					"Tags": []string{
 						"dapr",
 						"test",
 					},
-					Meta: map[string]string{
+					"Meta": map[string]string{
 						"APP_PORT":       "123",
 						"DAPR_HTTP_PORT": "3500",
 						"DAPR_GRPC_PORT": "50005",
 					},
-					SelfRegister: false,
+					"SelfRegister": false,
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
@@ -1145,6 +1603,7 @@ func TestMapConfig(t *testing.T) {
 			},
 			SelfRegister:    true,
 			DaprPortMetaKey: "SOMETHINGSOMETHING",
+			UseCache:        false,
 		}
 
 		actual := mapConfig(expected)
@@ -1161,6 +1620,7 @@ func TestMapConfig(t *testing.T) {
 		assert.Equal(t, expected.Meta, actual.Meta)
 		assert.Equal(t, expected.SelfRegister, actual.SelfRegister)
 		assert.Equal(t, expected.DaprPortMetaKey, actual.DaprPortMetaKey)
+		assert.Equal(t, expected.UseCache, actual.UseCache)
 	})
 
 	t.Run("should map empty configuration", func(t *testing.T) {
@@ -1316,4 +1776,14 @@ func getTestPropsWithoutKey(removeKey string) map[string]string {
 	delete(metadata, removeKey)
 
 	return metadata
+}
+
+func waitTillTrueOrTimeout(d time.Duration, condition func() bool) {
+	for i := 0; i < 100; i++ {
+		if condition() {
+			return
+		}
+
+		time.Sleep(d / 100)
+	}
 }

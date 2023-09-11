@@ -52,19 +52,24 @@ const (
 // TryGetTTL tries to get the ttl as a time.Duration value for pubsub, binding and any other building block.
 func TryGetTTL(props map[string]string) (time.Duration, bool, error) {
 	if val, ok := props[TTLMetadataKey]; ok && val != "" {
-		valInt64, err := strconv.ParseInt(val, 10, 64)
+		duration, err := time.ParseDuration(val)
 		if err != nil {
-			return 0, false, fmt.Errorf("%s value must be a valid integer: actual is '%s'", TTLMetadataKey, val)
-		}
+			// failed to parse Duration string.
+			// let's try Integer and assume the value is in seconds
+			valInt64, err := strconv.ParseInt(val, 10, 64)
+			if err != nil {
+				return 0, false, fmt.Errorf("%s value must be a valid integer: actual is '%s'", TTLMetadataKey, val)
+			}
 
-		if valInt64 <= 0 {
-			return 0, false, fmt.Errorf("%s value must be higher than zero: actual is %d", TTLMetadataKey, valInt64)
-		}
+			if valInt64 <= 0 {
+				return 0, false, fmt.Errorf("%s value must be higher than zero: actual is %d", TTLMetadataKey, valInt64)
+			}
 
-		duration := time.Duration(valInt64) * time.Second
-		if duration < 0 {
-			// Overflow
-			duration = math.MaxInt64
+			duration = time.Duration(valInt64) * time.Second
+			if duration < 0 {
+				// Overflow
+				duration = math.MaxInt64
+			}
 		}
 
 		return duration, true, nil

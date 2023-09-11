@@ -14,6 +14,8 @@ limitations under the License.
 package metadata
 
 import (
+	"fmt"
+	"math"
 	"reflect"
 	"testing"
 	"time"
@@ -510,6 +512,83 @@ func TestResolveAliases(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, tt.wantMd, md)
+		})
+	}
+}
+
+func TestTryGetTTL(t *testing.T) {
+	tests := []struct {
+		name    string
+		md      map[string]string
+		result  any
+		wantOK  bool
+		wantErr bool
+		errStr  string
+	}{
+		{
+			name: "valid duration 20s",
+			md: map[string]string{
+				TTLMetadataKey: "20s",
+			},
+			result: time.Duration(20) * time.Second,
+			wantOK: true,
+		},
+		{
+			name: "valid integer 20",
+			md: map[string]string{
+				TTLMetadataKey: "20",
+			},
+			result: time.Duration(20) * time.Second,
+			wantOK: true,
+		},
+		{
+			name: "invalid integer 20b",
+			md: map[string]string{
+				TTLMetadataKey: "20b",
+			},
+			wantOK:  false,
+			wantErr: true,
+			errStr:  "ttlInSeconds value must be a valid integer: actual is '20b'",
+			result:  time.Duration(0) * time.Second,
+		},
+		{
+			name: "negative ttlInSeconds -1",
+			md: map[string]string{
+				TTLMetadataKey: "-1",
+			},
+			wantOK:  false,
+			wantErr: true,
+			errStr:  "ttlInSeconds value must be higher than zero: actual is -1",
+			result:  time.Duration(0) * time.Second,
+		},
+		{
+			name:    "no ttlInSeconds",
+			md:      map[string]string{},
+			wantOK:  false,
+			wantErr: false,
+			result:  time.Duration(0) * time.Second,
+		},
+		{
+			name: "out of range",
+			md: map[string]string{
+				TTLMetadataKey: fmt.Sprintf("%d1", math.MaxInt64),
+			},
+			wantOK:  false,
+			wantErr: true,
+			result:  time.Duration(0) * time.Second,
+			errStr:  "ttlInSeconds value must be a valid integer: actual is '92233720368547758071'",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d, ok, err := TryGetTTL(tt.md)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.EqualError(t, err, tt.errStr)
+			}
+			assert.Equal(t, tt.wantOK, ok, "wanted ok, but instead got not ok")
+			assert.Equal(t, tt.result, d, "expected result %v, but instead got = %v", tt.result, d)
 		})
 	}
 }

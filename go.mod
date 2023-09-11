@@ -83,7 +83,6 @@ require (
 	github.com/microsoft/go-mssqldb v1.5.0
 	github.com/mitchellh/mapstructure v1.5.1-0.20220423185008-bf980b35cac4
 	github.com/mrz1836/postmark v1.6.1
-	github.com/nacos-group/nacos-sdk-go/v2 v2.2.3
 	github.com/nats-io/nats-server/v2 v2.9.21
 	github.com/nats-io/nats.go v1.28.0
 	github.com/nats-io/nkeys v0.4.4
@@ -158,7 +157,6 @@ require (
 	github.com/alibabacloud-go/openapi-util v0.0.11 // indirect
 	github.com/alibabacloud-go/tea-xml v1.1.2 // indirect
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
-	github.com/aliyun/alibaba-cloud-sdk-go v1.61.1704 // indirect
 	github.com/aliyun/credentials-go v1.1.2 // indirect
 	github.com/aliyunmq/mq-http-go-sdk v1.0.3 // indirect
 	github.com/andybalholm/brotli v1.0.5 // indirect
@@ -172,7 +170,6 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.4.0 // indirect
 	github.com/bufbuild/protocompile v0.4.0 // indirect
-	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/bytedance/gopkg v0.0.0-20220817015305-b879a72dc90f // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect

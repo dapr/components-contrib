@@ -18,10 +18,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/commands"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
 )
 
 var (
@@ -30,10 +32,13 @@ var (
 )
 
 type createInstancePayload struct {
-	BpmnProcessID        string      `json:"bpmnProcessId"`
-	ProcessDefinitionKey *int64      `json:"processDefinitionKey"`
-	Version              *int32      `json:"version"`
-	Variables            interface{} `json:"variables"`
+	BpmnProcessID        string            `json:"bpmnProcessId"`
+	ProcessDefinitionKey *int64            `json:"processDefinitionKey"`
+	Version              *int32            `json:"version"`
+	Variables            interface{}       `json:"variables"`
+	WithResult           bool              `json:"withResult"`
+	FetchVariables       []string          `json:"fetchVariables"`
+	RequestTimeout       metadata.Duration `json:"requestTimeout"`
 }
 
 func (z *ZeebeCommand) createInstance(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
@@ -75,9 +80,25 @@ func (z *ZeebeCommand) createInstance(ctx context.Context, req *bindings.InvokeR
 		}
 	}
 
-	response, err := cmd3.Send(ctx)
+	var response interface{}
+	// The request timeout has only an affect if WithResult is used. Using WithResult means that the operation is
+	// synchronous instead of asynchronous, and the request timeout defines how long the client should wait for the
+	// workflow/process to finish to get the result.
+	//
+	// From a code perspective, there are two Send methods in the Zeebe client. One if WithResult was used and
+	// which extracts the request timeout from the context and another one which will not use any timeout.
+	if payload.WithResult && payload.RequestTimeout.Duration != time.Duration(0) {
+		ctxWithTimeout, cancel := context.WithTimeout(ctx, payload.RequestTimeout.Duration)
+		defer cancel()
+		response, err = cmd3.WithResult().FetchVariables(payload.FetchVariables...).Send(ctxWithTimeout)
+	} else if payload.WithResult {
+		response, err = cmd3.WithResult().FetchVariables(payload.FetchVariables...).Send(ctx)
+	} else {
+		response, err = cmd3.Send(ctx)
+	}
+
 	if err != nil {
-		return nil, fmt.Errorf("cannot create instane for %s: %w", errorDetail, err)
+		return nil, fmt.Errorf("cannot create instance for %s: %w", errorDetail, err)
 	}
 
 	jsonResponse, err := json.Marshal(response)

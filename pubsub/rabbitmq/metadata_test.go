@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
@@ -139,6 +140,42 @@ func TestCreateMetadata(t *testing.T) {
 		assert.Equal(t, fakeProperties[metadataHostnameKey], m.Hostname)
 		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.ConsumerID)
 		assert.Equal(t, uint8(2), m.DeliveryMode)
+	})
+
+	t.Run("client name is set", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Base: mdata.Base{Properties: fakeProperties},
+		}
+		fakeMetaData.Properties[metadataClientNameKey] = "fakeclientname"
+
+		// act
+		m, err := createMetadata(fakeMetaData, log)
+
+		// assert
+		assert.NoError(t, err)
+		assert.Equal(t, fakeProperties[metadataHostnameKey], m.Hostname)
+		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.ConsumerID)
+		assert.Equal(t, "fakeclientname", m.ClientName)
+	})
+
+	t.Run("heart beat is set", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Base: mdata.Base{Properties: fakeProperties},
+		}
+		fakeMetaData.Properties[metadataHeartBeatKey] = "1m"
+
+		// act
+		m, err := createMetadata(fakeMetaData, log)
+
+		// assert
+		assert.NoError(t, err)
+		assert.Equal(t, fakeProperties[metadataHostnameKey], m.Hostname)
+		assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.ConsumerID)
+		assert.Equal(t, time.Minute, m.HeartBeat)
 	})
 
 	t.Run("disable durable mode, disable delete when unused", func(t *testing.T) {

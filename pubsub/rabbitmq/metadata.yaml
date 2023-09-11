@@ -27,6 +27,11 @@ authenticationProfiles:
       description: |
         The RabbitMQ hostname.
       example: '"localhost"'
+    - name: protocol
+      description: |
+        The RabbitMQ protocol.
+      type: string
+      example: '"amqp", "amqps"'
     - name: username
       type: string
       description: |
@@ -38,6 +43,50 @@ authenticationProfiles:
       description: |
         The RabbitMQ password.
       example: '"password"'
+  - title: "Authenticate Using Connection string and External Sasl and TLS"
+    description: "Authenticate using a connection string along with Exteranl Sasl and TLS."
+    metadata:
+    - name: connectionString
+      required: true
+      sensitive: true
+      description: "The RabbitMQ host address."
+      example: '"amqp://[username][:password]@host.domain[:port]" "amqps://[username][:password]@host.domain[:port]"'
+    - name: protocol
+      description: |
+        The RabbitMQ protocol.
+      type: string
+      example: '"amqp", "amqps"'
+    - name: caCert
+      type: string
+      required: true
+      description: |
+        Certificate authority certificate, required for using TLS.
+      example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+    - name: clientCert
+      type: string
+      required: true
+      sensitive: true
+      description: |
+        Client certificate, Required for using TLS.
+      example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+    - name: clientKey
+      type: string
+      required: true
+      sensitive: true
+      description: |
+        Client key, required for using TLS.
+      example: "-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded DER>\n-----END RSA PRIVATE KEY-----"
+    - name: saslExternal
+      type: bool
+      description: |
+        With TLS, should the username be taken
+        from an additional field (e.g. CN.)
+        See RabbitMQ Authentication Mechanisms.
+      url:
+        title: "RabbitMQ Authentication Mechanisms"
+        url: "https://www.rabbitmq.com/access-control.html#mechanisms"
+      default: '"false"'
+      example: '"true"'
 metadata:
   - name: durable
     type: bool
@@ -132,43 +181,21 @@ metadata:
     description: |
       Reconnect wait in Seconds.
     type: duration
+    default: '"3s"'
+    example: '"10s"'
   - name: ttlInSeconds
     description: |
       Default Queue TTL.
     type: duration
-  - name: protocol
-    description: |
-      The RabbitMQ protocol. If the connectionString is specified,
-      this value will be set from URI scheme of the connectionString.
-      If both the connectionString and this property are specified,
-      the value specified here must match URI scheme of the connectionString.
+    example: '"10"'
+  - name: clientName
     type: string
-    example: '"amqp", "amqps"'
-  - name: caCert
-    type: string
-    description: |
-      Certificate authority certificate, required for using TLS.
-    example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
-  - name: clientCert
-    type: string
-    sensitive: true
-    description: |
-      Client certificate, required for authType mtls.
-    example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
-  - name: clientKey
-    type: string
-    sensitive: true
-    description: |
-      Client key, required for authType mtls.
-    example: "-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded DER>\n-----END RSA PRIVATE KEY-----"
-  - name: saslExternal
-    type: bool
-    description: |
-      With TLS, should the username be taken
-      from an additional field (e.g. CN.)
-      See RabbitMQ Authentication Mechanisms.
-    url:
-      title: "RabbitMQ Authentication Mechanisms"
-      url: "https://www.rabbitmq.com/access-control.html#mechanisms"
-    default: '“false”'
-    example: '"true", "false"'
+    description:
+      The client/connection name.
+    example: '"my_client_name"'
+  - name: heartBeat
+    type: duration
+    description:
+      The heartbeat used for the connection.
+    default: '"10s"'
+    example: '"30s"'

@@ -95,20 +95,22 @@ authenticationProfiles:
         allowedValues:
           - "mtls"
       - name: caCert
-        required: false
+        type: string
+        required: true
         description: "Certificate authority certificate."
         example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
-        type: string
       - name: clientCert
+        required: true
         sensitive: true
         description: "Client certificate."
         example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
         type: string
       - name: clientKey
+        type: string
+        required: true
         sensitive: true
         description: "Client key."
         example: "-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded DER>\n-----END RSA PRIVATE KEY-----"
-        type: string
       - name: skipVerify
         required: false
         description: |

@@ -54,7 +54,7 @@ func (k *keyvaultCrypto) Init(_ context.Context, metadata contribCrypto.Metadata
 	// We perform the initialization here, lazily, when the first component of this kind is initialized
 	// (These functions do not make network calls)
 	algsParsed.Do(func() {
-		listEncryption := azkeys.PossibleJSONWebKeyEncryptionAlgorithmValues()
+		listEncryption := azkeys.PossibleEncryptionAlgorithmValues()
 		validEncryptionAlgs = make(map[string]struct{}, len(listEncryption))
 		encryptionAlgsList = make([]string, len(listEncryption))
 		for i, v := range listEncryption {
@@ -62,7 +62,7 @@ func (k *keyvaultCrypto) Init(_ context.Context, metadata contribCrypto.Metadata
 			encryptionAlgsList[i] = string(v)
 		}
 
-		listSignature := azkeys.PossibleJSONWebKeySignatureAlgorithmValues()
+		listSignature := azkeys.PossibleSignatureAlgorithmValues()
 		validSignatureAlgs = make(map[string]struct{}, len(listSignature))
 		signatureAlgsList = make([]string, len(listSignature))
 		for i, v := range listSignature {
@@ -126,11 +126,10 @@ func (k *keyvaultCrypto) getKeyFromVault(parentCtx context.Context, kid keyID) (
 }
 
 // Handler for the getKeyCacheFn method
-func (k *keyvaultCrypto) getKeyCacheFn(key string) func(resolve func(jwk.Key), reject func(error)) {
+func (k *keyvaultCrypto) getKeyCacheFn(ctx context.Context, key string) func(resolve func(jwk.Key), reject func(error)) {
 	kid := newKeyID(key)
-	parentCtx := context.Background()
 	return func(resolve func(jwk.Key), reject func(error)) {
-		pk, err := k.getKeyFromVault(parentCtx, kid)
+		pk, err := k.getKeyFromVault(ctx, kid)
 		if err != nil {
 			reject(err)
 			return
@@ -172,13 +171,13 @@ func (k *keyvaultCrypto) Encrypt(parentCtx context.Context, plaintext []byte, al
 	return ciphertext, nil, nil
 }
 
-func (k *keyvaultCrypto) encryptInVault(parentCtx context.Context, plaintext []byte, algorithm *azkeys.JSONWebKeyEncryptionAlgorithm, kid keyID, nonce []byte, associatedData []byte) (ciphertext []byte, tag []byte, err error) {
+func (k *keyvaultCrypto) encryptInVault(parentCtx context.Context, plaintext []byte, algorithm *azkeys.EncryptionAlgorithm, kid keyID, nonce []byte, associatedData []byte) (ciphertext []byte, tag []byte, err error) {
 	ctx, cancel := context.WithTimeout(parentCtx, k.md.RequestTimeout)
-	res, err := k.vaultClient.Encrypt(ctx, kid.Name, kid.Version, azkeys.KeyOperationsParameters{
-		Algorithm: algorithm,
-		Value:     plaintext,
-		IV:        nonce,
-		AAD:       associatedData,
+	res, err := k.vaultClient.Encrypt(ctx, kid.Name, kid.Version, azkeys.KeyOperationParameters{
+		Algorithm:                   algorithm,
+		Value:                       plaintext,
+		IV:                          nonce,
+		AdditionalAuthenticatedData: associatedData,
 	}, nil)
 	cancel()
 	if err != nil {
@@ -203,12 +202,12 @@ func (k *keyvaultCrypto) Decrypt(parentCtx context.Context, ciphertext []byte, a
 	}
 
 	ctx, cancel := context.WithTimeout(parentCtx, k.md.RequestTimeout)
-	res, err := k.vaultClient.Decrypt(ctx, kid.Name, kid.Version, azkeys.KeyOperationsParameters{
-		Algorithm: algorithm,
-		Value:     ciphertext,
-		IV:        nonce,
-		Tag:       tag,
-		AAD:       associatedData,
+	res, err := k.vaultClient.Decrypt(ctx, kid.Name, kid.Version, azkeys.KeyOperationParameters{
+		Algorithm:                   algorithm,
+		Value:                       ciphertext,
+		IV:                          nonce,
+		AuthenticationTag:           tag,
+		AdditionalAuthenticatedData: associatedData,
 	}, nil)
 	cancel()
 	if err != nil {
@@ -264,13 +263,13 @@ func (k *keyvaultCrypto) WrapKey(parentCtx context.Context, plaintextKey jwk.Key
 	return wrappedKey, nil, nil
 }
 
-func (k *keyvaultCrypto) wrapKeyInVault(parentCtx context.Context, plaintextKey []byte, algorithm *azkeys.JSONWebKeyEncryptionAlgorithm, kid keyID, nonce []byte, associatedData []byte) (wrappedKey []byte, tag []byte, err error) {
+func (k *keyvaultCrypto) wrapKeyInVault(parentCtx context.Context, plaintextKey []byte, algorithm *azkeys.EncryptionAlgorithm, kid keyID, nonce []byte, associatedData []byte) (wrappedKey []byte, tag []byte, err error) {
 	ctx, cancel := context.WithTimeout(parentCtx, k.md.RequestTimeout)
-	res, err := k.vaultClient.WrapKey(ctx, kid.Name, kid.Version, azkeys.KeyOperationsParameters{
-		Algorithm: algorithm,
-		Value:     plaintextKey,
-		IV:        nonce,
-		AAD:       associatedData,
+	res, err := k.vaultClient.WrapKey(ctx, kid.Name, kid.Version, azkeys.KeyOperationParameters{
+		Algorithm:                   algorithm,
+		Value:                       plaintextKey,
+		IV:                          nonce,
+		AdditionalAuthenticatedData: associatedData,
 	}, nil)
 	cancel()
 	if err != nil {
@@ -295,12 +294,12 @@ func (k *keyvaultCrypto) UnwrapKey(parentCtx context.Context, wrappedKey []byte,
 	}
 
 	ctx, cancel := context.WithTimeout(parentCtx, k.md.RequestTimeout)
-	res, err := k.vaultClient.UnwrapKey(ctx, kid.Name, kid.Version, azkeys.KeyOperationsParameters{
-		Algorithm: algorithm,
-		Value:     wrappedKey,
-		IV:        nonce,
-		Tag:       tag,
-		AAD:       associatedData,
+	res, err := k.vaultClient.UnwrapKey(ctx, kid.Name, kid.Version, azkeys.KeyOperationParameters{
+		Algorithm:                   algorithm,
+		Value:                       wrappedKey,
+		IV:                          nonce,
+		AuthenticationTag:           tag,
+		AdditionalAuthenticatedData: associatedData,
 	}, nil)
 	cancel()
 	if err != nil {
@@ -375,7 +374,7 @@ func (k *keyvaultCrypto) Verify(parentCtx context.Context, digest []byte, signat
 	return valid, nil
 }
 
-func (k *keyvaultCrypto) verifyInVault(parentCtx context.Context, digest []byte, signature []byte, algorithm *azkeys.JSONWebKeySignatureAlgorithm, kid keyID) (valid bool, err error) {
+func (k *keyvaultCrypto) verifyInVault(parentCtx context.Context, digest []byte, signature []byte, algorithm *azkeys.SignatureAlgorithm, kid keyID) (valid bool, err error) {
 	ctx, cancel := context.WithTimeout(parentCtx, k.md.RequestTimeout)
 	res, err := k.vaultClient.Verify(ctx, kid.Name, kid.Version, azkeys.VerifyParameters{
 		Algorithm: algorithm,
@@ -407,11 +406,10 @@ func (keyvaultCrypto) SupportedSignatureAlgorithms() []string {
 	return signatureAlgsList
 }
 
-func (keyvaultCrypto) GetComponentMetadata() map[string]string {
+func (keyvaultCrypto) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := keyvaultMetadata{}
-	metadataInfo := map[string]string{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.CryptoType)
-	return metadataInfo
+	return
 }
 
 type keyID struct {

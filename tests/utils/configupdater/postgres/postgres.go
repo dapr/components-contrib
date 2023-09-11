@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/dapr/components-contrib/configuration"
+	pgauth "github.com/dapr/components-contrib/internal/authentication/postgresql"
+	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/components-contrib/tests/utils/configupdater"
 	"github.com/dapr/kit/logger"
 )
@@ -72,7 +75,7 @@ func (r *ConfigUpdater) CreateTrigger(channel string) error {
 		return fmt.Errorf("error creating config event function : %w", err)
 	}
 	triggerName := "configTrigger_" + channel
-	createTriggerSQL := "CREATE TRIGGER " + triggerName + " AFTER INSERT OR UPDATE OR DELETE ON " + r.configTable + " FOR EACH ROW EXECUTE PROCEDURE " + procedureName + "();"
+	createTriggerSQL := "CREATE OR REPLACE TRIGGER " + triggerName + " AFTER INSERT OR UPDATE OR DELETE ON " + r.configTable + " FOR EACH ROW EXECUTE PROCEDURE " + procedureName + "();"
 	_, err = r.client.Exec(ctx, createTriggerSQL)
 	if err != nil {
 		return fmt.Errorf("error creating config trigger : %w", err)
@@ -81,31 +84,38 @@ func (r *ConfigUpdater) CreateTrigger(channel string) error {
 }
 
 func (r *ConfigUpdater) Init(props map[string]string) error {
-	var conn string
-	ctx := context.Background()
-	if val, ok := props["connectionString"]; ok && val != "" {
-		conn = val
-	} else {
-		return fmt.Errorf("missing postgreSQL connection string")
+	md := pgauth.PostgresAuthMetadata{
+		ConnectionString: props["connectionString"],
+		UseAzureAD:       utils.IsTruthy(props["useAzureAD"]),
 	}
+	err := md.InitWithMetadata(props, true)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
 	if tbl, ok := props["table"]; ok && tbl != "" {
 		r.configTable = tbl
 	} else {
 		return fmt.Errorf("missing postgreSQL configuration table name")
 	}
-	config, err := pgxpool.ParseConfig(conn)
+
+	config, err := md.GetPgxPoolConfig()
 	if err != nil {
 		return fmt.Errorf("postgres configuration store connection error : %w", err)
 	}
-	pool, err := pgxpool.NewWithConfig(ctx, config)
+
+	r.client, err = pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return fmt.Errorf("postgres configuration store connection error : %w", err)
 	}
-	err = pool.Ping(ctx)
+	err = r.client.Ping(ctx)
 	if err != nil {
 		return fmt.Errorf("postgres configuration store ping error : %w", err)
 	}
-	r.client = pool
+
 	err = createAndSetTable(ctx, r.client, r.configTable)
 	if err != nil {
 		return fmt.Errorf("postgres configuration store table creation error : %w", err)

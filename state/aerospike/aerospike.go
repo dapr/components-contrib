@@ -129,7 +129,7 @@ func (aspike *Aerospike) Set(ctx context.Context, req *state.SetRequest) error {
 	writePolicy := &as.WritePolicy{}
 
 	// not a new record
-	if req.ETag != nil {
+	if req.HasETag() {
 		var gen uint32
 		gen, err = convertETag(*req.ETag)
 		if err != nil {
@@ -158,7 +158,7 @@ func (aspike *Aerospike) Set(ctx context.Context, req *state.SetRequest) error {
 	}
 	err = aspike.client.Put(writePolicy, asKey, as.BinMap(data))
 	if err != nil {
-		if req.ETag != nil {
+		if req.HasETag() {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
@@ -210,7 +210,7 @@ func (aspike *Aerospike) Delete(ctx context.Context, req *state.DeleteRequest) e
 	}
 	writePolicy := &as.WritePolicy{}
 
-	if req.ETag != nil {
+	if req.HasETag() {
 		var gen uint32
 		gen, err = convertETag(*req.ETag)
 		if err != nil {
@@ -235,7 +235,7 @@ func (aspike *Aerospike) Delete(ctx context.Context, req *state.DeleteRequest) e
 
 	_, err = aspike.client.Delete(writePolicy, asKey)
 	if err != nil {
-		if req.ETag != nil {
+		if req.HasETag() {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
@@ -271,9 +271,8 @@ func convertETag(eTag string) (uint32, error) {
 	return uint32(i), nil
 }
 
-func (aspike *Aerospike) GetComponentMetadata() map[string]string {
+func (aspike *Aerospike) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := aerospikeMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
 }

@@ -40,7 +40,6 @@ import (
 	state_postgres "github.com/dapr/components-contrib/internal/component/postgresql"
 	"github.com/dapr/components-contrib/state"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
-	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
@@ -424,6 +423,9 @@ func TestPostgreSQL(t *testing.T) {
 			Key: "reqKey3",
 		})
 		assert.Equal(t, "\"reqVal103\"", string(resp3.Data))
+		require.Contains(t, resp3.Metadata, "ttlExpireTime")
+		expireTime, err := time.Parse(time.RFC3339, resp3.Metadata["ttlExpireTime"])
+		assert.InDelta(t, time.Now().Add(50*time.Second).Unix(), expireTime.Unix(), 5)
 		return nil
 	}
 
@@ -648,9 +650,9 @@ func TestPostgreSQL(t *testing.T) {
 		Step("run Init test", initTest).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
 			embedded.WithComponentsPath("components/docker/default"),
-			runtime.WithStates(stateRegistry),
+			embedded.WithStates(stateRegistry),
 		)).
 		Step("run CRUD test", basicTest).
 		Step("run eTag test", eTagTest).

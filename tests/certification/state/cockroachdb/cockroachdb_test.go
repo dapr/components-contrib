@@ -18,6 +18,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -38,7 +39,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
-	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	goclient "github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
@@ -198,28 +198,36 @@ func TestCockroach(t *testing.T) {
 		err = stateStore.Multi(context.Background(), &state.TransactionalStateRequest{
 			Operations: []state.TransactionalStateOperation{
 				state.SetRequest{
-					Key:      "reqKey1",
-					Value:    "reqVal1",
-					Metadata: map[string]string{},
+					Key:   "reqKey1",
+					Value: "reqVal1",
+					Metadata: map[string]string{
+						"ttlInSeconds": "-1",
+					},
 				},
 				state.SetRequest{
-					Key:      "reqKey2",
-					Value:    "reqVal2",
-					Metadata: map[string]string{},
+					Key:   "reqKey2",
+					Value: "reqVal2",
+					Metadata: map[string]string{
+						"ttlInSeconds": "222",
+					},
 				},
 				state.SetRequest{
 					Key:   "reqKey3",
 					Value: "reqVal3",
 				},
 				state.SetRequest{
-					Key:      "reqKey1",
-					Value:    "reqVal101",
-					Metadata: map[string]string{},
+					Key:   "reqKey1",
+					Value: "reqVal101",
+					Metadata: map[string]string{
+						"ttlInSeconds": "50",
+					},
 				},
 				state.SetRequest{
-					Key:      "reqKey3",
-					Value:    "reqVal103",
-					Metadata: map[string]string{},
+					Key:   "reqKey3",
+					Value: "reqVal103",
+					Metadata: map[string]string{
+						"ttlInSeconds": "50",
+					},
 				},
 				state.DeleteRequest{
 					Key:      certificationTestPrefix + "key1",
@@ -247,6 +255,9 @@ func TestCockroach(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, "2", *resp3.ETag)
 		assert.Equal(t, "\"reqVal103\"", string(resp3.Data))
+		require.Contains(t, resp3.Metadata, "ttlExpireTime")
+		expireTime, err := time.Parse(time.RFC3339, resp3.Metadata["ttlExpireTime"])
+		assert.InDelta(t, time.Now().Add(50*time.Second).Unix(), expireTime.Unix(), 5)
 		return nil
 	}
 
@@ -422,10 +433,10 @@ func TestCockroach(t *testing.T) {
 		Step("Waiting for cockroachdb readiness", flow.Sleep(30*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
 			embedded.WithComponentsPath("components/standard"),
-			runtime.WithStates(stateRegistry),
+			embedded.WithStates(stateRegistry),
 		)).
 		Step("connect to the database", connectStep).
 		Step("Run basic test", basicTest).

@@ -14,16 +14,16 @@ binding:
   input: false
   operations:
     - name: create
-      description: "Create item."
+      description: "Create item"
     - name: get
-      description: "Get item."
+      description: "Get item"
     - name: delete
-      description: "Delete item."
+      description: "Delete item"
     - name: increment
       description: "Increment a key"
 authenticationProfiles:
   - title: "Username and password"
-    description: "Authenticate using username and password."
+    description: "Authenticate using username and password"
     metadata:
       - name: redisUsername
         type: string
@@ -40,7 +40,7 @@ authenticationProfiles:
         description: |
           Password for Redis host. Use secretKeyRef for
           secret reference
-        example:  "KeFg23!"
+        example: "KeFg23!"
         default: ""
 metadata:
   - name: redisHost
@@ -79,11 +79,6 @@ metadata:
       "-1" disables backoff.
     example: "-1"
     default: "512ms"
-  - name: maxLenApprox
-    required: false
-    type: number
-    description: |
-      The approximate maximum length of a stream.
   - name: failover
     type: bool
     required: false

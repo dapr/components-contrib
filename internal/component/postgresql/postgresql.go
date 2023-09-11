@@ -31,9 +31,10 @@ type PostgreSQL struct {
 }
 
 type Options struct {
-	MigrateFn  func(context.Context, PGXPoolConn, MigrateOptions) error
-	SetQueryFn func(*state.SetRequest, SetQueryOptions) string
-	ETagColumn string
+	MigrateFn     func(context.Context, PGXPoolConn, MigrateOptions) error
+	SetQueryFn    func(*state.SetRequest, SetQueryOptions) string
+	ETagColumn    string
+	EnableAzureAD bool
 }
 
 type MigrateOptions struct {
@@ -71,17 +72,17 @@ func (p *PostgreSQL) Init(ctx context.Context, metadata state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (p *PostgreSQL) Features() []state.Feature {
-	return []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI}
+	return []state.Feature{
+		state.FeatureETag,
+		state.FeatureTransactional,
+		state.FeatureQueryAPI,
+		state.FeatureTTL,
+	}
 }
 
 // Delete removes an entity from the store.
 func (p *PostgreSQL) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	return p.dbaccess.Delete(ctx, req)
-}
-
-// BulkDelete removes multiple entries from the store.
-func (p *PostgreSQL) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	return p.dbaccess.BulkDelete(ctx, req)
 }
 
 // Get returns an entity from store.
@@ -98,11 +99,6 @@ func (p *PostgreSQL) BulkGet(ctx context.Context, req []state.GetRequest, _ stat
 // Set adds/updates an entity on store.
 func (p *PostgreSQL) Set(ctx context.Context, req *state.SetRequest) error {
 	return p.dbaccess.Set(ctx, req)
-}
-
-// BulkSet adds/updates multiple entities on store.
-func (p *PostgreSQL) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	return p.dbaccess.BulkSet(ctx, req)
 }
 
 // Multi handles multiple transactions. Implements TransactionalStore.
@@ -129,9 +125,8 @@ func (p *PostgreSQL) GetDBAccess() dbAccess {
 	return p.dbaccess
 }
 
-func (p *PostgreSQL) GetComponentMetadata() map[string]string {
+func (p *PostgreSQL) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := postgresMetadataStruct{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
 }

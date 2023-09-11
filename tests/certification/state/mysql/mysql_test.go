@@ -35,7 +35,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	stateLoader "github.com/dapr/dapr/pkg/components/state"
-	"github.com/dapr/dapr/pkg/runtime"
 	daprTesting "github.com/dapr/dapr/pkg/testing"
 	daprClient "github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
@@ -207,6 +206,11 @@ func TestMySQL(t *testing.T) {
 			resp3, err := client.GetState(ctx, stateStoreName, "reqKey3", nil)
 			require.NoError(t, err)
 			assert.Equal(t, "reqVal103", string(resp3.Value))
+
+			require.Contains(t, resp3.Metadata, "ttlExpireTime")
+			expireTime, err := time.Parse(time.RFC3339, resp3.Metadata["ttlExpireTime"])
+			assert.InDelta(t, time.Now().Add(50*time.Second).Unix(), expireTime.Unix(), 5)
+
 			return nil
 		}
 	}
@@ -564,9 +568,9 @@ func TestMySQL(t *testing.T) {
 		Step("Wait for databases to start", flow.Sleep(30*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
 			embedded.WithComponentsPath("components/docker/default"),
-			runtime.WithStates(stateRegistry),
+			embedded.WithStates(stateRegistry),
 		)).
 		// Test flow on mysql and mariadb
 		Step("Run CRUD test on mysql", basicTest("mysql")).

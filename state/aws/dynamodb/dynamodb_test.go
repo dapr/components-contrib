@@ -18,7 +18,6 @@ package dynamodb
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"testing"
 	"time"
 
@@ -160,6 +159,7 @@ func TestGet(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, []byte("some value"), out.Data)
 		assert.Equal(t, "1bdead4badc0ffee", *out.ETag)
+		assert.NotContains(t, out.Metadata, "ttlExpireTime")
 	})
 	t.Run("Successfully retrieve item (with unexpired ttl)", func(t *testing.T) {
 		ss := StateStore{
@@ -196,6 +196,9 @@ func TestGet(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, []byte("some value"), out.Data)
 		assert.Equal(t, "1bdead4badc0ffee", *out.ETag)
+		assert.Contains(t, out.Metadata, "ttlExpireTime")
+		expireTime, err := time.Parse(time.RFC3339, out.Metadata["ttlExpireTime"])
+		_ = assert.NoError(t, err) && assert.Equal(t, expireTime.Unix(), int64(4074862051))
 	})
 	t.Run("Successfully retrieve item (with expired ttl)", func(t *testing.T) {
 		ss := StateStore{
@@ -232,6 +235,7 @@ func TestGet(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Nil(t, out.Data)
 		assert.Nil(t, out.ETag)
+		assert.Nil(t, out.Metadata)
 	})
 	t.Run("Unsuccessfully get item", func(t *testing.T) {
 		ss := StateStore{
@@ -273,6 +277,7 @@ func TestGet(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Nil(t, out.Data)
 		assert.Nil(t, out.ETag)
+		assert.Nil(t, out.Metadata)
 	})
 	t.Run("Unsuccessfully with no required key", func(t *testing.T) {
 		ss := StateStore{
@@ -298,6 +303,7 @@ func TestGet(t *testing.T) {
 		out, err := ss.Get(context.Background(), req)
 		assert.NoError(t, err)
 		assert.Empty(t, out.Data)
+		assert.Nil(t, out.ETag)
 	})
 }
 
@@ -663,256 +669,6 @@ func TestSet(t *testing.T) {
 	})
 }
 
-func TestBulkSet(t *testing.T) {
-	type value struct {
-		Value string
-	}
-
-	t.Run("Successfully set items", func(t *testing.T) {
-		ss := &StateStore{
-			partitionKey: defaultPartitionKeyName,
-		}
-		ss.client = &mockedDynamoDB{
-			BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {
-				expected := map[string][]*dynamodb.WriteRequest{}
-				expected[tableName] = []*dynamodb.WriteRequest{
-					{
-						PutRequest: &dynamodb.PutRequest{
-							Item: map[string]*dynamodb.AttributeValue{
-								"key": {
-									S: aws.String("key1"),
-								},
-								"value": {
-									S: aws.String(`{"Value":"value1"}`),
-								},
-							},
-						},
-					},
-					{
-						PutRequest: &dynamodb.PutRequest{
-							Item: map[string]*dynamodb.AttributeValue{
-								"key": {
-									S: aws.String("key2"),
-								},
-								"value": {
-									S: aws.String(`{"Value":"value2"}`),
-								},
-							},
-						},
-					},
-				}
-
-				for tbl := range expected {
-					for reqNum := range expected[tbl] {
-						expectedItem := expected[tbl][reqNum].PutRequest.Item
-						inputItem := input.RequestItems[tbl][reqNum].PutRequest.Item
-
-						assert.Equal(t, expectedItem["key"], inputItem["key"])
-						assert.Equal(t, expectedItem["value"], inputItem["value"])
-					}
-				}
-
-				return &dynamodb.BatchWriteItemOutput{
-					UnprocessedItems: map[string][]*dynamodb.WriteRequest{},
-				}, nil
-			},
-		}
-		ss.table = tableName
-
-		req := []state.SetRequest{
-			{
-				Key: "key1",
-				Value: value{
-					Value: "value1",
-				},
-			},
-			{
-				Key: "key2",
-				Value: value{
-					Value: "value2",
-				},
-			},
-		}
-		err := ss.BulkSet(context.Background(), req)
-		assert.NoError(t, err)
-	})
-	t.Run("Successfully set items with ttl = -1", func(t *testing.T) {
-		ss := &StateStore{
-			partitionKey: defaultPartitionKeyName,
-		}
-		ss.client = &mockedDynamoDB{
-			BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {
-				expected := map[string][]*dynamodb.WriteRequest{}
-				expected[tableName] = []*dynamodb.WriteRequest{
-					{
-						PutRequest: &dynamodb.PutRequest{
-							Item: map[string]*dynamodb.AttributeValue{
-								"key": {
-									S: aws.String("key1"),
-								},
-								"value": {
-									S: aws.String(`{"Value":"value1"}`),
-								},
-								"testAttributeName": {
-									N: aws.String(strconv.FormatInt(time.Now().Unix()-1, 10)),
-								},
-							},
-						},
-					},
-					{
-						PutRequest: &dynamodb.PutRequest{
-							Item: map[string]*dynamodb.AttributeValue{
-								"key": {
-									S: aws.String("key2"),
-								},
-								"value": {
-									S: aws.String(`{"Value":"value2"}`),
-								},
-							},
-						},
-					},
-				}
-				for tbl := range expected {
-					for reqNum := range expected[tbl] {
-						expectedItem := expected[tbl][reqNum].PutRequest.Item
-						inputItem := input.RequestItems[tbl][reqNum].PutRequest.Item
-
-						assert.Equal(t, expectedItem["key"], inputItem["key"])
-						assert.Equal(t, expectedItem["value"], inputItem["value"])
-					}
-				}
-
-				return &dynamodb.BatchWriteItemOutput{
-					UnprocessedItems: map[string][]*dynamodb.WriteRequest{},
-				}, nil
-			},
-		}
-		ss.table = tableName
-		ss.ttlAttributeName = "testAttributeName"
-
-		req := []state.SetRequest{
-			{
-				Key: "key1",
-				Value: value{
-					Value: "value1",
-				},
-				Metadata: map[string]string{
-					"ttlInSeconds": "-1",
-				},
-			},
-			{
-				Key: "key2",
-				Value: value{
-					Value: "value2",
-				},
-			},
-		}
-		err := ss.BulkSet(context.Background(), req)
-		assert.NoError(t, err)
-	})
-	t.Run("Successfully set items with ttl", func(t *testing.T) {
-		ss := &StateStore{
-			partitionKey: defaultPartitionKeyName,
-		}
-		ss.client = &mockedDynamoDB{
-			BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {
-				expected := map[string][]*dynamodb.WriteRequest{}
-				// This might fail occasionally due to timestamp precision.
-				timestamp := time.Now().Unix() + 90
-				expected[tableName] = []*dynamodb.WriteRequest{
-					{
-						PutRequest: &dynamodb.PutRequest{
-							Item: map[string]*dynamodb.AttributeValue{
-								"key": {
-									S: aws.String("key1"),
-								},
-								"value": {
-									S: aws.String(`{"Value":"value1"}`),
-								},
-								"testAttributeName": {
-									N: aws.String(strconv.FormatInt(timestamp, 10)),
-								},
-							},
-						},
-					},
-					{
-						PutRequest: &dynamodb.PutRequest{
-							Item: map[string]*dynamodb.AttributeValue{
-								"key": {
-									S: aws.String("key2"),
-								},
-								"value": {
-									S: aws.String(`{"Value":"value2"}`),
-								},
-							},
-						},
-					},
-				}
-				for tbl := range expected {
-					for reqNum := range expected[tbl] {
-						expectedItem := expected[tbl][reqNum].PutRequest.Item
-						inputItem := input.RequestItems[tbl][reqNum].PutRequest.Item
-
-						assert.Equal(t, expectedItem["key"], inputItem["key"])
-						assert.Equal(t, expectedItem["value"], inputItem["value"])
-					}
-				}
-
-				return &dynamodb.BatchWriteItemOutput{
-					UnprocessedItems: map[string][]*dynamodb.WriteRequest{},
-				}, nil
-			},
-		}
-		ss.table = tableName
-		ss.ttlAttributeName = "testAttributeName"
-
-		req := []state.SetRequest{
-			{
-				Key: "key1",
-				Value: value{
-					Value: "value1",
-				},
-				Metadata: map[string]string{
-					"ttlInSeconds": "90",
-				},
-			},
-			{
-				Key: "key2",
-				Value: value{
-					Value: "value2",
-				},
-			},
-		}
-		err := ss.BulkSet(context.Background(), req)
-		assert.NoError(t, err)
-	})
-	t.Run("Unsuccessfully set items", func(t *testing.T) {
-		ss := StateStore{
-			client: &mockedDynamoDB{
-				BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {
-					return nil, fmt.Errorf("unable to bulk write items")
-				},
-			},
-		}
-		req := []state.SetRequest{
-			{
-				Key: "key",
-				Value: value{
-					Value: "value",
-				},
-			},
-			{
-				Key: "key",
-				Value: value{
-					Value: "value",
-				},
-			},
-		}
-		err := ss.BulkSet(context.Background(), req)
-		assert.Error(t, err)
-	})
-}
-
 func TestDelete(t *testing.T) {
 	t.Run("Successfully delete item", func(t *testing.T) {
 		req := &state.DeleteRequest{
@@ -1016,75 +772,6 @@ func TestDelete(t *testing.T) {
 			Key: "key",
 		}
 		err := ss.Delete(context.Background(), req)
-		assert.Error(t, err)
-	})
-}
-
-func TestBulkDelete(t *testing.T) {
-	t.Run("Successfully delete items", func(t *testing.T) {
-		ss := &StateStore{
-			partitionKey: defaultPartitionKeyName,
-		}
-		ss.client = &mockedDynamoDB{
-			BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {
-				expected := map[string][]*dynamodb.WriteRequest{}
-				expected[tableName] = []*dynamodb.WriteRequest{
-					{
-						DeleteRequest: &dynamodb.DeleteRequest{
-							Key: map[string]*dynamodb.AttributeValue{
-								"key": {
-									S: aws.String("key1"),
-								},
-							},
-						},
-					},
-					{
-						DeleteRequest: &dynamodb.DeleteRequest{
-							Key: map[string]*dynamodb.AttributeValue{
-								"key": {
-									S: aws.String("key2"),
-								},
-							},
-						},
-					},
-				}
-				assert.Equal(t, expected, input.RequestItems)
-
-				return &dynamodb.BatchWriteItemOutput{
-					UnprocessedItems: map[string][]*dynamodb.WriteRequest{},
-				}, nil
-			},
-		}
-		ss.table = tableName
-
-		req := []state.DeleteRequest{
-			{
-				Key: "key1",
-			},
-			{
-				Key: "key2",
-			},
-		}
-		err := ss.BulkDelete(context.Background(), req)
-		assert.NoError(t, err)
-	})
-	t.Run("Unsuccessfully delete items", func(t *testing.T) {
-		ss := StateStore{
-			client: &mockedDynamoDB{
-				BatchWriteItemWithContextFn: func(ctx context.Context, input *dynamodb.BatchWriteItemInput, op ...request.Option) (output *dynamodb.BatchWriteItemOutput, err error) {
-					return nil, fmt.Errorf("unable to bulk write items")
-				},
-			},
-		}
-		req := []state.DeleteRequest{
-			{
-				Key: "key",
-			},
-			{
-				Key: "key",
-			},
-		}
-		err := ss.BulkDelete(context.Background(), req)
 		assert.Error(t, err)
 	})
 }

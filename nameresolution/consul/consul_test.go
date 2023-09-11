@@ -540,7 +540,7 @@ func TestResolveID(t *testing.T) {
 						serviceResult: []*consul.ServiceEntry{
 							{
 								Service: &consul.AgentService{
-									Address: "123.234.345.456",
+									Address: "123.234.245.255",
 									Port:    8600,
 									Meta: map[string]string{
 										"DAPR_PORT": "50005",
@@ -554,7 +554,37 @@ func TestResolveID(t *testing.T) {
 
 				addr, _ := resolver.ResolveID(req)
 
-				assert.Equal(t, "123.234.345.456:50005", addr)
+				assert.Equal(t, "123.234.245.255:50005", addr)
+			},
+		},
+		{
+			"should get ipv6 address from service",
+			nr.ResolveRequest{
+				ID: "test-app",
+			},
+			func(t *testing.T, req nr.ResolveRequest) {
+				t.Helper()
+				mock := mockClient{
+					mockHealth: mockHealth{
+						serviceResult: []*consul.ServiceEntry{
+							{
+								Service: &consul.AgentService{
+									Address: "2001:db8:3333:4444:5555:6666:7777:8888",
+									Port:    8600,
+									Meta: map[string]string{
+										"DAPR_PORT": "50005",
+									},
+								},
+							},
+						},
+					},
+				}
+				resolver := newResolver(logger.NewLogger("test"), &mock)
+				resolver.config = testConfig
+
+				addr, _ := resolver.ResolveID(req)
+
+				assert.Equal(t, "[2001:db8:3333:4444:5555:6666:7777:8888]:50005", addr)
 			},
 		},
 		{
@@ -569,7 +599,7 @@ func TestResolveID(t *testing.T) {
 						serviceResult: []*consul.ServiceEntry{
 							{
 								Service: &consul.AgentService{
-									Address: "123.234.345.456",
+									Address: "123.234.245.255",
 									Port:    8600,
 									Meta: map[string]string{
 										"DAPR_PORT": "50005",
@@ -578,7 +608,7 @@ func TestResolveID(t *testing.T) {
 							},
 							{
 								Service: &consul.AgentService{
-									Address: "234.345.456.678",
+									Address: "234.245.255.228",
 									Port:    8600,
 									Meta: map[string]string{
 										"DAPR_PORT": "50005",
@@ -595,9 +625,9 @@ func TestResolveID(t *testing.T) {
 				for i := 0; i < 100; i++ {
 					addr, _ := resolver.ResolveID(req)
 
-					if addr == "123.234.345.456:50005" {
+					if addr == "123.234.245.255:50005" {
 						total1++
-					} else if addr == "234.345.456.678:50005" {
+					} else if addr == "234.245.255.228:50005" {
 						total2++
 					} else {
 						t.Fatalf("Received unexpected address: %s", addr)
@@ -622,7 +652,7 @@ func TestResolveID(t *testing.T) {
 						serviceResult: []*consul.ServiceEntry{
 							{
 								Node: &consul.Node{
-									Address: "999.888.777",
+									Address: "123.234.245.255",
 								},
 								Service: &consul.AgentService{
 									Address: "",
@@ -634,7 +664,7 @@ func TestResolveID(t *testing.T) {
 							},
 							{
 								Node: &consul.Node{
-									Address: "999.888.777",
+									Address: "123.234.245.255",
 								},
 								Service: &consul.AgentService{
 									Address: "",
@@ -651,7 +681,7 @@ func TestResolveID(t *testing.T) {
 
 				addr, _ := resolver.ResolveID(req)
 
-				assert.Equal(t, "999.888.777:50005", addr)
+				assert.Equal(t, "123.234.245.255:50005", addr)
 			},
 		},
 		{
@@ -695,7 +725,7 @@ func TestResolveID(t *testing.T) {
 						serviceResult: []*consul.ServiceEntry{
 							{
 								Service: &consul.AgentService{
-									Address: "123.234.345.456",
+									Address: "123.234.145.155",
 									Port:    8600,
 								},
 							},
@@ -898,33 +928,6 @@ func TestParseConfig(t *testing.T) {
 			},
 		},
 		{
-			"invalid configuration in metadata",
-			false,
-			map[interface{}]interface{}{
-				"Checks": []interface{}{
-					map[interface{}]interface{}{
-						"Name":     "health check name",
-						"IAMFAKE":  "health check id",
-						"Interval": "15s",
-						"HTTP":     "http://127.0.0.1:3500/health",
-					},
-				},
-				"Bob": []interface{}{
-					"dapr",
-					"test",
-				},
-				"Meta": map[interface{}]interface{}{
-					"DAPR_HTTP_PORT": "3500",
-					"DAPR_GRPC_PORT": "50005",
-				},
-				"QueryOptions": map[interface{}]interface{}{
-					"NOTAREALFIELDNAME": true,
-					"Filter":            "Checks.ServiceTags contains dapr",
-				},
-			},
-			configSpec{},
-		},
-		{
 			"empty configuration in metadata",
 			true,
 			nil,
@@ -1016,7 +1019,7 @@ func TestGetConfig(t *testing.T) {
 				assert.Equal(t, "Dapr Health Status", check.Name)
 				assert.Equal(t, "daprHealth:test-app-"+metadata.Properties[nr.HostAddress]+"-"+metadata.Properties[nr.DaprHTTPPort], check.CheckID)
 				assert.Equal(t, "15s", check.Interval)
-				assert.Equal(t, fmt.Sprintf("http://%s/v1.0/healthz", net.JoinHostPort(metadata.Properties[nr.HostAddress], metadata.Properties[nr.DaprHTTPPort])), check.HTTP)
+				assert.Equal(t, fmt.Sprintf("http://%s/v1.0/healthz?appid=%s", net.JoinHostPort(metadata.Properties[nr.HostAddress], metadata.Properties[nr.DaprHTTPPort]), metadata.Properties[nr.AppID]), check.HTTP)
 
 				// Metadata
 				assert.Equal(t, 1, len(actual.Registration.Meta))

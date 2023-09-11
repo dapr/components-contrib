@@ -15,7 +15,7 @@ npm ci
 npm run build
 ```
 
-> Important: do not publish this worker (e.g. with `npx wrangler publish`), as it should not use the config in the `wrangler.toml` file!
+> Important: do not deploy this worker (e.g. with `npx wrangler deploy`), as it should not use the config in the `wrangler.toml` file!
 
 ## Develop locally
 

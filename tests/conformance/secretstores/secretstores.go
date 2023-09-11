@@ -29,12 +29,11 @@ type TestConfig struct {
 	utils.CommonConfig
 }
 
-func NewTestConfig(name string, allOperations bool, operations []string) TestConfig {
+func NewTestConfig(name string, operations []string) TestConfig {
 	tc := TestConfig{
 		CommonConfig: utils.CommonConfig{
 			ComponentType: "secretstores",
 			ComponentName: name,
-			AllOperations: allOperations,
 			Operations:    utils.NewStringSet(operations...),
 		},
 	}
@@ -50,9 +49,9 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 
 	// Init
 	t.Run("init", func(t *testing.T) {
-		err := store.Init(context.Background(), secretstores.Metadata{
-			Base: metadata.Base{Properties: props},
-		})
+		err := store.Init(context.Background(), secretstores.Metadata{Base: metadata.Base{
+			Properties: props,
+		}})
 		assert.NoError(t, err, "expected no error on initializing store")
 	})
 
@@ -69,7 +68,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 	})
 
 	// Get
-	if config.HasOperation("get") {
+	t.Run("get", func(t *testing.T) {
 		getSecretRequest := secretstores.GetSecretRequest{
 			Name: "conftestsecret",
 		}
@@ -86,10 +85,10 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 			assert.NotNil(t, resp.Data, "expected value to be returned")
 			assert.Equal(t, getSecretResponse.Data, resp.Data, "expected values to be equal")
 		})
-	}
+	})
 
 	// Bulkget
-	if config.HasOperation("bulkget") {
+	t.Run("bulkGet", func(t *testing.T) {
 		bulkReq := secretstores.BulkGetSecretRequest{}
 		expectedData := map[string]map[string]string{
 			"conftestsecret": {
@@ -117,5 +116,5 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 				assert.Equal(t, m, resp.Data[k], "expected values to be equal")
 			}
 		})
-	}
+	})
 }

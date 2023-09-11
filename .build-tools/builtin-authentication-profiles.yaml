@@ -1,0 +1,174 @@
+aws:
+  - title: "AWS: Access Key ID and Secret Access Key"
+    description: |
+      Authenticate using an Access Key ID and Secret Access Key included in the metadata
+    metadata:
+      - name: accessKey
+        description: AWS access key associated with an IAM account
+        required: true
+        sensitive: true
+        example: '"AKIAIOSFODNN7EXAMPLE"'
+      - name: secretKey
+        description: The secret key associated with the access key
+        required: true
+        sensitive: true
+        example: '"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"'
+      - name: sessionToken
+        required: false
+        sensitive: true
+        description: |
+          AWS session token to use. A session token is only required if you are using
+          temporary security credentials.
+        example: '"TOKEN"'
+        type: string
+  - title: "AWS: Credentials from Environment Variables"
+    description: Use AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY from the environment
+
+azuread:
+  - title: "Azure AD: Managed identity"
+    description: Authenticate using Azure AD and a managed identity.
+    metadata:
+      - name: azureClientId
+        description: |
+          Client ID (application ID). Required if the service has multiple identities assigned.
+        example: '"c7dd251f-811f-4ba2-a905-acd4d3f8f08b"'
+      - name: azureEnvironment
+        description: |
+          Optional name for the Azure environment if using a different Azure cloud
+        default: AzurePublicCloud
+        example: '"AzurePublicCloud"'
+        allowedValues:
+          - AzurePublicCloud
+          - AzureChinaCloud
+          - AzureUSGovernmentCloud
+  - title: "Azure AD: Client credentials"
+    description: |
+      Authenticate using Azure AD with client credentials, also known as "service principals".
+    metadata:
+      - name: azureTenantId
+        description: ID of the Azure AD tenant
+        required: true
+        example: '"cd4b2887-304c-47e1-b4d5-65447fdd542a"'
+      - name: azureClientId
+        description: Client ID (application ID)
+        required: true
+        example: '"c7dd251f-811f-4ba2-a905-acd4d3f8f08b"'
+      - name: azureClientSecret
+        description: Client secret (application password)
+        required: true
+        sensitive: true
+        example: '"Ecy3XG7zVZK3/vl/a2NSB+a1zXLa8RnMum/IgD0E"'
+      - name: azureEnvironment
+        description: |
+          Optional name for the Azure environment if using a different Azure cloud
+        default: AzurePublicCloud
+        example: '"AzurePublicCloud"'
+        allowedValues:
+          - AzurePublicCloud
+          - AzureChinaCloud
+          - AzureUSGovernmentCloud
+  - title: "Azure AD: Client certificate"
+    description: |
+      Authenticate using Azure AD with a client certificate. One of "azureCertificate" and "azureCertificateFile" is required.
+    metadata:
+      - name: azureTenantId
+        description: ID of the Azure AD tenant
+        required: true
+        example: '"cd4b2887-304c-47e1-b4d5-65447fdd542a"'
+      - name: azureClientId
+        description: Client ID (application ID)
+        required: true
+        example: '"c7dd251f-811f-4ba2-a905-acd4d3f8f08b"'
+      - name: azureCertificate
+        description: |
+          Certificate and private key (in either a PEM file containing both the certificate and key, or in PFX/PKCS#12 format)
+        sensitive: true
+        example: |
+          "-----BEGIN PRIVATE KEY-----\n MIIEvgI... \n -----END PRIVATE KEY-----
+          \n -----BEGIN CERTIFICATE----- \n MIICoTC... \n -----END CERTIFICATE----- \n"
+      - name: azureCertificateFile
+        description: |
+          Path to PEM or PFX/PKCS#12 file on disk, containing the certificate and private key.
+        example: '"/path/to/file.pem"'
+      - name: azureCertificatePassword
+        description: Password for the certificate if encrypted.
+        sensitive: true
+        example: '"password"'
+      - name: azureEnvironment
+        description: |
+          Optional name for the Azure environment if using a different Azure cloud
+        default: AzurePublicCloud
+        example: '"AzurePublicCloud"'
+        allowedValues:
+          - AzurePublicCloud
+          - AzureChinaCloud
+          - AzureUSGovernmentCloud
+
+gcp:
+  - title: "GCP API Authentication with Service Account Key"
+    description: |
+      Authenticate authenticates API calls with the given service account or refresh token JSON credentials.
+    metadata:
+      - name: privateKeyID
+        required: true
+        sensitive: true
+        description: |
+          The GCP private key id. Replace with the value of "private_key_id" field of the Service Account Key file.
+        example: '"privateKeyID"'
+      - name: privateKey
+        required: true
+        sensitive: true
+        description: |
+          The GCP credentials private key. Replace with the value of "private_key" field of the Service Account Key file.
+        example: '"-----BEGIN PRIVATE KEY-----\nMIIE...\\n-----END PRIVATE KEY-----\n"'
+      - name: type
+        type: string
+        required: false
+        description: |
+          The GCP credentials type.
+        example: '"service_account"'
+        allowedValues:
+          - service_account
+      - name: projectID
+        type: string
+        required: true
+        description: |
+          GCP project id.
+        example: '"projectID"'
+      - name: clientEmail
+        type: string
+        required: true
+        description: |
+          GCP client email.
+        example: '"client@email.com"'
+      - name: clientID
+        type: string
+        required: true
+        description: |
+          The GCP client ID.
+        example: '"0123456789-0123456789"'
+      - name: authURI
+        type: string
+        required: false
+        description: |
+          The GCP account OAuth2 authorization server endpoint URI.
+        example: '"https://accounts.google.com/o/oauth2/auth"'
+      - name: tokenURI
+        type: string
+        required: false
+        description: |
+         The GCP account token server endpoint URI.
+        example: '"https://oauth2.googleapis.com/token"'
+      - name: authProviderX509CertURL
+        type: string
+        required: false
+        description: |
+          The GCP URL of the public x509 certificate, used to verify the signature
+           on JWTs, such as ID tokens, signed by the authentication provider.
+        example: '"https://www.googleapis.com/oauth2/v1/certs"'
+      - name: clientX509CertURL
+        type: string
+        required: false
+        description: |
+          The GCP URL of the public x509 certificate, used to verify JWTs signed by the client.
+        example: '"https://www.googleapis.com/robot/v1/metadata/x509/<PROJECT_NAME>.iam.gserviceaccount.com"'

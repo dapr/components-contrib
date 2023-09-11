@@ -46,11 +46,13 @@ type StateStore struct {
 }
 
 type dynamoDBMetadata struct {
+	// Ignored by metadata parser because included in built-in authentication profile
+	AccessKey    string `json:"accessKey" mapstructure:"accessKey" mdignore:"true"`
+	SecretKey    string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
+	SessionToken string `json:"sessionToken"  mapstructure:"sessionToken" mdignore:"true"`
+
 	Region           string `json:"region"`
 	Endpoint         string `json:"endpoint"`
-	AccessKey        string `json:"accessKey"`
-	SecretKey        string `json:"secretKey"`
-	SessionToken     string `json:"sessionToken"`
 	Table            string `json:"table"`
 	TTLAttributeName string `json:"ttlAttributeName"`
 	PartitionKey     string `json:"partitionKey"`
@@ -92,7 +94,19 @@ func (d *StateStore) Init(_ context.Context, metadata state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (d *StateStore) Features() []state.Feature {
-	return []state.Feature{state.FeatureETag, state.FeatureTransactional}
+	// TTLs are enabled only if ttlAttributeName is set
+	if d.ttlAttributeName == "" {
+		return []state.Feature{
+			state.FeatureETag,
+			state.FeatureTransactional,
+		}
+	}
+
+	return []state.Feature{
+		state.FeatureETag,
+		state.FeatureTransactional,
+		state.FeatureTTL,
+	}
 }
 
 // Get retrieves a dynamoDB item.
@@ -121,9 +135,10 @@ func (d *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 		return nil, err
 	}
 
-	var ttl int64
+	var metadata map[string]string
 	if d.ttlAttributeName != "" {
 		if val, ok := result.Item[d.ttlAttributeName]; ok {
+			var ttl int64
 			if err = dynamodbattribute.Unmarshal(val, &ttl); err != nil {
 				return nil, err
 			}
@@ -131,16 +146,21 @@ func (d *StateStore) Get(ctx context.Context, req *state.GetRequest) (*state.Get
 				// Item has expired but DynamoDB didn't delete it yet.
 				return &state.GetResponse{}, nil
 			}
+			metadata = map[string]string{
+				state.GetRespMetaKeyTTLExpireTime: time.Unix(ttl, 0).UTC().Format(time.RFC3339),
+			}
 		}
 	}
 
 	resp := &state.GetResponse{
-		Data: []byte(output),
+		Data:     []byte(output),
+		Metadata: metadata,
 	}
 
-	var etag string
-	if etagVal, ok := result.Item["etag"]; ok {
-		if err = dynamodbattribute.Unmarshal(etagVal, &etag); err != nil {
+	if result.Item["etag"] != nil {
+		var etag string
+		err = dynamodbattribute.Unmarshal(result.Item["etag"], &etag)
+		if err != nil {
 			return nil, err
 		}
 		resp.ETag = &etag
@@ -161,9 +181,7 @@ func (d *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 		TableName: &d.table,
 	}
 
-	haveEtag := false
-	if req.ETag != nil && *req.ETag != "" {
-		haveEtag = true
+	if req.HasETag() {
 		condExpr := "etag = :etag"
 		input.ConditionExpression = &condExpr
 		exprAttrValues := make(map[string]*dynamodb.AttributeValue)
@@ -177,7 +195,7 @@ func (d *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	}
 
 	_, err = d.client.PutItemWithContext(ctx, input)
-	if err != nil && haveEtag {
+	if err != nil && req.HasETag() {
 		switch cErr := err.(type) {
 		case *dynamodb.ConditionalCheckFailedException:
 			err = state.NewETagError(state.ETagMismatch, cErr)
@@ -185,44 +203,6 @@ func (d *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	}
 
 	return err
-}
-
-// BulkSet performs a bulk set operation.
-func (d *StateStore) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	if len(req) == 1 {
-		return d.Set(ctx, &req[0])
-	}
-
-	writeRequests := make([]*dynamodb.WriteRequest, len(req))
-	for i := range req {
-		if req[i].ETag != nil && *req[i].ETag != "" {
-			return errors.New("dynamodb error: BulkSet() does not support etags; please use Set() instead")
-		}
-		if req[i].Options.Concurrency == state.FirstWrite {
-			return errors.New("dynamodb error: BulkSet() does not support FirstWrite concurrency; please use Set() instead")
-		}
-
-		item, err := d.getItemFromReq(&req[i])
-		if err != nil {
-			return err
-		}
-
-		writeRequests[i] = &dynamodb.WriteRequest{
-			PutRequest: &dynamodb.PutRequest{
-				Item: item,
-			},
-		}
-	}
-
-	requestItems := map[string][]*dynamodb.WriteRequest{
-		d.table: writeRequests,
-	}
-
-	_, e := d.client.BatchWriteItemWithContext(ctx, &dynamodb.BatchWriteItemInput{
-		RequestItems: requestItems,
-	})
-
-	return e
 }
 
 // Delete performs a delete operation.
@@ -236,7 +216,7 @@ func (d *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 		TableName: aws.String(d.table),
 	}
 
-	if req.ETag != nil && *req.ETag != "" {
+	if req.HasETag() {
 		condExpr := "etag = :etag"
 		input.ConditionExpression = &condExpr
 		exprAttrValues := make(map[string]*dynamodb.AttributeValue)
@@ -257,45 +237,10 @@ func (d *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	return err
 }
 
-// BulkDelete performs a bulk delete operation.
-func (d *StateStore) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	if len(req) == 1 {
-		return d.Delete(ctx, &req[0])
-	}
-
-	writeRequests := make([]*dynamodb.WriteRequest, len(req))
-	for i, r := range req {
-		if r.ETag != nil && *r.ETag != "" {
-			return errors.New("dynamodb error: BulkDelete() does not support etags; please use Delete() instead")
-		}
-
-		writeRequests[i] = &dynamodb.WriteRequest{
-			DeleteRequest: &dynamodb.DeleteRequest{
-				Key: map[string]*dynamodb.AttributeValue{
-					d.partitionKey: {
-						S: aws.String(r.Key),
-					},
-				},
-			},
-		}
-	}
-
-	requestItems := map[string][]*dynamodb.WriteRequest{
-		d.table: writeRequests,
-	}
-
-	_, e := d.client.BatchWriteItemWithContext(ctx, &dynamodb.BatchWriteItemInput{
-		RequestItems: requestItems,
-	})
-
-	return e
-}
-
-func (d *StateStore) GetComponentMetadata() map[string]string {
+func (d *StateStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := dynamoDBMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
 }
 
 func (d *StateStore) getDynamoDBMetadata(meta state.Metadata) (*dynamoDBMetadata, error) {
@@ -391,6 +336,12 @@ func (d *StateStore) parseTTL(req *state.SetRequest) (*int64, error) {
 	}
 
 	return nil, nil
+}
+
+// MultiMaxSize returns the maximum number of operations allowed in a transaction.
+// For AWS DynamoDB, that's 100.
+func (d *StateStore) MultiMaxSize() int {
+	return 100
 }
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.

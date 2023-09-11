@@ -47,7 +47,7 @@ func (aeh *AzureEventHubs) Init(_ context.Context, metadata pubsub.Metadata) err
 }
 
 func (aeh *AzureEventHubs) Features() []pubsub.Feature {
-	return nil
+	return []pubsub.Feature{pubsub.FeatureBulkPublish}
 }
 
 // Publish sends a message to Azure Event Hubs.
@@ -120,7 +120,7 @@ func (aeh *AzureEventHubs) BulkPublish(ctx context.Context, req *pubsub.BulkPubl
 	return pubsub.BulkPublishResponse{}, nil
 }
 
-// Subscribe receives data from Azure Event Hubs.
+// Subscribe receives messages from Azure Event Hubs.
 func (aeh *AzureEventHubs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	topic := req.Topic
 	if topic == "" {
@@ -129,17 +129,48 @@ func (aeh *AzureEventHubs) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 
 	// Check if requireAllProperties is set and is truthy
 	getAllProperties := utils.IsTruthy(req.Metadata["requireAllProperties"])
+	checkPointFrequencyPerPartition := utils.GetIntValFromString(req.Metadata["checkPointFrequencyPerPartition"], impl.DefaultCheckpointFrequencyPerPartition)
+
+	pubsubHandler := aeh.GetPubSubHandlerFunc(topic, getAllProperties, handler)
+
+	subscribeConfig := impl.SubscribeConfig{
+		Topic:                           topic,
+		MaxBulkSubCount:                 1,
+		MaxBulkSubAwaitDurationMs:       impl.DefaultMaxBulkSubAwaitDurationMs,
+		CheckPointFrequencyPerPartition: checkPointFrequencyPerPartition,
+		Handler:                         pubsubHandler,
+	}
+	// Start the subscription
+	// This is non-blocking
+	return aeh.AzureEventHubs.Subscribe(ctx, subscribeConfig)
+}
+
+// BulkSubscribe receives bulk messages from Azure Event Hubs.
+func (aeh *AzureEventHubs) BulkSubscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.BulkHandler) error {
+	topic := req.Topic
+	if topic == "" {
+		return errors.New("parameter 'topic' is required")
+	}
+
+	// Check if requireAllProperties is set and is truthy
+	getAllProperties := utils.IsTruthy(req.Metadata["requireAllProperties"])
+	checkPointFrequencyPerPartition := utils.GetIntValFromString(req.Metadata["checkPointFrequencyPerPartition"], impl.DefaultCheckpointFrequencyPerPartition)
+	maxBulkSubCount := utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxMessagesCount, impl.DefaultMaxBulkSubCount)
+	maxBulkSubAwaitDurationMs := utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxAwaitDurationMs, impl.DefaultMaxBulkSubAwaitDurationMs)
+
+	bulkPubsubHandler := aeh.GetBulkPubSubHandlerFunc(topic, getAllProperties, handler)
+
+	subscribeConfig := impl.SubscribeConfig{
+		Topic:                           topic,
+		MaxBulkSubCount:                 maxBulkSubCount,
+		MaxBulkSubAwaitDurationMs:       maxBulkSubAwaitDurationMs,
+		CheckPointFrequencyPerPartition: checkPointFrequencyPerPartition,
+		Handler:                         bulkPubsubHandler,
+	}
 
 	// Start the subscription
 	// This is non-blocking
-	return aeh.AzureEventHubs.Subscribe(ctx, topic, getAllProperties, func(ctx context.Context, data []byte, metadata map[string]string) error {
-		res := pubsub.NewMessage{
-			Data:     data,
-			Topic:    topic,
-			Metadata: metadata,
-		}
-		return handler(ctx, &res)
-	})
+	return aeh.AzureEventHubs.Subscribe(ctx, subscribeConfig)
 }
 
 func (aeh *AzureEventHubs) Close() (err error) {
@@ -147,9 +178,8 @@ func (aeh *AzureEventHubs) Close() (err error) {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (aeh *AzureEventHubs) GetComponentMetadata() map[string]string {
+func (aeh *AzureEventHubs) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := impl.AzureEventHubsMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
-	return metadataInfo
+	return
 }

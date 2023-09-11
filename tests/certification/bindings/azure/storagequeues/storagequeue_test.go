@@ -17,6 +17,7 @@ package storagequeue_test
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -36,7 +37,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/watcher"
 	bindings_loader "github.com/dapr/dapr/pkg/components/bindings"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
-	"github.com/dapr/dapr/pkg/runtime"
+	"github.com/dapr/dapr/pkg/config/protocol"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	daprClient "github.com/dapr/go-sdk/client"
 	"github.com/dapr/go-sdk/service/common"
@@ -121,11 +122,12 @@ func TestStorageQueue(t *testing.T) {
 		// Run the application logic above.
 		Step(app.Run("standardApp", fmt.Sprintf(":%d", appPort), application)).
 		Step(sidecar.Run("standardSidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithComponentsPath("./components/standard"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithComponentsPath("./components/standard"),
+			)...,
 		)).
 		Step("send and wait", test).
 		Step("wait for messages to be deleted", flow.Sleep(time.Second*3)).
@@ -196,21 +198,23 @@ func TestAzureStorageQueueTTLs(t *testing.T) {
 
 	flow.New(t, "storagequeue ttl certification").
 		Step(sidecar.Run("ttlSidecar",
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithComponentsPath("./components/ttl"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithComponentsPath("./components/ttl"),
+			)...,
 		)).
 		Step("send ttl messages", ttlTest).
 		Step("stop initial sidecar", sidecar.Stop("ttlSidecar")).
 		Step("wait for messages to expire", flow.Sleep(time.Second*20)).
 		Step(app.Run("ttlApp", fmt.Sprintf(":%d", appPort), ttlApplication)).
 		Step(sidecar.Run("appSidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(freshPorts[0]),
-			embedded.WithDaprHTTPPort(freshPorts[1]),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(freshPorts[0])),
+				embedded.WithDaprHTTPPort(strconv.Itoa(freshPorts[1])),
+			)...,
 		)).
 		Step("verify no messages", func(ctx flow.Context) error {
 			// Assertion on the data.
@@ -265,21 +269,23 @@ func TestAzureStorageQueueTTLsWithLessSleepTime(t *testing.T) {
 		// Run the application logic above.
 		Step(app.Run("ttlApp", fmt.Sprintf(":%d", appPort), ttlApplication)).
 		Step(sidecar.Run("ttlSidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithComponentsPath("./components/ttl"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithComponentsPath("./components/ttl"),
+			)...,
 		)).
 		Step("send ttl messages", ttlTest).
 		Step("wait a brief moment - messages will not have expired", flow.Sleep(time.Second*1)).
 		Step("stop initial sidecar", sidecar.Stop("ttlSidecar")).
 		Step(app.Run("ttlApp", fmt.Sprintf(":%d", appPort), ttlApplication)).
 		Step(sidecar.Run("appSidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(freshPorts[0]),
-			embedded.WithDaprHTTPPort(freshPorts[1]),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(freshPorts[0])),
+				embedded.WithDaprHTTPPort(strconv.Itoa(freshPorts[1])),
+			)...,
 		)).
 		Step("verify no messages", func(ctx flow.Context) error {
 			// Assertion on the data.
@@ -341,11 +347,12 @@ func TestAzureStorageQueueForDecode(t *testing.T) {
 		// Run the application logic above.
 		Step(app.Run("standardApp", fmt.Sprintf(":%d", appPort), decodeApplication)).
 		Step(sidecar.Run("standardSidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithComponentsPath("./components/decode"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithComponentsPath("./components/decode"),
+			)...,
 		)).
 		Step("send and wait", testDecode).
 		Step("wait for messages to be deleted", flow.Sleep(time.Second*3)).
@@ -426,11 +433,12 @@ func TestAzureStorageQueueForVisibility(t *testing.T) {
 		// Run the application logic above.
 		Step(app.Run("standardApp", fmt.Sprintf(":%d", appPort), visibilityApplication)).
 		Step(sidecar.Run("standardSidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithComponentsPath("./components/visibilityTimeout"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithComponentsPath("./components/visibilityTimeout"),
+			)...,
 		)).
 		Step("send and wait", testVisibility).
 		Step("wait for messages to be deleted", flow.Sleep(time.Second*3)).
@@ -498,11 +506,12 @@ func TestAzureStorageQueueRetriesOnError(t *testing.T) {
 		// Run the application logic above.
 		Step(app.Run("retryApp", fmt.Sprintf(":%d", appPort), retryApplication)).
 		Step(sidecar.Run("retrySidecar",
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			embedded.WithComponentsPath("./components/retry"),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+				embedded.WithComponentsPath("./components/retry"),
+			)...,
 		)).
 		Step("interrupt network", network.InterruptNetwork(time.Minute, []string{}, []string{}, "443")).
 		Step("send and wait", testRetry).
@@ -510,7 +519,7 @@ func TestAzureStorageQueueRetriesOnError(t *testing.T) {
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	bindingsRegistry := bindings_loader.NewRegistry()
@@ -526,8 +535,8 @@ func componentRuntimeOptions() []runtime.Option {
 	secretstoreRegistry.Logger = log
 	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
 
-	return []runtime.Option{
-		runtime.WithBindings(bindingsRegistry),
-		runtime.WithSecretStores(secretstoreRegistry),
+	return []embedded.Option{
+		embedded.WithBindings(bindingsRegistry),
+		embedded.WithSecretStores(secretstoreRegistry),
 	}
 }

@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: state
+name: cockroachdb
+version: v1
+status: stable
+title: "CockroachDB"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-cockroachdb/
+capabilities:
+  - crud
+  - transactional
+  - etag
+  - ttl
+  - actorStateStore
+authenticationProfiles:
+  - title: "Connection string"
+    description: "Authenticate using a Connection String"
+    metadata:
+      - name: connectionString
+        required: true
+        sensitive: true
+        description: The connection string for the CockroachDB database
+        example: |
+          "host=localhost user=root password=example port=5432 connect_timeout=10 database=dapr_test"
+        type: string
+metadata: 
+  - name: timeoutInSeconds
+    description: |
+      Timeout, in seconds, for all database operations.
+    type: number
+    default: '20'
+    example: '30'
+  - name: tableName
+    description: |
+      Name of the table where the data is stored. Can optionally have
+      the schema name as prefix, such as public.state.
+    type: string
+    default: '"state"'  
+    example: '"state", "public.state"'
+  - name: metadataTableName
+    description: |
+      Name of the table Dapr uses to store a few metadata properties.
+      Can optionally have the schema name as prefix, such as public.dapr_metadata.
+    type: string
+    default: '"dapr_metadata"' 
+    example: '"dapr_metadata", "public.dapr_metadata"'
+  - name: cleanupIntervalInSeconds
+    description: |
+      Interval, in seconds, to clean up rows with an expired TTL.
+      Setting this to values <=0 disables the periodic cleanup.
+    type: number
+    default: '3600'
+    example: '1800, -1'
+  - name: connectionMaxIdleTime
+    description: |
+      Max idle time before unused connections are automatically closed in the connection pool.
+      By default, there’s no value and this is left to the database driver to choose.
+    type: duration
+    example: '"5m"'

@@ -15,6 +15,7 @@ limitations under the License.
 package mongodb
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -26,6 +27,7 @@ import (
 
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/bsonrw"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -73,6 +75,8 @@ const (
 
 // MongoDB is a state store implementation for MongoDB.
 type MongoDB struct {
+	state.BulkStore
+
 	client           *mongo.Client
 	collection       *mongo.Collection
 	operationTimeout time.Duration
@@ -102,14 +106,22 @@ type Item struct {
 	Key   string      `bson:"_id"`
 	Value interface{} `bson:"value"`
 	Etag  string      `bson:"_etag"`
+	TTL   *time.Time  `bson:"_ttl,omitempty"`
 }
 
 // NewMongoDB returns a new MongoDB state store.
 func NewMongoDB(logger logger.Logger) state.Store {
-	return &MongoDB{
-		features: []state.Feature{state.FeatureETag, state.FeatureTransactional, state.FeatureQueryAPI},
-		logger:   logger,
+	s := &MongoDB{
+		features: []state.Feature{
+			state.FeatureETag,
+			state.FeatureTransactional,
+			state.FeatureQueryAPI,
+			state.FeatureTTL,
+		},
+		logger: logger,
 	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // Init establishes connection to the store based on the metadata.
@@ -202,7 +214,7 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 
 	// create a document based on request key and value
 	filter := bson.M{id: req.Key}
-	if req.ETag != nil {
+	if req.HasETag() {
 		filter[etag] = *req.ETag
 	} else if req.Options.Concurrency == state.FirstWrite {
 		uuid, err := uuid.NewRandom()
@@ -254,7 +266,10 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 
 	_, err = m.collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
 	if err != nil {
-		return fmt.Errorf("error in updating document: %s", err)
+		if mongo.IsDuplicateKeyError(err) {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+		return fmt.Errorf("error in updating document: %w", err)
 	}
 
 	return nil
@@ -286,16 +301,24 @@ func (m *MongoDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetRes
 		return &state.GetResponse{}, err
 	}
 
+	var metadata map[string]string
+	if result.TTL != nil {
+		metadata = map[string]string{
+			state.GetRespMetaKeyTTLExpireTime: result.TTL.UTC().Format(time.RFC3339),
+		}
+	}
+
 	return &state.GetResponse{
-		Data: data,
-		ETag: ptr.Of(result.Etag),
+		Data:     data,
+		ETag:     ptr.Of(result.Etag),
+		Metadata: metadata,
 	}, nil
 }
 
 func (m *MongoDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
 	// If nothing is being requested, short-circuit
 	if len(req) == 0 {
-		return []state.BulkGetResponse{}, nil
+		return nil, nil
 	}
 
 	// Get all the keys
@@ -319,12 +342,13 @@ func (m *MongoDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.B
 			// No documents found, just return an empty list
 			err = nil
 		}
-		return []state.BulkGetResponse{}, err
+		return nil, err
 	}
 	defer cur.Close(ctx)
 
 	// Read all results
 	res := make([]state.BulkGetResponse, 0, len(keys))
+	foundKeys := make(map[string]struct{}, len(keys))
 	for cur.Next(ctx) {
 		var (
 			doc  Item
@@ -332,7 +356,7 @@ func (m *MongoDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.B
 		)
 		err = cur.Decode(&doc)
 		if err != nil {
-			return res, err
+			return nil, err
 		}
 
 		bgr := state.BulkGetResponse{
@@ -342,6 +366,12 @@ func (m *MongoDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.B
 			bgr.ETag = ptr.Of(doc.Etag)
 		}
 
+		if doc.TTL != nil {
+			bgr.Metadata = map[string]string{
+				state.GetRespMetaKeyTTLExpireTime: doc.TTL.UTC().Format(time.RFC3339),
+			}
+		}
+
 		data, err = m.decodeData(doc.Value)
 		if err != nil {
 			bgr.Error = err.Error()
@@ -349,10 +379,25 @@ func (m *MongoDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.B
 			bgr.Data = data
 		}
 		res = append(res, bgr)
+		foundKeys[bgr.Key] = struct{}{}
 	}
 	err = cur.Err()
 	if err != nil {
 		return res, err
+	}
+
+	// Populate missing keys with empty values
+	// This is to ensure consistency with the other state stores that implement BulkGet as a loop over Get, and with the Get method
+	if len(foundKeys) < len(req) {
+		var ok bool
+		for _, r := range req {
+			_, ok = foundKeys[r.Key]
+			if !ok {
+				res = append(res, state.BulkGetResponse{
+					Key: r.Key,
+				})
+			}
+		}
 	}
 
 	return res, nil
@@ -374,26 +419,45 @@ func (m *MongoDB) decodeData(resValue any) (data []byte, err error) {
 	switch obj := resValue.(type) {
 	case string:
 		data = []byte(obj)
-	case primitive.D:
-		// Setting canonical to `false`.
-		// See https://docs.mongodb.com/manual/reference/mongodb-extended-json/#bson-data-types-and-associated-representations
-		// Having bson marshalled into Relaxed JSON instead of canonical JSON, this way type preservation is lost but
-		// interoperability is preserved
-		// See https://mongodb.github.io/swift-bson/docs/current/SwiftBSON/json-interop.html
-		// A decimal value stored as BSON will be returned as {"d": 5.5} if canonical is set to false instead of
-		// {"d": {"$numberDouble": 5.5}} when canonical JSON is returned.
-		if data, err = bson.MarshalExtJSON(obj, false, true); err != nil {
+	case primitive.D, primitive.M:
+		if data, err = bson.MarshalExtJSON(obj, true, true); err != nil {
+			return nil, err
+		}
+		vr, errvr := bsonrw.NewExtJSONValueReader(bytes.NewReader(data), true)
+		if err != nil {
+			return nil, errvr
+		}
+		decoder, cerr := bson.NewDecoder(vr)
+		if cerr != nil {
+			return nil, cerr
+		}
+		var output map[string]interface{}
+		if err = decoder.Decode(&output); err != nil {
+			return nil, err
+		}
+		data, err = json.Marshal(output)
+		if err != nil {
 			return nil, err
 		}
 	case primitive.A:
 		newobj := bson.D{{Key: value, Value: obj}}
 
-		if data, err = bson.MarshalExtJSON(newobj, false, true); err != nil {
+		if data, err = bson.MarshalExtJSON(newobj, true, true); err != nil {
 			return nil, err
 		}
-		var input interface{}
-		json.Unmarshal(data, &input)
-		value := input.(map[string]interface{})[value]
+		vr, errvr := bsonrw.NewExtJSONValueReader(bytes.NewReader(data), true)
+		if err != nil {
+			return nil, errvr
+		}
+		decoder, cerr := bson.NewDecoder(vr)
+		if cerr != nil {
+			return nil, cerr
+		}
+		var input map[string]interface{}
+		if err = decoder.Decode(&input); err != nil {
+			return nil, err
+		}
+		value := input[value]
 		if data, err = json.Marshal(value); err != nil {
 			return nil, err
 		}
@@ -420,7 +484,7 @@ func (m *MongoDB) Delete(ctx context.Context, req *state.DeleteRequest) error {
 
 func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) error {
 	filter := bson.M{id: req.Key}
-	if req.ETag != nil {
+	if req.HasETag() {
 		filter[etag] = *req.ETag
 	}
 	result, err := m.collection.DeleteOne(ctx, filter)
@@ -428,50 +492,8 @@ func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) 
 		return err
 	}
 
-	if result.DeletedCount == 0 && req.ETag != nil {
-		return errors.New("key or etag not found")
-	}
-
-	return nil
-}
-
-// BulkSet performs a bulk save operation.
-// We need to implement a custom BulkSet/BulkDelete because with MongoDB transactions are not always available (only when connecting to a replica set), and when they're not, we need to fall back to performing operations in sequence.
-func (m *MongoDB) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	// Use transactions if we can
-	if m.isReplicaSet {
-		return m.Multi(ctx, &state.TransactionalStateRequest{
-			Operations: state.ToTransactionalStateOperationSlice(req),
-		})
-	}
-
-	// Fallback to executing all operations in sequence
-	for i := range req {
-		err := m.Set(ctx, &req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// BulkDelete performs a bulk delete operation.
-// We need to implement a custom BulkSet/BulkDelete because with MongoDB transactions are not always available (only when connecting to a replica set), and when they're not, we need to fall back to performing operations in sequence.
-func (m *MongoDB) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	// Use transactions if we can
-	if m.isReplicaSet {
-		return m.Multi(ctx, &state.TransactionalStateRequest{
-			Operations: state.ToTransactionalStateOperationSlice(req),
-		})
-	}
-
-	// Fallback to executing all operations in sequence
-	for i := range req {
-		err := m.Delete(ctx, &req[i])
-		if err != nil {
-			return err
-		}
+	if result.DeletedCount == 0 && req.ETag != nil && *req.ETag != "" {
+		return state.NewETagError(state.ETagMismatch, err)
 	}
 
 	return nil
@@ -491,7 +513,7 @@ func (m *MongoDB) Multi(ctx context.Context, request *state.TransactionalStateRe
 
 	txnOpts := options.Transaction().
 		SetReadConcern(readconcern.Snapshot()).
-		SetWriteConcern(writeconcern.New(writeconcern.WMajority()))
+		SetWriteConcern(writeconcern.Majority())
 	sess.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
 		err = m.doTransaction(sessCtx, request.Operations)
 		return nil, err
@@ -625,16 +647,22 @@ func getWriteConcernObject(cn string) (*writeconcern.WriteConcern, error) {
 	var wc *writeconcern.WriteConcern
 	if cn != "" {
 		if cn == "majority" {
-			wc = writeconcern.New(writeconcern.WMajority(), writeconcern.J(true), writeconcern.WTimeout(defaultTimeout))
+			wc = writeconcern.Majority()
 		} else {
 			w, err := strconv.Atoi(cn)
-			wc = writeconcern.New(writeconcern.W(w), writeconcern.J(true), writeconcern.WTimeout(defaultTimeout))
-
-			return wc, err
+			if err != nil {
+				return nil, err
+			}
+			wc = &writeconcern.WriteConcern{
+				W: w,
+			}
 		}
 	} else {
-		wc = writeconcern.New(writeconcern.W(1), writeconcern.J(true), writeconcern.WTimeout(defaultTimeout))
+		wc = writeconcern.W1()
 	}
+
+	wc.Journal = ptr.Of(true)
+	wc.WTimeout = defaultTimeout
 
 	return wc, nil
 }
@@ -658,9 +686,17 @@ func getReadConcernObject(cn string) (*readconcern.ReadConcern, error) {
 	return nil, fmt.Errorf("readConcern %s not found", cn)
 }
 
-func (m *MongoDB) GetComponentMetadata() map[string]string {
+func (m *MongoDB) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := mongoDBMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
+}
+
+// Close connection to the database.
+func (m *MongoDB) Close(ctx context.Context) (err error) {
+	if m.client == nil {
+		return nil
+	}
+
+	return m.client.Disconnect(ctx)
 }

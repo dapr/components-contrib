@@ -219,6 +219,7 @@ func (a *azureServiceBus) Close() (err error) {
 func (a *azureServiceBus) Features() []pubsub.Feature {
 	return []pubsub.Feature{
 		pubsub.FeatureMessageTTL,
+		pubsub.FeatureBulkPublish,
 	}
 }
 
@@ -316,9 +317,8 @@ func (a *azureServiceBus) connectAndReceiveWithSessions(ctx context.Context, req
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (a *azureServiceBus) GetComponentMetadata() map[string]string {
+func (a *azureServiceBus) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := impl.Metadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
-	return metadataInfo
+	return
 }

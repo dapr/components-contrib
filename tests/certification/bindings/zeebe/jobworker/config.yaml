@@ -1,0 +1,6 @@
+apiVersion: dapr.io/v1alpha1
+kind: Configuration
+metadata:
+  name: zeebe-jobworker-binding-config
+spec:
+  features:

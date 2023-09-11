@@ -42,8 +42,8 @@ func NewParameterStore(logger logger.Logger) secretstores.SecretStore {
 
 type ParameterStoreMetaData struct {
 	Region       string `json:"region"`
-	AccessKey    string `json:"accessKey"`
-	SecretKey    string `json:"secretKey"`
+	AccessKey    string `json:"accessKey" mapstructure:"accessKey" mdignore:"true"`
+	SecretKey    string `json:"secretKey" mapstructure:"secretKey" mdignore:"true"`
 	SessionToken string `json:"sessionToken"`
 	Prefix       string `json:"prefix"`
 }
@@ -172,9 +172,8 @@ func (s *ssmSecretStore) Features() []secretstores.Feature {
 	return []secretstores.Feature{} // No Feature supported.
 }
 
-func (s *ssmSecretStore) GetComponentMetadata() map[string]string {
+func (s *ssmSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := ParameterStoreMetaData{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.SecretStoreType)
-	return metadataInfo
+	return
 }

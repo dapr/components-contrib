@@ -15,6 +15,13 @@ package cassandra_test
 
 import (
 	"fmt"
+	"strconv"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/dapr/components-contrib/state"
 	state_cassandra "github.com/dapr/components-contrib/state/cassandra"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
@@ -27,10 +34,6 @@ import (
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	goclient "github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
-	"strconv"
-	"testing"
-	"time"
 )
 
 const (
@@ -77,12 +80,14 @@ func TestCassandra(t *testing.T) {
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
 		assert.NoError(t, err)
 		assert.Equal(t, "cassandraCert", string(item.Value))
+		assert.NotContains(t, item.Metadata, "ttlExpireTime")
 
 		errUpdate := client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("cassandraCertUpdate"), nil)
 		assert.NoError(t, errUpdate)
 		item, errUpdatedGet := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
 		assert.NoError(t, errUpdatedGet)
 		assert.Equal(t, "cassandraCertUpdate", string(item.Value))
+		assert.NotContains(t, item.Metadata, "ttlExpireTime")
 
 		// delete state
 		err = client.DeleteState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
@@ -128,6 +133,10 @@ func TestCassandra(t *testing.T) {
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl3", nil)
 		assert.NoError(t, err)
 		assert.Equal(t, "cassandraCert3", string(item.Value))
+		require.Contains(t, item.Metadata, "ttlExpireTime")
+		expireTime, err := time.Parse(time.RFC3339, item.Metadata["ttlExpireTime"])
+		require.NoError(t, err)
+		assert.InDelta(t, time.Now().Add(time.Second*5).Unix(), expireTime.Unix(), 3)
 		time.Sleep(5 * time.Second)
 		//entry should be expired now
 		itemAgain, errAgain := client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl3", nil)
@@ -184,10 +193,10 @@ func TestCassandra(t *testing.T) {
 		Step("wait", flow.Sleep(80*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
 			embedded.WithComponentsPath("components/docker/default"),
-			runtime.WithStates(stateRegistry),
+			embedded.WithStates(stateRegistry),
 		)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("Run TTL related test", timeToLiveTest).
@@ -203,21 +212,21 @@ func TestCassandra(t *testing.T) {
 		Step("Run basic test", basicTest).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault2",
 			embedded.WithoutApp(),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+2),
-			embedded.WithDaprGRPCPort(currentGrpcPort+2),
-			embedded.WithDaprHTTPPort(currentHTTPPort+2),
+			embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+2)),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort+2)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort+2)),
 			embedded.WithComponentsPath("components/docker/defaultfactorfail"),
-			runtime.WithStates(stateRegistry),
+			embedded.WithStates(stateRegistry),
 		)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("Run replication factor fail test", failTest).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault3",
 			embedded.WithoutApp(),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+4),
-			embedded.WithDaprGRPCPort(currentGrpcPort+4),
-			embedded.WithDaprHTTPPort(currentHTTPPort+4),
+			embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+4)),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort+4)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort+4)),
 			embedded.WithComponentsPath("components/docker/defaultverisonfail"),
-			runtime.WithStates(stateRegistry),
+			embedded.WithStates(stateRegistry),
 		)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("Run replication factor fail test", failVerTest).
@@ -290,20 +299,20 @@ func TestCluster(t *testing.T) {
 		Step("wait", flow.Sleep(80*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
 			embedded.WithComponentsPath("components/docker/cluster"),
-			runtime.WithStates(stateRegistry),
+			embedded.WithStates(stateRegistry),
 		)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("Run basic test", basicTest).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault2",
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort+2),
-			embedded.WithDaprHTTPPort(currentHTTPPort+2),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort+2)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort+2)),
 			embedded.WithComponentsPath("components/docker/cluster-fail"),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+2),
-			runtime.WithStates(stateRegistry),
+			embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+2)),
+			embedded.WithStates(stateRegistry),
 		)).
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("Run consistency fail test", failTest).

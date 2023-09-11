@@ -32,9 +32,8 @@ import (
 	"github.com/dapr/components-contrib/state/query"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
-
-var errMissingConnectionString = errors.New("missing connection string")
 
 // Interface that applies to *pgxpool.Pool.
 // We need this to be able to mock the connection in tests.
@@ -56,9 +55,10 @@ type PostgresDBAccess struct {
 
 	gc internalsql.GarbageCollector
 
-	migrateFn  func(context.Context, PGXPoolConn, MigrateOptions) error
-	setQueryFn func(*state.SetRequest, SetQueryOptions) string
-	etagColumn string
+	migrateFn     func(context.Context, PGXPoolConn, MigrateOptions) error
+	setQueryFn    func(*state.SetRequest, SetQueryOptions) string
+	etagColumn    string
+	enableAzureAD bool
 }
 
 // newPostgresDBAccess creates a new instance of postgresAccess.
@@ -66,10 +66,11 @@ func newPostgresDBAccess(logger logger.Logger, opts Options) *PostgresDBAccess {
 	logger.Debug("Instantiating new Postgres state store")
 
 	return &PostgresDBAccess{
-		logger:     logger,
-		migrateFn:  opts.MigrateFn,
-		setQueryFn: opts.SetQueryFn,
-		etagColumn: opts.ETagColumn,
+		logger:        logger,
+		migrateFn:     opts.MigrateFn,
+		setQueryFn:    opts.SetQueryFn,
+		etagColumn:    opts.ETagColumn,
+		enableAzureAD: opts.EnableAzureAD,
 	}
 }
 
@@ -77,20 +78,16 @@ func newPostgresDBAccess(logger logger.Logger, opts Options) *PostgresDBAccess {
 func (p *PostgresDBAccess) Init(ctx context.Context, meta state.Metadata) error {
 	p.logger.Debug("Initializing Postgres state store")
 
-	err := p.metadata.InitWithMetadata(meta)
+	err := p.metadata.InitWithMetadata(meta, p.enableAzureAD)
 	if err != nil {
 		p.logger.Errorf("Failed to parse metadata: %v", err)
 		return err
 	}
 
-	config, err := pgxpool.ParseConfig(p.metadata.ConnectionString)
+	config, err := p.metadata.GetPgxPoolConfig()
 	if err != nil {
-		err = fmt.Errorf("failed to parse connection string: %w", err)
 		p.logger.Error(err)
 		return err
-	}
-	if p.metadata.ConnectionMaxIdleTime > 0 {
-		config.MaxConnIdleTime = p.metadata.ConnectionMaxIdleTime
 	}
 
 	connCtx, connCancel := context.WithTimeout(ctx, p.metadata.Timeout)
@@ -192,7 +189,7 @@ func (p *PostgresDBAccess) doSet(parentCtx context.Context, db dbquerier, req *s
 		params          []any
 	)
 
-	if req.ETag == nil || *req.ETag == "" {
+	if !req.HasETag() {
 		params = []any{req.Key, value, isBinary}
 	} else {
 		var etag64 uint64
@@ -219,36 +216,10 @@ func (p *PostgresDBAccess) doSet(parentCtx context.Context, db dbquerier, req *s
 		return err
 	}
 	if result.RowsAffected() != 1 {
-		if req.ETag != nil && *req.ETag != "" {
+		if req.HasETag() {
 			return state.NewETagError(state.ETagMismatch, nil)
 		}
 		return errors.New("no item was updated")
-	}
-
-	return nil
-}
-
-func (p *PostgresDBAccess) BulkSet(parentCtx context.Context, req []state.SetRequest) error {
-	tx, err := p.beginTx(parentCtx)
-	if err != nil {
-		return err
-	}
-	defer p.rollbackTx(parentCtx, tx, "BulkSet")
-
-	if len(req) > 0 {
-		for i := range req {
-			err = p.doSet(parentCtx, tx, &req[i])
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
-	err = tx.Commit(ctx)
-	cancel()
-	if err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil
@@ -261,7 +232,7 @@ func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest)
 	}
 
 	query := `SELECT
-			key, value, isbinary, ` + p.etagColumn + ` AS etag
+			key, value, isbinary, ` + p.etagColumn + ` AS etag, expiredate
 		FROM ` + p.metadata.TableName + `
 			WHERE
 				key = $1
@@ -269,7 +240,7 @@ func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest)
 	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
 	defer cancel()
 	row := p.db.QueryRow(ctx, query, req.Key)
-	_, value, etag, err := readRow(row)
+	_, value, etag, expireTime, err := readRow(row)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -278,10 +249,18 @@ func (p *PostgresDBAccess) Get(parentCtx context.Context, req *state.GetRequest)
 		return nil, err
 	}
 
-	return &state.GetResponse{
+	resp := &state.GetResponse{
 		Data: value,
-		ETag: &etag,
-	}, nil
+		ETag: etag,
+	}
+
+	if expireTime != nil {
+		resp.Metadata = map[string]string{
+			state.GetRespMetaKeyTTLExpireTime: expireTime.UTC().Format(time.RFC3339),
+		}
+	}
+
+	return resp, nil
 }
 
 func (p *PostgresDBAccess) BulkGet(parentCtx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error) {
@@ -297,7 +276,7 @@ func (p *PostgresDBAccess) BulkGet(parentCtx context.Context, req []state.GetReq
 
 	// Execute the query
 	query := `SELECT
-			key, value, isbinary, ` + p.etagColumn + ` AS etag
+			key, value, isbinary, ` + p.etagColumn + ` AS etag, expiredate
 		FROM ` + p.metadata.TableName + `
 			WHERE
 				key = ANY($1)
@@ -314,36 +293,69 @@ func (p *PostgresDBAccess) BulkGet(parentCtx context.Context, req []state.GetReq
 	}
 
 	// Scan all rows
-	var (
-		n    int
-		etag string
-	)
+	var n int
 	res := make([]state.BulkGetResponse, len(req))
+	foundKeys := make(map[string]struct{}, len(req))
 	for ; rows.Next(); n++ {
+		if n >= len(req) {
+			// Sanity check to prevent panics, which should never happen
+			return nil, fmt.Errorf("query returned more records than expected (expected %d)", len(req))
+		}
+
 		r := state.BulkGetResponse{}
-		r.Key, r.Data, etag, err = readRow(rows)
+		var expireTime *time.Time
+		r.Key, r.Data, r.ETag, expireTime, err = readRow(rows)
 		if err != nil {
 			r.Error = err.Error()
 		}
-		r.ETag = &etag
+		if expireTime != nil {
+			r.Metadata = map[string]string{
+				state.GetRespMetaKeyTTLExpireTime: expireTime.UTC().Format(time.RFC3339),
+			}
+		}
 		res[n] = r
+		foundKeys[r.Key] = struct{}{}
+	}
+
+	// Populate missing keys with empty values
+	// This is to ensure consistency with the other state stores that implement BulkGet as a loop over Get, and with the Get method
+	if len(foundKeys) < len(req) {
+		var ok bool
+		for _, r := range req {
+			_, ok = foundKeys[r.Key]
+			if !ok {
+				if n >= len(req) {
+					// Sanity check to prevent panics, which should never happen
+					return nil, fmt.Errorf("query returned more records than expected (expected %d)", len(req))
+				}
+				res[n] = state.BulkGetResponse{
+					Key: r.Key,
+				}
+				n++
+			}
+		}
 	}
 
 	return res[:n], nil
 }
 
-func readRow(row pgx.Row) (key string, value []byte, etagS string, err error) {
+func readRow(row pgx.Row) (key string, value []byte, etagS *string, expireTime *time.Time, err error) {
 	var (
 		isBinary bool
 		etag     pgtype.Int8
+		expT     pgtype.Timestamp
 	)
-	err = row.Scan(&key, &value, &isBinary, &etag)
+	err = row.Scan(&key, &value, &isBinary, &etag, &expT)
 	if err != nil {
-		return key, nil, "", err
+		return key, nil, nil, nil, err
 	}
 
 	if etag.Valid {
-		etagS = strconv.FormatInt(etag.Int64, 10)
+		etagS = ptr.Of(strconv.FormatInt(etag.Int64, 10))
+	}
+
+	if expT.Valid {
+		expireTime = &expT.Time
 	}
 
 	if isBinary {
@@ -354,18 +366,18 @@ func readRow(row pgx.Row) (key string, value []byte, etagS string, err error) {
 
 		err = json.Unmarshal(value, &s)
 		if err != nil {
-			return key, nil, "", fmt.Errorf("failed to unmarshal JSON data: %w", err)
+			return key, nil, nil, nil, fmt.Errorf("failed to unmarshal JSON data: %w", err)
 		}
 
 		data, err = base64.StdEncoding.DecodeString(s)
 		if err != nil {
-			return key, nil, "", fmt.Errorf("failed to decode base64 data: %w", err)
+			return key, nil, nil, nil, fmt.Errorf("failed to decode base64 data: %w", err)
 		}
 
-		return key, data, etagS, nil
+		return key, data, etagS, expireTime, nil
 	}
 
-	return key, value, etagS, nil
+	return key, value, etagS, expireTime, nil
 }
 
 // Delete removes an item from the state store.
@@ -381,7 +393,7 @@ func (p *PostgresDBAccess) doDelete(parentCtx context.Context, db dbquerier, req
 	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
 	defer cancel()
 	var result pgconn.CommandTag
-	if req.ETag == nil || *req.ETag == "" {
+	if !req.HasETag() {
 		result, err = db.Exec(ctx, "DELETE FROM "+p.metadata.TableName+" WHERE key = $1", req.Key)
 	} else {
 		// Convert req.ETag to uint32 for postgres XID compatibility
@@ -400,32 +412,6 @@ func (p *PostgresDBAccess) doDelete(parentCtx context.Context, db dbquerier, req
 	rows := result.RowsAffected()
 	if rows != 1 && req.ETag != nil && *req.ETag != "" {
 		return state.NewETagError(state.ETagMismatch, nil)
-	}
-
-	return nil
-}
-
-func (p *PostgresDBAccess) BulkDelete(parentCtx context.Context, req []state.DeleteRequest) error {
-	tx, err := p.beginTx(parentCtx)
-	if err != nil {
-		return err
-	}
-	defer p.rollbackTx(parentCtx, tx, "BulkDelete")
-
-	if len(req) > 0 {
-		for i := range req {
-			err = p.doDelete(parentCtx, tx, &req[i])
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
-	err = tx.Commit(ctx)
-	cancel()
-	if err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil

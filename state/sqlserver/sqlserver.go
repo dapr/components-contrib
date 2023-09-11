@@ -20,11 +20,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
-	mssql "github.com/microsoft/go-mssqldb"
-
 	internalsql "github.com/dapr/components-contrib/internal/component/sql"
+	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
@@ -65,7 +65,11 @@ const (
 // New creates a new instance of a SQL Server transaction store.
 func New(logger logger.Logger) state.Store {
 	s := &SQLServer{
-		features:        []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		features: []state.Feature{
+			state.FeatureETag,
+			state.FeatureTransactional,
+			state.FeatureTTL,
+		},
 		logger:          logger,
 		migratorFactory: newMigration,
 	}
@@ -80,7 +84,7 @@ type IndexedProperty struct {
 	Type       string `json:"type"`
 }
 
-// SQLServer defines a Ms SQL Server based state store.
+// SQLServer defines a MS SQL Server based state store.
 type SQLServer struct {
 	state.BulkStore
 
@@ -88,7 +92,6 @@ type SQLServer struct {
 
 	migratorFactory func(*sqlServerMetadata) migrator
 
-	bulkDeleteCommand        string
 	itemRefTableTypeName     string
 	upsertCommand            string
 	getCommand               string
@@ -116,7 +119,6 @@ func (s *SQLServer) Init(ctx context.Context, metadata state.Metadata) error {
 	}
 
 	s.itemRefTableTypeName = mr.itemRefTableTypeName
-	s.bulkDeleteCommand = fmt.Sprintf("exec %s @itemsToDelete;", mr.bulkDeleteProcFullName)
 	s.upsertCommand = mr.upsertProcFullName
 	s.getCommand = mr.getCommand
 	s.deleteWithETagCommand = mr.deleteWithETagCommand
@@ -208,7 +210,7 @@ func (s *SQLServer) Delete(ctx context.Context, req *state.DeleteRequest) error 
 func (s *SQLServer) executeDelete(ctx context.Context, db dbExecutor, req *state.DeleteRequest) error {
 	var err error
 	var res sql.Result
-	if req.ETag != nil {
+	if req.HasETag() {
 		var b []byte
 		b, err = hex.DecodeString(*req.ETag)
 		if err != nil {
@@ -240,64 +242,6 @@ func (s *SQLServer) executeDelete(ctx context.Context, db dbExecutor, req *state
 	return nil
 }
 
-// TvpDeleteTableStringKey defines a table type with string key.
-type TvpDeleteTableStringKey struct {
-	ID         string
-	RowVersion []byte
-}
-
-// BulkDelete removes multiple entries from the store.
-func (s *SQLServer) BulkDelete(ctx context.Context, req []state.DeleteRequest) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	defer tx.Rollback()
-	if err != nil {
-		return err
-	}
-
-	err = s.executeBulkDelete(ctx, tx, req)
-	if err != nil {
-		return err
-	}
-
-	return tx.Commit()
-}
-
-func (s *SQLServer) executeBulkDelete(ctx context.Context, db dbExecutor, req []state.DeleteRequest) error {
-	values := make([]TvpDeleteTableStringKey, len(req))
-	for i, d := range req {
-		var etag []byte
-		var err error
-		if d.ETag != nil {
-			etag, err = hex.DecodeString(*d.ETag)
-			if err != nil {
-				return state.NewETagError(state.ETagInvalid, err)
-			}
-		}
-		values[i] = TvpDeleteTableStringKey{ID: d.Key, RowVersion: etag}
-	}
-
-	itemsToDelete := mssql.TVP{
-		TypeName: s.itemRefTableTypeName,
-		Value:    values,
-	}
-
-	res, err := db.ExecContext(ctx, s.bulkDeleteCommand, sql.Named("itemsToDelete", itemsToDelete))
-	if err != nil {
-		return err
-	}
-
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-
-	if int(rows) != len(req) {
-		return state.NewBulkDeleteRowMismatchError(uint64(rows), uint64(len(req)))
-	}
-
-	return nil
-}
-
 // Get returns an entity from store.
 func (s *SQLServer) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
 	rows, err := s.db.QueryContext(ctx, s.getCommand, sql.Named(keyColumnName, req.Key))
@@ -315,18 +259,29 @@ func (s *SQLServer) Get(ctx context.Context, req *state.GetRequest) (*state.GetR
 		return &state.GetResponse{}, nil
 	}
 
-	var data string
-	var rowVersion []byte
-	err = rows.Scan(&data, &rowVersion)
+	var (
+		data       string
+		rowVersion []byte
+		expireDate sql.NullTime
+	)
+	err = rows.Scan(&data, &rowVersion, &expireDate)
 	if err != nil {
 		return nil, err
 	}
 
 	etag := hex.EncodeToString(rowVersion)
 
+	var metadata map[string]string
+	if expireDate.Valid {
+		metadata = map[string]string{
+			state.GetRespMetaKeyTTLExpireTime: expireDate.Time.UTC().Format(time.RFC3339),
+		}
+	}
+
 	return &state.GetResponse{
-		Data: []byte(data),
-		ETag: ptr.Of(etag),
+		Data:     []byte(data),
+		ETag:     ptr.Of(etag),
+		Metadata: metadata,
 	}, nil
 }
 
@@ -348,7 +303,7 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 		return err
 	}
 	etag := sql.Named(rowVersionColumnName, nil)
-	if req.ETag != nil && *req.ETag != "" {
+	if req.HasETag() {
 		var b []byte
 		b, err = hex.DecodeString(*req.ETag)
 		if err != nil {
@@ -374,10 +329,6 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 	}
 
 	if err != nil {
-		if req.ETag != nil && *req.ETag != "" {
-			return state.NewETagError(state.ETagMismatch, err)
-		}
-
 		return err
 	}
 
@@ -387,32 +338,19 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 	}
 
 	if rows != 1 {
+		if req.HasETag() {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
 		return errors.New("no item was updated")
 	}
 
 	return nil
 }
 
-// BulkSet adds/updates multiple entities on store.
-func (s *SQLServer) BulkSet(ctx context.Context, req []state.SetRequest) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	defer tx.Rollback()
-	if err != nil {
-		return err
-	}
-
-	for i := range req {
-		err = s.executeSet(ctx, tx, &req[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return tx.Commit()
-}
-
-func (s *SQLServer) GetComponentMetadata() map[string]string {
-	return map[string]string{}
+func (s *SQLServer) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
+	settingsStruct := sqlServerMetadata{}
+	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(settingsStruct), &metadataInfo, metadata.StateStoreType)
+	return
 }
 
 // Close implements io.Closer.

@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
+	"time"
 
 	dynamodb "github.com/dapr/components-contrib/state/aws/dynamodb"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
@@ -27,7 +28,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
-	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
@@ -65,6 +65,7 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 			assert.NoError(t, err)
 			assert.NotNil(t, item)
 			assert.Equal(t, stateValue, string(item.Value))
+			assert.NotContains(t, item.Metadata, "ttlExpireTime")
 
 			// delete state
 			err = client.DeleteState(ctx, statestore, stateKey, nil)
@@ -100,6 +101,12 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 				item, err := client.GetState(ctx, statestore, stateKey, nil)
 				assert.NoError(t, err)
 				assert.Equal(t, expectedValue, string(item.Value))
+
+				if len(expectedValue) > 0 {
+					assert.Contains(t, item.Metadata, "ttlExpireTime")
+					expireTime, err := time.Parse(time.RFC3339, item.Metadata["ttlExpireTime"])
+					_ = assert.NoError(t, err) && assert.InDelta(t, time.Now().Add(5*time.Minute).Unix(), expireTime.Unix(), 10)
+				}
 
 				err = client.DeleteState(ctx, statestore, stateKey, nil)
 				assert.NoError(t, err)
@@ -176,49 +183,57 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 	flow.New(t, "Test basic operations").
 		// Run the Dapr sidecar with AWS DynamoDB storage.
 		Step(sidecar.Run(sidecarNamePrefix,
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("./components/basictest"),
-			componentRuntimeOptions())).
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+				embedded.WithComponentsPath("./components/basictest"),
+			)...,
+		)).
 		Step("Run basic test with master key", basicTest("statestore-basic")).
 		Run()
 
 	flow.New(t, "Test TTL").
 		// Run the Dapr sidecar with AWS DynamoDB storage.
 		Step(sidecar.Run(sidecarNamePrefix,
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("./components/basictest"),
-			componentRuntimeOptions())).
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+				embedded.WithComponentsPath("./components/basictest"),
+			)...,
+		)).
 		Step("Run basic test with default key", ttlTest("statestore-basic")).
 		Run()
 
 	flow.New(t, "Test Partition Key").
 		// Run the Dapr sidecar with AWS DynamoDB storage.
 		Step(sidecar.Run(sidecarNamePrefix,
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("./components/partition_key"),
-			componentRuntimeOptions())).
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+				embedded.WithComponentsPath("./components/partition_key"),
+			)...,
+		)).
 		Step("Run basic test with partition key", basicTest("statestore-partition-key")).
 		Run()
 
 	flow.New(t, "Test Tx operations").
 		// Run the Dapr sidecar with AWS DynamoDB storage.
 		Step(sidecar.Run(sidecarNamePrefix,
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("./components/basictest"),
-			componentRuntimeOptions())).
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+				embedded.WithComponentsPath("./components/basictest"),
+			)...,
+		)).
 		Step("Run transaction test", transactionsTest("statestore-basic")).
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	stateRegistry := state_loader.NewRegistry()
@@ -229,8 +244,8 @@ func componentRuntimeOptions() []runtime.Option {
 	secretstoreRegistry.Logger = log
 	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
 
-	return []runtime.Option{
-		runtime.WithStates(stateRegistry),
-		runtime.WithSecretStores(secretstoreRegistry),
+	return []embedded.Option{
+		embedded.WithStates(stateRegistry),
+		embedded.WithSecretStores(secretstoreRegistry),
 	}
 }

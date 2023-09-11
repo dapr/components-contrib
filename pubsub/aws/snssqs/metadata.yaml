@@ -1,0 +1,146 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: pubsub
+name: aws.snssqs
+version: v1
+status: stable
+title: "AWS SNS/SQS"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-aws-snssqs/
+capabilities:
+  - ttl
+builtinAuthenticationProfiles:
+  - name: "aws"
+metadata:
+  - name: region
+    required: true
+    description: |
+      The AWS region where the SNS/SQS assets are located or be created in. See the `Supported AWS services per region` page.
+      Ensure that SNS and SQS are available in that region.
+    url:
+      title: "Supported AWS services per region"
+      url: "https://aws.amazon.com/about-aws/global-infrastructure/regional-product-services/?p=ugi&l=na"
+    example: '"us-east-1"'
+    type: string
+  - name: endpoint
+    required: false
+    description: |
+      AWS endpoint for the component to use, to connect to emulators.
+      Do not use this when running against production AWS.
+    example: '"http://localhost:4566"'
+    type: string
+  - name: messageVisibilityTimeout
+    required: false
+    description: |
+      Amount of time in seconds that a message is hidden from receive requests after 
+      it is sent to a subscriber.
+    type: number
+    default: '10'
+    example: '10'
+  - name: messageReceiveLimit
+    required: false
+    description: |
+      Maximun number of attempts the message will be re-delivered after processing failures.
+      The sqsDeadLettersQueueName is a SQS dead-letters queue to move the message to
+      once the maximun number of attempts have been reached.
+    type: number
+    default: '10'
+    example: '10'
+  - name: messageRetryLimit
+    required: false
+    description: |
+      Number of times to resend a message after processing of that message fails 
+      before removing that message from the queue.
+    type: number
+    default: '10'
+    example: '10'
+  - name: sqsDeadLettersQueueName
+    required: false
+    description: |
+      Name of the dead letters queue for this application.
+    example: '"myapp-dlq"'
+    type: string
+  - name: messageWaitTimeSeconds
+    required: false
+    description: |
+      The duration (in seconds) for which the call waits for a message to arrive
+      in the queue before returning. If a message is available, the call returns
+      sooner than messageWaitTimeSeconds. If no messages are available and the
+      wait time expires, the call returns successfully with an empty list of messages.
+    type: number
+    default: '1'
+    example: '1'
+  - name: messageMaxNumber
+    required: false
+    description: |
+      Maximum number of messages to receive from the queue at a time.
+    type: number
+    default: '10'
+    example: '10'
+  - name: fifo
+    description: |
+      Use SQS FIFO queue to provide message ordering and deduplication.
+      See `Amazon SQS FIFO (First-In-First-Out) queues` further details.
+    url:
+      title: "Amazon SQS FIFO (First-In-First-Out) queues"
+      url: "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/FIFO-queues.html"
+    type: bool
+    default: 'false'
+    example: '"true", "false"'
+  - name: fifoMessageGroupID
+    required: false
+    description: |
+      If fifo is enabled, instructs Dapr to use a custom Message Group ID 
+      for the pubsub deployment. This is not mandatory as Dapr creates a
+      custom Message Group ID for each producer, thus ensuring ordering
+      of messages per a Dapr producer.
+      See Message Group ID Property documentation.
+    url:
+      title: "Message Group ID Property documentation"
+      url: "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/using-messagegroupid-property.html"
+    example: '"app1-mgi"'
+    type: string
+  - name: disableEntityManagement
+    description: |
+      When set to true, SNS topics, SQS queues and the SQS subscriptions to
+      SNS do not get created automatically.
+    type: bool
+    default: 'false'
+    example: '"true", "false"'
+  - name: disableDeleteOnRetryLimit
+    description: |
+      When set to true, after retrying and failing of messageRetryLimit
+      times processing a message, reset the message visibility timeout
+      so that other consumers can try processing, instead of deleting
+      the message from SQS (the default behvior).
+    type: bool
+    default: 'false'
+    example: '"true", "false"'
+  - name: assetsManagementTimeoutSeconds
+    required: false
+    description: |
+      Amount of time in seconds, for an AWS asset management operation,
+      before it times out and cancelled. Asset management operations 
+      are any operations performed on STS, SNS and SQS, except message
+      publish and consume operations that implement the default Dapr
+      component retry behavior. The value can be set to any non-negative
+      float/integer.
+    type: number
+    default: '1'
+    example: '0.5, 10'
+  - name: concurrencyMode
+    required: false
+    description: |
+      When messages are received in bulk from SQS, call the subscriber
+      sequentially (“single” message at a time), or
+      concurrently (in “parallel”).
+    default: '"parallel"'
+    example: '"single", "parallel"'
+    type: string
+  - name: accountId
+    required: false
+    description: |
+      The AWS account ID. Resolved automatically if not provided.
+    example: '""'
+    type: string

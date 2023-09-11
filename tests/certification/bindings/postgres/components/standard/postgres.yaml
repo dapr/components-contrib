@@ -3,8 +3,8 @@ kind: Component
 metadata:
   name: standard-binding
 spec:
-  type: bindings.postgres
+  type: bindings.postgresql
   version: v1
   metadata:
-    - name: url
+    - name: connectionString
       value: "host=localhost user=postgres password=example port=5432 connect_timeout=10 database=dapr_test"

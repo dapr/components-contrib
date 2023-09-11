@@ -13,10 +13,53 @@ limitations under the License.
 
 package postgres
 
-import "time"
+import (
+	"fmt"
+	"time"
+
+	pgauth "github.com/dapr/components-contrib/internal/authentication/postgresql"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
+)
 
 type metadata struct {
-	MaxIdleTimeout   time.Duration `mapstructure:"connMaxIdleTime"`
-	ConnectionString string        `mapstructure:"connectionString"`
-	ConfigTable      string        `mapstructure:"table"`
+	pgauth.PostgresAuthMetadata `mapstructure:",squash"`
+
+	ConfigTable       string        `mapstructure:"table"`
+	MaxIdleTimeoutOld time.Duration `mapstructure:"connMaxIdleTime"` // Deprecated alias for "connectionMaxIdleTime"
+}
+
+func (m *metadata) InitWithMetadata(meta map[string]string) error {
+	// Reset the object
+	m.PostgresAuthMetadata.Reset()
+	m.ConfigTable = ""
+	m.MaxIdleTimeoutOld = 0
+
+	err := contribMetadata.DecodeMetadata(meta, &m)
+	if err != nil {
+		return err
+	}
+
+	// Legacy options
+	if m.ConnectionMaxIdleTime == 0 && m.MaxIdleTimeoutOld > 0 {
+		m.ConnectionMaxIdleTime = m.MaxIdleTimeoutOld
+	}
+
+	// Validate and sanitize input
+	if m.ConfigTable == "" {
+		return fmt.Errorf("missing postgreSQL configuration table name")
+	}
+	if len(m.ConfigTable) > maxIdentifierLength {
+		return fmt.Errorf("table name is too long - tableName : '%s'. max allowed field length is %d", m.ConfigTable, maxIdentifierLength)
+	}
+	if !allowedTableNameChars.MatchString(m.ConfigTable) {
+		return fmt.Errorf("invalid table name '%s'. non-alphanumerics or upper cased table names are not supported", m.ConfigTable)
+	}
+
+	// Azure AD auth is supported for this component
+	err = m.PostgresAuthMetadata.InitWithMetadata(meta, true)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

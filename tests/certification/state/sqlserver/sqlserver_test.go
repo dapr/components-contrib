@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -37,7 +38,7 @@ import (
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
 
 	// Dapr runtime and Go-SDK
-	"github.com/dapr/dapr/pkg/runtime"
+
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/go-sdk/client"
 
@@ -66,24 +67,63 @@ func TestSqlServer(t *testing.T) {
 	currentHTTPPort := ports[1]
 
 	basicTest := func(ctx flow.Context) error {
-		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
-		if err != nil {
-			panic(err)
-		}
-		defer client.Close()
+		ctx.T.Run("basic test", func(t *testing.T) {
+			client, err := client.NewClientWithPort(strconv.Itoa(currentGrpcPort))
+			if err != nil {
+				panic(err)
+			}
+			defer client.Close()
 
-		// save state, default options: strong, last-write
-		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("certificationdata"), nil)
-		require.NoError(ctx.T, err)
+			// save state, default options: strong, last-write
+			err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("certificationdata"), nil)
+			require.NoError(t, err)
 
-		// get state
-		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		require.NoError(ctx.T, err)
-		assert.Equal(ctx.T, "certificationdata", string(item.Value))
+			// get state
+			item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
+			require.NoError(t, err)
+			assert.Equal(t, "certificationdata", string(item.Value))
 
-		// delete state
-		err = client.DeleteState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		require.NoError(ctx.T, err)
+			// delete state
+			err = client.DeleteState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
+			require.NoError(t, err)
+		})
+		return nil
+	}
+
+	basicTTLTest := func(ctx flow.Context) error {
+		ctx.T.Run("basic TTL test", func(t *testing.T) {
+			client, err := client.NewClientWithPort(strconv.Itoa(currentGrpcPort))
+			if err != nil {
+				panic(err)
+			}
+			defer client.Close()
+
+			err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key2", []byte("certificationdata"), map[string]string{
+				"ttlInSeconds": "86400",
+			})
+			require.NoError(t, err)
+
+			// get state
+			item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key2", nil)
+			require.NoError(t, err)
+			assert.Equal(t, "certificationdata", string(item.Value))
+			assert.Contains(t, item.Metadata, "ttlExpireTime")
+			expireTime, err := time.Parse(time.RFC3339, item.Metadata["ttlExpireTime"])
+			_ = assert.NoError(t, err) &&
+				assert.InDelta(t, time.Now().Add(24*time.Hour).Unix(), expireTime.Unix(), 10)
+
+			err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key2", []byte("certificationdata"), map[string]string{
+				"ttlInSeconds": "1",
+			})
+			require.NoError(t, err)
+
+			time.Sleep(2 * time.Second)
+
+			item, err = client.GetState(ctx, stateStoreName, certificationTestPrefix+"key2", nil)
+			require.NoError(t, err)
+			assert.Nil(t, item.Value)
+			assert.Nil(t, item.Metadata)
+		})
 
 		return nil
 	}
@@ -91,7 +131,7 @@ func TestSqlServer(t *testing.T) {
 	// this test function heavily depends on the values defined in ./components/docker/customschemawithindex
 	verifyIndexedPopertiesTest := func(ctx flow.Context) error {
 		// verify indices were created by Dapr as specified in the component metadata
-		db, err := sql.Open("sqlserver", fmt.Sprintf("%sdatabase=certificationtest;", dockerConnectionString))
+		db, err := sql.Open("mssql", fmt.Sprintf("%sdatabase=certificationtest;", dockerConnectionString))
 		require.NoError(ctx.T, err)
 		defer db.Close()
 
@@ -117,7 +157,7 @@ func TestSqlServer(t *testing.T) {
 		assert.Equal(ctx.T, 3, indexFoundCount)
 
 		// write JSON data to the state store (which will automatically be indexed in separate columns)
-		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+		client, err := client.NewClientWithPort(strconv.Itoa(currentGrpcPort))
 		if err != nil {
 			panic(err)
 		}
@@ -166,7 +206,7 @@ func TestSqlServer(t *testing.T) {
 
 	// helper function for testing the use of an existing custom schema
 	createCustomSchema := func(ctx flow.Context) error {
-		db, err := sql.Open("sqlserver", dockerConnectionString)
+		db, err := sql.Open("mssql", dockerConnectionString)
 		assert.NoError(ctx.T, err)
 		_, err = db.Exec("CREATE SCHEMA customschema;")
 		assert.NoError(ctx.T, err)
@@ -176,7 +216,7 @@ func TestSqlServer(t *testing.T) {
 
 	// helper function to insure the SQL Server Docker Container is truly ready
 	checkSQLServerAvailability := func(ctx flow.Context) error {
-		db, err := sql.Open("sqlserver", dockerConnectionString)
+		db, err := sql.Open("mssql", dockerConnectionString)
 		if err != nil {
 			return err
 		}
@@ -189,7 +229,7 @@ func TestSqlServer(t *testing.T) {
 
 	// checks the state store component is not vulnerable to SQL injection
 	verifySQLInjectionTest := func(ctx flow.Context) error {
-		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+		client, err := client.NewClientWithPort(strconv.Itoa(currentGrpcPort))
 		if err != nil {
 			panic(err)
 		}
@@ -280,7 +320,7 @@ func TestSqlServer(t *testing.T) {
 			})
 
 			ctx.T.Run("cleanup", func(t *testing.T) {
-				dbClient, err := sql.Open("sqlserver", connString)
+				dbClient, err := sql.Open("mssql", connString)
 				require.NoError(t, err)
 
 				t.Run("automatically delete expiredate records", func(t *testing.T) {
@@ -392,15 +432,17 @@ func TestSqlServer(t *testing.T) {
 
 			// Run the Dapr sidecar with the SQL Server component.
 			Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",
-				embedded.WithoutApp(),
-				embedded.WithDaprGRPCPort(currentGrpcPort),
-				embedded.WithDaprHTTPPort(currentHTTPPort),
-				embedded.WithResourcesPath("components/docker/default"),
-				embedded.WithProfilingEnabled(false),
-				componentRuntimeOptions(),
+				append(componentRuntimeOptions(),
+					embedded.WithoutApp(),
+					embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+					embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+					embedded.WithResourcesPath("components/docker/default"),
+					embedded.WithProfilingEnabled(false),
+				)...,
 			)).
 			Step("Run basic test", basicTest).
-			// Introduce network interruption of 15 seconds
+			Step("Run basic TTL test", basicTTLTest).
+			// Introduce network interruption of 10 seconds
 			// Note: the connection timeout is set to 5 seconds via the component metadata connection string.
 			Step("interrupt network",
 				network.InterruptNetwork(10*time.Second, nil, nil, "1433", "1434")).
@@ -429,12 +471,13 @@ func TestSqlServer(t *testing.T) {
 
 			// Run the Dapr sidecar with the SQL Server component.
 			Step(sidecar.Run(sidecarNamePrefix+"dockerCustomSchema",
-				embedded.WithoutApp(),
-				embedded.WithDaprGRPCPort(currentGrpcPort),
-				embedded.WithDaprHTTPPort(currentHTTPPort),
-				embedded.WithResourcesPath("components/docker/customschemawithindex"),
-				embedded.WithProfilingEnabled(false),
-				componentRuntimeOptions(),
+				append(componentRuntimeOptions(),
+					embedded.WithoutApp(),
+					embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+					embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+					embedded.WithResourcesPath("components/docker/customschemawithindex"),
+					embedded.WithProfilingEnabled(false),
+				)...,
 			)).
 			Step("Run indexed properties verification test", verifyIndexedPopertiesTest, sidecar.Stop(sidecarNamePrefix+"dockerCustomSchema")).
 			Step("Stopping SQL Server Docker container", dockercompose.Stop("sqlserver", dockerComposeYAML)).
@@ -451,14 +494,16 @@ func TestSqlServer(t *testing.T) {
 		flow.New(t, "SQL Server certification using Azure SQL").
 			// Run the Dapr sidecar with the SQL Server component.
 			Step(sidecar.Run(sidecarNamePrefix+"azure",
-				embedded.WithoutApp(),
-				embedded.WithDaprGRPCPort(currentGrpcPort),
-				embedded.WithDaprHTTPPort(currentHTTPPort),
-				embedded.WithResourcesPath("components/azure"),
-				embedded.WithProfilingEnabled(false),
-				componentRuntimeOptions(),
+				append(componentRuntimeOptions(),
+					embedded.WithoutApp(),
+					embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+					embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+					embedded.WithResourcesPath("components/azure"),
+					embedded.WithProfilingEnabled(false),
+				)...,
 			)).
 			Step("Run basic test", basicTest).
+			Step("Run basic TTL test", basicTTLTest).
 			Step("interrupt network",
 				network.InterruptNetwork(15*time.Second, nil, nil, "1433", "1434")).
 
@@ -471,7 +516,7 @@ func TestSqlServer(t *testing.T) {
 	})
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	stateRegistry := state_loader.NewRegistry()
@@ -482,9 +527,9 @@ func componentRuntimeOptions() []runtime.Option {
 	secretstoreRegistry.Logger = log
 	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
 
-	return []runtime.Option{
-		runtime.WithStates(stateRegistry),
-		runtime.WithSecretStores(secretstoreRegistry),
+	return []embedded.Option{
+		embedded.WithStates(stateRegistry),
+		embedded.WithSecretStores(secretstoreRegistry),
 	}
 }
 

@@ -20,7 +20,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
@@ -34,25 +33,11 @@ import (
 )
 
 const (
-	connectedSlavesReplicas      = "connected_slaves:"
-	infoReplicationDelimiter     = "\r\n"
-	host                         = "redisHost"
-	password                     = "redisPassword"
-	enableTLS                    = "enableTLS"
-	redisMaxRetries              = "redisMaxRetries"
-	redisMaxRetryInterval        = "redisMaxRetryInterval"
-	redisMinRetryInterval        = "redisMinRetryInterval"
-	failover                     = "failover"
-	sentinelMasterName           = "sentinelMasterName"
-	redisDB                      = "redisDB"
-	defaultBase                  = 10
-	defaultBitSize               = 0
-	defaultDB                    = 0
-	defaultRedisMaxRetries       = 3
-	defaultRedisMaxRetryInterval = time.Second * 2
-	defaultRedisMinRetryInterval = time.Millisecond * 8
-	defaultEnableTLS             = false
-	redisWrongTypeIdentifyStr    = "WRONGTYPE"
+	connectedSlavesReplicas   = "connected_slaves:"
+	infoReplicationDelimiter  = "\r\n"
+	defaultBase               = 10
+	defaultBitSize            = 0
+	redisWrongTypeIdentifyStr = "WRONGTYPE"
 )
 
 // ConfigurationStore is a Redis configuration store.
@@ -260,9 +245,8 @@ func (r *ConfigurationStore) handleSubscribedChange(ctx context.Context, req *co
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (r *ConfigurationStore) GetComponentMetadata() map[string]string {
+func (r *ConfigurationStore) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
 	metadataStruct := rediscomponent.Settings{}
-	metadataInfo := map[string]string{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.ConfigurationStoreType)
-	return metadataInfo
+	return
 }

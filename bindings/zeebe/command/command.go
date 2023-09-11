@@ -30,7 +30,8 @@ import (
 const (
 	// operations.
 	TopologyOperation         bindings.OperationKind = "topology"
-	DeployProcessOperation    bindings.OperationKind = "deploy-process"
+	DeployResourceOperation   bindings.OperationKind = "deploy-resource"
+	DeployProcessOperation    bindings.OperationKind = "deploy-process" // Deprecated, kept for backward compatibility
 	CreateInstanceOperation   bindings.OperationKind = "create-instance"
 	CancelInstanceOperation   bindings.OperationKind = "cancel-instance"
 	SetVariablesOperation     bindings.OperationKind = "set-variables"
@@ -78,6 +79,7 @@ func (z *ZeebeCommand) Operations() []bindings.OperationKind {
 	return []bindings.OperationKind{
 		TopologyOperation,
 		DeployProcessOperation,
+		DeployResourceOperation,
 		CreateInstanceOperation,
 		CancelInstanceOperation,
 		SetVariablesOperation,
@@ -95,8 +97,8 @@ func (z *ZeebeCommand) Invoke(ctx context.Context, req *bindings.InvokeRequest) 
 	switch req.Operation {
 	case TopologyOperation:
 		return z.topology(ctx)
-	case DeployProcessOperation:
-		return z.deployProcess(ctx, req)
+	case DeployResourceOperation, DeployProcessOperation:
+		return z.deployResource(ctx, req)
 	case CreateInstanceOperation:
 		return z.createInstance(ctx, req)
 	case CancelInstanceOperation:
@@ -131,9 +133,8 @@ func (z *ZeebeCommand) Invoke(ctx context.Context, req *bindings.InvokeRequest) 
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (z *ZeebeCommand) GetComponentMetadata() map[string]string {
+func (z *ZeebeCommand) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := zeebe.ClientMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

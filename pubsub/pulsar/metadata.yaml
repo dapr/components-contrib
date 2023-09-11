@@ -1,0 +1,173 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: pubsub
+name: pulsar
+version: v1
+status: stable
+title: "Apache Pulsar"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-pulsar/
+authenticationProfiles:
+  - title: "Shared token"
+    description: "Authenticate using a shared token"
+    metadata:
+      - name: token
+        description: "Shared JWT token for authentication"
+        type: string
+        sensitive: true
+        url:
+          title: "JWT Token Authentication"
+          url: "https://pulsar.apache.org/docs/3.0.x/security-jwt/#generate-tokens"
+  - title: "OAuth2"
+    description: "Authenticate using OAuth2 or OpenID Connect"
+    metadata:
+      - name: oauth2Audiences
+        type: string
+        description: |
+          The OAuth 2.0 "resource server" identifier for a Pulsar cluster.
+      - name: oauth2ClientSecret
+        type: string
+        sensitive: true
+        description: |
+          The OAuth Client Secret.
+      - name: oauth2TokenCAPEM
+        type: string
+        description: |
+          The OAuth Token Certificate Authority PEM.
+      - name: oauth2ClientID
+        type: string
+        description: |
+          The OAuth Client ID.
+      - name: oauth2TokenURL
+        type: string
+        description: |
+          The OAuth Client URL.
+      - name: oauth2Scopes
+        type: string
+        description: |
+          The scope of an access request. For more information, see Access Token Scope.
+        url:
+          title: "Access Token Scope"
+          url: "https://datatracker.ietf.org/doc/html/rfc6749#section-3.3"
+metadata:
+  - name: host
+    type: string
+    required: true
+    sensitive: true
+    description: "Address of the Pulsar broker."
+    example: |
+      "localhost:6650", "http://pulsar-pj54qwwdpz4b-pulsar.ap-sg.public.pulsar.com:8080"
+  - name: consumerID
+    type: string
+    description: "Used to set the subscription name or consumer ID."
+    example: '"channel1"'
+  - name: namespace
+    description: |
+      The administrative unit of the topic, which acts as a grouping mechanism for related topics.
+    type: string
+    default: '"default"'
+    example: '"default"'
+  - name: enableTLS
+    type: bool
+    description: |
+      Enable TLS.
+    default: 'false'
+    example: '"true", "false"'
+  - name: tenant
+    description: |
+      The topic tenant within the instance. Tenants are essential to multi-tenancy in Pulsar, and spread
+      across clusters.
+    type: string
+    default: '"public"'
+    example: '"public"'
+  - name: disableBatching
+    type: bool
+    description: |
+      When enabled, the producer will send messages in a batch.
+    default: 'false'
+    example: '"true", "false"'
+  - name: batchingMaxPublishDelay
+    type: duration
+    description: |
+      If batching is enabled, this sets the time window within messages are batched.
+      If set to a non-zero value, messages will be queued until this time interval has passed, or the batchingMaxMessages or batchingMaxSize conditions have been met.
+    default: '"10ms"'
+    example: '"10ms"'
+  - name: batchingMaxMessages
+    type: number
+    description: |
+      Sets the maximum number of messages permitted in a batch.
+      If set to a value greater than 1, messages will be queued until this threshold is reached, batchingMaxSize has been reached, or the batch interval has elapsed.
+    default: '"1000"'
+    example: '"1000"'
+  - name: batchingMaxSize
+    description: |
+      Sets the maximum number of bytes permitted in a batch
+      If set to a value greater than 1, messages will be queued until this threshold is reached, batchingMaxMessages has been reached, or the batch interval has elapsed.
+    type: number
+    default: '"131072" (128 KB)'
+    example: '"131072"'
+  - name: publicKey
+    type: string
+    description: |
+      A public key to be used for publisher and consumer encryption. Value can be one of two options:
+       file path for a local PEM cert, or the cert data string value.
+    example: |
+      "-----BEGIN PUBLIC KEY-----\n<base64-encoded DER>\n-----END PUBLIC KEY-----" or "/path/to/key.pem"
+  - name: privateKey
+    type: string
+    description: |
+      A private key to be used for consumer encryption. Value can be one of two options: file path for
+      a local PEM cert, or the cert data string value.
+    example: |
+      "-----BEGIN PRIVATE KEY-----\n<base64-encoded DER>\n-----END PRIVATE KEY-----" or "/path/to/key.pem"
+  - name: keys
+    type: string
+    description: |
+      A comma delimited string containing names of Pulsar session keys. Used in conjunction with publicKey
+      for publisher encryption.
+  - name: persistent
+    type: bool
+    description: |
+      Pulsar supports two kinds of topics: persistent and non-persistent.
+      With persistent topics, all messages are durably persisted on disks (if the broker is not standalone, messages are durably persisted on multiple disks), whereas data for non-persistent topics is not persisted to storage disks.
+    url:
+      title: "Pulsar Persistent Storage"
+      url: "https://pulsar.apache.org/docs/3.0.x/concepts-architecture-overview/#persistent-storage"
+    default: '"true"'
+    example: '"true", "false"'
+  - name: redeliveryDelay
+    type: duration
+    description: |
+      Specifies the delay after which to redeliver the messages that failed to be processed.
+    default: '"30s"'
+    example: '"30s"'
+  - name: "<topic-name>.avroschema"
+    type: string
+    description: |
+      Enforces Avro schema validation for the configured topic. The value is a string containing a JSON object.
+    example: |
+      {
+        "type": "record",
+        "name": "Example",
+        "namespace": "test",
+        "fields": [
+          {"name": "ID","type": "int"},
+          {"name": "Name","type": "string"}
+        ]
+      }
+  - name: "<topic-name>.jsonschema"
+    type: string
+    description: |
+      Enforces JSON schema validation for the configured topic. The value is a string containing a JSON object.
+    example: |
+      {
+        "type": "record",
+        "name": "Example",
+        "namespace": "test",
+        "fields": [
+          {"name": "ID","type": "int"},
+          {"name": "Name","type": "string"}
+        ]
+      }

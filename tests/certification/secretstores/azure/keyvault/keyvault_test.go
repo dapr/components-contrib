@@ -18,6 +18,7 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -29,7 +30,6 @@ import (
 	akv "github.com/dapr/components-contrib/secretstores/azure/keyvault"
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
-	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/kit/logger"
 
@@ -72,11 +72,12 @@ func TestKeyVault(t *testing.T) {
 
 	flow.New(t, "keyvault authentication using service principal").
 		Step(sidecar.Run(sidecarName,
-			embedded.WithoutApp(),
-			embedded.WithComponentsPath("./components/serviceprincipal"),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithComponentsPath("./components/serviceprincipal"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHttpPort)),
+			)...,
 		)).
 		Step("Getting known secret", testGetKnownSecret).
 		Run()
@@ -89,11 +90,12 @@ func TestKeyVault(t *testing.T) {
 
 	flow.New(t, "keyvault authentication using certificate").
 		Step(sidecar.Run(sidecarName,
-			embedded.WithoutApp(),
-			embedded.WithComponentsPath("./components/certificate"),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithComponentsPath("./components/certificate"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHttpPort)),
+			)...,
 		)).
 		Step("Getting known secret", testGetKnownSecret, sidecar.Stop(sidecarName)).
 		Run()
@@ -188,7 +190,7 @@ func TestKeyVault(t *testing.T) {
 	// Run().
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	secretstoreRegistry := secretstores_loader.NewRegistry()
@@ -196,7 +198,7 @@ func componentRuntimeOptions() []runtime.Option {
 	secretstoreRegistry.RegisterComponent(akv.NewAzureKeyvaultSecretStore, "azure.keyvault")
 	secretstoreRegistry.RegisterComponent(secretstore_env.NewEnvSecretStore, "local.env")
 
-	return []runtime.Option{
-		runtime.WithSecretStores(secretstoreRegistry),
+	return []embedded.Option{
+		embedded.WithSecretStores(secretstoreRegistry),
 	}
 }

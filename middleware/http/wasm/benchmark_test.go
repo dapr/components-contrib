@@ -1,3 +1,16 @@
+/*
+Copyright 2023 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package wasm
 
 import (
@@ -28,19 +41,19 @@ func BenchmarkNative(b *testing.B) {
 }
 
 func BenchmarkTinygo(b *testing.B) {
-	path := "./internal/e2e-guests/rewrite/main.wasm"
-	benchmarkMiddleware(b, path)
+	url := "file://internal/e2e-guests/rewrite/main.wasm"
+	benchmarkMiddleware(b, url)
 }
 
 // BenchmarkWat gives baseline performance for the same handler by
 // writing it directly in WebAssembly Text Format.
 func BenchmarkWat(b *testing.B) {
-	path := "./internal/testdata/rewrite.wasm"
-	benchmarkMiddleware(b, path)
+	url := "file://internal/testdata/rewrite.wasm"
+	benchmarkMiddleware(b, url)
 }
 
-func benchmarkMiddleware(b *testing.B, path string) {
-	md := metadata.Base{Properties: map[string]string{"path": path}}
+func benchmarkMiddleware(b *testing.B, url string) {
+	md := metadata.Base{Properties: map[string]string{"url": url}}
 
 	l := logger.NewLogger(b.Name())
 	l.SetOutput(io.Discard)

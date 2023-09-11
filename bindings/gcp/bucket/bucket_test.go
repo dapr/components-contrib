@@ -27,17 +27,17 @@ func TestParseMetadata(t *testing.T) {
 	t.Run("Has correct metadata", func(t *testing.T) {
 		m := bindings.Metadata{}
 		m.Properties = map[string]string{
-			"auth_provider_x509_cert_url": "my_auth_provider_x509",
-			"auth_uri":                    "my_auth_uri",
-			"Bucket":                      "my_bucket",
-			"client_x509_cert_url":        "my_client_x509",
-			"client_email":                "my_email@mail.dapr",
-			"client_id":                   "my_client_id",
-			"private_key":                 "my_private_key",
-			"private_key_id":              "my_private_key_id",
-			"project_id":                  "my_project_id",
-			"token_uri":                   "my_token_uri",
-			"type":                        "my_type",
+			"authProviderX509CertURL": "my_auth_provider_x509",
+			"authURI":                 "my_auth_uri",
+			"Bucket":                  "my_bucket",
+			"clientX509CertURL":       "my_client_x509",
+			"clientEmail":             "my_email@mail.dapr",
+			"clientID":                "my_client_id",
+			"privateKey":              "my_private_key",
+			"privateKeyID":            "my_private_key_id",
+			"projectID":               "my_project_id",
+			"tokenURI":                "my_token_uri",
+			"type":                    "my_type",
 		}
 		gs := GCPStorage{logger: logger.NewLogger("test")}
 		meta, err := gs.parseMetadata(m)
@@ -73,18 +73,18 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 	t.Run("Has merged metadata", func(t *testing.T) {
 		m := bindings.Metadata{}
 		m.Properties = map[string]string{
-			"auth_provider_x509_cert_url": "my_auth_provider_x509",
-			"auth_uri":                    "my_auth_uri",
-			"Bucket":                      "my_bucket",
-			"client_x509_cert_url":        "my_client_x509",
-			"client_email":                "my_email@mail.dapr",
-			"client_id":                   "my_client_id",
-			"private_key":                 "my_private_key",
-			"private_key_id":              "my_private_key_id",
-			"project_id":                  "my_project_id",
-			"token_uri":                   "my_token_uri",
-			"type":                        "my_type",
-			"decodeBase64":                "false",
+			"authProviderX509CertURL": "my_auth_provider_x509",
+			"authURI":                 "my_auth_uri",
+			"Bucket":                  "my_bucket",
+			"clientX509CertURL":       "my_client_x509",
+			"clientEmail":             "my_email@mail.dapr",
+			"clientID":                "my_client_id",
+			"privateKey":              "my_private_key",
+			"privateKeyID":            "my_private_key_id",
+			"projectID":               "my_project_id",
+			"tokenURI":                "my_token_uri",
+			"type":                    "my_type",
+			"decodeBase64":            "false",
 		}
 		gs := GCPStorage{logger: logger.NewLogger("test")}
 		meta, err := gs.parseMetadata(m)
@@ -129,18 +129,18 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 	t.Run("Has invalid merged metadata decodeBase64", func(t *testing.T) {
 		m := bindings.Metadata{}
 		m.Properties = map[string]string{
-			"auth_provider_x509_cert_url": "my_auth_provider_x509",
-			"auth_uri":                    "my_auth_uri",
-			"Bucket":                      "my_bucket",
-			"client_x509_cert_url":        "my_client_x509",
-			"client_email":                "my_email@mail.dapr",
-			"client_id":                   "my_client_id",
-			"private_key":                 "my_private_key",
-			"private_key_id":              "my_private_key_id",
-			"project_id":                  "my_project_id",
-			"token_uri":                   "my_token_uri",
-			"type":                        "my_type",
-			"decodeBase64":                "false",
+			"authProviderX509CertURL": "my_auth_provider_x509",
+			"authURI":                 "my_auth_uri",
+			"Bucket":                  "my_bucket",
+			"clientX509CertURL":       "my_client_x509",
+			"clientEmail":             "my_email@mail.dapr",
+			"clientID":                "my_client_id",
+			"privateKey":              "my_private_key",
+			"privateKeyID":            "my_private_key_id",
+			"projectID":               "my_project_id",
+			"tokenURI":                "my_token_uri",
+			"type":                    "my_type",
+			"decodeBase64":            "false",
 		}
 		gs := GCPStorage{logger: logger.NewLogger("test")}
 		meta, err := gs.parseMetadata(m)
@@ -173,19 +173,19 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 	t.Run("Has invalid merged metadata encodeBase64", func(t *testing.T) {
 		m := bindings.Metadata{}
 		m.Properties = map[string]string{
-			"auth_provider_x509_cert_url": "my_auth_provider_x509",
-			"auth_uri":                    "my_auth_uri",
-			"Bucket":                      "my_bucket",
-			"client_x509_cert_url":        "my_client_x509",
-			"client_email":                "my_email@mail.dapr",
-			"client_id":                   "my_client_id",
-			"private_key":                 "my_private_key",
-			"private_key_id":              "my_private_key_id",
-			"project_id":                  "my_project_id",
-			"token_uri":                   "my_token_uri",
-			"type":                        "my_type",
-			"decodeBase64":                "false",
-			"encodeBase64":                "true",
+			"authProviderX509CertURL": "my_auth_provider_x509",
+			"authURI":                 "my_auth_uri",
+			"Bucket":                  "my_bucket",
+			"clientX509CertURL":       "my_client_x509",
+			"clientEmail":             "my_email@mail.dapr",
+			"clientID":                "my_client_id",
+			"privateKey":              "my_private_key",
+			"privateKeyID":            "my_private_key_id",
+			"projectID":               "my_project_id",
+			"tokenURI":                "my_token_uri",
+			"type":                    "my_type",
+			"decodeBase64":            "false",
+			"encodeBase64":            "true",
 		}
 		gs := GCPStorage{logger: logger.NewLogger("test")}
 		meta, err := gs.parseMetadata(m)

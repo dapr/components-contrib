@@ -4,7 +4,7 @@ type: bindings
 name: mysql
 version: v1
 status: alpha
-title: "MySQL"
+title: "MySQL & MariaDB"
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-bindings/mysql/
@@ -17,17 +17,17 @@ binding:
     - name: query
       description: "The query operation is used for SELECT statements, which returns the metadata along with data in a form of an array of row values."
     - name: close
-      description: "The close operation can be used to explicitly close the DB connection and return it to the pool. This operation doesn’t have any response."
+      description: "The close operation can be used to explicitly close the DB connection and return it to the pool. This operation doesn't have any response."
 metadata:
   - name: url
     required: true
-    description: "Represent a DB connection in Data Source Name (DNS) format."
-    example: "user:password@tcp(localhost:3306)/dbname"
+    description: "Represent a DB connection in Data Source Name (DNS) format"
+    example: '"user:password@tcp(localhost:3306)/dbname"'
     type: string
   - name: pemPath
     required: false
     description: "Path to the PEM file. Used with SSL connection"
-    example: "path/to/pem/file"
+    example: '"path/to/pem/file"'
     type: string
   - name: maxIdleConns
     required: false
@@ -49,8 +49,3 @@ metadata:
     description: "The max connection idel time."
     example: "12s"
     type: duration
-  - name: maxRetries
-    required: false
-    description: "MaxRetries is the maximum number of retries for a query."
-    example: "5"
-    type: number

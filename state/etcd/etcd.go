@@ -17,7 +17,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -43,6 +42,8 @@ type Etcd struct {
 	keyPrefixPath string
 	features      []state.Feature
 	logger        logger.Logger
+	schema        schemaMarshaller
+	maxTxnOps     int
 }
 
 type etcdConfig struct {
@@ -53,13 +54,29 @@ type etcdConfig struct {
 	CA        string `json:"ca"`
 	Cert      string `json:"cert"`
 	Key       string `json:"key"`
+	// Transaction server options
+	MaxTxnOps int `mapstructure:"maxTxnOps"`
 }
 
-// NewEtcdStateStore returns a new etcd state store.
-func NewEtcdStateStore(logger logger.Logger) state.Store {
+// NewEtcdStateStoreV1 returns a new etcd state store for schema V1.
+func NewEtcdStateStoreV1(logger logger.Logger) state.Store {
+	return newETCD(logger, schemaV1{})
+}
+
+// NewEtcdStateStoreV2 returns a new etcd state store for schema V2.
+func NewEtcdStateStoreV2(logger logger.Logger) state.Store {
+	return newETCD(logger, schemaV2{})
+}
+
+func newETCD(logger logger.Logger, schema schemaMarshaller) state.Store {
 	s := &Etcd{
-		logger:   logger,
-		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		schema: schema,
+		logger: logger,
+		features: []state.Feature{
+			state.FeatureETag,
+			state.FeatureTransactional,
+			state.FeatureTTL,
+		},
 	}
 	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
@@ -79,6 +96,7 @@ func (e *Etcd) Init(_ context.Context, metadata state.Metadata) error {
 	}
 
 	e.keyPrefixPath = etcdConfig.KeyPrefixPath
+	e.maxTxnOps = etcdConfig.MaxTxnOps
 
 	return nil
 }
@@ -120,7 +138,10 @@ func (e *Etcd) Features() []state.Feature {
 }
 
 func metadataToConfig(connInfo map[string]string) (*etcdConfig, error) {
-	m := &etcdConfig{}
+	m := &etcdConfig{
+		// This is the default value for maximum ops per transaction, configurtable via etcd server flag --max-txn-ops.
+		MaxTxnOps: 128,
+	}
 	err := metadata.DecodeMetadata(connInfo, m)
 	return m, err
 }
@@ -141,9 +162,15 @@ func (e *Etcd) Get(ctx context.Context, req *state.GetRequest) (*state.GetRespon
 		return &state.GetResponse{}, nil
 	}
 
+	data, metadata, err := e.schema.decode(resp.Kvs[0].Value)
+	if err != nil {
+		return nil, err
+	}
+
 	return &state.GetResponse{
-		Data: resp.Kvs[0].Value,
-		ETag: ptr.Of(strconv.Itoa(int(resp.Kvs[0].ModRevision))),
+		Data:     data,
+		ETag:     ptr.Of(strconv.Itoa(int(resp.Kvs[0].ModRevision))),
+		Metadata: metadata,
 	}, nil
 }
 
@@ -160,69 +187,56 @@ func (e *Etcd) Set(ctx context.Context, req *state.SetRequest) error {
 		return err
 	}
 
-	reqVal, err := stateutils.Marshal(req.Value, json.Marshal)
+	return e.doSet(ctx, keyWithPath, req.Value, req.ETag, ttlInSeconds)
+}
+
+func (e *Etcd) doSet(ctx context.Context, key string, val any, etag *string, ttlInSeconds *int64) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	reqVal, err := e.schema.encode(val, ttlInSeconds)
 	if err != nil {
 		return err
 	}
 
-	return e.doSet(ctx, keyWithPath, string(reqVal), req.ETag, ttlInSeconds)
-}
-
-func (e *Etcd) doSet(ctx context.Context, key, reqVal string, etag *string, ttlInSeconds int64) error {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	if ttlInSeconds > 0 {
-		resp, err := e.client.Grant(ctx, ttlInSeconds)
+	var leaseID clientv3.LeaseID
+	if ttlInSeconds != nil {
+		var resp *clientv3.LeaseGrantResponse
+		resp, err = e.client.Grant(ctx, *ttlInSeconds)
 		if err != nil {
 			return fmt.Errorf("couldn't grant lease %s: %w", key, err)
 		}
-		if etag != nil {
-			etag, _ := strconv.ParseInt(*etag, 10, 64)
-			_, err = e.client.Txn(ctx).
-				If(clientv3.Compare(clientv3.ModRevision(key), "=", etag)).
-				Then(clientv3.OpPut(key, reqVal, clientv3.WithLease(resp.ID))).
-				Commit()
-		} else {
-			_, err = e.client.Put(ctx, key, reqVal, clientv3.WithLease(resp.ID))
-		}
-		if err != nil {
-			return fmt.Errorf("couldn't set key %s: %w", key, err)
-		}
-	} else {
-		var err error
-		if etag != nil {
-			etag, _ := strconv.ParseInt(*etag, 10, 64)
-			_, err = e.client.Txn(ctx).
-				If(clientv3.Compare(clientv3.ModRevision(key), "=", etag)).
-				Then(clientv3.OpPut(key, reqVal)).
-				Commit()
-		} else {
-			_, err = e.client.Put(ctx, key, reqVal)
-		}
-		if err != nil {
-			return fmt.Errorf("couldn't set key %s: %w", key, err)
-		}
+		leaseID = resp.ID
 	}
+
+	if etag != nil {
+		etag, _ := strconv.ParseInt(*etag, 10, 64)
+		_, err = e.client.Txn(ctx).
+			If(clientv3.Compare(clientv3.ModRevision(key), "=", etag)).
+			Then(clientv3.OpPut(key, reqVal, clientv3.WithLease(leaseID))).
+			Commit()
+	} else {
+		_, err = e.client.Put(ctx, key, reqVal, clientv3.WithLease(leaseID))
+	}
+	if err != nil {
+		return fmt.Errorf("couldn't set key %s: %w", key, err)
+	}
+
 	return nil
 }
 
-func (e *Etcd) doSetValidateParameters(req *state.SetRequest) (int64, error) {
+func (e *Etcd) doSetValidateParameters(req *state.SetRequest) (*int64, error) {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
-	var ttlVal int64
-	ttlInSeconds, err := stateutils.ParseTTL(req.Metadata)
+	ttlInSeconds, err := stateutils.ParseTTL64(req.Metadata)
 	if err != nil {
-		return 0, err
-	}
-	if ttlInSeconds != nil {
-		ttlVal = int64(*ttlInSeconds)
+		return nil, err
 	}
 
-	return ttlVal, nil
+	return ttlInSeconds, nil
 }
 
 // Delete performes a Etcd KV delete operation.
@@ -291,11 +305,10 @@ func (e *Etcd) doValidateEtag(key string, etag *string, concurrency string) erro
 	return nil
 }
 
-func (e *Etcd) GetComponentMetadata() map[string]string {
+func (e *Etcd) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := etcdConfig{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
 }
 
 func (e *Etcd) Close() error {
@@ -315,6 +328,13 @@ func (e *Etcd) Ping() error {
 	}
 
 	return nil
+}
+
+// MultiMaxSize returns the maximum number of operations allowed in a transaction.
+// For Etcd the default is 128, but this can be configured via the server flag --max-txn-ops.
+// As such we are using the component metadata value maxTxnOps.
+func (e *Etcd) MultiMaxSize() int {
+	return e.maxTxnOps
 }
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
@@ -339,29 +359,29 @@ func (e *Etcd) Multi(ctx context.Context, request *state.TransactionalStateReque
 				return err
 			}
 
-			reqVal, err := stateutils.Marshal(req.Value, json.Marshal)
+			reqVal, err := e.schema.encode(req.Value, ttlInSeconds)
 			if err != nil {
 				return err
 			}
 			var cmp clientv3.Cmp
-			if req.ETag != nil {
+			if req.HasETag() {
 				etag, _ := strconv.ParseInt(*req.ETag, 10, 64)
 				cmp = clientv3.Compare(clientv3.ModRevision(keyWithPath), "=", etag)
 			}
-			if ttlInSeconds > 0 {
-				resp, err := e.client.Grant(ctx, ttlInSeconds)
+			if ttlInSeconds != nil {
+				resp, err := e.client.Grant(ctx, *ttlInSeconds)
 				if err != nil {
 					return fmt.Errorf("couldn't grant lease %s: %w", keyWithPath, err)
 				}
-				put := clientv3.OpPut(keyWithPath, string(reqVal), clientv3.WithLease(resp.ID))
-				if req.ETag != nil {
+				put := clientv3.OpPut(keyWithPath, reqVal, clientv3.WithLease(resp.ID))
+				if req.HasETag() {
 					ops = append(ops, clientv3.OpTxn([]clientv3.Cmp{cmp}, []clientv3.Op{put}, nil))
 				} else {
 					ops = append(ops, clientv3.OpTxn(nil, []clientv3.Op{put}, nil))
 				}
 			} else {
-				put := clientv3.OpPut(keyWithPath, string(reqVal))
-				if req.ETag != nil {
+				put := clientv3.OpPut(keyWithPath, reqVal)
+				if req.HasETag() {
 					ops = append(ops, clientv3.OpTxn([]clientv3.Cmp{cmp}, []clientv3.Op{put}, nil))
 				} else {
 					ops = append(ops, clientv3.OpTxn(nil, []clientv3.Op{put}, nil))
@@ -379,7 +399,7 @@ func (e *Etcd) Multi(ctx context.Context, request *state.TransactionalStateReque
 			}
 
 			del := clientv3.OpDelete(keyWithPath)
-			if req.ETag != nil {
+			if req.HasETag() {
 				etag, _ := strconv.ParseInt(*req.ETag, 10, 64)
 				cmp := clientv3.Compare(clientv3.ModRevision(keyWithPath), "=", etag)
 				ops = append(ops, clientv3.OpTxn([]clientv3.Cmp{cmp}, []clientv3.Op{del}, nil))

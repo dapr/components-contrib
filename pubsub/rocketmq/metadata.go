@@ -154,7 +154,7 @@ type rocketMQMetaData struct {
 	// then pullThresholdForQueue will be set to 100
 	//
 	// RocketMQ Go Client does not support configuration in github.com/apache/rocketmq-client-go/v2 v2.1.1-rc2
-	PullThresholdForTopic int64 `mapstructure:"pullThresholdForTopic"`
+	PullThresholdForTopic int `mapstructure:"pullThresholdForTopic"`
 
 	// RocketMQ Go Client does not support configuration in github.com/apache/rocketmq-client-go/v2 v2.1.1-rc2
 	PullThresholdSizeForQueue int `mapstructure:"pullThresholdSizeForQueue"`

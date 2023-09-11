@@ -179,6 +179,8 @@ func parseNATSStreamingMetadata(meta pubsub.Metadata) (natsMetadata, error) {
 }
 
 func (n *natsStreamingPubSub) Init(_ context.Context, metadata pubsub.Metadata) error {
+	n.logger.Warn("⚠️ The NATS Streaming PubSub component is deprecated due to the deprecation of NATS Server, and will be removed from Dapr 1.13")
+
 	m, err := parseNATSStreamingMetadata(metadata)
 	if err != nil {
 		return err
@@ -363,9 +365,8 @@ func (n *natsStreamingPubSub) Features() []pubsub.Feature {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (n *natsStreamingPubSub) GetComponentMetadata() map[string]string {
+func (n *natsStreamingPubSub) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := natsMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
-	return metadataInfo
+	return
 }

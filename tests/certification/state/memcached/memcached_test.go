@@ -29,7 +29,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/network"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
-	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
@@ -190,15 +189,43 @@ func TestMemcached(t *testing.T) {
 		return nil
 	}
 
+	timeToLiveWithATwoMonthsTTL := func(ctx flow.Context) error {
+		client, err := client.NewClientWithPort(fmt.Sprint(currentGrpcPort))
+		if err != nil {
+			panic(err)
+		}
+		defer client.Close()
+
+		key := certificationTestPrefix + "_expiresInTwoMonthsKey"
+		value := "This key will self-destroy in 2 months"
+
+		ttlExpirationTime := 2 * 30 * 24 * time.Hour
+		ttlInSeconds := int(ttlExpirationTime.Seconds())
+		mapOptionsExpiringKey := map[string]string{
+			"ttlInSeconds": strconv.Itoa(ttlInSeconds),
+		}
+
+		errSave := client.SaveState(ctx, stateStoreName, key, []byte(value), mapOptionsExpiringKey)
+		assert.NoError(t, errSave)
+
+		// get state
+		item, errGetBeforeTTLExpiration := client.GetState(ctx, stateStoreName, key, nil)
+		assert.NoError(t, errGetBeforeTTLExpiration)
+		assert.Equal(t, value, string(item.Value))
+
+		return nil
+	}
+
 	flow.New(t, "Connecting Memcached And Test for CRUD operations").
 		Step(dockercompose.Run("memcached", dockerComposeClusterYAML)).
 		Step("Waiting for component to start...", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerClusterDefault",
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("components/docker/default"),
-			componentRuntimeOptions(stateStore, log, "memcached"),
+			append(componentRuntimeOptions(stateStore, log, "memcached"),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+				embedded.WithComponentsPath("components/docker/default"),
+			)...,
 		)).
 		Step("Waiting for component to load...", flow.Sleep(5*time.Second)).
 		Step("Run basic test", basicTest).
@@ -209,17 +236,19 @@ func TestMemcached(t *testing.T) {
 		Step(dockercompose.Run("memcached", dockerComposeClusterYAML)).
 		Step("Waiting for component to start...", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerClusterDefault",
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath("components/docker/default"),
-			componentRuntimeOptions(stateStore, log, "memcached"),
+			append(componentRuntimeOptions(stateStore, log, "memcached"),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+				embedded.WithComponentsPath("components/docker/default"),
+			)...,
 		)).
 		Step("Waiting for component to load...", flow.Sleep(5*time.Second)).
 		Step("Run basic test", basicTest).
 		Step("Run TTL related test: TTL not a valid number.", timeToLiveTestWithInvalidTTLValue).
 		Step("Run TTL related test: TTL not expiring.", timeToLiveTestWithNonExpiringTTL).
 		Step("Run TTL related test: TTL of 1 second.", timeToLiveWithAOneSecondTTL).
+		Step("Run TTL related test: TTL of 2 months.", timeToLiveWithATwoMonthsTTL).
 		Step("Stop Memcached server", dockercompose.Stop("memcached", dockerComposeClusterYAML)).
 		Run()
 }
@@ -289,11 +318,12 @@ func TestMemcachedNetworkInstability(t *testing.T) {
 		Step(dockercompose.Run("memcached", dockerComposeClusterYAML)).
 		Step("Waiting for component to start...", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerClusterDefault",
-			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
-			embedded.WithComponentsPath(componentsPathFor20sTimeout),
-			componentRuntimeOptions(stateStore, log, "memcached"),
+			append(componentRuntimeOptions(stateStore, log, "memcached"),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+				embedded.WithComponentsPath(componentsPathFor20sTimeout),
+			)...,
 		)).
 		Step("Waiting for component to load...", flow.Sleep(5*time.Second)).
 		Step("Setup a key with a TTL of 4x memcached timeout ", setKeyWithTTL(keyTTL, targetKey, targetValue)).
@@ -308,14 +338,14 @@ func TestMemcachedNetworkInstability(t *testing.T) {
 		Run()
 }
 
-func componentRuntimeOptions(stateStore state.Store, log logger.Logger, stateStoreName string) []runtime.Option {
+func componentRuntimeOptions(stateStore state.Store, log logger.Logger, stateStoreName string) []embedded.Option {
 	stateRegistry := state_loader.NewRegistry()
 	stateRegistry.Logger = log
 	componentFactory := func(l logger.Logger) state.Store { return stateStore }
 
 	stateRegistry.RegisterComponent(componentFactory, stateStoreName)
 
-	return []runtime.Option{
-		runtime.WithStates(stateRegistry),
+	return []embedded.Option{
+		embedded.WithStates(stateRegistry),
 	}
 }

@@ -108,9 +108,8 @@ func (s *AliCloudOSS) getClient(metadata *ossMetadata) (*oss.Client, error) {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (s *AliCloudOSS) GetComponentMetadata() map[string]string {
+func (s *AliCloudOSS) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := ossMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.BindingType)
-	return metadataInfo
+	return
 }

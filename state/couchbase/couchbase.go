@@ -66,9 +66,11 @@ type couchbaseMetadata struct {
 // NewCouchbaseStateStore returns a new couchbase state store.
 func NewCouchbaseStateStore(logger logger.Logger) state.Store {
 	s := &Couchbase{
-		json:     jsoniter.ConfigFastest,
-		features: []state.Feature{state.FeatureETag},
-		logger:   logger,
+		json: jsoniter.ConfigFastest,
+		features: []state.Feature{
+			state.FeatureETag,
+		},
+		logger: logger,
 	}
 	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
@@ -173,7 +175,7 @@ func (cbs *Couchbase) Set(ctx context.Context, req *state.SetRequest) error {
 
 	//nolint:nestif
 	// key already exists (use Replace)
-	if req.ETag != nil {
+	if req.HasETag() {
 		// compare-and-swap (CAS) for managing concurrent modifications - https://docs.couchbase.com/go-sdk/current/concurrent-mutations-cluster.html
 		cas, cerr := eTagToCas(*req.ETag)
 		if cerr != nil {
@@ -194,7 +196,7 @@ func (cbs *Couchbase) Set(ctx context.Context, req *state.SetRequest) error {
 	}
 
 	if err != nil {
-		if req.ETag != nil {
+		if req.HasETag() {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
@@ -231,7 +233,7 @@ func (cbs *Couchbase) Delete(ctx context.Context, req *state.DeleteRequest) erro
 
 	var cas gocb.Cas = 0
 
-	if req.ETag != nil {
+	if req.HasETag() {
 		cas, err = eTagToCas(*req.ETag)
 		if err != nil {
 			return err
@@ -243,7 +245,7 @@ func (cbs *Couchbase) Delete(ctx context.Context, req *state.DeleteRequest) erro
 		_, err = cbs.bucket.Remove(req.Key, cas)
 	}
 	if err != nil {
-		if req.ETag != nil {
+		if req.HasETag() {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
@@ -266,9 +268,15 @@ func eTagToCas(eTag string) (gocb.Cas, error) {
 	return cas, nil
 }
 
-func (cbs *Couchbase) GetComponentMetadata() map[string]string {
+func (cbs *Couchbase) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := couchbaseMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
+}
+
+func (cbs *Couchbase) Close() error {
+	if cbs.bucket == nil {
+		return nil
+	}
+	return cbs.bucket.Close()
 }

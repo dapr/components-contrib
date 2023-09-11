@@ -23,6 +23,7 @@ import (
 
 	"github.com/bradfitz/gomemcache/memcache"
 	jsoniter "github.com/json-iterator/go"
+	"k8s.io/utils/clock"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -45,18 +46,20 @@ type Memcached struct {
 	client *memcache.Client
 	json   jsoniter.API
 	logger logger.Logger
+	clock  clock.Clock
 }
 
 type memcachedMetadata struct {
-	Hosts              []string
-	MaxIdleConnections int
-	Timeout            int
+	Hosts              []string `mapstructure:"hosts"`
+	MaxIdleConnections int      `mapstructure:"maxIdleConnections"`
+	Timeout            int      `mapstructure:"timeout"`
 }
 
 func NewMemCacheStateStore(logger logger.Logger) state.Store {
 	s := &Memcached{
 		json:   jsoniter.ConfigFastest,
 		logger: logger,
+		clock:  clock.RealClock{},
 	}
 	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
@@ -90,7 +93,9 @@ func (m *Memcached) Init(_ context.Context, metadata state.Metadata) error {
 
 // Features returns the features available in this state store.
 func (m *Memcached) Features() []state.Feature {
-	return nil
+	return []state.Feature{
+		state.FeatureTTL,
+	}
 }
 
 func getMemcachedMetadata(meta state.Metadata) (*memcachedMetadata, error) {
@@ -133,7 +138,14 @@ func (m *Memcached) parseTTL(req *state.SetRequest) (*int32, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		parsedInt := int32(parsedVal)
+
+		// If ttl is more than 30 days, convert it to unix timestamp.
+		// https://github.com/memcached/memcached/wiki/Commands#standard-protocol
+		if parsedInt >= 60*60*24*30 {
+			parsedInt = int32(m.clock.Now().Unix()) + parsedInt
+		}
 
 		// Notice that for Dapr, -1 means "persist with no TTL".
 		// Memcached uses "0" as the non-expiring marker TTL.
@@ -207,9 +219,8 @@ func (m *Memcached) Close() (err error) {
 	return nil
 }
 
-func (m *Memcached) GetComponentMetadata() map[string]string {
+func (m *Memcached) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := memcachedMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
 }

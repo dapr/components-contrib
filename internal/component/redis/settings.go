@@ -79,23 +79,23 @@ type Settings struct {
 	EnableTLS bool `mapstructure:"enableTLS"`
 
 	// == state only properties ==
-	TTLInSeconds *int   `mapstructure:"ttlInSeconds" only:"state"`
-	QueryIndexes string `mapstructure:"queryIndexes" only:"state"`
+	TTLInSeconds *int   `mapstructure:"ttlInSeconds" mdonly:"state"`
+	QueryIndexes string `mapstructure:"queryIndexes" mdonly:"state"`
 
 	// == pubsub only properties ==
 	// The consumer identifier
-	ConsumerID string `mapstructure:"consumerID" only:"pubsub"`
+	ConsumerID string `mapstructure:"consumerID" mdonly:"pubsub"`
 	// The interval between checking for pending messages to redelivery (0 disables redelivery)
-	RedeliverInterval time.Duration `mapstructure:"-" only:"pubsub"`
+	RedeliverInterval time.Duration `mapstructure:"-" mdonly:"pubsub"`
 	// The amount time a message must be pending before attempting to redeliver it (0 disables redelivery)
-	ProcessingTimeout time.Duration `mapstructure:"processingTimeout" only:"pubsub"`
+	ProcessingTimeout time.Duration `mapstructure:"processingTimeout" mdonly:"pubsub"`
 	// The size of the message queue for processing
-	QueueDepth uint `mapstructure:"queueDepth" only:"pubsub"`
+	QueueDepth uint `mapstructure:"queueDepth" mdonly:"pubsub"`
 	// The number of concurrent workers that are processing messages
-	Concurrency uint `mapstructure:"concurrency" only:"pubsub"`
+	Concurrency uint `mapstructure:"concurrency" mdonly:"pubsub"`
 
-	// the max len of stream
-	MaxLenApprox int64 `mapstructure:"maxLenApprox" only:"bindings"`
+	// The max len of stream
+	MaxLenApprox int64 `mapstructure:"maxLenApprox" mdonly:"pubsub"`
 }
 
 func (s *Settings) Decode(in interface{}) error {

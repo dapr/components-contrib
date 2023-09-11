@@ -142,8 +142,6 @@ jobs:
     - name: Configure conformance test and source path
       run: |
         TEST_COMPONENT=$(echo ${{ matrix.component }} | sed -E 's/\./\//g')
-        export TEST_PATH="tests/certification/${TEST_COMPONENT}"
-        echo "TEST_PATH=$TEST_PATH" >> $GITHUB_ENV
         export SOURCE_PATH="github.com/dapr/components-contrib/${TEST_COMPONENT}"
         echo "SOURCE_PATH=$SOURCE_PATH" >> $GITHUB_ENV
         # converts slashes to dots in this string, so that it doesn't consider them sub-folders

@@ -44,7 +44,11 @@ func NewOracleDatabaseStateStore(logger logger.Logger) state.Store {
 // This unexported constructor allows injecting a dbAccess instance for unit testing.
 func newOracleDatabaseStateStore(logger logger.Logger, dba dbAccess) *OracleDatabase {
 	return &OracleDatabase{
-		features: []state.Feature{state.FeatureETag, state.FeatureTransactional},
+		features: []state.Feature{
+			state.FeatureETag,
+			state.FeatureTransactional,
+			state.FeatureTTL,
+		},
 		logger:   logger,
 		dbaccess: dba,
 	}
@@ -98,9 +102,8 @@ func (o *OracleDatabase) getDB() *sql.DB {
 	return o.dbaccess.(*oracleDatabaseAccess).db
 }
 
-func (o *OracleDatabase) GetComponentMetadata() map[string]string {
+func (o *OracleDatabase) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := oracleDatabaseMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
-	return metadataInfo
+	return
 }

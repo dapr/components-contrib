@@ -15,6 +15,7 @@ package redis_test
 
 import (
 	"encoding/json"
+	"strconv"
 	"testing"
 	"time"
 
@@ -28,7 +29,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	cu_redis "github.com/dapr/components-contrib/tests/utils/configupdater/redis"
 	configuration_loader "github.com/dapr/dapr/pkg/components/configuration"
-	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	dapr "github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
@@ -54,6 +54,8 @@ const (
 	subscribedMessageWaitDuration = 1000 * time.Millisecond
 	sidecarName1                  = "dapr-1"
 )
+
+var subscribeID string
 
 // Cast go-sdk ConfigurationItem to contrib ConfigurationItem
 func castConfigurationItems(items map[string]*dapr.ConfigurationItem) map[string]*configuration.Item {
@@ -247,7 +249,6 @@ func runRedisCommands(ctx flow.Context, updater *cu_redis.ConfigUpdater, message
 }
 
 func TestRedis(t *testing.T) {
-	var task flow.AsyncTask
 	log := logger.NewLogger("dapr.components")
 
 	configStore := config_redis.NewRedisConfigurationStore(log)
@@ -289,7 +290,8 @@ func TestRedis(t *testing.T) {
 		return func(ctx flow.Context) error {
 			client := sidecar.GetClient(ctx, sidecarName1)
 			message.Reset()
-			errSubscribe := client.SubscribeConfigurationItems(task, storeName, keys, func(id string, items map[string]*dapr.ConfigurationItem) {
+			var errSubscribe error
+			subscribeID, errSubscribe = client.SubscribeConfigurationItems(ctx, storeName, keys, func(id string, items map[string]*dapr.ConfigurationItem) {
 				updateEvent := &configuration.UpdateEvent{
 					Items: castConfigurationItems(items),
 				}
@@ -359,8 +361,8 @@ func TestRedis(t *testing.T) {
 	}
 
 	stopSubscriber := func(ctx flow.Context) error {
-		task.CancelAndWait()
-		return nil
+		client := sidecar.GetClient(ctx, sidecarName1)
+		return client.UnsubscribeConfigurationItems(ctx, storeName, subscribeID)
 	}
 
 	flow.New(t, "redis certification test").
@@ -370,14 +372,14 @@ func TestRedis(t *testing.T) {
 		// Run dapr sidecar with redis configuration store component
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
 			embedded.WithComponentsPath("components/default"),
-			runtime.WithConfigurations(configurationRegistry),
+			embedded.WithConfigurations(configurationRegistry),
 		)).
 		//
 		// Start subscriber subscribing to keys {key1,key2}
-		StepAsync("start subscriber", &task, subscribefn([]string{key1, key2}, messageWatcher)).
+		Step("start subscriber", subscribefn([]string{key1, key2}, messageWatcher)).
 		Step("wait for subscriber to be ready", flow.Sleep(5*time.Second)).
 		//Run redis commands and test updates are received by the subscriber
 		Step("testSubscribe", testSubscribe(messageWatcher)).
@@ -406,12 +408,12 @@ func TestRedis(t *testing.T) {
 		// Run dapr sidecar with redis configuration store component
 		Step(sidecar.Run(sidecarName1,
 			embedded.WithoutApp(),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHTTPPort),
+			embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+			embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
 			embedded.WithComponentsPath("components/redisDB1"),
-			runtime.WithConfigurations(configurationRegistry),
+			embedded.WithConfigurations(configurationRegistry),
 		)).
-		StepAsync("start subscriber", &task, subscribefn([]string{key1, key2}, messageWatcher)).
+		Step("start subscriber", subscribefn([]string{key1, key2}, messageWatcher)).
 		Step("wait for subscriber to be ready", flow.Sleep(5*time.Second)).
 		Step("verify database connected", testredisDBMetadata(messageWatcher)).
 		// // Stop the subscriber

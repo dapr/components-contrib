@@ -153,6 +153,9 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 	if v := js.meta.DurableName; v != "" {
 		consumerConfig.Durable = v
 	}
+	if v := js.meta.QueueGroupName; v != "" {
+		consumerConfig.DeliverGroup = v
+	}
 
 	if v := js.meta.internalStartTime; !v.IsZero() {
 		consumerConfig.OptStartTime = &v
@@ -214,7 +217,12 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 			js.l.Errorf("Error processing JetStream message %s/%d: %v", m.Subject, jsm.Sequence, err)
 
 			if js.meta.internalAckPolicy == nats.AckExplicitPolicy || js.meta.internalAckPolicy == nats.AckAllPolicy {
-				nakErr := m.Nak()
+				var nakErr error
+				if js.meta.AckWait != 0 {
+					nakErr = m.NakWithDelay(js.meta.AckWait)
+				} else {
+					nakErr = m.Nak()
+				}
 				if nakErr != nil {
 					js.l.Errorf("Error while sending NAK for JetStream message %s/%d: %v", m.Subject, jsm.Sequence, nakErr)
 				}
@@ -296,9 +304,8 @@ func sigHandler(seedKey string, nonce []byte) ([]byte, error) {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (js *jetstreamPubSub) GetComponentMetadata() map[string]string {
+func (js *jetstreamPubSub) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
 	metadataStruct := metadata{}
-	metadataInfo := map[string]string{}
 	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.PubSubType)
-	return metadataInfo
+	return
 }

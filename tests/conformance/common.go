@@ -30,13 +30,13 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/configuration"
 	contribCrypto "github.com/dapr/components-contrib/crypto"
+	"github.com/dapr/components-contrib/lock"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/components-contrib/state"
@@ -64,6 +64,7 @@ import (
 	cr_azurekeyvault "github.com/dapr/components-contrib/crypto/azure/keyvault"
 	cr_jwks "github.com/dapr/components-contrib/crypto/jwks"
 	cr_localstorage "github.com/dapr/components-contrib/crypto/localstorage"
+	l_redis "github.com/dapr/components-contrib/lock/redis"
 	p_snssqs "github.com/dapr/components-contrib/pubsub/aws/snssqs"
 	p_eventhubs "github.com/dapr/components-contrib/pubsub/azure/eventhubs"
 	p_servicebusqueues "github.com/dapr/components-contrib/pubsub/azure/servicebus/queues"
@@ -106,6 +107,7 @@ import (
 	conf_bindings "github.com/dapr/components-contrib/tests/conformance/bindings"
 	conf_configuration "github.com/dapr/components-contrib/tests/conformance/configuration"
 	conf_crypto "github.com/dapr/components-contrib/tests/conformance/crypto"
+	conf_lock "github.com/dapr/components-contrib/tests/conformance/lock"
 	conf_pubsub "github.com/dapr/components-contrib/tests/conformance/pubsub"
 	conf_secret "github.com/dapr/components-contrib/tests/conformance/secretstores"
 	conf_state "github.com/dapr/components-contrib/tests/conformance/state"
@@ -120,7 +122,6 @@ const (
 	eventhubs                 = "azure.eventhubs"
 	redisv6                   = "redis.v6"
 	redisv7                   = "redis.v7"
-	postgres                  = "postgres"
 	kafka                     = "kafka"
 	generateUUID              = "$((uuid))"
 	generateEd25519PrivateKey = "$((ed25519PrivateKey))"
@@ -140,11 +141,10 @@ type TestConfiguration struct {
 }
 
 type TestComponent struct {
-	Component     string                 `yaml:"component,omitempty"`
-	Profile       string                 `yaml:"profile,omitempty"`
-	AllOperations bool                   `yaml:"allOperations,omitempty"`
-	Operations    []string               `yaml:"operations,omitempty"`
-	Config        map[string]interface{} `yaml:"config,omitempty"`
+	Component  string                 `yaml:"component,omitempty"`
+	Profile    string                 `yaml:"profile,omitempty"`
+	Operations []string               `yaml:"operations,omitempty"`
+	Config     map[string]interface{} `yaml:"config,omitempty"`
 }
 
 // NewTestConfiguration reads the tests.yml and loads the TestConfiguration.
@@ -331,7 +331,6 @@ func (tc *TestConfiguration) loadComponentsAndProperties(t *testing.T, filepath 
 	require.Equal(t, 1, len(comps)) // We only expect a single component per file
 	c := comps[0]
 	props, err := ConvertMetadataToProperties(c.Spec.Metadata)
-
 	return props, err
 }
 
@@ -366,97 +365,75 @@ func (tc *TestConfiguration) Run(t *testing.T) {
 			case "state":
 				filepath := fmt.Sprintf("../config/state/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				store := loadStateStore(comp)
-				assert.NotNil(t, store)
-				storeConfig := conf_state.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				require.NotNilf(t, store, "error running conformance test for component %s", comp.Component)
+				storeConfig, err := conf_state.NewTestConfig(comp.Component, comp.Operations, comp.Config)
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				conf_state.ConformanceTests(t, props, store, storeConfig)
 			case "secretstores":
 				filepath := fmt.Sprintf("../config/secretstores/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				store := loadSecretStore(comp)
-				assert.NotNil(t, store)
-				storeConfig := conf_secret.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations)
+				require.NotNilf(t, store, "error running conformance test for component %s", comp.Component)
+				storeConfig := conf_secret.NewTestConfig(comp.Component, comp.Operations)
 				conf_secret.ConformanceTests(t, props, store, storeConfig)
 			case "pubsub":
 				filepath := fmt.Sprintf("../config/pubsub/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				pubsub := loadPubSub(comp)
-				assert.NotNil(t, pubsub)
-				pubsubConfig, err := conf_pubsub.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NotNil(t, pubsub, "error running conformance test for component %s", comp.Component)
+				pubsubConfig, err := conf_pubsub.NewTestConfig(comp.Component, comp.Operations, comp.Config)
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				conf_pubsub.ConformanceTests(t, props, pubsub, pubsubConfig)
 			case "bindings":
 				filepath := fmt.Sprintf("../config/bindings/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				inputBinding := loadInputBindings(comp)
 				outputBinding := loadOutputBindings(comp)
-				atLeastOne(t, func(item interface{}) bool {
-					return item != nil
-				}, inputBinding, outputBinding)
-				bindingsConfig, err := conf_bindings.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.True(t, inputBinding != nil || outputBinding != nil)
+				bindingsConfig, err := conf_bindings.NewTestConfig(comp.Component, comp.Operations, comp.Config)
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				conf_bindings.ConformanceTests(t, props, inputBinding, outputBinding, bindingsConfig)
 			case "workflows":
 				filepath := fmt.Sprintf("../config/workflows/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				wf := loadWorkflow(comp)
-				wfConfig := conf_workflows.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				wfConfig := conf_workflows.NewTestConfig(comp.Component, comp.Operations, comp.Config)
 				conf_workflows.ConformanceTests(t, props, wf, wfConfig)
+			case "lock":
+				filepath := fmt.Sprintf("../config/lock/%s", componentConfigPath)
+				props, err := tc.loadComponentsAndProperties(t, filepath)
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
+				component := loadLockStore(comp)
+				require.NotNil(t, component, "error running conformance test for component %s", comp.Component)
+				lockConfig, err := conf_lock.NewTestConfig(comp.Component, comp.Operations, comp.Config)
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
+				conf_lock.ConformanceTests(t, props, component, lockConfig)
 			case "crypto":
 				filepath := fmt.Sprintf("../config/crypto/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				component := loadCryptoProvider(comp)
-				require.NotNil(t, component)
-				cryptoConfig, err := conf_crypto.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NotNil(t, component, "error running conformance test for component %s", comp.Component)
+				cryptoConfig, err := conf_crypto.NewTestConfig(comp.Component, comp.Operations, comp.Config)
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				conf_crypto.ConformanceTests(t, props, component, cryptoConfig)
 			case "configuration":
 				filepath := fmt.Sprintf("../config/configuration/%s", componentConfigPath)
 				props, err := tc.loadComponentsAndProperties(t, filepath)
-				if err != nil {
-					t.Errorf("error running conformance test for %s: %s", comp.Component, err)
-					break
-				}
+				require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
 				store, updater := loadConfigurationStore(comp)
-				require.NotNil(t, store)
-				require.NotNil(t, updater)
-				configurationConfig := conf_configuration.NewTestConfig(comp.Component, comp.AllOperations, comp.Operations, comp.Config)
+				require.NotNil(t, store, "error running conformance test for component %s", comp.Component)
+				require.NotNil(t, updater, "error running conformance test for component %s", comp.Component)
+				configurationConfig := conf_configuration.NewTestConfig(comp.Component, comp.Operations, comp.Config)
 				conf_configuration.ConformanceTests(t, props, store, updater, configurationConfig, comp.Component)
 			default:
-				t.Errorf("unknown component type %s", tc.ComponentType)
+				t.Fatalf("unknown component type %s", tc.ComponentType)
 			}
 		})
 	}
@@ -466,13 +443,10 @@ func loadConfigurationStore(tc TestComponent) (configuration.Store, configupdate
 	var store configuration.Store
 	var updater configupdater.Updater
 	switch tc.Component {
-	case redisv6:
+	case redisv6, redisv7:
 		store = c_redis.NewRedisConfigurationStore(testLogger)
 		updater = cu_redis.NewRedisConfigUpdater(testLogger)
-	case redisv7:
-		store = c_redis.NewRedisConfigurationStore(testLogger)
-		updater = cu_redis.NewRedisConfigUpdater(testLogger)
-	case postgres:
+	case "postgresql.docker", "postgresql.azure":
 		store = c_postgres.NewPostgresConfigurationStore(testLogger)
 		updater = cu_postgres.NewPostgresConfigUpdater(testLogger)
 	default:
@@ -563,6 +537,18 @@ func loadCryptoProvider(tc TestComponent) contribCrypto.SubtleCrypto {
 	return component
 }
 
+func loadLockStore(tc TestComponent) lock.Store {
+	var component lock.Store
+	switch tc.Component {
+	case redisv6:
+		component = l_redis.NewStandaloneRedisLock(testLogger)
+	case redisv7:
+		component = l_redis.NewStandaloneRedisLock(testLogger)
+	}
+
+	return component
+}
+
 func loadStateStore(tc TestComponent) state.Store {
 	var store state.Store
 	switch tc.Component {
@@ -577,10 +563,12 @@ func loadStateStore(tc TestComponent) state.Store {
 	case "mongodb":
 		store = s_mongodb.NewMongoDB(testLogger)
 	case "azure.sql":
-		fallthrough
+		store = s_sqlserver.New(testLogger)
 	case "sqlserver":
 		store = s_sqlserver.New(testLogger)
-	case "postgresql":
+	case "postgresql.docker":
+		store = s_postgresql.NewPostgreSQLStateStore(testLogger)
+	case "postgresql.azure":
 		store = s_postgresql.NewPostgreSQLStateStore(testLogger)
 	case "sqlite":
 		store = s_sqlite.NewSQLiteStateStore(testLogger)
@@ -610,8 +598,10 @@ func loadStateStore(tc TestComponent) state.Store {
 		store = s_awsdynamodb.NewDynamoDBStateStore(testLogger)
 	case "aws.dynamodb.terraform":
 		store = s_awsdynamodb.NewDynamoDBStateStore(testLogger)
-	case "etcd":
-		store = s_etcd.NewEtcdStateStore(testLogger)
+	case "etcd.v1":
+		store = s_etcd.NewEtcdStateStoreV1(testLogger)
+	case "etcd.v2":
+		store = s_etcd.NewEtcdStateStoreV2(testLogger)
 	case "gcp.firestore.docker":
 		store = s_gcpfirestore.NewFirestoreStateStore(testLogger)
 	case "gcp.firestore.cloud":
@@ -655,7 +645,9 @@ func loadOutputBindings(tc TestComponent) bindings.OutputBinding {
 		binding = b_rabbitmq.NewRabbitMQ(testLogger)
 	case "kubemq":
 		binding = b_kubemq.NewKubeMQ(testLogger)
-	case "postgres":
+	case "postgresql.docker":
+		binding = b_postgres.NewPostgres(testLogger)
+	case "postgresql.azure":
 		binding = b_postgres.NewPostgres(testLogger)
 	case "aws.s3.docker":
 		binding = b_aws_s3.NewAWSS3(testLogger)
@@ -708,14 +700,4 @@ func loadWorkflow(tc TestComponent) workflows.Workflow {
 	}
 
 	return wf
-}
-
-func atLeastOne(t *testing.T, predicate func(interface{}) bool, items ...interface{}) {
-	met := false
-
-	for _, item := range items {
-		met = met || predicate(item)
-	}
-
-	assert.True(t, met)
 }

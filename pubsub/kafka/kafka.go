@@ -141,7 +141,7 @@ func (p *PubSub) Close() (err error) {
 }
 
 func (p *PubSub) Features() []pubsub.Feature {
-	return nil
+	return []pubsub.Feature{pubsub.FeatureBulkPublish}
 }
 
 func adaptHandler(handler pubsub.Handler) kafka.EventHandler {
@@ -177,9 +177,8 @@ func adaptBulkHandler(handler pubsub.BulkHandler) kafka.BulkEventHandler {
 }
 
 // GetComponentMetadata returns the metadata of the component.
-func (p *PubSub) GetComponentMetadata() map[string]string {
+func (p *PubSub) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := kafka.KafkaMetadata{}
-	metadataInfo := map[string]string{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
-	return metadataInfo
+	return
 }

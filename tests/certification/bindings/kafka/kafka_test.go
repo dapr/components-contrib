@@ -16,10 +16,11 @@ package kafka_test
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -30,6 +31,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	bindings_kafka "github.com/dapr/components-contrib/bindings/kafka"
 	bindings_loader "github.com/dapr/dapr/pkg/components/bindings"
+	"github.com/dapr/dapr/pkg/config/protocol"
 
 	// Dapr runtime and Go-SDK
 	"github.com/dapr/dapr/pkg/runtime"
@@ -51,26 +53,27 @@ import (
 )
 
 const (
-	sidecarName1      = "dapr-1"
-	sidecarName2      = "dapr-2"
-	sidecarName3      = "dapr-3"
-	appID1            = "app-1"
-	appID2            = "app-2"
-	appID3            = "app-3"
-	clusterName       = "kafkacertification"
-	dockerComposeYAML = "docker-compose.yml"
-	numMessages       = 1000
-	appPort           = 8000
-	portOffset        = 2
-	messageKey        = "partitionKey"
+	sidecarName1          = "dapr-1"
+	sidecarName2          = "dapr-2"
+	sidecarName3          = "dapr-3"
+	sidecarName4          = "dapr-4"
+	appID1                = "app-1"
+	appID2                = "app-2"
+	appID3                = "app-3"
+	appID4                = "app-4"
+	clusterName           = "kafkacertification"
+	dockerComposeYAML     = "docker-compose.yml"
+	dockerComposeYAMLSasl = "sasl-docker/docker-compose.yml"
+	numMessages           = 1000
+	appPort               = 8000
+	portOffset            = 2
+	messageKey            = "partitionKey"
 
 	bindingName = "messagebus"
 	topicName   = "neworder"
 )
 
-var (
-	brokers          = []string{"localhost:19092", "localhost:29092", "localhost:39092"}
-)
+var brokers = []string{"localhost:19092", "localhost:29092", "localhost:39092"}
 
 func TestKafka_with_retry(t *testing.T) {
 	// For Kafka, we should ensure messages are received in order.
@@ -148,6 +151,20 @@ func TestKafka_with_retry(t *testing.T) {
 				m.Assert(ctx, time.Minute)
 			}
 
+			return nil
+		}
+	}
+
+	simpleSendTest := func(metadata map[string]string) flow.Runnable {
+		return func(ctx flow.Context) error {
+			client := sidecar.GetClient(ctx, sidecarName4)
+			err := client.InvokeOutputBinding(ctx, &dapr.InvokeBindingRequest{
+				Name:      bindingName,
+				Operation: string(bindings.CreateOperation),
+				Data:      []byte("sasl password auth test message"),
+				Metadata:  metadata,
+			})
+			require.NoError(ctx, err, "error publishing message")
 			return nil
 		}
 	}
@@ -245,11 +262,12 @@ func TestKafka_with_retry(t *testing.T) {
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer1"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithResourcesPath("./components/consumer1"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+			)...,
 		)).
 		//
 		// Run the second application.
@@ -258,12 +276,13 @@ func TestKafka_with_retry(t *testing.T) {
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/consumer2"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithResourcesPath("./components/consumer2"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+			)...,
 		)).
 		//
 		// Send messages using the same metadata/message key so we can expect
@@ -276,12 +295,13 @@ func TestKafka_with_retry(t *testing.T) {
 		//
 		// Run the Dapr sidecar with the Kafka component.
 		Step(sidecar.Run(sidecarName3,
-			embedded.WithComponentsPath("./components/consumer2"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset*2),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset*2),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset*2),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset*2),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithResourcesPath("./components/consumer2"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset*2)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset*2)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset*2)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset*2)),
+			)...,
 		)).
 		Step("reset", flow.Reset(consumerGroup2)).
 		//
@@ -340,9 +360,29 @@ func TestKafka_with_retry(t *testing.T) {
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("assert messages(consumer rebalance)", assertMessages(consumerGroup2)).
 		Run()
+
+	flow.New(t, "kafka with sals password auth - no tls - wurstmeister").
+		// Run Kafka using Docker Compose.
+		Step(dockercompose.Run(clusterName, dockerComposeYAMLSasl)).
+		Step("wait for broker sockets",
+			network.WaitForAddresses(5*time.Minute, "localhost:9092")).
+		Step("wait", flow.Sleep(20*time.Second)).
+		// Run the Dapr sidecar with the Kafka component.
+		Step(sidecar.Run(sidecarName4,
+			append(componentRuntimeOptions(),
+				embedded.WithResourcesPath("./components/sasl-password"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+5*portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+5*portOffset)),
+				embedded.WithoutApp(),
+			)...,
+		)).
+		Step("simple send test", simpleSendTest(metadata)).
+		Step("wait", flow.Sleep(10*time.Second)).
+		Step("stop sidecar 1", sidecar.Stop(sidecarName4)).
+		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	bindingsRegistry := bindings_loader.NewRegistry()
@@ -354,7 +394,7 @@ func componentRuntimeOptions() []runtime.Option {
 		return bindings_kafka.NewKafka(l)
 	}, "kafka")
 
-	return []runtime.Option{
-		runtime.WithBindings(bindingsRegistry),
+	return []embedded.Option{
+		embedded.WithBindings(bindingsRegistry),
 	}
 }

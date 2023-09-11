@@ -1,0 +1,10 @@
+version: "3.3"
+services:
+  zeebe:
+    image: camunda/zeebe:${ZEEBE_VERSION}
+    environment:
+      - ZEEBE_LOG_LEVEL=ALL
+      - "JAVA_TOOL_OPTIONS=-Xms512m -Xmx512m"
+    env_file: .env
+    ports:
+      - "${ZEEBE_BROKER_GATEWAY_NETWORK_PORT}:${ZEEBE_BROKER_GATEWAY_NETWORK_PORT}"

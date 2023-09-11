@@ -3,7 +3,7 @@ schemaVersion: v1
 type: bindings
 name: zeebe.jobworker
 version: v1
-status: alpha
+status: stable
 title: "Zeebe JobWorker"
 urls:
   - title: Reference

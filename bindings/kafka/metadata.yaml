@@ -24,25 +24,26 @@ authenticationProfiles:
         required: true
         description: |
           Configure or disable authentication.
-          The authType must be set to oidc.
+        allowedValues:
+          - "oidc"
       - name: oidcTokenEndpoint
         type: string
+        required: true
         description: |
           Full URL to an OAuth2 identity provider access token endpoint.
-          Required when authType is set to oidc.
         example: '"https://identity.example.com/v1/token"'
       - name: oidcClientID
         description: |
           The OAuth2 client ID that has been provisioned in the identity provider.
-          Required when authType is set to oidc.
         example: '"dapr-kafka"'
         type: string
+        required: true
       - name: oidcClientSecret
         type: string
+        required: true
         sensitive: true
         description: |
           The OAuth2 client secret that has been provisioned in the identity provider.
-          Required when authType is set to oidc.
         example: '"KeFg23!"'
       - name: oidcScopes
         type: string
@@ -60,61 +61,67 @@ authenticationProfiles:
         required: true
         description: |
           Configure or disable authentication.
-          The authType must be set to "password".
-        example: '"none"'
+        allowedValues:
+          - "password"
       - name: saslUsername
         type: string
+        required: true
         description: |
           The SASL username used for authentication.
-          Only required if authType is set to "password".
         example: '"myuser"'
       - name: saslPassword
         type: string
+        required: true
         senstive: true
         description: |
           The SASL password used for authentication.
-          Only required if authType is set to "password".
         example: '"mypassword"'
       - name: saslMechanism
         type: string
+        required: true
         description: |
           The SASL Authentication Mechanism you wish to use.
-          Only required if authType is set to "password".
-          If unset defaults to `PLAINTEXT`.
         example: '"SHA-512"'
         default: '"PLAINTEXT"'
   - title: "MTLS Authentication"
     description: |
       Authentication using MTLS.
     metadata:
+      - name: authType
+        type: string
+        required: true
+        description: |
+          Configure or disable authentication.
+        allowedValues:
+          - "mtls"
       - name: caCert
         required: false
-        description: "Certificate authority certificate, required for using TLS."
+        description: "Certificate authority certificate."
         example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
         type: string
       - name: clientCert
-        required: false
         sensitive: true
-        description: "Client certificate, required for authType mtls."
+        description: "Client certificate."
         example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
         type: string
       - name: clientKey
-        required: false
         sensitive: true
-        description: "Client key, required for authType mtls."
+        description: "Client key."
         example: "-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded DER>\n-----END RSA PRIVATE KEY-----"
         type: string
       - name: skipVerify
         required: false
         description: |
-          Skip TLS verification, this is not recommended for use in production. Defaults to "false"
+          Skip TLS verification, this is not recommended for use in production.
         example: "true"
+        default: "false"
         type: bool
       - name: disableTls
         required: false
         description: |
-          Disable TLS for transport security. This is not recommended for use in production. Defaults to "false", which implies TLS is enabled
+          Disable TLS for transport security. This is not recommended for use in production.
         example: "true"
+        default: "false"
         type: bool
 metadata:
   - name: topics
@@ -163,6 +170,9 @@ metadata:
       Should be "newest" or "oldest".
     example: '"oldest"'
     default: '"newest", "oldest"'
+    allowedValues:
+      - "newest"
+      - "oldest"
     binding:
       input: true
   - name: maxMessageBytes

@@ -230,7 +230,7 @@ func TestResolveID(t *testing.T) {
 				serviceEntries := []*consul.ServiceEntry{
 					{
 						Service: &consul.AgentService{
-							Address: "123.234.345.456",
+							Address: "10.3.245.137",
 							Port:    8600,
 							Meta: map[string]string{
 								"DAPR_PORT": "50005",
@@ -268,7 +268,7 @@ func TestResolveID(t *testing.T) {
 				assert.Equal(t, 1, mockReg.getCalled)
 				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled == 1 })
 				assert.Equal(t, 1, mockReg.addOrUpdateCalled)
-				assert.Equal(t, "123.234.345.456:50005", addr)
+				assert.Equal(t, "10.3.245.137:50005", addr)
 
 				mockReg.getResult = &registryEntry{
 					services: serviceEntries,
@@ -290,7 +290,7 @@ func TestResolveID(t *testing.T) {
 				mock.mockHealth.serviceResult = []*consul.ServiceEntry{
 					{
 						Service: &consul.AgentService{
-							Address: "123.234.345.456",
+							Address: "10.3.245.137",
 							Port:    8601,
 							Meta: map[string]string{
 								"DAPR_PORT": "50005",
@@ -323,7 +323,7 @@ func TestResolveID(t *testing.T) {
 						serviceResult: []*consul.ServiceEntry{
 							{
 								Service: &consul.AgentService{
-									Address: "123.234.345.456",
+									Address: "10.3.245.137",
 									Port:    8600,
 									Meta: map[string]string{
 										"DAPR_PORT": "50005",
@@ -357,7 +357,7 @@ func TestResolveID(t *testing.T) {
 				assert.Equal(t, 1, mockReg.getCalled)
 				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled == 1 })
 				assert.Equal(t, 1, mockReg.addOrUpdateCalled)
-				assert.Equal(t, "123.234.345.456:50005", addr)
+				assert.Equal(t, "10.3.245.137:50005", addr)
 
 				// Remove
 				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.removeCalled == 1 })
@@ -384,7 +384,7 @@ func TestResolveID(t *testing.T) {
 						serviceResult: []*consul.ServiceEntry{
 							{
 								Service: &consul.AgentService{
-									Address: "123.234.345.456",
+									Address: "10.3.245.137",
 									Port:    8600,
 									Meta: map[string]string{
 										"DAPR_PORT": "50005",
@@ -426,7 +426,7 @@ func TestResolveID(t *testing.T) {
 				assert.Equal(t, 1, mockReg.getCalled)
 				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled == 1 })
 				assert.Equal(t, 1, mockReg.addOrUpdateCalled)
-				assert.Equal(t, "123.234.345.456:50005", addr)
+				assert.Equal(t, "10.3.245.137:50005", addr)
 
 				// Blocking call will error as WaitIndex = 1
 				blockingCall <- 2
@@ -464,7 +464,7 @@ func TestResolveID(t *testing.T) {
 						serviceResult: []*consul.ServiceEntry{
 							{
 								Service: &consul.AgentService{
-									Address: "123.234.345.456",
+									Address: "10.3.245.137",
 									Port:    8600,
 									Meta: map[string]string{
 										"DAPR_PORT": "50005",
@@ -498,7 +498,7 @@ func TestResolveID(t *testing.T) {
 				assert.Equal(t, 1, mockReg.getCalled)
 				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled == 1 })
 				assert.Equal(t, 1, mockReg.addOrUpdateCalled)
-				assert.Equal(t, "123.234.345.456:50005", addr)
+				assert.Equal(t, "10.3.245.137:50005", addr)
 
 				// Error and release blocking call
 				mock.mockHealth.serviceErr = &err
@@ -540,7 +540,7 @@ func TestResolveID(t *testing.T) {
 						serviceResult: []*consul.ServiceEntry{
 							{
 								Service: &consul.AgentService{
-									Address: "123.234.245.255",
+									Address: "10.3.245.137",
 									Port:    8600,
 									Meta: map[string]string{
 										"DAPR_PORT": "50005",
@@ -554,7 +554,7 @@ func TestResolveID(t *testing.T) {
 
 				addr, _ := resolver.ResolveID(req)
 
-				assert.Equal(t, "123.234.245.255:50005", addr)
+				assert.Equal(t, "10.3.245.137:50005", addr)
 			},
 		},
 		{
@@ -579,8 +579,7 @@ func TestResolveID(t *testing.T) {
 						},
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), &mock)
-				resolver.config = testConfig
+				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{})
 
 				addr, _ := resolver.ResolveID(req)
 
@@ -599,7 +598,7 @@ func TestResolveID(t *testing.T) {
 						serviceResult: []*consul.ServiceEntry{
 							{
 								Service: &consul.AgentService{
-									Address: "123.234.245.255",
+									Address: "10.3.245.137",
 									Port:    8600,
 									Meta: map[string]string{
 										"DAPR_PORT": "50005",
@@ -625,7 +624,7 @@ func TestResolveID(t *testing.T) {
 				for i := 0; i < 100; i++ {
 					addr, _ := resolver.ResolveID(req)
 
-					if addr == "123.234.245.255:50005" {
+					if addr == "10.3.245.137:50005" {
 						total1++
 					} else if addr == "234.245.255.228:50005" {
 						total2++
@@ -652,7 +651,7 @@ func TestResolveID(t *testing.T) {
 						serviceResult: []*consul.ServiceEntry{
 							{
 								Node: &consul.Node{
-									Address: "123.234.245.255",
+									Address: "10.3.245.137",
 								},
 								Service: &consul.AgentService{
 									Address: "",
@@ -664,7 +663,7 @@ func TestResolveID(t *testing.T) {
 							},
 							{
 								Node: &consul.Node{
-									Address: "123.234.245.255",
+									Address: "10.3.245.137",
 								},
 								Service: &consul.AgentService{
 									Address: "",
@@ -681,7 +680,7 @@ func TestResolveID(t *testing.T) {
 
 				addr, _ := resolver.ResolveID(req)
 
-				assert.Equal(t, "123.234.245.255:50005", addr)
+				assert.Equal(t, "10.3.245.137:50005", addr)
 			},
 		},
 		{
@@ -767,7 +766,7 @@ func TestRegistry(t *testing.T) {
 				result := []*consul.ServiceEntry{
 					{
 						Service: &consul.AgentService{
-							Address: "123.234.345.456",
+							Address: "10.3.245.137",
 							Port:    8600,
 						},
 					},
@@ -804,7 +803,7 @@ func TestRegistry(t *testing.T) {
 						services: []*consul.ServiceEntry{
 							{
 								Service: &consul.AgentService{
-									Address: "123.234.345.456",
+									Address: "10.3.245.137",
 									Port:    8600,
 								},
 							},
@@ -836,7 +835,7 @@ func TestRegistry(t *testing.T) {
 						services: []*consul.ServiceEntry{
 							{
 								Service: &consul.AgentService{
-									Address: "123.234.345.456",
+									Address: "10.3.245.137",
 									Port:    8600,
 								},
 							},

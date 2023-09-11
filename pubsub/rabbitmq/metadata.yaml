@@ -51,11 +51,6 @@ authenticationProfiles:
       sensitive: true
       description: "The RabbitMQ host address."
       example: '"amqp://[username][:password]@host.domain[:port]" "amqps://[username][:password]@host.domain[:port]"'
-    - name: protocol
-      description: |
-        The RabbitMQ protocol.
-      type: string
-      example: '"amqp", "amqps"'
     - name: caCert
       type: string
       required: true

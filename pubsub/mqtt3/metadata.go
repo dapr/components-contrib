@@ -26,7 +26,7 @@ import (
 type mqttMetadata struct {
 	pubsub.TLSProperties `mapstructure:",squash"`
 	URL                  string `mapstructure:"url"`
-	ConsumerID           string `mapstructure:"consumerID"`
+	ConsumerID           string `mapstructure:"consumerID" mdignore:"true"`
 	Qos                  byte   `mapstructure:"qos"`
 	Retain               bool   `mapstructure:"retain"`
 	CleanSession         bool   `mapstructure:"cleanSession"`

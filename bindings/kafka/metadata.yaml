@@ -54,6 +54,12 @@ authenticationProfiles:
           Although not required, this field is recommended.
         example: '"openid,kafka-prod"'
         default: '"openid"'
+      - name: oidcExtensions
+        description: |
+          String containing a JSON-encoded dictionary of OAuth2/OIDC extensions to request with the access token.
+        example: |
+          {"cluster":"kafka","poolid":"kafkapool"}
+        type: string
   - title: "SASL Authentication"
     description: |
       Authenticate using SASL.

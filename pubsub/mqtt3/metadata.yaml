@@ -19,7 +19,7 @@ authenticationProfiles:
         description: |
           Address of the MQTT broker.
           Use the `tcp://`` URI scheme for non-TLS communication. 
-          Use the `ssl://`` URI scheme for TLS communication. Requires `caCert`, `clientKey`, `clientCert` to be defined.
+          Use the `ssl://`` URI scheme for TLS communication (requires `caCert`, `clientKey`, `clientCert` to be defined).
         example: '"tcp://[username][:password]@host.domain[:port]"'
       - name: caCert
         type: string
@@ -28,7 +28,6 @@ authenticationProfiles:
         example: '"-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"'
       - name: clientCert
         type: string
-        sensitive: true
         description: |
           Client certificate, required for using TLS.
         example: '"-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"'
@@ -49,7 +48,6 @@ metadata:
     type: bool
     description: |
       When the value is set to "true", sets the clean_session flag in the connection message to the MQTT broker.
-      See MQTT Clean Sessions Example.
     url:
       title: "MQTT Clean Sessions Example"
       url: "http://www.steves-internet-guide.com/mqtt-clean-sessions-example/"
@@ -59,7 +57,6 @@ metadata:
     type: number
     description: |
       Indicates the Quality of Service Level (QoS) of the message.
-      See MQTT Essentials - Part 6.
     url:
       title: "MQTT Essentials - Part 6"
       url: "https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels/"

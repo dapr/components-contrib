@@ -49,7 +49,7 @@ require (
 	github.com/cloudevents/sdk-go/v2 v2.14.0
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
-	github.com/cyphar/filepath-securejoin v0.2.3
+	github.com/cyphar/filepath-securejoin v0.2.4
 	github.com/dancannon/gorethink v4.0.0+incompatible
 	github.com/dapr/kit v0.12.1
 	github.com/didip/tollbooth/v7 v7.0.1

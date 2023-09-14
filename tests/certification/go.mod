@@ -19,7 +19,7 @@ require (
 	github.com/dapr/components-contrib v1.12.0-rc.1
 	github.com/dapr/dapr v1.12.0-rc.1
 	github.com/dapr/go-sdk v1.8.0
-	github.com/dapr/kit v0.12.0
+	github.com/dapr/kit v0.12.1
 	github.com/eclipse/paho.mqtt.golang v1.4.3
 	github.com/go-chi/chi/v5 v5.0.10
 	github.com/go-redis/redis/v8 v8.11.5

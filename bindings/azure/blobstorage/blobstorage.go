@@ -297,7 +297,7 @@ func (a *AzureBlobStorage) list(ctx context.Context, req *bindings.InvokeRequest
 	}
 	options.Marker = &initialMarker
 
-	metadata := map[string]string{}
+	metadata := make(map[string]string, 3)
 	blobs := []*container.BlobItem{}
 	pager := a.containerClient.NewListBlobsFlatPager(&options)
 

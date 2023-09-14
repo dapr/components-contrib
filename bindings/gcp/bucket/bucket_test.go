@@ -15,6 +15,7 @@ package bucket
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -43,17 +44,30 @@ func TestParseMetadata(t *testing.T) {
 		meta, err := gs.parseMetadata(m)
 		assert.Nil(t, err)
 
-		assert.Equal(t, "my_auth_provider_x509", meta.AuthProviderCertURL)
-		assert.Equal(t, "my_auth_uri", meta.AuthURI)
-		assert.Equal(t, "my_bucket", meta.Bucket)
-		assert.Equal(t, "my_client_x509", meta.ClientCertURL)
-		assert.Equal(t, "my_email@mail.dapr", meta.ClientEmail)
-		assert.Equal(t, "my_client_id", meta.ClientID)
-		assert.Equal(t, "my_private_key", meta.PrivateKey)
-		assert.Equal(t, "my_private_key_id", meta.PrivateKeyID)
-		assert.Equal(t, "my_project_id", meta.ProjectID)
-		assert.Equal(t, "my_token_uri", meta.TokenURI)
-		assert.Equal(t, "my_type", meta.Type)
+		t.Run("Metadata is correctly decoded", func(t *testing.T) {
+			assert.Equal(t, "my_auth_provider_x509", meta.AuthProviderCertURL)
+			assert.Equal(t, "my_auth_uri", meta.AuthURI)
+			assert.Equal(t, "my_bucket", meta.Bucket)
+			assert.Equal(t, "my_client_x509", meta.ClientCertURL)
+			assert.Equal(t, "my_email@mail.dapr", meta.ClientEmail)
+			assert.Equal(t, "my_client_id", meta.ClientID)
+			assert.Equal(t, "my_private_key", meta.PrivateKey)
+			assert.Equal(t, "my_private_key_id", meta.PrivateKeyID)
+			assert.Equal(t, "my_project_id", meta.ProjectID)
+			assert.Equal(t, "my_token_uri", meta.TokenURI)
+			assert.Equal(t, "my_type", meta.Type)
+		})
+
+		t.Run("Metadata is correctly marshalled to JSON", func(t *testing.T) {
+			json, err := json.Marshal(meta)
+			assert.Nil(t, err)
+			assert.Equal(t,
+				"{\"type\":\"my_type\",\"project_id\":\"my_project_id\",\"private_key_id\":\"my_private_key_id\","+
+					"\"private_key\":\"my_private_key\",\"client_email\":\"my_email@mail.dapr\",\"client_id\":\"my_client_id\","+
+					"\"auth_uri\":\"my_auth_uri\",\"token_uri\":\"my_token_uri\",\"auth_provider_x509_cert_url\":\"my_auth_provider_x509\","+
+					"\"client_x509_cert_url\":\"my_client_x509\",\"bucket\":\"my_bucket\",\"decodeBase64\":\"false\","+
+					"\"encodeBase64\":\"false\"}", string(json))
+		})
 	})
 
 	t.Run("check backward compatibility", func(t *testing.T) {

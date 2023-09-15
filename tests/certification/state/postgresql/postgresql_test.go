@@ -376,7 +376,7 @@ func TestPostgreSQL(t *testing.T) {
 	}
 
 	transactionsTest := func(ctx flow.Context) error {
-		err := stateStore.Multi(context.Background(), &state.TransactionalStateRequest{
+		err := stateStore.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
 			Operations: []state.TransactionalStateOperation{
 				state.SetRequest{
 					Key:   "reqKey1",
@@ -498,10 +498,7 @@ func TestPostgreSQL(t *testing.T) {
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
-				dbAccess := storeObj.GetDBAccess().(*state_postgres.PostgresDBAccess)
-				require.NotNil(t, dbAccess)
-
-				cleanupInterval := dbAccess.GetCleanupInterval()
+				cleanupInterval := storeObj.GetCleanupInterval()
 				_ = assert.NotNil(t, cleanupInterval) &&
 					assert.Equal(t, time.Duration(1*time.Hour), *cleanupInterval)
 			})
@@ -515,10 +512,7 @@ func TestPostgreSQL(t *testing.T) {
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
-				dbAccess := storeObj.GetDBAccess().(*state_postgres.PostgresDBAccess)
-				require.NotNil(t, dbAccess)
-
-				cleanupInterval := dbAccess.GetCleanupInterval()
+				cleanupInterval := storeObj.GetCleanupInterval()
 				_ = assert.NotNil(t, cleanupInterval) &&
 					assert.Equal(t, time.Duration(10*time.Second), *cleanupInterval)
 			})
@@ -532,10 +526,7 @@ func TestPostgreSQL(t *testing.T) {
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
-				dbAccess := storeObj.GetDBAccess().(*state_postgres.PostgresDBAccess)
-				require.NotNil(t, dbAccess)
-
-				cleanupInterval := dbAccess.GetCleanupInterval()
+				cleanupInterval := storeObj.GetCleanupInterval()
 				_ = assert.Nil(t, cleanupInterval)
 			})
 
@@ -599,9 +590,6 @@ func TestPostgreSQL(t *testing.T) {
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
-				dbAccess := storeObj.GetDBAccess().(*state_postgres.PostgresDBAccess)
-				require.NotNil(t, dbAccess)
-
 				// Seed the database with some records
 				err = populateTTLRecords(ctx, dbClient)
 				require.NoError(t, err, "failed to seed records")
@@ -624,7 +612,7 @@ func TestPostgreSQL(t *testing.T) {
 				require.NotEmpty(t, lastCleanupValueOrig)
 
 				// Trigger the background cleanup, which should do nothing because the last cleanup was < 3600s
-				err = dbAccess.CleanupExpired()
+				err = storeObj.CleanupExpired()
 				require.NoError(t, err, "CleanupExpired returned an error")
 
 				// Validate that 20 records are still present

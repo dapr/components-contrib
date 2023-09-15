@@ -12,104 +12,223 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package postgresql
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
+	pgxmock "github.com/pashagolub/pgxmock/v2"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
 
-const (
-	fakeConnectionString = "not a real connection"
-)
-
-// Fake implementation of interface postgressql.dbaccess.
-type fakeDBaccess struct {
-	logger         logger.Logger
-	initExecuted   bool
-	setExecuted    bool
-	getExecuted    bool
-	deleteExecuted bool
+type mocks struct {
+	db pgxmock.PgxPoolIface
+	pg *PostgreSQL
 }
 
-func (m *fakeDBaccess) Init(ctx context.Context, metadata state.Metadata) error {
-	m.initExecuted = true
-
-	return nil
+type fakeItem struct {
+	Color string
 }
 
-func (m *fakeDBaccess) Set(ctx context.Context, req *state.SetRequest) error {
-	m.setExecuted = true
+func TestMultiWithNoRequests(t *testing.T) {
+	// Arrange
+	m, _ := mockDatabase(t)
+	defer m.db.Close()
 
-	return nil
+	m.db.ExpectBegin()
+	m.db.ExpectCommit()
+	// There's also a rollback called after a commit, which is expected and will not have effect
+	m.db.ExpectRollback()
+
+	var operations []state.TransactionalStateOperation
+
+	// Act
+	err := m.pg.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
+		Operations: operations,
+	})
+
+	// Assert
+	assert.NoError(t, err)
 }
 
-func (m *fakeDBaccess) Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
-	m.getExecuted = true
+func TestValidSetRequest(t *testing.T) {
+	// Arrange
+	m, _ := mockDatabase(t)
+	defer m.db.Close()
 
-	return nil, nil
+	setReq := createSetRequest()
+	operations := []state.TransactionalStateOperation{setReq}
+	val, _ := json.Marshal(setReq.Value)
+
+	m.db.ExpectBegin()
+	m.db.ExpectExec("INSERT INTO").
+		WithArgs(setReq.Key, string(val), false).
+		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	m.db.ExpectCommit()
+	// There's also a rollback called after a commit, which is expected and will not have effect
+	m.db.ExpectRollback()
+
+	// Act
+	err := m.pg.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
+		Operations: operations,
+	})
+
+	// Assert
+	assert.NoError(t, err)
 }
 
-func (m *fakeDBaccess) BulkGet(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error) {
-	return nil, nil
+func TestInvalidMultiSetRequestNoKey(t *testing.T) {
+	// Arrange
+	m, _ := mockDatabase(t)
+	defer m.db.Close()
+
+	m.db.ExpectBegin()
+	m.db.ExpectRollback()
+
+	operations := []state.TransactionalStateOperation{
+		state.SetRequest{Value: "value1"}, // Set request without key is not valid for Upsert operation
+	}
+
+	// Act
+	err := m.pg.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
+		Operations: operations,
+	})
+
+	// Assert
+	assert.Error(t, err)
 }
 
-func (m *fakeDBaccess) Delete(ctx context.Context, req *state.DeleteRequest) error {
-	m.deleteExecuted = true
+func TestValidMultiDeleteRequest(t *testing.T) {
+	// Arrange
+	m, _ := mockDatabase(t)
+	defer m.db.Close()
 
-	return nil
+	deleteReq := createDeleteRequest()
+	operations := []state.TransactionalStateOperation{deleteReq}
+
+	m.db.ExpectBegin()
+	m.db.ExpectExec("DELETE FROM").
+		WithArgs(deleteReq.Key).
+		WillReturnResult(pgxmock.NewResult("DELETE", 1))
+	m.db.ExpectCommit()
+	// There's also a rollback called after a commit, which is expected and will not have effect
+	m.db.ExpectRollback()
+
+	// Act
+	err := m.pg.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
+		Operations: operations,
+	})
+
+	// Assert
+	assert.NoError(t, err)
 }
 
-func (m *fakeDBaccess) ExecuteMulti(ctx context.Context, req *state.TransactionalStateRequest) error {
-	return nil
+func TestInvalidMultiDeleteRequestNoKey(t *testing.T) {
+	// Arrange
+	m, _ := mockDatabase(t)
+	defer m.db.Close()
+
+	m.db.ExpectBegin()
+	m.db.ExpectRollback()
+
+	operations := []state.TransactionalStateOperation{state.DeleteRequest{}} // Delete request without key is not valid for Delete operation
+
+	// Act
+	err := m.pg.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
+		Operations: operations,
+	})
+
+	// Assert
+	assert.Error(t, err)
 }
 
-func (m *fakeDBaccess) Query(ctx context.Context, req *state.QueryRequest) (*state.QueryResponse, error) {
-	return nil, nil
+func TestMultiOperationOrder(t *testing.T) {
+	// Arrange
+	m, _ := mockDatabase(t)
+	defer m.db.Close()
+
+	operations := []state.TransactionalStateOperation{
+		state.SetRequest{Key: "key1", Value: "value1"},
+		state.DeleteRequest{Key: "key1"},
+	}
+
+	m.db.ExpectBegin()
+	m.db.ExpectExec("INSERT INTO").
+		WithArgs("key1", `"value1"`, false).
+		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	m.db.ExpectExec("DELETE FROM").
+		WithArgs("key1").
+		WillReturnResult(pgxmock.NewResult("DELETE", 1))
+	m.db.ExpectCommit()
+	// There's also a rollback called after a commit, which is expected and will not have effect
+	m.db.ExpectRollback()
+
+	// Act
+	err := m.pg.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
+		Operations: operations,
+	})
+
+	// Assert
+	assert.NoError(t, err)
 }
 
-func (m *fakeDBaccess) Close() error {
-	return nil
+func createSetRequest() state.SetRequest {
+	return state.SetRequest{
+		Key:   randomKey(),
+		Value: randomJSON(),
+	}
 }
 
-// Proves that the Init method runs the init method.
-func TestInitRunsDBAccessInit(t *testing.T) {
-	t.Parallel()
-	_, fake := createPostgreSQLWithFake(t)
-	assert.True(t, fake.initExecuted)
+func createDeleteRequest() state.DeleteRequest {
+	return state.DeleteRequest{
+		Key: randomKey(),
+	}
 }
 
-func createPostgreSQLWithFake(t *testing.T) (*PostgreSQL, *fakeDBaccess) {
-	pgs := createPostgreSQL(t)
-	fake := pgs.dbaccess.(*fakeDBaccess)
-
-	return pgs, fake
-}
-
-func createPostgreSQL(t *testing.T) *PostgreSQL {
+func mockDatabase(t *testing.T) (*mocks, error) {
 	logger := logger.NewLogger("test")
 
-	dba := &fakeDBaccess{
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
+
+	dba := &PostgreSQL{
+		metadata: postgresMetadataStruct{
+			TableName: "state",
+			Timeout:   30 * time.Second,
+		},
 		logger: logger,
+		db:     db,
+		migrateFn: func(context.Context, PGXPoolConn, MigrateOptions) error {
+			return nil
+		},
+		setQueryFn: func(*state.SetRequest, SetQueryOptions) string {
+			return `INSERT INTO state
+					(key, value, isbinary, expiredate)
+				VALUES
+					($1, $2, $3, NULL)`
+		},
 	}
 
-	pgs := newPostgreSQLStateStore(logger, dba)
-	assert.NotNil(t, pgs)
+	return &mocks{
+		db: db,
+		pg: dba,
+	}, err
+}
 
-	metadata := &state.Metadata{
-		Base: metadata.Base{Properties: map[string]string{"connectionString": fakeConnectionString}},
-	}
+func randomKey() string {
+	return uuid.New().String()
+}
 
-	err := pgs.Init(context.Background(), *metadata)
-
-	assert.Nil(t, err)
-	assert.NotNil(t, pgs.dbaccess)
-
-	return pgs
+func randomJSON() *fakeItem {
+	return &fakeItem{Color: randomKey()}
 }

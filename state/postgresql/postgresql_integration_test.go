@@ -181,7 +181,7 @@ func multiWithSetOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
 		operations = append(operations, req)
 	}
 
-	err := pgs.Multi(context.Background(), &state.TransactionalStateRequest{
+	err := pgs.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	assert.NoError(t, err)
@@ -208,7 +208,7 @@ func multiWithDeleteOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
 		operations = append(operations, req)
 	}
 
-	err := pgs.Multi(context.Background(), &state.TransactionalStateRequest{
+	err := pgs.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	assert.NoError(t, err)
@@ -245,7 +245,7 @@ func multiWithDeleteAndSet(t *testing.T, pgs *postgresql.PostgreSQL) {
 		operations = append(operations, req)
 	}
 
-	err := pgs.Multi(context.Background(), &state.TransactionalStateRequest{
+	err := pgs.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 	assert.NoError(t, err)

@@ -51,7 +51,7 @@ func TestMultiWithNoRequests(t *testing.T) {
 	var operations []state.TransactionalStateOperation
 
 	// Act
-	err := m.pg.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
+	err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -77,7 +77,7 @@ func TestValidSetRequest(t *testing.T) {
 	m.db.ExpectRollback()
 
 	// Act
-	err := m.pg.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
+	err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -98,7 +98,7 @@ func TestInvalidMultiSetRequestNoKey(t *testing.T) {
 	}
 
 	// Act
-	err := m.pg.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
+	err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -123,7 +123,7 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 	m.db.ExpectRollback()
 
 	// Act
-	err := m.pg.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
+	err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -142,7 +142,7 @@ func TestInvalidMultiDeleteRequestNoKey(t *testing.T) {
 	operations := []state.TransactionalStateOperation{state.DeleteRequest{}} // Delete request without key is not valid for Delete operation
 
 	// Act
-	err := m.pg.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
+	err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 
@@ -172,7 +172,7 @@ func TestMultiOperationOrder(t *testing.T) {
 	m.db.ExpectRollback()
 
 	// Act
-	err := m.pg.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
+	err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
 

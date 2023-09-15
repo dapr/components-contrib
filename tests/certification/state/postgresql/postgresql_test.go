@@ -376,7 +376,7 @@ func TestPostgreSQL(t *testing.T) {
 	}
 
 	transactionsTest := func(ctx flow.Context) error {
-		err := stateStore.ExecuteMulti(context.Background(), &state.TransactionalStateRequest{
+		err := stateStore.Multi(context.Background(), &state.TransactionalStateRequest{
 			Operations: []state.TransactionalStateOperation{
 				state.SetRequest{
 					Key:   "reqKey1",

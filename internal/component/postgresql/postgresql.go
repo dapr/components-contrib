@@ -442,7 +442,7 @@ func (p *PostgreSQL) doDelete(parentCtx context.Context, db dbquerier, req *stat
 	return nil
 }
 
-func (p *PostgreSQL) ExecuteMulti(parentCtx context.Context, request *state.TransactionalStateRequest) error {
+func (p *PostgreSQL) Multi(parentCtx context.Context, request *state.TransactionalStateRequest) error {
 	tx, err := p.beginTx(parentCtx)
 	if err != nil {
 		return err

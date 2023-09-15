@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	authSqlite "github.com/dapr/components-contrib/internal/authentication/sqlite"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 )
@@ -39,9 +40,9 @@ func TestSqliteMetadata(t *testing.T) {
 		assert.Equal(t, "file:data.db", md.ConnectionString)
 		assert.Equal(t, defaultTableName, md.TableName)
 		assert.Equal(t, defaultMetadataTableName, md.MetadataTableName)
-		assert.Equal(t, defaultTimeout, md.Timeout)
+		assert.Equal(t, authSqlite.DefaultTimeout, md.Timeout)
 		assert.Equal(t, defaultCleanupInternal, md.CleanupInterval)
-		assert.Equal(t, defaultBusyTimeout, md.BusyTimeout)
+		assert.Equal(t, authSqlite.DefaultBusyTimeout, md.BusyTimeout)
 		assert.False(t, md.DisableWAL)
 	})
 

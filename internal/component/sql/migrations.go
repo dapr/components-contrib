@@ -41,8 +41,10 @@ type MigrationOptions struct {
 	UpdateVersionQuery func(version string) (string, any)
 }
 
-type MigrationFn = func(ctx context.Context) error
-type MigrationTeardownFn = func() error
+type (
+	MigrationFn         = func(ctx context.Context) error
+	MigrationTeardownFn = func() error
+)
 
 // Migrate performs database migrations.
 func Migrate(ctx context.Context, db DatabaseConn, opts MigrationOptions) error {

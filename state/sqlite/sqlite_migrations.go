@@ -75,7 +75,8 @@ func (m *migrations) Perform(ctx context.Context) error {
 		EnsureMetadataTable: func(ctx context.Context) error {
 			// Check if the metadata table exists, which we also use to store the migration level
 			queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
-			exists, err := m.tableExists(queryCtx, conn, m.MetadataTableName)
+			var exists bool
+			exists, err = m.tableExists(queryCtx, conn, m.MetadataTableName)
 			cancel()
 			if err != nil {
 				return fmt.Errorf("failed to check if the metadata table exists: %w", err)
@@ -98,7 +99,7 @@ func (m *migrations) Perform(ctx context.Context) error {
 			func(ctx context.Context) error {
 				// We need to add an "IF NOT EXISTS" because we may be migrating from when we did not use a metadata table
 				m.Logger.Infof("Creating state table '%s'", m.StateTableName)
-				_, err := conn.ExecContext(
+				_, err = conn.ExecContext(
 					ctx,
 					fmt.Sprintf(
 						`CREATE TABLE IF NOT EXISTS %s (

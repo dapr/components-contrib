@@ -15,7 +15,6 @@ package sql
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -37,12 +36,8 @@ type GCOptions struct {
 	// Query that must atomically update the "last cleanup time" in the metadata table, but only if the garbage collector hasn't run already.
 	// The caller will check the nuber of affected rows. If zero, it assumes that the GC has ran too recently, and will not proceed to delete expired records.
 	// The query receives one parameter that is the last cleanup interval, in milliseconds.
-	UpdateLastCleanupQuery string
-
-	// Name of the parameter passed to the UpdateLeastCleanupQuery query, to use named parameters (via `sql.Named`). The parameter is the time interval.
-	// If empty, assumes the parameter is positional and not named.
-	// This is ignored when using the pgx querier.
-	UpdateLastCleanupQueryParameterName string
+	// The function must return both the query and the argument.
+	UpdateLastCleanupQuery func(arg any) (string, any)
 
 	// Query that performs the cleanup of all expired rows.
 	DeleteExpiredValuesQuery string
@@ -57,8 +52,7 @@ type GCOptions struct {
 
 type gc struct {
 	log                      logger.Logger
-	updateLastCleanupQuery   string
-	ulcqParamName            string
+	updateLastCleanupQuery   func(arg any) (string, any)
 	deleteExpiredValuesQuery string
 	cleanupInterval          time.Duration
 	db                       databaseConn
@@ -80,7 +74,6 @@ func ScheduleGarbageCollector(opts GCOptions) (GarbageCollector, error) {
 	gc := &gc{
 		log:                      opts.Logger,
 		updateLastCleanupQuery:   opts.UpdateLastCleanupQuery,
-		ulcqParamName:            opts.UpdateLastCleanupQueryParameterName,
 		deleteExpiredValuesQuery: opts.DeleteExpiredValuesQuery,
 		cleanupInterval:          opts.CleanupInterval,
 		db:                       opts.DB,
@@ -172,14 +165,9 @@ func (g *gc) CleanupExpired() error {
 func (g *gc) updateLastCleanup(ctx context.Context) (bool, error) {
 	// Query parameter: interval in ms
 	// Subtract 100ms for some buffer
-	var param any = (g.cleanupInterval.Milliseconds() - 100)
+	query, param := g.updateLastCleanupQuery(g.cleanupInterval.Milliseconds() - 100)
 
-	// Use named parameters if we need to
-	if g.ulcqParamName != "" {
-		param = sql.Named(g.ulcqParamName, param)
-	}
-
-	n, err := g.db.Exec(ctx, g.updateLastCleanupQuery, param)
+	n, err := g.db.Exec(ctx, query, param)
 	if err != nil {
 		return false, fmt.Errorf("error updating last cleanup time: %w", err)
 	}

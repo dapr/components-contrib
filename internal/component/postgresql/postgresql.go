@@ -133,14 +133,16 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 	if p.metadata.CleanupInterval != nil {
 		gc, err := internalsql.ScheduleGarbageCollector(internalsql.GCOptions{
 			Logger: p.logger,
-			UpdateLastCleanupQuery: fmt.Sprintf(
-				`INSERT INTO %[1]s (key, value)
-			VALUES ('last-cleanup', CURRENT_TIMESTAMP::text)
-			ON CONFLICT (key)
-			DO UPDATE SET value = CURRENT_TIMESTAMP::text
-				WHERE (EXTRACT('epoch' FROM CURRENT_TIMESTAMP - %[1]s.value::timestamp with time zone) * 1000)::bigint > $1`,
-				p.metadata.MetadataTableName,
-			),
+			UpdateLastCleanupQuery: func(arg any) (string, any) {
+				return fmt.Sprintf(
+					`INSERT INTO %[1]s (key, value)
+				VALUES ('last-cleanup', CURRENT_TIMESTAMP::text)
+				ON CONFLICT (key)
+				DO UPDATE SET value = CURRENT_TIMESTAMP::text
+					WHERE (EXTRACT('epoch' FROM CURRENT_TIMESTAMP - %[1]s.value::timestamp with time zone) * 1000)::bigint > $1`,
+					p.metadata.MetadataTableName,
+				), arg
+			},
 			DeleteExpiredValuesQuery: fmt.Sprintf(
 				`DELETE FROM %s WHERE expiredate IS NOT NULL AND expiredate < CURRENT_TIMESTAMP`,
 				p.metadata.TableName,

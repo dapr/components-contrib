@@ -110,13 +110,15 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 
 	gc, err := internalsql.ScheduleGarbageCollector(internalsql.GCOptions{
 		Logger: a.logger,
-		UpdateLastCleanupQuery: fmt.Sprintf(`INSERT INTO %s (key, value)
-		VALUES ('last-cleanup', CURRENT_TIMESTAMP)
-		ON CONFLICT (key)
-		DO UPDATE SET value = CURRENT_TIMESTAMP
-			WHERE (unixepoch(CURRENT_TIMESTAMP) - unixepoch(value)) * 1000 > ?;`,
-			a.metadata.MetadataTableName,
-		),
+		UpdateLastCleanupQuery: func(arg any) (string, any) {
+			return fmt.Sprintf(`INSERT INTO %s (key, value)
+				VALUES ('last-cleanup', CURRENT_TIMESTAMP)
+				ON CONFLICT (key)
+				DO UPDATE SET value = CURRENT_TIMESTAMP
+					WHERE (unixepoch(CURRENT_TIMESTAMP) - unixepoch(value)) * 1000 > ?;`,
+				a.metadata.MetadataTableName,
+			), arg
+		},
 		DeleteExpiredValuesQuery: fmt.Sprintf(`DELETE FROM %s
 		WHERE
 			expiration_time IS NOT NULL

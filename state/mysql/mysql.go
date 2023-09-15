@@ -276,11 +276,13 @@ func (m *MySQL) finishInit(ctx context.Context, db *sql.DB) error {
 	if m.cleanupInterval != nil {
 		gc, err := internalsql.ScheduleGarbageCollector(internalsql.GCOptions{
 			Logger: m.logger,
-			UpdateLastCleanupQuery: fmt.Sprintf(`INSERT INTO %[1]s (id, value)
-			VALUES ('last-cleanup', CURRENT_TIMESTAMP)
-		  ON DUPLICATE KEY UPDATE
-		  value = IF(CURRENT_TIMESTAMP > DATE_ADD(value, INTERVAL ?*1000 MICROSECOND), CURRENT_TIMESTAMP, value)`,
-				m.metadataTableName),
+			UpdateLastCleanupQuery: func(arg any) (string, any) {
+				return fmt.Sprintf(`INSERT INTO %[1]s (id, value)
+				VALUES ('last-cleanup', CURRENT_TIMESTAMP)
+				ON DUPLICATE KEY UPDATE
+				value = IF(CURRENT_TIMESTAMP > DATE_ADD(value, INTERVAL ?*1000 MICROSECOND), CURRENT_TIMESTAMP, value)`,
+					m.metadataTableName), arg
+			},
 			DeleteExpiredValuesQuery: fmt.Sprintf(
 				`DELETE FROM %s WHERE expiredate IS NOT NULL AND expiredate <= CURRENT_TIMESTAMP`,
 				m.tableName,

@@ -238,7 +238,7 @@ func (a *sqliteDBAccess) getConnectionString() (string, error) {
 }
 
 func (a *sqliteDBAccess) Ping(parentCtx context.Context) error {
-	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.Timeout)
 	err := a.db.PingContext(ctx)
 	cancel()
 	return err
@@ -254,7 +254,7 @@ func (a *sqliteDBAccess) Get(parentCtx context.Context, req *state.GetRequest) (
 		WHERE
 			key = ?
 			AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
-	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.Timeout)
 	defer cancel()
 	row := a.db.QueryRowContext(ctx, stmt, req.Key)
 	_, value, etag, expireTime, err := readRow(row)
@@ -297,7 +297,7 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 		WHERE
 			key IN (` + inClause + `)
 			AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
-	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.Timeout)
 	defer cancel()
 	rows, err := a.db.QueryContext(ctx, stmt, params...)
 	if err != nil {
@@ -476,7 +476,7 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 		stmt = "INSERT OR REPLACE INTO " + a.metadata.TableName + `
 				(key, value, is_binary, etag, update_time, expiration_time)
 			VALUES(?, ?, ?, ?, CURRENT_TIMESTAMP, ` + expiration + `)`
-		ctx, cancel := context.WithTimeout(context.Background(), a.metadata.timeout)
+		ctx, cancel := context.WithTimeout(context.Background(), a.metadata.Timeout)
 		defer cancel()
 		res, err = db.ExecContext(ctx, stmt, req.Key, requestValue, isBinary, newEtag, req.Key)
 	} else {
@@ -490,7 +490,7 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 				key = ?
 				AND etag = ?
 				AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
-		ctx, cancel := context.WithTimeout(context.Background(), a.metadata.timeout)
+		ctx, cancel := context.WithTimeout(context.Background(), a.metadata.Timeout)
 		defer cancel()
 		res, err = db.ExecContext(ctx, stmt, requestValue, newEtag, isBinary, req.Key, *req.ETag)
 	}
@@ -574,7 +574,7 @@ func (a *sqliteDBAccess) doDelete(parentCtx context.Context, db querier, req *st
 		return fmt.Errorf("missing key in delete operation")
 	}
 
-	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.Timeout)
 	defer cancel()
 	var result sql.Result
 	if !req.HasETag() {

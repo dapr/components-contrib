@@ -124,7 +124,7 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 			a.metadata.TableName,
 		),
 		CleanupInterval: a.metadata.CleanupInterval,
-		DBSql:           a.db,
+		DB:              internalsql.AdaptDatabaseSQLConn(a.db),
 	})
 	if err != nil {
 		return err

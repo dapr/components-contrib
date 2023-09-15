@@ -157,7 +157,7 @@ COMMIT TRANSACTION;`, s.metadata.Schema, s.metadata.MetadataTableName),
 			s.metadata.Schema, s.metadata.TableName,
 		),
 		CleanupInterval: *s.metadata.CleanupInterval,
-		DBSql:           s.db,
+		DB:              internalsql.AdaptDatabaseSQLConn(s.db),
 	})
 	if err != nil {
 		return err

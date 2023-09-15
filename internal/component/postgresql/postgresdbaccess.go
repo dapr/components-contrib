@@ -63,8 +63,6 @@ type PostgresDBAccess struct {
 
 // newPostgresDBAccess creates a new instance of postgresAccess.
 func newPostgresDBAccess(logger logger.Logger, opts Options) *PostgresDBAccess {
-	logger.Debug("Instantiating new Postgres state store")
-
 	return &PostgresDBAccess{
 		logger:        logger,
 		migrateFn:     opts.MigrateFn,
@@ -76,8 +74,6 @@ func newPostgresDBAccess(logger logger.Logger, opts Options) *PostgresDBAccess {
 
 // Init sets up Postgres connection and ensures that the state table exists.
 func (p *PostgresDBAccess) Init(ctx context.Context, meta state.Metadata) error {
-	p.logger.Debug("Initializing Postgres state store")
-
 	err := p.metadata.InitWithMetadata(meta, p.enableAzureAD)
 	if err != nil {
 		p.logger.Errorf("Failed to parse metadata: %v", err)
@@ -133,7 +129,7 @@ func (p *PostgresDBAccess) Init(ctx context.Context, meta state.Metadata) error 
 				p.metadata.TableName,
 			),
 			CleanupInterval: *p.metadata.CleanupInterval,
-			DBPgx:           p.db,
+			DB:              internalsql.AdaptPgxConn(p.db),
 		})
 		if err != nil {
 			return err

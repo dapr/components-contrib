@@ -17,26 +17,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 
 	"github.com/dapr/components-contrib/internal/component/postgresql"
+	sqlinternal "github.com/dapr/components-contrib/internal/component/sql"
 	"github.com/dapr/kit/logger"
 )
 
-// Performs migrations for the database schema
-type migrations struct {
-	logger            logger.Logger
-	stateTableName    string
-	metadataTableName string
-}
-
-// performMigration the required migrations
-func performMigration(ctx context.Context, db postgresql.PGXPoolConn, opts postgresql.MigrateOptions) error {
+// Performs the required migrations
+func performMigrations(ctx context.Context, db postgresql.PGXPoolConn, opts postgresql.MigrateOptions) error {
 	m := &migrations{
+		db:                db,
 		logger:            opts.Logger,
 		stateTableName:    opts.StateTableName,
 		metadataTableName: opts.MetadataTableName,
@@ -48,15 +42,18 @@ func performMigration(ctx context.Context, db postgresql.PGXPoolConn, opts postg
 	const lockID = 42
 
 	// Long timeout here as this query may block
+	m.logger.Debug("Acquiring advisory lock pre-migration")
 	queryCtx, cancel := context.WithTimeout(ctx, time.Minute)
 	_, err := db.Exec(queryCtx, "SELECT pg_advisory_lock($1)", lockID)
 	cancel()
 	if err != nil {
 		return fmt.Errorf("faild to acquire advisory lock: %w", err)
 	}
+	m.logger.Debug("Successfully acquired advisory lock")
 
 	// Release the lock
 	defer func() {
+		m.logger.Debug("Releasing advisory lock")
 		queryCtx, cancel = context.WithTimeout(ctx, time.Minute)
 		_, err = db.Exec(queryCtx, "SELECT pg_advisory_unlock($1)", lockID)
 		cancel()
@@ -66,73 +63,87 @@ func performMigration(ctx context.Context, db postgresql.PGXPoolConn, opts postg
 		}
 	}()
 
-	// Check if the metadata table exists, which we also use to store the migration level
-	queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
-	exists, _, _, err := m.tableExists(queryCtx, db, m.metadataTableName)
-	cancel()
-	if err != nil {
-		return err
-	}
+	return sqlinternal.Migrate(ctx, sqlinternal.AdaptPgxConn(db), sqlinternal.MigrationOptions{
+		Logger:          opts.Logger,
+		GetVersionQuery: fmt.Sprintf(`SELECT value FROM %s WHERE key = 'migrations'`, m.metadataTableName),
+		UpdateVersionQuery: func(version string) (string, any) {
+			return fmt.Sprintf(`INSERT INTO %s (key, value) VALUES ('migrations', $1) ON CONFLICT (key) DO UPDATE SET value = $1`, m.metadataTableName),
+				version
+		},
+		EnsureMetadataTable: func(ctx context.Context) error {
+			// Check if the metadata table exists, which we also use to store the migration level
+			queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			exists, _, _, err := m.tableExists(queryCtx, m.metadataTableName)
+			cancel()
+			if err != nil {
+				return err
+			}
 
-	// If the table doesn't exist, create it
-	if !exists {
-		queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
-		err = m.createMetadataTable(queryCtx, db)
-		cancel()
-		if err != nil {
-			return err
-		}
-	}
+			// If the table doesn't exist, create it
+			if !exists {
+				queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+				err = m.createMetadataTable(queryCtx)
+				cancel()
+				if err != nil {
+					return err
+				}
+			}
 
-	// Select the migration level
-	var (
-		migrationLevelStr string
-		migrationLevel    int
-	)
-	queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
-	err = db.QueryRow(queryCtx,
-		fmt.Sprintf(`SELECT value FROM %s WHERE key = 'migrations'`, m.metadataTableName),
-	).Scan(&migrationLevelStr)
-	cancel()
-	if errors.Is(err, pgx.ErrNoRows) {
-		// If there's no row...
-		migrationLevel = 0
-	} else if err != nil {
-		return fmt.Errorf("failed to read migration level: %w", err)
-	} else {
-		migrationLevel, err = strconv.Atoi(migrationLevelStr)
-		if err != nil || migrationLevel < 0 {
-			return fmt.Errorf("invalid migration level found in metadata table: %s", migrationLevelStr)
-		}
-	}
+			return nil
+		},
+		Migrations: []sqlinternal.MigrationFn{
+			// Migration 0: create the state table
+			func(ctx context.Context) error {
+				// We need to add an "IF NOT EXISTS" because we may be migrating from when we did not use a metadata table
+				m.logger.Infof("Creating state table '%s'", m.stateTableName)
+				_, err := db.Exec(
+					ctx,
+					fmt.Sprintf(
+						`CREATE TABLE IF NOT EXISTS %s (
+							key text NOT NULL PRIMARY KEY,
+							value jsonb NOT NULL,
+							isbinary boolean NOT NULL,
+							insertdate TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+							updatedate TIMESTAMP WITH TIME ZONE NULL
+						)`,
+						m.stateTableName,
+					),
+				)
+				if err != nil {
+					return fmt.Errorf("failed to create state table: %w", err)
+				}
+				return nil
+			},
 
-	// Perform the migrations
-	for i := migrationLevel; i < len(allMigrations); i++ {
-		m.logger.Infof("Performing migration %d", i)
-		err = allMigrations[i](ctx, db, m)
-		if err != nil {
-			return fmt.Errorf("failed to perform migration %d: %w", i, err)
-		}
-
-		queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
-		_, err = db.Exec(queryCtx,
-			fmt.Sprintf(`INSERT INTO %s (key, value) VALUES ('migrations', $1) ON CONFLICT (key) DO UPDATE SET value = $1`, m.metadataTableName),
-			strconv.Itoa(i+1),
-		)
-		cancel()
-		if err != nil {
-			return fmt.Errorf("failed to update migration level in metadata table: %w", err)
-		}
-	}
-
-	return nil
+			// Migration 1: add the "expiredate" column
+			func(ctx context.Context) error {
+				m.logger.Infof("Adding expiredate column to state table '%s'", m.stateTableName)
+				_, err := db.Exec(ctx, fmt.Sprintf(
+					`ALTER TABLE %s ADD expiredate TIMESTAMP WITH TIME ZONE`,
+					m.stateTableName,
+				))
+				if err != nil {
+					return fmt.Errorf("failed to update state table: %w", err)
+				}
+				return nil
+			},
+		},
+	})
 }
 
-func (m migrations) createMetadataTable(ctx context.Context, db postgresql.PGXPoolConn) error {
+// Performs migrations for the database schema
+type migrations struct {
+	db                postgresql.PGXPoolConn
+	logger            logger.Logger
+	stateTableName    string
+	metadataTableName string
+}
+
+func (m migrations) createMetadataTable(ctx context.Context) error {
 	m.logger.Infof("Creating metadata table '%s'", m.metadataTableName)
 	// Add an "IF NOT EXISTS" in case another Dapr sidecar is creating the same table at the same time
 	// In the next step we'll acquire a lock so there won't be issues with concurrency
-	_, err := db.Exec(ctx, fmt.Sprintf(
+	_, err := m.db.Exec(ctx, fmt.Sprintf(
 		`CREATE TABLE IF NOT EXISTS %s (
 			key text NOT NULL PRIMARY KEY,
 			value text NOT NULL
@@ -146,14 +157,14 @@ func (m migrations) createMetadataTable(ctx context.Context, db postgresql.PGXPo
 }
 
 // If the table exists, returns true and the name of the table and schema
-func (m migrations) tableExists(ctx context.Context, db postgresql.PGXPoolConn, tableName string) (exists bool, schema string, table string, err error) {
+func (m migrations) tableExists(ctx context.Context, tableName string) (exists bool, schema string, table string, err error) {
 	table, schema, err = m.tableSchemaName(tableName)
 	if err != nil {
 		return false, "", "", err
 	}
 
 	if schema == "" {
-		err = db.QueryRow(
+		err = m.db.QueryRow(
 			ctx,
 			`SELECT table_name, table_schema
 				FROM information_schema.tables 
@@ -162,7 +173,7 @@ func (m migrations) tableExists(ctx context.Context, db postgresql.PGXPoolConn, 
 		).
 			Scan(&table, &schema)
 	} else {
-		err = db.QueryRow(
+		err = m.db.QueryRow(
 			ctx,
 			`SELECT table_name, table_schema
 				FROM information_schema.tables 
@@ -191,42 +202,4 @@ func (m migrations) tableSchemaName(tableName string) (table string, schema stri
 	default:
 		return "", "", errors.New("invalid table name: must be in the format 'table' or 'schema.table'")
 	}
-}
-
-var allMigrations = [2]func(ctx context.Context, db postgresql.PGXPoolConn, m *migrations) error{
-	// Migration 0: create the state table
-	func(ctx context.Context, db postgresql.PGXPoolConn, m *migrations) error {
-		// We need to add an "IF NOT EXISTS" because we may be migrating from when we did not use a metadata table
-		m.logger.Infof("Creating state table '%s'", m.stateTableName)
-		_, err := db.Exec(
-			ctx,
-			fmt.Sprintf(
-				`CREATE TABLE IF NOT EXISTS %s (
-					key text NOT NULL PRIMARY KEY,
-					value jsonb NOT NULL,
-					isbinary boolean NOT NULL,
-					insertdate TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-					updatedate TIMESTAMP WITH TIME ZONE NULL
-				)`,
-				m.stateTableName,
-			),
-		)
-		if err != nil {
-			return fmt.Errorf("failed to create state table: %w", err)
-		}
-		return nil
-	},
-
-	// Migration 1: add the "expiredate" column
-	func(ctx context.Context, db postgresql.PGXPoolConn, m *migrations) error {
-		m.logger.Infof("Adding expiredate column to state table '%s'", m.stateTableName)
-		_, err := db.Exec(ctx, fmt.Sprintf(
-			`ALTER TABLE %s ADD expiredate TIMESTAMP WITH TIME ZONE`,
-			m.stateTableName,
-		))
-		if err != nil {
-			return fmt.Errorf("failed to update state table: %w", err)
-		}
-		return nil
-	},
 }

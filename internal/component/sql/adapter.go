@@ -16,6 +16,7 @@ package sql
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -25,14 +26,14 @@ import (
 //
 // Note: when using transactions with database/sql, the context bassed to Begin impacts the entire transaction.
 // Canceling the context automatically rolls back the transaction.
-func AdaptDatabaseSQLConn(db DatabaseSQLConn) databaseConn {
+func AdaptDatabaseSQLConn(db DatabaseSQLConn) DatabaseConn {
 	return &DatabaseSQLAdapter{db}
 }
 
 // AdaptPgxConn returns a databaseConn based on a pgx connection.
 //
 // Note: when using transactions with pgx, the context bassed to Begin impacts the creation of the transaction only.
-func AdaptPgxConn(db PgxConn) databaseConn {
+func AdaptPgxConn(db PgxConn) DatabaseConn {
 	return &PgxAdapter{db}
 }
 
@@ -52,11 +53,12 @@ type PgxConn interface {
 	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
 }
 
-// databaseConn is the interface matched by all adapters.
-type databaseConn interface {
+// DatabaseConn is the interface matched by all adapters.
+type DatabaseConn interface {
 	Begin(context.Context) (databaseConnTx, error)
 	QueryRow(context.Context, string, ...any) databaseConnRow
 	Exec(context.Context, string, ...any) (int64, error)
+	IsNoRowsError(err error) bool
 }
 
 type databaseConnRow interface {
@@ -94,6 +96,10 @@ func (sqla *DatabaseSQLAdapter) Exec(ctx context.Context, query string, args ...
 
 func (sqla *DatabaseSQLAdapter) QueryRow(ctx context.Context, query string, args ...any) databaseConnRow {
 	return sqla.conn.QueryRowContext(ctx, query, args...)
+}
+
+func (sqla *DatabaseSQLAdapter) IsNoRowsError(err error) bool {
+	return errors.Is(err, sql.ErrNoRows)
 }
 
 type databaseSQLTxAdapter struct {
@@ -144,6 +150,10 @@ func (pga *PgxAdapter) Exec(ctx context.Context, query string, args ...any) (int
 
 func (pga *PgxAdapter) QueryRow(ctx context.Context, query string, args ...any) databaseConnRow {
 	return pga.conn.QueryRow(ctx, query, args...)
+}
+
+func (pga *PgxAdapter) IsNoRowsError(err error) bool {
+	return errors.Is(err, pgx.ErrNoRows)
 }
 
 type pgxTxAdapter struct {

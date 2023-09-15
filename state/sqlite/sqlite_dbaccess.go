@@ -99,7 +99,7 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 	// Performs migrations
 	migrate := &migrations{
 		Logger:            a.logger,
-		Conn:              a.db,
+		Pool:              a.db,
 		MetadataTableName: a.metadata.MetadataTableName,
 		StateTableName:    a.metadata.TableName,
 	}

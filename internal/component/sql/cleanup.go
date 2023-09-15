@@ -47,7 +47,7 @@ type GCOptions struct {
 
 	// Database connection.
 	// Must be adapted using AdaptDatabaseSQLConn or AdaptPgxConn.
-	DB databaseConn
+	DB DatabaseConn
 }
 
 type gc struct {
@@ -55,7 +55,7 @@ type gc struct {
 	updateLastCleanupQuery   func(arg any) (string, any)
 	deleteExpiredValuesQuery string
 	cleanupInterval          time.Duration
-	db                       databaseConn
+	db                       DatabaseConn
 
 	closed   atomic.Bool
 	closedCh chan struct{}

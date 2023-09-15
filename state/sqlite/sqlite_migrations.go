@@ -16,28 +16,34 @@ package sqlite
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
-	"strconv"
 	"time"
 
+	sqlinternal "github.com/dapr/components-contrib/internal/component/sql"
 	"github.com/dapr/kit/logger"
 )
 
 // Performs migrations for the database schema
 type migrations struct {
 	Logger            logger.Logger
-	Conn              *sql.DB
+	Pool              *sql.DB
 	StateTableName    string
 	MetadataTableName string
 }
 
 // Perform the required migrations
 func (m *migrations) Perform(ctx context.Context) error {
+	// Get a connection so we can create a transaction
+	conn, err := m.Pool.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get a connection from the pool: %w", err)
+	}
+	defer conn.Close()
+
 	// Begin an exclusive transaction
 	// We can't use Begin because that doesn't allow us setting the level of transaction
 	queryCtx, cancel := context.WithTimeout(ctx, time.Minute)
-	_, err := m.Conn.ExecContext(queryCtx, "BEGIN EXCLUSIVE TRANSACTION")
+	_, err = conn.ExecContext(queryCtx, "BEGIN EXCLUSIVE TRANSACTION")
 	cancel()
 	if err != nil {
 		return fmt.Errorf("faild to begin transaction: %w", err)
@@ -50,7 +56,7 @@ func (m *migrations) Perform(ctx context.Context) error {
 			return
 		}
 		queryCtx, cancel = context.WithTimeout(ctx, time.Minute)
-		_, err = m.Conn.ExecContext(queryCtx, "ROLLBACK TRANSACTION")
+		_, err = conn.ExecContext(queryCtx, "ROLLBACK TRANSACTION")
 		cancel()
 		if err != nil {
 			// Panicking here, as this forcibly closes the session and thus ensures we are not leaving locks hanging around
@@ -58,68 +64,68 @@ func (m *migrations) Perform(ctx context.Context) error {
 		}
 	}()
 
-	// Check if the metadata table exists, which we also use to store the migration level
-	queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
-	exists, err := m.tableExists(queryCtx, m.Conn, m.MetadataTableName)
-	cancel()
-	if err != nil {
-		return fmt.Errorf("failed to check if the metadata table exists: %w", err)
-	}
-
-	// If the table doesn't exist, create it
-	if !exists {
-		queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
-		err = m.createMetadataTable(queryCtx, m.Conn)
-		cancel()
-		if err != nil {
-			return fmt.Errorf("failed to create metadata table: %w", err)
-		}
-	}
-
-	// Select the migration level
-	var (
-		migrationLevelStr string
-		migrationLevel    int
-	)
-	queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
-	err = m.Conn.QueryRowContext(queryCtx,
-		fmt.Sprintf(`SELECT value FROM %s WHERE key = 'migrations'`, m.MetadataTableName),
-	).Scan(&migrationLevelStr)
-	cancel()
-	if errors.Is(err, sql.ErrNoRows) {
-		// If there's no row...
-		migrationLevel = 0
-	} else if err != nil {
-		return fmt.Errorf("failed to read migration level: %w", err)
-	} else {
-		migrationLevel, err = strconv.Atoi(migrationLevelStr)
-		if err != nil || migrationLevel < 0 {
-			return fmt.Errorf("invalid migration level found in metadata table: %s", migrationLevelStr)
-		}
-	}
-
 	// Perform the migrations
-	for i := migrationLevel; i < len(allMigrations); i++ {
-		m.Logger.Infof("Performing migration %d", i+1)
-		err = allMigrations[i](ctx, m.Conn, m)
-		if err != nil {
-			return fmt.Errorf("failed to perform migration %d: %w", i+1, err)
-		}
+	err = sqlinternal.Migrate(ctx, sqlinternal.AdaptDatabaseSQLConn(conn), sqlinternal.MigrationOptions{
+		Logger:          m.Logger,
+		GetVersionQuery: fmt.Sprintf(`SELECT value FROM %s WHERE key = 'migrations'`, m.MetadataTableName),
+		UpdateVersionQuery: func(version string) (string, any) {
+			return fmt.Sprintf(`REPLACE INTO %s (key, value) VALUES ('migrations', ?)`, m.MetadataTableName),
+				version
+		},
+		EnsureMetadataTable: func(ctx context.Context) error {
+			// Check if the metadata table exists, which we also use to store the migration level
+			queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
+			exists, err := m.tableExists(queryCtx, conn, m.MetadataTableName)
+			cancel()
+			if err != nil {
+				return fmt.Errorf("failed to check if the metadata table exists: %w", err)
+			}
 
-		queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
-		_, err = m.Conn.ExecContext(queryCtx,
-			fmt.Sprintf(`REPLACE INTO %s (key, value) VALUES ('migrations', ?)`, m.MetadataTableName),
-			strconv.Itoa(i+1),
-		)
-		cancel()
-		if err != nil {
-			return fmt.Errorf("failed to update migration level in metadata table: %w", err)
-		}
+			// If the table doesn't exist, create it
+			if !exists {
+				queryCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
+				err = m.createMetadataTable(queryCtx, conn)
+				cancel()
+				if err != nil {
+					return fmt.Errorf("failed to create metadata table: %w", err)
+				}
+			}
+
+			return nil
+		},
+		Migrations: []sqlinternal.MigrationFn{
+			// Migration 0: create the state table
+			func(ctx context.Context) error {
+				// We need to add an "IF NOT EXISTS" because we may be migrating from when we did not use a metadata table
+				m.Logger.Infof("Creating state table '%s'", m.StateTableName)
+				_, err := conn.ExecContext(
+					ctx,
+					fmt.Sprintf(
+						`CREATE TABLE IF NOT EXISTS %s (
+							key TEXT NOT NULL PRIMARY KEY,
+							value TEXT NOT NULL,
+							is_binary BOOLEAN NOT NULL,
+							etag TEXT NOT NULL,
+							expiration_time TIMESTAMP DEFAULT NULL,
+							update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+						)`,
+						m.StateTableName,
+					),
+				)
+				if err != nil {
+					return fmt.Errorf("failed to create state table: %w", err)
+				}
+				return nil
+			},
+		},
+	})
+	if err != nil {
+		return err
 	}
 
 	// Commit the transaction
 	queryCtx, cancel = context.WithTimeout(ctx, time.Minute)
-	_, err = m.Conn.ExecContext(queryCtx, "COMMIT TRANSACTION")
+	_, err = conn.ExecContext(queryCtx, "COMMIT TRANSACTION")
 	cancel()
 	if err != nil {
 		return fmt.Errorf("failed to commit transaction")
@@ -161,30 +167,4 @@ func (m migrations) createMetadataTable(ctx context.Context, db querier) error {
 		return fmt.Errorf("failed to create metadata table: %w", err)
 	}
 	return nil
-}
-
-var allMigrations = [1]func(ctx context.Context, db querier, m *migrations) error{
-	// Migration 0: create the state table
-	func(ctx context.Context, db querier, m *migrations) error {
-		// We need to add an "IF NOT EXISTS" because we may be migrating from when we did not use a metadata table
-		m.Logger.Infof("Creating state table '%s'", m.StateTableName)
-		_, err := db.ExecContext(
-			ctx,
-			fmt.Sprintf(
-				`CREATE TABLE IF NOT EXISTS %s (
-					key TEXT NOT NULL PRIMARY KEY,
-					value TEXT NOT NULL,
-					is_binary BOOLEAN NOT NULL,
-					etag TEXT NOT NULL,
-					expiration_time TIMESTAMP DEFAULT NULL,
-					update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-				)`,
-				m.StateTableName,
-			),
-		)
-		if err != nil {
-			return fmt.Errorf("failed to create state table: %w", err)
-		}
-		return nil
-	},
 }

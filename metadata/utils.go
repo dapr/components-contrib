@@ -158,7 +158,7 @@ func DecodeMetadata(input any, result any) error {
 	}
 
 	// Handle aliases
-	err = resolveAliases(inputMap, result)
+	err = resolveAliases(inputMap, reflect.TypeOf(result))
 	if err != nil {
 		return fmt.Errorf("failed to resolve aliases: %w", err)
 	}
@@ -183,7 +183,7 @@ func DecodeMetadata(input any, result any) error {
 	return err
 }
 
-func resolveAliases(md map[string]string, result any) error {
+func resolveAliases(md map[string]string, t reflect.Type) error {
 	// Get the list of all keys in the map
 	keys := make(map[string]string, len(md))
 	for k := range md {
@@ -199,7 +199,6 @@ func resolveAliases(md map[string]string, result any) error {
 	}
 
 	// Error if result is not pointer to struct, or pointer to pointer to struct
-	t := reflect.TypeOf(result)
 	if t.Kind() != reflect.Pointer {
 		return fmt.Errorf("not a pointer: %s", t.Kind().String())
 	}
@@ -211,13 +210,26 @@ func resolveAliases(md map[string]string, result any) error {
 		return fmt.Errorf("not a struct: %s", t.Kind().String())
 	}
 
-	// Iterate through all the properties of result to see if anyone has the "mapstructurealiases" property
+	// Iterate through all the properties, possibly recursively
+	resolveAliasesInType(md, keys, t)
+
+	return nil
+}
+
+func resolveAliasesInType(md map[string]string, keys map[string]string, t reflect.Type) {
+	// Iterate through all the properties of the type to see if anyone has the "mapstructurealiases" property
 	for i := 0; i < t.NumField(); i++ {
 		currentField := t.Field(i)
 
 		// Ignored fields that are not exported or that don't have a "mapstructure" tag
 		mapstructureTag := currentField.Tag.Get("mapstructure")
 		if !currentField.IsExported() || mapstructureTag == "" {
+			continue
+		}
+
+		// Check if this is an embedded struct
+		if mapstructureTag == ",squash" {
+			resolveAliasesInType(md, keys, currentField.Type)
 			continue
 		}
 
@@ -246,8 +258,6 @@ func resolveAliases(md map[string]string, result any) error {
 			break
 		}
 	}
-
-	return nil
 }
 
 func toTruthyBoolHookFunc() mapstructure.DecodeHookFunc {

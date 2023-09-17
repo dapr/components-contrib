@@ -22,7 +22,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"golang.org/x/oauth2"
 	ccred "golang.org/x/oauth2/clientcredentials"
 )
@@ -39,8 +39,15 @@ type OAuthTokenSource struct {
 	skipCaVerify  bool
 }
 
-func newOAuthTokenSource(oidcTokenEndpoint, oidcClientID, oidcClientSecret string, oidcScopes []string) OAuthTokenSource {
-	return OAuthTokenSource{TokenEndpoint: oauth2.Endpoint{TokenURL: oidcTokenEndpoint}, ClientID: oidcClientID, ClientSecret: oidcClientSecret, Scopes: oidcScopes}
+func (m KafkaMetadata) getOAuthTokenSource() *OAuthTokenSource {
+	return &OAuthTokenSource{
+		TokenEndpoint: oauth2.Endpoint{TokenURL: m.OidcTokenEndpoint},
+		ClientID:      m.OidcClientID,
+		ClientSecret:  m.OidcClientSecret,
+		Scopes:        m.internalOidcScopes,
+		Extensions:    m.internalOidcExtensions,
+		skipCaVerify:  m.TLSSkipVerify,
+	}
 }
 
 var tokenRequestTimeout, _ = time.ParseDuration("30s")

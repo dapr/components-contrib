@@ -250,8 +250,3 @@ prettier-format:
 .PHONY: conf-tests
 conf-tests:
 	CGO_ENABLED=$(CGO) go test -v -tags=conftests -count=1 ./tests/conformance
-
-################################################################################
-# Target: e2e                                                                #
-################################################################################
-include tests/e2e/e2e_tests.mk

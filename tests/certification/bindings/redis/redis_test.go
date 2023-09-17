@@ -2,6 +2,7 @@ package redisbinding_test
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -14,7 +15,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/retry"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	bindingsLoader "github.com/dapr/dapr/pkg/components/bindings"
-	"github.com/dapr/dapr/pkg/runtime"
 	daprTesting "github.com/dapr/dapr/pkg/testing"
 	daprClient "github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
@@ -214,11 +214,12 @@ func TestRedisBinding(t *testing.T) {
 		Step(dockercompose.Run("redis", dockerComposeYAML)).
 		Step("Waiting for Redis Readiness...", retry.Do(time.Second*3, 10, checkRedisConnection)).
 		Step(sidecar.Run(sidecarName,
-			embedded.WithoutApp(),
-			embedded.WithResourcesPath("components/standard"),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithResourcesPath("components/standard"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+			)...,
 		)).
 		Step("Waiting for the component to start", flow.Sleep(10*time.Second)).
 		Step("Insert data into the redis data store and check if the insertion was successful", testInvokeCreate).
@@ -228,11 +229,12 @@ func TestRedisBinding(t *testing.T) {
 		Step(dockercompose.Run("redis", dockerComposeYAML)).
 		Step("Waiting for Redis Readiness...", retry.Do(time.Second*3, 10, checkRedisConnection)).
 		Step(sidecar.Run(sidecarName,
-			embedded.WithoutApp(),
-			embedded.WithResourcesPath("components/standard"),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithResourcesPath("components/standard"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+			)...,
 		)).
 		Step("Waiting for the component to start", flow.Sleep(10*time.Second)).
 		Step("Insert data into the redis data store before network interruption", testInvokeCreate).
@@ -249,11 +251,12 @@ func TestRedisBinding(t *testing.T) {
 		Step(dockercompose.Run("redis", dockerComposeYAML)).
 		Step("Waiting for Redis Readiness...", retry.Do(time.Second*3, 10, checkRedisConnection)).
 		Step(sidecar.Run(sidecarName,
-			embedded.WithoutApp(),
-			embedded.WithResourcesPath("components/retryOptions"),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithResourcesPath("components/retryOptions"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+			)...,
 		)).
 		Step("Waiting for the component to start", flow.Sleep(10*time.Second)).
 		Step("Stop Redis server", dockercompose.Stop("redis", dockerComposeYAML)).
@@ -269,18 +272,19 @@ func TestRedisBinding(t *testing.T) {
 		Step(dockercompose.Run("redis", dockerComposeYAML)).
 		Step("Waiting for Redis Readiness...", retry.Do(time.Second*3, 10, checkRedisConnection)).
 		Step(sidecar.Run(sidecarName,
-			embedded.WithoutApp(),
-			embedded.WithResourcesPath("components/standard"),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithResourcesPath("components/standard"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+			)...,
 		)).
 		Step("Waiting for the component to start", flow.Sleep(10*time.Second)).
 		Step("Insert data and increment data, with expiration options.", testInvokeCreateIncr).
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	bindingsRegistry := bindingsLoader.NewRegistry()
@@ -289,7 +293,7 @@ func componentRuntimeOptions() []runtime.Option {
 		return bindingRedis.NewRedis(l)
 	}, "redis")
 
-	return []runtime.Option{
-		runtime.WithBindings(bindingsRegistry),
+	return []embedded.Option{
+		embedded.WithBindings(bindingsRegistry),
 	}
 }

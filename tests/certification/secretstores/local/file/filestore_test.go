@@ -15,6 +15,7 @@ package filestore_test
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,7 +24,6 @@ import (
 
 	secretstore_file "github.com/dapr/components-contrib/secretstores/local/file"
 	secretstores_loader "github.com/dapr/dapr/pkg/components/secretstores"
-	"github.com/dapr/dapr/pkg/runtime"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/kit/logger"
 
@@ -80,35 +80,37 @@ func TestEnv(t *testing.T) {
 
 	flow.New(t, "file secret store reads expected value").
 		Step(sidecar.Run(sidecarName,
-			embedded.WithoutApp(),
-			embedded.WithComponentsPath("./components/defaultnestedseparator/"),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithComponentsPath("./components/defaultnestedseparator/"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHttpPort)),
+			)...,
 		)).
 		Step("Getting known secret", testGetKnownSecret).
 		Run()
 
 	flow.New(t, "file secret store reads expected value with custom nested separator").
 		Step(sidecar.Run(sidecarName,
-			embedded.WithoutApp(),
-			embedded.WithComponentsPath("./components/customnestedseparator/"),
-			embedded.WithDaprGRPCPort(currentGrpcPort),
-			embedded.WithDaprHTTPPort(currentHttpPort),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithComponentsPath("./components/customnestedseparator/"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHttpPort)),
+			)...,
 		)).
 		Step("Getting known secret", testGetKnownSecretWithCustomSeparator).
 		Run()
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	secretstoreRegistry := secretstores_loader.NewRegistry()
 	secretstoreRegistry.Logger = log
 	secretstoreRegistry.RegisterComponent(secretstore_file.NewLocalSecretStore, "local.file")
 
-	return []runtime.Option{
-		runtime.WithSecretStores(secretstoreRegistry),
+	return []embedded.Option{
+		embedded.WithSecretStores(secretstoreRegistry),
 	}
 }

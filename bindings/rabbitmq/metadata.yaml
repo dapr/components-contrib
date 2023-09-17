@@ -1,0 +1,123 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: rabbitmq
+version: v1
+status: stable
+title: "RabbitMQ"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/rabbitmq/
+binding:
+  output: true
+  input: true
+  operations:
+    - name: create
+      description: "Publish a new message in the queue."
+authenticationProfiles:
+  - title: "Connection string"
+    description: "Use a connection string"
+    metadata:
+      - name: host
+        required: true
+        sensitive: true
+        description: "RabbitMQ host address."
+        example: '"amqp://[username][:password]@host.domain[:port]", "amqps://[username][:password]@host.domain[:port]"'
+metadata:
+  - name: queueName
+    required: true
+    description: "RabbitMQ queue name."
+    type: string
+    example: '"myqueue"'
+  - name: durable
+    type: bool
+    description: |
+      Tells RabbitMQ to persist message in storage.
+    default: 'false'
+    example: '"true", "false"'
+    binding:
+      output: true
+  - name: deleteWhenUnused
+    type: bool
+    description: "Enables or disables auto-delete."
+    default: 'false'
+    example: '"true", "false"'
+  - name: ttlInSeconds
+    type: number
+    description: |
+      Set the default message time to live at RabbitMQ queue level.
+      If this parameter is omitted, messages won't expire, continuing
+      to exist on the queue until processed.
+    example: '60'
+    url:
+      title: "RabbitMQ Time-To-Live and Expiration"
+      url: "https://www.rabbitmq.com/ttl.html"
+    binding:
+      output: true
+  - name: prefetchCount
+    type: number
+    description: |
+      Set the Channel Prefetch Setting (QoS). If this parameter is omitted, 
+      QoS would set value to 0 as no limit.
+    default: '0'
+    example: '0'
+    url:
+      title: "RabbitMQ Channel Prefetch Setting (QoS)"
+      url: "https://www.rabbitmq.com/confirms.html#channel-qos-prefetch"
+    binding:
+      input: true
+  - name: exclusive
+    type: bool
+    description: |
+      If true, the topic is treated as exclusive.
+    default: 'false'
+    example: '"true", "false"'
+  - name: maxPriority
+    type: number
+    description: |
+      Parameter to set the priority queue. If this parameter is omitted, 
+      queue will be created as a general queue instead of a priority queue. 
+      Value is between 1 and 255.
+    default: '1'
+    example: '"1", "10"'
+    url:
+      title: "RabbitMQ Priority Queue Support"
+      url: "https://www.rabbitmq.com/priority.html"
+  - name: contentType
+    type: string
+    description: "The content type of the message."
+    default: '“text/plain”'
+    example: '"text/plain", "application/cloudevent+json"'
+  - name: reconnectWaitInSeconds
+    type: number
+    description: |
+      Represents the duration in seconds that the client should
+      wait before attempting to reconnect to the server after a disconnection occurs.
+    default: '5'
+    example: '"5", "10"'
+  - name: caCert
+    type: string
+    description: |
+      Certificate authority certificate, required for using TLS.
+    example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+  - name: clientCert
+    type: string
+    description: |
+      Client certificate, required when "authType" is "mtls".
+    example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+  - name: clientKey
+    type: string
+    description: |
+      Client key, required when "authType" is "mtls".
+    example: "-----BEGIN PRIVATE KEY-----\n<base64-encoded DER>\n-----END PRIVATE KEY-----"
+  - name: externalSasl
+    type: string
+    description: |
+      With TLS, should the username be taken 
+      from an additional field (e.g. CN.) 
+      See RabbitMQ Authentication Mechanisms.
+    url:
+      title: "RabbitMQ Authentication Mechanisms"
+      url: "https://www.rabbitmq.com/access-control.html#mechanisms"
+    default: 'false'
+    example: '"true", "false"'

@@ -58,6 +58,16 @@ func GetIntValOrDefault(val int, defaultValue int) int {
 	return defaultValue
 }
 
+// GetIntValFromString returns an int value if the string is not empty and is a correct integer OR default value.
+func GetIntValFromString(val string, defaultValue int) int {
+	if val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			return i
+		}
+	}
+	return defaultValue
+}
+
 // Unquote parses a request data that may be quoted due to JSON encoding, and removes the quotes.
 func Unquote(data []byte) (res string) {
 	var dataObj any

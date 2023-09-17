@@ -1,0 +1,234 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: bindings
+name: kafka
+version: v1
+status: stable
+title: "Apache Kafka"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-bindings/kafka/
+binding:
+  output: true
+  input: true
+  operations:
+    - name: create
+      description: "Publish a new message in the topic."
+authenticationProfiles:
+  - title: "OIDC Authentication"
+    description: |
+      Authenticate using OpenID Connect.
+    metadata:
+      - name: authType
+        type: string
+        required: true
+        description: |
+          Authentication type.
+          This must be set to "oidc" for this authentication profile.
+        example: '"oidc"'
+        allowedValues:
+          - "oidc"
+      - name: oidcTokenEndpoint
+        type: string
+        required: true
+        description: |
+          URL of the OAuth2 identity provider access token endpoint.
+        example: '"https://identity.example.com/v1/token"'
+      - name: oidcClientID
+        description: |
+          The OAuth2 client ID that has been provisioned in the identity provider.
+        example: '"my-client-id"'
+        type: string
+        required: true
+      - name: oidcClientSecret
+        type: string
+        required: true
+        sensitive: true
+        description: |
+          The OAuth2 client secret that has been provisioned in the identity provider.
+        example: '"KeFg23!"'
+      - name: oidcScopes
+        type: string
+        description: |
+          Comma-delimited list of OAuth2/OIDC scopes to request with the access token.
+          Although not required, this field is recommended.
+        example: '"openid,kafka-prod"'
+        default: '"openid"'
+      - name: oidcExtensions
+        description: |
+          String containing a JSON-encoded dictionary of OAuth2/OIDC extensions to request with the access token.
+        example: |
+          {"cluster":"kafka","poolid":"kafkapool"}
+        type: string
+  - title: "SASL Authentication"
+    description: |
+      Authenticate using SASL.
+    metadata:
+      - name: authType
+        type: string
+        required: true
+        description: |
+          Authentication type.
+          This must be set to "password" for this authentication profile.
+        example: '"password"'
+        allowedValues:
+          - "password"
+      - name: saslUsername
+        type: string
+        required: true
+        description: |
+          The SASL username.
+        example: '"myuser"'
+      - name: saslPassword
+        type: string
+        required: true
+        sensitive: true
+        description: |
+          The SASL password.
+        example: '"mypassword"'
+      - name: saslMechanism
+        type: string
+        required: true
+        description: |
+          The SASL authentication mechanism to use.
+        example: '"SHA-512"'
+        default: '"PLAINTEXT"'
+        allowedValues:
+          - "SHA-512"
+          - "SHA-256"
+          - "PLAINTEXT"
+  - title: "mTLS Authentication"
+    description: |
+      Authenticate using mTLS.
+    metadata:
+      - name: authType
+        type: string
+        required: true
+        description: |
+          Authentication type.
+          This must be set to "mtls" for this authentication profile.
+        example: '"mtls"'
+        allowedValues:
+          - "mtls"
+      - name: caCert
+        type: string
+        required: true
+        description: "Certificate authority certificate."
+        example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+      - name: clientCert
+        required: true
+        description: "Client certificate."
+        example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+        type: string
+      - name: clientKey
+        type: string
+        required: true
+        sensitive: true
+        description: "Client key."
+        example: "-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded DER>\n-----END RSA PRIVATE KEY-----"
+  - title: "No Authentication"
+    description: |
+      Do not perform authentication.
+    metadata:
+      - name: authType
+        type: string
+        required: true
+        description: |
+          Authentication type.
+          This must be set to "none" for this authentication profile.
+        example: '"none"'
+        allowedValues:
+          - "none"
+metadata:
+  - name: topics
+    type: string
+    description: |
+      A comma-separated list of topics to subscribe to.
+    example: '"mytopic1,topic2"'
+    binding:
+      input: true
+  - name: brokers
+    type: string
+    required: true
+    description: |
+      A comma-separated list of Kafka brokers.
+    example: '"localhost:9092,dapr-kafka.myapp.svc.cluster.local:9093"'
+    binding:
+      output: true
+      input: true
+  - name: publishTopic
+    type: string
+    required: true
+    description: |
+      The topic to publish to.
+    example: '"mytopic"'
+    binding:
+      output: true
+  - name: consumerGroup
+    type: string
+    description: |
+      A kafka consumer group to listen on. Each record published
+      to a topic is delivered to one consumer within each consumer
+      group subscribed to the topic.
+    example: '"group1"'
+    binding:
+      input: true
+  - name: clientID
+    type: string
+    description: |
+      A user-provided string sent with every request to
+      the Kafka brokers for logging, debugging, and auditing purposes.
+    example: '"my-dapr-app"'
+    default: '"sarama"'
+  - name: initialOffset
+    type: string
+    description: |
+      The initial offset to use if no offset was previously committed.
+    example: '"oldest"'
+    default: '"newest"'
+    allowedValues:
+      - "newest"
+      - "oldest"
+    binding:
+      input: true
+  - name: maxMessageBytes
+    type: number
+    description: |
+      The maximum size in bytes allowed for a single Kafka message.
+    example: '2048'
+    default: '1024'
+  - name: consumeRetryInterval
+    type: duration
+    description: |
+      The interval between retries when attempting to consume topics.
+    example: '"200ms"'
+    default: '"100ms"'
+  - name: consumeRetryEnabled
+    type: bool
+    description: |
+      Disables consumer retry by setting this to "false".
+    example: '"true"'
+    default: '"false"'
+  - name: version
+    type: string
+    description: |
+      Kafka cluster version.
+      Note that this must be set to "1.0.0" if you are using Azure Event Hubs with Kafka.
+    example: '"0.10.2.0"'
+    default: '"2.0.0.0"'
+  - name: skipVerify
+    required: false
+    description: |
+      Skip TLS verification.
+      This is potentially insecure and not recommended for use in production.
+    example: "true"
+    default: "false"
+    type: bool
+  - name: disableTls
+    required: false
+    description: |
+      Disable TLS for transport security.
+      This is potentially insecure and not recommended for use in production.
+    example: "true"
+    default: "false"
+    type: bool

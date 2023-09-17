@@ -97,7 +97,7 @@ require (
 	github.com/sendgrid/sendgrid-go v3.12.0+incompatible
 	github.com/sijms/go-ora/v2 v2.7.9
 	github.com/spf13/cast v1.5.1
-	github.com/stealthrocket/wasi-go v0.7.6-0.20230718231108-c3d30af59057
+	github.com/stealthrocket/wasi-go v0.8.1-0.20230912180546-8efbab50fb58
 	github.com/stretchr/testify v1.8.4
 	github.com/supplyon/gremcos v0.1.40
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.608
@@ -342,6 +342,7 @@ require (
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/stealthrocket/wazergo v0.19.1 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
 	github.com/tchap/go-patricia/v2 v2.3.1 // indirect
 	github.com/tidwall/gjson v1.13.0 // indirect

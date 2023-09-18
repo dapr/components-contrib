@@ -39,7 +39,7 @@ func init() {
 	}
 }
 
-func getKubeconfigPath(log logger.Logger, args []string) string {
+func GetKubeconfigPath(log logger.Logger, args []string) string {
 	// Check if the path is set via the CLI flag `--kubeconfig`
 	// This is deprecated but kept for backwards compatibility
 	var cliVal string
@@ -73,10 +73,10 @@ func getKubeconfigPath(log logger.Logger, args []string) string {
 }
 
 // GetKubeClient returns a kubernetes client.
-func GetKubeClient(log logger.Logger) (*kubernetes.Clientset, error) {
+func GetKubeClient(kubeconfig string) (*kubernetes.Clientset, error) {
 	conf, err := rest.InClusterConfig()
 	if err != nil {
-		conf, err = clientcmd.BuildConfigFromFlags("", getKubeconfigPath(log, os.Args))
+		conf, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 		if err != nil {
 			return nil, err
 		}

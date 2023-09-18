@@ -19,7 +19,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 )
 
 func updatePasswordAuthInfo(config *sarama.Config, metadata *KafkaMetadata, saslUsername, saslPassword string) {
@@ -73,7 +73,7 @@ func updateTLSConfig(config *sarama.Config, metadata *KafkaMetadata) error {
 }
 
 func updateOidcAuthInfo(config *sarama.Config, metadata *KafkaMetadata) error {
-	tokenProvider := newOAuthTokenSource(metadata.OidcTokenEndpoint, metadata.OidcClientID, metadata.OidcClientSecret, metadata.internalOidcScopes)
+	tokenProvider := metadata.getOAuthTokenSource()
 
 	if metadata.TLSCaCert != "" {
 		err := tokenProvider.addCa(metadata.TLSCaCert)
@@ -82,11 +82,9 @@ func updateOidcAuthInfo(config *sarama.Config, metadata *KafkaMetadata) error {
 		}
 	}
 
-	tokenProvider.skipCaVerify = metadata.TLSSkipVerify
-
 	config.Net.SASL.Enable = true
 	config.Net.SASL.Mechanism = sarama.SASLTypeOAuth
-	config.Net.SASL.TokenProvider = &tokenProvider
+	config.Net.SASL.TokenProvider = tokenProvider
 
 	return nil
 }

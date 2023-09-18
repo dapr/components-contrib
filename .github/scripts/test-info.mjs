@@ -120,6 +120,12 @@ const components = {
     'bindings.dubbo': {
         certification: true,
     },
+    'bindings.zeebe.command': {
+        certification: true,
+    },
+    'bindings.zeebe.jobworker': {
+        certification: true,
+    },
     'bindings.http': {
         conformance: true,
     },

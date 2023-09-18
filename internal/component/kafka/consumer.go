@@ -22,7 +22,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/cenkalti/backoff/v4"
 
 	"github.com/dapr/kit/retry"
@@ -96,7 +96,7 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 				}
 			// Should return when `session.Context()` is done.
 			// If not, will raise `ErrRebalanceInProgress` or `read tcp <ip>:<port>: i/o timeout` when kafka rebalance. see:
-			// https://github.com/Shopify/sarama/issues/1192
+			// https://github.com/IBM/sarama/issues/1192
 			case <-session.Context().Done():
 				return nil
 			}

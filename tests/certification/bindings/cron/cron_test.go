@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	goruntime "runtime"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -30,7 +31,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/bindings/cron"
-	"github.com/dapr/dapr/pkg/runtime"
+	"github.com/dapr/dapr/pkg/config/protocol"
 	"github.com/dapr/go-sdk/service/common"
 	"github.com/dapr/kit/logger"
 
@@ -109,11 +110,12 @@ func TestCronBindingTrigger(t *testing.T) {
 					appWithTriggerCounter(t, cronTest.clk, cronTest.cronName, triggeredCb),
 				)).
 				Step(sidecar.Run(sidecarName,
-					embedded.WithResourcesPath("./components"),
-					embedded.WithDaprGRPCPort(grpcPort),
-					embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-					embedded.WithDaprHTTPPort(httpPort),
-					componentRuntimeOptions(cronTest.clk),
+					append(componentRuntimeOptions(cronTest.clk),
+						embedded.WithResourcesPath("./components"),
+						embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+						embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+						embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+					)...,
 				)).
 				Step("run test", testFn).
 				Step("stop sidecar", sidecar.Stop(sidecarName)).
@@ -149,11 +151,12 @@ func TestCronBindingsWithSameRoute(t *testing.T) {
 			appWithTriggerCounter(t, clk, cronName, triggeredCb),
 		)).
 		Step(sidecar.Run(sidecarName,
-			embedded.WithResourcesPath("./components_sameroute"),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			componentRuntimeOptions(clk),
+			append(componentRuntimeOptions(clk),
+				embedded.WithResourcesPath("./components_sameroute"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+			)...,
 		)).
 		Step("run test", testFn).
 		Step("stop sidecar", sidecar.Stop(sidecarName)).
@@ -192,11 +195,12 @@ func TestCronBindingWithAppRestart(t *testing.T) {
 			appWithTriggerCounter(t, clk, cronName, triggeredCb),
 		)).
 		Step(sidecar.Run(sidecarName,
-			embedded.WithResourcesPath("./components"),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			componentRuntimeOptions(clk),
+			append(componentRuntimeOptions(clk),
+				embedded.WithResourcesPath("./components"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+			)...,
 		)).
 		Step("start counting executions", func(ctx flow.Context) error {
 			go func() {
@@ -259,11 +263,12 @@ func TestCronBindingWithSidecarRestart(t *testing.T) {
 			appWithTriggerCounter(t, clk, cronName, triggeredCb),
 		)).
 		Step(sidecar.Run(sidecarName,
-			embedded.WithResourcesPath("./components"),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			componentRuntimeOptions(clk),
+			append(componentRuntimeOptions(clk),
+				embedded.WithResourcesPath("./components"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+			)...,
 		)).
 		Step("start counting executions", func(ctx flow.Context) error {
 			go func() {
@@ -275,11 +280,12 @@ func TestCronBindingWithSidecarRestart(t *testing.T) {
 		Step("stop sidecar", sidecar.Stop(sidecarName)).
 		Step("wait before sidecar restart", flow.Sleep(waitBeforeSidecarRestart)).
 		Step(sidecar.Run(sidecarName,
-			embedded.WithResourcesPath("./components"),
-			embedded.WithDaprGRPCPort(grpcPort),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprHTTPPort(httpPort),
-			componentRuntimeOptions(clk),
+			append(componentRuntimeOptions(clk),
+				embedded.WithResourcesPath("./components"),
+				embedded.WithDaprGRPCPort(strconv.Itoa(grpcPort)),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(httpPort)),
+			)...,
 		)).
 		Step("assert cron triggered within deadline", func(ctx flow.Context) error {
 			// Assert number of executions
@@ -368,7 +374,7 @@ func appWithTriggerCounter(t *testing.T, clk clock.Clock, cronName string, trigg
 	}
 }
 
-func componentRuntimeOptions(clk clock.Clock) []runtime.Option {
+func componentRuntimeOptions(clk clock.Clock) []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	bindingsRegistry := bindings_loader.NewRegistry()
@@ -377,7 +383,7 @@ func componentRuntimeOptions(clk clock.Clock) []runtime.Option {
 	bindingsRegistry.RegisterInputBinding(func(l logger.Logger) bindings.InputBinding {
 		return cron.NewCronWithClock(l, clk)
 	}, "cron")
-	return []runtime.Option{
-		runtime.WithBindings(bindingsRegistry),
+	return []embedded.Option{
+		embedded.WithBindings(bindingsRegistry),
 	}
 }

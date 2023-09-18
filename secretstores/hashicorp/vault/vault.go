@@ -423,6 +423,10 @@ func (v *vaultSecretStore) initVaultToken() error {
 func (v *vaultSecretStore) createHTTPClient(config *tlsConfig) (*http.Client, error) {
 	tlsClientConfig := &tls.Config{MinVersion: tls.VersionTLS12}
 
+	if config != nil && config.vaultSkipVerify {
+		v.logger.Infof("hashicorp vault: you are using 'skipVerify' to skip server config verify which is unsafe!")
+	}
+
 	tlsClientConfig.InsecureSkipVerify = config.vaultSkipVerify
 	if !config.vaultSkipVerify {
 		rootCAPools, err := v.getRootCAsPools(config.vaultCAPem, config.vaultCAPath, config.vaultCACert)

@@ -97,6 +97,10 @@ func (r *resolver) Init(metadata nr.Metadata) (err error) {
 		return err
 	}
 
+	if r.config.Client.TLSConfig.InsecureSkipVerify {
+		r.logger.Infof("hashicorp consul: you are using 'insecureSkipVerify' to skip server config verify which is unsafe!")
+	}
+
 	err = r.client.InitClient(r.config.Client)
 	if err != nil {
 		return fmt.Errorf("failed to init consul client: %w", err)
@@ -145,14 +149,24 @@ func (r *resolver) ResolveID(req nr.ResolveRequest) (addr string, err error) {
 	}
 
 	if svc.Service.Address != "" {
-		addr = svc.Service.Address + ":" + port
+		addr = svc.Service.Address
 	} else if svc.Node.Address != "" {
-		addr = svc.Node.Address + ":" + port
+		addr = svc.Node.Address
 	} else {
 		return "", fmt.Errorf("no healthy services found with AppID '%s'", req.ID)
 	}
 
-	return addr, nil
+	return formatAddress(addr, port)
+}
+
+func formatAddress(address string, port string) (addr string, err error) {
+	if net.ParseIP(address).To4() != nil {
+		return address + ":" + port, nil
+	} else if net.ParseIP(address).To16() != nil {
+		return fmt.Sprintf("[%s]:%s", address, port), nil
+	}
+
+	return "", fmt.Errorf("invalid ip address %s", address)
 }
 
 // getConfig configuration from metadata, defaults are best suited for self-hosted mode.

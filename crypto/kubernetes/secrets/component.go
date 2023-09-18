@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 	"time"
@@ -65,7 +66,11 @@ func (k *kubeSecretsCrypto) Init(_ context.Context, metadata contribCrypto.Metad
 	}
 
 	// Init Kubernetes client
-	k.kubeClient, err = kubeclient.GetKubeClient(k.logger)
+	kubeconfigPath := k.md.KubeconfigPath
+	if kubeconfigPath == "" {
+		kubeconfigPath = kubeclient.GetKubeconfigPath(k.logger, os.Args)
+	}
+	k.kubeClient, err = kubeclient.GetKubeClient(kubeconfigPath)
 	if err != nil {
 		return fmt.Errorf("failed to init Kubernetes client: %w", err)
 	}

@@ -1,0 +1,32 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: zeebe-jobworker-test
+spec:
+  type: bindings.zeebe.jobworker
+  version: v1
+  metadata:
+    - name: gatewayAddr
+      value: localhost:26500
+    - name: gatewayKeepAlive
+      value: 45s
+    - name: usePlainTextConnection
+      value: true
+    - name: workerName
+      value: test-worker
+    - name: workerTimeout
+      value: 30s
+    - name: requestTimeout
+      value: 15s
+    - name: jobType
+      value: zeebe-jobworker-test
+    - name: maxJobsActive
+      value: 8
+    - name: concurrency
+      value: 4
+    - name: pollInterval
+      value: 100ms
+    - name: pollThreshold
+      value: 0.3
+    - name: autocomplete
+      value: false

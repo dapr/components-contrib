@@ -14,13 +14,14 @@ limitations under the License.
 package kafka
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 
 	"github.com/dapr/components-contrib/metadata"
 )
@@ -42,31 +43,33 @@ const (
 )
 
 type KafkaMetadata struct {
-	Brokers               string              `mapstructure:"brokers"`
-	internalBrokers       []string            `mapstructure:"-"`
-	ConsumerGroup         string              `mapstructure:"consumerGroup"`
-	ClientID              string              `mapstructure:"clientId"`
-	AuthType              string              `mapstructure:"authType"`
-	SaslUsername          string              `mapstructure:"saslUsername"`
-	SaslPassword          string              `mapstructure:"saslPassword"`
-	SaslMechanism         string              `mapstructure:"saslMechanism"`
-	InitialOffset         string              `mapstructure:"initialOffset"`
-	internalInitialOffset int64               `mapstructure:"-"`
-	MaxMessageBytes       int                 `mapstructure:"maxMessageBytes"`
-	OidcTokenEndpoint     string              `mapstructure:"oidcTokenEndpoint"`
-	OidcClientID          string              `mapstructure:"oidcClientID"`
-	OidcClientSecret      string              `mapstructure:"oidcClientSecret"`
-	OidcScopes            string              `mapstructure:"oidcScopes"`
-	internalOidcScopes    []string            `mapstructure:"-"`
-	TLSDisable            bool                `mapstructure:"disableTls"`
-	TLSSkipVerify         bool                `mapstructure:"skipVerify"`
-	TLSCaCert             string              `mapstructure:"caCert"`
-	TLSClientCert         string              `mapstructure:"clientCert"`
-	TLSClientKey          string              `mapstructure:"clientKey"`
-	ConsumeRetryEnabled   bool                `mapstructure:"consumeRetryEnabled"`
-	ConsumeRetryInterval  time.Duration       `mapstructure:"consumeRetryInterval"`
-	Version               string              `mapstructure:"version"`
-	internalVersion       sarama.KafkaVersion `mapstructure:"-"`
+	Brokers                string              `mapstructure:"brokers"`
+	internalBrokers        []string            `mapstructure:"-"`
+	ConsumerGroup          string              `mapstructure:"consumerGroup"`
+	ClientID               string              `mapstructure:"clientId"`
+	AuthType               string              `mapstructure:"authType"`
+	SaslUsername           string              `mapstructure:"saslUsername"`
+	SaslPassword           string              `mapstructure:"saslPassword"`
+	SaslMechanism          string              `mapstructure:"saslMechanism"`
+	InitialOffset          string              `mapstructure:"initialOffset"`
+	internalInitialOffset  int64               `mapstructure:"-"`
+	MaxMessageBytes        int                 `mapstructure:"maxMessageBytes"`
+	OidcTokenEndpoint      string              `mapstructure:"oidcTokenEndpoint"`
+	OidcClientID           string              `mapstructure:"oidcClientID"`
+	OidcClientSecret       string              `mapstructure:"oidcClientSecret"`
+	OidcScopes             string              `mapstructure:"oidcScopes"`
+	OidcExtensions         string              `mapstructure:"oidcExtensions"`
+	internalOidcScopes     []string            `mapstructure:"-"`
+	TLSDisable             bool                `mapstructure:"disableTls"`
+	TLSSkipVerify          bool                `mapstructure:"skipVerify"`
+	TLSCaCert              string              `mapstructure:"caCert"`
+	TLSClientCert          string              `mapstructure:"clientCert"`
+	TLSClientKey           string              `mapstructure:"clientKey"`
+	ConsumeRetryEnabled    bool                `mapstructure:"consumeRetryEnabled"`
+	ConsumeRetryInterval   time.Duration       `mapstructure:"consumeRetryInterval"`
+	Version                string              `mapstructure:"version"`
+	internalVersion        sarama.KafkaVersion `mapstructure:"-"`
+	internalOidcExtensions map[string]string   `mapstructure:"-"`
 }
 
 // upgradeMetadata updates metadata properties based on deprecated usage.
@@ -179,6 +182,12 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		} else {
 			k.logger.Warn("Warning: no OIDC scopes specified, using default 'openid' scope only. This is a security risk for token reuse.")
 			m.internalOidcScopes = []string{"openid"}
+		}
+		if m.OidcExtensions != "" {
+			err = json.Unmarshal([]byte(m.OidcExtensions), &m.internalOidcExtensions)
+			if err != nil || len(m.internalOidcExtensions) < 1 {
+				return nil, errors.New("kafka error: improper OIDC Extensions format for authType 'oidc'")
+			}
 		}
 		k.logger.Debug("Configuring SASL token authentication via OIDC.")
 	case mtlsAuthType:

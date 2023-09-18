@@ -19,6 +19,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -34,6 +35,7 @@ import (
 
 	pubsub_mqtt "github.com/dapr/components-contrib/pubsub/mqtt3"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
+	"github.com/dapr/dapr/pkg/config/protocol"
 
 	// Dapr runtime and Go-SDK
 	"github.com/dapr/dapr/pkg/runtime"
@@ -315,12 +317,13 @@ func TestMQTT(t *testing.T) {
 			application(consumerGroup1, appID1, topicName))).
 		// Run the Dapr sidecar with the MQTTPubSub component.
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer1"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			embedded.WithGracefulShutdownDuration(0),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer1"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+				embedded.WithGracefulShutdownDuration(0),
+			)...,
 		)).
 		//
 		// Send messages and test
@@ -332,13 +335,14 @@ func TestMQTT(t *testing.T) {
 			application(consumerGroup2, appID2, topicName))).
 		// Run the Dapr sidecar with the MQTTPubSub component.
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/consumer2"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			embedded.WithGracefulShutdownDuration(0),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer2"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+				embedded.WithGracefulShutdownDuration(0),
+			)...,
 		)).
 		//
 		// Send messages and test
@@ -358,13 +362,14 @@ func TestMQTT(t *testing.T) {
 			),
 		).
 		Step(sidecar.Run(sidecarName3,
-			embedded.WithComponentsPath("./components/consumer3"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+(portOffset*3)),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+(portOffset*3)),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+(portOffset*3)),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+(portOffset*3)),
-			embedded.WithGracefulShutdownDuration(0),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer3"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+(portOffset*3))),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+(portOffset*3))),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+(portOffset*3))),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+(portOffset*3))),
+				embedded.WithGracefulShutdownDuration(0),
+			)...,
 		)).
 		Step("send and wait wildcard", test(wildcardTopicPublish, consumerGroupMultiWildcard)).
 		Step("send and wait shared", test(sharedTopicPublish, consumerGroupMultiShared)).
@@ -378,22 +383,24 @@ func TestMQTT(t *testing.T) {
 		Step("stop sidecar 1", sidecar.Stop(sidecarName1)).
 		Step("wait 1", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarName2,
-			embedded.WithComponentsPath("./components/consumer2"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort+portOffset),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort+portOffset),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort+portOffset),
-			embedded.WithProfilePort(runtime.DefaultProfilePort+portOffset),
-			embedded.WithGracefulShutdownDuration(0),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer2"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort+portOffset)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort+portOffset)),
+				embedded.WithProfilePort(strconv.Itoa(runtime.DefaultProfilePort+portOffset)),
+				embedded.WithGracefulShutdownDuration(0),
+			)...,
 		)).
 		Step("wait 2", flow.Sleep(5*time.Second)).
 		Step(sidecar.Run(sidecarName1,
-			embedded.WithComponentsPath("./components/consumer1"),
-			embedded.WithAppProtocol(runtime.HTTPProtocol, appPort),
-			embedded.WithDaprGRPCPort(runtime.DefaultDaprAPIGRPCPort),
-			embedded.WithDaprHTTPPort(runtime.DefaultDaprHTTPPort),
-			embedded.WithGracefulShutdownDuration(0),
-			componentRuntimeOptions(),
+			append(componentRuntimeOptions(),
+				embedded.WithComponentsPath("./components/consumer1"),
+				embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(appPort)),
+				embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(runtime.DefaultDaprHTTPPort)),
+				embedded.WithGracefulShutdownDuration(0),
+			)...,
 		)).
 		Step("wait 3", flow.Sleep(5*time.Second)).
 		Step("assert messages 1", assertMessages(consumerGroup1, consumerGroup2)).
@@ -422,15 +429,15 @@ type topicSubscription struct {
 	route    string
 }
 
-func componentRuntimeOptions() []runtime.Option {
+func componentRuntimeOptions() []embedded.Option {
 	log := logger.NewLogger("dapr.components")
 
 	pubsubRegistry := pubsub_loader.NewRegistry()
 	pubsubRegistry.Logger = log
 	pubsubRegistry.RegisterComponent(pubsub_mqtt.NewMQTTPubSub, "mqtt3")
 
-	return []runtime.Option{
-		runtime.WithPubSubs(pubsubRegistry),
+	return []embedded.Option{
+		embedded.WithPubSubs(pubsubRegistry),
 	}
 }
 

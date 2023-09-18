@@ -97,13 +97,10 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 	}
 
 	// Performs migrations
-	migrate := &migrations{
-		Logger:            a.logger,
-		Pool:              a.db,
-		MetadataTableName: a.metadata.MetadataTableName,
+	err = performMigrations(ctx, a.db, a.logger, migrationOptions{
 		StateTableName:    a.metadata.TableName,
-	}
-	err = migrate.Perform(ctx)
+		MetadataTableName: a.metadata.MetadataTableName,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to perform migrations: %w", err)
 	}

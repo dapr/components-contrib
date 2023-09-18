@@ -19,8 +19,8 @@ import (
 
 	"github.com/dapr/components-contrib/internal/component/postgresql"
 	pginterfaces "github.com/dapr/components-contrib/internal/component/postgresql/interfaces"
-	pgmigrations "github.com/dapr/components-contrib/internal/component/postgresql/migrations"
 	sqlinternal "github.com/dapr/components-contrib/internal/component/sql"
+	pgmigrations "github.com/dapr/components-contrib/internal/component/sql/migrations/postgres"
 )
 
 // Performs the required migrations

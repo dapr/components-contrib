@@ -28,6 +28,7 @@ type Migrations struct {
 	Pool              *sql.DB
 	Logger            logger.Logger
 	MetadataTableName string
+	MetadataKey       string
 
 	conn *sql.Conn
 }
@@ -67,10 +68,12 @@ func (m *Migrations) Perform(ctx context.Context, migrationFns []sqlinternal.Mig
 
 	// Perform the migrations
 	err = sqlinternal.Migrate(ctx, sqlinternal.AdaptDatabaseSQLConn(m.conn), sqlinternal.MigrationOptions{
-		Logger:          m.Logger,
-		GetVersionQuery: fmt.Sprintf(`SELECT value FROM %s WHERE key = 'migrations'`, m.MetadataTableName),
+		Logger: m.Logger,
+		// Yes, we are using fmt.Sprintf for adding a value in a query.
+		// This comes from a constant hardcoded at development-time, and cannot be influenced by users. So, no risk of SQL injections here.
+		GetVersionQuery: fmt.Sprintf(`SELECT value FROM %s WHERE key = '%s'`, m.MetadataTableName, m.MetadataKey),
 		UpdateVersionQuery: func(version string) (string, any) {
-			return fmt.Sprintf(`REPLACE INTO %s (key, value) VALUES ('migrations', ?)`, m.MetadataTableName),
+			return fmt.Sprintf(`REPLACE INTO %s (key, value) VALUES ('%s', ?)`, m.MetadataTableName, m.MetadataKey),
 				version
 		},
 		EnsureMetadataTable: func(ctx context.Context) error {

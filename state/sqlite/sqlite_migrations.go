@@ -34,6 +34,7 @@ func performMigrations(ctx context.Context, db *sql.DB, logger logger.Logger, op
 		Pool:              db,
 		Logger:            logger,
 		MetadataTableName: opts.MetadataTableName,
+		MetadataKey:       "migrations",
 	}
 
 	return m.Perform(ctx, []sqlinternal.MigrationFn{

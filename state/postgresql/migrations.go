@@ -29,6 +29,7 @@ func performMigrations(ctx context.Context, db pginterfaces.PGXPoolConn, opts po
 		DB:                db,
 		Logger:            opts.Logger,
 		MetadataTableName: opts.MetadataTableName,
+		MetadataKey:       "migrations",
 	}
 
 	return m.Perform(ctx, []sqlinternal.MigrationFn{

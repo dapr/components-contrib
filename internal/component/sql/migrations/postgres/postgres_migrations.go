@@ -32,6 +32,7 @@ type Migrations struct {
 	DB                pginterfaces.PGXPoolConn
 	Logger            logger.Logger
 	MetadataTableName string
+	MetadataKey       string
 }
 
 // Perform the required migrations
@@ -64,10 +65,12 @@ func (m Migrations) Perform(ctx context.Context, migrationFns []sqlinternal.Migr
 	}()
 
 	return sqlinternal.Migrate(ctx, sqlinternal.AdaptPgxConn(m.DB), sqlinternal.MigrationOptions{
-		Logger:          m.Logger,
-		GetVersionQuery: fmt.Sprintf(`SELECT value FROM %s WHERE key = 'migrations'`, m.MetadataTableName),
+		Logger: m.Logger,
+		// Yes, we are using fmt.Sprintf for adding a value in a query.
+		// This comes from a constant hardcoded at development-time, and cannot be influenced by users. So, no risk of SQL injections here.
+		GetVersionQuery: fmt.Sprintf(`SELECT value FROM %s WHERE key = '%s'`, m.MetadataTableName, m.MetadataKey),
 		UpdateVersionQuery: func(version string) (string, any) {
-			return fmt.Sprintf(`INSERT INTO %s (key, value) VALUES ('migrations', $1) ON CONFLICT (key) DO UPDATE SET value = $1`, m.MetadataTableName),
+			return fmt.Sprintf(`INSERT INTO %s (key, value) VALUES ('%s', $1) ON CONFLICT (key) DO UPDATE SET value = $1`, m.MetadataTableName, m.MetadataKey),
 				version
 		},
 		EnsureMetadataTable: func(ctx context.Context) error {

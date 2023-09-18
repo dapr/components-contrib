@@ -11,7 +11,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package postgresql
+package pginterfaces
 
 import (
 	"context"
@@ -22,7 +22,7 @@ import (
 
 // Interface that contains methods for querying.
 // Applies to *pgx.Conn, *pgxpool.Pool, and pgx.Tx
-type dbquerier interface {
+type DBQuerier interface {
 	Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error)
 	Query(context.Context, string, ...interface{}) (pgx.Rows, error)
 	QueryRow(context.Context, string, ...interface{}) pgx.Row
@@ -31,7 +31,7 @@ type dbquerier interface {
 // Interface that applies to *pgxpool.Pool.
 // We need this to be able to mock the connection in tests.
 type PGXPoolConn interface {
-	dbquerier
+	DBQuerier
 
 	Begin(context.Context) (pgx.Tx, error)
 	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)

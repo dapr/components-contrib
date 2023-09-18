@@ -25,6 +25,7 @@ import (
 	pgxmock "github.com/pashagolub/pgxmock/v2"
 	"github.com/stretchr/testify/assert"
 
+	pginterfaces "github.com/dapr/components-contrib/internal/component/postgresql/interfaces"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -202,13 +203,13 @@ func mockDatabase(t *testing.T) (*mocks, error) {
 	}
 
 	dba := &PostgreSQL{
-		metadata: postgresMetadataStruct{
+		metadata: pgMetadata{
 			TableName: "state",
 			Timeout:   30 * time.Second,
 		},
 		logger: logger,
 		db:     db,
-		migrateFn: func(context.Context, PGXPoolConn, MigrateOptions) error {
+		migrateFn: func(context.Context, pginterfaces.PGXPoolConn, MigrateOptions) error {
 			return nil
 		},
 		setQueryFn: func(*state.SetRequest, SetQueryOptions) string {

@@ -28,6 +28,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	pginterfaces "github.com/dapr/components-contrib/internal/component/postgresql/interfaces"
 	internalsql "github.com/dapr/components-contrib/internal/component/sql"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -42,19 +43,19 @@ type PostgreSQL struct {
 	state.BulkStore
 
 	logger   logger.Logger
-	metadata postgresMetadataStruct
-	db       PGXPoolConn
+	metadata pgMetadata
+	db       pginterfaces.PGXPoolConn
 
 	gc internalsql.GarbageCollector
 
-	migrateFn     func(context.Context, PGXPoolConn, MigrateOptions) error
+	migrateFn     func(context.Context, pginterfaces.PGXPoolConn, MigrateOptions) error
 	setQueryFn    func(*state.SetRequest, SetQueryOptions) string
 	etagColumn    string
 	enableAzureAD bool
 }
 
 type Options struct {
-	MigrateFn     func(context.Context, PGXPoolConn, MigrateOptions) error
+	MigrateFn     func(context.Context, pginterfaces.PGXPoolConn, MigrateOptions) error
 	SetQueryFn    func(*state.SetRequest, SetQueryOptions) string
 	ETagColumn    string
 	EnableAzureAD bool
@@ -179,7 +180,7 @@ func (p *PostgreSQL) Set(ctx context.Context, req *state.SetRequest) error {
 	return p.doSet(ctx, p.db, req)
 }
 
-func (p *PostgreSQL) doSet(parentCtx context.Context, db dbquerier, req *state.SetRequest) error {
+func (p *PostgreSQL) doSet(parentCtx context.Context, db pginterfaces.DBQuerier, req *state.SetRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
@@ -410,7 +411,7 @@ func (p *PostgreSQL) Delete(ctx context.Context, req *state.DeleteRequest) (err 
 	return p.doDelete(ctx, p.db, req)
 }
 
-func (p *PostgreSQL) doDelete(parentCtx context.Context, db dbquerier, req *state.DeleteRequest) (err error) {
+func (p *PostgreSQL) doDelete(parentCtx context.Context, db pginterfaces.DBQuerier, req *state.DeleteRequest) (err error) {
 	if req.Key == "" {
 		return errors.New("missing key in delete operation")
 	}
@@ -552,7 +553,7 @@ func (p *PostgreSQL) rollbackTx(parentCtx context.Context, tx pgx.Tx, methodName
 }
 
 func (p *PostgreSQL) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := postgresMetadataStruct{}
+	metadataStruct := pgMetadata{}
 	metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.StateStoreType)
 	return
 }

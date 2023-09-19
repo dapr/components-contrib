@@ -82,6 +82,9 @@ func (r *Redis) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		case bindings.GetOperation:
 			data, err := r.client.Get(ctx, key)
 			if err != nil {
+				if err.Error() == "redis: nil" {
+					return &bindings.InvokeResponse{}, nil
+				}
 				return nil, err
 			}
 			rep := &bindings.InvokeResponse{}

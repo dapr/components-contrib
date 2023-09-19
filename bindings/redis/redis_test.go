@@ -77,6 +77,13 @@ func TestInvokeGet(t *testing.T) {
 	})
 	assert.Equal(t, nil, err)
 	assert.Equal(t, true, string(bindingRes.Data) == testData)
+
+	bindingRes2, err2 := bind.Invoke(context.TODO(), &bindings.InvokeRequest{
+		Metadata:  map[string]string{"key": "doesnotexist"},
+		Operation: bindings.GetOperation,
+	})
+	assert.NoError(t, err2)
+	assert.Nil(t, bindingRes2.Data)
 }
 
 func TestInvokeDelete(t *testing.T) {

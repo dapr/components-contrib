@@ -17,8 +17,8 @@ module "oidc" {
   source      = "terraform-google-modules/github-actions-runners/google//modules/gh-oidc"
   version     = "~> 3.1.1"
   project_id  = var.project_id
-  pool_id     = "${var.wif_pool_name}-gh-pool"
-  provider_id = "${var.wif_pool_name}-gh-provider"
+  pool_id     = "${var.wif_pool_name}-pool"
+  provider_id = "${var.wif_pool_name}-provider"
   sa_mapping = {
     (google_service_account.sa.account_id) = {
       sa_name   = google_service_account.sa.name

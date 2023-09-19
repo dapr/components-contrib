@@ -54,16 +54,16 @@ Before this module can be used on a project, you must ensure that the following 
 $ terraform init
 
 $ terraform refresh -var="gh_repo=dapr/components-contrib" \
-                 -var="project_id=dapr-tests" -var="service_account=comp-contrib-wif" \
-                 -var="wif_pool_name=contrib-cert-tests"
+                 -var="project_id=dapr-tests" -var="service_account=dapr-contrib-wif-sa" \
+                 -var="wif_pool_name=dapr-contrib-cert-tests"
 
 $ terraform plan -var="gh_repo=dapr/components-contrib" \
-                 -var="project_id=dapr-tests" -var="service_account=comp-contrib-wif" \
-                 -var="wif_pool_name=contrib-cert-tests"
+                 -var="project_id=dapr-tests" -var="service_account=dapr-contrib-wif-sa" \
+                 -var="wif_pool_name=dapr-contrib-cert-tests"
 
 $ terraform apply --auto-approve -var="gh_repo=dapr/components-contrib" \
-                 -var="project_id=dapr-tests" -var="service_account=comp-contrib-wif" \
-                 -var="wif_pool_name=contrib-cert-tests"
+                 -var="project_id=dapr-tests" -var="service_account=dapr-contrib-wif-sa" \
+                 -var="wif_pool_name=dapr-contrib-cert-tests"
 ```
 
 
@@ -72,7 +72,7 @@ $ terraform apply --auto-approve -var="gh_repo=dapr/components-contrib" \
 ```
 $ terraform output                                                   
     
-pool_name = "projects/***/locations/global/workloadIdentityPools/contrib-cert-tests-gh-pool"
-provider_name = "projects/***/locations/global/workloadIdentityPools/contrib-cert-tests-gh-pool/providers/contrib-cert-tests-gh-provider"
+pool_name = "projects/***/locations/global/workloadIdentityPools/dapr-contrib-cert-tests-pool"
+provider_name = "projects/***/locations/global/workloadIdentityPools/dapr-contrib-cert-tests-pool/providers/dapr-contrib-cert-tests-provider"
 sa_email = "***"
 ```

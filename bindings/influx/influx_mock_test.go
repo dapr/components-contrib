@@ -32,18 +32,6 @@ func NewMockWriteAPIBlocking(ctrl *gomock.Controller) *MockWriteAPIBlocking {
 	return mock
 }
 
-// WriteRecord(ctx context.Context, line ...string) error
-// // WritePoint data point into bucket.
-// // WriteRecord writes points without implicit batching by default, batch is created from given number of points.
-// // Automatic batching can be enabled by EnableBatching().
-// // Non-blocking alternative is available in the WriteAPI interface
-// WritePoint(ctx context.Context, point ...*write.Point) error
-// // EnableBatching turns on implicit batching
-// // Batch size is controlled via write.Options
-// EnableBatching()
-// // Flush forces write of buffer if batching is enabled, even buffer doesn't have the batch-size.
-// Flush(ctx context.Context) error
-
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockWriteAPIBlocking) EXPECT() *MockWriteAPIBlockingMockRecorder {
 	return m.recorder

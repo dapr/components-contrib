@@ -62,29 +62,47 @@ type agentInterface interface {
 
 type healthInterface interface {
 	Service(service, tag string, passingOnly bool, q *consul.QueryOptions) ([]*consul.ServiceEntry, *consul.QueryMeta, error)
+	State(state string, q *consul.QueryOptions) (consul.HealthChecks, *consul.QueryMeta, error)
 }
 
 type resolver struct {
-	config   resolverConfig
-	logger   logger.Logger
-	client   clientInterface
-	registry registryInterface
+	config         resolverConfig
+	logger         logger.Logger
+	client         clientInterface
+	registry       registryInterface
+	watcherStarted bool
+	watcherMutex   sync.Mutex
 }
 
 type registryInterface interface {
+	getKeys() []string
 	get(service string) *registryEntry
 	expire(service string) // clears slice of instances
+	expireAll()            // clears slice of instances for all entries
 	remove(service string) // removes entry from registry
+	removeAll()            // removes all entries from registry
 	addOrUpdate(service string, services []*consul.ServiceEntry)
+	registrationChannel() chan string
 }
 
 type registry struct {
-	entries *sync.Map
+	entries        *sync.Map
+	serviceChannel chan string
 }
 
 type registryEntry struct {
 	services []*consul.ServiceEntry
 	mu       sync.RWMutex
+}
+
+func (r *registry) getKeys() []string {
+	var keys []string
+	r.entries.Range(func(key any, value any) bool {
+		k := key.(string)
+		keys = append(keys, k)
+		return true
+	})
+	return keys
 }
 
 func (r *registry) get(service string) *registryEntry {
@@ -111,6 +129,10 @@ func (r *resolver) getService(service string) (*consul.ServiceEntry, error) {
 	var services []*consul.ServiceEntry
 
 	if r.config.UseCache {
+		if !r.watcherStarted {
+			r.startWatcher()
+		}
+
 		var entry *registryEntry
 
 		if entry = r.registry.get(service); entry != nil {
@@ -120,7 +142,7 @@ func (r *resolver) getService(service string) (*consul.ServiceEntry, error) {
 				return result, nil
 			}
 		} else {
-			r.watchService(service)
+			r.registry.registrationChannel() <- service
 		}
 	}
 
@@ -162,6 +184,13 @@ func (r *registry) remove(service string) {
 	r.entries.Delete(service)
 }
 
+func (r *registry) removeAll() {
+	r.entries.Range(func(key any, value any) bool {
+		r.remove(key.(string))
+		return true
+	})
+}
+
 func (r *registry) expire(service string) {
 	var entry *registryEntry
 
@@ -175,6 +204,17 @@ func (r *registry) expire(service string) {
 	entry.services = nil
 }
 
+func (r *registry) expireAll() {
+	r.entries.Range(func(key any, value any) bool {
+		r.expire(key.(string))
+		return true
+	})
+}
+
+func (r *registry) registrationChannel() chan string {
+	return r.serviceChannel
+}
+
 type resolverConfig struct {
 	Client          *consul.Config
 	QueryOptions    *consul.QueryOptions
@@ -185,7 +225,7 @@ type resolverConfig struct {
 
 // NewResolver creates Consul name resolver.
 func NewResolver(logger logger.Logger) nr.Resolver {
-	return newResolver(logger, resolverConfig{}, &client{}, &registry{entries: &sync.Map{}})
+	return newResolver(logger, resolverConfig{}, &client{}, &registry{entries: &sync.Map{}, serviceChannel: make(chan string, 100)})
 }
 
 func newResolver(logger logger.Logger, resolverConfig resolverConfig, client clientInterface, registry registryInterface) nr.Resolver {

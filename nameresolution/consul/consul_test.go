@@ -57,6 +57,29 @@ type mockHealth struct {
 	serviceBehavior func(service, tag string, passingOnly bool, q *consul.QueryOptions)
 	serviceResult   []*consul.ServiceEntry
 	serviceMeta     *consul.QueryMeta
+
+	stateCallStarted int
+	stateCalled      int
+	stateError       *error
+	stateBehaviour   func(state string, q *consul.QueryOptions)
+	stateResult      consul.HealthChecks
+	stateMeta        *consul.QueryMeta
+}
+
+func (m *mockHealth) State(state string, q *consul.QueryOptions) (consul.HealthChecks, *consul.QueryMeta, error) {
+	m.stateCallStarted++
+
+	if m.stateBehaviour != nil {
+		m.stateBehaviour(state, q)
+	}
+
+	m.stateCalled++
+
+	if m.stateError == nil {
+		return m.stateResult, m.stateMeta, nil
+	}
+
+	return m.stateResult, m.stateMeta, *m.stateError
 }
 
 func (m *mockHealth) Service(service, tag string, passingOnly bool, q *consul.QueryOptions) ([]*consul.ServiceEntry, *consul.QueryMeta, error) {
@@ -94,14 +117,49 @@ func (m *mockAgent) ServiceRegister(service *consul.AgentServiceRegistration) er
 }
 
 type mockRegistry struct {
-	addOrUpdateCalled int
-	expireCalled      int
-	removeCalled      int
-	getCalled         int
-	getResult         *registryEntry
+	getKeysCalled         int
+	getKeysResult         *[]string
+	getKeysBehaviour      func()
+	addOrUpdateCalled     int
+	addOrUpdateBehaviour  func(service string, services []*consul.ServiceEntry)
+	expireCalled          int
+	expireAllCalled       int
+	removeCalled          int
+	removeAllCalled       int
+	getCalled             int
+	getResult             *registryEntry
+	registerChannelCalled int
+	registerChannelResult chan string
+}
+
+func (m *mockRegistry) registrationChannel() chan string {
+	m.registerChannelCalled++
+	return m.registerChannelResult
+}
+
+func (m *mockRegistry) getKeys() []string {
+	if m.getKeysBehaviour != nil {
+		m.getKeysBehaviour()
+	}
+
+	m.getKeysCalled++
+
+	return *m.getKeysResult
+}
+
+func (m *mockRegistry) expireAll() {
+	m.expireAllCalled++
+}
+
+func (m *mockRegistry) removeAll() {
+	m.removeAllCalled++
 }
 
 func (m *mockRegistry) addOrUpdate(service string, services []*consul.ServiceEntry) {
+	if m.addOrUpdateBehaviour != nil {
+		m.addOrUpdateBehaviour(service, services)
+	}
+
 	m.addOrUpdateCalled++
 }
 
@@ -222,7 +280,6 @@ func TestResolveID(t *testing.T) {
 				t.Helper()
 
 				blockingCall := make(chan uint64)
-				firstTime := true
 				meta := &consul.QueryMeta{
 					LastIndex: 0,
 				}
@@ -239,18 +296,43 @@ func TestResolveID(t *testing.T) {
 					},
 				}
 
+				cachedEntries := []*consul.ServiceEntry{
+					{
+						Service: &consul.AgentService{
+							Address: "10.3.245.137",
+							Port:    8600,
+							Meta: map[string]string{
+								"DAPR_PORT": "70007",
+							},
+						},
+					},
+				}
+
+				healthChecks := consul.HealthChecks{
+					&consul.HealthCheck{
+						Node:        "0e1234",
+						ServiceID:   "test-app-10.3.245.137-3500",
+						ServiceName: "test-app",
+						Status:      consul.HealthPassing,
+					},
+				}
+
 				mock := &mockClient{
 					mockHealth: mockHealth{
+						// Service()
 						serviceResult: serviceEntries,
 						serviceMeta:   meta,
 						serviceBehavior: func(service, tag string, passingOnly bool, q *consul.QueryOptions) {
-							if firstTime {
-								firstTime = false
-							} else {
-								meta.LastIndex = <-blockingCall
-							}
 						},
 						serviceErr: nil,
+
+						// State()
+						stateResult: healthChecks,
+						stateMeta:   meta,
+						stateBehaviour: func(state string, q *consul.QueryOptions) {
+							meta.LastIndex = <-blockingCall
+						},
+						stateError: nil,
 					},
 				}
 
@@ -260,54 +342,80 @@ func TestResolveID(t *testing.T) {
 					QueryOptions:    &consul.QueryOptions{},
 				}
 
-				mockReg := &mockRegistry{}
+				serviceKeys := make([]string, 0, 10)
+
+				mockReg := &mockRegistry{
+					registerChannelResult: make(chan string, 100),
+					getKeysResult:         &serviceKeys,
+					addOrUpdateBehaviour: func(service string, services []*consul.ServiceEntry) {
+						if services == nil {
+							serviceKeys = append(serviceKeys, service)
+						}
+					},
+				}
 				resolver := newResolver(logger.NewLogger("test"), cfg, mock, mockReg)
 				addr, _ := resolver.ResolveID(req)
 
-				// Cache miss pass through
+				// no apps in registry - cache miss, call agent directly
 				assert.Equal(t, 1, mockReg.getCalled)
-				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled == 1 })
-				assert.Equal(t, 1, mockReg.addOrUpdateCalled)
+				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.getKeysCalled == 2 })
+				assert.Equal(t, 1, mock.mockHealth.serviceCalled)
 				assert.Equal(t, "10.3.245.137:50005", addr)
 
+				// watcher adds app to registry
+				assert.Equal(t, 1, mockReg.addOrUpdateCalled)
+				assert.Equal(t, 2, mockReg.getKeysCalled)
+
+				mockReg.registerChannelResult <- "test-app"
 				mockReg.getResult = &registryEntry{
-					services: serviceEntries,
+					services: cachedEntries,
 				}
 
+				// blocking query - return new index
 				blockingCall <- 2
-				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled == 2 })
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted == 2 })
+				assert.Equal(t, 1, mock.mockHealth.stateCalled)
+
+				// get healthy nodes and update registry for service in result
+				assert.Equal(t, 2, mock.mockHealth.serviceCalled)
 				assert.Equal(t, 2, mockReg.addOrUpdateCalled)
+
+				// resolve id should only hit cache now
+				addr, _ = resolver.ResolveID(req)
+				assert.Equal(t, "10.3.245.137:70007", addr)
+				addr, _ = resolver.ResolveID(req)
+				assert.Equal(t, "10.3.245.137:70007", addr)
+				addr, _ = resolver.ResolveID(req)
+				assert.Equal(t, "10.3.245.137:70007", addr)
+
+				assert.Equal(t, 2, mock.mockHealth.serviceCalled)
+				assert.Equal(t, 4, mockReg.getCalled)
 
 				// no update when no change in index and payload
 				blockingCall <- 2
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted == 3 })
+				assert.Equal(t, 2, mock.mockHealth.stateCalled)
+				assert.Equal(t, 2, mock.mockHealth.serviceCalled)
 				assert.Equal(t, 2, mockReg.addOrUpdateCalled)
 
 				// no update when no change in payload
 				blockingCall <- 3
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted == 4 })
+				assert.Equal(t, 3, mock.mockHealth.stateCalled)
+				assert.Equal(t, 2, mock.mockHealth.serviceCalled)
 				assert.Equal(t, 2, mockReg.addOrUpdateCalled)
 
 				// update when change in index and payload
-				mock.mockHealth.serviceResult = []*consul.ServiceEntry{
-					{
-						Service: &consul.AgentService{
-							Address: "10.3.245.137",
-							Port:    8601,
-							Meta: map[string]string{
-								"DAPR_PORT": "50005",
-							},
-						},
-					},
-				}
+				mock.mockHealth.stateResult[0].Status = consul.HealthCritical
 				blockingCall <- 4
-				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled == 3 })
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted == 5 })
+				assert.Equal(t, 4, mock.mockHealth.stateCalled)
+				assert.Equal(t, 3, mock.mockHealth.serviceCalled)
 				assert.Equal(t, 3, mockReg.addOrUpdateCalled)
-
-				_, _ = resolver.ResolveID(req)
-				assert.Equal(t, 2, mockReg.getCalled)
 			},
 		},
 		{
-			"should remove from cache if watch panic",
+			"should remove all from cache if watcher loop panics",
 			nr.ResolveRequest{
 				ID: "test-app",
 			},
@@ -317,9 +425,10 @@ func TestResolveID(t *testing.T) {
 				meta := &consul.QueryMeta{
 					LastIndex: 0,
 				}
-				firstTime := true
+
 				mock := mockClient{
 					mockHealth: mockHealth{
+						// Service()
 						serviceResult: []*consul.ServiceEntry{
 							{
 								Service: &consul.AgentService{
@@ -333,11 +442,6 @@ func TestResolveID(t *testing.T) {
 						},
 						serviceMeta: meta,
 						serviceBehavior: func(service, tag string, passingOnly bool, q *consul.QueryOptions) {
-							if firstTime {
-								firstTime = false
-							} else {
-								panic("oh no")
-							}
 						},
 						serviceErr: nil,
 					},
@@ -349,7 +453,17 @@ func TestResolveID(t *testing.T) {
 					QueryOptions:    &consul.QueryOptions{},
 				}
 
-				mockReg := &mockRegistry{}
+				serviceKeys := make([]string, 0, 10)
+
+				mockReg := &mockRegistry{
+					registerChannelResult: make(chan string, 100),
+					getKeysResult:         &serviceKeys,
+					addOrUpdateBehaviour: func(service string, services []*consul.ServiceEntry) {
+						if services == nil {
+							serviceKeys = append(serviceKeys, service)
+						}
+					},
+				}
 				resolver := newResolver(logger.NewLogger("test"), cfg, &mock, mockReg)
 				addr, _ := resolver.ResolveID(req)
 
@@ -359,14 +473,17 @@ func TestResolveID(t *testing.T) {
 				assert.Equal(t, 1, mockReg.addOrUpdateCalled)
 				assert.Equal(t, "10.3.245.137:50005", addr)
 
+				mockReg.getKeysBehaviour = func() { panic("oh no") }
+				mockReg.registerChannelResult <- "test-app"
+
 				// Remove
-				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.removeCalled == 1 })
+				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.removeAllCalled == 1 })
 				assert.Equal(t, 0, mockReg.expireCalled)
-				assert.Equal(t, 1, mockReg.removeCalled)
+				assert.Equal(t, 1, mockReg.removeAllCalled)
 			},
 		},
 		{
-			"should use stale agent cache if available",
+			"should only update cache on change",
 			nr.ResolveRequest{
 				ID: "test-app",
 			},
@@ -374,13 +491,47 @@ func TestResolveID(t *testing.T) {
 				t.Helper()
 
 				blockingCall := make(chan uint64)
-				firstTime := true
 				meta := &consul.QueryMeta{}
 
 				var err error
 
+				// Node 1 all checks healthy
+				node1check1 := &consul.HealthCheck{
+					Node:        "0e1234",
+					ServiceID:   "test-app-10.3.245.137-3500",
+					ServiceName: "test-app",
+					Status:      consul.HealthPassing,
+					CheckID:     "1",
+				}
+
+				node1check2 := &consul.HealthCheck{
+					Node:        "0e1234",
+					ServiceID:   "test-app-10.3.245.137-3500",
+					ServiceName: "test-app",
+					Status:      consul.HealthPassing,
+					CheckID:     "2",
+				}
+
+				// Node 2 all checks unhealthy
+				node2check1 := &consul.HealthCheck{
+					Node:        "0e9878",
+					ServiceID:   "test-app-10.3.245.127-3500",
+					ServiceName: "test-app",
+					Status:      consul.HealthCritical,
+					CheckID:     "1",
+				}
+
+				node2check2 := &consul.HealthCheck{
+					Node:        "0e9878",
+					ServiceID:   "test-app-10.3.245.127-3500",
+					ServiceName: "test-app",
+					Status:      consul.HealthCritical,
+					CheckID:     "2",
+				}
+
 				mock := mockClient{
 					mockHealth: mockHealth{
+						// Service()
 						serviceResult: []*consul.ServiceEntry{
 							{
 								Service: &consul.AgentService{
@@ -392,21 +543,22 @@ func TestResolveID(t *testing.T) {
 								},
 							},
 						},
-						serviceMeta: meta,
-						serviceBehavior: func(service, tag string, passingOnly bool, q *consul.QueryOptions) {
-							if firstTime {
-								firstTime = false
-							} else {
-								if q.WaitIndex > 0 {
-									err = fmt.Errorf("oh no")
-								} else {
-									err = nil
-								}
+						serviceMeta:     meta,
+						serviceBehavior: nil,
+						serviceErr:      &err,
 
-								meta.LastIndex = <-blockingCall
-							}
+						// State()
+						stateResult: consul.HealthChecks{
+							node1check1,
+							node1check2,
+							node2check1,
+							node2check2,
 						},
-						serviceErr: &err,
+						stateMeta: meta,
+						stateBehaviour: func(state string, q *consul.QueryOptions) {
+							meta.LastIndex = <-blockingCall
+						},
+						stateError: nil,
 					},
 				}
 
@@ -418,29 +570,90 @@ func TestResolveID(t *testing.T) {
 					},
 				}
 
-				mockReg := &mockRegistry{}
+				serviceKeys := make([]string, 0, 10)
+
+				mockReg := &mockRegistry{
+					registerChannelResult: make(chan string, 100),
+					getKeysResult:         &serviceKeys,
+					addOrUpdateBehaviour: func(service string, services []*consul.ServiceEntry) {
+						if services == nil {
+							serviceKeys = append(serviceKeys, service)
+						}
+					},
+				}
 				resolver := newResolver(logger.NewLogger("test"), cfg, &mock, mockReg)
 				addr, _ := resolver.ResolveID(req)
 
-				// Cache miss pass through
+				// no apps in registry - cache miss, call agent directly
 				assert.Equal(t, 1, mockReg.getCalled)
 				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled == 1 })
-				assert.Equal(t, 1, mockReg.addOrUpdateCalled)
+				assert.Equal(t, 1, mock.mockHealth.serviceCalled)
 				assert.Equal(t, "10.3.245.137:50005", addr)
 
-				// Blocking call will error as WaitIndex = 1
+				// watcher adds app to registry
+				assert.Equal(t, 1, mockReg.addOrUpdateCalled)
+				assert.Equal(t, 2, mockReg.getKeysCalled)
+
+				// add key to mock registry - trigger watcher
+				mockReg.registerChannelResult <- "test-app"
+				mockReg.getResult = &registryEntry{
+					services: mock.mockHealth.serviceResult,
+				}
+
+				// blocking query - return new index
 				blockingCall <- 2
-				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.serviceCalled == 2 })
+				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled == 2 })
+				assert.Equal(t, 1, mock.mockHealth.stateCalled)
+
+				// get healthy nodes and update registry for service in result
+				assert.Equal(t, 2, mock.mockHealth.serviceCalled)
+				assert.Equal(t, 2, mockReg.addOrUpdateCalled)
+
+				// resolve id should only hit cache now
+				_, _ = resolver.ResolveID(req)
+				_, _ = resolver.ResolveID(req)
+				_, _ = resolver.ResolveID(req)
 				assert.Equal(t, 2, mock.mockHealth.serviceCalled)
 
-				// Will make a non-blocking call to stale cache
-				meta.CacheHit = true
-				meta.CacheAge = time.Hour
+				// change one check for node1 app to critical
+				node1check1.Status = consul.HealthCritical
+
+				// blocking query - return new index - node1 app is now unhealthy
 				blockingCall <- 3
-				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.serviceCalled == 3 })
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted == 3 })
+				assert.Equal(t, 2, mock.mockHealth.stateCalled)
 				assert.Equal(t, 3, mock.mockHealth.serviceCalled)
-				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled == 2 })
-				assert.Equal(t, 2, mockReg.addOrUpdateCalled)
+				assert.Equal(t, 3, mockReg.addOrUpdateCalled)
+
+				// change remaining check for node1 app to critical
+				node1check2.Status = consul.HealthCritical
+
+				// blocking query - return new index - node1 app is still unhealthy, no change
+				blockingCall <- 4
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted == 4 })
+				assert.Equal(t, 3, mock.mockHealth.stateCalled)
+				assert.Equal(t, 3, mock.mockHealth.serviceCalled)
+				assert.Equal(t, 3, mockReg.addOrUpdateCalled)
+
+				// change one check for node2 app to healthy
+				node2check1.Status = consul.HealthPassing
+
+				// blocking query - return new index - node2 app is still unhealthy, no change
+				blockingCall <- 4
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted == 5 })
+				assert.Equal(t, 4, mock.mockHealth.stateCalled)
+				assert.Equal(t, 3, mock.mockHealth.serviceCalled)
+				assert.Equal(t, 3, mockReg.addOrUpdateCalled)
+
+				// change remaining check for node2 app to healthy
+				node2check2.Status = consul.HealthPassing
+
+				// blocking query - return new index - node2 app is now healthy
+				blockingCall <- 5
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted == 6 })
+				assert.Equal(t, 5, mock.mockHealth.stateCalled)
+				assert.Equal(t, 4, mock.mockHealth.serviceCalled)
+				assert.Equal(t, 4, mockReg.addOrUpdateCalled)
 			},
 		},
 		{
@@ -452,35 +665,49 @@ func TestResolveID(t *testing.T) {
 				t.Helper()
 
 				blockingCall := make(chan uint64)
-				firstTime := true
 				meta := &consul.QueryMeta{
 					LastIndex: 0,
 				}
 
 				err := fmt.Errorf("oh no")
 
-				mock := mockClient{
-					mockHealth: mockHealth{
-						serviceResult: []*consul.ServiceEntry{
-							{
-								Service: &consul.AgentService{
-									Address: "10.3.245.137",
-									Port:    8600,
-									Meta: map[string]string{
-										"DAPR_PORT": "50005",
-									},
-								},
+				serviceEntries := []*consul.ServiceEntry{
+					{
+						Service: &consul.AgentService{
+							Address: "10.3.245.137",
+							Port:    8600,
+							Meta: map[string]string{
+								"DAPR_PORT": "50005",
 							},
 						},
-						serviceMeta: meta,
+					},
+				}
+
+				healthChecks := consul.HealthChecks{
+					&consul.HealthCheck{
+						Node:        "0e1234",
+						ServiceID:   "test-app-10.3.245.137-3500",
+						ServiceName: "test-app",
+						Status:      consul.HealthPassing,
+					},
+				}
+
+				mock := &mockClient{
+					mockHealth: mockHealth{
+						// Service()
+						serviceResult: serviceEntries,
+						serviceMeta:   meta,
 						serviceBehavior: func(service, tag string, passingOnly bool, q *consul.QueryOptions) {
-							if firstTime {
-								firstTime = false
-							} else {
-								meta.LastIndex = <-blockingCall
-							}
 						},
 						serviceErr: nil,
+
+						// State()
+						stateResult: healthChecks,
+						stateMeta:   meta,
+						stateBehaviour: func(state string, q *consul.QueryOptions) {
+							meta.LastIndex = <-blockingCall
+						},
+						stateError: nil,
 					},
 				}
 
@@ -490,23 +717,44 @@ func TestResolveID(t *testing.T) {
 					QueryOptions:    &consul.QueryOptions{},
 				}
 
-				mockReg := &mockRegistry{}
-				resolver := newResolver(logger.NewLogger("test"), cfg, &mock, mockReg)
+				serviceKeys := make([]string, 0, 10)
+
+				mockReg := &mockRegistry{
+					registerChannelResult: make(chan string, 100),
+					getKeysResult:         &serviceKeys,
+					addOrUpdateBehaviour: func(service string, services []*consul.ServiceEntry) {
+						if services == nil {
+							serviceKeys = append(serviceKeys, service)
+						}
+					},
+				}
+				resolver := newResolver(logger.NewLogger("test"), cfg, mock, mockReg)
 				addr, _ := resolver.ResolveID(req)
 
 				// Cache miss pass through
 				assert.Equal(t, 1, mockReg.getCalled)
 				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled == 1 })
+				assert.Equal(t, 1, mock.mockHealth.serviceCalled)
 				assert.Equal(t, 1, mockReg.addOrUpdateCalled)
 				assert.Equal(t, "10.3.245.137:50005", addr)
 
-				// Error and release blocking call
-				mock.mockHealth.serviceErr = &err
-				blockingCall <- 2
+				mockReg.getKeysResult = &serviceKeys
+				mockReg.registerChannelResult <- "test-app"
+				mockReg.getResult = &registryEntry{
+					services: serviceEntries,
+				}
 
-				// Cache expired
-				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.expireCalled == 1 })
-				assert.Equal(t, 1, mockReg.expireCalled)
+				blockingCall <- 2
+				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled == 2 })
+				assert.Equal(t, 1, mock.mockHealth.stateCalled)
+				assert.Equal(t, 2, mock.mockHealth.serviceCalled)
+				assert.Equal(t, 2, mockReg.addOrUpdateCalled)
+
+				mock.mockHealth.stateError = &err
+				blockingCall <- 3
+				blockingCall <- 3
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted == 2 })
+				assert.Equal(t, 1, mockReg.expireAllCalled)
 			},
 		},
 		{
@@ -798,7 +1046,33 @@ func TestRegistry(t *testing.T) {
 
 				entryMap := &sync.Map{}
 				entryMap.Store(
-					appID,
+					"A",
+					&registryEntry{
+						services: []*consul.ServiceEntry{
+							{
+								Service: &consul.AgentService{
+									Address: "10.3.245.137",
+									Port:    8600,
+								},
+							},
+						},
+					})
+
+				entryMap.Store(
+					"B",
+					&registryEntry{
+						services: []*consul.ServiceEntry{
+							{
+								Service: &consul.AgentService{
+									Address: "10.3.245.137",
+									Port:    8600,
+								},
+							},
+						},
+					})
+
+				entryMap.Store(
+					"C",
 					&registryEntry{
 						services: []*consul.ServiceEntry{
 							{
@@ -814,13 +1088,27 @@ func TestRegistry(t *testing.T) {
 					entries: entryMap,
 				}
 
-				entry, _ := registry.entries.Load(appID)
-				assert.NotNil(t, entry.(*registryEntry).services)
+				result, _ := registry.entries.Load("A")
+				assert.NotNil(t, result.(*registryEntry).services)
 
-				registry.expire(appID)
+				registry.expire("A")
 
-				entry, _ = registry.entries.Load(appID)
-				assert.Nil(t, entry.(*registryEntry).services)
+				result, _ = registry.entries.Load("A")
+				assert.Nil(t, result.(*registryEntry).services)
+
+				registry.expireAll()
+				count := 0
+				nilCount := 0
+				registry.entries.Range(func(key, value any) bool {
+					count++
+					if value.(*registryEntry).services == nil {
+						nilCount++
+					}
+					return true
+				})
+
+				assert.Equal(t, 3, count)
+				assert.Equal(t, 3, nilCount)
 			},
 		},
 		{
@@ -829,27 +1117,42 @@ func TestRegistry(t *testing.T) {
 				t.Helper()
 
 				entryMap := &sync.Map{}
-				entryMap.Store(
-					appID,
-					&registryEntry{
-						services: []*consul.ServiceEntry{
-							{
-								Service: &consul.AgentService{
-									Address: "10.3.245.137",
-									Port:    8600,
-								},
+				entry := &registryEntry{
+					services: []*consul.ServiceEntry{
+						{
+							Service: &consul.AgentService{
+								Address: "10.3.245.137",
+								Port:    8600,
 							},
 						},
-					})
+					},
+				}
+
+				entryMap.Store("A", entry)
+				entryMap.Store("B", entry)
+				entryMap.Store("C", entry)
+				entryMap.Store("D", entry)
 
 				registry := &registry{
 					entries: entryMap,
 				}
 
-				registry.remove(appID)
+				registry.remove("A")
 
-				entry, _ := registry.entries.Load(appID)
-				assert.Nil(t, entry)
+				result, _ := registry.entries.Load("A")
+				assert.Nil(t, result)
+
+				result, _ = registry.entries.Load("B")
+				assert.NotNil(t, result)
+
+				registry.removeAll()
+				count := 0
+				registry.entries.Range(func(key, value any) bool {
+					count++
+					return true
+				})
+
+				assert.Equal(t, 0, count)
 			},
 		},
 	}

@@ -24,7 +24,7 @@ func NewPostgreSQLStateStore(logger logger.Logger) state.Store {
 	return postgresql.NewPostgreSQLStateStore(logger, postgresql.Options{
 		ETagColumn:    "xmin",
 		EnableAzureAD: true,
-		MigrateFn:     performMigration,
+		MigrateFn:     performMigrations,
 		SetQueryFn: func(req *state.SetRequest, opts postgresql.SetQueryOptions) string {
 			// Sprintf is required for table name because the driver does not substitute parameters for table names.
 			if !req.HasETag() {

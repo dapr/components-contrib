@@ -18,6 +18,7 @@ import (
 	"fmt"
 
 	"github.com/dapr/components-contrib/internal/component/postgresql"
+	pginterfaces "github.com/dapr/components-contrib/internal/component/postgresql/interfaces"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -68,7 +69,7 @@ WHERE
 	})
 }
 
-func ensureTables(ctx context.Context, db postgresql.PGXPoolConn, opts postgresql.MigrateOptions) error {
+func ensureTables(ctx context.Context, db pginterfaces.PGXPoolConn, opts postgresql.MigrateOptions) error {
 	exists, err := tableExists(ctx, db, opts.StateTableName)
 	if err != nil {
 		return err
@@ -122,7 +123,7 @@ func ensureTables(ctx context.Context, db postgresql.PGXPoolConn, opts postgresq
 	return nil
 }
 
-func tableExists(ctx context.Context, db postgresql.PGXPoolConn, tableName string) (bool, error) {
+func tableExists(ctx context.Context, db pginterfaces.PGXPoolConn, tableName string) (bool, error) {
 	exists := false
 	err := db.QueryRow(ctx, "SELECT EXISTS (SELECT * FROM pg_tables where tablename = $1)", tableName).Scan(&exists)
 	return exists, err

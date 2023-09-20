@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 
+	pginterfaces "github.com/dapr/components-contrib/internal/component/postgresql/interfaces"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 	"github.com/dapr/kit/logger"
@@ -140,7 +141,7 @@ func (q *Query) Finalize(filters string, qq *query.Query) error {
 	return nil
 }
 
-func (q *Query) execute(ctx context.Context, logger logger.Logger, db dbquerier) ([]state.QueryItem, string, error) {
+func (q *Query) execute(ctx context.Context, logger logger.Logger, db pginterfaces.DBQuerier) ([]state.QueryItem, string, error) {
 	rows, err := db.Query(ctx, q.query, q.params...)
 	if err != nil {
 		return nil, "", err

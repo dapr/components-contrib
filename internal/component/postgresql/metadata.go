@@ -33,7 +33,7 @@ const (
 	defaultTimeout           = 20   // Default timeout for network requests, in seconds
 )
 
-type postgresMetadataStruct struct {
+type pgMetadata struct {
 	pgauth.PostgresAuthMetadata `mapstructure:",squash"`
 
 	TableName         string         `mapstructure:"tableName"`         // Could be in the format "schema.table" or just "table"
@@ -42,7 +42,7 @@ type postgresMetadataStruct struct {
 	CleanupInterval   *time.Duration `mapstructure:"cleanupIntervalInSeconds"`
 }
 
-func (m *postgresMetadataStruct) InitWithMetadata(meta state.Metadata, azureADEnabled bool) error {
+func (m *pgMetadata) InitWithMetadata(meta state.Metadata, azureADEnabled bool) error {
 	// Reset the object
 	m.PostgresAuthMetadata.Reset()
 	m.TableName = defaultTableName

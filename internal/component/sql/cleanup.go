@@ -15,16 +15,12 @@ package sql
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"io"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/dapr/kit/logger"
 )
@@ -40,12 +36,8 @@ type GCOptions struct {
 	// Query that must atomically update the "last cleanup time" in the metadata table, but only if the garbage collector hasn't run already.
 	// The caller will check the nuber of affected rows. If zero, it assumes that the GC has ran too recently, and will not proceed to delete expired records.
 	// The query receives one parameter that is the last cleanup interval, in milliseconds.
-	UpdateLastCleanupQuery string
-
-	// Name of the parameter passed to the UpdateLeastCleanupQuery query, to use named parameters (via `sql.Named`). The parameter is the time interval.
-	// If empty, assumes the parameter is positional and not named.
-	// This is ignored when using the pgx querier.
-	UpdateLastCleanupQueryParameterName string
+	// The function must return both the query and the argument.
+	UpdateLastCleanupQuery func(arg any) (string, any)
 
 	// Query that performs the cleanup of all expired rows.
 	DeleteExpiredValuesQuery string
@@ -53,32 +45,17 @@ type GCOptions struct {
 	// Interval to perfm the cleanup.
 	CleanupInterval time.Duration
 
-	// Database connection when using pgx.
-	DBPgx PgxConn
-	// Database connection when using database/sql.
-	DBSql DatabaseSQLConn
-}
-
-// Interface for connections that use pgx.
-type PgxConn interface {
-	Begin(context.Context) (pgx.Tx, error)
-	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
-}
-
-// Interface for connections that use database/sql.
-type DatabaseSQLConn interface {
-	BeginTx(context.Context, *sql.TxOptions) (*sql.Tx, error)
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	// Database connection.
+	// Must be adapted using AdaptDatabaseSQLConn or AdaptPgxConn.
+	DB DatabaseConn
 }
 
 type gc struct {
 	log                      logger.Logger
-	updateLastCleanupQuery   string
-	ulcqParamName            string
+	updateLastCleanupQuery   func(arg any) (string, any)
 	deleteExpiredValuesQuery string
 	cleanupInterval          time.Duration
-	dbPgx                    PgxConn
-	dbSQL                    DatabaseSQLConn
+	db                       DatabaseConn
 
 	closed   atomic.Bool
 	closedCh chan struct{}
@@ -90,21 +67,16 @@ func ScheduleGarbageCollector(opts GCOptions) (GarbageCollector, error) {
 		return new(gcNoOp), nil
 	}
 
-	if opts.DBPgx == nil && opts.DBSql == nil {
-		return nil, errors.New("either DBPgx or DBSql must be provided")
-	}
-	if opts.DBPgx != nil && opts.DBSql != nil {
-		return nil, errors.New("only one of DBPgx or DBSql must be provided")
+	if opts.DB == nil {
+		return nil, errors.New("property DB must be provided")
 	}
 
 	gc := &gc{
 		log:                      opts.Logger,
 		updateLastCleanupQuery:   opts.UpdateLastCleanupQuery,
-		ulcqParamName:            opts.UpdateLastCleanupQueryParameterName,
 		deleteExpiredValuesQuery: opts.DeleteExpiredValuesQuery,
 		cleanupInterval:          opts.CleanupInterval,
-		dbPgx:                    opts.DBPgx,
-		dbSQL:                    opts.DBSql,
+		db:                       opts.DB,
 		closedCh:                 make(chan struct{}),
 	}
 
@@ -167,51 +139,19 @@ func (g *gc) CleanupExpired() error {
 		return nil
 	}
 
-	var (
-		tx   pgx.Tx
-		txwc *sql.Tx
-	)
-
-	if g.dbPgx != nil {
-		tx, err = g.dbPgx.Begin(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to start transaction: %w", err)
-		}
-		defer tx.Rollback(ctx)
-	} else {
-		txwc, err = g.dbSQL.BeginTx(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("failed to start transaction: %w", err)
-		}
-		defer txwc.Rollback()
+	tx, err := g.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to start transaction: %w", err)
 	}
+	defer tx.Rollback(ctx)
 
-	var rowsAffected int64
-	if tx != nil {
-		var res pgconn.CommandTag
-		res, err = tx.Exec(ctx, g.deleteExpiredValuesQuery)
-		if err != nil {
-			return fmt.Errorf("failed to execute query: %w", err)
-		}
-		rowsAffected = res.RowsAffected()
-	} else {
-		var res sql.Result
-		res, err = txwc.ExecContext(ctx, g.deleteExpiredValuesQuery)
-		if err != nil {
-			return fmt.Errorf("failed to execute query: %w", err)
-		}
-		rowsAffected, err = res.RowsAffected()
-		if err != nil {
-			return fmt.Errorf("failed to get rows affected: %w", err)
-		}
+	rowsAffected, err := tx.Exec(ctx, g.deleteExpiredValuesQuery)
+	if err != nil {
+		return fmt.Errorf("failed to execute query: %w", err)
 	}
 
 	// Commit
-	if tx != nil {
-		err = tx.Commit(ctx)
-	} else {
-		err = txwc.Commit()
-	}
+	err = tx.Commit(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
@@ -223,31 +163,13 @@ func (g *gc) CleanupExpired() error {
 // updateLastCleanup sets the 'last-cleanup' value only if it's less than cleanupInterval.
 // Returns true if the row was updated, which means that the cleanup can proceed.
 func (g *gc) updateLastCleanup(ctx context.Context) (bool, error) {
-	var n int64
 	// Query parameter: interval in ms
 	// Subtract 100ms for some buffer
-	var param any = (g.cleanupInterval.Milliseconds() - 100)
+	query, param := g.updateLastCleanupQuery(g.cleanupInterval.Milliseconds() - 100)
 
-	if g.dbPgx != nil {
-		res, err := g.dbPgx.Exec(ctx, g.updateLastCleanupQuery, param)
-		if err != nil {
-			return false, fmt.Errorf("error updating last cleanup time: %w", err)
-		}
-		n = res.RowsAffected()
-	} else {
-		// Use named parameters if we need to
-		if g.ulcqParamName != "" {
-			param = sql.Named(g.ulcqParamName, param)
-		}
-		res, err := g.dbSQL.ExecContext(ctx, g.updateLastCleanupQuery, param)
-		if err != nil {
-			return false, fmt.Errorf("error updating last cleanup time: %w", err)
-		}
-
-		n, err = res.RowsAffected()
-		if err != nil {
-			return false, fmt.Errorf("failed to retrieve affected row count: %w", err)
-		}
+	n, err := g.db.Exec(ctx, query, param)
+	if err != nil {
+		return false, fmt.Errorf("error updating last cleanup time: %w", err)
 	}
 
 	return n > 0, nil

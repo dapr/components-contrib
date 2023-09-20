@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -78,7 +77,7 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 		return err
 	}
 
-	connString, err := a.getConnectionString()
+	connString, err := a.metadata.GetConnectionString(a.logger)
 	if err != nil {
 		// Already logged
 		return err
@@ -137,107 +136,8 @@ func (a *sqliteDBAccess) CleanupExpired() error {
 	return a.gc.CleanupExpired()
 }
 
-func (a *sqliteDBAccess) getConnectionString() (string, error) {
-	// Check if we're using the in-memory database
-	lc := strings.ToLower(a.metadata.ConnectionString)
-	isMemoryDB := strings.HasPrefix(lc, ":memory:") || strings.HasPrefix(lc, "file::memory:")
-
-	// Get the "query string" from the connection string if present
-	idx := strings.IndexRune(a.metadata.ConnectionString, '?')
-	var qs url.Values
-	if idx > 0 {
-		qs, _ = url.ParseQuery(a.metadata.ConnectionString[(idx + 1):])
-	}
-	if len(qs) == 0 {
-		qs = make(url.Values, 2)
-	}
-
-	// If the database is in-memory, we must ensure that cache=shared is set
-	if isMemoryDB {
-		qs["cache"] = []string{"shared"}
-	}
-
-	// Check if the database is read-only or immutable
-	isReadOnly := false
-	if len(qs["mode"]) > 0 {
-		// Keep the first value only
-		qs["mode"] = []string{
-			qs["mode"][0],
-		}
-		if qs["mode"][0] == "ro" {
-			isReadOnly = true
-		}
-	}
-	if len(qs["immutable"]) > 0 {
-		// Keep the first value only
-		qs["immutable"] = []string{
-			qs["immutable"][0],
-		}
-		if qs["immutable"][0] == "1" {
-			isReadOnly = true
-		}
-	}
-
-	// We do not want to override a _txlock if set, but we'll show a warning if it's not "immediate"
-	if len(qs["_txlock"]) > 0 {
-		// Keep the first value only
-		qs["_txlock"] = []string{
-			strings.ToLower(qs["_txlock"][0]),
-		}
-		if qs["_txlock"][0] != "immediate" {
-			a.logger.Warn("Database connection is being created with a _txlock different from the recommended value 'immediate'")
-		}
-	} else {
-		qs["_txlock"] = []string{"immediate"}
-	}
-
-	// Add pragma values
-	if len(qs["_pragma"]) == 0 {
-		qs["_pragma"] = make([]string, 0, 2)
-	} else {
-		for _, p := range qs["_pragma"] {
-			p = strings.ToLower(p)
-			if strings.HasPrefix(p, "busy_timeout") {
-				a.logger.Error("Cannot set `_pragma=busy_timeout` option in the connection string; please use the `busyTimeout` metadata property instead")
-				return "", errors.New("found forbidden option '_pragma=busy_timeout' in the connection string")
-			} else if strings.HasPrefix(p, "journal_mode") {
-				a.logger.Error("Cannot set `_pragma=journal_mode` option in the connection string; please use the `disableWAL` metadata property instead")
-				return "", errors.New("found forbidden option '_pragma=journal_mode' in the connection string")
-			}
-		}
-	}
-	if a.metadata.BusyTimeout > 0 {
-		qs["_pragma"] = append(qs["_pragma"], fmt.Sprintf("busy_timeout(%d)", a.metadata.BusyTimeout.Milliseconds()))
-	}
-	if isMemoryDB {
-		// For in-memory databases, set the journal to MEMORY, the only allowed option besides OFF (which would make transactions ineffective)
-		qs["_pragma"] = append(qs["_pragma"], "journal_mode(MEMORY)")
-	} else if a.metadata.DisableWAL || isReadOnly {
-		// Set the journaling mode to "DELETE" (the default) if WAL is disabled or if the database is read-only
-		qs["_pragma"] = append(qs["_pragma"], "journal_mode(DELETE)")
-	} else {
-		// Enable WAL
-		qs["_pragma"] = append(qs["_pragma"], "journal_mode(WAL)")
-	}
-
-	// Build the final connection string
-	connString := a.metadata.ConnectionString
-	if idx > 0 {
-		connString = connString[:idx]
-	}
-	connString += "?" + qs.Encode()
-
-	// If the connection string doesn't begin with "file:", add the prefix
-	if !strings.HasPrefix(lc, "file:") {
-		a.logger.Debug("prefix 'file:' added to the connection string")
-		connString = "file:" + connString
-	}
-
-	return connString, nil
-}
-
 func (a *sqliteDBAccess) Ping(parentCtx context.Context) error {
-	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.Timeout)
 	err := a.db.PingContext(ctx)
 	cancel()
 	return err
@@ -253,7 +153,7 @@ func (a *sqliteDBAccess) Get(parentCtx context.Context, req *state.GetRequest) (
 		WHERE
 			key = ?
 			AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
-	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.Timeout)
 	defer cancel()
 	row := a.db.QueryRowContext(ctx, stmt, req.Key)
 	_, value, etag, expireTime, err := readRow(row)
@@ -296,7 +196,7 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 		WHERE
 			key IN (` + inClause + `)
 			AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
-	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.Timeout)
 	defer cancel()
 	rows, err := a.db.QueryContext(ctx, stmt, params...)
 	if err != nil {
@@ -475,7 +375,7 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 		stmt = "INSERT OR REPLACE INTO " + a.metadata.TableName + `
 				(key, value, is_binary, etag, update_time, expiration_time)
 			VALUES(?, ?, ?, ?, CURRENT_TIMESTAMP, ` + expiration + `)`
-		ctx, cancel := context.WithTimeout(context.Background(), a.metadata.timeout)
+		ctx, cancel := context.WithTimeout(context.Background(), a.metadata.Timeout)
 		defer cancel()
 		res, err = db.ExecContext(ctx, stmt, req.Key, requestValue, isBinary, newEtag, req.Key)
 	} else {
@@ -489,7 +389,7 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 				key = ?
 				AND etag = ?
 				AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
-		ctx, cancel := context.WithTimeout(context.Background(), a.metadata.timeout)
+		ctx, cancel := context.WithTimeout(context.Background(), a.metadata.Timeout)
 		defer cancel()
 		res, err = db.ExecContext(ctx, stmt, requestValue, newEtag, isBinary, req.Key, *req.ETag)
 	}
@@ -573,7 +473,7 @@ func (a *sqliteDBAccess) doDelete(parentCtx context.Context, db querier, req *st
 		return fmt.Errorf("missing key in delete operation")
 	}
 
-	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.timeout)
+	ctx, cancel := context.WithTimeout(parentCtx, a.metadata.Timeout)
 	defer cancel()
 	var result sql.Result
 	if !req.HasETag() {

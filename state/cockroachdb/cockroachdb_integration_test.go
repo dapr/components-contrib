@@ -72,10 +72,7 @@ func TestCockroachDBIntegration(t *testing.T) {
 	t.Run("Create table succeeds", func(t *testing.T) {
 		t.Parallel()
 
-		dbAccess, ok := pgs.GetDBAccess().(*postgresql.PostgresDBAccess)
-		assert.True(t, ok)
-
-		testCreateTable(t, dbAccess)
+		testCreateTable(t, pgs.GetDB())
 	})
 
 	t.Run("Get Set Delete one item", func(t *testing.T) {
@@ -180,20 +177,17 @@ func setGetUpdateDeleteOneItem(t *testing.T, pgs *postgresql.PostgreSQL) {
 }
 
 // testCreateTable tests the ability to create the state table.
-func testCreateTable(t *testing.T, dba *postgresql.PostgresDBAccess) {
+func testCreateTable(t *testing.T, db *pgxpool.Pool) {
 	t.Helper()
+	const tableName = "test_state"
 	ctx := context.Background()
-
-	tableName := "test_state"
-
-	db := dba.GetDB()
 
 	// Drop the table if it already exists.
 	exists, err := tableExists(ctx, db, tableName)
 	require.NoError(t, err)
 
 	if exists {
-		dropTable(t, dba.GetDB(), tableName)
+		dropTable(t, db, tableName)
 	}
 
 	// Create the state table and test for its existence.

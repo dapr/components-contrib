@@ -678,7 +678,7 @@ func testInitConfiguration(t *testing.T) {
 		{
 			name:        "Empty",
 			props:       map[string]string{},
-			expectedErr: errMissingConnectionString,
+			expectedErr: "missing connection string",
 		},
 		{
 			name: "Valid connection string",
@@ -703,10 +703,10 @@ func testInitConfiguration(t *testing.T) {
 
 			err := p.Init(context.Background(), metadata)
 			if tt.expectedErr == "" {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			} else {
-				assert.Error(t, err)
-				assert.Equal(t, err.Error(), tt.expectedErr)
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tt.expectedErr)
 			}
 		})
 	}

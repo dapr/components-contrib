@@ -284,10 +284,7 @@ func TestCockroach(t *testing.T) {
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
-				dbAccess := storeObj.GetDBAccess().(*postgresql.PostgresDBAccess)
-				require.NotNil(t, dbAccess)
-
-				cleanupInterval := dbAccess.GetCleanupInterval()
+				cleanupInterval := storeObj.GetCleanupInterval()
 				require.NotNil(t, cleanupInterval)
 				assert.Equal(t, time.Duration(1*time.Hour), *cleanupInterval)
 			})
@@ -301,10 +298,7 @@ func TestCockroach(t *testing.T) {
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
-				dbAccess := storeObj.GetDBAccess().(*postgresql.PostgresDBAccess)
-				require.NotNil(t, dbAccess)
-
-				cleanupInterval := dbAccess.GetCleanupInterval()
+				cleanupInterval := storeObj.GetCleanupInterval()
 				require.NotNil(t, cleanupInterval)
 				assert.Equal(t, time.Duration(10*time.Second), *cleanupInterval)
 			})
@@ -318,10 +312,7 @@ func TestCockroach(t *testing.T) {
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
 
-				dbAccess := storeObj.GetDBAccess().(*postgresql.PostgresDBAccess)
-				require.NotNil(t, dbAccess)
-
-				cleanupInterval := dbAccess.GetCleanupInterval()
+				cleanupInterval := storeObj.GetCleanupInterval()
 				_ = assert.Nil(t, cleanupInterval)
 			})
 		})
@@ -408,9 +399,7 @@ func TestCockroach(t *testing.T) {
 				require.NotEmpty(t, lastCleanupValueOrig)
 
 				// Trigger the background cleanup, which should do nothing because the last cleanup was < 3600s
-				dbAccess := storeObj.GetDBAccess().(*postgresql.PostgresDBAccess)
-				require.NotNil(t, dbAccess)
-				err = dbAccess.CleanupExpired()
+				err = storeObj.CleanupExpired()
 				require.NoError(t, err, "CleanupExpired returned an error")
 
 				// Validate that 20 records are still present

@@ -96,26 +96,25 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 	}
 
 	// Performs migrations
-	migrate := &migrations{
-		Logger:            a.logger,
-		Conn:              a.db,
-		MetadataTableName: a.metadata.MetadataTableName,
+	err = performMigrations(ctx, a.db, a.logger, migrationOptions{
 		StateTableName:    a.metadata.TableName,
-	}
-	err = migrate.Perform(ctx)
+		MetadataTableName: a.metadata.MetadataTableName,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to perform migrations: %w", err)
 	}
 
 	gc, err := internalsql.ScheduleGarbageCollector(internalsql.GCOptions{
 		Logger: a.logger,
-		UpdateLastCleanupQuery: fmt.Sprintf(`INSERT INTO %s (key, value)
-		VALUES ('last-cleanup', CURRENT_TIMESTAMP)
-		ON CONFLICT (key)
-		DO UPDATE SET value = CURRENT_TIMESTAMP
-			WHERE (unixepoch(CURRENT_TIMESTAMP) - unixepoch(value)) * 1000 > ?;`,
-			a.metadata.MetadataTableName,
-		),
+		UpdateLastCleanupQuery: func(arg any) (string, any) {
+			return fmt.Sprintf(`INSERT INTO %s (key, value)
+				VALUES ('last-cleanup', CURRENT_TIMESTAMP)
+				ON CONFLICT (key)
+				DO UPDATE SET value = CURRENT_TIMESTAMP
+					WHERE (unixepoch(CURRENT_TIMESTAMP) - unixepoch(value)) * 1000 > ?;`,
+				a.metadata.MetadataTableName,
+			), arg
+		},
 		DeleteExpiredValuesQuery: fmt.Sprintf(`DELETE FROM %s
 		WHERE
 			expiration_time IS NOT NULL
@@ -123,7 +122,7 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 			a.metadata.TableName,
 		),
 		CleanupInterval: a.metadata.CleanupInterval,
-		DBSql:           a.db,
+		DB:              internalsql.AdaptDatabaseSQLConn(a.db),
 	})
 	if err != nil {
 		return err

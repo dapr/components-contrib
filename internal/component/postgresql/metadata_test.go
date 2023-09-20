@@ -25,7 +25,7 @@ import (
 
 func TestMetadata(t *testing.T) {
 	t.Run("missing connection string", func(t *testing.T) {
-		m := postgresMetadataStruct{}
+		m := pgMetadata{}
 		props := map[string]string{}
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
@@ -34,7 +34,7 @@ func TestMetadata(t *testing.T) {
 	})
 
 	t.Run("has connection string", func(t *testing.T) {
-		m := postgresMetadataStruct{}
+		m := pgMetadata{}
 		props := map[string]string{
 			"connectionString": "foo",
 		}
@@ -44,7 +44,7 @@ func TestMetadata(t *testing.T) {
 	})
 
 	t.Run("default table name", func(t *testing.T) {
-		m := postgresMetadataStruct{}
+		m := pgMetadata{}
 		props := map[string]string{
 			"connectionString": "foo",
 		}
@@ -55,7 +55,7 @@ func TestMetadata(t *testing.T) {
 	})
 
 	t.Run("custom table name", func(t *testing.T) {
-		m := postgresMetadataStruct{}
+		m := pgMetadata{}
 		props := map[string]string{
 			"connectionString": "foo",
 			"tableName":        "mytable",
@@ -67,7 +67,7 @@ func TestMetadata(t *testing.T) {
 	})
 
 	t.Run("default timeout", func(t *testing.T) {
-		m := postgresMetadataStruct{}
+		m := pgMetadata{}
 		props := map[string]string{
 			"connectionString": "foo",
 		}
@@ -78,7 +78,7 @@ func TestMetadata(t *testing.T) {
 	})
 
 	t.Run("invalid timeout", func(t *testing.T) {
-		m := postgresMetadataStruct{}
+		m := pgMetadata{}
 		props := map[string]string{
 			"connectionString": "foo",
 			"timeoutInSeconds": "NaN",
@@ -89,7 +89,7 @@ func TestMetadata(t *testing.T) {
 	})
 
 	t.Run("positive timeout", func(t *testing.T) {
-		m := postgresMetadataStruct{}
+		m := pgMetadata{}
 		props := map[string]string{
 			"connectionString": "foo",
 			"timeoutInSeconds": "42",
@@ -101,7 +101,7 @@ func TestMetadata(t *testing.T) {
 	})
 
 	t.Run("zero timeout", func(t *testing.T) {
-		m := postgresMetadataStruct{}
+		m := pgMetadata{}
 		props := map[string]string{
 			"connectionString": "foo",
 			"timeoutInSeconds": "0",
@@ -112,7 +112,7 @@ func TestMetadata(t *testing.T) {
 	})
 
 	t.Run("default cleanupIntervalInSeconds", func(t *testing.T) {
-		m := postgresMetadataStruct{}
+		m := pgMetadata{}
 		props := map[string]string{
 			"connectionString": "foo",
 		}
@@ -124,7 +124,7 @@ func TestMetadata(t *testing.T) {
 	})
 
 	t.Run("invalid cleanupIntervalInSeconds", func(t *testing.T) {
-		m := postgresMetadataStruct{}
+		m := pgMetadata{}
 		props := map[string]string{
 			"connectionString":         "foo",
 			"cleanupIntervalInSeconds": "NaN",
@@ -135,7 +135,7 @@ func TestMetadata(t *testing.T) {
 	})
 
 	t.Run("positive cleanupIntervalInSeconds", func(t *testing.T) {
-		m := postgresMetadataStruct{}
+		m := pgMetadata{}
 		props := map[string]string{
 			"connectionString":         "foo",
 			"cleanupIntervalInSeconds": "42",
@@ -148,7 +148,7 @@ func TestMetadata(t *testing.T) {
 	})
 
 	t.Run("zero cleanupIntervalInSeconds", func(t *testing.T) {
-		m := postgresMetadataStruct{}
+		m := pgMetadata{}
 		props := map[string]string{
 			"connectionString":         "foo",
 			"cleanupIntervalInSeconds": "0",

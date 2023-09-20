@@ -9,9 +9,9 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	api "github.com/influxdata/influxdb-client-go/api"
-	write "github.com/influxdata/influxdb-client-go/api/write"
-	domain "github.com/influxdata/influxdb-client-go/domain"
+	api "github.com/influxdata/influxdb-client-go/v2/api"
+	write "github.com/influxdata/influxdb-client-go/v2/api/write"
+	domain "github.com/influxdata/influxdb-client-go/v2/domain"
 )
 
 // MockWriteAPIBlocking is a mock of WriteAPIBlocking interface.
@@ -35,6 +35,31 @@ func NewMockWriteAPIBlocking(ctrl *gomock.Controller) *MockWriteAPIBlocking {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockWriteAPIBlocking) EXPECT() *MockWriteAPIBlockingMockRecorder {
 	return m.recorder
+}
+
+// EnableBatching mocks base method.
+func (m *MockWriteAPIBlocking) EnableBatching() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "EnableBatching")
+}
+
+// EnableBatching indicates an expected call of EnableBatching.
+func (mr *MockWriteAPIBlockingMockRecorder) EnableBatching() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnableBatching", reflect.TypeOf((*MockWriteAPIBlocking)(nil).EnableBatching))
+}
+
+// Flush mocks base method.
+func (m *MockWriteAPIBlocking) Flush(arg0 context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Flush", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (mr *MockWriteAPIBlockingMockRecorder) Flush(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockWriteAPIBlocking)(nil).Flush), arg0)
 }
 
 // WritePoint mocks base method.
@@ -126,4 +151,34 @@ func (m *MockQueryAPI) QueryRaw(arg0 context.Context, arg1 string, arg2 *domain.
 func (mr *MockQueryAPIMockRecorder) QueryRaw(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryRaw", reflect.TypeOf((*MockQueryAPI)(nil).QueryRaw), arg0, arg1, arg2)
+}
+
+// QueryRawWithParams executes flux parametrized query on the InfluxDB server and returns complete query result as a string with table annotations according to dialect
+func (m *MockQueryAPI) QueryRawWithParams(ctx context.Context, query string, dialect *domain.Dialect, params interface{}) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "QueryRaw", ctx, query, dialect)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// QueryRawWithParams indicates an expected call of QueryRawWithParams.
+func (mr *MockQueryAPIMockRecorder) QueryRawWithParams(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryRawWithParams", reflect.TypeOf((*MockQueryAPI)(nil).QueryRaw), arg0, arg1, arg2, arg3)
+}
+	
+// QueryWithParams executes flux parametrized query  on the InfluxDB server and returns QueryTableResult which parses streamed response into structures representing flux table parts
+func (m *MockQueryAPI) QueryWithParams(ctx context.Context, query string, params interface{}) (*api.QueryTableResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "QueryWithParams", ctx, query)
+	ret0, _ := ret[0].(*api.QueryTableResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// QueryWithParms indicates an expected call of QueryWithParams.
+func (mr *MockQueryAPIMockRecorder) QueryWithParams(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryWithParams", reflect.TypeOf((*MockQueryAPI)(nil).QueryWithParams), arg0, arg1, arg2)
 }

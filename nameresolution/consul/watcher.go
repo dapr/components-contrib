@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -19,13 +18,15 @@ const (
 	maxBackoffTime = 180 * time.Second
 )
 
+// A watchPlan contains all the state tracked in the loop
+// that keeps the consul service registry cache fresh
 type watchPlan struct {
-	expired               bool
-	lastParamVal          blockingParamVal
-	lastResult            map[serviceIdentifier]bool
-	options               *consul.QueryOptions
-	configuredQueryFilter string
-	failures              int
+	expired                  bool
+	lastParamVal             blockingParamVal
+	lastResult               map[serviceIdentifier]bool
+	options                  *consul.QueryOptions
+	healthServiceQueryFilter string
+	failures                 int
 }
 
 type blockingParamVal interface {
@@ -51,7 +52,7 @@ func (idx waitIndexVal) next(previous blockingParamVal) blockingParamVal {
 	}
 	prevIdx, ok := previous.(waitIndexVal)
 	if ok && prevIdx == idx {
-		// This value is the same as the previous index, reset
+		// this value is the same as the previous index, reset
 		return waitIndexVal(0)
 	}
 
@@ -64,25 +65,24 @@ type serviceIdentifier struct {
 	node        string
 }
 
-func getServiceIdentifier(c *consul.HealthCheck) serviceIdentifier {
-	return serviceIdentifier{
-		serviceID:   c.ServiceID,
-		serviceName: c.ServiceName,
-		node:        c.Node}
-}
-
 func getHealthByService(checks consul.HealthChecks) map[serviceIdentifier]bool {
 	healthByService := make(map[serviceIdentifier]bool)
 	for _, check := range checks {
-		id := getServiceIdentifier(check)
+		// generate unique identifer for service
+		id := serviceIdentifier{
+			serviceID:   check.ServiceID,
+			serviceName: check.ServiceName,
+			node:        check.Node}
 
+		// if the service is not in the map - add and init to healthy
 		if state, ok := healthByService[id]; !ok {
-			// Init to healthy
 			healthByService[id] = true
 		} else if !state {
+			// service exists and is already unhealthy - skip
 			continue
 		}
 
+		// if the check is not healthy then set service to unhealthy
 		if check.Status != consul.HealthPassing {
 			healthByService[id] = false
 		}
@@ -92,18 +92,22 @@ func getHealthByService(checks consul.HealthChecks) map[serviceIdentifier]bool {
 }
 
 func (p *watchPlan) getChangedServices(newResult map[serviceIdentifier]bool) map[string]struct{} {
-	changedServices := make(map[string]struct{})
+	changedServices := make(map[string]struct{}) // service name set
 
-	// get changed services
+	// foreach new result
 	for newKey, newValue := range newResult {
+		// if the service exists in the old result and has the same value - skip
 		if oldValue, ok := p.lastResult[newKey]; ok && newValue == oldValue {
 			continue
 		}
 
+		// service is new or changed - add to set
 		changedServices[newKey.serviceName] = struct{}{}
 	}
 
+	// foreach old result
 	for oldKey := range p.lastResult {
+		// if the service does not exist in the new result - add to set
 		if _, ok := newResult[oldKey]; !ok {
 			changedServices[oldKey.serviceName] = struct{}{}
 		}
@@ -112,20 +116,14 @@ func (p *watchPlan) getChangedServices(newResult map[serviceIdentifier]bool) map
 	return changedServices
 }
 
-func (p *watchPlan) buildServiceNameFilter(services []string) {
+func getServiceNameFilter(services []string) string {
 	var nameFilters = make([]string, len(services))
 
 	for i, v := range services {
 		nameFilters[i] = fmt.Sprintf("ServiceName==\"%s\"", v)
 	}
 
-	filter := fmt.Sprintf("(%s)", strings.Join(nameFilters, " or "))
-
-	if len(p.configuredQueryFilter) < 1 {
-		p.options.Filter = filter
-	} else {
-		p.options.Filter = fmt.Sprintf("%s and %s", p.configuredQueryFilter, filter)
-	}
+	return fmt.Sprintf("(%s)", strings.Join(nameFilters, " or "))
 }
 
 func (r *resolver) watch(p *watchPlan, services []string, ctx context.Context) (blockingParamVal, consul.HealthChecks, error, bool) {
@@ -135,8 +133,10 @@ func (r *resolver) watch(p *watchPlan, services []string, ctx context.Context) (
 		p.options.WaitIndex = uint64(p.lastParamVal.(waitIndexVal))
 	}
 
-	p.buildServiceNameFilter(services)
+	// build service name filter for all keys
+	p.options.Filter = getServiceNameFilter(services)
 
+	// request health checks for target services using blocking query
 	checks, meta, err := r.client.Health().State(consul.HealthAny, p.options)
 
 	if err != nil {
@@ -164,15 +164,19 @@ func (r *resolver) watch(p *watchPlan, services []string, ctx context.Context) (
 	}
 
 	p.expired = false
-
 	return waitIndexVal(meta.LastIndex), checks, err, false
 }
 
-func (r *resolver) runWatchPlan(p *watchPlan, services []string, ctx context.Context, watchTask chan bool) {
+// runWatchPlan executes the following steps:
+//   - requests health check changes for the target keys from the consul agent using http long polling
+//   - compares the results to the previous
+//   - if there is a change for a given serviceName/appId it invokes the health/service api to get a list of healthy targets
+//   - signals completion of the watch plan
+func (r *resolver) runWatchPlan(p *watchPlan, services []string, ctx context.Context, watchPlanComplete chan bool) {
 	defer func() {
 		recover()
-		// complete watch task
-		watchTask <- true
+		// signal completion of the watch plan to unblock the watch plan loop
+		watchPlanComplete <- true
 	}()
 
 	// invoke blocking call
@@ -185,12 +189,11 @@ func (r *resolver) runWatchPlan(p *watchPlan, services []string, ctx context.Con
 
 	// handle an error in the watch function
 	if err != nil {
-		// always 0 on err so query is forced to return
+		// reset the query index so the next attempt does not
 		p.lastParamVal = waitIndexVal(0)
 
 		// perform an exponential backoff
 		p.failures++
-
 		retry := retryInterval * time.Duration(p.failures*p.failures)
 		if retry > maxBackoffTime {
 			retry = maxBackoffTime
@@ -207,19 +210,19 @@ func (r *resolver) runWatchPlan(p *watchPlan, services []string, ctx context.Con
 		}
 
 		return
+	} else {
+		// reset the plan failure count
+		p.failures = 0
 	}
 
-	// reset the plan failure count
-	p.failures = 0
-
-	// if the index is unchanged do nothing
+	// if the result index is unchanged do nothing
 	if p.lastParamVal != nil && p.lastParamVal.equal(blockParam) {
 		return
+	} else {
+		// update the plan index
+		oldParamVal := p.lastParamVal
+		p.lastParamVal = blockParam.next(oldParamVal)
 	}
-
-	// update the plan index
-	oldParamVal := p.lastParamVal
-	p.lastParamVal = blockParam.next(oldParamVal)
 
 	// compare last and new result to get changed services
 	healthByService := getHealthByService(result)
@@ -231,9 +234,9 @@ func (r *resolver) runWatchPlan(p *watchPlan, services []string, ctx context.Con
 	// call agent to get updated healthy nodes for each changed service
 	for k := range changedServices {
 		p.options.WaitIndex = 0
-		p.options.Filter = p.configuredQueryFilter
+		p.options.Filter = p.healthServiceQueryFilter
 		p.options = p.options.WithContext(ctx)
-		result, _, err := r.client.Health().Service(k, "", true, p.options)
+		result, meta, err := r.client.Health().Service(k, "", true, p.options)
 
 		if err != nil {
 			// on failure, expire service from cache, resolver will fall back to agent
@@ -251,12 +254,16 @@ func (r *resolver) runWatchPlan(p *watchPlan, services []string, ctx context.Con
 			p.lastParamVal = waitIndexVal(0)
 		} else {
 			// updated service entries in registry
-			r.logger.Debugf("updating registry for service:%s last-index:%s", k, strconv.FormatUint(uint64(p.lastParamVal.(waitIndexVal)), 10))
+			r.logger.Debugf("updating consul nr registry for service:%s last-index:%d", k, meta.LastIndex)
 			r.registry.addOrUpdate(k, result)
 		}
 	}
 }
 
+// runWatchLoop executes the following steps in a forever loop:
+//   - gets the keys from the registry
+//   - executes the watch plan with the targets keys
+//   - waits for (the watch plan to signal completion) or (the resolver to register a new key)
 func (r *resolver) runWatchLoop(p *watchPlan) {
 	defer func() {
 		recover()
@@ -264,26 +271,28 @@ func (r *resolver) runWatchLoop(p *watchPlan) {
 		r.watcherStarted = false
 	}()
 
-	watchTask := make(chan bool, 1)
+	watchPlanComplete := make(chan bool, 1)
 
 	for {
 		ctx, cancel := context.WithCancel(context.Background())
 
+		// get target keys/app-ids from registry
 		services := r.registry.getKeys()
 		watching := false
 
 		if len(services) > 0 {
-			go r.runWatchPlan(p, services, ctx, watchTask)
+			// run watch plan for targets service with channel to signal completion
+			go r.runWatchPlan(p, services, ctx, watchPlanComplete)
 			watching = true
 		}
 
 		select {
-		case <-watchTask:
+		case <-watchPlanComplete:
 			cancel()
 
 		// wait on channel for new services to track
 		case service := <-r.registry.registrationChannel():
-			// cancel blocking query to consul agent
+			// cancel watch plan i.e. blocking query to consul agent
 			cancel()
 
 			// generate set of keys
@@ -297,7 +306,7 @@ func (r *resolver) runWatchLoop(p *watchPlan) {
 				r.registry.addOrUpdate(service, nil)
 			}
 
-			// check for any more new services in channel
+			// check for any more new services in channel and do the same
 			moreServices := true
 			for moreServices {
 				select {
@@ -311,8 +320,8 @@ func (r *resolver) runWatchLoop(p *watchPlan) {
 			}
 
 			if watching {
-				// ensure previous routine completed before next loop
-				<-watchTask
+				// ensure previous watch plan routine completed before next iteration
+				<-watchPlanComplete
 			}
 
 			// reset plan failure count and query index
@@ -322,6 +331,7 @@ func (r *resolver) runWatchLoop(p *watchPlan) {
 	}
 }
 
+// startWatcher will configure the watch plan and start the watch loop in a separate routine
 func (r *resolver) startWatcher() {
 	r.watcherMutex.Lock()
 	defer r.watcherMutex.Unlock()
@@ -331,10 +341,13 @@ func (r *resolver) startWatcher() {
 	}
 
 	options := *r.config.QueryOptions
+	options.UseCache = false // always ignore consul agent cache for watcher
+	options.Filter = ""      // don't use configured filter for State() calls
+
 	plan := &watchPlan{
-		options:               &options,
-		configuredQueryFilter: options.Filter,
-		lastResult:            make(map[serviceIdentifier]bool),
+		options:                  &options,
+		healthServiceQueryFilter: r.config.QueryOptions.Filter,
+		lastResult:               make(map[serviceIdentifier]bool),
 	}
 
 	r.watcherStarted = true

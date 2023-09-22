@@ -17,6 +17,7 @@ limitations under the License.
 package secretmanager
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -25,21 +26,28 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestIntegrationGetSecret requires AWS specific environments for authentication AWS_DEFAULT_REGION AWS_ACCESS_KEY_ID,
-// AWS_SECRET_ACCESS_KkEY and AWS_SESSION_TOKEN
+// TestIntegrationGetSecret requires either:
+//   - Secret to exist with the key "/aws/secret/testing"
+//   - AWS specific environments for authentication AWS_DEFAULT_REGION AWS_ACCESS_KEY_ID,
+//     AWS_SECRET_ACCESS_KkEY and AWS_SESSION_TOKEN
+//   - or Localstack https://docs.localstack.cloud/getting-started/quickstart/ with
+//     AWS_ENDPOINT=http://localhost:4566
+//     AWS_DEFAULT_REGION AWS_ACCESS_KEY_ID,
+//     AWS_SECRET_ACCESS_KkEY and AWS_SESSION_TOKEN
 func TestIntegrationGetSecret(t *testing.T) {
 	secretName := "/aws/secret/testing"
 	sm := NewSecretManager(logger.NewLogger("test"))
-	err := sm.Init(secretstores.Metadata{
-		Properties: map[string]string{
-			"Region":       os.Getenv("AWS_DEFAULT_REGION"),
-			"AccessKey":    os.Getenv("AWS_ACCESS_KEY_ID"),
-			"SecretKey":    os.Getenv("AWS_SECRET_ACCESS_KEY"),
-			"SessionToken": os.Getenv("AWS_SESSION_TOKEN"),
-		},
-	})
+	m := secretstores.Metadata{}
+	m.Properties = map[string]string{
+		"Region":       os.Getenv("AWS_DEFAULT_REGION"),
+		"AccessKey":    os.Getenv("AWS_ACCESS_KEY_ID"),
+		"SecretKey":    os.Getenv("AWS_SECRET_ACCESS_KEY"),
+		"SessionToken": os.Getenv("AWS_SESSION_TOKEN"),
+		"Endpoint":     os.Getenv("AWS_ENDPOINT"),
+	}
+	err := sm.Init(context.Background(), m)
 	assert.Nil(t, err)
-	response, err := sm.GetSecret(secretstores.GetSecretRequest{
+	response, err := sm.GetSecret(context.Background(), secretstores.GetSecretRequest{
 		Name:     secretName,
 		Metadata: map[string]string{},
 	})
@@ -48,18 +56,18 @@ func TestIntegrationGetSecret(t *testing.T) {
 }
 
 func TestIntegrationBulkGetSecret(t *testing.T) {
-	secretName := "/aws/secret/testing"
 	sm := NewSecretManager(logger.NewLogger("test"))
-	err := sm.Init(secretstores.Metadata{
-		Properties: map[string]string{
-			"Region":       os.Getenv("AWS_DEFAULT_REGION"),
-			"AccessKey":    os.Getenv("AWS_ACCESS_KEY_ID"),
-			"SecretKey":    os.Getenv("AWS_SECRET_ACCESS_KEY"),
-			"SessionToken": os.Getenv("AWS_SESSION_TOKEN"),
-		},
-	})
+	m := secretstores.Metadata{}
+	m.Properties = map[string]string{
+		"Region":       os.Getenv("AWS_DEFAULT_REGION"),
+		"AccessKey":    os.Getenv("AWS_ACCESS_KEY_ID"),
+		"SecretKey":    os.Getenv("AWS_SECRET_ACCESS_KEY"),
+		"SessionToken": os.Getenv("AWS_SESSION_TOKEN"),
+		"Endpoint":     os.Getenv("AWS_ENDPOINT"),
+	}
+	err := sm.Init(context.Background(), m)
 	assert.Nil(t, err)
-	response, err := sm.BulkGetSecret(secretstores.BulkGetSecretRequest{})
+	response, err := sm.BulkGetSecret(context.Background(), secretstores.BulkGetSecretRequest{})
 	assert.Nil(t, err)
 	assert.NotNil(t, response)
 }

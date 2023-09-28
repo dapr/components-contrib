@@ -57,15 +57,17 @@ type snsSqs struct {
 	// key is a composite key of queue ARN and topic ARN mapping to subscription ARN.
 	subscriptions sync.Map
 
-	snsClient     *sns.SNS
-	sqsClient     *sqs.SQS
-	stsClient     *sts.STS
-	metadata      *snsSqsMetadata
-	logger        logger.Logger
-	id            string
-	opsTimeout    time.Duration
-	backOffConfig retry.Config
-	pollerRunning chan struct{}
+	snsClient        *sns.SNS
+	sqsClient        *sqs.SQS
+	stsClient        *sts.STS
+	metadata         *snsSqsMetadata
+	logger           logger.Logger
+	id               string
+	opsTimeout       time.Duration
+	backOffConfig    retry.Config
+	pollerRunning    chan struct{}
+	pollerCancel     context.CancelFunc
+	pollerCancelLock sync.Mutex
 
 	closeCh chan struct{}
 	closed  atomic.Bool
@@ -151,11 +153,13 @@ func nameToAWSSanitizedName(name string, isFifo bool) string {
 }
 
 func isMapEmpty(m *sync.Map) bool {
+	isEmpty := true
 	m.Range(func(k, v interface{}) bool {
+		isEmpty = false
 		return false
 	})
 
-	return true
+	return isEmpty
 }
 
 func (s *snsSqs) Init(ctx context.Context, metadata pubsub.Metadata) error {
@@ -771,6 +775,15 @@ func (s *snsSqs) restrictQueuePublishPolicyToOnlySNS(parentCtx context.Context, 
 	}
 
 	return nil
+}
+
+func (s *snsSqs) getCancelFunc() {
+	if isMapEmpty(&s.topicsHandlers) {
+		s.pollerCancelLock.Lock()
+		defer s.pollerCancelLock.Unlock()
+
+		_, s.pollerCancel = context.WithCancel(context.Background())
+	}
 }
 
 func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {

@@ -242,7 +242,7 @@ func (s *snsSqs) getTopicArn(parentCtx context.Context, topic string) (string, e
 	})
 	cancelFn()
 	if err != nil {
-		return "", fmt.Errorf("error: %w while getting topic: %v with arn: %v", err, topic, arn)
+		return "", fmt.Errorf("error: %w, while getting (sanitized) topic: %v with arn: %v", err, topic, arn)
 	}
 
 	return *getTopicOutput.Attributes["TopicArn"], nil
@@ -266,26 +266,26 @@ func (s *snsSqs) getOrCreateTopic(ctx context.Context, topic string) (string, st
 
 			return topicArn, sanitizedTopic, err
 		} else {
-			err = fmt.Errorf("ARN for (sanitized) topic: '%s' was empty", sanitizedTopic)
+			err = fmt.Errorf("ARN for (sanitized) topic: %s was empty", sanitizedTopic)
 
 			return topicArn, sanitizedTopic, err
 		}
 	}
 
 	// creating queues is idempotent, the names serve as unique keys among a given region.
-	s.logger.Debugf("no SNS topic ARN found for topic: '%s'\ncreating SNS topic with (sanitized) topic: '%s'", topic, sanitizedTopic)
+	s.logger.Debugf("no SNS topic ARN found for topic: %s\ncreating SNS with (sanitized) topic: %s", topic, sanitizedTopic)
 
 	if !s.metadata.DisableEntityManagement {
 		topicArn, err = s.createTopic(ctx, sanitizedTopic)
 		if err != nil {
-			err = fmt.Errorf("error creating new topic %s: %w", topic, err)
+			err = fmt.Errorf("error creating new (sanitized) topic '%s': %w", topic, err)
 
 			return topicArn, sanitizedTopic, err
 		}
 	} else {
 		topicArn, err = s.getTopicArn(ctx, sanitizedTopic)
 		if err != nil {
-			err = fmt.Errorf("error fetching info for topic %s: %w", topic, err)
+			err = fmt.Errorf("error fetching info for (sanitized) topic '%s': %w", topic, err)
 
 			return topicArn, sanitizedTopic, err
 		}
@@ -574,7 +574,7 @@ func (s *snsSqs) callHandler(ctx context.Context, message *sqs.Message, queueInf
 			return fmt.Errorf("handler topic name is missing")
 		}
 	} else {
-		return fmt.Errorf("handler for (sanitized) topic: '%s' was not found", sanitizedTopic)
+		return fmt.Errorf("handler for (sanitized) topic: %s was not found", sanitizedTopic)
 	}
 
 	s.logger.Debugf("Processing SNS message id: %s of (sanitized) topic: %s", *message.MessageId, sanitizedTopic)

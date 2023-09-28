@@ -250,7 +250,13 @@ func (s *snsSqs) getTopicArn(parentCtx context.Context, topic string) (string, e
 
 // get the topic ARN from the topics map. If it doesn't exist in the map, try to fetch it from AWS, if it doesn't exist
 // at all, issue a request to create the topic.
-func (s *snsSqs) getOrCreateTopic(ctx context.Context, topic string) (topicArn string, sanitizedTopic string, err error) {
+func (s *snsSqs) getOrCreateTopic(ctx context.Context, topic string) (string, string, error) {
+	var (
+		topicArn       string
+		sanitizedTopic string
+		err            error
+	)
+
 	sanitizedTopic = nameToAWSSanitizedName(topic, s.metadata.Fifo)
 
 	if topicArnLoaded, loadOK := s.topicArns.Load(sanitizedTopic); loadOK {
@@ -258,12 +264,11 @@ func (s *snsSqs) getOrCreateTopic(ctx context.Context, topic string) (topicArn s
 		if len(topicArn) > 0 {
 			s.logger.Debugf("found existing topic ARN for topic %s: %s", topic, topicArn)
 
-			return
-
+			return topicArn, sanitizedTopic, err
 		} else {
 			err = fmt.Errorf("ARN for (sanitized) topic: '%s' was empty", sanitizedTopic)
 
-			return
+			return topicArn, sanitizedTopic, err
 		}
 	}
 
@@ -275,14 +280,14 @@ func (s *snsSqs) getOrCreateTopic(ctx context.Context, topic string) (topicArn s
 		if err != nil {
 			err = fmt.Errorf("error creating new topic %s: %w", topic, err)
 
-			return
+			return topicArn, sanitizedTopic, err
 		}
 	} else {
 		topicArn, err = s.getTopicArn(ctx, sanitizedTopic)
 		if err != nil {
 			err = fmt.Errorf("error fetching info for topic %s: %w", topic, err)
 
-			return
+			return topicArn, sanitizedTopic, err
 		}
 	}
 
@@ -290,7 +295,7 @@ func (s *snsSqs) getOrCreateTopic(ctx context.Context, topic string) (topicArn s
 	// track these ARNs in these maps.
 	s.topicArns.Store(sanitizedTopic, topicArn)
 
-	return
+	return topicArn, sanitizedTopic, err
 }
 
 func (s *snsSqs) createQueue(parentCtx context.Context, queueName string) (*sqsQueueInfo, error) {

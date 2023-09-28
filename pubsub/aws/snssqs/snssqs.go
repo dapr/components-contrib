@@ -49,10 +49,9 @@ type topicHandler struct {
 
 type snsSqs struct {
 	// key is the sanitized topic name
-	topicArns map[string]string
+	topicArns sync.Map
 	// key is the sanitized topic name
-	topicHandlers map[string]topicHandler
-	topicsLock    sync.RWMutex
+	topicsHandlers sync.Map
 	// key is the topic name, value holds the ARN of the queue and its url.
 	queues sync.Map
 	// key is a composite key of queue ARN and topic ARN mapping to subscription ARN.
@@ -107,7 +106,6 @@ func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 	return &snsSqs{
 		logger:        l,
 		id:            id,
-		topicsLock:    sync.RWMutex{},
 		pollerRunning: make(chan struct{}, 1),
 		closeCh:       make(chan struct{}),
 	}
@@ -152,6 +150,14 @@ func nameToAWSSanitizedName(name string, isFifo bool) string {
 	return string(s[:j])
 }
 
+func isMapEmpty(m *sync.Map) bool {
+	m.Range(func(k, v interface{}) bool {
+		return false
+	})
+
+	return true
+}
+
 func (s *snsSqs) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	md, err := s.getSnsSqsMetatdata(metadata)
 	if err != nil {
@@ -159,13 +165,6 @@ func (s *snsSqs) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	}
 
 	s.metadata = md
-
-	// both Publish and Subscribe need reference the topic ARN, queue ARN and subscription ARN between topic and queue
-	// track these ARNs in these maps.
-	s.topicArns = make(map[string]string)
-	s.topicHandlers = make(map[string]topicHandler)
-	s.queues = sync.Map{}
-	s.subscriptions = sync.Map{}
 
 	sess, err := awsAuth.GetClient(md.AccessKey, md.SecretKey, md.SessionToken, md.Region, md.Endpoint)
 	if err != nil {
@@ -251,40 +250,47 @@ func (s *snsSqs) getTopicArn(parentCtx context.Context, topic string) (string, e
 
 // get the topic ARN from the topics map. If it doesn't exist in the map, try to fetch it from AWS, if it doesn't exist
 // at all, issue a request to create the topic.
-func (s *snsSqs) getOrCreateTopic(ctx context.Context, topic string) (topicArn string, sanitizedName string, err error) {
-	s.topicsLock.Lock()
-	defer s.topicsLock.Unlock()
+func (s *snsSqs) getOrCreateTopic(ctx context.Context, topic string) (topicArn string, sanitizedTopic string, err error) {
+	sanitizedTopic = nameToAWSSanitizedName(topic, s.metadata.Fifo)
 
-	sanitizedName = nameToAWSSanitizedName(topic, s.metadata.Fifo)
+	if topicArnLoaded, loadOK := s.topicArns.Load(sanitizedTopic); loadOK {
+		topicArn = topicArnLoaded.(string)
+		if len(topicArn) > 0 {
+			s.logger.Debugf("found existing topic ARN for topic %s: %s", topic, topicArn)
 
-	topicArnCached, ok := s.topicArns[sanitizedName]
-	if ok && topicArnCached != "" {
-		s.logger.Debugf("found existing topic ARN for topic %s: %s", topic, topicArnCached)
-		return topicArnCached, sanitizedName, nil
+			return
+
+		} else {
+			err = fmt.Errorf("ARN for (sanitized) topic: '%s' was empty", sanitizedTopic)
+
+			return
+		}
 	}
+
 	// creating queues is idempotent, the names serve as unique keys among a given region.
-	s.logger.Debugf("No SNS topic arn found for %s\nCreating SNS topic", topic)
+	s.logger.Debugf("no SNS topic ARN found for topic: '%s'\ncreating SNS topic with (sanitized) topic: '%s'", topic, sanitizedTopic)
 
 	if !s.metadata.DisableEntityManagement {
-		topicArn, err = s.createTopic(ctx, sanitizedName)
+		topicArn, err = s.createTopic(ctx, sanitizedTopic)
 		if err != nil {
-			s.logger.Errorf("error creating new topic %s: %w", topic, err)
+			err = fmt.Errorf("error creating new topic %s: %w", topic, err)
 
-			return "", "", err
+			return
 		}
 	} else {
-		topicArn, err = s.getTopicArn(ctx, sanitizedName)
+		topicArn, err = s.getTopicArn(ctx, sanitizedTopic)
 		if err != nil {
-			s.logger.Errorf("error fetching info for topic %s: %w", topic, err)
+			err = fmt.Errorf("error fetching info for topic %s: %w", topic, err)
 
-			return "", "", err
+			return
 		}
 	}
 
-	// record topic ARN.
-	s.topicArns[sanitizedName] = topicArn
+	// both Publish and Subscribe need reference the topic ARN, queue ARN and subscription ARN between topic and queue
+	// track these ARNs in these maps.
+	s.topicArns.Store(sanitizedTopic, topicArn)
 
-	return topicArn, sanitizedName, nil
+	return
 }
 
 func (s *snsSqs) createQueue(parentCtx context.Context, queueName string) (*sqsQueueInfo, error) {
@@ -555,14 +561,18 @@ func (s *snsSqs) callHandler(ctx context.Context, message *sqs.Message, queueInf
 	// for the user to be able to understand the source of the coming message, we'd use the original,
 	// dirty name to be carried over in the pubsub.NewMessage Topic field.
 	sanitizedTopic := snsMessagePayload.parseTopicArn()
-	s.topicsLock.RLock()
-	handler, ok := s.topicHandlers[sanitizedTopic]
-	s.topicsLock.RUnlock()
-	if !ok || handler.topicName == "" {
-		return fmt.Errorf("handler for topic (sanitized): %s not found", sanitizedTopic)
+	// get a handler by sanitized topic name and perform validations
+	var handler topicHandler
+	if loadedHandler, loadOK := s.topicsHandlers.Load(sanitizedTopic); loadOK {
+		handler = loadedHandler.(topicHandler)
+		if len(handler.topicName) == 0 {
+			return fmt.Errorf("handler topic name is missing")
+		}
+	} else {
+		return fmt.Errorf("handler for (sanitized) topic: '%s' was not found", sanitizedTopic)
 	}
 
-	s.logger.Debugf("Processing SNS message id: %s of topic: %s", *message.MessageId, sanitizedTopic)
+	s.logger.Debugf("Processing SNS message id: %s of (sanitized) topic: %s", *message.MessageId, sanitizedTopic)
 
 	err = handler.handler(handler.ctx, &pubsub.NewMessage{
 		Data:  []byte(snsMessagePayload.Message),
@@ -825,13 +835,13 @@ func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	}
 
 	// Store the handler for this topic
-	s.topicsLock.Lock()
-	defer s.topicsLock.Unlock()
-	s.topicHandlers[sanitizedName] = topicHandler{
+	topicHanlder := topicHandler{
 		topicName: req.Topic,
 		handler:   handler,
 		ctx:       ctx,
 	}
+
+	s.topicsHandlers.Store(sanitizedName, topicHanlder)
 
 	// pollerCancel is used to cancel the polling goroutine. We use a noop cancel
 	// func in case the poller is already running and there is no cancel to use
@@ -870,14 +880,11 @@ func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 		case <-s.closeCh:
 		}
 
-		s.topicsLock.Lock()
-		defer s.topicsLock.Unlock()
-
 		// Remove the handler
-		delete(s.topicHandlers, sanitizedName)
+		s.topicsHandlers.Delete(sanitizedName)
 
 		// If we don't have any topic left, close the poller.
-		if len(s.topicHandlers) == 0 {
+		if isMapEmpty(&s.topicsHandlers) {
 			pollerCancel()
 		}
 	}()

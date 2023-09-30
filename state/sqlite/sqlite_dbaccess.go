@@ -333,52 +333,40 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 
 	// Only check for etag if FirstWrite specified (ref oracledatabaseaccess)
 	var (
-		res        sql.Result
-		mustCommit bool
-		stmt       string
+		res  sql.Result
+		stmt string
 	)
+	ctx, cancel := context.WithTimeout(context.Background(), a.metadata.Timeout)
+	defer cancel()
+
 	// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
 	// And the same is for DATETIME function's seconds parameter (which is from an integer anyways).
-	if !req.HasETag() {
+	switch {
+	case !req.HasETag() && req.Options.Concurrency == state.FirstWrite:
 		// If the operation uses first-write concurrency, we need to handle the special case of a row that has expired but hasn't been garbage collected yet
 		// In this case, the row should be considered as if it were deleted
-		// With SQLite, the only way we can handle that is by performing a SELECT query first
-		if req.Options.Concurrency == state.FirstWrite {
-			// If we're not in a transaction already, start one as we need to ensure consistency
-			if db == a.db {
-				db, err = a.db.BeginTx(parentCtx, nil)
-				if err != nil {
-					return fmt.Errorf("failed to begin transaction: %w", err)
-				}
-				defer db.(*sql.Tx).Rollback()
-				mustCommit = true
-			}
-
-			// Check if there's already a row with the given key that has not expired yet
-			var count int
-			stmt = `SELECT COUNT(key)
+		stmt = `WITH a AS (
+				SELECT
+					?, ?, ?, ?, ` + expiration + `, CURRENT_TIMESTAMP
 				FROM ` + a.metadata.TableName + `
-				WHERE key = ?
-					AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
-			err = db.QueryRowContext(parentCtx, stmt, req.Key).Scan(&count)
-			if err != nil {
-				return fmt.Errorf("failed to check for existing row with first-write concurrency: %w", err)
-			}
+				WHERE NOT EXISTS (
+					SELECT 1
+					FROM ` + a.metadata.TableName + `
+					WHERE key = ?
+						AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)
+				)
+			)
+			INSERT OR REPLACE INTO ` + a.metadata.TableName + `
+			SELECT * FROM a`
+		res, err = db.ExecContext(ctx, stmt, req.Key, requestValue, isBinary, newEtag, req.Key)
 
-			// If the row exists, then we just return an etag error
-			// Otherwise, we can fall through and continue with an INSERT OR REPLACE statement
-			if count > 0 {
-				return state.NewETagError(state.ETagMismatch, nil)
-			}
-		}
-
+	case !req.HasETag():
 		stmt = "INSERT OR REPLACE INTO " + a.metadata.TableName + `
 				(key, value, is_binary, etag, update_time, expiration_time)
 			VALUES(?, ?, ?, ?, CURRENT_TIMESTAMP, ` + expiration + `)`
-		ctx, cancel := context.WithTimeout(context.Background(), a.metadata.Timeout)
-		defer cancel()
-		res, err = db.ExecContext(ctx, stmt, req.Key, requestValue, isBinary, newEtag, req.Key)
-	} else {
+		res, err = db.ExecContext(ctx, stmt, req.Key, requestValue, isBinary, newEtag)
+
+	default:
 		stmt = `UPDATE ` + a.metadata.TableName + ` SET
 				value = ?,
 				etag = ?,
@@ -389,8 +377,6 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 				key = ?
 				AND etag = ?
 				AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
-		ctx, cancel := context.WithTimeout(context.Background(), a.metadata.Timeout)
-		defer cancel()
 		res, err = db.ExecContext(ctx, stmt, requestValue, newEtag, isBinary, req.Key, *req.ETag)
 	}
 	if err != nil {
@@ -403,18 +389,10 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 		return err
 	}
 	if rows == 0 {
-		if req.HasETag() {
+		if req.HasETag() || req.Options.Concurrency == state.FirstWrite {
 			return state.NewETagError(state.ETagMismatch, nil)
 		}
 		return errors.New("no item was updated")
-	}
-
-	// Commit the transaction if needed
-	if mustCommit {
-		err = db.(*sql.Tx).Commit()
-		if err != nil {
-			return fmt.Errorf("failed to commit transaction: %w", err)
-		}
 	}
 
 	return nil

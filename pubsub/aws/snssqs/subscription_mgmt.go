@@ -20,9 +20,10 @@ const (
 var (
 	subscriptionMgmtInst *SubscriptionManager
 	once                 sync.Once
+	initOnce             sync.Once
 )
 
-type subscriptionTopicHandler struct {
+type SubscriptionTopicHandler struct {
 	topicName string
 	handler   pubsub.Handler
 	ctx       context.Context
@@ -31,7 +32,7 @@ type subscriptionTopicHandler struct {
 type changeSubscriptionTopicHandler struct {
 	action       SubscriptionAction
 	topic        string
-	topicHandler *subscriptionTopicHandler
+	topicHandler *SubscriptionTopicHandler
 }
 
 type SubscriptionManager struct {
@@ -39,18 +40,19 @@ type SubscriptionManager struct {
 	consumeCancelFunc context.CancelFunc
 	closeCh           chan struct{}
 	topicsChangeCh    chan changeSubscriptionTopicHandler
-	topicsHandlers    *xsync.MapOf[string, *subscriptionTopicHandler]
+	topicsHandlers    *xsync.MapOf[string, *SubscriptionTopicHandler]
 	lock              sync.Mutex
 	wg                sync.WaitGroup
 }
 
 type SubscriptionManagement interface {
-	Subscribe()
+	Init(queueInfo *sqsQueueInfo, dlqInfo *sqsQueueInfo, cbk func(context.Context, *sqsQueueInfo, *sqsQueueInfo))
+	Subscribe(topic string, topicHandler *SubscriptionTopicHandler)
 	Close()
-	GetTopicHandler(string) (*subscriptionTopicHandler, bool)
+	GetSubscriptionTopicHandler(string) (*SubscriptionTopicHandler, bool)
 }
 
-func NewSubscriptionMgmt(queueInfo *sqsQueueInfo, dlqInfo *sqsQueueInfo, cbk func(context.Context, *sqsQueueInfo, *sqsQueueInfo)) *SubscriptionManager {
+func NewSubscriptionMgmt() *SubscriptionManager {
 	once.Do(func() {
 		if subscriptionMgmtInst != nil {
 			return
@@ -61,16 +63,27 @@ func NewSubscriptionMgmt(queueInfo *sqsQueueInfo, dlqInfo *sqsQueueInfo, cbk fun
 		subscriptionMgmtInst = &SubscriptionManager{
 			baseContext:    ctx,
 			closeCh:        make(chan struct{}),
-			topicsHandlers: xsync.NewMapOf[*subscriptionTopicHandler](),
+			topicsHandlers: xsync.NewMapOf[*SubscriptionTopicHandler](),
 		}
-
-		go subscriptionMgmtInst.sqsConsumerController(queueInfo, dlqInfo, cbk)
 	})
 
 	return subscriptionMgmtInst
 }
 
-func (sm *SubscriptionManager) sqsConsumerController(queueInfo *sqsQueueInfo, dlqInfo *sqsQueueInfo, cbk func(context.Context, *sqsQueueInfo, *sqsQueueInfo)) {
+func createQueueConsumerCbk(queueInfo *sqsQueueInfo, dlqInfo *sqsQueueInfo, cbk func(ctx context.Context, queueInfo *sqsQueueInfo, dlqInfo *sqsQueueInfo)) func(ctx context.Context) {
+	return func(ctx context.Context) {
+		cbk(ctx, queueInfo, dlqInfo)
+	}
+}
+
+func (sm *SubscriptionManager) Init(queueInfo *sqsQueueInfo, dlqInfo *sqsQueueInfo, cbk func(context.Context, *sqsQueueInfo, *sqsQueueInfo)) {
+	initOnce.Do(func() {
+		queueConsumerCbk := createQueueConsumerCbk(queueInfo, dlqInfo, cbk)
+		go subscriptionMgmtInst.queueConsumerController(queueConsumerCbk)
+	})
+}
+
+func (sm *SubscriptionManager) queueConsumerController(queueConsumerBck func(context.Context)) {
 	for {
 		select {
 		case changeEvent := <-sm.topicsChangeCh:
@@ -101,7 +114,7 @@ func (sm *SubscriptionManager) sqsConsumerController(queueInfo *sqsQueueInfo, dl
 				if current == 0 {
 					subctx, cancel := context.WithCancel(sm.baseContext)
 					sm.consumeCancelFunc = cancel
-					go cbk(subctx, queueInfo, dlqInfo)
+					go queueConsumerBck(subctx)
 				}
 			}
 			sm.lock.Unlock()
@@ -111,7 +124,7 @@ func (sm *SubscriptionManager) sqsConsumerController(queueInfo *sqsQueueInfo, dl
 	}
 }
 
-func (sm *SubscriptionManager) Subscribe(topic string, topicHandler *subscriptionTopicHandler) {
+func (sm *SubscriptionManager) Subscribe(topic string, topicHandler *SubscriptionTopicHandler) {
 	sm.wg.Add(1)
 	go func() {
 		defer sm.wg.Done()
@@ -119,11 +132,11 @@ func (sm *SubscriptionManager) Subscribe(topic string, topicHandler *subscriptio
 	}()
 }
 
-func (sm *SubscriptionManager) createSubscribeListener(topic string, topicHandler *subscriptionTopicHandler) {
+func (sm *SubscriptionManager) createSubscribeListener(topic string, topicHandler *SubscriptionTopicHandler) {
 	sm.topicsChangeCh <- changeSubscriptionTopicHandler{Subscribe, topic, topicHandler}
 
 	closeCh := make(chan struct{})
-	go sm.createUnsubscribeListener(topic, topicHandler.ctx, closeCh)
+	go sm.createUnsubscribeListener(topicHandler.ctx, topic, closeCh)
 
 	for range sm.closeCh {
 		close(closeCh)
@@ -134,11 +147,11 @@ func (sm *SubscriptionManager) createSubscribeListener(topic string, topicHandle
 }
 
 // ctx is a context provided by daprd per subscription. unrelated to the consuming sm.baseCtx
-func (sm *SubscriptionManager) createUnsubscribeListener(topic string, ctx context.Context, closeCh <-chan struct{}) {
+func (sm *SubscriptionManager) createUnsubscribeListener(ctx context.Context, topic string, closeCh <-chan struct{}) {
 	for {
 		select {
 		case <-ctx.Done():
-			if value, ok := sm.GetTopicHandler(topic); ok {
+			if value, ok := sm.GetSubscriptionTopicHandler(topic); ok {
 				sm.topicsChangeCh <- changeSubscriptionTopicHandler{Unsubscribe, topic, value}
 			}
 			// no need to iterate anymore as this subctx is exhusted
@@ -154,6 +167,6 @@ func (sm *SubscriptionManager) Close() {
 	sm.wg.Wait()
 }
 
-func (sm *SubscriptionManager) GetTopicHandler(topic string) (*subscriptionTopicHandler, bool) {
+func (sm *SubscriptionManager) GetSubscriptionTopicHandler(topic string) (*SubscriptionTopicHandler, bool) {
 	return sm.topicsHandlers.Load(topic)
 }

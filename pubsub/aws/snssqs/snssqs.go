@@ -41,37 +41,24 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-type topicHandler struct {
-	topicName string
-	handler   pubsub.Handler
-	ctx       context.Context
-}
-
 type snsSqs struct {
 	// key is the sanitized topic name
 	topicArns sync.Map
-	// key is the sanitized topic name
-	topicsHandlers sync.Map
 	// key is the topic name, value holds the ARN of the queue and its url.
 	queues sync.Map
 	// key is a composite key of queue ARN and topic ARN mapping to subscription ARN.
-	subscriptions sync.Map
-
-	snsClient        *sns.SNS
-	sqsClient        *sqs.SQS
-	stsClient        *sts.STS
-	metadata         *snsSqsMetadata
-	logger           logger.Logger
-	id               string
-	opsTimeout       time.Duration
-	backOffConfig    retry.Config
-	pollerRunning    chan struct{}
-	pollerCancel     context.CancelFunc
-	pollerCancelLock sync.Mutex
-
-	closeCh chan struct{}
-	closed  atomic.Bool
-	wg      sync.WaitGroup
+	subscriptions       sync.Map
+	snsClient           *sns.SNS
+	sqsClient           *sqs.SQS
+	stsClient           *sts.STS
+	metadata            *snsSqsMetadata
+	logger              logger.Logger
+	id                  string
+	opsTimeout          time.Duration
+	backOffConfig       retry.Config
+	subscriptionManager SubscriptionManagement
+	closed              atomic.Bool
+	wg                  sync.WaitGroup
 }
 
 type sqsQueueInfo struct {
@@ -106,10 +93,8 @@ func NewSnsSqs(l logger.Logger) pubsub.PubSub {
 	}
 
 	return &snsSqs{
-		logger:        l,
-		id:            id,
-		pollerRunning: make(chan struct{}, 1),
-		closeCh:       make(chan struct{}),
+		logger: l,
+		id:     id,
 	}
 }
 
@@ -152,16 +137,6 @@ func nameToAWSSanitizedName(name string, isFifo bool) string {
 	return string(s[:j])
 }
 
-func isMapEmpty(m *sync.Map) bool {
-	isEmpty := true
-	m.Range(func(k, v interface{}) bool {
-		isEmpty = false
-		return false
-	})
-
-	return isEmpty
-}
-
 func (s *snsSqs) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	md, err := s.getSnsSqsMetatdata(metadata)
 	if err != nil {
@@ -192,6 +167,8 @@ func (s *snsSqs) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	if err != nil {
 		return fmt.Errorf("error decoding backOff config: %w", err)
 	}
+	// subscription manager responsible for managing the lifecycle of subscriptions.
+	s.subscriptionManager = NewSubscriptionMgmt()
 
 	return nil
 }
@@ -571,9 +548,11 @@ func (s *snsSqs) callHandler(ctx context.Context, message *sqs.Message, queueInf
 	// dirty name to be carried over in the pubsub.NewMessage Topic field.
 	sanitizedTopic := snsMessagePayload.parseTopicArn()
 	// get a handler by sanitized topic name and perform validations
-	var handler topicHandler
-	if loadedHandler, loadOK := s.topicsHandlers.Load(sanitizedTopic); loadOK {
-		handler = loadedHandler.(topicHandler)
+	var (
+		handler *SubscriptionTopicHandler
+		loadOK  bool
+	)
+	if handler, loadOK = s.subscriptionManager.GetSubscriptionTopicHandler(sanitizedTopic); loadOK {
 		if len(handler.topicName) == 0 {
 			return fmt.Errorf("handler topic name is missing")
 		}
@@ -583,6 +562,7 @@ func (s *snsSqs) callHandler(ctx context.Context, message *sqs.Message, queueInf
 
 	s.logger.Debugf("Processing SNS message id: %s of (sanitized) topic: %s", *message.MessageId, sanitizedTopic)
 
+	// call the handler with its own subscription context
 	err = handler.handler(handler.ctx, &pubsub.NewMessage{
 		Data:  []byte(snsMessagePayload.Message),
 		Topic: handler.topicName,
@@ -594,6 +574,8 @@ func (s *snsSqs) callHandler(ctx context.Context, message *sqs.Message, queueInf
 	return s.acknowledgeMessage(ctx, queueInfo.url, message.ReceiptHandle)
 }
 
+// consumeSubscription is responsible for polling messages from the queue and calling the handler.
+// it is being passed as a callback to the subscription manager that initializes the context of the handler.
 func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLettersQueueInfo *sqsQueueInfo) {
 	sqsPullExponentialBackoff := s.backOffConfig.NewBackOffWithContext(ctx)
 
@@ -620,12 +602,13 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 		// iteration. Therefore, a global backoff (to the internal backoff) is used (sqsPullExponentialBackoff).
 		messageResponse, err := s.sqsClient.ReceiveMessageWithContext(ctx, receiveMessageInput)
 		if err != nil {
-			if err == context.Canceled || err == context.DeadlineExceeded {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
 				s.logger.Warn("context canceled; stopping consuming from queue arn: %v", queueInfo.arn)
 				continue
 			}
 
-			if awsErr, ok := err.(awserr.Error); ok {
+			var awsErr awserr.Error
+			if errors.As(err, &awsErr) {
 				s.logger.Errorf("AWS operation error while consuming from queue arn: %v with error: %w. retrying...", queueInfo.arn, awsErr.Error())
 			} else {
 				s.logger.Errorf("error consuming from queue arn: %v with error: %w. retrying...", queueInfo.arn, err)
@@ -638,7 +621,6 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 		sqsPullExponentialBackoff.Reset()
 
 		if len(messageResponse.Messages) < 1 {
-			// s.logger.Debug("No messages received, continuing")
 			continue
 		}
 		s.logger.Debugf("%v message(s) received on queue %s", len(messageResponse.Messages), queueInfo.arn)
@@ -651,11 +633,10 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 			}
 
 			f := func(message *sqs.Message) {
+				defer wg.Done()
 				if err := s.callHandler(ctx, message, queueInfo); err != nil {
 					s.logger.Errorf("error while handling received message. error is: %v", err)
 				}
-
-				wg.Done()
 			}
 
 			wg.Add(1)
@@ -672,9 +653,6 @@ func (s *snsSqs) consumeSubscription(ctx context.Context, queueInfo, deadLetters
 		}
 		wg.Wait()
 	}
-
-	// Signal that the poller stopped
-	<-s.pollerRunning
 }
 
 func (s *snsSqs) createDeadLettersQueueAttributes(queueInfo, deadLettersQueueInfo *sqsQueueInfo) (*sqs.SetQueueAttributesInput, error) {
@@ -777,15 +755,6 @@ func (s *snsSqs) restrictQueuePublishPolicyToOnlySNS(parentCtx context.Context, 
 	return nil
 }
 
-func (s *snsSqs) getCancelFunc() {
-	if isMapEmpty(&s.topicsHandlers) {
-		s.pollerCancelLock.Lock()
-		defer s.pollerCancelLock.Unlock()
-
-		_, s.pollerCancel = context.WithCancel(context.Background())
-	}
-}
-
 func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
 	if s.closed.Load() {
 		return errors.New("component is closed")
@@ -852,60 +821,15 @@ func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 		return wrappedErr
 	}
 
-	// Store the handler for this topic
-	topicHanlder := topicHandler{
+	// start the subscription manager
+	s.wg.Add(1)
+	s.subscriptionManager.Init(queueInfo, deadLettersQueueInfo, s.consumeSubscription)
+
+	s.subscriptionManager.Subscribe(sanitizedName, &SubscriptionTopicHandler{
 		topicName: req.Topic,
 		handler:   handler,
 		ctx:       ctx,
-	}
-
-	s.topicsHandlers.Store(sanitizedName, topicHanlder)
-
-	// pollerCancel is used to cancel the polling goroutine. We use a noop cancel
-	// func in case the poller is already running and there is no cancel to use
-	// from the select below.
-	var pollerCancel context.CancelFunc = func() {}
-	// Start the poller for the queue if it's not running already
-	select {
-	case s.pollerRunning <- struct{}{}:
-		// If inserting in the channel succeeds, then it's not running already
-		// Use a context that is tied to the background context
-		var subctx context.Context
-		subctx, pollerCancel = context.WithCancel(context.Background())
-		s.wg.Add(2)
-		go func() {
-			defer s.wg.Done()
-			defer pollerCancel()
-			select {
-			case <-s.closeCh:
-			case <-subctx.Done():
-			}
-		}()
-		go func() {
-			defer s.wg.Done()
-			s.consumeSubscription(subctx, queueInfo, deadLettersQueueInfo)
-		}()
-	default:
-		// Do nothing, it means the poller is already running
-	}
-
-	// Watch for subscription context cancellation to remove this subscription
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		select {
-		case <-ctx.Done():
-		case <-s.closeCh:
-		}
-
-		// Remove the handler
-		s.topicsHandlers.Delete(sanitizedName)
-
-		// If we don't have any topic left, close the poller.
-		if isMapEmpty(&s.topicsHandlers) {
-			pollerCancel()
-		}
-	}()
+	})
 
 	return nil
 }
@@ -945,7 +869,7 @@ func (s *snsSqs) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 // client. Blocks until all goroutines have returned.
 func (s *snsSqs) Close() error {
 	if s.closed.CompareAndSwap(false, true) {
-		close(s.closeCh)
+		s.subscriptionManager.Close()
 	}
 	s.wg.Wait()
 	return nil

@@ -289,7 +289,7 @@ func (s *snsSqs) getOrCreateTopic(ctx context.Context, topic string) (string, st
 	} else {
 		topicArn, err = s.getTopicArn(ctx, sanitizedTopic)
 		if err != nil {
-			err = fmt.Errorf("error fetching info for (sanitized) topic '%s': %w", topic, err)
+			err = fmt.Errorf("error fetching info for (sanitized) topic: %s. wrapped error is: %w", topic, err)
 
 			return topicArn, sanitizedTopic, err
 		}

@@ -168,7 +168,7 @@ func (s *snsSqs) Init(ctx context.Context, metadata pubsub.Metadata) error {
 		return fmt.Errorf("error decoding backOff config: %w", err)
 	}
 	// subscription manager responsible for managing the lifecycle of subscriptions.
-	s.subscriptionManager = NewSubscriptionMgmt()
+	s.subscriptionManager = NewSubscriptionMgmt(s.logger)
 
 	return nil
 }

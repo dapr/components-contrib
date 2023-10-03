@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/logger"
 	"github.com/puzpuzpuz/xsync/v2"
 )
 
@@ -36,6 +37,7 @@ type changeSubscriptionTopicHandler struct {
 }
 
 type SubscriptionManager struct {
+	logger            logger.Logger
 	baseContext       context.Context
 	consumeCancelFunc context.CancelFunc
 	closeCh           chan struct{}
@@ -52,7 +54,7 @@ type SubscriptionManagement interface {
 	GetSubscriptionTopicHandler(string) (*SubscriptionTopicHandler, bool)
 }
 
-func NewSubscriptionMgmt() *SubscriptionManager {
+func NewSubscriptionMgmt(log logger.Logger) *SubscriptionManager {
 	once.Do(func() {
 		if subscriptionMgmtInst != nil {
 			return
@@ -61,8 +63,10 @@ func NewSubscriptionMgmt() *SubscriptionManager {
 		ctx := context.Background()
 		// assign or reassign the singleton
 		subscriptionMgmtInst = &SubscriptionManager{
+			logger:         log,
 			baseContext:    ctx,
 			closeCh:        make(chan struct{}),
+			topicsChangeCh: make(chan changeSubscriptionTopicHandler),
 			topicsHandlers: xsync.NewMapOf[*SubscriptionTopicHandler](),
 		}
 	})
@@ -78,8 +82,10 @@ func createQueueConsumerCbk(queueInfo *sqsQueueInfo, dlqInfo *sqsQueueInfo, cbk 
 
 func (sm *SubscriptionManager) Init(queueInfo *sqsQueueInfo, dlqInfo *sqsQueueInfo, cbk func(context.Context, *sqsQueueInfo, *sqsQueueInfo)) {
 	initOnce.Do(func() {
+		sm.logger.Debug("initializing subscription manager")
 		queueConsumerCbk := createQueueConsumerCbk(queueInfo, dlqInfo, cbk)
 		go subscriptionMgmtInst.queueConsumerController(queueConsumerCbk)
+		sm.logger.Debug("subscription manager initialized")
 	})
 }
 
@@ -87,6 +93,7 @@ func (sm *SubscriptionManager) queueConsumerController(queueConsumerBck func(con
 	for {
 		select {
 		case changeEvent := <-sm.topicsChangeCh:
+			sm.logger.Debug("subscription change event", changeEvent.action, changeEvent.topic)
 			sm.lock.Lock()
 			current := sm.topicsHandlers.Size()
 			// unsubscribe:
@@ -102,6 +109,7 @@ func (sm *SubscriptionManager) queueConsumerController(queueConsumerBck func(con
 			// and messages from topic C where not drained from Q, they will be consumed by the component but there will be no handler for them,
 			// thereby causing errors in the component indicating that there is no handler for topic C.
 			if changeEvent.action == Unsubscribe {
+				sm.logger.Debug("unsubscribing from topic", changeEvent.topic)
 				sm.topicsHandlers.Delete(changeEvent.topic)
 				// if before we've removed this subscription we had one (last) subscription, this signals us to stop sqs consumption
 				if current == 1 {
@@ -109,6 +117,7 @@ func (sm *SubscriptionManager) queueConsumerController(queueConsumerBck func(con
 				}
 				// subscribe
 			} else if changeEvent.action == Subscribe {
+				sm.logger.Debug("subscribing to topic", changeEvent.topic)
 				sm.topicsHandlers.Store(changeEvent.topic, changeEvent.topicHandler)
 				// if before we've added the subscription there were no subscription, this subscribe signals us to start consume from sqs
 				if current == 0 {
@@ -125,6 +134,7 @@ func (sm *SubscriptionManager) queueConsumerController(queueConsumerBck func(con
 }
 
 func (sm *SubscriptionManager) Subscribe(topic string, topicHandler *SubscriptionTopicHandler) {
+	sm.logger.Debug("subscribing to topic", topic)
 	sm.wg.Add(1)
 	go func() {
 		defer sm.wg.Done()
@@ -133,8 +143,9 @@ func (sm *SubscriptionManager) Subscribe(topic string, topicHandler *Subscriptio
 }
 
 func (sm *SubscriptionManager) createSubscribeListener(topic string, topicHandler *SubscriptionTopicHandler) {
+	sm.logger.Debug("creating subscribe listener for topic ", topic)
 	sm.topicsChangeCh <- changeSubscriptionTopicHandler{Subscribe, topic, topicHandler}
-
+	sm.logger.Debug("calling creating unsubscribe listener for topic ", topic)
 	closeCh := make(chan struct{})
 	go sm.createUnsubscribeListener(topicHandler.ctx, topic, closeCh)
 
@@ -148,6 +159,7 @@ func (sm *SubscriptionManager) createSubscribeListener(topic string, topicHandle
 
 // ctx is a context provided by daprd per subscription. unrelated to the consuming sm.baseCtx
 func (sm *SubscriptionManager) createUnsubscribeListener(ctx context.Context, topic string, closeCh <-chan struct{}) {
+	sm.logger.Debug("creating unsubscribe listener for topic ", topic)
 	for {
 		select {
 		case <-ctx.Done():

@@ -17,14 +17,118 @@ limitations under the License.
 package conformance
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/components-contrib/state"
+	s_awsdynamodb "github.com/dapr/components-contrib/state/aws/dynamodb"
+	s_blobstorage "github.com/dapr/components-contrib/state/azure/blobstorage"
+	s_cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
+	s_azuretablestorage "github.com/dapr/components-contrib/state/azure/tablestorage"
+	s_cassandra "github.com/dapr/components-contrib/state/cassandra"
+	s_cloudflareworkerskv "github.com/dapr/components-contrib/state/cloudflare/workerskv"
+	s_cockroachdb "github.com/dapr/components-contrib/state/cockroachdb"
+	s_etcd "github.com/dapr/components-contrib/state/etcd"
+	s_gcpfirestore "github.com/dapr/components-contrib/state/gcp/firestore"
+	s_inmemory "github.com/dapr/components-contrib/state/in-memory"
+	s_memcached "github.com/dapr/components-contrib/state/memcached"
+	s_mongodb "github.com/dapr/components-contrib/state/mongodb"
+	s_mysql "github.com/dapr/components-contrib/state/mysql"
+	s_oracledatabase "github.com/dapr/components-contrib/state/oracledatabase"
+	s_postgresql "github.com/dapr/components-contrib/state/postgresql"
+	s_redis "github.com/dapr/components-contrib/state/redis"
+	s_rethinkdb "github.com/dapr/components-contrib/state/rethinkdb"
+	s_sqlite "github.com/dapr/components-contrib/state/sqlite"
+	s_sqlserver "github.com/dapr/components-contrib/state/sqlserver"
+	conf_state "github.com/dapr/components-contrib/tests/conformance/state"
 )
 
 func TestStateConformance(t *testing.T) {
-	tc, err := NewTestConfiguration("../config/state/tests.yml")
+	const configPath = "../config/state/"
+	tc, err := NewTestConfiguration(filepath.Join(configPath, "tests.yml"))
 	require.NoError(t, err)
 	require.NotNil(t, tc)
+
+	tc.TestFn = func(comp *TestComponent) func(t *testing.T) {
+		return func(t *testing.T) {
+			ParseConfigurationMap(t, comp.Config)
+
+			componentConfigPath := convertComponentNameToPath(comp.Component, comp.Profile)
+			props, err := loadComponentsAndProperties(t, filepath.Join(configPath, componentConfigPath))
+			require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
+
+			store := loadStateStore(comp.Component)
+			require.NotNilf(t, store, "error running conformance test for component %s", comp.Component)
+
+			storeConfig, err := conf_state.NewTestConfig(comp.Component, comp.Operations, comp.Config)
+			require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
+
+			conf_state.ConformanceTests(t, props, store, storeConfig)
+		}
+	}
+
 	tc.Run(t)
+}
+
+func loadStateStore(name string) state.Store {
+	switch name {
+	case "redis.v6":
+		return s_redis.NewRedisStateStore(testLogger)
+	case "redis.v7":
+		return s_redis.NewRedisStateStore(testLogger)
+	case "azure.blobstorage":
+		return s_blobstorage.NewAzureBlobStorageStore(testLogger)
+	case "azure.cosmosdb":
+		return s_cosmosdb.NewCosmosDBStateStore(testLogger)
+	case "mongodb":
+		return s_mongodb.NewMongoDB(testLogger)
+	case "azure.sql":
+		return s_sqlserver.New(testLogger)
+	case "sqlserver":
+		return s_sqlserver.New(testLogger)
+	case "postgresql.docker":
+		return s_postgresql.NewPostgreSQLStateStore(testLogger)
+	case "postgresql.azure":
+		return s_postgresql.NewPostgreSQLStateStore(testLogger)
+	case "sqlite":
+		return s_sqlite.NewSQLiteStateStore(testLogger)
+	case "mysql.mysql":
+		return s_mysql.NewMySQLStateStore(testLogger)
+	case "mysql.mariadb":
+		return s_mysql.NewMySQLStateStore(testLogger)
+	case "oracledatabase":
+		return s_oracledatabase.NewOracleDatabaseStateStore(testLogger)
+	case "azure.tablestorage.storage":
+		return s_azuretablestorage.NewAzureTablesStateStore(testLogger)
+	case "azure.tablestorage.cosmosdb":
+		return s_azuretablestorage.NewAzureTablesStateStore(testLogger)
+	case "cassandra":
+		return s_cassandra.NewCassandraStateStore(testLogger)
+	case "cloudflare.workerskv":
+		return s_cloudflareworkerskv.NewCFWorkersKV(testLogger)
+	case "cockroachdb":
+		return s_cockroachdb.New(testLogger)
+	case "memcached":
+		return s_memcached.NewMemCacheStateStore(testLogger)
+	case "rethinkdb":
+		return s_rethinkdb.NewRethinkDBStateStore(testLogger)
+	case "in-memory":
+		return s_inmemory.NewInMemoryStateStore(testLogger)
+	case "aws.dynamodb.docker":
+		return s_awsdynamodb.NewDynamoDBStateStore(testLogger)
+	case "aws.dynamodb.terraform":
+		return s_awsdynamodb.NewDynamoDBStateStore(testLogger)
+	case "etcd.v1":
+		return s_etcd.NewEtcdStateStoreV1(testLogger)
+	case "etcd.v2":
+		return s_etcd.NewEtcdStateStoreV2(testLogger)
+	case "gcp.firestore.docker":
+		return s_gcpfirestore.NewFirestoreStateStore(testLogger)
+	case "gcp.firestore.cloud":
+		return s_gcpfirestore.NewFirestoreStateStore(testLogger)
+	default:
+		return nil
+	}
 }

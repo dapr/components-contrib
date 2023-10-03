@@ -52,7 +52,7 @@ func (m *MockConfigurationStore) GetSetting(ctx context.Context, key string, opt
 	return resp, nil
 }
 
-func (m *MockConfigurationStore) NewListSettingsPager(selector azappconfig.SettingSelector, options *azappconfig.ListSettingsOptions) *runtime.Pager[azappconfig.ListSettingsPage] {
+func (m *MockConfigurationStore) NewListSettingsPager(selector azappconfig.SettingSelector, options *azappconfig.ListSettingsOptions) *runtime.Pager[azappconfig.ListSettingsPageResponse] {
 	settings := make([]azappconfig.Setting, 2)
 
 	setting1 := azappconfig.Setting{}
@@ -65,12 +65,12 @@ func (m *MockConfigurationStore) NewListSettingsPager(selector azappconfig.Setti
 	settings[0] = setting1
 	settings[1] = setting2
 
-	return runtime.NewPager(runtime.PagingHandler[azappconfig.ListSettingsPage]{
-		More: func(azappconfig.ListSettingsPage) bool {
+	return runtime.NewPager(runtime.PagingHandler[azappconfig.ListSettingsPageResponse]{
+		More: func(azappconfig.ListSettingsPageResponse) bool {
 			return false
 		},
-		Fetcher: func(ctx context.Context, cur *azappconfig.ListSettingsPage) (azappconfig.ListSettingsPage, error) {
-			listSettingPage := azappconfig.ListSettingsPage{}
+		Fetcher: func(ctx context.Context, cur *azappconfig.ListSettingsPageResponse) (azappconfig.ListSettingsPageResponse, error) {
+			listSettingPage := azappconfig.ListSettingsPageResponse{}
 			listSettingPage.Settings = settings
 			return listSettingPage, nil
 		},

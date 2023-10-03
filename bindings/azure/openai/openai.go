@@ -239,13 +239,13 @@ func (p *AzOpenAI) completion(ctx context.Context, message []byte, metadata map[
 	}
 
 	resp, err := p.client.GetCompletions(ctx, azopenai.CompletionsOptions{
-		DeploymentID: prompt.DeploymentID,
-		Prompt:       []string{prompt.Prompt},
-		MaxTokens:    &prompt.MaxTokens,
-		Temperature:  &prompt.Temperature,
-		TopP:         &prompt.TopP,
-		N:            &prompt.N,
-		Stop:         prompt.Stop,
+		Deployment:  prompt.DeploymentID,
+		Prompt:      []string{prompt.Prompt},
+		MaxTokens:   &prompt.MaxTokens,
+		Temperature: &prompt.Temperature,
+		TopP:        &prompt.TopP,
+		N:           &prompt.N,
+		Stop:        prompt.Stop,
 	}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error getting completion api: %w", err)
@@ -304,13 +304,13 @@ func (p *AzOpenAI) chatCompletion(ctx context.Context, messageRequest []byte, me
 	}
 
 	res, err := p.client.GetChatCompletions(ctx, azopenai.ChatCompletionsOptions{
-		DeploymentID: messages.DeploymentID,
-		MaxTokens:    maxTokens,
-		Temperature:  &messages.Temperature,
-		TopP:         &messages.TopP,
-		N:            &messages.N,
-		Messages:     messageReq,
-		Stop:         messages.Stop,
+		Deployment:  messages.DeploymentID,
+		MaxTokens:   maxTokens,
+		Temperature: &messages.Temperature,
+		TopP:        &messages.TopP,
+		N:           &messages.N,
+		Messages:    messageReq,
+		Stop:        messages.Stop,
 	}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error getting chat completion api: %w", err)
@@ -342,8 +342,8 @@ func (p *AzOpenAI) getEmbedding(ctx context.Context, messageRequest []byte, meta
 	}
 
 	res, err := p.client.GetEmbeddings(ctx, azopenai.EmbeddingsOptions{
-		DeploymentID: message.DeploymentID,
-		Input:        []string{message.Message},
+		Deployment: message.DeploymentID,
+		Input:      []string{message.Message},
 	}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error getting embedding api: %w", err)

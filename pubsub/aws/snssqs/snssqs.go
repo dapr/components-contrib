@@ -58,7 +58,6 @@ type snsSqs struct {
 	backOffConfig       retry.Config
 	subscriptionManager SubscriptionManagement
 	closed              atomic.Bool
-	wg                  sync.WaitGroup
 }
 
 type sqsQueueInfo struct {
@@ -822,7 +821,6 @@ func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	}
 
 	// start the subscription manager
-	s.wg.Add(1)
 	s.subscriptionManager.Init(queueInfo, deadLettersQueueInfo, s.consumeSubscription)
 
 	s.subscriptionManager.Subscribe(sanitizedName, &SubscriptionTopicHandler{
@@ -871,7 +869,7 @@ func (s *snsSqs) Close() error {
 	if s.closed.CompareAndSwap(false, true) {
 		s.subscriptionManager.Close()
 	}
-	s.wg.Wait()
+
 	return nil
 }
 

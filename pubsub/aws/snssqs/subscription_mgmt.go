@@ -113,6 +113,7 @@ func (sm *SubscriptionManager) queueConsumerController(queueConsumerBck func(con
 				sm.topicsHandlers.Delete(changeEvent.topic)
 				// if before we've removed this subscription we had one (last) subscription, this signals us to stop sqs consumption
 				if current == 1 {
+					sm.logger.Info("last subscription removed, stopping sqs consumption")
 					sm.consumeCancelFunc()
 				}
 				// subscribe
@@ -123,6 +124,7 @@ func (sm *SubscriptionManager) queueConsumerController(queueConsumerBck func(con
 				if current == 0 {
 					subctx, cancel := context.WithCancel(sm.baseContext)
 					sm.consumeCancelFunc = cancel
+					sm.logger.Debug("starting sqs consumption for the first time")
 					go queueConsumerBck(subctx)
 				}
 			}

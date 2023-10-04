@@ -133,9 +133,8 @@ func (r *resolver) getService(service string) (*consul.ServiceEntry, error) {
 			r.startWatcher()
 		}
 
-		var entry *registryEntry
-
-		if entry = r.registry.get(service); entry != nil {
+		entry := r.registry.get(service)
+		if entry != nil {
 			result := entry.next()
 
 			if result != nil {

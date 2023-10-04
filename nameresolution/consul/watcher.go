@@ -175,7 +175,6 @@ func (r *resolver) watch(ctx context.Context, p *watchPlan, services []string) (
 //   - signals completion of the watch plan
 func (r *resolver) runWatchPlan(ctx context.Context, p *watchPlan, services []string, watchPlanComplete chan bool) {
 	defer func() {
-		recover()
 		// signal completion of the watch plan to unblock the watch plan loop
 		watchPlanComplete <- true
 	}()
@@ -268,7 +267,6 @@ func (r *resolver) runWatchPlan(ctx context.Context, p *watchPlan, services []st
 //   - waits for (the watch plan to signal completion) or (the resolver to register a new key)
 func (r *resolver) runWatchLoop(p *watchPlan) {
 	defer func() {
-		recover()
 		r.registry.removeAll()
 		r.watcherStarted = false
 	}()

@@ -162,10 +162,9 @@ func (r *resolver) getService(service string) (*consul.ServiceEntry, error) {
 }
 
 func (r *registry) addOrUpdate(service string, services []*consul.ServiceEntry) {
-	var entry *registryEntry
-
 	// update
-	if entry = r.get(service); entry != nil {
+	entry := r.get(service)
+	if entry != nil {
 		entry.mu.Lock()
 		defer entry.mu.Unlock()
 

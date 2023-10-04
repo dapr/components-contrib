@@ -6,15 +6,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
+
 	consul "github.com/hashicorp/consul/api"
 )
 
 const (
-	// retryInterval is the base retry value.
-	retryInterval = 5 * time.Second
+	// initial back interval.
+	initialBackOffInternal = 5 * time.Second
 
 	// maximum back off time, this is to prevent exponential runaway.
-	maxBackoffTime = 180 * time.Second
+	maxBackOffInternal = 180 * time.Second
 )
 
 // A watchPlan contains all the state tracked in the loop
@@ -25,7 +27,8 @@ type watchPlan struct {
 	lastResult               map[serviceIdentifier]bool
 	options                  *consul.QueryOptions
 	healthServiceQueryFilter string
-	failures                 int
+	failing                  bool
+	backOff                  *backoff.ExponentialBackOff
 }
 
 type blockingParamVal interface {
@@ -125,7 +128,7 @@ func getServiceNameFilter(services []string) string {
 	return strings.Join(nameFilters, " or ")
 }
 
-func (r *resolver) watch(p *watchPlan, services []string, ctx context.Context) (blockingParamVal, consul.HealthChecks, error, bool) {
+func (r *resolver) watch(ctx context.Context, p *watchPlan, services []string) (blockingParamVal, consul.HealthChecks, error, bool) {
 	p.options = p.options.WithContext(ctx)
 
 	if p.lastParamVal != nil {
@@ -171,7 +174,7 @@ func (r *resolver) watch(p *watchPlan, services []string, ctx context.Context) (
 //   - compares the results to the previous
 //   - if there is a change for a given serviceName/appId it invokes the health/service api to get a list of healthy targets
 //   - signals completion of the watch plan
-func (r *resolver) runWatchPlan(p *watchPlan, services []string, ctx context.Context, watchPlanComplete chan bool) {
+func (r *resolver) runWatchPlan(ctx context.Context, p *watchPlan, services []string, watchPlanComplete chan bool) {
 	defer func() {
 		recover()
 		// signal completion of the watch plan to unblock the watch plan loop
@@ -179,7 +182,7 @@ func (r *resolver) runWatchPlan(p *watchPlan, services []string, ctx context.Con
 	}()
 
 	// invoke blocking call
-	blockParam, result, err, canceled := r.watch(p, services, ctx)
+	blockParam, result, err, canceled := r.watch(ctx, p, services)
 
 	// if the ctx was canceled then do nothing
 	if canceled {
@@ -192,14 +195,15 @@ func (r *resolver) runWatchPlan(p *watchPlan, services []string, ctx context.Con
 		p.lastParamVal = waitIndexVal(0)
 
 		// perform an exponential backoff
-		p.failures++
-		retry := retryInterval * time.Duration(p.failures*p.failures)
-		if retry > maxBackoffTime {
-			retry = maxBackoffTime
+		if !p.failing {
+			p.failing = true
+			p.backOff.Reset()
 		}
 
+		retry := p.backOff.NextBackOff()
+
 		// pause watcher routine until ctx is canceled or retry timer finishes
-		r.logger.Errorf("consul service-watcher error: %v, retry in %v", err, retry)
+		r.logger.Errorf("consul service-watcher error: %v, retry in %s", err, retry.Round(time.Second))
 		sleepTimer := time.NewTimer(retry)
 		select {
 		case <-ctx.Done():
@@ -210,8 +214,8 @@ func (r *resolver) runWatchPlan(p *watchPlan, services []string, ctx context.Con
 
 		return
 	} else {
-		// reset the plan failure count
-		p.failures = 0
+		// reset the plan failure flag
+		p.failing = false
 	}
 
 	// if the result index is unchanged do nothing
@@ -281,7 +285,7 @@ func (r *resolver) runWatchLoop(p *watchPlan) {
 
 		if len(services) > 0 {
 			// run watch plan for targets service with channel to signal completion
-			go r.runWatchPlan(p, services, ctx, watchPlanComplete)
+			go r.runWatchPlan(ctx, p, services, watchPlanComplete)
 			watching = true
 		}
 
@@ -324,7 +328,7 @@ func (r *resolver) runWatchLoop(p *watchPlan) {
 			}
 
 			// reset plan failure count and query index
-			p.failures = 0
+			p.failing = false
 			p.lastParamVal = waitIndexVal(0)
 		}
 	}
@@ -343,10 +347,17 @@ func (r *resolver) startWatcher() {
 	options.UseCache = false // always ignore consul agent cache for watcher
 	options.Filter = ""      // don't use configured filter for State() calls
 
+	// Configure exponential backoff
+	ebo := backoff.NewExponentialBackOff()
+	ebo.InitialInterval = initialBackOffInternal
+	ebo.MaxInterval = maxBackOffInternal
+	ebo.MaxElapsedTime = 0
+
 	plan := &watchPlan{
 		options:                  &options,
 		healthServiceQueryFilter: r.config.QueryOptions.Filter,
 		lastResult:               make(map[serviceIdentifier]bool),
+		backOff:                  ebo,
 	}
 
 	r.watcherStarted = true

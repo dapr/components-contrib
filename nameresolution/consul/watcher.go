@@ -116,7 +116,7 @@ func (p *watchPlan) buildServiceNameFilter(services []string) {
 	var nameFilters = make([]string, len(services))
 
 	for i, v := range services {
-		nameFilters[i] = fmt.Sprintf("ServiceName==\"%s\"", v)
+		nameFilters[i] = `ServiceName=="`+v+`"`
 	}
 
 	filter := fmt.Sprintf("(%s)", strings.Join(nameFilters, " or "))

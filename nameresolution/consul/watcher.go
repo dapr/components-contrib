@@ -6,8 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
-
+	backoff "github.com/cenkalti/backoff/v4"
 	consul "github.com/hashicorp/consul/api"
 )
 

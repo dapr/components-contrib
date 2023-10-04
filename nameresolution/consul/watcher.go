@@ -124,7 +124,7 @@ func (p *watchPlan) buildServiceNameFilter(services []string) {
 	if len(p.configuredQueryFilter) < 1 {
 		p.options.Filter = filter
 	} else {
-		p.options.Filter = fmt.Sprintf("%s and %s", p.configuredQueryFilter, filter)
+		p.options.Filter = p.configuredQueryFilter + " and " + filter
 	}
 }
 

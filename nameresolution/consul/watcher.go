@@ -119,7 +119,7 @@ func (p *watchPlan) buildServiceNameFilter(services []string) {
 		nameFilters[i] = `ServiceName=="`+v+`"`
 	}
 
-	filter := fmt.Sprintf("(%s)", strings.Join(nameFilters, " or "))
+	filter := "(" + strings.Join(nameFilters, " or ") + ")"
 
 	if len(p.configuredQueryFilter) < 1 {
 		p.options.Filter = filter

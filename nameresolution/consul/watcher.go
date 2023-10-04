@@ -287,7 +287,7 @@ func (r *resolver) runWatchLoop(p *watchPlan) {
 			cancel()
 
 			// generate set of keys
-			serviceKeys := make(map[string]interface{})
+			serviceKeys := make(map[string]any)
 			for i := 0; i < len(services); i++ {
 				serviceKeys[services[i]] = nil
 			}

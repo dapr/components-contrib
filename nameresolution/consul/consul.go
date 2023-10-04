@@ -191,9 +191,8 @@ func (r *registry) removeAll() {
 }
 
 func (r *registry) expire(service string) {
-	var entry *registryEntry
-
-	if entry = r.get(service); entry == nil {
+	entry := r.get(service)
+	if entry == nil {
 		return
 	}
 

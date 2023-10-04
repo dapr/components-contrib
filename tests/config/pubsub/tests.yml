@@ -50,8 +50,6 @@ components:
     operations: []
     config:
       checkInOrderProcessing: false
-  - component: natsstreaming
-    operations: []
   - component: jetstream
     operations: []
   - component: kafka

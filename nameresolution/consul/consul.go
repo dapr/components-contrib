@@ -121,6 +121,7 @@ func (e *registryEntry) next() *consul.ServiceEntry {
 		return nil
 	}
 
+	// gosec is complaining that we are using a non-crypto-safe PRNG. This is fine in this scenario since we are using it only for selecting a random address for load-balancing.
 	//nolint:gosec
 	return e.services[rand.Int()%len(e.services)]
 }
@@ -133,9 +134,8 @@ func (r *resolver) getService(service string) (*consul.ServiceEntry, error) {
 			r.startWatcher()
 		}
 
-		var entry *registryEntry
-
-		if entry = r.registry.get(service); entry != nil {
+		entry := r.registry.get(service)
+		if entry != nil {
 			result := entry.next()
 
 			if result != nil {
@@ -192,9 +192,8 @@ func (r *registry) removeAll() {
 }
 
 func (r *registry) expire(service string) {
-	var entry *registryEntry
-
-	if entry = r.get(service); entry == nil {
+	entry := r.get(service)
+	if entry == nil {
 		return
 	}
 

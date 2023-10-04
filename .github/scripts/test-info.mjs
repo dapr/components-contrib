@@ -414,10 +414,6 @@ const components = {
         conformanceSetup: 'docker-compose.sh vernemq',
         sourcePkg: ['pubsub/mqtt3'],
     },
-    'pubsub.natsstreaming': {
-        conformance: true,
-        conformanceSetup: 'docker-compose.sh natsstreaming',
-    },
     'pubsub.pulsar': {
         conformance: true,
         certification: true,

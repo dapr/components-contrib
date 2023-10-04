@@ -49,9 +49,9 @@ require (
 	github.com/cloudevents/sdk-go/v2 v2.14.0
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
-	github.com/cyphar/filepath-securejoin v0.2.3
+	github.com/cyphar/filepath-securejoin v0.2.4
 	github.com/dancannon/gorethink v4.0.0+incompatible
-	github.com/dapr/kit v0.11.4-0.20230807225040-b6b141aa3e32
+	github.com/dapr/kit v0.12.1
 	github.com/didip/tollbooth/v7 v7.0.1
 	github.com/eclipse/paho.mqtt.golang v1.4.3
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
@@ -71,7 +71,7 @@ require (
 	github.com/http-wasm/http-wasm-host-go v0.5.1
 	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.23.4+incompatible
 	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.56
-	github.com/influxdata/influxdb-client-go v1.4.0
+	github.com/influxdata/influxdb-client-go/v2 v2.12.3
 	github.com/jackc/pgx/v5 v5.4.3
 	github.com/json-iterator/go v1.1.12
 	github.com/kubemq-io/kubemq-go v1.7.9
@@ -86,7 +86,6 @@ require (
 	github.com/nats-io/nats-server/v2 v2.9.21
 	github.com/nats-io/nats.go v1.28.0
 	github.com/nats-io/nkeys v0.4.4
-	github.com/nats-io/stan.go v0.10.4
 	github.com/open-policy-agent/opa v0.55.0
 	github.com/oracle/oci-go-sdk/v54 v54.0.0
 	github.com/pashagolub/pgxmock/v2 v2.11.0
@@ -96,7 +95,7 @@ require (
 	github.com/sendgrid/sendgrid-go v3.13.0+incompatible
 	github.com/sijms/go-ora/v2 v2.7.17
 	github.com/spf13/cast v1.5.1
-	github.com/stealthrocket/wasi-go v0.7.6-0.20230718231108-c3d30af59057
+	github.com/stealthrocket/wasi-go v0.8.1-0.20230912180546-8efbab50fb58
 	github.com/stretchr/testify v1.8.4
 	github.com/supplyon/gremcos v0.1.40
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.732
@@ -173,11 +172,11 @@ require (
 	github.com/bytedance/gopkg v0.0.0-20220817015305-b879a72dc90f // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
-	github.com/chenzhuoyu/iasm v0.0.0-20230222070914-0b1b64b0e762 // indirect
+	github.com/chenzhuoyu/iasm v0.9.0 // indirect
 	github.com/choleraehyq/pid v0.0.17 // indirect
 	github.com/clbanning/mxj/v2 v2.5.6 // indirect
 	github.com/cloudwego/fastpb v0.0.4-0.20230131074846-6fc453d58b96 // indirect
-	github.com/cloudwego/frugal v0.1.6 // indirect
+	github.com/cloudwego/frugal v0.1.8 // indirect
 	github.com/cloudwego/netpoll v0.3.2 // indirect
 	github.com/cloudwego/thriftgo v0.3.0 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
@@ -307,7 +306,6 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/natefinch/lumberjack v2.0.0+incompatible // indirect
 	github.com/nats-io/jwt/v2 v2.4.1 // indirect
-	github.com/nats-io/nats-streaming-server v0.25.5 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/oleiade/lane v1.0.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect

@@ -11,33 +11,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package postgresql
+package pginterfaces
 
 import (
 	"context"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-
-	"github.com/dapr/components-contrib/state"
 )
-
-// dbAccess is a private interface which enables unit testing of PostgreSQL.
-type dbAccess interface {
-	Init(ctx context.Context, metadata state.Metadata) error
-	Set(ctx context.Context, req *state.SetRequest) error
-	Get(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error)
-	BulkGet(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error)
-	Delete(ctx context.Context, req *state.DeleteRequest) error
-	ExecuteMulti(ctx context.Context, req *state.TransactionalStateRequest) error
-	Query(ctx context.Context, req *state.QueryRequest) (*state.QueryResponse, error)
-	Close() error // io.Closer
-}
 
 // Interface that contains methods for querying.
 // Applies to *pgx.Conn, *pgxpool.Pool, and pgx.Tx
-type dbquerier interface {
+type DBQuerier interface {
 	Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error)
 	Query(context.Context, string, ...interface{}) (pgx.Rows, error)
 	QueryRow(context.Context, string, ...interface{}) pgx.Row
+}
+
+// Interface that applies to *pgxpool.Pool.
+// We need this to be able to mock the connection in tests.
+type PGXPoolConn interface {
+	DBQuerier
+
+	Begin(context.Context) (pgx.Tx, error)
+	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
+	Ping(context.Context) error
+	Close()
 }

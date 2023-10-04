@@ -3,7 +3,6 @@ package consul
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -120,10 +119,10 @@ func getServiceNameFilter(services []string) string {
 	var nameFilters = make([]string, len(services))
 
 	for i, v := range services {
-		nameFilters[i] = fmt.Sprintf("ServiceName==\"%s\"", v)
+		nameFilters[i] = `ServiceName=="` + v + `"`
 	}
 
-	return fmt.Sprintf("(%s)", strings.Join(nameFilters, " or "))
+	return strings.Join(nameFilters, " or ")
 }
 
 func (r *resolver) watch(p *watchPlan, services []string, ctx context.Context) (blockingParamVal, consul.HealthChecks, error, bool) {
@@ -205,7 +204,7 @@ func (r *resolver) runWatchPlan(p *watchPlan, services []string, ctx context.Con
 		select {
 		case <-ctx.Done():
 			sleepTimer.Stop()
-			r.logger.Debugf("consul service-watcher retry throttling canceled")
+			r.logger.Debug("consul service-watcher retry throttling canceled")
 		case <-sleepTimer.C:
 		}
 
@@ -296,7 +295,7 @@ func (r *resolver) runWatchLoop(p *watchPlan) {
 			cancel()
 
 			// generate set of keys
-			serviceKeys := make(map[string]interface{})
+			serviceKeys := make(map[string]any)
 			for i := 0; i < len(services); i++ {
 				serviceKeys[services[i]] = nil
 			}

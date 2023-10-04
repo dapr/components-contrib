@@ -121,6 +121,7 @@ func (e *registryEntry) next() *consul.ServiceEntry {
 		return nil
 	}
 
+	// gosec is complaining that we are using a non-crypto-safe PRNG. This is fine in this scenario since we are using it only for selecting a random address for load-balancing.
 	//nolint:gosec
 	return e.services[rand.Int()%len(e.services)]
 }

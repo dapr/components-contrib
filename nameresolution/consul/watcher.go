@@ -202,7 +202,7 @@ func (r *resolver) runWatchPlan(p *watchPlan, services []string, ctx context.Con
 		select {
 		case <-ctx.Done():
 			sleepTimer.Stop()
-			r.logger.Debugf("consul service-watcher retry throttling canceled")
+			r.logger.Debug("consul service-watcher retry throttling canceled")
 		case <-sleepTimer.C:
 		}
 

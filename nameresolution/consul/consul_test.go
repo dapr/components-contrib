@@ -18,6 +18,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -58,7 +59,7 @@ type mockHealth struct {
 	serviceResult   []*consul.ServiceEntry
 	serviceMeta     *consul.QueryMeta
 
-	stateCallStarted int
+	stateCallStarted atomic.Int32
 	stateCalled      int
 	stateError       *error
 	stateBehaviour   func(state string, q *consul.QueryOptions)
@@ -67,7 +68,7 @@ type mockHealth struct {
 }
 
 func (m *mockHealth) State(state string, q *consul.QueryOptions) (consul.HealthChecks, *consul.QueryMeta, error) {
-	m.stateCallStarted++
+	m.stateCallStarted.Add(1)
 
 	if m.stateBehaviour != nil {
 		m.stateBehaviour(state, q)
@@ -117,10 +118,10 @@ func (m *mockAgent) ServiceRegister(service *consul.AgentServiceRegistration) er
 }
 
 type mockRegistry struct {
-	getKeysCalled         int
+	getKeysCalled         atomic.Int32
 	getKeysResult         *[]string
 	getKeysBehaviour      func()
-	addOrUpdateCalled     int
+	addOrUpdateCalled     atomic.Int32
 	addOrUpdateBehaviour  func(service string, services []*consul.ServiceEntry)
 	expireCalled          int
 	expireAllCalled       int
@@ -128,12 +129,10 @@ type mockRegistry struct {
 	removeAllCalled       int
 	getCalled             int
 	getResult             *registryEntry
-	registerChannelCalled int
 	registerChannelResult chan string
 }
 
 func (m *mockRegistry) registrationChannel() chan string {
-	m.registerChannelCalled++
 	return m.registerChannelResult
 }
 
@@ -142,7 +141,7 @@ func (m *mockRegistry) getKeys() []string {
 		m.getKeysBehaviour()
 	}
 
-	m.getKeysCalled++
+	m.getKeysCalled.Add(1)
 
 	return *m.getKeysResult
 }
@@ -160,7 +159,7 @@ func (m *mockRegistry) addOrUpdate(service string, services []*consul.ServiceEnt
 		m.addOrUpdateBehaviour(service, services)
 	}
 
-	m.addOrUpdateCalled++
+	m.addOrUpdateCalled.Add(1)
 }
 
 func (m *mockRegistry) expire(service string) {
@@ -358,13 +357,13 @@ func TestResolveID(t *testing.T) {
 
 				// no apps in registry - cache miss, call agent directly
 				assert.Equal(t, 1, mockReg.getCalled)
-				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.getKeysCalled == 2 })
+				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.getKeysCalled.Load() == 2 })
 				assert.Equal(t, 1, mock.mockHealth.serviceCalled)
 				assert.Equal(t, "10.3.245.137:50005", addr)
 
 				// watcher adds app to registry
-				assert.Equal(t, 1, mockReg.addOrUpdateCalled)
-				assert.Equal(t, 2, mockReg.getKeysCalled)
+				assert.Equal(t, int32(1), mockReg.addOrUpdateCalled.Load())
+				assert.Equal(t, int32(2), mockReg.getKeysCalled.Load())
 
 				mockReg.registerChannelResult <- "test-app"
 				mockReg.getResult = &registryEntry{
@@ -373,12 +372,12 @@ func TestResolveID(t *testing.T) {
 
 				// blocking query - return new index
 				blockingCall <- 2
-				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted == 2 })
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted.Load() == 2 })
 				assert.Equal(t, 1, mock.mockHealth.stateCalled)
 
 				// get healthy nodes and update registry for service in result
 				assert.Equal(t, 2, mock.mockHealth.serviceCalled)
-				assert.Equal(t, 2, mockReg.addOrUpdateCalled)
+				assert.Equal(t, int32(2), mockReg.addOrUpdateCalled.Load())
 
 				// resolve id should only hit cache now
 				addr, _ = resolver.ResolveID(req)
@@ -393,25 +392,25 @@ func TestResolveID(t *testing.T) {
 
 				// no update when no change in index and payload
 				blockingCall <- 2
-				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted == 3 })
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted.Load() == 3 })
 				assert.Equal(t, 2, mock.mockHealth.stateCalled)
 				assert.Equal(t, 2, mock.mockHealth.serviceCalled)
-				assert.Equal(t, 2, mockReg.addOrUpdateCalled)
+				assert.Equal(t, int32(2), mockReg.addOrUpdateCalled.Load())
 
 				// no update when no change in payload
 				blockingCall <- 3
-				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted == 4 })
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted.Load() == 4 })
 				assert.Equal(t, 3, mock.mockHealth.stateCalled)
 				assert.Equal(t, 2, mock.mockHealth.serviceCalled)
-				assert.Equal(t, 2, mockReg.addOrUpdateCalled)
+				assert.Equal(t, int32(2), mockReg.addOrUpdateCalled.Load())
 
 				// update when change in index and payload
 				mock.mockHealth.stateResult[0].Status = consul.HealthCritical
 				blockingCall <- 4
-				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted == 5 })
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted.Load() == 5 })
 				assert.Equal(t, 4, mock.mockHealth.stateCalled)
 				assert.Equal(t, 3, mock.mockHealth.serviceCalled)
-				assert.Equal(t, 3, mockReg.addOrUpdateCalled)
+				assert.Equal(t, int32(3), mockReg.addOrUpdateCalled.Load())
 			},
 		},
 		{
@@ -518,13 +517,13 @@ func TestResolveID(t *testing.T) {
 
 				// no apps in registry - cache miss, call agent directly
 				assert.Equal(t, 1, mockReg.getCalled)
-				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled == 1 })
+				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled.Load() == 1 })
 				assert.Equal(t, 1, mock.mockHealth.serviceCalled)
 				assert.Equal(t, "10.3.245.137:50005", addr)
 
 				// watcher adds app to registry
-				assert.Equal(t, 1, mockReg.addOrUpdateCalled)
-				assert.Equal(t, 2, mockReg.getKeysCalled)
+				assert.Equal(t, int32(1), mockReg.addOrUpdateCalled.Load())
+				assert.Equal(t, int32(2), mockReg.getKeysCalled.Load())
 
 				// add key to mock registry - trigger watcher
 				mockReg.registerChannelResult <- "test-app"
@@ -534,12 +533,12 @@ func TestResolveID(t *testing.T) {
 
 				// blocking query - return new index
 				blockingCall <- 2
-				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled == 2 })
+				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled.Load() == 2 })
 				assert.Equal(t, 1, mock.mockHealth.stateCalled)
 
 				// get healthy nodes and update registry for service in result
 				assert.Equal(t, 2, mock.mockHealth.serviceCalled)
-				assert.Equal(t, 2, mockReg.addOrUpdateCalled)
+				assert.Equal(t, int32(2), mockReg.addOrUpdateCalled.Load())
 
 				// resolve id should only hit cache now
 				_, _ = resolver.ResolveID(req)
@@ -552,40 +551,40 @@ func TestResolveID(t *testing.T) {
 
 				// blocking query - return new index - node1 app is now unhealthy
 				blockingCall <- 3
-				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted == 3 })
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted.Load() == 3 })
 				assert.Equal(t, 2, mock.mockHealth.stateCalled)
 				assert.Equal(t, 3, mock.mockHealth.serviceCalled)
-				assert.Equal(t, 3, mockReg.addOrUpdateCalled)
+				assert.Equal(t, int32(3), mockReg.addOrUpdateCalled.Load())
 
 				// change remaining check for node1 app to critical
 				node1check2.Status = consul.HealthCritical
 
 				// blocking query - return new index - node1 app is still unhealthy, no change
 				blockingCall <- 4
-				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted == 4 })
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted.Load() == 4 })
 				assert.Equal(t, 3, mock.mockHealth.stateCalled)
 				assert.Equal(t, 3, mock.mockHealth.serviceCalled)
-				assert.Equal(t, 3, mockReg.addOrUpdateCalled)
+				assert.Equal(t, int32(3), mockReg.addOrUpdateCalled.Load())
 
 				// change one check for node2 app to healthy
 				node2check1.Status = consul.HealthPassing
 
 				// blocking query - return new index - node2 app is still unhealthy, no change
 				blockingCall <- 4
-				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted == 5 })
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted.Load() == 5 })
 				assert.Equal(t, 4, mock.mockHealth.stateCalled)
 				assert.Equal(t, 3, mock.mockHealth.serviceCalled)
-				assert.Equal(t, 3, mockReg.addOrUpdateCalled)
+				assert.Equal(t, int32(3), mockReg.addOrUpdateCalled.Load())
 
 				// change remaining check for node2 app to healthy
 				node2check2.Status = consul.HealthPassing
 
 				// blocking query - return new index - node2 app is now healthy
 				blockingCall <- 5
-				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted == 6 })
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted.Load() == 6 })
 				assert.Equal(t, 5, mock.mockHealth.stateCalled)
 				assert.Equal(t, 4, mock.mockHealth.serviceCalled)
-				assert.Equal(t, 4, mockReg.addOrUpdateCalled)
+				assert.Equal(t, int32(4), mockReg.addOrUpdateCalled.Load())
 			},
 		},
 		{
@@ -665,11 +664,12 @@ func TestResolveID(t *testing.T) {
 
 				// Cache miss pass through
 				assert.Equal(t, 1, mockReg.getCalled)
-				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled == 1 })
+				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled.Load() == 1 })
 				assert.Equal(t, 1, mock.mockHealth.serviceCalled)
-				assert.Equal(t, 1, mockReg.addOrUpdateCalled)
+				assert.Equal(t, int32(1), mockReg.addOrUpdateCalled.Load())
 				assert.Equal(t, "10.3.245.137:50005", addr)
 
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted.Load() == 1 })
 				mockReg.getKeysResult = &serviceKeys
 				mockReg.registerChannelResult <- "test-app"
 				mockReg.getResult = &registryEntry{
@@ -677,15 +677,15 @@ func TestResolveID(t *testing.T) {
 				}
 
 				blockingCall <- 2
-				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled == 2 })
+				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled.Load() == 2 })
 				assert.Equal(t, 1, mock.mockHealth.stateCalled)
 				assert.Equal(t, 2, mock.mockHealth.serviceCalled)
-				assert.Equal(t, 2, mockReg.addOrUpdateCalled)
+				assert.Equal(t, int32(2), mockReg.addOrUpdateCalled.Load())
 
 				mock.mockHealth.stateError = &err
 				blockingCall <- 3
 				blockingCall <- 3
-				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted == 2 })
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted.Load() == 2 })
 				assert.Equal(t, 1, mockReg.expireAllCalled)
 			},
 		},

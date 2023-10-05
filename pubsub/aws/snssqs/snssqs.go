@@ -552,7 +552,7 @@ func (s *snsSqs) callHandler(ctx context.Context, message *sqs.Message, queueInf
 		loadOK  bool
 	)
 	if handler, loadOK = s.subscriptionManager.GetSubscriptionTopicHandler(sanitizedTopic); loadOK {
-		if len(handler.topicName) == 0 {
+		if len(handler.requestTopic) == 0 {
 			return fmt.Errorf("handler topic name is missing")
 		}
 	} else {
@@ -564,7 +564,7 @@ func (s *snsSqs) callHandler(ctx context.Context, message *sqs.Message, queueInf
 	// call the handler with its own subscription context
 	err = handler.handler(handler.ctx, &pubsub.NewMessage{
 		Data:  []byte(snsMessagePayload.Message),
-		Topic: handler.topicName,
+		Topic: handler.requestTopic,
 	})
 	if err != nil {
 		return fmt.Errorf("error handling message: %w", err)
@@ -823,10 +823,11 @@ func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	// start the subscription manager
 	s.subscriptionManager.Init(queueInfo, deadLettersQueueInfo, s.consumeSubscription)
 
-	s.subscriptionManager.Subscribe(sanitizedName, &SubscriptionTopicHandler{
-		topicName: req.Topic,
-		handler:   handler,
-		ctx:       ctx,
+	s.subscriptionManager.Subscribe(&SubscriptionTopicHandler{
+		topic:        sanitizedName,
+		requestTopic: req.Topic,
+		handler:      handler,
+		ctx:          ctx,
 	})
 
 	return nil

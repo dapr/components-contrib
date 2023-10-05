@@ -69,11 +69,12 @@ type serviceIdentifier struct {
 func getHealthByService(checks consul.HealthChecks) map[serviceIdentifier]bool {
 	healthByService := make(map[serviceIdentifier]bool)
 	for _, check := range checks {
-		// generate unique identifer for service
+		// generate unique identifier for service
 		id := serviceIdentifier{
 			serviceID:   check.ServiceID,
 			serviceName: check.ServiceName,
-			node:        check.Node}
+			node:        check.Node,
+		}
 
 		// if the service is not in the map - add and init to healthy
 		if state, ok := healthByService[id]; !ok {
@@ -118,7 +119,7 @@ func (p *watchPlan) getChangedServices(newResult map[serviceIdentifier]bool) map
 }
 
 func getServiceNameFilter(services []string) string {
-	var nameFilters = make([]string, len(services))
+	nameFilters := make([]string, len(services))
 
 	for i, v := range services {
 		nameFilters[i] = `ServiceName=="` + v + `"`
@@ -139,7 +140,6 @@ func (r *resolver) watch(ctx context.Context, p *watchPlan, services []string) (
 
 	// request health checks for target services using blocking query
 	checks, meta, err := r.client.Health().State(consul.HealthAny, p.options)
-
 	if err != nil {
 		// if it failed during long poll try again with no wait
 		if p.options.WaitIndex != uint64(0) {

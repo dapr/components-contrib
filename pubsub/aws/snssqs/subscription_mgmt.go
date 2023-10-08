@@ -162,13 +162,15 @@ func (sm *SubscriptionManager) createSubscribeListener(topic string, topicHandle
 // ctx is a context provided by daprd per subscription. unrelated to the consuming sm.baseCtx
 func (sm *SubscriptionManager) createUnsubscribeListener(ctx context.Context, topic string, closeCh <-chan struct{}) {
 	sm.logger.Debug("creating unsubscribe listener for topic ", topic)
+	defer func() {
+		if value, ok := sm.GetSubscriptionTopicHandler(topic); ok {
+			sm.topicsChangeCh <- changeSubscriptionTopicHandler{Unsubscribe, topic, value}
+		}
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
-			if value, ok := sm.GetSubscriptionTopicHandler(topic); ok {
-				sm.topicsChangeCh <- changeSubscriptionTopicHandler{Unsubscribe, topic, value}
-			}
-			// no need to iterate anymore as this subctx is exhusted
 			return
 		case <-closeCh:
 			return

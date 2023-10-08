@@ -87,20 +87,21 @@ func (sm *SubscriptionManager) Init(queueInfo *sqsQueueInfo, dlqInfo *sqsQueueIn
 	})
 }
 
-// queueConsumerController is responsible for managing the subscription lifecycle.
-// it is the only place where the topicsHandlers map is updated.
-// it is running in a separate goroutine and is responsible for starting and stopping sqs consumption.
-// its lifecycle is managed by the subscription manager and it has its own context with its child contexts used for sqs consumption and aborting of the consumption.
+// queueConsumerController is responsible for managing the subscription lifecycle
+// and the only place where the topicsHandlers map is updated.
+// it is running in a separate goroutine and is responsible for starting and stopping sqs consumption
+// where its lifecycle is managed by the subscription manager,
+// and it has its own context with its child contexts used for sqs consumption and aborting of the consumption.
 // it is also responsible for managing the lifecycle of the subscription handlers.
-func (sm *SubscriptionManager) queueConsumerController(queueConsumerBck func(context.Context)) {
-	baseContext := context.Background()
+func (sm *SubscriptionManager) queueConsumerController(queueConsumerCbk func(context.Context)) {
+	ctx := context.Background()
 
 	for {
 		select {
 		case changeEvent := <-sm.topicsChangeCh:
 			topic := changeEvent.handler.topic
 			sm.logger.Debugf("subscription change event received with action: %s, on topic: %s", changeEvent.action, topic)
-			// topology change events are serialized so that no interleaving can occur
+			// topic change events are serialized so that no interleaving can occur
 			sm.lock.Lock()
 			// although we have a lock here, the topicsHandlers map is thread safe and can be accessed concurrently so other subscribers that are already consuming messages
 			// can get the handler for the topic while we're still updating the map without blocking them
@@ -112,12 +113,12 @@ func (sm *SubscriptionManager) queueConsumerController(queueConsumerBck func(con
 
 				// if before we've added the subscription there were no subscriptions, this subscribe signals us to start consuming from sqs
 				if current == 0 {
-					var subctx context.Context
+					var subCtx context.Context
 					// create a new context for sqs consumption with a cancel func to be used when we unsubscribe from all topics
-					subctx, sm.consumeCancelFunc = context.WithCancel(baseContext)
+					subCtx, sm.consumeCancelFunc = context.WithCancel(ctx)
 					// start sqs consumption
 					sm.logger.Debug("starting sqs consumption for the first time")
-					go queueConsumerBck(subctx)
+					go queueConsumerCbk(subCtx)
 				}
 			} else if changeEvent.action == Unsubscribe {
 				sm.logger.Debug("unsubscribing from topic: ", topic)
@@ -132,7 +133,6 @@ func (sm *SubscriptionManager) queueConsumerController(queueConsumerBck func(con
 			}
 			sm.lock.Unlock()
 		case <-sm.closeCh:
-			sm.consumeCancelFunc()
 			return
 		}
 	}
@@ -164,7 +164,9 @@ func (sm *SubscriptionManager) createUnsubscribeListener(ctx context.Context, to
 	for {
 		select {
 		case <-ctx.Done():
+			return
 		case <-closeCh:
+			return
 		}
 	}
 }

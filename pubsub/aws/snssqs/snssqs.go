@@ -253,7 +253,7 @@ func (s *snsSqs) getOrCreateTopic(ctx context.Context, topic string) (string, st
 	}
 
 	// creating queues is idempotent, the names serve as unique keys among a given region.
-	s.logger.Debugf("no SNS topic ARN found for topic: %s\ncreating SNS with (sanitized) topic: %s", topic, sanitizedTopic)
+	s.logger.Debugf("no SNS topic ARN found for topic: %s. creating SNS with (sanitized) topic: %s", topic, sanitizedTopic)
 
 	if !s.metadata.DisableEntityManagement {
 		topicArn, err = s.createTopic(ctx, sanitizedTopic)
@@ -364,7 +364,7 @@ func (s *snsSqs) getOrCreateQueue(ctx context.Context, queueName string) (*sqsQu
 	}
 
 	s.queues.Store(queueName, queueInfo)
-	s.logger.Debugf("Created SQS queue: %s: with arn: %s", queueName, queueInfo.arn)
+	s.logger.Debugf("created SQS queue: %s: with arn: %s", queueName, queueInfo.arn)
 
 	return queueInfo, nil
 }

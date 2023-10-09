@@ -124,6 +124,9 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 	var pubsubClient *gcppubsub.Client
 	var err error
 
+	// context.Background is used here, as the context used to Dial the
+	// server in the gRPC DialPool. Callers should always call `Close` on the
+	// component to ensure all resources are released.
 	if metadata.PrivateKeyID != "" {
 		// TODO: validate that all auth json fields are filled
 		authJSON := &GCPAuthJSON{
@@ -141,7 +144,7 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 		gcpCompatibleJSON, _ := json.Marshal(authJSON)
 		g.logger.Debugf("Using explicit credentials for GCP")
 		clientOptions := option.WithCredentialsJSON(gcpCompatibleJSON)
-		pubsubClient, err = gcppubsub.NewClient(ctx, metadata.ProjectID, clientOptions)
+		pubsubClient, err = gcppubsub.NewClient(context.Background(), metadata.ProjectID, clientOptions)
 		if err != nil {
 			return pubsubClient, err
 		}
@@ -156,7 +159,7 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 			g.logger.Debugf("setting GCP PubSub Emulator environment variable to 'PUBSUB_EMULATOR_HOST=%s'", metadata.ConnectionEndpoint)
 			os.Setenv("PUBSUB_EMULATOR_HOST", metadata.ConnectionEndpoint)
 		}
-		pubsubClient, err = gcppubsub.NewClient(ctx, metadata.ProjectID)
+		pubsubClient, err = gcppubsub.NewClient(context.Background(), metadata.ProjectID)
 		if err != nil {
 			return pubsubClient, err
 		}

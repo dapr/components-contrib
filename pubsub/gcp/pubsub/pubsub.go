@@ -124,7 +124,7 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 	var pubsubClient *gcppubsub.Client
 	var err error
 
-	// context.Background is used here, as this the context used to Dial the
+	// context.Background is used here, as the context used to Dial the
 	// server in the gRPC DialPool. Callers should always call `Close` on the
 	// component to ensure all resources are released.
 	if metadata.PrivateKeyID != "" {

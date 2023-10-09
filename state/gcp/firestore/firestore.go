@@ -211,10 +211,21 @@ func getFirestoreMetadata(meta state.Metadata) (*firestoreMetadata, error) {
 	return &m, nil
 }
 
+func (f *Firestore) Close() error {
+	if f.client != nil {
+		return f.client.Close()
+	}
+
+	return nil
+}
+
 func getGCPClient(ctx context.Context, metadata *firestoreMetadata, l logger.Logger) (*datastore.Client, error) {
 	var gcpClient *datastore.Client
 	var err error
 
+	// context.Background is used here, as the context used to Dial the
+	// server in the gRPC DialPool. Callers should always call `Close` on the
+	// component to ensure all resources are released.
 	if metadata.PrivateKeyID != "" {
 		var b []byte
 		b, err = json.Marshal(metadata)
@@ -223,7 +234,7 @@ func getGCPClient(ctx context.Context, metadata *firestoreMetadata, l logger.Log
 		}
 
 		opt := option.WithCredentialsJSON(b)
-		gcpClient, err = datastore.NewClient(ctx, metadata.ProjectID, opt)
+		gcpClient, err = datastore.NewClient(context.Background(), metadata.ProjectID, opt)
 		if err != nil {
 			return nil, err
 		}
@@ -238,7 +249,7 @@ func getGCPClient(ctx context.Context, metadata *firestoreMetadata, l logger.Log
 			l.Debugf("setting GCP Datastore Emulator environment variable to 'DATASTORE_EMULATOR_HOST=%s'", metadata.ConnectionEndpoint)
 			os.Setenv("DATASTORE_EMULATOR_HOST", metadata.ConnectionEndpoint)
 		}
-		gcpClient, err = datastore.NewClient(ctx, metadata.ProjectID)
+		gcpClient, err = datastore.NewClient(context.Background(), metadata.ProjectID)
 		if err != nil {
 			return nil, err
 		}

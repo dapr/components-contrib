@@ -128,7 +128,7 @@ func getServiceNameFilter(services []string) string {
 	return strings.Join(nameFilters, " or ")
 }
 
-func (r *resolver) watch(ctx context.Context, p *watchPlan, services []string) (blockingParamVal, consul.HealthChecks, error, bool) {
+func (r *resolver) watch(ctx context.Context, p *watchPlan, services []string) (blockingParamVal, consul.HealthChecks, error) {
 	p.options = p.options.WithContext(ctx)
 
 	if p.lastParamVal != nil {
@@ -150,7 +150,7 @@ func (r *resolver) watch(ctx context.Context, p *watchPlan, services []string) (
 		if err != nil {
 			// if the context was canceled
 			if errors.Is(err, context.Canceled) {
-				return nil, nil, nil, true
+				return nil, nil, err
 			}
 
 			// if it failed with no wait and plan is not expired
@@ -160,12 +160,12 @@ func (r *resolver) watch(ctx context.Context, p *watchPlan, services []string) (
 				r.registry.expireAll()
 			}
 
-			return nil, nil, err, false
+			return nil, nil, err
 		}
 	}
 
 	p.expired = false
-	return waitIndexVal(meta.LastIndex), checks, err, false
+	return waitIndexVal(meta.LastIndex), checks, err
 }
 
 // runWatchPlan executes the following steps:
@@ -173,17 +173,17 @@ func (r *resolver) watch(ctx context.Context, p *watchPlan, services []string) (
 //   - compares the results to the previous
 //   - if there is a change for a given serviceName/appId it invokes the health/service api to get a list of healthy targets
 //   - signals completion of the watch plan
-func (r *resolver) runWatchPlan(ctx context.Context, p *watchPlan, services []string, watchPlanComplete chan bool) {
+func (r *resolver) runWatchPlan(ctx context.Context, p *watchPlan, services []string, watchPlanComplete chan struct{}) {
 	defer func() {
 		// signal completion of the watch plan to unblock the watch plan loop
-		watchPlanComplete <- true
+		watchPlanComplete <- struct{}{}
 	}()
 
 	// invoke blocking call
-	blockParam, result, err, canceled := r.watch(ctx, p, services)
+	blockParam, result, err := r.watch(ctx, p, services)
 
 	// if the ctx was canceled then do nothing
-	if canceled {
+	if errors.Is(err, context.Canceled) {
 		return
 	}
 
@@ -268,10 +268,10 @@ func (r *resolver) runWatchPlan(ctx context.Context, p *watchPlan, services []st
 func (r *resolver) runWatchLoop(p *watchPlan) {
 	defer func() {
 		r.registry.removeAll()
-		r.watcherStarted = false
+		r.watcherStarted.Store(false)
 	}()
 
-	watchPlanComplete := make(chan bool, 1)
+	watchPlanComplete := make(chan struct{}, 1)
 
 	for {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -333,10 +333,7 @@ func (r *resolver) runWatchLoop(p *watchPlan) {
 
 // startWatcher will configure the watch plan and start the watch loop in a separate routine
 func (r *resolver) startWatcher() {
-	r.watcherMutex.Lock()
-	defer r.watcherMutex.Unlock()
-
-	if r.watcherStarted {
+	if !r.watcherStarted.CompareAndSwap(false, true) {
 		return
 	}
 
@@ -357,6 +354,5 @@ func (r *resolver) startWatcher() {
 		backOff:                  ebo,
 	}
 
-	r.watcherStarted = true
 	go r.runWatchLoop(plan)
 }

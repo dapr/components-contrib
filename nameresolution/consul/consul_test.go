@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -941,7 +940,7 @@ func TestRegistry(t *testing.T) {
 			func(t *testing.T) {
 				t.Helper()
 
-				registry := &registry{entries: &sync.Map{}}
+				registry := &registry{}
 
 				result := []*consul.ServiceEntry{
 					{
@@ -976,8 +975,8 @@ func TestRegistry(t *testing.T) {
 			func(t *testing.T) {
 				t.Helper()
 
-				entryMap := &sync.Map{}
-				entryMap.Store(
+				registry := &registry{}
+				registry.entries.Store(
 					"A",
 					&registryEntry{
 						services: []*consul.ServiceEntry{
@@ -990,7 +989,7 @@ func TestRegistry(t *testing.T) {
 						},
 					})
 
-				entryMap.Store(
+				registry.entries.Store(
 					"B",
 					&registryEntry{
 						services: []*consul.ServiceEntry{
@@ -1003,7 +1002,7 @@ func TestRegistry(t *testing.T) {
 						},
 					})
 
-				entryMap.Store(
+				registry.entries.Store(
 					"C",
 					&registryEntry{
 						services: []*consul.ServiceEntry{
@@ -1015,10 +1014,6 @@ func TestRegistry(t *testing.T) {
 							},
 						},
 					})
-
-				registry := &registry{
-					entries: entryMap,
-				}
 
 				result, _ := registry.entries.Load("A")
 				assert.NotNil(t, result.(*registryEntry).services)
@@ -1048,7 +1043,7 @@ func TestRegistry(t *testing.T) {
 			func(t *testing.T) {
 				t.Helper()
 
-				entryMap := &sync.Map{}
+				registry := &registry{}
 				entry := &registryEntry{
 					services: []*consul.ServiceEntry{
 						{
@@ -1060,14 +1055,10 @@ func TestRegistry(t *testing.T) {
 					},
 				}
 
-				entryMap.Store("A", entry)
-				entryMap.Store("B", entry)
-				entryMap.Store("C", entry)
-				entryMap.Store("D", entry)
-
-				registry := &registry{
-					entries: entryMap,
-				}
+				registry.entries.Store("A", entry)
+				registry.entries.Store("B", entry)
+				registry.entries.Store("C", entry)
+				registry.entries.Store("D", entry)
 
 				registry.remove("A")
 

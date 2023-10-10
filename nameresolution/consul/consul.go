@@ -19,6 +19,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"sync/atomic"
 
 	consul "github.com/hashicorp/consul/api"
 
@@ -70,8 +71,7 @@ type resolver struct {
 	logger         logger.Logger
 	client         clientInterface
 	registry       registryInterface
-	watcherStarted bool
-	watcherMutex   sync.Mutex
+	watcherStarted atomic.Bool
 }
 
 type registryInterface interface {
@@ -86,7 +86,7 @@ type registryInterface interface {
 }
 
 type registry struct {
-	entries        *sync.Map
+	entries        sync.Map
 	serviceChannel chan string
 }
 
@@ -130,9 +130,7 @@ func (r *resolver) getService(service string) (*consul.ServiceEntry, error) {
 	var services []*consul.ServiceEntry
 
 	if r.config.UseCache {
-		if !r.watcherStarted {
-			r.startWatcher()
-		}
+		r.startWatcher()
 
 		entry := r.registry.get(service)
 		if entry != nil {
@@ -223,7 +221,7 @@ type resolverConfig struct {
 
 // NewResolver creates Consul name resolver.
 func NewResolver(logger logger.Logger) nr.Resolver {
-	return newResolver(logger, resolverConfig{}, &client{}, &registry{entries: &sync.Map{}, serviceChannel: make(chan string, 100)})
+	return newResolver(logger, resolverConfig{}, &client{}, &registry{serviceChannel: make(chan string, 100)})
 }
 
 func newResolver(logger logger.Logger, resolverConfig resolverConfig, client clientInterface, registry registryInterface) nr.Resolver {

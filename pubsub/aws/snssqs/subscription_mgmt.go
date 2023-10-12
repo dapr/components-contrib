@@ -4,9 +4,10 @@ import (
 	"context"
 	"sync"
 
+	"github.com/puzpuzpuz/xsync/v2"
+
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
-	"github.com/puzpuzpuz/xsync/v2"
 )
 
 type (

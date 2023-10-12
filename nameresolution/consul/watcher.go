@@ -273,6 +273,7 @@ func (r *resolver) runWatchLoop(p *watchPlan) {
 
 	watchPlanComplete := make(chan struct{}, 1)
 
+watchLoop:
 	for {
 		ctx, cancel := context.WithCancel(context.Background())
 
@@ -327,6 +328,11 @@ func (r *resolver) runWatchLoop(p *watchPlan) {
 			// reset plan failure count and query index
 			p.failing = false
 			p.lastParamVal = waitIndexVal(0)
+
+		// resolver closing
+		case <-r.watcherStopChannel:
+			cancel()
+			break watchLoop
 		}
 	}
 }

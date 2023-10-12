@@ -97,11 +97,13 @@ func (m *mockHealth) Service(service, tag string, passingOnly bool, q *consul.Qu
 }
 
 type mockAgent struct {
-	selfCalled            int
-	selfErr               error
-	selfResult            map[string]map[string]interface{}
-	serviceRegisterCalled int
-	serviceRegisterErr    error
+	selfCalled              int
+	selfErr                 error
+	selfResult              map[string]map[string]interface{}
+	serviceRegisterCalled   int
+	serviceRegisterErr      error
+	serviceDeregisterCalled int
+	serviceDeregisterErr    error
 }
 
 func (m *mockAgent) Self() (map[string]map[string]interface{}, error) {
@@ -116,6 +118,12 @@ func (m *mockAgent) ServiceRegister(service *consul.AgentServiceRegistration) er
 	return m.serviceRegisterErr
 }
 
+func (m *mockAgent) ServiceDeregister(serviceID string) error {
+	m.serviceDeregisterCalled++
+
+	return m.serviceDeregisterErr
+}
+
 type mockRegistry struct {
 	getKeysCalled         atomic.Int32
 	getKeysResult         *[]string
@@ -125,7 +133,7 @@ type mockRegistry struct {
 	expireCalled          int
 	expireAllCalled       int
 	removeCalled          int
-	removeAllCalled       int
+	removeAllCalled       atomic.Int32
 	getCalled             int
 	getResult             *registryEntry
 	registerChannelResult chan string
@@ -150,7 +158,7 @@ func (m *mockRegistry) expireAll() {
 }
 
 func (m *mockRegistry) removeAll() {
-	m.removeAllCalled++
+	m.removeAllCalled.Add(1)
 }
 
 func (m *mockRegistry) addOrUpdate(service string, services []*consul.ServiceEntry) {
@@ -192,7 +200,7 @@ func TestInit(t *testing.T) {
 				t.Helper()
 
 				var mock mockClient
-				resolver := newResolver(logger.NewLogger("test"), resolverConfig{}, &mock, &registry{})
+				resolver := newResolver(logger.NewLogger("test"), resolverConfig{}, &mock, &registry{}, make(chan struct{}))
 
 				_ = resolver.Init(metadata)
 
@@ -215,7 +223,7 @@ func TestInit(t *testing.T) {
 				t.Helper()
 
 				var mock mockClient
-				resolver := newResolver(logger.NewLogger("test"), resolverConfig{}, &mock, &registry{})
+				resolver := newResolver(logger.NewLogger("test"), resolverConfig{}, &mock, &registry{}, make(chan struct{}))
 
 				_ = resolver.Init(metadata)
 
@@ -237,7 +245,7 @@ func TestInit(t *testing.T) {
 				t.Helper()
 
 				var mock mockClient
-				resolver := newResolver(logger.NewLogger("test"), resolverConfig{}, &mock, &registry{})
+				resolver := newResolver(logger.NewLogger("test"), resolverConfig{}, &mock, &registry{}, make(chan struct{}))
 
 				_ = resolver.Init(metadata)
 
@@ -351,7 +359,7 @@ func TestResolveID(t *testing.T) {
 						}
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), cfg, mock, mockReg)
+				resolver := newResolver(logger.NewLogger("test"), cfg, mock, mockReg, make(chan struct{}))
 				addr, _ := resolver.ResolveID(req)
 
 				// no apps in registry - cache miss, call agent directly
@@ -511,7 +519,7 @@ func TestResolveID(t *testing.T) {
 						}
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), cfg, &mock, mockReg)
+				resolver := newResolver(logger.NewLogger("test"), cfg, &mock, mockReg, make(chan struct{}))
 				addr, _ := resolver.ResolveID(req)
 
 				// no apps in registry - cache miss, call agent directly
@@ -658,7 +666,7 @@ func TestResolveID(t *testing.T) {
 						}
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), cfg, mock, mockReg)
+				resolver := newResolver(logger.NewLogger("test"), cfg, mock, mockReg, make(chan struct{}))
 				addr, _ := resolver.ResolveID(req)
 
 				// Cache miss pass through
@@ -689,6 +697,102 @@ func TestResolveID(t *testing.T) {
 			},
 		},
 		{
+			"should stop watcher on close",
+			nr.ResolveRequest{
+				ID: "test-app",
+			},
+			func(t *testing.T, req nr.ResolveRequest) {
+				t.Helper()
+
+				blockingCall := make(chan uint64)
+				meta := &consul.QueryMeta{
+					LastIndex: 0,
+				}
+
+				serviceEntries := []*consul.ServiceEntry{
+					{
+						Service: &consul.AgentService{
+							Address: "10.3.245.137",
+							Port:    8600,
+							Meta: map[string]string{
+								"DAPR_PORT": "50005",
+							},
+						},
+					},
+				}
+
+				healthChecks := consul.HealthChecks{
+					&consul.HealthCheck{
+						Node:        "0e1234",
+						ServiceID:   "test-app-10.3.245.137-3500",
+						ServiceName: "test-app",
+						Status:      consul.HealthPassing,
+					},
+				}
+
+				mock := &mockClient{
+					mockHealth: mockHealth{
+						// Service()
+						serviceResult: serviceEntries,
+						serviceMeta:   meta,
+						serviceBehavior: func(service, tag string, passingOnly bool, q *consul.QueryOptions) {
+						},
+						serviceErr: nil,
+
+						// State()
+						stateResult: healthChecks,
+						stateMeta:   meta,
+						stateBehaviour: func(state string, q *consul.QueryOptions) {
+							select {
+							case meta.LastIndex = <-blockingCall:
+							case <-q.Context().Done():
+							}
+						},
+						stateError: nil,
+					},
+				}
+
+				cfg := resolverConfig{
+					DaprPortMetaKey: "DAPR_PORT",
+					UseCache:        true,
+					QueryOptions:    &consul.QueryOptions{},
+				}
+
+				serviceKeys := make([]string, 0, 10)
+
+				mockReg := &mockRegistry{
+					registerChannelResult: make(chan string, 100),
+					getKeysResult:         &serviceKeys,
+					addOrUpdateBehaviour: func(service string, services []*consul.ServiceEntry) {
+						if services == nil {
+							serviceKeys = append(serviceKeys, service)
+						}
+					},
+				}
+				resolver := newResolver(logger.NewLogger("test"), cfg, mock, mockReg, make(chan struct{})).(*resolver)
+				addr, _ := resolver.ResolveID(req)
+
+				// Cache miss pass through
+				assert.Equal(t, 1, mockReg.getCalled)
+				waitTillTrueOrTimeout(time.Second, func() bool { return mockReg.addOrUpdateCalled.Load() == 1 })
+				assert.Equal(t, 1, mock.mockHealth.serviceCalled)
+				assert.Equal(t, int32(1), mockReg.addOrUpdateCalled.Load())
+				assert.Equal(t, "10.3.245.137:50005", addr)
+
+				waitTillTrueOrTimeout(time.Second, func() bool { return mock.mockHealth.stateCallStarted.Load() == 1 })
+				mockReg.getKeysResult = &serviceKeys
+				mockReg.registerChannelResult <- "test-app"
+				mockReg.getResult = &registryEntry{
+					services: serviceEntries,
+				}
+
+				resolver.Close()
+				waitTillTrueOrTimeout(time.Second*1, func() bool { return mockReg.removeAllCalled.Load() == 1 })
+				assert.Equal(t, int32(1), mockReg.removeAllCalled.Load())
+				assert.Equal(t, false, resolver.watcherStarted.Load())
+			},
+		},
+		{
 			"error if no healthy services found",
 			nr.ResolveRequest{
 				ID: "test-app",
@@ -700,7 +804,7 @@ func TestResolveID(t *testing.T) {
 						serviceResult: []*consul.ServiceEntry{},
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{})
+				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{}, make(chan struct{}))
 
 				_, err := resolver.ResolveID(req)
 				assert.Equal(t, 1, mock.mockHealth.serviceCalled)
@@ -729,7 +833,7 @@ func TestResolveID(t *testing.T) {
 						},
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{})
+				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{}, make(chan struct{}))
 
 				addr, _ := resolver.ResolveID(req)
 
@@ -758,7 +862,7 @@ func TestResolveID(t *testing.T) {
 						},
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{})
+				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{}, make(chan struct{}))
 
 				addr, _ := resolver.ResolveID(req)
 
@@ -796,7 +900,7 @@ func TestResolveID(t *testing.T) {
 						},
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{})
+				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{}, make(chan struct{}))
 
 				total1 := 0
 				total2 := 0
@@ -855,7 +959,7 @@ func TestResolveID(t *testing.T) {
 						},
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{})
+				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{}, make(chan struct{}))
 
 				addr, _ := resolver.ResolveID(req)
 
@@ -884,7 +988,7 @@ func TestResolveID(t *testing.T) {
 						},
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{})
+				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{}, make(chan struct{}))
 
 				_, err := resolver.ResolveID(req)
 
@@ -910,7 +1014,7 @@ func TestResolveID(t *testing.T) {
 						},
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{})
+				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{}, make(chan struct{}))
 
 				_, err := resolver.ResolveID(req)
 
@@ -923,6 +1027,110 @@ func TestResolveID(t *testing.T) {
 		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
 			tt.test(t, tt.req)
+		})
+	}
+}
+
+func TestClose(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		testName string
+		metadata nr.Metadata
+		test     func(*testing.T, nr.Metadata)
+	}{
+		{
+			"should deregister",
+			nr.Metadata{Base: metadata.Base{
+				Properties: getTestPropsWithoutKey(""),
+			}, Configuration: nil},
+			func(t *testing.T, metadata nr.Metadata) {
+				t.Helper()
+
+				var mock mockClient
+				resolverConfig := resolverConfig{
+					Registration:      &consul.AgentServiceRegistration{},
+					DeregisterOnClose: true,
+				}
+
+				resolver := newResolver(logger.NewLogger("test"), resolverConfig, &mock, &registry{}, make(chan struct{})).(*resolver)
+				resolver.Close()
+
+				assert.Equal(t, 1, mock.mockAgent.serviceDeregisterCalled)
+			},
+		},
+		{
+			"should not deregister",
+			nr.Metadata{Base: metadata.Base{
+				Properties: getTestPropsWithoutKey(""),
+			}, Configuration: nil},
+			func(t *testing.T, metadata nr.Metadata) {
+				t.Helper()
+
+				var mock mockClient
+				resolverConfig := resolverConfig{
+					Registration:      &consul.AgentServiceRegistration{},
+					DeregisterOnClose: false,
+				}
+
+				resolver := newResolver(logger.NewLogger("test"), resolverConfig, &mock, &registry{}, make(chan struct{})).(*resolver)
+				resolver.Close()
+
+				assert.Equal(t, 0, mock.mockAgent.serviceDeregisterCalled)
+			},
+		},
+		{
+			"should not deregister when no registration",
+			nr.Metadata{Base: metadata.Base{
+				Properties: getTestPropsWithoutKey(""),
+			}, Configuration: nil},
+			func(t *testing.T, metadata nr.Metadata) {
+				t.Helper()
+
+				var mock mockClient
+				resolverConfig := resolverConfig{
+					Registration:      nil,
+					DeregisterOnClose: true,
+				}
+
+				resolver := newResolver(logger.NewLogger("test"), resolverConfig, &mock, &registry{}, make(chan struct{})).(*resolver)
+				resolver.Close()
+
+				assert.Equal(t, 0, mock.mockAgent.serviceDeregisterCalled)
+			},
+		},
+		{
+			"should stop watcher if started",
+			nr.Metadata{Base: metadata.Base{
+				Properties: getTestPropsWithoutKey(""),
+			}, Configuration: nil},
+			func(t *testing.T, metadata nr.Metadata) {
+				t.Helper()
+
+				var mock mockClient
+				resolver := newResolver(logger.NewLogger("test"), resolverConfig{}, &mock, &registry{}, make(chan struct{})).(*resolver)
+				resolver.watcherStarted.Store(true)
+
+				go resolver.Close()
+
+				sleepTimer := time.NewTimer(time.Second)
+				watcherStoppedInItem := false
+				select {
+				case <-sleepTimer.C:
+				case <-resolver.watcherStopChannel:
+					watcherStoppedInItem = true
+				}
+
+				assert.True(t, watcherStoppedInItem)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.testName, func(t *testing.T) {
+			t.Parallel()
+			tt.test(t, tt.metadata)
 		})
 	}
 }
@@ -1277,6 +1485,22 @@ func TestGetConfig(t *testing.T) {
 
 				assert.Equal(t, "random_key", actual.DaprPortMetaKey)
 				assert.Equal(t, daprPort, actual.Registration.Meta["random_key"])
+			},
+		},
+		{
+			"SelfDeregister should set DeregisterOnClose",
+			nr.Metadata{
+				Base: metadata.Base{Properties: getTestPropsWithoutKey("")},
+				Configuration: map[interface{}]interface{}{
+					"SelfRegister":   true,
+					"SelfDeregister": true,
+				},
+			},
+			func(t *testing.T, metadata nr.Metadata) {
+				t.Helper()
+				actual, _ := getConfig(metadata)
+
+				assert.Equal(t, true, actual.DeregisterOnClose)
 			},
 		},
 		{

@@ -37,6 +37,7 @@ type intermediateConfig struct {
 	AdvancedRegistration *AgentServiceRegistration // advanced use-case
 	DaprPortMetaKey      string
 	SelfRegister         bool
+	SelfDeregister       bool
 	UseCache             bool
 }
 
@@ -49,6 +50,7 @@ type configSpec struct {
 	AdvancedRegistration *consul.AgentServiceRegistration // advanced use-case
 	DaprPortMetaKey      string
 	SelfRegister         bool
+	SelfDeregister       bool
 	UseCache             bool
 }
 
@@ -90,6 +92,7 @@ func mapConfig(config intermediateConfig) configSpec {
 		QueryOptions:         mapQueryOptions(config.QueryOptions),
 		AdvancedRegistration: mapAdvancedRegistration(config.AdvancedRegistration),
 		SelfRegister:         config.SelfRegister,
+		SelfDeregister:       config.SelfDeregister,
 		DaprPortMetaKey:      config.DaprPortMetaKey,
 		UseCache:             config.UseCache,
 	}

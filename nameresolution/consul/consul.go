@@ -59,6 +59,7 @@ type clientInterface interface {
 type agentInterface interface {
 	Self() (map[string]map[string]interface{}, error)
 	ServiceRegister(service *consul.AgentServiceRegistration) error
+	ServiceDeregister(serviceID string) error
 }
 
 type healthInterface interface {
@@ -67,11 +68,12 @@ type healthInterface interface {
 }
 
 type resolver struct {
-	config         resolverConfig
-	logger         logger.Logger
-	client         clientInterface
-	registry       registryInterface
-	watcherStarted atomic.Bool
+	config             resolverConfig
+	logger             logger.Logger
+	client             clientInterface
+	registry           registryInterface
+	watcherStarted     atomic.Bool
+	watcherStopChannel chan struct{}
 }
 
 type registryInterface interface {
@@ -212,24 +214,26 @@ func (r *registry) registrationChannel() chan string {
 }
 
 type resolverConfig struct {
-	Client          *consul.Config
-	QueryOptions    *consul.QueryOptions
-	Registration    *consul.AgentServiceRegistration
-	DaprPortMetaKey string
-	UseCache        bool
+	Client            *consul.Config
+	QueryOptions      *consul.QueryOptions
+	Registration      *consul.AgentServiceRegistration
+	DeregisterOnClose bool
+	DaprPortMetaKey   string
+	UseCache          bool
 }
 
 // NewResolver creates Consul name resolver.
 func NewResolver(logger logger.Logger) nr.Resolver {
-	return newResolver(logger, resolverConfig{}, &client{}, &registry{serviceChannel: make(chan string, 100)})
+	return newResolver(logger, resolverConfig{}, &client{}, &registry{serviceChannel: make(chan string, 100)}, make(chan struct{}))
 }
 
-func newResolver(logger logger.Logger, resolverConfig resolverConfig, client clientInterface, registry registryInterface) nr.Resolver {
+func newResolver(logger logger.Logger, resolverConfig resolverConfig, client clientInterface, registry registryInterface, watcherStopChannel chan struct{}) nr.Resolver {
 	return &resolver{
-		logger:   logger,
-		config:   resolverConfig,
-		client:   client,
-		registry: registry,
+		logger:             logger,
+		config:             resolverConfig,
+		client:             client,
+		registry:           registry,
+		watcherStopChannel: watcherStopChannel,
 	}
 }
 
@@ -293,6 +297,24 @@ func (r *resolver) ResolveID(req nr.ResolveRequest) (addr string, err error) {
 	return formatAddress(addr, port)
 }
 
+// Close will stop the watcher and deregister app from consul
+func (r *resolver) Close() error {
+	if r.watcherStarted.Load() {
+		r.watcherStopChannel <- struct{}{}
+	}
+
+	if r.config.Registration != nil && r.config.DeregisterOnClose {
+		err := r.client.Agent().ServiceDeregister(r.config.Registration.ID)
+		if err != nil {
+			return fmt.Errorf("failed to deregister consul service: %w", err)
+		}
+
+		r.logger.Info("deregistered service from consul")
+	}
+
+	return nil
+}
+
 func formatAddress(address string, port string) (addr string, err error) {
 	if net.ParseIP(address).To4() != nil {
 		return address + ":" + port, nil
@@ -315,6 +337,7 @@ func getConfig(metadata nr.Metadata) (resolverCfg resolverConfig, err error) {
 	}
 
 	resolverCfg.DaprPortMetaKey = cfg.DaprPortMetaKey
+	resolverCfg.DeregisterOnClose = cfg.SelfDeregister
 	resolverCfg.UseCache = cfg.UseCache
 
 	resolverCfg.Client = getClientConfig(cfg)

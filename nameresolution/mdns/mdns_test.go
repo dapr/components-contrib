@@ -14,6 +14,7 @@ limitations under the License.
 package mdns
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"sync"
@@ -77,7 +78,7 @@ func TestInitMetadata(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.missingProp+" is missing", func(t *testing.T) {
 			// act
-			err := resolver.Init(nr.Metadata{Base: metadata.Base{Properties: tt.props}})
+			err := resolver.Init(context.Background(), nr.Metadata{Base: metadata.Base{Properties: tt.props}})
 
 			// assert
 			assert.Error(t, err)
@@ -96,7 +97,7 @@ func TestInitRegister(t *testing.T) {
 	}}}
 
 	// act
-	err := resolver.Init(md)
+	err := resolver.Init(context.Background(), md)
 	require.NoError(t, err)
 }
 
@@ -116,9 +117,9 @@ func TestInitRegisterDuplicate(t *testing.T) {
 	}}}
 
 	// act
-	err := resolver.Init(md)
+	err := resolver.Init(context.Background(), md)
 	require.NoError(t, err)
-	err = resolver.Init(md2)
+	err = resolver.Init(context.Background(), md2)
 	expectedError := "app id testAppID already registered for port 1234"
 	require.EqualErrorf(t, err, expectedError, "Error should be: %v, got %v", expectedError, err)
 }
@@ -134,11 +135,11 @@ func TestResolver(t *testing.T) {
 	}}}
 
 	// act
-	err := resolver.Init(md)
+	err := resolver.Init(context.Background(), md)
 	require.NoError(t, err)
 
 	request := nr.ResolveRequest{ID: "testAppID"}
-	pt, err := resolver.ResolveID(request)
+	pt, err := resolver.ResolveID(context.Background(), request)
 
 	// assert
 	require.NoError(t, err)
@@ -155,11 +156,11 @@ func TestResolverClose(t *testing.T) {
 	}}}
 
 	// act
-	err := resolver.Init(md)
+	err := resolver.Init(context.Background(), md)
 	require.NoError(t, err)
 
 	request := nr.ResolveRequest{ID: "testAppID"}
-	pt, err := resolver.ResolveID(request)
+	pt, err := resolver.ResolveID(context.Background(), request)
 
 	// assert
 	require.NoError(t, err)
@@ -203,7 +204,7 @@ func TestResolverMultipleInstances(t *testing.T) {
 	request := nr.ResolveRequest{ID: "testAppID"}
 
 	// first resolution will return the first responder's address and trigger a cache refresh.
-	addr1, err := resolver.ResolveID(request)
+	addr1, err := resolver.ResolveID(context.Background(), request)
 	require.NoError(t, err)
 	require.Contains(t, []string{instanceAPQDN, instanceBPQDN}, addr1)
 
@@ -218,7 +219,7 @@ func TestResolverMultipleInstances(t *testing.T) {
 	instanceACount := atomic.Uint32{}
 	instanceBCount := atomic.Uint32{}
 	for i := 0; i < 100; i++ {
-		addr, err := resolver.ResolveID(request)
+		addr, err := resolver.ResolveID(context.Background(), request)
 		require.NoError(t, err)
 		require.Contains(t, []string{instanceAPQDN, instanceBPQDN}, addr)
 		if addr == instanceAPQDN {
@@ -239,7 +240,7 @@ func TestResolverNotFound(t *testing.T) {
 
 	// act
 	request := nr.ResolveRequest{ID: "testAppIDNotFound"}
-	pt, err := resolver.ResolveID(request)
+	pt, err := resolver.ResolveID(context.Background(), request)
 
 	// assert
 	expectedError := "couldn't find service: testAppIDNotFound"
@@ -288,7 +289,7 @@ func ResolverConcurrencySubsriberClear(t *testing.T) {
 	}}}
 
 	// act
-	err := resolver.Init(md)
+	err := resolver.Init(context.Background(), md)
 	require.NoError(t, err)
 
 	request := nr.ResolveRequest{ID: "testAppID"}
@@ -299,7 +300,7 @@ func ResolverConcurrencySubsriberClear(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			pt, err := resolver.ResolveID(request)
+			pt, err := resolver.ResolveID(context.Background(), request)
 			require.NoError(t, err)
 			require.Equal(t, fmt.Sprintf("%s:1234", localhost), pt)
 		}()
@@ -371,7 +372,7 @@ func ResolverConcurrencyFound(t *testing.T) {
 			request := nr.ResolveRequest{ID: appID}
 
 			start := time.Now()
-			pt, err := resolver.ResolveID(request)
+			pt, err := resolver.ResolveID(context.Background(), request)
 			elapsed := time.Since(start)
 			// assert
 			require.NoError(t, err)
@@ -420,7 +421,7 @@ func ResolverConcurrencyNotFound(t *testing.T) {
 
 			// act
 			start := time.Now()
-			pt, err := resolver.ResolveID(request)
+			pt, err := resolver.ResolveID(context.Background(), request)
 			elapsed := time.Since(start)
 
 			// assert

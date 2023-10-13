@@ -20,6 +20,9 @@ import (
 	"strings"
 	"time"
 
+	// Blank import for the sqlite driver
+	_ "modernc.org/sqlite"
+
 	"github.com/dapr/kit/logger"
 )
 
@@ -60,10 +63,14 @@ func (m *SqliteAuthMetadata) Validate() error {
 	return nil
 }
 
+func (m SqliteAuthMetadata) IsMemory() bool {
+	lc := strings.ToLower(m.ConnectionString)
+	return strings.HasPrefix(lc, ":memory:") || strings.HasPrefix(lc, "file::memory:")
+}
+
 func (m *SqliteAuthMetadata) GetConnectionString(log logger.Logger) (string, error) {
 	// Check if we're using the in-memory database
-	lc := strings.ToLower(m.ConnectionString)
-	isMemoryDB := strings.HasPrefix(lc, ":memory:") || strings.HasPrefix(lc, "file::memory:")
+	isMemoryDB := m.IsMemory()
 
 	// Get the "query string" from the connection string if present
 	idx := strings.IndexRune(m.ConnectionString, '?')
@@ -151,7 +158,7 @@ func (m *SqliteAuthMetadata) GetConnectionString(log logger.Logger) (string, err
 	connString += "?" + qs.Encode()
 
 	// If the connection string doesn't begin with "file:", add the prefix
-	if !strings.HasPrefix(lc, "file:") {
+	if !strings.HasPrefix(strings.ToLower(m.ConnectionString), "file:") {
 		log.Debug("prefix 'file:' added to the connection string")
 		connString = "file:" + connString
 	}

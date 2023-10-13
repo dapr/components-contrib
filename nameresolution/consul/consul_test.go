@@ -14,6 +14,7 @@ limitations under the License.
 package consul
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strconv"
@@ -202,7 +203,7 @@ func TestInit(t *testing.T) {
 				var mock mockClient
 				resolver := newResolver(logger.NewLogger("test"), resolverConfig{}, &mock, &registry{}, make(chan struct{}))
 
-				_ = resolver.Init(metadata)
+				_ = resolver.Init(context.Background(), metadata)
 
 				assert.Equal(t, 1, mock.initClientCalled)
 				assert.Equal(t, 0, mock.mockAgent.serviceRegisterCalled)
@@ -225,7 +226,7 @@ func TestInit(t *testing.T) {
 				var mock mockClient
 				resolver := newResolver(logger.NewLogger("test"), resolverConfig{}, &mock, &registry{}, make(chan struct{}))
 
-				_ = resolver.Init(metadata)
+				_ = resolver.Init(context.Background(), metadata)
 
 				assert.Equal(t, 1, mock.initClientCalled)
 				assert.Equal(t, 1, mock.mockAgent.serviceRegisterCalled)
@@ -247,7 +248,7 @@ func TestInit(t *testing.T) {
 				var mock mockClient
 				resolver := newResolver(logger.NewLogger("test"), resolverConfig{}, &mock, &registry{}, make(chan struct{}))
 
-				_ = resolver.Init(metadata)
+				_ = resolver.Init(context.Background(), metadata)
 
 				assert.Equal(t, 1, mock.initClientCalled)
 				assert.Equal(t, 1, mock.mockAgent.serviceRegisterCalled)
@@ -360,7 +361,7 @@ func TestResolveID(t *testing.T) {
 					},
 				}
 				resolver := newResolver(logger.NewLogger("test"), cfg, mock, mockReg, make(chan struct{}))
-				addr, _ := resolver.ResolveID(req)
+				addr, _ := resolver.ResolveID(context.Background(), req)
 
 				// no apps in registry - cache miss, call agent directly
 				assert.Equal(t, 1, mockReg.getCalled)
@@ -387,11 +388,11 @@ func TestResolveID(t *testing.T) {
 				assert.Equal(t, int32(2), mockReg.addOrUpdateCalled.Load())
 
 				// resolve id should only hit cache now
-				addr, _ = resolver.ResolveID(req)
+				addr, _ = resolver.ResolveID(context.Background(), req)
 				assert.Equal(t, "10.3.245.137:70007", addr)
-				addr, _ = resolver.ResolveID(req)
+				addr, _ = resolver.ResolveID(context.Background(), req)
 				assert.Equal(t, "10.3.245.137:70007", addr)
-				addr, _ = resolver.ResolveID(req)
+				addr, _ = resolver.ResolveID(context.Background(), req)
 				assert.Equal(t, "10.3.245.137:70007", addr)
 
 				assert.Equal(t, 2, mock.mockHealth.serviceCalled)
@@ -520,7 +521,7 @@ func TestResolveID(t *testing.T) {
 					},
 				}
 				resolver := newResolver(logger.NewLogger("test"), cfg, &mock, mockReg, make(chan struct{}))
-				addr, _ := resolver.ResolveID(req)
+				addr, _ := resolver.ResolveID(context.Background(), req)
 
 				// no apps in registry - cache miss, call agent directly
 				assert.Equal(t, 1, mockReg.getCalled)
@@ -548,9 +549,9 @@ func TestResolveID(t *testing.T) {
 				assert.Equal(t, int32(2), mockReg.addOrUpdateCalled.Load())
 
 				// resolve id should only hit cache now
-				_, _ = resolver.ResolveID(req)
-				_, _ = resolver.ResolveID(req)
-				_, _ = resolver.ResolveID(req)
+				_, _ = resolver.ResolveID(context.Background(), req)
+				_, _ = resolver.ResolveID(context.Background(), req)
+				_, _ = resolver.ResolveID(context.Background(), req)
 				assert.Equal(t, 2, mock.mockHealth.serviceCalled)
 
 				// change one check for node1 app to critical
@@ -667,7 +668,7 @@ func TestResolveID(t *testing.T) {
 					},
 				}
 				resolver := newResolver(logger.NewLogger("test"), cfg, mock, mockReg, make(chan struct{}))
-				addr, _ := resolver.ResolveID(req)
+				addr, _ := resolver.ResolveID(context.Background(), req)
 
 				// Cache miss pass through
 				assert.Equal(t, 1, mockReg.getCalled)
@@ -770,7 +771,7 @@ func TestResolveID(t *testing.T) {
 					},
 				}
 				resolver := newResolver(logger.NewLogger("test"), cfg, mock, mockReg, make(chan struct{})).(*resolver)
-				addr, _ := resolver.ResolveID(req)
+				addr, _ := resolver.ResolveID(context.Background(), req)
 
 				// Cache miss pass through
 				assert.Equal(t, 1, mockReg.getCalled)
@@ -806,7 +807,7 @@ func TestResolveID(t *testing.T) {
 				}
 				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{}, make(chan struct{}))
 
-				_, err := resolver.ResolveID(req)
+				_, err := resolver.ResolveID(context.Background(), req)
 				assert.Equal(t, 1, mock.mockHealth.serviceCalled)
 				assert.Error(t, err)
 			},
@@ -835,7 +836,7 @@ func TestResolveID(t *testing.T) {
 				}
 				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{}, make(chan struct{}))
 
-				addr, _ := resolver.ResolveID(req)
+				addr, _ := resolver.ResolveID(context.Background(), req)
 
 				assert.Equal(t, "10.3.245.137:50005", addr)
 			},
@@ -864,7 +865,7 @@ func TestResolveID(t *testing.T) {
 				}
 				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{}, make(chan struct{}))
 
-				addr, _ := resolver.ResolveID(req)
+				addr, _ := resolver.ResolveID(context.Background(), req)
 
 				assert.Equal(t, "[2001:db8:3333:4444:5555:6666:7777:8888]:50005", addr)
 			},
@@ -905,7 +906,7 @@ func TestResolveID(t *testing.T) {
 				total1 := 0
 				total2 := 0
 				for i := 0; i < 100; i++ {
-					addr, _ := resolver.ResolveID(req)
+					addr, _ := resolver.ResolveID(context.Background(), req)
 
 					if addr == "10.3.245.137:50005" {
 						total1++
@@ -961,7 +962,7 @@ func TestResolveID(t *testing.T) {
 				}
 				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{}, make(chan struct{}))
 
-				addr, _ := resolver.ResolveID(req)
+				addr, _ := resolver.ResolveID(context.Background(), req)
 
 				assert.Equal(t, "10.3.245.137:50005", addr)
 			},
@@ -990,7 +991,7 @@ func TestResolveID(t *testing.T) {
 				}
 				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{}, make(chan struct{}))
 
-				_, err := resolver.ResolveID(req)
+				_, err := resolver.ResolveID(context.Background(), req)
 
 				assert.Error(t, err)
 			},
@@ -1016,7 +1017,7 @@ func TestResolveID(t *testing.T) {
 				}
 				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{}, make(chan struct{}))
 
-				_, err := resolver.ResolveID(req)
+				_, err := resolver.ResolveID(context.Background(), req)
 
 				assert.Error(t, err)
 			},

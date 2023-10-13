@@ -14,6 +14,7 @@ limitations under the License.
 package consul
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"net"
@@ -238,7 +239,7 @@ func newResolver(logger logger.Logger, resolverConfig resolverConfig, client cli
 }
 
 // Init will configure component. It will also register service or validate client connection based on config.
-func (r *resolver) Init(metadata nr.Metadata) (err error) {
+func (r *resolver) Init(ctx context.Context, metadata nr.Metadata) (err error) {
 	r.config, err = getConfig(metadata)
 	if err != nil {
 		return err
@@ -274,7 +275,7 @@ func (r *resolver) Init(metadata nr.Metadata) (err error) {
 }
 
 // ResolveID resolves name to address via consul.
-func (r *resolver) ResolveID(req nr.ResolveRequest) (addr string, err error) {
+func (r *resolver) ResolveID(ctx context.Context, req nr.ResolveRequest) (addr string, err error) {
 	cfg := r.config
 	svc, err := r.getService(req.ID)
 	if err != nil {

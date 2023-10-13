@@ -269,29 +269,23 @@ func (m *Resolver) startRefreshers() {
 }
 
 // Init registers service for mDNS.
-func (m *Resolver) Init(metadata nameresolution.Metadata) error {
-	props := metadata.Properties
-
-	appID := props[nameresolution.AppID]
+func (m *Resolver) Init(ctx context.Context, metadata nameresolution.Metadata) error {
+	appID := metadata.GetAppID()
 	if appID == "" {
 		return errors.New("name is missing")
 	}
 
-	hostAddress := props[nameresolution.HostAddress]
+	hostAddress := metadata.GetHostAddress()
 	if hostAddress == "" {
 		return errors.New("address is missing")
 	}
 
-	if props[nameresolution.DaprPort] == "" {
-		return errors.New("port is missing")
+	port := metadata.GetDaprPort()
+	if port == 0 {
+		return errors.New("port is missing or invalid")
 	}
 
-	port, err := strconv.Atoi(props[nameresolution.DaprPort])
-	if err != nil {
-		return errors.New("port is invalid")
-	}
-
-	err = m.registerMDNS("", appID, []string{hostAddress}, port)
+	err := m.registerMDNS("", appID, []string{hostAddress}, port)
 	if err != nil {
 		return err
 	}
@@ -412,7 +406,7 @@ func (m *Resolver) registerMDNS(instanceID string, appID string, ips []string, p
 }
 
 // ResolveID resolves name to address via mDNS.
-func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) {
+func (m *Resolver) ResolveID(parentCtx context.Context, req nameresolution.ResolveRequest) (string, error) {
 	// check for cached IPv4 addresses for this app id first.
 	if addr := m.nextIPv4Address(req.ID); addr != nil {
 		return *addr, nil
@@ -445,7 +439,7 @@ func (m *Resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) 
 	// requested app id. The rest will subscribe for an address or error.
 	var once *sync.Once
 	var published chan struct{}
-	ctx, cancel := context.WithTimeout(context.Background(), browseOneTimeout)
+	ctx, cancel := context.WithTimeout(parentCtx, browseOneTimeout)
 	defer cancel()
 	appIDSubs.Once.Do(func() {
 		published = make(chan struct{})

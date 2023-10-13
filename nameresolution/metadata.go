@@ -13,7 +13,11 @@ limitations under the License.
 
 package nameresolution
 
-import "github.com/dapr/components-contrib/metadata"
+import (
+	"strconv"
+
+	"github.com/dapr/components-contrib/metadata"
+)
 
 const (
 	// HostAddress is the address of the instance.
@@ -32,4 +36,42 @@ const (
 type Metadata struct {
 	metadata.Base `json:",inline"`
 	Configuration interface{}
+}
+
+// GetHostAddress returns the host address property.
+func (m Metadata) GetHostAddress() string {
+	return m.Properties[HostAddress]
+}
+
+// GetDaprHTTPPort returns the Dapr HTTP port property.
+// If the port is invalid, returns 0.
+func (m Metadata) GetDaprHTTPPort() int {
+	p, _ := strconv.Atoi(m.Properties[DaprHTTPPort])
+	if p < 0 {
+		p = 0
+	}
+	return p
+}
+
+// GetDaprPort returns the host address property.
+func (m Metadata) GetDaprPort() int {
+	p, _ := strconv.Atoi(m.Properties[DaprPort])
+	if p < 0 {
+		p = 0
+	}
+	return p
+}
+
+// GetAppPort returns the host address property.
+func (m Metadata) GetAppPort() int {
+	p, _ := strconv.Atoi(m.Properties[AppPort])
+	if p < 0 {
+		p = 0
+	}
+	return p
+}
+
+// GetAppID returns the host address property.
+func (m Metadata) GetAppID() string {
+	return m.Properties[AppID]
 }

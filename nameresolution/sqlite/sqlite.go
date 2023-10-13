@@ -18,6 +18,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -51,7 +52,7 @@ func NewResolver(logger logger.Logger) nameresolution.Resolver {
 
 // Init initializes the name resolver.
 func (s *resolver) Init(ctx context.Context, md nameresolution.Metadata) error {
-	err := s.metadata.InitWithMetadata(md, s.logger)
+	err := s.metadata.InitWithMetadata(md)
 	if err != nil {
 		return err
 	}
@@ -60,6 +61,13 @@ func (s *resolver) Init(ctx context.Context, md nameresolution.Metadata) error {
 	if err != nil {
 		// Already logged
 		return err
+	}
+
+	// Show a warning if SQLite is configured with an in-memory DB
+	if s.metadata.SqliteAuthMetadata.IsMemory() {
+		s.logger.Warn("Configuring name resolution with an in-memory SQLite database. Service invocation across differet apps will not work.")
+	} else {
+		s.logger.Infof("Configuring SQLite name resolution with path %s", connString[len("file:"):strings.Index(connString, "?")])
 	}
 
 	s.db, err = sql.Open("sqlite", connString)
@@ -131,7 +139,7 @@ func (s *resolver) registerHost(ctx context.Context) error {
 	// There's a unique index on address
 	// We use REPLACE to take over any previous registration for that address
 	_, err = s.db.ExecContext(queryCtx,
-		fmt.Sprintf("INSERT INTO %s (registration_id, address, app_id, last_update) VALUES (?, ?, ?, unixepoch(CURRENT_TIMESTAMP))", s.metadata.TableName),
+		fmt.Sprintf("REPLACE INTO %s (registration_id, address, app_id, last_update) VALUES (?, ?, ?, unixepoch(CURRENT_TIMESTAMP))", s.metadata.TableName),
 		s.registrationID, s.metadata.GetAddress(), s.metadata.appID,
 	)
 	if err != nil {
@@ -162,7 +170,7 @@ func (s *resolver) renewRegistration() {
 			// Renew on the ticker
 			queryCtx, queryCancel := context.WithTimeout(context.Background(), s.metadata.Timeout)
 			res, err := s.db.ExecContext(queryCtx,
-				fmt.Sprintf("UPDATE %s SET last_update = CURRENT_TIMESTAMP WHERE registration_id = ? AND address = ?", s.metadata.TableName),
+				fmt.Sprintf("UPDATE %s SET last_update = unixepoch(CURRENT_TIMESTAMP) WHERE registration_id = ? AND address = ?", s.metadata.TableName),
 				s.registrationID, addr,
 			)
 			queryCancel()
@@ -191,7 +199,7 @@ func (s *resolver) ResolveID(ctx context.Context, req nameresolution.ResolveRequ
 		`SELECT address
 		FROM %[1]s
 		WHERE
-			ROWID IN (
+			ROWID = (
 				SELECT ROWID
 				FROM %[1]s
 				WHERE
@@ -204,7 +212,7 @@ func (s *resolver) ResolveID(ctx context.Context, req nameresolution.ResolveRequ
 		int(s.metadata.UpdateInterval.Seconds()),
 	)
 
-	err = s.db.QueryRowContext(queryCtx, q, req.ID).Scan(addr)
+	err = s.db.QueryRowContext(queryCtx, q, req.ID).Scan(&addr)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", ErrNoHost

@@ -23,7 +23,6 @@ import (
 	authSqlite "github.com/dapr/components-contrib/internal/authentication/sqlite"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/nameresolution"
-	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -31,6 +30,10 @@ const (
 	defaultMetadataTableName = "metadata"
 	defaultUpdateInterval    = 5 * time.Second
 	defaultCleanupInternal   = time.Hour
+
+	// For a nameresolver, we want a fairly low timeout
+	defaultTimeout     = time.Second
+	defaultBusyTimeout = 800 * time.Millisecond
 )
 
 type sqliteMetadata struct {
@@ -48,7 +51,7 @@ type sqliteMetadata struct {
 	port        int
 }
 
-func (m *sqliteMetadata) InitWithMetadata(meta nameresolution.Metadata, log logger.Logger) error {
+func (m *sqliteMetadata) InitWithMetadata(meta nameresolution.Metadata) error {
 	// Reset the object
 	m.reset()
 
@@ -93,11 +96,6 @@ func (m *sqliteMetadata) InitWithMetadata(meta nameresolution.Metadata, log logg
 		return errors.New("update interval must be at least 1s greater than timeout")
 	}
 
-	// Show a warning if SQLite is configured with an in-memory DB
-	if m.SqliteAuthMetadata.IsMemory() {
-		log.Warn("Configuring name resolution with an in-memory SQLite database. Service invocation across differet apps will not work.")
-	}
-
 	return nil
 }
 
@@ -109,9 +107,13 @@ func (m sqliteMetadata) GetAddress() string {
 func (m *sqliteMetadata) reset() {
 	m.SqliteAuthMetadata.Reset()
 
+	// We lower the default thresholds for the nameresolver
+	m.Timeout = defaultTimeout
+	m.BusyTimeout = defaultBusyTimeout
+
 	m.TableName = defaultTableName
 	m.MetadataTableName = defaultMetadataTableName
-	m.UpdateInterval = defaultCleanupInternal
+	m.UpdateInterval = defaultUpdateInterval
 	m.CleanupInterval = defaultCleanupInternal
 
 	m.appID = ""

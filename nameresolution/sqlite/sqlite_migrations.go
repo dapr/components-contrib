@@ -48,11 +48,10 @@ func performMigrations(ctx context.Context, db *sql.DB, logger logger.Logger, op
 						registration_id TEXT NOT NULL PRIMARY KEY,
 						address TEXT NOT NULL,
 						app_id TEXT NOT NULL,
-						last_update INTEGER NOT NULL DEFAULT unixepoch(CURRENT_TIMESTAMP),
+						last_update INTEGER NOT NULL
 					);
 					CREATE UNIQUE INDEX %[1]s_address_idx ON %[1]s (address);
-					CREATE INDEX %[1]s_last_update_idx ON %[1]s (last_update);
-					`,
+					CREATE INDEX %[1]s_last_update_idx ON %[1]s (last_update);`,
 					opts.HostsTableName,
 				),
 			)

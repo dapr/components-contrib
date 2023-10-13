@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -31,6 +31,9 @@ import (
 
 // ErrNoHost is returned by ResolveID when no host can be found.
 var ErrNoHost = errors.New("no host found with the given ID")
+
+// Internally-used error to indicate the registration was lost
+var errRegistrationLost = errors.New("host registration lost")
 
 type resolver struct {
 	logger         logger.Logger
@@ -168,17 +171,12 @@ func (s *resolver) renewRegistration() {
 
 		case <-t.C:
 			// Renew on the ticker
-			queryCtx, queryCancel := context.WithTimeout(context.Background(), s.metadata.Timeout)
-			res, err := s.db.ExecContext(queryCtx,
-				fmt.Sprintf("UPDATE %s SET last_update = unixepoch(CURRENT_TIMESTAMP) WHERE registration_id = ? AND address = ?", s.metadata.TableName),
-				s.registrationID, addr,
-			)
-			queryCancel()
+			err := s.doRenewRegistration(context.Background(), addr)
 			if err != nil {
-				s.logger.Errorf("Failed to update host registration: database error: %v", err)
-			} else {
-				n, _ := res.RowsAffected()
-				if n == 0 {
+				// Log errors
+				s.logger.Errorf("Failed to update host registration: %v", err)
+
+				if errors.Is(err, errRegistrationLost) {
 					// This means that our registration has been taken over by another host
 					// It should never happen unless there's something really bad going on
 					// Panicking here to force a restart of Dapr
@@ -189,11 +187,34 @@ func (s *resolver) renewRegistration() {
 	}
 }
 
+func (s *resolver) doRenewRegistration(ctx context.Context, addr string) error {
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), s.metadata.Timeout)
+	defer queryCancel()
+
+	//nolint:gosec
+	res, err := s.db.ExecContext(queryCtx,
+		fmt.Sprintf("UPDATE %s SET last_update = unixepoch(CURRENT_TIMESTAMP) WHERE registration_id = ? AND address = ?", s.metadata.TableName),
+		s.registrationID, addr,
+	)
+
+	if err != nil {
+		return fmt.Errorf("database error: %w", err)
+	} else {
+		n, _ := res.RowsAffected()
+		if n == 0 {
+			return errRegistrationLost
+		}
+	}
+
+	return nil
+}
+
 // ResolveID resolves name to address.
 func (s *resolver) ResolveID(ctx context.Context, req nameresolution.ResolveRequest) (addr string, err error) {
 	queryCtx, queryCancel := context.WithTimeout(ctx, s.metadata.Timeout)
 	defer queryCancel()
 
+	//nolint:gosec
 	q := fmt.Sprintf(
 		// See: https://stackoverflow.com/a/24591696
 		`SELECT address

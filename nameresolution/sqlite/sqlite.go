@@ -191,7 +191,6 @@ func (s *resolver) doRenewRegistration(ctx context.Context, addr string) error {
 	queryCtx, queryCancel := context.WithTimeout(context.Background(), s.metadata.Timeout)
 	defer queryCancel()
 
-	//nolint:gosec
 	res, err := s.db.ExecContext(queryCtx,
 		fmt.Sprintf("UPDATE %s SET last_update = unixepoch(CURRENT_TIMESTAMP) WHERE registration_id = ? AND address = ?", s.metadata.TableName),
 		s.registrationID, addr,

@@ -1048,12 +1048,12 @@ func TestClose(t *testing.T) {
 				t.Helper()
 
 				var mock mockClient
-				resolverConfig := resolverConfig{
+				cfg := resolverConfig{
 					Registration:      &consul.AgentServiceRegistration{},
 					DeregisterOnClose: true,
 				}
 
-				resolver := newResolver(logger.NewLogger("test"), resolverConfig, &mock, &registry{}, make(chan struct{})).(*resolver)
+				resolver := newResolver(logger.NewLogger("test"), cfg, &mock, &registry{}, make(chan struct{})).(*resolver)
 				resolver.Close()
 
 				assert.Equal(t, 1, mock.mockAgent.serviceDeregisterCalled)
@@ -1068,12 +1068,12 @@ func TestClose(t *testing.T) {
 				t.Helper()
 
 				var mock mockClient
-				resolverConfig := resolverConfig{
+				cfg := resolverConfig{
 					Registration:      &consul.AgentServiceRegistration{},
 					DeregisterOnClose: false,
 				}
 
-				resolver := newResolver(logger.NewLogger("test"), resolverConfig, &mock, &registry{}, make(chan struct{})).(*resolver)
+				resolver := newResolver(logger.NewLogger("test"), cfg, &mock, &registry{}, make(chan struct{})).(*resolver)
 				resolver.Close()
 
 				assert.Equal(t, 0, mock.mockAgent.serviceDeregisterCalled)
@@ -1088,12 +1088,12 @@ func TestClose(t *testing.T) {
 				t.Helper()
 
 				var mock mockClient
-				resolverConfig := resolverConfig{
+				cfg := resolverConfig{
 					Registration:      nil,
 					DeregisterOnClose: true,
 				}
 
-				resolver := newResolver(logger.NewLogger("test"), resolverConfig, &mock, &registry{}, make(chan struct{})).(*resolver)
+				resolver := newResolver(logger.NewLogger("test"), cfg, &mock, &registry{}, make(chan struct{})).(*resolver)
 				resolver.Close()
 
 				assert.Equal(t, 0, mock.mockAgent.serviceDeregisterCalled)

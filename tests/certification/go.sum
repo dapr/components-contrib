@@ -332,10 +332,10 @@ github.com/cyphar/filepath-securejoin v0.2.4 h1:Ugdm7cg7i6ZK6x3xDF1oEu1nfkyfH53E
 github.com/cyphar/filepath-securejoin v0.2.4/go.mod h1:aPGpWjXOXUn2NCNjFvBE6aRxGGx79pTxQpKOJNYHHl4=
 github.com/danieljoos/wincred v1.1.2 h1:QLdCxFs1/Yl4zduvBdcHB8goaYk9RARS2SgLLRuAyr0=
 github.com/danieljoos/wincred v1.1.2/go.mod h1:GijpziifJoIBfYh+S7BbkdUTU4LfM+QnGqR5Vl2tAx0=
-github.com/dapr/dapr v1.12.0-rc.5 h1:I9mEA8S+fd1hXHPzpo+kkAVyN7TfoDajSXuysU9R550=
-github.com/dapr/dapr v1.12.0-rc.5/go.mod h1:17xGNqDCPLLO2TNIc9gbPYUZKWFyIv6WKklSn/k5XOY=
-github.com/dapr/go-sdk v1.8.0 h1:OEleeL3zUTqXxIZ7Vkk3PClAeCh1g8sZ1yR2JFZKfXM=
-github.com/dapr/go-sdk v1.8.0/go.mod h1:MBcTKXg8PmBc8A968tVWQg1Xt+DZtmeVR6zVVVGcmeA=
+github.com/dapr/dapr v1.12.0 h1:JrnzIYupSHLVK95YWlMZv+h/rfg5rGl53ml9EG4Vrqg=
+github.com/dapr/dapr v1.12.0/go.mod h1:LjmQepPe5+A898VHMUsmX0r0D0OTj6ijtqCIZqMvo7o=
+github.com/dapr/go-sdk v1.9.0 h1:36pUgSwgh/SIYniRT6t1DAu3tv4DcYUmdIvktI6QpoM=
+github.com/dapr/go-sdk v1.9.0/go.mod h1:bK9bNEsC6hY3RMKh69r0nBjLqb6njeWTEGVMOgP9g20=
 github.com/dapr/kit v0.12.1 h1:XT0CJQQaKRYSzIzZo15O1PAHGUrMGoAavdFRcNVZ+UE=
 github.com/dapr/kit v0.12.1/go.mod h1:eNYjsudq3Ij0x8CLWsPturHor56sZRNu5tk2hUiJT80=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

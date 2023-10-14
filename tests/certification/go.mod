@@ -314,3 +314,6 @@ require (
 )
 
 replace github.com/dapr/components-contrib => ../../
+
+// TODO: REMOVE WHEN https://github.com/dapr/dapr/pull/7038 IS MERGED
+replace github.com/dapr/dapr => github.com/italypaleale/dapr v1.6.1-0.20231013230150-42a74622924c

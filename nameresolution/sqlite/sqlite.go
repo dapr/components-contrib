@@ -209,7 +209,6 @@ func (s *resolver) doRenewRegistration(ctx context.Context, addr string) error {
 		fmt.Sprintf("UPDATE %s SET last_update = unixepoch(CURRENT_TIMESTAMP) WHERE registration_id = ? AND address = ?", s.metadata.TableName),
 		s.registrationID, addr,
 	)
-
 	if err != nil {
 		return fmt.Errorf("database error: %w", err)
 	}

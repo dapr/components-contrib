@@ -148,9 +148,10 @@ func (s *resolver) registerHost(ctx context.Context) error {
 
 	// There's a unique index on address
 	// We use REPLACE to take over any previous registration for that address
+	// TODO: Add support for namespacing. See https://github.com/dapr/components-contrib/issues/3179
 	_, err = s.db.ExecContext(queryCtx,
-		fmt.Sprintf("REPLACE INTO %s (registration_id, address, app_id, last_update) VALUES (?, ?, ?, unixepoch(CURRENT_TIMESTAMP))", s.metadata.TableName),
-		s.registrationID, s.metadata.GetAddress(), s.metadata.appID,
+		fmt.Sprintf("REPLACE INTO %s (registration_id, address, app_id, namespace, last_update) VALUES (?, ?, ?, ?, unixepoch(CURRENT_TIMESTAMP))", s.metadata.TableName),
+		s.registrationID, s.metadata.GetAddress(), s.metadata.appID, "",
 	)
 	if err != nil {
 		return fmt.Errorf("failed to register host: %w", err)

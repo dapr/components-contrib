@@ -48,6 +48,7 @@ func performMigrations(ctx context.Context, db *sql.DB, logger logger.Logger, op
 						registration_id TEXT NOT NULL PRIMARY KEY,
 						address TEXT NOT NULL,
 						app_id TEXT NOT NULL,
+						namespace TEXT NOT NULL,
 						last_update INTEGER NOT NULL
 					);
 					CREATE UNIQUE INDEX %[1]s_address_idx ON %[1]s (address);

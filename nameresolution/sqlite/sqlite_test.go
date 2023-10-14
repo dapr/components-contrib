@@ -53,20 +53,20 @@ func TestSqliteNameResolver(t *testing.T) {
 		// Note updateInterval is 120s
 		now := time.Now().Unix()
 		rows := [][]any{
-			{"2cb5f837", "1.1.1.1:1", "app-1", now},
-			{"4d1e7b11", "1.1.1.1:2", "app-1", now},
-			{"05add1fa", "1.1.1.1:3", "app-1", now},
-			{"f1b24d4b", "2.2.2.2:1", "app-2", now},
-			{"23fb164f", "2.2.2.2:2", "app-2", now - 200},
-			{"db50a29e", "3.3.3.3:1", "app-3", now},
-			{"eef793d4", "4.4.4.4:1", "app-4", now - 200},
-			{"ef06eb49", "5.5.5.5:1", "app-5", now},
-			{"b0e6cd89", "6.6.6.6:1", "app-6", now},
-			{"36e99c68", "7.7.7.7:1", "app-7", now},
-			{"f77ed318", "8.8.8.8:1", "app-8", now - 100},
+			{"2cb5f837", "1.1.1.1:1", "app-1", "", now},
+			{"4d1e7b11", "1.1.1.1:2", "app-1", "", now},
+			{"05add1fa", "1.1.1.1:3", "app-1", "", now},
+			{"f1b24d4b", "2.2.2.2:1", "app-2", "", now},
+			{"23fb164f", "2.2.2.2:2", "app-2", "", now - 200},
+			{"db50a29e", "3.3.3.3:1", "app-3", "", now},
+			{"eef793d4", "4.4.4.4:1", "app-4", "", now - 200},
+			{"ef06eb49", "5.5.5.5:1", "app-5", "", now},
+			{"b0e6cd89", "6.6.6.6:1", "app-6", "", now},
+			{"36e99c68", "7.7.7.7:1", "app-7", "", now},
+			{"f77ed318", "8.8.8.8:1", "app-8", "", now - 100},
 		}
 		for i, r := range rows {
-			_, err := nr.db.Exec("INSERT INTO hosts VALUES (?, ?, ?, ?)", r...)
+			_, err := nr.db.Exec("INSERT INTO hosts VALUES (?, ?, ?, ?, ?)", r...)
 			require.NoErrorf(t, err, "Failed to insert row %d", i)
 		}
 	})

@@ -332,6 +332,8 @@ github.com/cyphar/filepath-securejoin v0.2.4 h1:Ugdm7cg7i6ZK6x3xDF1oEu1nfkyfH53E
 github.com/cyphar/filepath-securejoin v0.2.4/go.mod h1:aPGpWjXOXUn2NCNjFvBE6aRxGGx79pTxQpKOJNYHHl4=
 github.com/danieljoos/wincred v1.1.2 h1:QLdCxFs1/Yl4zduvBdcHB8goaYk9RARS2SgLLRuAyr0=
 github.com/danieljoos/wincred v1.1.2/go.mod h1:GijpziifJoIBfYh+S7BbkdUTU4LfM+QnGqR5Vl2tAx0=
+github.com/dapr/go-sdk v1.6.1-0.20231014032604-69e788045df0 h1:mojcJ67LMl6mzpZRnpCuuD9iwOnu6UUNnHxGQvuDH40=
+github.com/dapr/go-sdk v1.6.1-0.20231014032604-69e788045df0/go.mod h1:hgDH/7xTmza3hO8eGCfeQvAW6XnPAZ76j4XsYTyvKSM=
 github.com/dapr/kit v0.12.1 h1:XT0CJQQaKRYSzIzZo15O1PAHGUrMGoAavdFRcNVZ+UE=
 github.com/dapr/kit v0.12.1/go.mod h1:eNYjsudq3Ij0x8CLWsPturHor56sZRNu5tk2hUiJT80=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
@@ -755,8 +757,6 @@ github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANyt
 github.com/influxdata/influxdb1-client v0.0.0-20191209144304-8bf82d3c094d/go.mod h1:qj24IKcXYK6Iy9ceXlo3Tc+vtHo9lIhSX5JddghvEPo=
 github.com/italypaleale/dapr v1.6.1-0.20231013230150-42a74622924c h1:O0Cp77QzaKfjFCMXJxdbfZzL5zh8CXNEHOxyf0hUv9s=
 github.com/italypaleale/dapr v1.6.1-0.20231013230150-42a74622924c/go.mod h1:Y7mwxUclBE5LEIYtZoniyVOTsgvpP3ni6J4x4NdVPUM=
-github.com/italypaleale/dapr-go-sdk v1.1.1-0.20231014004419-3308d10e210e h1:VGYoYbpGM1YdpBe18bVGiY1poOA3LD7egtvnSYvy8d0=
-github.com/italypaleale/dapr-go-sdk v1.1.1-0.20231014004419-3308d10e210e/go.mod h1:hgDH/7xTmza3hO8eGCfeQvAW6XnPAZ76j4XsYTyvKSM=
 github.com/jackc/pgpassfile v1.0.0 h1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsIM=
 github.com/jackc/pgpassfile v1.0.0/go.mod h1:CEx0iS5ambNFdcRtxPj5JhEz+xB6uRky5eyVu/W2HEg=
 github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a h1:bbPeKD0xmW/Y25WS6cokEszi5g+S0QxI/d45PkRi7Nk=

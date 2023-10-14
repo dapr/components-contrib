@@ -68,7 +68,7 @@ func (s *resolver) Init(ctx context.Context, md nameresolution.Metadata) error {
 
 	// Show a warning if SQLite is configured with an in-memory DB
 	if s.metadata.SqliteAuthMetadata.IsMemory() {
-		s.logger.Warn("Configuring name resolution with an in-memory SQLite database. Service invocation across differet apps will not work.")
+		s.logger.Warn("Configuring name resolution with an in-memory SQLite database. Service invocation across different apps will not work.")
 	} else {
 		s.logger.Infof("Configuring SQLite name resolution with path %s", connString[len("file:"):strings.Index(connString, "?")])
 	}
@@ -112,7 +112,7 @@ func (s *resolver) initGC() (err error) {
 				VALUES ('nr-last-cleanup', CURRENT_TIMESTAMP)
 				ON CONFLICT (key)
 				DO UPDATE SET value = CURRENT_TIMESTAMP
-					WHERE (unixepoch(CURRENT_TIMESTAMP) - unixepoch(value)) * 1000 > ?;`,
+					WHERE unixepoch(CURRENT_TIMESTAMP) - unixepoch(value)  > ?;`,
 				s.metadata.MetadataTableName,
 			), arg
 		},
@@ -198,11 +198,11 @@ func (s *resolver) doRenewRegistration(ctx context.Context, addr string) error {
 
 	if err != nil {
 		return fmt.Errorf("database error: %w", err)
-	} else {
-		n, _ := res.RowsAffected()
-		if n == 0 {
-			return errRegistrationLost
-		}
+	}
+
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return errRegistrationLost
 	}
 
 	return nil
@@ -262,7 +262,7 @@ func (s *resolver) deregisterHost(ctx context.Context) error {
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		return fmt.Errorf("failed to unregister host: no row deleted")
+		return errors.New("failed to unregister host: no row deleted")
 	}
 
 	return nil

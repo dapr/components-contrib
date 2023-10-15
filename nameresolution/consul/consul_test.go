@@ -25,7 +25,6 @@ import (
 	consul "github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dapr/components-contrib/metadata"
 	nr "github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/logger"
 )
@@ -185,8 +184,6 @@ func (m *mockRegistry) get(service string) *registryEntry {
 }
 
 func TestInit(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		testName string
 		metadata nr.Metadata
@@ -194,12 +191,8 @@ func TestInit(t *testing.T) {
 	}{
 		{
 			"given no configuration don't register service just check agent",
-			nr.Metadata{Base: metadata.Base{
-				Properties: getTestPropsWithoutKey(""),
-			}, Configuration: nil},
+			nr.Metadata{Instance: getInstanceInfoWithoutKey(""), Configuration: nil},
 			func(t *testing.T, metadata nr.Metadata) {
-				t.Helper()
-
 				var mock mockClient
 				resolver := newResolver(logger.NewLogger("test"), resolverConfig{}, &mock, &registry{}, make(chan struct{}))
 
@@ -213,16 +206,12 @@ func TestInit(t *testing.T) {
 		{
 			"given SelfRegister true then register service",
 			nr.Metadata{
-				Base: metadata.Base{
-					Properties: getTestPropsWithoutKey(""),
-				},
+				Instance: getInstanceInfoWithoutKey(""),
 				Configuration: configSpec{
 					SelfRegister: true,
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
-				t.Helper()
-
 				var mock mockClient
 				resolver := newResolver(logger.NewLogger("test"), resolverConfig{}, &mock, &registry{}, make(chan struct{}))
 
@@ -236,15 +225,13 @@ func TestInit(t *testing.T) {
 		{
 			"given AdvancedRegistraion then register service",
 			nr.Metadata{
-				Base: metadata.Base{Properties: getTestPropsWithoutKey("")},
+				Instance: getInstanceInfoWithoutKey(""),
 				Configuration: configSpec{
 					AdvancedRegistration: &consul.AgentServiceRegistration{},
 					QueryOptions:         &consul.QueryOptions{},
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
-				t.Helper()
-
 				var mock mockClient
 				resolver := newResolver(logger.NewLogger("test"), resolverConfig{}, &mock, &registry{}, make(chan struct{}))
 
@@ -260,7 +247,6 @@ func TestInit(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
-			t.Parallel()
 			tt.test(t, tt.metadata)
 		})
 	}
@@ -284,8 +270,6 @@ func TestResolveID(t *testing.T) {
 				ID: "test-app",
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
-				t.Helper()
-
 				blockingCall := make(chan uint64)
 				meta := &consul.QueryMeta{
 					LastIndex: 0,
@@ -427,8 +411,6 @@ func TestResolveID(t *testing.T) {
 				ID: "test-app",
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
-				t.Helper()
-
 				blockingCall := make(chan uint64)
 				meta := &consul.QueryMeta{}
 
@@ -601,8 +583,6 @@ func TestResolveID(t *testing.T) {
 				ID: "test-app",
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
-				t.Helper()
-
 				blockingCall := make(chan uint64)
 				meta := &consul.QueryMeta{
 					LastIndex: 0,
@@ -703,8 +683,6 @@ func TestResolveID(t *testing.T) {
 				ID: "test-app",
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
-				t.Helper()
-
 				blockingCall := make(chan uint64)
 				meta := &consul.QueryMeta{
 					LastIndex: 0,
@@ -799,7 +777,6 @@ func TestResolveID(t *testing.T) {
 				ID: "test-app",
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
-				t.Helper()
 				mock := mockClient{
 					mockHealth: mockHealth{
 						serviceResult: []*consul.ServiceEntry{},
@@ -818,7 +795,6 @@ func TestResolveID(t *testing.T) {
 				ID: "test-app",
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
-				t.Helper()
 				mock := mockClient{
 					mockHealth: mockHealth{
 						serviceResult: []*consul.ServiceEntry{
@@ -847,7 +823,6 @@ func TestResolveID(t *testing.T) {
 				ID: "test-app",
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
-				t.Helper()
 				mock := mockClient{
 					mockHealth: mockHealth{
 						serviceResult: []*consul.ServiceEntry{
@@ -876,7 +851,6 @@ func TestResolveID(t *testing.T) {
 				ID: "test-app",
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
-				t.Helper()
 				mock := mockClient{
 					mockHealth: mockHealth{
 						serviceResult: []*consul.ServiceEntry{
@@ -929,7 +903,6 @@ func TestResolveID(t *testing.T) {
 				ID: "test-app",
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
-				t.Helper()
 				mock := mockClient{
 					mockHealth: mockHealth{
 						serviceResult: []*consul.ServiceEntry{
@@ -973,7 +946,6 @@ func TestResolveID(t *testing.T) {
 				ID: "test-app",
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
-				t.Helper()
 				mock := mockClient{
 					mockHealth: mockHealth{
 						serviceResult: []*consul.ServiceEntry{
@@ -1002,7 +974,6 @@ func TestResolveID(t *testing.T) {
 				ID: "test-app",
 			},
 			func(t *testing.T, req nr.ResolveRequest) {
-				t.Helper()
 				mock := mockClient{
 					mockHealth: mockHealth{
 						serviceResult: []*consul.ServiceEntry{
@@ -1033,8 +1004,6 @@ func TestResolveID(t *testing.T) {
 }
 
 func TestClose(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		testName string
 		metadata nr.Metadata
@@ -1042,12 +1011,8 @@ func TestClose(t *testing.T) {
 	}{
 		{
 			"should deregister",
-			nr.Metadata{Base: metadata.Base{
-				Properties: getTestPropsWithoutKey(""),
-			}, Configuration: nil},
+			nr.Metadata{Instance: getInstanceInfoWithoutKey(""), Configuration: nil},
 			func(t *testing.T, metadata nr.Metadata) {
-				t.Helper()
-
 				var mock mockClient
 				cfg := resolverConfig{
 					Registration:      &consul.AgentServiceRegistration{},
@@ -1062,12 +1027,8 @@ func TestClose(t *testing.T) {
 		},
 		{
 			"should not deregister",
-			nr.Metadata{Base: metadata.Base{
-				Properties: getTestPropsWithoutKey(""),
-			}, Configuration: nil},
+			nr.Metadata{Instance: getInstanceInfoWithoutKey(""), Configuration: nil},
 			func(t *testing.T, metadata nr.Metadata) {
-				t.Helper()
-
 				var mock mockClient
 				cfg := resolverConfig{
 					Registration:      &consul.AgentServiceRegistration{},
@@ -1082,12 +1043,8 @@ func TestClose(t *testing.T) {
 		},
 		{
 			"should not deregister when no registration",
-			nr.Metadata{Base: metadata.Base{
-				Properties: getTestPropsWithoutKey(""),
-			}, Configuration: nil},
+			nr.Metadata{Instance: getInstanceInfoWithoutKey(""), Configuration: nil},
 			func(t *testing.T, metadata nr.Metadata) {
-				t.Helper()
-
 				var mock mockClient
 				cfg := resolverConfig{
 					Registration:      nil,
@@ -1102,12 +1059,8 @@ func TestClose(t *testing.T) {
 		},
 		{
 			"should stop watcher if started",
-			nr.Metadata{Base: metadata.Base{
-				Properties: getTestPropsWithoutKey(""),
-			}, Configuration: nil},
+			nr.Metadata{Instance: getInstanceInfoWithoutKey(""), Configuration: nil},
 			func(t *testing.T, metadata nr.Metadata) {
-				t.Helper()
-
 				var mock mockClient
 				resolver := newResolver(logger.NewLogger("test"), resolverConfig{}, &mock, &registry{}, make(chan struct{})).(*resolver)
 				resolver.watcherStarted.Store(true)
@@ -1137,8 +1090,6 @@ func TestClose(t *testing.T) {
 }
 
 func TestRegistry(t *testing.T) {
-	t.Parallel()
-
 	appID := "myService"
 	tests := []struct {
 		testName string
@@ -1147,8 +1098,6 @@ func TestRegistry(t *testing.T) {
 		{
 			"should add and update entry",
 			func(t *testing.T) {
-				t.Helper()
-
 				registry := &registry{}
 
 				result := []*consul.ServiceEntry{
@@ -1182,8 +1131,6 @@ func TestRegistry(t *testing.T) {
 		{
 			"should expire entries",
 			func(t *testing.T) {
-				t.Helper()
-
 				registry := &registry{}
 				registry.entries.Store(
 					"A",
@@ -1250,8 +1197,6 @@ func TestRegistry(t *testing.T) {
 		{
 			"should remove entry",
 			func(t *testing.T) {
-				t.Helper()
-
 				registry := &registry{}
 				entry := &registryEntry{
 					services: []*consul.ServiceEntry{
@@ -1299,8 +1244,6 @@ func TestRegistry(t *testing.T) {
 }
 
 func TestParseConfig(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		testName    string
 		shouldParse bool
@@ -1310,9 +1253,9 @@ func TestParseConfig(t *testing.T) {
 		{
 			"valid configuration in metadata",
 			true,
-			map[interface{}]interface{}{
+			map[any]any{
 				"Checks": []interface{}{
-					map[interface{}]interface{}{
+					map[any]any{
 						"Name":     "test-app health check name",
 						"CheckID":  "test-app health check id",
 						"Interval": "15s",
@@ -1323,12 +1266,12 @@ func TestParseConfig(t *testing.T) {
 					"dapr",
 					"test",
 				},
-				"Meta": map[interface{}]interface{}{
+				"Meta": map[any]any{
 					"APP_PORT":       "123",
 					"DAPR_HTTP_PORT": "3500",
 					"DAPR_GRPC_PORT": "50005",
 				},
-				"QueryOptions": map[interface{}]interface{}{
+				"QueryOptions": map[any]any{
 					"UseCache": true,
 					"Filter":   "Checks.ServiceTags contains dapr",
 				},
@@ -1372,8 +1315,8 @@ func TestParseConfig(t *testing.T) {
 		{
 			"fail on unsupported map key",
 			false,
-			map[interface{}]interface{}{
-				1000: map[interface{}]interface{}{
+			map[any]any{
+				1000: map[any]any{
 					"DAPR_HTTP_PORT": "3500",
 					"DAPR_GRPC_PORT": "50005",
 				},
@@ -1385,7 +1328,6 @@ func TestParseConfig(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
-			t.Parallel()
 			actual, err := parseConfig(tt.input)
 
 			if tt.shouldParse {
@@ -1399,8 +1341,6 @@ func TestParseConfig(t *testing.T) {
 }
 
 func TestGetConfig(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		testName string
 		metadata nr.Metadata
@@ -1409,11 +1349,10 @@ func TestGetConfig(t *testing.T) {
 		{
 			"empty configuration should only return Client, QueryOptions and DaprPortMetaKey",
 			nr.Metadata{
-				Base:          metadata.Base{Properties: getTestPropsWithoutKey("")},
+				Instance:      getInstanceInfoWithoutKey(""),
 				Configuration: nil,
 			},
 			func(t *testing.T, metadata nr.Metadata) {
-				t.Helper()
 				actual, _ := getConfig(metadata)
 
 				// Client
@@ -1436,13 +1375,12 @@ func TestGetConfig(t *testing.T) {
 		{
 			"empty configuration with SelfRegister should default correctly",
 			nr.Metadata{
-				Base: metadata.Base{Properties: getTestPropsWithoutKey("")},
-				Configuration: map[interface{}]interface{}{
+				Instance: getInstanceInfoWithoutKey(""),
+				Configuration: map[any]any{
 					"SelfRegister": true,
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
-				t.Helper()
 				actual, _ := getConfig(metadata)
 				// Client
 				assert.Equal(t, consul.DefaultConfig().Address, actual.Client.Address)
@@ -1451,9 +1389,9 @@ func TestGetConfig(t *testing.T) {
 				assert.Equal(t, 1, len(actual.Registration.Checks))
 				check := actual.Registration.Checks[0]
 				assert.Equal(t, "Dapr Health Status", check.Name)
-				assert.Equal(t, "daprHealth:test-app-"+metadata.Properties[nr.HostAddress]+"-"+metadata.Properties[nr.DaprHTTPPort], check.CheckID)
+				assert.Equal(t, "daprHealth:test-app-"+metadata.Instance.Address+"-"+strconv.Itoa(metadata.Instance.DaprHTTPPort), check.CheckID)
 				assert.Equal(t, "15s", check.Interval)
-				assert.Equal(t, fmt.Sprintf("http://%s/v1.0/healthz?appid=%s", net.JoinHostPort(metadata.Properties[nr.HostAddress], metadata.Properties[nr.DaprHTTPPort]), metadata.Properties[nr.AppID]), check.HTTP)
+				assert.Equal(t, fmt.Sprintf("http://%s/v1.0/healthz?appid=%s", net.JoinHostPort(metadata.Instance.Address, strconv.Itoa(metadata.Instance.DaprHTTPPort)), metadata.Instance.AppID), check.HTTP)
 
 				// Metadata
 				assert.Equal(t, 1, len(actual.Registration.Meta))
@@ -1472,17 +1410,16 @@ func TestGetConfig(t *testing.T) {
 		{
 			"DaprPortMetaKey should set registration meta and config used for resolve",
 			nr.Metadata{
-				Base: metadata.Base{Properties: getTestPropsWithoutKey("")},
-				Configuration: map[interface{}]interface{}{
+				Instance: getInstanceInfoWithoutKey(""),
+				Configuration: map[any]any{
 					"SelfRegister":    true,
 					"DaprPortMetaKey": "random_key",
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
-				t.Helper()
 				actual, _ := getConfig(metadata)
 
-				daprPort := metadata.Properties[nr.DaprPort]
+				daprPort := strconv.Itoa(metadata.Instance.DaprInternalPort)
 
 				assert.Equal(t, "random_key", actual.DaprPortMetaKey)
 				assert.Equal(t, daprPort, actual.Registration.Meta["random_key"])
@@ -1491,14 +1428,13 @@ func TestGetConfig(t *testing.T) {
 		{
 			"SelfDeregister should set DeregisterOnClose",
 			nr.Metadata{
-				Base: metadata.Base{Properties: getTestPropsWithoutKey("")},
-				Configuration: map[interface{}]interface{}{
+				Instance: getInstanceInfoWithoutKey(""),
+				Configuration: map[any]any{
 					"SelfRegister":   true,
 					"SelfDeregister": true,
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
-				t.Helper()
 				actual, _ := getConfig(metadata)
 
 				assert.Equal(t, true, actual.DeregisterOnClose)
@@ -1507,13 +1443,12 @@ func TestGetConfig(t *testing.T) {
 		{
 			"missing AppID property should error when SelfRegister true",
 			nr.Metadata{
-				Base: metadata.Base{Properties: getTestPropsWithoutKey(nr.AppID)},
-				Configuration: map[interface{}]interface{}{
+				Instance: getInstanceInfoWithoutKey("AppID"),
+				Configuration: map[any]any{
 					"SelfRegister": true,
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
-				t.Helper()
 				_, err := getConfig(metadata)
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), nr.AppID)
@@ -1537,13 +1472,12 @@ func TestGetConfig(t *testing.T) {
 		{
 			"missing AppPort property should error when SelfRegister true",
 			nr.Metadata{
-				Base: metadata.Base{Properties: getTestPropsWithoutKey(nr.AppPort)},
-				Configuration: map[interface{}]interface{}{
+				Instance: getInstanceInfoWithoutKey("AppPort"),
+				Configuration: map[any]any{
 					"SelfRegister": true,
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
-				t.Helper()
 				_, err := getConfig(metadata)
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), nr.AppPort)
@@ -1565,18 +1499,17 @@ func TestGetConfig(t *testing.T) {
 			},
 		},
 		{
-			"missing HostAddress property should error when SelfRegister true",
+			"missing Address property should error when SelfRegister true",
 			nr.Metadata{
-				Base: metadata.Base{Properties: getTestPropsWithoutKey(nr.HostAddress)},
-				Configuration: map[interface{}]interface{}{
+				Instance: getInstanceInfoWithoutKey("Address"),
+				Configuration: map[any]any{
 					"SelfRegister": true,
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
-				t.Helper()
 				_, err := getConfig(metadata)
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), nr.HostAddress)
+				assert.Contains(t, err.Error(), "HOST_ADDRESS")
 
 				metadata.Configuration = configSpec{
 					SelfRegister: false,
@@ -1597,16 +1530,15 @@ func TestGetConfig(t *testing.T) {
 		{
 			"missing DaprHTTPPort property should error only when SelfRegister true",
 			nr.Metadata{
-				Base: metadata.Base{Properties: getTestPropsWithoutKey(nr.DaprHTTPPort)},
-				Configuration: map[interface{}]interface{}{
+				Instance: getInstanceInfoWithoutKey("DaprHTTPPort"),
+				Configuration: map[any]any{
 					"SelfRegister": true,
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
-				t.Helper()
 				_, err := getConfig(metadata)
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), nr.DaprHTTPPort)
+				assert.Contains(t, err.Error(), "DAPR_HTTP_PORT")
 
 				metadata.Configuration = configSpec{
 					SelfRegister: false,
@@ -1625,19 +1557,18 @@ func TestGetConfig(t *testing.T) {
 			},
 		},
 		{
-			"missing DaprPort property should always error",
+			"missing DaprInternalPort property should always error",
 			nr.Metadata{
-				Base: metadata.Base{Properties: getTestPropsWithoutKey(nr.DaprPort)},
+				Instance: getInstanceInfoWithoutKey("DaprInternalPort"),
 			},
 			func(t *testing.T, metadata nr.Metadata) {
-				t.Helper()
 				metadata.Configuration = configSpec{
 					SelfRegister: false,
 				}
 
 				_, err := getConfig(metadata)
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), nr.DaprPort)
+				assert.Contains(t, err.Error(), "DAPR_PORT")
 
 				metadata.Configuration = configSpec{
 					SelfRegister: true,
@@ -1645,7 +1576,7 @@ func TestGetConfig(t *testing.T) {
 
 				_, err = getConfig(metadata)
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), nr.DaprPort)
+				assert.Contains(t, err.Error(), "DAPR_PORT")
 
 				metadata.Configuration = configSpec{
 					AdvancedRegistration: &consul.AgentServiceRegistration{},
@@ -1654,16 +1585,16 @@ func TestGetConfig(t *testing.T) {
 
 				_, err = getConfig(metadata)
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), nr.DaprPort)
+				assert.Contains(t, err.Error(), "DAPR_PORT")
 			},
 		},
 		{
 			"registration should configure correctly",
 			nr.Metadata{
-				Base: metadata.Base{Properties: getTestPropsWithoutKey("")},
-				Configuration: map[interface{}]interface{}{
+				Instance: getInstanceInfoWithoutKey(""),
+				Configuration: map[any]any{
 					"Checks": []interface{}{
-						map[interface{}]interface{}{
+						map[any]any{
 							"Name":     "test-app health check name",
 							"CheckID":  "test-app health check id",
 							"Interval": "15s",
@@ -1673,11 +1604,11 @@ func TestGetConfig(t *testing.T) {
 					"Tags": []interface{}{
 						"test",
 					},
-					"Meta": map[interface{}]interface{}{
+					"Meta": map[any]any{
 						"APP_PORT":       "8650",
 						"DAPR_GRPC_PORT": "50005",
 					},
-					"QueryOptions": map[interface{}]interface{}{
+					"QueryOptions": map[any]any{
 						"UseCache": false,
 						"Filter":   "Checks.ServiceTags contains something",
 					},
@@ -1687,16 +1618,13 @@ func TestGetConfig(t *testing.T) {
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
-				t.Helper()
 				actual, _ := getConfig(metadata)
-
-				appPort, _ := strconv.Atoi(metadata.Properties[nr.AppPort])
 
 				// Enabled Registration
 				assert.NotNil(t, actual.Registration)
-				assert.Equal(t, metadata.Properties[nr.AppID], actual.Registration.Name)
-				assert.Equal(t, metadata.Properties[nr.HostAddress], actual.Registration.Address)
-				assert.Equal(t, appPort, actual.Registration.Port)
+				assert.Equal(t, metadata.Instance.AppID, actual.Registration.Name)
+				assert.Equal(t, metadata.Instance.Address, actual.Registration.Address)
+				assert.Equal(t, metadata.Instance.AppPort, actual.Registration.Port)
 				assert.Equal(t, "test-app health check name", actual.Registration.Checks[0].Name)
 				assert.Equal(t, "test-app health check id", actual.Registration.Checks[0].CheckID)
 				assert.Equal(t, "15s", actual.Registration.Checks[0].Interval)
@@ -1704,7 +1632,7 @@ func TestGetConfig(t *testing.T) {
 				assert.Equal(t, "test", actual.Registration.Tags[0])
 				assert.Equal(t, "8650", actual.Registration.Meta["APP_PORT"])
 				assert.Equal(t, "50005", actual.Registration.Meta["DAPR_GRPC_PORT"])
-				assert.Equal(t, metadata.Properties[nr.DaprPort], actual.Registration.Meta["PORT"])
+				assert.Equal(t, strconv.Itoa(metadata.Instance.DaprInternalPort), actual.Registration.Meta["PORT"])
 				assert.Equal(t, false, actual.QueryOptions.UseCache)
 				assert.Equal(t, "Checks.ServiceTags contains something", actual.QueryOptions.Filter)
 				assert.Equal(t, "PORT", actual.DaprPortMetaKey)
@@ -1714,9 +1642,9 @@ func TestGetConfig(t *testing.T) {
 		{
 			"advanced registration should override/ignore other configs",
 			nr.Metadata{
-				Base: metadata.Base{Properties: getTestPropsWithoutKey("")},
-				Configuration: map[interface{}]interface{}{
-					"AdvancedRegistration": map[interface{}]interface{}{
+				Instance: getInstanceInfoWithoutKey(""),
+				Configuration: map[any]any{
+					"AdvancedRegistration": map[any]any{
 						"Name":    "random-app-id",
 						"Port":    0o00,
 						"Address": "123.345.678",
@@ -1725,7 +1653,7 @@ func TestGetConfig(t *testing.T) {
 							"APP_PORT": "000",
 						},
 						"Checks": []interface{}{
-							map[interface{}]interface{}{
+							map[any]any{
 								"Name":     "random health check name",
 								"CheckID":  "random health check id",
 								"Interval": "15s",
@@ -1734,7 +1662,7 @@ func TestGetConfig(t *testing.T) {
 						},
 					},
 					"Checks": []interface{}{
-						map[interface{}]interface{}{
+						map[any]any{
 							"Name":     "test-app health check name",
 							"CheckID":  "test-app health check id",
 							"Interval": "15s",
@@ -1754,7 +1682,6 @@ func TestGetConfig(t *testing.T) {
 				},
 			},
 			func(t *testing.T, metadata nr.Metadata) {
-				t.Helper()
 				actual, _ := getConfig(metadata)
 
 				// Enabled Registration
@@ -1772,18 +1699,13 @@ func TestGetConfig(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
-			t.Parallel()
 			tt.test(t, tt.metadata)
 		})
 	}
 }
 
 func TestMapConfig(t *testing.T) {
-	t.Parallel()
-
 	t.Run("should map full configuration", func(t *testing.T) {
-		t.Helper()
-
 		expected := intermediateConfig{
 			Client: &Config{
 				Address:    "Address",
@@ -2075,8 +1997,6 @@ func TestMapConfig(t *testing.T) {
 	})
 
 	t.Run("should map empty configuration", func(t *testing.T) {
-		t.Helper()
-
 		expected := intermediateConfig{}
 
 		actual := mapConfig(expected)
@@ -2216,17 +2136,29 @@ func compareCheck(t *testing.T, expected *AgentServiceCheck, actual *consul.Agen
 	assert.Equal(t, expected.GRPCUseTLS, actual.GRPCUseTLS)
 }
 
-func getTestPropsWithoutKey(removeKey string) map[string]string {
-	metadata := map[string]string{
-		nr.AppID:        "test-app",
-		nr.AppPort:      "8650",
-		nr.DaprPort:     "50001",
-		nr.DaprHTTPPort: "3500",
-		nr.HostAddress:  "127.0.0.1",
+func getInstanceInfoWithoutKey(removeKey string) nr.Instance {
+	res := nr.Instance{
+		AppID:            "test-app",
+		AppPort:          8650,
+		DaprInternalPort: 50001,
+		DaprHTTPPort:     3500,
+		Address:          "127.0.0.1",
 	}
-	delete(metadata, removeKey)
 
-	return metadata
+	switch removeKey {
+	case "AppID":
+		res.AppID = ""
+	case "AppPort":
+		res.AppPort = 0
+	case "DaprInternalPort":
+		res.DaprInternalPort = 0
+	case "DaprHTTPPort":
+		res.DaprHTTPPort = 0
+	case "Address":
+		res.Address = ""
+	}
+
+	return res
 }
 
 func waitTillTrueOrTimeout(d time.Duration, condition func() bool) {

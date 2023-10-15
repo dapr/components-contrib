@@ -25,7 +25,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dapr/components-contrib/metadata"
 	nr "github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/logger"
 )
@@ -38,35 +37,35 @@ const (
 func TestInitMetadata(t *testing.T) {
 	tests := []struct {
 		missingProp string
-		props       map[string]string
+		instance    nr.Instance
 	}{
 		{
 			"name",
-			map[string]string{
-				nr.HostAddress: localhost,
-				nr.DaprPort:    "30003",
+			nr.Instance{
+				Address:          localhost,
+				DaprInternalPort: 30003,
 			},
 		},
 		{
 			"address",
-			map[string]string{
-				nr.AppID:    "testAppID",
-				nr.DaprPort: "30003",
+			nr.Instance{
+				AppID:            "testAppID",
+				DaprInternalPort: 30003,
 			},
 		},
 		{
 			"port",
-			map[string]string{
-				nr.AppID:       "testAppID",
-				nr.HostAddress: localhost,
+			nr.Instance{
+				AppID:   "testAppID",
+				Address: localhost,
 			},
 		},
 		{
 			"port",
-			map[string]string{
-				nr.AppID:       "testAppID",
-				nr.HostAddress: localhost,
-				nr.DaprPort:    "abcd",
+			nr.Instance{
+				AppID:            "testAppID",
+				Address:          localhost,
+				DaprInternalPort: 0,
 			},
 		},
 	}
@@ -78,7 +77,7 @@ func TestInitMetadata(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.missingProp+" is missing", func(t *testing.T) {
 			// act
-			err := resolver.Init(context.Background(), nr.Metadata{Base: metadata.Base{Properties: tt.props}})
+			err := resolver.Init(context.Background(), nr.Metadata{Instance: tt.instance})
 
 			// assert
 			assert.Error(t, err)
@@ -90,11 +89,11 @@ func TestInitRegister(t *testing.T) {
 	// arrange
 	resolver := NewResolver(logger.NewLogger("test")).(*Resolver)
 	defer resolver.Close()
-	md := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
-		nr.AppID:       "testAppID",
-		nr.HostAddress: localhost,
-		nr.DaprPort:    "1234",
-	}}}
+	md := nr.Metadata{Instance: nr.Instance{
+		AppID:            "testAppID",
+		Address:          localhost,
+		DaprInternalPort: 1234,
+	}}
 
 	// act
 	err := resolver.Init(context.Background(), md)
@@ -105,16 +104,16 @@ func TestInitRegisterDuplicate(t *testing.T) {
 	// arrange
 	resolver := NewResolver(logger.NewLogger("test")).(*Resolver)
 	defer resolver.Close()
-	md := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
-		nr.AppID:       "testAppID",
-		nr.HostAddress: localhost,
-		nr.DaprPort:    "1234",
-	}}}
-	md2 := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
-		nr.AppID:       "testAppID",
-		nr.HostAddress: localhost,
-		nr.DaprPort:    "1234",
-	}}}
+	md := nr.Metadata{Instance: nr.Instance{
+		AppID:            "testAppID",
+		Address:          localhost,
+		DaprInternalPort: 1234,
+	}}
+	md2 := nr.Metadata{Instance: nr.Instance{
+		AppID:            "testAppID",
+		Address:          localhost,
+		DaprInternalPort: 1234,
+	}}
 
 	// act
 	err := resolver.Init(context.Background(), md)
@@ -128,11 +127,11 @@ func TestResolver(t *testing.T) {
 	// arrange
 	resolver := NewResolver(logger.NewLogger("test")).(*Resolver)
 	defer resolver.Close()
-	md := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
-		nr.AppID:       "testAppID",
-		nr.HostAddress: localhost,
-		nr.DaprPort:    "1234",
-	}}}
+	md := nr.Metadata{Instance: nr.Instance{
+		AppID:            "testAppID",
+		Address:          localhost,
+		DaprInternalPort: 1234,
+	}}
 
 	// act
 	err := resolver.Init(context.Background(), md)
@@ -149,11 +148,11 @@ func TestResolver(t *testing.T) {
 func TestResolverClose(t *testing.T) {
 	// arrange
 	resolver := NewResolver(logger.NewLogger("test")).(*Resolver)
-	md := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
-		nr.AppID:       "testAppID",
-		nr.HostAddress: localhost,
-		nr.DaprPort:    "1234",
-	}}}
+	md := nr.Metadata{Instance: nr.Instance{
+		AppID:            "testAppID",
+		Address:          localhost,
+		DaprInternalPort: 1234,
+	}}
 
 	// act
 	err := resolver.Init(context.Background(), md)
@@ -282,11 +281,11 @@ func ResolverConcurrencySubsriberClear(t *testing.T) {
 	// arrange
 	resolver := NewResolver(logger.NewLogger("test")).(*Resolver)
 	defer resolver.Close()
-	md := nr.Metadata{Base: metadata.Base{Properties: map[string]string{
-		nr.AppID:       "testAppID",
-		nr.HostAddress: localhost,
-		nr.DaprPort:    "1234",
-	}}}
+	md := nr.Metadata{Instance: nr.Instance{
+		AppID:            "testAppID",
+		Address:          localhost,
+		DaprInternalPort: 1234,
+	}}
 
 	// act
 	err := resolver.Init(context.Background(), md)

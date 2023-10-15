@@ -20,7 +20,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/logger"
 )
@@ -30,12 +29,10 @@ func TestSqliteNameResolver(t *testing.T) {
 
 	t.Run("Init", func(t *testing.T) {
 		err := nr.Init(context.Background(), nameresolution.Metadata{
-			Base: metadata.Base{
-				Properties: map[string]string{
-					nameresolution.HostAddress: "127.0.0.1",
-					nameresolution.DaprPort:    "1234",
-					nameresolution.AppID:       "myapp",
-				},
+			Instance: nameresolution.Instance{
+				Address:          "127.0.0.1",
+				DaprInternalPort: 1234,
+				AppID:            "myapp",
 			},
 			Configuration: map[string]string{
 				"connectionString": ":memory:",

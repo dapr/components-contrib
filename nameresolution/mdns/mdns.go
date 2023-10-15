@@ -270,27 +270,22 @@ func (m *Resolver) startRefreshers() {
 
 // Init registers service for mDNS.
 func (m *Resolver) Init(ctx context.Context, metadata nameresolution.Metadata) error {
-	appID := metadata.GetAppID()
-	if appID == "" {
+	if metadata.Instance.AppID == "" {
 		return errors.New("name is missing")
 	}
-
-	hostAddress := metadata.GetHostAddress()
-	if hostAddress == "" {
+	if metadata.Instance.Address == "" {
 		return errors.New("address is missing")
 	}
-
-	port := metadata.GetDaprPort()
-	if port == 0 {
+	if metadata.Instance.DaprInternalPort == 0 {
 		return errors.New("port is missing or invalid")
 	}
 
-	err := m.registerMDNS("", appID, []string{hostAddress}, port)
+	err := m.registerMDNS("", metadata.Instance.AppID, []string{metadata.Instance.Address}, metadata.Instance.DaprInternalPort)
 	if err != nil {
 		return err
 	}
 
-	m.logger.Infof("local service entry announced: %s -> %s:%d", appID, hostAddress, port)
+	m.logger.Infof("local service entry announced: %s -> %s:%d", metadata.Instance.AppID, metadata.Instance.Address, metadata.Instance.DaprInternalPort)
 
 	go m.startRefreshers()
 

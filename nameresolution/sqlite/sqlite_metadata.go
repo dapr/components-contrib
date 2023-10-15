@@ -47,6 +47,7 @@ type sqliteMetadata struct {
 
 	// Instance properties - these are passed by the runtime
 	appID       string
+	namespace   string
 	hostAddress string
 	port        int
 }
@@ -55,19 +56,20 @@ func (m *sqliteMetadata) InitWithMetadata(meta nameresolution.Metadata) error {
 	// Reset the object
 	m.reset()
 
-	// Validate the instance properties
-	m.appID = meta.GetAppID()
+	// Set and validate the instance properties
+	m.appID = meta.Instance.AppID
 	if m.appID == "" {
 		return errors.New("name is missing")
 	}
-	m.hostAddress = meta.GetHostAddress()
+	m.hostAddress = meta.Instance.Address
 	if m.hostAddress == "" {
 		return errors.New("address is missing")
 	}
-	m.port = meta.GetDaprPort()
+	m.port = meta.Instance.DaprInternalPort
 	if m.port == 0 {
 		return errors.New("port is missing or invalid")
 	}
+	m.namespace = meta.Instance.Namespace // Can be empty
 
 	// Decode the configuration using DecodeMetadata
 	err := metadata.DecodeMetadata(meta.Configuration, &m)
@@ -117,6 +119,7 @@ func (m *sqliteMetadata) reset() {
 	m.CleanupInterval = defaultCleanupInternal
 
 	m.appID = ""
+	m.namespace = ""
 	m.hostAddress = ""
 	m.port = 0
 }

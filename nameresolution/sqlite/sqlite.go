@@ -184,7 +184,9 @@ func (s *resolver) renewRegistration() {
 
 		case <-t.C:
 			// Renew on the ticker
+			s.wg.Add(1)
 			go func() {
+				defer s.wg.Done()
 				err := s.doRenewRegistration(ctx, addr)
 				if err != nil {
 					// Log errors
@@ -203,7 +205,7 @@ func (s *resolver) renewRegistration() {
 }
 
 func (s *resolver) doRenewRegistration(ctx context.Context, addr string) error {
-	queryCtx, queryCancel := context.WithTimeout(context.Background(), s.metadata.Timeout)
+	queryCtx, queryCancel := context.WithTimeout(ctx, s.metadata.Timeout)
 	defer queryCancel()
 
 	res, err := s.db.ExecContext(queryCtx,

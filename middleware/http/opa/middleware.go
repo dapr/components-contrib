@@ -23,12 +23,14 @@ import (
 	"math"
 	"net/http"
 	"net/textproto"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/open-policy-agent/opa/rego"
+	"github.com/open-policy-agent/opa/sdk"
 	"k8s.io/utils/strings/slices"
 
 	"github.com/dapr/components-contrib/internal/httputils"
@@ -41,11 +43,12 @@ import (
 type Status int
 
 type middlewareMetadata struct {
-	Rego                          string   `json:"rego" mapstructure:"rego"`
-	DefaultStatus                 Status   `json:"defaultStatus,omitempty" mapstructure:"defaultStatus"`
-	IncludedHeaders               string   `json:"includedHeaders,omitempty" mapstructure:"includedHeaders"`
-	ReadBody                      string   `json:"readBody,omitempty" mapstructure:"readBody"`
-	internalIncludedHeadersParsed []string `json:"-" mapstructure:"-"`
+	OPAConfigFile                 string   `json:"opaConfigFile,omitempty" mapstructure:"opaConfigFile" json:"opa_config_file,omitempty"`
+	Rego                          string   `json:"rego" mapstructure:"rego" json:"rego,omitempty"`
+	DefaultStatus                 Status   `json:"defaultStatus,omitempty" mapstructure:"defaultStatus" json:"default_status,omitempty"`
+	IncludedHeaders               string   `json:"includedHeaders,omitempty" mapstructure:"includedHeaders" json:"included_headers,omitempty"`
+	ReadBody                      string   `json:"readBody,omitempty" mapstructure:"readBody" json:"read_body,omitempty"`
+	internalIncludedHeadersParsed []string `json:"-" mapstructure:"-" json:"internal_included_headers_parsed,omitempty"`
 }
 
 // NewMiddleware returns a new Open Policy Agent middleware.
@@ -56,6 +59,7 @@ func NewMiddleware(logger logger.Logger) middleware.Middleware {
 // Middleware is an OPA  middleware.
 type Middleware struct {
 	logger logger.Logger
+	opa    *sdk.OPA
 }
 
 // RegoResult is the expected result from rego policy.
@@ -102,9 +106,32 @@ func (s *Status) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// Check status is in the correct range for RFC 2616 status codes [100-599].
+// Valid checks that status is in the correct range for RFC 2616 status codes [100-599].
 func (s *Status) Valid() bool {
 	return s != nil && *s >= 100 && *s < 600
+}
+
+func (m *Middleware) startOPA(ctx context.Context, configFile string) error {
+	opaConf, err := os.ReadFile(configFile)
+	if err != nil {
+		return err
+	}
+
+	m.opa, err = sdk.New(ctx, sdk.Options{
+		ID:     "opa-dapr",
+		Config: bytes.NewReader(opaConf),
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *Middleware) stopOPA(ctx context.Context) {
+	if m.opa != nil {
+		m.opa.Stop(ctx)
+	}
 }
 
 // GetHandler returns the HTTP handler provided by the middleware.
@@ -112,6 +139,33 @@ func (m *Middleware) GetHandler(parentCtx context.Context, metadata middleware.M
 	meta, err := m.getNativeMetadata(metadata)
 	if err != nil {
 		return nil, err
+	}
+
+	if meta.OPAConfigFile != "" {
+		err = m.startOPA(parentCtx, meta.OPAConfigFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				input := buildInputMap(r, meta)
+				result, err := m.opa.Decision(
+					parentCtx,
+					sdk.DecisionOptions{Path: "/http/allow", Input: input})
+
+				if err != nil {
+					m.opaError(w, meta, err)
+					return
+				}
+
+				if !m.handleRegoResult(w, r, meta, result.Result) {
+					return
+				}
+
+				next.ServeHTTP(w, r)
+			})
+		}, nil
 	}
 
 	ctx, cancel := context.WithTimeout(parentCtx, time.Minute)
@@ -134,7 +188,7 @@ func (m *Middleware) GetHandler(parentCtx context.Context, metadata middleware.M
 	}, nil
 }
 
-func (m *Middleware) evalRequest(w http.ResponseWriter, r *http.Request, meta *middlewareMetadata, query *rego.PreparedEvalQuery) bool {
+func buildInputMap(r *http.Request, meta *middlewareMetadata) map[string]any {
 	headers := map[string]string{}
 
 	for key, value := range r.Header {
@@ -153,8 +207,9 @@ func (m *Middleware) evalRequest(w http.ResponseWriter, r *http.Request, meta *m
 	}
 
 	pathParts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-	input := map[string]interface{}{
-		"request": map[string]interface{}{
+
+	return map[string]any{
+		"request": map[string]any{
 			"method":     r.Method,
 			"path":       r.URL.Path,
 			"path_parts": pathParts,
@@ -165,8 +220,10 @@ func (m *Middleware) evalRequest(w http.ResponseWriter, r *http.Request, meta *m
 			"body":       body,
 		},
 	}
+}
 
-	results, err := query.Eval(r.Context(), rego.EvalInput(input))
+func (m *Middleware) evalRequest(w http.ResponseWriter, r *http.Request, meta *middlewareMetadata, query *rego.PreparedEvalQuery) bool {
+	results, err := query.Eval(r.Context(), rego.EvalInput(buildInputMap(r, meta)))
 	if err != nil {
 		m.opaError(w, meta, err)
 		return false
@@ -234,7 +291,7 @@ func (m *Middleware) handleRegoResult(w http.ResponseWriter, r *http.Request, me
 func (m *Middleware) opaError(w http.ResponseWriter, meta *middlewareMetadata, err error) {
 	w.Header().Set(opaErrorHeaderKey, "true")
 	httputils.RespondWithError(w, int(meta.DefaultStatus))
-	m.logger.Warnf("Error procesing rego policy: %v", err)
+	m.logger.Warnf("Error processing rego policy: %v", err)
 }
 
 func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*middlewareMetadata, error) {

@@ -16,13 +16,18 @@ package opa
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	sdktest "github.com/open-policy-agent/opa/sdk/test"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
@@ -501,6 +506,271 @@ func TestHandleRegoResult(t *testing.T) {
 					for key, value := range headers.(map[string]string) {
 						assert.Equal(t, value, resp.Header.Get(key))
 					}
+				}
+			}
+		})
+	}
+}
+
+func TestOpaSDK(t *testing.T) {
+	tests := map[string]struct {
+		meta               middleware.Metadata
+		bundle             map[string]string
+		req                func() *http.Request
+		status             int
+		headers            *[][]string
+		body               []string
+		shouldHandlerError bool
+		shouldRegoError    bool
+	}{
+		"allow": {
+			bundle: map[string]string{
+				"http.rego": `
+					package http
+					allow := true`,
+			},
+			status: 200,
+		},
+		"deny": {
+			bundle: map[string]string{
+				"http.rego": `
+					package http
+					allow := false`,
+			},
+			status: 403,
+		},
+		"status": {
+			bundle: map[string]string{
+				"http.rego": `
+					package http
+					allow := {
+						"allow": false,
+						"status_code": 301
+					}`,
+			},
+			status: 301,
+		},
+		"add redirect": {
+			bundle: map[string]string{
+				"http.rego": `
+					package http
+					allow := {
+						"allow": false,
+						"status_code": 301,
+						"additional_headers": { "location": "https://my.site/login" }
+					}`,
+			},
+			status: 301,
+			headers: &[][]string{
+				{"location", "https://my.site/login"},
+			},
+		},
+		"add headers": {
+			bundle: map[string]string{
+				"http.rego": `
+					package http
+					allow := {
+						"allow": false,
+						"status_code": 301,
+						"additional_headers": { "x-key": "abc" }
+					}`,
+			},
+			status: 301,
+			headers: &[][]string{
+				{"x-key", "abc"},
+			},
+		},
+		"allow with path": {
+			bundle: map[string]string{
+				"http.rego": `
+					package http
+					default allow := true
+		
+					allow := { "status_code": 403 } {
+						input.request.path_parts[0] == "forbidden"
+					}
+				`,
+			},
+			req: func() *http.Request {
+				return httptest.NewRequest(http.MethodGet, "https://my.site/allowed", nil)
+			},
+			status: 200,
+		},
+		"deny with path": {
+			bundle: map[string]string{
+				"http.rego": `
+					package http
+					default allow := true
+		
+					allow := { "status_code": 403 } {
+						input.request.path_parts[0] == "forbidden"
+					}
+					`,
+			},
+			req: func() *http.Request {
+				return httptest.NewRequest(http.MethodGet, "https://my.site/forbidden", nil)
+			},
+			status: 403,
+		},
+		"allow when header not included": {
+			bundle: map[string]string{
+				"http.rego": `
+					package http
+					default allow := true
+		
+					allow := { "status_code": 403 } {
+						input.request.headers["x-bad-header"] == "1"
+					}
+				`,
+			},
+			req: func() *http.Request {
+				r := httptest.NewRequest(http.MethodGet, "https://my.site", nil)
+				r.Header.Add("x-bad-header", "1")
+				return r
+			},
+			status: 200,
+		},
+		"deny when header included": {
+			bundle: map[string]string{
+				"http.rego": `
+					package http
+					default allow := true
+		
+					allow := { "status_code": 403 } {
+						input.request.headers["X-Bad-Header"] == "1"
+					}
+				`,
+			},
+			meta: middleware.Metadata{Base: metadata.Base{
+				Properties: map[string]string{"includedHeaders": "x-bad-header"},
+			}},
+			req: func() *http.Request {
+				r := httptest.NewRequest(http.MethodGet, "https://my.site", nil)
+				r.Header.Add("X-BAD-HEADER", "1")
+				return r
+			},
+			status: 403,
+		},
+		"err on bad allow": {
+			bundle: map[string]string{
+				"http.rego": `
+					package http
+					allow := 1`,
+			},
+			shouldRegoError: true,
+		},
+		"err on bad package": {
+			bundle: map[string]string{
+				"http.rego": `
+					package http.authz
+					allow := true`,
+			},
+			shouldRegoError: true,
+		},
+		"status config": {
+			bundle: map[string]string{
+				"http.rego": `
+					package http
+					allow := false`,
+			},
+			meta: middleware.Metadata{Base: metadata.Base{
+				Properties: map[string]string{"defaultStatus": "500"},
+			}},
+			status: 500,
+		},
+		"rego priority over defaultStatus metadata": {
+			bundle: map[string]string{
+				"http.rego": `
+					package http
+					allow = {
+						"allow": false,
+						"status_code": 301
+					}`,
+			},
+			meta: middleware.Metadata{Base: metadata.Base{
+				Properties: map[string]string{"defaultStatus": "500"},
+			}},
+			status: 301,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			// create a mock HTTP bundle server
+			server, err := sdktest.NewServer(sdktest.MockBundle("/bundles/bundle.tar.gz", test.bundle))
+			require.NoError(t, err)
+
+			defer server.Stop()
+
+			opaConfig := []byte(fmt.Sprintf(`{
+				"services": {
+					"test": {
+						"url": %q
+					}
+				},
+				"bundles": {
+					"test": {
+						"resource": "/bundles/bundle.tar.gz"
+					}
+				},
+				"decision_logs": {
+					"console": true
+				}
+			}`, server.URL()))
+
+			tmpDir := t.TempDir()
+
+			err = os.WriteFile(fmt.Sprintf("%s/config.json", tmpDir), opaConfig, 0644)
+			require.NoError(t, err)
+
+			meta := middleware.Metadata{
+				Base: metadata.Base{
+					Properties: map[string]string{
+						"opaConfigFile": filepath.Join(tmpDir, "config.json"),
+					},
+				},
+			}
+
+			for k, v := range test.meta.Base.Properties {
+				meta.Base.Properties[k] = v
+			}
+
+			opaMiddleware := NewMiddleware(logger.NewLogger("opa.test")).(*Middleware)
+
+			defer opaMiddleware.stopOPA(context.Background())
+
+			handler, err := opaMiddleware.GetHandler(context.Background(), meta)
+			if test.shouldHandlerError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			var r *http.Request
+			if test.req != nil {
+				r = test.req()
+			} else {
+				r = httptest.NewRequest(http.MethodGet, "https://my.site", nil)
+			}
+			w := httptest.NewRecorder()
+
+			handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
+
+			if test.shouldRegoError {
+				assert.Equal(t, 403, w.Code)
+				assert.Equal(t, "true", w.Header().Get(opaErrorHeaderKey))
+				return
+			}
+
+			assert.Equal(t, test.status, w.Code)
+
+			if test.status == 200 {
+				assert.Equal(t, "from mock", w.Body.String())
+			}
+
+			if test.headers != nil {
+				for _, header := range *test.headers {
+					assert.Equal(t, header[1], w.Header().Get(header[0]))
 				}
 			}
 		})

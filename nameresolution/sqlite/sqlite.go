@@ -23,6 +23,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 
 	internalsql "github.com/dapr/components-contrib/internal/component/sql"
@@ -167,7 +168,9 @@ func (s *resolver) renewRegistration() {
 
 	addr := s.metadata.GetAddress()
 
-	d := s.metadata.UpdateInterval - s.metadata.Timeout
+	// Update every UpdateInterval - Timeout (+ 1 second buffer)
+	// This is because the record has to be updated every UpdateInterval, but we allow up to "timeout" for it to be performed
+	d := s.metadata.UpdateInterval - s.metadata.Timeout - 1
 	s.logger.Debugf("Started renewing host registration in background with interval %v", s.metadata.UpdateInterval)
 	t := time.NewTicker(d)
 	defer t.Stop()
@@ -205,23 +208,29 @@ func (s *resolver) renewRegistration() {
 }
 
 func (s *resolver) doRenewRegistration(ctx context.Context, addr string) error {
+	// We retry this query in case of database error, up to the timeout
 	queryCtx, queryCancel := context.WithTimeout(ctx, s.metadata.Timeout)
 	defer queryCancel()
 
-	res, err := s.db.ExecContext(queryCtx,
-		fmt.Sprintf("UPDATE %s SET last_update = unixepoch(CURRENT_TIMESTAMP) WHERE registration_id = ? AND address = ?", s.metadata.TableName),
-		s.registrationID, addr,
-	)
-	if err != nil {
-		return fmt.Errorf("database error: %w", err)
-	}
+	// We use string formatting here for the table name only
+	//nolint:gosec
+	query := fmt.Sprintf("UPDATE %s SET last_update = unixepoch(CURRENT_TIMESTAMP) WHERE registration_id = ? AND address = ?", s.metadata.TableName)
 
-	n, _ := res.RowsAffected()
-	if n == 0 {
-		return errRegistrationLost
-	}
+	b := backoff.WithContext(backoff.NewConstantBackOff(50*time.Millisecond), queryCtx)
+	return backoff.Retry(func() error {
+		res, err := s.db.ExecContext(queryCtx, query, s.registrationID, addr)
+		if err != nil {
+			return fmt.Errorf("database error: %w", err)
+		}
 
-	return nil
+		n, _ := res.RowsAffected()
+		if n == 0 {
+			// This is a permanent error
+			return backoff.Permanent(errRegistrationLost)
+		}
+
+		return nil
+	}, b)
 }
 
 // ResolveID resolves name to address.

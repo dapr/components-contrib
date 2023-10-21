@@ -116,17 +116,17 @@ func (c *ComponentMetadata) AppendBuiltin() error {
 				Metadata{
 					Name:        "outboxPublishPubsub",
 					Type:        "string",
-					Description: "Sets the name of the pub/sub component to deliver the notifications when publishing state changes",
+					Description: "For outbox. Sets the name of the pub/sub component to deliver the notifications when publishing state changes",
 				},
 				Metadata{
 					Name:        "outboxPublishTopic",
 					Type:        "string",
-					Description: "Sets the topic that receives the state changes on the pub/sub configured with outboxPublishPubsub. The message body will be a state transaction item for an insert or update operation",
+					Description: `For outbox. Sets the topic that receives the state changes on the pub/sub configured with "outboxPublishPubsub". The message body will be a state transaction item for an insert or update operation`,
 				},
 				Metadata{
 					Name:        "outboxPubsub",
 					Type:        "string",
-					Description: "Sets the pub/sub component used by Dapr to coordinate the state and pub/sub transactions. If not set, the pub/sub component configured with outboxPublishPubsub is used. This is useful if you want to separate the pub/sub component used to send the notification state changes from the one used to coordinate the transaction",
+					Description: `For outbox. Sets the pub/sub component used by Dapr to coordinate the state and pub/sub transactions. If not set, the pub/sub component configured with "outboxPublishPubsub" is used. This is useful if you want to separate the pub/sub component used to send the notification state changes from the one used to coordinate the transaction`,
 					Default:     "outboxPublishPubsub",
 				},
 				Metadata{

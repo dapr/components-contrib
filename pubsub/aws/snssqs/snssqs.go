@@ -839,7 +839,6 @@ func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 	})
 
 	return nil
-
 }
 
 func (s *snsSqs) Publish(ctx context.Context, req *pubsub.PublishRequest) error {

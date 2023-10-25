@@ -259,7 +259,7 @@ func (c *ComponentMetadata) AppendBuiltin() error {
 						Example:     `"/custom-path"`,
 						URL: &URL{
 							Title: "Documentation",
-							URL:   "https://docs.dapr.io/developing-applications/building-blocks/bindings/howto-triggers/#specifying-a-custom-route",
+							URL:   "https://docs.dapr.io/developing-applications/building-blocks/bindings/howto-triggers/#specify-a-custom-route",
 						},
 					},
 				)

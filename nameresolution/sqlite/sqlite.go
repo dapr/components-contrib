@@ -74,7 +74,7 @@ func (s *resolver) Init(ctx context.Context, md nameresolution.Metadata) error {
 	}
 
 	// Show a warning if SQLite is configured with an in-memory DB
-	if s.metadata.SqliteAuthMetadata.IsMemory() {
+	if s.metadata.SqliteAuthMetadata.IsInMemoryDB() {
 		s.logger.Warn("Configuring name resolution with an in-memory SQLite database. Service invocation across different apps will not work.")
 	} else {
 		s.logger.Infof("Configuring SQLite name resolution with path %s", connString[len("file:"):strings.Index(connString, "?")])

@@ -47,6 +47,7 @@ func (m *SqliteAuthMetadata) Reset() {
 	m.DisableWAL = false
 }
 
+// Validate the auth metadata and returns an error if it's not valid.
 func (m *SqliteAuthMetadata) Validate() error {
 	// Validate and sanitize input
 	if m.ConnectionString == "" {
@@ -63,14 +64,16 @@ func (m *SqliteAuthMetadata) Validate() error {
 	return nil
 }
 
-func (m SqliteAuthMetadata) IsMemory() bool {
+// IsInMemoryDB returns true if the connection string is for an in-memory database.
+func (m SqliteAuthMetadata) IsInMemoryDB() bool {
 	lc := strings.ToLower(m.ConnectionString)
 	return strings.HasPrefix(lc, ":memory:") || strings.HasPrefix(lc, "file::memory:")
 }
 
+// GetConnectionString returns the parsed connection string.
 func (m *SqliteAuthMetadata) GetConnectionString(log logger.Logger) (string, error) {
 	// Check if we're using the in-memory database
-	isMemoryDB := m.IsMemory()
+	isMemoryDB := m.IsInMemoryDB()
 
 	// Get the "query string" from the connection string if present
 	idx := strings.IndexRune(m.ConnectionString, '?')

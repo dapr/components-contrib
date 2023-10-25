@@ -276,7 +276,7 @@ func (m *Resolver) Init(ctx context.Context, metadata nameresolution.Metadata) e
 	if metadata.Instance.Address == "" {
 		return errors.New("address is missing")
 	}
-	if metadata.Instance.DaprInternalPort == 0 {
+	if metadata.Instance.DaprInternalPort <= 0 {
 		return errors.New("port is missing or invalid")
 	}
 

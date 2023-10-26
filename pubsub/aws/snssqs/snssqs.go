@@ -236,16 +236,10 @@ func (s *snsSqs) getTopicArn(parentCtx context.Context, topic string) (string, e
 
 // get the topic ARN from the topics map. If it doesn't exist in the map, try to fetch it from AWS, if it doesn't exist
 // at all, issue a request to create the topic.
-func (s *snsSqs) getOrCreateTopic(ctx context.Context, topic string) (string, string, error) {
-	var (
-		topicArn       string
-		loadOK         bool
-		sanitizedTopic string
-		err            error
-	)
-
+func (s *snsSqs) getOrCreateTopic(ctx context.Context, topic string) (topicArn string, sanitizedTopic string, err error) {
 	sanitizedTopic = nameToAWSSanitizedName(topic, s.metadata.Fifo)
 
+	var loadOK bool
 	if topicArn, loadOK = s.topicArns[sanitizedTopic]; loadOK {
 		if len(topicArn) > 0 {
 			s.logger.Debugf("found existing topic ARN for topic %s: %s", topic, topicArn)

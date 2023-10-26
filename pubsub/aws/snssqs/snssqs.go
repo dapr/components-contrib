@@ -42,7 +42,7 @@ import (
 )
 
 type snsSqs struct {
-	topicLocker *TopicsLockManager
+	topicsLocker TopicsLocker
 	// key is the sanitized topic name
 	topicArns map[string]string
 	// key is the topic name, value holds the ARN of the queue and its url.
@@ -169,7 +169,7 @@ func (s *snsSqs) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	}
 	// subscription manager responsible for managing the lifecycle of subscriptions.
 	s.subscriptionManager = NewSubscriptionMgmt(s.logger)
-	s.topicLocker = GetLockManager()
+	s.topicsLocker = NewLockManager()
 
 	s.topicArns = make(map[string]string)
 	s.queues = make(map[string]*sqsQueueInfo)
@@ -337,12 +337,12 @@ func (s *snsSqs) getOrCreateQueue(ctx context.Context, queueName string) (*sqsQu
 	)
 
 	if cachedQueueInfo, ok := s.queues[queueName]; ok {
-		s.logger.Debugf("Found queue arn for %s: %s", queueName, cachedQueueInfo.arn)
+		s.logger.Debugf("Found queue ARN for %s: %s", queueName, cachedQueueInfo.arn)
 
 		return cachedQueueInfo, nil
 	}
 	// creating queues is idempotent, the names serve as unique keys among a given region.
-	s.logger.Debugf("No SQS queue arn found for %s\nCreating SQS queue", queueName)
+	s.logger.Debugf("No SQS queue ARN found for %s\nCreating SQS queue", queueName)
 
 	sanitizedName := nameToAWSSanitizedName(queueName, s.metadata.Fifo)
 
@@ -425,7 +425,7 @@ func (s *snsSqs) getOrCreateSnsSqsSubscription(ctx context.Context, queueArn, to
 		return cachedSubscriptionArn, nil
 	}
 
-	s.logger.Debugf("No subscription arn found of queue arn:%s to topic arn: %s\nCreating subscription", queueArn, topicArn)
+	s.logger.Debugf("No subscription ARN found of queue arn:%s to topic arn: %s\nCreating subscription", queueArn, topicArn)
 
 	if !s.metadata.DisableEntityManagement {
 		subscriptionArn, err = s.createSnsSqsSubscription(ctx, queueArn, topicArn)
@@ -437,7 +437,7 @@ func (s *snsSqs) getOrCreateSnsSqsSubscription(ctx context.Context, queueArn, to
 	} else {
 		subscriptionArn, err = s.getSnsSqsSubscriptionArn(ctx, topicArn)
 		if err != nil {
-			s.logger.Errorf("error fetching info for topic arn %s: %w", topicArn, err)
+			s.logger.Errorf("error fetching info for topic ARN %s: %w", topicArn, err)
 
 			return "", err
 		}
@@ -758,8 +758,8 @@ func (s *snsSqs) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, han
 		return errors.New("component is closed")
 	}
 
-	s.topicLocker.Lock(req.Topic)
-	defer s.topicLocker.Unlock(req.Topic)
+	s.topicsLocker.Lock(req.Topic)
+	defer s.topicsLocker.Unlock(req.Topic)
 
 	// subscribers declare a topic ARN and declare a SQS queue to use
 	// these should be idempotent - queues should not be created if they exist.

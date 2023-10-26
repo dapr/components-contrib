@@ -19,10 +19,7 @@ const (
 	Unsubscribe
 )
 
-var (
-	subscriptionMgmtInst *SubscriptionManager
-	initOnce             sync.Once
-)
+var initOnce sync.Once
 
 type SubscriptionTopicHandler struct {
 	topic        string
@@ -50,7 +47,7 @@ type SubscriptionManagement interface {
 	Init(queueInfo *sqsQueueInfo, dlqInfo *sqsQueueInfo, cbk func(context.Context, *sqsQueueInfo, *sqsQueueInfo))
 	Subscribe(topicHandler *SubscriptionTopicHandler)
 	Close()
-	GetSubscriptionTopicHandler(string) (*SubscriptionTopicHandler, bool)
+	GetSubscriptionTopicHandler(topic string) (*SubscriptionTopicHandler, bool)
 }
 
 func NewSubscriptionMgmt(log logger.Logger) SubscriptionManagement {
@@ -71,7 +68,6 @@ func createQueueConsumerCbk(queueInfo *sqsQueueInfo, dlqInfo *sqsQueueInfo, cbk 
 
 func (sm *SubscriptionManager) Init(queueInfo *sqsQueueInfo, dlqInfo *sqsQueueInfo, cbk func(context.Context, *sqsQueueInfo, *sqsQueueInfo)) {
 	initOnce.Do(func() {
-		sm.logger.Debug("Initializing subscription manager")
 		queueConsumerCbk := createQueueConsumerCbk(queueInfo, dlqInfo, cbk)
 		go sm.queueConsumerController(queueConsumerCbk)
 		sm.logger.Debug("Subscription manager initialized")
@@ -86,7 +82,6 @@ func (sm *SubscriptionManager) Init(queueInfo *sqsQueueInfo, dlqInfo *sqsQueueIn
 // it is also responsible for managing the lifecycle of the subscription handlers.
 func (sm *SubscriptionManager) queueConsumerController(queueConsumerCbk func(context.Context)) {
 	ctx := context.Background()
-	sm.logger.Debugf("%+v", sm)
 
 	for {
 		select {
@@ -98,6 +93,7 @@ func (sm *SubscriptionManager) queueConsumerController(queueConsumerCbk func(con
 			// although we have a lock here, the topicsHandlers map is thread safe and can be accessed concurrently so other subscribers that are already consuming messages
 			// can get the handler for the topic while we're still updating the map without blocking them
 			current := sm.topicsHandlers.Size()
+
 			switch changeEvent.action {
 			case Subscribe:
 				sm.topicsHandlers.Store(topic, changeEvent.handler)
@@ -107,7 +103,7 @@ func (sm *SubscriptionManager) queueConsumerController(queueConsumerCbk func(con
 					// create a new context for sqs consumption with a cancel func to be used when we unsubscribe from all topics
 					subCtx, sm.consumeCancelFunc = context.WithCancel(ctx)
 					// start sqs consumption
-					sm.logger.Info("Starting sqs consumption")
+					sm.logger.Info("Starting SQS consumption")
 					go queueConsumerCbk(subCtx)
 				}
 			case Unsubscribe:
@@ -116,7 +112,7 @@ func (sm *SubscriptionManager) queueConsumerController(queueConsumerCbk func(con
 				afterDelete := sm.topicsHandlers.Size()
 				// if before we've removed this subscription we had one (last) subscription, this signals us to stop sqs consumption
 				if current == 1 && afterDelete == 0 {
-					sm.logger.Info("Last subscription removed. no more handlers are mapped to topics. stopping sqs consumption")
+					sm.logger.Info("Last subscription removed. no more handlers are mapped to topics. stopping SQS consumption")
 					sm.consumeCancelFunc()
 				}
 			}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/puzpuzpuz/xsync/v2"
+	"github.com/puzpuzpuz/xsync/v3"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -66,7 +66,7 @@ func NewSubscriptionMgmt(log logger.Logger) *SubscriptionManager {
 			consumeCancelFunc: func() {}, // noop until we (re)start sqs consumption
 			closeCh:           make(chan struct{}),
 			topicsChangeCh:    make(chan changeSubscriptionTopicHandler),
-			topicsHandlers:    xsync.NewMapOf[*SubscriptionTopicHandler](),
+			topicsHandlers:    xsync.NewMapOf[string, *SubscriptionTopicHandler](),
 		}
 	})
 

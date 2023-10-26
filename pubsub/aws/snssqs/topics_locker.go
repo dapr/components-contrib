@@ -3,7 +3,7 @@ package snssqs
 import (
 	"sync"
 
-	"github.com/puzpuzpuz/xsync/v2"
+	"github.com/puzpuzpuz/xsync/v3"
 )
 
 var (
@@ -19,7 +19,7 @@ type TopicsLockManager struct {
 
 func GetLockManager() *TopicsLockManager {
 	lockManagerOnce.Do(func() {
-		lockManager = &TopicsLockManager{xLockMap: xsync.NewMapOf[*sync.Mutex]()}
+		lockManager = &TopicsLockManager{xLockMap: xsync.NewMapOf[string, *sync.Mutex]()}
 	})
 
 	return lockManager

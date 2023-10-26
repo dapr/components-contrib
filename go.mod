@@ -90,6 +90,7 @@ require (
 	github.com/oracle/oci-go-sdk/v54 v54.0.0
 	github.com/pashagolub/pgxmock/v2 v2.12.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
+	github.com/puzpuzpuz/xsync/v3 v3.0.0
 	github.com/rabbitmq/amqp091-go v1.8.1
 	github.com/redis/go-redis/v9 v9.2.1
 	github.com/sendgrid/sendgrid-go v3.13.0+incompatible
@@ -324,7 +325,6 @@ require (
 	github.com/prometheus/common v0.42.0 // indirect
 	github.com/prometheus/procfs v0.11.0 // indirect
 	github.com/prometheus/statsd_exporter v0.22.7 // indirect
-	github.com/puzpuzpuz/xsync/v2 v2.5.1 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/robfig/cron v1.2.0 // indirect

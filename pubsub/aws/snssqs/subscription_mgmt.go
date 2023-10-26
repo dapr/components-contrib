@@ -21,7 +21,6 @@ const (
 
 var (
 	subscriptionMgmtInst *SubscriptionManager
-	once                 sync.Once
 	initOnce             sync.Once
 )
 
@@ -55,22 +54,13 @@ type SubscriptionManagement interface {
 }
 
 func NewSubscriptionMgmt(log logger.Logger) *SubscriptionManager {
-	once.Do(func() {
-		if subscriptionMgmtInst != nil {
-			return
-		}
-
-		// assign or reassign the singleton
-		subscriptionMgmtInst = &SubscriptionManager{
-			logger:            log,
-			consumeCancelFunc: func() {}, // noop until we (re)start sqs consumption
-			closeCh:           make(chan struct{}),
-			topicsChangeCh:    make(chan changeSubscriptionTopicHandler),
-			topicsHandlers:    xsync.NewMapOf[string, *SubscriptionTopicHandler](),
-		}
-	})
-
-	return subscriptionMgmtInst
+	return &SubscriptionManager{
+		logger:            log,
+		consumeCancelFunc: func() {}, // noop until we (re)start sqs consumption
+		closeCh:           make(chan struct{}),
+		topicsChangeCh:    make(chan changeSubscriptionTopicHandler),
+		topicsHandlers:    xsync.NewMapOf[string, *SubscriptionTopicHandler](),
+	}
 }
 
 func createQueueConsumerCbk(queueInfo *sqsQueueInfo, dlqInfo *sqsQueueInfo, cbk func(ctx context.Context, queueInfo *sqsQueueInfo, dlqInfo *sqsQueueInfo)) func(ctx context.Context) {

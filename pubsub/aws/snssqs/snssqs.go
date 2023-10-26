@@ -242,18 +242,18 @@ func (s *snsSqs) getOrCreateTopic(ctx context.Context, topic string) (topicArn s
 	var loadOK bool
 	if topicArn, loadOK = s.topicArns[sanitizedTopic]; loadOK {
 		if len(topicArn) > 0 {
-			s.logger.Debugf("found existing topic ARN for topic %s: %s", topic, topicArn)
+			s.logger.Debugf("Found existing topic ARN for topic %s: %s", topic, topicArn)
 
 			return topicArn, sanitizedTopic, err
 		} else {
-			err = fmt.Errorf("ARN for (sanitized) topic: %s was empty", sanitizedTopic)
+			err = fmt.Errorf("the ARN for (sanitized) topic: %s was empty", sanitizedTopic)
 
 			return topicArn, sanitizedTopic, err
 		}
 	}
 
 	// creating queues is idempotent, the names serve as unique keys among a given region.
-	s.logger.Debugf("no SNS topic ARN found for topic: %s. creating SNS with (sanitized) topic: %s", topic, sanitizedTopic)
+	s.logger.Debugf("No SNS topic ARN found for topic: %s. creating SNS with (sanitized) topic: %s", topic, sanitizedTopic)
 
 	if !s.metadata.DisableEntityManagement {
 		topicArn, err = s.createTopic(ctx, sanitizedTopic)

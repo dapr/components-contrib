@@ -53,7 +53,7 @@ type SubscriptionManagement interface {
 	GetSubscriptionTopicHandler(string) (*SubscriptionTopicHandler, bool)
 }
 
-func NewSubscriptionMgmt(log logger.Logger) *SubscriptionManager {
+func NewSubscriptionMgmt(log logger.Logger) SubscriptionManagement {
 	return &SubscriptionManager{
 		logger:            log,
 		consumeCancelFunc: func() {}, // noop until we (re)start sqs consumption
@@ -73,7 +73,7 @@ func (sm *SubscriptionManager) Init(queueInfo *sqsQueueInfo, dlqInfo *sqsQueueIn
 	initOnce.Do(func() {
 		sm.logger.Debug("Initializing subscription manager")
 		queueConsumerCbk := createQueueConsumerCbk(queueInfo, dlqInfo, cbk)
-		go subscriptionMgmtInst.queueConsumerController(queueConsumerCbk)
+		go sm.queueConsumerController(queueConsumerCbk)
 		sm.logger.Debug("Subscription manager initialized")
 	})
 }
@@ -86,6 +86,7 @@ func (sm *SubscriptionManager) Init(queueInfo *sqsQueueInfo, dlqInfo *sqsQueueIn
 // it is also responsible for managing the lifecycle of the subscription handlers.
 func (sm *SubscriptionManager) queueConsumerController(queueConsumerCbk func(context.Context)) {
 	ctx := context.Background()
+	sm.logger.Debugf("%+v", sm)
 
 	for {
 		select {

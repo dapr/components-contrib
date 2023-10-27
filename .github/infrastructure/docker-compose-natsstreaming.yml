@@ -1,7 +1,0 @@
-version: '2'
-services:
-  natsstreaming:
-    image: nats-streaming:latest
-    ports:
-      - "4222:4222"
-      - "8222:8222"

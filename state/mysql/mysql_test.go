@@ -159,7 +159,7 @@ func TestClosingDatabaseTwiceReturnsNil(t *testing.T) {
 	assert.Nil(t, err, "error returned")
 }
 
-func TestExecuteMultiCannotBeginTransaction(t *testing.T) {
+func TestMultiCannotBeginTransaction(t *testing.T) {
 	// Arrange
 	m, _ := mockDatabase(t)
 	defer m.mySQL.Close()
@@ -174,7 +174,7 @@ func TestExecuteMultiCannotBeginTransaction(t *testing.T) {
 	assert.Equal(t, "beginError", err.Error(), "wrong error returned")
 }
 
-func TestExecuteMultiCommitSetsAndDeletes(t *testing.T) {
+func TestMultiCommitSetsAndDeletes(t *testing.T) {
 	// Arrange
 	m, _ := mockDatabase(t)
 	defer m.mySQL.Close()

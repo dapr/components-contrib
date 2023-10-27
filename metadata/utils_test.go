@@ -98,7 +98,13 @@ func TestTryGetContentType(t *testing.T) {
 
 func TestMetadataDecode(t *testing.T) {
 	t.Run("Test metadata decoding", func(t *testing.T) {
+		type TestEmbedded struct {
+			MyEmbedded        string `mapstructure:"embedded"`
+			MyEmbeddedAliased string `mapstructure:"embalias" mapstructurealiases:"embalias2"`
+		}
 		type testMetadata struct {
+			TestEmbedded `mapstructure:",squash"`
+
 			Mystring                    string           `mapstructure:"mystring"`
 			Myduration                  Duration         `mapstructure:"myduration"`
 			Myinteger                   int              `mapstructure:"myinteger"`
@@ -139,6 +145,8 @@ func TestMetadataDecode(t *testing.T) {
 			"aliasA2":                            "hello",
 			"aliasB1":                            "ciao",
 			"aliasB2":                            "bonjour",
+			"embedded":                           "hi",
+			"embalias2":                          "ciao",
 		}
 
 		err := DecodeMetadata(testData, &m)
@@ -159,6 +167,8 @@ func TestMetadataDecode(t *testing.T) {
 		assert.Equal(t, []time.Duration{}, *m.MyDurationArrayPointerEmpty)
 		assert.Equal(t, "hello", m.AliasedFieldA)
 		assert.Equal(t, "ciao", m.AliasedFieldB)
+		assert.Equal(t, "hi", m.TestEmbedded.MyEmbedded)
+		assert.Equal(t, "ciao", m.TestEmbedded.MyEmbeddedAliased)
 	})
 
 	t.Run("Test metadata decode hook for truthy values", func(t *testing.T) {
@@ -346,6 +356,10 @@ func TestMetadataStructToStringMap(t *testing.T) {
 }
 
 func TestResolveAliases(t *testing.T) {
+	type Embedded struct {
+		Hello string `mapstructure:"hello" mapstructurealiases:"ciao"`
+	}
+
 	tests := []struct {
 		name    string
 		md      map[string]string
@@ -497,11 +511,27 @@ func TestResolveAliases(t *testing.T) {
 				"bonjour": "monde",
 			},
 		},
+		{
+			name: "aliases in embedded struct",
+			md: map[string]string{
+				"ciao":    "mondo",
+				"bonjour": "monde",
+			},
+			result: &struct {
+				Embedded `mapstructure:",squash"`
+				Bonjour  string `mapstructure:"bonjour"`
+			}{},
+			wantMd: map[string]string{
+				"bonjour": "monde",
+				"ciao":    "mondo",
+				"hello":   "mondo",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			md := maps.Clone(tt.md)
-			err := resolveAliases(md, tt.result)
+			err := resolveAliases(md, reflect.TypeOf(tt.result))
 
 			if tt.wantErr {
 				require.Error(t, err)

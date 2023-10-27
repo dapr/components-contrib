@@ -17,14 +17,45 @@ limitations under the License.
 package conformance
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	conf_workflows "github.com/dapr/components-contrib/tests/conformance/workflows"
+	"github.com/dapr/components-contrib/workflows"
+	wf_temporal "github.com/dapr/components-contrib/workflows/temporal"
 )
 
 func TestWorkflowsConformance(t *testing.T) {
-	tc, err := NewTestConfiguration("../config/workflows/tests.yml")
+	const configPath = "../config/workflows/"
+	tc, err := NewTestConfiguration(filepath.Join(configPath, "tests.yml"))
 	require.NoError(t, err)
 	require.NotNil(t, tc)
+
+	tc.TestFn = func(comp *TestComponent) func(t *testing.T) {
+		return func(t *testing.T) {
+			ParseConfigurationMap(t, comp.Config)
+
+			componentConfigPath := convertComponentNameToPath(comp.Component, comp.Profile)
+			props, err := loadComponentsAndProperties(t, filepath.Join(configPath, componentConfigPath))
+			require.NoErrorf(t, err, "error running conformance test for component %s", comp.Component)
+
+			wf := loadWorkflow(comp.Component)
+			wfConfig := conf_workflows.NewTestConfig(comp.Component, comp.Operations, comp.Config)
+
+			conf_workflows.ConformanceTests(t, props, wf, wfConfig)
+		}
+	}
+
 	tc.Run(t)
+}
+
+func loadWorkflow(name string) workflows.Workflow {
+	switch name {
+	case "temporal":
+		return wf_temporal.NewTemporalWorkflow(testLogger)
+	default:
+		return nil
+	}
 }

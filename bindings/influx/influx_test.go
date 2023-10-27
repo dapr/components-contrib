@@ -18,7 +18,7 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	influxdb2 "github.com/influxdata/influxdb-client-go"
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -89,7 +89,7 @@ func TestInflux_Invoke_BindingCreateOperation(t *testing.T) {
 	defer ctrl.Finish()
 
 	w := NewMockWriteAPIBlocking(ctrl)
-	w.EXPECT().WriteRecord(gomock.Eq(context.Background()), gomock.Eq("a,a a")).Return(nil)
+	w.EXPECT().WriteRecord(gomock.Eq(context.TODO()), gomock.Eq("a,a a")).Return(nil)
 	influx := &Influx{
 		writeAPI: w,
 	}
@@ -152,7 +152,7 @@ func TestInflux_Invoke_BindingQueryOperation(t *testing.T) {
 	defer ctrl.Finish()
 
 	q := NewMockQueryAPI(ctrl)
-	q.EXPECT().QueryRaw(gomock.Eq(context.Background()), gomock.Eq("a"), gomock.Eq(influxdb2.DefaultDialect())).Return("ok", nil)
+	q.EXPECT().QueryRaw(gomock.Eq(context.TODO()), gomock.Eq("a"), gomock.Eq(influxdb2.DefaultDialect())).Return("ok", nil)
 	influx := &Influx{
 		queryAPI: q,
 		logger:   logger.NewLogger("test"),

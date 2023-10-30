@@ -154,10 +154,10 @@ func (r *rabbitMQ) Init(_ context.Context, metadata pubsub.Metadata) error {
 
 	r.metadata = meta
 
-	r.reconnect(0)
-	// We do not return error on reconnect because it can cause problems if init() happens
-	// right at the restart window for service. So, we try it now but there is logic in the
-	// code to reconnect as many times as needed.
+	if err := r.reconnect(0); err != nil {
+		return err
+	}
+
 	return nil
 }
 

@@ -186,7 +186,7 @@ func (p *Postgres) query(ctx context.Context, sql string, args ...any) (result [
 		return nil, fmt.Errorf("error executing query: %w", err)
 	}
 
-    cols := rows.FieldDescriptions()
+	cols := rows.FieldDescriptions()
 
 	rs := make([]any, 0)
 	for rows.Next() {
@@ -194,12 +194,12 @@ func (p *Postgres) query(ctx context.Context, sql string, args ...any) (result [
 		if rowErr != nil {
 			return nil, fmt.Errorf("error reading result '%v': %w", rows.Err(), rowErr)
 		}
-		
+
 		r := map[string]interface{}{}
 		for i, col := range cols {
 			r[string(col.Name)] = val[i]
 		}
-		
+
 		rs = append(rs, r) //nolint:asasalint
 	}
 

@@ -58,11 +58,11 @@ func (m *Migrations) Perform(ctx context.Context, migrationFns []sqlinternal.Mig
 			return
 		}
 		queryCtx, cancel = context.WithTimeout(ctx, time.Minute)
-		_, err = m.conn.ExecContext(queryCtx, "ROLLBACK TRANSACTION")
+		_, rollbackErr := m.conn.ExecContext(queryCtx, "ROLLBACK TRANSACTION")
 		cancel()
-		if err != nil {
-			// Panicking here, as this forcibly closes the session and thus ensures we are not leaving locks hanging around
-			m.Logger.Fatalf("Failed to rollback transaction: %v", err)
+		if rollbackErr != nil {
+			// Panicking here, as this forcibly closes the session and thus ensures we are not leaving transactions open
+			m.Logger.Fatalf("Failed to rollback transaction: %v", rollbackErr)
 		}
 	}()
 

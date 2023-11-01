@@ -77,7 +77,7 @@ func Migrate(ctx context.Context, db DatabaseConn, opts MigrationOptions) error 
 			return fmt.Errorf("invalid migration level found in metadata table: %s", migrationLevelStr)
 		}
 	}
-	opts.Logger.Debug("Migrate: current migration level: %d", migrationLevel)
+	opts.Logger.Debugf("Migrate: current migration level: %d", migrationLevel)
 
 	// Perform the migrations
 	for i := migrationLevel; i < len(opts.Migrations); i++ {

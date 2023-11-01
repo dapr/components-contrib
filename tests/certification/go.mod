@@ -17,7 +17,7 @@ require (
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
 	github.com/dapr/components-contrib v1.12.0-rc.4.0.20231009175401-9f2cc5c158bb
-	github.com/dapr/dapr v1.12.0
+	github.com/dapr/dapr v1.12.1-0.20231013174004-b6540a1c464d
 	github.com/dapr/go-sdk v1.9.0
 	github.com/dapr/kit v0.12.2-0.20231031211530-0e1fd37fc4b3
 	github.com/eclipse/paho.mqtt.golang v1.4.3
@@ -227,6 +227,7 @@ require (
 	github.com/prometheus/common v0.44.0 // indirect
 	github.com/prometheus/procfs v0.11.0 // indirect
 	github.com/prometheus/statsd_exporter v0.22.7 // indirect
+	github.com/puzpuzpuz/xsync/v3 v3.0.0 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/redis/go-redis/v9 v9.2.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
@@ -314,3 +315,6 @@ require (
 )
 
 replace github.com/dapr/components-contrib => ../../
+
+// TODO: REMOVE WHEN https://github.com/dapr/dapr/pull/7038 IS MERGED
+replace github.com/dapr/dapr => github.com/italypaleale/dapr v1.6.1-0.20231015174742-7538aab2c0f2

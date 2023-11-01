@@ -180,7 +180,7 @@ func TestMultiCommitSetsAndDeletes(t *testing.T) {
 	defer m.mySQL.Close()
 
 	m.mock1.ExpectBegin()
-	m.mock1.ExpectExec("INSERT INTO").WillReturnResult(sqlmock.NewResult(0, 1))
+	m.mock1.ExpectExec("REPLACE INTO").WillReturnResult(sqlmock.NewResult(0, 1))
 	m.mock1.ExpectExec("DELETE FROM").WillReturnResult(sqlmock.NewResult(0, 1))
 	m.mock1.ExpectCommit()
 
@@ -255,24 +255,8 @@ func TestSetHandlesErr(t *testing.T) {
 	m, _ := mockDatabase(t)
 	defer m.mySQL.Close()
 
-	t.Run("error occurs when update with tag", func(t *testing.T) {
-		m.mock1.ExpectExec("UPDATE state").WillReturnError(errors.New("error"))
-
-		eTag := "946af561"
-		request := createSetRequest()
-		request.ETag = &eTag
-
-		// Act
-		err := m.mySQL.Set(context.Background(), &request)
-
-		// Assert
-		assert.Error(t, err)
-		assert.IsType(t, &state.ETagError{}, err)
-		assert.Equal(t, err.(*state.ETagError).Kind(), state.ETagMismatch)
-	})
-
 	t.Run("error occurs when insert", func(t *testing.T) {
-		m.mock1.ExpectExec("INSERT INTO state").WillReturnError(errors.New("error"))
+		m.mock1.ExpectExec("REPLACE INTO state").WillReturnError(errors.New("error"))
 		request := createSetRequest()
 
 		// Act
@@ -284,7 +268,7 @@ func TestSetHandlesErr(t *testing.T) {
 	})
 
 	t.Run("insert on conflict", func(t *testing.T) {
-		m.mock1.ExpectExec("INSERT INTO state").WillReturnResult(sqlmock.NewResult(1, 2))
+		m.mock1.ExpectExec("REPLACE INTO state").WillReturnResult(sqlmock.NewResult(1, 2))
 		request := createSetRequest()
 
 		// Act
@@ -292,17 +276,6 @@ func TestSetHandlesErr(t *testing.T) {
 
 		// Assert
 		assert.NoError(t, err)
-	})
-
-	t.Run("too many rows error", func(t *testing.T) {
-		m.mock1.ExpectExec("INSERT INTO state").WillReturnResult(sqlmock.NewResult(1, 3))
-		request := createSetRequest()
-
-		// Act
-		err := m.mySQL.Set(context.Background(), &request)
-
-		// Assert
-		assert.Error(t, err)
 	})
 
 	t.Run("no rows effected error", func(t *testing.T) {
@@ -716,7 +689,7 @@ func TestValidSetRequest(t *testing.T) {
 	}
 
 	m.mock1.ExpectBegin()
-	m.mock1.ExpectExec("INSERT INTO").WillReturnResult(sqlmock.NewResult(0, 1))
+	m.mock1.ExpectExec("REPLACE INTO").WillReturnResult(sqlmock.NewResult(0, 1))
 	m.mock1.ExpectCommit()
 
 	// Act
@@ -805,9 +778,9 @@ func TestMultiOperationOrder(t *testing.T) {
 
 	// expected to run the operations in sequence
 	m.mock1.ExpectBegin()
-	m.mock1.ExpectExec("INSERT INTO").WillReturnResult(sqlmock.NewResult(0, 1))
+	m.mock1.ExpectExec("REPLACE INTO").WillReturnResult(sqlmock.NewResult(0, 1))
 	m.mock1.ExpectExec("DELETE FROM").WithArgs("k1").WillReturnResult(sqlmock.NewResult(0, 1))
-	m.mock1.ExpectExec("INSERT INTO").WillReturnResult(sqlmock.NewResult(0, 1))
+	m.mock1.ExpectExec("REPLACE INTO").WillReturnResult(sqlmock.NewResult(0, 1))
 	m.mock1.ExpectCommit()
 
 	// Act

@@ -20,6 +20,9 @@ import (
 	"strings"
 	"time"
 
+	// Blank import for the sqlite driver
+	_ "modernc.org/sqlite"
+
 	"github.com/dapr/kit/logger"
 )
 
@@ -44,6 +47,7 @@ func (m *SqliteAuthMetadata) Reset() {
 	m.DisableWAL = false
 }
 
+// Validate the auth metadata and returns an error if it's not valid.
 func (m *SqliteAuthMetadata) Validate() error {
 	// Validate and sanitize input
 	if m.ConnectionString == "" {
@@ -60,10 +64,16 @@ func (m *SqliteAuthMetadata) Validate() error {
 	return nil
 }
 
+// IsInMemoryDB returns true if the connection string is for an in-memory database.
+func (m SqliteAuthMetadata) IsInMemoryDB() bool {
+	lc := strings.ToLower(m.ConnectionString)
+	return strings.HasPrefix(lc, ":memory:") || strings.HasPrefix(lc, "file::memory:")
+}
+
+// GetConnectionString returns the parsed connection string.
 func (m *SqliteAuthMetadata) GetConnectionString(log logger.Logger) (string, error) {
 	// Check if we're using the in-memory database
-	lc := strings.ToLower(m.ConnectionString)
-	isMemoryDB := strings.HasPrefix(lc, ":memory:") || strings.HasPrefix(lc, "file::memory:")
+	isMemoryDB := m.IsInMemoryDB()
 
 	// Get the "query string" from the connection string if present
 	idx := strings.IndexRune(m.ConnectionString, '?')
@@ -151,7 +161,7 @@ func (m *SqliteAuthMetadata) GetConnectionString(log logger.Logger) (string, err
 	connString += "?" + qs.Encode()
 
 	// If the connection string doesn't begin with "file:", add the prefix
-	if !strings.HasPrefix(lc, "file:") {
+	if !strings.HasPrefix(strings.ToLower(m.ConnectionString), "file:") {
 		log.Debug("prefix 'file:' added to the connection string")
 		connString = "file:" + connString
 	}

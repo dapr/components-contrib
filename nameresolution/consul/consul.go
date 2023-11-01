@@ -14,6 +14,7 @@ limitations under the License.
 package consul
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"net"
@@ -238,7 +239,7 @@ func newResolver(logger logger.Logger, resolverConfig resolverConfig, client cli
 }
 
 // Init will configure component. It will also register service or validate client connection based on config.
-func (r *resolver) Init(metadata nr.Metadata) (err error) {
+func (r *resolver) Init(ctx context.Context, metadata nr.Metadata) (err error) {
 	r.config, err = getConfig(metadata)
 	if err != nil {
 		return err
@@ -274,7 +275,7 @@ func (r *resolver) Init(metadata nr.Metadata) (err error) {
 }
 
 // ResolveID resolves name to address via consul.
-func (r *resolver) ResolveID(req nr.ResolveRequest) (addr string, err error) {
+func (r *resolver) ResolveID(ctx context.Context, req nr.ResolveRequest) (addr string, err error) {
 	cfg := r.config
 	svc, err := r.getService(req.ID)
 	if err != nil {
@@ -327,7 +328,8 @@ func formatAddress(address string, port string) (addr string, err error) {
 
 // getConfig configuration from metadata, defaults are best suited for self-hosted mode.
 func getConfig(metadata nr.Metadata) (resolverCfg resolverConfig, err error) {
-	if metadata.Properties[nr.DaprPort] == "" {
+	props := metadata.GetPropertiesMap()
+	if props[nr.DaprPort] == "" {
 		return resolverCfg, fmt.Errorf("metadata property missing: %s", nr.DaprPort)
 	}
 
@@ -341,7 +343,7 @@ func getConfig(metadata nr.Metadata) (resolverCfg resolverConfig, err error) {
 	resolverCfg.UseCache = cfg.UseCache
 
 	resolverCfg.Client = getClientConfig(cfg)
-	resolverCfg.Registration, err = getRegistrationConfig(cfg, metadata.Properties)
+	resolverCfg.Registration, err = getRegistrationConfig(cfg, props)
 	if err != nil {
 		return resolverCfg, err
 	}
@@ -353,7 +355,7 @@ func getConfig(metadata nr.Metadata) (resolverCfg resolverConfig, err error) {
 			resolverCfg.Registration.Meta = map[string]string{}
 		}
 
-		resolverCfg.Registration.Meta[resolverCfg.DaprPortMetaKey] = metadata.Properties[nr.DaprPort]
+		resolverCfg.Registration.Meta[resolverCfg.DaprPortMetaKey] = props[nr.DaprPort]
 	}
 
 	return resolverCfg, nil
@@ -382,22 +384,25 @@ func getRegistrationConfig(cfg configSpec, props map[string]string) (*consul.Age
 		appPort  string
 		host     string
 		httpPort string
-		ok       bool
 	)
 
-	if appID, ok = props[nr.AppID]; !ok {
+	appID = props[nr.AppID]
+	if appID == "" {
 		return nil, fmt.Errorf("metadata property missing: %s", nr.AppID)
 	}
 
-	if appPort, ok = props[nr.AppPort]; !ok {
+	appPort = props[nr.AppPort]
+	if appPort == "" {
 		return nil, fmt.Errorf("metadata property missing: %s", nr.AppPort)
 	}
 
-	if host, ok = props[nr.HostAddress]; !ok {
+	host = props[nr.HostAddress]
+	if host == "" {
 		return nil, fmt.Errorf("metadata property missing: %s", nr.HostAddress)
 	}
 
-	if httpPort, ok = props[nr.DaprHTTPPort]; !ok {
+	httpPort = props[nr.DaprHTTPPort]
+	if httpPort == "" {
 		return nil, fmt.Errorf("metadata property missing: %s", nr.DaprHTTPPort)
 	} else if _, err := strconv.ParseUint(httpPort, 10, 0); err != nil {
 		return nil, fmt.Errorf("error parsing %s: %w", nr.DaprHTTPPort, err)

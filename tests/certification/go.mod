@@ -17,8 +17,8 @@ require (
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
 	github.com/dapr/components-contrib v1.12.0-rc.4.0.20231009175401-9f2cc5c158bb
-	github.com/dapr/dapr v1.12.0
-	github.com/dapr/go-sdk v1.9.0
+	github.com/dapr/dapr v1.12.1-0.20231013174004-b6540a1c464d
+	github.com/dapr/go-sdk v1.6.1-0.20231014032604-69e788045df0
 	github.com/dapr/kit v0.12.1
 	github.com/eclipse/paho.mqtt.golang v1.4.3
 	github.com/go-chi/chi/v5 v5.0.10
@@ -315,3 +315,6 @@ require (
 )
 
 replace github.com/dapr/components-contrib => ../../
+
+// TODO: REMOVE WHEN https://github.com/dapr/dapr/pull/7038 IS MERGED
+replace github.com/dapr/dapr => github.com/italypaleale/dapr v1.6.1-0.20231015174742-7538aab2c0f2

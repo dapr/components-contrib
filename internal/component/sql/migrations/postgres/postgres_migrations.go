@@ -56,11 +56,11 @@ func (m Migrations) Perform(ctx context.Context, migrationFns []sqlinternal.Migr
 	defer func() {
 		m.Logger.Debug("Releasing advisory lock")
 		queryCtx, cancel = context.WithTimeout(ctx, time.Minute)
-		_, err = m.DB.Exec(queryCtx, "SELECT pg_advisory_unlock($1)", lockID)
+		_, rollbackErr := m.DB.Exec(queryCtx, "SELECT pg_advisory_unlock($1)", lockID)
 		cancel()
-		if err != nil {
+		if rollbackErr != nil {
 			// Panicking here, as this forcibly closes the session and thus ensures we are not leaving locks hanging around
-			m.Logger.Fatalf("Failed to release advisory lock: %v", err)
+			m.Logger.Fatalf("Failed to release advisory lock: %v", rollbackErr)
 		}
 	}()
 

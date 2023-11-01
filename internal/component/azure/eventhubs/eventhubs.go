@@ -56,9 +56,6 @@ type AzureEventHubs struct {
 	checkpointStoreLock  *sync.RWMutex
 
 	managementCreds azcore.TokenCredential
-
-	// TODO(@ItalyPaleAle): Remove in Dapr 1.13
-	isFailed atomic.Bool
 }
 
 // HandlerResponseItem represents a response from the handler for each message.
@@ -249,37 +246,6 @@ func (aeh *AzureEventHubs) Subscribe(subscribeCtx context.Context, config Subscr
 	processor, err := aeh.getProcessorForTopic(subscribeCtx, topic)
 	if err != nil {
 		return fmt.Errorf("error trying to establish a connection: %w", err)
-	}
-
-	// Ensure that no subscriber using the old "track 1" SDK is active
-	// TODO(@ItalyPaleAle): Remove this for Dapr 1.13
-	{
-		// If a previous topic already failed, no need to try with other topics, as we're about to panic anyways
-		if aeh.isFailed.Load() {
-			return errors.New("subscribing to another topic on this component failed and Dapr is scheduled to crash; will not try subscribing to a new topic")
-		}
-
-		ctx, cancel := context.WithTimeout(subscribeCtx, 2*time.Minute)
-		err = aeh.ensureNoTrack1Subscribers(ctx, topic)
-		cancel()
-		if err != nil {
-			// If there's a timeout, it means that the other client was still active after the timeout
-			// In this case, we return an error here so Dapr can continue the initialization and report a "healthy" status (but this subscription won't be active)
-			// After 2 minutes, then, we panic, which ensures that during a rollout Kubernetes will see that this pod is unhealthy and re-creates that. Hopefully, by then other instances of the app will have been updated and no more locks will be present
-			if errors.Is(err, context.DeadlineExceeded) {
-				aeh.isFailed.Store(true)
-				errMsg := fmt.Sprintf("Another instance is currently subscribed to the topic %s in this Event Hub using an old version of Dapr, and this is not supported. Please ensure that all applications subscribed to the same topic, with this consumer group, are using Dapr 1.10 or newer.", topic)
-				aeh.logger.Error(errMsg + " ⚠️⚠️⚠️ Dapr will crash in 2 minutes to force the orchestrator to restart the process after the rollout of other instances is complete.")
-				go func() {
-					time.Sleep(2 * time.Minute)
-					aeh.logger.Fatalf("Another instance is currently subscribed to the topic %s in this Event Hub using an old version of Dapr, and this is not supported. Please ensure that all applications subscribed to the same topic, with this consumer group, are using Dapr 1.10 or newer.", topic)
-				}()
-				return fmt.Errorf("another instance is currently subscribed to the topic %s in this Event Hub using an old version of Dapr", topic)
-			}
-
-			// In case of other errors, just return the error
-			return fmt.Errorf("failed to check for subscribers using an old version of Dapr: %w", err)
-		}
 	}
 
 	// This component has built-in retries because Event Hubs doesn't support N/ACK for messages
@@ -621,7 +587,7 @@ func (aeh *AzureEventHubs) createCheckpointStore(ctx context.Context) (checkpoin
 	}
 
 	// Get the Azure Blob Storage client and ensure the container exists
-	client, err := aeh.createStorageClient(ctx, true)
+	client, err := aeh.createStorageClient(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -641,8 +607,7 @@ func (aeh *AzureEventHubs) createCheckpointStore(ctx context.Context) (checkpoin
 }
 
 // Creates a client to access Azure Blob Storage.
-// TODO(@ItalyPaleAle): Remove ensureContainer option (and default to true) for Dapr 1.13
-func (aeh *AzureEventHubs) createStorageClient(ctx context.Context, ensureContainer bool) (*container.Client, error) {
+func (aeh *AzureEventHubs) createStorageClient(ctx context.Context) (*container.Client, error) {
 	m := blobstorage.ContainerClientOpts{
 		ConnectionString: aeh.metadata.StorageConnectionString,
 		ContainerName:    aeh.metadata.StorageContainerName,
@@ -655,13 +620,11 @@ func (aeh *AzureEventHubs) createStorageClient(ctx context.Context, ensureContai
 		return nil, err
 	}
 
-	if ensureContainer {
-		// Ensure the container exists
-		// We're setting "accessLevel" to nil to make sure it's private
-		err = m.EnsureContainer(ctx, client, nil)
-		if err != nil {
-			return nil, err
-		}
+	// Ensure the container exists
+	// We're setting "accessLevel" to nil to make sure it's private
+	err = m.EnsureContainer(ctx, client, nil)
+	if err != nil {
+		return nil, err
 	}
 
 	return client, nil

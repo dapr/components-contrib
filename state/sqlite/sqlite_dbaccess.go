@@ -104,7 +104,17 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 		return fmt.Errorf("failed to perform migrations: %w", err)
 	}
 
-	gc, err := internalsql.ScheduleGarbageCollector(internalsql.GCOptions{
+	// Init the background GC
+	err = a.initGC()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (a *sqliteDBAccess) initGC() (err error) {
+	a.gc, err = internalsql.ScheduleGarbageCollector(internalsql.GCOptions{
 		Logger: a.logger,
 		UpdateLastCleanupQuery: func(arg any) (string, any) {
 			return fmt.Sprintf(`INSERT INTO %s (key, value)
@@ -124,12 +134,7 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 		CleanupInterval: a.metadata.CleanupInterval,
 		DB:              internalsql.AdaptDatabaseSQLConn(a.db),
 	})
-	if err != nil {
-		return err
-	}
-	a.gc = gc
-
-	return nil
+	return err
 }
 
 func (a *sqliteDBAccess) CleanupExpired() error {
@@ -428,17 +433,25 @@ func (a *sqliteDBAccess) ExecuteMulti(parentCtx context.Context, reqs []state.Tr
 	return tx.Commit()
 }
 
-// Close implements io.Close.
-func (a *sqliteDBAccess) Close() error {
-	if a.db != nil {
-		_ = a.db.Close()
-	}
+// Close implements io.Closer.
+func (a *sqliteDBAccess) Close() (err error) {
+	errs := make([]error, 0)
 
 	if a.gc != nil {
-		return a.gc.Close()
+		err = a.gc.Close()
+		if err != nil {
+			errs = append(errs, err)
+		}
 	}
 
-	return nil
+	if a.db != nil {
+		err = a.db.Close()
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return errors.Join(errs...)
 }
 
 func (a *sqliteDBAccess) doDelete(parentCtx context.Context, db querier, req *state.DeleteRequest) error {

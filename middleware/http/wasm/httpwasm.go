@@ -29,6 +29,7 @@ import (
 	mdutils "github.com/dapr/components-contrib/metadata"
 	dapr "github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type middleware struct {
@@ -63,7 +64,7 @@ func (m *middleware) getHandler(ctx context.Context, metadata dapr.Metadata) (*r
 
 	// parse wasm middleware specific metadata
 	var middlewareMeta Metadata
-	err = mdutils.DecodeMetadata(metadata.Base, &middlewareMeta)
+	err = kitmd.DecodeMetadata(metadata.Base, &middlewareMeta)
 	if err != nil {
 		return nil, fmt.Errorf("wasm: failed to parse wasm middleware metadata: %w", err)
 	}

@@ -22,7 +22,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/internal/utils"
+	internalutils "github.com/dapr/components-contrib/internal/utils"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -107,7 +107,7 @@ func (c *Client) PublishPubSubBulk(ctx context.Context, req *pubsub.BulkPublishR
 
 	// Create a new batch of messages with batch options.
 	batchOpts := &servicebus.MessageBatchOptions{
-		MaxBytes: utils.GetElemOrDefaultFromMap(req.Metadata, contribMetadata.MaxBulkPubBytesKey, defaultMaxBulkPubBytes),
+		MaxBytes: internalutils.GetElemOrDefaultFromMap(req.Metadata, contribMetadata.MaxBulkPubBytesKey, defaultMaxBulkPubBytes),
 	}
 
 	batchMsg, err := sender.NewMessageBatch(ctx, batchOpts)

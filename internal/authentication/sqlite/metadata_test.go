@@ -22,6 +22,7 @@ import (
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 func TestSqliteMetadata(t *testing.T) {
@@ -33,7 +34,7 @@ func TestSqliteMetadata(t *testing.T) {
 		md := &SqliteAuthMetadata{}
 		md.Reset()
 
-		err := metadata.DecodeMetadata(stateMetadata(map[string]string{
+		err := kitmd.DecodeMetadata(stateMetadata(map[string]string{
 			"connectionString": "file:data.db",
 		}), &md)
 		require.NoError(t, err)
@@ -51,7 +52,7 @@ func TestSqliteMetadata(t *testing.T) {
 		md := &SqliteAuthMetadata{}
 		md.Reset()
 
-		err := metadata.DecodeMetadata(stateMetadata(map[string]string{}), &md)
+		err := kitmd.DecodeMetadata(stateMetadata(map[string]string{}), &md)
 		require.NoError(t, err)
 
 		err = md.Validate()
@@ -64,7 +65,7 @@ func TestSqliteMetadata(t *testing.T) {
 		md := &SqliteAuthMetadata{}
 		md.Reset()
 
-		err := metadata.DecodeMetadata(stateMetadata(map[string]string{
+		err := kitmd.DecodeMetadata(stateMetadata(map[string]string{
 			"connectionString": "file:data.db",
 			"timeout":          "500ms",
 		}), &md)
@@ -80,7 +81,7 @@ func TestSqliteMetadata(t *testing.T) {
 		md := &SqliteAuthMetadata{}
 		md.Reset()
 
-		err := metadata.DecodeMetadata(stateMetadata(map[string]string{
+		err := kitmd.DecodeMetadata(stateMetadata(map[string]string{
 			"url":              "file:data.db",
 			"timeoutinseconds": "1200",
 		}), &md)

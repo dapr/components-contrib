@@ -34,10 +34,12 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
-	"github.com/dapr/components-contrib/internal/utils"
+	internalutils "github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
+	"github.com/dapr/kit/utils"
 )
 
 const (
@@ -177,7 +179,7 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 			return nil, fmt.Errorf("s3 binding error: file read error: %w", err)
 		}
 	} else {
-		r = strings.NewReader(utils.Unquote(req.Data))
+		r = strings.NewReader(internalutils.Unquote(req.Data))
 	}
 
 	if metadata.DecodeBase64 {
@@ -380,7 +382,7 @@ func (s *AWSS3) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 
 func (s *AWSS3) parseMetadata(md bindings.Metadata) (*s3Metadata, error) {
 	var m s3Metadata
-	err := metadata.DecodeMetadata(md.Properties, &m)
+	err := kitmd.DecodeMetadata(md.Properties, &m)
 	if err != nil {
 		return nil, err
 	}

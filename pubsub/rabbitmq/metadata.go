@@ -20,10 +20,10 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
-	"github.com/dapr/kit/logger"
-
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type rabbitmqMetadata struct {
@@ -113,7 +113,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitm
 		}
 	}
 
-	if err := metadata.DecodeMetadata(pubSubMetadata.Properties, &result); err != nil {
+	if err := kitmd.DecodeMetadata(pubSubMetadata.Properties, &result); err != nil {
 		return nil, err
 	}
 

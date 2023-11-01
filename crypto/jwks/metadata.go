@@ -18,7 +18,7 @@ import (
 	"time"
 
 	contribCrypto "github.com/dapr/components-contrib/crypto"
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/metadata"
 )
 
 const (

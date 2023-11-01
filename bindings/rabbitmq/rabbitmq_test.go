@@ -112,17 +112,6 @@ func TestParseMetadata(t *testing.T) {
 			}(),
 		},
 		{
-			name:                     "With maxPriority(> 255)",
-			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "maxPriority": "256"},
-			expectedDeleteWhenUnused: false,
-			expectedDurable:          false,
-			expectedMaxPriority: func() *uint8 {
-				v := uint8(255)
-
-				return &v
-			}(),
-		},
-		{
 			name:                     "With reconnectWait 10 second",
 			properties:               map[string]string{"queueName": queueName, "host": host, "deleteWhenUnused": "false", "durable": "false", "reconnectWaitInSeconds": "10"},
 			expectedDeleteWhenUnused: false,

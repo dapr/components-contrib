@@ -23,7 +23,7 @@ import (
 
 	"github.com/IBM/sarama"
 
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/metadata"
 )
 
 const (

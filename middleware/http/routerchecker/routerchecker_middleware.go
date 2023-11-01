@@ -24,6 +24,7 @@ import (
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // Metadata is the routerchecker middleware config.
@@ -67,7 +68,7 @@ func (m *Middleware) GetHandler(_ context.Context, metadata middleware.Metadata)
 
 func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*Metadata, error) {
 	var middlewareMetadata Metadata
-	err := mdutils.DecodeMetadata(metadata.Properties, &middlewareMetadata)
+	err := kitmd.DecodeMetadata(metadata.Properties, &middlewareMetadata)
 	if err != nil {
 		return nil, err
 	}

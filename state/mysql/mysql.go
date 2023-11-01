@@ -32,6 +32,7 @@ import (
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
 )
 
@@ -156,7 +157,7 @@ func (m *MySQL) parseMetadata(md map[string]string) error {
 		CleanupInterval:   ptr.Of(defaultCleanupInterval),
 	}
 
-	err := metadata.DecodeMetadata(md, &meta)
+	err := kitmd.DecodeMetadata(md, &meta)
 	if err != nil {
 		return err
 	}

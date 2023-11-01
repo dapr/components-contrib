@@ -28,6 +28,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // Keyvault secret store component metadata properties
@@ -63,7 +64,7 @@ func NewAzureKeyvaultSecretStore(logger logger.Logger) secretstores.SecretStore 
 // Init creates a Azure Key Vault client.
 func (k *keyvaultSecretStore) Init(_ context.Context, meta secretstores.Metadata) error {
 	m := KeyvaultMetadata{}
-	if err := metadata.DecodeMetadata(meta.Properties, &m); err != nil {
+	if err := kitmd.DecodeMetadata(meta.Properties, &m); err != nil {
 		return err
 	}
 	// Fix for maintaining backwards compatibility with a change introduced in 1.3 that allowed specifying an Azure environment by setting a FQDN for vault name

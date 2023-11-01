@@ -18,8 +18,8 @@ import (
 	"time"
 
 	pgauth "github.com/dapr/components-contrib/internal/authentication/postgresql"
-	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
 )
 

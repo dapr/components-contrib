@@ -25,10 +25,11 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/dapr/components-contrib/internal/httputils"
-	"github.com/dapr/components-contrib/internal/utils"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
+	"github.com/dapr/kit/utils"
 )
 
 // Metadata is the oAuth middleware config.
@@ -148,7 +149,7 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 
 func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*oAuth2MiddlewareMetadata, error) {
 	var middlewareMetadata oAuth2MiddlewareMetadata
-	err := mdutils.DecodeMetadata(metadata.Properties, &middlewareMetadata)
+	err := kitmd.DecodeMetadata(metadata.Properties, &middlewareMetadata)
 	if err != nil {
 		return nil, err
 	}

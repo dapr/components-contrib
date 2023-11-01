@@ -21,14 +21,13 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
-
-	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
-
 	"github.com/aws/aws-sdk-go/service/ses"
 
 	"github.com/dapr/components-contrib/bindings"
+	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -84,7 +83,7 @@ func (a *AWSSES) Operations() []bindings.OperationKind {
 
 func (a *AWSSES) parseMetadata(meta bindings.Metadata) (*sesMetadata, error) {
 	m := sesMetadata{}
-	contribMetadata.DecodeMetadata(meta.Properties, &m)
+	kitmd.DecodeMetadata(meta.Properties, &m)
 
 	return &m, nil
 }
@@ -154,7 +153,7 @@ func (a *AWSSES) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 // Helper to merge config and request metadata.
 func (metadata sesMetadata) mergeWithRequestMetadata(req *bindings.InvokeRequest) sesMetadata {
 	merged := metadata
-	contribMetadata.DecodeMetadata(req.Metadata, &merged)
+	kitmd.DecodeMetadata(req.Metadata, &merged)
 	return merged
 }
 

@@ -22,11 +22,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	internalredis "github.com/dapr/components-contrib/internal/component/redis"
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
-
-	internalredis "github.com/dapr/components-contrib/internal/component/redis"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 func getFakeProperties() map[string]string {
@@ -47,7 +47,7 @@ func TestParseRedisMetadata(t *testing.T) {
 
 		// act
 		m := internalredis.Settings{}
-		err := mdata.DecodeMetadata(fakeMetaData, &m)
+		err := kitmd.DecodeMetadata(fakeMetaData, &m)
 
 		// assert
 		assert.NoError(t, err)
@@ -65,7 +65,7 @@ func TestParseRedisMetadata(t *testing.T) {
 
 		// act
 		m := internalredis.Settings{}
-		err := mdata.DecodeMetadata(fakeMetaData, &m)
+		err := kitmd.DecodeMetadata(fakeMetaData, &m)
 		// assert
 		assert.Error(t, errors.New("redis streams error: missing consumerID"), err)
 		assert.Empty(t, m.ConsumerID)

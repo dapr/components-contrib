@@ -29,6 +29,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
 )
 
@@ -69,7 +70,7 @@ func NewAerospikeStateStore(logger logger.Logger) state.Store {
 
 func parseAndValidateMetadata(meta state.Metadata) (*aerospikeMetadata, error) {
 	var m aerospikeMetadata
-	decodeErr := metadata.DecodeMetadata(meta.Properties, &m)
+	decodeErr := kitmd.DecodeMetadata(meta.Properties, &m)
 	if decodeErr != nil {
 		return nil, decodeErr
 	}

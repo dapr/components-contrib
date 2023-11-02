@@ -20,7 +20,9 @@ components:
     operations: [ "ttl" ]
   - component: azure.cosmosdb
     operations: [ "transaction", "etag", "first-write", "query", "ttl" ]
-  - component: azure.blobstorage
+  - component: azure.blobstorage.v1
+    operations: [ "etag", "first-write" ]
+  - component: azure.blobstorage.v2
     operations: [ "etag", "first-write" ]
   - component: azure.sql
     operations: [ "transaction", "etag", "first-write", "ttl" ]

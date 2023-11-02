@@ -28,6 +28,7 @@ import (
 	"github.com/dapr/components-contrib/internal/authentication/azure"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // CosmosDB allows performing state operations on collections.
@@ -113,7 +114,7 @@ func (c *CosmosDB) Init(ctx context.Context, metadata bindings.Metadata) error {
 
 func (c *CosmosDB) parseMetadata(metadata bindings.Metadata) (*cosmosDBCredentials, error) {
 	creds := cosmosDBCredentials{}
-	err := contribMetadata.DecodeMetadata(metadata.Properties, &creds)
+	err := kitmd.DecodeMetadata(metadata.Properties, &creds)
 	if err != nil {
 		return nil, err
 	}

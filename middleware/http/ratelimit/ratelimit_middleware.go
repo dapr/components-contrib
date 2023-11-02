@@ -25,6 +25,7 @@ import (
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // Metadata is the ratelimit middleware config.
@@ -89,7 +90,7 @@ func (m *Middleware) getNativeMetadata(metadata middleware.Metadata) (*rateLimit
 	middlewareMetadata := rateLimitMiddlewareMetadata{
 		MaxRequestsPerSecond: defaultMaxRequestsPerSecond,
 	}
-	err := contribMetadata.DecodeMetadata(metadata.Properties, &middlewareMetadata)
+	err := kitmd.DecodeMetadata(metadata.Properties, &middlewareMetadata)
 	if err != nil {
 		return nil, err
 	}

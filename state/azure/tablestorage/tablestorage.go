@@ -54,6 +54,7 @@ import (
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
 )
 
@@ -222,7 +223,7 @@ func NewAzureTablesStateStore(logger logger.Logger) state.Store {
 
 func getTablesMetadata(meta map[string]string) (*tablesMetadata, error) {
 	m := tablesMetadata{}
-	err := mdutils.DecodeMetadata(meta, &m)
+	err := kitmd.DecodeMetadata(meta, &m)
 
 	if val, ok := mdutils.GetMetadataProperty(meta, azauth.MetadataKeys["StorageAccountName"]...); ok && val != "" {
 		m.AccountName = val

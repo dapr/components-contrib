@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/metadata"
 )
 
 type options struct {

@@ -27,6 +27,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -140,7 +141,7 @@ func (s *Mailer) Invoke(_ context.Context, req *bindings.InvokeRequest) (*bindin
 // Helper to parse metadata.
 func (s *Mailer) parseMetadata(meta bindings.Metadata) (Metadata, error) {
 	smtpMeta := Metadata{}
-	err := metadata.DecodeMetadata(meta.Properties, &smtpMeta)
+	err := kitmd.DecodeMetadata(meta.Properties, &smtpMeta)
 	if err != nil {
 		return smtpMeta, err
 	}

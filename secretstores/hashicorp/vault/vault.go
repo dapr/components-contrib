@@ -34,6 +34,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -141,7 +142,7 @@ func (v *vaultSecretStore) Init(_ context.Context, meta secretstores.Metadata) e
 	m := VaultMetadata{
 		VaultKVUsePrefix: true,
 	}
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return err
 	}

@@ -28,6 +28,7 @@ import (
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	cron "github.com/dapr/kit/cron"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // Binding represents Cron input binding.
@@ -70,7 +71,7 @@ func NewCronWithClock(logger logger.Logger, clk clock.Clock) bindings.InputBindi
 func (b *Binding) Init(ctx context.Context, meta bindings.Metadata) error {
 	b.name = meta.Name
 	m := metadata{}
-	err := contribMetadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return err
 	}

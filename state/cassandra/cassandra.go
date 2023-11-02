@@ -28,6 +28,7 @@ import (
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -183,7 +184,7 @@ func getCassandraMetadata(meta state.Metadata) (*cassandraMetadata, error) {
 		Consistency:       "All",
 		Port:              defaultPort,
 	}
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}

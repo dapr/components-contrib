@@ -21,14 +21,14 @@ import (
 
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
+	"github.com/googleapis/gax-go/v2"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
-
-	"github.com/googleapis/gax-go/v2"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const VersionID = "version_id"
@@ -177,7 +177,10 @@ func (s *Store) getSecret(ctx context.Context, secretName string, versionID stri
 
 func (s *Store) parseSecretManagerMetadata(metadataRaw secretstores.Metadata) (*GcpSecretManagerMetadata, error) {
 	meta := GcpSecretManagerMetadata{}
-	metadata.DecodeMetadata(metadataRaw.Properties, &meta)
+	err := kitmd.DecodeMetadata(metadataRaw.Properties, &meta)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode metadata: %w", err)
+	}
 
 	if meta.Type == "" {
 		return nil, fmt.Errorf("missing property `type` in metadata")

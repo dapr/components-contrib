@@ -24,6 +24,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
 )
 
@@ -92,7 +93,7 @@ func (c *Consul) Features() []state.Feature {
 
 func metadataToConfig(connInfo map[string]string) (*consulConfig, error) {
 	m := &consulConfig{}
-	err := metadata.DecodeMetadata(connInfo, m)
+	err := kitmd.DecodeMetadata(connInfo, m)
 	return m, err
 }
 

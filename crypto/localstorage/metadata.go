@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 
 	contribCrypto "github.com/dapr/components-contrib/crypto"
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/metadata"
 )
 
 type localStorageMetadata struct {

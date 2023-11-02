@@ -28,6 +28,7 @@ import (
 	"github.com/dapr/components-contrib/internal/component/cloudflare/workers"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // Link to the documentation for the component
@@ -51,7 +52,7 @@ func NewCFQueues(logger logger.Logger) bindings.OutputBinding {
 // Init the component.
 func (q *CFQueues) Init(_ context.Context, metadata bindings.Metadata) error {
 	// Decode the metadata
-	err := contribMetadata.DecodeMetadata(metadata.Properties, &q.metadata)
+	err := kitmd.DecodeMetadata(metadata.Properties, &q.metadata)
 	if err != nil {
 		return fmt.Errorf("failed to parse metadata: %w", err)
 	}

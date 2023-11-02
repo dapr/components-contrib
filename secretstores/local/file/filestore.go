@@ -27,6 +27,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type localSecretStoreMetaData struct {
@@ -237,7 +238,7 @@ func (j *localSecretStore) combine(values []string) string {
 
 func (j *localSecretStore) getLocalSecretStoreMetadata(spec secretstores.Metadata) (*localSecretStoreMetaData, error) {
 	var meta localSecretStoreMetaData
-	err := metadata.DecodeMetadata(spec.Properties, &meta)
+	err := kitmd.DecodeMetadata(spec.Properties, &meta)
 	if err != nil {
 		return nil, err
 	}

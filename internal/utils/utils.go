@@ -16,21 +16,9 @@ package utils
 import (
 	"encoding/json"
 	"strconv"
-	"strings"
 
 	"github.com/spf13/cast"
 )
-
-// IsTruthy returns true if a string is a truthy value.
-// Truthy values are "y", "yes", "true", "t", "on", "1" (case-insensitive); everything else is false.
-func IsTruthy(val string) bool {
-	switch strings.ToLower(strings.TrimSpace(val)) {
-	case "y", "yes", "true", "t", "on", "1":
-		return true
-	default:
-		return false
-	}
-}
 
 // GetElemOrDefaultFromMap returns the value of a key from a map, or a default value
 // if the key does not exist or the value is not of the expected type.

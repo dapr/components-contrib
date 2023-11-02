@@ -32,6 +32,7 @@ import (
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -90,7 +91,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
 		MaxDeliveryAttempts:     defaultMaxDeliveryAttempts,
 	}
 
-	err := contribMetadata.DecodeMetadata(pubSubMetadata.Properties, &result)
+	err := kitmd.DecodeMetadata(pubSubMetadata.Properties, &result)
 	if err != nil {
 		return nil, err
 	}

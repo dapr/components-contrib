@@ -21,7 +21,7 @@ import (
 
 	contribCrypto "github.com/dapr/components-contrib/crypto"
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/metadata"
 )
 
 const defaultRequestTimeout = 30 * time.Second

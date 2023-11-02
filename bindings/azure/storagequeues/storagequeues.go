@@ -31,6 +31,7 @@ import (
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
 )
 
@@ -292,7 +293,10 @@ func parseMetadata(meta bindings.Metadata) (*storageQueuesMetadata, error) {
 		PollingInterval:   defaultPollingInterval,
 		VisibilityTimeout: ptr.Of(defaultVisibilityTimeout),
 	}
-	contribMetadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode metadata: %w", err)
+	}
 
 	if val, ok := contribMetadata.GetMetadataProperty(meta.Properties, azauth.MetadataKeys["StorageAccountName"]...); ok && val != "" {
 		m.AccountName = val

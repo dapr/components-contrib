@@ -35,6 +35,7 @@ import (
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -201,7 +202,7 @@ func getConfigFilePath(configFilePath string) (value string, err error) {
 
 func getObjectStorageMetadata(meta map[string]string) (*objectStoreMetadata, error) {
 	m := objectStoreMetadata{}
-	errDecode := metadata.DecodeMetadata(meta, &m)
+	errDecode := kitmd.DecodeMetadata(meta, &m)
 	if errDecode != nil {
 		return nil, errDecode
 	}

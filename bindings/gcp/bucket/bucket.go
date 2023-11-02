@@ -30,9 +30,10 @@ import (
 	"google.golang.org/api/option"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
+	"github.com/dapr/kit/utils"
 )
 
 const (
@@ -112,7 +113,7 @@ func (g *GCPStorage) Init(ctx context.Context, metadata bindings.Metadata) error
 
 func (g *GCPStorage) parseMetadata(meta bindings.Metadata) (*gcpMetadata, error) {
 	m := gcpMetadata{}
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}

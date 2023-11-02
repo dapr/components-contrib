@@ -18,8 +18,8 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/configuration"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type metadata struct {
@@ -41,7 +41,7 @@ func (m *metadata) Parse(log logger.Logger, meta configuration.Metadata) error {
 	m.RequestTimeout = defaultRequestTimeout
 
 	// Decode the metadata
-	decodeErr := contribMetadata.DecodeMetadata(meta.Properties, m)
+	decodeErr := kitmd.DecodeMetadata(meta.Properties, m)
 	if decodeErr != nil {
 		return decodeErr
 	}

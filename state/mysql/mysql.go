@@ -615,7 +615,6 @@ func (m *MySQL) setValue(parentCtx context.Context, querier querier, req *state.
 					CURRENT_TIMESTAMP AS updateDate,
 					? AS eTag,
 					` + ttlQuery + ` AS expiredate
-				FROM ` + m.tableName + `
 				WHERE NOT EXISTS (
 					SELECT 1
 					FROM ` + m.tableName + `

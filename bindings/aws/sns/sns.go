@@ -25,6 +25,7 @@ import (
 	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // AWSSNS is an AWS SNS binding.
@@ -72,7 +73,7 @@ func (a *AWSSNS) Init(_ context.Context, metadata bindings.Metadata) error {
 
 func (a *AWSSNS) parseMetadata(meta bindings.Metadata) (*snsMetadata, error) {
 	m := snsMetadata{}
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}

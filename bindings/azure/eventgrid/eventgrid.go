@@ -41,6 +41,7 @@ import (
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
 )
 
@@ -355,7 +356,7 @@ func (a *AzureEventGrid) ensureOutputBindingMetadata() error {
 
 func (a *AzureEventGrid) parseMetadata(md bindings.Metadata) (*azureEventGridMetadata, error) {
 	var eventGridMetadata azureEventGridMetadata
-	err := metadata.DecodeMetadata(md.Properties, &eventGridMetadata)
+	err := kitmd.DecodeMetadata(md.Properties, &eventGridMetadata)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding metadata: %w", err)
 	}

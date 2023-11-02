@@ -28,6 +28,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // SendGrid allows sending of emails using the 3rd party SendGrid service.
@@ -70,7 +71,7 @@ func NewSendGrid(logger logger.Logger) bindings.OutputBinding {
 func (sg *SendGrid) parseMetadata(meta bindings.Metadata) (sendGridMetadata, error) {
 	sgMeta := sendGridMetadata{}
 
-	err := metadata.DecodeMetadata(meta.Properties, &sgMeta)
+	err := kitmd.DecodeMetadata(meta.Properties, &sgMeta)
 	if err != nil {
 		return sgMeta, err
 	}

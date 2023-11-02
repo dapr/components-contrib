@@ -28,6 +28,7 @@ import (
 	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // AWSSQS allows receiving and sending data to/from AWS SQS.
@@ -168,7 +169,7 @@ func (a *AWSSQS) Close() error {
 
 func (a *AWSSQS) parseSQSMetadata(meta bindings.Metadata) (*sqsMetadata, error) {
 	m := sqsMetadata{}
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}

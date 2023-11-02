@@ -22,11 +22,12 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs"
 
 	impl "github.com/dapr/components-contrib/internal/component/azure/eventhubs"
-	"github.com/dapr/components-contrib/internal/utils"
+	internalutils "github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
+	"github.com/dapr/kit/utils"
 )
 
 // AzureEventHubs allows sending/receiving Azure Event Hubs events.
@@ -129,7 +130,7 @@ func (aeh *AzureEventHubs) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 
 	// Check if requireAllProperties is set and is truthy
 	getAllProperties := utils.IsTruthy(req.Metadata["requireAllProperties"])
-	checkPointFrequencyPerPartition := utils.GetIntValFromString(req.Metadata["checkPointFrequencyPerPartition"], impl.DefaultCheckpointFrequencyPerPartition)
+	checkPointFrequencyPerPartition := internalutils.GetIntValFromString(req.Metadata["checkPointFrequencyPerPartition"], impl.DefaultCheckpointFrequencyPerPartition)
 
 	pubsubHandler := aeh.GetPubSubHandlerFunc(topic, getAllProperties, handler)
 
@@ -154,9 +155,9 @@ func (aeh *AzureEventHubs) BulkSubscribe(ctx context.Context, req pubsub.Subscri
 
 	// Check if requireAllProperties is set and is truthy
 	getAllProperties := utils.IsTruthy(req.Metadata["requireAllProperties"])
-	checkPointFrequencyPerPartition := utils.GetIntValFromString(req.Metadata["checkPointFrequencyPerPartition"], impl.DefaultCheckpointFrequencyPerPartition)
-	maxBulkSubCount := utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxMessagesCount, impl.DefaultMaxBulkSubCount)
-	maxBulkSubAwaitDurationMs := utils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxAwaitDurationMs, impl.DefaultMaxBulkSubAwaitDurationMs)
+	checkPointFrequencyPerPartition := internalutils.GetIntValFromString(req.Metadata["checkPointFrequencyPerPartition"], impl.DefaultCheckpointFrequencyPerPartition)
+	maxBulkSubCount := internalutils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxMessagesCount, impl.DefaultMaxBulkSubCount)
+	maxBulkSubAwaitDurationMs := internalutils.GetIntValOrDefault(req.BulkSubscribeConfig.MaxAwaitDurationMs, impl.DefaultMaxBulkSubAwaitDurationMs)
 
 	bulkPubsubHandler := aeh.GetBulkPubSubHandlerFunc(topic, getAllProperties, handler)
 

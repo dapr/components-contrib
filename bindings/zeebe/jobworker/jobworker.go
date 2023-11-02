@@ -32,6 +32,7 @@ import (
 	"github.com/dapr/components-contrib/bindings/zeebe"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 var ErrMissingJobType = errors.New("jobType is a required attribute")
@@ -49,17 +50,17 @@ type ZeebeJobWorker struct {
 
 // https://docs.zeebe.io/basics/job-workers.html
 type jobWorkerMetadata struct {
-	WorkerName     string            `mapstructure:"workerName"`
-	WorkerTimeout  metadata.Duration `mapstructure:"workerTimeout"`
-	RequestTimeout metadata.Duration `mapstructure:"requestTimeout"`
-	JobType        string            `mapstructure:"jobType"`
-	MaxJobsActive  int               `mapstructure:"maxJobsActive"`
-	Concurrency    int               `mapstructure:"concurrency"`
-	PollInterval   metadata.Duration `mapstructure:"pollInterval"`
-	PollThreshold  float64           `mapstructure:"pollThreshold"`
-	FetchVariables string            `mapstructure:"fetchVariables"`
-	Autocomplete   *bool             `mapstructure:"autocomplete"`
-	RetryBackOff   metadata.Duration `mapstructure:"retryBackOff"`
+	WorkerName     string         `mapstructure:"workerName"`
+	WorkerTimeout  kitmd.Duration `mapstructure:"workerTimeout"`
+	RequestTimeout kitmd.Duration `mapstructure:"requestTimeout"`
+	JobType        string         `mapstructure:"jobType"`
+	MaxJobsActive  int            `mapstructure:"maxJobsActive"`
+	Concurrency    int            `mapstructure:"concurrency"`
+	PollInterval   kitmd.Duration `mapstructure:"pollInterval"`
+	PollThreshold  float64        `mapstructure:"pollThreshold"`
+	FetchVariables string         `mapstructure:"fetchVariables"`
+	Autocomplete   *bool          `mapstructure:"autocomplete"`
+	RetryBackOff   kitmd.Duration `mapstructure:"retryBackOff"`
 }
 
 type jobHandler struct {
@@ -150,7 +151,7 @@ func (z *ZeebeJobWorker) Close() error {
 
 func (z *ZeebeJobWorker) parseMetadata(meta bindings.Metadata) (*jobWorkerMetadata, error) {
 	var m jobWorkerMetadata
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}

@@ -25,6 +25,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -104,7 +105,7 @@ func TestVaultTLSConfig(t *testing.T) {
 		}
 
 		meta := VaultMetadata{}
-		err := metadata.DecodeMetadata(m.Properties, &meta)
+		err := kitmd.DecodeMetadata(m.Properties, &meta)
 		assert.NoError(t, err)
 
 		tlsConfig := metadataToTLSConfig(&meta)
@@ -198,7 +199,7 @@ func TestVaultTokenPrefix(t *testing.T) {
 		}
 
 		meta := VaultMetadata{}
-		metadata.DecodeMetadata(m.Properties, &meta)
+		kitmd.DecodeMetadata(m.Properties, &meta)
 
 		assert.False(t, meta.VaultKVUsePrefix)
 	})

@@ -18,8 +18,8 @@ import (
 	"time"
 
 	authSqlite "github.com/dapr/components-contrib/internal/authentication/sqlite"
-	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/metadata"
 )
 
 const (

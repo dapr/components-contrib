@@ -27,6 +27,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/workflows"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type TemporalWF struct {
@@ -168,7 +169,7 @@ func (c *TemporalWF) Resume(ctx context.Context, req *workflows.ResumeRequest) e
 
 func (c *TemporalWF) parseMetadata(meta workflows.Metadata) (*temporalMetadata, error) {
 	var m temporalMetadata
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	return &m, err
 }
 

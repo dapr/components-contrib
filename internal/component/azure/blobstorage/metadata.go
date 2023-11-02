@@ -21,6 +21,7 @@ import (
 
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	mdutils "github.com/dapr/components-contrib/metadata"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type BlobStorageMetadata struct {
@@ -48,7 +49,10 @@ type ContainerClientOpts struct {
 func parseMetadata(meta map[string]string) (*BlobStorageMetadata, error) {
 	m := BlobStorageMetadata{}
 	m.RetryCount = defaultBlobRetryCount
-	mdutils.DecodeMetadata(meta, &m)
+	decodeErr := kitmd.DecodeMetadata(meta, &m)
+	if decodeErr != nil {
+		return nil, fmt.Errorf("failed to decode metadata: %w", decodeErr)
+	}
 
 	if m.ConnectionString == "" {
 		if val, ok := mdutils.GetMetadataProperty(meta, azauth.MetadataKeys["StorageAccountName"]...); ok && val != "" {

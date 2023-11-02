@@ -25,9 +25,10 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/internal/utils"
+	internalutils "github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -67,7 +68,7 @@ func (t *SMS) Init(_ context.Context, meta bindings.Metadata) error {
 		Timeout: time.Minute * 5,
 	}
 
-	err := metadata.DecodeMetadata(meta.Properties, &twilioM)
+	err := kitmd.DecodeMetadata(meta.Properties, &twilioM)
 	if err != nil {
 		return err
 	}
@@ -102,7 +103,7 @@ func (t *SMS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*binding
 		toNumberValue = toNumberFromRequest
 	}
 
-	body := utils.Unquote(req.Data)
+	body := internalutils.Unquote(req.Data)
 
 	v := url.Values{}
 	v.Set("To", toNumberValue)

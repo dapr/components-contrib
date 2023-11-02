@@ -32,6 +32,7 @@ import (
 	"github.com/tetratelabs/wazero/sys"
 
 	"github.com/dapr/components-contrib/metadata"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type InitMetadata struct {
@@ -72,7 +73,7 @@ func GetInitMetadata(ctx context.Context, md metadata.Base) (*InitMetadata, erro
 
 	var m InitMetadata
 	// Decode the metadata
-	if err := metadata.DecodeMetadata(md.Properties, &m); err != nil {
+	if err := kitmd.DecodeMetadata(md.Properties, &m); err != nil {
 		return nil, err
 	}
 

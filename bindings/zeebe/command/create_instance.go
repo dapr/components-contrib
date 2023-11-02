@@ -23,7 +23,7 @@ import (
 	"github.com/camunda/zeebe/clients/go/v8/pkg/commands"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/metadata"
 )
 
 var (

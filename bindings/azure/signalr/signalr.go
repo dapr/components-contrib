@@ -36,6 +36,7 @@ import (
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
 )
 
@@ -130,7 +131,7 @@ func (s *SignalR) Init(_ context.Context, metadata bindings.Metadata) (err error
 
 func (s *SignalR) parseMetadata(md map[string]string) (err error) {
 	m := SignalRMetadata{}
-	err = metadata.DecodeMetadata(md, &m)
+	err = kitmd.DecodeMetadata(md, &m)
 	if err != nil {
 		return err
 	}

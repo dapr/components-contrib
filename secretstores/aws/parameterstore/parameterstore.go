@@ -26,6 +26,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // Constant literals.
@@ -163,7 +164,7 @@ func (s *ssmSecretStore) getClient(metadata *ParameterStoreMetaData) (*ssm.SSM, 
 
 func (s *ssmSecretStore) getSecretManagerMetadata(spec secretstores.Metadata) (*ParameterStoreMetaData, error) {
 	meta := ParameterStoreMetaData{}
-	err := metadata.DecodeMetadata(spec.Properties, &meta)
+	err := kitmd.DecodeMetadata(spec.Properties, &meta)
 	return &meta, err
 }
 

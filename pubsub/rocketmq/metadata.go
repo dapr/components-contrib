@@ -16,8 +16,8 @@ package rocketmq
 import (
 	"fmt"
 
-	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -182,7 +182,7 @@ type rocketMQMetaData struct {
 }
 
 func (s *rocketMQMetaData) Decode(in interface{}) error {
-	if err := metadata.DecodeMetadata(in, &s); err != nil {
+	if err := kitmd.DecodeMetadata(in, &s); err != nil {
 		return fmt.Errorf("decode failed. %w", err)
 	}
 	return nil

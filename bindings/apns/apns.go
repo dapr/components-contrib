@@ -30,6 +30,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -89,7 +90,7 @@ func NewAPNS(logger logger.Logger) bindings.OutputBinding {
 // in the binding's configuration.
 func (a *APNS) Init(ctx context.Context, metadata bindings.Metadata) error {
 	m := APNSmetadata{}
-	err := contribMetadata.DecodeMetadata(metadata.Properties, &m)
+	err := kitmd.DecodeMetadata(metadata.Properties, &m)
 	if err != nil {
 		return err
 	}

@@ -20,8 +20,8 @@ import (
 	"github.com/camunda/zeebe/clients/go/v8/pkg/zbc"
 
 	"github.com/dapr/components-contrib/bindings"
-	metadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 var ErrMissingGatewayAddr = errors.New("gatewayAddr is a required attribute")
@@ -69,7 +69,7 @@ func (c *ClientFactoryImpl) Get(metadata bindings.Metadata) (zbc.Client, error) 
 
 func (c *ClientFactoryImpl) parseMetadata(meta bindings.Metadata) (*ClientMetadata, error) {
 	var m ClientMetadata
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}

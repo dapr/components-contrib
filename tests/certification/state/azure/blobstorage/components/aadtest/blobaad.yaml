@@ -4,6 +4,7 @@ metadata:
   name: statestore-aad
 spec:
   type: state.azure.blobstorage
+  version: v2
   metadata:
     - name: accountName
       secretKeyRef:

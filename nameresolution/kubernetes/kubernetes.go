@@ -15,6 +15,7 @@ package kubernetes
 
 import (
 	"bytes"
+	"context"
 	"strconv"
 	"text/template"
 
@@ -53,7 +54,7 @@ func NewResolver(logger logger.Logger) nameresolution.Resolver {
 }
 
 // Init initializes Kubernetes name resolver.
-func (k *resolver) Init(metadata nameresolution.Metadata) error {
+func (k *resolver) Init(ctx context.Context, metadata nameresolution.Metadata) error {
 	configInterface, err := config.Normalize(metadata.Configuration)
 	if err != nil {
 		return err
@@ -83,7 +84,7 @@ func (k *resolver) Init(metadata nameresolution.Metadata) error {
 }
 
 // ResolveID resolves name to address in Kubernetes.
-func (k *resolver) ResolveID(req nameresolution.ResolveRequest) (string, error) {
+func (k *resolver) ResolveID(ctx context.Context, req nameresolution.ResolveRequest) (string, error) {
 	if k.tmpl != nil {
 		return executeTemplateWithResolveRequest(k.tmpl, req)
 	}

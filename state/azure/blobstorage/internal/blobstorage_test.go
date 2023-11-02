@@ -11,16 +11,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package nameresolution
+package internal
 
 import (
 	"context"
+	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/logger"
 )
 
-// Resolver is the interface of name resolver.
-type Resolver interface {
-	// Init initializes name resolver.
-	Init(ctx context.Context, metadata Metadata) error
-	// ResolveID resolves name to address.
-	ResolveID(ctx context.Context, req ResolveRequest) (string, error)
+func TestInit(t *testing.T) {
+	m := state.Metadata{}
+	s := &StateStore{
+		logger: logger.NewLogger("logger"),
+	}
+
+	t.Run("Init with missing metadata", func(t *testing.T) {
+		m.Properties = map[string]string{
+			"invalidValue": "a",
+		}
+		err := s.Init(context.Background(), m)
+		assert.Error(t, err)
+		assert.Equal(t, err, fmt.Errorf("missing or empty accountName field from metadata"))
+	})
 }

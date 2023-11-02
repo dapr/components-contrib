@@ -509,8 +509,37 @@ const components = {
         conformanceDestroy: 'conformance-state.aws.dynamodb-destroy.sh',
         sourcePkg: 'state/aws/dynamodb',
     },
-    'state.azure.blobstorage': {
+    'state.azure.blobstorage.v2': {
         conformance: true,
+        requiredSecrets: [
+            'AzureBlobStorageAccount',
+            'AzureBlobStorageAccessKey',
+            'AzureCertificationTenantId',
+            'AzureCertificationServicePrincipalClientId',
+            'AzureCertificationServicePrincipalClientSecret',
+            'AzureBlobStorageContainer',
+        ],
+        sourcePkg: [
+            'state/azure/blobstorage',
+            'internal/component/azure/blobstorage',
+        ],
+    },
+    'state.azure.blobstorage.v1': {
+        conformance: true,
+        requiredSecrets: [
+            'AzureBlobStorageAccount',
+            'AzureBlobStorageAccessKey',
+            'AzureCertificationTenantId',
+            'AzureCertificationServicePrincipalClientId',
+            'AzureCertificationServicePrincipalClientSecret',
+            'AzureBlobStorageContainer',
+        ],
+        sourcePkg: [
+            'state/azure/blobstorage',
+            'internal/component/azure/blobstorage',
+        ],
+    },
+    'state.azure.blobstorage': {
         certification: true,
         requiredSecrets: [
             'AzureBlobStorageAccount',

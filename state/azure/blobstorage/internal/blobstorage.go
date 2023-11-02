@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Dapr Authors
+Copyright 2023 The Dapr Authors
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -11,36 +11,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/*
-Azure Blob Storage state store.
-
-Sample configuration in yaml:
-
-	apiVersion: dapr.io/v1alpha1
-	kind: Component
-	metadata:
-	  name: statestore
-	spec:
-	  type: state.azure.blobstorage
-	  metadata:
-	  - name: accountName
-		value: <storage account name>
-	  - name: accountKey
-		value: <key>
-	  - name: containerName
-		value: <container Name>
-
-Concurrency is supported with ETags according to https://docs.microsoft.com/en-us/azure/storage/common/storage-concurrency#managing-concurrency-in-blob-storage
-*/
-
-package blobstorage
+package internal
 
 import (
 	"context"
 	"fmt"
 	"io"
 	"reflect"
-	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
@@ -56,16 +33,22 @@ import (
 	"github.com/dapr/kit/ptr"
 )
 
-const (
-	keyDelimiter = "||"
-)
-
 // StateStore Type.
 type StateStore struct {
 	state.BulkStore
 
+	getFileNameFn   func(string) string
 	containerClient *container.Client
 	logger          logger.Logger
+}
+
+func NewAzureBlobStorageStore(logger logger.Logger, getFileNameFn func(string) string) state.Store {
+	s := &StateStore{
+		logger:        logger,
+		getFileNameFn: getFileNameFn,
+	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // Init the connection to blob storage, optionally creates a blob container if it doesn't exist.
@@ -100,7 +83,7 @@ func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 
 func (r *StateStore) Ping(ctx context.Context) error {
 	if _, err := r.containerClient.GetProperties(ctx, nil); err != nil {
-		return fmt.Errorf("blob storage: error connecting to Blob storage at %s: %s", r.containerClient.URL(), err)
+		return fmt.Errorf("error connecting to Azure Blob Storage at '%s': %w", r.containerClient.URL(), err)
 	}
 
 	return nil
@@ -112,17 +95,8 @@ func (r *StateStore) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
 	return
 }
 
-// NewAzureBlobStorageStore instance.
-func NewAzureBlobStorageStore(logger logger.Logger) state.Store {
-	s := &StateStore{
-		logger: logger,
-	}
-	s.BulkStore = state.NewDefaultBulkStore(s)
-	return s
-}
-
 func (r *StateStore) readFile(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
-	blockBlobClient := r.containerClient.NewBlockBlobClient(getFileName(req.Key))
+	blockBlobClient := r.containerClient.NewBlockBlobClient(r.getFileNameFn(req.Key))
 	blobDownloadResponse, err := blockBlobClient.DownloadStream(ctx, nil)
 	if err != nil {
 		if isNotFoundError(err) {
@@ -132,19 +106,16 @@ func (r *StateStore) readFile(ctx context.Context, req *state.GetRequest) (*stat
 		return &state.GetResponse{}, err
 	}
 
-	reader := blobDownloadResponse.Body
-	defer reader.Close()
-	blobData, err := io.ReadAll(reader)
+	defer blobDownloadResponse.Body.Close()
+	blobData, err := io.ReadAll(blobDownloadResponse.Body)
 	if err != nil {
-		return &state.GetResponse{}, fmt.Errorf("error reading az blob: %w", err)
+		return &state.GetResponse{}, fmt.Errorf("error reading blob: %w", err)
 	}
-
-	contentType := blobDownloadResponse.ContentType
 
 	return &state.GetResponse{
 		Data:        blobData,
 		ETag:        ptr.Of(string(*blobDownloadResponse.ETag)),
-		ContentType: contentType,
+		ContentType: blobDownloadResponse.ContentType,
 	}, nil
 }
 
@@ -158,22 +129,20 @@ func (r *StateStore) writeFile(ctx context.Context, req *state.SetRequest) error
 		modifiedAccessConditions.IfNoneMatch = ptr.Of(azcore.ETagAny)
 	}
 
-	accessConditions := blob.AccessConditions{
-		ModifiedAccessConditions: &modifiedAccessConditions,
-	}
-
 	blobHTTPHeaders, err := storageinternal.CreateBlobHTTPHeadersFromRequest(req.Metadata, req.ContentType, r.logger)
 	if err != nil {
 		return err
 	}
 
 	uploadOptions := azblob.UploadBufferOptions{
-		AccessConditions: &accessConditions,
-		Metadata:         storageinternal.SanitizeMetadata(r.logger, req.Metadata),
-		HTTPHeaders:      &blobHTTPHeaders,
+		AccessConditions: &blob.AccessConditions{
+			ModifiedAccessConditions: &modifiedAccessConditions,
+		},
+		Metadata:    storageinternal.SanitizeMetadata(r.logger, req.Metadata),
+		HTTPHeaders: &blobHTTPHeaders,
 	}
 
-	blockBlobClient := r.containerClient.NewBlockBlobClient(getFileName(req.Key))
+	blockBlobClient := r.containerClient.NewBlockBlobClient(r.getFileNameFn(req.Key))
 	_, err = blockBlobClient.UploadBuffer(ctx, r.marshal(req), &uploadOptions)
 
 	if err != nil {
@@ -182,14 +151,14 @@ func (r *StateStore) writeFile(ctx context.Context, req *state.SetRequest) error
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
-		return fmt.Errorf("error uploading az blob: %w", err)
+		return fmt.Errorf("error uploading blob: %w", err)
 	}
 
 	return nil
 }
 
 func (r *StateStore) deleteFile(ctx context.Context, req *state.DeleteRequest) error {
-	blockBlobClient := r.containerClient.NewBlockBlobClient(getFileName(req.Key))
+	blockBlobClient := r.containerClient.NewBlockBlobClient(r.getFileNameFn(req.Key))
 
 	modifiedAccessConditions := blob.ModifiedAccessConditions{}
 	if req.HasETag() {
@@ -218,25 +187,13 @@ func (r *StateStore) deleteFile(ctx context.Context, req *state.DeleteRequest) e
 	return nil
 }
 
-func getFileName(key string) string {
-	pr := strings.Split(key, keyDelimiter)
-	if len(pr) != 2 {
-		return pr[0]
-	}
-
-	return pr[1]
-}
-
 func (r *StateStore) marshal(req *state.SetRequest) []byte {
-	var v string
 	b, ok := req.Value.([]byte)
-	if ok {
-		v = string(b)
-	} else {
-		v, _ = jsoniter.MarshalToString(req.Value)
+	if !ok {
+		b, _ = jsoniter.Marshal(req.Value)
 	}
 
-	return []byte(v)
+	return b
 }
 
 func isNotFoundError(err error) bool {

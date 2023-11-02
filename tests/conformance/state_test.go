@@ -24,7 +24,8 @@ import (
 
 	"github.com/dapr/components-contrib/state"
 	s_awsdynamodb "github.com/dapr/components-contrib/state/aws/dynamodb"
-	s_blobstorage "github.com/dapr/components-contrib/state/azure/blobstorage"
+	s_blobstorage_v1 "github.com/dapr/components-contrib/state/azure/blobstorage/v1"
+	s_blobstorage_v2 "github.com/dapr/components-contrib/state/azure/blobstorage/v2"
 	s_cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"
 	s_azuretablestorage "github.com/dapr/components-contrib/state/azure/tablestorage"
 	s_cassandra "github.com/dapr/components-contrib/state/cassandra"
@@ -78,8 +79,10 @@ func loadStateStore(name string) state.Store {
 		return s_redis.NewRedisStateStore(testLogger)
 	case "redis.v7":
 		return s_redis.NewRedisStateStore(testLogger)
-	case "azure.blobstorage":
-		return s_blobstorage.NewAzureBlobStorageStore(testLogger)
+	case "azure.blobstorage.v1":
+		return s_blobstorage_v1.NewAzureBlobStorageStore(testLogger)
+	case "azure.blobstorage.v2":
+		return s_blobstorage_v2.NewAzureBlobStorageStore(testLogger)
 	case "azure.cosmosdb":
 		return s_cosmosdb.NewCosmosDBStateStore(testLogger)
 	case "mongodb":

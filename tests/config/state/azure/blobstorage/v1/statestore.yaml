@@ -4,6 +4,7 @@ metadata:
   name: statestore
 spec:
   type: state.azure.blobstorage
+  version: v1
   metadata:
   - name: accountName
     value: ${{AzureBlobStorageAccount}}

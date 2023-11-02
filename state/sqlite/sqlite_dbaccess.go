@@ -337,10 +337,6 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 	}
 
 	// Only check for etag if FirstWrite specified (ref oracledatabaseaccess)
-	var (
-		res  sql.Result
-		stmt string
-	)
 	ctx, cancel := context.WithTimeout(context.Background(), a.metadata.Timeout)
 	defer cancel()
 
@@ -350,10 +346,9 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 	case !req.HasETag() && req.Options.Concurrency == state.FirstWrite:
 		// If the operation uses first-write concurrency, we need to handle the special case of a row that has expired but hasn't been garbage collected yet
 		// In this case, the row should be considered as if it were deleted
-		stmt = `WITH a AS (
+		stmt := `WITH a AS (
 				SELECT
 					?, ?, ?, ?, ` + expiration + `, CURRENT_TIMESTAMP
-				FROM ` + a.metadata.TableName + `
 				WHERE NOT EXISTS (
 					SELECT 1
 					FROM ` + a.metadata.TableName + `
@@ -362,17 +357,29 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 				)
 			)
 			INSERT OR REPLACE INTO ` + a.metadata.TableName + `
-			SELECT * FROM a`
-		res, err = db.ExecContext(ctx, stmt, req.Key, requestValue, isBinary, newEtag, req.Key)
+			SELECT * FROM a
+			RETURNING 1`
+		var num int
+		err = db.QueryRowContext(ctx, stmt, req.Key, requestValue, isBinary, newEtag, req.Key).Scan(&num)
+		if err != nil {
+			// If no row was returned, it means no row was updated, so we had an etag failure
+			if errors.Is(err, sql.ErrNoRows) {
+				return state.NewETagError(state.ETagMismatch, nil)
+			}
+			return err
+		}
 
 	case !req.HasETag():
-		stmt = "INSERT OR REPLACE INTO " + a.metadata.TableName + `
+		stmt := "INSERT OR REPLACE INTO " + a.metadata.TableName + `
 				(key, value, is_binary, etag, update_time, expiration_time)
 			VALUES(?, ?, ?, ?, CURRENT_TIMESTAMP, ` + expiration + `)`
-		res, err = db.ExecContext(ctx, stmt, req.Key, requestValue, isBinary, newEtag)
+		_, err = db.ExecContext(ctx, stmt, req.Key, requestValue, isBinary, newEtag)
+		if err != nil {
+			return err
+		}
 
 	default:
-		stmt = `UPDATE ` + a.metadata.TableName + ` SET
+		stmt := `UPDATE ` + a.metadata.TableName + ` SET
 				value = ?,
 				etag = ?,
 				is_binary = ?,
@@ -382,22 +389,20 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 				key = ?
 				AND etag = ?
 				AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
+		var res sql.Result
 		res, err = db.ExecContext(ctx, stmt, requestValue, newEtag, isBinary, req.Key, *req.ETag)
-	}
-	if err != nil {
-		return err
-	}
+		if err != nil {
+			return err
+		}
 
-	// Count the number of affected rows
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		if req.HasETag() || req.Options.Concurrency == state.FirstWrite {
+		rows, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if rows == 0 {
+			// 0 affected rows means etag failure
 			return state.NewETagError(state.ETagMismatch, nil)
 		}
-		return errors.New("no item was updated")
 	}
 
 	return nil

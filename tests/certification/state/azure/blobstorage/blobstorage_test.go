@@ -20,9 +20,11 @@ import (
 	"strconv"
 	"testing"
 
-	blob "github.com/dapr/components-contrib/state/azure/blobstorage"
+	component_v1 "github.com/dapr/components-contrib/state/azure/blobstorage/v1"
+	component_v2 "github.com/dapr/components-contrib/state/azure/blobstorage/v2"
 	"github.com/dapr/components-contrib/tests/certification/embedded"
 	"github.com/dapr/components-contrib/tests/certification/flow"
+	"github.com/dapr/dapr/pkg/components"
 	"github.com/dapr/go-sdk/client"
 	"github.com/dapr/kit/logger"
 
@@ -78,14 +80,27 @@ func TestAzureBlobStorage(t *testing.T) {
 		return nil
 	}
 
-	flow.New(t, "Test basic operations, save/get/delete using existing container").
+	flow.New(t, "v1 - Test basic operations, save/get/delete using existing container").
 		// Run the Dapr sidecar with azure blob storage.
 		Step(sidecar.Run(sidecarNamePrefix,
 			append(componentRuntimeOptions(),
 				embedded.WithoutApp(),
 				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
-				embedded.WithComponentsPath("./components/basictest"),
+				embedded.WithResourcesPath("./components/basictest-v1"),
+			)...,
+		)).
+		Step("Run basic test with existing container", basicTest("statestore-basic")).
+		Run()
+
+	flow.New(t, "v2 - Test basic operations, save/get/delete using existing container").
+		// Run the Dapr sidecar with azure blob storage.
+		Step(sidecar.Run(sidecarNamePrefix,
+			append(componentRuntimeOptions(),
+				embedded.WithoutApp(),
+				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
+				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
+				embedded.WithResourcesPath("./components/basictest-v2"),
 			)...,
 		)).
 		Step("Run basic test with existing container", basicTest("statestore-basic")).
@@ -98,11 +113,11 @@ func TestAzureBlobStorage(t *testing.T) {
 				embedded.WithoutApp(),
 				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
-				embedded.WithComponentsPath("./components/nonexistingcontainertest"),
+				embedded.WithResourcesPath("./components/nonexistingcontainertest"),
 			)...,
 		)).
-		Step("Run basic test with new table", basicTest("statestore-newcontainer")).
-		Step("Delete the New Table", deleteContainer).
+		Step("Run basic test with new container", basicTest("statestore-newcontainer")).
+		Step("Delete the new container", deleteContainer).
 		Run()
 
 	flow.New(t, "Test for authentication using Azure Auth layer").
@@ -112,7 +127,7 @@ func TestAzureBlobStorage(t *testing.T) {
 				embedded.WithoutApp(),
 				embedded.WithDaprGRPCPort(strconv.Itoa(currentGrpcPort)),
 				embedded.WithDaprHTTPPort(strconv.Itoa(currentHTTPPort)),
-				embedded.WithComponentsPath("./components/aadtest"),
+				embedded.WithResourcesPath("./components/aadtest"),
 			)...,
 		)).
 		Step("Run AAD test", basicTest("statestore-aad")).
@@ -124,7 +139,15 @@ func componentRuntimeOptions() []embedded.Option {
 
 	stateRegistry := state_loader.NewRegistry()
 	stateRegistry.Logger = log
-	stateRegistry.RegisterComponent(blob.NewAzureBlobStorageStore, "azure.blobstorage")
+	stateRegistry.RegisterComponentWithVersions("azure.blobstorage", components.Versioning{
+		Preferred: components.VersionConstructor{
+			Version: "v2", Constructor: component_v1.NewAzureBlobStorageStore,
+		},
+		Deprecated: []components.VersionConstructor{
+			{Version: "v1", Constructor: component_v2.NewAzureBlobStorageStore},
+		},
+		Default: "v1",
+	})
 
 	secretstoreRegistry := secretstores_loader.NewRegistry()
 	secretstoreRegistry.Logger = log

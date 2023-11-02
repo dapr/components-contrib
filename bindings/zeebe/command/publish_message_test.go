@@ -25,8 +25,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type mockPublishMessageClient struct {
@@ -132,7 +132,7 @@ func TestPublishMessage(t *testing.T) {
 			MessageName:    "a",
 			CorrelationKey: "b",
 			MessageID:      "c",
-			TimeToLive:     contribMetadata.Duration{Duration: 1 * time.Second},
+			TimeToLive:     kitmd.Duration{Duration: 1 * time.Second},
 			Variables: map[string]interface{}{
 				"key": "value",
 			},

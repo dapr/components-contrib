@@ -18,9 +18,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type mqttMetadata struct {
@@ -53,7 +53,7 @@ func parseMQTTMetaData(md pubsub.Metadata, log logger.Logger) (*mqttMetadata, er
 		CleanSession: defaultCleanSession,
 	}
 
-	err := metadata.DecodeMetadata(md.Properties, &m)
+	err := kitmd.DecodeMetadata(md.Properties, &m)
 	if err != nil {
 		return &m, fmt.Errorf("mqtt pubsub error: %w", err)
 	}

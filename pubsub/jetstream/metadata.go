@@ -19,8 +19,8 @@ import (
 
 	"github.com/nats-io/nats.go"
 
-	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type metadata struct {
@@ -60,7 +60,10 @@ type metadata struct {
 func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 	var m metadata
 
-	contribMetadata.DecodeMetadata(psm.Properties, &m)
+	err := kitmd.DecodeMetadata(psm.Properties, &m)
+	if err != nil {
+		return metadata{}, err
+	}
 
 	if m.NatsURL == "" {
 		return metadata{}, fmt.Errorf("missing nats URL")

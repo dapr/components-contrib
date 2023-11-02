@@ -11,9 +11,9 @@ import (
 
 	"github.com/dapr/components-contrib/configuration"
 	pgauth "github.com/dapr/components-contrib/internal/authentication/postgresql"
-	"github.com/dapr/components-contrib/internal/utils"
 	"github.com/dapr/components-contrib/tests/utils/configupdater"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/utils"
 )
 
 type ConfigUpdater struct {

@@ -25,8 +25,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type mockActivateJobsClient struct {
@@ -144,7 +144,7 @@ func TestActivateJobs(t *testing.T) {
 		payload := activateJobsPayload{
 			JobType:           "a",
 			MaxJobsToActivate: new(int32),
-			Timeout:           contribMetadata.Duration{Duration: 1 * time.Second},
+			Timeout:           kitmd.Duration{Duration: 1 * time.Second},
 			WorkerName:        "b",
 			FetchVariables:    []string{"a", "b", "c"},
 		}

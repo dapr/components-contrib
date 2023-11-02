@@ -27,6 +27,7 @@ import (
 	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // List of operations.
@@ -109,7 +110,7 @@ func NewOpenAI(logger logger.Logger) bindings.OutputBinding {
 // Init initializes the OpenAI binding.
 func (p *AzOpenAI) Init(ctx context.Context, meta bindings.Metadata) error {
 	m := openAIMetadata{}
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return fmt.Errorf("error decoding metadata: %w", err)
 	}

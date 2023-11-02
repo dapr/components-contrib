@@ -15,7 +15,7 @@ package postgres
 
 import (
 	pgauth "github.com/dapr/components-contrib/internal/authentication/postgresql"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type psqlMetadata struct {
@@ -31,7 +31,7 @@ func (m *psqlMetadata) InitWithMetadata(meta map[string]string) error {
 	m.PostgresAuthMetadata.Reset()
 	m.URL = ""
 
-	err := contribMetadata.DecodeMetadata(meta, &m)
+	err := kitmd.DecodeMetadata(meta, &m)
 	if err != nil {
 		return err
 	}

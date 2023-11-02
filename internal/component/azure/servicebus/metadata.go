@@ -22,6 +22,7 @@ import (
 
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
 )
 
@@ -150,7 +151,7 @@ func ParseMetadata(md map[string]string, logger logger.Logger, mode byte) (m *Me
 		delete(md, "publishInitialRetryInternalInMs")
 	}
 
-	mdErr := mdutils.DecodeMetadata(md, &m)
+	mdErr := kitmd.DecodeMetadata(md, &m)
 	if mdErr != nil {
 		return m, mdErr
 	}
@@ -257,7 +258,7 @@ func (a Metadata) CreateQueueProperties() *sbadmin.QueueProperties {
 }
 
 func toDurationISOString(valInSec int) *string {
-	valDuration := mdutils.Duration{
+	valDuration := kitmd.Duration{
 		Duration: time.Duration(valInSec) * time.Second,
 	}
 	return ptr.Of(valDuration.ToISOString())

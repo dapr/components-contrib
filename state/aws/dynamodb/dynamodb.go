@@ -33,6 +33,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // StateStore is a DynamoDB state store.
@@ -245,7 +246,7 @@ func (d *StateStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) 
 
 func (d *StateStore) getDynamoDBMetadata(meta state.Metadata) (*dynamoDBMetadata, error) {
 	var m dynamoDBMetadata
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if m.Table == "" {
 		return nil, errors.New("missing dynamodb table name")
 	}

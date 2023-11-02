@@ -20,7 +20,7 @@ package webhook
 import (
 	"errors"
 
-	"github.com/dapr/components-contrib/metadata"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type Settings struct {
@@ -30,7 +30,7 @@ type Settings struct {
 }
 
 func (s *Settings) Decode(in interface{}) error {
-	return metadata.DecodeMetadata(in, s)
+	return kitmd.DecodeMetadata(in, s)
 }
 
 func (s *Settings) Validate() error {

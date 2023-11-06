@@ -17,12 +17,12 @@ on:
   push:
     branches:
       - feature/*
-      - gh-readonly-queue/master/*
+      - gh-readonly-queue/main/*
   pull_request:
     branches:
-      - master
+      - main
       - feature/*
-      - gh-readonly-queue/master/*
+      - gh-readonly-queue/main/*
   merge_group:
 
 jobs:

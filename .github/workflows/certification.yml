@@ -24,7 +24,7 @@ on:
       - 'release-*'
   pull_request:
     branches:
-      - 'master'
+      - 'main'
       - 'release-*'
 
 jobs:

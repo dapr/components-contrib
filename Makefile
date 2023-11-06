@@ -224,7 +224,7 @@ check-component-metadata:
 	$(RUN_BUILD_TOOLS) generate-metadata-analyzer-app --outputfile ./metadataanalyzer/main.go
 	cd metadataanalyzer && \
 	go mod init metadataanalyzer && \
-	go get "github.com/dapr/components-contrib@master" && \
+	go get "github.com/dapr/components-contrib@main" && \
 	go mod edit -replace "github.com/dapr/components-contrib"="../" && \
 	go mod tidy && \
 	go build -tags metadata . && \

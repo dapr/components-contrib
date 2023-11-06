@@ -867,10 +867,9 @@ func TestResolveID(t *testing.T) {
 						},
 					},
 				}
-				resolver := newResolver(logger.NewLogger("test"), &mock)
-				resolver.config = testConfig
+				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{}, make(chan struct{}))
 
-				addr, _ := resolver.ResolveID(req)
+				addr, _ := resolver.ResolveID(context.Background(), req)
 
 				assert.Equal(t, "localhost:50005", addr)
 			},

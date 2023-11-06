@@ -323,7 +323,13 @@ func formatAddress(address string, port string) (addr string, err error) {
 		return fmt.Sprintf("[%s]:%s", address, port), nil
 	}
 
-	return "", fmt.Errorf("invalid ip address %s", address)
+	// addr is not a valid IP address
+	// use net.JoinHostPort to format address if address is a valid hostname
+	if _, err := net.LookupHost(address); err == nil {
+		return net.JoinHostPort(address, port), nil
+	}
+
+	return "", fmt.Errorf("invalid ip address or unreachable hostname: %s", address)
 }
 
 // getConfig configuration from metadata, defaults are best suited for self-hosted mode.

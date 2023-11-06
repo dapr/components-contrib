@@ -22,12 +22,12 @@ on:
   push:
     branches:
       - 'release-*'
-      - 'gh-readonly-queue/master/*'
+      - 'gh-readonly-queue/main/*'
   pull_request:
     branches:
-      - 'master'
+      - 'main'
       - 'release-*'
-      - 'gh-readonly-queue/master/*'
+      - 'gh-readonly-queue/main/*'
   merge_group:
 
 jobs:
@@ -352,7 +352,7 @@ jobs:
     # Upload logs for test analytics to consume
     - name: Upload test results
       if: always()
-      uses: actions/upload-artifact@master
+      uses: actions/upload-artifact@main
       with:
         name: ${{ matrix.component }}_conformance_test
         path: ${{ env.TEST_OUTPUT_FILE_PREFIX }}_conformance.*

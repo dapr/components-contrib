@@ -62,16 +62,19 @@ func CreateContainerStorageClient(parentCtx context.Context, log logger.Logger, 
 		return nil, nil, err
 	}
 
-	// Create the container if it doesn't already exist
-	var accessLevel *azblob.PublicAccessType
-	if m.PublicAccessLevel != "" && m.PublicAccessLevel != "none" {
-		accessLevel = &m.PublicAccessLevel
-	}
-	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
-	defer cancel()
-	err = m.EnsureContainer(ctx, client, accessLevel)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create Azure Storage container %s: %w", m.ContainerName, err)
+	// if entity management is disabled, do not attempt to create the container
+	if !m.DisableEntityManagement {
+		// Create the container if it doesn't already exist
+		var accessLevel *azblob.PublicAccessType
+		if m.PublicAccessLevel != "" && m.PublicAccessLevel != "none" {
+			accessLevel = &m.PublicAccessLevel
+		}
+		ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
+		defer cancel()
+		err = m.EnsureContainer(ctx, client, accessLevel)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create Azure Storage container %s: %w", m.ContainerName, err)
+		}
 	}
 
 	return client, m, nil

@@ -107,9 +107,9 @@ func parseEventHubsMetadata(meta map[string]string, isBinding bool, log logger.L
 		}
 	}
 
-	// If both storageConnectionString and storageAccountKey are specified, show a warning because the connection string will take priority
+	// If both storageConnectionString and storageAccountName are specified, show a warning because the connection string will take priority
 	if m.StorageConnectionString != "" && m.StorageAccountName != "" {
-		log.Warn("Property storageAccountKey is ignored when storageConnectionString is present")
+		log.Warn("Property storageAccountName is ignored when storageConnectionString is present")
 	}
 
 	// Entity management is only possible when using Azure AD

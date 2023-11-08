@@ -196,7 +196,7 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		Bucket:      ptr.Of(metadata.Bucket),
 		Key:         ptr.Of(key),
 		Body:        r,
-		ContentType: ptr.Of(contentType),
+		ContentType: contentType,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: uploading failed: %w", err)

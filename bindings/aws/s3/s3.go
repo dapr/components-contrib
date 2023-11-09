@@ -177,7 +177,7 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	contentTypeStr := strings.TrimSpace(req.Metadata[metatadataContentType])
 	if contentTypeStr != "" {
 		contentType = &contentTypeStr
-	}	
+	}
 	var r io.Reader
 	if metadata.FilePath != "" {
 		r, err = os.Open(metadata.FilePath)

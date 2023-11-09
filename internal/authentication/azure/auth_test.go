@@ -288,7 +288,7 @@ func TestFallbackToMSIandInvalidAuthMethod(t *testing.T) {
 	assert.NoError(t, err)
 
 	testCertConfig := settings.GetMSI()
-	assert.NotNil(t, testCertConfig)
+	require.NotNil(t, testCertConfig)
 
 	_, err = settings.GetTokenCredential()
 	assert.Error(t, err)

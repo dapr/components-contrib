@@ -285,7 +285,7 @@ func TestFallbackToMSIandInvalidAuthMethod(t *testing.T) {
 			"azureAuthMethods": "serviceprincipal,certificate,workloadidentity,managedIdentity,cli,SUPERAUTH",
 		},
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	testCertConfig := settings.GetMSI()
 	require.NotNil(t, testCertConfig)

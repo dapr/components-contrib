@@ -105,94 +105,158 @@ func (s EnvironmentSettings) GetAzureEnvironment() (*cloud.Configuration, error)
 	}
 }
 
-// GetTokenCredential returns an azcore.TokenCredential retrieved from, in order:
+func (s EnvironmentSettings) addClientCredentialsProvider(creds *[]azcore.TokenCredential, errs *[]error) {
+	if c, e := s.GetClientCredentials(); e == nil {
+		cred, err := c.GetTokenCredential()
+		if err == nil {
+			*creds = append(*creds, cred)
+		} else {
+			*errs = append(*errs, err)
+		}
+	}
+}
+
+func (s EnvironmentSettings) addClientCertificateProvider(creds *[]azcore.TokenCredential, errs *[]error) {
+	if c, e := s.GetClientCert(); e == nil {
+		cred, err := c.GetTokenCredential()
+		if err == nil {
+			*creds = append(*creds, cred)
+		} else {
+			*errs = append(*errs, err)
+		}
+	}
+}
+
+func (s EnvironmentSettings) addWorkloadIdentityProvider(creds *[]azcore.TokenCredential, errs *[]error) {
+	// workload identity requires values for AZURE_AUTHORITY_HOST, AZURE_CLIENT_ID, AZURE_FEDERATED_TOKEN_FILE, AZURE_TENANT_ID
+	// The workload identity mutating admissions webhook in Kubernetes injects these values into the pod.
+	// These environment variables are read using the default WorkloadIdentityCredentialOptions
+	workloadCred, err := azidentity.NewWorkloadIdentityCredential(nil)
+	if err == nil {
+		*creds = append(*creds, workloadCred)
+	} else {
+		*errs = append(*errs, err)
+	}
+}
+
+func (s EnvironmentSettings) addManagedIdentityProvider(timeout time.Duration, creds *[]azcore.TokenCredential, errs *[]error) {
+	c := s.GetMSI()
+	msiCred, err := c.GetTokenCredential()
+
+	useTimeout := true
+	if _, ok := os.LookupEnv(identityEndpoint); ok {
+		// App Service, Functions, Service Fabric and Container Apps
+		useTimeout = false
+	} else {
+		if _, ok := os.LookupEnv(arcIMDSEndpoint); ok {
+			// Azure Arc
+			useTimeout = false
+		} else {
+			if _, ok := os.LookupEnv(msiEndpoint); ok {
+				// Cloud Shell
+				useTimeout = false
+			} else if isVirtualMachineWithManagedIdentity() {
+				// Azure VM with MSI enabled
+				useTimeout = false
+			}
+		}
+	}
+
+	// We need to use a timeout for MSI on environments where it is not available because the request for the default IMDS endpoint can hang for several minutes.
+	if useTimeout {
+		msiCred = &timeoutWrapper{cred: msiCred, authmethod: "managed identity", timeout: timeout}
+	}
+
+	if err == nil {
+		*creds = append(*creds, msiCred)
+	} else {
+		*errs = append(*errs, err)
+	}
+}
+
+func (s EnvironmentSettings) addCLIProvider(timeout time.Duration, creds *[]azcore.TokenCredential, errs *[]error) {
+	cred, credErr := azidentity.NewAzureCLICredential(nil)
+	if credErr == nil {
+		*creds = append(*creds, &timeoutWrapper{cred: cred, authmethod: "Azure CLI", timeout: 30 * time.Second})
+	} else {
+		*errs = append(*errs, credErr)
+	}
+}
+
+func (s EnvironmentSettings) addProviderByAuthMethodName(authMethod string, creds *[]azcore.TokenCredential, errs *[]error) {
+	switch authMethod {
+	case "serviceprincipal":
+		s.addClientCredentialsProvider(creds, errs)
+	case "certificate":
+		s.addClientCertificateProvider(creds, errs)
+	case "workloadidentity":
+		s.addWorkloadIdentityProvider(creds, errs)
+	case "managedidentity":
+		s.addManagedIdentityProvider(1*time.Second, creds, errs)
+	case "cli":
+		s.addCLIProvider(30*time.Second, creds, errs)
+	}
+}
+
+func getAzureAuthMethods() [6]string {
+	return [...]string{"serviceprincipal", "certificate", "workloadidentity", "managedidentity", "cli", "none"}
+}
+
+// GetTokenCredential returns an azcore.TokenCredential retrieved from the order specified via
+// the azureAuthMethods component metadata property which denotes a comma-separated list of auth methods to try in order.
+// The possible values contained are (case-insensitive):
+// ServicePrincipal, Certificate, WorkloadIdentity, ManagedIdentity, CLI
+// The string "None" can be used to disable Azure authentication.
+//
+// If the azureAuthMethods property is not present, the following order is used (which with the exception of step 5
+// matches the DefaultAzureCredential order):
 // 1. Client credentials
 // 2. Client certificate
 // 3. Workload identity
 // 4. MSI (we use a timeout of 1 second when no compatible managed identity implementation is available)
 // 5. Azure CLI
-//
-// This order and timeout (with the exception of the additional step 5) matches the DefaultAzureCredential.
 func (s EnvironmentSettings) GetTokenCredential() (azcore.TokenCredential, error) {
 	// Create a chain
 	var creds []azcore.TokenCredential
 	errs := make([]error, 0, 3)
 
-	// 1. Client credentials
-	if c, e := s.GetClientCredentials(); e == nil {
-		cred, err := c.GetTokenCredential()
-		if err == nil {
-			creds = append(creds, cred)
-		} else {
-			errs = append(errs, err)
-		}
-	}
+	authMethods, ok := s.GetEnvironment("AzureAuthMethods")
+	if !ok || strings.TrimSpace(authMethods) == "" {
+		// 1. Client credentials
+		s.addClientCredentialsProvider(&creds, &errs)
 
-	// 2. Client certificate
-	if c, e := s.GetClientCert(); e == nil {
-		cred, err := c.GetTokenCredential()
-		if err == nil {
-			creds = append(creds, cred)
-		} else {
-			errs = append(errs, err)
-		}
-	}
+		// 2. Client certificate
+		s.addClientCertificateProvider(&creds, &errs)
 
-	// 3. Workload identity
-	// workload identity requires values for AZURE_AUTHORITY_HOST, AZURE_CLIENT_ID, AZURE_FEDERATED_TOKEN_FILE, AZURE_TENANT_ID
-	// The workload identity mutating admissions webhook in Kubernetes injects these values into the pod.
-	// These environment variables are read using the default WorkloadIdentityCredentialOptions
+		// 3. Workload identity
+		s.addWorkloadIdentityProvider(&creds, &errs)
 
-	workloadCred, err := azidentity.NewWorkloadIdentityCredential(nil)
-	if err == nil {
-		creds = append(creds, workloadCred)
+		// 4. MSI with timeout of 1 second (same as DefaultAzureCredential)
+		s.addManagedIdentityProvider(1*time.Second, &creds, &errs)
+
+		// 5. AzureCLICredential
+		s.addCLIProvider(30*time.Second, &creds, &errs)
 	} else {
-		errs = append(errs, err)
-	}
-
-	// 4. MSI with timeout of 1 second (same as DefaultAzureCredential)
-	{
-		c := s.GetMSI()
-		msiCred, err := c.GetTokenCredential()
-
-		useTimeout := true
-		if _, ok := os.LookupEnv(identityEndpoint); ok {
-			// App Service & Service Fabric
-			useTimeout = false
-		} else {
-			if _, ok := os.LookupEnv(arcIMDSEndpoint); ok {
-				// Azure Arc
-				useTimeout = false
-			} else {
-				if _, ok := os.LookupEnv(msiEndpoint); ok {
-					// Cloud Shell
-					useTimeout = false
-				} else if isVirtualMachineWithManagedIdentity() {
-					// Azure VM with MSI enabled
-					useTimeout = false
+		authMethodIdentifiers := getAzureAuthMethods()
+		authMethods := strings.Split(strings.ToLower(strings.TrimSpace(authMethods)), ",")
+		for _, authMethod := range authMethods {
+			authMethod = strings.TrimSpace(authMethod)
+			found := false
+			for _, authMethodIdentifier := range authMethodIdentifiers {
+				if authMethod == authMethodIdentifier {
+					found = true
+					if authMethod != "none" {
+						s.addProviderByAuthMethodName(authMethod, &creds, &errs)
+						break
+					} else {
+						// If authMethod is "none", we don't add any provider and return an error
+						return nil, fmt.Errorf("all Azure auth methods have been disabled with auth method 'None'")
+					}
 				}
 			}
-		}
-
-		// We need to use a timeout for MSI on environments where it is not available because the request for the default IMDS endpoint can hang for several minutes.
-		if useTimeout {
-			msiCred = &timeoutWrapper{cred: msiCred, authmethod: "managed identity", timeout: 1 * time.Second}
-		}
-
-		if err == nil {
-			creds = append(creds, msiCred)
-		} else {
-			errs = append(errs, err)
-		}
-	}
-
-	// 5. AzureCLICredential
-	{
-		cred, credErr := azidentity.NewAzureCLICredential(nil)
-		if credErr == nil {
-			creds = append(creds, &timeoutWrapper{cred: cred, authmethod: "Azure CLI", timeout: 30 * time.Second})
-		} else {
-			errs = append(errs, credErr)
+			if !found {
+				return nil, fmt.Errorf("invalid Azure auth method: %v", authMethod)
+			}
 		}
 	}
 

@@ -245,7 +245,7 @@ func TestFallbackToMSIandInAllowedList(t *testing.T) {
 		map[string]string{
 			"azureClientId":    fakeClientID,
 			"vaultName":        "vaultName",
-			"azureAuthMethods": "serviceprincipal,certificate,workloadidentity,managedIdentity",
+			"azureAuthMethods": "clientcredentials,clientcertificate,workloadidentity,managedIdentity",
 		},
 	)
 	assert.NoError(t, err)
@@ -265,7 +265,7 @@ func TestFallbackToMSIandNotInAllowedList(t *testing.T) {
 		map[string]string{
 			"azureClientId":    fakeClientID,
 			"vaultName":        "vaultName",
-			"azureAuthMethods": "serviceprincipal,certificate,workloadidentity",
+			"azureAuthMethods": "clientcredentials,clientcertificate,workloadidentity",
 		},
 	)
 	assert.NoError(t, err)
@@ -282,7 +282,7 @@ func TestFallbackToMSIandInvalidAuthMethod(t *testing.T) {
 		map[string]string{
 			"azureClientId":    fakeClientID,
 			"vaultName":        "vaultName",
-			"azureAuthMethods": "serviceprincipal,certificate,workloadidentity,managedIdentity,cli,SUPERAUTH",
+			"azureAuthMethods": "clientcredentials,clientcertificate,workloadidentity,managedIdentity,cli,SUPERAUTH",
 		},
 	)
 	require.NoError(t, err)

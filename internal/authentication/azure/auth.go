@@ -185,21 +185,21 @@ func (s EnvironmentSettings) addCLIProvider(timeout time.Duration, creds *[]azco
 
 func (s EnvironmentSettings) addProviderByAuthMethodName(authMethod string, creds *[]azcore.TokenCredential, errs *[]error) {
 	switch authMethod {
-	case "serviceprincipal":
+	case "clientcredentials", "creds":
 		s.addClientCredentialsProvider(creds, errs)
-	case "certificate":
+	case "clientcertificate", "cert":
 		s.addClientCertificateProvider(creds, errs)
-	case "workloadidentity":
+	case "workloadidentity", "wi":
 		s.addWorkloadIdentityProvider(creds, errs)
-	case "managedidentity":
+	case "managedidentity", "mi":
 		s.addManagedIdentityProvider(1*time.Second, creds, errs)
-	case "cli":
+	case "commandlineinterface", "cli":
 		s.addCLIProvider(30*time.Second, creds, errs)
 	}
 }
 
-func getAzureAuthMethods() [6]string {
-	return [...]string{"serviceprincipal", "certificate", "workloadidentity", "managedidentity", "cli", "none"}
+func getAzureAuthMethods() []string {
+	return []string{"clientcredentials", "creds", "clientcertificate", "cert", "workloadidentity", "wi", "managedidentity", "mi", "commandlineinterface", "cli", "none"}
 }
 
 // GetTokenCredential returns an azcore.TokenCredential retrieved from the order specified via

@@ -117,7 +117,7 @@ require (
 	golang.org/x/net v0.17.0
 	golang.org/x/oauth2 v0.11.0
 	google.golang.org/api v0.138.0
-	google.golang.org/grpc v1.58.3
+	google.golang.org/grpc v1.57.1
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/couchbase/gocb.v1 v1.6.7
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df

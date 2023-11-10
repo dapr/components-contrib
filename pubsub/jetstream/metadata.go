@@ -55,6 +55,8 @@ type metadata struct {
 	internalAckPolicy     nats.AckPolicy     `mapstructure:"-"`
 	Domain                string             `mapstructure:"domain"`
 	APIPrefix             string             `mapstructure:"apiPrefix"`
+
+	Concurrency pubsub.ConcurrencyMode `mapstructure:"concurrency"`
 }
 
 func parseMetadata(psm pubsub.Metadata) (metadata, error) {
@@ -117,6 +119,18 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 		m.internalAckPolicy = nats.AckNonePolicy
 	default:
 		m.internalAckPolicy = nats.AckExplicitPolicy
+	}
+
+	// Explicit check to default to Single mode since this was the
+	// previous default behavior.
+	if psm.Properties[pubsub.ConcurrencyKey] != "" {
+		c, err := pubsub.Concurrency(psm.Properties)
+		if err != nil {
+			return metadata{}, err
+		}
+		m.Concurrency = c
+	} else {
+		m.Concurrency = pubsub.Single
 	}
 
 	return m, nil

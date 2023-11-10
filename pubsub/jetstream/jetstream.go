@@ -198,10 +198,8 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 	natsHandler := func(m *nats.Msg) {
 		jsm, err := m.Metadata()
 		if err != nil {
-			// If we get an error, then we don't have a valid JetStream
-			// message.
+			// If we get an error, then we don't have a valid JetStream message.
 			js.l.Error(err)
-
 			return
 		}
 
@@ -260,7 +258,22 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 		subscription, err = js.jsc.QueueSubscribe(req.Topic, queue, natsHandler, nats.Bind(streamName, consumerInfo.Name))
 	} else {
 		js.l.Debugf("nats: subscribed to subject %s", req.Topic)
-		subscription, err = js.jsc.Subscribe(req.Topic, natsHandler, nats.Bind(streamName, consumerInfo.Name))
+		subscription, err = js.jsc.Subscribe(
+			req.Topic,
+			func(msg *nats.Msg) {
+				switch js.meta.Concurrency {
+				case pubsub.Single:
+					natsHandler(msg)
+				case pubsub.Parallel:
+					js.wg.Add(1)
+					go func(msg *nats.Msg) {
+						natsHandler(msg)
+						js.wg.Done()
+					}(msg)
+				}
+			},
+			nats.Bind(streamName, consumerInfo.Name),
+		)
 	}
 	if err != nil {
 		return err

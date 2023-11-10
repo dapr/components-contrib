@@ -47,6 +47,7 @@ import (
 
 const (
 	sidecarName = "blobstorage-sidecar"
+	blobNotFound = "blob not found"
 )
 
 // getBlobRequest is used to make a common binding request for the get operation.
@@ -198,12 +199,12 @@ func TestBlobStorage(t *testing.T) {
 		// confirm the deletion.
 		_, invokeSecondGetErr := getBlobRequest(ctx, client, blobName, false)
 		assert.Error(t, invokeSecondGetErr)
-		assert.Contains(t, invokeSecondGetErr.Error(), bloberror.BlobNotFound)
+		assert.Contains(t, invokeSecondGetErr.Error(), blobNotFound)
 
 		// deleting the key again should fail.
 		_, invokeDeleteErr2 := deleteBlobRequest(ctx, client, blobName, nil)
 		assert.Error(t, invokeDeleteErr2)
-		assert.Contains(t, invokeDeleteErr2.Error(), bloberror.BlobNotFound)
+		assert.Contains(t, invokeDeleteErr2.Error(), blobNotFound)
 
 		return nil
 	}
@@ -285,7 +286,7 @@ func TestBlobStorage(t *testing.T) {
 			// confirm the deletion.
 			_, invokeSecondGetErr := getBlobRequest(ctx, client, blobName, false)
 			assert.Error(t, invokeSecondGetErr)
-			assert.Contains(t, invokeSecondGetErr.Error(), bloberror.BlobNotFound)
+			assert.Contains(t, invokeSecondGetErr.Error(), blobNotFound)
 
 			return nil
 		}
@@ -425,7 +426,7 @@ func TestBlobStorage(t *testing.T) {
 		// confirm the deletion.
 		_, invokeSecondGetErr := getBlobRequest(ctx, client, "filename.txt", false)
 		assert.Error(t, invokeSecondGetErr)
-		assert.Contains(t, invokeSecondGetErr.Error(), bloberror.BlobNotFound)
+		assert.Contains(t, invokeSecondGetErr.Error(), blobNotFound)
 
 		return nil
 	}

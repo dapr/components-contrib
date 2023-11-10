@@ -60,7 +60,9 @@ type metadata struct {
 }
 
 func parseMetadata(psm pubsub.Metadata) (metadata, error) {
-	var m metadata
+	m := metadata{
+		Concurrency: pubsub.Single,
+	}
 
 	err := kitmd.DecodeMetadata(psm.Properties, &m)
 	if err != nil {
@@ -121,16 +123,14 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 		m.internalAckPolicy = nats.AckExplicitPolicy
 	}
 
-	// Explicit check to default to Single mode since this was the
-	// previous default behavior.
+	// Explicit check to prevent overriding the Single default
+	// (the previous behavior) if not set.
 	if psm.Properties[pubsub.ConcurrencyKey] != "" {
 		c, err := pubsub.Concurrency(psm.Properties)
 		if err != nil {
 			return metadata{}, err
 		}
 		m.Concurrency = c
-	} else {
-		m.Concurrency = pubsub.Single
 	}
 
 	return m, nil

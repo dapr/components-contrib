@@ -266,10 +266,10 @@ func (js *jetstreamPubSub) Subscribe(ctx context.Context, req pubsub.SubscribeRe
 					natsHandler(msg)
 				case pubsub.Parallel:
 					js.wg.Add(1)
-					go func(msg *nats.Msg) {
+					go func() {
 						natsHandler(msg)
 						js.wg.Done()
-					}(msg)
+					}()
 				}
 			},
 			nats.Bind(streamName, consumerInfo.Name),

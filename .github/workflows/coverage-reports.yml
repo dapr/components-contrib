@@ -51,7 +51,7 @@ jobs:
           with:
             workflow: certification.yml
             workflow_conclusion: "success"
-            branch: master
+            branch: main
             event: schedule
             if_no_artifact_found: error
             name: cert_code_cov
@@ -62,7 +62,7 @@ jobs:
           with:
             workflow: conformance.yml
             workflow_conclusion: "success"
-            branch: master
+            branch: main
             event: schedule
             if_no_artifact_found: error
             name: conf_code_cov

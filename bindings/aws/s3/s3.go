@@ -48,7 +48,8 @@ const (
 	metadataFilePath     = "filePath"
 	metadataPresignTTL   = "presignTTL"
 
-	metadataKey = "key"
+	metatadataContentType = "Content-Type"
+	metadataKey           = "key"
 
 	defaultMaxResults = 1000
 	presignOperation  = "presign"
@@ -172,6 +173,11 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		s.logger.Debugf("s3 binding error: key not found. generating key %s", key)
 	}
 
+	var contentType *string
+	contentTypeStr := strings.TrimSpace(req.Metadata[metatadataContentType])
+	if contentTypeStr != "" {
+		contentType = &contentTypeStr
+	}
 	var r io.Reader
 	if metadata.FilePath != "" {
 		r, err = os.Open(metadata.FilePath)
@@ -187,9 +193,10 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 	}
 
 	resultUpload, err := s.uploader.UploadWithContext(ctx, &s3manager.UploadInput{
-		Bucket: ptr.Of(metadata.Bucket),
-		Key:    ptr.Of(key),
-		Body:   r,
+		Bucket:      ptr.Of(metadata.Bucket),
+		Key:         ptr.Of(key),
+		Body:        r,
+		ContentType: contentType,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("s3 binding error: uploading failed: %w", err)

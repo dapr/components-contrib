@@ -846,6 +846,35 @@ func TestResolveID(t *testing.T) {
 			},
 		},
 		{
+			"should get localhost (hostname) from service",
+			nr.ResolveRequest{
+				ID: "test-app",
+			},
+			func(t *testing.T, req nr.ResolveRequest) {
+				t.Helper()
+				mock := mockClient{
+					mockHealth: mockHealth{
+						serviceResult: []*consul.ServiceEntry{
+							{
+								Service: &consul.AgentService{
+									Address: "localhost",
+									Port:    8600,
+									Meta: map[string]string{
+										"DAPR_PORT": "50005",
+									},
+								},
+							},
+						},
+					},
+				}
+				resolver := newResolver(logger.NewLogger("test"), testConfig, &mock, &registry{}, make(chan struct{}))
+
+				addr, _ := resolver.ResolveID(context.Background(), req)
+
+				assert.Equal(t, "localhost:50005", addr)
+			},
+		},
+		{
 			"should get random address from service",
 			nr.ResolveRequest{
 				ID: "test-app",

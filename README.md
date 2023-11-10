@@ -1,8 +1,8 @@
 # Components Contrib
 
-[![Build, Lint, Unit Test - complete matrix](https://github.com/dapr/components-contrib/actions/workflows/components-contrib-all.yml/badge.svg?branch=master&event=schedule)](https://github.com/dapr/components-contrib/actions/workflows/components-contrib-all.yml)
+[![Build, Lint, Unit Test - complete matrix](https://github.com/dapr/components-contrib/actions/workflows/components-contrib-all.yml/badge.svg?branch=main&event=schedule)](https://github.com/dapr/components-contrib/actions/workflows/components-contrib-all.yml)
 [![Discord](https://img.shields.io/discord/778680217417809931)](https://discord.com/channels/778680217417809931/781589820128493598)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/dapr/components-contrib/blob/master/LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/dapr/components-contrib/blob/main/LICENSE)
 [![FOSSA Status](https://app.fossa.com/api/projects/custom%2B162%2Fgithub.com%2Fdapr%2Fcomponents-contrib.svg?type=shield)](https://app.fossa.com/projects/custom%2B162%2Fgithub.com%2Fdapr%2Fcomponents-contrib?ref=badge_shield)
 
 The purpose of Components Contrib is to provide open, community-driven, reusable components for building distributed applications.

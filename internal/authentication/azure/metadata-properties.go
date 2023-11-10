@@ -35,6 +35,9 @@ var MetadataKeys = map[string][]string{ //nolint:gochecknoglobals
 	// Identifier for the Azure environment
 	// Allowed values (case-insensitive): AzurePublicCloud/AzurePublic, AzureChinaCloud/AzureChina, AzureUSGovernmentCloud/AzureUSGovernment
 	"AzureEnvironment": {"azureEnvironment", "azureCloud"},
+	// Identifier for the Azure authentication methods to try (in order), comma-separated
+	// Allowed values (case-insensitive): ClientCredentials, creds, ClientCertificate, cert, WorkloadIdentity, wi, ManagedIdentity, mi, CommandLineInterface, cli, None
+	"AzureAuthMethods": {"azureAuthMethods", "azureADAuthMethods", "entraIDAuthMethods", "microsoftEntraIDAuthMethods"},
 
 	// Metadata keys for storage components
 

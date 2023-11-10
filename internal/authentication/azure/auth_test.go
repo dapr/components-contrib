@@ -221,6 +221,80 @@ func TestAuthorizorWithMSI(t *testing.T) {
 	assert.NotNil(t, spt)
 }
 
+func TestFallbackToMSIbutAzureAuthDisallowed(t *testing.T) {
+	os.Setenv("MSI_ENDPOINT", "test")
+	defer os.Unsetenv("MSI_ENDPOINT")
+	settings, err := NewEnvironmentSettings(
+		map[string]string{
+			"azureClientId":    fakeClientID,
+			"vaultName":        "vaultName",
+			"azureAuthMethods": "None",
+		},
+	)
+	assert.NoError(t, err)
+
+	_, err = settings.GetTokenCredential()
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "all Azure auth methods have been disabled")
+}
+
+func TestFallbackToMSIandInAllowedList(t *testing.T) {
+	os.Setenv("MSI_ENDPOINT", "test")
+	defer os.Unsetenv("MSI_ENDPOINT")
+	settings, err := NewEnvironmentSettings(
+		map[string]string{
+			"azureClientId":    fakeClientID,
+			"vaultName":        "vaultName",
+			"azureAuthMethods": "clientcredentials,clientcertificate,workloadidentity,managedIdentity",
+		},
+	)
+	assert.NoError(t, err)
+
+	testCertConfig := settings.GetMSI()
+	assert.NotNil(t, testCertConfig)
+
+	spt, err := settings.GetTokenCredential()
+	assert.NoError(t, err)
+	assert.NotNil(t, spt)
+}
+
+func TestFallbackToMSIandNotInAllowedList(t *testing.T) {
+	os.Setenv("MSI_ENDPOINT", "test")
+	defer os.Unsetenv("MSI_ENDPOINT")
+	settings, err := NewEnvironmentSettings(
+		map[string]string{
+			"azureClientId":    fakeClientID,
+			"vaultName":        "vaultName",
+			"azureAuthMethods": "clientcredentials,clientcertificate,workloadidentity",
+		},
+	)
+	assert.NoError(t, err)
+
+	_, err = settings.GetTokenCredential()
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "no suitable token provider for Azure AD")
+}
+
+func TestFallbackToMSIandInvalidAuthMethod(t *testing.T) {
+	os.Setenv("MSI_ENDPOINT", "test")
+	defer os.Unsetenv("MSI_ENDPOINT")
+	settings, err := NewEnvironmentSettings(
+		map[string]string{
+			"azureClientId":    fakeClientID,
+			"vaultName":        "vaultName",
+			"azureAuthMethods": "clientcredentials,clientcertificate,workloadidentity,managedIdentity,cli,SUPERAUTH",
+		},
+	)
+	require.NoError(t, err)
+
+	testCertConfig := settings.GetMSI()
+	require.NotNil(t, testCertConfig)
+
+	_, err = settings.GetTokenCredential()
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "invalid Azure auth method: superauth")
+}
+
 func TestAuthorizorWithMSIAndUserAssignedID(t *testing.T) {
 	os.Setenv("MSI_ENDPOINT", "test")
 	defer os.Unsetenv("MSI_ENDPOINT")

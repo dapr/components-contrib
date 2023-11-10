@@ -23,11 +23,16 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	"errors"
+	"net/http"
+
 
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
+	"google.golang.org/api/googleapi"
+
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
@@ -213,6 +218,11 @@ func (g *GCPStorage) get(ctx context.Context, req *bindings.InvokeRequest) (*bin
 	var rc io.ReadCloser
 	rc, err = g.client.Bucket(g.metadata.Bucket).Object(key).NewReader(ctx)
 	if err != nil {
+		var apiErr *googleapi.Error
+		if errors.As(err, &apiErr) && apiErr.Code == http.StatusNotFound {
+			return nil, fmt.Errorf("object not found: %s", key)
+		}
+
 		return nil, fmt.Errorf("gcp bucketgcp bucket binding error: error downloading bucket object: %w", err)
 	}
 	defer rc.Close()

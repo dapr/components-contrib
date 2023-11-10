@@ -17,10 +17,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
 	"strconv"
+	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/huaweicloud/huaweicloud-sdk-go-obs/obs"
@@ -219,6 +221,10 @@ func (o *HuaweiOBS) get(ctx context.Context, req *bindings.InvokeRequest) (*bind
 
 	out, err := o.service.GetObject(ctx, input)
 	if err != nil {
+		var obsErr obs.ObsError
+		if errors.As(err, &obsErr) && obsErr.StatusCode == http.StatusNotFound {
+			return nil, fmt.Errorf("object not found: %s", key)
+		}
 		return nil, fmt.Errorf("obs binding error. error getting obs object: %w", err)
 	}
 

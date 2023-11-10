@@ -25,6 +25,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/google/uuid"
@@ -189,7 +190,12 @@ func (a *AzureBlobStorage) get(ctx context.Context, req *bindings.InvokeRequest)
 	}
 
 	blobDownloadResponse, err := blockBlobClient.DownloadStream(ctx, &downloadOptions)
+
 	if err != nil {
+		var storageErr bloberror.Code
+		if errors.As(err, &storageErr) && storageErr == bloberror.BlobNotFound {
+			return nil, fmt.Errorf("blob not found: %s", req.Metadata[metadataKeyBlobName])
+		}
 		return nil, fmt.Errorf("error downloading az blob: %w", err)
 	}
 	reader := blobDownloadResponse.Body

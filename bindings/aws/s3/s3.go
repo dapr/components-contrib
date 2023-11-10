@@ -18,6 +18,7 @@ import (
 	"crypto/tls"
 	b64 "encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -300,6 +301,10 @@ func (s *AWSS3) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings
 		},
 	)
 	if err != nil {
+		var awsErr s3.Error
+		if errors.As(err, &awsErr) && *awsErr.Code == s3.ErrCodeNoSuchKey {
+			return nil, fmt.Errorf("object not found: %s", key)
+		}
 		return nil, fmt.Errorf("s3 binding error: error downloading S3 object: %w", err)
 	}
 

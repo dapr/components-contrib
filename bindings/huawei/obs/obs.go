@@ -223,7 +223,7 @@ func (o *HuaweiOBS) get(ctx context.Context, req *bindings.InvokeRequest) (*bind
 	if err != nil {
 		var obsErr obs.ObsError
 		if errors.As(err, &obsErr) && obsErr.StatusCode == http.StatusNotFound {
-			return nil, fmt.Errorf("object not found: %s", key)
+			return nil, errors.New("object not found")
 		}
 		return nil, fmt.Errorf("obs binding error. error getting obs object: %w", err)
 	}

@@ -220,7 +220,7 @@ func (g *GCPStorage) get(ctx context.Context, req *bindings.InvokeRequest) (*bin
 	if err != nil {
 		var apiErr *googleapi.Error
 		if errors.As(err, &apiErr) && apiErr.Code == http.StatusNotFound {
-			return nil, fmt.Errorf("object not found: %s", key)
+			return nil, errors.New("object not found")
 		}
 
 		return nil, fmt.Errorf("gcp bucketgcp bucket binding error: error downloading bucket object: %w", err)

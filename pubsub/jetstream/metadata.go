@@ -125,6 +125,7 @@ func parseMetadata(psm pubsub.Metadata) (metadata, error) {
 
 	// Explicit check to prevent overriding the Single default
 	// (the previous behavior) if not set.
+	// TODO: See https://github.com/dapr/components-contrib/pull/3222#discussion_r1389772053
 	if psm.Properties[pubsub.ConcurrencyKey] != "" {
 		c, err := pubsub.Concurrency(psm.Properties)
 		if err != nil {

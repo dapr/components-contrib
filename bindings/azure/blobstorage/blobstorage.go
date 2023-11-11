@@ -190,7 +190,6 @@ func (a *AzureBlobStorage) get(ctx context.Context, req *bindings.InvokeRequest)
 	}
 
 	blobDownloadResponse, err := blockBlobClient.DownloadStream(ctx, &downloadOptions)
-
 	if err != nil {
 		if bloberror.HasCode(err, bloberror.BlobNotFound) {
 			return nil, fmt.Errorf("blob not found")

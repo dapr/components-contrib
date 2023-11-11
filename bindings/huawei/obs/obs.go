@@ -20,9 +20,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"reflect"
 	"strconv"
-	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/huaweicloud/huaweicloud-sdk-go-obs/obs"
@@ -261,6 +261,10 @@ func (o *HuaweiOBS) delete(ctx context.Context, req *bindings.InvokeRequest) (*b
 
 	out, err := o.service.DeleteObject(ctx, input)
 	if err != nil {
+		var obsErr obs.ObsError
+		if errors.As(err, &obsErr) && obsErr.StatusCode == http.StatusNotFound {
+			return nil, errors.New("object not found")
+		}
 		return nil, fmt.Errorf("obs binding error. error deleting obs object: %w", err)
 	}
 

@@ -46,7 +46,7 @@ import (
 )
 
 const (
-	sidecarName = "blobstorage-sidecar"
+	sidecarName  = "blobstorage-sidecar"
 	blobNotFound = "blob not found"
 )
 

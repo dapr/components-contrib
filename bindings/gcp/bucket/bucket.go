@@ -18,21 +18,19 @@ import (
 	"context"
 	b64 "encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"reflect"
 	"strconv"
-	"errors"
-	"net/http"
-
 
 	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
-	"google.golang.org/api/googleapi"
-
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
@@ -254,6 +252,11 @@ func (g *GCPStorage) delete(ctx context.Context, req *bindings.InvokeRequest) (*
 	object := g.client.Bucket(g.metadata.Bucket).Object(key)
 
 	err := object.Delete(ctx)
+
+	var apiErr *googleapi.Error
+	if errors.As(err, &apiErr) && apiErr.Code == http.StatusNotFound {
+		return nil, errors.New("object not found")
+	}
 
 	return nil, err
 }

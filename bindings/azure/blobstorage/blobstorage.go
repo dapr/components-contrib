@@ -25,6 +25,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/google/uuid"
@@ -190,6 +191,9 @@ func (a *AzureBlobStorage) get(ctx context.Context, req *bindings.InvokeRequest)
 
 	blobDownloadResponse, err := blockBlobClient.DownloadStream(ctx, &downloadOptions)
 	if err != nil {
+		if bloberror.HasCode(err, bloberror.BlobNotFound) {
+			return nil, fmt.Errorf("blob not found")
+		}
 		return nil, fmt.Errorf("error downloading az blob: %w", err)
 	}
 	reader := blobDownloadResponse.Body
@@ -255,6 +259,10 @@ func (a *AzureBlobStorage) delete(ctx context.Context, req *bindings.InvokeReque
 
 	blockBlobClient = a.containerClient.NewBlockBlobClient(val)
 	_, err := blockBlobClient.Delete(ctx, &deleteOptions)
+
+	if bloberror.HasCode(err, bloberror.BlobNotFound) {
+		return nil, fmt.Errorf("blob not found")
+	}
 
 	return nil, err
 }

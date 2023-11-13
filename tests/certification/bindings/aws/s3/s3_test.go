@@ -43,6 +43,7 @@ import (
 const (
 	sidecarName          = "bindings-s3-sidecar"
 	bindingsMetadataName = "s3-cert-tests"
+	objNotFound          = "object not found"
 )
 
 var bucketName = "bucketName"
@@ -207,7 +208,7 @@ func S3SBasic(t *testing.T) {
 		// confirm the deletion.
 		_, invokeSecondGetErr := getObjectRequest(ctx, client, objectName, false)
 		assert.Error(t, invokeSecondGetErr)
-		assert.Contains(t, invokeSecondGetErr.Error(), "error downloading S3 object")
+		assert.Contains(t, invokeSecondGetErr.Error(), objNotFound)
 
 		return nil
 	}
@@ -270,7 +271,7 @@ func S3SForcePathStyle(t *testing.T) {
 			// confirm the deletion.
 			_, invokeSecondGetErr := getObjectRequest(ctx, client, objectName, false)
 			assert.Error(t, invokeSecondGetErr)
-			assert.Contains(t, invokeSecondGetErr.Error(), "error downloading S3 object")
+			assert.Contains(t, invokeSecondGetErr.Error(), objNotFound)
 
 			return nil
 		}

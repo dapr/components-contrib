@@ -17,7 +17,7 @@ import (
 	"errors"
 	"regexp"
 
-	"github.com/dapr/components-contrib/internal/component/cloudflare/workers"
+	"github.com/dapr/components-contrib/common/component/cloudflare/workers"
 )
 
 // Component metadata struct.

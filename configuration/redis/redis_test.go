@@ -22,7 +22,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 
-	redisComponent "github.com/dapr/components-contrib/internal/component/redis"
+	redisComponent "github.com/dapr/components-contrib/common/component/redis"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 
 	"github.com/dapr/components-contrib/configuration"

@@ -30,8 +30,8 @@ import (
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/dapr/components-contrib/common/authentication/azure"
 	"github.com/dapr/components-contrib/contenttype"
-	"github.com/dapr/components-contrib/internal/authentication/azure"
 	contribmeta "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"

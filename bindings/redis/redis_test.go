@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dapr/components-contrib/bindings"
-	internalredis "github.com/dapr/components-contrib/internal/component/redis"
+	rediscomponent "github.com/dapr/components-contrib/common/component/redis"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
@@ -243,7 +243,7 @@ func TestIncrement(t *testing.T) {
 	assert.Equal(t, nil, err)
 }
 
-func setupMiniredis() (*miniredis.Miniredis, internalredis.RedisClient) {
+func setupMiniredis() (*miniredis.Miniredis, rediscomponent.RedisClient) {
 	s, err := miniredis.Run()
 	if err != nil {
 		panic(err)
@@ -253,5 +253,5 @@ func setupMiniredis() (*miniredis.Miniredis, internalredis.RedisClient) {
 		DB:   0,
 	}
 
-	return s, internalredis.ClientFromV8Client(redis.NewClient(opts))
+	return s, rediscomponent.ClientFromV8Client(redis.NewClient(opts))
 }

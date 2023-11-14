@@ -23,7 +23,7 @@ import (
 	"reflect"
 	"time"
 
-	internalsql "github.com/dapr/components-contrib/internal/component/sql"
+	commonsql "github.com/dapr/components-contrib/common/component/sql"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
@@ -101,7 +101,7 @@ type SQLServer struct {
 	features []state.Feature
 	logger   logger.Logger
 	db       *sql.DB
-	gc       internalsql.GarbageCollector
+	gc       commonsql.GarbageCollector
 }
 
 // Init initializes the SQL server state store.
@@ -141,7 +141,7 @@ func (s *SQLServer) Init(ctx context.Context, metadata state.Metadata) error {
 }
 
 func (s *SQLServer) startGC() error {
-	gc, err := internalsql.ScheduleGarbageCollector(internalsql.GCOptions{
+	gc, err := commonsql.ScheduleGarbageCollector(commonsql.GCOptions{
 		Logger: s.logger,
 		UpdateLastCleanupQuery: func(arg any) (string, any) {
 			return fmt.Sprintf(`BEGIN TRANSACTION;
@@ -158,7 +158,7 @@ COMMIT TRANSACTION;`, s.metadata.Schema, s.metadata.MetadataTableName), sql.Name
 			s.metadata.Schema, s.metadata.TableName,
 		),
 		CleanupInterval: *s.metadata.CleanupInterval,
-		DB:              internalsql.AdaptDatabaseSQLConn(s.db),
+		DB:              commonsql.AdaptDatabaseSQLConn(s.db),
 	})
 	if err != nil {
 		return err

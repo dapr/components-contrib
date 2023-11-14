@@ -24,8 +24,8 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
+	rediscomponent "github.com/dapr/components-contrib/common/component/redis"
 	"github.com/dapr/components-contrib/contenttype"
-	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
 	daprmetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"

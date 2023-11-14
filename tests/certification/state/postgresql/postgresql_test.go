@@ -37,7 +37,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 
-	state_postgres "github.com/dapr/components-contrib/internal/component/postgresql"
+	state_postgres "github.com/dapr/components-contrib/common/component/postgresql"
 	"github.com/dapr/components-contrib/state"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"

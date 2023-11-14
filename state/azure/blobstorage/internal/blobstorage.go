@@ -26,7 +26,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	jsoniter "github.com/json-iterator/go"
 
-	storageinternal "github.com/dapr/components-contrib/internal/component/azure/blobstorage"
+	blobstoragecommon "github.com/dapr/components-contrib/common/component/azure/blobstorage"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
@@ -54,7 +54,7 @@ func NewAzureBlobStorageStore(logger logger.Logger, getFileNameFn func(string) s
 // Init the connection to blob storage, optionally creates a blob container if it doesn't exist.
 func (r *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	var err error
-	r.containerClient, _, err = storageinternal.CreateContainerStorageClient(ctx, r.logger, metadata.Properties)
+	r.containerClient, _, err = blobstoragecommon.CreateContainerStorageClient(ctx, r.logger, metadata.Properties)
 	if err != nil {
 		return err
 	}
@@ -90,7 +90,7 @@ func (r *StateStore) Ping(ctx context.Context) error {
 }
 
 func (r *StateStore) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
-	metadataStruct := storageinternal.BlobStorageMetadata{}
+	metadataStruct := blobstoragecommon.BlobStorageMetadata{}
 	mdutils.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, mdutils.StateStoreType)
 	return
 }
@@ -129,7 +129,7 @@ func (r *StateStore) writeFile(ctx context.Context, req *state.SetRequest) error
 		modifiedAccessConditions.IfNoneMatch = ptr.Of(azcore.ETagAny)
 	}
 
-	blobHTTPHeaders, err := storageinternal.CreateBlobHTTPHeadersFromRequest(req.Metadata, req.ContentType, r.logger)
+	blobHTTPHeaders, err := blobstoragecommon.CreateBlobHTTPHeadersFromRequest(req.Metadata, req.ContentType, r.logger)
 	if err != nil {
 		return err
 	}
@@ -138,7 +138,7 @@ func (r *StateStore) writeFile(ctx context.Context, req *state.SetRequest) error
 		AccessConditions: &blob.AccessConditions{
 			ModifiedAccessConditions: &modifiedAccessConditions,
 		},
-		Metadata:    storageinternal.SanitizeMetadata(r.logger, req.Metadata),
+		Metadata:    blobstoragecommon.SanitizeMetadata(r.logger, req.Metadata),
 		HTTPHeaders: &blobHTTPHeaders,
 	}
 

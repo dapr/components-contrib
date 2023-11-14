@@ -17,8 +17,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/dapr/components-contrib/internal/component/postgresql"
-	pginterfaces "github.com/dapr/components-contrib/internal/component/postgresql/interfaces"
+	"github.com/dapr/components-contrib/common/component/postgresql"
+	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )

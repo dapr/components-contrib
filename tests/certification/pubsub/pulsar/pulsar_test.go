@@ -38,7 +38,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/multierr"
 
-	"github.com/dapr/components-contrib/internal/authentication/oauth2"
+	"github.com/dapr/components-contrib/common/authentication/oauth2"
 	pubsub_pulsar "github.com/dapr/components-contrib/pubsub/pulsar"
 	pubsub_loader "github.com/dapr/dapr/pkg/components/pubsub"
 	"github.com/dapr/dapr/pkg/config/protocol"

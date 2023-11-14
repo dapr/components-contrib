@@ -17,7 +17,7 @@ import (
 	"fmt"
 	"time"
 
-	pgauth "github.com/dapr/components-contrib/internal/authentication/postgresql"
+	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
 	kitmd "github.com/dapr/kit/metadata"
 )
 

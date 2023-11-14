@@ -31,7 +31,7 @@ import (
 	"github.com/open-policy-agent/opa/rego"
 	"golang.org/x/exp/slices"
 
-	"github.com/dapr/components-contrib/internal/httputils"
+	"github.com/dapr/components-contrib/common/httputils"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"

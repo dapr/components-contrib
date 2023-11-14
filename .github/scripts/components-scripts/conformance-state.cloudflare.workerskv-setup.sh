@@ -4,14 +4,14 @@ set -e
 
 # Rebuild the Worker
 (
-  cd internal/component/cloudflare/worker-src;
+  cd common/component/cloudflare/worker-src;
   npm ci;
   npm run build;
 )
 
 # Check that the code of the worker is correct
-git diff --exit-code ./internal/component/cloudflare/workers/code \
-  || (echo "The source code of the Cloudflare Worker has changed, but the Worker has not been recompiled. Please re-compile the Worker by running 'npm ci && npm run build' in 'internal/component/cloudflare/worker-src'" && exit 1)
+git diff --exit-code ./common/component/cloudflare/workers/code \
+  || (echo "The source code of the Cloudflare Worker has changed, but the Worker has not been recompiled. Please re-compile the Worker by running 'npm ci && npm run build' in 'common/component/cloudflare/worker-src'" && exit 1)
 
 # Remove dashes from UNIQUE_ID
 Suffix=$(echo "$UNIQUE_ID" | sed -E 's/-//g')

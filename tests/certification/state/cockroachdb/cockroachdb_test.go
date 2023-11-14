@@ -30,7 +30,7 @@ import (
 	// Blank import for the underlying PostgreSQL driver.
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/dapr/components-contrib/internal/component/postgresql"
+	"github.com/dapr/components-contrib/common/component/postgresql"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	state_cockroach "github.com/dapr/components-contrib/state/cockroachdb"

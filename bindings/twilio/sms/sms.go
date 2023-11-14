@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/bindings"
-	internalutils "github.com/dapr/components-contrib/internal/utils"
+	commonutils "github.com/dapr/components-contrib/common/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
@@ -103,7 +103,7 @@ func (t *SMS) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*binding
 		toNumberValue = toNumberFromRequest
 	}
 
-	body := internalutils.Unquote(req.Data)
+	body := commonutils.Unquote(req.Data)
 
 	v := url.Values{}
 	v.Set("To", toNumberValue)

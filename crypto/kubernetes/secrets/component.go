@@ -27,8 +27,8 @@ import (
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
+	kubeclient "github.com/dapr/components-contrib/common/authentication/kubernetes"
 	contribCrypto "github.com/dapr/components-contrib/crypto"
-	kubeclient "github.com/dapr/components-contrib/internal/authentication/kubernetes"
 	"github.com/dapr/components-contrib/metadata"
 	internals "github.com/dapr/kit/crypto"
 	"github.com/dapr/kit/logger"

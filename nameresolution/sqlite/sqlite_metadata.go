@@ -20,7 +20,7 @@ import (
 	"strconv"
 	"time"
 
-	authSqlite "github.com/dapr/components-contrib/internal/authentication/sqlite"
+	authSqlite "github.com/dapr/components-contrib/common/authentication/sqlite"
 	"github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/metadata"
 )

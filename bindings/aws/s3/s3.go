@@ -36,8 +36,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/dapr/components-contrib/bindings"
-	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
-	internalutils "github.com/dapr/components-contrib/internal/utils"
+	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
+	commonutils "github.com/dapr/components-contrib/common/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
@@ -188,7 +188,7 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 			return nil, fmt.Errorf("s3 binding error: file read error: %w", err)
 		}
 	} else {
-		r = strings.NewReader(internalutils.Unquote(req.Data))
+		r = strings.NewReader(commonutils.Unquote(req.Data))
 	}
 
 	if metadata.DecodeBase64 {

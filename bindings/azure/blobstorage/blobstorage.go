@@ -31,7 +31,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/dapr/components-contrib/bindings"
-	storageinternal "github.com/dapr/components-contrib/internal/component/azure/blobstorage"
+	storagecommon "github.com/dapr/components-contrib/common/component/azure/blobstorage"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
@@ -65,7 +65,7 @@ var ErrMissingBlobName = errors.New("blobName is a required attribute")
 
 // AzureBlobStorage allows saving blobs to an Azure Blob Storage account.
 type AzureBlobStorage struct {
-	metadata        *storageinternal.BlobStorageMetadata
+	metadata        *storagecommon.BlobStorageMetadata
 	containerClient *container.Client
 
 	logger logger.Logger
@@ -99,7 +99,7 @@ func NewAzureBlobStorage(logger logger.Logger) bindings.OutputBinding {
 // Init performs metadata parsing.
 func (a *AzureBlobStorage) Init(ctx context.Context, metadata bindings.Metadata) error {
 	var err error
-	a.containerClient, a.metadata, err = storageinternal.CreateContainerStorageClient(ctx, a.logger, metadata.Properties)
+	a.containerClient, a.metadata, err = storagecommon.CreateContainerStorageClient(ctx, a.logger, metadata.Properties)
 	if err != nil {
 		return err
 	}
@@ -128,7 +128,7 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 		blobName = id.String()
 	}
 
-	blobHTTPHeaders, err := storageinternal.CreateBlobHTTPHeadersFromRequest(req.Metadata, nil, a.logger)
+	blobHTTPHeaders, err := storagecommon.CreateBlobHTTPHeadersFromRequest(req.Metadata, nil, a.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +147,7 @@ func (a *AzureBlobStorage) create(ctx context.Context, req *bindings.InvokeReque
 	}
 
 	uploadOptions := azblob.UploadBufferOptions{
-		Metadata:                storageinternal.SanitizeMetadata(a.logger, req.Metadata),
+		Metadata:                storagecommon.SanitizeMetadata(a.logger, req.Metadata),
 		HTTPHeaders:             &blobHTTPHeaders,
 		TransactionalContentMD5: blobHTTPHeaders.BlobContentMD5,
 	}
@@ -373,7 +373,7 @@ func (a *AzureBlobStorage) isValidDeleteSnapshotsOptionType(accessType azblob.De
 
 // GetComponentMetadata returns the metadata of the component.
 func (a *AzureBlobStorage) GetComponentMetadata() (metadataInfo contribMetadata.MetadataMap) {
-	metadataStruct := storageinternal.BlobStorageMetadata{}
+	metadataStruct := storagecommon.BlobStorageMetadata{}
 	contribMetadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, contribMetadata.BindingType)
 	return
 }

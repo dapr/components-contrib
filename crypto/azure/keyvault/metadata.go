@@ -19,8 +19,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
+	azauth "github.com/dapr/components-contrib/common/authentication/azure"
 	contribCrypto "github.com/dapr/components-contrib/crypto"
-	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
 	"github.com/dapr/kit/metadata"
 )
 

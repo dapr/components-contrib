@@ -22,7 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	internalredis "github.com/dapr/components-contrib/internal/component/redis"
+	commonredis "github.com/dapr/components-contrib/common/component/redis"
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -46,7 +46,7 @@ func TestParseRedisMetadata(t *testing.T) {
 		}
 
 		// act
-		m := internalredis.Settings{}
+		m := commonredis.Settings{}
 		err := kitmd.DecodeMetadata(fakeMetaData, &m)
 
 		// assert
@@ -64,7 +64,7 @@ func TestParseRedisMetadata(t *testing.T) {
 		fakeMetaData.Properties[consumerID] = ""
 
 		// act
-		m := internalredis.Settings{}
+		m := commonredis.Settings{}
 		err := kitmd.DecodeMetadata(fakeMetaData, &m)
 		// assert
 		assert.Error(t, errors.New("redis streams error: missing consumerID"), err)
@@ -99,7 +99,7 @@ func TestProcessStreams(t *testing.T) {
 	// act
 	testRedisStream := &redisStreams{
 		logger:         logger.NewLogger("test"),
-		clientSettings: &internalredis.Settings{},
+		clientSettings: &commonredis.Settings{},
 	}
 	testRedisStream.queue = make(chan redisMessageWrapper, 10)
 	go testRedisStream.worker()
@@ -113,9 +113,9 @@ func TestProcessStreams(t *testing.T) {
 	assert.Equal(t, 3, messageCount)
 }
 
-func generateRedisStreamTestData(topicCount, messageCount int, data string) []internalredis.RedisXMessage {
-	generateXMessage := func(id int) internalredis.RedisXMessage {
-		return internalredis.RedisXMessage{
+func generateRedisStreamTestData(topicCount, messageCount int, data string) []commonredis.RedisXMessage {
+	generateXMessage := func(id int) commonredis.RedisXMessage {
+		return commonredis.RedisXMessage{
 			ID: fmt.Sprintf("%d", id),
 			Values: map[string]interface{}{
 				"data": data,
@@ -123,7 +123,7 @@ func generateRedisStreamTestData(topicCount, messageCount int, data string) []in
 		}
 	}
 
-	xmessageArray := make([]internalredis.RedisXMessage, messageCount)
+	xmessageArray := make([]commonredis.RedisXMessage, messageCount)
 	for i := range xmessageArray {
 		xmessageArray[i] = generateXMessage(i)
 	}

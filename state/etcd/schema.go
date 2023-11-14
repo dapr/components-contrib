@@ -21,7 +21,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	pbv2 "github.com/dapr/components-contrib/internal/proto/state/etcd/v2"
+	pbv2 "github.com/dapr/components-contrib/common/proto/state/etcd/v2"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 )

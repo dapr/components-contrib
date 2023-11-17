@@ -16,6 +16,7 @@ package redis
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"strings"
 	"time"
 
@@ -394,9 +395,11 @@ func newV8Client(s *Settings) RedisClient {
 				InsecureSkipVerify: s.EnableTLS,
 			}
 		}
+		redisClient := v8.NewClusterClient(options)
+		go refreshTokenRoutine(context.Background(), redisClient)
 
 		return v8Client{
-			client:       v8.NewClusterClient(options),
+			client:       redisClient,
 			readTimeout:  s.ReadTimeout,
 			writeTimeout: s.WriteTimeout,
 			dialTimeout:  s.DialTimeout,
@@ -439,4 +442,24 @@ func newV8Client(s *Settings) RedisClient {
 
 func ClientFromV8Client(client v8.UniversalClient) RedisClient {
 	return v8Client{client: client}
+}
+
+func refreshTokenRoutine(ctx context.Context, redisClient *v8.ClusterClient) {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			azureADToken := "hey"
+
+			// Authenticate with Redis using the refreshed token
+			err := redisClient.Pipeline().Auth(ctx, azureADToken).Err()
+			if err != nil {
+				fmt.Println("Failed to authenticate with Redis using refreshed Azure AD token:", err)
+				continue
+			}
+			fmt.Println("Successfully refreshed Azure AD token and re-authenticated Redis.")
+		}
+	}
 }

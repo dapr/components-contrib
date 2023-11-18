@@ -15,13 +15,11 @@ package mongodb
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
@@ -162,29 +160,17 @@ func (q *Query) execute(ctx context.Context, collection *mongo.Collection) ([]st
 		if err = cur.Decode(&item); err != nil {
 			return nil, "", err
 		}
+
 		result := state.QueryItem{
 			Key:  item.Key,
 			ETag: &item.Etag,
 		}
 
-		switch obj := item.Value.(type) {
-		case string:
-			result.Data = []byte(obj)
-		case primitive.D:
-			// Setting canonical to `false`.
-			// See https://docs.mongodb.com/manual/reference/mongodb-extended-json/#bson-data-types-and-associated-representations
-			// Having bson marshalled into Relaxed JSON instead of canonical JSON, this way type preservation is lost but
-			// interoperability is preserved
-			// See https://mongodb.github.io/swift-bson/docs/current/SwiftBSON/json-interop.html
-			// A decimal value stored as BSON will be returned as {"d": 5.5} if canonical is set to false instead of
-			// {"d": {"$numberDouble": 5.5}} when canonical JSON is returned.
-			if result.Data, err = bson.MarshalExtJSON(obj, false, true); err != nil {
-				result.Error = err.Error()
-			}
-		default:
-			if result.Data, err = json.Marshal(item.Value); err != nil {
-				result.Error = err.Error()
-			}
+		data, err := decodeData(&item.Value)
+		if err != nil {
+			result.Error = err.Error()
+		} else {
+			result.Data = data
 		}
 		ret = append(ret, result)
 	}

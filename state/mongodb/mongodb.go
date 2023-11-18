@@ -297,7 +297,7 @@ func (m *MongoDB) Get(ctx context.Context, req *state.GetRequest) (*state.GetRes
 		return &state.GetResponse{}, err
 	}
 
-	data, err := m.decodeData(result.Value)
+	data, err := decodeData(result.Value)
 	if err != nil {
 		return &state.GetResponse{}, err
 	}
@@ -373,7 +373,7 @@ func (m *MongoDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.B
 			}
 		}
 
-		data, err = m.decodeData(doc.Value)
+		data, err = decodeData(doc.Value)
 		if err != nil {
 			bgr.Error = err.Error()
 		} else {
@@ -416,7 +416,7 @@ func getFilterTTL() bson.D {
 	}}}
 }
 
-func (m *MongoDB) decodeData(resValue any) (data []byte, err error) {
+func decodeData(resValue any) (data []byte, err error) {
 	switch obj := resValue.(type) {
 	case string:
 		data = []byte(obj)

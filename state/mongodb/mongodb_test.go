@@ -212,7 +212,6 @@ func TestGetMongoDBMetadata(t *testing.T) {
 	})
 
 	t.Run("test decode", func(t *testing.T) {
-		mongo := MongoDB{}
 		time.Local = time.UTC
 		thetime, err := time.Parse(time.RFC3339, "2023-02-01T12:13:09Z")
 		assert.NoError(t, err)
@@ -226,7 +225,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 			"boolean": true,
 		}
 
-		res, err := mongo.decodeData(msg)
+		res, err := decodeData(msg)
 		assert.NoError(t, err)
 
 		var data map[string]interface{}
@@ -250,7 +249,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 			}},
 		}
 
-		res2, err := mongo.decodeData(msg2)
+		res2, err := decodeData(msg2)
 		assert.NoError(t, err)
 
 		var data2 map[string]interface{}
@@ -269,7 +268,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 			thetime, "test message", 123.456789, 123456789, true,
 			bson.D{{Key: "somedecimal", Value: 9.87654321}, {Key: "sometime", Value: thetime}},
 		}
-		res3, err := mongo.decodeData(msg3)
+		res3, err := decodeData(msg3)
 		assert.NoError(t, err)
 		var data3 []interface{}
 		err = json.Unmarshal(res3, &data3)

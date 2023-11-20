@@ -354,7 +354,7 @@ func newV9FailoverClient(s *Settings, properties map[string]string) RedisClient 
 	if s.RedisType == ClusterType {
 		opts.SentinelAddrs = strings.Split(s.Host, ",")
 		client := v9.NewFailoverClusterClient(opts)
-		go refreshTokenRoutineForV9Redis(context.Background(), ClientFromV9Client(client), properties)
+		go refreshTokenRoutineForRedis(context.Background(), ClientFromV9Client(client), properties)
 		return v9Client{
 			client:       client,
 			readTimeout:  s.ReadTimeout,
@@ -363,7 +363,7 @@ func newV9FailoverClient(s *Settings, properties map[string]string) RedisClient 
 		}
 	}
 	client := v9.NewFailoverClient(opts)
-	go refreshTokenRoutineForV9Redis(context.Background(), ClientFromV9Client(client), properties)
+	go refreshTokenRoutineForRedis(context.Background(), ClientFromV9Client(client), properties)
 	return v9Client{
 		client:       client,
 		readTimeout:  s.ReadTimeout,
@@ -401,7 +401,7 @@ func newV9Client(s *Settings, properties map[string]string) RedisClient {
 			}
 		}
 		client := v9.NewClusterClient(options)
-		go refreshTokenRoutineForV9Redis(context.Background(), ClientFromV9Client(client), properties)
+		go refreshTokenRoutineForRedis(context.Background(), ClientFromV9Client(client), properties)
 		return v9Client{
 			client:       client,
 			readTimeout:  s.ReadTimeout,
@@ -436,7 +436,7 @@ func newV9Client(s *Settings, properties map[string]string) RedisClient {
 		}
 	}
 	client := v9.NewClient(options)
-	go refreshTokenRoutineForV9Redis(context.Background(), ClientFromV9Client(client), properties)
+	go refreshTokenRoutineForRedis(context.Background(), ClientFromV9Client(client), properties)
 	return v9Client{
 		client:       client,
 		readTimeout:  s.ReadTimeout,
@@ -449,7 +449,7 @@ func ClientFromV9Client(client v9.UniversalClient) RedisClient {
 	return v9Client{client: client}
 }
 
-func refreshTokenRoutineForV9Redis(ctx context.Context, redisClient RedisClient, meta map[string]string) {
+func refreshTokenRoutineForRedis(ctx context.Context, redisClient RedisClient, meta map[string]string) {
 	ticker := time.NewTicker(time.Hour)
 	defer ticker.Stop()
 

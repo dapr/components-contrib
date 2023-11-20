@@ -32,6 +32,10 @@ type v9Pipeliner struct {
 
 var v9logger = logger.NewLogger("dapr.components.redisv9")
 
+const (
+	tokenRefreshInterval = 50 * time.Minute
+)
+
 func (p v9Pipeliner) Exec(ctx context.Context) error {
 	_, err := p.pipeliner.Exec(ctx)
 	return err
@@ -455,7 +459,7 @@ func ClientFromV9Client(client v9.UniversalClient) RedisClient {
 }
 
 func refreshTokenRoutineForRedis(ctx context.Context, redisClient RedisClient, version string, meta map[string]string, logger logger.Logger, closeCh chan struct{}) {
-	ticker := time.NewTicker(time.Hour)
+	ticker := time.NewTicker(tokenRefreshInterval)
 	defer ticker.Stop()
 
 	for {

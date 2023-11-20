@@ -48,6 +48,7 @@ func (r *Redis) Init(ctx context.Context, meta bindings.Metadata) (err error) {
 	if err != nil {
 		return err
 	}
+
 	_, err = r.client.PingResult(ctx)
 	if err != nil {
 		return fmt.Errorf("redis binding: error connecting to redis at %s: %s", r.clientSettings.Host, err)

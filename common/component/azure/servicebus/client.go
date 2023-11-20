@@ -127,10 +127,10 @@ func (c *Client) GetSender(ctx context.Context, queueOrTopic string, ensureFn en
 		// Ensure the queue or topic exists the first time it is referenced
 		// This does nothing if DisableEntityManagement is true
 		err := ensureFn(ctx, queueOrTopic)
-		c.topicCache[queueOrTopic] = true
 		if err != nil {
 			return nil, err
 		}
+		c.topicCache[queueOrTopic] = true
 	}
 
 	// Create the sender
@@ -253,10 +253,10 @@ func (c *Client) EnsureSubscription(ctx context.Context, name string, topic stri
 	}
 	if !c.topicCache[topic] {
 		err := c.EnsureTopic(ctx, topic)
-		c.topicCache[topic] = true
 		if err != nil {
 			return err
 		}
+		c.topicCache[topic] = true
 	}
 
 	shouldCreate, err := c.shouldCreateSubscription(ctx, topic, name, opts)

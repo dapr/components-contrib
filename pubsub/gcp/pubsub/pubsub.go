@@ -178,10 +178,10 @@ func (g *GCPPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) err
 
 	if !g.metadata.DisableEntityManagement && !g.topicCache[req.Topic] {
 		err := g.ensureTopic(ctx, req.Topic)
-		g.topicCache[req.Topic] = true
 		if err != nil {
 			return fmt.Errorf("%s could not get valid topic %s, %s", errorMessagePrefix, req.Topic, err)
 		}
+		g.topicCache[req.Topic] = true
 	}
 
 	topic := g.getTopic(req.Topic)
@@ -215,10 +215,10 @@ func (g *GCPPubSub) Subscribe(parentCtx context.Context, req pubsub.SubscribeReq
 
 	if !g.metadata.DisableEntityManagement && !g.topicCache[req.Topic] {
 		topicErr := g.ensureTopic(parentCtx, req.Topic)
-		g.topicCache[req.Topic] = true
 		if topicErr != nil {
 			return fmt.Errorf("%s could not get valid topic - topic:%q, error: %v", errorMessagePrefix, req.Topic, topicErr)
 		}
+		g.topicCache[req.Topic] = true
 
 		subError := g.ensureSubscription(parentCtx, g.metadata.ConsumerID, req.Topic)
 		if subError != nil {
@@ -359,10 +359,10 @@ func (g *GCPPubSub) getTopic(topic string) *gcppubsub.Topic {
 func (g *GCPPubSub) ensureSubscription(parentCtx context.Context, subscription string, topic string) error {
 	if !g.topicCache[topic] {
 		err := g.ensureTopic(parentCtx, topic)
-		g.topicCache[topic] = true
 		if err != nil {
 			return err
 		}
+		g.topicCache[topic] = true
 	}
 
 	managedSubscription := subscription + "-" + topic
@@ -377,10 +377,10 @@ func (g *GCPPubSub) ensureSubscription(parentCtx context.Context, subscription s
 
 		if g.metadata.DeadLetterTopic != "" && !g.topicCache[g.metadata.DeadLetterTopic] {
 			subErr = g.ensureTopic(parentCtx, g.metadata.DeadLetterTopic)
-			g.topicCache[g.metadata.DeadLetterTopic] = true
 			if subErr != nil {
 				return subErr
 			}
+			g.topicCache[g.metadata.DeadLetterTopic] = true
 			dlTopic := fmt.Sprintf("projects/%s/topics/%s", g.metadata.ProjectID, g.metadata.DeadLetterTopic)
 			subConfig.DeadLetterPolicy = &gcppubsub.DeadLetterPolicy{
 				DeadLetterTopic:     dlTopic,

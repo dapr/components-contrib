@@ -160,9 +160,9 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 
 	var c RedisClient
 	if settings.Failover {
-		c = newV8FailoverClient(settings,properties)
+		c = newV8FailoverClient(settings, properties)
 	} else {
-		c = newV8Client(settings,properties)
+		c = newV8Client(settings, properties)
 	}
 	version, versionErr := GetServerVersion(c)
 	c.Close() // close the client to avoid leaking connections
@@ -177,14 +177,14 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 	}
 	if useNewClient {
 		if settings.Failover {
-			return newV9FailoverClient(settings), settings, nil
+			return newV9FailoverClient(settings, properties), settings, nil
 		}
-		return newV9Client(settings), settings, nil
+		return newV9Client(settings, properties), settings, nil
 	} else {
 		if settings.Failover {
-			return newV8FailoverClient(settings,properties), settings, nil
+			return newV8FailoverClient(settings, properties), settings, nil
 		}
-		return newV8Client(settings,properties), settings, nil
+		return newV8Client(settings, properties), settings, nil
 	}
 }
 

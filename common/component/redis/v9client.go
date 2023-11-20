@@ -16,9 +16,12 @@ package redis
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"strings"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/dapr/components-contrib/common/authentication/azure"
 	v9 "github.com/redis/go-redis/v9"
 )
 
@@ -317,7 +320,7 @@ func (c v9Client) TTLResult(ctx context.Context, key string) (time.Duration, err
 	return c.client.TTL(writeCtx, key).Result()
 }
 
-func newV9FailoverClient(s *Settings) RedisClient {
+func newV9FailoverClient(s *Settings, properties map[string]string) RedisClient {
 	if s == nil {
 		return nil
 	}
@@ -350,24 +353,26 @@ func newV9FailoverClient(s *Settings) RedisClient {
 
 	if s.RedisType == ClusterType {
 		opts.SentinelAddrs = strings.Split(s.Host, ",")
-
+		client := v9.NewFailoverClusterClient(opts)
+		go refreshTokenRoutineV9(context.Background(), client, properties)
 		return v9Client{
-			client:       v9.NewFailoverClusterClient(opts),
+			client:       client,
 			readTimeout:  s.ReadTimeout,
 			writeTimeout: s.WriteTimeout,
 			dialTimeout:  s.DialTimeout,
 		}
 	}
-
+	client := v9.NewFailoverClient(opts)
+	go refreshTokenRoutineV9(context.Background(), client, properties)
 	return v9Client{
-		client:       v9.NewFailoverClient(opts),
+		client:       client,
 		readTimeout:  s.ReadTimeout,
 		writeTimeout: s.WriteTimeout,
 		dialTimeout:  s.DialTimeout,
 	}
 }
 
-func newV9Client(s *Settings) RedisClient {
+func newV9Client(s *Settings, properties map[string]string) RedisClient {
 	if s == nil {
 		return nil
 	}
@@ -395,9 +400,10 @@ func newV9Client(s *Settings) RedisClient {
 				InsecureSkipVerify: s.EnableTLS,
 			}
 		}
-
+		client := v9.NewClusterClient(options)
+		go refreshTokenRoutineV9(context.Background(), client, properties)
 		return v9Client{
-			client:       v9.NewClusterClient(options),
+			client:       client,
 			readTimeout:  s.ReadTimeout,
 			writeTimeout: s.WriteTimeout,
 			dialTimeout:  s.DialTimeout,
@@ -429,11 +435,42 @@ func newV9Client(s *Settings) RedisClient {
 			InsecureSkipVerify: s.EnableTLS,
 		}
 	}
-
+	client := v9.NewClient(options)
+	go refreshTokenRoutineV9(context.Background(), client, properties)
 	return v9Client{
-		client:       v9.NewClient(options),
+		client:       client,
 		readTimeout:  s.ReadTimeout,
 		writeTimeout: s.WriteTimeout,
 		dialTimeout:  s.DialTimeout,
+	}
+}
+
+func refreshTokenRoutineV9(ctx context.Context, redisClient *v9.ClusterClient, meta map[string]string) {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			env, err := azure.NewEnvironmentSettings(meta)
+			tokenCred, err := env.GetTokenCredential()
+			if err != nil {
+				fmt.Println("Failed to get Azure AD token credential:", err)
+				continue
+			}
+			at, err := tokenCred.GetToken(ctx, policy.TokenRequestOptions{
+				Scopes: []string{
+					env.Cloud.Services[azure.ServiceOSSRDBMS].Audience + "/.default",
+				},
+			})
+
+			// Authenticate with Redis using the refreshed token
+			err = redisClient.Pipeline().Auth(ctx, at.Token).Err()
+			if err != nil {
+				fmt.Println("Failed to authenticate with Redis using refreshed Azure AD token:", err)
+				continue
+			}
+			fmt.Println("Successfully refreshed Azure AD token and re-authenticated Redis.")
+		}
 	}
 }

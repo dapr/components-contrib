@@ -353,7 +353,7 @@ func newV8FailoverClient(s *Settings, properties map[string]string) RedisClient 
 	if s.RedisType == ClusterType {
 		opts.SentinelAddrs = strings.Split(s.Host, ",")
 		client := v8.NewFailoverClusterClient(opts)
-		go refreshTokenRoutine(context.Background(), client, properties)
+		go refreshTokenRoutineV8(context.Background(), client, properties)
 		return v8Client{
 			client:       client,
 			readTimeout:  s.ReadTimeout,
@@ -362,7 +362,7 @@ func newV8FailoverClient(s *Settings, properties map[string]string) RedisClient 
 		}
 	}
 	client := v8.NewFailoverClient(opts)
-	go refreshTokenRoutine(context.Background(), client, properties)
+	go refreshTokenRoutineV8(context.Background(), client, properties)
 	return v8Client{
 		client:       client,
 		readTimeout:  s.ReadTimeout,
@@ -400,7 +400,7 @@ func newV8Client(s *Settings, properties map[string]string) RedisClient {
 			}
 		}
 		redisClient := v8.NewClusterClient(options)
-		go refreshTokenRoutine(context.Background(), redisClient, properties)
+		go refreshTokenRoutineV8(context.Background(), redisClient, properties)
 
 		return v8Client{
 			client:       redisClient,
@@ -436,7 +436,7 @@ func newV8Client(s *Settings, properties map[string]string) RedisClient {
 		}
 	}
 	client := v8.NewClient(options)
-	go refreshTokenRoutine(context.Background(), client, properties)
+	go refreshTokenRoutineV8(context.Background(), client, properties)
 	return v8Client{
 		client:       client,
 		readTimeout:  s.ReadTimeout,
@@ -449,7 +449,7 @@ func ClientFromV8Client(client v8.UniversalClient) RedisClient {
 	return v8Client{client: client}
 }
 
-func refreshTokenRoutine(ctx context.Context, redisClient *v8.ClusterClient, meta map[string]string) {
+func refreshTokenRoutineV8(ctx context.Context, redisClient *v8.ClusterClient, meta map[string]string) {
 	ticker := time.NewTicker(time.Hour)
 	defer ticker.Stop()
 

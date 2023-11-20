@@ -417,18 +417,22 @@ func (g *GCPPubSub) getTopic(topic string) *gcppubsub.Topic {
 
 func (g *GCPPubSub) ensureSubscription(parentCtx context.Context, subscription string, topic string) error {
 	g.lock.RLock()
-	_, exists := g.topicCache[topic]
+	_, TExists := g.topicCache[topic]
 	_, DExists := g.topicCache[g.metadata.DeadLetterTopic]
 	g.lock.RUnlock()
-	if !exists {
-		err := g.ensureTopic(parentCtx, topic)
-		if err != nil {
-			return err
-		}
+	if !TExists {
 		g.lock.Lock()
-		g.topicCache[topic] = cacheEntry{
-			Exists:   true,
-			LastSync: time.Now(),
+		// Double-check if the topic still doesn't exist to avoid race condition
+		if _, ok := g.topicCache[topic]; !ok {
+			err := g.ensureTopic(parentCtx, topic)
+			if err != nil {
+				g.lock.Unlock()
+				return err
+			}
+			g.topicCache[topic] = cacheEntry{
+				Exists:   true,
+				LastSync: time.Now(),
+			}
 		}
 		g.lock.Unlock()
 	}
@@ -444,14 +448,18 @@ func (g *GCPPubSub) ensureSubscription(parentCtx context.Context, subscription s
 		}
 
 		if g.metadata.DeadLetterTopic != "" && !DExists {
-			subErr = g.ensureTopic(parentCtx, g.metadata.DeadLetterTopic)
-			if subErr != nil {
-				return subErr
-			}
 			g.lock.Lock()
-			g.topicCache[g.metadata.DeadLetterTopic] = cacheEntry{
-				Exists:   true,
-				LastSync: time.Now(),
+			// Double-check if the DeadLetterTopic still doesn't exist to avoid race condition
+			if _, ok := g.topicCache[g.metadata.DeadLetterTopic]; !ok {
+				subErr = g.ensureTopic(parentCtx, g.metadata.DeadLetterTopic)
+				if subErr != nil {
+					g.lock.Unlock()
+					return subErr
+				}
+				g.topicCache[g.metadata.DeadLetterTopic] = cacheEntry{
+					Exists:   true,
+					LastSync: time.Now(),
+				}
 			}
 			g.lock.Unlock()
 			dlTopic := fmt.Sprintf("projects/%s/topics/%s", g.metadata.ProjectID, g.metadata.DeadLetterTopic)

@@ -57,7 +57,13 @@ type GCPPubSub struct {
 	closed     atomic.Bool
 	closeCh    chan struct{}
 	wg         sync.WaitGroup
-	topicCache map[string]bool
+	topicCache map[string]cacheEntry
+	lock       *sync.RWMutex
+}
+
+type cacheEntry struct {
+	Exists   bool
+	LastSync time.Time
 }
 
 type GCPAuthJSON struct {
@@ -77,9 +83,46 @@ type WhatNow struct {
 	Type string `json:"type"`
 }
 
+const (
+	cacheRefreshInterval = 5 * time.Hour
+)
+
 // NewGCPPubSub returns a new GCPPubSub instance.
 func NewGCPPubSub(logger logger.Logger) pubsub.PubSub {
-	return &GCPPubSub{logger: logger, closeCh: make(chan struct{}), topicCache: make(map[string]bool)}
+	client := &GCPPubSub{
+		logger:     logger,
+		closeCh:    make(chan struct{}),
+		topicCache: make(map[string]cacheEntry),
+		lock:       &sync.RWMutex{},
+	}
+	go client.periodicCacheRefresh()
+
+	return client
+}
+
+func (g *GCPPubSub) periodicCacheRefresh() {
+	ticker := time.NewTicker(cacheRefreshInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-g.closeCh:
+			return
+		case <-ticker.C:
+			g.lock.Lock()
+			// Clear or refresh the cache entries here
+			g.clearExpiredCacheEntries()
+			g.lock.Unlock()
+		}
+	}
+}
+
+func (g *GCPPubSub) clearExpiredCacheEntries() {
+	for key, entry := range g.topicCache {
+		if time.Since(entry.LastSync) > cacheRefreshInterval {
+			delete(g.topicCache, key)
+		}
+	}
 }
 
 func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
@@ -175,13 +218,21 @@ func (g *GCPPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) err
 	if g.closed.Load() {
 		return errors.New("component is closed")
 	}
+	g.lock.RLock()
+	_, topicExists := g.topicCache[req.Topic]
+	g.lock.RUnlock()
 
-	if !g.metadata.DisableEntityManagement && !g.topicCache[req.Topic] {
+	if !g.metadata.DisableEntityManagement && !topicExists {
 		err := g.ensureTopic(ctx, req.Topic)
 		if err != nil {
 			return fmt.Errorf("%s could not get valid topic %s, %s", errorMessagePrefix, req.Topic, err)
 		}
-		g.topicCache[req.Topic] = true
+		g.lock.Lock()
+		g.topicCache[req.Topic] = cacheEntry{
+			Exists:   true,
+			LastSync: time.Now(),
+		}
+		g.lock.Unlock()
 	}
 
 	topic := g.getTopic(req.Topic)
@@ -212,13 +263,21 @@ func (g *GCPPubSub) Subscribe(parentCtx context.Context, req pubsub.SubscribeReq
 	if g.closed.Load() {
 		return errors.New("component is closed")
 	}
+	g.lock.RLock()
+	_, topicExists := g.topicCache[req.Topic]
+	g.lock.RUnlock()
 
-	if !g.metadata.DisableEntityManagement && !g.topicCache[req.Topic] {
+	if !g.metadata.DisableEntityManagement && !topicExists {
 		topicErr := g.ensureTopic(parentCtx, req.Topic)
 		if topicErr != nil {
 			return fmt.Errorf("%s could not get valid topic - topic:%q, error: %v", errorMessagePrefix, req.Topic, topicErr)
 		}
-		g.topicCache[req.Topic] = true
+		g.lock.Lock()
+		g.topicCache[req.Topic] = cacheEntry{
+			Exists:   true,
+			LastSync: time.Now(),
+		}
+		g.lock.Unlock()
 
 		subError := g.ensureSubscription(parentCtx, g.metadata.ConsumerID, req.Topic)
 		if subError != nil {
@@ -357,12 +416,21 @@ func (g *GCPPubSub) getTopic(topic string) *gcppubsub.Topic {
 }
 
 func (g *GCPPubSub) ensureSubscription(parentCtx context.Context, subscription string, topic string) error {
-	if !g.topicCache[topic] {
+	g.lock.RLock()
+	_, exists := g.topicCache[topic]
+	_, DExists := g.topicCache[g.metadata.DeadLetterTopic]
+	g.lock.RUnlock()
+	if !exists {
 		err := g.ensureTopic(parentCtx, topic)
 		if err != nil {
 			return err
 		}
-		g.topicCache[topic] = true
+		g.lock.Lock()
+		g.topicCache[topic] = cacheEntry{
+			Exists:   true,
+			LastSync: time.Now(),
+		}
+		g.lock.Unlock()
 	}
 
 	managedSubscription := subscription + "-" + topic
@@ -375,12 +443,17 @@ func (g *GCPPubSub) ensureSubscription(parentCtx context.Context, subscription s
 			EnableMessageOrdering: g.metadata.EnableMessageOrdering,
 		}
 
-		if g.metadata.DeadLetterTopic != "" && !g.topicCache[g.metadata.DeadLetterTopic] {
+		if g.metadata.DeadLetterTopic != "" && !DExists {
 			subErr = g.ensureTopic(parentCtx, g.metadata.DeadLetterTopic)
 			if subErr != nil {
 				return subErr
 			}
-			g.topicCache[g.metadata.DeadLetterTopic] = true
+			g.lock.Lock()
+			g.topicCache[g.metadata.DeadLetterTopic] = cacheEntry{
+				Exists:   true,
+				LastSync: time.Now(),
+			}
+			g.lock.Unlock()
 			dlTopic := fmt.Sprintf("projects/%s/topics/%s", g.metadata.ProjectID, g.metadata.DeadLetterTopic)
 			subConfig.DeadLetterPolicy = &gcppubsub.DeadLetterPolicy{
 				DeadLetterTopic:     dlTopic,

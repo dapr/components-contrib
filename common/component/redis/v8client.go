@@ -28,7 +28,7 @@ type v8Pipeliner struct {
 	writeTimeout Duration
 }
 
-var v8logger = logger.NewLogger("dapr.components.redisv9")
+var v8logger = logger.NewLogger("dapr.components.redisv8")
 
 func (p v8Pipeliner) Exec(ctx context.Context) error {
 	_, err := p.pipeliner.Exec(ctx)
@@ -354,20 +354,16 @@ func newV8FailoverClient(s *Settings, properties map[string]string) RedisClient 
 
 	if s.RedisType == ClusterType {
 		opts.SentinelAddrs = strings.Split(s.Host, ",")
-		client := v8.NewFailoverClusterClient(opts)
-		go refreshTokenRoutineForRedis(context.Background(), ClientFromV8Client(client), properties, v8logger, closeCh)
 		return v8Client{
-			client:       client,
+			client:       v8.NewFailoverClusterClient(opts),
 			readTimeout:  s.ReadTimeout,
 			writeTimeout: s.WriteTimeout,
 			dialTimeout:  s.DialTimeout,
 			closeCh:      closeCh,
 		}
 	}
-	client := v8.NewFailoverClient(opts)
-	go refreshTokenRoutineForRedis(context.Background(), ClientFromV8Client(client), properties, v8logger, closeCh)
 	return v8Client{
-		client:       client,
+		client:       v8.NewFailoverClient(opts),
 		readTimeout:  s.ReadTimeout,
 		writeTimeout: s.WriteTimeout,
 		dialTimeout:  s.DialTimeout,
@@ -405,7 +401,7 @@ func newV8Client(s *Settings, properties map[string]string) RedisClient {
 			}
 		}
 		client := v8.NewClusterClient(options)
-		go refreshTokenRoutineForRedis(context.Background(), ClientFromV8Client(client), properties, v8logger, closeCh)
+		go refreshTokenRoutineForRedis(context.Background(), ClientFromV8Client(client), "v8", properties, v8logger, closeCh)
 
 		return v8Client{
 			client:       client,
@@ -442,7 +438,7 @@ func newV8Client(s *Settings, properties map[string]string) RedisClient {
 		}
 	}
 	client := v8.NewClient(options)
-	go refreshTokenRoutineForRedis(context.Background(), ClientFromV8Client(client), properties, v8logger, closeCh)
+	go refreshTokenRoutineForRedis(context.Background(), ClientFromV8Client(client), "v8", properties, v8logger, closeCh)
 	return v8Client{
 		client:       client,
 		readTimeout:  s.ReadTimeout,

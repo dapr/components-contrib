@@ -358,20 +358,16 @@ func newV9FailoverClient(s *Settings, properties map[string]string) RedisClient 
 
 	if s.RedisType == ClusterType {
 		opts.SentinelAddrs = strings.Split(s.Host, ",")
-		client := v9.NewFailoverClusterClient(opts)
-		go refreshTokenRoutineForRedis(context.Background(), ClientFromV9Client(client), properties, v9logger, closeCh)
 		return v9Client{
-			client:       client,
+			client:       v9.NewFailoverClusterClient(opts),
 			readTimeout:  s.ReadTimeout,
 			writeTimeout: s.WriteTimeout,
 			dialTimeout:  s.DialTimeout,
 			closeCh:      closeCh,
 		}
 	}
-	client := v9.NewFailoverClient(opts)
-	go refreshTokenRoutineForRedis(context.Background(), ClientFromV9Client(client), properties, v9logger,closeCh)
 	return v9Client{
-		client:       client,
+		client:       v9.NewFailoverClient(opts),
 		readTimeout:  s.ReadTimeout,
 		writeTimeout: s.WriteTimeout,
 		dialTimeout:  s.DialTimeout,
@@ -408,7 +404,7 @@ func newV9Client(s *Settings, properties map[string]string) RedisClient {
 			}
 		}
 		client := v9.NewClusterClient(options)
-		go refreshTokenRoutineForRedis(context.Background(), ClientFromV9Client(client), properties, v9logger, closeCh)
+		go refreshTokenRoutineForRedis(context.Background(), ClientFromV9Client(client), "v9", properties, v9logger, closeCh)
 		return v9Client{
 			client:       client,
 			readTimeout:  s.ReadTimeout,
@@ -444,7 +440,7 @@ func newV9Client(s *Settings, properties map[string]string) RedisClient {
 		}
 	}
 	client := v9.NewClient(options)
-	go refreshTokenRoutineForRedis(context.Background(), ClientFromV9Client(client), properties, v9logger, closeCh)
+	go refreshTokenRoutineForRedis(context.Background(), ClientFromV9Client(client), "v9", properties, v9logger, closeCh)
 	return v9Client{
 		client:       client,
 		readTimeout:  s.ReadTimeout,
@@ -458,7 +454,7 @@ func ClientFromV9Client(client v9.UniversalClient) RedisClient {
 	return v9Client{client: client}
 }
 
-func refreshTokenRoutineForRedis(ctx context.Context, redisClient RedisClient, meta map[string]string, logger logger.Logger, closeCh chan struct{}) {
+func refreshTokenRoutineForRedis(ctx context.Context, redisClient RedisClient, version string, meta map[string]string, logger logger.Logger, closeCh chan struct{}) {
 	ticker := time.NewTicker(time.Hour)
 	defer ticker.Stop()
 
@@ -470,7 +466,7 @@ func refreshTokenRoutineForRedis(ctx context.Context, redisClient RedisClient, m
 			env, err := azure.NewEnvironmentSettings(meta)
 			tokenCred, err := env.GetTokenCredential()
 			if err != nil {
-				logger.Debug("Failed to get Azure AD token credential:", err)
+				logger.Error("Failed to get Azure AD token credential:", err)
 				continue
 			}
 			at, err := tokenCred.GetToken(ctx, policy.TokenRequestOptions{
@@ -484,9 +480,13 @@ func refreshTokenRoutineForRedis(ctx context.Context, redisClient RedisClient, m
 			}
 
 			// Authenticate with Redis using the refreshed token
-			err = redisClient.(v9Client).client.Pipeline().Auth(ctx, at.Token).Err()
+			if version == "v8" {
+				err = redisClient.(v8Client).client.Pipeline().Auth(ctx, at.Token).Err()
+			} else if version == "v9" {
+				err = redisClient.(v9Client).client.Pipeline().Auth(ctx, at.Token).Err()
+			}
 			if err != nil {
-				logger.Debug("Failed to authenticate with Redis using refreshed Azure AD token:", err)
+				logger.Error("Failed to authenticate with Redis using refreshed Azure AD token:", err)
 				continue
 			}
 			logger.Info("Successfully refreshed Azure AD token and re-authenticated Redis.")

@@ -54,9 +54,10 @@ type GCPPubSub struct {
 	metadata *metadata
 	logger   logger.Logger
 
-	closed  atomic.Bool
-	closeCh chan struct{}
-	wg      sync.WaitGroup
+	closed     atomic.Bool
+	closeCh    chan struct{}
+	wg         sync.WaitGroup
+	topicCache map[string]bool
 }
 
 type GCPAuthJSON struct {
@@ -78,7 +79,7 @@ type WhatNow struct {
 
 // NewGCPPubSub returns a new GCPPubSub instance.
 func NewGCPPubSub(logger logger.Logger) pubsub.PubSub {
-	return &GCPPubSub{logger: logger, closeCh: make(chan struct{})}
+	return &GCPPubSub{logger: logger, closeCh: make(chan struct{}), topicCache: make(map[string]bool)}
 }
 
 func createMetadata(pubSubMetadata pubsub.Metadata) (*metadata, error) {
@@ -175,8 +176,9 @@ func (g *GCPPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) err
 		return errors.New("component is closed")
 	}
 
-	if !g.metadata.DisableEntityManagement {
+	if !g.metadata.DisableEntityManagement && !g.topicCache[req.Topic] {
 		err := g.ensureTopic(ctx, req.Topic)
+		g.topicCache[req.Topic] = true
 		if err != nil {
 			return fmt.Errorf("%s could not get valid topic %s, %s", errorMessagePrefix, req.Topic, err)
 		}
@@ -211,8 +213,9 @@ func (g *GCPPubSub) Subscribe(parentCtx context.Context, req pubsub.SubscribeReq
 		return errors.New("component is closed")
 	}
 
-	if !g.metadata.DisableEntityManagement {
+	if !g.metadata.DisableEntityManagement && !g.topicCache[req.Topic] {
 		topicErr := g.ensureTopic(parentCtx, req.Topic)
+		g.topicCache[req.Topic] = true
 		if topicErr != nil {
 			return fmt.Errorf("%s could not get valid topic - topic:%q, error: %v", errorMessagePrefix, req.Topic, topicErr)
 		}
@@ -354,9 +357,12 @@ func (g *GCPPubSub) getTopic(topic string) *gcppubsub.Topic {
 }
 
 func (g *GCPPubSub) ensureSubscription(parentCtx context.Context, subscription string, topic string) error {
-	err := g.ensureTopic(parentCtx, topic)
-	if err != nil {
-		return err
+	if !g.topicCache[topic] {
+		err := g.ensureTopic(parentCtx, topic)
+		g.topicCache[topic] = true
+		if err != nil {
+			return err
+		}
 	}
 
 	managedSubscription := subscription + "-" + topic
@@ -369,8 +375,9 @@ func (g *GCPPubSub) ensureSubscription(parentCtx context.Context, subscription s
 			EnableMessageOrdering: g.metadata.EnableMessageOrdering,
 		}
 
-		if g.metadata.DeadLetterTopic != "" {
+		if g.metadata.DeadLetterTopic != "" && !g.topicCache[g.metadata.DeadLetterTopic] {
 			subErr = g.ensureTopic(parentCtx, g.metadata.DeadLetterTopic)
+			g.topicCache[g.metadata.DeadLetterTopic] = true
 			if subErr != nil {
 				return subErr
 			}

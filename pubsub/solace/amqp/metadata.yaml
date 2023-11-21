@@ -1,0 +1,95 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: pubsub
+name: Solace-AMQP
+version: v1
+status: stable
+title: "solace-amqp"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-solace-amqp/
+capabilities:
+  - ttl
+authenticationProfiles:
+  - title: "Authenticate Using Solace properties"
+    description: "Solace authentication by providing url, username, and password."
+    metadata:
+      - name: url
+        required: true
+        sensitive: true
+        description: "Address of the AMQP broker. Can be secretKeyRef to use a secret reference."
+        example: '"amqp://host.domain[:port]"'
+        type: string
+      - name: username
+        required: true
+        sensitive: true
+        description: "The username to connect to the broker. Only required if anonymous is not specified or set to false."
+        example: '"default"'
+        type: string
+      - name: password
+        required: true
+        sensitive: true
+        description: "The password to connect to the broker. Only required if anonymous is not specified or set to false."
+        example: '"default"'  
+        type: string
+  - title: "Authenticate Using url and External TLS"
+    description: "Authenticate using a url along with Exteranl Sasl and TLS."
+    metadata:
+      - name: url
+        required: true
+        sensitive: true
+        description: "Address of the AMQP broker. Can be secretKeyRef to use a secret reference."
+        example: '"amqp://host.domain[:port]"'
+        type: string
+      - name: caCert
+        required: true
+        description: |
+          Certificate Authority (CA) certificate in PEM format for verifying server TLS certificates.
+        example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+        type: string
+      - name: clientCert
+        required: true
+        sensitive: true
+        description: |
+          TLS client certificate in PEM format. Must be used with clientKey.
+        example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+        type: string
+      - name: clientKey
+        required: true
+        sensitive: true
+        description: |
+          TLS client key in PEM format. Must be used with clientCert. Can be secretKeyRef to use a secret reference.
+        example: "-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded PKCS8>\n-----END RSA PRIVATE KEY-----"
+        type: string
+metadata:
+  - name: url
+    required: true
+    description: |
+      Address of the AMQP broker. Can be secretKeyRef to use a secret reference.
+    example: '"amqp://host.domain[:port]"'
+    type: string
+  - name: username
+    required: true
+    sensitive: true
+    description: |
+      The username to connect to the broker. Only required if anonymous is not specified or set to false.
+    example: '"default"'
+    type: string
+  - name: password
+    required: true
+    sensitive: true
+    description: The password to connect to the broker. Only required if anonymous is not specified or set to false.
+    example: '"default"'
+    type: string
+  - name: consumerID
+    required: false
+    description: |
+      Consumer ID (consumer tag) organizes one or more consumers into a group. Consumers with the same consumer ID work as one virtual consumer; for example, a message is processed only once by one of the consumers in the group. If the consumerID is not provided, the Dapr runtime set it to the Dapr application ID (appID) value.
+    example: '"channel1"'
+    type: string
+  - name: anonymous
+    required: false
+    description: |
+      To connect to the broker without credential validation. Only works if enabled on the broker. A username and password would not be required if this is set to true.
+    example: '"true"'
+    type: bool

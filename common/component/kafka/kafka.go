@@ -78,6 +78,8 @@ func (k *Kafka) Init(_ context.Context, metadata map[string]string) error {
 	config := sarama.NewConfig()
 	config.Version = meta.internalVersion
 	config.Consumer.Offsets.Initial = k.initialOffset
+	// configure the client to not keep the metadata for all the topics in the cluster, just the topics used by this client
+	config.Metadata.Full = false
 
 	if meta.ClientID != "" {
 		config.ClientID = meta.ClientID

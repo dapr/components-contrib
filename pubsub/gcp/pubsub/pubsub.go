@@ -62,7 +62,6 @@ type GCPPubSub struct {
 }
 
 type cacheEntry struct {
-	Exists   bool
 	LastSync time.Time
 }
 
@@ -83,9 +82,7 @@ type WhatNow struct {
 	Type string `json:"type"`
 }
 
-const (
-	cacheRefreshInterval = 5 * time.Hour
-)
+var topicCacheRefreshInterval = 5 * time.Hour
 
 // NewGCPPubSub returns a new GCPPubSub instance.
 func NewGCPPubSub(logger logger.Logger) pubsub.PubSub {
@@ -95,13 +92,11 @@ func NewGCPPubSub(logger logger.Logger) pubsub.PubSub {
 		topicCache: make(map[string]cacheEntry),
 		lock:       &sync.RWMutex{},
 	}
-	go client.periodicCacheRefresh()
-
 	return client
 }
 
 func (g *GCPPubSub) periodicCacheRefresh() {
-	ticker := time.NewTicker(cacheRefreshInterval)
+	ticker := time.NewTicker(topicCacheRefreshInterval)
 	defer ticker.Stop()
 
 	for {
@@ -110,17 +105,12 @@ func (g *GCPPubSub) periodicCacheRefresh() {
 			return
 		case <-ticker.C:
 			g.lock.Lock()
-			// Clear or refresh the cache entries here
-			g.clearExpiredCacheEntries()
+			for key, entry := range g.topicCache {
+				if time.Since(entry.LastSync) > topicCacheRefreshInterval {
+					delete(g.topicCache, key)
+				}
+			}
 			g.lock.Unlock()
-		}
-	}
-}
-
-func (g *GCPPubSub) clearExpiredCacheEntries() {
-	for key, entry := range g.topicCache {
-		if time.Since(entry.LastSync) > cacheRefreshInterval {
-			delete(g.topicCache, key)
 		}
 	}
 }
@@ -153,6 +143,12 @@ func (g *GCPPubSub) Init(ctx context.Context, meta pubsub.Metadata) error {
 	if err != nil {
 		return err
 	}
+
+	g.wg.Add(1)
+	go func() {
+		defer g.wg.Done()
+		g.periodicCacheRefresh()
+	}()
 
 	pubsubClient, err := g.getPubSubClient(ctx, metadata)
 	if err != nil {
@@ -229,7 +225,6 @@ func (g *GCPPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) err
 		}
 		g.lock.Lock()
 		g.topicCache[req.Topic] = cacheEntry{
-			Exists:   true,
 			LastSync: time.Now(),
 		}
 		g.lock.Unlock()
@@ -274,7 +269,6 @@ func (g *GCPPubSub) Subscribe(parentCtx context.Context, req pubsub.SubscribeReq
 		}
 		g.lock.Lock()
 		g.topicCache[req.Topic] = cacheEntry{
-			Exists:   true,
 			LastSync: time.Now(),
 		}
 		g.lock.Unlock()
@@ -417,10 +411,10 @@ func (g *GCPPubSub) getTopic(topic string) *gcppubsub.Topic {
 
 func (g *GCPPubSub) ensureSubscription(parentCtx context.Context, subscription string, topic string) error {
 	g.lock.RLock()
-	_, TExists := g.topicCache[topic]
-	_, DExists := g.topicCache[g.metadata.DeadLetterTopic]
+	_, topicOK := g.topicCache[topic]
+	_, dlTopicOK := g.topicCache[g.metadata.DeadLetterTopic]
 	g.lock.RUnlock()
-	if !TExists {
+	if !topicOK {
 		g.lock.Lock()
 		// Double-check if the topic still doesn't exist to avoid race condition
 		if _, ok := g.topicCache[topic]; !ok {
@@ -430,7 +424,6 @@ func (g *GCPPubSub) ensureSubscription(parentCtx context.Context, subscription s
 				return err
 			}
 			g.topicCache[topic] = cacheEntry{
-				Exists:   true,
 				LastSync: time.Now(),
 			}
 		}
@@ -447,7 +440,7 @@ func (g *GCPPubSub) ensureSubscription(parentCtx context.Context, subscription s
 			EnableMessageOrdering: g.metadata.EnableMessageOrdering,
 		}
 
-		if g.metadata.DeadLetterTopic != "" && !DExists {
+		if g.metadata.DeadLetterTopic != "" && !dlTopicOK {
 			g.lock.Lock()
 			// Double-check if the DeadLetterTopic still doesn't exist to avoid race condition
 			if _, ok := g.topicCache[g.metadata.DeadLetterTopic]; !ok {
@@ -457,7 +450,6 @@ func (g *GCPPubSub) ensureSubscription(parentCtx context.Context, subscription s
 					return subErr
 				}
 				g.topicCache[g.metadata.DeadLetterTopic] = cacheEntry{
-					Exists:   true,
 					LastSync: time.Now(),
 				}
 			}

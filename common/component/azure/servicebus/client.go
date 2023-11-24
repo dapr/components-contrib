@@ -38,14 +38,16 @@ type Client struct {
 	metadata    *Metadata
 	lock        *sync.RWMutex
 	senders     map[string]*servicebus.Sender
+	topicCache  map[string]bool
 }
 
 // NewClient creates a new Client object.
 func NewClient(metadata *Metadata, rawMetadata map[string]string) (*Client, error) {
 	client := &Client{
-		metadata: metadata,
-		lock:     &sync.RWMutex{},
-		senders:  make(map[string]*servicebus.Sender),
+		metadata:   metadata,
+		lock:       &sync.RWMutex{},
+		senders:    make(map[string]*servicebus.Sender),
+		topicCache: make(map[string]bool),
 	}
 
 	clientOpts := &servicebus.ClientOptions{
@@ -121,10 +123,11 @@ func (c *Client) GetSender(ctx context.Context, queueOrTopic string, ensureFn en
 	}
 
 	// Ensure the queue or topic exists, if needed
-	if ensureFn != nil {
+	if ensureFn != nil && !c.topicCache[queueOrTopic] {
 		// Ensure the queue or topic exists the first time it is referenced
 		// This does nothing if DisableEntityManagement is true
 		err := ensureFn(ctx, queueOrTopic)
+		c.topicCache[queueOrTopic] = true
 		if err != nil {
 			return nil, err
 		}
@@ -248,10 +251,12 @@ func (c *Client) EnsureSubscription(ctx context.Context, name string, topic stri
 	if c.adminClient == nil {
 		return nil
 	}
-
-	err := c.EnsureTopic(ctx, topic)
-	if err != nil {
-		return err
+	if !c.topicCache[topic] {
+		err := c.EnsureTopic(ctx, topic)
+		c.topicCache[topic] = true
+		if err != nil {
+			return err
+		}
 	}
 
 	shouldCreate, err := c.shouldCreateSubscription(ctx, topic, name, opts)

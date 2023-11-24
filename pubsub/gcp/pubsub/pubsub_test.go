@@ -132,7 +132,6 @@ func TestInit(t *testing.T) {
 	})
 }
 
-// add tests to test topiccache behavuour
 func TestTopicCache(t *testing.T) {
 	var testLogger logger.Logger
 	client := NewGCPPubSub(testLogger)

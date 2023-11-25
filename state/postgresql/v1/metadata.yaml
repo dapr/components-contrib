@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../../component-metadata-schema.json
+# yaml-language-server: $schema=../../../component-metadata-schema.json
 schemaVersion: v1
 type: state
 name: postgresql

@@ -615,7 +615,7 @@ const components = {
         conformanceSetup: 'conformance-state.cloudflare.workerskv-setup.sh',
         conformanceDestroy: 'conformance-state.cloudflare.workerskv-destroy.sh',
     },
-    'state.cockroachdb': {
+    'state.cockroachdb.v1': {
         conformance: true,
         certification: true,
         conformanceSetup: 'docker-compose.sh cockroachdb',
@@ -673,7 +673,7 @@ const components = {
             'common/component/sql',
         ],
     },
-    'state.postgresql.docker': {
+    'state.postgresql.v1.docker': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh postgresql',
         sourcePkg: [
@@ -683,7 +683,7 @@ const components = {
             'common/component/sql',
         ],
     },
-    'state.postgresql.azure': {
+    'state.postgresql.v1.azure': {
         conformance: true,
         requiredSecrets: [
             'AzureDBPostgresConnectionString',

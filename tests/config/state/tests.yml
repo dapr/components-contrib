@@ -34,12 +34,12 @@ components:
     config:
       # This component requires etags to be hex-encoded numbers
       badEtag: "FFFF"
-  - component: postgresql.docker
+  - component: postgresql.v1.docker
     operations: [ "transaction", "etag", "first-write", "query", "ttl" ]
     config:
       # This component requires etags to be numeric
       badEtag: "1"
-  - component: postgresql.azure
+  - component: postgresql.v1.azure
     operations: [ "transaction", "etag", "first-write", "query", "ttl" ]
     config:
       # This component requires etags to be numeric
@@ -67,7 +67,7 @@ components:
   - component: cloudflare.workerskv
     # Although this component supports TTLs, the minimum TTL is 60s, which makes it not suitable for our conformance tests
     operations: []
-  - component: cockroachdb
+  - component: cockroachdb.v1
     operations: [ "transaction", "etag", "first-write", "query", "ttl" ]
     config:
       # This component requires etags to be numeric

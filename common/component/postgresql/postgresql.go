@@ -32,7 +32,6 @@ import (
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
-	"github.com/dapr/components-contrib/state/query"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"
@@ -74,20 +73,15 @@ type SetQueryOptions struct {
 
 // NewPostgreSQLStateStore creates a new instance of PostgreSQL state store.
 func NewPostgreSQLStateStore(logger logger.Logger, opts Options) state.Store {
-	s := newPostgreSQLStateStore(logger, opts)
-	s.BulkStore = state.NewDefaultBulkStore(s)
-	return s
-}
-
-// newPostgreSQLStateStore creates a newPostgreSQLStateStore instance of a PostgreSQL state store.
-func newPostgreSQLStateStore(logger logger.Logger, opts Options) *PostgreSQL {
-	return &PostgreSQL{
+	s := &PostgreSQL{
 		logger:        logger,
 		migrateFn:     opts.MigrateFn,
 		setQueryFn:    opts.SetQueryFn,
 		etagColumn:    opts.ETagColumn,
 		enableAzureAD: opts.EnableAzureAD,
 	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
 }
 
 // Init sets up Postgres connection and performs migrations.
@@ -137,15 +131,15 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 			UpdateLastCleanupQuery: func(arg any) (string, any) {
 				return fmt.Sprintf(
 					`INSERT INTO %[1]s (key, value)
-				VALUES ('last-cleanup', CURRENT_TIMESTAMP::text)
+				VALUES ('last-cleanup', now()::text)
 				ON CONFLICT (key)
-				DO UPDATE SET value = CURRENT_TIMESTAMP::text
-					WHERE (EXTRACT('epoch' FROM CURRENT_TIMESTAMP - %[1]s.value::timestamp with time zone) * 1000)::bigint > $1`,
+				DO UPDATE SET value = now()::text
+					WHERE (EXTRACT('epoch' FROM now() - %[1]s.value::timestamp with time zone) * 1000)::bigint > $1`,
 					p.metadata.MetadataTableName,
 				), arg
 			},
 			DeleteExpiredValuesQuery: fmt.Sprintf(
-				`DELETE FROM %s WHERE expiredate IS NOT NULL AND expiredate < CURRENT_TIMESTAMP`,
+				`DELETE FROM %s WHERE expiredate IS NOT NULL AND expiredate < now()`,
 				p.metadata.TableName,
 			),
 			CleanupInterval: *p.metadata.CleanupInterval,
@@ -165,7 +159,6 @@ func (p *PostgreSQL) Features() []state.Feature {
 	return []state.Feature{
 		state.FeatureETag,
 		state.FeatureTransactional,
-		state.FeatureQueryAPI,
 		state.FeatureTTL,
 	}
 }
@@ -477,29 +470,6 @@ func (p *PostgreSQL) Multi(parentCtx context.Context, request *state.Transaction
 	}
 
 	return nil
-}
-
-// Query executes a query against store.
-func (p *PostgreSQL) Query(parentCtx context.Context, req *state.QueryRequest) (*state.QueryResponse, error) {
-	q := &Query{
-		query:      "",
-		params:     []any{},
-		tableName:  p.metadata.TableName,
-		etagColumn: p.etagColumn,
-	}
-	qbuilder := query.NewQueryBuilder(q)
-	if err := qbuilder.BuildQuery(&req.Query); err != nil {
-		return &state.QueryResponse{}, err
-	}
-	data, token, err := q.execute(parentCtx, p.logger, p.db)
-	if err != nil {
-		return &state.QueryResponse{}, err
-	}
-
-	return &state.QueryResponse{
-		Results: data,
-		Token:   token,
-	}, nil
 }
 
 func (p *PostgreSQL) CleanupExpired() error {

@@ -25,7 +25,7 @@ import (
 
 // New creates a new instance of CockroachDB state store.
 func New(logger logger.Logger) state.Store {
-	return postgresql.NewPostgreSQLStateStore(logger, postgresql.Options{
+	return postgresql.NewPostgreSQLQueryStateStore(logger, postgresql.Options{
 		ETagColumn: "etag",
 		MigrateFn:  ensureTables,
 		SetQueryFn: func(req *state.SetRequest, opts postgresql.SetQueryOptions) string {

@@ -27,6 +27,59 @@ import (
 	"github.com/dapr/kit/ptr"
 )
 
+// PostgreSQLQuery extends PostgreSQL to add querying capabilities
+type PostgreSQLQuery struct {
+	PostgreSQL
+}
+
+// NewPostgreSQLQueryStateStore creates a new instance of PostgreSQL state store.
+func NewPostgreSQLQueryStateStore(logger logger.Logger, opts Options) state.Store {
+	s := &PostgreSQLQuery{
+		PostgreSQL: PostgreSQL{
+			logger:        logger,
+			migrateFn:     opts.MigrateFn,
+			setQueryFn:    opts.SetQueryFn,
+			etagColumn:    opts.ETagColumn,
+			enableAzureAD: opts.EnableAzureAD,
+		},
+	}
+	s.BulkStore = state.NewDefaultBulkStore(s)
+	return s
+}
+
+// Features returns the features available in this component.
+func (p *PostgreSQLQuery) Features() []state.Feature {
+	return []state.Feature{
+		state.FeatureETag,
+		state.FeatureTransactional,
+		state.FeatureQueryAPI,
+		state.FeatureTTL,
+	}
+}
+
+// Query executes a query against store.
+func (p *PostgreSQLQuery) Query(parentCtx context.Context, req *state.QueryRequest) (*state.QueryResponse, error) {
+	q := &Query{
+		query:      "",
+		params:     []any{},
+		tableName:  p.metadata.TableName,
+		etagColumn: p.etagColumn,
+	}
+	qbuilder := query.NewQueryBuilder(q)
+	if err := qbuilder.BuildQuery(&req.Query); err != nil {
+		return &state.QueryResponse{}, err
+	}
+	data, token, err := q.execute(parentCtx, p.logger, p.db)
+	if err != nil {
+		return &state.QueryResponse{}, err
+	}
+
+	return &state.QueryResponse{
+		Results: data,
+		Token:   token,
+	}, nil
+}
+
 type Query struct {
 	query      string
 	params     []interface{}

@@ -21,7 +21,7 @@ import (
 
 // NewPostgreSQLStateStore creates a new instance of PostgreSQL state store.
 func NewPostgreSQLStateStore(logger logger.Logger) state.Store {
-	return postgresql.NewPostgreSQLStateStore(logger, postgresql.Options{
+	return postgresql.NewPostgreSQLQueryStateStore(logger, postgresql.Options{
 		ETagColumn:    "xmin",
 		EnableAzureAD: true,
 		MigrateFn:     performMigrations,

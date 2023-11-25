@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -29,8 +30,8 @@ func TestMetadata(t *testing.T) {
 		props := map[string]string{}
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
-		assert.Error(t, err)
-		assert.ErrorContains(t, err, "connection string")
+		require.Error(t, err)
+		require.ErrorContains(t, err, "connection string")
 	})
 
 	t.Run("has connection string", func(t *testing.T) {
@@ -40,7 +41,7 @@ func TestMetadata(t *testing.T) {
 		}
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("default table name", func(t *testing.T) {
@@ -50,7 +51,7 @@ func TestMetadata(t *testing.T) {
 		}
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, m.TableName, defaultTableName)
 	})
 
@@ -62,7 +63,7 @@ func TestMetadata(t *testing.T) {
 		}
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, m.TableName, "mytable")
 	})
 
@@ -73,7 +74,7 @@ func TestMetadata(t *testing.T) {
 		}
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, defaultTimeout*time.Second, m.Timeout)
 	})
 
@@ -81,22 +82,22 @@ func TestMetadata(t *testing.T) {
 		m := pgMetadata{}
 		props := map[string]string{
 			"connectionString": "foo",
-			"timeoutInSeconds": "NaN",
+			"timeout":          "NaN",
 		}
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("positive timeout", func(t *testing.T) {
 		m := pgMetadata{}
 		props := map[string]string{
 			"connectionString": "foo",
-			"timeoutInSeconds": "42",
+			"timeout":          "42",
 		}
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 42*time.Second, m.Timeout)
 	})
 
@@ -104,58 +105,58 @@ func TestMetadata(t *testing.T) {
 		m := pgMetadata{}
 		props := map[string]string{
 			"connectionString": "foo",
-			"timeoutInSeconds": "0",
+			"timeout":          "0",
 		}
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
-	t.Run("default cleanupIntervalInSeconds", func(t *testing.T) {
+	t.Run("default cleanupInterval", func(t *testing.T) {
 		m := pgMetadata{}
 		props := map[string]string{
 			"connectionString": "foo",
 		}
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		_ = assert.NotNil(t, m.CleanupInterval) &&
 			assert.Equal(t, defaultCleanupInternal*time.Second, *m.CleanupInterval)
 	})
 
-	t.Run("invalid cleanupIntervalInSeconds", func(t *testing.T) {
+	t.Run("invalid cleanupInterval", func(t *testing.T) {
 		m := pgMetadata{}
 		props := map[string]string{
-			"connectionString":         "foo",
-			"cleanupIntervalInSeconds": "NaN",
+			"connectionString": "foo",
+			"cleanupInterval":  "NaN",
 		}
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
-	t.Run("positive cleanupIntervalInSeconds", func(t *testing.T) {
+	t.Run("positive cleanupInterval", func(t *testing.T) {
 		m := pgMetadata{}
 		props := map[string]string{
-			"connectionString":         "foo",
-			"cleanupIntervalInSeconds": "42",
+			"connectionString": "foo",
+			"cleanupInterval":  "42",
 		}
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		_ = assert.NotNil(t, m.CleanupInterval) &&
 			assert.Equal(t, 42*time.Second, *m.CleanupInterval)
 	})
 
-	t.Run("zero cleanupIntervalInSeconds", func(t *testing.T) {
+	t.Run("zero cleanupInterval", func(t *testing.T) {
 		m := pgMetadata{}
 		props := map[string]string{
-			"connectionString":         "foo",
-			"cleanupIntervalInSeconds": "0",
+			"connectionString": "foo",
+			"cleanupInterval":  "0",
 		}
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Nil(t, m.CleanupInterval)
 	})
 }

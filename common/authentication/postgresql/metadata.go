@@ -28,7 +28,7 @@ import (
 
 // PostgresAuthMetadata contains authentication metadata for PostgreSQL components.
 type PostgresAuthMetadata struct {
-	ConnectionString      string        `mapstructure:"connectionString"`
+	ConnectionString      string        `mapstructure:"connectionString" mdaliases:"url"`
 	ConnectionMaxIdleTime time.Duration `mapstructure:"connectionMaxIdleTime"`
 	MaxConns              int           `mapstructure:"maxConns"`
 	UseAzureAD            bool          `mapstructure:"useAzureAD"`

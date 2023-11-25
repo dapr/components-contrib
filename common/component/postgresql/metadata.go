@@ -14,7 +14,7 @@ limitations under the License.
 package postgresql
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
@@ -24,9 +24,6 @@ import (
 )
 
 const (
-	cleanupIntervalKey = "cleanupIntervalInSeconds"
-	timeoutKey         = "timeoutInSeconds"
-
 	defaultTableName         = "state"
 	defaultMetadataTableName = "dapr_metadata"
 	defaultCleanupInternal   = 3600 // In seconds = 1 hour
@@ -38,8 +35,8 @@ type pgMetadata struct {
 
 	TableName         string         `mapstructure:"tableName"`         // Could be in the format "schema.table" or just "table"
 	MetadataTableName string         `mapstructure:"metadataTableName"` // Could be in the format "schema.table" or just "table"
-	Timeout           time.Duration  `mapstructure:"timeoutInSeconds"`
-	CleanupInterval   *time.Duration `mapstructure:"cleanupIntervalInSeconds"`
+	Timeout           time.Duration  `mapstructure:"timeout" mdaliases:"timeoutInSeconds"`
+	CleanupInterval   *time.Duration `mapstructure:"cleanupInterval" mdaliases:"cleanupIntervalInSeconds"`
 }
 
 func (m *pgMetadata) InitWithMetadata(meta state.Metadata, azureADEnabled bool) error {
@@ -64,18 +61,13 @@ func (m *pgMetadata) InitWithMetadata(meta state.Metadata, azureADEnabled bool) 
 
 	// Timeout
 	if m.Timeout < 1*time.Second {
-		return fmt.Errorf("invalid value for '%s': must be greater than 0", timeoutKey)
+		return errors.New("invalid value for 'timeout': must be greater than 1s")
 	}
 
 	// Cleanup interval
 	// Non-positive value from meta means disable auto cleanup.
 	if m.CleanupInterval != nil && *m.CleanupInterval <= 0 {
-		if meta.Properties[cleanupIntervalKey] == "" {
-			// Unfortunately the mapstructure decoder decodes an empty string to 0, a missing key would be nil however
-			m.CleanupInterval = ptr.Of(defaultCleanupInternal * time.Second)
-		} else {
-			m.CleanupInterval = nil
-		}
+		m.CleanupInterval = nil
 	}
 
 	return nil

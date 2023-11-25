@@ -47,7 +47,7 @@ authenticationProfiles:
           "host=localhost user=postgres password=example port=5432 connect_timeout=10 database=dapr_test"
         type: string
 metadata:
-  - name: timeoutInSeconds
+  - name: timeout
     required: false
     description: Timeout, in seconds, for all database operations. 
     example:  "30"
@@ -68,8 +68,8 @@ metadata:
       Can optionally have the schema name as prefix, such as `public.dapr_metadata`
     example: "public.dapr_metadata"
     default: "dapr_metadata"
-    type: string  
-  - name: cleanupIntervalInSeconds
+    type: string
+  - name: cleanupInterval
     required: false
     description: |
       Interval, in seconds, to clean up rows with an expired TTL.

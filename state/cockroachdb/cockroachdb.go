@@ -17,8 +17,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/dapr/components-contrib/common/component/postgresql"
 	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
+	postgresql "github.com/dapr/components-contrib/common/component/postgresql/v1"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )
@@ -35,7 +35,7 @@ func New(logger logger.Logger) state.Store {
 				// The difference is that with concurrency as first-write, we'll update the row only if it's expired
 				var whereClause string
 				if req.Options.Concurrency == state.FirstWrite {
-					whereClause = " WHERE (t.expiredate IS NOT NULL AND t.expiredate < CURRENT_TIMESTAMP)"
+					whereClause = " WHERE (t.expiredate IS NOT NULL AND t.expiredate < now())"
 				}
 
 				return `
@@ -46,7 +46,7 @@ VALUES
 ON CONFLICT (key) DO UPDATE SET
   value = $2,
   isbinary = $3,
-  updatedate = NOW(),
+  updatedate = now(),
   etag = EXCLUDED.etag + 1,
   expiredate = ` + opts.ExpireDateValue +
 					whereClause
@@ -58,13 +58,13 @@ UPDATE ` + opts.TableName + `
 SET
   value = $2,
   isbinary = $3,
-  updatedate = NOW(),
+  updatedate = now(),
   etag = etag + 1,
   expiredate = ` + opts.ExpireDateValue + `
 WHERE
   key = $1
   AND etag = $4
-  AND (expiredate IS NULL OR expiredate >= CURRENT_TIMESTAMP);`
+  AND (expiredate IS NULL OR expiredate >= now());`
 		},
 	})
 }

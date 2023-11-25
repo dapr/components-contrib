@@ -29,6 +29,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
+	pgtransactions "github.com/dapr/components-contrib/common/component/postgresql/transactions"
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -437,39 +438,29 @@ func (p *PostgreSQL) doDelete(parentCtx context.Context, db pginterfaces.DBQueri
 }
 
 func (p *PostgreSQL) Multi(parentCtx context.Context, request *state.TransactionalStateRequest) error {
-	tx, err := p.beginTx(parentCtx)
-	if err != nil {
-		return err
-	}
-	defer p.rollbackTx(parentCtx, tx, "ExecMulti")
+	_, err := pgtransactions.ExecuteInTransaction[struct{}](parentCtx, p.logger, p.db, p.metadata.Timeout, func(ctx context.Context, tx pgx.Tx) (res struct{}, err error) {
+		for _, o := range request.Operations {
+			switch x := o.(type) {
+			case state.SetRequest:
+				err = p.doSet(parentCtx, tx, &x)
+				if err != nil {
+					return res, err
+				}
 
-	for _, o := range request.Operations {
-		switch x := o.(type) {
-		case state.SetRequest:
-			err = p.doSet(parentCtx, tx, &x)
-			if err != nil {
-				return err
+			case state.DeleteRequest:
+				err = p.doDelete(parentCtx, tx, &x)
+				if err != nil {
+					return res, err
+				}
+
+			default:
+				return res, fmt.Errorf("unsupported operation: %s", o.Operation())
 			}
-
-		case state.DeleteRequest:
-			err = p.doDelete(parentCtx, tx, &x)
-			if err != nil {
-				return err
-			}
-
-		default:
-			return fmt.Errorf("unsupported operation: %s", o.Operation())
 		}
-	}
 
-	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
-	err = tx.Commit(ctx)
-	cancel()
-	if err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return nil
+		return res, nil
+	})
+	return err
 }
 
 func (p *PostgreSQL) CleanupExpired() error {
@@ -497,29 +488,6 @@ func (p *PostgreSQL) Close() error {
 // This is primarily used for tests.
 func (p *PostgreSQL) GetCleanupInterval() *time.Duration {
 	return p.metadata.CleanupInterval
-}
-
-// Internal function that begins a transaction.
-func (p *PostgreSQL) beginTx(parentCtx context.Context) (pgx.Tx, error) {
-	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
-	tx, err := p.db.Begin(ctx)
-	cancel()
-	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	return tx, nil
-}
-
-// Internal function that rolls back a transaction.
-// Normally called as a deferred function in methods that use transactions.
-// In case of errors, they are logged but not actioned upon.
-func (p *PostgreSQL) rollbackTx(parentCtx context.Context, tx pgx.Tx, methodName string) {
-	rollbackCtx, rollbackCancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
-	rollbackErr := tx.Rollback(rollbackCtx)
-	rollbackCancel()
-	if rollbackErr != nil && !errors.Is(rollbackErr, pgx.ErrTxClosed) {
-		p.logger.Errorf("Failed to rollback transaction in %s: %v", methodName, rollbackErr)
-	}
 }
 
 func (p *PostgreSQL) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {

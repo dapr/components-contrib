@@ -82,4 +82,15 @@ func TestBaseGetProperty(t *testing.T) {
 		_, ok := emptyBase.GetProperty("KEY1", "KEY2", "KEY3")
 		assert.False(t, ok)
 	})
+
+	t.Run("ordering", func(t *testing.T) {
+		// Must always return "value1", as it matches "key1" first
+		value, ok := base.GetProperty("key1", "key2")
+		assert.True(t, ok)
+		assert.Equal(t, "value1", value)
+
+		value, ok = base.GetProperty("key2", "key1")
+		assert.True(t, ok)
+		assert.Equal(t, "value2", value)
+	})
 }

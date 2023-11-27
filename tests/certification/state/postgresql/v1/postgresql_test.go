@@ -477,21 +477,24 @@ func TestPostgreSQL(t *testing.T) {
 
 	// Validates TTLs and garbage collections
 	ttlTest := func(ctx flow.Context) error {
-		md := state.Metadata{
-			Base: metadata.Base{
-				Name: "ttltest",
-				Properties: map[string]string{
-					keyConnectionString:  connStringValue,
-					keyTableName:         "ttl_state",
-					keyMetadataTableName: "ttl_metadata",
+		getMd := func() state.Metadata {
+			return state.Metadata{
+				Base: metadata.Base{
+					Name: "ttltest",
+					Properties: map[string]string{
+						keyConnectionString:  connStringValue,
+						keyTableName:         "ttl_state",
+						keyMetadataTableName: "ttl_metadata",
+					},
 				},
-			},
+			}
 		}
 
 		t.Run("parse cleanupIntervalInSeconds", func(t *testing.T) {
 			t.Run("default value", func(t *testing.T) {
 				// Default value is 1 hr
-				md.Properties["cleanupIntervalInSeconds"] = ""
+				md := getMd()
+				md.Properties[keyCleanupInterval] = ""
 				storeObj := postgresql.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQLQuery)
 
 				err := storeObj.Init(context.Background(), md)
@@ -505,6 +508,7 @@ func TestPostgreSQL(t *testing.T) {
 
 			t.Run("positive value", func(t *testing.T) {
 				// A positive value is interpreted in seconds
+				md := getMd()
 				md.Properties[keyCleanupInterval] = "10"
 				storeObj := postgresql.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQLQuery)
 
@@ -517,8 +521,24 @@ func TestPostgreSQL(t *testing.T) {
 					assert.Equal(t, time.Duration(10*time.Second), *cleanupInterval)
 			})
 
+			t.Run("positive value as go duration", func(t *testing.T) {
+				// A positive value is interpreted in seconds
+				md := getMd()
+				md.Properties[keyCleanupInterval] = "1m"
+				storeObj := postgresql.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQLQuery)
+
+				err := storeObj.Init(context.Background(), md)
+				require.NoError(t, err, "failed to init")
+				defer storeObj.Close()
+
+				cleanupInterval := storeObj.GetCleanupInterval()
+				_ = assert.NotNil(t, cleanupInterval) &&
+					assert.Equal(t, time.Duration(time.Minute), *cleanupInterval)
+			})
+
 			t.Run("disabled", func(t *testing.T) {
 				// A value of <=0 means that the cleanup is disabled
+				md := getMd()
 				md.Properties[keyCleanupInterval] = "0"
 				storeObj := postgresql.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQLQuery)
 
@@ -533,19 +553,22 @@ func TestPostgreSQL(t *testing.T) {
 		})
 
 		t.Run("cleanup", func(t *testing.T) {
-			md := state.Metadata{
-				Base: metadata.Base{
-					Name: "ttltest",
-					Properties: map[string]string{
-						keyConnectionString:  connStringValue,
-						keyTableName:         "ttl_state",
-						keyMetadataTableName: "ttl_metadata",
+			getMd := func() state.Metadata {
+				return state.Metadata{
+					Base: metadata.Base{
+						Name: "ttltest",
+						Properties: map[string]string{
+							keyConnectionString:  connStringValue,
+							keyTableName:         "ttl_state",
+							keyMetadataTableName: "ttl_metadata",
+						},
 					},
-				},
+				}
 			}
 
 			t.Run("automatically delete expired records", func(t *testing.T) {
 				// Run every second
+				md := getMd()
 				md.Properties[keyCleanupInterval] = "1"
 
 				storeObj := postgresql.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQLQuery)
@@ -583,7 +606,8 @@ func TestPostgreSQL(t *testing.T) {
 			t.Run("cleanup concurrency", func(t *testing.T) {
 				// Set to run every hour
 				// (we'll manually trigger more frequent iterations)
-				md.Properties[keyCleanupInterval] = "3600"
+				md := getMd()
+				md.Properties[keyCleanupInterval] = "1h"
 
 				storeObj := postgresql.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQLQuery)
 				err := storeObj.Init(context.Background(), md)
@@ -599,7 +623,7 @@ func TestPostgreSQL(t *testing.T) {
 				require.NoError(t, err, "failed to run query to count rows")
 				assert.Equal(t, 20, count)
 
-				// Set last-cleanup to 1s ago (less than 3600s)
+				// Set last-cleanup to 1s ago (less than 1h)
 				err = setValueInMetadataTable(ctx, dbClient, "ttl_metadata", "'last-cleanup'", "CURRENT_TIMESTAMP - interval '1 second'")
 				require.NoError(t, err, "failed to set last-cleanup")
 
@@ -611,7 +635,7 @@ func TestPostgreSQL(t *testing.T) {
 				require.NoError(t, err, "failed to load absolute value for 'last-cleanup'")
 				require.NotEmpty(t, lastCleanupValueOrig)
 
-				// Trigger the background cleanup, which should do nothing because the last cleanup was < 3600s
+				// Trigger the background cleanup, which should do nothing because the last cleanup was < 1h
 				err = storeObj.CleanupExpired()
 				require.NoError(t, err, "CleanupExpired returned an error")
 

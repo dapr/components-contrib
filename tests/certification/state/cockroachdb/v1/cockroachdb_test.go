@@ -263,20 +263,23 @@ func TestCockroach(t *testing.T) {
 
 	// Validates TTLs and garbage collections
 	ttlTest := func(ctx flow.Context) error {
-		md := state.Metadata{
-			Base: metadata.Base{
-				Name: "ttltest",
-				Properties: map[string]string{
-					"connectionString":  "host=localhost user=root port=26257 connect_timeout=10 database=dapr_test",
-					"tableName":         "ttl_state",
-					"metadataTableName": "ttl_metadata",
+		getMd := func() state.Metadata {
+			return state.Metadata{
+				Base: metadata.Base{
+					Name: "ttltest",
+					Properties: map[string]string{
+						"connectionString":  "host=localhost user=root port=26257 connect_timeout=10 database=dapr_test",
+						"tableName":         "ttl_state",
+						"metadataTableName": "ttl_metadata",
+					},
 				},
-			},
+			}
 		}
 
 		t.Run("parse cleanupIntervalInSeconds", func(t *testing.T) {
 			t.Run("default value", func(t *testing.T) {
 				// Default value is 1 hr
+				md := getMd()
 				md.Properties["cleanupIntervalInSeconds"] = ""
 				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQLQuery)
 
@@ -291,6 +294,7 @@ func TestCockroach(t *testing.T) {
 
 			t.Run("positive value", func(t *testing.T) {
 				// A positive value is interpreted in seconds
+				md := getMd()
 				md.Properties["cleanupIntervalInSeconds"] = "10"
 				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQLQuery)
 
@@ -305,6 +309,7 @@ func TestCockroach(t *testing.T) {
 
 			t.Run("disabled", func(t *testing.T) {
 				// A value of <=0 means that the cleanup is disabled
+				md := getMd()
 				md.Properties["cleanupIntervalInSeconds"] = "0"
 				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQLQuery)
 
@@ -318,19 +323,22 @@ func TestCockroach(t *testing.T) {
 		})
 
 		t.Run("cleanup", func(t *testing.T) {
-			md := state.Metadata{
-				Base: metadata.Base{
-					Name: "ttltest",
-					Properties: map[string]string{
-						"connectionString":  "host=localhost user=root port=26257 connect_timeout=10 database=dapr_test",
-						"tableName":         "ttl_state",
-						"metadataTableName": "ttl_metadata",
+			getMd := func() state.Metadata {
+				return state.Metadata{
+					Base: metadata.Base{
+						Name: "ttltest",
+						Properties: map[string]string{
+							"connectionString":  "host=localhost user=root port=26257 connect_timeout=10 database=dapr_test",
+							"tableName":         "ttl_state",
+							"metadataTableName": "ttl_metadata",
+						},
 					},
-				},
+				}
 			}
 
 			t.Run("automatically delete expiredate records", func(t *testing.T) {
 				// Run every second
+				md := getMd()
 				md.Properties["cleanupIntervalInSeconds"] = "1"
 
 				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQLQuery)
@@ -368,7 +376,8 @@ func TestCockroach(t *testing.T) {
 			t.Run("cleanup concurrency", func(t *testing.T) {
 				// Set to run every hour
 				// (we'll manually trigger more frequent iterations)
-				md.Properties["cleanupIntervalInSeconds"] = "3600"
+				md := getMd()
+				md.Properties["cleanupIntervalInSeconds"] = "1h"
 
 				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQLQuery)
 				err := storeObj.Init(context.Background(), md)
@@ -384,7 +393,7 @@ func TestCockroach(t *testing.T) {
 				require.NoError(t, err, "failed to run query to count rows")
 				assert.Equal(t, 20, count)
 
-				// Set last-cleanup to 1s ago (less than 3600s)
+				// Set last-cleanup to 1s ago (less than 1h)
 				_, err = dbClient.ExecContext(ctx,
 					fmt.Sprintf(`INSERT INTO ttl_metadata (key, value) VALUES ('last-cleanup', %[1]s) ON CONFLICT (key) DO UPDATE SET value = %[1]s`, "(CURRENT_TIMESTAMP - interval '1 second')::STRING"),
 				)
@@ -398,7 +407,7 @@ func TestCockroach(t *testing.T) {
 				require.NoError(t, err, "failed to load absolute value for 'last-cleanup'")
 				require.NotEmpty(t, lastCleanupValueOrig)
 
-				// Trigger the background cleanup, which should do nothing because the last cleanup was < 3600s
+				// Trigger the background cleanup, which should do nothing because the last cleanup was < 1h
 				err = storeObj.CleanupExpired()
 				require.NoError(t, err, "CleanupExpired returned an error")
 

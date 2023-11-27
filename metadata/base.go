@@ -28,15 +28,17 @@ type Base struct {
 
 // GetProperty returns the value of a property, looking it up case-insensitively
 func (b Base) GetProperty(names ...string) (string, bool) {
-	wantKeys := make(map[string]struct{}, len(names))
-	for _, v := range names {
-		wantKeys[strings.ToLower(v)] = struct{}{}
+	// Note that we must look for "names" inside the map, and not vice-versa: this way we can guarantee the order
+	// Start by lowercasing all metadata keys
+	mdkeys := make(map[string]string, len(b.Properties))
+	for k := range b.Properties {
+		mdkeys[strings.ToLower(k)] = k
 	}
 
-	for k, v := range b.Properties {
-		_, ok := wantKeys[strings.ToLower(k)]
-		if ok {
-			return v, true
+	for _, k := range names {
+		mapK := mdkeys[strings.ToLower(k)]
+		if mapK != "" {
+			return b.Properties[mapK], true
 		}
 	}
 

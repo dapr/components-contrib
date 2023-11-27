@@ -241,7 +241,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		err := statestore.Init(context.Background(), state.Metadata{Base: metadata.Base{
 			Properties: props,
 		}})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	// Don't run more tests if init failed
@@ -255,9 +255,9 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		// so will only assert assert.NoError(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
 		if err != nil {
-			assert.EqualError(t, err, "ping is not implemented by this state store")
+			require.EqualError(t, err, "ping is not implemented by this state store")
 		} else {
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 	})
 
@@ -273,7 +273,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
 				}
 				err := statestore.Set(context.Background(), req)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		}
 	})

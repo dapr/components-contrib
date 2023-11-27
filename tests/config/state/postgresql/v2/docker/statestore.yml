@@ -4,7 +4,9 @@ metadata:
   name: statestore
 spec:
   type: state.postgresql
-  version: v1
+  version: v2
   metadata:
     - name: connectionString
       value: "host=localhost user=postgres password=example port=5432 connect_timeout=10 database=dapr_test"
+    - name: tablePrefix
+      value: "confv2_"

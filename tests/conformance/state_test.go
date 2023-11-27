@@ -39,6 +39,7 @@ import (
 	s_mysql "github.com/dapr/components-contrib/state/mysql"
 	s_oracledatabase "github.com/dapr/components-contrib/state/oracledatabase"
 	s_postgresql_v1 "github.com/dapr/components-contrib/state/postgresql/v1"
+	s_postgresql_v2 "github.com/dapr/components-contrib/state/postgresql/v2"
 	s_redis "github.com/dapr/components-contrib/state/redis"
 	s_rethinkdb "github.com/dapr/components-contrib/state/rethinkdb"
 	s_sqlite "github.com/dapr/components-contrib/state/sqlite"
@@ -95,6 +96,10 @@ func loadStateStore(name string) state.Store {
 		return s_postgresql_v1.NewPostgreSQLStateStore(testLogger)
 	case "postgresql.v1.azure":
 		return s_postgresql_v1.NewPostgreSQLStateStore(testLogger)
+	case "postgresql.v2.docker":
+		return s_postgresql_v2.NewPostgreSQLStateStore(testLogger, s_postgresql_v2.Options{})
+	case "postgresql.v2.azure":
+		return s_postgresql_v2.NewPostgreSQLStateStore(testLogger, s_postgresql_v2.Options{})
 	case "sqlite":
 		return s_sqlite.NewSQLiteStateStore(testLogger)
 	case "mysql.mysql":

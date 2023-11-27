@@ -50,14 +50,16 @@ type PostgreSQL struct {
 }
 
 type Options struct {
-	EnableAzureAD bool
+	// Disables support for authenticating with Azure AD
+	// This should be set to "false" when targeting different databases than PostgreSQL (such as CockroachDB)
+	NoAzureAD bool
 }
 
 // NewPostgreSQLStateStore creates a new instance of PostgreSQL state store.
 func NewPostgreSQLStateStore(logger logger.Logger, opts Options) state.Store {
 	s := &PostgreSQL{
 		logger:        logger,
-		enableAzureAD: opts.EnableAzureAD,
+		enableAzureAD: !opts.NoAzureAD,
 	}
 	s.BulkStore = state.NewDefaultBulkStore(s)
 	return s
@@ -183,10 +185,13 @@ func (p *PostgreSQL) GetDB() *pgxpool.Pool {
 
 // Set makes an insert or update to the database.
 func (p *PostgreSQL) Set(ctx context.Context, req *state.SetRequest) error {
-	return p.doSet(ctx, p.db, req)
+	if req == nil {
+		return errors.New("request object is nil")
+	}
+	return p.doSet(ctx, p.db, *req)
 }
 
-func (p *PostgreSQL) doSet(parentCtx context.Context, db pginterfaces.DBQuerier, req *state.SetRequest) error {
+func (p *PostgreSQL) doSet(parentCtx context.Context, db pginterfaces.DBQuerier, req state.SetRequest) error {
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
@@ -196,8 +201,7 @@ func (p *PostgreSQL) doSet(parentCtx context.Context, db pginterfaces.DBQuerier,
 		return errors.New("missing key in set operation")
 	}
 
-	// If the value is a byte slice or json.RawMessage, accept it as-is
-	// Otherwise, encode to JSON
+	// If the value is a byte slice, accept it as-is; otherwise, encode to JSON
 	var value []byte
 	switch x := req.Value.(type) {
 	case []byte:
@@ -220,8 +224,8 @@ func (p *PostgreSQL) doSet(parentCtx context.Context, db pginterfaces.DBQuerier,
 	}
 
 	var (
-		queryExpiredate string
-		params          []any
+		queryExpiresAt string
+		params         []any
 	)
 
 	if req.HasETag() {
@@ -231,9 +235,9 @@ func (p *PostgreSQL) doSet(parentCtx context.Context, db pginterfaces.DBQuerier,
 	}
 
 	if ttlSeconds > 0 {
-		queryExpiredate = "now() + interval '" + strconv.Itoa(ttlSeconds) + " seconds'"
+		queryExpiresAt = "now() + interval '" + strconv.Itoa(ttlSeconds) + " seconds'"
 	} else {
-		queryExpiredate = "NULL"
+		queryExpiresAt = "NULL"
 	}
 
 	// Sprintf is required for table name because the driver does not substitute parameters for table names.
@@ -243,20 +247,20 @@ func (p *PostgreSQL) doSet(parentCtx context.Context, db pginterfaces.DBQuerier,
 		// The difference is that with concurrency as first-write, we'll update the row only if it's expired
 		var whereClause string
 		if req.Options.Concurrency == state.FirstWrite {
-			whereClause = " WHERE (t.expiredate IS NOT NULL AND t.expiredate < now())"
+			whereClause = " WHERE (t.expires_at IS NOT NULL AND t.expires_at < now())"
 		}
 
 		query = `
-INSERT INTO ` + p.metadata.TableName(pgTableState) + `
+INSERT INTO ` + p.metadata.TableName(pgTableState) + ` AS t
   (key, value, etag, expires_at)
 VALUES
-  ($1, $2, gen_random_uuid(),` + queryExpiredate + `)
+  ($1, $2, gen_random_uuid(),` + queryExpiresAt + `)
 ON CONFLICT (key)
 DO UPDATE SET
   value = $2,
   updated_at = now(),
   etag = gen_random_uuid(),
-  expires_at = ` + queryExpiredate + whereClause
+  expires_at = ` + queryExpiresAt + whereClause
 	} else {
 		// When an etag is provided do an update - no insert.
 		query = `
@@ -265,7 +269,7 @@ SET
   value = $2,
   updated_at = now(),
   etag = gen_random_uuid(),
-  expires_at = ` + queryExpiredate + `
+  expires_at = ` + queryExpiresAt + `
 WHERE
   key = $1
   AND etag = $3
@@ -407,11 +411,14 @@ func readRow(row pgx.Row) (key string, value []byte, etag *string, expireTime *t
 }
 
 // Delete removes an item from the state store.
-func (p *PostgreSQL) Delete(ctx context.Context, req *state.DeleteRequest) (err error) {
-	return p.doDelete(ctx, p.db, req)
+func (p *PostgreSQL) Delete(ctx context.Context, req *state.DeleteRequest) error {
+	if req == nil {
+		return errors.New("request object is nil")
+	}
+	return p.doDelete(ctx, p.db, *req)
 }
 
-func (p *PostgreSQL) doDelete(parentCtx context.Context, db pginterfaces.DBQuerier, req *state.DeleteRequest) (err error) {
+func (p *PostgreSQL) doDelete(parentCtx context.Context, db pginterfaces.DBQuerier, req state.DeleteRequest) (err error) {
 	if req.Key == "" {
 		return errors.New("missing key in delete operation")
 	}
@@ -441,13 +448,13 @@ func (p *PostgreSQL) Multi(parentCtx context.Context, request *state.Transaction
 		for _, o := range request.Operations {
 			switch x := o.(type) {
 			case state.SetRequest:
-				err = p.doSet(parentCtx, tx, &x)
+				err = p.doSet(parentCtx, tx, x)
 				if err != nil {
 					return res, err
 				}
 
 			case state.DeleteRequest:
-				err = p.doDelete(parentCtx, tx, &x)
+				err = p.doDelete(parentCtx, tx, x)
 				if err != nil {
 					return res, err
 				}

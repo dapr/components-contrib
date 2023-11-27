@@ -25,6 +25,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	pgxmock "github.com/pashagolub/pgxmock/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -37,10 +38,6 @@ import (
 const (
 	connectionStringEnvKey = "DAPR_TEST_POSTGRES_CONNSTRING" // Environment variable containing the connection string
 )
-
-type fakeItem struct {
-	Color string
-}
 
 func TestPostgreSQLIntegration(t *testing.T) {
 	connectionString := getConnectionString()
@@ -56,7 +53,7 @@ func TestPostgreSQLIntegration(t *testing.T) {
 		Base: metadata.Base{Properties: map[string]string{"connectionString": connectionString}},
 	}
 
-	pgs := NewPostgreSQLStateStore(logger.NewLogger("test"), false).(*postgresql.PostgreSQL)
+	pgs := NewPostgreSQLStateStore(logger.NewLogger("test"), Options{}).(*postgresql.PostgreSQL)
 	t.Cleanup(func() {
 		defer pgs.Close()
 	})
@@ -454,7 +451,7 @@ func testInitConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewPostgreSQLStateStore(logger, false).(*postgresql.PostgreSQL)
+			p := NewPostgreSQLStateStore(logger, Options{}).(*postgresql.PostgreSQL)
 			defer p.Close()
 
 			metadata := state.Metadata{
@@ -541,6 +538,192 @@ func getRowData(t *testing.T, key string) (returnValue string, insertdate *time.
 	assert.NoError(t, err)
 
 	return returnValue, insertdate, updatedate
+}
+
+type mocks struct {
+	db pgxmock.PgxPoolIface
+	pg *PostgreSQL
+}
+
+type fakeItem struct {
+	Color string
+}
+
+func TestMultiWithNoRequests(t *testing.T) {
+	// Arrange
+	m, _ := mockDatabase(t)
+	defer m.db.Close()
+
+	m.db.ExpectBegin()
+	m.db.ExpectCommit()
+	// There's also a rollback called after a commit, which is expected and will not have effect
+	m.db.ExpectRollback()
+
+	var operations []state.TransactionalStateOperation
+
+	// Act
+	err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
+		Operations: operations,
+	})
+
+	// Assert
+	require.NoError(t, err)
+}
+
+func TestValidSetRequest(t *testing.T) {
+	// Arrange
+	m, _ := mockDatabase(t)
+	defer m.db.Close()
+
+	setReq := createSetRequest()
+	operations := []state.TransactionalStateOperation{setReq}
+	val, _ := json.Marshal(setReq.Value)
+
+	m.db.ExpectBegin()
+	m.db.ExpectExec("INSERT INTO").
+		WithArgs(setReq.Key, string(val), false).
+		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	m.db.ExpectCommit()
+	// There's also a rollback called after a commit, which is expected and will not have effect
+	m.db.ExpectRollback()
+
+	// Act
+	err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
+		Operations: operations,
+	})
+
+	// Assert
+	require.NoError(t, err)
+}
+
+func TestInvalidMultiSetRequestNoKey(t *testing.T) {
+	// Arrange
+	m, _ := mockDatabase(t)
+	defer m.db.Close()
+
+	m.db.ExpectBegin()
+	m.db.ExpectRollback()
+
+	operations := []state.TransactionalStateOperation{
+		state.SetRequest{Value: "value1"}, // Set request without key is not valid for Upsert operation
+	}
+
+	// Act
+	err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
+		Operations: operations,
+	})
+
+	// Assert
+	require.Error(t, err)
+}
+
+func TestValidMultiDeleteRequest(t *testing.T) {
+	// Arrange
+	m, _ := mockDatabase(t)
+	defer m.db.Close()
+
+	deleteReq := createDeleteRequest()
+	operations := []state.TransactionalStateOperation{deleteReq}
+
+	m.db.ExpectBegin()
+	m.db.ExpectExec("DELETE FROM").
+		WithArgs(deleteReq.Key).
+		WillReturnResult(pgxmock.NewResult("DELETE", 1))
+	m.db.ExpectCommit()
+	// There's also a rollback called after a commit, which is expected and will not have effect
+	m.db.ExpectRollback()
+
+	// Act
+	err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
+		Operations: operations,
+	})
+
+	// Assert
+	assert.NoError(t, err)
+}
+
+func TestInvalidMultiDeleteRequestNoKey(t *testing.T) {
+	// Arrange
+	m, _ := mockDatabase(t)
+	defer m.db.Close()
+
+	m.db.ExpectBegin()
+	m.db.ExpectRollback()
+
+	operations := []state.TransactionalStateOperation{state.DeleteRequest{}} // Delete request without key is not valid for Delete operation
+
+	// Act
+	err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
+		Operations: operations,
+	})
+
+	// Assert
+	assert.Error(t, err)
+}
+
+func TestMultiOperationOrder(t *testing.T) {
+	// Arrange
+	m, _ := mockDatabase(t)
+	defer m.db.Close()
+
+	operations := []state.TransactionalStateOperation{
+		state.SetRequest{Key: "key1", Value: "value1"},
+		state.DeleteRequest{Key: "key1"},
+	}
+
+	m.db.ExpectBegin()
+	m.db.ExpectExec("INSERT INTO").
+		WithArgs("key1", `"value1"`, false).
+		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	m.db.ExpectExec("DELETE FROM").
+		WithArgs("key1").
+		WillReturnResult(pgxmock.NewResult("DELETE", 1))
+	m.db.ExpectCommit()
+	// There's also a rollback called after a commit, which is expected and will not have effect
+	m.db.ExpectRollback()
+
+	// Act
+	err := m.pg.Multi(context.Background(), &state.TransactionalStateRequest{
+		Operations: operations,
+	})
+
+	// Assert
+	require.NoError(t, err)
+}
+
+func createSetRequest() state.SetRequest {
+	return state.SetRequest{
+		Key:   randomKey(),
+		Value: randomJSON(),
+	}
+}
+
+func createDeleteRequest() state.DeleteRequest {
+	return state.DeleteRequest{
+		Key: randomKey(),
+	}
+}
+
+func mockDatabase(t *testing.T) (*mocks, error) {
+	logger := logger.NewLogger("test")
+
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
+
+	dba := &PostgreSQL{
+		metadata: pgMetadata{
+			Timeout: 30 * time.Second,
+		},
+		logger: logger,
+		db:     db,
+	}
+
+	return &mocks{
+		db: db,
+		pg: dba,
+	}, err
 }
 
 func randomKey() string {

@@ -118,6 +118,10 @@ func loadStateStore(name string) state.Store {
 		return s_cloudflareworkerskv.NewCFWorkersKV(testLogger)
 	case "cockroachdb.v1":
 		return s_cockroachdb_v1.New(testLogger)
+	case "cockroachdb.v2":
+		// v2 of the component is an alias for the PostgreSQL state store
+		// We still have a conformance test to validate that the component works with CockroachDB
+		return s_postgresql_v2.NewPostgreSQLStateStore(testLogger, s_postgresql_v2.Options{NoAzureAD: true})
 	case "memcached":
 		return s_memcached.NewMemCacheStateStore(testLogger)
 	case "rethinkdb":

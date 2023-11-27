@@ -82,6 +82,11 @@ components:
     config:
       # This component requires etags to be numeric
       badEtag: "9999999"
+  - component: cockroachdb.v2
+    operations: [ "transaction", "etag", "first-write", "ttl" ]
+    config:
+      # This component requires etags to be UUIDs
+      badEtag: "7b104dbd-1ae2-4772-bfa0-e29c7b89bc9b"
   - component: rethinkdb
     operations: []
   - component: in-memory

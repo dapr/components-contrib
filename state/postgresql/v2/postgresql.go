@@ -110,11 +110,12 @@ func (p *PostgreSQL) Init(ctx context.Context, meta state.Metadata) error {
 			UpdateLastCleanupQuery: func(arg any) (string, any) {
 				return fmt.Sprintf(
 					`INSERT INTO %[1]s (key, value)
-				VALUES ('last-cleanup-state-v2-%[1]s', now()::text)
+				VALUES ('last-cleanup-state-v2-%[2]s', now()::text)
 				ON CONFLICT (key)
 				DO UPDATE SET value = now()::text
 					WHERE (EXTRACT('epoch' FROM now() - %[1]s.value::timestamp with time zone) * 1000)::bigint > $1`,
 					p.metadata.MetadataTableName,
+					p.metadata.TablePrefix,
 				), arg
 			},
 			DeleteExpiredValuesQuery: fmt.Sprintf(
@@ -192,13 +193,13 @@ func (p *PostgreSQL) Set(ctx context.Context, req *state.SetRequest) error {
 }
 
 func (p *PostgreSQL) doSet(parentCtx context.Context, db pginterfaces.DBQuerier, req state.SetRequest) error {
+	if req.Key == "" {
+		return errors.New("missing key in set operation")
+	}
+
 	err := state.CheckRequestOptions(req.Options)
 	if err != nil {
 		return err
-	}
-
-	if req.Key == "" {
-		return errors.New("missing key in set operation")
 	}
 
 	// If the value is a byte slice, accept it as-is; otherwise, encode to JSON
@@ -296,16 +297,22 @@ func (p *PostgreSQL) Get(parentCtx context.Context, req *state.GetRequest) (*sta
 		return nil, errors.New("missing key in get operation")
 	}
 
+	var (
+		value      []byte
+		etag       *string
+		expireTime *time.Time
+	)
 	query := `SELECT
-			key, value, etag, expires_at
-		FROM ` + p.metadata.TableName(pgTableState) + `
-			WHERE
-				key = $1
-				AND (expires_at IS NULL OR expires_at >= now())`
+	value, etag, expires_at
+FROM ` + p.metadata.TableName(pgTableState) + `
+	WHERE
+		key = $1
+		AND (expires_at IS NULL OR expires_at >= now())`
+
 	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
 	defer cancel()
 	row := p.db.QueryRow(ctx, query, req.Key)
-	_, value, etag, expireTime, err := readRow(row)
+	err := row.Scan(&value, &etag, &expireTime)
 	if err != nil {
 		// If no rows exist, return an empty response, otherwise return the error.
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -341,11 +348,11 @@ func (p *PostgreSQL) BulkGet(parentCtx context.Context, req []state.GetRequest, 
 
 	// Execute the query
 	query := `SELECT
-			key, value, etag, expires_at
-		FROM ` + p.metadata.TableName(pgTableState) + `
-			WHERE
-				key = ANY($1)
-				AND (expires_at IS NULL OR expires_at >= now())`
+	key, value, etag, expires_at
+FROM ` + p.metadata.TableName(pgTableState) + `
+	WHERE
+		key = ANY($1)
+		AND (expires_at IS NULL OR expires_at >= now())`
 	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
 	defer cancel()
 	rows, err := p.db.Query(ctx, query, keys)
@@ -365,7 +372,7 @@ func (p *PostgreSQL) BulkGet(parentCtx context.Context, req []state.GetRequest, 
 
 		r := state.BulkGetResponse{}
 		var expireTime *time.Time
-		r.Key, r.Data, r.ETag, expireTime, err = readRow(rows)
+		err = rows.Scan(&r.Key, &r.Data, &r.ETag, &expireTime)
 		if err != nil {
 			r.Error = err.Error()
 		}
@@ -399,15 +406,6 @@ func (p *PostgreSQL) BulkGet(parentCtx context.Context, req []state.GetRequest, 
 	}
 
 	return res[:n], nil
-}
-
-func readRow(row pgx.Row) (key string, value []byte, etag *string, expireTime *time.Time, err error) {
-	err = row.Scan(&key, &value, &etag, &expireTime)
-	if err != nil {
-		return key, nil, nil, nil, err
-	}
-
-	return key, value, etag, expireTime, nil
 }
 
 // Delete removes an item from the state store.

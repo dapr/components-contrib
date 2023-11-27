@@ -1,6 +1,6 @@
-# PostgreSQL State Store certification testing
+# PostgreSQL State Store v1 certification testing
 
-This project aims to test the PostgreSQL State Store component under various conditions.
+This project aims to test the PostgreSQL State Store v1 component under various conditions.
 
 To run these tests:
 

@@ -30,7 +30,7 @@ import (
 	// Blank import for the underlying PostgreSQL driver.
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/dapr/components-contrib/common/component/postgresql"
+	postgresql "github.com/dapr/components-contrib/common/component/postgresql/v1"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	state_cockroach "github.com/dapr/components-contrib/state/cockroachdb"
@@ -55,7 +55,7 @@ const (
 func TestCockroach(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
 
-	stateStore := state_cockroach.New(log).(*postgresql.PostgreSQL)
+	stateStore := state_cockroach.New(log).(*postgresql.PostgreSQLQuery)
 	ports, err := dapr_testing.GetFreePorts(3)
 	assert.NoError(t, err)
 
@@ -133,7 +133,7 @@ func TestCockroach(t *testing.T) {
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, "2", *resp.ETag) // 2 is returned since the previous etag value of "1" was incremented by 1 when the update occurred
-		assert.Equal(t, "\"Overwrite Success\"", string(resp.Data))
+		assert.Equal(t, `"Overwrite Success"`, string(resp.Data))
 
 		return nil
 	}
@@ -278,7 +278,7 @@ func TestCockroach(t *testing.T) {
 			t.Run("default value", func(t *testing.T) {
 				// Default value is 1 hr
 				md.Properties["cleanupIntervalInSeconds"] = ""
-				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQL)
+				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQLQuery)
 
 				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
@@ -292,7 +292,7 @@ func TestCockroach(t *testing.T) {
 			t.Run("positive value", func(t *testing.T) {
 				// A positive value is interpreted in seconds
 				md.Properties["cleanupIntervalInSeconds"] = "10"
-				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQL)
+				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQLQuery)
 
 				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
@@ -306,7 +306,7 @@ func TestCockroach(t *testing.T) {
 			t.Run("disabled", func(t *testing.T) {
 				// A value of <=0 means that the cleanup is disabled
 				md.Properties["cleanupIntervalInSeconds"] = "0"
-				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQL)
+				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQLQuery)
 
 				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
@@ -333,7 +333,7 @@ func TestCockroach(t *testing.T) {
 				// Run every second
 				md.Properties["cleanupIntervalInSeconds"] = "1"
 
-				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQL)
+				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQLQuery)
 				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
@@ -370,7 +370,7 @@ func TestCockroach(t *testing.T) {
 				// (we'll manually trigger more frequent iterations)
 				md.Properties["cleanupIntervalInSeconds"] = "3600"
 
-				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQL)
+				storeObj := state_cockroach.New(log).(*postgresql.PostgreSQLQuery)
 				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()

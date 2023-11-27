@@ -13,6 +13,10 @@ limitations under the License.
 
 package metadata
 
+import (
+	"strings"
+)
+
 // Base is the common metadata across components.
 // All components-specific metadata should embed this.
 type Base struct {
@@ -20,4 +24,21 @@ type Base struct {
 	Name string
 	// Properties is the metadata properties.
 	Properties map[string]string `json:"properties,omitempty"`
+}
+
+// GetProperty returns the value of a property, looking it up case-insensitively
+func (b Base) GetProperty(names ...string) (string, bool) {
+	wantKeys := make(map[string]struct{}, len(names))
+	for _, v := range names {
+		wantKeys[strings.ToLower(v)] = struct{}{}
+	}
+
+	for k, v := range b.Properties {
+		_, ok := wantKeys[strings.ToLower(k)]
+		if ok {
+			return v, true
+		}
+	}
+
+	return "", false
 }

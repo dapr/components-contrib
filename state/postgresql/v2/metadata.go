@@ -23,12 +23,15 @@ import (
 	"github.com/dapr/kit/ptr"
 )
 
-type (
-	pgTable string
-)
+type pgTable string
 
 const (
 	pgTableState pgTable = "state"
+)
+
+const (
+	defaultCleanupInternal = time.Hour
+	defaultTimeout         = 20 * time.Second // Default timeout for network requests
 )
 
 type pgMetadata struct {
@@ -36,8 +39,8 @@ type pgMetadata struct {
 
 	TablePrefix       string         `mapstructure:"tablePrefix"`       // Could be in the format "schema.table" or just "table"
 	MetadataTableName string         `mapstructure:"metadataTableName"` // Could be in the format "schema.table" or just "table"
-	Timeout           time.Duration  `mapstructure:"timeout" mdaliases:"timeoutInSeconds"`
-	CleanupInterval   *time.Duration `mapstructure:"cleanupInterval" mdaliases:"cleanupIntervalInSeconds"`
+	Timeout           time.Duration  `mapstructure:"timeout" mapstructurealiases:"timeoutInSeconds"`
+	CleanupInterval   *time.Duration `mapstructure:"cleanupInterval" mapstructurealiases:"cleanupIntervalInSeconds"`
 }
 
 func (m *pgMetadata) InitWithMetadata(meta state.Metadata, azureADEnabled bool) error {
@@ -45,8 +48,8 @@ func (m *pgMetadata) InitWithMetadata(meta state.Metadata, azureADEnabled bool) 
 	m.PostgresAuthMetadata.Reset()
 	m.TablePrefix = ""
 	m.MetadataTableName = "dapr_metadata"
-	m.CleanupInterval = ptr.Of(time.Hour)
-	m.Timeout = 20 * time.Second
+	m.CleanupInterval = ptr.Of(defaultCleanupInternal)
+	m.Timeout = defaultTimeout
 
 	// Decode the metadata
 	err := metadata.DecodeMetadata(meta.Properties, &m)
@@ -67,7 +70,12 @@ func (m *pgMetadata) InitWithMetadata(meta state.Metadata, azureADEnabled bool) 
 
 	// Cleanup interval
 	// Non-positive value from meta means disable auto cleanup.
-	if m.CleanupInterval != nil && *m.CleanupInterval <= 0 {
+	// We need to do this check because an empty string and "0" are treated differently by DecodeMetadata
+	v, ok := meta.GetProperty("cleanupInterval", "cleanupIntervalInSeconds")
+	if ok && v == "" {
+		// Handle the case of an empty string, but present
+		m.CleanupInterval = ptr.Of(defaultCleanupInternal)
+	} else if (ok && v == "0") || (m.CleanupInterval != nil && *m.CleanupInterval <= 0) {
 		m.CleanupInterval = nil
 	}
 

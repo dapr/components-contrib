@@ -621,7 +621,9 @@ const components = {
         conformanceSetup: 'docker-compose.sh cockroachdb',
         sourcePkg: [
             'state/cockroachdb',
-            'common/component/postgresql',
+            'common/component/postgresql/interfaces',
+            'common/component/postgresql/transactions',
+            'common/component/postgresql/v1',
             'common/component/sql',
             'common/component/sql/migrations',
         ],
@@ -704,6 +706,17 @@ const components = {
             'common/component/postgresql/interfaces',
             'common/component/postgresql/transactions',
             'common/component/postgresql/v1',
+            'common/component/sql',
+            'common/component/sql/migrations',
+        ],
+    },
+    'state.postgresql.v2': {
+        certification: true,
+        sourcePkg: [
+            'state/postgresql/v2',
+            'common/authentication/postgresql',
+            'common/component/postgresql/interfaces',
+            'common/component/postgresql/transactions',
             'common/component/sql',
             'common/component/sql/migrations',
         ],

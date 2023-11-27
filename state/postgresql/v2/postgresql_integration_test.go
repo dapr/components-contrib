@@ -673,7 +673,7 @@ func TestMultiOperationOrder(t *testing.T) {
 
 	m.db.ExpectBegin()
 	m.db.ExpectExec("INSERT INTO").
-		WithArgs("key1", `"value1"`, false).
+		WithArgs("key1", `"value1"`).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	m.db.ExpectExec("DELETE FROM").
 		WithArgs("key1").

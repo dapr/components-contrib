@@ -15,8 +15,12 @@ package pgmigrations
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
+
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
@@ -95,17 +99,32 @@ func (m Migrations) Perform(ctx context.Context, migrationFns []commonsql.Migrat
 	})
 }
 
-func (m Migrations) EnsureMetadataTable(ctx context.Context) error {
+func (m Migrations) EnsureMetadataTable(ctx context.Context) (err error) {
 	m.Logger.Infof("Creating metadata table '%s'", m.MetadataTableName)
 	// Add an "IF NOT EXISTS" in case another Dapr sidecar is creating the same table at the same time
 	// In the next step we'll acquire a lock so there won't be issues with concurrency
-	_, err := m.DB.Exec(ctx, fmt.Sprintf(
-		`CREATE TABLE IF NOT EXISTS %s (
-			key text NOT NULL PRIMARY KEY,
-			value text NOT NULL
-		)`,
-		m.MetadataTableName,
-	))
+	// Note that this query can fail with error `23505` on constraint `pg_type_typname_nsp_index` if ran in parallel; we will just retry that up to 3 times
+	for i := 0; i < 3; i++ {
+		_, err = m.DB.Exec(ctx, fmt.Sprintf(
+			`CREATE TABLE IF NOT EXISTS %s (
+				key text NOT NULL PRIMARY KEY,
+				value text NOT NULL
+			)`,
+			m.MetadataTableName,
+		))
+		if err == nil {
+			break
+		}
+
+		// If the error is not a UniqueViolation (23505), abort
+		var pgErr *pgconn.PgError
+		if !errors.As(err, &pgErr) || pgErr.Code != pgerrcode.UniqueViolation {
+			return fmt.Errorf("failed to create metadata table: %w", err)
+		}
+
+		// Retry after a delay
+		time.Sleep(50 * time.Millisecond)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to create metadata table: %w", err)
 	}

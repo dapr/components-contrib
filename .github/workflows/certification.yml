@@ -227,6 +227,7 @@ jobs:
       uses: actions/setup-go@v4
       with:
         go-version-file: 'go.mod'
+        cache: 'false'
 
     - name: Download Go dependencies
       working-directory: ${{ env.TEST_PATH }}

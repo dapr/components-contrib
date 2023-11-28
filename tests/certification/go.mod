@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/pubsub v1.33.0
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.2.0
-	github.com/IBM/sarama v1.41.1
+	github.com/IBM/sarama v1.42.1
 	github.com/a8m/documentdb v1.3.0
 	github.com/apache/dubbo-go-hessian2 v1.11.5
 	github.com/apache/pulsar-client-go v0.11.0
@@ -16,8 +16,8 @@ require (
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/cloudwego/kitex v0.5.0
 	github.com/cloudwego/kitex-examples v0.1.1
-	github.com/dapr/components-contrib v1.12.0-rc.4.0.20231009175401-9f2cc5c158bb
-	github.com/dapr/dapr v1.12.1-0.20231030205344-441017b888c5
+	github.com/dapr/components-contrib v1.12.1-0.20231102232056-f4e73b0e6511
+	github.com/dapr/dapr v1.12.1-0.20231127182349-91899493566c
 	github.com/dapr/go-sdk v1.6.1-0.20231102031149-87bbb8cd690a
 	github.com/dapr/kit v0.12.2-0.20231031211530-0e1fd37fc4b3
 	github.com/eclipse/paho.mqtt.golang v1.4.3
@@ -316,6 +316,3 @@ require (
 )
 
 replace github.com/dapr/components-contrib => ../../
-
-// TODO: REMOVE WHEN https://github.com/dapr/dapr/pull/7038 IS MERGED
-replace github.com/dapr/dapr => github.com/italypaleale/dapr v1.6.1-0.20231101232117-048ec5617b9f

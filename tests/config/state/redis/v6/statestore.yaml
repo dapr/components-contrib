@@ -18,6 +18,14 @@ spec:
             {
               "key": "message",
               "type": "TEXT"
+            },
+            {
+              "key": "product.value",
+              "type": "NUMERIC"
+            },
+            {
+              "key": "status",
+              "type": "TEXT"
             }
           ]
         }

@@ -46,6 +46,14 @@ func TestMongoQuery(t *testing.T) {
 			input: "../../tests/state/query/q6.json",
 			query: []interface{}{"((@id:[123 123])|((@org:(B)) (((@id:[567 567])|(@id:[890 890])))))", "SORTBY", "id", "LIMIT", "0", "2"},
 		},
+		{
+			input: "../../tests/state/query/q6-notequal.json",
+			query: []interface{}{"((@id:[123 123])|(-(@org:(B)) (((@id:[567 567])|(@id:[890 890])))))", "SORTBY", "id", "LIMIT", "0", "2"},
+		},
+		{
+			input: "../../tests/state/query/q7.json",
+			query: []interface{}{"((@id:[-inf (123])|((@org:[2 +inf]) (((@id:[567 567])|(@id:[890 890])))))", "SORTBY", "id", "LIMIT", "0", "2"},
+		},
 	}
 	for _, test := range tests {
 		data, err := os.ReadFile(test.input)

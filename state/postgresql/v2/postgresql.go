@@ -55,8 +55,13 @@ type Options struct {
 	NoAzureAD bool
 }
 
-// NewPostgreSQLStateStore creates a new instance of PostgreSQL state store.
-func NewPostgreSQLStateStore(logger logger.Logger, opts Options) state.Store {
+// NewPostgreSQLStateStore creates a new instance of PostgreSQL state store with the default options.
+func NewPostgreSQLStateStore(logger logger.Logger) state.Store {
+	return NewPostgreSQLStateStoreWithOptions(logger, Options{})
+}
+
+// NewPostgreSQLStateStoreWithOptions creates a new instance of PostgreSQL state store with options.
+func NewPostgreSQLStateStoreWithOptions(logger logger.Logger, opts Options) state.Store {
 	s := &PostgreSQL{
 		logger:        logger,
 		enableAzureAD: !opts.NoAzureAD,
@@ -142,7 +147,7 @@ func (p *PostgreSQL) performMigrations(ctx context.Context) error {
 		MetadataKey:       "migrations-state-v2-" + p.metadata.TablePrefix,
 	}
 
-	var stateTable = p.metadata.TableName(pgTableState)
+	stateTable := p.metadata.TableName(pgTableState)
 
 	return m.Perform(ctx, []sqlinternal.MigrationFn{
 		// Migration 1: create the table for state

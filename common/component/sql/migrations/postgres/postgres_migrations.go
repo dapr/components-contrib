@@ -61,6 +61,9 @@ func (m Migrations) Perform(ctx context.Context, migrationFns []commonsql.Migrat
 	queryCtx, cancel = context.WithTimeout(ctx, 15*time.Second)
 	tx, err := m.DB.Begin(queryCtx)
 	cancel()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
 
 	// Always rollback the transaction at the end to release the lock, since the value doesn't really matter
 	defer func() {

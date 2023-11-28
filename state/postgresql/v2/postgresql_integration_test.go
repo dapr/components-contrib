@@ -53,7 +53,7 @@ func TestPostgreSQLIntegration(t *testing.T) {
 		Base: metadata.Base{Properties: map[string]string{"connectionString": connectionString}},
 	}
 
-	pgs := NewPostgreSQLStateStore(logger.NewLogger("test"), Options{}).(*postgresql.PostgreSQL)
+	pgs := NewPostgreSQLStateStore(logger.NewLogger("test")).(*postgresql.PostgreSQL)
 	t.Cleanup(func() {
 		defer pgs.Close()
 	})
@@ -451,7 +451,7 @@ func testInitConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewPostgreSQLStateStore(logger, Options{}).(*postgresql.PostgreSQL)
+			p := NewPostgreSQLStateStore(logger).(*postgresql.PostgreSQL)
 			defer p.Close()
 
 			metadata := state.Metadata{
@@ -581,7 +581,7 @@ func TestValidSetRequest(t *testing.T) {
 
 	m.db.ExpectBegin()
 	m.db.ExpectExec("INSERT INTO").
-		WithArgs(setReq.Key, string(val), false).
+		WithArgs(setReq.Key, val).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	m.db.ExpectCommit()
 	// There's also a rollback called after a commit, which is expected and will not have effect
@@ -673,7 +673,7 @@ func TestMultiOperationOrder(t *testing.T) {
 
 	m.db.ExpectBegin()
 	m.db.ExpectExec("INSERT INTO").
-		WithArgs("key1", `"value1"`).
+		WithArgs("key1", []byte(`"value1"`)).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	m.db.ExpectExec("DELETE FROM").
 		WithArgs("key1").

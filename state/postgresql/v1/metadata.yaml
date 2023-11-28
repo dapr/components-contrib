@@ -49,10 +49,10 @@ authenticationProfiles:
 metadata:
   - name: timeout
     required: false
-    description: Timeout, in seconds, for all database operations. 
-    example:  "30"
-    default: "20"
-    type: number
+    description: Timeout for all database operations. 
+    example:  "30s"
+    default: "20s"
+    type: duration
   - name: tableName
     required: false
     description: |
@@ -72,11 +72,11 @@ metadata:
   - name: cleanupInterval
     required: false
     description: |
-      Interval, in seconds, to clean up rows with an expired TTL.
+      Interval to clean up rows with an expired TTL.
       Setting this to values <=0 disables the periodic cleanup.
-    example: "1800"
-    default: "3600" # 1h
-    type: number
+    example: '"10m", "-1"'
+    default: "1h"
+    type: duration
   - name: maxConns
     required: false
     description: |

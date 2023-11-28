@@ -27,11 +27,11 @@ authenticationProfiles:
         type: string
 metadata: 
   - name: timeout
-    description: |
-      Timeout, in seconds, for all database operations.
-    type: number
-    default: '20'
-    example: '30'
+    required: false
+    description: Timeout for all database operations. 
+    example:  "30s"
+    default: "20s"
+    type: duration
   - name: tableName
     description: |
       Name of the table where the data is stored. Can optionally have
@@ -47,12 +47,13 @@ metadata:
     default: '"dapr_metadata"' 
     example: '"dapr_metadata", "public.dapr_metadata"'
   - name: cleanupInterval
+    required: false
     description: |
-      Interval, in seconds, to clean up rows with an expired TTL.
+      Interval to clean up rows with an expired TTL.
       Setting this to values <=0 disables the periodic cleanup.
-    type: number
-    default: '3600'
-    example: '1800, -1'
+    example: '"10m", "-1"'
+    default: "1h"
+    type: duration
   - name: connectionMaxIdleTime
     description: |
       Max idle time before unused connections are automatically closed in the connection pool.

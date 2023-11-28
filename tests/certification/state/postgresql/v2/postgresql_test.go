@@ -63,7 +63,7 @@ const (
 func TestPostgreSQL(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
 
-	stateStore := postgresql.NewPostgreSQLStateStore(log, postgresql.Options{}).(*postgresql.PostgreSQL)
+	stateStore := postgresql.NewPostgreSQLStateStore(log).(*postgresql.PostgreSQL)
 	ports, err := dapr_testing.GetFreePorts(2)
 	assert.NoError(t, err)
 
@@ -108,7 +108,7 @@ func TestPostgreSQL(t *testing.T) {
 		}
 
 		t.Run("initial state clean", func(t *testing.T) {
-			storeObj := postgresql.NewPostgreSQLStateStore(log, postgresql.Options{}).(*postgresql.PostgreSQL)
+			storeObj := postgresql.NewPostgreSQLStateStore(log).(*postgresql.PostgreSQL)
 			md := getMd()
 			md.Properties[keyTablePrefix] = "clean_"
 			md.Properties[keyMetadataTableName] = "clean_metadata"
@@ -133,7 +133,7 @@ func TestPostgreSQL(t *testing.T) {
 		})
 
 		t.Run("initial state clean, with explicit schema name", func(t *testing.T) {
-			storeObj := postgresql.NewPostgreSQLStateStore(log, postgresql.Options{}).(*postgresql.PostgreSQL)
+			storeObj := postgresql.NewPostgreSQLStateStore(log).(*postgresql.PostgreSQL)
 			md := getMd()
 			md.Properties[keyTablePrefix] = "public.clean2_"
 			md.Properties[keyMetadataTableName] = "public.clean2_metadata"
@@ -159,7 +159,7 @@ func TestPostgreSQL(t *testing.T) {
 
 		t.Run("all migrations performed", func(t *testing.T) {
 			// Re-use "clean_state" and "clean_metadata"
-			storeObj := postgresql.NewPostgreSQLStateStore(log, postgresql.Options{}).(*postgresql.PostgreSQL)
+			storeObj := postgresql.NewPostgreSQLStateStore(log).(*postgresql.PostgreSQL)
 			md := getMd()
 			md.Properties[keyTablePrefix] = "clean_"
 			md.Properties[keyMetadataTableName] = "clean_metadata"
@@ -197,7 +197,7 @@ func TestPostgreSQL(t *testing.T) {
 					l.SetOutput(io.MultiWriter(buf, os.Stdout))
 
 					// Init and perform the migrations
-					storeObj := postgresql.NewPostgreSQLStateStore(l, postgresql.Options{}).(*postgresql.PostgreSQL)
+					storeObj := postgresql.NewPostgreSQLStateStore(l).(*postgresql.PostgreSQL)
 					err := storeObj.Init(context.Background(), md)
 					if err != nil {
 						errs <- fmt.Errorf("%d failed to init: %w", i, err)
@@ -444,7 +444,7 @@ func TestPostgreSQL(t *testing.T) {
 				// Default value is 1 hr
 				md := getMd()
 				md.Properties[keyCleanupInterval] = ""
-				storeObj := postgresql.NewPostgreSQLStateStore(log, postgresql.Options{}).(*postgresql.PostgreSQL)
+				storeObj := postgresql.NewPostgreSQLStateStore(log).(*postgresql.PostgreSQL)
 
 				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
@@ -459,7 +459,7 @@ func TestPostgreSQL(t *testing.T) {
 				// A positive value is interpreted in seconds
 				md := getMd()
 				md.Properties[keyCleanupInterval] = "10"
-				storeObj := postgresql.NewPostgreSQLStateStore(log, postgresql.Options{}).(*postgresql.PostgreSQL)
+				storeObj := postgresql.NewPostgreSQLStateStore(log).(*postgresql.PostgreSQL)
 
 				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
@@ -474,7 +474,7 @@ func TestPostgreSQL(t *testing.T) {
 				// A positive value is interpreted in seconds
 				md := getMd()
 				md.Properties[keyCleanupInterval] = "1m"
-				storeObj := postgresql.NewPostgreSQLStateStore(log, postgresql.Options{}).(*postgresql.PostgreSQL)
+				storeObj := postgresql.NewPostgreSQLStateStore(log).(*postgresql.PostgreSQL)
 
 				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
@@ -489,7 +489,7 @@ func TestPostgreSQL(t *testing.T) {
 				// A value of <=0 means that the cleanup is disabled
 				md := getMd()
 				md.Properties[keyCleanupInterval] = "0"
-				storeObj := postgresql.NewPostgreSQLStateStore(log, postgresql.Options{}).(*postgresql.PostgreSQL)
+				storeObj := postgresql.NewPostgreSQLStateStore(log).(*postgresql.PostgreSQL)
 
 				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
@@ -520,7 +520,7 @@ func TestPostgreSQL(t *testing.T) {
 				md := getMd()
 				md.Properties[keyCleanupInterval] = "1"
 
-				storeObj := postgresql.NewPostgreSQLStateStore(log, postgresql.Options{}).(*postgresql.PostgreSQL)
+				storeObj := postgresql.NewPostgreSQLStateStore(log).(*postgresql.PostgreSQL)
 				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()
@@ -559,7 +559,7 @@ func TestPostgreSQL(t *testing.T) {
 				md.Properties[keyCleanupInterval] = "1h"
 				const lastCleanupKey = "last-cleanup-state-v2-ttl_"
 
-				storeObj := postgresql.NewPostgreSQLStateStore(log, postgresql.Options{}).(*postgresql.PostgreSQL)
+				storeObj := postgresql.NewPostgreSQLStateStore(log).(*postgresql.PostgreSQL)
 				err := storeObj.Init(context.Background(), md)
 				require.NoError(t, err, "failed to init")
 				defer storeObj.Close()

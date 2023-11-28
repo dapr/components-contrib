@@ -97,9 +97,9 @@ func loadStateStore(name string) state.Store {
 	case "postgresql.v1.azure":
 		return s_postgresql_v1.NewPostgreSQLStateStore(testLogger)
 	case "postgresql.v2.docker":
-		return s_postgresql_v2.NewPostgreSQLStateStore(testLogger, s_postgresql_v2.Options{})
+		return s_postgresql_v2.NewPostgreSQLStateStore(testLogger)
 	case "postgresql.v2.azure":
-		return s_postgresql_v2.NewPostgreSQLStateStore(testLogger, s_postgresql_v2.Options{})
+		return s_postgresql_v2.NewPostgreSQLStateStore(testLogger)
 	case "sqlite":
 		return s_sqlite.NewSQLiteStateStore(testLogger)
 	case "mysql.mysql":
@@ -121,7 +121,7 @@ func loadStateStore(name string) state.Store {
 	case "cockroachdb.v2":
 		// v2 of the component is an alias for the PostgreSQL state store
 		// We still have a conformance test to validate that the component works with CockroachDB
-		return s_postgresql_v2.NewPostgreSQLStateStore(testLogger, s_postgresql_v2.Options{NoAzureAD: true})
+		return s_postgresql_v2.NewPostgreSQLStateStoreWithOptions(testLogger, s_postgresql_v2.Options{NoAzureAD: true})
 	case "memcached":
 		return s_memcached.NewMemCacheStateStore(testLogger)
 	case "rethinkdb":

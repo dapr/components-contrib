@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -41,12 +42,12 @@ func TestParseMetadata(t *testing.T) {
 		}
 		r := Mailer{logger: logger}
 		smtpMeta, err := r.parseMetadata(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "mailserver.dapr.io", smtpMeta.Host)
 		assert.Equal(t, 25, smtpMeta.Port)
 		assert.Equal(t, "user@dapr.io", smtpMeta.User)
 		assert.Equal(t, "P@$$w0rd!", smtpMeta.Password)
-		assert.Equal(t, true, smtpMeta.SkipTLSVerify)
+		assert.True(t, smtpMeta.SkipTLSVerify)
 		assert.Equal(t, "from@dapr.io", smtpMeta.EmailFrom)
 		assert.Equal(t, "to@dapr.io", smtpMeta.EmailTo)
 		assert.Equal(t, "cc@dapr.io", smtpMeta.EmailCC)
@@ -71,12 +72,12 @@ func TestParseMetadata(t *testing.T) {
 		}
 		r := Mailer{logger: logger}
 		smtpMeta, err := r.parseMetadata(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "mailserver.dapr.io", smtpMeta.Host)
 		assert.Equal(t, 25, smtpMeta.Port)
 		assert.Equal(t, "user@dapr.io", smtpMeta.User)
 		assert.Equal(t, "P@$$w0rd!", smtpMeta.Password)
-		assert.Equal(t, true, smtpMeta.SkipTLSVerify)
+		assert.True(t, smtpMeta.SkipTLSVerify)
 		assert.Equal(t, "from@dapr.io", smtpMeta.EmailFrom)
 		assert.Equal(t, "to@dapr.io", smtpMeta.EmailTo)
 		assert.Equal(t, "cc@dapr.io", smtpMeta.EmailCC)
@@ -102,7 +103,7 @@ func TestParseMetadata(t *testing.T) {
 		r := Mailer{logger: logger}
 		smtpMeta, err := r.parseMetadata(m)
 		assert.NotNil(t, smtpMeta)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 	t.Run("Incorrrect  metadata (user, no password)", func(t *testing.T) {
 		m := bindings.Metadata{}
@@ -121,7 +122,7 @@ func TestParseMetadata(t *testing.T) {
 		r := Mailer{logger: logger}
 		smtpMeta, err := r.parseMetadata(m)
 		assert.NotNil(t, smtpMeta)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 	t.Run("Incorrrect  metadata (no user, password)", func(t *testing.T) {
 		m := bindings.Metadata{}
@@ -140,7 +141,7 @@ func TestParseMetadata(t *testing.T) {
 		r := Mailer{logger: logger}
 		smtpMeta, err := r.parseMetadata(m)
 		assert.NotNil(t, smtpMeta)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -171,13 +172,13 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 
 		mergedMeta, err := smtpMeta.mergeWithRequestMetadata(&request)
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		assert.Equal(t, "mailserver.dapr.io", mergedMeta.Host)
 		assert.Equal(t, 25, mergedMeta.Port)
 		assert.Equal(t, "user@dapr.io", mergedMeta.User)
 		assert.Equal(t, "P@$$w0rd!", mergedMeta.Password)
-		assert.Equal(t, true, mergedMeta.SkipTLSVerify)
+		assert.True(t, mergedMeta.SkipTLSVerify)
 		assert.Equal(t, "req-from@dapr.io", mergedMeta.EmailFrom)
 		assert.Equal(t, "req-to@dapr.io", mergedMeta.EmailTo)
 		assert.Equal(t, "req-cc@dapr.io", mergedMeta.EmailCC)
@@ -208,12 +209,12 @@ func TestMergeWithNoRequestMetadata(t *testing.T) {
 
 		mergedMeta, err := smtpMeta.mergeWithRequestMetadata(&request)
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "mailserver.dapr.io", mergedMeta.Host)
 		assert.Equal(t, 25, mergedMeta.Port)
 		assert.Equal(t, "user@dapr.io", mergedMeta.User)
 		assert.Equal(t, "P@$$w0rd!", mergedMeta.Password)
-		assert.Equal(t, true, mergedMeta.SkipTLSVerify)
+		assert.True(t, mergedMeta.SkipTLSVerify)
 		assert.Equal(t, "from@dapr.io", mergedMeta.EmailFrom)
 		assert.Equal(t, "to@dapr.io", mergedMeta.EmailTo)
 		assert.Equal(t, "cc@dapr.io", mergedMeta.EmailCC)
@@ -252,7 +253,7 @@ func TestMergeWithRequestMetadata_invalidPriorityTooHigh(t *testing.T) {
 		mergedMeta, err := smtpMeta.mergeWithRequestMetadata(&request)
 
 		assert.NotNil(t, mergedMeta)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -285,7 +286,7 @@ func TestMergeWithRequestMetadata_invalidPriorityTooLow(t *testing.T) {
 		mergedMeta, err := smtpMeta.mergeWithRequestMetadata(&request)
 
 		assert.NotNil(t, mergedMeta)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -317,6 +318,6 @@ func TestMergeWithRequestMetadata_invalidPriorityNotNumber(t *testing.T) {
 		mergedMeta, err := smtpMeta.mergeWithRequestMetadata(&request)
 
 		assert.NotNil(t, mergedMeta)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 }

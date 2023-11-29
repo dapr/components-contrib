@@ -111,9 +111,9 @@ func TestAddMetadataToMessage(t *testing.T) {
 
 			// assert.
 			if tc.expectError {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			} else {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tc.expectedAzServiceBusMessage.Body, msg.Body)
 				assert.Equal(t, tc.expectedAzServiceBusMessage.MessageID, msg.MessageID)
 				assert.Equal(t, tc.expectedAzServiceBusMessage.CorrelationID, msg.CorrelationID)

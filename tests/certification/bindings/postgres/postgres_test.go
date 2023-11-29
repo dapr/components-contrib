@@ -133,7 +133,7 @@ func TestPostgres(t *testing.T) {
 
 	createTable := func(ctx flow.Context) error {
 		db, err := sql.Open("pgx", dockerConnectionString)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		_, err = db.Exec("CREATE TABLE " + tableName + " (id INT, c1 TEXT, ts TIMESTAMP);")
 		require.NoError(t, err)
 		db.Close()
@@ -202,9 +202,9 @@ func TestPostgresNetworkError(t *testing.T) {
 
 	createTable := func(ctx flow.Context) error {
 		db, err := sql.Open("pgx", dockerConnectionString)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		_, err = db.Exec("CREATE TABLE " + tableName + " (id INT, c1 TEXT, ts TIMESTAMP);")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		db.Close()
 		return nil
 	}

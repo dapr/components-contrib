@@ -59,7 +59,7 @@ func TestInit(t *testing.T) {
 
 		cmd := ZeebeCommand{clientFactory: mcf, logger: testLogger}
 		err := cmd.Init(context.Background(), metadata)
-		assert.Error(t, err, errParsing)
+		require.ErrorIs(t, err, errParsing)
 	})
 
 	t.Run("sets client from client factory", func(t *testing.T) {
@@ -69,11 +69,11 @@ func TestInit(t *testing.T) {
 		cmd := ZeebeCommand{clientFactory: mcf, logger: testLogger}
 		err := cmd.Init(context.Background(), metadata)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		mc, err := mcf.Get(metadata)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, mc, cmd.client)
 		assert.Equal(t, metadata, mcf.metadata)
 	})
@@ -86,14 +86,14 @@ func TestInvoke(t *testing.T) {
 		cmd := ZeebeCommand{logger: testLogger}
 		req := &bindings.InvokeRequest{Operation: bindings.DeleteOperation}
 		_, err := cmd.Invoke(context.TODO(), req)
-		assert.Error(t, err, ErrUnsupportedOperation(bindings.DeleteOperation))
+		require.EqualError(t, err, ErrUnsupportedOperation(bindings.DeleteOperation).Error())
 	})
 }
 
 func TestOperations(t *testing.T) {
 	testBinding := ZeebeCommand{logger: logger.NewLogger("test")}
 	operations := testBinding.Operations()
-	require.Equal(t, 13, len(operations))
+	require.Len(t, operations, 13)
 	assert.Equal(t, TopologyOperation, operations[0])
 	assert.Equal(t, DeployProcessOperation, operations[1])
 	assert.Equal(t, DeployResourceOperation, operations[2])

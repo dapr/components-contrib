@@ -23,7 +23,7 @@ import (
 
 	"github.com/google/uuid"
 	pgxmock "github.com/pashagolub/pgxmock/v2"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
 	"github.com/dapr/components-contrib/state"
@@ -57,7 +57,7 @@ func TestMultiWithNoRequests(t *testing.T) {
 	})
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestValidSetRequest(t *testing.T) {
@@ -83,7 +83,7 @@ func TestValidSetRequest(t *testing.T) {
 	})
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestInvalidMultiSetRequestNoKey(t *testing.T) {
@@ -104,7 +104,7 @@ func TestInvalidMultiSetRequestNoKey(t *testing.T) {
 	})
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestValidMultiDeleteRequest(t *testing.T) {
@@ -129,7 +129,7 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 	})
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestInvalidMultiDeleteRequestNoKey(t *testing.T) {
@@ -148,7 +148,7 @@ func TestInvalidMultiDeleteRequestNoKey(t *testing.T) {
 	})
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestMultiOperationOrder(t *testing.T) {
@@ -178,7 +178,7 @@ func TestMultiOperationOrder(t *testing.T) {
 	})
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func createSetRequest() state.SetRequest {

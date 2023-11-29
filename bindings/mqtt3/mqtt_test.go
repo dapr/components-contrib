@@ -23,6 +23,7 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	mdata "github.com/dapr/components-contrib/metadata"
@@ -53,11 +54,11 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseMQTTMetaData(fakeMetaData, log)
 
 		// assert
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, fakeProperties[mqttURL], m.Url)
 		assert.Equal(t, byte(1), m.Qos)
-		assert.Equal(t, true, m.Retain)
-		assert.Equal(t, false, m.CleanSession)
+		assert.True(t, m.Retain)
+		assert.False(t, m.CleanSession)
 	})
 
 	t.Run("missing topic", func(t *testing.T) {
@@ -89,7 +90,7 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseMQTTMetaData(fakeMetaData, log)
 
 		// assert
-		assert.EqualError(t, err, errors.New("missing url").Error())
+		require.EqualError(t, err, errors.New("missing url").Error())
 		assert.Equal(t, fakeProperties[mqttURL], m.Url)
 	})
 
@@ -103,10 +104,10 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseMQTTMetaData(fakeMetaData, log)
 
 		// assert
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, fakeProperties[mqttURL], m.Url)
 		assert.Equal(t, byte(1), m.Qos)
-		assert.Equal(t, false, m.Retain)
+		assert.False(t, m.Retain)
 	})
 
 	t.Run("invalid clean session field", func(t *testing.T) {
@@ -118,8 +119,8 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseMQTTMetaData(fakeMetaData, log)
 
 		// assert
-		assert.NoError(t, err)
-		assert.Equal(t, m.CleanSession, false)
+		require.NoError(t, err)
+		assert.False(t, m.CleanSession)
 		assert.Equal(t, fakeProperties[mqttURL], m.Url)
 	})
 
@@ -140,7 +141,7 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseMQTTMetaData(fakeMetaData, log)
 
 		// assert
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		block, _ := pem.Decode([]byte(m.tlsCfg.CaCert))
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
@@ -166,7 +167,7 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseMQTTMetaData(fakeMetaData, log)
 
 		// assert
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		block, _ := pem.Decode([]byte(m.tlsCfg.ClientCert))
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
@@ -192,7 +193,7 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseMQTTMetaData(fakeMetaData, log)
 
 		// assert
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, m.tlsCfg.ClientKey, "failed to parse valid client certificate key")
 	})
 

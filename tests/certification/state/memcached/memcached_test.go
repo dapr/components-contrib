@@ -32,6 +32,7 @@ import (
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -53,7 +54,7 @@ func TestMemcached(t *testing.T) {
 	stateStore := state_memcached.NewMemCacheStateStore(log)
 
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// var rdb redis.Client
 	currentGrpcPort := ports[0]
@@ -68,32 +69,32 @@ func TestMemcached(t *testing.T) {
 		defer client.Close()
 
 		err = client.SaveState(ctx, stateStoreName, testKey1, []byte(testKey1Value), nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		err = client.SaveState(ctx, stateStoreName, testKey2, []byte(testKey2Value), nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// get state
 		item, err := client.GetState(ctx, stateStoreName, testKey1, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, testKey1Value, string(item.Value))
 
 		errUpdate := client.SaveState(ctx, stateStoreName, testKey1, []byte(testUpdateValue), nil)
-		assert.NoError(t, errUpdate)
+		require.NoError(t, errUpdate)
 		item, errUpdatedGet := client.GetState(ctx, stateStoreName, testKey1, nil)
-		assert.NoError(t, errUpdatedGet)
+		require.NoError(t, errUpdatedGet)
 		assert.Equal(t, testUpdateValue, string(item.Value))
 
 		// delete state
 		err = client.DeleteState(ctx, stateStoreName, testKey1, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		item, err = client.GetState(ctx, stateStoreName, testKey1, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Nil(t, nil, item)
 
 		// nonexistent key
 		item, err = client.GetState(ctx, stateStoreName, testNonexistentKey, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Nil(t, nil, item)
 
 		return nil
@@ -148,10 +149,10 @@ func TestMemcached(t *testing.T) {
 
 		// We can successfully save...
 		errSave := client.SaveState(ctx, stateStoreName, key, []byte(value), mapOptionsNonExpiring)
-		assert.NoError(t, errSave)
+		require.NoError(t, errSave)
 		// and retrieve this key.
 		item, errGet := client.GetState(ctx, stateStoreName, key, nil)
-		assert.NoError(t, errGet)
+		require.NoError(t, errGet)
 		assert.Equal(t, value, string(item.Value))
 
 		return nil
@@ -174,16 +175,16 @@ func TestMemcached(t *testing.T) {
 		}
 
 		errSave := client.SaveState(ctx, stateStoreName, key, []byte(value), mapOptionsExpiringKey)
-		assert.NoError(t, errSave)
+		require.NoError(t, errSave)
 
 		// get state
 		item, errGetBeforeTTLExpiration := client.GetState(ctx, stateStoreName, key, nil)
-		assert.NoError(t, errGetBeforeTTLExpiration)
+		require.NoError(t, errGetBeforeTTLExpiration)
 		assert.Equal(t, value, string(item.Value))
 		// Let the key expire
 		time.Sleep(2 * ttlExpirationTime) // It should be safe to check in double TTL
 		itemAfterTTL, errGetAfterTTL := client.GetState(ctx, stateStoreName, key, nil)
-		assert.NoError(t, errGetAfterTTL)
+		require.NoError(t, errGetAfterTTL)
 		assert.Nil(t, nil, itemAfterTTL)
 
 		return nil
@@ -206,11 +207,11 @@ func TestMemcached(t *testing.T) {
 		}
 
 		errSave := client.SaveState(ctx, stateStoreName, key, []byte(value), mapOptionsExpiringKey)
-		assert.NoError(t, errSave)
+		require.NoError(t, errSave)
 
 		// get state
 		item, errGetBeforeTTLExpiration := client.GetState(ctx, stateStoreName, key, nil)
-		assert.NoError(t, errGetBeforeTTLExpiration)
+		require.NoError(t, errGetBeforeTTLExpiration)
 		assert.Equal(t, value, string(item.Value))
 
 		return nil
@@ -258,7 +259,7 @@ func TestMemcachedNetworkInstability(t *testing.T) {
 	stateStore := state_memcached.NewMemCacheStateStore(log)
 
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// var rdb redis.Client
 	currentGrpcPort := ports[0]
@@ -283,7 +284,7 @@ func TestMemcachedNetworkInstability(t *testing.T) {
 			defer client.Close()
 
 			item, err := client.GetState(ctx, stateStoreName, key, nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, value, string(item.Value))
 
 			return nil
@@ -304,10 +305,10 @@ func TestMemcachedNetworkInstability(t *testing.T) {
 			}
 
 			errSave := client.SaveState(ctx, stateStoreName, key, []byte(value), mapOptionsExpiringKey)
-			assert.NoError(t, errSave)
+			require.NoError(t, errSave)
 			// assert the key is there
 			item, errGetBeforeTTLExpiration := client.GetState(ctx, stateStoreName, key, nil)
-			assert.NoError(t, errGetBeforeTTLExpiration)
+			require.NoError(t, errGetBeforeTTLExpiration)
 			assert.Equal(t, value, string(item.Value))
 
 			return nil

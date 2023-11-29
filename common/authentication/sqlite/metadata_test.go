@@ -58,7 +58,7 @@ func TestSqliteMetadata(t *testing.T) {
 		err = md.Validate()
 
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "missing connection string")
+		require.ErrorContains(t, err, "missing connection string")
 	})
 
 	t.Run("invalid timeout", func(t *testing.T) {
@@ -74,7 +74,7 @@ func TestSqliteMetadata(t *testing.T) {
 		err = md.Validate()
 
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "timeout")
+		require.ErrorContains(t, err, "timeout")
 	})
 
 	t.Run("aliases", func(t *testing.T) {

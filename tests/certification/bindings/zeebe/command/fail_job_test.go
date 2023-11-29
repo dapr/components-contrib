@@ -35,6 +35,7 @@ import (
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/go-sdk/service/common"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 )
 
@@ -51,7 +52,7 @@ func deployProcess(t *testing.T, id string, grpcPort int) func(ctx flow.Context)
 			zeebe_test.IDModifier(id),
 			zeebe_test.RetryModifier("zeebe-jobworker-test", 3))
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, id, deployment.Deployments[0].Metadata.Process.BpmnProcessId)
 
 		return nil
@@ -71,7 +72,7 @@ func createProcessInstance(t *testing.T, id string, grpcPort int) func(ctx flow.
 				"bar": "foo",
 			},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		return nil
 	}
@@ -98,7 +99,7 @@ func TestFailJobOperation(t *testing.T) {
 			"workerName":        workerName,
 		})
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, jobs)
 		assert.Equal(t, 1, len(*jobs))
 
@@ -118,10 +119,10 @@ func TestFailJobOperation(t *testing.T) {
 			"retries":      3,
 			"errorMessage": "test error",
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		res, err := zeebe_test.ExecCommandOperation(ctx, client, bindings_zeebe_command.FailJobOperation, data, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Nil(t, res.Data)
 		assert.Nil(t, res.Metadata)
 
@@ -137,10 +138,10 @@ func TestFailJobOperation(t *testing.T) {
 			"retries":      3,
 			"errorMessage": "test error",
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		_, err = zeebe_test.ExecCommandOperation(ctx, client, bindings_zeebe_command.FailJobOperation, data, nil)
-		assert.Error(t, err)
+		require.Error(t, err)
 
 		return nil
 	}
@@ -181,10 +182,10 @@ func TestFailJobOperationWithRetryBackOff(t *testing.T) {
 				atomic.AddInt32(&count, 1)
 
 				retries, err := strconv.Atoi(in.Metadata["X-Zeebe-Retries"])
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				jobKey, err := strconv.ParseInt(in.Metadata["X-Zeebe-Job-Key"], 10, 64)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				if retries == 1 {
 					ch <- true
@@ -201,10 +202,10 @@ func TestFailJobOperationWithRetryBackOff(t *testing.T) {
 					"errorMessage": "test error",
 					"retryBackOff": 15 * time.Second,
 				})
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				res, err := zeebe_test.ExecCommandOperation(ctx, client, bindings_zeebe_command.FailJobOperation, data, nil)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Nil(t, res.Data)
 				assert.Nil(t, res.Metadata)
 

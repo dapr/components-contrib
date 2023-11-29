@@ -20,6 +20,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 )
 
@@ -37,12 +38,12 @@ components:
       maxGetDurationInMs: 10
       numBulkRequests: 10`
 		config, err := decodeYaml([]byte(yam))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, config)
-		assert.Equal(t, 1, len(config.Components))
+		assert.Len(t, config.Components, 1)
 		assert.Equal(t, "state", config.ComponentType)
 		assert.Equal(t, []string{"foo", "bar"}, config.Components[0].Operations)
-		assert.Equal(t, 5, len(config.Components[0].Config))
+		assert.Len(t, config.Components[0].Config, 5)
 	})
 
 	t.Run("invalid yaml", func(t *testing.T) {
@@ -51,7 +52,7 @@ components:
 components:
 - : redis`
 		config, err := decodeYaml([]byte(yam))
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, TestConfiguration{}, config)
 	})
 }
@@ -94,18 +95,18 @@ func TestConvertMetadataToProperties(t *testing.T) {
 		os.Setenv("CONF_TEST_KEY", "testval")
 		defer os.Unsetenv("CONF_TEST_KEY")
 		resp, err := ConvertMetadataToProperties(items)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, resp)
-		assert.Equal(t, 2, len(resp))
+		assert.Len(t, resp, 2)
 		assert.Equal(t, "test", resp["test_key"])
 		assert.Equal(t, "testval", resp["env_var_sub"])
 	})
 
 	t.Run("env var not set", func(t *testing.T) {
 		resp, err := ConvertMetadataToProperties(items)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 		assert.NotNil(t, resp)
-		assert.Equal(t, 0, len(resp))
+		assert.Empty(t, resp)
 	})
 }
 
@@ -120,17 +121,17 @@ func TestParseConfigurationMap(t *testing.T) {
 	}
 
 	ParseConfigurationMap(t, testMap)
-	assert.Equal(t, 4, len(testMap))
+	assert.Len(t, testMap, 4)
 	assert.Equal(t, "testblob", testMap["blob"])
 	_, err := uuid.ParseBytes([]byte(testMap["key"].(string)))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	var nestedMap map[string]interface{}
 	json.Unmarshal([]byte(testMap["mapString"].(string)), &nestedMap)
 	_, err = uuid.ParseBytes([]byte(nestedMap["nestedkey"].(string)))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	_, err = uuid.ParseBytes([]byte(testMap["map"].(map[string]interface{})["nestedkey"].(string)))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestConvertComponentNameToPath(t *testing.T) {

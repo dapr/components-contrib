@@ -54,7 +54,7 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 			ctx: kitctx.NewPool(),
 		}
 		result, err := cache.GetKey(context.Background(), "key")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, testKey, result)
 	})
 
@@ -77,11 +77,11 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 		}
 
 		result, err := cache.GetKey(context.Background(), "key")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, testKey, result)
 
 		result, err = cache.GetKey(context.Background(), "another-key")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, testKey2, result)
 	})
 
@@ -96,7 +96,7 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 		})
 
 		result, err := cache.GetKey(context.Background(), "key")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, testKey, result)
 		assert.Equal(t, 1, called, "should be called once")
 	})
@@ -117,10 +117,10 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 		})
 
 		result, err := cache.GetKey(context.Background(), "key")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, testKey, result)
 		result, err = cache.GetKey(context.Background(), "another-key")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, testKey2, result)
 
 		assert.Equal(t, 2, called, "should be called once")
@@ -138,7 +138,7 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 		})
 
 		result, err := cache.GetKey(context.Background(), "key")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Equal(t, 1, called, "should be called once")
 	})
@@ -160,7 +160,7 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				result, err := cache.GetKey(context.Background(), "key")
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, testKey, result)
 			}()
 		}
@@ -232,7 +232,7 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 
 		go func() {
 			result, err := cache.GetKey(ctx2, "key")
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, testKey, result)
 			close(getKeyReturned)
 		}()
@@ -348,14 +348,14 @@ func TestPubKeyCacheGetKey(t *testing.T) {
 			defer wg.Done()
 			assertSize(1)
 			result, err := cache.GetKey(context.Background(), "key")
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, testKey, result)
 		}()
 		go func() {
 			defer wg.Done()
 			assertSize(2)
 			result, err := cache.GetKey(context.Background(), "key")
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, testKey, result)
 		}()
 

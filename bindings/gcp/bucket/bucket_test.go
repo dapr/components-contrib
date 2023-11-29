@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -42,7 +43,7 @@ func TestParseMetadata(t *testing.T) {
 		}
 		gs := GCPStorage{logger: logger.NewLogger("test")}
 		meta, err := gs.parseMetadata(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		t.Run("Metadata is correctly decoded", func(t *testing.T) {
 			assert.Equal(t, "my_auth_provider_x509", meta.AuthProviderCertURL)
@@ -60,7 +61,7 @@ func TestParseMetadata(t *testing.T) {
 
 		t.Run("Metadata is correctly marshalled to JSON", func(t *testing.T) {
 			json, err := json.Marshal(meta)
-			assert.Nil(t, err)
+			require.NoError(t, err)
 			assert.Equal(t,
 				"{\"type\":\"my_type\",\"project_id\":\"my_project_id\",\"private_key_id\":\"my_private_key_id\","+
 					"\"private_key\":\"my_private_key\",\"client_email\":\"my_email@mail.dapr\",\"client_id\":\"my_client_id\","+
@@ -102,7 +103,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		}
 		gs := GCPStorage{logger: logger.NewLogger("test")}
 		meta, err := gs.parseMetadata(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		assert.Equal(t, "my_auth_provider_x509", meta.AuthProviderCertURL)
 		assert.Equal(t, "my_auth_uri", meta.AuthURI)
@@ -115,7 +116,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		assert.Equal(t, "my_project_id", meta.ProjectID)
 		assert.Equal(t, "my_token_uri", meta.TokenURI)
 		assert.Equal(t, "my_type", meta.Type)
-		assert.Equal(t, false, meta.DecodeBase64)
+		assert.False(t, meta.DecodeBase64)
 
 		request := bindings.InvokeRequest{}
 		request.Metadata = map[string]string{
@@ -124,7 +125,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 
 		mergedMeta, err := meta.mergeWithRequestMetadata(&request)
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		assert.Equal(t, "my_auth_provider_x509", mergedMeta.AuthProviderCertURL)
 		assert.Equal(t, "my_auth_uri", mergedMeta.AuthURI)
@@ -137,7 +138,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		assert.Equal(t, "my_project_id", mergedMeta.ProjectID)
 		assert.Equal(t, "my_token_uri", mergedMeta.TokenURI)
 		assert.Equal(t, "my_type", mergedMeta.Type)
-		assert.Equal(t, true, mergedMeta.DecodeBase64)
+		assert.True(t, mergedMeta.DecodeBase64)
 	})
 
 	t.Run("Has invalid merged metadata decodeBase64", func(t *testing.T) {
@@ -158,7 +159,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		}
 		gs := GCPStorage{logger: logger.NewLogger("test")}
 		meta, err := gs.parseMetadata(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		assert.Equal(t, "my_auth_provider_x509", meta.AuthProviderCertURL)
 		assert.Equal(t, "my_auth_uri", meta.AuthURI)
@@ -171,7 +172,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		assert.Equal(t, "my_project_id", meta.ProjectID)
 		assert.Equal(t, "my_token_uri", meta.TokenURI)
 		assert.Equal(t, "my_type", meta.Type)
-		assert.Equal(t, false, meta.DecodeBase64)
+		assert.False(t, meta.DecodeBase64)
 
 		request := bindings.InvokeRequest{}
 		request.Metadata = map[string]string{
@@ -180,7 +181,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 
 		mergedMeta, err := meta.mergeWithRequestMetadata(&request)
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, mergedMeta)
 		assert.False(t, mergedMeta.DecodeBase64)
 	})
@@ -203,7 +204,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		}
 		gs := GCPStorage{logger: logger.NewLogger("test")}
 		meta, err := gs.parseMetadata(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		assert.Equal(t, "my_auth_provider_x509", meta.AuthProviderCertURL)
 		assert.Equal(t, "my_auth_uri", meta.AuthURI)
@@ -216,8 +217,8 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		assert.Equal(t, "my_project_id", meta.ProjectID)
 		assert.Equal(t, "my_token_uri", meta.TokenURI)
 		assert.Equal(t, "my_type", meta.Type)
-		assert.Equal(t, false, meta.DecodeBase64)
-		assert.Equal(t, true, meta.EncodeBase64)
+		assert.False(t, meta.DecodeBase64)
+		assert.True(t, meta.EncodeBase64)
 
 		request := bindings.InvokeRequest{}
 		request.Metadata = map[string]string{
@@ -226,7 +227,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 
 		mergedMeta, err := meta.mergeWithRequestMetadata(&request)
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, mergedMeta)
 		assert.False(t, mergedMeta.EncodeBase64)
 	})
@@ -238,7 +239,7 @@ func TestGetOption(t *testing.T) {
 	t.Run("return error if key is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
 		_, err := gs.get(context.TODO(), &r)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -249,6 +250,6 @@ func TestDeleteOption(t *testing.T) {
 	t.Run("return error if key is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
 		_, err := gs.delete(context.TODO(), &r)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }

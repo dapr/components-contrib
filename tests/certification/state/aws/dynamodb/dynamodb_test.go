@@ -31,6 +31,7 @@ import (
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -40,7 +41,7 @@ const (
 
 func TestAWSDynamoDBStorage(t *testing.T) {
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	currentGrpcPort := ports[0]
 	currentHTTPPort := ports[1]
@@ -58,18 +59,18 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 
 			// save state, default options: strong, last-write
 			err = client.SaveState(ctx, statestore, stateKey, []byte(stateValue), nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// get state
 			item, err := client.GetState(ctx, statestore, stateKey, nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, item)
 			assert.Equal(t, stateValue, string(item.Value))
 			assert.NotContains(t, item.Metadata, "ttlExpireTime")
 
 			// delete state
 			err = client.DeleteState(ctx, statestore, stateKey, nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			return nil
 		}
@@ -96,20 +97,21 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 
 			test := func(metaTTL map[string]string, expectedValue string) {
 				err = client.SaveState(ctx, statestore, stateKey, []byte(stateValue), metaTTL)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				item, err := client.GetState(ctx, statestore, stateKey, nil)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, expectedValue, string(item.Value))
 
 				if len(expectedValue) > 0 {
 					assert.Contains(t, item.Metadata, "ttlExpireTime")
 					expireTime, err := time.Parse(time.RFC3339, item.Metadata["ttlExpireTime"])
-					_ = assert.NoError(t, err) && assert.InDelta(t, time.Now().Add(5*time.Minute).Unix(), expireTime.Unix(), 10)
+					require.NoError(t, err)
+					assert.InDelta(t, time.Now().Add(5*time.Minute).Unix(), expireTime.Unix(), 10)
 				}
 
 				err = client.DeleteState(ctx, statestore, stateKey, nil)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			// Test	with TTL long enough for value to exist
@@ -135,7 +137,7 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 			kdel := "reqKey2"
 
 			err = cl.SaveState(ctx, statestore, kdel, []byte(kdel), nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			err = cl.ExecuteStateTransaction(ctx, statestore, nil, []*client.StateOperation{
 				{
@@ -168,13 +170,13 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 					},
 				},
 			})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			err = cl.DeleteState(ctx, statestore, ktx1, nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			err = cl.DeleteState(ctx, statestore, ktx2, nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			return nil
 		}

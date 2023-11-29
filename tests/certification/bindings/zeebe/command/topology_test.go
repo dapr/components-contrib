@@ -29,6 +29,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTopologyOperation(t *testing.T) {
@@ -50,23 +51,23 @@ func TestTopologyOperation(t *testing.T) {
 		envVars := zeebe_test.GetEnvVars("../.env")
 		topology := &pb.TopologyResponse{}
 		err := json.Unmarshal(res.Data, topology)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		expectedClusterSize, err := strconv.ParseInt(envVars.ZeebeBrokerClusterSize, 10, 32)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		expectedPartitionsCount, err := strconv.ParseInt(envVars.ZeebeBrokerPartitionsCount, 10, 32)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		expectedReplicationFactor, err := strconv.ParseInt(envVars.ZeebeBrokerReplicationFactor, 10, 32)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		brokerGatewayPort, err := strconv.ParseInt(envVars.ZeebeBrokerGatewayPort, 10, 32)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		expectedBrokerPort := brokerGatewayPort + 1
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Nil(t, res.Metadata)
 		assert.Equal(t, 1, len(topology.Brokers))
 		assert.Equal(t, int32(0), topology.Brokers[0].NodeId)

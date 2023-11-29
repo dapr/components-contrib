@@ -30,9 +30,9 @@ authenticationProfiles:
     description: "Connect to the broker without credential validation"
     metadata:
       - name: anonymous
-        required: false
+        required: true
         description: |
-          To connect to the broker without credential validation. Only works if enabled on the broker. A username and password would not be required if this is set to true.
+          Connect to the broker without credential validation; only works if enabled on the broker.
         example: '"true"'
         type: bool
 metadata:
@@ -42,24 +42,23 @@ metadata:
       Address of the AMQP broker.
       Use the `amqp://`` URI scheme for non-TLS communication, and the `amqps://` URI scheme for TLS communication.
     example: '"amqp://host.domain[:port]"'
+    sensitive: true
     type: string   
   - name: caCert
-    required: true
+    required: false
     description: |
       Certificate Authority (CA) certificate in PEM format for verifying server TLS certificates.
-    example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+    example: '"-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"'
     type: string
   - name: clientCert
-    required: true
-    sensitive: true
+    required: false
     description: |
-      TLS client certificate in PEM format. Must be used with clientKey.
-    example: "-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"
+      TLS client certificate in PEM format, for using TLS.
+    example: '"-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"'
     type: string
   - name: clientKey
-    required: true
-    sensitive: true
+    required: false
     description: |
-      TLS client key in PEM format. Must be used with clientCert. Can be secretKeyRef to use a secret reference.
-    example: "-----BEGIN RSA PRIVATE KEY-----\n<base64-encoded PKCS8>\n-----END RSA PRIVATE KEY-----"
+      TLS client key in PEM format, for using TLS.
+    example: '"-----BEGIN PRIVATE KEY-----\n<base64-encoded PKCS8>\n-----END RSA PRIVATE KEY-----"'
     type: string    

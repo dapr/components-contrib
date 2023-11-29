@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
@@ -71,7 +72,7 @@ func TestBinding(t *testing.T) {
 
 	b := getNewRethinkActorBinding()
 	err := b.Init(context.Background(), m)
-	assert.NoErrorf(t, err, "error initializing")
+	require.NoErrorf(t, err, "error initializing")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	err = b.Read(ctx, func(_ context.Context, res *bindings.ReadResponse) ([]byte, error) {
@@ -80,7 +81,7 @@ func TestBinding(t *testing.T) {
 
 		return nil, nil
 	})
-	assert.NoErrorf(t, err, "error on read")
+	require.NoErrorf(t, err, "error on read")
 
 	testTimer := time.AfterFunc(testDuration, func() {
 		t.Log("done")

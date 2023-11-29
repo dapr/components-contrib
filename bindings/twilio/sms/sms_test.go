@@ -54,7 +54,7 @@ func TestInit(t *testing.T) {
 	m.Properties = map[string]string{"toNumber": "toNumber", "fromNumber": "fromNumber"}
 	tw := NewSMS(logger.NewLogger("test"))
 	err := tw.Init(context.Background(), m)
-	assert.NotNil(t, err)
+	require.Error(t, err)
 }
 
 func TestParseDuration(t *testing.T) {
@@ -67,7 +67,7 @@ func TestParseDuration(t *testing.T) {
 	}
 	tw := NewSMS(logger.NewLogger("test"))
 	err := tw.Init(context.Background(), m)
-	assert.NotNil(t, err)
+	require.Error(t, err)
 }
 
 func TestWriteShouldSucceed(t *testing.T) {
@@ -86,7 +86,7 @@ func TestWriteShouldSucceed(t *testing.T) {
 		Transport: httpTransport,
 	}
 	err := tw.Init(context.Background(), m)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	t.Run("Should succeed with expected url and headers", func(t *testing.T) {
 		httpTransport.reset()
@@ -97,7 +97,7 @@ func TestWriteShouldSucceed(t *testing.T) {
 			},
 		})
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, int32(1), httpTransport.requestCount)
 		assert.Equal(t, "https://api.twilio.com/2010-04-01/Accounts/accountSid/Messages.json", httpTransport.request.URL.String())
 		assert.NotNil(t, httpTransport.request)
@@ -124,7 +124,7 @@ func TestWriteShouldFail(t *testing.T) {
 		Transport: httpTransport,
 	}
 	err := tw.Init(context.Background(), m)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	t.Run("Missing 'to' should fail", func(t *testing.T) {
 		httpTransport.reset()
@@ -133,7 +133,7 @@ func TestWriteShouldFail(t *testing.T) {
 			Metadata: map[string]string{},
 		})
 
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("Twilio call failed should be returned", func(t *testing.T) {
@@ -147,7 +147,7 @@ func TestWriteShouldFail(t *testing.T) {
 			},
 		})
 
-		assert.NotNil(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), httpErr.Error())
 	})
 
@@ -161,7 +161,7 @@ func TestWriteShouldFail(t *testing.T) {
 			},
 		})
 
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 }
 

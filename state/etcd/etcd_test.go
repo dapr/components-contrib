@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -32,7 +33,7 @@ func TestGetEtcdMetadata(t *testing.T) {
 		}
 
 		metadata, err := metadataToConfig(m.Properties)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, properties["endpoints"], metadata.Endpoints)
 	})
 
@@ -47,7 +48,7 @@ func TestGetEtcdMetadata(t *testing.T) {
 		}
 
 		metadata, err := metadataToConfig(m.Properties)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, properties["endpoints"], metadata.Endpoints)
 		assert.Equal(t, properties["keyPrefixPath"], metadata.KeyPrefixPath)
 		assert.Equal(t, properties["tlsEnable"], metadata.TLSEnable)

@@ -48,7 +48,7 @@ func TestParseMetadata(t *testing.T) {
 	err = eh.ensureInputBindingMetadata()
 	require.NoError(t, err)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "a", meta.azureTenantID)
 	assert.Equal(t, "b", meta.azureSubscriptionID)
 	assert.Equal(t, "c", meta.azureClientID)

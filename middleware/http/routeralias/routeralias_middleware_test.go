@@ -50,7 +50,7 @@ func TestRouterAlias(t *testing.T) {
 
 				handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 				msg, err := io.ReadAll(w.Body)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				result := w.Result()
 				assert.Equal(t, http.StatusOK, result.StatusCode)
 				assert.Equal(t,
@@ -66,7 +66,7 @@ func TestRouterAlias(t *testing.T) {
 
 				handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 				msg, err := io.ReadAll(w.Body)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				result := w.Result()
 				assert.Equal(t, http.StatusOK, result.StatusCode)
 				assert.Equal(t,
@@ -82,7 +82,7 @@ func TestRouterAlias(t *testing.T) {
 
 				handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 				msg, err := io.ReadAll(w.Body)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				result := w.Result()
 				assert.Equal(t, http.StatusOK, result.StatusCode)
 				assert.Equal(t,
@@ -97,7 +97,7 @@ func TestRouterAlias(t *testing.T) {
 				w := httptest.NewRecorder()
 				handler(http.HandlerFunc(mockedRequestHandler)).ServeHTTP(w, r)
 				msg, err := io.ReadAll(w.Body)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				result := w.Result()
 				assert.Equal(t, http.StatusOK, result.StatusCode)
 				assert.Equal(t,

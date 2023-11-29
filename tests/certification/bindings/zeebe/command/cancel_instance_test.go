@@ -28,6 +28,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCancelInstanceOperation(t *testing.T) {
@@ -50,7 +51,7 @@ func TestCancelInstanceOperation(t *testing.T) {
 			1,
 			zeebe_test.IDModifier(id))
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, id, deployment.Deployments[0].Metadata.Process.BpmnProcessId)
 
 		return nil
@@ -63,7 +64,7 @@ func TestCancelInstanceOperation(t *testing.T) {
 		processInstance, err := zeebe_test.CreateProcessInstance(client, ctx, map[string]interface{}{
 			"bpmnProcessId": id,
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotEqual(t, 0, processInstance.ProcessInstanceKey)
 
 		processInstanceKey = processInstance.ProcessInstanceKey
@@ -78,10 +79,10 @@ func TestCancelInstanceOperation(t *testing.T) {
 		data, err := json.Marshal(map[string]interface{}{
 			"processInstanceKey": processInstanceKey,
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		res, err := zeebe_test.ExecCommandOperation(ctx, client, bindings_zeebe_command.CancelInstanceOperation, data, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Nil(t, res.Data)
 		assert.Nil(t, res.Metadata)
 
@@ -96,10 +97,10 @@ func TestCancelInstanceOperation(t *testing.T) {
 			"processInstanceKey": 0,
 		})
 		assert.NotNil(t, data)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		_, err = zeebe_test.ExecCommandOperation(ctx, client, bindings_zeebe_command.CancelInstanceOperation, data, nil)
-		assert.Error(t, err)
+		require.Error(t, err)
 
 		return nil
 	}

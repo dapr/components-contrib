@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -90,7 +91,7 @@ func TestMultiWithNoRequestsReturnsNil(t *testing.T) {
 	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestValidSetRequest(t *testing.T) {
@@ -102,7 +103,7 @@ func TestValidSetRequest(t *testing.T) {
 			createSetRequest(),
 		},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestValidMultiDeleteRequest(t *testing.T) {
@@ -114,7 +115,7 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 			createDeleteRequest(),
 		},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func createSetRequest() state.SetRequest {
@@ -160,7 +161,7 @@ func createOracleDatabase(t *testing.T) *OracleDatabase {
 
 	err := odb.Init(context.Background(), *metadata)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, odb.dbaccess)
 
 	return odb

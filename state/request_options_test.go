@@ -16,7 +16,7 @@ package state
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestCheckRequestOptions is used to validate request options.
@@ -24,21 +24,21 @@ func TestCheckRequestOptions(t *testing.T) {
 	t.Run("set state options", func(t *testing.T) {
 		ro := SetStateOption{Concurrency: FirstWrite, Consistency: Eventual}
 		err := CheckRequestOptions(ro)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 	t.Run("delete state options", func(t *testing.T) {
 		ro := DeleteStateOption{Concurrency: FirstWrite, Consistency: Eventual}
 		err := CheckRequestOptions(ro)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 	t.Run("get state options", func(t *testing.T) {
 		ro := GetStateOption{Consistency: Eventual}
 		err := CheckRequestOptions(ro)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 	t.Run("invalid state options", func(t *testing.T) {
 		ro := SetStateOption{Concurrency: "invalid", Consistency: Eventual}
 		err := CheckRequestOptions(ro)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }

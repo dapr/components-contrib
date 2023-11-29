@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 )
@@ -28,7 +29,7 @@ func TestParseMetadata(t *testing.T) {
 	}
 	s := AWSSQS{}
 	sqsM, err := s.parseSQSMetadata(m)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "a", sqsM.QueueName)
 	assert.Equal(t, "a", sqsM.Region)
 	assert.Equal(t, "a", sqsM.AccessKey)

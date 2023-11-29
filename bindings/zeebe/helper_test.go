@@ -22,7 +22,7 @@ import (
 
 func TestVariableStringToArrayRemovesSpaces(t *testing.T) {
 	vars := VariableStringToArray("  a,   b,  c  ")
-	require.Equal(t, 3, len(vars))
+	require.Len(t, vars, 3)
 	assert.Equal(t, "a", vars[0])
 	assert.Equal(t, "b", vars[1])
 	assert.Equal(t, "c", vars[2])

@@ -125,7 +125,7 @@ func (c *Cassandra) Features() []state.Feature {
 }
 
 func (c *Cassandra) tryCreateKeyspace(keyspace string, replicationFactor int) error {
-	return c.session.Query(fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : %s};", keyspace, fmt.Sprintf("%v", replicationFactor))).Exec()
+	return c.session.Query(fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : %s};", keyspace, strconv.Itoa(replicationFactor))).Exec()
 }
 
 func (c *Cassandra) tryCreateTable(table, keyspace string) error {

@@ -61,7 +61,7 @@ func TestParseEventHubsMetadata(t *testing.T) {
 		_, err := parseEventHubsMetadata(metadata, false, testLogger)
 
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "only one of connectionString or eventHubNamespace should be passed")
+		require.ErrorContains(t, err, "only one of connectionString or eventHubNamespace should be passed")
 	})
 
 	t.Run("test missing metadata", func(t *testing.T) {
@@ -70,7 +70,7 @@ func TestParseEventHubsMetadata(t *testing.T) {
 		_, err := parseEventHubsMetadata(metadata, false, testLogger)
 
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "one of connectionString or eventHubNamespace is required")
+		require.ErrorContains(t, err, "one of connectionString or eventHubNamespace is required")
 	})
 }
 
@@ -120,7 +120,7 @@ func TestConstructConnectionStringFromTopic(t *testing.T) {
 
 		c, err := aeh.constructConnectionStringFromTopic(topic)
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "does not match the Event Hub name in the connection string")
+		require.ErrorContains(t, err, "does not match the Event Hub name in the connection string")
 		assert.Equal(t, "", c)
 	})
 }

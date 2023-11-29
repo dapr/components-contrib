@@ -24,6 +24,7 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
+//nolint:gosec
 var (
 	clientCertPemMock = `-----BEGIN CERTIFICATE-----
 Y2xpZW50Q2VydA==
@@ -119,7 +120,7 @@ func assertMetadata(t *testing.T, meta *KafkaMetadata) {
 	require.Equal(t, "a", meta.ConsumerGroup)
 	require.Equal(t, "a", meta.ClientID)
 	require.Equal(t, 2048, meta.MaxMessageBytes)
-	require.Equal(t, true, meta.TLSSkipVerify)
+	require.True(t, meta.TLSSkipVerify)
 	require.Equal(t, clientCertPemMock, meta.TLSClientCert)
 	require.Equal(t, clientKeyMock, meta.TLSClientKey)
 	require.Equal(t, caCertMock, meta.TLSCaCert)
@@ -297,7 +298,7 @@ func TestTls(t *testing.T) {
 		c := &sarama.Config{}
 		err = updateTLSConfig(c, meta)
 		require.NoError(t, err)
-		require.Equal(t, false, c.Net.TLS.Enable)
+		require.False(t, c.Net.TLS.Enable)
 	})
 
 	t.Run("wrong client cert format", func(t *testing.T) {

@@ -23,6 +23,7 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
@@ -52,7 +53,7 @@ func TestInit(t *testing.T) {
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
 		err := binding.Init(context.Background(), metadata)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, developmentPrefix, binding.urlPrefix)
 	})
 
@@ -67,7 +68,7 @@ func TestInit(t *testing.T) {
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
 		err := binding.Init(context.Background(), metadata)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, productionPrefix, binding.urlPrefix)
 	})
 
@@ -81,7 +82,7 @@ func TestInit(t *testing.T) {
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
 		err := binding.Init(context.Background(), metadata)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, productionPrefix, binding.urlPrefix)
 	})
 
@@ -94,7 +95,7 @@ func TestInit(t *testing.T) {
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
 		err := binding.Init(context.Background(), metadata)
-		assert.Error(t, err, "the key-id parameter is required")
+		require.Error(t, err, "the key-id parameter is required")
 	})
 
 	t.Run("valid key ID", func(t *testing.T) {
@@ -107,7 +108,7 @@ func TestInit(t *testing.T) {
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
 		err := binding.Init(context.Background(), metadata)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, testKeyID, binding.authorizationBuilder.keyID)
 	})
 
@@ -120,7 +121,7 @@ func TestInit(t *testing.T) {
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
 		err := binding.Init(context.Background(), metadata)
-		assert.Error(t, err, "the team-id parameter is required")
+		require.Error(t, err, "the team-id parameter is required")
 	})
 
 	t.Run("valid team ID", func(t *testing.T) {
@@ -133,7 +134,7 @@ func TestInit(t *testing.T) {
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
 		err := binding.Init(context.Background(), metadata)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, testTeamID, binding.authorizationBuilder.teamID)
 	})
 
@@ -146,7 +147,7 @@ func TestInit(t *testing.T) {
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
 		err := binding.Init(context.Background(), metadata)
-		assert.Error(t, err, "the private-key parameter is required")
+		require.Error(t, err, "the private-key parameter is required")
 	})
 
 	t.Run("valid private key", func(t *testing.T) {
@@ -159,7 +160,7 @@ func TestInit(t *testing.T) {
 		}}
 		binding := NewAPNS(testLogger).(*APNS)
 		err := binding.Init(context.Background(), metadata)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, binding.authorizationBuilder.privateKey)
 	})
 }
@@ -168,7 +169,7 @@ func TestOperations(t *testing.T) {
 	testLogger := logger.NewLogger("test")
 	testBinding := NewAPNS(testLogger).(*APNS)
 	operations := testBinding.Operations()
-	assert.Equal(t, 1, len(operations))
+	assert.Len(t, operations, 1)
 	assert.Equal(t, bindings.CreateOperation, operations[0])
 }
 
@@ -192,7 +193,7 @@ func TestInvoke(t *testing.T) {
 		testBinding := makeTestBinding(t, testLogger)
 		req := &bindings.InvokeRequest{Operation: bindings.DeleteOperation}
 		_, err := testBinding.Invoke(context.TODO(), req)
-		assert.Error(t, err, "operation not supported: delete")
+		require.Error(t, err, "operation not supported: delete")
 	})
 
 	t.Run("the device token is required", func(t *testing.T) {
@@ -202,7 +203,7 @@ func TestInvoke(t *testing.T) {
 			Metadata:  map[string]string{},
 		}
 		_, err := testBinding.Invoke(context.TODO(), req)
-		assert.Error(t, err, "the device-token parameter is required")
+		require.Error(t, err, "the device-token parameter is required")
 	})
 
 	t.Run("the authorization header is sent", func(t *testing.T) {
@@ -287,12 +288,12 @@ func TestInvoke(t *testing.T) {
 			return successResponse()
 		})
 		response, err := testBinding.Invoke(context.TODO(), successRequest)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, response.Data)
 		var body notificationResponse
 		decoder := jsoniter.NewDecoder(bytes.NewReader(response.Data))
 		err = decoder.Decode(&body)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "12345", body.MessageID)
 	})
 
@@ -307,7 +308,7 @@ func TestInvoke(t *testing.T) {
 			}
 		})
 		_, err := testBinding.Invoke(context.TODO(), successRequest)
-		assert.Error(t, err, "BadDeviceToken")
+		require.Error(t, err, "BadDeviceToken")
 	})
 }
 
@@ -322,7 +323,7 @@ func makeTestBinding(t *testing.T, log logger.Logger) *APNS {
 		},
 	}}
 	err := testBinding.Init(context.Background(), bindingMetadata)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	return testBinding
 }

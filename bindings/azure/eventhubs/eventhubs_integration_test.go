@@ -154,7 +154,7 @@ func testReadIotHubEvents(t *testing.T) {
 	cmd := exec.Command("/bin/bash", "../../../tests/scripts/send-iot-device-events.sh")
 	cmd.Env = append(os.Environ(), fmt.Sprintf("IOT_HUB_NAME=%s", os.Getenv(iotHubNameEnvKey)))
 	out, err := cmd.CombinedOutput()
-	assert.NoError(t, err, "Error in send-iot-device-events.sh:\n%s", out)
+	require.NoError(t, err, "Error in send-iot-device-events.sh:\n%s", out)
 
 	// Setup Read binding to capture readResponses in a closure so that test asserts can be
 	// performed on the main thread, including the case where the handler is never invoked.

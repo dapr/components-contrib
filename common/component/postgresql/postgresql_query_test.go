@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/state/query"
 )
@@ -55,10 +56,10 @@ func TestPostgresqlQueryBuildQuery(t *testing.T) {
 	}
 	for _, test := range tests {
 		data, err := os.ReadFile(test.input)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		var qq query.Query
 		err = json.Unmarshal(data, &qq)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		q := &Query{
 			tableName:  defaultTableName,
@@ -66,7 +67,7 @@ func TestPostgresqlQueryBuildQuery(t *testing.T) {
 		}
 		qbuilder := query.NewQueryBuilder(q)
 		err = qbuilder.BuildQuery(&qq)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, test.query, q.query)
 	}
 }

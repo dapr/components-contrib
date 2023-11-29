@@ -35,6 +35,7 @@ import (
 	state_loader "github.com/dapr/dapr/pkg/components/state"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -44,7 +45,7 @@ const (
 
 func TestAzureBlobStorage(t *testing.T) {
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	currentGrpcPort := ports[0]
 	currentHTTPPort := ports[1]
@@ -59,16 +60,16 @@ func TestAzureBlobStorage(t *testing.T) {
 
 			// save state, default options: strong, last-write
 			err = client.SaveState(ctx, statestore, certificationTestPrefix+"key1", []byte("certificationdata"), nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// get state
 			item, err := client.GetState(ctx, statestore, certificationTestPrefix+"key1", nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, "certificationdata", string(item.Value))
 
 			// delete state
 			err = client.DeleteState(ctx, statestore, certificationTestPrefix+"key1", nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			return nil
 		}

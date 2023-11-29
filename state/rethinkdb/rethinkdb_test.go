@@ -19,10 +19,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -36,7 +38,7 @@ func TestGetRethinkDBMetadata(t *testing.T) {
 	t.Run("With required connect configuration", func(t *testing.T) {
 		p := getTestMetadata()
 		m, err := metadataToConfig(p, testLogger)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, p["address"], m.Address)
 		assert.Equal(t, p["database"], m.Database)
 		assert.True(t, m.Archive)
@@ -49,13 +51,13 @@ func TestGetRethinkDBMetadata(t *testing.T) {
 		p["timeout"] = fmt.Sprintf("%v", timeout)
 
 		maxOpen := 30
-		p["maxOpen"] = fmt.Sprintf("%v", maxOpen)
+		p["maxOpen"] = strconv.Itoa(maxOpen)
 
 		discoverHosts := true
-		p["discoverHosts"] = fmt.Sprintf("%v", discoverHosts)
+		p["discoverHosts"] = strconv.FormatBool(discoverHosts)
 
 		m, err := metadataToConfig(p, testLogger)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, maxOpen, m.MaxOpen)
 		assert.Equal(t, discoverHosts, m.DiscoverHosts)
 	})
@@ -97,7 +99,7 @@ func TestRethinkDBStateStore(t *testing.T) {
 
 		// get set data and compare
 		resp, err := db.Get(context.Background(), &state.GetRequest{Key: k})
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		d2 := testGetTestObj(t, resp)
 		assert.NotNil(t, d2)
 		assert.Equal(t, d.F1, d2.F1)
@@ -114,7 +116,7 @@ func TestRethinkDBStateStore(t *testing.T) {
 
 		// get updated data and compare
 		resp2, err := db.Get(context.Background(), &state.GetRequest{Key: k})
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		d3 := testGetTestObj(t, resp2)
 		assert.NotNil(t, d3)
 		assert.Equal(t, d2.F1, d3.F1)
@@ -138,7 +140,7 @@ func TestRethinkDBStateStore(t *testing.T) {
 
 		// get set data and compare
 		resp, err := db.Get(context.Background(), &state.GetRequest{Key: k})
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, resp)
 		assert.NotNil(t, resp.Data)
 		assert.Equal(t, string(d), string(resp.Data))
@@ -166,7 +168,7 @@ func TestRethinkDBStateStoreRongRun(t *testing.T) {
 	}
 	closer, ok := db.(io.Closer)
 	assert.True(t, ok)
-	defer assert.NoError(t, closer.Close())
+	defer require.NoError(t, closer.Close())
 
 	for i := 0; i < 1000; i++ {
 		testBulk(t, db, i)
@@ -192,7 +194,7 @@ func testBulk(t *testing.T, db state.Store, i int) {
 	// check for the data
 	for _, v := range deleteList {
 		resp, err := db.Get(context.Background(), &state.GetRequest{Key: v.Key})
-		assert.NoErrorf(t, err, " -- run %d", i)
+		require.NoErrorf(t, err, " -- run %d", i)
 		assert.NotNil(t, resp)
 		assert.NotNil(t, resp.Data)
 	}
@@ -205,7 +207,7 @@ func testBulk(t *testing.T, db state.Store, i int) {
 	// check for the data NOT being there
 	for _, v := range deleteList {
 		resp, err := db.Get(context.Background(), &state.GetRequest{Key: v.Key})
-		assert.NoErrorf(t, err, " -- run %d", i)
+		require.NoErrorf(t, err, " -- run %d", i)
 		assert.NotNil(t, resp)
 		assert.Nil(t, resp.Data)
 	}

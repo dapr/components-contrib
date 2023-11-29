@@ -31,6 +31,7 @@ import (
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/go-sdk/service/common"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 )
 
@@ -73,7 +74,7 @@ func TestCreateInstanceOperation(t *testing.T) {
 			zeebe_test.TestProcessFile,
 			1,
 			zeebe_test.IDModifier(id))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, id, firstDeployment.Deployments[0].Metadata.Process.BpmnProcessId)
 		assert.Equal(t, int32(1), firstDeployment.Deployments[0].Metadata.Process.Version)
 
@@ -94,7 +95,7 @@ func TestCreateInstanceOperation(t *testing.T) {
 			zeebe_test.IDModifier(id),
 			// changing the name results in a new version
 			zeebe_test.NameModifier(id))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, id, secondDeployment.Deployments[0].Metadata.Process.BpmnProcessId)
 		assert.Equal(t, int32(2), secondDeployment.Deployments[0].Metadata.Process.Version)
 
@@ -116,7 +117,7 @@ func TestCreateInstanceOperation(t *testing.T) {
 				"fetchVariables": []string{"foo"},
 				"requestTimeout": requestTimeout,
 			})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, version1ProcessDefinitionKey, processInstance.ProcessDefinitionKey)
 			assert.NotNil(t, processInstance.ProcessInstanceKey)
 			assert.Equal(t, id, processInstance.BpmnProcessId)
@@ -142,7 +143,7 @@ func TestCreateInstanceOperation(t *testing.T) {
 				"fetchVariables": []string{"foo"},
 				"requestTimeout": requestTimeout,
 			})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, version2ProcessDefinitionKey, processInstance.ProcessDefinitionKey)
 			assert.NotNil(t, processInstance.ProcessInstanceKey)
 			assert.Equal(t, id, processInstance.BpmnProcessId)
@@ -168,7 +169,7 @@ func TestCreateInstanceOperation(t *testing.T) {
 				"fetchVariables": []string{"foo"},
 				"requestTimeout": requestTimeout,
 			})
-			assert.Error(t, err)
+			require.Error(t, err)
 
 			return nil
 		}
@@ -186,7 +187,7 @@ func TestCreateInstanceOperation(t *testing.T) {
 				"fetchVariables":       []string{"foo"},
 				"requestTimeout":       requestTimeout,
 			})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, version1ProcessDefinitionKey, processInstance.ProcessDefinitionKey)
 			assert.NotNil(t, processInstance.ProcessInstanceKey)
 			assert.Equal(t, id, processInstance.BpmnProcessId)
@@ -212,7 +213,7 @@ func TestCreateInstanceOperation(t *testing.T) {
 				"fetchVariables":       []string{"foo"},
 				"requestTimeout":       requestTimeout,
 			})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, version2ProcessDefinitionKey, processInstance.ProcessDefinitionKey)
 			assert.NotNil(t, processInstance.ProcessInstanceKey)
 			assert.Equal(t, id, processInstance.BpmnProcessId)
@@ -238,7 +239,7 @@ func TestCreateInstanceOperation(t *testing.T) {
 				"fetchVariables":       []string{"foo"},
 				"requestTimeout":       requestTimeout,
 			})
-			assert.Error(t, err)
+			require.Error(t, err)
 
 			return nil
 		}
@@ -256,7 +257,7 @@ func TestCreateInstanceOperation(t *testing.T) {
 				"fetchVariables": []string{"foo"},
 				"requestTimeout": requestTimeout,
 			})
-			assert.Error(t, err)
+			require.Error(t, err)
 
 			return nil
 		}
@@ -274,7 +275,7 @@ func TestCreateInstanceOperation(t *testing.T) {
 				"fetchVariables": []string{},
 				"requestTimeout": requestTimeout,
 			})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, version2ProcessDefinitionKey, processInstance.ProcessDefinitionKey)
 			assert.NotNil(t, processInstance.ProcessInstanceKey)
 			assert.Equal(t, id, processInstance.BpmnProcessId)

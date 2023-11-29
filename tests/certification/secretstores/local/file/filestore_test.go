@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	// SecretStores
 
@@ -39,7 +40,7 @@ const (
 
 func TestEnv(t *testing.T) {
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	currentGrpcPort := ports[0]
 	currentHttpPort := ports[1]
@@ -52,11 +53,11 @@ func TestEnv(t *testing.T) {
 		defer client.Close()
 
 		res, err := client.GetSecret(ctx, "file-secret-store", "certtestsecret", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "abcd", res["certtestsecret"])
 
 		res, err = client.GetSecret(ctx, "file-secret-store", "nestedsecret:secret", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "efgh", res["nestedsecret:secret"])
 		return nil
 	}
@@ -69,11 +70,11 @@ func TestEnv(t *testing.T) {
 		defer client.Close()
 
 		res, err := client.GetSecret(ctx, "file-secret-store", "certtestsecret", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "abcd", res["certtestsecret"])
 
 		res, err = client.GetSecret(ctx, "file-secret-store", "nestedsecret::secret", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "efgh", res["nestedsecret::secret"])
 		return nil
 	}

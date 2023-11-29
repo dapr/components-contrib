@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	cosmosdbbinding "github.com/dapr/components-contrib/bindings/azure/cosmosdb"
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
@@ -64,7 +65,7 @@ func createDocument(generateID bool, includePK bool) map[string]interface{} {
 
 func TestCosmosDBBinding(t *testing.T) {
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	currentGRPCPort := ports[0]
 	currentHTTPPort := ports[1]
@@ -95,7 +96,7 @@ func TestCosmosDBBinding(t *testing.T) {
 	testInvokeCreateAndVerify := func(ctx flow.Context) error {
 		document := createDocument(true, true)
 		invokeErr := invokeCreateWithDocument(ctx, document)
-		assert.NoError(t, invokeErr)
+		require.NoError(t, invokeErr)
 
 		// sleep to avoid metdata request rate limit before initializing new client
 		flow.Sleep(3 * time.Second)
@@ -115,7 +116,7 @@ func TestCosmosDBBinding(t *testing.T) {
 				{Name: "@id", Value: os.Getenv("AzureCosmosDB")},
 			},
 		})
-		assert.NoError(t, queryDBErr)
+		require.NoError(t, queryDBErr)
 		db := &dbs[0]
 		colls, queryCollErr := dbclient.QueryCollections(db.Self, &documentdb.Query{
 			Query: "SELECT * FROM ROOT r WHERE r.id=@id",
@@ -123,7 +124,7 @@ func TestCosmosDBBinding(t *testing.T) {
 				{Name: "@id", Value: os.Getenv("AzureCosmosDBCollection")},
 			},
 		})
-		assert.NoError(t, queryCollErr)
+		require.NoError(t, queryCollErr)
 		collection := &colls[0]
 
 		var items []map[string]interface{}
@@ -134,7 +135,7 @@ func TestCosmosDBBinding(t *testing.T) {
 			documentdb.CrossPartition(),
 		)
 
-		assert.NoError(t, queryErr)
+		require.NoError(t, queryErr)
 
 		result := items[0]
 		// verify the item retrieved from the database matches the item we inserted
@@ -146,7 +147,7 @@ func TestCosmosDBBinding(t *testing.T) {
 
 		// cleanup
 		_, err = dbclient.DeleteDocument(result["_self"].(string), documentdb.PartitionKey(result["partitionKey"].(string)))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		return nil
 	}
@@ -194,7 +195,7 @@ func TestCosmosDBBinding(t *testing.T) {
 		Run()
 
 	ports, err = dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	currentGRPCPort = ports[0]
 	currentHTTPPort = ports[1]
@@ -214,7 +215,7 @@ func TestCosmosDBBinding(t *testing.T) {
 		Run()
 
 	ports, err = dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	currentGRPCPort = ports[0]
 	currentHTTPPort = ports[1]

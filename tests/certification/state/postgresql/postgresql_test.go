@@ -270,16 +270,16 @@ func TestPostgreSQL(t *testing.T) {
 				}(i)
 			}
 
-			failed := false
 			for i := 0; i < 3; i++ {
 				select {
 				case err := <-errs:
-					failed = failed || !require.NoError(t, err)
+					//nolint:testify
+					assert.NoError(t, err)
 				case <-time.After(time.Minute):
 					t.Fatal("timed out waiting for components to initialize")
 				}
 			}
-			if failed {
+			if t.Failed() {
 				// Short-circuit
 				t.FailNow()
 			}

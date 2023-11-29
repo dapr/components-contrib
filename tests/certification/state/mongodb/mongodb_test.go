@@ -127,7 +127,8 @@ func TestMongoDB(t *testing.T) {
 			assert.Equal(t, "mongodbCert3", string(item.Value))
 			assert.Contains(t, item.Metadata, "ttlExpireTime")
 			expireTime, err := time.Parse(time.RFC3339, item.Metadata["ttlExpireTime"])
-			_ = require.NoError(t, err) && assert.InDelta(t, time.Now().Add(time.Second*3).Unix(), expireTime.Unix(), 2)
+			require.NoError(t, err)
+			assert.InDelta(t, time.Now().Add(time.Second*3).Unix(), expireTime.Unix(), 2)
 
 			assert.Eventually(t, func() bool {
 				item, err = client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl3", nil)

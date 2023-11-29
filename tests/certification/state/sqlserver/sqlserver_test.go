@@ -109,8 +109,8 @@ func TestSqlServer(t *testing.T) {
 			assert.Equal(t, "certificationdata", string(item.Value))
 			assert.Contains(t, item.Metadata, "ttlExpireTime")
 			expireTime, err := time.Parse(time.RFC3339, item.Metadata["ttlExpireTime"])
-			_ = require.NoError(t, err) &&
-				assert.InDelta(t, time.Now().Add(24*time.Hour).Unix(), expireTime.Unix(), 10)
+			require.NoError(t, err)
+			assert.InDelta(t, time.Now().Add(24*time.Hour).Unix(), expireTime.Unix(), 10)
 
 			err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key2", []byte("certificationdata"), map[string]string{
 				"ttlInSeconds": "1",

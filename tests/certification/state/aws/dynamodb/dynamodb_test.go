@@ -106,7 +106,8 @@ func TestAWSDynamoDBStorage(t *testing.T) {
 				if len(expectedValue) > 0 {
 					assert.Contains(t, item.Metadata, "ttlExpireTime")
 					expireTime, err := time.Parse(time.RFC3339, item.Metadata["ttlExpireTime"])
-					_ = require.NoError(t, err) && assert.InDelta(t, time.Now().Add(5*time.Minute).Unix(), expireTime.Unix(), 10)
+					require.NoError(t, err)
+					assert.InDelta(t, time.Now().Add(5*time.Minute).Unix(), expireTime.Unix(), 10)
 				}
 
 				err = client.DeleteState(ctx, statestore, stateKey, nil)

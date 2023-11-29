@@ -26,6 +26,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDeployResourceOperation(t *testing.T) {
@@ -46,7 +47,7 @@ func TestDeployResourceOperation(t *testing.T) {
 			1,
 			zeebe_test.IDModifier(id))
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, id, deployment.Deployments[0].Metadata.Process.BpmnProcessId)
 		assert.Equal(t, int32(1), deployment.Deployments[0].Metadata.Process.Version)
 		assert.NotNil(t, deployment.Deployments[0].Metadata.Process.ProcessDefinitionKey)
@@ -66,7 +67,7 @@ func TestDeployResourceOperation(t *testing.T) {
 			2,
 			zeebe_test.IDModifier(id))
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, id, deployment.Deployments[0].Metadata.Decision.DmnDecisionId)
 		assert.Equal(t, "Test", deployment.Deployments[0].Metadata.Decision.DmnDecisionName)
 		assert.Equal(t, int32(1), deployment.Deployments[0].Metadata.Decision.Version)
@@ -96,7 +97,7 @@ func TestDeployResourceOperation(t *testing.T) {
 			// changing the name results in a new version
 			zeebe_test.NameModifier(id))
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, id, deployment.Deployments[0].Metadata.Process.BpmnProcessId)
 		assert.Equal(t, int32(2), deployment.Deployments[0].Metadata.Process.Version)
 		assert.NotNil(t, deployment.Deployments[0].Metadata.Process.ProcessDefinitionKey)

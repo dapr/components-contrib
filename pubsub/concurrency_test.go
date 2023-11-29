@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConcurrency(t *testing.T) {
@@ -46,6 +47,6 @@ func TestConcurrency(t *testing.T) {
 		c, err := Concurrency(m)
 
 		assert.Empty(t, c)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }

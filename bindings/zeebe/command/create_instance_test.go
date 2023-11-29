@@ -22,6 +22,7 @@ import (
 	"github.com/camunda/zeebe/clients/go/v8/pkg/pb"
 	"github.com/camunda/zeebe/clients/go/v8/pkg/zbc"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -106,7 +107,7 @@ func TestCreateInstance(t *testing.T) {
 			ProcessDefinitionKey: new(int64),
 		}
 		data, err := json.Marshal(payload)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: CreateInstanceOperation}
 
@@ -114,13 +115,13 @@ func TestCreateInstance(t *testing.T) {
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = cmd.Invoke(context.TODO(), req)
-		assert.Error(t, err, ErrAmbiguousCreationVars)
+		require.ErrorIs(t, err, ErrAmbiguousCreationVars)
 	})
 
 	t.Run("either bpmnProcessId or processDefinitionKey must be given", func(t *testing.T) {
 		payload := createInstancePayload{}
 		data, err := json.Marshal(payload)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: CreateInstanceOperation}
 
@@ -128,7 +129,7 @@ func TestCreateInstance(t *testing.T) {
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = cmd.Invoke(context.TODO(), req)
-		assert.Error(t, err, ErrMissingCreationVars)
+		require.ErrorIs(t, err, ErrMissingCreationVars)
 	})
 
 	t.Run("create command with bpmnProcessId and specific version", func(t *testing.T) {
@@ -137,7 +138,7 @@ func TestCreateInstance(t *testing.T) {
 			Version:       new(int32),
 		}
 		data, err := json.Marshal(payload)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: CreateInstanceOperation}
 
@@ -145,7 +146,7 @@ func TestCreateInstance(t *testing.T) {
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = cmd.Invoke(context.TODO(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.Equal(t, payload.BpmnProcessID, mc.cmd1.bpmnProcessID)
 		assert.Equal(t, *payload.Version, mc.cmd1.cmd2.version)
@@ -156,7 +157,7 @@ func TestCreateInstance(t *testing.T) {
 			BpmnProcessID: "some-id",
 		}
 		data, err := json.Marshal(payload)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: CreateInstanceOperation}
 
@@ -164,10 +165,10 @@ func TestCreateInstance(t *testing.T) {
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = cmd.Invoke(context.TODO(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.Equal(t, payload.BpmnProcessID, mc.cmd1.bpmnProcessID)
-		assert.Equal(t, true, mc.cmd1.cmd2.latestVersion)
+		assert.True(t, mc.cmd1.cmd2.latestVersion)
 	})
 
 	t.Run("create command with processDefinitionKey", func(t *testing.T) {
@@ -175,7 +176,7 @@ func TestCreateInstance(t *testing.T) {
 			ProcessDefinitionKey: new(int64),
 		}
 		data, err := json.Marshal(payload)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: CreateInstanceOperation}
 
@@ -183,7 +184,7 @@ func TestCreateInstance(t *testing.T) {
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = cmd.Invoke(context.TODO(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.Equal(t, *payload.ProcessDefinitionKey, mc.cmd1.processDefinitionKey)
 	})
@@ -196,7 +197,7 @@ func TestCreateInstance(t *testing.T) {
 			},
 		}
 		data, err := json.Marshal(payload)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: CreateInstanceOperation}
 
@@ -204,7 +205,7 @@ func TestCreateInstance(t *testing.T) {
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = cmd.Invoke(context.TODO(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.Equal(t, *payload.ProcessDefinitionKey, mc.cmd1.processDefinitionKey)
 		assert.Equal(t, payload.Variables, mc.cmd1.cmd2.cmd3.variables)

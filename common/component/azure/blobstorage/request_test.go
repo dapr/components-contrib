@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/kit/logger"
 )
@@ -29,7 +30,7 @@ func TestBlobHTTPHeaderGeneration(t *testing.T) {
 		requestMetadata := map[string]string{}
 
 		blobHeaders, err := CreateBlobHTTPHeadersFromRequest(requestMetadata, &contentType, log)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "application/json", *blobHeaders.BlobContentType)
 	})
 	t.Run("Content type and metadata provided (conflict), content type chosen", func(t *testing.T) {
@@ -39,7 +40,7 @@ func TestBlobHTTPHeaderGeneration(t *testing.T) {
 		}
 
 		blobHeaders, err := CreateBlobHTTPHeadersFromRequest(requestMetadata, &contentType, log)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "application/json", *blobHeaders.BlobContentType)
 	})
 	t.Run("ContentType not provided, metadata provided set backward compatibility", func(t *testing.T) {
@@ -47,7 +48,7 @@ func TestBlobHTTPHeaderGeneration(t *testing.T) {
 			contentTypeKey: "text/plain",
 		}
 		blobHeaders, err := CreateBlobHTTPHeadersFromRequest(requestMetadata, nil, log)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "text/plain", *blobHeaders.BlobContentType)
 	})
 }
@@ -62,10 +63,10 @@ func TestSanitizeRequestMetadata(t *testing.T) {
 		}
 		meta := SanitizeMetadata(log, m)
 		_ = assert.NotNil(t, meta["somecustomfield"]) &&
-			assert.Equal(t, *meta["somecustomfield"], "some-custom-value")
+			assert.Equal(t, "some-custom-value", *meta["somecustomfield"])
 		_ = assert.NotNil(t, meta["specialfield"]) &&
-			assert.Equal(t, *meta["specialfield"], "special:value")
+			assert.Equal(t, "special:value", *meta["specialfield"])
 		_ = assert.NotNil(t, meta["notallowed"]) &&
-			assert.Equal(t, *meta["notallowed"], "not-allowed")
+			assert.Equal(t, "not-allowed", *meta["notallowed"])
 	})
 }

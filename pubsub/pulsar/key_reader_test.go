@@ -17,15 +17,16 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDataKeyReader(t *testing.T) {
 	kr := NewDataKeyReader("111", "222")
 	pk, err := kr.PublicKey("1", map[string]string{})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	pr, err := kr.PrivateKey("2", map[string]string{})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	assert.NotNil(t, pk)
 	assert.NotNil(t, pr)

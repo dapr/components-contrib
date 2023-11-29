@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	// SecretStores
 
@@ -45,7 +46,7 @@ const (
 
 func TestKeyVault(t *testing.T) {
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	currentGrpcPort := ports[0]
 	currentHttpPort := ports[1]
@@ -65,7 +66,7 @@ func TestKeyVault(t *testing.T) {
 		// .github/infrastructure/conformance/azure/setup-azure-conf-test.sh,
 		// so it reuses the tests/conformance/secretstores/secretstores.go test secrets.
 		res, err := client.GetSecret(ctx, "azurekeyvault", "secondsecret", opt)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "efgh", res["secondsecret"])
 		return nil
 	}
@@ -84,7 +85,7 @@ func TestKeyVault(t *testing.T) {
 
 	// Currently port reuse is still not quite working in the Dapr runtime.
 	ports, err = dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	currentGrpcPort = ports[0]
 	currentHttpPort = ports[1]
 

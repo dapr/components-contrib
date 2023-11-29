@@ -55,7 +55,7 @@ func TestCassandra(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
 	stateStore := state_cassandra.NewCassandraStateStore(log).(*state_cassandra.Cassandra)
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	stateRegistry := state_loader.NewRegistry()
 	stateRegistry.Logger = log
@@ -74,24 +74,24 @@ func TestCassandra(t *testing.T) {
 		defer client.Close()
 
 		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("cassandraCert"), nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// get state
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "cassandraCert", string(item.Value))
 		assert.NotContains(t, item.Metadata, "ttlExpireTime")
 
 		errUpdate := client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("cassandraCertUpdate"), nil)
-		assert.NoError(t, errUpdate)
+		require.NoError(t, errUpdate)
 		item, errUpdatedGet := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, errUpdatedGet)
+		require.NoError(t, errUpdatedGet)
 		assert.Equal(t, "cassandraCertUpdate", string(item.Value))
 		assert.NotContains(t, item.Metadata, "ttlExpireTime")
 
 		// delete state
 		err = client.DeleteState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		return nil
 	}
@@ -105,42 +105,39 @@ func TestCassandra(t *testing.T) {
 		defer client.Close()
 
 		ttlInSecondsWrongValue := "mock value"
-		mapOptionsWrongValue :=
-			map[string]string{
-				"ttlInSeconds": ttlInSecondsWrongValue,
-			}
+		mapOptionsWrongValue := map[string]string{
+			"ttlInSeconds": ttlInSecondsWrongValue,
+		}
 
 		ttlInSecondsNonExpiring := 0
-		mapOptionsNonExpiring :=
-			map[string]string{
-				"ttlInSeconds": strconv.Itoa(ttlInSecondsNonExpiring),
-			}
+		mapOptionsNonExpiring := map[string]string{
+			"ttlInSeconds": strconv.Itoa(ttlInSecondsNonExpiring),
+		}
 
 		ttlInSeconds := 5
-		mapOptions :=
-			map[string]string{
-				"ttlInSeconds": strconv.Itoa(ttlInSeconds),
-			}
+		mapOptions := map[string]string{
+			"ttlInSeconds": strconv.Itoa(ttlInSeconds),
+		}
 
 		err1 := client.SaveState(ctx, stateStoreName, certificationTestPrefix+"ttl1", []byte("cassandraCert"), mapOptionsWrongValue)
 		assert.Error(t, err1)
 		err2 := client.SaveState(ctx, stateStoreName, certificationTestPrefix+"ttl2", []byte("cassandraCert2"), mapOptionsNonExpiring)
-		assert.NoError(t, err2)
+		require.NoError(t, err2)
 		err3 := client.SaveState(ctx, stateStoreName, certificationTestPrefix+"ttl3", []byte("cassandraCert3"), mapOptions)
-		assert.NoError(t, err3)
+		require.NoError(t, err3)
 
 		// get state
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl3", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "cassandraCert3", string(item.Value))
 		require.Contains(t, item.Metadata, "ttlExpireTime")
 		expireTime, err := time.Parse(time.RFC3339, item.Metadata["ttlExpireTime"])
 		require.NoError(t, err)
 		assert.InDelta(t, time.Now().Add(time.Second*5).Unix(), expireTime.Unix(), 3)
 		time.Sleep(5 * time.Second)
-		//entry should be expired now
+		// entry should be expired now
 		itemAgain, errAgain := client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl3", nil)
-		assert.NoError(t, errAgain)
+		require.NoError(t, errAgain)
 		assert.Nil(t, nil, itemAgain)
 
 		return nil
@@ -155,7 +152,7 @@ func TestCassandra(t *testing.T) {
 
 		// get state
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"ttl2", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "cassandraCert2", string(item.Value))
 
 		return nil
@@ -168,9 +165,9 @@ func TestCassandra(t *testing.T) {
 		}
 		defer client.Close()
 
-		//should fail due to lack of replicas
+		// should fail due to lack of replicas
 		err = client.SaveState(ctx, stateStoreFactorFail, certificationTestPrefix+"key1", []byte("cassandraCert"), nil)
-		assert.Error(t, err)
+		require.Error(t, err)
 
 		return nil
 	}
@@ -183,7 +180,7 @@ func TestCassandra(t *testing.T) {
 		defer client.Close()
 		// should fail due to unsupported version
 		err = client.SaveState(ctx, stateStoreVersionFail, certificationTestPrefix+"key1", []byte("cassandraCert"), nil)
-		assert.Error(t, err)
+		require.Error(t, err)
 
 		return nil
 	}
@@ -202,7 +199,7 @@ func TestCassandra(t *testing.T) {
 		Step("Run TTL related test", timeToLiveTest).
 		Step("interrupt network",
 			network.InterruptNetwork(10*time.Second, nil, nil, "9044:9042")).
-		//Component should recover at this point.
+		// Component should recover at this point.
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("Run basic test again to verify reconnection occurred", basicTest).
 		Step("stop cassandra server", dockercompose.Stop("cassandra", dockerComposeYAML, "cassandra")).
@@ -231,14 +228,13 @@ func TestCassandra(t *testing.T) {
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("Run replication factor fail test", failVerTest).
 		Run()
-
 }
 
 func TestCluster(t *testing.T) {
 	log := logger.NewLogger("dapr.components")
 	stateStore := state_cassandra.NewCassandraStateStore(log).(*state_cassandra.Cassandra)
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	currentGrpcPort := ports[0]
 	currentHTTPPort := ports[1]
@@ -257,22 +253,22 @@ func TestCluster(t *testing.T) {
 		defer client.Close()
 
 		err = client.SaveState(ctx, stateStoreCluster, certificationTestPrefix+"key1", []byte("cassandraCert"), nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// get state
 		item, err := client.GetState(ctx, stateStoreCluster, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "cassandraCert", string(item.Value))
 
 		errUpdate := client.SaveState(ctx, stateStoreCluster, certificationTestPrefix+"key1", []byte("cassandraCertUpdate"), nil)
-		assert.NoError(t, errUpdate)
+		require.NoError(t, errUpdate)
 		item, errUpdatedGet := client.GetState(ctx, stateStoreCluster, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, errUpdatedGet)
+		require.NoError(t, errUpdatedGet)
 		assert.Equal(t, "cassandraCertUpdate", string(item.Value))
 
 		// delete state
 		err = client.DeleteState(ctx, stateStoreCluster, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		return nil
 	}
@@ -285,11 +281,11 @@ func TestCluster(t *testing.T) {
 		defer client.Close()
 
 		err = client.SaveState(ctx, stateStoreClusterFail, certificationTestPrefix+"key1", []byte("cassandraCert"), nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// get state
 		_, err = client.GetStateWithConsistency(ctx, stateStoreClusterFail, certificationTestPrefix+"key1", nil, goclient.StateConsistencyUndefined)
-		assert.Error(t, err)
+		require.Error(t, err)
 
 		return nil
 	}
@@ -317,5 +313,4 @@ func TestCluster(t *testing.T) {
 		Step("wait", flow.Sleep(30*time.Second)).
 		Step("Run consistency fail test", failTest).
 		Run()
-
 }

@@ -143,7 +143,7 @@ func TestGetConnectionString(t *testing.T) {
 
 			_, err := db.metadata.GetConnectionString(log)
 			require.Error(t, err)
-			assert.ErrorContains(t, err, "found forbidden option '_pragma=busy_timeout' in the connection string")
+			require.ErrorContains(t, err, "found forbidden option '_pragma=busy_timeout' in the connection string")
 		})
 		t.Run("journal_mode", func(t *testing.T) {
 			logDest.Reset()
@@ -152,7 +152,7 @@ func TestGetConnectionString(t *testing.T) {
 
 			_, err := db.metadata.GetConnectionString(log)
 			require.Error(t, err)
-			assert.ErrorContains(t, err, "found forbidden option '_pragma=journal_mode' in the connection string")
+			require.ErrorContains(t, err, "found forbidden option '_pragma=journal_mode' in the connection string")
 		})
 	})
 
@@ -270,7 +270,7 @@ func TestMultiWithNoRequestsReturnsNil(t *testing.T) {
 	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestValidSetRequest(t *testing.T) {
@@ -280,7 +280,7 @@ func TestValidSetRequest(t *testing.T) {
 	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: []state.TransactionalStateOperation{createSetRequest()},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestValidMultiDeleteRequest(t *testing.T) {
@@ -290,7 +290,7 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 	err := ods.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: []state.TransactionalStateOperation{createDeleteRequest()},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 // Proves that the Ping method runs the ping method.
@@ -369,7 +369,7 @@ func createSqlite(t *testing.T) *SQLiteStore {
 
 	err := odb.Init(context.Background(), *metadata)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, odb.dbaccess)
 
 	return odb

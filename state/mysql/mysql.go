@@ -509,6 +509,7 @@ func (m *MySQL) Get(parentCtx context.Context, req *state.GetRequest) (*state.Ge
 	ctx, cancel := context.WithTimeout(parentCtx, m.timeout)
 	defer cancel()
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
+	//nolint:gosec
 	query := `SELECT id, value, eTag, isbinary, IFNULL(expiredate, "") FROM ` + m.tableName + ` WHERE id = ?
 			AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)`
 	row := m.db.QueryRowContext(ctx, query, req.Key)
@@ -668,6 +669,7 @@ func (m *MySQL) BulkGet(parentCtx context.Context, req []state.GetRequest, _ sta
 	}
 
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
+	//nolint:gosec
 	stmt := `SELECT id, value, eTag, isbinary, IFNULL(expiredate, "") FROM ` + m.tableName + `
 		WHERE
 			id IN (` + inClause + `)

@@ -81,11 +81,11 @@ func (schemaV2) decode(data []byte) ([]byte, map[string]string, error) {
 	}
 
 	var metadata map[string]string
-	if value.Ttl != nil {
+	if value.GetTtl() != nil {
 		metadata = map[string]string{
-			state.GetRespMetaKeyTTLExpireTime: value.Ts.AsTime().Add(value.Ttl.AsDuration()).Format(time.RFC3339),
+			state.GetRespMetaKeyTTLExpireTime: value.GetTs().AsTime().Add(value.GetTtl().AsDuration()).Format(time.RFC3339),
 		}
 	}
 
-	return value.Data, metadata, nil
+	return value.GetData(), metadata, nil
 }

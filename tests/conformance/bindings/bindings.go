@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
@@ -129,7 +130,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			err := outputBinding.Init(context.Background(), bindings.Metadata{Base: metadata.Base{
 				Properties: props,
 			}})
-			assert.NoError(t, err, "expected no error setting up output binding")
+			require.NoError(t, err, "expected no error setting up output binding")
 		}
 		// Check for an input binding specific operation before init
 		if config.HasOperation("read") {
@@ -137,7 +138,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			err := inputBinding.Init(context.Background(), bindings.Metadata{Base: metadata.Base{
 				Properties: props,
 			}})
-			assert.NoError(t, err, "expected no error setting up input binding")
+			require.NoError(t, err, "expected no error setting up input binding")
 		}
 		testLogger.Info("Init test done.")
 	})
@@ -146,23 +147,23 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		if config.HasOperation("read") {
 			errInp := bindings.PingInpBinding(context.Background(), inputBinding)
 			// TODO: Ideally, all stable components should implenment ping function,
-			// so will only assert assert.NoError(t, err) finally, i.e. when current implementation
+			// so will only assert require.NoError(t, err) finally, i.e. when current implementation
 			// implements ping in existing stable components
 			if errInp != nil {
-				assert.EqualError(t, errInp, "ping is not implemented by this input binding")
+				require.EqualError(t, errInp, "ping is not implemented by this input binding")
 			} else {
-				assert.NoError(t, errInp)
+				require.NoError(t, errInp)
 			}
 		}
 		if config.HasOperation("operations") {
 			errOut := bindings.PingOutBinding(context.Background(), outputBinding)
 			// TODO: Ideally, all stable components should implenment ping function,
-			// so will only assert assert.NoError(t, err) finally, i.e. when current implementation
+			// so will only assert require.NoError(t, err) finally, i.e. when current implementation
 			// implements ping in existing stable components
 			if errOut != nil {
-				assert.EqualError(t, errOut, "ping is not implemented by this output binding")
+				require.EqualError(t, errOut, "ping is not implemented by this output binding")
 			} else {
-				assert.NoError(t, errOut)
+				require.NoError(t, errOut)
 			}
 		}
 	})
@@ -222,7 +223,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			req := config.createInvokeRequest()
 			req.Operation = bindings.CreateOperation
 			_, err := outputBinding.Invoke(context.Background(), &req)
-			assert.NoError(t, err, "expected no error invoking output binding")
+			require.NoError(t, err, "expected no error invoking output binding")
 			createPerformed = true
 			testLogger.Info("Create test done.")
 		})
@@ -235,7 +236,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			req := config.createInvokeRequest()
 			req.Operation = bindings.GetOperation
 			resp, err := outputBinding.Invoke(context.Background(), &req)
-			assert.NoError(t, err, "expected no error invoking output binding")
+			require.NoError(t, err, "expected no error invoking output binding")
 			if createPerformed {
 				assert.Equal(t, req.Data, resp.Data)
 			}
@@ -250,7 +251,7 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			req := config.createInvokeRequest()
 			req.Operation = bindings.ListOperation
 			_, err := outputBinding.Invoke(context.Background(), &req)
-			assert.NoError(t, err, "expected no error invoking output binding")
+			require.NoError(t, err, "expected no error invoking output binding")
 			testLogger.Info("List test done.")
 		})
 	}
@@ -278,12 +279,12 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 			req := config.createInvokeRequest()
 			req.Operation = bindings.DeleteOperation
 			_, err := outputBinding.Invoke(context.Background(), &req)
-			assert.NoError(t, err, "expected no error invoking output binding")
+			require.NoError(t, err, "expected no error invoking output binding")
 
 			if createPerformed && config.HasOperation(string(bindings.GetOperation)) {
 				req.Operation = bindings.GetOperation
 				resp, err := outputBinding.Invoke(context.Background(), &req)
-				assert.NoError(t, err, "expected no error invoking output binding")
+				require.NoError(t, err, "expected no error invoking output binding")
 				assert.NotNil(t, resp)
 				assert.Nil(t, resp.Data)
 			}
@@ -297,14 +298,14 @@ func ConformanceTests(t *testing.T, props map[string]string, inputBinding bindin
 		if config.HasOperation("read") {
 			testLogger.Info("Closing read connection ...")
 			err := inputBinding.Close()
-			assert.NoError(t, err, "expected no error closing input binding")
+			require.NoError(t, err, "expected no error closing input binding")
 		}
 		// Check for an output-binding specific operation before close
 		if config.HasOperation("operations") {
 			testLogger.Info("Closing output connection ...")
 			if closer, ok := outputBinding.(io.Closer); ok {
 				err := closer.Close()
-				assert.NoError(t, err, "expected no error closing output binding")
+				require.NoError(t, err, "expected no error closing output binding")
 			}
 		}
 		testLogger.Info("Close test done.")

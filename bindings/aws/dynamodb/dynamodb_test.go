@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 )
@@ -28,7 +29,7 @@ func TestParseMetadata(t *testing.T) {
 	}
 	dy := DynamoDB{}
 	meta, err := dy.getDynamoDBMetadata(m)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "a", meta.AccessKey)
 	assert.Equal(t, "a", meta.Region)
 	assert.Equal(t, "a", meta.SecretKey)

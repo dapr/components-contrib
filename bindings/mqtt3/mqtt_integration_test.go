@@ -24,6 +24,7 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	mdata "github.com/dapr/components-contrib/metadata"
@@ -81,10 +82,10 @@ func TestInvokeWithTopic(t *testing.T) {
 
 	r := NewMQTT(logger).(*MQTT)
 	err := r.Init(ctx, metadata)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	conn, err := r.connect(uuid.NewString(), false)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	defer conn.Disconnect(1)
 
 	msgCh := make(chan interface{})
@@ -96,7 +97,7 @@ func TestInvokeWithTopic(t *testing.T) {
 	ok := token.WaitTimeout(2 * time.Second)
 	assert.True(t, ok, "subscribe to /app/# timeout")
 	err = token.Error()
-	assert.Nil(t, err, "error subscribe to test topic")
+	require.NoError(t, err, "error subscribe to test topic")
 
 	// Timeout in case message transfer error.
 	go func() {
@@ -106,7 +107,7 @@ func TestInvokeWithTopic(t *testing.T) {
 
 	// Test invoke with default topic configured for component.
 	_, err = r.Invoke(context.Background(), &bindings.InvokeRequest{Data: dataDefault})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	m := <-msgCh
 	mqttMessage, ok := m.(mqtt.Message)
@@ -121,12 +122,12 @@ func TestInvokeWithTopic(t *testing.T) {
 			mqttTopic: topicCustomized,
 		},
 	})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	m = <-msgCh
 	mqttMessage, ok = m.(mqtt.Message)
 	assert.True(t, ok)
 	assert.Equal(t, dataCustomized, mqttMessage.Payload())
 	assert.Equal(t, topicCustomized, mqttMessage.Topic())
-	assert.NoError(t, r.Close())
+	require.NoError(t, r.Close())
 }

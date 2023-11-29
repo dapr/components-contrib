@@ -39,7 +39,8 @@ metadata:
   - name: url
     required: true
     description: |
-      Address of the AMQP broker. Can be secretKeyRef to use a secret reference.
+      Address of the AMQP broker.
+      Use the `amqp://`` URI scheme for non-TLS communication, and the `amqps://` URI scheme for TLS communication.
     example: '"amqp://host.domain[:port]"'
     type: string   
   - name: caCert

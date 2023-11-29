@@ -92,9 +92,9 @@ func (p crossPartitionQueryPolicy) Do(req *policy.Request) (*http.Response, erro
 	// Check if we're performing a query
 	// In that case, remove the partitionkey header and enable cross-partition queries
 	if strings.ToLower(raw.Header.Get("x-ms-documentdb-query")) == "true" {
-		raw.Header.Add("x-ms-documentdb-query-enablecrosspartition", "True")
-		// Only when the partitionKey is fake (true), it will be removed
+		// Only when the partitionKey is fake (true), it will be removed amd enabled the cross partition
 		if strings.ToLower(raw.Header.Get("x-ms-documentdb-partitionkey")) == "[true]" {
+			raw.Header.Add("x-ms-documentdb-query-enablecrosspartition", "true")
 			raw.Header.Del("x-ms-documentdb-partitionkey")
 		}
 	}

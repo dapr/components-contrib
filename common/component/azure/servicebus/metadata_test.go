@@ -18,6 +18,7 @@ import (
 
 	azservicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const invalidNumber = "invalid_number"
@@ -52,12 +53,12 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		m, err := ParseMetadata(fakeProperties, nil, MetadataModeTopics)
 
 		// assert.
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, fakeProperties[keyConnectionString], m.ConnectionString)
 		assert.Equal(t, fakeProperties[keyConsumerID], m.ConsumerID)
 
 		assert.Equal(t, 90, m.TimeoutInSec)
-		assert.Equal(t, true, m.DisableEntityManagement)
+		assert.True(t, m.DisableEntityManagement)
 		assert.Equal(t, 30, m.HandlerTimeoutInSec)
 		assert.NotNil(t, m.LockRenewalInSec)
 		assert.Equal(t, 15, m.LockRenewalInSec)
@@ -88,11 +89,11 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		m, err := ParseMetadata(fakeProperties, nil, 0)
 
 		// assert.
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, fakeProperties[keyConnectionString], m.ConnectionString)
 
 		assert.Equal(t, 90, m.TimeoutInSec)
-		assert.Equal(t, true, m.DisableEntityManagement)
+		assert.True(t, m.DisableEntityManagement)
 		assert.Equal(t, 30, m.HandlerTimeoutInSec)
 		assert.NotNil(t, m.LockRenewalInSec)
 		assert.Equal(t, 15, m.LockRenewalInSec)
@@ -123,12 +124,12 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		m, err := ParseMetadata(fakeProperties, nil, MetadataModeBinding)
 
 		// assert.
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, fakeProperties[keyConnectionString], m.ConnectionString)
 		assert.Equal(t, fakeProperties[keyQueueName], m.QueueName)
 
 		assert.Equal(t, 90, m.TimeoutInSec)
-		assert.Equal(t, true, m.DisableEntityManagement)
+		assert.True(t, m.DisableEntityManagement)
 		assert.Equal(t, 30, m.HandlerTimeoutInSec)
 		assert.NotNil(t, m.LockRenewalInSec)
 		assert.Equal(t, 15, m.LockRenewalInSec)
@@ -161,7 +162,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		m, err := ParseMetadata(fakeProperties, nil, 0)
 
 		// assert.
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Empty(t, m.ConnectionString)
 	})
 
@@ -173,7 +174,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		m, err := ParseMetadata(fakeProperties, nil, 0)
 
 		// assert.
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "fakeConnectionString", m.ConnectionString)
 	})
 
@@ -186,7 +187,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		m, err := ParseMetadata(fakeProperties, nil, 0)
 
 		// assert.
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "fakeNamespace", m.NamespaceName)
 	})
 
@@ -199,7 +200,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		_, err := ParseMetadata(fakeProperties, nil, 0)
 
 		// assert.
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("missing required consumerID in topics", func(t *testing.T) {
@@ -210,7 +211,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		m, err := ParseMetadata(fakeProperties, nil, MetadataModeTopics)
 
 		// assert.
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Empty(t, m.ConsumerID)
 	})
 
@@ -222,7 +223,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		m, err := ParseMetadata(fakeProperties, nil, MetadataModeBinding)
 
 		// assert.
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Empty(t, m.QueueName)
 	})
 
@@ -235,7 +236,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert.
 		assert.Equal(t, defaultTimeoutInSec, m.TimeoutInSec)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("invalid optional timeoutInSec", func(t *testing.T) {
@@ -246,7 +247,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		_, err := ParseMetadata(fakeProperties, nil, 0)
 
 		// assert.
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("missing optional disableEntityManagement", func(t *testing.T) {
@@ -257,8 +258,8 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		m, err := ParseMetadata(fakeProperties, nil, 0)
 
 		// assert.
-		assert.Equal(t, false, m.DisableEntityManagement)
-		assert.Nil(t, err)
+		assert.False(t, m.DisableEntityManagement)
+		require.NoError(t, err)
 	})
 
 	t.Run("invalid optional disableEntityManagement", func(t *testing.T) {
@@ -269,8 +270,8 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		m, err := ParseMetadata(fakeProperties, nil, 0)
 
 		// assert.
-		assert.Equal(t, false, m.DisableEntityManagement)
-		assert.Nil(t, err)
+		assert.False(t, m.DisableEntityManagement)
+		require.NoError(t, err)
 	})
 
 	t.Run("missing optional handlerTimeoutInSec binding", func(t *testing.T) {
@@ -282,7 +283,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert.
 		assert.Equal(t, defaultHandlerTimeoutInSecBinding, m.HandlerTimeoutInSec)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("missing optional handlerTimeoutInSec pubsub", func(t *testing.T) {
@@ -294,7 +295,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert.
 		assert.Equal(t, defaultHandlerTimeoutInSecPubSub, m.HandlerTimeoutInSec)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("invalid optional handlerTimeoutInSec", func(t *testing.T) {
@@ -305,7 +306,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		_, err := ParseMetadata(fakeProperties, nil, 0)
 
 		// assert.
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("missing optional lockRenewalInSec", func(t *testing.T) {
@@ -317,7 +318,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert.
 		assert.Equal(t, defaultLockRenewalInSec, m.LockRenewalInSec)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("invalid optional lockRenewalInSec", func(t *testing.T) {
@@ -328,7 +329,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		_, err := ParseMetadata(fakeProperties, nil, 0)
 
 		// assert.
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("missing optional maxRetriableErrorsPerSec", func(t *testing.T) {
@@ -340,7 +341,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert.
 		assert.Equal(t, defaultMaxRetriableErrorsPerSec, m.MaxRetriableErrorsPerSec)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("invalid optional maxRetriableErrorsPerSec", func(t *testing.T) {
@@ -352,7 +353,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		_, err := ParseMetadata(fakeProperties, nil, 0)
 
 		// assert.
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("missing optional maxActiveMessages binding", func(t *testing.T) {
@@ -364,7 +365,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert.
 		assert.Equal(t, defaultMaxActiveMessagesBinding, m.MaxActiveMessages)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("missing optional maxActiveMessages pubsub", func(t *testing.T) {
@@ -376,7 +377,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert.
 		assert.Equal(t, defaultMaxActiveMessagesPubSub, m.MaxActiveMessages)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("invalid optional maxActiveMessages", func(t *testing.T) {
@@ -387,7 +388,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		_, err := ParseMetadata(fakeProperties, nil, 0)
 
 		// assert.
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("missing optional maxConnectionRecoveryInSec", func(t *testing.T) {
@@ -399,7 +400,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert.
 		assert.Equal(t, defaultMaxConnectionRecoveryInSec, m.MaxConnectionRecoveryInSec)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("invalid optional maxConnectionRecoveryInSec", func(t *testing.T) {
@@ -410,7 +411,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		_, err := ParseMetadata(fakeProperties, nil, 0)
 
 		// assert.
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("missing optional minConnectionRecoveryInSec", func(t *testing.T) {
@@ -422,7 +423,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert.
 		assert.Equal(t, defaultMinConnectionRecoveryInSec, m.MinConnectionRecoveryInSec)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("invalid optional minConnectionRecoveryInSec", func(t *testing.T) {
@@ -433,7 +434,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		_, err := ParseMetadata(fakeProperties, nil, 0)
 
 		// assert.
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("missing optional maxConcurrentHandlers", func(t *testing.T) {
@@ -445,7 +446,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert.
 		assert.Equal(t, 0, m.MaxConcurrentHandlers)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("invalid optional maxConcurrentHandlers", func(t *testing.T) {
@@ -456,7 +457,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 		_, err := ParseMetadata(fakeProperties, nil, 0)
 
 		// assert.
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("missing nullable maxDeliveryCount", func(t *testing.T) {
@@ -468,7 +469,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert.
 		assert.Nil(t, m.MaxDeliveryCount)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("missing nullable defaultMessageTimeToLiveInSec", func(t *testing.T) {
@@ -480,7 +481,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert.
 		assert.Nil(t, m.DefaultMessageTimeToLiveInSec)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("missing nullable autoDeleteOnIdleInSec", func(t *testing.T) {
@@ -492,7 +493,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert.
 		assert.Nil(t, m.AutoDeleteOnIdleInSec)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("missing nullable lockDurationInSec", func(t *testing.T) {
@@ -504,7 +505,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 
 		// assert.
 		assert.Nil(t, m.LockDurationInSec)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Test add system metadata: ScheduledEnqueueTimeUtc", func(t *testing.T) {
@@ -513,7 +514,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 			MessageKeyScheduledEnqueueTimeUtc: "2024-06-15T13:45:30.00000000Z",
 		}
 		parseErr := addMetadataToMessage(&msg, metadata)
-		assert.NoError(t, parseErr)
+		require.NoError(t, parseErr)
 		assert.Equal(t, int64(1718459130000000), msg.ScheduledEnqueueTime.UnixMicro())
 
 		msg2 := azservicebus.Message{}
@@ -521,7 +522,7 @@ func TestParseServiceBusMetadata(t *testing.T) {
 			MessageKeyScheduledEnqueueTimeUtc: "Sat, 15 Jun 2024 13:45:30 GMT",
 		}
 		parseErr2 := addMetadataToMessage(&msg2, metadata2)
-		assert.NoError(t, parseErr2)
+		require.NoError(t, parseErr2)
 		assert.Equal(t, int64(1718459130000000), msg2.ScheduledEnqueueTime.UnixMicro())
 
 		msg3 := azservicebus.Message{}
@@ -529,6 +530,6 @@ func TestParseServiceBusMetadata(t *testing.T) {
 			MessageKeyScheduledEnqueueTimeUtc: "Sat 2024-06-15 12:13:14 UTC+4",
 		}
 		parseErr3 := addMetadataToMessage(&msg3, metadata3)
-		assert.Error(t, parseErr3)
+		require.Error(t, parseErr3)
 	})
 }

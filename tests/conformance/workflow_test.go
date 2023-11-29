@@ -24,7 +24,6 @@ import (
 
 	conf_workflows "github.com/dapr/components-contrib/tests/conformance/workflows"
 	"github.com/dapr/components-contrib/workflows"
-	wf_temporal "github.com/dapr/components-contrib/workflows/temporal"
 )
 
 func TestWorkflowsConformance(t *testing.T) {
@@ -53,8 +52,6 @@ func TestWorkflowsConformance(t *testing.T) {
 
 func loadWorkflow(name string) workflows.Workflow {
 	switch name {
-	case "temporal":
-		return wf_temporal.NewTemporalWorkflow(testLogger)
 	default:
 		return nil
 	}

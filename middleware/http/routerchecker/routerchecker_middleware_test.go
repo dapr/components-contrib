@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/middleware"
@@ -39,7 +40,7 @@ func TestRequestHandlerWithIllegalRouterRule(t *testing.T) {
 	log := logger.NewLogger("routerchecker.test")
 	rchecker := NewMiddleware(log)
 	handler, err := rchecker.GetHandler(context.Background(), meta)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	r := httptest.NewRequest(http.MethodGet, "http://localhost:5001/v1.0/invoke/qcg.default/method/%20cat%20password", nil)
 	w := httptest.NewRecorder()
@@ -56,7 +57,7 @@ func TestRequestHandlerWithLegalRouterRule(t *testing.T) {
 	log := logger.NewLogger("routerchecker.test")
 	rchecker := NewMiddleware(log)
 	handler, err := rchecker.GetHandler(context.Background(), meta)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	r := httptest.NewRequest(http.MethodGet, "http://localhost:5001/v1.0/invoke/qcg.default/method", nil)
 	w := httptest.NewRecorder()

@@ -41,7 +41,7 @@ func TestNewBulkPublishResponse(t *testing.T) {
 	t.Run("populate failure", func(t *testing.T) {
 		res := NewBulkPublishResponse(messages, assert.AnError)
 		assert.NotEmpty(t, res, "expected res to be populated")
-		assert.Equal(t, 2, len(res.FailedEntries), "expected two statuses")
+		assert.Len(t, res.FailedEntries, 2, "expected two statuses")
 		expectedRes := BulkPublishResponse{
 			FailedEntries: []BulkPublishResponseFailedEntry{
 				{

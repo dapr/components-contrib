@@ -437,7 +437,7 @@ func TestHTTPMiddlewareBearer(t *testing.T) {
 					"audience": tokenAudience,
 				})
 				require.Error(t, err)
-				assert.ErrorContains(t, err, "invalid response status code: 404")
+				require.ErrorContains(t, err, "invalid response status code: 404")
 
 				// No endpoint should be requested
 				assert.Equal(t, curRequestsOpenIDConfiguration, requestsOpenIDConfiguration.Load())
@@ -453,7 +453,7 @@ func TestHTTPMiddlewareBearer(t *testing.T) {
 					"audience": tokenAudience,
 				})
 				require.Error(t, err)
-				assert.ErrorContains(t, err, "the issuer found in the OpenID Configuration document")
+				require.ErrorContains(t, err, "the issuer found in the OpenID Configuration document")
 
 				// Only the OpenID Configuration endpoint should be requested
 				assert.Equal(t, curRequestsOpenIDConfiguration+1, requestsOpenIDConfiguration.Load())
@@ -470,7 +470,7 @@ func TestHTTPMiddlewareBearer(t *testing.T) {
 					"jwksURL":  tokenIssuer + "/not-found/jwks.json",
 				})
 				require.Error(t, err)
-				assert.ErrorContains(t, err, "failed to fetch JWKS")
+				require.ErrorContains(t, err, "failed to fetch JWKS")
 
 				// No endpoint should be requested
 				assert.Equal(t, curRequestsOpenIDConfiguration, requestsOpenIDConfiguration.Load())

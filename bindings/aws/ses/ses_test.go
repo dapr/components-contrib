@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -40,7 +41,7 @@ func TestParseMetadata(t *testing.T) {
 		}
 		r := AWSSES{logger: logger}
 		smtpMeta, err := r.parseMetadata(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "myRegionForSES", smtpMeta.Region)
 		assert.Equal(t, "myAccessKeyForSES", smtpMeta.AccessKey)
 		assert.Equal(t, "mySecretKeyForSES", smtpMeta.SecretKey)

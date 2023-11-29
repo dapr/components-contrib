@@ -23,6 +23,7 @@ import (
 	dubboImpl "dubbo.apache.org/dubbo-go/v3/protocol/dubbo/impl"
 	hessian "github.com/apache/dubbo-go-hessian2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -58,7 +59,7 @@ func TestInvoke(t *testing.T) {
 	output := NewDubboOutput(logger.NewLogger("test"))
 	dubboImpl.SetSerializer(constant.Hessian2Serialization, HessianSerializer{})
 	go func() {
-		assert.Nil(t, runDubboServer(stopCh))
+		require.NoError(t, runDubboServer(stopCh))
 	}()
 	time.Sleep(time.Second * 3)
 
@@ -71,9 +72,9 @@ func TestInvoke(t *testing.T) {
 	hessian.RegisterPOJO(reqUser)
 	argTypeList, _ := dubboImpl.GetArgsTypeList([]interface{}{reqUser})
 	err := enc.Encode(argTypeList)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	err = enc.Encode(reqUser)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	reqData := enc.Buffer()
 
 	// 3. invoke dapr dubbo output binding, get rsp bytes
@@ -87,16 +88,16 @@ func TestInvoke(t *testing.T) {
 		Data:      reqData,
 		Operation: bindings.GetOperation,
 	})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	// 4. get rsp value
 	decoder := hessian.NewDecoder(rsp.Data)
 	_, err = decoder.Decode() // decode type
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	rspDecodedValue, err := decoder.Decode() // decode value
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	err = hessian.ReflectResponse(rspDecodedValue, rspUser)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, helloPrefix+reqUser.Name, rspUser.Name)
 }
 

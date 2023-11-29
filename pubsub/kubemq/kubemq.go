@@ -2,8 +2,8 @@ package kubemq
 
 import (
 	"context"
-	"fmt"
 	"reflect"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -73,7 +73,7 @@ func (k *kubeMQ) Close() error {
 func getRandomID() string {
 	randomUUID, err := uuid.NewRandom()
 	if err != nil {
-		return fmt.Sprintf("%d", time.Now().UnixNano())
+		return strconv.FormatInt(time.Now().UnixNano(), 10)
 	}
 	return randomUUID.String()
 }

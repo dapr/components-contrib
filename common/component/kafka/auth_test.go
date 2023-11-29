@@ -97,7 +97,7 @@ func TestAuth(t *testing.T) {
 		require.True(t, mockConfig.Net.TLS.Enable)
 		//nolint:staticcheck
 		certs := mockConfig.Net.TLS.Config.RootCAs.Subjects()
-		require.Equal(t, 1, len(certs))
+		require.Len(t, certs, 1)
 	})
 
 	t.Run("certificate with auth type 'none'", func(t *testing.T) {

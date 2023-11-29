@@ -14,10 +14,11 @@ limitations under the License.
 package couchbase
 
 import (
-	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/couchbase/gocb.v1"
 
 	"github.com/dapr/components-contrib/metadata"
@@ -35,7 +36,7 @@ func TestValidateMetadata(t *testing.T) {
 		metadata := state.Metadata{Base: metadata.Base{Properties: props}}
 
 		meta, err := parseAndValidateMetadata(metadata)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, props[couchbaseURL], meta.CouchbaseURL)
 	})
 	t.Run("with optional fields", func(t *testing.T) {
@@ -50,9 +51,9 @@ func TestValidateMetadata(t *testing.T) {
 		metadata := state.Metadata{Base: metadata.Base{Properties: props}}
 
 		meta, err := parseAndValidateMetadata(metadata)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, props[couchbaseURL], meta.CouchbaseURL)
-		assert.Equal(t, props[numReplicasDurablePersistence], fmt.Sprintf("%d", meta.NumReplicasDurablePersistence))
+		assert.Equal(t, props[numReplicasDurablePersistence], strconv.FormatUint(uint64(meta.NumReplicasDurablePersistence), 10))
 	})
 	t.Run("With missing couchbase URL", func(t *testing.T) {
 		props := map[string]string{
@@ -62,7 +63,7 @@ func TestValidateMetadata(t *testing.T) {
 		}
 		metadata := state.Metadata{Base: metadata.Base{Properties: props}}
 		_, err := parseAndValidateMetadata(metadata)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 	t.Run("With missing username", func(t *testing.T) {
 		props := map[string]string{
@@ -72,7 +73,7 @@ func TestValidateMetadata(t *testing.T) {
 		}
 		metadata := state.Metadata{Base: metadata.Base{Properties: props}}
 		_, err := parseAndValidateMetadata(metadata)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 	t.Run("With missing password", func(t *testing.T) {
 		props := map[string]string{
@@ -82,7 +83,7 @@ func TestValidateMetadata(t *testing.T) {
 		}
 		metadata := state.Metadata{Base: metadata.Base{Properties: props}}
 		_, err := parseAndValidateMetadata(metadata)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 	t.Run("With missing bucket", func(t *testing.T) {
 		props := map[string]string{
@@ -92,7 +93,7 @@ func TestValidateMetadata(t *testing.T) {
 		}
 		metadata := state.Metadata{Base: metadata.Base{Properties: props}}
 		_, err := parseAndValidateMetadata(metadata)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 	t.Run("With invalid durable replication", func(t *testing.T) {
 		props := map[string]string{
@@ -103,7 +104,7 @@ func TestValidateMetadata(t *testing.T) {
 		}
 		metadata := state.Metadata{Base: metadata.Base{Properties: props}}
 		_, err := parseAndValidateMetadata(metadata)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 	t.Run("With invalid durable persistence", func(t *testing.T) {
 		props := map[string]string{
@@ -114,7 +115,7 @@ func TestValidateMetadata(t *testing.T) {
 		}
 		metadata := state.Metadata{Base: metadata.Base{Properties: props}}
 		_, err := parseAndValidateMetadata(metadata)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -124,11 +125,11 @@ func TestETagToCas(t *testing.T) {
 		ver := uint64(1572938024378368000)
 		expectedCas := gocb.Cas(ver)
 		cas, err := eTagToCas(casStr)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, expectedCas, cas)
 	})
 	t.Run("with empty string", func(t *testing.T) {
 		_, err := eTagToCas("")
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }

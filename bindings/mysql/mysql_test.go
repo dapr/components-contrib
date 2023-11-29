@@ -22,6 +22,7 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -39,13 +40,13 @@ func TestQuery(t *testing.T) {
 
 		mock.ExpectQuery("SELECT \\* FROM foo WHERE id < 4").WillReturnRows(rows)
 		ret, err := m.query(context.Background(), `SELECT * FROM foo WHERE id < 4`)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		t.Logf("query result: %s", ret)
 		assert.Contains(t, string(ret), "\"id\":1")
 		var result []any
 		err = json.Unmarshal(ret, &result)
-		assert.Nil(t, err)
-		assert.Equal(t, 3, len(result))
+		require.NoError(t, err)
+		assert.Len(t, result, 3)
 	})
 
 	t.Run("dbType provided", func(t *testing.T) {
@@ -58,7 +59,7 @@ func TestQuery(t *testing.T) {
 			AddRow(3, 3.3, time.Now().Add(2000))
 		mock.ExpectQuery("SELECT \\* FROM foo WHERE id < 4").WillReturnRows(rows)
 		ret, err := m.query(context.Background(), "SELECT * FROM foo WHERE id < 4")
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		t.Logf("query result: %s", ret)
 
 		// verify number
@@ -67,15 +68,15 @@ func TestQuery(t *testing.T) {
 
 		var result []any
 		err = json.Unmarshal(ret, &result)
-		assert.Nil(t, err)
-		assert.Equal(t, 3, len(result))
+		require.NoError(t, err)
+		assert.Len(t, result, 3)
 
 		// verify timestamp
 		ts, ok := result[0].(map[string]any)["timestamp"].(string)
 		assert.True(t, ok)
 		var tt time.Time
 		tt, err = time.Parse(time.RFC3339, ts)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		t.Logf("time stamp is: %v", tt)
 	})
 }
@@ -86,7 +87,7 @@ func TestExec(t *testing.T) {
 	mock.ExpectExec("INSERT INTO foo \\(id, v1, ts\\) VALUES \\(.*\\)").WillReturnResult(sqlmock.NewResult(1, 1))
 	i, err := m.exec(context.Background(), "INSERT INTO foo (id, v1, ts) VALUES (1, 'test-1', '2021-01-22')")
 	assert.Equal(t, int64(1), i)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func TestInvoke(t *testing.T) {
@@ -102,7 +103,7 @@ func TestInvoke(t *testing.T) {
 			Operation: execOperation,
 		}
 		resp, err := m.Invoke(context.Background(), req)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "1", resp.Metadata[respRowsAffectedKey])
 	})
 
@@ -116,7 +117,7 @@ func TestInvoke(t *testing.T) {
 		}
 		resp, err := m.Invoke(context.Background(), req)
 		assert.Nil(t, resp)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("query operation succeeds", func(t *testing.T) {
@@ -133,11 +134,11 @@ func TestInvoke(t *testing.T) {
 			Operation: queryOperation,
 		}
 		resp, err := m.Invoke(context.Background(), req)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		var data []any
 		err = json.Unmarshal(resp.Data, &data)
-		assert.Nil(t, err)
-		assert.Equal(t, 1, len(data))
+		require.NoError(t, err)
+		assert.Len(t, data, 1)
 	})
 
 	t.Run("query operation fails", func(t *testing.T) {
@@ -150,7 +151,7 @@ func TestInvoke(t *testing.T) {
 		}
 		resp, err := m.Invoke(context.Background(), req)
 		assert.Nil(t, resp)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("close operation", func(t *testing.T) {
@@ -170,7 +171,7 @@ func TestInvoke(t *testing.T) {
 		}
 		resp, err := m.Invoke(context.Background(), req)
 		assert.Nil(t, resp)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 }
 

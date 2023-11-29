@@ -80,7 +80,7 @@ func TestInitMetadata(t *testing.T) {
 			err := resolver.Init(context.Background(), nr.Metadata{Instance: tt.instance})
 
 			// assert
-			assert.Error(t, err)
+			require.Error(t, err)
 		})
 	}
 }
@@ -309,7 +309,7 @@ func ResolverConcurrencySubsriberClear(t *testing.T) {
 
 	// Wait long enough for the background clear to occur.
 	time.Sleep(3 * time.Second)
-	require.Equal(t, 0, len(resolver.subs))
+	require.Empty(t, resolver.subs)
 }
 
 // WARN: This is deliberately not a test function.
@@ -739,6 +739,6 @@ func TestUnion(t *testing.T) {
 				}
 			}
 		}
-		require.Equal(t, len(tt.expected), matches)
+		require.Len(t, tt.expected, matches)
 	}
 }

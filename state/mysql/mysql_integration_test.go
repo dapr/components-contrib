@@ -120,10 +120,10 @@ func TestMySQLIntegration(t *testing.T) {
 				err := p.Init(context.Background(), metadata)
 
 				if tt.expectedErr == "" {
-					assert.NoError(t, err)
+					require.NoError(t, err)
 				} else {
-					assert.NotNil(t, err)
-					assert.Equal(t, err.Error(), tt.expectedErr)
+					require.Error(t, err)
+					assert.Equal(t, tt.expectedErr, err.Error())
 				}
 			})
 		}
@@ -152,7 +152,7 @@ func TestMySQLIntegration(t *testing.T) {
 
 		// Drop the table if it already exists
 		exists, err := tableExists(context.Background(), mys.db, "dapr_state_store", tableName, 10*time.Second)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		if exists {
 			dropTable(t, mys.db, tableName)
 		}
@@ -160,11 +160,11 @@ func TestMySQLIntegration(t *testing.T) {
 		// Create the state table and test for its existence
 		// There should be no error
 		err = mys.ensureStateTable(context.Background(), "dapr_state_store", tableName)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Now create it and make sure there are no errors
 		exists, err = tableExists(context.Background(), mys.db, "dapr_state_store", tableName, 10*time.Second)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.True(t, exists)
 
 		// Drop the state table
@@ -210,7 +210,7 @@ func TestMySQLIntegration(t *testing.T) {
 		}
 
 		response, getErr := mys.Get(context.Background(), getReq)
-		assert.NotNil(t, getErr)
+		require.Error(t, getErr)
 		assert.Nil(t, response)
 	})
 
@@ -247,7 +247,7 @@ func TestMySQLIntegration(t *testing.T) {
 		}
 
 		err := mys.Set(context.Background(), setReq)
-		assert.NotNil(t, err, "Error was not nil when setting item with no key.")
+		require.Error(t, err, "Error was not nil when setting item with no key.")
 	})
 
 	t.Run("Bulk set and bulk delete", func(t *testing.T) {
@@ -313,7 +313,7 @@ func TestMySQLIntegration(t *testing.T) {
 		}
 
 		err := mys.Set(context.Background(), setReq)
-		assert.NotNil(t, err, "Error was not thrown using old eTag")
+		require.Error(t, err, "Error was not thrown using old eTag")
 	})
 
 	t.Run("Insert with eTag fails", func(t *testing.T) {
@@ -329,7 +329,7 @@ func TestMySQLIntegration(t *testing.T) {
 		}
 
 		err := mys.Set(context.Background(), setReq)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("Delete with invalid eTag fails", func(t *testing.T) {
@@ -349,7 +349,7 @@ func TestMySQLIntegration(t *testing.T) {
 		}
 
 		err := mys.Delete(context.Background(), deleteReq)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("Delete item with no key fails", func(t *testing.T) {
@@ -360,7 +360,7 @@ func TestMySQLIntegration(t *testing.T) {
 		}
 
 		err := mys.Delete(context.Background(), deleteReq)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("Delete an item that does not exist", func(t *testing.T) {
@@ -372,7 +372,7 @@ func TestMySQLIntegration(t *testing.T) {
 		}
 
 		err := mys.Delete(context.Background(), deleteReq)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Inserts with first-write-wins", func(t *testing.T) {
@@ -389,7 +389,7 @@ func TestMySQLIntegration(t *testing.T) {
 		}
 
 		err := mys.Set(context.Background(), setReq)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Get the etag
 		getResponse, _ := getItem(t, mys, key)
@@ -407,7 +407,7 @@ func TestMySQLIntegration(t *testing.T) {
 		}
 
 		err = mys.Set(context.Background(), setReq)
-		assert.ErrorContains(t, err, "Duplicate entry")
+		require.ErrorContains(t, err, "Duplicate entry")
 
 		// Insert with invalid etag should fail on existing keys
 		setReq = &state.SetRequest{
@@ -420,7 +420,7 @@ func TestMySQLIntegration(t *testing.T) {
 		}
 
 		err = mys.Set(context.Background(), setReq)
-		assert.ErrorContains(t, err, "possible etag mismatch")
+		require.ErrorContains(t, err, "possible etag mismatch")
 
 		// Insert with valid etag should succeed on existing keys
 		setReq = &state.SetRequest{
@@ -433,7 +433,7 @@ func TestMySQLIntegration(t *testing.T) {
 		}
 
 		err = mys.Set(context.Background(), setReq)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Insert with an etag should fail on new keys
 		setReq = &state.SetRequest{
@@ -446,7 +446,7 @@ func TestMySQLIntegration(t *testing.T) {
 		}
 
 		err = mys.Set(context.Background(), setReq)
-		assert.ErrorContains(t, err, "possible etag mismatch")
+		require.ErrorContains(t, err, "possible etag mismatch")
 	})
 
 	t.Run("Multi with delete and set", func(t *testing.T) {
@@ -481,7 +481,7 @@ func TestMySQLIntegration(t *testing.T) {
 		err := mys.Multi(context.Background(), &state.TransactionalStateRequest{
 			Operations: operations,
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		for _, delete := range deleteRequests {
 			assert.False(t, storeItemExists(t, delete.Key))
@@ -514,7 +514,7 @@ func TestMySQLIntegration(t *testing.T) {
 		err := mys.Multi(context.Background(), &state.TransactionalStateRequest{
 			Operations: operations,
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		for _, delete := range deleteRequests {
 			assert.False(t, storeItemExists(t, delete.Key))
@@ -538,7 +538,7 @@ func TestMySQLIntegration(t *testing.T) {
 		err := mys.Multi(context.Background(), &state.TransactionalStateRequest{
 			Operations: operations,
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		for _, set := range setRequests {
 			assert.True(t, storeItemExists(t, set.Key))
@@ -561,7 +561,7 @@ func testBulkSetAndBulkDelete(t *testing.T, mys *MySQL) {
 	}
 
 	err := mys.BulkSet(context.Background(), setReq, state.BulkStoreOpts{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, storeItemExists(t, setReq[0].Key))
 	assert.True(t, storeItemExists(t, setReq[1].Key))
 
@@ -575,14 +575,14 @@ func testBulkSetAndBulkDelete(t *testing.T, mys *MySQL) {
 	}
 
 	err = mys.BulkDelete(context.Background(), deleteReq, state.BulkStoreOpts{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.False(t, storeItemExists(t, setReq[0].Key))
 	assert.False(t, storeItemExists(t, setReq[1].Key))
 }
 
 func testGetExpireTime(t *testing.T, mys *MySQL) {
 	key1 := randomKey()
-	assert.NoError(t, mys.Set(context.Background(), &state.SetRequest{
+	require.NoError(t, mys.Set(context.Background(), &state.SetRequest{
 		Key:   key1,
 		Value: "123",
 		Metadata: map[string]string{
@@ -591,7 +591,7 @@ func testGetExpireTime(t *testing.T, mys *MySQL) {
 	}))
 
 	resp, err := mys.Get(context.Background(), &state.GetRequest{Key: key1})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, `"123"`, string(resp.Data))
 	require.Len(t, resp.Metadata, 1)
 	expireTime, err := time.Parse(time.RFC3339, resp.Metadata["ttlExpireTime"])
@@ -603,14 +603,14 @@ func testGetBulkExpireTime(t *testing.T, mys *MySQL) {
 	key1 := randomKey()
 	key2 := randomKey()
 
-	assert.NoError(t, mys.Set(context.Background(), &state.SetRequest{
+	require.NoError(t, mys.Set(context.Background(), &state.SetRequest{
 		Key:   key1,
 		Value: "123",
 		Metadata: map[string]string{
 			"ttlInSeconds": "1000",
 		},
 	}))
-	assert.NoError(t, mys.Set(context.Background(), &state.SetRequest{
+	require.NoError(t, mys.Set(context.Background(), &state.SetRequest{
 		Key:   key2,
 		Value: "456",
 		Metadata: map[string]string{
@@ -643,7 +643,7 @@ func dropTable(t *testing.T, db *sql.DB, tableName string) {
 	_, err := db.Exec(fmt.Sprintf(
 		`DROP TABLE %s;`,
 		tableName))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func setItem(t *testing.T, mys *MySQL, key string, value interface{}, eTag *string) {
@@ -654,7 +654,7 @@ func setItem(t *testing.T, mys *MySQL, key string, value interface{}, eTag *stri
 	}
 
 	err := mys.Set(context.Background(), setReq)
-	assert.Nil(t, err, "Error setting an item")
+	require.NoError(t, err, "Error setting an item")
 	itemExists := storeItemExists(t, key)
 	assert.True(t, itemExists, "Item does not exist after being set")
 }
@@ -666,7 +666,7 @@ func getItem(t *testing.T, mys *MySQL, key string) (*state.GetResponse, *fakeIte
 	}
 
 	response, getErr := mys.Get(context.Background(), getReq)
-	assert.Nil(t, getErr)
+	require.NoError(t, getErr)
 	assert.NotNil(t, response)
 	outputObject := &fakeItem{}
 	_ = json.Unmarshal(response.Data, outputObject)
@@ -682,13 +682,13 @@ func deleteItem(t *testing.T, mys *MySQL, key string, eTag *string) {
 	}
 
 	deleteErr := mys.Delete(context.Background(), deleteReq)
-	assert.Nil(t, deleteErr, "There was an error deleting a record")
+	require.NoError(t, deleteErr, "There was an error deleting a record")
 	assert.False(t, storeItemExists(t, key), "Item still exists after delete")
 }
 
 func storeItemExists(t *testing.T, key string) bool {
 	db, err := connectToDB(t)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer db.Close()
 
 	exists := false
@@ -696,20 +696,20 @@ func storeItemExists(t *testing.T, key string) bool {
 		`SELECT EXISTS (SELECT * FROM %s WHERE id = ?)`,
 		defaultTableName)
 	err = db.QueryRow(statement, key).Scan(&exists)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	return exists
 }
 
 func getRowData(t *testing.T, key string) (returnValue string, insertdate sql.NullString, updatedate sql.NullString, eTag string) {
 	db, err := connectToDB(t)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer db.Close()
 
 	err = db.QueryRow(fmt.Sprintf(
 		`SELECT value, insertdate, updatedate, eTag FROM %s WHERE id = ?`,
 		defaultTableName), key).Scan(&returnValue, &insertdate, &updatedate, &eTag)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	return returnValue, insertdate, updatedate, eTag
 }
@@ -721,7 +721,7 @@ func connectToDB(t *testing.T) (*sql.DB, error) {
 		rootCertPool := x509.NewCertPool()
 		pem, readErr := os.ReadFile(val)
 
-		assert.Nil(t, readErr, "Could not read PEM file")
+		require.NoError(t, readErr, "Could not read PEM file")
 
 		ok := rootCertPool.AppendCertsFromPEM(pem)
 

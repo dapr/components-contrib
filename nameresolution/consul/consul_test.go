@@ -24,6 +24,7 @@ import (
 
 	consul "github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	nr "github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/logger"
@@ -768,7 +769,7 @@ func TestResolveID(t *testing.T) {
 				resolver.Close()
 				waitTillTrueOrTimeout(time.Second*1, func() bool { return mockReg.removeAllCalled.Load() == 1 })
 				assert.Equal(t, int32(1), mockReg.removeAllCalled.Load())
-				assert.Equal(t, false, resolver.watcherStarted.Load())
+				assert.False(t, resolver.watcherStarted.Load())
 			},
 		},
 		{
@@ -786,7 +787,7 @@ func TestResolveID(t *testing.T) {
 
 				_, err := resolver.ResolveID(context.Background(), req)
 				assert.Equal(t, 1, mock.mockHealth.serviceCalled)
-				assert.Error(t, err)
+				require.Error(t, err)
 			},
 		},
 		{
@@ -994,7 +995,7 @@ func TestResolveID(t *testing.T) {
 
 				_, err := resolver.ResolveID(context.Background(), req)
 
-				assert.Error(t, err)
+				require.Error(t, err)
 			},
 		},
 		{
@@ -1019,7 +1020,7 @@ func TestResolveID(t *testing.T) {
 
 				_, err := resolver.ResolveID(context.Background(), req)
 
-				assert.Error(t, err)
+				require.Error(t, err)
 			},
 		},
 	}
@@ -1360,10 +1361,10 @@ func TestParseConfig(t *testing.T) {
 			actual, err := parseConfig(tt.input)
 
 			if tt.shouldParse {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expected, actual)
 			} else {
-				assert.Error(t, err)
+				require.Error(t, err)
 			}
 		})
 	}
@@ -1392,13 +1393,13 @@ func TestGetConfig(t *testing.T) {
 
 				// QueryOptions
 				assert.NotNil(t, actual.QueryOptions)
-				assert.Equal(t, true, actual.QueryOptions.UseCache)
+				assert.True(t, actual.QueryOptions.UseCache)
 
 				// DaprPortMetaKey
 				assert.Equal(t, defaultDaprPortMetaKey, actual.DaprPortMetaKey)
 
 				// Cache
-				assert.Equal(t, false, actual.UseCache)
+				assert.False(t, actual.UseCache)
 			},
 		},
 		{
@@ -1415,7 +1416,7 @@ func TestGetConfig(t *testing.T) {
 				assert.Equal(t, consul.DefaultConfig().Address, actual.Client.Address)
 
 				// Checks
-				assert.Equal(t, 1, len(actual.Registration.Checks))
+				assert.Len(t, actual.Registration.Checks, 1)
 				check := actual.Registration.Checks[0]
 				assert.Equal(t, "Dapr Health Status", check.Name)
 				assert.Equal(t, "daprHealth:test-app-"+metadata.Instance.Address+"-"+strconv.Itoa(metadata.Instance.DaprHTTPPort), check.CheckID)
@@ -1423,17 +1424,17 @@ func TestGetConfig(t *testing.T) {
 				assert.Equal(t, fmt.Sprintf("http://%s/v1.0/healthz?appid=%s", net.JoinHostPort(metadata.Instance.Address, strconv.Itoa(metadata.Instance.DaprHTTPPort)), metadata.Instance.AppID), check.HTTP)
 
 				// Metadata
-				assert.Equal(t, 1, len(actual.Registration.Meta))
+				assert.Len(t, actual.Registration.Meta, 1)
 				assert.Equal(t, "50001", actual.Registration.Meta[actual.DaprPortMetaKey])
 
 				// QueryOptions
-				assert.Equal(t, true, actual.QueryOptions.UseCache)
+				assert.True(t, actual.QueryOptions.UseCache)
 
 				// DaprPortMetaKey
 				assert.Equal(t, defaultDaprPortMetaKey, actual.DaprPortMetaKey)
 
 				// Cache
-				assert.Equal(t, false, actual.UseCache)
+				assert.False(t, actual.UseCache)
 			},
 		},
 		{
@@ -1466,7 +1467,7 @@ func TestGetConfig(t *testing.T) {
 			func(t *testing.T, metadata nr.Metadata) {
 				actual, _ := getConfig(metadata)
 
-				assert.Equal(t, true, actual.DeregisterOnClose)
+				assert.True(t, actual.DeregisterOnClose)
 			},
 		},
 		{
@@ -1479,7 +1480,7 @@ func TestGetConfig(t *testing.T) {
 			},
 			func(t *testing.T, metadata nr.Metadata) {
 				_, err := getConfig(metadata)
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), nr.AppID)
 
 				metadata.Configuration = configSpec{
@@ -1487,7 +1488,7 @@ func TestGetConfig(t *testing.T) {
 				}
 
 				_, err = getConfig(metadata)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				metadata.Configuration = configSpec{
 					AdvancedRegistration: &consul.AgentServiceRegistration{},
@@ -1495,7 +1496,7 @@ func TestGetConfig(t *testing.T) {
 				}
 
 				_, err = getConfig(metadata)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			},
 		},
 		{
@@ -1508,7 +1509,7 @@ func TestGetConfig(t *testing.T) {
 			},
 			func(t *testing.T, metadata nr.Metadata) {
 				_, err := getConfig(metadata)
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), nr.AppPort)
 
 				metadata.Configuration = configSpec{
@@ -1516,7 +1517,7 @@ func TestGetConfig(t *testing.T) {
 				}
 
 				_, err = getConfig(metadata)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				metadata.Configuration = configSpec{
 					AdvancedRegistration: &consul.AgentServiceRegistration{},
@@ -1524,7 +1525,7 @@ func TestGetConfig(t *testing.T) {
 				}
 
 				_, err = getConfig(metadata)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			},
 		},
 		{
@@ -1537,7 +1538,7 @@ func TestGetConfig(t *testing.T) {
 			},
 			func(t *testing.T, metadata nr.Metadata) {
 				_, err := getConfig(metadata)
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), "HOST_ADDRESS")
 
 				metadata.Configuration = configSpec{
@@ -1545,7 +1546,7 @@ func TestGetConfig(t *testing.T) {
 				}
 
 				_, err = getConfig(metadata)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				metadata.Configuration = configSpec{
 					AdvancedRegistration: &consul.AgentServiceRegistration{},
@@ -1553,7 +1554,7 @@ func TestGetConfig(t *testing.T) {
 				}
 
 				_, err = getConfig(metadata)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			},
 		},
 		{
@@ -1566,7 +1567,7 @@ func TestGetConfig(t *testing.T) {
 			},
 			func(t *testing.T, metadata nr.Metadata) {
 				_, err := getConfig(metadata)
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), "DAPR_HTTP_PORT")
 
 				metadata.Configuration = configSpec{
@@ -1574,7 +1575,7 @@ func TestGetConfig(t *testing.T) {
 				}
 
 				_, err = getConfig(metadata)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				metadata.Configuration = configSpec{
 					AdvancedRegistration: &consul.AgentServiceRegistration{},
@@ -1582,7 +1583,7 @@ func TestGetConfig(t *testing.T) {
 				}
 
 				_, err = getConfig(metadata)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			},
 		},
 		{
@@ -1596,7 +1597,7 @@ func TestGetConfig(t *testing.T) {
 				}
 
 				_, err := getConfig(metadata)
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), "DAPR_PORT")
 
 				metadata.Configuration = configSpec{
@@ -1604,7 +1605,7 @@ func TestGetConfig(t *testing.T) {
 				}
 
 				_, err = getConfig(metadata)
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), "DAPR_PORT")
 
 				metadata.Configuration = configSpec{
@@ -1613,7 +1614,7 @@ func TestGetConfig(t *testing.T) {
 				}
 
 				_, err = getConfig(metadata)
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), "DAPR_PORT")
 			},
 		},
@@ -1662,10 +1663,10 @@ func TestGetConfig(t *testing.T) {
 				assert.Equal(t, "8650", actual.Registration.Meta["APP_PORT"])
 				assert.Equal(t, "50005", actual.Registration.Meta["DAPR_GRPC_PORT"])
 				assert.Equal(t, strconv.Itoa(metadata.Instance.DaprInternalPort), actual.Registration.Meta["PORT"])
-				assert.Equal(t, false, actual.QueryOptions.UseCache)
+				assert.False(t, actual.QueryOptions.UseCache)
 				assert.Equal(t, "Checks.ServiceTags contains something", actual.QueryOptions.Filter)
 				assert.Equal(t, "PORT", actual.DaprPortMetaKey)
-				assert.Equal(t, false, actual.UseCache)
+				assert.False(t, actual.UseCache)
 			},
 		},
 		{

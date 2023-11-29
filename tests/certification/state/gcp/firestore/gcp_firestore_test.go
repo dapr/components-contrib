@@ -30,6 +30,7 @@ import (
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -39,7 +40,7 @@ const (
 
 func TestGCPFirestoreStorage(t *testing.T) {
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	currentGrpcPort := ports[0]
 	currentHTTPPort := ports[1]
@@ -57,17 +58,17 @@ func TestGCPFirestoreStorage(t *testing.T) {
 
 			// save state, default options: strong, last-write
 			err = client.SaveState(ctx, statestore, stateKey, []byte(stateValue), nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// get state
 			item, err := client.GetState(ctx, statestore, stateKey, nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, item)
 			assert.Equal(t, stateValue, string(item.Value))
 
 			// delete state
 			err = client.DeleteState(ctx, statestore, stateKey, nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			return nil
 		}

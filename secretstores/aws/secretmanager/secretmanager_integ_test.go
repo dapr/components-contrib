@@ -23,6 +23,7 @@ import (
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestIntegrationGetSecret requires AWS specific environments for authentication AWS_DEFAULT_REGION AWS_ACCESS_KEY_ID,
@@ -38,12 +39,12 @@ func TestIntegrationGetSecret(t *testing.T) {
 			"SessionToken": os.Getenv("AWS_SESSION_TOKEN"),
 		},
 	})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	response, err := sm.GetSecret(secretstores.GetSecretRequest{
 		Name:     secretName,
 		Metadata: map[string]string{},
 	})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, response)
 }
 
@@ -58,8 +59,8 @@ func TestIntegrationBulkGetSecret(t *testing.T) {
 			"SessionToken": os.Getenv("AWS_SESSION_TOKEN"),
 		},
 	})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	response, err := sm.BulkGetSecret(secretstores.BulkGetSecretRequest{})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, response)
 }

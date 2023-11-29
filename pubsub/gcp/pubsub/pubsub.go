@@ -82,7 +82,7 @@ type WhatNow struct {
 	Type string `json:"type"`
 }
 
-var topicCacheRefreshInterval = 5 * time.Hour
+const topicCacheRefreshInterval = 5 * time.Hour
 
 // NewGCPPubSub returns a new GCPPubSub instance.
 func NewGCPPubSub(logger logger.Logger) pubsub.PubSub {
@@ -96,7 +96,7 @@ func NewGCPPubSub(logger logger.Logger) pubsub.PubSub {
 }
 
 func (g *GCPPubSub) periodicCacheRefresh() {
-	ticker := time.NewTicker(topicCacheRefreshInterval)
+	ticker := time.NewTicker(topicCacheRefreshInterval / 5)
 	defer ticker.Stop()
 
 	for {
@@ -106,7 +106,7 @@ func (g *GCPPubSub) periodicCacheRefresh() {
 		case <-ticker.C:
 			g.lock.Lock()
 			for key, entry := range g.topicCache {
-				if time.Since(entry.LastSync) > topicCacheRefreshInterval {
+				if time.Since(entry.LastSync) > topicCacheRefreshInterval/5 {
 					delete(g.topicCache, key)
 				}
 			}
@@ -218,6 +218,8 @@ func (g *GCPPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) err
 	_, topicExists := g.topicCache[req.Topic]
 	g.lock.RUnlock()
 
+	// We are not acquiring a write lock before calling ensureTopic, so there's the chance that ensureTopic be called multiple time
+	// This is acceptable in our case, even is slightly wasteful, as ensureTopic is idempotent
 	if !g.metadata.DisableEntityManagement && !topicExists {
 		err := g.ensureTopic(ctx, req.Topic)
 		if err != nil {
@@ -262,6 +264,8 @@ func (g *GCPPubSub) Subscribe(parentCtx context.Context, req pubsub.SubscribeReq
 	_, topicExists := g.topicCache[req.Topic]
 	g.lock.RUnlock()
 
+	// We are not acquiring a write lock before calling ensureTopic, so there's the chance that ensureTopic be called multiple times
+	// This is acceptable in our case, even is slightly wasteful, as ensureTopic is idempotent
 	if !g.metadata.DisableEntityManagement && !topicExists {
 		topicErr := g.ensureTopic(parentCtx, req.Topic)
 		if topicErr != nil {

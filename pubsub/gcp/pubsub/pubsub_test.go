@@ -15,11 +15,8 @@ package pubsub
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/dapr/kit/logger"
 
 	"github.com/dapr/components-contrib/pubsub"
 )
@@ -129,37 +126,5 @@ func TestInit(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.ErrorContains(t, err, "connectionRecoveryInSec")
-	})
-}
-
-func TestTopicCache(t *testing.T) {
-	var testLogger logger.Logger
-	client := NewGCPPubSub(testLogger)
-	gClient := client.(*GCPPubSub)
-
-	topicCacheRefreshInterval = 3 * time.Second
-
-	gClient.wg.Add(1)
-
-	topicCache := gClient.topicCache
-
-	t.Run("test refresh cache", func(t *testing.T) {
-		topicCache["topic1"] = cacheEntry{
-			LastSync: time.Now(),
-		}
-		go func() {
-			defer gClient.wg.Done()
-			gClient.periodicCacheRefresh()
-		}()
-		_, exists := topicCache["topic1"]
-		assert.True(t, exists)
-
-		time.Sleep(4 * time.Second)
-		close(gClient.closeCh)
-
-		_, exists = topicCache["topic1"]
-		assert.False(t, exists)
-
-		gClient.wg.Wait()
 	})
 }

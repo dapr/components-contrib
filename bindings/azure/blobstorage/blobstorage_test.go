@@ -17,7 +17,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -29,9 +29,8 @@ func TestGetOption(t *testing.T) {
 	t.Run("return error if blobName is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
 		_, err := blobStorage.get(context.Background(), &r)
-		if assert.Error(t, err) {
-			assert.Equal(t, ErrMissingBlobName, err)
-		}
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrMissingBlobName)
 	})
 }
 
@@ -41,9 +40,8 @@ func TestDeleteOption(t *testing.T) {
 	t.Run("return error if blobName is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
 		_, err := blobStorage.delete(context.Background(), &r)
-		if assert.Error(t, err) {
-			assert.Equal(t, ErrMissingBlobName, err)
-		}
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrMissingBlobName)
 	})
 
 	t.Run("return error for invalid deleteSnapshots", func(t *testing.T) {
@@ -53,6 +51,6 @@ func TestDeleteOption(t *testing.T) {
 			"deleteSnapshots": "invalid",
 		}
 		_, err := blobStorage.delete(context.Background(), &r)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }

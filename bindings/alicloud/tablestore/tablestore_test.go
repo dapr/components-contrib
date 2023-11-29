@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
@@ -33,7 +34,7 @@ func TestTableStoreMetadata(t *testing.T) {
 
 	meta, err := aliCloudTableStore.parseMetadata(m)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "ACCESSKEYID", meta.AccessKeyID)
 	assert.Equal(t, "ACCESSKEY", meta.AccessKey)
 	assert.Equal(t, "INSTANCENAME", meta.InstanceName)
@@ -60,7 +61,7 @@ func TestDataEncodeAndDecode(t *testing.T) {
 		"column2": int64(2),
 	}
 	data, err := json.Marshal(putData)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	putRowReq := &bindings.InvokeRequest{
 		Operation: bindings.CreateOperation,
 		Metadata: map[string]string{
@@ -72,7 +73,7 @@ func TestDataEncodeAndDecode(t *testing.T) {
 
 	putInvokeResp, err := aliCloudTableStore.Invoke(context.Background(), putRowReq)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, putInvokeResp)
 
 	putRowReq.Data, _ = json.Marshal(map[string]interface{}{
@@ -83,14 +84,14 @@ func TestDataEncodeAndDecode(t *testing.T) {
 
 	putInvokeResp, err = aliCloudTableStore.Invoke(context.Background(), putRowReq)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, putInvokeResp)
 
 	// test get
 	getData, err := json.Marshal(map[string]interface{}{
 		"pk1": "data1",
 	})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	getInvokeReq := &bindings.InvokeRequest{
 		Operation: bindings.GetOperation,
 		Metadata: map[string]string{
@@ -103,13 +104,13 @@ func TestDataEncodeAndDecode(t *testing.T) {
 
 	getInvokeResp, err := aliCloudTableStore.Invoke(context.Background(), getInvokeReq)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, getInvokeResp)
 
 	respData := make(map[string]interface{})
 	err = json.Unmarshal(getInvokeResp.Data, &respData)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	assert.Equal(t, putData["column1"], respData["column1"])
 	assert.Equal(t, putData["column2"], int64(respData["column2"].(float64)))
@@ -123,7 +124,7 @@ func TestDataEncodeAndDecode(t *testing.T) {
 			"pk1": "data2",
 		},
 	})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	listReq := &bindings.InvokeRequest{
 		Operation: bindings.ListOperation,
@@ -136,23 +137,23 @@ func TestDataEncodeAndDecode(t *testing.T) {
 	}
 
 	listResp, err := aliCloudTableStore.Invoke(context.Background(), listReq)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, listResp)
 
 	listRespData := make([]map[string]interface{}, len(listData))
 	err = json.Unmarshal(listResp.Data, &listRespData)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Len(t, listRespData, 2)
 
 	assert.Equal(t, listRespData[0]["column1"], putData["column1"])
-	assert.Equal(t, listRespData[1]["pk1"], "data2")
+	assert.Equal(t, "data2", listRespData[1]["pk1"])
 
 	// test delete
 	deleteData, err := json.Marshal(map[string]interface{}{
 		"pk1": "data1",
 	})
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	deleteReq := &bindings.InvokeRequest{
 		Operation: bindings.DeleteOperation,
@@ -165,12 +166,12 @@ func TestDataEncodeAndDecode(t *testing.T) {
 
 	deleteResp, err := aliCloudTableStore.Invoke(context.Background(), deleteReq)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, deleteResp)
 
 	getInvokeResp, err = aliCloudTableStore.Invoke(context.Background(), getInvokeReq)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Nil(t, getInvokeResp.Data)
 }
 

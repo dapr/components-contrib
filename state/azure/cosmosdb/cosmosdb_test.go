@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
@@ -38,7 +39,7 @@ func TestCreateCosmosItem(t *testing.T) {
 		}
 
 		item, err := createUpsertItem("application/json", req, partitionKey)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
 		assert.Equal(t, value, item.Value)
@@ -46,11 +47,11 @@ func TestCreateCosmosItem(t *testing.T) {
 
 		// items need to be marshallable to JSON with encoding/json
 		b, err := json.Marshal(item)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		j := map[string]interface{}{}
 		err = json.Unmarshal(b, &j)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		m, ok := j["value"].(map[string]interface{})
 		assert.Truef(t, ok, "value should be a map")
@@ -62,7 +63,7 @@ func TestCreateCosmosItem(t *testing.T) {
 	t.Run("create item for JSON bytes", func(t *testing.T) {
 		// Bytes are handled the same way, does not matter if is JSON or JPEG.
 		bytes, err := json.Marshal(value)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		req := state.SetRequest{
 			Key:   "testKey",
@@ -70,18 +71,18 @@ func TestCreateCosmosItem(t *testing.T) {
 		}
 
 		item, err := createUpsertItem("application/json", req, partitionKey)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
 		assert.Nil(t, item.TTL)
 
 		// items need to be marshallable to JSON with encoding/json
 		b, err := json.Marshal(item)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		j := map[string]interface{}{}
 		err = json.Unmarshal(b, &j)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		m, ok := j["value"].(map[string]interface{})
 		assert.Truef(t, ok, "value should be a map")
@@ -93,7 +94,7 @@ func TestCreateCosmosItem(t *testing.T) {
 	t.Run("create item for String bytes", func(t *testing.T) {
 		// Bytes are handled the same way, does not matter if is JSON or JPEG.
 		bytes, err := json.Marshal(value)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		req := state.SetRequest{
 			Key:   "testKey",
@@ -101,18 +102,18 @@ func TestCreateCosmosItem(t *testing.T) {
 		}
 
 		item, err := createUpsertItem("text/plain", req, partitionKey)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
 		assert.Nil(t, item.TTL)
 
 		// items need to be marshallable to JSON with encoding/json
 		b, err := json.Marshal(item)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		j := map[string]interface{}{}
 		err = json.Unmarshal(b, &j)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		value := j["value"]
 		m, ok := value.(string)
@@ -132,18 +133,18 @@ func TestCreateCosmosItem(t *testing.T) {
 		}
 
 		item, err := createUpsertItem("application/json", req, partitionKey)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
 		assert.Nil(t, item.TTL)
 
 		// items need to be marshallable to JSON with encoding/json
 		b, err := json.Marshal(item)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		j := map[string]interface{}{}
 		err = json.Unmarshal(b, &j)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		value := j["value"]
 		m, ok := value.(string)
@@ -163,18 +164,18 @@ func TestCreateCosmosItem(t *testing.T) {
 		}
 
 		item, err := createUpsertItem("application/octet-stream", req, partitionKey)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
 		assert.Nil(t, item.TTL)
 
 		// items need to be marshallable to JSON with encoding/json
 		b, err := json.Marshal(item)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		j := map[string]interface{}{}
 		err = json.Unmarshal(b, &j)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		value := j["value"]
 		m, ok := value.(string)
@@ -187,7 +188,7 @@ func TestCreateCosmosItem(t *testing.T) {
 	t.Run("create item with null data", func(t *testing.T) {
 		// Bytes are handled the same way, does not matter if is JSON or JPEG.
 		bytes, err := json.Marshal(nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		req := state.SetRequest{
 			Key:   "testKey",
@@ -195,7 +196,7 @@ func TestCreateCosmosItem(t *testing.T) {
 		}
 
 		item, err := createUpsertItem("application/json", req, partitionKey)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
 		assert.False(t, item.IsBinary)
@@ -203,11 +204,11 @@ func TestCreateCosmosItem(t *testing.T) {
 
 		// items need to be marshallable to JSON with encoding/json
 		b, err := json.Marshal(item)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		j := map[string]interface{}{}
 		err = json.Unmarshal(b, &j)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.Nil(t, j["value"])
 	})
@@ -222,7 +223,7 @@ func TestCreateCosmosItem(t *testing.T) {
 		}
 
 		item, err := createUpsertItem("application/json", req, partitionKey)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
 		assert.False(t, item.IsBinary)
@@ -230,11 +231,11 @@ func TestCreateCosmosItem(t *testing.T) {
 
 		// items need to be marshallable to JSON with encoding/json
 		b, err := json.Marshal(item)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		j := map[string]interface{}{}
 		err = json.Unmarshal(b, &j)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		m, ok := (j["value"].(string))
 
@@ -253,7 +254,7 @@ func TestCreateCosmosItem(t *testing.T) {
 		}
 
 		item, err := createUpsertItem("text/plain", req, partitionKey)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
 		assert.False(t, item.IsBinary)
@@ -261,11 +262,11 @@ func TestCreateCosmosItem(t *testing.T) {
 
 		// items need to be marshallable to JSON with encoding/json
 		b, err := json.Marshal(item)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		j := map[string]interface{}{}
 		err = json.Unmarshal(b, &j)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		m, ok := (j["value"].(string))
 
@@ -290,7 +291,7 @@ func TestCreateCosmosItemWithTTL(t *testing.T) {
 		}
 
 		item, err := createUpsertItem("application/json", req, partitionKey)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
 		assert.Equal(t, value, item.Value)
@@ -298,11 +299,11 @@ func TestCreateCosmosItemWithTTL(t *testing.T) {
 
 		// items need to be marshallable to JSON with encoding/json
 		b, err := json.Marshal(item)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		j := map[string]interface{}{}
 		err = json.Unmarshal(b, &j)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		m, ok := j["value"].(map[string]interface{})
 		assert.Truef(t, ok, "value should be a map")
@@ -322,7 +323,7 @@ func TestCreateCosmosItemWithTTL(t *testing.T) {
 		}
 
 		item, err := createUpsertItem("application/json", req, partitionKey)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, partitionKey, item.PartitionKey)
 		assert.Equal(t, "testKey", item.ID)
 		assert.Equal(t, value, item.Value)
@@ -330,11 +331,11 @@ func TestCreateCosmosItemWithTTL(t *testing.T) {
 
 		// items need to be marshallable to JSON with encoding/json
 		b, err := json.Marshal(item)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		j := map[string]interface{}{}
 		err = json.Unmarshal(b, &j)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		m, ok := j["value"].(map[string]interface{})
 		assert.Truef(t, ok, "value should be a map")
@@ -353,6 +354,6 @@ func TestCreateCosmosItemWithTTL(t *testing.T) {
 		}
 
 		_, err := createUpsertItem("application/json", req, partitionKey)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }

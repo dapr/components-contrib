@@ -109,9 +109,9 @@ func Test_getSnsSqsMetatdata_defaults(t *testing.T) {
 	r.Equal(int64(10), md.MessageRetryLimit)
 	r.Equal(int64(2), md.MessageWaitTimeSeconds)
 	r.Equal(int64(10), md.MessageMaxNumber)
-	r.Equal(false, md.DisableEntityManagement)
-	r.Equal(float64(5), md.AssetsManagementTimeoutSeconds)
-	r.Equal(false, md.DisableDeleteOnRetryLimit)
+	r.False(md.DisableEntityManagement)
+	r.EqualValues(float64(5), md.AssetsManagementTimeoutSeconds)
+	r.False(md.DisableDeleteOnRetryLimit)
 }
 
 func Test_getSnsSqsMetatdata_legacyaliases(t *testing.T) {
@@ -293,7 +293,7 @@ func Test_replaceNameToAWSSanitizedName(t *testing.T) {
 		name // for an AWS resource &*()*&&^Some invalid name // for an AWS resource &*()*&&^Some invalid name // for an
 		AWS resource &*()*&&^Some invalid name // for an AWS resource &*()*&&^`
 	v := nameToAWSSanitizedName(s, false)
-	r.Equal(80, len(v))
+	r.Len(v, 80)
 	r.Equal("Some_invalid-nameforanAWSresourceSomeinvalidnameforanAWSresourceSomeinvalidnamef", v)
 }
 
@@ -305,7 +305,7 @@ func Test_replaceNameToAWSSanitizedFifoName_Trimmed(t *testing.T) {
 		name // for an AWS resource &*()*&&^Some invalid name // for an AWS resource &*()*&&^Some invalid name // for an
 		AWS resource &*()*&&^Some invalid name // for an AWS resource &*()*&&^`
 	v := nameToAWSSanitizedName(s, true)
-	r.Equal(80, len(v))
+	r.Len(v, 80)
 	r.Equal("Some_invalid-nameforanAWSresourceSomeinvalidnameforanAWSresourceSomeinvalid.fifo", v)
 }
 
@@ -315,7 +315,7 @@ func Test_replaceNameToAWSSanitizedFifoName_NonTrimmed(t *testing.T) {
 
 	s := `012345678901234567890123456789012345678901234567890123456789012345678901234`
 	v := nameToAWSSanitizedName(s, true)
-	r.Equal(80, len(v))
+	r.Len(v, 80)
 	r.Equal("012345678901234567890123456789012345678901234567890123456789012345678901234.fifo", v)
 }
 
@@ -325,7 +325,7 @@ func Test_replaceNameToAWSSanitizedExistingFifoName_NonTrimmed(t *testing.T) {
 
 	s := `012345678901234567890123456789012345678901234567890123456789012345678901234.fifo`
 	v := nameToAWSSanitizedName(s, true)
-	r.Equal(80, len(v))
+	r.Len(v, 80)
 	r.Equal("012345678901234567890123456789012345678901234567890123456789012345678901234.fifo", v)
 }
 
@@ -335,7 +335,7 @@ func Test_replaceNameToAWSSanitizedExistingFifoName_NonMax(t *testing.T) {
 
 	s := `0123456789`
 	v := nameToAWSSanitizedName(s, true)
-	r.Equal(len(s)+len(".fifo"), len(v))
+	r.EqualValues(len(s)+len(".fifo"), len(v))
 	r.Equal("0123456789.fifo", v)
 }
 
@@ -345,7 +345,7 @@ func Test_replaceNameToAWSSanitizedExistingFifoName_NoFifoSetting(t *testing.T) 
 
 	s := `012345678901234567890123456789012345678901234567890123456789012345678901234.fifo`
 	v := nameToAWSSanitizedName(s, false)
-	r.Equal(79, len(v))
+	r.Len(v, 79)
 	r.Equal("012345678901234567890123456789012345678901234567890123456789012345678901234fifo", v)
 }
 
@@ -355,7 +355,7 @@ func Test_replaceNameToAWSSanitizedExistingFifoName_Trimmed(t *testing.T) {
 
 	s := `01234567890123456789012345678901234567890123456789012345678901234567890123456789.fifo`
 	v := nameToAWSSanitizedName(s, true)
-	r.Equal(80, len(v))
+	r.Len(v, 80)
 	r.Equal("012345678901234567890123456789012345678901234567890123456789012345678901234.fifo", v)
 }
 
@@ -371,7 +371,7 @@ func Test_tryInsertCondition(t *testing.T) {
 		policy.tryInsertCondition(sqsArn, snsArn)
 	}
 
-	r.Equal(len(policy.Statement), 4)
+	r.Len(policy.Statement, 4)
 	insertedStatement := policy.Statement[0]
 	r.Equal(insertedStatement.Resource, sqsArn)
 	r.Equal(insertedStatement.Condition.ValueArnEquals.AwsSourceArn, snsArns[0])
@@ -414,10 +414,10 @@ func Test_policy_compatible(t *testing.T) {
 `
 	policy := &policy{Version: "2012-10-17"}
 	err := json.Unmarshal([]byte(oldPolicy), policy)
-	r.Equal(err, nil)
+	r.NoError(err)
 
 	policy.tryInsertCondition(sqsArn, snsArn)
-	r.Equal(len(policy.Statement), 1)
+	r.Len(policy.Statement, 1)
 	insertedStatement := policy.Statement[0]
 	r.Equal(insertedStatement.Resource, sqsArn)
 	r.Equal(insertedStatement.Condition.ValueArnEquals.AwsSourceArn, snsArn)

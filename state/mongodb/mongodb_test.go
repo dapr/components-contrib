@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/dapr/components-contrib/metadata"
@@ -35,7 +36,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		}
 
 		metadata, err := getMongoDBMetaData(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, properties[host], metadata.Host)
 		assert.Equal(t, defaultDatabaseName, metadata.DatabaseName)
 		assert.Equal(t, defaultCollectionName, metadata.CollectionName)
@@ -54,7 +55,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		}
 
 		metadata, err := getMongoDBMetaData(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, properties[host], metadata.Host)
 		assert.Equal(t, properties[databaseName], metadata.DatabaseName)
 		assert.Equal(t, properties[collectionName], metadata.CollectionName)
@@ -72,7 +73,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		}
 
 		_, err := getMongoDBMetaData(m)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("Valid connection details without params", func(t *testing.T) {
@@ -88,7 +89,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		}
 
 		metadata, err := getMongoDBMetaData(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		uri := metadata.getMongoConnectionString()
 		expected := "mongodb://username:password@127.0.0.2/TestDB"
@@ -107,7 +108,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		}
 
 		metadata, err := getMongoDBMetaData(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		uri := metadata.getMongoConnectionString()
 		expected := "mongodb://localhost:27017/TestDB"
@@ -129,7 +130,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		}
 
 		metadata, err := getMongoDBMetaData(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		uri := metadata.getMongoConnectionString()
 		expected := "mongodb://username:password@127.0.0.2/TestDB?ssl=true"
@@ -149,7 +150,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		}
 
 		metadata, err := getMongoDBMetaData(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		uri := metadata.getMongoConnectionString()
 		expected := "mongodb+srv://server.example.com/?ssl=true"
@@ -167,7 +168,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		}
 
 		_, err := getMongoDBMetaData(m)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 
 		expected := "must set 'host' or 'server' fields in metadata"
 		assert.Equal(t, expected, err.Error())
@@ -185,7 +186,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		}
 
 		_, err := getMongoDBMetaData(m)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 
 		expected := "'host' or 'server' fields are mutually exclusive"
 		assert.Equal(t, expected, err.Error())
@@ -203,7 +204,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		}
 
 		metadata, err := getMongoDBMetaData(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		uri := metadata.getMongoConnectionString()
 		expected := "mongodb://localhost:99999/UnchanedDB"
@@ -215,7 +216,7 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		mongo := MongoDB{}
 		time.Local = time.UTC
 		thetime, err := time.Parse(time.RFC3339, "2023-02-01T12:13:09Z")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		timestring := thetime.UTC().Format("2006-01-02T15:04:05Z")
 
 		msg := bson.M{
@@ -227,17 +228,17 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		}
 
 		res, err := mongo.decodeData(msg)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		var data map[string]interface{}
 		err = json.Unmarshal(res, &data)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.Equal(t, "test message", data["message"])
 		assert.Equal(t, timestring, data["time"])
 		assert.Equal(t, 123.456789, data["decimal"])
 		assert.Equal(t, float64(123456789), data["integer"])
-		assert.Equal(t, true, data["boolean"])
+		assert.True(t, data["boolean"].(bool))
 
 		msg2 := bson.D{
 			{Key: "message", Value: "test message"},
@@ -251,17 +252,17 @@ func TestGetMongoDBMetadata(t *testing.T) {
 		}
 
 		res2, err := mongo.decodeData(msg2)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		var data2 map[string]interface{}
 		err = json.Unmarshal(res2, &data2)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.Equal(t, "test message", data2["message"])
 		assert.Equal(t, timestring, data2["time"])
 		assert.Equal(t, 123.456789, data2["decimal"])
 		assert.Equal(t, float64(123456789), data2["integer"])
-		assert.Equal(t, true, data2["boolean"])
+		assert.True(t, data2["boolean"].(bool))
 		assert.Equal(t, []interface{}{"test", float64(123), 123.456, true, timestring}, data2["nestedarray"])
 
 		// this is an array type
@@ -270,10 +271,10 @@ func TestGetMongoDBMetadata(t *testing.T) {
 			bson.D{{Key: "somedecimal", Value: 9.87654321}, {Key: "sometime", Value: thetime}},
 		}
 		res3, err := mongo.decodeData(msg3)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		var data3 []interface{}
 		err = json.Unmarshal(res3, &data3)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.Contains(t, data3, "test message")
 		assert.Contains(t, data3, timestring)

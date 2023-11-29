@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/kit/logger"
 )
@@ -28,7 +29,7 @@ func TestGetNamespace(t *testing.T) {
 		namespace := "a"
 
 		ns, err := store.getNamespaceFromMetadata(map[string]string{"namespace": namespace})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, namespace, ns)
 	})
 
@@ -37,7 +38,7 @@ func TestGetNamespace(t *testing.T) {
 		t.Setenv("NAMESPACE", "b")
 
 		ns, err := store.getNamespaceFromMetadata(map[string]string{})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "b", ns)
 	})
 
@@ -46,8 +47,8 @@ func TestGetNamespace(t *testing.T) {
 		os.Setenv("NAMESPACE", "")
 		_, err := store.getNamespaceFromMetadata(map[string]string{})
 
-		assert.Error(t, err)
-		assert.ErrorContains(t, err, "namespace is missing")
+		require.Error(t, err)
+		require.ErrorContains(t, err, "namespace is missing")
 	})
 
 	t.Run("has default namespace", func(t *testing.T) {
@@ -59,7 +60,7 @@ func TestGetNamespace(t *testing.T) {
 		}
 
 		ns, err := store.getNamespaceFromMetadata(map[string]string{})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "c", ns)
 	})
 }

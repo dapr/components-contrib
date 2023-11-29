@@ -82,10 +82,10 @@ func TestBulkStore(t *testing.T) {
 		require.Len(t, errs, 2)
 		for i := 0; i < 2; i++ {
 			var bse BulkStoreError
-			assert.ErrorAs(t, errs[i], &bse)
+			require.ErrorAs(t, errs[i], &bse)
 			assert.True(t, bse.key == "error-key1" || bse.key == "error-key2")
-			assert.ErrorIs(t, bse, errSimulated)
-			assert.ErrorIs(t, errs[i], errSimulated)
+			require.ErrorIs(t, bse, errSimulated)
+			require.ErrorIs(t, errs[i], errSimulated)
 		}
 		require.Equal(t, expectCount, s.count.Load())
 		require.Equal(t, expectBulkCount, s.bulkCount.Load())

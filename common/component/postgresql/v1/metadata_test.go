@@ -52,7 +52,7 @@ func TestMetadata(t *testing.T) {
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
 		require.NoError(t, err)
-		assert.Equal(t, m.TableName, defaultTableName)
+		assert.Equal(t, defaultTableName, m.TableName)
 	})
 
 	t.Run("custom table name", func(t *testing.T) {
@@ -64,7 +64,7 @@ func TestMetadata(t *testing.T) {
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
 		require.NoError(t, err)
-		assert.Equal(t, m.TableName, "mytable")
+		assert.Equal(t, "mytable", m.TableName)
 	})
 
 	t.Run("default timeout", func(t *testing.T) {
@@ -120,8 +120,8 @@ func TestMetadata(t *testing.T) {
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
 		require.NoError(t, err)
-		_ = assert.NotNil(t, m.CleanupInterval) &&
-			assert.Equal(t, defaultCleanupInternal, *m.CleanupInterval)
+		require.NotNil(t, m.CleanupInterval)
+		assert.Equal(t, defaultCleanupInternal, *m.CleanupInterval)
 	})
 
 	t.Run("invalid cleanupInterval", func(t *testing.T) {
@@ -144,8 +144,8 @@ func TestMetadata(t *testing.T) {
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
 		require.NoError(t, err)
-		_ = assert.NotNil(t, m.CleanupInterval) &&
-			assert.Equal(t, 42*time.Second, *m.CleanupInterval)
+		require.NotNil(t, m.CleanupInterval)
+		assert.Equal(t, 42*time.Second, *m.CleanupInterval)
 	})
 
 	t.Run("positive cleanupIntervalInSeconds", func(t *testing.T) {
@@ -157,8 +157,8 @@ func TestMetadata(t *testing.T) {
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
 		require.NoError(t, err)
-		_ = assert.NotNil(t, m.CleanupInterval) &&
-			assert.Equal(t, 42*time.Second, *m.CleanupInterval)
+		require.NotNil(t, m.CleanupInterval)
+		assert.Equal(t, 42*time.Second, *m.CleanupInterval)
 	})
 
 	t.Run("positive cleanupInterval as duration", func(t *testing.T) {
@@ -170,8 +170,8 @@ func TestMetadata(t *testing.T) {
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
 		require.NoError(t, err)
-		_ = assert.NotNil(t, m.CleanupInterval) &&
-			assert.Equal(t, 42*time.Minute, *m.CleanupInterval)
+		require.NotNil(t, m.CleanupInterval)
+		assert.Equal(t, 42*time.Minute, *m.CleanupInterval)
 	})
 
 	t.Run("positive cleanupIntervalInseconds as duration", func(t *testing.T) {
@@ -183,8 +183,8 @@ func TestMetadata(t *testing.T) {
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
 		require.NoError(t, err)
-		_ = assert.NotNil(t, m.CleanupInterval) &&
-			assert.Equal(t, 42*time.Minute, *m.CleanupInterval)
+		require.NotNil(t, m.CleanupInterval)
+		assert.Equal(t, 42*time.Minute, *m.CleanupInterval)
 	})
 
 	t.Run("zero cleanupInterval", func(t *testing.T) {
@@ -220,8 +220,8 @@ func TestMetadata(t *testing.T) {
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
 		require.NoError(t, err)
-		_ = assert.NotNil(t, m.CleanupInterval) &&
-			assert.Equal(t, defaultCleanupInternal, *m.CleanupInterval)
+		require.NotNil(t, m.CleanupInterval)
+		assert.Equal(t, defaultCleanupInternal, *m.CleanupInterval)
 	})
 
 	t.Run("empty cleanupIntervalInSeconds", func(t *testing.T) {
@@ -233,7 +233,7 @@ func TestMetadata(t *testing.T) {
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
 		require.NoError(t, err)
-		_ = assert.NotNil(t, m.CleanupInterval) &&
-			assert.Equal(t, defaultCleanupInternal, *m.CleanupInterval)
+		require.NotNil(t, m.CleanupInterval)
+		assert.Equal(t, defaultCleanupInternal, *m.CleanupInterval)
 	})
 }

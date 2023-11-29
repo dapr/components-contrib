@@ -20,6 +20,7 @@ import (
 	"github.com/dapr/kit/logger"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseMetadata(t *testing.T) {
@@ -30,7 +31,7 @@ func TestParseMetadata(t *testing.T) {
 		m.Properties = map[string]string{"region": "a", "provider": "a", "projectKey": "a", "clientID": "a", "clientSecret": "a", "scopes": "b"}
 		k := Binding{logger: logger}
 		meta, err := k.getCommercetoolsMetadata(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "a", meta.Region)
 		assert.Equal(t, "a", meta.Provider)
 		assert.Equal(t, "a", meta.ProjectKey)

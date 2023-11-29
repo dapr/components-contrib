@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
@@ -70,14 +71,14 @@ func testReadIotHubEvents(t *testing.T) {
 	logger.SetOutputLevel(kitLogger.DebugLevel)
 	eh := NewAzureEventHubs(logger).(*AzureEventHubs)
 	err := eh.Init(context.Background(), createIotHubPubsubMetadata())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Invoke az CLI via bash script to send test IoT device events
 	// Requires the AZURE_CREDENTIALS environment variable to be already set (output of `az ad sp create-for-rbac`)
 	cmd := exec.Command("/bin/bash", "../../../tests/scripts/send-iot-device-events.sh")
 	cmd.Env = append(os.Environ(), fmt.Sprintf("IOT_HUB_NAME=%s", os.Getenv(iotHubNameEnvKey)))
 	out, err := cmd.CombinedOutput()
-	assert.NoError(t, err, "Error in send-iot-device-events.sh:\n%s", string(out))
+	require.NoError(t, err, "Error in send-iot-device-events.sh:\n%s", string(out))
 
 	// Setup subscription to capture messages in a closure so that test asserts can be
 	// performed on the main thread, including the case where the handler is never invoked.
@@ -94,7 +95,7 @@ func testReadIotHubEvents(t *testing.T) {
 		},
 	}
 	err = eh.Subscribe(context.Background(), req, handler)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Note: azure-event-hubs-go SDK defaultLeasePersistenceInterval is 5s
 	// Sleep long enough so that the azure event hubs SDK has time to persist updated checkpoints

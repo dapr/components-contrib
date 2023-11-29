@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 )
@@ -26,7 +27,7 @@ func TestParseMetadata(t *testing.T) {
 	m.Properties = map[string]string{"AccessKey": "key", "Endpoint": "endpoint", "AccessKeyID": "accessKeyID", "Bucket": "test"}
 	aliCloudOSS := AliCloudOSS{}
 	meta, err := aliCloudOSS.parseMetadata(m)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "key", meta.AccessKey)
 	assert.Equal(t, "endpoint", meta.Endpoint)
 	assert.Equal(t, "accessKeyID", meta.AccessKeyID)

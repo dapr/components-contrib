@@ -21,6 +21,7 @@ import (
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
@@ -35,23 +36,23 @@ func setupServerAndStream(t *testing.T) (*server.Server, *nats.Conn) {
 		JetStream: true,
 		StoreDir:  t.TempDir(),
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	go ns.Start()
 	ns.ReadyForConnections(time.Second)
 
 	// Create the stream for the test.
 	nc, err := nats.Connect(ns.ClientURL())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	js, err := nc.JetStream()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = js.AddStream(&nats.StreamConfig{
 		Name:     "test",
 		Subjects: []string{"test"},
 		Storage:  nats.MemoryStorage,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	return ns, nc
 }
@@ -71,7 +72,7 @@ func TestNewJetStream_EmphemeralPushConsumer(t *testing.T) {
 			},
 		},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	ch := make(chan []byte, 1)
@@ -80,7 +81,7 @@ func TestNewJetStream_EmphemeralPushConsumer(t *testing.T) {
 		ch <- msg.Data
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Use minimal cloud event payload with `id` for NATS de-dupe.
 	payload := []byte(`{"id": "ABCD", "data": "test"}`)
@@ -88,7 +89,7 @@ func TestNewJetStream_EmphemeralPushConsumer(t *testing.T) {
 		Data:  payload,
 		Topic: "test",
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Ensure the output is received.
 	select {
@@ -116,7 +117,7 @@ func TestNewJetStream_DurableQueuePushConsumer(t *testing.T) {
 			},
 		},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	ch := make(chan []byte, 2)
@@ -127,19 +128,19 @@ func TestNewJetStream_DurableQueuePushConsumer(t *testing.T) {
 		ch <- msg.Data
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = bus.Subscribe(ctx, pubsub.SubscribeRequest{Topic: "test"}, func(ctx context.Context, msg *pubsub.NewMessage) error {
 		ch <- msg.Data
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	js, _ := nc.JetStream()
 	ci, err := js.ConsumerInfo("test", "test")
-	assert.NoError(t, err)
-	assert.Equal(t, ci.Config.Durable, "test")
-	assert.Equal(t, ci.Config.DeliverGroup, "test")
+	require.NoError(t, err)
+	assert.Equal(t, "test", ci.Config.Durable)
+	assert.Equal(t, "test", ci.Config.DeliverGroup)
 
 	// Use minimal cloud event payload with `id` for NATS de-dupe.
 	payload := []byte(`{"id": "ABCD-1", "data": "test"}`)
@@ -147,7 +148,7 @@ func TestNewJetStream_DurableQueuePushConsumer(t *testing.T) {
 		Data:  payload,
 		Topic: "test",
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Ensure the output is received.
 	select {

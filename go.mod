@@ -1,6 +1,8 @@
 module github.com/dapr/components-contrib
 
-go 1.20
+go 1.21
+
+toolchain go1.21.4
 
 require (
 	cloud.google.com/go/datastore v1.15.0
@@ -24,7 +26,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue v1.0.0
 	github.com/Azure/go-amqp v1.0.2
 	github.com/DATA-DOG/go-sqlmock v1.5.0
-	github.com/IBM/sarama v1.41.1
+	github.com/IBM/sarama v1.42.1
 	github.com/aerospike/aerospike-client-go/v6 v6.12.0
 	github.com/alibaba/sentinel-golang v1.0.4
 	github.com/alibabacloud-go/darabonba-openapi v0.2.1

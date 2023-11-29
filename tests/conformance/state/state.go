@@ -252,7 +252,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 	t.Run("ping", func(t *testing.T) {
 		err := state.Ping(context.Background(), statestore)
 		// TODO: Ideally, all stable components should implenment ping function,
-		// so will only assert assert.NoError(t, err) finally, i.e. when current implementation
+		// so will only assert require.NoError(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
 		if err != nil {
 			require.EqualError(t, err, "ping is not implemented by this state store")
@@ -318,9 +318,9 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				for i := range scenario.results {
 					var expected, actual interface{}
 					err = json.Unmarshal(scenario.results[i].Data, &expected)
-					assert.NoError(t, err)
+					require.NoError(t, err)
 					err = json.Unmarshal(resp.Results[i].Data, &actual)
-					assert.NoError(t, err)
+					require.NoError(t, err)
 					assert.Equal(t, scenario.results[i].Key, resp.Results[i].Key)
 					assert.Equal(t, expected, actual)
 				}
@@ -345,13 +345,13 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					req.Metadata = map[string]string{metadata.ContentType: scenario.contentType}
 				}
 				err := statestore.Delete(context.Background(), req)
-				assert.NoError(t, err, "no error expected while deleting %s", scenario.key)
+				require.NoError(t, err, "no error expected while deleting %s", scenario.key)
 
 				t.Logf("Checking value absence for %s", scenario.key)
 				res, err := statestore.Get(context.Background(), &state.GetRequest{
 					Key: scenario.key,
 				})
-				assert.NoError(t, err, "no error expected while checking for absence for %s", scenario.key)
+				require.NoError(t, err, "no error expected while checking for absence for %s", scenario.key)
 				assert.Nil(t, res.Data, "no data expected while checking for absence for %s", scenario.key)
 			}
 		}
@@ -443,14 +443,14 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			}
 		}
 		err := statestore.BulkDelete(context.Background(), bulk, state.BulkStoreOpts{})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		for _, req := range bulk {
 			t.Logf("Checking value absence for %s", req.Key)
 			res, err := statestore.Get(context.Background(), &state.GetRequest{
 				Key: req.Key,
 			})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Nil(t, res.Data)
 		}
 	})
@@ -558,21 +558,21 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				Value:    firstValue,
 				Metadata: partitionMetadata,
 			})
-			assert.NoError(t, err, "set request should be successful")
+			require.NoError(t, err, "set request should be successful")
 
 			// prerequisite: key2 should not be present
 			err = statestore.Delete(context.Background(), &state.DeleteRequest{
 				Key:      secondKey,
 				Metadata: partitionMetadata,
 			})
-			assert.NoError(t, err, "delete request should be successful")
+			require.NoError(t, err, "delete request should be successful")
 
 			// prerequisite: key3 should not be present
 			err = statestore.Delete(context.Background(), &state.DeleteRequest{
 				Key:      thirdKey,
 				Metadata: partitionMetadata,
 			})
-			assert.NoError(t, err, "delete request should be successful")
+			require.NoError(t, err, "delete request should be successful")
 
 			operations := []state.TransactionalStateOperation{
 				// delete an item that already exists

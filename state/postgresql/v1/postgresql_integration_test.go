@@ -166,7 +166,7 @@ func deleteItemThatDoesNotExist(t *testing.T, pgs *postgresql.PostgreSQL) {
 		Key: randomKey(),
 	}
 	err := pgs.Delete(context.Background(), deleteReq)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func multiWithSetOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
@@ -184,7 +184,7 @@ func multiWithSetOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
 	err := pgs.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	for _, set := range setRequests {
 		assert.True(t, storeItemExists(t, set.Key))
@@ -211,7 +211,7 @@ func multiWithDeleteOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
 	err := pgs.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	for _, delete := range deleteRequests {
 		assert.False(t, storeItemExists(t, delete.Key))
@@ -248,7 +248,7 @@ func multiWithDeleteAndSet(t *testing.T, pgs *postgresql.PostgreSQL) {
 	err := pgs.Multi(context.Background(), &state.TransactionalStateRequest{
 		Operations: operations,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	for _, delete := range deleteRequests {
 		assert.False(t, storeItemExists(t, delete.Key))
@@ -273,7 +273,7 @@ func deleteWithInvalidEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 		ETag: &etag,
 	}
 	err := pgs.Delete(context.Background(), deleteReq)
-	assert.NotNil(t, err)
+	require.Error(t, err)
 }
 
 func deleteWithNoKeyFails(t *testing.T, pgs *postgresql.PostgreSQL) {
@@ -281,7 +281,7 @@ func deleteWithNoKeyFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 		Key: "",
 	}
 	err := pgs.Delete(context.Background(), deleteReq)
-	assert.NotNil(t, err)
+	require.Error(t, err)
 }
 
 // newItemWithEtagFails creates a new item and also supplies an ETag, which is invalid - expect failure.
@@ -296,7 +296,7 @@ func newItemWithEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 	}
 
 	err := pgs.Set(context.Background(), setReq)
-	assert.NotNil(t, err)
+	require.Error(t, err)
 }
 
 func updateWithOldEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
@@ -322,7 +322,7 @@ func updateWithOldEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 		Value: newValue,
 	}
 	err := pgs.Set(context.Background(), setReq)
-	assert.NotNil(t, err)
+	require.Error(t, err)
 }
 
 func updateAndDeleteWithEtagSucceeds(t *testing.T, pgs *postgresql.PostgreSQL) {
@@ -364,7 +364,7 @@ func getItemWithNoKey(t *testing.T, pgs *postgresql.PostgreSQL) {
 	}
 
 	response, getErr := pgs.Get(context.Background(), getReq)
-	assert.NotNil(t, getErr)
+	require.Error(t, getErr)
 	assert.Nil(t, response)
 }
 
@@ -396,7 +396,7 @@ func setItemWithNoKey(t *testing.T, pgs *postgresql.PostgreSQL) {
 	}
 
 	err := pgs.Set(context.Background(), setReq)
-	assert.NotNil(t, err)
+	require.Error(t, err)
 }
 
 // Tests valid bulk sets and deletes.
@@ -413,7 +413,7 @@ func testBulkSetAndBulkDelete(t *testing.T, pgs *postgresql.PostgreSQL) {
 	}
 
 	err := pgs.BulkSet(context.Background(), setReq, state.BulkStoreOpts{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, storeItemExists(t, setReq[0].Key))
 	assert.True(t, storeItemExists(t, setReq[1].Key))
 
@@ -427,7 +427,7 @@ func testBulkSetAndBulkDelete(t *testing.T, pgs *postgresql.PostgreSQL) {
 	}
 
 	err = pgs.BulkDelete(context.Background(), deleteReq, state.BulkStoreOpts{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.False(t, storeItemExists(t, setReq[0].Key))
 	assert.False(t, storeItemExists(t, setReq[1].Key))
 }
@@ -463,10 +463,10 @@ func testInitConfiguration(t *testing.T) {
 
 			err := p.Init(context.Background(), metadata)
 			if tt.expectedErr == nil {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			} else {
-				assert.Error(t, err)
-				assert.Equal(t, err, tt.expectedErr)
+				require.Error(t, err)
+				assert.Equal(t, tt.expectedErr, err)
 			}
 		})
 	}
@@ -484,7 +484,7 @@ func setItem(t *testing.T, pgs *postgresql.PostgreSQL, key string, value interfa
 	}
 
 	err := pgs.Set(context.Background(), setReq)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	itemExists := storeItemExists(t, key)
 	assert.True(t, itemExists)
 }
@@ -496,7 +496,7 @@ func getItem(t *testing.T, pgs *postgresql.PostgreSQL, key string) (*state.GetRe
 	}
 
 	response, getErr := pgs.Get(context.Background(), getReq)
-	assert.Nil(t, getErr)
+	require.NoError(t, getErr)
 	assert.NotNil(t, response)
 	outputObject := &fakeItem{}
 	_ = json.Unmarshal(response.Data, outputObject)
@@ -512,7 +512,7 @@ func deleteItem(t *testing.T, pgs *postgresql.PostgreSQL, key string, etag *stri
 	}
 
 	deleteErr := pgs.Delete(context.Background(), deleteReq)
-	assert.Nil(t, deleteErr)
+	require.NoError(t, deleteErr)
 	assert.False(t, storeItemExists(t, key))
 }
 
@@ -525,7 +525,7 @@ func storeItemExists(t *testing.T, key string) bool {
 	exists := false
 	statement := `SELECT EXISTS (SELECT FROM state WHERE key = $1)`
 	err = db.QueryRow(ctx, statement, key).Scan(&exists)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	return exists
 }
@@ -538,7 +538,7 @@ func getRowData(t *testing.T, key string) (returnValue string, insertdate *time.
 
 	err = db.QueryRow(ctx, "SELECT value, insertdate, updatedate FROM state WHERE key = $1", key).
 		Scan(&returnValue, &insertdate, &updatedate)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	return returnValue, insertdate, updatedate
 }

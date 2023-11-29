@@ -21,6 +21,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	redisComponent "github.com/dapr/components-contrib/common/component/redis"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
@@ -32,8 +33,8 @@ import (
 func TestConfigurationStore_Get(t *testing.T) {
 	s, c := setupMiniredis()
 	defer s.Close()
-	assert.Nil(t, s.Set("testKey", "testValue"))
-	assert.Nil(t, s.Set("testKey2", "testValue2"))
+	require.NoError(t, s.Set("testKey", "testValue"))
+	require.NoError(t, s.Set("testKey2", "testValue2"))
 	type fields struct {
 		client redisComponent.RedisClient
 

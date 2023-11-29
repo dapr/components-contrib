@@ -57,7 +57,7 @@ func TestCockroach(t *testing.T) {
 
 	stateStore := state_cockroach.New(log).(*postgresql.PostgreSQLQuery)
 	ports, err := dapr_testing.GetFreePorts(3)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	stateRegistry := state_loader.NewRegistry()
 	stateRegistry.Logger = log
@@ -96,26 +96,26 @@ func TestCockroach(t *testing.T) {
 		defer client.Close()
 
 		err = client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("certificationdata"), nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// get state
 		item, err := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "certificationdata", string(item.Value))
 
 		errUpdate := client.SaveState(ctx, stateStoreName, certificationTestPrefix+"key1", []byte("cockroachCertUpdate"), nil)
-		assert.NoError(t, errUpdate)
+		require.NoError(t, errUpdate)
 		item, errUpdatedGet := client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, errUpdatedGet)
+		require.NoError(t, errUpdatedGet)
 		assert.Equal(t, "cockroachCertUpdate", string(item.Value))
 
 		// delete state
 		err = client.DeleteState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// get state
 		item, errUpdatedGet = client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-		assert.NoError(t, errUpdatedGet)
+		require.NoError(t, errUpdatedGet)
 		assert.Equal(t, []byte(nil), item.Value)
 		return nil
 	}
@@ -131,7 +131,7 @@ func TestCockroach(t *testing.T) {
 		resp, err := stateStore.Get(context.Background(), &state.GetRequest{
 			Key: keyOneString,
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "2", *resp.ETag) // 2 is returned since the previous etag value of "1" was incremented by 1 when the update occurred
 		assert.Equal(t, `"Overwrite Success"`, string(resp.Data))
 
@@ -148,7 +148,7 @@ func TestCockroach(t *testing.T) {
 			Key:   keyOneString,
 			Value: "v1",
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Setting with an etag wil do an update, not an insert so an error is expected since the etag of 100 is not present
 		err = stateStore.Set(context.Background(), &state.SetRequest{
@@ -161,7 +161,7 @@ func TestCockroach(t *testing.T) {
 		resp, err := stateStore.Get(context.Background(), &state.GetRequest{
 			Key: keyOneString,
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, etag1, *resp.ETag)           // 1 is returned since the default when the new data is written is a value of 1
 		assert.Equal(t, "\"v1\"", string(resp.Data)) // v1 is returned since it was the only item successfully inserted with the key of keyOneString
 
@@ -172,12 +172,12 @@ func TestCockroach(t *testing.T) {
 			Value: "Overwrite Success",
 			ETag:  &etag1,
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		resp, err = stateStore.Get(context.Background(), &state.GetRequest{
 			Key: keyOneString,
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "2", *resp.ETag) // 2 is returned since the previous etag value of "1" was incremented by 1 when the update occurred
 		assert.Equal(t, "\"Overwrite Success\"", string(resp.Data))
 
@@ -188,11 +188,11 @@ func TestCockroach(t *testing.T) {
 	transactionsTest := func(ctx flow.Context) error {
 		// Set state to allow for a delete operation inside the multi list
 		err = stateStore.Set(context.Background(), &state.SetRequest{Key: certificationTestPrefix + "key1", Value: []byte("certificationdata")})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// get state
 		item, errUpdatedGet := stateStore.Get(context.Background(), &state.GetRequest{Key: certificationTestPrefix + "key1"})
-		assert.NoError(t, errUpdatedGet)
+		require.NoError(t, errUpdatedGet)
 		assert.Equal(t, []byte("certificationdata"), item.Data)
 
 		err = stateStore.Multi(context.Background(), &state.TransactionalStateRequest{
@@ -235,24 +235,24 @@ func TestCockroach(t *testing.T) {
 				},
 			},
 		})
-		assert.Equal(t, nil, err)
+		require.NoError(t, err)
 
 		// get state
 		item, errUpdatedGet = stateStore.Get(context.Background(), &state.GetRequest{Key: certificationTestPrefix + "key1"})
-		assert.NoError(t, errUpdatedGet)
+		require.NoError(t, errUpdatedGet)
 		assert.Equal(t, []byte(nil), item.Data)
 
 		resp1, err := stateStore.Get(context.Background(), &state.GetRequest{
 			Key: "reqKey1",
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "2", *resp1.ETag)
 		assert.Equal(t, "\"reqVal101\"", string(resp1.Data))
 
 		resp3, err := stateStore.Get(context.Background(), &state.GetRequest{
 			Key: "reqKey3",
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "2", *resp3.ETag)
 		assert.Equal(t, "\"reqVal103\"", string(resp3.Data))
 		require.Contains(t, resp3.Metadata, "ttlExpireTime")

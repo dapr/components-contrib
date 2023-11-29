@@ -52,7 +52,7 @@ func TestMetadata(t *testing.T) {
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
 		require.NoError(t, err)
-		assert.Equal(t, m.TableName(pgTableState), "state")
+		assert.Equal(t, "state", m.TableName(pgTableState))
 	})
 
 	t.Run("custom table prefix", func(t *testing.T) {
@@ -64,7 +64,7 @@ func TestMetadata(t *testing.T) {
 
 		err := m.InitWithMetadata(state.Metadata{Base: metadata.Base{Properties: props}}, false)
 		require.NoError(t, err)
-		assert.Equal(t, m.TableName(pgTableState), "my_state")
+		assert.Equal(t, "my_state", m.TableName(pgTableState))
 	})
 
 	t.Run("default timeout", func(t *testing.T) {

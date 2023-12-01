@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -40,16 +41,16 @@ func TestParseMetadata(t *testing.T) {
 		s3 := AWSS3{}
 		meta, err := s3.parseMetadata(m)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "key", meta.AccessKey)
 		assert.Equal(t, "region", meta.Region)
 		assert.Equal(t, "secret", meta.SecretKey)
 		assert.Equal(t, "test", meta.Bucket)
 		assert.Equal(t, "endpoint", meta.Endpoint)
 		assert.Equal(t, "token", meta.SessionToken)
-		assert.Equal(t, true, meta.ForcePathStyle)
-		assert.Equal(t, true, meta.DisableSSL)
-		assert.Equal(t, true, meta.InsecureSSL)
+		assert.True(t, meta.ForcePathStyle)
+		assert.True(t, meta.DisableSSL)
+		assert.True(t, meta.InsecureSSL)
 	})
 }
 
@@ -67,14 +68,14 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		}
 		s3 := AWSS3{}
 		meta, err := s3.parseMetadata(m)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "key", meta.AccessKey)
 		assert.Equal(t, "region", meta.Region)
 		assert.Equal(t, "secret", meta.SecretKey)
 		assert.Equal(t, "test", meta.Bucket)
 		assert.Equal(t, "endpoint", meta.Endpoint)
 		assert.Equal(t, "token", meta.SessionToken)
-		assert.Equal(t, true, meta.ForcePathStyle)
+		assert.True(t, meta.ForcePathStyle)
 
 		request := bindings.InvokeRequest{}
 		request.Metadata = map[string]string{
@@ -86,16 +87,16 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 
 		mergedMeta, err := meta.mergeWithRequestMetadata(&request)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "key", mergedMeta.AccessKey)
 		assert.Equal(t, "region", mergedMeta.Region)
 		assert.Equal(t, "secret", mergedMeta.SecretKey)
 		assert.Equal(t, "test", mergedMeta.Bucket)
 		assert.Equal(t, "endpoint", mergedMeta.Endpoint)
 		assert.Equal(t, "token", mergedMeta.SessionToken)
-		assert.Equal(t, true, meta.ForcePathStyle)
-		assert.Equal(t, true, mergedMeta.DecodeBase64)
-		assert.Equal(t, false, mergedMeta.EncodeBase64)
+		assert.True(t, meta.ForcePathStyle)
+		assert.True(t, mergedMeta.DecodeBase64)
+		assert.False(t, mergedMeta.EncodeBase64)
 		assert.Equal(t, "/usr/vader.darth", mergedMeta.FilePath)
 		assert.Equal(t, "15s", mergedMeta.PresignTTL)
 	})
@@ -113,14 +114,14 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		}
 		s3 := AWSS3{}
 		meta, err := s3.parseMetadata(m)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "key", meta.AccessKey)
 		assert.Equal(t, "region", meta.Region)
 		assert.Equal(t, "secret", meta.SecretKey)
 		assert.Equal(t, "test", meta.Bucket)
 		assert.Equal(t, "endpoint", meta.Endpoint)
 		assert.Equal(t, "token", meta.SessionToken)
-		assert.Equal(t, true, meta.ForcePathStyle)
+		assert.True(t, meta.ForcePathStyle)
 
 		request := bindings.InvokeRequest{}
 		request.Metadata = map[string]string{
@@ -129,7 +130,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 
 		mergedMeta, err := meta.mergeWithRequestMetadata(&request)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.False(t, mergedMeta.DecodeBase64)
 	})
 
@@ -146,14 +147,14 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 		}
 		s3 := AWSS3{}
 		meta, err := s3.parseMetadata(m)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "key", meta.AccessKey)
 		assert.Equal(t, "region", meta.Region)
 		assert.Equal(t, "secret", meta.SecretKey)
 		assert.Equal(t, "test", meta.Bucket)
 		assert.Equal(t, "endpoint", meta.Endpoint)
 		assert.Equal(t, "token", meta.SessionToken)
-		assert.Equal(t, true, meta.ForcePathStyle)
+		assert.True(t, meta.ForcePathStyle)
 
 		request := bindings.InvokeRequest{}
 		request.Metadata = map[string]string{
@@ -162,7 +163,7 @@ func TestMergeWithRequestMetadata(t *testing.T) {
 
 		mergedMeta, err := meta.mergeWithRequestMetadata(&request)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.False(t, mergedMeta.EncodeBase64)
 	})
 }
@@ -174,7 +175,7 @@ func TestGetOption(t *testing.T) {
 	t.Run("return error if key is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
 		_, err := s3.get(context.Background(), &r)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -185,6 +186,6 @@ func TestDeleteOption(t *testing.T) {
 	t.Run("return error if key is missing", func(t *testing.T) {
 		r := bindings.InvokeRequest{}
 		_, err := s3.delete(context.Background(), &r)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }

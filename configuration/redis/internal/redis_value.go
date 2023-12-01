@@ -15,6 +15,7 @@ package internal
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -35,7 +36,7 @@ func GetRedisValueAndVersion(redisValue string) (string, string) {
 }
 
 func ParseRedisKeyFromChannel(eventChannel string, redisDB int) (string, error) {
-	channelPrefix := keySpacePrefix + fmt.Sprint(redisDB) + "__:"
+	channelPrefix := keySpacePrefix + strconv.Itoa(redisDB) + "__:"
 	index := strings.Index(eventChannel, channelPrefix)
 	if index == -1 {
 		return "", fmt.Errorf("wrong format of event channel, it should start with '%s': eventChannel=%s", channelPrefix, eventChannel)
@@ -45,6 +46,6 @@ func ParseRedisKeyFromChannel(eventChannel string, redisDB int) (string, error) 
 }
 
 func GetRedisChannelFromKey(key string, redisDB int) string {
-	redisEvent := keySpacePrefix + fmt.Sprint(redisDB) + "__:" + key
+	redisEvent := keySpacePrefix + strconv.Itoa(redisDB) + "__:" + key
 	return redisEvent
 }

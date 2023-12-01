@@ -226,11 +226,11 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseMQTTMetaData(fakeMetaData, log)
 
 		// assert
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, fakeProperties[mqttURL], m.URL)
 		assert.Equal(t, byte(1), m.Qos)
-		assert.Equal(t, true, m.Retain)
-		assert.Equal(t, false, m.CleanSession)
+		assert.True(t, m.Retain)
+		assert.False(t, m.CleanSession)
 	})
 
 	t.Run("missing consumerID", func(t *testing.T) {
@@ -254,7 +254,7 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseMQTTMetaData(fakeMetaData, log)
 
 		// assert
-		assert.ErrorContains(t, err, "missing url")
+		require.ErrorContains(t, err, "missing url")
 		assert.Equal(t, fakeProperties[mqttURL], m.URL)
 	})
 
@@ -273,7 +273,7 @@ func TestParseMetadata(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, fakeProperties[mqttURL], m.URL)
 		assert.Equal(t, byte(1), m.Qos)
-		assert.Equal(t, false, m.Retain)
+		assert.False(t, m.Retain)
 	})
 
 	t.Run("invalid ca certificate", func(t *testing.T) {
@@ -293,7 +293,7 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseMQTTMetaData(fakeMetaData, log)
 
 		// assert
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		block, _ := pem.Decode([]byte(m.TLSProperties.CACert))
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
@@ -319,7 +319,7 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseMQTTMetaData(fakeMetaData, log)
 
 		// assert
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		block, _ := pem.Decode([]byte(m.TLSProperties.ClientCert))
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
@@ -345,7 +345,7 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseMQTTMetaData(fakeMetaData, log)
 
 		// assert
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, m.TLSProperties.ClientKey, "failed to parse valid client certificate key")
 	})
 }

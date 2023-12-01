@@ -54,7 +54,7 @@ func ConformanceTests(t *testing.T, props map[string]string, workflowItem workfl
 		err := workflowItem.Init(workflows.Metadata{Base: metadata.Base{
 			Properties: props,
 		}})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	// Everything is within the same task since the workflow needs to persist between operations
@@ -97,7 +97,7 @@ func ConformanceTests(t *testing.T, props map[string]string, workflowItem workfl
 
 		t.Run("terminate", func(t *testing.T) {
 			err := workflowItem.Terminate(context.Background(), &workflows.TerminateRequest{InstanceID: testInstanceID})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 
 		// Give the workflow time to process the terminate request

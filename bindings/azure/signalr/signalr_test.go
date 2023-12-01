@@ -264,7 +264,7 @@ func TestInvalidConfigurations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewSignalR(logger.NewLogger("test")).(*SignalR)
 			err := s.parseMetadata(tt.properties)
-			assert.Error(t, err)
+			require.Error(t, err)
 		})
 	}
 }
@@ -318,7 +318,7 @@ func TestWriteShouldFail(t *testing.T) {
 			Metadata: map[string]string{},
 		})
 
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("SignalR call failed should be returned", func(t *testing.T) {
@@ -346,7 +346,7 @@ func TestWriteShouldFail(t *testing.T) {
 			},
 		})
 
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -407,7 +407,7 @@ func TestWriteShouldSucceed(t *testing.T) {
 				},
 			})
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, int32(1), httpTransport.requestCount)
 			assert.Equal(t, tt.expectedURL, httpTransport.request.URL.String())
 			assert.NotNil(t, httpTransport.request)
@@ -441,7 +441,7 @@ func TestGetShouldSucceed(t *testing.T) {
 			Operation: "clientNegotiate",
 		})
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		// when it is accessKey mode, there is no outbound call
 		assert.Equal(t, int32(0), httpTransport.requestCount)
 
@@ -450,13 +450,13 @@ func TestGetShouldSucceed(t *testing.T) {
 		assert.NotNil(t, res.Data)
 		var data map[string]string
 		err = json.Unmarshal(res.Data, &data)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "https://fake.service.signalr.net/client/?hub=testhub", data["url"])
 		accessToken := data["accessToken"]
 		assert.NotNil(t, accessToken)
 		claims, err := jwt.ParseString(accessToken, jwt.WithVerify(false))
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		audience := claims.Audience()
 		assert.Equal(t, []string{"https://fake.service.signalr.net/client/?hub=testhub"}, audience)
 	})
@@ -472,7 +472,7 @@ func TestGetShouldSucceed(t *testing.T) {
 			Operation: "clientNegotiate",
 		})
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		// when it is accessKey mode, there is no outbound call
 		assert.Equal(t, int32(0), httpTransport.requestCount)
 
@@ -481,13 +481,13 @@ func TestGetShouldSucceed(t *testing.T) {
 		assert.NotNil(t, res.Data)
 		var data map[string]string
 		err = json.Unmarshal(res.Data, &data)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "https://fake.service.signalr.net/client/?hub=testhub", data["url"])
 		accessToken := data["accessToken"]
 		assert.NotNil(t, accessToken)
 		claims, err := jwt.ParseString(accessToken, jwt.WithVerify(false))
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		audience := claims.Audience()
 		assert.Equal(t, []string{"https://fake.service.signalr.net/client/?hub=testhub"}, audience)
 		user := claims.Subject()
@@ -508,7 +508,7 @@ func TestGetShouldSucceed(t *testing.T) {
 			Operation: "clientNegotiate",
 		})
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		// when it is accessKey mode, there is no outbound call
 
 		assert.Equal(t, int32(1), httpTransport.requestCount)
@@ -520,7 +520,7 @@ func TestGetShouldSucceed(t *testing.T) {
 		assert.NotNil(t, res.Data)
 		var data map[string]string
 		err = json.Unmarshal(res.Data, &data)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "https://fake.service.signalr.net/client/?hub=testhub", data["url"])
 		accessToken := data["accessToken"]
 		assert.Equal(t, "ABCDEFG.ABC.ABC", accessToken)

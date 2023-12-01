@@ -97,7 +97,7 @@ func TestParseMetadata(t *testing.T) {
 			"audience": "foo",
 		})
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "metadata property 'issuer' is required")
+		require.ErrorContains(t, err, "metadata property 'issuer' is required")
 	})
 
 	t.Run("missing audience", func(t *testing.T) {
@@ -105,6 +105,6 @@ func TestParseMetadata(t *testing.T) {
 			"issuer": "http://localhost",
 		})
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "metadata property 'audience' is required")
+		require.ErrorContains(t, err, "metadata property 'audience' is required")
 	})
 }

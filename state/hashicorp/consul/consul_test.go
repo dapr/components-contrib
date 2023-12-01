@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -33,7 +34,7 @@ func TestGetConsulMetadata(t *testing.T) {
 		}
 
 		metadata, err := metadataToConfig(m.Properties)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, properties["datacenter"], metadata.Datacenter)
 		assert.Equal(t, properties["httpAddr"], metadata.HTTPAddr)
 	})
@@ -51,7 +52,7 @@ func TestGetConsulMetadata(t *testing.T) {
 		}
 
 		metadata, err := metadataToConfig(m.Properties)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, properties["datacenter"], metadata.Datacenter)
 		assert.Equal(t, properties["httpAddr"], metadata.HTTPAddr)
 		assert.Equal(t, properties["aclToken"], metadata.ACLToken)

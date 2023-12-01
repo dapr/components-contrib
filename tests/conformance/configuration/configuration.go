@@ -237,7 +237,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 					processedC1 <- e
 					return nil
 				})
-			assert.NoError(t, err, "expected no error on subscribe")
+			require.NoError(t, err, "expected no error on subscribe")
 			subscribeIDs = append(subscribeIDs, ID)
 		})
 
@@ -252,7 +252,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 					processedC2 <- e
 					return nil
 				})
-			assert.NoError(t, err, "expected no error on subscribe")
+			require.NoError(t, err, "expected no error on subscribe")
 			subscribeIDs = append(subscribeIDs, ID)
 		})
 
@@ -267,7 +267,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 					processedC3 <- e
 					return nil
 				})
-			assert.NoError(t, err, "expected no error on subscribe")
+			require.NoError(t, err, "expected no error on subscribe")
 			subscribeIDs = append(subscribeIDs, ID)
 		})
 
@@ -278,7 +278,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 		t.Run("update key values and verify messages received", func(t *testing.T) {
 			initValues1, counter = updateKeyValues(initValues1, runID, counter, v1)
 			errUpdate1 := updater.UpdateKey(initValues1)
-			assert.NoError(t, errUpdate1, "expected no error on updating keys")
+			require.NoError(t, errUpdate1, "expected no error on updating keys")
 
 			updateAwaitingMessages(awaitingMessages1, initValues1)
 			updateAwaitingMessages(awaitingMessages2, initValues1)
@@ -287,14 +287,14 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 			// Update initValues2
 			initValues2, counter = updateKeyValues(initValues2, runID, counter, v1)
 			errUpdate2 := updater.UpdateKey(initValues2)
-			assert.NoError(t, errUpdate2, "expected no error on updating keys")
+			require.NoError(t, errUpdate2, "expected no error on updating keys")
 
 			updateAwaitingMessages(awaitingMessages2, initValues2)
 			updateAwaitingMessages(awaitingMessages3, initValues2)
 
 			newValues, counter = generateKeyValues(runID, counter, keyCount, v1)
 			errAdd := updater.AddKey(newValues)
-			assert.NoError(t, errAdd, "expected no error on adding new keys")
+			require.NoError(t, errAdd, "expected no error on adding new keys")
 
 			updateAwaitingMessages(awaitingMessages3, newValues)
 
@@ -306,7 +306,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 		t.Run("delete keys and verify messages received", func(t *testing.T) {
 			// Delete initValues2
 			errDelete := updater.DeleteKey(getKeys(initValues2))
-			assert.NoError(t, errDelete, "expected no error on updating keys")
+			require.NoError(t, errDelete, "expected no error on updating keys")
 			if !strings.HasPrefix(component, postgresComponent) {
 				for k := range initValues2 {
 					initValues2[k] = &configuration.Item{}
@@ -328,13 +328,13 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 					ID: subscribeIDs[0],
 				},
 			)
-			assert.NoError(t, err, "expected no error in unsubscribe")
+			require.NoError(t, err, "expected no error in unsubscribe")
 		})
 
 		t.Run("update key values and verify subscriber 1 receives no messages", func(t *testing.T) {
 			initValues1, counter = updateKeyValues(initValues1, runID, counter, v1)
 			errUpdate := updater.UpdateKey(initValues1)
-			assert.NoError(t, errUpdate, "expected no error on updating keys")
+			require.NoError(t, errUpdate, "expected no error on updating keys")
 
 			updateAwaitingMessages(awaitingMessages2, initValues1)
 			updateAwaitingMessages(awaitingMessages3, initValues1)
@@ -350,13 +350,13 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 					ID: subscribeIDs[1],
 				},
 			)
-			assert.NoError(t, err, "expected no error in unsubscribe")
+			require.NoError(t, err, "expected no error in unsubscribe")
 		})
 
 		t.Run("update key values and verify subscriber 2 receives no messages", func(t *testing.T) {
 			initValues1, counter = updateKeyValues(initValues1, runID, counter, v1)
 			errUpdate := updater.UpdateKey(initValues1)
-			assert.NoError(t, errUpdate, "expected no error on updating keys")
+			require.NoError(t, errUpdate, "expected no error on updating keys")
 
 			updateAwaitingMessages(awaitingMessages3, initValues1)
 
@@ -370,13 +370,13 @@ func ConformanceTests(t *testing.T, props map[string]string, store configuration
 					ID: subscribeIDs[2],
 				},
 			)
-			assert.NoError(t, err, "expected no error in unsubscribe")
+			require.NoError(t, err, "expected no error in unsubscribe")
 		})
 
 		t.Run("update key values and verify subscriber 3 receives no messages", func(t *testing.T) {
 			initValues1, counter = updateKeyValues(initValues1, runID, counter, v1)
 			errUpdate := updater.UpdateKey(initValues1)
-			assert.NoError(t, errUpdate, "expected no error on updating keys")
+			require.NoError(t, errUpdate, "expected no error on updating keys")
 
 			verifyNoMessagesReceived(t, processedC3)
 		})

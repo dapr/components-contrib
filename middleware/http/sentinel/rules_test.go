@@ -21,7 +21,7 @@ import (
 	"github.com/alibaba/sentinel-golang/core/flow"
 	"github.com/alibaba/sentinel-golang/core/isolation"
 	"github.com/alibaba/sentinel-golang/core/system"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFlowRules(t *testing.T) {
@@ -37,7 +37,7 @@ func TestFlowRules(t *testing.T) {
 	b, _ := json.Marshal(rules)
 	t.Logf("%s", b)
 	err := loadRules(string(b), newFlowRuleDataSource)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func TestCircuitBreakerRules(t *testing.T) {
@@ -55,7 +55,7 @@ func TestCircuitBreakerRules(t *testing.T) {
 	b, _ := json.Marshal(rules)
 	t.Logf("%s", b)
 	err := loadRules(string(b), newCircuitBreakerRuleDataSource)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func TestHotspotParamRules(t *testing.T) {
@@ -73,7 +73,7 @@ func TestHotspotParamRules(t *testing.T) {
 ]
 `
 	err := loadRules(rules, newHotSpotParamRuleDataSource)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func TestIsolationRules(t *testing.T) {
@@ -88,7 +88,7 @@ func TestIsolationRules(t *testing.T) {
 	b, _ := json.Marshal(rules)
 	t.Logf("%s", b)
 	err := loadRules(string(b), newIsolationRuleDataSource)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func TestSystemRules(t *testing.T) {
@@ -104,5 +104,5 @@ func TestSystemRules(t *testing.T) {
 	b, _ := json.Marshal(rules)
 	t.Logf("%s", b)
 	err := loadRules(string(b), newSystemRuleDataSource)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 }

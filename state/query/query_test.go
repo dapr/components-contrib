@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestQuery(t *testing.T) {
@@ -133,10 +134,10 @@ func TestQuery(t *testing.T) {
 	}
 	for _, test := range tests {
 		data, err := os.ReadFile(test.input)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		var q Query
 		err = json.Unmarshal(data, &q)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, test.query, q)
 	}
 }

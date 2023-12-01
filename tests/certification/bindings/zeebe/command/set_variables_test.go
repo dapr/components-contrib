@@ -29,6 +29,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSetVariablesOperation(t *testing.T) {
@@ -51,7 +52,7 @@ func TestSetVariablesOperation(t *testing.T) {
 			1,
 			zeebe_test.IDModifier(id))
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, id, deployment.Deployments[0].Metadata.Process.BpmnProcessId)
 
 		return nil
@@ -68,7 +69,7 @@ func TestSetVariablesOperation(t *testing.T) {
 				"foo": "bar",
 			},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotEqual(t, 0, processInstance.ProcessInstanceKey)
 
 		processInstanceKey = processInstance.ProcessInstanceKey
@@ -86,14 +87,14 @@ func TestSetVariablesOperation(t *testing.T) {
 				"foo": "bar",
 			},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		res, err := zeebe_test.ExecCommandOperation(ctx, client, bindings_zeebe_command.SetVariablesOperation, data, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		variableResponse := &pb.SetVariablesResponse{}
 		err = json.Unmarshal(res.Data, variableResponse)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotEqual(t, 0, variableResponse.Key)
 		assert.Nil(t, res.Metadata)
 
@@ -110,10 +111,10 @@ func TestSetVariablesOperation(t *testing.T) {
 				"foo": "bar",
 			},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		_, err = zeebe_test.ExecCommandOperation(ctx, client, bindings_zeebe_command.SetVariablesOperation, data, nil)
-		assert.Error(t, err)
+		require.Error(t, err)
 
 		return nil
 	}

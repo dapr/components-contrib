@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -41,13 +42,13 @@ func TestGetFirestoreMetadata(t *testing.T) {
 			Base: metadata.Base{Properties: properties},
 		}
 		metadata, err := getFirestoreMetadata(m)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "service_account", metadata.Type)
 		assert.Equal(t, "myprojectid", metadata.ProjectID)
 		assert.Equal(t, "123", metadata.PrivateKeyID)
 		assert.Equal(t, "mykey", metadata.PrivateKey)
 		assert.Equal(t, defaultEntityKind, metadata.EntityKind)
-		assert.Equal(t, true, metadata.NoIndex)
+		assert.True(t, metadata.NoIndex)
 	})
 
 	t.Run("With incorrect properties", func(t *testing.T) {
@@ -60,6 +61,6 @@ func TestGetFirestoreMetadata(t *testing.T) {
 			Base: metadata.Base{Properties: properties},
 		}
 		_, err := getFirestoreMetadata(m)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }

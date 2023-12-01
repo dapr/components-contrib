@@ -58,6 +58,7 @@ metadata:
     type: string
   - name: clientKey
     required: false
+    sensitive: true
     description: |
       TLS client key in PEM format, for using TLS.
     example: '"-----BEGIN PRIVATE KEY-----\n<base64-encoded PKCS8>\n-----END RSA PRIVATE KEY-----"'

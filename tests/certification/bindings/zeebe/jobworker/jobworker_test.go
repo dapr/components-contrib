@@ -42,6 +42,7 @@ import (
 	"github.com/dapr/go-sdk/service/common"
 	"github.com/dapr/kit/logger"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 )
 
@@ -66,7 +67,6 @@ func deployCalcProcess(
 		zeebe_test.CalcProcessFile,
 		1,
 		zeebe_test.IDModifier(id))
-
 	if err != nil {
 		return err
 	}
@@ -87,7 +87,6 @@ func deployTestProcess(
 		1,
 		zeebe_test.IDModifier(id),
 		zeebe_test.RetryModifier("zeebe-jobworker-test", retries))
-
 	if err != nil {
 		return err
 	}
@@ -193,7 +192,7 @@ func calcResultWorker(
 	return func(context context.Context, in *common.BindingEvent) ([]byte, error) {
 		result := &calcResult{}
 		err := json.Unmarshal(in.Data, result)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, expectedResult, result.Result)
 
 		atomic.AddInt32(count, 1)
@@ -219,7 +218,7 @@ func calcVariablesWorker(
 	return func(context context.Context, in *common.BindingEvent) ([]byte, error) {
 		vars := &calcVariables{}
 		err := json.Unmarshal(in.Data, vars)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, expectedOperator, vars.Operator)
 		assert.Equal(t, expectedFirstOperand, vars.FirstOperand)
 		assert.Equal(t, expectedSecondOperand, vars.SecondOperand)
@@ -253,7 +252,7 @@ func TestCalcJobworkerByInstanceCreationWithAutocompleteTrue(t *testing.T) {
 		defer client.Close()
 
 		err := deployCalcProcess(client, id)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		_, err = zeebe_test.CreateProcessInstance(client, ctx, map[string]interface{}{
 			"bpmnProcessId": id,
@@ -263,7 +262,7 @@ func TestCalcJobworkerByInstanceCreationWithAutocompleteTrue(t *testing.T) {
 				"secondOperand": 4,
 			},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		select {
 		case <-ch:
@@ -317,7 +316,7 @@ func TestCalcJobworkerBySendingMessageWithAutocompleteFalse(t *testing.T) {
 		defer client.Close()
 
 		err := deployCalcProcess(client, id)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		data, _ := json.Marshal(map[string]interface{}{
 			"messageName": "start-calc",
@@ -331,7 +330,7 @@ func TestCalcJobworkerBySendingMessageWithAutocompleteFalse(t *testing.T) {
 		assert.NotNil(t, data)
 
 		_, err = zeebe_test.ExecCommandOperation(context.Background(), client, bindings_zeebe_command.PublishMessageOperation, data, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		select {
 		case <-ch:
@@ -394,12 +393,12 @@ func TestWorkerRetriesThreeTimes(t *testing.T) {
 		defer client.Close()
 
 		err := deployTestProcess(client, id, 3)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		_, err = zeebe_test.CreateProcessInstance(client, ctx, map[string]interface{}{
 			"bpmnProcessId": id,
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		select {
 		case <-ch:
@@ -483,12 +482,12 @@ func TestWorkerReceivesAllHeaders(t *testing.T) {
 		defer client.Close()
 
 		err := deployTestProcess(client, id, 3)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		_, err = zeebe_test.CreateProcessInstance(client, ctx, map[string]interface{}{
 			"bpmnProcessId": id,
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		select {
 		case <-ch:
@@ -541,7 +540,7 @@ func TestWorkerFetchesAllVariables(t *testing.T) {
 		defer client.Close()
 
 		err := deployTestProcess(client, id, 1)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		_, err = zeebe_test.CreateProcessInstance(client, ctx, map[string]interface{}{
 			"bpmnProcessId": id,
@@ -551,7 +550,7 @@ func TestWorkerFetchesAllVariables(t *testing.T) {
 				"secondOperand": 3,
 			},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		select {
 		case <-ch:
@@ -604,7 +603,7 @@ func TestWorkerFetchesSelectedVariables(t *testing.T) {
 		defer client.Close()
 
 		err := deployTestProcess(client, id, 1)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		_, err = zeebe_test.CreateProcessInstance(client, ctx, map[string]interface{}{
 			"bpmnProcessId": id,
@@ -614,7 +613,7 @@ func TestWorkerFetchesSelectedVariables(t *testing.T) {
 				"secondOperand": 3,
 			},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		select {
 		case <-ch:
@@ -677,12 +676,12 @@ func TestJobWorkerHandlesOutage(t *testing.T) {
 		defer client.Close()
 
 		err := deployTestProcess(client, id, 100)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		_, err = zeebe_test.CreateProcessInstance(client, ctx, map[string]interface{}{
 			"bpmnProcessId": id,
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		select {
 		case <-ch:
@@ -755,13 +754,13 @@ func TestWorkerHandlesConcurrency(t *testing.T) {
 		defer client.Close()
 
 		err := deployTestProcess(client, id, 1)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		for i := 0; i < 50; i++ {
 			_, err = zeebe_test.CreateProcessInstance(client, ctx, map[string]interface{}{
 				"bpmnProcessId": id,
 			})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 
 		return nil
@@ -831,12 +830,12 @@ func TestJobWorkerHandlesTls(t *testing.T) {
 		defer client.Close()
 
 		err := deployTestProcess(client, id, 100)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		_, err = zeebe_test.CreateProcessInstance(client, ctx, map[string]interface{}{
 			"bpmnProcessId": id,
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		select {
 		case <-ch:
@@ -900,12 +899,12 @@ func TestJobWorkerHandlesRetryBackOff(t *testing.T) {
 		defer client.Close()
 
 		err := deployTestProcess(client, id, 3)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		_, err = zeebe_test.CreateProcessInstance(client, ctx, map[string]interface{}{
 			"bpmnProcessId": id,
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		start := time.Now()
 

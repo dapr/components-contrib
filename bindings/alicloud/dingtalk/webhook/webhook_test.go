@@ -45,7 +45,7 @@ func TestPublishMsg(t *testing.T) { //nolint:paralleltest
 		}
 
 		body, err := io.ReadAll(r.Body)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, msg, string(body))
 	}))
 	defer ts.Close()
@@ -79,7 +79,7 @@ func TestBindingReadAndInvoke(t *testing.T) { //nolint:paralleltest
 
 	d := NewDingTalkWebhook(logger.NewLogger("test"))
 	err := d.Init(context.Background(), m)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	var count int32
 	ch := make(chan bool, 1)
@@ -101,7 +101,7 @@ func TestBindingReadAndInvoke(t *testing.T) { //nolint:paralleltest
 
 	select {
 	case <-ch:
-		require.True(t, atomic.LoadInt32(&count) > 0)
+		require.Greater(t, atomic.LoadInt32(&count), int32(0))
 	case <-time.After(time.Second):
 		require.FailNow(t, "read timeout")
 	}
@@ -117,7 +117,7 @@ func TestBindingClose(t *testing.T) {
 			"id":     "x",
 		},
 	}}
-	assert.NoError(t, d.Init(context.Background(), m))
-	assert.NoError(t, d.Close())
-	assert.NoError(t, d.Close(), "second close should not error")
+	require.NoError(t, d.Init(context.Background(), m))
+	require.NoError(t, d.Close())
+	require.NoError(t, d.Close(), "second close should not error")
 }

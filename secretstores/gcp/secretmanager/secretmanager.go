@@ -170,7 +170,7 @@ func (s *Store) getSecret(ctx context.Context, secretName string, versionID stri
 		return nil, err
 	}
 
-	secret := string(result.Payload.Data)
+	secret := string(result.GetPayload().GetData())
 
 	return &secret, nil
 }

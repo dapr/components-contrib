@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -29,7 +30,7 @@ func TestValidateMetadata(t *testing.T) {
 			Base: metadata.Base{Properties: properties},
 		}
 		_, err := validateAndParseMetadata(m)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("without server configuration", func(t *testing.T) {
@@ -40,7 +41,7 @@ func TestValidateMetadata(t *testing.T) {
 			Base: metadata.Base{Properties: properties},
 		}
 		_, err := validateAndParseMetadata(m)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("without map configuration", func(t *testing.T) {
@@ -51,7 +52,7 @@ func TestValidateMetadata(t *testing.T) {
 			Base: metadata.Base{Properties: properties},
 		}
 		_, err := validateAndParseMetadata(m)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("with valid configuration", func(t *testing.T) {
@@ -63,7 +64,7 @@ func TestValidateMetadata(t *testing.T) {
 			Base: metadata.Base{Properties: properties},
 		}
 		meta, err := validateAndParseMetadata(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, properties["hazelcastServers"], meta.HazelcastServers)
 	})
 }

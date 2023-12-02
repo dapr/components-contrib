@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -27,7 +28,7 @@ func TestParseMetadata(t *testing.T) {
 	m.Properties = map[string]string{"Url": "a", "masterKey": "a", "username": "a"}
 	cosmosdbgremlinapi := CosmosDBGremlinAPI{logger: logger.NewLogger("test")}
 	im, err := cosmosdbgremlinapi.parseMetadata(m)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "a", im.URL)
 	assert.Equal(t, "a", im.MasterKey)
 	assert.Equal(t, "a", im.Username)

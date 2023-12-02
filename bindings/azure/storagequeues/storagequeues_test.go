@@ -104,7 +104,7 @@ func TestWriteQueue(t *testing.T) {
 	_, err = a.Invoke(context.Background(), &r)
 
 	require.NoError(t, err)
-	assert.NoError(t, a.Close())
+	require.NoError(t, a.Close())
 }
 
 func TestWriteWithTTLInQueue(t *testing.T) {
@@ -126,7 +126,7 @@ func TestWriteWithTTLInQueue(t *testing.T) {
 	_, err = a.Invoke(context.Background(), &r)
 
 	require.NoError(t, err)
-	assert.NoError(t, a.Close())
+	require.NoError(t, a.Close())
 }
 
 func TestWriteWithTTLInWrite(t *testing.T) {
@@ -151,7 +151,7 @@ func TestWriteWithTTLInWrite(t *testing.T) {
 	_, err = a.Invoke(context.Background(), &r)
 
 	require.NoError(t, err)
-	assert.NoError(t, a.Close())
+	require.NoError(t, a.Close())
 }
 
 // Uncomment this function to write a message to local storage queue
@@ -195,7 +195,7 @@ func TestReadQueue(t *testing.T) {
 	handler := func(ctx context.Context, data *bindings.ReadResponse) ([]byte, error) {
 		received++
 		s := string(data.Data)
-		assert.Equal(t, s, "This is my message")
+		assert.Equal(t, "This is my message", s)
 		cancel()
 
 		return nil, nil
@@ -210,7 +210,7 @@ func TestReadQueue(t *testing.T) {
 		t.Fatal("Timeout waiting for messages")
 	}
 	assert.Equal(t, 1, received)
-	assert.NoError(t, a.Close())
+	require.NoError(t, a.Close())
 }
 
 func TestReadQueueDecode(t *testing.T) {
@@ -237,7 +237,7 @@ func TestReadQueueDecode(t *testing.T) {
 	handler := func(ctx context.Context, data *bindings.ReadResponse) ([]byte, error) {
 		received++
 		s := string(data.Data)
-		assert.Equal(t, s, "This is my message")
+		assert.Equal(t, "This is my message", s)
 		cancel()
 
 		return nil, nil
@@ -252,7 +252,7 @@ func TestReadQueueDecode(t *testing.T) {
 		t.Fatal("Timeout waiting for messages")
 	}
 	assert.Equal(t, 1, received)
-	assert.NoError(t, a.Close())
+	require.NoError(t, a.Close())
 }
 
 // Uncomment this function to test reding from local queue
@@ -302,7 +302,7 @@ func TestReadQueueNoMessage(t *testing.T) {
 	handler := func(ctx context.Context, data *bindings.ReadResponse) ([]byte, error) {
 		received++
 		s := string(data.Data)
-		assert.Equal(t, s, "This is my message")
+		assert.Equal(t, "This is my message", s)
 
 		return nil, nil
 	}
@@ -311,7 +311,7 @@ func TestReadQueueNoMessage(t *testing.T) {
 	time.Sleep(1 * time.Second)
 	cancel()
 	assert.Equal(t, 0, received)
-	assert.NoError(t, a.Close())
+	require.NoError(t, a.Close())
 }
 
 func TestParseMetadata(t *testing.T) {
@@ -440,7 +440,7 @@ func TestParseMetadataWithInvalidTTL(t *testing.T) {
 			m.Properties = tt.properties
 
 			_, err := parseMetadata(m)
-			assert.NotNil(t, err)
+			require.Error(t, err)
 		})
 	}
 }

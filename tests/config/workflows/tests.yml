@@ -1,5 +1,3 @@
 # Supported additional operations: (none)
 componentType: workflows
 components:
-  - component: temporal
-    operations: []

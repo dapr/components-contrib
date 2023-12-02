@@ -51,7 +51,7 @@ func TestSqliteMetadata(t *testing.T) {
 		err := md.InitWithMetadata(stateMetadata(map[string]string{}))
 
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "missing connection string")
+		require.ErrorContains(t, err, "missing connection string")
 	})
 
 	t.Run("invalid state table name", func(t *testing.T) {
@@ -62,7 +62,7 @@ func TestSqliteMetadata(t *testing.T) {
 		}))
 
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "invalid identifier")
+		require.ErrorContains(t, err, "invalid identifier")
 	})
 
 	t.Run("invalid metadata table name", func(t *testing.T) {
@@ -73,7 +73,7 @@ func TestSqliteMetadata(t *testing.T) {
 		}))
 
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "invalid identifier")
+		require.ErrorContains(t, err, "invalid identifier")
 	})
 
 	t.Run("invalid timeout", func(t *testing.T) {
@@ -84,7 +84,7 @@ func TestSqliteMetadata(t *testing.T) {
 		}))
 
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "timeout")
+		require.ErrorContains(t, err, "timeout")
 	})
 
 	t.Run("aliases", func(t *testing.T) {

@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 
@@ -182,7 +181,7 @@ func TestEventhubs(t *testing.T) {
 
 	deleteEventhub := func() error {
 		output, err := exec.Command("/bin/sh", "delete-eventhub.sh", topicToBeCreated).Output()
-		assert.NoErrorf(t, err, "Error in delete-eventhub.sh.:\n%s", string(output))
+		require.NoErrorf(t, err, "Error in delete-eventhub.sh.:\n%s", string(output))
 		return nil
 	}
 
@@ -195,7 +194,7 @@ func TestEventhubs(t *testing.T) {
 			messageWatchers.ExpectStrings(messages...)
 
 			output, err := exec.Command("/bin/sh", "send-iot-device-events.sh", topicToBeCreated).Output()
-			assert.NoErrorf(t, err, "Error in send-iot-device-events.sh.:\n%s", string(output))
+			require.NoErrorf(t, err, "Error in send-iot-device-events.sh.:\n%s", string(output))
 			return nil
 		}
 	}

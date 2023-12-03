@@ -47,6 +47,11 @@ type DeleteRequest struct {
 	Options  DeleteStateOption `json:"options,omitempty"`
 }
 
+// DeleteWithPrefixRequest is the object describing a delete with prefix state request used for deleting actors.
+type DeleteWithPrefixRequest struct {
+	Prefix string `json:"prefix"`
+}
+
 // Key gets the Key on a DeleteRequest.
 func (r DeleteRequest) GetKey() string {
 	return r.Key

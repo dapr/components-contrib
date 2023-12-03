@@ -337,6 +337,10 @@ func (m *fakeDBaccess) BulkGet(parentCtx context.Context, req []state.GetRequest
 	return nil, nil
 }
 
+func (m *fakeDBaccess) DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
+	return state.DeleteWithPrefixResponse{}, nil
+}
+
 func (m *fakeDBaccess) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	return nil
 }

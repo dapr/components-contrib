@@ -61,3 +61,8 @@ func Ping(ctx context.Context, store Store) error {
 		return errors.New("ping is not implemented by this state store")
 	}
 }
+
+// DeleteWithPrefix is an interface to delete objects with a prefix.
+type DeleteWithPrefix interface {
+	DeleteWithPrefix(ctx context.Context, req DeleteWithPrefixRequest) (DeleteWithPrefixResponse, error)
+}

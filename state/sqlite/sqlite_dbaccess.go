@@ -44,6 +44,7 @@ type DBAccess interface {
 	Delete(ctx context.Context, req *state.DeleteRequest) error
 	BulkGet(ctx context.Context, req []state.GetRequest) ([]state.BulkGetResponse, error)
 	ExecuteMulti(ctx context.Context, reqs []state.TransactionalStateOperation) error
+	DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error)
 	Close() error
 }
 
@@ -412,6 +413,26 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 
 func (a *sqliteDBAccess) Delete(ctx context.Context, req *state.DeleteRequest) error {
 	return a.doDelete(ctx, a.db, req)
+}
+
+func (a *sqliteDBAccess) DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, a.metadata.Timeout)
+	defer cancel()
+	var result sql.Result
+	// Concatenation is required for table name because sql.DB does not substitute parameters for table names.
+	result, err := a.db.ExecContext(ctx, "DELETE FROM "+a.metadata.TableName+" WHERE key LIKE = ?",
+		req.Prefix)
+
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, err
+	}
+
+	return state.DeleteWithPrefixResponse{Count: rows}, nil
 }
 
 func (a *sqliteDBAccess) ExecuteMulti(parentCtx context.Context, reqs []state.TransactionalStateOperation) error {

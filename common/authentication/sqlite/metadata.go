@@ -70,8 +70,14 @@ func (m SqliteAuthMetadata) IsInMemoryDB() bool {
 	return strings.HasPrefix(lc, ":memory:") || strings.HasPrefix(lc, "file::memory:")
 }
 
+// GetConnectionStringOpts contains options for GetConnectionString
+type GetConnectionStringOpts struct {
+	// Enabled foreign keys
+	EnableForeignKeys bool
+}
+
 // GetConnectionString returns the parsed connection string.
-func (m *SqliteAuthMetadata) GetConnectionString(log logger.Logger) (string, error) {
+func (m *SqliteAuthMetadata) GetConnectionString(log logger.Logger, opts GetConnectionStringOpts) (string, error) {
 	// Check if we're using the in-memory database
 	isMemoryDB := m.IsInMemoryDB()
 
@@ -126,16 +132,20 @@ func (m *SqliteAuthMetadata) GetConnectionString(log logger.Logger) (string, err
 
 	// Add pragma values
 	if len(qs["_pragma"]) == 0 {
-		qs["_pragma"] = make([]string, 0, 2)
+		qs["_pragma"] = make([]string, 0, 3)
 	} else {
 		for _, p := range qs["_pragma"] {
 			p = strings.ToLower(p)
-			if strings.HasPrefix(p, "busy_timeout") {
+			switch {
+			case strings.HasPrefix(p, "busy_timeout"):
 				log.Error("Cannot set `_pragma=busy_timeout` option in the connection string; please use the `busyTimeout` metadata property instead")
 				return "", errors.New("found forbidden option '_pragma=busy_timeout' in the connection string")
-			} else if strings.HasPrefix(p, "journal_mode") {
+			case strings.HasPrefix(p, "journal_mode"):
 				log.Error("Cannot set `_pragma=journal_mode` option in the connection string; please use the `disableWAL` metadata property instead")
 				return "", errors.New("found forbidden option '_pragma=journal_mode' in the connection string")
+			case strings.HasPrefix(p, "foreign_keys"):
+				log.Error("Cannot set `_pragma=foreign_keys` option in the connection string")
+				return "", errors.New("found forbidden option '_pragma=foreign_keys' in the connection string")
 			}
 		}
 	}
@@ -151,6 +161,9 @@ func (m *SqliteAuthMetadata) GetConnectionString(log logger.Logger) (string, err
 	} else {
 		// Enable WAL
 		qs["_pragma"] = append(qs["_pragma"], "journal_mode(WAL)")
+	}
+	if opts.EnableForeignKeys {
+		qs["_pragma"] = append(qs["_pragma"], "foreign_keys(1)")
 	}
 
 	// Build the final connection string

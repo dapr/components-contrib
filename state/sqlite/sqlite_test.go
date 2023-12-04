@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dapr/components-contrib/common/authentication/sqlite"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
@@ -48,7 +49,7 @@ func TestGetConnectionString(t *testing.T) {
 		db.metadata.reset()
 		db.metadata.ConnectionString = "file:test.db"
 
-		connString, err := db.metadata.GetConnectionString(log)
+		connString, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 		require.NoError(t, err)
 
 		values := url.Values{
@@ -64,7 +65,7 @@ func TestGetConnectionString(t *testing.T) {
 			db.metadata.reset()
 			db.metadata.ConnectionString = "test.db"
 
-			connString, err := db.metadata.GetConnectionString(log)
+			connString, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 			require.NoError(t, err)
 
 			values := url.Values{
@@ -82,7 +83,7 @@ func TestGetConnectionString(t *testing.T) {
 			db.metadata.reset()
 			db.metadata.ConnectionString = ":memory:"
 
-			connString, err := db.metadata.GetConnectionString(log)
+			connString, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 			require.NoError(t, err)
 
 			values := url.Values{
@@ -103,7 +104,7 @@ func TestGetConnectionString(t *testing.T) {
 			db.metadata.reset()
 			db.metadata.ConnectionString = "file:test.db?_txlock=immediate"
 
-			connString, err := db.metadata.GetConnectionString(log)
+			connString, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 			require.NoError(t, err)
 
 			values := url.Values{
@@ -121,7 +122,7 @@ func TestGetConnectionString(t *testing.T) {
 			db.metadata.reset()
 			db.metadata.ConnectionString = "file:test.db?_txlock=deferred"
 
-			connString, err := db.metadata.GetConnectionString(log)
+			connString, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 			require.NoError(t, err)
 
 			values := url.Values{
@@ -141,7 +142,7 @@ func TestGetConnectionString(t *testing.T) {
 			db.metadata.reset()
 			db.metadata.ConnectionString = "file:test.db?_pragma=busy_timeout(50)"
 
-			_, err := db.metadata.GetConnectionString(log)
+			_, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 			require.Error(t, err)
 			require.ErrorContains(t, err, "found forbidden option '_pragma=busy_timeout' in the connection string")
 		})
@@ -150,7 +151,7 @@ func TestGetConnectionString(t *testing.T) {
 			db.metadata.reset()
 			db.metadata.ConnectionString = "file:test.db?_pragma=journal_mode(WAL)"
 
-			_, err := db.metadata.GetConnectionString(log)
+			_, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 			require.Error(t, err)
 			require.ErrorContains(t, err, "found forbidden option '_pragma=journal_mode' in the connection string")
 		})
@@ -162,7 +163,7 @@ func TestGetConnectionString(t *testing.T) {
 		db.metadata.ConnectionString = "file:test.db"
 		db.metadata.BusyTimeout = time.Second
 
-		connString, err := db.metadata.GetConnectionString(log)
+		connString, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 		require.NoError(t, err)
 
 		values := url.Values{
@@ -179,7 +180,7 @@ func TestGetConnectionString(t *testing.T) {
 			db.metadata.ConnectionString = "file:test.db"
 			db.metadata.DisableWAL = false
 
-			connString, err := db.metadata.GetConnectionString(log)
+			connString, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 			require.NoError(t, err)
 
 			values := url.Values{
@@ -195,7 +196,7 @@ func TestGetConnectionString(t *testing.T) {
 			db.metadata.ConnectionString = "file:test.db"
 			db.metadata.DisableWAL = true
 
-			connString, err := db.metadata.GetConnectionString(log)
+			connString, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 			require.NoError(t, err)
 
 			values := url.Values{
@@ -210,7 +211,7 @@ func TestGetConnectionString(t *testing.T) {
 			db.metadata.reset()
 			db.metadata.ConnectionString = "file::memory:"
 
-			connString, err := db.metadata.GetConnectionString(log)
+			connString, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 			require.NoError(t, err)
 
 			values := url.Values{
@@ -226,7 +227,7 @@ func TestGetConnectionString(t *testing.T) {
 			db.metadata.reset()
 			db.metadata.ConnectionString = "file:test.db?mode=ro"
 
-			connString, err := db.metadata.GetConnectionString(log)
+			connString, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 			require.NoError(t, err)
 
 			values := url.Values{
@@ -242,7 +243,7 @@ func TestGetConnectionString(t *testing.T) {
 			db.metadata.reset()
 			db.metadata.ConnectionString = "file:test.db?immutable=1"
 
-			connString, err := db.metadata.GetConnectionString(log)
+			connString, err := db.metadata.GetConnectionString(log, sqlite.GetConnectionStringOpts{})
 			require.NoError(t, err)
 
 			values := url.Values{

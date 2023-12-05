@@ -29,6 +29,7 @@ import (
 	// Blank import for the underlying SQLite Driver.
 	_ "modernc.org/sqlite"
 
+	"github.com/dapr/components-contrib/common/authentication/sqlite"
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
@@ -77,7 +78,7 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 		return err
 	}
 
-	connString, err := a.metadata.GetConnectionString(a.logger)
+	connString, err := a.metadata.GetConnectionString(a.logger, sqlite.GetConnectionStringOpts{})
 	if err != nil {
 		// Already logged
 		return err

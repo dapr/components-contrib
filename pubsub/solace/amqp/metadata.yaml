@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: pubsub
+name: Solace-AMQP
+version: v1
+status: beta
+title: "solace-amqp"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-solace-amqp/
+capabilities:
+  - ttl
+authenticationProfiles:
+  - title: "Solace authentication"
+    description: "Authenticate using Solace credentials"
+    metadata:
+      - name: username
+        required: true
+        sensitive: false
+        description: "The username to connect to the broker"
+        example: '"default"'
+        type: string
+      - name: password
+        required: true
+        sensitive: true
+        description: "The password to connect to the broker"
+        example: '"default"'  
+        type: string
+  - title: "No authentication"
+    description: "Connect to the broker without credential validation"
+    metadata:
+      - name: anonymous
+        required: true
+        description: |
+          Connect to the broker without credential validation; only works if enabled on the broker.
+        example: '"true"'
+        type: bool
+metadata:
+  - name: url
+    required: true
+    description: |
+      Address of the AMQP broker.
+      Use the `amqp://`` URI scheme for non-TLS communication, and the `amqps://` URI scheme for TLS communication.
+    example: '"amqp://host.domain[:port]"'
+    sensitive: true
+    type: string   
+  - name: caCert
+    required: false
+    description: |
+      Certificate Authority (CA) certificate in PEM format for verifying server TLS certificates.
+    example: '"-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"'
+    type: string
+  - name: clientCert
+    required: false
+    description: |
+      TLS client certificate in PEM format, for using TLS.
+    example: '"-----BEGIN CERTIFICATE-----\n<base64-encoded DER>\n-----END CERTIFICATE-----"'
+    type: string
+  - name: clientKey
+    required: false
+    sensitive: true
+    description: |
+      TLS client key in PEM format, for using TLS.
+    example: '"-----BEGIN PRIVATE KEY-----\n<base64-encoded PKCS8>\n-----END RSA PRIVATE KEY-----"'
+    type: string    

@@ -1,0 +1,36 @@
+{
+  "filter": {
+    "OR": [
+      {
+        "LT": {
+          "person.id": 123
+        }
+      },
+      {
+        "AND": [
+          {
+            "GTE": {
+              "person.org": 2
+            }
+          },
+          {
+            "IN": {
+              "person.id": [
+                567,
+                890
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "sort": [
+    {
+      "key": "person.id"
+    }
+  ],
+  "page": {
+    "limit": 2
+  }
+}

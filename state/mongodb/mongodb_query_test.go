@@ -49,6 +49,14 @@ func TestMongoQuery(t *testing.T) {
 			input: "../../tests/state/query/q6.json",
 			query: `{ "$or": [ { "value.person.id": 123 }, { "$and": [ { "value.person.org": "B" }, { "value.person.id": { "$in": [ 567, 890 ] } } ] } ] }`,
 		},
+		{
+			input: "../../tests/state/query/q6-notequal.json",
+			query: `{ "$or": [ { "value.person.id": 123 }, { "$and": [ { "value.person.org": {"$ne": "B"} }, { "value.person.id": { "$in": [ 567, 890 ] } } ] } ] }`,
+		},
+		{
+			input: "../../tests/state/query/q7.json",
+			query: `{ "$or": [ { "value.person.id": {"$lt": 123} }, { "$and": [ { "value.person.org": {"$gte": 2} }, { "value.person.id": { "$in": [ 567, 890 ] } } ] } ] }`,
+		},
 	}
 	for _, test := range tests {
 		data, err := os.ReadFile(test.input)

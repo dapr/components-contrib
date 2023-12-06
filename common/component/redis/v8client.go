@@ -51,7 +51,6 @@ type v8Client struct {
 	readTimeout  Duration
 	writeTimeout Duration
 	dialTimeout  Duration
-	closeCh      chan struct{}
 }
 
 func (c v8Client) GetDel(ctx context.Context, key string) (string, error) {
@@ -324,7 +323,6 @@ func newV8FailoverClient(s *Settings, properties map[string]string) RedisClient 
 	if s == nil {
 		return nil
 	}
-	closeCh := make(chan struct{})
 	opts := &v8.FailoverOptions{
 		DB:                 s.DB,
 		MasterName:         s.SentinelMasterName,
@@ -354,20 +352,22 @@ func newV8FailoverClient(s *Settings, properties map[string]string) RedisClient 
 
 	if s.RedisType == ClusterType {
 		opts.SentinelAddrs = strings.Split(s.Host, ",")
+		client := v8.NewFailoverClusterClient(opts)
+		go s.refreshTokenRoutineForRedis(context.Background(), ClientFromV8Client(client), "v8", properties, v8logger)
 		return v8Client{
-			client:       v8.NewFailoverClusterClient(opts),
+			client:       client,
 			readTimeout:  s.ReadTimeout,
 			writeTimeout: s.WriteTimeout,
 			dialTimeout:  s.DialTimeout,
-			closeCh:      closeCh,
 		}
 	}
+	client := v8.NewFailoverClient(opts)
+	go s.refreshTokenRoutineForRedis(context.Background(), ClientFromV8Client(client), "v8", properties, v8logger)
 	return v8Client{
-		client:       v8.NewFailoverClient(opts),
+		client:       client,
 		readTimeout:  s.ReadTimeout,
 		writeTimeout: s.WriteTimeout,
 		dialTimeout:  s.DialTimeout,
-		closeCh:      closeCh,
 	}
 }
 
@@ -375,7 +375,6 @@ func newV8Client(s *Settings, properties map[string]string) RedisClient {
 	if s == nil {
 		return nil
 	}
-	closeCh := make(chan struct{})
 	if s.RedisType == ClusterType {
 		options := &v8.ClusterOptions{
 			Addrs:              strings.Split(s.Host, ","),
@@ -401,14 +400,13 @@ func newV8Client(s *Settings, properties map[string]string) RedisClient {
 			}
 		}
 		client := v8.NewClusterClient(options)
-		go refreshTokenRoutineForRedis(context.Background(), ClientFromV8Client(client), "v8", properties, v8logger, closeCh)
+		go s.refreshTokenRoutineForRedis(context.Background(), ClientFromV8Client(client), "v8", properties, v8logger)
 
 		return v8Client{
 			client:       client,
 			readTimeout:  s.ReadTimeout,
 			writeTimeout: s.WriteTimeout,
 			dialTimeout:  s.DialTimeout,
-			closeCh:      closeCh,
 		}
 	}
 
@@ -438,13 +436,12 @@ func newV8Client(s *Settings, properties map[string]string) RedisClient {
 		}
 	}
 	client := v8.NewClient(options)
-	go refreshTokenRoutineForRedis(context.Background(), ClientFromV8Client(client), "v8", properties, v8logger, closeCh)
+	go s.refreshTokenRoutineForRedis(context.Background(), ClientFromV8Client(client), "v8", properties, v8logger)
 	return v8Client{
 		client:       client,
 		readTimeout:  s.ReadTimeout,
 		writeTimeout: s.WriteTimeout,
 		dialTimeout:  s.DialTimeout,
-		closeCh:      closeCh,
 	}
 }
 

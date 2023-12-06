@@ -96,6 +96,8 @@ type Settings struct {
 
 	// The max len of stream
 	MaxLenApprox int64 `mapstructure:"maxLenApprox" mdonly:"pubsub"`
+	// azureAD for authentication
+	useAzureAD bool `mapstructure:"useAzureAD"`
 }
 
 func (s *Settings) Decode(in interface{}) error {

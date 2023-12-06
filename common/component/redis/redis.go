@@ -22,8 +22,11 @@ import (
 
 	"golang.org/x/mod/semver"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/dapr/components-contrib/common/authentication/azure"
 	"github.com/dapr/components-contrib/configuration"
 	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/logger"
 )
 
 const (
@@ -252,3 +255,47 @@ type RedisError string
 func (e RedisError) Error() string { return string(e) }
 
 func (RedisError) RedisError() {}
+
+func (s *Settings) refreshTokenRoutineForRedis(ctx context.Context, redisClient RedisClient, version string, meta map[string]string, logger logger.Logger) {
+	ticker := time.NewTicker(tokenRefreshInterval)
+	defer ticker.Stop()
+
+	if !s.useAzureAD {
+		return
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			env, err := azure.NewEnvironmentSettings(meta)
+			tokenCred, err := env.GetTokenCredential()
+			if err != nil {
+				logger.Error("Failed to get Azure AD token credential:", err)
+				continue
+			}
+			at, err := tokenCred.GetToken(ctx, policy.TokenRequestOptions{
+				Scopes: []string{
+					env.Cloud.Services[azure.ServiceOSSRDBMS].Audience + "/.default",
+				},
+			})
+			if err != nil {
+				logger.Debug("Failed to get Azure AD token:", err)
+				continue
+			}
+
+			// Authenticate with Redis using the refreshed token
+			if version == "v8" {
+				err = redisClient.(v8Client).client.Pipeline().Auth(ctx, at.Token).Err()
+			} else if version == "v9" {
+				err = redisClient.(v9Client).client.Pipeline().Auth(ctx, at.Token).Err()
+			}
+			if err != nil {
+				logger.Error("Failed to authenticate with Redis using refreshed Azure AD token:", err)
+				continue
+			}
+			logger.Info("Successfully refreshed Azure AD token and re-authenticated Redis.")
+		}
+	}
+}

@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 )
@@ -35,7 +36,7 @@ func TestParseMetadata(t *testing.T) {
 	}
 	kinesis := AWSKinesis{}
 	meta, err := kinesis.parseMetadata(m)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "key", meta.AccessKey)
 	assert.Equal(t, "region", meta.Region)
 	assert.Equal(t, "secret", meta.SecretKey)

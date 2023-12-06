@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
@@ -35,7 +36,7 @@ func TestInit(t *testing.T) {
 			"invalidValue": "a",
 		}
 		err := s.Init(context.Background(), m)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, err, fmt.Errorf("missing or empty accountName field from metadata"))
 	})
 }

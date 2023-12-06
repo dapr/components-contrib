@@ -35,7 +35,7 @@ func TestOperations(t *testing.T) {
 		b := NewGraphQL(nil)
 		assert.NotNil(t, b)
 		l := b.Operations()
-		assert.Equal(t, 2, len(l))
+		assert.Len(t, l, 2)
 	})
 }
 

@@ -34,6 +34,7 @@ import (
 	"github.com/dapr/kit/logger"
 	redis "github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/tests/certification/flow/watcher"
 )
@@ -266,7 +267,7 @@ func TestRedis(t *testing.T) {
 	})
 
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	currentGrpcPort := ports[0]
 	currentHTTPPort := ports[1]
 
@@ -296,7 +297,7 @@ func TestRedis(t *testing.T) {
 					Items: castConfigurationItems(items),
 				}
 				updateEventInJson, err := json.Marshal(updateEvent)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				message.Observe(string(updateEventInJson))
 			})
 			return errSubscribe
@@ -381,7 +382,7 @@ func TestRedis(t *testing.T) {
 		// Start subscriber subscribing to keys {key1,key2}
 		Step("start subscriber", subscribefn([]string{key1, key2}, messageWatcher)).
 		Step("wait for subscriber to be ready", flow.Sleep(5*time.Second)).
-		//Run redis commands and test updates are received by the subscriber
+		// Run redis commands and test updates are received by the subscriber
 		Step("testSubscribe", testSubscribe(messageWatcher)).
 		Step("reset", flow.Reset(messageWatcher)).
 		//
@@ -419,5 +420,4 @@ func TestRedis(t *testing.T) {
 		// // Stop the subscriber
 		Step("stop subscriber", stopSubscriber).
 		Run()
-
 }

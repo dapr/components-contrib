@@ -25,6 +25,7 @@ import (
 	"github.com/dapr/kit/logger"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func getFakeProperties() map[string]string {
@@ -47,7 +48,7 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseAMQPMetaData(fakeMetaData, log)
 
 		// assert
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, fakeProperties[amqpURL], m.URL)
 	})
 
@@ -62,7 +63,7 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseAMQPMetaData(fakeMetaData, log)
 
 		// assert
-		assert.EqualError(t, err, errors.New(errorMsgPrefix+" missing url").Error())
+		require.EqualError(t, err, errors.New(errorMsgPrefix+" missing url").Error())
 		assert.Equal(t, fakeProperties[amqpURL], m.URL)
 	})
 
@@ -83,7 +84,7 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseAMQPMetaData(fakeMetaData, log)
 
 		// assert
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		block, _ := pem.Decode([]byte(m.tlsCfg.CaCert))
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
@@ -109,7 +110,7 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseAMQPMetaData(fakeMetaData, log)
 
 		// assert
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		block, _ := pem.Decode([]byte(m.tlsCfg.ClientCert))
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
@@ -135,7 +136,7 @@ func TestParseMetadata(t *testing.T) {
 		m, err := parseAMQPMetaData(fakeMetaData, log)
 
 		// assert
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, m.tlsCfg.ClientKey, "failed to parse valid client certificate key")
 	})
 }

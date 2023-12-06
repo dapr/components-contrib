@@ -73,14 +73,14 @@ spec:
      value: value2
 `
 	components := request.decodeYaml("components/messagebus.yaml", []byte(yaml))
-	assert.Len(t, components, 0)
+	assert.Empty(t, components)
 }
 
 func TestStandaloneDecodeUnsuspectingFile(t *testing.T) {
 	request := NewStandaloneComponents("test_component_path")
 
 	components := request.decodeYaml("components/messagebus.yaml", []byte("hey there"))
-	assert.Len(t, components, 0)
+	assert.Empty(t, components)
 }
 
 func TestStandaloneDecodeInvalidYaml(t *testing.T) {
@@ -92,7 +92,7 @@ kind: Component
 metadata:
 name: statestore`
 	components := request.decodeYaml("components/messagebus.yaml", []byte(yaml))
-	assert.Len(t, components, 0)
+	assert.Empty(t, components)
 }
 
 func TestStandaloneDecodeValidMultiYaml(t *testing.T) {

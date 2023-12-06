@@ -70,6 +70,7 @@ func TestAddMessageAttributesToMetadata(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		for mType, mMap := range metadataMap {
 			t.Run(fmt.Sprintf("%s, metadata is %s", tc.name, mType), func(t *testing.T) {
 				actual := addMessageAttributesToMetadata(mMap, &tc.ASBMessage)

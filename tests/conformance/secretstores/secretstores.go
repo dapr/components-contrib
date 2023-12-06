@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
@@ -52,18 +53,18 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 		err := store.Init(context.Background(), secretstores.Metadata{Base: metadata.Base{
 			Properties: props,
 		}})
-		assert.NoError(t, err, "expected no error on initializing store")
+		require.NoError(t, err, "expected no error on initializing store")
 	})
 
 	t.Run("ping", func(t *testing.T) {
 		err := secretstores.Ping(context.Background(), store)
 		// TODO: Ideally, all stable components should implenment ping function,
-		// so will only assert assert.Nil(t, err) finally, i.e. when current implementation
+		// so will only assert require.NoError(t, err) finally, i.e. when current implementation
 		// implements ping in existing stable components
 		if err != nil {
-			assert.EqualError(t, err, "ping is not implemented by this secret store")
+			require.EqualError(t, err, "ping is not implemented by this secret store")
 		} else {
-			assert.Nil(t, err)
+			require.NoError(t, err)
 		}
 	})
 
@@ -80,7 +81,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 
 		t.Run("get", func(t *testing.T) {
 			resp, err := store.GetSecret(context.Background(), getSecretRequest)
-			assert.NoError(t, err, "expected no error on getting secret %v", getSecretRequest)
+			require.NoError(t, err, "expected no error on getting secret %v", getSecretRequest)
 			assert.NotNil(t, resp, "expected value to be returned")
 			assert.NotNil(t, resp.Data, "expected value to be returned")
 			assert.Equal(t, getSecretResponse.Data, resp.Data, "expected values to be equal")
@@ -101,7 +102,7 @@ func ConformanceTests(t *testing.T, props map[string]string, store secretstores.
 
 		t.Run("bulkget", func(t *testing.T) {
 			resp, err := store.BulkGetSecret(context.Background(), bulkReq)
-			assert.NoError(t, err, "expected no error on getting secret %v", bulkReq)
+			require.NoError(t, err, "expected no error on getting secret %v", bulkReq)
 			assert.NotNil(t, resp, "expected value to be returned")
 			assert.NotNil(t, resp.Data, "expected value to be returned")
 

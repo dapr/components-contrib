@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
@@ -144,7 +145,7 @@ func TestParseMetadata(t *testing.T) {
 			m.Properties = tt.properties
 			r := RabbitMQ{logger: logger.NewLogger("test")}
 			err := r.parseMetadata(m)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, queueName, r.metadata.QueueName)
 			assert.Equal(t, host, r.metadata.Host)
 			assert.Equal(t, tt.expectedDeleteWhenUnused, r.metadata.DeleteWhenUnused)
@@ -191,7 +192,7 @@ func TestParseMetadataWithInvalidTTL(t *testing.T) {
 			m.Properties = tt.properties
 			r := RabbitMQ{logger: logger.NewLogger("test")}
 			err := r.parseMetadata(m)
-			assert.NotNil(t, err)
+			require.Error(t, err)
 		})
 	}
 }
@@ -228,7 +229,7 @@ func TestParseMetadataWithInvalidMaxPriority(t *testing.T) {
 			m.Properties = tt.properties
 			r := RabbitMQ{logger: logger.NewLogger("test")}
 			err := r.parseMetadata(m)
-			assert.NotNil(t, err)
+			require.Error(t, err)
 		})
 	}
 }

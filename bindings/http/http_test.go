@@ -196,7 +196,7 @@ func TestSecurityTokenHeaderForwarded(t *testing.T) {
 			statusCode: 200,
 		}.ToInvokeRequest()
 		_, err = hs.Invoke(context.Background(), &req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "12345", handler.Headers["X-Token"])
 	})
 
@@ -212,7 +212,7 @@ func TestSecurityTokenHeaderForwarded(t *testing.T) {
 			statusCode: 200,
 		}.ToInvokeRequest()
 		_, err = hs.Invoke(context.Background(), &req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Empty(t, handler.Headers["X-Token"])
 	})
 }
@@ -235,7 +235,7 @@ func TestTraceHeadersForwarded(t *testing.T) {
 			statusCode: 200,
 		}.ToInvokeRequest()
 		_, err = hs.Invoke(context.Background(), &req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "12345", handler.Headers["Traceparent"])
 		assert.Equal(t, "67890", handler.Headers["Tracestate"])
 	})
@@ -250,7 +250,7 @@ func TestTraceHeadersForwarded(t *testing.T) {
 			statusCode: 200,
 		}.ToInvokeRequest()
 		_, err = hs.Invoke(context.Background(), &req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		_, traceParentExists := handler.Headers["Traceparent"]
 		assert.False(t, traceParentExists)
 		_, traceStateExists := handler.Headers["Tracestate"]
@@ -267,7 +267,7 @@ func TestTraceHeadersForwarded(t *testing.T) {
 			statusCode: 200,
 		}.ToInvokeRequest()
 		_, err = hs.Invoke(context.Background(), &req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "12345", handler.Headers["Traceparent"])
 		assert.Equal(t, "67890", handler.Headers["Tracestate"])
 	})
@@ -290,7 +290,7 @@ func InitBindingForHTTPS(s *httptest.Server, extraProps map[string]string) (bind
 func mTLSHandler(w http.ResponseWriter, r *http.Request) {
 	// r.TLS gets ignored by HTTP handlers.
 	// in case where client auth is not required, r.TLS.PeerCertificates will be empty.
-	res := fmt.Sprintf("%v", len(r.TLS.PeerCertificates))
+	res := strconv.Itoa(len(r.TLS.PeerCertificates))
 	io.WriteString(w, res)
 }
 
@@ -381,10 +381,10 @@ func TestHTTPSBinding(t *testing.T) {
 			statusCode: 200,
 		}.ToInvokeRequest()
 		response, err := hs.Invoke(context.Background(), &req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		peerCerts, err := strconv.Atoi(string(response.Data))
-		assert.NoError(t, err)
-		assert.True(t, peerCerts > 0)
+		require.NoError(t, err)
+		assert.Greater(t, peerCerts, 0)
 
 		req = TestCase{
 			input:      "EXPECTED",
@@ -395,10 +395,10 @@ func TestHTTPSBinding(t *testing.T) {
 			statusCode: 201,
 		}.ToInvokeRequest()
 		response, err = hs.Invoke(context.Background(), &req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		peerCerts, err = strconv.Atoi(string(response.Data))
-		assert.NoError(t, err)
-		assert.True(t, peerCerts > 0)
+		require.NoError(t, err)
+		assert.Greater(t, peerCerts, 0)
 	})
 	t.Run("get with https with no client cert and clientAuthEnabled true", func(t *testing.T) {
 		certMap := map[string]string{}
@@ -414,7 +414,7 @@ func TestHTTPSBinding(t *testing.T) {
 			statusCode: 200,
 		}.ToInvokeRequest()
 		_, err = hs.Invoke(context.Background(), &req)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("get with https without client cert and clientAuthEnabled false", func(t *testing.T) {
@@ -434,13 +434,13 @@ func TestHTTPSBinding(t *testing.T) {
 			statusCode: 200,
 		}.ToInvokeRequest()
 		response, err := hs.Invoke(context.Background(), &req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		peerCerts, err := strconv.Atoi(string(response.Data))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		// Checking for 0 peer certs as client auth is disabled.
 		// If client auth is enabled, then the number of peer certs will be > 0.
 		// For HTTP, request will not have TLS info only.
-		assert.True(t, peerCerts == 0)
+		assert.Equal(t, 0, peerCerts)
 
 		req = TestCase{
 			input:      "EXPECTED",
@@ -451,20 +451,20 @@ func TestHTTPSBinding(t *testing.T) {
 			statusCode: 201,
 		}.ToInvokeRequest()
 		response, err = hs.Invoke(context.Background(), &req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		peerCerts, err = strconv.Atoi(string(response.Data))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		// Checking for 0 peer certs as client auth is disabled.
 		// If client auth is enabled, then the number of peer certs will be > 0.
 		// For HTTP, request will not have TLS info only.
-		assert.True(t, peerCerts == 0)
+		assert.Equal(t, 0, peerCerts)
 	})
 }
 
 func setupHTTPSServer(t *testing.T, clientAuthEnabled bool, handler http.Handler) *httptest.Server {
 	server := httptest.NewUnstartedServer(handler)
 	caCertFile, err := os.ReadFile(filepath.Join(".", "testdata", "ca.pem"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM(caCertFile)
@@ -472,7 +472,7 @@ func setupHTTPSServer(t *testing.T, clientAuthEnabled bool, handler http.Handler
 	serverCert := filepath.Join(".", "testdata", "server.pem")
 	serverKey := filepath.Join(".", "testdata", "server.key")
 	cert, err := tls.LoadX509KeyPair(serverCert, serverKey)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Create the TLS Config with the CA pool and enable Client certificate validation
 	tlsConfig := &tls.Config{

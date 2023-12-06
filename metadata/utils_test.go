@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/kit/metadata"
 )
@@ -29,15 +30,15 @@ func TestIsRawPayload(t *testing.T) {
 			"notfound": "1",
 		})
 
-		assert.Equal(t, false, val)
-		assert.NoError(t, err)
+		assert.False(t, val)
+		require.NoError(t, err)
 	})
 
 	t.Run("Metadata map is nil", func(t *testing.T) {
 		val, err := IsRawPayload(nil)
 
-		assert.Equal(t, false, val)
-		assert.NoError(t, err)
+		assert.False(t, val)
+		require.NoError(t, err)
 	})
 
 	t.Run("Metadata with bad value", func(t *testing.T) {
@@ -45,8 +46,8 @@ func TestIsRawPayload(t *testing.T) {
 			"rawPayload": "Not a boolean",
 		})
 
-		assert.Equal(t, false, val)
-		assert.NotNil(t, err)
+		assert.False(t, val)
+		require.Error(t, err)
 	})
 
 	t.Run("Metadata with correct value as false", func(t *testing.T) {
@@ -54,8 +55,8 @@ func TestIsRawPayload(t *testing.T) {
 			"rawPayload": "false",
 		})
 
-		assert.Equal(t, false, val)
-		assert.NoError(t, err)
+		assert.False(t, val)
+		require.NoError(t, err)
 	})
 
 	t.Run("Metadata with correct value as true", func(t *testing.T) {
@@ -63,8 +64,8 @@ func TestIsRawPayload(t *testing.T) {
 			"rawPayload": "true",
 		})
 
-		assert.Equal(t, true, val)
-		assert.NoError(t, err)
+		assert.True(t, val)
+		require.NoError(t, err)
 	})
 }
 
@@ -73,7 +74,7 @@ func TestTryGetContentType(t *testing.T) {
 		val, ok := TryGetContentType(map[string]string{})
 
 		assert.Equal(t, "", val)
-		assert.Equal(t, false, ok)
+		assert.False(t, ok)
 	})
 
 	t.Run("Metadata with empty content type", func(t *testing.T) {
@@ -82,7 +83,7 @@ func TestTryGetContentType(t *testing.T) {
 		})
 
 		assert.Equal(t, "", val)
-		assert.Equal(t, false, ok)
+		assert.False(t, ok)
 	})
 
 	t.Run("Metadata with corrent content type", func(t *testing.T) {
@@ -92,7 +93,7 @@ func TestTryGetContentType(t *testing.T) {
 		})
 
 		assert.Equal(t, contentType, val)
-		assert.Equal(t, true, ok)
+		assert.True(t, ok)
 	})
 }
 

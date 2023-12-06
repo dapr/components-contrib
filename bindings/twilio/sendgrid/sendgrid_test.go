@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -31,7 +32,7 @@ func TestParseMetadata(t *testing.T) {
 		m.Properties = map[string]string{"apiKey": "123", "emailFrom": "test1@example.net", "emailTo": "test2@example.net", "subject": "hello"}
 		r := SendGrid{logger: logger}
 		sgMeta, err := r.parseMetadata(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "123", sgMeta.APIKey)
 		assert.Equal(t, "test1@example.net", sgMeta.EmailFrom)
 		assert.Equal(t, "test2@example.net", sgMeta.EmailTo)
@@ -63,7 +64,7 @@ func TestParseMetadataWithOptionalNames(t *testing.T) {
 		}
 		r := SendGrid{logger: logger}
 		sgMeta, err := r.parseMetadata(m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "123", sgMeta.APIKey)
 		assert.Equal(t, "test1@example.net", sgMeta.EmailFrom)
 		assert.Equal(t, "test 1", sgMeta.EmailFromName)
@@ -88,7 +89,7 @@ func TestParseMetadataWithOptionalNames(t *testing.T) {
 		}
 		r := SendGrid{logger: logger}
 		_, err := r.parseMetadata(m)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -102,11 +103,11 @@ func TestUnmarshalDynamicTemplateData(t *testing.T) {
 
 		// Test valid JSON
 		err := UnmarshalDynamicTemplateData(string(dynamicTemplateData), &data)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, map[string]interface{}{"first": "MyFirst", "last": "MyLast"}, data["name"])
 
 		// Test invalid JSON
 		err = UnmarshalDynamicTemplateData("{\"wrong\"}", &data)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }

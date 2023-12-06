@@ -96,6 +96,7 @@ func NewGCPPubSub(logger logger.Logger) pubsub.PubSub {
 }
 
 func (g *GCPPubSub) periodicCacheRefresh() {
+    // Run this loop 5 times every topicCacheRefreshInterval, to be able to delete items that are stale
 	ticker := time.NewTicker(topicCacheRefreshInterval / 5)
 	defer ticker.Stop()
 
@@ -106,7 +107,8 @@ func (g *GCPPubSub) periodicCacheRefresh() {
 		case <-ticker.C:
 			g.lock.Lock()
 			for key, entry := range g.topicCache {
-				if time.Since(entry.LastSync) > topicCacheRefreshInterval/5 {
+                // Delete from the cache if the last sync was longer than topicCacheRefreshInterval
+				if time.Since(entry.LastSync) > topicCacheRefreshInterval {
 					delete(g.topicCache, key)
 				}
 			}
@@ -223,7 +225,7 @@ func (g *GCPPubSub) Publish(ctx context.Context, req *pubsub.PublishRequest) err
 	if !g.metadata.DisableEntityManagement && !topicExists {
 		err := g.ensureTopic(ctx, req.Topic)
 		if err != nil {
-			return fmt.Errorf("%s could not get valid topic %s, %s", errorMessagePrefix, req.Topic, err)
+			return fmt.Errorf("%s could not get valid topic %s: %w", errorMessagePrefix, req.Topic, err)
 		}
 		g.lock.Lock()
 		g.topicCache[req.Topic] = cacheEntry{
@@ -269,7 +271,7 @@ func (g *GCPPubSub) Subscribe(parentCtx context.Context, req pubsub.SubscribeReq
 	if !g.metadata.DisableEntityManagement && !topicExists {
 		topicErr := g.ensureTopic(parentCtx, req.Topic)
 		if topicErr != nil {
-			return fmt.Errorf("%s could not get valid topic - topic:%q, error: %v", errorMessagePrefix, req.Topic, topicErr)
+			return fmt.Errorf("%s could not get valid topic - topic:%q, error: %w", errorMessagePrefix, req.Topic, topicErr)
 		}
 		g.lock.Lock()
 		g.topicCache[req.Topic] = cacheEntry{

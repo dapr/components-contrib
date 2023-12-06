@@ -21,7 +21,7 @@ import (
 	"reflect"
 
 	"github.com/dapr/components-contrib/bindings"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
+	contribMetadata "github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/kit/logger"
 
 	"github.com/labd/commercetools-go-sdk/platform"

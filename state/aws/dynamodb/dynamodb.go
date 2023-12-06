@@ -30,7 +30,7 @@ import (
 	jsoniterator "github.com/json-iterator/go"
 
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"

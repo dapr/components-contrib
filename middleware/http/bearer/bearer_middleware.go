@@ -27,7 +27,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwt"
 
 	"github.com/dapr/components-contrib/common/httputils"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
+	contribMetadata "github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 )

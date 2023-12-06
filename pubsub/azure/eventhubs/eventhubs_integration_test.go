@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	kitLogger "github.com/dapr/kit/logger"
 )

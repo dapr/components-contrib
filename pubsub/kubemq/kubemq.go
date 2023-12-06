@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	contribMetadata "github.com/dapr/components-contrib/metadata"
+	contribMetadata "github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )

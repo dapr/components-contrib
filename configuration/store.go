@@ -16,7 +16,7 @@ package configuration
 import (
 	"context"
 
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/metadata"
 )
 
 // Store is an interface to perform operations on store.

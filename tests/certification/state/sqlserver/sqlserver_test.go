@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	// State.
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/state"
 	state_sqlserver "github.com/dapr/components-contrib/state/sqlserver"
 	state_loader "github.com/dapr/dapr/pkg/components/state"

@@ -25,7 +25,7 @@ import (
 	"k8s.io/utils/clock"
 
 	"github.com/dapr/components-contrib/bindings"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
+	contribMetadata "github.com/dapr/components-contrib/common/metadata"
 	cron "github.com/dapr/kit/cron"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"

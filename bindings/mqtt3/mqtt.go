@@ -29,7 +29,7 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"
 )

@@ -22,7 +22,7 @@ import (
 	tollbooth "github.com/didip/tollbooth/v7"
 	libstring "github.com/didip/tollbooth/v7/libstring"
 
-	contribMetadata "github.com/dapr/components-contrib/metadata"
+	contribMetadata "github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"

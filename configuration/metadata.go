@@ -13,7 +13,7 @@ limitations under the License.
 
 package configuration
 
-import "github.com/dapr/components-contrib/metadata"
+import "github.com/dapr/components-contrib/common/metadata"
 
 // Metadata contains a configuration store specific set of metadata property.
 type Metadata struct {

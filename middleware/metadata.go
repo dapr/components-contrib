@@ -13,7 +13,7 @@ limitations under the License.
 
 package middleware
 
-import "github.com/dapr/components-contrib/metadata"
+import "github.com/dapr/components-contrib/common/metadata"
 
 // Metadata represents a set of middleware specific properties.
 type Metadata struct {

@@ -27,7 +27,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	impl "github.com/dapr/components-contrib/common/component/azure/servicebus"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
+	contribMetadata "github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/kit/logger"
 )
 

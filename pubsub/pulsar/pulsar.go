@@ -31,7 +31,7 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 
 	"github.com/dapr/components-contrib/common/authentication/oauth2"
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"

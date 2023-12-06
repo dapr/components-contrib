@@ -31,7 +31,7 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	kubeclient "github.com/dapr/components-contrib/common/authentication/kubernetes"
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
 )

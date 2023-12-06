@@ -28,7 +28,7 @@ import (
 	"github.com/google/uuid"
 
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"

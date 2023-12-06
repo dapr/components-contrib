@@ -31,7 +31,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/dapr/components-contrib/common/component/postgresql"
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/state"
 	state_cockroach "github.com/dapr/components-contrib/state/cockroachdb"
 	"github.com/dapr/components-contrib/tests/certification/embedded"

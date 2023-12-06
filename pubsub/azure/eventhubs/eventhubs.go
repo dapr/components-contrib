@@ -22,8 +22,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs"
 
 	impl "github.com/dapr/components-contrib/common/component/azure/eventhubs"
+	"github.com/dapr/components-contrib/common/metadata"
 	commonutils "github.com/dapr/components-contrib/common/utils"
-	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"

@@ -25,8 +25,8 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
+	contribMetadata "github.com/dapr/components-contrib/common/metadata"
 	contribCrypto "github.com/dapr/components-contrib/crypto"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
 	internals "github.com/dapr/kit/crypto"
 	"github.com/dapr/kit/logger"
 )

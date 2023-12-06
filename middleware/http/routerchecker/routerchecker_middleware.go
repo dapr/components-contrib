@@ -21,7 +21,7 @@ import (
 	"regexp"
 
 	"github.com/dapr/components-contrib/common/httputils"
-	mdutils "github.com/dapr/components-contrib/metadata"
+	mdutils "github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"

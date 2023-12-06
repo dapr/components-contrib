@@ -29,7 +29,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/dapr/components-contrib/common/component/cloudflare/workers"
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"

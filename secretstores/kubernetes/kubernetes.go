@@ -23,7 +23,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	kubeclient "github.com/dapr/components-contrib/common/authentication/kubernetes"
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 )

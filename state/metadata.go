@@ -14,7 +14,7 @@ limitations under the License.
 package state
 
 import (
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/metadata"
 )
 
 // Metadata contains a state store specific set of metadata properties.

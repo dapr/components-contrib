@@ -23,8 +23,8 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
+	contribMetadata "github.com/dapr/components-contrib/common/metadata"
 	contribCrypto "github.com/dapr/components-contrib/crypto"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/jwkscache"
 	"github.com/dapr/kit/logger"
 )

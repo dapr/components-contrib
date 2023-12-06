@@ -18,8 +18,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/dapr/components-contrib/health"
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/health"
+	"github.com/dapr/components-contrib/common/metadata"
 )
 
 // InputBinding is the interface to define a binding that triggers on incoming events.

@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/couchbase/gocb.v1"
 
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/state"
 )
 

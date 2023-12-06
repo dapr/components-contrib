@@ -16,7 +16,7 @@ package nameresolution
 import (
 	"strconv"
 
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/metadata"
 )
 
 // These constants are used for the "legacy" way to pass instance information using a map.

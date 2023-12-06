@@ -37,7 +37,7 @@ import (
 	// Import the embed package.
 	_ "embed"
 
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	bearerMw "github.com/dapr/components-contrib/middleware/http/bearer"
 	"github.com/dapr/components-contrib/tests/certification/embedded"

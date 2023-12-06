@@ -23,7 +23,7 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/yaml.v3"
 
-	mdutils "github.com/dapr/components-contrib/metadata"
+	mdutils "github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 )

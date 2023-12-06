@@ -19,7 +19,7 @@ import (
 	"errors"
 	"testing"
 
-	mdata "github.com/dapr/components-contrib/metadata"
+	mdata "github.com/dapr/components-contrib/common/metadata"
 
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"

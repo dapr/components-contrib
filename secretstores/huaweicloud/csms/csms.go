@@ -23,7 +23,7 @@ import (
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/services/csms/v1/model"
 	csmsRegion "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/csms/v1/region"
 
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"

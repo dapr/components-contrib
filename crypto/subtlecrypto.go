@@ -18,7 +18,7 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/metadata"
 )
 
 // SubtleCrypto offers an interface to perform low-level ("subtle") cryptographic operations with keys stored in a vault.

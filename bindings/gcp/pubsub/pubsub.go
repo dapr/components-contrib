@@ -26,7 +26,7 @@ import (
 	"google.golang.org/api/option"
 
 	"github.com/dapr/components-contrib/bindings"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
+	contribMetadata "github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/kit/logger"
 )
 

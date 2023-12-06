@@ -37,8 +37,8 @@ import (
 
 	"github.com/dapr/components-contrib/bindings"
 	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
+	"github.com/dapr/components-contrib/common/metadata"
 	commonutils "github.com/dapr/components-contrib/common/utils"
-	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"

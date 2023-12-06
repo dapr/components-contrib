@@ -51,7 +51,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	azauth "github.com/dapr/components-contrib/common/authentication/azure"
-	mdutils "github.com/dapr/components-contrib/metadata"
+	mdutils "github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"

@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/dapr/components-contrib/common/eventbus"
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )

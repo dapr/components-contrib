@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
-	mdata "github.com/dapr/components-contrib/metadata"
+	mdata "github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/kit/logger"
 )
 

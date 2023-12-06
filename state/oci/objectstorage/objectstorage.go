@@ -31,7 +31,7 @@ import (
 	"github.com/oracle/oci-go-sdk/v54/common/auth"
 	"github.com/oracle/oci-go-sdk/v54/objectstorage"
 
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"

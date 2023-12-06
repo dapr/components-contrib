@@ -20,7 +20,7 @@ import (
 
 	"github.com/nats-io/nats.go"
 
-	mdata "github.com/dapr/components-contrib/metadata"
+	mdata "github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/ptr"
 )

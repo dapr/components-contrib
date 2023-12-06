@@ -22,8 +22,8 @@ import (
 	"github.com/cenkalti/backoff/v4"
 
 	"github.com/dapr/components-contrib/bindings"
+	contribMetadata "github.com/dapr/components-contrib/common/metadata"
 	commonutils "github.com/dapr/components-contrib/common/utils"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/retry"

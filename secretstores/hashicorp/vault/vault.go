@@ -31,7 +31,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"golang.org/x/net/http2"
 
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"

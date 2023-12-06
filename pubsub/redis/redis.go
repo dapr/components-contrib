@@ -24,7 +24,7 @@ import (
 	"time"
 
 	rediscomponent "github.com/dapr/components-contrib/common/component/redis"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
+	contribMetadata "github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )

@@ -29,8 +29,8 @@ import (
 	"github.com/google/uuid"
 
 	azauth "github.com/dapr/components-contrib/common/authentication/azure"
+	contribMetadata "github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/configuration"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
 
 	"github.com/dapr/kit/logger"
 )

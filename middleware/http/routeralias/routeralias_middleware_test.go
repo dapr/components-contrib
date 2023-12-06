@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/dapr/components-contrib/common/httputils"
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"
 

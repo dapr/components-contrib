@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	commonredis "github.com/dapr/components-contrib/common/component/redis"
-	mdata "github.com/dapr/components-contrib/metadata"
+	mdata "github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"

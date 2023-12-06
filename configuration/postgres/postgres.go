@@ -30,8 +30,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/exp/slices"
 
+	contribMetadata "github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/configuration"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 

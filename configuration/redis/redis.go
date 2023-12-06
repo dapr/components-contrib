@@ -26,9 +26,9 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	rediscomponent "github.com/dapr/components-contrib/common/component/redis"
+	contribMetadata "github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/configuration"
 	"github.com/dapr/components-contrib/configuration/redis/internal"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
 

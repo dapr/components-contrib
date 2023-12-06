@@ -31,8 +31,8 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/dapr/components-contrib/common/authentication/azure"
-	"github.com/dapr/components-contrib/contenttype"
-	contribmeta "github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/contenttype"
+	contribmeta "github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 	stateutils "github.com/dapr/components-contrib/state/utils"

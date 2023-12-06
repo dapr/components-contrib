@@ -17,6 +17,7 @@ import (
 	"context"
 )
 
+// Pinger is an optional interface that can be implemented by components.
 type Pinger interface {
 	Ping(ctx context.Context) error
 }

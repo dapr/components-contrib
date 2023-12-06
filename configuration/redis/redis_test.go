@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	redisComponent "github.com/dapr/components-contrib/common/component/redis"
-	contribMetadata "github.com/dapr/components-contrib/metadata"
+	contribMetadata "github.com/dapr/components-contrib/common/metadata"
 
 	"github.com/dapr/components-contrib/configuration"
 	"github.com/dapr/kit/logger"

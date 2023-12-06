@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/metadata"
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
 	"github.com/dapr/components-contrib/state"
 	cosmosdb "github.com/dapr/components-contrib/state/azure/cosmosdb"

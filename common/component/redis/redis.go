@@ -22,8 +22,8 @@ import (
 
 	"golang.org/x/mod/semver"
 
+	"github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/configuration"
-	"github.com/dapr/components-contrib/metadata"
 )
 
 const (

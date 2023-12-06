@@ -23,8 +23,8 @@ import (
 	"time"
 
 	impl "github.com/dapr/components-contrib/common/component/azure/servicebus"
+	"github.com/dapr/components-contrib/common/metadata"
 	commonutils "github.com/dapr/components-contrib/common/utils"
-	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )

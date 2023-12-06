@@ -27,7 +27,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	blobstoragecommon "github.com/dapr/components-contrib/common/component/azure/blobstorage"
-	mdutils "github.com/dapr/components-contrib/metadata"
+	mdutils "github.com/dapr/components-contrib/common/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"

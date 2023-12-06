@@ -225,7 +225,7 @@ func TestMySQL(t *testing.T) {
 
 			// save state
 			_, err = client.GetState(ctx, stateStoreName, certificationTestPrefix+"key1", nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			return nil
 		}
@@ -249,16 +249,16 @@ func TestMySQL(t *testing.T) {
 			for _, sqlInjectionAttempt := range sqlInjectionAttempts {
 				// save state with sqlInjectionAttempt's value as key, default options: strong, last-write
 				err = client.SaveState(ctx, stateStoreName, sqlInjectionAttempt, []byte(sqlInjectionAttempt), nil)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				// get state for key sqlInjectionAttempt's value
 				item, err := client.GetState(ctx, stateStoreName, sqlInjectionAttempt, nil)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, sqlInjectionAttempt, string(item.Value))
 
 				// delete state for key sqlInjectionAttempt's value
 				err = client.DeleteState(ctx, stateStoreName, sqlInjectionAttempt, nil)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			return nil
@@ -296,7 +296,7 @@ func TestMySQL(t *testing.T) {
 			start := time.Now()
 			// Should fail
 			err = component.Ping(context.Background())
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Truef(t, errors.Is(err, context.DeadlineExceeded), "expected context.DeadlineExceeded but got %v", err)
 			assert.GreaterOrEqual(t, time.Since(start), timeout)
 		}

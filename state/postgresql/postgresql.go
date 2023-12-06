@@ -14,7 +14,7 @@ limitations under the License.
 package postgresql
 
 import (
-	"github.com/dapr/components-contrib/internal/component/postgresql"
+	"github.com/dapr/components-contrib/common/component/postgresql"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
 )

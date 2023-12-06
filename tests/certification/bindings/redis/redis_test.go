@@ -20,6 +20,7 @@ import (
 	"github.com/dapr/kit/logger"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -51,7 +52,7 @@ func TestRedisBinding(t *testing.T) {
 		}
 
 		err := client.InvokeOutputBinding(ctx, invokeRequest)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		rdb := redis.NewClient(&redis.Options{
 			Addr:     "localhost:6399", // host:port of the redis server
@@ -60,7 +61,7 @@ func TestRedisBinding(t *testing.T) {
 		})
 
 		val, err := rdb.Get(ctx, keyName).Result()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, dataInserted, val)
 
 		err = rdb.Close()
@@ -85,7 +86,7 @@ func TestRedisBinding(t *testing.T) {
 		}
 
 		err := client.InvokeOutputBinding(ctx, invokeRequest)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		invokeRequest = &daprClient.InvokeBindingRequest{
 			Name:      bindingName,
@@ -95,7 +96,7 @@ func TestRedisBinding(t *testing.T) {
 		}
 
 		err = client.InvokeOutputBinding(ctx, invokeRequest)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		invokeRequest = &daprClient.InvokeBindingRequest{
 			Name:      bindingName,
@@ -104,7 +105,7 @@ func TestRedisBinding(t *testing.T) {
 		}
 
 		err = client.InvokeOutputBinding(ctx, invokeRequest)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		invokeRequest = &daprClient.InvokeBindingRequest{
 			Name:      bindingName,
@@ -113,7 +114,7 @@ func TestRedisBinding(t *testing.T) {
 		}
 
 		out, err2 := client.InvokeBinding(ctx, invokeRequest)
-		assert.NoError(t, err2)
+		require.NoError(t, err2)
 		assert.Equal(t, "42", string(out.Data))
 
 		time.Sleep(3 * time.Second)
@@ -127,7 +128,7 @@ func TestRedisBinding(t *testing.T) {
 		}
 
 		out, err2 = client.InvokeBinding(ctx, invokeRequest)
-		assert.NoError(t, err2)
+		require.NoError(t, err2)
 		assert.Equal(t, []byte(nil), out.Data)
 
 		invokeRequest = &daprClient.InvokeBindingRequest{
@@ -137,7 +138,7 @@ func TestRedisBinding(t *testing.T) {
 		}
 
 		out, err2 = client.InvokeBinding(ctx, invokeRequest)
-		assert.NoError(t, err2)
+		require.NoError(t, err2)
 		assert.Equal(t, []byte(nil), out.Data)
 
 		invokeRequest = &daprClient.InvokeBindingRequest{
@@ -148,7 +149,7 @@ func TestRedisBinding(t *testing.T) {
 		}
 
 		err = client.InvokeOutputBinding(ctx, invokeRequest)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		invokeRequest = &daprClient.InvokeBindingRequest{
 			Name:      bindingName,
@@ -156,7 +157,7 @@ func TestRedisBinding(t *testing.T) {
 			Metadata:  map[string]string{"key": "getDelKey", "delete": "true"},
 		}
 		out, err2 = client.InvokeBinding(ctx, invokeRequest)
-		assert.NoError(t, err2)
+		require.NoError(t, err2)
 		assert.Equal(t, "43", string(out.Data))
 
 		invokeRequest = &daprClient.InvokeBindingRequest{
@@ -166,7 +167,7 @@ func TestRedisBinding(t *testing.T) {
 		}
 
 		out, err2 = client.InvokeBinding(ctx, invokeRequest)
-		assert.NoError(t, err2)
+		require.NoError(t, err2)
 		assert.Equal(t, []byte(nil), out.Data)
 
 		return nil
@@ -200,7 +201,7 @@ func TestRedisBinding(t *testing.T) {
 		})
 
 		val, err := rdb.Get(ctx, keyName).Result()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, dataInserted, val)
 
 		err = rdb.Close()

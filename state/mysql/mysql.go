@@ -27,7 +27,7 @@ import (
 
 	"github.com/google/uuid"
 
-	internalsql "github.com/dapr/components-contrib/internal/component/sql"
+	commonsql "github.com/dapr/components-contrib/common/component/sql"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
@@ -90,7 +90,7 @@ type MySQL struct {
 	logger logger.Logger
 
 	factory iMySQLFactory
-	gc      internalsql.GarbageCollector
+	gc      commonsql.GarbageCollector
 }
 
 type mySQLMetadata struct {
@@ -275,7 +275,7 @@ func (m *MySQL) finishInit(ctx context.Context, db *sql.DB) error {
 	}
 
 	if m.cleanupInterval != nil {
-		gc, err := internalsql.ScheduleGarbageCollector(internalsql.GCOptions{
+		gc, err := commonsql.ScheduleGarbageCollector(commonsql.GCOptions{
 			Logger: m.logger,
 			UpdateLastCleanupQuery: func(arg any) (string, any) {
 				return fmt.Sprintf(`INSERT INTO %[1]s (id, value)
@@ -289,7 +289,7 @@ func (m *MySQL) finishInit(ctx context.Context, db *sql.DB) error {
 				m.tableName,
 			),
 			CleanupInterval: *m.cleanupInterval,
-			DB:              internalsql.AdaptDatabaseSQLConn(m.db),
+			DB:              commonsql.AdaptDatabaseSQLConn(m.db),
 		})
 		if err != nil {
 			return err
@@ -509,6 +509,7 @@ func (m *MySQL) Get(parentCtx context.Context, req *state.GetRequest) (*state.Ge
 	ctx, cancel := context.WithTimeout(parentCtx, m.timeout)
 	defer cancel()
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
+	//nolint:gosec
 	query := `SELECT id, value, eTag, isbinary, IFNULL(expiredate, "") FROM ` + m.tableName + ` WHERE id = ?
 			AND (expiredate IS NULL OR expiredate > CURRENT_TIMESTAMP)`
 	row := m.db.QueryRowContext(ctx, query, req.Key)
@@ -668,6 +669,7 @@ func (m *MySQL) BulkGet(parentCtx context.Context, req []state.GetRequest, _ sta
 	}
 
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
+	//nolint:gosec
 	stmt := `SELECT id, value, eTag, isbinary, IFNULL(expiredate, "") FROM ` + m.tableName + `
 		WHERE
 			id IN (` + inClause + `)

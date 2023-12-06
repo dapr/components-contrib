@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -31,11 +32,11 @@ func TestInit(t *testing.T) {
 	}
 	ps := GCPPubSub{logger: logger.NewLogger("test")}
 	b, err := ps.parseMetadata(m)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	var pubsubMeta pubSubMetadata
 	err = json.Unmarshal(b, &pubsubMeta)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	assert.Equal(t, "s1", pubsubMeta.Subscription)
 	assert.Equal(t, "t1", pubsubMeta.Topic)

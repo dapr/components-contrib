@@ -26,7 +26,7 @@ import (
 	servicebus "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 
 	"github.com/dapr/components-contrib/bindings"
-	impl "github.com/dapr/components-contrib/internal/component/azure/servicebus"
+	impl "github.com/dapr/components-contrib/common/component/azure/servicebus"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )

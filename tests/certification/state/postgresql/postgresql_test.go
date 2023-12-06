@@ -37,7 +37,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 
-	state_postgres "github.com/dapr/components-contrib/internal/component/postgresql"
+	state_postgres "github.com/dapr/components-contrib/common/component/postgresql"
 	"github.com/dapr/components-contrib/state"
 	state_loader "github.com/dapr/dapr/pkg/components/state"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
@@ -65,7 +65,7 @@ func TestPostgreSQL(t *testing.T) {
 
 	stateStore := postgresql.NewPostgreSQLStateStore(log).(*state_postgres.PostgreSQL)
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	stateRegistry := state_loader.NewRegistry()
 	stateRegistry.Logger = log
@@ -116,13 +116,13 @@ func TestPostgreSQL(t *testing.T) {
 
 			// We should have the tables correctly created
 			err = tableExists(dbClient, "public", "clean_state")
-			assert.NoError(t, err, "state table does not exist")
+			require.NoError(t, err, "state table does not exist")
 			err = tableExists(dbClient, "public", "clean_metadata")
-			assert.NoError(t, err, "metadata table does not exist")
+			require.NoError(t, err, "metadata table does not exist")
 
 			// Ensure migration level is correct
 			level, err := getMigrationLevel(dbClient, "clean_metadata")
-			assert.NoError(t, err, "failed to get migration level")
+			require.NoError(t, err, "failed to get migration level")
 			assert.Equal(t, migrationLevel, level, "migration level mismatch: found '%s' but expected '%s'", level, migrationLevel)
 
 			err = storeObj.Close()
@@ -140,13 +140,13 @@ func TestPostgreSQL(t *testing.T) {
 
 			// We should have the tables correctly created
 			err = tableExists(dbClient, "public", "clean2_state")
-			assert.NoError(t, err, "state table does not exist")
+			require.NoError(t, err, "state table does not exist")
 			err = tableExists(dbClient, "public", "clean2_metadata")
-			assert.NoError(t, err, "metadata table does not exist")
+			require.NoError(t, err, "metadata table does not exist")
 
 			// Ensure migration level is correct
 			level, err := getMigrationLevel(dbClient, "clean2_metadata")
-			assert.NoError(t, err, "failed to get migration level")
+			require.NoError(t, err, "failed to get migration level")
 			assert.Equal(t, migrationLevel, level, "migration level mismatch: found '%s' but expected '%s'", level, migrationLevel)
 
 			err = storeObj.Close()
@@ -161,7 +161,7 @@ func TestPostgreSQL(t *testing.T) {
 
 			// Should already have migration level 2
 			level, err := getMigrationLevel(dbClient, "clean_metadata")
-			assert.NoError(t, err, "failed to get migration level")
+			require.NoError(t, err, "failed to get migration level")
 			assert.Equal(t, migrationLevel, level, "migration level mismatch: found '%s' but expected '%s'", level, migrationLevel)
 
 			// Init and perform the migrations
@@ -170,7 +170,7 @@ func TestPostgreSQL(t *testing.T) {
 
 			// Ensure migration level is correct
 			level, err = getMigrationLevel(dbClient, "clean_metadata")
-			assert.NoError(t, err, "failed to get migration level")
+			require.NoError(t, err, "failed to get migration level")
 			assert.Equal(t, migrationLevel, level, "migration level mismatch: found '%s' but expected '%s'", level, migrationLevel)
 
 			err = storeObj.Close()
@@ -204,11 +204,11 @@ func TestPostgreSQL(t *testing.T) {
 
 			// We should have the metadata table created
 			err = tableExists(dbClient, "public", "pre_metadata")
-			assert.NoError(t, err, "metadata table does not exist")
+			require.NoError(t, err, "metadata table does not exist")
 
 			// Ensure migration level is correct
 			level, err := getMigrationLevel(dbClient, "pre_metadata")
-			assert.NoError(t, err, "failed to get migration level")
+			require.NoError(t, err, "failed to get migration level")
 			assert.Equal(t, migrationLevel, level, "migration level mismatch: found '%s' but expected '%s'", level, migrationLevel)
 
 			// Ensure the expiredate column has been added
@@ -270,16 +270,16 @@ func TestPostgreSQL(t *testing.T) {
 				}(i)
 			}
 
-			failed := false
 			for i := 0; i < 3; i++ {
 				select {
 				case err := <-errs:
-					failed = failed || !assert.NoError(t, err)
+					//nolint:testify
+					assert.NoError(t, err)
 				case <-time.After(time.Minute):
 					t.Fatal("timed out waiting for components to initialize")
 				}
 			}
-			if failed {
+			if t.Failed() {
 				// Short-circuit
 				t.FailNow()
 			}
@@ -289,13 +289,13 @@ func TestPostgreSQL(t *testing.T) {
 
 			// We should have the tables correctly created
 			err = tableExists(dbClient, "public", "mystate")
-			assert.NoError(t, err, "state table does not exist")
+			require.NoError(t, err, "state table does not exist")
 			err = tableExists(dbClient, "public", "mymetadata")
-			assert.NoError(t, err, "metadata table does not exist")
+			require.NoError(t, err, "metadata table does not exist")
 
 			// Ensure migration level is correct
 			level, err := getMigrationLevel(dbClient, "mymetadata")
-			assert.NoError(t, err, "failed to get migration level")
+			require.NoError(t, err, "failed to get migration level")
 			assert.Equal(t, migrationLevel, level, "migration level mismatch: found '%s' but expected '%s'", level, migrationLevel)
 		})
 
@@ -460,16 +460,16 @@ func TestPostgreSQL(t *testing.T) {
 		for _, sqlInjectionAttempt := range sqlInjectionAttempts {
 			// save state with sqlInjectionAttempt's value as key, default options: strong, last-write
 			err = client.SaveState(ctx, stateStoreName, sqlInjectionAttempt, []byte(sqlInjectionAttempt), nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// get state for key sqlInjectionAttempt's value
 			item, err := client.GetState(ctx, stateStoreName, sqlInjectionAttempt, nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, sqlInjectionAttempt, string(item.Value))
 
 			// delete state for key sqlInjectionAttempt's value
 			err = client.DeleteState(ctx, stateStoreName, sqlInjectionAttempt, nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 
 		return nil
@@ -529,7 +529,6 @@ func TestPostgreSQL(t *testing.T) {
 				cleanupInterval := storeObj.GetCleanupInterval()
 				_ = assert.Nil(t, cleanupInterval)
 			})
-
 		})
 
 		t.Run("cleanup", func(t *testing.T) {
@@ -633,7 +632,7 @@ func TestPostgreSQL(t *testing.T) {
 	flow.New(t, "Run tests").
 		Step(dockercompose.Run("db", dockerComposeYAML)).
 		// No waiting here, as connectStep retries until it's ready (or there's a timeout)
-		//Step("wait for component to start", flow.Sleep(10*time.Second)).
+		// Step("wait for component to start", flow.Sleep(10*time.Second)).
 		Step("connect to the database", connectStep).
 		Step("run Init test", initTest).
 		Step(sidecar.Run(sidecarNamePrefix+"dockerDefault",

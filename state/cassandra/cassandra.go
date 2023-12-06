@@ -62,15 +62,16 @@ type Cassandra struct {
 }
 
 type cassandraMetadata struct {
-	Hosts             []string
-	Port              int
-	ProtoVersion      int
-	ReplicationFactor int
-	Username          string
-	Password          string
-	Consistency       string
-	Table             string
-	Keyspace          string
+	Hosts                  []string
+	Port                   int
+	ProtoVersion           int
+	ReplicationFactor      int
+	Username               string
+	Password               string
+	Consistency            string
+	Table                  string
+	Keyspace               string
+	EnableHostVerification bool
 }
 
 // NewCassandraStateStore returns a new cassandra state store.
@@ -124,7 +125,7 @@ func (c *Cassandra) Features() []state.Feature {
 }
 
 func (c *Cassandra) tryCreateKeyspace(keyspace string, replicationFactor int) error {
-	return c.session.Query(fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : %s};", keyspace, fmt.Sprintf("%v", replicationFactor))).Exec()
+	return c.session.Query(fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : %s};", keyspace, strconv.Itoa(replicationFactor))).Exec()
 }
 
 func (c *Cassandra) tryCreateTable(table, keyspace string) error {
@@ -135,6 +136,11 @@ func (c *Cassandra) createClusterConfig(metadata *cassandraMetadata) (*gocql.Clu
 	clusterConfig := gocql.NewCluster(metadata.Hosts...)
 	if metadata.Username != "" && metadata.Password != "" {
 		clusterConfig.Authenticator = gocql.PasswordAuthenticator{Username: metadata.Username, Password: metadata.Password}
+	}
+	if metadata.EnableHostVerification {
+		clusterConfig.SslOpts = &gocql.SslOptions{
+			EnableHostVerification: true,
+		}
 	}
 	clusterConfig.Port = metadata.Port
 	clusterConfig.ProtoVersion = metadata.ProtoVersion

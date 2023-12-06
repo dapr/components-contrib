@@ -25,7 +25,7 @@ import (
 	"github.com/http-wasm/http-wasm-host-go/handler"
 	wasmnethttp "github.com/http-wasm/http-wasm-host-go/handler/nethttp"
 
-	"github.com/dapr/components-contrib/internal/wasm"
+	"github.com/dapr/components-contrib/common/wasm"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	dapr "github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"

@@ -26,6 +26,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestActivateJobsOperation(t *testing.T) {
@@ -47,7 +48,7 @@ func TestActivateJobsOperation(t *testing.T) {
 			1,
 			zeebe_test.IDModifier(id))
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, id, deployment.Deployments[0].Metadata.Process.BpmnProcessId)
 
 		return nil
@@ -65,7 +66,7 @@ func TestActivateJobsOperation(t *testing.T) {
 				"bar": "foo",
 			},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		jobs, err := zeebe_test.ActicateJob(client, ctx, map[string]interface{}{
 			"jobType":           zeebe_test.JobworkerTestName,
@@ -74,7 +75,7 @@ func TestActivateJobsOperation(t *testing.T) {
 			"workerName":        workerName,
 		})
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, jobs)
 		assert.Equal(t, 1, len(*jobs))
 
@@ -107,7 +108,7 @@ func TestActivateJobsOperation(t *testing.T) {
 				"bar": "foo",
 			},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		jobs, err := zeebe_test.ActicateJob(client, ctx, map[string]interface{}{
 			"jobType":           zeebe_test.JobworkerTestName,
@@ -118,7 +119,7 @@ func TestActivateJobsOperation(t *testing.T) {
 			"requestTimeout":    30 * time.Second,
 		})
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, jobs)
 		assert.Equal(t, 1, len(*jobs))
 

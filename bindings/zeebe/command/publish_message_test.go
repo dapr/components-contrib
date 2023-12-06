@@ -23,6 +23,7 @@ import (
 	"github.com/camunda/zeebe/clients/go/v8/pkg/pb"
 	"github.com/camunda/zeebe/clients/go/v8/pkg/zbc"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -103,9 +104,12 @@ func TestPublishMessage(t *testing.T) {
 
 	t.Run("messageName is mandatory", func(t *testing.T) {
 		cmd := ZeebeCommand{logger: testLogger}
-		req := &bindings.InvokeRequest{Operation: PublishMessageOperation}
+		payload := map[string]string{}
+		data, marshalErr := json.Marshal(payload)
+		require.NoError(t, marshalErr)
+		req := &bindings.InvokeRequest{Operation: PublishMessageOperation, Data: data}
 		_, err := cmd.Invoke(context.TODO(), req)
-		assert.Error(t, err, ErrMissingMessageName)
+		require.ErrorIs(t, err, ErrMissingMessageName)
 	})
 
 	t.Run("send message with mandatory fields", func(t *testing.T) {
@@ -113,7 +117,7 @@ func TestPublishMessage(t *testing.T) {
 			MessageName: "a",
 		}
 		data, err := json.Marshal(payload)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: PublishMessageOperation}
 
@@ -121,7 +125,7 @@ func TestPublishMessage(t *testing.T) {
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = cmd.Invoke(context.TODO(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.Equal(t, payload.MessageName, mc.cmd1.messageName)
 		assert.Equal(t, payload.CorrelationKey, mc.cmd1.cmd2.correlationKey)
@@ -138,7 +142,7 @@ func TestPublishMessage(t *testing.T) {
 			},
 		}
 		data, err := json.Marshal(payload)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		req := &bindings.InvokeRequest{Data: data, Operation: PublishMessageOperation}
 
@@ -146,7 +150,7 @@ func TestPublishMessage(t *testing.T) {
 
 		cmd := ZeebeCommand{logger: testLogger, client: &mc}
 		_, err = cmd.Invoke(context.TODO(), req)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.Equal(t, payload.MessageName, mc.cmd1.messageName)
 		assert.Equal(t, payload.CorrelationKey, mc.cmd1.cmd2.correlationKey)

@@ -29,7 +29,8 @@ import (
 	// Blank import for the underlying SQLite Driver.
 	_ "modernc.org/sqlite"
 
-	internalsql "github.com/dapr/components-contrib/internal/component/sql"
+	"github.com/dapr/components-contrib/common/authentication/sqlite"
+	commonsql "github.com/dapr/components-contrib/common/component/sql"
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
@@ -59,7 +60,7 @@ type sqliteDBAccess struct {
 	logger   logger.Logger
 	metadata sqliteMetadataStruct
 	db       *sql.DB
-	gc       internalsql.GarbageCollector
+	gc       commonsql.GarbageCollector
 }
 
 // newSqliteDBAccess creates a new instance of sqliteDbAccess.
@@ -77,7 +78,7 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 		return err
 	}
 
-	connString, err := a.metadata.GetConnectionString(a.logger)
+	connString, err := a.metadata.GetConnectionString(a.logger, sqlite.GetConnectionStringOpts{})
 	if err != nil {
 		// Already logged
 		return err
@@ -114,7 +115,7 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 }
 
 func (a *sqliteDBAccess) initGC() (err error) {
-	a.gc, err = internalsql.ScheduleGarbageCollector(internalsql.GCOptions{
+	a.gc, err = commonsql.ScheduleGarbageCollector(commonsql.GCOptions{
 		Logger: a.logger,
 		UpdateLastCleanupQuery: func(arg any) (string, any) {
 			return fmt.Sprintf(`INSERT INTO %s (key, value)
@@ -132,7 +133,7 @@ func (a *sqliteDBAccess) initGC() (err error) {
 			a.metadata.TableName,
 		),
 		CleanupInterval: a.metadata.CleanupInterval,
-		DB:              internalsql.AdaptDatabaseSQLConn(a.db),
+		DB:              commonsql.AdaptDatabaseSQLConn(a.db),
 	})
 	return err
 }
@@ -154,6 +155,7 @@ func (a *sqliteDBAccess) Get(parentCtx context.Context, req *state.GetRequest) (
 	}
 
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
+	//nolint:gosec
 	stmt := `SELECT key, value, is_binary, etag, expiration_time FROM ` + a.metadata.TableName + `
 		WHERE
 			key = ?
@@ -197,6 +199,7 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 	}
 
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
+	//nolint:gosec
 	stmt := `SELECT key, value, is_binary, etag, expiration_time FROM ` + a.metadata.TableName + `
 		WHERE
 			key IN (` + inClause + `)

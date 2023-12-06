@@ -43,7 +43,7 @@ func TestInit(t *testing.T) {
 			"nestedSeparator": "a",
 		}
 		err := s.Init(context.Background(), m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Init with missing metadata", func(t *testing.T) {
@@ -51,7 +51,7 @@ func TestInit(t *testing.T) {
 			"dummy": "a",
 		}
 		err := s.Init(context.Background(), m)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 		assert.Equal(t, err, fmt.Errorf("missing local secrets file in metadata"))
 	})
 }
@@ -75,14 +75,14 @@ func TestSeparator(t *testing.T) {
 			"nestedSeparator": ".",
 		}
 		err := s.Init(context.Background(), m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		req := secretstores.GetSecretRequest{
 			Name:     "root.key1",
 			Metadata: map[string]string{},
 		}
 		output, err := s.GetSecret(context.Background(), req)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "value1", output.Data[req.Name])
 	})
 
@@ -91,14 +91,14 @@ func TestSeparator(t *testing.T) {
 			"secretsFile": "a",
 		}
 		err := s.Init(context.Background(), m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		req := secretstores.GetSecretRequest{
 			Name:     "root:key2",
 			Metadata: map[string]string{},
 		}
 		output, err := s.GetSecret(context.Background(), req)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "value2", output.Data[req.Name])
 	})
 }
@@ -126,7 +126,7 @@ func TestGetSecret(t *testing.T) {
 			Metadata: map[string]string{},
 		}
 		output, e := s.GetSecret(context.Background(), req)
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Equal(t, "secret", output.Data[req.Name])
 	})
 
@@ -136,7 +136,7 @@ func TestGetSecret(t *testing.T) {
 			Metadata: map[string]string{},
 		}
 		_, err := s.GetSecret(context.Background(), req)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 		assert.Equal(t, err, fmt.Errorf("secret %s not found", req.Name))
 	})
 
@@ -165,7 +165,7 @@ func TestBulkGetSecret(t *testing.T) {
 	t.Run("successfully retrieve secrets", func(t *testing.T) {
 		req := secretstores.BulkGetSecretRequest{}
 		output, e := s.BulkGetSecret(context.Background(), req)
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Equal(t, "secret", output.Data["secret"]["secret"])
 	})
 }

@@ -26,7 +26,8 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 
-	internalsql "github.com/dapr/components-contrib/internal/component/sql"
+	"github.com/dapr/components-contrib/common/authentication/sqlite"
+	commonsql "github.com/dapr/components-contrib/common/component/sql"
 	"github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/logger"
 )
@@ -41,7 +42,7 @@ type resolver struct {
 	logger         logger.Logger
 	metadata       sqliteMetadata
 	db             *sql.DB
-	gc             internalsql.GarbageCollector
+	gc             commonsql.GarbageCollector
 	registrationID string
 	closed         atomic.Bool
 	closeCh        chan struct{}
@@ -67,7 +68,7 @@ func (s *resolver) Init(ctx context.Context, md nameresolution.Metadata) error {
 		return err
 	}
 
-	connString, err := s.metadata.GetConnectionString(s.logger)
+	connString, err := s.metadata.GetConnectionString(s.logger, sqlite.GetConnectionStringOpts{})
 	if err != nil {
 		// Already logged
 		return err
@@ -113,7 +114,7 @@ func (s *resolver) Init(ctx context.Context, md nameresolution.Metadata) error {
 }
 
 func (s *resolver) initGC() (err error) {
-	s.gc, err = internalsql.ScheduleGarbageCollector(internalsql.GCOptions{
+	s.gc, err = commonsql.ScheduleGarbageCollector(commonsql.GCOptions{
 		Logger: s.logger,
 		UpdateLastCleanupQuery: func(arg any) (string, any) {
 			return fmt.Sprintf(`INSERT INTO %s (key, value)
@@ -130,7 +131,7 @@ func (s *resolver) initGC() (err error) {
 			int(s.metadata.UpdateInterval.Seconds()),
 		),
 		CleanupInterval: s.metadata.CleanupInterval,
-		DB:              internalsql.AdaptDatabaseSQLConn(s.db),
+		DB:              commonsql.AdaptDatabaseSQLConn(s.db),
 	})
 	return err
 }

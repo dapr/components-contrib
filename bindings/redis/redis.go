@@ -20,7 +20,7 @@ import (
 	"reflect"
 
 	"github.com/dapr/components-contrib/bindings"
-	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
+	rediscomponent "github.com/dapr/components-contrib/common/component/redis"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )

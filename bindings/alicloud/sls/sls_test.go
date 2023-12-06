@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 )
@@ -23,7 +24,7 @@ func TestSlsLogstorageMetadata(t *testing.T) {
 
 	meta, err := aliCloudSlsLogstorage.parseMeta(m)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "ENDPOINT", meta.Endpoint)
 	assert.Equal(t, "ACCESSKEYID", meta.AccessKeyID)
 	assert.Equal(t, "ACCESSKEYSECRET", meta.AccessKeySecret)

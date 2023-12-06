@@ -18,8 +18,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	sqlinternal "github.com/dapr/components-contrib/internal/component/sql"
-	sqlitemigrations "github.com/dapr/components-contrib/internal/component/sql/migrations/sqlite"
+	commonsql "github.com/dapr/components-contrib/common/component/sql"
+	sqlitemigrations "github.com/dapr/components-contrib/common/component/sql/migrations/sqlite"
 	"github.com/dapr/kit/logger"
 )
 
@@ -37,7 +37,7 @@ func performMigrations(ctx context.Context, db *sql.DB, logger logger.Logger, op
 		MetadataKey:       "migrations",
 	}
 
-	return m.Perform(ctx, []sqlinternal.MigrationFn{
+	return m.Perform(ctx, []commonsql.MigrationFn{
 		// Migration 0: create the state table
 		func(ctx context.Context) error {
 			// We need to add an "IF NOT EXISTS" because we may be migrating from when we did not use a metadata table

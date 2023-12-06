@@ -28,7 +28,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/exp/slices"
 
-	"github.com/dapr/components-contrib/internal/component/cloudflare/workers"
+	"github.com/dapr/components-contrib/common/component/cloudflare/workers"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"

@@ -22,6 +22,7 @@ import (
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
 	"github.com/googleapis/gax-go/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
@@ -69,7 +70,7 @@ func TestInit(t *testing.T) {
 		}
 
 		err := sm.Init(ctx, m)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 		assert.Equal(t, err, fmt.Errorf("failed to setup secretmanager client: google: could not parse key: private key should be a PEM or plain PKCS1 or PKCS8; parse error: asn1: syntax error: truncated tag or length"))
 	})
 
@@ -78,7 +79,7 @@ func TestInit(t *testing.T) {
 			"dummy": "a",
 		}
 		err := sm.Init(ctx, m)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 		assert.Equal(t, err, fmt.Errorf("missing property `type` in metadata"))
 	})
 
@@ -87,7 +88,7 @@ func TestInit(t *testing.T) {
 			"type": "service_account",
 		}
 		err := sm.Init(ctx, m)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 		assert.Equal(t, err, fmt.Errorf("missing property `project_id` in metadata"))
 	})
 }
@@ -98,7 +99,7 @@ func TestGetSecret(t *testing.T) {
 
 	t.Run("Get Secret - without Init", func(t *testing.T) {
 		v, err := sm.GetSecret(context.Background(), secretstores.GetSecretRequest{Name: "test"})
-		assert.NotNil(t, err)
+		require.Error(t, err)
 		assert.Equal(t, err, fmt.Errorf("client is not initialized"))
 		assert.Equal(t, secretstores.GetSecretResponse{Data: nil}, v)
 	})
@@ -120,7 +121,7 @@ func TestGetSecret(t *testing.T) {
 		}}
 		sm.Init(ctx, m)
 		v, err := sm.GetSecret(context.Background(), secretstores.GetSecretRequest{Name: "test"})
-		assert.NotNil(t, err)
+		require.Error(t, err)
 		assert.Equal(t, secretstores.GetSecretResponse{Data: nil}, v)
 	})
 
@@ -130,7 +131,7 @@ func TestGetSecret(t *testing.T) {
 		s.ProjectID = "test_project"
 
 		resp, err := sm.GetSecret(context.Background(), secretstores.GetSecretRequest{})
-		assert.NotNil(t, err)
+		require.Error(t, err)
 		assert.Nil(t, resp.Data)
 	})
 
@@ -140,9 +141,9 @@ func TestGetSecret(t *testing.T) {
 		s.ProjectID = "test_project"
 
 		resp, err := sm.GetSecret(context.Background(), secretstores.GetSecretRequest{Name: "test"})
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, resp.Data)
-		assert.Equal(t, resp.Data["test"], "test")
+		assert.Equal(t, "test", resp.Data["test"])
 	})
 }
 
@@ -152,7 +153,7 @@ func TestBulkGetSecret(t *testing.T) {
 
 	t.Run("Bulk Get Secret - without Init", func(t *testing.T) {
 		v, err := sm.BulkGetSecret(context.Background(), secretstores.BulkGetSecretRequest{})
-		assert.NotNil(t, err)
+		require.Error(t, err)
 		assert.Equal(t, err, fmt.Errorf("client is not initialized"))
 		assert.Equal(t, secretstores.BulkGetSecretResponse{Data: nil}, v)
 	})
@@ -176,7 +177,7 @@ func TestBulkGetSecret(t *testing.T) {
 		}
 		sm.Init(ctx, m)
 		v, err := sm.BulkGetSecret(context.Background(), secretstores.BulkGetSecretRequest{})
-		assert.NotNil(t, err)
+		require.Error(t, err)
 		assert.Equal(t, secretstores.BulkGetSecretResponse{Data: nil}, v)
 	})
 }

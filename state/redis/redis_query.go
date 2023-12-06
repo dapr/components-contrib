@@ -20,7 +20,7 @@ import (
 	"strconv"
 	"strings"
 
-	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
+	rediscomponent "github.com/dapr/components-contrib/common/component/redis"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 )
@@ -179,10 +179,10 @@ func (q *Query) Finalize(filters string, qq *query.Query) error {
 			if err != nil {
 				return err
 			}
-			q.query = append(q.query, "LIMIT", qq.Page.Token, fmt.Sprintf("%d", q.limit))
+			q.query = append(q.query, "LIMIT", qq.Page.Token, strconv.Itoa(q.limit))
 		} else {
 			q.offset = 0
-			q.query = append(q.query, "LIMIT", "0", fmt.Sprintf("%d", q.limit))
+			q.query = append(q.query, "LIMIT", "0", strconv.Itoa(q.limit))
 		}
 	}
 

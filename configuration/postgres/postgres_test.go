@@ -22,8 +22,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	pgauth "github.com/dapr/components-contrib/common/authentication/postgresql"
 	"github.com/dapr/components-contrib/configuration"
-	pgauth "github.com/dapr/components-contrib/internal/authentication/postgresql"
 )
 
 func TestSelectAllQuery(t *testing.T) {
@@ -45,7 +45,7 @@ func TestSelectAllQuery(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error building query: %v ", err)
 	}
-	assert.NoError(t, err, "Error building query: %v ", err)
+	require.NoError(t, err, "Error building query: %v ", err)
 	assert.Equal(t, expected, query, "did not get expected result. Got: '%v' , Expected: '%v'", query, expected)
 }
 
@@ -59,7 +59,7 @@ func TestPostgresbuildQuery(t *testing.T) {
 
 	query, params, err := buildQuery(g, "cfgtbl")
 	_ = params
-	assert.NoError(t, err, "Error building query: %v ", err)
+	require.NoError(t, err, "Error building query: %v ", err)
 	expected := "SELECT * FROM cfgtbl WHERE KEY IN ($1) AND $2 = $3"
 	assert.Equal(t, expected, query, "did not get expected result. Got: '%v' , Expected: '%v'", query, expected)
 	i := 0
@@ -101,18 +101,18 @@ func TestConnectAndQuery(t *testing.T) {
 	rows := mock.QueryRow(context.Background(), query)
 	var id string
 	err = rows.Scan(&id)
-	assert.NoError(t, err, "error in scan")
+	require.NoError(t, err, "error in scan")
 	err = mock.ExpectationsWereMet()
-	assert.NoError(t, err, "pgxmock error in expectations were met")
+	require.NoError(t, err, "pgxmock error in expectations were met")
 }
 
 func TestValidateInput(t *testing.T) {
 	keys := []string{"testKey1", "testKey2"}
-	assert.Nil(t, validateInput(keys), "incorrect input provided: %v", keys)
+	require.NoError(t, validateInput(keys), "incorrect input provided: %v", keys)
 
 	var keys2 []string
-	assert.Nil(t, validateInput(keys), "incorrect input provided: %v", keys2)
+	require.NoError(t, validateInput(keys), "incorrect input provided: %v", keys2)
 
 	keys3 := []string{"Name 1=1"}
-	assert.Error(t, validateInput(keys3), "invalid key : 'Name 1=1'")
+	require.Error(t, validateInput(keys3), "invalid key : 'Name 1=1'")
 }

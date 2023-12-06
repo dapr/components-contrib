@@ -29,7 +29,7 @@ import (
 	"github.com/dapr/dapr/pkg/runtime/registry"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/dapr/kit/logger"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -61,7 +61,7 @@ func componentRuntimeOptions() embedded.Option {
 
 func GetCurrentGRPCAndHTTPPort(t *testing.T) (int, int) {
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	currentGrpcPort := ports[0]
 	currentHttpPort := ports[1]

@@ -50,7 +50,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/aztables"
 	jsoniter "github.com/json-iterator/go"
 
-	azauth "github.com/dapr/components-contrib/internal/authentication/azure"
+	azauth "github.com/dapr/components-contrib/common/authentication/azure"
 	mdutils "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"

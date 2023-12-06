@@ -20,6 +20,7 @@ import (
 
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/services/csms/v1/model"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/secretstores"
 )
@@ -98,7 +99,7 @@ func TestGetSecret(t *testing.T) {
 		}
 
 		resp, e := c.GetSecret(context.Background(), req)
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Equal(t, secretValue, resp.Data[req.Name])
 	})
 
@@ -113,7 +114,7 @@ func TestGetSecret(t *testing.T) {
 		}
 
 		_, e := c.GetSecret(context.Background(), req)
-		assert.NotNil(t, e)
+		require.Error(t, e)
 	})
 }
 
@@ -130,7 +131,7 @@ func TestBulkGetSecret(t *testing.T) {
 			},
 		}
 		resp, e := c.BulkGetSecret(context.Background(), req)
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Equal(t, expectedSecrets, resp.Data)
 	})
 
@@ -142,7 +143,7 @@ func TestBulkGetSecret(t *testing.T) {
 
 			req := secretstores.BulkGetSecretRequest{}
 			_, e := c.BulkGetSecret(context.Background(), req)
-			assert.NotNil(t, e)
+			require.Error(t, e)
 		})
 
 		t.Run("with failed to retrieve the secret", func(t *testing.T) {
@@ -152,7 +153,7 @@ func TestBulkGetSecret(t *testing.T) {
 
 			req := secretstores.BulkGetSecretRequest{}
 			_, e := c.BulkGetSecret(context.Background(), req)
-			assert.NotNil(t, e)
+			require.Error(t, e)
 		})
 	})
 }

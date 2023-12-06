@@ -18,6 +18,7 @@ import (
 	"crypto/tls"
 	b64 "encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -27,14 +28,16 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/google/uuid"
 
 	"github.com/dapr/components-contrib/bindings"
-	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
-	internalutils "github.com/dapr/components-contrib/internal/utils"
+	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
+	commonutils "github.com/dapr/components-contrib/common/utils"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	kitmd "github.com/dapr/kit/metadata"
@@ -185,7 +188,7 @@ func (s *AWSS3) create(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 			return nil, fmt.Errorf("s3 binding error: file read error: %w", err)
 		}
 	} else {
-		r = strings.NewReader(internalutils.Unquote(req.Data))
+		r = strings.NewReader(commonutils.Unquote(req.Data))
 	}
 
 	if metadata.DecodeBase64 {
@@ -300,6 +303,10 @@ func (s *AWSS3) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings
 		},
 	)
 	if err != nil {
+		var awsErr awserr.Error
+		if errors.As(err, &awsErr) && awsErr.Code() == s3.ErrCodeNoSuchKey {
+			return nil, fmt.Errorf("object not found")
+		}
 		return nil, fmt.Errorf("s3 binding error: error downloading S3 object: %w", err)
 	}
 
@@ -331,6 +338,10 @@ func (s *AWSS3) delete(ctx context.Context, req *bindings.InvokeRequest) (*bindi
 		},
 	)
 	if err != nil {
+		var awsErr awserr.Error
+		if errors.As(err, &awsErr) && awsErr.Code() == s3.ErrCodeNoSuchKey {
+			return nil, fmt.Errorf("object not found")
+		}
 		return nil, fmt.Errorf("s3 binding error: delete operation failed: %w", err)
 	}
 

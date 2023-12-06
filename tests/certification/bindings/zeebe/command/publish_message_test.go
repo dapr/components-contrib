@@ -29,6 +29,7 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	dapr_testing "github.com/dapr/dapr/pkg/testing"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPublishMessage(t *testing.T) {
@@ -43,14 +44,14 @@ func TestPublishMessage(t *testing.T) {
 		data, err := json.Marshal(map[string]interface{}{
 			"messageName": "some-message",
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		res, err := zeebe_test.ExecCommandOperation(ctx, client, bindings_zeebe_command.PublishMessageOperation, data, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		variableResponse := &pb.PublishMessageResponse{}
 		err = json.Unmarshal(res.Data, variableResponse)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotEqual(t, 0, variableResponse.Key)
 		assert.Nil(t, res.Metadata)
 
@@ -65,14 +66,14 @@ func TestPublishMessage(t *testing.T) {
 			"messageName":    "some-message",
 			"correlationKey": "some-correlation-key",
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		res, err := zeebe_test.ExecCommandOperation(ctx, client, bindings_zeebe_command.PublishMessageOperation, data, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		variableResponse := &pb.PublishMessageResponse{}
 		err = json.Unmarshal(res.Data, variableResponse)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotEqual(t, 0, variableResponse.Key)
 		assert.Nil(t, res.Metadata)
 
@@ -87,14 +88,14 @@ func TestPublishMessage(t *testing.T) {
 			"messageName": "some-message",
 			"timeToLive":  "5m",
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		res, err := zeebe_test.ExecCommandOperation(ctx, client, bindings_zeebe_command.PublishMessageOperation, data, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		variableResponse := &pb.PublishMessageResponse{}
 		err = json.Unmarshal(res.Data, variableResponse)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotEqual(t, 0, variableResponse.Key)
 		assert.Nil(t, res.Metadata)
 
@@ -111,14 +112,14 @@ func TestPublishMessage(t *testing.T) {
 				"foo": "bar",
 			},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		res, err := zeebe_test.ExecCommandOperation(ctx, client, bindings_zeebe_command.PublishMessageOperation, data, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		variableResponse := &pb.PublishMessageResponse{}
 		err = json.Unmarshal(res.Data, variableResponse)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotEqual(t, 0, variableResponse.Key)
 		assert.Nil(t, res.Metadata)
 
@@ -137,14 +138,14 @@ func TestPublishMessage(t *testing.T) {
 				"foo": "bar",
 			},
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		res, err := zeebe_test.ExecCommandOperation(ctx, client, bindings_zeebe_command.PublishMessageOperation, data, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		variableResponse := &pb.PublishMessageResponse{}
 		err = json.Unmarshal(res.Data, variableResponse)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotEqual(t, 0, variableResponse.Key)
 		assert.Nil(t, res.Metadata)
 

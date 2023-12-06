@@ -246,12 +246,12 @@ func testSingleOperations(t *testing.T) {
 			failedJohn := johnV3
 			failedJohn.FavoriteBeverage = "Will not work"
 			err = store.Set(context.Background(), &state.SetRequest{Key: failedJohn.ID, Value: failedJohn, ETag: &etagFromInsert})
-			assert.NotNil(t, err)
+			require.Error(t, err)
 			_, etag := assertLoadedUserIsEqual(t, store, johnV3.ID, johnV3)
 
 			// 9. Delete with invalid ETAG should fail
 			err = store.Delete(context.Background(), &state.DeleteRequest{Key: johnV3.ID, ETag: &invEtag})
-			assert.NotNil(t, err)
+			require.Error(t, err)
 			assertLoadedUserIsEqual(t, store, johnV3.ID, johnV3)
 
 			// 10. Delete with valid ETAG
@@ -270,7 +270,7 @@ func testSetNewRecordWithInvalidEtagShouldFail(t *testing.T) {
 
 	invEtag := invalidEtag
 	err := store.Set(context.Background(), &state.SetRequest{Key: u.ID, Value: u, ETag: &invEtag})
-	assert.NotNil(t, err)
+	require.Error(t, err)
 }
 
 /* #nosec. */
@@ -365,7 +365,7 @@ func testMultiOperations(t *testing.T) {
 						state.SetRequest{Key: modified.ID, Value: modified},
 					},
 				})
-				assert.Nil(t, localErr)
+				require.NoError(t, localErr)
 				assertLoadedUserIsEqual(t, store, modified.ID, modified)
 				assertUserDoesNotExist(t, store, toDelete.ID)
 
@@ -434,7 +434,7 @@ func testMultiOperations(t *testing.T) {
 					},
 				})
 
-				assert.NotNil(t, err)
+				require.Error(t, err)
 				assertUserDoesNotExist(t, store, toInsert.ID)
 				assertLoadedUserIsEqual(t, store, toDelete.ID, toDelete.user)
 
@@ -454,7 +454,7 @@ func testMultiOperations(t *testing.T) {
 						state.SetRequest{Key: modified.ID, Value: modified},
 					},
 				})
-				assert.NotNil(t, err)
+				require.Error(t, err)
 				assertLoadedUserIsEqual(t, store, toDelete.ID, toDelete.user)
 				assertLoadedUserIsEqual(t, store, toModify.ID, toModify.user)
 
@@ -475,7 +475,7 @@ func testMultiOperations(t *testing.T) {
 					},
 				})
 
-				assert.NotNil(t, err)
+				require.Error(t, err)
 				assertLoadedUserIsEqual(t, store, toDelete.ID, toDelete.user)
 				assertLoadedUserIsEqual(t, store, toModify.ID, toModify.user)
 
@@ -501,7 +501,7 @@ func testInsertAndUpdateSetRecordDates(t *testing.T) {
 
 		var insertDate, updateDate sql.NullTime
 		localErr := rows.Scan(&insertDate, &updateDate)
-		assert.Nil(t, localErr)
+		require.NoError(t, localErr)
 
 		assert.True(t, insertDate.Valid)
 		insertDiff := float64(time.Now().UTC().Sub(insertDate.Time).Milliseconds())
@@ -592,7 +592,7 @@ func testMultipleInitializations(t *testing.T) {
 			}
 			store2.BulkStore = state.NewDefaultBulkStore(store2)
 			err := store2.Init(context.Background(), createMetadata(store.metadata.Schema, test.kt, test.indexedProperties))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 	}
 }

@@ -22,6 +22,7 @@ import (
 	util "github.com/alibabacloud-go/tea-utils/service"
 	"github.com/alibabacloud-go/tea/tea"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
@@ -78,7 +79,7 @@ func TestInit(t *testing.T) {
 			"accessKeySecret": "a",
 		}
 		err := s.Init(context.Background(), m)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Init without regionId", func(t *testing.T) {
@@ -87,7 +88,7 @@ func TestInit(t *testing.T) {
 			"accessKeySecret": "a",
 		}
 		err := s.Init(context.Background(), m)
-		assert.NotNil(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -103,7 +104,7 @@ func TestGetSecret(t *testing.T) {
 				Metadata: map[string]string{},
 			}
 			output, e := s.GetSecret(context.Background(), req)
-			assert.Nil(t, e)
+			require.NoError(t, e)
 			assert.Equal(t, secretValue, output.Data[req.Name])
 		})
 
@@ -119,7 +120,7 @@ func TestGetSecret(t *testing.T) {
 				},
 			}
 			output, e := s.GetSecret(context.Background(), req)
-			assert.Nil(t, e)
+			require.NoError(t, e)
 			assert.Equal(t, secretValue, output.Data[req.Name])
 		})
 	})
@@ -137,7 +138,7 @@ func TestGetSecret(t *testing.T) {
 				},
 			}
 			_, e := s.GetSecret(context.Background(), req)
-			assert.NotNil(t, e)
+			require.Error(t, e)
 		})
 
 		t.Run("with parameter store retrieve error", func(t *testing.T) {
@@ -150,7 +151,7 @@ func TestGetSecret(t *testing.T) {
 				Metadata: map[string]string{},
 			}
 			_, e := s.GetSecret(context.Background(), req)
-			assert.NotNil(t, e)
+			require.Error(t, e)
 		})
 	})
 }
@@ -166,7 +167,7 @@ func TestBulkGetSecret(t *testing.T) {
 				Metadata: map[string]string{},
 			}
 			output, e := s.BulkGetSecret(context.Background(), req)
-			assert.Nil(t, e)
+			require.NoError(t, e)
 			assert.Contains(t, output.Data, secretName)
 		})
 
@@ -181,7 +182,7 @@ func TestBulkGetSecret(t *testing.T) {
 				},
 			}
 			output, e := s.BulkGetSecret(context.Background(), req)
-			assert.Nil(t, e)
+			require.NoError(t, e)
 			assert.Contains(t, output.Data, secretName)
 		})
 	})
@@ -196,7 +197,7 @@ func TestBulkGetSecret(t *testing.T) {
 				Metadata: map[string]string{},
 			}
 			_, e := s.BulkGetSecret(context.Background(), req)
-			assert.NotNil(t, e)
+			require.Error(t, e)
 		})
 	})
 }

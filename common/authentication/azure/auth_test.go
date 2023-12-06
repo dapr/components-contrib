@@ -46,7 +46,7 @@ func TestGetClientCert(t *testing.T) {
 			"vaultName":                "vaultName",
 		},
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	testCertConfig, _ := settings.GetClientCert()
 
@@ -120,11 +120,11 @@ func TestAuthorizorWithCertFile(t *testing.T) {
 	testCertConfig, _ := settings.GetClientCert()
 
 	spt, err := testCertConfig.GetTokenCredential()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, spt)
 
 	err = os.Remove(testCertFileName)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestAuthorizorWithCertBytes(t *testing.T) {
@@ -140,13 +140,13 @@ func TestAuthorizorWithCertBytes(t *testing.T) {
 				"vaultName":                "vaultName",
 			},
 		)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		testCertConfig, _ := settings.GetClientCert()
 		assert.NotNil(t, testCertConfig)
 
 		spt, err := testCertConfig.GetTokenCredential()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, spt)
 	})
 
@@ -162,13 +162,13 @@ func TestAuthorizorWithCertBytes(t *testing.T) {
 				"vaultName":                "vaultName",
 			},
 		)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		testCertConfig, _ := settings.GetClientCert()
 		assert.NotNil(t, testCertConfig)
 
 		_, err = testCertConfig.GetTokenCredential()
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -179,7 +179,7 @@ func TestGetMSI(t *testing.T) {
 			"vaultName":     "vaultName",
 		},
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	testCertConfig := settings.GetMSI()
 
@@ -195,10 +195,10 @@ func TestFallbackToMSI(t *testing.T) {
 			"vaultName":     "vaultName",
 		},
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	spt, err := settings.GetTokenCredential()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, spt)
 }
 
@@ -211,13 +211,13 @@ func TestAuthorizorWithMSI(t *testing.T) {
 			"vaultName":     "vaultName",
 		},
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	testCertConfig := settings.GetMSI()
 	assert.NotNil(t, testCertConfig)
 
 	spt, err := settings.GetTokenCredential()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, spt)
 }
 
@@ -231,11 +231,11 @@ func TestFallbackToMSIbutAzureAuthDisallowed(t *testing.T) {
 			"azureAuthMethods": "None",
 		},
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = settings.GetTokenCredential()
-	assert.Error(t, err)
-	assert.ErrorContains(t, err, "all Azure auth methods have been disabled")
+	require.Error(t, err)
+	require.ErrorContains(t, err, "all Azure auth methods have been disabled")
 }
 
 func TestFallbackToMSIandInAllowedList(t *testing.T) {
@@ -248,13 +248,13 @@ func TestFallbackToMSIandInAllowedList(t *testing.T) {
 			"azureAuthMethods": "clientcredentials,clientcertificate,workloadidentity,managedIdentity",
 		},
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	testCertConfig := settings.GetMSI()
 	assert.NotNil(t, testCertConfig)
 
 	spt, err := settings.GetTokenCredential()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, spt)
 }
 
@@ -268,11 +268,11 @@ func TestFallbackToMSIandNotInAllowedList(t *testing.T) {
 			"azureAuthMethods": "clientcredentials,clientcertificate,workloadidentity",
 		},
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = settings.GetTokenCredential()
-	assert.Error(t, err)
-	assert.ErrorContains(t, err, "no suitable token provider for Azure AD")
+	require.Error(t, err)
+	require.ErrorContains(t, err, "no suitable token provider for Azure AD")
 }
 
 func TestFallbackToMSIandInvalidAuthMethod(t *testing.T) {
@@ -291,8 +291,8 @@ func TestFallbackToMSIandInvalidAuthMethod(t *testing.T) {
 	require.NotNil(t, testCertConfig)
 
 	_, err = settings.GetTokenCredential()
-	assert.Error(t, err)
-	assert.ErrorContains(t, err, "invalid Azure auth method: superauth")
+	require.Error(t, err)
+	require.ErrorContains(t, err, "invalid Azure auth method: superauth")
 }
 
 func TestAuthorizorWithMSIAndUserAssignedID(t *testing.T) {
@@ -304,13 +304,13 @@ func TestAuthorizorWithMSIAndUserAssignedID(t *testing.T) {
 			"vaultName":     "vaultName",
 		},
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	testCertConfig := settings.GetMSI()
 	assert.NotNil(t, testCertConfig)
 
 	spt, err := settings.GetTokenCredential()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, spt)
 }
 
@@ -326,7 +326,7 @@ func TestFallbackToCLI(t *testing.T) {
 			"vaultName": "vaultName",
 		},
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// check whether this test can be run (i.e. Azure CLI is installed and logged in)
 
@@ -343,7 +343,7 @@ func TestFallbackToCLI(t *testing.T) {
 
 	if runTest {
 		spt, err := settings.GetTokenCredential()
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		token, _ := spt.GetToken(context.Background(), policy.TokenRequestOptions{})
 		assert.NotNil(t, token)

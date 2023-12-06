@@ -30,15 +30,16 @@ jobs:
         GOCOVMERGE_VER: "b5bfa59"
       steps:
         - name: Check out code
-          uses: actions/checkout@v3
+          uses: actions/checkout@v4
           with:
             repository: ${{ env.CHECKOUT_REPO }}
             ref: ${{ env.CHECKOUT_REF }}
 
         - name: Set up Go
-          uses: actions/setup-go@v3
+          uses: actions/setup-go@v4
           with:
             go-version-file: 'go.mod'
+            cache: 'false'
 
         - name: Setup go dependencies
           run: |

@@ -20,6 +20,7 @@ import (
 	"github.com/golang/mock/gomock"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
@@ -31,7 +32,7 @@ func TestParseMetadata(t *testing.T) {
 	m.Properties = map[string]string{"Url": "a", "Token": "a", "Org": "a", "Bucket": "a"}
 	influx := Influx{logger: logger.NewLogger("test")}
 	im, err := influx.getInfluxMetadata(m)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "a", im.URL)
 	assert.Equal(t, "a", im.Token)
 	assert.Equal(t, "a", im.Org)
@@ -55,7 +56,7 @@ func TestInflux_Init(t *testing.T) {
 
 	m := bindings.Metadata{Base: metadata.Base{Properties: map[string]string{"Url": "a", "Token": "a", "Org": "a", "Bucket": "a"}}}
 	err := influx.Init(context.Background(), m)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	assert.NotNil(t, influx.queryAPI)
 	assert.NotNil(t, influx.writeAPI)

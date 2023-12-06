@@ -65,7 +65,7 @@ jobs:
       GOOS: ${{ matrix.target_os }}
       GOARCH: ${{ matrix.target_arch }}
       GOPROXY: https://proxy.golang.org
-      GOLANGCI_LINT_VER: "v1.51.2"
+      GOLANGCI_LINT_VER: "v1.55.2"
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macOS-latest]
@@ -97,16 +97,17 @@ jobs:
           fi
       - name: Check out code into the Go module directory
         if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: ${{ env.CHECKOUT_REPO }}
           ref: ${{ env.CHECKOUT_REF }}
       - name: Set up Go
         id: setup-go
         if: ${{ steps.skip_check.outputs.should_skip != 'true' }}
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version-file: 'go.mod'
+          cache: 'false'
       - name: Cache Go modules (Linux)
         if: matrix.target_os == 'linux'
         uses: actions/cache@v3

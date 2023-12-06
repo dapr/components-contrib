@@ -49,7 +49,7 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 	sidecarName := sidecarNamePrefix + uuid.NewString()
 
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	currentGrpcPort := ports[0]
 	currentHTTPPort := ports[1]
@@ -67,16 +67,16 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 
 			// save state, default options: strong, last-write
 			err = client.SaveState(ctx, statestore, stateKey, []byte(stateValue), nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// get state
 			item, err := client.GetState(ctx, statestore, stateKey, nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, stateValue, string(item.Value))
 
 			// delete state
 			err = client.DeleteState(ctx, statestore, stateKey, nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			return nil
 		}
@@ -106,7 +106,7 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 					},
 				},
 			})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			return nil
 		}
@@ -136,16 +136,16 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 			test := func(setMeta, getMeta map[string]string, expectedValue string) {
 				// save state, default options: strong, last-write
 				err = client.SaveState(ctx, statestore, stateKey, []byte(stateValue), setMeta)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				// get state
 				item, err := client.GetState(ctx, statestore, stateKey, getMeta)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, expectedValue, string(item.Value))
 
 				// delete state
 				err = client.DeleteState(ctx, statestore, stateKey, setMeta)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			// Test	with no partition key

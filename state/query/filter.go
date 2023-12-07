@@ -37,6 +37,31 @@ func ParseFilter(obj interface{}) (Filter, error) {
 			err := f.Parse(v)
 
 			return f, err
+		case "NEQ":
+			f := &NEQ{}
+			err := f.Parse(v)
+
+			return f, err
+		case "GT":
+			f := &GT{}
+			err := f.Parse(v)
+
+			return f, err
+		case "GTE":
+			f := &GTE{}
+			err := f.Parse(v)
+
+			return f, err
+		case "LT":
+			f := &LT{}
+			err := f.Parse(v)
+
+			return f, err
+		case "LTE":
+			f := &LTE{}
+			err := f.Parse(v)
+
+			return f, err
 		case "IN":
 			f := &IN{}
 			err := f.Parse(v)
@@ -72,6 +97,111 @@ func (f *EQ) Parse(obj interface{}) error {
 	}
 	if len(m) != 1 {
 		return fmt.Errorf("EQ filter must contain a single key/value pair")
+	}
+	for k, v := range m {
+		f.Key = k
+		f.Val = v
+	}
+
+	return nil
+}
+
+type NEQ struct {
+	Key string
+	Val interface{}
+}
+
+func (f *NEQ) Parse(obj interface{}) error {
+	m, ok := obj.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("NEQ filter must be a map")
+	}
+	if len(m) != 1 {
+		return fmt.Errorf("NEQ filter must contain a single key/value pair")
+	}
+	for k, v := range m {
+		f.Key = k
+		f.Val = v
+	}
+
+	return nil
+}
+
+type GT struct {
+	Key string
+	Val interface{}
+}
+
+func (f *GT) Parse(obj interface{}) error {
+	m, ok := obj.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("GT filter must be a map")
+	}
+	if len(m) != 1 {
+		return fmt.Errorf("GT filter must contain a single key/value pair")
+	}
+	for k, v := range m {
+		f.Key = k
+		f.Val = v
+	}
+
+	return nil
+}
+
+type GTE struct {
+	Key string
+	Val interface{}
+}
+
+func (f *GTE) Parse(obj interface{}) error {
+	m, ok := obj.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("GTE filter must be a map")
+	}
+	if len(m) != 1 {
+		return fmt.Errorf("GTE filter must contain a single key/value pair")
+	}
+	for k, v := range m {
+		f.Key = k
+		f.Val = v
+	}
+
+	return nil
+}
+
+type LT struct {
+	Key string
+	Val interface{}
+}
+
+func (f *LT) Parse(obj interface{}) error {
+	m, ok := obj.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("LT filter must be a map")
+	}
+	if len(m) != 1 {
+		return fmt.Errorf("LT filter must contain a single key/value pair")
+	}
+	for k, v := range m {
+		f.Key = k
+		f.Val = v
+	}
+
+	return nil
+}
+
+type LTE struct {
+	Key string
+	Val interface{}
+}
+
+func (f *LTE) Parse(obj interface{}) error {
+	m, ok := obj.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("LTE filter must be a map")
+	}
+	if len(m) != 1 {
+		return fmt.Errorf("LTE filter must contain a single key/value pair")
 	}
 	for k, v := range m {
 		f.Key = k

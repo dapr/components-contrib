@@ -93,6 +93,46 @@ func (q *Query) VisitEQ(f *query.EQ) (string, error) {
 	return q.whereFieldEqual(f.Key, f.Val), nil
 }
 
+func (q *Query) VisitNEQ(f *query.NEQ) (string, error) {
+	return q.whereFieldNotEqual(f.Key, f.Val), nil
+}
+
+func (q *Query) VisitGT(f *query.GT) (string, error) {
+	switch v := f.Val.(type) {
+	case string:
+		return "", fmt.Errorf("unsupported type of value %s; string type not permitted", v)
+	default:
+		return q.whereFieldGreaterThan(f.Key, v), nil
+	}
+}
+
+func (q *Query) VisitGTE(f *query.GTE) (string, error) {
+	switch v := f.Val.(type) {
+	case string:
+		return "", fmt.Errorf("unsupported type of value %s; string type not permitted", v)
+	default:
+		return q.whereFieldGreaterThanEqual(f.Key, v), nil
+	}
+}
+
+func (q *Query) VisitLT(f *query.LT) (string, error) {
+	switch v := f.Val.(type) {
+	case string:
+		return "", fmt.Errorf("unsupported type of value %s; string type not permitted", v)
+	default:
+		return q.whereFieldLessThan(f.Key, v), nil
+	}
+}
+
+func (q *Query) VisitLTE(f *query.LTE) (string, error) {
+	switch v := f.Val.(type) {
+	case string:
+		return "", fmt.Errorf("unsupported type of value %s; string type not permitted", v)
+	default:
+		return q.whereFieldLessThanEqual(f.Key, v), nil
+	}
+}
+
 func (q *Query) VisitIN(f *query.IN) (string, error) {
 	if len(f.Vals) == 0 {
 		return "", fmt.Errorf("empty IN operator for key %q", f.Key)
@@ -120,6 +160,31 @@ func (q *Query) visitFilters(op string, filters []query.Filter) (string, error) 
 		switch f := fil.(type) {
 		case *query.EQ:
 			if str, err = q.VisitEQ(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, str)
+		case *query.NEQ:
+			if str, err = q.VisitNEQ(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, str)
+		case *query.GT:
+			if str, err = q.VisitGT(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, str)
+		case *query.GTE:
+			if str, err = q.VisitGTE(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, str)
+		case *query.LT:
+			if str, err = q.VisitLT(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, str)
+		case *query.LTE:
+			if str, err = q.VisitLTE(f); err != nil {
 				return "", err
 			}
 			arr = append(arr, str)
@@ -265,5 +330,40 @@ func (q *Query) whereFieldEqual(key string, value interface{}) string {
 	position := q.addParamValueAndReturnPosition(value)
 	filterField := translateFieldToFilter(key)
 	query := filterField + "=$" + strconv.Itoa(position)
+	return query
+}
+
+func (q *Query) whereFieldNotEqual(key string, value interface{}) string {
+	position := q.addParamValueAndReturnPosition(value)
+	filterField := translateFieldToFilter(key)
+	query := filterField + "!=$" + strconv.Itoa(position)
+	return query
+}
+
+func (q *Query) whereFieldGreaterThan(key string, value interface{}) string {
+	position := q.addParamValueAndReturnPosition(value)
+	filterField := translateFieldToFilter(key)
+	query := filterField + ">$" + strconv.Itoa(position)
+	return query
+}
+
+func (q *Query) whereFieldGreaterThanEqual(key string, value interface{}) string {
+	position := q.addParamValueAndReturnPosition(value)
+	filterField := translateFieldToFilter(key)
+	query := filterField + ">=$" + strconv.Itoa(position)
+	return query
+}
+
+func (q *Query) whereFieldLessThan(key string, value interface{}) string {
+	position := q.addParamValueAndReturnPosition(value)
+	filterField := translateFieldToFilter(key)
+	query := filterField + "<$" + strconv.Itoa(position)
+	return query
+}
+
+func (q *Query) whereFieldLessThanEqual(key string, value interface{}) string {
+	position := q.addParamValueAndReturnPosition(value)
+	filterField := translateFieldToFilter(key)
+	query := filterField + "<=$" + strconv.Itoa(position)
 	return query
 }

@@ -80,6 +80,31 @@ type FilterEQ struct {
 	Val interface{}
 }
 
+type FilterNEQ struct {
+    Key string
+    Val interface{}
+}
+
+type FilterGT struct {
+    Key string
+    Val interface{}
+}
+
+type FilterGTE struct {
+    Key string
+    Val interface{}
+}
+
+type FilterLT struct {
+    Key string
+    Val interface{}
+}
+
+type FilterLTE struct {
+    Key string
+    Val interface{}
+}
+
 type FilterIN struct {
 	Key  string
 	Vals []interface{}
@@ -100,6 +125,16 @@ To simplify the process of query translation, we leveraged [visitor design patte
 type Visitor interface {
 	// returns "equal" expression
 	VisitEQ(*FilterEQ) (string, error)
+	// returns "not equal" expression 
+	VisitNEQ(*FilterNEQ) (string, error) 
+	// returns "greater than" expression
+	VisitGT(*FilterGT) (string, error)
+	// returns "greater than equal" expression
+	VisitGTE(*FilterGTE) (string, error)
+	// returns "less than" expression
+	VisitLT(*FilterLT) (string, error)
+	// returns "less than equal" expression
+	VisitLTE(*FilterLTE) (string, error)
 	// returns "in" expression
 	VisitIN(*FilterIN) (string, error)
 	// returns "and" expression
@@ -152,4 +187,4 @@ func (m *MyComponent) Query(req *state.QueryRequest) (*state.QueryResponse, erro
 }
 ```
 
-Some of the examples of State Query API implementation are [MongoDB](./mongodb/mongodb_query.go) and [CosmosDB](./azure/cosmosdb/cosmosdb_query.go) state store components.
+Some of the examples of State Query API implementation are [Redis](./redis/redis_query.go), [MongoDB](./mongodb/mongodb_query.go) and [CosmosDB](./azure/cosmosdb/cosmosdb_query.go) state store components.

@@ -45,6 +45,56 @@ func (q *Query) VisitEQ(f *query.EQ) (string, error) {
 	}
 }
 
+func (q *Query) VisitNEQ(f *query.NEQ) (string, error) {
+	// { <key>: <val> }
+	switch v := f.Val.(type) {
+	case string:
+		return fmt.Sprintf(`{ "value.%s": {"$ne": %q} }`, f.Key, v), nil
+	default:
+		return fmt.Sprintf(`{ "value.%s": {"$ne": %v} }`, f.Key, v), nil
+	}
+}
+
+func (q *Query) VisitGT(f *query.GT) (string, error) {
+	// { <key>: <val> }
+	switch v := f.Val.(type) {
+	case string:
+		return "", fmt.Errorf("unsupported type of value %s; string type not permitted", f.Val)
+	default:
+		return fmt.Sprintf(`{ "value.%s": {"$gt": %v} }`, f.Key, v), nil
+	}
+}
+
+func (q *Query) VisitGTE(f *query.GTE) (string, error) {
+	// { <key>: <val> }
+	switch v := f.Val.(type) {
+	case string:
+		return "", fmt.Errorf("unsupported type of value %s; string type not permitted", f.Val)
+	default:
+		return fmt.Sprintf(`{ "value.%s": {"$gte": %v} }`, f.Key, v), nil
+	}
+}
+
+func (q *Query) VisitLT(f *query.LT) (string, error) {
+	// { <key>: <val> }
+	switch v := f.Val.(type) {
+	case string:
+		return "", fmt.Errorf("unsupported type of value %s; string type not permitted", f.Val)
+	default:
+		return fmt.Sprintf(`{ "value.%s": {"$lt": %v} }`, f.Key, v), nil
+	}
+}
+
+func (q *Query) VisitLTE(f *query.LTE) (string, error) {
+	// { <key>: <val> }
+	switch v := f.Val.(type) {
+	case string:
+		return "", fmt.Errorf("unsupported type of value %s; string type not permitted", f.Val)
+	default:
+		return fmt.Sprintf(`{ "value.%s": {"$lte": %v} }`, f.Key, v), nil
+	}
+}
+
 func (q *Query) VisitIN(f *query.IN) (string, error) {
 	// { $in: [ <val1>, <val2>, ... , <valN> ] }
 	if len(f.Vals) == 0 {
@@ -78,6 +128,31 @@ func (q *Query) visitFilters(op string, filters []query.Filter) (string, error) 
 		switch f := fil.(type) {
 		case *query.EQ:
 			if str, err = q.VisitEQ(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, str)
+		case *query.NEQ:
+			if str, err = q.VisitNEQ(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, str)
+		case *query.GT:
+			if str, err = q.VisitGT(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, str)
+		case *query.GTE:
+			if str, err = q.VisitGTE(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, str)
+		case *query.LT:
+			if str, err = q.VisitLT(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, str)
+		case *query.LTE:
+			if str, err = q.VisitLTE(f); err != nil {
 				return "", err
 			}
 			arr = append(arr, str)

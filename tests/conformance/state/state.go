@@ -40,6 +40,13 @@ type ValueType struct {
 	Message string `json:"message"`
 }
 
+type StructType struct {
+	Product struct {
+		Value int `json:"value"`
+	} `json:"product"`
+	Status string `json:"status"`
+}
+
 type intValueType struct {
 	Message int32 `json:"message"`
 }
@@ -117,6 +124,20 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 		{
 			key:         fmt.Sprintf("%s-struct", key),
 			value:       ValueType{Message: fmt.Sprintf("test%s", key)},
+			contentType: contenttype.JSONContentType,
+		},
+		{
+			key: fmt.Sprintf("%s-struct-operations", key),
+			value: StructType{Product: struct {
+				Value int `json:"value"`
+			}{Value: 15}, Status: "ACTIVE"},
+			contentType: contenttype.JSONContentType,
+		},
+		{
+			key: fmt.Sprintf("%s-struct-operations-inactive", key),
+			value: StructType{Product: struct {
+				Value int `json:"value"`
+			}{Value: 12}, Status: "INACTIVE"},
 			contentType: contenttype.JSONContentType,
 		},
 		{
@@ -235,6 +256,67 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				},
 			},
 		},
+		{
+			query: `
+			{
+				"filter": {
+					"AND": [
+						{
+							"GTE": {"product.value": 10}
+						},
+						{
+							"LT": {"product.value": 20}
+						},
+						{
+							"NEQ": {"status": "INACTIVE"}
+						}
+					]
+				}
+			}
+			`,
+			results: []state.QueryItem{
+				{
+					Key:  fmt.Sprintf("%s-struct-operations", key),
+					Data: []byte(fmt.Sprintf(`{"product":{"value":15}, "status":"ACTIVE"}`)),
+				},
+			},
+		},
+		{
+			query: `
+			{
+				"filter": {
+					"OR": [ 
+						{ 
+							"AND": [
+								{
+									"GT": {"product.value": 11.1}
+								},
+								{
+									"EQ": {"status": "INACTIVE"}
+								}
+							]
+						},
+						{ 
+							"AND": [
+								{
+									"LTE": {"product.value": 0.5}
+								},
+								{
+									"EQ": {"status": "ACTIVE"}
+								}
+							]
+						}
+					]
+				}
+			}
+			`,
+			results: []state.QueryItem{
+				{
+					Key:  fmt.Sprintf("%s-struct-operations-inactive", key),
+					Data: []byte(fmt.Sprintf(`{"product":{"value":12}, "status":"INACTIVE"}`)),
+				},
+			},
+		},
 	}
 
 	t.Run("init", func(t *testing.T) {
@@ -312,6 +394,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					metadata.ContentType:    contenttype.JSONContentType,
 					metadata.QueryIndexName: "qIndx",
 				}
+
 				resp, err := querier.Query(context.Background(), &req)
 				require.NoError(t, err)
 				assert.Equal(t, len(scenario.results), len(resp.Results))
@@ -1236,6 +1319,12 @@ func assertDataEquals(t *testing.T, expect any, actual []byte) {
 		}
 		assert.Equal(t, expect, v)
 	case ValueType:
+		// Custom type requires case mapping
+		if err := json.Unmarshal(actual, &v); err != nil {
+			assert.Failf(t, "unmarshal error", "error: %v, json: %s", err, string(actual))
+		}
+		assert.Equal(t, expect, v)
+	case StructType:
 		// Custom type requires case mapping
 		if err := json.Unmarshal(actual, &v); err != nil {
 			assert.Failf(t, "unmarshal error", "error: %v, json: %s", err, string(actual))

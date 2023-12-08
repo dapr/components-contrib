@@ -5,7 +5,7 @@ go 1.20
 require (
 	cloud.google.com/go/pubsub v1.30.0
 	dubbo.apache.org/dubbo-go/v3 v3.0.3-0.20230118042253-4f159a2b38f3
-	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.0.0
+	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.2.0
 	github.com/Shopify/sarama v1.38.1
 	github.com/a8m/documentdb v1.3.0
 	github.com/apache/dubbo-go-hessian2 v1.11.5
@@ -25,14 +25,14 @@ require (
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/golang/protobuf v1.5.3
 	github.com/google/go-cmp v0.5.9
-	github.com/google/uuid v1.3.0
+	github.com/google/uuid v1.3.1
 	github.com/jackc/pgx/v5 v5.3.1
 	github.com/lestrrat-go/jwx/v2 v2.0.9
 	github.com/lib/pq v1.10.7
 	github.com/nacos-group/nacos-sdk-go/v2 v2.1.3
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
 	github.com/rabbitmq/amqp091-go v1.8.1
-	github.com/stretchr/testify v1.8.3
+	github.com/stretchr/testify v1.8.4
 	github.com/tylertreat/comcast v1.0.1
 	go.mongodb.org/mongo-driver v1.11.6
 	go.uber.org/multierr v1.11.0
@@ -53,19 +53,19 @@ require (
 	github.com/AdhityaRamadhanus/fasthttpcors v0.0.0-20170121111917-d4c07198763a // indirect
 	github.com/AthenZ/athenz v1.10.39 // indirect
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.6.0 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v0.3.5 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.0.1 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/internal v1.3.0 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs v1.0.1 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.3.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.9.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.4.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v0.3.6 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/data/aztables v1.1.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.5.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs v1.0.2 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.5.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventhub/armeventhub v1.1.1 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v0.13.0 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v0.8.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.0.1 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue v1.0.0 // indirect
-	github.com/Azure/go-amqp v1.0.1 // indirect
-	github.com/AzureAD/microsoft-authentication-library-for-go v1.0.0 // indirect
+	github.com/Azure/go-amqp v1.0.2 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v1.1.1 // indirect
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/PuerkitoBio/purell v1.2.0 // indirect
 	github.com/RoaringBitmap/roaring v1.1.0 // indirect
@@ -133,7 +133,7 @@ require (
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
-	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
+	github.com/golang-jwt/jwt/v5 v5.0.0 // indirect
 	github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
@@ -265,14 +265,14 @@ require (
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/arch v0.3.0 // indirect
-	golang.org/x/crypto v0.9.0 // indirect
+	golang.org/x/crypto v0.14.0 // indirect
 	golang.org/x/mod v0.10.0 // indirect
-	golang.org/x/net v0.10.0 // indirect
+	golang.org/x/net v0.17.0 // indirect
 	golang.org/x/oauth2 v0.8.0 // indirect
 	golang.org/x/sync v0.2.0 // indirect
-	golang.org/x/sys v0.8.0 // indirect
-	golang.org/x/term v0.8.0 // indirect
-	golang.org/x/text v0.9.0 // indirect
+	golang.org/x/sys v0.13.0 // indirect
+	golang.org/x/term v0.13.0 // indirect
+	golang.org/x/text v0.13.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.9.1 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect

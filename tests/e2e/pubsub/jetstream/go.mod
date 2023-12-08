@@ -12,7 +12,7 @@ require (
 	github.com/cloudevents/sdk-go/binding/format/protobuf/v2 v2.13.0 // indirect
 	github.com/cloudevents/sdk-go/v2 v2.13.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
-	github.com/google/uuid v1.3.0 // indirect
+	github.com/google/uuid v1.3.1 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/mitchellh/mapstructure v1.5.1-0.20220423185008-bf980b35cac4 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
@@ -22,9 +22,9 @@ require (
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/sirupsen/logrus v1.9.2 // indirect
 	github.com/spf13/cast v1.5.1 // indirect
-	golang.org/x/crypto v0.9.0 // indirect
+	golang.org/x/crypto v0.14.0 // indirect
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1 // indirect
-	golang.org/x/sys v0.8.0 // indirect
+	golang.org/x/sys v0.13.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 )
 

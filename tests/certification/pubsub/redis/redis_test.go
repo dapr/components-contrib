@@ -142,7 +142,7 @@ func TestRedisStreamsOrdering(t *testing.T) {
 	}
 
 	// publish some events then connect with "0" as ID and check if you recieve all messages
-	// then publish some events then connect with "$" as ID and check if you recieve dont recieve any messages since "$" means recieve message from when the consumer group was created
+	// then publish some events then connect with "$" as ID and check if you  dont recieve any messages since "$" means recieve message from when the consumer group was created
 	flow.New(t, "Test Redis Streams messages ordering when ID is not configured ").
 		// Run subscriberApplication app1
 		Step(dockercompose.Run("redis", dockerComposeYAML)).

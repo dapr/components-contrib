@@ -22,50 +22,52 @@ import (
 )
 
 const (
-	host                  = "redisHost"
-	password              = "redisPassword"
-	username              = "redisUsername"
-	db                    = "redisDB"
-	redisType             = "redisType"
-	redisMaxRetries       = "redisMaxRetries"
-	redisMinRetryInterval = "redisMinRetryInterval"
-	redisMaxRetryInterval = "redisMaxRetryInterval"
-	dialTimeout           = "dialTimeout"
-	readTimeout           = "readTimeout"
-	writeTimeout          = "writeTimeout"
-	poolSize              = "poolSize"
-	minIdleConns          = "minIdleConns"
-	poolTimeout           = "poolTimeout"
-	idleTimeout           = "idleTimeout"
-	idleCheckFrequency    = "idleCheckFrequency"
-	maxConnAge            = "maxConnAge"
-	enableTLS             = "enableTLS"
-	failover              = "failover"
-	sentinelMasterName    = "sentinelMasterName"
+	host                     = "redisHost"
+	password                 = "redisPassword"
+	username                 = "redisUsername"
+	db                       = "redisDB"
+	redisType                = "redisType"
+	redisMaxRetries          = "redisMaxRetries"
+	redisMinRetryInterval    = "redisMinRetryInterval"
+	redisMaxRetryInterval    = "redisMaxRetryInterval"
+	dialTimeout              = "dialTimeout"
+	readTimeout              = "readTimeout"
+	writeTimeout             = "writeTimeout"
+	poolSize                 = "poolSize"
+	minIdleConns             = "minIdleConns"
+	poolTimeout              = "poolTimeout"
+	idleTimeout              = "idleTimeout"
+	idleCheckFrequency       = "idleCheckFrequency"
+	maxConnAge               = "maxConnAge"
+	enableTLS                = "enableTLS"
+	failover                 = "failover"
+	sentinelMasterName       = "sentinelMasterName"
+	pubsubLastDeliveredEntry = "pubsubLastDeliveredEntry"
 )
 
 func getFakeProperties() map[string]string {
 	return map[string]string{
-		host:                  "fake.redis.com",
-		password:              "fakePassword",
-		username:              "fakeUsername",
-		redisType:             "node",
-		enableTLS:             "true",
-		dialTimeout:           "5s",
-		readTimeout:           "5s",
-		writeTimeout:          "50000",
-		poolSize:              "20",
-		maxConnAge:            "200s",
-		db:                    "1",
-		redisMaxRetries:       "1",
-		redisMinRetryInterval: "8ms",
-		redisMaxRetryInterval: "1s",
-		minIdleConns:          "1",
-		poolTimeout:           "1s",
-		idleTimeout:           "1s",
-		idleCheckFrequency:    "1s",
-		failover:              "true",
-		sentinelMasterName:    "master",
+		host:                     "fake.redis.com",
+		password:                 "fakePassword",
+		username:                 "fakeUsername",
+		redisType:                "node",
+		enableTLS:                "true",
+		dialTimeout:              "5s",
+		readTimeout:              "5s",
+		writeTimeout:             "50000",
+		poolSize:                 "20",
+		maxConnAge:               "200s",
+		db:                       "1",
+		redisMaxRetries:          "1",
+		redisMinRetryInterval:    "8ms",
+		redisMaxRetryInterval:    "1s",
+		minIdleConns:             "1",
+		poolTimeout:              "1s",
+		idleTimeout:              "1s",
+		idleCheckFrequency:       "1s",
+		failover:                 "true",
+		sentinelMasterName:       "master",
+		pubsubLastDeliveredEntry: "0",
 	}
 }
 
@@ -99,6 +101,7 @@ func TestParseRedisMetadata(t *testing.T) {
 		assert.Equal(t, 1*time.Second, time.Duration(m.IdleCheckFrequency))
 		assert.True(t, m.Failover)
 		assert.Equal(t, "master", m.SentinelMasterName)
+		assert.Equal(t, fakeProperties[pubsubLastDeliveredEntry], *m.PubsubLastDeliveredEntry)
 	})
 
 	// TODO: Refactor shared redis code to throw error for missing properties

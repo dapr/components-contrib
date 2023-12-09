@@ -96,6 +96,7 @@ type Settings struct {
 
 	// The max len of stream
 	MaxLenApprox int64 `mapstructure:"maxLenApprox" mdonly:"pubsub"`
+	// This behaviour of subscriber for when and what messages to consume
 	PubsubLastDeliveredEntry *string `mapstructure:"pubsubLastDeliveredEntry" mdonly:"pubsub"`
 }
 

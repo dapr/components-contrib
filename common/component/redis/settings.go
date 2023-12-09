@@ -96,6 +96,7 @@ type Settings struct {
 
 	// The max len of stream
 	MaxLenApprox int64 `mapstructure:"maxLenApprox" mdonly:"pubsub"`
+	PubsubLastDeliveredEntry *string `mapstructure:"pubsubLastDeliveredEntry" mdonly:"pubsub"`
 }
 
 func (s *Settings) Decode(in interface{}) error {

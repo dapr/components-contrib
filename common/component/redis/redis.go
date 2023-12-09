@@ -158,6 +158,11 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 		}
 	}
 
+	if settings.PubsubLastDeliveredEntry == nil {
+		zeroValue := "0"
+		settings.PubsubLastDeliveredEntry = &zeroValue
+	}
+
 	var c RedisClient
 	if settings.Failover {
 		c = newV8FailoverClient(settings)

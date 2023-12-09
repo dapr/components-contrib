@@ -161,6 +161,6 @@ metadata:
     type: number
   - name: pubsubLastDeliveredEntry
     required: false
-    description: The value of last entry for redis stream.
-    example: "0"
+    description: The ID from which the group will start reading.
+    example: "0 or $"
     type: string  

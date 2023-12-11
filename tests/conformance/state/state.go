@@ -466,7 +466,6 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					req.Metadata["partitionKey"] = val
 				}
 
-
 				resp, err := querier.Query(context.Background(), &req)
 				require.NoError(t, err)
 				assert.Equal(t, len(scenario.results), len(resp.Results))

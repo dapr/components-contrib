@@ -18,7 +18,7 @@ import (
 	"github.com/dapr/kit/logger"
 )
 
-func NewBackendComp(logger logger.Logger) WorkflowBackend {
+func NewWorkflowBackendComp(logger logger.Logger) WorkflowBackend {
 	return &workflowBackendComponent{
 		logger: logger,
 	}
@@ -29,6 +29,6 @@ type workflowBackendComponent struct {
 }
 
 func (c *workflowBackendComponent) Init(metadata Metadata) error {
-	c.logger.Info("Initializing Dapr workflow backend component %s", metadata.Name)
+	c.logger.Info("Initializing Dapr workflow backend component ")
 	return nil
 }

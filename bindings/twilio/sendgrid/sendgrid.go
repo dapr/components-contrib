@@ -32,8 +32,8 @@ import (
 )
 
 const (
-	keyASMGroupID         = "asmGroupId"
-	keyASMGroupsToDisplay = "asmGroupsToDisplay"
+	keyAsmGroupID         = "asmGroupId"
+	keyAsmGroupsToDisplay = "asmGroupsToDisplay"
 )
 
 // SendGrid allows sending of emails using the 3rd party SendGrid service.
@@ -318,7 +318,7 @@ func UnmarshalDynamicTemplateData(jsonString string, result *map[string]any) err
 func getAsmProperties(asmGroupID *int, asmGroupsToDisplayString string, requestMetadata map[string]string) (*int, []int, error) {
 	asmGroupsToDisplay := []int{}
 	// Build ASM group ID, this is optional
-	val, ok := requestMetadata[keyASMGroupID]
+	val, ok := requestMetadata[keyAsmGroupID]
 	if ok {
 		asmGroupIDInt, err := strconv.Atoi(val)
 		if err != nil {
@@ -328,7 +328,7 @@ func getAsmProperties(asmGroupID *int, asmGroupsToDisplayString string, requestM
 	}
 
 	// Build ASM groups to display, this is optional
-	asmGroups := requestMetadata[keyASMGroupsToDisplay]
+	asmGroups := requestMetadata[keyAsmGroupsToDisplay]
 	if asmGroups == "" {
 		asmGroups = asmGroupsToDisplayString
 	}

@@ -31,10 +31,16 @@ import (
 	kitmd "github.com/dapr/kit/metadata"
 )
 
+const (
+	keyASMGroupId         = "asmGroupId"
+	keyASMGroupsToDisplay = "asmGroupsToDisplay"
+)
+
 // SendGrid allows sending of emails using the 3rd party SendGrid service.
 type SendGrid struct {
 	metadata sendGridMetadata
 	logger   logger.Logger
+	baseURL  string
 }
 
 // Our metadata holds standard email properties.
@@ -49,6 +55,8 @@ type sendGridMetadata struct {
 	EmailBcc            string `mapstructure:"emailBcc"`
 	DynamicTemplateData string `mapstructure:"dynamicTemplateData"`
 	DynamicTemplateID   string `mapstructure:"dynamicTemplateId"`
+	AsmGroupID          *int   `mapstructure:"asmGroupId"`
+	AsmGroupsToDisplay  string `mapstructure:"asmGroupsToDisplay"`
 
 	dynamicTemplateDataCache map[string]any // Cache the unmarshalled dynamic template data
 }
@@ -212,6 +220,12 @@ func (sg *SendGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 		templateData = sg.metadata.dynamicTemplateDataCache
 	}
 
+	// Build ASM group ID and groups to display, this is optional
+	asmGroupID, asmGroupsToDisplay, err := getAsmProperties(sg.metadata.AsmGroupID, sg.metadata.AsmGroupsToDisplay, req.Metadata)
+	if err != nil {
+		return nil, err
+	}
+
 	// Email body is held in req.Data, after we tidy it up a bit
 	emailBody, err := strconv.Unquote(string(req.Data))
 	if err != nil {
@@ -243,8 +257,18 @@ func (sg *SendGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 
 	email.AddPersonalizations(personalization)
 
+	// Add ASM
+	if asmGroupID != nil {
+		asm := mail.NewASM()
+		asm.SetGroupID(*asmGroupID)
+		for _, asmGroup := range asmGroupsToDisplay {
+			asm.AddGroupsToDisplay(asmGroup)
+		}
+		email.SetASM(asm)
+	}
+
 	// Send the email
-	client := sendgrid.NewSendClient(sg.metadata.APIKey)
+	client := sg.getNewSendGridClient()
 	resp, err := client.SendWithContext(ctx, email)
 	if err != nil {
 		return nil, fmt.Errorf("error from SendGrid: sending email failed: %w", err)
@@ -264,6 +288,17 @@ func (sg *SendGrid) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*b
 	return nil, nil
 }
 
+// Helper function for getting a new SendGrid client.
+// Will use the base URL from SendGrid struct if present, otherwise will use the default.
+// useful for testing.
+func (sg *SendGrid) getNewSendGridClient() *sendgrid.Client {
+	client := sendgrid.NewSendClient(sg.metadata.APIKey)
+	if sg.baseURL != "" {
+		client.BaseURL = sg.baseURL
+	}
+	return client
+}
+
 // GetComponentMetadata returns the metadata of the component.
 func (sg *SendGrid) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := sendGridMetadata{}
@@ -278,4 +313,34 @@ func UnmarshalDynamicTemplateData(jsonString string, result *map[string]any) err
 		return fmt.Errorf("error from SendGrid binding, dynamic template data is not valid JSON: %w", err)
 	}
 	return nil
+}
+
+func getAsmProperties(asmGroupID *int, asmGroupsToDisplayString string, requestMetadata map[string]string) (*int, []int, error) {
+	asmGroupsToDisplay := []int{}
+	// Build ASM group ID, this is optional
+	val, ok := requestMetadata[keyASMGroupId]
+	if ok {
+		asmGroupIDInt, err := strconv.Atoi(val)
+		if err != nil {
+			return nil, asmGroupsToDisplay, fmt.Errorf("error SendGrid asmGroupId is not a valid integer: %w", err)
+		}
+		asmGroupID = &asmGroupIDInt
+	}
+
+	// Build ASM groups to display, this is optional
+	asmGroups := requestMetadata[keyASMGroupsToDisplay]
+	if asmGroups == "" {
+		asmGroups = asmGroupsToDisplayString
+	}
+	for _, s := range strings.Split(asmGroups, ",") {
+		if s == "" {
+			continue
+		}
+		asmGroup, err := strconv.Atoi(s)
+		if err != nil {
+			return nil, asmGroupsToDisplay, fmt.Errorf("error SendGrid asmGroupsToDisplay is not a valid integer: %w", err)
+		}
+		asmGroupsToDisplay = append(asmGroupsToDisplay, asmGroup)
+	}
+	return asmGroupID, asmGroupsToDisplay, nil
 }

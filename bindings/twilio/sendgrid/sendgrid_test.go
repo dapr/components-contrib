@@ -20,12 +20,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/metadata"
-	"github.com/dapr/kit/logger"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/logger"
 )
 
 func TestInit(t *testing.T) {
@@ -127,7 +128,6 @@ func TestInit(t *testing.T) {
 		err := testBinding.Init(context.Background(), m)
 		require.ErrorContains(t, err, "error from SendGrid binding, dynamic template data is not valid JSON")
 	})
-
 }
 
 // Test UnmarshalDynamicTemplateData function
@@ -223,9 +223,9 @@ func TestInvoke(t *testing.T) {
 			assert.Equal(t, email.Personalizations[0].CC[0].Address, bindingMetadataProperties["emailCc"])
 			assert.Equal(t, email.Personalizations[0].BCC[0].Address, bindingMetadataProperties["emailBcc"])
 			assert.Equal(t, email.TemplateID, bindingMetadataProperties["dynamicTemplateId"])
-			assert.Equal(t, email.Personalizations[0].DynamicTemplateData, map[string]any{"name": "value"})
-			assert.Equal(t, email.Asm.GroupID, 123)
-			assert.Equal(t, email.Asm.GroupsToDisplay, []int{1, 2, 3})
+			assert.Equal(t, map[string]any{"name": "value"}, email.Personalizations[0].DynamicTemplateData)
+			assert.Equal(t, 123, email.Asm.GroupID)
+			assert.Equal(t, []int{1, 2, 3}, email.Asm.GroupsToDisplay)
 
 			writeSuccessResponse(w)
 		})
@@ -248,9 +248,9 @@ func TestInvoke(t *testing.T) {
 			assert.Equal(t, email.Personalizations[0].CC[0].Address, overrideMetadataProperties["emailCc"])
 			assert.Equal(t, email.Personalizations[0].BCC[0].Address, overrideMetadataProperties["emailBcc"])
 			assert.Equal(t, email.TemplateID, overrideMetadataProperties["dynamicTemplateId"])
-			assert.Equal(t, email.Personalizations[0].DynamicTemplateData, map[string]any{"hello": "override"})
-			assert.Equal(t, email.Asm.GroupID, 12345)
-			assert.Equal(t, email.Asm.GroupsToDisplay, []int{4, 5, 6, 7, 9})
+			assert.Equal(t, map[string]any{"hello": "override"}, email.Personalizations[0].DynamicTemplateData)
+			assert.Equal(t, 12345, email.Asm.GroupID)
+			assert.Equal(t, []int{4, 5, 6, 7, 9}, email.Asm.GroupsToDisplay)
 
 			writeSuccessResponse(w)
 		})
@@ -293,7 +293,6 @@ func TestInvoke(t *testing.T) {
 
 		_, err := testBinding.Invoke(context.Background(), overrideMetadataRequest)
 		require.Error(t, err, "error SendGrid from email not supplied")
-
 	})
 
 	t.Run("subject is required", func(t *testing.T) {
@@ -322,7 +321,6 @@ func TestInvoke(t *testing.T) {
 
 		_, err := testBinding.Invoke(context.Background(), overrideMetadataRequest)
 		require.Error(t, err, "error SendGrid to email not supplied")
-
 	})
 
 	t.Run("invalid asm group id", func(t *testing.T) {

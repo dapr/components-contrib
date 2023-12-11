@@ -32,7 +32,7 @@ import (
 )
 
 const (
-	keyASMGroupId         = "asmGroupId"
+	keyASMGroupID         = "asmGroupId"
 	keyASMGroupsToDisplay = "asmGroupsToDisplay"
 )
 
@@ -318,7 +318,7 @@ func UnmarshalDynamicTemplateData(jsonString string, result *map[string]any) err
 func getAsmProperties(asmGroupID *int, asmGroupsToDisplayString string, requestMetadata map[string]string) (*int, []int, error) {
 	asmGroupsToDisplay := []int{}
 	// Build ASM group ID, this is optional
-	val, ok := requestMetadata[keyASMGroupId]
+	val, ok := requestMetadata[keyASMGroupID]
 	if ok {
 		asmGroupIDInt, err := strconv.Atoi(val)
 		if err != nil {

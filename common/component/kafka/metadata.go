@@ -220,12 +220,6 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		}
 		k.logger.Debug("Configuring root certificate authentication.")
 	case awsIAMAuthType:
-		if m.AWSAccessKey == "" {
-			return nil, errors.New("missing AWS access key property 'awsAccessKey' for authType 'awsIAM'")
-		}
-		if m.AWSSecretKey == "" {
-			return nil, errors.New("missing AWS secret key property 'awsSecretKey' for authType 'awsIAM'")
-		}
 		if m.AWSRegion == "" {
 			return nil, errors.New("missing AWS region property 'awsRegion' for authType 'awsIAM'")
 		}

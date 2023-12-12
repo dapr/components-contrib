@@ -119,12 +119,17 @@ type mskAccessTokenProvider struct {
 }
 
 func (m *mskAccessTokenProvider) Token() (*sarama.AccessToken, error) {
-	token, _, err := signer.GenerateAuthTokenFromCredentialsProvider(m.ctx, m.region, aws2.CredentialsProviderFunc(func(ctx context.Context) (aws2.Credentials, error) {
-		return aws2.Credentials{
-			AccessKeyID:     m.accessKey,
-			SecretAccessKey: m.secretKey,
-			SessionToken:    m.sessionToken,
-		}, nil
-	}))
+	if m.accessKey != "" && m.secretKey != "" {
+		token, _, err := signer.GenerateAuthTokenFromCredentialsProvider(m.ctx, m.region, aws2.CredentialsProviderFunc(func(ctx context.Context) (aws2.Credentials, error) {
+			return aws2.Credentials{
+				AccessKeyID:     m.accessKey,
+				SecretAccessKey: m.secretKey,
+				SessionToken:    m.sessionToken,
+			}, nil
+		}))
+		return &sarama.AccessToken{Token: token}, err
+	}
+
+	token, _, err := signer.GenerateAuthToken(m.ctx, m.region)
 	return &sarama.AccessToken{Token: token}, err
 }

@@ -189,7 +189,7 @@ func TestInvoke(t *testing.T) {
 		testServer := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 		})
-
+		defer testServer.Close()
 		testBinding.baseURL = testServer.URL
 
 		_, err := testBinding.Invoke(context.Background(), successRequest)
@@ -204,6 +204,7 @@ func TestInvoke(t *testing.T) {
 
 			writeSuccessResponse(w)
 		})
+		defer testServer.Close()
 		testBinding.baseURL = testServer.URL
 
 		_, _ = testBinding.Invoke(context.Background(), successRequest)
@@ -229,6 +230,7 @@ func TestInvoke(t *testing.T) {
 
 			writeSuccessResponse(w)
 		})
+		defer testServer.Close()
 		testBinding.baseURL = testServer.URL
 
 		_, _ = testBinding.Invoke(context.Background(), successRequest)
@@ -254,6 +256,7 @@ func TestInvoke(t *testing.T) {
 
 			writeSuccessResponse(w)
 		})
+		defer testServer.Close()
 		testBinding.baseURL = testServer.URL
 
 		overrideMetadataRequest := &bindings.InvokeRequest{
@@ -276,6 +279,7 @@ func TestInvoke(t *testing.T) {
 
 			writeSuccessResponse(w)
 		})
+		defer testServer.Close()
 		testBinding.baseURL = testServer.URL
 
 		_, _ = testBinding.Invoke(context.Background(), successRequest)

@@ -39,6 +39,7 @@ const (
 	passwordAuthType     = "password"
 	oidcAuthType         = "oidc"
 	mtlsAuthType         = "mtls"
+	awsIAMAuthType       = "awsiam"
 	noAuthType           = "none"
 )
 
@@ -70,6 +71,11 @@ type KafkaMetadata struct {
 	Version                string              `mapstructure:"version"`
 	internalVersion        sarama.KafkaVersion `mapstructure:"-"`
 	internalOidcExtensions map[string]string   `mapstructure:"-"`
+	// aws iam auth profile
+	AWSAccessKey    string `mapstructure:"awsAccessKey"`
+	AWSSecretKey    string `mapstructure:"awsSecretKey"`
+	AWSSessionToken string `mapstructure:"awsSessionToken"`
+	AWSRegion       string `mapstructure:"awsRegion"`
 }
 
 // upgradeMetadata updates metadata properties based on deprecated usage.
@@ -213,6 +219,11 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 			return nil, errors.New("missing CA certificate property 'caCert' for authType 'certificate'")
 		}
 		k.logger.Debug("Configuring root certificate authentication.")
+	case awsIAMAuthType:
+		if m.AWSRegion == "" {
+			return nil, errors.New("missing AWS region property 'awsRegion' for authType 'awsIAM'")
+		}
+		k.logger.Debug("Configuring AWS IAM authentication.")
 	default:
 		return nil, errors.New("kafka error: invalid value for 'authType' attribute")
 	}

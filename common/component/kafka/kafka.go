@@ -59,7 +59,7 @@ func NewKafka(logger logger.Logger) *Kafka {
 }
 
 // Init does metadata parsing and connection establishment.
-func (k *Kafka) Init(_ context.Context, metadata map[string]string) error {
+func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	upgradedMetadata, err := k.upgradeMetadata(metadata)
 	if err != nil {
 		return err
@@ -108,6 +108,12 @@ func (k *Kafka) Init(_ context.Context, metadata map[string]string) error {
 		}
 	case certificateAuthType:
 		// already handled in updateTLSConfig
+	case awsIAMAuthType:
+		k.logger.Info("Configuring AWS IAM authentcation")
+		err = updateAWSIAMAuthInfo(ctx, config, meta)
+		if err != nil {
+			return err
+		}
 	}
 
 	k.config = config

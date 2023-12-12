@@ -26,6 +26,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 
+	"github.com/dapr/components-contrib/common/authentication/sqlite"
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
 	"github.com/dapr/components-contrib/nameresolution"
 	"github.com/dapr/kit/logger"
@@ -67,7 +68,7 @@ func (s *resolver) Init(ctx context.Context, md nameresolution.Metadata) error {
 		return err
 	}
 
-	connString, err := s.metadata.GetConnectionString(s.logger)
+	connString, err := s.metadata.GetConnectionString(s.logger, sqlite.GetConnectionStringOpts{})
 	if err != nil {
 		// Already logged
 		return err

@@ -29,6 +29,7 @@ import (
 	// Blank import for the underlying SQLite Driver.
 	_ "modernc.org/sqlite"
 
+	"github.com/dapr/components-contrib/common/authentication/sqlite"
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
@@ -79,19 +80,21 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 	}
 
 	registerFuntions()
-
-	connString, err := a.metadata.GetConnectionString(a.logger)
+	connString, err := a.metadata.GetConnectionString(a.logger, sqlite.GetConnectionStringOpts{})
 	if err != nil {
 		// Already logged
 		return err
 	}
 
-	db, err := sql.Open("sqlite", connString)
+	a.db, err = sql.Open("sqlite", connString)
 	if err != nil {
 		return fmt.Errorf("failed to create connection: %w", err)
 	}
 
-	a.db = db
+	// If the database is in-memory, we can't have more than 1 open connection
+	if a.metadata.IsInMemoryDB() {
+		a.db.SetMaxOpenConns(1)
+	}
 
 	err = a.Ping(ctx)
 	if err != nil {

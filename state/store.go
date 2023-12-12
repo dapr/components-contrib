@@ -36,6 +36,7 @@ type BaseStore interface {
 	Delete(ctx context.Context, req *DeleteRequest) error
 	Get(ctx context.Context, req *GetRequest) (*GetResponse, error)
 	Set(ctx context.Context, req *SetRequest) error
+	DeleteWithPrefix(ctx context.Context, req DeleteWithPrefixRequest) (DeleteWithPrefixResponse, error)
 }
 
 // TransactionalStore is an interface for initialization and support multiple transactional requests.

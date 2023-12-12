@@ -78,6 +78,8 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 		return err
 	}
 
+	registerFuntions()
+
 	connString, err := a.metadata.GetConnectionString(a.logger)
 	if err != nil {
 		// Already logged
@@ -420,8 +422,7 @@ func (a *sqliteDBAccess) DeleteWithPrefix(ctx context.Context, req state.DeleteW
 	defer cancel()
 	var result sql.Result
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names.
-	result, err := a.db.ExecContext(ctx, "DELETE FROM "+a.metadata.TableName+" WHERE key LIKE = ?",
-		req.Prefix)
+	result, err := a.db.ExecContext(ctx, "DELETE FROM "+a.metadata.TableName+" WHERE prefix = ?", req.Prefix)
 
 	if err != nil {
 		return state.DeleteWithPrefixResponse{}, err

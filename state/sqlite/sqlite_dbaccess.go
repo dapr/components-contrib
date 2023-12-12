@@ -84,12 +84,15 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 		return err
 	}
 
-	db, err := sql.Open("sqlite", connString)
+	a.db, err = sql.Open("sqlite", connString)
 	if err != nil {
 		return fmt.Errorf("failed to create connection: %w", err)
 	}
 
-	a.db = db
+	// If the database is in-memory, we can't have more than 1 open connection
+	if a.metadata.IsInMemoryDB() {
+		a.db.SetMaxOpenConns(1)
+	}
 
 	err = a.Ping(ctx)
 	if err != nil {

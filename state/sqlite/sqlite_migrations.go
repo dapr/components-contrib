@@ -41,15 +41,15 @@ func registerFuntions() {
 			case string:
 				s1 = arg0
 			default:
-				return nil, fmt.Errorf("expected argv[0] to be text")
+				return "", fmt.Errorf("expected argv[0] to be text")
 			}
 			if len(s1) == 0 {
-				return nil, fmt.Errorf("cannot create prefix for empty string")
+				return "", fmt.Errorf("cannot create prefix for empty string")
 			}
 
 			lastIndex := strings.LastIndex(s1, "||")
 			if lastIndex != -1 {
-				return s1[:lastIndex], nil
+				return s1[:lastIndex+2], nil
 			}
 			return "", nil
 		},

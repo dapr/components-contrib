@@ -100,7 +100,7 @@ func (s *SQLiteStore) Multi(ctx context.Context, request *state.TransactionalSta
 	return s.dbaccess.ExecuteMulti(ctx, request.Operations)
 }
 
-// Get returns an entity from store.
+// DeleteWithPrefix deletes an actor's state
 func (s *SQLiteStore) DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
 	return s.dbaccess.DeleteWithPrefix(ctx, req)
 }

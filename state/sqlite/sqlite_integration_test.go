@@ -647,18 +647,18 @@ func testDeleteWithPrefix(t *testing.T, s state.Store) {
 	err = s.Set(context.Background(), setReq4)
 	require.NoError(t, err)
 
-	res, err := s.DeleteWithPrefix(context.Background(), delReq)
+	res, err := s.(state.DeleteWithPrefix).DeleteWithPrefix(context.Background(), delReq)
 	require.NoError(t, err)
 	assert.Equal(t, int64(3), res.Count)
 
 	delReq = state.DeleteWithPrefixRequest{
-		Prefix: "different-app-id||different-actor-type||different-actor-id",
+		Prefix: "different-app-id||different-actor-type||different-actor-id||",
 	}
-	res, err = s.DeleteWithPrefix(context.Background(), delReq)
+	res, err = s.(state.DeleteWithPrefix).DeleteWithPrefix(context.Background(), delReq)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), res.Count)
 
-	res, err = s.DeleteWithPrefix(context.Background(), delReq)
+	res, err = s.(state.DeleteWithPrefix).DeleteWithPrefix(context.Background(), delReq)
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), res.Count)
 }

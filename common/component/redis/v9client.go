@@ -19,8 +19,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dapr/kit/logger"
 	v9 "github.com/redis/go-redis/v9"
+
+	"github.com/dapr/kit/logger"
 )
 
 type v9Pipeliner struct {

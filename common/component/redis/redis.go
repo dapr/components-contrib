@@ -23,6 +23,7 @@ import (
 	"golang.org/x/mod/semver"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+
 	"github.com/dapr/components-contrib/common/authentication/azure"
 	"github.com/dapr/components-contrib/configuration"
 	"github.com/dapr/components-contrib/metadata"
@@ -270,6 +271,10 @@ func (s *Settings) refreshTokenRoutineForRedis(ctx context.Context, redisClient 
 			return
 		case <-ticker.C:
 			env, err := azure.NewEnvironmentSettings(meta)
+			if err != nil {
+				logger.Error("Failed to get Azure environment settings:", err)
+				continue
+			}
 			tokenCred, err := env.GetTokenCredential()
 			if err != nil {
 				logger.Error("Failed to get Azure AD token credential:", err)

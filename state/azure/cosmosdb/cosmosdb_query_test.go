@@ -126,6 +126,54 @@ func TestCosmosDbQuery(t *testing.T) {
 				},
 			},
 		},
+		{
+			input: "../../../tests/state/query/q4-notequal.json",
+			query: InternalQuery{
+				query: "SELECT * FROM c WHERE c['value']['person']['org'] = @__param__0__ OR (c['value']['person']['org'] != @__param__1__ AND c['value']['state'] IN (@__param__2__, @__param__3__)) ORDER BY c['value']['state'] DESC, c['value']['person']['name'] ASC",
+				parameters: []azcosmos.QueryParameter{
+					{
+						Name:  "@__param__0__",
+						Value: "A",
+					},
+					{
+						Name:  "@__param__1__",
+						Value: "B",
+					},
+					{
+						Name:  "@__param__2__",
+						Value: "CA",
+					},
+					{
+						Name:  "@__param__3__",
+						Value: "WA",
+					},
+				},
+			},
+		},
+		{
+			input: "../../../tests/state/query/q8.json",
+			query: InternalQuery{
+				query: "SELECT * FROM c WHERE c['value']['person']['org'] >= @__param__0__ OR (c['value']['person']['org'] < @__param__1__ AND c['value']['state'] IN (@__param__2__, @__param__3__)) ORDER BY c['value']['state'] DESC, c['value']['person']['name'] ASC",
+				parameters: []azcosmos.QueryParameter{
+					{
+						Name:  "@__param__0__",
+						Value: 123.0,
+					},
+					{
+						Name:  "@__param__1__",
+						Value: 10.0,
+					},
+					{
+						Name:  "@__param__2__",
+						Value: "CA",
+					},
+					{
+						Name:  "@__param__3__",
+						Value: "WA",
+					},
+				},
+			},
+		},
 	}
 	for _, test := range tests {
 		data, err := os.ReadFile(test.input)

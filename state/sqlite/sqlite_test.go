@@ -300,7 +300,7 @@ func TestValidEmptyDeleteWithPrefixRequest(t *testing.T) {
 	ods := createSqlite(t)
 	res, err := ods.DeleteWithPrefix(context.Background(), createDeleteWithPrefixRequest())
 	require.NoError(t, err)
-	assert.Equal(t, res.Count, int64(0))
+	assert.Equal(t, int64(0), res.Count)
 }
 
 // Proves that the Ping method runs the ping method.

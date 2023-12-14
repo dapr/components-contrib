@@ -426,15 +426,16 @@ func (a *sqliteDBAccess) DeleteWithPrefix(ctx context.Context, req state.DeleteW
 	}
 	ctx, cancel := context.WithTimeout(ctx, a.metadata.Timeout)
 	defer cancel()
-	var result sql.Result
 
-	if !strings.HasSuffix(req.Prefix, "||") {
-		req.Prefix += "||"
+	err := req.Validate()
+	if err != nil {
+		return state.DeleteWithPrefixResponse{}, err
 	}
 
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names.
-	result, err := a.db.ExecContext(ctx, "DELETE FROM "+a.metadata.TableName+" WHERE prefix = ?", req.Prefix)
-
+	//nolint:gosec
+	result, err := a.db.ExecContext(ctx, "DELETE FROM "+a.metadata.TableName+" WHERE prefix = ?",
+		req.Prefix)
 	if err != nil {
 		return state.DeleteWithPrefixResponse{}, err
 	}

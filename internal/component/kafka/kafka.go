@@ -78,6 +78,9 @@ func (k *Kafka) Init(_ context.Context, metadata map[string]string) error {
 	config := sarama.NewConfig()
 	config.Version = meta.internalVersion
 	config.Consumer.Offsets.Initial = k.initialOffset
+	config.Consumer.Fetch.Min = meta.consumerFetchMin
+	config.Consumer.Fetch.Default = meta.consumerFetchDefault
+	config.ChannelBufferSize = meta.channelBufferSize
 
 	if meta.ClientID != "" {
 		config.ClientID = meta.ClientID

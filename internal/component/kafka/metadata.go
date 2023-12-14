@@ -35,6 +35,9 @@ const (
 	clientKey            = "clientKey"
 	consumeRetryEnabled  = "consumeRetryEnabled"
 	consumeRetryInterval = "consumeRetryInterval"
+	consumerFetchMin     = "consumerFetchMin"
+	consumerFetchDefault = "consumerFetchDefault"
+	channelBufferSize    = "channelBufferSize"
 	authType             = "authType"
 	passwordAuthType     = "password"
 	oidcAuthType         = "oidc"
@@ -70,6 +73,9 @@ type KafkaMetadata struct {
 	Version                string              `mapstructure:"version"`
 	internalVersion        sarama.KafkaVersion `mapstructure:"-"`
 	internalOidcExtensions map[string]string   `mapstructure:"-"`
+	channelBufferSize      int                 `mapstructure:"-"`
+	consumerFetchMin       int32               `mapstructure:"-"`
+	consumerFetchDefault   int32               `mapstructure:"-"`
 }
 
 // upgradeMetadata updates metadata properties based on deprecated usage.
@@ -112,7 +118,10 @@ func (k *Kafka) upgradeMetadata(metadata map[string]string) (map[string]string, 
 func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error) {
 	m := KafkaMetadata{
 		ConsumeRetryInterval: 100 * time.Millisecond,
-		internalVersion:      sarama.V2_0_0_0, //nolint:nosnakecase
+		internalVersion:      sarama.V2_0_0_0, //nolint:nosnakecase,
+		channelBufferSize:    256,
+		consumerFetchMin:     1,
+		consumerFetchDefault: 1024 * 1024,
 	}
 
 	err := metadata.DecodeMetadata(meta, &m)
@@ -244,6 +253,33 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 			return nil, errors.New("kafka error: invalid kafka version")
 		}
 		m.internalVersion = version
+	}
+
+	if val, ok := meta[channelBufferSize]; ok && val != "" {
+		v, err := strconv.Atoi(val)
+		if err != nil {
+			return nil, err
+		}
+
+		m.channelBufferSize = v
+	}
+
+	if val, ok := meta[consumerFetchDefault]; ok && val != "" {
+		v, err := strconv.Atoi(val)
+		if err != nil {
+			return nil, err
+		}
+
+		m.consumerFetchDefault = int32(v)
+	}
+
+	if val, ok := meta[consumerFetchMin]; ok && val != "" {
+		v, err := strconv.Atoi(val)
+		if err != nil {
+			return nil, err
+		}
+
+		m.consumerFetchMin = int32(v)
 	}
 
 	return &m, nil

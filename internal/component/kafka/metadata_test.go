@@ -56,6 +56,9 @@ func getCompleteMetadata() map[string]string {
 		clientKey:              clientKeyMock,
 		caCert:                 caCertMock,
 		"consumeRetryInterval": "200",
+		consumerFetchDefault:   "1048576",
+		consumerFetchMin:       "1",
+		channelBufferSize:      "256",
 	}
 }
 
@@ -124,6 +127,9 @@ func assertMetadata(t *testing.T, meta *KafkaMetadata) {
 	require.Equal(t, clientKeyMock, meta.TLSClientKey)
 	require.Equal(t, caCertMock, meta.TLSCaCert)
 	require.Equal(t, 200*time.Millisecond, meta.ConsumeRetryInterval)
+	require.Equal(t, int32(1024*1024), meta.consumerFetchDefault)
+	require.Equal(t, int32(1), meta.consumerFetchMin)
+	require.Equal(t, 256, meta.channelBufferSize)
 }
 
 func TestMissingBrokers(t *testing.T) {
@@ -168,6 +174,28 @@ func TestMetadataUpgradePasswordMTLSAuth(t *testing.T) {
 	upgraded, err := k.upgradeMetadata(m)
 	require.NoError(t, err)
 	require.Equal(t, mtlsAuthType, upgraded["authType"])
+}
+
+func TestMetadataConsumerFetchValues(t *testing.T) {
+	k := getKafka()
+	m := getCompleteMetadata()
+	m["consumerFetchMin"] = "3"
+	m["consumerFetchDefault"] = "2048"
+
+	meta, err := k.getKafkaMetadata(m)
+	require.NoError(t, err)
+	require.Equal(t, int32(3), meta.consumerFetchMin)
+	require.Equal(t, int32(2048), meta.consumerFetchDefault)
+}
+
+func TestMetadataChannelBufferSize(t *testing.T) {
+	k := getKafka()
+	m := getCompleteMetadata()
+	m["channelBufferSize"] = "128"
+
+	meta, err := k.getKafkaMetadata(m)
+	require.NoError(t, err)
+	require.Equal(t, 128, meta.channelBufferSize)
 }
 
 func TestMissingSaslValues(t *testing.T) {

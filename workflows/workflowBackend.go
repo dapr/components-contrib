@@ -13,7 +13,15 @@ limitations under the License.
 
 package workflows
 
+import "github.com/dapr/components-contrib/metadata"
+
 // Workflow is an interface to perform operations on Workflow.
 type WorkflowBackend interface {
 	Init(metadata Metadata) error
+}
+
+type WorkflowBackendComponentInfo struct {
+	WorkflowBackendType     string
+	WorkflowBackendMetadata metadata.Base
+	InvalidWorkflowBackend  bool
 }

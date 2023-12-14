@@ -46,6 +46,8 @@ func TestParsePulsarMetadata(t *testing.T) {
 	assert.Equal(t, uint(100), meta.BatchingMaxSize)
 	assert.Equal(t, uint(200), meta.BatchingMaxMessages)
 	assert.Empty(t, meta.internalTopicSchemas)
+	assert.True(t, meta.TLSAllowInsecureConnection)
+	assert.False(t, meta.TLSValidateHostname)
 }
 
 func TestParsePulsarSchemaMetadata(t *testing.T) {

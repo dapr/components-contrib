@@ -57,7 +57,7 @@ metadata:
     sensitive: true
     description: "Address of the Pulsar broker."
     example: |
-      "localhost:6650", "http://pulsar-pj54qwwdpz4b-pulsar.ap-sg.public.pulsar.com:8080"
+      "localhost:6650", "http://pulsar-pj54qwwdpz4b-pulsar.ap-sg.public.pulsar.com:8080", "pulsar+ssl://localhost:6651"
   - name: consumerID
     type: string
     description: "Used to set the subscription name or consumer ID."
@@ -72,6 +72,18 @@ metadata:
     type: bool
     description: |
       Enable TLS.
+    default: 'false'
+    example: '"true", "false"'
+  - name: tlsAllowInsecureConnection
+    type: bool
+    description: |
+      Allow insecure TLS connections
+    default: 'false'
+    example: '"true", "false"'
+  - name: tlsValidateHostname
+    type: bool
+    description: |
+      Validate hostname when using TLS
     default: 'false'
     example: '"true", "false"'
   - name: tenant

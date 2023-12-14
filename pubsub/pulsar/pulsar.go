@@ -38,29 +38,34 @@ import (
 )
 
 const (
-	host                    = "host"
-	consumerID              = "consumerID"
-	enableTLS               = "enableTLS"
-	deliverAt               = "deliverAt"
-	deliverAfter            = "deliverAfter"
-	disableBatching         = "disableBatching"
-	batchingMaxPublishDelay = "batchingMaxPublishDelay"
-	batchingMaxSize         = "batchingMaxSize"
-	batchingMaxMessages     = "batchingMaxMessages"
-	tenant                  = "tenant"
-	namespace               = "namespace"
-	persistent              = "persistent"
-	redeliveryDelay         = "redeliveryDelay"
-	avroProtocol            = "avro"
-	jsonProtocol            = "json"
-	protoProtocol           = "proto"
-	partitionKey            = "partitionKey"
+	host                       = "host"
+	consumerID                 = "consumerID"
+	enableTLS                  = "enableTLS"
+	deliverAt                  = "deliverAt"
+	deliverAfter               = "deliverAfter"
+	disableBatching            = "disableBatching"
+	batchingMaxPublishDelay    = "batchingMaxPublishDelay"
+	batchingMaxSize            = "batchingMaxSize"
+	batchingMaxMessages        = "batchingMaxMessages"
+	tenant                     = "tenant"
+	namespace                  = "namespace"
+	persistent                 = "persistent"
+	redeliveryDelay            = "redeliveryDelay"
+	avroProtocol               = "avro"
+	jsonProtocol               = "json"
+	protoProtocol              = "proto"
+	partitionKey               = "partitionKey"
+	tlsAllowInsecureConnection = "tlsAllowInsecureConnection"
+	tlsValidateHostname        = "tlsValidateHostname"
 
-	defaultTenant     = "public"
-	defaultNamespace  = "default"
-	cachedNumProducer = 10
-	pulsarPrefix      = "pulsar://"
-	pulsarToken       = "token"
+	defaultTenant                     = "public"
+	defaultNamespace                  = "default"
+	defaultTLSAllowInsecureConnection = false
+	defaultTLSValidateHostname        = false
+	cachedNumProducer                 = 10
+	pulsarPrefix                      = "pulsar://"
+	pulsarSSLPrefix                   = "pulsar+ssl://"
+	pulsarToken                       = "token"
 	// topicFormat is the format for pulsar, which have a well-defined structure: {persistent|non-persistent}://tenant/namespace/topic,
 	// see https://pulsar.apache.org/docs/en/concepts-messaging/#topics for details.
 	topicFormat                = "%s://%s/%s/%s"
@@ -113,15 +118,17 @@ func NewPulsar(l logger.Logger) pubsub.PubSub {
 
 func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 	m := pulsarMetadata{
-		Persistent:              true,
-		Tenant:                  defaultTenant,
-		Namespace:               defaultNamespace,
-		internalTopicSchemas:    map[string]schemaMetadata{},
-		DisableBatching:         false,
-		BatchingMaxPublishDelay: defaultBatchingMaxPublishDelay,
-		BatchingMaxMessages:     defaultMaxMessages,
-		BatchingMaxSize:         defaultMaxBatchSize,
-		RedeliveryDelay:         defaultRedeliveryDelay,
+		Persistent:                 true,
+		Tenant:                     defaultTenant,
+		Namespace:                  defaultNamespace,
+		internalTopicSchemas:       map[string]schemaMetadata{},
+		DisableBatching:            false,
+		BatchingMaxPublishDelay:    defaultBatchingMaxPublishDelay,
+		BatchingMaxMessages:        defaultMaxMessages,
+		BatchingMaxSize:            defaultMaxBatchSize,
+		RedeliveryDelay:            defaultRedeliveryDelay,
+		TLSAllowInsecureConnection: defaultTLSAllowInsecureConnection,
+		TLSValidateHostname:        defaultTLSValidateHostname,
 	}
 
 	if err := kitmd.DecodeMetadata(meta.Properties, &m); err != nil {
@@ -130,6 +137,11 @@ func parsePulsarMetadata(meta pubsub.Metadata) (*pulsarMetadata, error) {
 
 	if m.Host == "" {
 		return nil, errors.New("pulsar error: missing pulsar host")
+	}
+
+	// If tls is disabled allow insecure connections
+	if !m.EnableTLS {
+		m.TLSAllowInsecureConnection = true
 	}
 
 	for k, v := range meta.Properties {
@@ -163,16 +175,13 @@ func (p *Pulsar) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	if err != nil {
 		return err
 	}
-	pulsarURL := m.Host
-	if !strings.HasPrefix(m.Host, "http://") &&
-		!strings.HasPrefix(m.Host, "https://") {
-		pulsarURL = fmt.Sprintf("%s%s", pulsarPrefix, m.Host)
-	}
+	pulsarURL := getPulsarURL(m)
 	options := pulsar.ClientOptions{
 		URL:                        pulsarURL,
 		OperationTimeout:           30 * time.Second,
 		ConnectionTimeout:          30 * time.Second,
-		TLSAllowInsecureConnection: !m.EnableTLS,
+		TLSAllowInsecureConnection: m.TLSAllowInsecureConnection,
+		TLSValidateHostname:        m.TLSValidateHostname,
 	}
 
 	switch {
@@ -537,4 +546,19 @@ func (p *Pulsar) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 func isValidPEM(val string) bool {
 	block, _ := pem.Decode([]byte(val))
 	return block != nil
+}
+
+func getPulsarURL(m *pulsarMetadata) string {
+	pulsarURL := m.Host
+	if !strings.HasPrefix(m.Host, "http://") &&
+		!strings.HasPrefix(m.Host, "https://") &&
+		!strings.HasPrefix(m.Host, "pulsar+ssl://") &&
+		!strings.HasPrefix(m.Host, "pulsar://") {
+		if m.EnableTLS {
+			pulsarURL = fmt.Sprintf("%s%s", pulsarSSLPrefix, m.Host)
+		} else {
+			pulsarURL = fmt.Sprintf("%s%s", pulsarPrefix, m.Host)
+		}
+	}
+	return pulsarURL
 }

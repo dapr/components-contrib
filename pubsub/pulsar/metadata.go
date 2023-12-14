@@ -20,21 +20,23 @@ import (
 )
 
 type pulsarMetadata struct {
-	Host                    string                    `mapstructure:"host"`
-	ConsumerID              string                    `mapstructure:"consumerID"`
-	EnableTLS               bool                      `mapstructure:"enableTLS"`
-	DisableBatching         bool                      `mapstructure:"disableBatching"`
-	BatchingMaxPublishDelay time.Duration             `mapstructure:"batchingMaxPublishDelay"`
-	BatchingMaxSize         uint                      `mapstructure:"batchingMaxSize"`
-	BatchingMaxMessages     uint                      `mapstructure:"batchingMaxMessages"`
-	Tenant                  string                    `mapstructure:"tenant"`
-	Namespace               string                    `mapstructure:"namespace"`
-	Persistent              bool                      `mapstructure:"persistent"`
-	RedeliveryDelay         time.Duration             `mapstructure:"redeliveryDelay"`
-	internalTopicSchemas    map[string]schemaMetadata `mapstructure:"-"`
-	PublicKey               string                    `mapstructure:"publicKey"`
-	PrivateKey              string                    `mapstructure:"privateKey"`
-	Keys                    string                    `mapstructure:"keys"`
+	Host                       string                    `mapstructure:"host"`
+	ConsumerID                 string                    `mapstructure:"consumerID"`
+	EnableTLS                  bool                      `mapstructure:"enableTLS"`
+	DisableBatching            bool                      `mapstructure:"disableBatching"`
+	BatchingMaxPublishDelay    time.Duration             `mapstructure:"batchingMaxPublishDelay"`
+	BatchingMaxSize            uint                      `mapstructure:"batchingMaxSize"`
+	BatchingMaxMessages        uint                      `mapstructure:"batchingMaxMessages"`
+	Tenant                     string                    `mapstructure:"tenant"`
+	Namespace                  string                    `mapstructure:"namespace"`
+	Persistent                 bool                      `mapstructure:"persistent"`
+	RedeliveryDelay            time.Duration             `mapstructure:"redeliveryDelay"`
+	internalTopicSchemas       map[string]schemaMetadata `mapstructure:"-"`
+	PublicKey                  string                    `mapstructure:"publicKey"`
+	PrivateKey                 string                    `mapstructure:"privateKey"`
+	Keys                       string                    `mapstructure:"keys"`
+	TLSAllowInsecureConnection bool                      `mapstructure:"tlsAllowInsecureConnection"`
+	TLSValidateHostname        bool                      `mapstructure:"tlsValidateHostname"`
 
 	Token                            string `mapstructure:"token"`
 	oauth2.ClientCredentialsMetadata `mapstructure:",squash"`

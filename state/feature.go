@@ -26,7 +26,7 @@ const (
 	FeatureQueryAPI Feature = "QUERY_API"
 	// FeatureTTL is the feature that supports TTLs.
 	FeatureTTL Feature = "TTL"
-	// FeatureDeleteWithPrefix is the feature that supports deleteing with prefix.
+	// FeatureDeleteWithPrefix is the feature that supports deleting with prefix.
 	FeatureDeleteWithPrefix Feature = "DELETE_WITH_PREFIX"
 )
 

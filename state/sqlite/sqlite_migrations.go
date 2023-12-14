@@ -92,8 +92,8 @@ func performMigrations(ctx context.Context, db *sql.DB, logger logger.Logger, op
 		},
 		// Migration 1: add the "prefix" column
 		func(ctx context.Context) error {
-			// We add this virtual prefix column to enable us to delete an actor's state since this prefix will tell us which actor created it
-			logger.Infof("Creating virtual column for table '%s'", opts.StateTableName)
+			// Add the "prefix" column that can be used by DeleteWithPrefix
+			logger.Infof("Adding 'prefix' column to table '%s'", opts.StateTableName)
 			_, err := m.GetConn().ExecContext(
 				ctx,
 				fmt.Sprintf(

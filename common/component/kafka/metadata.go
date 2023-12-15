@@ -124,7 +124,7 @@ func (k *Kafka) upgradeMetadata(metadata map[string]string) (map[string]string, 
 func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error) {
 	m := KafkaMetadata{
 		ConsumeRetryInterval: 100 * time.Millisecond,
-		internalVersion:      sarama.V2_0_0_0, //nolint:nosnakecase,
+		internalVersion:      sarama.V2_0_0_0, //nolint:nosnakecase
 		channelBufferSize:    256,
 		consumerFetchMin:     1,
 		consumerFetchDefault: 1024 * 1024,
@@ -276,7 +276,7 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 	}
 
 	if val, ok := meta[consumerFetchDefault]; ok && val != "" {
-		v, err := strconv.Atoi(val)
+		v, err := strconv.ParseInt(val, 10, 32)
 		if err != nil {
 			return nil, err
 		}
@@ -285,7 +285,7 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 	}
 
 	if val, ok := meta[consumerFetchMin]; ok && val != "" {
-		v, err := strconv.Atoi(val)
+		v, err := strconv.ParseInt(val, 10, 32)
 		if err != nil {
 			return nil, err
 		}

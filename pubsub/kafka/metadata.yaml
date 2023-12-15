@@ -242,3 +242,21 @@ metadata:
       example: "true"
       default: "false"
       type: bool
+    - name: channelBufferSize
+      type: number
+      description: |
+        The number of events to buffer in internal and external channels.
+      example: '128'
+      default: '256'
+    - name: consumerFetchMin
+      type: number
+      description: |
+        The minimum number of message bytes to fetch in a request.
+      example: '4'
+      default: '1'
+    - name: consumerFetchDefault
+      type: number
+      description: |
+        The default number of message bytes to fetch from the broker in each request.
+      example: '2097152'
+      default: '1048576'

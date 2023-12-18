@@ -52,3 +52,8 @@ type QueryItem struct {
 	Error       string  `json:"error,omitempty"`
 	ContentType *string `json:"contentType,omitempty"`
 }
+
+// DeleteWithPrefixResponse is the object representing a delete with prefix state response containing the number of items removed.
+type DeleteWithPrefixResponse struct {
+	Count int64 `json:"count"` // count of items removed
+}

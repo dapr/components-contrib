@@ -11,17 +11,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package workflows
+package wfbackend
 
 import "github.com/dapr/components-contrib/metadata"
 
-// Workflow is an interface to perform operations on Workflow.
-type WorkflowBackend interface {
-	Init(metadata Metadata) error
-}
-
-type WorkflowBackendComponentInfo struct {
-	WorkflowBackendType     string
-	WorkflowBackendMetadata metadata.Base
-	InvalidWorkflowBackend  bool
+// Metadata represents a set of workflow specific properties.
+type Metadata struct {
+	metadata.Base `json:",inline"`
 }

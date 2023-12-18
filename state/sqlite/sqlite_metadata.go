@@ -17,15 +17,15 @@ import (
 	"fmt"
 	"time"
 
-	authSqlite "github.com/dapr/components-contrib/internal/authentication/sqlite"
-	"github.com/dapr/components-contrib/metadata"
+	authSqlite "github.com/dapr/components-contrib/common/authentication/sqlite"
 	"github.com/dapr/components-contrib/state"
+	"github.com/dapr/kit/metadata"
 )
 
 const (
 	defaultTableName         = "state"
 	defaultMetadataTableName = "metadata"
-	defaultCleanupInternal   = time.Duration(0) // Disabled by default
+	defaultCleanupInterval   = time.Duration(0) // Disabled by default
 )
 
 type sqliteMetadataStruct struct {
@@ -67,5 +67,5 @@ func (m *sqliteMetadataStruct) reset() {
 
 	m.TableName = defaultTableName
 	m.MetadataTableName = defaultMetadataTableName
-	m.CleanupInterval = defaultCleanupInternal
+	m.CleanupInterval = defaultCleanupInterval
 }

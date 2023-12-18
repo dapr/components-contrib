@@ -27,6 +27,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // Hazelcast state store.
@@ -55,7 +56,7 @@ func NewHazelcastStore(logger logger.Logger) state.Store {
 
 func validateAndParseMetadata(meta state.Metadata) (*hazelcastMetadata, error) {
 	m := &hazelcastMetadata{}
-	err := metadata.DecodeMetadata(meta.Properties, m)
+	err := kitmd.DecodeMetadata(meta.Properties, m)
 	if err != nil {
 		return nil, err
 	}

@@ -30,15 +30,16 @@ jobs:
         GOCOVMERGE_VER: "b5bfa59"
       steps:
         - name: Check out code
-          uses: actions/checkout@v3
+          uses: actions/checkout@v4
           with:
             repository: ${{ env.CHECKOUT_REPO }}
             ref: ${{ env.CHECKOUT_REF }}
 
         - name: Set up Go
-          uses: actions/setup-go@v3
+          uses: actions/setup-go@v4
           with:
             go-version-file: 'go.mod'
+            cache: 'false'
 
         - name: Setup go dependencies
           run: |
@@ -51,7 +52,7 @@ jobs:
           with:
             workflow: certification.yml
             workflow_conclusion: "success"
-            branch: master
+            branch: main
             event: schedule
             if_no_artifact_found: error
             name: cert_code_cov
@@ -62,7 +63,7 @@ jobs:
           with:
             workflow: conformance.yml
             workflow_conclusion: "success"
-            branch: master
+            branch: main
             event: schedule
             if_no_artifact_found: error
             name: conf_code_cov

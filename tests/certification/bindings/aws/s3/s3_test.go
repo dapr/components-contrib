@@ -19,10 +19,10 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"testing"
+	"github.com/stretchr/testify/require"
 
 	bindings_s3 "github.com/dapr/components-contrib/bindings/aws/s3"
 	secretstore_env "github.com/dapr/components-contrib/secretstores/local/env"
@@ -43,6 +43,7 @@ import (
 const (
 	sidecarName          = "bindings-s3-sidecar"
 	bindingsMetadataName = "s3-cert-tests"
+	objNotFound          = "object not found"
 )
 
 var bucketName = "bucketName"
@@ -105,7 +106,6 @@ func getObjectRequest(ctx flow.Context, client daprsdk.Client, name string, isBa
 	}
 
 	return getObjectRequestWithMetadata(ctx, client, invokeGetMetadata)
-
 }
 
 // getObjectRequest is used to make a common binding request for the get operation passing metadata.
@@ -147,7 +147,7 @@ func deleteObjectRequest(ctx flow.Context, client daprsdk.Client, name string) (
 // Verify S3 Basic Binding Support (Create, Get, List, Delete)
 func S3SBasic(t *testing.T) {
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	currentGRPCPort := ports[0]
 	currentHTTPPort := ports[1]
@@ -168,7 +168,7 @@ func S3SBasic(t *testing.T) {
 		}
 
 		_, invokeCreateErr := createObjectRequest(ctx, client, dataBytes, invokeCreateMetadata)
-		assert.NoError(t, invokeCreateErr)
+		require.NoError(t, invokeCreateErr)
 
 		invokeGetMetadata := map[string]string{
 			"key": objectName,
@@ -182,14 +182,14 @@ func S3SBasic(t *testing.T) {
 		}
 
 		out, invokeGetErr := client.InvokeBinding(ctx, invokeGetRequest)
-		assert.NoError(t, invokeGetErr)
+		require.NoError(t, invokeGetErr)
 		assert.Equal(t, input, string(out.Data))
 
 		out, invokeErr := listObjectRequest(ctx, client)
-		assert.NoError(t, invokeErr)
+		require.NoError(t, invokeErr)
 		var output s3.ListObjectsOutput
 		unmarshalErr := json.Unmarshal(out.Data, &output)
-		assert.NoError(t, unmarshalErr)
+		require.NoError(t, unmarshalErr)
 
 		found := false
 		for _, item := range output.Contents {
@@ -201,13 +201,13 @@ func S3SBasic(t *testing.T) {
 		assert.True(t, found)
 
 		out, invokeDeleteErr := deleteObjectRequest(ctx, client, objectName)
-		assert.NoError(t, invokeDeleteErr)
+		require.NoError(t, invokeDeleteErr)
 		assert.Empty(t, out.Data)
 
 		// confirm the deletion.
 		_, invokeSecondGetErr := getObjectRequest(ctx, client, objectName, false)
 		assert.Error(t, invokeSecondGetErr)
-		assert.Contains(t, invokeSecondGetErr.Error(), "error downloading S3 object")
+		assert.Contains(t, invokeSecondGetErr.Error(), objNotFound)
 
 		return nil
 	}
@@ -223,13 +223,12 @@ func S3SBasic(t *testing.T) {
 		)).
 		Step("Create/Get/List/Delete S3 Object", testCreateGetListDelete).
 		Run()
-
 }
 
 // Verify forcePathStyle
 func S3SForcePathStyle(t *testing.T) {
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	currentGRPCPort := ports[0]
 	currentHTTPPort := ports[1]
@@ -253,24 +252,24 @@ func S3SForcePathStyle(t *testing.T) {
 			}
 
 			cout, invokeCreateErr := createObjectRequest(ctx, client, dataBytes, invokeCreateMetadata)
-			assert.NoError(t, invokeCreateErr)
+			require.NoError(t, invokeCreateErr)
 			var createResponse struct {
 				Location   string  `json:"location"`
 				VersionID  *string `json:"versionID"`
 				PresignURL string  `json:"presignURL,omitempty"`
 			}
 			unmarshalErr := json.Unmarshal(cout.Data, &createResponse)
-			assert.NoError(t, unmarshalErr)
+			require.NoError(t, unmarshalErr)
 			assert.Equal(t, createResponse.Location, forcePathStyle)
 
 			out, invokeDeleteErr := deleteObjectRequest(ctx, client, objectName)
-			assert.NoError(t, invokeDeleteErr)
+			require.NoError(t, invokeDeleteErr)
 			assert.Empty(t, out.Data)
 
 			// confirm the deletion.
 			_, invokeSecondGetErr := getObjectRequest(ctx, client, objectName, false)
 			assert.Error(t, invokeSecondGetErr)
-			assert.Contains(t, invokeSecondGetErr.Error(), "error downloading S3 object")
+			assert.Contains(t, invokeSecondGetErr.Error(), objNotFound)
 
 			return nil
 		}
@@ -304,7 +303,7 @@ func S3SForcePathStyle(t *testing.T) {
 // Verify Base64 (Encode/Decode)
 func S3SBase64(t *testing.T) {
 	ports, err := dapr_testing.GetFreePorts(2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	currentGRPCPort := ports[0]
 	currentHTTPPort := ports[1]
@@ -323,17 +322,17 @@ func S3SBase64(t *testing.T) {
 			}
 
 			out, invokeCreateErr := createObjectRequest(ctx, client, dataBytes, invokeCreateMetadata)
-			assert.NoError(t, invokeCreateErr)
+			require.NoError(t, invokeCreateErr)
 
 			genKey := out.Metadata["key"]
 			isBase64 := true
 			out, invokeGetErr := getObjectRequest(ctx, client, genKey, isBase64)
-			assert.NoError(t, invokeGetErr)
+			require.NoError(t, invokeGetErr)
 			assert.Equal(t, out.Data, dataBytes)
 			assert.Empty(t, out.Metadata)
 
 			out, invokeDeleteErr := deleteObjectRequest(ctx, client, genKey)
-			assert.NoError(t, invokeDeleteErr)
+			require.NoError(t, invokeDeleteErr)
 			assert.Empty(t, out.Data)
 
 			// confirm the deletion.
@@ -357,19 +356,19 @@ func S3SBase64(t *testing.T) {
 			invokeCreateMetadata := map[string]string{}
 
 			out, invokeCreateErr := createObjectRequest(ctx, client, dataBytes, invokeCreateMetadata)
-			assert.NoError(t, invokeCreateErr)
+			require.NoError(t, invokeCreateErr)
 
 			genKey := out.Metadata["key"]
 			invokeGetMetadata := map[string]string{
 				"key": genKey,
 			}
 			out, invokeGetErr := getObjectRequestWithMetadata(ctx, client, invokeGetMetadata)
-			assert.NoError(t, invokeGetErr)
+			require.NoError(t, invokeGetErr)
 			assert.Equal(t, out.Data, b64EncodedDataBytes)
 			assert.Empty(t, out.Metadata)
 
 			out, invokeDeleteErr := deleteObjectRequest(ctx, client, genKey)
-			assert.NoError(t, invokeDeleteErr)
+			require.NoError(t, invokeDeleteErr)
 			assert.Empty(t, out.Data)
 
 			// confirm the deletion.
@@ -403,7 +402,6 @@ func S3SBase64(t *testing.T) {
 		)).
 		Step("Create blob from file get  encode base64", testCreateFromFileGetEncodeBase64()).
 		Run()
-
 }
 
 func componentRuntimeOptions() []embedded.Option {
@@ -425,8 +423,8 @@ func componentRuntimeOptions() []embedded.Option {
 
 func teardown(t *testing.T) {
 	t.Logf("AWS S3 Binding CertificationTests teardown...")
-	//Dapr runtime automatically creates the following queues, topics
-	//so here they get deleted.
+	// Dapr runtime automatically creates the following queues, topics
+	// so here they get deleted.
 
 	t.Logf("AWS S3 Binding CertificationTests teardown...done!")
 }

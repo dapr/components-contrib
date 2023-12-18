@@ -29,7 +29,8 @@ import (
 	// Blank import for the underlying SQLite Driver.
 	_ "modernc.org/sqlite"
 
-	internalsql "github.com/dapr/components-contrib/internal/component/sql"
+	"github.com/dapr/components-contrib/common/authentication/sqlite"
+	commonsql "github.com/dapr/components-contrib/common/component/sql"
 	"github.com/dapr/components-contrib/state"
 	stateutils "github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
@@ -59,7 +60,7 @@ type sqliteDBAccess struct {
 	logger   logger.Logger
 	metadata sqliteMetadataStruct
 	db       *sql.DB
-	gc       internalsql.GarbageCollector
+	gc       commonsql.GarbageCollector
 }
 
 // newSqliteDBAccess creates a new instance of sqliteDbAccess.
@@ -77,18 +78,21 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 		return err
 	}
 
-	connString, err := a.metadata.GetConnectionString(a.logger)
+	connString, err := a.metadata.GetConnectionString(a.logger, sqlite.GetConnectionStringOpts{})
 	if err != nil {
 		// Already logged
 		return err
 	}
 
-	db, err := sql.Open("sqlite", connString)
+	a.db, err = sql.Open("sqlite", connString)
 	if err != nil {
 		return fmt.Errorf("failed to create connection: %w", err)
 	}
 
-	a.db = db
+	// If the database is in-memory, we can't have more than 1 open connection
+	if a.metadata.IsInMemoryDB() {
+		a.db.SetMaxOpenConns(1)
+	}
 
 	err = a.Ping(ctx)
 	if err != nil {
@@ -104,7 +108,17 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 		return fmt.Errorf("failed to perform migrations: %w", err)
 	}
 
-	gc, err := internalsql.ScheduleGarbageCollector(internalsql.GCOptions{
+	// Init the background GC
+	err = a.initGC()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (a *sqliteDBAccess) initGC() (err error) {
+	a.gc, err = commonsql.ScheduleGarbageCollector(commonsql.GCOptions{
 		Logger: a.logger,
 		UpdateLastCleanupQuery: func(arg any) (string, any) {
 			return fmt.Sprintf(`INSERT INTO %s (key, value)
@@ -122,14 +136,9 @@ func (a *sqliteDBAccess) Init(ctx context.Context, md state.Metadata) error {
 			a.metadata.TableName,
 		),
 		CleanupInterval: a.metadata.CleanupInterval,
-		DB:              internalsql.AdaptDatabaseSQLConn(a.db),
+		DB:              commonsql.AdaptDatabaseSQLConn(a.db),
 	})
-	if err != nil {
-		return err
-	}
-	a.gc = gc
-
-	return nil
+	return err
 }
 
 func (a *sqliteDBAccess) CleanupExpired() error {
@@ -149,6 +158,7 @@ func (a *sqliteDBAccess) Get(parentCtx context.Context, req *state.GetRequest) (
 	}
 
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
+	//nolint:gosec
 	stmt := `SELECT key, value, is_binary, etag, expiration_time FROM ` + a.metadata.TableName + `
 		WHERE
 			key = ?
@@ -192,6 +202,7 @@ func (a *sqliteDBAccess) BulkGet(parentCtx context.Context, req []state.GetReque
 	}
 
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names
+	//nolint:gosec
 	stmt := `SELECT key, value, is_binary, etag, expiration_time FROM ` + a.metadata.TableName + `
 		WHERE
 			key IN (` + inClause + `)
@@ -332,54 +343,49 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 	}
 
 	// Only check for etag if FirstWrite specified (ref oracledatabaseaccess)
-	var (
-		res        sql.Result
-		mustCommit bool
-		stmt       string
-	)
+	ctx, cancel := context.WithTimeout(context.Background(), a.metadata.Timeout)
+	defer cancel()
+
 	// Sprintf is required for table name because sql.DB does not substitute parameters for table names.
 	// And the same is for DATETIME function's seconds parameter (which is from an integer anyways).
-	if !req.HasETag() {
+	switch {
+	case !req.HasETag() && req.Options.Concurrency == state.FirstWrite:
 		// If the operation uses first-write concurrency, we need to handle the special case of a row that has expired but hasn't been garbage collected yet
 		// In this case, the row should be considered as if it were deleted
-		// With SQLite, the only way we can handle that is by performing a SELECT query first
-		if req.Options.Concurrency == state.FirstWrite {
-			// If we're not in a transaction already, start one as we need to ensure consistency
-			if db == a.db {
-				db, err = a.db.BeginTx(parentCtx, nil)
-				if err != nil {
-					return fmt.Errorf("failed to begin transaction: %w", err)
-				}
-				defer db.(*sql.Tx).Rollback()
-				mustCommit = true
-			}
-
-			// Check if there's already a row with the given key that has not expired yet
-			var count int
-			stmt = `SELECT COUNT(key)
-				FROM ` + a.metadata.TableName + `
-				WHERE key = ?
-					AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
-			err = db.QueryRowContext(parentCtx, stmt, req.Key).Scan(&count)
-			if err != nil {
-				return fmt.Errorf("failed to check for existing row with first-write concurrency: %w", err)
-			}
-
-			// If the row exists, then we just return an etag error
-			// Otherwise, we can fall through and continue with an INSERT OR REPLACE statement
-			if count > 0 {
+		stmt := `WITH a AS (
+				SELECT
+					?, ?, ?, ?, ` + expiration + `, CURRENT_TIMESTAMP
+				WHERE NOT EXISTS (
+					SELECT 1
+					FROM ` + a.metadata.TableName + `
+					WHERE key = ?
+						AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)
+				)
+			)
+			INSERT OR REPLACE INTO ` + a.metadata.TableName + `
+			SELECT * FROM a
+			RETURNING 1`
+		var num int
+		err = db.QueryRowContext(ctx, stmt, req.Key, requestValue, isBinary, newEtag, req.Key).Scan(&num)
+		if err != nil {
+			// If no row was returned, it means no row was updated, so we had an etag failure
+			if errors.Is(err, sql.ErrNoRows) {
 				return state.NewETagError(state.ETagMismatch, nil)
 			}
+			return err
 		}
 
-		stmt = "INSERT OR REPLACE INTO " + a.metadata.TableName + `
+	case !req.HasETag():
+		stmt := "INSERT OR REPLACE INTO " + a.metadata.TableName + `
 				(key, value, is_binary, etag, update_time, expiration_time)
 			VALUES(?, ?, ?, ?, CURRENT_TIMESTAMP, ` + expiration + `)`
-		ctx, cancel := context.WithTimeout(context.Background(), a.metadata.Timeout)
-		defer cancel()
-		res, err = db.ExecContext(ctx, stmt, req.Key, requestValue, isBinary, newEtag, req.Key)
-	} else {
-		stmt = `UPDATE ` + a.metadata.TableName + ` SET
+		_, err = db.ExecContext(ctx, stmt, req.Key, requestValue, isBinary, newEtag)
+		if err != nil {
+			return err
+		}
+
+	default:
+		stmt := `UPDATE ` + a.metadata.TableName + ` SET
 				value = ?,
 				etag = ?,
 				is_binary = ?,
@@ -389,31 +395,19 @@ func (a *sqliteDBAccess) doSet(parentCtx context.Context, db querier, req *state
 				key = ?
 				AND etag = ?
 				AND (expiration_time IS NULL OR expiration_time > CURRENT_TIMESTAMP)`
-		ctx, cancel := context.WithTimeout(context.Background(), a.metadata.Timeout)
-		defer cancel()
+		var res sql.Result
 		res, err = db.ExecContext(ctx, stmt, requestValue, newEtag, isBinary, req.Key, *req.ETag)
-	}
-	if err != nil {
-		return err
-	}
-
-	// Count the number of affected rows
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		if req.HasETag() {
-			return state.NewETagError(state.ETagMismatch, nil)
-		}
-		return errors.New("no item was updated")
-	}
-
-	// Commit the transaction if needed
-	if mustCommit {
-		err = db.(*sql.Tx).Commit()
 		if err != nil {
-			return fmt.Errorf("failed to commit transaction: %w", err)
+			return err
+		}
+
+		rows, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if rows == 0 {
+			// 0 affected rows means etag failure
+			return state.NewETagError(state.ETagMismatch, nil)
 		}
 	}
 
@@ -450,17 +444,25 @@ func (a *sqliteDBAccess) ExecuteMulti(parentCtx context.Context, reqs []state.Tr
 	return tx.Commit()
 }
 
-// Close implements io.Close.
-func (a *sqliteDBAccess) Close() error {
-	if a.db != nil {
-		_ = a.db.Close()
-	}
+// Close implements io.Closer.
+func (a *sqliteDBAccess) Close() (err error) {
+	errs := make([]error, 0)
 
 	if a.gc != nil {
-		return a.gc.Close()
+		err = a.gc.Close()
+		if err != nil {
+			errs = append(errs, err)
+		}
 	}
 
-	return nil
+	if a.db != nil {
+		err = a.db.Close()
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return errors.Join(errs...)
 }
 
 func (a *sqliteDBAccess) doDelete(parentCtx context.Context, db querier, req *state.DeleteRequest) error {

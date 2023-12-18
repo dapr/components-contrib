@@ -17,10 +17,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/dapr/components-contrib/internal/component/postgresql"
-	pginterfaces "github.com/dapr/components-contrib/internal/component/postgresql/interfaces"
-	sqlinternal "github.com/dapr/components-contrib/internal/component/sql"
-	pgmigrations "github.com/dapr/components-contrib/internal/component/sql/migrations/postgres"
+	"github.com/dapr/components-contrib/common/component/postgresql"
+	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
+	commonsql "github.com/dapr/components-contrib/common/component/sql"
+	pgmigrations "github.com/dapr/components-contrib/common/component/sql/migrations/postgres"
 )
 
 // Performs the required migrations
@@ -32,7 +32,7 @@ func performMigrations(ctx context.Context, db pginterfaces.PGXPoolConn, opts po
 		MetadataKey:       "migrations",
 	}
 
-	return m.Perform(ctx, []sqlinternal.MigrationFn{
+	return m.Perform(ctx, []commonsql.MigrationFn{
 		// Migration 0: create the state table
 		func(ctx context.Context) error {
 			// We need to add an "IF NOT EXISTS" because we may be migrating from when we did not use a metadata table

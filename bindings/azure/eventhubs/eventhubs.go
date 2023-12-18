@@ -20,7 +20,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs"
 
 	"github.com/dapr/components-contrib/bindings"
-	impl "github.com/dapr/components-contrib/internal/component/azure/eventhubs"
+	impl "github.com/dapr/components-contrib/common/component/azure/eventhubs"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 	"github.com/dapr/kit/ptr"

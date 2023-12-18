@@ -42,8 +42,8 @@ func TestStandaloneRedisLock_InitError(t *testing.T) {
 		cfg.Properties["redisPassword"] = ""
 
 		// init
-		err := comp.Init(context.Background(), cfg)
-		assert.Error(t, err)
+		err := comp.InitLockStore(context.Background(), cfg)
+		require.Error(t, err)
 	})
 
 	t.Run("error when no host", func(t *testing.T) {
@@ -58,8 +58,8 @@ func TestStandaloneRedisLock_InitError(t *testing.T) {
 		cfg.Properties["redisPassword"] = ""
 
 		// init
-		err := comp.Init(context.Background(), cfg)
-		assert.Error(t, err)
+		err := comp.InitLockStore(context.Background(), cfg)
+		require.Error(t, err)
 	})
 
 	t.Run("error when wrong MaxRetries", func(t *testing.T) {
@@ -75,8 +75,8 @@ func TestStandaloneRedisLock_InitError(t *testing.T) {
 		cfg.Properties["maxRetries"] = "1 "
 
 		// init
-		err := comp.Init(context.Background(), cfg)
-		assert.Error(t, err)
+		err := comp.InitLockStore(context.Background(), cfg)
+		require.Error(t, err)
 	})
 }
 
@@ -127,7 +127,7 @@ func TestStandaloneRedisLock_TryLock(t *testing.T) {
 		LockOwner:  ownerID1,
 	})
 	require.NoError(t, err)
-	assert.True(t, unlockResp.Status == 0, "client1 failed to unlock!")
+	assert.EqualValues(t, 0, unlockResp.Status, "client1 failed to unlock!")
 
 	// 4. Client 2 get lock
 	owner2 = uuid.New().String()
@@ -145,5 +145,5 @@ func TestStandaloneRedisLock_TryLock(t *testing.T) {
 		LockOwner:  owner2,
 	})
 	require.NoError(t, err)
-	assert.True(t, unlockResp.Status == 0, "client2 failed to unlock!")
+	assert.EqualValues(t, 0, unlockResp.Status, "client2 failed to unlock!")
 }

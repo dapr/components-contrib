@@ -24,6 +24,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // AliCloudOSS is a binding for an AliCloud OSS storage bucket.
@@ -90,7 +91,7 @@ func (s *AliCloudOSS) Invoke(_ context.Context, req *bindings.InvokeRequest) (*b
 
 func (s *AliCloudOSS) parseMetadata(meta bindings.Metadata) (*ossMetadata, error) {
 	var m ossMetadata
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}

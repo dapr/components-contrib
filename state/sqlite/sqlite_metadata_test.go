@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	authSqlite "github.com/dapr/components-contrib/internal/authentication/sqlite"
+	authSqlite "github.com/dapr/components-contrib/common/authentication/sqlite"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 )
@@ -41,7 +41,7 @@ func TestSqliteMetadata(t *testing.T) {
 		assert.Equal(t, defaultTableName, md.TableName)
 		assert.Equal(t, defaultMetadataTableName, md.MetadataTableName)
 		assert.Equal(t, authSqlite.DefaultTimeout, md.Timeout)
-		assert.Equal(t, defaultCleanupInternal, md.CleanupInterval)
+		assert.Equal(t, defaultCleanupInterval, md.CleanupInterval)
 		assert.Equal(t, authSqlite.DefaultBusyTimeout, md.BusyTimeout)
 		assert.False(t, md.DisableWAL)
 	})
@@ -51,7 +51,7 @@ func TestSqliteMetadata(t *testing.T) {
 		err := md.InitWithMetadata(stateMetadata(map[string]string{}))
 
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "missing connection string")
+		require.ErrorContains(t, err, "missing connection string")
 	})
 
 	t.Run("invalid state table name", func(t *testing.T) {
@@ -62,7 +62,7 @@ func TestSqliteMetadata(t *testing.T) {
 		}))
 
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "invalid identifier")
+		require.ErrorContains(t, err, "invalid identifier")
 	})
 
 	t.Run("invalid metadata table name", func(t *testing.T) {
@@ -73,7 +73,7 @@ func TestSqliteMetadata(t *testing.T) {
 		}))
 
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "invalid identifier")
+		require.ErrorContains(t, err, "invalid identifier")
 	})
 
 	t.Run("invalid timeout", func(t *testing.T) {
@@ -84,7 +84,7 @@ func TestSqliteMetadata(t *testing.T) {
 		}))
 
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "timeout")
+		require.ErrorContains(t, err, "timeout")
 	})
 
 	t.Run("aliases", func(t *testing.T) {

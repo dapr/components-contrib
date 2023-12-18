@@ -16,7 +16,7 @@ package pulsar
 import (
 	"time"
 
-	"github.com/dapr/components-contrib/internal/authentication/oauth2"
+	"github.com/dapr/components-contrib/common/authentication/oauth2"
 )
 
 type pulsarMetadata struct {

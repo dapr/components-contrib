@@ -25,7 +25,7 @@ import (
 	"github.com/http-wasm/http-wasm-host-go/api"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dapr/components-contrib/internal/httputils"
+	"github.com/dapr/components-contrib/common/httputils"
 	"github.com/dapr/components-contrib/metadata"
 	dapr "github.com/dapr/components-contrib/middleware"
 	"github.com/dapr/kit/logger"

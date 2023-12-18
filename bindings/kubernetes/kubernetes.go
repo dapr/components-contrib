@@ -30,9 +30,10 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/dapr/components-contrib/bindings"
-	kubeclient "github.com/dapr/components-contrib/internal/authentication/kubernetes"
+	kubeclient "github.com/dapr/components-contrib/common/authentication/kubernetes"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 type kubernetesInput struct {
@@ -91,7 +92,7 @@ func (k *kubernetesInput) parseMetadata(meta bindings.Metadata) error {
 	}
 
 	// Decode
-	err := metadata.DecodeMetadata(meta.Properties, &k.metadata)
+	err := kitmd.DecodeMetadata(meta.Properties, &k.metadata)
 	if err != nil {
 		return err
 	}

@@ -26,6 +26,7 @@ import (
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
 )
 
@@ -78,32 +79,32 @@ func NewCouchbaseStateStore(logger logger.Logger) state.Store {
 
 func parseAndValidateMetadata(meta state.Metadata) (*couchbaseMetadata, error) {
 	m := couchbaseMetadata{}
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return nil, err
 	}
 
 	if m.CouchbaseURL == "" {
-		return nil, fmt.Errorf("couchbase error: couchbase URL is missing")
+		return nil, fmt.Errorf("couchbase URL is missing")
 	}
 
 	if m.Username == "" {
-		return nil, fmt.Errorf("couchbase error: couchbase username is missing")
+		return nil, fmt.Errorf("couchbase username is missing")
 	}
 
 	if m.Password == "" {
-		return nil, fmt.Errorf("couchbase error: couchbase password is missing")
+		return nil, fmt.Errorf("couchbase password is missing")
 	}
 
 	if m.BucketName == "" {
-		return nil, fmt.Errorf("couchbase error: couchbase bucket name is missing")
+		return nil, fmt.Errorf("couchbase bucket name is missing")
 	}
 
 	v := meta.Properties[numReplicasDurableReplication]
 	if v != "" {
 		num, err := strconv.ParseUint(v, 10, 0)
 		if err != nil {
-			return nil, fmt.Errorf("couchbase error: %v", err)
+			return nil, err
 		}
 		m.NumReplicasDurableReplication = uint(num)
 	}
@@ -112,7 +113,7 @@ func parseAndValidateMetadata(meta state.Metadata) (*couchbaseMetadata, error) {
 	if v != "" {
 		num, err := strconv.ParseUint(v, 10, 0)
 		if err != nil {
-			return nil, fmt.Errorf("couchbase error: %v", err)
+			return nil, err
 		}
 		m.NumReplicasDurablePersistence = uint(num)
 	}
@@ -129,7 +130,7 @@ func (cbs *Couchbase) Init(_ context.Context, metadata state.Metadata) error {
 	cbs.bucketName = meta.BucketName
 	c, err := gocb.Connect(meta.CouchbaseURL)
 	if err != nil {
-		return fmt.Errorf("couchbase error: unable to connect to couchbase at %s - %v ", meta.CouchbaseURL, err)
+		return fmt.Errorf("unable to connect to couchbase at %s - %v ", meta.CouchbaseURL, err)
 	}
 	// does not actually trigger the authentication
 	c.Authenticate(gocb.PasswordAuthenticator{
@@ -140,7 +141,7 @@ func (cbs *Couchbase) Init(_ context.Context, metadata state.Metadata) error {
 	// with RBAC, bucket-passwords are no longer used - https://docs.couchbase.com/go-sdk/1.6/sdk-authentication-overview.html#authenticating-with-legacy-sdk-versions
 	bucket, err := c.OpenBucket(cbs.bucketName, "")
 	if err != nil {
-		return fmt.Errorf("couchbase error: failed to open bucket %s - %v", cbs.bucketName, err)
+		return fmt.Errorf("failed to open bucket %s - %v", cbs.bucketName, err)
 	}
 	cbs.bucket = bucket
 
@@ -170,7 +171,7 @@ func (cbs *Couchbase) Set(ctx context.Context, req *state.SetRequest) error {
 	}
 	value, err := utils.Marshal(req.Value, cbs.json.Marshal)
 	if err != nil {
-		return fmt.Errorf("couchbase error: failed to convert value %v", err)
+		return fmt.Errorf("failed to convert value %v", err)
 	}
 
 	//nolint:nestif
@@ -200,7 +201,7 @@ func (cbs *Couchbase) Set(ctx context.Context, req *state.SetRequest) error {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
-		return fmt.Errorf("couchbase error: failed to set value for key %s - %v", req.Key, err)
+		return fmt.Errorf("failed to set value for key %s - %v", req.Key, err)
 	}
 
 	return nil
@@ -215,7 +216,7 @@ func (cbs *Couchbase) Get(ctx context.Context, req *state.GetRequest) (*state.Ge
 			return &state.GetResponse{}, nil
 		}
 
-		return nil, fmt.Errorf("couchbase error: failed to get value for key %s - %v", req.Key, err)
+		return nil, fmt.Errorf("failed to get value for key %s - %v", req.Key, err)
 	}
 
 	return &state.GetResponse{
@@ -249,7 +250,7 @@ func (cbs *Couchbase) Delete(ctx context.Context, req *state.DeleteRequest) erro
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
-		return fmt.Errorf("couchbase error: failed to delete key %s - %v", req.Key, err)
+		return fmt.Errorf("failed to delete key %s - %v", req.Key, err)
 	}
 
 	return nil

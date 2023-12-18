@@ -230,7 +230,7 @@ func TestValidConfiguration(t *testing.T) {
 			}
 
 			err := sqlStore.Init(context.Background(), metadata)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.expected.metadata.ConnectionString, sqlStore.metadata.ConnectionString)
 			assert.Equal(t, tt.expected.metadata.TableName, sqlStore.metadata.TableName)
 			assert.Equal(t, tt.expected.metadata.Schema, sqlStore.metadata.Schema)
@@ -380,7 +380,7 @@ func TestExecuteMigrationFails(t *testing.T) {
 	}
 
 	err := sqlStore.Init(context.Background(), metadata)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestSupportedFeatures(t *testing.T) {

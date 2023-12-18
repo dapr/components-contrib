@@ -24,7 +24,7 @@ import (
 	"github.com/dapr/kit/logger"
 
 	"github.com/dapr/components-contrib/bindings"
-	"github.com/dapr/components-contrib/internal/component/kafka"
+	"github.com/dapr/components-contrib/common/component/kafka"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 )
 

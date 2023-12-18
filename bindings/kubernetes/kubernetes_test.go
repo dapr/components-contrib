@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/kit/logger"
@@ -43,7 +44,7 @@ func TestParseMetadata(t *testing.T) {
 		i := kubernetesInput{logger: logger.NewLogger("test")}
 		err := i.parseMetadata(m)
 
-		assert.Error(t, err, "Expected err to be returned.")
-		assert.ErrorContains(t, err, "namespace is missing in metadata", "Error message not same.")
+		require.Error(t, err, "Expected err to be returned.")
+		require.ErrorContains(t, err, "namespace is missing in metadata", "Error message not same.")
 	})
 }

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
@@ -187,9 +188,9 @@ func Test_createOptions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := createOptions(tt.meta)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.want, got)
 			}
 		})

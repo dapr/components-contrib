@@ -28,6 +28,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // Constant literals.
@@ -164,8 +165,8 @@ func (o *oosSecretStore) getClient(metadata *ParameterStoreMetaData) (*oos.Clien
 
 func (o *oosSecretStore) getParameterStoreMetadata(spec secretstores.Metadata) (*ParameterStoreMetaData, error) {
 	meta := ParameterStoreMetaData{}
-	metadata.DecodeMetadata(spec.Properties, &meta)
-	return &meta, nil
+	err := kitmd.DecodeMetadata(spec.Properties, &meta)
+	return &meta, err
 }
 
 // getVersionFromMetadata returns the parameter version from the metadata. If not set means latest version.

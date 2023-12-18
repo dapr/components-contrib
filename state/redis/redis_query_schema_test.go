@@ -4,12 +4,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParsingEmptySchema(t *testing.T) {
 	schemas, err := parseQuerySchemas("")
-	assert.NoError(t, err)
-	assert.Equal(t, 0, len(schemas))
+	require.NoError(t, err)
+	assert.Empty(t, schemas)
 }
 
 func TestParsingSingleSchema(t *testing.T) {
@@ -38,20 +39,19 @@ func TestParsingSingleSchema(t *testing.T) {
     }
 ]`
 	schemas, err := parseQuerySchemas(content)
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(schemas))
+	require.NoError(t, err)
+	assert.Len(t, schemas, 1)
 	assert.Equal(t,
-		schemas["schema1"].keys,
-		map[string]string{"person.org": "var0", "person.id": "var1", "city": "var2", "state": "var3"})
+		map[string]string{"person.org": "var0", "person.id": "var1", "city": "var2", "state": "var3"},
+		schemas["schema1"].keys)
 	assert.Equal(t,
-		schemas["schema1"].schema,
 		[]interface{}{
 			"FT.CREATE", "schema1", "ON", "JSON", "SCHEMA",
 			"$.data.person.org", "AS", "var0", "TEXT", "SORTABLE",
 			"$.data.person.id", "AS", "var1", "NUMERIC", "SORTABLE",
 			"$.data.city", "AS", "var2", "TEXT", "SORTABLE",
 			"$.data.state", "AS", "var3", "TEXT", "SORTABLE",
-		})
+		}, schemas["schema1"].schema)
 }
 
 func TestParsingMultiSchema(t *testing.T) {
@@ -85,28 +85,26 @@ func TestParsingMultiSchema(t *testing.T) {
     }
 ]`
 	schemas, err := parseQuerySchemas(content)
-	assert.NoError(t, err)
-	assert.Equal(t, 2, len(schemas))
+	require.NoError(t, err)
+	assert.Len(t, schemas, 2)
 	assert.Equal(t,
-		schemas["schema1"].keys,
-		map[string]string{"person.org": "var0", "city": "var1"})
+		map[string]string{"person.org": "var0", "city": "var1"},
+		schemas["schema1"].keys)
 	assert.Equal(t,
-		schemas["schema1"].schema,
 		[]interface{}{
 			"FT.CREATE", "schema1", "ON", "JSON", "SCHEMA",
 			"$.data.person.org", "AS", "var0", "TEXT", "SORTABLE",
 			"$.data.city", "AS", "var1", "TEXT", "SORTABLE",
-		})
+		}, schemas["schema1"].schema)
 	assert.Equal(t,
-		schemas["schema2"].keys,
-		map[string]string{"person.id": "var0", "state": "var1"})
+		map[string]string{"person.id": "var0", "state": "var1"},
+		schemas["schema2"].keys)
 	assert.Equal(t,
-		schemas["schema2"].schema,
 		[]interface{}{
 			"FT.CREATE", "schema2", "ON", "JSON", "SCHEMA",
 			"$.data.person.id", "AS", "var0", "NUMERIC", "SORTABLE",
 			"$.data.state", "AS", "var1", "TEXT", "SORTABLE",
-		})
+		}, schemas["schema2"].schema)
 }
 
 func TestParsingSchemaErrors(t *testing.T) {
@@ -143,6 +141,6 @@ func TestParsingSchemaErrors(t *testing.T) {
 
 	for _, test := range tests {
 		_, err := parseQuerySchemas(test.content)
-		assert.EqualError(t, err, test.err)
+		require.EqualError(t, err, test.err)
 	}
 }

@@ -23,9 +23,10 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 
 	"github.com/dapr/components-contrib/bindings"
-	awsAuth "github.com/dapr/components-contrib/internal/authentication/aws"
+	awsAuth "github.com/dapr/components-contrib/common/authentication/aws"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 // DynamoDB allows performing stateful operations on AWS DynamoDB.
@@ -96,7 +97,7 @@ func (d *DynamoDB) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bi
 
 func (d *DynamoDB) getDynamoDBMetadata(spec bindings.Metadata) (*dynamoDBMetadata, error) {
 	var meta dynamoDBMetadata
-	err := metadata.DecodeMetadata(spec.Properties, &meta)
+	err := kitmd.DecodeMetadata(spec.Properties, &meta)
 	if err != nil {
 		return nil, err
 	}

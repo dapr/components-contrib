@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConvertTLSPropertiesToTLSConfig(t *testing.T) {
@@ -19,8 +20,8 @@ func TestConvertTLSPropertiesToTLSConfig(t *testing.T) {
 		c, err := ConvertTLSPropertiesToTLSConfig(fakeProperties)
 
 		// assert
-		assert.NoError(t, err)
-		assert.Equal(t, len(c.Certificates), 1)
+		require.NoError(t, err)
+		assert.Len(t, c.Certificates, 1)
 		assert.NotNil(t, c.RootCAs)
 	})
 
@@ -31,8 +32,8 @@ func TestConvertTLSPropertiesToTLSConfig(t *testing.T) {
 		c, err := ConvertTLSPropertiesToTLSConfig(fakeProperties)
 
 		// assert
-		assert.NoError(t, err)
-		assert.Equal(t, len(c.Certificates), 0)
+		require.NoError(t, err)
+		assert.Empty(t, c.Certificates)
 		assert.Nil(t, c.RootCAs)
 	})
 
@@ -71,7 +72,7 @@ func TestTLS(t *testing.T) {
 		p, err := TLS(fakeProperties)
 
 		// assert
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, p.ClientKey, "failed to parse valid client certificate key")
 		block, _ := pem.Decode([]byte(p.ClientCert))
 		cert, err := x509.ParseCertificate(block.Bytes)

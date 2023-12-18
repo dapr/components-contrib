@@ -31,7 +31,7 @@ func TestMiddlewareGetNativeMetadata(t *testing.T) {
 			maxRequestsPerSecondKey: "0",
 		}}})
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "metadata property "+maxRequestsPerSecondKey+" must be a positive value")
+		require.ErrorContains(t, err, "metadata property "+maxRequestsPerSecondKey+" must be a positive value")
 		assert.Nil(t, res)
 	})
 
@@ -40,7 +40,7 @@ func TestMiddlewareGetNativeMetadata(t *testing.T) {
 			maxRequestsPerSecondKey: "-2",
 		}}})
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "metadata property "+maxRequestsPerSecondKey+" must be a positive value")
+		require.ErrorContains(t, err, "metadata property "+maxRequestsPerSecondKey+" must be a positive value")
 		assert.Nil(t, res)
 	})
 
@@ -49,7 +49,7 @@ func TestMiddlewareGetNativeMetadata(t *testing.T) {
 			maxRequestsPerSecondKey: "foo-bar",
 		}}})
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "cannot parse 'MaxRequestsPerSecond' as float")
+		require.ErrorContains(t, err, "cannot parse 'MaxRequestsPerSecond' as float")
 		assert.Nil(t, res)
 	})
 
@@ -59,7 +59,7 @@ func TestMiddlewareGetNativeMetadata(t *testing.T) {
 		}}})
 		require.NoError(t, err)
 		require.NotNil(t, res)
-		assert.Equal(t, float64(10), res.MaxRequestsPerSecond)
+		assert.EqualValues(t, float64(10), res.MaxRequestsPerSecond)
 	})
 
 	t.Run(maxRequestsPerSecondKey+" is a float", func(t *testing.T) {
@@ -68,6 +68,6 @@ func TestMiddlewareGetNativeMetadata(t *testing.T) {
 		}}})
 		require.NoError(t, err)
 		require.NotNil(t, res)
-		assert.Equal(t, float64(42.42), res.MaxRequestsPerSecond)
+		assert.EqualValues(t, float64(42.42), res.MaxRequestsPerSecond)
 	})
 }

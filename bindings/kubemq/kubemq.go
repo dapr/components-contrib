@@ -108,8 +108,8 @@ func (k *kubeMQ) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*bind
 		return nil, err
 	}
 	if len(result.Results) > 0 {
-		if result.Results[0].IsError {
-			return nil, fmt.Errorf("error sending queue message: %s", result.Results[0].Error)
+		if result.Results[0].GetIsError() {
+			return nil, fmt.Errorf("error sending queue message: %s", result.Results[0].GetError())
 		}
 	}
 	return &bindings.InvokeResponse{

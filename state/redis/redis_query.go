@@ -20,7 +20,7 @@ import (
 	"strconv"
 	"strings"
 
-	rediscomponent "github.com/dapr/components-contrib/internal/component/redis"
+	rediscomponent "github.com/dapr/components-contrib/common/component/redis"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
 )
@@ -63,6 +63,81 @@ func (q *Query) VisitEQ(f *query.EQ) (string, error) {
 		return fmt.Sprintf("@%s:(%s)", alias, v), nil
 	default:
 		return fmt.Sprintf("@%s:[%v %v]", alias, v, v), nil
+	}
+}
+
+func (q *Query) VisitNEQ(f *query.NEQ) (string, error) {
+	// string:  @<key>:(<val>)
+	// numeric: @<key>:[<val> <val>]
+	alias, err := q.getAlias(f.Key)
+	if err != nil {
+		return "", err
+	}
+
+	switch v := f.Val.(type) {
+	case string:
+		return fmt.Sprintf("@%s:(%s)", alias, v), nil
+	default:
+		return fmt.Sprintf("@%s:[%v %v]", alias, v, v), nil
+	}
+}
+
+func (q *Query) VisitGT(f *query.GT) (string, error) {
+	// numeric: @<key>:[(<val> +inf]
+	alias, err := q.getAlias(f.Key)
+	if err != nil {
+		return "", err
+	}
+
+	switch v := f.Val.(type) {
+	case string:
+		return "", fmt.Errorf("unsupported type of value %s; string type not permitted", f.Val)
+	default:
+		return fmt.Sprintf("@%s:[(%v +inf]", alias, v), nil
+	}
+}
+
+func (q *Query) VisitGTE(f *query.GTE) (string, error) {
+	// numeric: @<key>:[<val> +inf]
+	alias, err := q.getAlias(f.Key)
+	if err != nil {
+		return "", err
+	}
+
+	switch v := f.Val.(type) {
+	case string:
+		return "", fmt.Errorf("unsupported type of value %s; string type not permitted", f.Val)
+	default:
+		return fmt.Sprintf("@%s:[%v +inf]", alias, v), nil
+	}
+}
+
+func (q *Query) VisitLT(f *query.LT) (string, error) {
+	// numeric: @<key>:[-inf <val>)]
+	alias, err := q.getAlias(f.Key)
+	if err != nil {
+		return "", err
+	}
+
+	switch v := f.Val.(type) {
+	case string:
+		return "", fmt.Errorf("unsupported type of value %s; string type not permitted", f.Val)
+	default:
+		return fmt.Sprintf("@%s:[-inf (%v]", alias, v), nil
+	}
+}
+
+func (q *Query) VisitLTE(f *query.LTE) (string, error) {
+	// numeric: @<key>:[-inf <val>]
+	alias, err := q.getAlias(f.Key)
+	if err != nil {
+		return "", err
+	}
+	switch v := f.Val.(type) {
+	case string:
+		return "", fmt.Errorf("unsupported type of value %s; string type not permitted", f.Val)
+	default:
+		return fmt.Sprintf("@%s:[-inf %v]", alias, v), nil
 	}
 }
 
@@ -113,6 +188,31 @@ func (q *Query) visitFilters(op string, filters []query.Filter) (string, error) 
 		switch f := fil.(type) {
 		case *query.EQ:
 			if str, err = q.VisitEQ(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, fmt.Sprintf("(%s)", str))
+		case *query.NEQ:
+			if str, err = q.VisitNEQ(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, fmt.Sprintf("-(%s)", str))
+		case *query.GT:
+			if str, err = q.VisitGT(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, fmt.Sprintf("(%s)", str))
+		case *query.GTE:
+			if str, err = q.VisitGTE(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, fmt.Sprintf("(%s)", str))
+		case *query.LT:
+			if str, err = q.VisitLT(f); err != nil {
+				return "", err
+			}
+			arr = append(arr, fmt.Sprintf("(%s)", str))
+		case *query.LTE:
+			if str, err = q.VisitLTE(f); err != nil {
 				return "", err
 			}
 			arr = append(arr, fmt.Sprintf("(%s)", str))
@@ -179,10 +279,10 @@ func (q *Query) Finalize(filters string, qq *query.Query) error {
 			if err != nil {
 				return err
 			}
-			q.query = append(q.query, "LIMIT", qq.Page.Token, fmt.Sprintf("%d", q.limit))
+			q.query = append(q.query, "LIMIT", qq.Page.Token, strconv.Itoa(q.limit))
 		} else {
 			q.offset = 0
-			q.query = append(q.query, "LIMIT", "0", fmt.Sprintf("%d", q.limit))
+			q.query = append(q.query, "LIMIT", "0", strconv.Itoa(q.limit))
 		}
 	}
 

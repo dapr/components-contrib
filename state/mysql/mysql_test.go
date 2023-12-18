@@ -27,6 +27,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
@@ -71,7 +72,7 @@ func TestFinishInitHandlesSchemaExistsError(t *testing.T) {
 	actualErr := m.mySQL.finishInit(context.Background(), m.mySQL.db)
 
 	// Assert
-	assert.Error(t, actualErr, "now error returned")
+	require.Error(t, actualErr, "now error returned")
 	assert.Equal(t, "existsError", actualErr.Error(), "wrong error")
 }
 
@@ -90,7 +91,7 @@ func TestFinishInitHandlesDatabaseCreateError(t *testing.T) {
 	actualErr := m.mySQL.finishInit(context.Background(), m.mySQL.db)
 
 	// Assert
-	assert.Error(t, actualErr, "now error returned")
+	require.Error(t, actualErr, "now error returned")
 	assert.Equal(t, "createDatabaseError", actualErr.Error(), "wrong error")
 }
 
@@ -114,7 +115,7 @@ func TestFinishInitHandlesPingError(t *testing.T) {
 	actualErr := m.mySQL.finishInit(context.Background(), m.mySQL.db)
 
 	// Assert
-	assert.NotNil(t, actualErr, "now error returned")
+	require.Error(t, actualErr, "now error returned")
 	assert.Equal(t, "pingError", actualErr.Error(), "wrong error")
 }
 
@@ -142,7 +143,7 @@ func TestFinishInitHandlesTableExistsError(t *testing.T) {
 	err := m.mySQL.finishInit(context.Background(), m.mySQL.db)
 
 	// Assert
-	assert.NotNil(t, err, "no error returned")
+	require.Error(t, err, "no error returned")
 	assert.Equal(t, "tableExistsError", err.Error(), "tableExists did not return err")
 }
 
@@ -156,7 +157,7 @@ func TestClosingDatabaseTwiceReturnsNil(t *testing.T) {
 	err := m.mySQL.Close()
 
 	// Assert
-	assert.Nil(t, err, "error returned")
+	require.NoError(t, err, "error returned")
 }
 
 func TestMultiCannotBeginTransaction(t *testing.T) {
@@ -170,7 +171,7 @@ func TestMultiCannotBeginTransaction(t *testing.T) {
 	err := m.mySQL.Multi(context.Background(), nil)
 
 	// Assert
-	assert.NotNil(t, err, "no error returned")
+	require.Error(t, err, "no error returned")
 	assert.Equal(t, "beginError", err.Error(), "wrong error returned")
 }
 
@@ -180,7 +181,7 @@ func TestMultiCommitSetsAndDeletes(t *testing.T) {
 	defer m.mySQL.Close()
 
 	m.mock1.ExpectBegin()
-	m.mock1.ExpectExec("INSERT INTO").WillReturnResult(sqlmock.NewResult(0, 1))
+	m.mock1.ExpectExec("REPLACE INTO").WillReturnResult(sqlmock.NewResult(0, 1))
 	m.mock1.ExpectExec("DELETE FROM").WillReturnResult(sqlmock.NewResult(0, 1))
 	m.mock1.ExpectCommit()
 
@@ -196,7 +197,7 @@ func TestMultiCommitSetsAndDeletes(t *testing.T) {
 	err := m.mySQL.Multi(context.Background(), &request)
 
 	// Assert
-	assert.NoError(t, err, "error returned")
+	require.NoError(t, err, "error returned")
 }
 
 func TestSetHandlesOptionsError(t *testing.T) {
@@ -212,7 +213,7 @@ func TestSetHandlesOptionsError(t *testing.T) {
 	err := m.mySQL.Set(context.Background(), &request)
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestSetHandlesNoKey(t *testing.T) {
@@ -227,7 +228,7 @@ func TestSetHandlesNoKey(t *testing.T) {
 	err := m.mySQL.Set(context.Background(), &request)
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, "missing key in set operation", err.Error(), "wrong error returned")
 }
 
@@ -247,7 +248,7 @@ func TestSetHandlesUpdate(t *testing.T) {
 	err := m.mySQL.Set(context.Background(), &request)
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestSetHandlesErr(t *testing.T) {
@@ -255,54 +256,27 @@ func TestSetHandlesErr(t *testing.T) {
 	m, _ := mockDatabase(t)
 	defer m.mySQL.Close()
 
-	t.Run("error occurs when update with tag", func(t *testing.T) {
-		m.mock1.ExpectExec("UPDATE state").WillReturnError(errors.New("error"))
-
-		eTag := "946af561"
-		request := createSetRequest()
-		request.ETag = &eTag
-
-		// Act
-		err := m.mySQL.Set(context.Background(), &request)
-
-		// Assert
-		assert.Error(t, err)
-		assert.IsType(t, &state.ETagError{}, err)
-		assert.Equal(t, err.(*state.ETagError).Kind(), state.ETagMismatch)
-	})
-
 	t.Run("error occurs when insert", func(t *testing.T) {
-		m.mock1.ExpectExec("INSERT INTO state").WillReturnError(errors.New("error"))
+		m.mock1.ExpectExec("REPLACE INTO state").WillReturnError(errors.New("error"))
 		request := createSetRequest()
 
 		// Act
 		err := m.mySQL.Set(context.Background(), &request)
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, "error", err.Error())
 	})
 
 	t.Run("insert on conflict", func(t *testing.T) {
-		m.mock1.ExpectExec("INSERT INTO state").WillReturnResult(sqlmock.NewResult(1, 2))
+		m.mock1.ExpectExec("REPLACE INTO state").WillReturnResult(sqlmock.NewResult(1, 2))
 		request := createSetRequest()
 
 		// Act
 		err := m.mySQL.Set(context.Background(), &request)
 
 		// Assert
-		assert.NoError(t, err)
-	})
-
-	t.Run("too many rows error", func(t *testing.T) {
-		m.mock1.ExpectExec("INSERT INTO state").WillReturnResult(sqlmock.NewResult(1, 3))
-		request := createSetRequest()
-
-		// Act
-		err := m.mySQL.Set(context.Background(), &request)
-
-		// Assert
-		assert.Error(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("no rows effected error", func(t *testing.T) {
@@ -316,9 +290,9 @@ func TestSetHandlesErr(t *testing.T) {
 		err := m.mySQL.Set(context.Background(), &request)
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.IsType(t, &state.ETagError{}, err)
-		assert.Equal(t, err.(*state.ETagError).Kind(), state.ETagMismatch)
+		assert.Equal(t, state.ETagMismatch, err.(*state.ETagError).Kind())
 	})
 }
 
@@ -333,7 +307,7 @@ func TestMySQLDeleteHandlesNoKey(t *testing.T) {
 	err := m.mySQL.Delete(context.Background(), &request)
 
 	// Asset
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, "missing key in delete operation", err.Error(), "wrong error returned")
 }
 
@@ -352,7 +326,7 @@ func TestDeleteWithETag(t *testing.T) {
 	err := m.mySQL.Delete(context.Background(), &request)
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestDeleteWithErr(t *testing.T) {
@@ -369,7 +343,7 @@ func TestDeleteWithErr(t *testing.T) {
 		err := m.mySQL.Delete(context.Background(), &request)
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, "error", err.Error())
 	})
 
@@ -384,9 +358,9 @@ func TestDeleteWithErr(t *testing.T) {
 		err := m.mySQL.Delete(context.Background(), &request)
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.IsType(t, &state.ETagError{}, err)
-		assert.Equal(t, err.(*state.ETagError).Kind(), state.ETagMismatch)
+		assert.Equal(t, state.ETagMismatch, err.(*state.ETagError).Kind())
 	})
 }
 
@@ -405,7 +379,7 @@ func TestGetHandlesNoRows(t *testing.T) {
 	response, err := m.mySQL.Get(context.Background(), request)
 
 	// Assert
-	assert.NoError(t, err, "returned error")
+	require.NoError(t, err, "returned error")
 	assert.NotNil(t, response, "did not return empty response")
 }
 
@@ -422,7 +396,7 @@ func TestGetHandlesNoKey(t *testing.T) {
 	response, err := m.mySQL.Get(context.Background(), request)
 
 	// Assert
-	assert.Error(t, err, "returned error")
+	require.Error(t, err, "returned error")
 	assert.Equal(t, "missing key in get operation", err.Error(), "wrong error returned")
 	assert.Nil(t, response, "returned response")
 }
@@ -442,7 +416,7 @@ func TestGetHandlesGenericError(t *testing.T) {
 	response, err := m.mySQL.Get(context.Background(), request)
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, response)
 }
 
@@ -463,7 +437,7 @@ func TestGetSucceeds(t *testing.T) {
 		response, err := m.mySQL.Get(context.Background(), request)
 
 		// Assert
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, response)
 		assert.Equal(t, "{}", string(response.Data))
 		assert.NotContains(t, response.Metadata, state.GetRespMetaKeyTTLExpireTime)
@@ -484,7 +458,7 @@ func TestGetSucceeds(t *testing.T) {
 		response, err := m.mySQL.Get(context.Background(), request)
 
 		// Assert
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, response)
 		assert.Equal(t, "abcdefg", string(response.Data))
 		assert.Contains(t, response.Metadata, state.GetRespMetaKeyTTLExpireTime)
@@ -508,7 +482,7 @@ func TestTableExists(t *testing.T) {
 	actual, err := tableExists(context.Background(), m.mySQL.db, "dapr_state_store", "store", 10*time.Second)
 
 	// Assert
-	assert.Nil(t, err, `error was returned`)
+	require.NoError(t, err, `error was returned`)
 	assert.True(t, actual, `table does not exists`)
 }
 
@@ -526,7 +500,7 @@ func TestEnsureStateTableHandlesCreateTableError(t *testing.T) {
 	err := m.mySQL.ensureStateTable(context.Background(), "dapr_state_store", "state")
 
 	// Assert
-	assert.NotNil(t, err, "no error returned")
+	require.Error(t, err, "no error returned")
 	assert.Equal(t, "CreateTableError", err.Error(), "wrong error returned")
 }
 
@@ -550,7 +524,7 @@ func TestEnsureStateTableCreatesTable(t *testing.T) {
 	err := m.mySQL.ensureStateTable(context.Background(), "dapr_state_store", "state")
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 // Verify that the call to MySQL init get passed through
@@ -567,7 +541,7 @@ func TestInitReturnsErrorOnNoConnectionString(t *testing.T) {
 	err := m.mySQL.Init(context.Background(), *metadata)
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, defaultTableName, m.mySQL.tableName, "table name did not default")
 }
 
@@ -584,7 +558,7 @@ func TestInitReturnsErrorOnFailOpen(t *testing.T) {
 	err := m.mySQL.Init(context.Background(), *metadata)
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestInitHandlesRegisterTLSConfigError(t *testing.T) {
@@ -607,7 +581,7 @@ func TestInitHandlesRegisterTLSConfigError(t *testing.T) {
 	err := m.mySQL.Init(context.Background(), *metadata)
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, "registerTLSConfigError", err.Error(), "wrong error")
 }
 
@@ -623,7 +597,7 @@ func TestInitSetsTableName(t *testing.T) {
 	err := m.mySQL.Init(context.Background(), *metadata)
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, "stateStore", m.mySQL.tableName, "table name did not default")
 }
 
@@ -639,7 +613,7 @@ func TestInitInvalidTableName(t *testing.T) {
 	err := m.mySQL.Init(context.Background(), *metadata)
 
 	// Assert
-	assert.ErrorContains(t, err, "table name '🙃' is not valid")
+	require.ErrorContains(t, err, "table name '🙃' is not valid")
 }
 
 func TestInitSetsSchemaName(t *testing.T) {
@@ -654,7 +628,7 @@ func TestInitSetsSchemaName(t *testing.T) {
 	err := m.mySQL.Init(context.Background(), *metadata)
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, "stateStoreSchema", m.mySQL.schemaName, "table name did not default")
 }
 
@@ -670,7 +644,7 @@ func TestInitInvalidSchemaName(t *testing.T) {
 	err := m.mySQL.Init(context.Background(), *metadata)
 
 	// Assert
-	assert.ErrorContains(t, err, "schema name '?' is not valid")
+	require.ErrorContains(t, err, "schema name '?' is not valid")
 }
 
 func TestMultiWithNoRequestsDoesNothing(t *testing.T) {
@@ -689,7 +663,7 @@ func TestMultiWithNoRequestsDoesNothing(t *testing.T) {
 	})
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestClosingMySQLWithNilDba(t *testing.T) {
@@ -704,7 +678,7 @@ func TestClosingMySQLWithNilDba(t *testing.T) {
 	err := m.mySQL.Close()
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestValidSetRequest(t *testing.T) {
@@ -716,7 +690,7 @@ func TestValidSetRequest(t *testing.T) {
 	}
 
 	m.mock1.ExpectBegin()
-	m.mock1.ExpectExec("INSERT INTO").WillReturnResult(sqlmock.NewResult(0, 1))
+	m.mock1.ExpectExec("REPLACE INTO").WillReturnResult(sqlmock.NewResult(0, 1))
 	m.mock1.ExpectCommit()
 
 	// Act
@@ -725,7 +699,7 @@ func TestValidSetRequest(t *testing.T) {
 	})
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestInvalidMultiSetRequestNoKey(t *testing.T) {
@@ -746,7 +720,7 @@ func TestInvalidMultiSetRequestNoKey(t *testing.T) {
 	})
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestValidMultiDeleteRequest(t *testing.T) {
@@ -767,7 +741,7 @@ func TestValidMultiDeleteRequest(t *testing.T) {
 	})
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestInvalidMultiDeleteRequestNoKey(t *testing.T) {
@@ -787,7 +761,7 @@ func TestInvalidMultiDeleteRequestNoKey(t *testing.T) {
 	})
 
 	// Assert
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestMultiOperationOrder(t *testing.T) {
@@ -805,9 +779,9 @@ func TestMultiOperationOrder(t *testing.T) {
 
 	// expected to run the operations in sequence
 	m.mock1.ExpectBegin()
-	m.mock1.ExpectExec("INSERT INTO").WillReturnResult(sqlmock.NewResult(0, 1))
+	m.mock1.ExpectExec("REPLACE INTO").WillReturnResult(sqlmock.NewResult(0, 1))
 	m.mock1.ExpectExec("DELETE FROM").WithArgs("k1").WillReturnResult(sqlmock.NewResult(0, 1))
-	m.mock1.ExpectExec("INSERT INTO").WillReturnResult(sqlmock.NewResult(0, 1))
+	m.mock1.ExpectExec("REPLACE INTO").WillReturnResult(sqlmock.NewResult(0, 1))
 	m.mock1.ExpectCommit()
 
 	// Act
@@ -816,10 +790,10 @@ func TestMultiOperationOrder(t *testing.T) {
 	})
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = m.mock1.ExpectationsWereMet()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func createSetRequest() state.SetRequest {

@@ -27,6 +27,7 @@ import (
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
 )
 
 const (
@@ -66,7 +67,7 @@ func (gql *GraphQL) Init(_ context.Context, meta bindings.Metadata) error {
 	gql.logger.Debug("GraphQL Error: Initializing GraphQL binding")
 
 	m := graphQLMetadata{}
-	err := metadata.DecodeMetadata(meta.Properties, &m)
+	err := kitmd.DecodeMetadata(meta.Properties, &m)
 	if err != nil {
 		return err
 	}

@@ -25,8 +25,8 @@ import (
 	mssql "github.com/microsoft/go-mssqldb"
 	"github.com/microsoft/go-mssqldb/msdsn"
 
-	"github.com/dapr/components-contrib/internal/authentication/azure"
-	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/common/authentication/azure"
+	"github.com/dapr/kit/metadata"
 	"github.com/dapr/kit/ptr"
 )
 

@@ -133,6 +133,43 @@ authenticationProfiles:
         example: '"none"'
         allowedValues:
           - "none"
+  - title: "AWS IAM"
+    description: "Authenticate using AWS IAM, useful for Serverless AWS MSK"
+    metadata:
+      - name: authType
+        type: string
+        required: true
+        description: |
+          Authentication type.
+          This must be set to "awsIAM" for this authentication profile.
+        example: '"awsIAM"'
+        allowedValues:
+          - "awsIAM"
+      - name: awsRegion
+        type: string
+        required: true
+        description: |
+          The AWS Region where the MSK Kafka broker is deployed to.
+        example: '"us-east-1"'
+      - name: awsAccessKey
+        type: string
+        required: true
+        description: |
+          AWS access key associated with an IAM account.
+        example: '"AKIAIOSFODNN7EXAMPLE"'
+      - name: awsSecretKey
+        type: string
+        required: true
+        sensitive: true
+        description: |
+          The secret key associated with the access key.
+        example: '"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"'
+      - name: awsSessionToken
+        type: string
+        sensitive: true
+        description: |
+          AWS session token to use. A session token is only required if you are using\ntemporary security credentials.
+        example: '"TOKEN"'
 metadata:
     - name: brokers
       type: string
@@ -205,3 +242,21 @@ metadata:
       example: "true"
       default: "false"
       type: bool
+    - name: channelBufferSize
+      type: number
+      description: |
+        The number of events to buffer in internal and external channels.
+      example: '128'
+      default: '256'
+    - name: consumerFetchMin
+      type: number
+      description: |
+        The minimum number of message bytes to fetch in a request.
+      example: '4'
+      default: '1'
+    - name: consumerFetchDefault
+      type: number
+      description: |
+        The default number of message bytes to fetch from the broker in each request.
+      example: '2097152'
+      default: '1048576'

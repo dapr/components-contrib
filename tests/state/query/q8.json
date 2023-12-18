@@ -1,0 +1,40 @@
+{
+  "filter": {
+    "OR": [
+      {
+        "GTE": {
+          "person.org": 123
+        }
+      },
+      {
+        "AND": [
+          {
+            "LT": {
+              "person.org": 10
+            }
+          },
+          {
+            "IN": {
+              "state": [
+                "CA",
+                "WA"
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "sort": [
+    {
+      "key": "state",
+      "order": "DESC"
+    },
+    {
+      "key": "person.name"
+    }
+  ],
+  "page": {
+    "limit": 2
+  }
+}

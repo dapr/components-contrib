@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+
 	rediscomponent "github.com/dapr/components-contrib/common/component/redis"
 	"github.com/dapr/components-contrib/lock"
 	contribMetadata "github.com/dapr/components-contrib/metadata"

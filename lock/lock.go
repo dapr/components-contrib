@@ -16,7 +16,7 @@ package lock
 import (
 	"context"
 
-	"github.com/dapr/components-contrib/internal/features"
+	"github.com/dapr/components-contrib/common/features"
 	"github.com/dapr/components-contrib/metadata"
 )
 

@@ -14,7 +14,7 @@ limitations under the License.
 package crypto
 
 import (
-	"github.com/dapr/components-contrib/internal/features"
+	"github.com/dapr/components-contrib/common/features"
 )
 
 // Feature names a feature that can be implemented by the crypto provider components.

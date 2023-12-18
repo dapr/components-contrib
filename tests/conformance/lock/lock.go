@@ -71,12 +71,12 @@ func ConformanceTests(t *testing.T, props map[string]string, lockstore lock.Stor
 	}
 
 	const lockOwner = "conftest"
-	var lockKeys = [2]string{
+
+	var expirationChs [2]*time.Timer
+	lockKeys := [2]string{
 		key + "-1",
 		key + "-2",
 	}
-
-	var expirationChs [2]*time.Timer
 
 	t.Run("TryLock", func(t *testing.T) {
 		// Acquire a lock

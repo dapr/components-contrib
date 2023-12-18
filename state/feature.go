@@ -14,7 +14,7 @@ limitations under the License.
 package state
 
 import (
-	"github.com/dapr/components-contrib/internal/features"
+	"github.com/dapr/components-contrib/common/features"
 )
 
 const (

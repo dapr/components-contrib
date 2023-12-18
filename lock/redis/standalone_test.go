@@ -42,7 +42,7 @@ func TestStandaloneRedisLock_InitError(t *testing.T) {
 		cfg.Properties["redisPassword"] = ""
 
 		// init
-		err := comp.InitLockStore(context.Background(), cfg)
+		err := comp.Init(context.Background(), cfg)
 		require.Error(t, err)
 	})
 
@@ -58,7 +58,7 @@ func TestStandaloneRedisLock_InitError(t *testing.T) {
 		cfg.Properties["redisPassword"] = ""
 
 		// init
-		err := comp.InitLockStore(context.Background(), cfg)
+		err := comp.Init(context.Background(), cfg)
 		require.Error(t, err)
 	})
 
@@ -75,7 +75,7 @@ func TestStandaloneRedisLock_InitError(t *testing.T) {
 		cfg.Properties["maxRetries"] = "1 "
 
 		// init
-		err := comp.InitLockStore(context.Background(), cfg)
+		err := comp.Init(context.Background(), cfg)
 		require.Error(t, err)
 	})
 }

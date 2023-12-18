@@ -55,7 +55,9 @@ type Options struct {
 	NoAzureAD bool
 }
 
-// NewPostgreSQLStateStore creates a new instance of PostgreSQL state store with the default options.
+// NewPostgreSQLStateStore creates a new instance of PostgreSQL state store v2 with the default options.
+// The v2 of the component uses a different format for storing data, always in a BYTEA column, which is more efficient than the JSONB column used in v1.
+// Additionally, v2 uses random UUIDs for etags instead of the xmin column, expanding support to all Postgres-compatible databases such as CockroachDB, etc.
 func NewPostgreSQLStateStore(logger logger.Logger) state.Store {
 	return NewPostgreSQLStateStoreWithOptions(logger, Options{})
 }
@@ -307,12 +309,13 @@ func (p *PostgreSQL) Get(parentCtx context.Context, req *state.GetRequest) (*sta
 		etag       *string
 		expireTime *time.Time
 	)
-	query := `SELECT
-	value, etag, expires_at
+	query := `
+SELECT
+  value, etag, expires_at
 FROM ` + p.metadata.TableName(pgTableState) + `
-	WHERE
-		key = $1
-		AND (expires_at IS NULL OR expires_at >= now())`
+WHERE
+  key = $1
+  AND (expires_at IS NULL OR expires_at >= now())`
 
 	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
 	defer cancel()
@@ -352,12 +355,13 @@ func (p *PostgreSQL) BulkGet(parentCtx context.Context, req []state.GetRequest, 
 	}
 
 	// Execute the query
-	query := `SELECT
-	key, value, etag, expires_at
+	query := `
+SELECT
+  key, value, etag, expires_at
 FROM ` + p.metadata.TableName(pgTableState) + `
-	WHERE
-		key = ANY($1)
-		AND (expires_at IS NULL OR expires_at >= now())`
+WHERE
+  key = ANY($1)
+  AND (expires_at IS NULL OR expires_at >= now())`
 	ctx, cancel := context.WithTimeout(parentCtx, p.metadata.Timeout)
 	defer cancel()
 	rows, err := p.db.Query(ctx, query, keys)

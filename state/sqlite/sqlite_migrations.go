@@ -103,7 +103,7 @@ func performMigrations(ctx context.Context, db *sql.DB, logger logger.Logger, op
 				),
 			)
 			if err != nil {
-				return fmt.Errorf("failed to create state table: %w", err)
+				return fmt.Errorf("failed to create virtual column: %w", err)
 			}
 			return nil
 		},

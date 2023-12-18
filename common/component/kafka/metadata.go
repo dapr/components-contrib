@@ -41,6 +41,9 @@ const (
 	mtlsAuthType         = "mtls"
 	awsIAMAuthType       = "awsiam"
 	noAuthType           = "none"
+	consumerFetchMin     = "consumerFetchMin"
+	consumerFetchDefault = "consumerFetchDefault"
+	channelBufferSize    = "channelBufferSize"
 )
 
 type KafkaMetadata struct {
@@ -72,10 +75,13 @@ type KafkaMetadata struct {
 	internalVersion        sarama.KafkaVersion `mapstructure:"-"`
 	internalOidcExtensions map[string]string   `mapstructure:"-"`
 	// aws iam auth profile
-	AWSAccessKey    string `mapstructure:"awsAccessKey"`
-	AWSSecretKey    string `mapstructure:"awsSecretKey"`
-	AWSSessionToken string `mapstructure:"awsSessionToken"`
-	AWSRegion       string `mapstructure:"awsRegion"`
+	AWSAccessKey         string `mapstructure:"awsAccessKey"`
+	AWSSecretKey         string `mapstructure:"awsSecretKey"`
+	AWSSessionToken      string `mapstructure:"awsSessionToken"`
+	AWSRegion            string `mapstructure:"awsRegion"`
+	channelBufferSize    int    `mapstructure:"-"`
+	consumerFetchMin     int32  `mapstructure:"-"`
+	consumerFetchDefault int32  `mapstructure:"-"`
 }
 
 // upgradeMetadata updates metadata properties based on deprecated usage.
@@ -119,6 +125,9 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 	m := KafkaMetadata{
 		ConsumeRetryInterval: 100 * time.Millisecond,
 		internalVersion:      sarama.V2_0_0_0, //nolint:nosnakecase
+		channelBufferSize:    256,
+		consumerFetchMin:     1,
+		consumerFetchDefault: 1024 * 1024,
 	}
 
 	err := metadata.DecodeMetadata(meta, &m)
@@ -255,6 +264,33 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 			return nil, errors.New("kafka error: invalid kafka version")
 		}
 		m.internalVersion = version
+	}
+
+	if val, ok := meta[channelBufferSize]; ok && val != "" {
+		v, err := strconv.Atoi(val)
+		if err != nil {
+			return nil, err
+		}
+
+		m.channelBufferSize = v
+	}
+
+	if val, ok := meta[consumerFetchDefault]; ok && val != "" {
+		v, err := strconv.ParseInt(val, 10, 32)
+		if err != nil {
+			return nil, err
+		}
+
+		m.consumerFetchDefault = int32(v)
+	}
+
+	if val, ok := meta[consumerFetchMin]; ok && val != "" {
+		v, err := strconv.ParseInt(val, 10, 32)
+		if err != nil {
+			return nil, err
+		}
+
+		m.consumerFetchMin = int32(v)
 	}
 
 	return &m, nil

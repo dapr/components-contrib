@@ -1,24 +1,20 @@
-# yaml-language-server: $schema=../../component-metadata-schema.json
+# yaml-language-server: $schema=../../../component-metadata-schema.json
 schemaVersion: v1
-type: bindings
-name: postgres
-version: v1
+type: state
+name: postgresql
+version: v2
 status: stable
 title: "PostgreSQL"
 urls:
   - title: Reference
-    url: https://docs.dapr.io/reference/components-reference/supported-bindings/postgres/
-capabilities: []
-binding:
-  output: true
-  input: false
-  operations:
-    - name: exec
-      description: "The exec operation can be used for DDL operations (like table creation), as well as INSERT, UPDATE, DELETE operations which return only metadata (e.g. number of affected rows)."
-    - name: query
-      description: "The query operation is used for SELECT statements, which return both the metadata and the retrieved data in a form of an array of row values."
-    - name: close
-      description: "The close operation can be used to explicitly close the DB connection and return it to the pool. This operation doesn't have any response."
+    url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-postgresql/
+capabilities:
+  # If actorStateStore is present, the metadata key actorStateStore can be used
+  - actorStateStore
+  - crud
+  - transactional
+  - etag
+  - ttl
 builtinAuthenticationProfiles:
   - name: "azuread"
     metadata:
@@ -45,15 +41,41 @@ authenticationProfiles:
       - name: connectionString
         required: true
         sensitive: true
-        description: "The connection string for the PostgreSQL database"
-        url:
-          title: More details
-          url: https://docs.dapr.io/reference/components-reference/supported-bindings/postgres/#url-format
+        description: The connection string for the PostgreSQL database
         example: |
-          "user=dapr password=secret host=dapr.example.com port=5432 dbname=dapr sslmode=verify-ca"
-          or "postgres://dapr:secret@dapr.example.com:5432/dapr?sslmode=verify-ca"
+          "host=localhost user=postgres password=example port=5432 connect_timeout=10 database=dapr_test"
         type: string
 metadata:
+  - name: timeout
+    required: false
+    description: Timeout for all database operations. 
+    example: "30s"
+    default: "20s"
+    type: duration
+  - name: tablePrefix
+    required: false
+    description: |
+      Prefix for the tables where the data is stored.
+      Can optionally have the schema name as prefix, such as `public.`
+    example: '"my_" (name prefix) or "public." (schema name)'
+    default: ""
+    type: string
+  - name: metadataTableName
+    required: false
+    description: |
+      Name of the table Dapr uses to store a few metadata properties.
+      Can optionally have the schema name as prefix, such as `public.dapr_metadata`
+    example: "public.dapr_metadata"
+    default: "dapr_metadata"
+    type: string
+  - name: cleanupInterval
+    required: false
+    description: |
+      Interval to clean up rows with an expired TTL.
+      Setting this to values <=0 disables the periodic cleanup.
+    example: '"10m", "-1"'
+    default: "1h"
+    type: duration
   - name: maxConns
     required: false
     description: |

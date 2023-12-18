@@ -289,7 +289,7 @@ func (m *migration) ensureUpsertStoredProcedureExists(ctx context.Context, db *s
 						IF (@RowVersion IS NOT NULL)
 							BEGIN
 								BEGIN TRANSACTION;
-								IF NOT EXISTS (SELECT * FROM [%[3]s] WHERE [Key]=@KEY AND RowVersion = @RowVersion)
+								IF NOT EXISTS (SELECT * FROM [%[3]s] WHERE [Key]=@Key AND RowVersion = @RowVersion)
 									BEGIN
 										THROW 2601, ''FIRST-WRITE: COMPETING RECORD ALREADY WRITTEN.'', 1
 									END
@@ -303,7 +303,7 @@ func (m *migration) ensureUpsertStoredProcedureExists(ctx context.Context, db *s
 						ELSE
 							BEGIN
 								BEGIN TRANSACTION;
-								IF EXISTS (SELECT * FROM [%[3]s] WHERE [Key]=@KEY)
+								IF EXISTS (SELECT * FROM [%[3]s] WHERE [Key]=@Key)
 									BEGIN
 										THROW 2601, ''FIRST-WRITE: COMPETING RECORD ALREADY WRITTEN.'', 1
 									END

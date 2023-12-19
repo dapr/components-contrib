@@ -20,25 +20,15 @@ import (
 
 type psqlMetadata struct {
 	pgauth.PostgresAuthMetadata `mapstructure:",squash"`
-
-	// URL is the connection string to connect to the database.
-	// Deprecated alias: use connectionString instead.
-	URL string `mapstructure:"url"`
 }
 
 func (m *psqlMetadata) InitWithMetadata(meta map[string]string) error {
 	// Reset the object
 	m.PostgresAuthMetadata.Reset()
-	m.URL = ""
 
 	err := kitmd.DecodeMetadata(meta, &m)
 	if err != nil {
 		return err
-	}
-
-	// Legacy options
-	if m.ConnectionString == "" && m.URL != "" {
-		m.ConnectionString = m.URL
 	}
 
 	// Validate and sanitize input

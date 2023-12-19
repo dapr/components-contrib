@@ -26,12 +26,12 @@ authenticationProfiles:
           "host=localhost user=root password=example port=5432 connect_timeout=10 database=dapr_test"
         type: string
 metadata: 
-  - name: timeoutInSeconds
-    description: |
-      Timeout, in seconds, for all database operations.
-    type: number
-    default: '20'
-    example: '30'
+  - name: timeout
+    required: false
+    description: Timeout for all database operations. 
+    example:  "30s"
+    default: "20s"
+    type: duration
   - name: tableName
     description: |
       Name of the table where the data is stored. Can optionally have
@@ -46,13 +46,14 @@ metadata:
     type: string
     default: '"dapr_metadata"' 
     example: '"dapr_metadata", "public.dapr_metadata"'
-  - name: cleanupIntervalInSeconds
+  - name: cleanupInterval
+    required: false
     description: |
-      Interval, in seconds, to clean up rows with an expired TTL.
+      Interval to clean up rows with an expired TTL.
       Setting this to values <=0 disables the periodic cleanup.
-    type: number
-    default: '3600'
-    example: '1800, -1'
+    example: '"10m", "-1"'
+    default: "1h"
+    type: duration
   - name: connectionMaxIdleTime
     description: |
       Max idle time before unused connections are automatically closed in the connection pool.

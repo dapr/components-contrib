@@ -42,7 +42,7 @@ func TestOAuth2CreatesAuthorizationHeaderWhenInSessionState(t *testing.T) {
 	log := logger.NewLogger("oauth2.test")
 	handler, err := NewOAuth2Middleware(log).GetHandler(context.Background(), metadata)
 	require.NoError(t, err)
-
+ 
 	// Create request and recorder
 	r := httptest.NewRequest(http.MethodGet, "http://dapr.io", nil)
 	w := httptest.NewRecorder()

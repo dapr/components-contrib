@@ -44,7 +44,8 @@ type StructType struct {
 	Product struct {
 		Value int `json:"value"`
 	} `json:"product"`
-	Status string `json:"status"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
 }
 
 type intValueType struct {
@@ -132,14 +133,14 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			key: fmt.Sprintf("%s-struct-operations", key),
 			value: StructType{Product: struct {
 				Value int `json:"value"`
-			}{Value: 15}, Status: "ACTIVE"},
+			}{Value: 15}, Status: "ACTIVE", Message: fmt.Sprintf("%smessage", key)},
 			contentType: contenttype.JSONContentType,
 		},
 		{
 			key: fmt.Sprintf("%s-struct-operations-inactive", key),
 			value: StructType{Product: struct {
 				Value int `json:"value"`
-			}{Value: 12}, Status: "INACTIVE"},
+			}{Value: 12}, Status: "INACTIVE", Message: fmt.Sprintf("%smessage", key)},
 			contentType: contenttype.JSONContentType,
 		},
 		{
@@ -269,6 +270,9 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 				"filter": {
 					"AND": [
 						{
+							"EQ": {"message": "` + key + `message"}
+						},
+						{
 							"GTE": {"product.value": 10}
 						},
 						{
@@ -284,7 +288,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			results: []state.QueryItem{
 				{
 					Key:  fmt.Sprintf("%s-struct-operations", key),
-					Data: []byte(fmt.Sprintf(`{"product":{"value":15}, "status":"ACTIVE"}`)),
+					Data: []byte(fmt.Sprintf(`{"product":{"value":15}, "status":"ACTIVE","message":"%smessage"}`, key)),
 				},
 			},
 		},
@@ -296,6 +300,9 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						{ 
 							"AND": [
 								{
+									"EQ": {"message": "` + key + `message"}
+								},
+								{
 									"GT": {"product.value": 11.1}
 								},
 								{
@@ -305,6 +312,9 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 						},
 						{ 
 							"AND": [
+								{
+									"EQ": {"message": "` + key + `message"}
+								},
 								{
 									"LTE": {"product.value": 0.5}
 								},
@@ -320,7 +330,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 			results: []state.QueryItem{
 				{
 					Key:  fmt.Sprintf("%s-struct-operations-inactive", key),
-					Data: []byte(fmt.Sprintf(`{"product":{"value":12}, "status":"INACTIVE"}`)),
+					Data: []byte(fmt.Sprintf(`{"product":{"value":12}, "status":"INACTIVE","message":"%smessage"}`, key)),
 				},
 			},
 		},

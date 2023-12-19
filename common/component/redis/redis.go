@@ -20,9 +20,8 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/mod/semver"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"golang.org/x/mod/semver"
 
 	"github.com/dapr/components-contrib/common/authentication/azure"
 	"github.com/dapr/components-contrib/configuration"
@@ -258,64 +257,63 @@ func (e RedisError) Error() string { return string(e) }
 func (RedisError) RedisError() {}
 
 func (s *Settings) refreshTokenRoutineForRedis(ctx context.Context, redisClient RedisClient, version string, meta map[string]string, logger logger.Logger) {
-    ticker := time.NewTicker(tokenRefreshInterval)
-    defer ticker.Stop()
+	ticker := time.NewTicker(tokenRefreshInterval)
+	defer ticker.Stop()
 
-    if !s.useAzureAD {
-        return
-    }
+	if !s.useAzureAD {
+		return
+	}
 
-    maxRetries := 3
+	maxRetries := 3
 
-    for {
-        select {
-        case <-ctx.Done():
-            return
-        case <-ticker.C:
-            retry := 0
-            for retry < maxRetries {
-                env, err := azure.NewEnvironmentSettings(meta)
-                if err != nil {
-                    logger.Error("Failed to get Azure environment settings:", err)
-                    retry++
-                    continue
-                }
-                tokenCred, err := env.GetTokenCredential()
-                if err != nil {
-                    logger.Error("Failed to get Azure AD token credential:", err)
-                    retry++
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			retry := 0
+			for retry < maxRetries {
+				env, err := azure.NewEnvironmentSettings(meta)
+				if err != nil {
+					logger.Error("Failed to get Azure environment settings:", err)
+					retry++
+					continue
+				}
+				tokenCred, err := env.GetTokenCredential()
+				if err != nil {
+					logger.Error("Failed to get Azure AD token credential:", err)
+					retry++
 					time.Sleep(5 * time.Second)
-                    continue
-                }
-                at, err := tokenCred.GetToken(ctx, policy.TokenRequestOptions{
-                    Scopes: []string{
-                        env.Cloud.Services[azure.ServiceOSSRDBMS].Audience + "/.default",
-                    },
-                })
-                if err != nil {
-                    logger.Error("Failed to get Azure AD token:", err)
-                    retry++
+					continue
+				}
+				at, err := tokenCred.GetToken(ctx, policy.TokenRequestOptions{
+					Scopes: []string{
+						env.Cloud.Services[azure.ServiceOSSRDBMS].Audience + "/.default",
+					},
+				})
+				if err != nil {
+					logger.Error("Failed to get Azure AD token:", err)
+					retry++
 					time.Sleep(5 * time.Second)
-                    continue
-                }
+					continue
+				}
 
-                // Authenticate with Redis using the refreshed token
-                var authErr error
-                if version == "v8" {
-                    authErr = redisClient.(v8Client).client.Pipeline().Auth(ctx, at.Token).Err()
-                } else if version == "v9" {
-                    authErr = redisClient.(v9Client).client.Pipeline().Auth(ctx, at.Token).Err()
-                }
-                if authErr != nil {
-                    logger.Error("Failed to authenticate with Redis using refreshed Azure AD token:", authErr)
-                    retry++
+				// Authenticate with Redis using the refreshed token
+				var authErr error
+				if version == "v8" {
+					authErr = redisClient.(v8Client).client.Pipeline().Auth(ctx, at.Token).Err()
+				} else if version == "v9" {
+					authErr = redisClient.(v9Client).client.Pipeline().Auth(ctx, at.Token).Err()
+				}
+				if authErr != nil {
+					logger.Error("Failed to authenticate with Redis using refreshed Azure AD token:", authErr)
+					retry++
 					time.Sleep(5 * time.Second)
-                    continue
-                }
-                logger.Info("Successfully refreshed Azure AD token and re-authenticated Redis.")
-                break 
-            }
-        }
-    }
+					continue
+				}
+				logger.Info("Successfully refreshed Azure AD token and re-authenticated Redis.")
+				break
+			}
+		}
+	}
 }
-

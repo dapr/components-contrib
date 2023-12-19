@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -237,7 +238,15 @@ func (p *PostgreSQL) doSet(parentCtx context.Context, db pginterfaces.DBQuerier,
 	)
 
 	if req.HasETag() {
-		params = []any{req.Key, value, *req.ETag}
+		// Check if the etag is valid
+		var etag uuid.UUID
+		etag, err = uuid.Parse(*req.ETag)
+		if err != nil {
+			// Return an etag mismatch error right away if the etag is invalid
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+
+		params = []any{req.Key, value, etag.String()}
 	} else {
 		params = []any{req.Key, value}
 	}
@@ -434,7 +443,15 @@ func (p *PostgreSQL) doDelete(parentCtx context.Context, db pginterfaces.DBQueri
 	defer cancel()
 	var result pgconn.CommandTag
 	if req.HasETag() {
-		result, err = db.Exec(ctx, "DELETE FROM "+p.metadata.TableName(pgTableState)+" WHERE key = $1 AND etag = $2", req.Key, *req.ETag)
+		// Check if the etag is valid
+		var etag uuid.UUID
+		etag, err = uuid.Parse(*req.ETag)
+		if err != nil {
+			// Return an etag mismatch error right away if the etag is invalid
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+
+		result, err = db.Exec(ctx, "DELETE FROM "+p.metadata.TableName(pgTableState)+" WHERE key = $1 AND etag = $2", req.Key, etag)
 	} else {
 		result, err = db.Exec(ctx, "DELETE FROM "+p.metadata.TableName(pgTableState)+" WHERE key = $1", req.Key)
 	}

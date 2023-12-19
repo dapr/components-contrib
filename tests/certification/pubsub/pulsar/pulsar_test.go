@@ -83,7 +83,7 @@ const (
 	dockerComposeAuthNoneYAML   = "./config/docker-compose_auth-none.yaml"
 	dockerComposeAuthOAuth2YAML = "./config/docker-compose_auth-oauth2.yaml.tmpl"
 	dockerComposeMockOAuth2YAML = "./config/docker-compose_auth-mock-oauth2-server.yaml"
-	pulsarURL                   = "localhost:6650"
+	dockerComposeTLSYAML        = "./config/docker-compose_tls.yaml"
 
 	subscribeTypeKey = "subscribeType"
 
@@ -105,6 +105,7 @@ type pulsarSuite struct {
 	dockerComposeYAML string
 	componentsPath    string
 	services          []string
+	tlsEnabled        bool
 }
 
 func TestPulsar(t *testing.T) {
@@ -114,6 +115,7 @@ func TestPulsar(t *testing.T) {
 			dockerComposeYAML: dockerComposeAuthNoneYAML,
 			componentsPath:    "./components/auth-none",
 			services:          []string{"standalone"},
+			tlsEnabled:        false,
 		})
 	})
 
@@ -190,6 +192,17 @@ func TestPulsar(t *testing.T) {
 			dockerComposeYAML: filepath.Join(dir, "docker-compose.yaml"),
 			componentsPath:    filepath.Join(dir, "components/auth-oauth2"),
 			services:          []string{"zookeeper", "pulsar-init", "bookie", "broker"},
+			tlsEnabled:        false,
+		})
+	})
+
+	t.Run("TLS", func(t *testing.T) {
+		suite.Run(t, &pulsarSuite{
+			authType:          "none",
+			dockerComposeYAML: dockerComposeTLSYAML,
+			componentsPath:    "./components/tls",
+			services:          []string{"standalone"},
+			tlsEnabled:        true,
 		})
 	})
 }
@@ -1243,6 +1256,15 @@ func (p *pulsarSuite) client(t *testing.T) (pulsar.Client, error) {
 	opts := pulsar.ClientOptions{
 		URL: "pulsar://localhost:6650",
 	}
+
+	if p.tlsEnabled {
+		opts = pulsar.ClientOptions{
+			URL:                        "pulsar+ssl://localhost:6651",
+			TLSAllowInsecureConnection: true,
+			TLSValidateHostname:        false,
+		}
+	}
+
 	switch p.authType {
 	case "oauth2":
 		cc, err := p.oauth2ClientCredentials()

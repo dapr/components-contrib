@@ -1,0 +1,27 @@
+services:
+  standalone:
+    image: apachepulsar/pulsar:3.1.1
+    ports:
+      - '6651:6651'
+      - '8081:8081'
+    environment:
+      - BOOKIE_MEM=" -Xms768m -Xms768m -XX:MaxDirectMemorySize=1g"
+      - PULSAR_LOG_ROOT_LEVEL=ERROR
+      - PULSAR_LOG_LEVEL=ERROR
+      - PULSAR_PREFIX_tlsEnabled=true
+      - PULSAR_PREFIX_tlsTrustCertsFilePath=/etc/pulsar/cert/ca.cert.pem
+      - PULSAR_PREFIX_tlsCertificateFilePath=/etc/pulsar/cert/broker.cert.pem
+      - PULSAR_PREFIX_tlsKeyFilePath=/etc/pulsar/cert/broker.key-pk8.pem
+      - PULSAR_PREFIX_brokerServicePortTls=6651
+      - PULSAR_PREFIX_webServicePortTls=8081
+    command: >
+      /bin/bash -c
+      "mkdir -p /etc/pulsar/cert && 
+      bin/apply-config-from-env.py conf/standalone.conf
+      && bin/pulsar standalone"
+    volumes:
+      - ${PWD}/certificates/ca.cert.pem:/etc/pulsar/cert/ca.cert.pem
+      - ${PWD}/certificates/broker.cert.pem:/etc/pulsar/cert/broker.cert.pem
+      - ${PWD}/certificates/broker.key-pk8.pem:/etc/pulsar/cert/broker.key-pk8.pem
+
+

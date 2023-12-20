@@ -23,18 +23,24 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+
+	pgxuuid "github.com/jackc/pgx-gofrs-uuid"
+	pgxdecimal "github.com/jackc/pgx-shopspring-decimal"
 )
 
 // List of operations.
 const (
-	execOperation  bindings.OperationKind = "exec"
-	queryOperation bindings.OperationKind = "query"
-	closeOperation bindings.OperationKind = "close"
+	execOperation     bindings.OperationKind = "exec"
+	queryOperation    bindings.OperationKind = "query"
+	closeOperation    bindings.OperationKind = "close"
+	fetchOneOperation bindings.OperationKind = "fetchOne"
+	fetchAllOperation bindings.OperationKind = "fetchAll"
 
 	commandSQLKey  = "sql"
 	commandArgsKey = "params"
@@ -67,6 +73,14 @@ func (p *Postgres) Init(ctx context.Context, meta bindings.Metadata) error {
 	}
 
 	poolConfig, err := m.GetPgxPoolConfig()
+
+	// Register uuid and decimal types with pgx
+	poolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		pgxuuid.Register(conn.TypeMap())
+		pgxdecimal.Register(conn.TypeMap())
+		return nil
+	}
+
 	if err != nil {
 		return fmt.Errorf("error opening DB connection: %w", err)
 	}
@@ -87,6 +101,8 @@ func (p *Postgres) Operations() []bindings.OperationKind {
 		execOperation,
 		queryOperation,
 		closeOperation,
+		fetchOneOperation,
+		fetchAllOperation,
 	}
 }
 
@@ -145,6 +161,20 @@ func (p *Postgres) Invoke(ctx context.Context, req *bindings.InvokeRequest) (res
 
 	case queryOperation:
 		d, err := p.query(ctx, sql, args...)
+		if err != nil {
+			return nil, err
+		}
+		resp.Data = d
+
+	case fetchOneOperation:
+		d, err := p.fetchOne(ctx, sql, args...)
+		if err != nil {
+			return nil, err
+		}
+		resp.Data = d
+
+	case fetchAllOperation:
+		d, err := p.fetchAll(ctx, sql, args...)
 		if err != nil {
 			return nil, err
 		}
@@ -210,6 +240,62 @@ func (p *Postgres) exec(ctx context.Context, sql string, args ...any) (result in
 	}
 
 	return res.RowsAffected(), nil
+}
+
+func (p *Postgres) fetchOne(ctx context.Context, sql string, args ...any) (result []byte, err error) {
+
+	rows, err := p.db.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("error executing query: %w", err)
+	}
+
+	rs := make(map[string]any, 0)
+	for rows.Next() {
+		val, rowErr := rows.Values()
+		if rowErr != nil {
+			return nil, fmt.Errorf("error reading result '%v': %w", rows.Err(), rowErr)
+		}
+		for i, col := range rows.FieldDescriptions() {
+			rs[col.Name] = val[i]
+		}
+	}
+
+	result, err = json.Marshal(rs)
+	if err != nil {
+		return nil, fmt.Errorf("error serializing results: %w", err)
+	}
+
+	return result, nil
+
+}
+
+func (p *Postgres) fetchAll(ctx context.Context, sql string, args ...any) (result []byte, err error) {
+
+	rows, err := p.db.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("error executing query: %w", err)
+	}
+
+	rs := make([]map[string]any, 0)
+	for rows.Next() {
+		val, rowErr := rows.Values()
+		if rowErr != nil {
+			return nil, fmt.Errorf("error reading result '%v': %w", rows.Err(), rowErr)
+		}
+		row := make(map[string]any, 0)
+		for i, col := range rows.FieldDescriptions() {
+			row[col.Name] = val[i]
+		}
+		rs = append(rs, row) //nolint:asasalint
+	}
+
+	result, err = json.Marshal(rs)
+	if err != nil {
+		return nil, fmt.Errorf("error serializing results: %w", err)
+	}
+
+	return result, nil
+
 }
 
 // GetComponentMetadata returns the metadata of the component.

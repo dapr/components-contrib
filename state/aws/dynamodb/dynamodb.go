@@ -85,6 +85,17 @@ func (d *StateStore) Init(_ context.Context, metadata state.Metadata) error {
 		return err
 	}
 
+	// Run a scan to validate the table exists and we have access to it
+	// The scan has a limit of 1, so it's not a heavy operation
+	scanInput := &dynamodb.ScanInput{
+		TableName: aws.String(meta.Table), // Set your table name
+		Limit:     aws.Int64(1),           // Limit the number of items returned
+	}
+	_, err = client.Scan(scanInput)
+	if err != nil {
+		return err
+	}
+
 	d.client = client
 	d.table = meta.Table
 	d.ttlAttributeName = meta.TTLAttributeName

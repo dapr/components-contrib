@@ -13,6 +13,10 @@ limitations under the License.
 
 package nameresolution
 
+import (
+	"strconv"
+)
+
 // DefaultNamespace is the default kubernetes namespace.
 const DefaultNamespace = "default"
 
@@ -27,4 +31,9 @@ type ResolveRequest struct {
 // NewResolveRequest creates ResolveRequest with the default namespace.
 func NewResolveRequest() *ResolveRequest {
 	return &ResolveRequest{Namespace: DefaultNamespace}
+}
+
+// CacheKey returns a string that can be used to identify this ResolveRequest in a cache
+func (r ResolveRequest) CacheKey() string {
+	return r.Namespace + "/" + r.ID + "/" + strconv.Itoa(r.Port)
 }

@@ -83,11 +83,10 @@ func (d *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 
 	// We have this check because we need to set the client to  a mock in tests
 	if d.client == nil {
-		client, err := d.getClient(meta)
+		d.client, err = d.getClient(meta)
 		if err != nil {
 			return err
 		}
-		d.client = client
 	}
 	d.table = meta.Table
 	d.ttlAttributeName = meta.TTLAttributeName
@@ -104,8 +103,8 @@ func (d *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 // as well as validating that the table exists, and we have access to it
 func (d *StateStore) validateTableAccess(ctx context.Context) error {
 	input := &dynamodb.GetItemInput{
-		ConsistentRead: aws.Bool(false),
-		TableName:      aws.String(d.table),
+		ConsistentRead: ptr.Of(false),
+		TableName:      ptr.Of(d.table),
 		Key: map[string]*dynamodb.AttributeValue{
 			d.partitionKey: {
 				S: aws.String(uuid.NewString()),

@@ -80,6 +80,7 @@ func (d *StateStore) Init(_ context.Context, metadata state.Metadata) error {
 		return err
 	}
 
+	// We have this check because we need to set the client to  a mock in tests
 	if d.client == nil {
 		client, err := d.getClient(meta)
 		if err != nil {
@@ -91,9 +92,8 @@ func (d *StateStore) Init(_ context.Context, metadata state.Metadata) error {
 	d.ttlAttributeName = meta.TTLAttributeName
 	d.partitionKey = meta.PartitionKey
 
-	err = d.validateConnection()
-	if err != nil {
-		return err
+	if err := d.validateTableAccess(); err != nil {
+		return fmt.Errorf("error validating DynamoDB table '%s' access: %w", d.table, err)
 	}
 
 	return nil
@@ -101,7 +101,7 @@ func (d *StateStore) Init(_ context.Context, metadata state.Metadata) error {
 
 // validateConnection runs a dummy Get operation to validate the connection credentials,
 // as well as validating that the table exists, and we have access to it
-func (d *StateStore) validateConnection() error {
+func (d *StateStore) validateTableAccess() error {
 	input := &dynamodb.GetItemInput{
 		ConsistentRead: aws.Bool(false),
 		TableName:      aws.String(d.table),

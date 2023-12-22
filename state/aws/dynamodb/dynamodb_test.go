@@ -134,7 +134,7 @@ func TestInit(t *testing.T) {
 
 	t.Run("Init with bad table name or permissions", func(t *testing.T) {
 		m.Properties = map[string]string{
-			"Table":  "does not exist",
+			"Table":  "does-not-exist",
 			"Region": "eu-west-1",
 		}
 
@@ -146,7 +146,7 @@ func TestInit(t *testing.T) {
 
 		err := s.Init(context.Background(), m)
 		require.Error(t, err)
-		require.Equal(t, err.Error(), "Requested resource not found")
+		require.Equal(t, err.Error(), "error validating DynamoDB table 'does-not-exist' access: Requested resource not found")
 	})
 }
 

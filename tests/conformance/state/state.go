@@ -1324,7 +1324,7 @@ func ConformanceTests(t *testing.T, props map[string]string, statestore state.St
 					if exists {
 						require.NotEmptyf(t, res.Data, "Expected key '%s' to be not empty", key)
 					} else {
-						require.Emptyf(t, res.Data, "Expected key '%s' to be empty", key)
+						require.Emptyf(t, res.Data, "Expected key '%s' to be empty, but contained data: %s", key, string(res.Data))
 					}
 				}
 			}

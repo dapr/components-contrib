@@ -19,6 +19,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"reflect"
 	"strconv"
 	"time"
@@ -74,7 +75,7 @@ func NewDynamoDBStateStore(_ logger.Logger) state.Store {
 }
 
 // Init does metadata and connection parsing.
-func (d *StateStore) Init(_ context.Context, metadata state.Metadata) error {
+func (d *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	meta, err := d.getDynamoDBMetadata(metadata)
 	if err != nil {
 		return err
@@ -92,7 +93,7 @@ func (d *StateStore) Init(_ context.Context, metadata state.Metadata) error {
 	d.ttlAttributeName = meta.TTLAttributeName
 	d.partitionKey = meta.PartitionKey
 
-	if err := d.validateTableAccess(); err != nil {
+	if err := d.validateTableAccess(ctx); err != nil {
 		return fmt.Errorf("error validating DynamoDB table '%s' access: %w", d.table, err)
 	}
 
@@ -101,19 +102,16 @@ func (d *StateStore) Init(_ context.Context, metadata state.Metadata) error {
 
 // validateConnection runs a dummy Get operation to validate the connection credentials,
 // as well as validating that the table exists, and we have access to it
-func (d *StateStore) validateTableAccess() error {
+func (d *StateStore) validateTableAccess(ctx context.Context) error {
 	input := &dynamodb.GetItemInput{
 		ConsistentRead: aws.Bool(false),
 		TableName:      aws.String(d.table),
 		Key: map[string]*dynamodb.AttributeValue{
 			d.partitionKey: {
-				S: aws.String("dummy-key"),
+				S: aws.String(uuid.NewString()),
 			},
 		},
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	_, err := d.client.GetItemWithContext(ctx, input)
 	return err

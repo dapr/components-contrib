@@ -80,28 +80,43 @@ func (d *StateStore) Init(_ context.Context, metadata state.Metadata) error {
 		return err
 	}
 
-	client, err := d.getClient(meta)
-	if err != nil {
-		return err
+	if d.client == nil {
+		client, err := d.getClient(meta)
+		if err != nil {
+			return err
+		}
+		d.client = client
 	}
-
-	// Run a scan to validate the table exists and we have access to it
-	// The scan has a limit of 1, so it's not a heavy operation
-	scanInput := &dynamodb.ScanInput{
-		TableName: aws.String(meta.Table), // Set your table name
-		Limit:     aws.Int64(1),           // Limit the number of items returned
-	}
-	_, err = client.Scan(scanInput)
-	if err != nil {
-		return err
-	}
-
-	d.client = client
 	d.table = meta.Table
 	d.ttlAttributeName = meta.TTLAttributeName
 	d.partitionKey = meta.PartitionKey
 
+	err = d.validateConnection()
+	if err != nil {
+		return err
+	}
+
 	return nil
+}
+
+// validateConnection runs a dummy Get operation to validate the connection credentials,
+// as well as validating that the table exists, and we have access to it
+func (d *StateStore) validateConnection() error {
+	input := &dynamodb.GetItemInput{
+		ConsistentRead: aws.Bool(false),
+		TableName:      aws.String(d.table),
+		Key: map[string]*dynamodb.AttributeValue{
+			d.partitionKey: {
+				S: aws.String("dummy-key"),
+			},
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	_, err := d.client.GetItemWithContext(ctx, input)
+	return err
 }
 
 // Features returns the features available in this state store.

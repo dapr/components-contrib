@@ -18,7 +18,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/dapr/kit/logger"
 )
 
@@ -42,12 +41,6 @@ func GetClient(accessKey string, secretKey string, sessionToken string, region s
 		SharedConfigState: session.SharedConfigEnable,
 	})
 	if err != nil {
-		return nil, err
-	}
-
-	// Use AWS Security Token Service (STS) to validate credentials
-	stsSvc := sts.New(awsSession)
-	if _, err = stsSvc.GetCallerIdentity(&sts.GetCallerIdentityInput{}); err != nil {
 		return nil, err
 	}
 

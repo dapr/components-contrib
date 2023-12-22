@@ -146,7 +146,7 @@ func TestInit(t *testing.T) {
 
 		err := s.Init(context.Background(), m)
 		require.Error(t, err)
-		require.Equal(t, "error validating DynamoDB table 'does-not-exist' access: Requested resource not found", err.Error())
+		require.EqualError(t, err, "error validating DynamoDB table 'does-not-exist' access: Requested resource not found")
 	})
 }
 

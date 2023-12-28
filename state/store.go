@@ -21,6 +21,9 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 )
 
+// ErrPingNotImplemented is returned by Ping if the state store does not implement the Pinger interface
+var ErrPingNotImplemented = errors.New("ping is not implemented by this state store")
+
 // Store is an interface to perform operations on store.
 type Store interface {
 	metadata.ComponentWithMetadata
@@ -58,11 +61,11 @@ func Ping(ctx context.Context, store Store) error {
 	if storeWithPing, ok := store.(health.Pinger); ok {
 		return storeWithPing.Ping(ctx)
 	} else {
-		return errors.New("ping is not implemented by this state store")
+		return ErrPingNotImplemented
 	}
 }
 
-// DeleteWithPrefix is an interface to delete objects with a prefix.
+// DeleteWithPrefix is an optional interface to delete objects with a prefix.
 type DeleteWithPrefix interface {
 	DeleteWithPrefix(ctx context.Context, req DeleteWithPrefixRequest) (DeleteWithPrefixResponse, error)
 }

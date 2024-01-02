@@ -76,7 +76,7 @@ type DeleteWithPrefixRequest struct {
 }
 
 func (r *DeleteWithPrefixRequest) Validate() error {
-	if r.Prefix == "" {
+	if r.Prefix == "" || r.Prefix == "||" {
 		return fmt.Errorf("a prefix is required for deleteWithPrefix request")
 	}
 	if !strings.HasSuffix(r.Prefix, "||") {

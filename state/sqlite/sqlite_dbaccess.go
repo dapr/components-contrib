@@ -421,21 +421,17 @@ func (a *sqliteDBAccess) Delete(ctx context.Context, req *state.DeleteRequest) e
 }
 
 func (a *sqliteDBAccess) DeleteWithPrefix(ctx context.Context, req state.DeleteWithPrefixRequest) (state.DeleteWithPrefixResponse, error) {
-	if req.Prefix == "" {
-		return state.DeleteWithPrefixResponse{}, fmt.Errorf("missing prefix in delete with prefix operation")
-	}
-	ctx, cancel := context.WithTimeout(ctx, a.metadata.Timeout)
-	defer cancel()
-
 	err := req.Validate()
 	if err != nil {
 		return state.DeleteWithPrefixResponse{}, err
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, a.metadata.Timeout)
+	defer cancel()
+
 	// Concatenation is required for table name because sql.DB does not substitute parameters for table names.
 	//nolint:gosec
-	result, err := a.db.ExecContext(ctx, "DELETE FROM "+a.metadata.TableName+" WHERE prefix = ?",
-		req.Prefix)
+	result, err := a.db.ExecContext(ctx, "DELETE FROM "+a.metadata.TableName+" WHERE prefix = ?", req.Prefix)
 	if err != nil {
 		return state.DeleteWithPrefixResponse{}, err
 	}

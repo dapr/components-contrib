@@ -147,10 +147,10 @@ authenticationProfiles:
         required: true
         description: |
           Authentication type.
-          This must be set to "awsIAM" for this authentication profile.
-        example: '"awsIAM"'
+          This must be set to "awsiam" for this authentication profile.
+        example: '"awsiam"'
         allowedValues:
-          - "awsIAM"
+          - "awsiam"
       - name: awsRegion
         type: string
         required: true

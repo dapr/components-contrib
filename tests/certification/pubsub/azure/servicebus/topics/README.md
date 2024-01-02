@@ -66,6 +66,6 @@ The purpose of this module is to provide tests that certify the Azure Service Bu
    - Verify the subscriber round robins between the 2 topics
 - Verify with multiple publishers / multiple subscribers on a single topic with multiple concurrent sessions are fifo
    - Run dapr application with 1 publisher and 2 subscribers
-   - Publisher publishes to 1 topics on 2 sessions
-   - Subscribe with sessions required and multiple concurrent session handlers
-   - Verify the subscriber only received from 1 topic in fifo order
+   - Publisher publishes to 1 topics on 3 sessions
+   - Subscribe to all sessions on the topic concurrently on both subscribers
+   - Verify all sessions are received in fifo order

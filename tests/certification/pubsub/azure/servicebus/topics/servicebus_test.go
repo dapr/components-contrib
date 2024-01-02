@@ -1251,8 +1251,11 @@ func TestServicebusWithSessionsFIFO(t *testing.T) {
 func TestServicebusWithConcurrentSessionsFIFO(t *testing.T) {
 	topic := "sessions-conc-fifo" + strconv.FormatInt(time.Now().UnixNano(), 10)
 	session1 := "session1"
+	session2 := "session2"
+	session3 := "session3"
 
 	var count atomic.Uint32
+	done := make(chan struct{})
 
 	// subscriber of the given topic
 	subscriberApplicationWithSessions := func(appID string, topicName string) app.SetupFn {
@@ -1310,7 +1313,7 @@ func TestServicebusWithConcurrentSessionsFIFO(t *testing.T) {
 					}
 
 					if sequences[sessionID] > sequence {
-						err := fmt.Errorf("sequence number %d is less than previous sequence number %d", sequence, sequences[sessionID])
+						err := fmt.Errorf("sequence number %d is less than previous sequence number %d for session id %s", sequence, sequences[sessionID], sessionID)
 						t.Fatalf("error: %s", err)
 						return false, err
 					}
@@ -1318,6 +1321,9 @@ func TestServicebusWithConcurrentSessionsFIFO(t *testing.T) {
 					sequences[sessionID] = sequence
 
 					count.Add(1)
+					if count.Load() == numMessagesBig {
+						close(done)
+					}
 
 					ctx.Logf("Message Received appID: %s, pubsub: %s, topic: %s, id: %s, sequence: %d, data: %s", appID, e.PubsubName, e.Topic, e.ID, sequence, e.Data)
 					return false, nil
@@ -1377,9 +1383,12 @@ func TestServicebusWithConcurrentSessionsFIFO(t *testing.T) {
 
 	assertMessages := func(timeout time.Duration) flow.Runnable {
 		return func(ctx flow.Context) error {
-			assert.Eventually(t, func() bool {
-				return count.Load() == numMessagesBig
-			}, timeout, 1*time.Second, "expected messages not received")
+			select {
+			case <-done:
+				return nil
+			case <-time.After(timeout):
+				t.Fatalf("timed out waiting for messages")
+			}
 
 			return nil
 		}
@@ -1402,7 +1411,13 @@ func TestServicebusWithConcurrentSessionsFIFO(t *testing.T) {
 		Step("publish messages to topic1 on session 1", publishMessages(map[string]string{
 			"SessionId": session1,
 		}, sidecarName1, topic)).
-		Step("verify if app1 has recevied all messages published to the session", assertMessages(20*time.Second)).
+		Step("publish messages to topic1 on session 2", publishMessages(map[string]string{
+			"SessionId": session2,
+		}, sidecarName1, topic)).
+		Step("publish messages to topic1 on session 3", publishMessages(map[string]string{
+			"SessionId": session3,
+		}, sidecarName1, topic)).
+		Step("verify if app1 has recevied all messages published to the sessions", assertMessages(60*time.Second)).
 		Run()
 }
 

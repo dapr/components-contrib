@@ -1256,12 +1256,11 @@ func TestServicebusWithConcurrentSessionsFIFO(t *testing.T) {
 
 	var count atomic.Uint32
 	done := make(chan struct{})
+	mu := sync.Mutex{}
+	sequences := make(map[string]int64) // store the highest sequence number for each session id
 
 	// subscriber of the given topic
 	subscriberApplicationWithSessions := func(appID string, topicName string) app.SetupFn {
-		mu := sync.Mutex{}
-		sequences := make(map[string]int64) // store the highest sequence number for each session id
-
 		return func(ctx flow.Context, s common.Service) error {
 			// Setup the /orders event handler.
 			return multierr.Combine(
@@ -1385,6 +1384,9 @@ func TestServicebusWithConcurrentSessionsFIFO(t *testing.T) {
 		return func(ctx flow.Context) error {
 			select {
 			case <-done:
+				// sleep 10 seconds after all messages have been handled to
+				// allow for message processing completion.
+				time.Sleep(10 * time.Second)
 				return nil
 			case <-time.After(timeout):
 				t.Fatalf("timed out waiting for messages")
@@ -1398,6 +1400,10 @@ func TestServicebusWithConcurrentSessionsFIFO(t *testing.T) {
 
 		// Run subscriberApplicationWithSessions app1
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
+			subscriberApplicationWithSessions(appID1, topic))).
+
+		// Run a second subscriber to simulate multiple replicas
+		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort+1),
 			subscriberApplicationWithSessions(appID1, topic))).
 
 		// Run the Dapr sidecar with the eventhubs component 1, with permission at namespace level
